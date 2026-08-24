@@ -11,7 +11,8 @@ contra la API real, con su sistema de diseño catalogado, aunque todavía no mue
 
 - [`contrato-api.md`](../contrato-api.md) congelado, con el JSON exacto de los seis recursos.
 - `mock/` sirviendo esas respuestas.
-- `wiwo-board/modules/api/README.md` como espejo del contrato.
+- `wiwo-board/modules/api/README.md` **apuntando** a `docs/contrato-api.md`, no repitiéndolo: dos
+  copias de un contrato divergen, y cuando divergen nadie sabe cuál manda.
 
 ### Carril A — API en Perfex
 

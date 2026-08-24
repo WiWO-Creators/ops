@@ -1,0 +1,11 @@
+{
+  "name": "ops-v2",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "mock": "node mock/servidor.js",
+    "test": "node --test mock/*.test.js"
+  }
+}
