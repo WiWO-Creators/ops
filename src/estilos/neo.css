@@ -58,12 +58,18 @@
   /* --- Texto ------------------------------------------------------------ */
   --texto: light-dark(var(--wiwo-ink), #ececef);
   --texto-tenue: light-dark(color-mix(in srgb, var(--wiwo-ink) 68%, var(--wiwo-surface-0)), #a8a8b3);
-  --texto-sutil: light-dark(color-mix(in srgb, var(--wiwo-ink) 48%, var(--wiwo-surface-0)), #7a7a85);
+  /* 48% daba 2.67:1. Es el token de las etiquetas de formulario y los textos de ayuda: texto real que
+   * alguien tiene que leer, no decoracion, asi que cumple AA como cualquier otro. */
+  --texto-sutil: light-dark(color-mix(in srgb, var(--wiwo-ink) 68%, var(--wiwo-surface-0)), #8f8f9b);
   --texto-inverso: light-dark(var(--wiwo-surface-0), var(--wiwo-ink));
 
   /* --- Acento ----------------------------------------------------------- */
-  /* En oscuro el azul de marca se aclara: `#4242FF` sobre `#17171A` es demasiado denso para texto. */
-  --acento: light-dark(var(--wiwo-blue), var(--wiwo-blue-300));
+  /* En oscuro el azul de marca se aclara: `#4242FF` sobre `#17171A` da 2.39:1, ilegible.
+   *
+   * No alcanza con `--wiwo-blue-300` (#6E6EFF): contra la superficie de pagina da 4.55:1, pero contra
+   * una tarjeta —que es mas clara— cae a 4.17:1 y reprueba. El acento tiene que cumplir sobre la
+   * superficie MAS CLARA en la que aparece, no sobre la mas oscura. */
+  --acento: light-dark(var(--wiwo-blue), var(--wiwo-blue-200));
   --acento-fuerte: light-dark(var(--wiwo-blue-700), var(--wiwo-blue));
   --acento-suave: light-dark(
     color-mix(in srgb, var(--wiwo-blue) 10%, var(--wiwo-surface-0)),
@@ -72,10 +78,15 @@
   --acento-contenido: light-dark(var(--wiwo-surface-0), var(--wiwo-ink));
 
   --acento-2: light-dark(var(--wiwo-purple), var(--wiwo-purple-300));
-  /* Sobre claro, el purpura de marca queda en 4.48:1 — por debajo del AA de texto normal. Como texto
-   * se oscurece con tinta; sobre oscuro se usa la variante clara tal cual. */
+  /* El purpura de marca no alcanza como texto en ninguno de los dos temas, por motivos distintos:
+   * sobre la superficie clara da 3.01:1 y sobre la tinta 4.48:1. Sobre oscuro lo resuelve la variante
+   * clara; sobre claro hay que oscurecerlo con tinta.
+   *
+   * La mezcla es 65% y no 78%: al 78% el resultado da 4.09:1 y SIGUE reprobando AA. Ese valor estuvo
+   * mal y documentado como correcto — `pruebas/marca.test.js` ahora calcula el contraste en vez de
+   * confiar en el comentario. */
   --texto-acento-2: light-dark(
-    color-mix(in srgb, var(--wiwo-purple) 78%, var(--wiwo-ink)),
+    color-mix(in srgb, var(--wiwo-purple) 65%, var(--wiwo-ink)),
     var(--wiwo-purple-300)
   );
 
@@ -93,7 +104,9 @@
 
   --relleno-aviso: var(--wiwo-warning);
   --relleno-aviso-contenido: var(--wiwo-ink);
-  --texto-aviso: light-dark(color-mix(in srgb, var(--wiwo-warning) 82%, var(--wiwo-ink)), #f0b850);
+  /* 82% daba 3.45:1. El ambar es el color mas dificil de usar como texto: su luminancia es alta y
+   * hay que oscurecerlo bastante para despegarlo del fondo claro. */
+  --texto-aviso: light-dark(color-mix(in srgb, var(--wiwo-warning) 58%, var(--wiwo-ink)), #f0b850);
   --superficie-aviso: light-dark(
     color-mix(in srgb, var(--wiwo-warning) 14%, var(--wiwo-surface-0)),
     color-mix(in srgb, var(--wiwo-warning) 16%, #1f1f23)
@@ -120,6 +133,9 @@
     color-mix(in srgb, var(--wiwo-blue-300) 16%, transparent)
   );
   --foco: light-dark(var(--wiwo-blue), var(--wiwo-blue-300));
+  /* El halo exterior del anillo de foco. En oscuro Neo cambia el foco a VERDE, no por gusto: el azul
+   * sobre fondo oscuro no se despega lo suficiente. */
+  --foco-halo: light-dark(rgb(66 66 255 / 0.16), rgb(59 255 0 / 0.18));
 
   /* --- Sombras ---------------------------------------------------------- */
   /* Ninguna usa `backdrop-filter`: colgaba el panel en pantallas Retina. La profundidad sale de la

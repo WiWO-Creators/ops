@@ -5,6 +5,22 @@ import { Avatar, GrupoAvatares } from '@/componentes/presentadores/Avatar'
 import { Etiquetas } from '@/componentes/presentadores/Etiqueta'
 import { Fecha } from '@/componentes/presentadores/Fecha'
 import { Insignia } from '@/componentes/presentadores/Insignia'
+import { CargandoConOrbe, Orbe, SuperposicionOrbe } from '@/componentes/estado/Orbe'
+import { Campo } from '@/componentes/formularios/Campo'
+import { AreaTexto, Entrada } from '@/componentes/formularios/Entrada'
+import {
+  ContenidoSelector, DisparadorSelector, Opcion, Selector
+} from '@/componentes/formularios/Selector'
+import {
+  CerrarDialogo, ContenidoDialogo, Dialogo, DisparadorDialogo
+} from '@/componentes/superposiciones/Dialogo'
+import { Cajon, ContenidoCajon, DisparadorCajon } from '@/componentes/superposiciones/Cajon'
+import {
+  ContenidoMenu, DisparadorMenu, ItemMenu, MenuContextual, SeparadorMenu
+} from '@/componentes/superposiciones/MenuContextual'
+import {
+  CeldaEncabezado, CeldaTabla, CuerpoTabla, EncabezadoTabla, FilaTabla, Tabla
+} from '@/componentes/datos/Tabla'
 import { nombrar } from '@/dominio/glosario'
 
 /** Estados de Proceso tal como los devuelve `lookups`, ordenados por `order` y no por `id`. */
@@ -155,6 +171,169 @@ export default function TallerPage () {
         </Muestra>
         <Muestra etiqueta="sin permiso" className="w-full">
           <SinPermiso className="w-full" />
+        </Muestra>
+      </SeccionTaller>
+
+      <SeccionTaller
+        titulo="Orbe"
+        nota="La mascota de la marca y el indicador de carga. En reposo se pinta QUIETO a propósito: la regla de rendimiento prohíbe animaciones infinitas en elementos siempre visibles, y una mascota permanente en la barra superior es exactamente eso. Moverse sólo cuando algo pasa además comunica mejor."
+      >
+        <Muestra etiqueta="en reposo">
+          <Orbe tamano="chico" />
+          <Orbe tamano="medio" />
+          <Orbe tamano="grande" />
+        </Muestra>
+        <Muestra etiqueta="animado">
+          <Orbe tamano="chico" animado />
+          <Orbe tamano="medio" animado />
+          <Orbe tamano="grande" animado />
+        </Muestra>
+        <Muestra etiqueta="carga en línea">
+          <CargandoConOrbe mensaje="Guardando…" retardoMs={0} />
+        </Muestra>
+        <Muestra etiqueta="dentro de un botón">
+          <Boton variante="primario">
+            <Orbe tamano="chico" animado />
+            Pensando
+          </Boton>
+        </Muestra>
+        <Muestra etiqueta="superpuesto y acotado" className="w-full">
+          <div className="border-linea rounded-tarjeta relative h-40 w-full overflow-hidden border">
+            <p className="text-texto-sutil p-4 text-sm">
+              La superposición se acota a este panel, no a la pantalla: la operación afecta a esto y no a todo.
+            </p>
+            <SuperposicionOrbe acotada mensaje="Pensando…" submensaje="La IA está mejorando tu texto" />
+          </div>
+        </Muestra>
+      </SeccionTaller>
+
+      <SeccionTaller
+        titulo="Formularios"
+        nota="Los controles son de radio chico y los botones son píldora: ese contraste es una decisión de Neo, y es lo que separa visualmente “acción” de “dato”."
+      >
+        <Muestra etiqueta="campo con ayuda" className="w-full max-w-sm">
+          <Campo etiqueta="Nombre" ayuda="Como aparecerá en la lista." requerido className="w-full">
+            {(props) => <Entrada placeholder="Revisar el contrato" {...props} />}
+          </Campo>
+        </Muestra>
+        <Muestra etiqueta="campo con error" className="w-full max-w-sm">
+          <Campo etiqueta="Correo" error="Ese correo ya está en uso." className="w-full">
+            {(props) => <Entrada defaultValue="ana@wiwo.me" {...props} />}
+          </Campo>
+        </Muestra>
+        <Muestra etiqueta="área de texto" className="w-full max-w-sm">
+          <Campo etiqueta="Descripción" className="w-full">
+            {(props) => <AreaTexto placeholder="Crece con lo que escribas" {...props} />}
+          </Campo>
+        </Muestra>
+        <Muestra etiqueta="selector" className="w-full max-w-sm">
+          <Campo etiqueta="Prioridad" className="w-full">
+            {(props) => (
+              <Selector>
+                <DisparadorSelector marcador="Elegí una" id={props.id} />
+                <ContenidoSelector>
+                  <Opcion value="1">Baja</Opcion>
+                  <Opcion value="2">Media</Opcion>
+                  <Opcion value="3">Alta</Opcion>
+                  <Opcion value="4">Urgente</Opcion>
+                </ContenidoSelector>
+              </Selector>
+            )}
+          </Campo>
+        </Muestra>
+        <Muestra etiqueta="deshabilitado" className="w-full max-w-sm">
+          <Entrada disabled defaultValue="No se puede editar" />
+        </Muestra>
+      </SeccionTaller>
+
+      <SeccionTaller
+        titulo="Superposiciones"
+        nota="Sobre Radix: el manejo de foco, el cierre con Escape y el aria son exactamente el trabajo que no conviene reimplementar. Ninguna usa backdrop-filter, salvo la del orbe, que es transitoria."
+      >
+        <Muestra etiqueta="diálogo">
+          <Dialogo>
+            <DisparadorDialogo asChild>
+              <Boton variante="primario">Abrir diálogo</Boton>
+            </DisparadorDialogo>
+            <ContenidoDialogo
+              titulo={`Crear ${nombrar('proceso').toLowerCase()}`}
+              descripcion="Sólo lo obligatorio; el resto se completa en el detalle."
+            >
+              <div className="flex flex-col gap-4">
+                <Campo etiqueta="Nombre" requerido>
+                  {(props) => <Entrada placeholder="Revisar el contrato" {...props} />}
+                </Campo>
+                <div className="flex justify-end gap-2">
+                  <CerrarDialogo asChild>
+                    <Boton variante="sutil">Cancelar</Boton>
+                  </CerrarDialogo>
+                  <CerrarDialogo asChild>
+                    <Boton variante="primario">Crear</Boton>
+                  </CerrarDialogo>
+                </div>
+              </div>
+            </ContenidoDialogo>
+          </Dialogo>
+        </Muestra>
+        <Muestra etiqueta="cajón (lateral en escritorio, hoja en móvil)">
+          <Cajon>
+            <DisparadorCajon asChild>
+              <Boton>Abrir cajón</Boton>
+            </DisparadorCajon>
+            <ContenidoCajon titulo="Detalle" descripcion="Se edita bloque a bloque, sin un envío de 200 campos.">
+              <p className="text-texto-tenue text-sm">
+                En pantallas angostas entra desde abajo: un panel de 448 px en un teléfono de 390 px no es
+                un panel lateral.
+              </p>
+            </ContenidoCajon>
+          </Cajon>
+        </Muestra>
+        <Muestra etiqueta="menú de acciones">
+          <MenuContextual>
+            <DisparadorMenu asChild>
+              <Boton variante="secundario">Acciones</Boton>
+            </DisparadorMenu>
+            <ContenidoMenu>
+              <ItemMenu>Marcar completado</ItemMenu>
+              <ItemMenu>Duplicar</ItemMenu>
+              <SeparadorMenu />
+              <ItemMenu peligroso>Eliminar</ItemMenu>
+            </ContenidoMenu>
+          </MenuContextual>
+        </Muestra>
+      </SeccionTaller>
+
+      <SeccionTaller
+        titulo="Tabla"
+        nota="Encabezado sin mayúsculas forzadas —Neo se las quita explícitamente a Bootstrap— y cifras de ancho fijo: sin eso una columna de importes baila al actualizarse, porque el 1 es más angosto que el 8."
+      >
+        <Muestra etiqueta="con columna numérica" className="w-full">
+          <Tabla>
+            <EncabezadoTabla>
+              <tr>
+                <CeldaEncabezado>{nombrar('proceso')}</CeldaEncabezado>
+                <CeldaEncabezado>Estado</CeldaEncabezado>
+                <CeldaEncabezado>Vence</CeldaEncabezado>
+                <CeldaEncabezado numerica>Horas</CeldaEncabezado>
+              </tr>
+            </EncabezadoTabla>
+            <CuerpoTabla>
+              {[
+                { id: 1, nombre: 'Revisar el contrato', estado: ESTADOS[1], vence: '2026-09-03', horas: '1.111,00' },
+                { id: 2, nombre: 'Migrar los adjuntos', estado: ESTADOS[0], vence: '2020-01-15', horas: '88,50' },
+                { id: 3, nombre: 'Publicar la guía', estado: ESTADOS[4], vence: null, horas: '8,00' }
+              ].map((fila) => (
+                <FilaTabla key={fila.id} interactiva>
+                  <CeldaTabla>{fila.nombre}</CeldaTabla>
+                  <CeldaTabla>
+                    <Insignia color={fila.estado?.color}>{fila.estado?.name}</Insignia>
+                  </CeldaTabla>
+                  <CeldaTabla><Fecha valor={fila.vence} comoVencimiento /></CeldaTabla>
+                  <CeldaTabla numerica>{fila.horas}</CeldaTabla>
+                </FilaTabla>
+              ))}
+            </CuerpoTabla>
+          </Tabla>
         </Muestra>
       </SeccionTaller>
 
