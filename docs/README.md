@@ -49,7 +49,7 @@ el rollback sea decirle a la gente que vuelva al otro dominio, sin migrar nada.
 
 | Fase | Alcance | Estado |
 |---|---|---|
-| [F0](fases/F0-cimientos-PNDNG.md) | Contrato, API base, proyecto Next, sistema de diseño | PNDNG |
+| [F0](fases/F0-cimientos-PNDNG.md) | Contrato, API base, proyecto Next, sistema de diseño | En curso — la API está terminada |
 | [F1](fases/F1-procesos-y-espacios-PNDNG.md) | Procesos y Espacios — el trabajo diario | PNDNG |
 | [F2](fases/F2-crm-PNDNG.md) | Prospectos, Clientes, escritura en la API | PNDNG |
 | [F3](fases/F3-ventas-PNDNG.md) | Facturas, presupuestos, propuestas, pagos, gastos | PNDNG |

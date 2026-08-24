@@ -227,14 +227,21 @@ function exigirPermiso (staff, recurso, accion) {
  * @param {() => Promise<object>} cuerpo
  * @returns {Promise<{estado: number, cuerpo: object|null}>}
  */
-async function resolverRuta (metodo, segmentos, parametros, token, cuerpo) {
+async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, peticion) {
   const [recurso, ...resto] = segmentos
 
   // --- Publicas -----------------------------------------------------------
   if (recurso === 'health') {
     return {
       estado: 200,
-      cuerpo: conDatos({ ok: true, version: 'mock-1.0.0', auth_header_visible: true })
+      cuerpo: conDatos({
+        ok: true,
+        version: 'mock-1.0.0',
+        // Igual que la API real: dice cual de las dos cabeceras llego de verdad. Contra el servidor
+        // es lo primero a mirar tras desplegar.
+        auth_header_visible: peticion.headers.authorization !== undefined,
+        api_key_visible: peticion.headers['x-api-key'] !== undefined
+      })
     }
   }
 
@@ -528,9 +535,13 @@ export const servidor = createServer((peticion, respuesta) => {
     return
   }
 
-  const token = (peticion.headers.authorization ?? '').replace(/^Bearer\s+/i, '') || null
+  // Se aceptan las dos cabeceras, igual que la API real: detras de cPanel PHP corre como CGI y
+  // Apache no propaga `Authorization` por defecto.
+  const token = (peticion.headers.authorization ?? '').replace(/^Bearer\s+/i, '')
+    || peticion.headers['x-api-key']
+    || null
 
-  resolverRuta(peticion.method, partes.slice(2), url.searchParams, token, () => leerCuerpo(peticion))
+  resolverRuta(peticion.method, partes.slice(2), url.searchParams, token, () => leerCuerpo(peticion), peticion)
     .then(({ estado, cuerpo }) => responder(respuesta, estado, cuerpo))
     .catch((error) => {
       if (error instanceof ErrorApi) {

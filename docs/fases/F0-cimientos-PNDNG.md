@@ -116,5 +116,53 @@ Ejecutados, no razonados.
 
 ## Lo que se aprendió
 
-_(Se completa al cerrar la fase. Lo que el plan decía mal, lo que resultó distinto, la deuda que se
-tomó a sabiendas.)_
+_(Se completa al cerrar la fase. Esta sección ya recoge lo del carril A, que está terminado.)_
+
+### El aislamiento se puede medir, y da más de lo esperado
+
+`pre_controller_constructor` **no es un hook nativo de CodeIgniter**: se dispara únicamente desde
+`App_Controller.php:18`. Al extender `CI_Controller` en vez de `App_Controller`, la API se saltea
+`_app_init()` entero — el `SELECT * FROM tblmodules`, el `require_once` del archivo init de **cada
+módulo activo**, `autologin()` leyendo cookies y varias escrituras de sesión.
+
+Eso importa más de lo que parece: el panel local se cayó entero porque a `modules/backup` le faltaba
+su `vendor/`. Un módulo activo roto tumba el panel; la API no entra a ese ciclo.
+
+Medido: **40 peticiones autenticadas de API dejan 0 filas en `tblsessions`; 10 del panel dejan 10.**
+
+### Verificar contra el código real, no contra la propia consulta
+
+Las tres herramientas CLI (`verificacion permisos|visibilidad|escrituras`) no comparan textos de SQL
+—eso probaría que dos cadenas son iguales— sino **resultados**: pueblan la sesión, llaman a la función
+real de Perfex y cotejan conjuntos de ids y filas.
+
+| Comparación | Resultado |
+|---|---|
+| `puede()` vs `staff_can()`, 179 staff × 72 pares | 12.888 comparaciones, 0 diferencias |
+| Visibilidad vs el `WHERE` original | 66.013 filas cotejadas, 0 diferencias |
+| Escrituras, misma tarea por los dos caminos con rollback | 6 comparaciones, 0 diferencias |
+
+Ese acople con la sesión existe **sólo** en las herramientas, que son CLI y no alcanzables por HTTP.
+
+### Lo que el plan decía mal
+
+1. **`log_activity()` no era aislado.** Termina en `staff_helper.php:305`, que usa `app_object_cache`
+   —una librería que carga `_app_init()`— y falla con "Call to a member function get() on null". Se
+   reemplazó por un `INSERT` propio.
+2. **La visibilidad por fila no era un riesgo teórico**: 163 de 179 staff la tienen restringida. Uno
+   sin `tasks/view` ve 262 de 2.580 procesos. Sin ese filtro, la API le habría mostrado los 2.580.
+3. **Devolver 403 donde el panel filtra es tan malo como exponer de más.** Son tres reglas distintas:
+   Procesos y Espacios nunca deniegan el listado; Clientes deniega sólo si no hay `view` ni clientes
+   asignados ni `create`; Staff deniega directo.
+4. **`dev` no es un entorno de pruebas.** Sólo `main` tiene workflow de despliegue, y `dev` quedó 8
+   commits atrás. No hay staging: se prueba en local o se prueba en producción.
+5. **Mover una tarjeta son dos operaciones**, y el reordenamiento toca la columna entera.
+
+### Deuda tomada a sabiendas
+
+- **La API no notifica a nadie.** Ni campana, ni tiempo real, ni correo, ni a los contactos del
+  cliente. El panel no muestra ninguna señal de que faltó. La campana serían ~150 líneas y 11
+  criterios; el correo, entre 450 y 700.
+- Una fila de `tblsessions` por petición es inevitable sin editar la configuración del panel; se
+  destruye después, con guarda por ausencia de cookie.
+- 10 clases de pasarelas de pago se instancian en cada petición, por el autoload. Piso duro.

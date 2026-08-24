@@ -81,7 +81,20 @@ a un aviso.
 Token opaco emitido y guardado en `tbl_api_tokens`. **No es JWT**: sin estado no se puede revocar, y
 la revocación importa más que ahorrarse una consulta.
 
-Todas las peticiones autenticadas llevan `Authorization: Bearer <access_token>`.
+Todas las peticiones autenticadas llevan el token en **cualquiera de estas dos cabeceras**:
+
+```
+Authorization: Bearer <access_token>
+X-Api-Key: <access_token>
+```
+
+Se aceptan las dos por una razón concreta, verificada en el código: detrás de cPanel, PHP corre como
+CGI/FastCGI, y **Apache no propaga `Authorization` por defecto** — es una medida anti-filtración de
+credenciales. Ya hay rastro de esa pelea en el repositorio: `form_sync` lee sus cabeceras probando
+varias combinaciones de mayúsculas.
+
+Aceptar ambas cuesta tres líneas y evita descubrir el problema en producción. `GET /health` informa
+cuál llegó.
 
 ### `POST /auth/login`
 
@@ -109,6 +122,14 @@ Todas las peticiones autenticadas llevan `Authorization: Bearer <access_token>`.
 
 Credenciales inválidas → `401` **genérico**. Nunca distinguir "el email no existe" de "la contraseña
 está mal". Staff inactivo → `403` con código `forbidden`.
+
+**`429 rate_limited`** tras demasiados intentos fallidos: 8 por email o 20 por IP en 15 minutos. Sólo
+cuentan los `401` — una cuenta desactivada no es un intento de adivinar la clave, y contarla dejaría
+a esa persona frenando a las demás. Un acceso correcto limpia el contador.
+
+El panel **no tiene** ningún freno de intentos: el hook `failed_login_attempt` no tiene un solo
+listener. Es la única pieza que la API implementa de más, y va porque `/auth/login` es un límite de
+confianza — una puerta nueva con la misma llave.
 
 > Internamente llama a `Authentication_model->login()` tal cual, para conservar los hooks
 > (`failed_login_attempt`, `before_staff_login`), el registro de actividad y el control de intentos.
@@ -153,10 +174,21 @@ revoca sin desplegar.
 
 ### `GET /health`
 
-Sin autenticación. `{ "data": { "ok": true, "version": "1.0.0", "auth_header_visible": true } }`.
+Sin autenticación.
 
-`auth_header_visible` existe por un motivo concreto: algunos Apache/FastCGI no propagan el header
-`Authorization`. Detectarlo el día uno vale una tarde.
+```json
+{ "data": {
+  "ok": true, "version": "1.0.0",
+  "auth_header_visible": true,
+  "api_key_visible": true,
+  "php": "8.2.33", "sapi": "apache2handler"
+} }
+```
+
+`auth_header_visible` y `api_key_visible` no son decorativos: dicen cuál de las dos cabeceras llegó
+realmente al servidor. **Es lo primero a mirar tras desplegar**, con `curl` contra el VPS: convierte
+el riesgo de CGI/FastCGI en un dato del día uno en vez de una sorpresa cuando el frontend no pueda
+autenticarse.
 
 ## Consultas
 
@@ -273,6 +305,11 @@ Filtros: `active`, `country_id`, `q` (empresa). Include: `contacts`, `custom_fie
 `start_date`, `deadline` y `project_created` son **fechas sin hora** (`date` en la base): se devuelven
 como `YYYY-MM-DD`, no como instante ISO. `date_finished` sí es `datetime` → ISO completo.
 
+**`progress` es calculado, no leído.** La columna `tblprojects.progress` está desactualizada en la
+mayoría de las filas: con `progress_from_tasks = 1` —que es el valor por defecto— el panel la ignora
+y cuenta las tareas. Y `status = 4` (Finalizado) fuerza 100 sin importar nada más. La API replica ese
+cálculo; servir la columna tal cual sería mentir.
+
 `counts` viene siempre: es lo que la lista necesita para no hacer una consulta por fila.
 
 Filtros: `status`, `clientid`, `member` (staff id), `date_from`/`date_to` sobre `start_date`, `q`.
@@ -311,6 +348,8 @@ Notas que evitan errores:
 - `start_date` y `due_date` son fechas sin hora; `date_added` y `date_finished` son instantes.
 - `timer_activo` es `null` si nadie está contando tiempo. Es lo que pinta el cronómetro en la barra
   superior sin una consulta aparte.
+- **Los tiempos vienen en ISO**, aunque la base los guarde como timestamps Unix en `varchar`:
+  `tbltaskstimers.start_time` y `end_time` no son `DATETIME`. La conversión la hace la API.
 - `counts` evita N+1 en las listas: sin él, cada fila de la tabla pide sus comentarios.
 
 Filtros: `status` (admite lista: `filter[status]=1,4`), `priority`, `project_id`, `milestone_id`,
@@ -326,16 +365,62 @@ es una opción.
 
 | Endpoint | Efecto |
 |---|---|
-| `POST /tasks/{id}/actions/mark-complete` | Cambia a `status: 5` y sella `datefinished` |
-| `POST /tasks/{id}/actions/reopen` | Vuelve al estado anterior |
+| `POST /tasks/{id}/actions/mark-complete` | `status: 5`, sella `datefinished` y **cierra los cronómetros abiertos** |
+| `POST /tasks/{id}/actions/reopen` | Limpia `datefinished`. Sin `status` en el cuerpo, usa la heurística del panel |
 | `POST /tasks/{id}/mover` | `{ "columna": 4, "posicion": 2 }` — arrastre del tablero |
-| `POST /tasks/{id}/timer` | Arranca el cronómetro para el staff del token |
-| `DELETE /tasks/{id}/timer` | Lo detiene. Cuerpo opcional: `{ "note": "…" }` |
+| `POST /tasks/{id}/timer` | Arranca el cronómetro. Cuerpo opcional: `{ "note": "…" }` |
+| `DELETE /tasks/{id}/timer` | Lo detiene |
 
-`mover` responde `409` si la columna no existe o la transición está prohibida.
+Las acciones existen en vez de un `PATCH` genérico porque **no son "cambiar un campo": arrastran
+cascadas**. Vale conocerlas, porque explican comportamientos que de otro modo parecen bugs:
 
-Las acciones existen en vez de un `PATCH` genérico porque no son "cambiar un campo": arrastran
-efectos (notificaciones, registro de actividad, sellos de tiempo) que viven en los modelos de Perfex.
+- **Completar cierra los cronómetros abiertos** de la tarea. **Reabrir no los reabre**: es una
+  asimetría del panel, replicada tal cual.
+- **Reabrir sin `status`** deja la tarea en "En progreso" si la fecha de inicio ya pasó, y en "Por
+  iniciar" si no.
+- **Cambiar el estado de una tarea que ya está completa** pasa por la rama de reapertura y limpia
+  `datefinished`. Puede dejarla en `status: 5` sin fecha de finalización: es lo que hace el panel.
+- **Mover son dos operaciones**: el cambio de estado con toda su cascada, y después el
+  reordenamiento — que toca la **columna entera** y empuja al fondo las tarjetas que el cliente no
+  cargó por paginación. Si el cliente tiene el orden completo, puede mandarlo en
+  `{ "columna_completa": [512, 513, …] }` y se aplica tal cual.
+- **Arrancar un cronómetro cierra los demás** de esa persona, en cualquier tarea, y puede pasar la
+  tarea a "En progreso". Un cronómetro activo por persona, global.
+
+Respuestas de error propias de las acciones:
+
+| Situación | Código |
+|---|---|
+| La columna del tablero no existe | `409 conflict` |
+| Arrancar un cronómetro sin ser **asignado** de la tarea | `403 forbidden` |
+| Arrancar sobre una tarea ya facturada (`billed = 1`) | `409 conflict` |
+| Detener un cronómetro que no es tuyo | `404 not_found` |
+
+### `PATCH /tasks/{id}` y `PATCH /projects/{id}`
+
+**Sólo se escriben las claves presentes.** Omitir un campo lo deja como está — el `PATCH` es
+realmente parcial. (En el panel no lo es: su formulario pone en `0` lo que no viene.)
+
+Campos editables de un Proceso: `name`, `description`, `start_date`, `due_date`, `priority`,
+`billable`, `milestone`.
+
+Campos editables de un Espacio: `name`, `description`, `start_date`, `deadline`, `estimated_hours`,
+`status`.
+
+**Cualquier otra clave devuelve `422`**, con `details` nombrándola — no se ignora en silencio, porque
+un campo que el cliente cree haber guardado y no se guardó es peor que un error:
+
+```json
+{ "error": { "code": "validation_failed", "message": "Hay campos que no se pueden escribir.",
+             "details": { "billed": ["no_editable"] } } }
+```
+
+Lo que queda fuera, y por qué: `billed` e `invoice_id` son dinero; el bloque de recurrencia lo maneja
+el cron; `is_public` puentea la visibilidad entera; `status` de un Proceso tiene su propia acción; y
+`progress` de un Espacio es derivado.
+
+`status` de un Espacio **sí** es editable, y arrastra `date_finished` — a `NOW()` al entrar en
+Finalizado, a `null` al salir — más una entrada en el feed de actividad del proyecto.
 
 ### `files`
 
@@ -352,6 +437,13 @@ efectos (notificaciones, registro de actividad, sellos de tiempo) que viven en l
 
 **Nunca se expone la ruta real de `uploads/`.** Hoy la única protección de esa carpeta es que la URL
 no se adivina; publicarla en JSON lo empeoraría.
+
+**Si `external` no es nulo**, el archivo vive en Drive, Dropbox o similar y **no hay archivo local**:
+`url` trae el enlace externo tal cual, no una ruta de descarga.
+
+> Dato sucio real de la base: `tblfiles.rel_type` tiene 14 filas con `'tasks'` en plural además de 208
+> con `'task'`. La API consulta ambos y normaliza a singular hacia afuera; filtrar sólo por el
+> singular pierde 14 adjuntos.
 
 `GET /files/{id}/download` autentica, valida el permiso sobre la entidad dueña y sirve el binario.
 
@@ -384,7 +476,20 @@ importa para renderizar el formulario en el orden correcto.
 `only_admin` ya lo respeta el backend según quién sea el dueño del token. El frontend no vuelve a
 decidirlo.
 
-`value` es el **valor crudo**, sin formatear. Formatea el frontend.
+**El tipo de `value` depende del `type`**, porque la base guarda dos transformaciones que hay que
+deshacer al leer:
+
+| `type` | `value` | Por qué |
+|---|---|---|
+| `multiselect`, `checkbox` | **array de strings** | Se guardan con `implode(', ')`, no como JSON |
+| `textarea` | string con **saltos de línea** | Se guarda pasado por `nl2br()`, o sea con `<br />` embebido |
+| el resto | string | Valor crudo, sin formatear |
+
+> Limitación irrecuperable por diseño: una opción de `multiselect` que contenga una coma no se puede
+> distinguir de dos opciones. Es así en la base, no en la API.
+
+**El `fieldto` es plural** (`tasks`, `projects`, `customers`), al revés que el `rel_type` de etiquetas
+y archivos, que es singular. Son dos convenciones conviviendo en el mismo esquema.
 
 ## Tags
 
@@ -419,6 +524,17 @@ No se aplica ningún diff en vivo: invalidar es diez veces menos código y no se
 | Sin permiso | `403 forbidden` | Muestra `SinPermiso` en el lugar del contenido |
 | Validación | `422 validation_failed` | `details` va campo a campo a react-hook-form |
 | Conflicto al mover | `409 conflict` | Revierte el movimiento optimista y avisa |
+
+## Lo que la API no hace
+
+**No notifica a nadie.** Al completar una tarea desde `ops-v2`, ni los asignados, ni los seguidores,
+ni el creador, ni quienes comentaron reciben nada: ni campana, ni tiempo real, ni correo. Los
+contactos del cliente tampoco. El panel no muestra ninguna señal de que faltó.
+
+Es deuda consciente. Importa para el frontend por una razón práctica: **si una acción necesita que
+alguien se entere, la interfaz no puede darlo por hecho**.
+
+Tampoco toca asignados ni seguidores: en el panel también van por caminos propios, que sí notifican.
 
 ## Mock
 

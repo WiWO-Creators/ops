@@ -319,6 +319,15 @@ export const VALORES_CAMPOS = Object.fromEntries(
         name: 'Área',
         type: 'select',
         value: ciclo(['Diseño', 'Desarrollo', 'Contenido'], i)
+      },
+      {
+        id: 7,
+        slug: 'tasks_cf_canales',
+        name: 'Canales',
+        type: 'multiselect',
+        // ARRAY, no string separado por comas: la base lo guarda con `implode(', ')` y la API
+        // deshace esa transformacion. Si la interfaz asume string, se rompe justo acá.
+        value: i % 3 === 0 ? ['PR', 'TechLab'] : ['CX']
       }
     ]
   ])
