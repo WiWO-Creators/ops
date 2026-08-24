@@ -1,0 +1,137 @@
+@import 'tailwindcss';
+
+@import '../estilos/tokens.css';
+@import '../estilos/fonts.css';
+@import '../estilos/neo.css';
+
+/*
+ * `@theme inline` en vez de `@theme`: los semanticos de `neo.css` son referencias `var()` que cambian
+ * con el tema. Con `@theme` a secas, Tailwind congelaria el valor resuelto en tiempo de compilacion y
+ * el tema oscuro dejaria de funcionar.
+ */
+@theme inline {
+  --color-superficie: var(--superficie);
+  --color-superficie-elevada: var(--superficie-elevada);
+  --color-superficie-hundida: var(--superficie-hundida);
+  --color-superficie-flotante: var(--superficie-flotante);
+  --color-superficie-inversa: var(--superficie-inversa);
+
+  --color-linea: var(--linea);
+  --color-linea-suave: var(--linea-suave);
+  --color-linea-fuerte: var(--linea-fuerte);
+
+  --color-texto: var(--texto);
+  --color-texto-tenue: var(--texto-tenue);
+  --color-texto-sutil: var(--texto-sutil);
+  --color-texto-inverso: var(--texto-inverso);
+
+  --color-acento: var(--acento);
+  --color-acento-fuerte: var(--acento-fuerte);
+  --color-acento-suave: var(--acento-suave);
+  --color-acento-contenido: var(--acento-contenido);
+  --color-acento-2: var(--acento-2);
+  --color-texto-acento-2: var(--texto-acento-2);
+
+  --color-relleno-exito: var(--relleno-exito);
+  --color-relleno-exito-contenido: var(--relleno-exito-contenido);
+  --color-texto-exito: var(--texto-exito);
+  --color-superficie-exito: var(--superficie-exito);
+
+  --color-relleno-aviso: var(--relleno-aviso);
+  --color-relleno-aviso-contenido: var(--relleno-aviso-contenido);
+  --color-texto-aviso: var(--texto-aviso);
+  --color-superficie-aviso: var(--superficie-aviso);
+
+  --color-relleno-peligro: var(--relleno-peligro);
+  --color-relleno-peligro-contenido: var(--relleno-peligro-contenido);
+  --color-texto-peligro: var(--texto-peligro);
+  --color-superficie-peligro: var(--superficie-peligro);
+
+  --color-relleno-neutro: var(--relleno-neutro);
+  --color-relleno-neutro-contenido: var(--relleno-neutro-contenido);
+
+  --color-control: var(--control);
+  --color-control-borde: var(--control-borde);
+  --color-hover: var(--hover);
+  --color-presionado: var(--presionado);
+  --color-seleccionado: var(--seleccionado);
+  --color-foco: var(--foco);
+
+  /* Familias. Nunca Google Fonts: los .woff2 viven en public/fonts/neo/. */
+  --font-interfaz: 'Plus Jakarta Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-titular: 'Outfit', 'Plus Jakarta Sans', system-ui, sans-serif;
+  --font-mono: 'Tomorrow', ui-monospace, SFMono-Regular, Consolas, monospace;
+
+  /* Radios: tarjeta de 1rem, control en pildora. Sale de tokens.css. */
+  --radius-control: var(--control-BorderRadius);
+  --radius-chico: var(--small-BorderRadius);
+  --radius-medio: var(--medium-BorderRadius);
+  --radius-tarjeta: var(--large-BorderRadius);
+
+  --shadow-1: var(--sombra-1);
+  --shadow-2: var(--sombra-2);
+  --shadow-flotante: var(--sombra-flotante);
+
+  /* Los cinco cortes de `_breakpoints.scss`. CSS y JS comparten estos valores y
+   * `pruebas/breakpoints.test.js` falla si divergen. */
+  --breakpoint-xs: 480px;
+  --breakpoint-sm: 680px;
+  --breakpoint-md: 760px;
+  --breakpoint-lg: 1024px;
+  --breakpoint-xl: 1208px;
+
+  --ease-neo: var(--wiwo-ease-emphasized);
+  --ease-expresivo: var(--wiwo-ease-expressive);
+}
+
+@layer base {
+  html {
+    /* El zoom del navegador ya escala todo; forzar un tamaño de raiz distinto de 100% rompe la
+     * preferencia de quien agrando la letra del sistema. */
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    background-color: var(--superficie);
+    color: var(--texto);
+    font-family: var(--font-interfaz);
+    font-weight: var(--weight-body);
+    font-size: var(--step-0);
+    line-height: 1.5;
+    /* La aplicacion ocupa la ventana y el scroll vive dentro de cada panel, no en el body. */
+    overflow: hidden;
+  }
+
+  h1,
+  h2,
+  h3 {
+    font-family: var(--font-titular);
+    font-weight: var(--weight-display);
+    line-height: 1.15;
+  }
+
+  code,
+  kbd,
+  samp,
+  pre {
+    font-family: var(--font-mono);
+  }
+
+  /* Un solo anillo de foco para toda la aplicacion, visible en ambos temas. `:focus-visible` y no
+   * `:focus`: quien hace clic con el mouse no necesita ver el anillo, quien navega con teclado si. */
+  :focus-visible {
+    outline: 2px solid var(--foco);
+    outline-offset: 2px;
+    border-radius: var(--small-focus-BorderRadius);
+  }
+
+  ::selection {
+    background-color: var(--seleccionado);
+  }
+
+  /* Barras de scroll discretas, del color de la linea. En oscuro heredan el tema por `color-scheme`. */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--linea-fuerte) transparent;
+  }
+}
