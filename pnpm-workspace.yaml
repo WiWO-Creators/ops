@@ -1,0 +1,8 @@
+# pnpm 11 exige decidir explicitamente que dependencias pueden correr scripts de instalacion.
+# Ninguna de estas hace falta: Next no usa `sharp` para el optimizador en este proyecto y el resolver
+# de ESLint funciona con su implementacion en JavaScript.
+#
+# OJO: la clave es `allowBuilds`, no `onlyBuiltDependencies` — eso cambio en pnpm 11.
+allowBuilds:
+  sharp: false
+  unrs-resolver: false

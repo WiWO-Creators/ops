@@ -1,0 +1,72 @@
+/*
+ * Tokens tomados del sistema Neo de WiWO (`wiwo-board/assets/neo/wiwo.tokens.css`).
+ *
+ * `tokens.css` trae la marca portada del tema de Huly. Este archivo suma lo que Neo tiene y aquel no,
+ * que resulto ser justamente lo que faltaba: la escala tipografica y los pesos semanticos ya se
+ * usaban en `globals.css` SIN estar definidos, asi que los titulares no salian en peso 800 y el
+ * cuerpo ignoraba la escala fluida. Definirlos cierra ese bug.
+ *
+ * Se copian los valores literales, sin redondear ni "mejorar": son los que produce el panel hoy, y
+ * cualquier ajuste haria que las dos interfaces se vieran distinto sin que nadie lo decidiera.
+ *
+ * Lo que NO se trajo de Neo, y por que, esta documentado en docs/sistema-de-diseno.md.
+ */
+
+:root {
+  /* --- Un peldaño mas de la rampa azul ----------------------------------- */
+  /* `tokens.css` llega hasta `--wiwo-blue-300` (#6E6EFF), que sobre el fondo oscuro de pagina cumple
+   * (4.55:1) pero sobre una tarjeta —mas clara— cae a 4.17:1. Este es el valor que cumple sobre las
+   * dos: 6.23:1 y 5.72:1. */
+  --wiwo-blue-200: #8c8cff;
+
+  /* --- Escala tipografica fluida ---------------------------------------- */
+  /* `clamp()` interpola con el ancho de la ventana: un solo valor sirve de movil a escritorio, sin
+   * media queries por tamaño de fuente. */
+  --step--1: clamp(0.82rem, 0.79rem + 0.16vw, 0.92rem);
+  --step-0: clamp(0.96rem, 0.92rem + 0.24vw, 1.08rem);
+  --step-1: clamp(1.16rem, 1.04rem + 0.55vw, 1.42rem);
+  --step-2: clamp(1.42rem, 1.16rem + 1.12vw, 2.05rem);
+  --step-3: clamp(2.1rem, 1.54rem + 2.24vw, 3.5rem);
+  --step-4: clamp(3rem, 2.16rem + 3.6vw, 5.7rem);
+
+  /* --- Pesos semanticos -------------------------------------------------- */
+  /* Se nombran por rol y no por numero: asi un cambio de jerarquia es un valor y no una busqueda de
+   * "700" por todo el proyecto. */
+  --weight-body: 400;
+  --weight-meta: 500;
+  --weight-nav: 600;
+  --weight-action: 700;
+  --weight-display: 800;
+
+  /* --- Medida de linea --------------------------------------------------- */
+  /* En `ch`, o sea en anchos de caracter: una linea de 62ch se lee comoda en cualquier tamaño de
+   * fuente. Sin esto, un parrafo en una pantalla ancha llega a 200 caracteres y se pierde el renglon. */
+  --measure-display: 12ch;
+  --measure-lead: 36ch;
+  --measure-body: 62ch;
+  --ui-text-measure: min(68ch, 100%);
+
+  /* --- Iconos ------------------------------------------------------------ */
+  --icon-size-sm: 18px;
+  --icon-size-md: 20px;
+  --icon-size-lg: 24px;
+  --icon-stroke: 2;
+
+  --disabled-opacity: 0.48;
+
+  /* --- Paleta de graficos ------------------------------------------------ */
+  /* Ocho colores en orden de uso. En Neo estos tokens estan definidos pero MUERTOS: ningun grafico
+   * los consume, porque su `wiwo.charts.js` solo retematiza texto y rejilla. Acá se traen para
+   * cablearlos cuando exista el primer grafico.
+   *
+   * El purpura se corrige por tema: sobre oscuro, `#8D7CFF` cae a 4.48:1 contra la tinta. */
+  --grafico-1: var(--wiwo-blue);
+  --grafico-2: var(--wiwo-green);
+  --grafico-3: #a8c7fa;
+  --grafico-4: light-dark(var(--wiwo-purple), var(--wiwo-purple-300));
+  --grafico-5: #ffb84d;
+  --grafico-6: var(--wiwo-mint);
+  --grafico-7: #8b8b7a;
+  --grafico-8: var(--wiwo-danger);
+  --grafico-rejilla: light-dark(rgb(41 41 41 / 0.12), rgb(236 236 239 / 0.16));
+}

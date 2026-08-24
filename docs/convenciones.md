@@ -32,6 +32,11 @@ extensión `.ts`**, y el paquete activa `allowImportingTsExtensions` y
 `rewriteRelativeImportExtensions`. Tampoco acepta propiedades de parámetro en constructores
 (`constructor (private readonly x: T)`).
 
+**La lógica testeable vive en `.ts`, nunca dentro de un `.tsx`.** Node sabe despojar los tipos de un
+`.ts`, pero no el JSX de un `.tsx`: una función pura declarada dentro de un componente no se puede
+importar desde una prueba. Por eso `iniciales()` y `formatearFecha()` viven en `src/lib/` y los
+componentes sólo las consumen — que además es donde corresponden.
+
 **Toda lógica no trivial deja una prueba runnable que falla si la lógica se rompe.** No hace falta una
 suite por función. Las que sí van desde el día uno, porque se rompen en silencio:
 
@@ -70,6 +75,15 @@ Reglas de uso, que es donde Tailwind se ensucia:
    (`class-variance-authority`) dentro del componente del sistema, nunca en la página.
 3. El `@theme` mapea los **semánticos** de `src/estilos/neo.css` (`--superficie`, `--linea`,
    `--texto`, `--acento`), no los tokens crudos. Cambiar el tema es un archivo.
+
+## Instalación
+
+`pnpm install` a secas. Un detalle que cambió respecto de `devoperation`: **pnpm 11 usa `allowBuilds`
+en `pnpm-workspace.yaml`, no `onlyBuiltDependencies`**. La convención heredada quedó vieja; si aparece
+`ERR_PNPM_IGNORED_BUILDS`, la clave es la nueva.
+
+`AGENTS.md` y `CLAUDE.md` en la raíz los **genera `next dev`** y se versionan a propósito: borrarlos
+sólo los recrea como cambio sin commitear.
 
 ## Reglas que no se simplifican
 

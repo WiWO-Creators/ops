@@ -1,0 +1,167 @@
+/*
+ * Semanticos del sistema de diseño de ops-v2.
+ *
+ * Esta es la capa NUEVA: `tokens.css` trae la marca cruda (paleta, motion, espaciado) y acá se decide
+ * que rol cumple cada valor. El `@theme` de Tailwind mapea ESTOS nombres, no los tokens crudos, asi
+ * que cambiar el aspecto de toda la aplicacion es tocar un solo archivo.
+ *
+ * No se porto `colors.css` del tema de Huly: son 651 variables del sistema de componentes de Huly
+ * (`--primary-button-hovered` y companía), y acá no se construyen los componentes de Huly. Se
+ * verifico que `tokens.css` es autonomo — 75 definiciones, cero referencias — asi que descartarlo no
+ * arrastra nada.
+ *
+ * REGLA DE MARCA, no negociable: el verde `#3BFF00` NUNCA es color de texto sobre claro, porque es
+ * ilegible. Sobre oscuro si, que es donde aparece `--wiwo-lime`. `pruebas/marca.test.js` recorre este
+ * archivo y falla si algun `--texto-*` resuelve al verde de marca en su rama clara.
+ */
+
+/*
+ * Cada token se define UNA vez con `light-dark()`, en vez de repetir todo el bloque bajo
+ * `prefers-color-scheme` y otra vez bajo `[data-theme="dark"]`. Dos copias de la misma paleta
+ * divergen: alguien ajusta un gris en una y se olvida de la otra.
+ *
+ * `color-scheme` es lo que decide cual de las dos ramas gana:
+ *   - `light dark` (por defecto)  -> manda la preferencia del sistema
+ *   - `light` / `dark` explicito  -> manda la eleccion de la persona
+ */
+:root {
+  color-scheme: light dark;
+}
+
+:root[data-theme='light'] {
+  color-scheme: light;
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+}
+
+:root {
+  /* --- Superficies ------------------------------------------------------ */
+  /* El beige de marca NO es fondo de panel: tiñe la aplicacion entera. Queda como acento calido.
+   * La rampa oscura se deriva de la tinta y no de negros puros, para conservar la temperatura del
+   * tema claro y evitar el contraste duro que cansa en sesiones largas. */
+  --superficie: light-dark(var(--wiwo-surface-100), #17171a);
+  --superficie-elevada: light-dark(var(--wiwo-surface-0), #1f1f23);
+  --superficie-hundida: light-dark(var(--wiwo-surface-50), #121214);
+  --superficie-flotante: light-dark(var(--wiwo-surface-0), #26262b);
+  --superficie-inversa: light-dark(var(--wiwo-ink), var(--wiwo-surface-0));
+
+  /* --- Lineas ----------------------------------------------------------- */
+  --linea: light-dark(var(--wiwo-surface-300), #33333a);
+  --linea-suave: light-dark(
+    color-mix(in srgb, var(--wiwo-surface-300) 55%, transparent),
+    color-mix(in srgb, #33333a 60%, transparent)
+  );
+  --linea-fuerte: light-dark(color-mix(in srgb, var(--wiwo-ink) 22%, transparent), #45454f);
+
+  /* --- Texto ------------------------------------------------------------ */
+  --texto: light-dark(var(--wiwo-ink), #ececef);
+  --texto-tenue: light-dark(color-mix(in srgb, var(--wiwo-ink) 68%, var(--wiwo-surface-0)), #a8a8b3);
+  /* 48% daba 2.67:1. Es el token de las etiquetas de formulario y los textos de ayuda: texto real que
+   * alguien tiene que leer, no decoracion, asi que cumple AA como cualquier otro. */
+  --texto-sutil: light-dark(color-mix(in srgb, var(--wiwo-ink) 68%, var(--wiwo-surface-0)), #8f8f9b);
+  --texto-inverso: light-dark(var(--wiwo-surface-0), var(--wiwo-ink));
+
+  /* --- Acento ----------------------------------------------------------- */
+  /* En oscuro el azul de marca se aclara: `#4242FF` sobre `#17171A` da 2.39:1, ilegible.
+   *
+   * No alcanza con `--wiwo-blue-300` (#6E6EFF): contra la superficie de pagina da 4.55:1, pero contra
+   * una tarjeta —que es mas clara— cae a 4.17:1 y reprueba. El acento tiene que cumplir sobre la
+   * superficie MAS CLARA en la que aparece, no sobre la mas oscura. */
+  --acento: light-dark(var(--wiwo-blue), var(--wiwo-blue-200));
+  --acento-fuerte: light-dark(var(--wiwo-blue-700), var(--wiwo-blue));
+  --acento-suave: light-dark(
+    color-mix(in srgb, var(--wiwo-blue) 10%, var(--wiwo-surface-0)),
+    color-mix(in srgb, var(--wiwo-blue-300) 18%, #1f1f23)
+  );
+  --acento-contenido: light-dark(var(--wiwo-surface-0), var(--wiwo-ink));
+
+  --acento-2: light-dark(var(--wiwo-purple), var(--wiwo-purple-300));
+  /* El purpura de marca no alcanza como texto en ninguno de los dos temas, por motivos distintos:
+   * sobre la superficie clara da 3.01:1 y sobre la tinta 4.48:1. Sobre oscuro lo resuelve la variante
+   * clara; sobre claro hay que oscurecerlo con tinta.
+   *
+   * La mezcla es 65% y no 78%: al 78% el resultado da 4.09:1 y SIGUE reprobando AA. Ese valor estuvo
+   * mal y documentado como correcto — `pruebas/marca.test.js` ahora calcula el contraste en vez de
+   * confiar en el comentario. */
+  --texto-acento-2: light-dark(
+    color-mix(in srgb, var(--wiwo-purple) 65%, var(--wiwo-ink)),
+    var(--wiwo-purple-300)
+  );
+
+  /* --- Estados ---------------------------------------------------------- */
+  /* Los `--relleno-*` son fondos y los `--texto-*` son texto: valores distintos a proposito, porque
+   * un color que contrasta como fondo casi nunca contrasta como texto. El verde de marca es el caso
+   * extremo — excelente relleno, ilegible como texto sobre blanco. */
+  --relleno-exito: var(--wiwo-green);
+  --relleno-exito-contenido: var(--wiwo-ink);
+  --texto-exito: light-dark(var(--wiwo-ok), var(--wiwo-lime));
+  --superficie-exito: light-dark(
+    color-mix(in srgb, var(--wiwo-green) 16%, var(--wiwo-surface-0)),
+    color-mix(in srgb, var(--wiwo-green) 14%, #1f1f23)
+  );
+
+  --relleno-aviso: var(--wiwo-warning);
+  --relleno-aviso-contenido: var(--wiwo-ink);
+  /* 82% daba 3.45:1. El ambar es el color mas dificil de usar como texto: su luminancia es alta y
+   * hay que oscurecerlo bastante para despegarlo del fondo claro. */
+  --texto-aviso: light-dark(color-mix(in srgb, var(--wiwo-warning) 58%, var(--wiwo-ink)), #f0b850);
+  --superficie-aviso: light-dark(
+    color-mix(in srgb, var(--wiwo-warning) 14%, var(--wiwo-surface-0)),
+    color-mix(in srgb, var(--wiwo-warning) 16%, #1f1f23)
+  );
+
+  --relleno-peligro: var(--wiwo-danger);
+  --relleno-peligro-contenido: var(--wiwo-surface-0);
+  --texto-peligro: light-dark(var(--wiwo-error), #f2857c);
+  --superficie-peligro: light-dark(
+    color-mix(in srgb, var(--wiwo-danger) 12%, var(--wiwo-surface-0)),
+    color-mix(in srgb, var(--wiwo-danger) 18%, #1f1f23)
+  );
+
+  --relleno-neutro: light-dark(color-mix(in srgb, var(--wiwo-ink) 8%, var(--wiwo-surface-0)), #2c2c33);
+  --relleno-neutro-contenido: var(--texto-tenue);
+
+  /* --- Interaccion ------------------------------------------------------ */
+  --control: light-dark(var(--wiwo-surface-0), #1f1f23);
+  --control-borde: light-dark(var(--wiwo-surface-300), #3a3a43);
+  --hover: light-dark(color-mix(in srgb, var(--wiwo-ink) 5%, transparent), rgb(255 255 255 / 0.06));
+  --presionado: light-dark(color-mix(in srgb, var(--wiwo-ink) 10%, transparent), rgb(255 255 255 / 0.11));
+  --seleccionado: light-dark(
+    color-mix(in srgb, var(--wiwo-blue) 9%, transparent),
+    color-mix(in srgb, var(--wiwo-blue-300) 16%, transparent)
+  );
+  --foco: light-dark(var(--wiwo-blue), var(--wiwo-blue-300));
+  /* El halo exterior del anillo de foco. En oscuro Neo cambia el foco a VERDE, no por gusto: el azul
+   * sobre fondo oscuro no se despega lo suficiente. */
+  --foco-halo: light-dark(rgb(66 66 255 / 0.16), rgb(59 255 0 / 0.18));
+
+  /* --- Sombras ---------------------------------------------------------- */
+  /* Ninguna usa `backdrop-filter`: colgaba el panel en pantallas Retina. La profundidad sale de la
+   * sombra y del contraste entre superficies, nunca de desenfocar el fondo. */
+  --sombra-1: light-dark(
+    0 1px 2px rgb(41 41 41 / 0.06),
+    0 1px 2px rgb(0 0 0 / 0.4)
+  );
+  --sombra-2: light-dark(
+    0 4px 12px rgb(41 41 41 / 0.08),
+    0 4px 12px rgb(0 0 0 / 0.45)
+  );
+  --sombra-flotante: light-dark(
+    0 12px 32px rgb(41 41 41 / 0.14),
+    0 12px 32px rgb(0 0 0 / 0.55)
+  );
+}
+
+/* Quien pidio menos movimiento recibe menos movimiento, sin excepciones por componente. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
