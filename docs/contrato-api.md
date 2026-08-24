@@ -1,0 +1,417 @@
+# Contrato de la API v1
+
+Fuente de verdad compartida entre `wiwo-board/modules/api/` y `ops-v2`. **Se congela al cerrar F0.**
+Cambiarlo después se puede, pero se anuncia y se actualizan documento y mock en el mismo commit.
+
+Espejo de `wiwo-board/modules/api/README.md`. Si los dos divergen, manda este documento.
+
+Base: `https://board.wiwo.me/api/v1/`
+
+> Los nombres de campo salen del esquema real de Perfex, verificado contra el dump. No se inventan
+> ni se traducen al español: la traducción ocurre una sola vez, al presentar (ver
+> [glosario.md](glosario.md)).
+
+## Reglas generales
+
+- **JSON siempre.** Ni una respuesta con HTML, ni un `redirect`, ni un `echo` suelto. Si el panel
+  responde 302 a HTML sin sesión, la API responde **401 con cuerpo JSON**.
+- **Fechas ISO-8601 en UTC**, siempre (`2026-08-24T14:03:00Z`). Nunca formateadas según el locale del
+  staff: eso lo hace el frontend.
+- **Tipos casteados.** CodeIgniter devuelve todo como string; la API no. `id` es número, `active` y
+  `billable` son booleanos, `hourly_rate` es número.
+- **Nunca 200 con `success: false`.** El código HTTP es la respuesta.
+- Los campos `null` **se incluyen**. Un campo ausente significa "no pedido" (ver `fields`), no "vacío".
+
+## Envelope
+
+Éxito con colección:
+
+```json
+{
+  "data": [ { "id": 1, "…": "…" } ],
+  "meta": { "pagination": { "page": 1, "per_page": 25, "total": 143, "total_pages": 6 } }
+}
+```
+
+Éxito con recurso único:
+
+```json
+{ "data": { "id": 1, "…": "…" } }
+```
+
+Error:
+
+```json
+{
+  "error": {
+    "code": "validation_failed",
+    "message": "El nombre es obligatorio.",
+    "details": { "name": ["required"] }
+  }
+}
+```
+
+`details` sólo aparece en `422`. El frontend lo inyecta campo a campo en react-hook-form; el resto va
+a un aviso.
+
+### Códigos
+
+| Código | Cuándo |
+|---|---|
+| `200` | Lectura correcta, o escritura que devuelve el recurso |
+| `201` | Recurso creado. Incluye el recurso completo |
+| `204` | Borrado, o preflight `OPTIONS` |
+| `400` | Petición malformada (JSON inválido, parámetro con tipo imposible) |
+| `401` | Sin token, token inválido, expirado o revocado |
+| `403` | Autenticado pero sin permiso para esa acción |
+| `404` | No existe, o no es visible para este staff |
+| `409` | Conflicto (por ejemplo, mover una tarjeta a una columna imposible) |
+| `413` | Archivo más grande que `post_max_size` |
+| `422` | Validación fallida |
+| `500` | Error del servidor. El cuerpo nunca incluye el stack |
+
+### Códigos de error
+
+`unauthenticated` · `token_expired` · `token_revoked` · `forbidden` · `not_found` ·
+`validation_failed` · `conflict` · `payload_too_large` · `rate_limited` · `server_error`
+
+## Autenticación
+
+Token opaco emitido y guardado en `tbl_api_tokens`. **No es JWT**: sin estado no se puede revocar, y
+la revocación importa más que ahorrarse una consulta.
+
+Todas las peticiones autenticadas llevan `Authorization: Bearer <access_token>`.
+
+### `POST /auth/login`
+
+```json
+{ "email": "alguien@wiwo.me", "password": "…" }
+```
+
+`201` sin 2FA:
+
+```json
+{ "data": {
+  "access_token": "…", "expires_in": 3600,
+  "refresh_token": "…", "refresh_expires_in": 2592000,
+  "staff": { "…": "ver recurso staff" }
+} }
+```
+
+`200` con 2FA pendiente:
+
+```json
+{ "data": { "two_factor_required": true, "challenge_token": "…", "method": "email" } }
+```
+
+`method` es `email` o `app`. El `challenge_token` vive 5 minutos.
+
+Credenciales inválidas → `401` **genérico**. Nunca distinguir "el email no existe" de "la contraseña
+está mal". Staff inactivo → `403` con código `forbidden`.
+
+> Internamente llama a `Authentication_model->login()` tal cual, para conservar los hooks
+> (`failed_login_attempt`, `before_staff_login`), el registro de actividad y el control de intentos.
+
+### `POST /auth/2fa`
+
+```json
+{ "challenge_token": "…", "code": "123456" }
+```
+
+Devuelve lo mismo que un login exitoso. Código inválido o vencido → `401`.
+
+### `POST /auth/refresh`
+
+```json
+{ "refresh_token": "…" }
+```
+
+**Rotativo**: devuelve un par nuevo y revoca el anterior. Reusar un refresh ya revocado revoca
+**todas** las sesiones de ese staff — es la señal de que el token se filtró.
+
+### `POST /auth/logout`
+
+Revoca el token actual. `?all=1` revoca todas las sesiones del staff. → `204`.
+
+### `GET /me`
+
+```json
+{ "data": {
+  "id": 12, "email": "alguien@wiwo.me",
+  "firstname": "…", "lastname": "…", "full_name": "…",
+  "profile_image_url": "…", "is_admin": false, "role_id": 3,
+  "permissions": { "tasks": ["view","create","edit"], "projects": ["view_own"] },
+  "secciones_habilitadas": ["procesos","espacios"],
+  "locale": "es", "hourly_rate": 0
+} }
+```
+
+`permissions` es el mapa que el frontend usa para podar columnas y acciones antes de renderizar.
+`secciones_habilitadas` es la bandera por persona que decide qué partes de `ops-v2` están vivas: se
+revoca sin desplegar.
+
+### `GET /health`
+
+Sin autenticación. `{ "data": { "ok": true, "version": "1.0.0", "auth_header_visible": true } }`.
+
+`auth_header_visible` existe por un motivo concreto: algunos Apache/FastCGI no propagan el header
+`Authorization`. Detectarlo el día uno vale una tarde.
+
+## Consultas
+
+| Parámetro | Forma | Nota |
+|---|---|---|
+| Paginación | `?page=2&per_page=25` | `per_page` máximo 100 |
+| Orden | `?sort=-dateadded,name` | `-` es descendente. Whitelist por recurso |
+| Filtros | `?filter[status]=4&filter[project_id]=8` | Whitelist por recurso |
+| Rango de fechas | `?filter[date_from]=2026-01-01&filter[date_to]=2026-03-31` | |
+| Búsqueda | `?q=texto` | Campos definidos por recurso |
+| Campos | `?fields=id,name,status` | Se aplica **después** de serializar |
+| Relaciones | `?include=customer,custom_fields` | Opt-in, para evitar N+1 |
+
+**Whitelist, siempre.** Ninguna clave de `filter[]` ni de `sort` llega al Query Builder sin estar en
+la lista del recurso. Es la diferencia entre un filtro y una inyección.
+
+## Recursos de Fase 1
+
+### `staff`
+
+`GET /staff` · `GET /staff/{id}`
+
+```json
+{ "id": 12, "email": "…", "firstname": "…", "lastname": "…", "full_name": "…",
+  "profile_image_url": "…", "is_admin": false, "role_id": 3, "active": true,
+  "hourly_rate": 0, "last_login": "2026-08-24T09:12:00Z" }
+```
+
+Nunca se exponen: `password`, `new_pass_key`, `google_auth_secret`, `two_factor_auth_code`.
+
+Filtros: `active`, `role_id`, `q` (nombre y email). Orden: `firstname`, `lastname`, `last_login`.
+
+### `lookups`
+
+`GET /lookups` — un solo viaje con todos los catálogos que el frontend necesita antes de pintar nada.
+
+```json
+{ "data": {
+  "task_statuses": [
+    { "id": 1, "name": "No iniciado",       "color": "#64748b", "order": 1,   "filter_default": true },
+    { "id": 4, "name": "En progreso",       "color": "#3b82f6", "order": 2,   "filter_default": true },
+    { "id": 3, "name": "En pruebas",        "color": "#0284c7", "order": 3,   "filter_default": true },
+    { "id": 2, "name": "Esperando respuesta","color": "#84cc16","order": 4,   "filter_default": true },
+    { "id": 5, "name": "Completado",        "color": "#22c55e", "order": 100, "filter_default": false }
+  ],
+  "task_priorities": [
+    { "id": 1, "name": "Baja",    "color": "#777"    },
+    { "id": 2, "name": "Media",   "color": "#03a9f4" },
+    { "id": 3, "name": "Alta",    "color": "#ff6f00" },
+    { "id": 4, "name": "Urgente", "color": "#fc2d42" }
+  ],
+  "project_statuses": [ "…" ],
+  "tags": [ { "id": 3, "name": "urgente" } ],
+  "roles": [ { "id": 3, "name": "…" } ],
+  "departments": [ { "id": 1, "name": "…" } ]
+} }
+```
+
+> **Trampa real**: los `id` de estado de tarea **no siguen el orden de visualización**. `4` (En
+> progreso) va segundo y `2` (Esperando respuesta) va cuarto, mientras que `5` (Completado) tiene
+> `order: 100`. El frontend **siempre** ordena por `order`, nunca por `id`. Las columnas del tablero
+> salen de este array, no de una constante en el código.
+>
+> Los estados y prioridades pasan por los filtros `before_get_task_statuses` y `tasks_priorities`, así
+> que un módulo puede agregar los suyos. Por eso son un endpoint y no una constante duplicada.
+
+### `clients`
+
+`GET /clients` · `GET /clients/{id}`
+
+La clave primaria en la base es `userid`; la API la expone como **`id`**.
+
+```json
+{ "id": 42, "company": "…", "vat": "…", "phonenumber": "…",
+  "city": "…", "state": "…", "zip": "…", "address": "…", "country_id": 11,
+  "website": "…", "active": true, "default_currency": 1, "default_language": "spanish",
+  "datecreated": "2025-04-02T00:00:00Z", "lead_id": null,
+  "billing": { "street": "…", "city": "…", "state": "…", "zip": "…", "country_id": 11 },
+  "shipping": { "…": "…" },
+  "tags": [ { "id": 3, "name": "…" } ] }
+```
+
+Nunca se expone `stripe_id`.
+
+Filtros: `active`, `country_id`, `q` (empresa). Include: `contacts`, `custom_fields`.
+
+### `projects` → **Espacios** en la interfaz
+
+`GET /projects` · `GET /projects/{id}` · `GET /projects/{id}/tasks` ·
+`GET /projects/{id}/milestones` · `GET /projects/{id}/members` · `GET /projects/{id}/files`
+
+```json
+{ "id": 8, "name": "…", "description": "…",
+  "status": 2, "client": { "id": 42, "company": "…" },
+  "billing_type": 1, "start_date": "2026-01-15", "deadline": "2026-06-30",
+  "date_finished": null, "progress": 45, "progress_from_tasks": true,
+  "project_cost": 12000.00, "project_rate_per_hour": null, "estimated_hours": 320.00,
+  "added_from": 12, "project_created": "2026-01-10",
+  "tags": [], "counts": { "tasks": 34, "tasks_open": 12, "milestones": 4 } }
+```
+
+`start_date`, `deadline` y `project_created` son **fechas sin hora** (`date` en la base): se devuelven
+como `YYYY-MM-DD`, no como instante ISO. `date_finished` sí es `datetime` → ISO completo.
+
+`counts` viene siempre: es lo que la lista necesita para no hacer una consulta por fila.
+
+Filtros: `status`, `clientid`, `member` (staff id), `date_from`/`date_to` sobre `start_date`, `q`.
+Orden: `name`, `start_date`, `deadline`, `progress`.
+Include: `custom_fields`, `members`.
+
+### `tasks` → **Procesos** en la interfaz
+
+`GET /tasks` · `GET /tasks/{id}` · `GET /tasks/{id}/comments` · `GET /tasks/{id}/checklist` ·
+`GET /tasks/{id}/timers` · `GET /tasks/{id}/files`
+
+```json
+{ "id": 512, "name": "…", "description": "…",
+  "status": 4, "priority": 2,
+  "start_date": "2026-08-01", "due_date": "2026-08-30",
+  "date_added": "2026-07-28T10:15:00Z", "date_finished": null,
+  "added_from": 12,
+  "rel_type": "project", "rel_id": 8,
+  "project": { "id": 8, "name": "…" },
+  "milestone": { "id": 3, "name": "…" },
+  "billable": true, "billed": false, "hourly_rate": 0,
+  "is_public": false, "visible_to_client": false,
+  "recurring": false,
+  "kanban_order": 4,
+  "assignees": [ { "id": 12, "full_name": "…", "profile_image_url": "…" } ],
+  "followers": [ { "id": 15, "full_name": "…" } ],
+  "tags": [ { "id": 3, "name": "urgente" } ],
+  "counts": { "comments": 5, "checklist": 8, "checklist_done": 3, "attachments": 2 },
+  "timer_activo": { "id": 88, "staff_id": 12, "start_time": "2026-08-24T13:00:00Z" } }
+```
+
+Notas que evitan errores:
+
+- **`rel_type` / `rel_id` son polimórficos.** Una tarea puede colgar de un proyecto, un cliente, una
+  factura, un ticket… El bloque `project` sólo aparece cuando `rel_type === "project"`.
+- `start_date` y `due_date` son fechas sin hora; `date_added` y `date_finished` son instantes.
+- `timer_activo` es `null` si nadie está contando tiempo. Es lo que pinta el cronómetro en la barra
+  superior sin una consulta aparte.
+- `counts` evita N+1 en las listas: sin él, cada fila de la tabla pide sus comentarios.
+
+Filtros: `status` (admite lista: `filter[status]=1,4`), `priority`, `project_id`, `milestone_id`,
+`assignee`, `follower`, `tag`, `billable`, `date_from`/`date_to` sobre `due_date`, `q`.
+Orden: `name`, `due_date`, `start_date`, `date_added`, `priority`, `status`.
+Include: `custom_fields`, `description` (se omite en listas: son `longtext`).
+
+**Vista de tablero**: `GET /tasks?vista=tablero&filter[project_id]=8` devuelve las tarjetas agrupadas,
+con paginación **por columna**. En tareas hay columnas de miles de filas: cargar la columna entera no
+es una opción.
+
+### Acciones
+
+| Endpoint | Efecto |
+|---|---|
+| `POST /tasks/{id}/actions/mark-complete` | Cambia a `status: 5` y sella `datefinished` |
+| `POST /tasks/{id}/actions/reopen` | Vuelve al estado anterior |
+| `POST /tasks/{id}/mover` | `{ "columna": 4, "posicion": 2 }` — arrastre del tablero |
+| `POST /tasks/{id}/timer` | Arranca el cronómetro para el staff del token |
+| `DELETE /tasks/{id}/timer` | Lo detiene. Cuerpo opcional: `{ "note": "…" }` |
+
+`mover` responde `409` si la columna no existe o la transición está prohibida.
+
+Las acciones existen en vez de un `PATCH` genérico porque no son "cambiar un campo": arrastran
+efectos (notificaciones, registro de actividad, sellos de tiempo) que viven en los modelos de Perfex.
+
+### `files`
+
+`GET /projects/{id}/files` · `GET /tasks/{id}/files`
+
+```json
+{ "id": 77, "file_name": "propuesta.pdf", "filetype": "application/pdf",
+  "size": 184320, "rel_type": "task", "rel_id": 512,
+  "staff_id": 12, "date_added": "2026-08-02T11:00:00Z",
+  "visible_to_customer": false,
+  "url": "/api/v1/files/77/download",
+  "thumbnail_url": null }
+```
+
+**Nunca se expone la ruta real de `uploads/`.** Hoy la única protección de esa carpeta es que la URL
+no se adivina; publicarla en JSON lo empeoraría.
+
+`GET /files/{id}/download` autentica, valida el permiso sobre la entidad dueña y sirve el binario.
+
+**Para `<img src>` y `<a download>`**, que no mandan el header `Authorization`:
+`POST /files/{id}/link` → `{ "data": { "url": "…?t=…", "expires_in": 60 } }`. Token de un solo uso.
+La alternativa —cookie cross-site— obligaría a `SameSite=None` con credenciales, justo lo que el BFF
+evita.
+
+## Campos personalizados
+
+`GET /custom-fields?para=tasks` devuelve las definiciones:
+
+```json
+{ "data": [
+  { "id": 4, "slug": "tasks_cf_area", "name": "Área", "type": "select",
+    "options": ["Diseño","Desarrollo"], "required": true, "order": 1,
+    "default_value": null, "only_admin": false, "show_on_table": true }
+] }
+```
+
+Valores en el recurso, con `?include=custom_fields`, y como **array, no objeto**:
+
+```json
+"custom_fields": [ { "id": 4, "slug": "tasks_cf_area", "name": "Área", "type": "select", "value": "Diseño" } ]
+```
+
+Array y no objeto por dos razones: los slugs se repiten entre distintos `fieldto`, y el `field_order`
+importa para renderizar el formulario en el orden correcto.
+
+`only_admin` ya lo respeta el backend según quién sea el dueño del token. El frontend no vuelve a
+decidirlo.
+
+`value` es el **valor crudo**, sin formatear. Formatea el frontend.
+
+## Tags
+
+Siempre presentes, sin `include`: son baratos y la interfaz siempre los pinta.
+
+```json
+"tags": [ { "id": 3, "name": "urgente" } ]
+```
+
+Filtrar por tag: `?filter[tag]=3` (acepta lista).
+
+## Tiempo real
+
+`GET /config/realtime` → `{ "data": { "enabled": true, "key": "…", "cluster": "…" } }`
+
+Nada de esto se escribe en el código de `ops-v2`: sale de las opciones de Perfex.
+
+El evento es un **ping sin datos**, igual que hoy en el panel:
+
+1. `pusher-js` se suscribe a `notifications-channel-<mi staff id>`.
+2. Llega el evento `notification`, con cuerpo vacío.
+3. El frontend **invalida la clave** de TanStack Query correspondiente y vuelve a pedir.
+
+No se aplica ningún diff en vivo: invalidar es diez veces menos código y no se puede desincronizar.
+
+## Errores que el frontend maneja distinto
+
+| Situación | Respuesta | Qué hace `ops-v2` |
+|---|---|---|
+| Token expirado | `401 token_expired` | El BFF intenta refrescar **una** vez y reintenta |
+| Token revocado | `401 token_revoked` | Limpia caché y va a `/entrar`. No reintenta |
+| Sin permiso | `403 forbidden` | Muestra `SinPermiso` en el lugar del contenido |
+| Validación | `422 validation_failed` | `details` va campo a campo a react-hook-form |
+| Conflicto al mover | `409 conflict` | Revierte el movimiento optimista y avisa |
+
+## Mock
+
+Mientras la API no exista, `API_BASE` apunta al mock. Vive en `mock/` y sirve exactamente las
+respuestas de este documento.
+
+**Sin mock, F0 no está cerrado**: es lo que desbloquea al frontend para avanzar en paralelo con el
+backend. La integración es cambiar una variable de entorno — y si eso duele, es señal de que el
+contrato se congeló mal.
