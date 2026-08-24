@@ -74,10 +74,20 @@ omisión: es una decisión de retorno.
 ## Levantar el entorno
 
 ```bash
+pnpm mock                 # API simulada en :3001  (no necesita instalar nada)
+pnpm test                 # pruebas del mock
+```
+
+El mock no tiene dependencias: sirve el contrato con `node:http` a secas, así que corre en un
+repositorio recién clonado. Cuentas de prueba y casos límite que cubre, en
+[contrato-api.md](contrato-api.md#mock).
+
+Cuando exista `apps/web` (carril B), se suma:
+
+```bash
 pnpm install
 cp .env.example .env      # API_BASE, SESION_CLAVE, PUSHER_*
 pnpm dev                  # :3000
 ```
 
-Mientras la API no exista, `API_BASE` apunta al mock del contrato (ver
-[contrato-api.md](contrato-api.md)).
+Mientras la API real no exista, `API_BASE` apunta al mock.

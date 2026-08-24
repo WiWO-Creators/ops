@@ -3,7 +3,8 @@
 Fuente de verdad compartida entre `wiwo-board/modules/api/` y `ops-v2`. **Se congela al cerrar F0.**
 Cambiarlo después se puede, pero se anuncia y se actualizan documento y mock en el mismo commit.
 
-Espejo de `wiwo-board/modules/api/README.md`. Si los dos divergen, manda este documento.
+**Este documento es la única copia del contrato.** `modules/api/README.md` apunta acá en vez de
+repetirlo: dos copias de un contrato divergen, y cuando divergen nadie sabe cuál manda.
 
 Base: `https://board.wiwo.me/api/v1/`
 
@@ -171,6 +172,18 @@ Sin autenticación. `{ "data": { "ok": true, "version": "1.0.0", "auth_header_vi
 
 **Whitelist, siempre.** Ninguna clave de `filter[]` ni de `sort` llega al Query Builder sin estar en
 la lista del recurso. Es la diferencia entre un filtro y una inyección.
+
+Una clave fuera de la whitelist devuelve **`422 validation_failed`**, con `details` nombrando el
+parámetro ofensor — **nunca se ignora en silencio**. Un filtro ignorado deja a la interfaz mostrando
+datos de más sin que nadie se entere; uno que falla se arregla el mismo día.
+
+```json
+{ "error": { "code": "validation_failed", "message": "Filtro desconocido: \"inventado\".",
+             "details": { "filter[inventado]": ["unknown"] } } }
+```
+
+`per_page` es la excepción: pedir 500 se **recorta** a 100 en vez de fallar. Es un cliente optimista,
+no un cliente roto.
 
 ## Recursos de Fase 1
 
@@ -409,8 +422,56 @@ No se aplica ningún diff en vivo: invalidar es diez veces menos código y no se
 
 ## Mock
 
-Mientras la API no exista, `API_BASE` apunta al mock. Vive en `mock/` y sirve exactamente las
-respuestas de este documento.
+Mientras la API no exista, `API_BASE` apunta al mock. Vive en [`mock/`](../mock/) y sirve exactamente
+las respuestas de este documento.
+
+```bash
+pnpm mock                      # escucha en :3001
+PORT=4000 pnpm mock            # otro puerto
+ORIGENES=http://localhost:3000 pnpm mock
+```
+
+Sin dependencias: `node:http` a secas. `json-server` no hace envelope, ni Bearer, ni 2FA, ni
+`filter[]`, así que pelearlo cuesta más que escribirlo.
+
+| Archivo | Rol |
+|---|---|
+| `mock/datos.js` | Fixtures, generados de forma determinista (sin `Math.random`) |
+| `mock/consulta.js` | `page` / `sort` / `filter[]` / `q` / `fields` / `include`, con whitelist |
+| `mock/sesion.js` | Emisión, validación y rotación de tokens, en memoria |
+| `mock/servidor.js` | Routing, CORS, envelope, códigos |
+
+### Cuentas
+
+| Correo | Contraseña | Para qué |
+|---|---|---|
+| `ana@wiwo.me` | `mock1234` | Admin: puede todo |
+| `carla@wiwo.me` | `mock1234` | Sin permiso sobre clientes → ejercita el `403` |
+| `bruno@wiwo.me` | `mock1234` | Devuelve `two_factor_required` → ejercita el camino de 2FA |
+| `hugo@wiwo.me` | `mock1234` | Cuenta inactiva → devuelve `403`, no `401` |
+
+En `/auth/2fa` sirve cualquier código de seis dígitos. Validar un TOTP real no aporta nada acá; lo que
+sí aporta es rechazar un código con forma inválida, porque es el error que la interfaz debe mostrar.
+
+### Casos límite que el fixture cubre a propósito
+
+- **84 Procesos**: con `per_page=25` da 4 páginas, y cada columna del tablero tiene más de una página
+  propia.
+- **9 Procesos con `rel_type: "customer"`** (uno de cada nueve): cuelgan de un cliente y no de un
+  Espacio, así que `project` es `null`. Si la interfaz asume que todo Proceso tiene Espacio, se rompe
+  acá y no en producción.
+- **Un solo cronómetro activo** (`tasks/504`): el caso que pinta la barra superior.
+- **Procesos sin fecha** y orden con nulos: van al final en las dos direcciones.
+- **Un campo personalizado `only_admin`** en `projects`: visible para `ana`, invisible para `carla`.
+
+### Lo que el mock no hace
+
+Escritura amplia (llega en F2), subida de archivos, IA y PDF. `GET /files/{id}/download` devuelve la
+metadata con `mock: true` en vez de un binario: alcanza para construir la interfaz, y sí replica el
+`404` y el permiso.
+
+El estado vive en memoria y se pierde al reiniciar. Es deliberado: dos ejecuciones del mock devuelven
+lo mismo, así que ninguna prueba se vuelve intermitente por un dato que quedó de la corrida anterior.
 
 **Sin mock, F0 no está cerrado**: es lo que desbloquea al frontend para avanzar en paralelo con el
 backend. La integración es cambiar una variable de entorno — y si eso duele, es señal de que el
