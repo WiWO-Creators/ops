@@ -42,6 +42,13 @@ interface PropsControles<T> {
   opcionesDeFiltro?: Record<string, OpcionFiltro[]>
   onCambiar: (parcial: Partial<EstadoConsulta>) => void
   onVisibles: (claves: string[]) => void
+  /**
+   * Oculta el menu de columnas.
+   *
+   * Lo usan las presentaciones que no son una tabla: elegir columnas ahi no cambia nada de lo que se
+   * ve, y un control que no hace nada es peor que uno ausente.
+   */
+  sinColumnas?: boolean
 }
 
 /**
@@ -56,7 +63,8 @@ export function ControlesTabla<T> ({
   visibles,
   opcionesDeFiltro = {},
   onCambiar,
-  onVisibles
+  onVisibles,
+  sinColumnas = false
 }: PropsControles<T>) {
   /** Cambia un filtro y vuelve a la primera pagina: la 7 de un listado nuevo casi nunca existe. */
   function cambiarFiltro (clave: string, valores: string[]) {
@@ -110,6 +118,7 @@ export function ControlesTabla<T> ({
         />
       ))}
 
+      {!sinColumnas && (
       <MenuContextual>
         <DisparadorMenu asChild>
           <Boton tamano="chico" variante="sutil">Columnas</Boton>
@@ -130,6 +139,7 @@ export function ControlesTabla<T> ({
           ))}
         </ContenidoMenu>
       </MenuContextual>
+      )}
     </div>
   )
 }

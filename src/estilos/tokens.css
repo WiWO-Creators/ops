@@ -27,15 +27,36 @@
   /* 4.48:1, justo por debajo del AA de texto normal. */
   --wiwo-purple-300: #A99BFF;
   --wiwo-ink: #292929;
+  /* Beige de ACENTO, no de fondo: bandas de seccion, callouts, filas zebra, hover de navegacion y */
+  /* chips neutros. Como fondo de pagina teñia la aplicacion entera. El alterno es el segundo paso, */
+  /* para alternar dos bandas contiguas sin repetir el mismo tono. */
   --wiwo-beige: #F8FAD7;
-  /* Rampa de superficies del tema claro. El beige de marca quedo fuera de los */
-  /* paneles grandes: teñia toda la app. Son blancos con un sesgo violeta minimo */
-  /* (hue 230, saturacion muy baja), el mismo que usa WiwoLab, mas un 300 para */
-  /* bordes y divisores. */
-  --wiwo-surface-0: #FFFFFF;
-  --wiwo-surface-50: #FBFBFE;
-  --wiwo-surface-100: #F5F6FB;
-  --wiwo-surface-300: #E6E8F1;
+  --wiwo-beige-alt: #EDEFDD;
+  /* Los dos escalones oscuros del beige son TEXTO del tema oscuro, no superficie: ahi el beige */
+  /* cumple el rol que la tinta cumple en claro. */
+  --wiwo-beige-300: #E2E4CA;
+  --wiwo-beige-500: #C2C4AD;
+
+  /* Rampa de superficies del tema claro, cálida como el sistema vivo de neo.wiwo.me. La base */
+  /* gris-azulada anterior enfriaba la marca y peleaba con el beige; estos blancos tienen el mismo */
+  /* sesgo amarillo que el acento, asi que el beige se lee como acento y no como ruido. */
+  --wiwo-almost-white: #FFFDF2;
+  --wiwo-surface-0: #FFFFFC;
+  --wiwo-surface-50: #FBFBEA;
+  --wiwo-surface-100: #F4F3DD;
+  --wiwo-surface-300: #E8E9D4;
+
+  /* Rampa oscura derivada de la tinta, no de negros puros: conserva la temperatura del tema claro y */
+  /* evita el contraste duro que cansa en sesiones largas. `--wiwo-ink` es el primer escalon. */
+  --wiwo-ink-900: #20211F;
+  --wiwo-ink-850: #252624;
+  --wiwo-ink-700: #323330;
+  --wiwo-ink-600: #3B3C38;
+  --wiwo-ink-500: #41423E;
+  /* Texto secundario y tenue del tema claro. Salen medidos, no mezclados: una mezcla con el fondo */
+  /* cambia de contraste cada vez que la superficie cambia de tono. */
+  --wiwo-ink-2: #4F504A;
+  --wiwo-ink-3: #66685F;
   --wiwo-ok: #1C7A38;
   --wiwo-warning: #D88719;
   --wiwo-danger: #C3463D;
