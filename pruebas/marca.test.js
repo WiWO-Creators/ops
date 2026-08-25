@@ -97,34 +97,25 @@ test('no se usa backdrop-filter en ningun estilo', () => {
 })
 
 /**
- * La excepcion del orbe, verificada en vez de asumida.
+ * El orbe no pide excepcion al `backdrop-filter`, y esta prueba lo mantiene asi.
  *
- * El orbe es vidrio de verdad: desenfoca lo que tiene detras en lugar de traer su propio fondo, y por
- * eso se ve bien sobre cualquier superficie. Eso vale el `backdrop-filter`, pero solo mientras la
- * excepcion siga acotada: el orbe chico y el mediano son los que se repiten —uno por fila de tabla,
- * uno por boton— y ahi cada instancia cuesta una composicion de capa para un vidrio que a 16px no se
- * aprecia. Si alguien borra ese apagado, esta prueba lo dice.
+ * La version anterior del orbe era vidrio de verdad —desenfocaba lo que tenia detras— y por eso
+ * tenia una excepcion documentada, acotada al tamaño grande. El orbe de neo.wiwo.me no lo necesita:
+ * resuelve el vidrio sumando capas de luz con `mix-blend-mode`, y su version final apaga el
+ * `backdrop-filter` explicitamente. La hoja generada borra ademas las declaraciones muertas que lo
+ * prendian, asi que la prohibicion del sistema de diseño se cumple sin excepciones.
+ *
+ * Si alguien repone la excepcion —o pega una version vieja del CSS—, esta prueba lo dice.
  */
-test('el orbe usa backdrop-filter solo en detalle completo, y lo apaga en los tamaños que se repiten', () => {
+test('el orbe no enciende backdrop-filter en ninguna regla', () => {
   const css = sinComentarios(orbe)
-  const declaraciones = [...css.matchAll(/([^{}]+)\{([^{}]*backdrop-filter[^{}]*)\}/g)]
 
-  assert.ok(declaraciones.length > 0, 'el orbe deberia usar backdrop-filter: es lo que lo hace vidrio')
-
-  for (const [, selector, cuerpo] of declaraciones) {
-    const apaga = /backdrop-filter:\s*none/.test(cuerpo)
-
-    assert.ok(
-      apaga || selector.includes('.detail-full'),
-      `backdrop-filter fuera de .detail-full: "${selector.trim()}"`
-    )
-  }
-
-  for (const tamano of ['.orb-small', '.orb-medium']) {
+  for (const [, selector, cuerpo] of css.matchAll(/([^{}]+)\{([^{}]*backdrop-filter[^{}]*)\}/g)) {
     assert.match(
-      css,
-      new RegExp(`\\${tamano}\\.detail-full[^{]*\\{[^}]*backdrop-filter:\\s*none`.replace('\\.', '\\.')),
-      `${tamano} no apaga el backdrop-filter, y es un tamaño que se repite por fila`
+      cuerpo,
+      /backdrop-filter:\s*none/,
+      `el orbe enciende backdrop-filter en "${selector.trim()}": el sistema de diseño lo prohibe en ` +
+      'superficies siempre visibles y este orbe no lo necesita'
     )
   }
 })

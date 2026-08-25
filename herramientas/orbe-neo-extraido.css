@@ -1,68 +1,8 @@
-/**
- * Thinking Orb de Wiwo — portado de https://neo.wiwo.me
- *
- * ARCHIVO GENERADO. No editarlo a mano: se regenera con
- * `node herramientas/construir-orbe-css.mjs <css-extraido>`, que reescribe las medidas fijas de neo
- * a unidades de orbe. Lo que sí se escribe a mano es el bloque "Capa del producto" del final.
- *
- * ## Por que este orbe y no el anterior
- *
- * Una version anterior de este archivo portaba el orbe de ops.wiwo.me y dejaba escrito que se habia
- * elegido POR ENCIMA del de neo.wiwo.me, al que llamaba "campo de luz difuso". **Esa decision quedo
- * revertida por pedido explicito del usuario**: la mascota del producto es el orbe de neo. Queda
- * anotado para que nadie la vuelva a revertir creyendo que corrige un descuido.
- *
- * ## Las dos reglas duras del proyecto
- *
- * 1. **Nada de animacion infinita en elementos siempre visibles** —la regla que existe desde que el
- *    panel viejo se colgaba en pantallas Retina—. En neo el orbe respira siempre, pero alla es una
- *    sola instancia a pantalla completa; aca el `chico` va en 31 botones y el `medio` se repite por
- *    fila. Por eso: en reposo, `chico` y `medio` quedan quietos (clase `.orbe-quieto`, que pone la
- *    decision en `Orbe.tsx`); `grande`, `marca` y cualquier `medida` libre respiran. Con un estado
- *    activo animan todos, porque entonces el orbe dura lo que dura la operacion.
- * 2. **Nada de `backdrop-filter` en superficies siempre visibles.** Este orbe no lo necesita: la
- *    version final de neo lo apaga (`backdrop-filter: none`) y resuelve el vidrio sumando capas de
- *    luz en `mix-blend-mode: screen`. La excepcion que documentaba el archivo anterior ya no aplica
- *    y **no hay que reponerla**.
- * 3. `prefers-reduced-motion`: se congela la rotacion y las capas de estado, se conserva una
- *    respiracion minima y el estado se comunica por el texto que acompaña al orbe.
- *
- * ## Tamaños
- *
- * La version final de neo abandono `--orb-size`: usa `--orb-w` y `--orb-h` con `!important`, porque
- * el orbe es un blob apaisado (245x205) y no un circulo. Aca el tamaño entra por una sola
- * variable, `--orbe-ancho`, y de ahi salen las otras dos y `--orbe-u`.
- *
- * Cada estado de neo redefine `--orb-w`/`--orb-h` con su propio `clamp()` —`idle` encoge,
- * `listening` se estira—. **Esas medidas se anulan a proposito**: en un producto el indicador no
- * puede cambiar de tamaño al cambiar de estado, porque corre el texto del boton que lo contiene. Los
- * estados siguen diferenciandose por color, ritmo y capas; no por tamaño.
- *
- * ## Variables externas
- *
- * `--wiwo-blue`, `--wiwo-green` y `--wiwo-beige` salen de `tokens.css`. `--shape-full`,
- * `--ease-expressive` y `--motion-medium` son nombres de neo y se mapean abajo a los tokens que el
- * proyecto ya tiene, para no duplicar valores.
- */
-
-/* -----------------------------------------------------------------------------
-   Puente con los tokens del proyecto. Los nombres de la izquierda son los que usa
-   el CSS de neo; los valores ya existen en tokens.css y no se repiten aca.
-   ----------------------------------------------------------------------------- */
-.orbe-wiwo {
-  --shape-full: var(--control-BorderRadius);
-  --ease-expressive: var(--wiwo-ease-expressive);
-  --motion-medium: var(--wiwo-motion-medium);
-
-  /* Sin estado, ninguna regla de neo define la opacidad de particulas y destellos. */
-  --spark-opacity: .55;
-}
-
 /* =============================================================================
    Wiwo Thinking Orb — CSS extraido de https://neo.wiwo.me
    -----------------------------------------------------------------------------
    Contiene SOLO el componente: .wiwo-thinking-orb, .orb-*, sus @keyframes y los
-   estados .orbe-wiwo[data-thinking-state="..."]. Se excluyo todo el
+   estados .thinking-orb-demo[data-thinking-state="..."]. Se excluyo todo el
    cromo de la pagina showcase (.thinking-orb-system/-head/-status/-grid/
    -showcase/-guidelines/-stack/-stage/-rule, .thinking-state-card, .orb-size).
 
@@ -80,7 +20,7 @@
        --wiwo-blue:  #4242FF;
        --wiwo-green: #3BFF00;
        --wiwo-beige: #F8FAD7;
-       --shape-full: calc(999 * var(--orbe-u));
+       --shape-full: 999px;
        --ease-expressive: cubic-bezier(.2,.8,.2,1);
        --motion-medium: 280ms;
      }
@@ -101,15 +41,15 @@
    VARIABLES INTERNAS (definidas aqui mismo sobre .wiwo-thinking-orb)
    -----------------------------------------------------------------------------
      --orb-w / --orb-h     TAMAÑO REAL en la version final (v6, neo.html:19857).
-                           Valores en neo: --orb-w: clamp(calc(245 * var(--orbe-u)), calc(245.00 * var(--orbe-u)), calc(410 * var(--orbe-u)));
-                                           --orb-h: clamp(calc(205 * var(--orbe-u)), calc(192.50 * var(--orbe-u)), calc(315 * var(--orbe-u)));
+                           Valores en neo: --orb-w: clamp(245px, 28vw, 410px);
+                                           --orb-h: clamp(205px, 22vw, 315px);
                            Se aplican con !important sobre width/height, asi que
                            para redimensionar el orbe hay que tocar ESTAS, no
                            --orb-size. El orbe no es un circulo: es un blob
                            (border-radius 56% 44% 52% 48% / 45% 58% 42% 55%).
      --orb-size            tamaño de las versiones viejas (v1/v3), quedo
                            sobrescrito por --orb-w/--orb-h. En neo:
-                           clamp(calc(230 * var(--orbe-u)), calc(245.00 * var(--orbe-u)), calc(365 * var(--orbe-u))).
+                           clamp(230px, 28vw, 365px).
      --orb-y               desplazamiento vertical (par de --orb-x)
      --orb-brightness / --orb-saturation / --orb-alpha
                            filtro y opacidad globales (v6: 1 / 1.82 / .94)
@@ -126,7 +66,7 @@
 
 /* neo.html:8569 */
 .wiwo-thinking-orb {
-      --orb-size: clamp(calc(190 * var(--orbe-u)), calc(192.50 * var(--orbe-u)), calc(304 * var(--orbe-u)));
+      --orb-size: clamp(190px, 22vw, 304px);
       --orb-glow: rgba(66, 66, 255, .38);
       --orb-primary: rgba(66, 66, 255, .58);
       --orb-secondary: rgba(59, 255, 0, .5);
@@ -138,8 +78,8 @@
       --orb-alpha: .9;
       --orb-speed: 4200ms;
       --orb-flow-speed: 6200ms;
-      --orb-x: calc(0 * var(--orbe-u));
-      --orb-y: calc(0 * var(--orbe-u));
+      --orb-x: 0px;
+      --orb-y: 0px;
       --orb-scale-a: 1;
       --orb-scale-b: 1.055;
       --orb-scale-c: .985;
@@ -151,7 +91,7 @@
       width: var(--orb-size);
       aspect-ratio: 1;
       border-radius: 46% 54% 52% 48% / 48% 42% 58% 52%;
-      border: calc(1 * var(--orbe-u)) solid rgba(248, 250, 215, .46);
+      border: 1px solid rgba(248, 250, 215, .46);
       background:
         radial-gradient(ellipse at 30% 22%, rgba(255, 255, 255, .74), rgba(255, 255, 255, .16) 28%, transparent 50%),
         radial-gradient(circle at 66% 34%, rgba(248, 250, 215, .3), transparent 24%),
@@ -162,13 +102,15 @@
       background-size: 128% 128%, 100% 100%, 118% 118%, 150% 150%, 220% 220%, 100% 100%;
       opacity: var(--orb-alpha);
       box-shadow:
-        0 calc(34 * var(--orbe-u)) calc(86 * var(--orbe-u)) rgba(66, 66, 255, .18),
-        0 0 calc(120 * var(--orbe-u)) var(--orb-glow),
-        0 0 calc(72 * var(--orbe-u)) rgba(59, 255, 0, .2),
-        inset 0 calc(2 * var(--orbe-u)) calc(28 * var(--orbe-u)) rgba(255, 255, 255, .58),
-        inset calc(-18 * var(--orbe-u)) calc(-24 * var(--orbe-u)) calc(48 * var(--orbe-u)) rgba(66, 66, 255, .14),
-        inset calc(18 * var(--orbe-u)) calc(22 * var(--orbe-u)) calc(54 * var(--orbe-u)) rgba(248, 250, 215, .24),
-        inset 0 0 0 calc(10 * var(--orbe-u)) rgba(248, 250, 215, .08);
+        0 34px 86px rgba(66, 66, 255, .18),
+        0 0 120px var(--orb-glow),
+        0 0 72px rgba(59, 255, 0, .2),
+        inset 0 2px 28px rgba(255, 255, 255, .58),
+        inset -18px -24px 48px rgba(66, 66, 255, .14),
+        inset 18px 22px 54px rgba(248, 250, 215, .24),
+        inset 0 0 0 10px rgba(248, 250, 215, .08);
+      -webkit-backdrop-filter: blur(22px) saturate(1.9);
+      backdrop-filter: blur(22px) saturate(1.9);
       transform: translateZ(0);
       transition: transform var(--motion-medium) var(--ease-expressive), filter var(--motion-medium) var(--ease-expressive), opacity var(--motion-medium) var(--ease-expressive), border-radius var(--motion-medium) var(--ease-expressive), box-shadow var(--motion-medium) var(--ease-expressive);
       animation: thinking-orb-breathe var(--orb-speed) var(--ease-expressive) infinite, thinking-orb-glass-flow var(--orb-flow-speed) linear infinite;
@@ -182,8 +124,8 @@
         radial-gradient(ellipse at 28% 22%, rgba(255, 255, 255, .3), transparent 32%),
         radial-gradient(ellipse at 68% 72%, rgba(59, 255, 0, .18), transparent 30%),
         conic-gradient(from 220deg, transparent, rgba(248, 250, 215, .16), var(--orb-primary), transparent 60%, var(--orb-secondary), transparent);
-      filter: blur(calc(9 * var(--orbe-u))) saturate(1.16);
-      mix-blend-mode: var(--orbe-mezcla, screen);
+      filter: blur(9px) saturate(1.16);
+      mix-blend-mode: screen;
       opacity: var(--orb-liquid-opacity);
       animation: thinking-orb-viscosity 7200ms var(--ease-expressive) infinite;
     }
@@ -196,7 +138,7 @@
         radial-gradient(ellipse at 24% 18%, rgba(255, 255, 255, .78), rgba(255, 255, 255, .2) 27%, transparent 50%),
         radial-gradient(circle at 64% 46%, rgba(248, 250, 215, .2), transparent 20%),
         radial-gradient(circle at 82% 68%, rgba(255, 255, 255, .1), transparent 24%);
-      mix-blend-mode: var(--orbe-mezcla, screen);
+      mix-blend-mode: screen;
       opacity: var(--orb-light-opacity);
       animation: thinking-orb-light-swim 5400ms var(--ease-expressive) infinite alternate;
     }
@@ -208,34 +150,34 @@
       background:
         repeating-conic-gradient(from 18deg, rgba(248, 250, 215, .2) 0deg 8deg, transparent 9deg 24deg),
         radial-gradient(circle at 50% 50%, transparent 36%, rgba(255, 255, 255, .18), transparent 62%);
-      filter: blur(calc(7 * var(--orbe-u)));
-      mix-blend-mode: var(--orbe-mezcla, screen);
+      filter: blur(7px);
+      mix-blend-mode: screen;
       opacity: var(--orb-caustic-opacity);
       animation: thinking-orb-caustic 7600ms linear infinite;
     }
 
 /* neo.html:8699 */
 .orb-rim {
-      inset: calc(-1 * var(--orbe-u));
+      inset: -1px;
       z-index: 4;
       background: conic-gradient(from 0deg, rgba(248, 250, 215, .08), rgba(248, 250, 215, .58), rgba(66, 66, 255, .28), rgba(59, 255, 0, .42), rgba(248, 250, 215, .08));
-      -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - calc(8 * var(--orbe-u))), #000 calc(100% - calc(7 * var(--orbe-u))));
-      mask: radial-gradient(farthest-side, transparent calc(100% - calc(8 * var(--orbe-u))), #000 calc(100% - calc(7 * var(--orbe-u))));
+      -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 8px), #000 calc(100% - 7px));
+      mask: radial-gradient(farthest-side, transparent calc(100% - 8px), #000 calc(100% - 7px));
       opacity: .54;
-      filter: blur(calc(.8 * var(--orbe-u)));
+      filter: blur(.8px);
       animation: thinking-orb-rim 4200ms linear infinite;
     }
 
 /* neo.html:8726 */
 .orb-glint {
       z-index: 6;
-      width: calc(10 * var(--orbe-u));
-      height: calc(10 * var(--orbe-u));
+      width: 10px;
+      height: 10px;
       right: 21%;
       top: 24%;
       border-radius: 50%;
       background: var(--wiwo-beige);
-      box-shadow: 0 0 calc(16 * var(--orbe-u)) rgba(248, 250, 215, .9), 0 0 calc(44 * var(--orbe-u)) rgba(66, 66, 255, .4);
+      box-shadow: 0 0 16px rgba(248, 250, 215, .9), 0 0 44px rgba(66, 66, 255, .4);
       opacity: .88;
       animation: thinking-orb-glint 2800ms var(--ease-expressive) infinite;
     }
@@ -246,9 +188,9 @@
       inset: -18%;
       z-index: -1;
       border-radius: inherit;
-      border: calc(1 * var(--orbe-u)) solid rgba(59, 255, 0, .3);
+      border: 1px solid rgba(59, 255, 0, .3);
       background: radial-gradient(circle, rgba(255, 255, 255, .08), transparent 62%);
-      filter: blur(calc(.2 * var(--orbe-u)));
+      filter: blur(.2px);
       animation: thinking-orb-pulse 2200ms var(--ease-expressive) infinite;
     }
 
@@ -270,36 +212,36 @@
       z-index: 4;
       left: 50%;
       top: 50%;
-      width: calc(9 * var(--orbe-u));
-      height: calc(9 * var(--orbe-u));
+      width: 9px;
+      height: 9px;
       border-radius: 50%;
       background: var(--wiwo-green);
-      box-shadow: 0 0 calc(18 * var(--orbe-u)) rgba(59, 255, 0, .74);
+      box-shadow: 0 0 18px rgba(59, 255, 0, .74);
       opacity: var(--spark-opacity);
-      mix-blend-mode: var(--orbe-mezcla, screen);
-      transform-origin: calc(var(--orbit, calc(142 * var(--orbe-u))) * -1) 0;
+      mix-blend-mode: screen;
+      transform-origin: calc(var(--orbit, 142px) * -1) 0;
       animation: thinking-orb-particle var(--speed, 5200ms) linear infinite;
     }
 
 /* neo.html:8776 */
 .orb-particle:nth-of-type(2) {
-      --orbit: calc(120 * var(--orbe-u));
+      --orbit: 120px;
       --speed: 6400ms;
-      width: calc(6 * var(--orbe-u));
-      height: calc(6 * var(--orbe-u));
+      width: 6px;
+      height: 6px;
       background: var(--wiwo-blue);
-      box-shadow: 0 0 calc(18 * var(--orbe-u)) rgba(66, 66, 255, .7);
+      box-shadow: 0 0 18px rgba(66, 66, 255, .7);
       animation-delay: -1900ms;
     }
 
 /* neo.html:8786 */
 .orb-particle:nth-of-type(3) {
-      --orbit: calc(158 * var(--orbe-u));
+      --orbit: 158px;
       --speed: 7800ms;
-      width: calc(5 * var(--orbe-u));
-      height: calc(5 * var(--orbe-u));
+      width: 5px;
+      height: 5px;
       background: var(--wiwo-beige);
-      box-shadow: 0 0 calc(16 * var(--orbe-u)) rgba(248, 250, 215, .64);
+      box-shadow: 0 0 16px rgba(248, 250, 215, .64);
       animation-delay: -3600ms;
     }
 
@@ -309,14 +251,14 @@
       z-index: 5;
       left: var(--sx, 50%);
       top: var(--sy, 50%);
-      width: var(--spark-size, calc(5 * var(--orbe-u)));
-      height: var(--spark-size, calc(5 * var(--orbe-u)));
+      width: var(--spark-size, 5px);
+      height: var(--spark-size, 5px);
       border-radius: 50%;
       background: var(--spark-color, var(--wiwo-beige));
-      box-shadow: 0 0 calc(14 * var(--orbe-u)) currentColor, 0 0 calc(34 * var(--orbe-u)) var(--spark-color, rgba(248, 250, 215, .72));
+      box-shadow: 0 0 14px currentColor, 0 0 34px var(--spark-color, rgba(248, 250, 215, .72));
       color: var(--spark-color, var(--wiwo-beige));
       opacity: var(--spark-opacity);
-      mix-blend-mode: var(--orbe-mezcla, screen);
+      mix-blend-mode: screen;
       animation: thinking-orb-spark var(--spark-speed, 6200ms) var(--ease-expressive) infinite;
       animation-delay: var(--spark-delay, 0ms);
     }
@@ -328,7 +270,7 @@
       z-index: 1;
       pointer-events: none;
       border-radius: inherit;
-      mix-blend-mode: var(--orbe-mezcla, screen);
+      mix-blend-mode: screen;
       transition: filter var(--motion-medium) var(--ease-expressive), transform var(--motion-medium) var(--ease-expressive);
     }
 
@@ -337,13 +279,13 @@
 .orb-state-ring.alt {
       left: 50%;
       top: 50%;
-      width: min(68%, calc(360 * var(--orbe-u)));
+      width: min(68%, 360px);
       aspect-ratio: 1;
       border-radius: 50%;
-      border: calc(1 * var(--orbe-u)) solid rgba(248, 250, 215, .18);
+      border: 1px solid rgba(248, 250, 215, .18);
       box-shadow:
-        0 0 calc(42 * var(--orbe-u)) rgba(66, 66, 255, .16),
-        inset 0 0 calc(42 * var(--orbe-u)) rgba(248, 250, 215, .06);
+        0 0 42px rgba(66, 66, 255, .16),
+        inset 0 0 42px rgba(248, 250, 215, .06);
       opacity: .46;
       transform: translate(-50%, -50%) rotateX(62deg) rotateZ(0deg);
       animation: orb-state-ring 5200ms linear infinite;
@@ -354,24 +296,24 @@
       left: 17%;
       right: 17%;
       top: 50%;
-      height: calc(2 * var(--orbe-u));
+      height: 2px;
       border-radius: var(--shape-full);
       background: linear-gradient(90deg, transparent, rgba(59, 255, 0, .85), rgba(248, 250, 215, .9), transparent);
-      filter: blur(calc(.2 * var(--orbe-u)));
+      filter: blur(.2px);
       opacity: 0;
       transform: translateY(-50%);
-      box-shadow: 0 0 calc(22 * var(--orbe-u)) rgba(59, 255, 0, .46);
+      box-shadow: 0 0 22px rgba(59, 255, 0, .46);
     }
 
 /* neo.html:8867 */
 .orb-output-trail {
       right: 7%;
       top: 50%;
-      width: clamp(calc(92 * var(--orbe-u)), calc(157.50 * var(--orbe-u)), calc(210 * var(--orbe-u)));
-      height: calc(10 * var(--orbe-u));
+      width: clamp(92px, 18vw, 210px);
+      height: 10px;
       border-radius: var(--shape-full);
       background: linear-gradient(90deg, rgba(59, 255, 0, .72), rgba(66, 66, 255, .58), transparent);
-      filter: blur(calc(7 * var(--orbe-u)));
+      filter: blur(7px);
       opacity: 0;
       transform-origin: 0 50%;
     }
@@ -379,14 +321,14 @@
 /* neo.html:8879 */
 .orb-output-trail.two {
       top: 43%;
-      width: clamp(calc(70 * var(--orbe-u)), calc(113.75 * var(--orbe-u)), calc(160 * var(--orbe-u)));
+      width: clamp(70px, 13vw, 160px);
       background: linear-gradient(90deg, rgba(248, 250, 215, .58), rgba(59, 255, 0, .54), transparent);
     }
 
 /* neo.html:8885 */
 .orb-output-trail.three {
       top: 58%;
-      width: clamp(calc(58 * var(--orbe-u)), calc(87.50 * var(--orbe-u)), calc(138 * var(--orbe-u)));
+      width: clamp(58px, 10vw, 138px);
       background: linear-gradient(90deg, rgba(66, 66, 255, .64), rgba(248, 250, 215, .5), transparent);
     }
 
@@ -394,17 +336,17 @@
 .orb-success-burst {
       left: 50%;
       top: 50%;
-      width: min(48%, calc(250 * var(--orbe-u)));
+      width: min(48%, 250px);
       aspect-ratio: 1;
       border-radius: 50%;
-      border: calc(2 * var(--orbe-u)) solid rgba(59, 255, 0, .72);
+      border: 2px solid rgba(59, 255, 0, .72);
       opacity: 0;
       transform: translate(-50%, -50%) scale(.55);
-      box-shadow: 0 0 calc(46 * var(--orbe-u)) rgba(59, 255, 0, .44);
+      box-shadow: 0 0 46px rgba(59, 255, 0, .44);
     }
 
 /* neo.html:8915 */
-.orbe-wiwo[data-thinking-state="listening"] .wiwo-thinking-orb {
+.thinking-orb-demo[data-thinking-state="listening"] .wiwo-thinking-orb {
       --orb-glow: rgba(59, 255, 0, .34);
       --orb-primary: rgba(117, 255, 78, .72);
       --orb-secondary: rgba(66, 66, 255, .52);
@@ -425,7 +367,7 @@
     }
 
 /* neo.html:8935 */
-.orbe-wiwo[data-thinking-state="listening"] {
+.thinking-orb-demo[data-thinking-state="listening"] {
       --stage-blue-glow: rgba(66, 66, 255, .24);
       --stage-green-glow: rgba(59, 255, 0, .28);
       --stage-warm-glow: rgba(248, 250, 215, .12);
@@ -434,20 +376,20 @@
     }
 
 /* neo.html:8948 */
-.orbe-wiwo[data-thinking-state="listening"] .orb-state-ring {
+.thinking-orb-demo[data-thinking-state="listening"] .orb-state-ring {
       border-color: rgba(59, 255, 0, .34);
       animation-duration: 3800ms;
       opacity: .62;
     }
 
 /* neo.html:8954 */
-.orbe-wiwo[data-thinking-state="listening"] .orb-pulse {
+.thinking-orb-demo[data-thinking-state="listening"] .orb-pulse {
       animation-duration: 1550ms;
       border-color: rgba(59, 255, 0, .42);
     }
 
 /* neo.html:8959 */
-.orbe-wiwo[data-thinking-state="thinking"] .wiwo-thinking-orb {
+.thinking-orb-demo[data-thinking-state="thinking"] .wiwo-thinking-orb {
       --orb-glow: rgba(66, 66, 255, .56);
       --orb-primary: rgba(66, 66, 255, .82);
       --orb-secondary: rgba(59, 255, 0, .68);
@@ -468,7 +410,7 @@
     }
 
 /* neo.html:8979 */
-.orbe-wiwo[data-thinking-state="thinking"] {
+.thinking-orb-demo[data-thinking-state="thinking"] {
       --stage-blue-glow: rgba(66, 66, 255, .42);
       --stage-green-glow: rgba(59, 255, 0, .22);
       --stage-warm-glow: rgba(248, 250, 215, .16);
@@ -477,30 +419,30 @@
     }
 
 /* neo.html:8987 */
-.orbe-wiwo[data-thinking-state="thinking"] .orb-state-ring {
+.thinking-orb-demo[data-thinking-state="thinking"] .orb-state-ring {
       opacity: .72;
       border-color: rgba(248, 250, 215, .24);
       animation-duration: 2600ms;
     }
 
 /* neo.html:8993 */
-.orbe-wiwo[data-thinking-state="thinking"] .orb-state-ring.alt {
+.thinking-orb-demo[data-thinking-state="thinking"] .orb-state-ring.alt {
       opacity: .44;
       border-color: rgba(66, 66, 255, .34);
       animation-duration: 4200ms;
     }
 
 /* neo.html:8999 */
-.orbe-wiwo[data-thinking-state="thinking"] .orb-core {
+.thinking-orb-demo[data-thinking-state="thinking"] .orb-core {
       animation-duration: 980ms;
       box-shadow:
-        0 0 calc(48 * var(--orbe-u)) rgba(248, 250, 215, .72),
-        0 0 calc(110 * var(--orbe-u)) rgba(66, 66, 255, .42),
-        0 0 calc(84 * var(--orbe-u)) rgba(59, 255, 0, .24);
+        0 0 48px rgba(248, 250, 215, .72),
+        0 0 110px rgba(66, 66, 255, .42),
+        0 0 84px rgba(59, 255, 0, .24);
     }
 
 /* neo.html:9007 */
-.orbe-wiwo[data-thinking-state="generating"] .wiwo-thinking-orb {
+.thinking-orb-demo[data-thinking-state="generating"] .wiwo-thinking-orb {
       --orb-glow: rgba(59, 255, 0, .52);
       --orb-primary: rgba(98, 116, 255, .86);
       --orb-secondary: rgba(59, 255, 0, .86);
@@ -511,7 +453,7 @@
       --orb-alpha: .9;
       --orb-speed: 2200ms;
       --orb-flow-speed: 3100ms;
-      --orb-x: calc(-10 * var(--orbe-u));
+      --orb-x: -10px;
       --orb-scale-a: 1.06;
       --orb-scale-b: 1.14;
       --orb-scale-c: 1.025;
@@ -522,7 +464,7 @@
     }
 
 /* neo.html:9028 */
-.orbe-wiwo[data-thinking-state="generating"] {
+.thinking-orb-demo[data-thinking-state="generating"] {
       --stage-blue-glow: rgba(66, 66, 255, .46);
       --stage-green-glow: rgba(59, 255, 0, .36);
       --stage-warm-glow: rgba(248, 250, 215, .16);
@@ -531,24 +473,24 @@
     }
 
 /* neo.html:9041 */
-.orbe-wiwo[data-thinking-state="generating"] .orb-output-trail.two {
+.thinking-orb-demo[data-thinking-state="generating"] .orb-output-trail.two {
       animation-delay: 140ms;
     }
 
 /* neo.html:9045 */
-.orbe-wiwo[data-thinking-state="generating"] .orb-output-trail.three {
+.thinking-orb-demo[data-thinking-state="generating"] .orb-output-trail.three {
       animation-delay: 280ms;
     }
 
 /* neo.html:9049 */
-.orbe-wiwo[data-thinking-state="generating"] .orb-state-ring {
+.thinking-orb-demo[data-thinking-state="generating"] .orb-state-ring {
       border-color: rgba(59, 255, 0, .38);
-      box-shadow: 0 0 calc(60 * var(--orbe-u)) rgba(59, 255, 0, .24);
+      box-shadow: 0 0 60px rgba(59, 255, 0, .24);
       animation-duration: 1800ms;
     }
 
 /* neo.html:9055 */
-.orbe-wiwo[data-thinking-state="success"] .wiwo-thinking-orb {
+.thinking-orb-demo[data-thinking-state="success"] .wiwo-thinking-orb {
       --orb-glow: rgba(59, 255, 0, .62);
       --orb-primary: rgba(59, 255, 0, .86);
       --orb-secondary: rgba(248, 250, 215, .66);
@@ -569,7 +511,7 @@
     }
 
 /* neo.html:9075 */
-.orbe-wiwo[data-thinking-state="success"] {
+.thinking-orb-demo[data-thinking-state="success"] {
       --stage-blue-glow: rgba(66, 66, 255, .22);
       --stage-green-glow: rgba(59, 255, 0, .42);
       --stage-warm-glow: rgba(248, 250, 215, .2);
@@ -578,15 +520,15 @@
     }
 
 /* neo.html:9087 */
-.orbe-wiwo[data-thinking-state="success"] .orb-state-ring,
-.orbe-wiwo[data-thinking-state="success"] .orb-state-ring.alt {
+.thinking-orb-demo[data-thinking-state="success"] .orb-state-ring,
+.thinking-orb-demo[data-thinking-state="success"] .orb-state-ring.alt {
       border-color: rgba(59, 255, 0, .42);
       opacity: .5;
       animation-duration: 5200ms;
     }
 
 /* neo.html:9136 */
-.orbe-wiwo[data-thinking-state="idle"] .wiwo-thinking-orb {
+.thinking-orb-demo[data-thinking-state="idle"] .wiwo-thinking-orb {
       --orb-glow: rgba(248, 250, 215, .18);
       --orb-primary: rgba(66, 66, 255, .48);
       --orb-secondary: rgba(59, 255, 0, .34);
@@ -607,7 +549,7 @@
     }
 
 /* neo.html:9156 */
-.orbe-wiwo[data-thinking-state="idle"] {
+.thinking-orb-demo[data-thinking-state="idle"] {
       --stage-blue-glow: rgba(66, 66, 255, .18);
       --stage-green-glow: rgba(59, 255, 0, .1);
       --stage-warm-glow: rgba(248, 250, 215, .1);
@@ -616,32 +558,32 @@
     }
 
 /* neo.html:9164 */
-.orbe-wiwo[data-thinking-state="idle"] .orb-state-ring {
+.thinking-orb-demo[data-thinking-state="idle"] .orb-state-ring {
       opacity: .18;
       animation-duration: 9600ms;
     }
 
 /* neo.html:9185 */
-.orbe-wiwo[data-thinking-state="generating"] .orb-particle {
+.thinking-orb-demo[data-thinking-state="generating"] .orb-particle {
       animation-duration: 2200ms;
     }
 
 /* neo.html:9189 */
-.orbe-wiwo[data-thinking-state="generating"] .orb-spark {
+.thinking-orb-demo[data-thinking-state="generating"] .orb-spark {
       animation-duration: 2400ms;
     }
 
 /* neo.html:9193 */
-.orbe-wiwo[data-thinking-state="success"] .orb-pulse {
+.thinking-orb-demo[data-thinking-state="success"] .orb-pulse {
       border-color: rgba(59, 255, 0, .54);
       animation-duration: 1250ms;
     }
 
 /* neo.html:9198 */
-.orbe-wiwo[data-thinking-state="retry"] .orb-particle,
-.orbe-wiwo[data-thinking-state="idle"] .orb-particle,
-.orbe-wiwo[data-thinking-state="retry"] .orb-spark,
-.orbe-wiwo[data-thinking-state="idle"] .orb-spark {
+.thinking-orb-demo[data-thinking-state="retry"] .orb-particle,
+.thinking-orb-demo[data-thinking-state="idle"] .orb-particle,
+.thinking-orb-demo[data-thinking-state="retry"] .orb-spark,
+.thinking-orb-demo[data-thinking-state="idle"] .orb-spark {
       opacity: .42;
     }
 
@@ -649,17 +591,17 @@
 @keyframes thinking-orb-breathe {
       0%,
       100% {
-        transform: translate3d(var(--orb-x, calc(0 * var(--orbe-u))), var(--orb-y, calc(0 * var(--orbe-u))), 0) scale(var(--orb-scale-a, 1)) rotate(var(--orb-rotate-a, 0deg));
+        transform: translate3d(var(--orb-x, 0px), var(--orb-y, 0px), 0) scale(var(--orb-scale-a, 1)) rotate(var(--orb-rotate-a, 0deg));
         border-radius: 46% 54% 52% 48% / 48% 42% 58% 52%;
       }
 
       44% {
-        transform: translate3d(var(--orb-x, calc(0 * var(--orbe-u))), var(--orb-y, calc(0 * var(--orbe-u))), 0) scale(var(--orb-scale-b, 1.055)) rotate(var(--orb-rotate-b, 4deg));
+        transform: translate3d(var(--orb-x, 0px), var(--orb-y, 0px), 0) scale(var(--orb-scale-b, 1.055)) rotate(var(--orb-rotate-b, 4deg));
         border-radius: 52% 48% 45% 55% / 44% 55% 45% 56%;
       }
 
       72% {
-        transform: translate3d(var(--orb-x, calc(0 * var(--orbe-u))), var(--orb-y, calc(0 * var(--orbe-u))), 0) scale(var(--orb-scale-c, .985)) rotate(var(--orb-rotate-c, -3deg));
+        transform: translate3d(var(--orb-x, 0px), var(--orb-y, 0px), 0) scale(var(--orb-scale-c, .985)) rotate(var(--orb-rotate-c, -3deg));
         border-radius: 43% 57% 58% 42% / 54% 44% 56% 46%;
       }
     }
@@ -757,18 +699,18 @@
       100% {
         transform: translate3d(0, 0, 0) scale(.7);
         opacity: .18;
-        filter: blur(calc(.2 * var(--orbe-u)));
+        filter: blur(.2px);
       }
 
       22%,
       46% {
-        transform: translate3d(calc(-22 * var(--orbe-u)), calc(18 * var(--orbe-u)), 0) scale(1.25);
+        transform: translate3d(-22px, 18px, 0) scale(1.25);
         opacity: .92;
         filter: blur(0);
       }
 
       72% {
-        transform: translate3d(calc(-46 * var(--orbe-u)), calc(48 * var(--orbe-u)), 0) scale(.82);
+        transform: translate3d(-46px, 48px, 0) scale(.82);
         opacity: .34;
       }
     }
@@ -790,11 +732,11 @@
 /* neo.html:9767 */
 @keyframes thinking-orb-particle {
       from {
-        transform: rotate(0deg) translateX(var(--orbit, calc(142 * var(--orbe-u)))) rotate(0deg);
+        transform: rotate(0deg) translateX(var(--orbit, 142px)) rotate(0deg);
       }
 
       to {
-        transform: rotate(360deg) translateX(var(--orbit, calc(142 * var(--orbe-u)))) rotate(-360deg);
+        transform: rotate(360deg) translateX(var(--orbit, 142px)) rotate(-360deg);
       }
     }
 
@@ -807,19 +749,19 @@
       }
 
       38% {
-        transform: translate3d(calc(18 * var(--orbe-u)), calc(-24 * var(--orbe-u)), 0) scale(1.25);
+        transform: translate3d(18px, -24px, 0) scale(1.25);
         opacity: var(--spark-opacity);
       }
 
       68% {
-        transform: translate3d(calc(-14 * var(--orbe-u)), calc(18 * var(--orbe-u)), 0) scale(.9);
+        transform: translate3d(-14px, 18px, 0) scale(.9);
         opacity: .62;
       }
     }
 
 /* neo.html:16203 */
 .wiwo-thinking-orb {
-      --orb-size: clamp(calc(176 * var(--orbe-u)), calc(183.75 * var(--orbe-u)), calc(280 * var(--orbe-u)));
+      --orb-size: clamp(176px, 21vw, 280px);
       --orb-glow: rgba(66, 66, 255, .3);
       --orb-primary: rgba(66, 66, 255, .5);
       --orb-secondary: rgba(59, 255, 0, .34);
@@ -832,12 +774,12 @@
         conic-gradient(from 150deg, rgba(59, 255, 0, .32), rgba(248, 250, 215, .3), rgba(66, 66, 255, .48), rgba(59, 255, 0, .28)),
         linear-gradient(145deg, rgba(255, 255, 255, .18), rgba(255, 255, 255, .035));
       box-shadow:
-        0 calc(28 * var(--orbe-u)) calc(72 * var(--orbe-u)) rgba(66, 66, 255, .15),
-        0 0 calc(92 * var(--orbe-u)) var(--orb-glow),
-        0 0 calc(54 * var(--orbe-u)) rgba(59, 255, 0, .14),
-        inset 0 calc(2 * var(--orbe-u)) calc(24 * var(--orbe-u)) rgba(255, 255, 255, .46),
-        inset calc(-14 * var(--orbe-u)) calc(-20 * var(--orbe-u)) calc(38 * var(--orbe-u)) rgba(66, 66, 255, .12),
-        inset calc(14 * var(--orbe-u)) calc(18 * var(--orbe-u)) calc(42 * var(--orbe-u)) rgba(248, 250, 215, .2);
+        0 28px 72px rgba(66, 66, 255, .15),
+        0 0 92px var(--orb-glow),
+        0 0 54px rgba(59, 255, 0, .14),
+        inset 0 2px 24px rgba(255, 255, 255, .46),
+        inset -14px -20px 38px rgba(66, 66, 255, .12),
+        inset 14px 18px 42px rgba(248, 250, 215, .2);
       transition: transform var(--motion-medium) var(--ease-expressive), filter var(--motion-medium) var(--ease-expressive), opacity var(--motion-medium) var(--ease-expressive), border-radius var(--motion-medium) var(--ease-expressive), box-shadow var(--motion-medium) var(--ease-expressive);
     }
 
@@ -850,7 +792,7 @@
         }
   .wiwo-thinking-orb {
           border-radius: 48% 52% 50% 50%;
-          box-shadow: 0 calc(22 * var(--orbe-u)) calc(64 * var(--orbe-u)) rgba(41, 41, 41, .28), 0 0 calc(64 * var(--orbe-u)) rgba(66, 66, 255, .28), inset 0 calc(2 * var(--orbe-u)) calc(18 * var(--orbe-u)) rgba(255, 255, 255, .42);
+          box-shadow: 0 22px 64px rgba(41, 41, 41, .28), 0 0 64px rgba(66, 66, 255, .28), inset 0 2px 18px rgba(255, 255, 255, .42);
         }
 }
 
@@ -863,7 +805,7 @@
           inset: -10%;
         }
   .orb-particle {
-          transform-origin: calc(min(var(--orbit, calc(142 * var(--orbe-u))), calc(112 * var(--orbe-u))) * -1) 0;
+          transform-origin: calc(min(var(--orbit, 142px), 112px) * -1) 0;
         }
 }
 
@@ -874,8 +816,8 @@
       z-index: 3;
       border-radius: inherit;
       pointer-events: none;
-      mix-blend-mode: var(--orbe-mezcla, screen);
-      filter: blur(calc(18 * var(--orbe-u))) saturate(1.42);
+      mix-blend-mode: screen;
+      filter: blur(18px) saturate(1.42);
       opacity: var(--orb-aurora-opacity);
       transform-origin: 50% 50%;
     }
@@ -887,21 +829,23 @@
       background:
         radial-gradient(circle at 48% 48%, rgba(248, 250, 215, .26), rgba(248, 250, 215, .1) 28%, transparent 64%);
       box-shadow: none;
-      filter: blur(calc(22 * var(--orbe-u))) saturate(1.35);
+      filter: blur(22px) saturate(1.35);
       opacity: var(--orb-core-glow);
+      -webkit-backdrop-filter: none;
+      backdrop-filter: none;
       animation: orb-glass-bloom 2400ms var(--ease-expressive) infinite;
     }
 
 /* neo.html:17912 */
 .orb-glint {
-      width: clamp(calc(34 * var(--orbe-u)), calc(43.75 * var(--orbe-u)), calc(62 * var(--orbe-u)));
-      height: clamp(calc(18 * var(--orbe-u)), calc(26.25 * var(--orbe-u)), calc(34 * var(--orbe-u)));
+      width: clamp(34px, 5vw, 62px);
+      height: clamp(18px, 3vw, 34px);
       right: 18%;
       top: 20%;
       background:
         radial-gradient(ellipse at 50% 50%, rgba(248, 250, 215, .76), rgba(248, 250, 215, .16) 42%, transparent 76%);
       box-shadow: none;
-      filter: blur(calc(9 * var(--orbe-u)));
+      filter: blur(9px);
       opacity: var(--orb-glint-alpha);
       transform: rotate(-18deg);
       animation: orb-lumen-drift 4200ms var(--ease-expressive) infinite;
@@ -910,21 +854,21 @@
 /* neo.html:17937 */
 .orb-particle,
 .orb-spark {
-      width: clamp(calc(16 * var(--orbe-u)), calc(17.50 * var(--orbe-u)), calc(24 * var(--orbe-u)));
-      height: clamp(calc(16 * var(--orbe-u)), calc(17.50 * var(--orbe-u)), calc(24 * var(--orbe-u)));
+      width: clamp(16px, 2vw, 24px);
+      height: clamp(16px, 2vw, 24px);
       border-radius: 50%;
       background:
         radial-gradient(circle, currentColor 0 8%, color-mix(in srgb, currentColor 42%, transparent) 24%, transparent 70%);
       box-shadow: none;
-      filter: blur(calc(5 * var(--orbe-u))) saturate(1.3);
+      filter: blur(5px) saturate(1.3);
       opacity: calc(var(--spark-opacity) * .72);
     }
 
 /* neo.html:17949 */
 .orb-particle:nth-of-type(2),
 .orb-particle:nth-of-type(3) {
-      width: clamp(calc(14 * var(--orbe-u)), calc(14.88 * var(--orbe-u)), calc(21 * var(--orbe-u)));
-      height: clamp(calc(14 * var(--orbe-u)), calc(14.88 * var(--orbe-u)), calc(21 * var(--orbe-u)));
+      width: clamp(14px, 1.7vw, 21px);
+      height: clamp(14px, 1.7vw, 21px);
     }
 
 /* neo.html:17960 */
@@ -941,10 +885,10 @@
 
 /* neo.html:17970 */
 .orb-scan-line {
-      height: calc(14 * var(--orbe-u));
+      height: 14px;
       background:
         radial-gradient(ellipse at 50% 50%, rgba(59, 255, 0, .72), rgba(248, 250, 215, .32) 38%, transparent 76%);
-      filter: blur(calc(7 * var(--orbe-u)));
+      filter: blur(7px);
       box-shadow: none;
     }
 
@@ -953,18 +897,18 @@
       border: 0;
       background:
         radial-gradient(circle, rgba(59, 255, 0, .42), rgba(248, 250, 215, .18) 38%, transparent 70%);
-      filter: blur(calc(14 * var(--orbe-u)));
+      filter: blur(14px);
       box-shadow: none;
     }
 
 /* neo.html:18083 */
-.orbe-wiwo[data-thinking-state="generating"] .orb-aurora-one,
-.orbe-wiwo[data-thinking-state="generating"] .orb-aurora-two {
+.thinking-orb-demo[data-thinking-state="generating"] .orb-aurora-one,
+.thinking-orb-demo[data-thinking-state="generating"] .orb-aurora-two {
       animation-duration: 1800ms;
     }
 
 /* neo.html:18088 */
-.orbe-wiwo[data-thinking-state="success"] .orb-aurora-three {
+.thinking-orb-demo[data-thinking-state="success"] .orb-aurora-three {
       animation-duration: 1200ms;
     }
 
@@ -991,19 +935,19 @@
       }
 
       42% {
-        transform: translate3d(calc(-22 * var(--orbe-u)), calc(18 * var(--orbe-u)), 0) rotate(-8deg) scale(1.14);
+        transform: translate3d(-22px, 18px, 0) rotate(-8deg) scale(1.14);
         opacity: var(--orb-glint-alpha);
       }
 
       76% {
-        transform: translate3d(calc(-44 * var(--orbe-u)), calc(42 * var(--orbe-u)), 0) rotate(6deg) scale(.9);
+        transform: translate3d(-44px, 42px, 0) rotate(6deg) scale(.9);
         opacity: calc(var(--orb-glint-alpha) * .62);
       }
     }
 
 /* neo.html:19034 */
 .wiwo-thinking-orb {
-      --orb-size: clamp(calc(230 * var(--orbe-u)), calc(245.00 * var(--orbe-u)), calc(365 * var(--orbe-u)));
+      --orb-size: clamp(230px, 28vw, 365px);
       --orb-lumen-a: rgba(66, 66, 255, .7);
       --orb-lumen-b: rgba(59, 255, 0, .58);
       --orb-lumen-c: rgba(255, 255, 251, .58);
@@ -1023,10 +967,12 @@
       -webkit-mask-image: radial-gradient(ellipse at 50% 50%, transparent 0 24%, rgba(0, 0, 0, .28) 33%, rgba(0, 0, 0, .86) 48%, rgba(0, 0, 0, .44) 65%, transparent 84%);
       mask-image: radial-gradient(ellipse at 50% 50%, transparent 0 24%, rgba(0, 0, 0, .28) 33%, rgba(0, 0, 0, .86) 48%, rgba(0, 0, 0, .44) 65%, transparent 84%);
       box-shadow:
-        0 0 calc(190 * var(--orbe-u)) rgba(66, 66, 255, .32),
-        0 0 calc(154 * var(--orbe-u)) rgba(59, 255, 0, .24),
-        0 0 calc(86 * var(--orbe-u)) rgba(255, 255, 251, .12);
-      mix-blend-mode: var(--orbe-mezcla, screen);
+        0 0 190px rgba(66, 66, 255, .32),
+        0 0 154px rgba(59, 255, 0, .24),
+        0 0 86px rgba(255, 255, 251, .12);
+      -webkit-backdrop-filter: none;
+      backdrop-filter: none;
+      mix-blend-mode: screen;
       will-change: transform, filter, background-position, border-radius;
       animation:
         thinking-orb-breathe var(--orb-speed) var(--ease-expressive) infinite,
@@ -1040,14 +986,14 @@
       background:
         radial-gradient(ellipse at 34% 28%, rgba(255, 255, 251, .58), rgba(255, 255, 251, .16) 34%, transparent 68%),
         radial-gradient(ellipse at 74% 54%, rgba(255, 255, 251, .18), transparent 58%);
-      filter: blur(calc(16 * var(--orbe-u)));
+      filter: blur(16px);
       opacity: calc(var(--orb-glint-alpha) * .58);
       transform: rotate(-14deg);
       animation: orb-sheen-drift 5200ms var(--ease-expressive) infinite alternate;
     }
 
 /* neo.html:19205 */
-.orbe-wiwo[data-thinking-state="idle"] .wiwo-thinking-orb {
+.thinking-orb-demo[data-thinking-state="idle"] .wiwo-thinking-orb {
       --orb-lumen-a: rgba(66, 66, 255, .36);
       --orb-lumen-b: rgba(59, 255, 0, .28);
       --orb-lumen-c: rgba(255, 255, 251, .34);
@@ -1063,7 +1009,7 @@
     }
 
 /* neo.html:19220 */
-.orbe-wiwo[data-thinking-state="listening"] .wiwo-thinking-orb {
+.thinking-orb-demo[data-thinking-state="listening"] .wiwo-thinking-orb {
       --orb-lumen-a: rgba(66, 66, 255, .46);
       --orb-lumen-b: rgba(59, 255, 0, .86);
       --orb-lumen-c: rgba(255, 255, 251, .54);
@@ -1079,20 +1025,20 @@
     }
 
 /* neo.html:19235 */
-.orbe-wiwo[data-thinking-state="listening"] .orb-scan-line {
+.thinking-orb-demo[data-thinking-state="listening"] .orb-scan-line {
       left: 48%;
       right: auto;
       top: 12%;
       bottom: 12%;
-      width: calc(24 * var(--orbe-u));
+      width: 24px;
       height: auto;
       background: radial-gradient(ellipse at 50% 50%, rgba(59, 255, 0, .84), rgba(255, 255, 251, .28) 38%, transparent 78%);
-      filter: blur(calc(11 * var(--orbe-u)));
+      filter: blur(11px);
       animation: orb-listening-column 1500ms var(--ease-expressive) infinite;
     }
 
 /* neo.html:19247 */
-.orbe-wiwo[data-thinking-state="thinking"] .wiwo-thinking-orb {
+.thinking-orb-demo[data-thinking-state="thinking"] .wiwo-thinking-orb {
       --orb-lumen-a: rgba(66, 66, 255, .82);
       --orb-lumen-b: rgba(59, 255, 0, .58);
       --orb-lumen-c: rgba(255, 255, 251, .66);
@@ -1105,7 +1051,7 @@
     }
 
 /* neo.html:19259 */
-.orbe-wiwo[data-thinking-state="generating"] .wiwo-thinking-orb {
+.thinking-orb-demo[data-thinking-state="generating"] .wiwo-thinking-orb {
       --orb-lumen-a: rgba(66, 66, 255, .82);
       --orb-lumen-b: rgba(59, 255, 0, .95);
       --orb-lumen-c: rgba(255, 255, 251, .68);
@@ -1114,7 +1060,7 @@
       --orb-glint-alpha: .88;
       --orb-speed: 1700ms;
       --orb-flow-speed: 2100ms;
-      --orb-x: calc(-14 * var(--orbe-u));
+      --orb-x: -14px;
       --orb-scale-a: 1.04;
       --orb-scale-b: 1.18;
       --orb-scale-c: 1.02;
@@ -1122,7 +1068,7 @@
     }
 
 /* neo.html:19282 */
-.orbe-wiwo[data-thinking-state="success"] .wiwo-thinking-orb {
+.thinking-orb-demo[data-thinking-state="success"] .wiwo-thinking-orb {
       --orb-lumen-a: rgba(59, 255, 0, .9);
       --orb-lumen-b: rgba(255, 255, 251, .68);
       --orb-lumen-c: rgba(66, 66, 255, .3);
@@ -1135,10 +1081,10 @@
     }
 
 /* neo.html:19294 */
-.orbe-wiwo[data-thinking-state="success"] .orb-success-burst {
-      width: min(70%, calc(380 * var(--orbe-u)));
+.thinking-orb-demo[data-thinking-state="success"] .orb-success-burst {
+      width: min(70%, 380px);
       background: radial-gradient(circle, rgba(59, 255, 0, .5), rgba(255, 255, 251, .18) 36%, transparent 72%);
-      filter: blur(calc(18 * var(--orbe-u)));
+      filter: blur(18px);
     }
 
 /* neo.html:19321 */
@@ -1160,12 +1106,12 @@
 @keyframes orb-listening-column {
       0%,
       100% {
-        transform: translate3d(calc(-34 * var(--orbe-u)), 0, 0) scaleY(.72);
+        transform: translate3d(-34px, 0, 0) scaleY(.72);
         opacity: .52;
       }
 
       50% {
-        transform: translate3d(calc(34 * var(--orbe-u)), 0, 0) scaleY(1.18);
+        transform: translate3d(34px, 0, 0) scaleY(1.18);
         opacity: 1;
       }
     }
@@ -1176,9 +1122,9 @@
       -webkit-mask-image: none;
       mask-image: none;
       box-shadow:
-        0 0 calc(180 * var(--orbe-u)) color-mix(in srgb, var(--orb-lumen-a) 36%, transparent),
-        0 0 calc(150 * var(--orbe-u)) color-mix(in srgb, var(--orb-lumen-b) 24%, transparent),
-        0 0 calc(80 * var(--orbe-u)) rgba(255, 255, 251, .1);
+        0 0 180px color-mix(in srgb, var(--orb-lumen-a) 36%, transparent),
+        0 0 150px color-mix(in srgb, var(--orb-lumen-b) 24%, transparent),
+        0 0 80px rgba(255, 255, 251, .1);
     }
 
 /* neo.html:19512 */
@@ -1191,7 +1137,7 @@
         linear-gradient(110deg, transparent 0 18%, rgba(255, 255, 251, .22), transparent 72%);
       -webkit-mask-image: radial-gradient(ellipse at 50% 50%, #000 0 48%, transparent 72%);
       mask-image: radial-gradient(ellipse at 50% 50%, #000 0 48%, transparent 72%);
-      filter: blur(calc(18 * var(--orbe-u)));
+      filter: blur(18px);
       opacity: calc(var(--orb-glint-alpha) * .46);
       animation: orb-sheen-drift 4600ms var(--ease-expressive) infinite alternate;
     }
@@ -1208,28 +1154,28 @@
     }
 
 /* neo.html:19607 */
-.orbe-wiwo[data-thinking-state="thinking"] .wiwo-thinking-orb {
+.thinking-orb-demo[data-thinking-state="thinking"] .wiwo-thinking-orb {
       --orb-aurora-opacity: 1;
       --orb-core-glow: .26;
       --orb-glint-alpha: .86;
     }
 
 /* neo.html:19613 */
-.orbe-wiwo[data-thinking-state="generating"] .wiwo-thinking-orb {
+.thinking-orb-demo[data-thinking-state="generating"] .wiwo-thinking-orb {
       --orb-aurora-opacity: 1;
       --orb-core-glow: .3;
       --orb-glint-alpha: .96;
     }
 
 /* neo.html:19619 */
-.orbe-wiwo[data-thinking-state="listening"] .wiwo-thinking-orb {
+.thinking-orb-demo[data-thinking-state="listening"] .wiwo-thinking-orb {
       --orb-aurora-opacity: .84;
       --orb-core-glow: .2;
       --orb-glint-alpha: .64;
     }
 
 /* neo.html:19625 */
-.orbe-wiwo[data-thinking-state="success"] .wiwo-thinking-orb {
+.thinking-orb-demo[data-thinking-state="success"] .wiwo-thinking-orb {
       --orb-aurora-opacity: .9;
       --orb-core-glow: .2;
       --orb-glint-alpha: .82;
@@ -1238,14 +1184,14 @@
 /* neo.html:19711 */
 .orb-state-ring,
 .orb-state-ring.alt {
-      width: min(78%, calc(460 * var(--orbe-u)));
-      height: min(36%, calc(210 * var(--orbe-u)));
+      width: min(78%, 460px);
+      height: min(36%, 210px);
       aspect-ratio: auto;
       border: 0;
       background:
         radial-gradient(ellipse at 50% 50%, rgba(255, 255, 251, .1), transparent 44%),
         linear-gradient(90deg, transparent, rgba(66, 66, 255, .32), rgba(59, 255, 0, .22), transparent);
-      filter: blur(calc(18 * var(--orbe-u)));
+      filter: blur(18px);
       opacity: .34;
       transform: translate(-50%, -50%) rotate(-8deg);
       animation: orb-soft-orbit-band 5200ms var(--ease-expressive) infinite;
@@ -1253,8 +1199,8 @@
 
 /* neo.html:19726 */
 .orb-state-ring.alt {
-      width: min(88%, calc(520 * var(--orbe-u)));
-      height: min(48%, calc(270 * var(--orbe-u)));
+      width: min(88%, 520px);
+      height: min(48%, 270px);
       opacity: .2;
       background:
         radial-gradient(ellipse at 50% 50%, rgba(59, 255, 0, .14), transparent 46%),
@@ -1264,34 +1210,34 @@
     }
 
 /* neo.html:19742 */
-.orbe-wiwo[data-thinking-state="idle"] .wiwo-thinking-orb {
-      height: clamp(calc(185 * var(--orbe-u)), calc(175.00 * var(--orbe-u)), calc(286 * var(--orbe-u)));
+.thinking-orb-demo[data-thinking-state="idle"] .wiwo-thinking-orb {
+      height: clamp(185px, 20vw, 286px);
       border-radius: 56% 44% 54% 46% / 52% 48% 52% 48%;
     }
 
 /* neo.html:19747 */
-.orbe-wiwo[data-thinking-state="listening"] .wiwo-thinking-orb {
-      width: clamp(calc(275 * var(--orbe-u)), calc(271.25 * var(--orbe-u)), calc(420 * var(--orbe-u)));
-      height: clamp(calc(220 * var(--orbe-u)), calc(210.00 * var(--orbe-u)), calc(340 * var(--orbe-u)));
+.thinking-orb-demo[data-thinking-state="listening"] .wiwo-thinking-orb {
+      width: clamp(275px, 31vw, 420px);
+      height: clamp(220px, 24vw, 340px);
       border-radius: 48% 52% 58% 42% / 58% 36% 64% 42%;
     }
 
 /* neo.html:19753 */
-.orbe-wiwo[data-thinking-state="thinking"] .wiwo-thinking-orb {
+.thinking-orb-demo[data-thinking-state="thinking"] .wiwo-thinking-orb {
       border-radius: 64% 36% 52% 48% / 44% 62% 38% 56%;
     }
 
 /* neo.html:19757 */
-.orbe-wiwo[data-thinking-state="generating"] .wiwo-thinking-orb {
-      width: clamp(calc(320 * var(--orbe-u)), calc(323.75 * var(--orbe-u)), calc(500 * var(--orbe-u)));
-      height: clamp(calc(210 * var(--orbe-u)), calc(210.00 * var(--orbe-u)), calc(330 * var(--orbe-u)));
+.thinking-orb-demo[data-thinking-state="generating"] .wiwo-thinking-orb {
+      width: clamp(320px, 37vw, 500px);
+      height: clamp(210px, 24vw, 330px);
       border-radius: 68% 32% 52% 48% / 42% 50% 50% 58%;
     }
 
 /* neo.html:19763 */
-.orbe-wiwo[data-thinking-state="success"] .wiwo-thinking-orb {
-      width: clamp(calc(280 * var(--orbe-u)), calc(280.00 * var(--orbe-u)), calc(430 * var(--orbe-u)));
-      height: clamp(calc(198 * var(--orbe-u)), calc(192.50 * var(--orbe-u)), calc(300 * var(--orbe-u)));
+.thinking-orb-demo[data-thinking-state="success"] .wiwo-thinking-orb {
+      width: clamp(280px, 32vw, 430px);
+      height: clamp(198px, 22vw, 300px);
       border-radius: 52% 48% 50% 50% / 50% 52% 48% 50%;
     }
 
@@ -1319,10 +1265,10 @@
 
 /* neo.html:19857 */
 .wiwo-thinking-orb {
-      --orb-w: clamp(calc(245 * var(--orbe-u)), calc(245.00 * var(--orbe-u)), calc(410 * var(--orbe-u)));
-      --orb-h: clamp(calc(205 * var(--orbe-u)), calc(192.50 * var(--orbe-u)), calc(315 * var(--orbe-u)));
-      --orb-x: calc(0 * var(--orbe-u));
-      --orb-y: calc(0 * var(--orbe-u));
+      --orb-w: clamp(245px, 28vw, 410px);
+      --orb-h: clamp(205px, 22vw, 315px);
+      --orb-x: 0px;
+      --orb-y: 0px;
       --orb-scale-a: .96;
       --orb-scale-b: 1.06;
       --orb-scale-c: .93;
@@ -1342,11 +1288,11 @@
       opacity: var(--orb-alpha);
       background: transparent !important;
       box-shadow:
-        0 0 calc(150 * var(--orbe-u)) color-mix(in srgb, var(--orb-light-blue) 30%, transparent),
-        0 0 calc(125 * var(--orbe-u)) color-mix(in srgb, var(--orb-light-lime) 24%, transparent),
-        0 0 calc(72 * var(--orbe-u)) rgba(248, 250, 215, .15);
+        0 0 150px color-mix(in srgb, var(--orb-light-blue) 30%, transparent),
+        0 0 125px color-mix(in srgb, var(--orb-light-lime) 24%, transparent),
+        0 0 72px rgba(248, 250, 215, .15);
       filter: saturate(var(--orb-saturation)) brightness(var(--orb-brightness));
-      mix-blend-mode: var(--orbe-mezcla, screen);
+      mix-blend-mode: screen;
       transform-origin: 50% 54%;
       will-change: transform, filter, border-radius;
       animation:
@@ -1379,9 +1325,9 @@
         radial-gradient(ellipse at 46% 45%, rgba(248, 250, 215, .16), transparent 46%);
       -webkit-mask-image: radial-gradient(ellipse at 50% 50%, rgba(0, 0, 0, .7) 0 22%, #000 46%, rgba(0, 0, 0, .64) 68%, transparent 88%);
       mask-image: radial-gradient(ellipse at 50% 50%, rgba(0, 0, 0, .7) 0 22%, #000 46%, rgba(0, 0, 0, .64) 68%, transparent 88%);
-      filter: blur(calc(30 * var(--orbe-u))) saturate(2.35);
+      filter: blur(30px) saturate(2.35);
       opacity: .82;
-      mix-blend-mode: var(--orbe-mezcla, screen);
+      mix-blend-mode: screen;
       animation: orb-v6-membrane-flow calc(var(--orb-flow-speed) * 1.34) var(--ease-expressive) infinite;
     }
 
@@ -1393,9 +1339,9 @@
         radial-gradient(ellipse at 32% 24%, rgba(255, 255, 251, .56), rgba(255, 255, 251, .14) 30%, transparent 58%),
         radial-gradient(ellipse at 72% 58%, rgba(66, 66, 255, .26), transparent 46%),
         radial-gradient(ellipse at 44% 72%, rgba(59, 255, 0, .2), transparent 48%);
-      filter: blur(calc(18 * var(--orbe-u))) saturate(1.55);
+      filter: blur(18px) saturate(1.55);
       opacity: .72;
-      mix-blend-mode: var(--orbe-mezcla, screen);
+      mix-blend-mode: screen;
       animation: orb-v6-sheen 3900ms var(--ease-expressive) infinite alternate;
     }
 
@@ -1411,7 +1357,7 @@
           transparent 86% 100%);
       -webkit-mask-image: radial-gradient(ellipse at 50% 50%, rgba(0, 0, 0, .64) 0 28%, #000 56%, transparent 84%);
       mask-image: radial-gradient(ellipse at 50% 50%, rgba(0, 0, 0, .64) 0 28%, #000 56%, transparent 84%);
-      filter: blur(calc(34 * var(--orbe-u))) saturate(2.05);
+      filter: blur(34px) saturate(2.05);
       opacity: .62;
       animation: orb-v6-liquid-sweep 5400ms var(--ease-expressive) infinite;
     }
@@ -1422,7 +1368,7 @@
         radial-gradient(ellipse at 38% 32%, rgba(248, 250, 215, .36), transparent 34%),
         radial-gradient(ellipse at 66% 46%, rgba(66, 66, 255, .42), transparent 42%),
         radial-gradient(ellipse at 44% 68%, rgba(59, 255, 0, .3), transparent 40%);
-      filter: blur(calc(26 * var(--orbe-u)));
+      filter: blur(26px);
       opacity: .74;
       animation: orb-v6-light-swim 4600ms var(--ease-expressive) infinite alternate;
     }
@@ -1434,7 +1380,7 @@
         repeating-conic-gradient(from 0deg, transparent 0deg 18deg, rgba(248, 250, 215, .18) 22deg 24deg, transparent 28deg 46deg);
       -webkit-mask-image: radial-gradient(ellipse at 50% 50%, transparent 0 18%, rgba(0, 0, 0, .52) 38%, transparent 76%);
       mask-image: radial-gradient(ellipse at 50% 50%, transparent 0 18%, rgba(0, 0, 0, .52) 38%, transparent 76%);
-      filter: blur(calc(18 * var(--orbe-u)));
+      filter: blur(18px);
       opacity: .28;
       animation: orb-v6-caustic 8600ms linear infinite;
     }
@@ -1461,7 +1407,7 @@
         radial-gradient(ellipse at 48% 50%, rgba(248, 250, 215, .18), transparent 34%),
         radial-gradient(ellipse at 62% 42%, rgba(66, 66, 255, .36), transparent 44%),
         radial-gradient(ellipse at 38% 65%, rgba(59, 255, 0, .28), transparent 44%);
-      filter: blur(calc(32 * var(--orbe-u))) saturate(2);
+      filter: blur(32px) saturate(2);
       opacity: .7;
       animation: orb-v6-inner-tide 2600ms var(--ease-expressive) infinite alternate;
     }
@@ -1472,9 +1418,9 @@
       border-radius: inherit;
       background:
         conic-gradient(from 0deg, transparent 0 10%, rgba(248, 250, 215, .42), transparent 24%, rgba(66, 66, 255, .48), transparent 52%, rgba(59, 255, 0, .52), transparent 78% 100%);
-      -webkit-mask-image: radial-gradient(ellipse at 50% 50%, transparent calc(100% - calc(24 * var(--orbe-u))), #000 calc(100% - calc(13 * var(--orbe-u))), transparent calc(100% - calc(2 * var(--orbe-u))));
-      mask-image: radial-gradient(ellipse at 50% 50%, transparent calc(100% - calc(24 * var(--orbe-u))), #000 calc(100% - calc(13 * var(--orbe-u))), transparent calc(100% - calc(2 * var(--orbe-u))));
-      filter: blur(calc(12 * var(--orbe-u)));
+      -webkit-mask-image: radial-gradient(ellipse at 50% 50%, transparent calc(100% - 24px), #000 calc(100% - 13px), transparent calc(100% - 2px));
+      mask-image: radial-gradient(ellipse at 50% 50%, transparent calc(100% - 24px), #000 calc(100% - 13px), transparent calc(100% - 2px));
+      filter: blur(12px);
       opacity: .24;
       animation: orb-v6-rim-flow 5200ms linear infinite;
     }
@@ -1489,7 +1435,7 @@
         conic-gradient(from 78deg, rgba(248, 250, 215, .08), rgba(66, 66, 255, .16), rgba(59, 255, 0, .14), rgba(248, 250, 215, .08));
       -webkit-mask-image: radial-gradient(ellipse at 50% 50%, #000 0 54%, rgba(0, 0, 0, .52) 70%, transparent 90%);
       mask-image: radial-gradient(ellipse at 50% 50%, #000 0 54%, rgba(0, 0, 0, .52) 70%, transparent 90%);
-      filter: blur(calc(42 * var(--orbe-u))) saturate(1.85);
+      filter: blur(42px) saturate(1.85);
       opacity: .7;
       box-shadow: none;
       animation: orb-v6-soft-core 2400ms var(--ease-expressive) infinite alternate;
@@ -1497,13 +1443,13 @@
 
 /* neo.html:20039 */
 .orb-glint {
-      width: clamp(calc(62 * var(--orbe-u)), calc(70.00 * var(--orbe-u)), calc(110 * var(--orbe-u)));
-      height: clamp(calc(24 * var(--orbe-u)), calc(35.00 * var(--orbe-u)), calc(52 * var(--orbe-u)));
+      width: clamp(62px, 8vw, 110px);
+      height: clamp(24px, 4vw, 52px);
       right: 14%;
       top: 18%;
       border-radius: 50%;
       background: radial-gradient(ellipse at 50% 50%, rgba(248, 250, 215, .72), rgba(248, 250, 215, .18) 44%, transparent 72%);
-      filter: blur(calc(14 * var(--orbe-u)));
+      filter: blur(14px);
       opacity: .64;
       animation: orb-v6-glint 2600ms var(--ease-expressive) infinite alternate;
     }
@@ -1516,7 +1462,7 @@
       background:
         radial-gradient(ellipse at 50% 50%, rgba(248, 250, 215, .12), transparent 25%),
         conic-gradient(from 0deg, rgba(59, 255, 0, .24), rgba(66, 66, 255, .26), transparent 62%, rgba(248, 250, 215, .14));
-      filter: blur(calc(32 * var(--orbe-u))) saturate(1.5);
+      filter: blur(32px) saturate(1.5);
       opacity: .18;
       animation: orb-v6-pulse 3100ms var(--ease-expressive) infinite;
     }
@@ -1544,48 +1490,48 @@
       pointer-events: none;
       opacity: 0;
       transform: translate(-50%, -50%);
-      mix-blend-mode: var(--orbe-mezcla, screen);
+      mix-blend-mode: screen;
       z-index: 10;
     }
 
 /* neo.html:20087 */
 .orb-state-ring,
 .orb-state-ring.alt {
-      width: min(88%, calc(620 * var(--orbe-u)));
-      height: min(52%, calc(330 * var(--orbe-u)));
+      width: min(88%, 620px);
+      height: min(52%, 330px);
       border: 0;
       border-radius: 50%;
       background:
         conic-gradient(from 0deg, transparent 0 10%, rgba(248, 250, 215, .3) 18%, transparent 28%, rgba(66, 66, 255, .44) 48%, transparent 64%, rgba(59, 255, 0, .44) 78%, transparent 100%);
-      -webkit-mask-image: radial-gradient(ellipse at 50% 50%, transparent calc(100% - calc(34 * var(--orbe-u))), #000 calc(100% - calc(16 * var(--orbe-u))), transparent calc(100% - calc(2 * var(--orbe-u))));
-      mask-image: radial-gradient(ellipse at 50% 50%, transparent calc(100% - calc(34 * var(--orbe-u))), #000 calc(100% - calc(16 * var(--orbe-u))), transparent calc(100% - calc(2 * var(--orbe-u))));
-      filter: blur(calc(7 * var(--orbe-u)));
+      -webkit-mask-image: radial-gradient(ellipse at 50% 50%, transparent calc(100% - 34px), #000 calc(100% - 16px), transparent calc(100% - 2px));
+      mask-image: radial-gradient(ellipse at 50% 50%, transparent calc(100% - 34px), #000 calc(100% - 16px), transparent calc(100% - 2px));
+      filter: blur(7px);
     }
 
 /* neo.html:20100 */
 .orb-state-ring.alt {
-      width: min(72%, calc(520 * var(--orbe-u)));
-      height: min(40%, calc(270 * var(--orbe-u)));
-      filter: blur(calc(10 * var(--orbe-u)));
+      width: min(72%, 520px);
+      height: min(40%, 270px);
+      filter: blur(10px);
     }
 
 /* neo.html:20106 */
 .orb-scan-line {
-      width: clamp(calc(28 * var(--orbe-u)), calc(43.75 * var(--orbe-u)), calc(66 * var(--orbe-u)));
-      height: min(72%, calc(430 * var(--orbe-u)));
-      border-radius: calc(999 * var(--orbe-u));
+      width: clamp(28px, 5vw, 66px);
+      height: min(72%, 430px);
+      border-radius: 999px;
       background: radial-gradient(ellipse at 50% 50%, rgba(59, 255, 0, .82), rgba(248, 250, 215, .28) 34%, transparent 74%);
-      filter: blur(calc(14 * var(--orbe-u)));
+      filter: blur(14px);
     }
 
 /* neo.html:20114 */
 .orb-output-trail {
       left: 58%;
-      width: min(40%, calc(310 * var(--orbe-u)));
-      height: calc(36 * var(--orbe-u));
-      border-radius: calc(999 * var(--orbe-u));
+      width: min(40%, 310px);
+      height: 36px;
+      border-radius: 999px;
       background: linear-gradient(90deg, rgba(59, 255, 0, .72), rgba(248, 250, 215, .42), rgba(66, 66, 255, .46), transparent);
-      filter: blur(calc(17 * var(--orbe-u)));
+      filter: blur(17px);
     }
 
 /* neo.html:20123 */
@@ -1596,33 +1542,33 @@
 /* neo.html:20127 */
 .orb-output-trail.two {
       top: 50%;
-      width: min(34%, calc(260 * var(--orbe-u)));
+      width: min(34%, 260px);
       animation-delay: -180ms;
     }
 
 /* neo.html:20133 */
 .orb-output-trail.three {
       top: 61%;
-      width: min(28%, calc(220 * var(--orbe-u)));
+      width: min(28%, 220px);
       animation-delay: -360ms;
     }
 
 /* neo.html:20139 */
 .orb-success-burst {
-      width: min(70%, calc(420 * var(--orbe-u)));
-      height: min(52%, calc(300 * var(--orbe-u)));
+      width: min(70%, 420px);
+      height: min(52%, 300px);
       border-radius: 50%;
       background: radial-gradient(ellipse at 50% 50%, rgba(59, 255, 0, .56), rgba(248, 250, 215, .22) 34%, transparent 72%);
-      filter: blur(calc(24 * var(--orbe-u)));
+      filter: blur(24px);
     }
 
 /* neo.html:20147 */
 .orb-retry-notch {
-      width: min(56%, calc(360 * var(--orbe-u)));
-      height: calc(42 * var(--orbe-u));
-      border-radius: calc(999 * var(--orbe-u));
+      width: min(56%, 360px);
+      height: 42px;
+      border-radius: 999px;
       background: linear-gradient(90deg, transparent, rgba(116, 108, 255, .58), rgba(248, 250, 215, .2), transparent);
-      filter: blur(calc(13 * var(--orbe-u)));
+      filter: blur(13px);
     }
 
 /* neo.html:20155 */
@@ -1630,15 +1576,15 @@
 .orb-spark {
       z-index: 5;
       background: radial-gradient(circle, currentColor 0 4%, color-mix(in srgb, currentColor 30%, transparent) 28%, transparent 72%);
-      filter: blur(calc(7 * var(--orbe-u))) saturate(1.5);
+      filter: blur(7px) saturate(1.5);
       opacity: .32;
       box-shadow: none;
     }
 
 /* neo.html:20164 */
-.orbe-wiwo[data-thinking-state="idle"] .wiwo-thinking-orb {
-      --orb-w: clamp(calc(215 * var(--orbe-u)), calc(210.00 * var(--orbe-u)), calc(330 * var(--orbe-u)));
-      --orb-h: clamp(calc(170 * var(--orbe-u)), calc(148.75 * var(--orbe-u)), calc(245 * var(--orbe-u)));
+.thinking-orb-demo[data-thinking-state="idle"] .wiwo-thinking-orb {
+      --orb-w: clamp(215px, 24vw, 330px);
+      --orb-h: clamp(170px, 17vw, 245px);
       --orb-speed: 7600ms;
       --orb-flow-speed: 11000ms;
       --orb-alpha: .72;
@@ -1650,9 +1596,9 @@
     }
 
 /* neo.html:20183 */
-.orbe-wiwo[data-thinking-state="listening"] .wiwo-thinking-orb {
-      --orb-w: clamp(calc(245 * var(--orbe-u)), calc(236.25 * var(--orbe-u)), calc(385 * var(--orbe-u)));
-      --orb-h: clamp(calc(230 * var(--orbe-u)), calc(210.00 * var(--orbe-u)), calc(350 * var(--orbe-u)));
+.thinking-orb-demo[data-thinking-state="listening"] .wiwo-thinking-orb {
+      --orb-w: clamp(245px, 27vw, 385px);
+      --orb-h: clamp(230px, 24vw, 350px);
       --orb-speed: 2300ms;
       --orb-flow-speed: 3600ms;
       --orb-brightness: 1.08;
@@ -1663,15 +1609,15 @@
     }
 
 /* neo.html:20200 */
-.orbe-wiwo[data-thinking-state="listening"] .orb-pulse {
+.thinking-orb-demo[data-thinking-state="listening"] .orb-pulse {
       opacity: .42;
       animation-duration: 1700ms;
     }
 
 /* neo.html:20205 */
-.orbe-wiwo[data-thinking-state="thinking"] .wiwo-thinking-orb {
-      --orb-w: clamp(calc(270 * var(--orbe-u)), calc(271.25 * var(--orbe-u)), calc(440 * var(--orbe-u)));
-      --orb-h: clamp(calc(220 * var(--orbe-u)), calc(192.50 * var(--orbe-u)), calc(330 * var(--orbe-u)));
+.thinking-orb-demo[data-thinking-state="thinking"] .wiwo-thinking-orb {
+      --orb-w: clamp(270px, 31vw, 440px);
+      --orb-h: clamp(220px, 22vw, 330px);
       --orb-speed: 1850ms;
       --orb-flow-speed: 2450ms;
       --orb-brightness: 1.12;
@@ -1682,22 +1628,22 @@
     }
 
 /* neo.html:20217 */
-.orbe-wiwo[data-thinking-state="thinking"] .orb-state-ring {
+.thinking-orb-demo[data-thinking-state="thinking"] .orb-state-ring {
       opacity: .62;
       animation: orb-v6-state-orbit 3200ms linear infinite;
     }
 
 /* neo.html:20222 */
-.orbe-wiwo[data-thinking-state="thinking"] .orb-state-ring.alt {
+.thinking-orb-demo[data-thinking-state="thinking"] .orb-state-ring.alt {
       opacity: .4;
       animation: orb-v6-state-orbit 4600ms linear infinite reverse;
     }
 
 /* neo.html:20227 */
-.orbe-wiwo[data-thinking-state="generating"] .wiwo-thinking-orb {
-      --orb-w: clamp(calc(300 * var(--orbe-u)), calc(297.50 * var(--orbe-u)), calc(480 * var(--orbe-u)));
-      --orb-h: clamp(calc(210 * var(--orbe-u)), calc(183.75 * var(--orbe-u)), calc(315 * var(--orbe-u)));
-      --orb-x: calc(-16 * var(--orbe-u));
+.thinking-orb-demo[data-thinking-state="generating"] .wiwo-thinking-orb {
+      --orb-w: clamp(300px, 34vw, 480px);
+      --orb-h: clamp(210px, 21vw, 315px);
+      --orb-x: -16px;
       --orb-speed: 1280ms;
       --orb-flow-speed: 1760ms;
       --orb-brightness: 1.18;
@@ -1708,15 +1654,15 @@
     }
 
 /* neo.html:20245 */
-.orbe-wiwo[data-thinking-state="generating"] .orb-state-ring {
+.thinking-orb-demo[data-thinking-state="generating"] .orb-state-ring {
       opacity: .34;
       animation: orb-v6-state-orbit 2400ms linear infinite;
     }
 
 /* neo.html:20250 */
-.orbe-wiwo[data-thinking-state="routing"] .wiwo-thinking-orb {
-      --orb-w: clamp(calc(270 * var(--orbe-u)), calc(262.50 * var(--orbe-u)), calc(430 * var(--orbe-u)));
-      --orb-h: clamp(calc(235 * var(--orbe-u)), calc(210.00 * var(--orbe-u)), calc(350 * var(--orbe-u)));
+.thinking-orb-demo[data-thinking-state="routing"] .wiwo-thinking-orb {
+      --orb-w: clamp(270px, 30vw, 430px);
+      --orb-h: clamp(235px, 24vw, 350px);
       --orb-speed: 2500ms;
       --orb-flow-speed: 3100ms;
       --orb-brightness: 1.08;
@@ -1727,16 +1673,16 @@
     }
 
 /* neo.html:20262 */
-.orbe-wiwo[data-thinking-state="routing"] .orb-state-ring,
-.orbe-wiwo[data-thinking-state="routing"] .orb-state-ring.alt {
+.thinking-orb-demo[data-thinking-state="routing"] .orb-state-ring,
+.thinking-orb-demo[data-thinking-state="routing"] .orb-state-ring.alt {
       opacity: .72;
       animation: orb-v6-routing-orbit 2100ms var(--ease-expressive) infinite;
     }
 
 /* neo.html:20276 */
-.orbe-wiwo[data-thinking-state="success"] .wiwo-thinking-orb {
-      --orb-w: clamp(calc(245 * var(--orbe-u)), calc(236.25 * var(--orbe-u)), calc(385 * var(--orbe-u)));
-      --orb-h: clamp(calc(195 * var(--orbe-u)), calc(175.00 * var(--orbe-u)), calc(285 * var(--orbe-u)));
+.thinking-orb-demo[data-thinking-state="success"] .wiwo-thinking-orb {
+      --orb-w: clamp(245px, 27vw, 385px);
+      --orb-h: clamp(195px, 20vw, 285px);
       --orb-speed: 2500ms;
       --orb-flow-speed: 3600ms;
       --orb-brightness: 1.18;
@@ -1747,24 +1693,24 @@
     }
 
 /* neo.html:20288 */
-.orbe-wiwo[data-thinking-state="success"] .orb-success-burst {
+.thinking-orb-demo[data-thinking-state="success"] .orb-success-burst {
       opacity: .88;
       animation: orb-v6-success-bloom 1800ms var(--ease-expressive) infinite;
     }
 
 /* neo.html:20297 */
-.orbe-wiwo[data-thinking-state="error"],
-.orbe-wiwo[data-thinking-state="retry"] {
+.thinking-orb-demo[data-thinking-state="error"],
+.thinking-orb-demo[data-thinking-state="retry"] {
       --orb-light-blue: rgba(116, 108, 255, .7);
       --orb-light-lime: rgba(248, 250, 215, .2);
       --orb-light-milk: rgba(248, 250, 215, .34);
     }
 
 /* neo.html:20304 */
-.orbe-wiwo[data-thinking-state="error"] .wiwo-thinking-orb,
-.orbe-wiwo[data-thinking-state="retry"] .wiwo-thinking-orb {
-      --orb-w: clamp(calc(230 * var(--orbe-u)), calc(218.75 * var(--orbe-u)), calc(350 * var(--orbe-u)));
-      --orb-h: clamp(calc(150 * var(--orbe-u)), calc(140.00 * var(--orbe-u)), calc(230 * var(--orbe-u)));
+.thinking-orb-demo[data-thinking-state="error"] .wiwo-thinking-orb,
+.thinking-orb-demo[data-thinking-state="retry"] .wiwo-thinking-orb {
+      --orb-w: clamp(230px, 25vw, 350px);
+      --orb-h: clamp(150px, 16vw, 230px);
       --orb-speed: 980ms;
       --orb-flow-speed: 1500ms;
       --orb-alpha: .74;
@@ -1777,8 +1723,8 @@
     }
 
 /* neo.html:20319 */
-.orbe-wiwo[data-thinking-state="error"] .orb-retry-notch,
-.orbe-wiwo[data-thinking-state="retry"] .orb-retry-notch {
+.thinking-orb-demo[data-thinking-state="error"] .orb-retry-notch,
+.thinking-orb-demo[data-thinking-state="retry"] .orb-retry-notch {
       opacity: .82;
       animation: orb-v6-error-friction 760ms var(--ease-expressive) infinite;
     }
@@ -1792,12 +1738,12 @@
       }
 
       45% {
-        transform: translate3d(calc(var(--orb-x) + calc(8 * var(--orbe-u))), calc(var(--orb-y) - calc(4 * var(--orbe-u))), 0) scale(var(--orb-scale-b)) rotate(4deg);
+        transform: translate3d(calc(var(--orb-x) + 8px), calc(var(--orb-y) - 4px), 0) scale(var(--orb-scale-b)) rotate(4deg);
         border-radius: 44% 56% 58% 42% / 58% 40% 60% 42%;
       }
 
       72% {
-        transform: translate3d(calc(var(--orb-x) - calc(6 * var(--orbe-u))), calc(var(--orb-y) + calc(5 * var(--orbe-u))), 0) scale(var(--orb-scale-c)) rotate(-5deg);
+        transform: translate3d(calc(var(--orb-x) - 6px), calc(var(--orb-y) + 5px), 0) scale(var(--orb-scale-c)) rotate(-5deg);
         border-radius: 63% 37% 47% 53% / 42% 62% 38% 58%;
       }
     }
@@ -1807,16 +1753,16 @@
       0%,
       100% {
         box-shadow:
-          0 0 calc(170 * var(--orbe-u)) color-mix(in srgb, var(--orb-light-blue) 34%, transparent),
-          0 0 calc(145 * var(--orbe-u)) color-mix(in srgb, var(--orb-light-lime) 26%, transparent),
-          0 0 calc(80 * var(--orbe-u)) rgba(248, 250, 215, .16);
+          0 0 170px color-mix(in srgb, var(--orb-light-blue) 34%, transparent),
+          0 0 145px color-mix(in srgb, var(--orb-light-lime) 26%, transparent),
+          0 0 80px rgba(248, 250, 215, .16);
       }
 
       50% {
         box-shadow:
-          0 0 calc(230 * var(--orbe-u)) color-mix(in srgb, var(--orb-light-lime) 30%, transparent),
-          0 0 calc(180 * var(--orbe-u)) color-mix(in srgb, var(--orb-light-blue) 36%, transparent),
-          0 0 calc(120 * var(--orbe-u)) rgba(248, 250, 215, .2);
+          0 0 230px color-mix(in srgb, var(--orb-light-lime) 30%, transparent),
+          0 0 180px color-mix(in srgb, var(--orb-light-blue) 36%, transparent),
+          0 0 120px rgba(248, 250, 215, .2);
       }
     }
 
@@ -1912,12 +1858,12 @@
 /* neo.html:20456 */
 @keyframes orb-v6-glint {
       0% {
-        transform: translate3d(calc(-28 * var(--orbe-u)), calc(-8 * var(--orbe-u)), 0) rotate(-12deg);
+        transform: translate3d(-28px, -8px, 0) rotate(-12deg);
         opacity: .34;
       }
 
       100% {
-        transform: translate3d(calc(18 * var(--orbe-u)), calc(10 * var(--orbe-u)), 0) rotate(-4deg);
+        transform: translate3d(18px, 10px, 0) rotate(-4deg);
         opacity: .76;
       }
     }
@@ -2038,12 +1984,12 @@
 /* neo.html:20573 */
 @keyframes orb-v6-sheen {
       from {
-        transform: translate3d(calc(-14 * var(--orbe-u)), calc(-8 * var(--orbe-u)), 0) rotate(-10deg);
+        transform: translate3d(-14px, -8px, 0) rotate(-10deg);
         opacity: .48;
       }
 
       to {
-        transform: translate3d(calc(18 * var(--orbe-u)), calc(12 * var(--orbe-u)), 0) rotate(6deg);
+        transform: translate3d(18px, 12px, 0) rotate(6deg);
         opacity: .82;
       }
     }
@@ -2054,33 +2000,33 @@
     }
 
 /* neo.html:20659 */
-.orbe-wiwo[data-thinking-state="thinking"] .orb-state-ring,
-.orbe-wiwo[data-thinking-state="thinking"] .orb-state-ring.alt {
+.thinking-orb-demo[data-thinking-state="thinking"] .orb-state-ring,
+.thinking-orb-demo[data-thinking-state="thinking"] .orb-state-ring.alt {
       opacity: .22;
-      filter: blur(calc(12 * var(--orbe-u)));
+      filter: blur(12px);
     }
 
 /* neo.html:20671 */
-.orbe-wiwo[data-thinking-state="generating"] .orb-state-ring {
+.thinking-orb-demo[data-thinking-state="generating"] .orb-state-ring {
       opacity: .14;
     }
 
 /* neo.html:20680 */
-.orbe-wiwo[data-thinking-state="thinking"] .wiwo-thinking-orb {
-      --orb-w: clamp(calc(250 * var(--orbe-u)), calc(245.00 * var(--orbe-u)), calc(390 * var(--orbe-u)));
-      --orb-h: clamp(calc(225 * var(--orbe-u)), calc(210.00 * var(--orbe-u)), calc(340 * var(--orbe-u)));
+.thinking-orb-demo[data-thinking-state="thinking"] .wiwo-thinking-orb {
+      --orb-w: clamp(250px, 28vw, 390px);
+      --orb-h: clamp(225px, 24vw, 340px);
     }
 
 /* neo.html:20685 */
-.orbe-wiwo[data-thinking-state="generating"] .wiwo-thinking-orb {
-      --orb-w: clamp(calc(280 * var(--orbe-u)), calc(271.25 * var(--orbe-u)), calc(430 * var(--orbe-u)));
-      --orb-h: clamp(calc(225 * var(--orbe-u)), calc(201.25 * var(--orbe-u)), calc(330 * var(--orbe-u)));
+.thinking-orb-demo[data-thinking-state="generating"] .wiwo-thinking-orb {
+      --orb-w: clamp(280px, 31vw, 430px);
+      --orb-h: clamp(225px, 23vw, 330px);
     }
 
 /* neo.html:20690 */
-.orbe-wiwo[data-thinking-state="routing"] .wiwo-thinking-orb {
-      --orb-w: clamp(calc(255 * var(--orbe-u)), calc(253.75 * var(--orbe-u)), calc(400 * var(--orbe-u)));
-      --orb-h: clamp(calc(230 * var(--orbe-u)), calc(210.00 * var(--orbe-u)), calc(340 * var(--orbe-u)));
+.thinking-orb-demo[data-thinking-state="routing"] .wiwo-thinking-orb {
+      --orb-w: clamp(255px, 29vw, 400px);
+      --orb-h: clamp(230px, 24vw, 340px);
     }
 
 /* neo.html:20695 */
@@ -2101,7 +2047,7 @@
         radial-gradient(ellipse at 70% 40%, rgba(59, 255, 0, .56), transparent 36%),
         radial-gradient(ellipse at 48% 66%, rgba(248, 250, 215, .42), transparent 40%),
         radial-gradient(ellipse at 54% 52%, rgba(0, 229, 255, .24), transparent 48%) !important;
-      filter: blur(calc(38 * var(--orbe-u))) saturate(2.35) brightness(1.08) !important;
+      filter: blur(38px) saturate(2.35) brightness(1.08) !important;
       opacity: .92 !important;
     }
 
@@ -2113,7 +2059,7 @@
         radial-gradient(ellipse at 30% 66%, rgba(59, 255, 0, .45), transparent 38%),
         radial-gradient(ellipse at 72% 28%, rgba(66, 66, 255, .52), transparent 40%),
         radial-gradient(ellipse at 48% 48%, rgba(248, 250, 215, .2), transparent 48%) !important;
-      filter: blur(calc(42 * var(--orbe-u))) saturate(2.15) !important;
+      filter: blur(42px) saturate(2.15) !important;
       opacity: .72 !important;
     }
 
@@ -2125,7 +2071,7 @@
         radial-gradient(ellipse at 36% 44%, rgba(248, 250, 215, .42), transparent 30%),
         radial-gradient(ellipse at 62% 50%, rgba(66, 66, 255, .42), transparent 40%),
         radial-gradient(ellipse at 48% 68%, rgba(59, 255, 0, .28), transparent 36%) !important;
-      filter: blur(calc(34 * var(--orbe-u))) saturate(1.9) !important;
+      filter: blur(34px) saturate(1.9) !important;
       opacity: .62 !important;
     }
 
@@ -2135,7 +2081,7 @@
 .orb-aurora-three {
       inset: -20%;
       border-radius: 50% !important;
-      filter: blur(calc(44 * var(--orbe-u))) saturate(2.2) brightness(1.05) !important;
+      filter: blur(44px) saturate(2.2) brightness(1.05) !important;
       opacity: .72 !important;
     }
 
@@ -2168,87 +2114,87 @@
         radial-gradient(ellipse at 46% 46%, rgba(248, 250, 215, .46), transparent 30%),
         radial-gradient(ellipse at 56% 56%, rgba(66, 66, 255, .2), transparent 44%),
         radial-gradient(ellipse at 42% 60%, rgba(59, 255, 0, .18), transparent 46%) !important;
-      filter: blur(calc(46 * var(--orbe-u))) saturate(1.85) !important;
+      filter: blur(46px) saturate(1.85) !important;
       opacity: .58 !important;
     }
 
 /* neo.html:20775 */
-.orbe-wiwo[data-thinking-state="thinking"] .orb-state-ring,
-.orbe-wiwo[data-thinking-state="thinking"] .orb-state-ring.alt {
+.thinking-orb-demo[data-thinking-state="thinking"] .orb-state-ring,
+.thinking-orb-demo[data-thinking-state="thinking"] .orb-state-ring.alt {
       opacity: .08;
     }
 
 /* neo.html:20785 */
-.orbe-wiwo[data-thinking-state="listening"] .orb-scan-line {
-      width: clamp(calc(46 * var(--orbe-u)), calc(70.00 * var(--orbe-u)), calc(92 * var(--orbe-u)));
-      height: min(80%, calc(500 * var(--orbe-u)));
+.thinking-orb-demo[data-thinking-state="listening"] .orb-scan-line {
+      width: clamp(46px, 8vw, 92px);
+      height: min(80%, 500px);
       opacity: 1;
       z-index: 22;
       background:
         radial-gradient(ellipse at 50% 50%, rgba(248, 250, 215, .48), transparent 18%),
         linear-gradient(180deg, transparent, rgba(59, 255, 0, .72), rgba(66, 66, 255, .42), transparent);
-      filter: blur(calc(9 * var(--orbe-u))) saturate(1.9);
-      mix-blend-mode: var(--orbe-mezcla, screen);
+      filter: blur(9px) saturate(1.9);
+      mix-blend-mode: screen;
       animation: orb-v6-listen-scan 1280ms var(--ease-expressive) infinite;
     }
 
 /* neo.html:20798 */
-.orbe-wiwo[data-thinking-state="generating"] .orb-output-trail {
+.thinking-orb-demo[data-thinking-state="generating"] .orb-output-trail {
       left: 70%;
-      width: min(46%, calc(340 * var(--orbe-u)));
-      height: calc(30 * var(--orbe-u));
+      width: min(46%, 340px);
+      height: 30px;
       opacity: 1;
       z-index: 22;
       background:
         linear-gradient(90deg, transparent, rgba(248, 250, 215, .7), rgba(59, 255, 0, .72), rgba(66, 66, 255, .58), transparent);
-      filter: blur(calc(8 * var(--orbe-u))) saturate(1.8);
+      filter: blur(8px) saturate(1.8);
       animation: orb-v6-output-trail 980ms var(--ease-expressive) infinite;
     }
 
 /* neo.html:20810 */
-.orbe-wiwo[data-thinking-state="generating"] .orb-output-trail.two {
-      width: min(40%, calc(292 * var(--orbe-u)));
+.thinking-orb-demo[data-thinking-state="generating"] .orb-output-trail.two {
+      width: min(40%, 292px);
       opacity: .86;
     }
 
 /* neo.html:20815 */
-.orbe-wiwo[data-thinking-state="generating"] .orb-output-trail.three {
-      width: min(34%, calc(250 * var(--orbe-u)));
+.thinking-orb-demo[data-thinking-state="generating"] .orb-output-trail.three {
+      width: min(34%, 250px);
       opacity: .72;
     }
 
 /* neo.html:20820 */
-.orbe-wiwo[data-thinking-state="routing"] .orb-state-ring,
-.orbe-wiwo[data-thinking-state="routing"] .orb-state-ring.alt {
+.thinking-orb-demo[data-thinking-state="routing"] .orb-state-ring,
+.thinking-orb-demo[data-thinking-state="routing"] .orb-state-ring.alt {
       opacity: .58;
       z-index: 21;
-      filter: blur(calc(4 * var(--orbe-u))) saturate(1.7);
+      filter: blur(4px) saturate(1.7);
       background:
         conic-gradient(from 0deg, transparent 0 8%, rgba(248, 250, 215, .54) 14%, transparent 22%, rgba(66, 66, 255, .62) 42%, transparent 54%, rgba(59, 255, 0, .64) 70%, transparent 84% 100%);
     }
 
 /* neo.html:20829 */
-.orbe-wiwo[data-thinking-state="routing"] .orb-scan-line {
+.thinking-orb-demo[data-thinking-state="routing"] .orb-scan-line {
       opacity: .76;
       z-index: 22;
-      width: min(72%, calc(410 * var(--orbe-u)));
-      height: calc(28 * var(--orbe-u));
+      width: min(72%, 410px);
+      height: 28px;
       background: linear-gradient(90deg, transparent, rgba(248, 250, 215, .5), rgba(59, 255, 0, .58), rgba(66, 66, 255, .5), transparent);
-      filter: blur(calc(7 * var(--orbe-u))) saturate(1.75);
+      filter: blur(7px) saturate(1.75);
       transform: translate(-50%, -50%) rotate(-28deg);
       animation: orb-v6-route-beam 1280ms var(--ease-expressive) infinite alternate;
     }
 
 /* neo.html:20840 */
-.orbe-wiwo[data-thinking-state="error"] .orb-retry-notch,
-.orbe-wiwo[data-thinking-state="retry"] .orb-retry-notch {
-      width: min(70%, calc(420 * var(--orbe-u)));
-      height: calc(34 * var(--orbe-u));
+.thinking-orb-demo[data-thinking-state="error"] .orb-retry-notch,
+.thinking-orb-demo[data-thinking-state="retry"] .orb-retry-notch {
+      width: min(70%, 420px);
+      height: 34px;
       opacity: .9;
       z-index: 22;
       background:
         linear-gradient(90deg, transparent, rgba(248, 250, 215, .28), rgba(116, 108, 255, .72), rgba(248, 250, 215, .18), transparent);
-      filter: blur(calc(8 * var(--orbe-u))) saturate(1.35);
+      filter: blur(8px) saturate(1.35);
     }
 
 /* neo.html:21064 */
@@ -2267,112 +2213,3 @@
         }
 }
 
-
-/* =============================================================================
-   Capa del producto — escrita a mano, se conserva al regenerar
-   =============================================================================
-   Todo lo de arriba es neo tal cual. Lo de aca abajo es lo que lo convierte en un
-   componente: una sola variable de tamaño, el reposo quieto y la respiracion
-   minima. Va al final a proposito: varias reglas ganan por orden de aparicion.
-   ============================================================================= */
-
-/* -----------------------------------------------------------------------------
-   El orbe en tema claro
-   -----------------------------------------------------------------------------
-   El orbe no tiene fondo propio: son capas de luz que se SUMAN a lo que hay detras
-   (`mix-blend-mode: screen`). Sobre el oscuro de neo eso es exactamente el efecto
-   buscado; sobre una superficie clara, sumar luz a algo que ya es casi blanco da
-   blanco: el orbe se vuelve invisible. Y en tema claro el orbe vive en botones y
-   filas, o sea justo donde tiene que verse.
-
-   La mezcla pasa entonces a `multiply`, que es la operacion inversa: en vez de
-   sumar luz, tiñe. El orbe queda del mismo verde y azul de marca, oscureciendo en
-   lugar de aclarar, y sigue sin traer fondo propio.
-
-   Las tres ramas son las del proyecto: por defecto manda la preferencia del
-   sistema (`color-scheme: light dark`) y `[data-theme]` la sobrescribe.
-   ----------------------------------------------------------------------------- */
-.orbe-wiwo { --orbe-mezcla: multiply; }
-
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme='light']) .orbe-wiwo { --orbe-mezcla: screen; }
-}
-
-:root[data-theme='dark'] .orbe-wiwo { --orbe-mezcla: screen; }
-
-/* El contenedor ocupa exactamente la caja del orbe: el escenario de neo era un panel de 420px de
-   alto con su propia aurora, que es cromo de la pagina showcase y no del componente. */
-.orbe-wiwo {
-  /* `--orbe-ancho` es el espacio que el orbe OCUPA, no el ancho de la elipse. El orbe es un campo
-     de luz: alrededor del cuerpo hay un halo que en neo llega a casi el doble de ancho, y alla no
-     molesta porque el escenario del showcase lo recorta. Aca no hay escenario, asi que el cuerpo se
-     dibuja a `--orbe-nucleo` del hueco reservado y el resto queda para el halo. Sin esto, el orbe de
-     un boton de 28px pinta 80px y se come la etiqueta que tiene al lado. */
-  --orbe-nucleo: .58;
-  --orbe-u: calc(var(--orbe-ancho) * var(--orbe-nucleo) / 245);
-
-  position: relative;
-  display: inline-grid;
-  place-items: center;
-  width: var(--orbe-ancho);
-  height: calc(var(--orbe-ancho) * 0.836735);
-  /* El orbe desborda su caja (halos, orbitas, estelas) y no debe empujar el layout que lo rodea. */
-  overflow: visible;
-  vertical-align: middle;
-}
-
-/* Los tamaños de la escala del sistema de diseño. */
-.orbe-wiwo.orbe-chico  { --orbe-ancho: 28px; }
-.orbe-wiwo.orbe-medio  { --orbe-ancho: 56px; }
-.orbe-wiwo.orbe-grande { --orbe-ancho: 180px; }
-.orbe-wiwo.orbe-marca  { --orbe-ancho: clamp(245px, 28vw, 410px); }
-/* `medida` llega como `--orbe-ancho` en el atributo style, asi que gana sin regla extra. */
-
-.orbe-escenario {
-  position: relative;
-  display: grid;
-  place-items: center;
-  width: 100%;
-  height: 100%;
-}
-
-/* El tamaño le gana a los clamp() de cada estado: mismo peso de selector, mas abajo en el archivo.
-   Ver "Tamaños" en la cabecera para el por que. */
-.orbe-wiwo[data-thinking-state] .wiwo-thinking-orb,
-.orbe-wiwo .wiwo-thinking-orb {
-  --orb-w: calc(245 * var(--orbe-u));
-  --orb-h: calc(205 * var(--orbe-u));
-}
-
-/* Las particulas orbitan alrededor del orbe: el radio tiene que ser suyo, no un valor fijo. Los tres
-   radios son los de neo (142, 120 y 158 px sobre un orbe de 245) llevados a unidades de orbe. En neo
-   se seleccionaban con `:nth-of-type`, que aca no sirve: el markup del componente tiene mas hermanos. */
-.orbe-wiwo .orb-particle-uno  { --orbit: calc(142 * var(--orbe-u)); --speed: 5200ms; }
-.orbe-wiwo .orb-particle-dos  { --orbit: calc(120 * var(--orbe-u)); --speed: 6400ms; animation-delay: -1900ms; }
-.orbe-wiwo .orb-particle-tres { --orbit: calc(158 * var(--orbe-u)); --speed: 7800ms; animation-delay: -3600ms; }
-
-/* Reposo quieto: lo decide `Orbe.tsx` y es la regla 1 de la cabecera. Un orbe congelado sigue siendo
-   el orbe —color, halo y forma quedan—, solo que no consume una animacion por cada fila de la tabla. */
-.orbe-quieto,
-.orbe-quieto *,
-.orbe-quieto *::before,
-.orbe-quieto *::after {
-  animation: none !important;
-}
-
-@keyframes orbe-respiracion-minima {
-  0%, 100% { transform: scale(.99); }
-  50% { transform: scale(1.01); }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  /* neo apaga todo. El sistema de marca pide conservar una respiracion minima: sin ella el orbe deja
-     de leerse como "esta pasando algo" y el unico indicador queda siendo el texto. */
-  .orbe-wiwo .wiwo-thinking-orb {
-    animation: orbe-respiracion-minima 5200ms ease-in-out infinite !important;
-  }
-
-  .orbe-quieto .wiwo-thinking-orb {
-    animation: none !important;
-  }
-}

@@ -131,7 +131,7 @@ export default function TallerPage () {
 
       <SeccionTaller
         titulo="Botón"
-        nota="Mientras carga queda deshabilitado: sin eso, un doble clic en Guardar manda dos peticiones, y en creación eso son dos registros."
+        nota="Mientras carga queda deshabilitado: sin eso, un doble clic en Guardar manda dos peticiones, y en creación eso son dos registros. El indicador es el orbe, no un borde girando: es el mismo lenguaje de “está pasando algo” en todo el producto."
       >
         <Muestra etiqueta="variante">
           <Boton variante="primario">Primario</Boton>
@@ -147,16 +147,20 @@ export default function TallerPage () {
         </Muestra>
         <Muestra etiqueta="cargando y deshabilitado">
           <Boton variante="primario" cargando>Guardando</Boton>
+          <Boton variante="secundario" cargando soloIcono aria-label="Guardando">✓</Boton>
           <Boton disabled>Deshabilitado</Boton>
         </Muestra>
       </SeccionTaller>
 
       <SeccionTaller
         titulo="Estados"
-        nota="Un vacío sin salida deja a la persona sin saber qué hacer. “Sin permiso” no ofrece reintentar, porque no hay nada que reintentar."
+        nota="Un vacío sin salida deja a la persona sin saber qué hacer. “Sin permiso” no ofrece reintentar, porque no hay nada que reintentar. En el bloque de carga las filas sólo reservan el alto —para que la pantalla no salte cuando llegan los datos— y el que comunica que hay algo en curso es el orbe."
       >
-        <Muestra etiqueta="cargando" className="w-full">
+        <Muestra etiqueta="cargando: panel entero" className="w-full">
           <Cargando filas={3} className="w-full" />
+        </Muestra>
+        <Muestra etiqueta="cargando: dentro de una tarjeta" className="w-full max-w-xs">
+          <Cargando filas={2} alto="h-6" tamano="medio" className="w-full" />
         </Muestra>
         <Muestra etiqueta="vacío" className="w-full">
           <Vacio
@@ -176,7 +180,7 @@ export default function TallerPage () {
 
       <SeccionTaller
         titulo="Orbe"
-        nota="El Thinking Orb, portado de ops.wiwo.me. Es una esfera de vidrio: desenfoca lo que tiene detrás en vez de traer su propio fondo, así que se ve bien sobre cualquier superficie. En reposo respira: escala mínima y luz que deriva, de 9 a 13 s, sólo transform y opacity — y sólo en los tamaños grandes, que aparecen de a uno. El chico y el mediano se repiten por fila y por botón, así que ahí queda de verdad quieto: es la misma excepción acotada por tamaño que ya usa el desenfoque. Deformarse rápido sigue significando “está pasando algo”."
+        nota="El Thinking Orb, portado de neo.wiwo.me. No es una esfera con fondo: es un campo de luz que se suma a lo que tiene detrás, así que se ve igual sobre claro, sobre oscuro o sobre una imagen — en tema claro la mezcla se invierte para que tiña en vez de blanquear. La medida que se le pide es el hueco que ocupa, halo incluido. En reposo sólo respiran los tamaños que aparecen de a uno; el chico y el mediano se repiten por fila y por botón, así que ahí queda de verdad quieto y deformarse sigue significando “está pasando algo”."
       >
         <Muestra etiqueta="en reposo: quieto en chico y medio, respirando en grande y marca">
           <Orbe tamano="chico" />
@@ -184,8 +188,8 @@ export default function TallerPage () {
           <Orbe tamano="grande" />
           <Orbe tamano="marca" />
         </Muestra>
-        <Muestra etiqueta="los tres estados">
-          {(['thinking', 'success', 'error'] as const).map((estado) => (
+        <Muestra etiqueta="los siete estados">
+          {(['idle', 'listening', 'thinking', 'generating', 'routing', 'success', 'error'] as const).map((estado) => (
             <span key={estado} className="flex flex-col items-center gap-2">
               <Orbe tamano="medio" estado={estado} />
               <span className="text-texto-sutil text-[0.6875rem]">{estado}</span>
@@ -195,11 +199,8 @@ export default function TallerPage () {
         <Muestra etiqueta="carga en línea">
           <CargandoConOrbe mensaje="Guardando…" retardoMs={0} />
         </Muestra>
-        <Muestra etiqueta="dentro de un botón">
-          <Boton variante="primario">
-            <Orbe tamano="chico" estado="thinking" />
-            Pensando
-          </Boton>
+        <Muestra etiqueta="dentro de un botón: lo pone la prop cargando, no se arma a mano">
+          <Boton variante="primario" cargando>Pensando</Boton>
         </Muestra>
         <Muestra etiqueta="superpuesto y acotado" className="w-full">
           <div className="border-linea rounded-tarjeta relative h-40 w-full overflow-hidden border">

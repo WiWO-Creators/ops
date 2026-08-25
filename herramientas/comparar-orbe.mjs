@@ -23,9 +23,13 @@ const URL_LOCAL = process.env.ORBE_URL_LOCAL ?? 'http://localhost:3500/taller'
  * Se ancla en el escenario pero se mide el orbe que vive adentro. El `.thinking-orb-stage` de Neo es
  * un marco de 473x590 con el fondo del showcase pegado atras: medir eso seria medir el fondo, no el
  * orbe. El `.wiwo-thinking-orb` es la elipse real, la que tiene la proporcion ~1.13 y el blend.
+ *
+ * Los dos nombres de escenario conviven a proposito: `.thinking-orb-stage` es el de neo.wiwo.me y
+ * `.orbe-escenario` el del componente de este proyecto. Asi el mismo selector sirve para los dos
+ * lados de la comparacion sin ramificar el resto del script.
  */
-const SELECTOR_ESCENARIO = '.thinking-orb-stage'
-const SELECTOR_ORBE = `${SELECTOR_ESCENARIO} .wiwo-thinking-orb`
+const SELECTOR_ESCENARIO = '.thinking-orb-stage, .orbe-escenario'
+const SELECTOR_ORBE = '.thinking-orb-stage .wiwo-thinking-orb, .orbe-escenario .wiwo-thinking-orb'
 const ARCHIVO_SALIDA = process.env.ORBE_SALIDA ?? 'comparacion.png'
 
 /* Margenes de red generosos: neo.wiwo.me es una pagina con animaciones y fuentes remotas. */
