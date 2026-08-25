@@ -2,55 +2,90 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { cn } from '@/lib/clases'
-import estilos from './orbe.module.css'
 
-const TAMANOS = {
-  chico: estilos.chico,
-  medio: estilos.medio,
-  grande: estilos.grande
-} as const
+/**
+ * Los estados que define Neo (https://neo.wiwo.me, seccion "Orb states").
+ *
+ * Cada uno cambia ritmo, brillo, deformacion y direccion del movimiento. No son decorativos: el orbe
+ * es la señal de Wiwo para comunicar que el sistema esta pensando, y el estado es lo que dice **que**
+ * esta pensando.
+ *
+ *   idle        casi quieto, vidrio respirando, presencia disponible
+ *   listening   pulsos sensibles al input
+ *   thinking    auroras rapidas y anillos de luz — el estado por defecto de una espera
+ *   generating  el campo de luz se expande
+ *   routing     orbitas conectadas, agentes coordinando
+ *   success     destello corto, estabilizacion y regreso a la calma
+ *   error       contraccion fria y baja energia, sin dramatizar el problema
+ */
+export type EstadoOrbe =
+  | 'idle'
+  | 'listening'
+  | 'thinking'
+  | 'generating'
+  | 'routing'
+  | 'success'
+  | 'error'
 
-export type TamanoOrbe = keyof typeof TAMANOS
+/**
+ * Clase de estado del CSS de Neo.
+ *
+ * `thinking` no tiene modificador propio: es el comportamiento base de `.wiwo-orb`, que ya respira y
+ * fluye. Y `error` comparte tratamiento con `retry` en el CSS original.
+ */
+const CLASE_ESTADO: Record<EstadoOrbe, string> = {
+  idle: 'wiwo-orb--idle',
+  listening: 'wiwo-orb--listening',
+  thinking: '',
+  generating: 'wiwo-orb--generating',
+  routing: 'wiwo-orb--routing',
+  success: 'wiwo-orb--success',
+  error: 'wiwo-orb--error wiwo-orb--retry'
+}
+
+/** Los tres tamaños de Neo, en el extremo bajo de cada rango porque esto es una herramienta de trabajo. */
+const MEDIDA: Record<TamanoOrbe, number> = {
+  chico: 24,
+  medio: 48,
+  grande: 130
+}
+
+export type TamanoOrbe = 'chico' | 'medio' | 'grande'
 
 interface PropsOrbe {
-  tamano?: TamanoOrbe
   /**
-   * Si el orbe se mueve.
+   * @see EstadoOrbe
    *
-   * En reposo se pinta quieto a proposito: la regla de rendimiento del proyecto prohibe animaciones
-   * infinitas en elementos siempre visibles —es lo que colgaba el panel en pantallas Retina— y la
-   * mascota de la barra superior es exactamente eso.
-   *
-   * Ademas comunica mejor: si se moviera siempre, moverse dejaria de significar "hay algo en curso".
+   * Sin estado el orbe se pinta **quieto**. La regla de rendimiento del proyecto —la que colgaba el
+   * panel viejo en pantallas Retina— prohibe animaciones infinitas en elementos siempre visibles, y
+   * la mascota de la barra superior es exactamente eso. Ademas comunica mejor: si se moviera siempre,
+   * moverse dejaria de significar "esta pasando algo".
    */
-  animado?: boolean
+  estado?: EstadoOrbe
+  /** 24px dentro de un boton o una fila, 48px sobre una tarjeta, 130px a pantalla completa. */
+  tamano?: TamanoOrbe
   className?: string
 }
 
 /**
- * El orbe de WiWO: mascota de la marca e indicador de carga.
+ * El Thinking Orb de Wiwo.
  *
  * Es `aria-hidden` a proposito. Lo que se anuncia a un lector de pantalla es el TEXTO que lo acompaña
  * — ver `SuperposicionOrbe` y `CargandoConOrbe` —, no el adorno.
  *
- * @param tamano  24px dentro de un boton, 42px sobre un panel, 130px a pantalla completa
- * @param animado si hay una operacion en curso
+ * El aspecto y las animaciones son de `src/estilos/thinking-orb.css`, que es el archivo que Neo
+ * publica para copiar tal cual. Este componente solo elige el estado y el tamaño.
  */
-export function Orbe ({ tamano = 'medio', animado = false, className }: PropsOrbe) {
+export function Orbe ({ estado, tamano = 'medio', className }: PropsOrbe) {
+  const medida = MEDIDA[tamano]
+
   return (
     <span
       aria-hidden="true"
-      data-animado={animado ? 'true' : 'false'}
-      className={cn(estilos.orbe, TAMANOS[tamano], className)}
-    >
-      <span className={estilos.cuerpo}>
-        <span className={estilos.velo} />
-        <span className={estilos.luz} />
-      </span>
-      <i className={cn(estilos.destello, estilos.destello1)} />
-      <i className={cn(estilos.destello, estilos.destello2)} />
-      <i className={cn(estilos.destello, estilos.destello3)} />
-    </span>
+      data-estado={estado ?? 'quieto'}
+      style={{ width: medida, height: medida }}
+      className={cn('wiwo-orb', estado === undefined ? 'wiwo-orb--quieto' : CLASE_ESTADO[estado], className)}
+    />
   )
 }
 
@@ -65,6 +100,7 @@ interface PropsSuperposicion {
    */
   acotada?: boolean
   tamano?: TamanoOrbe
+  estado?: EstadoOrbe
 }
 
 /**
@@ -81,7 +117,8 @@ export function SuperposicionOrbe ({
   mensaje,
   submensaje,
   acotada = false,
-  tamano = 'medio'
+  tamano = 'medio',
+  estado = 'thinking'
 }: PropsSuperposicion) {
   const referencia = useRef<HTMLDivElement>(null)
 
@@ -102,11 +139,14 @@ export function SuperposicionOrbe ({
       ref={referencia}
       role="status"
       aria-live="polite"
-      className={cn(estilos.superposicion, acotada && estilos.acotada)}
+      className={cn(
+        'flex flex-col items-center justify-center gap-4 bg-superficie/80 p-8 text-center',
+        acotada ? 'absolute inset-0 z-10' : 'fixed inset-0 z-50'
+      )}
     >
-      <Orbe tamano={tamano} animado />
-      <p className={estilos.mensaje}>{mensaje}</p>
-      {submensaje !== undefined && <p className={estilos.submensaje}>{submensaje}</p>}
+      <Orbe tamano={tamano} estado={estado} />
+      <p className="text-texto text-sm font-medium">{mensaje}</p>
+      {submensaje !== undefined && <p className="text-texto-tenue text-xs">{submensaje}</p>}
     </div>
   )
 }
@@ -123,10 +163,12 @@ export function SuperposicionOrbe ({
 export function CargandoConOrbe ({
   mensaje,
   retardoMs = 250,
+  estado = 'thinking',
   className
 }: {
   mensaje: string
   retardoMs?: number
+  estado?: EstadoOrbe
   className?: string
 }) {
   const [visible, setVisible] = useState(retardoMs === 0)
@@ -142,7 +184,7 @@ export function CargandoConOrbe ({
 
   return (
     <span role="status" aria-live="polite" className={cn('inline-flex items-center gap-2', className)}>
-      <Orbe tamano="chico" animado />
+      <Orbe tamano="chico" estado={estado} />
       <span className="text-texto-tenue text-sm">{mensaje}</span>
     </span>
   )
