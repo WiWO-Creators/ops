@@ -1,930 +1,965 @@
 /**
- * Thinking Orb de Wiwo — extraido de https://neo.wiwo.me
+ * Thinking Orb de Wiwo — portado de https://neo.wiwo.me (iteracion v6)
  *
- * No es una reconstruccion: son las reglas que el navegador aplica de verdad al orbe de esa pagina,
- * leidas de su motor de estilos y despues recuperadas del CSS fuente (el computado normaliza los
- * `background` multicapa y se los come, que es justamente lo que da el aspecto).
+ * No es una reconstruccion: son las reglas que el navegador aplica de verdad al orbe de esa pagina.
+ * La pagina arrastra TRES iteraciones del componente que comparten los mismos nombres de capa
+ * —`.orb-aurora` existe en las tres—, asi que copiar por nombre trae las tres mezcladas y ninguna
+ * funciona. La que gana la cascada, y por lo tanto la que se ve, es la **v6** (keyframes `orb-v6-*`).
+ * Aca esta esa cascada ya resuelta: una regla por selector, con el valor final. Por eso desaparecen
+ * los `!important` de origen — servian para ganarle a las iteraciones viejas, que aca no existen.
  *
- * Por que hizo falta ese rodeo: la pagina arrastra TRES iteraciones del componente que comparten los
- * mismos nombres de capa —`.orb-aurora` existe en las tres—, asi que copiar por nombre trae las tres
- * mezcladas y ninguna funciona. La que gana la cascada, y por lo tanto la que se ve, es la **v6**;
- * las reglas `thinking-orb-*` son iteraciones anteriores que quedaron en el archivo. Aca esta solo la
- * v6, con la ultima definicion de cada selector.
+ * El orbe **no es un circulo con degradado**: es una ELIPSE deformada (ancho != alto, borde de blob
+ * asimetrico animado) hecha de capas de luz que se componen con `mix-blend-mode: screen`.
  *
- * El orbe **no es un circulo con degradado**: es un campo de luz —auroras, causticas, membrana y
- * destellos— dentro de un contenedor con `overflow: hidden`. Por eso el escenario tiene medida
- * propia y el orbe la llena.
+ * `screen` es la razon por la que este archivo trae fondo propio. Sobre superficie clara, `screen`
+ * da blanco: el orbe se lava y queda un circulo pastel. En Neo el fondo oscuro no lo pone el orbe
+ * sino su contenedor (`.thinking-orb-showcase`), que aca no existe porque el componente colapsa
+ * contenedor y escenario en un solo elemento. Por eso `.thinking-orb-stage` lleva el fondo del
+ * showcase incorporado, con colores fijos: el orbe se ve igual en tema claro y en tema oscuro
+ * porque no depende del fondo de la pagina (en `/entrar` vive sobre superficie clara).
  *
- * Del entorno solo necesita `--ease-expressive` y `--wiwo-beige`, que el proyecto ya define; el
- * resto de las variables las declara el propio componente. Y no usa una sola propiedad de filtro de
- * fondo, asi que la regla de desenfoque del proyecto queda intacta.
+ * Del entorno solo necesita `--ease-expressive`. No usa ninguna propiedad de filtro de fondo, asi
+ * que la regla anti-`backdrop-filter` del proyecto queda intacta.
  *
- * Los añadidos propios —reposo y movimiento reducido— estan al final, marcados como tales.
+ * Los añadidos propios —escalado, reposo y movimiento reducido— estan al final, marcados como tales.
  */
 
 :root {
   --ease-expressive: var(--wiwo-ease-expressive);
 }
 
-@keyframes thinking-orb-spark {
+/* ==========================================================================
+   ESCENARIO — de Neo (`.thinking-orb-showcase` + `.thinking-orb-stage` fusionados)
+   ========================================================================== */
+
+.thinking-orb-stage {
+  /*
+   * Unidad de escala. TODA medida de este archivo esta en `calc(N * var(--px))`, donde N es el
+   * numero en pixeles que usa Neo.
+   *
+   * Neo mide en `vw`, que lee el ancho de la ventana: dos orbes de tamaños distintos en la misma
+   * pantalla salian identicos, porque ambos leian lo mismo. Aca la referencia es el propio
+   * escenario: `container-type: size` lo convierte en contenedor de consulta y `cqmin` mide su lado
+   * corto. El escenario de la captura de referencia mide 490px de lado corto, asi que 1px de Neo =
+   * 1/490 de ese lado = 0.204cqmin. Resultado: el orbe se ve igual a 24px, a 48px y a 260px, solo
+   * que mas chico.
+   *
+   * Calibrado contra el lado CORTO y no contra el alto a proposito: con el alto el orbe entraba
+   * entero y sobraba escenario, y lo que se veia era su periferia difusa —el aspecto lavado que
+   * habia que corregir—. En Neo el campo de luz desborda y el escenario lo recorta; de ahi la
+   * intensidad.
+   *
+   * `--px` se declara aca pero NO se usa en esta regla: dentro del propio contenedor, `cqmin` se
+   * resolveria contra su padre. Las medidas del escenario van en porcentaje, que ya escala solo.
+   */
+  --px: 0.204cqmin;
+  container-type: size;
+
+  /* Paleta del orbe (v6). Fija a proposito: no son tokens de tema. */
+  --orb-light-blue: rgba(66, 66, 255, .84);
+  --orb-light-lime: rgba(59, 255, 0, .78);
+  --orb-light-milk: rgba(248, 250, 215, .72);
+  --spark-opacity: .68;
+
+  position: relative;
+  display: grid;
+  place-items: center;
+  /* `isolation` es lo que hace que todos los `mix-blend-mode: screen` de adentro se compongan contra
+     el fondo oscuro de este elemento y no contra la pagina. Sin esto, vuelve el circulo pastel. */
+  isolation: isolate;
+  overflow: hidden;
+  /*
+   * Recorte circular, y aca el proyecto se aparta de Neo a proposito.
+   *
+   * En Neo el orbe vive dentro de un panel de demo rectangular de 590px, asi que 32px de radio es lo
+   * correcto ALLA. Aca el orbe es la mascota de la marca: aparece centrado en el acceso, dentro de
+   * una fila y dentro de un boton. Con esquinas rectas se lee como una tarjeta con un degradado
+   * adentro, no como el orbe. El campo de luz de adentro es identico; lo que cambia es por donde se
+   * lo recorta.
+   */
+  border-radius: 50%;
+  color: rgba(248, 250, 215, .92);
+  background:
+    radial-gradient(circle at 18% 8%, rgba(59, 255, 0, .18), transparent 28%),
+    radial-gradient(circle at 82% 18%, rgba(66, 66, 255, .22), transparent 34%),
+    radial-gradient(circle at 52% 54%, rgba(248, 250, 215, .08), transparent 45%),
+    /* Opaco a proposito. Neo deja estas paradas con alfa porque abajo tiene su propia pagina oscura;
+       aca cualquier transparencia deja entrar la superficie de la app y el orbe cambia entre tema
+       claro y oscuro. Con alfa 1 el escenario es su propio fondo y se ve igual en los dos. */
+    linear-gradient(135deg, rgb(41, 41, 41), rgb(43, 52, 45) 46%, rgb(31, 33, 47));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 251, .18);
+}
+
+/* Aurora de fondo del escenario: la mancha de luz grande que el orbe no cubre. */
+.thinking-orb-stage::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: min(98%, calc(720 * var(--px)));
+  height: min(86%, calc(520 * var(--px)));
+  border-radius: 50%;
+  background:
+    radial-gradient(ellipse at 50% 50%, rgba(248, 250, 215, .22), transparent 23%),
+    radial-gradient(ellipse at 42% 56%, rgba(66, 66, 255, .42), transparent 54%),
+    radial-gradient(ellipse at 63% 40%, rgba(59, 255, 0, .28), transparent 58%);
+  filter: blur(calc(54 * var(--px))) saturate(1.75);
+  opacity: .72;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  animation: orb-v6-stage-aurora 8200ms var(--ease-expressive) infinite;
+}
+
+/*
+ * Velo de ambiente. En Neo esta capa cuelga de `.thinking-orb-showcase::before`; como aca showcase y
+ * stage son el mismo elemento, ocupa el `::after` del escenario —que la v6c de Neo apaga
+ * (`opacity: 0`) y por lo tanto queda libre—.
+ */
+.thinking-orb-stage::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at 48% 46%, rgba(255, 255, 251, .1), transparent 28%),
+    radial-gradient(circle at 50% 50%, rgba(66, 66, 255, .22), transparent 54%),
+    radial-gradient(circle at 34% 68%, rgba(59, 255, 0, .12), transparent 46%);
+  opacity: .28;
+  mix-blend-mode: screen;
+  pointer-events: none;
+}
+
+/* ==========================================================================
+   KEYFRAMES — de Neo
+   ========================================================================== */
+
+@keyframes orb-v6-stage-aurora {
+  0%, 100% { transform: translate(-50%, -50%) rotate(-3deg) scale(.95); }
+  50% { transform: translate(-50%, -50%) rotate(7deg) scale(1.08); }
+}
+
+/* La respiracion cambia forma Y borde a la vez: es lo que hace que el orbe se lea como liquido y no
+   como una elipse que late. Los `border-radius` de cuatro pares son blobs asimetricos, no errores. */
+/*
+ * Animaciones internas del campo de luz.
+ *
+ * Sin estas, las tres auroras quedan superpuestas y QUIETAS en la misma posicion, y sus gradientes
+ * —verde en una, azul en otra— se promedian a un turquesa parejo. En Neo cada una rota a su
+ * velocidad y en sentidos distintos, y de ahi sale la separacion entre el verde neon y el azul que
+ * define al orbe. Es la diferencia entre un campo de luz y un degradado.
+ */
+
+@keyframes orb-v6-membrane-flow {
       0%,
       100% {
-        transform: translate3d(0, 0, 0) scale(.72);
-        opacity: .34;
-      }
-
-      38% {
-        transform: translate3d(18px, -24px, 0) scale(1.25);
-        opacity: var(--spark-opacity);
-      }
-
-      68% {
-        transform: translate3d(-14px, 18px, 0) scale(.9);
-        opacity: .62;
-      }
-    }
-
-@keyframes orb-v6-breathe {
-      0%,
-      100% {
-        transform: translate3d(var(--orb-x), var(--orb-y), 0) scale(var(--orb-scale-a)) rotate(-2deg);
-        border-radius: 56% 44% 52% 48% / 45% 58% 42% 55%;
-      }
-
-      45% {
-        transform: translate3d(calc(var(--orb-x) + 8px), calc(var(--orb-y) - 4px), 0) scale(var(--orb-scale-b)) rotate(4deg);
-        border-radius: 44% 56% 58% 42% / 58% 40% 60% 42%;
-      }
-
-      72% {
-        transform: translate3d(calc(var(--orb-x) - 6px), calc(var(--orb-y) + 5px), 0) scale(var(--orb-scale-c)) rotate(-5deg);
-        border-radius: 63% 37% 47% 53% / 42% 62% 38% 58%;
-      }
-    }
-
-@keyframes orb-v6-magnetic-shift {
-      0%,
-      100% {
-        box-shadow:
-          0 0 170px color-mix(in srgb, var(--orb-light-blue) 34%, transparent),
-          0 0 145px color-mix(in srgb, var(--orb-light-lime) 26%, transparent),
-          0 0 80px rgba(248, 250, 215, .16);
+        transform: rotate(0deg) scale(.96);
       }
 
       50% {
-        box-shadow:
-          0 0 230px color-mix(in srgb, var(--orb-light-lime) 30%, transparent),
-          0 0 180px color-mix(in srgb, var(--orb-light-blue) 36%, transparent),
-          0 0 120px rgba(248, 250, 215, .2);
+        transform: rotate(148deg) scale(1.12);
       }
     }
 
-@keyframes orb-v6-caustic {
+@keyframes orb-v6-liquid-sweep {
+      0%,
+      100% {
+        transform: rotate(-12deg) scale(.95) skew(-4deg);
+      }
+
+      48% {
+        transform: rotate(112deg) scale(1.12) skew(6deg);
+      }
+    }
+
+@keyframes orb-v6-light-swim {
+      0% {
+        transform: translate3d(-4%, -2%, 0) scale(.95);
+      }
+
+      100% {
+        transform: translate3d(5%, 4%, 0) scale(1.08);
+      }
+    }
+
+@keyframes orb-v6-aurora-a {
+      to {
+        transform: rotate(360deg) scale(1.05);
+      }
+    }
+
+@keyframes orb-v6-aurora-b {
+      to {
+        transform: rotate(-360deg) scale(1.02);
+      }
+    }
+
+@keyframes orb-v6-inner-tide {
+      0% {
+        transform: translate3d(-8%, -2%, 0) scale(.9);
+        opacity: .52;
+      }
+
+      100% {
+        transform: translate3d(7%, 4%, 0) scale(1.08);
+        opacity: .86;
+      }
+    }
+
+@keyframes orb-v6-rim-flow {
       to {
         transform: rotate(360deg);
       }
     }
 
-@keyframes orb-v6-glint {
-      0% {
-        transform: translate3d(-28px, -8px, 0) rotate(-12deg);
-        opacity: .34;
-      }
-
-      100% {
-        transform: translate3d(18px, 10px, 0) rotate(-4deg);
-        opacity: .76;
-      }
-    }
-
-@keyframes orb-v6-pulse {
+@keyframes orb-v6-soft-core {
       0% {
         transform: scale(.72);
-        opacity: .1;
-      }
-
-      42% {
-        opacity: .42;
+        opacity: .08;
       }
 
       100% {
-        transform: scale(1.22);
-        opacity: 0;
+        transform: scale(1.08);
+        opacity: .18;
       }
     }
+
+@keyframes orb-v6-sheen {
+      from {
+        transform: translate3d(-14px, -8px, 0) rotate(-10deg);
+        opacity: .48;
+      }
+
+      to {
+        transform: translate3d(18px, 12px, 0) rotate(6deg);
+        opacity: .82;
+      }
+    }
+
+@keyframes orb-v6-breathe {
+  0%, 100% {
+    transform: translate3d(var(--orb-x), var(--orb-y), 0) scale(var(--orb-scale-a)) rotate(-2deg);
+    border-radius: 56% 44% 52% 48% / 45% 58% 42% 55%;
+  }
+
+  45% {
+    transform: translate3d(calc(var(--orb-x) + 8 * var(--px)), calc(var(--orb-y) - 4 * var(--px)), 0) scale(var(--orb-scale-b)) rotate(4deg);
+    border-radius: 44% 56% 58% 42% / 58% 40% 60% 42%;
+  }
+
+  72% {
+    transform: translate3d(calc(var(--orb-x) - 6 * var(--px)), calc(var(--orb-y) + 5 * var(--px)), 0) scale(var(--orb-scale-c)) rotate(-5deg);
+    border-radius: 63% 37% 47% 53% / 42% 62% 38% 58%;
+  }
+}
+
+/* El halo se desplaza de azul a verde y vuelve: la "corriente" del campo de luz. */
+@keyframes orb-v6-magnetic-shift {
+  0%, 100% {
+    box-shadow:
+      0 0 calc(170 * var(--px)) color-mix(in srgb, var(--orb-light-blue) 34%, transparent),
+      0 0 calc(145 * var(--px)) color-mix(in srgb, var(--orb-light-lime) 26%, transparent),
+      0 0 calc(80 * var(--px)) rgba(248, 250, 215, .16);
+  }
+
+  50% {
+    box-shadow:
+      0 0 calc(230 * var(--px)) color-mix(in srgb, var(--orb-light-lime) 30%, transparent),
+      0 0 calc(180 * var(--px)) color-mix(in srgb, var(--orb-light-blue) 36%, transparent),
+      0 0 calc(120 * var(--px)) rgba(248, 250, 215, .2);
+  }
+}
+
+@keyframes orb-v6-caustic {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes orb-v6-glint {
+  0% { transform: translate3d(calc(-28 * var(--px)), calc(-8 * var(--px)), 0) rotate(-12deg); opacity: .34; }
+  100% { transform: translate3d(calc(18 * var(--px)), calc(10 * var(--px)), 0) rotate(-4deg); opacity: .76; }
+}
+
+@keyframes orb-v6-pulse {
+  0% { transform: scale(.72); opacity: .1; }
+  42% { opacity: .42; }
+  100% { transform: scale(1.22); opacity: 0; }
+}
 
 @keyframes orb-v6-state-orbit {
-      to {
-        transform: translate(-50%, -50%) rotate(360deg);
-      }
-    }
-
-* {
-      box-sizing: border-box;
-    }
-
-p,
-    li,
-    a,
-    button,
-    figcaption,
-    summary,
-    strong,
-    span,
-    dt,
-    dd,
-    .chip,
-    .photo-tag,
-    .asset-tag,
-    .rhetoric-kicker,
-    .theme-option,
-    .button {
-      overflow-wrap: normal;
-      word-break: normal;
-      hyphens: none;
-    }
-
-.thinking-orb-showcase > * {
-      position: relative;
-      z-index: 1;
-    }
-
-.thinking-orb-stage {
-      min-height: clamp(420px, 52vw, 590px);
-      isolation: isolate;
-      overflow: hidden;
-      border-radius: 32px;
-    }
-
-.wiwo-thinking-orb {
-      --orb-w: clamp(245px, 28vw, 410px);
-      --orb-h: clamp(205px, 22vw, 315px);
-      --orb-x: 0px;
-      --orb-y: 0px;
-      --orb-scale-a: .96;
-      --orb-scale-b: 1.06;
-      --orb-scale-c: .93;
-      --orb-speed: 3600ms;
-      --orb-flow-speed: 4200ms;
-      --orb-brightness: 1;
-      --orb-saturation: 1.82;
-      --orb-alpha: .94;
-      position: relative;
-      z-index: 4;
-      width: var(--orb-w) !important;
-      height: var(--orb-h) !important;
-      aspect-ratio: auto !important;
-      border: 0 !important;
-      border-radius: 56% 44% 52% 48% / 45% 58% 42% 55%;
-      overflow: visible;
-      opacity: var(--orb-alpha);
-      background: transparent !important;
-      box-shadow:
-        0 0 150px color-mix(in srgb, var(--orb-light-blue) 30%, transparent),
-        0 0 125px color-mix(in srgb, var(--orb-light-lime) 24%, transparent),
-        0 0 72px rgba(248, 250, 215, .15);
-      filter: saturate(var(--orb-saturation)) brightness(var(--orb-brightness));
-      mix-blend-mode: screen;
-      transform-origin: 50% 54%;
-      will-change: transform, filter, border-radius;
-      animation:
-        orb-v6-breathe var(--orb-speed) var(--ease-expressive) infinite,
-        orb-v6-magnetic-shift var(--orb-flow-speed) linear infinite;
-    }
-
-.orb-liquid-veil,
-    .orb-light-field,
-    .orb-caustic,
-    .orb-rim,
-    .orb-glint {
-      position: absolute;
-      border-radius: inherit;
-      pointer-events: none;
-    }
-
-.orb-liquid-veil {
-      inset: -18%;
-      border-radius: 58% 42% 46% 54% / 44% 52% 48% 56% !important;
-      background:
-        radial-gradient(ellipse at 30% 66%, rgba(59, 255, 0, .45), transparent 38%),
-        radial-gradient(ellipse at 72% 28%, rgba(66, 66, 255, .52), transparent 40%),
-        radial-gradient(ellipse at 48% 48%, rgba(248, 250, 215, .2), transparent 48%) !important;
-      filter: blur(42px) saturate(2.15) !important;
-      opacity: .72 !important;
-    }
-
-.orb-light-field {
-      inset: -22%;
-      border-radius: 48% 52% 58% 42% / 56% 44% 52% 48% !important;
-      background:
-        radial-gradient(ellipse at 36% 44%, rgba(248, 250, 215, .42), transparent 30%),
-        radial-gradient(ellipse at 62% 50%, rgba(66, 66, 255, .42), transparent 40%),
-        radial-gradient(ellipse at 48% 68%, rgba(59, 255, 0, .28), transparent 36%) !important;
-      filter: blur(34px) saturate(1.9) !important;
-      opacity: .62 !important;
-    }
-
-.orb-caustic {
-      inset: -8%;
-      background:
-        repeating-conic-gradient(from 0deg, transparent 0deg 18deg, rgba(248, 250, 215, .18) 22deg 24deg, transparent 28deg 46deg);
-      -webkit-mask-image: radial-gradient(ellipse at 50% 50%, transparent 0 18%, rgba(0, 0, 0, .52) 38%, transparent 76%);
-      mask-image: radial-gradient(ellipse at 50% 50%, transparent 0 18%, rgba(0, 0, 0, .52) 38%, transparent 76%);
-      filter: blur(18px);
-      opacity: .28;
-      animation: orb-v6-caustic 8600ms linear infinite;
-    }
-
-.orb-rim {
-      opacity: 0 !important;
-    }
-
-.orb-core {
-      inset: -16%;
-      border-radius: 50% !important;
-      background:
-        radial-gradient(ellipse at 46% 46%, rgba(248, 250, 215, .46), transparent 30%),
-        radial-gradient(ellipse at 56% 56%, rgba(66, 66, 255, .2), transparent 44%),
-        radial-gradient(ellipse at 42% 60%, rgba(59, 255, 0, .18), transparent 46%) !important;
-      filter: blur(46px) saturate(1.85) !important;
-      opacity: .58 !important;
-    }
-
-.orb-glint {
-      width: clamp(62px, 8vw, 110px);
-      height: clamp(24px, 4vw, 52px);
-      right: 14%;
-      top: 18%;
-      border-radius: 50%;
-      background: radial-gradient(ellipse at 50% 50%, rgba(248, 250, 215, .72), rgba(248, 250, 215, .18) 44%, transparent 72%);
-      filter: blur(14px);
-      opacity: .64;
-      animation: orb-v6-glint 2600ms var(--ease-expressive) infinite alternate;
-    }
-
-.orb-pulse {
-      inset: -36%;
-      border: 0;
-      border-radius: inherit;
-      background:
-        radial-gradient(ellipse at 50% 50%, rgba(248, 250, 215, .12), transparent 25%),
-        conic-gradient(from 0deg, rgba(59, 255, 0, .24), rgba(66, 66, 255, .26), transparent 62%, rgba(248, 250, 215, .14));
-      filter: blur(32px) saturate(1.5);
-      opacity: .18;
-      animation: orb-v6-pulse 3100ms var(--ease-expressive) infinite;
-    }
-
-.orb-pulse:nth-child(2) {
-      animation-delay: -1050ms;
-    }
-
-.orb-pulse:nth-child(3) {
-      animation-delay: -2050ms;
-    }
-
-.orb-particle {
-      background:
-        radial-gradient(circle, rgba(59, 255, 0, .76) 0 8%, rgba(59, 255, 0, .24) 28%, transparent 72%);
-    }
-
-.orb-particle:nth-of-type(2) {
-      background:
-        radial-gradient(circle, rgba(66, 66, 255, .78) 0 8%, rgba(66, 66, 255, .26) 30%, transparent 72%);
-    }
-
-.orb-particle:nth-of-type(3) {
-      background:
-        radial-gradient(circle, rgba(248, 250, 215, .7) 0 8%, rgba(248, 250, 215, .24) 30%, transparent 74%);
-    }
-
-.orb-spark {
-      position: absolute;
-      z-index: 5;
-      left: var(--sx, 50%);
-      top: var(--sy, 50%);
-      width: var(--spark-size, 5px);
-      height: var(--spark-size, 5px);
-      border-radius: 50%;
-      background: var(--spark-color, var(--wiwo-beige));
-      box-shadow: 0 0 14px currentColor, 0 0 34px var(--spark-color, rgba(248, 250, 215, .72));
-      color: var(--spark-color, var(--wiwo-beige));
-      opacity: var(--spark-opacity);
-      mix-blend-mode: screen;
-      animation: thinking-orb-spark var(--spark-speed, 6200ms) var(--ease-expressive) infinite;
-      animation-delay: var(--spark-delay, 0ms);
-    }
-
-.orb-state-field {
-      position: absolute;
-      inset: 0;
-      z-index: 8;
-      pointer-events: none;
-    }
-
-.orb-state-field span {
-      position: absolute;
-      display: block;
-      pointer-events: none;
-    }
-
-.orb-state-ring,
-    .orb-state-ring.alt {
-      width: min(88%, 620px);
-      height: min(52%, 330px);
-      border: 0;
-      border-radius: 50%;
-      background:
-        conic-gradient(from 0deg, transparent 0 10%, rgba(248, 250, 215, .3) 18%, transparent 28%, rgba(66, 66, 255, .44) 48%, transparent 64%, rgba(59, 255, 0, .44) 78%, transparent 100%);
-      -webkit-mask-image: radial-gradient(ellipse at 50% 50%, transparent calc(100% - 34px), #000 calc(100% - 16px), transparent calc(100% - 2px));
-      mask-image: radial-gradient(ellipse at 50% 50%, transparent calc(100% - 34px), #000 calc(100% - 16px), transparent calc(100% - 2px));
-      filter: blur(7px);
-    }
-
-.orb-state-ring.alt {
-      width: min(72%, 520px);
-      height: min(40%, 270px);
-      filter: blur(10px);
-    }
-
-.orb-scan-line {
-      width: clamp(28px, 5vw, 66px);
-      height: min(72%, 430px);
-      border-radius: 999px;
-      background: radial-gradient(ellipse at 50% 50%, rgba(59, 255, 0, .82), rgba(248, 250, 215, .28) 34%, transparent 74%);
-      filter: blur(14px);
-    }
-
-.orb-output-trail {
-      left: 58%;
-      width: min(40%, 310px);
-      height: 36px;
-      border-radius: 999px;
-      background: linear-gradient(90deg, rgba(59, 255, 0, .72), rgba(248, 250, 215, .42), rgba(66, 66, 255, .46), transparent);
-      filter: blur(17px);
-    }
-
-.orb-output-trail.two {
-      top: 50%;
-      width: min(34%, 260px);
-      animation-delay: -180ms;
-    }
-
-.orb-output-trail.three {
-      top: 61%;
-      width: min(28%, 220px);
-      animation-delay: -360ms;
-    }
-
-.orb-success-burst {
-      width: min(70%, 420px);
-      height: min(52%, 300px);
-      border-radius: 50%;
-      background: radial-gradient(ellipse at 50% 50%, rgba(59, 255, 0, .56), rgba(248, 250, 215, .22) 34%, transparent 72%);
-      filter: blur(24px);
-    }
-
-.orb-retry-notch {
-      width: min(56%, 360px);
-      height: 42px;
-      border-radius: 999px;
-      background: linear-gradient(90deg, transparent, rgba(116, 108, 255, .58), rgba(248, 250, 215, .2), transparent);
-      filter: blur(13px);
-    }
-
-.thinking-orb-demo[data-thinking-state="thinking"] .wiwo-thinking-orb {
-      --orb-w: clamp(250px, 28vw, 390px);
-      --orb-h: clamp(225px, 24vw, 340px);
-    }
-
-.thinking-orb-demo[data-thinking-state="thinking"] .orb-state-ring {
-      opacity: .62;
-      animation: orb-v6-state-orbit 3200ms linear infinite;
-    }
-
-.thinking-orb-demo[data-thinking-state="thinking"] .orb-state-ring.alt {
-      opacity: .4;
-      animation: orb-v6-state-orbit 4600ms linear infinite reverse;
-    }
-
-.thinking-orb-demo[data-thinking-state="thinking"] .orb-core {
-      animation-duration: 980ms;
-      box-shadow:
-        0 0 48px rgba(248, 250, 215, .72),
-        0 0 110px rgba(66, 66, 255, .42),
-        0 0 84px rgba(59, 255, 0, .24);
-    }
-
-.orb-aurora {
-      filter: blur(26px) saturate(2.15) brightness(1.04);
-      opacity: .88;
-      -webkit-mask-image: radial-gradient(ellipse at 50% 50%, rgba(0, 0, 0, .7) 0 18%, #000 48%, rgba(0, 0, 0, .56) 68%, transparent 88%);
-      mask-image: radial-gradient(ellipse at 50% 50%, rgba(0, 0, 0, .7) 0 18%, #000 48%, rgba(0, 0, 0, .56) 68%, transparent 88%);
-    }
-
-.orb-aurora-one {
-      background:
-        radial-gradient(ellipse at 24% 38%, rgba(66, 66, 255, .5), transparent 34%),
-        radial-gradient(ellipse at 58% 70%, rgba(59, 255, 0, .34), transparent 38%) !important;
-    }
-
-.orb-aurora-two {
-      background:
-        radial-gradient(ellipse at 72% 34%, rgba(59, 255, 0, .5), transparent 34%),
-        radial-gradient(ellipse at 40% 58%, rgba(0, 229, 255, .28), transparent 42%) !important;
-    }
-
-.orb-aurora-three {
-      background:
-        radial-gradient(ellipse at 50% 48%, rgba(248, 250, 215, .38), transparent 34%),
-        radial-gradient(ellipse at 46% 62%, rgba(66, 66, 255, .28), transparent 46%) !important;
-    }
-
-.orb-particle,
-    .orb-spark {
-      z-index: 5;
-      background: radial-gradient(circle, currentColor 0 4%, color-mix(in srgb, currentColor 30%, transparent) 28%, transparent 72%);
-      filter: blur(7px) saturate(1.5);
-      opacity: .32;
-      box-shadow: none;
-    }
-
-.orb-particle:nth-of-type(2),
-    .orb-particle:nth-of-type(3) {
-      width: clamp(14px, 1.7vw, 21px);
-      height: clamp(14px, 1.7vw, 21px);
-    }
-
-.orb-liquid-veil,
-    .orb-caustic,
-    .orb-light-field {
-      inset: -8%;
-      mix-blend-mode: screen;
-      pointer-events: none;
-    }
-
-.wiwo-thinking-orb::before,
-    .orb-aurora,
-    .orb-liquid-veil,
-    .orb-light-field {
-      border-radius: 62% 38% 58% 42% / 48% 56% 44% 52%;
-    }
-
-.wiwo-thinking-orb::before,
-    .wiwo-thinking-orb::after,
-    .wiwo-thinking-orb > span {
-      position: absolute;
-      border-radius: inherit;
-      pointer-events: none;
-    }
-
-.orb-liquid-veil,
-    .orb-light-field,
-    .orb-caustic,
-    .orb-aurora {
-      inset: -16%;
-      border-radius: inherit !important;
-      mix-blend-mode: screen;
-    }
-
-.orb-state-ring,
-    .orb-state-ring.alt,
-    .orb-scan-line,
-    .orb-output-trail,
-    .orb-success-burst,
-    .orb-retry-notch {
-      position: absolute;
-      left: 50%;
-      top: 50%;
-      pointer-events: none;
-      opacity: 0;
-      transform: translate(-50%, -50%);
-      mix-blend-mode: screen;
-      z-index: 10;
-    }
-
-.orb-output-trail.one {
-      top: 39%;
-    }
-
-.thinking-orb-demo[data-thinking-state="thinking"] .orb-state-ring,
-    .thinking-orb-demo[data-thinking-state="thinking"] .orb-state-ring.alt {
-      opacity: .08;
-    }
-
-.wiwo-thinking-orb::before,
-    .orb-liquid-veil,
-    .orb-aurora,
-    .orb-core {
-      -webkit-mask-image: none !important;
-      mask-image: none !important;
-    }
-
-.orb-aurora-one,
-    .orb-aurora-two,
-    .orb-aurora-three {
-      inset: -20%;
-      border-radius: 50% !important;
-      filter: blur(44px) saturate(2.2) brightness(1.05) !important;
-      opacity: .72 !important;
-    }
-/* ==========================================================================
-   ESTADOS — reglas de neo.wiwo.me, activadas con [data-thinking-state]
-   ========================================================================== */
+  to { transform: translate(-50%, -50%) rotate(360deg); }
+}
 
 @keyframes orb-v6-listen-scan {
-      0%,
-      100% {
-        transform: translate(-50%, -50%) scaleX(.58);
-        opacity: .28;
-      }
-
-      50% {
-        transform: translate(-50%, -50%) scaleX(1.4);
-        opacity: .96;
-      }
-    }
+  0%, 100% { transform: translate(-50%, -50%) scaleX(.58); opacity: .28; }
+  50% { transform: translate(-50%, -50%) scaleX(1.4); opacity: .96; }
+}
 
 @keyframes orb-v6-output-trail {
-      0% {
-        transform: translate(-52%, -50%) scaleX(.34);
-        opacity: 0;
-      }
-
-      38% {
-        opacity: .96;
-      }
-
-      100% {
-        transform: translate(-22%, -50%) scaleX(1.12);
-        opacity: 0;
-      }
-    }
+  0% { transform: translate(-52%, -50%) scaleX(.34); opacity: 0; }
+  38% { opacity: .96; }
+  100% { transform: translate(-22%, -50%) scaleX(1.12); opacity: 0; }
+}
 
 @keyframes orb-v6-route-beam {
-      0% {
-        transform: translate(-50%, -50%) rotate(-34deg) scaleX(.72);
-        opacity: .22;
-      }
-
-      100% {
-        transform: translate(-50%, -50%) rotate(26deg) scaleX(1.16);
-        opacity: .72;
-      }
-    }
+  0% { transform: translate(-50%, -50%) rotate(-34deg) scaleX(.72); opacity: .22; }
+  100% { transform: translate(-50%, -50%) rotate(26deg) scaleX(1.16); opacity: .72; }
+}
 
 @keyframes orb-v6-success-bloom {
-      0% {
-        transform: translate(-50%, -50%) scale(.62);
-        opacity: 0;
-      }
+  0% { transform: translate(-50%, -50%) scale(.62); opacity: 0; }
+  34% { opacity: .9; }
+  100% { transform: translate(-50%, -50%) scale(1.22); opacity: 0; }
+}
 
-      34% {
-        opacity: .9;
-      }
+@keyframes orb-state-field-pop {
+  0% { transform: scale(.96); filter: blur(calc(5 * var(--px))) brightness(.82) saturate(1.1); }
+  54% { transform: scale(1.045); filter: blur(0) brightness(1.28) saturate(1.45); }
+  100% { transform: scale(1); filter: blur(0) brightness(1) saturate(1); }
+}
 
-      100% {
-        transform: translate(-50%, -50%) scale(1.22);
-        opacity: 0;
-      }
-    }
+/* Orbita: la doble rotacion (la segunda negativa) mantiene la particula sin girar sobre si misma. */
+@keyframes thinking-orb-particle {
+  from { transform: rotate(0deg) translateX(var(--orbit)) rotate(0deg); }
+  to { transform: rotate(360deg) translateX(var(--orbit)) rotate(-360deg); }
+}
 
-.thinking-orb-demo[data-thinking-state="listening"] .wiwo-thinking-orb {
-      --orb-w: clamp(245px, 27vw, 385px);
-      --orb-h: clamp(230px, 24vw, 350px);
-      --orb-speed: 2300ms;
-      --orb-flow-speed: 3600ms;
-      --orb-brightness: 1.08;
-      --orb-saturation: 1.9;
-      --orb-scale-a: .96;
-      --orb-scale-b: 1.08;
-      --orb-scale-c: .94;
-    }
+@keyframes thinking-orb-spark {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(.72); opacity: .34; }
+  38% { transform: translate3d(calc(18 * var(--px)), calc(-24 * var(--px)), 0) scale(1.25); opacity: var(--spark-opacity); }
+  68% { transform: translate3d(calc(-14 * var(--px)), calc(18 * var(--px)), 0) scale(.9); opacity: .62; }
+}
 
-.thinking-orb-demo[data-thinking-state="listening"] {
-      --stage-blue-glow: rgba(66, 66, 255, .24);
-      --stage-green-glow: rgba(59, 255, 0, .28);
-      --stage-warm-glow: rgba(248, 250, 215, .12);
-      --stage-beam-opacity: .28;
-      --spark-opacity: .68;
-    }
+/* ==========================================================================
+   EL ORBE — de Neo
+   ========================================================================== */
 
-.thinking-orb-demo[data-thinking-state="listening"] .orb-scan-line {
-      width: clamp(46px, 8vw, 92px);
-      height: min(80%, 500px);
-      opacity: 1;
-      z-index: 22;
-      background:
-        radial-gradient(ellipse at 50% 50%, rgba(248, 250, 215, .48), transparent 18%),
-        linear-gradient(180deg, transparent, rgba(59, 255, 0, .72), rgba(66, 66, 255, .42), transparent);
-      filter: blur(9px) saturate(1.9);
-      mix-blend-mode: screen;
-      animation: orb-v6-listen-scan 1280ms var(--ease-expressive) infinite;
-    }
+.wiwo-thinking-orb {
+  /* Elipse, no circulo: ancho y alto son distintos y cambian con el estado. */
+  --orb-w: calc(403 * var(--px));
+  --orb-h: calc(315 * var(--px));
+  --orb-x: 0px;
+  --orb-y: 0px;
+  --orb-scale-a: .96;
+  --orb-scale-b: 1.06;
+  --orb-scale-c: .93;
+  --orb-speed: 3600ms;
+  --orb-flow-speed: 4200ms;
+  --orb-brightness: 1.06;
+  --orb-saturation: 1.75;
+  --orb-alpha: .84;
+  position: relative;
+  z-index: 4;
+  width: var(--orb-w);
+  height: var(--orb-h);
+  border: 0;
+  border-radius: 56% 44% 52% 48% / 45% 58% 42% 55%;
+  /* Las capas se desbordan a proposito (`inset` negativos): el campo de luz es mas grande que la
+     caja. El recorte lo hace el escenario. */
+  overflow: visible;
+  opacity: var(--orb-alpha);
+  background: transparent;
+  box-shadow:
+    0 0 calc(150 * var(--px)) color-mix(in srgb, var(--orb-light-blue) 30%, transparent),
+    0 0 calc(125 * var(--px)) color-mix(in srgb, var(--orb-light-lime) 24%, transparent),
+    0 0 calc(72 * var(--px)) rgba(248, 250, 215, .15);
+  filter: saturate(var(--orb-saturation)) brightness(var(--orb-brightness));
+  mix-blend-mode: screen;
+  transform-origin: 50% 54%;
+  will-change: transform, filter, border-radius;
+  animation:
+    orb-v6-breathe var(--orb-speed) var(--ease-expressive) infinite,
+    orb-v6-magnetic-shift var(--orb-flow-speed) linear infinite;
+}
 
-.thinking-orb-demo[data-thinking-state="listening"] .orb-state-ring {
-      border-color: rgba(59, 255, 0, .34);
-      animation-duration: 3800ms;
-      opacity: .62;
-    }
+.wiwo-thinking-orb > span {
+  position: absolute;
+  border-radius: inherit;
+  pointer-events: none;
+}
 
-.thinking-orb-demo[data-thinking-state="listening"] .orb-pulse {
-      opacity: .42;
-      animation-duration: 1700ms;
-    }
+/*
+ * Las dos capas del propio orbe, que el port anterior no trajo.
+ *
+ * `::before` es la membrana, y es donde vive la separacion de color: azul al 68% en un foco y verde
+ * al 56% en otro, con `saturate(2.35)`. Es la capa mas saturada de todo el componente — sin ella el
+ * campo se queda con los gradientes suaves de las capas de abajo y todo tiende al turquesa.
+ * `::after` es el brillo especular que barre por encima.
+ *
+ * En Neo estas reglas llevan `!important` para ganarle a las iteraciones anteriores del orbe; aca no
+ * existen esas iteraciones, asi que sobran.
+ */
+.wiwo-thinking-orb::before,
+.wiwo-thinking-orb::after {
+  content: "";
+  position: absolute;
+  pointer-events: none;
+}
 
-.thinking-orb-demo[data-thinking-state="thinking"] .wiwo-thinking-orb {
-      --orb-w: clamp(250px, 28vw, 390px);
-      --orb-h: clamp(225px, 24vw, 340px);
-    }
+.wiwo-thinking-orb::before {
+  inset: -22%;
+  border-radius: 52% 48% 56% 44% / 48% 58% 42% 52%;
+  background:
+    radial-gradient(ellipse at 28% 36%, rgba(66, 66, 255, .68), transparent 38%),
+    radial-gradient(ellipse at 70% 40%, rgba(59, 255, 0, .56), transparent 36%),
+    radial-gradient(ellipse at 48% 66%, rgba(248, 250, 215, .42), transparent 40%),
+    radial-gradient(ellipse at 54% 52%, rgba(0, 229, 255, .24), transparent 48%);
+  filter: blur(calc(38 * var(--px))) saturate(2.35) brightness(1.08);
+  opacity: .92;
+  mix-blend-mode: screen;
+  animation: orb-v6-membrane-flow calc(var(--orb-flow-speed) * 1.34) var(--ease-expressive) infinite;
+}
 
-.thinking-orb-demo[data-thinking-state="thinking"] {
-      --stage-blue-glow: rgba(66, 66, 255, .42);
-      --stage-green-glow: rgba(59, 255, 0, .22);
-      --stage-warm-glow: rgba(248, 250, 215, .16);
-      --stage-beam-opacity: .42;
-      --spark-opacity: .88;
-    }
+.wiwo-thinking-orb::after {
+  inset: -14% -10%;
+  border-radius: inherit;
+  background:
+    radial-gradient(ellipse at 32% 24%, rgba(255, 255, 251, .56), rgba(255, 255, 251, .14) 30%, transparent 58%),
+    radial-gradient(ellipse at 72% 58%, rgba(66, 66, 255, .26), transparent 46%),
+    radial-gradient(ellipse at 44% 72%, rgba(59, 255, 0, .2), transparent 48%);
+  filter: blur(calc(18 * var(--px))) saturate(1.55);
+  opacity: .72;
+  mix-blend-mode: screen;
+  animation: orb-v6-sheen 3900ms var(--ease-expressive) infinite alternate;
+}
 
-.thinking-orb-demo[data-thinking-state="thinking"] .orb-state-ring {
-      opacity: .62;
-      animation: orb-v6-state-orbit 3200ms linear infinite;
-    }
+/* Las tres capas de volumen comparten el borde de blob del orbe y se suman en `screen`. */
+/*
+ * Cada capa tiene SU inset, medido del orbe de Neo (439x387): la caustica se concentra en -7%, la
+ * membrana se extiende a -16% y el campo de luz derrama hasta -19%. Aplanarlas al mismo valor —como
+ * estaba— comprime las tres a la misma profundidad, y ahi el verde y el azul se promedian a turquesa
+ * en vez de separarse.
+ */
+.orb-liquid-veil {
+  inset: -15.8% -16%;
+  mix-blend-mode: screen;
+}
 
-.thinking-orb-demo[data-thinking-state="thinking"] .orb-state-ring.alt {
-      opacity: .4;
-      animation: orb-v6-state-orbit 4600ms linear infinite reverse;
-    }
+.orb-light-field {
+  inset: -19.3% -19.5%;
+  mix-blend-mode: screen;
+}
 
-.thinking-orb-demo[data-thinking-state="thinking"] .orb-core {
-      animation-duration: 980ms;
-      box-shadow:
-        0 0 48px rgba(248, 250, 215, .72),
-        0 0 110px rgba(66, 66, 255, .42),
-        0 0 84px rgba(59, 255, 0, .24);
-    }
+.orb-caustic {
+  inset: -7% -7.1%;
+  mix-blend-mode: screen;
+}
 
-.thinking-orb-demo[data-thinking-state="generating"] .wiwo-thinking-orb {
-      --orb-w: clamp(280px, 31vw, 430px);
-      --orb-h: clamp(225px, 23vw, 330px);
-    }
+.orb-liquid-veil {
+  background:
+    radial-gradient(ellipse at 30% 66%, rgba(59, 255, 0, .45), transparent 38%),
+    radial-gradient(ellipse at 72% 28%, rgba(66, 66, 255, .52), transparent 40%),
+    radial-gradient(ellipse at 48% 48%, rgba(248, 250, 215, .2), transparent 48%);
+  filter: blur(calc(42 * var(--px))) saturate(2.15);
+  opacity: .72;
+  animation: orb-v6-liquid-sweep 5400ms var(--ease-expressive) infinite;
+}
 
-.thinking-orb-demo[data-thinking-state="generating"] {
-      --stage-blue-glow: rgba(66, 66, 255, .46);
-      --stage-green-glow: rgba(59, 255, 0, .36);
-      --stage-warm-glow: rgba(248, 250, 215, .16);
-      --stage-beam-opacity: .54;
-      --spark-opacity: 1;
-    }
+.orb-light-field {
+  background:
+    radial-gradient(ellipse at 36% 44%, rgba(248, 250, 215, .42), transparent 30%),
+    radial-gradient(ellipse at 62% 50%, rgba(66, 66, 255, .42), transparent 40%),
+    radial-gradient(ellipse at 48% 68%, rgba(59, 255, 0, .28), transparent 36%);
+  filter: blur(calc(34 * var(--px))) saturate(1.9);
+  opacity: .62;
+  animation: orb-v6-light-swim 4600ms var(--ease-expressive) infinite alternate;
+}
 
-.thinking-orb-demo[data-thinking-state="generating"] .orb-output-trail {
-      left: 70%;
-      width: min(46%, 340px);
-      height: 30px;
-      opacity: 1;
-      z-index: 22;
-      background:
-        linear-gradient(90deg, transparent, rgba(248, 250, 215, .7), rgba(59, 255, 0, .72), rgba(66, 66, 255, .58), transparent);
-      filter: blur(8px) saturate(1.8);
-      animation: orb-v6-output-trail 980ms var(--ease-expressive) infinite;
-    }
+/*
+ * Causticas: los reflejos que giran dentro del orbe. El `repeating-conic-gradient` daria un abanico
+ * duro; la mascara radial le come el centro y el borde, y quedan solo las vetas del anillo medio.
+ */
+.orb-caustic {
+  background:
+    repeating-conic-gradient(from 0deg, transparent 0deg 18deg, rgba(248, 250, 215, .18) 22deg 24deg, transparent 28deg 46deg);
+  -webkit-mask-image: radial-gradient(ellipse at 50% 50%, transparent 0 18%, rgba(0, 0, 0, .52) 38%, transparent 76%);
+  mask-image: radial-gradient(ellipse at 50% 50%, transparent 0 18%, rgba(0, 0, 0, .52) 38%, transparent 76%);
+  filter: blur(calc(18 * var(--px)));
+  opacity: .28;
+  animation: orb-v6-caustic 8600ms linear infinite;
+}
 
-.thinking-orb-demo[data-thinking-state="generating"] .orb-output-trail.two {
-      width: min(40%, 292px);
-      opacity: .86;
-    }
+/*
+ * Auroras: las tres manchas de color que se mueven sueltas. Son circulares y desbordan mas que el
+ * resto, y NO llevan mascara: la v6c las quiere como blobs de luz libres, no como una silueta unica.
+ */
+.orb-aurora {
+  inset: -20%;
+  border-radius: 50%;
+  filter: blur(calc(44 * var(--px))) saturate(2.2) brightness(1.05);
+  opacity: .72;
+  mix-blend-mode: screen;
+}
 
-.thinking-orb-demo[data-thinking-state="generating"] .orb-output-trail.three {
-      width: min(34%, 250px);
-      opacity: .72;
-    }
+.orb-aurora-one {
+  background:
+    radial-gradient(ellipse at 24% 38%, rgba(66, 66, 255, .5), transparent 34%),
+    radial-gradient(ellipse at 58% 70%, rgba(59, 255, 0, .34), transparent 38%);
+  animation: orb-v6-aurora-a 4200ms linear infinite;
+}
 
-.thinking-orb-demo[data-thinking-state="generating"] .orb-state-ring {
-      opacity: .14;
-    }
+.orb-aurora-two {
+  background:
+    radial-gradient(ellipse at 72% 34%, rgba(59, 255, 0, .5), transparent 34%),
+    radial-gradient(ellipse at 40% 58%, rgba(0, 229, 255, .28), transparent 42%);
+  animation: orb-v6-aurora-b 5600ms linear infinite reverse;
+}
 
-.thinking-orb-demo[data-thinking-state="success"] .wiwo-thinking-orb {
-      --orb-w: clamp(245px, 27vw, 385px);
-      --orb-h: clamp(195px, 20vw, 285px);
-      --orb-speed: 2500ms;
-      --orb-flow-speed: 3600ms;
-      --orb-brightness: 1.18;
-      --orb-saturation: 1.95;
-      --orb-scale-a: .98;
-      --orb-scale-b: 1.08;
-      --orb-scale-c: .98;
-    }
+.orb-aurora-three {
+  background:
+    radial-gradient(ellipse at 50% 48%, rgba(248, 250, 215, .38), transparent 34%),
+    radial-gradient(ellipse at 46% 62%, rgba(66, 66, 255, .28), transparent 46%);
+  animation: orb-v6-inner-tide 2600ms var(--ease-expressive) infinite alternate;
+}
 
-.thinking-orb-demo[data-thinking-state="success"] {
-      --stage-blue-glow: rgba(66, 66, 255, .22);
-      --stage-green-glow: rgba(59, 255, 0, .42);
-      --stage-warm-glow: rgba(248, 250, 215, .2);
-      --stage-beam-opacity: .48;
-      --spark-opacity: .92;
-    }
+/* El borde esta apagado en la v6: el orbe no tiene contorno, solo luz. Se conserva la capa porque el
+   markup la trae y darle medida seria devolverle la silueta de bola. */
+.orb-rim {
+  opacity: 0;
+}
 
-.thinking-orb-demo[data-thinking-state="success"] .orb-success-burst {
-      opacity: .88;
-      animation: orb-v6-success-bloom 1800ms var(--ease-expressive) infinite;
-    }
+/* "Nucleo" es el nombre, no la forma: con blur de 46px no hay bola solida, es el centro caliente. */
+.orb-core {
+  inset: -16%;
+  border-radius: 50%;
+  background:
+    radial-gradient(ellipse at 46% 46%, rgba(248, 250, 215, .46), transparent 30%),
+    radial-gradient(ellipse at 56% 56%, rgba(66, 66, 255, .2), transparent 44%),
+    radial-gradient(ellipse at 42% 60%, rgba(59, 255, 0, .18), transparent 46%);
+  filter: blur(calc(46 * var(--px))) saturate(1.85);
+  opacity: .58;
+  animation: orb-v6-soft-core 2400ms var(--ease-expressive) infinite alternate;
+}
 
-.thinking-orb-demo[data-thinking-state="success"] .orb-state-ring,
-    .thinking-orb-demo[data-thinking-state="success"] .orb-state-ring.alt {
-      border-color: rgba(59, 255, 0, .42);
-      opacity: .5;
-      animation-duration: 5200ms;
-    }
+.orb-glint {
+  width: calc(110 * var(--px));
+  height: calc(52 * var(--px));
+  right: 14%;
+  top: 18%;
+  border-radius: 50%;
+  background: radial-gradient(ellipse at 50% 50%, rgba(248, 250, 215, .72), rgba(248, 250, 215, .18) 44%, transparent 72%);
+  filter: blur(calc(14 * var(--px)));
+  opacity: .64;
+  animation: orb-v6-glint 2600ms var(--ease-expressive) infinite alternate;
+}
 
-.thinking-orb-demo[data-thinking-state="retry"] .wiwo-thinking-orb {
-      width: clamp(260px, 29vw, 390px);
-      height: clamp(170px, 18vw, 255px);
-      border-radius: 62% 38% 44% 56% / 58% 42% 58% 42%;
-    }
+.orb-pulse {
+  inset: -36%;
+  border: 0;
+  background:
+    radial-gradient(ellipse at 50% 50%, rgba(248, 250, 215, .12), transparent 25%),
+    conic-gradient(from 0deg, rgba(59, 255, 0, .24), rgba(66, 66, 255, .26), transparent 62%, rgba(248, 250, 215, .14));
+  filter: blur(calc(32 * var(--px))) saturate(1.5);
+  opacity: .18;
+  animation: orb-v6-pulse 3100ms var(--ease-expressive) infinite;
+}
 
-.thinking-orb-demo[data-thinking-state="retry"] {
-      --stage-blue-glow: rgba(141, 124, 255, .24);
-      --stage-green-glow: rgba(248, 250, 215, .08);
-      --stage-warm-glow: rgba(248, 250, 215, .1);
-      --stage-beam-opacity: .18;
-      --spark-opacity: .36;
-    }
+/* Retardos negativos: los tres pulsos arrancan ya empezados, en puntos distintos del ciclo. */
+.orb-pulse:nth-child(2) { animation-delay: -1050ms; }
+.orb-pulse:nth-child(3) { animation-delay: -2050ms; }
 
-.thinking-orb-demo[data-thinking-state="retry"] .orb-retry-notch {
-      height: 28px;
-      background: radial-gradient(ellipse at 50% 50%, rgba(116, 108, 255, .58), rgba(255, 255, 251, .18) 42%, transparent 78%);
-      filter: blur(12px);
-    }
+/* ==========================================================================
+   PARTICULAS Y DESTELLOS — de Neo
+   ========================================================================== */
 
-.thinking-orb-demo[data-thinking-state="retry"] .orb-state-ring,
-    .thinking-orb-demo[data-thinking-state="retry"] .orb-state-ring.alt {
-      opacity: .2;
-      border-color: rgba(141, 124, 255, .32);
-      animation-duration: 1400ms;
-    }
+.orb-particle,
+.orb-spark {
+  position: absolute;
+  z-index: 5;
+  border-radius: 50%;
+  filter: blur(calc(7 * var(--px))) saturate(1.5);
+  opacity: .32;
+  mix-blend-mode: screen;
+  pointer-events: none;
+}
 
-.thinking-orb-demo[data-thinking-state="idle"] .wiwo-thinking-orb {
-      --orb-w: clamp(215px, 24vw, 330px);
-      --orb-h: clamp(170px, 17vw, 245px);
-      --orb-speed: 7600ms;
-      --orb-flow-speed: 11000ms;
-      --orb-alpha: .72;
-      --orb-brightness: .88;
-      --orb-saturation: 1.18;
-      --orb-scale-a: .9;
-      --orb-scale-b: .96;
-      --orb-scale-c: .88;
-    }
+/* `transform-origin` fuera de la caja es lo que convierte una rotacion en una orbita. */
+.orb-particle {
+  --orbit: calc(142 * var(--px));
+  --speed: 5200ms;
+  left: 50%;
+  top: 50%;
+  width: calc(21 * var(--px));
+  height: calc(21 * var(--px));
+  background: radial-gradient(circle, rgba(59, 255, 0, .76) 0 8%, rgba(59, 255, 0, .24) 28%, transparent 72%);
+  transform-origin: calc(var(--orbit) * -1) 0;
+  animation: thinking-orb-particle var(--speed) linear infinite;
+}
+
+.orb-particle:nth-of-type(2) {
+  --orbit: calc(120 * var(--px));
+  --speed: 6400ms;
+  background: radial-gradient(circle, rgba(66, 66, 255, .78) 0 8%, rgba(66, 66, 255, .26) 30%, transparent 72%);
+  animation-delay: -1900ms;
+}
+
+.orb-particle:nth-of-type(3) {
+  --orbit: calc(158 * var(--px));
+  --speed: 7800ms;
+  background: radial-gradient(circle, rgba(248, 250, 215, .7) 0 8%, rgba(248, 250, 215, .24) 30%, transparent 74%);
+  animation-delay: -3600ms;
+}
+
+/* Posicion, color y ritmo de cada destello llegan por `style` desde el componente. */
+.orb-spark {
+  left: var(--sx, 50%);
+  top: var(--sy, 50%);
+  width: var(--spark-size, 5px);
+  height: var(--spark-size, 5px);
+  background: radial-gradient(circle, var(--spark-color, rgba(248, 250, 215, .92)) 0 20%, transparent 72%);
+  animation: thinking-orb-spark var(--spark-speed, 6200ms) var(--ease-expressive) infinite;
+  animation-delay: var(--spark-delay, 0ms);
+}
+
+/* ==========================================================================
+   CAPAS DE ESTADO — de Neo (apagadas hasta que un estado las enciende)
+   ========================================================================== */
+
+.orb-state-field {
+  position: absolute;
+  inset: 0;
+  z-index: 8;
+  pointer-events: none;
+}
+
+.orb-state-field span {
+  position: absolute;
+  display: block;
+  pointer-events: none;
+}
+
+.orb-state-ring,
+.orb-scan-line,
+.orb-output-trail,
+.orb-success-burst,
+.orb-retry-notch {
+  left: 50%;
+  top: 50%;
+  z-index: 10;
+  /* Arrancan invisibles: cada `[data-thinking-state]` enciende solo las que le tocan. */
+  opacity: 0;
+  transform: translate(-50%, -50%);
+  mix-blend-mode: screen;
+}
+
+/* Anillo: el `mask-image` de tres paradas deja pasar solo la franja del borde — es lo que lo hace
+   anillo y no disco. */
+.orb-state-ring {
+  width: min(88%, calc(620 * var(--px)));
+  height: min(52%, calc(330 * var(--px)));
+  border: 0;
+  border-radius: 50%;
+  background:
+    conic-gradient(from 0deg, transparent 0 10%, rgba(248, 250, 215, .3) 18%, transparent 28%, rgba(66, 66, 255, .44) 48%, transparent 64%, rgba(59, 255, 0, .44) 78%, transparent 100%);
+  -webkit-mask-image: radial-gradient(ellipse at 50% 50%, transparent calc(100% - 34 * var(--px)), #000 calc(100% - 16 * var(--px)), transparent calc(100% - 2 * var(--px)));
+  mask-image: radial-gradient(ellipse at 50% 50%, transparent calc(100% - 34 * var(--px)), #000 calc(100% - 16 * var(--px)), transparent calc(100% - 2 * var(--px)));
+  filter: blur(calc(7 * var(--px)));
+}
+
+.orb-state-ring.alt {
+  width: min(72%, calc(520 * var(--px)));
+  height: min(40%, calc(270 * var(--px)));
+  filter: blur(calc(10 * var(--px)));
+}
+
+.orb-scan-line {
+  width: calc(66 * var(--px));
+  height: min(72%, calc(430 * var(--px)));
+  border-radius: 999px;
+  background: radial-gradient(ellipse at 50% 50%, rgba(59, 255, 0, .82), rgba(248, 250, 215, .28) 34%, transparent 74%);
+  filter: blur(calc(14 * var(--px)));
+}
+
+.orb-output-trail {
+  left: 58%;
+  width: min(40%, calc(310 * var(--px)));
+  height: calc(36 * var(--px));
+  border-radius: 999px;
+  background: linear-gradient(90deg, rgba(59, 255, 0, .72), rgba(248, 250, 215, .42), rgba(66, 66, 255, .46), transparent);
+  filter: blur(calc(17 * var(--px)));
+}
+
+.orb-output-trail.one { top: 39%; }
+.orb-output-trail.two { top: 50%; width: min(34%, calc(260 * var(--px))); animation-delay: -180ms; }
+.orb-output-trail.three { top: 61%; width: min(28%, calc(220 * var(--px))); animation-delay: -360ms; }
+
+.orb-success-burst {
+  width: min(70%, calc(420 * var(--px)));
+  height: min(52%, calc(300 * var(--px)));
+  border-radius: 50%;
+  background: radial-gradient(ellipse at 50% 50%, rgba(59, 255, 0, .56), rgba(248, 250, 215, .22) 34%, transparent 72%);
+  filter: blur(calc(24 * var(--px)));
+}
+
+.orb-retry-notch {
+  width: min(56%, calc(360 * var(--px)));
+  height: calc(42 * var(--px));
+  border-radius: 999px;
+  background: linear-gradient(90deg, transparent, rgba(116, 108, 255, .58), rgba(248, 250, 215, .2), transparent);
+  filter: blur(calc(13 * var(--px)));
+}
+
+/* ==========================================================================
+   ESTADOS — de Neo. El gancho es `[data-thinking-state]` sobre `.thinking-orb-demo`
+   ========================================================================== */
+
+/* --- idle: presente y disponible ---------------------------------------------------------------
+
+   Neo baja aca el brillo, la saturacion y la opacidad, porque alli `idle` es una pausa DENTRO de una
+   demo que ya esta encendida. En ops-v2 `idle` es el orbe sin estado: la marca que vive permanente
+   en la barra superior y en las filas. Si se apagara el color, lo que quedaria en pantalla el 95%
+   del tiempo seria justamente el circulo pastel que se rechazo. Asi que se conserva el campo de luz
+   completo y lo unico que baja es el RITMO — que ademas es lo que pide la regla de rendimiento del
+   proyecto. Reposo se distingue de actividad por el movimiento, no por la falta de color. */
 
 .thinking-orb-demo[data-thinking-state="idle"] {
-      --stage-blue-glow: rgba(66, 66, 255, .18);
-      --stage-green-glow: rgba(59, 255, 0, .1);
-      --stage-warm-glow: rgba(248, 250, 215, .1);
-      --stage-beam-opacity: .12;
-      --spark-opacity: .34;
-    }
+  --spark-opacity: .34;
+}
 
-.thinking-orb-demo[data-thinking-state="idle"] .orb-state-ring {
-      opacity: .18;
-      animation-duration: 9600ms;
-    }
+.thinking-orb-demo[data-thinking-state="idle"] .wiwo-thinking-orb {
+  /* Misma elipse canonica que `thinking`: es la forma con la que se reconoce al orbe de Neo. */
+  --orb-w: calc(390 * var(--px));
+  --orb-h: calc(340 * var(--px));
+  --orb-speed: 7600ms;
+  --orb-flow-speed: 11000ms;
+  --orb-scale-a: .94;
+  --orb-scale-b: 1;
+  --orb-scale-c: .92;
+}
 
-.thinking-orb-demo[data-thinking-state="generating"] .orb-particle {
-      animation-duration: 2200ms;
-    }
+/* --- listening: barrido vertical sensible al input -------------------------------------------- */
 
-.thinking-orb-demo[data-thinking-state="generating"] .orb-spark {
-      animation-duration: 2400ms;
-    }
+.thinking-orb-demo[data-thinking-state="listening"] {
+  --spark-opacity: .68;
+}
 
-.thinking-orb-demo[data-thinking-state="success"] .orb-pulse {
-      border-color: rgba(59, 255, 0, .54);
-      animation-duration: 1250ms;
-    }
+.thinking-orb-demo[data-thinking-state="listening"] .wiwo-thinking-orb {
+  --orb-w: calc(385 * var(--px));
+  --orb-h: calc(345 * var(--px));
+  --orb-speed: 2300ms;
+  --orb-flow-speed: 3600ms;
+  --orb-brightness: 1.08;
+  --orb-saturation: 1.9;
+  --orb-scale-a: .96;
+  --orb-scale-b: 1.08;
+  --orb-scale-c: .94;
+}
 
-.thinking-orb-demo[data-thinking-state="retry"] .orb-particle,
-    .thinking-orb-demo[data-thinking-state="idle"] .orb-particle,
-    .thinking-orb-demo[data-thinking-state="retry"] .orb-spark,
-    .thinking-orb-demo[data-thinking-state="idle"] .orb-spark {
-      opacity: .42;
-    }
+.thinking-orb-demo[data-thinking-state="listening"] .orb-scan-line {
+  width: calc(92 * var(--px));
+  height: min(80%, calc(500 * var(--px)));
+  opacity: 1;
+  z-index: 22;
+  background:
+    radial-gradient(ellipse at 50% 50%, rgba(248, 250, 215, .48), transparent 18%),
+    linear-gradient(180deg, transparent, rgba(59, 255, 0, .72), rgba(66, 66, 255, .42), transparent);
+  filter: blur(calc(9 * var(--px))) saturate(1.9);
+  animation: orb-v6-listen-scan 1280ms var(--ease-expressive) infinite;
+}
+
+.thinking-orb-demo[data-thinking-state="listening"] .orb-pulse {
+  opacity: .42;
+  animation-duration: 1700ms;
+}
+
+/* --- thinking: auroras rapidas; los anillos quedan casi invisibles (v6b: nada de radar) --------- */
+
+.thinking-orb-demo[data-thinking-state="thinking"] {
+  --spark-opacity: .88;
+}
+
+.thinking-orb-demo[data-thinking-state="thinking"] .wiwo-thinking-orb {
+  --orb-w: calc(390 * var(--px));
+  --orb-h: calc(340 * var(--px));
+}
+
+.thinking-orb-demo[data-thinking-state="thinking"] .orb-state-ring {
+  opacity: .08;
+  animation: orb-v6-state-orbit 3200ms linear infinite;
+}
+
+.thinking-orb-demo[data-thinking-state="thinking"] .orb-state-ring.alt {
+  animation: orb-v6-state-orbit 4600ms linear infinite reverse;
+}
+
+.thinking-orb-demo[data-thinking-state="thinking"] .orb-core {
+  box-shadow:
+    0 0 calc(48 * var(--px)) rgba(248, 250, 215, .72),
+    0 0 calc(110 * var(--px)) rgba(66, 66, 255, .42),
+    0 0 calc(84 * var(--px)) rgba(59, 255, 0, .24);
+}
+
+/* --- generating: el campo se ensancha y empuja trails hacia la interfaz ------------------------ */
+
+.thinking-orb-demo[data-thinking-state="generating"] {
+  --spark-opacity: 1;
+}
+
+.thinking-orb-demo[data-thinking-state="generating"] .wiwo-thinking-orb {
+  --orb-w: calc(430 * var(--px));
+  --orb-h: calc(330 * var(--px));
+}
+
+.thinking-orb-demo[data-thinking-state="generating"] .orb-output-trail {
+  left: 70%;
+  width: min(46%, calc(340 * var(--px)));
+  height: calc(30 * var(--px));
+  opacity: 1;
+  z-index: 22;
+  background:
+    linear-gradient(90deg, transparent, rgba(248, 250, 215, .7), rgba(59, 255, 0, .72), rgba(66, 66, 255, .58), transparent);
+  filter: blur(calc(8 * var(--px))) saturate(1.8);
+  animation: orb-v6-output-trail 980ms var(--ease-expressive) infinite;
+}
+
+.thinking-orb-demo[data-thinking-state="generating"] .orb-output-trail.two {
+  width: min(40%, calc(292 * var(--px)));
+  opacity: .86;
+}
+
+.thinking-orb-demo[data-thinking-state="generating"] .orb-output-trail.three {
+  width: min(34%, calc(250 * var(--px)));
+  opacity: .72;
+}
 
 .thinking-orb-demo[data-thinking-state="generating"] .orb-aurora-one,
-    .thinking-orb-demo[data-thinking-state="generating"] .orb-aurora-two {
-      animation-duration: 1800ms;
-    }
+.thinking-orb-demo[data-thinking-state="generating"] .orb-aurora-two {
+  animation-duration: 1800ms;
+}
 
-.thinking-orb-demo[data-thinking-state="success"] .orb-aurora-three {
-      animation-duration: 1200ms;
-    }
+.thinking-orb-demo[data-thinking-state="generating"] .orb-particle {
+  animation-duration: 2200ms;
+}
 
-.thinking-orb-demo[data-thinking-state="retry"] .orb-aurora,
-    .thinking-orb-demo[data-thinking-state="idle"] .orb-aurora {
-      filter: blur(24px) saturate(1.1);
-    }
+.thinking-orb-demo[data-thinking-state="generating"] .orb-spark {
+  animation-duration: 2400ms;
+}
 
-.thinking-orb-demo[data-thinking-state="idle"] .orb-aurora,
-    .thinking-orb-demo[data-thinking-state="idle"] .orb-liquid-veil,
-    .thinking-orb-demo[data-thinking-state="idle"] .orb-pulse {
-      opacity: .18;
-    }
+/* --- routing: dos orbitas cortadas y un haz inclinado, agentes coordinando --------------------- */
 
 .thinking-orb-demo[data-thinking-state="routing"] .wiwo-thinking-orb {
-      --orb-w: clamp(255px, 29vw, 400px);
-      --orb-h: clamp(230px, 24vw, 340px);
-    }
+  --orb-w: calc(400 * var(--px));
+  --orb-h: calc(340 * var(--px));
+}
 
-.thinking-orb-demo[data-thinking-state="routing"] .orb-state-ring,
-    .thinking-orb-demo[data-thinking-state="routing"] .orb-state-ring.alt {
-      opacity: .58;
-      z-index: 21;
-      filter: blur(4px) saturate(1.7);
-      background:
-        conic-gradient(from 0deg, transparent 0 8%, rgba(248, 250, 215, .54) 14%, transparent 22%, rgba(66, 66, 255, .62) 42%, transparent 54%, rgba(59, 255, 0, .64) 70%, transparent 84% 100%);
-    }
+.thinking-orb-demo[data-thinking-state="routing"] .orb-state-ring {
+  opacity: .58;
+  z-index: 21;
+  filter: blur(calc(4 * var(--px))) saturate(1.7);
+  background:
+    conic-gradient(from 0deg, transparent 0 8%, rgba(248, 250, 215, .54) 14%, transparent 22%, rgba(66, 66, 255, .62) 42%, transparent 54%, rgba(59, 255, 0, .64) 70%, transparent 84% 100%);
+  animation: orb-v6-state-orbit 3200ms linear infinite;
+}
+
+.thinking-orb-demo[data-thinking-state="routing"] .orb-state-ring.alt {
+  animation: orb-v6-state-orbit 4600ms linear infinite reverse;
+}
 
 .thinking-orb-demo[data-thinking-state="routing"] .orb-scan-line {
-      opacity: .76;
-      z-index: 22;
-      width: min(72%, 410px);
-      height: 28px;
-      background: linear-gradient(90deg, transparent, rgba(248, 250, 215, .5), rgba(59, 255, 0, .58), rgba(66, 66, 255, .5), transparent);
-      filter: blur(7px) saturate(1.75);
-      transform: translate(-50%, -50%) rotate(-28deg);
-      animation: orb-v6-route-beam 1280ms var(--ease-expressive) infinite alternate;
-    }
+  opacity: .76;
+  z-index: 22;
+  width: min(72%, calc(410 * var(--px)));
+  height: calc(28 * var(--px));
+  background: linear-gradient(90deg, transparent, rgba(248, 250, 215, .5), rgba(59, 255, 0, .58), rgba(66, 66, 255, .5), transparent);
+  filter: blur(calc(7 * var(--px))) saturate(1.75);
+  transform: translate(-50%, -50%) rotate(-28deg);
+  animation: orb-v6-route-beam 1280ms var(--ease-expressive) infinite alternate;
+}
 
-.thinking-orb-demo[data-thinking-state="success"] .orb-rim {
-      opacity: .86;
-    }
+/* --- success: destello verde corto y vuelta a la calma ----------------------------------------- */
+
+.thinking-orb-demo[data-thinking-state="success"] {
+  --spark-opacity: .92;
+}
+
+.thinking-orb-demo[data-thinking-state="success"] .wiwo-thinking-orb {
+  --orb-w: calc(385 * var(--px));
+  --orb-h: calc(285 * var(--px));
+  --orb-speed: 2500ms;
+  --orb-flow-speed: 3600ms;
+  --orb-brightness: 1.18;
+  --orb-saturation: 1.95;
+  --orb-scale-a: .98;
+  --orb-scale-b: 1.08;
+  --orb-scale-c: .98;
+}
+
+.thinking-orb-demo[data-thinking-state="success"] .orb-success-burst {
+  opacity: .88;
+  animation: orb-v6-success-bloom 1800ms var(--ease-expressive) infinite;
+}
+
+.thinking-orb-demo[data-thinking-state="success"] .orb-aurora-three {
+  animation-duration: 1200ms;
+}
+
+.thinking-orb-demo[data-thinking-state="success"] .orb-pulse {
+  animation-duration: 1250ms;
+}
+
+/* --- error / retry: contraccion fria, violeta apagado, sin dramatizar -------------------------- */
 
 .thinking-orb-demo[data-thinking-state="error"],
-    .thinking-orb-demo[data-thinking-state="retry"] {
-      --orb-light-blue: rgba(116, 108, 255, .7);
-      --orb-light-lime: rgba(248, 250, 215, .2);
-      --orb-light-milk: rgba(248, 250, 215, .34);
-    }
+.thinking-orb-demo[data-thinking-state="retry"] {
+  --orb-light-blue: rgba(116, 108, 255, .7);
+  --orb-light-lime: rgba(248, 250, 215, .2);
+  --orb-light-milk: rgba(248, 250, 215, .34);
+  --spark-opacity: .36;
+}
 
 .thinking-orb-demo[data-thinking-state="error"] .wiwo-thinking-orb,
-    .thinking-orb-demo[data-thinking-state="retry"] .wiwo-thinking-orb {
-      --orb-w: clamp(230px, 25vw, 350px);
-      --orb-h: clamp(150px, 16vw, 230px);
-      --orb-speed: 980ms;
-      --orb-flow-speed: 1500ms;
-      --orb-alpha: .74;
-      --orb-brightness: .78;
-      --orb-saturation: 1.16;
-      --orb-scale-a: .84;
-      --orb-scale-b: .94;
-      --orb-scale-c: .82;
-      filter: saturate(var(--orb-saturation)) brightness(var(--orb-brightness)) contrast(1.04);
-    }
+.thinking-orb-demo[data-thinking-state="retry"] .wiwo-thinking-orb {
+  --orb-w: calc(350 * var(--px));
+  --orb-h: calc(230 * var(--px));
+  --orb-speed: 980ms;
+  --orb-flow-speed: 1500ms;
+  --orb-alpha: .74;
+  --orb-brightness: .78;
+  --orb-saturation: 1.16;
+  --orb-scale-a: .84;
+  --orb-scale-b: .94;
+  --orb-scale-c: .82;
+  filter: saturate(var(--orb-saturation)) brightness(var(--orb-brightness)) contrast(1.04);
+}
 
 .thinking-orb-demo[data-thinking-state="error"] .orb-retry-notch,
-    .thinking-orb-demo[data-thinking-state="retry"] .orb-retry-notch {
-      width: min(70%, 420px);
-      height: 34px;
-      opacity: .9;
-      z-index: 22;
-      background:
-        linear-gradient(90deg, transparent, rgba(248, 250, 215, .28), rgba(116, 108, 255, .72), rgba(248, 250, 215, .18), transparent);
-      filter: blur(8px) saturate(1.35);
-    }
+.thinking-orb-demo[data-thinking-state="retry"] .orb-retry-notch {
+  width: min(70%, calc(420 * var(--px)));
+  height: calc(34 * var(--px));
+  opacity: .9;
+  z-index: 22;
+  background:
+    linear-gradient(90deg, transparent, rgba(248, 250, 215, .28), rgba(116, 108, 255, .72), rgba(248, 250, 215, .18), transparent);
+  filter: blur(calc(8 * var(--px))) saturate(1.35);
+}
 
-.thinking-orb-demo[data-thinking-state="thinking"] .orb-state-ring,
-    .thinking-orb-demo[data-thinking-state="thinking"] .orb-state-ring.alt {
-      opacity: .08;
-    }
+.thinking-orb-demo[data-thinking-state="error"] .orb-aurora,
+.thinking-orb-demo[data-thinking-state="retry"] .orb-aurora {
+  filter: blur(calc(24 * var(--px))) saturate(1.1);
+}
+
+.thinking-orb-demo[data-thinking-state="error"] .orb-particle,
+.thinking-orb-demo[data-thinking-state="retry"] .orb-particle,
+.thinking-orb-demo[data-thinking-state="error"] .orb-spark,
+.thinking-orb-demo[data-thinking-state="retry"] .orb-spark {
+  opacity: .42;
+}
+
+/* --- transicion entre estados ------------------------------------------------------------------ */
+
+.thinking-orb-demo.is-state-changing .wiwo-thinking-orb {
+  animation-duration: 720ms, var(--orb-flow-speed);
+}
+
+.thinking-orb-demo.is-state-changing .orb-light-field,
+.thinking-orb-demo.is-state-changing .orb-glint {
+  animation-duration: 680ms;
+}
+
+.thinking-orb-demo.is-state-changing .orb-state-field {
+  animation: orb-state-field-pop 780ms var(--ease-expressive) 1;
+}
+
 /* ==========================================================================
    AÑADIDOS DEL PROYECTO — todo lo de arriba es de Neo, esto no
    ========================================================================== */
-
-/*
- * Escalado.
- *
- * En Neo el orbe vive en un panel de 420 a 590px de alto y no necesita otra medida. Aca aparece
- * ademas dentro de una fila de tabla y de un boton, asi que el escenario toma la medida que le den
- * por `style` y el orbe se dimensiona **en proporcion a el** en vez de en `vw`: dos orbes de tamaños
- * distintos en la misma pantalla se veian iguales, porque ambos leian el ancho de la ventana.
- */
-.thinking-orb-stage {
-  /*
-   * `position: relative` es obligatorio: las capas de estado, los destellos y las particulas estan
-   * en `position: absolute`, y sin un contenedor de posicionamiento se ubican respecto del `body` —
-   * el haz de `generating` se dispara fuera de la pantalla y los destellos quedan flotando sueltos.
-   * En Neo lo aporta una regla anterior que la cascada de esta pagina reemplazo.
-   */
-  position: relative;
-  min-height: 0;
-  display: grid;
-  place-items: center;
-  /* Recorte circular: el campo de luz se desborda a proposito, y sin recorte invade la fila o el
-     boton que lo contiene. La forma de blob la conserva el orbe interno. */
-  border-radius: 50%;
-}
-
-.thinking-orb-stage .wiwo-thinking-orb {
-  --orb-w: 118%;
-  --orb-h: 96%;
-}
 
 /*
  * Orbe en reposo.
@@ -938,8 +973,13 @@ p,
  * GPU, porque promover algo que no se mueve gasta memoria de video en cada pestaña abierta.
  */
 .orbe-quieto :is(.wiwo-thinking-orb, .orb-liquid-veil, .orb-caustic, .orb-light-field, .orb-aurora,
-  .orb-rim, .orb-core, .orb-glint, .orb-pulse, .orb-particle, .orb-spark, .orb-state-ring) {
+  .orb-rim, .orb-core, .orb-glint, .orb-pulse, .orb-particle, .orb-spark, .orb-state-ring),
+.orbe-quieto::before {
   animation: none;
+}
+
+.orbe-quieto .wiwo-thinking-orb {
+  will-change: auto;
 }
 
 .orbe-quieto .orb-pulse,
@@ -958,7 +998,9 @@ p,
  */
 @media (prefers-reduced-motion: reduce) {
   .thinking-orb-stage :is(.wiwo-thinking-orb, .orb-caustic, .orb-light-field, .orb-aurora, .orb-rim,
-    .orb-core, .orb-glint, .orb-pulse, .orb-particle, .orb-spark, .orb-state-ring, .orb-scan-line) {
+    .orb-core, .orb-glint, .orb-pulse, .orb-particle, .orb-spark, .orb-state-ring, .orb-scan-line,
+    .orb-output-trail, .orb-success-burst, .orb-retry-notch, .orb-state-field),
+  .thinking-orb-stage::before {
     animation: none;
   }
 
