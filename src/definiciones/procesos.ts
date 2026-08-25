@@ -1,0 +1,77 @@
+import type { DefinicionRecurso } from './tipos.ts'
+import type { Proceso } from '../datos/recursos.ts'
+import { GLOSARIO } from '../dominio/glosario.ts'
+
+/**
+ * Definicion del recurso Procesos.
+ *
+ * Las tres listas de whitelist —`filtros`, `ordenables` e `includes`— son **las del backend**, no una
+ * eleccion de diseño: un valor que no este declarado alli devuelve `422` en vez de ignorarse. Cuando
+ * el backend agregue uno, se agrega aca; hasta entonces `construirConsulta` lo poda antes de que
+ * viaje.
+ *
+ * Fuente: `docs/modulos/01-procesos.md`.
+ */
+export const PROCESOS: DefinicionRecurso<Proceso> = {
+  ruta: 'tasks',
+  titulo: GLOSARIO.proceso,
+
+  columnas: [
+    { clave: 'name', encabezado: 'Nombre', ordenPor: 'name', presentar: (p) => p.name },
+    { clave: 'status', encabezado: 'Estado', ordenPor: 'status', presentar: (p) => p.status },
+    { clave: 'priority', encabezado: 'Prioridad', ordenPor: 'priority', presentar: (p) => p.priority },
+    { clave: 'project', encabezado: GLOSARIO.espacio.singular, presentar: (p) => p.project?.name ?? '' },
+    { clave: 'assignees', encabezado: 'Asignados', presentar: (p) => p.assignees.length },
+    { clave: 'due_date', encabezado: 'Vence', ordenPor: 'due_date', presentar: (p) => p.due_date ?? '' },
+    {
+      clave: 'start_date',
+      encabezado: 'Inicio',
+      ordenPor: 'start_date',
+      ocultaPorDefecto: true,
+      presentar: (p) => p.start_date ?? ''
+    },
+    {
+      clave: 'date_added',
+      encabezado: 'Creado',
+      ordenPor: 'date_added',
+      ocultaPorDefecto: true,
+      presentar: (p) => p.date_added ?? ''
+    }
+  ],
+
+  filtros: [
+    { clave: 'status', etiqueta: 'Estado', tipo: 'multiple', desdeLookup: 'task_statuses' },
+    { clave: 'priority', etiqueta: 'Prioridad', tipo: 'seleccion', desdeLookup: 'task_priorities' },
+    { clave: 'project_id', etiqueta: GLOSARIO.espacio.singular, tipo: 'seleccion' },
+    { clave: 'milestone_id', etiqueta: 'Hito', tipo: 'seleccion' },
+    { clave: 'billable', etiqueta: 'Facturable', tipo: 'booleano' },
+    { clave: 'date_from', etiqueta: 'Vence desde', tipo: 'rangoFechas' },
+    { clave: 'date_to', etiqueta: 'Vence hasta', tipo: 'rangoFechas' }
+  ],
+
+  ordenables: ['name', 'due_date', 'start_date', 'date_added', 'priority', 'status'],
+  ordenPorDefecto: 'due_date',
+  busqueda: true,
+  includes: ['custom_fields', 'description'],
+
+  tablero: {
+    // Las columnas llegan ordenadas por `order`, NO por `id`: el orden real es 1, 4, 3, 2, 5.
+    columnasDesde: 'task_statuses',
+    rutaMover: 'tasks/:id/mover',
+    presentarTarjeta: (fila) => (fila as Proceso).name
+  },
+
+  // `status` no esta en el PATCH: se cambia por acciones, porque arrastra cascadas.
+  acciones: [
+    {
+      clave: 'completar',
+      etiqueta: 'Marcar completado',
+      ruta: 'tasks/:id/actions/mark-complete',
+      metodo: 'POST',
+      requiere: 'edit'
+    },
+    { clave: 'reabrir', etiqueta: 'Reabrir', ruta: 'tasks/:id/actions/reopen', metodo: 'POST', requiere: 'edit' },
+    { clave: 'arrancarTimer', etiqueta: 'Arrancar cronómetro', ruta: 'tasks/:id/timer', metodo: 'POST' },
+    { clave: 'detenerTimer', etiqueta: 'Detener cronómetro', ruta: 'tasks/:id/timer', metodo: 'DELETE' }
+  ]
+}
