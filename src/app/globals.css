@@ -5,6 +5,7 @@
 @import '../estilos/fonts.css';
 @import '../estilos/neo.css';
 @import '../estilos/thinking-orb.css';
+@import '../estilos/vidrio.css';
 
 /*
  * `@theme inline` en vez de `@theme`: los semanticos de `neo.css` son referencias `var()` que cambian
