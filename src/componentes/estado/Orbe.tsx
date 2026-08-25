@@ -6,98 +6,142 @@ import { cn } from '@/lib/clases'
 /**
  * Los estados del orbe.
  *
- * Son los tres que trae el componente de ops.wiwo.me, que es la version anterior de este mismo
- * proyecto: el orbe piensa, confirma o falla. `quieto` es propio y significa que no hay nada en
- * curso — ver la prop `estado`.
+ * Son los siete de https://neo.wiwo.me, que es de donde viene el aspecto. `thinking`, `success` y
+ * `error` significan lo mismo que en la version anterior del componente, asi que los consumidores
+ * que ya existian no cambian. Los otros cuatro estaban en el diseño y no en el codigo:
+ *
+ * - `idle`: presencia disponible, casi quieto. Es el orbe esperando a que pase algo.
+ * - `listening`: hay entrada del usuario en curso (un formulario, un dictado, una busqueda).
+ * - `generating`: sale contenido hacia la interfaz. El orbe se corre y empuja tres estelas.
+ * - `routing`: se esta decidiendo a donde va la operacion. Orbitas conectadas.
+ *
+ * `undefined` es reposo: no hay ninguna operacion. No es lo mismo que `idle`, que es un estado
+ * declarado y se ve.
  */
-export type EstadoOrbe = 'thinking' | 'success' | 'error'
+export type EstadoOrbe =
+  | 'idle'
+  | 'listening'
+  | 'thinking'
+  | 'generating'
+  | 'routing'
+  | 'success'
+  | 'error'
 
 export type TamanoOrbe = 'chico' | 'medio' | 'grande' | 'marca'
 
 /**
- * Los tamaños discretos del componente original, mas `marca` para cuando el orbe es el centro de la
- * pantalla y se dimensiona con el ancho disponible.
+ * Los tamaños discretos, en las clases que fijan `--orbe-ancho` en `thinking-orb.css`.
+ *
+ * La escala sale del propio sistema de diseño de neo: 24-32px para botones y microestados, 48-72px
+ * para tarjetas y respuestas en linea, 120-240px para una generacion completa. `marca` es el
+ * `clamp()` de la pagina, para cuando el orbe ES la pantalla.
  */
 const CLASE_TAMANO: Record<TamanoOrbe, string> = {
-  chico: 'orb-small',
-  medio: 'orb-medium',
-  grande: 'orb-large',
-  marca: 'orb-x-large'
+  chico: 'orbe-chico',
+  medio: 'orbe-medio',
+  grande: 'orbe-grande',
+  marca: 'orbe-marca'
 }
 
-/** Los cuatro destellos, con la posicion, escala y ritmo del orbe original. */
+/**
+ * Los cuatro destellos, con la posicion, el color y el ritmo del orbe original.
+ *
+ * El tamaño no va en pixeles fijos: `--orbe-u` es un pixel del orbe a tamaño de referencia (245px de
+ * ancho), asi que un destello de 6 unidades mide 6px en el orbe de marca y 0.8px en el de un boton.
+ * Sin eso, los destellos de un orbe de 28px serian mas grandes que el orbe.
+ */
 const DESTELLOS = [
-  { '--sx': '70%', '--sy': '18%', '--spark-scale': '0.02', '--spark-speed': '5600ms', '--spark-delay': '-900ms' },
-  { '--sx': '25%', '--sy': '72%', '--spark-scale': '0.013', '--spark-speed': '6800ms', '--spark-delay': '-2400ms' },
-  { '--sx': '79%', '--sy': '68%', '--spark-scale': '0.026', '--spark-speed': '6200ms', '--spark-delay': '-1800ms' },
-  { '--sx': '34%', '--sy': '24%', '--spark-scale': '0.01', '--spark-speed': '7400ms', '--spark-delay': '-3100ms' }
+  { '--sx': '70%', '--sy': '18%', '--spark-size': 'calc(6 * var(--orbe-u))', '--spark-color': 'rgba(248, 250, 215, .92)', '--spark-speed': '5600ms', '--spark-delay': '-900ms' },
+  { '--sx': '25%', '--sy': '72%', '--spark-size': 'calc(4 * var(--orbe-u))', '--spark-color': 'rgba(66, 66, 255, .92)', '--spark-speed': '6800ms', '--spark-delay': '-2400ms' },
+  { '--sx': '79%', '--sy': '68%', '--spark-size': 'calc(8 * var(--orbe-u))', '--spark-color': 'rgba(59, 255, 0, .9)', '--spark-speed': '6200ms', '--spark-delay': '-1800ms' },
+  { '--sx': '34%', '--sy': '24%', '--spark-size': 'calc(3 * var(--orbe-u))', '--spark-color': 'rgba(248, 250, 215, .72)', '--spark-speed': '7400ms', '--spark-delay': '-3100ms' }
 ] as const
 
 interface PropsOrbe {
   /**
    * @see EstadoOrbe
    *
-   * Sin estado el orbe queda **en reposo**: respira, pero apenas —y solo en los tamaños grandes y
-   * en la medida libre, que aparecen de a uno en pantalla. El chico y el mediano, que se repiten
-   * por fila y por boton, quedan quietos: la regla de rendimiento del proyecto —la que colgaba el
-   * panel viejo en pantallas Retina— prohibe animaciones infinitas en elementos siempre visibles.
-   * Ademas comunica mejor: si se deformara siempre, deformarse dejaria de significar "esta pasando
-   * algo". Ver el bloque "Orbe en reposo" de `thinking-orb.css`.
+   * Sin estado el orbe queda **en reposo**: respira, pero solo en los tamaños que aparecen de a uno
+   * en pantalla —`grande`, `marca` y la `medida` libre—. El chico y el mediano, que se repiten por
+   * boton y por fila, quedan quietos: la regla de rendimiento del proyecto —la que colgaba el panel
+   * viejo en pantallas Retina— prohibe animaciones infinitas en elementos siempre visibles. Ademas
+   * comunica mejor: si se deformara siempre, deformarse dejaria de significar "esta pasando algo".
+   * Con un `estado` activo animan todos, porque entonces el orbe vive lo que dura la operacion.
    */
   estado?: EstadoOrbe
-  /** `chico` en una fila, `medio` en un boton, `grande` en una tarjeta, `marca` a pantalla completa. */
+  /** `chico` en un boton, `medio` en una fila, `grande` en una tarjeta, `marca` a pantalla completa. */
   tamano?: TamanoOrbe
   /**
-   * Medida libre, para cuando ninguno de los tamaños discretos sirve. Cualquier valor CSS. Cuenta
+   * Medida libre, para cuando ninguno de los tamaños discretos sirve. Cualquier valor CSS de
+   * longitud: fija el ANCHO y el alto sale de la misma proporcion 245x205 del orbe original. Cuenta
    * como tamaño grande para el reposo animado: se usa cuando el orbe es el foco de la pantalla.
-   * Ej: `clamp(14rem, 26vw, 21rem)` — el que usa el orbe de marca en el acceso.
+   * Ej: `clamp(14rem, 22vw, 21rem)` — la que usa el orbe de marca en el acceso.
    */
   medida?: string
   className?: string
 }
 
 /**
- * El Thinking Orb de Wiwo.
+ * El Thinking Orb de Wiwo — la mascota, y el indicador de carga del producto.
  *
- * Es una esfera de vidrio translucida: **desenfoca lo que tiene detras en vez de traer su propio
- * fondo**, asi que se ve bien sobre claro, sobre oscuro o sobre una imagen sin configurar nada. El
- * aspecto vive en `src/estilos/thinking-orb.css`, portado de ops.wiwo.me.
+ * Es un campo de luz: capas de gradiente que se suman en `screen` sobre lo que haya detras. No trae
+ * fondo propio ni recorte, asi que se ve igual sobre claro, sobre oscuro o sobre una imagen. El
+ * aspecto vive en `src/estilos/thinking-orb.css`, portado de https://neo.wiwo.me.
+ *
+ * El estado viaja en `data-thinking-state` **sobre el contenedor**, no sobre el orbe: todo el CSS de
+ * estado se escribe como `.orbe-wiwo[data-thinking-state="x"] .wiwo-thinking-orb`, y ademas las
+ * particulas y los destellos son hermanas del orbe, no hijas —dentro del orbe se recortan—.
  *
  * Es `aria-hidden` a proposito. Lo que se anuncia a un lector de pantalla es el TEXTO que lo acompaña
- * — ver `SuperposicionOrbe` y `CargandoConOrbe` —, no el adorno.
+ * —ver `SuperposicionOrbe` y `CargandoConOrbe`—, no el adorno.
  */
 export function Orbe ({ estado, tamano = 'medio', medida, className }: PropsOrbe) {
+  // El reposo quieto es solo de los tamaños que se repiten en pantalla; una medida libre siempre es
+  // un orbe protagonista, aunque el valor sea chico.
+  const quieto = estado === undefined && medida === undefined && (tamano === 'chico' || tamano === 'medio')
+
   return (
-    <div
+    <span
       aria-hidden="true"
-      data-orb-state={estado ?? 'quieto'}
-      style={medida === undefined ? undefined : ({ '--orb-size': medida } as React.CSSProperties)}
-      className={cn(
-        'wiwo-thinking-orb detail-full',
-        CLASE_TAMANO[tamano],
-        medida === undefined ? undefined : 'orb-libre',
-        className
-      )}
+      data-thinking-state={estado}
+      style={medida === undefined ? undefined : ({ '--orbe-ancho': medida } as React.CSSProperties)}
+      className={cn('orbe-wiwo', CLASE_TAMANO[tamano], quieto && 'orbe-quieto', className)}
     >
-      <span className="orb-pulse" />
-      <span className="orb-pulse" />
-      <span className="orb-pulse" />
-      <span className="orb-liquid-veil" />
-      <span className="orb-caustic" />
-      <span className="orb-light-field" />
-      <span className="orb-aurora orb-aurora-one" />
-      <span className="orb-aurora orb-aurora-two" />
-      <span className="orb-aurora orb-aurora-three" />
-      <span className="orb-rim" />
-      <span className="orb-core" />
-      <span className="orb-glint" />
-      <span className="orb-particle orb-particle-one" />
-      <span className="orb-particle orb-particle-two" />
-      <span className="orb-particle orb-particle-three" />
-      {DESTELLOS.map((destello, indice) => (
-        <span key={indice} className="orb-spark" style={destello as React.CSSProperties} />
-      ))}
-    </div>
+      <span className="orbe-escenario">
+        <span className="orb-state-field">
+          <span className="orb-state-ring" />
+          <span className="orb-state-ring alt" />
+          <span className="orb-scan-line" />
+          <span className="orb-output-trail one" />
+          <span className="orb-output-trail two" />
+          <span className="orb-output-trail three" />
+          <span className="orb-success-burst" />
+          <span className="orb-retry-notch" />
+        </span>
+
+        <span className="wiwo-thinking-orb">
+          <span className="orb-pulse" />
+          <span className="orb-pulse" />
+          <span className="orb-pulse" />
+          <span className="orb-liquid-veil" />
+          <span className="orb-caustic" />
+          <span className="orb-light-field" />
+          <span className="orb-aurora orb-aurora-one" />
+          <span className="orb-aurora orb-aurora-two" />
+          <span className="orb-aurora orb-aurora-three" />
+          <span className="orb-rim" />
+          <span className="orb-core" />
+          <span className="orb-glint" />
+        </span>
+
+        <span className="orb-particle orb-particle-uno" />
+        <span className="orb-particle orb-particle-dos" />
+        <span className="orb-particle orb-particle-tres" />
+        {DESTELLOS.map((destello, indice) => (
+          <span key={indice} className="orb-spark" style={destello as React.CSSProperties} />
+        ))}
+      </span>
+    </span>
   )
 }
 

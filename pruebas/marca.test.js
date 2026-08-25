@@ -22,6 +22,7 @@ const sinComentarios = (css) => css.replace(/\/\*[\s\S]*?\*\//g, '')
 const neo = leer('../src/estilos/neo.css')
 const tokens = leer('../src/estilos/tokens.css')
 const globals = leer('../src/app/globals.css')
+const orbe = leer('../src/estilos/thinking-orb.css')
 
 /** Declaraciones de neo.css, como pares `[nombre, valor]`. */
 function declaraciones () {
@@ -91,6 +92,30 @@ test('no se usa backdrop-filter en ningun estilo', () => {
     assert.ok(
       !/backdrop-filter|backdrop-blur/i.test(sinComentarios(contenido)),
       `${nombre} usa backdrop-filter`
+    )
+  }
+})
+
+/**
+ * El orbe no pide excepcion al `backdrop-filter`, y esta prueba lo mantiene asi.
+ *
+ * La version anterior del orbe era vidrio de verdad —desenfocaba lo que tenia detras— y por eso
+ * tenia una excepcion documentada, acotada al tamaño grande. El orbe de neo.wiwo.me no lo necesita:
+ * resuelve el vidrio sumando capas de luz con `mix-blend-mode`, y su version final apaga el
+ * `backdrop-filter` explicitamente. La hoja generada borra ademas las declaraciones muertas que lo
+ * prendian, asi que la prohibicion del sistema de diseño se cumple sin excepciones.
+ *
+ * Si alguien repone la excepcion —o pega una version vieja del CSS—, esta prueba lo dice.
+ */
+test('el orbe no enciende backdrop-filter en ninguna regla', () => {
+  const css = sinComentarios(orbe)
+
+  for (const [, selector, cuerpo] of css.matchAll(/([^{}]+)\{([^{}]*backdrop-filter[^{}]*)\}/g)) {
+    assert.match(
+      cuerpo,
+      /backdrop-filter:\s*none/,
+      `el orbe enciende backdrop-filter en "${selector.trim()}": el sistema de diseño lo prohibe en ` +
+      'superficies siempre visibles y este orbe no lo necesita'
     )
   }
 })

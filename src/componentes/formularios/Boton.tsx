@@ -1,4 +1,5 @@
 import { cva, type VariantProps } from 'class-variance-authority'
+import { Orbe } from '@/componentes/estado/Orbe'
 import { cn } from '@/lib/clases'
 
 const boton = cva(
@@ -49,9 +50,9 @@ interface PropsBoton
  * Boton del sistema.
  *
  * Mientras `cargando` esta activo queda deshabilitado: sin eso, un doble clic en "Guardar" manda dos
- * peticiones, que en creacion produce dos registros. El indicador usa `animate-spin`, que es
- * `infinite` pero vive solo mientras dura la operacion — la regla prohibe animaciones infinitas en
- * elementos SIEMPRE visibles, no en las que se desmontan.
+ * peticiones, que en creacion produce dos registros. El indicador es el orbe del producto, que se
+ * anima de forma `infinite` pero vive solo mientras dura la operacion — la regla prohibe animaciones
+ * infinitas en elementos SIEMPRE visibles, no en las que se desmontan.
  *
  * @param cargando deshabilita e indica que hay una operacion en curso
  */
@@ -74,10 +75,11 @@ export function Boton ({
       {...resto}
     >
       {cargando && (
-        <span
-          aria-hidden="true"
-          className="size-3.5 shrink-0 animate-spin rounded-full border-2 border-current border-t-transparent"
-        />
+        /* La caja reserva los 0.875rem que ocupaba el indicador anterior, asi que el orbe no corre
+           el texto ni cambia el ancho del boton respecto de la version con spinner. */
+        <span className="inline-flex size-3.5 shrink-0 items-center justify-center">
+          <Orbe tamano="chico" estado="thinking" />
+        </span>
       )}
       {children}
     </button>
