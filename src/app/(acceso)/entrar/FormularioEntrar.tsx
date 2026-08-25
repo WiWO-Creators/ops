@@ -131,13 +131,13 @@ export function FormularioEntrar () {
             <h1 className="font-titular text-3xl font-extrabold tracking-tight text-texto">
               {paso === 'clave' ? 'Entrar' : 'Verificar'}
             </h1>
-            <p className="mt-2 text-sm text-texto-tenue">
-              {paso === 'clave'
-                ? 'Con tu cuenta del board.'
-                : metodo === 'email'
+            {paso !== 'clave' && (
+              <p className="mt-2 text-sm text-texto-tenue">
+                {metodo === 'email'
                   ? 'Te enviamos un código por correo.'
                   : 'Abrí tu aplicación de autenticación.'}
-            </p>
+              </p>
+            )}
           </header>
 
           <form onSubmit={enviar} className="flex flex-col gap-5" noValidate>
