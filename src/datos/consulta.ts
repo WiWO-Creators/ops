@@ -15,6 +15,25 @@ import type { DefinicionRecurso, EstadoConsulta } from '@/definiciones/tipos'
 export const POR_PAGINA_MAXIMO = 100
 export const POR_PAGINA_POR_DEFECTO = 25
 
+/**
+ * Convierte los `searchParams` de una pagina en `URLSearchParams`.
+ *
+ * Next entrega un objeto donde un mismo parametro puede venir como cadena o como lista. Esta funcion
+ * lo normaliza para que `leerConsulta` reciba siempre lo mismo, y existe para que cada pagina de
+ * listado no repita el mismo bucle: son doce modulos.
+ */
+export function paramsDeUrl (crudos: Record<string, string | string[] | undefined>): URLSearchParams {
+  const params = new URLSearchParams()
+
+  for (const [clave, valor] of Object.entries(crudos)) {
+    if (valor === undefined) continue
+
+    params.set(clave, Array.isArray(valor) ? valor.join(',') : valor)
+  }
+
+  return params
+}
+
 /** Estado inicial de una vista, tomando el orden por defecto de su definicion. */
 export function estadoInicial<T> (definicion: DefinicionRecurso<T>): EstadoConsulta {
   return {

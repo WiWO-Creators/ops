@@ -22,4 +22,4 @@ export const cargarLookups = cache(async (): Promise<Lookups> => {
   return data
 })
 
-export { columnasDelTablero, listaDe, nombreDe } from './catalogos.ts'
+export { columnasDelTablero, listaDe, nombreDe, opcionesDeFiltros } from './catalogos.ts'

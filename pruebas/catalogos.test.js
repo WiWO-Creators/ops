@@ -8,7 +8,7 @@
 
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { columnasDelTablero, listaDe, nombreDe } from '../src/datos/catalogos.ts'
+import { columnasDelTablero, listaDe, nombreDe, opcionesDeFiltros } from '../src/datos/catalogos.ts'
 
 const LOOKUPS = {
   task_statuses: [
@@ -46,4 +46,25 @@ test('una clave inexistente da lista vacia, no una pantalla rota', () => {
 test('un id sin correspondencia se muestra como tal', () => {
   assert.equal(nombreDe(LOOKUPS.task_statuses, 4), 'En progreso')
   assert.equal(nombreDe(LOOKUPS.task_statuses, 99), '#99')
+})
+
+test('las opciones de filtro salen de lookups, con el id como valor', () => {
+  const definicion = {
+    filtros: [
+      { clave: 'status', etiqueta: 'Estado', tipo: 'multiple', desdeLookup: 'task_statuses' },
+      { clave: 'project_id', etiqueta: 'Espacio', tipo: 'seleccion' }
+    ]
+  }
+
+  const mapa = opcionesDeFiltros(definicion, LOOKUPS)
+
+  assert.deepEqual(Object.keys(mapa), ['task_statuses'], 'un filtro sin desdeLookup no genera entrada')
+  assert.deepEqual(mapa.task_statuses[0], { valor: '1', etiqueta: 'Por iniciar' })
+  assert.equal(mapa.task_statuses.length, 5)
+})
+
+test('un desdeLookup que no existe da lista vacia en vez de romper', () => {
+  const definicion = { filtros: [{ clave: 'x', etiqueta: 'X', tipo: 'seleccion', desdeLookup: 'no_existe' }] }
+
+  assert.deepEqual(opcionesDeFiltros(definicion, LOOKUPS).no_existe, [])
 })

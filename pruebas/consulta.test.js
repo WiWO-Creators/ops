@@ -14,7 +14,8 @@ import {
   construirConsulta,
   direccionDe,
   estadoInicial,
-  leerConsulta
+  leerConsulta,
+  paramsDeUrl
 } from '../src/datos/consulta.ts'
 
 /** Definicion recortada de Procesos, con las whitelists reales del backend. */
@@ -143,4 +144,12 @@ test('direccionDe reconoce el signo', () => {
   assert.equal(direccionDe(['name'], 'name'), 'asc')
   assert.equal(direccionDe(['-name'], 'name'), 'desc')
   assert.equal(direccionDe(['-name'], 'due_date'), null)
+})
+
+test('paramsDeUrl normaliza lo que entrega Next: cadena o lista', () => {
+  const params = paramsDeUrl({ page: '2', 'filter[status]': ['1', '4'], vacio: undefined })
+
+  assert.equal(params.get('page'), '2')
+  assert.equal(params.get('filter[status]'), '1,4')
+  assert.equal(params.has('vacio'), false)
 })
