@@ -190,3 +190,69 @@ export function resumenDeFiltro (
     extra: valores.length === 1 ? null : `+${valores.length - 1}`
   }
 }
+
+/**
+ * Selector de los controles que viven dentro de una fila y tienen su propio destino.
+ *
+ * Una fila clickeable con un menu, un selector de estado y un enlace adentro es un campo minado si
+ * el clic de la fila se dispara igual: la persona apunta al control y termina en otra pantalla. Estos
+ * elementos se quedan con su clic y la fila no hace nada.
+ *
+ * Va con los roles ademas de las etiquetas porque Radix pinta sus disparadores y sus items con
+ * `role`, no siempre con el elemento nativo que les corresponde.
+ */
+export const SELECTOR_CONTROLES_DE_FILA =
+  'a, button, input, select, textarea, label, [role="button"], [role="menuitem"], [role="checkbox"], [role="combobox"], [contenteditable="true"]'
+
+/** Lo unico que hace falta de un elemento del DOM para decidir si el clic era suyo. */
+export interface ElementoConAncestros {
+  closest: (selector: string) => unknown
+}
+
+/**
+ * Si el clic nacio en un control propio de la fila.
+ *
+ * @param objetivo el `event.target` del clic, o `null`
+ * @returns `true` si el clic le pertenece a un control y la fila no debe reaccionar
+ */
+export function esControlDeFila (objetivo: ElementoConAncestros | null): boolean {
+  if (objetivo === null) return false
+
+  return objetivo.closest(SELECTOR_CONTROLES_DE_FILA) !== null
+}
+
+/**
+ * La URL actual con un parametro puesto, conservando todo lo demas.
+ *
+ * El detalle se abre escribiendo la URL —`?tarea=12`— y no con estado local: asi el enlace se
+ * comparte, "atras" lo cierra y recargar no lo pierde. Los filtros, el orden y la pagina vigentes
+ * tienen que sobrevivir a esa escritura, o abrir una tarea reiniciaria la vista.
+ *
+ * @param params los parametros vigentes de la URL
+ * @param clave el parametro a escribir
+ * @param valor el valor a escribir
+ * @returns la URL relativa, siempre con `?` adelante
+ */
+export function urlConParametro (params: URLSearchParams, clave: string, valor: string): string {
+  const siguientes = new URLSearchParams(params.toString())
+
+  siguientes.set(clave, valor)
+
+  return `?${siguientes.toString()}`
+}
+
+/**
+ * Lee un id de un parametro de la URL.
+ *
+ * La URL la escribe cualquiera: `?tarea=abc` o `?tarea=-3` no pueden terminar en una peticion al BFF.
+ *
+ * @param crudo el valor del parametro, o `null` si no viene
+ * @returns el id, o `null` si no es un entero positivo
+ */
+export function idDeParametro (crudo: string | null): number | null {
+  if (crudo === null || crudo.trim() === '') return null
+
+  const id = Number(crudo)
+
+  return Number.isInteger(id) && id > 0 ? id : null
+}

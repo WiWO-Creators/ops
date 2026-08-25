@@ -48,7 +48,9 @@ export function FilaTabla ({ interactiva = false, className, ...resto }: PropsFi
     <tr
       className={cn(
         'transition-colors duration-150',
-        interactiva && 'hover:bg-hover cursor-pointer',
+        // El `has-[:focus-visible]` no es adorno: quien llega con el teclado enfoca el enlace de la
+        // celda, no la fila, y sin esto la fila que se va a abrir es la unica que no se marca.
+        interactiva && 'hover:bg-hover has-[:focus-visible]:bg-hover cursor-pointer',
         className
       )}
       {...resto}

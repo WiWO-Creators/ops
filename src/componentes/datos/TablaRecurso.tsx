@@ -21,10 +21,12 @@ import { ControlesTabla, PaginacionTabla } from './ControlesTabla'
 import {
   clavesVisiblesPorDefecto,
   columnasVisibles,
+  esControlDeFila,
   mensajeDeError,
   podarPorPermisos,
   resolverInsignia,
   rutaDeAccion,
+  urlConParametro,
   type CuerpoError
 } from './tabla'
 
@@ -53,6 +55,18 @@ interface PropsTablaRecurso<T> {
    * la misma fila se marca o no segun cuando se mire.
    */
   claseFila?: (fila: T) => string | undefined
+  /**
+   * Hace la fila clickeable: al hacer clic se escribe este parametro en la URL con el valor de la
+   * fila, y quien mire esa URL abre el detalle.
+   *
+   * Es opcional y por defecto no esta: una tabla que no lo declara se comporta exactamente como
+   * antes. La fila **no** es la unica via —eso no seria accesible—: la definicion tiene que traer
+   * ademas un enlace real en alguna celda, que es el que usa el teclado. El clic de la fila es la
+   * comodidad del mouse, no la funcionalidad.
+   *
+   * @see esControlDeFila para los controles que se quedan con su propio clic.
+   */
+  abrirEn?: { clave: string, valor: (fila: T) => string | number }
   /** Capacidades del area, de `permissions` de `/me`. Sin ellas no se ofrece ninguna accion. */
   capacidades?: Capacidad[]
   /**
@@ -69,6 +83,7 @@ export function TablaRecurso<T> ({
   inicial,
   claveFila,
   claseFila,
+  abrirEn,
   capacidades = [],
   opcionesDeFiltro,
   className
@@ -122,6 +137,37 @@ export function TablaRecurso<T> ({
     // `replace` y no `push`: cada tecleo de filtro seria una entrada del historial y salir de la
     // vista con "atras" pasaria a ser imposible.
     router.replace(conParametrosAjenos(params, estado, definicion, query), { scroll: false })
+  }
+
+  /**
+   * URL que abre el detalle de una fila, o `null` si la tabla no declara `abrirEn`.
+   *
+   * @param fila la fila
+   * @returns la URL relativa, con los filtros y el orden vigentes intactos
+   */
+  function urlDeFila (fila: T): string | null {
+    if (abrirEn === undefined) return null
+
+    return urlConParametro(new URLSearchParams(params.toString()), abrirEn.clave, String(abrirEn.valor(fila)))
+  }
+
+  /**
+   * Abre el detalle desde un clic en cualquier parte de la fila.
+   *
+   * Se abstiene en tres casos, y ninguno es opcional: cuando el clic nacio en un control propio de la
+   * fila —un menu, un selector de estado, el enlace al espacio, que van a otro lado—, cuando trae una
+   * tecla modificadora —abrir en otra pestaña es del enlace, no de la fila— y cuando hay texto
+   * seleccionado, porque soltar el mouse tras seleccionar no es pedir navegar.
+   *
+   * `push` y no `replace`: abrir el detalle es un paso del historial, y por eso "atras" lo cierra.
+   */
+  function abrirFila (evento: React.MouseEvent<HTMLTableRowElement>, href: string): void {
+    if (evento.defaultPrevented) return
+    if (evento.metaKey || evento.ctrlKey || evento.shiftKey || evento.altKey) return
+    if (esControlDeFila(evento.target as Element | null)) return
+    if ((window.getSelection()?.toString() ?? '') !== '') return
+
+    router.push(href, { scroll: false })
   }
 
   const columnas = columnasVisibles(definicion.columnas, visibles)
@@ -189,8 +235,16 @@ export function TablaRecurso<T> ({
                 </EncabezadoTabla>
 
                 <CuerpoTabla>
-                  {resultado.filas.map((fila) => (
-                    <FilaTabla key={claveFila(fila)} className={claseFila?.(fila)}>
+                  {resultado.filas.map((fila) => {
+                    const href = urlDeFila(fila)
+
+                    return (
+                    <FilaTabla
+                      key={claveFila(fila)}
+                      className={claseFila?.(fila)}
+                      interactiva={href !== null}
+                      onClick={href === null ? undefined : (evento) => { abrirFila(evento, href) }}
+                    >
                       {columnas.map((columna) => (
                         <CeldaTabla key={columna.clave} numerica={columna.numerica}>
                           <Celda columna={columna} fila={fila} catalogos={opcionesDeFiltro} />
@@ -207,7 +261,8 @@ export function TablaRecurso<T> ({
                         </CeldaTabla>
                       )}
                     </FilaTabla>
-                  ))}
+                    )
+                  })}
                 </CuerpoTabla>
               </Tabla>
             </div>
