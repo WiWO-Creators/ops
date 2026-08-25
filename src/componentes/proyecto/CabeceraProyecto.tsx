@@ -5,7 +5,9 @@ import { GrupoAvatares } from '@/componentes/presentadores/Avatar'
 import { Insignia } from '@/componentes/presentadores/Insignia'
 import { cn } from '@/lib/clases'
 import { GLOSARIO } from '@/dominio/glosario'
-import type { Espacio } from '@/datos/recursos'
+import { BotonNuevaTarea, MenuProyecto } from './MenuProyecto'
+import type { EstadoLookup, Espacio } from '@/datos/recursos'
+import type { Capacidad } from '@/datos/tipos'
 
 interface PropsBarraProgreso {
   /** Porcentaje ya calculado, 0-100. Se acota: la API puede mandar 103 en un hito sobrecumplido. */
@@ -17,7 +19,7 @@ interface PropsBarraProgreso {
  * Barra de avance del sistema.
  *
  * Vive aca y no en un archivo propio porque nace de la cabecera y el unico otro consumidor es
- * `ListaHitos`, que dibuja exactamente la misma barra a menor escala.
+ * la tabla de Hitos, que dibuja exactamente la misma barra a menor escala.
  *
  * @param porcentaje avance en 0-100; se acota a ese rango antes de pintar
  * @returns la barra, anunciada como `progressbar` para lectores de pantalla
@@ -42,6 +44,12 @@ interface PropsCabecera {
   proyecto: Espacio
   /** Nombre y color del estado, ya resueltos contra `lookups` por quien renderiza. */
   estado: { nombre: string, color: string | null }
+  /** Estados de proyecto, para las opciones "Marcar como" del menu. */
+  estados: EstadoLookup[]
+  /** Capacidades sobre `projects`. */
+  capacidadesProyecto: Capacidad[]
+  /** Capacidades sobre `tasks`: rigen el boton "Nueva tarea". */
+  capacidadesTareas: Capacidad[]
 }
 
 /**
@@ -51,7 +59,13 @@ interface PropsCabecera {
  * @param estado el estado legible; el color viene de `project_statuses` y se pinta como punto
  * @returns el bloque superior de la pantalla de detalle
  */
-export function CabeceraProyecto ({ proyecto, estado }: PropsCabecera) {
+export function CabeceraProyecto ({
+  proyecto,
+  estado,
+  estados,
+  capacidadesProyecto,
+  capacidadesTareas
+}: PropsCabecera) {
   return (
     <header className="border-linea bg-superficie-elevada rounded-tarjeta shadow-1 flex flex-col gap-4 border p-5">
       <Link
@@ -67,7 +81,11 @@ export function CabeceraProyecto ({ proyecto, estado }: PropsCabecera) {
           <p className="text-texto-tenue text-sm">{proyecto.client?.company ?? 'Sin cliente'}</p>
         </div>
 
-        <Insignia color={estado.color}>{estado.nombre}</Insignia>
+        <div className="flex flex-wrap items-center gap-2">
+          <Insignia color={estado.color}>{estado.nombre}</Insignia>
+          <BotonNuevaTarea capacidades={capacidadesTareas} />
+          <MenuProyecto proyecto={proyecto} estados={estados} capacidades={capacidadesProyecto} />
+        </div>
       </div>
 
       <dl className="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm">

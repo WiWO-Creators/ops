@@ -3,7 +3,7 @@ import type { Espacio } from '@/datos/recursos'
 
 const SIN_DATO = '—'
 
-interface PropsMetrica {
+export interface PropsMetrica {
   etiqueta: string
   valor: string
 }
@@ -14,7 +14,7 @@ interface PropsMetrica {
  * @param etiqueta nombre de la metrica; se muestra en mayusculas
  * @param valor texto ya formateado — nunca un numero crudo, para que el guion sea posible
  */
-function Metrica ({ etiqueta, valor }: PropsMetrica) {
+export function Metrica ({ etiqueta, valor }: PropsMetrica) {
   return (
     <div className="border-linea bg-superficie-elevada rounded-tarjeta shadow-1 flex flex-col gap-1 border p-4">
       <span data-numerico className="text-texto text-seccion leading-none font-semibold">{valor}</span>
@@ -35,7 +35,7 @@ function Metrica ({ etiqueta, valor }: PropsMetrica) {
  * @param sufijo texto que se pega al valor cuando existe. Ej: ` h`
  * @returns el numero con su sufijo, o el guion largo
  */
-function formatearNumero (valor: number | null | undefined, sufijo = ''): string {
+export function formatearNumero (valor: number | null | undefined, sufijo = ''): string {
   if (typeof valor !== 'number' || !Number.isFinite(valor)) return SIN_DATO
 
   return `${new Intl.NumberFormat('es-AR', { maximumFractionDigits: 2 }).format(valor)}${sufijo}`

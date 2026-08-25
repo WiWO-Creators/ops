@@ -22,7 +22,8 @@ test('auth NO pasa: los tokens solo los ve /api/sesion', () => {
 })
 
 test('un recurso fuera de la lista no pasa', () => {
-  assert.equal(rutaPermitida(['invoices']), false)
+  // frente: detalle — `invoices` paso a estar en la lista blanca; el ejemplo usa un recurso que sigue afuera.
+  assert.equal(rutaPermitida(['payments']), false)
   assert.equal(rutaPermitida(['verificacion', 'permisos']), false)
 })
 
