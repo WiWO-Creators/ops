@@ -240,3 +240,122 @@ export interface ItemChecklist {
   order: number
   assigned: number | null
 }
+
+// frente: tareas
+// Bloque agregado por el frente de Tareas y Registro de horas. Se suma al final a proposito: otros
+// frentes editan este mismo archivo y un bloque contiguo hace trivial el merge.
+
+/** Tipo de tarea (`tbltask_types`). Trae sus dos colores porque la insignia los usa tal cual. */
+export interface TipoTarea {
+  id: number
+  name: string
+  label_color: string | null
+  text_color: string | null
+}
+
+/**
+ * Valor de un campo personalizado tal como viaja en `include=custom_fields`.
+ *
+ * `value` puede ser una lista: un `multiselect` devuelve array, no cadena. `CampoPersonalizado` lo
+ * declara solo como cadena, y ensanchar aquel tipo obligaria a tocar codigo de otros frentes.
+ */
+export interface ValorCampoPersonalizado extends Omit<CampoPersonalizado, 'value'> {
+  value: string | string[] | null
+}
+
+/**
+ * Definicion de un campo personalizado (`GET /custom-fields?para=tasks`).
+ *
+ * `show_on_table` es lo unico que decide si el campo se convierte en columna: el panel viejo hace
+ * exactamente eso y las tareas tienen mas campos de los que entran en una fila.
+ */
+export interface DefinicionCampoPersonalizado {
+  id: number
+  slug: string
+  name: string
+  type: string
+  options: string[] | null
+  required: boolean
+  order: number
+  default_value: string | null
+  only_admin: boolean
+  show_on_table: boolean
+}
+
+/**
+ * Proceso con los campos que agrega la pestaña de Tareas de un proyecto.
+ *
+ * Son opcionales porque el backend los esta agregando: mientras no lleguen, la columna muestra un
+ * guion en vez de romper la tabla.
+ */
+export interface ProcesoAmpliado extends Omit<Proceso, 'custom_fields'> {
+  task_type?: TipoTarea | null
+  counts: Proceso['counts'] & { iterations?: number }
+  custom_fields?: ValorCampoPersonalizado[]
+}
+
+/** Una tarjeta del resumen de tareas por estado (`GET /projects/{id}/tasks/summary`). */
+export interface ResumenEstadoTareas {
+  status: number
+  name: string
+  color: string | null
+  order: number
+  total: number
+  /** Cuantas de ese estado tengo asignadas. */
+  mias: number
+}
+
+/** Acciones que acepta `POST /tasks/bulk`. */
+export type AccionMasiva = 'status' | 'priority' | 'assignees' | 'milestone' | 'billable' | 'tags' | 'delete'
+
+/** Respuesta de `POST /tasks/bulk`: cuantas se aplicaron y cuales se saltearon por permisos. */
+export interface ResultadoAccionMasiva {
+  aplicados: number
+  omitidos: number[]
+}
+
+/**
+ * Un registro del Registro de horas (`GET /projects/{id}/timesheets`).
+ *
+ * `duration_hm` y `duration_decimal` los calcula el backend y el frontend los muestra tal cual: son
+ * horas que alguien factura, y recalcularlas aca seria duplicar una regla de negocio. Lo unico que
+ * el frontend calcula es el conteo en vivo de un registro con `corriendo: true`.
+ *
+ * Los tres `puede_*` tambien los decide el backend, con las reglas del panel viejo.
+ */
+export interface RegistroTiempo {
+  id: number
+  staff: { id: number, full_name: string, profile_image_url: string | null, sigue_asignado: boolean }
+  task: { id: number, name: string, status: number, billable: boolean, billed: boolean }
+  tags: Etiqueta[]
+  start_time: string
+  end_time: string | null
+  note: string | null
+  duration_seconds: number
+  duration_hm: string
+  duration_decimal: number
+  corriendo: boolean
+  puede_editar: boolean
+  puede_borrar: boolean
+  puede_detener: boolean
+}
+
+/** Persona que registro tiempo en el proyecto (`GET /projects/{id}/timesheets/staff`). */
+export interface PersonaConTiempo {
+  id: number
+  full_name: string
+  profile_image_url: string | null
+}
+
+/** Tarea elegible para registrar horas (`GET /projects/{id}/timesheets/tasks`). */
+export interface TareaElegible {
+  id: number
+  name: string
+}
+
+/** Asignado de una tarea (`GET /tasks/{taskId}/assignees`). */
+export interface AsignadoTarea {
+  id: number
+  full_name: string
+  es_miembro_del_proyecto: boolean
+}

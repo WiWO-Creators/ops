@@ -46,6 +46,13 @@ interface PropsTablaRecurso<T> {
   inicial: ResultadoLista<T>
   /** Identificador de la fila. Se usa como `key` de React y como `:id` de las acciones. */
   claveFila: (fila: T) => string | number
+  /**
+   * Clases extra de una fila, para marcarla por su contenido. Ej: una tarea vencida.
+   *
+   * Es una funcion y no un campo de la definicion porque la marca depende de "hoy", no del recurso:
+   * la misma fila se marca o no segun cuando se mire.
+   */
+  claseFila?: (fila: T) => string | undefined
   /** Capacidades del area, de `permissions` de `/me`. Sin ellas no se ofrece ninguna accion. */
   capacidades?: Capacidad[]
   /**
@@ -61,6 +68,7 @@ export function TablaRecurso<T> ({
   definicion,
   inicial,
   claveFila,
+  claseFila,
   capacidades = [],
   opcionesDeFiltro,
   className
@@ -182,7 +190,7 @@ export function TablaRecurso<T> ({
 
                 <CuerpoTabla>
                   {resultado.filas.map((fila) => (
-                    <FilaTabla key={claveFila(fila)}>
+                    <FilaTabla key={claveFila(fila)} className={claseFila?.(fila)}>
                       {columnas.map((columna) => (
                         <CeldaTabla key={columna.clave} numerica={columna.numerica}>
                           <Celda columna={columna} fila={fila} catalogos={opcionesDeFiltro} />
