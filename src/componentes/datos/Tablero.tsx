@@ -16,6 +16,7 @@ import {
   moverTarjeta,
   ordenarGrupos,
   posicionAlSoltar,
+  type CuerpoMover,
   type FilaConId,
   type GrupoTablero
 } from './tablero'
@@ -32,6 +33,18 @@ interface PropsTablero<T extends FilaConId> {
    * tablero.
    */
   consulta?: string
+  // frente: detalle — dos ganchos opcionales para el kanban de Hitos. Sin ellos el motor se comporta
+  // exactamente igual que antes.
+  /**
+   * Traduce el cuerpo de `mover` antes de enviarlo. El tablero de Hitos usa `POST
+   * /tasks/{id}/mover-hito`, que nombra `hito` a lo que el de estados llama `columna`.
+   */
+  adaptarCuerpo?: (cuerpo: CuerpoMover) => unknown
+  /**
+   * Ordena y poda las columnas. Por defecto solo ordena por `columna.order`; el kanban de Hitos
+   * necesita ademas dejar "Sin categorizar" siempre primera y omitirla cuando queda vacia.
+   */
+  ordenarColumnas?: (grupos: Array<GrupoTablero<T>>) => Array<GrupoTablero<T>>
 }
 
 /**
@@ -41,9 +54,16 @@ interface PropsTablero<T extends FilaConId> {
  * drag and drop, y por eso cada tarjeta lleva ademas un menu "Mover a…" en un `<button>` real —
  * el arrastre con mouse no puede ser la unica via.
  */
-export function Tablero<T extends FilaConId> ({ definicion, inicial, consulta = '' }: PropsTablero<T>) {
+export function Tablero<T extends FilaConId> ({
+  definicion,
+  inicial,
+  consulta = '',
+  // frente: detalle — por defecto, el comportamiento historico.
+  adaptarCuerpo = (cuerpo) => cuerpo,
+  ordenarColumnas = ordenarGrupos
+}: PropsTablero<T>) {
   const tablero = definicion.tablero
-  const [grupos, setGrupos] = useState(() => ordenarGrupos(inicial))
+  const [grupos, setGrupos] = useState(() => ordenarColumnas(inicial))
   const [aviso, setAviso] = useState<string | null>(null)
   const [ocupado, setOcupado] = useState(false)
   const [arrastrada, setArrastrada] = useState<number | null>(null)
@@ -69,8 +89,8 @@ export function Tablero<T extends FilaConId> ({ definicion, inicial, consulta = 
     const respuesta = await fetch(urlTablero(1), { headers: { accept: 'application/json' } })
     if (!respuesta.ok) return
     const sobre = await respuesta.json() as Sobre<Array<GrupoTablero<T>>>
-    setGrupos(ordenarGrupos(sobre.data))
-  }, [urlTablero])
+    setGrupos(ordenarColumnas(sobre.data))
+  }, [urlTablero, ordenarColumnas])
 
   if (tablero === undefined) {
     return <Vacio titulo={`${definicion.titulo.plural} no tiene vista de tablero`} />
@@ -97,7 +117,7 @@ export function Tablero<T extends FilaConId> ({ definicion, inicial, consulta = 
       const respuesta = await fetch(`/api/bff/${tablero.rutaMover.replace(':id', String(idTarjeta))}`, {
         method: 'POST',
         headers: { 'content-type': 'application/json', accept: 'application/json' },
-        body: JSON.stringify(movimiento.cuerpo)
+        body: JSON.stringify(adaptarCuerpo(movimiento.cuerpo))
       })
 
       if (!respuesta.ok) {

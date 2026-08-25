@@ -15,7 +15,17 @@ const PREFIJOS_PERMITIDOS = [
   'staff',
   'clients',
   'projects',
-  'tasks'
+  'tasks',
+  // frente: detalle — subrecursos del detalle de Proyecto (contrato secciones 2 y 5).
+  'milestones',
+  'timesheets',
+  'discussions',
+  'notes',
+  'tickets',
+  'contracts',
+  'expenses',
+  'invoices',
+  'estimates'
 ] as const
 
 /**

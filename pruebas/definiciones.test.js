@@ -86,3 +86,64 @@ test('PROCESOS no ofrece cambiar el estado por PATCH: es una accion', () => {
   assert.ok(claves.includes('completar'))
   assert.ok(claves.includes('reabrir'))
 })
+
+// frente: detalle — definiciones de las pestañas del detalle de Proyecto. Van en un bloque propio y
+// no dentro de TODAS para que el merge con los otros frentes sea trivial.
+import { HITOS } from '../src/definiciones/hitos.ts'
+import { TICKETS } from '../src/definiciones/tickets.ts'
+import { CONTRATOS } from '../src/definiciones/contratos.ts'
+import { FACTURAS, GASTOS, PRESUPUESTOS } from '../src/definiciones/ventas.ts'
+import { ACTIVIDAD, DISCUSIONES, NOTAS } from '../src/definiciones/discusiones.ts'
+import { ARCHIVOS } from '../src/definiciones/archivos.ts'
+
+const DEL_DETALLE = [
+  ['HITOS', HITOS],
+  ['TICKETS', TICKETS],
+  ['CONTRATOS', CONTRATOS],
+  ['GASTOS', GASTOS],
+  ['FACTURAS', FACTURAS],
+  ['PRESUPUESTOS', PRESUPUESTOS],
+  ['DISCUSIONES', DISCUSIONES],
+  ['NOTAS', NOTAS],
+  ['ACTIVIDAD', ACTIVIDAD],
+  ['ARCHIVOS', ARCHIVOS]
+]
+
+for (const [nombre, definicion] of DEL_DETALLE) {
+  test(`${nombre}: el orden por defecto esta entre los ordenables`, () => {
+    assert.ok(definicion.ordenables.includes(sinSigno(definicion.ordenPorDefecto)))
+  })
+
+  test(`${nombre}: toda columna ordenable apunta a un campo que el backend acepta`, () => {
+    for (const columna of definicion.columnas) {
+      if (columna.ordenPor === undefined) continue
+
+      assert.ok(
+        definicion.ordenables.includes(columna.ordenPor),
+        `la columna ${columna.clave} ordena por ${columna.ordenPor}, que no esta en ordenables`
+      )
+    }
+  })
+
+  test(`${nombre}: las claves de columna no se repiten`, () => {
+    const claves = definicion.columnas.map((c) => c.clave)
+
+    assert.equal(new Set(claves).size, claves.length)
+  })
+
+  test(`${nombre}: las claves de filtro no se repiten`, () => {
+    const claves = definicion.filtros.map((f) => f.clave)
+
+    assert.equal(new Set(claves).size, claves.length)
+  })
+
+  test(`${nombre}: no quedan columnas visibles en cero`, () => {
+    assert.ok(definicion.columnas.some((c) => c.ocultaPorDefecto !== true))
+  })
+
+  test(`${nombre}: la ruta es neutra, la acota la pestaña`, () => {
+    // Las pestañas reemplazan `ruta` por `projects/{id}/<subrecurso>`. Dejar el id fijo en la
+    // definicion haria que todas las pantallas miraran el mismo proyecto.
+    assert.doesNotMatch(definicion.ruta, /\d/)
+  })
+}

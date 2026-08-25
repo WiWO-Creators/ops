@@ -1,17 +1,24 @@
 import Link from 'next/link'
 import { Suspense, cache } from 'react'
 import { CabeceraProyecto } from '@/componentes/proyecto/CabeceraProyecto'
-import { ListaArchivos } from '@/componentes/proyecto/ListaArchivos'
-import { ListaHitos } from '@/componentes/proyecto/ListaHitos'
-import { ListaMiembros } from '@/componentes/proyecto/ListaMiembros'
+import { PanelActividad } from '@/componentes/proyecto/PanelActividad'
+import { PanelArchivos } from '@/componentes/proyecto/PanelArchivos'
+import { PanelContratos } from '@/componentes/proyecto/PanelContratos'
+import { PanelDescripcion } from '@/componentes/proyecto/PanelDescripcion'
+import { PanelDiscusiones } from '@/componentes/proyecto/PanelDiscusiones'
+import { PanelGantt } from '@/componentes/proyecto/PanelGantt'
+import { PanelHitos } from '@/componentes/proyecto/PanelHitos'
+import { PanelNotas } from '@/componentes/proyecto/PanelNotas'
 import { PanelTareas } from '@/componentes/proyecto/PanelTareas'
+import { PanelTickets } from '@/componentes/proyecto/PanelTickets'
+import { PanelVentas } from '@/componentes/proyecto/PanelVentas'
 import { Pestanas, type Panel } from '@/componentes/proyecto/Pestanas'
-import { ResumenProyecto } from '@/componentes/proyecto/ResumenProyecto'
 import { Cargando, ErrorEstado, SinPermiso, Vacio } from '@/componentes/estado/Estados'
+import { listaDe, nombreDe } from '@/datos/catalogos'
 import { ErrorApi } from '@/datos/errores'
-import { cargarLookups, listaDe } from '@/datos/lookups'
+import { cargarLookups } from '@/datos/lookups'
 import { pedir } from '@/datos/servidor'
-import type { ArchivoProyecto, Espacio, Hito, Lookups, MiembroEquipo } from '@/datos/recursos'
+import type { Espacio, Lookups } from '@/datos/recursos'
 import type { Yo } from '@/datos/tipos'
 import { GLOSARIO } from '@/dominio/glosario'
 
@@ -48,41 +55,30 @@ export async function generateMetadata (props: PageProps<'/espacios/[id]'>) {
 
 interface Detalle {
   proyecto: Espacio
-  hitos: Hito[]
-  miembros: MiembroEquipo[]
-  archivos: ArchivoProyecto[]
   lookups: Lookups
   yo: Yo
 }
 
 /**
- * Carga todo lo que la pantalla necesita, en paralelo.
+ * Carga lo minimo que la pantalla necesita para pintarse: el proyecto, los catalogos y quien mira.
  *
- * Los cinco recursos se piden juntos porque ninguno depende del otro: encadenarlos sumaria los cinco
- * viajes a la API en vez de pagar el mas lento.
+ * **Los datos de cada pestaña NO se piden aca.** Son doce pestañas, y bajarlas todas del servidor
+ * costaria doce viajes a la API por visita para mostrar una. Cada panel es un componente cliente que
+ * pide lo suyo al montarse, y `Pestanas` monta solo la activa: la pestaña que nadie abre no cuesta
+ * ninguna peticion.
  *
  * @param id id del proyecto tal como viene de la ruta
- * @returns el detalle completo, o el `ErrorApi` que impidio cargarlo
+ * @returns el detalle, o el `ErrorApi` que impidio cargarlo
  */
 async function cargarDetalle (id: string): Promise<Detalle | ErrorApi> {
   try {
-    const [proyecto, hitos, miembros, archivos, lookups, yo] = await Promise.all([
+    const [proyecto, lookups, yo] = await Promise.all([
       traerProyecto(id),
-      pedir<Hito[]>(`/projects/${id}/milestones`),
-      pedir<MiembroEquipo[]>(`/projects/${id}/members`),
-      pedir<ArchivoProyecto[]>(`/projects/${id}/files`),
       cargarLookups(),
       pedir<Yo>('/me')
     ])
 
-    return {
-      proyecto: proyecto.data,
-      hitos: hitos.data,
-      miembros: miembros.data,
-      archivos: archivos.data,
-      lookups,
-      yo: yo.data
-    }
+    return { proyecto: proyecto.data, lookups, yo: yo.data }
   } catch (error) {
     if (error instanceof ErrorApi) return error
 
@@ -119,7 +115,7 @@ function NoEncontrado () {
 }
 
 /**
- * Detalle de un Proyecto.
+ * Detalle de un Proyecto, con sus doce pestañas.
  *
  * El `Suspense` no es decorativo: `Pestanas` usa `useSearchParams`, y sin ese limite el build de la
  * ruta falla.
@@ -135,27 +131,78 @@ export default async function ProyectoPage (props: PageProps<'/espacios/[id]'>) 
     return <ErrorEstado detalle={detalle.message} />
   }
 
-  const { proyecto, hitos, miembros, archivos, lookups, yo } = detalle
+  const { proyecto, lookups, yo } = detalle
+  const capacidadesProyecto = yo.permissions.projects
+  const capacidadesTareas = yo.permissions.tasks
+  const estados = listaDe(lookups, 'project_statuses')
 
   const paneles: Panel[] = [
     {
+      clave: 'descripcion',
+      etiqueta: 'Descripción',
+      contenido: (
+        <PanelDescripcion
+          proyecto={proyecto}
+          estado={estadoDelProyecto(lookups, proyecto.status)}
+          tipoFacturacion={nombreDe(listaDe(lookups, 'billing_types'), proyecto.billing_type)}
+          puedeVerMontos={capacidadesProyecto.includes('edit')}
+        />
+      )
+    },
+    {
       clave: 'tareas',
       etiqueta: GLOSARIO.proceso.plural,
-      contenido: <PanelTareas proyectoId={proyecto.id} capacidades={yo.permissions.tasks} />
+      contenido: <PanelTareas proyectoId={proyecto.id} capacidades={capacidadesTareas} />
     },
-    { clave: 'hitos', etiqueta: GLOSARIO.hito.plural, contenido: <ListaHitos hitos={hitos} /> },
-    { clave: 'miembros', etiqueta: 'Equipo', contenido: <ListaMiembros miembros={miembros} /> },
     {
-      clave: 'archivos',
-      etiqueta: 'Archivos',
-      contenido: <ListaArchivos archivos={archivos} miembros={miembros} />
+      clave: 'tiempos',
+      etiqueta: 'Tiempos',
+      // PENDIENTE-FRENTE-4: `PanelTiempos` lo entrega el frente 4 con la firma
+      // `<PanelTiempos proyectoId={number} capacidades={Capacidad[]} />`. Hasta que exista, la
+      // pestaña dice que falta en vez de romper el build de toda la pantalla.
+      contenido: (
+        <Vacio
+          titulo="Registro de horas"
+          descripcion="Esta pestaña se enchufa cuando el panel de Tiempos esté disponible."
+        />
+      )
+    },
+    {
+      clave: 'hitos',
+      etiqueta: GLOSARIO.hito.plural,
+      contenido: <PanelHitos proyecto={proyecto} capacidades={capacidadesProyecto} />
+    },
+    { clave: 'archivos', etiqueta: 'Archivos', contenido: <PanelArchivos proyectoId={proyecto.id} /> },
+    {
+      clave: 'discusiones',
+      etiqueta: 'Discusiones',
+      contenido: <PanelDiscusiones proyectoId={proyecto.id} capacidades={capacidadesProyecto} />
+    },
+    { clave: 'gantt', etiqueta: 'Diagrama de Gantt', contenido: <PanelGantt proyectoId={proyecto.id} /> },
+    {
+      clave: 'tickets',
+      etiqueta: GLOSARIO.ticket.plural,
+      contenido: <PanelTickets proyectoId={proyecto.id} capacidades={capacidadesTareas} />
+    },
+    { clave: 'contratos', etiqueta: 'Contratos', contenido: <PanelContratos proyectoId={proyecto.id} /> },
+    { clave: 'ventas', etiqueta: 'Ventas', contenido: <PanelVentas proyectoId={proyecto.id} /> },
+    { clave: 'notas', etiqueta: 'Notas', contenido: <PanelNotas proyectoId={proyecto.id} /> },
+    {
+      clave: 'actividad',
+      etiqueta: 'Actividad',
+      contenido: <PanelActividad proyectoId={proyecto.id} capacidades={capacidadesProyecto} />
     }
   ]
 
   return (
     <section className="flex flex-col gap-4">
-      <CabeceraProyecto proyecto={proyecto} estado={estadoDelProyecto(lookups, proyecto.status)} />
-      <ResumenProyecto proyecto={proyecto} />
+      <CabeceraProyecto
+        proyecto={proyecto}
+        estado={estadoDelProyecto(lookups, proyecto.status)}
+        estados={estados}
+        capacidadesProyecto={capacidadesProyecto}
+        capacidadesTareas={capacidadesTareas}
+      />
 
       <Suspense fallback={<Cargando />}>
         <Pestanas paneles={paneles} />

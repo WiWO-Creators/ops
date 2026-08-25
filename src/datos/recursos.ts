@@ -240,3 +240,213 @@ export interface ItemChecklist {
   order: number
   assigned: number | null
 }
+
+// frente: detalle — tipos de las pestañas del detalle de Proyecto (contrato secciones 2 y 5).
+
+/** Bloque de tiempo registrado del resumen. Los importes solo tienen sentido con `muestra_finanzas`. */
+export interface TiempoRegistradoResumen {
+  total_seconds: number
+  billable_seconds: number
+  billed_seconds: number
+  unbilled_seconds: number
+  billable_amount: number
+  billed_amount: number
+  unbilled_amount: number
+  /**
+   * `true` solo si quien mira tiene `create projects` **y** el proyecto factura por horas (2 o 3).
+   * Cuando es `false` los importes vienen en 0 y no se pintan: mostrar "$0" donde no hay dato es
+   * inventar una cifra.
+   */
+  muestra_finanzas: boolean
+}
+
+/** Respuesta de `GET /projects/{id}/overview`. Todo lo que pinta la pestaña Descripcion. */
+export interface ResumenEspacio {
+  progress: number
+  tasks: { total: number, open: number, completed: number, completed_percent: number }
+  /** `null` cuando el proyecto no tiene fecha de entrega: no hay plazo que contar. */
+  days: { total: number, left: number, left_percent: number } | null
+  logged_time: TiempoRegistradoResumen
+  expenses: { total: number, billable: number, billed: number, unbilled: number }
+  estimated_hours: number | null
+  estimated_hours_excedidas: boolean
+  currency: { id: number, symbol: string, name: string } | null
+}
+
+/** Periodos que acepta `GET /projects/{id}/overview/chart`. */
+export type PeriodoGrafico = 'esta_semana' | 'semana_pasada' | 'este_mes' | 'mes_pasado'
+
+/** Una serie del grafico de horas. Los valores son horas decimales, no segundos. */
+export interface SerieGrafico {
+  clave: string
+  nombre: string
+  valores: number[]
+}
+
+/** Respuesta de `GET /projects/{id}/overview/chart`. */
+export interface GraficoHoras {
+  periodo: PeriodoGrafico
+  etiquetas: string[]
+  series: SerieGrafico[]
+}
+
+/** Entrada del feed de actividad del proyecto. `description` y `additional_data` llegan resueltas. */
+export interface ActividadEspacio {
+  id: number
+  description: string
+  additional_data: string | null
+  date_added: string | null
+  visible_to_customer: boolean
+  staff: StaffReferencia | null
+  contact: { id: number, full_name: string } | null
+}
+
+/** Nota privada del proyecto. Cada persona solo ve las suyas: el backend filtra por la sesion. */
+export interface NotaEspacio {
+  id: number
+  title: string
+  content: string | null
+  date_added: string | null
+  staff_id: number
+}
+
+/** Discusion del proyecto. */
+export interface Discusion {
+  id: number
+  subject: string
+  description: string | null
+  show_to_customer: boolean
+  date_created: string | null
+  last_activity: string | null
+  counts: { comments: number }
+  staff: StaffReferencia | null
+  contact: { id: number, full_name: string } | null
+}
+
+/** Comentario de una discusion o del hilo de un archivo. */
+export interface ComentarioDiscusion {
+  id: number
+  content: string
+  created: string | null
+  modified: string | null
+  parent: number | null
+  author: { id: number, full_name: string, profile_image_url: string | null, es_cliente: boolean } | null
+  file: { name: string, mime: string, url: string } | null
+}
+
+/** Ticket asociado al proyecto. */
+export interface TicketEspacio {
+  id: number
+  ticketid: number
+  subject: string
+  status: number
+  priority: number
+  department: Referencia | null
+  assigned: StaffReferencia | null
+  client: { id: number, company: string } | null
+  date: string | null
+  lastreply: string | null
+}
+
+/** Contrato asociado al proyecto. Solo lectura desde esta pantalla. */
+export interface ContratoEspacio {
+  id: number
+  subject: string
+  contract_type: Referencia | null
+  client: { id: number, company: string } | null
+  datestart: string | null
+  dateend: string | null
+  contract_value: number
+  signed: boolean
+  trash: boolean
+}
+
+/** Gasto del proyecto. `total` ya incluye impuestos. */
+export interface GastoEspacio {
+  id: number
+  expense_name: string | null
+  note: string | null
+  category: Referencia | null
+  amount: number
+  tax_total: number
+  total: number
+  currency: { id: number, symbol: string } | null
+  date: string | null
+  reference_no: string | null
+  billable: boolean
+  invoice: { id: number, number: string, status: number } | null
+  payment_mode: Referencia | null
+  file: { id: number, url: string } | null
+}
+
+/** Factura o presupuesto del proyecto. Las dos listas comparten forma. */
+export interface DocumentoVenta {
+  id: number
+  number: string
+  date: string | null
+  duedate: string | null
+  status: number
+  total: number
+  currency: { id: number, symbol: string } | null
+}
+
+/** Barra de una tarea dentro del Gantt. */
+export interface TareaGantt {
+  id: number
+  name: string
+  start: string | null
+  end: string | null
+  progress: number
+  status: number
+  color: string | null
+}
+
+/** Grupo del Gantt: un hito, un miembro o un estado, con sus tareas. Los grupos vacios no se emiten. */
+export interface GrupoGantt {
+  id: string
+  nombre: string
+  grupo: boolean
+  start: string | null
+  end: string | null
+  tareas: TareaGantt[]
+}
+
+/** Como agrupa el Gantt. `milestones` es el modo por defecto del panel. */
+export type AgrupacionGantt = 'milestones' | 'members' | 'status'
+
+/**
+ * Hito con los campos que suma el contrato del detalle.
+ *
+ * Extiende `Hito` en vez de modificarlo para que el listado de Espacios, que solo usa la forma
+ * corta, no dependa de campos que su endpoint no manda.
+ */
+export interface HitoDetallado extends Hito {
+  description_visible_to_customer: boolean
+  hide_from_customer: boolean
+  date_created: string | null
+  total_logged_seconds: number
+  /** Hoy paso la fecha de vencimiento **y** el hito todavia tiene tareas sin completar. */
+  vencido: boolean
+}
+
+/** Tarjeta del kanban de hitos. */
+export interface TarjetaHito {
+  id: number
+  name: string
+  status: number
+  start_date: string | null
+  due_date: string | null
+  total_logged_seconds: number
+  assignees: StaffReferencia[]
+  current_user_is_assigned: boolean
+  vencida: boolean
+}
+
+/** Columna del kanban de hitos. La sintetica "Sin categorizar" viaja con `id: 0`. */
+export interface ColumnaHito {
+  id: number
+  name: string
+  color: string | null
+  order: number
+  total_logged_seconds: number
+}
