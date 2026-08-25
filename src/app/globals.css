@@ -34,6 +34,8 @@
   --color-acento-2: var(--acento-2);
   --color-texto-acento-2: var(--texto-acento-2);
 
+  --color-marca: var(--marca);
+
   --color-relleno-exito: var(--relleno-exito);
   --color-relleno-exito-contenido: var(--relleno-exito-contenido);
   --color-texto-exito: var(--texto-exito);
