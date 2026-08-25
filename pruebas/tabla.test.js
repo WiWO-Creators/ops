@@ -15,7 +15,8 @@ import {
   mensajeDeError,
   opcionesPorPagina,
   podarPorPermisos,
-  rutaDeAccion
+  rutaDeAccion,
+  resolverInsignia
 } from '../src/componentes/datos/tabla.ts'
 
 const presentar = () => null
@@ -125,4 +126,41 @@ test('un 422 sin details cae al mensaje del contrato', () => {
   const mensaje = mensajeDeError({ code: 'validation_failed', message: 'Los datos no son válidos' }, FILTROS)
 
   assert.equal(mensaje, 'Los datos no son válidos')
+})
+
+/**
+ * Pruebas de la insignia de catalogo.
+ *
+ * Los estados y las prioridades llegan como numeros. Sin resolverlos, la columna "Estado" muestra un
+ * "2" — que es lo que hacia antes. Neo lo prohibe explicitamente: "Los estados deben poder leerse sin
+ * depender del color. Incluye nombre, icono o microcopy."
+ */
+
+const CATALOGO = [
+  { valor: '1', etiqueta: 'Por iniciar', color: '#8AF84F' },
+  { valor: '4', etiqueta: 'En progreso', color: '#4242FF' },
+  { valor: '5', etiqueta: 'Completo' }
+]
+
+test('un id del catalogo se resuelve a su nombre y su color', () => {
+  assert.deepEqual(resolverInsignia(4, CATALOGO), { etiqueta: 'En progreso', color: '#4242FF' })
+})
+
+test('el numero se compara como cadena: la API devuelve numeros y el catalogo, texto', () => {
+  assert.equal(resolverInsignia('4', CATALOGO)?.etiqueta, 'En progreso')
+})
+
+test('una entrada sin color se resuelve igual: el nombre es lo que no puede faltar', () => {
+  assert.deepEqual(resolverInsignia(5, CATALOGO), { etiqueta: 'Completo', color: undefined })
+})
+
+test('un id que el catalogo no conoce cae al valor crudo, no a una celda vacia', () => {
+  // Pasa cuando alguien agrega un estado en Perfex y la pantalla todavia no lo recargo.
+  assert.equal(resolverInsignia(99, CATALOGO), null)
+})
+
+test('sin catalogo o sin valor no hay insignia', () => {
+  assert.equal(resolverInsignia(1, undefined), null)
+  assert.equal(resolverInsignia(null, CATALOGO), null)
+  assert.equal(resolverInsignia(undefined, CATALOGO), null)
 })

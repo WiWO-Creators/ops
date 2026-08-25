@@ -244,13 +244,22 @@ function FiltroRangoFechas ({ filtro, valores, onCambiar }: PropsControlFiltro) 
   const desde = valores[0] ?? ''
   const hasta = valores[1] ?? ''
 
-  /** Un rango a medias no se envia: mandar solo un extremo devuelve 422. */
+  /**
+   * Un extremo suelto se envia igual.
+   *
+   * `date_from` y `date_to` son dos filtros independientes de la whitelist, cada uno un `>=` o un
+   * `<=`: verificado contra la API, los tres casos responden 200. Descartar el rango hasta tener las
+   * dos fechas obligaba a elegir una fecha final que nadie queria poner.
+   */
   function cambiar (nuevoDesde: string, nuevoHasta: string) {
-    onCambiar(nuevoDesde !== '' && nuevoHasta !== '' ? [nuevoDesde, nuevoHasta] : [])
+    onCambiar(nuevoDesde === '' && nuevoHasta === '' ? [] : [nuevoDesde, nuevoHasta])
   }
 
   return (
-    <div className="flex items-center gap-1">
+    <div className="flex items-center gap-1.5">
+      {/* Dos campos de fecha sin nombre no dicen que fecha filtran. El `aria-label` de cada extremo
+          resuelve el lector de pantalla; esto resuelve el resto de la gente. */}
+      <span className="text-texto-tenue text-xs">{filtro.etiqueta}</span>
       <Entrada
         type="date"
         aria-label={`${filtro.etiqueta}: desde`}

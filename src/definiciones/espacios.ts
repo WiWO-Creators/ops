@@ -16,7 +16,7 @@ export const ESPACIOS: DefinicionRecurso<Espacio> = {
   columnas: [
     { clave: 'name', encabezado: 'Nombre', ordenPor: 'name', presentar: (e) => e.name },
     { clave: 'client', encabezado: 'Cliente', presentar: (e) => e.client?.company ?? '' },
-    { clave: 'status', encabezado: 'Estado', presentar: (e) => e.status },
+    { clave: 'status', encabezado: 'Estado', comoInsignia: 'project_statuses', presentar: (e) => e.status },
     // `progress` lo calcula el backend; no es la columna de la base y no se edita.
     { clave: 'progress', encabezado: 'Avance', ordenPor: 'progress', numerica: true, presentar: (e) => `${e.progress}%` },
     {
@@ -32,8 +32,7 @@ export const ESPACIOS: DefinicionRecurso<Espacio> = {
   filtros: [
     { clave: 'status', etiqueta: 'Estado', tipo: 'multiple', desdeLookup: 'project_statuses' },
     { clave: 'clientid', etiqueta: 'Cliente', tipo: 'seleccion' },
-    { clave: 'date_from', etiqueta: 'Inicia desde', tipo: 'rangoFechas' },
-    { clave: 'date_to', etiqueta: 'Inicia hasta', tipo: 'rangoFechas' }
+    { clave: 'inicia', etiqueta: 'Inicia', tipo: 'rangoFechas', clavesRango: ['date_from', 'date_to'] }
   ],
 
   ordenables: ['name', 'start_date', 'deadline', 'progress'],

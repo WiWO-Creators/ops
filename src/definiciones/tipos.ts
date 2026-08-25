@@ -26,6 +26,16 @@ export interface Columna<T> {
   ordenPor?: string
   /** Alinea a la derecha y usa cifras tabulares. Para importes y cantidades. */
   numerica?: boolean
+  /**
+   * Pinta el valor como insignia, resolviendo su nombre y su color contra un catalogo de `/lookups`.
+   *
+   * Sin esto la columna muestra el id crudo —un "2" donde deberia decir "En progreso"—, y un estado
+   * que solo se distingue por color no se puede leer sin ver color. El valor que devuelve `presentar`
+   * se usa como clave de busqueda.
+   *
+   * Ej: `'task_statuses'`, la misma clave que usan los filtros.
+   */
+  comoInsignia?: string
   /** La columna arranca oculta y se activa desde el selector de columnas. */
   ocultaPorDefecto?: boolean
 }
@@ -52,6 +62,15 @@ export interface Filtro {
    */
   desdeLookup?: string
   opciones?: OpcionFiltro[]
+  /**
+   * Las dos claves que el backend usa para el rango, en orden desde/hasta. Solo para `rangoFechas`.
+   *
+   * Un rango es UN control con DOS parametros: la API expone `filter[date_from]` y `filter[date_to]`
+   * por separado, y ambos van sobre el mismo campo (`duedate` en Procesos, `start_date` en Espacios).
+   * Declararlos como dos filtros sueltos pinta dos controles de rango —cuatro campos de fecha— y
+   * manda `filter[date_from]=a,b`, que el backend lee como `IN (a, b)` y no como rango.
+   */
+  clavesRango?: [string, string]
 }
 
 export interface DefinicionTablero {

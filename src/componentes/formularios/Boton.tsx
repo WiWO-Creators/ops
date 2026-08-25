@@ -8,7 +8,12 @@ const boton = cva(
     // cientos de veces por pantalla es lo que hacia pesado al panel actual.
     'transition-[background-color,border-color,color,transform] duration-150 ease-neo',
     'active:scale-[0.98]',
-    'disabled:pointer-events-none disabled:opacity-50'
+    /* Neo: "Disabled — no depende solo de opacidad; conserva lectura y cursor claro". Un boton al
+       50% de opacidad se vuelve ilegible sobre superficies claras, asi que se apaga con superficie y
+       texto propios y se conserva el cursor, que es lo que le dice a la persona que el control existe
+       y no responde. `pointer-events: none` mataria tambien el cursor. */
+    'disabled:cursor-not-allowed disabled:border-transparent',
+    'disabled:bg-relleno-neutro disabled:text-texto-sutil disabled:shadow-none'
   ],
   {
     variants: {

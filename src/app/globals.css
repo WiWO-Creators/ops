@@ -162,15 +162,16 @@
     font-family: var(--font-mono);
   }
 
-  /* Un solo anillo de foco para toda la aplicacion, visible en ambos temas. `:focus-visible` y no
-   * `:focus`: quien hace clic con el mouse no necesita ver el anillo, quien navega con teclado si. */
   /* Anillo doble: solido mas halo. Es la firma de foco de Neo, y a diferencia de un outline simple
    * se ve tanto sobre superficies claras como sobre las oscuras. `:focus-visible` y no `:focus`:
-   * quien hace clic con el mouse no necesita verlo, quien navega con teclado si. */
+   * quien hace clic con el mouse no necesita verlo, quien navega con teclado si.
+   *
+   * 3px de anillo y 7px de halo son la medida que fija Neo (neo.wiwo.me, capa de accesibilidad:
+   * "Tab focus — 3px ring + 7px glow"). No es un numero elegido aca. */
   :focus-visible {
-    outline: 2px solid var(--foco);
+    outline: 3px solid var(--foco);
     outline-offset: 2px;
-    box-shadow: 0 0 0 6px var(--foco-halo);
+    box-shadow: 0 0 0 7px var(--foco-halo);
     border-radius: var(--small-focus-BorderRadius);
   }
 
