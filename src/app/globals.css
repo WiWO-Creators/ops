@@ -39,6 +39,14 @@
 
   --color-marca: var(--marca);
 
+  /* Los gradientes se exponen como imagen de fondo, no como color: asi `bg-gradiente-marca` funciona
+   * igual que cualquier utilidad de Tailwind y nadie tiene que escribir el `linear-gradient` a mano. */
+  --background-image-gradiente-marca: var(--relleno-gradiente-marca);
+  --background-image-gradiente-suave: var(--relleno-gradiente-suave);
+  --background-image-gradiente-texto: var(--gradiente-texto);
+  --color-gradiente-marca-contenido: var(--relleno-gradiente-marca-contenido);
+  --color-gradiente-suave-contenido: var(--relleno-gradiente-suave-contenido);
+
   --color-relleno-exito: var(--relleno-exito);
   --color-relleno-exito-contenido: var(--relleno-exito-contenido);
   --color-texto-exito: var(--texto-exito);
@@ -189,5 +197,63 @@
   * {
     scrollbar-width: thin;
     scrollbar-color: var(--linea-fuerte) transparent;
+  }
+}
+
+@layer components {
+  /*
+   * Las manchas de luz del fondo.
+   *
+   * Van en un `::before` fijo y detras del contenido: fijo para que no se muevan al hacer scroll —una
+   * aurora que scrollea se lee como un objeto, no como luz— y `-z-10` para que ningun panel tenga que
+   * saber que existe.
+   *
+   * `pointer-events: none` porque cubre la pantalla entera: sin eso se come todos los clics.
+   *
+   * La deriva es lenta a proposito (28s). Es la unica animacion infinita que el proyecto permite sobre
+   * algo siempre visible, y solo porque a esta velocidad no hay nada que perseguir con la vista. Quien
+   * pidio menos movimiento la recibe quieta: lo resuelve el bloque `prefers-reduced-motion` de neo.css.
+   */
+  .aurora {
+    position: relative;
+  }
+
+  .aurora::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    z-index: -10;
+    pointer-events: none;
+    background-image:
+      radial-gradient(ellipse 60% 40% at 12% 18%, var(--aurora-verde) 0%, transparent 70%),
+      radial-gradient(ellipse 50% 35% at 78% 12%, var(--aurora-azul) 0%, transparent 70%),
+      radial-gradient(ellipse 45% 30% at 50% 6%, var(--aurora-beige) 0%, transparent 75%);
+    background-size: 200% 200%;
+    animation: deriva-aurora 28s var(--wiwo-ease-expressive) infinite alternate;
+  }
+
+  @keyframes deriva-aurora {
+    from {
+      background-position: 12% 18%, 78% 12%, 50% 6%;
+    }
+
+    to {
+      background-position: 22% 28%, 68% 22%, 46% 12%;
+    }
+  }
+
+  /*
+   * Texto pintado con el gradiente de marca.
+   *
+   * `background-clip: text` con el relleno transparente. El prefijo `-webkit-` sigue siendo necesario:
+   * sin el, Safari pinta el bloque entero y el texto desaparece.
+   *
+   * No lleva animacion: un titulo que cambia de color solo compite con lo que la persona vino a leer.
+   */
+  .texto-gradiente {
+    background-image: var(--gradiente-texto);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
   }
 }

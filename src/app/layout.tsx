@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from 'next'
+import { SCRIPT_BARRA_INICIAL } from '@/lib/barra-lateral'
 import { SCRIPT_TEMA_INICIAL } from '@/lib/tema'
 import './globals.css'
 
@@ -25,6 +26,8 @@ export default function RaizLayout ({ children }: { children: React.ReactNode })
           del servidor no trae.
         */}
         <script dangerouslySetInnerHTML={{ __html: SCRIPT_TEMA_INICIAL }} />
+        {/* Mismo motivo que el de arriba, para el ancho de la barra lateral. */}
+        <script dangerouslySetInnerHTML={{ __html: SCRIPT_BARRA_INICIAL }} />
       </head>
       <body>{children}</body>
     </html>
