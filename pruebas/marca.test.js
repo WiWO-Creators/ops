@@ -22,6 +22,7 @@ const sinComentarios = (css) => css.replace(/\/\*[\s\S]*?\*\//g, '')
 const neo = leer('../src/estilos/neo.css')
 const tokens = leer('../src/estilos/tokens.css')
 const globals = leer('../src/app/globals.css')
+const orbe = leer('../src/estilos/thinking-orb.css')
 
 /** Declaraciones de neo.css, como pares `[nombre, valor]`. */
 function declaraciones () {
@@ -91,6 +92,39 @@ test('no se usa backdrop-filter en ningun estilo', () => {
     assert.ok(
       !/backdrop-filter|backdrop-blur/i.test(sinComentarios(contenido)),
       `${nombre} usa backdrop-filter`
+    )
+  }
+})
+
+/**
+ * La excepcion del orbe, verificada en vez de asumida.
+ *
+ * El orbe es vidrio de verdad: desenfoca lo que tiene detras en lugar de traer su propio fondo, y por
+ * eso se ve bien sobre cualquier superficie. Eso vale el `backdrop-filter`, pero solo mientras la
+ * excepcion siga acotada: el orbe chico y el mediano son los que se repiten —uno por fila de tabla,
+ * uno por boton— y ahi cada instancia cuesta una composicion de capa para un vidrio que a 16px no se
+ * aprecia. Si alguien borra ese apagado, esta prueba lo dice.
+ */
+test('el orbe usa backdrop-filter solo en detalle completo, y lo apaga en los tamaños que se repiten', () => {
+  const css = sinComentarios(orbe)
+  const declaraciones = [...css.matchAll(/([^{}]+)\{([^{}]*backdrop-filter[^{}]*)\}/g)]
+
+  assert.ok(declaraciones.length > 0, 'el orbe deberia usar backdrop-filter: es lo que lo hace vidrio')
+
+  for (const [, selector, cuerpo] of declaraciones) {
+    const apaga = /backdrop-filter:\s*none/.test(cuerpo)
+
+    assert.ok(
+      apaga || selector.includes('.detail-full'),
+      `backdrop-filter fuera de .detail-full: "${selector.trim()}"`
+    )
+  }
+
+  for (const tamano of ['.orb-small', '.orb-medium']) {
+    assert.match(
+      css,
+      new RegExp(`\\${tamano}\\.detail-full[^{]*\\{[^}]*backdrop-filter:\\s*none`.replace('\\.', '\\.')),
+      `${tamano} no apaga el backdrop-filter, y es un tamaño que se repite por fila`
     )
   }
 })
