@@ -4,8 +4,7 @@ import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import { TimerOff } from 'lucide-react'
 import { Boton } from '@/componentes/formularios/Boton'
-import { leerError } from '@/datos/errores'
-import { mensajeDeError } from '@/componentes/datos/tabla'
+import { formatearDuracion, mensajeDeFalloDeCronometro } from '@/componentes/proyecto/cronometro'
 
 interface PropsCronometroAbierto {
   procesoId: number
@@ -38,7 +37,7 @@ export function CronometroAbierto ({ procesoId, nombre, desde }: PropsCronometro
     if (Number.isNaN(arranque)) return
 
     function refrescar () {
-      establecerTranscurrido(comoReloj(Date.now() - arranque))
+      establecerTranscurrido(formatearDuracion((Date.now() - arranque) / 1000))
     }
 
     refrescar()
@@ -61,7 +60,7 @@ export function CronometroAbierto ({ procesoId, nombre, desde }: PropsCronometro
       return
     }
 
-    establecerError(mensajeDeError(await leerError(respuesta), []))
+    establecerError(mensajeDeFalloDeCronometro(respuesta.status, false))
   }
 
   return (
@@ -96,20 +95,4 @@ export function CronometroAbierto ({ procesoId, nombre, desde }: PropsCronometro
       )}
     </div>
   )
-}
-
-/**
- * Formatea una duracion como `HH:MM:SS`.
- *
- * @param milisegundos duracion; una negativa (reloj del cliente atrasado respecto del servidor) se
- *   trata como cero en vez de mostrar un tiempo con signo
- * @returns el reloj con los tres tramos siempre en dos digitos
- */
-function comoReloj (milisegundos: number): string {
-  const total = Math.max(0, Math.floor(milisegundos / 1000))
-  const horas = Math.floor(total / 3600)
-  const minutos = Math.floor((total % 3600) / 60)
-  const segundos = total % 60
-
-  return [horas, minutos, segundos].map((n) => String(n).padStart(2, '0')).join(':')
 }
