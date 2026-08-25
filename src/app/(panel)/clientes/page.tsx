@@ -1,5 +1,5 @@
 import { Suspense } from 'react'
-import { TablaClientes } from '@/componentes/datos/vistas'
+import { TablaClientes } from '@/componentes/cliente/TablaClientes'
 import { Cargando } from '@/componentes/estado/Estados'
 import { construirConsulta, leerConsulta, paramsDeUrl } from '@/datos/consulta'
 import { cargarLookups, opcionesDeFiltros } from '@/datos/lookups'
