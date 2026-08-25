@@ -1,46 +1,49 @@
 'use client'
 
-import { Suspense, useEffect, useMemo, useRef, useState, type ReactElement } from 'react'
-import Link from 'next/link'
+import { Suspense, useCallback, useEffect, useMemo, useState, type ReactElement } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { TablaRecurso } from '@/componentes/datos/TablaRecurso'
+import { Tablero } from '@/componentes/datos/Tablero'
+import type { GrupoTablero } from '@/componentes/datos/tablero'
+import { Boton } from '@/componentes/formularios/Boton'
 import { Cargando, ErrorEstado } from '@/componentes/estado/Estados'
 import { Cajon, ContenidoCajon } from '@/componentes/superposiciones/Cajon'
 import { opcionesDeFiltros } from '@/datos/catalogos'
+import { pedirSobre } from '@/datos/cliente'
 import { construirConsulta, leerConsulta } from '@/datos/consulta'
-import { PROCESOS } from '@/definiciones/procesos'
 import { GLOSARIO } from '@/dominio/glosario'
 import type { DefinicionRecurso, OpcionFiltro, ResultadoLista } from '@/definiciones/tipos'
-import type { Lookups, Proceso } from '@/datos/recursos'
-import type { Capacidad} from '@/datos/tipos'
+import type {
+  DefinicionCampoPersonalizado,
+  Lookups,
+  ProcesoAmpliado,
+  ResumenEstadoTareas
+} from '@/datos/recursos'
+import type { Capacidad } from '@/datos/tipos'
+import { AccionesMasivasTareas } from './AccionesMasivasTareas'
 import { DetalleTarea } from './DetalleTarea'
-import { pedirSobre } from '@/datos/cliente'
+import { FormularioTarea } from './FormularioTarea'
+import { ResumenEstadosTareas } from './ResumenEstadosTareas'
+import { TarjetaTarea } from './TarjetaTarea'
+import { definicionDeTareas, ProveedorSeleccion } from './columnas-tareas'
+import { estaVencida } from './tareas'
 
 /**
- * Tareas de un Proyecto.
+ * Pestaña Tareas de un proyecto: resumen por estado, tabla y tablero.
  *
- * No escribe una tabla: reusa el motor con la definicion de Procesos, cambiandole tres cosas.
+ * No escribe una tabla ni un tablero: arma una `DefinicionRecurso` y se la da a los motores. Lo unico
+ * propio es como se pinta cada celda y cada tarjeta.
  *
- * **Acotar al proyecto por la ruta y no por un filtro.** `GET /projects/{id}/tasks` inyecta
- * `filter[project_id]` del lado del backend y acepta el resto de los parametros del listado
- * (filtros, `sort`, `q`, paginacion) igual que `/tasks`. El motor arma la query desde la URL y le
- * pega la `ruta` de la definicion adelante, asi que cambiar la ruta es UNA linea y no toca nada mas.
- * La alternativa —`/tasks?filter[project_id]=…`— obligaria a inyectar un filtro en el estado que el
- * motor lee de la URL, donde quedaria visible, editable y borrable por quien mira: sacarlo dejaria el
- * panel de un proyecto mostrando las tareas de todos.
+ * **Todo el estado de la vista vive en la URL** —`?vista=`, `?tarea=`, los filtros, el orden y la
+ * pagina—, no en `useState`. Asi una vista filtrada se comparte con un enlace, "atras" hace lo que la
+ * persona espera y una tarea abierta se puede mandar por chat.
  *
- * Dentro de un proyecto, la columna "Proyecto" repite el titulo de la pantalla en cada fila y el
- * filtro por proyecto ofrece cambiar de proyecto sin cambiar de pantalla. Los dos se podan.
- *
- * **El detalle se abre desde la URL (`?tarea={id}`), no desde el estado del componente.** Asi una
- * tarea abierta se comparte por enlace, "atras" la cierra, y el nombre puede ser un enlace de verdad
- * —clic del medio, "abrir en pestaña nueva"— en vez de un `onClick`. Ademas `presentar` recibe solo
- * la fila: no tiene forma de llamar a un manejador que viva en este componente, y colgarlo de la
- * definicion memoizada la ataria al estado.
- *
- * Los datos se piden desde el navegador y no bajan resueltos del servidor, porque este componente
+ * Los datos se piden desde el navegador y no bajan resueltos del servidor porque este componente
  * recibe solo un id: mientras llegan se muestra el bloque de carga, que reserva el alto.
  */
+
+/** Catalogos vacios, estables entre renders: un objeto literal nuevo reconstruiria la definicion. */
+const VACIO_CATALOGOS: Record<string, OpcionFiltro[]> = {}
 
 interface PropsPanelTareas {
   proyectoId: number
@@ -57,76 +60,206 @@ export function PanelTareas ({ proyectoId, capacidades }: PropsPanelTareas): Rea
   )
 }
 
-/** Estado de la carga inicial. El error es un texto ya listo para mostrar, no un envelope. */
+/** Lo que hace falta para pintar la pestaña. El error es un texto listo, no un envelope. */
 type Carga =
   | { fase: 'cargando' }
-  | { fase: 'listo', inicial: ResultadoLista<Proceso>, opciones: Record<string, OpcionFiltro[]> }
   | { fase: 'error', mensaje: string }
+  | {
+      fase: 'listo'
+      inicial: ResultadoLista<ProcesoAmpliado>
+      grupos: Array<GrupoTablero<ProcesoAmpliado>>
+      /** Para que presentacion se pidieron estos datos. Ver `esperandoLaOtraVista`. */
+      esTablero: boolean
+      opciones: Record<string, OpcionFiltro[]>
+      /** `null` cuando el backend todavia no expone el resumen: la pestaña funciona igual. */
+      resumen: ResumenEstadoTareas[] | null
+      campos: DefinicionCampoPersonalizado[]
+      avisos: string[]
+    }
 
 function TareasDelProyecto ({ proyectoId, capacidades }: PropsPanelTareas): ReactElement {
   const router = useRouter()
   const params = useSearchParams()
-  const definicion = useMemo(() => definicionDelProyecto(proyectoId), [proyectoId])
+
+  const enTablero = params.get('vista') === 'tablero'
   const tareaAbierta = idDeTarea(params.get('tarea'))
 
-  // La consulta con la que se pide la primera pagina es la que la URL tiene AL MONTAR: es la que
-  // `TablaRecurso` va a considerar suya, y pedir otra la dejaria mostrando datos que no piden.
+  const [carga, setCarga] = useState<Carga>({ fase: 'cargando' })
+  const [intento, setIntento] = useState(0)
+  const [seleccion, setSeleccion] = useState<number[]>([])
+
+  // Se memoizan porque son dependencias del `useMemo` de la definicion: un array nuevo en cada
+  // render la reconstruiria siempre, y con ella todas las celdas.
+  const catalogos = carga.fase === 'listo' ? carga.opciones : VACIO_CATALOGOS
+  const campos = useMemo(() => carga.fase === 'listo' ? carga.campos : [], [carga])
+  const estados = useMemo(() => catalogos.task_statuses ?? [], [catalogos])
+  const prioridades = useMemo(() => catalogos.task_priorities ?? [], [catalogos])
+
+  /** Vuelve a pedirlo todo. Va fuera del efecto: un `setState` sincronico dentro encadena renders. */
+  const recargar = useCallback(() => {
+    setSeleccion([])
+    setCarga({ fase: 'cargando' })
+    setIntento((n) => n + 1)
+  }, [])
+
+  const definicion = useMemo(
+    () => definicionDeTareas({
+      proyectoId,
+      camposPersonalizados: campos,
+      capacidades,
+      estados,
+      onCambiado: recargar
+    }),
+    [proyectoId, campos, capacidades, estados, recargar]
+  )
+
   const consulta = useMemo(
     () => construirConsulta(leerConsulta(new URLSearchParams(params.toString()), definicion), definicion),
     [params, definicion]
   )
-  const consultaDeMontaje = useRef(consulta)
 
-  const [carga, setCarga] = useState<Carga>({ fase: 'cargando' })
-  const [intento, setIntento] = useState(0)
-
-  /** Vuelve a la fase de carga y dispara el efecto otra vez. Va acá y no en el efecto: un `setState`
-   *  sincronico dentro de un efecto encadena renders de mas. */
-  function reintentar () {
-    setCarga({ fase: 'cargando' })
-    setIntento((n) => n + 1)
-  }
-
+  // Se pide con la consulta vigente al montar y cada vez que algo escribio, pero NO cuando la
+  // consulta cambia: de eso se encarga `TablaRecurso`, que ya sabe pedir la pagina siguiente. Pedirla
+  // tambien desde aca duplicaria cada filtro y cada cambio de orden.
   useEffect(() => {
     const control = new AbortController()
 
-    void primeraPagina(definicion, consultaDeMontaje.current, control.signal).then((resultado) => {
-      if (!control.signal.aborted) setCarga(resultado)
-    })
+    void cargarPestana(proyectoId, definicion, consulta, enTablero, control.signal)
+      .then((resultado) => { if (!control.signal.aborted) setCarga(resultado) })
 
     return () => { control.abort() }
-  }, [definicion, intento])
+    // `definicion` y `consulta` cambian cuando llegan los campos personalizados o cuando se filtra;
+    // volver a entrar aca por eso pediria en bucle o duplicaria lo que ya hace el motor de tabla.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [proyectoId, enTablero, intento])
 
   if (carga.fase === 'cargando') return <Cargando filas={6} />
 
   if (carga.fase === 'error') {
-    return <ErrorEstado detalle={carga.mensaje} onReintentar={reintentar} />
+    return <ErrorEstado detalle={carga.mensaje} onReintentar={recargar} />
   }
 
-  /** Cierra el cajon sacando `?tarea` y dejando intacto el resto de la vista (filtros, orden, pagina). */
-  function cerrarDetalle (): void {
+  // Al alternar de presentacion, los datos que hay en mano son los de la otra: el tablero y la tabla
+  // guardan la primera pagina en su propio estado al montar, asi que montarlos con una lista vacia
+  // los deja vacios para siempre. Se espera a que llegue lo que corresponde.
+  const esperandoLaOtraVista = carga.esTablero !== enTablero
+
+  if (esperandoLaOtraVista) return <Cargando filas={6} />
+
+  /** Escribe la URL conservando lo que no toca. `replace` para no llenar el historial. */
+  function irA (cambiar: (siguientes: URLSearchParams) => void): void {
     const siguientes = new URLSearchParams(params.toString())
-    siguientes.delete('tarea')
+
+    cambiar(siguientes)
 
     router.replace(`?${siguientes.toString()}`, { scroll: false })
   }
 
-  return (
-    <>
-      <TablaRecurso
-        definicion={definicion}
-        inicial={carga.inicial}
-        claveFila={(proceso) => proceso.id}
-        capacidades={capacidades}
-        opcionesDeFiltro={carga.opciones}
-      />
+  /** Filtra la tabla por un estado desde las tarjetas de resumen. `null` quita el filtro. */
+  function filtrarPorEstado (status: number | null): void {
+    irA((siguientes) => {
+      if (status === null) siguientes.delete('filter[status]')
+      else siguientes.set('filter[status]', String(status))
 
-      <Cajon open={tareaAbierta !== null} onOpenChange={(abierto) => { if (!abierto) cerrarDetalle() }}>
+      siguientes.delete('page')
+    })
+  }
+
+  const estadoFiltrado = unicoEstadoFiltrado(params.get('filter[status]'))
+  const filas = carga.inicial.filas
+
+  return (
+    <div className="flex flex-col gap-4">
+      {carga.avisos.map((aviso) => (
+        <p
+          key={aviso}
+          role="status"
+          className="border-linea bg-superficie-aviso text-texto-aviso rounded-tarjeta border px-3 py-2 text-xs"
+        >
+          {aviso}
+        </p>
+      ))}
+
+      {carga.resumen !== null && (
+        <ResumenEstadosTareas
+          resumen={carga.resumen}
+          estadoActivo={estadoFiltrado}
+          onElegir={filtrarPorEstado}
+        />
+      )}
+
+      <div className="flex flex-wrap items-center gap-2">
+        <div role="group" aria-label="Presentación" className="flex items-center gap-1">
+          <Boton
+            variante={enTablero ? 'sutil' : 'secundario'}
+            tamano="chico"
+            aria-pressed={!enTablero}
+            onClick={() => irA((siguientes) => siguientes.delete('vista'))}
+          >
+            Tabla
+          </Boton>
+          <Boton
+            variante={enTablero ? 'secundario' : 'sutil'}
+            tamano="chico"
+            aria-pressed={enTablero}
+            onClick={() => irA((siguientes) => siguientes.set('vista', 'tablero'))}
+          >
+            Tablero
+          </Boton>
+        </div>
+
+        <div className="ml-auto">
+          {capacidades.includes('create') && (
+            <FormularioTarea proyectoId={proyectoId} prioridades={prioridades} onCreada={recargar} />
+          )}
+        </div>
+      </div>
+
+      {enTablero
+        ? (
+          <Tablero
+            definicion={definicionDeTablero(definicion, prioridades)}
+            inicial={carga.grupos}
+            consulta={sinPagina(consulta)}
+          />
+          )
+        : (
+          <>
+            <AccionesMasivasTareas
+              proyectoId={proyectoId}
+              ids={seleccion}
+              totalEnPagina={filas.length}
+              capacidades={capacidades}
+              estados={estados}
+              prioridades={prioridades}
+              onSeleccionarTodo={() => setSeleccion(filas.map((fila) => fila.id))}
+              onLimpiar={() => setSeleccion([])}
+              onAplicado={recargar}
+            />
+
+            <ProveedorSeleccion seleccion={seleccion} onSeleccion={setSeleccion}>
+              <TablaRecurso
+                key={intento}
+                definicion={definicion}
+                inicial={carga.inicial}
+                claveFila={(proceso) => proceso.id}
+                claseFila={(proceso) => estaVencida(proceso) ? 'bg-superficie-peligro' : undefined}
+                capacidades={capacidades}
+                opcionesDeFiltro={carga.opciones}
+              />
+            </ProveedorSeleccion>
+          </>
+          )}
+
+      <Cajon
+        open={tareaAbierta !== null}
+        onOpenChange={(abierto) => { if (!abierto) irA((siguientes) => siguientes.delete('tarea')) }}
+      >
         <ContenidoCajon titulo={GLOSARIO.proceso.singular} descripcion="Detalle y tiempo registrado">
           {tareaAbierta !== null && <DetalleTarea procesoId={tareaAbierta} />}
         </ContenidoCajon>
       </Cajon>
-    </>
+    </div>
   )
 }
 
@@ -147,83 +280,140 @@ function idDeTarea (crudo: string | null): number | null {
 }
 
 /**
- * El nombre de la tarea, como enlace al detalle.
+ * El estado por el que la tabla esta filtrada, si es uno solo.
  *
- * Lee `useSearchParams` por su cuenta en vez de recibir la URL por prop: `presentar` solo recibe la
- * fila, y un componente propio es la unica forma de que el enlace conserve los parametros vigentes
- * sin atar la definicion memoizada al estado.
- *
- * @param proceso la fila de la tabla
- * @returns el enlace a `?tarea={id}` con el resto del querystring intacto
+ * El filtro admite varios valores separados por coma; con dos o mas, ninguna tarjeta del resumen
+ * queda activa, porque ninguna representa esa combinacion.
  */
-function EnlaceTarea ({ proceso }: { proceso: Proceso }): ReactElement {
-  const params = useSearchParams()
-  const siguientes = new URLSearchParams(params.toString())
-  siguientes.set('tarea', String(proceso.id))
+function unicoEstadoFiltrado (crudo: string | null): number | null {
+  if (crudo === null) return null
 
-  return (
-    <Link
-      href={`?${siguientes.toString()}`}
-      scroll={false}
-      className="text-texto hover:text-acento font-medium underline-offset-4 hover:underline"
-    >
-      {proceso.name}
-    </Link>
-  )
+  const valores = crudo.split(',').filter((v) => v !== '')
+
+  if (valores.length !== 1) return null
+
+  const id = Number(valores[0])
+
+  return Number.isInteger(id) ? id : null
+}
+
+/** Quita `page` de una consulta: el tablero pagina por columna y agrega su propia pagina. */
+function sinPagina (consulta: string): string {
+  const params = new URLSearchParams(consulta)
+
+  params.delete('page')
+
+  return params.toString()
 }
 
 /**
- * La definicion de Procesos acotada a un proyecto.
+ * La definicion que consume el tablero, con la tarjeta rica del panel.
  *
- * @param proyectoId el proyecto que se esta mirando
- * @returns una copia con la ruta del subrecurso, sin la columna ni el filtro de proyecto y con el
- *          nombre convertido en enlace al detalle
+ * `presentarTarjeta` recibe `unknown` porque el motor no conoce el recurso: la conversion ocurre en
+ * un solo punto, aca, y no en cada campo de la tarjeta.
  */
-function definicionDelProyecto (proyectoId: number): DefinicionRecurso<Proceso> {
+function definicionDeTablero (
+  definicion: DefinicionRecurso<ProcesoAmpliado>,
+  prioridades: OpcionFiltro[]
+): DefinicionRecurso<ProcesoAmpliado> {
   return {
-    ...PROCESOS,
-    ruta: `projects/${encodeURIComponent(String(proyectoId))}/tasks`,
-    columnas: PROCESOS.columnas
-      .filter((columna) => columna.clave !== 'project')
-      .map((columna) => columna.clave === 'name'
-        ? { ...columna, presentar: (proceso: Proceso) => <EnlaceTarea proceso={proceso} /> }
-        : columna),
-    filtros: PROCESOS.filtros.filter((filtro) => filtro.clave !== 'project_id')
+    ...definicion,
+    tablero: {
+      // Las columnas llegan ordenadas por `order`, NO por `id`: el orden real es 1, 4, 3, 2, 5.
+      columnasDesde: 'task_statuses',
+      rutaMover: 'tasks/:id/mover',
+      presentarTarjeta: (fila) => (
+        <TarjetaTarea proceso={fila as ProcesoAmpliado} prioridades={prioridades} />
+      )
+    }
   }
 }
 
 /**
- * Pide la primera pagina y los catalogos de los filtros.
+ * Pide todo lo que la pestaña necesita.
  *
- * Van juntos a proposito: sin los catalogos, el estado se pinta como un numero crudo y los selectores
- * de filtro salen vacios, asi que mostrar la tabla antes de tenerlos es mostrarla a medias.
+ * La lista y los catalogos son criticos: sin ellos no hay nada que mostrar, y el fallo se convierte
+ * en la pantalla de error. El resumen por estado y las definiciones de campos personalizados son
+ * accesorios —el backend los esta agregando— y su fallo baja como aviso: una tabla sin las tarjetas
+ * de arriba sigue sirviendo, una pantalla de error no.
  *
- * Nunca lanza: el error del contrato es un valor mas, y la pantalla tiene que poder mostrarlo.
+ * Nunca lanza: el error del contrato es un valor mas.
  *
+ * @param proyectoId el proyecto que se esta mirando
  * @param definicion la definicion ya acotada al proyecto
  * @param consulta query string sin `?`
- * @param senal aborta las dos peticiones si el componente se desmonta
- * @returns el estado de carga resuelto, `listo` o `error`
+ * @param enTablero si la vista pedida es el tablero
+ * @param senal aborta las peticiones si el componente se desmonta
+ * @returns el estado de carga resuelto
  */
-async function primeraPagina (
-  definicion: DefinicionRecurso<Proceso>,
+async function cargarPestana (
+  proyectoId: number,
+  definicion: DefinicionRecurso<ProcesoAmpliado>,
   consulta: string,
+  enTablero: boolean,
   senal: AbortSignal
 ): Promise<Carga> {
+  const conConsulta = (extra: string): string => {
+    const partes = [consulta, extra].filter((parte) => parte !== '')
+
+    return partes.length === 0 ? definicion.ruta : `${definicion.ruta}?${partes.join('&')}`
+  }
+
   try {
     const [lista, lookups] = await Promise.all([
-      pedirSobre<Proceso[]>(`${definicion.ruta}${consulta === '' ? '' : `?${consulta}`}`, senal),
+      enTablero
+        ? pedirSobre<Array<GrupoTablero<ProcesoAmpliado>>>(conConsulta('vista=tablero'), senal)
+        : pedirSobre<ProcesoAmpliado[]>(conConsulta(''), senal),
       pedirSobre<Lookups>('lookups', senal)
     ])
 
+    const avisos: string[] = []
+
+    const resumen = await opcional(
+      pedirSobre<ResumenEstadoTareas[]>(`projects/${proyectoId}/tasks/summary`, senal)
+    )
+    if (resumen === null) avisos.push('El resumen por estado todavía no está disponible en la API.')
+
+    const campos = await opcional(
+      pedirSobre<DefinicionCampoPersonalizado[]>('custom-fields?para=tasks', senal)
+    )
+    if (campos === null) avisos.push('No se pudieron traer los campos personalizados: la tabla va sin ellos.')
+
+    const datos = lista.data
+
     return {
       fase: 'listo',
-      inicial: { filas: lista.data, paginacion: lista.meta?.pagination },
-      opciones: opcionesDeFiltros(definicion, lookups.data)
+      esTablero: enTablero,
+      inicial: enTablero
+        ? { filas: [], paginacion: undefined }
+        : { filas: datos as ProcesoAmpliado[], paginacion: lista.meta?.pagination },
+      grupos: enTablero ? datos as Array<GrupoTablero<ProcesoAmpliado>> : [],
+      opciones: opcionesDeFiltros(definicion, lookups.data),
+      resumen,
+      campos: campos ?? [],
+      avisos
     }
   } catch (fallo) {
     if (senal.aborted) return { fase: 'cargando' }
 
-    return { fase: 'error', mensaje: fallo instanceof Error ? fallo.message : 'No se pudieron cargar las tareas.' }
+    return {
+      fase: 'error',
+      mensaje: fallo instanceof Error ? fallo.message : 'No se pudieron cargar las tareas.'
+    }
+  }
+}
+
+/**
+ * Resuelve una peticion accesoria sin dejar que su fallo tumbe la pantalla.
+ *
+ * @param promesa la peticion
+ * @returns los datos, o `null` si fallo
+ */
+async function opcional<T> (promesa: Promise<{ data: T }>): Promise<T | null> {
+  try {
+    return (await promesa).data
+  } catch {
+    // El fallo de un accesorio se informa como aviso, no como error: quien llama decide el texto.
+    return null
   }
 }
