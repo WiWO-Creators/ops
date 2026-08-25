@@ -30,6 +30,18 @@ const SALIDA = path.join(RAIZ, 'src/estilos/thinking-orb.css')
 const ANCHO_REFERENCIA = 245
 /** Alto del orbe de referencia. El orbe es un blob apaisado, no un circulo. */
 const ALTO_REFERENCIA = 205
+/*
+ * Vara aparte para el desenfoque.
+ *
+ * neo escribe los desenfoques en pixeles fijos y nunca los escala: su orbe crece con el viewport
+ * pero el `blur(30px)` sigue siendo 30px, asi que cuanto mas grande esta el orbe MENOS difuso se ve
+ * en proporcion, y por eso se le ve la silueta deformandose. Si el desenfoque se escala con la
+ * misma vara que las medidas, el orbe grande queda igual de difuso que el chico: una mancha sin
+ * borde. Esta vara es el ancho al que la pagina real se ve como se tiene que ver (~360px de cuerpo),
+ * asi que a ese tamaño los desenfoques dan exactamente los de neo.
+ */
+const ANCHO_DESENFOQUE = 360
+
 /** A tamaño de referencia el orbe ocupa 28vw, asi que 1vw equivale a 245/28 unidades de orbe. */
 const UNIDADES_POR_VW = ANCHO_REFERENCIA / 28
 
@@ -54,6 +66,9 @@ function aUnidadesDeOrbe (linea) {
   if (/^\s*@media/.test(linea)) return linea
 
   return linea
+    // El desenfoque va con su propia vara. Ver "El desenfoque no escala igual" en la capa del
+    // producto: con la vara de las medidas el orbe grande queda mudo, sin silueta.
+    .replace(/blur\((-?[\d.]+)px\)/g, (_, n) => `blur(calc(${n} * var(--orbe-ub)))`)
     .replace(/(-?[\d.]+)px\b/g, (_, n) => `calc(${n} * var(--orbe-u))`)
     .replace(/(-?[\d.]+)vw\b/g, (_, n) => `calc(${(Number(n) * UNIDADES_POR_VW).toFixed(2)} * var(--orbe-u))`)
 }
@@ -129,6 +144,17 @@ const cabecera = `/**
 
   /* Sin estado, ninguna regla de neo define la opacidad de particulas y destellos. */
   --spark-opacity: .55;
+
+  /*
+   * Los tres colores del halo. En neo viven en \`.thinking-orb-showcase\`, la tarjeta que envuelve al
+   * orbe, asi que la extraccion los descarto por cromo de la pagina — pero el orbe los usa: su
+   * \`box-shadow\` es \`color-mix(..., var(--orb-light-blue), ...)\`, y con la variable sin definir el
+   * \`color-mix\` es invalido y el navegador tira la declaracion ENTERA. Sin ellos el orbe se queda
+   * sin halo: la silueta se disuelve y queda una mancha. Solo el estado de error los redefine.
+   */
+  --orb-light-blue: rgba(66, 66, 255, .84);
+  --orb-light-lime: rgba(59, 255, 0, .78);
+  --orb-light-milk: rgba(248, 250, 215, .72);
 }
 
 `
@@ -171,6 +197,7 @@ const capaProducto = `
      un boton de 28px pinta 80px y se come la etiqueta que tiene al lado. */
   --orbe-nucleo: .58;
   --orbe-u: calc(var(--orbe-ancho) * var(--orbe-nucleo) / ${ANCHO_REFERENCIA});
+  --orbe-ub: calc(var(--orbe-ancho) * var(--orbe-nucleo) / ${ANCHO_DESENFOQUE});
 
   position: relative;
   display: inline-grid;
@@ -188,6 +215,67 @@ const capaProducto = `
 .orbe-wiwo.orbe-grande { --orbe-ancho: 180px; }
 .orbe-wiwo.orbe-marca  { --orbe-ancho: clamp(245px, 28vw, 410px); }
 /* \`medida\` llega como \`--orbe-ancho\` en el atributo style, asi que gana sin regla extra. */
+
+/* -----------------------------------------------------------------------------
+   El campo de luz de atras — lo que le da borde al orbe
+   -----------------------------------------------------------------------------
+   El orbe solo, sobre negro, es una mancha difusa: todas sus capas estan
+   desenfocadas y ninguna dibuja un contorno. Lo que en neo le da forma es lo que
+   tiene DETRAS: el escenario pinta dos elipses de luz mas grandes que el orbe, y
+   contra ese campo la silueta del orbe se recorta y se le ve el borde deformarse
+   al respirar.
+
+   La extraccion original descarto esas dos capas por venir del \`.thinking-orb-stage\`
+   del showcase, y con ellas se fue el borde. Vuelven aca, medidas en unidades de
+   orbe a partir de la pagina real (el campo es 1.08 anchos de orbe de ancho y 1.39
+   de alto), no como el panel de 590px del showcase.
+   ----------------------------------------------------------------------------- */
+.orbe-escenario::before,
+.orbe-escenario::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  z-index: 0;
+  pointer-events: none;
+}
+
+.orbe-escenario::before {
+  width: calc(265 * var(--orbe-u));
+  height: calc(341 * var(--orbe-u));
+  border-radius: 50%;
+  background:
+    radial-gradient(ellipse at 50% 50%, rgba(248, 250, 215, .22), transparent 23%),
+    radial-gradient(ellipse at 42% 56%, rgba(66, 66, 255, .42), transparent 54%),
+    radial-gradient(ellipse at 63% 40%, rgba(59, 255, 0, .28), transparent 58%);
+  filter: blur(calc(36 * var(--orbe-u))) saturate(1.75);
+  opacity: .72;
+  transform: translate(-50%, -50%);
+  animation: orbe-campo-aurora 8200ms var(--ease-expressive) infinite;
+}
+
+.orbe-escenario::after {
+  width: calc(238 * var(--orbe-u));
+  height: calc(222 * var(--orbe-u));
+  border-radius: 61% 39% 54% 46% / 50% 58% 42% 50%;
+  background:
+    radial-gradient(ellipse at 44% 50%, rgba(248, 250, 215, .14), transparent 36%),
+    linear-gradient(90deg, transparent, rgba(59, 255, 0, .18), rgba(66, 66, 255, .24), transparent);
+  filter: blur(calc(29 * var(--orbe-u))) saturate(1.45);
+  opacity: .26;
+  transform: translate(-50%, -50%);
+  animation: orbe-campo-cinta 7200ms var(--ease-expressive) infinite alternate;
+}
+
+@keyframes orbe-campo-aurora {
+  0%, 100% { transform: translate(-50%, -50%) rotate(-3deg) scale(.95); }
+  50% { transform: translate(-50%, -50%) rotate(7deg) scale(1.08); }
+}
+
+@keyframes orbe-campo-cinta {
+  0% { transform: translate(-50%, -50%) rotate(-10deg) scale(.92); }
+  100% { transform: translate(-50%, -50%) rotate(11deg) scale(1.06); }
+}
 
 .orbe-escenario {
   isolation: isolate;
