@@ -1,0 +1,126 @@
+import type { AccionRecurso, Columna, Filtro } from '@/definiciones/tipos'
+import type { Capacidad, SobreError } from '@/datos/tipos'
+
+/**
+ * Logica del motor de tabla que no necesita React.
+ *
+ * Vive aparte del `.tsx` a proposito: Node despoja los tipos de un `.ts`, pero no el JSX, asi que
+ * una funcion declarada dentro del componente no se podria probar. Todo lo que decida *que* se
+ * muestra —columnas, acciones permitidas, mensajes de error— se prueba desde aca.
+ *
+ * Sin `import` de valores con alias `@/`: las pruebas corren estos archivos con el runner de Node,
+ * que no conoce el alias. Los tipos si, porque el stripping los borra antes de resolver.
+ */
+
+/** Cuerpo del envelope de error, tal como lo devuelve el BFF. */
+export type CuerpoError = SobreError['error']
+
+/**
+ * Claves de las columnas que se muestran al abrir la vista.
+ *
+ * @param columnas columnas de la definicion
+ * @returns las claves de las que no arrancan ocultas, en el orden de la definicion
+ */
+export function clavesVisiblesPorDefecto<T> (columnas: Array<Columna<T>>): string[] {
+  return columnas.filter((columna) => columna.ocultaPorDefecto !== true).map((columna) => columna.clave)
+}
+
+/**
+ * Filtra las columnas a mostrar respetando el orden de la definicion.
+ *
+ * El orden lo manda la definicion y no el selector: si mandara el selector, activar una columna la
+ * mandaria al final y la tabla se reordenaria sola delante de quien la usa.
+ *
+ * @param columnas columnas de la definicion
+ * @param claves claves elegidas en el selector
+ * @returns las columnas visibles
+ */
+export function columnasVisibles<T> (columnas: Array<Columna<T>>, claves: string[]): Array<Columna<T>> {
+  const elegidas = new Set(claves)
+
+  return columnas.filter((columna) => elegidas.has(columna.clave))
+}
+
+/**
+ * Quita las acciones que la persona no puede ejecutar.
+ *
+ * Ocultar no es autorizar: el backend vuelve a decidir. Se poda igual porque ofrecer un boton que
+ * siempre responde 403 es peor que no ofrecerlo.
+ *
+ * @param acciones acciones declaradas en la definicion
+ * @param capacidades capacidades del area, tal como llegan en `permissions` de `/me`
+ * @returns las acciones visibles, en el orden declarado
+ */
+export function podarPorPermisos (
+  acciones: AccionRecurso[] | undefined,
+  capacidades: Capacidad[]
+): AccionRecurso[] {
+  if (acciones === undefined) return []
+
+  return acciones.filter((accion) => accion.requiere === undefined || capacidades.includes(accion.requiere))
+}
+
+/**
+ * Resuelve la ruta de una accion reemplazando `:id` por el de la fila.
+ *
+ * @param ruta ruta declarada, con `:id`. Ej: `tasks/:id/actions/mark-complete`
+ * @param id identificador de la fila
+ * @returns la ruta lista para el BFF, sin barra inicial
+ */
+export function rutaDeAccion (ruta: string, id: string | number): string {
+  return ruta.replace(':id', encodeURIComponent(String(id)))
+}
+
+/** Tamaños de pagina que ofrece el selector antes de acotarlos al tope del backend. */
+const TAMANOS_DE_PAGINA = [10, 25, 50, 100, 200]
+
+/**
+ * Opciones del selector de tamaño de pagina.
+ *
+ * Nunca ofrece mas que el tope del backend: pedir mas no falla, se recorta en silencio, y una UI
+ * que ofrezca 200 y devuelva 100 miente.
+ *
+ * @param maximo tope duro del backend (`POR_PAGINA_MAXIMO`)
+ * @param actual valor vigente, que se incluye aunque no sea uno de los estandar
+ * @returns tamaños ordenados, sin repetidos y todos menores o iguales al tope
+ */
+export function opcionesPorPagina (maximo: number, actual: number): number[] {
+  const validos = [...TAMANOS_DE_PAGINA, actual].filter((n) => Number.isInteger(n) && n > 0 && n <= maximo)
+
+  return [...new Set(validos)].sort((a, b) => a - b)
+}
+
+/**
+ * Etiqueta visible de un filtro a partir de la clave que devuelve el backend en `details`.
+ *
+ * El backend nombra el campo como lo recibio (`filter[status]`, `filter.status` o `status`); acá se
+ * normaliza a la clave declarada para poder mostrar el nombre humano.
+ */
+function etiquetaDeFiltro (claveCruda: string, filtros: Filtro[]): string {
+  const clave = claveCruda.replace(/^filter[.[]?/, '').replace(/]$/, '')
+  const filtro = filtros.find((f) => f.clave === clave)
+
+  return filtro?.etiqueta ?? clave
+}
+
+/**
+ * Mensaje que se le muestra a la persona cuando el BFF devuelve un error.
+ *
+ * En `validation_failed` el `message` generico no alcanza: el 422 sale de un filtro concreto, y sin
+ * decir cual la unica salida es borrar la URL entera. Por eso se nombran los filtros de `details`.
+ *
+ * @param error cuerpo `error` del envelope
+ * @param filtros filtros de la definicion, para traducir la clave al nombre visible
+ * @returns el mensaje a mostrar; nunca vacio
+ */
+export function mensajeDeError (error: CuerpoError, filtros: Filtro[]): string {
+  if (error.code !== 'validation_failed' || error.details === undefined) return error.message
+
+  const partes = Object.entries(error.details).map(
+    ([clave, mensajes]) => `${etiquetaDeFiltro(clave, filtros)}: ${mensajes.join(' ')}`
+  )
+
+  if (partes.length === 0) return error.message
+
+  return `El filtro no es válido — ${partes.join(' · ')}`
+}
