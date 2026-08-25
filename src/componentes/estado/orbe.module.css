@@ -25,7 +25,7 @@
  */
 
 .orbe {
-  --orbe-medida: 42px;
+  --orbe-medida: 48px;
   --orbe-respiracion: 4200ms;
   --orbe-flujo: 6200ms;
   --orbe-curva: var(--wiwo-ease-emphasized);
@@ -131,8 +131,16 @@
 
 /* --- Tamaños ------------------------------------------------------------- */
 
+/*
+ * Los tres tamaños de Neo, tomados del extremo bajo de cada rango porque esto es una herramienta de
+ * trabajo y no una pieza de marca: Small 24-32px (botones y microestados), Medium 48-72px (tarjetas,
+ * campos y respuestas en linea), Large 120-240px (generacion completa y onboarding).
+ *
+ * El medio estaba en 42px, por debajo del rango: a ese tamaño el orbe se lee como un icono y pierde
+ * la lectura de blob que lo hace reconocible.
+ */
 .chico { --orbe-medida: 24px; }
-.medio { --orbe-medida: 42px; }
+.medio { --orbe-medida: 48px; }
 .grande { --orbe-medida: 130px; }
 
 /* A 24px los tres destellos se amontonan y el orbe se ve sucio: quedan dos. */
@@ -224,12 +232,30 @@
 /*
  * Quien pidio menos movimiento recibe el orbe quieto, no el orbe ausente: sigue siendo la señal de
  * que algo esta pasando, y el texto de `role="status"` es lo que de verdad comunica.
+ *
+ * Neo lo especifica asi: "Si reduced motion — congelar rotacion, mantener respiracion minima y
+ * comunicar estado con copy". Por eso no se apaga todo: se congelan la deformacion del blob, el
+ * remolino y los destellos —que son el movimiento que marea— y queda una respiracion de opacidad muy
+ * lenta sobre el velo. Sin ella el orbe se vuelve indistinguible de su estado en reposo, y entonces
+ * "algo esta pasando" deja de leerse.
  */
 @media (prefers-reduced-motion: reduce) {
   .orbe[data-animado='true'] .cuerpo,
-  .orbe[data-animado='true'] .velo,
   .orbe[data-animado='true'] .luz,
   .orbe[data-animado='true'] .destello {
     animation: none;
   }
+
+  .orbe[data-animado='true'] .velo {
+    animation: respiracion-minima 4200ms ease-in-out infinite;
+  }
+}
+
+/*
+ * La respiracion de `prefers-reduced-motion`. Solo opacidad: no deforma, no rota y no desplaza nada,
+ * que es exactamente lo que pide quien activo esa preferencia.
+ */
+@keyframes respiracion-minima {
+  0%, 100% { opacity: 0.55; }
+  50% { opacity: 0.85; }
 }

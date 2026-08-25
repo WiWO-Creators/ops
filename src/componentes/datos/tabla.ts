@@ -1,4 +1,4 @@
-import type { AccionRecurso, Columna, Filtro } from '@/definiciones/tipos'
+import type { AccionRecurso, Columna, Filtro, OpcionFiltro } from '@/definiciones/tipos'
 import type { Capacidad, SobreError } from '@/datos/tipos'
 
 /**
@@ -123,4 +123,28 @@ export function mensajeDeError (error: CuerpoError, filtros: Filtro[]): string {
   if (partes.length === 0) return error.message
 
   return `El filtro no es válido — ${partes.join(' · ')}`
+}
+
+/**
+ * Resuelve el valor de una columna contra el catalogo que declara `comoInsignia`.
+ *
+ * Los estados y las prioridades llegan de la API como numeros. Mostrarlos crudos deja un "2" donde
+ * deberia decir "En progreso", y confiar solo en el color deja el estado ilegible para quien no lo
+ * distingue: por eso la insignia lleva siempre el nombre, y el color va encima.
+ *
+ * @param valor lo que devolvio `presentar`
+ * @param catalogo la lista del lookup, tal como la arma `opcionesDeFiltros`
+ * @returns etiqueta y color, o `null` si el valor no esta en el catalogo — ahi la tabla muestra el
+ *          valor crudo, que es mas util que una celda vacia
+ */
+export function resolverInsignia (
+  valor: unknown,
+  catalogo: OpcionFiltro[] | undefined
+): { etiqueta: string, color: string | undefined } | null {
+  if (catalogo === undefined || valor === null || valor === undefined) return null
+
+  const buscado = String(valor)
+  const opcion = catalogo.find((o) => o.valor === buscado)
+
+  return opcion === undefined ? null : { etiqueta: opcion.etiqueta, color: opcion.color }
 }

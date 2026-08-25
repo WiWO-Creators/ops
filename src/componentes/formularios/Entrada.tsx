@@ -11,7 +11,9 @@ export const CLASES_CONTROL = [
   'placeholder:text-texto-sutil',
   'transition-[border-color,box-shadow] duration-150 ease-neo',
   'hover:border-linea-fuerte',
-  'disabled:cursor-not-allowed disabled:opacity-50',
+  /* Neo: el deshabilitado conserva lectura. Se apaga con superficie, no bajando la opacidad del
+     texto, que es lo que vuelve ilegible un valor ya cargado. */
+  'disabled:cursor-not-allowed disabled:bg-superficie-hundida disabled:text-texto-tenue',
   'aria-[invalid=true]:border-relleno-peligro'
 ].join(' ')
 

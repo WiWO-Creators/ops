@@ -65,14 +65,29 @@ export function construirConsulta<T> (estado: EstadoConsulta, definicion: Defini
   const porPagina = acotarPorPagina(estado.porPagina)
   if (porPagina !== POR_PAGINA_POR_DEFECTO) params.set('per_page', String(porPagina))
 
-  const clavesValidas = new Set(definicion.filtros.map((f) => f.clave))
+  const porClave = new Map(definicion.filtros.map((f) => [f.clave, f]))
 
   for (const clave of Object.keys(estado.filtros).sort()) {
-    if (!clavesValidas.has(clave)) continue
+    const filtro = porClave.get(clave)
+
+    if (filtro === undefined) continue
 
     const valores = (estado.filtros[clave] ?? []).filter((v) => v !== '')
 
-    if (valores.length > 0) params.set(`filter[${clave}]`, valores.join(','))
+    if (valores.length === 0) continue
+
+    // Un rango es un control con dos parametros distintos. Unirlos en una lista los convertiria en
+    // un `IN (desde, hasta)`, que sobre una fecha no devuelve casi nada.
+    if (filtro.clavesRango !== undefined) {
+      const [desde, hasta] = filtro.clavesRango
+
+      if (valores[0] !== undefined) params.set(`filter[${desde}]`, valores[0])
+      if (valores[1] !== undefined) params.set(`filter[${hasta}]`, valores[1])
+
+      continue
+    }
+
+    params.set(`filter[${clave}]`, valores.join(','))
   }
 
   const orden = estado.orden.filter((campo) => definicion.ordenables.includes(sinSigno(campo)))
@@ -103,6 +118,15 @@ export function leerConsulta<T> (
   estado.porPagina = acotarPorPagina(enteroPositivo(params.get('per_page')) ?? POR_PAGINA_POR_DEFECTO)
 
   for (const filtro of definicion.filtros) {
+    if (filtro.clavesRango !== undefined) {
+      const [desde, hasta] = filtro.clavesRango
+      const extremos = [params.get(`filter[${desde}]`) ?? '', params.get(`filter[${hasta}]`) ?? '']
+
+      if (extremos.some((v) => v !== '')) estado.filtros[filtro.clave] = extremos
+
+      continue
+    }
+
     const crudo = params.get(`filter[${filtro.clave}]`)
 
     if (crudo === null || crudo === '') continue

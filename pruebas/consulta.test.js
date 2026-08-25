@@ -153,3 +153,43 @@ test('paramsDeUrl normaliza lo que entrega Next: cadena o lista', () => {
   assert.equal(params.get('filter[status]'), '1,4')
   assert.equal(params.has('vacio'), false)
 })
+
+/**
+ * Pruebas del filtro de rango.
+ *
+ * Un rango es UN control con DOS parametros. Unirlos en una lista los convertiria en `IN (desde,
+ * hasta)`, que sobre una fecha no devuelve casi nada — y el bug no se ve como un error sino como una
+ * tabla que aparece vacia sin motivo.
+ */
+
+const CON_RANGO = {
+  ...PROCESOS,
+  filtros: [
+    ...PROCESOS.filtros,
+    { clave: 'vence', etiqueta: 'Vence', tipo: 'rangoFechas', clavesRango: ['date_from', 'date_to'] }
+  ]
+}
+
+test('el rango viaja como dos parametros distintos, no como lista', () => {
+  const estado = { ...estadoInicial(CON_RANGO), orden: [], filtros: { vence: ['2026-01-01', '2026-02-01'] } }
+  const consulta = decodeURIComponent(construirConsulta(estado, CON_RANGO))
+
+  assert.match(consulta, /filter\[date_from\]=2026-01-01/)
+  assert.match(consulta, /filter\[date_to\]=2026-02-01/)
+  assert.doesNotMatch(consulta, /2026-01-01,2026-02-01/)
+})
+
+test('el rango se lee de vuelta desde sus dos claves', () => {
+  const estado = leerConsulta(
+    new URLSearchParams('filter%5Bdate_from%5D=2026-01-01&filter%5Bdate_to%5D=2026-02-01'),
+    CON_RANGO
+  )
+
+  assert.deepEqual(estado.filtros.vence, ['2026-01-01', '2026-02-01'])
+})
+
+test('un rango con un solo extremo viaja igual: la API acepta date_from suelto', () => {
+  const estado = { ...estadoInicial(CON_RANGO), orden: [], filtros: { vence: ['2026-01-01', ''] } }
+
+  assert.equal(decodeURIComponent(construirConsulta(estado, CON_RANGO)), 'filter[date_from]=2026-01-01')
+})

@@ -18,8 +18,8 @@ export const PROCESOS: DefinicionRecurso<Proceso> = {
 
   columnas: [
     { clave: 'name', encabezado: 'Nombre', ordenPor: 'name', presentar: (p) => p.name },
-    { clave: 'status', encabezado: 'Estado', ordenPor: 'status', presentar: (p) => p.status },
-    { clave: 'priority', encabezado: 'Prioridad', ordenPor: 'priority', presentar: (p) => p.priority },
+    { clave: 'status', encabezado: 'Estado', ordenPor: 'status', comoInsignia: 'task_statuses', presentar: (p) => p.status },
+    { clave: 'priority', encabezado: 'Prioridad', ordenPor: 'priority', comoInsignia: 'task_priorities', presentar: (p) => p.priority },
     { clave: 'project', encabezado: GLOSARIO.espacio.singular, presentar: (p) => p.project?.name ?? '' },
     { clave: 'assignees', encabezado: 'Asignados', presentar: (p) => p.assignees.length },
     { clave: 'due_date', encabezado: 'Vence', ordenPor: 'due_date', presentar: (p) => p.due_date ?? '' },
@@ -45,8 +45,7 @@ export const PROCESOS: DefinicionRecurso<Proceso> = {
     { clave: 'project_id', etiqueta: GLOSARIO.espacio.singular, tipo: 'seleccion' },
     { clave: 'milestone_id', etiqueta: 'Hito', tipo: 'seleccion' },
     { clave: 'billable', etiqueta: 'Facturable', tipo: 'booleano' },
-    { clave: 'date_from', etiqueta: 'Vence desde', tipo: 'rangoFechas' },
-    { clave: 'date_to', etiqueta: 'Vence hasta', tipo: 'rangoFechas' }
+    { clave: 'vence', etiqueta: 'Vence', tipo: 'rangoFechas', clavesRango: ['date_from', 'date_to'] }
   ],
 
   ordenables: ['name', 'due_date', 'start_date', 'date_added', 'priority', 'status'],

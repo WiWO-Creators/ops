@@ -3,7 +3,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { alternarOrden, construirConsulta, direccionDe, leerConsulta } from '@/datos/consulta'
-import type { DefinicionRecurso, EstadoConsulta, OpcionFiltro, ResultadoLista } from '@/definiciones/tipos'
+import type { Columna, DefinicionRecurso, EstadoConsulta, OpcionFiltro, ResultadoLista } from '@/definiciones/tipos'
+import { Insignia } from '@/componentes/presentadores/Insignia'
 import type { Capacidad, Sobre, SobreError } from '@/datos/tipos'
 import { ErrorEstado, Vacio } from '@/componentes/estado/Estados'
 import { Boton } from '@/componentes/formularios/Boton'
@@ -21,6 +22,7 @@ import {
   columnasVisibles,
   mensajeDeError,
   podarPorPermisos,
+  resolverInsignia,
   rutaDeAccion,
   type CuerpoError
 } from './tabla'
@@ -182,7 +184,7 @@ export function TablaRecurso<T> ({
                     <FilaTabla key={claveFila(fila)}>
                       {columnas.map((columna) => (
                         <CeldaTabla key={columna.clave} numerica={columna.numerica}>
-                          {columna.presentar(fila)}
+                          <Celda columna={columna} fila={fila} catalogos={opcionesDeFiltro} />
                         </CeldaTabla>
                       ))}
                       {acciones.length > 0 && (
@@ -315,4 +317,32 @@ async function leerError (respuesta: Response): Promise<CuerpoError> {
   }
 
   return { code: 'server_error', message: `El servidor respondió ${respuesta.status}` }
+}
+
+/**
+ * Contenido de una celda.
+ *
+ * Cuando la columna declara `comoInsignia`, el valor se resuelve contra el catalogo y se pinta con su
+ * nombre y su color. Un valor que el catalogo no conoce cae al valor crudo: eso pasa cuando alguien
+ * agrega un estado en Perfex y la pantalla todavia no lo recargo, y un id visible es mas util que una
+ * celda vacia.
+ */
+function Celda<T> ({
+  columna,
+  fila,
+  catalogos
+}: {
+  columna: Columna<T>
+  fila: T
+  catalogos: Record<string, OpcionFiltro[]> | undefined
+}) {
+  const contenido = columna.presentar(fila)
+
+  if (columna.comoInsignia === undefined) return <>{contenido}</>
+
+  const insignia = resolverInsignia(contenido, catalogos?.[columna.comoInsignia])
+
+  if (insignia === null) return <>{contenido}</>
+
+  return <Insignia color={insignia.color} tamano="chico">{insignia.etiqueta}</Insignia>
 }
