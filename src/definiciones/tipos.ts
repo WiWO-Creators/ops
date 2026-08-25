@@ -109,6 +109,16 @@ export interface DefinicionRecurso<T> {
   includes: string[]
   /** Includes que se piden siempre. Deben estar en `includes`. */
   incluirSiempre?: string[]
+  /**
+   * Query string que se manda **siempre**, fuera del control de la vista. Sin `?` inicial.
+   *
+   * Existe para acotar un listado a un dueño que la ruta no expresa: `GET /tasks` no tiene forma
+   * `/clients/{id}/tasks`, asi que la pestaña Tareas de un Cliente se acota con
+   * `filter[clientid]=113`. Declararlo como un filtro comun lo dejaria en la URL, editable por
+   * quien mira, y bastaria cambiar el numero para ver las Tareas de otro cliente bajo este
+   * encabezado. Lo que va aca no viaja en la URL y no lo poda `construirConsulta`.
+   */
+  consultaFija?: string
   tablero?: DefinicionTablero
   acciones?: AccionRecurso[]
 }

@@ -1,9 +1,9 @@
 import { Vacio } from '@/componentes/estado/Estados'
 import { textoDeCampo } from '@/definiciones/espacios'
-import type { Cliente } from '@/datos/recursos'
+import type { ClienteConEnvio, EstadoLookup, Moneda } from '@/datos/recursos'
 import {
-  direccionDeFacturacion,
   direccionPrincipal,
+  direccionSecundaria,
   lineasDeDireccion,
   preferencias,
   type Dato
@@ -23,17 +23,27 @@ import {
  * Seis recuadros iguales convertirian una ficha en un tablero de nada.
  *
  * @param cliente El cliente ya cargado, con `custom_fields` incluido si la API lo trajo.
+ * @param paises Catalogo `countries` de `GET /lookups`, para resolver los `country_id`.
+ * @param monedas Catalogo `currencies`, para resolver `default_currency`.
  * @returns La grilla de secciones de la ficha.
  */
-export function FichaCliente ({ cliente }: { cliente: Cliente }) {
-  const direccion = lineasDeDireccion(direccionPrincipal(cliente))
-  const facturacion = lineasDeDireccion(direccionDeFacturacion(cliente))
-  const ajustes = preferencias(cliente)
+interface PropsFicha {
+  cliente: ClienteConEnvio
+  paises: EstadoLookup[]
+  monedas: Moneda[]
+}
+
+export function FichaCliente ({ cliente, paises, monedas }: PropsFicha) {
+  const direccion = lineasDeDireccion(direccionPrincipal(cliente, paises))
+  const facturacion = lineasDeDireccion(direccionSecundaria(cliente.billing, paises))
+  const envio = lineasDeDireccion(direccionSecundaria(cliente.shipping, paises))
+  const ajustes = preferencias(cliente, monedas)
   const personalizados = camposConValor(cliente)
 
   const vacia =
     direccion.length === 0 &&
     facturacion.length === 0 &&
+    envio.length === 0 &&
     ajustes.length === 0 &&
     personalizados.length === 0 &&
     cliente.lead_id === null
@@ -58,6 +68,12 @@ export function FichaCliente ({ cliente }: { cliente: Cliente }) {
       {facturacion.length > 0 && (
         <Seccion titulo="Facturación">
           <Renglones lineas={facturacion} />
+        </Seccion>
+      )}
+
+      {envio.length > 0 && (
+        <Seccion titulo="Envío">
+          <Renglones lineas={envio} />
         </Seccion>
       )}
 
@@ -97,7 +113,7 @@ export function FichaCliente ({ cliente }: { cliente: Cliente }) {
  * @param cliente Cliente con `custom_fields` incluido.
  * @returns Una fila por campo con valor, en el orden que devolvio la API.
  */
-function camposConValor (cliente: Cliente): Dato[] {
+function camposConValor (cliente: ClienteConEnvio): Dato[] {
   return (cliente.custom_fields ?? [])
     .map((campo) => ({ etiqueta: campo.name, valor: textoDeCampo(campo.value) }))
     .filter((campo) => campo.valor !== '')

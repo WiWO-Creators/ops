@@ -22,10 +22,12 @@ import {
   clavesVisiblesPorDefecto,
   columnasVisibles,
   esControlDeFila,
+  hayFiltrosPuestos,
   mensajeDeError,
   podarPorPermisos,
   resolverInsignia,
   rutaDeAccion,
+  unirConsultas,
   urlConParametro,
   type CuerpoError
 } from './tabla'
@@ -113,7 +115,7 @@ export function TablaRecurso<T> ({
 
     setCargando(true)
 
-    void pedirLista<T>(definicion.ruta, consulta, control.signal).then((respuesta) => {
+    void pedirLista<T>(definicion.ruta, unirConsultas(definicion.consultaFija, consulta), control.signal).then((respuesta) => {
       if (control.signal.aborted) return
 
       setCargando(false)
@@ -127,7 +129,7 @@ export function TablaRecurso<T> ({
     })
 
     return () => control.abort()
-  }, [consulta, definicion.ruta])
+  }, [consulta, definicion.ruta, definicion.consultaFija])
 
   /** Aplica un cambio parcial del estado escribiendolo en la URL, que es su unica fuente. */
   function cambiar (parcial: Partial<EstadoConsulta>) {
@@ -192,7 +194,16 @@ export function TablaRecurso<T> ({
           />
           )
         : resultado.filas.length === 0
-          ? <Vacio titulo={`No hay ${definicion.titulo.plural.toLowerCase()}`} descripcion="Probá quitando filtros o buscando otra cosa." />
+          ? (
+            <Vacio
+              titulo={`No hay ${definicion.titulo.plural.toLowerCase()}`}
+              descripcion={
+                hayFiltrosPuestos(estado)
+                  ? 'Probá quitando filtros o buscando otra cosa.'
+                  : 'Todavía no hay nada cargado.'
+              }
+            />
+            )
           : (
             <div aria-busy={cargando} className={cn(cargando && 'opacity-60 transition-opacity')}>
               <Tabla>
@@ -338,6 +349,7 @@ function MenuAcciones ({ acciones, id, onError, onListo }: PropsMenuAcciones) {
 }
 
 type Respuesta<T> = { ok: true, resultado: ResultadoLista<T> } | { ok: false, error: CuerpoError }
+
 
 /**
  * Pide una pagina al BFF.

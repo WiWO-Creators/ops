@@ -4,13 +4,22 @@ import { CabeceraCliente } from '@/componentes/cliente/CabeceraCliente'
 import { FichaCliente } from '@/componentes/cliente/FichaCliente'
 import { ListaContactos } from '@/componentes/cliente/ListaContactos'
 import { PanelProyectosCliente } from '@/componentes/cliente/PanelProyectosCliente'
+import {
+  PanelArchivosCliente,
+  PanelContratosCliente,
+  PanelNotasCliente,
+  PanelTareasCliente,
+  PanelTicketsCliente,
+  PanelVentasCliente
+} from '@/componentes/cliente/PanelesCliente'
 import { Pestanas, type Panel } from '@/componentes/proyecto/Pestanas'
 import { Cargando, ErrorEstado, SinPermiso, Vacio } from '@/componentes/estado/Estados'
 import { listaDe } from '@/datos/catalogos'
 import { ErrorApi } from '@/datos/errores'
 import { cargarLookups } from '@/datos/lookups'
 import { pedir } from '@/datos/servidor'
-import type { Cliente, Lookups } from '@/datos/recursos'
+import type { Yo } from '@/datos/tipos'
+import type { ClienteConEnvio, Lookups, Moneda } from '@/datos/recursos'
 import { GLOSARIO } from '@/dominio/glosario'
 
 /**
@@ -23,7 +32,7 @@ import { GLOSARIO } from '@/dominio/glosario'
  * seccion de la ficha, no extras opcionales.
  */
 const traerCliente = cache(async (id: string) => {
-  return await pedir<Cliente>(`/clients/${id}?include=contacts,custom_fields`)
+  return await pedir<ClienteConEnvio>(`/clients/${id}?include=contacts,custom_fields`)
 })
 
 /**
@@ -48,25 +57,31 @@ export async function generateMetadata (props: PageProps<'/clientes/[id]'>) {
 }
 
 interface Detalle {
-  cliente: Cliente
+  cliente: ClienteConEnvio
   lookups: Lookups
+  yo: Yo
 }
 
 /**
  * Carga lo minimo que la pantalla necesita para pintarse: el cliente y los catalogos.
  *
- * Los Proyectos del cliente NO se piden aca: son una pestaña que puede no abrirse, y su panel los
- * pide al montarse. Los catalogos si, porque de ellos sale el color de cada estado y pedirlos desde
- * el navegador haria que las insignias aparecieran despues de la tabla.
+ * Los listados de las pestañas NO se piden aca: son ocho, cualquiera puede no abrirse nunca, y
+ * bajarlos todos costaria ocho viajes a la API por visita para mostrar uno. Cada panel pide el suyo
+ * al montarse y `Pestanas` monta solo el activo. Los catalogos si, porque de ellos salen los nombres
+ * de pais y moneda de la ficha, que se pinta de entrada.
  *
  * @param id id del cliente tal como viene de la ruta
  * @returns el detalle, o el `ErrorApi` que impidio cargarlo
  */
 async function cargarDetalle (id: string): Promise<Detalle | ErrorApi> {
   try {
-    const [cliente, lookups] = await Promise.all([traerCliente(id), cargarLookups()])
+    const [cliente, lookups, yo] = await Promise.all([
+      traerCliente(id),
+      cargarLookups(),
+      pedir<Yo>('/me')
+    ])
 
-    return { cliente: cliente.data, lookups }
+    return { cliente: cliente.data, lookups, yo: yo.data }
   } catch (error) {
     if (error instanceof ErrorApi) return error
 
@@ -106,11 +121,22 @@ export default async function ClientePage (props: PageProps<'/clientes/[id]'>) {
     return <ErrorEstado detalle={detalle.message} />
   }
 
-  const { cliente, lookups } = detalle
+  const { cliente, lookups, yo } = detalle
   const contactos = cliente.contacts ?? []
+  const capacidadesTareas = yo.permissions.tasks
 
   const paneles: Panel[] = [
-    { clave: 'ficha', etiqueta: 'Ficha', contenido: <FichaCliente cliente={cliente} /> },
+    {
+      clave: 'ficha',
+      etiqueta: 'Ficha',
+      contenido: (
+        <FichaCliente
+          cliente={cliente}
+          paises={listaDe(lookups, 'countries')}
+          monedas={monedasDe(lookups)}
+        />
+      )
+    },
     {
       clave: 'contactos',
       etiqueta: contactos.length === 0 ? 'Contactos' : `Contactos (${contactos.length})`,
@@ -126,7 +152,20 @@ export default async function ClientePage (props: PageProps<'/clientes/[id]'>) {
         />
       )
     },
-    { clave: 'ventas', etiqueta: 'Ventas y soporte', contenido: <VentasSinApi /> }
+    {
+      clave: 'tareas',
+      etiqueta: GLOSARIO.proceso.plural,
+      contenido: <PanelTareasCliente clienteId={cliente.id} capacidades={capacidadesTareas} />
+    },
+    {
+      clave: 'tickets',
+      etiqueta: GLOSARIO.ticket.plural,
+      contenido: <PanelTicketsCliente clienteId={cliente.id} capacidades={capacidadesTareas} />
+    },
+    { clave: 'ventas', etiqueta: 'Ventas', contenido: <PanelVentasCliente clienteId={cliente.id} /> },
+    { clave: 'contratos', etiqueta: 'Contratos', contenido: <PanelContratosCliente clienteId={cliente.id} /> },
+    { clave: 'notas', etiqueta: 'Notas', contenido: <PanelNotasCliente clienteId={cliente.id} /> },
+    { clave: 'archivos', etiqueta: 'Archivos', contenido: <PanelArchivosCliente clienteId={cliente.id} /> }
   ]
 
   return (
@@ -141,23 +180,16 @@ export default async function ClientePage (props: PageProps<'/clientes/[id]'>) {
 }
 
 /**
- * Lo que el panel clasico muestra por cliente y la API v1 todavia no expone.
+ * Las monedas de `GET /lookups`.
  *
- * Facturas, presupuestos, contratos, gastos y tickets existen en la API, pero **colgados de un
- * Proyecto** (`GET /projects/{id}/invoices` y sus hermanos), no de un Cliente. Agregarlos por cliente
- * sumando los de sus Proyectos dejaria fuera los que no estan asociados a ninguno, es decir: seria un
- * total equivocado presentado como total. La seccion dice que falta en vez de mostrar un cero.
+ * `listaDe` devuelve `EstadoLookup[]`, que no tiene `symbol` ni `is_default`: la ficha necesita los
+ * dos, asi que este es el unico punto de la pantalla que conoce la forma real del catalogo.
+ *
+ * @param lookups Catalogos ya cargados.
+ * @returns Las monedas, o vacio si el backend todavia no expone el catalogo.
  */
-function VentasSinApi () {
-  return (
-    <Vacio
-      titulo="Todavía no hay ventas por cliente"
-      descripcion="Facturas, presupuestos, contratos, gastos y tickets existen en la API v1 por Proyecto, no por Cliente. Hasta que la API los exponga acá, se consultan entrando a cada Proyecto."
-      accion={
-        <Link href="/espacios" className="text-acento text-sm font-semibold underline underline-offset-4">
-          Ir a {GLOSARIO.espacio.plural}
-        </Link>
-      }
-    />
-  )
+function monedasDe (lookups: Lookups): Moneda[] {
+  const lista = (lookups as unknown as Record<string, unknown>).currencies
+
+  return Array.isArray(lista) ? lista as Moneda[] : []
 }

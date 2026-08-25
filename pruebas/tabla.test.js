@@ -21,6 +21,8 @@ import {
   resolverInsignia,
   resumenDeFiltro,
   urlConParametro,
+  unirConsultas,
+  hayFiltrosPuestos,
   SELECTOR_CONTROLES_DE_FILA
 } from '../src/componentes/datos/tabla.ts'
 
@@ -258,4 +260,22 @@ test('un id de la URL solo se acepta si es entero positivo', () => {
   assert.equal(idDeParametro('-3'), null)
   assert.equal(idDeParametro('0'), null)
   assert.equal(idDeParametro('1.5'), null)
+})
+
+// frente: clientes
+test('unirConsultas pega la parte fija sin dejar & sueltos', () => {
+  assert.equal(unirConsultas('filter[clientid]=113', 'page=2'), 'filter[clientid]=113&page=2')
+  assert.equal(unirConsultas('filter[clientid]=113', ''), 'filter[clientid]=113')
+  assert.equal(unirConsultas(undefined, 'page=2'), 'page=2')
+  assert.equal(unirConsultas(undefined, ''), '')
+})
+
+test('hayFiltrosPuestos distingue una lista filtrada de una vacia de verdad', () => {
+  const base = { pagina: 1, porPagina: 25, filtros: {}, orden: ['-date'], busqueda: '', includes: [] }
+
+  assert.equal(hayFiltrosPuestos(base), false)
+  assert.equal(hayFiltrosPuestos({ ...base, filtros: { status: [''] } }), false)
+  assert.equal(hayFiltrosPuestos({ ...base, filtros: { status: ['4'] } }), true)
+  assert.equal(hayFiltrosPuestos({ ...base, busqueda: '  ' }), false)
+  assert.equal(hayFiltrosPuestos({ ...base, busqueda: 'anker' }), true)
 })
