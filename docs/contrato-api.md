@@ -151,6 +151,17 @@ Devuelve lo mismo que un login exitoso. Código inválido o vencido → `401`.
 **Rotativo**: devuelve un par nuevo y revoca el anterior. Reusar un refresh ya revocado revoca
 **todas** las sesiones de ese staff — es la señal de que el token se filtró.
 
+**A diferencia de login y 2fa, la respuesta NO trae el bloque `staff`**: solo los cuatro campos de
+tokens. Quien refresca ya sabe de quién es la sesión, así que el cliente conserva el `staff` que
+tenía. Verificado contra la API real; leer `staff.id` en la respuesta de refresh lanza, y como el
+error ocurre después de que la API ya rotó el token, el síntoma es una sesión que se cierra sola sin
+que nada en el servidor parezca fallar.
+
+```json
+{ "data": { "access_token": "…", "expires_in": 3600,
+            "refresh_token": "…", "refresh_expires_in": 2592000 } }
+```
+
 ### `POST /auth/logout`
 
 Revoca el token actual. `?all=1` revoca todas las sesiones del staff. → `204`.
