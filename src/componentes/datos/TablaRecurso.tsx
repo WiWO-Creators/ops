@@ -5,7 +5,8 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { alternarOrden, construirConsulta, direccionDe, leerConsulta } from '@/datos/consulta'
 import type { Columna, DefinicionRecurso, EstadoConsulta, OpcionFiltro, ResultadoLista } from '@/definiciones/tipos'
 import { Insignia } from '@/componentes/presentadores/Insignia'
-import type { Capacidad, Sobre, SobreError } from '@/datos/tipos'
+import type { Capacidad, Sobre } from '@/datos/tipos'
+import { leerError } from '@/datos/errores'
 import { ErrorEstado, Vacio } from '@/componentes/estado/Estados'
 import { Boton } from '@/componentes/formularios/Boton'
 import {
@@ -304,19 +305,6 @@ async function pedirLista<T> (ruta: string, consulta: string, senal: AbortSignal
       error: { code: 'server_error', message: 'No se pudo contactar al servidor. Revisá tu conexión.' }
     }
   }
-}
-
-/** Lee el envelope de error del BFF, con un mensaje propio si la respuesta no trae JSON valido. */
-async function leerError (respuesta: Response): Promise<CuerpoError> {
-  try {
-    const cuerpo = await respuesta.json() as SobreError
-
-    if (cuerpo.error?.code !== undefined) return cuerpo.error
-  } catch {
-    // Un 502 del proxy devuelve HTML: se cae al mensaje generico de abajo.
-  }
-
-  return { code: 'server_error', message: `El servidor respondió ${respuesta.status}` }
 }
 
 /**

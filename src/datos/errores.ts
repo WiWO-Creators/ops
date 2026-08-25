@@ -55,3 +55,24 @@ export async function errorDesdeRespuesta (respuesta: Response, ruta: string): P
     respuesta.status
   )
 }
+
+/**
+ * Lee el envelope de error del BFF, con un mensaje propio si la respuesta no trae JSON valido.
+ *
+ * Vive aca y no en el componente que lo estrenó porque cualquier llamada del cliente al BFF —una
+ * accion de tabla, detener un cronometro— necesita exactamente esto y ninguna deberia reescribirlo.
+ *
+ * @param respuesta la respuesta fallida del BFF
+ * @returns el error del contrato, o uno generico con el codigo de estado si el cuerpo no era JSON
+ */
+export async function leerError (respuesta: Response): Promise<SobreError['error']> {
+  try {
+    const cuerpo = await respuesta.json() as SobreError
+
+    if (cuerpo.error?.code !== undefined) return cuerpo.error
+  } catch {
+    // Un 502 del proxy devuelve HTML: se cae al mensaje generico de abajo.
+  }
+
+  return { code: 'server_error', message: `El servidor respondió ${respuesta.status}` }
+}

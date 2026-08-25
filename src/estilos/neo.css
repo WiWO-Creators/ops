@@ -84,6 +84,44 @@
    * oscuro para cumplir contraste como texto, y el logo no es texto. */
   --marca: light-dark(var(--wiwo-blue), var(--wiwo-beige));
 
+  /* --- Gradientes -------------------------------------------------------
+   * El gradiente de firma es puntuacion, no papel tapiz: acentos de hero, hover de una llamada a la
+   * accion, cargas. Nunca fondo de pantalla completa — esa regla viene del sistema de neo.wiwo.me y es
+   * la diferencia entre una marca y un fondo de escritorio.
+   *
+   * Los angulos y las paradas son los del sistema: 103deg, y el azul entra al 85%.
+   *
+   * Se llaman `--relleno-` porque eso son. El nombre no es cosmetico: `pruebas/marca.test.js` exige
+   * que todo lo que use el verde de marca sea un relleno o una superficie, justamente para que a nadie
+   * se le ocurra recortar este gradiente sobre un texto — el verde puro sobre blanco da 1.5:1. */
+  --relleno-gradiente-marca: linear-gradient(103deg, var(--wiwo-green) 0%, var(--wiwo-blue) 85%);
+  /* Sobre el gradiente de marca va tinta, nunca blanco: el tramo verde deja el blanco en 1.5:1. Es la
+   * misma regla que el sistema aplica a su boton verde, que lleva texto azul profundo. */
+  --relleno-gradiente-marca-contenido: var(--wiwo-ink);
+  --relleno-gradiente-suave: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--wiwo-green) 12%, transparent),
+    color-mix(in srgb, var(--wiwo-blue) 10%, transparent)
+  );
+  /* El suave es un velo, no un fondo: lo que va encima sigue siendo texto normal sobre la superficie
+   * que hay debajo. */
+  --relleno-gradiente-suave-contenido: var(--texto);
+
+  /* Gradiente para texto recortado, que es otro problema: cada parada tiene que ser legible por si
+   * sola, porque el ojo lee la letra donde el gradiente la deja.
+   *
+   * Sobre claro va de azul profundo a azul de marca: los dos cumplen AA sobre blanco. Sobre oscuro si
+   * entra el verde, pero el lima —el mismo que el sistema ya usa para texto de exito en oscuro—, no el
+   * verde puro. */
+  --gradiente-texto: light-dark(
+    linear-gradient(103deg, var(--wiwo-blue-700) 0%, var(--wiwo-blue) 90%),
+    linear-gradient(103deg, var(--wiwo-lime) 0%, var(--wiwo-blue-200) 90%)
+  );
+
+  --aurora-verde: light-dark(rgb(59 255 0 / 0.13), rgb(59 255 0 / 0.07));
+  --aurora-azul: light-dark(rgb(66 66 255 / 0.1), rgb(66 66 255 / 0.06));
+  --aurora-beige: light-dark(rgb(248 250 215 / 0.85), transparent);
+
   --acento-2: light-dark(var(--wiwo-purple), var(--wiwo-purple-300));
   /* El purpura de marca no alcanza como texto en ninguno de los dos temas, por motivos distintos:
    * sobre la superficie clara da 3.01:1 y sobre la tinta 4.48:1. Sobre oscuro lo resuelve la variante
