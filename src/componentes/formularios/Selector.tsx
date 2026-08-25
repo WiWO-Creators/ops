@@ -15,6 +15,27 @@ import { CLASES_CONTROL } from './Entrada'
 export const Selector = Radix.Root
 export const GrupoOpciones = Radix.Group
 
+/**
+ * Clases del disparador de un desplegable.
+ *
+ * Se exportan porque no todo desplegable es un `Select`: un filtro de varios valores necesita un
+ * menu con marcas, que es otra primitiva de Radix, y aun asi tiene que verse exactamente igual que
+ * este. Compartir la cadena es lo que garantiza que sigan iguales cuando alguien cambie el alto.
+ */
+export const CLASES_DISPARADOR = cn(
+  CLASES_CONTROL,
+  'flex h-9 items-center justify-between gap-2 text-left text-sm'
+)
+
+/** Chevron del disparador de un desplegable. Decorativo: el nombre lo pone el disparador. */
+export function ChevronSelector () {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true" className="shrink-0 opacity-60">
+      <path d="m6 9 6 6 6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
+
 interface PropsDisparador extends React.ComponentPropsWithoutRef<typeof Radix.Trigger> {
   marcador?: string
 }
@@ -24,8 +45,7 @@ export function DisparadorSelector ({ marcador, className, id, ...resto }: Props
     <Radix.Trigger
       id={id}
       className={cn(
-        CLASES_CONTROL,
-        'flex h-9 items-center justify-between gap-2 text-left text-sm',
+        CLASES_DISPARADOR,
         // El marcador se pinta tenue: Radix lo expone con este atributo cuando no hay valor.
         'data-[placeholder]:text-texto-sutil',
         className
@@ -34,9 +54,7 @@ export function DisparadorSelector ({ marcador, className, id, ...resto }: Props
     >
       <Radix.Value placeholder={marcador} />
       <Radix.Icon asChild>
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true" className="shrink-0 opacity-60">
-          <path d="m6 9 6 6 6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
+        <ChevronSelector />
       </Radix.Icon>
     </Radix.Trigger>
   )

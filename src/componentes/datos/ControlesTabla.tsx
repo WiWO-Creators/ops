@@ -5,14 +5,22 @@ import type { DefinicionRecurso, EstadoConsulta, Filtro, OpcionFiltro } from '@/
 import type { Paginacion } from '@/datos/tipos'
 import { Boton } from '@/componentes/formularios/Boton'
 import { Entrada } from '@/componentes/formularios/Entrada'
-import { ContenidoSelector, DisparadorSelector, Opcion, Selector } from '@/componentes/formularios/Selector'
+import {
+  ChevronSelector,
+  CLASES_DISPARADOR,
+  ContenidoSelector,
+  DisparadorSelector,
+  Opcion,
+  Selector
+} from '@/componentes/formularios/Selector'
 import {
   ContenidoMenu,
   DisparadorMenu,
-  ItemMenu,
+  ItemMenuMarcable,
   MenuContextual
 } from '@/componentes/superposiciones/MenuContextual'
-import { opcionesPorPagina } from './tabla'
+import { cn } from '@/lib/clases'
+import { opcionesPorPagina, resumenDeFiltro } from './tabla'
 
 /**
  * Controles de una vista de lista: busqueda, filtros, columnas y paginacion.
@@ -26,6 +34,14 @@ import { opcionesPorPagina } from './tabla'
  * El centinela viaja solo por la UI: se traduce a lista vacia antes de tocar el estado.
  */
 const SIN_FILTRO = '__todos__'
+
+/**
+ * Ancho de todos los disparadores de filtro.
+ *
+ * Uno solo para los dos tipos de filtro, y fijo: los desplegables quedan alineados entre si, y el
+ * resumen que cambia de largo al elegir no reacomoda la barra debajo del puntero.
+ */
+const ANCHO_FILTRO = 'w-44'
 
 interface PropsControles<T> {
   definicion: DefinicionRecurso<T>
@@ -125,17 +141,13 @@ export function ControlesTabla<T> ({
         </DisparadorMenu>
         <ContenidoMenu align="end">
           {definicion.columnas.map((columna) => (
-            <ItemMenu
+            <ItemMenuMarcable
               key={columna.clave}
-              // Sin esto el menu se cierra al primer clic y hay que reabrirlo por cada columna.
-              onSelect={(evento) => {
-                evento.preventDefault()
-                alternarColumna(columna.clave)
-              }}
+              checked={visibles.includes(columna.clave)}
+              onCheckedChange={() => alternarColumna(columna.clave)}
             >
-              <Marca activa={visibles.includes(columna.clave)} />
               {columna.encabezado}
-            </ItemMenu>
+            </ItemMenuMarcable>
           ))}
         </ContenidoMenu>
       </MenuContextual>
@@ -202,7 +214,13 @@ function FiltroSimple ({ filtro, opciones, valores, onCambiar }: PropsFiltroConO
       value={valores[0] ?? SIN_FILTRO}
       onValueChange={(valor) => onCambiar(valor === SIN_FILTRO ? [] : [valor])}
     >
-      <DisparadorSelector aria-label={filtro.etiqueta} marcador={filtro.etiqueta} className="w-44" />
+      {/* Tenue mientras no filtra: es la misma señal que usa el filtro de varios valores, y es lo
+          unico que distingue de un vistazo cuales filtros estan puestos y cuales no. */}
+      <DisparadorSelector
+        aria-label={filtro.etiqueta}
+        marcador={filtro.etiqueta}
+        className={cn(ANCHO_FILTRO, valores.length === 0 && 'text-texto-sutil')}
+      />
       <ContenidoSelector>
         <Opcion value={SIN_FILTRO}>{filtro.etiqueta}: todos</Opcion>
         {opciones.map((opcion) => (
@@ -213,21 +231,40 @@ function FiltroSimple ({ filtro, opciones, valores, onCambiar }: PropsFiltroConO
   )
 }
 
-/** Filtro de varios valores: menu con marcas, que el backend traduce a `IN`. */
+/**
+ * Filtro de varios valores: menu con marcas, que el backend traduce a `IN`.
+ *
+ * El disparador es el mismo que el de un filtro de un solo valor —mismo alto, mismo chevron, mismo
+ * "Estado: todos" cuando no filtra— y a proposito: en la barra conviven los dos tipos, y hasta que
+ * no se abre el desplegable no hay forma de saber cual es cual. Que uno se viera como un boton y
+ * el otro como un selector solo hacia parecer que el de al lado estaba roto.
+ *
+ * Lo que cambia es el contenido: sigue siendo un menu con marcas, porque elegir varios estados a la
+ * vez es lo que la API acepta (`filter[status]=1,4`) y lo que la gente usa.
+ */
 function FiltroMultiple ({ filtro, opciones, valores, onCambiar }: PropsFiltroConOpciones) {
-  const etiqueta = valores.length === 0 ? filtro.etiqueta : `${filtro.etiqueta} (${valores.length})`
+  const { texto, extra } = resumenDeFiltro(filtro.etiqueta, opciones, valores)
 
   return (
     <MenuContextual>
-      <DisparadorMenu asChild>
-        <Boton tamano="chico">{etiqueta}</Boton>
+      <DisparadorMenu
+        // El ancho es fijo, como el del selector: el resumen cambia de largo al elegir, y un
+        // disparador que se ensancha empuja a los filtros de al lado debajo del puntero.
+        className={cn(CLASES_DISPARADOR, ANCHO_FILTRO, valores.length === 0 && 'text-texto-sutil')}
+      >
+        <span className="flex min-w-0 items-baseline gap-1">
+          <span className="truncate">{texto}</span>
+          {/* El conteo no se recorta: es lo unico que dice que hay mas de un estado puesto. */}
+          {extra !== null && <span className="text-texto-tenue shrink-0">{extra}</span>}
+        </span>
+        <ChevronSelector />
       </DisparadorMenu>
       <ContenidoMenu align="start">
         {opciones.map((opcion) => (
-          <ItemMenu
+          <ItemMenuMarcable
             key={opcion.valor}
-            onSelect={(evento) => {
-              evento.preventDefault()
+            checked={valores.includes(opcion.valor)}
+            onCheckedChange={() => {
               onCambiar(
                 valores.includes(opcion.valor)
                   ? valores.filter((v) => v !== opcion.valor)
@@ -235,9 +272,8 @@ function FiltroMultiple ({ filtro, opciones, valores, onCambiar }: PropsFiltroCo
               )
             }}
           >
-            <Marca activa={valores.includes(opcion.valor)} />
             {opcion.etiqueta}
-          </ItemMenu>
+          </ItemMenuMarcable>
         ))}
       </ContenidoMenu>
     </MenuContextual>
@@ -288,17 +324,6 @@ function FiltroRangoFechas ({ filtro, valores, onCambiar }: PropsControlFiltro) 
         className="w-36"
       />
     </div>
-  )
-}
-
-/** Marca de seleccion de los menus. Ocupa lugar siempre, para que la lista no salte al marcar. */
-function Marca ({ activa }: { activa: boolean }) {
-  return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true" className="text-acento shrink-0">
-      {activa && (
-        <path d="m5 13 4 4L19 7" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
-      )}
-    </svg>
   )
 }
 
