@@ -9,7 +9,13 @@
  * componente decide si esconde la fila o muestra un vacio honesto.
  */
 
-import type { Cliente, Contacto } from '../../datos/recursos.ts'
+import type {
+  Cliente,
+  Contacto,
+  DireccionCliente,
+  EstadoLookup,
+  Moneda
+} from '../../datos/recursos.ts'
 
 /** Una fila de una lista de definiciones (`<dl>`): rotulo y valor ya listo para mostrar. */
 export interface Dato {
@@ -78,13 +84,29 @@ export function enlaceDeSitio (website: string | null | undefined): string | nul
   }
 }
 
-/** Las partes de una direccion, ya traducidas desde los dos formatos que expone la API. */
+/** Las partes de una direccion, con el pais ya resuelto a nombre. */
 export interface PartesDireccion {
   calle: string | null
   ciudad: string | null
   estado: string | null
   codigoPostal: string | null
-  paisId: number
+  pais: string | null
+}
+
+/**
+ * Nombre de un pais del catalogo `countries` de `GET /lookups`.
+ *
+ * El `0` no es una fila de `tblcountries`: significa "sin pais", y por eso no se muestra como id
+ * huerfano. Un id que el catalogo no conoce tampoco se inventa.
+ *
+ * @param paises Catalogo `countries` ya cargado.
+ * @param id Valor de `country_id`.
+ * @returns El nombre del pais, o `null` si no hay pais que mostrar.
+ */
+export function nombreDePais (paises: EstadoLookup[], id: number): string | null {
+  if (id <= 0) return null
+
+  return paises.find((pais) => pais.id === id)?.name ?? null
 }
 
 /**
@@ -93,10 +115,7 @@ export interface PartesDireccion {
  * Se devuelven lineas y no un solo texto porque una direccion se lee en varios renglones; unirlas
  * con comas produce el parrafo ilegible del panel viejo.
  *
- * `paisId` se muestra como codigo crudo a proposito: la API expone `country_id` pero no hay catalogo
- * de paises en `GET /lookups`, y traducir el numero adivinando seria inventar el dato.
- *
- * @param partes Los campos de la direccion.
+ * @param partes Los campos de la direccion, con el pais ya resuelto.
  * @returns Las lineas no vacias, en orden de lectura. Vacio si no hay ningun dato.
  */
 export function lineasDeDireccion (partes: PartesDireccion): string[] {
@@ -112,41 +131,63 @@ export function lineasDeDireccion (partes: PartesDireccion): string[] {
 
   if (localidad !== '') lineas.push(localidad)
 
-  if (partes.paisId > 0) lineas.push(`País (código ${partes.paisId})`)
+  const pais = texto(partes.pais)
+
+  if (pais !== null) lineas.push(pais)
 
   return lineas
 }
 
 /**
- * La direccion principal del cliente, en el formato comun.
+ * La direccion principal del cliente.
  *
  * @param cliente Cliente ya cargado.
+ * @param paises Catalogo `countries`.
  * @returns Las partes listas para `lineasDeDireccion`.
  */
-export function direccionPrincipal (cliente: Cliente): PartesDireccion {
+export function direccionPrincipal (cliente: Cliente, paises: EstadoLookup[]): PartesDireccion {
   return {
     calle: cliente.address,
     ciudad: cliente.city,
     estado: cliente.state,
     codigoPostal: cliente.zip,
-    paisId: cliente.country_id
+    pais: nombreDePais(paises, cliente.country_id)
   }
 }
 
 /**
- * La direccion de facturacion, en el formato comun.
+ * Una direccion secundaria del cliente: la de facturacion o la de envio.
  *
- * @param cliente Cliente ya cargado.
+ * Las dos tienen la misma forma en la API, asi que las lee la misma funcion en vez de dos gemelas.
+ *
+ * @param direccion `billing` o `shipping` tal como llegaron.
+ * @param paises Catalogo `countries`.
  * @returns Las partes listas para `lineasDeDireccion`.
  */
-export function direccionDeFacturacion (cliente: Cliente): PartesDireccion {
+export function direccionSecundaria (direccion: DireccionCliente, paises: EstadoLookup[]): PartesDireccion {
   return {
-    calle: cliente.billing.street,
-    ciudad: cliente.billing.city,
-    estado: cliente.billing.state,
-    codigoPostal: cliente.billing.zip,
-    paisId: cliente.billing.country_id
+    calle: direccion.street,
+    ciudad: direccion.city,
+    estado: direccion.state,
+    codigoPostal: direccion.zip,
+    pais: nombreDePais(paises, direccion.country_id)
   }
+}
+
+/**
+ * La moneda con la que se le factura al cliente.
+ *
+ * `default_currency: 0` no es "sin moneda": es la moneda base de la instalacion, la unica del
+ * catalogo con `is_default`. Mostrar un vacio ahi seria decir que no se sabe con que se le cobra.
+ *
+ * @param monedas Catalogo `currencies` de `GET /lookups`.
+ * @param id Valor de `default_currency`.
+ * @returns La moneda, o `null` si el catalogo no alcanza para resolverla.
+ */
+export function monedaDelCliente (monedas: Moneda[], id: number): Moneda | null {
+  if (id > 0) return monedas.find((moneda) => moneda.id === id) ?? null
+
+  return monedas.find((moneda) => moneda.is_default) ?? null
 }
 
 /**
@@ -167,6 +208,34 @@ export function ordenarContactos (contactos: Contacto[] | undefined): Contacto[]
 }
 
 /**
+ * Preferencias del cliente: moneda e idioma.
+ *
+ * La moneda se muestra siempre —con la base cuando el cliente no eligio ninguna— porque es un dato
+ * de facturacion: esconderlo obliga a ir a buscar con que se le cobra a otra pantalla. Se marca
+ * cuando es la heredada, para no hacerla pasar por una decision que nadie tomo.
+ *
+ * @param cliente Cliente ya cargado.
+ * @param monedas Catalogo `currencies` de `GET /lookups`.
+ * @returns Las filas con valor; vacio si no se pudo resolver nada.
+ */
+export function preferencias (cliente: Cliente, monedas: Moneda[]): Dato[] {
+  const filas: Dato[] = []
+  const moneda = monedaDelCliente(monedas, cliente.default_currency)
+
+  if (moneda !== null) {
+    const heredada = cliente.default_currency <= 0 ? ' (la del sistema)' : ''
+
+    filas.push({ etiqueta: 'Moneda', valor: `${moneda.name} ${moneda.symbol}${heredada}` })
+  }
+
+  const idioma = nombreDeIdioma(cliente.default_language)
+
+  if (idioma !== null) filas.push({ etiqueta: 'Idioma', valor: idioma })
+
+  return filas
+}
+
+/**
  * Normaliza un texto opcional de la API.
  *
  * El contrato promete `null` en vez de `""`, pero la base tiene filas viejas con espacios sueltos.
@@ -180,28 +249,4 @@ function texto (valor: string | null | undefined): string | null {
   const limpio = valor.trim()
 
   return limpio === '' ? null : limpio
-}
-
-/**
- * Preferencias del cliente: moneda e idioma.
- *
- * `default_currency` llega como id y `GET /lookups` no expone el catalogo de monedas, asi que se
- * muestra el codigo crudo en vez de adivinar el simbolo. El `0` significa "la del sistema", no una
- * moneda desconocida, y por eso no genera fila.
- *
- * @param cliente Cliente ya cargado.
- * @returns Las filas con valor; vacio si el cliente usa todo lo predeterminado.
- */
-export function preferencias (cliente: Cliente): Dato[] {
-  const filas: Dato[] = []
-
-  if (cliente.default_currency > 0) {
-    filas.push({ etiqueta: 'Moneda', valor: `Código ${cliente.default_currency}` })
-  }
-
-  const idioma = nombreDeIdioma(cliente.default_language)
-
-  if (idioma !== null) filas.push({ etiqueta: 'Idioma', valor: idioma })
-
-  return filas
 }

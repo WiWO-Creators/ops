@@ -1,4 +1,4 @@
-import type { AccionRecurso, Columna, Filtro, OpcionFiltro } from '@/definiciones/tipos'
+import type { AccionRecurso, Columna, EstadoConsulta, Filtro, OpcionFiltro } from '@/definiciones/tipos'
 import type { Capacidad, SobreError } from '@/datos/tipos'
 
 /**
@@ -255,4 +255,34 @@ export function idDeParametro (crudo: string | null): number | null {
   const id = Number(crudo)
 
   return Number.isInteger(id) && id > 0 ? id : null
+}
+
+/**
+ * Une la consulta fija de una definicion con la que sale de la vista.
+ *
+ * La fija acota el listado a un dueño que la ruta no expresa (`filter[clientid]=113` en las Tareas
+ * de un Cliente) y no viaja por la URL, asi que no puede salir de `construirConsulta`.
+ *
+ * @param fija Query string de `DefinicionRecurso.consultaFija`, sin `?`. Puede no venir.
+ * @param vista Query string que armo `construirConsulta`, sin `?`.
+ * @returns Las dos unidas por `&`, sin `&` sueltos cuando alguna esta vacia.
+ */
+export function unirConsultas (fija: string | undefined, vista: string): string {
+  return [fija ?? '', vista].filter((parte) => parte !== '').join('&')
+}
+
+/**
+ * Si la vista tiene algun filtro o busqueda puesto.
+ *
+ * Lo usa el estado vacio: "probá quitando filtros" delante de una lista sin ningun filtro puesto le
+ * pide a la persona que deshaga algo que no hizo, y la manda a buscar un problema donde no hay
+ * ninguno. Un recurso realmente vacio tiene que decir que esta vacio.
+ *
+ * @param estado Estado de la vista, tal como lo leyo `leerConsulta`.
+ * @returns `true` si hay al menos un filtro con valor o un texto de busqueda.
+ */
+export function hayFiltrosPuestos (estado: EstadoConsulta): boolean {
+  if (estado.busqueda.trim() !== '') return true
+
+  return Object.values(estado.filtros).some((valores) => (valores ?? []).some((v) => v !== ''))
 }

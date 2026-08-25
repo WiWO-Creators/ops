@@ -11,7 +11,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { PROCESOS } from '../src/definiciones/procesos.ts'
 import { ESPACIOS } from '../src/definiciones/espacios.ts'
-import { CLIENTES } from '../src/definiciones/clientes.ts'
+import { CLIENTES, NOTAS_CLIENTE } from '../src/definiciones/clientes.ts'
 import { EQUIPO } from '../src/definiciones/equipo.ts'
 
 const TODAS = [
@@ -147,3 +147,15 @@ for (const [nombre, definicion] of DEL_DETALLE) {
     assert.doesNotMatch(definicion.ruta, /\d/)
   })
 }
+
+// frente: clientes
+test('NOTAS_CLIENTE: el orden por defecto esta entre los ordenables', () => {
+  assert.ok(NOTAS_CLIENTE.ordenables.includes(sinSigno(NOTAS_CLIENTE.ordenPorDefecto)))
+})
+
+test('NOTAS_CLIENTE: toda columna ordenable apunta a un campo que el backend acepta', () => {
+  for (const columna of NOTAS_CLIENTE.columnas) {
+    if (columna.ordenPor === undefined) continue
+    assert.ok(NOTAS_CLIENTE.ordenables.includes(columna.ordenPor), `${columna.ordenPor} no esta en ordenables`)
+  }
+})

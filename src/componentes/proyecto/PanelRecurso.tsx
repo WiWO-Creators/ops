@@ -3,6 +3,7 @@
 import { Suspense, useEffect, useMemo, useRef, useState, type ReactElement, type ReactNode } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { TablaRecurso } from '@/componentes/datos/TablaRecurso'
+import { unirConsultas } from '@/componentes/datos/tabla'
 import { Cargando, ErrorEstado } from '@/componentes/estado/Estados'
 import { opcionesDeFiltros } from '@/datos/catalogos'
 import { pedirSobre } from '@/datos/cliente'
@@ -134,6 +135,19 @@ function ListaDelProyecto<T> ({
 }
 
 /**
+ * Ruta del listado con su consulta, incluida la parte fija de la definicion.
+ *
+ * @param definicion El recurso, con su `consultaFija` si la tiene.
+ * @param consulta Query string de la vista, sin `?`.
+ * @returns La ruta lista para el BFF.
+ */
+function rutaConConsulta<T> (definicion: DefinicionRecurso<T>, consulta: string): string {
+  const query = unirConsultas(definicion.consultaFija, consulta)
+
+  return query === '' ? definicion.ruta : `${definicion.ruta}?${query}`
+}
+
+/**
  * Pide la primera pagina y los catalogos de los filtros.
  *
  * Van juntos: sin los catalogos, un estado se pinta como numero crudo y los selectores de filtro
@@ -153,7 +167,7 @@ async function primeraPagina<T> (
 ): Promise<Carga<T>> {
   try {
     const [lista, lookups] = await Promise.all([
-      pedirSobre<T[]>(`${definicion.ruta}${consulta === '' ? '' : `?${consulta}`}`, senal),
+      pedirSobre<T[]>(rutaConConsulta(definicion, consulta), senal),
       pedirSobre<Lookups>('lookups', senal)
     ])
 

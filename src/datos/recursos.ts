@@ -624,3 +624,52 @@ export interface DependenciaGantt {
   depends_on: number
   type: string | null
 }
+
+// frente: clientes
+
+/** Una direccion de `tblclients`: la principal, la de facturacion o la de envio. */
+export interface DireccionCliente {
+  street: string | null
+  city: string | null
+  state: string | null
+  zip: string | null
+  /** `0` significa "sin pais": no es una fila de `tblcountries`. */
+  country_id: number
+}
+
+/**
+ * Cliente con la direccion de envio.
+ *
+ * `shipping` solo viaja en `GET /clients/{id}`, no en el listado, asi que la pantalla de detalle
+ * trabaja con este tipo y la tabla sigue con `Cliente`.
+ */
+export interface ClienteConEnvio extends Cliente {
+  shipping: DireccionCliente
+}
+
+/**
+ * Moneda de `GET /lookups`. Los simbolos llegan ya recortados por el backend.
+ *
+ * Exactamente una tiene `is_default`: es la moneda base de la instalacion, la que usa un cliente con
+ * `default_currency: 0`.
+ */
+export interface Moneda {
+  id: number
+  name: string
+  symbol: string
+  is_default: boolean
+}
+
+/**
+ * Nota de un Cliente (`tblnotes` con `rel_type = 'customer'`).
+ *
+ * **No es la nota privada de un Espacio**: estas las ve todo el staff, y por eso traen autor. No hay
+ * `title` ni `content`; el texto vive en `description`.
+ */
+export interface NotaCliente {
+  id: number
+  description: string
+  date_contacted: string | null
+  date_added: string
+  staff: StaffReferencia | null
+}
