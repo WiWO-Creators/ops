@@ -2,13 +2,57 @@ import { Suspense } from 'react'
 import { VistaEspacios } from '@/componentes/proyecto/TarjetasProyectos'
 import { Cargando } from '@/componentes/estado/Estados'
 import { construirConsulta, leerConsulta, paramsDeUrl } from '@/datos/consulta'
+import { ErrorApi } from '@/datos/errores'
 import { cargarLookups, opcionesDeFiltros } from '@/datos/lookups'
 import { pedir } from '@/datos/servidor'
-import type { Espacio } from '@/datos/recursos'
+import type {
+  CampoPersonalizadoMeta,
+  Cliente,
+  EstadisticaEstado,
+  Espacio,
+  MiembroEquipo
+} from '@/datos/recursos'
+import type { OpcionFiltro } from '@/definiciones/tipos'
 import type { Yo } from '@/datos/tipos'
 import { ESPACIOS } from '@/definiciones/espacios'
 
 export const metadata = { title: 'Proyectos · WiWO Ops' }
+
+/**
+ * Tope de opciones que se traen para los selectores de Cliente y de Miembros.
+ *
+ * Es el maximo que acepta la API en una pagina. Con mas clientes que eso, el selector deja de ser
+ * exhaustivo: el reemplazo es un filtro con busqueda contra el servidor, no subir el numero.
+ */
+const TOPE_DE_OPCIONES = 100
+
+/**
+ * Pide un recurso tolerando el fallo.
+ *
+ * Lo usan los datos accesorios de la pantalla —contadores, campos personalizados, opciones de
+ * filtro—: que el backend todavia no exponga `/projects/stats` no puede dejar el listado en blanco.
+ * El error se devuelve como valor para poder mostrarlo; los de autenticacion no se atrapan, porque
+ * `pedir` los resuelve redirigiendo a `/entrar`.
+ *
+ * @param ruta Ruta relativa a la base de la API.
+ * @returns Los datos, o `null` y el mensaje del error.
+ */
+async function pedirOpcional<T> (ruta: string): Promise<{ datos: T | null, error: string | null }> {
+  try {
+    const sobre = await pedir<T>(ruta)
+
+    return { datos: sobre.data, error: null }
+  } catch (fallo) {
+    if (fallo instanceof ErrorApi) return { datos: null, error: fallo.message }
+
+    throw fallo
+  }
+}
+
+/** Opciones de un selector a partir de una lista de la API. */
+function opcionesDe<T> (lista: T[] | null, valor: (item: T) => string, etiqueta: (item: T) => string): OpcionFiltro[] {
+  return (lista ?? []).map((item) => ({ valor: valor(item), etiqueta: etiqueta(item) }))
+}
 
 /**
  * Lista de Espacios, en tarjetas o en tabla.
@@ -25,11 +69,24 @@ export default async function EspaciosPage (props: PageProps<'/espacios'>) {
   const consulta = construirConsulta(estado, ESPACIOS)
   const vista = params.get('vista') === 'tabla' ? 'tabla' : 'tarjetas'
 
-  const [lista, lookups, yo] = await Promise.all([
+  const [lista, lookups, yo, estadisticas, campos, clientes, equipo] = await Promise.all([
     pedir<Espacio[]>(`/projects${consulta === '' ? '' : `?${consulta}`}`),
     cargarLookups(),
-    pedir<Yo>('/me')
+    pedir<Yo>('/me'),
+    pedirOpcional<EstadisticaEstado[]>('/projects/stats'),
+    pedirOpcional<CampoPersonalizadoMeta[]>('/custom-fields?para=projects'),
+    pedirOpcional<Cliente[]>(`/clients?per_page=${TOPE_DE_OPCIONES}`),
+    pedirOpcional<MiembroEquipo[]>(`/staff?per_page=${TOPE_DE_OPCIONES}`)
   ])
+
+  // Clientes y equipo no son catalogos de `/lookups`, pero los filtros los consumen igual: se
+  // indexan con la misma clave que declara `desdeLookup` para no inventar un segundo mecanismo.
+  const opcionesDeFiltro = {
+    ...opcionesDeFiltros(ESPACIOS, lookups),
+    clients: opcionesDe(clientes.datos, (c) => String(c.id), (c) => c.company),
+    staff: opcionesDe(equipo.datos, (m) => String(m.id), (m) => m.full_name),
+    task_statuses: opcionesDe(lookups.task_statuses, (e) => String(e.id), (e) => e.name)
+  }
 
   return (
     <section className="flex flex-col gap-4">
@@ -39,8 +96,11 @@ export default async function EspaciosPage (props: PageProps<'/espacios'>) {
         <VistaEspacios
           inicial={{ filas: lista.data, paginacion: lista.meta?.pagination }}
           capacidades={yo.data.permissions.projects}
-          opcionesDeFiltro={opcionesDeFiltros(ESPACIOS, lookups)}
+          opcionesDeFiltro={opcionesDeFiltro}
           vistaInicial={vista}
+          estadisticas={estadisticas.datos}
+          errorEstadisticas={estadisticas.error}
+          campos={campos.datos ?? []}
         />
       </Suspense>
     </section>
