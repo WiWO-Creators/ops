@@ -1,0 +1,27 @@
+name: Deploy → ops.wiwo.me
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    name: SSH deploy
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Deploy en servidor
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          port: 22
+          script: |
+            set -e
+            cd /root/ops-v2
+            git pull origin main
+            pnpm install --frozen-lockfile
+            pnpm build
+            pm2 restart ops-v2
+            echo "✅ Deploy completado"
