@@ -4,44 +4,33 @@ import { useEffect, useRef, useState } from 'react'
 import { cn } from '@/lib/clases'
 
 /**
- * Los estados que define Neo (https://neo.wiwo.me, seccion "Orb states").
+ * Los estados del orbe.
  *
- * Cada uno cambia ritmo, brillo, deformacion y direccion del movimiento. No son decorativos: el orbe
- * es la señal de Wiwo para comunicar que el sistema esta pensando, y el estado dice **que** esta
- * pensando.
- *
- *   listening   scan vertical y pulsos sensibles al input
- *   thinking    auroras rapidas y anillos de luz — el estado por defecto de una espera
- *   generating  el campo de luz se expande y empuja trails hacia la interfaz
- *   routing     orbitas conectadas, agentes coordinando una ruta
- *   success     destello corto, estabilizacion y regreso a la calma
- *   error       contraccion fria y baja energia, sin dramatizar el problema
- *
- * `idle` de Neo no esta: alli describe un orbe presente y disponible, que aca es el orbe sin estado
- * — ver la prop `estado`.
+ * Son los tres que trae el componente de ops.wiwo.me, que es la version anterior de este mismo
+ * proyecto: el orbe piensa, confirma o falla. `quieto` es propio y significa que no hay nada en
+ * curso — ver la prop `estado`.
  */
-export type EstadoOrbe = 'listening' | 'thinking' | 'generating' | 'routing' | 'success' | 'error'
+export type EstadoOrbe = 'thinking' | 'success' | 'error'
 
-export type TamanoOrbe = 'chico' | 'medio' | 'grande'
-
-/** Alto del escenario. El orbe lo llena: no es un objeto con medida propia sino un campo de luz. */
-const ALTO: Record<TamanoOrbe, number> = {
-  chico: 24,
-  medio: 48,
-  grande: 260
-}
+export type TamanoOrbe = 'chico' | 'medio' | 'grande' | 'marca'
 
 /**
- * Los cuatro destellos, con la posicion, medida, color y ritmo que trae el orbe de Neo.
- *
- * Los `--spark-delay` negativos arrancan la animacion ya empezada, asi que al montar el orbe los
- * cuatro estan en puntos distintos de su ciclo en vez de encenderse todos juntos.
+ * Los tamaños discretos del componente original, mas `marca` para cuando el orbe es el centro de la
+ * pantalla y se dimensiona con el ancho disponible.
  */
+const CLASE_TAMANO: Record<TamanoOrbe, string> = {
+  chico: 'orb-small',
+  medio: 'orb-medium',
+  grande: 'orb-large',
+  marca: 'orb-x-large'
+}
+
+/** Los cuatro destellos, con la posicion, escala y ritmo del orbe original. */
 const DESTELLOS = [
-  { '--sx': '70%', '--sy': '18%', '--spark-size': '6px', '--spark-color': 'rgba(248, 250, 215, .92)', '--spark-speed': '5600ms', '--spark-delay': '-900ms' },
-  { '--sx': '25%', '--sy': '72%', '--spark-size': '4px', '--spark-color': 'rgba(66, 66, 255, .92)', '--spark-speed': '6800ms', '--spark-delay': '-2400ms' },
-  { '--sx': '79%', '--sy': '68%', '--spark-size': '8px', '--spark-color': 'rgba(59, 255, 0, .9)', '--spark-speed': '6200ms', '--spark-delay': '-1800ms' },
-  { '--sx': '34%', '--sy': '24%', '--spark-size': '3px', '--spark-color': 'rgba(248, 250, 215, .72)', '--spark-speed': '7400ms', '--spark-delay': '-3100ms' }
+  { '--sx': '70%', '--sy': '18%', '--spark-scale': '0.02', '--spark-speed': '5600ms', '--spark-delay': '-900ms' },
+  { '--sx': '25%', '--sy': '72%', '--spark-scale': '0.013', '--spark-speed': '6800ms', '--spark-delay': '-2400ms' },
+  { '--sx': '79%', '--sy': '68%', '--spark-scale': '0.026', '--spark-speed': '6200ms', '--spark-delay': '-1800ms' },
+  { '--sx': '34%', '--sy': '24%', '--spark-scale': '0.01', '--spark-speed': '7400ms', '--spark-delay': '-3100ms' }
 ] as const
 
 interface PropsOrbe {
@@ -54,69 +43,49 @@ interface PropsOrbe {
    * siempre, moverse dejaria de significar "esta pasando algo".
    */
   estado?: EstadoOrbe
-  /** 24px en una fila, 48px sobre una tarjeta, 260px cuando el orbe es el centro de la pantalla. */
+  /** `chico` en una fila, `medio` en un boton, `grande` en una tarjeta, `marca` a pantalla completa. */
   tamano?: TamanoOrbe
+  /**
+   * Medida libre, para cuando ninguno de los tamaños discretos sirve. Cualquier valor CSS.
+   * Ej: `clamp(14rem, 26vw, 21rem)` — el que usa el orbe de marca en el acceso.
+   */
+  medida?: string
   className?: string
 }
 
 /**
  * El Thinking Orb de Wiwo.
  *
- * No es un circulo con degradado: es un campo de luz de trece capas —membrana liquida, causticas,
- * tres auroras, borde, nucleo y destellos— dentro de un escenario con `overflow: hidden`. El markup
- * y el orden de las capas son los de neo.wiwo.me; el aspecto vive en `src/estilos/thinking-orb.css`.
+ * Es una esfera de vidrio translucida: **desenfoca lo que tiene detras en vez de traer su propio
+ * fondo**, asi que se ve bien sobre claro, sobre oscuro o sobre una imagen sin configurar nada. El
+ * aspecto vive en `src/estilos/thinking-orb.css`, portado de ops.wiwo.me.
  *
  * Es `aria-hidden` a proposito. Lo que se anuncia a un lector de pantalla es el TEXTO que lo acompaña
  * — ver `SuperposicionOrbe` y `CargandoConOrbe` —, no el adorno.
  */
-export function Orbe ({ estado, tamano = 'medio', className }: PropsOrbe) {
+export function Orbe ({ estado, tamano = 'medio', medida, className }: PropsOrbe) {
   return (
     <div
       aria-hidden="true"
-      /*
-       * `thinking-orb-demo` y `data-thinking-state` no son nombres elegidos aca: son el gancho con
-       * el que el CSS de Neo activa cada estado, y sus reglas los buscan en un ancestro del orbe.
-       * Renombrarlos obligaria a reescribir las 43 reglas de estado y a re-traducirlas en cada
-       * version nueva del sistema.
-       */
-      className={cn(
-        'thinking-orb-demo thinking-orb-stage',
-        estado === undefined && 'orbe-quieto',
-        className
-      )}
-      data-thinking-state={estado ?? 'idle'}
-      style={{ height: ALTO[tamano], width: ALTO[tamano] }}
+      data-orb-state={estado ?? 'quieto'}
+      style={medida === undefined ? undefined : ({ '--orb-size': medida } as React.CSSProperties)}
+      className={cn('wiwo-thinking-orb detail-full', CLASE_TAMANO[tamano], className)}
     >
-      <div className="orb-state-field">
-        <span className="orb-state-ring" />
-        <span className="orb-state-ring alt" />
-        <span className="orb-scan-line" />
-        <span className="orb-output-trail one" />
-        <span className="orb-output-trail two" />
-        <span className="orb-output-trail three" />
-        <span className="orb-success-burst" />
-        <span className="orb-retry-notch" />
-      </div>
-
-      <div className="wiwo-thinking-orb">
-        <span className="orb-pulse" />
-        <span className="orb-pulse" />
-        <span className="orb-pulse" />
-        <span className="orb-liquid-veil" />
-        <span className="orb-caustic" />
-        <span className="orb-light-field" />
-        <span className="orb-aurora orb-aurora-one" />
-        <span className="orb-aurora orb-aurora-two" />
-        <span className="orb-aurora orb-aurora-three" />
-        <span className="orb-rim" />
-        <span className="orb-core" />
-        <span className="orb-glint" />
-      </div>
-
-      <span className="orb-particle" />
-      <span className="orb-particle" />
-      <span className="orb-particle" />
-
+      <span className="orb-pulse" />
+      <span className="orb-pulse" />
+      <span className="orb-pulse" />
+      <span className="orb-liquid-veil" />
+      <span className="orb-caustic" />
+      <span className="orb-light-field" />
+      <span className="orb-aurora orb-aurora-one" />
+      <span className="orb-aurora orb-aurora-two" />
+      <span className="orb-aurora orb-aurora-three" />
+      <span className="orb-rim" />
+      <span className="orb-core" />
+      <span className="orb-glint" />
+      <span className="orb-particle orb-particle-one" />
+      <span className="orb-particle orb-particle-two" />
+      <span className="orb-particle orb-particle-three" />
       {DESTELLOS.map((destello, indice) => (
         <span key={indice} className="orb-spark" style={destello as React.CSSProperties} />
       ))}
@@ -152,7 +121,7 @@ export function SuperposicionOrbe ({
   mensaje,
   submensaje,
   acotada = false,
-  tamano = 'medio',
+  tamano = 'grande',
   estado = 'thinking'
 }: PropsSuperposicion) {
   const referencia = useRef<HTMLDivElement>(null)
