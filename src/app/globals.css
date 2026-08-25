@@ -5,6 +5,7 @@
 @import '../estilos/fonts.css';
 @import '../estilos/neo.css';
 @import '../estilos/thinking-orb.css';
+@import '../estilos/vidrio.css';
 
 /*
  * `@theme inline` en vez de `@theme`: los semanticos de `neo.css` son referencias `var()` que cambian
@@ -17,6 +18,8 @@
   --color-superficie-hundida: var(--superficie-hundida);
   --color-superficie-flotante: var(--superficie-flotante);
   --color-superficie-inversa: var(--superficie-inversa);
+  --color-superficie-acentuada: var(--superficie-acentuada);
+  --color-superficie-acentuada-2: var(--superficie-acentuada-2);
 
   --color-linea: var(--linea);
   --color-linea-suave: var(--linea-suave);

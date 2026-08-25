@@ -165,3 +165,78 @@ export interface Lookups {
   roles: Referencia[]
   departments: Referencia[]
 }
+
+/**
+ * Hito de un espacio. `milestone` en Perfex.
+ *
+ * `counts.tasks_done` cuenta las tareas del hito ya completadas: es lo que permite dibujar el avance
+ * sin pedir el listado entero.
+ */
+export interface Hito {
+  id: number
+  name: string
+  description: string | null
+  start_date: string | null
+  due_date: string | null
+  project_id: number
+  color: string | null
+  order: number
+  counts: { tasks: number, tasks_done: number }
+}
+
+/**
+ * Archivo adjunto a un espacio.
+ *
+ * `external` distingue los que viven en Drive o Dropbox —esos si se pueden abrir por `url`— de los
+ * internos, que hoy la API no sabe descargar (ver `docs/contrato-api.md`).
+ */
+export interface ArchivoProyecto {
+  id: number
+  file_name: string
+  original_file_name: string | null
+  subject: string | null
+  filetype: string | null
+  rel_type: string
+  rel_id: number
+  staff_id: number
+  date_added: string | null
+  visible_to_customer: boolean
+  external: string | null
+  url: string | null
+  thumbnail_url: string | null
+}
+
+/**
+ * Marcaje de tiempo sobre un proceso. `taskstimer` en Perfex.
+ *
+ * `end_time` en `null` significa que corre ahora mismo, y entonces `segundos` tambien viene en
+ * `null`: el total en vivo lo calcula quien presenta, no el backend.
+ */
+export interface Cronometro {
+  id: number
+  task_id: number
+  staff_id: number
+  start_time: string
+  end_time: string | null
+  segundos: number | null
+  note: string | null
+}
+
+/** Comentario de un proceso. */
+export interface ComentarioProceso {
+  id: number
+  task_id: number
+  content: string
+  staff: { id: number, full_name: string } | null
+  date_added: string | null
+}
+
+/** Item de la lista de control de un proceso. */
+export interface ItemChecklist {
+  id: number
+  task_id: number
+  description: string
+  finished: boolean
+  order: number
+  assigned: number | null
+}

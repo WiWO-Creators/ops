@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useRouter, useSearchParams, type ReadonlyURLSearchParams } from 'next/navigation'
 import { alternarOrden, construirConsulta, direccionDe, leerConsulta } from '@/datos/consulta'
 import type { Columna, DefinicionRecurso, EstadoConsulta, OpcionFiltro, ResultadoLista } from '@/definiciones/tipos'
 import { Insignia } from '@/componentes/presentadores/Insignia'
@@ -113,7 +113,7 @@ export function TablaRecurso<T> ({
 
     // `replace` y no `push`: cada tecleo de filtro seria una entrada del historial y salir de la
     // vista con "atras" pasaria a ser imposible.
-    router.replace(query === '' ? '?' : `?${query}`, { scroll: false })
+    router.replace(conParametrosAjenos(params, estado, definicion, query), { scroll: false })
   }
 
   const columnas = columnasVisibles(definicion.columnas, visibles)
@@ -333,4 +333,34 @@ function Celda<T> ({
   if (insignia === null) return <>{contenido}</>
 
   return <Insignia color={insignia.color} tamano="chico">{insignia.etiqueta}</Insignia>
+}
+
+/**
+ * Combina la consulta nueva con los parametros de la URL que no son de la consulta.
+ *
+ * Sin esto, cada filtro reescribe la query entera y se lleva puesto lo que otra pantalla haya
+ * guardado ahi —el modo de presentacion, por ejemplo—. Se descartan solo las claves que produce la
+ * consulta vigente: lo demas es de otro dueño y se conserva.
+ *
+ * @param params Los parametros actuales de la URL.
+ * @param estado El estado de consulta vigente, para saber que claves le pertenecen.
+ * @param definicion La definicion del recurso.
+ * @param query La consulta nueva, ya serializada.
+ * @returns La URL relativa lista para `router.replace`, siempre con `?` aunque quede vacia.
+ */
+function conParametrosAjenos<T> (
+  params: ReadonlyURLSearchParams,
+  estado: EstadoConsulta,
+  definicion: DefinicionRecurso<T>,
+  query: string
+): string {
+  const ajenos = new URLSearchParams(params.toString())
+
+  for (const clave of new URLSearchParams(construirConsulta(estado, definicion)).keys()) {
+    ajenos.delete(clave)
+  }
+
+  const combinada = [query, ajenos.toString()].filter((parte) => parte !== '').join('&')
+
+  return combinada === '' ? '?' : `?${combinada}`
 }

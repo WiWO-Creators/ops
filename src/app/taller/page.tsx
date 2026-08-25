@@ -176,12 +176,13 @@ export default function TallerPage () {
 
       <SeccionTaller
         titulo="Orbe"
-        nota="El Thinking Orb, portado de ops.wiwo.me. Es una esfera de vidrio: desenfoca lo que tiene detrás en vez de traer su propio fondo, así que se ve bien sobre cualquier superficie. En reposo se pinta QUIETO a propósito: la regla de rendimiento prohíbe animaciones infinitas en elementos siempre visibles, y una mascota permanente en la barra superior es exactamente eso. Moverse sólo cuando algo pasa además comunica mejor."
+        nota="El Thinking Orb, portado de ops.wiwo.me. Es una esfera de vidrio: desenfoca lo que tiene detrás en vez de traer su propio fondo, así que se ve bien sobre cualquier superficie. En reposo respira: escala mínima y luz que deriva, de 9 a 13 s, sólo transform y opacity — y sólo en los tamaños grandes, que aparecen de a uno. El chico y el mediano se repiten por fila y por botón, así que ahí queda de verdad quieto: es la misma excepción acotada por tamaño que ya usa el desenfoque. Deformarse rápido sigue significando “está pasando algo”."
       >
-        <Muestra etiqueta="en reposo">
+        <Muestra etiqueta="en reposo: quieto en chico y medio, respirando en grande y marca">
           <Orbe tamano="chico" />
           <Orbe tamano="medio" />
           <Orbe tamano="grande" />
+          <Orbe tamano="marca" />
         </Muestra>
         <Muestra etiqueta="los tres estados">
           {(['thinking', 'success', 'error'] as const).map((estado) => (

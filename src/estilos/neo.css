@@ -38,33 +38,45 @@
 
 :root {
   /* --- Superficies ------------------------------------------------------ */
-  /* El beige de marca NO es fondo de panel: tiñe la aplicacion entera. Queda como acento calido.
+  /* El beige de marca NO es fondo de panel: tiñe la aplicacion entera. Queda como acento calido y la
+   * base es un almost-white calido, que es lo que usa el sistema vivo.
    * La rampa oscura se deriva de la tinta y no de negros puros, para conservar la temperatura del
    * tema claro y evitar el contraste duro que cansa en sesiones largas. */
-  --superficie: light-dark(var(--wiwo-surface-100), #17171a);
-  --superficie-elevada: light-dark(var(--wiwo-surface-0), #1f1f23);
-  --superficie-hundida: light-dark(var(--wiwo-surface-50), #121214);
-  --superficie-flotante: light-dark(var(--wiwo-surface-0), #26262b);
+  --superficie: light-dark(var(--wiwo-almost-white), var(--wiwo-ink-900));
+  --superficie-elevada: light-dark(var(--wiwo-surface-0), var(--wiwo-ink));
+  --superficie-hundida: light-dark(var(--wiwo-surface-50), var(--wiwo-ink-850));
+  --superficie-flotante: light-dark(var(--wiwo-surface-0), var(--wiwo-ink-700));
   --superficie-inversa: light-dark(var(--wiwo-ink), var(--wiwo-surface-0));
 
+  /* --- Superficies de acento -------------------------------------------- */
+  /* El beige es ACENTO, no fondo: bandas de seccion, callouts, filas zebra, hover de navegacion y
+   * chips neutros. Nunca la pagina entera, que es lo que lo convertia en ruido.
+   *
+   * En oscuro se invierte el rol: el beige pasa a ser tinta (es el color del texto), asi que la banda
+   * acentuada se resuelve como un escalon alto de la rampa oscura.
+   */
+  --superficie-acentuada: light-dark(var(--wiwo-beige), var(--wiwo-ink-600));
+  --superficie-acentuada-2: light-dark(var(--wiwo-beige-alt), var(--wiwo-ink-500));
+
   /* --- Lineas ----------------------------------------------------------- */
-  --linea: light-dark(var(--wiwo-surface-300), #33333a);
-  --linea-suave: light-dark(
-    color-mix(in srgb, var(--wiwo-surface-300) 55%, transparent),
-    color-mix(in srgb, #33333a 60%, transparent)
-  );
-  --linea-fuerte: light-dark(color-mix(in srgb, var(--wiwo-ink) 22%, transparent), #45454f);
+  /* La linea es tinta translucida y no un gris opaco: asi mantiene el mismo peso sobre cualquiera de
+   * los escalones de la rampa, en vez de desaparecer sobre el contenedor. */
+  --linea: light-dark(rgb(41 41 41 / 0.14), rgb(248 250 215 / 0.17));
+  --linea-suave: light-dark(rgb(41 41 41 / 0.08), rgb(248 250 215 / 0.10));
+  --linea-fuerte: light-dark(rgb(41 41 41 / 0.24), rgb(248 250 215 / 0.28));
 
   /* --- Texto ------------------------------------------------------------ */
-  --texto: light-dark(var(--wiwo-ink), #ececef);
-  --texto-tenue: light-dark(color-mix(in srgb, var(--wiwo-ink) 68%, var(--wiwo-surface-0)), #a8a8b3);
+  /* En oscuro el texto es beige, no blanco: el beige que en claro es acento acá cumple el rol de la
+   * tinta, y es lo que mantiene la misma temperatura en los dos temas. */
+  --texto: light-dark(var(--wiwo-ink), var(--wiwo-beige));
+  --texto-tenue: light-dark(var(--wiwo-ink-2), var(--wiwo-beige-300));
   /* 48% daba 2.67:1. Es el token de las etiquetas de formulario y los textos de ayuda: texto real que
    * alguien tiene que leer, no decoracion, asi que cumple AA como cualquier otro. */
-  --texto-sutil: light-dark(color-mix(in srgb, var(--wiwo-ink) 68%, var(--wiwo-surface-0)), #8f8f9b);
+  --texto-sutil: light-dark(var(--wiwo-ink-3), var(--wiwo-beige-500));
   --texto-inverso: light-dark(var(--wiwo-surface-0), var(--wiwo-ink));
 
   /* --- Acento ----------------------------------------------------------- */
-  /* En oscuro el azul de marca se aclara: `#4242FF` sobre `#17171A` da 2.39:1, ilegible.
+  /* En oscuro el azul de marca se aclara: `#4242FF` sobre el fondo oscuro da 2.4:1, ilegible.
    *
    * No alcanza con `--wiwo-blue-300` (#6E6EFF): contra la superficie de pagina da 4.55:1, pero contra
    * una tarjeta —que es mas clara— cae a 4.17:1 y reprueba. El acento tiene que cumplir sobre la
@@ -73,7 +85,7 @@
   --acento-fuerte: light-dark(var(--wiwo-blue-700), var(--wiwo-blue));
   --acento-suave: light-dark(
     color-mix(in srgb, var(--wiwo-blue) 10%, var(--wiwo-surface-0)),
-    color-mix(in srgb, var(--wiwo-blue-300) 18%, #1f1f23)
+    color-mix(in srgb, var(--wiwo-blue-300) 18%, var(--wiwo-ink))
   );
   --acento-contenido: light-dark(var(--wiwo-surface-0), var(--wiwo-ink));
 
@@ -144,7 +156,7 @@
   --texto-exito: light-dark(var(--wiwo-ok), var(--wiwo-lime));
   --superficie-exito: light-dark(
     color-mix(in srgb, var(--wiwo-green) 16%, var(--wiwo-surface-0)),
-    color-mix(in srgb, var(--wiwo-green) 14%, #1f1f23)
+    color-mix(in srgb, var(--wiwo-green) 14%, var(--wiwo-ink))
   );
 
   --relleno-aviso: var(--wiwo-warning);
@@ -154,7 +166,7 @@
   --texto-aviso: light-dark(color-mix(in srgb, var(--wiwo-warning) 58%, var(--wiwo-ink)), #f0b850);
   --superficie-aviso: light-dark(
     color-mix(in srgb, var(--wiwo-warning) 14%, var(--wiwo-surface-0)),
-    color-mix(in srgb, var(--wiwo-warning) 16%, #1f1f23)
+    color-mix(in srgb, var(--wiwo-warning) 16%, var(--wiwo-ink))
   );
 
   --relleno-peligro: var(--wiwo-danger);
@@ -162,17 +174,17 @@
   --texto-peligro: light-dark(var(--wiwo-error), #f2857c);
   --superficie-peligro: light-dark(
     color-mix(in srgb, var(--wiwo-danger) 12%, var(--wiwo-surface-0)),
-    color-mix(in srgb, var(--wiwo-danger) 18%, #1f1f23)
+    color-mix(in srgb, var(--wiwo-danger) 18%, var(--wiwo-ink))
   );
 
-  --relleno-neutro: light-dark(color-mix(in srgb, var(--wiwo-ink) 8%, var(--wiwo-surface-0)), #2c2c33);
+  --relleno-neutro: light-dark(color-mix(in srgb, var(--wiwo-ink) 8%, var(--wiwo-surface-0)), var(--wiwo-ink-700));
   --relleno-neutro-contenido: var(--texto-tenue);
 
   /* --- Interaccion ------------------------------------------------------ */
-  --control: light-dark(var(--wiwo-surface-0), #1f1f23);
-  --control-borde: light-dark(var(--wiwo-surface-300), #3a3a43);
-  --hover: light-dark(color-mix(in srgb, var(--wiwo-ink) 5%, transparent), rgb(255 255 255 / 0.06));
-  --presionado: light-dark(color-mix(in srgb, var(--wiwo-ink) 10%, transparent), rgb(255 255 255 / 0.11));
+  --control: light-dark(var(--wiwo-surface-0), var(--wiwo-ink));
+  --control-borde: light-dark(var(--wiwo-surface-300), var(--wiwo-ink-600));
+  --hover: light-dark(color-mix(in srgb, var(--wiwo-ink) 5%, transparent), rgb(248 250 215 / 0.07));
+  --presionado: light-dark(color-mix(in srgb, var(--wiwo-ink) 10%, transparent), rgb(248 250 215 / 0.12));
   --seleccionado: light-dark(
     color-mix(in srgb, var(--wiwo-blue) 9%, transparent),
     color-mix(in srgb, var(--wiwo-blue-300) 16%, transparent)
@@ -184,18 +196,21 @@
 
   /* --- Sombras ---------------------------------------------------------- */
   /* Ninguna usa `backdrop-filter`: colgaba el panel en pantallas Retina. La profundidad sale de la
-   * sombra y del contraste entre superficies, nunca de desenfocar el fondo. */
+   * sombra y del contraste entre superficies, nunca de desenfocar el fondo.
+   *
+   * Van tintadas en tinta y no en negro: sobre una base calida una sombra neutra se lee gris y
+   * ensucia el tono. */
   --sombra-1: light-dark(
-    0 1px 2px rgb(41 41 41 / 0.06),
-    0 1px 2px rgb(0 0 0 / 0.4)
+    0 8px 26px rgb(41 41 41 / 0.08),
+    0 8px 26px rgb(0 0 0 / 0.4)
   );
   --sombra-2: light-dark(
-    0 4px 12px rgb(41 41 41 / 0.08),
-    0 4px 12px rgb(0 0 0 / 0.45)
+    0 22px 70px rgb(41 41 41 / 0.12),
+    0 22px 70px rgb(0 0 0 / 0.45)
   );
   --sombra-flotante: light-dark(
-    0 12px 32px rgb(41 41 41 / 0.14),
-    0 12px 32px rgb(0 0 0 / 0.55)
+    0 28px 84px rgb(41 41 41 / 0.16),
+    0 28px 84px rgb(0 0 0 / 0.55)
   );
 }
 
