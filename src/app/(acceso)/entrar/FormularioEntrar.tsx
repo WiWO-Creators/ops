@@ -1,8 +1,8 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
-import { useState } from 'react'
-import { Orbe } from '@/componentes/estado/Orbe'
+import { useEffect, useRef, useState } from 'react'
+import { Orbe, type EstadoOrbe } from '@/componentes/estado/Orbe'
 import { cn } from '@/lib/clases'
 import { Boton } from '@/componentes/formularios/Boton'
 import { Campo } from '@/componentes/formularios/Campo'
@@ -34,11 +34,41 @@ export function FormularioEntrar () {
   const [metodo, establecerMetodo] = useState<'email' | 'app'>('email')
   const [error, establecerError] = useState<string | null>(null)
   const [enviando, establecerEnviando] = useState(false)
+  /**
+   * El estado del orbe, que es el indicador de progreso de esta pantalla.
+   *
+   * `undefined` lo deja quieto. Los tres estados que usa son los que Neo define para exactamente
+   * esto: `thinking` mientras la API responde, `success` cuando la sesion quedo abierta —dura 600ms,
+   * no se repite, y su trabajo es avisar que termino antes de que ocurra la navegacion— y `error`
+   * cuando la credencial no sirve, que se contrae y baja la energia sin dramatizar el problema.
+   */
+  const [estadoOrbe, establecerEstadoOrbe] = useState<EstadoOrbe | undefined>(undefined)
+  const temporizadorOrbe = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  useEffect(() => () => {
+    if (temporizadorOrbe.current !== null) clearTimeout(temporizadorOrbe.current)
+  }, [])
+
+  /**
+   * Marca el fallo y devuelve el orbe a la calma.
+   *
+   * Neo pide para `error` "contraccion fria, friccion **breve** y baja energia **sin dramatizar el
+   * problema**". Un orbe rojo de 130px sostenido en pantalla mientras la persona reescribe su
+   * contraseña dramatiza bastante: el destello dura lo que dura la señal y despues el orbe vuelve a
+   * quedarse quieto. El mensaje de error sigue en pantalla — eso es lo que tiene que persistir.
+   */
+  function señalarError () {
+    establecerEstadoOrbe('error')
+
+    if (temporizadorOrbe.current !== null) clearTimeout(temporizadorOrbe.current)
+    temporizadorOrbe.current = setTimeout(() => { establecerEstadoOrbe(undefined) }, 1400)
+  }
 
   async function enviar (evento: React.FormEvent<HTMLFormElement>): Promise<void> {
     evento.preventDefault()
     establecerError(null)
     establecerEnviando(true)
+    establecerEstadoOrbe('thinking')
 
     const datos = new FormData(evento.currentTarget)
 
@@ -54,6 +84,7 @@ export function FormularioEntrar () {
       if (!respuesta.ok) {
         establecerError(mensajeDeError(cuerpo, respuesta.status))
         establecerEnviando(false)
+        señalarError()
 
         return
       }
@@ -62,27 +93,32 @@ export function FormularioEntrar () {
         establecerMetodo(cuerpo.method ?? 'email')
         establecerPaso('codigo')
         establecerEnviando(false)
+        // La credencial era correcta: el segundo factor es un paso mas, no un fallo.
+        establecerEstadoOrbe('listening')
 
         return
       }
 
-      // Aca NO se apaga: el orbe sigue girando hasta que la navegacion ocurre. Apagarlo antes deja
-      // un hueco quieto entre "listo" y "ya estoy adentro" que se lee como que algo fallo.
+      // Aca NO se apaga: el orbe pasa a `success` y se queda asi hasta que la navegacion ocurre.
+      // Apagarlo antes deja un hueco quieto entre "listo" y "ya estoy adentro" que se lee como que
+      // algo fallo.
+      establecerEstadoOrbe('success')
       router.replace('/')
       router.refresh()
     } catch {
       establecerError('No se pudo contactar al servidor. Revisá tu conexión.')
       establecerEnviando(false)
+      señalarError()
     }
   }
 
   return (
     <main className="grid min-h-dvh grid-cols-1 lg:grid-cols-2">
-      <PanelDeMarca activo={enviando} />
+      <PanelDeMarca estado={estadoOrbe} activo={enviando} />
 
       <section className="flex items-center justify-center px-6 py-10 sm:px-10">
         <div className="w-full max-w-sm">
-          <CabeceraMovil activo={enviando} />
+          <CabeceraMovil estado={estadoOrbe} />
 
           <header className="mb-8">
             <h1 className="font-titular text-3xl font-extrabold tracking-tight text-texto">
@@ -205,12 +241,12 @@ export function FormularioEntrar () {
  * Se oculta por debajo de `lg`: a 130px el orbe se come una pantalla de telefono, y ahi el formulario
  * es lo unico que importa.
  */
-function PanelDeMarca ({ activo }: { activo: boolean }) {
+function PanelDeMarca ({ estado, activo }: { estado: EstadoOrbe | undefined, activo: boolean }) {
   return (
     <aside className="relative hidden flex-col items-center justify-center gap-10 border-r border-linea bg-superficie-hundida px-12 py-16 lg:flex">
       <Marca className="absolute left-10 top-10" />
 
-      <Orbe tamano="grande" animado={activo} />
+      <Orbe tamano="grande" estado={estado} />
 
       <p className="text-center font-titular text-2xl font-semibold leading-snug text-texto">
         Procesos, Espacios y Clientes.
@@ -239,10 +275,10 @@ function PanelDeMarca ({ activo }: { activo: boolean }) {
  * `aria-hidden`, asi que el costo es menor que resolver el tamaño con JavaScript y arriesgarse a que
  * el primer pintado use el equivocado.
  */
-function CabeceraMovil ({ activo }: { activo: boolean }) {
+function CabeceraMovil ({ estado }: { estado: EstadoOrbe | undefined }) {
   return (
     <div className="mb-10 flex items-center gap-3 lg:hidden">
-      <Orbe tamano="medio" animado={activo} />
+      <Orbe tamano="medio" estado={estado} />
       <Marca />
     </div>
   )

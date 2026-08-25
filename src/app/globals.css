@@ -4,6 +4,7 @@
 @import '../estilos/neo-tokens.css';
 @import '../estilos/fonts.css';
 @import '../estilos/neo.css';
+@import '../estilos/thinking-orb.css';
 
 /*
  * `@theme inline` en vez de `@theme`: los semanticos de `neo.css` son referencias `var()` que cambian

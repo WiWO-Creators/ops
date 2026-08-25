@@ -184,16 +184,16 @@ export default function TallerPage () {
           <Orbe tamano="grande" />
         </Muestra>
         <Muestra etiqueta="animado">
-          <Orbe tamano="chico" animado />
-          <Orbe tamano="medio" animado />
-          <Orbe tamano="grande" animado />
+          <Orbe tamano="chico" estado="thinking" />
+          <Orbe tamano="medio" estado="thinking" />
+          <Orbe tamano="grande" estado="thinking" />
         </Muestra>
         <Muestra etiqueta="carga en línea">
           <CargandoConOrbe mensaje="Guardando…" retardoMs={0} />
         </Muestra>
         <Muestra etiqueta="dentro de un botón">
           <Boton variante="primario">
-            <Orbe tamano="chico" animado />
+            <Orbe tamano="chico" estado="thinking" />
             Pensando
           </Boton>
         </Muestra>
