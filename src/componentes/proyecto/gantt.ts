@@ -12,6 +12,15 @@ import type { GrupoGantt } from '@/datos/recursos'
 /** Un dia en milisegundos. */
 const DIA = 86400000
 
+/**
+ * Id del estado "Completa" en `tbltasks.status`.
+ *
+ * Es una constante de Perfex, no una preferencia: la API la usa para el mismo calculo
+ * (`RecursoGantt.php`, `progress`). Una tarea completa nunca esta vencida por mas que su fecha de
+ * entrega haya pasado.
+ */
+const ESTADO_COMPLETA = 5
+
 /** Linea de tiempo del diagrama, en dias UTC desde la epoca. */
 export interface RangoGantt {
   /** Primer dia representado. */
@@ -50,26 +59,30 @@ export function diaDeFecha (valor: string | null | undefined): number | null {
  * @returns el rango, o `null` si ninguna fila trae fechas utilizables — sin fechas no hay diagrama
  */
 export function rangoDeGantt (grupos: GrupoGantt[]): RangoGantt | null {
-  const dias: number[] = []
+  let inicio = Number.POSITIVE_INFINITY
+  let fin = Number.NEGATIVE_INFINITY
 
   for (const grupo of grupos) {
+    // Se recorre acumulando en dos numeros y no juntando un array para `Math.min(...dias)`: el
+    // spread pasa un argumento por elemento y un proyecto con miles de tareas desborda la pila.
     for (const valor of [grupo.start, grupo.end]) {
       const dia = diaDeFecha(valor)
-      if (dia !== null) dias.push(dia)
+      if (dia === null) continue
+      if (dia < inicio) inicio = dia
+      if (dia > fin) fin = dia
     }
 
     for (const tarea of grupo.tareas) {
       for (const valor of [tarea.start, tarea.end]) {
         const dia = diaDeFecha(valor)
-        if (dia !== null) dias.push(dia)
+        if (dia === null) continue
+        if (dia < inicio) inicio = dia
+        if (dia > fin) fin = dia
       }
     }
   }
 
-  if (dias.length === 0) return null
-
-  const inicio = Math.min(...dias)
-  const fin = Math.max(...dias)
+  if (!Number.isFinite(inicio) || !Number.isFinite(fin)) return null
 
   return { inicio, fin, dias: Math.max(1, fin - inicio + 1) }
 }
@@ -118,19 +131,42 @@ export function barraDeGantt (
 // -- Filas y flechas de dependencia -------------------------------------------------------------
 
 /**
- * Alto de una fila del diagrama, en pixeles.
+ * Alto de la pista de una fila, en pixeles.
  *
- * Espeja la clase `h-6` con la que se pintan las pistas. Vive aca porque las flechas se trazan en
- * coordenadas de pixel y necesitan saber donde cae cada fila; si una de las dos cambia, la otra
- * tiene que cambiar con ella.
+ * Es la **unica** fuente de verdad de la geometria vertical: el `.tsx` no repite estos numeros en
+ * clases de Tailwind, los lee de aca y los pone en `style`. Antes los espejaba por comentario
+ * (`h-6`, `gap-1`) y cualquier retoque del Tailwind desalineaba las flechas en silencio.
  */
 export const ALTO_FILA = 24
 
-/** Separacion entre filas, en pixeles. Espeja la clase `gap-1` de las dos columnas del diagrama. */
+/** Aire entre la pista de una fila y la de la siguiente, en pixeles. */
 export const ESPACIO_FILA = 4
 
-/** Distancia de una fila a la siguiente, de borde superior a borde superior. */
+/**
+ * Distancia de una fila a la siguiente, de borde superior a borde superior.
+ *
+ * La banda de la fila `i` va de `i * PASO_FILA` a `(i + 1) * PASO_FILA` y la pista queda centrada
+ * dentro, con medio `ESPACIO_FILA` arriba y abajo. El cebrado pinta la banda entera; el hueco por
+ * donde vuelven las flechas es el borde entre dos bandas.
+ */
 export const PASO_FILA = ALTO_FILA + ESPACIO_FILA
+
+/**
+ * Ancho de la columna de nombres, en pixeles.
+ *
+ * Vive aca por la misma razon que `ALTO_FILA`: el ancho util de la linea de tiempo es el del
+ * contenedor menos esta columna, y esa resta se hace en JavaScript. Un `w-48` en el `.tsx` mas un
+ * `192` en el calculo serian dos numeros que hay que acordarse de mover juntos.
+ */
+export const ANCHO_NOMBRES = 192
+
+/**
+ * Separacion entre los tramos verticales de dos flechas que llegan a la misma fila.
+ *
+ * Sin ella dos dependencias hacia el mismo destino doblan en la misma `x` y se dibujan una encima de
+ * la otra: se ven como una sola.
+ */
+const PASO_CARRIL = 5
 
 /** Cuanto sale la flecha en horizontal antes de doblar. */
 const SALIENTE = 10
@@ -170,6 +206,8 @@ export interface FilaGantt {
   /** Id de la tarea, o `null` en las filas de grupo. */
   tareaId: number | null
   dependencias: DependenciaDeTarea[]
+  /** La fecha de entrega ya paso y la tarea no esta completa. Siempre `false` en los grupos. */
+  vencida: boolean
 }
 
 /** Un grupo del Gantt, con lo justo que la geometria necesita leer. */
@@ -183,6 +221,7 @@ interface GrupoDibujable {
     name: string
     start: string | null
     end: string | null
+    status: number
     color: string | null
     dependencies?: DependenciaDeTarea[]
   }>
@@ -193,9 +232,16 @@ interface GrupoDibujable {
  *
  * @param grupos los grupos tal como los devuelve `GET /projects/{id}/gantt`
  * @param rango la linea de tiempo del diagrama
+ * @param hoy fecha `YYYY-MM-DD` contra la que se decide si una tarea esta vencida; parametro para
+ *        poder probarlo sin depender del reloj
  * @returns una fila por grupo seguida de una fila por tarea, en orden de pintado
  */
-export function filasDeGantt (grupos: GrupoDibujable[], rango: RangoGantt): FilaGantt[] {
+export function filasDeGantt (
+  grupos: GrupoDibujable[],
+  rango: RangoGantt,
+  hoy: string
+): FilaGantt[] {
+  const diaDeHoy = diaDeFecha(hoy)
   const filas: FilaGantt[] = []
 
   for (const grupo of grupos) {
@@ -208,7 +254,8 @@ export function filasDeGantt (grupos: GrupoDibujable[], rango: RangoGantt): Fila
       color: null,
       barra: barraDeGantt(grupo.start, grupo.end, rango),
       tareaId: null,
-      dependencias: []
+      dependencias: [],
+      vencida: false
     })
 
     for (const tarea of grupo.tareas) {
@@ -221,12 +268,49 @@ export function filasDeGantt (grupos: GrupoDibujable[], rango: RangoGantt): Fila
         color: tarea.color,
         barra: barraDeGantt(tarea.start, tarea.end, rango),
         tareaId: tarea.id,
-        dependencias: tarea.dependencies ?? []
+        dependencias: tarea.dependencies ?? [],
+        vencida: estaVencida(tarea.end, tarea.status, diaDeHoy)
       })
     }
   }
 
   return filas
+}
+
+/**
+ * Decide si una tarea esta vencida.
+ *
+ * @param entrega fecha de entrega de la tarea
+ * @param estado id de `tbltasks.status`
+ * @param hoy dia UTC desde la epoca, o `null` si no se pudo leer la fecha de referencia
+ * @returns `true` solo si hay fecha, ya paso y la tarea no esta completa
+ */
+function estaVencida (entrega: string | null, estado: number, hoy: number | null): boolean {
+  if (hoy === null || estado === ESTADO_COMPLETA) return false
+
+  const dia = diaDeFecha(entrega)
+
+  return dia !== null && dia < hoy
+}
+
+/**
+ * Indice de la primera fila en que aparece cada tarea.
+ *
+ * Una tarea puede repetirse en dos grupos —pasa con `agrupar=members`— y las dependencias se
+ * resuelven siempre contra su primera aparicion: dibujar o narrar la misma dependencia una vez por
+ * copia llenaria el diagrama, y el dibujo y el texto tienen que contar lo mismo.
+ *
+ * @param filas las filas ya aplanadas
+ * @returns el mapa de id de tarea a indice de fila
+ */
+function mapaDePrimeraFila (filas: FilaGantt[]): Map<number, number> {
+  const primera = new Map<number, number>()
+
+  filas.forEach((fila, indice) => {
+    if (fila.tareaId !== null && !primera.has(fila.tareaId)) primera.set(fila.tareaId, indice)
+  })
+
+  return primera
 }
 
 /**
@@ -236,7 +320,7 @@ export function filasDeGantt (grupos: GrupoDibujable[], rango: RangoGantt): Fila
  * @returns el alto que tiene que declarar el SVG para cubrirlas
  */
 export function altoDeGantt (cantidad: number): number {
-  return cantidad <= 0 ? 0 : cantidad * ALTO_FILA + (cantidad - 1) * ESPACIO_FILA
+  return Math.max(0, cantidad) * PASO_FILA
 }
 
 /** Una flecha de dependencia lista para pintar, en coordenadas de pixel del area de pistas. */
@@ -273,17 +357,17 @@ export interface FlechaGantt {
 export function flechasDeGantt (filas: FilaGantt[], ancho: number): FlechaGantt[] {
   if (ancho <= 0) return []
 
-  const primeraFila = new Map<number, number>()
-  filas.forEach((fila, indice) => {
-    if (fila.tareaId !== null && !primeraFila.has(fila.tareaId)) primeraFila.set(fila.tareaId, indice)
-  })
-
+  const primeraFila = mapaDePrimeraFila(filas)
   const flechas: FlechaGantt[] = []
 
   filas.forEach((fila, destino) => {
     const barraDestino = fila.barra
     if (fila.tareaId === null || barraDestino === null) return
     if (primeraFila.get(fila.tareaId) !== destino) return
+
+    // Un carril por flecha que llega a esta fila: la segunda dobla cinco pixeles antes que la
+    // primera y las dos se ven, en vez de pisarse.
+    let carril = 0
 
     for (const dependencia of fila.dependencias) {
       const origen = primeraFila.get(dependencia.depends_on)
@@ -295,8 +379,10 @@ export function flechasDeGantt (filas: FilaGantt[], ancho: number): FlechaGantt[
       flechas.push({
         clave: `${dependencia.depends_on}-${fila.tareaId}`,
         titulo: `${fila.titulo} empieza después de ${filaOrigen.titulo}`,
-        ...trazarFlecha(filaOrigen.barra, origen, barraDestino, destino, ancho)
+        ...trazarFlecha(filaOrigen.barra, origen, barraDestino, destino, ancho, carril)
       })
+
+      carril += 1
     }
   })
 
@@ -314,11 +400,7 @@ export function flechasDeGantt (filas: FilaGantt[], ancho: number): FlechaGantt[
  * @returns una frase por dependencia, en el orden en que se dibujan las filas
  */
 export function describirDependencias (filas: FilaGantt[]): string[] {
-  const primeraFila = new Map<number, number>()
-  filas.forEach((fila, indice) => {
-    if (fila.tareaId !== null && !primeraFila.has(fila.tareaId)) primeraFila.set(fila.tareaId, indice)
-  })
-
+  const primeraFila = mapaDePrimeraFila(filas)
   const frases: string[] = []
 
   filas.forEach((fila, indice) => {
@@ -359,7 +441,7 @@ interface Punto {
  * @param indice posicion de la fila
  */
 function centroDeFila (indice: number): number {
-  return indice * PASO_FILA + ALTO_FILA / 2
+  return indice * PASO_FILA + PASO_FILA / 2
 }
 
 /**
@@ -370,6 +452,8 @@ function centroDeFila (indice: number): number {
  * @param destino barra de la tarea que depende
  * @param filaDestino indice de su fila
  * @param ancho ancho del area de pistas en pixeles
+ * @param carril orden de esta flecha entre las que llegan a la misma fila; corre el tramo vertical
+ *        para que no se superpongan
  * @returns el trazo y la punta, listos para el atributo `d`
  */
 function trazarFlecha (
@@ -377,7 +461,8 @@ function trazarFlecha (
   filaOrigen: number,
   destino: Barra,
   filaDestino: number,
-  ancho: number
+  ancho: number,
+  carril: number
 ): { d: string, punta: string } {
   const salida = ((origen.izquierda + origen.ancho) / 100) * ancho
   const entrada = (destino.izquierda / 100) * ancho
@@ -388,8 +473,8 @@ function trazarFlecha (
   const llegada = entrada - PUNTA
 
   const puntos: Punto[] = llegada - salida >= SALIENTE * 2
-    ? tramoDirecto(salida, y1, llegada, y2)
-    : tramoDeRetorno(salida, y1, llegada, y2, filaOrigen, filaDestino)
+    ? tramoDirecto(salida, y1, llegada, y2, carril)
+    : tramoDeRetorno(salida, y1, llegada, y2, filaOrigen, filaDestino, carril)
 
   return {
     d: trazoRedondeado(puntos, RADIO),
@@ -406,8 +491,14 @@ function trazarFlecha (
  * Recorrido cuando el destino empieza despues de que termina el origen: un solo codo doble, con el
  * tramo vertical lo mas pegado posible al destino.
  */
-function tramoDirecto (salida: number, y1: number, llegada: number, y2: number): Punto[] {
-  const quiebre = Math.max(salida + SALIENTE, llegada - SALIENTE)
+function tramoDirecto (
+  salida: number,
+  y1: number,
+  llegada: number,
+  y2: number,
+  carril: number
+): Punto[] {
+  const quiebre = Math.max(salida + SALIENTE, llegada - SALIENTE - carril * PASO_CARRIL)
 
   return [
     { x: salida, y: y1 },
@@ -427,19 +518,22 @@ function tramoDeRetorno (
   llegada: number,
   y2: number,
   filaOrigen: number,
-  filaDestino: number
+  filaDestino: number,
+  carril: number
 ): Punto[] {
-  // El hueco que toca la fila de destino por el lado del origen.
-  const hueco = filaDestino > filaOrigen
-    ? filaDestino * PASO_FILA - ESPACIO_FILA / 2
-    : (filaDestino + 1) * PASO_FILA - ESPACIO_FILA / 2
+  // El borde entre la fila de destino y su vecina por el lado del origen: ahi no hay barras, porque
+  // cada pista deja medio `ESPACIO_FILA` de aire a cada lado.
+  const hueco = (filaDestino > filaOrigen ? filaDestino : filaDestino + 1) * PASO_FILA
+  // Sin el piso en 0, un destino pegado al borde izquierdo manda el tramo de vuelta fuera del
+  // diagrama y la flecha se corta: mejor que corra por el borde a que desaparezca.
+  const vuelta = Math.max(0, llegada - SALIENTE - carril * PASO_CARRIL)
 
   return [
     { x: salida, y: y1 },
     { x: salida + SALIENTE, y: y1 },
     { x: salida + SALIENTE, y: hueco },
-    { x: llegada - SALIENTE, y: hueco },
-    { x: llegada - SALIENTE, y: y2 },
+    { x: vuelta, y: hueco },
+    { x: vuelta, y: y2 },
     { x: llegada, y: y2 }
   ]
 }
@@ -508,4 +602,229 @@ function coordenadas (punto: Punto): string {
 /** Recorta a dos decimales: mas precision solo engorda el atributo `d`. */
 function redondear (valor: number): number {
   return Math.round(valor * 100) / 100
+}
+
+// -- Escala de tiempo ---------------------------------------------------------------------------
+
+/**
+ * Densidad de la linea de tiempo.
+ *
+ * No es una preferencia de estilo: decide cuantos pixeles ocupa cada unidad y, con eso, si un mes se
+ * lee o queda aplastado contra el siguiente. El diagrama nunca expande el rango de fechas para
+ * llenar la pantalla —eso es lo que hace el panel viejo en vista Mes y deja el dibujo vacio—, sino
+ * que crece a lo ancho y se recorre con la barra de desplazamiento.
+ */
+export type ZoomGantt = 'dia' | 'semana' | 'mes' | 'anio'
+
+/** Los cuatro zooms, de mas fino a mas grueso. Es el orden en que se muestran los botones. */
+export const ZOOMS: ZoomGantt[] = ['dia', 'semana', 'mes', 'anio']
+
+/**
+ * Ancho minimo de una columna de la escala, en pixeles, por zoom.
+ *
+ * Los valores salen de medir el texto que tiene que entrar en la fila de abajo —dos digitos en Dia,
+ * un mes abreviado en Mes, cuatro digitos en Año— mas aire a los costados para que dos etiquetas
+ * contiguas no se toquen.
+ */
+export const ANCHO_MARCA: Record<ZoomGantt, number> = { dia: 32, semana: 84, mes: 104, anio: 128 }
+
+/** Nombres de mes abreviados. Constantes y no `Intl`: la escala tiene que dar lo mismo en cada ICU. */
+const MESES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic']
+
+/**
+ * Decide si un texto de la URL nombra un zoom.
+ *
+ * @param valor lo que venia en el parametro, o `null` si no venia
+ */
+export function esZoomGantt (valor: string | null | undefined): valor is ZoomGantt {
+  return typeof valor === 'string' && (ZOOMS as string[]).includes(valor)
+}
+
+/**
+ * Zoom con el que conviene abrir un diagrama de esta duracion.
+ *
+ * Sin esto, un proyecto de tres dias abre en Mes y se ve una sola raya, y uno de seis años abre en
+ * Dia y son dos mil columnas. Los cortes son los puntos donde el zoom siguiente empieza a dar mas
+ * columnas de las que se leen de un vistazo.
+ *
+ * @param rango la linea de tiempo del diagrama
+ */
+export function zoomSugerido (rango: RangoGantt): ZoomGantt {
+  if (rango.dias <= 45) return 'dia'
+  if (rango.dias <= 200) return 'semana'
+  if (rango.dias <= 1500) return 'mes'
+  return 'anio'
+}
+
+/**
+ * Ancho que ocupa el area de pistas.
+ *
+ * @param cantidadDeMarcas cuantas columnas tiene la escala
+ * @param zoom el zoom elegido
+ * @param disponible ancho medido del contenedor, en pixeles
+ * @returns el mayor entre lo que pide la densidad y lo que hay: el diagrama nunca queda mas angosto
+ *          que su caja, y cuando pide mas la caja se desplaza
+ */
+export function anchoDeGantt (cantidadDeMarcas: number, zoom: ZoomGantt, disponible: number): number {
+  return Math.max(disponible, cantidadDeMarcas * ANCHO_MARCA[zoom])
+}
+
+/** Una columna de la escala: su etiqueta, su tramo y si abre un periodo nuevo. */
+export interface MarcaGantt {
+  /** Clave estable para React: el primer dia del tramo. */
+  clave: string
+  /** Borde izquierdo del tramo, en porcentaje del ancho total. */
+  izquierda: number
+  /** Ancho del tramo, en porcentaje. Los tramos de las puntas vienen recortados al rango. */
+  ancho: number
+  /** Etiqueta de la fila de abajo: el dia, el mes o el año, segun el zoom. */
+  unidad: string
+  /** Etiqueta de la fila de arriba, solo en la marca que abre el periodo; `null` en el resto. */
+  periodo: string | null
+  /** La marca abre un periodo nuevo y por eso su linea se dibuja mas fuerte. */
+  limite: boolean
+}
+
+/**
+ * Corta la linea de tiempo en las columnas de la escala.
+ *
+ * La fila de arriba nombra el periodo —el mes en Dia y Semana, el año en Mes— y solo aparece cuando
+ * el periodo cambia; la de abajo nombra la unidad de cada columna. Es la idea del `get_date_info` del
+ * panel viejo, sin su deriva de escala: aca las etiquetas y los tramos se calculan del mismo dia.
+ *
+ * En Año la unidad ya es el periodo, asi que la fila de arriba queda vacia y todas las lineas son de
+ * limite.
+ *
+ * @param rango la linea de tiempo del diagrama
+ * @param zoom el zoom elegido
+ * @returns una marca por columna, en orden. Un rango largo en zoom Dia da una marca por dia: es
+ *          caro pero es lo que se pidio, y el zoom sugerido evita llegar ahi sin querer
+ */
+export function marcasDeGantt (rango: RangoGantt, zoom: ZoomGantt): MarcaGantt[] {
+  const marcas: MarcaGantt[] = []
+  let periodoAnterior: string | null = null
+
+  for (const [desde, hasta] of tramosDeZoom(rango, zoom)) {
+    const partes = partesDeDia(desde)
+    const clavePeriodo = zoom === 'dia' || zoom === 'semana'
+      ? `${partes.anio}-${partes.mes}`
+      : String(partes.anio)
+
+    const abre = clavePeriodo !== periodoAnterior
+    periodoAnterior = clavePeriodo
+
+    const inicio = Math.max(desde, rango.inicio)
+    const fin = Math.min(hasta, rango.fin)
+
+    marcas.push({
+      clave: String(desde),
+      izquierda: ((inicio - rango.inicio) / rango.dias) * 100,
+      ancho: ((fin - inicio + 1) / rango.dias) * 100,
+      unidad: etiquetaDeUnidad(partes, zoom),
+      periodo: abre && zoom !== 'anio' ? etiquetaDePeriodo(partes, zoom) : null,
+      limite: zoom === 'anio' ? marcas.length > 0 : abre && marcas.length > 0
+    })
+  }
+
+  return marcas
+}
+
+/**
+ * Donde cae el dia de hoy dentro del diagrama.
+ *
+ * @param rango la linea de tiempo del diagrama
+ * @param hoy fecha `YYYY-MM-DD`; parametro para poder probarlo sin depender del reloj
+ * @returns el porcentaje del ancho, apuntando al medio del dia, o `null` si hoy queda fuera del
+ *          diagrama — una linea pegada al borde mentiria sobre donde estamos
+ */
+export function posicionDeHoy (rango: RangoGantt, hoy: string): number | null {
+  const dia = diaDeFecha(hoy)
+  if (dia === null || dia < rango.inicio || dia > rango.fin) return null
+
+  return ((dia - rango.inicio + 0.5) / rango.dias) * 100
+}
+
+/** Año, mes y dia de un dia UTC desde la epoca, mas su dia de la semana (0 = domingo). */
+interface PartesDeDia {
+  anio: number
+  mes: number
+  dia: number
+  diaSemana: number
+}
+
+/** Descompone un dia UTC desde la epoca. */
+function partesDeDia (dia: number): PartesDeDia {
+  const fecha = new Date(dia * DIA)
+
+  return {
+    anio: fecha.getUTCFullYear(),
+    mes: fecha.getUTCMonth() + 1,
+    dia: fecha.getUTCDate(),
+    diaSemana: fecha.getUTCDay()
+  }
+}
+
+/** Etiqueta de la fila de abajo. */
+function etiquetaDeUnidad (partes: PartesDeDia, zoom: ZoomGantt): string {
+  if (zoom === 'anio') return String(partes.anio)
+  if (zoom === 'mes') return MESES[partes.mes - 1] ?? ''
+
+  return String(partes.dia)
+}
+
+/** Etiqueta de la fila de arriba: el mes en los zooms finos, el año en Mes. */
+function etiquetaDePeriodo (partes: PartesDeDia, zoom: ZoomGantt): string {
+  if (zoom === 'mes') return String(partes.anio)
+
+  return `${MESES[partes.mes - 1] ?? ''} ${partes.anio}`
+}
+
+/**
+ * Los tramos `[primerDia, ultimoDia]` de la escala, sin recortar al rango.
+ *
+ * El primer tramo empieza donde empieza su unidad —el lunes de la semana, el 1 del mes— aunque eso
+ * caiga antes del rango: recortarlo despues es lo que mantiene alineada la etiqueta con su columna.
+ */
+function tramosDeZoom (rango: RangoGantt, zoom: ZoomGantt): Array<[number, number]> {
+  const tramos: Array<[number, number]> = []
+
+  if (zoom === 'dia') {
+    for (let dia = rango.inicio; dia <= rango.fin; dia += 1) tramos.push([dia, dia])
+    return tramos
+  }
+
+  if (zoom === 'semana') {
+    // `diaSemana` es 0 el domingo; la semana se abre el lunes, asi que el domingo retrocede seis.
+    const primero = partesDeDia(rango.inicio)
+    let dia = rango.inicio - (primero.diaSemana === 0 ? 6 : primero.diaSemana - 1)
+
+    while (dia <= rango.fin) {
+      tramos.push([dia, dia + 6])
+      dia += 7
+    }
+
+    return tramos
+  }
+
+  const desde = partesDeDia(rango.inicio)
+  const hasta = partesDeDia(rango.fin)
+
+  if (zoom === 'mes') {
+    let anio = desde.anio
+    let mes = desde.mes
+
+    while (anio < hasta.anio || (anio === hasta.anio && mes <= hasta.mes)) {
+      tramos.push([Date.UTC(anio, mes - 1, 1) / DIA, Date.UTC(anio, mes, 0) / DIA])
+      mes += 1
+      if (mes > 12) { mes = 1; anio += 1 }
+    }
+
+    return tramos
+  }
+
+  for (let anio = desde.anio; anio <= hasta.anio; anio += 1) {
+    tramos.push([Date.UTC(anio, 0, 1) / DIA, Date.UTC(anio, 11, 31) / DIA])
+  }
+
+  return tramos
 }
