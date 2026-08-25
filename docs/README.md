@@ -44,6 +44,8 @@ el rollback sea decirle a la gente que vuelva al otro dominio, sin migrar nada.
 | [sistema-de-diseno.md](sistema-de-diseno.md) | Tokens, tipografía, reglas de marca, guardrails |
 | [flujo-de-trabajo.md](flujo-de-trabajo.md) | Los carriles paralelos y cómo no pisarse |
 | [fases/](fases/) | Una por fase: qué se construye, criterios de aceptación, riesgos |
+| [modulos/](modulos/) | Una ficha por módulo: pantallas, endpoints, campos, escrituras, permisos y reglas del panel a replicar. Es lo único que hace falta leer para armar un módulo |
+| [referencia/](referencia/) | Material de apoyo. Incluye el esquema de Perfex, **cuyos endpoints no existen**: el contrato vigente es `contrato-api.md` |
 
 ## Estado
 
@@ -67,8 +69,9 @@ omisión: es una decisión de retorno.
   riesgo. Se queda en Perfex indefinidamente.
 - **Ajustes** (27 archivos de `admin/settings/includes/`) — se usan una vez por trimestre.
   Reescribirlos es el peor retorno del proyecto.
-- **Automatización, informes avanzados, base de conocimiento, encuestas, contratos, suscripciones** —
-  hasta que alguien los pida por su nombre.
+- **Automatización, informes avanzados, base de conocimiento, encuestas, suscripciones** — hasta que
+  alguien los pida por su nombre. Contratos salió de esta lista: se pidió por su nombre y tiene ficha
+  en [modulos/12-contratos.md](modulos/12-contratos.md).
 - App móvil y modo sin conexión.
 
 ## Levantar el entorno

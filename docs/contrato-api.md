@@ -367,7 +367,7 @@ es una opción.
 |---|---|
 | `POST /tasks/{id}/actions/mark-complete` | `status: 5`, sella `datefinished` y **cierra los cronómetros abiertos** |
 | `POST /tasks/{id}/actions/reopen` | Limpia `datefinished`. Sin `status` en el cuerpo, usa la heurística del panel |
-| `POST /tasks/{id}/mover` | `{ "columna": 4, "posicion": 2 }` — arrastre del tablero |
+| `POST /tasks/{id}/mover` | `{ "columna": 4, "posicion": 2, "columna_completa": [12, 7, 33] }` — arrastre del tablero. `columna_completa` son los ids de la columna destino tal como los tiene el cliente: sin ellos no hay reordenamiento, y las tarjetas que el cliente no cargó por paginación se empujan al fondo |
 | `POST /tasks/{id}/timer` | Arranca el cronómetro. Cuerpo opcional: `{ "note": "…" }` |
 | `DELETE /tasks/{id}/timer` | Lo detiene |
 
