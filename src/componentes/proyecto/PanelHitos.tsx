@@ -27,8 +27,15 @@ import type { DefinicionRecurso } from '@/definiciones/tipos'
  * El panel viejo no persistia la preferencia y volvia al kanban en cada recarga; aca no hace falta
  * elegir entre las dos cosas.
  *
- * El checkbox "Excluir tareas completadas" arranca **activado**, que es el comportamiento real del
- * panel por contraintuitivo que parezca (`Projects.php:296`: sin parametro, excluye).
+ * **Desviacion deliberada del panel viejo**: el checkbox "Excluir tareas completadas" arranca
+ * **apagado**. En el panel arranca encendido (`Projects.php:296`: sin parametro, excluye), y eso
+ * confunde: al entrar a la pestaña se ven menos tareas de las que el proyecto tiene, sin nada que
+ * explique por que, y el tablero de un proyecto terminado aparece vacio. Se invierte el valor por
+ * defecto para que la primera pantalla muestre todo y esconder sea una decision explicita.
+ *
+ * Por eso `excluirCompletadas` se manda **siempre** a la API en vez de omitir el parametro: el
+ * endpoint tiene su propio valor por defecto (`excluir_completadas` es `true` cuando no viaja), asi
+ * que confiar en el nos devolveria justo el comportamiento que se esta corrigiendo.
  */
 
 interface PropsPanelHitos {
@@ -53,7 +60,8 @@ function HitosDelProyecto ({ proyecto, capacidades }: PropsPanelHitos): ReactEle
   const [creando, setCreando] = useState(false)
 
   const vista = params.get('vistaHitos') === 'tabla' ? 'tabla' : 'tablero'
-  const excluirCompletadas = params.get('excluirCompletadas') !== 'no'
+  // Sin parametro se muestra todo: hay que pedir `si` para esconder las completadas.
+  const excluirCompletadas = params.get('excluirCompletadas') === 'si'
   const puedeEditar = capacidades.includes('edit')
   const puedeCrear = capacidades.includes('create')
 

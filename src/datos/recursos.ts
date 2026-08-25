@@ -518,6 +518,8 @@ export interface TareaGantt {
   progress: number
   status: number
   color: string | null
+  /** De que tareas depende esta. Viaja dentro de la barra; ver `DependenciaGantt` al final del archivo. */
+  dependencies: DependenciaGantt[]
 }
 
 /** Grupo del Gantt: un hito, un miembro o un estado, con sus tareas. Los grupos vacios no se emiten. */
@@ -603,4 +605,22 @@ export interface CampoPersonalizadoMeta {
   default_value: string
   only_admin: boolean
   show_on_table: boolean
+}
+
+// frente: hitos-gantt
+/**
+ * Dependencia entre dos tareas del Gantt, de `GET /projects/{id}/gantt`.
+ *
+ * Se lee "esta tarea depende de `depends_on`", asi que la flecha va **desde** `depends_on` **hacia**
+ * la tarea que la contiene. Viaja dentro de la barra y no en un bloque aparte de la respuesta: asi
+ * `data` sigue siendo la lista de grupos y el diagrama la recorre una sola vez.
+ *
+ * `type` es un varchar libre de `tblproject_task_dependencies`, que agrega el modulo
+ * `project_management_enhancements`. Sus valores convenidos son `linked`, `blocking`, `waiting` y
+ * `references`, pero el selector que los ofrecia esta comentado en el panel: en la practica casi
+ * siempre llega `null`, y el dibujo no depende de el.
+ */
+export interface DependenciaGantt {
+  depends_on: number
+  type: string | null
 }
