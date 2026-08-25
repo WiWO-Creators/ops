@@ -22,7 +22,10 @@ export default async function PanelLayout ({ children }: { children: React.React
   const secciones = seccionesDe(yo)
 
   return (
-    <div className="flex min-h-dvh">
+    // `h-dvh` y no `min-h-dvh`: el armazon mide exactamente la ventana para que el scroll ocurra
+    // dentro de `main` y la barra lateral y la cabecera queden fijas. Con `min-h` el armazon crece
+    // con el contenido, y como el `body` no scrollea, lo que sobresale queda inalcanzable.
+    <div className="flex h-dvh overflow-hidden">
 
       <BarraLateral secciones={secciones} />
 
@@ -33,7 +36,9 @@ export default async function PanelLayout ({ children }: { children: React.React
           <Avatar nombre={yo.full_name} imagen={yo.profile_image_url} />
           <BotonSalir />
         </header>
-        <main className="min-w-0 flex-1 p-4">{children}</main>
+        {/* El unico contenedor de scroll vertical del armazon. `min-h-0` es lo que se lo permite:
+            sin el, un hijo flex no baja de su altura de contenido y `overflow-y` no llega a actuar. */}
+        <main className="min-h-0 min-w-0 flex-1 overflow-y-auto p-4">{children}</main>
       </div>
     </div>
   )

@@ -192,10 +192,49 @@
     background-color: var(--seleccionado);
   }
 
-  /* Barras de scroll discretas, del color de la linea. En oscuro heredan el tema por `color-scheme`. */
-  * {
-    scrollbar-width: thin;
-    scrollbar-color: var(--linea-fuerte) transparent;
+  /*
+   * Barras de scroll propias, del color de la linea.
+   *
+   * Van dos veces y el `@supports` no es decorativo: **Chromium desactiva los
+   * `::-webkit-scrollbar` en cuanto ve un `scrollbar-width` declarado**. Puestas juntas sin
+   * separar, las reglas propias quedan muertas y se ve la barra del navegador apenas recoloreada.
+   * Asi que el estandar —lo unico que entiende Firefox, y que solo deja elegir grosor y color— se
+   * encierra donde los pseudo-elementos no existen, y WebKit/Blink se queda con la geometria
+   * propia: riel transparente, pulgar redondeado y su estado de hover.
+   *
+   * Sin `background-clip: content-box` mas el borde transparente, el pulgar toca los bordes del
+   * riel y se ve como un bloque; el borde es el aire que lo separa.
+   */
+  @supports not selector(::-webkit-scrollbar) {
+    * {
+      scrollbar-width: thin;
+      scrollbar-color: var(--linea-fuerte) transparent;
+    }
+  }
+
+  *::-webkit-scrollbar {
+    width: 0.75rem;
+    height: 0.75rem;
+  }
+
+  *::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  *::-webkit-scrollbar-thumb {
+    background-color: var(--linea-fuerte);
+    background-clip: content-box;
+    border: 3px solid transparent;
+    border-radius: var(--control-BorderRadius);
+  }
+
+  *::-webkit-scrollbar-thumb:hover {
+    background-color: var(--texto-sutil);
+  }
+
+  /* La esquina donde se cruzan las dos barras: sin esto queda un cuadrado gris del navegador. */
+  *::-webkit-scrollbar-corner {
+    background: transparent;
   }
 }
 
