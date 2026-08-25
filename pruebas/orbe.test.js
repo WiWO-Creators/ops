@@ -120,15 +120,18 @@ test('reduced motion conserva una respiracion minima', () => {
     'la marca pide congelar la rotacion pero conservar la respiracion, no apagar todo')
 })
 
-test('el orbe se ve tambien sobre claro', () => {
-  // Suma luz sobre lo que tiene detras: sobre una superficie clara eso da blanco sobre blanco.
-  assert.ok(
-    !/mix-blend-mode:\s*screen\s*;/.test(sinComentarios(css)),
-    'quedo un `mix-blend-mode: screen` fijo: en tema claro esa capa se vuelve invisible'
+test('el orbe se compone consigo mismo y no con la pagina', () => {
+  // Sin aislar, las capas se suman a lo que tengan detras: sobre una superficie clara el orbe
+  // desaparece, y una correccion por tema lo ensucia justo al reves en el degradado del acceso.
+  assert.match(
+    css,
+    /\.orbe-escenario \{\s*isolation: isolate/,
+    'el escenario dejo de aislar la mezcla: el orbe pasa a depender de la superficie que tenga debajo'
   )
-  assert.match(css, /--orbe-mezcla:\s*multiply/, 'falta la rama clara de la mezcla')
-  assert.match(css, /:root\[data-theme='dark'\] \.orbe-wiwo \{ --orbe-mezcla: screen; \}/,
-    'falta la rama oscura explicita: con [data-theme] la preferencia del sistema no alcanza')
+  assert.ok(
+    !/--orbe-mezcla/.test(css),
+    'volvio la mezcla por tema: el problema no era el tema de la pagina sino la superficie de abajo'
+  )
 })
 
 test('las medidas del orbe estan en unidades de orbe y no en pixeles', () => {

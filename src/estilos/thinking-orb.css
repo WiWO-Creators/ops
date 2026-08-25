@@ -22,8 +22,8 @@
  *    activo animan todos, porque entonces el orbe dura lo que dura la operacion.
  * 2. **Nada de `backdrop-filter` en superficies siempre visibles.** Este orbe no lo necesita: la
  *    version final de neo lo apaga (`backdrop-filter: none`) y resuelve el vidrio sumando capas de
- *    luz en `mix-blend-mode: screen`. La excepcion que documentaba el archivo anterior ya no aplica
- *    y **no hay que reponerla**.
+ *    luz en `mix-blend-mode: screen`, que se suman entre ellas dentro de un grupo aislado. La
+ *    excepcion que documentaba el archivo anterior ya no aplica y **no hay que reponerla**.
  * 3. `prefers-reduced-motion`: se congela la rotacion y las capas de estado, se conserva una
  *    respiracion minima y el estado se comunica por el texto que acompaña al orbe.
  *
@@ -183,7 +183,7 @@
         radial-gradient(ellipse at 68% 72%, rgba(59, 255, 0, .18), transparent 30%),
         conic-gradient(from 220deg, transparent, rgba(248, 250, 215, .16), var(--orb-primary), transparent 60%, var(--orb-secondary), transparent);
       filter: blur(calc(9 * var(--orbe-u))) saturate(1.16);
-      mix-blend-mode: var(--orbe-mezcla, screen);
+      mix-blend-mode: screen;
       opacity: var(--orb-liquid-opacity);
       animation: thinking-orb-viscosity 7200ms var(--ease-expressive) infinite;
     }
@@ -196,7 +196,7 @@
         radial-gradient(ellipse at 24% 18%, rgba(255, 255, 255, .78), rgba(255, 255, 255, .2) 27%, transparent 50%),
         radial-gradient(circle at 64% 46%, rgba(248, 250, 215, .2), transparent 20%),
         radial-gradient(circle at 82% 68%, rgba(255, 255, 255, .1), transparent 24%);
-      mix-blend-mode: var(--orbe-mezcla, screen);
+      mix-blend-mode: screen;
       opacity: var(--orb-light-opacity);
       animation: thinking-orb-light-swim 5400ms var(--ease-expressive) infinite alternate;
     }
@@ -209,7 +209,7 @@
         repeating-conic-gradient(from 18deg, rgba(248, 250, 215, .2) 0deg 8deg, transparent 9deg 24deg),
         radial-gradient(circle at 50% 50%, transparent 36%, rgba(255, 255, 255, .18), transparent 62%);
       filter: blur(calc(7 * var(--orbe-u)));
-      mix-blend-mode: var(--orbe-mezcla, screen);
+      mix-blend-mode: screen;
       opacity: var(--orb-caustic-opacity);
       animation: thinking-orb-caustic 7600ms linear infinite;
     }
@@ -276,7 +276,7 @@
       background: var(--wiwo-green);
       box-shadow: 0 0 calc(18 * var(--orbe-u)) rgba(59, 255, 0, .74);
       opacity: var(--spark-opacity);
-      mix-blend-mode: var(--orbe-mezcla, screen);
+      mix-blend-mode: screen;
       transform-origin: calc(var(--orbit, calc(142 * var(--orbe-u))) * -1) 0;
       animation: thinking-orb-particle var(--speed, 5200ms) linear infinite;
     }
@@ -316,7 +316,7 @@
       box-shadow: 0 0 calc(14 * var(--orbe-u)) currentColor, 0 0 calc(34 * var(--orbe-u)) var(--spark-color, rgba(248, 250, 215, .72));
       color: var(--spark-color, var(--wiwo-beige));
       opacity: var(--spark-opacity);
-      mix-blend-mode: var(--orbe-mezcla, screen);
+      mix-blend-mode: screen;
       animation: thinking-orb-spark var(--spark-speed, 6200ms) var(--ease-expressive) infinite;
       animation-delay: var(--spark-delay, 0ms);
     }
@@ -328,7 +328,7 @@
       z-index: 1;
       pointer-events: none;
       border-radius: inherit;
-      mix-blend-mode: var(--orbe-mezcla, screen);
+      mix-blend-mode: screen;
       transition: filter var(--motion-medium) var(--ease-expressive), transform var(--motion-medium) var(--ease-expressive);
     }
 
@@ -874,7 +874,7 @@
       z-index: 3;
       border-radius: inherit;
       pointer-events: none;
-      mix-blend-mode: var(--orbe-mezcla, screen);
+      mix-blend-mode: screen;
       filter: blur(calc(18 * var(--orbe-u))) saturate(1.42);
       opacity: var(--orb-aurora-opacity);
       transform-origin: 50% 50%;
@@ -1026,7 +1026,7 @@
         0 0 calc(190 * var(--orbe-u)) rgba(66, 66, 255, .32),
         0 0 calc(154 * var(--orbe-u)) rgba(59, 255, 0, .24),
         0 0 calc(86 * var(--orbe-u)) rgba(255, 255, 251, .12);
-      mix-blend-mode: var(--orbe-mezcla, screen);
+      mix-blend-mode: screen;
       will-change: transform, filter, background-position, border-radius;
       animation:
         thinking-orb-breathe var(--orb-speed) var(--ease-expressive) infinite,
@@ -1346,7 +1346,7 @@
         0 0 calc(125 * var(--orbe-u)) color-mix(in srgb, var(--orb-light-lime) 24%, transparent),
         0 0 calc(72 * var(--orbe-u)) rgba(248, 250, 215, .15);
       filter: saturate(var(--orb-saturation)) brightness(var(--orb-brightness));
-      mix-blend-mode: var(--orbe-mezcla, screen);
+      mix-blend-mode: screen;
       transform-origin: 50% 54%;
       will-change: transform, filter, border-radius;
       animation:
@@ -1381,7 +1381,7 @@
       mask-image: radial-gradient(ellipse at 50% 50%, rgba(0, 0, 0, .7) 0 22%, #000 46%, rgba(0, 0, 0, .64) 68%, transparent 88%);
       filter: blur(calc(30 * var(--orbe-u))) saturate(2.35);
       opacity: .82;
-      mix-blend-mode: var(--orbe-mezcla, screen);
+      mix-blend-mode: screen;
       animation: orb-v6-membrane-flow calc(var(--orb-flow-speed) * 1.34) var(--ease-expressive) infinite;
     }
 
@@ -1395,7 +1395,7 @@
         radial-gradient(ellipse at 44% 72%, rgba(59, 255, 0, .2), transparent 48%);
       filter: blur(calc(18 * var(--orbe-u))) saturate(1.55);
       opacity: .72;
-      mix-blend-mode: var(--orbe-mezcla, screen);
+      mix-blend-mode: screen;
       animation: orb-v6-sheen 3900ms var(--ease-expressive) infinite alternate;
     }
 
@@ -1544,7 +1544,7 @@
       pointer-events: none;
       opacity: 0;
       transform: translate(-50%, -50%);
-      mix-blend-mode: var(--orbe-mezcla, screen);
+      mix-blend-mode: screen;
       z-index: 10;
     }
 
@@ -2188,7 +2188,7 @@
         radial-gradient(ellipse at 50% 50%, rgba(248, 250, 215, .48), transparent 18%),
         linear-gradient(180deg, transparent, rgba(59, 255, 0, .72), rgba(66, 66, 255, .42), transparent);
       filter: blur(calc(9 * var(--orbe-u))) saturate(1.9);
-      mix-blend-mode: var(--orbe-mezcla, screen);
+      mix-blend-mode: screen;
       animation: orb-v6-listen-scan 1280ms var(--ease-expressive) infinite;
     }
 
@@ -2277,28 +2277,23 @@
    ============================================================================= */
 
 /* -----------------------------------------------------------------------------
-   El orbe en tema claro
+   Por que el orbe se compone consigo mismo y no con la pagina
    -----------------------------------------------------------------------------
-   El orbe no tiene fondo propio: son capas de luz que se SUMAN a lo que hay detras
-   (`mix-blend-mode: screen`). Sobre el oscuro de neo eso es exactamente el efecto
-   buscado; sobre una superficie clara, sumar luz a algo que ya es casi blanco da
-   blanco: el orbe se vuelve invisible. Y en tema claro el orbe vive en botones y
-   filas, o sea justo donde tiene que verse.
+   El orbe son capas de luz que se suman entre si (`mix-blend-mode: screen`). En
+   neo eso se mezcla ademas con el fondo del showcase, que es oscuro y fijo. En el
+   producto no hay un fondo fijo: el mismo orbe cae sobre un boton claro, sobre el
+   degradado del acceso o sobre una tarjeta de vidrio.
 
-   La mezcla pasa entonces a `multiply`, que es la operacion inversa: en vez de
-   sumar luz, tiñe. El orbe queda del mismo verde y azul de marca, oscureciendo en
-   lugar de aclarar, y sigue sin traer fondo propio.
+   Dejar que se mezcle con lo que tenga detras rompe de las dos formas: sobre una
+   superficie clara sumar luz da blanco y el orbe desaparece; sobre el azul del
+   acceso —con la pagina en esquema claro— la correccion contraria lo oscurecia
+   hasta dejarlo como una nube de humo.
 
-   Las tres ramas son las del proyecto: por defecto manda la preferencia del
-   sistema (`color-scheme: light dark`) y `[data-theme]` la sobrescribe.
+   `isolation: isolate` corta eso: las capas se suman entre ellas dentro del
+   escenario y el resultado se dibuja despues, normal, sobre lo que haya. El orbe
+   se ve igual en los dos temas y sobre cualquier superficie, que es justo lo que
+   se le pide a un indicador de carga que vive en todo el producto.
    ----------------------------------------------------------------------------- */
-.orbe-wiwo { --orbe-mezcla: multiply; }
-
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme='light']) .orbe-wiwo { --orbe-mezcla: screen; }
-}
-
-:root[data-theme='dark'] .orbe-wiwo { --orbe-mezcla: screen; }
 
 /* El contenedor ocupa exactamente la caja del orbe: el escenario de neo era un panel de 420px de
    alto con su propia aurora, que es cromo de la pagina showcase y no del componente. */
@@ -2329,6 +2324,7 @@
 /* `medida` llega como `--orbe-ancho` en el atributo style, asi que gana sin regla extra. */
 
 .orbe-escenario {
+  isolation: isolate;
   position: relative;
   display: grid;
   place-items: center;

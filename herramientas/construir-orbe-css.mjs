@@ -62,9 +62,6 @@ const origen = fs.readFileSync(entrada, 'utf8')
 const cuerpo = origen
   // `thinking-orb-demo` era el contenedor de la demo del showcase; aca es el componente de producto.
   .replace(/\.thinking-orb-demo\b/g, '.orbe-wiwo')
-  // El orbe suma luz sobre lo que tiene detras. Eso funciona sobre oscuro y desaparece sobre claro,
-  // asi que la mezcla entra por variable y el tema la decide. Ver "El orbe en tema claro" abajo.
-  .replace(/mix-blend-mode:\s*screen/g, 'mix-blend-mode: var(--orbe-mezcla, screen)')
   .split('\n')
   // El sistema de diseño prohibe `backdrop-filter` en superficies siempre visibles. Las versiones
   // viejas del orbe lo encendian y la final lo apaga (`backdrop-filter: none`), asi que en la hoja
@@ -98,8 +95,8 @@ const cabecera = `/**
  *    activo animan todos, porque entonces el orbe dura lo que dura la operacion.
  * 2. **Nada de \`backdrop-filter\` en superficies siempre visibles.** Este orbe no lo necesita: la
  *    version final de neo lo apaga (\`backdrop-filter: none\`) y resuelve el vidrio sumando capas de
- *    luz en \`mix-blend-mode: screen\`. La excepcion que documentaba el archivo anterior ya no aplica
- *    y **no hay que reponerla**.
+ *    luz en \`mix-blend-mode: screen\`, que se suman entre ellas dentro de un grupo aislado. La
+ *    excepcion que documentaba el archivo anterior ya no aplica y **no hay que reponerla**.
  * 3. \`prefers-reduced-motion\`: se congela la rotacion y las capas de estado, se conserva una
  *    respiracion minima y el estado se comunica por el texto que acompaña al orbe.
  *
@@ -146,28 +143,23 @@ const capaProducto = `
    ============================================================================= */
 
 /* -----------------------------------------------------------------------------
-   El orbe en tema claro
+   Por que el orbe se compone consigo mismo y no con la pagina
    -----------------------------------------------------------------------------
-   El orbe no tiene fondo propio: son capas de luz que se SUMAN a lo que hay detras
-   (\`mix-blend-mode: screen\`). Sobre el oscuro de neo eso es exactamente el efecto
-   buscado; sobre una superficie clara, sumar luz a algo que ya es casi blanco da
-   blanco: el orbe se vuelve invisible. Y en tema claro el orbe vive en botones y
-   filas, o sea justo donde tiene que verse.
+   El orbe son capas de luz que se suman entre si (\`mix-blend-mode: screen\`). En
+   neo eso se mezcla ademas con el fondo del showcase, que es oscuro y fijo. En el
+   producto no hay un fondo fijo: el mismo orbe cae sobre un boton claro, sobre el
+   degradado del acceso o sobre una tarjeta de vidrio.
 
-   La mezcla pasa entonces a \`multiply\`, que es la operacion inversa: en vez de
-   sumar luz, tiñe. El orbe queda del mismo verde y azul de marca, oscureciendo en
-   lugar de aclarar, y sigue sin traer fondo propio.
+   Dejar que se mezcle con lo que tenga detras rompe de las dos formas: sobre una
+   superficie clara sumar luz da blanco y el orbe desaparece; sobre el azul del
+   acceso —con la pagina en esquema claro— la correccion contraria lo oscurecia
+   hasta dejarlo como una nube de humo.
 
-   Las tres ramas son las del proyecto: por defecto manda la preferencia del
-   sistema (\`color-scheme: light dark\`) y \`[data-theme]\` la sobrescribe.
+   \`isolation: isolate\` corta eso: las capas se suman entre ellas dentro del
+   escenario y el resultado se dibuja despues, normal, sobre lo que haya. El orbe
+   se ve igual en los dos temas y sobre cualquier superficie, que es justo lo que
+   se le pide a un indicador de carga que vive en todo el producto.
    ----------------------------------------------------------------------------- */
-.orbe-wiwo { --orbe-mezcla: multiply; }
-
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme='light']) .orbe-wiwo { --orbe-mezcla: screen; }
-}
-
-:root[data-theme='dark'] .orbe-wiwo { --orbe-mezcla: screen; }
 
 /* El contenedor ocupa exactamente la caja del orbe: el escenario de neo era un panel de 420px de
    alto con su propia aurora, que es cromo de la pagina showcase y no del componente. */
@@ -198,6 +190,7 @@ const capaProducto = `
 /* \`medida\` llega como \`--orbe-ancho\` en el atributo style, asi que gana sin regla extra. */
 
 .orbe-escenario {
+  isolation: isolate;
   position: relative;
   display: grid;
   place-items: center;
