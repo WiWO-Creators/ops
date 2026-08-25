@@ -10,6 +10,7 @@ import { PanelGantt } from '@/componentes/proyecto/PanelGantt'
 import { PanelHitos } from '@/componentes/proyecto/PanelHitos'
 import { PanelNotas } from '@/componentes/proyecto/PanelNotas'
 import { PanelTareas } from '@/componentes/proyecto/PanelTareas'
+import { PanelTiempos } from '@/componentes/proyecto/PanelTiempos'
 import { PanelTickets } from '@/componentes/proyecto/PanelTickets'
 import { PanelVentas } from '@/componentes/proyecto/PanelVentas'
 import { Pestanas, type Panel } from '@/componentes/proyecto/Pestanas'
@@ -157,15 +158,7 @@ export default async function ProyectoPage (props: PageProps<'/espacios/[id]'>) 
     {
       clave: 'tiempos',
       etiqueta: 'Tiempos',
-      // PENDIENTE-FRENTE-4: `PanelTiempos` lo entrega el frente 4 con la firma
-      // `<PanelTiempos proyectoId={number} capacidades={Capacidad[]} />`. Hasta que exista, la
-      // pestaña dice que falta en vez de romper el build de toda la pantalla.
-      contenido: (
-        <Vacio
-          titulo="Registro de horas"
-          descripcion="Esta pestaña se enchufa cuando el panel de Tiempos esté disponible."
-        />
-      )
+      contenido: <PanelTiempos proyectoId={proyecto.id} capacidades={capacidadesTareas} />
     },
     {
       clave: 'hitos',
