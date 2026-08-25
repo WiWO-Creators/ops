@@ -37,16 +37,19 @@ interface PropsOrbe {
   /**
    * @see EstadoOrbe
    *
-   * Sin estado el orbe queda **quieto**. La regla de rendimiento del proyecto —la que colgaba el
-   * panel viejo en pantallas Retina— prohibe animaciones infinitas en elementos siempre visibles, y
-   * la mascota de la barra superior es exactamente eso. Ademas comunica mejor: si se moviera
-   * siempre, moverse dejaria de significar "esta pasando algo".
+   * Sin estado el orbe queda **en reposo**: respira, pero apenas —y solo en los tamaños grandes y
+   * en la medida libre, que aparecen de a uno en pantalla. El chico y el mediano, que se repiten
+   * por fila y por boton, quedan quietos: la regla de rendimiento del proyecto —la que colgaba el
+   * panel viejo en pantallas Retina— prohibe animaciones infinitas en elementos siempre visibles.
+   * Ademas comunica mejor: si se deformara siempre, deformarse dejaria de significar "esta pasando
+   * algo". Ver el bloque "Orbe en reposo" de `thinking-orb.css`.
    */
   estado?: EstadoOrbe
   /** `chico` en una fila, `medio` en un boton, `grande` en una tarjeta, `marca` a pantalla completa. */
   tamano?: TamanoOrbe
   /**
-   * Medida libre, para cuando ninguno de los tamaños discretos sirve. Cualquier valor CSS.
+   * Medida libre, para cuando ninguno de los tamaños discretos sirve. Cualquier valor CSS. Cuenta
+   * como tamaño grande para el reposo animado: se usa cuando el orbe es el foco de la pantalla.
    * Ej: `clamp(14rem, 26vw, 21rem)` — el que usa el orbe de marca en el acceso.
    */
   medida?: string
@@ -69,7 +72,12 @@ export function Orbe ({ estado, tamano = 'medio', medida, className }: PropsOrbe
       aria-hidden="true"
       data-orb-state={estado ?? 'quieto'}
       style={medida === undefined ? undefined : ({ '--orb-size': medida } as React.CSSProperties)}
-      className={cn('wiwo-thinking-orb detail-full', CLASE_TAMANO[tamano], className)}
+      className={cn(
+        'wiwo-thinking-orb detail-full',
+        CLASE_TAMANO[tamano],
+        medida === undefined ? undefined : 'orb-libre',
+        className
+      )}
     >
       <span className="orb-pulse" />
       <span className="orb-pulse" />

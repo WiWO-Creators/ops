@@ -1,0 +1,137 @@
+/*
+ * Vidrio liquido y fondo de marca.
+ *
+ * Vive en su propio archivo y no en `neo.css` por una razon concreta: el guardrail de rendimiento
+ * prohibe `backdrop-filter` y `pruebas/marca.test.js` lo verifica sobre `neo.css` y `globals.css`.
+ * Esa prohibicion apunta a las superficies SIEMPRE visibles —barra superior, barra lateral, paneles,
+ * filas de tabla—, donde cada instancia cuesta una composicion de capa y son cientos. Acá hay una
+ * sola tarjeta por pantalla, en una pantalla transitoria y sin scroll: la excepcion es del mismo
+ * tipo que la del orbe, acotada y declarada, no un permiso general.
+ *
+ * Los valores salen del sistema Neo (neo.wiwo.me, capa "liquid glass"): desenfoque de 22px con
+ * saturacion alta, trazo claro al 42% y un barrido diagonal de luz. El relleno es la variante oscura
+ * de Neo (`--glass-fill-dark`), subida de 0.5 a 0.66 porque acá el vidrio no cubre una foto sino un
+ * degradado que llega hasta el verde de marca: con 0.5, el texto secundario sobre la esquina verde
+ * cae por debajo de AA.
+ */
+
+/*
+ * Degradado de marca de ops.wiwo.me, a pantalla completa.
+ *
+ * No es decoracion. El orbe es vidrio translucido —desenfoca lo que tiene detras en vez de traer
+ * fondo propio—, asi que sobre una superficie casi blanca simplemente no se lee. Este degradado es
+ * el "detras" que le da cuerpo, y es tambien lo que hace legible el vidrio de la tarjeta.
+ */
+.fondo-marca {
+  background:
+    radial-gradient(55% 45% at 16% 10%, rgb(248 250 215 / 0.1) 0%, transparent 70%),
+    radial-gradient(70% 60% at 88% 88%, rgb(59 255 0 / 0.12) 0%, transparent 65%),
+    linear-gradient(135deg, rgb(41 41 41) 0%, rgb(66 66 255) 76%, rgb(59 255 0) 128%);
+}
+
+/*
+ * El degradado es oscuro en los DOS temas, asi que lo que va encima necesita la paleta oscura aunque
+ * la persona tenga el tema claro elegido.
+ *
+ * `color-scheme: dark` sobre el contenedor no alcanza, y conviene saber por que antes de intentarlo
+ * de nuevo: los semanticos se declaran en `:root`, y `light-dark()` dentro de una propiedad
+ * personalizada se resuelve donde se DECLARA, no donde se usa. Lo que hereda un descendiente es el
+ * valor ya resuelto. La unica forma de cambiarlo es volver a declarar los tokens en este subarbol.
+ *
+ * Se declara solo lo que esta pantalla usa, y cada valor sale de la rama oscura de `neo.css` salvo
+ * donde el vidrio pide otra cosa, que va anotado. `color-scheme` se declara igual: es lo que pinta
+ * en oscuro el autocompletado, el selector de fecha y la barra de scroll, que son del navegador y no
+ * leen tokens.
+ */
+.fondo-marca,
+.panel-vidrio {
+  color-scheme: dark;
+
+  --texto: #ececef;
+  /* El gris `#a8a8b3` del tema oscuro esta calculado contra `#17171a`. Sobre el vidrio —que nunca es
+   * tan oscuro— y sobre el degradado cae a ~3:1, asi que el texto de apoyo va en blanco atenuado. */
+  --texto-tenue: rgb(255 255 255 / 0.86);
+  --texto-sutil: rgb(255 255 255 / 0.86);
+  --texto-peligro: #f2857c;
+  --marca: var(--wiwo-beige);
+
+  /* Los controles son vidrio tambien: un rectangulo opaco encima de la tarjeta la parte en dos. */
+  --control: rgb(255 255 255 / 0.1);
+  --control-borde: rgb(255 255 255 / 0.34);
+  --linea-fuerte: rgb(255 255 255 / 0.55);
+  --superficie-hundida: rgb(255 255 255 / 0.05);
+  --hover: rgb(255 255 255 / 0.1);
+  --relleno-neutro: rgb(255 255 255 / 0.14);
+  --superficie-peligro: rgb(195 70 61 / 0.22);
+
+  --acento: var(--wiwo-blue-200);
+  --acento-fuerte: var(--wiwo-blue);
+  --acento-contenido: var(--wiwo-ink);
+
+  /* El anillo de foco va verde y no azul: el fondo de esta pantalla ES el azul de marca, y un anillo
+   * azul sobre azul no se ve. Es la misma razon por la que Neo lo cambia a verde en tema oscuro.
+   * Verde como relleno, nunca como texto: la regla de marca se respeta. */
+  --foco: var(--wiwo-green);
+  --foco-halo: rgb(59 255 0 / 0.22);
+}
+
+.panel-vidrio {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid rgb(255 255 255 / 0.42);
+  border-radius: var(--large-BorderRadius);
+  background:
+    linear-gradient(145deg, rgb(255 255 255 / 0.16), rgb(255 255 255 / 0.05)),
+    rgb(41 41 41 / 0.66);
+  box-shadow: 0 24px 70px rgb(41 41 41 / 0.32);
+  -webkit-backdrop-filter: blur(22px) saturate(170%);
+  backdrop-filter: blur(22px) saturate(170%);
+}
+
+/*
+ * Barrido de luz de Neo: la esquina superior izquierda recibe el brillo y la inferior derecha un
+ * reflejo debil. Es lo que separa "vidrio" de "panel translucido".
+ *
+ * Neo suma ademas una burbuja deformandose en bucle; acá no va: el guardrail prohibe animaciones
+ * `infinite` en elementos siempre visibles, y esta tarjeta lo es mientras dura la pantalla.
+ */
+.panel-vidrio::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(125deg, rgb(255 255 255 / 0.18), transparent 34%),
+    linear-gradient(315deg, rgb(255 255 255 / 0.08), transparent 46%);
+  pointer-events: none;
+}
+
+/* El contenido va sobre el barrido, que es un pseudo-elemento posicionado. */
+.panel-vidrio > * {
+  position: relative;
+  z-index: 1;
+}
+
+/*
+ * Sin `backdrop-filter` el relleno translucido deja ver el degradado nitido detras del texto. En ese
+ * caso el vidrio se vuelve una tarjeta oscura y opaca: se pierde el efecto, no la legibilidad.
+ */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .panel-vidrio {
+    background:
+      linear-gradient(145deg, rgb(255 255 255 / 0.16), rgb(255 255 255 / 0.05)),
+      rgb(41 41 41 / 0.94);
+  }
+}
+
+/* Quien pide menos transparencia recibe una tarjeta solida, no una version atenuada del efecto. */
+@media (prefers-reduced-transparency: reduce) {
+  .panel-vidrio {
+    background: rgb(31 31 35);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+
+  .panel-vidrio::before {
+    display: none;
+  }
+}

@@ -200,9 +200,22 @@
  * —la que colgaba el panel viejo en pantallas Retina— prohibe animaciones infinitas en elementos que
  * nunca se desmontan.
  *
- * Se apaga el movimiento, no el orbe: la esfera sigue en pantalla con su vidrio y su borde. Y no se
- * promueve a capa de GPU, porque promover algo que no se mueve gasta memoria de video en cada
- * pestaña abierta.
+ * Un orbe congelado, sin embargo, no parece vivo. La salida es la misma que ya se uso para el
+ * `backdrop-filter`: **acotar la excepcion al tamaño, no negarla**.
+ *
+ * 1. Base: todo apagado. El chico y el mediano —los que se repiten, uno por fila y uno por boton—
+ *    quedan realmente quietos, que es donde la regla existe.
+ * 2. Solo en los tamaños grandes (`orb-large`, `orb-x-large` y la medida libre, que aparecen de a
+ *    uno en pantalla) se enciende un reposo: **dos animaciones, no catorce**, sobre `transform` y
+ *    `opacity` unicamente —nada de `filter`, `box-shadow` ni `border-radius`, que fuerzan
+ *    repintado—, con amplitud minima (1.8 % de escala) y duraciones de 9 a 13 s contra los 1.7 a
+ *    3 s del estado activo.
+ *
+ * Asi el orbe respira sin dejar de comunicar: moverse rapido y deformarse sigue significando "esta
+ * pasando algo", y moverse apenas significa "estoy acá".
+ *
+ * El reposo va dentro de `no-preference` a proposito: quien pidio movimiento reducido recibe el
+ * orbe quieto, sin necesidad de contra-reglas mas abajo.
  */
 .wiwo-thinking-orb[data-orb-state='quieto'],
 .wiwo-thinking-orb[data-orb-state='quieto']::before,
@@ -210,6 +223,34 @@
 .wiwo-thinking-orb[data-orb-state='quieto'] > * {
   animation: none;
   transform: none;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .orb-large[data-orb-state='quieto'],
+  .orb-x-large[data-orb-state='quieto'],
+  .orb-libre[data-orb-state='quieto'] {
+    animation: orbe-reposo-respiracion 9400ms ease-in-out infinite;
+  }
+
+  /* El campo de luz es la unica capa interna que se mueve: basta con que el brillo especular se
+     desplace para que la esfera se lea viva, y es una sola capa compuesta en vez de todas. */
+  .orb-large[data-orb-state='quieto'] .orb-light-field,
+  .orb-x-large[data-orb-state='quieto'] .orb-light-field,
+  .orb-libre[data-orb-state='quieto'] .orb-light-field {
+    animation: orbe-reposo-deriva 13100ms ease-in-out infinite alternate;
+  }
+}
+
+/* 9400 y 13100 no son multiplos: el ciclo compuesto tarda en repetirse, que es el mismo truco de
+   las duraciones primas del orbe activo. */
+@keyframes orbe-reposo-respiracion {
+  0%, 100% { transform: scale(1); opacity: .82; }
+  50% { transform: scale(1.018); opacity: .94; }
+}
+
+@keyframes orbe-reposo-deriva {
+  from { transform: translate3d(-1.5%, -1%, 0) scale(1); opacity: .5; }
+  to { transform: translate3d(2%, 2.5%, 0) scale(1.03); opacity: .78; }
 }
 
 /*
@@ -244,14 +285,24 @@
     transform: none;
   }
 
-  .wiwo-thinking-orb:not([data-orb-state='quieto']) .orb-liquid-veil {
-    animation: orbe-respiracion-minima 4200ms ease-in-out infinite;
+  /*
+   * La respiracion va sobre la RAIZ, y con `!important`, por dos reglas que trae el CSS de ops:
+   * `.wiwo-thinking-orb span { animation: none !important }` anula cualquier animacion en las capas,
+   * y `.orb-liquid-veil, .orb-caustic, .orb-aurora { display: none }` directamente las oculta. Puesta
+   * sobre el velo —como estaba— no se aplicaba nunca: el elemento no existe y su animacion esta
+   * pisada. El comentario afirmaba que quedaba una respiracion minima y en los hechos el orbe se
+   * quedaba muerto.
+   *
+   * Sobre la raiz funciona, y sigue siendo lo que pide Neo: solo opacidad, sin deformar ni desplazar.
+   */
+  .wiwo-thinking-orb:not([data-orb-state='quieto']) {
+    animation: orbe-respiracion-minima 4200ms ease-in-out infinite !important;
   }
 }
 
 /* Solo opacidad: no deforma, no rota y no desplaza nada, que es lo que pide quien activo la
-   preferencia. */
+   preferencia. Las paradas salen de `--orb-alpha`, que es la opacidad propia del orbe. */
 @keyframes orbe-respiracion-minima {
-  0%, 100% { opacity: .38; }
-  50% { opacity: .78; }
+  0%, 100% { opacity: .62; }
+  50% { opacity: .95; }
 }

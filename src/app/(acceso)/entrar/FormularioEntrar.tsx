@@ -7,6 +7,7 @@ import { Logo } from '@/componentes/estructura/Logo'
 import { Boton } from '@/componentes/formularios/Boton'
 import { Campo } from '@/componentes/formularios/Campo'
 import { Entrada } from '@/componentes/formularios/Entrada'
+import { PanelVidrio } from '@/componentes/superposiciones/PanelVidrio'
 
 type Paso = 'clave' | 'codigo'
 
@@ -114,13 +115,18 @@ export function FormularioEntrar () {
   }
 
   return (
-    <main className="grid min-h-dvh grid-cols-1 lg:grid-cols-2">
-      <PanelDeMarca estado={estadoOrbe} activo={enviando} />
+    /*
+     * `h-dvh` con el scroll adentro y no `min-h-dvh`: el `body` de la aplicacion tiene
+     * `overflow: hidden`, asi que si el contenido no entra —telefono apaisado, letra del sistema
+     * agrandada— tiene que poder desplazarse acá. El envoltorio usa `min-h-full` para que centrar
+     * verticalmente no recorte la parte de arriba cuando el contenido supera la ventana.
+     */
+    <main className="fondo-marca h-dvh overflow-y-auto">
+      <div className="mx-auto flex min-h-full w-full max-w-6xl flex-col items-center justify-center gap-10 px-6 py-10 sm:px-10 lg:flex-row lg:justify-between lg:gap-16">
+        <PanelDeMarca estado={estadoOrbe} activo={enviando} />
+        <CabeceraMovil estado={estadoOrbe} />
 
-      <section className="flex items-center justify-center px-6 py-10 sm:px-10">
-        <div className="w-full max-w-sm">
-          <CabeceraMovil estado={estadoOrbe} />
-
+        <PanelVidrio className="w-full max-w-sm p-6 sm:p-8">
           <header className="mb-8">
             <h1 className="font-titular text-3xl font-extrabold tracking-tight text-texto">
               {paso === 'clave' ? 'Entrar' : 'Verificar'}
@@ -225,58 +231,51 @@ export function FormularioEntrar () {
               </Boton>
             )}
           </form>
-        </div>
-      </section>
+        </PanelVidrio>
+      </div>
     </main>
   )
 }
 
 /**
- * Panel de marca con el orbe.
+ * Bloque de marca: logotipo, orbe y promesa del producto.
  *
  * El orbe es el unico elemento con movimiento de la pantalla, y se mueve **solo mientras la API
  * responde**: es la regla del sistema —moverse significa que hay algo en curso— aplicada a la unica
  * operacion que esta pantalla tiene. En reposo se pinta quieto y ni siquiera se promueve a capa de
  * GPU.
  *
- * Se oculta por debajo de `lg`: a 130px el orbe se come una pantalla de telefono, y ahi el formulario
- * es lo unico que importa.
+ * El degradado ya no vive aca sino en el `<main>`, que lo lleva a pantalla completa: el orbe es
+ * vidrio translucido —desenfoca lo que tiene detras en vez de traer fondo propio— y la tarjeta
+ * tambien, asi que los dos necesitan el mismo "detras" y no una mitad de pantalla cada uno.
+ *
+ * Se oculta por debajo de `lg`: a 300px el orbe se come una pantalla de telefono, y ahi el
+ * formulario es lo unico que importa. Su reemplazo es `CabeceraMovil`.
+ *
+ * Los colores no se escriben a mano: `.fondo-marca` fuerza la rama oscura de los tokens, asi que
+ * `--texto` ya es el claro y `--marca` ya es el beige del logotipo.
  */
 function PanelDeMarca ({ estado, activo }: { estado: EstadoOrbe | undefined, activo: boolean }) {
   return (
-    <aside
-      className="relative hidden flex-col items-center justify-center gap-10 overflow-hidden px-12 py-16 lg:flex"
-      /*
-       * El degradado de marca de ops.wiwo.me: tinta hacia azul hacia verde, con dos manchas de luz.
-       *
-       * No es decoracion. El orbe es vidrio translucido —desenfoca lo que tiene detras en vez de
-       * traer fondo propio—, asi que sobre una superficie casi blanca simplemente no se lee. Este
-       * degradado es el "detras" que le da cuerpo, igual que en el acceso de ops.wiwo.me.
-       */
-      style={{
-        background: [
-          'radial-gradient(55% 45% at 16% 10%, rgb(248 250 215 / .10) 0%, transparent 70%)',
-          'radial-gradient(70% 60% at 88% 88%, rgb(59 255 0 / .12) 0%, transparent 65%)',
-          'linear-gradient(135deg, rgb(41, 41, 41) 0%, rgb(66, 66, 255) 76%, rgb(59, 255, 0) 128%)'
-        ].join(', ')
-      }}
-    >
-      <Logo tamano="grande" className="absolute left-10 top-10" />
+    <aside className="hidden max-w-md flex-col items-start gap-8 lg:flex">
+      <Logo tamano="grande" />
 
       <Orbe tamano="marca" medida="clamp(14rem, 22vw, 21rem)" estado={estado} />
 
-      <p className="text-center font-titular text-2xl font-semibold leading-snug text-[rgb(248_250_215)]">
-        Tareas, Proyectos y Clientes.
-        {/* El quiebre se fija: dejarlo al ancho parte la frase en "y / Clientes." y separa el
-            sustantivo de su lista. */}
-        <br />
-        <span className="text-[rgb(248_250_215)]/70">Un solo lugar.</span>
-      </p>
+      <div>
+        <p className="font-titular text-2xl font-semibold leading-snug text-texto">
+          Tareas, Proyectos y Clientes.
+          {/* El quiebre se fija: dejarlo al ancho parte la frase en "y / Clientes." y separa el
+              sustantivo de su lista. */}
+          <br />
+          <span className="text-texto-tenue">Un solo lugar.</span>
+        </p>
 
-      {/* Reserva la altura del aviso para que el bloque entero no salte al empezar a verificar. */}
-      <p aria-hidden="true" className="-mt-4 h-5 text-sm text-[rgb(248_250_215)]/70">
-        {activo ? 'Verificando…' : ''}
-      </p>
+        {/* Reserva la altura del aviso para que el bloque entero no salte al empezar a verificar. */}
+        <p aria-hidden="true" className="mt-3 h-5 text-sm text-texto-tenue">
+          {activo ? 'Verificando…' : ''}
+        </p>
+      </div>
     </aside>
   )
 }
@@ -284,7 +283,7 @@ function PanelDeMarca ({ estado, activo }: { estado: EstadoOrbe | undefined, act
 /**
  * Cabecera del telefono.
  *
- * El panel de marca no cabe por debajo de `lg`, pero esconder la identidad entera deja una pantalla
+ * El bloque de marca no cabe por debajo de `lg`, pero esconder la identidad entera deja una pantalla
  * anonima. Aca el orbe entra en su tamaño acotado, que es el que el sistema define para acompañar a
  * un contenedor en vez de a la pantalla completa.
  *
@@ -294,7 +293,7 @@ function PanelDeMarca ({ estado, activo }: { estado: EstadoOrbe | undefined, act
  */
 function CabeceraMovil ({ estado }: { estado: EstadoOrbe | undefined }) {
   return (
-    <div className="mb-10 flex items-center gap-3 lg:hidden">
+    <div className="flex items-center gap-3 lg:hidden">
       <Orbe tamano="marca" medida="3.5rem" estado={estado} />
       <Logo />
     </div>
