@@ -1,0 +1,502 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+ * Sistema de diseño WiwoLab — wiwo-tokens + compatibilidad shadcn.
+ * Primitivos Wiwo: azul #4242FF · verde #3BFF00 · beige #F8FAD7 · tinta #292929.
+ * Tema CLARO por defecto; .dark para el modo oscuro.
+ */
+
+/* ── 1. Shadcn tokens (usados por componentes existentes) ───────────────── */
+:root {
+  --background: 60 20% 99%;
+  --foreground: 0 0% 12%;
+  --card: 0 0% 100%;
+  --card-foreground: 0 0% 12%;
+  --primary: 240 100% 63%;          /* #4242FF */
+  --primary-foreground: 0 0% 100%;
+  --accent: 106 100% 50%;           /* #3BFF00 */
+  --accent-foreground: 0 0% 16%;   /* #292929 ink — texto sobre verde (nunca blanco) */
+  --muted: 48 18% 95%;
+  --muted-foreground: 30 5% 42%;
+  --border: 48 16% 90%;
+  --ring: 240 100% 63%;
+
+  /* Paleta categórica de gráficos (5 herramientas). Orden fijo, nunca ciclado.
+     Validada contra la superficie de las tarjetas (#ffffff): banda de luminosidad,
+     suelo de croma y separación CVD (peor par adyacente ΔE 24.2). Dos slots quedan
+     bajo 3:1 de contraste → los gráficos llevan SIEMPRE leyenda y etiquetas visibles,
+     nunca identifican una serie solo por el color. */
+  --chart-1: #2a78d6;  /* CHAT   — WiwoBot */
+  --chart-2: #1baf7a;  /* IMAGE  — Imagen */
+  --chart-3: #eda100;  /* VIDEO  — Film */
+  --chart-4: #008300;  /* MUSIC  — Música */
+  --chart-5: #4a3aa7;  /* PPT    — Presentaciones */
+
+  /* Semáforo de precio de los modelos (ver packages/shared/src/cost-tier.ts).
+     Validado con el validador de paletas contra el fondo claro: banda de luminosidad,
+     suelo de croma y contraste ≥3:1 OK. La separación CVD del peor par adyacente
+     (naranja↔rojo) cae en la banda de suelo (ΔE 10.3 deutan), lo cual SOLO es legal
+     porque el color nunca va solo: el punto siempre lleva el precio en texto al lado. */
+  --cost-low:  #0B7A46;  /* barato    */
+  --cost-mid:  #B08800;  /* moderado  */
+  --cost-high: #8C3B00;  /* caro      */
+  --cost-max:  #C51E2E;  /* muy caro  */
+}
+
+.dark {
+  --background: 0 0% 7%;
+  --foreground: 60 20% 96%;
+  --card: 0 0% 13%;
+  --card-foreground: 60 20% 96%;
+  --primary: 240 100% 69%;
+  --primary-foreground: 0 0% 100%;
+  --accent: 106 100% 52%;
+  --accent-foreground: 60 20% 96%;  /* beige claro sobre verde en dark */
+  --muted: 0 0% 16%;
+  --muted-foreground: 0 0% 64%;
+  --border: 0 0% 20%;
+  --ring: 240 100% 69%;
+
+  /* Mismos 5 hues, escalonados para la superficie oscura (#212121) — NO es un volteo
+     automático del modo claro, son pasos elegidos y validados contra ese fondo.
+     La separación CVD cae en la banda mínima (ΔE 10.3), así que aquí la leyenda y la
+     separación entre segmentos apilados no son opcionales: son el canal secundario. */
+  --chart-1: #3987e5;
+  --chart-2: #199e70;
+  --chart-3: #c98500;
+  --chart-4: #008300;
+  --chart-5: #9085e9;
+
+  /* Semáforo de precio, pasos propios para la superficie oscura (NO un volteo del claro).
+     Validado contra #212121: pasa los 4 checks, con separación CVD holgada (ΔE 16.7). */
+  --cost-low:  #12A36C;
+  --cost-mid:  #B78A10;
+  --cost-high: #A9541C;
+  --cost-max:  #E85C55;
+}
+
+/* ── 2. Wiwo token layer — primitivos de marca ──────────────────────────── */
+:root {
+  --wiwo-blue: #4242FF;
+  --wiwo-blue-deep: #2e2ee6;
+  --wiwo-blue-700: #2F31D9;
+  --wiwo-purple: #8d7cff;
+  --wiwo-green: #3BFF00;
+  --wiwo-cyan: #00c2ff;
+  --wiwo-beige: #F8FAD7;
+  --wiwo-beige-alt: #EDEFDD;
+  --wiwo-ink: #292929;
+  --wiwo-gradient-primary: linear-gradient(103deg, #3BFF00 0%, #4242FF 100%);
+
+  /* ── Semánticos — tema claro ─────────────────────────────── */
+  --ink: #292929;
+  --ink-2: #3F3F3F;
+  --muted: #66645D;
+  --muted-inverse: rgba(248, 250, 215, .74);
+  --surface: #F8FAD7;
+  --surface-2: #EDEFDD;
+  --surface-3: #E8F0FE;
+  --surface-container-low: #F8FAD7;
+  --surface-container: #EDEFDD;
+  --surface-container-high: #EDEFDD;
+  --surface-inverse: #292929;
+  --ink-inverse: #F8FAD7;
+  --line: #D8D2C4;
+  --control-surface: rgba(255, 253, 233, .76);
+  --control-surface-hover: #FFFFFF;
+  --on-accent: #292929;
+  --error: #BA1A1A;
+  --error-soft: rgba(186, 26, 26, .1);
+  --focus-ring: rgba(66, 66, 255, .52);
+  --focus-glow: rgba(66, 66, 255, .16);
+  --chart-grid: rgba(41, 41, 41, .12);
+
+  /* ── Colores de estado ───────────────────────────────────── */
+  --ok:   #0F7A34;
+  --warn: #9B6600;
+  --danger: #BA1A1A;
+
+  /* ── Colores de acento ───────────────────────────────────── */
+  --accent-coral: #FF6F61;
+  --accent-sky: #A8C7FA;
+  --accent-mint: #C3ECD0;
+
+  /* ── Data visualization ──────────────────────────────────── */
+  --chart-primary:   #4242FF;
+  --chart-positive:  #3BFF00;
+  --chart-attention: #A8C7FA;
+  --chart-warning:   #FFB84D;
+  --chart-danger:    #BA1A1A;
+  --chart-neutral:   #8B8B7A;
+  --chart-purple:    #8D7CFF;
+  --chart-mint:      #C3ECD0;
+
+  /* ── Sombras ─────────────────────────────────────────────── */
+  --shadow-1: 0 1px 2px rgba(41,41,41,.08), 0 8px 28px rgba(41,41,41,.08);
+  --shadow-2: 0 18px 42px rgba(41,41,41,.16);
+  --shadow-expressive: 0 24px 70px rgba(66,66,255,.18), 0 8px 28px rgba(41,41,41,.12);
+  --shadow-glass: 0 26px 76px rgba(41,41,41,.22), inset 0 1px 0 rgba(255,255,255,.7), inset 0 -1px 0 rgba(255,255,255,.2);
+
+  /* ── Formas / radios ─────────────────────────────────────── */
+  --shape-xs: 6px;
+  --shape-sm: 12px;
+  --shape-md: 18px;
+  --shape-lg: 28px;
+  --shape-xl: 40px;
+  --shape-full: 999px;
+  --radius-card: 8px;
+  --radius-control: 999px;
+
+  /* ── Tipografía fluida (clamp) ───────────────────────────── */
+  --font-system: "Plus Jakarta Sans", Arial, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Consolas, monospace;
+  --step--1: clamp(.82rem, .79rem + .16vw, .92rem);
+  --step-0:  clamp(.96rem, .92rem + .24vw, 1.08rem);
+  --step-1:  clamp(1.16rem, 1.04rem + .55vw, 1.42rem);
+  --step-2:  clamp(1.42rem, 1.16rem + 1.12vw, 2.05rem);
+  --step-3:  clamp(2.1rem, 1.54rem + 2.24vw, 3.5rem);
+  --step-4:  clamp(3rem, 2.16rem + 3.6vw, 5.7rem);
+
+  /* ── Medidas de línea ────────────────────────────────────── */
+  --measure-display: 12ch;
+  --measure-lead: 36ch;
+  --measure-body: 62ch;
+
+  /* ── Pesos tipográficos ──────────────────────────────────── */
+  --weight-body: 400;
+  --weight-meta: 500;
+  --weight-nav: 600;
+  --weight-action: 700;
+  --weight-display: 800;
+
+  /* ── Spacing (escala 4px) ────────────────────────────────── */
+  --space-1:   .25rem;   /*  4px */
+  --space-2:   .5rem;    /*  8px */
+  --space-2-5: .625rem;  /* 10px — intermedio compacto */
+  --space-3:   .75rem;   /* 12px */
+  --space-4:   1rem;     /* 16px */
+  --space-5:   1.5rem;   /* 24px */
+  --space-6:   2rem;     /* 32px */
+  --space-7:   3rem;     /* 48px */
+  --space-8:   4.5rem;   /* 72px */
+
+  /* ── Responsive padding ──────────────────────────────────── */
+  --ui-card-pad:    clamp(1rem, 1.45vw, 1.45rem);
+  --ui-panel-pad:   clamp(1.2rem, 2.2vw, 2rem);
+  --ui-section-pad: clamp(3.4rem, 6vw, 4.8rem);
+
+  /* ── Iconos ──────────────────────────────────────────────── */
+  --icon-size-sm: 18px;
+  --icon-size-md: 20px;
+  --icon-size-lg: 24px;
+  --icon-stroke: 2;
+
+  /* ── Movimiento ──────────────────────────────────────────── */
+  --motion-fast:   160ms;
+  --motion-medium: 280ms;
+  --motion-slow:   420ms;
+  --motion-loop:   6800ms;
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --ease-spring: cubic-bezier(0.34, 1.4, 0.64, 1);
+  --ease-expressive: cubic-bezier(.2, 0, 0, 1);
+  --ease-emphasized: cubic-bezier(.3, 0, 0, 1);
+
+  /* ── Glass / frosted ─────────────────────────────────────── */
+  --glass-fill:       rgba(255, 255, 255, .24);
+  --glass-fill-strong: rgba(255, 255, 255, .36);
+  --glass-fill-dark:  rgba(41, 41, 41, .34);
+  --glass-stroke:     rgba(255, 255, 255, .42);
+  --glass-highlight:  rgba(255, 255, 255, .74);
+  --glass-blur: 22px;
+
+  /* ── Gradientes ──────────────────────────────────────────── */
+  --gradient-primary:  linear-gradient(103deg, #3BFF00 0%, #4242FF 85%);
+  --gradient-soft:     linear-gradient(135deg, rgba(59,255,0,.34) 0%, rgba(66,66,255,.28) 100%);
+  --gradient-dark:     linear-gradient(103deg, #3BFF00 0%, #4242FF 58%, #292929 100%);
+  --gradient-animated: linear-gradient(103deg, #3BFF00, #6DFF7C, #4242FF, #3BFF00);
+
+  /* ── Accesibilidad ───────────────────────────────────────── */
+  --disabled-opacity: .48;
+}
+
+.dark {
+  /* ── Semánticos — tema oscuro (inversión automática) ─────── */
+  --ink: #F8FAD7;
+  --ink-2: #EDEFDD;
+  --muted: rgba(248, 250, 215, .66);
+  --muted-inverse: rgba(41, 41, 41, .68);
+  --surface: #292929;
+  --surface-2: #303030;
+  --surface-3: #343434;
+  --surface-container-low: #303030;
+  --surface-container: #363636;
+  --surface-container-high: #424242;
+  --surface-inverse: #F8FAD7;
+  --ink-inverse: #292929;
+  --line: rgba(248, 250, 215, .16);
+  --control-surface: rgba(255, 255, 255, .06);
+  --control-surface-hover: rgba(255, 255, 255, .1);
+  --on-accent: #292929;
+  --error: #FFB4AB;
+  --error-soft: rgba(255, 180, 171, .14);
+  --focus-ring: rgba(59, 255, 0, .72);  /* Verde en dark — máxima visibilidad */
+  --focus-glow: rgba(59, 255, 0, .18);
+  --chart-grid: rgba(248, 250, 215, .16);
+  --shadow-glass: 0 26px 76px rgba(0,0,0,.4), inset 0 1px 0 rgba(248,250,215,.08), inset 0 -1px 0 rgba(0,0,0,.2);
+}
+
+/* ── 3. Base ────────────────────────────────────────────────────────────── */
+body {
+  background-color: hsl(var(--background));
+  color: hsl(var(--foreground));
+  font-family: var(--font-sans), 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+  font-weight: var(--weight-body);
+  line-height: 1.6;
+}
+
+/* Focus visible — spec exacto neo.wiwo.me: outline 3px + glow 7px */
+:where(a, button, input, select, textarea, summary):focus-visible {
+  outline: 3px solid var(--focus-ring);
+  outline-offset: 3px;
+  box-shadow: 0 0 0 7px var(--focus-glow);
+}
+
+/* ── 4. Aurora background (fondo de firma Wiwo) ─────────────────────────── */
+@keyframes aurora-drift {
+  from { background-position: 12% 28%, 72% 18%; }
+  to   { background-position: 22% 38%, 62% 28%; }
+}
+
+.aurora-bg {
+  position: relative;
+}
+
+.aurora-bg::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background-image:
+    radial-gradient(ellipse 60% 40% at 12% 28%, rgba(59, 255, 0, 0.13) 0%, transparent 70%),
+    radial-gradient(ellipse 50% 35% at 72% 18%, rgba(66, 66, 255, 0.10) 0%, transparent 70%);
+  background-size: 200% 200%, 200% 200%;
+  filter: blur(14px);
+  animation: aurora-drift var(--motion-loop) var(--ease-expressive) infinite alternate;
+  pointer-events: none;
+}
+
+.dark .aurora-bg::before {
+  background-image:
+    radial-gradient(ellipse 60% 40% at 12% 28%, rgba(59, 255, 0, 0.07) 0%, transparent 70%),
+    radial-gradient(ellipse 50% 35% at 72% 18%, rgba(66, 66, 255, 0.06) 0%, transparent 70%);
+}
+
+/* ── 5. Animaciones de entrada/salida ───────────────────────────────────── */
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes skeleton-pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: .4; }
+}
+
+@keyframes gradient-shift {
+  0%   { background-position: 0% 50%; }
+  50%  { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+.animate-in { animation: fade-up var(--motion-slow) var(--ease-expressive) both; }
+
+.gradient-text {
+  background: var(--gradient-animated);
+  background-size: 300% 300%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: gradient-shift var(--motion-loop) var(--ease-expressive) infinite;
+}
+
+/* Banda/acento de gradiente de marca (puntuación, no fondo) */
+.wiwo-gradient-band { background: var(--gradient-primary); }
+.wiwo-gradient-soft { background: var(--gradient-soft); }
+
+
+/* ── 7. Glassmorphism (superficies flotantes sobre aurora/gradiente) ────── */
+.wiwo-glass {
+  background: var(--glass-fill);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--glass-stroke);
+}
+.dark .wiwo-glass {
+  background: var(--glass-fill-dark);
+  border-color: rgba(248, 250, 215, .12);
+}
+
+/* ── Scrollbar sutil (oculta flechas nativas; thumb fino tipo overlay) ────
+   Estilo ÚNICO de toda la app: nació en el chat de WiwoBot y ahora aplica a
+   cualquier elemento con scroll. Va en `*` a propósito — con una clase había
+   que acordarse de ponerla en cada contenedor nuevo, y el resultado era una
+   mezcla de barras finas y barras nativas de Windows (con flechas) según la
+   pantalla. Si algún día una zona necesita la barra nativa, se sobreescribe
+   ahí con `scrollbar-width: auto`. */
+* {
+  scrollbar-width: thin;                              /* Firefox */
+  scrollbar-color: hsl(var(--muted-foreground) / .35) transparent;
+}
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+*::-webkit-scrollbar-thumb {
+  background-color: hsl(var(--muted-foreground) / .28);
+  border-radius: 9999px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+*:hover::-webkit-scrollbar-thumb {
+  background-color: hsl(var(--muted-foreground) / .45);
+}
+/* Oculta los botones de flecha del scrollbar nativo (Windows). */
+*::-webkit-scrollbar-button {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
+/* ── Unlock switch (revelar los modelos pro) ───────────────────────────── */
+/* Track encendido: gradiente de marca en flujo (mismo keyframe que .gradient-text). */
+.unlock-track--on {
+  background-image: var(--gradient-animated);
+  background-size: 220% 220%;
+  animation: gradient-shift 3.4s var(--ease-expressive) infinite;
+}
+/* "Pop" del thumb al desbloquear (rebote de marca). */
+@keyframes unlock-pop {
+  0%   { transform: scale(1); }
+  45%  { transform: scale(1.24); }
+  100% { transform: scale(1); }
+}
+.unlock-thumb--pop { animation: unlock-pop var(--motion-medium) var(--ease-spring); }
+
+/* ── Overlay MÁGICO a pantalla completa (al desbloquear) ────────────────── */
+.unlock-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  pointer-events: none;
+  overflow: hidden;
+  animation: unlock-overlay-fade 3200ms var(--ease-out) forwards;
+}
+@keyframes unlock-overlay-fade {
+  0%   { opacity: 0; }
+  8%   { opacity: 1; }
+  74%  { opacity: 1; }
+  100% { opacity: 0; }
+}
+/* Aurora de marca que florece desde el centro y se disipa. */
+.unlock-overlay-aurora {
+  position: absolute;
+  inset: -25%;
+  background:
+    radial-gradient(38% 38% at 28% 30%, rgba(59, 255, 0, .38), transparent 70%),
+    radial-gradient(44% 44% at 72% 64%, rgba(66, 66, 255, .42), transparent 70%),
+    radial-gradient(34% 34% at 50% 82%, rgba(0, 194, 255, .32), transparent 70%);
+  filter: blur(34px);
+  animation: unlock-aurora-bloom 3200ms var(--ease-out) forwards;
+}
+@keyframes unlock-aurora-bloom {
+  0%   { opacity: 0;   transform: scale(1.18); }
+  22%  { opacity: .95; transform: scale(1); }
+  70%  { opacity: .8;  transform: scale(1.02); }
+  100% { opacity: 0;   transform: scale(1.06); }
+}
+/* Onda expansiva desde el centro de la pantalla. */
+.unlock-overlay-ring {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 42vmax;
+  height: 42vmax;
+  border-radius: 9999px;
+  border: 2px solid rgba(59, 255, 0, .55);
+  box-shadow: 0 0 70px rgba(66, 66, 255, .5), inset 0 0 70px rgba(59, 255, 0, .28);
+  animation: unlock-ring 2600ms var(--ease-out) forwards;
+}
+@keyframes unlock-ring {
+  0%   { opacity: 0;  transform: translate(-50%, -50%) scale(.2); }
+  18%  { opacity: .8; }
+  100% { opacity: 0;  transform: translate(-50%, -50%) scale(2.5); }
+}
+/* Chispa individual sembrada por toda la pantalla (twinkle + ascenso). */
+.unlock-overlay-spark {
+  position: absolute;
+  border-radius: 9999px;
+  animation: unlock-overlay-spark 2400ms var(--ease-out) forwards;
+}
+@keyframes unlock-overlay-spark {
+  0%   { transform: translateY(16px) scale(0);  opacity: 0; }
+  22%  { transform: translateY(0) scale(1);     opacity: 1; }
+  70%  { transform: translateY(-16px) scale(.9); opacity: .9; }
+  100% { transform: translateY(-48px) scale(.3); opacity: 0; }
+}
+
+/* ── 9. Prefers-reduced-motion (accesibilidad obligatoria) ──────────────── */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* ── 10. React Flow: neutralizar el estilo por defecto de los nodos ──────── */
+/* Nuestros nodos son 100% custom (NodeShell). RF aplica la clase
+   .react-flow__node-<tipo>; el tipo "output" (y "input"/"default") CHOCA con
+   los nodos integrados de RF, que traen caja blanca + padding + width fijo.
+   Eso desalineaba los handles de la caja "Salida". Reseteamos ese envoltorio. */
+.react-flow__node-output,
+.react-flow__node-input,
+.react-flow__node-default,
+.react-flow__node-group {
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  width: auto !important;
+  box-shadow: none !important;
+  text-align: left !important;
+  color: inherit !important;
+  font-size: inherit !important;
+}
+
+/* Control de zoom (RF viene con botones BLANCOS por defecto → se ve como una barra
+   blanca fuera de lugar en modo oscuro). Lo alineamos al tema con nuestros tokens,
+   así queda bien en claro y oscuro. */
+.react-flow__controls {
+  border: 1px solid hsl(var(--border)) !important;
+  border-radius: 10px !important;
+  overflow: hidden !important;
+  box-shadow: 0 2px 8px hsl(0 0% 0% / 0.18) !important;
+}
+.react-flow__controls-button {
+  background: hsl(var(--card)) !important;
+  border-bottom: 1px solid hsl(var(--border)) !important;
+  color: hsl(var(--foreground)) !important;
+}
+.react-flow__controls-button:hover {
+  /* --muted está pisado como hex en la capa Wiwo → hsl() no lo acepta; overlay del foreground. */
+  background: hsl(var(--foreground) / 0.08) !important;
+}
+.react-flow__controls-button svg {
+  fill: hsl(var(--foreground)) !important;
+}
