@@ -180,7 +180,7 @@ export default function TallerPage () {
 
       <SeccionTaller
         titulo="Orbe"
-        nota="El Thinking Orb, portado de neo.wiwo.me. No es una esfera con fondo: es un campo de luz cuyas capas se suman entre ellas, aisladas de lo que haya debajo, así que se ve igual sobre claro, sobre oscuro o sobre una imagen. La medida que se le pide es el hueco que ocupa, halo incluido. En reposo sólo respiran los tamaños que aparecen de a uno; el chico y el mediano se repiten por fila y por botón, así que ahí queda de verdad quieto y deformarse sigue significando “está pasando algo”."
+        nota="El Thinking Orb, portado de neo.wiwo.me. No es una esfera con fondo: es un campo de luz cuyas capas se suman entre ellas, aisladas de lo que haya debajo, así que se ve igual sobre claro, sobre oscuro o sobre una imagen. El halo es lo que le recorta la silueta: mientras hay algo en curso, ese borde se deforma. La medida que se le pide es el hueco que ocupa, halo incluido. En reposo sólo respiran los tamaños que aparecen de a uno; el chico y el mediano se repiten por fila y por botón, así que ahí queda de verdad quieto y deformarse sigue significando “está pasando algo”."
       >
         <Muestra etiqueta="en reposo: quieto en chico y medio, respirando en grande y marca">
           <Orbe tamano="chico" />

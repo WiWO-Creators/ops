@@ -216,67 +216,6 @@ const capaProducto = `
 .orbe-wiwo.orbe-marca  { --orbe-ancho: clamp(245px, 28vw, 410px); }
 /* \`medida\` llega como \`--orbe-ancho\` en el atributo style, asi que gana sin regla extra. */
 
-/* -----------------------------------------------------------------------------
-   El campo de luz de atras — lo que le da borde al orbe
-   -----------------------------------------------------------------------------
-   El orbe solo, sobre negro, es una mancha difusa: todas sus capas estan
-   desenfocadas y ninguna dibuja un contorno. Lo que en neo le da forma es lo que
-   tiene DETRAS: el escenario pinta dos elipses de luz mas grandes que el orbe, y
-   contra ese campo la silueta del orbe se recorta y se le ve el borde deformarse
-   al respirar.
-
-   La extraccion original descarto esas dos capas por venir del \`.thinking-orb-stage\`
-   del showcase, y con ellas se fue el borde. Vuelven aca, medidas en unidades de
-   orbe a partir de la pagina real (el campo es 1.08 anchos de orbe de ancho y 1.39
-   de alto), no como el panel de 590px del showcase.
-   ----------------------------------------------------------------------------- */
-.orbe-escenario::before,
-.orbe-escenario::after {
-  content: "";
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  z-index: 0;
-  pointer-events: none;
-}
-
-.orbe-escenario::before {
-  width: calc(265 * var(--orbe-u));
-  height: calc(341 * var(--orbe-u));
-  border-radius: 50%;
-  background:
-    radial-gradient(ellipse at 50% 50%, rgba(248, 250, 215, .22), transparent 23%),
-    radial-gradient(ellipse at 42% 56%, rgba(66, 66, 255, .42), transparent 54%),
-    radial-gradient(ellipse at 63% 40%, rgba(59, 255, 0, .28), transparent 58%);
-  filter: blur(calc(36 * var(--orbe-u))) saturate(1.75);
-  opacity: .72;
-  transform: translate(-50%, -50%);
-  animation: orbe-campo-aurora 8200ms var(--ease-expressive) infinite;
-}
-
-.orbe-escenario::after {
-  width: calc(238 * var(--orbe-u));
-  height: calc(222 * var(--orbe-u));
-  border-radius: 61% 39% 54% 46% / 50% 58% 42% 50%;
-  background:
-    radial-gradient(ellipse at 44% 50%, rgba(248, 250, 215, .14), transparent 36%),
-    linear-gradient(90deg, transparent, rgba(59, 255, 0, .18), rgba(66, 66, 255, .24), transparent);
-  filter: blur(calc(29 * var(--orbe-u))) saturate(1.45);
-  opacity: .26;
-  transform: translate(-50%, -50%);
-  animation: orbe-campo-cinta 7200ms var(--ease-expressive) infinite alternate;
-}
-
-@keyframes orbe-campo-aurora {
-  0%, 100% { transform: translate(-50%, -50%) rotate(-3deg) scale(.95); }
-  50% { transform: translate(-50%, -50%) rotate(7deg) scale(1.08); }
-}
-
-@keyframes orbe-campo-cinta {
-  0% { transform: translate(-50%, -50%) rotate(-10deg) scale(.92); }
-  100% { transform: translate(-50%, -50%) rotate(11deg) scale(1.06); }
-}
-
 .orbe-escenario {
   isolation: isolate;
   position: relative;

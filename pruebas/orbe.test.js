@@ -144,6 +144,28 @@ test('las medidas del orbe estan en unidades de orbe y no en pixeles', () => {
   assert.deepEqual(crudos, [], 'quedaron longitudes fijas en el CSS portado: no van a escalar')
 })
 
+test('toda variable que el orbe usa esta definida', () => {
+  /*
+   * El halo del orbe es `box-shadow: 0 0 150u color-mix(in srgb, var(--orb-light-blue) 30%, ...)`.
+   * Si esa variable no esta definida, el `color-mix` no es invalido "un poco": el navegador tira la
+   * declaracion ENTERA y el orbe se queda sin halo. No hay error, no hay aviso — solo una mancha
+   * donde tendria que haber una silueta. Paso: los tres `--orb-light-*` viven en la tarjeta que
+   * envuelve al orbe en neo, asi que la extraccion los descarto por cromo de la pagina.
+   *
+   * Por eso la prueba no mira esas tres: comprueba que NINGUNA variable del orbe quede sin definir.
+   */
+  const limpio = sinComentarios(css)
+  const definidas = new Set([...limpio.matchAll(/(--[A-Za-z0-9-]+)\s*:/g)].map(([, n]) => n))
+  // Las que llegan de afuera: los tokens del proyecto y las que el componente escribe en el `style`.
+  const externas = /^--(wiwo|control-|s[xy]$|spark-(size|color|speed|delay)$|orbe-ancho$)/
+
+  const faltantes = [...new Set([...limpio.matchAll(/var\(\s*(--[A-Za-z0-9-]+)/g)].map(([, n]) => n))]
+    .filter((nombre) => !definidas.has(nombre) && !externas.test(nombre))
+
+  assert.deepEqual(faltantes, [], 'el orbe usa variables que nadie define: las declaraciones que las ' +
+    'contengan se descartan enteras y el efecto desaparece sin dar error')
+})
+
 test('no quedan rastros del showcase de donde salio', () => {
   assert.ok(!css.includes('.thinking-orb-demo'),
     '`.thinking-orb-demo` era el contenedor de la demo: aca el orbe es un componente de producto')
