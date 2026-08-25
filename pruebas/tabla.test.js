@@ -12,11 +12,15 @@ import { POR_PAGINA_MAXIMO } from '../src/datos/consulta.ts'
 import {
   clavesVisiblesPorDefecto,
   columnasVisibles,
+  esControlDeFila,
+  idDeParametro,
   mensajeDeError,
   opcionesPorPagina,
   podarPorPermisos,
   rutaDeAccion,
-  resolverInsignia
+  resolverInsignia,
+  urlConParametro,
+  SELECTOR_CONTROLES_DE_FILA
 } from '../src/componentes/datos/tabla.ts'
 
 const presentar = () => null
@@ -163,4 +167,72 @@ test('sin catalogo o sin valor no hay insignia', () => {
   assert.equal(resolverInsignia(1, undefined), null)
   assert.equal(resolverInsignia(null, CATALOGO), null)
   assert.equal(resolverInsignia(undefined, CATALOGO), null)
+})
+
+
+/**
+ * Elemento falso: `esControlDeFila` solo necesita `closest`, y con eso alcanza para probar la regla
+ * sin montar un DOM.
+ *
+ * @param {boolean} dentroDeControl si el elemento cuelga de un control de la fila
+ * @returns {{ closest: (selector: string) => unknown }} el doble
+ */
+function elementoFalso (dentroDeControl) {
+  return {
+    closest (selector) {
+      assert.equal(selector, SELECTOR_CONTROLES_DE_FILA)
+
+      return dentroDeControl ? {} : null
+    }
+  }
+}
+
+test('un clic nacido en un control de la fila no abre el detalle', () => {
+  assert.equal(esControlDeFila(elementoFalso(true)), true)
+})
+
+test('un clic en el texto de una celda si abre el detalle', () => {
+  assert.equal(esControlDeFila(elementoFalso(false)), false)
+})
+
+test('sin objetivo el clic no se atribuye a ningun control', () => {
+  assert.equal(esControlDeFila(null), false)
+})
+
+test('el selector cubre enlaces, botones y los roles de Radix', () => {
+  for (const parte of ['a', 'button', 'input', 'select', '[role="menuitem"]', '[role="combobox"]']) {
+    assert.ok(SELECTOR_CONTROLES_DE_FILA.split(', ').includes(parte), parte)
+  }
+})
+
+test('abrir el detalle conserva filtros, orden y pagina', () => {
+  const params = new URLSearchParams('filter[status]=1,4&sort=-due_date&page=3')
+
+  assert.equal(
+    urlConParametro(params, 'tarea', '12'),
+    '?filter%5Bstatus%5D=1%2C4&sort=-due_date&page=3&tarea=12'
+  )
+})
+
+test('abrir otra tarea reemplaza la abierta, no la acumula', () => {
+  assert.equal(urlConParametro(new URLSearchParams('tarea=7'), 'tarea', '9'), '?tarea=9')
+})
+
+test('urlConParametro no muta los parametros que recibe', () => {
+  const params = new URLSearchParams('page=2')
+
+  urlConParametro(params, 'tarea', '5')
+
+  assert.equal(params.get('tarea'), null)
+})
+
+test('un id de la URL solo se acepta si es entero positivo', () => {
+  assert.equal(idDeParametro('12'), 12)
+  assert.equal(idDeParametro(null), null)
+  assert.equal(idDeParametro(''), null)
+  assert.equal(idDeParametro('  '), null)
+  assert.equal(idDeParametro('abc'), null)
+  assert.equal(idDeParametro('-3'), null)
+  assert.equal(idDeParametro('0'), null)
+  assert.equal(idDeParametro('1.5'), null)
 })
