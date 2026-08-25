@@ -176,17 +176,20 @@ export default function TallerPage () {
 
       <SeccionTaller
         titulo="Orbe"
-        nota="La mascota de la marca y el indicador de carga. En reposo se pinta QUIETO a propósito: la regla de rendimiento prohíbe animaciones infinitas en elementos siempre visibles, y una mascota permanente en la barra superior es exactamente eso. Moverse sólo cuando algo pasa además comunica mejor."
+        nota="El Thinking Orb, portado de neo.wiwo.me. No es un círculo con degradado: es un campo de luz de trece capas. En reposo se pinta QUIETO a propósito: la regla de rendimiento prohíbe animaciones infinitas en elementos siempre visibles, y una mascota permanente en la barra superior es exactamente eso. Moverse sólo cuando algo pasa además comunica mejor."
       >
         <Muestra etiqueta="en reposo">
           <Orbe tamano="chico" />
           <Orbe tamano="medio" />
           <Orbe tamano="grande" />
         </Muestra>
-        <Muestra etiqueta="animado">
-          <Orbe tamano="chico" estado="thinking" />
-          <Orbe tamano="medio" estado="thinking" />
-          <Orbe tamano="grande" estado="thinking" />
+        <Muestra etiqueta="los seis estados de Neo">
+          {(['listening', 'thinking', 'generating', 'routing', 'success', 'error'] as const).map((estado) => (
+            <span key={estado} className="flex flex-col items-center gap-2">
+              <Orbe tamano="medio" estado={estado} />
+              <span className="text-texto-sutil text-[0.6875rem]">{estado}</span>
+            </span>
+          ))}
         </Muestra>
         <Muestra etiqueta="carga en línea">
           <CargandoConOrbe mensaje="Guardando…" retardoMs={0} />
