@@ -17,6 +17,8 @@
   --color-superficie-hundida: var(--superficie-hundida);
   --color-superficie-flotante: var(--superficie-flotante);
   --color-superficie-inversa: var(--superficie-inversa);
+  --color-superficie-acentuada: var(--superficie-acentuada);
+  --color-superficie-acentuada-2: var(--superficie-acentuada-2);
 
   --color-linea: var(--linea);
   --color-linea-suave: var(--linea-suave);
