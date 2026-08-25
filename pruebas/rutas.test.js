@@ -7,6 +7,7 @@
 
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
 import { rutaPermitida } from '../src/datos/rutas.ts'
 
 test('deja pasar los recursos del nucleo', () => {
@@ -33,4 +34,37 @@ test('no se puede escalar fuera de la lista con .. ni con segmentos vacios', () 
   assert.equal(rutaPermitida(['tasks', '..', 'auth', 'login']), false)
   assert.equal(rutaPermitida(['tasks', '', 'comments']), false)
   assert.equal(rutaPermitida(['tasks', '.']), false)
+})
+
+/**
+ * El matcher del proxy, tal cual lo declara `proxy.ts`.
+ *
+ * Se lee del archivo en vez de copiarlo: una copia se desincroniza y la prueba pasaria verificando
+ * una regla que ya no corre.
+ */
+function matcherDelProxy () {
+  const fuente = readFileSync(new URL('../src/proxy.ts', import.meta.url), 'utf8')
+  const [, literal] = fuente.match(/matcher:\s*\['([^']+)'\]/)
+  // El archivo es TypeScript: lo que ahi es `\\.` vale `\.` una vez que el modulo se evalua.
+  const patron = literal.replace(/\\\\/g, '\\')
+
+  return new RegExp(`^${patron}$`)
+}
+
+test('el proxy protege el panel', () => {
+  const matcher = matcherDelProxy()
+
+  for (const ruta of ['/', '/procesos', '/espacios/44', '/clientes']) {
+    assert.equal(matcher.test(ruta), true, `${ruta} tiene que pedir sesion`)
+  }
+})
+
+test('el proxy deja pasar los estaticos y la pantalla de entrar', () => {
+  // Un estatico detras del guardia se convierte en redireccion a `/entrar`, y ahi la pantalla de
+  // entrar se queda sin su propio logotipo.
+  const matcher = matcherDelProxy()
+
+  for (const ruta of ['/entrar', '/icon.png', '/marca/wiwo-ops.png', '/fonts/neo/Outfit-100-900-latin.woff2', '/api/sesion']) {
+    assert.equal(matcher.test(ruta), false, `${ruta} no puede pedir sesion`)
+  }
 })

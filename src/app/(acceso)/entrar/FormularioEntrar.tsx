@@ -3,7 +3,7 @@
 import { useRouter } from 'next/navigation'
 import { useEffect, useRef, useState } from 'react'
 import { Orbe, type EstadoOrbe } from '@/componentes/estado/Orbe'
-import { cn } from '@/lib/clases'
+import { Logo } from '@/componentes/estructura/Logo'
 import { Boton } from '@/componentes/formularios/Boton'
 import { Campo } from '@/componentes/formularios/Campo'
 import { Entrada } from '@/componentes/formularios/Entrada'
@@ -244,7 +244,7 @@ export function FormularioEntrar () {
 function PanelDeMarca ({ estado, activo }: { estado: EstadoOrbe | undefined, activo: boolean }) {
   return (
     <aside className="relative hidden flex-col items-center justify-center gap-10 border-r border-linea bg-superficie-hundida px-12 py-16 lg:flex">
-      <Marca className="absolute left-10 top-10" />
+      <Logo tamano="grande" className="absolute left-10 top-10" />
 
       <Orbe tamano="grande" estado={estado} />
 
@@ -279,17 +279,8 @@ function CabeceraMovil ({ estado }: { estado: EstadoOrbe | undefined }) {
   return (
     <div className="mb-10 flex items-center gap-3 lg:hidden">
       <Orbe tamano="medio" estado={estado} />
-      <Marca />
+      <Logo />
     </div>
-  )
-}
-
-/** El nombre del sistema, con el tratamiento de marca. */
-function Marca ({ className }: { className?: string }) {
-  return (
-    <p className={cn('font-titular text-sm font-bold uppercase tracking-[0.2em] text-texto-tenue', className)}>
-      WiWO Ops
-    </p>
   )
 }
 

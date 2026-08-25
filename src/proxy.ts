@@ -52,7 +52,12 @@ export async function proxy (peticion: NextRequest): Promise<NextResponse> {
  * Fuera quedan `/entrar` (que existe justo para quien no tiene sesion), `/api/sesion` (que la crea),
  * `/api/bff` (que resuelve su propio refresco y debe responder 401 en JSON, no redirigir), el taller
  * y los estaticos.
+ *
+ * Los estaticos se excluyen por tener extension y no por nombre: la lista anterior enumeraba
+ * `favicon.ico` y `fonts`, asi que cada archivo nuevo de `public/` nacia protegido y la pantalla de
+ * entrar —donde justamente no hay sesion— lo recibia como redireccion a `/entrar`. El logotipo fue el
+ * primero en toparse con eso. Ninguna pantalla del panel tiene punto en su ruta.
  */
 export const config = {
-  matcher: ['/((?!entrar|api|taller|_next|favicon.ico|fonts).*)']
+  matcher: ['/((?!entrar|api|taller|_next|.*\\.[a-z0-9]+$).*)']
 }

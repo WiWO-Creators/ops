@@ -119,3 +119,24 @@ test('no se cargan fuentes desde Google', () => {
   const fuentes = leer('../src/estilos/fonts.css')
   assert.ok(!/fonts\.(googleapis|gstatic)\.com/.test(fuentes), 'las fuentes son self-hosted')
 })
+
+test('el logotipo conserva la proporcion que el componente asume', () => {
+  // `Logo.tsx` deriva el ancho de la altura con la proporcion del archivo. Si alguien reemplaza el
+  // PNG por otro de distinta relacion, el logo sale estirado y nadie se entera hasta verlo.
+  const componente = leer('../src/componentes/estructura/Logo.tsx')
+  const ancho = Number(componente.match(/const ANCHO = (\d+)/)[1])
+  const alto = Number(componente.match(/const ALTO = (\d+)/)[1])
+  const ruta = componente.match(/const RUTA = '([^']+)'/)[1]
+
+  // Cabecera PNG: los bytes 16..24 son el ancho y el alto del IHDR, big-endian.
+  const png = readFileSync(new URL(`../public${ruta}`, import.meta.url))
+  assert.equal(png.readUInt32BE(16), ancho, 'el ancho del archivo no es el que declara el componente')
+  assert.equal(png.readUInt32BE(20), alto, 'el alto del archivo no es el que declara el componente')
+})
+
+test('el logotipo se pinta con el color de marca de cada tema', () => {
+  const marca = declaraciones().find(([nombre]) => nombre === '--marca')
+  assert.ok(marca !== undefined, 'falta --marca: sin el, el logo se pinta del color heredado')
+  assert.equal(marca[1], 'light-dark(var(--wiwo-blue), var(--wiwo-beige))')
+  assert.match(tokens, /--wiwo-beige:\s*#F8FAD7/i, 'el beige de marca es el color del logo sobre oscuro')
+})

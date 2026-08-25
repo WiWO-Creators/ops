@@ -3,6 +3,7 @@ import { pedir } from '@/datos/servidor'
 import type { Yo } from '@/datos/tipos'
 import { GLOSARIO } from '@/dominio/glosario'
 import { SelectorTema } from '@/componentes/estructura/SelectorTema'
+import { Logo } from '@/componentes/estructura/Logo'
 import { Avatar } from '@/componentes/presentadores/Avatar'
 import { BotonSalir } from './BotonSalir'
 
@@ -19,7 +20,9 @@ export default async function PanelLayout ({ children }: { children: React.React
   return (
     <div className="flex min-h-dvh">
       <nav aria-label="Secciones" className="hidden w-56 shrink-0 flex-col gap-1 border-r border-linea p-3 md:flex">
-        <Link href="/" className="mb-4 px-2 text-sm font-semibold text-texto">WiWO Ops</Link>
+        <Link href="/" aria-label="Inicio" className="mb-4 px-2 py-1">
+          <Logo />
+        </Link>
         {seccionesDe(yo).map((seccion) => (
           <Link
             key={seccion.href}

@@ -77,6 +77,13 @@
   );
   --acento-contenido: light-dark(var(--wiwo-surface-0), var(--wiwo-ink));
 
+  /* --- Marca ------------------------------------------------------------ */
+  /* El logotipo es una sola forma de un solo color, asi que se pinta con este token en vez de cargar
+   * dos PNG. Sobre claro va el azul de marca; sobre oscuro, el beige de marca —que es exactamente el
+   * color del logo que entrego diseño para fondo oscuro—. No es `--acento`: el acento se aclara en
+   * oscuro para cumplir contraste como texto, y el logo no es texto. */
+  --marca: light-dark(var(--wiwo-blue), var(--wiwo-beige));
+
   --acento-2: light-dark(var(--wiwo-purple), var(--wiwo-purple-300));
   /* El purpura de marca no alcanza como texto en ninguno de los dos temas, por motivos distintos:
    * sobre la superficie clara da 3.01:1 y sobre la tinta 4.48:1. Sobre oscuro lo resuelve la variante
