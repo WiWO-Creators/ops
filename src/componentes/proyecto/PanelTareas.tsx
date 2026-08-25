@@ -12,8 +12,9 @@ import { PROCESOS } from '@/definiciones/procesos'
 import { GLOSARIO } from '@/dominio/glosario'
 import type { DefinicionRecurso, OpcionFiltro, ResultadoLista } from '@/definiciones/tipos'
 import type { Lookups, Proceso } from '@/datos/recursos'
-import type { Capacidad, Sobre, SobreError } from '@/datos/tipos'
+import type { Capacidad} from '@/datos/tipos'
 import { DetalleTarea } from './DetalleTarea'
+import { pedirSobre } from '@/datos/cliente'
 
 /**
  * Tareas de un Proyecto.
@@ -225,26 +226,4 @@ async function primeraPagina (
 
     return { fase: 'error', mensaje: fallo instanceof Error ? fallo.message : 'No se pudieron cargar las tareas.' }
   }
-}
-
-/** Pide una ruta al BFF y devuelve el envelope. Lanza un `Error` con el mensaje ya legible. */
-async function pedirSobre<T> (ruta: string, senal: AbortSignal): Promise<Sobre<T>> {
-  const respuesta = await fetch(`/api/bff/${ruta}`, { signal: senal })
-
-  if (!respuesta.ok) throw new Error(await mensajeDeRespuesta(respuesta))
-
-  return await respuesta.json() as Sobre<T>
-}
-
-/** Mensaje del envelope de error, con uno propio si la respuesta no trae JSON valido (un 502 da HTML). */
-async function mensajeDeRespuesta (respuesta: Response): Promise<string> {
-  try {
-    const cuerpo = await respuesta.json() as SobreError
-
-    if (cuerpo.error?.message !== undefined) return cuerpo.error.message
-  } catch {
-    // Se cae al mensaje generico de abajo.
-  }
-
-  return `El servidor respondió ${respuesta.status}`
 }

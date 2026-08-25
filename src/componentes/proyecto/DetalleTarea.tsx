@@ -10,8 +10,9 @@ import { listaDe, nombreDe } from '@/datos/catalogos'
 import { GLOSARIO } from '@/dominio/glosario'
 import { cn } from '@/lib/clases'
 import type { EstadoLookup, Lookups, Proceso } from '@/datos/recursos'
-import type { Sobre, SobreError } from '@/datos/tipos'
+import type { Sobre } from '@/datos/tipos'
 import { Cronometros } from './Cronometros'
+import { mensajeDeRespuesta, pedirRespuesta } from '@/datos/cliente'
 
 /**
  * Detalle de una Tarea, para el cajon lateral.
@@ -243,22 +244,4 @@ async function cargar (procesoId: number, senal: AbortSignal): Promise<Carga> {
 
     return { fase: 'error', mensaje: fallo instanceof Error ? fallo.message : 'No se pudo cargar la tarea.' }
   }
-}
-
-/** Pide una ruta al BFF. Devuelve la respuesta cruda porque el 404 se trata distinto del resto. */
-async function pedirRespuesta (ruta: string, senal: AbortSignal): Promise<Response> {
-  return await fetch(`/api/bff/${ruta}`, { signal: senal })
-}
-
-/** Mensaje del envelope de error, con uno propio si la respuesta no trae JSON valido (un 502 da HTML). */
-async function mensajeDeRespuesta (respuesta: Response): Promise<string> {
-  try {
-    const cuerpo = await respuesta.json() as SobreError
-
-    if (cuerpo.error?.message !== undefined) return cuerpo.error.message
-  } catch {
-    // Se cae al mensaje generico de abajo.
-  }
-
-  return `El servidor respondió ${respuesta.status}`
 }

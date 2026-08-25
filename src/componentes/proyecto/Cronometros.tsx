@@ -6,7 +6,8 @@ import { Cargando, ErrorEstado, Vacio } from '@/componentes/estado/Estados'
 import { formatearFecha } from '@/lib/fechas'
 import { cn } from '@/lib/clases'
 import type { Cronometro, Proceso } from '@/datos/recursos'
-import type { Sobre, SobreError, Yo } from '@/datos/tipos'
+import type { Yo } from '@/datos/tipos'
+import { pedirSobre } from '@/datos/cliente'
 import {
   cronometroAbierto,
   formatearDuracion,
@@ -254,25 +255,4 @@ async function cargar (procesoId: number, senal: AbortSignal): Promise<Resultado
 
     return { ok: false, mensaje: fallo instanceof Error ? fallo.message : 'No se pudieron cargar los cronómetros.' }
   }
-}
-
-/** Pide una ruta al BFF y devuelve el envelope. Lanza un `Error` con el mensaje ya legible. */
-async function pedirSobre<T> (ruta: string, senal: AbortSignal): Promise<Sobre<T>> {
-  const respuesta = await fetch(`/api/bff/${ruta}`, { signal: senal })
-
-  if (!respuesta.ok) {
-    let mensaje = `El servidor respondió ${respuesta.status}`
-
-    try {
-      const cuerpo = await respuesta.json() as SobreError
-
-      if (cuerpo.error?.message !== undefined) mensaje = cuerpo.error.message
-    } catch {
-      // Un 502 del proxy devuelve HTML: queda el mensaje generico.
-    }
-
-    throw new Error(mensaje)
-  }
-
-  return await respuesta.json() as Sobre<T>
 }
