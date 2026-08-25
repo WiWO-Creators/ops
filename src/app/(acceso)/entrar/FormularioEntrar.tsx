@@ -249,7 +249,7 @@ function PanelDeMarca ({ estado, activo }: { estado: EstadoOrbe | undefined, act
       <Orbe tamano="grande" estado={estado} />
 
       <p className="text-center font-titular text-2xl font-semibold leading-snug text-texto">
-        Procesos, Espacios y Clientes.
+        Tareas, Proyectos y Clientes.
         {/* El quiebre se fija: dejarlo al ancho parte la frase en "y / Clientes." y separa el
             sustantivo de su lista. */}
         <br />

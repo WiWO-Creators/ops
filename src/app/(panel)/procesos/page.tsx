@@ -9,7 +9,7 @@ import type { Proceso } from '@/datos/recursos'
 import type { Yo } from '@/datos/tipos'
 import { PROCESOS } from '@/definiciones/procesos'
 
-export const metadata = { title: 'Procesos · WiWO Ops' }
+export const metadata = { title: 'Tareas · WiWO Ops' }
 
 /**
  * Lista de Procesos.

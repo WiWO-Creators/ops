@@ -6,7 +6,7 @@ import type { Proceso } from '@/datos/recursos'
 import { PROCESOS } from '@/definiciones/procesos'
 import type { GrupoTablero } from '@/componentes/datos/tablero'
 
-export const metadata = { title: 'Tablero de Procesos · WiWO Ops' }
+export const metadata = { title: 'Tablero de Tareas · WiWO Ops' }
 
 /**
  * Tablero de Procesos.

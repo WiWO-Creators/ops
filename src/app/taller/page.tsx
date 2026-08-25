@@ -346,7 +346,7 @@ export default function TallerPage () {
       >
         <Muestra etiqueta="singular / plural">
           <span className="text-sm">
-            {(['proceso', 'proyecto', 'espacio', 'hito', 'automatizacion'] as const)
+            {(['proceso', 'espacio', 'hito', 'automatizacion'] as const)
               .map((clave) => `${nombrar(clave)} · ${nombrar(clave, 2)}`)
               .join('   |   ')}
           </span>

@@ -1,24 +1,19 @@
 /**
  * Glosario de dominio.
  *
- * WiWO renombro varios conceptos y los nombres de la interfaz no son negociables: son los que el
- * equipo usa para hablar entre si. Ningun componente escribe "Proceso" a mano; todos leen de acá, asi
- * que un renombre futuro es un archivo y no una busqueda global.
+ * Los nombres de la interfaz no son negociables: son los que el equipo usa para hablar entre si.
+ * Ningun componente escribe "Tarea" a mano; todos leen de acá, asi que un renombre futuro es un
+ * archivo y no una busqueda global.
  *
  * Los nombres de campo de la API conservan los de Perfex (`task`, `project`, `rel_type`): la
- * traduccion ocurre UNA vez, al presentar.
- *
- * Las dos trampas del glosario:
- *   - `Issue` -> Proceso, pero `Process` -> Automatizacion. Traducir `Process` como "Proceso" es el
- *     error mas facil de cometer y el mas confuso de leer.
- *   - `Project` -> Espacio, mientras que `Component` -> Proyecto. El nombre "Proyecto" existe, pero
- *     no apunta a lo que uno esperaria.
+ * traduccion ocurre UNA vez, al presentar. Por eso las claves internas siguen diciendo `proceso` y
+ * `espacio` aunque la interfaz muestre "Tarea" y "Proyecto": la clave nombra el recurso de la API,
+ * el valor nombra lo que ve la persona.
  */
 
 export const GLOSARIO = {
-  proceso: { singular: 'Proceso', plural: 'Procesos' },
-  proyecto: { singular: 'Proyecto', plural: 'Proyectos' },
-  espacio: { singular: 'Espacio', plural: 'Espacios' },
+  proceso: { singular: 'Tarea', plural: 'Tareas' },
+  espacio: { singular: 'Proyecto', plural: 'Proyectos' },
   hito: { singular: 'Hito', plural: 'Hitos' },
   prospecto: { singular: 'Prospecto', plural: 'Prospectos' },
   cliente: { singular: 'Cliente', plural: 'Clientes' },

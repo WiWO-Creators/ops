@@ -8,7 +8,7 @@ import type { Espacio } from '@/datos/recursos'
 import type { Yo } from '@/datos/tipos'
 import { ESPACIOS } from '@/definiciones/espacios'
 
-export const metadata = { title: 'Espacios · WiWO Ops' }
+export const metadata = { title: 'Proyectos · WiWO Ops' }
 
 /**
  * Lista de Espacios.
