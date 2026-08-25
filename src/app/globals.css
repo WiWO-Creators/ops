@@ -8,6 +8,22 @@
 @import '../estilos/vidrio.css';
 
 /*
+ * Variante `oscuro:`: se activa cuando el documento se esta viendo en oscuro DE VERDAD.
+ *
+ * No alcanza con la variante `dark:` de fabrica (solo mira `prefers-color-scheme`) ni con mirar solo
+ * `data-theme`: el tema efectivo es la eleccion explicita cuando existe, y la preferencia del sistema
+ * cuando no. Son las dos mismas ramas que resuelve `light-dark()` en `neo.css`, pero disponibles para
+ * propiedades que no son colores (opacidad, rotacion, escala del icono del selector de tema).
+ */
+@custom-variant oscuro {
+  &:where(:root[data-theme='dark'] *) { @slot; }
+
+  @media (prefers-color-scheme: dark) {
+    &:where(:root:not([data-theme='light']) *) { @slot; }
+  }
+}
+
+/*
  * `@theme inline` en vez de `@theme`: los semanticos de `neo.css` son referencias `var()` que cambian
  * con el tema. Con `@theme` a secas, Tailwind congelaria el valor resuelto en tiempo de compilacion y
  * el tema oscuro dejaria de funcionar.

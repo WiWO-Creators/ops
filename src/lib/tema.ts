@@ -66,3 +66,21 @@ export function aplicarTema (tema: Tema): void {
  * primer pintado, que es justo el momento que hay que ganarle.
  */
 export const SCRIPT_TEMA_INICIAL = `try{var t=localStorage.getItem('${CLAVE_TEMA}');if(t==='light'||t==='dark')document.documentElement.setAttribute('data-theme',t)}catch(e){}`
+
+/**
+ * Resuelve si el documento se esta viendo en oscuro en este momento.
+ *
+ * La eleccion explicita manda; sin ella decide la preferencia del sistema. Es la misma resolucion que
+ * hace `light-dark()` en CSS, pero legible desde JS para saber a que tema alternar.
+ *
+ * @returns `true` si lo que se ve ahora es el tema oscuro
+ */
+export function esOscuro (): boolean {
+  if (typeof document === 'undefined') return false
+
+  const elegido = document.documentElement.getAttribute('data-theme')
+  if (elegido === 'dark') return true
+  if (elegido === 'light') return false
+
+  return window.matchMedia('(prefers-color-scheme: dark)').matches
+}
