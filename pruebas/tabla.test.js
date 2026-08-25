@@ -16,7 +16,8 @@ import {
   opcionesPorPagina,
   podarPorPermisos,
   rutaDeAccion,
-  resolverInsignia
+  resolverInsignia,
+  resumenDeFiltro
 } from '../src/componentes/datos/tabla.ts'
 
 const presentar = () => null
@@ -163,4 +164,27 @@ test('sin catalogo o sin valor no hay insignia', () => {
   assert.equal(resolverInsignia(1, undefined), null)
   assert.equal(resolverInsignia(null, CATALOGO), null)
   assert.equal(resolverInsignia(undefined, CATALOGO), null)
+})
+
+/**
+ * El resumen del filtro de varios valores.
+ *
+ * Se rompe en silencio: el disparador seguiria pintandose igual mientras dice otra cosa que la que
+ * viaja en la URL, que es el peor de los errores posibles en un filtro.
+ */
+test('resumenDeFiltro dice "todos" con la etiqueta cuando no hay nada elegido', () => {
+  assert.deepEqual(resumenDeFiltro('Estado', CATALOGO, []), { texto: 'Estado: todos', extra: null })
+})
+
+test('resumenDeFiltro nombra la opcion pelada cuando hay una sola, sin conteo', () => {
+  assert.deepEqual(resumenDeFiltro('Estado', CATALOGO, ['4']), { texto: 'En progreso', extra: null })
+})
+
+test('resumenDeFiltro nombra la primera y cuenta el resto aparte', () => {
+  assert.deepEqual(resumenDeFiltro('Estado', CATALOGO, ['4', '1', '5']), { texto: 'En progreso', extra: '+2' })
+})
+
+test('resumenDeFiltro muestra crudo el valor que no esta en el catalogo, y lo cuenta igual', () => {
+  assert.deepEqual(resumenDeFiltro('Estado', CATALOGO, ['99']), { texto: '99', extra: null })
+  assert.deepEqual(resumenDeFiltro('Estado', CATALOGO, ['99', '4']), { texto: '99', extra: '+1' })
 })

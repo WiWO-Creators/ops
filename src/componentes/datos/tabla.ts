@@ -148,3 +148,45 @@ export function resolverInsignia (
 
   return opcion === undefined ? null : { etiqueta: opcion.etiqueta, color: opcion.color }
 }
+
+/**
+ * Texto que muestra el disparador de un filtro de varios valores.
+ *
+ * Con nada elegido devuelve "Estado: todos", el mismo marcador que muestran los filtros de un solo
+ * valor: es lo que dice de que filtro se trata cuando cinco desplegables iguales estan en fila.
+ * Con algo elegido devuelve el nombre pelado ("En progreso"), tambien como el filtro de un solo
+ * valor: repetir la etiqueta ahi se come el ancho del disparador y termina recortando justamente
+ * el dato que se fue a buscar ("Estado: En progr…").
+ *
+ * Con varios elegidos nombra el primero y cuenta el resto ("En progreso" + "+2"). Un numero suelto
+ * ("Estado: 2") se lee como si el valor filtrado fuera el 2, que es exactamente lo que la API
+ * recibe en `filter[status]`.
+ *
+ * El conteo viaja aparte del texto y no pegado a el: el disparador tiene ancho fijo y recorta lo
+ * que no entra, y si el conteo fuera parte de la misma cadena seria lo primero en desaparecer,
+ * mintiendo sobre cuantos estados estan puestos.
+ *
+ * Un valor que no este en el catalogo se muestra crudo pero se sigue contando: la consulta vive en
+ * la URL y se edita a mano, y el resumen tiene que coincidir con lo que se manda al backend.
+ *
+ * @param etiqueta nombre del filtro, el de la definicion
+ * @param opciones catalogo del filtro, para traducir el valor a su nombre
+ * @param valores los valores elegidos, tal como viajan a la API
+ * @returns `texto` para el cuerpo del disparador y `extra` con el conteo, o `null` si no hay resto
+ */
+export function resumenDeFiltro (
+  etiqueta: string,
+  opciones: OpcionFiltro[],
+  valores: string[]
+): { texto: string, extra: string | null } {
+  if (valores.length === 0) return { texto: `${etiqueta}: todos`, extra: null }
+
+  // `valores[0]` existe: la lista no esta vacia. El `?? ''` es solo para el tipo.
+  const primero = valores[0] ?? ''
+  const elegida = opciones.find((opcion) => opcion.valor === primero)
+
+  return {
+    texto: elegida === undefined ? primero : elegida.etiqueta,
+    extra: valores.length === 1 ? null : `+${valores.length - 1}`
+  }
+}
