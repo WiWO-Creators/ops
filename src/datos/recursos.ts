@@ -358,6 +358,8 @@ export interface AsignadoTarea {
   id: number
   full_name: string
   es_miembro_del_proyecto: boolean
+}
+
 // frente: detalle — tipos de las pestañas del detalle de Proyecto (contrato secciones 2 y 5).
 
 /** Bloque de tiempo registrado del resumen. Los importes solo tienen sentido con `muestra_finanzas`. */
@@ -566,4 +568,39 @@ export interface ColumnaHito {
   color: string | null
   order: number
   total_logged_seconds: number
+}
+
+// frente: listado
+/**
+ * Contador de Espacios por estado, de `GET /projects/stats`.
+ *
+ * Trae `name`, `color` y `order` propios en vez de resolverlos contra `lookups`: las pastillas se
+ * pintan con lo que el backend cuenta, y asi un estado recien creado en Perfex aparece sin que el
+ * frontend sepa nada de el.
+ */
+export interface EstadisticaEstado {
+  status: number
+  name: string
+  color: string | null
+  order: number
+  total: number
+}
+
+/**
+ * Metadato de un campo personalizado, de `GET /custom-fields?para=projects`.
+ *
+ * Es la definicion del campo, no su valor: `CampoPersonalizado` es lo que trae cada fila.
+ * `show_on_table` es lo que decide si el campo se convierte en columna del listado.
+ */
+export interface CampoPersonalizadoMeta {
+  id: number
+  slug: string
+  name: string
+  type: string
+  options: string[] | null
+  required: boolean
+  order: number
+  default_value: string
+  only_admin: boolean
+  show_on_table: boolean
 }

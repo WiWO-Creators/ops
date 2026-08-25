@@ -111,3 +111,22 @@ export function estadoVencimiento (
   if (dias <= 3) return 'proximo'
   return 'lejano'
 }
+
+// frente: listado
+/**
+ * Fecha del dia en el formato `YYYY-MM-DD` que espera la API, tomada en hora local.
+ *
+ * `toISOString().slice(0, 10)` a secas devuelve el dia en UTC: en Buenos Aires, cualquier momento
+ * despues de las 21:00 daria mañana, y un formulario que se abre con la fecha equivocada la guarda
+ * equivocada.
+ *
+ * @param ahora Instante de referencia; parametro para poder probarlo.
+ * @returns La fecha local en `YYYY-MM-DD`.
+ */
+export function hoyLocal (ahora: Date = new Date()): string {
+  const anio = ahora.getFullYear()
+  const mes = String(ahora.getMonth() + 1).padStart(2, '0')
+  const dia = String(ahora.getDate()).padStart(2, '0')
+
+  return `${anio}-${mes}-${dia}`
+}
