@@ -51,7 +51,7 @@ el rollback sea decirle a la gente que vuelva al otro dominio, sin migrar nada.
 
 | Fase | Alcance | Estado |
 |---|---|---|
-| [F0](fases/F0-cimientos-PNDNG.md) | Contrato, API base, proyecto Next, sistema de diseño | En curso — la API está terminada |
+| [F0](fases/F0-cimientos-PNDNG.md) | Contrato, API base, proyecto Next, sistema de diseño | En curso — **la API está terminada, los catorce recursos** |
 | [F1](fases/F1-procesos-y-espacios-PNDNG.md) | Procesos y Espacios — el trabajo diario | PNDNG |
 | [F2](fases/F2-crm-PNDNG.md) | Prospectos, Clientes, escritura en la API | PNDNG |
 | [F3](fases/F3-ventas-PNDNG.md) | Facturas, presupuestos, propuestas, pagos, gastos | PNDNG |
@@ -59,6 +59,39 @@ el rollback sea decirle a la gente que vuelva al otro dominio, sin migrar nada.
 
 Al cerrar una fase se renombra `-PNDNG` → `-CMPLTD` y se escribe dentro **lo que se aprendió**: lo
 que el plan decía mal, lo que resultó distinto, la deuda consciente.
+
+> El backend de F2, F3 y F4 **ya está**: los ocho recursos que faltaban —`invoices`, `payments`,
+> `estimates`, `proposals`, `expenses`, `contracts`, `leads` y `tickets`— están construidos y
+> verificados. Lo que falta de esas fases es la interfaz. Ver la tabla de
+> [modulos/README.md](modulos/README.md).
+
+## El dato que ordena las prioridades
+
+Los dos dumps de producción —`wiwo_board_db_full_20260819` y el del 12/08, 137 tablas, 122 clientes,
+2.580 tareas, 179 staff— tienen **cero filas** en:
+
+`tblinvoices` · `tblestimates` · `tblproposals` · `tblitemable` · `tblexpenses` ·
+`tblinvoicepaymentrecords` · `tbltickets`
+
+**Esos módulos de Perfex nunca se usaron.** Los únicos con datos reales son `tblleads` (81 filas) y
+`tblcontracts` (29).
+
+Tres consecuencias, y las tres están en los papeles porque explican decisiones que de otro modo
+parecen arbitrarias:
+
+1. **Por eso los ocho módulos nuevos nacen ocultos.** `secciones_habilitadas` de `GET /me` sigue
+   siendo `["procesos","espacios"]`: construir la pantalla de facturas antes de que alguien emita una
+   factura es el peor retorno del proyecto.
+2. **Por eso su verificación tuvo que sembrar datos con rollback** en vez de cotejar contra
+   producción. "0 diferencias sobre 0 filas" no verifica nada. Los comparadores de dinero, ventas,
+   gastos y tickets fabrican sus propios casos dentro de una transacción que siempre revierte, e
+   informan `filas_dejadas` y `rollback_limpio` para probar que no quedó nada.
+3. **Por eso Prospectos y Contratos se verificaron contra las filas reales** —179 staff, 0
+   diferencias en los dos— y son los dos únicos módulos nuevos donde el verde no depende de un
+   fixture.
+
+Cuando se decida qué construir después de F1, este es el dato que manda: **la interfaz de Prospectos
+tiene 81 filas esperándola; la de Facturas, ninguna.**
 
 ## Fuera de alcance
 
@@ -72,6 +105,35 @@ omisión: es una decisión de retorno.
   [modulos/12-contratos.md](modulos/12-contratos.md). Base de conocimiento y suscripciones también
   salieron, por el portal del cliente.
 - App móvil y modo sin conexión.
+
+### Lo que la API no hace, y no es un pendiente de conexión
+
+No existe. Pedirlo devuelve `404`. Está en el contrato con su detalle
+([contrato-api.md](contrato-api.md#lo-que-la-api-no-hace)), y acá para que no se descubra tarde:
+
+- **PDF byte a byte** (`GET /{id}/pdf`) y **envío por correo** (`POST /{id}/enviar`) de facturas,
+  cotizaciones y propuestas.
+- **Facturas recurrentes** del cron y **notas de crédito**.
+- **Subida del comprobante de gasto** y **subida de adjuntos al responder un ticket**. La *lectura* y
+  la *descarga* de los dos funcionan.
+- **`POST /leads/{id}/convertir`** — la conversión de prospecto a cliente. Fuera por decisión del
+  usuario; sigue haciéndose en el panel.
+- **Embudo de propuestas y de cotizaciones**, y `POST /{id}/mover` sobre `pipeline_order`. El único
+  embudo que existe es el de Prospectos.
+- **Alta y borrado de contratos**, borrado de gastos, `PATCH /payments/{id}`, y alta y edición de
+  clientes.
+
+Y la que más pesa para la interfaz:
+
+> **La API no notifica a nadie. En absoluto.** Ni correo, ni campana, ni Pusher, en **ninguna**
+> escritura. Es deuda consciente y medida, no un olvido: está apagado en
+> `Nucleo\EfectosExternos`, y cada comparador cuenta las notificaciones y los intentos de correo para
+> probar que siguen en cero.
+>
+> El caso más ruidoso es Tickets: **responder un ticket no le avisa al cliente**. En el panel,
+> responder es sobre todo avisar; acá el efecto es escribir una fila. Mientras siga así, **la interfaz
+> no puede decir "enviado", "notificado" ni "el cliente fue avisado"**, y quien responda desde
+> `ops-v2` tiene que avisarle por otro medio.
 
 ## Levantar el entorno
 
