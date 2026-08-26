@@ -30,6 +30,14 @@ import { CronometroAbierto } from './CronometroAbierto'
 const PROCESOS_A_TRAER = 60
 
 /**
+ * Donde vive el soporte de wiwo.
+ *
+ * Es un sitio aparte, no una pantalla del panel: va como constante y no suelta en el JSX para que
+ * mudarlo sea cambiar una linea y no salir a buscar la URL por el arbol.
+ */
+const URL_SOPORTE = 'https://wiwo.center'
+
+/**
  * Inicio del panel.
  *
  * Hace dos cosas en una pantalla: dice a donde ir y muestra lo que hay que hacer hoy. El orden no es
@@ -49,28 +57,26 @@ export default async function InicioPage () {
   const grupos = agruparPorVencimiento(procesos)
   const restantes = cuantosNoListados(procesos, total)
 
-  // La aurora no lleva alto ni `overflow-y-auto`: el scroll de la pantalla es el del armazon. Un
-  // segundo contenedor scrolleable aca daba dos barras superpuestas y dejaba al Inicio fuera del
-  // scroll suave. Su capa de luz es `fixed`, asi que no necesita alto propio.
+  // La capa de luz vive en el armazon del panel, no aca: pintarla tambien en el Inicio la dibujaba
+  // dos veces. Esta pantalla no lleva alto ni `overflow-y-auto` propios — el scroll es el del
+  // armazon, y un segundo contenedor scrolleable daba dos barras superpuestas.
   return (
-    <div className="aurora">
-      <div className="mx-auto flex max-w-5xl flex-col gap-10 px-1 py-6 sm:py-10">
-        <Saludo nombre={yo.firstname} />
+    <div className="mx-auto flex max-w-5xl flex-col gap-10 px-1 py-6 sm:py-10">
+      <Saludo nombre={yo.firstname} />
 
-        {cronometro?.timer_activo != null && (
-          <CronometroAbierto
-            procesoId={cronometro.id}
-            nombre={cronometro.name}
-            desde={cronometro.timer_activo.start_time}
-          />
-        )}
+      {cronometro?.timer_activo != null && (
+        <CronometroAbierto
+          procesoId={cronometro.id}
+          nombre={cronometro.name}
+          desde={cronometro.timer_activo.start_time}
+        />
+      )}
 
-        {yo.permissions.tasks.includes('view') && (
-          <MiTrabajo grupos={grupos} restantes={restantes} />
-        )}
+      {yo.permissions.tasks.includes('view') && (
+        <MiTrabajo grupos={grupos} restantes={restantes} />
+      )}
 
-        <Secciones yo={yo} />
-      </div>
+      <Secciones yo={yo} />
     </div>
   )
 }
@@ -304,12 +310,13 @@ function accesosDe (yo: Yo): Acceso[] {
       proximamente: true
     },
     {
-      href: '/tickets',
-      titulo: GLOSARIO.ticket.plural,
-      descripcion: 'El soporte que entra y quién lo atiende.',
+      // El soporte no es un modulo del panel: se atiende en wiwo.center. La tarjeta no lleva
+      // `proximamente` porque el destino existe hoy.
+      href: URL_SOPORTE,
+      titulo: '¿Buscás soporte?',
+      descripcion: 'Escribinos en wiwo.center y te respondemos ahí.',
       icono: LifeBuoy,
-      tono: 'peligro',
-      proximamente: true
+      tono: 'peligro'
     }
   )
 

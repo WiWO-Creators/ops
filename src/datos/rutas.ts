@@ -28,7 +28,8 @@ const PREFIJOS_PERMITIDOS = [
   'timesheets',
   'discussions',
   'notes',
-  'tickets',
+  // `tickets` no esta: el soporte se atiende en wiwo.center y el panel ya no monta ninguna
+  // pantalla que lo pida. Si algun dia vuelve, vuelve aca.
   'contracts',
   'expenses',
   'invoices',

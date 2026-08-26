@@ -2,6 +2,11 @@
 
 > `tickets`. Soporte al cliente.
 
+> **Fuera de alcance.** El soporte de wiwo se atiende en <https://wiwo.center>, no en el panel. El
+> Inicio enlaza ahí y las pestañas Tickets del Espacio y del Cliente se quitaron; `tickets` tampoco
+> está en la lista blanca del BFF (`src/datos/rutas.ts`). Esta ficha queda como especificación por si
+> el módulo vuelve algún día: nada de lo que describe está construido.
+
 ## Qué resuelve
 
 El canal de atención: el cliente escribe, el equipo responde, y el hilo queda registrado con su
