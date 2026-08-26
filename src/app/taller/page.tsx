@@ -192,7 +192,7 @@ export default function TallerPage () {
           {(['idle', 'listening', 'thinking', 'generating', 'routing', 'success', 'error'] as const).map((estado) => (
             <span key={estado} className="flex flex-col items-center gap-2">
               <Orbe tamano="medio" estado={estado} />
-              <span className="text-texto-sutil text-[0.6875rem]">{estado}</span>
+              <span className="text-texto-sutil text-xs">{estado}</span>
             </span>
           ))}
         </Muestra>

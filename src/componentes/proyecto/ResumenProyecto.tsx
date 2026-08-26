@@ -18,7 +18,7 @@ export function Metrica ({ etiqueta, valor }: PropsMetrica) {
   return (
     <div className="border-linea bg-superficie-elevada rounded-tarjeta shadow-1 flex flex-col gap-1 border p-4">
       <span data-numerico className="text-texto text-seccion leading-none font-semibold">{valor}</span>
-      <span className="text-texto-sutil text-[0.6875rem] font-medium tracking-[0.08em] uppercase">
+      <span className="text-texto-sutil text-xs font-medium tracking-[0.08em] uppercase">
         {etiqueta}
       </span>
     </div>

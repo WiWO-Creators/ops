@@ -133,7 +133,14 @@
   --animate-salir-hoja: salir-hoja var(--wiwo-motion-fast) var(--wiwo-ease-emphasized) both;
   --animate-entrar-abajo: entrar-abajo var(--wiwo-motion-fast) var(--wiwo-ease-emphasized) both;
 
-  /* Escala tipografica fluida, portada de Neo. Antes se usaba sin definir. */
+  /* Los peldaños de fabrica de Tailwind se atan a la misma escala. Sin esto conviven dos sistemas:
+   * `text-sm` y `text-xs` traen 14 y 12px mientras el cuerpo sale de `--step-0`, y una sola pantalla
+   * termina con cinco tamaños —11, 12, 13, 14 y 17.3px— donde ninguno es un peldaño del otro. Los
+   * `text-[0.6875rem]` sueltos que habia repartidos por los rotulos son este `--text-xs`. */
+  --text-xs: var(--step--1); /* 11px */
+  --text-sm: 0.8125rem; /* 13px - contenido de tabla, meta secundaria */
+
+  /* Escala tipografica, portada de Neo. Antes se usaba sin definir. */
   --text-menor: var(--step--1);
   --text-base: var(--step-0);
   --text-titulo: var(--step-1);

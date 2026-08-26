@@ -258,7 +258,7 @@ function Vencimiento ({ hito }: { hito: HitoDetallado }): ReactElement {
         {formatearFecha(hito.due_date)}
       </span>
       {hito.vencido && (
-        <span className="bg-relleno-peligro text-relleno-peligro-contenido rounded-control px-2 py-0.5 text-[0.6875rem] font-semibold">
+        <span className="bg-relleno-peligro text-relleno-peligro-contenido rounded-control px-2 py-0.5 text-xs font-semibold">
           Vencido
         </span>
       )}

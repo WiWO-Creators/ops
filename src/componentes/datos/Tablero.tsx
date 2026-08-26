@@ -266,7 +266,7 @@ export function Tablero<T extends FilaConId> ({
                   alSoltar(evento, grupo, indice, true)
                 }}
                 className={cn(
-                  'border-linea bg-superficie-elevada rounded-tarjeta flex flex-col gap-2 border p-2.5',
+                  'border-linea bg-superficie-elevada rounded-tarjeta flex flex-col gap-1.5 border p-2',
                   'transition-opacity duration-150',
                   arrastrada === tarjeta.id && 'opacity-50'
                 )}

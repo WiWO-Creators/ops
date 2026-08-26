@@ -19,13 +19,19 @@
    * dos: 6.23:1 y 5.72:1. */
   --wiwo-blue-200: #8c8cff;
 
-  /* --- Escala tipografica fluida ---------------------------------------- */
-  /* `clamp()` interpola con el ancho de la ventana: un solo valor sirve de movil a escritorio, sin
-   * media queries por tamaño de fuente. */
-  --step--1: clamp(0.82rem, 0.79rem + 0.16vw, 0.92rem);
-  --step-0: clamp(0.96rem, 0.92rem + 0.24vw, 1.08rem);
-  --step-1: clamp(1.16rem, 1.04rem + 0.55vw, 1.42rem);
-  --step-2: clamp(1.42rem, 1.16rem + 1.12vw, 2.05rem);
+  /* --- Escala tipografica ------------------------------------------------ */
+  /* Los peldaños de interfaz (`--step--1` a `--step-1`) son fijos a proposito. Con `clamp()` el
+   * cuerpo llegaba a 17.3px en una pantalla de 1440px, y como el tablero y las tarjetas heredan el
+   * cuerpo sin declarar tamaño, un kanban entero se dibujaba a 17.3px: menos de la mitad de las
+   * tarjetas por pantalla. En una herramienta densa el texto no tiene que crecer con la ventana —
+   * lo que crece es cuanta informacion entra.
+   *
+   * Del `--step-2` para arriba si escalan: son titulos de pantalla y de portada, donde el ancho
+   * disponible si es la medida correcta. */
+  --step--1: 0.6875rem; /* 11px - rotulos en versalita, insignias */
+  --step-0: 0.875rem; /* 14px - cuerpo, celdas, titulos de tarjeta */
+  --step-1: 1rem; /* 16px - titulo de panel */
+  --step-2: clamp(1.25rem, 1.05rem + 0.85vw, 1.5rem); /* 20-24px - titulo de pantalla */
   --step-3: clamp(2.1rem, 1.54rem + 2.24vw, 3.5rem);
   --step-4: clamp(3rem, 2.16rem + 3.6vw, 5.7rem);
 

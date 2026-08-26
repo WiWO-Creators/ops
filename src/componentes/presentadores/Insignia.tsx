@@ -20,7 +20,7 @@ const insignia = cva(
         contorno: 'border border-linea text-texto-tenue'
       },
       tamano: {
-        chico: 'h-5 px-2 text-[0.6875rem]',
+        chico: 'h-5 px-2 text-xs',
         medio: 'h-6 px-2.5 text-xs'
       }
     },

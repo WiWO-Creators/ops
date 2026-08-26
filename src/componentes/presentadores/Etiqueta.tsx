@@ -26,14 +26,14 @@ export function Etiquetas ({ etiquetas, maximo = 2, className }: PropsEtiquetas)
       {visibles.map((etiqueta) => (
         <span
           key={etiqueta.id}
-          className="bg-relleno-neutro text-texto-tenue rounded-chico px-1.5 py-0.5 text-[0.6875rem] leading-none"
+          className="bg-relleno-neutro text-texto-tenue rounded-chico px-1.5 py-0.5 text-xs leading-none"
         >
           {etiqueta.name}
         </span>
       ))}
       {restantes > 0 && (
         <span
-          className="text-texto-sutil text-[0.6875rem]"
+          className="text-texto-sutil text-xs"
           title={etiquetas.slice(maximo).map((e) => e.name).join(', ')}
         >
           +{restantes}

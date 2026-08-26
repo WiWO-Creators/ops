@@ -76,7 +76,7 @@ export function CabeceraCliente ({ cliente }: { cliente: Cliente }) {
 function DatoLinea ({ etiqueta, valor }: { etiqueta: string, valor: React.ReactNode }) {
   return (
     <div className="flex items-center gap-1.5">
-      <dt className="text-texto-sutil text-[0.6875rem] tracking-[0.06em] uppercase">{etiqueta}</dt>
+      <dt className="text-texto-sutil text-xs tracking-[0.06em] uppercase">{etiqueta}</dt>
       <dd className="text-texto">{valor}</dd>
     </div>
   )

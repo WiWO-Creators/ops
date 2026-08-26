@@ -15,6 +15,15 @@ test('una fecha sin hora no se corre de dia', () => {
   assert.match(formatearFecha('2026-08-24'), /24/)
 })
 
+test('la fecha se muestra compacta, sin los "de" que la parten en dos lineas', () => {
+  // "24 de ago. de 2026" en una celda angosta ocupa dos lineas y sube el alto de la fila entera.
+  const texto = formatearFecha('2026-08-24')
+  assert.doesNotMatch(texto, / de /)
+  assert.doesNotMatch(texto, /\./)
+  // Espacio duro: en una columna angosta la fecha tiene que desbordar antes que partirse.
+  assert.match(texto, /^\d{2}\u00a0\w+\u00a0\d{4}$/)
+})
+
 test('un valor ausente da el guion largo, no "Invalid Date"', () => {
   assert.equal(formatearFecha(null), '—')
   assert.equal(formatearFecha(undefined), '—')

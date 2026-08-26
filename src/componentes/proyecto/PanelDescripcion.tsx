@@ -265,7 +265,7 @@ interface PropsCifra {
 function Cifra ({ etiqueta, tiempo, importe, simbolo }: PropsCifra): ReactElement {
   return (
     <div className="flex flex-col gap-0.5">
-      <span className="text-texto-sutil text-[0.6875rem] font-medium tracking-[0.08em] uppercase">
+      <span className="text-texto-sutil text-xs font-medium tracking-[0.08em] uppercase">
         {etiqueta}
       </span>
       {tiempo !== null && (

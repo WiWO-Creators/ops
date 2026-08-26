@@ -120,7 +120,7 @@ const SIN_DATO = '—'
 function Dato ({ etiqueta, children }: { etiqueta: string, children: ReactNode }): ReactElement {
   return (
     <div className="flex min-w-0 flex-col gap-1">
-      <dt className="text-texto-sutil text-[0.6875rem] font-medium tracking-[0.08em] uppercase">
+      <dt className="text-texto-sutil text-xs font-medium tracking-[0.08em] uppercase">
         {etiqueta}
       </dt>
       <dd className="text-texto min-w-0 text-sm">{children}</dd>
@@ -149,7 +149,7 @@ function Contador ({ etiqueta, valor }: { etiqueta: string, valor: string }): Re
   return (
     <li className="flex flex-col items-center gap-0.5">
       <span data-numerico className="text-texto text-lg leading-none font-semibold tabular-nums">{valor}</span>
-      <span className="text-texto-sutil text-[0.6875rem] font-medium tracking-[0.08em] uppercase">
+      <span className="text-texto-sutil text-xs font-medium tracking-[0.08em] uppercase">
         {etiqueta}
       </span>
     </li>
