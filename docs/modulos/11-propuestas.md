@@ -41,10 +41,12 @@ Los demás que necesita el detalle: `content`, `subtotal`, `total_tax`, `adjustm
 `discount_percent`, `discount_total`, `discount_type`, `currency`, `address`, `email`, `phone`,
 `allow_comments`, `rel_id`, `rel_type` (`lead` o `customer`), `pipeline_order`, el bloque de
 aceptación (`acceptance_firstname`, `acceptance_lastname`, `acceptance_email`, `acceptance_date`,
-`acceptance_ip`, `signature`), `short_link`, e `items`.
+`acceptance_ip`, `signature`) e `items`.
 
-**`hash` no sale nunca** (`proposals_helper.php:48`): es la credencial del enlace público, y quien la
-tiene abre la propuesta sin sesión.
+**Ni `hash` ni `short_link` salen nunca.** `hash` (`proposals_helper.php:48`) es la credencial del
+enlace público, y quien la tiene abre la propuesta sin sesión; `short_link`
+(`proposals_helper.php:11-40`) es esa misma URL acortada con bit.ly. Los dos están fuera del
+`SELECT`.
 
 **`number` tampoco es una columna**: se arma con el id y el prefijo configurado, réplica de
 `format_proposal_number()`. Ordenar por `number` es ordenar por `id`.
@@ -106,7 +108,8 @@ propuesta que este staff no ve es `404`.
   destinatario. Por eso el módulo **hidrata la fila actual, superpone la whitelist y recién ahí
   delega**.
 - La aceptación con firma escribe IP y fecha. Es un registro legal: no se edita desde la interfaz.
-- `short_link` es el enlace público que recibe el cliente.
+- `short_link` es el enlace público que recibe el cliente, y por eso **la API no lo devuelve**: es el
+  `hash` acortado.
 
 Fuente: `application/views/admin/tables/proposals.php`,
 `application/views/admin/proposals/pipeline/`, `Proposals_model.php`.

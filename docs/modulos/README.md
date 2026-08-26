@@ -45,9 +45,11 @@ Dos cosas que valen para los ocho nuevos y que la tabla no puede decir en una ce
 - **La API no le avisa a nadie de nada.** Ni correo, ni campana, ni Pusher, en ninguna escritura. El
   caso más ruidoso es Tickets: **el cliente no se entera de que le respondieron**. La interfaz no
   puede decir "enviado".
-- **`?include=` sólo lo aceptan `leads` y `tickets`.** En los otros seis, un `include` desconocido se
-  **ignora en silencio** en vez de dar `422`: es la única grieta conocida en la regla de "nada se
-  ignora en silencio". `?fields=` funciona en los catorce.
+- **`?include=` desconocido es `422` en todos lados.** La grieta que este documento describía —seis
+  de los ocho ignorando el `include` en silencio— está cerrada, y con ella la de las fichas, la de los
+  subrecursos de Espacio y Proceso y la de todo `/portal/*`. Donde no hay relaciones opcionales la
+  whitelist está vacía a propósito y cualquier `include` falla: ver "Dónde vale `?include=`" en
+  [contrato-api.md](../contrato-api.md). `?fields=` funciona en los catorce.
 
 ## Cómo se arma un módulo
 

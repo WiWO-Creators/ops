@@ -220,6 +220,25 @@ autenticarse.
 | Campos | `?fields=id,name,status` | Se aplica **después** de serializar |
 | Relaciones | `?include=customer,custom_fields` | Opt-in, para evitar N+1 |
 
+### Dónde vale `?include=`
+
+La whitelist de relaciones es **por camino**, no por recurso, y donde no hay relaciones opcionales la
+lista está vacía a propósito. Un `include` que el camino no declara es **`422`**, nunca un `200` que
+lo ignora:
+
+| Camino | Qué acepta |
+|---|---|
+| Listado y ficha de un recurso (`/invoices`, `/invoices/{id}`, …) | lo que declare ese recurso |
+| Listas acotadas (`/projects/{id}/invoices`, `/clients/{id}/contracts`, …) | **nada** |
+| Los ocho subrecursos de un Espacio (`milestones`, `timesheets`, `notes`, `activity`, `discussions`, `files`, `members`, `gantt`), más `overview` y `/projects/stats` | **nada** |
+| Los cinco subrecursos de un Proceso (`comments`, `checklist`, `timers`, `assignees`, `files`) | **nada** |
+| `/clients/{id}/notes` y `/clients/{id}/files` | **nada** |
+| `/discussions/*`, `/comments/*`, `/me`, `/lookups`, `/custom-fields` | **nada** |
+| Todo `/portal/*` | **nada** |
+
+En el portal la lista vacía es una decisión y no un olvido: sus presentaciones son fijas para que
+agregar una relación al panel no la publique sola del lado del cliente.
+
 **Whitelist, siempre.** Ninguna clave de `filter[]` ni de `sort` llega al Query Builder sin estar en
 la lista del recurso. Es la diferencia entre un filtro y una inyección.
 
@@ -489,11 +508,11 @@ Tres advertencias que valen para los ocho:
 - **Ninguno entra en `secciones_habilitadas` de `GET /me`.** Esa lista sigue siendo
   `['procesos','espacios']` por decisión del usuario (`controllers/V1.php:1415`): la API responde,
   pero `ops-v2` no ofrece la sección. Habilitarlas es editar esa lista, no desplegar código nuevo.
-- **`?include=` sólo lo aceptan `leads` y `tickets`.** Son los únicos dos recursos que declaran
-  `includesPermitidos` y llaman a `Consulta::includes()`. En los otros seis, `?include=lo-que-sea`
-  se **ignora en silencio** en lugar de dar `422`: es la única grieta conocida en la regla de "nada
-  se ignora en silencio", y está anotada como pendiente en
-  [modulos/README.md](modulos/README.md).
+- **`?include=` no se ignora en ningún lado.** Los ocho declaran `includesPermitidos` —vacío donde no
+  hay relaciones opcionales, como en `payments`— y llaman a `Consulta::includes()` tanto en el
+  listado como en la ficha, así que `?include=lo-que-sea` es **`422`** y no un `200` silencioso. La
+  grieta que este documento describía —seis de los ocho ignorando el `include`— está cerrada, y con
+  ella la de los subrecursos y la del portal: ver "Dónde vale `?include=`" más arriba.
 - **`?fields=` funciona en los ocho** (`Consulta::recortar()`), igual que en los recursos del núcleo.
 
 ### `invoices` → **Facturas**
@@ -699,11 +718,12 @@ La ficha agrega `reference_no`, `clientnote`, `adminnote`, `terms`, `datecreated
 
 ```json
 { "acceptance": { "firstname": null, "lastname": null, "email": null,
-                  "date": null, "ip": null, "signature": null },
-  "short_link": null }
+                  "date": null, "ip": null, "signature": null } }
 ```
 
-**`hash` no sale nunca** (`estimates_helper.php:47`): es la credencial del enlace público.
+**Ni `hash` ni `short_link` salen nunca.** `hash` (`estimates_helper.php:47`) es la credencial del
+enlace público, y `short_link` (`estimates_helper.php:11-40`) es esa misma URL acortada con bit.ly:
+el mismo hash con un salto de por medio. Los dos están fuera del `SELECT`.
 
 Estados (`Estimates_model::__construct()`): **1 Borrador, 2 Enviada, 3 Rechazada, 4 Aceptada,
 5 Expirada**. Salen también de `GET /lookups` en `estimate_statuses`, con su `order`.
@@ -764,8 +784,10 @@ tiene que adivinar de qué tabla sacarlo, y `rel_type`/`rel_id` viajan igual por
 
 La ficha agrega `content`, `datecreated`, `show_quantity_as`, `pipeline_order`,
 `is_expiry_notified`, `allow_comments`, `address`, `city`, `state`, `zip`, `country`, `email`,
-`phone`, `acceptance` (la misma forma que en cotizaciones), `short_link`, `date_converted`, `items`
-y `totals`. **`hash` no sale nunca** (`proposals_helper.php:48`).
+`phone`, `acceptance` (la misma forma que en cotizaciones), `date_converted`, `items`
+y `totals`. **Ni `hash` ni `short_link` salen nunca**: `hash` (`proposals_helper.php:48`) es la
+credencial del enlace público y `short_link` (`proposals_helper.php:11-40`) es esa misma URL acortada
+con bit.ly.
 
 `GET /proposals/{id}/comments` devuelve array plano:
 
@@ -922,8 +944,8 @@ Errores propios:
   "dateadded": "2025-12-20T11:00:00Z", "last_sent_at": null }
 ```
 
-La ficha agrega `content`, `hash`, `short_link`, `acceptance` (`firstname`, `lastname`, `email`,
-`date`, `ip`), `comments` y `files`. Los dos subrecursos también se piden sueltos:
+La ficha agrega `content`, `acceptance` (`firstname`, `lastname`, `email`, `date`, `ip`),
+`comments` y `files`. Los dos subrecursos también se piden sueltos:
 
 ```json
 // GET /contracts/{id}/comentarios
@@ -937,9 +959,25 @@ La ficha agrega `content`, `hash`, `short_link`, `acceptance` (`firstname`, `las
     "url": "/api/v1/files/contract/90/download" } ]
 ```
 
-> **`hash` sí viaja acá**, al revés que en facturas, cotizaciones y propuestas. No es un descuido de
-> criterio: `Contracts_model` no expone pago desde el enlace público, sólo la firma. Aun así es una
-> credencial: la interfaz no debe imprimirla ni ponerla en una URL que se comparta.
+> **Ni `hash` ni `short_link` viajan**, igual que en facturas, cotizaciones y propuestas. Una versión
+> anterior de este documento decía que el `hash` sí salía, con el argumento de que el enlace público
+> del contrato "sólo expone la firma" y no un cobro. El argumento estaba mal medido:
+> `contract/{id}/{hash}` (`config/routes.php:120`) pasa por `check_contract_restrictions()`, que con
+> `view_contract_only_logged_in = 0` **no exige sesión de ninguna clase**, y acepta
+> `action=sign_contract`. `Contracts_model::add_signature():196-215` **no verifica identidad**: el
+> nombre, el correo y la IP de la aceptación salen de la propia petición. Quien tenga la cadena firma
+> el contrato en nombre del cliente, que es peor que pagar una factura.
+>
+> `short_link` se fue con él y por lo mismo: `get_contract_shortlink()`
+> (`helpers/contracts_helper.php:11-40`) acorta con bit.ly exactamente
+> `site_url("contract/{id}/{hash}")`, así que la cadena corta **es** el hash con un salto de por
+> medio. Hoy vale `null` en toda la base porque `bitly_access_token` está vacío, pero el día que
+> alguien lo configure desde el panel la API repartiría enlaces de firma sin que nadie toque el
+> módulo.
+>
+> Los dos salieron del `SELECT`, no sólo del JSON: una credencial que se trae a memoria termina en un
+> log. Si alguna vez hace falta "copiar el enlace de firma", eso es un endpoint propio con su permiso
+> y su registro en la bitácora.
 >
 > La `url` de descarga sí funciona: `Recursos/Descargas.php:45-90` conoce el tipo `contract`.
 

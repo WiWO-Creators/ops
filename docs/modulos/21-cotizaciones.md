@@ -38,9 +38,11 @@ Los de la tabla del panel: `number`, `total`, `total_tax`, `YEAR(date)`, cliente
 
 El detalle agrega los mismos bloques que Facturas —`subtotal`, `adjustment`, descuentos, `currency`,
 `clientnote`, `adminnote`, `items`— más `pipeline_order`, `is_expiry_notified`, `invoiced_date`,
-`short_link` y el bloque `acceptance` (`firstname`, `lastname`, `email`, `date`, `ip`, `signature`).
+y el bloque `acceptance` (`firstname`, `lastname`, `email`, `date`, `ip`, `signature`).
 
-**`hash` no sale nunca** (`estimates_helper.php:47`): es la credencial del enlace público.
+**Ni `hash` ni `short_link` salen nunca.** `hash` (`estimates_helper.php:47`) es la credencial del
+enlace público; `short_link` (`estimates_helper.php:11-40`) es esa misma URL acortada con bit.ly, o
+sea el mismo hash con un salto de por medio. Los dos están fuera del `SELECT`.
 
 > **`duedate` no es una columna de presupuestos: la columna es `expirydate`.** El contrato expone
 > `duedate` porque el frontend usa la misma tabla genérica para factura y presupuesto, así que la

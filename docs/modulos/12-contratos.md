@@ -38,9 +38,9 @@ Los que muestra la tabla del panel: `id`, `subject`, cliente, tipo de contrato (
 `contract_value`, `datestart`, `dateend`, espacio asociado (`projects.name`), `signature`.
 
 El detalle además necesita: `content`, `description`, `contract_type`, `project_id`, `added_by`,
-`dateadded`, `last_sent_at`, `isexpirynotified`, `not_visible_to_client`, `trash`, `hash`, `signed`,
-`marked_as_signed`, `signature_status`, `vigencia`, `tags`, `custom_fields`, el bloque de aceptación
-y `short_link`.
+`dateadded`, `last_sent_at`, `isexpirynotified`, `not_visible_to_client`, `trash`, `signed`,
+`marked_as_signed`, `signature_status`, `vigencia`, `tags`, `custom_fields` y el bloque de
+aceptación. **Ni `hash` ni `short_link`**: ver abajo.
 
 **`content` sale crudo, con los `{merge_field}` sin resolver.** `Contracts_model::get():31-39` los
 sustituye sólo cuando `$for_editor == false`, y hacerlo en cada detalle obligaría a cargar tres
@@ -56,9 +56,18 @@ un contrato sin `dateend` es vigente, y **uno cuyo `dateend` es exactamente hoy 
 dos** — el panel lo deja fuera de sus dos contadores y la API devuelve el mismo conjunto. `hoy` es
 `date('Y-m-d')` de PHP, no `CURDATE()`: MySQL puede estar en otra zona horaria.
 
-> **`hash` sí viaja**, al revés que en facturas, cotizaciones y propuestas: `Contracts_model` no
-> expone pago desde el enlace público, sólo la firma. Aun así es una credencial: la interfaz no debe
-> imprimirla ni ponerla en una URL que se comparta.
+> **Ni `hash` ni `short_link` viajan**, igual que en facturas, cotizaciones y propuestas. Este
+> documento decía lo contrario, con el argumento de que el enlace público del contrato "sólo expone
+> la firma" y no un cobro. Estaba mal medido: `contract/{id}/{hash}` (`config/routes.php:120`) pasa
+> por `check_contract_restrictions()`, que con `view_contract_only_logged_in = 0` **no exige sesión**,
+> y acepta `action=sign_contract`. `Contracts_model::add_signature():196-215` **no verifica
+> identidad** —nombre, correo e IP salen de la propia petición—, deja `signed = 1` y congela
+> `content`. Firmar en nombre del cliente es peor que pagar una factura.
+>
+> `short_link` es esa misma URL acortada con bit.ly (`helpers/contracts_helper.php:11-40`), o sea el
+> mismo hash con un salto de por medio; hoy vale `null` porque `bitly_access_token` está vacío, pero
+> configurarlo bastaría para que la API empezara a repartirlo. Los dos salieron del `SELECT`, no sólo
+> del JSON.
 
 `contract_value` **es dinero**: número, y no se opera en JavaScript.
 
