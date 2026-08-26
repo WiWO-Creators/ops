@@ -12,6 +12,7 @@ import {
   PORTAL_SUSCRIPCIONES,
   PORTAL_TICKETS
 } from '@/definiciones/portal-ventas'
+import { PORTAL_PROYECTOS } from '@/definiciones/portal-proyectos'
 
 /**
  * Las seis tablas del portal, del lado del cliente.
@@ -30,7 +31,8 @@ const DEFINICIONES = {
   propuestas: PORTAL_PROPUESTAS,
   contratos: PORTAL_CONTRATOS,
   suscripciones: PORTAL_SUSCRIPCIONES,
-  soporte: PORTAL_TICKETS
+  soporte: PORTAL_TICKETS,
+  proyectos: PORTAL_PROYECTOS
 } as const
 
 export type SeccionDeVenta = keyof typeof DEFINICIONES
@@ -41,7 +43,8 @@ const ENLACES: Partial<Record<SeccionDeVenta, string>> = {
   presupuestos: 'number',
   propuestas: 'subject',
   contratos: 'subject',
-  soporte: 'subject'
+  soporte: 'subject',
+  proyectos: 'name'
 }
 
 export function TablaPortal<T extends { id: number }> ({

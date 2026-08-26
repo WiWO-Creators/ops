@@ -143,3 +143,93 @@ export interface RespuestaTicketPortal {
   from: 'cliente' | 'equipo'
   name: string
 }
+
+/**
+ * Proyecto tal como lo ve el cliente.
+ *
+ * Los campos opcionales lo son de verdad: la API **no los emite** cuando el proyecto no los
+ * comparte, en vez de mandarlos en null. `undefined` significa "no corresponde mostrarlo", que es
+ * distinto de "esta vacio".
+ */
+export interface EspacioPortal {
+  id: number
+  name: string
+  description: string | null
+  status: number
+  start_date: string | null
+  deadline: string | null
+  date_finished: string | null
+  progress: number
+  counts: { tasks: number, tasks_open: number, milestones: number }
+  /** Solo en el detalle: las pestañas que este contacto puede abrir en este proyecto. */
+  tabs?: PestaniaPortal[]
+  /** Solo con `view_finance_overview`. */
+  project_cost?: number | null
+  project_rate_per_hour?: number | null
+  estimated_hours?: number | null
+  /** Solo con `view_team_members`. */
+  members?: Array<{ id: number, full_name: string, profile_image_url: string | null }>
+}
+
+/** Claves de pestaña que la API puede devolver en `tabs`. */
+export type PestaniaPortal =
+  | 'overview'
+  | 'tasks'
+  | 'timesheets'
+  | 'milestones'
+  | 'files'
+  | 'discussions'
+  | 'gantt'
+  | 'activity'
+  | 'tickets'
+  | 'contracts'
+  | 'proposals'
+  | 'estimates'
+  | 'invoices'
+
+/** Tarea de un proyecto, ya podada de todo lo interno. */
+export interface TareaPortal {
+  id: number
+  name: string
+  description: string | null
+  status: number
+  priority: number
+  start_date: string | null
+  due_date: string | null
+  date_finished: string | null
+  milestone: number
+  milestone_order: number
+  task_type: number
+  tags: Array<{ id: number, name: string }>
+  counts: Record<string, number>
+  /** Solo con `view_task_total_logged_time`. */
+  total_logged_seconds?: number
+  duration_hm?: string
+}
+
+export interface HitoPortal {
+  id: number
+  name: string
+  /** `null` cuando el equipo no marco la descripcion como compartible. */
+  description: string | null
+  start_date: string | null
+  due_date: string | null
+  project_id: number
+  color: string | null
+  order: number
+  date_created: string | null
+  counts: { tasks: number, tasks_done: number }
+  vencido: boolean
+  total_logged_seconds?: number
+}
+
+export interface ArchivoPortal {
+  id: number
+  file_name: string
+  original_file_name: string | null
+  subject: string | null
+  filetype: string | null
+  date_added: string | null
+  url: string | null
+  thumbnail_url: string | null
+}
