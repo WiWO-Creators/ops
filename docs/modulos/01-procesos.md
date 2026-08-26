@@ -156,10 +156,14 @@ Cascadas: `Tasks_model.php`.
 
 ## Estado de la API
 
-✅ Existe y está completo, con una salvedad: los archivos devuelven
-`url: "/api/v1/files/task/{id}/download"`, pero **ese endpoint no está enrutado** — responde `404
-Recurso desconocido: "files"`. Hasta que se implemente, el botón de descarga debe apuntar al panel
-clásico.
+✅ Existe y está completo. Los archivos devuelven `url: "/api/v1/files/task/{id}/download"`, y **esa
+ruta funciona**: `case 'files'` existe en `modules/api/controllers/V1.php:362` y despacha a
+`descargaRuta()`, que autentica, valida el permiso sobre la entidad dueña y sirve el binario.
+
+> **Resuelto.** Este documento declaraba que los archivos daban `404` porque `files` no estaba
+> enrutado. Ya no es cierto. Lo que sigue sin existir es `POST /files/{id}/link`, el token de un solo
+> uso para `<img src>` y `<a download>`: mientras no exista, los binarios se piden desde el BFF, que
+> sí puede poner la cabecera `Authorization`.
 
 ## Criterios de aceptación
 

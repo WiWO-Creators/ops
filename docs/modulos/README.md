@@ -10,27 +10,44 @@ contradicen, manda el contrato y la ficha está desactualizada.
 
 ## Estado
 
-Los módulos del núcleo ya tienen API. El resto necesita que se agregue el recurso en
-`wiwo-board/modules/api/` antes de que su pantalla sirva para algo — cada ficha trae la
-especificación de ese recurso en su sección *Estado de la API*.
+**Los catorce módulos tienen API.** Los ocho que faltaban se construyeron y se verificaron contra el
+código real del panel: 249 comprobaciones verdes en `modules/api/herramientas/humo.sh` y doce
+comparadores por línea de comandos en cero diferencias. La columna *Falta* de abajo no es una lista de
+bugs: es lo que **no se construyó a propósito**, y cada ficha lo detalla en su sección *Estado de la
+API*.
 
-| # | Módulo | Entidad de Perfex | API |
-|---|---|---|---|
-| [00](00-sesion.md) | Sesión y acceso | `staff` + tokens propios | ✅ |
-| [01](01-procesos.md) | Procesos | `tasks` | ✅ |
-| [02](02-espacios.md) | Espacios | `projects` | ✅ |
-| [03](03-clientes.md) | Clientes | `clients` + `contacts` | ✅ |
-| [04](04-equipo.md) | Equipo | `staff` | ✅ |
-| [05](05-mi-trabajo.md) | Mi trabajo | vistas sobre `tasks` | ✅ |
-| [10](10-prospectos.md) | Prospectos | `leads` | ❌ por construir |
-| [11](11-propuestas.md) | Propuestas | `proposals` | ❌ por construir |
-| [12](12-contratos.md) | Contratos | `contracts` | ❌ por construir |
-| [20](20-facturas.md) | Facturas | `invoices` | ❌ por construir |
-| [21](21-cotizaciones.md) | Cotizaciones | `estimates` | ❌ por construir |
-| [22](22-pagos.md) | Pagos | `invoicepaymentrecords` | ❌ por construir |
-| [23](23-gastos.md) | Gastos | `expenses` | ❌ por construir |
-| [30](30-tickets.md) | Tickets | `tickets` | ❌ por construir |
-| [40](40-portal-cliente.md) | Portal del cliente | `contacts` | ✅ construido (sin desplegar) |
+> **Los ocho módulos nuevos están OCULTOS en la interfaz.** `secciones_habilitadas` de `GET /me` sigue
+> siendo la lista fija `["procesos","espacios"]` (`modules/api/controllers/V1.php:1415`), por decisión
+> del usuario. **La API responde, `ops-v2` no ofrece la sección.** Habilitar una es editar esa lista,
+> no desplegar código nuevo. Sin esta aclaración, el ✅ de la tabla se lee como "está en la pantalla",
+> y no lo está.
+
+| # | Módulo | Entidad de Perfex | API | Visible en `ops-v2` | Falta |
+|---|---|---|---|---|---|
+| [00](00-sesion.md) | Sesión y acceso | `staff` + tokens propios | ✅ | sí | — |
+| [01](01-procesos.md) | Procesos | `tasks` | ✅ | sí | `POST /files/{id}/link` |
+| [02](02-espacios.md) | Espacios | `projects` | ✅ | sí | — |
+| [03](03-clientes.md) | Clientes | `clients` + `contacts` | ✅ | sí | Alta y edición: siguen en el panel, por diseño |
+| [04](04-equipo.md) | Equipo | `staff` | ✅ | sí | — |
+| [05](05-mi-trabajo.md) | Mi trabajo | vistas sobre `tasks` | ✅ | sí | — |
+| [10](10-prospectos.md) | Prospectos | `leads` | ✅ | **no** | `POST /leads/{id}/convertir` |
+| [11](11-propuestas.md) | Propuestas | `proposals` | ✅ | **no** | PDF, envío, embudo y `mover` |
+| [12](12-contratos.md) | Contratos | `contracts` | ✅ | **no** | Alta, borrado y subida de adjuntos |
+| [20](20-facturas.md) | Facturas | `invoices` | ✅ | **no** | PDF, envío, recurrentes, notas de crédito, `tags`, `custom_fields` |
+| [21](21-cotizaciones.md) | Cotizaciones | `estimates` | ✅ | **no** | PDF, envío, embudo y `mover`, `custom_fields` |
+| [22](22-pagos.md) | Pagos | `invoicepaymentrecords` | ✅ | **no** | `PATCH /payments/{id}`, deliberado |
+| [23](23-gastos.md) | Gastos | `expenses` | ✅ | **no** | Subida del comprobante, borrado, `tags`, `custom_fields` |
+| [30](30-tickets.md) | Tickets | `tickets` | ✅ | **no** | Subida de adjuntos, y **todo aviso al cliente** |
+| [40](40-portal-cliente.md) | Portal del cliente | `contacts` | ✅ | construido, sin desplegar | — |
+
+Dos cosas que valen para los ocho nuevos y que la tabla no puede decir en una celda:
+
+- **La API no le avisa a nadie de nada.** Ni correo, ni campana, ni Pusher, en ninguna escritura. El
+  caso más ruidoso es Tickets: **el cliente no se entera de que le respondieron**. La interfaz no
+  puede decir "enviado".
+- **`?include=` sólo lo aceptan `leads` y `tickets`.** En los otros seis, un `include` desconocido se
+  **ignora en silencio** en vez de dar `422`: es la única grieta conocida en la regla de "nada se
+  ignora en silencio". `?fields=` funciona en los catorce.
 
 ## Cómo se arma un módulo
 

@@ -183,6 +183,13 @@ Revoca el token actual. `?all=1` revoca todas las sesiones del staff. → `204`.
 `secciones_habilitadas` es la bandera por persona que decide qué partes de `ops-v2` están vivas: se
 revoca sin desplegar.
 
+**Hoy `secciones_habilitadas` es la lista fija `["procesos","espacios"]`** (`controllers/V1.php:1415`).
+Los ocho recursos de ventas, comercial y soporte responden igual, pero la interfaz **no los ofrece**:
+es decisión del usuario, no un pendiente técnico. Habilitar una sección es editar esa lista.
+
+`permissions` **no trae una clave `tickets`**: Perfex no tiene una feature de permisos con ese nombre
+(ver el recurso `tickets` más abajo).
+
 ### `GET /health`
 
 Sin autenticación.
@@ -442,9 +449,15 @@ Finalizado, a `null` al salir — más una entrada en el feed de actividad del p
   "size": 184320, "rel_type": "task", "rel_id": 512,
   "staff_id": 12, "date_added": "2026-08-02T11:00:00Z",
   "visible_to_customer": false,
-  "url": "/api/v1/files/77/download",
+  "url": "/api/v1/files/task/77/download",
   "thumbnail_url": null }
 ```
+
+> **La ruta de descarga lleva el tipo de entidad**, no sólo el id: `/api/v1/files/{tipo}/{id}/download`
+> (`Recursos/RecursoArchivos.php:171`). Los siete tipos enrutados son `project`, `task`, `customer`,
+> `lead`, `ticket`, `expense` y `contract` (`Recursos/Descargas.php:45-90`). **El mock sirve todavía la
+> forma vieja `/api/v1/files/{id}/download`** (`mock/datos.js:293`): al integrar contra la API real,
+> esa URL cambia.
 
 **Nunca se expone la ruta real de `uploads/`.** Hoy la única protección de esa carpeta es que la URL
 no se adivina; publicarla en JSON lo empeoraría.
@@ -456,12 +469,801 @@ no se adivina; publicarla en JSON lo empeoraría.
 > con `'task'`. La API consulta ambos y normaliza a singular hacia afuera; filtrar sólo por el
 > singular pierde 14 adjuntos.
 
-`GET /files/{id}/download` autentica, valida el permiso sobre la entidad dueña y sirve el binario.
+`GET /files/{tipo}/{id}/download` autentica, valida el permiso sobre la entidad dueña y sirve el
+binario. Acepta también la sesión de un contacto del portal, con el correo ya verificado.
 
-**Para `<img src>` y `<a download>`**, que no mandan el header `Authorization`:
-`POST /files/{id}/link` → `{ "data": { "url": "…?t=…", "expires_in": 60 } }`. Token de un solo uso.
-La alternativa —cookie cross-site— obligaría a `SameSite=None` con credenciales, justo lo que el BFF
-evita.
+**`POST /files/{id}/link` no está construido.** El plan era un token de un solo uso para `<img src>` y
+`<a download>`, que no mandan el header `Authorization`; hoy `V1::descargaRuta()` sólo acepta `GET`
+con `download` como último segmento, y el token sale de `Authorization` o de `X-Api-Key`
+(`Nucleo/Peticion.php`), nunca de la query string. Mientras no exista, los binarios se piden desde el
+BFF, que sí puede poner la cabecera.
+
+## Recursos de ventas, comercial y soporte
+
+Los ocho recursos que faltaban: `invoices`, `payments`, `estimates`, `proposals`, `expenses`,
+`contracts`, `leads` y `tickets`. Están construidos y verificados contra el código del panel
+(`modules/api/README.md` tiene el detalle de cada frente y sus divergencias deliberadas).
+
+Tres advertencias que valen para los ocho:
+
+- **Ninguno entra en `secciones_habilitadas` de `GET /me`.** Esa lista sigue siendo
+  `['procesos','espacios']` por decisión del usuario (`controllers/V1.php:1415`): la API responde,
+  pero `ops-v2` no ofrece la sección. Habilitarlas es editar esa lista, no desplegar código nuevo.
+- **`?include=` sólo lo aceptan `leads` y `tickets`.** Son los únicos dos recursos que declaran
+  `includesPermitidos` y llaman a `Consulta::includes()`. En los otros seis, `?include=lo-que-sea`
+  se **ignora en silencio** en lugar de dar `422`: es la única grieta conocida en la regla de "nada
+  se ignora en silencio", y está anotada como pendiente en
+  [modulos/README.md](modulos/README.md).
+- **`?fields=` funciona en los ocho** (`Consulta::recortar()`), igual que en los recursos del núcleo.
+
+### `invoices` → **Facturas**
+
+`GET /invoices` · `GET /invoices/{id}` · `GET /invoices/{id}/items` ·
+`GET /invoices/{id}/payments` · `POST /invoices` · `PATCH /invoices/{id}` ·
+`POST /invoices/{id}/actions/cancel` · `POST /invoices/{id}/actions/uncancel`
+
+Fila de la lista:
+
+```json
+{ "id": 9, "number": "INV-000009", "date": "2026-08-01", "duedate": "2026-08-31",
+  "status": 1, "subtotal": 100000.00, "total_tax": 19000.00, "total": 119000.00,
+  "adjustment": 0.0, "discount_percent": 0.0, "discount_total": 0.0, "discount_type": "",
+  "currency": { "id": 1, "symbol": "$", "name": "COP", "is_default": true },
+  "client": { "id": 42, "company": "…" },
+  "project": { "id": 8, "name": "…" },
+  "sale_agent": { "id": 12, "full_name": "…", "profile_image_url": "…" },
+  "sent": false, "datesend": null, "recurring": 0 }
+```
+
+La ficha agrega:
+
+```json
+{ "prefix": "INV-", "number_format": 1, "number": 9,
+  "datecreated": "2026-08-01T09:00:00Z",
+  "added_by": { "id": 12, "firstname": "…", "…": "…" },
+  "clientnote": null, "adminnote": null, "terms": null,
+  "show_quantity_as": 1, "allowed_payment_modes": [1, 2],
+  "include_shipping": false, "show_shipping_on_invoice": true,
+  "billing":  { "street": null, "city": null, "state": null, "zip": null,
+                "country": { "id": 11, "name": "Colombia" } },
+  "shipping": { "…": "…" },
+  "items": [ { "id": 31, "description": "…", "long_description": "", "qty": 1.0,
+               "rate": 100000.0, "unit": "", "is_optional": false, "is_selected": true,
+               "order": 1,
+               "taxes": [ { "name": "IVA", "rate": 19.0, "registered": true } ] } ],
+  "totals": { "subtotal": 100000.0, "total_tax": 19000.0, "discount_percent": 0.0,
+              "discount_total": 0.0, "discount_type": "", "adjustment": 0.0,
+              "total": 119000.0,
+              "taxes": [ { "name": "IVA", "rate": 19.0, "total": 19000.0 } ] },
+  "payments": [ { "id": 4, "amount": 50000.0, "payment_mode": { "id": "1", "name": "Efectivo" },
+                  "paymentmethod": null, "date": "2026-08-10",
+                  "daterecorded": "2026-08-10T14:22:00Z", "transactionid": null } ],
+  "payments_total": 50000.0, "total_left_to_pay": 69000.0 }
+```
+
+**`hash`, `token` y `short_link` no salen nunca.** `tblinvoices.hash` es la llave del enlace público
+de pago: quien la tiene ve **y paga** la factura sin autenticarse. No entra en ningún `SELECT` de
+`RecursoFacturas`, y `humo.sh` lo comprueba en cada corrida.
+
+**`status` es columna guardada, no derivada.** La escribe `update_invoice_status()`
+(`invoices_helper.php:302`). Si el cron de vencimientos no corrió, una factura vencida sigue
+diciendo "Sin pagar" en el panel — y la API dice lo mismo. Derivarla acá haría que los dos sistemas
+discreparan sobre el mismo documento.
+
+**`total_left_to_pay` no es `total - payments_total`.** El saldo sale de
+`get_invoice_total_left_to_pay()` (`invoices_helper.php:49-88`), que descuenta pagos **y créditos
+aplicados** con los decimales de la instalación; `payments_total` es la suma cruda de
+`tblinvoicepaymentrecords`, el renglón "Pagos" que dibuja el panel.
+
+Filtros: `status`, `clientid`, `project_id`, `sale_agent`, `date_from`/`date_to` sobre `date`,
+`year`. Orden: `date`, `duedate`, `total`, `number`, `status`. Búsqueda `q` sobre
+`formatted_number`. Sin `include`.
+
+`POST /invoices` exige `clientid`, `date` y al menos una línea. `PATCH /invoices/{id}` acepta
+`clientid`, `project_id`, `date`, `duedate`, `currency`, `sale_agent`, `discount_percent`,
+`discount_total`, `discount_type`, `adjustment`, `clientnote`, `adminnote`, `terms`, `items`
+(`Escritura/Factura.php:60-64`). Todo lo demás es `422`. **`status` no se escribe nunca**: lo decide
+`update_invoice_status()`.
+
+**Las líneas del cuerpo llevan las tasas como cadena `"nombre|tasa"`**, no como objeto:
+
+```json
+{ "items": [ { "description": "Servicio X", "long_description": null,
+               "qty": 1, "rate": 100000, "unit": null, "taxes": ["IVA|19"] } ] }
+```
+
+Es la forma que parte `_maybe_insert_post_item_tax()` (`sales_helper.php:694-700`). En
+**cotizaciones y propuestas la misma clave viaja como objeto** `{"name":"IVA","rate":19}`
+(`Escritura/DocumentoDeVenta.php:472-495`), y **la lectura de los tres devuelve siempre objetos**.
+Son tres formas para el mismo dato: se documenta la asimetría en vez de esconderla.
+
+Una tasa que no exista en `tbltaxes` es `422` antes de escribir
+(`RecursoItems::exigirTasasRegistradas()`): Perfex guarda el `"nombre|tasa"` que venga y una tasa
+inventada queda desnormalizada en `tblitem_tax` para siempre.
+
+**Cuando el `PATCH` trae `items`, el juego de líneas se reemplaza entero.** El contrato manda las
+líneas sin `id`; mezclar altas, bajas y ediciones por posición es como se pierde una línea sin que
+nadie lo note.
+
+**No existe el descuento por línea.** `tblitemable` no tiene ninguna columna de descuento
+(comprobado con `SHOW COLUMNS` en `herramientas/comparar-dinero.php:422`) y Perfex descuenta sólo
+por documento, con `discount_type` en `""`, `before_tax` o `after_tax`.
+
+Errores propios:
+
+| Situación | Respuesta |
+|---|---|
+| Tocar `currency`, `discount_percent`, `discount_total`, `discount_type`, `adjustment` o `items` de una factura con pagos aplicados | `409 conflict`, con el número de pagos en el mensaje |
+| Cancelar una factura ya cancelada, o descancelar una que no lo está | `409 conflict` |
+| `clientid` o `currency` que no existen | `422`, `{"clientid":["unknown"]}` |
+| `discount_type` fuera de `""`/`before_tax`/`after_tax` | `422 {"discount_type":["unknown"]}` |
+| `items` vacío en el alta | `422 {"items":["required"]}` |
+| Sin `view`, sin `view_own` y con `allow_staff_view_invoices_assigned` en `0` | `403 forbidden` |
+| Factura que existe pero este staff no ve | `404 not_found` |
+
+El `409` de la factura con pagos es **más estricto que el panel**: `admin/Invoices.php:333-356` sólo
+pide `edit` y dibuja el formulario completo sobre una factura ya cobrada. Lo no monetario —notas,
+términos, fechas, cliente, espacio, agente— se sigue editando.
+
+### `payments` → **Pagos**
+
+`GET /payments` · `GET /payments/{id}` · `POST /payments` · `DELETE /payments/{id}`
+
+```json
+{ "id": 4,
+  "invoice": { "id": 9, "number": "INV-000009", "status": 3 },
+  "client": { "id": 42, "company": "…" },
+  "amount": 50000.0,
+  "currency": { "id": 1, "symbol": "$", "name": "COP", "is_default": true },
+  "payment_mode": { "id": "1", "name": "Efectivo" },
+  "paymentmethod": null, "date": "2026-08-10",
+  "daterecorded": "2026-08-10T14:22:00Z",
+  "note": null, "transactionid": null }
+```
+
+**`payment_mode.id` es una cadena, no un número.** `tblinvoicepaymentrecords.paymentmode` es
+`varchar(40)`: en un pago manual guarda el id de `tblpayment_modes` y en uno por pasarela el
+identificador del gateway (`"stripe"`). Castearlo a entero convierte `stripe` en `0`.
+
+**La compuerta de área de pagos mira `view_own` sobre `invoices`, no sobre `payments`.** Son tres
+condiciones y la tercera es una opción de la instalación: `view payments` **o** `view_own invoices`
+**o** `allow_staff_view_invoices_assigned = 1` (`admin/Payments.php:53`,
+`RecursoPagos::puedeListar()`). Es una de las tres reglas de visibilidad distintas que Perfex tiene
+para el mismo dinero, y las tres se replican tal cual:
+
+| Superficie | Regla | Fuente |
+|---|---|---|
+| Lista de facturas | con `view_own`: `addedfrom = yo` (`OR sale_agent = yo` si la opción está encendida). Sin `view_own`: **sólo** `sale_agent = yo`, **sin mirar la opción** | `invoices_helper.php:672` |
+| Ficha de una factura | con `view_own`: `addedfrom = yo`. `sale_agent = yo` **sólo si la opción está encendida** | `invoices_helper.php:705` |
+| Pagos | feature `payments`, con `view_own invoices` revalidado **dentro del SQL**, y **sin respaldo a `sale_agent` solo** | `views/admin/tables/payments.php:29` |
+
+Consecuencia visible, que es del panel y no de la API: con la opción apagada y sin `view_own`, el
+panel **lista** una factura de la que uno es agente y después deniega el acceso al abrirla. La API
+hace lo mismo.
+
+Filtros: `invoiceid`, `clientid`, `paymentmode`, `date_from`/`date_to`. Orden: `date`, `amount`,
+`id`. Búsqueda `q` sobre `transactionid`. Sin `include`.
+
+`POST /payments` acepta `invoiceid`, `amount`, `paymentmode`, `date`, `transactionid`, `note`
+(`Escritura/Pago.php:47`) y exige el permiso `create` sobre `payments` — que **sí existe**
+(`staff_helper.php:83-89`). **No hay `PATCH /payments/{id}`**: `Payments_model::update()` sólo mueve
+la nota y el modo, y corregir un cobro asentado se hace borrando y volviendo a cargar, que es lo que
+ofrece el panel. `DELETE` exige `delete` sobre `payments`.
+
+Registrar un pago **cambia el estado de la factura**: lo decide `update_invoice_status()` dentro de
+`Payments_model::add()`. Tras un `POST`, se relee la factura; el frontend no infiere el estado.
+
+Errores propios:
+
+| Situación | Respuesta |
+|---|---|
+| `invoiceid` ausente o no numérico | `422 {"invoiceid":["required"]}` |
+| Factura que este staff no ve | `404 not_found` — y no `403`, que confirmaría que existe |
+| `amount` menor o igual a cero | `422 {"amount":["min:0"]}` |
+| Modo de pago inactivo, inexistente o marcado `expenses_only` | `422 {"paymentmode":["unknown"]}` |
+| `date` que no es `YYYY-MM-DD` o no existe en el calendario | `422 {"date":["date"]}` |
+| Pago de otro staff abierto por id | `404 not_found` |
+
+Ese último `404` es **divergencia deliberada**: `admin/Payments.php:77-83` protege la ficha de un
+pago sólo con la compuerta de área, así que en el panel cualquiera con `view_own invoices` abre el
+pago de otro cambiando el número en la barra de direcciones. Replicar un agujero de acceso no es
+replicar el panel.
+
+### `estimates` → **Cotizaciones**
+
+`GET /estimates` · `GET /estimates/{id}` · `GET /estimates/{id}/items` · `POST /estimates` ·
+`PATCH /estimates/{id}` · `POST /estimates/{id}/actions/convert-to-invoice`
+
+Fila de la lista:
+
+```json
+{ "id": 5, "number": "EST-000005", "number_raw": 5,
+  "date": "2026-08-01", "duedate": "2026-08-31", "expirydate": "2026-08-31",
+  "status": 1, "subtotal": 100000.0, "total_tax": 19000.0, "total": 119000.0,
+  "adjustment": 0.0, "discount_percent": 0.0, "discount_total": 0.0, "discount_type": "",
+  "currency": { "id": 1, "symbol": "$", "name": "COP", "is_default": true },
+  "client": { "id": 42, "company": "…" },
+  "project": null,
+  "sale_agent": { "id": 12, "full_name": "…", "profile_image_url": "…" },
+  "invoice": null,
+  "tags": [ { "id": 3, "name": "urgente" } ] }
+```
+
+**`duedate` no es una columna de presupuestos: la columna es `expirydate`.** Se exponen las dos con
+el mismo valor y `sort=duedate` traduce, porque el frontend usa la misma tabla genérica para factura
+y presupuesto (`RecursoCotizaciones.php:118`).
+
+La ficha agrega `reference_no`, `clientnote`, `adminnote`, `terms`, `datecreated`, `sent`,
+`datesend`, `show_quantity_as`, `pipeline_order`, `is_expiry_notified`, `include_shipping`,
+`show_shipping_on_estimate`, `billing`, `shipping`, `invoiced_date`, `items`, `totals` y:
+
+```json
+{ "acceptance": { "firstname": null, "lastname": null, "email": null,
+                  "date": null, "ip": null, "signature": null },
+  "short_link": null }
+```
+
+**`hash` no sale nunca** (`estimates_helper.php:47`): es la credencial del enlace público.
+
+Estados (`Estimates_model::__construct()`): **1 Borrador, 2 Enviada, 3 Rechazada, 4 Aceptada,
+5 Expirada**. Salen también de `GET /lookups` en `estimate_statuses`, con su `order`.
+
+Filtros: `status`, `clientid`, `project_id`, `sale_agent`, `date_from`/`date_to` sobre `date`,
+`year`. Orden: `date`, `duedate`, `total`, `number`, `status`. Búsqueda `q` sobre
+`formatted_number`. Sin `include`.
+
+`POST /estimates` exige `clientid`, `date` y al menos una línea. `PATCH` acepta 29 claves
+(`Escritura/Cotizacion.php:49-79`): `clientid`, `project_id`, `number`, `date`, `expirydate`,
+`currency`, `status`, `reference_no`, `sale_agent`, `clientnote`, `adminnote`, `terms`,
+`discount_percent`, `discount_total`, `discount_type`, `adjustment`, `show_quantity_as`,
+`include_shipping`, `show_shipping_on_estimate`, los cinco `billing_*` y los cinco `shipping_*`, más
+`items` y `tags`. Todo lo demás es `422`.
+
+**El dinero nunca viene del cuerpo.** `subtotal`, `total` y `total_tax` son derivados: los calcula
+`Escritura/TotalesVenta.php`. Mandarlos es `422`.
+
+**Las líneas de un `PATCH` sí llevan `id`**, al revés que en facturas: una línea con `id` conocido se
+edita, una sin `id` se agrega, y las que no aparecen se borran. Un `id` de otro documento es
+`422 {"items.N.id":["unknown"]}` — `tblitemable` no tiene clave foránea que lo impida.
+
+Errores propios:
+
+| Situación | Respuesta |
+|---|---|
+| `convert-to-invoice` sin `create` sobre **`invoices`** (no sobre `estimates`) | `403 forbidden` |
+| Acción distinta de `convert-to-invoice` | `404 not_found` |
+| `status` fuera de 1–5 | `422` |
+| Línea con `id` de otro documento | `422 {"items.N.id":["unknown"]}` |
+| Sin `view` ni `view_own` de `estimates` **y** con `allow_staff_view_estimates_assigned` en `0` | `403 forbidden` |
+
+### `proposals` → **Propuestas**
+
+`GET /proposals` · `GET /proposals/{id}` · `GET /proposals/{id}/items` ·
+`GET /proposals/{id}/comments` · `POST /proposals` · `PATCH /proposals/{id}` ·
+`POST /proposals/{id}/actions/convert-to-invoice`
+
+```json
+{ "id": 7, "number": "PRO-0007", "subject": "…", "proposal_to": "…",
+  "date": "2026-08-01", "open_till": "2026-08-31", "status": 1,
+  "subtotal": 100000.0, "total_tax": 19000.0, "total": 119000.0,
+  "adjustment": null, "discount_percent": 0.0, "discount_total": 0.0, "discount_type": "",
+  "currency": { "id": 1, "symbol": "$", "name": "COP", "is_default": true },
+  "rel_type": "lead", "rel_id": 84,
+  "related": { "id": 84, "name": "…" },
+  "project": null,
+  "assigned": { "id": 12, "full_name": "…", "profile_image_url": "…" },
+  "invoice": null, "estimate_id": null,
+  "tags": [] }
+```
+
+**`number` no es una columna**: se arma con el id y el prefijo configurado, réplica de
+`format_proposal_number()` (`RecursoPropuestas.php:302`). Por eso `sort=number` ordena por `id`.
+
+**`related` es el destinatario ya resuelto** según `rel_type` (`lead` o `customer`). El frontend no
+tiene que adivinar de qué tabla sacarlo, y `rel_type`/`rel_id` viajan igual por si hace falta.
+
+La ficha agrega `content`, `datecreated`, `show_quantity_as`, `pipeline_order`,
+`is_expiry_notified`, `allow_comments`, `address`, `city`, `state`, `zip`, `country`, `email`,
+`phone`, `acceptance` (la misma forma que en cotizaciones), `short_link`, `date_converted`, `items`
+y `totals`. **`hash` no sale nunca** (`proposals_helper.php:48`).
+
+`GET /proposals/{id}/comments` devuelve array plano:
+
+```json
+[ { "id": 2, "content": "…", "author": { "id": 12, "full_name": "…" },
+    "from_client": false, "dateadded": "2026-08-02T10:00:00Z" } ]
+```
+
+`from_client` es `staffid = 0`: así se distingue el comentario del cliente del comentario interno.
+
+**Los estados no siguen el orden de presentación** (`proposals_helper.php:115`):
+
+| `id` | Estado | Posición en la interfaz |
+|---|---|---|
+| 6 | Borrador | 1 |
+| 1 | Abierta | 2 |
+| 4 | Enviada | 3 |
+| 5 | Revisada | 4 |
+| 3 | Aceptada | 5 |
+| 2 | Rechazada | 6 |
+
+Es la misma trampa que `task_statuses`: **ordenar por `id` da un embudo equivocado**. `GET /lookups`
+publica el mapa correcto en `proposal_statuses`, ya ordenado por `order`.
+
+Filtros: `status`, `rel_type`, `rel_id`, `assigned`, `date_from`/`date_to` sobre `date`. Orden:
+`date`, `open_till`, `total`, `number`. Búsqueda `q` sobre `subject` y `proposal_to`. Sin `include`.
+
+**No hay `filter[clientid]`**: una propuesta apunta a un prospecto o a un cliente por `rel_type` /
+`rel_id`, así que el filtro del cliente es `filter[rel_type]=customer&filter[rel_id]=42`.
+
+`POST /proposals` exige `subject`, `rel_type`, `rel_id`, `date` y al menos una línea. `PATCH` acepta
+`subject`, `rel_type`, `rel_id`, `proposal_to`, `project_id`, `assigned`, `date`, `open_till`,
+`currency`, `status`, `discount_percent`, `discount_total`, `discount_type`, `adjustment`,
+`show_quantity_as`, `allow_comments`, `address`, `city`, `state`, `zip`, `country`, `email`, `phone`,
+más `items` y `tags` (`Escritura/Propuesta.php:69-93`).
+
+**La visibilidad de propuestas no es la de facturas.** `proposals_helper.php:324` mira `assigned`
+—no `sale_agent`— y revalida `view_own` con una subconsulta dentro del propio SQL. Una propuesta que
+este staff no ve es `404`.
+
+Errores propios:
+
+| Situación | Respuesta |
+|---|---|
+| `convert-to-invoice` sobre una propuesta con `rel_type: "lead"` | `409 conflict` |
+| `convert-to-invoice` sin `create` sobre **`invoices`** | `403 forbidden` |
+| `status` fuera de 1–6 | `422` |
+| Sin `view` ni `view_own` de `proposals` **y** con `allow_staff_view_proposals_assigned` en `0` | `403 forbidden` |
+
+El `409` del prospecto es explícito: `Proposals_model::convert_to_invoice():1055` devuelve `false`
+sin decir por qué, y un `false` mudo llega al frontend como "no pasó nada".
+
+### `expenses` → **Gastos**
+
+`GET /expenses` · `GET /expenses/{id}` · `POST /expenses` · `PATCH /expenses/{id}`
+
+```json
+{ "id": 3, "expense_name": "Hosting", "note": "…",
+  "category": { "id": 1, "name": "Infraestructura" },
+  "amount": 100000.0, "tax": 19.0, "tax2": null,
+  "tax_total": 19000.0, "total": 119000.0,
+  "currency": { "id": 1, "symbol": "$", "name": "COP", "is_default": true },
+  "date": "2026-08-01", "reference_no": null, "billable": true,
+  "invoice": null,
+  "payment_mode": { "id": 1, "name": "Efectivo" },
+  "client": { "id": 42, "company": "…" },
+  "project": null,
+  "file": { "id": 88, "file_name": "recibo.pdf", "filetype": "application/pdf",
+            "url": "/api/v1/files/expense/88/download" },
+  "recurring": false, "repeat_every": null, "recurring_type": null, "recurring_from": null,
+  "cycles": 0, "total_cycles": 0, "last_recurring_date": null,
+  "create_invoice_billable": false, "send_invoice_to_customer": false,
+  "added_by": { "id": 12, "full_name": "…", "profile_image_url": "…" },
+  "dateadded": "2026-08-01T09:00:00Z" }
+```
+
+**`tax` y `tax2` cambian de significado según la dirección, y hay que leerlo dos veces:**
+
+| | Qué es |
+|---|---|
+| **Al leer** (`GET`) | el **porcentaje ya resuelto** desde `tbltaxes.taxrate`, o `null` si el gasto no lleva esa tasa |
+| **Al escribir** (`POST`/`PATCH`) | el **id de la tasa** en `tbltaxes`; `0` es "sin impuesto", igual que la opción vacía del `<select>` del panel |
+
+En la columna `tblexpenses.tax` lo guardado es siempre el **id**
+(`Escritura/Gasto.php:56` valida contra `tbltaxes.id`). No son porcentajes ni montos.
+
+**Las dos tasas se aplican sobre el importe base, no en cascada**
+(`views/admin/tables/expenses.php:127-138`, que guarda el importe en `$tmpTotal` justamente para
+eso):
+
+```
+total = amount + amount/100 * taxrate(tax) + amount/100 * taxrate(tax2)
+```
+
+`tax_total` y `total` viajan ya calculados. Devolver `amount` pelado haría que la API y el panel
+mostraran números distintos para el mismo gasto.
+
+**`file` es la *lectura* del comprobante, y la descarga funciona.** `Recursos/Descargas.php:45-90`
+conoce los tipos `project`, `task`, `customer`, `lead`, `ticket`, `expense` y `contract`. Lo que no
+existe es la **subida**: ver [Lo que la API no hace](#lo-que-la-api-no-hace).
+
+Filtros: `category`, `billable`, `clientid`, `project_id`, `invoiceid`, `sin_facturar`,
+`date_from`/`date_to` sobre `date`. Orden: `date`, `amount`, `name`. Búsqueda `q` sobre
+`expense_name`, `note` y `reference_no`. Sin `include`, y **la respuesta no trae `custom_fields` ni
+`tags`**: `CamposPersonalizados::PERMITIDAS` ya declara `expenses`, pero `RecursoGastos` todavía no
+los pide.
+
+**`filter[sin_facturar]` es el filtro más usado de la pantalla.** No es una columna: es la expresión
+`billable = 1 AND invoiceid IS NULL`, el contador `unbilled` de
+`Expenses_model::get_expenses_total():258-261`. Sólo acepta `0` o `1`; cualquier otro valor es `422`.
+Sin esa validación, `filter[sin_facturar]=si` devolvería en silencio **el conjunto contrario**.
+
+`POST /expenses` exige `category`, `amount` y `date`. Campos escribibles en el alta y en el parche
+(`Escritura/Gasto.php:51-64`): `expense_name`, `note`, `category`, `amount`, `tax`, `tax2`,
+`currency`, `date`, `reference_no`, `billable`, `clientid`, `project_id`, `paymentmode`.
+
+Fuera de la whitelist, con motivo: **`invoiceid`** (se escribe cuando el gasto se factura; dejar que
+un `PATCH` lo invente marcaría un gasto como facturado sin factura) y **todo el bloque de
+recurrencia**, que ejecuta el cron y crea gastos hijos — no es un campo, es un comportamiento. Se
+devuelven de sólo lectura.
+
+**`note` se guarda pasada por `nl2br()`**, igual que `Expenses_model::add():79`: el panel guarda el
+HTML y lo muestra tal cual, así que guardar saltos crudos dejaría la nota en un solo renglón.
+
+Errores propios:
+
+| Situación | Respuesta |
+|---|---|
+| Sin `view` ni `view_own` de `expenses` | `403 forbidden` |
+| Gasto de otro sin `view` global | `404 not_found` |
+| `filter[sin_facturar]` con un valor que no es `0` ni `1` | `422` |
+| `category`, `tax`, `tax2`, `currency`, `clientid` o `project_id` que no existen | `422 {"campo":["invalid"]}` |
+| Falta `category`, `amount` o `date` en el alta | `422` |
+| `DELETE /expenses/{id}` | `404 not_found` — el borrado no está expuesto |
+
+### `contracts` → **Contratos**
+
+`GET /contracts` · `GET /contracts/{id}` · `GET /contracts/{id}/comentarios` ·
+`GET /contracts/{id}/archivos` · `PATCH /contracts/{id}` ·
+`POST /contracts/{id}/acciones/marcar-firmado` · `POST /contracts/{id}/acciones/desmarcar-firmado`
+
+```json
+{ "id": 12, "subject": "…", "description": "…",
+  "contract_type": { "id": 2, "name": "Servicios" },
+  "client": { "id": 42, "company": "…" },
+  "project": null,
+  "datestart": "2026-01-01", "dateend": "2026-12-31",
+  "contract_value": 12000000.0, "trash": false, "not_visible_to_client": false,
+  "signed": true, "marked_as_signed": false, "signature": "sig_abc.png",
+  "signature_status": "signed",
+  "vigencia": "vigente", "isexpirynotified": false,
+  "tags": [], "custom_fields": [],
+  "added_by": { "id": 12, "full_name": "…", "profile_image_url": "…" },
+  "dateadded": "2025-12-20T11:00:00Z", "last_sent_at": null }
+```
+
+La ficha agrega `content`, `hash`, `short_link`, `acceptance` (`firstname`, `lastname`, `email`,
+`date`, `ip`), `comments` y `files`. Los dos subrecursos también se piden sueltos:
+
+```json
+// GET /contracts/{id}/comentarios
+[ { "id": 3, "content": "…", "author": { "id": 12, "full_name": "…" },
+    "from_client": false, "dateadded": "2026-02-01T10:00:00Z" } ]
+
+// GET /contracts/{id}/archivos
+[ { "id": 90, "file_name": "anexo.pdf", "filetype": "application/pdf",
+    "added_by": { "id": 12, "full_name": "…" },
+    "dateadded": "2026-02-01T10:00:00Z",
+    "url": "/api/v1/files/contract/90/download" } ]
+```
+
+> **`hash` sí viaja acá**, al revés que en facturas, cotizaciones y propuestas. No es un descuido de
+> criterio: `Contracts_model` no expone pago desde el enlace público, sólo la firma. Aun así es una
+> credencial: la interfaz no debe imprimirla ni ponerla en una URL que se comparta.
+>
+> La `url` de descarga sí funciona: `Recursos/Descargas.php:45-90` conoce el tipo `contract`.
+
+**`signed` y `marked_as_signed` son distintos, y los dos viajan.** `signed` lo pone
+`add_signature()` (`Contracts_model.php:196-215`) desde el enlace público del cliente, y **la API no
+lo toca nunca**; `marked_as_signed` es que alguien del equipo lo dio por firmado. `signature_status`
+es la precedencia del panel (`views/admin/tables/contracts.php:116-123`) ya resuelta:
+`marked_as_signed` → `signed` → `not_signed`. Colapsarlos en un booleano borra la diferencia entre
+"el cliente firmó" y "alguien del equipo lo marcó".
+
+**`content` sale crudo, con los `{merge_field}` sin resolver.** `Contracts_model::get()` los
+sustituye sólo cuando `$for_editor == false`, y hacerlo en cada detalle obligaría a cargar tres
+librerías de merge fields por petición. **El frontend recibe el texto tal como está guardado y no lo
+interpreta.**
+
+**`vigencia` y `filter[vigencia]` usan comparaciones estrictas:**
+
+| valor | condición |
+|---|---|
+| `"vigente"` | `trash = 0 AND (dateend IS NULL OR dateend > hoy)` |
+| `"vencido"` | `trash = 0 AND dateend < hoy` |
+| `null` | contrato en papelera, **o `dateend` exactamente hoy** |
+
+Es literal de `count_active_contracts()` (`contracts_helper.php:184`) y `count_expired_contracts()`
+(`:203`). Dos trampas: **un contrato sin `dateend` es vigente, no vencido**, y el que vence hoy no
+cae en ninguno de los dos. No se "arregla" a `<=`: el panel deja ese contrato fuera de sus dos
+contadores y la API tiene que devolver el mismo conjunto. `hoy` es `date('Y-m-d')` de PHP, no
+`CURDATE()`: MySQL puede estar en otra zona horaria.
+
+Filtros: `contract_type`, `signed`, `marked_as_signed`, `trash`, `client`, `project_id`, `year`
+sobre `datestart`, `vigencia`, `date_from`/`date_to` sobre `datestart`. Orden: `subject`,
+`datestart`, `dateend`, `value`, `date_added`. Búsqueda `q` sobre `subject` y `description`. Sin
+`include` — `custom_fields` viaja **siempre**.
+
+> El filtro del cliente se llama **`client`**, no `clientid`: es el nombre real de la columna en
+> `tblcontracts`. Es la única de las cinco tablas de venta que no la llamó `clientid`.
+
+`PATCH /contracts/{id}` acepta `subject`, `description`, `content`, `datestart`, `dateend`,
+`contract_type`, `project_id`, `not_visible_to_client`, `trash`
+(`Escritura/ParcheContrato.php:39-49`). Cambiar `dateend` resetea `isexpirynotified = 0`, y sólo si
+**cambia**: repetir la misma fecha no reactiva el aviso del cron.
+
+**Marcar y desmarcar firmado son acciones, no un `PATCH`**, porque no cambian un campo:
+`mark_as_signed()` / `unmark_as_signed()` (`Contracts_model.php:500-538`) **reescriben `content`**,
+congelando o restaurando cada `{merge_field}`. Un `UPDATE` de una sola columna dejaría el contrato
+firmado mostrando datos del cliente que cambian después de la firma. Si el contrato ya está en ese
+estado, la acción **no llama al modelo**: repetirla anidaría los `<span>`.
+
+Errores propios:
+
+| Situación | Respuesta |
+|---|---|
+| `PATCH` de `contract_value`, `clientid`, `datestart` o `dateend` sobre un contrato con `signed = 1` | `409 conflict` |
+| Acción distinta de `marcar-firmado` / `desmarcar-firmado` | `404 not_found` |
+| Acción pedida con un método que no es `POST` | `404 not_found` |
+| Sin `view` ni `view_own` de `contracts` | `403 forbidden` |
+| `POST /contracts` o `DELETE /contracts/{id}` | `404 not_found` — alta y borrado no están expuestos |
+
+El `409` del contrato firmado es **divergencia deliberada**: `admin/Contracts.php:66-68` hace
+`unset()` de esos cuatro campos y **acepta el formulario tirándolos sin avisar**. La regla de "nada
+se ignora en silencio" pesa más que la réplica. La comprobación corre **antes** que la whitelist, a
+propósito: `contract_value` y `clientid` no son editables en esta tanda, pero sobre un contrato
+firmado la respuesta útil es `409` y no `422`, que mandaría al llamador a buscar un error de nombre
+que no tiene.
+
+### `leads` → **Prospectos**
+
+`GET /leads` · `GET /leads?vista=embudo` · `GET /leads/{id}` · `GET /leads/{id}/notas` ·
+`GET /leads/{id}/actividad` · `GET /leads/{id}/archivos` · `PATCH /leads/{id}` ·
+`POST /leads/{id}/mover` ·
+`POST /leads/{id}/acciones/{marcar-perdido|desmarcar-perdido|marcar-basura|desmarcar-basura}`
+
+```json
+{ "id": 84, "name": "…", "title": null, "company": "…", "email": "…",
+  "phonenumber": null, "website": null,
+  "status": { "id": 3, "name": "Contactado", "color": "#03a9f4", "order": 3, "is_default": false },
+  "source": { "id": 2, "name": "Referido" },
+  "assigned": { "id": 12, "full_name": "…", "profile_image_url": "…" },
+  "lead_value": 5000000.0,
+  "country": 0, "city": null, "state": null, "zip": null, "address": null,
+  "date_added": "2026-03-02T08:00:00Z", "date_assigned": "2026-03-02",
+  "last_contact": null, "last_status_change": "2026-04-01T12:00:00Z",
+  "date_converted": null,
+  "is_public": false, "lost": false, "junk": false, "last_lead_status": null,
+  "lead_order": 4, "added_from": 12, "from_webhook": false, "from_form_id": null,
+  "default_language": null, "client_id": null,
+  "tags": [],
+  "counts": { "notes": 2, "attachments": 0, "activity": 7 } }
+```
+
+`?include=description` agrega `description`; `?include=custom_fields` agrega `custom_fields`. Son los
+únicos dos includes.
+
+**`country` es un entero, no un objeto, y `0` significa "sin país"** — `tblleads.country` vale `0`,
+no `NULL`. `0` no es una fila de `tblcountries`: el frontend lo trata como vacío, no lo busca en el
+catálogo de `GET /lookups`.
+
+**`status` puede ser `null`.** Pasa siempre con `junk` o `lost`, que ponen `status = 0` guardando la
+etapa vieja en `last_lead_status`, y pasaría también si alguien borrara una etapa con prospectos
+dentro. El panel, en cambio, hace `get_status($status)->name` sin comprobar y tira un fatal
+(`Leads_model.php:815`).
+
+**`client_id` no se lee de `tblleads.client_id`.** Esa columna existe pero está **muerta**: 0 en las
+81 filas de producción, mientras que los clientes convertidos sí tienen `tblclients.leadid`
+apuntando a su prospecto. El core nunca la escribe; `admin/tables/leads.php:147` y
+`get_client_id_by_lead_id()` resuelven la conversión con una subconsulta sobre `tblclients`, y la API
+hace lo mismo.
+
+**`from_webhook` es `addedfrom = 0`** (`modules/form_sync/form_sync.php:428-431`), no un dato
+faltante.
+
+`GET /leads?vista=embudo` devuelve **una entrada por etapa**, con paginación propia por columna:
+
+```json
+{ "data": [
+  { "columna": { "id": 1, "name": "Nuevo", "color": "#64748b", "order": 1, "is_default": false },
+    "tarjetas": [ { "id": 84, "…": "…" } ],
+    "pagination": { "page": 1, "per_page": 25, "total": 12, "total_pages": 1 } }
+] }
+```
+
+Las columnas salen de `tblleads_status` ordenada por `statusorder`: **agregar una etapa en Perfex la
+hace aparecer en el embudo sin tocar código**. Un prospecto marcado basura desaparece solo del
+embudo —ninguna columna tiene id 0— y sigue en la lista con `filter[junk]=1`.
+
+Subrecursos, todos array plano sin paginación:
+
+```json
+// GET /leads/{id}/notas
+[ { "id": 5, "lead_id": 84, "description": "…", "date_contacted": null,
+    "date_added": "2026-03-05T09:00:00Z",
+    "staff": { "id": 12, "full_name": "…" } } ]
+
+// GET /leads/{id}/actividad
+[ { "id": 21, "lead_id": 84, "description": "not_lead_activity_assigned_to",
+    "params": ["<a href=\"…\">Ana</a>"], "date": "2026-03-02T08:00:00Z",
+    "staff_id": 12, "full_name": "…", "custom": false } ]
+
+// GET /leads/{id}/archivos
+[ { "id": 44, "file_name": "brief.pdf", "filetype": "application/pdf",
+    "rel_type": "lead", "rel_id": 84, "staff_id": 12,
+    "date_added": "2026-03-05T09:00:00Z", "external": null,
+    "url": "/api/v1/files/lead/44/download" } ]
+```
+
+**`actividad.description` es una clave de idioma, no un texto.** La traduce el frontend, con `params`
+—el `additional_data` ya deserializado— como argumentos. La tabla es `tbllead_activity_log`, propia:
+no `tblactivity_log` ni `tblproject_activity`.
+
+Filtros: `status`, `source`, `assigned`, `country`, `junk`, `lost`, `is_public`,
+`date_from`/`date_to` sobre `dateadded`. Orden: `name`, `company`, `date_added`, `date_assigned`,
+`last_contact`, `last_status_change`, `lead_value`, `status`. Búsqueda `q` sobre `name`, `company`,
+`email` y `phonenumber`.
+
+`PATCH /leads/{id}` acepta 18 claves (`Escritura/ParcheProspecto.php:58-77`): `name`, `title`,
+`company`, `email`, `phonenumber`, `website`, `address`, `city`, `state`, `zip`, `country`, `source`,
+`assigned`, `lead_value`, `description`, `lastcontact`, `is_public`, `default_language`.
+
+Lo que se replica exactamente del panel: **`address` pasa por `trim()` y `nl2br()`**
+(`Leads_model::update():266-267`), **`email` por `trim()`** (`:269`), y **cambiar `assigned` escribe
+dos cosas más**: `dateassigned = date('Y-m-d')` y una fila de bitácora
+`not_lead_activity_assigned_to`. Con las tres guardas del panel: no escribe nada si el asignado no
+cambió, si es `0`, o si es uno mismo.
+
+Lo que **no** se replica, porque un `PATCH` parcial significa lo contrario: omitir `is_public` no lo
+pone en `0`, omitir `country` no lo pone en `0`, y `description` **no** pasa por `nl2br()`.
+
+`POST /leads/{id}/mover`:
+
+```json
+{ "etapa": 4, "posicion": 2, "columna_completa": [84, 12, 33] }
+```
+
+**`etapa` es obligatoria y no admite default.** Con un `?? 0`, olvidarla significaría "moverlo a la
+etapa 0", que es donde viven los perdidos y los basura: el endpoint sacaría la tarjeta del embudo sin
+que nadie lo pidiera. Como en el tablero de Procesos, **el movimiento reordena la columna destino
+entera**: las tarjetas que el cliente no cargó por paginación se empujan al fondo.
+
+Errores propios:
+
+| Situación | Respuesta |
+|---|---|
+| Staff con `is_not_staff = 1` | `403 forbidden` |
+| Prospecto que existe pero este staff no ve | `404 not_found` |
+| `mover` sin `etapa` | `422 {"etapa":["required"]}` |
+| `mover` a una etapa que no existe | `409 conflict` |
+| `mover` un prospecto de webhook (`addedfrom = 0`) a la etapa `isdefault` | `409 conflict` |
+| `address` de más de 100 caracteres **después** del `nl2br()` | `422` |
+| `source`, `assigned` o `country` que no existen en su tabla | `422` |
+| Acción distinta de las cuatro de arriba | `404 not_found` |
+
+Cuatro de esos son **endurecimientos deliberados**. `Leads_model.php:815` hace
+`get_status($status)->name` sin comprobar y tira un fatal sobre `false`; `admin/Leads.php:612-617`
+no comprueba nada para reordenar —ni `is_staff_member()` ni `staff_can_access_lead()`—; la columna
+`address` es `varchar(100)` y el panel deja que MySQL la corte en silencio dejando un `<br` a
+medias; y `tblleads` no tiene ni una clave foránea, así que un `source` fantasma hace desaparecer el
+prospecto de las vistas del panel, que hacen `INNER JOIN tblleads_sources`.
+
+**La feature `leads` sólo declara `view` y `delete`** (`helpers/staff_helper.php:165-176`). No hay
+`edit` ni `view_own`: editar, mover y marcar exigen únicamente que el prospecto sea visible
+(`assigned = yo OR addedfrom = yo OR is_public = 1`), igual que en el panel.
+
+**`POST /leads/{id}/convertir` no existe.** Ver
+[Lo que la API no hace](#lo-que-la-api-no-hace).
+
+### `tickets` → **Tickets**
+
+`GET /tickets` · `GET /tickets/respuestas-predefinidas` · `GET /tickets/{id}` ·
+`GET /tickets/{id}/respuestas` · `GET /tickets/{id}/archivos` ·
+`POST /tickets/{id}/respuestas` · `PATCH /tickets/{id}`
+
+```json
+{ "id": 14, "ticketkey": "a1b2c3…", "subject": "…",
+  "status": 1, "priority": 2,
+  "department": { "id": 1, "name": "Soporte" },
+  "service": null, "project_id": null,
+  "assigned": { "id": 12, "full_name": "…", "profile_image_url": "…" },
+  "opened_by": null,
+  "solicitante": { "tipo": "contacto",
+                   "contact": { "id": 7, "full_name": "…", "email": "…" },
+                   "client": { "id": 42, "company": "…" },
+                   "name": null, "email": null },
+  "date": "2026-08-01T09:00:00Z", "lastreply": "2026-08-02T15:30:00Z",
+  "adminread": true, "clientread": false,
+  "staff_id_replying": null, "merged_ticket_id": null, "cc": null,
+  "tags": [],
+  "counts": { "replies": 3, "attachments": 1 } }
+```
+
+`?include=message` agrega el mensaje original (`mediumtext`, fuera del listado por defecto);
+`?include=custom_fields` agrega `custom_fields`. En `GET /tickets/{id}` los dos vienen siempre.
+
+**`GET /tickets/{id}` escribe.** Ejecuta `UPDATE tbltickets SET adminread = 1 WHERE ticketid = ? AND
+adminread = 0`, que es exactamente `set_ticket_open()` (`helpers/tickets_helper.php:109-123`), lo que
+el panel hace al renderizar el detalle. Sin eso, el ticket abierto desde `ops-v2` seguiría en negrita
+en el panel viejo. **Es el único `GET` de la API que muta estado**: un prefetch especulativo del
+frontend marcaría tickets como leídos sin que nadie los abriera.
+
+**El bloque `solicitante` viaja siempre y con sus nulos.** El panel bifurca por `userid != 0`, no por
+`contactid` (`views/admin/tables/tickets.php:210-219`). En un ticket de contacto, `name` y `email` de
+`tbltickets` son legítimamente `NULL` —`update_single_ticket_settings():1092-1095` los anula al fijar
+`contactid`—, así que omitirlos haría que el cliente no distinga "no aplica" de "el backend no lo
+mandó". `tipo` es `"contacto"` cuando `userid != 0` y `"correo"` cuando no.
+
+Subrecursos:
+
+```json
+// GET /tickets/{id}/respuestas
+[ { "id": 51, "ticket_id": 14, "message": "…", "date": "2026-08-02T15:30:00Z",
+    "autor": { "tipo": "staff", "id": 12, "full_name": "…", "email": null },
+    "attachments": [ { "id": 9, "ticket_id": 14, "reply_id": 51,
+                       "file_name": "captura.png", "filetype": "image/png",
+                       "date_added": "2026-08-02T15:30:00Z",
+                       "download_path": "files/ticket/9/download" } ] } ]
+
+// GET /tickets/{id}/archivos  — adjuntos del mensaje ORIGINAL (replyid IS NULL)
+[ { "id": 8, "ticket_id": 14, "reply_id": null, "…": "…" } ]
+
+// GET /tickets/respuestas-predefinidas
+[ { "id": 1, "name": "Saludo inicial", "message": "…" } ]
+```
+
+`autor.tipo` es `"staff"`, `"contacto"` o `"correo"`, y es **excluyente**: de ahí sale de qué lado
+del hilo va cada burbuja.
+
+> `Tickets_model::get_ticket_replies():742` decide el autor con
+> `if ($reply['admin'] !== null || $reply['admin'] != 0)`, que con `||` es verdadero para casi todo y
+> deja la rama del contacto prácticamente inalcanzable. La API usa la condición que ese `if` quería
+> (`&&`). Divergencia deliberada.
+
+Las respuestas predefinidas **no están en `/lookups`** a propósito: ese payload ya carga 250 países y
+estos `message` son `mediumtext`. `ticket_statuses`, `ticket_priorities`, `departments` y
+`ticket_services` sí están ahí.
+
+Filtros: `status`, `priority`, `service`, `userid`, `contactid`, `project_id`,
+`date_from`/`date_to` sobre `date`, más **`department` y `assigned` sólo para administradores**.
+Orden: `subject`, `date`, `lastreply`, `status`, `priority`. Búsqueda `q` sobre `subject` y
+`ticketkey`.
+
+**Para un no administrador, `filter[department]` y `filter[assigned]` son `422 unknown`**, no filtros
+que se ignoran. El panel declara los dos selectores con `->isVisible(fn () => is_admin())`
+(`views/admin/tables/tickets.php:16` y `:46`): para un no-admin **ese selector no existe**. Un filtro
+ignorado en silencio le dejaría el selector vacío al staff creyendo que filtró.
+
+**La bandeja ordena por `-lastreply`, no por `date`.** Los tickets sin ninguna respuesta van al final
+en las dos direcciones, que es lo que `Nucleo\Consulta` ya hace con los nulos. Desempate por
+`ticketid`.
+
+`PATCH /tickets/{id}` acepta `subject`, `department`, `priority`, `status`, `service`, `assigned`,
+`project_id`, `contactid` (`Escritura/ParcheTicket.php:41-50`).
+
+`POST /tickets/{id}/respuestas` acepta **sólo** `message` y `status`; cualquier otra clave es `422`.
+**`status` es opcional**: por defecto queda el estado actual del ticket. `add_reply()` lo exige
+(`:440`), pero un default duro reabriría en silencio los tickets cerrados cada vez que alguien
+agrega una nota. El `message` pasa por `html_purify`: conserva `<b>`, elimina `<script>`.
+
+Errores propios:
+
+| Situación | Respuesta |
+|---|---|
+| Staff sin acceso a tickets (`access_tickets_to_none_staff_members` + `is_staff_member()`) | `403 forbidden` |
+| Ticket de un departamento que este staff no atiende | `404 not_found` |
+| `filter[department]` o `filter[assigned]` siendo no administrador | `422 {"filter[department]":["unknown"]}` |
+| `message` vacío al responder | `422 {"message":["required"]}` |
+| `status` inexistente al responder | `422 {"status":["invalid"]}` |
+| Clave fuera de `message`/`status` al responder | `422 {"campo":["no_editable"]}` |
+| Subrecurso que no sea `respuestas` ni `archivos` | `404 not_found` |
+
+**No existe una feature de permisos `tickets` en Perfex.** No hay un solo `staff_can('view',
+'tickets')` en el repositorio: el acceso es `get_option('access_tickets_to_none_staff_members')` +
+`is_staff_member()` (`admin/Tickets.php:13-15`), y después el departamento. Por eso la ruta no llama
+a `Permisos::puede()`, y por eso `permissions` de `GET /me` **no trae una clave `tickets`**.
+
+**Trampas del esquema**, que cuestan un `UPDATE` que no falla y no hace nada:
+
+- Las columnas son **`adminread`**, **`clientread`** y **`staff_id_replying`**.
+  `tbltickets.adminreplying` existe en la tabla pero **ningún código del repositorio la lee ni la
+  escribe**: es un resto muerto.
+- Los adjuntos viven en **`tblticket_attachments`** (`id, ticketid, replyid, file_name, filetype,
+  dateadded`), **no en `tblfiles`**: no tienen `external`, `external_link` ni `visible_to_customer`.
+- Las respuestas predefinidas viven en **`tbltickets_predefined_replies`** —"tickets" en plural—, al
+  revés que `tblticket_replies` y `tblticket_attachments`.
+
+**Responder no le avisa a nadie.** Ver abajo: es la omisión más ruidosa de toda la API.
 
 ## Campos personalizados
 
@@ -546,6 +1348,31 @@ Es deuda consciente. Importa para el frontend por una razón práctica: **si una
 alguien se entere, la interfaz no puede darlo por hecho**.
 
 Tampoco toca asignados ni seguidores: en el panel también van por caminos propios, que sí notifican.
+
+**El caso más ruidoso es `POST /tickets/{id}/respuestas`.** En el panel, responder un ticket es sobre
+todo **avisarle al cliente**: `Tickets_model::add_reply():592` manda
+`send_mail_template('ticket_new_reply_to_customer')`. Acá el efecto es escribir una fila. El ticket
+queda perfecto en la base —`lastreply` avanzado, `adminread = 0`, `staff_id_replying = NULL`— y del
+otro lado no pasa nada. **Mientras siga así, responder desde `ops-v2` exige avisarle al cliente por
+otro medio**, y la interfaz no puede decir "respuesta enviada".
+
+### Lo que no se construyó
+
+No es implícito ni está "pendiente de conectar": no existe. Pedirlo devuelve `404`.
+
+| Falta | Detalle |
+|---|---|
+| **PDF** | No hay `GET /invoices/{id}/pdf`, ni de cotizaciones ni de propuestas. Portar el generador arrastra TCPDF, sus fuentes y las plantillas del panel |
+| **Envío por correo** | No hay `POST /{id}/enviar` para ninguno de los tres documentos. `save_and_send` no se propaga jamás, ni con el kill-switch puesto |
+| **Facturas recurrentes** | Las genera el cron. La API devuelve `recurring` de sólo lectura y no dispara nada |
+| **Notas de crédito** | Sin recurso. `tblcreditnotes` no se toca |
+| **Subida del comprobante de gasto** | La **lectura** sale en `file`; la subida necesita `upload_helper`, whitelist de extensiones y un `413` propio |
+| **Subida de adjuntos al responder un ticket** | La lectura y la descarga funcionan desde el día uno; la subida sería el único endpoint del módulo que escribe en disco |
+| **`POST /leads/{id}/convertir`** | La conversión a cliente queda en el panel, por decisión del usuario. No es un `INSERT` en `tblclients`: `admin/Leads.php:373-609` copia campos, arrastra los campos personalizados con equivalencia y crea el contacto primario |
+| **Embudo de propuestas y de cotizaciones** | No hay `?vista=embudo` ni `POST /{id}/mover` sobre `pipeline_order`. El único embudo que existe es el de `leads` |
+| **Alta y borrado de contratos, borrado de gastos, `PATCH /payments/{id}`** | `POST`/`DELETE` sobre esos recursos es `404` |
+| **`custom_fields` de gastos, facturas, cotizaciones y propuestas** | `CamposPersonalizados::PERMITIDAS` ya declara las cuatro, pero los recursos todavía no los piden: la respuesta no trae la clave |
+| **`tags` de facturas y de gastos** | `Etiquetas` ya declara el tipo `invoice`, pero `RecursoFacturas` y `RecursoGastos` no los resuelven. Cotizaciones y propuestas sí traen `tags` |
 
 ## Mock
 
