@@ -40,8 +40,10 @@ import { cn } from '@/lib/clases'
 export type Vista = 'tarjetas' | 'tabla'
 
 const VISTAS: readonly OpcionSegmentada[] = [
-  { valor: 'tarjetas', etiqueta: 'Tarjetas', icono: 'tarjetas' },
-  { valor: 'tabla', etiqueta: 'Tabla', icono: 'tabla' }
+  // `tabla` primero aunque la de por defecto sea `tarjetas`: el control arranca por la misma opcion
+  // en todo el producto, asi la persona no tiene que releerlo al cambiar de pantalla.
+  { valor: 'tabla', etiqueta: 'Tabla', icono: 'tabla' },
+  { valor: 'tarjetas', etiqueta: 'Tarjetas', icono: 'tarjetas' }
 ]
 
 /**

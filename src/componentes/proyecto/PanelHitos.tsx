@@ -38,10 +38,14 @@ import type { DefinicionRecurso } from '@/definiciones/tipos'
  * que confiar en el nos devolveria justo el comportamiento que se esta corrigiendo.
  */
 
-/** Las dos lecturas de los hitos, en el orden en que se muestran. `tablero` es la de por defecto. */
+/**
+ * Las dos lecturas de los hitos. `tablero` es la de por defecto, pero se dibuja segunda: el orden
+ * del control es el mismo en todo el producto —tabla, despues tablero— y no el de la preferencia de
+ * cada pantalla, que es lo que hacia que el mismo control cambiara de forma al cambiar de pestaña.
+ */
 const VISTAS: readonly OpcionSegmentada[] = [
-  { valor: 'tablero', etiqueta: 'Tablero', icono: 'tablero' },
-  { valor: 'tabla', etiqueta: 'Tabla', icono: 'tabla' }
+  { valor: 'tabla', etiqueta: 'Tabla', icono: 'tabla' },
+  { valor: 'tablero', etiqueta: 'Tablero', icono: 'tablero' }
 ]
 
 interface PropsPanelHitos {

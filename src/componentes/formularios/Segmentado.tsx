@@ -119,6 +119,16 @@ export function Segmentado ({
 
   /** Mueve el foco a la opcion que pide la tecla, dando la vuelta en los extremos. */
   function alPulsarTecla (evento: React.KeyboardEvent, indice: number): void {
+    // Un `<a>` no se activa con Espacio: hace scroll de la pagina. Como en el mismo control conviven
+    // opciones que son boton y opciones que son enlace, sin esto la misma tecla haria dos cosas
+    // distintas segun cual toque, que es exactamente lo que este componente vino a evitar.
+    if (evento.key === ' ' && evento.currentTarget instanceof HTMLAnchorElement) {
+      evento.preventDefault()
+      evento.currentTarget.click()
+
+      return
+    }
+
     const salto = SALTOS[evento.key]
 
     if (salto === undefined) return
@@ -140,7 +150,9 @@ export function Segmentado ({
       aria-label={etiqueta}
       className={cn(
         'border-linea bg-superficie-hundida rounded-control inline-flex w-fit items-center gap-0.5 border p-px',
-        className
+        // Con `etiquetaVisible` el que participa del layout es el envoltorio, asi que `className` va
+        // alla: puesto aca, un `ml-auto` de quien llama quedaria muerto.
+        !etiquetaVisible && className
       )}
     >
       {opciones.map((opcion, indice) => {
@@ -148,9 +160,15 @@ export function Segmentado ({
         const Icono = opcion.icono === undefined ? undefined : ICONOS[opcion.icono]
         const clases = cn(
           'rounded-control ease-neo inline-flex shrink-0 items-center justify-center font-semibold',
-          // Solo color: animar sombra o tamaño en un control que vive en cada barra del panel cuesta
-          // repintados que no se ven, la misma razon por la que `Boton` acota su transicion.
-          'transition-[background-color,color] duration-150 active:scale-[0.98]',
+          // La misma lista acotada que `Boton`: color y `transform`, nunca `box-shadow` ni `filter`.
+          // Animar la sombra en un control que aparece en cada barra del panel cuesta repintados que
+          // nadie ve. Sin `transform` en la lista, el hundido al pulsar salta en vez de acompañar.
+          'transition-[background-color,color,transform] duration-150 active:scale-[0.98]',
+          // La firma de foco de Neo son dos capas: el `outline` y un halo que vive en `box-shadow`
+          // (`globals.css`, `:focus-visible`). `shadow-1` es una utilidad y le gana a la capa base,
+          // asi que la opcion PUESTA —que es justo la que lleva `tabIndex=0` y la primera que recibe
+          // el Tab— se quedaba sin halo. Repuesto como variante, que si le gana a `shadow-1`.
+          'focus-visible:shadow-[0_0_0_7px_var(--foco-halo)]',
           medidas.opcion,
           puesta
             // `flotante` y no `elevada`: en oscuro `elevada` es el mismo color que la tarjeta que
@@ -208,8 +226,10 @@ export function Segmentado ({
   if (!etiquetaVisible) return grupo
 
   return (
-    <div className="flex items-center gap-2">
-      <span className="text-texto-sutil text-xs font-medium">{etiqueta}</span>
+    <div className={cn('flex items-center gap-2', className)}>
+      {/* `aria-hidden`: el nombre del grupo ya lo da el `aria-label`. Sin esto el lector de pantalla
+          lee "Escala" dos veces, una como texto suelto y otra como nombre del grupo. */}
+      <span aria-hidden="true" className="text-texto-sutil text-xs font-medium">{etiqueta}</span>
       {grupo}
     </div>
   )

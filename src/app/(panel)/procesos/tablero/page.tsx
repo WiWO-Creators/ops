@@ -37,7 +37,7 @@ export default async function TableroProcesosPage (props: PageProps<'/procesos/t
           activo="tablero"
           opciones={[
             // `consulta` ya viene sin orden ni pagina: al volver a la lista viajan solo los filtros.
-            { valor: 'tabla', etiqueta: 'Lista', icono: 'tabla', href: `/procesos${consulta === '' ? '' : `?${consulta}`}` },
+            { valor: 'tabla', etiqueta: 'Tabla', icono: 'tabla', href: `/procesos${consulta === '' ? '' : `?${consulta}`}` },
             { valor: 'tablero', etiqueta: 'Tablero', icono: 'tablero', href: '/procesos/tablero' }
           ]}
         />
