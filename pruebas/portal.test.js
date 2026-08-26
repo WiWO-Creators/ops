@@ -49,3 +49,71 @@ test('no hay claves ni rutas repetidas', () => {
   assert.equal(new Set(claves).size, claves.length)
   assert.equal(new Set(rutas).size, rutas.length)
 })
+
+/**
+ * Las seis definiciones de venta y soporte.
+ *
+ * Lo que se prueba es la coherencia con las whitelists de la API: un filtro, un campo de orden o un
+ * include que el backend no declara devuelve 422, y eso se ve recien en pantalla.
+ */
+
+import {
+  PORTAL_CONTRATOS,
+  PORTAL_FACTURAS,
+  PORTAL_PRESUPUESTOS,
+  PORTAL_PROPUESTAS,
+  PORTAL_SUSCRIPCIONES,
+  PORTAL_TICKETS
+} from '../src/definiciones/portal-ventas.ts'
+
+const SECCIONES = [
+  PORTAL_FACTURAS, PORTAL_PRESUPUESTOS, PORTAL_PROPUESTAS,
+  PORTAL_CONTRATOS, PORTAL_SUSCRIPCIONES, PORTAL_TICKETS
+]
+
+test('todas las secciones de venta piden bajo /portal', () => {
+  // Una ruta sin el prefijo la rechazaria el BFF, que solo deja pasar `portal` y `files` para un
+  // contacto.
+  for (const definicion of SECCIONES) {
+    assert.equal(definicion.ruta.startsWith('portal/'), true, definicion.ruta)
+  }
+})
+
+test('el orden por defecto esta entre los ordenables', () => {
+  // Un orden por defecto no declarado se manda igual y la API responde 422 en la primera carga.
+  for (const definicion of SECCIONES) {
+    const campo = definicion.ordenPorDefecto.replace(/^-/, '')
+
+    assert.equal(definicion.ordenables.includes(campo), true, `${definicion.ruta}: ${campo}`)
+  }
+})
+
+test('ningun filtro sale de un lookup que el portal no recibe', () => {
+  // `/portal/lookups` es un subconjunto deliberado: pedir uno que no manda deja el filtro vacio y
+  // sin explicacion.
+  const DISPONIBLES = new Set([
+    'invoice_statuses', 'estimate_statuses', 'proposal_statuses',
+    'ticket_statuses', 'ticket_priorities', 'contract_types',
+    'project_statuses', 'currencies'
+  ])
+
+  for (const definicion of SECCIONES) {
+    for (const filtro of definicion.filtros) {
+      if (filtro.desdeLookup === undefined) continue
+
+      assert.equal(DISPONIBLES.has(filtro.desdeLookup), true, `${definicion.ruta}: ${filtro.desdeLookup}`)
+    }
+    for (const columna of definicion.columnas) {
+      if (columna.comoInsignia === undefined) continue
+
+      assert.equal(DISPONIBLES.has(columna.comoInsignia), true, `${definicion.ruta}: ${columna.comoInsignia}`)
+    }
+  }
+})
+
+test('ninguna seccion pide includes', () => {
+  // La API del portal no declara includes: pedir uno seria un 422.
+  for (const definicion of SECCIONES) {
+    assert.deepEqual(definicion.includes, [])
+  }
+})

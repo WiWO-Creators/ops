@@ -1,7 +1,7 @@
 import 'server-only'
 
 import { cache } from 'react'
-import { pedir } from './servidor.ts'
+import { pedir, pedirPortal } from './servidor.ts'
 import type { Lookups } from './recursos.ts'
 
 /**
@@ -18,6 +18,19 @@ import type { Lookups } from './recursos.ts'
  */
 export const cargarLookups = cache(async (): Promise<Lookups> => {
   const { data } = await pedir<Lookups>('/lookups')
+
+  return data
+})
+
+/**
+ * Los catalogos que el portal del cliente puede ver.
+ *
+ * Es un endpoint aparte y no el mismo con otro token: al contacto no le corresponde el catalogo de
+ * personas del equipo ni el de roles, y la API enumera lo que si sale. Aca solo se lo pide con la
+ * sesion del portal.
+ */
+export const cargarLookupsDelPortal = cache(async (): Promise<Lookups> => {
+  const { data } = await pedirPortal<Lookups>('/portal/lookups')
 
   return data
 })
