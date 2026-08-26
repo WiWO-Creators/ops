@@ -81,6 +81,26 @@ interface PropsTablaRecurso<T> {
   className?: string
 }
 
+/** Cuantos elementos escalonan antes de que el retraso deje de crecer. */
+const TOPE_ESCALONADO = 12
+
+/** Distancia entre la entrada de un elemento y la del siguiente, en milisegundos. */
+const PASO_ESCALONADO_MS = 20
+
+/**
+ * Retraso de entrada de un elemento de lista, para que la lista aparezca de a poco y no de golpe.
+ *
+ * El retraso se topa a proposito: crece con el indice, asi que sin tope una pagina de cien filas
+ * tardaria dos segundos en terminar de aparecer y la ultima llegaria mucho despues de que la persona
+ * ya empezo a leer la primera. Pasado el tope todas entran juntas, que a esa altura ya no se nota.
+ *
+ * @param indice posicion del elemento dentro de la pagina vigente
+ * @returns el valor listo para `animation-delay`
+ */
+export function retrasoDeAparicion (indice: number): string {
+  return `${Math.min(indice, TOPE_ESCALONADO) * PASO_ESCALONADO_MS}ms`
+}
+
 export function TablaRecurso<T> ({
   definicion,
   inicial,
@@ -252,13 +272,18 @@ export function TablaRecurso<T> ({
                 </EncabezadoTabla>
 
                 <CuerpoTabla>
-                  {resultado.filas.map((fila) => {
+                  {/* La entrada escalonada es solo del montaje, y lo garantiza el `key`: una animacion
+                      de CSS corre cuando nace el nodo, y un refresco que devuelve las mismas filas
+                      reutiliza los mismos `<tr>`. Volver a animarlas encima del chip de "Actualizando…"
+                      seria justo el parpadeo que ese chip vino a evitar. */}
+                  {resultado.filas.map((fila, indice) => {
                     const href = urlDeFila(fila)
 
                     return (
                     <FilaTabla
                       key={claveFila(fila)}
-                      className={claseFila?.(fila)}
+                      className={cn('animate-entrar-abajo', claseFila?.(fila))}
+                      style={{ animationDelay: retrasoDeAparicion(indice) }}
                       interactiva={href !== null}
                       onClick={href === null ? undefined : (evento) => { abrirFila(evento, href) }}
                     >

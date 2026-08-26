@@ -4,6 +4,7 @@ import { useCallback, useMemo, useState, useTransition } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { ControlesTabla, PaginacionTabla } from '@/componentes/datos/ControlesTabla'
 import { clavesVisiblesPorDefecto, columnasVisibles, resolverInsignia } from '@/componentes/datos/tabla'
+import { retrasoDeAparicion } from '@/componentes/datos/TablaRecurso'
 import { armarCsv, nombreDeExportacion } from '@/componentes/datos/csv'
 import { Boton } from '@/componentes/formularios/Boton'
 import { Vacio } from '@/componentes/estado/Estados'
@@ -360,8 +361,15 @@ export function TarjetasProyectos ({ resultado, opcionesDeFiltro }: PropsTarjeta
                 pendiente && 'opacity-60 transition-opacity'
               )}
             >
-              {resultado.filas.map((espacio) => (
-                <li key={espacio.id} className="flex">
+              {/* Misma regla que en la tabla: el escalonado es del montaje. El `key` por id hace que
+                  un refresco reutilice los mismos `<li>`, asi que las tarjetas ya pintadas no vuelven
+                  a entrar mientras el chip de "Actualizando…" hace su trabajo. */}
+              {resultado.filas.map((espacio, indice) => (
+                <li
+                  key={espacio.id}
+                  className="animate-entrar-abajo flex"
+                  style={{ animationDelay: retrasoDeAparicion(indice) }}
+                >
                   <TarjetaProyecto
                     espacio={espacio}
                     estados={opcionesDeFiltro?.project_statuses}
