@@ -37,7 +37,7 @@ API*.
 | [21](21-cotizaciones.md) | Cotizaciones | `estimates` | ✅ | **no** | PDF, envío, embudo y `mover`, `custom_fields` |
 | [22](22-pagos.md) | Pagos | `invoicepaymentrecords` | ✅ | **no** | `PATCH /payments/{id}`, deliberado |
 | [23](23-gastos.md) | Gastos | `expenses` | ✅ | **no** | Subida del comprobante, borrado, `tags`, `custom_fields` |
-| [30](30-tickets.md) | Tickets | `tickets` | ✅ | **no** | Subida de adjuntos, y **todo aviso al cliente** |
+| [30](30-tickets.md) | Tickets | `tickets` | ✅ | ⛔ fuera de alcance | El soporte vive en [wiwo.center](https://wiwo.center): el panel no ofrece la seccion y el prefijo salio del BFF |
 | [40](40-portal-cliente.md) | Portal del cliente | `contacts` | ✅ | construido, sin desplegar | — |
 
 Dos cosas que valen para los ocho nuevos y que la tabla no puede decir en una celda:

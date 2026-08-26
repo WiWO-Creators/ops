@@ -11,7 +11,6 @@ import { PanelHitos } from '@/componentes/proyecto/PanelHitos'
 import { PanelNotas } from '@/componentes/proyecto/PanelNotas'
 import { PanelTareas } from '@/componentes/proyecto/PanelTareas'
 import { PanelTiempos } from '@/componentes/proyecto/PanelTiempos'
-import { PanelTickets } from '@/componentes/proyecto/PanelTickets'
 import { PanelVentas } from '@/componentes/proyecto/PanelVentas'
 import { Pestanas, type Panel } from '@/componentes/proyecto/Pestanas'
 import { Cargando, ErrorEstado, SinPermiso, Vacio } from '@/componentes/estado/Estados'
@@ -172,11 +171,6 @@ export default async function ProyectoPage (props: PageProps<'/espacios/[id]'>) 
       contenido: <PanelDiscusiones proyectoId={proyecto.id} capacidades={capacidadesProyecto} />
     },
     { clave: 'gantt', etiqueta: 'Diagrama de Gantt', contenido: <PanelGantt proyectoId={proyecto.id} /> },
-    {
-      clave: 'tickets',
-      etiqueta: GLOSARIO.ticket.plural,
-      contenido: <PanelTickets proyectoId={proyecto.id} capacidades={capacidadesTareas} />
-    },
     { clave: 'contratos', etiqueta: 'Contratos', contenido: <PanelContratos proyectoId={proyecto.id} /> },
     { clave: 'ventas', etiqueta: 'Ventas', contenido: <PanelVentas proyectoId={proyecto.id} /> },
     { clave: 'notas', etiqueta: 'Notas', contenido: <PanelNotas proyectoId={proyecto.id} /> },

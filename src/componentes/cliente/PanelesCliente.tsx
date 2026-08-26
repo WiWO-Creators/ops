@@ -8,7 +8,6 @@ import { ARCHIVOS } from '@/definiciones/archivos'
 import { CONTRATOS } from '@/definiciones/contratos'
 import { NOTAS_CLIENTE } from '@/definiciones/clientes'
 import { PROCESOS } from '@/definiciones/procesos'
-import { TICKETS } from '@/definiciones/tickets'
 import { FACTURAS, GASTOS, PRESUPUESTOS } from '@/definiciones/ventas'
 import { GLOSARIO } from '@/dominio/glosario'
 import type { ArchivoProyecto, NotaCliente, Proceso } from '@/datos/recursos'
@@ -19,7 +18,7 @@ import type { DefinicionRecurso } from '@/definiciones/tipos'
  * Las pestañas de listado del detalle de Cliente.
  *
  * Ninguna escribe una tabla: todas montan `PanelRecurso`, el mismo motor que usa el detalle de
- * Proyecto, con la definicion que ya existe y la ruta apuntando al subrecurso del cliente. Doce
+ * Proyecto, con la definicion que ya existe y la ruta apuntando al subrecurso del cliente. Diez
  * pestañas entre las dos pantallas y una sola implementacion de tabla.
  *
  * Viven todas en un archivo porque cada una son cinco lineas: seis archivos de cinco lineas es
@@ -60,21 +59,6 @@ export function PanelTareasCliente ({
   )
 
   return <PanelRecurso definicion={definicion} claveFila={(t) => t.id} capacidades={capacidades} />
-}
-
-/**
- * Pestaña Tickets del Cliente. Solo lectura, igual que en el detalle de Proyecto.
- *
- * @param clienteId el cliente que se esta mirando
- * @param capacidades capacidades sobre `tasks`, que es el area que rige los tickets
- */
-export function PanelTicketsCliente ({
-  clienteId,
-  capacidades
-}: { clienteId: number, capacidades: Capacidad[] }): ReactElement {
-  const definicion = useMemo(() => deCliente(TICKETS, clienteId, 'tickets'), [clienteId])
-
-  return <PanelRecurso definicion={definicion} claveFila={(t) => t.ticketid} capacidades={capacidades} />
 }
 
 /**

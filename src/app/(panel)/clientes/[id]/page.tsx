@@ -9,7 +9,6 @@ import {
   PanelContratosCliente,
   PanelNotasCliente,
   PanelTareasCliente,
-  PanelTicketsCliente,
   PanelVentasCliente
 } from '@/componentes/cliente/PanelesCliente'
 import { Pestanas, type Panel } from '@/componentes/proyecto/Pestanas'
@@ -156,11 +155,6 @@ export default async function ClientePage (props: PageProps<'/clientes/[id]'>) {
       clave: 'tareas',
       etiqueta: GLOSARIO.proceso.plural,
       contenido: <PanelTareasCliente clienteId={cliente.id} capacidades={capacidadesTareas} />
-    },
-    {
-      clave: 'tickets',
-      etiqueta: GLOSARIO.ticket.plural,
-      contenido: <PanelTicketsCliente clienteId={cliente.id} capacidades={capacidadesTareas} />
     },
     { clave: 'ventas', etiqueta: 'Ventas', contenido: <PanelVentasCliente clienteId={cliente.id} /> },
     { clave: 'contratos', etiqueta: 'Contratos', contenido: <PanelContratosCliente clienteId={cliente.id} /> },
