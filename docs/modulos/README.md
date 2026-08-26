@@ -30,6 +30,7 @@ especificación de ese recurso en su sección *Estado de la API*.
 | [22](22-pagos.md) | Pagos | `invoicepaymentrecords` | ❌ por construir |
 | [23](23-gastos.md) | Gastos | `expenses` | ❌ por construir |
 | [30](30-tickets.md) | Tickets | `tickets` | ❌ por construir |
+| [40](40-portal-cliente.md) | Portal del cliente | `contacts` | ✅ construido (sin desplegar) |
 
 ## Cómo se arma un módulo
 
