@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import { SelectorTema } from '@/componentes/estructura/SelectorTema'
+import { ScrollSuave } from '@/componentes/estructura/ScrollSuave'
 
 export const metadata = { title: 'Taller · WiWO Ops' }
 
@@ -21,9 +22,9 @@ export default function TallerLayout ({ children }: { children: React.ReactNode 
         </div>
         <SelectorTema />
       </header>
-      <main className="min-h-0 flex-1 overflow-y-auto px-6 py-8">
+      <ScrollSuave className="min-h-0 flex-1 px-6 py-8">
         <div className="mx-auto flex max-w-5xl flex-col gap-12">{children}</div>
-      </main>
+      </ScrollSuave>
     </div>
   )
 }

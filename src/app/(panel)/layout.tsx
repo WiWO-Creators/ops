@@ -4,6 +4,7 @@ import { GLOSARIO } from '@/dominio/glosario'
 import { SelectorTema } from '@/componentes/estructura/SelectorTema'
 import { BarraLateral, BarraLateralMovil, type Seccion } from '@/componentes/estructura/BarraLateral'
 import { Avatar } from '@/componentes/presentadores/Avatar'
+import { ScrollSuave } from '@/componentes/estructura/ScrollSuave'
 import { BotonSalir } from './BotonSalir'
 
 /**
@@ -37,8 +38,9 @@ export default async function PanelLayout ({ children }: { children: React.React
           <BotonSalir />
         </header>
         {/* El unico contenedor de scroll vertical del armazon. `min-h-0` es lo que se lo permite:
-            sin el, un hijo flex no baja de su altura de contenido y `overflow-y` no llega a actuar. */}
-        <main className="min-h-0 min-w-0 flex-1 overflow-y-auto p-4">{children}</main>
+            sin el, un hijo flex no baja de su altura de contenido y `overflow-y` no llega a actuar.
+            `ScrollSuave` pone el `overflow-y` y el `<main>`; aca solo queda como se mide y se rellena. */}
+        <ScrollSuave className="min-h-0 min-w-0 flex-1 p-4">{children}</ScrollSuave>
       </div>
     </div>
   )

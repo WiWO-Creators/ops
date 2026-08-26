@@ -7,6 +7,7 @@ import type { EmpresaPortal, YoPortal } from '@/datos/tipos'
 import { seccionesDelPortal } from '@/dominio/portal'
 import { BotonSalirPortal } from '../BotonSalirPortal'
 import { NavegacionPortal } from '../NavegacionPortal'
+import { ScrollSuave } from '@/componentes/estructura/ScrollSuave'
 
 /**
  * Armazon del portal del cliente.
@@ -48,7 +49,7 @@ export default async function PortalLayout ({ children }: { children: React.Reac
         className="border-linea flex shrink-0 gap-1 overflow-x-auto border-b px-4 py-2 md:hidden"
       />
 
-      <main className="min-h-0 min-w-0 flex-1 overflow-y-auto p-4">{children}</main>
+      <ScrollSuave className="min-h-0 min-w-0 flex-1 p-4">{children}</ScrollSuave>
     </div>
   )
 }
