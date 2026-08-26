@@ -442,6 +442,27 @@
  * viaje. Mas desplazamiento obligaria a seguir la pagina con la vista en una navegacion que ocurre
  * decenas de veces por sesion, que es justo lo que vuelve molesta una animacion util.
  */
+/*
+ * El pulso de todo el arbol de la transicion.
+ *
+ * El navegador anima por su cuenta todo lo que no se le indique: el fotograma de la raiz —o sea el
+ * armazon: barra lateral, cabecera— y los grupos con nombre propio, como el subrayado de la seccion
+ * activa. Lo hace en 250ms con su curva de fabrica, que no es ninguna de las dos del sistema.
+ *
+ * Sin esto, cada navegacion tiene dos velocidades a la vez: el contenido entra en 160ms y el armazon
+ * sigue fundiendose 90ms mas. Se percibe lo mas lento de los dos, asi que la transicion afinada no
+ * se nota. Igualarlos es lo que hace que la pantalla se mueva como una sola cosa.
+ *
+ * El selector universal aca dentro alcanza a todos los nombres. Las reglas de `.pagina` que siguen
+ * ganan igual: una clase es mas especifica que un `*`.
+ */
+::view-transition-group(*),
+::view-transition-old(*),
+::view-transition-new(*) {
+  animation-duration: var(--wiwo-motion-fast);
+  animation-timing-function: var(--wiwo-ease-emphasized);
+}
+
 ::view-transition-old(.pagina) {
   animation: 120ms var(--wiwo-ease-emphasized) both desaparecer;
 }

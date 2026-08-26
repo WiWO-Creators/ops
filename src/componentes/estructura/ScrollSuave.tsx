@@ -2,6 +2,7 @@
 
 import { ReactLenis } from 'lenis/react'
 import 'lenis/dist/lenis.css'
+import { cn } from '@/lib/clases'
 
 /**
  * El contenedor de scroll del armazon, con inercia.
@@ -27,7 +28,7 @@ import 'lenis/dist/lenis.css'
  *   `prefers-reduced-motion` de `neo.css` cubre el CSS de toda la interfaz pero no llega hasta aca, y
  *   el scroll con inercia es justo el tipo de movimiento que marea a quien pidio menos.
  *
- * @param className clases del contenedor que scrollea, relleno incluido
+ * @param className clases del contenedor que scrollea: medidas y relleno, no el `overflow`
  * @param children el contenido de la pantalla
  * @returns el armazon de scroll con el `<main>` adentro
  */
@@ -35,7 +36,10 @@ export function ScrollSuave ({ className, children }: { className?: string, chil
   return (
     <ReactLenis
       root="asChild"
-      className={className}
+      // El `overflow-y-auto` lo pone el componente y no quien lo usa: Lenis no crea el scroll, lo
+      // gobierna. Sin esa clase el envoltorio no scrollea y el contenido se derrama fuera del
+      // armazon, que es exactamente lo que pasa si alguien lo omite al llamarlo.
+      className={cn('overflow-y-auto', className)}
       options={{
         duration: 0.8,
         allowNestedScroll: false,
