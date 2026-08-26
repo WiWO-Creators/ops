@@ -30,6 +30,12 @@ export function ContenidoMenu ({
           'border-linea bg-superficie-flotante rounded-medio shadow-2 z-50 min-w-44 border p-1',
           // Radix expone el alto disponible: el menu hace scroll en vez de salirse de la ventana.
           'max-h-[var(--radix-dropdown-menu-content-available-height)] overflow-y-auto',
+          // Crece desde el disparador y no desde su propio centro: Radix calcula el origen segun el
+          // lado por el que finalmente entro el menu, que puede no ser el pedido si no habia lugar.
+          'origin-[var(--radix-dropdown-menu-content-transform-origin)]',
+          // `animation` y no `transition`: Radix retiene el nodo durante el cierre solo si detecta
+          // una animacion CSS.
+          'data-[state=open]:animate-entrar-escala data-[state=closed]:animate-salir-escala',
           className
         )}
         {...resto}
@@ -49,7 +55,7 @@ function clasesDeItem (peligroso: boolean): string {
     'rounded-chico flex cursor-pointer items-center gap-2 px-2.5 py-1.5 text-sm outline-none',
     // `data-highlighted` cubre teclado y puntero a la vez: con `:hover` el elemento seleccionado
     // por flechas no se marcaria.
-    'data-[highlighted]:bg-hover',
+    'transition-colors duration-rapida data-[highlighted]:bg-hover',
     'data-[disabled]:pointer-events-none data-[disabled]:opacity-50',
     peligroso ? 'text-texto-peligro data-[highlighted]:bg-superficie-peligro' : 'text-texto'
   )

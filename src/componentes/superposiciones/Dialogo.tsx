@@ -48,13 +48,26 @@ export function ContenidoDialogo ({
 }: PropsContenido) {
   return (
     <Radix.Portal>
-      <Radix.Overlay className="bg-superficie-inversa/40 fixed inset-0 z-50" />
+      <Radix.Overlay
+        className={cn(
+          'bg-superficie-inversa/40 fixed inset-0 z-50',
+          'data-[state=open]:animate-aparecer data-[state=closed]:animate-desaparecer'
+        )}
+      />
       <Radix.Content
         className={cn(
-          'fixed left-1/2 top-1/2 z-50 w-[calc(100vw-2rem)] -translate-x-1/2 -translate-y-1/2',
+          // El centrado es por margenes automaticos (`inset-0 m-auto h-fit`) y NO por
+          // `left-1/2 top-1/2 -translate-1/2`. La razon: los keyframes de entrada y salida animan
+          // `transform`, y una animacion pisa entera la propiedad `transform` del elemento. Con el
+          // centrado apoyado en `translate`, el dialogo salta al cuadrante inferior derecho apenas
+          // arranca la animacion. Con margenes automaticos, `transform` queda libre para animar.
+          'fixed inset-0 z-50 m-auto h-fit w-[calc(100vw-2rem)]',
           'border-linea bg-superficie-flotante rounded-tarjeta shadow-flotante border p-6',
           // El contenido largo hace scroll dentro del panel, no en la pagina de atras.
           'max-h-[calc(100dvh-4rem)] overflow-y-auto',
+          // `animation` y no `transition`: Radix solo retiene el nodo durante el cierre si detecta
+          // una animacion CSS. Con una transicion, la salida nunca llegaria a verse.
+          'data-[state=open]:animate-entrar-escala data-[state=closed]:animate-salir-escala',
           ANCHOS[ancho],
           className
         )}

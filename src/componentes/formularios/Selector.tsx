@@ -75,6 +75,12 @@ export function ContenidoSelector ({
         className={cn(
           'border-linea bg-superficie-flotante rounded-medio shadow-2 z-50 overflow-hidden border',
           'max-h-[var(--radix-select-content-available-height)] w-[var(--radix-select-trigger-width)]',
+          // Crece desde el disparador y no desde su propio centro: Radix calcula el origen segun el
+          // lado por el que finalmente entro el panel, que puede no ser el pedido si no habia lugar.
+          'origin-[var(--radix-select-content-transform-origin)]',
+          // `animation` y no `transition`: Radix retiene el nodo durante el cierre solo si detecta
+          // una animacion CSS.
+          'data-[state=open]:animate-entrar-escala data-[state=closed]:animate-salir-escala',
           className
         )}
         {...resto}
@@ -94,7 +100,7 @@ export function Opcion ({
     <Radix.Item
       className={cn(
         'rounded-chico text-texto flex cursor-pointer items-center gap-2 px-2.5 py-1.5 text-sm outline-none',
-        'data-[highlighted]:bg-hover',
+        'transition-colors duration-rapida data-[highlighted]:bg-hover',
         'data-[disabled]:pointer-events-none data-[disabled]:opacity-50',
         className
       )}
