@@ -65,13 +65,12 @@ que el plan decía mal, lo que resultó distinto, la deuda consciente.
 Lo siguiente **se queda en el panel viejo**, con un enlace directo desde la barra superior. No es una
 omisión: es una decisión de retorno.
 
-- **Portal del cliente** (77 vistas en `themes/perfex`) — otra audiencia, otra autenticación, otro
-  riesgo. Se queda en Perfex indefinidamente.
 - **Ajustes** (27 archivos de `admin/settings/includes/`) — se usan una vez por trimestre.
   Reescribirlos es el peor retorno del proyecto.
-- **Automatización, informes avanzados, base de conocimiento, encuestas, suscripciones** — hasta que
-  alguien los pida por su nombre. Contratos salió de esta lista: se pidió por su nombre y tiene ficha
-  en [modulos/12-contratos.md](modulos/12-contratos.md).
+- **Automatización e informes avanzados** — hasta que alguien los pida por su nombre. Contratos
+  salió de esta lista: se pidió por su nombre y tiene ficha en
+  [modulos/12-contratos.md](modulos/12-contratos.md). Base de conocimiento y suscripciones también
+  salieron, por el portal del cliente.
 - App móvil y modo sin conexión.
 
 ## Levantar el entorno
