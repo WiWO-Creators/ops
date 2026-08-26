@@ -12,7 +12,13 @@ import { randomBytes } from 'node:crypto'
 import { abrir, mismoToken, porVencer, sellar } from '../src/datos/sobre-sesion.ts'
 
 const CLAVE = randomBytes(32)
-const SESION = { acceso: 'acc-123', refresco: 'ref-456', venceEn: 2_000_000_000, staffId: 7 }
+const SESION = {
+  acceso: 'acc-123',
+  refresco: 'ref-456',
+  venceEn: 2_000_000_000,
+  sujeto: 'staff',
+  sujetoId: 7
+}
 
 test('lo sellado se abre igual', () => {
   assert.deepEqual(abrir(sellar(SESION, CLAVE), CLAVE), SESION)
@@ -68,4 +74,27 @@ test('mismoToken compara sin romperse con largos distintos', () => {
   assert.equal(mismoToken('abc', 'abd'), false)
   assert.equal(mismoToken('abc', 'abcd'), false)
   assert.equal(mismoToken('', ''), true)
+})
+
+test('una cookie sellada antes del discriminante se lee como sesion de staff', () => {
+  // Compatibilidad hacia atras: las cookies que ya estan en los navegadores traen `staffId` y ningun
+  // `sujeto`. Descartarlas desloguearia al panel entero al desplegar, que es justo lo que el
+  // `DEFAULT 'staff'` de la migracion evita del lado de la API.
+  const vieja = { acceso: 'acc', refresco: 'ref', venceEn: 2_000_000_000, staffId: 12 }
+  const abierta = abrir(sellar(vieja, CLAVE), CLAVE)
+
+  assert.equal(abierta.sujeto, 'staff')
+  assert.equal(abierta.sujetoId, 12)
+})
+
+test('una cookie sin sujeto ni staffId no abre', () => {
+  const rota = { acceso: 'acc', refresco: 'ref', venceEn: 2_000_000_000 }
+
+  assert.equal(abrir(sellar(rota, CLAVE), CLAVE), null)
+})
+
+test('una cookie con un sujeto inventado no abre', () => {
+  const rara = { ...SESION, sujeto: 'administrador' }
+
+  assert.equal(abrir(sellar(rara, CLAVE), CLAVE), null)
 })

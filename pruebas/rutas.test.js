@@ -69,3 +69,37 @@ test('el proxy deja pasar los estaticos y la pantalla de entrar', () => {
     assert.equal(matcher.test(ruta), false, `${ruta} no puede pedir sesion`)
   }
 })
+
+test('el proxy protege el portal y deja pasar su pantalla de entrar', () => {
+  const matcher = matcherDelProxy()
+
+  for (const ruta of ['/portal', '/portal/proyectos', '/portal/facturas/9']) {
+    assert.equal(matcher.test(ruta), true, `${ruta} tiene que pedir sesion`)
+  }
+
+  // Si el guardia tapara la pantalla de acceso del portal, entrar seria un bucle de redirecciones.
+  assert.equal(matcher.test('/portal/entrar'), false)
+})
+
+test('un contacto no puede pedir rutas del panel por el BFF', () => {
+  // Tercera barrera, despues de la columna del token y de exigirContacto(): que el pedido ni salga.
+  for (const prefijo of ['clients', 'projects', 'tasks', 'staff', 'me', 'lookups']) {
+    assert.equal(rutaPermitida([prefijo], 'contacto'), false, `contacto no puede pedir ${prefijo}`)
+  }
+
+  assert.equal(rutaPermitida(['portal', 'me'], 'contacto'), true)
+  assert.equal(rutaPermitida(['files', 'task', '3', 'download'], 'contacto'), true)
+})
+
+test('un staff no puede pedir rutas del portal por el BFF', () => {
+  // La simetrica: nadie previsualiza el portal con el token del panel.
+  assert.equal(rutaPermitida(['portal', 'me'], 'staff'), false)
+  assert.equal(rutaPermitida(['portal', 'invoices'], 'staff'), false)
+})
+
+test('el escape de directorio sigue bloqueado en las dos listas', () => {
+  for (const sujeto of ['staff', 'contacto']) {
+    assert.equal(rutaPermitida(['portal', '..', 'me'], sujeto), false)
+    assert.equal(rutaPermitida(['clients', ''], sujeto), false)
+  }
+})

@@ -18,12 +18,24 @@ const ALGORITMO = 'aes-256-gcm'
 const BYTES_IV = 12
 const BYTES_TAG = 16
 
+/**
+ * Quien es el dueño de la sesion.
+ *
+ * `staff` mira el panel; `contacto` mira el portal del cliente. No son dos grados del mismo permiso:
+ * son dos poblaciones distintas de ids que se solapan, con dos APIs distintas detras. El
+ * discriminante viaja en la cookie por la misma razon por la que viaja en el token de la API — para
+ * que confundirlos sea imposible y no solo improbable.
+ */
+export type Sujeto = 'staff' | 'contacto'
+
 export interface Sesion {
   acceso: string
   refresco: string
   /** Epoch en segundos en que vence el token de acceso. */
   venceEn: number
-  staffId: number
+  sujeto: Sujeto
+  /** `staffid` si es staff, id de contacto si es contacto. Solo significa algo junto a `sujeto`. */
+  sujetoId: number
 }
 
 /**
@@ -67,7 +79,7 @@ export function abrir (sellada: string | undefined, clave: Buffer): Sesion | nul
     descifrador.setAuthTag(tag)
 
     const plano = Buffer.concat([descifrador.update(cifrado), descifrador.final()]).toString('utf8')
-    const dato = JSON.parse(plano) as unknown
+    const dato = normalizar(JSON.parse(plano) as unknown)
 
     return esSesion(dato) ? dato : null
   } catch {
@@ -75,6 +87,25 @@ export function abrir (sellada: string | undefined, clave: Buffer): Sesion | nul
     // la respuesta correcta es la misma: no hay sesion.
     return null
   }
+}
+
+/**
+ * Acomoda las cookies selladas antes de que existiera el discriminante.
+ *
+ * Esas cookies traen `staffId` y ningun `sujeto`. Reescribirlas como staff en vez de descartarlas es
+ * lo que evita desloguear a todo el panel al desplegar — el mismo criterio que el `DEFAULT 'staff'`
+ * de la migracion en la API.
+ */
+function normalizar (dato: unknown): unknown {
+  if (typeof dato !== 'object' || dato === null) return dato
+
+  const s = dato as Record<string, unknown>
+
+  if (s.sujeto === undefined && typeof s.staffId === 'number') {
+    return { ...s, sujeto: 'staff', sujetoId: s.staffId }
+  }
+
+  return dato
 }
 
 /** Valida la forma de lo descifrado: la cookie pudo sellarse con una version anterior del tipo. */
@@ -86,7 +117,8 @@ function esSesion (dato: unknown): dato is Sesion {
   return typeof s.acceso === 'string' && s.acceso !== '' &&
     typeof s.refresco === 'string' && s.refresco !== '' &&
     typeof s.venceEn === 'number' && Number.isFinite(s.venceEn) &&
-    typeof s.staffId === 'number'
+    (s.sujeto === 'staff' || s.sujeto === 'contacto') &&
+    typeof s.sujetoId === 'number'
 }
 
 /** `true` cuando al token de acceso le quedan menos de `margen` segundos. */
@@ -113,15 +145,23 @@ export function mismoToken (a: string, b: string): boolean {
  * `expires_in` viene en segundos relativos; se guarda como epoch absoluto para no tener que recordar
  * cuando llego la respuesta.
  *
- * @param staffId De quien es la sesion. Se pasa aparte porque `/auth/refresh` devuelve los tokens
- *                **sin** el bloque `staff`, a diferencia de login y 2fa: al refrescar se conserva el
- *                que ya tenia la sesion.
+ * @param sujetoId De quien es la sesion. Se pasa aparte porque `/auth/refresh` devuelve los tokens
+ *                 **sin** el bloque de identidad, a diferencia de login y 2fa: al refrescar se
+ *                 conserva el que ya tenia la sesion.
+ * @param sujeto Si es del panel o del portal. Al refrescar tambien se conserva: un refresco de
+ *               contacto no puede volver como sesion de staff.
  */
-export function sesionDesdeTokens (par: ParDeTokens, staffId: number, ahora = Date.now()): Sesion {
+export function sesionDesdeTokens (
+  par: ParDeTokens,
+  sujetoId: number,
+  sujeto: Sujeto,
+  ahora = Date.now()
+): Sesion {
   return {
     acceso: par.access_token,
     refresco: par.refresh_token,
     venceEn: Math.floor(ahora / 1000) + par.expires_in,
-    staffId
+    sujeto,
+    sujetoId
   }
 }

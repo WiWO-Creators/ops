@@ -1,8 +1,8 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { claveSesion, MARGEN_REFRESCO_SEGUNDOS } from '@/datos/config'
 import { refrescar } from '@/datos/refresco'
-import { NOMBRE_COOKIE, opcionesCookie } from '@/datos/sesion'
-import { abrir, porVencer, sellar } from '@/datos/sobre-sesion'
+import { nombreCookie, opcionesCookie } from '@/datos/sesion'
+import { abrir, porVencer, sellar, type Sujeto } from '@/datos/sobre-sesion'
 
 /**
  * Guardia de acceso y refresco por adelantado.
@@ -15,14 +15,25 @@ import { abrir, porVencer, sellar } from '@/datos/sobre-sesion'
  *
  * El refresco reactivo sigue existiendo en el BFF, para la peticion que igual llega vencida.
  *
+ * Sirve a los dos sujetos. El prefijo de la ruta decide cual: `/portal` usa la cookie del contacto y
+ * cae a `/portal/entrar`; el resto, la del panel y `/entrar`. Sin esta rama, cada pantalla nueva del
+ * portal terminaria mandando al cliente al login del equipo.
+ *
  * En Next 16 esto es `proxy`, no `middleware`, y corre siempre en Node.
  */
 export async function proxy (peticion: NextRequest): Promise<NextResponse> {
   const clave = claveSesion()
-  const sesion = abrir(peticion.cookies.get(NOMBRE_COOKIE)?.value, clave)
+  const enPortal = peticion.nextUrl.pathname === '/portal' ||
+    peticion.nextUrl.pathname.startsWith('/portal/')
+  const sujeto: Sujeto = enPortal ? 'contacto' : 'staff'
+  const cookie = nombreCookie(sujeto)
+  const entrada = enPortal ? '/portal/entrar' : '/entrar'
+  const sesion = abrir(peticion.cookies.get(cookie)?.value, clave)
 
-  if (sesion === null) {
-    return NextResponse.redirect(new URL('/entrar', peticion.url))
+  // Una cookie del sujeto equivocado vale lo mismo que ninguna: mandar a entrar por la puerta que
+  // corresponde.
+  if (sesion === null || sesion.sujeto !== sujeto) {
+    return NextResponse.redirect(new URL(entrada, peticion.url))
   }
 
   if (!porVencer(sesion, MARGEN_REFRESCO_SEGUNDOS)) {
@@ -33,23 +44,24 @@ export async function proxy (peticion: NextRequest): Promise<NextResponse> {
     const renovada = await refrescar(sesion)
     const respuesta = NextResponse.next()
 
-    respuesta.cookies.set(NOMBRE_COOKIE, sellar(renovada, clave), opcionesCookie())
+    respuesta.cookies.set(cookie, sellar(renovada, clave), opcionesCookie())
 
     return respuesta
   } catch {
     // El refresco se rechaza cuando vencio o fue revocado. En los dos casos hay que volver a entrar,
     // y la cookie vieja se borra para no reintentar en cada navegacion.
-    const respuesta = NextResponse.redirect(new URL('/entrar', peticion.url))
-    respuesta.cookies.delete(NOMBRE_COOKIE)
+    const respuesta = NextResponse.redirect(new URL(entrada, peticion.url))
+    respuesta.cookies.delete(cookie)
 
     return respuesta
   }
 }
 
 /**
- * Solo el panel.
+ * El panel y el portal.
  *
- * Fuera quedan `/entrar` (que existe justo para quien no tiene sesion), `/api/sesion` (que la crea),
+ * Fuera quedan `/entrar` y `/portal/entrar` (que existen justo para quien no tiene sesion),
+ * `/api/sesion` (que la crea),
  * `/api/bff` (que resuelve su propio refresco y debe responder 401 en JSON, no redirigir), el taller
  * y los estaticos.
  *
@@ -59,5 +71,5 @@ export async function proxy (peticion: NextRequest): Promise<NextResponse> {
  * primero en toparse con eso. Ninguna pantalla del panel tiene punto en su ruta.
  */
 export const config = {
-  matcher: ['/((?!entrar|api|taller|_next|.*\\.[a-z0-9]+$).*)']
+  matcher: ['/((?!entrar|portal/entrar|api|taller|_next|.*\\.[a-z0-9]+$).*)']
 }

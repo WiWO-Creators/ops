@@ -33,6 +33,7 @@ export async function refrescar (sesion: Sesion): Promise<Sesion> {
       cuerpo: { refresh_token: sesion.refresco }
     })
 
-    return sesionDesdeTokens(data, sesion.staffId)
+    // El sujeto se conserva: un refresco de contacto no puede volver como sesion de staff.
+    return sesionDesdeTokens(data, sesion.sujetoId, sesion.sujeto)
   })
 }

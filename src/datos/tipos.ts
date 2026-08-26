@@ -107,3 +107,74 @@ export interface DesafioSegundoFactor {
 export function esDesafio (dato: ParDeTokensConStaff | DesafioSegundoFactor): dato is DesafioSegundoFactor {
   return 'two_factor_required' in dato
 }
+
+/**
+ * Permisos del portal del cliente.
+ *
+ * No son los del panel: un contacto no tiene capacidades (`view`/`edit`/...) sino secciones enteras
+ * habilitadas o no. El mapa vive en `tblcontact_permissions` y lo fija Perfex en codigo.
+ */
+export type PermisoPortal =
+  | 'invoices'
+  | 'estimates'
+  | 'contracts'
+  | 'proposals'
+  | 'support'
+  | 'projects'
+
+/** El contacto de cliente autenticado, tal como lo devuelve `/auth/portal/login`. */
+export interface ContactoPortal {
+  id: number
+  client_id: number
+  firstname: string
+  lastname: string
+  full_name: string
+  email: string
+  phonenumber: string | null
+  title: string | null
+  is_primary: boolean
+  /** `false` obliga a mandar a verificar: la API responde 403 en todo lo demas. */
+  email_verified: boolean
+  last_login: string | null
+  direction: string | null
+}
+
+/** Lo que devuelve el login del portal: el par mas el contacto. */
+export interface ParDeTokensConContacto extends ParDeTokens {
+  contact: ContactoPortal
+}
+
+/** `/portal/me`: el contacto mas lo que puede ver. */
+export interface YoPortal extends ContactoPortal {
+  permissions: PermisoPortal[]
+  /** Secciones vivas para este contacto. El portal arma su navegacion con esto, no adivinando. */
+  secciones_habilitadas: string[]
+  locale: string
+}
+
+/** `/portal/company`: los datos de la empresa del contacto. */
+export interface EmpresaPortal {
+  id: number
+  company: string
+  vat: string | null
+  phonenumber: string | null
+  website: string | null
+  address: string | null
+  city: string | null
+  state: string | null
+  zip: string | null
+  country_id: number
+  default_language: string | null
+  date_created: string | null
+  /** Solo presentes si el contacto es primario y la opcion esta habilitada en Perfex. */
+  billing?: DireccionPortal
+  shipping?: DireccionPortal
+}
+
+export interface DireccionPortal {
+  street: string | null
+  city: string | null
+  state: string | null
+  zip: string | null
+  country: string | null
+}

@@ -3,7 +3,13 @@ import { llamarApiTipado } from '@/datos/api'
 import { ErrorApi } from '@/datos/errores'
 import { borrarSesion, guardarSesion, leerSesion } from '@/datos/sesion'
 import { sesionDesdeTokens } from '@/datos/sobre-sesion'
-import { esDesafio, type DesafioSegundoFactor, type ParDeTokensConStaff } from '@/datos/tipos'
+import {
+  esDesafio,
+  type ContactoPortal,
+  type DesafioSegundoFactor,
+  type ParDeTokensConContacto,
+  type ParDeTokensConStaff
+} from '@/datos/tipos'
 
 /**
  * El unico lugar del proyecto que ve los tokens de la API.
@@ -17,6 +23,8 @@ interface CuerpoEntrar {
   password?: unknown
   challenge_token?: unknown
   code?: unknown
+  /** `true` cuando quien entra es un contacto de cliente y no alguien del equipo. */
+  portal?: unknown
 }
 
 /**
@@ -40,9 +48,12 @@ export async function POST (peticion: NextRequest): Promise<NextResponse> {
   const codigo = typeof cuerpo.code === 'string' ? cuerpo.code.trim() : ''
 
   try {
-    const respuesta = codigo === ''
-      ? await entrarConClave(cuerpo)
-      : await entrarConCodigo(peticion, codigo)
+    // El portal no tiene segundo factor, asi que su rama se decide antes que el codigo.
+    const respuesta = cuerpo.portal === true
+      ? await entrarAlPortal(cuerpo)
+      : codigo === ''
+        ? await entrarConClave(cuerpo)
+        : await entrarConCodigo(peticion, codigo)
 
     return respuesta
   } catch (error) {
@@ -59,7 +70,8 @@ export async function POST (peticion: NextRequest): Promise<NextResponse> {
 
 /** Sale. Revoca el token en la API y borra la cookie pase lo que pase. */
 export async function DELETE (peticion: NextRequest): Promise<NextResponse> {
-  const sesion = await leerSesion()
+  const sujeto = peticion.nextUrl.searchParams.get('portal') === '1' ? 'contacto' : 'staff'
+  const sesion = await leerSesion(sujeto)
   const todas = peticion.nextUrl.searchParams.get('todas') === '1'
 
   if (sesion !== null) {
@@ -75,9 +87,39 @@ export async function DELETE (peticion: NextRequest): Promise<NextResponse> {
     }
   }
 
-  await borrarSesion()
+  await borrarSesion(sujeto)
 
   return NextResponse.json({ ok: true })
+}
+
+/**
+ * Entra al portal del cliente.
+ *
+ * Un solo paso: los contactos no tienen segundo factor. Escribe la cookie `ops_portal`, distinta de
+ * la del panel, asi que alguien del equipo puede tener las dos sesiones abiertas a la vez sin que
+ * una pise a la otra.
+ */
+async function entrarAlPortal (cuerpo: CuerpoEntrar): Promise<NextResponse> {
+  const email = typeof cuerpo.email === 'string' ? cuerpo.email.trim() : ''
+  const password = typeof cuerpo.password === 'string' ? cuerpo.password : ''
+
+  if (email === '' || password === '') {
+    return NextResponse.json({ mensaje: 'Correo y contraseña son obligatorios' }, { status: 400 })
+  }
+
+  const { data } = await llamarApiTipado<ParDeTokensConContacto>('/auth/portal/login', {
+    metodo: 'POST',
+    cuerpo: { email, password }
+  })
+
+  await guardarSesion(sesionDesdeTokens(data, data.contact.id, 'contacto'))
+
+  return NextResponse.json({ ok: true, contacto: contactoResumido(data.contact) })
+}
+
+/** Lo minimo que la pantalla de entrar necesita saber para decidir a donde mandar. */
+function contactoResumido (contacto: ContactoPortal): { verificado: boolean } {
+  return { verificado: contacto.email_verified }
 }
 
 async function entrarConClave (cuerpo: CuerpoEntrar): Promise<NextResponse> {
@@ -108,7 +150,7 @@ async function entrarConClave (cuerpo: CuerpoEntrar): Promise<NextResponse> {
     return respuesta
   }
 
-  await guardarSesion(sesionDesdeTokens(data, data.staff.id))
+  await guardarSesion(sesionDesdeTokens(data, data.staff.id, 'staff'))
 
   return NextResponse.json({ ok: true })
 }
@@ -128,7 +170,7 @@ async function entrarConCodigo (peticion: NextRequest, codigo: string): Promise<
     cuerpo: { challenge_token: desafio, code: codigo }
   })
 
-  await guardarSesion(sesionDesdeTokens(data, data.staff.id))
+  await guardarSesion(sesionDesdeTokens(data, data.staff.id, 'staff'))
 
   const respuesta = NextResponse.json({ ok: true })
   respuesta.cookies.delete(COOKIE_DESAFIO)

@@ -275,18 +275,90 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
       return { estado: 201, cuerpo: conDatos({ ...sesion.emitirSesion(staff.id), staff: presentarStaff(staff) }) }
     }
 
+    if (accion === 'portal' && resto[1] === 'login' && metodo === 'POST') {
+      const contacto = sesion.autenticarContacto(datos.email, datos.password)
+      return {
+        estado: 201,
+        cuerpo: conDatos({
+          ...sesion.emitirSesion(contacto.id, 'contacto'),
+          contact: presentarContacto(contacto)
+        })
+      }
+    }
+
     if (accion === 'refresh' && metodo === 'POST') {
       return { estado: 200, cuerpo: conDatos(sesion.rotar(datos.refresh_token ?? null)) }
     }
 
     if (accion === 'logout' && metodo === 'POST') {
-      const staff = sesion.resolver(token, 'acceso')
-      if (parametros.get('all') === '1') sesion.revocarTodo(staff.id)
+      // Sirve a los dos sujetos: se prueba el del panel y, si no es, el del portal. El token ya trae
+      // su tipo, asi que nadie cierra la sesion de otro.
+      let sujeto = 'staff'
+      let persona
+      try {
+        persona = sesion.resolver(token, 'acceso')
+      } catch {
+        persona = sesion.resolverContacto(token, 'acceso')
+        sujeto = 'contacto'
+      }
+      if (parametros.get('all') === '1') sesion.revocarTodo(persona.id, sujeto)
       else sesion.revocar(token)
       return { estado: 204, cuerpo: null }
     }
 
     throw new ErrorApi(404, 'not_found', 'Acción de autenticación desconocida.')
+  }
+
+  // --- Portal del cliente: otro sujeto, otra puerta ------------------------
+  //
+  // Va ANTES de resolver la sesion de staff: si cayera despues, un token de contacto moriria en el
+  // 401 del panel antes de llegar acá.
+  if (recurso === 'portal') {
+    if (metodo !== 'GET') throw new ErrorApi(404, 'not_found', 'Recurso desconocido.')
+
+    const contacto = sesion.resolverContacto(token, 'acceso')
+    const [seccion] = resto
+
+    // Solo /portal/me es visible sin verificar el correo: es como el frontend se entera.
+    if (seccion !== 'me' && !contacto.email_verified) {
+      throw new ErrorApi(403, 'email_unverified', 'Tenés que verificar tu correo antes de continuar.')
+    }
+
+    if (seccion === 'me') {
+      return {
+        estado: 200,
+        cuerpo: conDatos({
+          ...presentarContacto(contacto),
+          permissions: contacto.permissions,
+          secciones_habilitadas: seccionesDelPortal(contacto),
+          locale: 'es'
+        })
+      }
+    }
+
+    if (seccion === 'company') {
+      const empresa = CLIENTES.find((c) => c.id === contacto.client_id)
+      if (!empresa) throw new ErrorApi(404, 'not_found', 'Cliente inexistente.')
+      return {
+        estado: 200,
+        cuerpo: conDatos({
+          id: empresa.id,
+          company: empresa.company,
+          vat: empresa.vat,
+          phonenumber: empresa.phonenumber,
+          website: empresa.website,
+          address: empresa.address,
+          city: empresa.city,
+          state: empresa.state,
+          zip: empresa.zip,
+          country_id: empresa.country_id,
+          default_language: null,
+          date_created: null
+        })
+      }
+    }
+
+    throw new ErrorApi(404, 'not_found', `Recurso desconocido: "${seccion ?? ''}".`)
   }
 
   // --- A partir de acá, todo exige token ----------------------------------
@@ -564,4 +636,35 @@ if (process.argv[1] && import.meta.url.endsWith(process.argv[1].split('/').pop()
     console.log(`[mock] origenes permitidos: ${ORIGENES.join(', ')}`)
     console.log('[mock] acceso: ana@wiwo.me / mock1234 (admin) · bruno@wiwo.me / mock1234 (con 2FA)')
   })
+}
+
+/** Datos publicos de un contacto, en la forma del contrato. */
+function presentarContacto (contacto) {
+  return {
+    id: contacto.id,
+    client_id: contacto.client_id,
+    firstname: contacto.firstname,
+    lastname: contacto.lastname,
+    full_name: contacto.full_name,
+    email: contacto.email,
+    phonenumber: contacto.phonenumber,
+    title: contacto.title,
+    is_primary: contacto.is_primary,
+    email_verified: contacto.email_verified,
+    last_login: contacto.last_login,
+    direction: contacto.direction
+  }
+}
+
+/**
+ * Secciones vivas del portal para un contacto.
+ *
+ * Mismo criterio que la API real: las que dependen de un permiso salen de `permissions`, y archivos,
+ * anuncios, ayuda y perfil los ve cualquier contacto logueado.
+ */
+function seccionesDelPortal (contacto) {
+  const conPermiso = ['projects', 'invoices', 'estimates', 'proposals', 'contracts', 'support']
+    .filter((f) => contacto.permissions.includes(f))
+
+  return [...conPermiso, 'files', 'announcements', 'kb', 'profile']
 }
