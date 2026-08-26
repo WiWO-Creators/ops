@@ -105,7 +105,7 @@ export function FormularioEntrar () {
       // Apagarlo antes deja un hueco quieto entre "listo" y "ya estoy adentro" que se lee como que
       // algo fallo.
       establecerEstadoOrbe('success')
-      router.replace('/')
+      router.replace('/inicio')
       router.refresh()
     } catch {
       establecerError('No se pudo contactar al servidor. Revisá tu conexión.')

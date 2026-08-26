@@ -34,7 +34,7 @@ antes de mirar los segmentos, así que no depende de acordarse de no escribir un
 
 | Pantalla | Ruta | Qué muestra |
 |---|---|---|
-| Acceso | `/portal/entrar` | Un solo paso: los contactos no tienen 2FA |
+| Acceso | `/` | Un solo paso: los contactos no tienen 2FA |
 | Verificación | `/portal/verificar` | Para quien no verificó su correo |
 | Inicio | `/portal` | Resumen de proyectos, novedades y accesos |
 | Proyectos | `/portal/proyectos` · `/[id]` | Listado y detalle con pestañas dinámicas |

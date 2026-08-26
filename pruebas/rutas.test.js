@@ -55,30 +55,34 @@ function matcherDelProxy () {
 test('el proxy protege el panel', () => {
   const matcher = matcherDelProxy()
 
-  for (const ruta of ['/', '/procesos', '/espacios/44', '/clientes']) {
+  for (const ruta of ['/inicio', '/procesos', '/espacios/44', '/clientes']) {
     assert.equal(matcher.test(ruta), true, `${ruta} tiene que pedir sesion`)
   }
+
+  // `/colaboradores` no existe todavia, pero si existiera tiene que nacer protegida: la excepcion es
+  // `/colab` exacta, no todo lo que empiece igual.
+  assert.equal(matcher.test('/colaboradores'), true)
 })
 
-test('el proxy deja pasar los estaticos y la pantalla de entrar', () => {
-  // Un estatico detras del guardia se convierte en redireccion a `/entrar`, y ahi la pantalla de
+test('el proxy deja pasar los estaticos y las dos pantallas de entrar', () => {
+  // Un estatico detras del guardia se convierte en redireccion a `/colab`, y ahi la pantalla de
   // entrar se queda sin su propio logotipo.
+  //
+  // `/` es la pantalla de acceso del cliente: taparla seria un bucle de redirecciones.
   const matcher = matcherDelProxy()
 
-  for (const ruta of ['/entrar', '/icon.png', '/marca/wiwo-ops.png', '/fonts/neo/Outfit-100-900-latin.woff2', '/api/sesion']) {
+  for (const ruta of ['/', '/colab', '/icon.png', '/marca/wiwo-ops.png', '/fonts/neo/Outfit-100-900-latin.woff2', '/api/sesion']) {
     assert.equal(matcher.test(ruta), false, `${ruta} no puede pedir sesion`)
   }
 })
 
-test('el proxy protege el portal y deja pasar su pantalla de entrar', () => {
+test('el proxy protege el portal entero', () => {
   const matcher = matcherDelProxy()
 
-  for (const ruta of ['/portal', '/portal/proyectos', '/portal/facturas/9']) {
+  // `verificar` incluida: es del contacto que ya entro, asi que exige sesion como el resto.
+  for (const ruta of ['/portal', '/portal/proyectos', '/portal/facturas/9', '/portal/verificar']) {
     assert.equal(matcher.test(ruta), true, `${ruta} tiene que pedir sesion`)
   }
-
-  // Si el guardia tapara la pantalla de acceso del portal, entrar seria un bucle de redirecciones.
-  assert.equal(matcher.test('/portal/entrar'), false)
 })
 
 test('un contacto no puede pedir rutas del panel por el BFF', () => {

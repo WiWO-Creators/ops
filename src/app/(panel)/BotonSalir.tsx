@@ -17,7 +17,7 @@ export function BotonSalir () {
     } finally {
       // Pase lo que pase con la API, la cookie ya se borro del lado del servidor o la sesion quedo
       // inservible: en los dos casos corresponde ir a entrar.
-      router.replace('/entrar')
+      router.replace('/colab')
       router.refresh()
     }
   }

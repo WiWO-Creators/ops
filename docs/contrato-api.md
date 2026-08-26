@@ -531,7 +531,7 @@ No se aplica ningún diff en vivo: invalidar es diez veces menos código y no se
 | Situación | Respuesta | Qué hace `ops-v2` |
 |---|---|---|
 | Token expirado | `401 token_expired` | El BFF intenta refrescar **una** vez y reintenta |
-| Token revocado | `401 token_revoked` | Limpia caché y va a `/entrar`. No reintenta |
+| Token revocado | `401 token_revoked` | Limpia caché y va a `/colab`. No reintenta |
 | Sin permiso | `403 forbidden` | Muestra `SinPermiso` en el lugar del contenido |
 | Validación | `422 validation_failed` | `details` va campo a campo a react-hook-form |
 | Conflicto al mover | `409 conflict` | Revierte el movimiento optimista y avisa |

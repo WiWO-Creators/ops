@@ -9,8 +9,8 @@ un token, y salir. Es el módulo del que dependen todos los demás.
 
 | Pantalla | Ruta | Qué muestra |
 |---|---|---|
-| Entrar | `/entrar` | Correo y contraseña |
-| Segundo factor | `/entrar` (paso 2) | Código de 6 dígitos, cuando la cuenta lo tiene activo |
+| Entrar | `/colab` | Correo y contraseña |
+| Segundo factor | `/colab` (paso 2) | Código de 6 dígitos, cuando la cuenta lo tiene activo |
 | Sesión vencida | superposición | Aparece sobre la pantalla actual cuando el refresco falla |
 
 ## Endpoints que consume
@@ -90,7 +90,7 @@ promesa y reintentan con el token nuevo. Es una condición de corrección, no un
 2. Un `challenge_token` reusado o vencido a los 300 s da error claro y vuelve al paso 1.
 3. Con el access token vencido y **cinco peticiones en vuelo**, se emite **un solo**
    `POST /auth/refresh` y las cinco se completan. Verificable contando peticiones en el log del BFF.
-4. Un `401 token_revoked` lleva a `/entrar` sin bucle de redirecciones.
+4. Un `401 token_revoked` lleva a `/colab` sin bucle de redirecciones.
 5. `document.cookie` en el navegador **no contiene** ningún token: la cookie es `httpOnly`.
 6. Salir con `?all=1` deja afuera a la otra pestaña en su siguiente petición.
 7. 9 intentos fallidos con el mismo correo dan `429 rate_limited` con mensaje entendible.
