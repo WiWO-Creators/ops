@@ -90,15 +90,19 @@ export const PESTANIAS_PROYECTO: Array<{ clave: PestaniaPortal, etiqueta: string
   { clave: 'files', etiqueta: 'Archivos' },
   { clave: 'invoices', etiqueta: GLOSARIO.factura.plural },
   { clave: 'estimates', etiqueta: GLOSARIO.presupuesto.plural },
-  { clave: 'tickets', etiqueta: GLOSARIO.ticket.plural }
+  { clave: 'tickets', etiqueta: GLOSARIO.ticket.plural },
+  { clave: 'discussions', etiqueta: 'Conversaciones' },
+  { clave: 'timesheets', etiqueta: 'Horas' },
+  { clave: 'gantt', etiqueta: 'Planificación' },
+  { clave: 'activity', etiqueta: 'Actividad' }
 ]
 
 /**
  * Filtra y ordena las pestañas que el cliente puede abrir en un proyecto.
  *
- * Las que la API habilita pero el portal todavia no construyo —discusiones, actividad, gantt,
- * timesheets, contratos, propuestas— se ignoran en silencio: mostrar una pestaña que no lleva a
- * ningun lado es peor que no mostrarla.
+ * Las que la API habilita pero el portal todavia no construyo —contratos y propuestas dentro de un
+ * proyecto— se ignoran en silencio: mostrar una pestaña que no lleva a ningun lado es peor que no
+ * mostrarla. Se ven igual en su seccion propia del menu.
  */
 export function pestaniasDelProyecto (habilitadas: readonly string[]): Array<{ clave: PestaniaPortal, etiqueta: string }> {
   return PESTANIAS_PROYECTO.filter((p) => habilitadas.includes(p.clave))
