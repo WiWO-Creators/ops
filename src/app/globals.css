@@ -114,12 +114,6 @@
   --ease-neo: var(--wiwo-ease-emphasized);
   --ease-expresivo: var(--wiwo-ease-expressive);
 
-  /* Las tres duraciones de `tokens.css` como utilidades. Sin esto no hay forma de escribir
-   * `duration-media` y cada componente termina inventando su propio `duration-[280ms]`. */
-  --duration-rapida: var(--wiwo-motion-fast);
-  --duration-media: var(--wiwo-motion-medium);
-  --duration-lenta: var(--wiwo-motion-slow);
-
   /*
    * Las siete formas de entrar y salir que usa toda la interfaz.
    *
@@ -161,6 +155,26 @@
   --color-grafico-7: var(--grafico-7);
   --color-grafico-8: var(--grafico-8);
   --color-grafico-rejilla: var(--grafico-rejilla);
+}
+
+/*
+ * Las tres duraciones de `tokens.css`, como utilidades.
+ *
+ * Van como `@utility` y no como tokens `--duration-*` del tema porque `duration-*` no lee ningun
+ * espacio de nombres del tema: es de las pocas utilidades de Tailwind que solo acepta un numero o un
+ * valor arbitrario. Sin esto, cada componente termina inventando su propio `duration-[280ms]` —que
+ * es exactamente lo que hacia la barra lateral— y las duraciones del sistema quedan de adorno.
+ */
+@utility duration-rapida {
+  transition-duration: var(--wiwo-motion-fast);
+}
+
+@utility duration-media {
+  transition-duration: var(--wiwo-motion-medium);
+}
+
+@utility duration-lenta {
+  transition-duration: var(--wiwo-motion-slow);
 }
 
 @layer base {
@@ -406,5 +420,58 @@
   @keyframes entrar-abajo {
     from { opacity: 0; transform: translateY(8px); }
     to { opacity: 1; transform: translateY(0); }
+  }
+}
+
+/*
+ * La transicion entre paginas del panel.
+ *
+ * Aca no se anima ningun elemento del DOM: quien se mueve son los dos fotogramas que el navegador
+ * saca al navegar —el de la pagina que se va y el de la que llega—, marcados con la clase `pagina`
+ * por el `<ViewTransition>` de `(panel)/template.tsx`. Por eso las reglas son pseudo-elementos y no
+ * utilidades `animate-*`, y por eso no cuestan maquetado: el compositor mueve dos imagenes.
+ *
+ * La salida dura menos que la entrada (120ms contra 160ms) y no se desplaza. Lo viejo tiene que
+ * despejar rapido porque mientras siga en pantalla compite por la atencion con lo que llega; y si
+ * ademas se moviera, dos capas viajando en sentidos opuestos sobre el mismo lugar se leerian como
+ * un temblor y no como un cambio de pagina. Tampoco hay retardo entre una y otra: solapadas se leen
+ * como un fundido, encadenadas se leerian como dos pasos y el panel se sentiria lento.
+ *
+ * Los 8px de `entrar-abajo` son los mismos que usa cualquier contenido que aparece en el panel. Dan
+ * direccion —el contenido viene de abajo, como si el scroll lo hubiera traido— sin que se note el
+ * viaje. Mas desplazamiento obligaria a seguir la pagina con la vista en una navegacion que ocurre
+ * decenas de veces por sesion, que es justo lo que vuelve molesta una animacion util.
+ */
+::view-transition-old(.pagina) {
+  animation: 120ms var(--wiwo-ease-emphasized) both desaparecer;
+}
+
+::view-transition-new(.pagina) {
+  animation: var(--wiwo-motion-fast) var(--wiwo-ease-emphasized) both entrar-abajo;
+}
+
+/* Mientras la transicion corre, su capa se queda con los clics. Sin esto, apretar otra seccion de
+ * la barra lateral durante esos 160ms no hace nada y hay que volver a apretar. */
+::view-transition {
+  pointer-events: none;
+}
+
+/*
+ * Movimiento reducido, para el arbol de la transicion.
+ *
+ * Es el unico lugar de todo el proyecto donde hay que repetir la media query de `neo.css`. Ese
+ * bloque anula el movimiento sobre `*, *::before, *::after`, y los pseudo-elementos
+ * `::view-transition-*` no son descendientes de ningun elemento: cuelgan de un arbol propio que el
+ * navegador arma sobre la raiz, asi que `*` no los alcanza. Las custom properties si les llegan por
+ * herencia —de ahi que `var(--wiwo-ease-emphasized)` funcione— pero la anulacion no.
+ *
+ * Sin esto, quien pidio menos movimiento igual veria animarse cada cambio de pagina.
+ */
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation-duration: 0.01ms !important;
+    animation-delay: 0s !important;
   }
 }
