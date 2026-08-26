@@ -114,6 +114,31 @@
   --ease-neo: var(--wiwo-ease-emphasized);
   --ease-expresivo: var(--wiwo-ease-expressive);
 
+  /* Las tres duraciones de `tokens.css` como utilidades. Sin esto no hay forma de escribir
+   * `duration-media` y cada componente termina inventando su propio `duration-[280ms]`. */
+  --duration-rapida: var(--wiwo-motion-fast);
+  --duration-media: var(--wiwo-motion-medium);
+  --duration-lenta: var(--wiwo-motion-slow);
+
+  /*
+   * Las siete formas de entrar y salir que usa toda la interfaz.
+   *
+   * Son pares: lo que entra de una manera sale por donde vino. Estan aca y no sueltas en cada
+   * componente para que un cajon, un dialogo y un menu no terminen con tres velocidades distintas.
+   *
+   * Las salidas duran menos que las entradas a proposito: esperar a que algo se vaya es tiempo
+   * muerto, mientras que ver aparecer algo es informacion.
+   */
+  --animate-aparecer: aparecer var(--wiwo-motion-fast) var(--wiwo-ease-emphasized) both;
+  --animate-desaparecer: desaparecer var(--wiwo-motion-fast) var(--wiwo-ease-emphasized) both;
+  --animate-entrar-escala: entrar-escala var(--wiwo-motion-fast) var(--wiwo-ease-expressive) both;
+  --animate-salir-escala: salir-escala 120ms var(--wiwo-ease-emphasized) both;
+  --animate-entrar-derecha: entrar-derecha var(--wiwo-motion-medium) var(--wiwo-ease-emphasized) both;
+  --animate-salir-derecha: salir-derecha var(--wiwo-motion-fast) var(--wiwo-ease-emphasized) both;
+  --animate-entrar-hoja: entrar-hoja var(--wiwo-motion-medium) var(--wiwo-ease-emphasized) both;
+  --animate-salir-hoja: salir-hoja var(--wiwo-motion-fast) var(--wiwo-ease-emphasized) both;
+  --animate-entrar-abajo: entrar-abajo var(--wiwo-motion-fast) var(--wiwo-ease-emphasized) both;
+
   /* Escala tipografica fluida, portada de Neo. Antes se usaba sin definir. */
   --text-menor: var(--step--1);
   --text-base: var(--step-0);
@@ -310,5 +335,76 @@
     -webkit-background-clip: text;
     background-clip: text;
     color: transparent;
+  }
+}
+
+/*
+ * El vocabulario de movimiento compartido.
+ *
+ * Los `@keyframes` viven aca y no dentro de `@theme` por la misma razon que los de la aurora: son
+ * CSS del proyecto, no tokens de diseño, y asi se leen al lado de lo unico que ya los usaba.
+ *
+ * Todo es `opacity` y `transform`. Es la regla de `docs/sistema-de-diseno.md`: son las dos unicas
+ * propiedades que el compositor anima sin volver a maquetar ni repintar, y de eso depende que una
+ * tabla de cien filas no tironee al aparecer.
+ *
+ * Ninguna es `infinite`, asi que ninguna cae en la regla que prohibe movimiento perpetuo sobre algo
+ * siempre visible. Quien pidio menos movimiento las recibe en 0.01ms: lo resuelve el bloque
+ * `prefers-reduced-motion` de `neo.css`, que ya cubre `animation-duration` sobre `*`.
+ */
+@layer components {
+  @keyframes aparecer {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+
+  @keyframes desaparecer {
+    from { opacity: 1; }
+    to { opacity: 0; }
+  }
+
+  /* La escala arranca en .96 y no en .8: por debajo de eso el panel se lee como que llega volando
+   * desde el fondo, y un dialogo no viene de ningun lado — aparece donde estaba. */
+  @keyframes entrar-escala {
+    from { opacity: 0; transform: scale(0.96); }
+    to { opacity: 1; transform: scale(1); }
+  }
+
+  @keyframes salir-escala {
+    from { opacity: 1; transform: scale(1); }
+    to { opacity: 0; transform: scale(0.96); }
+  }
+
+  /* Panel lateral (tablet en adelante). Entra entero desde fuera de la ventana. */
+  @keyframes entrar-derecha {
+    from { transform: translateX(100%); }
+    to { transform: translateX(0); }
+  }
+
+  @keyframes salir-derecha {
+    from { transform: translateX(0); }
+    to { transform: translateX(100%); }
+  }
+
+  /* Hoja inferior (movil). Mismo gesto que el panel lateral, sobre el otro eje. */
+  @keyframes entrar-hoja {
+    from { transform: translateY(100%); }
+    to { transform: translateY(0); }
+  }
+
+  @keyframes salir-hoja {
+    from { transform: translateY(0); }
+    to { transform: translateY(100%); }
+  }
+
+  /*
+   * La entrada de todo lo que es contenido: una pagina, una fila, una tarjeta.
+   *
+   * Ocho pixeles y no mas. El desplazamiento esta para dar direccion —el contenido viene de abajo,
+   * como si el scroll lo hubiera traido—, no para que se note el viaje.
+   */
+  @keyframes entrar-abajo {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
   }
 }
