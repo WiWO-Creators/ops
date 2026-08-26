@@ -38,10 +38,16 @@
 
 :root {
   /* --- Superficies ------------------------------------------------------ */
-  /* El beige de marca NO es fondo de panel: tiñe la aplicacion entera. Queda como acento calido y la
-   * base es un almost-white calido, que es lo que usa el sistema vivo.
+  /* El beige de marca NO es fondo de panel: tiñe la aplicacion entera. Queda como acento calido
+   * (`--superficie-acentuada`) y el lienzo es un neutro apenas calido.
    * La rampa oscura se deriva de la tinta y no de negros puros, para conservar la temperatura del
-   * tema claro y evitar el contraste duro que cansa en sesiones largas. */
+   * tema claro y evitar el contraste duro que cansa en sesiones largas.
+   *
+   * `--superficie` no es un color plano: es el lienzo sobre el que la capa `.aurora` de `globals.css`
+   * pinta tres luces de marca. Las luces trabajan el MARCO —las esquinas, la barra lateral, el aire
+   * alrededor del contenido— y el centro queda limpio a proposito, asi que ahi la tarjeta se despega
+   * sola: el escalon lienzo -> `--superficie-elevada` es corto (1.11:1 en claro, 1.24:1 en oscuro)
+   * pero real, y es lo unico que trabaja debajo de una tarjeta. */
   --superficie: light-dark(var(--wiwo-almost-white), var(--wiwo-ink-900));
   --superficie-elevada: light-dark(var(--wiwo-surface-0), var(--wiwo-ink));
   --superficie-hundida: light-dark(var(--wiwo-surface-50), var(--wiwo-ink-850));
@@ -130,9 +136,27 @@
     linear-gradient(103deg, var(--wiwo-lime) 0%, var(--wiwo-blue-200) 90%)
   );
 
-  --aurora-verde: light-dark(rgb(59 255 0 / 0.13), rgb(59 255 0 / 0.07));
-  --aurora-azul: light-dark(rgb(66 66 255 / 0.1), rgb(66 66 255 / 0.06));
-  --aurora-beige: light-dark(rgb(248 250 215 / 0.85), transparent);
+  /* --- Aurora: las tres luces del lienzo -------------------------------- */
+  /* Son luz, no relleno: alfas bajas que se suman al lienzo desde tres esquinas y se apagan antes de
+   * llegar al centro, donde vive el contenido. Van en `rgb()` crudo y no en `var(--wiwo-*)` porque
+   * una luz es un color CON alfa: el token de marca es opaco y no se puede atenuar sin `color-mix`.
+   *
+   * Los tres existen en los DOS temas. Antes el beige era `transparent` en oscuro y la aurora
+   * quedaba con dos manchas en vez de tres: el lienzo oscuro perdia justo la luz calida, que es la
+   * que emparenta los dos temas.
+   *
+   * Las alfas son distintas por tema porque la percepcion lo es: sobre un lienzo claro una luz
+   * SUSTRAE luminosidad y se nota enseguida; sobre uno oscuro la SUMA y necesita menos para leerse.
+   * El beige claro es el mas alto de todos (0.55) porque es la luz que menos se despega del propio
+   * lienzo — con un alfa bajo directamente no existiria. */
+  /* El verde puede ser el mas alto de los tres porque es el que menos riesgo corre: vive al pie de
+   * la barra lateral, donde ninguna de las ocho pantallas pone contenido. Cuando estaba en la
+   * esquina inferior derecha habia que dejarlo casi invisible para que no tiñera las ultimas filas
+   * de una tabla —y aun asi la misma fila terminaba con dos fondos—. La solucion fue moverlo, no
+   * apagarlo. */
+  --aurora-verde: light-dark(rgb(59 255 0 / 0.1), rgb(59 255 0 / 0.09));
+  --aurora-azul: light-dark(rgb(66 66 255 / 0.085), rgb(66 66 255 / 0.08));
+  --aurora-beige: light-dark(rgb(248 250 215 / 0.55), rgb(248 250 215 / 0.06));
 
   --acento-2: light-dark(var(--wiwo-purple), var(--wiwo-purple-300));
   /* El purpura de marca no alcanza como texto en ninguno de los dos temas, por motivos distintos:

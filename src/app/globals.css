@@ -296,17 +296,34 @@
 
 @layer components {
   /*
-   * Las manchas de luz del fondo.
+   * El lienzo del panel: tres luces de marca sobre la superficie.
    *
-   * Van en un `::before` fijo y detras del contenido: fijo para que no se muevan al hacer scroll —una
-   * aurora que scrollea se lee como un objeto, no como luz— y `-z-10` para que ningun panel tenga que
-   * saber que existe.
+   * Va en un `::before` fijo y detras del contenido: fijo para que no se mueva al hacer scroll —una
+   * luz que scrollea se lee como un objeto— y `-z-10` para que ningun panel tenga que saber que
+   * existe. `pointer-events: none` porque cubre la pantalla entera: sin eso se come todos los clics.
    *
-   * `pointer-events: none` porque cubre la pantalla entera: sin eso se come todos los clics.
+   * Las luces viven en el MARCO de la ventana, no repartidas por el fondo: el centro y la mitad
+   * derecha son contenido, y una luz debajo de una tabla es ruido detras de datos. Peor todavia con
+   * el verde, que en este sistema significa "completo": un lavado verde sobre las ultimas filas se
+   * lee como si esas filas tuvieran un estado. Por eso las tres se apoyan en el borde que siempre es
+   * cromo —azul en el vertice del logotipo, calida en el de la cabecera, verde al pie de la barra
+   * lateral— y la unica que llega lejos es la calida, que es la que menos tiñe.
    *
-   * La deriva es lenta a proposito (28s). Es la unica animacion infinita que el proyecto permite sobre
-   * algo siempre visible, y solo porque a esta velocidad no hay nada que perseguir con la vista. Quien
-   * pidio menos movimiento la recibe quieta: lo resuelve el bloque `prefers-reduced-motion` de neo.css.
+   * El verde es el mas chico de los tres a proposito: al pie de la barra lateral no hay contenido en
+   * ninguna de las ocho pantallas, asi que puede tener cuerpo sin caer sobre una fila.
+   *
+   * QUIETO, y esto reemplaza a la excepcion anterior. Cuando la aurora vivia en una sola pantalla, la
+   * deriva de 28s se justificaba como la unica animacion `infinite` que el proyecto permitia sobre
+   * algo siempre visible. Subida al armazon, esa justificacion ya no se sostiene y no se hereda: pasa
+   * a estar debajo de las ocho pantallas, durante toda la jornada de quien trabaja aca. El guardrail
+   * de rendimiento del sistema (`docs/sistema-de-diseno.md`) prohibe el movimiento perpetuo sobre lo
+   * siempre visible justamente en ese escenario, y el movimiento que no comunica un estado no tiene
+   * con que pagarlo. Se conservan los resplandores —que son profundidad— y se descarta la deriva. El
+   * guardrail vuelve a tener cero excepciones, que es mas barato de sostener que una excepcion bien
+   * argumentada.
+   *
+   * Sin animacion no hace falta `background-size: 200%`: los gradientes se resuelven contra la
+   * ventana, que es exactamente donde se los quiere.
    */
   .aurora {
     position: relative;
@@ -319,21 +336,21 @@
     z-index: -10;
     pointer-events: none;
     background-image:
-      radial-gradient(ellipse 60% 40% at 12% 18%, var(--aurora-verde) 0%, transparent 70%),
-      radial-gradient(ellipse 50% 35% at 78% 12%, var(--aurora-azul) 0%, transparent 70%),
-      radial-gradient(ellipse 45% 30% at 50% 6%, var(--aurora-beige) 0%, transparent 75%);
-    background-size: 200% 200%;
-    animation: deriva-aurora 28s var(--wiwo-ease-expressive) infinite alternate;
+      radial-gradient(ellipse 46% 38% at 0% 0%, var(--aurora-azul) 0%, transparent 68%),
+      radial-gradient(ellipse 45% 38% at 100% 0%, var(--aurora-beige) 0%, transparent 72%),
+      radial-gradient(ellipse 22% 26% at 0% 100%, var(--aurora-verde) 0%, transparent 66%);
   }
 
-  @keyframes deriva-aurora {
-    from {
-      background-position: 12% 18%, 78% 12%, 50% 6%;
-    }
-
-    to {
-      background-position: 22% 28%, 68% 22%, 46% 12%;
-    }
+  /*
+   * Una sola capa de luz, aunque haya dos `.aurora` anidadas.
+   *
+   * La clase vive en el armazon del panel, pero el `::before` es `fixed`: dos elementos anidados con
+   * la clase pintarian la MISMA pantalla dos veces y cada resplandor saldria al doble de intensidad.
+   * Como no hay forma de que una pantalla sepa si su armazon ya la puso, lo resuelve el sistema: la
+   * de mas adentro se apaga.
+   */
+  .aurora .aurora::before {
+    content: none;
   }
 
   /*
@@ -355,15 +372,14 @@
 /*
  * El vocabulario de movimiento compartido.
  *
- * Los `@keyframes` viven aca y no dentro de `@theme` por la misma razon que los de la aurora: son
- * CSS del proyecto, no tokens de diseño, y asi se leen al lado de lo unico que ya los usaba.
+ * Los `@keyframes` viven aca y no dentro de `@theme`: son CSS del proyecto, no tokens de diseño.
  *
  * Todo es `opacity` y `transform`. Es la regla de `docs/sistema-de-diseno.md`: son las dos unicas
  * propiedades que el compositor anima sin volver a maquetar ni repintar, y de eso depende que una
  * tabla de cien filas no tironee al aparecer.
  *
- * Ninguna es `infinite`, asi que ninguna cae en la regla que prohibe movimiento perpetuo sobre algo
- * siempre visible. Quien pidio menos movimiento las recibe en 0.01ms: lo resuelve el bloque
+ * Ninguna es `infinite`. Desde que la aurora dejo de derivar, esa regla del sistema no tiene ninguna
+ * excepcion viva, y estos fotogramas tampoco la piden: todos terminan. Quien pidio menos movimiento las recibe en 0.01ms: lo resuelve el bloque
  * `prefers-reduced-motion` de `neo.css`, que ya cubre `animation-duration` sobre `*`.
  */
 @layer components {

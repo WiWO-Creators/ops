@@ -26,7 +26,13 @@ export default async function PanelLayout ({ children }: { children: React.React
     // `h-dvh` y no `min-h-dvh`: el armazon mide exactamente la ventana para que el scroll ocurra
     // dentro de `main` y la barra lateral y la cabecera queden fijas. Con `min-h` el armazon crece
     // con el contenido, y como el `body` no scrollea, lo que sobresale queda inalcanzable.
-    <div className="flex h-dvh overflow-hidden">
+    //
+    // `aurora` va aca y no en cada pantalla: es el lienzo del panel, no un adorno de la portada. Su
+    // capa es un `::before` fijo detras de todo (`globals.css`), asi que no ocupa lugar ni cambia la
+    // maqueta de ninguna de las ocho pantallas — solo les pone luz debajo. La barra lateral y la
+    // cabecera no llevan fondo propio a proposito: comparten el lienzo, y una barra de otro color
+    // partiria la ventana en dos mundos.
+    <div className="aurora flex h-dvh overflow-hidden">
 
       <BarraLateral secciones={secciones} />
 
