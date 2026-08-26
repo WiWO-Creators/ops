@@ -72,10 +72,14 @@ interface PropsOrbe {
   /** `chico` en un boton, `medio` en una fila, `grande` en una tarjeta, `marca` a pantalla completa. */
   tamano?: TamanoOrbe
   /**
-   * Medida libre, para cuando ninguno de los tamaños discretos sirve. Cualquier valor CSS de
-   * longitud: fija el ANCHO y el alto sale de la misma proporcion 245x205 del orbe original. Cuenta
-   * como tamaño grande para el reposo animado: se usa cuando el orbe es el foco de la pantalla.
+   * Medida libre, para cuando ninguno de los tamaños discretos sirve. Fija el ANCHO y el alto sale de
+   * la misma proporcion 245x205 del orbe original. Cuenta como tamaño grande para el reposo animado:
+   * se usa cuando el orbe es el foco de la pantalla.
    * Ej: `clamp(14rem, 22vw, 21rem)` — la que usa el orbe de marca en el acceso.
+   *
+   * **Tiene que ser una longitud absoluta, nunca un porcentaje.** De la medida sale la unidad interna
+   * del orbe (`--orbe-u`), y esa unidad se usa tanto en anchos como en altos: un `%` se resuelve
+   * contra el ancho del contenedor en unos y contra el alto en otros, y el orbe sale aplastado.
    */
   medida?: string
   className?: string
@@ -155,12 +159,16 @@ interface PropsSuperposicion {
    * pantalla entera por una consulta de una tabla es desproporcionado.
    */
   acotada?: boolean
-  tamano?: TamanoOrbe
   estado?: EstadoOrbe
 }
 
 /**
  * Superposicion con el orbe, para una operacion que bloquea.
+ *
+ * Son dos capas con trabajos distintos: el velo atenua lo que hay debajo para decir "esto no se toca
+ * ahora", y adentro va la **ventana** del orbe —la misma que usa `Cargando`—, que lo recorta y le da
+ * un lugar propio. Sin la ventana el halo se derrama sobre el contenido que esta tapando y la
+ * superposicion se lee como una mancha, no como un aviso.
  *
  * `role="status"` con `aria-live="polite"` hace que el mensaje se anuncie sin interrumpir lo que el
  * lector de pantalla este diciendo. El orbe queda fuera del arbol de accesibilidad.
@@ -173,7 +181,6 @@ export function SuperposicionOrbe ({
   mensaje,
   submensaje,
   acotada = false,
-  tamano = 'grande',
   estado = 'thinking'
 }: PropsSuperposicion) {
   const referencia = useRef<HTMLDivElement>(null)
@@ -196,13 +203,23 @@ export function SuperposicionOrbe ({
       role="status"
       aria-live="polite"
       className={cn(
-        'flex flex-col items-center justify-center gap-4 bg-superficie/80 p-8 text-center',
+        'bg-superficie/80 grid place-items-center overflow-hidden p-4',
         acotada ? 'absolute inset-0 z-10' : 'fixed inset-0 z-50'
       )}
     >
-      <Orbe tamano={tamano} estado={estado} />
-      <p className="text-texto text-sm font-medium">{mensaje}</p>
-      {submensaje !== undefined && <p className="text-texto-tenue text-xs">{submensaje}</p>}
+      <div className={cn(
+        'border-linea bg-superficie-hundida rounded-tarjeta shadow-1 grid max-w-full place-items-center gap-3',
+        'overflow-hidden border p-5 text-center'
+      )}
+      >
+        {/* La misma medida que la ventana de `Cargando`: cargar se ve igual en todo el producto, y una
+            superposicion acotada tiene que entrar en el panel que tapa, que puede ser bajo. */}
+        <Orbe medida="4.5rem" estado={estado} />
+        <div className="grid gap-1">
+          <p className="text-texto text-sm font-medium">{mensaje}</p>
+          {submensaje !== undefined && <p className="text-texto-tenue text-xs">{submensaje}</p>}
+        </div>
+      </div>
     </div>
   )
 }

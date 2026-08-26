@@ -70,7 +70,7 @@ export function TableroHitos ({ proyectoId, excluirCompletadas }: PropsTableroHi
   )
   const adaptar = useCallback((cuerpo: CuerpoMover) => cuerpoMoverHito(cuerpo), [])
 
-  if (estado.fase === 'cargando') return <Cargando filas={1} alto="h-64" />
+  if (estado.fase === 'cargando') return <Cargando alto="min-h-64" mensaje="Cargando los hitos…" />
   if (estado.fase === 'error') return <ErrorEstado detalle={estado.mensaje} onReintentar={recargar} />
 
   if (ordenar(estado.datos).length === 0) {

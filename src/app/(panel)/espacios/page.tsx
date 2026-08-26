@@ -92,7 +92,7 @@ export default async function EspaciosPage (props: PageProps<'/espacios'>) {
     <section className="flex flex-col gap-4">
       <h1 className="text-xl font-semibold text-texto">{ESPACIOS.titulo.plural}</h1>
 
-      <Suspense fallback={<Cargando />}>
+      <Suspense fallback={<Cargando alto="min-h-36" mensaje={`Cargando ${ESPACIOS.titulo.plural.toLowerCase()}…`} />}>
         <VistaEspacios
           inicial={{ filas: lista.data, paginacion: lista.meta?.pagination }}
           capacidades={yo.data.permissions.projects}

@@ -69,7 +69,7 @@ export function PanelDescripcion ({
         />
 
         <div className="flex flex-col gap-4">
-          {carga.fase === 'cargando' && <Cargando filas={2} alto="h-24" />}
+          {carga.fase === 'cargando' && <Cargando alto="min-h-52" mensaje="Cargando los indicadores…" />}
           {carga.fase === 'error' && <ErrorEstado detalle={carga.mensaje} onReintentar={recargar} />}
           {carga.fase === 'listo' && <Indicadores resumen={carga.datos} />}
 

@@ -33,7 +33,7 @@ const LISTAS = [
 export function PanelVentas ({ proyectoId }: { proyectoId: number }): ReactElement {
   // Lee `useSearchParams`: sin este limite de Suspense el build de la pagina falla.
   return (
-    <Suspense fallback={<Cargando filas={6} />}>
+    <Suspense fallback={<Cargando mensaje="Cargando las ventas…" />}>
       <VentasDelProyecto proyectoId={proyectoId} />
     </Suspense>
   )

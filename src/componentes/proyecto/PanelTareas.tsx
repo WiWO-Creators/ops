@@ -54,7 +54,7 @@ export function PanelTareas ({ proyectoId, capacidades }: PropsPanelTareas): Rea
   // `TablaRecurso` y el propio panel leen `useSearchParams`. Sin este limite de Suspense el build de
   // cualquier pagina que los monte falla, y esa pagina la escribe otra persona.
   return (
-    <Suspense fallback={<Cargando filas={6} />}>
+    <Suspense fallback={<Cargando mensaje="Cargando las tareas…" />}>
       <TareasDelProyecto proyectoId={proyectoId} capacidades={capacidades} />
     </Suspense>
   )
@@ -133,7 +133,7 @@ function TareasDelProyecto ({ proyectoId, capacidades }: PropsPanelTareas): Reac
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [proyectoId, enTablero, intento])
 
-  if (carga.fase === 'cargando') return <Cargando filas={6} />
+  if (carga.fase === 'cargando') return <Cargando mensaje="Cargando las tareas…" />
 
   if (carga.fase === 'error') {
     return <ErrorEstado detalle={carga.mensaje} onReintentar={recargar} />
@@ -144,7 +144,7 @@ function TareasDelProyecto ({ proyectoId, capacidades }: PropsPanelTareas): Reac
   // los deja vacios para siempre. Se espera a que llegue lo que corresponde.
   const esperandoLaOtraVista = carga.esTablero !== enTablero
 
-  if (esperandoLaOtraVista) return <Cargando filas={6} />
+  if (esperandoLaOtraVista) return <Cargando mensaje="Cargando las tareas…" />
 
   /** Escribe la URL conservando lo que no toca. `replace` para no llenar el historial. */
   function irA (cambiar: (siguientes: URLSearchParams) => void): void {

@@ -59,7 +59,7 @@ export function DetalleTarea ({ procesoId, className }: PropsDetalleTarea): Reac
     return () => { control.abort() }
   }, [procesoId, intento])
 
-  if (carga.fase === 'cargando') return <Cargando filas={6} className={className} />
+  if (carga.fase === 'cargando') return <Cargando mensaje="Cargando la tarea…" className={className} />
 
   if (carga.fase === 'noEncontrada') {
     return (

@@ -38,7 +38,7 @@ export default async function ProcesosPage (props: PageProps<'/procesos'>) {
         </Link>
       </header>
 
-      <Suspense fallback={<Cargando />}>
+      <Suspense fallback={<Cargando alto="min-h-36" mensaje={`Cargando ${PROCESOS.titulo.plural.toLowerCase()}…`} />}>
         <TablaProcesos
           inicial={{ filas: lista.data, paginacion: lista.meta?.pagination }}
           capacidades={yo.data.permissions.tasks}

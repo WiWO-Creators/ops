@@ -197,7 +197,7 @@ export default async function ProyectoPage (props: PageProps<'/espacios/[id]'>) 
         capacidadesTareas={capacidadesTareas}
       />
 
-      <Suspense fallback={<Cargando />}>
+      <Suspense fallback={<Cargando alto="min-h-36" mensaje="Cargando el detalle…" />}>
         <Pestanas paneles={paneles} />
       </Suspense>
     </section>

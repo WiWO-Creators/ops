@@ -90,7 +90,7 @@ export function Cronometros ({ procesoId, className }: PropsCronometros): ReactE
 
   if (error !== null) return <ErrorEstado detalle={error} onReintentar={recargar} className={className} />
 
-  if (datos === null) return <Cargando filas={3} className={className} />
+  if (datos === null) return <Cargando alto="min-h-36" mensaje="Cargando los cronómetros…" className={className} />
 
   /** Arranca o detiene, y vuelve a leer del servidor: arrancar cierra otros cronometros y puede mover el estado. */
   async function accionar (metodo: 'POST' | 'DELETE'): Promise<void> {

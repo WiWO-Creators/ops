@@ -197,7 +197,7 @@ export function PanelTiempos ({ proyectoId, capacidades }: PropsPanelTiempos): R
         </p>
       )}
 
-      {carga.fase === 'cargando' && <Cargando filas={5} />}
+      {carga.fase === 'cargando' && <Cargando alto="min-h-60" mensaje="Cargando las horas…" />}
 
       {carga.fase === 'error' && (
         <ErrorEstado detalle={carga.mensaje} onReintentar={recargar} />

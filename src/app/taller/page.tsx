@@ -154,13 +154,13 @@ export default function TallerPage () {
 
       <SeccionTaller
         titulo="Estados"
-        nota="Un vacío sin salida deja a la persona sin saber qué hacer. “Sin permiso” no ofrece reintentar, porque no hay nada que reintentar. En el bloque de carga las filas sólo reservan el alto —para que la pantalla no salte cuando llegan los datos— y el que comunica que hay algo en curso es el orbe."
+        nota="Un vacío sin salida deja a la persona sin saber qué hacer. “Sin permiso” no ofrece reintentar, porque no hay nada que reintentar. Cargar se comunica de una sola forma en todo el producto: el orbe dentro de su ventana. La ventana recorta el halo —si no, se derrama sobre lo que tiene al lado— y su alto reserva el hueco del contenido que viene, para que la pantalla no salte al llegar."
       >
-        <Muestra etiqueta="cargando: panel entero" className="w-full">
-          <Cargando filas={3} className="w-full" />
+        <Muestra etiqueta="cargando: panel entero, sin mensaje" className="w-full">
+          <Cargando alto="min-h-36" className="w-full" />
         </Muestra>
-        <Muestra etiqueta="cargando: dentro de una tarjeta" className="w-full max-w-xs">
-          <Cargando filas={2} alto="h-6" tamano="medio" className="w-full" />
+        <Muestra etiqueta="cargando: dentro de una tarjeta, con mensaje" className="w-full max-w-xs">
+          <Cargando alto="min-h-40" mensaje="Cargando las tareas…" className="w-full" />
         </Muestra>
         <Muestra etiqueta="vacío" className="w-full">
           <Vacio

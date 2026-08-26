@@ -81,7 +81,7 @@ export function PanelProyectosCliente ({ clienteId, estados }: Props) {
     return () => { control.abort() }
   }, [clienteId, intento])
 
-  if (carga.fase === 'cargando') return <Cargando filas={5} />
+  if (carga.fase === 'cargando') return <Cargando alto="min-h-60" mensaje="Cargando los proyectos…" />
   if (carga.fase === 'error') return <ErrorEstado detalle={carga.mensaje} onReintentar={reintentar} />
 
   const { proyectos, paginacion } = carga

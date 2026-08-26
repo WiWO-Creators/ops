@@ -32,7 +32,7 @@ export default async function EquipoPage (props: PageProps<'/equipo'>) {
   return (
     <section className="flex flex-col gap-4">
       <h1 className="text-xl font-semibold text-texto">{EQUIPO.titulo.plural}</h1>
-      <Suspense fallback={<Cargando />}>
+      <Suspense fallback={<Cargando alto="min-h-36" mensaje={`Cargando ${EQUIPO.titulo.plural.toLowerCase()}…`} />}>
         <TablaEquipo
           inicial={{ filas: lista.data, paginacion: lista.meta?.pagination }}
           capacidades={yo.data.permissions.staff}

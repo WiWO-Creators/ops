@@ -261,14 +261,37 @@ El detalle que lo hace ver vivo y no en bucle: **las cinco duraciones son primas
 (4200 / 6200 / 7200 / 5400 / 2800 ms), así que el ciclo compuesto prácticamente no se repite. Cambiar
 una a un número redondo lo vuelve mecánico.
 
-| Forma | Tamaño | Uso |
+| `tamano` | Medida | Uso |
 |---|---|---|
-| Inline | 24 px | Dentro de un botón o una fila. Oculta dos de los tres destellos, que a ese tamaño se amontonan |
-| Acotado | 42 px | Sobre el contenedor de la operación, no sobre la pantalla |
-| Completo | 130 px | Operación que bloquea |
+| `chico` | 28 px | Dentro de un botón o una fila |
+| `medio` | 56 px | En una tarjeta o una respuesta en línea |
+| `grande` | 180 px | Operación que bloquea |
+| `marca` | `clamp(245px, 28vw, 410px)` | Cuando el orbe **es** la pantalla: el acceso |
+
+La medida que se le pide es el **hueco que ocupa, halo incluido**: el cuerpo se dibuja al 58 % de esa
+caja y el resto queda para el halo. Con `medida` se le pasa cualquier longitud CSS y el orbe se
+dimensiona con la caja, que es lo que usa la ventana de carga.
 
 Es `aria-hidden`: **lo que se anuncia es el texto**, dentro de un `role="status"` con
 `aria-live="polite"`.
+
+### Un solo lenguaje de carga
+
+No hay esqueletos en el producto. Toda espera se comunica igual: **el orbe dentro de su ventana**
+(`Cargando`, en `src/componentes/estado/Estados.tsx`).
+
+La ventana es un panel del sistema —superficie hundida, línea, radio de tarjeta— con `overflow:
+hidden`. Hace dos cosas que hay que entender juntas:
+
+1. **Recorta el halo.** El orbe desborda su caja por diseño, y sin recorte se derrama sobre el texto
+   de al lado: se lee como una mancha, no como un indicador. En neo.wiwo.me ese recorte lo hace la
+   tarjeta del showcase; acá no existía ninguna.
+2. **Reserva el hueco** del contenido que viene, con su `alto`, para que la pantalla no salte al
+   llegar los datos. Ese era el trabajo de las filas de esqueleto que se retiraron.
+
+Al salir de tokens, el color de la ventana sigue al tema de la aplicación. La superposición que
+bloquea usa la misma ventana adentro de su velo. Las dos excepciones: el orbe de un botón —la píldora
+ya es su marco— y el orbe de marca del acceso, que no es un indicador sino la mascota.
 
 ### Quieto en reposo, y por qué
 
@@ -283,17 +306,15 @@ nada, y con la mascota siempre presente eso se paga en cada pestaña abierta.
 
 Además comunica mejor: si se moviera siempre, moverse dejaría de significar "está pasando algo".
 
-### Las dos excepciones al desenfoque
+### El orbe no pide excepción al desenfoque
 
-Ambas acotadas, ambas documentadas:
+Sus capas usan `filter: blur()` sobre **capa propia**, que no es `backdrop-filter` y no tiene nada que
+ver con desenfocar lo que hay detrás. La versión final de neo apaga el `backdrop-filter`
+explícitamente, y el generador borra las declaraciones muertas que lo prendían: la hoja del orbe no
+lo enciende en ninguna regla y `pruebas/marca.test.js` lo verifica leyendo el archivo.
 
-1. El velo usa `filter: blur(6px)` sobre **su propia capa** de 24 a 130 px. No es `backdrop-filter`, y
-   no tiene nada que ver con desenfocar todo lo que hay detrás.
-2. La superposición sí usa `backdrop-filter: blur(4px)`, y es la única del sistema. Se justifica
-   porque es **transitoria**: se monta al empezar la operación y se desmonta al terminar.
-
-La prohibición general sigue en pie para todo lo que esté siempre en pantalla, y la prueba lo
-verifica.
+La única superficie del sistema con `backdrop-filter` es `.panel-vidrio`, con su propia excepción
+declarada. La prohibición general sigue en pie para todo lo que esté siempre en pantalla.
 
 ## Decisiones que salieron de construir, no de planear
 

@@ -53,7 +53,7 @@ export function GraficoHoras ({ proyectoId }: { proyectoId: number }): ReactElem
         </div>
       </div>
 
-      {estado.fase === 'cargando' && <Cargando filas={1} alto="h-40" />}
+      {estado.fase === 'cargando' && <Cargando alto="min-h-40" mensaje="Cargando el gráfico…" />}
       {estado.fase === 'error' && <ErrorEstado detalle={estado.mensaje} onReintentar={recargar} />}
       {estado.fase === 'listo' && <Barras grafico={estado.datos} />}
     </section>

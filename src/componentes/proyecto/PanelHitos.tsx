@@ -47,7 +47,7 @@ interface PropsPanelHitos {
 export function PanelHitos (props: PropsPanelHitos): ReactElement {
   // Lee `useSearchParams`: sin este limite de Suspense el build de la pagina falla.
   return (
-    <Suspense fallback={<Cargando filas={6} />}>
+    <Suspense fallback={<Cargando mensaje="Cargando los hitos…" />}>
       <HitosDelProyecto {...props} />
     </Suspense>
   )

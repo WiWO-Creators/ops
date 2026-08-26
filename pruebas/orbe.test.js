@@ -19,6 +19,7 @@ const leer = (ruta) => readFileSync(new URL(ruta, import.meta.url), 'utf8')
 
 const css = leer('../src/estilos/thinking-orb.css')
 const componente = leer('../src/componentes/estado/Orbe.tsx')
+const estados = leer('../src/componentes/estado/Estados.tsx')
 
 /** Los comentarios del proyecto nombran lo que esta prohibido para explicar por que: hay que sacarlos. */
 const sinComentarios = (fuente) => fuente.replace(/\/\*[\s\S]*?\*\//g, '')
@@ -169,6 +170,25 @@ test('toda variable que el orbe usa esta definida', () => {
 test('no quedan rastros del showcase de donde salio', () => {
   assert.ok(!css.includes('.thinking-orb-demo'),
     '`.thinking-orb-demo` era el contenedor de la demo: aca el orbe es un componente de producto')
+})
+
+test('cargar se comunica de una sola forma: el orbe en su ventana', () => {
+  /*
+   * Antes `Cargando` hacia las dos cosas a la vez —filas de esqueleto Y el orbe superpuesto encima—,
+   * y el halo se derramaba sobre las filas y sobre el texto de al lado. Se eligio un solo lenguaje:
+   * el orbe, siempre dentro de una ventana que lo recorta. Sin esta prueba, la primera vez que
+   * alguien quiera "reservar el alto" vuelve a aparecer una fila gris debajo del orbe.
+   */
+  const bloque = estados.slice(estados.indexOf('export function Cargando'))
+
+  assert.ok(
+    !/bg-relleno-neutro/.test(bloque),
+    'volvieron las filas de esqueleto: el producto comunica la carga con el orbe, no con las dos cosas'
+  )
+  assert.match(bloque, /overflow-hidden/,
+    'la ventana dejo de recortar: sin recorte el halo se derrama sobre lo que tiene al lado')
+  assert.match(bloque, /bg-superficie-hundida/,
+    'la ventana dejo de usar la superficie del sistema, que es la que sigue al tema de la aplicacion')
 })
 
 test('el orbe queda fuera del arbol de accesibilidad', () => {

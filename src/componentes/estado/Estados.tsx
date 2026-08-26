@@ -1,4 +1,4 @@
-import { Orbe, type TamanoOrbe } from '@/componentes/estado/Orbe'
+import { Orbe } from '@/componentes/estado/Orbe'
 import { cn } from '@/lib/clases'
 
 interface PropsVacio {
@@ -78,39 +78,55 @@ export function SinPermiso ({ className }: { className?: string }) {
 }
 
 /**
- * Bloque de carga.
+ * Bloque de carga: el orbe en su ventana.
  *
- * Reparte el trabajo en dos: las filas neutras reservan el alto real del contenido que viene, para
- * que la pantalla no salte cuando llega, y el orbe centrado encima es el que dice que hay algo en
- * curso. Por eso las filas ya no pulsan: quedan quietas y el unico movimiento es el del orbe, que se
- * desmonta apenas hay datos — la regla prohibe animaciones infinitas en elementos siempre visibles.
+ * El producto tiene un solo lenguaje para decir "esto viene en camino", y es el orbe. Antes esto
+ * dibujaba ademas filas neutras que reservaban el alto, con el orbe superpuesto encima: el halo se
+ * derramaba sobre las filas y sobre el texto de al lado, y no se entendia quien estaba cargando.
  *
- * @param filas cuantas lineas se dibujan
- * @param alto alto de cada linea, en utilidades de Tailwind
- * @param tamano medida del orbe: `chico` en linea, `medio` en una tarjeta, `grande` en un panel
- * @param className clases extra del contenedor
- * @returns el bloque que ocupa el lugar del contenido mientras se lo espera
+ * La ventana resuelve las dos cosas a la vez. `overflow-hidden` **recorta el halo**, que es lo que el
+ * orbe necesita para no fusionarse con lo que tiene alrededor —en neo.wiwo.me ese recorte lo hacia la
+ * tarjeta del showcase; aca no habia ninguna—, y el `alto` reserva el hueco del contenido que viene,
+ * para que la pantalla no salte al llegar.
+ *
+ * El panel es el mismo patron que ya usa la columna del tablero: superficie hundida, linea y radio de
+ * tarjeta. Al salir de tokens, el color sigue al tema de la aplicacion.
+ *
+ * La unica animacion es la del orbe, que se desmonta apenas hay datos: la regla del proyecto prohibe
+ * animaciones infinitas en elementos SIEMPRE visibles, no en las que duran lo que dura la espera.
+ *
+ * @param alto utilidad de alto minimo que reserva el hueco del contenido. Ej: `min-h-40`
+ * @param mensaje que se esta trayendo. Sin el, la espera se anuncia igual, solo para lector de pantalla
+ * @param className clases extra de la ventana
+ * @returns la ventana que ocupa el lugar del contenido mientras se lo espera
  */
 export function Cargando ({
-  filas = 3,
-  alto = 'h-10',
-  tamano = 'grande',
+  alto = 'min-h-72',
+  mensaje,
   className
 }: {
-  filas?: number
   alto?: string
-  tamano?: TamanoOrbe
+  mensaje?: string
   className?: string
 }) {
   return (
-    <div className={cn('relative flex flex-col gap-2', className)} aria-busy="true" aria-live="polite">
-      <span className="sr-only">Cargando…</span>
-      {Array.from({ length: filas }, (_, i) => (
-        <div key={i} aria-hidden="true" className={cn('bg-relleno-neutro rounded-chico', alto)} />
-      ))}
-      <span className="pointer-events-none absolute inset-0 flex items-center justify-center">
-        <Orbe tamano={tamano} estado="thinking" />
-      </span>
+    <div
+      role="status"
+      aria-busy="true"
+      aria-live="polite"
+      className={cn(
+        'border-linea bg-superficie-hundida rounded-tarjeta grid place-items-center gap-3',
+        'overflow-hidden border p-4',
+        alto,
+        className
+      )}
+    >
+      {/* Una sola medida para toda ventana, chica o grande: cargar se ve igual en todo el producto, y
+          entra hasta en la ventana mas baja. La medida es absoluta a proposito — ver `medida`. */}
+      <Orbe medida="4.5rem" estado="thinking" />
+      {mensaje === undefined
+        ? <span className="sr-only">Cargando…</span>
+        : <p className="text-texto-tenue text-sm">{mensaje}</p>}
     </div>
   )
 }

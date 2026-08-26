@@ -172,7 +172,7 @@ export default async function ClientePage (props: PageProps<'/clientes/[id]'>) {
     <section className="flex flex-col gap-6">
       <CabeceraCliente cliente={cliente} />
 
-      <Suspense fallback={<Cargando />}>
+      <Suspense fallback={<Cargando alto="min-h-36" mensaje="Cargando el detalle…" />}>
         <Pestanas paneles={paneles} />
       </Suspense>
     </section>

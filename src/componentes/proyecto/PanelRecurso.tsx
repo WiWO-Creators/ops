@@ -43,7 +43,7 @@ export function PanelRecurso<T> (props: PropsPanelRecurso<T>): ReactElement {
   // `TablaRecurso` y este panel leen `useSearchParams`. Sin este limite de Suspense falla el build de
   // cualquier pagina que los monte.
   return (
-    <Suspense fallback={<Cargando filas={6} />}>
+    <Suspense fallback={<Cargando mensaje={`Cargando ${props.definicion.titulo.plural.toLowerCase()}…`} />}>
       <ListaDelProyecto {...props} />
     </Suspense>
   )
@@ -105,7 +105,7 @@ function ListaDelProyecto<T> ({
     return (
       <div className="flex flex-col gap-3">
         {barra}
-        <Cargando filas={6} />
+        <Cargando mensaje={`Cargando ${definicion.titulo.plural.toLowerCase()}…`} />
       </div>
     )
   }

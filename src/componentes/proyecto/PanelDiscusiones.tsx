@@ -42,7 +42,7 @@ interface PropsPanelDiscusiones {
 export function PanelDiscusiones (props: PropsPanelDiscusiones): ReactElement {
   // Lee `useSearchParams`: sin este limite de Suspense el build de la pagina falla.
   return (
-    <Suspense fallback={<Cargando filas={6} />}>
+    <Suspense fallback={<Cargando mensaje="Cargando las discusiones…" />}>
       <DiscusionesDelProyecto {...props} />
     </Suspense>
   )
@@ -190,7 +190,7 @@ function DetalleDiscusion ({ discusionId }: { discusionId: number }): ReactEleme
         ← Volver a las discusiones
       </Boton>
 
-      {estado.fase === 'cargando' && <Cargando filas={4} />}
+      {estado.fase === 'cargando' && <Cargando alto="min-h-48" mensaje="Cargando los comentarios…" />}
       {estado.fase === 'error' && <ErrorEstado detalle={estado.mensaje} onReintentar={recargar} />}
 
       {estado.fase === 'listo' && estado.datos.length === 0 && (

@@ -140,7 +140,7 @@ export function PanelGantt ({ proyectoId }: { proyectoId: number }): ReactElemen
         )}
       </div>
 
-      {estado.fase === 'cargando' && <Cargando filas={6} />}
+      {estado.fase === 'cargando' && <Cargando mensaje="Cargando el Gantt…" />}
       {estado.fase === 'error' && <ErrorEstado detalle={estado.mensaje} onReintentar={recargar} />}
       {estado.fase === 'listo' && (
         <Diagrama grupos={estado.datos} zoomPedido={params.get(PARAMETRO.zoom)} />
