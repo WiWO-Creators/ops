@@ -2,7 +2,7 @@
 
 import { ATRIBUTO_ABATIDA, CLAVE_BARRA } from '@/lib/barra-lateral'
 
-import Link from 'next/link'
+import Link, { useLinkStatus } from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useSyncExternalStore } from 'react'
 import { Building2, FolderKanban, House, ListChecks, Menu, PanelLeftClose, PanelLeftOpen, Users } from 'lucide-react'
@@ -118,6 +118,37 @@ interface PropsEnlaceSeccion extends Omit<React.ComponentProps<typeof Link>, 'hr
 }
 
 /**
+ * El punto que dice "ya te escuche, la pantalla viene en camino".
+ *
+ * Vive en su propio componente por obligacion del hook: `useLinkStatus` solo ve el estado si quien
+ * lo llama es descendiente del `<Link>`; llamado dentro de `EnlaceSeccion` devolveria siempre
+ * `pending: false`.
+ *
+ * Esta siempre en el arbol y absoluto, y lo unico que cambia es la opacidad: montarlo al hacer clic
+ * correria la etiqueta justo cuando la persona le acaba de apuntar, y en el riel angosto —donde el
+ * item es una columna— agregaria una linea mas de alto.
+ *
+ * Los 100ms de retraso son lo que separa "esto tarda" de un parpadeo. Con la ruta ya prefetcheada la
+ * navegacion termina antes de que el punto se vea, que es exactamente lo que se quiere: el
+ * indicador aparece solo cuando hubo espera que comunicar.
+ *
+ * @returns el punto, invisible salvo que la navegacion tarde
+ */
+function PuntoPendiente () {
+  const { pending } = useLinkStatus()
+
+  return (
+    <span
+      aria-hidden="true"
+      className={cn(
+        'pointer-events-none absolute right-1.5 top-1/2 size-1.5 -translate-y-1/2 rounded-full bg-current opacity-0',
+        pending && 'animate-aparecer [animation-delay:100ms]'
+      )}
+    />
+  )
+}
+
+/**
  * Un item de navegacion, compartido por el riel de escritorio y el cajon de movil.
  *
  * La etiqueta es siempre texto visible, tambien en el riel angosto: un `title` no lo lee un lector
@@ -125,6 +156,13 @@ interface PropsEnlaceSeccion extends Omit<React.ComponentProps<typeof Link>, 'hr
  *
  * Reenvia el resto de las props al `<Link>` para que `CerrarCajon asChild` pueda inyectarle su
  * `onClick` y su `ref`; sin eso el cajon de movil no se cerraria al navegar.
+ *
+ * La barrita del item activo lleva un `view-transition-name` compartido: al navegar, el navegador
+ * ve el mismo nombre en la pantalla vieja y en la nueva, e interpola la posicion entre las dos. Asi
+ * el indicador se desliza de una seccion a la otra sin medir nada con JS. El nombre tiene que ser
+ * unico en el documento, y por eso la barrita solo se pinta desde `md`: por debajo de ese corte el
+ * riel esta oculto y quien navega es el cajon, que renderiza estos mismos items. Fuera del riel el
+ * color y el `aria-current` ya dicen cual es la seccion actual.
  */
 function EnlaceSeccion ({ seccion, ruta, className, ...resto }: PropsEnlaceSeccion) {
   const Icono = ICONOS[seccion.icono]
@@ -135,14 +173,22 @@ function EnlaceSeccion ({ seccion, ruta, className, ...resto }: PropsEnlaceSecci
       href={seccion.href}
       aria-current={activa ? 'page' : undefined}
       className={cn(
-        'rounded-chico flex items-center gap-2 px-2 py-1.5 text-sm transition-colors',
+        'rounded-chico relative flex items-center gap-2 px-2 py-1.5 text-sm transition-colors',
         activa ? 'bg-acento/10 text-acento font-semibold' : 'text-texto-tenue hover:bg-hover hover:text-texto',
         className
       )}
       {...resto}
     >
+      {activa && (
+        <span
+          aria-hidden="true"
+          style={{ viewTransitionName: 'seccion-activa' }}
+          className="bg-acento pointer-events-none absolute inset-y-1 left-0 hidden w-0.5 rounded-full md:block"
+        />
+      )}
       <Icono size={20} strokeWidth={2} aria-hidden="true" className="shrink-0" />
       <span className="truncate">{seccion.etiqueta}</span>
+      <PuntoPendiente />
     </Link>
   )
 }

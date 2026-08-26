@@ -49,8 +49,11 @@ export default async function InicioPage () {
   const grupos = agruparPorVencimiento(procesos)
   const restantes = cuantosNoListados(procesos, total)
 
+  // La aurora no lleva alto ni `overflow-y-auto`: el scroll de la pantalla es el del armazon. Un
+  // segundo contenedor scrolleable aca daba dos barras superpuestas y dejaba al Inicio fuera del
+  // scroll suave. Su capa de luz es `fixed`, asi que no necesita alto propio.
   return (
-    <div className="aurora h-full overflow-y-auto">
+    <div className="aurora">
       <div className="mx-auto flex max-w-5xl flex-col gap-10 px-1 py-6 sm:py-10">
         <Saludo nombre={yo.firstname} />
 

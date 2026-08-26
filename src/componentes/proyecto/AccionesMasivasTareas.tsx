@@ -297,7 +297,9 @@ function ControlDeAccion ({
       <fieldset className="flex flex-col gap-1.5">
         <legend className="text-texto text-sm font-medium">Personas</legend>
 
-        <ul className="border-linea rounded-medio max-h-64 overflow-y-auto border">
+        {/* Scroller vertical dentro del scroller del armazon: `data-lenis-prevent` le devuelve la
+            rueda al navegador, que es lo que se espera de una lista acotada dentro de un panel. */}
+        <ul data-lenis-prevent className="border-linea rounded-medio max-h-64 overflow-y-auto border">
           {personal.length === 0 && (
             <li className="p-3">
               <CargandoConOrbe mensaje="Cargando el equipo…" retardoMs={0} />

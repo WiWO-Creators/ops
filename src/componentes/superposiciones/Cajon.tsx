@@ -32,7 +32,12 @@ export function ContenidoCajon ({
 }: PropsContenidoCajon) {
   return (
     <Radix.Portal>
-      <Radix.Overlay className="bg-superficie-inversa/40 fixed inset-0 z-50" />
+      <Radix.Overlay
+        className={cn(
+          'bg-superficie-inversa/40 fixed inset-0 z-50',
+          'data-[state=open]:animate-aparecer data-[state=closed]:animate-desaparecer'
+        )}
+      />
       <Radix.Content
         className={cn(
           'border-linea bg-superficie-flotante shadow-flotante fixed z-50 flex flex-col',
@@ -40,6 +45,11 @@ export function ContenidoCajon ({
           'rounded-t-tarjeta inset-x-0 bottom-0 max-h-[85dvh] border-t',
           // Desde tablet: panel lateral de alto completo.
           'sm:rounded-l-tarjeta sm:inset-y-0 sm:left-auto sm:right-0 sm:max-h-none sm:w-[28rem] sm:rounded-t-none sm:border-l sm:border-t-0',
+          // El movimiento sigue la misma division que la posicion: el panel entra por donde esta.
+          // Son `animation` y no `transition` a proposito — Radix mantiene el nodo montado durante
+          // el cierre solo si detecta una animacion CSS; con una transicion la salida no se veria.
+          'data-[state=open]:animate-entrar-hoja data-[state=closed]:animate-salir-hoja',
+          'sm:data-[state=open]:animate-entrar-derecha sm:data-[state=closed]:animate-salir-derecha',
           className
         )}
         {...resto}

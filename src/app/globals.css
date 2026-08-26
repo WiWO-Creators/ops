@@ -114,6 +114,25 @@
   --ease-neo: var(--wiwo-ease-emphasized);
   --ease-expresivo: var(--wiwo-ease-expressive);
 
+  /*
+   * Las siete formas de entrar y salir que usa toda la interfaz.
+   *
+   * Son pares: lo que entra de una manera sale por donde vino. Estan aca y no sueltas en cada
+   * componente para que un cajon, un dialogo y un menu no terminen con tres velocidades distintas.
+   *
+   * Las salidas duran menos que las entradas a proposito: esperar a que algo se vaya es tiempo
+   * muerto, mientras que ver aparecer algo es informacion.
+   */
+  --animate-aparecer: aparecer var(--wiwo-motion-fast) var(--wiwo-ease-emphasized) both;
+  --animate-desaparecer: desaparecer var(--wiwo-motion-fast) var(--wiwo-ease-emphasized) both;
+  --animate-entrar-escala: entrar-escala var(--wiwo-motion-fast) var(--wiwo-ease-expressive) both;
+  --animate-salir-escala: salir-escala 120ms var(--wiwo-ease-emphasized) both;
+  --animate-entrar-derecha: entrar-derecha var(--wiwo-motion-medium) var(--wiwo-ease-emphasized) both;
+  --animate-salir-derecha: salir-derecha var(--wiwo-motion-fast) var(--wiwo-ease-emphasized) both;
+  --animate-entrar-hoja: entrar-hoja var(--wiwo-motion-medium) var(--wiwo-ease-emphasized) both;
+  --animate-salir-hoja: salir-hoja var(--wiwo-motion-fast) var(--wiwo-ease-emphasized) both;
+  --animate-entrar-abajo: entrar-abajo var(--wiwo-motion-fast) var(--wiwo-ease-emphasized) both;
+
   /* Escala tipografica fluida, portada de Neo. Antes se usaba sin definir. */
   --text-menor: var(--step--1);
   --text-base: var(--step-0);
@@ -136,6 +155,26 @@
   --color-grafico-7: var(--grafico-7);
   --color-grafico-8: var(--grafico-8);
   --color-grafico-rejilla: var(--grafico-rejilla);
+}
+
+/*
+ * Las tres duraciones de `tokens.css`, como utilidades.
+ *
+ * Van como `@utility` y no como tokens `--duration-*` del tema porque `duration-*` no lee ningun
+ * espacio de nombres del tema: es de las pocas utilidades de Tailwind que solo acepta un numero o un
+ * valor arbitrario. Sin esto, cada componente termina inventando su propio `duration-[280ms]` —que
+ * es exactamente lo que hacia la barra lateral— y las duraciones del sistema quedan de adorno.
+ */
+@utility duration-rapida {
+  transition-duration: var(--wiwo-motion-fast);
+}
+
+@utility duration-media {
+  transition-duration: var(--wiwo-motion-medium);
+}
+
+@utility duration-lenta {
+  transition-duration: var(--wiwo-motion-slow);
 }
 
 @layer base {
@@ -310,5 +349,150 @@
     -webkit-background-clip: text;
     background-clip: text;
     color: transparent;
+  }
+}
+
+/*
+ * El vocabulario de movimiento compartido.
+ *
+ * Los `@keyframes` viven aca y no dentro de `@theme` por la misma razon que los de la aurora: son
+ * CSS del proyecto, no tokens de diseño, y asi se leen al lado de lo unico que ya los usaba.
+ *
+ * Todo es `opacity` y `transform`. Es la regla de `docs/sistema-de-diseno.md`: son las dos unicas
+ * propiedades que el compositor anima sin volver a maquetar ni repintar, y de eso depende que una
+ * tabla de cien filas no tironee al aparecer.
+ *
+ * Ninguna es `infinite`, asi que ninguna cae en la regla que prohibe movimiento perpetuo sobre algo
+ * siempre visible. Quien pidio menos movimiento las recibe en 0.01ms: lo resuelve el bloque
+ * `prefers-reduced-motion` de `neo.css`, que ya cubre `animation-duration` sobre `*`.
+ */
+@layer components {
+  @keyframes aparecer {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+
+  @keyframes desaparecer {
+    from { opacity: 1; }
+    to { opacity: 0; }
+  }
+
+  /* La escala arranca en .96 y no en .8: por debajo de eso el panel se lee como que llega volando
+   * desde el fondo, y un dialogo no viene de ningun lado — aparece donde estaba. */
+  @keyframes entrar-escala {
+    from { opacity: 0; transform: scale(0.96); }
+    to { opacity: 1; transform: scale(1); }
+  }
+
+  @keyframes salir-escala {
+    from { opacity: 1; transform: scale(1); }
+    to { opacity: 0; transform: scale(0.96); }
+  }
+
+  /* Panel lateral (tablet en adelante). Entra entero desde fuera de la ventana. */
+  @keyframes entrar-derecha {
+    from { transform: translateX(100%); }
+    to { transform: translateX(0); }
+  }
+
+  @keyframes salir-derecha {
+    from { transform: translateX(0); }
+    to { transform: translateX(100%); }
+  }
+
+  /* Hoja inferior (movil). Mismo gesto que el panel lateral, sobre el otro eje. */
+  @keyframes entrar-hoja {
+    from { transform: translateY(100%); }
+    to { transform: translateY(0); }
+  }
+
+  @keyframes salir-hoja {
+    from { transform: translateY(0); }
+    to { transform: translateY(100%); }
+  }
+
+  /*
+   * La entrada de todo lo que es contenido: una pagina, una fila, una tarjeta.
+   *
+   * Ocho pixeles y no mas. El desplazamiento esta para dar direccion —el contenido viene de abajo,
+   * como si el scroll lo hubiera traido—, no para que se note el viaje.
+   */
+  @keyframes entrar-abajo {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+}
+
+/*
+ * La transicion entre paginas del panel.
+ *
+ * Aca no se anima ningun elemento del DOM: quien se mueve son los dos fotogramas que el navegador
+ * saca al navegar —el de la pagina que se va y el de la que llega—, marcados con la clase `pagina`
+ * por el `<ViewTransition>` de `(panel)/template.tsx`. Por eso las reglas son pseudo-elementos y no
+ * utilidades `animate-*`, y por eso no cuestan maquetado: el compositor mueve dos imagenes.
+ *
+ * La salida dura menos que la entrada (120ms contra 160ms) y no se desplaza. Lo viejo tiene que
+ * despejar rapido porque mientras siga en pantalla compite por la atencion con lo que llega; y si
+ * ademas se moviera, dos capas viajando en sentidos opuestos sobre el mismo lugar se leerian como
+ * un temblor y no como un cambio de pagina. Tampoco hay retardo entre una y otra: solapadas se leen
+ * como un fundido, encadenadas se leerian como dos pasos y el panel se sentiria lento.
+ *
+ * Los 8px de `entrar-abajo` son los mismos que usa cualquier contenido que aparece en el panel. Dan
+ * direccion —el contenido viene de abajo, como si el scroll lo hubiera traido— sin que se note el
+ * viaje. Mas desplazamiento obligaria a seguir la pagina con la vista en una navegacion que ocurre
+ * decenas de veces por sesion, que es justo lo que vuelve molesta una animacion util.
+ */
+/*
+ * El pulso de todo el arbol de la transicion.
+ *
+ * El navegador anima por su cuenta todo lo que no se le indique: el fotograma de la raiz —o sea el
+ * armazon: barra lateral, cabecera— y los grupos con nombre propio, como el subrayado de la seccion
+ * activa. Lo hace en 250ms con su curva de fabrica, que no es ninguna de las dos del sistema.
+ *
+ * Sin esto, cada navegacion tiene dos velocidades a la vez: el contenido entra en 160ms y el armazon
+ * sigue fundiendose 90ms mas. Se percibe lo mas lento de los dos, asi que la transicion afinada no
+ * se nota. Igualarlos es lo que hace que la pantalla se mueva como una sola cosa.
+ *
+ * El selector universal aca dentro alcanza a todos los nombres. Las reglas de `.pagina` que siguen
+ * ganan igual: una clase es mas especifica que un `*`.
+ */
+::view-transition-group(*),
+::view-transition-old(*),
+::view-transition-new(*) {
+  animation-duration: var(--wiwo-motion-fast);
+  animation-timing-function: var(--wiwo-ease-emphasized);
+}
+
+::view-transition-old(.pagina) {
+  animation: 120ms var(--wiwo-ease-emphasized) both desaparecer;
+}
+
+::view-transition-new(.pagina) {
+  animation: var(--wiwo-motion-fast) var(--wiwo-ease-emphasized) both entrar-abajo;
+}
+
+/* Mientras la transicion corre, su capa se queda con los clics. Sin esto, apretar otra seccion de
+ * la barra lateral durante esos 160ms no hace nada y hay que volver a apretar. */
+::view-transition {
+  pointer-events: none;
+}
+
+/*
+ * Movimiento reducido, para el arbol de la transicion.
+ *
+ * Es el unico lugar de todo el proyecto donde hay que repetir la media query de `neo.css`. Ese
+ * bloque anula el movimiento sobre `*, *::before, *::after`, y los pseudo-elementos
+ * `::view-transition-*` no son descendientes de ningun elemento: cuelgan de un arbol propio que el
+ * navegador arma sobre la raiz, asi que `*` no los alcanza. Las custom properties si les llegan por
+ * herencia —de ahi que `var(--wiwo-ease-emphasized)` funcione— pero la anulacion no.
+ *
+ * Sin esto, quien pidio menos movimiento igual veria animarse cada cambio de pagina.
+ */
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation-duration: 0.01ms !important;
+    animation-delay: 0s !important;
   }
 }
