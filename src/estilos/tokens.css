@@ -40,7 +40,14 @@
   /* Rampa de superficies del tema claro, cálida como el sistema vivo de neo.wiwo.me. La base */
   /* gris-azulada anterior enfriaba la marca y peleaba con el beige; estos blancos tienen el mismo */
   /* sesgo amarillo que el acento, asi que el beige se lee como acento y no como ruido. */
-  --wiwo-almost-white: #FFFDF2;
+  /*
+   * El LIENZO es la excepcion deliberada de esta rampa: es lo unico que se ve a pantalla completa en
+   * las ocho pantallas del panel, y a ese tamaño el sesgo amarillo deja de leerse como temperatura y
+   * pasa a leerse como que la aplicacion entera esta teñida. Conserva apenas la calidez —el azul un
+   * punto por debajo de los otros dos canales— y baja tres puntos de luminosidad respecto de la
+   * tarjeta: ese escalon es lo que hace que una tarjeta se despegue del fondo sin sombra dura.
+   */
+  --wiwo-almost-white: #F4F3EE;
   --wiwo-surface-0: #FFFFFC;
   --wiwo-surface-50: #FBFBEA;
   --wiwo-surface-100: #F4F3DD;
@@ -48,7 +55,10 @@
 
   /* Rampa oscura derivada de la tinta, no de negros puros: conserva la temperatura del tema claro y */
   /* evita el contraste duro que cansa en sesiones largas. `--wiwo-ink` es el primer escalon. */
-  --wiwo-ink-900: #20211F;
+  /* Mismo criterio que el lienzo claro: el escalon mas oscuro de la rampa es fondo de pantalla
+   * completa, y se calma hacia el casi-negro del sistema vivo (#121212) sin llegar al negro puro.
+   * Conserva el matiz verdoso de la tinta, que es lo que evita que el oscuro se lea azulado. */
+  --wiwo-ink-900: #161715;
   --wiwo-ink-850: #252624;
   --wiwo-ink-700: #323330;
   --wiwo-ink-600: #3B3C38;

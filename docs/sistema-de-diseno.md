@@ -44,7 +44,7 @@ de accesibilidad de la marca cruda:
 ## Capas
 
 ```
-tokens.css        crudo, copiado, no se edita          --wiwo-blue, --spacing-3, --motion-fast
+tokens.css        crudo: la marca no se edita          --wiwo-blue, --spacing-3, --motion-fast
    ↓
 neo.css           semánticos del diseño NUEVO          --superficie, --linea, --texto, --acento
    ↓
@@ -52,6 +52,12 @@ neo.css           semánticos del diseño NUEVO          --superficie, --linea, 
 ```
 
 El `@theme` mapea **`neo.css`, no los tokens crudos**. Cambiar el tema es tocar un archivo.
+
+De `tokens.css` se copia literal la **marca** —paleta, motion, espaciado, radios— y
+`pruebas/marca.test.js` falla si alguien la toca. Las dos **rampas de superficie** (`--wiwo-surface-*`
+y la rampa oscura derivada de la tinta) no vienen del tema portado: las agregó este proyecto para
+resolver los problemas de accesibilidad de la marca cruda, y se ajustan cuando el sistema lo pide —
+así se calmó el lienzo (ver *El lienzo*).
 
 Es `@theme inline` y no `@theme` a secas: los semánticos son referencias `var()` que cambian con el
 tema, y `@theme` congelaría el valor resuelto en tiempo de compilación, dejando el tema oscuro muerto.
@@ -61,7 +67,7 @@ tema, y `@theme` congelaría el valor resuelto en tiempo de compilación, dejand
 Cada semántico se declara **una sola vez**:
 
 ```css
---superficie: light-dark(var(--wiwo-surface-100), #17171a);
+--superficie: light-dark(var(--wiwo-almost-white), var(--wiwo-ink-900));
 ```
 
 La alternativa —repetir el bloque entero bajo `prefers-color-scheme` y otra vez bajo
@@ -79,6 +85,37 @@ La elección se guarda en `localStorage` bajo **`wiwo-theme`**, la misma clave q
 `assets/neo/wiwo.neo.js` del panel actual: quien ya eligió oscuro allá abre `ops-v2` en oscuro sin
 volver a elegir. Un script en el `<head>` aplica el atributo antes del primer pintado, así que no hay
 destello de tema claro.
+
+## El lienzo
+
+Las ocho pantallas del panel comparten un mismo fondo, y no es un color plano: es un **lienzo** más
+una capa de **tres luces de marca**.
+
+| Pieza | Dónde | Qué es |
+|---|---|---|
+| `--superficie` | `body`, `neo.css` | El lienzo. `#F4F3EE` en claro, `#161715` en oscuro |
+| `.aurora::before` | armazón del panel, `globals.css` | Tres resplandores radiales fijos, detrás de todo |
+| `--aurora-azul/-beige/-verde` | `neo.css` | La intensidad de cada luz, por tema |
+
+**El lienzo no es el beige.** `--wiwo-beige #F8FAD7` es acento —bandas, callouts, filas zebra, hover
+de navegación—; como fondo de pantalla completa teñía la aplicación entera, que es exactamente lo que
+el sistema vivo evita. El lienzo claro conserva apenas la calidez (el azul un punto por debajo de los
+otros dos canales) y queda tres puntos de luminosidad por debajo de la tarjeta: ese escalón corto es
+lo que hace que una tarjeta se despegue sin necesidad de una sombra dura. El lienzo oscuro sigue el
+mismo criterio y se calma hacia el casi-negro del sistema vivo, sin llegar al negro puro.
+
+**Las luces van a las esquinas**: azul en el vértice del logotipo y la navegación, cálida arriba a la
+derecha, verde en la esquina más lejana al punto donde arranca la lectura. Se apagan antes del
+centro, porque el centro es donde vive el contenido y una luz debajo de una tabla es ruido detrás de
+datos. El verde es el más tenue de los tres justamente por eso: es el único que cae donde una tabla
+larga sigue teniendo filas, y las filas no llevan fondo propio.
+
+**La capa se pinta una sola vez.** Vive en `(panel)/layout.tsx`, es `position: fixed` y no ocupa
+lugar, así que no cambia la maqueta de ninguna pantalla. Una `.aurora` anidada dentro de otra apaga
+su `::before` (`globals.css`): dos capas fijas pintarían la misma ventana dos veces y cada resplandor
+saldría al doble de intensidad.
+
+**Y está quieta.** Ver *Guardrails de rendimiento*.
 
 ## Marca
 
@@ -152,7 +189,13 @@ estéticas: colgaban el panel en pantallas Retina.
 
 1. **Prohibido `backdrop-filter: blur()` en superficies siempre visibles** — barra superior, barra
    lateral, paneles, tablas, menús desplegables.
-2. **Prohibidas las animaciones `infinite`** en elementos siempre visibles.
+2. **Prohibidas las animaciones `infinite`** en elementos siempre visibles. **Cero excepciones**, y
+   la única que hubo se dio de baja a propósito: la aurora derivaba 28 s en bucle cuando vivía en una
+   sola pantalla, y esa justificación no se heredó al subirla al armazón. Debajo de las ocho
+   pantallas, durante toda la jornada de quien trabaja acá, un movimiento que no comunica ningún
+   estado no tiene con qué pagarse. Se conservaron los resplandores —que son profundidad— y se
+   descartó la deriva. Un guardrail sin excepciones es más barato de sostener que uno con una
+   excepción bien argumentada.
 3. Preferir `transform` y `opacity` sobre `filter` y `box-shadow` animados.
 
 Se hacen cumplir con lint, no con buena voluntad:
@@ -236,7 +279,7 @@ Buena parte de la capa "expresiva" de Neo es token muerto, y eso decide qué val
 |---|---|
 | `wiwo.dark.css` (991 líneas) | 95 % parches de Bootstrap y jQuery, con **402 `!important`**. No redefine un solo semántico: eso ya lo hacen los tokens. En un frontend que consume tokens desde el primer componente, este archivo no debería existir |
 | Tokens de glass | **Cero usos**, y el propio `bridge.css` los neutraliza con `!important` por el cuelgue en Retina. Campo minado, no activo |
-| `--page-background` | El degradado verde sobre beige. **Cero usos**: nunca se aplicó. Lo que se ve en producción es beige plano |
+| `--page-background` | El degradado verde sobre beige. **Cero usos**: nunca se aplicó. Lo que se ve en producción es beige plano. Acá lo resuelve el lienzo con la capa `.aurora`, que es luz y no relleno |
 | Tokens de barra lateral | Acoplamiento a un componente. En React eso son props, no tokens globales |
 | **El beige como superficie** | Decisión de producto: Neo pinta de beige la página, los paneles y hasta los inputs. Acá el beige queda como acento y las superficies son neutras |
 

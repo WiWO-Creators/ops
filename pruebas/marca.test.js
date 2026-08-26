@@ -120,6 +120,44 @@ test('el orbe no enciende backdrop-filter en ninguna regla', () => {
   }
 })
 
+/**
+ * El lienzo del panel esta quieto, y esta prueba es lo que lo mantiene asi.
+ *
+ * La capa `.aurora` derivaba 28s en bucle cuando vivia en una sola pantalla. Al subirla al armazon
+ * pasa a estar debajo de las ocho, toda la jornada, y ahi el guardrail del sistema —prohibido el
+ * movimiento perpetuo sobre algo siempre visible— vuelve a aplicar sin excepcion. El sistema de
+ * diseño dice que los guardrails se hacen cumplir con pruebas y no con buena voluntad: esta es la de
+ * este.
+ */
+test('la capa de luz del panel no se anima', () => {
+  const css = sinComentarios(globals)
+  const regla = /\.aurora::before\s*\{([^}]*)\}/.exec(css)
+
+  assert.ok(regla !== null, 'no existe la regla .aurora::before')
+  assert.doesNotMatch(
+    regla[1],
+    /animation/,
+    'la capa de luz cubre las ocho pantallas del panel: una animacion ahi es movimiento perpetuo ' +
+    'sobre algo siempre visible, que es justo lo que el guardrail de rendimiento prohibe'
+  )
+  assert.doesNotMatch(css, /deriva-aurora/, 'quedaron los fotogramas de la deriva de la aurora')
+})
+
+/**
+ * Una sola capa de luz, aunque la clase aparezca anidada.
+ *
+ * El `::before` es `fixed`: dos `.aurora` anidadas pintan la MISMA ventana dos veces y cada
+ * resplandor sale al doble de intensidad. Como ninguna pantalla puede saber si su armazon ya puso la
+ * capa, lo resuelve el sistema apagando la de mas adentro.
+ */
+test('una .aurora anidada no vuelve a pintar la luz', () => {
+  assert.match(
+    sinComentarios(globals),
+    /\.aurora\s+\.aurora::before\s*\{[^}]*content:\s*none/,
+    'sin esta regla, un armazon con aurora mas una pantalla con aurora duplican el resplandor'
+  )
+})
+
 test('todo semantico de neo.css esta expuesto en el @theme de globals.css', () => {
   const semanticos = new Set(declaraciones().map(([nombre]) => nombre))
   const expuestos = new Set([...globals.matchAll(/var\((--[a-z0-9-]+)\)/g)].map(([, n]) => n))
