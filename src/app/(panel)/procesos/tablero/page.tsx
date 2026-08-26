@@ -1,5 +1,5 @@
-import Link from 'next/link'
 import { TableroProcesos } from '@/componentes/datos/vistas'
+import { Segmentado } from '@/componentes/formularios/Segmentado'
 import { construirConsulta, leerConsulta, paramsDeUrl } from '@/datos/consulta'
 import { pedir } from '@/datos/servidor'
 import type { Proceso } from '@/datos/recursos'
@@ -31,9 +31,16 @@ export default async function TableroProcesosPage (props: PageProps<'/procesos/t
     <section className="flex min-h-0 flex-col gap-4">
       <header className="flex items-center justify-between gap-4">
         <h1 className="text-xl font-semibold text-texto">Tablero de {PROCESOS.titulo.plural}</h1>
-        <Link href="/procesos" className="text-sm text-texto-tenue underline hover:text-texto">
-          Ver lista
-        </Link>
+        <Segmentado
+          etiqueta={`Presentación de ${PROCESOS.titulo.plural.toLowerCase()}`}
+          tamano="medio"
+          activo="tablero"
+          opciones={[
+            // `consulta` ya viene sin orden ni pagina: al volver a la lista viajan solo los filtros.
+            { valor: 'tabla', etiqueta: 'Lista', icono: 'tabla', href: `/procesos${consulta === '' ? '' : `?${consulta}`}` },
+            { valor: 'tablero', etiqueta: 'Tablero', icono: 'tablero', href: '/procesos/tablero' }
+          ]}
+        />
       </header>
 
       <TableroProcesos inicial={grupos.data} consulta={consulta} />

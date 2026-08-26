@@ -3,7 +3,7 @@
 import { useMemo, type ReactElement } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { PanelRecurso } from '@/componentes/proyecto/PanelRecurso'
-import { cn } from '@/lib/clases'
+import { Segmentado } from '@/componentes/formularios/Segmentado'
 import { ARCHIVOS } from '@/definiciones/archivos'
 import { CONTRATOS } from '@/definiciones/contratos'
 import { NOTAS_CLIENTE } from '@/definiciones/clientes'
@@ -210,24 +210,12 @@ export function PanelVentasCliente ({ clienteId }: { clienteId: number }): React
   }
 
   const barra = (
-    <div role="group" aria-label="Listas de ventas" className="flex flex-wrap gap-1">
-      {VENTAS.map((lista) => (
-        <button
-          key={lista.clave}
-          type="button"
-          aria-pressed={lista.clave === activa.clave}
-          onClick={() => { elegir(lista.clave) }}
-          className={cn(
-            'rounded-control px-3 py-1 text-xs font-medium transition-colors',
-            lista.clave === activa.clave
-              ? 'bg-seleccionado text-texto'
-              : 'text-texto-tenue hover:bg-hover hover:text-texto'
-          )}
-        >
-          {lista.etiqueta}
-        </button>
-      ))}
-    </div>
+    <Segmentado
+      etiqueta="Listas de ventas"
+      opciones={VENTAS.map((lista) => ({ valor: lista.clave, etiqueta: lista.etiqueta }))}
+      activo={activa.clave}
+      onElegir={elegir}
+    />
   )
 
   return (

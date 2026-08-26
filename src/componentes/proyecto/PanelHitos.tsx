@@ -3,10 +3,10 @@
 import { Suspense, useCallback, useMemo, useState, type ReactElement } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Boton } from '@/componentes/formularios/Boton'
+import { Segmentado, type OpcionSegmentada } from '@/componentes/formularios/Segmentado'
 import { Cargando } from '@/componentes/estado/Estados'
 import { HITOS } from '@/definiciones/hitos'
 import { GLOSARIO } from '@/dominio/glosario'
-import { cn } from '@/lib/clases'
 import { formatearFecha } from '@/lib/fechas'
 import { AccionesFila } from './AccionesFila'
 import { BarraProgreso } from './CabeceraProyecto'
@@ -37,6 +37,12 @@ import type { DefinicionRecurso } from '@/definiciones/tipos'
  * endpoint tiene su propio valor por defecto (`excluir_completadas` es `true` cuando no viaja), asi
  * que confiar en el nos devolveria justo el comportamiento que se esta corrigiendo.
  */
+
+/** Las dos lecturas de los hitos, en el orden en que se muestran. `tablero` es la de por defecto. */
+const VISTAS: readonly OpcionSegmentada[] = [
+  { valor: 'tablero', etiqueta: 'Tablero', icono: 'tablero' },
+  { valor: 'tabla', etiqueta: 'Tabla', icono: 'tabla' }
+]
 
 interface PropsPanelHitos {
   proyecto: Espacio
@@ -84,22 +90,12 @@ function HitosDelProyecto ({ proyecto, capacidades }: PropsPanelHitos): ReactEle
 
   const barra = (
     <div className="flex flex-wrap items-center justify-between gap-3">
-      <div role="group" aria-label="Vista de hitos" className="flex gap-1">
-        {(['tablero', 'tabla'] as const).map((opcion) => (
-          <button
-            key={opcion}
-            type="button"
-            aria-pressed={opcion === vista}
-            onClick={() => { cambiar('vistaHitos', opcion) }}
-            className={cn(
-              'rounded-control px-3 py-1 text-xs font-medium transition-colors',
-              opcion === vista ? 'bg-seleccionado text-texto' : 'text-texto-tenue hover:bg-hover hover:text-texto'
-            )}
-          >
-            {opcion === 'tablero' ? 'Tablero' : 'Tabla'}
-          </button>
-        ))}
-      </div>
+      <Segmentado
+        etiqueta="Vista de hitos"
+        opciones={VISTAS}
+        activo={vista}
+        onElegir={(valor) => { cambiar('vistaHitos', valor) }}
+      />
 
       <div className="flex flex-wrap items-center gap-3">
         <label className="text-texto-tenue flex items-center gap-2 text-xs">

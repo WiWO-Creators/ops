@@ -1,7 +1,7 @@
-import Link from 'next/link'
 import { Suspense } from 'react'
 import { TablaProcesos } from '@/componentes/datos/vistas'
 import { Cargando } from '@/componentes/estado/Estados'
+import { Segmentado } from '@/componentes/formularios/Segmentado'
 import { construirConsulta, leerConsulta, paramsDeUrl } from '@/datos/consulta'
 import { cargarLookups, opcionesDeFiltros } from '@/datos/lookups'
 import { pedir } from '@/datos/servidor'
@@ -22,6 +22,10 @@ export default async function ProcesosPage (props: PageProps<'/procesos'>) {
   const params = paramsDeUrl(await props.searchParams)
   const estado = leerConsulta(params, PROCESOS)
   const consulta = construirConsulta(estado, PROCESOS)
+  // El tablero pagina por columna y no admite orden, asi que el salto lleva los filtros y descarta
+  // orden y pagina — lo mismo que hace `/procesos/tablero` al armar su propia consulta. Sin esto,
+  // filtrar la lista y pasar al tablero devolvia el tablero sin filtrar.
+  const consultaTablero = construirConsulta({ ...estado, orden: [], pagina: 1 }, PROCESOS)
 
   const [lista, lookups, yo] = await Promise.all([
     pedir<Proceso[]>(`/tasks${consulta === '' ? '' : `?${consulta}`}`),
@@ -33,9 +37,20 @@ export default async function ProcesosPage (props: PageProps<'/procesos'>) {
     <section className="flex flex-col gap-4">
       <header className="flex items-center justify-between gap-4">
         <h1 className="text-xl font-semibold text-texto">{PROCESOS.titulo.plural}</h1>
-        <Link href="/procesos/tablero" className="text-sm text-texto-tenue underline hover:text-texto">
-          Ver tablero
-        </Link>
+        <Segmentado
+          etiqueta={`Presentación de ${PROCESOS.titulo.plural.toLowerCase()}`}
+          tamano="medio"
+          activo="tabla"
+          opciones={[
+            { valor: 'tabla', etiqueta: 'Lista', icono: 'tabla', href: '/procesos' },
+            {
+              valor: 'tablero',
+              etiqueta: 'Tablero',
+              icono: 'tablero',
+              href: `/procesos/tablero${consultaTablero === '' ? '' : `?${consultaTablero}`}`
+            }
+          ]}
+        />
       </header>
 
       <Suspense fallback={<Cargando alto="min-h-36" mensaje={`Cargando ${PROCESOS.titulo.plural.toLowerCase()}…`} />}>

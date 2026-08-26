@@ -3,7 +3,7 @@
 import { Suspense, useMemo, type ReactElement } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Cargando } from '@/componentes/estado/Estados'
-import { cn } from '@/lib/clases'
+import { Segmentado } from '@/componentes/formularios/Segmentado'
 import { PanelRecurso } from './PanelRecurso'
 import { FACTURAS, GASTOS, PRESUPUESTOS } from '@/definiciones/ventas'
 import type { DefinicionRecurso } from '@/definiciones/tipos'
@@ -68,24 +68,12 @@ function VentasDelProyecto ({ proyectoId }: { proyectoId: number }): ReactElemen
   }
 
   const barra = (
-    <div role="group" aria-label="Listas de ventas" className="flex flex-wrap gap-1">
-      {LISTAS.map((lista) => (
-        <button
-          key={lista.clave}
-          type="button"
-          aria-pressed={lista.clave === activa.clave}
-          onClick={() => { elegir(lista.clave) }}
-          className={cn(
-            'rounded-control px-3 py-1 text-xs font-medium transition-colors',
-            lista.clave === activa.clave
-              ? 'bg-seleccionado text-texto'
-              : 'text-texto-tenue hover:bg-hover hover:text-texto'
-          )}
-        >
-          {lista.etiqueta}
-        </button>
-      ))}
-    </div>
+    <Segmentado
+      etiqueta="Listas de ventas"
+      opciones={LISTAS.map((lista) => ({ valor: lista.clave, etiqueta: lista.etiqueta }))}
+      activo={activa.clave}
+      onElegir={elegir}
+    />
   )
 
   return (

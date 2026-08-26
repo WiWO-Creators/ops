@@ -1,5 +1,9 @@
+'use client'
+
+import { useState } from 'react'
 import { Muestra, SeccionTaller } from '@/componentes/estructura/Muestra'
 import { Boton } from '@/componentes/formularios/Boton'
+import { Segmentado, type OpcionSegmentada } from '@/componentes/formularios/Segmentado'
 import { Cargando, ErrorEstado, SinPermiso, Vacio } from '@/componentes/estado/Estados'
 import { Avatar, GrupoAvatares } from '@/componentes/presentadores/Avatar'
 import { Etiquetas } from '@/componentes/presentadores/Etiqueta'
@@ -32,6 +36,21 @@ const ESTADOS = [
   { id: 5, name: 'Completado', color: '#22c55e' }
 ]
 
+/** Las tres lecturas de un listado, con los iconos que usa el producto. */
+const VISTAS: readonly OpcionSegmentada[] = [
+  { valor: 'tabla', etiqueta: 'Tabla', icono: 'tabla' },
+  { valor: 'tablero', etiqueta: 'Tablero', icono: 'tablero' },
+  { valor: 'tarjetas', etiqueta: 'Tarjetas', icono: 'tarjetas' }
+]
+
+/** La escala del Gantt: mismo control, sin iconos, porque cuatro duraciones no tienen dibujo. */
+const ESCALAS: readonly OpcionSegmentada[] = [
+  { valor: 'dia', etiqueta: 'Día' },
+  { valor: 'semana', etiqueta: 'Semana' },
+  { valor: 'mes', etiqueta: 'Mes' },
+  { valor: 'anio', etiqueta: 'Año' }
+]
+
 const PERSONAS = [
   { id: 1, full_name: 'Ana Ríos' },
   { id: 2, full_name: 'Bruno Cabral' },
@@ -41,6 +60,9 @@ const PERSONAS = [
 ]
 
 export default function TallerPage () {
+  const [vista, setVista] = useState('tabla')
+  const [escala, setEscala] = useState('semana')
+
   return (
     <>
       <SeccionTaller
@@ -149,6 +171,38 @@ export default function TallerPage () {
           <Boton variante="primario" cargando>Guardando</Boton>
           <Boton variante="secundario" cargando soloIcono aria-label="Guardando">✓</Boton>
           <Boton disabled>Deshabilitado</Boton>
+        </Muestra>
+      </SeccionTaller>
+
+      <SeccionTaller
+        titulo="Segmentado"
+        nota="El único control de cambio de vista del producto. Es un grupo de botones y no un tablist: las opciones son formas de leer los mismos datos, no paneles hermanos. Las flechas mueven el foco pero no eligen — elegir dispara una navegación, y recorrer cuatro escalas con la flecha lanzaría cuatro recargas antes de llegar a la que se quería."
+      >
+        <Muestra etiqueta="vistas (chico)">
+          <Segmentado etiqueta="Presentación del listado" opciones={VISTAS} activo={vista} onElegir={setVista} />
+        </Muestra>
+        <Muestra etiqueta="vistas (medio)">
+          <Segmentado etiqueta="Presentación del listado" tamano="medio" opciones={VISTAS} activo={vista} onElegir={setVista} />
+        </Muestra>
+        <Muestra etiqueta="sin iconos, etiqueta visible">
+          <Segmentado etiqueta="Escala" etiquetaVisible opciones={ESCALAS} activo={escala} onElegir={setEscala} />
+        </Muestra>
+        <Muestra etiqueta="alineado con Botón">
+          <Segmentado etiqueta="Presentación del listado" opciones={VISTAS} activo={vista} onElegir={setVista} />
+          <Boton tamano="chico">Refrescar</Boton>
+        </Muestra>
+        <Muestra etiqueta="sin ninguna puesta">
+          <Segmentado etiqueta="Escala" opciones={ESCALAS} activo={null} onElegir={setEscala} />
+        </Muestra>
+        <Muestra etiqueta="opciones que navegan">
+          <Segmentado
+            etiqueta="Presentación de tareas"
+            activo="tabla"
+            opciones={[
+              { valor: 'tabla', etiqueta: 'Lista', icono: 'tabla', href: '/procesos' },
+              { valor: 'tablero', etiqueta: 'Tablero', icono: 'tablero', href: '/procesos/tablero' }
+            ]}
+          />
         </Muestra>
       </SeccionTaller>
 

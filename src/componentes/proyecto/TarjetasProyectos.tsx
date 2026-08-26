@@ -7,6 +7,7 @@ import { clavesVisiblesPorDefecto, columnasVisibles, resolverInsignia } from '@/
 import { retrasoDeAparicion } from '@/componentes/datos/TablaRecurso'
 import { armarCsv, nombreDeExportacion } from '@/componentes/datos/csv'
 import { Boton } from '@/componentes/formularios/Boton'
+import { Segmentado, type OpcionSegmentada } from '@/componentes/formularios/Segmentado'
 import { Vacio } from '@/componentes/estado/Estados'
 import { CargandoConOrbe } from '@/componentes/estado/Orbe'
 import { TarjetaProyecto } from './TarjetaProyecto'
@@ -38,9 +39,9 @@ import { cn } from '@/lib/clases'
 
 export type Vista = 'tarjetas' | 'tabla'
 
-const VISTAS: Array<{ clave: Vista, etiqueta: string }> = [
-  { clave: 'tarjetas', etiqueta: 'Tarjetas' },
-  { clave: 'tabla', etiqueta: 'Tabla' }
+const VISTAS: readonly OpcionSegmentada[] = [
+  { valor: 'tarjetas', etiqueta: 'Tarjetas', icono: 'tarjetas' },
+  { valor: 'tabla', etiqueta: 'Tabla', icono: 'tabla' }
 ]
 
 /**
@@ -150,7 +151,12 @@ export function VistaEspacios ({
       />
 
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <AlternadorVista vista={vista} onCambiar={cambiarVista} />
+        <Segmentado
+          etiqueta="Presentación del listado"
+          opciones={VISTAS}
+          activo={vista}
+          onElegir={(valor) => { cambiarVista(valor as Vista) }}
+        />
 
         <div className="flex flex-wrap items-center gap-2">
           <Boton tamano="chico" variante="sutil" cargando={refrescando} onClick={refrescar}>
@@ -252,44 +258,6 @@ function descargarCsv (
   enlace.click()
 
   URL.revokeObjectURL(url)
-}
-
-/**
- * Alternador de presentacion del listado.
- *
- * Botones y no enlaces: son dos formas de ver lo mismo, no dos destinos. `aria-pressed` dice cual
- * esta activa sin depender del color de fondo.
- */
-function AlternadorVista ({ vista, onCambiar }: { vista: Vista, onCambiar: (vista: Vista) => void }) {
-  return (
-    <div
-      role="group"
-      aria-label="Presentación del listado"
-      className="border-linea bg-superficie-acentuada rounded-control inline-flex w-fit gap-0.5 border p-0.5"
-    >
-      {VISTAS.map((opcion) => {
-        const activa = opcion.clave === vista
-
-        return (
-          <button
-            key={opcion.clave}
-            type="button"
-            aria-pressed={activa}
-            onClick={() => { onCambiar(opcion.clave) }}
-            className={cn(
-              'rounded-control ease-neo h-7 px-3 text-xs font-semibold',
-              'transition-[background-color,color] duration-150',
-              activa
-                ? 'bg-superficie-elevada text-texto shadow-1'
-                : 'text-texto-tenue hover:bg-hover hover:text-texto'
-            )}
-          >
-            {opcion.etiqueta}
-          </button>
-        )
-      })}
-    </div>
-  )
 }
 
 interface PropsTarjetasProyectos {
