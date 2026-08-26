@@ -233,3 +233,33 @@ export interface ArchivoPortal {
   url: string | null
   thumbnail_url: string | null
 }
+
+/** Anuncio dirigido a clientes. */
+export interface AnuncioPortal {
+  id: number
+  name: string
+  message: string
+  date_added: string | null
+  /** Si el contacto ya lo descarto en el portal viejo. Se usa para bajarle el tono, no para ocultarlo. */
+  dismissed: boolean
+}
+
+/** Grupo de la base de conocimiento, con sus articulos visibles. */
+export interface GrupoAyudaPortal {
+  id: number
+  name: string
+  slug: string
+  description: string | null
+  color: string | null
+  articles: Array<{ id: number, subject: string, slug: string, date: string | null }>
+}
+
+export interface ArticuloAyudaPortal {
+  id: number
+  subject: string
+  /** HTML redactado en el panel. Se muestra aislado, nunca inyectado en la pagina. */
+  description: string
+  slug: string
+  date: string | null
+  group: { id: number, name: string, slug: string }
+}

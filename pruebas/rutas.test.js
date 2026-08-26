@@ -8,7 +8,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
-import { rutaPermitida } from '../src/datos/rutas.ts'
+import { rutaCompartida, rutaPermitida } from '../src/datos/rutas.ts'
 
 test('deja pasar los recursos del nucleo', () => {
   for (const ruta of [['me'], ['lookups'], ['tasks'], ['tasks', '512', 'comments'], ['projects', '44', 'milestones']]) {
@@ -101,5 +101,21 @@ test('el escape de directorio sigue bloqueado en las dos listas', () => {
   for (const sujeto of ['staff', 'contacto']) {
     assert.equal(rutaPermitida(['portal', '..', 'me'], sujeto), false)
     assert.equal(rutaPermitida(['clients', ''], sujeto), false)
+  }
+})
+
+test('la descarga de adjuntos la pueden pedir los dos sujetos', () => {
+  // Vive fuera de /portal porque las URLs que la API ya emitia apuntan ahi. Por eso el prefijo no
+  // alcanza para saber de quien es el pedido, y el BFF tiene que mirar que sesion hay.
+  assert.equal(rutaCompartida(['files', 'customer', '9', 'download']), true)
+  assert.equal(rutaPermitida(['files', 'customer', '9', 'download'], 'staff'), true)
+  assert.equal(rutaPermitida(['files', 'customer', '9', 'download'], 'contacto'), true)
+})
+
+test('ninguna otra ruta es compartida', () => {
+  // Si esta lista crece sin querer, el BFF empieza a resolver el sujeto por sesion donde antes lo
+  // resolvia por prefijo, y eso relaja una barrera sin que se note.
+  for (const prefijo of ['portal', 'clients', 'projects', 'tasks', 'me', 'staff']) {
+    assert.equal(rutaCompartida([prefijo]), false, prefijo)
   }
 })

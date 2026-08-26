@@ -32,7 +32,10 @@ const PREFIJOS_PERMITIDOS = [
   'contracts',
   'expenses',
   'invoices',
-  'estimates'
+  'estimates',
+  // Descarga de adjuntos. No estaba porque hasta ahora la API no tenia esa ruta y toda `url` que
+  // emitia era un 404; con el endpoint de descarga ya existe y el panel puede usarla.
+  'files'
 ] as const
 
 /**
@@ -42,6 +45,22 @@ const PREFIJOS_PERMITIDOS = [
  * adjuntos, que es compartida y se autoriza por sujeto del lado de la API.
  */
 const PREFIJOS_PORTAL = ['portal', 'files'] as const
+
+/**
+ * Prefijos que sirven a los dos sujetos.
+ *
+ * Solo la descarga de adjuntos: la API la expone fuera de `/portal` porque las URLs que ya venia
+ * emitiendo apuntan ahi, y decide a quien le responde mirando el token. Como el prefijo no dice de
+ * quien es el pedido, el BFF tampoco puede deducirlo de la ruta y tiene que mirar que sesion hay.
+ */
+const PREFIJOS_COMPARTIDOS = ['files'] as const
+
+/** `true` si esta ruta puede venir de cualquiera de los dos sujetos. */
+export function rutaCompartida (segmentos: string[]): boolean {
+  const primero = segmentos[0]
+
+  return primero !== undefined && (PREFIJOS_COMPARTIDOS as readonly string[]).includes(primero)
+}
 
 /**
  * Decide si el BFF puede reenviar una ruta.
@@ -64,4 +83,4 @@ export function rutaPermitida (segmentos: string[], sujeto: Sujeto = 'staff'): b
   return permitidos.includes(primero)
 }
 
-export { PREFIJOS_PERMITIDOS, PREFIJOS_PORTAL }
+export { PREFIJOS_PERMITIDOS, PREFIJOS_PORTAL, PREFIJOS_COMPARTIDOS }
