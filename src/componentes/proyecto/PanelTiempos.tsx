@@ -26,9 +26,12 @@ import { Fecha } from '@/componentes/presentadores/Fecha'
 import { Insignia } from '@/componentes/presentadores/Insignia'
 import { pedirSobre } from '@/datos/cliente'
 import { leerError } from '@/datos/errores'
-import type { PersonaConTiempo, RegistroTiempo } from '@/datos/recursos'
+import type { PersonaConTiempo, RegistroTiempo, ResumenEspacio } from '@/datos/recursos'
 import type { Capacidad, Paginacion } from '@/datos/tipos'
+import { useRecurso } from './carga'
+import { segundosAHoraMinuto } from './formatos'
 import { FormularioTimesheet } from './FormularioTimesheet'
+import { Metrica, formatearNumero } from './ResumenProyecto'
 import { duracionMostrada, hayRegistroCorriendo } from './timesheet'
 
 /**
@@ -41,6 +44,12 @@ import { duracionMostrada, hayRegistroCorriendo } from './timesheet'
  *
  * Lo mismo con las duraciones: `duration_hm` y `duration_decimal` vienen calculados. Lo unico que se
  * calcula aca es el conteo en vivo de un registro corriendo, porque ese numero envejece en pantalla.
+ *
+ * **Los totales de arriba no se suman en el navegador.** Salen de `GET /projects/{id}/overview`, el
+ * mismo recurso que pinta la pestaña Descripcion: sumar `duration_seconds` de la pagina visible daria
+ * el total de veinticinco filas y lo llamaria el total del proyecto, que es mentira apenas hay una
+ * pagina siguiente. Que sea el mismo endpoint tambien garantiza que las dos pestañas informen la
+ * misma cifra.
  */
 
 interface PropsPanelTiempos {
@@ -77,7 +86,19 @@ export function PanelTiempos ({ proyectoId, capacidades }: PropsPanelTiempos): R
    */
   const [clavePintada, setClavePintada] = useState<string | null>(null)
 
-  const recargar = useCallback(() => { setIntento((n) => n + 1) }, [])
+  // Accesorio, como el filtro por persona: si falla, la tabla se ve igual y no se muestra ningun
+  // error. Lo que no se hace es pintar ceros donde no llego el dato.
+  const { estado: resumen, recargar: recargarResumen } = useRecurso<ResumenEspacio>(
+    `projects/${proyectoId}/overview`,
+    'No se pudo cargar el total de horas.'
+  )
+
+  // Recargar el listado recarga tambien los totales: guardar, detener o borrar un registro cambia las
+  // dos cosas, y dejar el total viejo arriba de la tabla nueva es peor que no mostrarlo.
+  const recargar = useCallback(() => {
+    setIntento((n) => n + 1)
+    recargarResumen()
+  }, [recargarResumen])
 
   /** Identifica la consulta vigente. Cambia con la pagina, el filtro y cada recarga manual. */
   const clave = `${pagina}|${porPagina}|${filtroPersona}|${intento}`
@@ -180,6 +201,8 @@ export function PanelTiempos ({ proyectoId, capacidades }: PropsPanelTiempos): R
 
   return (
     <div className="flex flex-col gap-3">
+      {resumen.fase === 'listo' && <TotalesDelProyecto resumen={resumen.datos} />}
+
       <div className="flex flex-wrap items-center gap-2">
         {personas.length > 0 && (
           <Selector value={filtroPersona} onValueChange={(valor) => { setFiltroPersona(valor); setPagina(1) }}>
@@ -350,6 +373,43 @@ export function PanelTiempos ({ proyectoId, capacidades }: PropsPanelTiempos): R
         onOpenChange={(abierto) => setFormulario((actual) => ({ ...actual, abierto }))}
         onGuardado={recargar}
       />
+    </div>
+  )
+}
+
+/**
+ * Totales del proyecto, arriba del listado.
+ *
+ * Los cinco numeros salen de `logged_time` de `GET /projects/{id}/overview`, ya calculados por el
+ * backend. **Son del proyecto entero**, no de la pagina ni del filtro por persona: por eso las
+ * etiquetas dicen "en total" y no "registrado", que se leeria como el total de lo que se ve.
+ *
+ * Los tres de facturacion solo aparecen con `muestra_finanzas`. Cuando el backend lo apaga —sin
+ * `create projects`, o con un proyecto que no factura por horas— esos campos vienen en cero, y un
+ * "00:00" que nadie conto es peor que la ausencia del numero.
+ *
+ * @param resumen la respuesta de `/overview`, tal como llego
+ * @returns la fila de metricas
+ */
+function TotalesDelProyecto ({ resumen }: { resumen: ResumenEspacio }): ReactElement {
+  const tiempo = resumen.logged_time
+
+  return (
+    // Cinco columnas SIEMPRE, se pinten dos tarjetas o cinco: con `grid-cols-2` a dos tarjetas, cada
+    // una ocuparia media pantalla para decir "00:00", que es la tarjeta-heroe que el sistema no usa en
+    // ningun otro lado. Dejar columnas vacias a la derecha mantiene el ancho de tarjeta del resto del
+    // producto.
+    <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
+      <Metrica etiqueta="Registrado en total" valor={segundosAHoraMinuto(tiempo.total_seconds)} />
+      <Metrica etiqueta="Horas estimadas" valor={formatearNumero(resumen.estimated_hours, ' h')} />
+
+      {tiempo.muestra_finanzas && (
+        <>
+          <Metrica etiqueta="Facturable" valor={segundosAHoraMinuto(tiempo.billable_seconds)} />
+          <Metrica etiqueta="Facturado" valor={segundosAHoraMinuto(tiempo.billed_seconds)} />
+          <Metrica etiqueta="Sin facturar" valor={segundosAHoraMinuto(tiempo.unbilled_seconds)} />
+        </>
+      )}
     </div>
   )
 }

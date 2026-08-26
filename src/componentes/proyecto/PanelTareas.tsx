@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { TablaRecurso } from '@/componentes/datos/TablaRecurso'
 import { Tablero } from '@/componentes/datos/Tablero'
 import type { GrupoTablero } from '@/componentes/datos/tablero'
-import { Boton } from '@/componentes/formularios/Boton'
+import { Segmentado, type OpcionSegmentada } from '@/componentes/formularios/Segmentado'
 import { Cargando, ErrorEstado } from '@/componentes/estado/Estados'
 import { Cajon, ContenidoCajon } from '@/componentes/superposiciones/Cajon'
 import { opcionesDeFiltros } from '@/datos/catalogos'
@@ -44,6 +44,12 @@ import { estaVencida } from './tareas'
 
 /** Catalogos vacios, estables entre renders: un objeto literal nuevo reconstruiria la definicion. */
 const VACIO_CATALOGOS: Record<string, OpcionFiltro[]> = {}
+
+/** Las dos lecturas de las tareas. `tabla` es la de por defecto y no escribe `?vista=`. */
+const VISTAS: readonly OpcionSegmentada[] = [
+  { valor: 'tabla', etiqueta: 'Tabla', icono: 'tabla' },
+  { valor: 'tablero', etiqueta: 'Tablero', icono: 'tablero' }
+]
 
 interface PropsPanelTareas {
   proyectoId: number
@@ -189,24 +195,19 @@ function TareasDelProyecto ({ proyectoId, capacidades }: PropsPanelTareas): Reac
       )}
 
       <div className="flex flex-wrap items-center gap-2">
-        <div role="group" aria-label="Presentación" className="flex items-center gap-1">
-          <Boton
-            variante={enTablero ? 'sutil' : 'secundario'}
-            tamano="chico"
-            aria-pressed={!enTablero}
-            onClick={() => irA((siguientes) => siguientes.delete('vista'))}
-          >
-            Tabla
-          </Boton>
-          <Boton
-            variante={enTablero ? 'secundario' : 'sutil'}
-            tamano="chico"
-            aria-pressed={enTablero}
-            onClick={() => irA((siguientes) => siguientes.set('vista', 'tablero'))}
-          >
-            Tablero
-          </Boton>
-        </div>
+        <Segmentado
+          etiqueta="Presentación"
+          opciones={VISTAS}
+          activo={enTablero ? 'tablero' : 'tabla'}
+          onElegir={(valor) => {
+            irA((siguientes) => {
+              // La tabla es la vista por defecto: se representa QUITANDO el parametro, no
+              // escribiendo `vista=tabla`. Asi la URL que se comparte es la corta.
+              if (valor === 'tablero') siguientes.set('vista', 'tablero')
+              else siguientes.delete('vista')
+            })
+          }}
+        />
 
         <div className="ml-auto">
           {capacidades.includes('create') && (

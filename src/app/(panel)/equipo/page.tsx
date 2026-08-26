@@ -1,6 +1,7 @@
 import { Suspense } from 'react'
 import { TablaEquipo } from '@/componentes/datos/vistas'
 import { Cargando } from '@/componentes/estado/Estados'
+import { TotalDelListado } from '@/componentes/datos/TotalDelListado'
 import { construirConsulta, leerConsulta, paramsDeUrl } from '@/datos/consulta'
 import { cargarLookups, opcionesDeFiltros } from '@/datos/lookups'
 import { pedir } from '@/datos/servidor'
@@ -31,7 +32,11 @@ export default async function EquipoPage (props: PageProps<'/equipo'>) {
 
   return (
     <section className="flex flex-col gap-4">
-      <h1 className="text-xl font-semibold text-texto">{EQUIPO.titulo.plural}</h1>
+      <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+        <h1 className="text-xl font-semibold text-texto">{EQUIPO.titulo.plural}</h1>
+        <TotalDelListado paginacion={lista.meta?.pagination} />
+      </div>
+
       <Suspense fallback={<Cargando alto="min-h-36" mensaje={`Cargando ${EQUIPO.titulo.plural.toLowerCase()}…`} />}>
         <TablaEquipo
           inicial={{ filas: lista.data, paginacion: lista.meta?.pagination }}

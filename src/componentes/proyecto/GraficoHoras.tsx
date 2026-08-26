@@ -2,6 +2,7 @@
 
 import { useState, type ReactElement } from 'react'
 import { Cargando, ErrorEstado, Vacio } from '@/componentes/estado/Estados'
+import { Segmentado } from '@/componentes/formularios/Segmentado'
 import { cn } from '@/lib/clases'
 import { useRecurso } from './carga'
 import { altoDeTramo, maximoDelGrafico, PERIODOS_GRAFICO } from './overview'
@@ -33,24 +34,12 @@ export function GraficoHoras ({ proyectoId }: { proyectoId: number }): ReactElem
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 className="text-texto text-sm font-semibold">Horas registradas</h2>
 
-        <div role="group" aria-label="Período del gráfico" className="flex flex-wrap gap-1">
-          {PERIODOS_GRAFICO.map((opcion) => (
-            <button
-              key={opcion.valor}
-              type="button"
-              aria-pressed={opcion.valor === periodo}
-              onClick={() => { setPeriodo(opcion.valor) }}
-              className={cn(
-                'rounded-control px-3 py-1 text-xs font-medium transition-colors',
-                opcion.valor === periodo
-                  ? 'bg-seleccionado text-texto'
-                  : 'text-texto-tenue hover:bg-hover hover:text-texto'
-              )}
-            >
-              {opcion.etiqueta}
-            </button>
-          ))}
-        </div>
+        <Segmentado
+          etiqueta="Período del gráfico"
+          opciones={PERIODOS_GRAFICO}
+          activo={periodo}
+          onElegir={(valor) => { setPeriodo(valor as PeriodoGrafico) }}
+        />
       </div>
 
       {estado.fase === 'cargando' && <Cargando alto="min-h-40" mensaje="Cargando el gráfico…" />}

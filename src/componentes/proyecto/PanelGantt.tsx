@@ -3,6 +3,7 @@
 import { useEffect, useId, useRef, useState, type ReactElement, type RefObject } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { TriangleAlert } from 'lucide-react'
+import { Segmentado } from '@/componentes/formularios/Segmentado'
 import { Cargando, ErrorEstado, Vacio } from '@/componentes/estado/Estados'
 import { GLOSARIO } from '@/dominio/glosario'
 import { cn } from '@/lib/clases'
@@ -119,6 +120,7 @@ export function PanelGantt ({ proyectoId }: { proyectoId: number }): ReactElemen
       <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
         <Segmentado
           etiqueta="Agrupar por"
+          etiquetaVisible
           opciones={AGRUPACIONES.map((o) => ({ valor: o.valor, etiqueta: o.etiqueta }))}
           activo={agrupar}
           onElegir={(valor) => { elegir(PARAMETRO.agrupar, valor) }}
@@ -126,6 +128,7 @@ export function PanelGantt ({ proyectoId }: { proyectoId: number }): ReactElemen
 
         <Segmentado
           etiqueta="Escala"
+          etiquetaVisible
           opciones={ZOOMS.map((z) => ({ valor: z, etiqueta: NOMBRE_ZOOM[z] }))}
           activo={params.get(PARAMETRO.zoom)}
           onElegir={(valor) => { elegir(PARAMETRO.zoom, valor) }}
@@ -179,54 +182,6 @@ function leerEstados (valor: string | null): number[] {
     .filter((id) => Number.isInteger(id) && id > 0)
 
   return [...new Set(ids)].sort((a, b) => a - b)
-}
-
-/**
- * Control de una sola eleccion, con aspecto de control segmentado.
- *
- * @param etiqueta nombre del grupo; tambien es el `aria-label` del contenedor
- * @param opciones las alternativas, en el orden en que se muestran
- * @param activo valor elegido; cuando no coincide con ninguno no se marca ninguno
- * @param onElegir que hacer al elegir
- */
-function Segmentado ({
-  etiqueta,
-  opciones,
-  activo,
-  onElegir
-}: {
-  etiqueta: string
-  opciones: Array<{ valor: string, etiqueta: string }>
-  activo: string | null
-  onElegir: (valor: string) => void
-}): ReactElement {
-  return (
-    <div className="flex items-center gap-2">
-      <span className="text-texto-sutil text-xs font-medium">{etiqueta}</span>
-      <div
-        role="group"
-        aria-label={etiqueta}
-        className="bg-superficie-hundida rounded-control inline-flex gap-0.5 p-0.5"
-      >
-        {opciones.map((opcion) => (
-          <button
-            key={opcion.valor}
-            type="button"
-            aria-pressed={opcion.valor === activo}
-            onClick={() => { onElegir(opcion.valor) }}
-            className={cn(
-              'rounded-control px-2.5 py-1 text-xs font-medium transition-colors',
-              opcion.valor === activo
-                ? 'bg-superficie-elevada text-texto shadow-1'
-                : 'text-texto-tenue hover:text-texto'
-            )}
-          >
-            {opcion.etiqueta}
-          </button>
-        ))}
-      </div>
-    </div>
-  )
 }
 
 /**
