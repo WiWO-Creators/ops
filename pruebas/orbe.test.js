@@ -191,6 +191,20 @@ test('cargar se comunica de una sola forma: el orbe en su ventana', () => {
     'la ventana dejo de usar la superficie del sistema, que es la que sigue al tema de la aplicacion')
 })
 
+test('el chip de refresco tambien recorta al orbe', () => {
+  /*
+   * `CargandoConOrbe` es la forma para cuando los datos YA estan pintados: el orbe se pone al lado o
+   * sobre una esquina, no encima. Suelto ahi se fusiona con las filas igual que se fusionaba con el
+   * esqueleto, asi que el chip lo recorta con la misma logica que la ventana.
+   */
+  const bloque = componente.slice(componente.indexOf('export function CargandoConOrbe'))
+
+  assert.match(bloque, /overflow-hidden/,
+    'el chip dejo de recortar: el halo del orbe se derrama sobre los datos que esta acompañando')
+  assert.match(bloque, /medida="[\d.]+rem"/,
+    'el chip necesita una medida absoluta: un porcentaje deforma el orbe (ver la prop `medida`)')
+})
+
 test('el orbe queda fuera del arbol de accesibilidad', () => {
   // Lo que se anuncia es el texto que lo acompaña: un adorno anunciado es ruido para un lector.
   assert.match(componente, /aria-hidden="true"\s*\n\s*data-thinking-state={estado}/,

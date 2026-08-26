@@ -7,6 +7,7 @@ import { clavesVisiblesPorDefecto, columnasVisibles, resolverInsignia } from '@/
 import { armarCsv, nombreDeExportacion } from '@/componentes/datos/csv'
 import { Boton } from '@/componentes/formularios/Boton'
 import { Vacio } from '@/componentes/estado/Estados'
+import { CargandoConOrbe } from '@/componentes/estado/Orbe'
 import { TarjetaProyecto } from './TarjetaProyecto'
 import { TablaProyectos } from './TablaProyectos'
 import { PastillasEstado } from './PastillasEstado'
@@ -349,23 +350,27 @@ export function TarjetasProyectos ({ resultado, opcionesDeFiltro }: PropsTarjeta
           />
           )
         : (
-          <ul
-            aria-busy={pendiente}
-            className={cn(
-              'grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3',
-              pendiente && 'opacity-60 transition-opacity'
-            )}
-          >
-            {resultado.filas.map((espacio) => (
-              <li key={espacio.id} className="flex">
-                <TarjetaProyecto
-                  espacio={espacio}
-                  estados={opcionesDeFiltro?.project_statuses}
-                  className="w-full"
-                />
-              </li>
-            ))}
-          </ul>
+          <div className="relative" aria-busy={pendiente}>
+            {/* Igual que en la tabla: refrescar atenua las tarjetas viejas en vez de taparlas, y el
+                aviso va en un chip sobre la esquina. Sin indicador, la atenuacion se lee como un fallo. */}
+            {pendiente && <CargandoConOrbe mensaje="Actualizando…" className="absolute right-2 top-2 z-10" />}
+            <ul
+              className={cn(
+                'grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3',
+                pendiente && 'opacity-60 transition-opacity'
+              )}
+            >
+              {resultado.filas.map((espacio) => (
+                <li key={espacio.id} className="flex">
+                  <TarjetaProyecto
+                    espacio={espacio}
+                    estados={opcionesDeFiltro?.project_statuses}
+                    className="w-full"
+                  />
+                </li>
+              ))}
+            </ul>
+          </div>
           )}
 
       <PaginacionTabla paginacion={resultado.paginacion} onCambiar={cambiar} />

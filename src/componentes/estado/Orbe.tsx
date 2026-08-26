@@ -225,13 +225,22 @@ export function SuperposicionOrbe ({
 }
 
 /**
- * Orbe con texto al lado, para una carga en linea.
+ * Chip de carga en linea, para una operacion que corre SOBRE contenido ya pintado.
+ *
+ * Es la tercera forma del mismo lenguaje. `Cargando` es la ventana que ocupa el lugar del contenido
+ * que todavia no llego; esto es lo contrario: los datos ya estan en pantalla y se los esta
+ * refrescando, asi que taparlos con una ventana seria esconder lo unico util que hay. El chip se
+ * pone al lado —o encima de una esquina— y dice que hay algo en curso sin quitar nada.
+ *
+ * Es un chip y no un orbe suelto por la misma razon que la ventana es una ventana: el orbe desborda
+ * su caja, y suelto sobre una tabla se fusiona con las filas. El chip lo recorta.
  *
  * El retardo evita el parpadeo: una operacion que tarda 80 ms no debe mostrar un indicador que
  * aparece y desaparece: eso se percibe como un defecto, no como progreso.
  *
  * @param mensaje texto que acompaña al orbe
  * @param retardoMs cuanto esperar antes de mostrarse
+ * @param className clases extra del chip. Sirve para posicionarlo (`absolute right-2 top-2`)
  */
 export function CargandoConOrbe ({
   mensaje,
@@ -256,8 +265,16 @@ export function CargandoConOrbe ({
   if (!visible) return null
 
   return (
-    <span role="status" aria-live="polite" className={cn('inline-flex items-center gap-2', className)}>
-      <Orbe tamano="chico" estado={estado} />
+    <span
+      role="status"
+      aria-live="polite"
+      className={cn(
+        'border-linea bg-superficie-flotante rounded-control shadow-1 inline-flex items-center gap-2',
+        'overflow-hidden border py-1 pl-1.5 pr-3',
+        className
+      )}
+    >
+      <Orbe medida="1.5rem" estado={estado} />
       <span className="text-texto-tenue text-sm">{mensaje}</span>
     </span>
   )

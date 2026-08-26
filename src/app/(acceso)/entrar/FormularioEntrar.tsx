@@ -212,7 +212,9 @@ export function FormularioEntrar () {
               </p>
             )}
 
-            <Boton type="submit" variante="primario" disabled={enviando} className="mt-1 w-full">
+            {/* `cargando` y no `disabled`: deshabilita igual y ademas pone el orbe dentro del boton, que
+                es como el resto del producto dice que hay algo en curso. */}
+            <Boton type="submit" variante="primario" cargando={enviando} className="mt-1 w-full">
               {paso === 'clave' ? 'Entrar' : 'Verificar'}
             </Boton>
 

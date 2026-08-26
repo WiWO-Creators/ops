@@ -8,6 +8,7 @@ import { Insignia } from '@/componentes/presentadores/Insignia'
 import type { Capacidad, Sobre } from '@/datos/tipos'
 import { leerError } from '@/datos/errores'
 import { ErrorEstado, Vacio } from '@/componentes/estado/Estados'
+import { CargandoConOrbe } from '@/componentes/estado/Orbe'
 import { Boton } from '@/componentes/formularios/Boton'
 import {
   ContenidoMenu,
@@ -205,7 +206,12 @@ export function TablaRecurso<T> ({
             />
             )
           : (
-            <div aria-busy={cargando} className={cn(cargando && 'opacity-60 transition-opacity')}>
+            <div aria-busy={cargando} className="relative">
+              {/* Refrescar no es cargar de cero: las filas viejas siguen siendo lo mas util que hay en
+                  pantalla, asi que se atenuan en vez de taparse, y el aviso va en un chip encima de la
+                  esquina. Antes esto era solo la atenuacion, que sin indicador se lee como un fallo. */}
+              {cargando && <CargandoConOrbe mensaje="Actualizando…" className="absolute right-2 top-2 z-10" />}
+              <div className={cn(cargando && 'opacity-60 transition-opacity')}>
               <Tabla>
                 <EncabezadoTabla>
                   <tr>
@@ -276,6 +282,7 @@ export function TablaRecurso<T> ({
                   })}
                 </CuerpoTabla>
               </Tabla>
+              </div>
             </div>
             )}
 

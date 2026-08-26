@@ -290,8 +290,23 @@ hidden`. Hace dos cosas que hay que entender juntas:
    llegar los datos. Ese era el trabajo de las filas de esqueleto que se retiraron.
 
 Al salir de tokens, el color de la ventana sigue al tema de la aplicación. La superposición que
-bloquea usa la misma ventana adentro de su velo. Las dos excepciones: el orbe de un botón —la píldora
-ya es su marco— y el orbe de marca del acceso, que no es un indicador sino la mascota.
+bloquea usa la misma ventana adentro de su velo.
+
+Hay una tercera forma, para lo contrario: cuando los datos **ya están pintados** y se los está
+refrescando —cambiar de página, de filtro, recargar—, taparlos con una ventana sería esconder lo único
+útil que hay en pantalla. Ahí van dos cosas juntas: las filas viejas se atenúan y un **chip**
+(`CargandoConOrbe`) se pone sobre la esquina diciendo qué pasa. La atenuación sola, sin el chip, se
+lee como un fallo. El chip es un chip y no un orbe suelto por el mismo motivo que la ventana es una
+ventana: suelto sobre una tabla, el orbe se fusiona con las filas.
+
+Y hay un caso donde el orbe **no** va, aunque haya una petición en curso: los controles optimistas
+—la casilla de visibilidad, el selector de estado de una fila— ya pintaron el valor nuevo. No queda
+nada que esperar en pantalla; lo único por comunicar es que todavía no está confirmado, y eso lo dicen
+`aria-busy` y el control deshabilitado. Un indicador al lado de un valor que ya cambió es el orbe
+puesto sin lógica, y además sería un orbe por fila.
+
+Las dos excepciones del orbe sin ventana: dentro de un botón —la píldora ya es su marco— y el orbe de
+marca del acceso, que no es un indicador sino la mascota.
 
 ### Quieto en reposo, y por qué
 

@@ -110,8 +110,14 @@ function InterruptorVisibilidad ({
     }
   }
 
+  /*
+   * Sin orbe a proposito. El cambio es optimista: la casilla ya se pinto en su valor nuevo, asi que
+   * no hay nada que esperar en pantalla. Lo unico que falta comunicar es que todavia no esta
+   * confirmado, y eso lo dice `aria-busy` con la casilla deshabilitada. Un indicador de carga al lado
+   * de un valor que ya cambio es el orbe puesto sin logica, que es justo lo que se saco del producto.
+   */
   return (
-    <span className="flex flex-col gap-1">
+    <span className="flex flex-col gap-1" aria-busy={guardando}>
       <label className="text-texto-tenue flex items-center gap-2 text-xs">
         <input
           type="checkbox"

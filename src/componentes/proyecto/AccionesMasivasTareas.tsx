@@ -2,6 +2,7 @@
 
 import { useState, type ReactElement } from 'react'
 import { Boton } from '@/componentes/formularios/Boton'
+import { CargandoConOrbe } from '@/componentes/estado/Orbe'
 import { Campo } from '@/componentes/formularios/Campo'
 import { Entrada } from '@/componentes/formularios/Entrada'
 import {
@@ -298,7 +299,9 @@ function ControlDeAccion ({
 
         <ul className="border-linea rounded-medio max-h-64 overflow-y-auto border">
           {personal.length === 0 && (
-            <li className="text-texto-sutil p-3 text-sm">Cargando el equipo…</li>
+            <li className="p-3">
+              <CargandoConOrbe mensaje="Cargando el equipo…" retardoMs={0} />
+            </li>
           )}
           {personal.map((persona) => (
             <li key={persona.id} className="border-linea-suave border-b last:border-b-0">

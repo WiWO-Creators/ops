@@ -137,8 +137,14 @@ function EstadoEditable ({ proceso, estados, editable, onCambiado }: PropsEstado
     }
   }
 
+  /*
+   * Sin orbe, por lo mismo que el interruptor de visibilidad: el selector ya muestra el valor nuevo y
+   * lo unico que falta comunicar es que no esta confirmado. Eso lo dicen `aria-busy` y el control
+   * deshabilitado. Un indicador de carga por celda seria el orbe repetido por fila, que es la regla
+   * de rendimiento que el proyecto no vuelve a romper.
+   */
   return (
-    <span className="flex flex-col gap-1">
+    <span className="flex flex-col gap-1" aria-busy={enCurso}>
       <select
         value={String(proceso.status)}
         disabled={enCurso}

@@ -12,6 +12,7 @@ import {
   Tabla
 } from '@/componentes/datos/Tabla'
 import { Cargando, ErrorEstado, Vacio } from '@/componentes/estado/Estados'
+import { CargandoConOrbe } from '@/componentes/estado/Orbe'
 import { Boton } from '@/componentes/formularios/Boton'
 import {
   ContenidoSelector,
@@ -67,8 +68,20 @@ export function PanelTiempos ({ proyectoId, capacidades }: PropsPanelTiempos): R
     { abierto: false, registro: null }
   )
   const [aviso, setAviso] = useState<string | null>(null)
+  /**
+   * Que combinacion de pagina, filtro e intento corresponde a lo que hay pintado.
+   *
+   * Se compara con la vigente para saber si hay una peticion en vuelo. Es derivado y no un
+   * `useState` que el efecto prende: prender un estado dentro del efecto encadena renders, y el
+   * lint del proyecto lo rechaza.
+   */
+  const [clavePintada, setClavePintada] = useState<string | null>(null)
 
   const recargar = useCallback(() => { setIntento((n) => n + 1) }, [])
+
+  /** Identifica la consulta vigente. Cambia con la pagina, el filtro y cada recarga manual. */
+  const clave = `${pagina}|${porPagina}|${filtroPersona}|${intento}`
+  const refrescando = clavePintada !== null && clavePintada !== clave
 
   useEffect(() => {
     const control = new AbortController()
@@ -78,11 +91,14 @@ export function PanelTiempos ({ proyectoId, capacidades }: PropsPanelTiempos): R
 
     // Sin volver a 'cargando' al refrescar: la tabla se queda con las filas anteriores hasta que
     // llegan las nuevas, en vez de parpadear a un bloque de carga cada vez que se cambia de pagina.
+    // Que no parpadee no quiere decir que no avise: mientras la clave pintada no sea la vigente,
+    // el chip dice que hay algo en curso.
     void pedirSobre<RegistroTiempo[]>(`projects/${proyectoId}/timesheets?${params.toString()}`, control.signal)
       .then((sobre) => {
         if (control.signal.aborted) return
 
         setCarga({ fase: 'listo', registros: sobre.data, paginacion: sobre.meta?.pagination })
+        setClavePintada(clave)
       })
       .catch((fallo: unknown) => {
         if (control.signal.aborted) return
@@ -91,10 +107,11 @@ export function PanelTiempos ({ proyectoId, capacidades }: PropsPanelTiempos): R
           fase: 'error',
           mensaje: fallo instanceof Error ? fallo.message : 'No se pudo cargar el registro de horas.'
         })
+        setClavePintada(clave)
       })
 
     return () => { control.abort() }
-  }, [proyectoId, pagina, porPagina, filtroPersona, intento])
+  }, [proyectoId, clave, pagina, porPagina, filtroPersona, intento])
 
   useEffect(() => {
     const control = new AbortController()
@@ -211,6 +228,11 @@ export function PanelTiempos ({ proyectoId, capacidades }: PropsPanelTiempos): R
       )}
 
       {carga.fase === 'listo' && registros.length > 0 && (
+        <div className="relative" aria-busy={refrescando}>
+          {/* Cambiar de pagina o de filtro no vacia la tabla, asi que el aviso va en un chip sobre la
+              esquina: sin el, la unica señal de que hay algo en curso era que los datos cambiaban solos. */}
+          {refrescando && <CargandoConOrbe mensaje="Actualizando…" className="absolute right-2 top-2 z-10" />}
+          <div className={refrescando ? 'opacity-60 transition-opacity' : undefined}>
         <Tabla>
           <EncabezadoTabla>
             <tr>
@@ -308,6 +330,8 @@ export function PanelTiempos ({ proyectoId, capacidades }: PropsPanelTiempos): R
             })}
           </CuerpoTabla>
         </Tabla>
+          </div>
+        </div>
       )}
 
       <PaginacionTabla
