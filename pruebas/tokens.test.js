@@ -17,6 +17,7 @@ test('el vencimiento relativo se guarda como epoch absoluto', () => {
   const sesion = sesionDesdeTokens(
     { access_token: 'acc', expires_in: 3600, refresh_token: 'ref', refresh_expires_in: 2592000 },
     7,
+    'staff',
     AHORA
   )
 
@@ -33,12 +34,29 @@ test('la respuesta de refresh no trae staff y aun asi arma la sesion', () => {
     refresh_expires_in: 2592000
   }
 
-  const sesion = sesionDesdeTokens(respuestaDeRefresh, 42, AHORA)
+  const sesion = sesionDesdeTokens(respuestaDeRefresh, 42, 'staff', AHORA)
 
-  assert.equal(sesion.staffId, 42, 'el staffId se conserva del que ya tenia la sesion')
+  assert.equal(sesion.sujetoId, 42, 'el id se conserva del que ya tenia la sesion')
+  assert.equal(sesion.sujeto, 'staff')
 })
 
-test('el staffId que se guarda es el que se pasa, no el del bloque staff', () => {
+test('un refresco de contacto sigue siendo de contacto', () => {
+  const respuestaDeRefresh = {
+    access_token: 'acc3',
+    expires_in: 3600,
+    refresh_token: 'ref3',
+    refresh_expires_in: 2592000
+  }
+
+  // Es la propiedad que impide que el portal sea una escalera al panel: el refresco no puede
+  // cambiar de sujeto por el camino.
+  const sesion = sesionDesdeTokens(respuestaDeRefresh, 16, 'contacto', AHORA)
+
+  assert.equal(sesion.sujeto, 'contacto')
+  assert.equal(sesion.sujetoId, 16)
+})
+
+test('el id que se guarda es el que se pasa, no el del bloque staff', () => {
   const conStaff = {
     access_token: 'a',
     expires_in: 60,
@@ -47,5 +65,5 @@ test('el staffId que se guarda es el que se pasa, no el del bloque staff', () =>
     staff: { id: 99 }
   }
 
-  assert.equal(sesionDesdeTokens(conStaff, 7, AHORA).staffId, 7)
+  assert.equal(sesionDesdeTokens(conStaff, 7, 'staff', AHORA).sujetoId, 7)
 })

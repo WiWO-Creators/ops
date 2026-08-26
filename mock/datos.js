@@ -83,6 +83,70 @@ export const STAFF = NOMBRES.map(([firstname, lastname], i) => ({
   two_factor: i === 1 ? 'email' : null
 }))
 
+/**
+ * Contactos de cliente, que son quienes entran al portal.
+ *
+ * No son staff con menos permisos: es otra poblacion de ids, con otra tabla y otra puerta. El
+ * fixture lo refleja a proposito —el contacto 1 y el staff 1 existen los dos y no son la misma
+ * persona— porque justamente ese solapamiento es lo que un bug de sujeto haria pasar por alto.
+ *
+ * Los tres cubren los casos que el portal tiene que distinguir: uno completo, uno con una sola
+ * seccion habilitada, y uno que no verifico su correo.
+ */
+export const CONTACTOS = [
+  {
+    id: 1,
+    client_id: 1,
+    email: 'clienta@acme.com',
+    password: 'portal1234',
+    firstname: 'Renata',
+    lastname: 'Ferreyra',
+    full_name: 'Renata Ferreyra',
+    phonenumber: '+54 11 4444-1122',
+    title: 'Gerenta de Operaciones',
+    is_primary: true,
+    email_verified: true,
+    active: true,
+    direction: null,
+    last_login: '2026-08-24T10:04:00Z',
+    permissions: ['invoices', 'estimates', 'contracts', 'proposals', 'support', 'projects']
+  },
+  {
+    id: 2,
+    client_id: 1,
+    email: 'limitado@acme.com',
+    password: 'portal1234',
+    firstname: 'Bruno',
+    lastname: 'Salas',
+    full_name: 'Bruno Salas',
+    phonenumber: null,
+    title: null,
+    is_primary: false,
+    email_verified: true,
+    active: true,
+    direction: null,
+    last_login: null,
+    permissions: ['projects']
+  },
+  {
+    id: 3,
+    client_id: 2,
+    email: 'sinverificar@nordelta.com',
+    password: 'portal1234',
+    firstname: 'Ivo',
+    lastname: 'Duarte',
+    full_name: 'Ivo Duarte',
+    phonenumber: null,
+    title: null,
+    is_primary: true,
+    email_verified: false,
+    active: true,
+    direction: null,
+    last_login: null,
+    permissions: ['projects', 'invoices']
+  }
+]
+
 const EMPRESAS = [
   'Acme SRL', 'Nordelta Group', 'Vera & Asociados', 'Ledesma Digital',
   'Costa Norte', 'Pampa Software', 'Rivera Consultora'

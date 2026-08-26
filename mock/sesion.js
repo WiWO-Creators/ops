@@ -8,13 +8,13 @@
 
 import { randomUUID } from 'node:crypto'
 import { ErrorApi } from './consulta.js'
-import { STAFF } from './datos.js'
+import { CONTACTOS, STAFF } from './datos.js'
 
 export const VIDA_ACCESO = 3600
 export const VIDA_REFRESCO = 2592000
 export const VIDA_DESAFIO = 300
 
-/** @type {Map<string, {staffId: number, tipo: 'acceso'|'refresco'|'desafio', vence: number, revocado: boolean}>} */
+/** @type {Map<string, {sujeto: 'staff'|'contacto', sujetoId: number, tipo: 'acceso'|'refresco'|'desafio', vence: number, revocado: boolean}>} */
 const tokens = new Map()
 
 /** Staff cuyos refrescos fueron revocados en masa por reuso. Solo para el mensaje de diagnostico. */
@@ -40,27 +40,29 @@ export function reiniciar () {
 
 /**
  * Crea un token de un tipo dado.
- * @param {number} staffId
+ * @param {number} sujetoId
  * @param {'acceso'|'refresco'|'desafio'} tipo
  * @param {number} vidaSegundos
+ * @param {'staff'|'contacto'} [sujeto]
  * @returns {string}
  */
-function emitir (staffId, tipo, vidaSegundos) {
+function emitir (sujetoId, tipo, vidaSegundos, sujeto = 'staff') {
   const token = `${tipo}_${randomUUID().replace(/-/g, '')}`
-  tokens.set(token, { staffId, tipo, vence: ahora() + vidaSegundos * 1000, revocado: false })
+  tokens.set(token, { sujeto, sujetoId, tipo, vence: ahora() + vidaSegundos * 1000, revocado: false })
   return token
 }
 
 /**
  * Emite el par acceso + refresco de una sesion nueva.
- * @param {number} staffId
+ * @param {number} sujetoId
+ * @param {'staff'|'contacto'} [sujeto]
  * @returns {{access_token: string, expires_in: number, refresh_token: string, refresh_expires_in: number}}
  */
-export function emitirSesion (staffId) {
+export function emitirSesion (sujetoId, sujeto = 'staff') {
   return {
-    access_token: emitir(staffId, 'acceso', VIDA_ACCESO),
+    access_token: emitir(sujetoId, 'acceso', VIDA_ACCESO, sujeto),
     expires_in: VIDA_ACCESO,
-    refresh_token: emitir(staffId, 'refresco', VIDA_REFRESCO),
+    refresh_token: emitir(sujetoId, 'refresco', VIDA_REFRESCO, sujeto),
     refresh_expires_in: VIDA_REFRESCO
   }
 }
@@ -83,12 +85,33 @@ export function emitirDesafio (staffId) {
  * @throws {ErrorApi} 401 si falta, no existe, es de otro tipo, esta revocado o vencio
  */
 export function resolver (token, tipoEsperado) {
+  return resolverSujeto(token, tipoEsperado, 'staff')
+}
+
+/**
+ * Resuelve un token a su contacto de cliente.
+ *
+ * Simetrico de `resolver`: un token de staff no resuelve aca, y viceversa. Igual que en la API real,
+ * el filtro esta en la busqueda y no en quien llama.
+ *
+ * @param {string|null} token
+ * @param {'acceso'|'refresco'} tipoEsperado
+ * @returns {object} el contacto dueño del token
+ * @throws {ErrorApi} 401
+ */
+export function resolverContacto (token, tipoEsperado) {
+  return resolverSujeto(token, tipoEsperado, 'contacto')
+}
+
+function resolverSujeto (token, tipoEsperado, sujeto) {
   if (!token) {
     throw new ErrorApi(401, 'unauthenticated', 'Falta el token de acceso.')
   }
 
   const fila = tokens.get(token)
-  if (!fila || fila.tipo !== tipoEsperado) {
+  // Un token del sujeto equivocado es indistinguible de uno inexistente: es lo que impide que el
+  // portal sea una puerta al panel.
+  if (!fila || fila.tipo !== tipoEsperado || fila.sujeto !== sujeto) {
     throw new ErrorApi(401, 'unauthenticated', 'Token inválido.')
   }
   if (fila.revocado) {
@@ -98,15 +121,16 @@ export function resolver (token, tipoEsperado) {
     throw new ErrorApi(401, 'token_expired', 'El token expiró.')
   }
 
-  const staff = STAFF.find((s) => s.id === fila.staffId)
-  // Baja de empleado: el token sigue vivo pero la identidad ya no. Es el caso que el guard real
-  // cubre consultando el staff en cada peticion, y por eso el mock tambien lo comprueba acá.
-  if (!staff || !staff.active) {
+  const catalogo = sujeto === 'contacto' ? CONTACTOS : STAFF
+  const persona = catalogo.find((s) => s.id === fila.sujetoId)
+  // Baja: el token sigue vivo pero la identidad ya no. Es el caso que el guard real cubre
+  // consultando la fila en cada peticion, y por eso el mock tambien lo comprueba acá.
+  if (!persona || !persona.active) {
     fila.revocado = true
     throw new ErrorApi(401, 'token_revoked', 'La cuenta está inactiva.')
   }
 
-  return staff
+  return persona
 }
 
 /**
@@ -123,14 +147,16 @@ export function rotar (token) {
   const fila = token ? tokens.get(token) : null
 
   if (fila && fila.tipo === 'refresco' && fila.revocado) {
-    revocarTodo(fila.staffId)
-    staffComprometido.add(fila.staffId)
+    revocarTodo(fila.sujetoId, fila.sujeto)
+    if (fila.sujeto === 'staff') staffComprometido.add(fila.sujetoId)
     throw new ErrorApi(401, 'token_revoked', 'Refresco reutilizado: se cerraron todas las sesiones.')
   }
 
-  const staff = resolver(token, 'refresco')
+  const sujeto = fila?.sujeto ?? 'staff'
+  // El par nuevo es del MISMO sujeto que el viejo: un refresco de contacto no vuelve como staff.
+  const persona = resolverSujeto(token, 'refresco', sujeto)
   tokens.get(token).revocado = true
-  return emitirSesion(staff.id)
+  return emitirSesion(persona.id, sujeto)
 }
 
 /**
@@ -143,12 +169,15 @@ export function revocar (token) {
 }
 
 /**
- * Revoca todos los tokens de un staff.
- * @param {number} staffId
+ * Revoca todos los tokens vivos de un sujeto.
+ * @param {number} sujetoId
+ * @param {'staff'|'contacto'} [sujeto]
  */
-export function revocarTodo (staffId) {
+export function revocarTodo (sujetoId, sujeto = 'staff') {
   for (const fila of tokens.values()) {
-    if (fila.staffId === staffId) fila.revocado = true
+    // El filtro por sujeto no es opcional: sin el, cerrar las sesiones del staff 5 cerraria tambien
+    // las del contacto 5.
+    if (fila.sujetoId === sujetoId && fila.sujeto === sujeto) fila.revocado = true
   }
 }
 
@@ -174,4 +203,25 @@ export function autenticar (email, password) {
   }
 
   return staff
+}
+
+/**
+ * Valida credenciales de un contacto de cliente contra el fixture.
+ *
+ * @param {string} email
+ * @param {string} password
+ * @returns {object} el contacto
+ * @throws {ErrorApi} 401 si las credenciales no sirven, 403 si esta desactivado
+ */
+export function autenticarContacto (email, password) {
+  const contacto = CONTACTOS.find((c) => c.email === String(email ?? '').toLowerCase())
+
+  if (!contacto || contacto.password !== password) {
+    throw new ErrorApi(401, 'unauthenticated', 'Credenciales inválidas.')
+  }
+  if (!contacto.active) {
+    throw new ErrorApi(403, 'forbidden', 'La cuenta está desactivada.')
+  }
+
+  return contacto
 }

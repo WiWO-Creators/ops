@@ -53,14 +53,19 @@ export async function DELETE (peticion: NextRequest, ctx: RouteContext<'/api/bff
 async function reenviar (peticion: NextRequest, ctx: RouteContext<'/api/bff/[...ruta]'>): Promise<Response> {
   const { ruta } = await ctx.params
 
-  if (!rutaPermitida(ruta)) {
+  // El prefijo decide de que sujeto es la peticion, y con eso que cookie leer y contra que lista
+  // blanca validar. Un contacto no puede pedir `clients` ni un staff pedir `portal`, y el pedido ni
+  // siquiera sale hacia la API.
+  const sujeto = ruta[0] === 'portal' ? 'contacto' : 'staff'
+
+  if (!rutaPermitida(ruta, sujeto)) {
     return NextResponse.json(
       { error: { code: 'not_found', message: 'Ruta no disponible' } },
       { status: 404 }
     )
   }
 
-  const sesion = await leerSesion()
+  const sesion = await leerSesion(sujeto)
 
   if (sesion === null) {
     return NextResponse.json(
@@ -83,7 +88,7 @@ async function reenviar (peticion: NextRequest, ctx: RouteContext<'/api/bff/[...
     const renovada = await intentarRefrescar(sesion)
 
     if (renovada === null) {
-      await borrarSesion()
+      await borrarSesion(sujeto)
 
       return NextResponse.json(
         { error: { code: 'token_revoked', message: 'La sesion se cerro' } },
