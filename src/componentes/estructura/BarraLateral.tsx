@@ -53,15 +53,15 @@ export interface Seccion {
 /**
  * Decide si una seccion es la que se esta mirando.
  *
- * `/` se compara por igualdad y el resto por prefijo: con `startsWith` a secas, "Inicio" quedaria
- * activo en todas las pantallas del panel, porque toda ruta empieza con `/`.
+ * El prefijo se compara por segmento y no con `startsWith` a secas: asi `/clientes` no queda activo
+ * cuando la ruta sea `/clientes-potenciales`.
  *
  * @param href ruta de la seccion
  * @param ruta ruta actual del navegador
  * @returns `true` si la seccion corresponde a la ruta actual
  */
 function estaActiva (href: string, ruta: string): boolean {
-  return href === '/' ? ruta === '/' : ruta.startsWith(href)
+  return ruta === href || ruta.startsWith(`${href}/`)
 }
 
 /**
@@ -219,7 +219,7 @@ export function BarraLateral ({ secciones, className }: { secciones: Seccion[], 
       )}
     >
       <div className="flex h-14 shrink-0 items-center gap-2 px-3 [[data-barra-abatida]_&]:justify-center">
-        <Link href="/" aria-label="Inicio" className="min-w-0 [[data-barra-abatida]_&]:hidden">
+        <Link href="/inicio" aria-label="Inicio" className="min-w-0 [[data-barra-abatida]_&]:hidden">
           <Logo tamano="medio" />
         </Link>
         <button

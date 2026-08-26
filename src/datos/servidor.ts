@@ -9,8 +9,8 @@ import type { Sobre } from './tipos'
 
 /** A donde mandar a quien no tenga sesion. Cada sujeto tiene su pantalla de acceso. */
 const ENTRADA: Record<Sujeto, string> = {
-  staff: '/entrar',
-  contacto: '/portal/entrar'
+  staff: '/colab',
+  contacto: '/'
 }
 
 /**

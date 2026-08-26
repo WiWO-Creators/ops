@@ -20,7 +20,7 @@ export function BotonSalirPortal () {
     try {
       await fetch('/api/sesion?portal=1', { method: 'DELETE' })
     } finally {
-      router.replace('/portal/entrar')
+      router.replace('/')
       router.refresh()
     }
   }

@@ -9,15 +9,16 @@ import { abrir, porVencer, sellar, type Sujeto } from '@/datos/sobre-sesion'
  *
  * Hace dos cosas, y las dos existen porque un Server Component **no puede escribir cookies**:
  *
- *  1. Manda a `/entrar` a quien no tenga sesion, antes de que una pantalla intente pedir datos.
+ *  1. Manda a la pantalla de acceso a quien no tenga sesion, antes de que una pantalla intente pedir
+ *     datos.
  *  2. Renueva el token de acceso cuando le quedan menos de `MARGEN_REFRESCO_SEGUNDOS`, de modo que
  *     las pantallas siempre reciban uno vigente y no tengan que resolver el vencimiento.
  *
  * El refresco reactivo sigue existiendo en el BFF, para la peticion que igual llega vencida.
  *
  * Sirve a los dos sujetos. El prefijo de la ruta decide cual: `/portal` usa la cookie del contacto y
- * cae a `/portal/entrar`; el resto, la del panel y `/entrar`. Sin esta rama, cada pantalla nueva del
- * portal terminaria mandando al cliente al login del equipo.
+ * cae a `/`, que es su pantalla de acceso; el resto, la del panel y `/colab`. Sin esta rama, cada
+ * pantalla nueva del portal terminaria mandando al cliente al login del equipo.
  *
  * En Next 16 esto es `proxy`, no `middleware`, y corre siempre en Node.
  */
@@ -27,7 +28,7 @@ export async function proxy (peticion: NextRequest): Promise<NextResponse> {
     peticion.nextUrl.pathname.startsWith('/portal/')
   const sujeto: Sujeto = enPortal ? 'contacto' : 'staff'
   const cookie = nombreCookie(sujeto)
-  const entrada = enPortal ? '/portal/entrar' : '/entrar'
+  const entrada = enPortal ? '/' : '/colab'
   const sesion = abrir(peticion.cookies.get(cookie)?.value, clave)
 
   // Una cookie del sujeto equivocado vale lo mismo que ninguna: mandar a entrar por la puerta que
@@ -60,8 +61,8 @@ export async function proxy (peticion: NextRequest): Promise<NextResponse> {
 /**
  * El panel y el portal.
  *
- * Fuera quedan `/entrar` y `/portal/entrar` (que existen justo para quien no tiene sesion),
- * `/api/sesion` (que la crea),
+ * Fuera quedan `/` y `/colab` (las dos pantallas de acceso, que existen justo para quien no tiene
+ * sesion), `/api/sesion` (que la crea),
  * `/api/bff` (que resuelve su propio refresco y debe responder 401 en JSON, no redirigir), el taller
  * y los estaticos.
  *
@@ -69,7 +70,11 @@ export async function proxy (peticion: NextRequest): Promise<NextResponse> {
  * `favicon.ico` y `fonts`, asi que cada archivo nuevo de `public/` nacia protegido y la pantalla de
  * entrar —donde justamente no hay sesion— lo recibia como redireccion a `/entrar`. El logotipo fue el
  * primero en toparse con eso. Ninguna pantalla del panel tiene punto en su ruta.
+ *
+ * La raiz se excluye con el `.+` del final: es lo unico que distingue `/` —donde entra el cliente— de
+ * `/procesos`, porque el resto del patron mira el principio de la ruta y no su largo. Y `colab$` con
+ * ancla, para que una futura `/colaboradores` no nazca destapada.
  */
 export const config = {
-  matcher: ['/((?!entrar|portal/entrar|api|taller|_next|.*\\.[a-z0-9]+$).*)']
+  matcher: ['/((?!colab$|api|taller|_next|.*\\.[a-z0-9]+$).+)']
 }

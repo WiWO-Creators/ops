@@ -56,7 +56,7 @@ export default async function PanelLayout ({ children }: { children: React.React
  * la frontera servidor-cliente, y la barra lo resuelve con su propio mapa.
  */
 function seccionesDe (yo: Yo): Seccion[] {
-  const secciones: Seccion[] = [{ href: '/', etiqueta: 'Inicio', icono: 'inicio' }]
+  const secciones: Seccion[] = [{ href: '/inicio', etiqueta: 'Inicio', icono: 'inicio' }]
 
   if (yo.permissions.tasks.includes('view')) {
     secciones.push({ href: '/procesos', etiqueta: GLOSARIO.proceso.plural, icono: 'procesos' })
