@@ -14,6 +14,12 @@ import {
   PanelResumen,
   PanelTareas
 } from './PanelesProyecto'
+import {
+  PanelActividadPortal,
+  PanelDiscusiones,
+  PanelGantt,
+  PanelTiempos
+} from './PanelesExtra'
 
 /**
  * Detalle de un proyecto, con las pestañas que el equipo compartio.
@@ -87,6 +93,14 @@ function contenidoDePestania (clave: string, proyecto: EspacioPortal): React.Rea
     case 'estimates':
     case 'tickets':
       return <PanelDocumentosDelProyecto proyectoId={proyecto.id} recurso={clave} />
+    case 'discussions':
+      return <PanelDiscusiones proyectoId={proyecto.id} />
+    case 'timesheets':
+      return <PanelTiempos proyectoId={proyecto.id} />
+    case 'gantt':
+      return <PanelGantt proyectoId={proyecto.id} />
+    case 'activity':
+      return <PanelActividadPortal proyectoId={proyecto.id} />
     default:
       return <PanelResumen proyecto={proyecto} />
   }

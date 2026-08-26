@@ -263,3 +263,75 @@ export interface ArticuloAyudaPortal {
   date: string | null
   group: { id: number, name: string, slug: string }
 }
+
+/**
+ * Discusion compartida con el cliente.
+ *
+ * Sin `show_to_customer`: al portal solo llegan las que la tienen, asi que el campo seria siempre
+ * `true` y delataria que existe la distincion.
+ */
+export interface DiscusionPortal {
+  id: number
+  subject: string
+  description: string | null
+  date_created: string | null
+  last_activity: string | null
+  counts: { comments: number }
+  staff: { id: number, full_name: string } | null
+  contact: { id: number, full_name: string } | null
+}
+
+export interface ComentarioPortal {
+  id: number
+  content: string
+  created: string | null
+  parent: number | null
+  author: { id: number, full_name: string, es_cliente: boolean } | null
+  file: { name: string, mime: string, url: string } | null
+}
+
+/** Entrada del registro de actividad, sin la marca de visibilidad. */
+export interface ActividadPortal {
+  id: number
+  description: string
+  additional_data: string | null
+  date_added: string | null
+  staff: { id: number, full_name: string } | null
+  contact: { id: number, full_name: string } | null
+}
+
+/** Registro de horas, sin tarifa ni banderas de edicion. */
+export interface TiempoPortal {
+  id: number
+  staff: { id: number, full_name: string } | null
+  task: { id: number, name: string }
+  start_time: string
+  end_time: string | null
+  note: string | null
+  duration_seconds: number
+  duration_hm: string
+}
+
+/**
+ * Columna del gantt: un hito con sus barras.
+ *
+ * Las claves mezclan español e ingles porque asi las devuelve el contrato del panel, que este
+ * endpoint reusa: `nombre` y `tareas` de la columna, `name` y `start` de la barra.
+ */
+export interface ColumnaGanttPortal {
+  id: string
+  nombre: string
+  grupo: string
+  start: string | null
+  end: string | null
+  tareas: Array<{
+    id: number
+    name: string
+    start: string | null
+    end: string | null
+    status: number
+    progress: number
+    color: string | null
+    dependencies: number[]
+  }>
+}

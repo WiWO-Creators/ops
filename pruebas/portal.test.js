@@ -123,15 +123,21 @@ import { PESTANIAS_PROYECTO, PORTAL_PROYECTOS, PORTAL_TAREAS, pestaniasDelProyec
 test('las pestañas del proyecto salen de lo que habilito la API', () => {
   const visibles = pestaniasDelProyecto(['overview', 'tasks', 'gantt', 'invoices'])
 
-  // `gantt` esta habilitada en la API pero el portal todavia no la construyo: se ignora en vez de
-  // dibujar una pestaña que no lleva a ningun lado.
-  assert.deepEqual(visibles.map((p) => p.clave), ['overview', 'tasks', 'invoices'])
+  assert.deepEqual(visibles.map((p) => p.clave), ['overview', 'tasks', 'invoices', 'gantt'])
+})
+
+test('ignora las pestañas que la API habilita y el portal no construyo', () => {
+  // Contratos y propuestas dentro de un proyecto: se ven en su seccion propia del menu, y una
+  // pestaña que no lleva a ningun lado es peor que ninguna.
+  const visibles = pestaniasDelProyecto(['tasks', 'contracts', 'proposals'])
+
+  assert.deepEqual(visibles.map((p) => p.clave), ['tasks'])
 })
 
 test('el orden lo fija el producto, no el arreglo de la API', () => {
-  const visibles = pestaniasDelProyecto(['tickets', 'overview', 'tasks'])
+  const visibles = pestaniasDelProyecto(['activity', 'tickets', 'overview', 'tasks'])
 
-  assert.deepEqual(visibles.map((p) => p.clave), ['overview', 'tasks', 'tickets'])
+  assert.deepEqual(visibles.map((p) => p.clave), ['overview', 'tasks', 'tickets', 'activity'])
 })
 
 test('un proyecto sin nada compartido no dibuja pestañas', () => {
