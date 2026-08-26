@@ -1,10 +1,10 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { llamarApi } from '@/datos/api'
 import { ErrorApi } from '@/datos/errores'
-import { rutaPermitida } from '@/datos/rutas'
+import { rutaCompartida, rutaPermitida } from '@/datos/rutas'
 import { borrarSesion, guardarSesion, leerSesion } from '@/datos/sesion'
 import { refrescar } from '@/datos/refresco'
-import type { Sesion } from '@/datos/sobre-sesion'
+import type { Sesion, Sujeto } from '@/datos/sobre-sesion'
 
 /**
  * Proxy unico entre el navegador y la API v1.
@@ -56,7 +56,16 @@ async function reenviar (peticion: NextRequest, ctx: RouteContext<'/api/bff/[...
   // El prefijo decide de que sujeto es la peticion, y con eso que cookie leer y contra que lista
   // blanca validar. Un contacto no puede pedir `clients` ni un staff pedir `portal`, y el pedido ni
   // siquiera sale hacia la API.
-  const sujeto = ruta[0] === 'portal' ? 'contacto' : 'staff'
+  //
+  // La descarga de adjuntos es la excepcion: vive fuera de `/portal` y sirve a los dos, asi que el
+  // prefijo no alcanza y hay que mirar que sesion existe. Se prueba primero la del panel, igual que
+  // hace la API, para que alguien del equipo con las dos sesiones abiertas siga descargando como
+  // staff y no como el cliente que estaba mirando.
+  const sujeto: Sujeto = ruta[0] === 'portal'
+    ? 'contacto'
+    : rutaCompartida(ruta) && await leerSesion('staff') === null
+      ? 'contacto'
+      : 'staff'
 
   if (!rutaPermitida(ruta, sujeto)) {
     return NextResponse.json(

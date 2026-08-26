@@ -15,7 +15,7 @@
  * no una parte de la interfaz: el iframe no hereda los tokens del tema y forzarlos adentro seria
  * pelear con el CSS que el propio contrato traiga.
  */
-export function ContenidoDeDocumento ({ html }: { html: string }) {
+export function ContenidoDeDocumento ({ html, alto = 'h-[32rem]' }: { html: string, alto?: string }) {
   const documento = `<!doctype html>
 <html lang="es"><head><meta charset="utf-8">
 <style>
@@ -39,7 +39,7 @@ export function ContenidoDeDocumento ({ html }: { html: string }) {
       // Alto fijo con desplazamiento propio: sin JavaScript adentro no hay forma de que el iframe
       // informe su altura, y dejarlo crecer solo no es posible. Un alto generoso cubre la mayoria
       // de los documentos sin que haya que desplazar.
-      className="rounded-chico border-linea h-[32rem] w-full border bg-white"
+      className={`rounded-chico border-linea w-full border bg-white ${alto}`}
     />
   )
 }
