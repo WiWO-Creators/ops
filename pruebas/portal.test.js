@@ -94,7 +94,7 @@ test('ningun filtro sale de un lookup que el portal no recibe', () => {
   const DISPONIBLES = new Set([
     'invoice_statuses', 'estimate_statuses', 'proposal_statuses',
     'ticket_statuses', 'ticket_priorities', 'contract_types',
-    'project_statuses', 'currencies'
+    'project_statuses', 'task_statuses', 'currencies'
   ])
 
   for (const definicion of SECCIONES) {
@@ -116,4 +116,38 @@ test('ninguna seccion pide includes', () => {
   for (const definicion of SECCIONES) {
     assert.deepEqual(definicion.includes, [])
   }
+})
+
+import { PESTANIAS_PROYECTO, PORTAL_PROYECTOS, PORTAL_TAREAS, pestaniasDelProyecto } from '../src/definiciones/portal-proyectos.ts'
+
+test('las pestañas del proyecto salen de lo que habilito la API', () => {
+  const visibles = pestaniasDelProyecto(['overview', 'tasks', 'gantt', 'invoices'])
+
+  // `gantt` esta habilitada en la API pero el portal todavia no la construyo: se ignora en vez de
+  // dibujar una pestaña que no lleva a ningun lado.
+  assert.deepEqual(visibles.map((p) => p.clave), ['overview', 'tasks', 'invoices'])
+})
+
+test('el orden lo fija el producto, no el arreglo de la API', () => {
+  const visibles = pestaniasDelProyecto(['tickets', 'overview', 'tasks'])
+
+  assert.deepEqual(visibles.map((p) => p.clave), ['overview', 'tasks', 'tickets'])
+})
+
+test('un proyecto sin nada compartido no dibuja pestañas', () => {
+  assert.deepEqual(pestaniasDelProyecto([]), [])
+})
+
+test('cada pestaña conocida tiene rotulo y no se repite', () => {
+  const claves = PESTANIAS_PROYECTO.map((p) => p.clave)
+
+  assert.equal(new Set(claves).size, claves.length)
+  for (const p of PESTANIAS_PROYECTO) assert.equal(p.etiqueta.length > 0, true, p.clave)
+})
+
+test('las tareas del proyecto no declaran ruta propia', () => {
+  // Cuelgan de un proyecto: la ruta la completa la pantalla con el id. Un valor fijo aca mentiria
+  // sobre a donde apunta.
+  assert.equal(PORTAL_TAREAS.ruta, '')
+  assert.equal(PORTAL_PROYECTOS.ruta, 'portal/projects')
 })
