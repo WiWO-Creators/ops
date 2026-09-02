@@ -1673,6 +1673,1422 @@ Siempre presentes, sin `include`: son baratos y la interfaz siempre los pinta.
 
 Filtrar por tag: `?filter[tag]=3` (acepta lista).
 
+## Recursos de la ola 1 (brechas del board)
+
+Todo lo de esta sección se agregó en la ola 1 del encargo `docs/encargo-brechas-del-board-PNDNG.md`,
+para cerrar las brechas que obligaban a volver al panel clásico. Cada bloque lo escribió el frente
+que construyó su endpoint y se integró sin editarse.
+
+Tres advertencias que valen para toda la sección:
+
+- **Nada de esto manda correo al mergear.** El correo tiene tres modos (`apagado` por defecto,
+  `prueba`, `real`) y sus opciones no se siembran en ninguna migración: sin fila, el modo es
+  `apagado`. Ver el bloque de avisos.
+- **El interruptor de la API no alcanza al cron de Perfex**, que corre en otro proceso. Escribir una
+  recurrencia o un recordatorio basta para que el cron actúe, así que esas dos escrituras tienen su
+  propio interruptor, también apagado.
+- Las rutas nuevas respetan la visibilidad por fila del recurso que consultan; no reimplementan
+  ninguna regla de permisos.
+
+
+### Escritura de Procesos: editar, seguidores, relación y recurrencia
+
+Rama `feat/api-procesos-escritura`. Reemplaza la seccion **`PATCH /tasks/{id}` y `PATCH
+/projects/{id}`** (`contrato-api.md:538`) en la parte del Proceso. Lo del Espacio no cambia.
+
+### `PATCH /tasks/{id}`
+
+**Solo se escriben las claves presentes.** Omitir un campo lo deja como esta. Todo el parche va en
+una transaccion: o entran los cinco grupos o no entra ninguno.
+
+#### Campos editables
+
+| Clave | Tipo | Nota |
+|---|---|---|
+| `name` | string 1..600 | vacio o solo espacios es `422` |
+| `description` | string 65535 o `null` | `null` la borra. Texto plano: la API no sanea HTML |
+| `start_date` / `due_date` | `YYYY-MM-DD` o `null` | ISO estricto; no se usa el formato de la instalacion |
+| `priority` | 1..4 | |
+| `billable` | bool | acepta `true/false/0/1/"0"/"1"` |
+| `milestone` | int o `0` | tiene que ser del **mismo Espacio**; `0` lo saca |
+| `assignees` | int[] de `staff_id` | **reemplazo** |
+| `followers` | int[] de `staff_id` | **reemplazo** |
+| `tags` | string[] de nombres | **reemplazo**, y conserva el orden que se manda |
+| `rel_type` + `rel_id` | ver abajo | van **siempre juntas** |
+| `recurring`, `repeat_every`, `recurring_type`, `cycles` | ver abajo | detras de interruptor |
+
+Cualquier otra clave devuelve `422` con `details` nombrandola.
+
+#### Listas: semantica de reemplazo
+
+La lista que llega **es** la lista que queda. `[]` (o `null`) vacia el vinculo; no hay endpoint de
+"agregar uno". Un `staff_id` inexistente o inactivo, o una etiqueta que no existe, son `422`
+`no_existe`: la API **no crea etiquetas** desde el parche.
+
+Sacar a alguien de `assignees` le **cierra los cronometros abiertos** en esa tarea. Sin eso, un
+cronometro de alguien que ya no esta asignado corre para siempre y no lo ve nadie.
+
+Nadie recibe correo ni campana por entrar o salir de una lista. El panel si notifica; la API no.
+
+#### Relacion (`rel_type` + `rel_id`)
+
+Se mandan las dos o ninguna: una sola es `422 requerido` en la que falta. `{"rel_type": null,
+"rel_id": null}` deja el Proceso **sin Espacio**, que es un estado valido.
+
+`rel_type` acepta los nueve tipos del alta: `project`, `customer`, `lead`, `contract`, `ticket`,
+`invoice`, `estimate`, `proposal`, `expense`. El id tiene que existir (`422 no_existe`). *El
+selector del frontend ofrece solo `project` y `customer` (DECISIONES.md #2), pero la API no
+restringe.*
+
+**Cambiar la relacion a algo que no sea `project` pone `milestone` en 0** en la misma escritura: un
+hito pertenece a un Espacio y quedaria apuntando al tablero de otro. Si el mismo cuerpo trae
+`milestone` y una relacion nueva, el hito se valida contra la relacion **nueva**.
+
+#### Recurrencia — detras de interruptor, apagada por defecto
+
+```json
+{ "recurring": true, "repeat_every": 2, "recurring_type": "week", "cycles": 3 }
+```
+
+- `recurring` es **obligatoria** si viene cualquiera de las otras tres (`422 requerido`).
+- Con `recurring: true`: `repeat_every` 1..365 y `recurring_type` en `day|week|month|year` son
+  obligatorias; `cycles` 0..365 es opcional y **por defecto 0** (para siempre). Encender reinicia la
+  cuenta de ciclos ya cumplidos.
+- Con `recurring: false`: apaga y limpia todo. Mandar las otras tres junto a `false` es `422`
+  `sobra_sin_recurrencia`.
+- Con el interruptor apagado, **cualquiera** de las cuatro claves es `422` `recurrencia_apagada`. No
+  se ignora en silencio.
+
+El interruptor es la opcion `wiwo_procesos_recurrentes` de `tbloptions` (migracion `0010`), con
+valor `'0'`. Existe porque la recurrencia **no la ejecuta la API**: la ejecuta
+`Cron_model::recurring_tasks()`, en otro proceso y horas despues, y ahi si se manda correo y campana
+a cada asignado de cada copia. El kill-switch de `V1::__construct()` no llega hasta ahi.
+
+#### Codigos de error
+
+| Situacion | Codigo |
+|---|---|
+| Sin permiso `tasks.edit` | `403 forbidden` |
+| La tarea no existe | `404 not_found` |
+| Clave desconocida | `422` `{"<clave>": ["no_editable"]}` |
+| Valor invalido de un campo directo | `422` `{"<clave>": ["invalid"]}` |
+| `staff_id` o etiqueta inexistente | `422` `{"assignees\|followers\|tags": ["no_existe"]}` |
+| Lista que no es lista | `422` `{"<clave>": ["no_es_lista"]}` |
+| Falta la mitad de la relacion | `422` `{"rel_type\|rel_id": ["requerido"]}` |
+| `rel_type` fuera de los nueve | `422` `{"rel_type": ["no_soportado"]}` |
+| Recurrencia con el interruptor apagado | `422` `{"<clave>": ["recurrencia_apagada"]}` |
+
+Respuesta `200` con la ficha del Proceso, la misma forma de `GET /tasks/{id}`.
+
+### Pendiente que NO es de este frente
+
+`GET /tasks/{id}` expone `recurring` como booleano pero **no** `repeat_every`, `recurring_type` ni
+`cycles` (`Recursos/RecursoProcesos.php:515` y `:602`). La pantalla puede encender la recurrencia
+pero no puede mostrar la frecuencia guardada. Son tres columnas al SELECT y tres claves a la salida,
+en un archivo que no es de A1.
+
+### Comentarios y checklist de un Proceso
+
+Rutas nuevas. Todas exigen token y viven bajo `/api/v1`. Las lecturas de coleccion
+(`GET /tasks/{id}/comments` y `GET /tasks/{id}/checklist`) ya existian y no cambian.
+
+Regla comun: si el Proceso no es visible para quien pregunta, **404** (`No existe ese proceso.`),
+nunca 403 — 403 confirmaria que la tarea existe.
+
+---
+
+### POST /tasks/{id}/comments
+
+Crea un comentario, o una respuesta a otro comentario del mismo Proceso.
+
+**Request**
+
+```json
+{ "content": "<p>Texto con HTML del editor</p>", "parent": 274 }
+```
+
+| Campo | Tipo | Obligatorio | Notas |
+|---|---|---|---|
+| `content` | string | si | HTML. Se sanea con `html_purify()`, el mismo helper del resto de la API. Conserva `<span data-mention-id="N">` (menciones) y `<iframe>`; descarta `<script>`. Maximo 65535 caracteres ya saneados. |
+| `parent` | int\|null | no | Id de otro comentario **del mismo Proceso** y que sea raiz. El panel anida un solo nivel. |
+
+**Response `201`**
+
+```json
+{ "data": {
+  "id": 274,
+  "task_id": 3205,
+  "parent_id": null,
+  "content": "<p>Texto</p>",
+  "staff": { "id": 183, "full_name": "Dev Prueba" },
+  "date_added": "2026-09-02T23:18:44Z"
+} }
+```
+
+`staff` es `null` si el comentario lo dejo un contacto del cliente.
+
+**Errores**
+
+| Codigo | Cuando |
+|---|---|
+| `404 not_found` | el Proceso no existe o no es visible |
+| `422 validation_failed` `content: ["required"]` | falta, viene vacio o no es string |
+| `422 validation_failed` `content: ["invalid"]` | queda vacio despues de sanear, o pasa los 65535 |
+| `422 validation_failed` `parent: ["invalid"]` | no es un entero positivo |
+| `422 validation_failed` `parent: ["not_found"]` | no existe, o es de otro Proceso |
+| `422 validation_failed` `parent: ["nested"]` | el padre ya es una respuesta |
+| `422 validation_failed` `<clave>: ["no_editable"]` | cualquier clave que no sea `content` o `parent` |
+
+---
+
+### GET /tasks/{id}/comments/{comentario}
+
+Un comentario suelto. Misma forma que el `201` de arriba. `404` si no existe o es de otro Proceso.
+
+> El listado `GET /tasks/{id}/comments` **todavia no devuelve `parent_id`**: vive en
+> `Recursos/RecursoProcesos.php:387`, que no es de este frente.
+
+---
+
+### PATCH /tasks/{id}/comments/{comentario}
+
+Edita el contenido. **Solo `content`.**
+
+**Request**: `{ "content": "<p>Nuevo texto</p>" }` — mismas reglas de saneo y limite que el alta.
+
+**Response `200`**: el comentario, misma forma.
+
+**Errores**
+
+| Codigo | Cuando |
+|---|---|
+| `403 forbidden` | el comentario es de otra persona y falta `edit` sobre `tasks` |
+| `403 forbidden` | la opcion `client_staff_add_edit_delete_task_comments_first_hour` esta en `1`, pasaron mas de 60 minutos desde `date_added` y quien pide no es administrador |
+| `404 not_found` | el comentario no existe o es de otro Proceso |
+| `422 validation_failed` | igual que en el alta |
+
+Si el comentario tiene adjuntos, la respuesta guardada termina con el marcador `[task_attachment]`,
+igual que en el panel. El cliente puede mandarlo o no: se normaliza en el servidor.
+
+---
+
+### DELETE /tasks/{id}/comments/{comentario}
+
+Borra el comentario. Si es raiz, borra tambien **sus respuestas**, en la misma sentencia.
+
+**Response `204`**, sin cuerpo.
+
+**Errores**
+
+| Codigo | Cuando |
+|---|---|
+| `403 forbidden` | es de otra persona y falta `delete` sobre `tasks`; o la ventana de una hora |
+| `404 not_found` | no existe o es de otro Proceso |
+| `409 conflict` | el comentario (o alguna de sus respuestas) tiene adjuntos. Hay que borrarlos primero: esta API no borra archivos |
+
+---
+
+### POST /tasks/{id}/checklist
+
+Agrega un item **al final** de la lista (`order` = el maximo actual + 1).
+
+**Request**: `{ "description": "Revisar el brief" }`
+
+| Campo | Tipo | Obligatorio | Notas |
+|---|---|---|---|
+| `description` | string | si | Se le quitan las etiquetas HTML salvo `<br>`, y los saltos de linea pasan a `<br />`. Maximo 5000 caracteres. |
+
+**Response `201`**
+
+```json
+{ "data": { "id": 728, "task_id": 3205, "description": "Revisar el brief",
+            "finished": false, "order": 1, "assigned": null } }
+```
+
+**Errores**: `404` Proceso invisible; `422 description: ["required"]` si falta o no es escalar;
+`422 description: ["invalid"]` si queda vacia o pasa el limite; `422 <clave>: ["no_editable"]` para
+cualquier otra clave (incluida `assigned`, que este frente no escribe).
+
+---
+
+### GET /tasks/{id}/checklist/{item}
+
+Un item suelto, misma forma. `404` si no existe o es de otro Proceso.
+
+---
+
+### PATCH /tasks/{id}/checklist/{item}
+
+Renombra, marca o desmarca. Las dos cosas pueden venir juntas; un cuerpo vacio no cambia nada y
+devuelve el item tal cual.
+
+**Request**: `{ "description": "Texto nuevo", "finished": true }`
+
+| Campo | Tipo | Notas |
+|---|---|---|
+| `description` | string | mismas reglas que el alta. Vacia **no borra el item**: da 422 |
+| `finished` | bool \| 0 \| 1 \| "0" \| "1" | al marcar se guarda quien lo marco; al desmarcar ese dato se conserva |
+
+**Response `200`**: el item.
+
+**Errores**: `404`; `422 description: ["invalid"]`; `422 finished: ["boolean"]`;
+`422 <clave>: ["no_editable"]`.
+
+---
+
+### DELETE /tasks/{id}/checklist/{item}
+
+**Response `204`**.
+
+**Errores**: `403 forbidden` si el item lo creo otra persona y falta `delete` sobre `tasks`;
+`404` si no existe o es de otro Proceso.
+
+---
+
+### PUT /tasks/{id}/checklist
+
+Reordena la lista. Recibe **todos** los ids del Proceso, una sola vez cada uno, en el orden deseado;
+las posiciones se reescriben `1..n`.
+
+**Request**: `{ "order": [730, 728, 729] }`
+
+**Response `200`**: la lista completa, ya ordenada.
+
+```json
+{ "data": [ { "id": 730, "task_id": 3205, "description": "…",
+              "finished": true, "order": 1, "assigned": null }, … ] }
+```
+
+**Errores**
+
+| Codigo | Cuando |
+|---|---|
+| `404 not_found` | el Proceso no existe o no es visible |
+| `422 order: ["required"]` | falta `order`, viene vacio, o no es una lista |
+| `422 order: ["invalid"]` | algun elemento no es un entero positivo |
+| `422 order: ["mismatch"]` | la lista no es exactamente la del Proceso: falta un item, sobra, o hay repetidos |
+
+---
+
+### Permisos, en una tabla
+
+| Accion | Que pide |
+|---|---|
+| comentar | ver el Proceso |
+| editar / borrar el comentario propio | ver el Proceso |
+| editar un comentario ajeno | `tasks.edit` |
+| borrar un comentario ajeno | `tasks.delete` |
+| crear, renombrar, marcar y reordenar items | ver el Proceso (es lo que pide el panel: nada) |
+| borrar un item propio | ver el Proceso |
+| borrar un item ajeno | `tasks.delete` |
+
+Un administrador pasa todo, incluida la ventana de una hora.
+
+### Efectos externos
+
+Ninguno. Ni correo, ni campana, ni webhooks: las cinco escrituras van por SQL directo, sin
+`Tasks_model` y sin `do_action`. Lo unico que se escribe ademas de la fila es la bitacora
+(`tblactivity_log`) y, al comentar en un Proceso que cuelga de un Espacio, el feed del Espacio
+(`tblproject_activity`, clave `project_activity_new_task_comment`), que se lee dentro de la app.
+
+### Subida y borrado de adjuntos
+
+Rama `feat/api-subida-adjuntos`. Item `t1-adjuntos`.
+
+Cierra la mitad que faltaba: la **lectura** (`GET /tasks/{id}/files`, `GET /projects/{id}/files`) y la
+**descarga** (`GET /files/{tipo}/{id}/download`) ya existían y no se tocaron.
+
+Es el **único endpoint de la API que escribe en disco** y el único que recibe
+`multipart/form-data`; todo el resto sigue siendo JSON.
+
+---
+
+### `POST /tasks/{id}/files`
+
+Sube uno o varios adjuntos a un Proceso. `{id}` es el id del **Proceso**, no el del archivo.
+
+**Request**
+
+- `Content-Type: multipart/form-data` (obligatorio; cualquier otro es `400`).
+- Campo `file` (uno) o `file[]` (varios), hasta **10 archivos** por petición y **20 MB** por archivo.
+- No hay más campos. `visible_to_customer` **no se acepta**: toda subida entra en `0` (no visible
+  para el portal). Publicar un archivo al cliente sigue siendo una decisión del panel.
+
+```bash
+curl -X POST https://.../api/v1/tasks/3205/files \
+  -H "Authorization: Bearer $TOKEN" \
+  -F "file=@informe.pdf" -F "file=@captura.png"
+```
+
+**Response `201`** — el listado **completo** de adjuntos del Proceso (idéntico al del `GET`), más los
+ids nuevos en `meta.created_ids`. Así el frontend pinta el resultado sin pedir la lista otra vez.
+
+```json
+{
+  "data": [
+    {
+      "id": 900003,
+      "file_name": "informe.pdf",
+      "filetype": "application/pdf",
+      "rel_type": "task",
+      "rel_id": 3205,
+      "staff_id": 183,
+      "date_added": "2026-09-02T19:22:31Z",
+      "visible_to_customer": false,
+      "external": null,
+      "url": "/api/v1/files/task/900003/download",
+      "thumbnail_url": null
+    }
+  ],
+  "meta": { "created_ids": [900003] }
+}
+```
+
+### `POST /projects/{id}/files`
+
+Igual, contra la pestaña "Files" de un Espacio (`tblproject_files`). La respuesta trae además
+`original_file_name` y `subject`, como el `GET` de ese recurso.
+
+### `DELETE /tasks/{id}/files/{fileId}` · `DELETE /projects/{id}/files/{fileId}`
+
+Borra la fila y el binario (y su miniatura `_thumb`, si el panel la había generado).
+
+**Response `204`**, sin cuerpo.
+
+El adjunto tiene que pertenecer a la entidad de la URL: `DELETE /tasks/7/files/99` donde el archivo
+99 es de otra tarea es `404`, no un borrado válido.
+
+---
+
+### Códigos de error
+
+| Código | Cuándo | Cuerpo |
+|---|---|---|
+| `400 bad_request` | El `Content-Type` no es `multipart/form-data`, o el archivo no llegó como subida HTTP | `{"error":{"code":"bad_request",...}}` |
+| `401 unauthenticated` | Sin token o token inválido | el de siempre |
+| `403 forbidden` | Borrado de un adjunto ajeno sin `delete` sobre `tasks`/`projects` | `"Solo quien subio el adjunto puede borrarlo."` |
+| `404 not_found` | El Proceso o Espacio no existe **o no es visible** para quien pide; el adjunto no existe o es de otra entidad | mismo 404 para los tres casos |
+| `413 payload_too_large` | Archivo > 20 MB, más de 10 archivos, o cuerpo por encima del `post_max_size` del servidor | `{"error":{"code":"payload_too_large","message":"..."}}` |
+| `422 validation_failed` | Ver la tabla de abajo | `details.file` con la clave |
+| `422 unknown_include` | Cualquier `?include=` (la ruta no declara relaciones) | el de `Consulta` |
+
+**Claves de `details.file` en el 422**
+
+| Clave | Significado |
+|---|---|
+| `required` | No llegó ninguna parte `file` |
+| `empty` | El archivo pesa 0 bytes |
+| `extension_not_allowed` | La extensión no está en la whitelist |
+| `content_mismatch` | El contenido real no corresponde a la extensión (un `.png` que no es PNG) |
+| `upload_failed` | PHP reportó un error de subida distinto de tamaño |
+
+**El `413` es propio, no el de Apache.** Cuando el cuerpo supera `post_max_size`, PHP descarta la
+petición entera y el servidor contesta HTML, que el frontend no puede leer; el endpoint detecta ese
+caso (`$_FILES` y `$_POST` vacíos con un `Content-Length` mayor al límite) y devuelve el envelope
+JSON de siempre.
+
+---
+
+### Qué acepta
+
+Extensiones: la **intersección** de `get_option('allowed_files')` con la tabla de tipos MIME del
+módulo. Hoy: `png, jpg, jpeg, pdf, doc, docx, xls, xlsx, zip, rar, txt`. La opción del panel puede
+**acotar** la lista, nunca ampliarla: una extensión que se agregue ahí y no tenga tipo real declarado
+sigue siendo `422`.
+
+Además de la extensión se verifica el **contenido real** con `finfo`. Un `.php` renombrado a `.png`
+es `422 content_mismatch`.
+
+### Qué NO hace
+
+- **No acepta el nombre del cliente como nombre en disco.** Se usa `unique_filename()` de Perfex
+  sobre un `basename` saneado; un nombre con `../` termina dentro de la carpeta de la entidad, y uno
+  que no sobrevive al saneado se reemplaza por uno generado. El nombre original se conserva en
+  `original_file_name` (sólo en Espacios, que es donde la tabla tiene esa columna).
+- **No genera miniaturas.** El panel las crea al subir desde su propia pantalla; la API no las
+  consume. Sí las borra junto con el original.
+- **No expone `visible_to_customer` como parámetro** (ver arriba).
+- **No sube a los otros siete tipos que la descarga sabe leer** (`customer`, `lead`, `ticket`,
+  `expense`, `contract`, `discussion-comment`). Cada tipo nuevo es una carpeta más donde termina un
+  archivo del cliente: se agregan cuando haya una pantalla que los pida.
+
+### Catálogos: campos personalizados, etiquetas y grupos de clientes
+
+Rama `feat/api-catalogos-grupos`. Todo bajo `/api/v1`. Todas las rutas exigen sesión
+(`Authorization: Bearer <token>` o `X-Api-Key`).
+
+Convención transversal de esta sección: **las tres bajas son en cascada**, igual que en el panel
+clásico, pero cuando el catálogo está en uso la primera llamada responde `409` con la cuenta de lo
+que se llevaría por delante y sólo procede con `?forzar=1`.
+
+---
+
+### Campos personalizados
+
+#### `GET /custom-fields?para={entidad}[&todos=1]`
+
+Definiciones de los campos de una entidad. **Ya existía**; cambia en dos cosas:
+
+- cada elemento incluye ahora `active` (booleano);
+- acepta `todos=1`, que agrega los campos **desactivados**. Sólo tiene efecto para administradores;
+  para el resto se ignora y siguen viendo únicamente los activos.
+
+`para` es uno de: `tasks`, `projects`, `customers`, `leads`, `tickets`, `contracts`, `expenses`,
+`invoice`, `estimate`, `proposal`. (Los tres últimos van en **singular**: es lo que guarda
+`tblcustomfields.fieldto`.)
+
+**200**
+```json
+{ "data": [
+  { "id": 3, "slug": "tasks_area_de_la_compania", "name": "Area de la compañía",
+    "type": "multiselect",
+    "options": ["PR", "TechLab", "..."],
+    "required": true, "order": 0, "default_value": "",
+    "only_admin": false, "show_on_table": true, "active": true }
+] }
+```
+
+**422** `{"error":{"code":"validation_failed","details":{"para":["unknown"]}}}`
+
+---
+
+#### `POST /custom-fields`
+
+Crea una definición. **Sólo administradores.**
+
+```json
+{ "fieldto": "tasks", "name": "Área de la compañía", "type": "multiselect",
+  "options": ["PR", "TechLab"], "required": true, "order": 3,
+  "default_value": null, "only_admin": false, "show_on_table": true, "active": true }
+```
+
+- `fieldto`, `name` y `type` son obligatorios. `type` ∈ `input`, `number`, `textarea`, `select`,
+  `multiselect`, `checkbox`, `date_picker`, `date_picker_time`, `colorpicker`, `link`.
+- `options` es **obligatorio** para `select`, `multiselect` y `checkbox`, y **prohibido** para el
+  resto. Una opción que contenga una coma se rechaza (`options: ["coma"]`).
+- `slug` **no se acepta**: se deriva de `fieldto_name` con la misma regla del panel.
+
+**201** el campo creado (misma forma que el `GET`, más `for` con la entidad).
+**403** no es administrador · **422** validación.
+
+---
+
+#### `GET /custom-fields/{id}`
+
+El campo, o `404`. Incluye `for`.
+
+#### `PATCH /custom-fields/{id}`
+
+Parche parcial. **Sólo administradores.** Editables: `name`, `options`, `required`, `order`,
+`default_value`, `only_admin`, `show_on_table`, `active`.
+
+`fieldto` y `type` son **inmutables**: mandarlos con un valor distinto al vigente da
+`422 {"type":["inmutable"]}`. Cambiar el tipo dejaría los valores ya guardados en un formato que su
+campo ya no sabe leer.
+
+**409** si el nuevo `options` **quita una opción que algún valor está usando**, con la lista:
+`No se puede(n) quitar la(s) opción(es) en uso: Alfa.` (Se detecta también cuando la opción es parte
+de un `multiselect` guardado como `"Alfa, Gama"`.)
+
+#### `DELETE /custom-fields/{id}[?forzar=1]`
+
+**Sólo administradores.** Borra el campo y **todos sus valores**.
+**409** si tiene valores guardados y no se forzó · **204** si borró.
+
+---
+
+#### `PATCH /custom-fields/values`
+
+**Escribe los valores** de los campos personalizados de una entidad. Ésta es la única ruta de este
+bloque que **no** es de administrador: la autoriza el permiso de edición de la entidad.
+
+```json
+{ "for": "tasks", "rel_id": 512,
+  "values": { "3": ["PR", "Wiwo"], "6": "https://drive.google.com/..." } }
+```
+
+- Las claves de `values` son **ids de campo** (los mismos que devuelve la lectura), no slugs.
+- Es un parche **parcial**: los campos que no vienen quedan como están.
+- `null` o `""` **vacían** el campo. Un campo `required` no se puede vaciar (`["required"]`).
+- `multiselect` y `checkbox` viajan como **array de opciones**; el resto, como escalar.
+
+Entidades aceptadas en `for` y qué se exige:
+
+| `for` | permiso |
+|---|---|
+| `tasks` | `tasks.edit` |
+| `projects` | `projects.edit` |
+| `customers` | `customers.edit` + el cliente visible |
+| `contracts` | `contracts.edit` |
+| `leads` | el prospecto visible (`leads` no declara capacidad `edit`) |
+
+Cualquier otra entidad: `422 {"for":["unknown"]}`.
+
+**200** — devuelve lo guardado, releído:
+```json
+{ "data": { "for": "tasks", "rel_id": 512, "values": [
+  { "id": 3, "slug": "tasks_area_de_la_compania", "name": "Area de la compañía",
+    "type": "multiselect", "value": ["PR", "Wiwo"] } ] } }
+```
+
+**Errores por campo** (`422`, `details` con el id del campo como clave):
+`required`, `option` (no está entre las opciones), `array`, `scalar`, `number`, `url`, `color`,
+`date`, `datetime`, `length`, `unknown` (el campo no existe o no es de esa entidad),
+`only_admin` (el campo es reservado y quien pide no es administrador).
+
+**403** sin el permiso de edición · **404** la entidad no existe o no es visible.
+
+---
+
+### Etiquetas
+
+#### `GET /tags`
+
+El catálogo entero (327 filas, sin paginar) con la **cuenta de uso**, que es lo que permite decidir
+antes de borrar. Cualquiera con sesión. `GET /lookups` sigue devolviendo los mismos nombres sin la
+cuenta.
+
+```json
+{ "data": [ { "id": 36, "name": "2026", "usage_count": 906 } ] }
+```
+
+#### `POST /tags` · `GET /tags/{id}` · `PATCH /tags/{id}` · `DELETE /tags/{id}[?forzar=1]`
+
+Escritura **sólo para administradores**. Cuerpo: `{ "name": "..." }` (máx. 100 caracteres, único).
+
+- **201** el alta · **200** el `GET` y el `PATCH` · **204** la baja.
+- **409** `Ya existe una etiqueta con ese nombre.`
+- **409** al borrar una etiqueta en uso sin `forzar=1`, con la cuenta de elementos.
+- Con `forzar=1` se borra la etiqueta **y todos sus vínculos** (`tbltaggables`).
+- Renombrar es un solo `UPDATE`: el nombre nuevo aparece en todas las entidades etiquetadas.
+
+---
+
+### Grupos de clientes
+
+Ojo con las tablas, que suenan al revés: `tblcustomers_groups` (con "s") es el **catálogo** (10
+filas) y `tblcustomer_groups` (sin "s") son las **asignaciones** (95 filas).
+
+#### `GET /customer-groups`
+
+Catálogo con la cuenta de clientes de cada grupo. Cualquiera con sesión.
+
+```json
+{ "data": [ { "id": 1, "name": "WIWO", "customer_count": 11 } ] }
+```
+
+#### `POST /customer-groups` · `GET /customer-groups/{id}` · `PATCH /customer-groups/{id}` · `DELETE /customer-groups/{id}[?forzar=1]`
+
+Escritura **sólo para administradores**. Cuerpo: `{ "name": "..." }` (máx. 191 caracteres, único).
+Mismos códigos que etiquetas; el `409` de la baja dice cuántos clientes tiene el grupo, y con
+`forzar=1` se borra el grupo **y todas sus asignaciones**.
+
+#### `GET /customer-groups/clients/{clienteId}`
+
+Grupos a los que pertenece un cliente. Exige que el cliente sea **visible**.
+
+```json
+{ "data": [ { "id": 1, "name": "WIWO" } ] }
+```
+
+#### `PUT /customer-groups/clients/{clienteId}`
+
+**Reemplaza** los grupos del cliente. Exige `customers.edit` y que el cliente sea visible.
+
+```json
+{ "group_ids": [1, 3] }
+```
+
+- Es reemplazo, no agregado: `{"group_ids": []}` desasigna todo.
+- Los ids repetidos se deduplican; un id inexistente aborta la operación entera
+  (`422 {"group_ids":["unknown"]}`), no se guarda nada a medias.
+- **200** devuelve los grupos resultantes.
+
+Vive acá y no en `PATCH /clients/{id}` a propósito: `Escritura\Cliente` deja los grupos afuera
+porque `sync_customer_groups()` los **borra** cuando el cuerpo no los menciona, y un parche parcial
+que desasigna por omisión es exactamente lo que ese archivo evita.
+
+### Roles, permisos y perfil propio
+
+Rama `feat/api-roles-permisos`. Sin migraciones (el rango 0020 quedó libre).
+
+---
+
+### CAMBIO DE COMPORTAMIENTO — `PATCH /staff/{id}` con `permissions`
+
+El endpoint ya existía y ya aceptaba `permissions` (aunque el contrato no lo documentaba). Lo que
+cambia es la **semántica de la escritura**, y hay que documentarlo aunque la firma sea idéntica:
+
+Antes: `permissions` **reemplazaba toda** la tabla de permisos de la persona. Como la API sólo
+declaraba 12 features y Perfex tiene 22 (más las de los módulos), cada PATCH borraba en silencio los
+permisos de los módulos que la petición no nombraba. En producción son 1.804 filas de 167 personas
+(`goals`, `knowledge_base`, `reports`, `prchat`, `checklist_templates`, `estimate_request`), el 32%
+de `tblstaff_permissions`.
+
+Ahora: **se toca sólo el módulo que viene nombrado.**
+
+| Cuerpo | Efecto |
+|---|---|
+| `{"permissions": {"tasks": ["view"]}}` | la persona queda con `tasks.view` y nada más de `tasks`; ningún otro módulo se toca |
+| `{"permissions": {"tasks": []}}` | se vacía `tasks`; ningún otro módulo se toca |
+| PATCH sin `permissions` | no se toca ningún permiso |
+| `{"is_admin": true}` | se borran **todos** los permisos (un admin no tiene filas: `is_admin()` contesta que sí a todo). Es lo que hace el panel. |
+
+**Catálogo aceptado.** `permissions` ya no se valida contra las 12 features de `Acceso\Permisos`
+(que es la lista que la API *lee* en `/me`) sino contra `get_available_staff_permissions()`, la misma
+fuente que dibuja el formulario del panel: 22 features. Ahora se pueden escribir `roles`, `settings`,
+`knowledge_base`, `reports`, `email_templates`, etc.
+
+**Escalada de privilegios (nuevo 422).** Quien no es administrador sólo puede otorgar capacidades que
+ya posee. Si pide una que no tiene: `422 validation_failed` con `details: {"permissions": ["escalada"]}`.
+Vale para `PATCH /staff/{id}`, `POST /staff` y todo `/roles`. En un alta, los permisos que se heredan
+del `role_id` (que nadie nombró en el cuerpo) se **recortan** en silencio a lo que el actor tiene, en
+vez de dar 422.
+
+---
+
+### `GET /roles`
+
+Permiso: `roles.view`.
+
+```json
+{ "data": [ { "id": 2, "name": "Consultor/Director", "permissions": { "tasks": ["view","edit"] }, "staff_count": 148 } ] }
+```
+
+`staff_count` es cuánta gente tiene el rol puesto — lo que el frontend necesita para avisar antes de
+borrar. `permissions` es `[]` (array vacío) cuando el rol no declara ninguno.
+
+Errores: `401`, `403`.
+
+### `GET /roles/catalogo`
+
+Permiso: `roles.view`. Features y capacidades con las que se dibuja la matriz, ya traducidas.
+
+```json
+{ "data": [ { "feature": "tasks", "name": "Procesos", "capabilities": [ { "key": "view_own", "name": "Ver (propios)" }, { "key": "view", "name": "Ver (global)" } ] } ] }
+```
+
+22 features. **`goals` y `prchat` no aparecen**: los módulos de Perfex registran sus permisos con el
+filtro `staff_permissions` durante `_app_init()`, que la API no corre a propósito. No se pueden
+editar desde la API — y tampoco se destruyen, porque toda escritura toca sólo lo que nombra.
+
+### `GET /roles/{id}`
+
+Permiso: `roles.view`. Misma forma que un elemento de la lista. `404` si no existe.
+
+### `POST /roles`
+
+Permiso: `roles.create`.
+
+```json
+{ "name": "Coordinación", "permissions": { "tasks": ["view", "edit"], "projects": ["view"] } }
+```
+
+`name` es obligatorio, máximo 150 caracteres y único. `permissions` es opcional (por omisión, ninguno).
+Responde `201` con el rol.
+
+Errores: `403`, `409 conflict` (nombre repetido), `422` (`name: requerido|too_long`,
+`permissions: invalid|escalada`).
+
+### `PATCH /roles/{id}`
+
+Permiso: `roles.edit`. Sólo se tocan las claves que llegan.
+
+```json
+{ "name": "Coordinación", "permissions": { "tasks": ["view"] }, "aplicar_a_personas": true }
+```
+
+`aplicar_a_personas` (opcional, por omisión `false`) replica la casilla *actualizar permisos del
+staff* del panel: aplica la matriz a quienes tienen el rol puesto, **módulo por módulo** y saltándose
+a los administradores. Un rol que no nombra `invoices` deja intactos los permisos de facturación de
+esa gente, en vez de borrárselos como hace el panel.
+
+Sin `aplicar_a_personas`, editar un rol **no cambia el acceso de nadie**: en Perfex el rol es sólo la
+plantilla que pre-marca el formulario; el permiso efectivo vive en `tblstaff_permissions`.
+
+Responde `200` con el rol. Errores: `403`, `404`, `409`, `422`.
+
+### `DELETE /roles/{id}`
+
+Permiso: `roles.delete`. Responde `204`.
+
+Si el rol lo tiene puesto alguien, responde `409 conflict` con el mensaje
+`Ese rol lo tienen N persona(s). Indicá con reasignar_a a qué rol pasan, o reasignar_a=0 para
+dejarlas sin rol.`
+
+- `DELETE /roles/{id}?reasignar_a=7` → esa gente pasa al rol 7 y después se borra.
+- `DELETE /roles/{id}?reasignar_a=0` → esa gente queda sin rol y después se borra.
+
+**La reasignación no toca un solo permiso.** `tblstaff.role` no da acceso a nada, así que nadie gana
+ni pierde nada porque se borre un rol.
+
+Errores: `403`, `404`, `409`, `422` (`reasignar_a: invalid|unknown`).
+
+---
+
+### Perfil propio
+
+Las tres rutas operan sobre el staff **del token** y no aceptan ningún id: no hay parámetro que
+manipular para caer en la ficha de otro. No piden `staff.edit` — editar lo propio no es administrar
+gente.
+
+#### `GET /me/perfil`
+
+```json
+{ "data": { "email_signature": "Saludos,<br />\nJuan", "profile_image_url": null } }
+```
+
+#### `PATCH /me/perfil`
+
+```json
+{ "email_signature": "Saludos,\nJuan" }
+```
+
+Único campo aceptado; cualquier otro da `422` con `no_editable`. Si el texto no trae HTML se le
+convierten los saltos de línea a `<br />`, igual que el panel. Máximo 64 KB. Responde con la misma
+forma que el `GET`.
+
+#### `PUT /me/password`
+
+```json
+{ "current_password": "...", "new_password": "..." }
+```
+
+Responde `204`. **Exige la contraseña actual**: `PATCH /staff/{id}` puede escribir la contraseña de
+cualquiera sin conocerla, pero eso es administración y pide `staff.edit`. Las sesiones abiertas no se
+cierran.
+
+Errores: `422` con `current_password: requerido|invalid`, `new_password: requerido|too_short`
+(mínimo 8) `|sin_cambio`.
+
+#### `POST /me/foto`
+
+**Único endpoint del módulo que no recibe JSON**: `multipart/form-data`, campo `profile_image`.
+jpg, jpeg o png; se verifica que el archivo sea de verdad una imagen. Genera las miniaturas de 320 y
+96 px y borra el original, igual que el panel. Responde con la misma forma que `GET /me/perfil`.
+
+Errores: `422` con `profile_image: requerido|invalid|too_large`, `409` si no se pudo guardar.
+
+### Avisos: campana, preferencias, interruptor y cola de correo
+
+Prefijo de todas las rutas: `/api/v1`. Todas exigen `Authorization: Bearer <token>` (o `X-Api-Key`).
+Envelope estandar: `{"data": ...}` y `{"error": {"code","message","details?"}}`.
+
+Las cuatro primeras rutas **no tienen efecto externo**: leen y escriben dentro de la app y nada mas.
+Las tres ultimas gobiernan el correo, exigen administrador, y el interruptor viene **apagado**.
+
+---
+
+### `GET /notifications`
+
+Bandeja de avisos de quien pide. Paginada.
+
+**Query**
+
+| Parametro | Valores | Que hace |
+|---|---|---|
+| `filter[unread]` | `1` \| `0` | `1` = solo sin leer. Otro valor: `422` |
+| `filter[from]` | id de staff | avisos escritos por esa persona |
+| `q` | texto | busca en el texto crudo de la fila (clave de idioma o texto de Ops) |
+| `sort` | `date` \| `-date` | por defecto `-date` |
+| `page`, `per_page`, `fields` | | estandar del contrato |
+
+**200**
+
+```json
+{
+  "data": [
+    {
+      "id": 17810,
+      "text": "Se te asignó una nueva tarea - Status semanales",
+      "read": false,
+      "date": "2026-09-02T23:23:24Z",
+      "link": "#taskid=3205",
+      "from": {"id": 180, "name": "Amparo Urrejola"}
+    }
+  ],
+  "meta": {"pagination": {"page": 1, "per_page": 25, "total": 1, "total_pages": 1}}
+}
+```
+
+- `text` ya viene resuelto: el panel guarda una **clave de idioma** (`not_task_assigned_to_you`) con
+  sus parametros en `additional_data`, y Ops guarda texto ya escrito. El recurso resuelve las dos
+  con `_l()`, igual que la vista del panel.
+- `from` es `null` cuando el aviso lo escribio el sistema y no una persona.
+- `link` es una ruta **relativa del panel clasico** (`#taskid=512`), no una URL de Ops.
+- `read` sale de `isread`, que es el que da las 10.294 sin leer del relevamiento.
+
+**Errores**: `401`, `422` (filtro, orden o `include` desconocido).
+
+---
+
+### `GET /notifications/count`
+
+El punto rojo de la campana, sin traerse la lista.
+
+**200** — `{"data": {"total": 231, "unread": 12}}`
+
+---
+
+### `POST /notifications/{id}/read`
+
+Marca un aviso propio como leido. Escribe **las dos** banderas (`isread` e `isread_inline`), igual
+que `Misc_model::mark_notification_as_read()`.
+
+**204** sin cuerpo. Volver a marcar algo ya leido tambien devuelve `204`.
+
+**Errores**: `401`; `404` si el aviso no existe **o es de otra persona** (un `403` confirmaria que
+existe).
+
+---
+
+### `POST /notifications/read`
+
+Marca todas las propias. Devuelve el contador ya actualizado, para que la campana no tenga que
+pedirlo aparte.
+
+**200** — `{"data": {"marked": 12, "total": 231, "unread": 0}}`
+
+---
+
+### `GET /notifications/preferences`
+
+Preferencias de aviso **de quien pide**. Siempre devuelve el catalogo entero, esten guardadas o no:
+la tabla `tblapi_aviso_preferencias` guarda solo las excepciones y la ausencia de fila significa
+"avisame por los dos canales".
+
+**200**
+
+```json
+{
+  "data": {
+    "preferences": [
+      {"event": "proceso_asignado",    "label": "Me asignan un Proceso",                  "in_app": true, "email": true},
+      {"event": "proceso_seguidor",    "label": "Me suman como seguidor de un Proceso",   "in_app": true, "email": true},
+      {"event": "proceso_comentario",  "label": "Comentan un Proceso que sigo",           "in_app": true, "email": true},
+      {"event": "proceso_estado",      "label": "Cambia el estado de un Proceso mio",     "in_app": true, "email": true},
+      {"event": "proceso_vencimiento", "label": "Se acerca el vencimiento de un Proceso mio", "in_app": true, "email": true},
+      {"event": "espacio_miembro",     "label": "Me suman a un Espacio",                  "in_app": true, "email": true},
+      {"event": "mencion",             "label": "Me mencionan",                           "in_app": true, "email": true}
+    ]
+  }
+}
+```
+
+No hay forma de leer ni de escribir las de otra persona: son preferencias, no configuracion.
+
+---
+
+### `PUT /notifications/preferences`
+
+**Request** — parcial: solo los eventos que se mandan se tocan.
+
+```json
+{"preferences": {"mencion": {"email": false}, "proceso_comentario": {"in_app": false, "email": false}}}
+```
+
+**200** — el mismo cuerpo que el `GET`, ya guardado.
+
+**Errores**
+
+| Codigo | Cuando |
+|---|---|
+| `422 preferences: required` | falta el bloque o viene vacio |
+| `422 preferences.<evento>: unknown` | el evento no esta en el catalogo |
+| `422 preferences.<evento>.<canal>: no_editable` | canal distinto de `in_app` / `email` |
+| `422 preferences.<evento>.<canal>: boolean` | el valor no es booleano |
+
+---
+
+### `GET /notifications/settings` — **admin**
+
+El interruptor de efectos externos. Es **global de la instalacion** (dos filas de `tbloptions` con
+prefijo `wiwo_`), no por persona: es lo unico auditable y lo unico que permite contestar "¿por que
+no me llego?".
+
+**200**
+
+```json
+{
+  "data": {
+    "email_mode": "apagado",
+    "email_modes": ["apagado", "prueba", "real"],
+    "test_recipient": null,
+    "email_enabled": false,
+    "queue_enabled": true,
+    "sender": "board.wiwo@mgcglobalgroup.com",
+    "warning": "Este interruptor solo gobierna el correo que manda la API de Ops. El cron del panel clasico y los recordatorios de vencimiento corren en otro proceso y siguen mandando correo aunque esto este apagado."
+  }
+}
+```
+
+| `email_mode` | Que pasa |
+|---|---|
+| `apagado` (por defecto, y si las opciones no existen) | ningun correo sale de la API |
+| `prueba` | solo salen los correos que compone la API, y **todos** al `test_recipient` |
+| `real` | los correos salen a su destinatario real |
+
+`warning` es texto que la pantalla **debe** mostrar tal cual: apagar esto no apaga todo el correo
+del sistema.
+
+**Errores**: `401`; `403` si quien pide no es administrador.
+
+---
+
+### `PUT /notifications/settings` — **admin**
+
+**Request** — `{"email_mode": "prueba", "test_recipient": "buzon@wiwo.me"}`. Las dos claves son
+opcionales por separado; cualquier otra clave es `422`.
+
+**200** — el mismo cuerpo que el `GET`.
+
+**Errores**
+
+| Codigo | Cuando |
+|---|---|
+| `422 email_mode: in:apagado,prueba,real` | modo desconocido |
+| `422 test_recipient: email` | no es una direccion valida |
+| `422 test_recipient: required_if:email_mode,prueba` | se pidio `prueba` sin casilla de prueba |
+| `422 <clave>: no_editable` | clave fuera de las dos |
+
+---
+
+### `GET /notifications/mail-queue` — **admin**
+
+Visor de `tblmail_queue` (855 filas). **Solo lectura**: no hay reintentar, ni borrar, ni despachar.
+Es lo que permite verificar el interruptor sin mandarle nada a nadie.
+
+El **cuerpo** del mensaje no viaja: son `longtext` con el HTML entero de cada correo. Del bloque
+`headers` se saca solo el asunto y el remitente.
+
+**Query**: `filter[status]` (`pending|sending|sent|failed`), `filter[date_from]`, `filter[date_to]`,
+`q` (busca en el destinatario), `sort` (`date`, `status`; por defecto `-date`), `page`, `per_page`.
+
+**200**
+
+```json
+{
+  "data": [
+    {
+      "id": 856, "to": "alguien@ejemplo.com", "cc": null, "bcc": null,
+      "subject": "Se te asignó una nueva tarea - Status semanales",
+      "from": "board.wiwo@mgcglobalgroup.com",
+      "status": "pending", "engine": "phpmailer",
+      "date": "2026-09-02T23:24:04Z", "attachments": 0
+    }
+  ],
+  "meta": {
+    "pagination": {"page": 1, "per_page": 25, "total": 856, "total_pages": 35},
+    "summary": {"total": 856, "pending": 1, "sending": 0, "sent": 855, "failed": 0}
+  }
+}
+```
+
+**Errores**: `401`, `403`, `422`.
+
+---
+
+### `POST /notifications/test` — **admin**
+
+Aviso de prueba **a uno mismo**. Escribe la campana e intenta el correo, y cuenta exactamente que
+paso con cada canal. Es la herramienta que contesta "¿por que no me llego?" sin provocar una
+escritura real, y es la unica ruta del modulo que puede hacer salir un correo.
+
+**Request** (opcional) — `{"event": "mencion"}`.
+
+- Sin `event`: **no** mira las preferencias. Prueba el caño, no el ruteo: un evento silenciado no
+  debe devolver un silencio indistinguible de una cadena rota.
+- Con `event`: aplica las preferencias de quien pide, y contesta la otra pregunta ("asi como lo
+  tengo configurado, ¿esto me llegaria?").
+
+**201**
+
+```json
+{
+  "data": {
+    "event": "mencion",
+    "notification_id": 17812,
+    "in_app_silenced": false,
+    "email_silenced": true,
+    "email_mode": "prueba",
+    "email_sent": false,
+    "email_delivered_to": null
+  }
+}
+```
+
+Con `email_mode: "prueba"` y un `test_recipient` distinto de la casilla propia, el correo llega al
+destino de prueba con el asunto prefijado `[PRUEBA]` y una linea al pie que dice a quien habria
+ido en modo real.
+
+**Errores**: `401`; `403` si no es administrador; `422` si el `event` no esta en el catalogo.
+
+---
+
+### Lo que este frente NO expone
+
+- **No hay `POST /notifications`**: la API no deja escribirle un aviso a otra persona desde el
+  cliente. Los avisos los produce el servidor, desde `Escritura\Aviso::avisar()`, dentro de la
+  escritura que los justifica.
+- **No hay escritura sobre `tblmail_queue`**: ni reintentar ni borrar. Un visor de solo lectura es
+  lo que hace verificable el interruptor.
+
+### Recordatorios y ajustes
+
+Rama `feat/api-recordatorios-ajustes`. Cinco endpoints nuevos.
+
+---
+
+### Recordatorios de un Proceso
+
+`tblreminders` con `rel_type = 'task'`. Todo el equipo ve los recordatorios de un Proceso visible,
+no solo los propios: un recordatorio es informacion del Proceso.
+
+**Forma del recurso**
+
+```json
+{
+  "id": 8,
+  "description": "Revisar con el cliente",
+  "date": "2026-12-01T14:00:00Z",
+  "staff_id": 183,
+  "creator_id": 183,
+  "notify_by_email": false,
+  "notified": false
+}
+```
+
+| Campo | Notas |
+|---|---|
+| `date` | instante ISO-8601 **con zona**. Se guarda en la zona del negocio, se devuelve en UTC |
+| `staff_id` | a quien se le recuerda. **Puede no ser el que se pidio**: ver "modo de prueba" |
+| `creator_id` | quien lo creo. Siempre el de la sesion, no se acepta del cliente |
+| `notify_by_email` | lo que quedo escrito de verdad, no lo que se pidio |
+| `notified` | `tblreminders.isnotified`: el cron ya lo disparo |
+
+#### `GET /tasks/{id}/reminders`
+
+Lista completa, sin paginar, ordenada por fecha ascendente. `200` con `data` como arreglo.
+`404` si el Proceso no existe o no es visible. No acepta `?include=`.
+
+#### `POST /tasks/{id}/reminders`
+
+Pide `edit` sobre `tasks` y que el Proceso sea visible.
+
+```json
+{ "date": "2026-12-01T14:00:00Z", "description": "Revisar con el cliente",
+  "staff_id": 183, "notify_by_email": false }
+```
+
+| Clave | Obligatoria | Reglas |
+|---|---|---|
+| `date` | si | ISO-8601 con zona. Texto libre (`"next tuesday"`) o sin zona -> 422 |
+| `description` | si | 1..5000 caracteres, se recorta. Vacia o `null` -> 422 |
+| `staff_id` | no | por defecto quien pide. Tiene que ser un staff **activo**; inexistente -> 422 |
+| `notify_by_email` | no | por defecto `false`. Ver abajo: pedirlo **no** garantiza que se escriba |
+
+`201` con el recurso. `403` sin permiso, `404` si el Proceso no es visible, `422` con
+`details` por campo. Cualquier clave fuera de esas cuatro -> `422 {"<clave>":["no_editable"]}`.
+
+#### `GET /tasks/{id}/reminders/{rid}`
+`200`. `404` si el recordatorio no cuelga de **ese** Proceso.
+
+#### `PATCH /tasks/{id}/reminders/{rid}`
+Mismas claves y reglas que el alta, todas opcionales. `200` con el recurso ya actualizado.
+
+Dos efectos que no se leen del cuerpo:
+- Mover la fecha **al futuro** pone `isnotified = 0`: el aviso se vuelve a armar. Sin eso un
+  recordatorio ya disparado quedaria posdatado y mudo.
+- El par `(staff_id, notify_by_email)` se **re-resuelve en cada parche**. Si el interruptor de
+  correo se apago despues de crear la fila, el primer parche baja `notify_by_email` a `false`.
+
+#### `DELETE /tasks/{id}/reminders/{rid}`
+`204`. `404` si no existe o no es de ese Proceso.
+
+---
+
+### El correo de los recordatorios (lo que el frontend tiene que saber)
+
+Quien manda el correo **no es la API**: es `Cron_model::staff_reminders()`, en el proceso del cron
+de Perfex, que no pasa por el kill-switch de la API. Escribir la fila con `notify_by_email = 1` ya
+alcanza para que el correo salga horas despues. Por eso el control esta en el dato.
+
+Tres opciones de `tbloptions` (migracion `0040`), **todas apagadas al mergear**:
+
+| Opcion | Defecto | Que hace |
+|---|---|---|
+| `wiwo_api_recordatorios_correo` | `0` | unico interruptor que puede habilitar `notify_by_email = 1` |
+| `wiwo_api_recordatorios_modo_prueba` | `1` | el correo va a una casilla unica, nunca a la persona real |
+| `wiwo_api_recordatorios_correo_prueba` | `''` | esa casilla; tiene que ser el correo de un staff activo |
+
+Resolucion, en orden:
+
+1. no se pidio correo -> `notify_by_email: false`
+2. interruptor apagado -> `notify_by_email: false` (aunque se haya pedido `true`)
+3. modo prueba **con** casilla que resuelve a staff activo -> `notify_by_email: true` y
+   **`staff_id` pasa a ser el de la casilla**, no el pedido
+4. modo prueba con casilla vacia o que no resuelve -> `notify_by_email: false` (fail-closed)
+5. interruptor prendido y modo prueba apagado -> `notify_by_email: true` al destinatario real
+
+**Consecuencia para la interfaz**: nunca asumir que se guardo lo que se pidio. Si la respuesta
+trae `notify_by_email: false` despues de haberlo pedido `true`, hay que decir "sin correo". Y si
+`staff_id` volvio distinto del que se mando, el recordatorio quedo redirigido a la casilla de
+prueba: no se le avisó a la persona elegida.
+
+---
+
+### Ajustes
+
+De las 573 filas de `tbloptions` se exponen **17 editables** y **6 de solo lectura**. La lista es
+cerrada: cualquier otra clave, exista o no en la tabla, es `422`. Nunca hay un `UPDATE` generico.
+
+#### `GET /settings`
+
+Pide sesion; **no** exige admin (los 6 de solo lectura son formato de fecha y separadores, que
+cualquier pantalla necesita para pintar).
+
+```json
+{ "data": {
+  "editable": {
+    "tasks_kanban_limit": { "group": "procesos", "type": "entero", "value": 50, "min": 5, "max": 200 },
+    "default_task_status": { "group": "procesos", "type": "enum", "value": "auto",
+                             "options": ["auto","1","2","3","4","5"] },
+    "save_last_order_for_tables": { "group": "listados", "type": "bool", "value": false }
+  },
+  "readonly": { "dateformat": "d/m/Y|%d/%m/%Y", "time_format": "24" }
+} }
+```
+
+Cada opcion editable trae su dominio, asi que el formulario se dibuja de la respuesta y no
+hardcodea rangos. `type` es `bool` (valor booleano), `entero` (valor entero + `min`/`max`),
+`enum` (valor texto + `options`) o `rol` (valor texto, dominio = los roles de `/lookups`).
+Una opcion sin fila en `tbloptions` viaja con `value: null`.
+
+**Las 17 editables**
+
+| Grupo | Clave | Tipo |
+|---|---|---|
+| procesos | `default_task_priority` | enum `1`..`4` |
+| procesos | `default_task_status` | enum `auto`,`1`..`5` |
+| procesos | `new_task_auto_assign_current_member` | bool |
+| procesos | `new_task_auto_follower_current_member` | bool |
+| procesos | `task_biillable_checked_on_creation` | bool |
+| procesos | `show_all_tasks_for_project_member` | bool |
+| procesos | `tasks_kanban_limit` | entero 5..200 |
+| cronometro | `auto_stop_tasks_timers_on_new_timer` | bool |
+| cronometro | `timer_started_change_status_in_progress` | bool |
+| cronometro | `automatically_stop_task_timer_after_hours` | entero 0..24 |
+| cronometro | `round_off_task_timer_option` | enum `0`,`1`,`2` |
+| cronometro | `round_off_task_timer_time` | enum `5`,`10`..`45` |
+| listados | `tables_pagination_limit` | entero 5..200 |
+| listados | `limit_top_search_bar_results_to` | entero 1..50 |
+| listados | `save_last_order_for_tables` | bool |
+| listados | `staff_access_only_assigned_departments` | bool |
+| listados | `default_staff_role` | rol (id de `tblroles`) |
+
+**Las 6 de solo lectura**: `companyname`, `dateformat`, `time_format`, `default_timezone`,
+`decimal_separator`, `thousand_separator`.
+
+#### `PATCH /settings`
+
+**Solo administradores** (`403` si no). Se escriben unicamente las claves presentes.
+
+`422` si aparece cualquier clave fuera de las 17 —incluidas las 6 de solo lectura, que devuelven
+`no_editable` igual que una desconocida— o si un valor no cumple su dominio. El rechazo es
+**atomico**: con una sola clave invalida no se escribe ninguna.
+
+Responde `200` con el mismo cuerpo de `GET /settings` ya actualizado.
+
+Fuera de alcance por decision: **ninguna** opcion de SMTP, credenciales, claves de API o envio de
+correo aparece, ni siquiera como solo lectura.
+
+### Panel: búsqueda global, auditoría y tareas personales
+
+Rama `feat/api-panel-transversales`. **Tres secciones nuevas**, ninguna existente cambia.
+Todas piden token de acceso (`Authorization: Bearer` o `X-Api-Key`); sin el, `401`.
+
+---
+
+### `GET /search` — busqueda global
+
+Un termino contra los cuatro tipos que estan en la navegacion de Ops. Prospectos y Contratos
+quedan fuera a proposito (uno sigue oculto, el otro es "no va").
+
+#### Parametros
+
+| Parametro | Tipo | Por defecto | Nota |
+|---|---|---|---|
+| `q` | string, min 2 caracteres | — | **obligatorio**. Menos de 2 es `422`, no una busqueda vacia |
+| `types` | lista separada por comas de `tasks`, `projects`, `clients`, `staff` | los cuatro | un valor fuera de la lista es `422`; los repetidos se descartan |
+| `per_type` | entero >= 1 | `5` | tope por tipo, **recortado** a 25 (no falla); un valor no numerico es `422` |
+
+No acepta `filter[]`, `sort`, `include` ni `page`: es un buscador, no un listado.
+
+#### Respuesta `200`
+
+`data` es un **objeto por tipo**, no una lista plana. Solo aparecen los tipos que se buscaron de
+verdad. Cada bloque trae el `total` real (no cuantos entraron en el tope) y los items con la
+**presentacion completa del recurso de ese tipo** — un `tasks[i]` es exactamente lo mismo que
+devuelve `GET /tasks`, con su Espacio, sus asignados y sus etiquetas. No hace falta una segunda
+llamada para pintar la fila.
+
+```json
+{
+  "data": {
+    "tasks":    { "total": 649, "items": [ { "id": 7, "name": "...", "project": {...}, "assignees": [...] } ] },
+    "projects": { "total": 38,  "items": [ ... ] },
+    "clients":  { "total": 18,  "items": [ ... ] },
+    "staff":    { "total": 26,  "items": [ ... ] }
+  },
+  "meta": {
+    "query": "ma",
+    "per_type": 5,
+    "types": ["tasks", "projects", "clients", "staff"],
+    "types_skipped": []
+  }
+}
+```
+
+#### Permisos
+
+Cada tipo aplica **su propia** regla, la misma que su listado:
+
+| Tipo | Puerta de area | Filas |
+|---|---|---|
+| `tasks` | ninguna (el panel nunca deniega el listado) | `Visibilidad::procesos()` |
+| `projects` | ninguna | `Visibilidad::espacios()` |
+| `clients` | `view` **o** `create` sobre `customers` **o** tener clientes asignados | `Visibilidad::clientes()` |
+| `staff` | `view` sobre `staff` | todas |
+
+**Un tipo sin permiso se saltea; NO devuelve 403.** Se omite de `data` y se lista en
+`meta.types_skipped`. Es lo que hace que el buscador siga sirviendo para quien no ve Personas.
+Verificado: el mismo termino da `tasks=649 projects=38 clients=18 staff=26` para un admin y
+`tasks=30 projects=0` + `types_skipped: ["clients","staff"]` para alguien sin esos permisos.
+
+#### Errores
+
+`401` sin token · `404` en `/search/loquesea` · `422` por `q`, `types` o `per_type`.
+
+---
+
+### `GET /audit` — auditoria de seguridad
+
+`tblactivity_log`, **de solo lectura y solo para administradores** (`403` para el resto).
+No hay `POST` ni `DELETE`: un registro de auditoria editable desde la API que audita no audita.
+
+**No es la actividad de un Espacio.** No comparte una columna con `tblproject_activity`:
+`description` es texto ya renderizado (no una clave de idioma), `staffid` es un `varchar(100)` con
+el **nombre escrito** —por eso viaja como `actor`, string, y nunca como una referencia de staff—
+y **ninguna fila enlaza a una entidad**: no hay ficha que abrir.
+
+#### Parametros
+
+| Parametro | Valores | Nota |
+|---|---|---|
+| `filter[type]` | `api`, `email`, `login`, `login_fallido`, `denegado`, `cron`, `otro` | lista por comas; un tipo desconocido es `422`, no cero filas en silencio |
+| `filter[actor]` | nombre exacto tal como esta escrito | lista por comas |
+| `filter[date_from]` / `filter[date_to]` | `YYYY-MM-DD` | compara contra `date`, que es `datetime`: `date_to` corta a las 00:00 de ese dia |
+| `q` | texto libre | sobre `description` |
+| `sort` | `date`, `id`, con `-` para descendente | por defecto `-date` |
+| `page` / `per_page` | enteros | `per_page` por defecto 25, maximo 100 |
+
+`include` no acepta nada: cualquier valor es `422`.
+
+**El tipo se deriva del texto** porque la tabla no tiene columna de tipo. La misma expresion arma
+la columna y el filtro, asi que no pueden divergir.
+
+#### Respuesta `200`
+
+```json
+{
+  "data": [
+    { "id": 22958, "date": "2026-09-03T03:22:04Z", "actor": "Dev Prueba",
+      "type": "api", "description": "[API] Miembro del equipo #5 editado" }
+  ],
+  "meta": { "pagination": { "page": 1, "per_page": 25, "total": 4978, "total_pages": 200 } }
+}
+```
+
+`actor` es `null` en las filas del cron y en los intentos de login de gente que no existe.
+
+### `GET /audit/filters` — catalogo para poblar los filtros
+
+Tambien solo para administradores. Va en su propia ruta y no en el `meta` del listado porque son
+dos `GROUP BY` sobre la tabla entera, y el listado se pide en cada cambio de pagina.
+
+```json
+{
+  "data": {
+    "types":  [ { "type": "email", "count": 2435 }, { "type": "api", "count": 1248 }, ... ],
+    "actors": [ { "actor": "Dev Prueba", "count": 982 }, { "actor": null, "count": 267 }, ... ]
+  }
+}
+```
+
+Los conteos son parte del dato: dicen que `api` es ruido que genera Ops al llamarse a si mismo y
+que conviene filtrarlo.
+
+---
+
+### `/todos` — tareas personales
+
+El "To-do" del panel (`tbltodos`). **Privadas por persona, sin excepcion**: el dueño sale del
+token y no hay parametro que permita pedir las de otro. Un id ajeno da **404** —nunca 403, que
+confirmaria que existe— y **tampoco un administrador** las ve.
+
+`description` viaja como **texto plano con saltos de linea**. En la base se guarda con los
+`<br />` que pone el panel, para que un to-do creado desde Ops se vea igual en el panel clasico;
+la conversion es de la API en las dos direcciones.
+
+#### `GET /todos`
+
+| Parametro | Valores |
+|---|---|
+| `filter[finished]` | `0` / `1` |
+| `filter[date_from]` / `filter[date_to]` | `YYYY-MM-DD` sobre `dateadded` |
+| `q` | texto libre sobre la descripcion |
+| `sort` | `order` (por defecto), `date_added`, `date_finished`, con `-` |
+| `page` / `per_page` | enteros |
+
+```json
+{
+  "data": [ { "id": 193, "description": "Primera linea\nSegunda linea",
+              "finished": false, "date_added": "2026-09-02T23:22:43Z",
+              "date_finished": null, "order": 1 } ],
+  "meta": { "pagination": { "page": 1, "per_page": 25, "total": 3, "total_pages": 1 } }
+}
+```
+
+`order` es `null` en los to-dos que nunca se reordenaron (34 de los 64 de la base). Van al final.
+
+#### `POST /todos` → `201` con el to-do creado
+
+| Clave | Tipo | Nota |
+|---|---|---|
+| `description` | string 1..5000 | **obligatoria**. Vacia o solo espacios es `422` |
+| `finished` | bool | opcional; `true`, `false`, `0`, `1`, `"0"`, `"1"` |
+
+`order` se asigna solo: el nuevo va al final de la lista de esa persona.
+Una clave fuera de esas dos es `422` (`no_editable`), no se ignora. `staffid` incluido.
+
+#### `PATCH /todos/{id}` → `200` con el to-do
+
+Mismas dos claves, **solo se escriben las presentes**: omitir `finished` no lo desmarca.
+`date_finished` es derivado y no se acepta del cliente: al marcar se pone en ese instante, al
+desmarcar vuelve a `null`. (El panel deja la fecha puesta al desmarcar; es un bug y no se replica.)
+
+#### `DELETE /todos/{id}` → `204`
+
+#### `POST /todos/reorder` → `200` con la lista ya reordenada
+
+```json
+{ "order": [195, 193, 194] }
+```
+
+El primer id queda en la posicion 1. **Todos los ids tienen que ser propios y existir**: si uno no
+lo es, es `404` y no se escribe nada. Va en una transaccion. Maximo 500 ids. Ids repetidos, no
+numericos o una lista vacia son `422`.
+
 ## Tiempo real
 
 `GET /config/realtime` → `{ "data": { "enabled": true, "key": "…", "cluster": "…" } }`
@@ -1699,14 +3115,21 @@ No se aplica ningún diff en vivo: invalidar es diez veces menos código y no se
 
 ## Lo que la API no hace
 
-**No notifica a nadie.** Al completar una tarea desde `ops-v2`, ni los asignados, ni los seguidores,
-ni el creador, ni quienes comentaron reciben nada: ni campana, ni tiempo real, ni correo. Los
-contactos del cliente tampoco. El panel no muestra ninguna señal de que faltó.
+**No avisa solo, todavía.** La infraestructura de avisos existe desde la ola 1 —campana, bandeja,
+marcar leído, preferencias por tipo de evento— y `Escritura\Aviso::avisar()` escribe en
+`tblnotifications` sin disparar ningún efecto externo. Lo que falta es engancharla: **ninguna
+escritura la llama todavía**, así que al completar una tarea desde `ops-v2` sigue sin enterarse
+nadie.
 
-Es deuda consciente. Importa para el frontend por una razón práctica: **si una acción necesita que
-alguien se entere, la interfaz no puede darlo por hecho**.
+Importa para el frontend por la misma razón práctica de siempre: **si una acción necesita que
+alguien se entere, la interfaz no puede darlo por hecho**. Lo que cambió es que ahora hay dónde
+enchufarlo, y que la campana ya muestra los 17.809 avisos que escribió el panel.
 
-Tampoco toca asignados ni seguidores: en el panel también van por caminos propios, que sí notifican.
+**El correo es otra cosa y sigue apagado.** Su interruptor tiene tres modos y arranca en `apagado`
+por ausencia de la opción; encender el envío real exige cambiarlo a mano. Ver el bloque de avisos.
+
+Asignados y seguidores **sí se editan** desde la ola 1 (`PATCH /tasks/{id}`), por un camino propio
+que no notifica.
 
 **El caso más ruidoso es `POST /tickets/{id}/respuestas`.** En el panel, responder un ticket es sobre
 todo **avisarle al cliente**: `Tickets_model::add_reply():592` manda
@@ -1721,16 +3144,16 @@ No es implícito ni está "pendiente de conectar": no existe. Pedirlo devuelve `
 
 | Falta | Detalle |
 |---|---|
-| **PDF** | No hay `GET /invoices/{id}/pdf`, ni de cotizaciones ni de propuestas. Portar el generador arrastra TCPDF, sus fuentes y las plantillas del panel |
+| **PDF** | Sigue sin existir. Portar el generador arrastra TCPDF, sus fuentes y las plantillas del panel. Facturas, cotizaciones y propuestas **no lo van a tener**: tienen cero filas en producción. Lo aprobado es el PDF de **contratos** (33 filas reales), y todavía no se construyó |
 | **Envío por correo** | No hay `POST /{id}/enviar` para ninguno de los tres documentos. `save_and_send` no se propaga jamás, ni con el kill-switch puesto |
 | **Facturas recurrentes** | Las genera el cron. La API devuelve `recurring` de sólo lectura y no dispara nada |
 | **Notas de crédito** | Sin recurso. `tblcreditnotes` no se toca |
 | **Subida del comprobante de gasto** | La **lectura** sale en `file`; la subida necesita `upload_helper`, whitelist de extensiones y un `413` propio |
-| **Subida de adjuntos al responder un ticket** | La lectura y la descarga funcionan desde el día uno; la subida sería el único endpoint del módulo que escribe en disco |
+| **Subida de adjuntos al responder un ticket** | Sigue sin existir **para tickets**. La subida a Procesos y Espacios sí se construyó en la ola 1 (`POST /tasks/{id}/files`, `POST /projects/{id}/files`) y es el único endpoint del módulo que escribe en disco |
 | **`POST /leads/{id}/convertir`** | La conversión a cliente queda en el panel, por decisión del usuario. No es un `INSERT` en `tblclients`: `admin/Leads.php:373-609` copia campos, arrastra los campos personalizados con equivalencia y crea el contacto primario |
 | **Embudo de propuestas y de cotizaciones** | No hay `?vista=embudo` ni `POST /{id}/mover` sobre `pipeline_order`. El único embudo que existe es el de `leads` |
 | **Alta y borrado de contratos, borrado de gastos, `PATCH /payments/{id}`** | `POST`/`DELETE` sobre esos recursos es `404` |
-| **`custom_fields` de gastos, facturas, cotizaciones y propuestas** | `CamposPersonalizados::PERMITIDAS` ya declara las cuatro, pero los recursos todavía no los piden: la respuesta no trae la clave |
+| **`custom_fields` de gastos, facturas, cotizaciones y propuestas** | `CamposPersonalizados::PERMITIDAS` ya declara las cuatro, pero los recursos todavía no los piden: la respuesta no trae la clave. La **escritura** de valores (`PATCH /custom-fields/values`) cubre sólo las cinco entidades con campos activos: tareas, Espacios, clientes, contratos y prospectos |
 | **`tags` de facturas y de gastos** | `Etiquetas` ya declara el tipo `invoice`, pero `RecursoFacturas` y `RecursoGastos` no los resuelven. Cotizaciones y propuestas sí traen `tags` |
 
 ## Mock

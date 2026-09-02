@@ -99,8 +99,11 @@ tiene 81 filas esperándola; la de Facturas, ninguna.**
 Lo siguiente **se queda en el panel viejo**, con un enlace directo desde la barra superior. No es una
 omisión: es una decisión de retorno.
 
-- **Ajustes** (27 archivos de `admin/settings/includes/`) — se usan una vez por trimestre.
-  Reescribirlos es el peor retorno del proyecto.
+- **Los 27 archivos de `admin/settings/includes/`** — se usan una vez por trimestre y reescribirlos
+  es el peor retorno del proyecto. Lo que **sí** salió de esta lista es **Ajustes**, acotado: el
+  usuario lo pidió por su nombre y la ola 1 expuso **17 opciones editables** de las 573 de
+  `tbloptions` (Procesos, Cronómetro, Listados y equipo) más 6 de sólo lectura, con `GET|PATCH
+  /settings`. Ninguna de SMTP, credenciales ni claves de API entra, ni siquiera como lectura.
 - **Automatización e informes avanzados** — hasta que alguien los pida por su nombre. Contratos
   salió de esta lista: se pidió por su nombre y tiene ficha en
   [modulos/12-contratos.md](modulos/12-contratos.md). Base de conocimiento y suscripciones también
