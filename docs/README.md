@@ -43,6 +43,7 @@ el rollback sea decirle a la gente que vuelva al otro dominio, sin migrar nada.
 | [contrato-api.md](contrato-api.md) | El contrato REST. Fuente de verdad compartida con el backend |
 | [sistema-de-diseno.md](sistema-de-diseno.md) | Tokens, tipografía, reglas de marca, guardrails |
 | [flujo-de-trabajo.md](flujo-de-trabajo.md) | Los carriles paralelos y cómo no pisarse |
+| [encargo-brechas-del-board-PNDNG.md](encargo-brechas-del-board-PNDNG.md) | Lo que el board hace y Ops no, ya priorizado por el usuario. Punto de partida del trabajo por tandas |
 | [fases/](fases/) | Una por fase: qué se construye, criterios de aceptación, riesgos |
 | [modulos/](modulos/) | Una ficha por módulo: pantallas, endpoints, campos, escrituras, permisos y reglas del panel a replicar. Es lo único que hace falta leer para armar un módulo |
 | [referencia/](referencia/) | Material de apoyo. Incluye el esquema de Perfex, **cuyos endpoints no existen**: el contrato vigente es `contrato-api.md` |
