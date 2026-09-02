@@ -258,7 +258,7 @@ no un cliente roto.
 
 ### `staff`
 
-`GET /staff` · `GET /staff/{id}`
+`GET /staff` · `GET /staff/{id}` · `POST /staff` · `PATCH /staff/{id}` · `DELETE /staff/{id}`
 
 ```json
 { "id": 12, "email": "…", "firstname": "…", "lastname": "…", "full_name": "…",
@@ -269,6 +269,25 @@ no un cliente roto.
 Nunca se exponen: `password`, `new_pass_key`, `google_auth_secret`, `two_factor_auth_code`.
 
 Filtros: `active`, `role_id`, `q` (nombre y email). Orden: `firstname`, `lastname`, `last_login`.
+
+Escribibles: `firstname`, `lastname`, `email`, `phonenumber`, `password`, `role_id`, `hourly_rate`,
+`active`, `is_not_staff` y `is_admin` (esta última **sólo si quien escribe ya es administrador**; si
+no, `422`). En un `PATCH`, la contraseña en blanco no se manda: se omite la clave.
+
+`role_id` acepta `null`, `""` y `0` como «sin rol» — el `0` importa porque es justo lo que devuelve
+la lectura para quien no tiene ninguno. `hourly_rate` vacío vale `0`.
+
+**Eliminar son dos llamadas.** `DELETE /staff/{id}` da de baja (`active = 0`) y se deshace con
+`PATCH {"active": true}`. `DELETE /staff/{id}?purgar=1&transferir_a=N` borra la fila y **transfiere el
+trabajo** —tareas, cronómetros, proyectos, tickets, prospectos: unas cuarenta tablas— a la persona
+`N`, que tiene que estar activa y ser otra. Sólo se acepta sobre alguien ya dado de baja; sin
+`transferir_a` es `422`.
+
+Cuatro conflictos que responden `409`: darse de baja o borrarse a sí mismo, quitarse a sí mismo la
+condición de administrador, degradar al administrador principal (`#1`) y apagar al último
+administrador activo.
+
+Ninguna escritura manda correo. Un alta con `role_id` estrena la cuenta con los permisos de ese rol.
 
 ### `lookups`
 
@@ -306,7 +325,7 @@ Filtros: `active`, `role_id`, `q` (nombre y email). Orden: `firstname`, `lastnam
 
 ### `clients`
 
-`GET /clients` · `GET /clients/{id}`
+`GET /clients` · `GET /clients/{id}` · `POST /clients` · `PATCH /clients/{id}` · `DELETE /clients/{id}`
 
 La clave primaria en la base es `userid`; la API la expone como **`id`**.
 
@@ -323,6 +342,21 @@ La clave primaria en la base es `userid`; la API la expone como **`id`**.
 Nunca se expone `stripe_id`.
 
 Filtros: `active`, `country_id`, `q` (empresa). Include: `contacts`, `custom_fields`.
+
+Escribibles: `company` (obligatorio en el alta), `vat`, `phonenumber`, `website`, `address`, `city`,
+`state`, `zip`, `country_id`, `default_currency`, `default_language`, `active` y las dos direcciones
+anidadas `billing` y `shipping` (`street`, `city`, `state`, `zip`, `country_id`). En `country_id` y
+`default_currency`, `null` y `""` valen `0` — que es como Perfex escribe «ninguno».
+
+**No** se escriben `tags`, los grupos ni el vault: la lectura tampoco los devuelve, y aceptar en un
+`PATCH` algo que después no se puede releer deja a la interfaz sin forma de mostrar lo que guardó.
+El alta **no crea ningún contacto**; para eso está `POST /clients/{id}/contacts`.
+
+**Eliminar son dos llamadas**, igual que en `staff`. `DELETE /clients/{id}` da de baja.
+`DELETE /clients/{id}?purgar=1` borra de verdad, sólo sobre un cliente ya dado de baja, y arrastra
+sus contactos, tickets, notas, suscripciones, contratos, propuestas, gastos, campos personalizados,
+archivos, tareas y **todos sus proyectos**. Si el cliente tiene facturas, cotizaciones o notas de
+crédito, Perfex se niega y la API responde `409`.
 
 ### `projects` → **Espacios** en la interfaz
 

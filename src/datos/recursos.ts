@@ -144,6 +144,9 @@ export interface MiembroEquipo {
   active: boolean
   /** Cuentas que existen pero no son personal operativo: no van en los selectores de asignacion. */
   is_not_staff: boolean
+  phonenumber: string | null
+  /** Tarifa por hora. Se usa para valorizar el tiempo registrado. */
+  hourly_rate: number
   last_login: string | null
 }
 

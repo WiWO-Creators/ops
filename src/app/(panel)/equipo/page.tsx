@@ -1,5 +1,5 @@
 import { Suspense } from 'react'
-import { TablaEquipo } from '@/componentes/datos/vistas'
+import { VistaEquipo } from '@/componentes/equipo/VistaEquipo'
 import { Cargando } from '@/componentes/estado/Estados'
 import { TotalDelListado } from '@/componentes/datos/TotalDelListado'
 import { construirConsulta, leerConsulta, paramsDeUrl } from '@/datos/consulta'
@@ -38,7 +38,7 @@ export default async function EquipoPage (props: PageProps<'/equipo'>) {
       </div>
 
       <Suspense fallback={<Cargando alto="min-h-36" mensaje={`Cargando ${EQUIPO.titulo.plural.toLowerCase()}…`} />}>
-        <TablaEquipo
+        <VistaEquipo
           inicial={{ filas: lista.data, paginacion: lista.meta?.pagination }}
           capacidades={yo.data.permissions.staff}
           opcionesDeFiltro={opcionesDeFiltros(EQUIPO, lookups)}

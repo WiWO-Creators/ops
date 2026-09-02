@@ -1,11 +1,18 @@
 'use client'
 
-import { useState, type ReactElement } from 'react'
+import { Fragment, useState, type ReactElement } from 'react'
 import { Boton } from '@/componentes/formularios/Boton'
 import { Campo } from '@/componentes/formularios/Campo'
 import { AreaTexto, Entrada } from '@/componentes/formularios/Entrada'
+import {
+  ContenidoSelector,
+  DisparadorSelector,
+  Opcion,
+  Selector
+} from '@/componentes/formularios/Selector'
 import { Dialogo, ContenidoDialogo } from '@/componentes/superposiciones/Dialogo'
 import { mensajeDeRespuesta } from '@/datos/cliente'
+import { cn } from '@/lib/clases'
 import {
   cuerpoDelFormulario,
   validarFormulario,
@@ -38,6 +45,15 @@ interface PropsFormulario {
   registro?: Record<string, unknown> | null
   /** Se llama despues de guardar bien, para que la pestaña recargue su listado. */
   onGuardado: () => void
+  /**
+   * Dos columnas para formularios largos.
+   *
+   * Una ficha de cliente son dieciocho campos: en una sola columna el boton de guardar queda a dos
+   * pantallas de scroll del primer campo.
+   */
+  columnas?: 1 | 2
+  /** Ancho del dialogo, para acompañar a `columnas`. */
+  ancho?: 'chico' | 'medio' | 'grande'
 }
 
 export function FormularioRecurso ({
@@ -49,7 +65,9 @@ export function FormularioRecurso ({
   ruta,
   metodo,
   registro = null,
-  onGuardado
+  onGuardado,
+  columnas = 1,
+  ancho = 'medio'
 }: PropsFormulario): ReactElement {
   const [valores, setValores] = useState<ValoresFormulario>(() => valoresIniciales(campos, registro))
   const [errores, setErrores] = useState<Record<string, string>>({})
@@ -110,17 +128,25 @@ export function FormularioRecurso ({
 
   return (
     <Dialogo open={abierto} onOpenChange={onAbiertoCambia}>
-      <ContenidoDialogo titulo={titulo} descripcion={descripcion}>
+      <ContenidoDialogo titulo={titulo} descripcion={descripcion} ancho={ancho}>
         <form className="flex flex-col gap-4" onSubmit={(evento) => { void enviar(evento) }}>
-          {campos.map((campo) => (
-            <ControlDeCampo
-              key={campo.clave}
-              campo={campo}
-              valor={valores[campo.clave]}
-              error={errores[campo.clave]}
-              alCambiar={(valor) => { setValores((previos) => ({ ...previos, [campo.clave]: valor })) }}
-            />
-          ))}
+          <div className={cn('grid gap-4', columnas === 2 && 'sm:grid-cols-2')}>
+            {campos.map((campo) => (
+              <Fragment key={campo.clave}>
+                {campo.seccion !== undefined && (
+                  <h3 className="text-texto-tenue border-linea-suave mt-2 border-b pb-1 text-xs font-semibold tracking-wide uppercase sm:col-span-full">
+                    {campo.seccion}
+                  </h3>
+                )}
+                <ControlDeCampo
+                  campo={campo}
+                  valor={valores[campo.clave]}
+                  error={errores[campo.clave]}
+                  alCambiar={(valor) => { setValores((previos) => ({ ...previos, [campo.clave]: valor })) }}
+                />
+              </Fragment>
+            ))}
+          </div>
 
           {fallo !== null && (
             <p role="alert" className="text-texto-peligro text-sm">{fallo}</p>
@@ -170,6 +196,28 @@ function ControlDeCampo ({ campo, valor, error, alCambiar }: PropsControl): Reac
   }
 
   const texto = typeof valor === 'string' ? valor : ''
+
+  if (campo.tipo === 'seleccion') {
+    return (
+      <Campo
+        etiqueta={campo.etiqueta}
+        requerido={campo.requerido}
+        {...(campo.ayuda === undefined ? {} : { ayuda: campo.ayuda })}
+        {...(error === undefined ? {} : { error })}
+      >
+        {(props) => (
+          <Selector value={texto} onValueChange={alCambiar}>
+            <DisparadorSelector marcador="Elegí una opción" id={props.id} />
+            <ContenidoSelector>
+              {(campo.opciones ?? []).map((opcion) => (
+                <Opcion key={opcion.valor} value={opcion.valor}>{opcion.etiqueta}</Opcion>
+              ))}
+            </ContenidoSelector>
+          </Selector>
+        )}
+      </Campo>
+    )
+  }
 
   return (
     <Campo

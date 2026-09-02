@@ -4,8 +4,9 @@ import type { MiembroEquipo } from '../datos/recursos.ts'
 /**
  * Definicion del recurso Equipo.
  *
- * Fuente: `docs/modulos/04-equipo.md`. Es de solo lectura: el equipo se administra en el panel de
- * Perfex, porque crear staff toca roles, permisos y contraseñas.
+ * Fuente: `docs/modulos/04-equipo.md`. El alta, la edicion y las dos formas de eliminar viven en
+ * `componentes/equipo/`: necesitan formularios y confirmacion, y las acciones declarativas de esta
+ * definicion solo saben de llamadas sin cuerpo.
  *
  * `GET /staff` exige el permiso `staff.view`; sin el devuelve `403`, asi que la seccion se oculta
  * cuando `permissions.staff` no lo incluye.
