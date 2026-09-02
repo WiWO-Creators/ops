@@ -72,6 +72,12 @@ function seccionesDe (yo: Yo): Seccion[] {
     secciones.push({ href: '/espacios', etiqueta: GLOSARIO.espacio.plural, icono: 'espacios' })
   }
 
+  // Salas no tiene permiso de Perfex que consultar: no es una feature suya. Reservar una sala lo
+  // puede hacer cualquiera del equipo, asi que la unica llave es la bandera de instalacion.
+  if (yo.secciones_habilitadas.includes('salas')) {
+    secciones.push({ href: '/salas', etiqueta: 'Salas', icono: 'salas' })
+  }
+
   if (yo.permissions.customers.includes('view')) {
     secciones.push({ href: '/clientes', etiqueta: 'Clientes', icono: 'clientes' })
   }

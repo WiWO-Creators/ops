@@ -396,3 +396,59 @@ export const VALORES_CAMPOS = Object.fromEntries(
     ]
   ])
 )
+
+/**
+ * Salas de reunion, las tres reales de MGC.
+ *
+ * `panel_token` va fijo y no generado: la pantalla de puerta se prueba abriendo una URL, y una URL
+ * que cambia en cada arranque del mock no se puede dejar anotada en la guia de verificacion.
+ */
+export const SALAS = [
+  { id: 1, name: 'El Confesionario', capacity: 3, location: null, active: true, date_created: '2026-08-01T12:00:00Z', panel_token: '7f3a9c1e5b8d4260a1c7e93f5d2b6084' },
+  { id: 2, name: 'One Team', capacity: 10, location: 'Piso 2', active: true, date_created: '2026-08-01T12:00:00Z', panel_token: 'c2e60d7b91f34a58bd05e7c31a9b4d62' },
+  { id: 3, name: 'Insight', capacity: 8, location: 'Piso 2', active: true, date_created: '2026-08-01T12:00:00Z', panel_token: 'a4d81b360e7c92f5486ad0c1b73e29f5' }
+]
+
+/**
+ * Reservas de hoy, ancladas al dia en que corre el mock.
+ *
+ * Se calculan a partir de la fecha actual y no de una constante para que la agenda del mock siempre
+ * tenga algo que mostrar: con fechas fijas, al dia siguiente la pantalla sale vacia y parece rota.
+ *
+ * La hora se arma en UTC a proposito. El mock no conoce la zona del negocio y no tiene por que:
+ * emite instantes, que es lo que dice el contrato, y quien los ubica en la grilla es el frontend.
+ */
+function reservaDeHoy (id, salaId, staffIndex, horaUtc, minutos, titulo, asistentes) {
+  const hoy = new Date()
+  const inicio = new Date(Date.UTC(hoy.getUTCFullYear(), hoy.getUTCMonth(), hoy.getUTCDate(), horaUtc, 0, 0))
+  const fin = new Date(inicio.getTime() + minutos * 60_000)
+  const persona = STAFF[staffIndex]
+  const sala = SALAS.find((s) => s.id === salaId)
+
+  return {
+    id,
+    room_id: salaId,
+    room_name: sala.name,
+    room_capacity: sala.capacity,
+    staff_id: persona.id,
+    staff: {
+      id: persona.id,
+      full_name: persona.full_name,
+      email: persona.email,
+      profile_image_url: null
+    },
+    title: titulo,
+    start: inicio.toISOString(),
+    end: fin.toISOString(),
+    attendees: asistentes,
+    notes: null,
+    cancelled_at: null,
+    date_created: inicio.toISOString()
+  }
+}
+
+export const RESERVAS = [
+  reservaDeHoy(1, 2, 0, 13, 60, 'Comité semanal', 8),
+  reservaDeHoy(2, 1, 1, 15, 30, 'Uno a uno', 2),
+  reservaDeHoy(3, 3, 2, 17, 90, 'Presentación a cliente', 6)
+]

@@ -673,3 +673,52 @@ export interface NotaCliente {
   date_added: string
   staff: StaffReferencia | null
 }
+
+/**
+ * Sala de reunion.
+ *
+ * `panel_token` solo viaja para administradores: es la llave de `/sala/<token>`, la pantalla sin
+ * sesion que va colgada en la puerta. Si llegara en el listado que ve todo el equipo dejaria de ser
+ * un secreto.
+ */
+export interface Sala {
+  id: number
+  name: string
+  capacity: number
+  location: string | null
+  active: boolean
+  date_created: string | null
+  panel_token?: string
+}
+
+/**
+ * Reserva de una sala.
+ *
+ * `start` y `end` son instantes ISO en UTC, no fechas sueltas: una reunion ocurre a una hora.
+ *
+ * `staff` trae el correo a proposito — el pedido que origino la feature es poder contactar a quien
+ * reservo para confirmar si va a usar la sala. Es `null` solo si la persona ya no esta en `tblstaff`.
+ */
+export interface Reserva {
+  id: number
+  room_id: number
+  room_name: string
+  room_capacity: number
+  staff_id: number
+  staff: { id: number, full_name: string, email: string, profile_image_url: string | null } | null
+  title: string
+  start: string
+  end: string
+  attendees: number | null
+  notes: string | null
+  cancelled_at: string | null
+  date_created: string | null
+}
+
+/** Respuesta de `GET /rooms/panel/{token}`: lo minimo que necesita la pantalla de puerta. */
+export interface PanelDeSala {
+  room: Sala
+  now: string
+  current: Reserva | null
+  upcoming: Reserva[]
+}
