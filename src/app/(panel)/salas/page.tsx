@@ -2,7 +2,7 @@ import { pedir } from '@/datos/servidor'
 import { hoyLocal } from '@/lib/fechas'
 import { ventanaDelDia } from '@/dominio/salas'
 import { AgendaSalas } from './AgendaSalas'
-import type { Reserva, Sala } from '@/datos/recursos'
+import type { PersonaDeSala, Reserva, Sala } from '@/datos/recursos'
 import type { Yo } from '@/datos/tipos'
 
 export const metadata = { title: 'Salas · WiWO Ops' }
@@ -26,9 +26,10 @@ export default async function SalasPage (props: PageProps<'/salas'>) {
   // `ventanaDelDia` solo devuelve null con un dia mal formado, y `dia` ya paso por el regex.
   const ventana = ventanaDelDia(dia) ?? ventanaDelDia(hoyLocal())
 
-  const [salas, reservas, yo] = await Promise.all([
+  const [salas, reservas, personas, yo] = await Promise.all([
     pedir<Sala[]>('/rooms'),
     pedir<Reserva[]>(`/rooms/bookings?from=${encodeURIComponent(ventana?.desde ?? '')}&to=${encodeURIComponent(ventana?.hasta ?? '')}`),
+    pedir<PersonaDeSala[]>('/rooms/people'),
     pedir<Yo>('/me')
   ])
 
@@ -37,6 +38,7 @@ export default async function SalasPage (props: PageProps<'/salas'>) {
       dia={dia}
       salas={salas.data}
       reservas={reservas.data}
+      personas={personas.data}
       yoId={yo.data.id}
       esAdmin={yo.data.is_admin}
     />

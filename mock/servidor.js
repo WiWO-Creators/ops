@@ -389,6 +389,33 @@ function choqueEn (salaId, inicio, fin, excluir) {
   ))
 }
 
+/**
+ * Resuelve los ids de participantes contra el staff activo.
+ *
+ * Rechaza los desconocidos con el mismo detalle que la API real (`unknown:<id>`): si el mock fuera
+ * mas permisivo, el frontend se probaria contra un backend que no existe. Es exactamente el tipo de
+ * divergencia que hizo que los milisegundos de `toISOString()` llegaran a produccion sin detectarse.
+ */
+function resolverParticipantes (ids) {
+  if (ids === undefined || ids === null) return []
+  if (!Array.isArray(ids)) throw new ErrorApi(422, 'validation_failed', 'Lista inválida.', { participant_ids: ['list'] })
+
+  const unicos = [...new Set(ids.map(Number))]
+  const desconocidos = unicos.filter((id) => !STAFF.some((p) => p.id === id && p.active))
+
+  if (desconocidos.length > 0) {
+    throw new ErrorApi(422, 'validation_failed', 'Hay campos que no se pueden escribir.', {
+      participant_ids: desconocidos.map((id) => `unknown:${id}`)
+    })
+  }
+
+  return unicos.map((id) => {
+    const p = STAFF.find((persona) => persona.id === id)
+
+    return { id: p.id, full_name: p.full_name, profile_image_url: p.profile_image_url }
+  })
+}
+
 /** Vuelve a armar una reserva con los datos de su sala y de quien la hizo. */
 function presentarReserva (reserva) {
   const sala = SALAS.find((s) => s.id === reserva.room_id)
@@ -407,6 +434,21 @@ async function salasRuta (metodo, resto, parametros, actual, cuerpo) {
 
   if (primero === 'bookings') {
     return await reservasRuta(metodo, segundo, parametros, actual, cuerpo)
+  }
+
+  // Personas que se pueden anotar en una reserva. Cuelga de `rooms` y no de `/staff` porque ese
+  // exige `staff.view`: anotar a un compañero no puede depender de ver el legajo de todo el equipo.
+  if (primero === 'people') {
+    if (metodo !== 'GET') throw new ErrorApi(404, 'not_found', 'Recurso desconocido.')
+
+    return {
+      estado: 200,
+      cuerpo: conDatos(
+        STAFF.filter((p) => p.active).map((p) => ({
+          id: p.id, full_name: p.full_name, profile_image_url: p.profile_image_url
+        }))
+      )
+    }
   }
 
   if (primero === undefined) {
@@ -480,6 +522,8 @@ async function reservasRuta (metodo, id, parametros, actual, cuerpo) {
         throw new ErrorApi(422, 'validation_failed', 'El horario no es válido.', { end: ['min_duration'] })
       }
 
+      const participantes = resolverParticipantes(datos.participant_ids)
+
       const choque = choqueEn(salaId, datos.start, datos.end, undefined)
       if (choque) {
         throw new ErrorApi(409, 'conflict', `La sala ya está reservada por ${choque.staff?.full_name ?? 'otra persona'}.`)
@@ -498,6 +542,7 @@ async function reservasRuta (metodo, id, parametros, actual, cuerpo) {
         title: String(datos.title).trim(),
         start: datos.start,
         end: datos.end,
+        participants: participantes,
         attendees: datos.attendees ?? null,
         notes: datos.notes ?? null,
         cancelled_at: null,
@@ -548,7 +593,11 @@ async function reservasRuta (metodo, id, parametros, actual, cuerpo) {
       end: fin,
       title: datos.title === undefined ? reserva.title : String(datos.title).trim(),
       attendees: datos.attendees === undefined ? reserva.attendees : datos.attendees,
-      notes: datos.notes === undefined ? reserva.notes : datos.notes
+      notes: datos.notes === undefined ? reserva.notes : datos.notes,
+      // Un PATCH que no menciona la clave conserva la lista, igual que la API real.
+      participants: datos.participant_ids === undefined
+        ? reserva.participants
+        : resolverParticipantes(datos.participant_ids)
     })
 
     return { estado: 200, cuerpo: conDatos(presentarReserva(reserva)) }

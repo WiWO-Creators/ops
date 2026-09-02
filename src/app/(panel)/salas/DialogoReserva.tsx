@@ -10,10 +10,12 @@ import {
 } from '@/componentes/formularios/Selector'
 import { CerrarDialogo, ContenidoDialogo, Dialogo } from '@/componentes/superposiciones/Dialogo'
 import { escribirEnBff } from '@/componentes/datos/mutaciones'
+import { SelectorPersonas } from './SelectorPersonas'
 import {
-  formatearMinutos, instanteDe, minutosDeHora, PASO_MINUTOS, revisarReserva, seSuperpone
+  formatearMinutos, instanteDe, minutosDeHora, PASO_MINUTOS, revisarReserva, seSuperpone,
+  sugerirAsistentes
 } from '@/dominio/salas'
-import type { Reserva, Sala } from '@/datos/recursos'
+import type { PersonaDeSala, Reserva, Sala } from '@/datos/recursos'
 
 export interface BorradorReserva {
   /** Reserva que se edita. Ausente en un alta. */
@@ -26,6 +28,8 @@ export interface BorradorReserva {
   titulo: string
   asistentes: string
   notas: string
+  /** Quienes del equipo van. Los ids son de `tblstaff`. */
+  participantes: number[]
 }
 
 interface PropsDialogoReserva {
@@ -33,6 +37,8 @@ interface PropsDialogoReserva {
   salas: Sala[]
   /** Reservas vigentes del dia, para avisar del choque antes de mandar. */
   reservas: Reserva[]
+  /** Personas del equipo que se pueden anotar. */
+  personas: PersonaDeSala[]
   onCerrar: () => void
   onGuardado: () => void
 }
@@ -54,7 +60,7 @@ interface PropsDialogoReserva {
  * abrir otra franja monta un formulario nuevo en vez de sincronizar estado desde un efecto — que es
  * el patron que React desaconseja y que ademas dejaba lo tipeado a merced de un render del padre.
  */
-export function DialogoReserva ({ borrador, salas, reservas, onCerrar, onGuardado }: PropsDialogoReserva) {
+export function DialogoReserva ({ borrador, salas, reservas, personas, onCerrar, onGuardado }: PropsDialogoReserva) {
   const [campos, setCampos] = useState<BorradorReserva>(borrador)
   const [guardando, setGuardando] = useState(false)
   const [errorApi, setErrorApi] = useState<string | null>(null)
@@ -100,7 +106,8 @@ export function DialogoReserva ({ borrador, salas, reservas, onCerrar, onGuardad
       start: inicio.toISOString(),
       end: fin.toISOString(),
       attendees: campos.asistentes.trim() === '' ? null : Number(campos.asistentes),
-      notes: campos.notas.trim() === '' ? null : campos.notas.trim()
+      notes: campos.notas.trim() === '' ? null : campos.notas.trim(),
+      participant_ids: campos.participantes
     }
 
     const resultado = campos.id === undefined
@@ -188,22 +195,43 @@ export function DialogoReserva ({ borrador, salas, reservas, onCerrar, onGuardad
             </Campo>
           </div>
 
-          <Campo
-            etiqueta="Personas"
-            ayuda={`La sala entra ${capacidad}.`}
-            error={revision.errores.asistentes}
-          >
-            {(props) => (
-              <Entrada
-                {...props}
-                type="number"
-                min={1}
-                max={500}
-                value={campos.asistentes}
-                onChange={(evento) => setCampos({ ...campos, asistentes: evento.target.value })}
-              />
-            )}
-          </Campo>
+          <div className="grid gap-3 sm:grid-cols-[1fr_7rem]">
+            {/* Sin texto de ayuda: el marcador del control ya dice "Agregar personas", y la ayuda
+                quedaba DEBAJO de los chips —`Campo` los cuenta como contenido—, leyendose como si
+                hablara de la persona de mas abajo en vez del control. */}
+            <Campo etiqueta="Quiénes van">
+              {(props) => (
+                <SelectorPersonas
+                  id={props.id}
+                  personas={personas}
+                  elegidas={campos.participantes}
+                  onCambiar={(ids) => setCampos({
+                    ...campos,
+                    participantes: ids,
+                    // El total se sigue solo mientras nadie lo haya tocado a mano.
+                    asistentes: sugerirAsistentes(campos.asistentes, campos.participantes.length, ids.length)
+                  })}
+                />
+              )}
+            </Campo>
+
+            <Campo
+              etiqueta="Total"
+              ayuda={`Entran ${capacidad}.`}
+              error={revision.errores.asistentes}
+            >
+              {(props) => (
+                <Entrada
+                  {...props}
+                  type="number"
+                  min={1}
+                  max={500}
+                  value={campos.asistentes}
+                  onChange={(evento) => setCampos({ ...campos, asistentes: evento.target.value })}
+                />
+              )}
+            </Campo>
+          </div>
 
           <Campo etiqueta="Notas">
             {(props) => (

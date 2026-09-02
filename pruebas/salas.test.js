@@ -16,8 +16,9 @@ process.env.TZ = 'UTC'
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
-  bloqueDeReserva, diaLocal, estadoDeReserva, formatearMinutos, franjas, horaLocal, instanteDe,
-  minutosDeHora, minutosLocales, revisarReserva, seSuperpone, sumarDias, ventanaDelDia,
+  bloqueDeReserva, diaLocal, estadoDeReserva, filtrarPersonas, formatearMinutos, franjas, horaLocal,
+  instanteDe, minutosDeHora, minutosLocales, normalizar, revisarReserva, seSuperpone,
+  sugerirAsistentes, sumarDias, ventanaDelDia,
   HORA_APERTURA, HORA_CIERRE, PASO_MINUTOS
 } from '../src/dominio/salas.ts'
 
@@ -148,4 +149,34 @@ test('sumarDias opera sobre el dia calendario y cruza fin de mes', () => {
   assert.equal(sumarDias('2026-09-01', -1), '2026-08-31')
   assert.equal(sumarDias('2026-12-31', 1), '2027-01-01')
   assert.equal(sumarDias('mañana', 1), 'mañana')
+})
+
+const PERSONAS = [
+  { id: 1, full_name: 'Ana Ríos', profile_image_url: null },
+  { id: 2, full_name: 'Bruno Cabral', profile_image_url: null },
+  { id: 3, full_name: 'Camila Núñez', profile_image_url: null }
+]
+
+test('normalizar saca acentos y mayusculas', () => {
+  assert.equal(normalizar('  Camila NÚÑEZ '), 'camila nunez')
+})
+
+test('filtrarPersonas encuentra sin acentos y en cualquier orden', () => {
+  // El caso normal, no el borde: nadie escribe los acentos al filtrar una lista.
+  assert.deepEqual(filtrarPersonas(PERSONAS, 'nunez').map((p) => p.id), [3])
+  assert.deepEqual(filtrarPersonas(PERSONAS, 'rios ana').map((p) => p.id), [1])
+  assert.deepEqual(filtrarPersonas(PERSONAS, 'a').map((p) => p.id), [1, 2, 3])
+  assert.deepEqual(filtrarPersonas(PERSONAS, '   ').map((p) => p.id), [1, 2, 3])
+  assert.deepEqual(filtrarPersonas(PERSONAS, 'zzz'), [])
+})
+
+test('el total de personas se sigue solo hasta que alguien lo escribe', () => {
+  // Campo vacio: toma la cantidad de participantes.
+  assert.equal(sugerirAsistentes('', 0, 2), '2')
+  // Valia exactamente la sugerencia anterior: nadie lo toco, se actualiza.
+  assert.equal(sugerirAsistentes('2', 2, 3), '3')
+  // Alguien escribio 5 porque vienen dos de afuera: no se pisa.
+  assert.equal(sugerirAsistentes('5', 2, 3), '5')
+  // Sacar a todos deja el campo vacio, no en cero.
+  assert.equal(sugerirAsistentes('2', 2, 0), '')
 })

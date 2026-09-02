@@ -22,6 +22,7 @@ Lo que el pedido exigía, y dónde se resuelve cada punto:
 | Ver quién reservó y poder contactarlo | La ficha de la reserva trae nombre, avatar y **correo** de quien la hizo |
 | Cancelar libera el horario en el acto | `DELETE` marca `cancelada_en`; toda lectura filtra por `IS NULL` |
 | Capacidad visible al elegir sala | Encabezado de cada columna, opción del selector y aviso al pasarse |
+| Saber quiénes van, no solo cuántos | Lista de participantes del equipo en la reserva, con avatar y nombre |
 | Visibilizar en cada sala si hay reserva vigente | `/sala/<token>`: pantalla a página completa, sin sesión, para la tablet de la puerta |
 
 **Google Calendar queda afuera por decisión del usuario.** No hay sincronización ni feed: la agenda
@@ -55,6 +56,7 @@ Todo cuelga del prefijo `rooms`, así que el BFF lo autoriza con una sola entrad
 | `POST /rooms` | Admin | Crea una sala |
 | `PATCH /rooms/{id}` | Admin | Nombre, capacidad, ubicación, `active`, y `rotate_token` |
 | `DELETE /rooms/{id}` | Admin | Baja **lógica** (`activa = 0`) |
+| `GET /rooms/people` | Cualquier staff | Personas del equipo que se pueden anotar. Solo nombre y foto |
 | `GET /rooms/bookings?from=&to=` | Cualquier staff | Reservas vigentes que cruzan el rango. `room_id` acota a una sala |
 | `POST /rooms/bookings` | Cualquier staff | Crea una reserva |
 | `PATCH /rooms/bookings/{id}` | Autor o admin | Edita horario, sala, título, asistentes o notas |
@@ -63,6 +65,32 @@ Todo cuelga del prefijo `rooms`, así que el BFF lo autoriza con una sola entrad
 
 `panel_token` solo viaja en la respuesta si quien pregunta es administrador. En el listado que ve todo
 el equipo dejaría de ser un secreto.
+
+## Cuántos y quiénes son dos cosas
+
+`attendees` es el **número** total de personas. Los participantes son **quiénes del equipo** van. No
+se deriva uno del otro a propósito: a una reunión con cliente van tres del equipo y dos de afuera, y
+esos dos no tienen fila en `tblstaff`. Contarlos como participantes obligaría a inventarles una, y
+derivar el total de la lista dejaría la sala aparentando lugar que no tiene.
+
+En la pantalla, el total **se sigue solo** mientras nadie lo haya escrito a mano: agregar gente lo
+actualiza, y apenas alguien pone un número propio deja de moverse (`sugerirAsistentes`). Un campo que
+se pisa cada vez que se agrega a alguien es un campo que no se puede usar.
+
+`participant_ids` distingue las tres formas: **ausente** conserva la lista —un PATCH que solo mueve el
+horario no tiene por qué borrar a nadie—, **`[]` o `null`** la vacía. Cada id tiene que ser de una
+persona activa del equipo; el `422` dice cuáles no sirven (`unknown:<id>`).
+
+### Por qué `GET /rooms/people` y no `GET /staff`
+
+`GET /staff` exige el permiso `staff.view` y devuelve el legajo entero: correo, tarifa, último acceso.
+Casi nadie lo tiene, así que anotar a un compañero en una reunión habría quedado reservado a los
+administradores. `GET /rooms/people` pide sesión y nada más, y devuelve **solo id, nombre y foto** de
+las personas activas del equipo. Lo único que expone es que esa persona trabaja acá, que ya lo sabe
+cualquiera que mire una reserva ajena en la agenda.
+
+El selector trae buscador porque la instalación tiene más de 180 personas, y busca sin acentos: nadie
+escribe "Núñez" con tilde al filtrar una lista.
 
 ## La regla que sostiene todo
 

@@ -440,6 +440,11 @@ function reservaDeHoy (id, salaId, staffIndex, horaUtc, minutos, titulo, asisten
     title: titulo,
     start: inicio.toISOString(),
     end: fin.toISOString(),
+    // Los dos siguientes del fixture, para que la agenda del mock muestre participantes sin que
+    // haya que crear una reserva a mano.
+    participants: STAFF.slice(staffIndex, staffIndex + 2).map((p) => ({
+      id: p.id, full_name: p.full_name, profile_image_url: p.profile_image_url
+    })),
     attendees: asistentes,
     notes: null,
     cancelled_at: null,

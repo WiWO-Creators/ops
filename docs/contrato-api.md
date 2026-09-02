@@ -1400,6 +1400,9 @@ recurso sin relaciones opcionales.
   "title": "Comité semanal",
   "start": "2026-09-02T13:00:00Z",
   "end": "2026-09-02T14:00:00Z",
+  "participants": [
+    { "id": 12, "full_name": "Bruno Cabral", "profile_image_url": null }
+  ],
   "attendees": 8,
   "notes": null,
   "cancelled_at": null,
@@ -1407,12 +1410,22 @@ recurso sin relaciones opcionales.
 }
 ```
 
+`participants` son **quiénes del equipo** van; `attendees`, **cuántas** personas en total. No se
+deriva uno del otro: a una reunión con cliente van tres del equipo y dos de afuera, y esos dos no
+tienen fila en `tblstaff`.
+
+Al escribir, la clave es `participant_ids` (una lista de ids). **Ausente** conserva la lista que haya
+—un `PATCH` que solo mueve el horario no borra a nadie—; **`[]` o `null`** la vacía. Cada id tiene que
+ser de una persona activa del equipo (`is_not_staff = 0`); si alguno no lo es, el `422` los nombra en
+`details.participant_ids` como `unknown:<id>`. Los repetidos se descartan sin avisar. Tope: 100.
+
 `staff` trae el **correo**, a diferencia de `StaffReferencia`: el pedido que originó el módulo es
 poder contactar a quien reservó para confirmar si va a usar la sala. Es `null` solo si esa persona ya
 no está en `tblstaff`.
 
 | Método | Ruta | Quién |
 |---|---|---|
+| `GET` | `/rooms/people` | Cualquier staff |
 | `GET` | `/rooms/bookings?from=&to=` | Cualquier staff. `room_id` acota a una sala |
 | `POST` | `/rooms/bookings` | Cualquier staff |
 | `PATCH` | `/rooms/bookings/{id}` | Autor o admin |
@@ -1449,6 +1462,16 @@ Los extremos que se tocan **no** chocan: 10:00–11:00 y 11:00–12:00 conviven.
 El `409` de solapamiento se decide **dentro de una transacción, con `SELECT ... FOR UPDATE` sobre la
 fila de la sala**. MySQL no tiene exclusion constraints, y un `SELECT` de comprobación seguido de un
 `INSERT` es la carrera que produce exactamente el sobreagendamiento que este módulo viene a resolver.
+
+### Personas que se pueden anotar
+
+`GET /rooms/people` devuelve `[{ "id", "full_name", "profile_image_url" }]` de las personas **activas
+del equipo** (`is_not_staff = 0`), ordenadas por nombre.
+
+Existe en vez de reusar `GET /staff` por un motivo concreto: ese exige el permiso `staff.view` y
+devuelve el legajo entero —correo, tarifa, último acceso—, y casi nadie lo tiene. Anotar a un
+compañero en una reunión no puede depender de poder ver el legajo de todo el equipo. Este endpoint
+pide sesión y nada más, y lo único que expone es que esa persona trabaja acá.
 
 ### Pantalla de puerta
 
