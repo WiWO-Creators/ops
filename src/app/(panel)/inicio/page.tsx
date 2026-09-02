@@ -6,8 +6,6 @@ import {
   FolderKanban,
   LifeBuoy,
   ListChecks,
-  Receipt,
-  UserPlus,
   Users
 } from 'lucide-react'
 import { pedir } from '@/datos/servidor'
@@ -293,22 +291,6 @@ function accesosDe (yo: Yo): Acceso[] {
   }
 
   accesos.push(
-    {
-      href: '/prospectos',
-      titulo: GLOSARIO.prospecto.plural,
-      descripcion: 'El embudo comercial, por etapa.',
-      icono: UserPlus,
-      tono: 'violeta',
-      proximamente: true
-    },
-    {
-      href: '/facturas',
-      titulo: 'Facturas',
-      descripcion: 'Lo emitido, lo cobrado y lo que falta.',
-      icono: Receipt,
-      tono: 'exito',
-      proximamente: true
-    },
     {
       // El soporte no es un modulo del panel: se atiende en wiwo.center. La tarjeta no lleva
       // `proximamente` porque el destino existe hoy.
