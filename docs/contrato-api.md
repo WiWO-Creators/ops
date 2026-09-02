@@ -356,7 +356,7 @@ Include: `custom_fields`, `members`.
 ### `tasks` → **Procesos** en la interfaz
 
 `GET /tasks` · `GET /tasks/{id}` · `GET /tasks/{id}/comments` · `GET /tasks/{id}/checklist` ·
-`GET /tasks/{id}/timers` · `GET /tasks/{id}/files`
+`GET /tasks/{id}/timers` · `GET /tasks/{id}/files` · `POST /tasks`
 
 ```json
 { "id": 512, "name": "…", "description": "…",
@@ -397,6 +397,47 @@ Include: `custom_fields`, `description` (se omite en listas: son `longtext`).
 **Vista de tablero**: `GET /tasks?vista=tablero&filter[project_id]=8` devuelve las tarjetas agrupadas,
 con paginación **por columna**. En tareas hay columnas de miles de filas: cargar la columna entera no
 es una opción.
+
+### `POST /tasks` — alta de un Proceso
+
+Devuelve `201` con el Proceso serializado igual que `GET /tasks/{id}`.
+
+```json
+{ "name": "Grilla Colbún septiembre",
+  "description": null,
+  "start_date": "2026-09-01", "due_date": "2026-09-30",
+  "priority": 3, "billable": true, "milestone": null,
+  "rel_type": "project", "rel_id": 8,
+  "assignees": [12, 15], "followers": [], "tags": ["urgente"] }
+```
+
+**`name` es el único campo obligatorio.** Todo lo demás tiene un valor por defecto, y esa es la
+propiedad que hace posible el alta rápida de una línea desde cualquier pantalla.
+
+| Campo | Por defecto |
+|---|---|
+| `status` | La **primera columna del tablero** por `order` — no se acepta del cliente |
+| `priority` | `2` (Media) |
+| `billable` | `false` |
+| `rel_type` / `rel_id` | `null` — **un Proceso sin Espacio es válido** |
+| `added_from` | El staff autenticado |
+
+Lo que evita errores:
+
+- **`rel_type` y `rel_id` pueden quedar vacíos a propósito.** `tbltasks.rel_type` admite `''`, y
+  obligar a elegir el Espacio antes de escribir el título es exactamente lo que termina empujando la
+  tarea a un chat. El Espacio se asigna después con `PATCH`.
+- **`status` no viaja en el alta.** Tiene sus propias acciones porque arrastra cascadas; dejarlo
+  entrar acá abriría una segunda puerta a la misma transición.
+- **Un id que no existe falla con `422`, no se descarta.** Vale para `rel_id`, `assignees` y
+  `followers`: una tarea que se guarda sin el asignado que se eligió es peor que un error.
+
+```json
+{ "error": { "code": "validation_failed", "message": "Hay campos que no se pueden guardar.",
+             "details": { "name": ["requerido"], "rel_id": ["no_existe"] } } }
+```
+
+Requiere `create` sobre `tasks`; sin él, `403`.
 
 ### Acciones
 

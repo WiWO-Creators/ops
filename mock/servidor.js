@@ -204,6 +204,129 @@ function presentarProcesoEnLista (proceso) {
   return resto
 }
 
+/**
+ * Alta de un Proceso, con la validacion que el contrato exige.
+ *
+ * `rel_type` y `rel_id` pueden quedar vacios **a proposito**: `tbltasks.rel_type` admite `''`, y
+ * obligar a elegir el Espacio antes de escribir el titulo es exactamente lo que termina empujando
+ * la tarea a un chat. El Espacio se asigna despues con `PATCH`.
+ *
+ * El estado no se acepta del cliente: nace en la primera columna del tablero, como en el panel.
+ *
+ * @param {Record<string, unknown>} entrada cuerpo de la peticion
+ * @param {{id: number}} autor staff autenticado, que queda en `added_from`
+ * @returns {object} el Proceso nuevo, en la forma del contrato
+ * @throws {ErrorApi} 422 con `details` por campo
+ */
+function crearProceso (entrada, autor) {
+  const detalles = {}
+  const nombre = typeof entrada.name === 'string' ? entrada.name.trim() : ''
+
+  if (nombre === '') detalles.name = ['requerido']
+
+  const prioridad = entrada.priority === undefined || entrada.priority === null
+    ? 2
+    : Number(entrada.priority)
+  if (!PRIORIDADES.some((p) => p.id === prioridad)) detalles.priority = ['no_valido']
+
+  for (const clave of ['start_date', 'due_date']) {
+    const valor = entrada[clave]
+    if (valor !== undefined && valor !== null && !/^\d{4}-\d{2}-\d{2}$/.test(String(valor))) {
+      detalles[clave] = ['formato_invalido']
+    }
+  }
+
+  // El vinculo es opcional, pero si viene tiene que existir: un Proceso colgado de un Espacio
+  // fantasma es peor que uno sin Espacio.
+  const vinculo = entrada.rel_type
+  const relType = vinculo === undefined || vinculo === null || vinculo === '' ? null : String(vinculo)
+  let relId = null
+  let espacio = null
+
+  if (relType !== null) {
+    if (relType !== 'project' && relType !== 'customer') {
+      detalles.rel_type = ['no_valido']
+    } else {
+      relId = Number(entrada.rel_id)
+      const encontrado = (relType === 'project' ? ESPACIOS : CLIENTES).find((f) => f.id === relId)
+      if (!encontrado) detalles.rel_id = ['no_existe']
+      else if (relType === 'project') espacio = encontrado
+    }
+  }
+
+  const asignados = resolverStaff(entrada.assignees, detalles, 'assignees')
+  const seguidores = resolverStaff(entrada.followers, detalles, 'followers')
+  const etiquetas = (Array.isArray(entrada.tags) ? entrada.tags : [])
+    .map((t) => ETIQUETAS.find((e) => e.id === Number(t) || e.name === t))
+    .filter((e) => e !== undefined)
+
+  if (Object.keys(detalles).length > 0) {
+    throw new ErrorApi(422, 'validation_failed', 'Hay campos que no se pueden guardar.', detalles)
+  }
+
+  const primera = [...ESTADOS_PROCESO].sort((a, b) => a.order - b.order)[0]
+
+  return {
+    id: Math.max(...PROCESOS.map((p) => p.id)) + 1,
+    name: nombre,
+    description: typeof entrada.description === 'string' ? entrada.description : null,
+    status: primera.id,
+    priority: prioridad,
+    start_date: entrada.start_date ?? null,
+    due_date: entrada.due_date ?? null,
+    date_added: new Date().toISOString().replace(/\.\d{3}Z$/, 'Z'),
+    date_finished: null,
+    added_from: autor.id,
+    rel_type: relType,
+    rel_id: relId,
+    project: espacio ? { id: espacio.id, name: espacio.name } : null,
+    milestone: null,
+    billable: entrada.billable === true,
+    billed: false,
+    hourly_rate: 0,
+    is_public: false,
+    visible_to_client: false,
+    recurring: false,
+    kanban_order: 1,
+    assignees: asignados.map((s) => ({
+      id: s.id,
+      full_name: s.full_name,
+      profile_image_url: s.profile_image_url
+    })),
+    followers: seguidores.map((s) => ({ id: s.id, full_name: s.full_name })),
+    tags: etiquetas,
+    counts: { comments: 0, checklist: 0, checklist_done: 0, attachments: 0 },
+    timer_activo: null
+  }
+}
+
+/**
+ * Resuelve una lista de ids de staff a personas, sin repetidos.
+ *
+ * Un id que no existe **falla**, no se descarta en silencio: una tarea que se guarda sin el
+ * asignado que se eligio es peor que un error.
+ */
+function resolverStaff (valor, detalles, clave) {
+  if (valor === undefined || valor === null) return []
+  if (!Array.isArray(valor)) {
+    detalles[clave] = ['debe_ser_lista']
+    return []
+  }
+
+  const personas = []
+
+  for (const id of valor) {
+    const persona = STAFF.find((s) => s.id === Number(id))
+    if (!persona) {
+      detalles[clave] = ['no_existe']
+      continue
+    }
+    if (!personas.some((p) => p.id === persona.id)) personas.push(persona)
+  }
+
+  return personas
+}
+
 /** Busca una fila por id o lanza 404. */
 function buscarO404 (filas, id, que) {
   const fila = filas.find((f) => f.id === id)
@@ -498,6 +621,14 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
 
       const { filas, paginacion } = aplicarConsulta(PROCESOS, parametros, CONSULTA_PROCESOS)
       return { estado: 200, cuerpo: conDatos(filas.map(presentarProcesoEnLista), { pagination: paginacion }) }
+    }
+
+    if (metodo === 'POST' && resto.length === 0) {
+      exigirPermiso(actual, 'tasks', 'create')
+      const nuevo = crearProceso(await cuerpo(), actual)
+      // Al frente: el alta se hace para verla, y el orden por defecto de la lista es por entrega.
+      PROCESOS.unshift(nuevo)
+      return { estado: 201, cuerpo: conDatos(nuevo) }
     }
 
     const proceso = buscarO404(PROCESOS, Number(resto[0]), 'proceso')
