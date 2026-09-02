@@ -1,11 +1,12 @@
 import { Suspense } from 'react'
 import { TablaProcesos } from '@/componentes/datos/vistas'
 import { Cargando } from '@/componentes/estado/Estados'
+import { AltaRapidaProceso } from '@/componentes/proyecto/AltaRapidaProceso'
 import { Segmentado } from '@/componentes/formularios/Segmentado'
 import { construirConsulta, leerConsulta, paramsDeUrl } from '@/datos/consulta'
 import { cargarLookups, opcionesDeFiltros } from '@/datos/lookups'
 import { pedir } from '@/datos/servidor'
-import type { Proceso } from '@/datos/recursos'
+import type { Espacio, MiembroEquipo, Proceso } from '@/datos/recursos'
 import type { Yo } from '@/datos/tipos'
 import { PROCESOS } from '@/definiciones/procesos'
 
@@ -27,30 +28,45 @@ export default async function ProcesosPage (props: PageProps<'/procesos'>) {
   // filtrar la lista y pasar al tablero devolvia el tablero sin filtrar.
   const consultaTablero = construirConsulta({ ...estado, orden: [], pagina: 1 }, PROCESOS)
 
-  const [lista, lookups, yo] = await Promise.all([
+  const [lista, lookups, yo, equipo, espacios] = await Promise.all([
     pedir<Proceso[]>(`/tasks${consulta === '' ? '' : `?${consulta}`}`),
     cargarLookups(),
-    pedir<Yo>('/me')
+    pedir<Yo>('/me'),
+    // Catalogos del alta rapida. Se piden acotados: son para resolver `@` y `#` mientras se escribe,
+    // no para paginar.
+    pedir<MiembroEquipo[]>('/staff?per_page=100'),
+    pedir<Espacio[]>('/projects?per_page=100')
   ])
+
+  const catalogosDeAlta = {
+    personas: equipo.data.map((p) => ({ id: p.id, full_name: p.full_name })),
+    espacios: espacios.data.map((e) => ({ id: e.id, name: e.name })),
+    prioridades: lookups.task_priorities.map((p) => ({ id: p.id, name: p.name }))
+  }
 
   return (
     <section className="flex flex-col gap-4">
       <header className="flex items-center justify-between gap-4">
         <h1 className="text-xl font-semibold text-texto">{PROCESOS.titulo.plural}</h1>
-        <Segmentado
-          etiqueta={`Presentación de ${PROCESOS.titulo.plural.toLowerCase()}`}
-          tamano="medio"
-          activo="tabla"
-          opciones={[
-            { valor: 'tabla', etiqueta: 'Tabla', icono: 'tabla', href: '/procesos' },
-            {
-              valor: 'tablero',
-              etiqueta: 'Tablero',
-              icono: 'tablero',
-              href: `/procesos/tablero${consultaTablero === '' ? '' : `?${consultaTablero}`}`
-            }
-          ]}
-        />
+        <div className="flex items-center gap-3">
+          <Segmentado
+            etiqueta={`Presentación de ${PROCESOS.titulo.plural.toLowerCase()}`}
+            tamano="medio"
+            activo="tabla"
+            opciones={[
+              { valor: 'tabla', etiqueta: 'Tabla', icono: 'tabla', href: '/procesos' },
+              {
+                valor: 'tablero',
+                etiqueta: 'Tablero',
+                icono: 'tablero',
+                href: `/procesos/tablero${consultaTablero === '' ? '' : `?${consultaTablero}`}`
+              }
+            ]}
+          />
+          {yo.data.permissions.tasks.includes('create') && (
+            <AltaRapidaProceso catalogos={catalogosDeAlta} />
+          )}
+        </div>
       </header>
 
       <Suspense fallback={<Cargando alto="min-h-36" mensaje={`Cargando ${PROCESOS.titulo.plural.toLowerCase()}…`} />}>
