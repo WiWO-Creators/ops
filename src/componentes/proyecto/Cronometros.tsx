@@ -14,12 +14,18 @@ import {
   mensajeDeFalloDeCronometro,
   segundosAcumulados
 } from './cronometro'
+import { RegistroRapido } from './RegistroRapido'
 
 /**
  * Cronometros de una tarea.
  *
- * Muestra el total acumulado —que corre en vivo mientras haya uno abierto—, los marcajes y el boton
- * de arrancar o detener.
+ * Muestra el total acumulado —que corre en vivo mientras haya uno abierto—, los marcajes, el boton
+ * de arrancar o detener y el registro rapido de tiempo ya trabajado.
+ *
+ * El registro rapido solo aparece si la tarea pertenece a un Espacio: el alta de horas cuelga de
+ * `POST /projects/{id}/timesheets` y una tarea suelta no tiene ese `{id}`. Reusa el mismo
+ * `impedimento` que el boton de arrancar, para que las dos formas de anotar tiempo tengan una sola
+ * regla en pantalla.
  *
  * Pide tres cosas y no una: los marcajes (`/tasks/{id}/timers`), quien mira (`/me`) y la tarea
  * (`/tasks/{id}`). Las dos ultimas no son adorno, son las reglas del backend hechas interfaz:
@@ -153,6 +159,15 @@ export function Cronometros ({ procesoId, className }: PropsCronometros): ReactE
         <p role="alert" className="border-linea bg-superficie-peligro text-texto-peligro rounded-chico border px-3 py-2 text-sm">
           {aviso}
         </p>
+      )}
+
+      {datos.tarea.project !== null && (
+        <RegistroRapido
+          procesoId={procesoId}
+          espacioId={datos.tarea.project.id}
+          impedimento={impedimento}
+          onRegistrado={recargar}
+        />
       )}
 
       {datos.timers.length === 0
