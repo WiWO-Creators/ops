@@ -374,3 +374,67 @@ export function sumarDias (dia: string, dias: number): string {
 
   return new Date(Date.UTC(anio, mes - 1, fecha + dias)).toISOString().slice(0, 10)
 }
+
+export interface PersonaElegible {
+  id: number
+  full_name: string
+  profile_image_url: string | null
+}
+
+/**
+ * Normaliza un texto para buscar: sin acentos, sin mayusculas.
+ *
+ * Sin esto, "nunez" no encuentra a "Núñez" y quien busca concluye que la persona no esta en el
+ * sistema. Es el caso normal, no el borde: nadie escribe los acentos al filtrar una lista.
+ *
+ * @param texto lo que se escribio o el nombre a comparar
+ * @returns el texto comparable
+ */
+export function normalizar (texto: string): string {
+  return texto.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim()
+}
+
+/**
+ * Filtra la lista de personas por lo que se escribio.
+ *
+ * Busca por partes sueltas: "ana rios" encuentra a "Ana Ríos" y "rios ana" tambien, porque quien
+ * busca no siempre recuerda el orden. Una busqueda vacia devuelve todo.
+ *
+ * @param personas lista completa
+ * @param busqueda lo tipeado
+ * @returns las que coinciden, en el mismo orden que llegaron
+ */
+export function filtrarPersonas (personas: PersonaElegible[], busqueda: string): PersonaElegible[] {
+  const partes = normalizar(busqueda).split(/\s+/).filter((parte) => parte !== '')
+
+  if (partes.length === 0) return personas
+
+  return personas.filter((persona) => {
+    const nombre = normalizar(persona.full_name)
+
+    return partes.every((parte) => nombre.includes(parte))
+  })
+}
+
+/**
+ * Decide el numero de asistentes despues de tocar la lista de participantes.
+ *
+ * La regla: el campo se **sigue solo** mientras nadie lo haya tocado a mano. Apenas alguien escribe
+ * un numero propio —porque vienen dos personas de afuera que no estan en el sistema—, deja de
+ * moverse. Un campo que se pisa cada vez que se agrega a alguien es un campo que no se puede usar.
+ *
+ * @param actual lo que hay escrito en el campo
+ * @param antes cuantos participantes habia antes del cambio
+ * @param ahora cuantos hay despues
+ * @returns el valor que debe quedar en el campo
+ */
+export function sugerirAsistentes (actual: string, antes: number, ahora: number): string {
+  const escrito = actual.trim()
+
+  // Vacio, o exactamente lo que valia la sugerencia anterior: nadie lo toco.
+  if (escrito === '' || escrito === String(antes)) {
+    return ahora === 0 ? '' : String(ahora)
+  }
+
+  return actual
+}

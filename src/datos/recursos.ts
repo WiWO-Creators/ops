@@ -709,11 +709,25 @@ export interface Reserva {
   title: string
   start: string
   end: string
+  /**
+   * Quienes del equipo van. Es otra cosa que `attendees`: ese es el numero total y puede incluir
+   * gente de afuera —un cliente, un proveedor— que no tiene fila en `tblstaff`.
+   */
+  participants: StaffReferencia[]
   attendees: number | null
   notes: string | null
   cancelled_at: string | null
   date_created: string | null
 }
+
+/**
+ * Persona que se puede anotar en una reserva (`GET /rooms/people`).
+ *
+ * No es `MiembroEquipo`: ese viene de `GET /staff`, que exige el permiso `staff.view` y trae el
+ * legajo entero. Para anotar a un compañero alcanza con el nombre y la foto, y no puede depender de
+ * un permiso que casi nadie tiene.
+ */
+export type PersonaDeSala = StaffReferencia
 
 /** Respuesta de `GET /rooms/panel/{token}`: lo minimo que necesita la pantalla de puerta. */
 export interface PanelDeSala {

@@ -16,7 +16,7 @@ import {
   HORA_CIERRE, minutosLocales, sumarDias
 } from '@/dominio/salas'
 import { cn } from '@/lib/clases'
-import type { Reserva, Sala } from '@/datos/recursos'
+import type { PersonaDeSala, Reserva, Sala } from '@/datos/recursos'
 
 /** Alto de una franja de media hora, en pixeles. Fija el alto total de la grilla. */
 const ALTO_FRANJA = 40
@@ -25,6 +25,8 @@ interface PropsAgenda {
   dia: string
   salas: Sala[]
   reservas: Reserva[]
+  /** Personas del equipo que se pueden anotar en una reserva. */
+  personas: PersonaDeSala[]
   /** Staff que mira, para decidir qué reservas puede tocar. */
   yoId: number
   esAdmin: boolean
@@ -40,7 +42,7 @@ interface PropsAgenda {
  * El dia viaja en la URL (`?dia=`) para que un enlace a "la agenda del jueves" sea compartible y el
  * boton atras haga lo que la persona espera.
  */
-export function AgendaSalas ({ dia, salas, reservas, yoId, esAdmin }: PropsAgenda) {
+export function AgendaSalas ({ dia, salas, reservas, personas, yoId, esAdmin }: PropsAgenda) {
   const router = useRouter()
   const [borrador, setBorrador] = useState<BorradorReserva | null>(null)
   const [detalle, setDetalle] = useState<Reserva | null>(null)
@@ -63,7 +65,8 @@ export function AgendaSalas ({ dia, salas, reservas, yoId, esAdmin }: PropsAgend
       hasta: Math.min(minuto + DURACION_POR_DEFECTO_MINUTOS, HORA_CIERRE * 60),
       titulo: '',
       asistentes: '',
-      notas: ''
+      notas: '',
+      participantes: []
     })
   }
 
@@ -174,6 +177,7 @@ export function AgendaSalas ({ dia, salas, reservas, yoId, esAdmin }: PropsAgend
           borrador={borrador}
           salas={salas}
           reservas={reservas}
+          personas={personas}
           onCerrar={() => setBorrador(null)}
           onGuardado={() => {
             setBorrador(null)
@@ -214,7 +218,8 @@ function borradorDe (reserva: Reserva, dia: string): BorradorReserva {
     hasta: minutosLocales(reserva.end) ?? 0,
     titulo: reserva.title,
     asistentes: reserva.attendees === null ? '' : String(reserva.attendees),
-    notas: reserva.notes ?? ''
+    notas: reserva.notes ?? '',
+    participantes: reserva.participants.map((persona) => persona.id)
   }
 }
 
@@ -322,6 +327,23 @@ function DetalleReserva ({ reserva, puedeTocar, onCerrar, onEditar, onCancelado 
               </Insignia>
               <span className="text-texto-tenue text-xs">personas anotadas</span>
             </p>
+          )}
+
+          {reserva.participants.length > 0 && (
+            <div>
+              <p className="text-texto-tenue mb-2 text-xs font-medium">Van</p>
+              <ul className="flex flex-wrap gap-1.5">
+                {reserva.participants.map((persona) => (
+                  <li
+                    key={persona.id}
+                    className="bg-relleno-neutro text-relleno-neutro-contenido rounded-control flex items-center gap-1.5 py-0.5 pl-0.5 pr-2 text-xs"
+                  >
+                    <Avatar nombre={persona.full_name} imagen={persona.profile_image_url} tamano="chico" />
+                    <span className="max-w-40 truncate">{persona.full_name}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
           )}
 
           {reserva.notes !== null && (
