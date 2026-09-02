@@ -152,6 +152,20 @@ export function TablaRecurso<T> ({
     return () => control.abort()
   }, [consulta, definicion.ruta, definicion.consultaFija])
 
+  /**
+   * Adopta los datos frescos que baja `router.refresh()`.
+   *
+   * Una escritura hecha fuera de la tabla —un alta, por ejemplo— refresca la pagina del servidor y
+   * manda un `inicial` nuevo, pero `useState` lo ignora despues del montaje y la fila recien creada
+   * no aparece hasta recargar a mano.
+   *
+   * **Solo cuando la vista sigue en su consulta inicial**: si ya se filtro u ordeno, el dato bueno es
+   * el que trajo el efecto de arriba, y pisarlo con el del servidor devolveria la tabla sin filtrar.
+   */
+  useEffect(() => {
+    if (consulta === consultaInicial.current) setResultado(inicial)
+  }, [inicial, consulta])
+
   /** Aplica un cambio parcial del estado escribiendolo en la URL, que es su unica fuente. */
   function cambiar (parcial: Partial<EstadoConsulta>) {
     const siguiente = { ...estado, ...parcial }
