@@ -100,6 +100,46 @@ function presentarStaff (staff) {
 }
 
 /**
+ * La ficha de una persona: lo del listado mas los cinco bloques que solo existen en el detalle.
+ *
+ * Los numeros salen del propio fixture y no de constantes sueltas: si alguien agrega Procesos, la
+ * ficha los cuenta, y el mock sigue siendo un contrato ejecutable en vez de una postal.
+ */
+function fichaDeStaff (staff) {
+  const suyos = PROCESOS.filter((p) => p.assignees.some((a) => a.id === staff.id))
+  const corriendo = CRONOMETROS.find((c) => c.staff_id === staff.id && c.end_time === null)
+  const tarea = corriendo === undefined ? null : PROCESOS.find((p) => p.id === corriendo.task_id)
+  const rol = ROLES.find((r) => r.id === staff.role_id) ?? null
+
+  return {
+    ...presentarStaff(staff),
+    role: rol,
+    // Solo el primero tiene departamentos: una ficha sin ellos es el caso comun y tiene que estar
+    // en el fixture, porque es donde la seccion no se dibuja.
+    departments: staff.id === 1 ? DEPARTAMENTOS : [],
+    permissions: permisosDe(staff),
+    tiempo: {
+      total_segundos: staff.id * 3600,
+      este_mes_segundos: staff.id * 1800,
+      esta_semana_segundos: staff.id * 900,
+      corriendo: corriendo === undefined
+        ? null
+        : {
+            id: corriendo.id,
+            task_id: corriendo.task_id,
+            task_name: tarea?.name ?? null,
+            start_time: corriendo.start_time,
+            segundos: 5400
+          }
+    },
+    counts: {
+      tareas_abiertas: suyos.filter((p) => p.status !== 5).length,
+      espacios: new Set(suyos.map((p) => p.project?.id).filter((id) => id !== undefined)).size
+    }
+  }
+}
+
+/**
  * Arma el mapa de permisos que el frontend usa para podar columnas y acciones.
  *
  * Un admin puede todo. El resto trabaja sus Procesos pero NO ve clientes ni facturas: es un recorte
@@ -1006,7 +1046,7 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
       const { filas, paginacion } = aplicarConsulta(STAFF.map(presentarStaff), parametros, CONSULTA_STAFF)
       return { estado: 200, cuerpo: conDatos(filas, { pagination: paginacion }) }
     }
-    return { estado: 200, cuerpo: conDatos(presentarStaff(buscarO404(STAFF, Number(resto[0]), 'staff'))) }
+    return { estado: 200, cuerpo: conDatos(fichaDeStaff(buscarO404(STAFF, Number(resto[0]), 'staff'))) }
   }
 
   // --- Contactos de un cliente ---------------------------------------------

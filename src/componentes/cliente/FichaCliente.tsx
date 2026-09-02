@@ -1,4 +1,5 @@
 import { Vacio } from '@/componentes/estado/Estados'
+import { Filas, Seccion } from '@/componentes/presentadores/Ficha'
 import { textoDeCampo } from '@/definiciones/espacios'
 import type { ClienteConEnvio, EstadoLookup, Moneda } from '@/datos/recursos'
 import {
@@ -117,32 +118,6 @@ function camposConValor (cliente: ClienteConEnvio): Dato[] {
   return (cliente.custom_fields ?? [])
     .map((campo) => ({ etiqueta: campo.name, valor: textoDeCampo(campo.value) }))
     .filter((campo) => campo.valor !== '')
-}
-
-/** Un grupo de la ficha: rotulo en versalita, linea fina y contenido. */
-function Seccion ({ titulo, children }: { titulo: string, children: React.ReactNode }) {
-  return (
-    <section className="flex flex-col gap-2">
-      <h2 className="border-linea-suave text-texto-sutil border-b pb-1.5 text-xs font-medium tracking-[0.08em] uppercase">
-        {titulo}
-      </h2>
-      {children}
-    </section>
-  )
-}
-
-/** Filas rotulo/valor. El rotulo queda tenue y el valor lleva el peso: se lee el dato, no la etiqueta. */
-function Filas ({ datos }: { datos: Dato[] }) {
-  return (
-    <dl className="flex flex-col gap-1.5 text-sm">
-      {datos.map((dato) => (
-        <div key={dato.etiqueta} className="flex flex-wrap items-baseline gap-x-2">
-          <dt className="text-texto-tenue min-w-28 text-xs">{dato.etiqueta}</dt>
-          <dd className="text-texto font-medium break-words whitespace-pre-line">{dato.valor}</dd>
-        </div>
-      ))}
-    </dl>
-  )
 }
 
 /** Una direccion, un renglon por linea. */
