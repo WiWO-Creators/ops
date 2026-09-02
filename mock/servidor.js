@@ -12,6 +12,8 @@
  */
 
 import { createServer } from 'node:http'
+import { resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { ErrorApi, aplicarConsulta, coincideEnLista, leerIncludes } from './consulta.js'
 import * as sesion from './sesion.js'
 import {
@@ -630,7 +632,10 @@ export const servidor = createServer((peticion, respuesta) => {
 })
 
 // Solo escucha si se ejecuta directamente: las pruebas lo importan y eligen su propio puerto.
-if (process.argv[1] && import.meta.url.endsWith(process.argv[1].split('/').pop())) {
+// Se comparan rutas resueltas y no el final de la URL: en Windows `process.argv[1]` viene con
+// barras invertidas, `split('/')` no parte nada y la comparacion fallaba siempre — el mock salia
+// con codigo 0 sin escuchar.
+if (process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1])) {
   servidor.listen(PUERTO, () => {
     console.log(`[mock] API v1 en http://localhost:${PUERTO}/api/v1`)
     console.log(`[mock] origenes permitidos: ${ORIGENES.join(', ')}`)
