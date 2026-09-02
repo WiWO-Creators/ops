@@ -210,3 +210,49 @@ export function validarTimesheet (entrada: EntradaTimesheet): Validacion {
 
   return { ok: true, cuerpo }
 }
+
+/**
+ * Atajos de duracion del registro rapido, en minutos.
+ *
+ * Son los tres tramos que la gente anota al final del dia. No salen de configuracion porque no son
+ * una regla de negocio: son el punto de partida de un control que despues se ajusta con `PASO_MINUTOS`.
+ */
+export const ATAJOS_MINUTOS = [30, 60, 120]
+
+/** Cuanto suma o resta cada toque de `+` o `−` en el registro rapido. */
+export const PASO_MINUTOS = 15
+
+/**
+ * Tope del registro rapido, en minutos.
+ *
+ * Doce horas. Sin tope, mantener `+` apretado registra jornadas imposibles, y esto son horas que
+ * alguien factura. Para algo mas largo esta el formulario completo, que acepta fechas.
+ */
+export const MINUTOS_MAXIMOS = 12 * 60
+
+/**
+ * Mueve la duracion del registro rapido sin salirse de los limites.
+ *
+ * @param minutos duracion actual
+ * @param delta cuanto sumar (negativo para restar)
+ * @returns la duracion nueva, entre cero y `MINUTOS_MAXIMOS`
+ */
+export function ajustarMinutos (minutos: number, delta: number): number {
+  if (!Number.isFinite(minutos)) return 0
+
+  return Math.min(MINUTOS_MAXIMOS, Math.max(0, Math.round(minutos + delta)))
+}
+
+/**
+ * Formatea minutos como la duracion `H:MM` que acepta el contrato en `duration`.
+ *
+ * Las horas no se acotan: son las mismas reglas que `parsearDuracion` lee de vuelta.
+ *
+ * @param minutos duracion; un valor negativo o no finito da `0:00`
+ * @returns el texto listo para mandar y para mostrar
+ */
+export function duracionDesdeMinutos (minutos: number): string {
+  const total = Number.isFinite(minutos) && minutos > 0 ? Math.floor(minutos) : 0
+
+  return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, '0')}`
+}

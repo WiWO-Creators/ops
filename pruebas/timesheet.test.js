@@ -10,6 +10,10 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
+  MINUTOS_MAXIMOS,
+  PASO_MINUTOS,
+  ajustarMinutos,
+  duracionDesdeMinutos,
   duracionMostrada,
   formatearDecimal,
   formatearHm,
@@ -138,4 +142,36 @@ test('validarTimesheet exige la tarea', () => {
 
   assert.equal(resultado.ok, false)
   assert.equal(resultado.campo, 'taskId')
+})
+
+test('ajustarMinutos no baja de cero ni pasa del tope', () => {
+  assert.equal(ajustarMinutos(0, -PASO_MINUTOS), 0, 'restar en cero deja cero, no negativo')
+  assert.equal(ajustarMinutos(30, PASO_MINUTOS), 45)
+  assert.equal(ajustarMinutos(45, -PASO_MINUTOS), 30)
+  assert.equal(ajustarMinutos(MINUTOS_MAXIMOS, PASO_MINUTOS), MINUTOS_MAXIMOS, 'doce horas es el tope')
+  assert.equal(ajustarMinutos(Number.NaN, PASO_MINUTOS), 0, 'un valor roto vuelve a cero')
+})
+
+test('duracionDesdeMinutos arma la duracion que el contrato acepta', () => {
+  assert.equal(duracionDesdeMinutos(30), '0:30')
+  assert.equal(duracionDesdeMinutos(60), '1:00')
+  assert.equal(duracionDesdeMinutos(120), '2:00')
+  assert.equal(duracionDesdeMinutos(105), '1:45')
+  assert.equal(duracionDesdeMinutos(MINUTOS_MAXIMOS), '12:00')
+})
+
+test('duracionDesdeMinutos trata lo invalido como cero', () => {
+  for (const valor of [0, -30, Number.NaN, Number.POSITIVE_INFINITY]) {
+    assert.equal(duracionDesdeMinutos(valor), '0:00', `deberia dar cero con ${String(valor)}`)
+  }
+})
+
+test('lo que arma el registro rapido lo vuelve a leer el parseo del formulario', () => {
+  for (const minutos of [15, 30, 60, 120, 345, MINUTOS_MAXIMOS]) {
+    assert.equal(
+      parsearDuracion(duracionDesdeMinutos(minutos)),
+      minutos * 60,
+      `ida y vuelta rota en ${minutos} minutos`
+    )
+  }
 })
