@@ -6,12 +6,11 @@ import { TablaRecurso } from './TablaRecurso'
 import { Tablero } from './Tablero'
 import type { GrupoTablero } from './tablero'
 import { CLIENTES } from '@/definiciones/clientes'
-import { EQUIPO } from '@/definiciones/equipo'
 import { ESPACIOS } from '@/definiciones/espacios'
 import { PROCESOS } from '@/definiciones/procesos'
 import type { OpcionFiltro, ResultadoLista } from '@/definiciones/tipos'
 import type { Capacidad } from '@/datos/tipos'
-import type { Cliente, Espacio, MiembroEquipo, Proceso } from '@/datos/recursos'
+import type { Cliente, Espacio, Proceso } from '@/datos/recursos'
 
 /**
  * Vistas ya atadas a su definicion.
@@ -63,10 +62,6 @@ export function TablaEspacios (props: PropsVistaLista<Espacio>) {
 
 export function TablaClientes (props: PropsVistaLista<Cliente>) {
   return <TablaRecurso definicion={CLIENTES} claveFila={(cliente) => cliente.id} {...props} />
-}
-
-export function TablaEquipo (props: PropsVistaLista<MiembroEquipo>) {
-  return <TablaRecurso definicion={EQUIPO} claveFila={(miembro) => miembro.id} {...props} />
 }
 
 export function TableroProcesos (props: { inicial: Array<GrupoTablero<Proceso>>, consulta?: string }) {

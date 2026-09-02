@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useRouter, useSearchParams, type ReadonlyURLSearchParams } from 'next/navigation'
 import { alternarOrden, construirConsulta, direccionDe, leerConsulta } from '@/datos/consulta'
 import type { Columna, DefinicionRecurso, EstadoConsulta, OpcionFiltro, ResultadoLista } from '@/definiciones/tipos'
@@ -49,6 +49,14 @@ interface PropsTablaRecurso<T> {
   definicion: DefinicionRecurso<T>
   /** Primera pagina, ya resuelta en el servidor: sin esto la tabla parpadearia al montar. */
   inicial: ResultadoLista<T>
+  /**
+   * Controles propios de cada fila, a la izquierda del menu de acciones.
+   *
+   * El menu declarativo solo sabe de llamadas sin cuerpo ni confirmacion (`AccionRecurso`). Lo que
+   * necesita un formulario o un dialogo —editar una persona, borrarla transfiriendo su trabajo— se
+   * pinta por aca. `recargar` vuelve a pedir la pagina: el backend es quien sabe como quedo.
+   */
+  filaExtra?: (fila: T, recargar: () => void) => ReactNode
   /** Identificador de la fila. Se usa como `key` de React y como `:id` de las acciones. */
   claveFila: (fila: T) => string | number
   /**
@@ -105,6 +113,7 @@ export function TablaRecurso<T> ({
   definicion,
   inicial,
   claveFila,
+  filaExtra,
   claseFila,
   abrirEn,
   capacidades = [],
@@ -277,7 +286,7 @@ export function TablaRecurso<T> ({
                         </CeldaEncabezado>
                       )
                     })}
-                    {acciones.length > 0 && (
+                    {(acciones.length > 0 || filaExtra !== undefined) && (
                       <CeldaEncabezado className="w-10">
                         <span className="sr-only">Acciones</span>
                       </CeldaEncabezado>
@@ -306,14 +315,24 @@ export function TablaRecurso<T> ({
                           <Celda columna={columna} fila={fila} catalogos={opcionesDeFiltro} />
                         </CeldaTabla>
                       ))}
-                      {acciones.length > 0 && (
+                      {(acciones.length > 0 || filaExtra !== undefined) && (
                         <CeldaTabla>
-                          <MenuAcciones
-                            acciones={acciones}
-                            id={claveFila(fila)}
-                            onError={setError}
-                            onListo={() => { router.refresh() }}
-                          />
+                          {/* `stopPropagation`: la fila entera es un enlace cuando `urlDeFila`
+                              devuelve algo, y un clic en "Editar" no tiene que navegar ademas. */}
+                          <span
+                            className="flex items-center justify-end gap-1"
+                            onClick={(evento) => { evento.stopPropagation() }}
+                          >
+                            {filaExtra?.(fila, () => { router.refresh() })}
+                            {acciones.length > 0 && (
+                              <MenuAcciones
+                                acciones={acciones}
+                                id={claveFila(fila)}
+                                onError={setError}
+                                onListo={() => { router.refresh() }}
+                              />
+                            )}
+                          </span>
                         </CeldaTabla>
                       )}
                     </FilaTabla>

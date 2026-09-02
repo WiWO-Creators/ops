@@ -7,13 +7,18 @@ import { clavesVisiblesPorDefecto } from '@/componentes/datos/tabla'
 import { retrasoDeAparicion } from '@/componentes/datos/TablaRecurso'
 import { Vacio } from '@/componentes/estado/Estados'
 import { CargandoConOrbe } from '@/componentes/estado/Orbe'
+import { Boton } from '@/componentes/formularios/Boton'
 import { Segmentado, type OpcionSegmentada } from '@/componentes/formularios/Segmentado'
+import { FormularioRecurso } from '@/componentes/proyecto/FormularioRecurso'
+import type { OpcionCampo } from '@/componentes/proyecto/formulario'
+import { GLOSARIO } from '@/dominio/glosario'
 import { construirConsulta, leerConsulta } from '@/datos/consulta'
 import type { Cliente } from '@/datos/recursos'
 import type { Capacidad } from '@/datos/tipos'
 import { CLIENTES } from '@/definiciones/clientes'
 import type { EstadoConsulta, OpcionFiltro, ResultadoLista } from '@/definiciones/tipos'
 import { cn } from '@/lib/clases'
+import { camposDeCliente } from './campos'
 import { TablaClientes } from './TablaClientes'
 import { TarjetaCliente } from './TarjetaCliente'
 
@@ -51,6 +56,10 @@ interface PropsVistaClientes {
   opcionesDeFiltro?: Record<string, OpcionFiltro[]>
   /** Vista que pedia la URL al entrar. Por defecto, tabla. */
   vistaInicial: PresentacionCliente
+  /** Catalogo `countries` de `GET /lookups`, para el formulario de alta. */
+  paises: OpcionCampo[]
+  /** Catalogo `currencies`. */
+  monedas: OpcionCampo[]
 }
 
 /**
@@ -67,10 +76,13 @@ export function VistaClientes ({
   inicial,
   capacidades = [],
   opcionesDeFiltro,
-  vistaInicial
+  vistaInicial,
+  paises,
+  monedas
 }: PropsVistaClientes) {
   const router = useRouter()
   const params = useSearchParams()
+  const [creando, setCreando] = useState(false)
   const vista: PresentacionCliente = params.get('vista') === 'tarjetas' ? 'tarjetas' : vistaInicial
 
   /** Cambia de presentacion conservando filtros, orden y pagina. */
@@ -83,12 +95,20 @@ export function VistaClientes ({
 
   return (
     <div className="flex flex-col gap-3">
-      <Segmentado
-        etiqueta="Presentación del listado"
-        opciones={VISTAS}
-        activo={vista}
-        onElegir={(valor) => { cambiarVista(valor as PresentacionCliente) }}
-      />
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <Segmentado
+          etiqueta="Presentación del listado"
+          opciones={VISTAS}
+          activo={vista}
+          onElegir={(valor) => { cambiarVista(valor as PresentacionCliente) }}
+        />
+
+        {capacidades.includes('create') && (
+          <Boton tamano="chico" variante="primario" onClick={() => { setCreando(true) }}>
+            Nuevo {GLOSARIO.cliente.singular.toLowerCase()}
+          </Boton>
+        )}
+      </div>
 
       {vista === 'tabla'
         ? (
@@ -99,6 +119,21 @@ export function VistaClientes ({
           />
           )
         : <TarjetasClientes resultado={inicial} opcionesDeFiltro={opcionesDeFiltro} />}
+
+      {capacidades.includes('create') && (
+        <FormularioRecurso
+          abierto={creando}
+          onAbiertoCambia={setCreando}
+          titulo={`Nuevo ${GLOSARIO.cliente.singular.toLowerCase()}`}
+          descripcion="El contacto se agrega después, desde la ficha del cliente."
+          campos={camposDeCliente(paises, monedas)}
+          ruta="clients"
+          metodo="POST"
+          onGuardado={() => { router.refresh() }}
+          columnas={2}
+          ancho="grande"
+        />
+      )}
     </div>
   )
 }

@@ -3,9 +3,11 @@ import { VistaClientes } from '@/componentes/cliente/VistaClientes'
 import { Cargando } from '@/componentes/estado/Estados'
 import { TotalDelListado } from '@/componentes/datos/TotalDelListado'
 import { construirConsulta, leerConsulta, paramsDeUrl } from '@/datos/consulta'
+import { listaDe } from '@/datos/catalogos'
 import { cargarLookups, opcionesDeFiltros } from '@/datos/lookups'
 import { pedir } from '@/datos/servidor'
-import type { Cliente } from '@/datos/recursos'
+import type { Cliente, EstadoLookup } from '@/datos/recursos'
+import type { OpcionCampo } from '@/componentes/proyecto/formulario'
 import type { Yo } from '@/datos/tipos'
 import { CLIENTES } from '@/definiciones/clientes'
 
@@ -47,8 +49,20 @@ export default async function ClientesPage (props: PageProps<'/clientes'>) {
           capacidades={yo.data.permissions.customers}
           opcionesDeFiltro={opcionesDeFiltros(CLIENTES, lookups)}
           vistaInicial={vista}
+          paises={comoOpciones(listaDe(lookups, 'countries'))}
+          monedas={comoOpciones(listaDe(lookups, 'currencies'))}
         />
       </Suspense>
     </section>
   )
+}
+
+/**
+ * Un catalogo de `GET /lookups` en la forma que espera un campo `seleccion`.
+ *
+ * El id viaja como cadena porque un `<select>` no conoce otro tipo; `cuerpoDelFormulario` lo vuelve
+ * numero antes de mandarlo.
+ */
+function comoOpciones (lista: EstadoLookup[]): OpcionCampo[] {
+  return lista.map((item) => ({ valor: String(item.id), etiqueta: item.name }))
 }

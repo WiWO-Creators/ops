@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import { Suspense, cache } from 'react'
+import { AccionesCliente } from '@/componentes/cliente/AccionesCliente'
 import { CabeceraCliente } from '@/componentes/cliente/CabeceraCliente'
 import { FichaCliente } from '@/componentes/cliente/FichaCliente'
 import { PanelContactos } from '@/componentes/cliente/PanelContactos'
@@ -18,7 +19,8 @@ import { ErrorApi } from '@/datos/errores'
 import { cargarLookups } from '@/datos/lookups'
 import { pedir } from '@/datos/servidor'
 import type { Yo } from '@/datos/tipos'
-import type { ClienteConEnvio, ContactoCompleto, Lookups, Moneda } from '@/datos/recursos'
+import type { ClienteConEnvio, ContactoCompleto, EstadoLookup, Lookups, Moneda } from '@/datos/recursos'
+import type { OpcionCampo } from '@/componentes/proyecto/formulario'
 import { GLOSARIO } from '@/dominio/glosario'
 
 /**
@@ -176,13 +178,31 @@ export default async function ClientePage (props: PageProps<'/clientes/[id]'>) {
 
   return (
     <section className="flex flex-col gap-6">
-      <CabeceraCliente cliente={cliente} />
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <CabeceraCliente cliente={cliente} />
+        <AccionesCliente
+          cliente={cliente}
+          paises={comoOpciones(listaDe(lookups, 'countries'))}
+          monedas={comoOpciones(listaDe(lookups, 'currencies'))}
+          capacidades={yo.permissions.customers}
+        />
+      </div>
 
       <Suspense fallback={<Cargando alto="min-h-36" mensaje="Cargando el detalle…" />}>
         <Pestanas paneles={paneles} />
       </Suspense>
     </section>
   )
+}
+
+/**
+ * Un catalogo de `GET /lookups` en la forma que espera un campo `seleccion`.
+ *
+ * El id viaja como cadena porque un `<select>` no conoce otro tipo; `cuerpoDelFormulario` lo vuelve
+ * numero antes de mandarlo.
+ */
+function comoOpciones (lista: EstadoLookup[]): OpcionCampo[] {
+  return lista.map((item) => ({ valor: String(item.id), etiqueta: item.name }))
 }
 
 /**

@@ -6,7 +6,13 @@
  * y este modulo, que valida y arma el cuerpo. La parte visual vive en `FormularioRecurso.tsx`.
  */
 
-export type TipoCampo = 'texto' | 'area' | 'fecha' | 'color' | 'booleano' | 'numero'
+export type TipoCampo = 'texto' | 'area' | 'fecha' | 'color' | 'booleano' | 'numero' | 'seleccion'
+
+/** Una opcion de un campo `seleccion`. El valor viaja como cadena y se convierte al armar el cuerpo. */
+export interface OpcionCampo {
+  valor: string
+  etiqueta: string
+}
 
 export interface CampoFormulario {
   /** Nombre del campo tal como lo espera la API. No se traduce. */
@@ -21,6 +27,22 @@ export interface CampoFormulario {
   max?: string
   /** Largo maximo para `texto`. La API rechaza con 422 lo que exceda la columna. */
   maximo?: number
+  /** Solo para `seleccion`. La opcion vacia se agrega sola cuando el campo no es requerido. */
+  opciones?: OpcionCampo[]
+  /**
+   * Titulo que precede a este campo, para partir un formulario largo en bloques.
+   *
+   * Va en el campo y no en una lista aparte para que agregar un campo a un bloque sea una linea y no
+   * dos ediciones que se pueden desincronizar.
+   */
+  seccion?: string
+  /**
+   * Si esta vacio, el campo no viaja en el cuerpo.
+   *
+   * Existe por la contraseña: en una edicion, dejarla en blanco quiere decir "no la cambies", y
+   * mandar `null` la convertiria en un intento de borrarla.
+   */
+  omitirSiVacio?: boolean
 }
 
 /** Valores del formulario en crudo, tal como los escribe el navegador. */
@@ -97,28 +119,75 @@ export function validarFormulario (
 export function cuerpoDelFormulario (
   campos: CampoFormulario[],
   valores: ValoresFormulario
-): Record<string, string | number | boolean | null> {
-  const cuerpo: Record<string, string | number | boolean | null> = {}
+): Record<string, unknown> {
+  const cuerpo: Record<string, unknown> = {}
 
   for (const campo of campos) {
     const valor = valores[campo.clave]
 
     if (campo.tipo === 'booleano') {
-      cuerpo[campo.clave] = valor === true
+      escribirEn(cuerpo, campo.clave, valor === true)
       continue
     }
 
     const texto = typeof valor === 'string' ? valor.trim() : ''
 
     if (texto === '') {
-      cuerpo[campo.clave] = campo.requerido === true ? '' : null
+      if (campo.omitirSiVacio === true) continue
+
+      escribirEn(cuerpo, campo.clave, campo.requerido === true ? '' : null)
       continue
     }
 
-    cuerpo[campo.clave] = campo.tipo === 'numero' ? Number(texto) : texto
+    const numerico = campo.tipo === 'numero' || (campo.tipo === 'seleccion' && /^\d+$/.test(texto))
+
+    escribirEn(cuerpo, campo.clave, numerico ? Number(texto) : texto)
   }
 
   return cuerpo
+}
+
+/**
+ * Escribe un valor en el cuerpo, creando los objetos que pida una clave con puntos.
+ *
+ * `billing.street` termina en `{ billing: { street: … } }`, que es la forma que espera el contrato
+ * para las direcciones de un cliente. Sin esto habria que escribir un formulario propio para el unico
+ * recurso que anida.
+ */
+function escribirEn (cuerpo: Record<string, unknown>, clave: string, valor: unknown): void {
+  const partes = clave.split('.')
+  const ultima = partes.pop()
+
+  if (ultima === undefined) return
+
+  let destino = cuerpo
+
+  for (const parte of partes) {
+    if (typeof destino[parte] !== 'object' || destino[parte] === null) destino[parte] = {}
+
+    destino = destino[parte] as Record<string, unknown>
+  }
+
+  destino[ultima] = valor
+}
+
+/**
+ * Lee un valor del registro siguiendo una clave con puntos.
+ *
+ * @param registro el registro que se edita
+ * @param clave `company` o `billing.street`
+ * @returns el valor, o `undefined` si algun tramo del camino no existe
+ */
+function leerDe (registro: Record<string, unknown>, clave: string): unknown {
+  let actual: unknown = registro
+
+  for (const parte of clave.split('.')) {
+    if (typeof actual !== 'object' || actual === null) return undefined
+
+    actual = (actual as Record<string, unknown>)[parte]
+  }
+
+  return actual
 }
 
 /**
@@ -135,7 +204,7 @@ export function valoresIniciales (
   const valores: ValoresFormulario = {}
 
   for (const campo of campos) {
-    const crudo = registro === null ? undefined : registro[campo.clave]
+    const crudo = registro === null ? undefined : leerDe(registro, campo.clave)
 
     if (campo.tipo === 'booleano') {
       valores[campo.clave] = crudo === true
