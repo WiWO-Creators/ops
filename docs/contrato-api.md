@@ -1418,7 +1418,10 @@ no está en `tblstaff`.
 | `PATCH` | `/rooms/bookings/{id}` | Autor o admin |
 | `DELETE` | `/rooms/bookings/{id}` | Autor o admin. Cancela, no borra |
 
-`from` y `to` son **obligatorios** en el listado y van en ISO-8601: sin ellos es `400`. Una agenda
+`from` y `to` son **obligatorios** en el listado y van en ISO-8601: sin ellos es `400`. Los
+milisegundos se aceptan (`2026-09-02T03:00:00.000Z`), que es lo que emite `toISOString()`; lo que se
+rechaza son las formas sueltas que `strtotime` entiende y nadie quiere en una reserva ("next
+tuesday"). Una agenda
 siempre mira una ventana, y un listado sin límites devolvería el histórico entero.
 
 Devuelve las reservas que **cruzan** el rango (`inicio < to AND fin > from`), no las que empiezan
