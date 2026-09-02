@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, type ReactElement } from 'react'
+import { useRouter } from 'next/navigation'
 import { BajaYBorrado } from '@/componentes/datos/BajaYBorrado'
 import { Boton } from '@/componentes/formularios/Boton'
 import { Campo } from '@/componentes/formularios/Campo'
@@ -18,10 +19,13 @@ import type { Capacidad } from '@/datos/tipos'
 import { camposDePersona } from './campos'
 
 /**
- * Editar, dar de baja y borrar a una persona, desde su fila.
+ * Editar, dar de baja y borrar a una persona, desde su fila o desde su ficha.
  *
- * El Equipo no tiene pantalla de detalle —una persona son ocho campos y un correo—, asi que la fila
- * es el unico lugar donde estas acciones pueden vivir.
+ * Los mismos controles sirven en los dos lugares porque son las mismas tres acciones; lo unico que
+ * cambia es que despues. En el listado, `recargar` vuelve a pedir la pagina. En la ficha no hay
+ * nada que recargar desde el cliente —la resuelve el servidor—, asi que se refresca, y el borrado
+ * definitivo vuelve al listado en vez de dejar a la persona mirando el detalle de alguien que ya no
+ * existe.
  *
  * El borrado definitivo exige elegir **a quien pasa su trabajo**. No es una cortesia de la interfaz:
  * `DELETE /staff/{id}?purgar=1` responde 422 sin `transferir_a`, porque `Staff_model::delete()` mueve
@@ -40,21 +44,27 @@ interface PropsAccionesPersona {
   persona: MiembroEquipo
   roles: OpcionCampo[]
   capacidades: Capacidad[]
-  recargar: () => void
+  /** Desde el listado: vuelve a pedir la pagina. Si no viene, se refresca el Server Component. */
+  recargar?: () => void
+  /** `true` en la ficha: el borrado definitivo vuelve al listado. */
+  enFicha?: boolean
 }
 
 export function AccionesPersona ({
   persona,
   roles,
   capacidades,
-  recargar
+  recargar,
+  enFicha = false
 }: PropsAccionesPersona): ReactElement {
+  const router = useRouter()
   const [editando, setEditando] = useState(false)
   const [heredero, setHeredero] = useState('')
   const [companeros, setCompaneros] = useState<MiembroEquipo[] | null>(null)
 
   const puedeEditar = capacidades.includes('edit')
   const puedeBorrar = capacidades.includes('delete')
+  const refrescar = recargar ?? ((): void => { router.refresh() })
 
   /** Trae el equipo activo la primera vez que se abre la confirmacion. */
   function cargarCompaneros (): void {
@@ -113,7 +123,8 @@ export function AccionesPersona ({
           ),
           consulta: heredero === '' ? null : `&transferir_a=${heredero}`
         })}
-        recargar={recargar}
+        recargar={refrescar}
+        {...(enFicha ? { alBorrar: () => { router.push('/equipo') } } : {})}
       />
 
       {puedeEditar && (
@@ -125,7 +136,7 @@ export function AccionesPersona ({
           ruta={`staff/${persona.id}`}
           metodo="PATCH"
           registro={persona as unknown as Record<string, unknown>}
-          onGuardado={recargar}
+          onGuardado={refrescar}
         />
       )}
     </>

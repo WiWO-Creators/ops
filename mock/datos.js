@@ -78,8 +78,15 @@ export const STAFF = NOMBRES.map(([firstname, lastname], i) => ({
   is_admin: i === 0,
   role_id: ciclo(ROLES, i).id,
   active: i !== NOMBRES.length - 1,
+  is_not_staff: false,
+  phonenumber: null,
   hourly_rate: 0,
   last_login: `2026-08-${String(10 + i).padStart(2, '0')}T09:12:00Z`,
+  // La cuenta se creo antes de que entrara: la antiguedad es lo que la ficha muestra como "Cuenta
+  // creada". `last_activity` la escribe solo el panel viejo, asi que la ultima no tiene ninguna.
+  date_created: `2025-0${(i % 9) + 1}-15T10:00:00Z`,
+  last_activity: i === NOMBRES.length - 1 ? null : `2026-08-${String(20 + (i % 8)).padStart(2, '0')}T17:30:00Z`,
+  two_factor_enabled: i === 1,
   two_factor: i === 1 ? 'email' : null
 }))
 

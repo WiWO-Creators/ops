@@ -148,6 +148,50 @@ export interface MiembroEquipo {
   /** Tarifa por hora. Se usa para valorizar el tiempo registrado. */
   hourly_rate: number
   last_login: string | null
+  /** Cuando se creo la cuenta. Es la antiguedad de la persona en el sistema, no su fecha de ingreso. */
+  date_created: string | null
+  /**
+   * Ultimo movimiento en el panel viejo.
+   *
+   * Lo escribe **solo** el panel (`AdminController`), no la API: alguien que trabaja unicamente desde
+   * Ops la deja congelada. Sirve para saber quien sigue entrando al panel, no quien esta activo hoy.
+   */
+  last_activity: string | null
+  two_factor_enabled: boolean
+}
+
+/**
+ * Tiempo registrado por una persona, en segundos (bloque `tiempo` de `GET /staff/{id}`).
+ *
+ * Los cortes de mes y semana los calcula el backend en la zona del negocio. `corriendo` es el
+ * cronometro abierto, que es a lo sumo uno en todo el sistema.
+ */
+export interface TiempoDePersona {
+  total_segundos: number
+  este_mes_segundos: number
+  esta_semana_segundos: number
+  corriendo: {
+    id: number
+    task_id: number
+    task_name: string | null
+    start_time: string | null
+    segundos: number
+  } | null
+}
+
+/**
+ * Ficha de una persona (`GET /staff/{id}`).
+ *
+ * Los cinco bloques que agrega sobre el listado solo existen en el detalle: en una lista costarian
+ * una consulta por fila. `permissions` son los permisos efectivos de ESA persona, no los de quien
+ * mira, y para un administrador viene el catalogo completo.
+ */
+export interface FichaPersona extends MiembroEquipo {
+  role: Referencia | null
+  departments: Referencia[]
+  permissions: Record<string, string[]>
+  tiempo: TiempoDePersona
+  counts: { tareas_abiertas: number, espacios: number }
 }
 
 /** Una columna del tablero, tal como la declara `lookups`. */

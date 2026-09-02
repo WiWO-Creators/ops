@@ -1,9 +1,11 @@
 'use client'
 
-import { useState, type ReactElement } from 'react'
+import Link from 'next/link'
+import { useMemo, useState, type ReactElement } from 'react'
 import { useRouter } from 'next/navigation'
 import { TablaRecurso } from '@/componentes/datos/TablaRecurso'
 import { Boton } from '@/componentes/formularios/Boton'
+import { Avatar } from '@/componentes/presentadores/Avatar'
 import { FormularioRecurso } from '@/componentes/proyecto/FormularioRecurso'
 import type { OpcionCampo } from '@/componentes/proyecto/formulario'
 import type { MiembroEquipo } from '@/datos/recursos'
@@ -39,10 +41,52 @@ export function VistaEquipo ({
   const router = useRouter()
   const [creando, setCreando] = useState(false)
 
-  const roles: OpcionCampo[] = (opcionesDeFiltro?.roles ?? []).map((opcion) => ({
+  // Memoizados los dos: `TablaRecurso` usa la definicion como dependencia de sus efectos, y una
+  // definicion nueva en cada render volveria a pedir la pagina en bucle.
+  const roles: OpcionCampo[] = useMemo(() => (opcionesDeFiltro?.roles ?? []).map((opcion) => ({
     valor: String(opcion.valor),
     etiqueta: opcion.etiqueta
-  }))
+  })), [opcionesDeFiltro])
+
+  const definicion = useMemo(() => {
+    const nombreDeRol = new Map(roles.map((rol) => [rol.valor, rol.etiqueta]))
+
+    return {
+      ...EQUIPO,
+      columnas: EQUIPO.columnas.map((columna) => {
+        if (columna.clave === 'full_name') {
+          return {
+            ...columna,
+            presentar: (persona: MiembroEquipo) => (
+              <span className="flex items-center gap-2">
+                <Avatar nombre={persona.full_name} imagen={persona.profile_image_url} tamano="chico" />
+                <Link
+                  href={`/equipo/${persona.id}`}
+                  className="text-texto hover:text-acento font-medium underline-offset-4 hover:underline"
+                >
+                  {persona.full_name}
+                </Link>
+              </span>
+            )
+          }
+        }
+
+        if (columna.clave === 'role_id') {
+          return {
+            ...columna,
+            // Devuelve texto, no JSX: asi el nombre del rol tambien llega al CSV.
+            presentar: (persona: MiembroEquipo) => (
+              persona.role_id === null || persona.role_id === 0
+                ? 'Sin rol'
+                : nombreDeRol.get(String(persona.role_id)) ?? `#${persona.role_id}`
+            )
+          }
+        }
+
+        return columna
+      })
+    }
+  }, [roles])
 
   return (
     <div className="flex flex-col gap-3">
@@ -55,7 +99,7 @@ export function VistaEquipo ({
       )}
 
       <TablaRecurso
-        definicion={EQUIPO}
+        definicion={definicion}
         inicial={inicial}
         capacidades={capacidades}
         {...(opcionesDeFiltro === undefined ? {} : { opcionesDeFiltro })}

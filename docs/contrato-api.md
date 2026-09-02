@@ -263,10 +263,37 @@ no un cliente roto.
 ```json
 { "id": 12, "email": "…", "firstname": "…", "lastname": "…", "full_name": "…",
   "profile_image_url": "…", "is_admin": false, "role_id": 3, "active": true,
-  "hourly_rate": 0, "last_login": "2026-08-24T09:12:00Z" }
+  "is_not_staff": false, "phonenumber": null,
+  "hourly_rate": 0, "last_login": "2026-08-24T09:12:00Z",
+  "date_created": "2025-09-26T22:22:34Z", "last_activity": "2026-07-31T17:50:14Z",
+  "two_factor_enabled": false }
 ```
 
-Nunca se exponen: `password`, `new_pass_key`, `google_auth_secret`, `two_factor_auth_code`.
+**La ficha devuelve cinco bloques más**, y solo la ficha: en el listado costarían una consulta por
+fila. `GET /staff/{id}` agrega a lo de arriba:
+
+```json
+{ "role": { "id": 1, "name": "Employee" },
+  "departments": [ { "id": 2, "name": "Soporte" } ],
+  "permissions": { "tasks": ["view", "create"], "projects": ["view"] },
+  "tiempo": { "total_segundos": 109374, "este_mes_segundos": 0, "esta_semana_segundos": 0,
+              "corriendo": { "id": 88, "task_id": 504, "task_name": "…",
+                             "start_time": "2026-08-24T13:00:00Z", "segundos": 5400 } },
+  "counts": { "tareas_abiertas": 17, "espacios": 22 } }
+```
+
+- `role` es `null` para quien no tiene: la lectura devuelve `role_id: 0` y `role: null`, y las dos
+  formas de «sin rol» —`NULL` y `0`— se leen igual.
+- `permissions` son los permisos de **esa** persona, con la misma forma que los de `GET /me`. Para un
+  administrador viene el catálogo completo, porque su tabla está vacía justamente por ser admin.
+- `tiempo` sale de `tbltaskstimers`, cuyas columnas son texto con segundos Unix. Los cortes de mes y
+  semana los calcula el backend en la zona del negocio. `corriendo` es el cronómetro abierto —a lo
+  sumo uno en todo el sistema— o `null`.
+- `counts.tareas_abiertas` cuenta las asignadas que no están en estado 5; `counts.espacios`, las
+  membresías de `tblproject_members`.
+
+Nunca se exponen: `password`, `new_pass_key`, `google_auth_secret`, `two_factor_auth_code`. Tampoco
+`last_ip`, que es dato de seguridad y no de ficha.
 
 Filtros: `active`, `role_id`, `q` (nombre y email). Orden: `firstname`, `lastname`, `last_login`.
 

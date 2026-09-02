@@ -1,5 +1,6 @@
 import type { DefinicionRecurso } from './tipos.ts'
 import type { MiembroEquipo } from '../datos/recursos.ts'
+import { formatearFecha } from '../lib/fechas.ts'
 
 /**
  * Definicion del recurso Equipo.
@@ -19,12 +20,38 @@ export const EQUIPO: DefinicionRecurso<MiembroEquipo> = {
     // `full_name` es virtual y viene armado: no concatenar nombre y apellido aca.
     { clave: 'full_name', encabezado: 'Nombre', ordenPor: 'firstname', presentar: (m) => m.full_name },
     { clave: 'email', encabezado: 'Correo', presentar: (m) => m.email },
+    // El id del rol no le dice nada a nadie: `VistaEquipo` reemplaza este presentador por el que
+    // resuelve el nombre contra el catalogo `roles`, que la pantalla ya carga para el filtro.
+    { clave: 'role_id', encabezado: 'Rol', presentar: (m) => (m.role_id === null || m.role_id === 0 ? '' : `#${m.role_id}`) },
     { clave: 'active', encabezado: 'Activo', presentar: (m) => (m.active ? 'Sí' : 'No') },
     {
       clave: 'last_login',
       encabezado: 'Último acceso',
       ordenPor: 'last_login',
-      presentar: (m) => m.last_login ?? 'Nunca'
+      // Formateada, como el resto de las fechas del producto: la columna mostraba el ISO crudo.
+      presentar: (m) => (m.last_login === null ? 'Nunca' : formatearFecha(m.last_login, true))
+    },
+    // Las cuatro llegan en cada `GET /staff` y antes no se veian en ninguna parte. Ocultas por
+    // defecto: son datos de consulta puntual, y sacarlas a la vista convertiria la tabla en un legajo.
+    {
+      clave: 'is_admin',
+      encabezado: 'Administrador',
+      ocultaPorDefecto: true,
+      presentar: (m) => (m.is_admin ? 'Sí' : 'No')
+    },
+    { clave: 'phonenumber', encabezado: 'Teléfono', ocultaPorDefecto: true, presentar: (m) => m.phonenumber ?? '' },
+    {
+      clave: 'hourly_rate',
+      encabezado: 'Valor hora',
+      numerica: true,
+      ocultaPorDefecto: true,
+      presentar: (m) => m.hourly_rate
+    },
+    {
+      clave: 'date_created',
+      encabezado: 'Ingreso',
+      ocultaPorDefecto: true,
+      presentar: (m) => formatearFecha(m.date_created)
     }
   ],
 
