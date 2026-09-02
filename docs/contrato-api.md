@@ -1344,6 +1344,130 @@ a `Permisos::puede()`, y por eso `permissions` de `GET /me` **no trae una clave 
 
 **Responder no le avisa a nadie.** Ver abajo: es la omisión más ruidosa de toda la API.
 
+## Salas de reunión
+
+Dominio propio del módulo `api`: **no hay entidad de Perfex detrás**. Dos tablas nuevas
+(`tblapi_salas`, `tblapi_sala_reservas`) creadas por `modules/api/instalar.sql`, y ninguna tabla ni
+vista del panel involucrada. La interfaz vive únicamente en `ops-v2` — ver
+[modulos/06-salas.md](modulos/06-salas.md).
+
+Todo cuelga del prefijo `rooms` a propósito: el BFF autoriza por primer segmento, así que una sola
+entrada en su lista blanca cubre salas, reservas y pantalla de puerta.
+
+### Sala
+
+```json
+{
+  "id": 2,
+  "name": "One Team",
+  "capacity": 10,
+  "location": "Piso 2",
+  "active": true,
+  "date_created": "2026-08-01T12:00:00Z",
+  "panel_token": "c2e60d7b91f34a58bd05e7c31a9b4d62"
+}
+```
+
+`panel_token` **solo aparece si quien pregunta es administrador**. Es la llave de
+`GET /rooms/panel/{token}`, que responde sin sesión; en el listado que ve todo el equipo dejaría de
+ser un secreto.
+
+| Método | Ruta | Quién |
+|---|---|---|
+| `GET` | `/rooms` | Cualquier staff. `?todas=1` incluye las dadas de baja |
+| `POST` | `/rooms` | Admin. `name`, `capacity`, `location` |
+| `PATCH` | `/rooms/{id}` | Admin. Además acepta `rotate_token: true` |
+| `DELETE` | `/rooms/{id}` | Admin. Baja **lógica**: `active` pasa a `false`, la fila queda |
+
+No hay paginación ni `?include=`: son tres filas. Un `include` cualquiera devuelve `422`, como en todo
+recurso sin relaciones opcionales.
+
+### Reserva
+
+```json
+{
+  "id": 1,
+  "room_id": 2,
+  "room_name": "One Team",
+  "room_capacity": 10,
+  "staff_id": 1,
+  "staff": {
+    "id": 1,
+    "full_name": "Ana Ríos",
+    "email": "ana@wiwo.me",
+    "profile_image_url": null
+  },
+  "title": "Comité semanal",
+  "start": "2026-09-02T13:00:00Z",
+  "end": "2026-09-02T14:00:00Z",
+  "attendees": 8,
+  "notes": null,
+  "cancelled_at": null,
+  "date_created": "2026-09-01T18:22:00Z"
+}
+```
+
+`staff` trae el **correo**, a diferencia de `StaffReferencia`: el pedido que originó el módulo es
+poder contactar a quien reservó para confirmar si va a usar la sala. Es `null` solo si esa persona ya
+no está en `tblstaff`.
+
+| Método | Ruta | Quién |
+|---|---|---|
+| `GET` | `/rooms/bookings?from=&to=` | Cualquier staff. `room_id` acota a una sala |
+| `POST` | `/rooms/bookings` | Cualquier staff |
+| `PATCH` | `/rooms/bookings/{id}` | Autor o admin |
+| `DELETE` | `/rooms/bookings/{id}` | Autor o admin. Cancela, no borra |
+
+`from` y `to` son **obligatorios** en el listado y van en ISO-8601: sin ellos es `400`. Una agenda
+siempre mira una ventana, y un listado sin límites devolvería el histórico entero.
+
+Devuelve las reservas que **cruzan** el rango (`inicio < to AND fin > from`), no las que empiezan
+dentro. Una reunión que arrancó a las 23:00 de ayer ocupa la sala hoy a las 00:30, y con un `BETWEEN`
+sobre `start` no aparecería: la agenda pintaría esa franja libre.
+
+Las canceladas nunca salen. Cancelar libera el horario en el acto; la fila queda con `cancelled_at` y
+quién canceló, que es el rastro que hoy falta cuando alguien suelta una sala a último momento.
+
+**Cancelar dos veces no es error**: la segunda no cambia nada y responde igual. Un botón que falla
+porque alguien se adelantó no le aporta nada a quien lo aprieta.
+
+#### Errores propios
+
+| Código | Cuándo |
+|---|---|
+| `409` | El horario se pisa con otra reserva vigente de esa sala. El mensaje **nombra a quien la ocupa** |
+| `409` | Ya existe una sala con ese nombre |
+| `422` | Título vacío o >255; `end` <= `start`; duración < 10 min o > 12 h; `start` en el pasado (con 15 min de gracia); `attendees` fuera de 1–500 |
+| `403` | Editar o cancelar una reserva ajena sin ser admin; administrar salas sin ser admin |
+| `404` | La sala no existe o está dada de baja |
+
+Los extremos que se tocan **no** chocan: 10:00–11:00 y 11:00–12:00 conviven.
+
+El `409` de solapamiento se decide **dentro de una transacción, con `SELECT ... FOR UPDATE` sobre la
+fila de la sala**. MySQL no tiene exclusion constraints, y un `SELECT` de comprobación seguido de un
+`INSERT` es la carrera que produce exactamente el sobreagendamiento que este módulo viene a resolver.
+
+### Pantalla de puerta
+
+`GET /rooms/panel/{token}` — **la única ruta autenticada por token de recurso y no por sesión.** Una
+tablet colgada en la pared no se loguea. Devuelve solo la agenda de esa sala:
+
+```json
+{
+  "data": {
+    "room": { "id": 2, "name": "One Team", "capacity": 10, "location": "Piso 2", "active": true, "date_created": "2026-08-01T12:00:00Z" },
+    "now": "2026-09-02T17:25:21Z",
+    "current": null,
+    "upcoming": []
+  }
+}
+```
+
+`current` es la reserva en curso o `null`; `upcoming` son hasta **3** reservas más de **hoy**. La sala
+llega sin `panel_token` —quien ya lo tiene no lo necesita de vuelta, y así no se filtra a nadie que
+mire la respuesta por encima del hombro—. Un token con forma inválida o de una sala dada de baja es
+`404`, igual que uno inexistente.
+
 ## Campos personalizados
 
 `GET /custom-fields?para=tasks` devuelve las definiciones:

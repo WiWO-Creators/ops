@@ -5,7 +5,7 @@ import { ATRIBUTO_ABATIDA, CLAVE_BARRA } from '@/lib/barra-lateral'
 import Link, { useLinkStatus } from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useSyncExternalStore } from 'react'
-import { Building2, FolderKanban, House, ListChecks, Menu, PanelLeftClose, PanelLeftOpen, Users } from 'lucide-react'
+import { Building2, DoorOpen, FolderKanban, House, ListChecks, Menu, PanelLeftClose, PanelLeftOpen, Users } from 'lucide-react'
 import { Cajon, CerrarCajon, ContenidoCajon, DisparadorCajon } from '@/componentes/superposiciones/Cajon'
 import { Logo } from '@/componentes/estructura/Logo'
 import { cn } from '@/lib/clases'
@@ -38,6 +38,7 @@ const ICONOS = {
   inicio: House,
   procesos: ListChecks,
   espacios: FolderKanban,
+  salas: DoorOpen,
   clientes: Building2,
   equipo: Users
 } as const

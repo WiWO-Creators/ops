@@ -10,7 +10,16 @@
  * vencimiento aparece un dia antes".
  */
 
-const ZONA = 'America/Argentina/Buenos_Aires'
+/**
+ * Zona horaria del negocio.
+ *
+ * Se exporta porque la agenda de salas la necesita para lo contrario que hace este modulo: convertir
+ * una hora de pared elegida en pantalla al instante UTC que viaja a la API. Con dos copias de la
+ * constante, un cambio de zona corregiria lo que se muestra y no lo que se guarda.
+ */
+export const ZONA_NEGOCIO = 'America/Argentina/Buenos_Aires'
+
+const ZONA = ZONA_NEGOCIO
 const LOCALE = 'es-AR'
 
 /**

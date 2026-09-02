@@ -16,9 +16,9 @@ comparadores por línea de comandos en cero diferencias. La columna *Falta* de a
 bugs: es lo que **no se construyó a propósito**, y cada ficha lo detalla en su sección *Estado de la
 API*.
 
-> **Los ocho módulos nuevos están OCULTOS en la interfaz.** `secciones_habilitadas` de `GET /me` sigue
-> siendo la lista fija `["procesos","espacios"]` (`modules/api/controllers/V1.php:1415`), por decisión
-> del usuario. **La API responde, `ops-v2` no ofrece la sección.** Habilitar una es editar esa lista,
+> **Los ocho módulos nuevos están OCULTOS en la interfaz.** `secciones_habilitadas` de `GET /me` es la
+> lista fija `["procesos","espacios","salas"]` (`modules/api/controllers/V1.php`), por decisión del
+> usuario. **La API responde, `ops-v2` no ofrece la sección.** Habilitar una es editar esa lista,
 > no desplegar código nuevo. Sin esta aclaración, el ✅ de la tabla se lee como "está en la pantalla",
 > y no lo está.
 
@@ -30,6 +30,7 @@ API*.
 | [03](03-clientes.md) | Clientes | `clients` + `contacts` | ✅ | sí | Alta y edición: siguen en el panel, por diseño |
 | [04](04-equipo.md) | Equipo | `staff` | ✅ | sí | — |
 | [05](05-mi-trabajo.md) | Mi trabajo | vistas sobre `tasks` | ✅ | sí | — |
+| [06](06-salas.md) | Salas de reunión | **ninguna**: tablas propias del módulo `api` | ✅ | sí | Sin Google Calendar, por decisión del usuario |
 | [10](10-prospectos.md) | Prospectos | `leads` | ✅ | **no** | `POST /leads/{id}/convertir` |
 | [11](11-propuestas.md) | Propuestas | `proposals` | ✅ | **no** | PDF, envío, embudo y `mover` |
 | [12](12-contratos.md) | Contratos | `contracts` | ✅ | **no** | Alta, borrado y subida de adjuntos |

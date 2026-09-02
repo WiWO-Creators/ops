@@ -76,6 +76,16 @@ test('el proxy deja pasar los estaticos y las dos pantallas de entrar', () => {
   }
 })
 
+test('la pantalla de puerta de una sala queda fuera del guardia', () => {
+  // Una tablet colgada en la pared no tiene cookie y no se puede loguear: si el guardia la tomara,
+  // mostraria la pantalla de acceso en vez de la agenda. La autoriza el token de la sala.
+  const matcher = matcherDelProxy()
+
+  assert.equal(matcher.test('/sala/7f3a9c1e5b8d4260a1c7e93f5d2b6084'), false)
+  // `/salas` es la agenda del equipo y SI exige sesion: la excepcion es `sala/`, en singular.
+  assert.equal(matcher.test('/salas'), true)
+})
+
 test('el proxy protege el portal entero', () => {
   const matcher = matcherDelProxy()
 

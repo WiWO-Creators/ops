@@ -19,7 +19,7 @@ import * as sesion from './sesion.js'
 import {
   ARCHIVOS, CAMPOS_PERSONALIZADOS, CHECKLIST, CLIENTES, COMENTARIOS, CRONOMETROS,
   DEPARTAMENTOS, ESPACIOS, ESTADOS_ESPACIO, ESTADOS_PROCESO, ETIQUETAS, HITOS,
-  PRIORIDADES, PROCESOS, ROLES, STAFF, VALORES_CAMPOS
+  PRIORIDADES, PROCESOS, RESERVAS, ROLES, SALAS, STAFF, VALORES_CAMPOS
 } from './datos.js'
 
 const PUERTO = Number(process.env.PORT ?? 3001)
@@ -352,6 +352,224 @@ function exigirPermiso (staff, recurso, accion) {
  * @param {() => Promise<object>} cuerpo
  * @returns {Promise<{estado: number, cuerpo: object|null}>}
  */
+
+// ---------------------------------------------------------------------------
+// Salas de reunion
+// ---------------------------------------------------------------------------
+
+/** La sala sin su `panel_token`: solo los administradores lo ven. */
+function sinToken (sala) {
+  const { panel_token: _token, ...resto } = sala
+
+  return resto
+}
+
+/** Reservas vigentes de una sala, en orden. Las canceladas no cuentan para nada. */
+function vigentesDe (salaId) {
+  return RESERVAS
+    .filter((reserva) => reserva.room_id === salaId && reserva.cancelled_at === null)
+    .sort((a, b) => a.start.localeCompare(b.start))
+}
+
+/**
+ * Choque de horarios en una sala.
+ *
+ * Los extremos que se tocan NO chocan: 10:00-11:00 y 11:00-12:00 conviven. Es la misma regla que
+ * aplica la API real, y tiene que serlo — si el mock fuera mas permisivo, el frontend se probaria
+ * contra un backend que no existe.
+ */
+function choqueEn (salaId, inicio, fin, excluir) {
+  const desde = new Date(inicio).getTime()
+  const hasta = new Date(fin).getTime()
+
+  return vigentesDe(salaId).find((reserva) => (
+    reserva.id !== excluir
+    && new Date(reserva.start).getTime() < hasta
+    && new Date(reserva.end).getTime() > desde
+  ))
+}
+
+/** Vuelve a armar una reserva con los datos de su sala y de quien la hizo. */
+function presentarReserva (reserva) {
+  const sala = SALAS.find((s) => s.id === reserva.room_id)
+
+  return { ...reserva, room_name: sala?.name ?? '', room_capacity: sala?.capacity ?? 0 }
+}
+
+/**
+ * `/rooms`, `/rooms/{id}` y `/rooms/bookings`.
+ *
+ * Escribe sobre los fixtures en memoria: reiniciar el mock devuelve todo a su estado inicial, que es
+ * lo que hace repetible una prueba manual.
+ */
+async function salasRuta (metodo, resto, parametros, actual, cuerpo) {
+  const [primero, segundo] = resto
+
+  if (primero === 'bookings') {
+    return await reservasRuta(metodo, segundo, parametros, actual, cuerpo)
+  }
+
+  if (primero === undefined) {
+    if (metodo === 'POST') {
+      exigirAdmin(actual)
+      const datos = await cuerpo()
+      const nombre = String(datos.name ?? '').trim()
+
+      if (nombre === '') throw new ErrorApi(422, 'validation_failed', 'Falta el nombre.', { name: ['required'] })
+      if (SALAS.some((s) => s.name === nombre)) throw new ErrorApi(409, 'conflict', 'Ya existe una sala con ese nombre.')
+
+      const sala = {
+        id: Math.max(0, ...SALAS.map((s) => s.id)) + 1,
+        name: nombre,
+        capacity: Number(datos.capacity ?? 0),
+        location: datos.location ?? null,
+        active: true,
+        date_created: new Date().toISOString(),
+        panel_token: String(Date.now()).padStart(32, '0').slice(-32)
+      }
+
+      SALAS.push(sala)
+
+      return { estado: 201, cuerpo: conDatos(actual.is_admin ? sala : sinToken(sala)) }
+    }
+
+    const todas = parametros.get('todas') === '1'
+    const visibles = SALAS.filter((sala) => todas || sala.active)
+
+    return { estado: 200, cuerpo: conDatos(visibles.map((sala) => (actual.is_admin ? sala : sinToken(sala)))) }
+  }
+
+  const sala = buscarO404(SALAS, Number(primero), 'sala')
+
+  if (metodo === 'PATCH') {
+    exigirAdmin(actual)
+    const datos = await cuerpo()
+
+    if (datos.name !== undefined) sala.name = String(datos.name).trim()
+    if (datos.capacity !== undefined) sala.capacity = Number(datos.capacity)
+    if (datos.location !== undefined) sala.location = datos.location
+    if (datos.active !== undefined) sala.active = Boolean(datos.active)
+    if (datos.rotate_token === true) sala.panel_token = String(Date.now()).padStart(32, '0').slice(-32)
+
+    return { estado: 200, cuerpo: conDatos(sala) }
+  }
+
+  if (metodo === 'DELETE') {
+    exigirAdmin(actual)
+    sala.active = false
+
+    return { estado: 204, cuerpo: null }
+  }
+
+  return { estado: 200, cuerpo: conDatos(actual.is_admin ? sala : sinToken(sala)) }
+}
+
+/** `/rooms/bookings` y `/rooms/bookings/{id}`. */
+async function reservasRuta (metodo, id, parametros, actual, cuerpo) {
+  if (id === undefined) {
+    if (metodo === 'POST') {
+      const datos = await cuerpo()
+      const salaId = Number(datos.room_id)
+      const sala = SALAS.find((s) => s.id === salaId && s.active)
+
+      if (!sala) throw new ErrorApi(404, 'not_found', 'No existe esa sala.')
+      if (String(datos.title ?? '').trim() === '') {
+        throw new ErrorApi(422, 'validation_failed', 'Falta el título.', { title: ['required'] })
+      }
+      if (new Date(datos.end).getTime() <= new Date(datos.start).getTime()) {
+        throw new ErrorApi(422, 'validation_failed', 'El horario no es válido.', { end: ['min_duration'] })
+      }
+
+      const choque = choqueEn(salaId, datos.start, datos.end, undefined)
+      if (choque) {
+        throw new ErrorApi(409, 'conflict', `La sala ya está reservada por ${choque.staff?.full_name ?? 'otra persona'}.`)
+      }
+
+      const reserva = presentarReserva({
+        id: Math.max(0, ...RESERVAS.map((r) => r.id)) + 1,
+        room_id: salaId,
+        staff_id: actual.id,
+        staff: {
+          id: actual.id,
+          full_name: actual.full_name,
+          email: actual.email,
+          profile_image_url: actual.profile_image_url
+        },
+        title: String(datos.title).trim(),
+        start: datos.start,
+        end: datos.end,
+        attendees: datos.attendees ?? null,
+        notes: datos.notes ?? null,
+        cancelled_at: null,
+        date_created: new Date().toISOString()
+      })
+
+      RESERVAS.push(reserva)
+
+      return { estado: 201, cuerpo: conDatos(reserva) }
+    }
+
+    const desde = parametros.get('from')
+    const hasta = parametros.get('to')
+
+    if (!desde || !hasta) throw new ErrorApi(400, 'bad_request', 'Hacen falta `from` y `to` en ISO-8601.')
+
+    const inicio = new Date(desde).getTime()
+    const fin = new Date(hasta).getTime()
+
+    const dentro = RESERVAS.filter((reserva) => (
+      reserva.cancelled_at === null
+      && new Date(reserva.start).getTime() < fin
+      && new Date(reserva.end).getTime() > inicio
+    ))
+
+    return { estado: 200, cuerpo: conDatos(dentro.map(presentarReserva)) }
+  }
+
+  const reserva = buscarO404(RESERVAS, Number(id), 'reserva')
+  const puedeTocar = reserva.staff_id === actual.id || actual.is_admin
+
+  if (metodo === 'PATCH' || metodo === 'DELETE') {
+    if (!puedeTocar) throw new ErrorApi(403, 'forbidden', 'Esa reserva la hizo otra persona.')
+  }
+
+  if (metodo === 'PATCH') {
+    const datos = await cuerpo()
+    const salaId = datos.room_id === undefined ? reserva.room_id : Number(datos.room_id)
+    const inicio = datos.start ?? reserva.start
+    const fin = datos.end ?? reserva.end
+
+    const choque = choqueEn(salaId, inicio, fin, reserva.id)
+    if (choque) throw new ErrorApi(409, 'conflict', 'La sala ya está reservada en ese horario.')
+
+    Object.assign(reserva, {
+      room_id: salaId,
+      start: inicio,
+      end: fin,
+      title: datos.title === undefined ? reserva.title : String(datos.title).trim(),
+      attendees: datos.attendees === undefined ? reserva.attendees : datos.attendees,
+      notes: datos.notes === undefined ? reserva.notes : datos.notes
+    })
+
+    return { estado: 200, cuerpo: conDatos(presentarReserva(reserva)) }
+  }
+
+  if (metodo === 'DELETE') {
+    reserva.cancelled_at = reserva.cancelled_at ?? new Date().toISOString()
+
+    return { estado: 204, cuerpo: null }
+  }
+
+  return { estado: 200, cuerpo: conDatos(presentarReserva(reserva)) }
+}
+
+/** Solo administradores administran salas: no es una feature de Perfex con permisos propios. */
+function exigirAdmin (staff) {
+  if (!staff.is_admin) {
+    throw new ErrorApi(403, 'forbidden', 'Solo un administrador puede administrar las salas.')
+  }
+}
+
 async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, peticion) {
   const [recurso, ...resto] = segmentos
 
@@ -366,6 +584,34 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
         // es lo primero a mirar tras desplegar.
         auth_header_visible: peticion.headers.authorization !== undefined,
         api_key_visible: peticion.headers['x-api-key'] !== undefined
+      })
+    }
+  }
+
+  // --- Pantalla de puerta: la unica ruta de salas sin sesion ---------------
+  //
+  // Va antes de resolver el token por la misma razon que el portal: una tablet colgada en la pared
+  // no manda Authorization, y si cayera despues moriria en el 401 antes de llegar aca.
+  if (recurso === 'rooms' && resto[0] === 'panel') {
+    if (metodo !== 'GET') throw new ErrorApi(404, 'not_found', 'Recurso desconocido.')
+
+    const sala = SALAS.find((s) => s.panel_token === resto[1] && s.active)
+    if (!sala) throw new ErrorApi(404, 'not_found', 'No existe esa pantalla.')
+
+    const ahora = Date.now()
+    // Solo lo que queda de HOY, igual que la API real: la pantalla de puerta no anuncia lo de mañana.
+    const finDelDia = new Date(new Date(ahora).toISOString().slice(0, 10) + 'T23:59:59Z').getTime()
+    const delDia = vigentesDe(sala.id)
+      .filter((r) => new Date(r.end).getTime() > ahora && new Date(r.start).getTime() <= finDelDia)
+    const actual = delDia.find((r) => new Date(r.start).getTime() <= ahora) ?? null
+
+    return {
+      estado: 200,
+      cuerpo: conDatos({
+        room: sinToken(sala),
+        now: new Date(ahora).toISOString(),
+        current: actual,
+        upcoming: delDia.filter((r) => r !== actual).slice(0, 3)
       })
     }
   }
@@ -495,10 +741,14 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
       cuerpo: conDatos({
         ...presentarStaff(actual),
         permissions: permisosDe(actual),
-        secciones_habilitadas: ['procesos', 'espacios'],
+        secciones_habilitadas: ['procesos', 'espacios', 'salas'],
         locale: 'es'
       })
     }
+  }
+
+  if (recurso === 'rooms') {
+    return await salasRuta(metodo, resto, parametros, actual, cuerpo)
   }
 
   if (recurso === 'config' && resto[0] === 'realtime') {

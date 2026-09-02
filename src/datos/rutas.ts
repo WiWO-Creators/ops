@@ -30,6 +30,9 @@ const PREFIJOS_PERMITIDOS = [
   'notes',
   // `tickets` no esta: el soporte se atiende en wiwo.center y el panel ya no monta ninguna
   // pantalla que lo pida. Si algun dia vuelve, vuelve aca.
+  // Salas de reunion y sus reservas: la API las cuelga todas de `rooms`, asi que una sola entrada
+  // cubre el listado de salas, la agenda, el alta y la cancelacion.
+  'rooms',
   'contracts',
   'expenses',
   'invoices',
