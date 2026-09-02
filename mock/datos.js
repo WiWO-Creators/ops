@@ -144,7 +144,32 @@ export const CONTACTOS = [
     direction: null,
     last_login: null,
     permissions: ['projects', 'invoices']
+  },
+  {
+    // Dado de baja a proposito: es el caso que la pestaña anterior escondia, y con el escondido un
+    // cliente con contactos inactivos se veia igual que uno sin ninguno.
+    id: 4,
+    client_id: 1,
+    email: 'exempleado@acme.com',
+    password: 'portal1234',
+    firstname: 'Nadia',
+    lastname: 'Ortiz',
+    full_name: 'Nadia Ortiz',
+    phonenumber: '+54 11 4444-9090',
+    title: 'Compras',
+    is_primary: false,
+    email_verified: true,
+    active: false,
+    direction: null,
+    last_login: '2026-05-02T13:20:00Z',
+    permissions: []
   }
+]
+
+/** Las siete banderas de aviso por correo, con el default del esquema de Perfex (todas puestas). */
+export const AVISOS_CONTACTO = [
+  'invoice_emails', 'estimate_emails', 'credit_note_emails', 'contract_emails',
+  'task_emails', 'project_emails', 'ticket_emails'
 ]
 
 const EMPRESAS = [

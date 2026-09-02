@@ -27,7 +27,7 @@ API*.
 | [00](00-sesion.md) | Sesión y acceso | `staff` + tokens propios | ✅ | sí | — |
 | [01](01-procesos.md) | Procesos | `tasks` | ✅ | sí | `POST /files/{id}/link` |
 | [02](02-espacios.md) | Espacios | `projects` | ✅ | sí | — |
-| [03](03-clientes.md) | Clientes | `clients` + `contacts` | ✅ | sí | Alta y edición: siguen en el panel, por diseño |
+| [03](03-clientes.md) | Clientes | `clients` + `contacts` | ✅ | sí | Alta y edición **del cliente**: siguen en el panel, por diseño. Sus **contactos** ya se administran en Ops |
 | [04](04-equipo.md) | Equipo | `staff` | ✅ | sí | — |
 | [05](05-mi-trabajo.md) | Mi trabajo | vistas sobre `tasks` | ✅ | sí | — |
 | [06](06-salas.md) | Salas de reunión | **ninguna**: tablas propias del módulo `api` | ✅ | sí | Sin Google Calendar, por decisión del usuario |

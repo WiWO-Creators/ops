@@ -12,7 +12,7 @@ Quién es el cliente, quién lo atiende, cómo contactarlo, y qué hay abierto c
 |---|---|---|
 | Lista | `/clientes` | Tabla genérica |
 | Detalle | `/clientes/[id]` | Datos, facturación, etiquetas, campos personalizados |
-| Contactos | `/clientes/[id]/contactos` | Contactos del cliente, con el primario marcado |
+| Contactos | `/clientes/[id]?tab=contactos` | Alta, edición, baja y borrado de los contactos del cliente |
 | Espacios del cliente | `/clientes/[id]/espacios` | La tabla de Espacios con el filtro fijo |
 
 ## Endpoints que consume
@@ -87,3 +87,47 @@ Fuente: `application/views/admin/tables/clients.php` y `Clients_model.php`.
 2. `include=contacts` marca correctamente el contacto primario.
 3. Buscar por RUT con `q` encuentra al cliente.
 4. `pnpm lint && pnpm typecheck && pnpm test && pnpm build` en verde.
+
+## Contactos
+
+**Es la única parte del módulo que escribe.** El cliente en sí se sigue dando de alta y editando en el
+panel clásico —toca impuestos, monedas, grupos y campos que no vale la pena reimplementar—, pero sus
+contactos se administran acá.
+
+### Por qué se rehizo
+
+La pestaña era de solo lectura y consumía `include=contacts`, que devuelve **solo los activos**. Un
+cliente con contactos dados de baja se veía exactamente igual que uno sin ninguno: "Este cliente no
+tiene contactos activos", sin forma de reactivarlos ni de saber que existieron. Y para los 112 de 122
+clientes que no tienen ningún contacto, el mensaje mandaba al panel clásico en vez de ofrecer crearlo.
+
+Ahora la pestaña pide `GET /clients/{id}/contacts`, que **devuelve todos**. Los de baja se ven
+atenuados y con la insignia *De baja* —el estado va en el texto, no solo en la opacidad—, y se
+reactivan con un botón. El número de la pestaña cuenta solo los activos: contarlos a todos prometería
+más gente a la que escribirle de la que hay.
+
+### Qué se puede hacer
+
+| Acción | Permiso | Nota |
+|---|---|---|
+| Ver | `customers.view` | Todos, activos y de baja |
+| Crear, editar, dar de baja, reactivar, marcar principal | `customers.edit` | Es el mismo permiso que usa el panel (`Clients.php:660`) |
+| Borrar | `customers.delete` | Borrado real, como en el panel |
+
+Dos reglas propias, porque el panel las deja pasar y después rompen:
+
+- **El primer contacto de un cliente es principal** aunque nadie marque la casilla. Sin eso el cliente
+  queda sin contacto principal para siempre y el envío de documentos del panel no sabe a quién
+  escribirle.
+- **No se puede desmarcar ni borrar al principal mientras haya otros.** Elegir el reemplazo no es
+  decisión de la API: el `409` dice que primero hay que marcar a otro.
+
+### Dos cosas que la pantalla dice, y por qué
+
+- **Crear un contacto no manda ningún correo.** `Clients_model::add_contact()` termina en
+  `send_mail_template()` con la contraseña en claro; la API no envía correo en ninguna escritura.
+  La contraseña que se ponga acá hay que entregarla por otro medio. El formulario lo dice, porque si
+  no, alguien crea el contacto y se queda esperando que le llegue el aviso.
+- **Los avisos por correo los manda el panel**, no esta pantalla. Se editan igual —son la misma fila
+  de la base— pero quien los marca tiene que saber quién los dispara, o va a probar desde Ops y
+  concluir que la casilla no funciona.

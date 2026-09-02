@@ -11,7 +11,6 @@
 
 import type {
   Cliente,
-  Contacto,
   DireccionCliente,
   EstadoLookup,
   Moneda
@@ -188,23 +187,6 @@ export function monedaDelCliente (monedas: Moneda[], id: number): Moneda | null 
   if (id > 0) return monedas.find((moneda) => moneda.id === id) ?? null
 
   return monedas.find((moneda) => moneda.is_default) ?? null
-}
-
-/**
- * Ordena los contactos para mostrarlos: el primario arriba, el resto alfabetico.
- *
- * La API los devuelve en el orden de la base, que no significa nada. Quien abre un cliente busca a
- * quien hay que llamar, y ese es el primario.
- *
- * @param contactos Los contactos tal como llegaron; `undefined` si no se pidio el include.
- * @returns Una lista nueva; la original no se muta.
- */
-export function ordenarContactos (contactos: Contacto[] | undefined): Contacto[] {
-  return [...(contactos ?? [])].sort((a, b) => {
-    if (a.is_primary !== b.is_primary) return a.is_primary ? -1 : 1
-
-    return a.full_name.localeCompare(b.full_name, 'es')
-  })
 }
 
 /**

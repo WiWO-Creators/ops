@@ -736,3 +736,41 @@ export interface PanelDeSala {
   current: Reserva | null
   upcoming: Reserva[]
 }
+
+/** Secciones del portal que un contacto puede ver. Son los `short_name` de Perfex, no ids. */
+export type PermisoPortal = 'invoices' | 'estimates' | 'contracts' | 'proposals' | 'support' | 'projects'
+
+/** Las siete banderas de aviso por correo de `tblcontacts`. */
+export type AvisosDeContacto = Record<
+  'invoice_emails' | 'estimate_emails' | 'credit_note_emails' | 'contract_emails'
+  | 'task_emails' | 'project_emails' | 'ticket_emails',
+  boolean
+>
+
+/**
+ * Contacto en su forma completa (`GET /clients/{id}/contacts`).
+ *
+ * No es `Contacto`: aquel es la forma corta que viaja en `include=contacts` del listado de clientes,
+ * y **solo trae los activos**. Este trae tambien los dados de baja —marcados con `active: false`—
+ * porque esconderlos hacia que un cliente con contactos inactivos se viera igual que uno sin
+ * ninguno, sin forma de reactivarlos ni de saber que existieron.
+ */
+export interface ContactoCompleto {
+  id: number
+  client_id: number
+  firstname: string
+  lastname: string
+  full_name: string
+  email: string
+  phonenumber: string | null
+  title: string | null
+  is_primary: boolean
+  active: boolean
+  date_created: string | null
+  /** `null` significa que nunca entro al portal, no que entro hace mucho. */
+  last_login: string | null
+  email_verified_at: string | null
+  direction: string | null
+  permissions: PermisoPortal[]
+  email_notifications: AvisosDeContacto
+}

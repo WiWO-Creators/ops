@@ -1344,6 +1344,75 @@ a `Permisos::puede()`, y por eso `permissions` de `GET /me` **no trae una clave 
 
 **Responder no le avisa a nadie.** Ver abajo: es la omisión más ruidosa de toda la API.
 
+## Contactos de un cliente
+
+`include=contacts` de `GET /clients` es la forma **corta y solo activa** —nombre, correo, teléfono,
+`is_primary`— y no cambia: es lo que consume el listado. La ficha completa vive en su propio recurso.
+
+```json
+{
+  "id": 21,
+  "client_id": 13,
+  "firstname": "Renata",
+  "lastname": "Ferreyra",
+  "full_name": "Renata Ferreyra",
+  "email": "renata@acme.com",
+  "phonenumber": "+54 11 4444-1122",
+  "title": "Gerenta de Operaciones",
+  "is_primary": true,
+  "active": true,
+  "date_created": "2026-01-14T12:00:00Z",
+  "last_login": "2026-08-24T10:04:00Z",
+  "email_verified_at": "2026-01-14T12:00:00Z",
+  "direction": null,
+  "permissions": ["invoices", "projects"],
+  "email_notifications": {
+    "invoice_emails": true, "estimate_emails": true, "credit_note_emails": true,
+    "contract_emails": true, "task_emails": true, "project_emails": true, "ticket_emails": true
+  }
+}
+```
+
+`permissions` son los `short_name` de las secciones del portal (`invoices`, `estimates`, `contracts`,
+`proposals`, `support`, `projects`), no los ids numéricos de `tblcontact_permissions`: un `[1,3]` no se
+puede leer ni pintar sin el mapa al lado.
+
+`last_login` en `null` significa **que nunca entró al portal**, no que entró hace mucho.
+
+| Método | Ruta | Quién |
+|---|---|---|
+| `GET` | `/clients/{id}/contacts` | `customers.view`. Devuelve **todos**; `?activos=1` filtra |
+| `POST` | `/clients/{id}/contacts` | `customers.edit` |
+| `GET` | `/contacts/{id}` | `customers.view` |
+| `PATCH` | `/contacts/{id}` | `customers.edit` |
+| `DELETE` | `/contacts/{id}` | `customers.delete`. Borrado real, no baja lógica |
+
+El listado **incluye los dados de baja** por defecto, marcados con `active: false`. Es deliberado:
+esconderlos dejaba a un cliente con contactos inactivos igual que a uno sin ninguno.
+
+Escribibles: `firstname`, `lastname`, `email`, `phonenumber`, `title`, `is_primary`, `active`,
+`password`, `direction`, `permissions` y `email_notifications`. Las dos últimas son **conjuntos**: si
+la clave llega se reemplaza entera, si no llega no se toca.
+
+### Errores propios
+
+| Código | Cuándo |
+|---|---|
+| `409` | Ya hay un contacto con ese correo (es la credencial del portal: no puede repetirse) |
+| `409` | Se intentó desmarcar o borrar al contacto principal habiendo otros |
+| `422` | Nombre o apellido vacíos; correo con forma inválida; contraseña fuera de 8–72; permiso desconocido (`unknown:<short_name>`) |
+| `403` | Sin la capacidad de `customers` que pide la acción |
+| `404` | El cliente no es visible para este staff, o el contacto no existe |
+
+Reglas que replica de `Clients_model::add_contact()`: un solo principal por cliente,
+`email_verified_at` sellado al crear, las siete banderas de aviso como casillas, los permisos en
+`tblcontact_permissions` y `app_hash_password()` para la contraseña. Dos reglas propias: el primer
+contacto de un cliente es principal aunque no se marque, y al principal no se lo desmarca ni se lo
+borra mientras haya otros.
+
+**No manda el correo de bienvenida.** El panel sí lo hace; la API no envía correo en ninguna
+escritura. La contraseña se entrega por otro medio.
+
 ## Salas de reunión
 
 Dominio propio del módulo `api`: **no hay entidad de Perfex detrás**. Dos tablas nuevas
