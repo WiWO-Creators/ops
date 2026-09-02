@@ -2,7 +2,7 @@ import Link from 'next/link'
 import { Suspense, cache } from 'react'
 import { CabeceraCliente } from '@/componentes/cliente/CabeceraCliente'
 import { FichaCliente } from '@/componentes/cliente/FichaCliente'
-import { ListaContactos } from '@/componentes/cliente/ListaContactos'
+import { PanelContactos } from '@/componentes/cliente/PanelContactos'
 import { PanelProyectosCliente } from '@/componentes/cliente/PanelProyectosCliente'
 import {
   PanelArchivosCliente,
@@ -18,7 +18,7 @@ import { ErrorApi } from '@/datos/errores'
 import { cargarLookups } from '@/datos/lookups'
 import { pedir } from '@/datos/servidor'
 import type { Yo } from '@/datos/tipos'
-import type { ClienteConEnvio, Lookups, Moneda } from '@/datos/recursos'
+import type { ClienteConEnvio, ContactoCompleto, Lookups, Moneda } from '@/datos/recursos'
 import { GLOSARIO } from '@/dominio/glosario'
 
 /**
@@ -27,8 +27,9 @@ import { GLOSARIO } from '@/dominio/glosario'
  * `generateMetadata` y la pagina corren en la misma peticion y necesitan el mismo recurso; sin
  * `cache` serian dos llamadas a la API por cada visita.
  *
- * Los dos includes se piden siempre: los contactos son una pestaña y los campos personalizados una
- * seccion de la ficha, no extras opcionales.
+ * `include=contacts` se sigue pidiendo para la cabecera: es la forma corta y solo trae los activos.
+ * La pestaña Contactos NO la usa —necesita tambien los dados de baja y sus permisos de portal— y por
+ * eso pide `GET /clients/{id}/contacts` aparte.
  */
 const traerCliente = cache(async (id: string) => {
   return await pedir<ClienteConEnvio>(`/clients/${id}?include=contacts,custom_fields`)
@@ -57,6 +58,7 @@ export async function generateMetadata (props: PageProps<'/clientes/[id]'>) {
 
 interface Detalle {
   cliente: ClienteConEnvio
+  contactos: ContactoCompleto[]
   lookups: Lookups
   yo: Yo
 }
@@ -74,13 +76,15 @@ interface Detalle {
  */
 async function cargarDetalle (id: string): Promise<Detalle | ErrorApi> {
   try {
-    const [cliente, lookups, yo] = await Promise.all([
+    const [cliente, contactos, lookups, yo] = await Promise.all([
       traerCliente(id),
+      // Con los dados de baja incluidos: la pestaña los muestra atenuados para poder reactivarlos.
+      pedir<ContactoCompleto[]>(`/clients/${id}/contacts`),
       cargarLookups(),
       pedir<Yo>('/me')
     ])
 
-    return { cliente: cliente.data, lookups, yo: yo.data }
+    return { cliente: cliente.data, contactos: contactos.data, lookups, yo: yo.data }
   } catch (error) {
     if (error instanceof ErrorApi) return error
 
@@ -120,9 +124,9 @@ export default async function ClientePage (props: PageProps<'/clientes/[id]'>) {
     return <ErrorEstado detalle={detalle.message} />
   }
 
-  const { cliente, lookups, yo } = detalle
-  const contactos = cliente.contacts ?? []
+  const { cliente, contactos, lookups, yo } = detalle
   const capacidadesTareas = yo.permissions.tasks
+  const activos = contactos.filter((contacto) => contacto.active).length
 
   const paneles: Panel[] = [
     {
@@ -138,8 +142,16 @@ export default async function ClientePage (props: PageProps<'/clientes/[id]'>) {
     },
     {
       clave: 'contactos',
-      etiqueta: contactos.length === 0 ? 'Contactos' : `Contactos (${contactos.length})`,
-      contenido: <ListaContactos contactos={cliente.contacts} />
+      // El numero cuenta los ACTIVOS: los de baja se ven en la pestaña, pero contarlos en la
+      // etiqueta le prometeria al que mira mas gente a la que escribirle de la que hay.
+      etiqueta: activos === 0 ? 'Contactos' : `Contactos (${activos})`,
+      contenido: (
+        <PanelContactos
+          clienteId={cliente.id}
+          contactos={contactos}
+          capacidades={yo.permissions.customers}
+        />
+      )
     },
     {
       clave: 'proyectos',

@@ -18,7 +18,6 @@ import {
   monedaDelCliente,
   nombreDeIdioma,
   nombreDePais,
-  ordenarContactos,
   preferencias
 } from '../src/componentes/cliente/cliente.ts'
 
@@ -114,21 +113,6 @@ test('preferencias marca la moneda heredada para no hacerla pasar por elegida', 
     { etiqueta: 'Moneda', valor: 'CLP $' },
     { etiqueta: 'Idioma', valor: 'Español' }
   ])
-})
-
-test('ordenarContactos pone el primario arriba y no muta la lista original', () => {
-  const original = [
-    { id: 2, full_name: 'Zoe Ruiz', email: 'z@x.cl', phonenumber: null, title: null, is_primary: false },
-    { id: 3, full_name: 'Ana Paz', email: 'a@x.cl', phonenumber: null, title: null, is_primary: false },
-    { id: 1, full_name: 'Beto Lima', email: 'b@x.cl', phonenumber: null, title: null, is_primary: true }
-  ]
-
-  assert.deepEqual(ordenarContactos(original).map((c) => c.id), [1, 3, 2])
-  assert.deepEqual(original.map((c) => c.id), [2, 3, 1])
-})
-
-test('ordenarContactos tolera que no se haya pedido el include', () => {
-  assert.deepEqual(ordenarContactos(undefined), [])
 })
 
 test('nombreDeIdioma traduce lo conocido y capitaliza lo demas', () => {

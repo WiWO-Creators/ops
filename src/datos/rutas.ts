@@ -21,6 +21,9 @@ const PREFIJOS_PERMITIDOS = [
   'custom-fields',
   'staff',
   'clients',
+  // Contactos de un cliente: el alta cuelga de `clients/{id}/contacts`, pero editar y borrar cuelgan
+  // de `contacts/{id}`, asi que hace falta el prefijo propio.
+  'contacts',
   'projects',
   'tasks',
   // frente: detalle — subrecursos del detalle de Proyecto (contrato secciones 2 y 5).

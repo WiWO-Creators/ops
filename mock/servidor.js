@@ -19,7 +19,7 @@ import * as sesion from './sesion.js'
 import {
   ARCHIVOS, CAMPOS_PERSONALIZADOS, CHECKLIST, CLIENTES, COMENTARIOS, CRONOMETROS,
   DEPARTAMENTOS, ESPACIOS, ESTADOS_ESPACIO, ESTADOS_PROCESO, ETIQUETAS, HITOS,
-  PRIORIDADES, PROCESOS, RESERVAS, ROLES, SALAS, STAFF, VALORES_CAMPOS
+  AVISOS_CONTACTO, CONTACTOS, PRIORIDADES, PROCESOS, RESERVAS, ROLES, SALAS, STAFF, VALORES_CAMPOS
 } from './datos.js'
 
 const PUERTO = Number(process.env.PORT ?? 3001)
@@ -619,6 +619,174 @@ function exigirAdmin (staff) {
   }
 }
 
+
+// ---------------------------------------------------------------------------
+// Contactos de un cliente
+// ---------------------------------------------------------------------------
+
+/**
+ * Adosa `contacts` cuando se pidio el include.
+ *
+ * El mock aceptaba `include=contacts` y no devolvia nada: la pestaña salia vacia contra el mock
+ * pasara lo que pasara, que es la peor forma de probar una pantalla de contactos. La forma corta y
+ * **solo activos**, igual que la API real.
+ */
+function conContactos (cliente, includes) {
+  if (!includes.includes('contacts')) return cliente
+
+  return {
+    ...cliente,
+    contacts: CONTACTOS
+      .filter((c) => c.client_id === cliente.id && c.active)
+      .map((c) => ({
+        id: c.id,
+        full_name: c.full_name,
+        email: c.email,
+        phonenumber: c.phonenumber,
+        title: c.title,
+        is_primary: c.is_primary
+      }))
+  }
+}
+
+/** Forma completa de un contacto: lo que consume la pestaña. */
+function presentarContactoCompleto (contacto) {
+  const avisos = {}
+  for (const aviso of AVISOS_CONTACTO) {
+    avisos[aviso] = contacto.email_notifications?.[aviso] ?? true
+  }
+
+  return {
+    id: contacto.id,
+    client_id: contacto.client_id,
+    firstname: contacto.firstname,
+    lastname: contacto.lastname,
+    full_name: contacto.full_name,
+    email: contacto.email,
+    phonenumber: contacto.phonenumber,
+    title: contacto.title,
+    is_primary: contacto.is_primary,
+    active: contacto.active,
+    date_created: '2026-01-14T12:00:00Z',
+    last_login: contacto.last_login,
+    email_verified_at: contacto.email_verified ? '2026-01-14T12:00:00Z' : null,
+    direction: contacto.direction,
+    permissions: contacto.permissions,
+    email_notifications: avisos
+  }
+}
+
+/** Valida lo mismo que la API real: correo con forma de correo y unico entre todos los contactos. */
+function exigirCorreoDeContacto (email, excluir) {
+  const limpio = String(email ?? '').trim().toLowerCase()
+
+  if (limpio === '' || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(limpio)) {
+    throw new ErrorApi(422, 'validation_failed', 'Correo inválido.', { email: ['email'] })
+  }
+
+  if (CONTACTOS.some((c) => c.email === limpio && c.id !== excluir)) {
+    throw new ErrorApi(409, 'conflict', 'Ya hay un contacto con ese correo.')
+  }
+
+  return limpio
+}
+
+/** Deja un solo principal por cliente. */
+function despromoverAlResto (clienteId, excepto) {
+  for (const otro of CONTACTOS) {
+    if (otro.client_id === clienteId && otro.id !== excepto) otro.is_primary = false
+  }
+}
+
+/** El principal no se borra ni se desmarca mientras el cliente tenga otros contactos. */
+function exigirNoEsElPrincipalConOtros (contacto) {
+  if (!contacto.is_primary) return
+
+  const hayOtros = CONTACTOS.some((c) => c.client_id === contacto.client_id && c.id !== contacto.id)
+
+  if (hayOtros) {
+    throw new ErrorApi(409, 'conflict', 'Es el contacto principal. Marcá a otro como principal antes de borrarlo.')
+  }
+}
+
+function crearContacto (clienteId, datos) {
+  for (const clave of ['firstname', 'lastname']) {
+    if (String(datos[clave] ?? '').trim() === '') {
+      throw new ErrorApi(422, 'validation_failed', 'Falta un campo.', { [clave]: ['required'] })
+    }
+  }
+
+  const email = exigirCorreoDeContacto(datos.email, undefined)
+  // El primero de un cliente es principal aunque nadie marque la casilla, igual que la API real.
+  const esElPrimero = !CONTACTOS.some((c) => c.client_id === clienteId)
+  const principal = esElPrimero || datos.is_primary === true
+
+  if (principal) despromoverAlResto(clienteId, undefined)
+
+  const avisos = {}
+  for (const aviso of AVISOS_CONTACTO) {
+    avisos[aviso] = datos.email_notifications === undefined
+      ? true
+      : datos.email_notifications[aviso] === true
+  }
+
+  const contacto = {
+    id: Math.max(0, ...CONTACTOS.map((c) => c.id)) + 1,
+    client_id: clienteId,
+    email,
+    password: datos.password ?? null,
+    firstname: String(datos.firstname).trim(),
+    lastname: String(datos.lastname).trim(),
+    full_name: `${String(datos.firstname).trim()} ${String(datos.lastname).trim()}`,
+    phonenumber: datos.phonenumber ?? null,
+    title: datos.title ?? null,
+    is_primary: principal,
+    email_verified: true,
+    active: datos.active ?? true,
+    direction: datos.direction ?? null,
+    last_login: null,
+    permissions: datos.permissions ?? [],
+    email_notifications: avisos
+  }
+
+  CONTACTOS.push(contacto)
+
+  return presentarContactoCompleto(contacto)
+}
+
+function editarContacto (contacto, datos) {
+  if (datos.email !== undefined) contacto.email = exigirCorreoDeContacto(datos.email, contacto.id)
+
+  if (datos.is_primary === true) {
+    despromoverAlResto(contacto.client_id, contacto.id)
+    contacto.is_primary = true
+  }
+
+  if (datos.is_primary === false && contacto.is_primary) {
+    throw new ErrorApi(409, 'conflict', 'Marcá a otro contacto como principal en vez de desmarcar a este: el cliente no puede quedarse sin uno.')
+  }
+
+  for (const clave of ['firstname', 'lastname', 'phonenumber', 'title', 'direction']) {
+    if (datos[clave] !== undefined) contacto[clave] = datos[clave]
+  }
+
+  contacto.full_name = `${contacto.firstname} ${contacto.lastname}`
+
+  if (datos.active !== undefined) contacto.active = datos.active === true
+  if (datos.password) contacto.password = datos.password
+  if (datos.permissions !== undefined) contacto.permissions = datos.permissions ?? []
+
+  if (datos.email_notifications !== undefined) {
+    const avisos = {}
+    for (const aviso of AVISOS_CONTACTO) {
+      avisos[aviso] = datos.email_notifications?.[aviso] === true
+    }
+    contacto.email_notifications = avisos
+  }
+
+  return presentarContactoCompleto(contacto)
+}
+
 async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, peticion) {
   const [recurso, ...resto] = segmentos
 
@@ -841,6 +1009,49 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
     return { estado: 200, cuerpo: conDatos(presentarStaff(buscarO404(STAFF, Number(resto[0]), 'staff'))) }
   }
 
+  // --- Contactos de un cliente ---------------------------------------------
+  //
+  // Va antes del bloque de `clients`, que es solo GET: sin esto, un POST de contacto caeria al 404
+  // final y el frontend se probaria contra un backend que no acepta lo que la API real si acepta.
+  if (recurso === 'clients' && resto[1] === 'contacts') {
+    const cliente = buscarO404(CLIENTES, Number(resto[0]), 'cliente')
+
+    if (metodo === 'POST') {
+      exigirPermiso(actual, 'customers', 'edit')
+      const datos = await cuerpo()
+
+      return { estado: 201, cuerpo: conDatos(crearContacto(cliente.id, datos)) }
+    }
+
+    if (metodo !== 'GET') throw new ErrorApi(404, 'not_found', 'Recurso desconocido.')
+
+    const suyos = CONTACTOS
+      .filter((c) => c.client_id === cliente.id && (parametros.get('activos') !== '1' || c.active))
+
+    return { estado: 200, cuerpo: conDatos(suyos.map(presentarContactoCompleto)) }
+  }
+
+  if (recurso === 'contacts') {
+    const contacto = buscarO404(CONTACTOS, Number(resto[0]), 'contacto')
+
+    if (metodo === 'PATCH') {
+      exigirPermiso(actual, 'customers', 'edit')
+      const datos = await cuerpo()
+
+      return { estado: 200, cuerpo: conDatos(editarContacto(contacto, datos)) }
+    }
+
+    if (metodo === 'DELETE') {
+      exigirPermiso(actual, 'customers', 'delete')
+      exigirNoEsElPrincipalConOtros(contacto)
+      CONTACTOS.splice(CONTACTOS.indexOf(contacto), 1)
+
+      return { estado: 204, cuerpo: null }
+    }
+
+    return { estado: 200, cuerpo: conDatos(presentarContactoCompleto(contacto)) }
+  }
+
   if (recurso === 'clients' && metodo === 'GET') {
     exigirPermiso(actual, 'customers', 'view')
     const includes = leerIncludes(parametros, ['custom_fields', 'contacts'])
@@ -848,11 +1059,14 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
       const { filas, paginacion } = aplicarConsulta(CLIENTES, parametros, CONSULTA_CLIENTES)
       return {
         estado: 200,
-        cuerpo: conDatos(filas.map((c) => conCamposPersonalizados(c, 'clients', includes)), { pagination: paginacion })
+        cuerpo: conDatos(
+          filas.map((c) => conContactos(conCamposPersonalizados(c, 'clients', includes), includes)),
+          { pagination: paginacion }
+        )
       }
     }
     const cliente = buscarO404(CLIENTES, Number(resto[0]), 'cliente')
-    return { estado: 200, cuerpo: conDatos(conCamposPersonalizados(cliente, 'clients', includes)) }
+    return { estado: 200, cuerpo: conDatos(conContactos(conCamposPersonalizados(cliente, 'clients', includes), includes)) }
   }
 
   if (recurso === 'projects' && metodo === 'GET') {
