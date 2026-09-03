@@ -169,7 +169,7 @@ export default async function ProyectoPage (props: PageProps<'/espacios/[id]'>) 
       contenido: <PanelDiscusiones proyectoId={proyecto.id} capacidades={capacidadesProyecto} />
     },
     { clave: 'gantt', etiqueta: 'Diagrama de Gantt', contenido: <PanelGantt proyectoId={proyecto.id} /> },
-    { clave: 'notas', etiqueta: 'Notas', contenido: <PanelNotas proyectoId={proyecto.id} /> },
+    { clave: 'notas', etiqueta: 'Meeting Paper', contenido: <PanelNotas proyectoId={proyecto.id} /> },
     {
       clave: 'actividad',
       etiqueta: 'Actividad',
