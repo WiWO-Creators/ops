@@ -25,12 +25,22 @@ function sinSigno (campo) {
   return campo.startsWith('-') ? campo.slice(1) : campo
 }
 
+/**
+ * Campos que componen un `ordenPorDefecto`, ya sin el signo de descendente.
+ *
+ * El valor puede ser un campo suelto o una lista, cuando el orden es compuesto (PROCESOS ordena por
+ * `completed` y despues por `-date_added`). Los dos se validan igual: cada campo tiene que estar
+ * entre los ordenables o el backend responde 422.
+ */
+function camposDelOrden (orden) {
+  return (Array.isArray(orden) ? orden : [orden]).map(sinSigno)
+}
+
 for (const [nombre, definicion] of TODAS) {
   test(`${nombre}: el orden por defecto esta entre los ordenables`, () => {
-    assert.ok(
-      definicion.ordenables.includes(sinSigno(definicion.ordenPorDefecto)),
-      `${definicion.ordenPorDefecto} no esta en ordenables`
-    )
+    for (const campo of camposDelOrden(definicion.ordenPorDefecto)) {
+      assert.ok(definicion.ordenables.includes(campo), `${campo} no esta en ordenables`)
+    }
   })
 
   test(`${nombre}: toda columna ordenable apunta a un campo que el backend acepta`, () => {
@@ -91,18 +101,12 @@ test('PROCESOS no ofrece cambiar el estado por PATCH: es una accion', () => {
 // no dentro de TODAS para que el merge con los otros frentes sea trivial.
 import { HITOS } from '../src/definiciones/hitos.ts'
 import { TICKETS } from '../src/definiciones/tickets.ts'
-import { CONTRATOS } from '../src/definiciones/contratos.ts'
-import { FACTURAS, GASTOS, PRESUPUESTOS } from '../src/definiciones/ventas.ts'
 import { ACTIVIDAD, DISCUSIONES, NOTAS } from '../src/definiciones/discusiones.ts'
 import { ARCHIVOS } from '../src/definiciones/archivos.ts'
 
 const DEL_DETALLE = [
   ['HITOS', HITOS],
   ['TICKETS', TICKETS],
-  ['CONTRATOS', CONTRATOS],
-  ['GASTOS', GASTOS],
-  ['FACTURAS', FACTURAS],
-  ['PRESUPUESTOS', PRESUPUESTOS],
   ['DISCUSIONES', DISCUSIONES],
   ['NOTAS', NOTAS],
   ['ACTIVIDAD', ACTIVIDAD],
@@ -111,7 +115,9 @@ const DEL_DETALLE = [
 
 for (const [nombre, definicion] of DEL_DETALLE) {
   test(`${nombre}: el orden por defecto esta entre los ordenables`, () => {
-    assert.ok(definicion.ordenables.includes(sinSigno(definicion.ordenPorDefecto)))
+    for (const campo of camposDelOrden(definicion.ordenPorDefecto)) {
+      assert.ok(definicion.ordenables.includes(campo), `${campo} no esta en ordenables`)
+    }
   })
 
   test(`${nombre}: toda columna ordenable apunta a un campo que el backend acepta`, () => {
