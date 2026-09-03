@@ -1533,9 +1533,16 @@ puede leer ni pintar sin el mapa al lado.
 | `GET` | `/contacts/{id}` | `customers.view` |
 | `PATCH` | `/contacts/{id}` | `customers.edit` |
 | `DELETE` | `/contacts/{id}` | `customers.delete`. Borrado real, no baja lógica |
+| `POST` | `/contacts/{id}/access-link` | `customers.edit`. Devuelve `{ token, expires_at }` |
 
 El listado **incluye los dados de baja** por defecto, marcados con `active: false`. Es deliberado:
 esconderlos dejaba a un cliente con contactos inactivos igual que a uno sin ninguno.
+
+`access-link` es la única forma de darle acceso al portal a un contacto sin dictarle la contraseña:
+emite un enlace de un solo uso que vive 72 h y que el staff entrega por fuera, porque la API no manda
+correos. El token viaja en claro **solo en esa respuesta** —en base queda hasheado— y emitir uno
+nuevo revoca el anterior. El canje ocurre en `POST /auth/portal/access-link`, que es anónimo y está
+documentado en `docs/modulos/40-portal-cliente.md`.
 
 Escribibles: `firstname`, `lastname`, `email`, `phonenumber`, `title`, `is_primary`, `active`,
 `password`, `direction`, `permissions` y `email_notifications`. Las dos últimas son **conjuntos**: si

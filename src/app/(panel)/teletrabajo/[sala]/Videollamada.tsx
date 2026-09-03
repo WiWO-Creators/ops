@@ -243,47 +243,125 @@ function Escenario () {
   )
 }
 
+/**
+ * Traduce un fallo al prender microfono, camara o pantalla.
+ *
+ * Los tres fallan por los mismos tres motivos, y ninguno es culpa de quien pulsa el boton: no dio
+ * permiso, no tiene el aparato, o se lo esta usando otro programa. Decirlo con esas palabras es la
+ * diferencia entre arreglarlo en diez segundos y pensar que la sala esta rota.
+ *
+ * @param error Lo que rechazo la promesa. Puede no ser un `Error`: el navegador tambien rechaza con
+ *              `DOMException` y, en el camino del WebSocket, con un `Event` pelado.
+ * @param que   Que se estaba prendiendo, para nombrarlo en el mensaje.
+ */
+function motivoDelFallo (error: unknown, que: string): string {
+  const nombre = error instanceof Error ? error.name : ''
+
+  if (nombre === 'NotAllowedError' || nombre === 'SecurityError') {
+    return `El navegador bloqueó ${que}. Dale permiso desde el candado de la barra de direcciones y volvé a intentar.`
+  }
+
+  if (nombre === 'NotFoundError' || nombre === 'DevicesNotFoundError') {
+    return `No encontramos ${que} en este equipo.`
+  }
+
+  if (nombre === 'NotReadableError' || nombre === 'TrackStartError') {
+    return `Otro programa está usando ${que}. Cerralo y volvé a intentar.`
+  }
+
+  // `AbortError` es lo que deja cancelar el dialogo de compartir pantalla: no es un fallo, es un no.
+  if (nombre === 'AbortError') return ''
+
+  return `No pudimos activar ${que}.`
+}
+
 /** Microfono, camara, pantalla y salir. */
 function Controles ({ alSalir }: { alSalir: () => void }) {
-  const microfono = useTrackToggle({ source: Track.Source.Microphone })
-  const camara = useTrackToggle({ source: Track.Source.Camera })
-  const pantalla = useTrackToggle({ source: Track.Source.ScreenShare })
+  const [aviso, setAviso] = useState<string | null>(null)
+
+  /**
+   * Recoge el fallo de un control y lo pone en pantalla.
+   *
+   * Hay dos caminos por los que puede llegar y hacen falta los dos:
+   *
+   * - `onDeviceError` es por donde LiveKit entrega los fallos de dispositivo — permiso denegado, no
+   *   hay camara, la esta usando otro programa. Los captura el mismo, asi que `toggle()` **resuelve
+   *   igual** y un `.catch` nunca se entera. Sin esta rama, pulsar "Encender camara" sin permiso no
+   *   hace nada y no dice nada, que es la peor de las dos fallas.
+   * - El `.catch` de `pulsar` es para todo lo demas: si `toggle()` si rechaza, esa promesa suelta
+   *   queda como rechazo sin capturar y en desarrollo levanta la pantalla roja de Next por encima
+   *   de la llamada.
+   */
+  const avisarDe = useCallback((error: unknown, que: string) => {
+    const motivo = motivoDelFallo(error, que)
+
+    // Cadena vacia = la persona cancelo a proposito. No hay nada que avisar.
+    if (motivo !== '') setAviso(motivo)
+  }, [])
+
+  const microfono = useTrackToggle({
+    source: Track.Source.Microphone,
+    onDeviceError: (error) => { avisarDe(error, 'el micrófono') }
+  })
+
+  const camara = useTrackToggle({
+    source: Track.Source.Camera,
+    onDeviceError: (error) => { avisarDe(error, 'la cámara') }
+  })
+
+  const pantalla = useTrackToggle({
+    source: Track.Source.ScreenShare,
+    onDeviceError: (error) => { avisarDe(error, 'la pantalla compartida') }
+  })
+
+  /** Pulsa un control, limpia el aviso anterior y se hace cargo de lo que salga mal. */
+  const pulsar = useCallback((accionar: () => Promise<unknown>, que: string) => {
+    setAviso(null)
+
+    accionar().catch((error: unknown) => { avisarDe(error, que) })
+  }, [avisarDe])
 
   return (
-    <div className="flex shrink-0 items-center justify-center gap-2">
-      <BotonDePista
-        activo={microfono.enabled}
-        pendiente={microfono.pending}
-        alPulsar={() => { void microfono.toggle() }}
-        etiqueta={microfono.enabled ? 'Silenciar micrófono' : 'Activar micrófono'}
-        icono={microfono.enabled ? <Mic size={18} /> : <MicOff size={18} />}
-      />
+    <div className="flex shrink-0 flex-col items-center gap-2">
+      {aviso !== null && (
+        <p role="status" className="text-center text-xs text-texto-aviso">{aviso}</p>
+      )}
 
-      <BotonDePista
-        activo={camara.enabled}
-        pendiente={camara.pending}
-        alPulsar={() => { void camara.toggle() }}
-        etiqueta={camara.enabled ? 'Apagar cámara' : 'Encender cámara'}
-        icono={camara.enabled ? <Video size={18} /> : <VideoOff size={18} />}
-      />
+      <div className="flex items-center justify-center gap-2">
+        <BotonDePista
+          activo={microfono.enabled}
+          pendiente={microfono.pending}
+          alPulsar={() => { pulsar(async () => await microfono.toggle(), 'el micrófono') }}
+          etiqueta={microfono.enabled ? 'Silenciar micrófono' : 'Activar micrófono'}
+          icono={microfono.enabled ? <Mic size={18} /> : <MicOff size={18} />}
+        />
 
-      <BotonDePista
-        activo={pantalla.enabled}
-        pendiente={pantalla.pending}
-        alPulsar={() => { void pantalla.toggle() }}
-        etiqueta={pantalla.enabled ? 'Dejar de compartir pantalla' : 'Compartir pantalla'}
-        icono={<MonitorUp size={18} />}
-      />
+        <BotonDePista
+          activo={camara.enabled}
+          pendiente={camara.pending}
+          alPulsar={() => { pulsar(async () => await camara.toggle(), 'la cámara') }}
+          etiqueta={camara.enabled ? 'Apagar cámara' : 'Encender cámara'}
+          icono={camara.enabled ? <Video size={18} /> : <VideoOff size={18} />}
+        />
 
-      <Boton
-        variante="peligro"
-        soloIcono
-        onClick={alSalir}
-        aria-label="Salir de la sala"
-        title="Salir de la sala"
-      >
-        <PhoneOff size={18} aria-hidden="true" />
-      </Boton>
+        <BotonDePista
+          activo={pantalla.enabled}
+          pendiente={pantalla.pending}
+          alPulsar={() => { pulsar(async () => await pantalla.toggle(), 'la pantalla compartida') }}
+          etiqueta={pantalla.enabled ? 'Dejar de compartir pantalla' : 'Compartir pantalla'}
+          icono={<MonitorUp size={18} />}
+        />
+
+        <Boton
+          variante="peligro"
+          soloIcono
+          onClick={alSalir}
+          aria-label="Salir de la sala"
+          title="Salir de la sala"
+        >
+          <PhoneOff size={18} aria-hidden="true" />
+        </Boton>
+      </div>
     </div>
   )
 }

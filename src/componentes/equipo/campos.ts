@@ -22,10 +22,20 @@ const LARGOS = { nombre: 50, email: 100, phonenumber: 30 }
  * `is_admin` no esta: se decide desde el listado y solo lo ve un administrador, porque la API rechaza
  * que lo reparta cualquiera con `staff.create`.
  *
+ * `cargo_id` y `area_id` (`modules/wiwo_core/cargos_areas.php`) son la organizacion propia del staff,
+ * separada del rol (RBAC): ninguno de los dos es requerido, y dejarlos sin elegir es "sin cargo/área".
+ *
  * @param roles catalogo `roles` de `GET /lookups`
+ * @param cargos catalogo `cargos` de `GET /lookups`
+ * @param areas catalogo `areas` de `GET /lookups`
  * @param alta `true` para el formulario de alta
  */
-export function camposDePersona (roles: OpcionCampo[], alta: boolean): CampoFormulario[] {
+export function camposDePersona (
+  roles: OpcionCampo[],
+  cargos: OpcionCampo[],
+  areas: OpcionCampo[],
+  alta: boolean
+): CampoFormulario[] {
   return [
     { clave: 'firstname', etiqueta: 'Nombre', tipo: 'texto', requerido: true, maximo: LARGOS.nombre },
     { clave: 'lastname', etiqueta: 'Apellido', tipo: 'texto', requerido: true, maximo: LARGOS.nombre },
@@ -48,6 +58,8 @@ export function camposDePersona (roles: OpcionCampo[], alta: boolean): CampoForm
       opciones: roles,
       ...(alta ? { ayuda: 'Estrena la cuenta con los permisos del rol.' } : {})
     },
-    { clave: 'hourly_rate', etiqueta: 'Valor hora', tipo: 'numero', ayuda: 'Se usa para valorizar las horas registradas.' }
+    { clave: 'hourly_rate', etiqueta: 'Valor hora', tipo: 'numero', ayuda: 'Se usa para valorizar las horas registradas.' },
+    { clave: 'cargo_id', etiqueta: 'Cargo', tipo: 'seleccion', opciones: cargos, seccion: 'Organización' },
+    { clave: 'area_id', etiqueta: 'Área', tipo: 'seleccion', opciones: areas }
   ]
 }

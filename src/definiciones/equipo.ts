@@ -23,6 +23,10 @@ export const EQUIPO: DefinicionRecurso<MiembroEquipo> = {
     // El id del rol no le dice nada a nadie: `VistaEquipo` reemplaza este presentador por el que
     // resuelve el nombre contra el catalogo `roles`, que la pantalla ya carga para el filtro.
     { clave: 'role_id', encabezado: 'Rol', presentar: (m) => (m.role_id === null || m.role_id === 0 ? '' : `#${m.role_id}`) },
+    // Igual que `role_id`: `VistaEquipo` reemplaza estos presentadores por los que resuelven el
+    // nombre contra `cargos`/`areas`, que la pantalla ya carga para sus propios filtros.
+    { clave: 'cargo_id', encabezado: 'Cargo', presentar: (m) => (m.cargo_id === null ? '' : `#${m.cargo_id}`) },
+    { clave: 'area_id', encabezado: 'Área', presentar: (m) => (m.area_id === null ? '' : `#${m.area_id}`) },
     { clave: 'active', encabezado: 'Activo', presentar: (m) => (m.active ? 'Sí' : 'No') },
     {
       clave: 'last_login',
@@ -57,7 +61,9 @@ export const EQUIPO: DefinicionRecurso<MiembroEquipo> = {
 
   filtros: [
     { clave: 'active', etiqueta: 'Activo', tipo: 'booleano' },
-    { clave: 'role_id', etiqueta: 'Rol', tipo: 'seleccion', desdeLookup: 'roles' }
+    { clave: 'role_id', etiqueta: 'Rol', tipo: 'seleccion', desdeLookup: 'roles' },
+    { clave: 'cargo_id', etiqueta: 'Cargo', tipo: 'seleccion', desdeLookup: 'cargos' },
+    { clave: 'area_id', etiqueta: 'Área', tipo: 'seleccion', desdeLookup: 'areas' }
   ],
 
   ordenables: ['firstname', 'lastname', 'last_login'],

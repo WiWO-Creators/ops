@@ -38,7 +38,11 @@ export default async function PortalLayout ({ children }: { children: React.Reac
         </Link>
         <NavegacionPortal secciones={secciones} className="hidden md:flex" />
         <SelectorTema className="ml-auto" />
-        <Avatar nombre={yo.full_name} />
+        {/* El perfil no esta en la navegacion: no es una seccion que la API habilite, sino los datos
+            del propio contacto. El avatar es el lugar donde se lo busca. */}
+        <Link href="/portal/perfil" title="Mi perfil" aria-label="Mi perfil">
+          <Avatar nombre={yo.full_name} />
+        </Link>
         <BotonSalirPortal />
       </header>
 

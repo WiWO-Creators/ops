@@ -5,7 +5,7 @@ import { ATRIBUTO_ABATIDA, CLAVE_BARRA } from '@/lib/barra-lateral'
 import Link, { useLinkStatus } from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useSyncExternalStore } from 'react'
-import { Building2, DoorOpen, FolderKanban, House, ListChecks, Mail, Menu, PanelLeftClose, PanelLeftOpen, Users, Video } from 'lucide-react'
+import { Building2, DoorOpen, FolderKanban, House, ListChecks, Mail, Menu, PanelLeftClose, PanelLeftOpen, Users, UsersRound, Video } from 'lucide-react'
 import { Cajon, CerrarCajon, ContenidoCajon, DisparadorCajon } from '@/componentes/superposiciones/Cajon'
 import { cn } from '@/lib/clases'
 
@@ -43,6 +43,7 @@ const ICONOS = {
   teletrabajo: Video,
   clientes: Building2,
   equipo: Users,
+  mi_area: UsersRound,
   administracion: Mail
 } as const
 

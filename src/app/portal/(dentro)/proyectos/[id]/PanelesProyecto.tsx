@@ -5,6 +5,8 @@ import { formatearImporte } from '@/componentes/proyecto/formatos'
 import { BarraProgreso } from '@/componentes/proyecto/CabeceraProyecto'
 import { Metrica } from '@/componentes/proyecto/ResumenProyecto'
 import { pedirPortal } from '@/datos/servidor'
+import { cargarLookupsDelPortal, opcionesDeFiltros } from '@/datos/lookups'
+import { PORTAL_TAREAS } from '@/definiciones/portal-proyectos'
 import { GLOSARIO } from '@/dominio/glosario'
 import type {
   ArchivoPortal,
@@ -13,7 +15,7 @@ import type {
   TareaPortal,
   TicketPortal
 } from '@/datos/portal'
-import { Bloque, EstadoDelPortal } from '../../detalle'
+import { Bloque, enlaceDeDescarga, EstadoDelPortal } from '../../detalle'
 import { TablaDeTareas } from './TablaDeTareas'
 
 /**
@@ -34,12 +36,6 @@ export async function PanelResumen ({ proyecto }: { proyecto: EspacioPortal }) {
         <Metrica etiqueta="Pendientes" valor={String(proyecto.counts.tasks_open)} />
         <Metrica etiqueta={GLOSARIO.hito.plural} valor={String(proyecto.counts.milestones)} />
       </div>
-
-      {proyecto.description !== null && proyecto.description !== '' && (
-        <Bloque titulo="Descripción">
-          <p className="text-texto text-sm whitespace-pre-line">{proyecto.description}</p>
-        </Bloque>
-      )}
 
       {/* Los importes aparecen solo si el proyecto los comparte: la API ni siquiera emite las
           claves cuando no, asi que `undefined` aca significa "no corresponde" y no "vacio". */}
@@ -90,7 +86,17 @@ export async function PanelTareas ({ proyectoId }: { proyectoId: number }) {
     return <Vacio titulo={`Sin ${GLOSARIO.proceso.plural.toLowerCase()}`} descripcion="Todavía no hay nada que mostrar acá." />
   }
 
-  return <TablaDeTareas proyectoId={proyectoId} inicial={{ filas: data, paginacion: meta?.pagination }} />
+  // Sin el catalogo de estados la columna Estado muestra el numero crudo que devuelve la API, y el
+  // filtro se queda sin opciones que ofrecer.
+  const lookups = await cargarLookupsDelPortal()
+
+  return (
+    <TablaDeTareas
+      proyectoId={proyectoId}
+      inicial={{ filas: data, paginacion: meta?.pagination }}
+      opcionesDeFiltro={opcionesDeFiltros(PORTAL_TAREAS, lookups)}
+    />
+  )
 }
 
 /**
@@ -148,17 +154,31 @@ export async function PanelArchivos ({ proyectoId }: { proyectoId: number }) {
 
   return (
     <ul className="flex flex-col gap-2">
-      {data.map((archivo) => (
-        <li
-          key={archivo.id}
-          className="rounded-chico border-linea flex flex-wrap items-baseline justify-between gap-2 border p-3"
-        >
-          <span className="text-texto text-sm">
-            {archivo.subject !== null && archivo.subject !== '' ? archivo.subject : archivo.file_name}
-          </span>
-          <span className="text-texto-tenue text-xs">{formatearFecha(archivo.date_added)}</span>
-        </li>
-      ))}
+      {data.map((archivo) => {
+        // Sin `url` no hay nada que descargar: el nombre queda como texto y no como un enlace roto.
+        const enlace = enlaceDeDescarga(archivo)
+        const rotulado = archivo.subject !== null && archivo.subject !== ''
+
+        return (
+          <li
+            key={archivo.id}
+            className="rounded-chico border-linea flex flex-wrap items-baseline gap-x-3 gap-y-1 border p-3"
+          >
+            {enlace === ''
+              ? <span className="text-texto text-sm font-medium">{archivo.file_name}</span>
+              : (
+                <a
+                  href={enlace}
+                  className="text-texto hover:text-acento text-sm font-medium underline-offset-4 hover:underline"
+                >
+                  {archivo.file_name}
+                </a>
+                )}
+            {rotulado && <span className="text-texto-tenue text-sm">{archivo.subject}</span>}
+            <span className="text-texto-tenue ml-auto text-xs">{formatearFecha(archivo.date_added)}</span>
+          </li>
+        )
+      })}
     </ul>
   )
 }

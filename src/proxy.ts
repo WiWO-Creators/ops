@@ -63,8 +63,9 @@ export async function proxy (peticion: NextRequest): Promise<NextResponse> {
  *
  * Fuera quedan `/` y `/colab` (las dos pantallas de acceso, que existen justo para quien no tiene
  * sesion), `/sala/<token>` (la pantalla colgada en la puerta de una sala de reunion: una tablet en
- * la pared no se loguea, y la autoriza el token de la sala, no una cookie), `/api/sesion` (que la
- * crea),
+ * la pared no se loguea, y la autoriza el token de la sala, no una cookie), `/clave/<token>` (donde
+ * el contacto fija su clave con el enlace de un solo uso que le dio el equipo: si tuviera sesion no
+ * necesitaria el enlace), `/api/sesion` (que la crea),
  * `/api/bff` (que resuelve su propio refresco y debe responder 401 en JSON, no redirigir), el taller
  * y los estaticos.
  *
@@ -78,5 +79,5 @@ export async function proxy (peticion: NextRequest): Promise<NextResponse> {
  * ancla, para que una futura `/colaboradores` no nazca destapada.
  */
 export const config = {
-  matcher: ['/((?!colab$|sala/|api|taller|_next|.*\\.[a-z0-9]+$).+)']
+  matcher: ['/((?!colab$|sala/|clave/|api|taller|_next|.*\\.[a-z0-9]+$).+)']
 }

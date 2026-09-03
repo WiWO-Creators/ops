@@ -147,6 +147,11 @@ export interface MiembroEquipo {
   active: boolean
   /** Cuentas que existen pero no son personal operativo: no van en los selectores de asignacion. */
   is_not_staff: boolean
+  /** Organizacion propia del staff (`modules/wiwo_core/cargos_areas.php`), separada de `role_id`. */
+  cargo_id: number | null
+  area_id: number | null
+  /** Cargo "Director": gate de la seccion "Mi Área". No se deduce comparando por nombre. */
+  is_director: boolean
   phonenumber: string | null
   /** Tarifa por hora. Se usa para valorizar el tiempo registrado. */
   hourly_rate: number
@@ -191,6 +196,8 @@ export interface TiempoDePersona {
  */
 export interface FichaPersona extends MiembroEquipo {
   role: Referencia | null
+  cargo: Referencia | null
+  area: Referencia | null
   departments: Referencia[]
   permissions: Record<string, string[]>
   tiempo: TiempoDePersona
@@ -214,6 +221,19 @@ export interface Lookups {
   tags: Referencia[]
   roles: Referencia[]
   departments: Referencia[]
+  /** Cargos del staff (`modules/wiwo_core/cargos_areas.php`). "Director" es uno de ellos. */
+  cargos: Referencia[]
+  areas: Referencia[]
+}
+
+/**
+ * Respuesta de `GET /me/mi-area`: el área propia de un Director y quién la integra.
+ *
+ * `area: null` es "sin área asignada": la pantalla se pinta vacía, no es un error.
+ */
+export interface MiArea {
+  area: Referencia | null
+  area_staff: MiembroEquipo[]
 }
 
 /**

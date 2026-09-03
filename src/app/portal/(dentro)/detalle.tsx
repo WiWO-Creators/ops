@@ -3,6 +3,7 @@ import { Insignia } from '@/componentes/presentadores/Insignia'
 import { ErrorApi } from '@/datos/errores'
 import { pedirPortal } from '@/datos/servidor'
 import type { Sobre } from '@/datos/tipos'
+import type { ArchivoPortal } from '@/datos/portal'
 import { listaDe } from '@/datos/catalogos'
 import { cargarLookupsDelPortal } from '@/datos/lookups'
 import Link from 'next/link'
@@ -80,6 +81,19 @@ export async function EstadoDelPortal ({ catalogo, valor }: { catalogo: string, 
   if (opcion === undefined) return null
 
   return <Insignia color={opcion.color ?? undefined}>{opcion.name}</Insignia>
+}
+
+/**
+ * A donde apunta la descarga de un archivo del portal.
+ *
+ * La API devuelve rutas propias (`/api/v1/files/...`) para lo que vive en el servidor y URLs enteras
+ * para los adjuntos externos. Las primeras pasan por el BFF, que es el unico que tiene el token; las
+ * segundas van tal cual, porque no hay nada nuestro que autorizar.
+ */
+export function enlaceDeDescarga (archivo: ArchivoPortal): string {
+  const url = archivo.url ?? ''
+
+  return url.startsWith('/api/v1/') ? `/api/bff${url.slice('/api/v1'.length)}` : url
 }
 
 /** Lista de datos en dos columnas, con los vacios omitidos. */

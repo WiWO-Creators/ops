@@ -3,7 +3,7 @@
 import { useMemo } from 'react'
 import { TablaRecurso } from '@/componentes/datos/TablaRecurso'
 import { PORTAL_TAREAS } from '@/definiciones/portal-proyectos'
-import type { ResultadoLista } from '@/definiciones/tipos'
+import type { OpcionFiltro, ResultadoLista } from '@/definiciones/tipos'
 import type { TareaPortal } from '@/datos/portal'
 
 /**
@@ -15,15 +15,24 @@ import type { TareaPortal } from '@/datos/portal'
  */
 export function TablaDeTareas ({
   proyectoId,
-  inicial
+  inicial,
+  opcionesDeFiltro
 }: {
   proyectoId: number
   inicial: ResultadoLista<TareaPortal>
+  opcionesDeFiltro?: Record<string, OpcionFiltro[]>
 }) {
   const definicion = useMemo(
     () => ({ ...PORTAL_TAREAS, ruta: `portal/projects/${proyectoId}/tasks` }),
     [proyectoId]
   )
 
-  return <TablaRecurso definicion={definicion} inicial={inicial} claveFila={(t) => t.id} />
+  return (
+    <TablaRecurso
+      definicion={definicion}
+      inicial={inicial}
+      claveFila={(t) => t.id}
+      opcionesDeFiltro={opcionesDeFiltro}
+    />
+  )
 }

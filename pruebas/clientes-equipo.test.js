@@ -23,6 +23,8 @@ import { camposDePersona } from '../src/componentes/equipo/campos.ts'
 const PAISES = [{ valor: '45', etiqueta: 'Chile' }, { valor: '1', etiqueta: 'Argentina' }]
 const MONEDAS = [{ valor: '1', etiqueta: 'CLP' }]
 const ROLES = [{ valor: '2', etiqueta: 'Consultor/Director' }]
+const CARGOS = [{ valor: '1', etiqueta: 'Director' }, { valor: '2', etiqueta: 'Staff' }]
+const AREAS = [{ valor: '1', etiqueta: 'Operaciones' }]
 
 const CLIENTE = {
   id: 7,
@@ -72,7 +74,7 @@ test('un id de seleccion viaja como numero y no como cadena', () => {
 })
 
 test('en una edicion, la contraseña en blanco no viaja', () => {
-  const campos = camposDePersona(ROLES, false)
+  const campos = camposDePersona(ROLES, CARGOS, AREAS, false)
   const valores = valoresIniciales(campos, { firstname: 'Ana', lastname: 'Soto', email: 'ana@wiwo.me' })
   const cuerpo = cuerpoDelFormulario(campos, valores)
 
@@ -81,7 +83,7 @@ test('en una edicion, la contraseña en blanco no viaja', () => {
 })
 
 test('en un alta, la contraseña es un campo obligatorio y si viaja', () => {
-  const campos = camposDePersona(ROLES, true)
+  const campos = camposDePersona(ROLES, CARGOS, AREAS, true)
   const clave = campos.find((campo) => campo.clave === 'password')
 
   assert.equal(clave.requerido, true)
@@ -105,7 +107,7 @@ test('los campos del cliente no prometen nada que la API no escriba', () => {
 })
 
 test('los campos de una persona no incluyen la condicion de administrador', () => {
-  const claves = camposDePersona(ROLES, true).map((campo) => campo.clave)
+  const claves = camposDePersona(ROLES, CARGOS, AREAS, true).map((campo) => campo.clave)
 
   // La API la rechaza salvo que quien escribe ya sea admin: ofrecerla en el formulario a cualquiera
   // con `staff.create` seria ofrecer un 422.
