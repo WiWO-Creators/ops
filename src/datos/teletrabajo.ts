@@ -1,6 +1,7 @@
 import 'server-only'
 
 import { AccessToken } from 'livekit-server-sdk'
+import { esNombreDeSalaValido } from '@/dominio/teletrabajo'
 
 /**
  * Firma de tokens de entrada a LiveKit.
@@ -34,17 +35,27 @@ export interface EntradaALaSala {
  * se emite la credencial. Llamarla sin haber comprobado el permiso es exactamente el error que
  * `dominio/teletrabajo.ts` existe para evitar.
  *
- * @param sala      Nombre de la sala en LiveKit, ya validado.
+ * Lo que si comprueba es la forma del nombre, y no por desconfiar de quien llama hoy: el nombre
+ * entra literal en un JWT firmado, que es la unica autoridad que LiveKit reconoce. Que hoy llegue
+ * validado es un contrato en un comentario, y un comentario no detiene al segundo llamador que
+ * alguien agregue el año que viene.
+ *
+ * @param sala      Nombre de la sala en LiveKit.
  * @param identidad Identidad unica de esta conexion (ver `identidadDe`).
  * @param nombre    Nombre para mostrar sobre el video.
  * @returns El token firmado y la URL del servidor.
- * @throws {Error} Si falta alguna de las tres variables de entorno de LiveKit.
+ * @throws {Error} Si el nombre de sala no es valido, o si falta alguna de las tres variables de
+ *                 entorno de LiveKit.
  */
 export async function firmarEntrada (
   sala: string,
   identidad: string,
   nombre: string
 ): Promise<EntradaALaSala> {
+  if (!esNombreDeSalaValido(sala)) {
+    throw new Error(`Nombre de sala invalido: "${sala}"`)
+  }
+
   const clave = process.env.LIVEKIT_API_KEY
   const secreto = process.env.LIVEKIT_API_SECRET
   const url = process.env.LIVEKIT_URL
