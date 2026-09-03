@@ -49,3 +49,27 @@ export async function escribirEnBff<T> (
     return { ok: true, datos: undefined as T }
   }
 }
+
+/** Sube una imagen al BFF sin fijar el `content-type`: el navegador agrega el boundary multipart. */
+export async function subirImagenEnBff<T> (ruta: string, imagen: File): Promise<Resultado<T>> {
+  const cuerpo = new FormData()
+  cuerpo.append('image', imagen)
+
+  let respuesta: Response
+
+  try {
+    respuesta = await fetch(`/api/bff/${ruta}`, { method: 'POST', body: cuerpo })
+  } catch {
+    return { ok: false, mensaje: 'No se pudo contactar al servidor. Revisá tu conexión.' }
+  }
+
+  if (!respuesta.ok) return { ok: false, mensaje: await mensajeDeRespuesta(respuesta) }
+
+  try {
+    const sobre = await respuesta.json() as { data: T }
+
+    return { ok: true, datos: sobre.data }
+  } catch {
+    return { ok: true, datos: undefined as T }
+  }
+}

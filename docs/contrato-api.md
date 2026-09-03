@@ -359,7 +359,7 @@ La clave primaria en la base es `userid`; la API la expone como **`id`**.
 ```json
 { "id": 42, "company": "…", "vat": "…", "phonenumber": "…",
   "city": "…", "state": "…", "zip": "…", "address": "…", "country_id": 11,
-  "website": "…", "active": true, "default_currency": 1, "default_language": "spanish",
+  "website": "…", "image_url": "https://…/uploads/client_images/42/logo.png", "active": true, "default_currency": 1, "default_language": "spanish",
   "datecreated": "2025-04-02T00:00:00Z", "lead_id": null,
   "billing": { "street": "…", "city": "…", "state": "…", "zip": "…", "country_id": 11 },
   "shipping": { "…": "…" },
@@ -379,6 +379,10 @@ anidadas `billing` y `shipping` (`street`, `city`, `state`, `zip`, `country_id`)
 `PATCH` algo que después no se puede releer deja a la interfaz sin forma de mostrar lo que guardó.
 El alta **no crea ningún contacto**; para eso está `POST /clients/{id}/contacts`.
 
+`POST /clients/{id}/image` recibe `multipart/form-data` con un único campo `image` (JPG, PNG o WebP,
+máximo 5 MB); `DELETE /clients/{id}/image` lo quita. Ambos requieren `customers.edit` y devuelven el
+cliente actualizado.
+
 **Eliminar son dos llamadas**, igual que en `staff`. `DELETE /clients/{id}` da de baja.
 `DELETE /clients/{id}?purgar=1` borra de verdad, sólo sobre un cliente ya dado de baja, y arrastra
 sus contactos, tickets, notas, suscripciones, contratos, propuestas, gastos, campos personalizados,
@@ -391,8 +395,8 @@ crédito, Perfex se niega y la API responde `409`.
 `GET /projects/{id}/milestones` · `GET /projects/{id}/members` · `GET /projects/{id}/files`
 
 ```json
-{ "id": 8, "name": "…", "description": "…",
-  "status": 2, "client": { "id": 42, "company": "…" },
+{ "id": 8, "name": "…", "image_url": null, "description": "…",
+  "status": 2, "client": { "id": 42, "company": "…", "image_url": "https://…/logo.png" },
   "billing_type": 1, "start_date": "2026-01-15", "deadline": "2026-06-30",
   "date_finished": null, "progress": 45, "progress_from_tasks": true,
   "project_cost": 12000.00, "project_rate_per_hour": null, "estimated_hours": 320.00,
@@ -413,6 +417,10 @@ cálculo; servir la columna tal cual sería mentir.
 Filtros: `status`, `clientid`, `member` (staff id), `date_from`/`date_to` sobre `start_date`, `q`.
 Orden: `name`, `start_date`, `deadline`, `progress`.
 Include: `custom_fields`, `members`.
+
+`POST /projects/{id}/image` y `DELETE /projects/{id}/image` tienen el mismo contrato de imagen y
+requieren `projects.edit`. Un `image_url: null` significa que el panel usa el logo del cliente; ese
+archivo no se copia al proyecto.
 
 ### `tasks` → **Procesos** en la interfaz
 
@@ -1998,8 +2006,8 @@ Rama `feat/api-subida-adjuntos`. Item `t1-adjuntos`.
 Cierra la mitad que faltaba: la **lectura** (`GET /tasks/{id}/files`, `GET /projects/{id}/files`) y la
 **descarga** (`GET /files/{tipo}/{id}/download`) ya existían y no se tocaron.
 
-Es el **único endpoint de la API que escribe en disco** y el único que recibe
-`multipart/form-data`; todo el resto sigue siendo JSON.
+Junto con las imágenes de clientes y Espacios, es una de las pocas rutas que escribe en disco y
+recibe `multipart/form-data`; todo el resto sigue siendo JSON.
 
 ---
 

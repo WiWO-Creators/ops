@@ -69,9 +69,11 @@ export interface Proceso {
 export interface Espacio {
   id: number
   name: string
+  /** Imagen propia del proyecto; si es `null`, la interfaz usa el logo del cliente. */
+  image_url: string | null
   description: string | null
   status: number
-  client: { id: number, company: string } | null
+  client: { id: number, company: string, image_url: string | null } | null
   billing_type: number
   start_date: string | null
   deadline: string | null
@@ -95,6 +97,7 @@ export interface Cliente {
   id: number
   /** Ya viene con respaldo aplicado: contacto primario, o "Cliente #N". Nunca vacio. */
   company: string
+  image_url: string | null
   vat: string | null
   phonenumber: string | null
   city: string | null

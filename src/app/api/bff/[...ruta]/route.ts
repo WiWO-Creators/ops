@@ -120,11 +120,15 @@ async function reenviar (peticion: NextRequest, ctx: RouteContext<'/api/bff/[...
   })
 }
 
-/** Lee el cuerpo JSON de los metodos que lo llevan. Un cuerpo ausente o ilegible es `undefined`. */
+/** Lee JSON o multipart de los metodos que llevan cuerpo. Un cuerpo ausente o ilegible es `undefined`. */
 async function leerCuerpo (peticion: NextRequest): Promise<unknown> {
   if (!METODOS_CON_CUERPO.has(peticion.method)) return undefined
 
   try {
+    if (peticion.headers.get('content-type')?.startsWith('multipart/form-data')) {
+      return await peticion.formData()
+    }
+
     const texto = await peticion.text()
 
     return texto === '' ? undefined : JSON.parse(texto) as unknown

@@ -23,6 +23,7 @@ export interface OpcionesLlamada {
  */
 export async function llamarApi (ruta: string, opciones: OpcionesLlamada = {}): Promise<Response> {
   const { metodo = 'GET', cuerpo, token, cabeceras = {}, senal } = opciones
+  const esFormulario = typeof FormData !== 'undefined' && cuerpo instanceof FormData
 
   const enviar: Record<string, string> = { accept: 'application/json', ...cabeceras }
 
@@ -30,14 +31,16 @@ export async function llamarApi (ruta: string, opciones: OpcionesLlamada = {}): 
     enviar[cabeceraToken()] = cabeceraToken() === 'authorization' ? `Bearer ${token}` : token
   }
 
-  if (cuerpo !== undefined) {
+  if (cuerpo !== undefined && !esFormulario) {
     enviar['content-type'] = 'application/json'
   }
 
   return await fetch(`${baseApi()}${ruta}`, {
     method: metodo,
     headers: enviar,
-    body: cuerpo === undefined ? undefined : JSON.stringify(cuerpo),
+    // `fetch` completa el boundary de un FormData. Forzar `content-type` lo perdería y PHP no
+    // poblaría `$_FILES`.
+    body: cuerpo === undefined ? undefined : esFormulario ? cuerpo : JSON.stringify(cuerpo),
     // Datos siempre frescos: el cache lo decide cada pantalla, no el transporte.
     cache: 'no-store',
     signal: senal

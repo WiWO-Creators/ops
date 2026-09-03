@@ -2,6 +2,7 @@ import Link from 'next/link'
 import type { ReactNode } from 'react'
 import { Etiquetas } from '@/componentes/presentadores/Etiqueta'
 import { Fecha } from '@/componentes/presentadores/Fecha'
+import { ImagenEntidad } from '@/componentes/presentadores/ImagenEntidad'
 import { Insignia } from '@/componentes/presentadores/Insignia'
 import type { Cliente } from '@/datos/recursos'
 import { cn } from '@/lib/clases'
@@ -41,7 +42,8 @@ export function TarjetaCliente ({ cliente, className }: { cliente: Cliente, clas
       )}
     >
       <header className="flex items-start justify-between gap-2">
-        <div className="flex min-w-0 flex-col gap-0.5">
+        <ImagenEntidad nombre={cliente.company} imagenPropia={cliente.image_url} />
+        <div className="flex min-w-0 flex-1 flex-col gap-0.5">
           <h3 className="truncate text-base leading-tight font-semibold">
             <Link href={`/clientes/${cliente.id}`} className="hover:text-acento">
               {cliente.company}
