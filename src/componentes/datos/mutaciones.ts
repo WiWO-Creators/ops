@@ -50,10 +50,14 @@ export async function escribirEnBff<T> (
   }
 }
 
-/** Sube una imagen al BFF sin fijar el `content-type`: el navegador agrega el boundary multipart. */
-export async function subirImagenEnBff<T> (ruta: string, imagen: File): Promise<Resultado<T>> {
+/**
+ * Sube un archivo al BFF sin fijar el `content-type`: el navegador agrega el boundary multipart.
+ *
+ * @param campo Nombre del campo multipart que espera el endpoint (`image`, `file`, etc).
+ */
+export async function subirArchivoEnBff<T> (ruta: string, archivo: File, campo: string): Promise<Resultado<T>> {
   const cuerpo = new FormData()
-  cuerpo.append('image', imagen)
+  cuerpo.append(campo, archivo)
 
   let respuesta: Response
 

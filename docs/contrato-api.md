@@ -651,8 +651,39 @@ adivinar el id.
 mayúsculas). `422 validation_failed` si no son exactamente 3 letras, `409 conflict` si otro Cliente ya
 lo usa. La patente de un Espacio no se edita por API: la asigna sola el panel al crearlo.
 
-**No hay `POST` de subida a Drive.** El árbol es de sólo lectura por ahora; subir un archivo a una de
-estas carpetas se sigue haciendo a mano desde Drive.
+**Subida, borrado y permisos manuales, coordinados pero todavía no construidos.** El frontend (rama
+`feat/drive-carpetas-ui`) ya está armado contra este contrato; falta el lado del backend.
+
+```json
+// POST /drive/{folder_id}/files — multipart, campo `file` — 201
+{ "data": { "id": 12, "drive_file_id": "1Xy...", "name": "propuesta.pdf", "is_folder": false,
+  "web_view_link": "https://drive.google.com/...", "mime_type": "application/pdf",
+  "size_bytes": 184320, "uploaded_by": { "id": 12, "name": "Ana Pérez" },
+  "dateadded": "2026-09-03T20:00:00Z" } }
+```
+
+`422 validation_failed` si la extensión no está permitida o supera 25MB, `403 forbidden` si quien sube
+es revisor de la tarea (solo puede ver, no subir), `404 not_found` si la carpeta no existe o no es
+visible.
+
+`GET /drive/{folder_id}` suma en cada nodo que no es carpeta `uploaded_by` (`{ id, name } | null`),
+`size_bytes` y `mime_type` (`null` si el archivo está en Drive pero no se subió por acá).
+
+`DELETE /drive/{folder_id}/files/{file_id}` → `204`. Mismos `403`/`404` que la subida, mismo chequeo:
+un revisor tampoco puede borrar.
+
+**Permisos manuales, solo en carpetas de Tarea (Proceso).** Cliente y Espacio no los soportan.
+
+```json
+// GET /drive/{folder_id}/permissions — 200
+{ "data": [ { "staff_id": 12, "name": "Ana Pérez", "email": "ana@wiwo.me", "role": "writer" } ] }
+```
+
+`404` si la carpeta no es de una Tarea. `POST /drive/{folder_id}/permissions` con
+`{ "staff_id": number, "role": "writer" | "commenter" }` → `201` con `{ data: { staff_id, role } }`, es
+upsert (cambia el rol si ya lo tenía); `422` si el rol es inválido o el `staff_id` no existe.
+`DELETE /drive/{folder_id}/permissions/{staff_id}` → `204`. `writer` es editor (como un Encargado),
+`commenter` es comentador (como un Revisor).
 
 ## Recursos de ventas, comercial y soporte
 

@@ -262,12 +262,49 @@ export interface NodoDrive {
   name: string
   is_folder: boolean
   web_view_link: string
+  /**
+   * Solo en archivos. `null`/ausente si el archivo esta en Drive pero no se subio por acá (o si el
+   * nodo es una carpeta, que nunca los trae).
+   */
+  uploaded_by?: { id: number, name: string } | null
+  size_bytes?: number | null
+  mime_type?: string | null
 }
 
 /** Una carpeta del arbol de Drive, con el primer nivel de hijos ya resuelto. */
 export interface CarpetaDrive {
   id: string
   children: NodoDrive[]
+}
+
+/**
+ * Respuesta de `POST /drive/{folder_id}/files`: el archivo recien subido.
+ *
+ * `id` es el id propio de la fila (numerico), distinto de `drive_file_id` (el id de Google). El resto
+ * del árbol identifica sus nodos por `NodoDrive.id`, que en los archivos ya subidos por acá coincide
+ * con este `id` propio convertido a texto — ver `nodoDeSubida` en `ArbolDrive.tsx`.
+ */
+export interface ArchivoDriveSubido {
+  id: number
+  drive_file_id: string
+  name: string
+  is_folder: boolean
+  web_view_link: string
+  mime_type: string | null
+  size_bytes: number | null
+  uploaded_by: { id: number, name: string }
+  dateadded: string
+}
+
+/** Rol de un permiso manual sobre una carpeta de Drive: editor o comentador, igual que Encargado/Revisor. */
+export type RolPermisoDrive = 'writer' | 'commenter'
+
+/** Fila de `GET /drive/{folder_id}/permissions`. Solo existe en carpetas de Tarea (Proceso). */
+export interface PermisoDrive {
+  staff_id: number
+  name: string
+  email: string
+  role: RolPermisoDrive
 }
 
 /** Respuesta de `GET|PATCH /clients/{id}/drive`. `folder: null` es un Cliente sin backfill, no un error. */

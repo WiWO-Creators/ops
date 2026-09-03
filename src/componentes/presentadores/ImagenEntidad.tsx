@@ -2,7 +2,7 @@
 
 import { useRef, useState, type ChangeEvent } from 'react'
 import { useRouter } from 'next/navigation'
-import { escribirEnBff, subirImagenEnBff } from '@/componentes/datos/mutaciones'
+import { escribirEnBff, subirArchivoEnBff } from '@/componentes/datos/mutaciones'
 import { Boton } from '@/componentes/formularios/Boton'
 import { cn } from '@/lib/clases'
 import { coloresAvatar, iniciales } from '@/lib/personas'
@@ -61,7 +61,7 @@ export function ImagenEntidad ({
 
     setCargando(true)
     setError(null)
-    const resultado = await subirImagenEnBff<unknown>(`${ruta}/image`, archivo)
+    const resultado = await subirArchivoEnBff<unknown>(`${ruta}/image`, archivo, 'image')
     setCargando(false)
 
     if (!resultado.ok) {
