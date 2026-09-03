@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { resolverInsignia } from '@/componentes/datos/tabla'
 import { Etiquetas } from '@/componentes/presentadores/Etiqueta'
 import { Fecha } from '@/componentes/presentadores/Fecha'
+import { ImagenEntidad } from '@/componentes/presentadores/ImagenEntidad'
 import { Insignia } from '@/componentes/presentadores/Insignia'
 import type { OpcionFiltro } from '@/definiciones/tipos'
 import type { Espacio } from '@/datos/recursos'
@@ -42,7 +43,12 @@ export function TarjetaProyecto ({ espacio, estados, className }: PropsTarjetaPr
       )}
     >
       <header className="flex items-start justify-between gap-2">
-        <div className="flex min-w-0 flex-col gap-0.5">
+        <ImagenEntidad
+          nombre={espacio.name}
+          imagenPropia={espacio.image_url}
+          imagenEfectiva={espacio.image_url ?? espacio.client?.image_url}
+        />
+        <div className="flex min-w-0 flex-1 flex-col gap-0.5">
           <h3 className="truncate text-base leading-tight font-semibold">
             <Link href={`/espacios/${espacio.id}`} className="hover:text-acento">
               {espacio.name}

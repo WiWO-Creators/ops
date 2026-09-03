@@ -4,6 +4,7 @@ import { useState, type ReactElement } from 'react'
 import { useRouter } from 'next/navigation'
 import { BajaYBorrado } from '@/componentes/datos/BajaYBorrado'
 import { Boton } from '@/componentes/formularios/Boton'
+import { ImagenEntidad } from '@/componentes/presentadores/ImagenEntidad'
 import { FormularioRecurso } from '@/componentes/proyecto/FormularioRecurso'
 import type { OpcionCampo } from '@/componentes/proyecto/formulario'
 import type { Cliente } from '@/datos/recursos'
@@ -44,6 +45,13 @@ export function AccionesCliente ({
 
   return (
     <div className="flex flex-wrap items-center gap-2">
+      <ImagenEntidad
+        nombre={cliente.company}
+        imagenPropia={cliente.image_url}
+        ruta={`clients/${cliente.id}`}
+        puedeEditar={puedeEditar}
+      />
+
       {puedeEditar && (
         <Boton variante="secundario" tamano="chico" onClick={() => { setEditando(true) }}>Editar</Boton>
       )}

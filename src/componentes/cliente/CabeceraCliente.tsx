@@ -1,7 +1,7 @@
 import Link from 'next/link'
-import { Avatar } from '@/componentes/presentadores/Avatar'
 import { Etiquetas } from '@/componentes/presentadores/Etiqueta'
 import { Fecha } from '@/componentes/presentadores/Fecha'
+import { ImagenEntidad } from '@/componentes/presentadores/ImagenEntidad'
 import { Insignia } from '@/componentes/presentadores/Insignia'
 import { GLOSARIO } from '@/dominio/glosario'
 import type { Cliente } from '@/datos/recursos'
@@ -30,7 +30,7 @@ export function CabeceraCliente ({ cliente }: { cliente: Cliente }) {
       </Link>
 
       <div className="flex flex-wrap items-start gap-3">
-        <Avatar nombre={cliente.company} tamano="grande" />
+        <ImagenEntidad nombre={cliente.company} imagenPropia={cliente.image_url} tamano="grande" />
 
         <div className="flex min-w-0 flex-col gap-2">
           <div className="flex flex-wrap items-center gap-2">

@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { Etiquetas } from '@/componentes/presentadores/Etiqueta'
 import { Fecha } from '@/componentes/presentadores/Fecha'
 import { GrupoAvatares } from '@/componentes/presentadores/Avatar'
+import { ImagenEntidad } from '@/componentes/presentadores/ImagenEntidad'
 import { Insignia } from '@/componentes/presentadores/Insignia'
 import { cn } from '@/lib/clases'
 import { GLOSARIO } from '@/dominio/glosario'
@@ -76,9 +77,19 @@ export function CabeceraProyecto ({
       </Link>
 
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="flex min-w-0 flex-col gap-1">
+        <div className="flex min-w-0 items-center gap-3">
+          <ImagenEntidad
+            nombre={proyecto.name}
+            imagenPropia={proyecto.image_url}
+            imagenEfectiva={proyecto.image_url ?? proyecto.client?.image_url}
+            ruta={`projects/${proyecto.id}`}
+            puedeEditar={capacidadesProyecto.includes('edit')}
+            tamano="grande"
+          />
+          <div className="flex min-w-0 flex-col gap-1">
           <h1 className="text-texto text-titulo font-semibold">{proyecto.name}</h1>
           <p className="text-texto-tenue text-sm">{proyecto.client?.company ?? 'Sin cliente'}</p>
+          </div>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
