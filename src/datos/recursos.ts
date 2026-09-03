@@ -256,6 +256,32 @@ export interface ArchivoProyecto {
   thumbnail_url: string | null
 }
 
+/** Un nodo del arbol de carpetas de Drive: una carpeta o un archivo. */
+export interface NodoDrive {
+  id: string
+  name: string
+  is_folder: boolean
+  web_view_link: string
+}
+
+/** Una carpeta del arbol de Drive, con el primer nivel de hijos ya resuelto. */
+export interface CarpetaDrive {
+  id: string
+  children: NodoDrive[]
+}
+
+/** Respuesta de `GET|PATCH /clients/{id}/drive`. `folder: null` es un Cliente sin backfill, no un error. */
+export interface DriveCliente {
+  letras: string | null
+  folder: CarpetaDrive | null
+}
+
+/** Respuesta de `GET /projects/{id}/drive`. `folder: null` es un Espacio sin backfill, no un error. */
+export interface DriveEspacio {
+  patente: string | null
+  folder: CarpetaDrive | null
+}
+
 /**
  * Marcaje de tiempo sobre un proceso. `taskstimer` en Perfex.
  *
