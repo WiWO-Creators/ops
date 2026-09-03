@@ -2,6 +2,7 @@
 
 import { useMemo, type ReactElement } from 'react'
 import { PanelRecurso } from './PanelRecurso'
+import { ArbolDrive } from '@/componentes/archivos/ArbolDrive'
 import { ARCHIVOS } from '@/definiciones/archivos'
 import type { ArchivoProyecto } from '@/datos/recursos'
 
@@ -28,7 +29,12 @@ export function PanelArchivos ({ proyectoId }: { proyectoId: number }): ReactEle
     [proyectoId]
   )
 
-  return <PanelRecurso definicion={definicion} claveFila={(a) => a.id} />
+  return (
+    <div className="flex flex-col gap-6">
+      <ArbolDrive raiz="projects" id={proyectoId} />
+      <PanelRecurso definicion={definicion} claveFila={(a) => a.id} />
+    </div>
+  )
 }
 
 /** Origen del archivo: enlace externo cuando lo hay, o la leyenda de interno. */

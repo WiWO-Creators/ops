@@ -607,6 +607,84 @@ con `download` como último segmento, y el token sale de `Authorization` o de `X
 (`Nucleo/Peticion.php`), nunca de la query string. Mientras no exista, los binarios se piden desde el
 BFF, que sí puede poner la cabecera.
 
+### `drive` — árbol de carpetas en el Drive compartido
+
+`GET /clients/{id}/drive` · `GET /projects/{id}/drive` · `GET /drive/{folder_id}` ·
+`PATCH /clients/{id}/drive`
+
+Jerarquía Cliente → Espacio (Proyecto de Perfex) → Proceso, con una carpeta real en un Drive
+compartido de Google por cada uno. Las crea sola `wiwo_core` (módulo del panel, no la API) al dar de
+alta cada entidad — este recurso sólo **lee** lo que ya existe; no crea carpetas ni backfillea las
+anteriores a esta función.
+
+```json
+// GET /clients/{id}/drive
+{ "data": {
+  "letras": "ACM",
+  "folder": {
+    "id": "1AbCdEfGhIjKlMnOpQrStUvWxYz",
+    "children": [
+      { "id": "1XyZ...", "name": "ACM-001 - Sitio nuevo", "is_folder": true,
+        "web_view_link": "https://drive.google.com/drive/folders/1XyZ..." }
+    ]
+  }
+} }
+```
+
+```json
+// GET /projects/{id}/drive
+{ "data": { "patente": "ACM-001", "folder": { "id": "1XyZ...", "children": [] } } }
+```
+
+**`folder: null`** es un Cliente o Espacio anterior a esta función, sin carpeta todavía — un vacío
+normal, no un error. **`letras: null`** en un Cliente sin ningún Espacio creado nunca: el código de 3
+letras se genera recién con el primer Espacio, aunque la carpeta del Cliente se cree antes, al darlo
+de alta.
+
+`GET /drive/{folder_id}` baja un nivel (`{ "data": { "children": [...] } }`), mismo shape que
+`folder`. El id no es adivinable (string largo de Google) y sólo llega al frontend después de pedir
+la raíz de un Cliente o Espacio ya visible — pero igual se resuelve de qué Cliente/Espacio/Proceso es
+hija la carpeta pedida y se le aplica la misma visibilidad que a la raíz, no sólo la dificultad de
+adivinar el id.
+
+**`PATCH /clients/{id}/drive`** con `{ "letras": "ACM" }` cambia el código de 3 letras (se normaliza a
+mayúsculas). `422 validation_failed` si no son exactamente 3 letras, `409 conflict` si otro Cliente ya
+lo usa. La patente de un Espacio no se edita por API: la asigna sola el panel al crearlo.
+
+**Subida, borrado y permisos manuales, coordinados pero todavía no construidos.** El frontend (rama
+`feat/drive-carpetas-ui`) ya está armado contra este contrato; falta el lado del backend.
+
+```json
+// POST /drive/{folder_id}/files — multipart, campo `file` — 201
+{ "data": { "id": 12, "drive_file_id": "1Xy...", "name": "propuesta.pdf", "is_folder": false,
+  "web_view_link": "https://drive.google.com/...", "mime_type": "application/pdf",
+  "size_bytes": 184320, "uploaded_by": { "id": 12, "name": "Ana Pérez" },
+  "dateadded": "2026-09-03T20:00:00Z" } }
+```
+
+`422 validation_failed` si la extensión no está permitida o supera 25MB, `403 forbidden` si quien sube
+es revisor de la tarea (solo puede ver, no subir), `404 not_found` si la carpeta no existe o no es
+visible.
+
+`GET /drive/{folder_id}` suma en cada nodo que no es carpeta `uploaded_by` (`{ id, name } | null`),
+`size_bytes` y `mime_type` (`null` si el archivo está en Drive pero no se subió por acá).
+
+`DELETE /drive/{folder_id}/files/{file_id}` → `204`. Mismos `403`/`404` que la subida, mismo chequeo:
+un revisor tampoco puede borrar.
+
+**Permisos manuales, solo en carpetas de Tarea (Proceso).** Cliente y Espacio no los soportan.
+
+```json
+// GET /drive/{folder_id}/permissions — 200
+{ "data": [ { "staff_id": 12, "name": "Ana Pérez", "email": "ana@wiwo.me", "role": "writer" } ] }
+```
+
+`404` si la carpeta no es de una Tarea. `POST /drive/{folder_id}/permissions` con
+`{ "staff_id": number, "role": "writer" | "commenter" }` → `201` con `{ data: { staff_id, role } }`, es
+upsert (cambia el rol si ya lo tenía); `422` si el rol es inválido o el `staff_id` no existe.
+`DELETE /drive/{folder_id}/permissions/{staff_id}` → `204`. `writer` es editor (como un Encargado),
+`commenter` es comentador (como un Revisor).
+
 ## Recursos de ventas, comercial y soporte
 
 Los ocho recursos que faltaban: `invoices`, `payments`, `estimates`, `proposals`, `expenses`,
