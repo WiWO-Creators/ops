@@ -122,6 +122,13 @@ export function ImagenEntidad ({
           {imagenPropia !== null && (
             <Boton variante="sutil" tamano="chico" disabled={cargando} onClick={quitarImagen}>Quitar</Boton>
           )}
+          <a
+            href="/plantillas/guia-imagen-entidad.png"
+            download="guia-imagen-wiwo.png"
+            className="text-texto-tenue hover:text-texto text-xs underline underline-offset-2"
+          >
+            Descargar guía
+          </a>
           {error !== null && <span role="alert" className="text-relleno-peligro text-xs">{error}</span>}
         </div>
       )}
