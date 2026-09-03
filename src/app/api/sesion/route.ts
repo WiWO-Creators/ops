@@ -25,6 +25,8 @@ interface CuerpoEntrar {
   code?: unknown
   /** `true` cuando quien entra es un contacto de cliente y no alguien del equipo. */
   portal?: unknown
+  /** El token del enlace de un solo uso. Su presencia elige la rama de canje. */
+  enlace?: unknown
 }
 
 /**
@@ -48,12 +50,15 @@ export async function POST (peticion: NextRequest): Promise<NextResponse> {
   const codigo = typeof cuerpo.code === 'string' ? cuerpo.code.trim() : ''
 
   try {
-    // El portal no tiene segundo factor, asi que su rama se decide antes que el codigo.
-    const respuesta = cuerpo.portal === true
-      ? await entrarAlPortal(cuerpo)
-      : codigo === ''
-        ? await entrarConClave(cuerpo)
-        : await entrarConCodigo(peticion, codigo)
+    // El canje va primero: es la unica rama que no tiene credenciales que mirar. Despues el portal,
+    // que no tiene segundo factor y por eso se decide antes que el codigo.
+    const respuesta = typeof cuerpo.enlace === 'string'
+      ? await canjearEnlace(cuerpo)
+      : cuerpo.portal === true
+        ? await entrarAlPortal(cuerpo)
+        : codigo === ''
+          ? await entrarConClave(cuerpo)
+          : await entrarConCodigo(peticion, codigo)
 
     return respuesta
   } catch (error) {
@@ -90,6 +95,34 @@ export async function DELETE (peticion: NextRequest): Promise<NextResponse> {
   await borrarSesion(sujeto)
 
   return NextResponse.json({ ok: true })
+}
+
+/**
+ * Canjea el enlace de un solo uso: el contacto fija su clave y queda adentro.
+ *
+ * Es el reemplazo de la contraseña dictada por WhatsApp. Va acá y no en una ruta propia del BFF
+ * porque `/auth/*` esta fuera de su lista blanca a proposito: los tokens de la API no pueden pasar
+ * por el proxy generico, y este archivo es el unico del proyecto que los ve.
+ *
+ * La API responde exactamente lo mismo que `/auth/portal/login`, asi que la sesion se guarda igual:
+ * cookie del contacto, no la del equipo.
+ */
+async function canjearEnlace (cuerpo: CuerpoEntrar): Promise<NextResponse> {
+  const enlace = typeof cuerpo.enlace === 'string' ? cuerpo.enlace.trim() : ''
+  const password = typeof cuerpo.password === 'string' ? cuerpo.password : ''
+
+  if (enlace === '' || password === '') {
+    return NextResponse.json({ mensaje: 'Falta el enlace o la contraseña' }, { status: 400 })
+  }
+
+  const { data } = await llamarApiTipado<ParDeTokensConContacto>('/auth/portal/access-link', {
+    metodo: 'POST',
+    cuerpo: { token: enlace, password }
+  })
+
+  await guardarSesion(sesionDesdeTokens(data, data.contact.id, 'contacto'))
+
+  return NextResponse.json({ ok: true, contacto: contactoResumido(data.contact) })
 }
 
 /**
