@@ -42,7 +42,11 @@ const PREFIJOS_PERMITIDOS = [
   'estimates',
   // Descarga de adjuntos. No estaba porque hasta ahora la API no tenia esa ruta y toda `url` que
   // emitia era un 404; con el endpoint de descarga ya existe y el panel puede usarla.
-  'files'
+  'files',
+  // Avisos: campana, preferencias y —solo para quien administra— el interruptor de correo y el
+  // visor de la cola. La API ya filtra `/settings` y `/mail-queue` por admin; el BFF solo decide si
+  // la ruta existe, no quien puede pisarla.
+  'notifications'
 ] as const
 
 /**

@@ -16,6 +16,15 @@ test('deja pasar los recursos del nucleo', () => {
   }
 })
 
+test('notifications pasa para staff: campana, preferencias y el interruptor de correo', () => {
+  // La API ya gatea /settings y /mail-queue por admin; el BFF solo decide si la ruta existe.
+  for (const ruta of [['notifications'], ['notifications', 'settings'], ['notifications', 'mail-queue']]) {
+    assert.equal(rutaPermitida(ruta), true, ruta.join('/'))
+  }
+
+  assert.equal(rutaPermitida(['notifications'], 'contacto'), false)
+})
+
 test('auth NO pasa: los tokens solo los ve /api/sesion', () => {
   assert.equal(rutaPermitida(['auth', 'login']), false)
   assert.equal(rutaPermitida(['auth', 'refresh']), false)
