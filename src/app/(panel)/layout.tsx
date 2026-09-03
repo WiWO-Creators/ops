@@ -83,6 +83,16 @@ function seccionesDe (yo: Yo): Seccion[] {
     secciones.push({ href: '/salas', etiqueta: 'Salas', icono: 'salas' })
   }
 
+  // Teletrabajo no tiene bandera de instalacion ni permiso de Perfex: las salas viven en LiveKit,
+  // que Perfex no conoce. La seccion se muestra a todo el equipo y quien entra a cada sala lo decide
+  // `dominio/teletrabajo.ts`, sala por sala. Condicionarla a `secciones_habilitadas` la esconderia
+  // siempre, porque esa lista la arma el backend y no incluye modulos que no son suyos.
+  secciones.push({
+    href: '/teletrabajo',
+    etiqueta: GLOSARIO.teletrabajo.singular,
+    icono: 'teletrabajo'
+  })
+
   if (yo.permissions.customers.includes('view')) {
     secciones.push({ href: '/clientes', etiqueta: 'Clientes', icono: 'clientes' })
   }
