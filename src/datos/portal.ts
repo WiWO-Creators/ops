@@ -63,7 +63,14 @@ export interface EspacioPortal {
   members?: Array<{ id: number, full_name: string, profile_image_url: string | null }>
 }
 
-/** Claves de pestaña que la API puede devolver en `tabs`. */
+/**
+ * Claves de pestaña que la API puede devolver en `tabs`.
+ *
+ * Es el contrato de la API, no la lista de lo que el portal dibuja: `VisibilidadContacto::PESTANIAS`
+ * sigue emitiendo `contracts`, `proposals`, `estimates` e `invoices`, y el portal las ignora a
+ * proposito porque produccion no usa el modulo de ventas. Se declaran para que el tipo describa lo
+ * que llega y no lo que nos gustaria que llegara.
+ */
 export type PestaniaPortal =
   | 'overview'
   | 'tasks'

@@ -38,11 +38,6 @@ antes de mirar los segmentos, así que no depende de acordarse de no escribir un
 | Verificación | `/portal/verificar` | Para quien no verificó su correo |
 | Inicio | `/portal` | Resumen de proyectos, novedades y accesos |
 | Proyectos | `/portal/proyectos` · `/[id]` | Listado y detalle con pestañas dinámicas |
-| Facturas | `/portal/facturas` · `/[id]` | Con líneas, pagos y saldo |
-| Presupuestos | `/portal/presupuestos` · `/[id]` | Igual que facturas, otro catálogo de estados |
-| Propuestas | `/portal/propuestas` · `/[id]` | Incluye las del prospecto de origen |
-| Contratos | `/portal/contratos` · `/[id]` | Solo los visibles al cliente |
-| Suscripciones | `/portal/suscripciones` | Solo el contacto primario |
 | Soporte | `/portal/soporte` · `/[id]` | Hilo del ticket, sin responder |
 | Archivos | `/portal/archivos` | Los del perfil del cliente |
 | Anuncios | `/portal/anuncios` | Los dirigidos a clientes |
@@ -59,9 +54,9 @@ Todos `GET` bajo `/portal/`, salvo el acceso.
 | `/portal/me` | El contacto, sus permisos y sus secciones habilitadas |
 | `/portal/company` | La empresa; facturación y envío solo si es primario |
 | `/portal/lookups` | Subconjunto de catálogos: sin roles, sin equipo, sin departamentos |
-| `/portal/{invoices,estimates,proposals,contracts,subscriptions,tickets}[/{id}]` | Ventas y soporte |
+| `/portal/tickets[/{id}]` | Soporte |
 | `/portal/projects[/{id}]` | El detalle trae `tabs` con las pestañas habilitadas |
-| `/portal/projects/{id}/{tasks,milestones,files,invoices,estimates,tickets}` | Pestañas |
+| `/portal/projects/{id}/{tasks,milestones,files,tickets,discussions,timesheets,activity,gantt}` | Pestañas |
 | `/portal/{announcements,files,kb}` · `/portal/kb/{slug}` | Contenido |
 | `/api/v1/files/{tipo}/{id}/download` | Descarga; sirve a los dos sujetos |
 
@@ -94,6 +89,8 @@ comparador lo marcaría como divergencia.
 Ninguna escritura: crear o editar tareas, subir archivos, abrir discusiones, comentar, cambiar el
 estado de un ticket, pagar o firmar. Todo eso sigue en el portal de Perfex.
 
-Tampoco están todavía las pestañas de discusiones, actividad, timesheets y gantt de un proyecto: la
-API las habilita en `tabs` pero el frontend las ignora en silencio, porque una pestaña que no lleva
+Tampoco muestra nada del módulo de ventas: facturas, presupuestos, propuestas, contratos y
+suscripciones se sacaron del portal porque producción no los usa, y no vuelven. La API sigue
+mandando esas claves en `secciones_habilitadas` y en el `tabs` de un proyecto —el contrato de
+`VisibilidadContacto` no cambió—, pero el frontend las ignora en silencio: una pestaña que no lleva
 a ningún lado es peor que ninguna.
