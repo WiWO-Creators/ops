@@ -21,6 +21,22 @@ export interface Paginacion {
   per_page: number
   total: number
   total_pages: number
+  /**
+   * Resumen agregado, cuando el recurso lo trae. Hoy solo `GET /notifications/mail-queue`: cuenta la
+   * cola entera (`total`, `pending`, `sending`, `sent`, `failed`), sin los filtros de la vista. Va
+   * DENTRO de `pagination` y no como hermano en `meta` — así responde la API real, aunque el
+   * contrato lo documentó como hermano; se corrigió el documento para que diga lo que se mide.
+   */
+  summary?: ResumenColaCorreo
+}
+
+/** El resumen que viaja en `meta.pagination.summary` de `GET /notifications/mail-queue`. */
+export interface ResumenColaCorreo {
+  total: number
+  pending: number
+  sending: number
+  sent: number
+  failed: number
 }
 
 /** Envelope de error. `details` solo viene en 422. */

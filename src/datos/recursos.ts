@@ -821,3 +821,51 @@ export interface ContactoCompleto {
   permissions: PermisoPortal[]
   email_notifications: AvisosDeContacto
 }
+
+/** Los tres modos del interruptor de correo (`GET|PUT /notifications/settings`). */
+export type ModoCorreo = 'apagado' | 'prueba' | 'real'
+
+/**
+ * El interruptor de efectos externos del correo. Global de la instalación, no por persona.
+ *
+ * `warning` viaja resuelto desde la API y la pantalla lo muestra tal cual: apagar esto no apaga el
+ * correo que manda el cron del panel clásico ni los recordatorios de vencimiento, que corren en otro
+ * proceso.
+ */
+export interface ConfiguracionCorreo {
+  email_mode: ModoCorreo
+  email_modes: ModoCorreo[]
+  test_recipient: string | null
+  email_enabled: boolean
+  queue_enabled: boolean
+  sender: string
+  warning: string
+}
+
+/** Estados de una fila de `tblmail_queue` (`GET /notifications/mail-queue`). */
+export type EstadoCorreo = 'pending' | 'sending' | 'sent' | 'failed'
+
+/** Una fila del visor de la cola de correo. Solo lectura: no hay reintentar ni borrar. */
+export interface FilaColaCorreo {
+  id: number
+  to: string
+  cc: string | null
+  bcc: string | null
+  subject: string
+  from: string
+  status: EstadoCorreo
+  engine: string
+  date: string
+  attachments: number
+}
+
+/** Resultado de `POST /notifications/test`: qué pasó con cada canal al probar un aviso. */
+export interface PruebaDeAviso {
+  event: string | null
+  notification_id: number
+  in_app_silenced: boolean
+  email_silenced: boolean
+  email_mode: ModoCorreo
+  email_sent: boolean
+  email_delivered_to: string | null
+}
