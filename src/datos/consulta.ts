@@ -40,7 +40,7 @@ export function estadoInicial<T> (definicion: DefinicionRecurso<T>): EstadoConsu
     pagina: 1,
     porPagina: POR_PAGINA_POR_DEFECTO,
     filtros: {},
-    orden: [definicion.ordenPorDefecto],
+    orden: Array.isArray(definicion.ordenPorDefecto) ? definicion.ordenPorDefecto : [definicion.ordenPorDefecto],
     busqueda: '',
     includes: definicion.incluirSiempre ?? []
   }

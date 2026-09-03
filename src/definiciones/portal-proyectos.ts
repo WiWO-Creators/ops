@@ -71,8 +71,8 @@ export const PORTAL_TAREAS: DefinicionRecurso<TareaPortal> = {
   ],
 
   filtros: [],
-  ordenables: ['name', 'due_date', 'status'],
-  ordenPorDefecto: 'due_date',
+  ordenables: ['name', 'due_date', 'status', 'completed', 'date_added'],
+  ordenPorDefecto: ['completed', '-date_added'],
   busqueda: true,
   includes: []
 }

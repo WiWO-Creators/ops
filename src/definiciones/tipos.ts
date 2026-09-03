@@ -101,8 +101,11 @@ export interface DefinicionRecurso<T> {
   filtros: Filtro[]
   /** Campos que el backend acepta en `sort`. */
   ordenables: string[]
-  /** Orden por defecto, con `-` para descendente. Debe estar en `ordenables`. */
-  ordenPorDefecto: string
+  /**
+   * Orden por defecto, con `-` para descendente. Cada campo debe estar en `ordenables`.
+   * Un arreglo compone un orden de varios campos (ej. `['completed', '-date_added']`).
+   */
+  ordenPorDefecto: string | string[]
   /** El recurso acepta el parametro `q`. */
   busqueda: boolean
   /** Valores que el backend acepta en `include`. */
