@@ -1,33 +1,33 @@
+import { Suspense } from 'react'
 import { TableroProcesos } from '@/componentes/datos/vistas'
 import { AltaRapidaProceso } from '@/componentes/proyecto/AltaRapidaProceso'
+import { Cargando } from '@/componentes/estado/Estados'
 import { Segmentado } from '@/componentes/formularios/Segmentado'
 import { construirConsulta, leerConsulta, paramsDeUrl } from '@/datos/consulta'
-import { cargarLookups } from '@/datos/lookups'
+import { cargarLookups, opcionesDeFiltros } from '@/datos/lookups'
 import { pedir } from '@/datos/servidor'
-import type { Espacio, MiembroEquipo, Proceso } from '@/datos/recursos'
+import type { Espacio, MiembroEquipo } from '@/datos/recursos'
 import type { Yo } from '@/datos/tipos'
 import { PROCESOS } from '@/definiciones/procesos'
-import type { GrupoTablero } from '@/componentes/datos/tablero'
 
 export const metadata = { title: 'Tablero de Tareas · WiWO Ops' }
 
 /**
  * Tablero de Procesos.
  *
- * `vista=tablero` devuelve una forma distinta de la del listado: un array de columnas, cada una con
- * su propia paginacion. Las columnas llegan ordenadas por `order` y no por `id` — el orden real es
- * 1, 4, 3, 2, 5.
+ * Los filtros los pone y los saca `TableroProcesos` desde el navegador: no hay un pedido de servidor
+ * que resolver aca para el tablero en si. Lo que si se resuelve aca es el enlace de vuelta a la
+ * tabla, que tiene que conservar los filtros vigentes.
  *
- * Los filtros se serializan aparte de `vista` y viajan en cada recarga del motor: sin ellos, la
- * pagina siguiente de una columna vendria de otro tablero.
+ * El `Suspense` no es decorativo: `TableroProcesos` usa `useSearchParams` para leer los filtros de la
+ * URL, y sin este limite el build de la pagina falla.
  */
 export default async function TableroProcesosPage (props: PageProps<'/procesos/tablero'>) {
   const params = paramsDeUrl(await props.searchParams)
   const estado = leerConsulta(params, PROCESOS)
   const consulta = construirConsulta({ ...estado, orden: [], pagina: 1 }, PROCESOS)
 
-  const [grupos, lookups, yo, equipo, espacios] = await Promise.all([
-    pedir<Array<GrupoTablero<Proceso>>>(`/tasks?vista=tablero${consulta === '' ? '' : `&${consulta}`}`),
+  const [lookups, yo, equipo, espacios] = await Promise.all([
     cargarLookups(),
     pedir<Yo>('/me'),
     // Catalogos del alta rapida, iguales a los de la lista: el boton tiene que estar en las dos
@@ -63,7 +63,9 @@ export default async function TableroProcesosPage (props: PageProps<'/procesos/t
         </div>
       </header>
 
-      <TableroProcesos inicial={grupos.data} consulta={consulta} />
+      <Suspense fallback={<Cargando alto="min-h-36" mensaje="Cargando el tablero…" />}>
+        <TableroProcesos opcionesDeFiltro={opcionesDeFiltros(PROCESOS, lookups)} />
+      </Suspense>
     </section>
   )
 }

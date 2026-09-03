@@ -46,7 +46,10 @@ const PREFIJOS_PERMITIDOS = [
   // Avisos: campana, preferencias y —solo para quien administra— el interruptor de correo y el
   // visor de la cola. La API ya filtra `/settings` y `/mail-queue` por admin; el BFF solo decide si
   // la ruta existe, no quien puede pisarla.
-  'notifications'
+  'notifications',
+  // Presets personales de filtro de los tableros kanban (tareas e hitos). Privados por staff del
+  // lado de la API; el portal no tiene tableros y no los necesita.
+  'filter-presets'
 ] as const
 
 /**
