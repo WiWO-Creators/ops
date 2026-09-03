@@ -18,12 +18,6 @@ export const GLOSARIO = {
   prospecto: { singular: 'Prospecto', plural: 'Prospectos' },
   cliente: { singular: 'Cliente', plural: 'Clientes' },
   ticket: { singular: 'Ticket', plural: 'Tickets' },
-  // Vocabulario del portal del cliente: lo que el cliente ve de su relacion comercial.
-  factura: { singular: 'Factura', plural: 'Facturas' },
-  presupuesto: { singular: 'Presupuesto', plural: 'Presupuestos' },
-  propuesta: { singular: 'Propuesta', plural: 'Propuestas' },
-  contrato: { singular: 'Contrato', plural: 'Contratos' },
-  suscripcion: { singular: 'Suscripción', plural: 'Suscripciones' },
   seguimiento: { singular: 'Seguimiento', plural: 'Seguimiento' },
   planificador: { singular: 'Planificador', plural: 'Planificador' },
   teletrabajo: { singular: 'Teletrabajo', plural: 'Teletrabajo' },

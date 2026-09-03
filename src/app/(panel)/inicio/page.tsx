@@ -106,19 +106,37 @@ async function misProcesos (yo: Yo): Promise<{ procesos: Proceso[], total: numbe
 function Saludo ({ nombre }: { nombre: string }) {
   return (
     <header>
-      <h1 className="font-titular text-seccion font-extrabold tracking-tight text-texto">
+      <h1 className="font-titular text-pantalla font-extrabold tracking-tight text-texto">
         Hola,{' '}
         {/*
           El gradiente se recorta sobre el nombre y nada mas. Recortarlo sobre la frase entera deja
           "Hola" en el extremo mas claro del gradiente, que es justo donde peor se lee.
         */}
-        <span className="texto-gradiente">{nombre}</span>
+        <span className="texto-gradiente-marca" style={{ '--angulo-gradiente-marca': `${anguloDelDia()}deg` } as React.CSSProperties}>
+          {nombre}
+        </span>
       </h1>
       <p className="mt-2 text-sm text-texto-tenue">¿Qué vas a mover hoy?</p>
       {/* La barra es la firma de marca de la pantalla: es donde el gradiente puede ser gradiente. */}
       <span aria-hidden="true" className="mt-4 block h-1 w-24 rounded-control bg-gradiente-marca" />
     </header>
   )
+}
+
+/**
+ * Angulo del gradiente del nombre, distinto cada dia.
+ *
+ * Sale de la fecha del calendario (no de `Math.random`): asi el server component sigue siendo
+ * deterministico entre pedidos del mismo dia, y no hay destello de hidratacion por un valor que el
+ * cliente calcularia distinto al servidor.
+ *
+ * @returns un angulo entre 0 y 359, estable durante todo el dia
+ */
+function anguloDelDia (): number {
+  const hoy = new Date().toISOString().slice(0, 10) // YYYY-MM-DD
+  const hash = [...hoy].reduce((acumulado, caracter) => acumulado * 31 + caracter.charCodeAt(0), 0)
+
+  return Math.abs(hash) % 360
 }
 
 interface PropsMiTrabajo {

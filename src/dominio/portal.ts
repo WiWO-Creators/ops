@@ -17,17 +17,12 @@ export interface SeccionPortal {
 /**
  * Catalogo completo, en el orden en que se muestra.
  *
- * El orden replica el del menu de Perfex (`add_default_theme_menu_items`): proyectos primero, las
- * secciones de venta despues, soporte y contenido al final. Los rotulos salen del glosario donde
- * existen, para no tener dos nombres para la misma cosa segun la pantalla.
+ * El orden replica el del menu de Perfex (`add_default_theme_menu_items`): proyectos primero,
+ * soporte y contenido al final. Los rotulos salen del glosario donde existen, para no tener dos
+ * nombres para la misma cosa segun la pantalla.
  */
 const CATALOGO: SeccionPortal[] = [
   { clave: 'projects', href: '/portal/proyectos', etiqueta: GLOSARIO.espacio.plural },
-  { clave: 'invoices', href: '/portal/facturas', etiqueta: GLOSARIO.factura.plural },
-  { clave: 'estimates', href: '/portal/presupuestos', etiqueta: GLOSARIO.presupuesto.plural },
-  { clave: 'proposals', href: '/portal/propuestas', etiqueta: GLOSARIO.propuesta.plural },
-  { clave: 'contracts', href: '/portal/contratos', etiqueta: GLOSARIO.contrato.plural },
-  { clave: 'subscriptions', href: '/portal/suscripciones', etiqueta: GLOSARIO.suscripcion.plural },
   { clave: 'support', href: '/portal/soporte', etiqueta: GLOSARIO.ticket.plural },
   { clave: 'files', href: '/portal/archivos', etiqueta: 'Archivos' },
   { clave: 'announcements', href: '/portal/anuncios', etiqueta: 'Anuncios' },

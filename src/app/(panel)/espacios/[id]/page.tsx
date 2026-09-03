@@ -3,7 +3,6 @@ import { Suspense, cache } from 'react'
 import { CabeceraProyecto } from '@/componentes/proyecto/CabeceraProyecto'
 import { PanelActividad } from '@/componentes/proyecto/PanelActividad'
 import { PanelArchivos } from '@/componentes/proyecto/PanelArchivos'
-import { PanelContratos } from '@/componentes/proyecto/PanelContratos'
 import { PanelDescripcion } from '@/componentes/proyecto/PanelDescripcion'
 import { PanelDiscusiones } from '@/componentes/proyecto/PanelDiscusiones'
 import { PanelGantt } from '@/componentes/proyecto/PanelGantt'
@@ -11,7 +10,6 @@ import { PanelHitos } from '@/componentes/proyecto/PanelHitos'
 import { PanelNotas } from '@/componentes/proyecto/PanelNotas'
 import { PanelTareas } from '@/componentes/proyecto/PanelTareas'
 import { PanelTiempos } from '@/componentes/proyecto/PanelTiempos'
-import { PanelVentas } from '@/componentes/proyecto/PanelVentas'
 import { Pestanas, type Panel } from '@/componentes/proyecto/Pestanas'
 import { Cargando, ErrorEstado, SinPermiso, Vacio } from '@/componentes/estado/Estados'
 import { listaDe, nombreDe } from '@/datos/catalogos'
@@ -62,8 +60,8 @@ interface Detalle {
 /**
  * Carga lo minimo que la pantalla necesita para pintarse: el proyecto, los catalogos y quien mira.
  *
- * **Los datos de cada pestaña NO se piden aca.** Son doce pestañas, y bajarlas todas del servidor
- * costaria doce viajes a la API por visita para mostrar una. Cada panel es un componente cliente que
+ * **Los datos de cada pestaña NO se piden aca.** Son diez pestañas, y bajarlas todas del servidor
+ * costaria diez viajes a la API por visita para mostrar una. Cada panel es un componente cliente que
  * pide lo suyo al montarse, y `Pestanas` monta solo la activa: la pestaña que nadie abre no cuesta
  * ninguna peticion.
  *
@@ -115,7 +113,7 @@ function NoEncontrado () {
 }
 
 /**
- * Detalle de un Proyecto, con sus doce pestañas.
+ * Detalle de un Proyecto, con sus diez pestañas.
  *
  * El `Suspense` no es decorativo: `Pestanas` usa `useSearchParams`, y sin ese limite el build de la
  * ruta falla.
@@ -171,8 +169,6 @@ export default async function ProyectoPage (props: PageProps<'/espacios/[id]'>) 
       contenido: <PanelDiscusiones proyectoId={proyecto.id} capacidades={capacidadesProyecto} />
     },
     { clave: 'gantt', etiqueta: 'Diagrama de Gantt', contenido: <PanelGantt proyectoId={proyecto.id} /> },
-    { clave: 'contratos', etiqueta: 'Contratos', contenido: <PanelContratos proyectoId={proyecto.id} /> },
-    { clave: 'ventas', etiqueta: 'Ventas', contenido: <PanelVentas proyectoId={proyecto.id} /> },
     { clave: 'notas', etiqueta: 'Notas', contenido: <PanelNotas proyectoId={proyecto.id} /> },
     {
       clave: 'actividad',

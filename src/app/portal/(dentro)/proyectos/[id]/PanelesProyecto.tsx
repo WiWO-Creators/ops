@@ -8,7 +8,6 @@ import { pedirPortal } from '@/datos/servidor'
 import { GLOSARIO } from '@/dominio/glosario'
 import type {
   ArchivoPortal,
-  DocumentoPortal,
   EspacioPortal,
   HitoPortal,
   TareaPortal,
@@ -165,45 +164,30 @@ export async function PanelArchivos ({ proyectoId }: { proyectoId: number }) {
 }
 
 /**
- * Facturas, presupuestos o tickets acotados a este proyecto.
+ * Tickets de soporte acotados a este proyecto.
  *
- * Se dibujan como lista y no con `TablaRecurso`: son subconjuntos chicos dentro de una pestaña, y
+ * Se dibuja como lista y no con `TablaRecurso`: es un subconjunto chico dentro de una pestaña, y
  * meter ahi un motor de tabla con su propio estado en la URL chocaria con el `?tab=` del proyecto.
  */
-export async function PanelDocumentosDelProyecto ({
-  proyectoId,
-  recurso
-}: {
-  proyectoId: number
-  recurso: 'invoices' | 'estimates' | 'tickets'
-}) {
-  const seccion = { invoices: 'facturas', estimates: 'presupuestos', tickets: 'soporte' }[recurso]
-  const catalogo = {
-    invoices: 'invoice_statuses',
-    estimates: 'estimate_statuses',
-    tickets: 'ticket_statuses'
-  }[recurso]
-
-  const { data } = await pedirPortal<Array<DocumentoPortal | TicketPortal>>(
-    `/portal/projects/${proyectoId}/${recurso}?per_page=100`
-  )
+export async function PanelTicketsDelProyecto ({ proyectoId }: { proyectoId: number }) {
+  const { data } = await pedirPortal<TicketPortal[]>(`/portal/projects/${proyectoId}/tickets?per_page=100`)
 
   if (data.length === 0) {
-    return <Vacio titulo="Nada por acá" descripcion="Este proyecto todavía no tiene documentos de este tipo." />
+    return <Vacio titulo="Nada por acá" descripcion="Este proyecto todavía no tiene tickets." />
   }
 
   return (
     <ul className="flex flex-col gap-2">
-      {data.map((fila) => (
-        <li key={fila.id} className="rounded-chico border-linea flex flex-wrap items-center gap-3 border p-3">
+      {data.map((ticket) => (
+        <li key={ticket.id} className="rounded-chico border-linea flex flex-wrap items-center gap-3 border p-3">
           <a
-            href={`/portal/${seccion}/${fila.id}`}
+            href={`/portal/soporte/${ticket.id}`}
             className="text-texto hover:text-acento text-sm font-medium underline-offset-4 hover:underline"
           >
-            {'number' in fila ? fila.number : fila.subject}
+            {ticket.subject}
           </a>
-          <EstadoDelPortal catalogo={catalogo} valor={fila.status} />
-          <span className="text-texto-tenue ml-auto text-sm">{formatearFecha(fila.date)}</span>
+          <EstadoDelPortal catalogo="ticket_statuses" valor={ticket.status} />
+          <span className="text-texto-tenue ml-auto text-sm">{formatearFecha(ticket.date)}</span>
         </li>
       ))}
     </ul>

@@ -4,45 +4,29 @@ import Link from 'next/link'
 import { useMemo } from 'react'
 import { TablaRecurso } from '@/componentes/datos/TablaRecurso'
 import type { DefinicionRecurso, OpcionFiltro, ResultadoLista } from '@/definiciones/tipos'
-import {
-  PORTAL_CONTRATOS,
-  PORTAL_FACTURAS,
-  PORTAL_PRESUPUESTOS,
-  PORTAL_PROPUESTAS,
-  PORTAL_SUSCRIPCIONES,
-  PORTAL_TICKETS
-} from '@/definiciones/portal-ventas'
+import { PORTAL_TICKETS } from '@/definiciones/portal-soporte'
 import { PORTAL_PROYECTOS } from '@/definiciones/portal-proyectos'
 
 /**
- * Las seis tablas del portal, del lado del cliente.
+ * Las tablas del portal, del lado del cliente.
  *
  * Existe por la misma restriccion que `componentes/datos/vistas.tsx`: una `DefinicionRecurso` esta
  * llena de funciones, y **una funcion no cruza de un Server Component a uno cliente**. La pagina
  * manda una clave y datos serializables; la definicion se resuelve de este lado.
  *
- * Las seis comparten componente porque son la misma tabla con otra definicion. La unica que agrega
- * algo es soporte, donde el asunto enlaza al hilo del ticket.
+ * Las dos comparten componente porque son la misma tabla con otra definicion. Soporte agrega algo
+ * mas: el asunto enlaza al hilo del ticket.
  */
 
 const DEFINICIONES = {
-  facturas: PORTAL_FACTURAS,
-  presupuestos: PORTAL_PRESUPUESTOS,
-  propuestas: PORTAL_PROPUESTAS,
-  contratos: PORTAL_CONTRATOS,
-  suscripciones: PORTAL_SUSCRIPCIONES,
   soporte: PORTAL_TICKETS,
   proyectos: PORTAL_PROYECTOS
 } as const
 
-export type SeccionDeVenta = keyof typeof DEFINICIONES
+export type SeccionPortalListado = keyof typeof DEFINICIONES
 
 /** Secciones cuyo listado abre un detalle, y por que columna se entra. */
-const ENLACES: Partial<Record<SeccionDeVenta, string>> = {
-  facturas: 'number',
-  presupuestos: 'number',
-  propuestas: 'subject',
-  contratos: 'subject',
+const ENLACES: Partial<Record<SeccionPortalListado, string>> = {
   soporte: 'subject',
   proyectos: 'name'
 }
@@ -52,7 +36,7 @@ export function TablaPortal<T extends { id: number }> ({
   inicial,
   opcionesDeFiltro
 }: {
-  seccion: SeccionDeVenta
+  seccion: SeccionPortalListado
   inicial: ResultadoLista<T>
   opcionesDeFiltro?: Record<string, OpcionFiltro[]>
 }) {

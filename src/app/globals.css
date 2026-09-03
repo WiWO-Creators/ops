@@ -374,6 +374,17 @@
     background-clip: text;
     color: transparent;
   }
+
+  /* Variante de marca del gradiente de texto: verde a azul, igual que la barrita (`bg-gradiente-marca`)
+   * y no el `--gradiente-texto` accesible. El verde puro recortado en texto da 1.5:1 de contraste
+   * (bajo AA) — decision consciente para el saludo de Inicio, no para usar en texto de cuerpo.
+   * El angulo llega por variable inline (`--angulo-gradiente-marca`) para que cambie por dia. */
+  .texto-gradiente-marca {
+    background-image: linear-gradient(var(--angulo-gradiente-marca, 103deg), var(--wiwo-green) 0%, var(--wiwo-blue) 85%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
 }
 
 /*

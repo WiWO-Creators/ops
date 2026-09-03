@@ -7,10 +7,8 @@ import { PanelContactos } from '@/componentes/cliente/PanelContactos'
 import { PanelProyectosCliente } from '@/componentes/cliente/PanelProyectosCliente'
 import {
   PanelArchivosCliente,
-  PanelContratosCliente,
   PanelNotasCliente,
-  PanelTareasCliente,
-  PanelVentasCliente
+  PanelTareasCliente
 } from '@/componentes/cliente/PanelesCliente'
 import { Pestanas, type Panel } from '@/componentes/proyecto/Pestanas'
 import { Cargando, ErrorEstado, SinPermiso, Vacio } from '@/componentes/estado/Estados'
@@ -68,8 +66,8 @@ interface Detalle {
 /**
  * Carga lo minimo que la pantalla necesita para pintarse: el cliente y los catalogos.
  *
- * Los listados de las pestañas NO se piden aca: son ocho, cualquiera puede no abrirse nunca, y
- * bajarlos todos costaria ocho viajes a la API por visita para mostrar uno. Cada panel pide el suyo
+ * Los listados de las pestañas NO se piden aca: son seis, cualquiera puede no abrirse nunca, y
+ * bajarlos todos costaria seis viajes a la API por visita para mostrar uno. Cada panel pide el suyo
  * al montarse y `Pestanas` monta solo el activo. Los catalogos si, porque de ellos salen los nombres
  * de pais y moneda de la ficha, que se pinta de entrada.
  *
@@ -170,8 +168,6 @@ export default async function ClientePage (props: PageProps<'/clientes/[id]'>) {
       etiqueta: GLOSARIO.proceso.plural,
       contenido: <PanelTareasCliente clienteId={cliente.id} capacidades={capacidadesTareas} />
     },
-    { clave: 'ventas', etiqueta: 'Ventas', contenido: <PanelVentasCliente clienteId={cliente.id} /> },
-    { clave: 'contratos', etiqueta: 'Contratos', contenido: <PanelContratosCliente clienteId={cliente.id} /> },
     { clave: 'notas', etiqueta: 'Notas', contenido: <PanelNotasCliente clienteId={cliente.id} /> },
     { clave: 'archivos', etiqueta: 'Archivos', contenido: <PanelArchivosCliente clienteId={cliente.id} /> }
   ]

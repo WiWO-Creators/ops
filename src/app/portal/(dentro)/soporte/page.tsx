@@ -1,5 +1,5 @@
 import type { Metadata } from 'next'
-import { PORTAL_TICKETS } from '@/definiciones/portal-ventas'
+import { PORTAL_TICKETS } from '@/definiciones/portal-soporte'
 import { SeccionDePortal } from '../seccion'
 
 export const metadata: Metadata = { title: 'Soporte · Portal de clientes' }

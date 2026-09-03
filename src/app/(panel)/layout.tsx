@@ -1,8 +1,10 @@
+import Link from 'next/link'
 import { pedir } from '@/datos/servidor'
 import type { Yo } from '@/datos/tipos'
 import { GLOSARIO } from '@/dominio/glosario'
 import { SelectorTema } from '@/componentes/estructura/SelectorTema'
 import { BarraLateral, BarraLateralMovil, type Seccion } from '@/componentes/estructura/BarraLateral'
+import { Logo } from '@/componentes/estructura/Logo'
 import { Avatar } from '@/componentes/presentadores/Avatar'
 import { ScrollSuave } from '@/componentes/estructura/ScrollSuave'
 import { BotonSalir } from './BotonSalir'
@@ -38,6 +40,9 @@ export default async function PanelLayout ({ children }: { children: React.React
 
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="border-linea flex h-14 shrink-0 items-center gap-3 border-b px-4">
+          <Link href="/inicio" aria-label="Inicio" className="min-w-0">
+            <Logo tamano="medio" />
+          </Link>
           <BarraLateralMovil secciones={secciones} />
           <SelectorTema className="ml-auto" />
           <Avatar nombre={yo.full_name} imagen={yo.profile_image_url} />

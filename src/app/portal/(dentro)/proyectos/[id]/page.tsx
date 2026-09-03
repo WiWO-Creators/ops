@@ -9,10 +9,10 @@ import { formatearFecha } from '@/lib/fechas'
 import { cargarDetalle, EstadoDeError, EstadoDelPortal, Volver } from '../../detalle'
 import {
   PanelArchivos,
-  PanelDocumentosDelProyecto,
   PanelHitos,
   PanelResumen,
-  PanelTareas
+  PanelTareas,
+  PanelTicketsDelProyecto
 } from './PanelesProyecto'
 import {
   PanelActividadPortal,
@@ -89,10 +89,8 @@ function contenidoDePestania (clave: string, proyecto: EspacioPortal): React.Rea
       return <PanelHitos proyectoId={proyecto.id} />
     case 'files':
       return <PanelArchivos proyectoId={proyecto.id} />
-    case 'invoices':
-    case 'estimates':
     case 'tickets':
-      return <PanelDocumentosDelProyecto proyectoId={proyecto.id} recurso={clave} />
+      return <PanelTicketsDelProyecto proyectoId={proyecto.id} />
     case 'discussions':
       return <PanelDiscusiones proyectoId={proyecto.id} />
     case 'timesheets':

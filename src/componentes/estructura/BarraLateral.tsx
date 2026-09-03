@@ -7,7 +7,6 @@ import { usePathname } from 'next/navigation'
 import { useSyncExternalStore } from 'react'
 import { Building2, DoorOpen, FolderKanban, House, ListChecks, Mail, Menu, PanelLeftClose, PanelLeftOpen, Users } from 'lucide-react'
 import { Cajon, CerrarCajon, ContenidoCajon, DisparadorCajon } from '@/componentes/superposiciones/Cajon'
-import { Logo } from '@/componentes/estructura/Logo'
 import { cn } from '@/lib/clases'
 
 /**
@@ -203,8 +202,7 @@ function EnlaceSeccion ({ seccion, ruta, className, ...resto }: PropsEnlaceSecci
  * `<html>` en vez de dos arboles distintos, asi la transicion de ancho es continua y no hay
  * remontaje de los enlaces al abatir.
  *
- * Abatida no lleva el `<Logo />`: el wordmark estirado a 4.5rem queda ilegible, y no existe isotipo
- * cuadrado en el proyecto para reemplazarlo.
+ * El logo vive en la cabecera del armazon, no aca: la barra es solo navegacion.
  *
  * @param secciones secciones ya filtradas por permisos en el servidor
  */
@@ -221,9 +219,6 @@ export function BarraLateral ({ secciones, className }: { secciones: Seccion[], 
       )}
     >
       <div className="flex h-14 shrink-0 items-center gap-2 px-3 [[data-barra-abatida]_&]:justify-center">
-        <Link href="/inicio" aria-label="Inicio" className="min-w-0 [[data-barra-abatida]_&]:hidden">
-          <Logo tamano="medio" />
-        </Link>
         <button
           type="button"
           onClick={alternarBarra}

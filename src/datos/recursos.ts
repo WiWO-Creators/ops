@@ -517,48 +517,6 @@ export interface TicketEspacio {
   lastreply: string | null
 }
 
-/** Contrato asociado al proyecto. Solo lectura desde esta pantalla. */
-export interface ContratoEspacio {
-  id: number
-  subject: string
-  contract_type: Referencia | null
-  client: { id: number, company: string } | null
-  datestart: string | null
-  dateend: string | null
-  contract_value: number
-  signed: boolean
-  trash: boolean
-}
-
-/** Gasto del proyecto. `total` ya incluye impuestos. */
-export interface GastoEspacio {
-  id: number
-  expense_name: string | null
-  note: string | null
-  category: Referencia | null
-  amount: number
-  tax_total: number
-  total: number
-  currency: { id: number, symbol: string } | null
-  date: string | null
-  reference_no: string | null
-  billable: boolean
-  invoice: { id: number, number: string, status: number } | null
-  payment_mode: Referencia | null
-  file: { id: number, url: string } | null
-}
-
-/** Factura o presupuesto del proyecto. Las dos listas comparten forma. */
-export interface DocumentoVenta {
-  id: number
-  number: string
-  date: string | null
-  duedate: string | null
-  status: number
-  total: number
-  currency: { id: number, symbol: string } | null
-}
-
 /** Barra de una tarea dentro del Gantt. */
 export interface TareaGantt {
   id: number

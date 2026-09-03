@@ -102,7 +102,7 @@ export function ImagenEntidad ({
           ? (
             // Las imágenes llegan desde `uploads/`, sin tamaño fijo para optimizar con `next/image`.
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={imagen} alt={nombre} className="size-full object-contain p-1" onError={() => setImagenFallida(imagen)} />
+            <img src={imagen} alt={nombre} className="size-full object-cover" onError={() => setImagenFallida(imagen)} />
             )
           : <span className="m-auto font-semibold">{iniciales(nombre, 2)}</span>}
       </span>

@@ -5,21 +5,20 @@ import { ErrorApi } from '@/datos/errores'
 import { cargarLookupsDelPortal, opcionesDeFiltros } from '@/datos/lookups'
 import { pedirPortal } from '@/datos/servidor'
 import type { DefinicionRecurso, ResultadoLista } from '@/definiciones/tipos'
-import { TablaPortal, type SeccionDeVenta } from './TablaPortal'
+import { TablaPortal, type SeccionPortalListado } from './TablaPortal'
 
 /**
  * Una seccion de listado del portal.
  *
- * Las seis secciones de venta y soporte son la misma pagina con otra definicion, asi que se escribe
- * una vez. Cada `page.tsx` queda en tres lineas: su metadata y una llamada aca.
+ * Soporte y Proyectos son la misma pagina con otra definicion, asi que se escribe una vez. Cada
+ * `page.tsx` queda en tres lineas: su metadata y una llamada aca.
  *
  * La primera pagina se resuelve en el servidor para que la tabla no parpadee al montar; de ahi en
  * adelante el motor pide al BFF. El `Suspense` no es decorativo: `TablaRecurso` usa
  * `useSearchParams`, y sin el limite el build de la ruta falla.
  *
  * El 403 se trata como una pantalla y no como una excepcion. La navegacion ya esconde las secciones
- * que el contacto no tiene, pero la URL se puede escribir a mano —y con suscripciones pasa aunque la
- * seccion figure, porque ahi la puerta es ser el contacto primario. Dejarlo lanzar rompia la pagina
+ * que el contacto no tiene, pero la URL se puede escribir a mano. Dejarlo lanzar rompia la pagina
  * entera en vez de explicar que no hay acceso.
  */
 export async function SeccionDePortal<T extends { id: number }> ({
@@ -27,7 +26,7 @@ export async function SeccionDePortal<T extends { id: number }> ({
   definicion,
   parametrosDeUrl
 }: {
-  seccion: SeccionDeVenta
+  seccion: SeccionPortalListado
   definicion: DefinicionRecurso<T>
   parametrosDeUrl: Record<string, string | string[] | undefined>
 }) {

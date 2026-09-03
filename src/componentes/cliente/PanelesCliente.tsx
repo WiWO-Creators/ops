@@ -1,14 +1,10 @@
 'use client'
 
 import { useMemo, type ReactElement } from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
 import { PanelRecurso } from '@/componentes/proyecto/PanelRecurso'
-import { Segmentado } from '@/componentes/formularios/Segmentado'
 import { ARCHIVOS } from '@/definiciones/archivos'
-import { CONTRATOS } from '@/definiciones/contratos'
 import { NOTAS_CLIENTE } from '@/definiciones/clientes'
 import { PROCESOS } from '@/definiciones/procesos'
-import { FACTURAS, GASTOS, PRESUPUESTOS } from '@/definiciones/ventas'
 import { GLOSARIO } from '@/dominio/glosario'
 import type { ArchivoProyecto, NotaCliente, Proceso } from '@/datos/recursos'
 import type { Capacidad } from '@/datos/tipos'
@@ -18,10 +14,9 @@ import type { DefinicionRecurso } from '@/definiciones/tipos'
  * Las pestañas de listado del detalle de Cliente.
  *
  * Ninguna escribe una tabla: todas montan `PanelRecurso`, el mismo motor que usa el detalle de
- * Proyecto, con la definicion que ya existe y la ruta apuntando al subrecurso del cliente. Diez
- * pestañas entre las dos pantallas y una sola implementacion de tabla.
+ * Proyecto, con la definicion que ya existe y la ruta apuntando al subrecurso del cliente.
  *
- * Viven todas en un archivo porque cada una son cinco lineas: seis archivos de cinco lineas es
+ * Viven todas en un archivo porque cada una son cinco lineas: tres archivos de cinco lineas es
  * ceremonia, no arquitectura.
  */
 
@@ -59,25 +54,6 @@ export function PanelTareasCliente ({
   )
 
   return <PanelRecurso definicion={definicion} claveFila={(t) => t.id} capacidades={capacidades} />
-}
-
-/**
- * Pestaña Contratos del Cliente.
- *
- * Se poda la columna Cliente: bajo el encabezado de este cliente repite su nombre en cada fila.
- *
- * @param clienteId el cliente que se esta mirando
- */
-export function PanelContratosCliente ({ clienteId }: { clienteId: number }): ReactElement {
-  const definicion = useMemo(
-    () => ({
-      ...deCliente(CONTRATOS, clienteId, 'contracts'),
-      columnas: CONTRATOS.columnas.filter((columna) => columna.clave !== 'client')
-    }),
-    [clienteId]
-  )
-
-  return <PanelRecurso definicion={definicion} claveFila={(c) => c.id} />
 }
 
 /**
@@ -139,77 +115,6 @@ function Origen ({ archivo }: { archivo: ArchivoProyecto }): ReactElement {
     >
       Abrir en {archivo.external}
     </a>
-  )
-}
-
-/** Lo unico que el motor de tabla necesita de una fila de ventas: como identificarla. */
-interface FilaVenta {
-  id: number
-}
-
-/** Las tres listas de la pestaña Ventas, en el orden del panel viejo. */
-const VENTAS = [
-  { clave: 'facturas', etiqueta: 'Facturas', definicion: FACTURAS, subruta: 'invoices' },
-  { clave: 'presupuestos', etiqueta: 'Presupuestos', definicion: PRESUPUESTOS, subruta: 'estimates' },
-  { clave: 'gastos', etiqueta: 'Gastos', definicion: GASTOS, subruta: 'expenses' }
-] as const
-
-/**
- * Pestaña Ventas del Cliente: facturas, presupuestos y gastos.
- *
- * Tres listas en una pestaña con un selector, igual que en el detalle de Proyecto: tres entradas en
- * la barra principal para tres listas casi siempre vacias empujarian el resto fuera de la pantalla.
- * La elegida viaja en `?ventas=`, como el resto del estado de las vistas.
- *
- * A diferencia del Proyecto, las facturas arrancan primero: en un cliente es lo que se viene a ver.
- *
- * @param clienteId el cliente que se esta mirando
- */
-export function PanelVentasCliente ({ clienteId }: { clienteId: number }): ReactElement {
-  const router = useRouter()
-  const params = useSearchParams()
-
-  const pedida = params.get('ventas')
-  const activa = VENTAS.find((lista) => lista.clave === pedida) ?? VENTAS[0]
-
-  // Las tres tienen filas distintas (`GastoEspacio` y `DocumentoVenta`) y el motor solo necesita
-  // saber identificarlas: se estrecha a lo unico que comparten en vez de triplicar la pestaña.
-  const definicion = useMemo(
-    () => deCliente(
-      activa.definicion as unknown as DefinicionRecurso<FilaVenta>,
-      clienteId,
-      activa.subruta
-    ),
-    [clienteId, activa]
-  )
-
-  /** Cambia de lista conservando el resto de la vista, y descarta la paginacion de la anterior. */
-  function elegir (clave: string): void {
-    const siguientes = new URLSearchParams(params.toString())
-    siguientes.set('ventas', clave)
-    siguientes.delete('page')
-    siguientes.delete('sort')
-
-    router.replace(`?${siguientes.toString()}`, { scroll: false })
-  }
-
-  const barra = (
-    <Segmentado
-      etiqueta="Listas de ventas"
-      opciones={VENTAS.map((lista) => ({ valor: lista.clave, etiqueta: lista.etiqueta }))}
-      activo={activa.clave}
-      onElegir={elegir}
-    />
-  )
-
-  return (
-    <PanelRecurso
-      // Remonta al cambiar de lista: las tres tienen columnas y filtros distintos.
-      key={activa.clave}
-      definicion={definicion}
-      claveFila={(fila) => fila.id}
-      barra={barra}
-    />
   )
 }
 
