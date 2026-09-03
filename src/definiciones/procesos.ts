@@ -49,8 +49,8 @@ export const PROCESOS: DefinicionRecurso<Proceso> = {
     { clave: 'vence', etiqueta: 'Vence', tipo: 'rangoFechas', clavesRango: ['date_from', 'date_to'] }
   ],
 
-  ordenables: ['name', 'due_date', 'start_date', 'date_added', 'priority', 'status'],
-  ordenPorDefecto: 'due_date',
+  ordenables: ['name', 'due_date', 'start_date', 'date_added', 'priority', 'status', 'completed'],
+  ordenPorDefecto: ['completed', '-date_added'],
   busqueda: true,
   includes: ['custom_fields', 'description'],
 

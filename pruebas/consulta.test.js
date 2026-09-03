@@ -38,6 +38,12 @@ test('el estado inicial toma el orden por defecto de la definicion', () => {
   assert.deepEqual(estadoInicial(PROCESOS).orden, ['due_date'])
 })
 
+test('un orden por defecto compuesto (arreglo) queda tal cual, campo por campo', () => {
+  const conOrdenCompuesto = { ...PROCESOS, ordenPorDefecto: ['completed', '-date_added'] }
+
+  assert.deepEqual(estadoInicial(conOrdenCompuesto).orden, ['completed', '-date_added'])
+})
+
 test('la consulta por defecto no manda nada redundante', () => {
   assert.equal(construirConsulta({ ...estadoInicial(PROCESOS), orden: [] }, PROCESOS), '')
 })
