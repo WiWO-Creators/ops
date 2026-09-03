@@ -70,7 +70,7 @@ export const PORTAL_TAREAS: DefinicionRecurso<TareaPortal> = {
     }
   ],
 
-  filtros: [],
+  filtros: [{ clave: 'status', etiqueta: 'Estado', tipo: 'multiple', desdeLookup: 'task_statuses' }],
   ordenables: ['name', 'due_date', 'status', 'completed', 'date_added'],
   ordenPorDefecto: ['completed', '-date_added'],
   busqueda: true,
