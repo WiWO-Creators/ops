@@ -35,6 +35,7 @@ antes de mirar los segmentos, así que no depende de acordarse de no escribir un
 | Pantalla | Ruta | Qué muestra |
 |---|---|---|
 | Acceso | `/` | Un solo paso: los contactos no tienen 2FA |
+| Fijar contraseña | `/clave/{token}` | Pública. Canjea el enlace de acceso y entra en el mismo paso |
 | Verificación | `/portal/verificar` | Para quien no verificó su correo |
 | Inicio | `/portal` | Resumen de proyectos, novedades y accesos |
 | Proyectos | `/portal/proyectos` · `/[id]` | Listado y detalle con pestañas dinámicas |
@@ -44,6 +45,19 @@ antes de mirar los segmentos, así que no depende de acordarse de no escribir un
 | Ayuda | `/portal/ayuda` · `/[slug]` | Base de conocimiento pública |
 | Perfil | `/portal/perfil` | Datos del contacto y de la empresa |
 
+### Cómo obtiene acceso un cliente
+
+Sin correos: no hay invitación automática, ni recuperación de clave por mail, ni bienvenida. Un staff
+genera desde la ficha del cliente un enlace de un solo uso —`POST /contacts/{id}/access-link`, que
+pide `customers.edit`— y lo entrega por fuera. El cliente lo abre, fija su contraseña y entra en el
+mismo paso. El enlace vive 72 h porque se entrega de forma asincrónica; lo que acota el riesgo es que
+se queme al primer uso, no que dure poco.
+
+El canje reclama el token en un solo `UPDATE`, así que uso único, expiración y carrera se resuelven
+en la misma condición. Un enlace nuevo revoca al anterior, y canjear revoca las sesiones vivas de ese
+contacto. Cualquier token inválido, vencido o ya usado responde el mismo `401` genérico: distinguirlos
+confirmaría cuál existe.
+
 ## Endpoints que consume
 
 Todos `GET` bajo `/portal/`, salvo el acceso.
@@ -51,6 +65,7 @@ Todos `GET` bajo `/portal/`, salvo el acceso.
 | Ruta | Devuelve |
 |---|---|
 | `POST /auth/portal/login` | Par de tokens de contacto más sus datos |
+| `POST /auth/portal/access-link` | Canjea el enlace, fija la contraseña y devuelve la sesión ya iniciada |
 | `/portal/me` | El contacto, sus permisos y sus secciones habilitadas |
 | `/portal/company` | La empresa; facturación y envío solo si es primario |
 | `/portal/lookups` | Subconjunto de catálogos: sin roles, sin equipo, sin departamentos |
@@ -87,7 +102,9 @@ comparador lo marcaría como divergencia.
 ## Qué NO hace
 
 Ninguna escritura: crear o editar tareas, subir archivos, abrir discusiones, comentar, cambiar el
-estado de un ticket, pagar o firmar. Todo eso sigue en el portal de Perfex.
+estado de un ticket, pagar o firmar. Todo eso sigue en el portal de Perfex. La única escritura del
+lado del cliente es fijar su propia contraseña, y por eso vive en `/auth/`, fuera del `case 'portal'`
+que rechaza todo verbo distinto de `GET`.
 
 Tampoco muestra nada del módulo de ventas: facturas, presupuestos, propuestas, contratos y
 suscripciones se sacaron del portal porque producción no los usa, y no vuelven. La API sigue
