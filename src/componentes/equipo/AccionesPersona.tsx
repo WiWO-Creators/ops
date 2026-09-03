@@ -43,6 +43,8 @@ const MAXIMO_HEREDEROS = 200
 interface PropsAccionesPersona {
   persona: MiembroEquipo
   roles: OpcionCampo[]
+  cargos: OpcionCampo[]
+  areas: OpcionCampo[]
   capacidades: Capacidad[]
   /** Desde el listado: vuelve a pedir la pagina. Si no viene, se refresca el Server Component. */
   recargar?: () => void
@@ -53,6 +55,8 @@ interface PropsAccionesPersona {
 export function AccionesPersona ({
   persona,
   roles,
+  cargos,
+  areas,
   capacidades,
   recargar,
   enFicha = false
@@ -132,7 +136,7 @@ export function AccionesPersona ({
           abierto={editando}
           onAbiertoCambia={setEditando}
           titulo={`Editar a ${persona.full_name}`}
-          campos={camposDePersona(roles, false)}
+          campos={camposDePersona(roles, cargos, areas, false)}
           ruta={`staff/${persona.id}`}
           metodo="PATCH"
           registro={persona as unknown as Record<string, unknown>}

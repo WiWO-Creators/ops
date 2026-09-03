@@ -115,13 +115,21 @@ export default async function PersonaPage (props: PageProps<'/equipo/[id]'>) {
     valor: String(rol.id),
     etiqueta: rol.name
   }))
+  const cargos: OpcionCampo[] = listaDe(lookups, 'cargos').map((cargo) => ({
+    valor: String(cargo.id),
+    etiqueta: cargo.name
+  }))
+  const areas: OpcionCampo[] = listaDe(lookups, 'areas').map((area) => ({
+    valor: String(area.id),
+    etiqueta: area.name
+  }))
 
   return (
     <section className="flex flex-col gap-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <CabeceraPersona persona={persona} />
         <div className="flex flex-wrap items-center gap-2">
-          <AccionesPersona persona={persona} roles={roles} capacidades={capacidades} enFicha />
+          <AccionesPersona persona={persona} roles={roles} cargos={cargos} areas={areas} capacidades={capacidades} enFicha />
         </div>
       </div>
 

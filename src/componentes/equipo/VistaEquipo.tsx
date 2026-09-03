@@ -48,8 +48,20 @@ export function VistaEquipo ({
     etiqueta: opcion.etiqueta
   })), [opcionesDeFiltro])
 
+  const cargos: OpcionCampo[] = useMemo(() => (opcionesDeFiltro?.cargos ?? []).map((opcion) => ({
+    valor: String(opcion.valor),
+    etiqueta: opcion.etiqueta
+  })), [opcionesDeFiltro])
+
+  const areas: OpcionCampo[] = useMemo(() => (opcionesDeFiltro?.areas ?? []).map((opcion) => ({
+    valor: String(opcion.valor),
+    etiqueta: opcion.etiqueta
+  })), [opcionesDeFiltro])
+
   const definicion = useMemo(() => {
     const nombreDeRol = new Map(roles.map((rol) => [rol.valor, rol.etiqueta]))
+    const nombreDeCargo = new Map(cargos.map((cargo) => [cargo.valor, cargo.etiqueta]))
+    const nombreDeArea = new Map(areas.map((area) => [area.valor, area.etiqueta]))
 
     return {
       ...EQUIPO,
@@ -83,10 +95,28 @@ export function VistaEquipo ({
           }
         }
 
+        if (columna.clave === 'cargo_id') {
+          return {
+            ...columna,
+            presentar: (persona: MiembroEquipo) => (
+              persona.cargo_id === null ? 'Sin cargo' : nombreDeCargo.get(String(persona.cargo_id)) ?? `#${persona.cargo_id}`
+            )
+          }
+        }
+
+        if (columna.clave === 'area_id') {
+          return {
+            ...columna,
+            presentar: (persona: MiembroEquipo) => (
+              persona.area_id === null ? 'Sin área' : nombreDeArea.get(String(persona.area_id)) ?? `#${persona.area_id}`
+            )
+          }
+        }
+
         return columna
       })
     }
-  }, [roles])
+  }, [roles, cargos, areas])
 
   return (
     <div className="flex flex-col gap-3">
@@ -108,6 +138,8 @@ export function VistaEquipo ({
           <AccionesPersona
             persona={persona}
             roles={roles}
+            cargos={cargos}
+            areas={areas}
             capacidades={capacidades}
             recargar={recargar}
           />
@@ -120,7 +152,7 @@ export function VistaEquipo ({
           onAbiertoCambia={setCreando}
           titulo="Nueva persona"
           descripcion="No se envía ningún correo: la contraseña hay que entregarla por otro medio."
-          campos={camposDePersona(roles, true)}
+          campos={camposDePersona(roles, cargos, areas, true)}
           ruta="staff"
           metodo="POST"
           onGuardado={() => { router.refresh() }}

@@ -38,6 +38,7 @@ export function CabeceraPersona ({ persona }: { persona: FichaPersona }) {
               {persona.active ? 'Activa' : 'Dada de baja'}
             </Insignia>
             {persona.is_admin && <Insignia tono="acento">Administrador</Insignia>}
+            {persona.is_director && <Insignia tono="acento">Director</Insignia>}
             {persona.is_not_staff && <Insignia tono="contorno">No es del equipo</Insignia>}
           </div>
 
@@ -57,6 +58,7 @@ export function CabeceraPersona ({ persona }: { persona: FichaPersona }) {
               />
             )}
             <DatoLinea etiqueta="Rol" valor={persona.role?.name ?? 'Sin rol'} />
+            <DatoLinea etiqueta="Área" valor={persona.area?.name ?? 'Sin área'} />
             <DatoLinea
               etiqueta="Último acceso"
               valor={persona.last_login === null ? 'Nunca' : <Fecha valor={persona.last_login} conHora />}

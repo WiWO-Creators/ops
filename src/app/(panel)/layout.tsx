@@ -101,6 +101,13 @@ function seccionesDe (yo: Yo): Seccion[] {
     secciones.push({ href: '/equipo', etiqueta: 'Equipo', icono: 'equipo' })
   }
 
+  // "Mi Área" no tiene permiso de Perfex propio: el cargo Director (`wiwo_core/cargos_areas.php`) no
+  // otorga capabilities, asi que la llave es `is_director` y no `permissions.staff`. Un director sin
+  // `staff.view` igual puede ver a su gente por esta puerta.
+  if (yo.is_director) {
+    secciones.push({ href: '/equipo/mi-area', etiqueta: 'Mi Área', icono: 'mi_area' })
+  }
+
   // Administracion no tiene permiso de Perfex propio: la API exige `is_admin` en cada una de sus
   // rutas (hoy solo avisos por correo), asi que la barra usa la misma llave.
   if (yo.is_admin) {

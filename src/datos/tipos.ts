@@ -74,6 +74,8 @@ export interface Staff {
   is_admin: boolean
   role_id: number | null
   active: boolean
+  /** Cargo "Director" (`modules/wiwo_core/cargos_areas.php`). Gate de la seccion "Mi Área". */
+  is_director: boolean
 }
 
 /** Forma reducida que viaja embebida en `assignees`, `followers` y `members`. */
