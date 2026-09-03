@@ -5,7 +5,7 @@ import { ATRIBUTO_ABATIDA, CLAVE_BARRA } from '@/lib/barra-lateral'
 import Link, { useLinkStatus } from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useSyncExternalStore } from 'react'
-import { Building2, DoorOpen, FolderKanban, House, ListChecks, Mail, Menu, PanelLeftClose, PanelLeftOpen, Users } from 'lucide-react'
+import { Building2, DoorOpen, FolderKanban, House, ListChecks, Mail, Menu, PanelLeftClose, PanelLeftOpen, Users, Video } from 'lucide-react'
 import { Cajon, CerrarCajon, ContenidoCajon, DisparadorCajon } from '@/componentes/superposiciones/Cajon'
 import { cn } from '@/lib/clases'
 
@@ -38,6 +38,9 @@ const ICONOS = {
   procesos: ListChecks,
   espacios: FolderKanban,
   salas: DoorOpen,
+  // `Video` y no `DoorOpen`: Salas son las de la oficina y Teletrabajo las de la pantalla. Con dos
+  // puertas, la barra diria que son lo mismo.
+  teletrabajo: Video,
   clientes: Building2,
   equipo: Users,
   administracion: Mail

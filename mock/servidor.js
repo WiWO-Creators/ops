@@ -190,6 +190,9 @@ const CONSULTA_ESPACIOS = {
   filtros: {
     status: coincideEnLista((e) => e.status),
     clientid: coincideEnLista((e) => e.clientid),
+    // Espacios que integra una persona. Lo usan el panel de trabajo del equipo y la lista de salas
+    // privadas de Teletrabajo.
+    member: coincideEnLista((e) => e.miembros),
     date_from: (e, v) => e.start_date >= v,
     date_to: (e, v) => e.start_date <= v
   },
@@ -223,19 +226,32 @@ const CONSULTA_STAFF = {
  * Presenta un Espacio con sus contadores. Los `counts` viajan siempre: sin ellos, la lista tendria
  * que hacer una consulta por fila.
  */
-function presentarEspacio (espacio) {
+function presentarEspacio (espacio, includes = []) {
   const cliente = CLIENTES.find((c) => c.id === espacio.clientid)
   const suyos = PROCESOS.filter((p) => p.project?.id === espacio.id)
-  const { clientid, ...resto } = espacio
+  const { clientid, miembros, ...resto } = espacio
   return {
     ...resto,
     client: cliente ? { id: cliente.id, company: cliente.company } : null,
+    // `members` solo con `include=members`, igual que la API: quien no lo pide no debe recibirlo, o
+    // el frontend se acostumbra a un campo que en produccion no va a estar.
+    ...(includes.includes('members') ? { members: miembrosDe(espacio) } : {}),
     counts: {
       tasks: suyos.length,
       tasks_open: suyos.filter((p) => p.status !== 5).length,
       milestones: HITOS.filter((h) => h.project_id === espacio.id).length
     }
   }
+}
+
+/**
+ * Staff que integra un espacio.
+ *
+ * @param {object} espacio fila de `ESPACIOS`
+ * @returns {object[]} referencias de staff, en el orden del fixture
+ */
+function miembrosDe (espacio) {
+  return STAFF.filter((s) => espacio.miembros.includes(s.id)).map(presentarStaff)
 }
 
 /** En listas se omite `description`: son `longtext` y nadie los lee desde una tabla. */
@@ -1117,7 +1133,7 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
       const { filas, paginacion } = aplicarConsulta(ESPACIOS, parametros, CONSULTA_ESPACIOS)
       return {
         estado: 200,
-        cuerpo: conDatos(filas.map((e) => conCamposPersonalizados(presentarEspacio(e), 'projects', includes)), {
+        cuerpo: conDatos(filas.map((e) => conCamposPersonalizados(presentarEspacio(e, includes), 'projects', includes)), {
           pagination: paginacion
         })
       }
@@ -1127,7 +1143,7 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
     const [, subrecurso] = resto
 
     if (!subrecurso) {
-      return { estado: 200, cuerpo: conDatos(conCamposPersonalizados(presentarEspacio(espacio), 'projects', includes)) }
+      return { estado: 200, cuerpo: conDatos(conCamposPersonalizados(presentarEspacio(espacio, includes), 'projects', includes)) }
     }
     if (subrecurso === 'tasks') {
       const suyos = PROCESOS.filter((p) => p.project?.id === espacio.id)
@@ -1138,7 +1154,7 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
       return { estado: 200, cuerpo: conDatos(HITOS.filter((h) => h.project_id === espacio.id)) }
     }
     if (subrecurso === 'members') {
-      return { estado: 200, cuerpo: conDatos(STAFF.slice(0, 3).map(presentarStaff)) }
+      return { estado: 200, cuerpo: conDatos(miembrosDe(espacio)) }
     }
     if (subrecurso === 'files') {
       const suyos = PROCESOS.filter((p) => p.project?.id === espacio.id).map((p) => p.id)
