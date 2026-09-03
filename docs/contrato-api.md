@@ -2678,11 +2678,16 @@ El **cuerpo** del mensaje no viaja: son `longtext` con el HTML entero de cada co
     }
   ],
   "meta": {
-    "pagination": {"page": 1, "per_page": 25, "total": 856, "total_pages": 35},
-    "summary": {"total": 856, "pending": 1, "sending": 0, "sent": 855, "failed": 0}
+    "pagination": {
+      "page": 1, "per_page": 25, "total": 856, "total_pages": 35,
+      "summary": {"total": 856, "pending": 1, "sending": 0, "sent": 855, "failed": 0}
+    }
   }
 }
 ```
+
+`summary` va **dentro** de `pagination`, no como hermano — corregido tras verificar contra la API real al
+construir la pantalla de administración (`meta.summary` era `undefined` en el navegador).
 
 **Errores**: `401`, `403`, `422`.
 
