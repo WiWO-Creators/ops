@@ -6,11 +6,13 @@ import { ChevronLeft, ChevronRight, Mail, Users } from 'lucide-react'
 import { Avatar } from '@/componentes/presentadores/Avatar'
 import { Boton } from '@/componentes/formularios/Boton'
 import { Entrada } from '@/componentes/formularios/Entrada'
+import { Segmentado } from '@/componentes/formularios/Segmentado'
 import { Insignia } from '@/componentes/presentadores/Insignia'
 import { CerrarDialogo, ContenidoDialogo, Dialogo } from '@/componentes/superposiciones/Dialogo'
 import { escribirEnBff } from '@/componentes/datos/mutaciones'
 import { DialogoReserva, type BorradorReserva } from './DialogoReserva'
 import { DialogoSalas } from './DialogoSalas'
+import { CalendarioSalas } from './CalendarioSalas'
 import {
   bloqueDeReserva, DURACION_POR_DEFECTO_MINUTOS, formatearMinutos, franjas, horaLocal,
   HORA_CIERRE, minutosLocales, sumarDias
@@ -23,6 +25,7 @@ const ALTO_FRANJA = 40
 
 interface PropsAgenda {
   dia: string
+  vista: 'agenda' | 'calendario'
   salas: Sala[]
   reservas: Reserva[]
   /** Personas del equipo que se pueden anotar en una reserva. */
@@ -42,7 +45,7 @@ interface PropsAgenda {
  * El dia viaja en la URL (`?dia=`) para que un enlace a "la agenda del jueves" sea compartible y el
  * boton atras haga lo que la persona espera.
  */
-export function AgendaSalas ({ dia, salas, reservas, personas, yoId, esAdmin }: PropsAgenda) {
+export function AgendaSalas ({ dia, vista, salas, reservas, personas, yoId, esAdmin }: PropsAgenda) {
   const router = useRouter()
   const [borrador, setBorrador] = useState<BorradorReserva | null>(null)
   const [detalle, setDetalle] = useState<Reserva | null>(null)
@@ -76,27 +79,40 @@ export function AgendaSalas ({ dia, salas, reservas, personas, yoId, esAdmin }: 
         <h1 className="text-texto text-xl font-semibold">Salas</h1>
 
         <div className="ml-auto flex items-center gap-2">
-          <Boton variante="sutil" tamano="chico" soloIcono aria-label="Día anterior" onClick={() => irA(sumarDias(dia, -1))}>
-            <ChevronLeft size={16} aria-hidden="true" />
-          </Boton>
-
-          <Entrada
-            type="date"
-            aria-label="Día de la agenda"
-            className="w-40"
-            value={dia}
-            onChange={(evento) => { if (evento.target.value !== '') irA(evento.target.value) }}
+          <Segmentado
+            etiqueta="Vista de salas"
+            activo={vista}
+            opciones={[
+              { valor: 'agenda', etiqueta: 'Agenda', href: `/salas?dia=${dia}` },
+              { valor: 'calendario', etiqueta: 'Calendario', href: `/salas?dia=${dia}&vista=calendario` }
+            ]}
           />
-
-          <Boton variante="sutil" tamano="chico" soloIcono aria-label="Día siguiente" onClick={() => irA(sumarDias(dia, 1))}>
-            <ChevronRight size={16} aria-hidden="true" />
-          </Boton>
-
           {esAdmin && <DialogoSalas salas={salas} onCambio={() => router.refresh()} />}
         </div>
       </header>
 
-      {salas.length === 0
+      {vista === 'calendario'
+        ? <CalendarioSalas dia={dia} salas={salas} reservas={reservas} />
+        : <>
+          <div className="flex items-center justify-end gap-2">
+            <Boton variante="sutil" tamano="chico" soloIcono aria-label="Día anterior" onClick={() => irA(sumarDias(dia, -1))}>
+              <ChevronLeft size={16} aria-hidden="true" />
+            </Boton>
+
+            <Entrada
+              type="date"
+              aria-label="Día de la agenda"
+              className="w-40"
+              value={dia}
+              onChange={(evento) => { if (evento.target.value !== '') irA(evento.target.value) }}
+            />
+
+            <Boton variante="sutil" tamano="chico" soloIcono aria-label="Día siguiente" onClick={() => irA(sumarDias(dia, 1))}>
+              <ChevronRight size={16} aria-hidden="true" />
+            </Boton>
+          </div>
+
+          {salas.length === 0
         ? (
           <p className="border-linea text-texto-tenue rounded-tarjeta border border-dashed p-8 text-center text-sm">
             No hay salas cargadas todavía.
@@ -168,6 +184,7 @@ export function AgendaSalas ({ dia, salas, reservas, personas, yoId, esAdmin }: 
             </div>
           </div>
           )}
+        </>}
 
       {/* La `key` hace que abrir otra franja monte un formulario nuevo en vez de reciclar el
           anterior: sin ella, el estado tipeado sobreviviria al cambio de horario. */}
