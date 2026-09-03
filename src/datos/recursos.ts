@@ -872,3 +872,12 @@ export interface PruebaDeAviso {
   email_sent: boolean
   email_delivered_to: string | null
 }
+
+/** Un preset de filtros guardado para un tablero kanban, privado por staff. */
+export interface PresetFiltro {
+  id: number
+  board: 'tasks' | 'milestones'
+  name: string
+  filters: Record<string, string[]>
+  date_created: string
+}

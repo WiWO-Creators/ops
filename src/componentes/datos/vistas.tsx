@@ -3,8 +3,7 @@
 import { CajonTarea, PARAMETRO_TAREA } from '@/componentes/proyecto/CajonTarea'
 import { PROCESOS_NAVEGABLES } from './procesos-navegables'
 import { TablaRecurso } from './TablaRecurso'
-import { Tablero } from './Tablero'
-import type { GrupoTablero } from './tablero'
+import { TableroFiltrable } from './TableroFiltrable'
 import { CLIENTES } from '@/definiciones/clientes'
 import { ESPACIOS } from '@/definiciones/espacios'
 import { PROCESOS } from '@/definiciones/procesos'
@@ -64,6 +63,6 @@ export function TablaClientes (props: PropsVistaLista<Cliente>) {
   return <TablaRecurso definicion={CLIENTES} claveFila={(cliente) => cliente.id} {...props} />
 }
 
-export function TableroProcesos (props: { inicial: Array<GrupoTablero<Proceso>>, consulta?: string }) {
-  return <Tablero definicion={PROCESOS} {...props} />
+export function TableroProcesos (props: { opcionesDeFiltro?: Record<string, OpcionFiltro[]> }) {
+  return <TableroFiltrable<Proceso> definicion={PROCESOS} ruta="tasks" board="tasks" {...props} />
 }

@@ -1,17 +1,18 @@
 'use client'
 
-import { useCallback, type ReactElement } from 'react'
-import { Tablero } from '@/componentes/datos/Tablero'
-import { Cargando, ErrorEstado, Vacio } from '@/componentes/estado/Estados'
+import { useCallback, useEffect, useState, type ReactElement } from 'react'
+import { TableroFiltrable } from '@/componentes/datos/TableroFiltrable'
 import { GrupoAvatares } from '@/componentes/presentadores/Avatar'
 import { Fecha } from '@/componentes/presentadores/Fecha'
+import { pedirSobre } from '@/datos/cliente'
+import { opcionesDeFiltros } from '@/datos/catalogos'
+import { PROCESOS } from '@/definiciones/procesos'
 import { GLOSARIO } from '@/dominio/glosario'
-import { useRecurso } from './carga'
-import { cuerpoMoverHito, ordenarColumnasHitos, type GrupoHito } from './hitos'
+import { cuerpoMoverHito, ordenarColumnasHitos } from './hitos'
 import { segundosAHoraMinuto } from './formatos'
 import type { CuerpoMover, GrupoTablero } from '@/componentes/datos/tablero'
 import type { DefinicionRecurso } from '@/definiciones/tipos'
-import type { TarjetaHito } from '@/datos/recursos'
+import type { Lookups, TarjetaHito } from '@/datos/recursos'
 
 /**
  * Kanban de Hitos: una columna por hito, mas la sintetica "Sin categorizar".
@@ -32,21 +33,30 @@ interface PropsTableroHitos {
 }
 
 /**
+ * Los filtros del tablero de Hitos son los de tarea, no los del hito: las tarjetas SON tareas
+ * agrupadas por hito. Se toman prestados de `PROCESOS` en vez de declararse de nuevo —mismo
+ * `desdeLookup`, misma whitelist que ya valida el backend— salvo `project_id` y `milestone_id`, que
+ * acá no tienen sentido: el proyecto ya lo dice la ruta, y el hito ya lo dice la columna.
+ */
+const CLAVES_FILTRO_HITOS = ['status', 'priority', 'billable', 'vence']
+
+/**
  * Definicion del tablero de Hitos.
  *
  * `columnasDesde` no se usa aca —las columnas llegan dentro de la respuesta del tablero, no de
  * `/lookups`— pero el tipo lo exige, asi que se declara la clave que mas se le parece.
  */
-function definicionDeHitos (proyectoId: number): DefinicionRecurso<TarjetaHito> {
+function definicionDeHitos (proyectoId: number, excluirCompletadas: boolean): DefinicionRecurso<TarjetaHito> {
   return {
     ruta: `projects/${encodeURIComponent(String(proyectoId))}/milestones`,
     titulo: GLOSARIO.hito,
     columnas: [{ clave: 'name', encabezado: 'Nombre', presentar: (t) => t.name }],
-    filtros: [],
+    filtros: PROCESOS.filtros.filter((filtro) => CLAVES_FILTRO_HITOS.includes(filtro.clave)),
     ordenables: ['order'],
     ordenPorDefecto: 'order',
     busqueda: false,
     includes: [],
+    consultaFija: `excluir_completadas=${String(excluirCompletadas)}`,
     tablero: {
       columnasDesde: 'milestones',
       rutaMover: 'tasks/:id/mover-hito',
@@ -56,11 +66,19 @@ function definicionDeHitos (proyectoId: number): DefinicionRecurso<TarjetaHito> 
 }
 
 export function TableroHitos ({ proyectoId, excluirCompletadas }: PropsTableroHitos): ReactElement {
-  const consulta = `excluir_completadas=${String(excluirCompletadas)}`
-  const { estado, recargar } = useRecurso<GrupoHito[]>(
-    `projects/${proyectoId}/milestones?vista=tablero&${consulta}`,
-    `No se pudo cargar el tablero de ${GLOSARIO.hito.plural.toLowerCase()}.`
-  )
+  const [lookups, setLookups] = useState<Lookups | null>(null)
+
+  useEffect(() => {
+    const control = new AbortController()
+
+    void pedirSobre<Lookups>('lookups', control.signal)
+      .then((sobre) => { if (!control.signal.aborted) setLookups(sobre.data) })
+      .catch(() => {})
+
+    return () => { control.abort() }
+  }, [])
+
+  const definicion = definicionDeHitos(proyectoId, excluirCompletadas)
 
   // Estables entre renders: `Tablero` los usa dentro de un `useCallback` y una identidad nueva por
   // render volveria a pedir el tablero en bucle.
@@ -70,26 +88,15 @@ export function TableroHitos ({ proyectoId, excluirCompletadas }: PropsTableroHi
   )
   const adaptar = useCallback((cuerpo: CuerpoMover) => cuerpoMoverHito(cuerpo), [])
 
-  if (estado.fase === 'cargando') return <Cargando alto="min-h-64" mensaje="Cargando los hitos…" />
-  if (estado.fase === 'error') return <ErrorEstado detalle={estado.mensaje} onReintentar={recargar} />
-
-  if (ordenar(estado.datos).length === 0) {
-    return (
-      <Vacio
-        titulo={`Sin ${GLOSARIO.hito.plural.toLowerCase()}`}
-        descripcion={`Los ${GLOSARIO.hito.plural.toLowerCase()} parten el proyecto en entregas con fecha. Creá el primero con "Nuevo ${GLOSARIO.hito.singular.toLowerCase()}".`}
-      />
-    )
-  }
-
   return (
-    <Tablero
-      // Remonta el tablero al cambiar el filtro: el motor guarda los grupos en su propio estado y
-      // solo los relee al montar.
-      key={consulta}
-      definicion={definicionDeHitos(proyectoId)}
-      inicial={estado.datos}
-      consulta={consulta}
+    <TableroFiltrable<TarjetaHito>
+      definicion={definicion}
+      ruta={definicion.ruta}
+      board="milestones"
+      opcionesDeFiltro={lookups === null ? undefined : opcionesDeFiltros(definicion, lookups)}
+      mensajeError={`No se pudo cargar el tablero de ${GLOSARIO.hito.plural.toLowerCase()}.`}
+      tituloVacio={`Sin ${GLOSARIO.hito.plural.toLowerCase()}`}
+      descripcionVacio={`Los ${GLOSARIO.hito.plural.toLowerCase()} parten el proyecto en entregas con fecha. Creá el primero con "Nuevo ${GLOSARIO.hito.singular.toLowerCase()}".`}
       adaptarCuerpo={adaptar}
       ordenarColumnas={ordenar}
     />
