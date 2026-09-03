@@ -1,6 +1,6 @@
 import { pedir } from '@/datos/servidor'
 import { hoyLocal } from '@/lib/fechas'
-import { ventanaDelDia } from '@/dominio/salas'
+import { ventanaDelDia, ventanaDelMes } from '@/dominio/salas'
 import { AgendaSalas } from './AgendaSalas'
 import type { PersonaDeSala, Reserva, Sala } from '@/datos/recursos'
 import type { Yo } from '@/datos/tipos'
@@ -22,9 +22,10 @@ export default async function SalasPage (props: PageProps<'/salas'>) {
   const params = await props.searchParams
   const pedido = typeof params.dia === 'string' ? params.dia : ''
   const dia = /^\d{4}-\d{2}-\d{2}$/.test(pedido) ? pedido : hoyLocal()
+  const vista = params.vista === 'calendario' ? 'calendario' : 'agenda'
 
   // `ventanaDelDia` solo devuelve null con un dia mal formado, y `dia` ya paso por el regex.
-  const ventana = ventanaDelDia(dia) ?? ventanaDelDia(hoyLocal())
+  const ventana = (vista === 'calendario' ? ventanaDelMes(dia) : ventanaDelDia(dia)) ?? ventanaDelDia(hoyLocal())
 
   const [salas, reservas, personas, yo] = await Promise.all([
     pedir<Sala[]>('/rooms'),
@@ -36,6 +37,7 @@ export default async function SalasPage (props: PageProps<'/salas'>) {
   return (
     <AgendaSalas
       dia={dia}
+      vista={vista}
       salas={salas.data}
       reservas={reservas.data}
       personas={personas.data}

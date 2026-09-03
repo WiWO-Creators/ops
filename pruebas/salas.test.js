@@ -16,9 +16,9 @@ process.env.TZ = 'UTC'
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
-  bloqueDeReserva, diaLocal, estadoDeReserva, filtrarPersonas, formatearMinutos, franjas, horaLocal,
+  bloqueDeReserva, diaLocal, diasDeCalendarioMes, estadoDeReserva, filtrarPersonas, formatearMinutos, franjas, horaLocal,
   instanteDe, minutosDeHora, minutosLocales, normalizar, revisarReserva, seSuperpone,
-  sugerirAsistentes, sumarDias, ventanaDelDia,
+  reservaTocaDia, sugerirAsistentes, sumarDias, sumarMeses, ventanaDelDia, ventanaDelMes,
   HORA_APERTURA, HORA_CIERRE, PASO_MINUTOS
 } from '../src/dominio/salas.ts'
 
@@ -41,6 +41,13 @@ test('ventanaDelDia va de medianoche local a medianoche local', () => {
 
   assert.equal(ventana?.desde, '2026-09-02T03:00:00.000Z')
   assert.equal(ventana?.hasta, '2026-09-03T03:00:00.000Z')
+})
+
+test('ventanaDelMes abarca el mes completo en hora local', () => {
+  const ventana = ventanaDelMes('2026-09-18')
+
+  assert.equal(ventana?.desde, '2026-09-01T03:00:00.000Z')
+  assert.equal(ventana?.hasta, '2026-10-01T03:00:00.000Z')
 })
 
 test('minutosLocales y diaLocal leen el instante en la zona del negocio, no en la del proceso', () => {
@@ -149,6 +156,31 @@ test('sumarDias opera sobre el dia calendario y cruza fin de mes', () => {
   assert.equal(sumarDias('2026-09-01', -1), '2026-08-31')
   assert.equal(sumarDias('2026-12-31', 1), '2027-01-01')
   assert.equal(sumarDias('mañana', 1), 'mañana')
+})
+
+test('sumarMeses conserva el calendario y cruza de año', () => {
+  assert.equal(sumarMeses('2026-12-18', 1), '2027-01-01')
+  assert.equal(sumarMeses('2026-01-18', -1), '2025-12-01')
+  assert.equal(sumarMeses('mañana', 1), 'mañana')
+})
+
+test('diasDeCalendarioMes completa semanas de lunes a domingo', () => {
+  const dias = diasDeCalendarioMes('2026-09-18')
+
+  assert.equal(dias.length, 35)
+  assert.deepEqual(dias.slice(0, 2), [
+    { dia: '2026-08-31', perteneceAlMes: false },
+    { dia: '2026-09-01', perteneceAlMes: true }
+  ])
+  assert.equal(dias.at(-1)?.dia, '2026-10-04')
+})
+
+test('reservaTocaDia cuenta rangos que cruzan medianoche y no extremos contiguos', () => {
+  const reserva = { start: '2026-09-03T02:00:00Z', end: '2026-09-03T04:00:00Z' }
+
+  assert.equal(reservaTocaDia(reserva, '2026-09-02'), true)
+  assert.equal(reservaTocaDia(reserva, '2026-09-03'), true)
+  assert.equal(reservaTocaDia({ start: '2026-09-03T03:00:00Z', end: '2026-09-03T04:00:00Z' }, '2026-09-02'), false)
 })
 
 const PERSONAS = [

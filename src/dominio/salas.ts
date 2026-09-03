@@ -111,6 +111,24 @@ export function ventanaDelDia (dia: string): { desde: string, hasta: string } | 
 }
 
 /**
+ * Ventana de reservas de un mes calendario en hora local del negocio.
+ *
+ * @param dia cualquier día del mes que se quiere consultar
+ * @returns extremos UTC del mes, o `null` si el día no es válido
+ */
+export function ventanaDelMes (dia: string): { desde: string, hasta: string } | null {
+  const inicio = inicioDelMes(dia)
+  if (inicio === null) return null
+
+  const desde = instanteDe(inicio, 0)
+  const hasta = instanteDe(sumarMeses(inicio, 1), 0)
+
+  if (desde === null || hasta === null) return null
+
+  return { desde: desde.toISOString(), hasta: hasta.toISOString() }
+}
+
+/**
  * Minutos desde la medianoche local que corresponden a un instante.
  *
  * @param iso instante ISO-8601
@@ -373,6 +391,81 @@ export function sumarDias (dia: string, dias: number): string {
   if (anio === undefined || mes === undefined || fecha === undefined) return dia
 
   return new Date(Date.UTC(anio, mes - 1, fecha + dias)).toISOString().slice(0, 10)
+}
+
+/** Primer día del mes de una fecha local, o `null` si no tiene formato de fecha. */
+function inicioDelMes (dia: string): string | null {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dia)) return null
+
+  return `${dia.slice(0, 7)}-01`
+}
+
+/**
+ * Mueve una fecha al primer día de otro mes calendario.
+ *
+ * @param dia fecha local que identifica el mes de partida
+ * @param meses desplazamiento, positivo o negativo
+ * @returns primer día del mes destino, o el texto original si el día no es válido
+ */
+export function sumarMeses (dia: string, meses: number): string {
+  const inicio = inicioDelMes(dia)
+  if (inicio === null) return dia
+
+  const [anio, mes] = inicio.slice(0, 7).split('-').map(Number)
+  if (anio === undefined || mes === undefined) return dia
+
+  return new Date(Date.UTC(anio, mes - 1 + meses, 1)).toISOString().slice(0, 10)
+}
+
+export interface DiaDeCalendario {
+  /** Fecha local `YYYY-MM-DD`. */
+  dia: string
+  /** Si el día pertenece al mes pedido y se puede consultar. */
+  perteneceAlMes: boolean
+}
+
+/**
+ * Semanas completas de lunes a domingo para el calendario mensual.
+ *
+ * @param dia cualquier día del mes que se dibuja
+ * @returns 5 o 6 semanas; vacío si el día no es válido
+ */
+export function diasDeCalendarioMes (dia: string): DiaDeCalendario[] {
+  const inicio = inicioDelMes(dia)
+  if (inicio === null) return []
+
+  const [anio, mes] = inicio.slice(0, 7).split('-').map(Number)
+  if (anio === undefined || mes === undefined) return []
+
+  const primerDia = new Date(Date.UTC(anio, mes - 1, 1))
+  const primerDiaSemana = (primerDia.getUTCDay() + 6) % 7
+  const cantidadDelMes = new Date(Date.UTC(anio, mes, 0)).getUTCDate()
+  const cantidadCeldas = primerDiaSemana + cantidadDelMes > 35 ? 42 : 35
+
+  return Array.from({ length: cantidadCeldas }, (_, indice) => {
+    const fecha = sumarDias(inicio, indice - primerDiaSemana)
+
+    return { dia: fecha, perteneceAlMes: fecha.slice(0, 7) === inicio.slice(0, 7) }
+  })
+}
+
+/**
+ * Determina si una reserva ocupa al menos un instante de un día local.
+ *
+ * @param reserva rango UTC de la reserva
+ * @param dia día local a comprobar
+ * @returns `true` cuando los rangos se cruzan; los extremos contiguos no cuentan
+ */
+export function reservaTocaDia (reserva: RangoOcupado, dia: string): boolean {
+  const ventana = ventanaDelDia(dia)
+  if (ventana === null) return false
+
+  const inicioReserva = new Date(reserva.start).getTime()
+  const finReserva = new Date(reserva.end).getTime()
+
+  if (Number.isNaN(inicioReserva) || Number.isNaN(finReserva)) return false
+
+  return inicioReserva < new Date(ventana.hasta).getTime() && finReserva > new Date(ventana.desde).getTime()
 }
 
 export interface PersonaElegible {
