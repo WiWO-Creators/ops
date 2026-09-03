@@ -607,6 +607,53 @@ con `download` como último segmento, y el token sale de `Authorization` o de `X
 (`Nucleo/Peticion.php`), nunca de la query string. Mientras no exista, los binarios se piden desde el
 BFF, que sí puede poner la cabecera.
 
+### `drive` — árbol de carpetas en el Drive compartido
+
+`GET /clients/{id}/drive` · `GET /projects/{id}/drive` · `GET /drive/{folder_id}` ·
+`PATCH /clients/{id}/drive`
+
+Jerarquía Cliente → Espacio (Proyecto de Perfex) → Proceso, con una carpeta real en un Drive
+compartido de Google por cada uno. Las crea sola `wiwo_core` (módulo del panel, no la API) al dar de
+alta cada entidad — este recurso sólo **lee** lo que ya existe; no crea carpetas ni backfillea las
+anteriores a esta función.
+
+```json
+// GET /clients/{id}/drive
+{ "data": {
+  "letras": "ACM",
+  "folder": {
+    "id": "1AbCdEfGhIjKlMnOpQrStUvWxYz",
+    "children": [
+      { "id": "1XyZ...", "name": "ACM-001 - Sitio nuevo", "is_folder": true,
+        "web_view_link": "https://drive.google.com/drive/folders/1XyZ..." }
+    ]
+  }
+} }
+```
+
+```json
+// GET /projects/{id}/drive
+{ "data": { "patente": "ACM-001", "folder": { "id": "1XyZ...", "children": [] } } }
+```
+
+**`folder: null`** es un Cliente o Espacio anterior a esta función, sin carpeta todavía — un vacío
+normal, no un error. **`letras: null`** en un Cliente sin ningún Espacio creado nunca: el código de 3
+letras se genera recién con el primer Espacio, aunque la carpeta del Cliente se cree antes, al darlo
+de alta.
+
+`GET /drive/{folder_id}` baja un nivel (`{ "data": { "children": [...] } }`), mismo shape que
+`folder`. El id no es adivinable (string largo de Google) y sólo llega al frontend después de pedir
+la raíz de un Cliente o Espacio ya visible — pero igual se resuelve de qué Cliente/Espacio/Proceso es
+hija la carpeta pedida y se le aplica la misma visibilidad que a la raíz, no sólo la dificultad de
+adivinar el id.
+
+**`PATCH /clients/{id}/drive`** con `{ "letras": "ACM" }` cambia el código de 3 letras (se normaliza a
+mayúsculas). `422 validation_failed` si no son exactamente 3 letras, `409 conflict` si otro Cliente ya
+lo usa. La patente de un Espacio no se edita por API: la asigna sola el panel al crearlo.
+
+**No hay `POST` de subida a Drive.** El árbol es de sólo lectura por ahora; subir un archivo a una de
+estas carpetas se sigue haciendo a mano desde Drive.
+
 ## Recursos de ventas, comercial y soporte
 
 Los ocho recursos que faltaban: `invoices`, `payments`, `estimates`, `proposals`, `expenses`,
