@@ -73,6 +73,12 @@ export default async function ProyectoPagina (props: PageProps<'/portal/proyecto
             <span className="text-texto-tenue text-sm">Entrega: {formatearFecha(proyecto.deadline)}</span>
           )}
         </div>
+
+        {/* La descripcion vive en el encabezado y no en el panel Resumen: un proyecto que no comparte
+            la pestaña de resumen igual tiene derecho a contar de que se trata. */}
+        {proyecto.description !== null && proyecto.description !== '' && (
+          <p className="text-texto-tenue max-w-prose text-sm whitespace-pre-line">{proyecto.description}</p>
+        )}
       </header>
 
       {paneles.length > 0 ? <Pestanas paneles={paneles} /> : <PanelResumen proyecto={proyecto} />}

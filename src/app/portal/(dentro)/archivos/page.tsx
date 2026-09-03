@@ -3,6 +3,7 @@ import { Vacio } from '@/componentes/estado/Estados'
 import { formatearFecha } from '@/lib/fechas'
 import { pedirPortal } from '@/datos/servidor'
 import type { ArchivoPortal } from '@/datos/portal'
+import { enlaceDeDescarga } from '../detalle'
 
 export const metadata: Metadata = { title: 'Archivos · Portal de clientes' }
 
@@ -46,17 +47,4 @@ export default async function ArchivosPagina () {
       </ul>
     </section>
   )
-}
-
-/**
- * A donde apunta la descarga.
- *
- * La API devuelve rutas propias (`/api/v1/files/...`) para lo que vive en el servidor y URLs enteras
- * para los adjuntos externos. Las primeras pasan por el BFF, que es el unico que tiene el token; las
- * segundas van tal cual, porque no hay nada nuestro que autorizar.
- */
-function enlaceDeDescarga (archivo: ArchivoPortal): string {
-  const url = archivo.url ?? ''
-
-  return url.startsWith('/api/v1/') ? `/api/bff${url.slice('/api/v1'.length)}` : url
 }
