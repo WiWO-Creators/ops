@@ -2,10 +2,11 @@
 
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
-import { Mail, Phone, Plus, Star, Trash2, UserPen } from 'lucide-react'
+import { Check, Copy, KeyRound, Mail, Phone, Plus, Star, Trash2, UserPen } from 'lucide-react'
 import { CeldaEncabezado, CeldaTabla, CuerpoTabla, EncabezadoTabla, FilaTabla, Tabla } from '@/componentes/datos/Tabla'
 import { Avatar } from '@/componentes/presentadores/Avatar'
 import { Boton } from '@/componentes/formularios/Boton'
+import { Entrada } from '@/componentes/formularios/Entrada'
 import { Insignia } from '@/componentes/presentadores/Insignia'
 import { Vacio } from '@/componentes/estado/Estados'
 import { escribirEnBff } from '@/componentes/datos/mutaciones'
@@ -44,6 +45,7 @@ export function PanelContactos ({ clienteId, contactos, capacidades }: PropsPane
   const [creando, setCreando] = useState(false)
   const [ocupado, setOcupado] = useState<number | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [enlace, setEnlace] = useState<{ contacto: string, url: string } | null>(null)
 
   const filas = ordenarContactosCompletos(contactos)
   const puedeEditar = capacidades.includes('edit')
@@ -72,6 +74,36 @@ export function PanelContactos ({ clienteId, contactos, capacidades }: PropsPane
     }
 
     router.refresh()
+  }
+
+  /**
+   * Genera el enlace de acceso al portal de un contacto y lo deja a la vista para copiarlo.
+   *
+   * No refresca la pantalla al terminar, a diferencia del resto de las escrituras: el enlace en
+   * claro solo existe en esta respuesta, y un `router.refresh()` lo borraria antes de que nadie lo
+   * copie. Tampoco se guarda en ningun lado — si se pierde, se genera otro.
+   */
+  async function generarEnlace (contacto: ContactoCompleto): Promise<void> {
+    setOcupado(contacto.id)
+    setError(null)
+    setEnlace(null)
+
+    const resultado = await escribirEnBff<{ token: string, expires_at: string }>(
+      `contacts/${contacto.id}/access-link`,
+      'POST'
+    )
+
+    setOcupado(null)
+
+    if (!resultado.ok) {
+      setError(resultado.mensaje)
+      return
+    }
+
+    setEnlace({
+      contacto: contacto.full_name,
+      url: `${globalThis.location.origin}/clave/${resultado.datos.token}`
+    })
   }
 
   if (filas.length === 0) {
@@ -122,6 +154,8 @@ export function PanelContactos ({ clienteId, contactos, capacidades }: PropsPane
       )}
 
       {error !== null && <p role="alert" className="text-texto-peligro text-sm">{error}</p>}
+
+      {enlace !== null && <EnlaceGenerado enlace={enlace} onCerrar={() => setEnlace(null)} />}
 
       <Tabla>
         <EncabezadoTabla>
@@ -194,6 +228,18 @@ export function PanelContactos ({ clienteId, contactos, capacidades }: PropsPane
                             aria-hidden="true"
                             className={cn(contacto.is_primary && 'text-texto-aviso fill-current')}
                           />
+                        </Boton>
+
+                        <Boton
+                          variante="sutil"
+                          tamano="chico"
+                          soloIcono
+                          title="Generar enlace para que elija su contraseña"
+                          aria-label={`Generar enlace de acceso al portal para ${contacto.full_name}`}
+                          disabled={ocupado !== null}
+                          onClick={() => { void generarEnlace(contacto) }}
+                        >
+                          <KeyRound size={14} aria-hidden="true" />
                         </Boton>
 
                         <Boton
@@ -295,5 +341,63 @@ function AccesoAlPortal ({ contacto }: { contacto: ContactoCompleto }) {
         {contacto.last_login === null ? 'Nunca entró' : `Último acceso: ${formatearFecha(contacto.last_login)}`}
       </span>
     </span>
+  )
+}
+
+/**
+ * El enlace recien generado, listo para copiar y mandar.
+ *
+ * Se muestra en un campo de solo lectura y no como texto suelto: un enlace de 70 caracteres se
+ * selecciona mal con el mouse, y perderlo a medias significa que el cliente recibe un enlace roto.
+ *
+ * **Se ve una sola vez.** La API devuelve el token en claro solo en la respuesta que lo crea; acá no
+ * se guarda en ningun lado, y cerrar el aviso lo pierde. Si eso pasa, se genera otro y el anterior
+ * queda revocado.
+ */
+function EnlaceGenerado (
+  { enlace, onCerrar }: { enlace: { contacto: string, url: string }, onCerrar: () => void }
+) {
+  const [copiado, setCopiado] = useState(false)
+
+  async function copiar (): Promise<void> {
+    try {
+      await navigator.clipboard.writeText(enlace.url)
+      setCopiado(true)
+      globalThis.setTimeout(() => setCopiado(false), 2000)
+    } catch {
+      // Sin permiso de portapapeles (o sin HTTPS) no hay copia automatica: el campo es seleccionable
+      // y ese es el plan B, asi que lo unico que falta es decirlo.
+      setCopiado(false)
+    }
+  }
+
+  return (
+    <div className="rounded-medio border-linea bg-superficie-hundida flex flex-col gap-2 border p-3">
+      <p className="text-texto text-sm font-medium">
+        Enlace de acceso para {enlace.contacto}
+      </p>
+
+      <div className="flex items-center gap-2">
+        <Entrada
+          readOnly
+          value={enlace.url}
+          aria-label="Enlace de acceso al portal"
+          onFocus={(e) => e.currentTarget.select()}
+          className="font-mono text-xs"
+        />
+        <Boton variante="secundario" tamano="chico" onClick={() => { void copiar() }}>
+          {copiado
+            ? <Check size={14} aria-hidden="true" />
+            : <Copy size={14} aria-hidden="true" />}
+          {copiado ? 'Copiado' : 'Copiar'}
+        </Boton>
+        <Boton variante="sutil" tamano="chico" onClick={onCerrar}>Listo</Boton>
+      </div>
+
+      <p className="text-texto-tenue text-xs">
+        Mandáselo por donde ya le escribís: acá no sale ningún correo. Vence en 72 horas, sirve una
+        sola vez y con él elige su propia contraseña. Generar uno nuevo anula este.
+      </p>
+    </div>
   )
 }
