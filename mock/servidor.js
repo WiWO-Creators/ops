@@ -195,6 +195,9 @@ function conCamposPersonalizados (fila, entidad, includes) {
 // Whitelists por recurso
 // ---------------------------------------------------------------------------
 
+/** Estado "Completado" de Perfex. Es el mismo 5 que usa `Escritura\EstadoProceso::COMPLETADO`. */
+const ESTADO_COMPLETADO = 5
+
 const CONSULTA_PROCESOS = {
   filtros: {
     status: coincideEnLista((p) => p.status),
@@ -208,7 +211,11 @@ const CONSULTA_PROCESOS = {
     date_from: (p, v) => p.due_date >= v,
     date_to: (p, v) => p.due_date <= v
   },
-  orden: ['name', 'due_date', 'start_date', 'date_added', 'priority', 'status'],
+  orden: ['name', 'due_date', 'start_date', 'date_added', 'priority', 'status', 'completed'],
+  // `completed` no es un campo: la API lo resuelve con un CASE sobre `status`
+  // (`RecursoProcesos::completadaComoOrden()`). Sin esto, el orden por defecto del listado de
+  // Procesos —`['completed', '-date_added']`— respondia 422 contra el mock.
+  derivadas: { completed: (p) => (p.status === ESTADO_COMPLETADO ? 1 : 0) },
   busqueda: ['name']
 }
 

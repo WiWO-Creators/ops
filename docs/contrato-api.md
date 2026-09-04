@@ -518,9 +518,16 @@ Notas que evitan errores:
   `tbltaskstimers.start_time` y `end_time` no son `DATETIME`. La conversión la hace la API.
 - `counts` evita N+1 en las listas: sin él, cada fila de la tabla pide sus comentarios.
 
-Filtros: `status` (admite lista: `filter[status]=1,4`), `priority`, `project_id`, `milestone_id`,
-`assignee`, `follower`, `tag`, `billable`, `date_from`/`date_to` sobre `due_date`, `q`.
-Orden: `name`, `due_date`, `start_date`, `date_added`, `priority`, `status`.
+Filtros, **en `filter[...]`**: `status` (admite lista: `filter[status]=1,4`), `priority`,
+`project_id`, `milestone_id`, `billable`, `date_from`/`date_to` sobre `due_date`, `q`.
+
+**Tres van sueltos, no dentro de `filter[]`**: `assignee`, `follower` y `tag`. Se escriben
+`?assignee=12`, y `filter[assignee]=12` responde `422` porque no están en la whitelist de filtros
+(`RecursoProcesos::idDeFiltro()` los lee de los parámetros de primer nivel). La distinción no es
+cosmética: es la forma que ya usa `inicio/page.tsx`, y la que hay que usar.
+
+Orden: `name`, `due_date`, `start_date`, `date_added`, `priority`, `status`, `completed`
+(`completed` es derivado: un `CASE` sobre `status`, no una columna).
 Include: `custom_fields`, `description` (se omite en listas: son `longtext`).
 
 **Vista de tablero**: `GET /tasks?vista=tablero&filter[project_id]=8` devuelve las tarjetas agrupadas,

@@ -179,13 +179,19 @@ export function leerIncludes (parametros, permitidos) {
  * @param {{
  *   filtros?: Record<string, (fila: object, valor: string) => boolean>,
  *   orden?: string[],
+ *   derivadas?: Record<string, (fila: object) => unknown>,
  *   busqueda?: string[]
  * }} definicion whitelist del recurso
  * @returns {{filas: object[], paginacion: {page: number, per_page: number, total: number, total_pages: number}}}
  * @throws {ErrorApi} 422 ante un filtro, orden o include fuera de la whitelist
  */
 export function aplicarConsulta (filas, parametros, definicion) {
-  const { filtros: permitidos = {}, orden: ordenables = [], busqueda = [] } = definicion
+  const {
+    filtros: permitidos = {},
+    orden: ordenables = [],
+    derivadas = {},
+    busqueda = []
+  } = definicion
 
   let resultado = filas
 
@@ -211,7 +217,12 @@ export function aplicarConsulta (filas, parametros, definicion) {
     // Copia antes de ordenar: `sort` muta, y `filas` es el fixture compartido del proceso.
     resultado = [...resultado].sort((a, b) => {
       for (const { columna, direccion } of orden) {
-        const signo = compararColumna(a[columna], b[columna], direccion)
+        // Una columna ordenable puede no ser un campo de la fila: la API ordena Procesos por
+        // `completed`, que ahi es un CASE sobre `status` y no una columna de `tbltasks`.
+        const leer = derivadas[columna]
+        const signo = leer === undefined
+          ? compararColumna(a[columna], b[columna], direccion)
+          : compararColumna(leer(a), leer(b), direccion)
         if (signo !== 0) return signo
       }
       return 0
