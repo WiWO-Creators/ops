@@ -3402,6 +3402,188 @@ el uso normal de la página; probar tokens al azar no lo es.
 - Botón "Compartir": `GET` primero para pintar el estado, `POST` sólo cuando el usuario pide generar o
   regenerar (avisando que el enlace anterior deja de servir), `DELETE` para revocar.
 
+### Rama `feat/plantillas-espacio`
+
+Plantillas de Espacio: hitos y Procesos predefinidos, con sus responsables y su tipo. Cada quien arma
+las suyas y decide si las publica. **Los items no guardan fechas**: guardan `offset_days` (distancia
+en días desde el inicio) y `duration_days`. Al crear el Espacio, esas posiciones se **escalan** por el
+cociente entre la duración esperada que se pide y la que declara la plantilla — es el desplazamiento
+de `POST /projects/{id}/actions/copy` con un factor encima.
+
+Migración `0120_plantillas_de_espacio.sql`: `tblwiwo_plantillas` y `tblwiwo_plantilla_items`.
+
+#### `GET /project-templates` → `200`
+
+Las propias y las públicas, ordenadas por nombre. **Sin `items`**: el listado alimenta un selector.
+Un administrador ve todas. No pagina ni acepta `?include=`.
+
+```json
+{ "data": [
+  { "id": 4, "name": "Campaña estándar", "description": "Ciclo completo de una campaña",
+    "duration_days": 30, "is_public": true, "created_by": 183,
+    "date_created": "2026-09-04T16:51:46Z", "can_edit": true } ] }
+```
+
+| Clave | Qué es |
+|---|---|
+| `duration_days` | Duración esperada **declarada por la plantilla**. Es el denominador del escalado. `null` o `0` = sin duración declarada ⇒ factor `1` |
+| `is_public` | La ven todos los que pueden crear Espacios; editarla y borrarla sigue siendo sólo del autor |
+| `created_by` | `staffid` del autor |
+| `can_edit` | Lo resuelve el servidor: `created_by === yo` **o** administrador. El frontend no puede deducirlo solo |
+
+#### `GET /project-templates/{id}` → `200`
+
+Lo mismo, más `items`. Una plantilla privada de otra persona da **`404`**, no `403`: un `403`
+confirmaría que existe.
+
+```json
+{ "data": { "id": 4, "name": "Campaña estándar", "duration_days": 30, "is_public": true,
+  "created_by": 183, "date_created": "2026-09-04T16:51:46Z", "can_edit": true,
+  "items": [
+    { "id": 11, "type": "milestone", "parent_id": null, "parent_index": null,
+      "name": "Kickoff", "description": null, "offset_days": 0, "duration_days": 5,
+      "task_type_id": null, "assignees": [], "order": 0 },
+    { "id": 12, "type": "task", "parent_id": 11, "parent_index": 0,
+      "name": "Brief", "description": null, "offset_days": 0, "duration_days": 2,
+      "task_type_id": 1, "assignees": [1, 2], "order": 1 } ] } }
+```
+
+| Clave del item | Qué es |
+|---|---|
+| `type` | `"milestone"` o `"task"`. En la base el enum está en el idioma del dominio (`hito`, `proceso`); la traducción vive en el back |
+| `parent_id` | Id real del item hito del que cuelga. `null` en un hito y en una tarea suelta |
+| `parent_index` | **La misma relación, por posición en esta lista.** Existe porque la escritura manda la lista entera de una vez, cuando los ids todavía no existen: sin él no se puede releer una plantilla, cambiarle un nombre y volver a guardarla sin perder la jerarquía |
+| `offset_days` | Distancia en días desde el inicio del Espacio. Entero ≥ 0 |
+| `duration_days` | Cuánto dura el item. `0` = nace y vence el mismo día |
+| `task_type_id` | Tipo de Proceso (`tbltask_types`). Se valida **al guardar**; si el tipo se borra después, al instanciar se descarta en silencio en vez de tirar abajo el Espacio |
+| `assignees` | `staffid` de los responsables. Se validan al guardar; **al instanciar se filtran los dados de baja** |
+| `order` | Posición declarada. Es el índice en la lista que se mandó |
+
+#### `POST /project-templates` → `201`
+
+Devuelve la plantilla serializada igual que `GET /project-templates/{id}`.
+
+```json
+{ "name": "Campaña estándar", "description": null, "duration_days": 30, "is_public": true,
+  "items": [
+    { "type": "milestone", "name": "Kickoff", "offset_days": 0, "duration_days": 5 },
+    { "type": "task", "name": "Brief", "parent_index": 0, "offset_days": 0, "duration_days": 2,
+      "assignees": [1, 2], "task_type_id": 1 } ] }
+```
+
+**`name` es lo único obligatorio.** `items` puede faltar o venir vacío: una plantilla sin items es
+válida y crea un Espacio pelado.
+
+| Campo | Por defecto |
+|---|---|
+| `duration_days` | `null` — sin duración declarada, el escalado queda en factor `1` |
+| `is_public` | `false` |
+| `items[].offset_days` / `duration_days` | `0` |
+| `items[].parent_index` / `task_type_id` / `description` | `null` |
+| `items[].assignees` | `[]` |
+| `order` | La posición en el array; no se manda |
+
+Lo que evita errores:
+
+- **`parent_index` tiene que apuntar a un `milestone` ANTERIOR de la misma lista.** El padre antes que
+  el hijo, y sólo en un item `task`. Así el back resuelve `índice → id` en una sola pasada, que es el
+  mismo mapa con el que la copia de un Espacio reapunta las tareas — el panel clásico las busca **por
+  nombre** y pisa dos hitos que se llaman igual (`Projects_model::copy():2018-2052`).
+- **Un id que no existe falla con `422`, no se descarta.** Vale para `task_type_id` y para
+  `assignees`, igual que en `POST /tasks`.
+- **Los errores de item vienen con su posición**, no como un `items: ["invalid"]` que no se puede
+  pintar al lado del campo.
+
+```json
+{ "error": { "code": "validation_failed", "message": "Hay items que no se pueden guardar.",
+             "details": { "items.0.parent_index": ["no_es_un_hito_anterior"],
+                          "items.1.type": ["in:milestone,task"],
+                          "items.1.name": ["required"],
+                          "items.2.task_type_id": ["no_existe"],
+                          "items.2.assignees": ["no_existe"] } } }
+```
+
+Requiere `create` sobre `projects`; sin él, `403`. Tope: 300 items por plantilla (`422`
+`items: ["max:300"]`). Un nombre repetido **no** es error.
+
+#### `PATCH /project-templates/{id}` → `200`
+
+Mismas claves que el alta, todas opcionales. Devuelve la plantilla completa.
+
+- **`items` es un reemplazo total, no un parche.** Si la clave viene, los items viejos se borran y se
+  escriben los nuevos, dentro de una transacción. Si la clave **no** viene, los items quedan intactos.
+- Editar una plantilla ajena da **`403`** (`"Esa plantilla es de otra persona."`), no `404`: acá ya se
+  sabe que existe porque es pública. Un administrador puede editar cualquiera.
+
+#### `DELETE /project-templates/{id}` → `204`
+
+Los items caen por clave foránea en cascada. Ajena ⇒ `403`. Inexistente ⇒ `404`.
+
+#### `POST /projects/from-template` → `201`
+
+Crea el Espacio entero —hitos, Procesos, responsables— y devuelve el **Espacio** serializado igual que
+`GET /projects/{id}`. Vive bajo `/projects` y no bajo `/project-templates` porque eso es lo que
+devuelve.
+
+```json
+{ "template_id": 4, "duration_days": 60,
+  "name": "Campaña Colbún Q4", "clientid": 38, "start_date": "2026-09-10" }
+```
+
+| Campo | Qué hace |
+|---|---|
+| `template_id` | Obligatorio. Plantilla propia o pública; otra da `404` |
+| `duration_days` | **El único dato que mueve todo.** Duración esperada del Espacio. Opcional |
+| resto | Viaja tal cual a `POST /projects` y se valida ahí: `name`, `clientid` y `start_date` obligatorios; `status`, `billing_type`, `project_cost`, `project_rate_per_hour`, `estimated_hours`, `progress_from_tasks`, `description`, `members`, `tags`, `custom_fields` opcionales |
+
+**El escalado, en una línea:**
+
+```
+factor       = duration_days pedida / plantilla.duration_days     (1 si falta cualquiera de las dos)
+item.inicio  = start_date + round(offset_days   × factor)
+item.vence   = item.inicio + round(duration_days × factor)
+```
+
+Con la plantilla de arriba (`duration_days: 30`) y `duration_days: 60`, el factor es `2`: el hito
+`Kickoff` (offset 0, duración 5) nace el `2026-09-10` y vence el `2026-09-20`; `Brief` (offset 0,
+duración 2) va del `2026-09-10` al `2026-09-14`.
+
+| Campo | Cómo se decide |
+|---|---|
+| `deadline` | **No se acepta en el cuerpo** (`422` `deadline: ["no_editable"]`). Se deriva: `max(start_date + duración efectiva, vencimiento del último item)`. Se toma el máximo a propósito — recortar el Espacio a la duración haría que un hito que se pasa quedara rechazado con `after_project_deadline` y el alta entera se caería por un dato de la plantilla que quien crea el Espacio no eligió. Sin duración y sin items queda `null` |
+| `status` | Si no viene: `1` (No iniciado) si `start_date` es futuro, `2` (En desarrollo) si no. Misma regla que la copia de un Espacio |
+| miembros | **El creador queda anotado como miembro.** No es cosmético: sin el permiso global `view` sobre `projects`, la visibilidad por fila sólo reconoce a los miembros, y sin esa fila el primer hito daría `404` sobre el Espacio recién creado |
+| responsables | Los `assignees` de la plantilla que sigan **activos**. Uno dado de baja se descarta; el Proceso se crea igual. Es la diferencia deliberada con `POST /tasks`, donde un asignado inválido es `422`: ahí la persona se acaba de elegir a mano, acá la plantilla es de hace un año |
+| `task_type` | El `task_type_id` del item, si el tipo todavía existe |
+| Procesos sin hito | Un item `task` sin `parent_index` queda en "Sin categorizar" (`milestone: 0`), igual que en el panel |
+
+**Todo pasa en UNA transacción, y reusa las escrituras que ya existen** (`Espacio::crear()`,
+`Hito::crear()`, `CrearProceso::crear()`). Dos consecuencias que el frontend tiene que saber:
+
+- **Hereda sus guards.** Hacen falta `create` **y** `create_milestones` sobre `projects` (si la
+  plantilla tiene hitos) y `create` sobre `tasks` (si tiene Procesos). Quien no puede crear un hito a
+  mano tampoco desde una plantilla: `403` con el mensaje del permiso que falta.
+- **Si algo falla a mitad de camino, no queda nada.** Ni un Espacio huérfano con la mitad de sus
+  hitos. Verificado: un staff sin `create_milestones` recibe `403` y el conteo de `tblprojects` no
+  se mueve.
+
+```json
+{ "error": { "code": "forbidden", "message": "Sin permiso para create_milestones sobre projects." } }
+```
+
+#### Códigos
+
+| Situación | Código |
+|---|---|
+| Plantilla privada ajena, o inexistente | `404` |
+| Editar o borrar una plantilla ajena | `403` |
+| Sin `create` sobre `projects` (crear plantilla o instanciar) | `403` |
+| Sin `create_milestones` / `tasks.create` al instanciar | `403` |
+| `deadline` en el cuerpo de `from-template` | `422` |
+| Campo desconocido, item mal formado, `parent_index` inválido | `422` |
+| `GET /projects/from-template`, `/project-templates/{id}/loquesea` | `404` |
+| `?include=` en cualquier ruta de plantillas | `422` |
+
 ## Tiempo real
 
 `GET /config/realtime` → `{ "data": { "enabled": true, "key": "…", "cluster": "…" } }`
