@@ -12,6 +12,7 @@ Quién trabaja acá. Alimenta los selectores de asignados y seguidores de todos 
 |---|---|---|
 | Lista | `/equipo` | Tabla genérica, con avatar, rol y el nombre enlazado a la ficha |
 | Ficha | `/equipo/[id]` | Quién es, su legajo, sus permisos, su tiempo y su trabajo abierto |
+| Permisos | diálogo en la ficha | Matriz de permisos individuales de esa persona, editable |
 | Selector | componente | Buscador de personas, usado en Procesos y Espacios |
 
 ## Endpoints que consume
@@ -21,6 +22,7 @@ Quién trabaja acá. Alimenta los selectores de asignados y seguidores de todos 
 | `GET` | `/staff` | Colección paginada. Requiere el permiso `staff.view` |
 | `GET` | `/staff/{id}` | La ficha: el item más `role`, `departments`, `permissions`, `tiempo` y `counts` |
 | `GET` | `/staff?asignables=1` | Solo quienes pueden recibir asignaciones |
+| `GET` | `/roles/catalogo` | Las áreas y capacidades con las que se dibuja la matriz de permisos. Exige `roles.view` |
 | `POST` `PATCH` `DELETE` | `/staff`, `/staff/{id}` | Alta, edición, baja y borrado con transferencia |
 
 La ficha pide además, desde el navegador y no en el render inicial:
@@ -74,6 +76,26 @@ Ninguna escritura manda correo: la contraseña de un alta hay que entregarla por
 
 `GET /staff` exige `staff.view`. Sin él devuelve `403`, así que la sección de la barra lateral se
 oculta cuando `permissions.staff` no incluye `view`.
+
+### Permisos individuales
+
+El acceso efectivo de cada persona vive **sólo** en `tblstaff_permissions`, fila por fila. El rol es
+una plantilla: se copia cuando se lo aplica y después no manda nada. Por eso la ficha puede dar y
+quitar permisos de a uno sin tocar el rol de nadie — es el diálogo **Permisos**, que guarda con
+`PATCH /staff/{id}`.
+
+Tres reglas del contrato que la pantalla respeta, y que están probadas en
+`pruebas/permisos-individuales.test.js`:
+
+- **Sólo se reescribe el área que viene nombrada** en `permissions`. Un área ausente queda intacta;
+  un área con `[]` se vacía. Por eso la matriz nombra todas sus áreas y ninguna otra: los módulos del
+  panel clásico que la API no declara (`goals`, `reports`, `prchat`, `knowledge_base`) se listan al
+  pie del diálogo y no se tocan.
+- **Nadie reparte lo que no tiene.** La API responde `escalada` a una capacidad que quien edita no
+  posee, así que esas casillas se dibujan deshabilitadas; si la persona ya las tenía, viajan intactas.
+- **A un administrador no se le edita nada**: mientras lo sea, la API le vacía la tabla a propósito
+  —`is_admin()` contesta que sí a todo— y el diálogo lo dice en vez de ofrecer casillas que no se
+  guardan.
 
 `is_not_staff` marca cuentas que existen pero no son personal operativo: no deben aparecer en los
 selectores de asignación. Para eso está `?asignables=1`, que ya lo filtra en el servidor — el frontend

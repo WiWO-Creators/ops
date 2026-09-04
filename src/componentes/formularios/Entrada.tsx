@@ -17,6 +17,14 @@ export const CLASES_CONTROL = [
   'aria-[invalid=true]:border-relleno-peligro'
 ].join(' ')
 
+/**
+ * Casilla de verificación nativa, teñida con el acento.
+ *
+ * Sin componente propio a propósito: `<input type="checkbox">` ya trae el estado indeterminado, el
+ * foco y el manejo de teclado que Radix tendría que reimplementar. Sólo se le pone el color.
+ */
+export const CLASES_CASILLA = 'size-4 shrink-0 accent-[var(--color-acento)] cursor-pointer'
+
 type PropsEntrada = React.InputHTMLAttributes<HTMLInputElement>
 
 /** Campo de texto de una línea. */

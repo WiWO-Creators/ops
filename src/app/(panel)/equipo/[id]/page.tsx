@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { cache } from 'react'
 import { AccionesPersona } from '@/componentes/equipo/AccionesPersona'
 import { CabeceraPersona } from '@/componentes/equipo/CabeceraPersona'
+import { DialogoPermisos } from '@/componentes/equipo/DialogoPermisos'
 import { FichaPersona } from '@/componentes/equipo/FichaPersona'
 import { PanelTrabajoPersona } from '@/componentes/equipo/PanelTrabajoPersona'
 import { ErrorEstado, SinPermiso, Vacio } from '@/componentes/estado/Estados'
@@ -10,7 +11,7 @@ import { listaDe } from '@/datos/catalogos'
 import { ErrorApi } from '@/datos/errores'
 import { cargarLookups } from '@/datos/lookups'
 import { pedir } from '@/datos/servidor'
-import type { FichaPersona as Persona, Lookups } from '@/datos/recursos'
+import type { AreaDeCatalogo, FichaPersona as Persona, Lookups } from '@/datos/recursos'
 import type { Yo } from '@/datos/tipos'
 
 /**
@@ -77,6 +78,32 @@ async function cargarDetalle (id: string): Promise<Detalle | ErrorApi> {
   }
 }
 
+/**
+ * Trae el catalogo de permisos, o `null` si esta pantalla no puede ofrecerlo.
+ *
+ * `GET /roles/catalogo` exige `roles.view`: quien administra gente pero no roles ve la ficha entera y
+ * simplemente no ve el boton de permisos. Por eso el error es un `null` y no una pantalla de error —
+ * el catalogo es para una accion opcional, no para pintar la ficha.
+ *
+ * Solo se pide a quien puede editar personas: al resto le sobra el viaje.
+ *
+ * @param puedeEditar `true` si quien mira tiene `staff.edit`.
+ * @returns Las areas del catalogo, o `null` si no se pidio o la API dijo que no.
+ */
+async function cargarCatalogoDePermisos (puedeEditar: boolean): Promise<AreaDeCatalogo[] | null> {
+  if (!puedeEditar) return null
+
+  try {
+    const { data } = await pedir<AreaDeCatalogo[]>('/roles/catalogo')
+
+    return data
+  } catch (error) {
+    if (error instanceof ErrorApi) return null
+
+    throw error
+  }
+}
+
 /** Estado de persona inexistente: la API respondio 404 o el id de la URL no es de nadie. */
 function NoEncontrada () {
   return (
@@ -111,6 +138,7 @@ export default async function PersonaPage (props: PageProps<'/equipo/[id]'>) {
 
   const { persona, lookups, yo } = detalle
   const capacidades = yo.permissions.staff
+  const catalogoDePermisos = await cargarCatalogoDePermisos(capacidades.includes('edit'))
   const roles: OpcionCampo[] = listaDe(lookups, 'roles').map((rol) => ({
     valor: String(rol.id),
     etiqueta: rol.name
@@ -130,6 +158,14 @@ export default async function PersonaPage (props: PageProps<'/equipo/[id]'>) {
         <CabeceraPersona persona={persona} />
         <div className="flex flex-wrap items-center gap-2">
           <AccionesPersona persona={persona} roles={roles} cargos={cargos} areas={areas} capacidades={capacidades} enFicha />
+          {catalogoDePermisos !== null && (
+            <DialogoPermisos
+              persona={persona}
+              catalogo={catalogoDePermisos}
+              permisosDelActor={yo.permissions}
+              actorEsAdmin={yo.is_admin}
+            />
+          )}
         </div>
       </div>
 

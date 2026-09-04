@@ -140,6 +140,29 @@ function fichaDeStaff (staff) {
 }
 
 /**
+ * Permisos individuales editados desde la ficha, por id de persona.
+ *
+ * Vive en memoria y pisa a `permisosDe()`: es lo que hace que guardar la matriz se vea al refrescar,
+ * igual que en la API real, donde estos permisos son filas de `tblstaff_permissions` y no una
+ * propiedad del rol.
+ */
+const PERMISOS_EDITADOS = new Map()
+
+/**
+ * El catalogo de `GET /roles/catalogo`: las features y capacidades que el panel sabe escribir.
+ *
+ * Los nombres vienen en ingles a proposito —asi los manda Perfex—, para que la traduccion del
+ * frontend se ejercite de verdad.
+ */
+function catalogoDePermisos () {
+  return RECURSOS_CON_PERMISO.map((recurso) => ({
+    feature: recurso,
+    name: recurso.charAt(0).toUpperCase() + recurso.slice(1),
+    capabilities: ACCIONES.map((accion) => ({ key: accion, name: accion.charAt(0).toUpperCase() + accion.slice(1) }))
+  }))
+}
+
+/**
  * Arma el mapa de permisos que el frontend usa para podar columnas y acciones.
  *
  * Un admin puede todo. El resto trabaja sus Procesos pero NO ve clientes ni facturas: es un recorte
@@ -147,6 +170,9 @@ function fichaDeStaff (staff) {
  * denegado de verdad, la rama de "sin permiso" del frontend nunca se ejercita hasta produccion.
  */
 function permisosDe (staff) {
+  const editados = PERMISOS_EDITADOS.get(staff.id)
+  if (editados !== undefined) return editados
+
   if (staff.is_admin) {
     return Object.fromEntries(RECURSOS_CON_PERMISO.map((r) => [r, [...ACCIONES]]))
   }
@@ -1054,6 +1080,31 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
     // `only_admin` lo decide el backend, no el frontend: si el filtro viviera en la interfaz, bastaria
     // con abrir DevTools para ver los campos reservados.
     return { estado: 200, cuerpo: conDatos(definiciones.filter((d) => !d.only_admin || actual.is_admin)) }
+  }
+
+  if (recurso === 'roles' && resto[0] === 'catalogo' && metodo === 'GET') {
+    exigirPermiso(actual, 'staff', 'view')
+
+    return { estado: 200, cuerpo: conDatos(catalogoDePermisos()) }
+  }
+
+  // Edicion de los permisos individuales de una persona. Solo `permissions`: el resto de la ficha se
+  // edita con el formulario de Equipo, que el mock no necesita para probar esta pantalla.
+  if (recurso === 'staff' && metodo === 'PATCH') {
+    exigirPermiso(actual, 'staff', 'edit')
+    const persona = buscarO404(STAFF, Number(resto[0]), 'staff')
+    const datos = await cuerpo()
+
+    if (datos.permissions !== undefined) {
+      // Mismo contrato que la API real: solo se reescriben las areas nombradas; las demas quedan.
+      const previos = { ...permisosDe(persona) }
+      for (const [feature, capacidades] of Object.entries(datos.permissions)) {
+        previos[feature] = [...capacidades]
+      }
+      PERMISOS_EDITADOS.set(persona.id, previos)
+    }
+
+    return { estado: 200, cuerpo: conDatos(fichaDeStaff(persona)) }
   }
 
   if (recurso === 'staff' && metodo === 'GET') {
