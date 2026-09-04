@@ -163,7 +163,7 @@ export function FormularioTimesheet ({
       onOpenChange(false)
       onGuardado()
     } catch {
-      setError('No se pudo guardar: revisá la conexión.')
+      setError('No se pudo guardar: revisa la conexión.')
     } finally {
       setEnCurso(false)
     }
@@ -173,7 +173,7 @@ export function FormularioTimesheet ({
     <Dialogo open={abierto} onOpenChange={onOpenChange}>
       <ContenidoDialogo
         titulo="Registro de horas"
-        descripcion={registro === null ? 'Anotá tiempo ya trabajado.' : 'Corregí un registro existente.'}
+        descripcion={registro === null ? 'Anota tiempo ya trabajado.' : 'Corrige un registro existente.'}
       >
         <form className="flex flex-col gap-4" onSubmit={(evento) => { void enviar(evento) }}>
           <Campo
@@ -183,7 +183,7 @@ export function FormularioTimesheet ({
           >
             {(props) => (
               <Selector value={entrada.taskId} onValueChange={(valor) => cambiar({ taskId: valor, staffId: '' })}>
-                <DisparadorSelector marcador="Elegí la tarea" id={props.id} />
+                <DisparadorSelector marcador="Elige la tarea" id={props.id} />
                 <ContenidoSelector>
                   {tareas.map((tarea) => (
                     <Opcion key={tarea.id} value={String(tarea.id)}>{tarea.name}</Opcion>

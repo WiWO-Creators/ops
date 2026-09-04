@@ -134,16 +134,16 @@ export function mensajeDeFalloDeCronometro (estado: number, arrancando: boolean)
   if (estado === 403) {
     return arrancando
       ? 'Solo quien está asignado a la tarea puede arrancar el cronómetro.'
-      : 'Solo podés detener tu propio cronómetro.'
+      : 'Solo puedes detener tu propio cronómetro.'
   }
 
   if (estado === 409) {
     return arrancando
-      ? 'No se pudo arrancar: la tarea ya está facturada, o ya tenés un cronómetro abierto en ella.'
+      ? 'No se pudo arrancar: la tarea ya está facturada, o ya tienes un cronómetro abierto en ella.'
       : 'No hay un cronómetro tuyo abierto en esta tarea.'
   }
 
-  if (estado === 404) return 'La tarea ya no existe o no la podés ver.'
+  if (estado === 404) return 'La tarea ya no existe o no la puedes ver.'
 
   return `No se pudo ${arrancando ? 'arrancar' : 'detener'} el cronómetro (el servidor respondió ${estado}).`
 }

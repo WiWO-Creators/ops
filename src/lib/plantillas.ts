@@ -291,7 +291,7 @@ export function erroresDeItems (
 
 /** Motivos del contrato propios de las plantillas, en castellano. */
 const MOTIVOS_DE_ITEM: Record<string, string> = {
-  required: 'Poné un nombre.',
+  required: 'Pon un nombre.',
   no_existe: 'Ya no existe.',
   no_es_un_hito_anterior: 'El hito tiene que estar más arriba en la lista.',
   'in:milestone,task': 'Tipo desconocido.'

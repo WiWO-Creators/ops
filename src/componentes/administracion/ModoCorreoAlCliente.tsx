@@ -140,7 +140,7 @@ export function ModoCorreoAlCliente ({ inicial }: PropsModoCorreoAlCliente): Rea
 
         {confirmarReal && (
           <p role="alert" className="text-texto-peligro text-sm">
-            Este modo es el que va a mandar correo a gente ajena a este equipo en cuanto el envío exista. Tocá
+            Este modo es el que va a mandar correo a gente ajena a este equipo en cuanto el envío exista. Toca
             «Confirmar y guardar» para dejarlo puesto.
           </p>
         )}

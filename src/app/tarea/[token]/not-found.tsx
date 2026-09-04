@@ -19,7 +19,7 @@ export default function EnlaceInexistente (): ReactElement {
       <div className="flex flex-1 items-center">
         <Vacio
           titulo="Este enlace ya no sirve"
-          descripcion="Puede que haya vencido o que quien te lo pasó lo haya dado de baja. Pedile uno nuevo."
+          descripcion="Puede que haya vencido o que quien te lo pasó lo haya dado de baja. Pídele uno nuevo."
           className="w-full"
         />
       </div>

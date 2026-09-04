@@ -77,7 +77,7 @@ export function PanelNotas ({ proyectoId }: { proyectoId: number }): ReactElemen
         abierto={creando}
         onAbiertoCambia={setCreando}
         titulo="Nueva nota"
-        descripcion="Solo vos ves tus notas de este proyecto."
+        descripcion="Solo tú ves tus notas de este proyecto."
         campos={CAMPOS}
         ruta={`projects/${proyectoId}/notes`}
         metodo="POST"

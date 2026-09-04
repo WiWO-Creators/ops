@@ -83,7 +83,7 @@ export default async function PerfilPagina () {
       )}
 
       <p className="text-texto-sutil text-sm">
-        ¿Necesitás cambiar algún dato? Escribinos y lo actualizamos.
+        ¿Necesitas cambiar algún dato? Escríbenos y lo actualizamos.
       </p>
     </section>
   )

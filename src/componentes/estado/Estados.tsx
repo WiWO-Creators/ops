@@ -70,8 +70,8 @@ export function ErrorEstado ({ titulo = 'Algo salió mal', detalle, onReintentar
 export function SinPermiso ({ className }: { className?: string }) {
   return (
     <Vacio
-      titulo="No tenés permiso para ver esto"
-      descripcion="Si creés que deberías tener acceso, pedíselo a quien administre el sistema."
+      titulo="No tienes permiso para ver esto"
+      descripcion="Si crees que deberías tener acceso, pídeselo a quien administre el sistema."
       className={className}
     />
   )

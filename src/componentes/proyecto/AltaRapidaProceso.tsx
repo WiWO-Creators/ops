@@ -86,7 +86,7 @@ export function AltaRapidaProceso ({ catalogos }: PropsAltaRapida): ReactElement
     evento.preventDefault()
 
     if (leido.name.trim() === '') {
-      setError('Escribí al menos un título.')
+      setError('Escribe al menos un título.')
       return
     }
 
@@ -128,7 +128,7 @@ export function AltaRapidaProceso ({ catalogos }: PropsAltaRapida): ReactElement
 
       <ContenidoDialogo
         titulo={`${GLOSARIO.proceso.singular} nuevo`}
-        descripcion="Escribí una línea. El proyecto puede quedar vacío y asignarse después."
+        descripcion="Escribe una línea. El proyecto puede quedar vacío y asignarse después."
       >
         <form className="flex flex-col gap-4" onSubmit={(evento) => { void crear(evento) }}>
           <Campo etiqueta="Qué hay que hacer" requerido>

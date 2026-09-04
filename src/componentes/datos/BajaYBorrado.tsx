@@ -102,7 +102,7 @@ export function BajaYBorrado ({
 
       recargar()
     } catch {
-      setFallo('No se pudo completar: revisá la conexión.')
+      setFallo('No se pudo completar: revisa la conexión.')
     } finally {
       setEnCurso(false)
     }
@@ -142,7 +142,7 @@ export function BajaYBorrado ({
           <div className="flex flex-col gap-4">
             {extra?.control}
 
-            <Campo etiqueta={`Escribí «${nombre}» para confirmar`} requerido>
+            <Campo etiqueta={`Escribe «${nombre}» para confirmar`} requerido>
               {(props) => (
                 <Entrada
                   {...props}

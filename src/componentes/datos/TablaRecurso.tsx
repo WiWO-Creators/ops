@@ -261,7 +261,7 @@ export function TablaRecurso<T> ({
               titulo={`No hay ${definicion.titulo.plural.toLowerCase()}`}
               descripcion={
                 hayFiltrosPuestos(estado)
-                  ? 'Probá quitando filtros o buscando otra cosa.'
+                  ? 'Prueba quitando filtros o buscando otra cosa.'
                   : 'Todavía no hay nada cargado.'
               }
             />
@@ -460,7 +460,7 @@ async function pedirLista<T> (ruta: string, consulta: string, senal: AbortSignal
 
     return {
       ok: false,
-      error: { code: 'server_error', message: 'No se pudo contactar al servidor. Revisá tu conexión.' }
+      error: { code: 'server_error', message: 'No se pudo contactar al servidor. Revisa tu conexión.' }
     }
   }
 }

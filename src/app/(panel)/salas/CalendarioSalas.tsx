@@ -62,7 +62,7 @@ export function CalendarioSalas ({ dia, salas, reservas }: PropsCalendarioSalas)
         />
       </header>
 
-      <p className="text-texto-tenue text-xs">Cada tono indica reservas en el día. Elegí una fecha para abrir su agenda.</p>
+      <p className="text-texto-tenue text-xs">Cada tono indica reservas en el día. Elige una fecha para abrir su agenda.</p>
 
       <div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-3">
         {salas.map((sala) => {

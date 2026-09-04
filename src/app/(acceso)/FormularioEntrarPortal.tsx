@@ -75,7 +75,7 @@ export function FormularioEntrarPortal () {
       router.replace(cuerpo.contacto?.verificado === false ? '/portal/verificar' : '/portal')
       router.refresh()
     } catch {
-      establecerError('No se pudo contactar al servidor. Revisá tu conexión.')
+      establecerError('No se pudo contactar al servidor. Revisa tu conexión.')
       establecerEnviando(false)
       señalarError()
     }
@@ -108,7 +108,7 @@ export function FormularioEntrarPortal () {
           <header className="mb-8">
             <h1 className="font-titular text-texto text-xl font-semibold">Portal de clientes</h1>
             <p className="text-texto-tenue mt-1 text-sm">
-              Entrá con el correo con el que trabajamos.
+              Entra con el correo con el que trabajamos.
             </p>
           </header>
 
@@ -160,16 +160,16 @@ export function FormularioEntrarPortal () {
 /** Traduce el error de la API a algo accionable. */
 function mensajeDeError (cuerpo: RespuestaEntrar, estado: number): string {
   if (cuerpo.codigo === 'rate_limited') {
-    return 'Demasiados intentos fallidos. Esperá unos minutos antes de volver a probar.'
+    return 'Demasiados intentos fallidos. Espera unos minutos antes de volver a probar.'
   }
 
   if (cuerpo.codigo === 'forbidden') {
-    return 'Tu acceso está desactivado. Escribinos y lo revisamos.'
+    return 'Tu acceso está desactivado. Escríbenos y lo revisamos.'
   }
 
   if (estado === 401) {
     return 'Correo o contraseña incorrectos.'
   }
 
-  return cuerpo.mensaje ?? 'No se pudo entrar. Intentá de nuevo.'
+  return cuerpo.mensaje ?? 'No se pudo entrar. Intenta de nuevo.'
 }

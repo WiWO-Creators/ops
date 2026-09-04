@@ -116,7 +116,7 @@ function CuerpoDelDialogo ({ persona, matriz, cerrar }: PropsCuerpo) {
     return (
       <p className="text-texto-tenue text-sm">
         Es administrador: tiene todo, y mientras lo sea la API no guarda permisos por área. Para darle
-        permisos individuales, primero sacale el administrador.
+        permisos individuales, primero sácale el administrador.
       </p>
     )
   }
@@ -124,7 +124,7 @@ function CuerpoDelDialogo ({ persona, matriz, cerrar }: PropsCuerpo) {
   if (matriz.length === 0) {
     return (
       <p className="text-texto-tenue text-sm">
-        No podés otorgar ningún permiso: sólo se reparte lo que uno mismo tiene.
+        No puedes otorgar ningún permiso: sólo se reparte lo que uno mismo tiene.
       </p>
     )
   }
@@ -149,7 +149,7 @@ function CuerpoDelDialogo ({ persona, matriz, cerrar }: PropsCuerpo) {
         <div className="border-linea border-t pt-4">
           <p className="text-texto-tenue text-xs">
             Además tiene esto, que esta pantalla no toca —son módulos del panel clásico, o áreas que
-            no administrás—:
+            no administras—:
           </p>
           <ul className="text-texto-sutil mt-1 text-xs">
             {fuera.map((area) => (
@@ -207,7 +207,7 @@ function AreaDeCasillas ({ area, marcadas, bloqueado, alAlternar }: PropsArea) {
                 onChange={() => { alAlternar(capacidad.clave) }}
               />
               {capacidad.nombre}
-              {!capacidad.editable && <span className="text-texto-sutil text-xs">(no podés darlo)</span>}
+              {!capacidad.editable && <span className="text-texto-sutil text-xs">(no puedes darlo)</span>}
             </label>
           </li>
         ))}

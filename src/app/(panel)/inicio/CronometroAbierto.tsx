@@ -71,7 +71,7 @@ export function CronometroAbierto ({ procesoId, nombre, desde }: PropsCronometro
         </span>
 
         <div className="min-w-0 flex-1">
-          <p className="text-sm font-semibold text-texto">Tenés un cronómetro corriendo</p>
+          <p className="text-sm font-semibold text-texto">Tienes un cronómetro corriendo</p>
           <p className="truncate text-sm text-texto-tenue">{nombre}</p>
         </div>
 

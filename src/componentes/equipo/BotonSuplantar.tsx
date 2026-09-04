@@ -78,7 +78,7 @@ export function BotonSuplantar ({ personaId, nombre, activa }: PropsBotonSuplant
         <div className="flex flex-col gap-4">
           <p className="text-texto-tenue text-sm">
             Lo que hagas mientras tanto queda registrado a nombre de {nombre}. Para volver a tu cuenta,
-            usá la franja que aparece arriba del panel.
+            usa la franja que aparece arriba del panel.
           </p>
 
           {error !== null && (

@@ -93,7 +93,7 @@ export function FormularioFijarClave ({ token }: { token: string }) {
       router.replace('/portal')
       router.refresh()
     } catch {
-      señalarError('No se pudo contactar al servidor. Revisá tu conexión.')
+      señalarError('No se pudo contactar al servidor. Revisa tu conexión.')
     }
   }
 
@@ -105,9 +105,9 @@ export function FormularioFijarClave ({ token }: { token: string }) {
           <Orbe tamano="marca" medida="clamp(14rem, 22vw, 21rem)" estado={estadoOrbe} />
           <div>
             <p className="font-titular text-texto text-2xl leading-snug font-semibold">
-              Elegí tu contraseña.
+              Elige tu contraseña.
               <br />
-              <span className="text-texto-tenue">La usás vos, no nosotros.</span>
+              <span className="text-texto-tenue">La usas tú, no nosotros.</span>
             </p>
             <p aria-hidden="true" className="text-texto-tenue mt-3 h-5 text-sm">
               {enviando ? 'Guardando…' : ''}
@@ -124,7 +124,7 @@ export function FormularioFijarClave ({ token }: { token: string }) {
           <header className="mb-8">
             <h1 className="font-titular text-texto text-xl font-semibold">Tu contraseña del portal</h1>
             <p className="text-texto-tenue mt-1 text-sm">
-              Este enlace sirve una sola vez. Al guardar, entrás directo al portal.
+              Este enlace sirve una sola vez. Al guardar, entras directo al portal.
             </p>
           </header>
 
@@ -143,7 +143,7 @@ export function FormularioFijarClave ({ token }: { token: string }) {
               )}
             </Campo>
 
-            <Campo etiqueta="Repetila" requerido>
+            <Campo etiqueta="Repítela" requerido>
               {(props) => (
                 <Entrada
                   {...props}
@@ -178,16 +178,16 @@ export function FormularioFijarClave ({ token }: { token: string }) {
 /** Traduce el error de la API a algo accionable. */
 function mensajeDeError (cuerpo: RespuestaCanje, estado: number): string {
   if (cuerpo.codigo === 'rate_limited') {
-    return 'Demasiados intentos. Esperá unos minutos antes de volver a probar.'
+    return 'Demasiados intentos. Espera unos minutos antes de volver a probar.'
   }
 
   if (estado === 401) {
-    return 'Este enlace ya se usó o venció. Pedile uno nuevo a tu contacto en WiWO.'
+    return 'Este enlace ya se usó o venció. Pídele uno nuevo a tu contacto en WiWO.'
   }
 
   if (estado === 422) {
     return 'La contraseña tiene que tener entre 8 y 72 caracteres.'
   }
 
-  return cuerpo.mensaje ?? 'No se pudo guardar la contraseña. Intentá de nuevo.'
+  return cuerpo.mensaje ?? 'No se pudo guardar la contraseña. Intenta de nuevo.'
 }

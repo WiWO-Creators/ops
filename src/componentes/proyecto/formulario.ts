@@ -85,7 +85,7 @@ export function validarFormulario (
 
     if (campo.tipo === 'fecha') {
       if (!/^\d{4}-\d{2}-\d{2}$/.test(texto)) {
-        errores[campo.clave] = 'Usá el formato AAAA-MM-DD.'
+        errores[campo.clave] = 'Usa el formato AAAA-MM-DD.'
         continue
       }
       if (campo.min !== undefined && texto < campo.min) {

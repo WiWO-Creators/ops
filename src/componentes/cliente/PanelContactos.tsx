@@ -114,7 +114,7 @@ export function PanelContactos ({ clienteId, contactos, capacidades }: PropsPane
           descripcion={
             puedeEditar
               ? 'Un contacto es la persona del cliente a la que se le escribe, y la que puede entrar al portal.'
-              : 'Un contacto es la persona del cliente a la que se le escribe. No tenés permiso para crearlos.'
+              : 'Un contacto es la persona del cliente a la que se le escribe. No tienes permiso para crearlos.'
           }
           accion={
             puedeEditar
@@ -395,7 +395,7 @@ function EnlaceGenerado (
       </div>
 
       <p className="text-texto-tenue text-xs">
-        Mandáselo por donde ya le escribís: acá no sale ningún correo. Vence en 72 horas, sirve una
+        Mándaselo por donde ya le escribes: acá no sale ningún correo. Vence en 72 horas, sirve una
         sola vez y con él elige su propia contraseña. Generar uno nuevo anula este.
       </p>
     </div>

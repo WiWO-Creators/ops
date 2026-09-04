@@ -327,7 +327,7 @@ export function revisarReserva (entrada: EntradaReserva): RevisionReserva {
   const avisos: string[] = []
 
   if (entrada.titulo.trim() === '') {
-    errores.titulo = 'Poné de qué es la reunión.'
+    errores.titulo = 'Pon de qué es la reunión.'
   } else if (entrada.titulo.trim().length > 255) {
     errores.titulo = 'El título no puede pasar de 255 caracteres.'
   }
@@ -344,7 +344,7 @@ export function revisarReserva (entrada: EntradaReserva): RevisionReserva {
     const cuantos = Number(entrada.asistentes)
 
     if (!Number.isInteger(cuantos) || cuantos < 1 || cuantos > 500) {
-      errores.asistentes = 'Poné un número de personas válido.'
+      errores.asistentes = 'Pon un número de personas válido.'
     } else if (cuantos > entrada.capacidad) {
       avisos.push(`La sala entra ${entrada.capacidad} personas y anotaste ${cuantos}.`)
     }

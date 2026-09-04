@@ -121,7 +121,7 @@ function CuerpoDelDialogo ({ persona, actorId, cerrar }: PropsCuerpo) {
           etiqueta="Superadministrador"
           ayuda={
             esUnoMismo
-              ? 'No podés quitarte el rol a vos mismo: pedíselo a otro superadministrador.'
+              ? 'No puedes quitarte el rol a ti mismo: pídeselo a otro superadministrador.'
               : 'Suma la configuración de la instalación: avisos por correo y acceso con Google.'
           }
           marcado={esSuperadmin}

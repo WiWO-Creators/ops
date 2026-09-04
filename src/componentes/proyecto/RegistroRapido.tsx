@@ -75,7 +75,7 @@ export function RegistroRapido ({
       setMinutos(0)
       onRegistrado()
     } catch {
-      setAviso('No se pudo registrar el tiempo: revisá la conexión.')
+      setAviso('No se pudo registrar el tiempo: revisa la conexión.')
     } finally {
       setEnCurso(false)
     }

@@ -120,7 +120,7 @@ export function FormularioRecurso ({
       onAbiertoCambia(false)
       onGuardado()
     } catch {
-      setFallo('No se pudo guardar: revisá la conexión.')
+      setFallo('No se pudo guardar: revisa la conexión.')
     } finally {
       setGuardando(false)
     }
@@ -207,7 +207,7 @@ function ControlDeCampo ({ campo, valor, error, alCambiar }: PropsControl): Reac
       >
         {(props) => (
           <Selector value={texto} onValueChange={alCambiar}>
-            <DisparadorSelector marcador="Elegí una opción" id={props.id} />
+            <DisparadorSelector marcador="Elige una opción" id={props.id} />
             <ContenidoSelector>
               {(campo.opciones ?? []).map((opcion) => (
                 <Opcion key={opcion.valor} value={opcion.valor}>{opcion.etiqueta}</Opcion>

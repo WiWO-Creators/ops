@@ -73,7 +73,7 @@ export function dominiosATexto (dominios: string[]): string {
 export function motivoParaRechazarDominio (candidato: string, actuales: string[]): string | null {
   const dominio = normalizarDominio(candidato)
 
-  if (dominio === '') return 'Escribí un dominio.'
+  if (dominio === '') return 'Escribe un dominio.'
   if (!esDominioPlausible(dominio)) {
     return 'Eso no parece un dominio. Va solo la parte de después del arroba, con al menos un punto: wiwo.me'
   }

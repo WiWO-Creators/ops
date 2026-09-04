@@ -102,18 +102,18 @@ export function AccesoGoogle ({ inicial }: PropsAccesoGoogle): ReactElement {
    */
   async function guardar (): Promise<void> {
     if (nuevoDominio.trim() !== '') {
-      setErrorDominio('Agregá el dominio que estás escribiendo, o borrá el campo, antes de guardar.')
+      setErrorDominio('Agrega el dominio que estás escribiendo, o borra el campo, antes de guardar.')
       return
     }
 
     if (sinDominios) {
-      setErrorGuardar('Con el login encendido y la lista vacía cualquier cuenta de Google podría entrar. Agregá al menos un dominio o apagá el login.')
+      setErrorGuardar('Con el login encendido y la lista vacía cualquier cuenta de Google podría entrar. Agrega al menos un dominio o apaga el login.')
       setDetallesError([])
       return
     }
 
     if (sinClienteId) {
-      setErrorGuardar('Sin Client ID el botón de Google no puede funcionar. Pegá el Client ID o apagá el login.')
+      setErrorGuardar('Sin Client ID el botón de Google no puede funcionar. Pega el Client ID o apaga el login.')
       setDetallesError([])
       return
     }
@@ -208,7 +208,7 @@ export function AccesoGoogle ({ inicial }: PropsAccesoGoogle): ReactElement {
           {sinDominios && (
             <p role="alert" className="text-texto-peligro text-sm">
               El login está encendido y no hay ningún dominio autorizado. Así, cualquier cuenta de Google entraría:
-              agregá al menos uno antes de guardar.
+              agrega al menos uno antes de guardar.
             </p>
           )}
         </div>

@@ -71,7 +71,7 @@ export function AccionesFila ({
       setConfirmando(false)
       recargar()
     } catch {
-      setFallo('No se pudo eliminar: revisá la conexión.')
+      setFallo('No se pudo eliminar: revisa la conexión.')
     } finally {
       setBorrando(false)
     }

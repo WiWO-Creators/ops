@@ -51,7 +51,7 @@ test('el backend siempre gana: puede_ahora manda aunque no queden generaciones',
 test('sin cupo, la frase manda a mañana', () => {
   const sinCupo = regeneracion({ puede_ahora: false, restantes_hoy: 0, motivo: 'cupo' })
 
-  assert.equal(motivoDeBloqueo(sinCupo), 'Ya lo regeneraste dos veces hoy. Volvé mañana.')
+  assert.equal(motivoDeBloqueo(sinCupo), 'Ya lo regeneraste dos veces hoy. Vuelve mañana.')
 })
 
 test('en espera, la frase dice cuando vuelve a estar disponible', () => {
@@ -76,13 +76,13 @@ test('sin motivo declarado, el cupo restante decide cual de las dos frases va', 
   const agotado = regeneracion({ puede_ahora: false, restantes_hoy: 0 })
 
   assert.equal(motivoDeBloqueo(conCupo, ahora), 'Vas a poder regenerarlo dentro de 3 horas.')
-  assert.equal(motivoDeBloqueo(agotado, ahora), 'Ya lo regeneraste dos veces hoy. Volvé mañana.')
+  assert.equal(motivoDeBloqueo(agotado, ahora), 'Ya lo regeneraste dos veces hoy. Vuelve mañana.')
 })
 
 test('una espera sin instante no deja al boton mudo', () => {
   const roto = regeneracion({ puede_ahora: false, restantes_hoy: 1, motivo: 'espera' })
 
-  assert.equal(motivoDeBloqueo(roto), 'Todavía no podés regenerarlo.')
+  assert.equal(motivoDeBloqueo(roto), 'Todavía no puedes regenerarlo.')
 })
 
 // ---------------------------------------------------------------------------

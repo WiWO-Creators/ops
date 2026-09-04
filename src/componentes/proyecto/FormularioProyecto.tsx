@@ -100,7 +100,7 @@ function Campos ({
     }
 
     if (esAlta && cliente === '') {
-      setError(`Elegí un ${GLOSARIO.cliente.singular.toLowerCase()}.`)
+      setError(`Elige un ${GLOSARIO.cliente.singular.toLowerCase()}.`)
       return
     }
 
@@ -145,7 +145,7 @@ function Campos ({
           <Campo etiqueta={GLOSARIO.cliente.singular} requerido>
             {(props) => (
               <Selector value={cliente} onValueChange={setCliente}>
-                <DisparadorSelector id={props.id} marcador="Elegí un cliente" />
+                <DisparadorSelector id={props.id} marcador="Elige un cliente" />
                 <ContenidoSelector>
                   {clientes.map((opcion) => (
                     <Opcion key={opcion.valor} value={opcion.valor}>{opcion.etiqueta}</Opcion>
@@ -194,7 +194,7 @@ function Campos ({
         </Campo>
       </div>
 
-      <Campo etiqueta="Horas estimadas" ayuda="Dejalo vacío si todavía no se estimó.">
+      <Campo etiqueta="Horas estimadas" ayuda="Déjalo vacío si todavía no se estimó.">
         {(props) => (
           <Entrada
             {...props}

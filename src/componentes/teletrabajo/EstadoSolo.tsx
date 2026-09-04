@@ -61,7 +61,7 @@ export function EstadoSolo ({ pista, miIdentidad, className }: PropsEstadoSolo) 
 
       <div className="flex flex-col items-center gap-2 text-center">
         <p className="text-sm text-texto-tenue">
-          Estás solo en la sala. Pasá el enlace a quien tenga que entrar.
+          Estás solo en la sala. Pasa el enlace a quien tenga que entrar.
         </p>
 
         <Boton variante="secundario" tamano="chico" onClick={copiarEnlace}>

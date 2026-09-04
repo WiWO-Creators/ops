@@ -15,7 +15,7 @@ import { ErrorEstado } from '@/componentes/estado/Estados'
 export default function ErrorDelPortal ({ reset }: { error: Error & { digest?: string }, reset: () => void }) {
   return (
     <ErrorEstado
-      detalle="No pudimos cargar esta pantalla. Probá de nuevo en un momento."
+      detalle="No pudimos cargar esta pantalla. Prueba de nuevo en un momento."
       onReintentar={reset}
     />
   )

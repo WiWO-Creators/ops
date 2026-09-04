@@ -94,12 +94,12 @@ export interface EntradaContacto {
 export function revisarContacto (entrada: EntradaContacto): Record<string, string> {
   const errores: Record<string, string> = {}
 
-  if (entrada.firstname.trim() === '') errores.firstname = 'Poné el nombre.'
-  if (entrada.lastname.trim() === '') errores.lastname = 'Poné el apellido.'
+  if (entrada.firstname.trim() === '') errores.firstname = 'Pon el nombre.'
+  if (entrada.lastname.trim() === '') errores.lastname = 'Pon el apellido.'
 
   const email = entrada.email.trim()
   if (email === '') {
-    errores.email = 'Poné el correo.'
+    errores.email = 'Pon el correo.'
   } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     errores.email = 'Ese correo no tiene forma de correo.'
   }

@@ -48,8 +48,8 @@ export function camposDePersona (
       requerido: alta,
       omitirSiVacio: !alta,
       ayuda: alta
-        ? 'Mínimo 8 caracteres. No se envía ningún correo: entregásela por otro medio.'
-        : 'Dejala en blanco para no cambiarla.'
+        ? 'Mínimo 8 caracteres. No se envía ningún correo: entrégasela por otro medio.'
+        : 'Déjala en blanco para no cambiarla.'
     },
     {
       clave: 'role_id',

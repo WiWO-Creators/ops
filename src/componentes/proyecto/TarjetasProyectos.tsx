@@ -357,7 +357,7 @@ export function TarjetasProyectos ({ resultado, opcionesDeFiltro }: PropsTarjeta
         ? (
           <Vacio
             titulo={`No hay ${ESPACIOS.titulo.plural.toLowerCase()}`}
-            descripcion="Probá quitando filtros o buscando otra cosa."
+            descripcion="Prueba quitando filtros o buscando otra cosa."
           />
           )
         : (

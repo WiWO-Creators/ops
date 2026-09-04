@@ -208,7 +208,7 @@ function ChatDelProyecto ({ proyectoId }: { proyectoId: number }): ReactElement 
       {mensajes.length === 0
         ? (
           <Vacio
-            titulo={`Preguntá por el estado de este ${GLOSARIO.espacio.singular}`}
+            titulo={`Pregunta por el estado de este ${GLOSARIO.espacio.singular}`}
             descripcion="Responde con lo que hay cargado y cita de donde lo sacó."
             accion={
               <div className="flex flex-wrap justify-center gap-2">
@@ -255,7 +255,7 @@ function ChatDelProyecto ({ proyectoId }: { proyectoId: number }): ReactElement 
           maxLength={LARGO_MAXIMO_PREGUNTA}
           disabled={enviando}
           aria-label="Tu pregunta"
-          placeholder={`Preguntá por el estado de este ${GLOSARIO.espacio.singular}…`}
+          placeholder={`Pregunta por el estado de este ${GLOSARIO.espacio.singular}…`}
         />
 
         <div className="flex flex-wrap items-center justify-between gap-2">

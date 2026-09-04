@@ -129,7 +129,7 @@ export function Tablero<T extends FilaConId> ({
       await recargar()
     } catch {
       setGrupos(previo)
-      setAviso('No se pudo mover: revisá la conexión.')
+      setAviso('No se pudo mover: revisa la conexión.')
     } finally {
       setOcupado(false)
     }
@@ -160,7 +160,7 @@ export function Tablero<T extends FilaConId> ({
 
       setGrupos((actuales) => agregarPagina(actuales, idColumna, traido.tarjetas, traido.pagination))
     } catch {
-      setAviso('No se pudieron traer más tarjetas: revisá la conexión.')
+      setAviso('No se pudieron traer más tarjetas: revisa la conexión.')
     } finally {
       setOcupado(false)
     }
@@ -194,7 +194,7 @@ export function Tablero<T extends FilaConId> ({
     setArrastrada(null)
 
     if (!admiteSoltar(grupo)) {
-      setAviso(`"${grupo.columna.name}" tiene tarjetas sin cargar. Cargá el resto antes de reordenarla.`)
+      setAviso(`"${grupo.columna.name}" tiene tarjetas sin cargar. Carga el resto antes de reordenarla.`)
       return
     }
 

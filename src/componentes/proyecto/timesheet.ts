@@ -167,7 +167,7 @@ export function validarTimesheet (entrada: EntradaTimesheet): Validacion {
   const taskId = Number(entrada.taskId)
 
   if (!Number.isInteger(taskId) || taskId <= 0) {
-    return { ok: false, campo: 'taskId', mensaje: 'Elegí la tarea.' }
+    return { ok: false, campo: 'taskId', mensaje: 'Elige la tarea.' }
   }
 
   const cuerpo: CuerpoTimesheet = { task_id: taskId }
@@ -194,11 +194,11 @@ export function validarTimesheet (entrada: EntradaTimesheet): Validacion {
   const fin = new Date(entrada.fin).getTime()
 
   if (entrada.inicio === '' || Number.isNaN(inicio)) {
-    return { ok: false, campo: 'inicio', mensaje: 'Indicá cuándo empezó.' }
+    return { ok: false, campo: 'inicio', mensaje: 'Indica cuándo empezó.' }
   }
 
   if (entrada.fin === '' || Number.isNaN(fin)) {
-    return { ok: false, campo: 'fin', mensaje: 'Indicá cuándo terminó.' }
+    return { ok: false, campo: 'fin', mensaje: 'Indica cuándo terminó.' }
   }
 
   if (fin < inicio) {

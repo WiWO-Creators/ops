@@ -96,7 +96,7 @@ export function TableroHitos ({ proyectoId, excluirCompletadas }: PropsTableroHi
       opcionesDeFiltro={lookups === null ? undefined : opcionesDeFiltros(definicion, lookups)}
       mensajeError={`No se pudo cargar el tablero de ${GLOSARIO.hito.plural.toLowerCase()}.`}
       tituloVacio={`Sin ${GLOSARIO.hito.plural.toLowerCase()}`}
-      descripcionVacio={`Los ${GLOSARIO.hito.plural.toLowerCase()} parten el proyecto en entregas con fecha. Creá el primero con "Nuevo ${GLOSARIO.hito.singular.toLowerCase()}".`}
+      descripcionVacio={`Los ${GLOSARIO.hito.plural.toLowerCase()} parten el proyecto en entregas con fecha. Crea el primero con "Nuevo ${GLOSARIO.hito.singular.toLowerCase()}".`}
       adaptarCuerpo={adaptar}
       ordenarColumnas={ordenar}
     />

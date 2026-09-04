@@ -160,7 +160,7 @@ function FilaAprobacion ({ tarea, onResuelta }: { tarea: TareaPortal, onResuelta
               maxLength={2000}
               value={motivo}
               aria-label="Motivo del rechazo"
-              placeholder="Contanos qué falta o qué hay que corregir."
+              placeholder="Cuéntanos qué falta o qué hay que corregir."
               onChange={(evento) => { setMotivo(evento.target.value) }}
             />
 

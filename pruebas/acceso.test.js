@@ -51,7 +51,7 @@ test('serializa a la forma que espera la API', () => {
 test('cada rechazo dice su motivo', () => {
   assert.equal(motivoParaRechazarDominio('wiwo.me', ['agenciapalta.cl']), null)
   assert.equal(motivoParaRechazarDominio('  WiWO.me ', ['wiwo.me']), 'Ese dominio ya está en la lista.')
-  assert.equal(motivoParaRechazarDominio('', []), 'Escribí un dominio.')
+  assert.equal(motivoParaRechazarDominio('', []), 'Escribe un dominio.')
   assert.match(motivoParaRechazarDominio('alguien@wiwo.me', []), /no parece un dominio/)
 })
 

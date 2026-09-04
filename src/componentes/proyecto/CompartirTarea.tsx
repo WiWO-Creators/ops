@@ -123,7 +123,7 @@ export function CompartirTarea ({ procesoId }: { procesoId: number }): ReactElem
       await navigator.clipboard.writeText(url)
       setCopiado(true)
     } catch {
-      setEstado({ fase: 'error', mensaje: 'No pudimos copiar el enlace. Seleccionalo y copialo a mano.' })
+      setEstado({ fase: 'error', mensaje: 'No pudimos copiar el enlace. Selecciónalo y cópialo a mano.' })
     }
   }
 
@@ -239,11 +239,11 @@ export function CompartirTarea ({ procesoId }: { procesoId: number }): ReactElem
  */
 function textoDeEstado (estado: Extract<Estado, { fase: 'listo' }>): string {
   if (estado.url !== null) {
-    return 'Enlace listo. Generar otro deja este sin efecto al instante, así que copialo antes de volver a apretar.'
+    return 'Enlace listo. Generar otro deja este sin efecto al instante, así que cópialo antes de volver a apretar.'
   }
 
   if (estado.enlace.shared) {
-    return 'Ya hay un enlace activo, pero la dirección no se puede volver a mostrar: en el sistema sólo queda su huella. Si la perdiste, generá uno nuevo — el que ya repartiste dejará de funcionar.'
+    return 'Ya hay un enlace activo, pero la dirección no se puede volver a mostrar: en el sistema sólo queda su huella. Si la perdiste, genera uno nuevo — el que ya repartiste dejará de funcionar.'
   }
 
   return `Esta ${PROCESO} todavía no está compartida.`

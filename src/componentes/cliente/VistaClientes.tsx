@@ -193,7 +193,7 @@ function TarjetasClientes ({
         ? (
           <Vacio
             titulo={`No hay ${CLIENTES.titulo.plural.toLowerCase()}`}
-            descripcion="Probá quitando filtros o buscando otra cosa."
+            descripcion="Prueba quitando filtros o buscando otra cosa."
           />
           )
         : (
