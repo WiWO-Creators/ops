@@ -35,6 +35,7 @@ una lista de bugs: es lo que **no se construyó a propósito**, y cada ficha lo 
 | [04](04-equipo.md) | Equipo | `staff` | ✅ | sí | — |
 | [05](05-mi-trabajo.md) | Mi trabajo | vistas sobre `tasks` | ✅ | sí | — |
 | [06](06-salas.md) | Salas de reunión | **ninguna**: tablas propias del módulo `api` | ✅ | sí | Sin Google Calendar, por decisión del usuario |
+| [07](07-teletrabajo.md) | Teletrabajo | **ninguna**: LiveKit propio, sin tabla | — | sí | Sin endpoint de tokens, por decisión de diseño |
 | [10](10-prospectos.md) | Prospectos | `leads` | ✅ | **no** | `POST /leads/{id}/convertir` |
 | [20](20-facturas.md) | Facturas | `invoices` | ✅ | **no** | PDF, envío, recurrentes, notas de crédito, `tags`, `custom_fields` |
 | [22](22-pagos.md) | Pagos | `invoicepaymentrecords` | ✅ | **no** | `PATCH /payments/{id}`, deliberado |
@@ -61,7 +62,6 @@ lo que se necesita se lee del código.
 
 | Módulo | Dónde está |
 |---|---|
-| Teletrabajo (LiveKit) | `src/app/(panel)/teletrabajo/`, `src/datos/teletrabajo.ts` |
 | Administración: acceso con Google y correo | `src/app/(panel)/administracion/`, `src/componentes/administracion/` |
 | Drive / Archivos | `src/componentes/archivos/ArbolDrive.tsx`, `Recursos/RecursoDrive.php` |
 | Gantt | `src/componentes/proyecto/PanelGantt.tsx`, `Recursos/RecursoGantt.php` |
