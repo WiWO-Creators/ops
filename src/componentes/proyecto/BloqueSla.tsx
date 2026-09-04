@@ -79,14 +79,16 @@ export function BloqueSla ({ tarea, puedeEditar, onCambiado }: PropsBloqueSla): 
     onCambiado()
   }
 
-  // Sin pedir todavia, o rechazada: los dos casos en que volver a pedirla es lo correcto. Una ya
-  // aprobada queda fuera a proposito — reabrirla borra `resuelta_en` del lado del backend, o sea que
-  // detiene el reloj del ETA, y eso no puede pasar por un clic de mas.
+  // Con el ajuste del Espacio encendido, una Tarea nace en `pendiente` pero con `solicitada_en` en
+  // `null`: la requiere, y todavia nadie se la pidio al cliente. Ese es el caso principal del boton,
+  // junto con el rechazo. Una ya pedida no se vuelve a pedir, y una ya aprobada queda fuera a
+  // proposito: reabrirla borra `resuelta_en` del lado del backend, o sea que detiene el reloj del
+  // ETA, y eso no puede pasar por un clic de mas.
   const puedePedir =
     puedeEditar &&
     aprobacion !== undefined &&
     aprobacion.requerida &&
-    (aprobacion.estado === null || aprobacion.estado === 'rechazada')
+    (aprobacion.solicitada_en === null || aprobacion.estado === 'rechazada')
 
   return (
     <section className="border-linea bg-superficie-elevada rounded-tarjeta grid grid-cols-1 gap-3 border p-3 sm:grid-cols-3">
@@ -149,7 +151,12 @@ function Aprobacion ({ aprobacion }: { aprobacion: AprobacionProceso | undefined
     return <Insignia tono="contorno" tamano="chico">No requiere</Insignia>
   }
 
-  const lectura = aprobacion.estado === null ? undefined : APROBACION[aprobacion.estado]
+  // `pendiente` sin `solicitada_en` no es "el cliente esta mirando esto": es "nadie se lo pidio". Las
+  // dos cosas se ven igual en el `estado` y no significan lo mismo para quien tiene que actuar.
+  const lectura =
+    aprobacion.estado !== null && aprobacion.solicitada_en !== null
+      ? APROBACION[aprobacion.estado]
+      : undefined
   const instante = aprobacion.resuelta_en ?? aprobacion.solicitada_en
 
   return (
