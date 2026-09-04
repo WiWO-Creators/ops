@@ -22,13 +22,20 @@ export interface Paginacion {
   total: number
   total_pages: number
   /**
-   * Resumen agregado, cuando el recurso lo trae. Hoy solo `GET /notifications/mail-queue`: cuenta la
-   * cola entera (`total`, `pending`, `sending`, `sent`, `failed`), sin los filtros de la vista. Va
-   * DENTRO de `pagination` y no como hermano en `meta` — así responde la API real, aunque el
-   * contrato lo documentó como hermano; se corrigió el documento para que diga lo que se mide.
+   * Resumen agregado, cuando el recurso lo trae. Lo traen las dos colas de correo —
+   * `GET /notifications/mail-queue` y `GET /notifications/client-mail-queue`—, cada una con sus
+   * estados y siempre sobre la cola entera, sin los filtros de la vista. Va DENTRO de `pagination` y
+   * no como hermano en `meta` — así responde la API real, aunque el contrato lo documentó como
+   * hermano; se corrigió el documento para que diga lo que se mide.
+   *
+   * Es una unión y no un solo tipo porque los estados no coinciden: quien lo lea estrecha con
+   * `esResumenColaCliente()` (`src/dominio/correo-cliente.ts`) antes de contar nada.
    */
-  summary?: ResumenColaCorreo
+  summary?: ResumenDeCola
 }
+
+/** El resumen de cualquiera de las dos colas de correo. */
+export type ResumenDeCola = ResumenColaCorreo | ResumenColaCorreoCliente
 
 /** El resumen que viaja en `meta.pagination.summary` de `GET /notifications/mail-queue`. */
 export interface ResumenColaCorreo {
@@ -37,6 +44,22 @@ export interface ResumenColaCorreo {
   sending: number
   sent: number
   failed: number
+}
+
+/**
+ * El resumen de `GET /notifications/client-mail-queue`.
+ *
+ * Trae el estado del motor además de los conteos, y eso no es un adorno: una cola con filas
+ * pendientes y `engine_enabled: false` es el estado correcto del sistema —no hay consumidor que la
+ * vacíe—, así que sin estos dos campos la pantalla mostraría una cola atascada sin explicación.
+ */
+export interface ResumenColaCorreoCliente {
+  total: number
+  pendiente: number
+  enviado: number
+  error: number
+  mode: string
+  engine_enabled: boolean
 }
 
 /** Envelope de error. `details` solo viene en 422. */

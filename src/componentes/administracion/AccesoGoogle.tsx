@@ -7,6 +7,7 @@ import { Campo } from '@/componentes/formularios/Campo'
 import { Entrada } from '@/componentes/formularios/Entrada'
 import { Seccion } from '@/componentes/presentadores/Ficha'
 import { guardarAjustes } from '@/datos/recursos'
+import { detallesDeAjustesLegibles } from '@/dominio/ajustes'
 import {
   AJUSTES_GOOGLE, ajusteBool, ajusteTexto, dominiosATexto, dominiosDesdeTexto,
   motivoParaRechazarDominio, normalizarDominio, tieneAjustesDeGoogle
@@ -18,26 +19,6 @@ const ETIQUETA_DE_CLAVE: Record<string, string> = {
   [AJUSTES_GOOGLE.habilitado]: 'Login con Google',
   [AJUSTES_GOOGLE.dominios]: 'Dominios autorizados',
   [AJUSTES_GOOGLE.clienteId]: 'Client ID de Google'
-}
-
-/** Los dos motivos que devuelve `Escritura\Ajuste::escribir()` en el `details` del 422. */
-const MOTIVO_DE_RECHAZO: Record<string, string> = {
-  no_editable: 'la API no acepta escribir esta opción',
-  invalid: 'el valor no pasó la validación del backend'
-}
-
-/**
- * Traduce el `details` del 422 a lineas legibles.
- *
- * Un motivo o una clave que no esten en los mapas se muestran crudos: inventar un texto para algo
- * que no se conoce esconde justamente el caso que hay que investigar.
- */
-function detallesLegibles (detalles: Record<string, string[]>): string[] {
-  return Object.entries(detalles).map(([clave, motivos]) => {
-    const razones = motivos.map((motivo) => MOTIVO_DE_RECHAZO[motivo] ?? motivo).join(', ')
-
-    return `${ETIQUETA_DE_CLAVE[clave] ?? clave}: ${razones}`
-  })
 }
 
 interface PropsAccesoGoogle {
@@ -153,7 +134,7 @@ export function AccesoGoogle ({ inicial }: PropsAccesoGoogle): ReactElement {
 
     if (!resultado.ok) {
       setErrorGuardar(resultado.mensaje)
-      setDetallesError(detallesLegibles(resultado.detalles))
+      setDetallesError(detallesDeAjustesLegibles(resultado.detalles, ETIQUETA_DE_CLAVE))
       return
     }
 
