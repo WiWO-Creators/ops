@@ -279,7 +279,8 @@ fila. `GET /staff/{id}` agrega a lo de arriba:
   "tiempo": { "total_segundos": 109374, "este_mes_segundos": 0, "esta_semana_segundos": 0,
               "corriendo": { "id": 88, "task_id": 504, "task_name": "…",
                              "start_time": "2026-08-24T13:00:00Z", "segundos": 5400 } },
-  "counts": { "tareas_abiertas": 17, "espacios": 22 } }
+  "counts": { "tareas_abiertas": 17, "espacios": 22,
+              "por_estado": [ { "status": 1, "total": 6 }, { "status": 5, "total": 43 } ] } }
 ```
 
 - `role` es `null` para quien no tiene: la lectura devuelve `role_id: 0` y `role: null`, y las dos
@@ -291,6 +292,10 @@ fila. `GET /staff/{id}` agrega a lo de arriba:
   sumo uno en todo el sistema— o `null`.
 - `counts.tareas_abiertas` cuenta las asignadas que no están en estado 5; `counts.espacios`, las
   membresías de `tblproject_members`.
+- `counts.por_estado` es el resumen de sus Procesos asignados: un contador por estado, y **solo de
+  los estados que tiene**. Llega sin nombre ni color — los resuelve la pantalla contra
+  `task_statuses` de `GET /lookups` — y sale de la misma consulta que `tareas_abiertas`, que es su
+  suma menos el estado 5, así que los dos números no pueden discrepar.
 
 Nunca se exponen: `password`, `new_pass_key`, `google_auth_secret`, `two_factor_auth_code`. Tampoco
 `last_ip`, que es dato de seguridad y no de ficha.
@@ -315,6 +320,61 @@ condición de administrador, degradar al administrador principal (`#1`) y apagar
 administrador activo.
 
 Ninguna escritura manda correo. Un alta con `role_id` estrena la cuenta con los permisos de ese rol.
+
+### Subrecursos de la ficha de una persona
+
+`GET /staff/{id}/timesheets` · `GET /staff/{id}/activity` · `GET /staff/{id}/files`
+
+Son de **solo lectura** y existen para poder mirar a una persona entera sin recorrer proyecto por
+proyecto. Entran por el mismo permiso que la ficha (`staff.view`) y **además** recortan sus filas con
+la visibilidad de quien mira, la misma que aplican los listados de Procesos y de Espacios. Un `POST`,
+un segmento de más (`/staff/12/files/3`) o un `?include=` son `404`/`422`; un id que no es de nadie es
+`404`, no una lista vacía.
+
+**`GET /staff/{id}/timesheets`** — las horas de esa persona en todos los Espacios. Misma fila que
+`GET /projects/{id}/timesheets` más `project`:
+
+```json
+{ "id": 245, "staff": { "id": 160, "full_name": "…", "sigue_asignado": true },
+  "task": { "id": 2755, "name": "…", "status": 4, "billable": true, "billed": false },
+  "tags": [], "start_time": "2026-08-19T17:54:21Z", "end_time": "2026-08-19T18:19:44Z",
+  "note": null, "duration_seconds": 1523, "duration_hm": "00:25", "duration_decimal": 0.42,
+  "corriendo": false, "puede_editar": true, "puede_borrar": true, "puede_detener": false,
+  "project": { "id": 287, "name": "…" } }
+```
+
+`project` es `null` cuando la tarea no cuelga de un Espacio. Filtros: `staff_id`, `task_id`,
+`billable`, `billed`, `date_from`, `date_to`. Orden: `start_time`, `end_time`, `staff`, `duration`
+(por defecto `-start_time`). Búsqueda `q` sobre el nombre de la tarea y la nota. **No** aplica la
+regla de «sin `create projects`, sólo lo propio» de la pestaña Tiempos de un Espacio: allá la puerta
+es el proyecto, acá es `staff.view`, que ya deja ver el total de horas en `tiempo`.
+
+**`GET /staff/{id}/activity`** — lo que hizo, en los Espacios que quien mira puede ver. Misma fila que
+`GET /projects/{id}/activity` más `project`, que acá nunca es `null` porque el feed cruza varios:
+
+```json
+{ "id": 8909, "description": "Tarea comentada en", "additional_data": "Status semanales",
+  "date_added": "2026-09-03T03:22:50Z", "visible_to_customer": true,
+  "staff": { "id": 5, "full_name": "…", "profile_image_url": "…" }, "contact": null,
+  "project": { "id": 287, "name": "…" } }
+```
+
+Filtros: `staff_id`, `visible_to_customer`, `date_from`, `date_to`. Orden: `date_added` (por defecto
+`-date_added`). **Es lo más cerca de un «historial de cambios» que tiene esta base**: sólo queda
+registro de lo que pasa dentro de un Espacio. Editar un Cliente o mover un Prospecto no deja fila con
+el **id** de quien lo hizo — `tblactivity_log` guarda el nombre en un `varchar` y no se puede resolver
+a una persona (ver `GET /audit`).
+
+**`GET /staff/{id}/files`** — los archivos que esa persona **subió**. No son «sus» archivos: en el
+board un archivo cuelga de un Proceso, un Espacio o un Cliente, y lo único que lo ata a alguien es
+`staffid`. Misma fila que `GET /projects/{id}/files` más `rel_name`, el nombre de aquello de lo que
+cuelga; `rel_type` es `task` o `project`. Van juntas las dos fuentes (`tblfiles` con
+`rel_type in ('task','tasks')` y `tblproject_files`), ordenadas por fecha descendente y **sin
+paginar**, igual que el resto de los listados de archivos. Quedan fuera los adjuntos de Clientes,
+contratos y demás entidades de venta: cada uno tiene su permiso y su visibilidad, y mezclarlos
+colaría en una ficha de equipo filas que no se alcanzan por su ruta.
+
+Sin filtros ni orden: el endpoint devuelve la lista entera y quien la muestre la ordena en el cliente.
 
 ### `lookups`
 

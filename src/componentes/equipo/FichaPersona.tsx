@@ -3,9 +3,10 @@ import { Filas, Seccion, type Dato } from '@/componentes/presentadores/Ficha'
 import { Insignia } from '@/componentes/presentadores/Insignia'
 import { PARAMETRO_TAREA } from '@/componentes/proyecto/CajonTarea'
 import { Metrica } from '@/componentes/proyecto/ResumenProyecto'
+import { ResumenTareasPersona } from './ResumenTareasPersona'
 import { formatearImporte, segundosAHoraMinuto } from '@/componentes/proyecto/formatos'
 import { formatearFecha } from '@/lib/fechas'
-import type { FichaPersona as Persona } from '@/datos/recursos'
+import type { EstadoLookup, FichaPersona as Persona } from '@/datos/recursos'
 
 /**
  * Nombre en español de cada area de permisos.
@@ -57,16 +58,24 @@ const CAPACIDADES: Record<string, string> = {
 /**
  * Todo lo que la API sabe de una persona, agrupado por para que sirve.
  *
- * Los tres bloques de arriba son metricas porque son numeros que se comparan entre si —cuanto trabajo
- * tiene encima y cuanto tiempo registro—; lo de abajo son datos de legajo, que se leen de a uno.
+ * Los cuatro bloques de arriba son metricas porque son numeros que se comparan entre si —cuanto
+ * trabajo tiene encima y cuanto tiempo registro—; el resumen por estado los abre, y lo de abajo son
+ * datos de legajo, que se leen de a uno.
  *
  * Las secciones sin datos no se dibujan, salvo Permisos: una persona sin ninguno es justamente el
  * caso que hay que poder ver, porque explica por que no encuentra nada al entrar.
  *
  * @param persona La ficha ya cargada.
+ * @param estadosDeTarea Catalogo `task_statuses`, para nombrar y colorear el resumen por estado.
  * @returns Las metricas y las secciones de la ficha.
  */
-export function FichaPersona ({ persona }: { persona: Persona }) {
+export function FichaPersona ({
+  persona,
+  estadosDeTarea
+}: {
+  persona: Persona
+  estadosDeTarea: EstadoLookup[]
+}) {
   const { tiempo, counts } = persona
   const corriendo = tiempo.corriendo
 
@@ -93,6 +102,8 @@ export function FichaPersona ({ persona }: { persona: Persona }) {
           </span>
         </p>
       )}
+
+      <ResumenTareasPersona contadores={counts} estados={estadosDeTarea} />
 
       <div className="grid max-w-5xl gap-x-8 gap-y-6 sm:grid-cols-2 lg:grid-cols-3">
         <Seccion titulo="Cuenta">

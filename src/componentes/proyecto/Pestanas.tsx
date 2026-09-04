@@ -35,9 +35,16 @@ export interface Panel {
  * mano. El subrayado se desliza de una pestaña a la otra y el panel hace crossfade en vez de saltar.
  *
  * @param paneles pestañas en el orden en que se muestran; la primera es la de por defecto
+ * @param etiqueta nombre accesible de la barra; nombra la pantalla que la monta, no "pestañas"
  * @returns la barra de pestañas y el panel activo
  */
-export function Pestanas ({ paneles }: { paneles: Panel[] }) {
+export function Pestanas ({
+  paneles,
+  etiqueta = 'Secciones del proyecto'
+}: {
+  paneles: Panel[]
+  etiqueta?: string
+}) {
   const router = useRouter()
   const params = useSearchParams()
   const porDefecto = paneles[0]
@@ -57,7 +64,7 @@ export function Pestanas ({ paneles }: { paneles: Panel[] }) {
 
   return (
     <div className="flex flex-col gap-4">
-      <div role="tablist" aria-label="Secciones del proyecto" className="border-linea flex gap-1 border-b">
+      <div role="tablist" aria-label={etiqueta} className="border-linea flex gap-1 border-b">
         {paneles.map((panel) => (
           <button
             key={panel.clave}

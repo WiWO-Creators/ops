@@ -205,7 +205,23 @@ export interface FichaPersona extends MiembroEquipo {
   departments: Referencia[]
   permissions: Record<string, string[]>
   tiempo: TiempoDePersona
-  counts: { tareas_abiertas: number, espacios: number }
+  counts: ContadoresDePersona
+}
+
+/**
+ * Cuanto trabajo tiene encima una persona (`counts` de `GET /staff/{id}`).
+ *
+ * `por_estado` es el resumen de sus Tareas asignadas: un contador por estado, y solo de los estados
+ * que efectivamente tiene. Llega sin nombre ni color porque los resuelve la pantalla contra
+ * `task_statuses` de `GET /lookups`, que ya baja ahi.
+ *
+ * `tareas_abiertas` es la suma de `por_estado` menos el estado "Completo": el backend los saca de la
+ * misma consulta, asi que los dos numeros no pueden discrepar.
+ */
+export interface ContadoresDePersona {
+  tareas_abiertas: number
+  espacios: number
+  por_estado: Array<{ status: number, total: number }>
 }
 
 /** Una columna del tablero, tal como la declara `lookups`. */
@@ -272,6 +288,13 @@ export interface ArchivoProyecto {
   filetype: string | null
   rel_type: string
   rel_id: number
+  /**
+   * Nombre de la Tarea o del Proyecto del que cuelga.
+   *
+   * Solo viaja en `GET /staff/{id}/files`: en la pestaña de un Proyecto seria su propio nombre
+   * repetido en cada fila. Es lo unico que ubica un archivo cuando la lista mezcla varios origenes.
+   */
+  rel_name?: string
   staff_id: number
   date_added: string | null
   visible_to_customer: boolean
@@ -519,6 +542,11 @@ export interface RegistroTiempo {
   puede_editar: boolean
   puede_borrar: boolean
   puede_detener: boolean
+  /**
+   * Proyecto de la Tarea. Solo viaja en `GET /staff/{id}/timesheets`, donde los registros son de
+   * varios Proyectos; es `null` si la Tarea no cuelga de ninguno.
+   */
+  project?: Referencia | null
 }
 
 /** Persona que registro tiempo en el proyecto (`GET /projects/{id}/timesheets/staff`). */
@@ -599,6 +627,8 @@ export interface ActividadEspacio {
   visible_to_customer: boolean
   staff: StaffReferencia | null
   contact: { id: number, full_name: string } | null
+  /** Proyecto donde ocurrio. Solo viaja en `GET /staff/{id}/activity`, que cruza varios. */
+  project?: Referencia
 }
 
 /** Nota privada del proyecto. Cada persona solo ve las suyas: el backend filtra por la sesion. */

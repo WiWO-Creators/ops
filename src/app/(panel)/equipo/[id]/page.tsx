@@ -1,10 +1,14 @@
 import Link from 'next/link'
-import { cache } from 'react'
+import { Suspense, cache } from 'react'
 import { AccionesPersona } from '@/componentes/equipo/AccionesPersona'
 import { CabeceraPersona } from '@/componentes/equipo/CabeceraPersona'
 import { FichaPersona } from '@/componentes/equipo/FichaPersona'
+import { PanelArchivosPersona } from '@/componentes/equipo/PanelArchivosPersona'
+import { PanelHistorialPersona } from '@/componentes/equipo/PanelHistorialPersona'
+import { PanelHorasPersona } from '@/componentes/equipo/PanelHorasPersona'
 import { PanelTrabajoPersona } from '@/componentes/equipo/PanelTrabajoPersona'
-import { ErrorEstado, SinPermiso, Vacio } from '@/componentes/estado/Estados'
+import { Cargando, ErrorEstado, SinPermiso, Vacio } from '@/componentes/estado/Estados'
+import { Pestanas, type Panel } from '@/componentes/proyecto/Pestanas'
 import type { OpcionCampo } from '@/componentes/proyecto/formulario'
 import { listaDe } from '@/datos/catalogos'
 import { ErrorApi } from '@/datos/errores'
@@ -93,10 +97,15 @@ function NoEncontrada () {
 }
 
 /**
- * Ficha de una persona del equipo.
+ * Ficha de una persona del equipo, con sus cinco pestañas.
  *
- * Sin pestañas, a diferencia de Cliente y Proyecto: una persona son dos bloques —quien es y que tiene
- * encima—, y repartirlos en pestañas obligaria a hacer clic para ver la mitad de una pantalla corta.
+ * Las tres ultimas —Horas, Archivos e Historial— piden lo suyo al montarse, y `Pestanas` monta solo
+ * la activa: la que nadie abre no cuesta ninguna peticion. Por eso la ficha gano pestañas cuando gano
+ * esas tres secciones: apiladas, una visita que solo venia a mirar el correo pagaba tres viajes a la
+ * API y bajaba mil filas de historial.
+ *
+ * El `Suspense` no es decorativo: `Pestanas` usa `useSearchParams`, y sin ese limite el build de la
+ * ruta falla.
  */
 export default async function PersonaPage (props: PageProps<'/equipo/[id]'>) {
   const { id } = await props.params
@@ -124,6 +133,37 @@ export default async function PersonaPage (props: PageProps<'/equipo/[id]'>) {
     etiqueta: area.name
   }))
 
+  const paneles: Panel[] = [
+    {
+      clave: 'ficha',
+      etiqueta: 'Ficha',
+      contenido: <FichaPersona persona={persona} estadosDeTarea={listaDe(lookups, 'task_statuses')} />
+    },
+    {
+      clave: 'trabajo',
+      etiqueta: 'Trabajo',
+      contenido: (
+        <PanelTrabajoPersona
+          personaId={persona.id}
+          nombre={persona.firstname}
+          estadosDeTarea={listaDe(lookups, 'task_statuses')}
+          estadosDeProyecto={listaDe(lookups, 'project_statuses')}
+        />
+      )
+    },
+    {
+      clave: 'horas',
+      etiqueta: 'Horas',
+      contenido: <PanelHorasPersona personaId={persona.id} tiempo={persona.tiempo} />
+    },
+    { clave: 'archivos', etiqueta: 'Archivos', contenido: <PanelArchivosPersona personaId={persona.id} /> },
+    {
+      clave: 'historial',
+      etiqueta: 'Historial',
+      contenido: <PanelHistorialPersona personaId={persona.id} nombre={persona.firstname} />
+    }
+  ]
+
   return (
     <section className="flex flex-col gap-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -133,14 +173,9 @@ export default async function PersonaPage (props: PageProps<'/equipo/[id]'>) {
         </div>
       </div>
 
-      <FichaPersona persona={persona} />
-
-      <PanelTrabajoPersona
-        personaId={persona.id}
-        nombre={persona.firstname}
-        estadosDeTarea={listaDe(lookups, 'task_statuses')}
-        estadosDeProyecto={listaDe(lookups, 'project_statuses')}
-      />
+      <Suspense fallback={<Cargando alto="min-h-36" mensaje="Cargando la ficha…" />}>
+        <Pestanas paneles={paneles} etiqueta="Secciones de la persona" />
+      </Suspense>
     </section>
   )
 }
