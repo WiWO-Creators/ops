@@ -51,9 +51,10 @@ const PREFIJOS_PERMITIDOS = [
   // cubren `/clients/{id}/drive` y `/projects/{id}/drive`; este prefijo propio es solo para pedir un
   // nivel mas del arbol al expandir una carpeta.
   'drive',
-  // Avisos: campana, preferencias y —solo para quien administra— el interruptor de correo y el
-  // visor de la cola. La API ya filtra `/settings` y `/mail-queue` por admin; el BFF solo decide si
-  // la ruta existe, no quien puede pisarla.
+  // Avisos: campana, preferencias y —solo para quien administra— el interruptor de correo y los dos
+  // visores de cola: `/mail-queue` (la de Perfex) y `/client-mail-queue` (la del motor de correo al
+  // cliente, que no vacia nadie). La API ya filtra las tres por superadmin; el BFF solo decide si la
+  // ruta existe, no quien puede pisarla.
   'notifications',
   // Ajustes de la instalacion (`GET /settings`, `PATCH /settings`). La API ya exige admin del otro
   // lado —la comprobacion vive junto a la whitelist de claves, en `Escritura\Ajuste::escribir()`—;

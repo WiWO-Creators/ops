@@ -1073,6 +1073,31 @@ export interface FilaColaCorreo {
   attachments: number
 }
 
+/** Los tres estados de `tblwiwo_correo_cliente_cola`. Hoy ninguna fila sale de `pendiente`. */
+export type EstadoCorreoCliente = 'pendiente' | 'enviado' | 'error'
+
+/**
+ * Una fila de la cola de correo al cliente (`GET /notifications/client-mail-queue`).
+ *
+ * Solo lectura, y mas radical que la de Perfex: la API no expone reintentar, borrar ni despachar,
+ * porque no hay nada que despache.
+ *
+ * `contact` es `null` cuando el contacto se borro despues de encolar: la fila se muestra igual, con
+ * el hueco a la vista, en vez de desaparecer del listado. `payload` es el objeto que se anoto al
+ * encolar —nunca el token del enlace, que no se guarda— y llega `null` si la columna trae algo que
+ * no es un objeto JSON.
+ */
+export interface FilaColaCorreoCliente {
+  id: number
+  contact: { id: number, name: string, email: string } | null
+  template: string
+  payload: Record<string, unknown> | null
+  status: EstadoCorreoCliente
+  created_at: string | null
+  sent_at: string | null
+  error: string | null
+}
+
 /** Resultado de `POST /notifications/test`: qué pasó con cada canal al probar un aviso. */
 export interface PruebaDeAviso {
   event: string | null
