@@ -18,7 +18,7 @@
 
 /** Una referencia que el modelo cito y el servidor ya verifico contra la base. */
 export interface Cita {
-  tipo: 'tarea' | 'hito' | 'espacio'
+  tipo: 'tarea' | 'discusion' | 'hito' | 'espacio'
   id: number
   /** El titulo que salio del `SELECT`, nunca el que escribio el modelo. */
   titulo: string
@@ -81,11 +81,11 @@ export type EventoIA =
   | { tipo: 'fin', generado_en: string | null, regeneracion: Regeneracion | null, uso: UsoIA | null }
   | { tipo: 'error', codigo: string, mensaje: string }
 
-/** Los cuatro tipos de cita que el contrato reconoce. */
-const TIPOS_CITA = ['tarea', 'hito', 'espacio'] as const
+/** Los cuatro tipos de cita que el contrato reconoce. Cada uno tiene su destino en `ia-chat.ts`. */
+const TIPOS_CITA = ['tarea', 'discusion', 'hito', 'espacio'] as const
 
 /** `true` si el valor es un objeto JSON plano. Descarta `null` y los arrays, que tambien son `object`. */
-function esObjeto (valor: unknown): valor is Record<string, unknown> {
+export function esObjeto (valor: unknown): valor is Record<string, unknown> {
   return typeof valor === 'object' && valor !== null && !Array.isArray(valor)
 }
 
@@ -176,9 +176,9 @@ export function leerEventoIA (crudo: string): EventoIA | null {
  * tarea de otro proyecto.
  *
  * @param valor una entrada del array `citas`
- * @returns la cita, o `null` si le falta algo o el tipo no es de los tres del contrato
+ * @returns la cita, o `null` si le falta algo o el tipo no es de los del contrato
  */
-function leerCita (valor: unknown): Cita | null {
+export function leerCita (valor: unknown): Cita | null {
   if (!esObjeto(valor)) return null
 
   const { tipo, id, titulo } = valor
