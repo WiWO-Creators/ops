@@ -3,6 +3,7 @@ import { Suspense, cache } from 'react'
 import { CabeceraProyecto } from '@/componentes/proyecto/CabeceraProyecto'
 import { PanelActividad } from '@/componentes/proyecto/PanelActividad'
 import { PanelArchivos } from '@/componentes/proyecto/PanelArchivos'
+import { PanelChatIA } from '@/componentes/proyecto/PanelChatIA'
 import { PanelDescripcion } from '@/componentes/proyecto/PanelDescripcion'
 import { PanelDiscusiones } from '@/componentes/proyecto/PanelDiscusiones'
 import { PanelGantt } from '@/componentes/proyecto/PanelGantt'
@@ -174,7 +175,10 @@ export default async function ProyectoPage (props: PageProps<'/espacios/[id]'>) 
       clave: 'actividad',
       etiqueta: 'Actividad',
       contenido: <PanelActividad proyectoId={proyecto.id} capacidades={capacidadesProyecto} />
-    }
+    },
+    // Ultima, y `paneles[0]` sigue siendo Descripcion: la pestaña por defecto no cambia y abrir el
+    // Proyecto no dispara ninguna llamada a `/ia/*` hasta que alguien entra a esta.
+    { clave: 'ia', etiqueta: 'IA', contenido: <PanelChatIA proyectoId={proyecto.id} /> }
   ]
 
   return (
