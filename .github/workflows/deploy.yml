@@ -20,7 +20,12 @@ jobs:
           script: |
             set -e
             cd /root/ops-v2
-            git pull origin main
+            # `reset --hard` y no `pull`: `pnpm build` reescribe `next-env.d.ts` en cada despliegue,
+            # asi que el arbol del servidor queda sucio y el `pull` aborta con "your local changes
+            # would be overwritten". Este checkout es un artefacto de despliegue, no un lugar donde
+            # se edita: lo que vale siempre es `origin/main`. El `.env` no se toca —esta ignorado.
+            git fetch origin main
+            git reset --hard origin/main
             pnpm install --frozen-lockfile
             pnpm build
             pm2 restart ops-v2

@@ -8,3 +8,6 @@ build/
 .DS_Store
 graphify-out/
 comparacion.png
+
+# Lo regenera `next build` en cada despliegue; tenerlo versionado ensuciaba el arbol del servidor.
+next-env.d.ts
