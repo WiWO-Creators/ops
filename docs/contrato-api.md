@@ -229,7 +229,7 @@ lo ignora:
 | Camino | Qué acepta |
 |---|---|
 | Listado y ficha de un recurso (`/invoices`, `/invoices/{id}`, …) | lo que declare ese recurso |
-| Listas acotadas (`/projects/{id}/invoices`, `/clients/{id}/contracts`, …) | **nada** |
+| Listas acotadas (`/projects/{id}/invoices`, `/projects/{id}/expenses`, …) | **nada** |
 | Los ocho subrecursos de un Espacio (`milestones`, `timesheets`, `notes`, `activity`, `discussions`, `files`, `members`, `gantt`), más `overview` y `/projects/stats` | **nada** |
 | Los cinco subrecursos de un Proceso (`comments`, `checklist`, `timers`, `assignees`, `files`) | **nada** |
 | `/clients/{id}/notes` y `/clients/{id}/files` | **nada** |
@@ -747,21 +747,29 @@ upsert (cambia el rol si ya lo tenía); `422` si el rol es inválido o el `staff
 
 ## Recursos de ventas, comercial y soporte
 
-Los ocho recursos que faltaban: `invoices`, `payments`, `estimates`, `proposals`, `expenses`,
-`contracts`, `leads` y `tickets`. Están construidos y verificados contra el código del panel
-(`modules/api/README.md` tiene el detalle de cada frente y sus divergencias deliberadas).
+Los cinco recursos que faltaban: `invoices`, `payments`, `expenses`, `leads` y `tickets`. Están
+construidos y verificados contra el código del panel (`modules/api/README.md` tiene el detalle de
+cada frente y sus divergencias deliberadas).
 
-Tres advertencias que valen para los ocho:
+> **`contracts`, `estimates` y `proposals` ya no están.** Se retiraron de la API el **3 de septiembre
+> de 2026** (`wiwo-board@b854567`): se borraron `RecursoContratos.php`, `RecursoCotizaciones.php`,
+> `RecursoPropuestas.php`, `Escritura/Cotizacion.php`, `Escritura/Propuesta.php` y
+> `Escritura/ParcheContrato.php`, y el `switch` de `V1.php` se quedó sin esos tres casos. **`/contracts`,
+> `/estimates` y `/proposals` —y todo lo que colgaba de ellos— caen en el `default` y devuelven
+> `404 not_found`, en cualquier verbo.** Lo único que sobrevive de los tres es la lectura desde el
+> portal del cliente: ver [Lectura de venta desde el portal](#lectura-de-venta-desde-el-portal).
+
+Tres advertencias que valen para los cinco:
 
 - **Ninguno entra en `secciones_habilitadas` de `GET /me`.** Esa lista sigue siendo
   `['procesos','espacios']` por decisión del usuario (`controllers/V1.php:1415`): la API responde,
   pero `ops-v2` no ofrece la sección. Habilitarlas es editar esa lista, no desplegar código nuevo.
-- **`?include=` no se ignora en ningún lado.** Los ocho declaran `includesPermitidos` —vacío donde no
+- **`?include=` no se ignora en ningún lado.** Los cinco declaran `includesPermitidos` —vacío donde no
   hay relaciones opcionales, como en `payments`— y llaman a `Consulta::includes()` tanto en el
   listado como en la ficha, así que `?include=lo-que-sea` es **`422`** y no un `200` silencioso. La
   grieta que este documento describía —seis de los ocho ignorando el `include`— está cerrada, y con
   ella la de los subrecursos y la del portal: ver "Dónde vale `?include=`" más arriba.
-- **`?fields=` funciona en los ocho** (`Consulta::recortar()`), igual que en los recursos del núcleo.
+- **`?fields=` funciona en los cinco** (`Consulta::recortar()`), igual que en los recursos del núcleo.
 
 ### `invoices` → **Facturas**
 
@@ -839,10 +847,9 @@ Filtros: `status`, `clientid`, `project_id`, `sale_agent`, `date_from`/`date_to`
                "qty": 1, "rate": 100000, "unit": null, "taxes": ["IVA|19"] } ] }
 ```
 
-Es la forma que parte `_maybe_insert_post_item_tax()` (`sales_helper.php:694-700`). En
-**cotizaciones y propuestas la misma clave viaja como objeto** `{"name":"IVA","rate":19}`
-(`Escritura/DocumentoDeVenta.php:472-495`), y **la lectura de los tres devuelve siempre objetos**.
-Son tres formas para el mismo dato: se documenta la asimetría en vez de esconderla.
+Es la forma que parte `_maybe_insert_post_item_tax()` (`sales_helper.php:694-700`). **La lectura, en
+cambio, devuelve siempre objetos** `{"name":"IVA","rate":19}`: se escribe cadena y se lee objeto. Se
+documenta la asimetría en vez de esconderla.
 
 Una tasa que no exista en `tbltaxes` es `422` antes de escribir
 (`RecursoItems::exigirTasasRegistradas()`): Perfex guarda el `"nombre|tasa"` que venga y una tasa
@@ -936,158 +943,6 @@ pago sólo con la compuerta de área, así que en el panel cualquiera con `view_
 pago de otro cambiando el número en la barra de direcciones. Replicar un agujero de acceso no es
 replicar el panel.
 
-### `estimates` → **Cotizaciones**
-
-`GET /estimates` · `GET /estimates/{id}` · `GET /estimates/{id}/items` · `POST /estimates` ·
-`PATCH /estimates/{id}` · `POST /estimates/{id}/actions/convert-to-invoice`
-
-Fila de la lista:
-
-```json
-{ "id": 5, "number": "EST-000005", "number_raw": 5,
-  "date": "2026-08-01", "duedate": "2026-08-31", "expirydate": "2026-08-31",
-  "status": 1, "subtotal": 100000.0, "total_tax": 19000.0, "total": 119000.0,
-  "adjustment": 0.0, "discount_percent": 0.0, "discount_total": 0.0, "discount_type": "",
-  "currency": { "id": 1, "symbol": "$", "name": "COP", "is_default": true },
-  "client": { "id": 42, "company": "…" },
-  "project": null,
-  "sale_agent": { "id": 12, "full_name": "…", "profile_image_url": "…" },
-  "invoice": null,
-  "tags": [ { "id": 3, "name": "urgente" } ] }
-```
-
-**`duedate` no es una columna de presupuestos: la columna es `expirydate`.** Se exponen las dos con
-el mismo valor y `sort=duedate` traduce, porque el frontend usa la misma tabla genérica para factura
-y presupuesto (`RecursoCotizaciones.php:118`).
-
-La ficha agrega `reference_no`, `clientnote`, `adminnote`, `terms`, `datecreated`, `sent`,
-`datesend`, `show_quantity_as`, `pipeline_order`, `is_expiry_notified`, `include_shipping`,
-`show_shipping_on_estimate`, `billing`, `shipping`, `invoiced_date`, `items`, `totals` y:
-
-```json
-{ "acceptance": { "firstname": null, "lastname": null, "email": null,
-                  "date": null, "ip": null, "signature": null } }
-```
-
-**Ni `hash` ni `short_link` salen nunca.** `hash` (`estimates_helper.php:47`) es la credencial del
-enlace público, y `short_link` (`estimates_helper.php:11-40`) es esa misma URL acortada con bit.ly:
-el mismo hash con un salto de por medio. Los dos están fuera del `SELECT`.
-
-Estados (`Estimates_model::__construct()`): **1 Borrador, 2 Enviada, 3 Rechazada, 4 Aceptada,
-5 Expirada**. Salen también de `GET /lookups` en `estimate_statuses`, con su `order`.
-
-Filtros: `status`, `clientid`, `project_id`, `sale_agent`, `date_from`/`date_to` sobre `date`,
-`year`. Orden: `date`, `duedate`, `total`, `number`, `status`. Búsqueda `q` sobre
-`formatted_number`. Sin `include`.
-
-`POST /estimates` exige `clientid`, `date` y al menos una línea. `PATCH` acepta 29 claves
-(`Escritura/Cotizacion.php:49-79`): `clientid`, `project_id`, `number`, `date`, `expirydate`,
-`currency`, `status`, `reference_no`, `sale_agent`, `clientnote`, `adminnote`, `terms`,
-`discount_percent`, `discount_total`, `discount_type`, `adjustment`, `show_quantity_as`,
-`include_shipping`, `show_shipping_on_estimate`, los cinco `billing_*` y los cinco `shipping_*`, más
-`items` y `tags`. Todo lo demás es `422`.
-
-**El dinero nunca viene del cuerpo.** `subtotal`, `total` y `total_tax` son derivados: los calcula
-`Escritura/TotalesVenta.php`. Mandarlos es `422`.
-
-**Las líneas de un `PATCH` sí llevan `id`**, al revés que en facturas: una línea con `id` conocido se
-edita, una sin `id` se agrega, y las que no aparecen se borran. Un `id` de otro documento es
-`422 {"items.N.id":["unknown"]}` — `tblitemable` no tiene clave foránea que lo impida.
-
-Errores propios:
-
-| Situación | Respuesta |
-|---|---|
-| `convert-to-invoice` sin `create` sobre **`invoices`** (no sobre `estimates`) | `403 forbidden` |
-| Acción distinta de `convert-to-invoice` | `404 not_found` |
-| `status` fuera de 1–5 | `422` |
-| Línea con `id` de otro documento | `422 {"items.N.id":["unknown"]}` |
-| Sin `view` ni `view_own` de `estimates` **y** con `allow_staff_view_estimates_assigned` en `0` | `403 forbidden` |
-
-### `proposals` → **Propuestas**
-
-`GET /proposals` · `GET /proposals/{id}` · `GET /proposals/{id}/items` ·
-`GET /proposals/{id}/comments` · `POST /proposals` · `PATCH /proposals/{id}` ·
-`POST /proposals/{id}/actions/convert-to-invoice`
-
-```json
-{ "id": 7, "number": "PRO-0007", "subject": "…", "proposal_to": "…",
-  "date": "2026-08-01", "open_till": "2026-08-31", "status": 1,
-  "subtotal": 100000.0, "total_tax": 19000.0, "total": 119000.0,
-  "adjustment": null, "discount_percent": 0.0, "discount_total": 0.0, "discount_type": "",
-  "currency": { "id": 1, "symbol": "$", "name": "COP", "is_default": true },
-  "rel_type": "lead", "rel_id": 84,
-  "related": { "id": 84, "name": "…" },
-  "project": null,
-  "assigned": { "id": 12, "full_name": "…", "profile_image_url": "…" },
-  "invoice": null, "estimate_id": null,
-  "tags": [] }
-```
-
-**`number` no es una columna**: se arma con el id y el prefijo configurado, réplica de
-`format_proposal_number()` (`RecursoPropuestas.php:302`). Por eso `sort=number` ordena por `id`.
-
-**`related` es el destinatario ya resuelto** según `rel_type` (`lead` o `customer`). El frontend no
-tiene que adivinar de qué tabla sacarlo, y `rel_type`/`rel_id` viajan igual por si hace falta.
-
-La ficha agrega `content`, `datecreated`, `show_quantity_as`, `pipeline_order`,
-`is_expiry_notified`, `allow_comments`, `address`, `city`, `state`, `zip`, `country`, `email`,
-`phone`, `acceptance` (la misma forma que en cotizaciones), `date_converted`, `items`
-y `totals`. **Ni `hash` ni `short_link` salen nunca**: `hash` (`proposals_helper.php:48`) es la
-credencial del enlace público y `short_link` (`proposals_helper.php:11-40`) es esa misma URL acortada
-con bit.ly.
-
-`GET /proposals/{id}/comments` devuelve array plano:
-
-```json
-[ { "id": 2, "content": "…", "author": { "id": 12, "full_name": "…" },
-    "from_client": false, "dateadded": "2026-08-02T10:00:00Z" } ]
-```
-
-`from_client` es `staffid = 0`: así se distingue el comentario del cliente del comentario interno.
-
-**Los estados no siguen el orden de presentación** (`proposals_helper.php:115`):
-
-| `id` | Estado | Posición en la interfaz |
-|---|---|---|
-| 6 | Borrador | 1 |
-| 1 | Abierta | 2 |
-| 4 | Enviada | 3 |
-| 5 | Revisada | 4 |
-| 3 | Aceptada | 5 |
-| 2 | Rechazada | 6 |
-
-Es la misma trampa que `task_statuses`: **ordenar por `id` da un embudo equivocado**. `GET /lookups`
-publica el mapa correcto en `proposal_statuses`, ya ordenado por `order`.
-
-Filtros: `status`, `rel_type`, `rel_id`, `assigned`, `date_from`/`date_to` sobre `date`. Orden:
-`date`, `open_till`, `total`, `number`. Búsqueda `q` sobre `subject` y `proposal_to`. Sin `include`.
-
-**No hay `filter[clientid]`**: una propuesta apunta a un prospecto o a un cliente por `rel_type` /
-`rel_id`, así que el filtro del cliente es `filter[rel_type]=customer&filter[rel_id]=42`.
-
-`POST /proposals` exige `subject`, `rel_type`, `rel_id`, `date` y al menos una línea. `PATCH` acepta
-`subject`, `rel_type`, `rel_id`, `proposal_to`, `project_id`, `assigned`, `date`, `open_till`,
-`currency`, `status`, `discount_percent`, `discount_total`, `discount_type`, `adjustment`,
-`show_quantity_as`, `allow_comments`, `address`, `city`, `state`, `zip`, `country`, `email`, `phone`,
-más `items` y `tags` (`Escritura/Propuesta.php:69-93`).
-
-**La visibilidad de propuestas no es la de facturas.** `proposals_helper.php:324` mira `assigned`
-—no `sale_agent`— y revalida `view_own` con una subconsulta dentro del propio SQL. Una propuesta que
-este staff no ve es `404`.
-
-Errores propios:
-
-| Situación | Respuesta |
-|---|---|
-| `convert-to-invoice` sobre una propuesta con `rel_type: "lead"` | `409 conflict` |
-| `convert-to-invoice` sin `create` sobre **`invoices`** | `403 forbidden` |
-| `status` fuera de 1–6 | `422` |
-| Sin `view` ni `view_own` de `proposals` **y** con `allow_staff_view_proposals_assigned` en `0` | `403 forbidden` |
-
-El `409` del prospecto es explícito: `Proposals_model::convert_to_invoice():1055` devuelve `false`
-sin decir por qué, y un `false` mudo llega al frontend como "no pasó nada".
-
 ### `expenses` → **Gastos**
 
 `GET /expenses` · `GET /expenses/{id}` · `POST /expenses` · `PATCH /expenses/{id}`
@@ -1170,126 +1025,6 @@ Errores propios:
 | `category`, `tax`, `tax2`, `currency`, `clientid` o `project_id` que no existen | `422 {"campo":["invalid"]}` |
 | Falta `category`, `amount` o `date` en el alta | `422` |
 | `DELETE /expenses/{id}` | `404 not_found` — el borrado no está expuesto |
-
-### `contracts` → **Contratos**
-
-`GET /contracts` · `GET /contracts/{id}` · `GET /contracts/{id}/comentarios` ·
-`GET /contracts/{id}/archivos` · `PATCH /contracts/{id}` ·
-`POST /contracts/{id}/acciones/marcar-firmado` · `POST /contracts/{id}/acciones/desmarcar-firmado`
-
-```json
-{ "id": 12, "subject": "…", "description": "…",
-  "contract_type": { "id": 2, "name": "Servicios" },
-  "client": { "id": 42, "company": "…" },
-  "project": null,
-  "datestart": "2026-01-01", "dateend": "2026-12-31",
-  "contract_value": 12000000.0, "trash": false, "not_visible_to_client": false,
-  "signed": true, "marked_as_signed": false, "signature": "sig_abc.png",
-  "signature_status": "signed",
-  "vigencia": "vigente", "isexpirynotified": false,
-  "tags": [], "custom_fields": [],
-  "added_by": { "id": 12, "full_name": "…", "profile_image_url": "…" },
-  "dateadded": "2025-12-20T11:00:00Z", "last_sent_at": null }
-```
-
-La ficha agrega `content`, `acceptance` (`firstname`, `lastname`, `email`, `date`, `ip`),
-`comments` y `files`. Los dos subrecursos también se piden sueltos:
-
-```json
-// GET /contracts/{id}/comentarios
-[ { "id": 3, "content": "…", "author": { "id": 12, "full_name": "…" },
-    "from_client": false, "dateadded": "2026-02-01T10:00:00Z" } ]
-
-// GET /contracts/{id}/archivos
-[ { "id": 90, "file_name": "anexo.pdf", "filetype": "application/pdf",
-    "added_by": { "id": 12, "full_name": "…" },
-    "dateadded": "2026-02-01T10:00:00Z",
-    "url": "/api/v1/files/contract/90/download" } ]
-```
-
-> **Ni `hash` ni `short_link` viajan**, igual que en facturas, cotizaciones y propuestas. Una versión
-> anterior de este documento decía que el `hash` sí salía, con el argumento de que el enlace público
-> del contrato "sólo expone la firma" y no un cobro. El argumento estaba mal medido:
-> `contract/{id}/{hash}` (`config/routes.php:120`) pasa por `check_contract_restrictions()`, que con
-> `view_contract_only_logged_in = 0` **no exige sesión de ninguna clase**, y acepta
-> `action=sign_contract`. `Contracts_model::add_signature():196-215` **no verifica identidad**: el
-> nombre, el correo y la IP de la aceptación salen de la propia petición. Quien tenga la cadena firma
-> el contrato en nombre del cliente, que es peor que pagar una factura.
->
-> `short_link` se fue con él y por lo mismo: `get_contract_shortlink()`
-> (`helpers/contracts_helper.php:11-40`) acorta con bit.ly exactamente
-> `site_url("contract/{id}/{hash}")`, así que la cadena corta **es** el hash con un salto de por
-> medio. Hoy vale `null` en toda la base porque `bitly_access_token` está vacío, pero el día que
-> alguien lo configure desde el panel la API repartiría enlaces de firma sin que nadie toque el
-> módulo.
->
-> Los dos salieron del `SELECT`, no sólo del JSON: una credencial que se trae a memoria termina en un
-> log. Si alguna vez hace falta "copiar el enlace de firma", eso es un endpoint propio con su permiso
-> y su registro en la bitácora.
->
-> La `url` de descarga sí funciona: `Recursos/Descargas.php:45-90` conoce el tipo `contract`.
-
-**`signed` y `marked_as_signed` son distintos, y los dos viajan.** `signed` lo pone
-`add_signature()` (`Contracts_model.php:196-215`) desde el enlace público del cliente, y **la API no
-lo toca nunca**; `marked_as_signed` es que alguien del equipo lo dio por firmado. `signature_status`
-es la precedencia del panel (`views/admin/tables/contracts.php:116-123`) ya resuelta:
-`marked_as_signed` → `signed` → `not_signed`. Colapsarlos en un booleano borra la diferencia entre
-"el cliente firmó" y "alguien del equipo lo marcó".
-
-**`content` sale crudo, con los `{merge_field}` sin resolver.** `Contracts_model::get()` los
-sustituye sólo cuando `$for_editor == false`, y hacerlo en cada detalle obligaría a cargar tres
-librerías de merge fields por petición. **El frontend recibe el texto tal como está guardado y no lo
-interpreta.**
-
-**`vigencia` y `filter[vigencia]` usan comparaciones estrictas:**
-
-| valor | condición |
-|---|---|
-| `"vigente"` | `trash = 0 AND (dateend IS NULL OR dateend > hoy)` |
-| `"vencido"` | `trash = 0 AND dateend < hoy` |
-| `null` | contrato en papelera, **o `dateend` exactamente hoy** |
-
-Es literal de `count_active_contracts()` (`contracts_helper.php:184`) y `count_expired_contracts()`
-(`:203`). Dos trampas: **un contrato sin `dateend` es vigente, no vencido**, y el que vence hoy no
-cae en ninguno de los dos. No se "arregla" a `<=`: el panel deja ese contrato fuera de sus dos
-contadores y la API tiene que devolver el mismo conjunto. `hoy` es `date('Y-m-d')` de PHP, no
-`CURDATE()`: MySQL puede estar en otra zona horaria.
-
-Filtros: `contract_type`, `signed`, `marked_as_signed`, `trash`, `client`, `project_id`, `year`
-sobre `datestart`, `vigencia`, `date_from`/`date_to` sobre `datestart`. Orden: `subject`,
-`datestart`, `dateend`, `value`, `date_added`. Búsqueda `q` sobre `subject` y `description`. Sin
-`include` — `custom_fields` viaja **siempre**.
-
-> El filtro del cliente se llama **`client`**, no `clientid`: es el nombre real de la columna en
-> `tblcontracts`. Es la única de las cinco tablas de venta que no la llamó `clientid`.
-
-`PATCH /contracts/{id}` acepta `subject`, `description`, `content`, `datestart`, `dateend`,
-`contract_type`, `project_id`, `not_visible_to_client`, `trash`
-(`Escritura/ParcheContrato.php:39-49`). Cambiar `dateend` resetea `isexpirynotified = 0`, y sólo si
-**cambia**: repetir la misma fecha no reactiva el aviso del cron.
-
-**Marcar y desmarcar firmado son acciones, no un `PATCH`**, porque no cambian un campo:
-`mark_as_signed()` / `unmark_as_signed()` (`Contracts_model.php:500-538`) **reescriben `content`**,
-congelando o restaurando cada `{merge_field}`. Un `UPDATE` de una sola columna dejaría el contrato
-firmado mostrando datos del cliente que cambian después de la firma. Si el contrato ya está en ese
-estado, la acción **no llama al modelo**: repetirla anidaría los `<span>`.
-
-Errores propios:
-
-| Situación | Respuesta |
-|---|---|
-| `PATCH` de `contract_value`, `clientid`, `datestart` o `dateend` sobre un contrato con `signed = 1` | `409 conflict` |
-| Acción distinta de `marcar-firmado` / `desmarcar-firmado` | `404 not_found` |
-| Acción pedida con un método que no es `POST` | `404 not_found` |
-| Sin `view` ni `view_own` de `contracts` | `403 forbidden` |
-| `POST /contracts` o `DELETE /contracts/{id}` | `404 not_found` — alta y borrado no están expuestos |
-
-El `409` del contrato firmado es **divergencia deliberada**: `admin/Contracts.php:66-68` hace
-`unset()` de esos cuatro campos y **acepta el formulario tirándolos sin avisar**. La regla de "nada
-se ignora en silencio" pesa más que la réplica. La comprobación corre **antes** que la whitelist, a
-propósito: `contract_value` y `clientid` no son editables en esta tanda, pero sobre un contrato
-firmado la respuesta útil es `409` y no `422`, que mandaría al llamador a buscar un error de nombre
-que no tiene.
 
 ### `leads` → **Prospectos**
 
@@ -1550,6 +1285,36 @@ a `Permisos::puede()`, y por eso `permissions` de `GET /me` **no trae una clave 
   revés que `tblticket_replies` y `tblticket_attachments`.
 
 **Responder no le avisa a nadie.** Ver abajo: es la omisión más ruidosa de toda la API.
+
+### Lectura de venta desde el portal
+
+Retirar `contracts`, `estimates` y `proposals` del panel **no los sacó del portal del cliente**:
+`/portal/*` los sigue sirviendo, en sólo lectura y con su propia presentación.
+
+| Ruta | Qué devuelve |
+|---|---|
+| `GET /portal/estimates` · `GET /portal/estimates/{id}` | Cotizaciones del cliente del contacto, sin borradores |
+| `GET /portal/proposals` · `GET /portal/proposals/{id}` | Propuestas dirigidas al cliente del contacto, sin borradores |
+| `GET /portal/contracts` · `GET /portal/contracts/{id}` | Contratos del cliente, con `not_visible_to_client = 0` y fuera de papelera |
+| `GET /portal/projects/{id}/estimates` | Las cotizaciones de ese Espacio, si el Espacio tiene la pestaña habilitada |
+
+Cuatro reglas que valen para las tres secciones:
+
+- **Sólo `GET`.** `portalRuta()` rechaza cualquier otro verbo **antes** de mirar el segmento, y
+  responde `404` y no `405`: para un contacto esas rutas sencillamente no existen.
+- **Un permiso por sección.** El contacto necesita el `short_name` correspondiente —`estimates`,
+  `proposals`, `contracts`— entre sus `permissions`; sin él es `403`. `GET /portal/me` los devuelve
+  en `secciones_habilitadas`, así el frontend arma la navegación sin adivinar.
+- **Sin subrecursos y sin `include`.** `/portal/contracts/9/loquesea` es `404`, y cualquier
+  `?include=` es `422`: las presentaciones del portal son fijas a propósito (ver "Dónde vale
+  `?include=`").
+- **La presentación no es la del panel.** El contrato del portal trae `date_start`, `date_end`,
+  `value`, `type` y un `signed` que ya fusiona `signed` y `marked_as_signed`. Ni `hash` ni
+  `short_link` viajan, igual que en el resto del portal.
+
+El resto del portal —`me`, `company`, `lookups`, `invoices`, `subscriptions`, `tickets`, `projects`,
+`announcements`, `files`, `kb`— está documentado en
+[`docs/modulos/40-portal-cliente.md`](modulos/40-portal-cliente.md).
 
 ## Contactos de un cliente
 
@@ -3302,17 +3067,17 @@ No es implícito ni está "pendiente de conectar": no existe. Pedirlo devuelve `
 
 | Falta | Detalle |
 |---|---|
-| **PDF** | Sigue sin existir. Portar el generador arrastra TCPDF, sus fuentes y las plantillas del panel. Facturas, cotizaciones y propuestas **no lo van a tener**: tienen cero filas en producción. Lo aprobado es el PDF de **contratos** (33 filas reales), y todavía no se construyó |
+| **PDF** | No existe para ningún recurso. Portar el generador arrastra TCPDF, sus fuentes y las plantillas del panel. Facturas **no lo van a tener**: cero filas en producción. El único PDF que se llegó a aprobar fue el de contratos, y ese recurso se retiró de la API: hoy los contratos sólo se leen desde el portal. Si vuelve a pedirse, es trabajo nuevo |
 | **Envío por correo** | No hay `POST /{id}/enviar` para ninguno de los tres documentos. `save_and_send` no se propaga jamás, ni con el kill-switch puesto |
 | **Facturas recurrentes** | Las genera el cron. La API devuelve `recurring` de sólo lectura y no dispara nada |
 | **Notas de crédito** | Sin recurso. `tblcreditnotes` no se toca |
 | **Subida del comprobante de gasto** | La **lectura** sale en `file`; la subida necesita `upload_helper`, whitelist de extensiones y un `413` propio |
 | **Subida de adjuntos al responder un ticket** | Sigue sin existir **para tickets**. La subida a Procesos y Espacios sí se construyó en la ola 1 (`POST /tasks/{id}/files`, `POST /projects/{id}/files`) y es el único endpoint del módulo que escribe en disco |
 | **`POST /leads/{id}/convertir`** | La conversión a cliente queda en el panel, por decisión del usuario. No es un `INSERT` en `tblclients`: `admin/Leads.php:373-609` copia campos, arrastra los campos personalizados con equivalencia y crea el contacto primario |
-| **Embudo de propuestas y de cotizaciones** | No hay `?vista=embudo` ni `POST /{id}/mover` sobre `pipeline_order`. El único embudo que existe es el de `leads` |
-| **Alta y borrado de contratos, borrado de gastos, `PATCH /payments/{id}`** | `POST`/`DELETE` sobre esos recursos es `404` |
-| **`custom_fields` de gastos, facturas, cotizaciones y propuestas** | `CamposPersonalizados::PERMITIDAS` ya declara las cuatro, pero los recursos todavía no los piden: la respuesta no trae la clave. La **escritura** de valores (`PATCH /custom-fields/values`) cubre sólo las cinco entidades con campos activos: tareas, Espacios, clientes, contratos y prospectos |
-| **`tags` de facturas y de gastos** | `Etiquetas` ya declara el tipo `invoice`, pero `RecursoFacturas` y `RecursoGastos` no los resuelven. Cotizaciones y propuestas sí traen `tags` |
+| **Cotizaciones, propuestas y contratos** | Se retiraron enteros el 3 de septiembre de 2026: `/estimates`, `/proposals` y `/contracts` son `404` en cualquier verbo, y con ellos se fueron el embudo de propuestas y de cotizaciones y toda la escritura de contratos. El único embudo que existe es el de `leads`. Lo único vivo de los tres es la lectura desde `/portal/*` |
+| **Borrado de gastos y `PATCH /payments/{id}`** | `DELETE /expenses/{id}` y `PATCH /payments/{id}` son `404` |
+| **`custom_fields` de gastos y de facturas** | `CamposPersonalizados::PERMITIDAS` ya declara las dos, pero `RecursoGastos` y `RecursoFacturas` todavía no los piden: la respuesta no trae la clave. La **escritura** de valores (`PATCH /custom-fields/values`) cubre sólo las cinco entidades con campos activos: tareas, Espacios, clientes, contratos y prospectos |
+| **`tags` de facturas y de gastos** | `Etiquetas` ya declara el tipo `invoice`, pero `RecursoFacturas` y `RecursoGastos` no los resuelven |
 
 ## Mock
 

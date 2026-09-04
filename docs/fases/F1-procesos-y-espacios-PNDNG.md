@@ -7,36 +7,46 @@ Es la fase que decide si el proyecto sirve. Todo lo demás es alcance.
 
 ## Qué se construye
 
+`[x]` construido y en `main`. `[ ]` pendiente.
+
 ### Estructura
 
-- El armazón del panel: barra lateral, barra superior, área de contenido, panel de detalle.
-- Buscador global (⌘K).
-- Cronómetro activo visible en la barra superior.
-- Enlace "Abrir en el panel clásico", que lleva a la misma entidad en `board.wiwo.me`.
+- `[x]` El armazón del panel: barra lateral, área de contenido, detalle en diálogo centrado.
+- `[ ]` **Buscador global (⌘K).** No hay componente ni ruta en `src/`. La API sí lo sirve desde que
+  se cerró F0: `GET /search` cruza Procesos, Espacios, Clientes y Personas.
+- `[ ]` Cronómetro activo visible en toda la navegación: hoy `CronometroAbierto.tsx` vive dentro de
+  `/inicio` y no se ve desde ninguna otra pantalla.
+- `[ ]` Enlace "Abrir en el panel clásico". No hay una sola aparición de `board.wiwo.me` en `src/`.
 
 ### Procesos (tareas)
 
-- **Lista** con la tabla genérica: filtros, orden, paginación, selector de columnas.
-- **Tablero** con arrastre, columnas desde `lookups`, paginación por columna.
-- **Detalle**: estado, prioridad, asignados, seguidores, fechas, etiquetas, campos personalizados,
-  comentarios, lista de verificación, tiempo, adjuntos.
-- **Creación rápida**: sólo lo obligatorio, 5 a 8 campos.
-- Acciones: marcar completado, reabrir, arrancar y detener cronómetro.
+- `[x]` **Lista** con la tabla genérica: filtros, orden, paginación, selector de columnas, presets.
+- `[x]` **Tablero** con arrastre, columnas desde `lookups`, paginación por columna.
+- `[ ]` **Detalle editable**: estado, prioridad, asignados, seguidores, fechas, etiquetas, campos
+  personalizados, comentarios, lista de verificación, tiempo, adjuntos. Hoy `DetalleTarea.tsx` es un
+  diálogo de lectura con dos contadores. **Es el trabajo más grande que queda de la fase**, y la API
+  ya sirve todo: escritura de comentarios, de checklist, de campos personalizados, subida de
+  adjuntos y `PATCH /tasks/{id}` con `followers`.
+- `[x]` **Creación rápida**: sólo lo obligatorio.
+- `[x]` Acciones: marcar completado, reabrir, arrancar y detener cronómetro, acciones masivas.
 
 ### Espacios (proyectos)
 
-- Lista con la tabla genérica.
-- Detalle con sus Procesos, Hitos y miembros.
-- Tablero de Hitos.
+- `[x]` Lista con la tabla genérica.
+- `[x]` Detalle con sus Procesos, Hitos y miembros — más gantt, tiempos, discusiones, notas,
+  archivos y actividad, que no estaban en el plan.
+- `[x]` Tablero de Hitos.
 
 ### Inicio
 
-- "Mis Procesos": lo asignado a quien mira, agrupado por vencimiento.
+- `[x]` "Mis Procesos": lo asignado a quien mira, agrupado por vencimiento, y cada título abre su
+  Proceso.
 
 ### API (carril A)
 
-Los recursos `staff`, `lookups`, `clients`, `projects`, `tasks`, `files` en modo lectura, más las
-acciones de tarea y el `PATCH` parcial de tarea y proyecto.
+`[x]` Terminada, y bastante más allá del alcance de la fase: los recursos `staff`, `lookups`,
+`clients`, `projects`, `tasks` y `files` con lectura y escritura, las acciones de tarea, los `PATCH`
+parciales, la subida de adjuntos y los subrecursos del Proceso.
 
 ## Qué se reusa
 
@@ -73,31 +83,37 @@ mejoras que más se nota sin ser una función nueva.
 Desglosado en pasos verificables — cada uno se confirma además en la base de Perfex, no sólo en
 pantalla:
 
-1. Crear un Proceso dentro de un Espacio, con asignado, fecha de vencimiento, prioridad y etiquetas.
-2. Moverlo entre columnas del tablero; recargar y comprobar que la posición persiste.
-3. Arrancar el cronómetro, detenerlo con una nota, y ver el tiempo registrado.
-4. Comentar, adjuntar un archivo y descargarlo.
-5. Completar una lista de verificación y marcar el Proceso como completado.
-6. Filtrar la lista por estado, asignado y rango de fechas; **copiar la URL, abrirla en otra ventana y
-   obtener exactamente la misma vista**.
-7. Ver el mismo Proceso en el panel viejo y comprobar que todos los campos coinciden.
-8. Un cambio hecho por otra persona en el panel viejo aparece en `ops-v2` tras el ping de Pusher, sin
-   recargar.
-9. Un staff sin permiso de edición **no ve** las acciones de edición, y la API le responde 403 si las
-   fuerza.
+1. `[x]` Crear un Proceso dentro de un Espacio, con asignado, fecha de vencimiento, prioridad y
+   etiquetas.
+2. `[x]` Moverlo entre columnas del tablero; recargar y comprobar que la posición persiste.
+3. `[x]` Arrancar el cronómetro, detenerlo con una nota, y ver el tiempo registrado.
+4. `[ ]` Comentar, adjuntar un archivo y descargarlo. **Bloqueado por el detalle**: la API acepta las
+   tres cosas, la pantalla no las ofrece. Lo único que ya se sube desde la interfaz son archivos de
+   Drive e imágenes de entidad.
+5. `[ ]` Completar una lista de verificación y marcar el Proceso como completado. Lo segundo sí; lo
+   primero espera al detalle.
+6. `[x]` Filtrar la lista y **reproducir la vista pegando la URL**.
+7. `[x]` Ver el mismo Proceso en el panel viejo y comprobar que todos los campos coinciden.
+8. `[ ]` Un cambio hecho por otra persona en el panel viejo aparece en `ops-v2` sin recargar.
+   **No hay tiempo real**: `package.json` no tiene `pusher-js` y nada abre un canal. El único uso de
+   sockets en el repo es LiveKit, y es para Teletrabajo.
+9. `[x]` Un staff sin permiso de edición no ve las acciones de edición, y la API responde 403.
 
 **Rendimiento**, en el Mac de referencia:
 
-10. La tabla con 5.000 filas hace scroll fluido.
-11. Una columna del tablero con más de 1.000 tarjetas carga por páginas, no entera.
-12. `grep -rn "backdrop-filter" src/` sigue sin devolver nada.
+10. `[x]` La tabla con 5.000 filas hace scroll fluido.
+11. `[x]` Una columna del tablero con más de 1.000 tarjetas carga por páginas, no entera.
+12. ~~`grep -rn "backdrop-filter" src/` sigue sin devolver nada.~~ **Derogado en F0**: `vidrio.css`
+    lo usa con la excepción que aceptó `sistema-de-diseno.md`.
 
 **Calidad**
 
-13. `pnpm lint && pnpm typecheck && pnpm test && pnpm build` en verde.
-14. `pruebas/tabla.test.ts` cubre `construirConsulta()` y `podarPorPermisos()`.
-15. `pruebas/campos-personalizados.test.ts` cubre `esquemaDeCamposPersonalizados()`: campo `date`
-    requerido vacío falla, `checkbox` múltiple, opción desconocida rechazada.
+13. `[x]` `pnpm lint && pnpm typecheck && pnpm test && pnpm build` en verde.
+14. `[x]` `pruebas/tabla.test.js` cubre `construirConsulta()` y `podarPorPermisos()`.
+15. `[ ]` `pruebas/campos-personalizados.test.js`: llega con el detalle, que es donde se editan.
+
+**Resumen: tres cosas cierran la fase** — el detalle de Proceso editable (que arrastra los criterios
+4, 5 y 15), el buscador ⌘K y el tiempo real.
 
 ## Riesgos
 
@@ -112,11 +128,15 @@ pantalla:
 
 ## Deuda consciente
 
-- Editor de texto enriquecido: va `AreaTexto`. El editor llega en F2.
-- Sin vista de calendario ni línea de tiempo.
-- Sin gráficos: el inicio es una lista, no un tablero de indicadores.
-- Preferencias de columnas en `localStorage`, no en el servidor. Se sube cuando la API las exponga,
-  sin tocar el motor.
+- Editor de texto enriquecido: sigue siendo `AreaTexto` a secas. La descripción de Perfex es HTML;
+  escribirla en texto plano degrada lo que ya había.
+- Sin vista de calendario ni línea de tiempo en Procesos. El Gantt existe, pero sólo dentro del
+  detalle de Espacio.
+- Sin gráficos en el Inicio: es una lista, no un tablero de indicadores.
+- Preferencias de columnas: no se persisten en ningún lado, ni en `localStorage`. Lo que sí se
+  guarda en el servidor son los presets de filtro (`GET|POST /filter-presets`).
+- El cronómetro abierto y el enlace "Abrir en el panel clásico" siguen sin estar en el armazón: son
+  dos ítems chicos que nadie tomó, no una decisión.
 
 ## Lo que se aprendió
 

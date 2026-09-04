@@ -29,8 +29,8 @@ contra la API real, con su sistema de diseño catalogado, aunque todavía no mue
 - Proyecto Next 16 con App Router, TypeScript estricto, ESLint copiado de `devoperation`.
 - `src/app/api/bff/[...ruta]/route.ts`: el proxy único, con lista blanca de prefijos.
 - `src/app/api/sesion/route.ts`: login y logout, cookie `httpOnly` firmada.
-- `src/app/(acceso)/entrar/page.tsx`.
-- `src/datos/cliente.ts` y `claves.ts`.
+- `src/app/(acceso)/page.tsx` (portal) y `src/app/(acceso)/colab/page.tsx` (equipo).
+- `src/datos/cliente.ts`.
 - `src/dominio/glosario.ts`.
 
 ### Carril C — Sistema de diseño
@@ -94,9 +94,10 @@ Ejecutados, no razonados.
 9. En DevTools, el token **no** aparece en `localStorage`, ni en `sessionStorage`, ni en ninguna
    cookie legible por JavaScript.
 10. Cero peticiones a `fonts.googleapis.com` o `fonts.gstatic.com` en la pestaña de red.
-11. `grep -rn "backdrop-filter" src/` no devuelve nada.
+11. ~~`grep -rn "backdrop-filter" src/` no devuelve nada.~~ **Derogado.** Hoy devuelve
+    `src/estilos/vidrio.css` y está bien que lo haga: ver *Lo que se aprendió*.
 12. `/taller` navegable, con cada componente en claro y oscuro.
-13. `pruebas/breakpoints.test.ts` y `pruebas/marca.test.ts` en verde.
+13. `pruebas/breakpoints.test.js` y `pruebas/marca.test.js` en verde.
 
 ## Riesgos
 
@@ -116,7 +117,20 @@ Ejecutados, no razonados.
 
 ## Lo que se aprendió
 
-_(Se completa al cerrar la fase. Esta sección ya recoge lo del carril A, que está terminado.)_
+### Tres criterios que envejecieron mal
+
+1. **El criterio 11 falla a propósito.** `grep -rn "backdrop-filter" src/` devuelve
+   `src/estilos/vidrio.css`, que lo usa en `.panel-vidrio`. No es una regresión: el sistema de
+   diseño aceptó la excepción y la dejó escrita
+   (`docs/sistema-de-diseno.md`: "la única superficie del sistema con `backdrop-filter` es
+   `.panel-vidrio`, con su propia excepción"). La regla que sigue viva es la de superficies siempre
+   visibles —barra superior, barra lateral—, y `pruebas/marca.test.js` la verifica sobre `neo.css` y
+   `globals.css`, no sobre todo `src/`.
+2. **La ruta de login nunca fue `(acceso)/entrar/page.tsx`.** Son dos: `(acceso)/page.tsx` para el
+   portal del cliente y `(acceso)/colab/page.tsx` para el equipo. Son dos sujetos distintos, con dos
+   cookies distintas, y por eso son dos pantallas.
+3. **`src/datos/claves.ts` no existe** y no llegó a existir. Lo que el plan imaginaba ahí terminó
+   repartido entre `src/datos/sesion.ts`, `sobre-sesion.ts` y `servidor.ts`.
 
 ### El aislamiento se puede medir, y da más de lo esperado
 
@@ -162,7 +176,9 @@ Ese acople con la sesión existe **sólo** en las herramientas, que son CLI y no
 
 - **La API no notifica a nadie.** Ni campana, ni tiempo real, ni correo, ni a los contactos del
   cliente. El panel no muestra ninguna señal de que faltó. La campana serían ~150 líneas y 11
-  criterios; el correo, entre 450 y 700.
+  criterios; el correo, entre 450 y 700. *(Después de F0 se construyó la infraestructura —
+  `Escritura/Aviso.php` y `/notifications`— pero ninguna escritura la llama: la deuda sigue abierta,
+  sólo que ahora es más barata de saldar.)*
 - Una fila de `tblsessions` por petición es inevitable sin editar la configuración del panel; se
   destruye después, con guarda por ausencia de cookie.
 - 10 clases de pasarelas de pago se instancian en cada petición, por el autoload. Piso duro.

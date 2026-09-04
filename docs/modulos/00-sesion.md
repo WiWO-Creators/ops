@@ -48,7 +48,7 @@ El `challenge_token` vive **300 segundos y se usa una sola vez**. `POST /auth/2f
 | Campo | Para qué |
 |---|---|
 | `permissions` | `{tasks, projects, customers, staff}`, cada uno con `["view","create","edit","delete"]`. Un administrador recibe las cuatro capacidades en las cuatro áreas |
-| `secciones_habilitadas` | Qué mostrar en la barra lateral. Hoy `["procesos","espacios"]` |
+| `secciones_habilitadas` | Qué mostrar en la barra lateral. Hoy `["procesos","espacios","salas"]` |
 | `locale` | `"es"` |
 
 ## Acciones y escrituras

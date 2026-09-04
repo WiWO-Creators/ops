@@ -2,10 +2,17 @@
 
 > `tickets`. Soporte al cliente.
 
-> **Fuera de alcance.** El soporte de wiwo se atiende en <https://wiwo.center>, no en el panel. El
-> Inicio enlaza ahí y las pestañas Tickets del Espacio y del Cliente se quitaron; `tickets` tampoco
-> está en la lista blanca del BFF (`src/datos/rutas.ts`). Esta ficha queda como especificación por si
-> el módulo vuelve algún día: nada de lo que describe está construido.
+> **Fuera de alcance en el panel, construido en el portal.** El soporte del equipo se atiende en
+> <https://wiwo.center>: el Inicio enlaza ahí, las pestañas Tickets del Espacio y del Cliente se
+> quitaron, y `tickets` no está en la lista blanca del BFF del staff (`src/datos/rutas.ts`).
+>
+> **Pero el cliente sí ve sus tickets**: `/portal/soporte` y `/portal/soporte/[id]` existen y
+> funcionan, con su definición en `src/definiciones/portal-soporte.ts` y su lectura en
+> `GET /portal/tickets[/{id}]`. Es lectura pura — el cliente no responde ni cambia el estado.
+>
+> Lo que esta ficha describe —la bandeja del equipo, el detalle con respuestas y el editor con
+> respuestas predefinidas— es lo que **no** está construido. Queda como especificación por si el
+> módulo vuelve al panel algún día.
 
 ## Qué resuelve
 

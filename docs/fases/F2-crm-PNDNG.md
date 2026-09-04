@@ -2,25 +2,40 @@
 
 Prospectos y Clientes. La primera fase donde `ops-v2` escribe de verdad y de forma amplia.
 
+**A la mitad**: Clientes está construido y escribe; Prospectos no tiene ni una pantalla, aunque su
+API está completa y producción tiene 81 filas esperándola.
+
 ## Qué se construye
+
+`[x]` construido y en `main`. `[ ]` pendiente.
 
 ### Prospectos (leads)
 
-- Lista con la tabla genérica.
-- Tablero por etapa del embudo, con el mismo motor de F1.
-- Detalle: datos, actividad, notas, recordatorios, adjuntos, campos personalizados.
-- **Conversión a Cliente**, que es la acción que justifica la fase.
+Nada de esto existe en `src/`. No hay ruta `/prospectos`, ni definición, ni tipo.
+
+- `[ ]` Lista con la tabla genérica.
+- `[ ]` Tablero por etapa del embudo, con el mismo motor de F1.
+- `[ ]` Detalle: datos, actividad, notas, recordatorios, adjuntos, campos personalizados.
+- `[ ]` **Conversión a Cliente**. Ojo: `POST /leads/{id}/convertir` **no existe y no se va a
+  construir** — decisión del usuario, la conversión sigue haciéndose en el panel. Lo que era "la
+  acción que justifica la fase" ya no lo es.
 
 ### Clientes
 
-- Lista y detalle.
-- Contactos del cliente.
-- Sus Espacios y Procesos asociados.
+- `[x]` Lista y detalle (`/clientes`, `/clientes/[id]`), en tabla y en tarjetas.
+- `[x]` Alta y edición del cliente, contra `POST /clients` y `PATCH /clients/{id}`. El plan y las
+  fichas viejas decían que esto se quedaba en el panel: es falso desde
+  `VistaClientes.tsx` + `AccionesCliente.tsx`.
+- `[x]` Contactos del cliente, con su enlace de acceso al portal.
+- `[x]` Sus Espacios y Procesos asociados.
+- `[ ]` Grupos de clientes. La API los escribe (`GET|POST /customer-groups`); la pantalla no los
+  ofrece.
 
 ### API
 
-Escritura completa de `tasks` y `projects`, más los recursos `leads`, `clients`, `contacts`,
-`notifications` y `activity`. Subida de archivos.
+`[x]` Terminada: escritura de `tasks` y `projects`, los recursos `leads`, `clients`, `contacts`,
+`notifications` y `activity`, y la subida de archivos (`POST /tasks/{id}/files`,
+`POST /projects/{id}/files`).
 
 ## Qué se reusa
 
@@ -34,16 +49,22 @@ Escritura completa de `tasks` y `projects`, más los recursos `leads`, `clients`
 
 ## Criterios de aceptación
 
-1. Un prospecto entra, recorre el embudo completo y se convierte en cliente **sin tocar Perfex**.
-2. Tras la conversión, el cliente resultante es idéntico —campo a campo— al que produce el panel viejo
-   para el mismo prospecto.
-3. Se sube un adjunto desde `ops-v2` y aparece en el panel viejo, en la misma ruta de `uploads/`, con
-   la misma validación de extensión.
-4. Crear y editar un Proceso desde `ops-v2` dispara las mismas notificaciones y el mismo registro de
-   actividad que hacerlo desde el panel. Verificado en `tblactivity_log` y en la campana del panel.
-5. Un archivo mayor que `post_max_size` devuelve `413` explícito, no un fallo silencioso.
-6. `pnpm lint && pnpm typecheck && pnpm test && pnpm build` en verde.
-7. `tools/smoke.sh` sigue en verde, ampliado con los endpoints de escritura.
+1. ~~Un prospecto entra, recorre el embudo completo y se convierte en cliente sin tocar Perfex.~~
+   **Derogado**: la conversión se queda en el panel por decisión del usuario. Lo que sí hay que
+   poder hacer es recorrer el embudo.
+2. ~~Tras la conversión, el cliente resultante es idéntico al que produce el panel viejo.~~ Cae con
+   el anterior.
+3. `[ ]` Se sube un adjunto a un Proceso desde `ops-v2` y aparece en el panel viejo, en la misma
+   ruta de `uploads/`, con la misma validación de extensión. El endpoint existe; falta la pantalla
+   (es el detalle de Proceso de F1).
+4. ~~Crear y editar un Proceso dispara las mismas notificaciones que hacerlo desde el panel.~~
+   **Derogado**: ninguna escritura de la API emite efectos externos, y eso es deliberado. El
+   registro de actividad sí se escribe y sí se coteja.
+5. `[x]` Un archivo mayor que `post_max_size` devuelve `413` explícito, no un fallo silencioso.
+6. `[x]` `pnpm lint && pnpm typecheck && pnpm test && pnpm build` en verde.
+7. `[x]` `modules/api/herramientas/humo.sh` en verde, ampliado con los endpoints de escritura.
+
+**Resumen: lo que falta de F2 es Prospectos entero.** Clientes está cerrado.
 
 ## Riesgos
 

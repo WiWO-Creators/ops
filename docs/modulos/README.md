@@ -10,47 +10,66 @@ contradicen, manda el contrato y la ficha está desactualizada.
 
 ## Estado
 
-**Los catorce módulos tienen API.** Los ocho que faltaban se construyeron y se verificaron contra el
-código real del panel: 249 comprobaciones verdes en `modules/api/herramientas/humo.sh` y doce
-comparadores por línea de comandos en cero diferencias. La columna *Falta* de abajo no es una lista de
-bugs: es lo que **no se construyó a propósito**, y cada ficha lo detalla en su sección *Estado de la
-API*.
+**Los módulos de la tabla tienen API**, verificada contra el código real del panel con
+`modules/api/herramientas/humo.sh` y los comparadores por línea de comandos. La columna *Falta* no es
+una lista de bugs: es lo que **no se construyó a propósito**, y cada ficha lo detalla en su sección
+*Estado de la API*.
 
-> **Los ocho módulos nuevos están OCULTOS en la interfaz.** `secciones_habilitadas` de `GET /me` es la
-> lista fija `["procesos","espacios","salas"]` (`modules/api/controllers/V1.php`), por decisión del
-> usuario. **La API responde, `ops-v2` no ofrece la sección.** Habilitar una es editar esa lista,
-> no desplegar código nuevo. Sin esta aclaración, el ✅ de la tabla se lee como "está en la pantalla",
-> y no lo está.
+> **Propuestas, Contratos y Cotizaciones ya no existen.** Sus recursos se borraron del backend en el
+> commit `b854567` y sus fichas se borraron con ellos; hoy `GET /proposals`, `/contracts` y
+> `/estimates` responden `404`. El porqué y qué habría que rehacer están en
+> [`../fases/F3-ventas-CANCELADA.md`](../fases/F3-ventas-CANCELADA.md).
+
+> **Los módulos de venta que quedan están OCULTOS en la interfaz.** `secciones_habilitadas` de
+> `GET /me` es la lista fija `["procesos","espacios","salas"]`
+> (`modules/api/controllers/V1.php:2245`), por decisión del usuario. **La API responde, `ops-v2` no
+> ofrece la sección.** Habilitar una es editar esa lista, no desplegar código nuevo. Sin esta
+> aclaración, el ✅ de la tabla se lee como "está en la pantalla", y no lo está.
 
 | # | Módulo | Entidad de Perfex | API | Visible en `ops-v2` | Falta |
 |---|---|---|---|---|---|
 | [00](00-sesion.md) | Sesión y acceso | `staff` + tokens propios | ✅ | sí | — |
 | [01](01-procesos.md) | Procesos | `tasks` | ✅ | sí | `POST /files/{id}/link` |
 | [02](02-espacios.md) | Espacios | `projects` | ✅ | sí | — |
-| [03](03-clientes.md) | Clientes | `clients` + `contacts` | ✅ | sí | Alta y edición **del cliente**: siguen en el panel, por diseño. Sus **contactos** ya se administran en Ops |
+| [03](03-clientes.md) | Clientes | `clients` + `contacts` | ✅ | sí | Grupos de clientes: la API los escribe, la pantalla no los ofrece. Alta, edición y contactos **ya están** en Ops |
 | [04](04-equipo.md) | Equipo | `staff` | ✅ | sí | — |
 | [05](05-mi-trabajo.md) | Mi trabajo | vistas sobre `tasks` | ✅ | sí | — |
 | [06](06-salas.md) | Salas de reunión | **ninguna**: tablas propias del módulo `api` | ✅ | sí | Sin Google Calendar, por decisión del usuario |
 | [10](10-prospectos.md) | Prospectos | `leads` | ✅ | **no** | `POST /leads/{id}/convertir` |
-| [11](11-propuestas.md) | Propuestas | `proposals` | ✅ | **no** | PDF, envío, embudo y `mover` |
-| [12](12-contratos.md) | Contratos | `contracts` | ✅ | **no** | Alta, borrado y subida de adjuntos |
 | [20](20-facturas.md) | Facturas | `invoices` | ✅ | **no** | PDF, envío, recurrentes, notas de crédito, `tags`, `custom_fields` |
-| [21](21-cotizaciones.md) | Cotizaciones | `estimates` | ✅ | **no** | PDF, envío, embudo y `mover`, `custom_fields` |
 | [22](22-pagos.md) | Pagos | `invoicepaymentrecords` | ✅ | **no** | `PATCH /payments/{id}`, deliberado |
 | [23](23-gastos.md) | Gastos | `expenses` | ✅ | **no** | Subida del comprobante, borrado, `tags`, `custom_fields` |
-| [30](30-tickets.md) | Tickets | `tickets` | ✅ | ⛔ fuera de alcance | El soporte vive en [wiwo.center](https://wiwo.center): el panel no ofrece la seccion y el prefijo salio del BFF |
-| [40](40-portal-cliente.md) | Portal del cliente | `contacts` | ✅ | construido, sin desplegar | — |
+| [30](30-tickets.md) | Tickets | `tickets` | ✅ | sólo en el portal | El **panel** no los ofrece: el soporte del equipo vive en [wiwo.center](https://wiwo.center). El **portal del cliente** sí los muestra, en lectura (`/portal/soporte`) |
+| [40](40-portal-cliente.md) | Portal del cliente | `contacts` | ✅ | sí, desplegado | — |
 
-Dos cosas que valen para los ocho nuevos y que la tabla no puede decir en una celda:
+Dos cosas que la tabla no puede decir en una celda:
 
-- **La API no le avisa a nadie de nada.** Ni correo, ni campana, ni Pusher, en ninguna escritura. El
-  caso más ruidoso es Tickets: **el cliente no se entera de que le respondieron**. La interfaz no
-  puede decir "enviado".
+- **Ninguna escritura de la API avisa a nadie.** Ni correo, ni campana, ni Pusher. La
+  infraestructura existe —`Escritura/Aviso.php` y todo `/notifications`—, pero las escrituras no la
+  llaman y el front no tiene campana. La interfaz no puede decir "enviado".
 - **`?include=` desconocido es `422` en todos lados.** La grieta que este documento describía —seis
   de los ocho ignorando el `include` en silencio— está cerrada, y con ella la de las fichas, la de los
   subrecursos de Espacio y Proceso y la de todo `/portal/*`. Donde no hay relaciones opcionales la
   whitelist está vacía a propósito y cualquier `include` falla: ver "Dónde vale `?include=`" en
   [contrato-api.md](../contrato-api.md). `?fields=` funciona en los catorce.
+
+## Construidos sin ficha
+
+Estos módulos están en `main`, la gente los usa, y **ninguno tiene ficha acá**. El hueco queda
+anotado a propósito: escribir nueve fichas de algo que ya funciona es documentación arqueológica, y
+lo que se necesita se lee del código.
+
+| Módulo | Dónde está |
+|---|---|
+| Teletrabajo (LiveKit) | `src/app/(panel)/teletrabajo/`, `src/datos/teletrabajo.ts` |
+| Administración: acceso con Google y correo | `src/app/(panel)/administracion/`, `src/componentes/administracion/` |
+| Drive / Archivos | `src/componentes/archivos/ArbolDrive.tsx`, `Recursos/RecursoDrive.php` |
+| Gantt | `src/componentes/proyecto/PanelGantt.tsx`, `Recursos/RecursoGantt.php` |
+| Discusiones | `src/componentes/proyecto/PanelDiscusiones.tsx`, `Recursos/RecursoDiscusiones.php` |
+| Notas ("Meeting Paper") | `src/componentes/proyecto/PanelNotas.tsx`, `Recursos/RecursoNotas.php` |
+| Presets de filtro | `src/componentes/datos/PresetsFiltro.tsx`, `Recursos/RecursoPresetsFiltro.php` |
+| Timesheets | `src/componentes/proyecto/PanelTiempos.tsx`, `Recursos/RecursoTimesheets.php` |
+| Permisos individuales | `src/componentes/equipo/DialogoPermisos.tsx`, `pruebas/permisos-individuales.test.js` |
 
 ## Cómo se arma un módulo
 
@@ -96,8 +115,8 @@ Los pasos, siempre los mismos:
   `token_expired` dispara el refresco.
 - **Fechas:** `date` llega como `"YYYY-MM-DD"` crudo sin zona horaria; `datetime` llega ISO-8601 UTC.
   Vacíos y `0000-00-00` llegan como `null`. Formatear es cosa del frontend.
-- **La API no notifica a nadie** en ninguna escritura: ni campana, ni correo, ni Pusher. La interfaz
-  no debe decirle al usuario que se avisó a alguien.
+- **Ninguna escritura notifica**: ni campana, ni correo, ni Pusher. La interfaz no debe decirle al
+  usuario que se avisó a alguien.
 - **Permisos:** el backend ya filtra por visibilidad; el frontend usa `permissions` de `GET /me` solo
   para **ocultar controles**, nunca como control de acceso. Un botón oculto no es seguridad.
 - **Cada pantalla lleva "Abrir en el panel clásico"** apuntando a la misma entidad en

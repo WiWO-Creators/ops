@@ -54,13 +54,14 @@ cuatro están en cero.
 
 ## Correcciones al material viejo
 
-Dos cosas que un agente con contexto limpio va a leer mal si nadie se las avisa:
-
-- **`docs/funciones-board-en-ops.md` y `docs/migracion/` describen el fork de Huly**, no `ops-v2`.
-  Sirven como historia de la migración de datos; **no** como estado del frontend actual.
-- **`src/componentes/proyecto/PanelArchivos.tsx` dice que la API no expone la descarga de adjuntos
-  internos. Es falso hoy**: `GET /files/{tipo}/{id}/download` existe y cubre los tipos `project` y
-  `task` (`modules/api/Recursos/Descargas.php`). Lo que no existe es la **subida**.
+- **Los documentos que describían el fork de Huly se borraron.** El censo medido del board en
+  producción vive ahora en [`referencia/censo-del-board.md`](referencia/censo-del-board.md): ése es
+  el dato de volúmenes, no los papeles de la migración.
+- **`src/componentes/proyecto/PanelArchivos.tsx:12-14` sigue diciendo que la API no expone la
+  descarga de adjuntos internos, y es falso.** `GET /files/{tipo}/{id}/download` existe y cubre los
+  tipos `project` y `task` (`modules/api/Recursos/Descargas.php`). **Pendiente real**: nadie corrigió
+  ni el comentario ni la columna que esconde el botón de descarga. La subida, que en su momento
+  tampoco existía, hoy sí (`POST /tasks/{id}/files`, `POST /projects/{id}/files`).
 
 ## Las tandas
 
@@ -71,8 +72,8 @@ mayor parte del valor: es la ficha que la gente abre todo el día.
 |---|---|---|
 | **T1 — Ficha del Proceso** | Todo lo que falta dentro de una tarea | editar, comentarios, checklist, adjuntos, seguidores, campos personalizados, recurrencia, recordatorios, tarea de cliente |
 | **T2 — Administración** | Lo que hoy obliga a volver al panel viejo | roles y permisos, catálogos, grupos de clientes, perfil propio, ajustes |
-| **T3 — Avisos** | El silencio de la API | notificaciones y correo |
-| **T4 — Cara al cliente** | Lo que ve alguien de afuera | contratos, portal del cliente, formularios web |
+| **T3 — Avisos** | El silencio de la API: la infraestructura está, nadie la llama | notificaciones y correo |
+| **T4 — Cara al cliente** | Lo que ve alguien de afuera | ~~contratos~~ (cancelado), ~~portal del cliente~~ (hecho), formularios web |
 | **T5 — Panel** | Transversales de navegación y salida | búsqueda global, actividad global, tareas personales, PDF y exportaciones |
 
 ## El inventario
@@ -80,51 +81,55 @@ mayor parte del valor: es la ficha que la gente abre todo el día.
 Cada fila dice qué se pide, de dónde viene en el board, cómo está hoy en Ops y qué falta del lado de
 la API. "API lista" significa que el endpoint existe y está verificado: la brecha es sólo de pantalla.
 
+**Revisado el 04/09/2026 contra `wiwo-board/modules/api/`: la columna API cambió casi entera.** De
+los diecisiete ítems del inventario, catorce ya tienen endpoint y esperan sólo la pantalla. Lo que
+sigue sin existir en la API es el PDF y las exportaciones, y los formularios web a prospectos.
+
 ### T1 — Ficha del Proceso
 
 | Ítem | De dónde viene en el board | Estado en Ops | API |
 |---|---|---|---|
 | **Editar una tarea** — renombrar, mover fechas, cambiar descripción, sacar un asignado o una etiqueta | `Tasks_model::update()` (`application/models/Tasks_model.php:673`); 2.941 tareas | Sólo alta (`AltaRapidaProceso.tsx`, `FormularioTarea.tsx`), cambio de estado y acciones masivas (`componentes/proyecto/tareas.ts:86-92`) | **Lista**: `PATCH /tasks/{id}` |
-| **Comentarios de tarea** | `tbltask_comments`, 253 filas | Sólo el contador (`DetalleTarea.tsx:140`) | Falta escritura: `GET /tasks/{id}/comments` es de lectura (`controllers/V1.php:1293`) |
-| **Checklist** | `Tasks_model::add_checklist_item()` (`:857`) y `update_checklist_order()` (`:887`); 418 ítems | Sólo el contador | Falta escritura (`V1.php:1297`) |
-| **Adjuntos** | `tblfiles`, 219 en tareas de 253 totales | `PanelArchivos.tsx` lista los del Espacio; no sube ni ofrece descarga | Descarga **lista** (`Recursos/Descargas.php`). **Falta la subida**: sería el único endpoint que escribe en disco — whitelist de extensiones, tope de cantidad, `unique_filename`, 413 propio, multipart aparte |
+| **Comentarios de tarea** | `tbltask_comments`, 253 filas | Sólo el contador (`DetalleTarea.tsx:140`) | **Lista**: `POST /tasks/{id}/comments` y `PATCH\|DELETE /tasks/{id}/comments/{cid}` (`V1.php:1549`, `Escritura/ComentarioProceso.php`) |
+| **Checklist** | `Tasks_model::add_checklist_item()` (`:857`) y `update_checklist_order()` (`:887`); 418 ítems | Sólo el contador | **Lista**: `POST /tasks/{id}/checklist`, `PUT` para reordenar y `PATCH\|DELETE` sobre un ítem (`V1.php:1582`) |
+| **Adjuntos** | `tblfiles`, 219 en tareas de 253 totales | `PanelArchivos.tsx` lista los del Espacio; no sube ni ofrece descarga | **Lista, subida incluida**: `POST /tasks/{id}/files` y `POST /projects/{id}/files` con su `DELETE` (`V1.php:2469`, `Escritura/Adjunto.php`), y la descarga en `Recursos/Descargas.php`. La brecha es entera de pantalla |
 | **Seguidores** | `Tasks_model::add_task_followers()` (`:1029`); 6.353 filas | Se muestran (`Cronometros.tsx:243`), no se editan | **Lista**: `PATCH /tasks/{id}` acepta `followers`, y un id inexistente falla con 422 |
-| **Campos personalizados editables** — ahí viven Área de empresa y el link de Drive | `tblcustomfields` (29) y `tblcustomfieldsvalues` (4.367) | Sólo lectura (`PanelDescripcion.tsx:149`, `proyecto/tareas.ts:59`) | Falta escritura: `Recursos/CamposPersonalizados.php` sólo lee |
-| **Tareas recurrentes** | `tbltasks.recurring`, 70 tareas, más el cron de Perfex | Nada | Falta: `Escritura/CrearProceso.php:172` declara que `recurring` y `cycles` no se escriben |
-| **Recordatorios** | `tblreminders`, 5 filas | Nada | Falta entero: no hay ruta |
+| **Campos personalizados editables** — ahí viven Área de empresa y el link de Drive | `tblcustomfields` (29) y `tblcustomfieldsvalues` (4.367) | Sólo lectura (`PanelDescripcion.tsx:149`, `proyecto/tareas.ts:59`) | **Lista**: `PATCH /custom-fields/values` escribe los valores, y `GET\|POST /custom-fields` más `GET\|PATCH\|DELETE /custom-fields/{id}` administran el catálogo (`V1.php:4066`) |
+| **Tareas recurrentes** | `tbltasks.recurring`, 70 tareas, más el cron de Perfex | Nada | **Lista, detrás de interruptor**: `PATCH /tasks/{id}` acepta `recurring`, `repeat_every`, `recurring_type` y `cycles` sólo si `wiwo_procesos_recurrentes` vale `'1'` (migración `0010`), porque la copia la hace el cron de Perfex, que sí notifica. Apagado, es un 422 y no un silencio |
+| **Recordatorios** | `tblreminders`, 5 filas | Nada | **Lista**: `GET\|POST /tasks/{id}/reminders` y `GET\|PATCH\|DELETE /tasks/{id}/reminders/{rid}` (`V1.php:3806`, `Escritura/Recordatorio.php`) |
 | **Tarea colgada de un cliente o prospecto** | `tbltasks.rel_type`: 149 `customer`, 76 `lead`, 300 sin relación | `dominio/alta-rapida.ts:193` sólo manda `project` o `null` | **Lista**: `Escritura/CrearProceso.php:65-67` acepta `project`, `customer` y `lead` |
 
 ### T2 — Administración
 
 | Ítem | De dónde viene en el board | Estado en Ops | API |
 |---|---|---|---|
-| **Crear roles y editar permisos** | `controllers/admin/Roles.php`; `tblroles` (5) y `tblstaff_permissions` (5.714) | Asigna un rol que ya existe (`componentes/equipo/campos.ts:45`) | Falta: no hay CRUD de roles |
-| **Administrar catálogos** — etiquetas, campos personalizados, estados y tipos de tarea | `tbltags` (327), `controllers/admin/Custom_fields.php` | Se leen por `GET /lookups`; no se escriben | Falta escritura |
-| **Grupos de clientes** | `tblcustomer_groups`, 95 grupos | Ausentes a propósito: `componentes/cliente/campos.ts:31` deja dicho que la API no los escribe | Falta |
-| **Perfil propio** — contraseña, foto, firma de correo, preferencias de aviso | `controllers/admin/Staff.php`; 184 personas | `GET /me` sin edición | La API ya escribe staff (`Escritura/Staff.php`, usada por Equipo). Falta la pantalla propia y decidir si el cambio de contraseña propio pasa por ese mismo endpoint |
-| **Ajustes** | `controllers/admin/Settings.php` más 27 archivos de `views/admin/settings/includes/` | Declarado **fuera de alcance** en `docs/README.md` | Sin API. El usuario lo marcó como necesario: **la primera tarea acá es reabrir la decisión y acotar qué ajustes**, no portar los 27 |
+| **Crear roles y editar permisos** | `controllers/admin/Roles.php`; `tblroles` (5) y `tblstaff_permissions` (5.714) | Asigna un rol que ya existe (`componentes/equipo/campos.ts:45`); los permisos individuales sí se editan (`DialogoPermisos.tsx`) | **Lista**: `GET\|POST /roles`, `GET\|PATCH\|DELETE /roles/{id}` y `GET /roles/catalogo` (`V1.php:3564`, `Escritura/Rol.php`). Falta la pantalla de administración de roles |
+| **Administrar catálogos** — etiquetas, campos personalizados, estados y tipos de tarea | `tbltags` (327), `controllers/admin/Custom_fields.php` | Se leen por `GET /lookups`; no se escriben | **Lista para los dos catálogos que son tablas**: `GET\|POST /tags` y `GET\|PATCH\|DELETE /tags/{id}` (`V1.php:4147`), más el CRUD de `custom-fields` (`V1.php:4066`). Los estados y tipos de tarea de Perfex son constantes, no filas: no hay nada que administrar |
+| **Grupos de clientes** | `tblcustomer_groups`, 95 grupos | Ausentes: `componentes/cliente/campos.ts:31` todavía dice que la API no los escribe, y ya no es cierto | **Lista**: `GET\|POST /customer-groups`, `GET\|PATCH\|DELETE /customer-groups/{id}` y `GET\|PUT /customer-groups/clients/{id}` (`V1.php:4190`). La asignación cuelga de acá y no de `PATCH /clients/{id}`, a propósito |
+| **Perfil propio** — contraseña, foto, firma de correo, preferencias de aviso | `controllers/admin/Staff.php`; 184 personas | `GET /me` sin edición; `/equipo/mi-area` existe | **Lista**: `GET\|PATCH /me/perfil`, `PUT /me/password` (exige la actual), `POST /me/foto` y `GET /me/mi-area` (`V1.php:3629`). Falta sólo la pantalla de perfil |
+| **Ajustes** | `controllers/admin/Settings.php` más 27 archivos de `views/admin/settings/includes/` | **Construido**: `/administracion/acceso` y `/administracion/correo` lo consumen (`src/datos/ajustes.ts`) | **Lista**: `GET /settings`, `PATCH /settings` y `GET\|POST /settings/google-jwks` (`V1.php:3844`), con 17 opciones editables y 6 de sólo lectura. Ni SMTP ni credenciales entran |
 
 ### T3 — Avisos
 
 | Ítem | De dónde viene en el board | Estado en Ops | API |
 |---|---|---|---|
-| **Notificaciones y correo** | `tblnotifications` (17.809) y `tblmail_queue` (855) | Nada: ni campana ni mail | La API **no avisa a nadie en ninguna escritura**, por diseño (`Nucleo\EfectosExternos`, apagado en `V1::__construct()`). Encenderlo es la regla 7: interruptor propio, apagado al mergear |
+| **Notificaciones y correo** | `tblnotifications` (17.809) y `tblmail_queue` (855) | Sólo administración: `/administracion/correo` lee `GET /notifications/settings` y `/notifications/mail-queue`. No hay campana | **Infraestructura lista, sin usar**: `Escritura/Aviso.php` escribe la campana y encola correo, y `/notifications` sirve la lista, el contador, marcar leído, las preferencias por persona, el interruptor global, el visor de la cola y un aviso de prueba (`V1.php:3427`). **Faltan dos cosas**: que las escrituras la llamen (siguen mudas por `Nucleo\EfectosExternos`, regla 7) y la campana en el front |
 
 ### T4 — Cara al cliente
 
 | Ítem | De dónde viene en el board | Estado en Ops | API |
 |---|---|---|---|
-| **Contratos, como sección propia** | `controllers/admin/Contracts.php`; 33 contratos y 7 renovaciones — es el único módulo de este bloque con datos reales | Paneles de lectura dentro del Espacio y del Cliente (`PanelContratos.tsx`); sin sección | Lectura y parche listos (`Recursos/RecursoContratos.php`, `Escritura/ParcheContrato.php`). Faltan alta, borrado y adjuntos (`docs/modulos/12-contratos.md`) |
-| **Portal del cliente** | Portal de contactos de Perfex; 17 contactos y 78 permisos | **Construido** en `src/app/portal/`, sin desplegar | Lista (`Recursos/RecursoPortal.php`). Falta la decisión de despliegue y el acceso de los contactos |
+| **Contratos, como sección propia** | `controllers/admin/Contracts.php`; 33 contratos y 7 renovaciones | Nada: `PanelContratos.tsx` se borró del front | **El recurso ya no existe.** `RecursoContratos.php` y `Escritura/ParcheContrato.php` se borraron en `b854567`: `GET /contracts` responde `404`. Los datos siguen en `tblcontracts` y el portal del cliente los lee. Retomar esto es reabrir F3, con lo que eso cuesta ([`fases/F3-ventas-CANCELADA.md`](fases/F3-ventas-CANCELADA.md)) |
+| ~~**Portal del cliente**~~ | Portal de contactos de Perfex; 17 contactos y 78 permisos | **Hecho.** Construido y desplegado, doce pantallas bajo `/portal/` | Lista (`Recursos/RecursoPortal.php`). El acceso se resolvió con el enlace de un solo uso: `POST /contacts/{id}/access-link` |
 | **Formularios web → prospectos** | `tblweb_to_lead` (2 activos), `modules/form_sync` | Nada | Falta. Alimenta Prospectos, que hoy está oculto: coordinar antes de construir la pantalla |
 
 ### T5 — Panel
 
 | Ítem | De dónde viene en el board | Estado en Ops | API |
 |---|---|---|---|
-| **Búsqueda global** | Buscador de `controllers/admin/Misc.php` | Cada listado busca lo suyo con `q`; nada cruzado | Falta: no hay ruta de búsqueda |
-| **Registro de actividad global** | `tblactivity_log`, 4.757 entradas, `controllers/admin/Utilities.php` | Actividad por Espacio (`PanelActividad.tsx`) | El endpoint `activity` cuelga del Espacio (`V1.php:760`). Falta la global |
-| **Tareas personales (To-do)** | `controllers/admin/Todo.php`, `tbltodos`, 64 ítems | Nada | Falta entero |
+| **Búsqueda global** | Buscador de `controllers/admin/Misc.php` | Cada listado busca lo suyo con `q`; nada cruzado | **Lista**: `GET /search` cruza Procesos, Espacios, Clientes y Personas con un solo término (`V1.php:3892`, `Recursos/RecursoBusqueda.php`). Falta el ⌘K, que además es criterio de F1 |
+| **Registro de actividad global** | `tblactivity_log`, 4.757 entradas, `controllers/admin/Utilities.php` | Actividad por Espacio (`PanelActividad.tsx`) y por persona | **Lista**: `GET /audit` y `GET /audit/filters` leen `tblactivity_log` entera, sólo para administración (`V1.php:3925`, `Recursos/RecursoAuditoria.php`). Falta la pantalla |
+| **Tareas personales (To-do)** | `controllers/admin/Todo.php`, `tbltodos`, 64 ítems | Nada | **Lista**: `GET\|POST /todos`, `POST /todos/reorder` y `GET\|PATCH\|DELETE /todos/{id}` (`V1.php:3959`, `Escritura/Todo.php`) |
 | **PDF, envío por correo y exportaciones** | PDF y envío de facturas, cotizaciones y propuestas; `modules/exports` | Exporta CSV (`componentes/datos/csv.ts`) | **404 a propósito**, declarado en `docs/contrato-api.md`. Antes de construir hay que revertir esa decisión explícitamente |
 
 ## Lo que no entra en esta vuelta
@@ -140,8 +145,9 @@ Marcado **"no va"** — no se propone ni se estima:
 
 - **Informes** (`controllers/admin/Reports.php`).
 - **Tickets**: el soporte vive en wiwo.center.
-- **Cotizaciones, Propuestas, Pagos y Gastos**: la API está construida y verificada, pero producción
-  no tiene una sola fila.
+- **Cotizaciones, Propuestas, Pagos y Gastos**: producción no tiene una sola fila. Las dos primeras
+  ya no existen en la API —se borraron con F3 (`b854567`)—; Pagos y Gastos siguen construidos y sin
+  pantalla.
 
 ## El artefacto de propuesta
 

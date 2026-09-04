@@ -6,8 +6,11 @@
 ## Qué resuelve
 
 Que un contacto de cliente entre con su correo y vea, en solo lectura, el avance de sus proyectos y
-todos los documentos que compartimos con él. Reemplaza a las 77 vistas de
-`themes/perfex` del portal de Perfex, que sigue en pie hasta que este se despliegue.
+todos los documentos que compartimos con él. Reemplaza a las 77 vistas de `themes/perfex` del portal
+de Perfex.
+
+**Está construido y desplegado**: doce pantallas bajo `/portal/` más la de fijar contraseña, con su
+propia autenticación y su propia cookie. No es un pendiente.
 
 ## Lo que hay que entender antes de tocarlo
 

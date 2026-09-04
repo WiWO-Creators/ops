@@ -135,4 +135,4 @@ los componentes ya se pueden construir.
 Frontend: `pnpm lint && pnpm typecheck && pnpm test && pnpm build`.
 
 Backend: `tools/smoke.sh`, más la garantía estructural — `git diff --stat` no muestra **ningún**
-archivo fuera de `modules/api/`. Ver [fases/F0](fases/F0-cimientos-PNDNG.md).
+archivo fuera de `modules/api/`. Ver [fases/F0](fases/F0-cimientos-CMPLTD.md).
