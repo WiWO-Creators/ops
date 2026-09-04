@@ -25,6 +25,10 @@ const PREFIJOS_PERMITIDOS = [
   // de `contacts/{id}`, asi que hace falta el prefijo propio.
   'contacts',
   'projects',
+  // Plantillas de Espacio. Prefijo propio y no bajo `projects` porque la API las cuelga de su propia
+  // raiz: `POST /projects/from-template` devuelve un Espacio y por eso vive alla, pero el CRUD de la
+  // plantilla es `/project-templates`.
+  'project-templates',
   'tasks',
   // frente: detalle — subrecursos del detalle de Proyecto (contrato secciones 2 y 5).
   'milestones',

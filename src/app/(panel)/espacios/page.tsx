@@ -10,7 +10,8 @@ import type {
   Cliente,
   EstadisticaEstado,
   Espacio,
-  MiembroEquipo
+  MiembroEquipo,
+  PlantillaEspacio
 } from '@/datos/recursos'
 import type { OpcionFiltro } from '@/definiciones/tipos'
 import type { Yo } from '@/datos/tipos'
@@ -69,14 +70,17 @@ export default async function EspaciosPage (props: PageProps<'/espacios'>) {
   const consulta = construirConsulta(estado, ESPACIOS)
   const vista = params.get('vista') === 'tabla' ? 'tabla' : 'tarjetas'
 
-  const [lista, lookups, yo, estadisticas, campos, clientes, equipo] = await Promise.all([
+  const [lista, lookups, yo, estadisticas, campos, clientes, equipo, plantillas] = await Promise.all([
     pedir<Espacio[]>(`/projects${consulta === '' ? '' : `?${consulta}`}`),
     cargarLookups(),
     pedir<Yo>('/me'),
     pedirOpcional<EstadisticaEstado[]>('/projects/stats'),
     pedirOpcional<CampoPersonalizadoMeta[]>('/custom-fields?para=projects'),
     pedirOpcional<Cliente[]>(`/clients?per_page=${TOPE_DE_OPCIONES}`),
-    pedirOpcional<MiembroEquipo[]>(`/staff?per_page=${TOPE_DE_OPCIONES}`)
+    pedirOpcional<MiembroEquipo[]>(`/staff?per_page=${TOPE_DE_OPCIONES}`),
+    // Opcional por el mismo motivo que las demas: una instalacion sin la migracion `0120` aplicada
+    // devuelve 404 aca, y eso no puede dejar el listado de Espacios en blanco.
+    pedirOpcional<PlantillaEspacio[]>('/project-templates')
   ])
 
   // Clientes y equipo no son catalogos de `/lookups`, pero los filtros los consumen igual: se
@@ -101,6 +105,7 @@ export default async function EspaciosPage (props: PageProps<'/espacios'>) {
           estadisticas={estadisticas.datos}
           errorEstadisticas={estadisticas.error}
           campos={campos.datos ?? []}
+          plantillas={plantillas.datos ?? []}
         />
       </Suspense>
     </section>

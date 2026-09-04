@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useMemo, useState, useTransition } from 'react'
+import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { ControlesTabla, PaginacionTabla } from '@/componentes/datos/ControlesTabla'
 import { PresetsFiltro } from '@/componentes/datos/PresetsFiltro'
@@ -17,9 +18,10 @@ import { PastillasEstado } from './PastillasEstado'
 import { DialogoCopiarProyecto } from './DialogoCopiarProyecto'
 import { DialogoEliminarProyecto } from './DialogoEliminarProyecto'
 import { FormularioProyecto } from './FormularioProyecto'
+import { DialogoDesdePlantilla } from './DialogoDesdePlantilla'
 import { construirConsulta, leerConsulta } from '@/datos/consulta'
 import type { Capacidad } from '@/datos/tipos'
-import type { CampoPersonalizadoMeta, EstadisticaEstado, Espacio } from '@/datos/recursos'
+import type { CampoPersonalizadoMeta, EstadisticaEstado, Espacio, PlantillaEspacio } from '@/datos/recursos'
 import { ESPACIOS, espaciosConCampos } from '@/definiciones/espacios'
 import type { EstadoConsulta, OpcionFiltro, ResultadoLista } from '@/definiciones/tipos'
 import { GLOSARIO } from '@/dominio/glosario'
@@ -74,6 +76,11 @@ interface PropsVistaEspacios {
   errorEstadisticas?: string | null
   /** Campos personalizados de `projects`; los `show_on_table` se vuelven columna de la tabla. */
   campos: CampoPersonalizadoMeta[]
+  /**
+   * Plantillas visibles, para el alta "desde plantilla". Vacio cuando no hay ninguna o cuando la
+   * instalacion todavia no tiene el recurso.
+   */
+  plantillas: PlantillaEspacio[]
 }
 
 /**
@@ -93,7 +100,8 @@ export function VistaEspacios ({
   vistaInicial,
   estadisticas,
   errorEstadisticas = null,
-  campos
+  campos,
+  plantillas
 }: PropsVistaEspacios) {
   const router = useRouter()
   const params = useSearchParams()
@@ -102,6 +110,7 @@ export function VistaEspacios ({
   const [aCopiar, setACopiar] = useState<Espacio | null>(null)
   const [aEliminar, setAEliminar] = useState<Espacio | null>(null)
   const [aEditar, setAEditar] = useState<Espacio | 'nuevo' | null>(null)
+  const [desdePlantilla, setDesdePlantilla] = useState(false)
   // Cambia en cada refresco para remontar la tabla: el motor toma su pagina inicial una sola vez, asi
   // que sin remontar seguiria mostrando la de antes aunque el servidor ya haya devuelto otra.
   const [generacion, setGeneracion] = useState(0)
@@ -172,10 +181,23 @@ export function VistaEspacios ({
           >
             Exportar CSV
           </Boton>
+          {/* La pantalla de plantillas es donde se arman; desde aca solo se entra a verla. Es un
+              enlace y no un boton porque va a otra ruta. */}
+          <Link
+            href="/espacios/plantillas"
+            className="text-texto-tenue hover:text-texto text-xs underline-offset-4 hover:underline"
+          >
+            Plantillas
+          </Link>
           {capacidades.includes('create') && (
-            <Boton tamano="chico" variante="primario" onClick={() => { setAEditar('nuevo') }}>
-              Nuevo {GLOSARIO.espacio.singular.toLowerCase()}
-            </Boton>
+            <>
+              <Boton tamano="chico" onClick={() => { setDesdePlantilla(true) }}>
+                Desde plantilla
+              </Boton>
+              <Boton tamano="chico" variante="primario" onClick={() => { setAEditar('nuevo') }}>
+                Nuevo {GLOSARIO.espacio.singular.toLowerCase()}
+              </Boton>
+            </>
           )}
         </div>
       </div>
@@ -205,6 +227,13 @@ export function VistaEspacios ({
         espacio={aEliminar}
         onCerrar={() => { setAEliminar(null) }}
         onEliminado={() => { setAEliminar(null); refrescar() }}
+      />
+
+      <DialogoDesdePlantilla
+        abierto={desdePlantilla}
+        plantillas={plantillas}
+        clientes={opcionesDeFiltro?.clients ?? []}
+        onCerrar={() => { setDesdePlantilla(false) }}
       />
 
       <FormularioProyecto
