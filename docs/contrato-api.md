@@ -3999,6 +3999,142 @@ Lo que evita errores:
 | El modelo no devolvió un JSON con la forma esperada | `502` `provider_error` |
 | Falta una clave del proveedor en el `.env` | `503` `ia_no_configurada` |
 
+### Rama `feat/ia-analisis-proyecto`
+
+El estado de un Espacio contado en prosa verificable, **guardado y reutilizado** en vez de rehecho en
+cada apertura. Dos endpoints y una regla que los resume: **`GET` sirve lo que hay y sólo llama al
+modelo si el Espacio cambió; `POST /reconstruir` fuerza**.
+
+Medido contra la base real: 275 Espacios y 196 sin un solo evento en 30 días. La mayoría de las
+aperturas **no cuesta una llamada**, y ése es el punto entero de la función.
+
+#### `GET /ia/proyectos/{id}/analisis` → `200`
+
+Permiso: `Visibilidad::veEspacio()`. Si no lo ve, `404` —nunca `403`—: un Espacio que no se ve no
+existe.
+
+```json
+{ "data": {
+  "project_id": 292,
+  "modo": "cache",
+  "estado": "listo",
+  "generado_en": "2026-09-04T21:51:08Z",
+  "encadenamientos": 2,
+  "afirmaciones": [
+    { "id": "a1",
+      "texto": "Tienes 32 tareas vencidas; la más atrasada es \"Video protocolo cluster sísmico\", del 7 de julio.",
+      "anclas": [ { "tipo": "tarea", "id": 2386 } ],
+      "metricas": [ "tareas_vencidas" ] }
+  ],
+  "hechos": { "tareas_totales": 98, "tareas_abiertas": 35, "tareas_vencidas": 32, "progreso": 64,
+              "dias_sin_actividad": 3, "dias_a_deadline": -96,
+              "tareas_abiertas_hito_246": 4, "tareas_abiertas_persona_72": 6 },
+  "contradicciones": 0,
+  "descartadas": 0,
+  "anclas_muertas": 0,
+  "poda": { "aplicada": true, "tokens_estimados": 9024,
+            "detalle": ["El feed se limitó a los 150 eventos más recientes."] }
+} }
+```
+
+**`modo`** dice de dónde salió el texto que se está leyendo:
+
+| `modo` | Qué pasó | ¿Llamó al modelo? |
+|---|---|---|
+| `cache` | Nada cambió desde la última generación | **No** |
+| `delta` | Cambió poco: el modelo revisó afirmación por afirmación | Sí |
+| `reconstruido` | Se rehizo de cero | Sí |
+| `restringido` | Quien mira no ve todas las tareas del Espacio: se generó uno sólo para él | Sí |
+| `ausente` | Nunca se generó y esta petición no podía generarlo | No |
+
+**`estado`** es `listo` o `actualizando`. `actualizando` significa que otra petición está generando
+en este mismo momento y ésta no esperó: lo que viene en `afirmaciones` es el análisis anterior, y
+vale la pena volver a pedirlo en unos segundos.
+
+#### Las afirmaciones no son un párrafo
+
+Hasta **20 afirmaciones de 300 caracteres**, cada una con lo que la respalda. No es una decisión de
+formato: es lo que permite conservar la mitad que sigue siendo cierta y tirar la que no.
+
+- **`anclas`**: los ids reales de los que habla, con `tipo` en `tarea`, `hito` o `persona`. Sirven
+  para enlazar (`?tarea={id}`, `?tab=hitos`). **Un ancla siempre existe**: si la tarea se borró, la
+  afirmación entera desaparece de la respuesta antes de que la veas.
+- **`metricas`**: los nombres de los números que la sostienen, tomados de `hechos`. Toda cifra
+  escrita en `texto` es el valor de una de esas métricas: **el servidor rechaza la afirmación que
+  escribe un número que no declaró**. Un modelo no puede inventar una cifra acá, no porque se le
+  pida que no, sino porque la inventada no llega a guardarse.
+
+#### `hechos` se recalcula siempre
+
+Nunca sale de la fila guardada: se recalcula en cada apertura con consultas indexadas. La copia
+guardada existe sólo para detectar, sin llamar al modelo, que la prosa ya no describe el presente.
+Es el bloque que hay que usar para pintar contadores; el texto es para leer.
+
+Las claves fijas son `tareas_totales`, `tareas_abiertas`, `tareas_cerradas`, `tareas_vencidas`,
+`tareas_vencen_hoy`, `tareas_sin_vencimiento`, `tareas_sin_responsable`, `tareas_abiertas_sin_hito`,
+`hitos_totales`, `dias_sin_actividad` y `progreso`. Las dinámicas son `tareas_estado_{n}`,
+`tareas_abiertas_hito_{id}`, `tareas_abiertas_persona_{id}`. **`dias_a_deadline` puede no venir**:
+sólo existe si el Espacio tiene fecha límite, y en negativo significa que el plazo ya pasó.
+
+"Vencida" se calcula con la fecha de **Santiago**, no con la del motor: entre las 20:00 y las 00:00
+el servidor de base ya está en el día siguiente, y con su fecha el análisis reportaría como vencidas,
+todas las noches durante cuatro horas, las tareas que vencen hoy.
+
+#### `poda` — lo que no entró
+
+Viaja siempre, y es `null` sólo cuando esta petición no armó ningún prompt (`modo: cache`). La poda
+básica se aplica siempre —descripción a 400 caracteres, comentario a 300, feed a 150 eventos— y
+`detalle` la enumera en castellano, lista para mostrar. **Un análisis podado que no dice que está
+podado es peor que no tenerlo**: si `aplicada` es `true`, decilo en la interfaz.
+
+#### `modo: "restringido"` — el caso de los permisos
+
+`veEspacio()` no recorta por tarea, pero la visibilidad de Procesos sí. Si quien mira no ve todas las
+tareas del Espacio, **no** se le entrega el análisis compartido —le nombraría tareas que no puede
+abrir— sino uno generado sobre su propio conjunto. Ese análisis **no se guarda y no toca la marca**,
+así que la persona siguiente sigue viendo el suyo. Los `hechos` que vienen con él también están
+recortados: `tareas_totales` es el total que **esa persona** ve.
+
+Consecuencia para la interfaz: con `modo: "restringido"` cada apertura cuesta una llamada. No lo
+pidas dos veces por pantalla.
+
+#### `POST /ia/proyectos/{id}/reconstruir` → `200`
+
+Tira el análisis guardado y lo escribe de cero. Devuelve exactamente la misma forma que el `GET`, con
+`modo: "reconstruido"` y `encadenamientos: 0`. Sin cuerpo.
+
+El freno es **por Espacio, no por persona**: diez personas del mismo equipo apretando el botón cuestan
+diez llamadas igual que una sola apretándolo diez veces. Si la última generación fue hace menos de
+diez minutos, `429`:
+
+```json
+{ "error": { "code": "rate_limited",
+             "message": "El análisis de este Espacio se generó hace menos de diez minutos.",
+             "details": { "retry_after": 540 } } }
+```
+
+`retry_after` viene en segundos. Queda rastro en la auditoría (`GET /audit`).
+
+#### Cuándo se regenera solo
+
+Sin que nadie apriete nada, el `GET` regenera cuando: pasaron **7 días** desde la última generación
+(`ia_dias_reconstruccion`), se encadenaron **6 actualizaciones incrementales**, cambió alguna tarea
+—incluido editar sólo su vencimiento, que no deja rastro en ninguna tabla de eventos— o dos de las
+afirmaciones guardadas dejaron de cuadrar con los números de hoy. Cargar horas **no** regenera nada.
+
+#### Códigos
+
+| Situación | Código |
+|---|---|
+| Sin sesión | `401` |
+| `ia_habilitada` en `0`, otro método, o un Espacio que no se ve | `404` |
+| `POST /reconstruir` antes de los diez minutos | `429` `rate_limited` + `details.retry_after` en segundos |
+| El modelo no devolvió JSON, o más de la mitad de lo que devolvió no se pudo verificar | `502` `provider_error` |
+| Falta una clave del proveedor en el `.env` | `503` `ia_no_configurada` |
+
+Ante un `502`, **el análisis guardado sigue intacto**: un `GET` inmediato devuelve el anterior con
+`modo: "cache"`. Nunca se guarda media respuesta.
+
 ### Rama `feat/tipo-de-proceso`
 
 Cierra el hueco que dejaba muerta la cadena de ETA/SLA: `task_type` ya se puede **escribir** en el
