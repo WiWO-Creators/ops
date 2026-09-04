@@ -31,6 +31,15 @@ test('settings pasa para staff y no para el portal', () => {
   assert.equal(rutaPermitida(['settings'], 'contacto'), false)
 })
 
+test('ia pasa para staff y no para el portal', () => {
+  // El contexto que arma el modelo se recorta con la visibilidad del staff; un contacto no tiene
+  // ninguna, asi que la ruta no existe para el. Ademas es la unica que gasta dinero por pedido.
+  for (const ruta of [['ia', 'inicio'], ['ia', 'proyectos', '44', 'chat'], ['ia', 'tareas', 'interpretar']]) {
+    assert.equal(rutaPermitida(ruta, 'staff'), true, ruta.join('/'))
+    assert.equal(rutaPermitida(ruta, 'contacto'), false, ruta.join('/'))
+  }
+})
+
 test('auth NO pasa: los tokens solo los ve /api/sesion', () => {
   assert.equal(rutaPermitida(['auth', 'login']), false)
   assert.equal(rutaPermitida(['auth', 'refresh']), false)

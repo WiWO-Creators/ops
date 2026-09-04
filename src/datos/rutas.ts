@@ -58,7 +58,12 @@ const PREFIJOS_PERMITIDOS = [
   'settings',
   // Presets personales de filtro de los tableros kanban (tareas e hitos). Privados por staff del
   // lado de la API; el portal no tiene tableros y no los necesita.
-  'filter-presets'
+  'filter-presets',
+  // Capa de IA: resumen del Inicio, chat del Espacio e interpretacion de un alta. No esta en la
+  // lista del portal y no debe estarlo: el contexto que arma el modelo se recorta con la
+  // visibilidad del staff, y un contacto no tiene ninguna. Ademas es la unica ruta que gasta
+  // dinero por pedido, asi que la superficie se mantiene lo mas chica posible.
+  'ia'
 ] as const
 
 /**

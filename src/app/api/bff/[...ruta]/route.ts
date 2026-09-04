@@ -87,9 +87,12 @@ async function reenviar (peticion: NextRequest, ctx: RouteContext<'/api/bff/[...
   const destino = `/${ruta.join('/')}${consulta}`
   const cuerpo = await leerCuerpo(peticion)
 
+  const cabeceras = cabecerasDeEntrada(peticion)
+
   let respuesta = await llamarApi(destino, {
     metodo: peticion.method as 'GET',
     cuerpo,
+    cabeceras,
     token: sesion.acceso
   })
 
@@ -110,14 +113,69 @@ async function reenviar (peticion: NextRequest, ctx: RouteContext<'/api/bff/[...
     respuesta = await llamarApi(destino, {
       metodo: peticion.method as 'GET',
       cuerpo,
+      cabeceras,
       token: renovada.acceso
     })
   }
 
   return new NextResponse(respuesta.body, {
     status: respuesta.status,
-    headers: { 'content-type': respuesta.headers.get('content-type') ?? 'application/json' }
+    headers: cabecerasDeSalida(respuesta)
   })
+}
+
+/**
+ * Deja pasar el `Accept: text/event-stream` del navegador, y solo ese.
+ *
+ * `llamarApi()` fija `accept: application/json` porque es lo que pide el 99% del panel. La API
+ * decide si transmite mirando esa cabecera, asi que sin este reenvio un `POST /ia/inicio` pedido
+ * como stream llegaria pidiendo JSON y volveria entero al final: el streaming no fallaria, no
+ * existiria.
+ *
+ * Se reenvia solo ese valor y no el `Accept` crudo del navegador porque una navegacion manda
+ * `text/html,...` y eso cambiaria la respuesta de cualquier ruta del BFF abierta en una pestaña.
+ *
+ * @param peticion la peticion del navegador
+ * @returns las cabeceras extra para `llamarApi()`, vacio si no se pidio un stream
+ */
+function cabecerasDeEntrada (peticion: NextRequest): Record<string, string> {
+  const acepta = peticion.headers.get('accept') ?? ''
+
+  return acepta.startsWith('text/event-stream') ? { accept: 'text/event-stream' } : {}
+}
+
+/**
+ * Cabeceras que el BFF copia de la API, ademas del `content-type`.
+ *
+ * `cache-control` porque un `no-cache, no-transform` que se pierde deja la respuesta a merced de
+ * cualquier cache intermedia. `x-accel-buffering` porque es la unica forma de decirle a Nginx que
+ * no acumule un `text/event-stream`: sin ella el proxy junta la respuesta entera y la entrega de
+ * una sola vez, asi que el streaming desaparece **sin dar ningun error** — el front recibe todo el
+ * texto junto al final y parece un backend lento.
+ *
+ * Es una lista corta y explicita, no un reenvio de todo: `content-length` y `content-encoding`
+ * describen el cuerpo que Node ya recodifico, y copiarlos rompe la respuesta.
+ */
+const CABECERAS_REENVIADAS = ['cache-control', 'x-accel-buffering'] as const
+
+/**
+ * Arma las cabeceras de la respuesta del BFF a partir de las de la API.
+ *
+ * @param respuesta la respuesta de la API v1
+ * @returns el `content-type` mas las cabeceras de la lista que la API haya emitido
+ */
+function cabecerasDeSalida (respuesta: Response): Headers {
+  const salida = new Headers({
+    'content-type': respuesta.headers.get('content-type') ?? 'application/json'
+  })
+
+  for (const nombre of CABECERAS_REENVIADAS) {
+    const valor = respuesta.headers.get(nombre)
+
+    if (valor !== null) salida.set(nombre, valor)
+  }
+
+  return salida
 }
 
 /** Lee JSON o multipart de los metodos que llevan cuerpo. Un cuerpo ausente o ilegible es `undefined`. */

@@ -147,14 +147,19 @@ export function mensajeConDetalles (error: { message: string, details?: Record<s
 
   if (detalles === undefined) return error.message
 
-  const partes = Object.entries(detalles).map(([campo, motivos]) => {
-    const nombre = CAMPOS[campo] ?? campo
-    const codigo = motivos[0]
+  // Solo las entradas con forma de `campo: [motivo]`. El contrato tambien usa `details` para
+  // devolver un bloque de datos —el `regeneracion` del 429 de la capa de IA es el primero—, y sin
+  // este filtro ese bloque se cuela en la frase como el nombre pelado de su clave.
+  const partes = Object.entries(detalles)
+    .filter(([, motivos]) => Array.isArray(motivos))
+    .map(([campo, motivos]) => {
+      const nombre = CAMPOS[campo] ?? campo
+      const codigo = motivos[0]
 
-    if (codigo === undefined) return nombre
+      if (codigo === undefined) return nombre
 
-    return `${nombre} ${MOTIVOS[codigo] ?? codigo.replace(/_/g, ' ')}`
-  })
+      return `${nombre} ${MOTIVOS[codigo] ?? codigo.replace(/_/g, ' ')}`
+    })
 
   return partes.length === 0 ? error.message : `${error.message} ${partes.join('; ')}.`
 }
