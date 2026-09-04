@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useState, type ReactElement, type ReactNode } from 'react'
+import { ArbolDrive } from '@/componentes/archivos/ArbolDrive'
 import { Cargando, ErrorEstado, Vacio } from '@/componentes/estado/Estados'
 import { GrupoAvatares } from '@/componentes/presentadores/Avatar'
 import { Etiquetas } from '@/componentes/presentadores/Etiqueta'
@@ -107,6 +108,11 @@ export function DetalleTarea ({ procesoId, className }: PropsDetalleTarea): Reac
         <section className="flex flex-col gap-2">
           <h4 className="text-texto-tenue text-sm font-semibold">Descripción</h4>
           <Descripcion html={tarea.description} />
+        </section>
+
+        <section className="flex flex-col gap-2">
+          <h4 className="text-texto-tenue text-sm font-semibold">Archivos</h4>
+          <ArbolDrive raiz="tasks" id={procesoId} />
         </section>
 
         <Cronometros procesoId={procesoId} />

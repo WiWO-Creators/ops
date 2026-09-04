@@ -320,15 +320,39 @@ export interface ArchivoDriveSubido {
   dateadded: string
 }
 
-/** Rol de un permiso manual sobre una carpeta de Drive: editor o comentador, igual que Encargado/Revisor. */
-export type RolPermisoDrive = 'writer' | 'commenter'
+/**
+ * Rol de un permiso sobre una carpeta de Drive.
+ *
+ * `writer` y `commenter` son los del equipo, igual que Encargado/Revisor. `reader` es el de los
+ * contactos del cliente, que entran desde el portal y solo miran.
+ */
+export type RolPermisoDrive = 'writer' | 'commenter' | 'reader'
 
-/** Fila de `GET /drive/{folder_id}/permissions`. Solo existe en carpetas de Tarea (Proceso). */
+/**
+ * De quien es un permiso de Drive: alguien del equipo o un contacto del cliente.
+ *
+ * PENDIENTE DE CONFIRMAR con el backend: el nombre y los valores del campo (`subject_type`) todavia
+ * no estan cerrados, por eso `PermisoDrive.subject_type` es opcional y una fila sin el se trata como
+ * del equipo, que es lo unico que la API devolvia hasta ahora.
+ */
+export type SujetoPermisoDrive = 'staff' | 'contact'
+
+/**
+ * Fila de `GET /drive/{folder_id}/permissions`: el acceso real que esa persona tiene hoy en Drive.
+ *
+ * No es una intencion local ni una lista aparte. El backend la sincroniza solo —en una Tarea el
+ * encargado queda `writer` y el revisor `commenter`; en un Espacio sus miembros quedan `writer`; en
+ * un Cliente sus contactos activos quedan `reader`— y sobre esa misma lista admite altas y bajas
+ * manuales del equipo.
+ */
 export interface PermisoDrive {
+  /** Id del sujeto. Es el `staff_id` del equipo; en un contacto lo emite el backend con esta clave. */
   staff_id: number
   name: string
   email: string
   role: RolPermisoDrive
+  /** Ausente mientras el backend no lo emita: una fila sin esto se lee como del equipo. */
+  subject_type?: SujetoPermisoDrive
 }
 
 /** Respuesta de `GET|PATCH /clients/{id}/drive`. `folder: null` es un Cliente sin backfill, no un error. */
@@ -342,6 +366,14 @@ export interface DriveEspacio {
   patente: string | null
   folder: CarpetaDrive | null
 }
+
+/** Respuesta de `GET /tasks/{id}/drive`. `folder: null` es una Tarea sin carpeta todavia, no un error. */
+export interface DriveTarea {
+  folder: CarpetaDrive | null
+}
+
+/** Entidad de la que cuelga un arbol de Drive: es el prefijo de su ruta, `GET /{raiz}/{id}/drive`. */
+export type RaizDrive = 'clients' | 'projects' | 'tasks'
 
 /**
  * Marcaje de tiempo sobre un proceso. `taskstimer` en Perfex.
