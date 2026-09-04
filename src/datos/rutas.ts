@@ -25,6 +25,10 @@ const PREFIJOS_PERMITIDOS = [
   // de `contacts/{id}`, asi que hace falta el prefijo propio.
   'contacts',
   'projects',
+  // Plantillas de Espacio. Prefijo propio y no bajo `projects` porque la API las cuelga de su propia
+  // raiz: `POST /projects/from-template` devuelve un Espacio y por eso vive alla, pero el CRUD de la
+  // plantilla es `/project-templates`.
+  'project-templates',
   // Cubre tambien `tasks/{id}/share`, los tres verbos del enlace publico. La lista es por PREFIJO:
   // un subrecurso nuevo de `tasks` no necesita entrada propia. Lo que NO esta —ni debe estar— es
   // `public`: `GET /public/tasks/{token}` es anonimo, y el BFF solo existe para adosar el token de

@@ -174,3 +174,26 @@ export function hoyLocal (ahora: Date = new Date()): string {
 
   return `${anio}-${mes}-${dia}`
 }
+
+/**
+ * Suma dias a una fecha `YYYY-MM-DD` sin pasar por el huso local.
+ *
+ * La aritmetica va en UTC por el mismo motivo que el resto de este modulo: `new Date('2026-09-10')`
+ * es medianoche UTC y sumarle dias con `setDate()` en Buenos Aires devuelve el dia anterior.
+ *
+ * @param fecha Fecha del contrato, sin hora.
+ * @param dias Cuantos dias sumar. Puede ser negativo. Se trunca a entero.
+ * @returns La fecha resultante en `YYYY-MM-DD`, o `null` si la entrada no tiene esa forma.
+ */
+export function sumarDias (fecha: string | null | undefined, dias: number): string | null {
+  if (typeof fecha !== 'string' || !esFechaSola(fecha)) return null
+  if (!Number.isFinite(dias)) return null
+
+  const [anio, mes, dia] = fecha.split('-').map(Number)
+
+  if (anio === undefined || mes === undefined || dia === undefined) return null
+
+  const instante = new Date(Date.UTC(anio, mes - 1, dia + Math.trunc(dias)))
+
+  return instante.toISOString().slice(0, 10)
+}

@@ -157,3 +157,15 @@ test('ninguna otra ruta es compartida', () => {
     assert.equal(rutaCompartida([prefijo]), false, prefijo)
   }
 })
+
+// frente: plantillas de Espacio
+test('project-templates pasa para staff y no para el portal', () => {
+  // Un contacto no arma plantillas de Espacio, y el CRUD entero vive bajo este prefijo propio.
+  for (const ruta of [['project-templates'], ['project-templates', '4']]) {
+    assert.equal(rutaPermitida(ruta), true, ruta.join('/'))
+    assert.equal(rutaPermitida(ruta, 'contacto'), false, ruta.join('/'))
+  }
+
+  // El alta desde plantilla devuelve un Espacio, asi que la API la cuelga de `projects`.
+  assert.equal(rutaPermitida(['projects', 'from-template']), true)
+})

@@ -165,3 +165,34 @@ test('NOTAS_CLIENTE: toda columna ordenable apunta a un campo que el backend ace
     assert.ok(NOTAS_CLIENTE.ordenables.includes(columna.ordenPor), `${columna.ordenPor} no esta en ordenables`)
   }
 })
+
+// frente: plantillas de Espacio
+import { PLANTILLAS } from '../src/definiciones/plantillas.ts'
+import { construirConsulta, estadoInicial } from '../src/datos/consulta.ts'
+
+test('PLANTILLAS: sin filtros, orden ni busqueda, la consulta que sale es vacia', () => {
+  // `GET /project-templates` no pagina ni acepta `sort`, `filter[]` o `include`. Declarar cualquiera
+  // de esas cosas mandaria un parametro que el endpoint no ofrece; la prueba fija que no salga nada.
+  assert.equal(construirConsulta(estadoInicial(PLANTILLAS), PLANTILLAS), '')
+})
+
+test('PLANTILLAS: ninguna columna dice ordenar por algo que el backend no acepta', () => {
+  for (const columna of PLANTILLAS.columnas) {
+    assert.equal(columna.ordenPor, undefined, `${columna.clave} declara orden y el recurso no ordena`)
+  }
+})
+
+test('PLANTILLAS: las claves de columna no se repiten y queda alguna visible', () => {
+  const claves = PLANTILLAS.columnas.map((c) => c.clave)
+
+  assert.equal(new Set(claves).size, claves.length)
+  assert.ok(PLANTILLAS.columnas.some((c) => c.ocultaPorDefecto !== true))
+})
+
+test('PLANTILLAS: una duracion nula o en cero se muestra como guion, nunca como 0', () => {
+  const columna = PLANTILLAS.columnas.find((c) => c.clave === 'duration_days')
+
+  assert.equal(columna.presentar({ duration_days: null }), '—')
+  assert.equal(columna.presentar({ duration_days: 0 }), '—')
+  assert.equal(columna.presentar({ duration_days: 30 }), '30 d')
+})

@@ -264,6 +264,16 @@ export interface Lookups {
   /** Cargos del staff (`modules/wiwo_core/cargos_areas.php`). "Director" es uno de ellos. */
   cargos: Referencia[]
   areas: Referencia[]
+  /**
+   * Tipos de Proceso (`tbltask_types`). Opcional porque el contrato escrito no los enumeraba y el
+   * mock todavia no los sirve; la API real si los devuelve.
+   *
+   * **Trae uno por Espacio, no uno por nombre**: `project_id` es nullable y el panel duplica los
+   * tres globales (Bug, Feature, Task) en cada Espacio, asi que la lista real tiene cientos de
+   * entradas con tres nombres. Quien la use para elegir un tipo tiene que deduplicar antes — ver
+   * `tiposDeProcesoUnicos()` en `lib/plantillas.ts`.
+   */
+  task_types?: EstadoLookup[]
 }
 
 /**
@@ -1236,4 +1246,66 @@ export async function guardarAjustes (cambios: CambiosDeAjustes): Promise<Result
     // decir que fallo mandaria a repetirla.
     return { ok: false, mensaje: 'Los ajustes se guardaron, pero la respuesta no se pudo leer. Recargá la pantalla.', detalles: {} }
   }
+}
+
+// frente: plantillas de Espacio
+// Bloque agregado por el frente de Plantillas de Proyecto. Va al final a proposito: otros frentes
+// editan este mismo archivo y un bloque contiguo hace trivial el merge.
+
+/** Tipo de un item de plantilla, en el vocabulario del contrato (la base guarda `hito`/`proceso`). */
+export type TipoItemPlantilla = 'milestone' | 'task'
+
+/**
+ * Item de una plantilla de Espacio.
+ *
+ * **No guarda fechas**: guarda posiciones relativas al inicio del Espacio. Al instanciar, el backend
+ * las escala por el cociente entre la duracion pedida y la que declara la plantilla.
+ */
+export interface ItemPlantilla {
+  id: number
+  type: TipoItemPlantilla
+  /** Id real del hito del que cuelga. `null` en un hito y en una tarea suelta. */
+  parent_id: number | null
+  /**
+   * La misma relacion, por posicion en la lista.
+   *
+   * Es lo que permite releer una plantilla, editarla y volver a guardarla: la escritura manda la
+   * lista entera de una vez, cuando los ids nuevos todavia no existen.
+   */
+  parent_index: number | null
+  name: string
+  description: string | null
+  /** Distancia en dias desde el inicio del Espacio. Entero >= 0. */
+  offset_days: number
+  /** Cuanto dura el item. `0` = nace y vence el mismo dia. */
+  duration_days: number
+  /** Tipo de Proceso (`tbltask_types`). Si el tipo se borra, al instanciar se descarta en silencio. */
+  task_type_id: number | null
+  /** `staffid` de los responsables. Al instanciar se filtran los dados de baja. */
+  assignees: number[]
+  /** Posicion declarada: el indice en la lista que se mando. */
+  order: number
+}
+
+/** Plantilla de Espacio tal como la devuelve `GET /project-templates` (el listado, sin `items`). */
+export interface PlantillaEspacio {
+  id: number
+  name: string
+  description: string | null
+  /**
+   * Duracion esperada declarada por la plantilla: el **denominador** del escalado.
+   * `null` o `0` es "sin duracion declarada", y deja el factor en `1`.
+   */
+  duration_days: number | null
+  /** La ven todos los que pueden crear Espacios; editarla y borrarla sigue siendo del autor. */
+  is_public: boolean
+  created_by: number
+  date_created: string
+  /** Lo resuelve el servidor (`created_by === yo` o administrador). El frontend no puede deducirlo. */
+  can_edit: boolean
+}
+
+/** La misma plantilla con sus items, tal como la devuelve `GET /project-templates/{id}`. */
+export interface PlantillaEspacioDetallada extends PlantillaEspacio {
+  items: ItemPlantilla[]
 }
