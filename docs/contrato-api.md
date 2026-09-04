@@ -4153,6 +4153,114 @@ afirmaciones guardadas dejaron de cuadrar con los números de hoy. Cargar horas 
 Ante un `502`, **el análisis guardado sigue intacto**: un `GET` inmediato devuelve el anterior con
 `modo: "cache"`. Nunca se guarda media respuesta.
 
+### Rama `feat/ia-chat-proyecto`
+
+Se le pregunta a un Espacio por su estado y contesta citando. **Sólo responde: no crea, no cambia y
+no borra nada**, y no hay ningún camino por el que pudiera hacerlo. La garantía no es el prompt: la
+clase del chat no recibe una sola dependencia de escritura, y se comprueba con un grep que tiene que
+salir vacío:
+
+```bash
+grep -rn "Escritura" modules/api/IA/ChatProyecto.php   # sin resultados
+```
+
+El chat **no genera análisis**: lee el guardado con la puerta `soloGuardado`, que nunca llama al
+modelo. Escribir "hola" no puede disparar una reconstrucción.
+
+#### `GET /ia/proyectos/{id}/chat` → `200`
+
+El hilo de quien pregunta, en orden. Permiso: `Visibilidad::veEspacio()`; si no lo ve, `404`.
+
+```json
+{ "data": { "mensajes": [
+  { "rol": "usuario", "texto": "¿Qué está trabado?", "citas": [], "fecha": "2026-09-04T22:36:56Z" },
+  { "rol": "asistente", "texto": "En este Espacio tienes 32 tareas vencidas… \"Video protocolo cluster sísmico (3)\" [1] …",
+    "citas": [ { "tipo": "tarea", "id": 2649, "titulo": "Video protocolo cluster sísmico (3)" } ],
+    "fecha": "2026-09-04T22:36:56Z" } ] } }
+```
+
+**El hilo es por `(Espacio, persona)`, nunca compartido.** Es una decisión de seguridad, no de
+producto: dos personas del mismo Espacio pueden tener visibilidad distinta sobre sus tareas, y un
+hilo compartido volvería a filtrar por el historial lo que el contexto sí filtra.
+
+**Retención: 30 días o 200 mensajes por `(Espacio, persona)`**, lo que pase primero, podado en el
+mismo `INSERT`. No hay cron en el servidor: toda limpieza va enganchada a una escritura o no ocurre.
+
+#### `POST /ia/proyectos/{id}/chat`
+
+Cuerpo `{ "pregunta": "…" }`, máximo 1.000 caracteres. El mismo resultado en dos representaciones, y
+la elige el `Accept`.
+
+**Sin `Accept: text/event-stream`** → `200`:
+
+```json
+{ "data": { "texto": "Está trabada la tarea \"Video protocolo cluster sísmico (3)\" [1] …",
+            "citas": [ { "tipo": "tarea", "id": 2649, "titulo": "Video protocolo cluster sísmico (3)" } ],
+            "citas_descartadas": 0,
+            "generado_en": "2026-09-04T22:39:43Z",
+            "uso": { "entrada": 3537, "salida": 48, "razonamiento": 0 } } }
+```
+
+**Con `Accept: text/event-stream`** → los `delta`, después **un** `event: citas` y al final el
+`event: fin`, siempre en ese orden:
+
+```
+retry: 15000
+
+event: delta
+data: {"t":"En este Espacio tienes 32 tareas "}
+
+event: citas
+data: {"citas":[{"tipo":"tarea","id":2649,"titulo":"Video protocolo cluster sísmico (3)"}]}
+
+event: fin
+data: {"citas":[…],"citas_descartadas":0,"generado_en":"…","uso":{…}}
+```
+
+**Los `delta` ya traen los marcadores reescritos.** El texto que se pinta es la concatenación de los
+`t`, y no hay una segunda entrega: si un marcador saliera crudo, se quedaría crudo para siempre. Por
+eso el servidor reescribe mientras transmite y retiene el trozo final mientras todavía pueda ser un
+marcador a medio llegar.
+
+#### Las citas — cómo se verifican
+
+El modelo escribe marcadores con el tipo adentro (`[T#512]` una tarea, `[H#3]` un hito, `[D#7]` una
+discusión) y **el servidor los valida contra la base antes de que salgan**. Sólo sobrevive el id que
+está en el índice citable, que se arma con los mismos `Recursos/` que sirven `GET /tasks`,
+`GET /projects/{id}/milestones` y `GET /projects/{id}/discussions`: existe, es de este Espacio **y**
+quien pregunta lo ve. Los que sobreviven se renumeran a `[1]`, `[2]`… en orden de aparición, que es
+el orden del array `citas`.
+
+**El `titulo` sale del `SELECT`, nunca del texto del modelo.** Un modelo que acierta el id y se
+inventa el nombre es indistinguible de uno que acierta los dos, y el nombre es lo que se lee antes
+de hacer clic.
+
+**Un marcador que no vuelve de la base desaparece del texto** y se cuenta en `citas_descartadas`.
+Medido: una respuesta con un id inexistente (`[T#999999]`) y con el id de una tarea de otro Espacio
+(`[T#1328]`) sale sin los dos marcadores y con `citas_descartadas: 2`. Un id inventado no se
+convierte en un enlace a la tarea de otro proyecto: no queda nada donde estaba.
+
+Si `citas_descartadas` es mayor que cero, decilo en la interfaz: significa que la respuesta nombró
+algo que no se pudo verificar.
+
+#### `DELETE /ia/proyectos/{id}/chat` → `204`
+
+Borra el hilo propio y nada más: el `staffid` del `WHERE` es el de la sesión, no un parámetro.
+
+#### Códigos
+
+| Situación | Código |
+|---|---|
+| Sin sesión | `401` |
+| `ia_habilitada` en `0`, otro método, o un Espacio que no se ve | `404` |
+| `pregunta` vacía o de más de 1.000 caracteres | `422` `validation_failed` |
+| El proveedor no respondió, rechazó o devolvió vacío | `502` `provider_error` |
+| Falta una clave del proveedor en el `.env` | `503` `ia_no_configurada` |
+
+**La frontera del primer byte.** Visibilidad, validación y contexto se resuelven **antes** de que el
+proveedor hable, así que un `404` o un `422` salen como JSON con su código real aunque se haya pedido
+el stream. Una vez abierto el stream el HTTP ya es `200` y el fallo llega como `event: error`.
+
 ### Rama `feat/tipo-de-proceso`
 
 Cierra el hueco que dejaba muerta la cadena de ETA/SLA: `task_type` ya se puede **escribir** en el
