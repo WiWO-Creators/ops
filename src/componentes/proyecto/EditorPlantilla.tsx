@@ -240,7 +240,7 @@ function Formulario ({ plantilla, tiposDeProceso, equipo, onGuardado }: PropsFor
       )
     } catch {
       setGuardando(false)
-      setFallo('No se pudo contactar al servidor. Revisá tu conexión.')
+      setFallo('No se pudo contactar al servidor. Revisa tu conexión.')
       return
     }
 
@@ -257,7 +257,7 @@ function Formulario ({ plantilla, tiposDeProceso, equipo, onGuardado }: PropsFor
     setErroresPorFila(porFila)
     // Con errores por item, el parrafo al pie repetiria cuarenta veces lo que ya esta marcado en la
     // fila. Se dice donde mirar y el detalle queda al lado del campo que falla.
-    setFallo(Object.keys(porFila).length > 0 ? 'Revisá los ítems marcados abajo.' : error.message)
+    setFallo(Object.keys(porFila).length > 0 ? 'Revisa los ítems marcados abajo.' : error.message)
   }
 
   return (

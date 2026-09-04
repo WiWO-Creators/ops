@@ -254,7 +254,7 @@ export function DialogoReserva ({ borrador, salas, reservas, personas, onCerrar,
           {ocupada && (
             <p role="alert" className="text-texto-peligro flex items-center gap-2 text-xs">
               <TriangleAlert size={14} aria-hidden="true" />
-              Ese horario ya está tomado en esta sala. Elegí otro, o cambiá de sala.
+              Ese horario ya está tomado en esta sala. Elige otro, o cambia de sala.
             </p>
           )}
 

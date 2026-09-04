@@ -132,7 +132,7 @@ function EstadoEditable ({ proceso, estados, editable, onCambiado }: PropsEstado
 
       onCambiado()
     } catch {
-      setError('No se pudo cambiar el estado: revisá la conexión.')
+      setError('No se pudo cambiar el estado: revisa la conexión.')
     } finally {
       setEnCurso(false)
     }

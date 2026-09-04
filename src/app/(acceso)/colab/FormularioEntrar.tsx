@@ -125,7 +125,7 @@ export function FormularioEntrar ({ google }: { google: AccesoGoogle }) {
       router.replace('/inicio')
       router.refresh()
     } catch {
-      establecerError('No se pudo contactar al servidor. Revisá tu conexión.')
+      establecerError('No se pudo contactar al servidor. Revisa tu conexión.')
       establecerEnviando(false)
       señalarError()
     }
@@ -262,7 +262,7 @@ export function FormularioEntrar ({ google }: { google: AccesoGoogle }) {
               <p className="mt-2 text-sm text-texto-tenue">
                 {metodo === 'email'
                   ? 'Te enviamos un código por correo.'
-                  : 'Abrí tu aplicación de autenticación.'}
+                  : 'Abre tu aplicación de autenticación.'}
               </p>
             )}
           </header>
@@ -534,7 +534,7 @@ function CabeceraMovil ({ estado }: { estado: EstadoOrbe | undefined }) {
  */
 function mensajeDeError (cuerpo: RespuestaEntrar, estado: number, via: Via): string {
   if (cuerpo.codigo === 'rate_limited') {
-    return 'Demasiados intentos fallidos. Esperá unos minutos antes de volver a probar.'
+    return 'Demasiados intentos fallidos. Espera unos minutos antes de volver a probar.'
   }
 
   // La API separa los dos 403 con codigos propios: `domain_not_allowed` es el dominio fuera de la
@@ -546,12 +546,12 @@ function mensajeDeError (cuerpo: RespuestaEntrar, estado: number, via: Via): str
 
   if (estado === 401) {
     return via === 'google'
-      ? 'No pudimos entrar con esa cuenta de Google. Probá con tu correo y contraseña.'
+      ? 'No pudimos entrar con esa cuenta de Google. Prueba con tu correo y contraseña.'
       : 'Correo o contraseña incorrectos.'
   }
 
-  return cuerpo.mensaje ?? 'No se pudo entrar. Intentá de nuevo.'
+  return cuerpo.mensaje ?? 'No se pudo entrar. Intenta de nuevo.'
 }
 
-const SIN_DOMINIO = 'Ese correo no tiene acceso. Entrá con una cuenta de un dominio autorizado.'
-const CUENTA_APAGADA = 'Tu cuenta está desactivada. Hablá con un administrador.'
+const SIN_DOMINIO = 'Ese correo no tiene acceso. Entra con una cuenta de un dominio autorizado.'
+const CUENTA_APAGADA = 'Tu cuenta está desactivada. Habla con un administrador.'

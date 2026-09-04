@@ -155,7 +155,7 @@ export function FormularioTarea (
     const limpio = textoLibre.trim()
 
     if (limpio === '') {
-      setAvisoIa('Escribí primero qué hay que hacer.')
+      setAvisoIa('Escribe primero qué hay que hacer.')
       return
     }
 
@@ -233,8 +233,8 @@ export function FormularioTarea (
     if (desconocidas.length > 0) {
       setError(
         desconocidas.length === 1
-          ? `La etiqueta «${desconocidas[0]}» no existe: elegí una ya creada.`
-          : `Estas etiquetas no existen: ${desconocidas.join(', ')}. Elegí etiquetas ya creadas.`
+          ? `La etiqueta «${desconocidas[0]}» no existe: elige una ya creada.`
+          : `Estas etiquetas no existen: ${desconocidas.join(', ')}. Elige etiquetas ya creadas.`
       )
       return
     }
@@ -270,7 +270,7 @@ export function FormularioTarea (
       setAbierto(false)
       onCreada()
     } catch {
-      setError('No se pudo crear: revisá la conexión.')
+      setError('No se pudo crear: revisa la conexión.')
     } finally {
       setEnCurso(false)
     }
@@ -292,8 +292,8 @@ export function FormularioTarea (
           {conIa && (
           <div className="border-borde flex flex-col gap-2 border-b pb-4">
             <Campo
-              etiqueta="Escribilo como lo dirías"
-              ayuda="Se convierte en campos y los corregís antes de crear. Nada se crea solo."
+              etiqueta="Escríbelo como lo dirías"
+              ayuda="Se convierte en campos y los corriges antes de crear. Nada se crea solo."
             >
               {(props) => (
                 <AreaTexto
@@ -349,7 +349,7 @@ export function FormularioTarea (
           <Campo etiqueta="Prioridad">
             {(props) => (
               <Selector value={prioridad} onValueChange={setPrioridad}>
-                <DisparadorSelector marcador="Elegí una" id={props.id} />
+                <DisparadorSelector marcador="Elige una" id={props.id} />
                 <ContenidoSelector>
                   {prioridades.map((opcion) => (
                     <Opcion key={opcion.valor} value={opcion.valor}>{opcion.etiqueta}</Opcion>

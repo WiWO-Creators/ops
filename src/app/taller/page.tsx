@@ -289,7 +289,7 @@ export default function TallerPage () {
           <Campo etiqueta="Prioridad" className="w-full">
             {(props) => (
               <Selector>
-                <DisparadorSelector marcador="Elegí una" id={props.id} />
+                <DisparadorSelector marcador="Elige una" id={props.id} />
                 <ContenidoSelector>
                   <Opcion value="1">Baja</Opcion>
                   <Opcion value="2">Media</Opcion>

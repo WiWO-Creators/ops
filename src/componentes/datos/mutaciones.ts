@@ -33,7 +33,7 @@ export async function escribirEnBff<T> (
         : { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(cuerpo) })
     })
   } catch {
-    return { ok: false, mensaje: 'No se pudo contactar al servidor. Revisá tu conexión.' }
+    return { ok: false, mensaje: 'No se pudo contactar al servidor. Revisa tu conexión.' }
   }
 
   if (!respuesta.ok) return { ok: false, mensaje: await mensajeDeRespuesta(respuesta) }
@@ -64,7 +64,7 @@ export async function subirArchivoEnBff<T> (ruta: string, archivo: File, campo: 
   try {
     respuesta = await fetch(`/api/bff/${ruta}`, { method: 'POST', body: cuerpo })
   } catch {
-    return { ok: false, mensaje: 'No se pudo contactar al servidor. Revisá tu conexión.' }
+    return { ok: false, mensaje: 'No se pudo contactar al servidor. Revisa tu conexión.' }
   }
 
   if (!respuesta.ok) return { ok: false, mensaje: await mensajeDeRespuesta(respuesta) }

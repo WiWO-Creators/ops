@@ -52,7 +52,7 @@ export function DialogoDesdePlantilla ({ abierto, plantillas, clientes, onCerrar
           ? (
             <Vacio
               titulo="Todavía no hay plantillas"
-              descripcion={`Armá una en Plantillas de ${GLOSARIO.espacio.singular} y volvé acá.`}
+              descripcion={`Arma una en Plantillas de ${GLOSARIO.espacio.singular} y vuelve acá.`}
             />
             )
           : <Formulario plantillas={plantillas} clientes={clientes} onCerrar={onCerrar} />}
@@ -111,7 +111,7 @@ function Formulario ({ plantillas, clientes, onCerrar }: PropsFormulario) {
     }
 
     if (cliente === '') {
-      setFallo(`Elegí un ${GLOSARIO.cliente.singular.toLowerCase()}.`)
+      setFallo(`Elige un ${GLOSARIO.cliente.singular.toLowerCase()}.`)
       return
     }
 
@@ -150,7 +150,7 @@ function Formulario ({ plantillas, clientes, onCerrar }: PropsFormulario) {
       >
         {(props) => (
           <Selector value={plantillaId} onValueChange={setPlantillaId}>
-            <DisparadorSelector id={props.id} marcador="Elegí una plantilla" />
+            <DisparadorSelector id={props.id} marcador="Elige una plantilla" />
             <ContenidoSelector>
               {plantillas.map((plantilla) => (
                 <Opcion key={plantilla.id} value={String(plantilla.id)}>{plantilla.name}</Opcion>
@@ -167,7 +167,7 @@ function Formulario ({ plantillas, clientes, onCerrar }: PropsFormulario) {
       <Campo etiqueta={GLOSARIO.cliente.singular} requerido>
         {(props) => (
           <Selector value={cliente} onValueChange={setCliente}>
-            <DisparadorSelector id={props.id} marcador={`Elegí un ${GLOSARIO.cliente.singular.toLowerCase()}`} />
+            <DisparadorSelector id={props.id} marcador={`Elige un ${GLOSARIO.cliente.singular.toLowerCase()}`} />
             <ContenidoSelector>
               {clientes.map((opcion) => (
                 <Opcion key={opcion.valor} value={opcion.valor}>{opcion.etiqueta}</Opcion>

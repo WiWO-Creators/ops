@@ -114,7 +114,7 @@ export function ChatDeSala ({ miIdentidad, alLlegarMensaje, className }: PropsCh
 
       {error && (
         <p role="status" className="text-texto-peligro px-3 text-xs">
-          No se pudo enviar. Probá de nuevo.
+          No se pudo enviar. Prueba de nuevo.
         </p>
       )}
 
@@ -129,7 +129,7 @@ export function ChatDeSala ({ miIdentidad, alLlegarMensaje, className }: PropsCh
           <Entrada
             value={texto}
             onChange={(evento) => setTexto(evento.target.value)}
-            placeholder="Escribí un mensaje…"
+            placeholder="Escribe un mensaje…"
           />
         </div>
         <Boton type="submit" variante="primario" soloIcono disabled={texto.trim() === ''} cargando={isSending} aria-label="Enviar mensaje">

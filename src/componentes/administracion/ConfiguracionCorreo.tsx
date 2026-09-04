@@ -154,7 +154,7 @@ export function ConfiguracionCorreo ({ inicial }: PropsConfiguracionCorreo): Rea
 
           {confirmarReal && (
             <p role="alert" className="text-texto-peligro text-sm">
-              Este modo manda correo real a gente ajena a este equipo. Tocá «Guardar» de nuevo para confirmarlo.
+              Este modo manda correo real a gente ajena a este equipo. Toca «Guardar» de nuevo para confirmarlo.
             </p>
           )}
 

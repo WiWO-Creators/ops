@@ -33,7 +33,7 @@ export function BarraSuplantacion ({ nombre }: { nombre: string }) {
 
   return (
     <div className="bg-relleno-aviso text-relleno-aviso-contenido flex shrink-0 flex-wrap items-center justify-center gap-x-3 gap-y-1 px-4 py-1.5 text-xs font-semibold">
-      <span>Estás viendo el panel como {nombre}. No sos vos.</span>
+      <span>Estás viendo el panel como {nombre}. No eres tú.</span>
       <Boton variante="secundario" tamano="chico" cargando={volviendo} onClick={() => { void volver() }}>
         Volver a mi cuenta
       </Boton>

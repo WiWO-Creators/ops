@@ -248,7 +248,7 @@ async function entrarConCodigo (peticion: NextRequest, codigo: string): Promise<
 
   if (desafio === undefined) {
     return NextResponse.json(
-      { mensaje: 'El desafio vencio. Volvé a entrar con tu correo y contraseña.' },
+      { mensaje: 'El desafio vencio. Vuelve a entrar con tu correo y contraseña.' },
       { status: 400 }
     )
   }

@@ -158,7 +158,7 @@ function Editor ({ proyectoId, ruta, inicial, onGuardado }: PropsEditor): ReactE
           ? (
             <Vacio
               titulo={`Este ${espacio} todavía no tiene tipos de ${GLOSARIO.proceso.singular.toLowerCase()}`}
-              descripcion="Sin tipos no hay ETA que calcular: agregá el primero acá abajo."
+              descripcion="Sin tipos no hay ETA que calcular: agrega el primero acá abajo."
             />
             )
           : (

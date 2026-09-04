@@ -51,7 +51,7 @@ export function ImagenEntidad ({
     if (!archivo || !ruta) return
 
     if (!TIPOS_ACEPTADOS.has(archivo.type)) {
-      setError('Elegí una imagen JPG, PNG o WebP.')
+      setError('Elige una imagen JPG, PNG o WebP.')
       return
     }
     if (archivo.size > LIMITE_BYTES) {

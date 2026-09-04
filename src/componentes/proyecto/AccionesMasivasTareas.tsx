@@ -118,7 +118,7 @@ export function AccionesMasivasTareas ({
     const valorTipado = valorDeAccionMasiva(accion.control, valor)
 
     if (accion.control !== 'ninguno' && valorTipado === null) {
-      setError('Elegí un valor antes de aplicar.')
+      setError('Elige un valor antes de aplicar.')
       return
     }
 
@@ -152,7 +152,7 @@ export function AccionesMasivasTareas ({
         setError(`Se aplicó a ${sobre.data.aplicados}. ${omitidos.length} quedaron sin cambiar por permisos.`)
       }
     } catch {
-      setError('No se pudo aplicar: revisá la conexión.')
+      setError('No se pudo aplicar: revisa la conexión.')
     } finally {
       setEnCurso(false)
     }
@@ -343,7 +343,7 @@ function ControlDeAccion ({
     <Campo etiqueta={accion.etiqueta}>
       {(props) => (
         <Selector value={valor} onValueChange={onValor}>
-          <DisparadorSelector marcador="Elegí una opción" id={props.id} />
+          <DisparadorSelector marcador="Elige una opción" id={props.id} />
           <ContenidoSelector>
             {opciones.map((opcion) => (
               <Opcion key={opcion.valor} value={opcion.valor}>{opcion.etiqueta}</Opcion>

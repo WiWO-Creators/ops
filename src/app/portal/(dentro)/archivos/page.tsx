@@ -20,7 +20,7 @@ export default async function ArchivosPagina () {
     return (
       <section className="flex flex-col gap-4">
         <h1 className="text-texto text-xl font-semibold">Archivos</h1>
-        <Vacio titulo="Sin archivos" descripcion="Todavía no compartimos archivos con vos." />
+        <Vacio titulo="Sin archivos" descripcion="Todavía no compartimos archivos contigo." />
       </section>
     )
   }

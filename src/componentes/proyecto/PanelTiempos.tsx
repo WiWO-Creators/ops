@@ -251,7 +251,7 @@ function TiemposDelProyecto ({ proyectoId, capacidades }: PropsPanelTiempos): Re
 
       recargar()
     } catch {
-      setAviso('No se pudo detener: revisá la conexión.')
+      setAviso('No se pudo detener: revisa la conexión.')
     }
   }
 
@@ -273,7 +273,7 @@ function TiemposDelProyecto ({ proyectoId, capacidades }: PropsPanelTiempos): Re
 
       recargar()
     } catch {
-      setAviso('No se pudo eliminar: revisá la conexión.')
+      setAviso('No se pudo eliminar: revisa la conexión.')
     }
   }
 
@@ -334,7 +334,7 @@ function TiemposDelProyecto ({ proyectoId, capacidades }: PropsPanelTiempos): Re
         <Vacio
           titulo="No hay horas registradas"
           descripcion={hayFiltrosPuestos(estado)
-            ? 'Probá quitando filtros o buscando otra cosa.'
+            ? 'Prueba quitando filtros o buscando otra cosa.'
             : 'Cuando alguien anote tiempo en una tarea de este proyecto, aparece acá.'}
         />
       )}

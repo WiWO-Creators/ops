@@ -342,7 +342,7 @@ function MiTrabajo ({ grupos, restantes }: PropsMiTrabajo) {
       {grupos.length === 0
         ? (
           <p className="text-sm text-texto-tenue">
-            No tenés {GLOSARIO.proceso.plural.toLowerCase()} por vencer.
+            No tienes {GLOSARIO.proceso.plural.toLowerCase()} por vencer.
             {restantes > 0 && ` Hay ${restantes} sin fecha cercana.`}
           </p>
           )
@@ -497,8 +497,8 @@ function accesosDe (yo: Yo): Acceso[] {
       // El soporte no es un modulo del panel: se atiende en wiwo.center. La tarjeta no lleva
       // `proximamente` porque el destino existe hoy.
       href: URL_SOPORTE,
-      titulo: '¿Buscás soporte?',
-      descripcion: 'Escribinos en wiwo.center y te respondemos ahí.',
+      titulo: '¿Buscas soporte?',
+      descripcion: 'Escríbenos en wiwo.center y te respondemos ahí.',
       icono: LifeBuoy,
       tono: 'peligro'
     }

@@ -67,7 +67,7 @@ const AL_CREAR = 'Se puede crear ahora: queda igual que una nueva, con las carpe
  * contrato incumplido. Se dice igual porque volver a dibujar el mismo vacio, sin una linea, se lee
  * como que el boton no hizo nada.
  */
-const CREADA_SIN_CARPETA = 'El servidor respondió sin carpeta: no quedó creada. Probá de nuevo y, si sigue igual, avisá a quien administre el sistema.'
+const CREADA_SIN_CARPETA = 'El servidor respondió sin carpeta: no quedó creada. Prueba de nuevo y, si sigue igual, avisa a quien administre el sistema.'
 
 /**
  * Arbol de carpetas de Drive de un Cliente, un Espacio o una Tarea, para la pestaña Archivos.
@@ -675,7 +675,7 @@ function GestorPermisosDrive ({ folderId }: { folderId: string }) {
         <Campo etiqueta="Persona" className="min-w-40 flex-1">
           {(props) => (
             <Selector value={staffId} onValueChange={setStaffId}>
-              <DisparadorSelector marcador="Elegí una persona" id={props.id} />
+              <DisparadorSelector marcador="Elige una persona" id={props.id} />
               <ContenidoSelector>
                 {personal.map((persona) => (
                   <Opcion key={persona.id} value={String(persona.id)}>{persona.full_name}</Opcion>

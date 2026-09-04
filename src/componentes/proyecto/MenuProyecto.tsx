@@ -101,7 +101,7 @@ export function MenuProyecto ({ proyecto, estados, capacidades }: PropsMenuProye
 
       router.refresh()
     } catch {
-      setFallo('No se pudo cambiar el estado: revisá la conexión.')
+      setFallo('No se pudo cambiar el estado: revisa la conexión.')
     } finally {
       setEnCurso(false)
     }
@@ -125,7 +125,7 @@ export function MenuProyecto ({ proyecto, estados, capacidades }: PropsMenuProye
 
       router.push('/espacios')
     } catch {
-      setFallo('No se pudo eliminar: revisá la conexión.')
+      setFallo('No se pudo eliminar: revisa la conexión.')
     } finally {
       setEnCurso(false)
     }

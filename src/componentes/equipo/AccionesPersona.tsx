@@ -115,7 +115,7 @@ export function AccionesPersona ({
                   onValueChange={setHeredero}
                   disabled={deshabilitado || companeros === null}
                 >
-                  <DisparadorSelector marcador="Elegí a alguien del equipo" id={props.id} />
+                  <DisparadorSelector marcador="Elige a alguien del equipo" id={props.id} />
                   <ContenidoSelector>
                     {(companeros ?? []).map((companero) => (
                       <Opcion key={companero.id} value={String(companero.id)}>{companero.full_name}</Opcion>

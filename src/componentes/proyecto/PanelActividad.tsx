@@ -212,7 +212,7 @@ function InterruptorVisibilidad ({
       recargar()
     } catch {
       setVisible(previo)
-      setFallo('No se pudo cambiar: revisá la conexión.')
+      setFallo('No se pudo cambiar: revisa la conexión.')
     } finally {
       setGuardando(false)
     }

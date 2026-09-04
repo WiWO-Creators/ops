@@ -17,7 +17,7 @@ export function motivoDelFallo (error: unknown, que: string): string {
   const nombre = error instanceof Error ? error.name : ''
 
   if (nombre === 'NotAllowedError' || nombre === 'SecurityError') {
-    return `El navegador bloqueó ${que}. Dale permiso desde el candado de la barra de direcciones y volvé a intentar.`
+    return `El navegador bloqueó ${que}. Dale permiso desde el candado de la barra de direcciones y vuelve a intentar.`
   }
 
   if (nombre === 'NotFoundError' || nombre === 'DevicesNotFoundError') {
@@ -25,7 +25,7 @@ export function motivoDelFallo (error: unknown, que: string): string {
   }
 
   if (nombre === 'NotReadableError' || nombre === 'TrackStartError') {
-    return `Otro programa está usando ${que}. Cerralo y volvé a intentar.`
+    return `Otro programa está usando ${que}. Ciérralo y vuelve a intentar.`
   }
 
   // `AbortError` es lo que deja cancelar el dialogo de compartir pantalla: no es un fallo, es un no.

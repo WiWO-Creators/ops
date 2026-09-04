@@ -175,8 +175,8 @@ export function DialogoContacto ({ clienteId, contacto, onCerrar, onGuardado }: 
               etiqueta={editando ? 'Contraseña nueva' : 'Contraseña'}
               ayuda={
                 editando
-                  ? 'Dejala vacía para no cambiarla. Si preferís que la elija él, cerrá esto y generale un enlace de acceso desde la lista.'
-                  : 'Opcional, y casi siempre de más: con el botón de la llave en la lista de contactos generás un enlace para que elija la suya. Si la ponés acá, entregásela vos: no sale ningún correo.'
+                  ? 'Déjala vacía para no cambiarla. Si prefieres que la elija él, cierra esto y genérale un enlace de acceso desde la lista.'
+                  : 'Opcional, y casi siempre de más: con el botón de la llave en la lista de contactos generas un enlace para que elija la suya. Si la pones acá, entrégasela tú: no sale ningún correo.'
               }
               error={errorDe('password')}
             >

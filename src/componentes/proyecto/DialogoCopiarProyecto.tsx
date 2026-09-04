@@ -160,7 +160,7 @@ function FormularioCopia ({
       <Campo etiqueta={GLOSARIO.cliente.singular} requerido>
         {(props) => (
           <Selector value={cliente} onValueChange={setCliente}>
-            <DisparadorSelector id={props.id} marcador="Elegí un cliente" />
+            <DisparadorSelector id={props.id} marcador="Elige un cliente" />
             <ContenidoSelector>
               {clientes.map((opcion) => (
                 <Opcion key={opcion.valor} value={opcion.valor}>{opcion.etiqueta}</Opcion>

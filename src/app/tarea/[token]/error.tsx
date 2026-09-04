@@ -15,7 +15,7 @@ export default function ErrorDeFichaPublica ({ reset }: { error: Error & { diges
   return (
     <main className="bg-superficie mx-auto flex min-h-dvh max-w-2xl items-center p-6">
       <ErrorEstado
-        detalle="No pudimos cargar esta vista. Probá de nuevo en un momento."
+        detalle="No pudimos cargar esta vista. Prueba de nuevo en un momento."
         onReintentar={reset}
         className="w-full"
       />

@@ -1277,7 +1277,7 @@ export async function guardarAjustes (cambios: CambiosDeAjustes): Promise<Result
       body: JSON.stringify(cambios)
     })
   } catch {
-    return { ok: false, mensaje: 'No se pudo contactar al servidor. Revisá tu conexión.', detalles: {} }
+    return { ok: false, mensaje: 'No se pudo contactar al servidor. Revisa tu conexión.', detalles: {} }
   }
 
   if (!respuesta.ok) {
@@ -1293,7 +1293,7 @@ export async function guardarAjustes (cambios: CambiosDeAjustes): Promise<Result
   } catch {
     // La API responde el cuerpo completo tambien en el PATCH. Si no llego, la escritura igual ocurrio:
     // decir que fallo mandaria a repetirla.
-    return { ok: false, mensaje: 'Los ajustes se guardaron, pero la respuesta no se pudo leer. Recargá la pantalla.', detalles: {} }
+    return { ok: false, mensaje: 'Los ajustes se guardaron, pero la respuesta no se pudo leer. Recarga la pantalla.', detalles: {} }
   }
 }
 

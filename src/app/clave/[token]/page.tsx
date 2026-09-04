@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 import { FormularioFijarClave } from './FormularioFijarClave'
 
-export const metadata: Metadata = { title: 'Elegí tu contraseña · Portal de clientes' }
+export const metadata: Metadata = { title: 'Elige tu contraseña · Portal de clientes' }
 
 /**
  * Pantalla donde el cliente fija su propia contraseña del portal.

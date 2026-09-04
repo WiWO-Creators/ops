@@ -44,8 +44,8 @@ export default async function MiAreaPage () {
 
       {miArea.area === null && (
         <Vacio
-          titulo="No tenés un área asignada"
-          descripcion="Pedile a quien administre el sistema que te asigne una desde Cargos y Áreas."
+          titulo="No tienes un área asignada"
+          descripcion="Pídele a quien administre el sistema que te asigne una desde Cargos y Áreas."
         />
       )}
 

@@ -40,7 +40,7 @@ export default async function PortalInicio () {
       <div>
         <h1 className="text-texto text-xl font-semibold">Hola, {yo.firstname.trim()}</h1>
         <p className="text-texto-tenue mt-1 text-sm">
-          Acá vas a encontrar todo lo que compartimos con vos.
+          Acá vas a encontrar todo lo que compartimos contigo.
         </p>
       </div>
 

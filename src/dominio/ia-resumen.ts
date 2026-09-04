@@ -21,10 +21,10 @@ import type { Regeneracion } from './ia.ts'
 const POR_TICK = 3
 
 /** Lo que se dice cuando ya no quedan generaciones del dia. El tope de dos lo fija el backend. */
-const SIN_CUPO = 'Ya lo regeneraste dos veces hoy. Volvé mañana.'
+const SIN_CUPO = 'Ya lo regeneraste dos veces hoy. Vuelve mañana.'
 
 /** Respaldo para un bloqueo por espera al que el backend no le mando el instante de reapertura. */
-const SIN_FECHA = 'Todavía no podés regenerarlo.'
+const SIN_FECHA = 'Todavía no puedes regenerarlo.'
 
 /** Opciones de `crearCola()`. */
 export interface OpcionesCola {
