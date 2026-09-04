@@ -13,6 +13,7 @@ import { cn } from '@/lib/clases'
 import type { EstadoLookup, Lookups, Proceso } from '@/datos/recursos'
 import type { Sobre } from '@/datos/tipos'
 import { Cronometros } from './Cronometros'
+import { ListaIteraciones } from './ListaIteraciones'
 import { mensajeDeRespuesta, pedirRespuesta } from '@/datos/cliente'
 
 /**
@@ -25,6 +26,9 @@ import { mensajeDeRespuesta, pedirRespuesta } from '@/datos/cliente'
  *
  * El 404 se separa del error a proposito: un id que no existe —un enlace viejo, una tarea borrada—
  * no tiene nada que reintentar, y ofrecer un boton que va a fallar igual es mentir.
+ *
+ * Las iteraciones y los cronometros piden lo suyo aparte: los dos se recargan solos al escribir, y
+ * hacerlo desde aca obligaria a volver a traer la tarea entera y los catalogos por cada alta.
  */
 
 interface PropsDetalleTarea {
@@ -109,6 +113,8 @@ export function DetalleTarea ({ procesoId, className }: PropsDetalleTarea): Reac
           <h4 className="text-texto-tenue text-sm font-semibold">Descripción</h4>
           <Descripcion html={tarea.description} />
         </section>
+
+        <ListaIteraciones procesoId={procesoId} />
 
         <section className="flex flex-col gap-2">
           <h4 className="text-texto-tenue text-sm font-semibold">Archivos</h4>

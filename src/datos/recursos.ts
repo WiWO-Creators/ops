@@ -455,6 +455,25 @@ export interface ComentarioProceso {
   date_added: string | null
 }
 
+/**
+ * Iteracion de un proceso (`GET|POST /tasks/{id}/iterations`): una vuelta atras, con su motivo.
+ *
+ * No hay numero de iteracion: el `#N` del panel es la posicion en la lista ordenada por `id`, asi que
+ * `id` no sirve para numerar nada. Tampoco hay edicion ni borrado — una iteracion es un hecho
+ * asentado— y por eso el tipo no tiene contraparte de escritura mas alla del `reason` del alta.
+ *
+ * `staff` puede ser `null`: `addedfrom` arranca en `0` y la persona pudo darse de baja.
+ */
+export interface IteracionProceso {
+  id: number
+  task_id: number
+  /** **Texto plano**, no HTML: se pinta escapado, nunca con `dangerouslySetInnerHTML`. */
+  reason: string
+  /** Instante ISO-8601 en UTC. Lo pone el servidor. */
+  date_added: string | null
+  staff: { id: number, full_name: string, profile_image_url: string | null } | null
+}
+
 /** Item de la lista de control de un proceso. */
 export interface ItemChecklist {
   id: number
