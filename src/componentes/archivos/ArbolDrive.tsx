@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState, type ChangeEvent } from 'react'
-import { ChevronDown, ChevronRight, File, Folder, Trash2, Upload, Users, X } from 'lucide-react'
+import { ChevronDown, ChevronRight, File, Folder, FolderPlus, Trash2, Upload, Users, X } from 'lucide-react'
 import { Boton } from '@/componentes/formularios/Boton'
 import { Campo } from '@/componentes/formularios/Campo'
 import { Entrada } from '@/componentes/formularios/Entrada'
@@ -47,20 +47,40 @@ interface Props {
 
 /** Por que una entidad puede no tener carpeta todavia. Cambia por raiz: no todas nacen igual. */
 const SIN_CARPETA: Record<RaizDrive, string> = {
-  clients: `Este ${GLOSARIO.cliente.singular} es anterior a esta función: las carpetas no se crean retroactivamente.`,
-  projects: `Este ${GLOSARIO.espacio.singular} es anterior a esta función: las carpetas no se crean retroactivamente.`,
-  tasks: `Esta ${GLOSARIO.proceso.singular} es anterior a esta función: las carpetas no se crean retroactivamente.`
+  clients: `Este ${GLOSARIO.cliente.singular} es anterior a esta función, así que no se le creó sola.`,
+  projects: `Este ${GLOSARIO.espacio.singular} es anterior a esta función, así que no se le creó sola.`,
+  tasks: `Esta ${GLOSARIO.proceso.singular} es anterior a esta función, así que no se le creó sola.`
 }
+
+/**
+ * Que hace el boton de crear, en las tres raices por igual.
+ *
+ * Va junto al motivo porque el vacio ya no es solo una explicacion: quien lo lee tiene algo que
+ * apretar, y necesita saber que no va a quedar una carpeta a medias ni distinta de las automaticas.
+ */
+const AL_CREAR = 'Se puede crear ahora: queda igual que una nueva, con las carpetas que falten arriba y los mismos accesos.'
+
+/**
+ * Ultimo recurso cuando el `POST` contesta 2xx pero con `folder: null`.
+ *
+ * No es un error de negocio —esos vienen con su propio mensaje y se muestran tal cual—, es el
+ * contrato incumplido. Se dice igual porque volver a dibujar el mismo vacio, sin una linea, se lee
+ * como que el boton no hizo nada.
+ */
+const CREADA_SIN_CARPETA = 'El servidor respondió sin carpeta: no quedó creada. Probá de nuevo y, si sigue igual, avisá a quien administre el sistema.'
 
 /**
  * Arbol de carpetas de Drive de un Cliente, un Espacio o una Tarea, para la pestaña Archivos.
  *
  * Pide desde el navegador porque es una pestaña que puede no abrirse nunca. `folder: null` es una
- * entidad anterior a esta funcion, sin backfill retroactivo: es un vacio normal, no un error.
+ * entidad anterior a esta funcion, que nunca tuvo backfill: es un vacio normal, no un error, y se
+ * resuelve creando la carpeta a mano desde el propio vacio.
  */
 export function ArbolDrive ({ raiz, id }: Props) {
   const [carga, setCarga] = useState<Carga<DatosDrive>>({ fase: 'cargando' })
   const [intento, setIntento] = useState(0)
+  const [creando, setCreando] = useState(false)
+  const [errorCrear, setErrorCrear] = useState<string | null>(null)
 
   const reintentar = useCallback(() => {
     setCarga({ fase: 'cargando' })
@@ -100,6 +120,44 @@ export function ArbolDrive ({ raiz, id }: Props) {
     setCarga({ fase: 'listo', datos: { ...datos, folder: { ...folder, children: [...folder.children, nuevo] } } })
   }
 
+  /**
+   * Crea la carpeta que la entidad no tiene y deja la pestaña mostrandola, sin recargar.
+   *
+   * El `POST` es idempotente y devuelve el mismo cuerpo que el `GET`, asi que alcanza con reemplazar
+   * los datos: la pestaña pasa del vacio al arbol sin recargar. Un 2xx sin cuerpo no dice nada de la
+   * carpeta y se resuelve pidiendo el `GET` de nuevo; el tipo lleva `| undefined` porque eso es lo
+   * que `escribirEnBff` devuelve ahi.
+   *
+   * El error se muestra tal como lo manda el backend: "Drive no configurado" o "esta Tarea no cuelga
+   * de un Espacio" no son fallas de la pantalla, y el boton queda habilitado para reintentar —el
+   * `POST` es idempotente, asi que reintentar nunca deja dos carpetas.
+   */
+  const crearCarpeta = async (): Promise<void> => {
+    setCreando(true)
+    setErrorCrear(null)
+
+    const resultado = await escribirEnBff<DatosDrive | undefined>(`${raiz}/${id}/drive`, 'POST')
+
+    setCreando(false)
+
+    if (!resultado.ok) {
+      setErrorCrear(resultado.mensaje)
+      return
+    }
+
+    if (resultado.datos === undefined) {
+      reintentar()
+      return
+    }
+
+    if (resultado.datos.folder === null) {
+      setErrorCrear(CREADA_SIN_CARPETA)
+      return
+    }
+
+    setCarga({ fase: 'listo', datos: resultado.datos })
+  }
+
   /** Saca un archivo de la raiz del arbol, tras borrarlo en el backend. */
   const eliminarDeRaiz = (idEliminado: string): void => {
     if (folder === null) return
@@ -127,7 +185,27 @@ export function ArbolDrive ({ raiz, id }: Props) {
 
       {folder === null
         ? (
-          <Vacio titulo="Todavía no tiene carpeta en Drive" descripcion={SIN_CARPETA[raiz]} />
+          <Vacio
+            titulo="Todavía no tiene carpeta en Drive"
+            descripcion={`${SIN_CARPETA[raiz]} ${AL_CREAR}`}
+            accion={
+              <div className="flex flex-col items-center gap-2">
+                <Boton
+                  variante="primario"
+                  tamano="chico"
+                  cargando={creando}
+                  onClick={() => { void crearCarpeta() }}
+                >
+                  <FolderPlus className="size-3.5" aria-hidden="true" />
+                  Crear carpeta en Drive
+                </Boton>
+
+                {errorCrear !== null && (
+                  <p role="alert" className="text-texto-peligro max-w-prose text-sm">{errorCrear}</p>
+                )}
+              </div>
+            }
+          />
           )
         : (
           <>
