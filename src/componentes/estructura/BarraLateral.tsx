@@ -7,6 +7,7 @@ import { usePathname } from 'next/navigation'
 import { useSyncExternalStore } from 'react'
 import { Building2, DoorOpen, FolderKanban, House, ListChecks, Mail, Menu, PanelLeftClose, PanelLeftOpen, Users, UsersRound, Video } from 'lucide-react'
 import { Cajon, CerrarCajon, ContenidoCajon, DisparadorCajon } from '@/componentes/superposiciones/Cajon'
+import { Logo } from '@/componentes/estructura/Logo'
 import { cn } from '@/lib/clases'
 
 /**
@@ -206,7 +207,9 @@ function EnlaceSeccion ({ seccion, ruta, className, ...resto }: PropsEnlaceSecci
  * `<html>` en vez de dos arboles distintos, asi la transicion de ancho es continua y no hay
  * remontaje de los enlaces al abatir.
  *
- * El logo vive en la cabecera del armazon, no aca: la barra es solo navegacion.
+ * El logo encabeza la barra y no el armazon: es la marca del panel, y su lugar natural es arriba de
+ * la navegacion. En el riel abatido se oculta —el wordmark es cuatro veces mas ancho que alto y no
+ * entra en 4.5rem— y el logo de movil lo pone la cabecera, donde el riel no existe.
  *
  * @param secciones secciones ya filtradas por permisos en el servidor
  */
@@ -223,6 +226,9 @@ export function BarraLateral ({ secciones, className }: { secciones: Seccion[], 
       )}
     >
       <div className="flex h-14 shrink-0 items-center gap-2 px-3 [[data-barra-abatida]_&]:justify-center">
+        <Link href="/inicio" aria-label="Inicio" className="min-w-0 [[data-barra-abatida]_&]:hidden">
+          <Logo tamano="medio" />
+        </Link>
         <button
           type="button"
           onClick={alternarBarra}

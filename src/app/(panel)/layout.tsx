@@ -40,7 +40,9 @@ export default async function PanelLayout ({ children }: { children: React.React
 
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="border-linea flex h-14 shrink-0 items-center gap-3 border-b px-4">
-          <Link href="/inicio" aria-label="Inicio" className="min-w-0">
+          {/* Solo en movil: desde `md` el logo encabeza la barra lateral, y dos logos en pantalla
+              serian la misma marca dicha dos veces. */}
+          <Link href="/inicio" aria-label="Inicio" className="min-w-0 md:hidden">
             <Logo tamano="medio" />
           </Link>
           <BarraLateralMovil secciones={secciones} />
