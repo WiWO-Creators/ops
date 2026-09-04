@@ -3012,6 +3012,95 @@ El primer id queda en la posicion 1. **Todos los ids tienen que ser propios y ex
 lo es, es `404` y no se escribe nada. Va en una transaccion. Maximo 500 ids. Ids repetidos, no
 numericos o una lista vacia son `422`.
 
+## Recursos de la ola 2 (pedidos directos)
+
+Segunda tanda de pedidos sueltos del 04/09/2026 (`docs/pedidos-directos.md`). Igual que en la ola 1:
+cada bloque lo escribio el frente que construyo su endpoint y se integra sin editarse. No edites un
+bloque ajeno; apenda el tuyo al final de la seccion.
+
+### Rama `feat/iteraciones-api`
+
+Iteraciones de un Proceso: las vueltas atrás que hubo que dar, con su motivo y su autor. Viven en
+`tblwiwo_task_iterations`, la tabla que ya crea `modules/wiwo_core/install.php` y que hasta ahora
+sólo escribía el panel de Perfex. La API exponía nada más el contador (`counts.iterations` en la
+ficha del Proceso); ahora expone también la lista y el alta.
+
+**No hay número de iteración.** La tabla no lo guarda: el `#N` que se muestra es la **posición en la
+lista** ordenada por `id`, igual que en el panel. Si mañana se borra una fila, los que siguen se
+renumeran solos. No lo uses como identificador.
+
+**No hay edición ni borrado.** Una iteración es un hecho asentado. `PATCH`, `DELETE` y cualquier
+ruta con id (`/tasks/{id}/iterations/{n}`) devuelven `404 {"code":"not_found"}`.
+
+**El módulo puede no estar instalado.** En producción `wiwo_core` no está activado y la tabla no
+existe. El listado degrada a `[]` y el alta responde `409` — nunca un `500`. Un front que muestre
+iteraciones tiene que tolerar la lista vacía sin distinguirla de "todavía no hubo ninguna".
+
+#### La forma de una iteración
+
+```json
+{
+  "id": 1,
+  "task_id": 900023,
+  "reason": "El cliente cambió el alcance",
+  "date_added": "2026-09-04T20:38:46Z",
+  "staff": { "id": 183, "full_name": "Dev Prueba", "profile_image_url": null }
+}
+```
+
+| Campo | Notas |
+|---|---|
+| `id` | id de fila. **No** es el `#N` que se muestra: ese es la posición en la lista |
+| `task_id` | el Proceso al que pertenece |
+| `reason` | **texto plano**, no HTML. Los dos lectores lo escapan; no viene purificado ni con `<br>` |
+| `date_added` | instante ISO-8601 en UTC. Lo pone el servidor, no se acepta del cliente |
+| `staff` | autor resuelto (`id`, `full_name`, `profile_image_url`), la misma forma que los asignados de un Proceso. **Puede ser `null`**: `addedfrom` es `0` por defecto y el staff pudo darse de baja |
+
+#### `GET /tasks/{id}/iterations` → `200`
+
+Lista completa, sin paginar, ordenada por `id` ascendente (de la más vieja a la más nueva). `data`
+es un arreglo. No acepta `?include=`: cualquier valor devuelve `422 {"include":["unknown:<valor>"]}`.
+
+`404` si el Proceso no existe **o no es visible** para quien pide. `[]` si el Proceso no tiene
+iteraciones, y también si la tabla no existe en esa instalación.
+
+#### `POST /tasks/{id}/iterations` → `201`
+
+Devuelve la iteración creada, con el autor ya resuelto.
+
+```json
+{ "reason": "Faltaba el logo en la portada" }
+```
+
+| Clave | Obligatoria | Reglas |
+|---|---|---|
+| `reason` | sí | 1..2000 caracteres, se recorta. Vacía, sólo espacios, `null` o no-texto → `422` |
+
+`dateadded` y `addedfrom` **no se aceptan del cuerpo**: los pone el servidor con el instante del
+alta y el staff de la sesión. Cualquier clave fuera de `reason` → `422 {"<clave>":["no_editable"]}`.
+
+| Código | Cuándo |
+|---|---|
+| `201` | creada; el cuerpo trae la iteración |
+| `404` | el Proceso no existe o no es visible para quien pide |
+| `409` | la tabla `tblwiwo_task_iterations` no existe en esta instalación (`wiwo_core` sin activar) |
+| `422` | `reason` vacío, sólo espacios, de más de 2000 caracteres, o llegó una clave ajena |
+
+#### Permisos
+
+Los mismos que para **ver** el Proceso, no más: administrador, o staff con acceso a la tarea
+(asignado, seguidor, creador, o tarea pública). Es el criterio exacto del panel
+(`Wiwo_core::authorized_task_id()`), que tampoco pide `tasks.edit` para sumar una iteración.
+
+Sin visibilidad la respuesta es **`404`, no `403`** —en las dos rutas—, igual que el resto de los
+subrecursos de un Proceso (`comments`, `checklist`, `timers`): distinguir "no existe" de "no podés
+verlo" sólo le sirve a quien está sondeando la API.
+
+#### Lo que no cambia
+
+`counts.iterations` de la ficha y del listado de Procesos sigue igual, con el mismo guard de tabla
+ausente. La columna "Iteraciones" del listado no necesita tocarse.
+
 ## Tiempo real
 
 `GET /config/realtime` → `{ "data": { "enabled": true, "key": "…", "cluster": "…" } }`
