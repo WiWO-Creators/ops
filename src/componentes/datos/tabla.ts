@@ -222,6 +222,15 @@ export function esControlDeFila (objetivo: ElementoConAncestros | null): boolean
 }
 
 /**
+ * Parametro que abre el detalle de una tarea.
+ *
+ * Vive aca y no junto al modal que lo lee porque ese modulo es `'use client'`: una constante
+ * importada desde ahi por un Server Component —el Inicio— no llega como texto sino como una
+ * referencia de cliente, y el enlace sale con la excepcion de React adentro del `href`.
+ */
+export const PARAMETRO_TAREA = 'tarea'
+
+/**
  * La URL actual con un parametro puesto, conservando todo lo demas.
  *
  * El detalle se abre escribiendo la URL —`?tarea=12`— y no con estado local: asi el enlace se

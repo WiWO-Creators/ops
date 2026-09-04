@@ -6,11 +6,9 @@ import { TablaRecurso } from '@/componentes/datos/TablaRecurso'
 import { TableroFiltrable } from '@/componentes/datos/TableroFiltrable'
 import { Segmentado, type OpcionSegmentada } from '@/componentes/formularios/Segmentado'
 import { Cargando, ErrorEstado } from '@/componentes/estado/Estados'
-import { Cajon, ContenidoCajon } from '@/componentes/superposiciones/Cajon'
 import { opcionesDeFiltros } from '@/datos/catalogos'
 import { pedirSobre } from '@/datos/cliente'
 import { construirConsulta, leerConsulta } from '@/datos/consulta'
-import { GLOSARIO } from '@/dominio/glosario'
 import type { DefinicionRecurso, OpcionFiltro, ResultadoLista } from '@/definiciones/tipos'
 import type {
   DefinicionCampoPersonalizado,
@@ -20,7 +18,7 @@ import type {
 } from '@/datos/recursos'
 import type { Capacidad } from '@/datos/tipos'
 import { AccionesMasivasTareas } from './AccionesMasivasTareas'
-import { DetalleTarea } from './DetalleTarea'
+import { ModalTarea } from './CajonTarea'
 import { FormularioTarea } from './FormularioTarea'
 import { ResumenEstadosTareas } from './ResumenEstadosTareas'
 import { TarjetaTarea } from './TarjetaTarea'
@@ -86,7 +84,6 @@ function TareasDelProyecto ({ proyectoId, capacidades }: PropsPanelTareas): Reac
   const params = useSearchParams()
 
   const enTablero = params.get('vista') === 'tablero'
-  const tareaAbierta = idDeTarea(params.get('tarea'))
 
   const [carga, setCarga] = useState<Carga>({ fase: 'cargando' })
   const [intento, setIntento] = useState(0)
@@ -257,32 +254,9 @@ function TareasDelProyecto ({ proyectoId, capacidades }: PropsPanelTareas): Reac
           </>
           )}
 
-      <Cajon
-        open={tareaAbierta !== null}
-        onOpenChange={(abierto) => { if (!abierto) irA((siguientes) => siguientes.delete('tarea')) }}
-      >
-        <ContenidoCajon titulo={GLOSARIO.proceso.singular} descripcion="Detalle y tiempo registrado">
-          {tareaAbierta !== null && <DetalleTarea procesoId={tareaAbierta} />}
-        </ContenidoCajon>
-      </Cajon>
+      <ModalTarea />
     </div>
   )
-}
-
-/**
- * Lee el id de tarea de la URL.
- *
- * La URL la escribe cualquiera: `?tarea=abc` o `?tarea=-3` no pueden terminar en una peticion al BFF.
- *
- * @param crudo el valor de `?tarea`, o `null` si no viene
- * @returns el id, o `null` si no es un entero positivo
- */
-function idDeTarea (crudo: string | null): number | null {
-  if (crudo === null || crudo.trim() === '') return null
-
-  const id = Number(crudo)
-
-  return Number.isInteger(id) && id > 0 ? id : null
 }
 
 /**

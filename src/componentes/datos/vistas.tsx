@@ -1,6 +1,6 @@
 'use client'
 
-import { CajonTarea, PARAMETRO_TAREA } from '@/componentes/proyecto/CajonTarea'
+import { ModalTarea, PARAMETRO_TAREA } from '@/componentes/proyecto/CajonTarea'
 import { PROCESOS_NAVEGABLES } from './procesos-navegables'
 import { TablaRecurso } from './TablaRecurso'
 import { TableroFiltrable } from './TableroFiltrable'
@@ -38,7 +38,7 @@ interface PropsVistaLista<T> {
  * Tabla global de Tareas, navegable.
  *
  * Usa `PROCESOS_NAVEGABLES` —la misma definicion, con el nombre y el espacio como enlaces— y monta el
- * mismo cajon de detalle que la pestaña de Tareas de un proyecto: una tarea abierta se ve igual venga
+ * mismo modal de detalle que la pestaña de Tareas de un proyecto: una tarea abierta se ve igual venga
  * de donde venga, y su URL es la misma.
  */
 export function TablaProcesos (props: PropsVistaLista<Proceso>) {
@@ -50,7 +50,7 @@ export function TablaProcesos (props: PropsVistaLista<Proceso>) {
         abrirEn={{ clave: PARAMETRO_TAREA, valor: (proceso) => proceso.id }}
         {...props}
       />
-      <CajonTarea />
+      <ModalTarea />
     </>
   )
 }
