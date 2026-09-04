@@ -76,6 +76,10 @@ export const STAFF = NOMBRES.map(([firstname, lastname], i) => ({
   full_name: `${firstname} ${lastname}`,
   profile_image_url: null,
   is_admin: i === 0,
+  // Rol propio, por encima de `is_admin` (`modules/wiwo_core/superadmin.php`): la llave de las
+  // pantallas de Administracion. Solo la primera cuenta lo tiene, para que el mock ejercite tambien
+  // el caso del admin que NO puede entrar ahi.
+  is_superadmin: i === 0,
   role_id: ciclo(ROLES, i).id,
   active: i !== NOMBRES.length - 1,
   is_not_staff: false,

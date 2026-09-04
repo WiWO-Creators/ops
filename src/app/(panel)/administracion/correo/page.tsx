@@ -50,14 +50,15 @@ async function cargarDetalle (): Promise<Detalle | ErrorApi> {
  * Administración del correo de la ola 1 de brechas del board: el interruptor de
  * `Nucleo\EfectosExternos` y el visor de `tblmail_queue`.
  *
- * `is_admin` se revisa antes de pedir nada más: las dos rutas de abajo ya exigen admin del lado de la
- * API, pero pedirlas igual gastaría un viaje que sabemos que va a volver 403. La comprobación es la
- * misma que decide si la sección aparece en la barra lateral — ver `seccionesDe` en el layout.
+ * `is_superadmin` se revisa antes de pedir nada más: las dos rutas de abajo ya exigen superadmin del
+ * lado de la API —ahí está la compuerta real—, pero pedirlas igual gastaría un viaje que sabemos que
+ * va a volver 403. La comprobación es la misma que decide si la sección aparece en la barra lateral
+ * (`seccionesDe` en el layout), y está acá para que entrar por URL directa tampoco pinte nada.
  */
 export default async function AdministracionCorreoPage () {
   const { data: yo } = await pedir<Yo>('/me')
 
-  if (!yo.is_admin) return <SinPermiso className="mt-10" />
+  if (!yo.is_superadmin) return <SinPermiso className="mt-10" />
 
   const detalle = await cargarDetalle()
 

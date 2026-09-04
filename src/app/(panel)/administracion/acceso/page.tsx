@@ -31,16 +31,16 @@ async function cargarAjustes (): Promise<Ajustes | ErrorApi> {
  * Los dominios autorizados viven en `tbloptions` y se editan desde acá justamente para no volver a
  * necesitar un despliegue —ni una variable de entorno— cada vez que entra o sale una agencia.
  *
- * `is_admin` se revisa antes de pedir los ajustes: `PATCH /settings` ya exige administrador del lado
- * de la API, pero la lectura no —los seis valores de solo lectura los necesita cualquiera para
- * pintar—, asi que sin esta comprobacion la pantalla se dibujaria entera para alguien que no puede
- * guardar nada. Es la misma llave que decide si la seccion aparece en la barra lateral (`seccionesDe`
- * en el layout del panel).
+ * `is_superadmin` se revisa antes de pedir los ajustes: `PATCH /settings` ya exige superadmin del
+ * lado de la API —ahi esta la compuerta real—, pero la lectura no —los seis valores de solo lectura
+ * los necesita cualquiera para pintar—, asi que sin esta comprobacion la pantalla se dibujaria
+ * entera, por URL directa, para alguien que no puede guardar nada. Es la misma llave que decide si
+ * la seccion aparece en la barra lateral (`seccionesDe` en el layout del panel).
  */
 export default async function AdministracionAccesoPage () {
   const { data: yo } = await pedir<Yo>('/me')
 
-  if (!yo.is_admin) return <SinPermiso className="mt-10" />
+  if (!yo.is_superadmin) return <SinPermiso className="mt-10" />
 
   const ajustes = await cargarAjustes()
 

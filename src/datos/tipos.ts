@@ -72,6 +72,11 @@ export interface Staff {
   full_name: string
   profile_image_url: string | null
   is_admin: boolean
+  /**
+   * Rol propio, por encima de `is_admin` (`modules/wiwo_core/superadmin.php`). Gate de la seccion
+   * Administracion. `is_admin` NO sirve para eso: la tiene medio equipo. Se otorga solo por SQL.
+   */
+  is_superadmin: boolean
   role_id: number | null
   active: boolean
   /** Cargo "Director" (`modules/wiwo_core/cargos_areas.php`). Gate de la seccion "Mi Área". */
