@@ -331,6 +331,10 @@
    *
    * Sin animacion no hace falta `background-size: 200%`: los gradientes se resuelven contra la
    * ventana, que es exactamente donde se los quiere.
+   *
+   * La unica pantalla que si mueve esta capa es el Inicio, y lo pide por su cuenta con
+   * `.lienzo-vivo` (mas abajo). La excepcion es de UNA pantalla, no del armazon: quien trabaja pasa
+   * la jornada en el tablero y en los listados, no en la portada.
    */
   .aurora {
     position: relative;
@@ -361,6 +365,48 @@
   }
 
   /*
+   * El lienzo en movimiento del Inicio.
+   *
+   * La portada es la unica pantalla que se mira de paso y no se trabaja: ahi el movimiento del fondo
+   * es la marca presentandose, no ruido debajo de una tabla. Lo pide la propia pantalla poniendo
+   * `.lienzo-vivo` en su raiz, y por eso la regla no toca `.aurora::before` a secas — el armazon,
+   * que esta debajo de las ocho pantallas toda la jornada, sigue quieto.
+   *
+   * Solo `transform`: el compositor lo resuelve sin volver a maquetar ni repintar los gradientes. El
+   * `scale` no es decorativo — las tres luces se apoyan en el borde de la ventana, y sin agrandar la
+   * capa la deriva dejaria una esquina apagada.
+   *
+   * Quien pidio menos movimiento la recibe quieta: lo corta el bloque `prefers-reduced-motion` de
+   * `neo.css`, que reduce `animation-duration` sobre `*::before`.
+   */
+  .aurora:has(.lienzo-vivo)::before {
+    /* Las mismas tres luces, con mas cuerpo. Las alfas del armazon estan calculadas para no teñir
+     * una tabla ni una fila; aca no hay ninguna de las dos, solo un saludo y seis tarjetas, asi que
+     * la luz puede leerse como luz. Se redeclaran en el propio `::before` porque es quien las lee:
+     * `.lienzo-vivo` es descendiente y no puede heredar hacia arriba. */
+    --aurora-verde: light-dark(rgb(59 255 0 / 0.22), rgb(59 255 0 / 0.17));
+    --aurora-azul: light-dark(rgb(66 66 255 / 0.2), rgb(66 66 255 / 0.16));
+    --aurora-beige: light-dark(rgb(248 250 215 / 0.85), rgb(248 250 215 / 0.12));
+    /* Cuatro luces en vez de tres, y una entra al centro. El armazon las mantiene contra el marco
+     * porque debajo hay tablas y listados, y una luz debajo de datos es ruido —peor con el verde,
+     * que en este sistema significa "completo"—. En el Inicio no hay ni una fila: hay un saludo y
+     * seis tarjetas opacas, asi que la luz puede cruzar el lienzo. El verde igual se queda al pie de
+     * la barra lateral, lejos de las tarjetas; la que entra al centro es azul, que no significa
+     * nada. */
+    background-image:
+      radial-gradient(ellipse 52% 44% at 6% 2%, var(--aurora-azul) 0%, transparent 70%),
+      radial-gradient(ellipse 50% 42% at 98% 6%, var(--aurora-beige) 0%, transparent 74%),
+      radial-gradient(ellipse 42% 38% at 84% 70%, var(--aurora-azul) 0%, transparent 70%),
+      radial-gradient(ellipse 30% 34% at 2% 98%, var(--aurora-verde) 0%, transparent 68%);
+    animation: deriva-lienzo 26s ease-in-out infinite alternate;
+  }
+
+  @keyframes deriva-lienzo {
+    from { transform: translate3d(-4%, -3%, 0) scale(1.2); }
+    to { transform: translate3d(4%, 3%, 0) scale(1.36); }
+  }
+
+  /*
    * Texto pintado con el gradiente de marca.
    *
    * `background-clip: text` con el relleno transparente. El prefijo `-webkit-` sigue siendo necesario:
@@ -378,12 +424,38 @@
   /* Variante de marca del gradiente de texto: verde a azul, igual que la barrita (`bg-gradiente-marca`)
    * y no el `--gradiente-texto` accesible. El verde puro recortado en texto da 1.5:1 de contraste
    * (bajo AA) — decision consciente para el saludo de Inicio, no para usar en texto de cuerpo.
-   * El angulo llega por variable inline (`--angulo-gradiente-marca`) para que cambie por dia. */
+   * El angulo llega por variable inline (`--angulo-gradiente-marca`) para que cambie por dia.
+   *
+   * Las cuatro paradas son las de wiwolab: verde puro, menta, azul y otra vez verde puro. La ultima
+   * repite la primera a proposito — es lo que hace que el ciclo cierre sin salto visible cuando el
+   * fondo vuelve a su posicion inicial.
+   *
+   * El brillo se anima con `background-position`, que es la unica via cuando el relleno esta
+   * recortado sobre el texto: `transform` moveria la letra, no el color. Es una excepcion de UN
+   * elemento —seis caracteres de un saludo—, no una superficie: el area repintada es la caja del
+   * nombre y nada mas. Con `background-size: 200%`, correr la posicion exactamente 200% desplaza un
+   * mosaico entero y el bucle no tiene costura. */
   .texto-gradiente-marca {
-    background-image: linear-gradient(var(--angulo-gradiente-marca, 103deg), var(--wiwo-green) 0%, var(--wiwo-blue) 85%);
+    background-image: linear-gradient(
+      var(--angulo-gradiente-marca, 103deg),
+      var(--wiwo-green) 0%,
+      var(--wiwo-green-300) 30%,
+      var(--wiwo-blue) 65%,
+      var(--wiwo-green) 100%
+    );
+    background-size: 200% auto;
+    /* La posicion inicial se declara para que el fotograma final tenga contra que interpolar en los
+     * DOS ejes: sin esto el eje vertical arranca en 0 y termina en `center`, y el gradiente cae
+     * mientras corre en vez de solo correr. */
+    background-position: 0 0;
     -webkit-background-clip: text;
     background-clip: text;
     color: transparent;
+    animation: brillo-marca 8s linear infinite;
+  }
+
+  @keyframes brillo-marca {
+    to { background-position: 200% 0; }
   }
 }
 
@@ -396,8 +468,10 @@
  * propiedades que el compositor anima sin volver a maquetar ni repintar, y de eso depende que una
  * tabla de cien filas no tironee al aparecer.
  *
- * Ninguna es `infinite`. Desde que la aurora dejo de derivar, esa regla del sistema no tiene ninguna
- * excepcion viva, y estos fotogramas tampoco la piden: todos terminan. Quien pidio menos movimiento las recibe en 0.01ms: lo resuelve el bloque
+ * Ninguna de LAS DE ESTE BLOQUE es `infinite`: son entradas y salidas, y todas terminan. Los dos
+ * bucles que si existen viven arriba, en `@layer components`, y son los dos del Inicio —la deriva
+ * del lienzo y el brillo del saludo—, acotados a esa pantalla y declarados junto a la regla que los
+ * usa para que nadie los tome por vocabulario compartido. Quien pidio menos movimiento las recibe en 0.01ms: lo resuelve el bloque
  * `prefers-reduced-motion` de `neo.css`, que ya cubre `animation-duration` sobre `*`.
  */
 @layer components {

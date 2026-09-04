@@ -121,15 +121,18 @@ test('el orbe no enciende backdrop-filter en ninguna regla', () => {
 })
 
 /**
- * El lienzo del panel esta quieto, y esta prueba es lo que lo mantiene asi.
+ * El lienzo del ARMAZON esta quieto, y esta prueba es lo que lo mantiene asi.
  *
- * La capa `.aurora` derivaba 28s en bucle cuando vivia en una sola pantalla. Al subirla al armazon
- * pasa a estar debajo de las ocho, toda la jornada, y ahi el guardrail del sistema —prohibido el
- * movimiento perpetuo sobre algo siempre visible— vuelve a aplicar sin excepcion. El sistema de
- * diseño dice que los guardrails se hacen cumplir con pruebas y no con buena voluntad: esta es la de
- * este.
+ * La capa `.aurora` esta debajo de las ocho pantallas, toda la jornada: ahi el guardrail del
+ * sistema —prohibido el movimiento perpetuo sobre algo siempre visible— aplica sin excepcion. El
+ * sistema de diseño dice que los guardrails se hacen cumplir con pruebas y no con buena voluntad:
+ * esta es la de este.
+ *
+ * Lo que si esta permitido es que UNA pantalla pida el movimiento para si (ver la prueba siguiente):
+ * eso ya no es "siempre visible". La distincion tiene que quedar en el selector, y por eso lo que se
+ * mira aca es la regla incondicional y no cualquier regla que empiece con `.aurora`.
  */
-test('la capa de luz del panel no se anima', () => {
+test('la capa de luz del armazon no se anima', () => {
   const css = sinComentarios(globals)
   const regla = /\.aurora::before\s*\{([^}]*)\}/.exec(css)
 
@@ -140,7 +143,40 @@ test('la capa de luz del panel no se anima', () => {
     'la capa de luz cubre las ocho pantallas del panel: una animacion ahi es movimiento perpetuo ' +
     'sobre algo siempre visible, que es justo lo que el guardrail de rendimiento prohibe'
   )
-  assert.doesNotMatch(css, /deriva-aurora/, 'quedaron los fotogramas de la deriva de la aurora')
+})
+
+/**
+ * La deriva del lienzo es del Inicio, y de ninguna otra pantalla.
+ *
+ * El movimiento se enciende desde la pantalla (`.lienzo-vivo` en su raiz), no desde el armazon. Si
+ * alguien borra esa condicion del selector, la deriva se derrama sobre las ocho y el guardrail de
+ * arriba queda burlado por el costado.
+ */
+test('la deriva del lienzo esta acotada a la pantalla que la pide', () => {
+  const css = sinComentarios(globals)
+  const derivas = [...css.matchAll(/([^{}]*)\{[^}]*animation:\s*deriva-lienzo[^}]*\}/g)]
+
+  assert.equal(derivas.length, 1, 'la deriva del lienzo se declara una sola vez')
+  assert.match(
+    derivas[0][1],
+    /:has\(\.lienzo-vivo\)/,
+    'sin la condicion `.lienzo-vivo` la deriva vuelve a ser movimiento perpetuo bajo las ocho pantallas'
+  )
+  assert.match(css, /@keyframes deriva-lienzo/, 'la animacion referencia fotogramas que no existen')
+})
+
+/**
+ * El brillo del saludo solo mueve `background-position`, que es lo unico que puede mover.
+ *
+ * El relleno esta recortado sobre el texto: `transform` moveria la letra en vez del color. Es la
+ * excepcion de un elemento —el nombre del saludo—, y esta prueba la mantiene siendo eso.
+ */
+test('el brillo del saludo no arrastra la letra', () => {
+  const css = sinComentarios(globals)
+  const fotogramas = /@keyframes brillo-marca\s*\{([\s\S]*?)\n  \}/.exec(css)
+
+  assert.ok(fotogramas !== null, 'no existen los fotogramas del brillo del saludo')
+  assert.doesNotMatch(fotogramas[1], /transform|width|height|margin/, 'el brillo solo corre el relleno')
 })
 
 /**

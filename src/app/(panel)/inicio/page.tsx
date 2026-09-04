@@ -58,8 +58,12 @@ export default async function InicioPage () {
   // La capa de luz vive en el armazon del panel, no aca: pintarla tambien en el Inicio la dibujaba
   // dos veces. Esta pantalla no lleva alto ni `overflow-y-auto` propios — el scroll es el del
   // armazon, y un segundo contenedor scrolleable daba dos barras superpuestas.
+  //
+  // `lienzo-vivo` no pinta nada: es la marca que el armazon busca para poner en movimiento la luz
+  // que ya esta puesta. La portada es la unica pantalla que se mira de paso, y la unica donde ese
+  // movimiento no queda debajo de datos.
   return (
-    <div className="mx-auto flex max-w-5xl flex-col gap-10 px-1 py-6 sm:py-10">
+    <div className="lienzo-vivo mx-auto flex max-w-5xl flex-col gap-10 px-1 py-6 sm:py-10">
       <Saludo nombre={yo.firstname} />
 
       {cronometro?.timer_activo != null && (

@@ -189,13 +189,22 @@ estéticas: colgaban el panel en pantallas Retina.
 
 1. **Prohibido `backdrop-filter: blur()` en superficies siempre visibles** — barra superior, barra
    lateral, paneles, tablas, menús desplegables.
-2. **Prohibidas las animaciones `infinite`** en elementos siempre visibles. **Cero excepciones**, y
-   la única que hubo se dio de baja a propósito: la aurora derivaba 28 s en bucle cuando vivía en una
-   sola pantalla, y esa justificación no se heredó al subirla al armazón. Debajo de las ocho
-   pantallas, durante toda la jornada de quien trabaja acá, un movimiento que no comunica ningún
-   estado no tiene con qué pagarse. Se conservaron los resplandores —que son profundidad— y se
-   descartó la deriva. Un guardrail sin excepciones es más barato de sostener que uno con una
-   excepción bien argumentada.
+2. **Prohibidas las animaciones `infinite`** en elementos siempre visibles. El elemento siempre
+   visible es el **armazón**: la aurora que vive debajo de las ocho pantallas está quieta y se queda
+   quieta. Debajo de una tabla, durante toda la jornada de quien trabaja acá, un movimiento que no
+   comunica ningún estado no tiene con qué pagarse.
+
+   La regla habla de lo *siempre* visible, y por eso **una pantalla puede pedir el movimiento para
+   sí**. Hoy lo pide una sola: el Inicio, que es la única portada del panel —se mira de paso, no se
+   trabaja— y ahí el lienzo en movimiento es la marca presentándose. Lo enciende poniendo
+   `.lienzo-vivo` en su raíz, y el armazón responde con la deriva del `::before` y con las luces un
+   poco más presentes; el saludo suma el brillo del gradiente de marca sobre su propio texto. Las dos
+   animaciones son de esa pantalla y de ninguna otra.
+
+   La frontera es el selector, no la buena voluntad: `.aurora::before` a secas no puede llevar
+   `animation` y la deriva no puede existir sin su `:has(.lienzo-vivo)`. Las dos cosas las verifica
+   `pruebas/marca.test.js`. Si mañana una segunda pantalla quiere lo mismo, la conversación es si esa
+   pantalla es una portada, no si el guardrail aguanta otra excepción.
 3. Preferir `transform` y `opacity` sobre `filter` y `box-shadow` animados.
 
 Se hacen cumplir con lint, no con buena voluntad:
