@@ -137,19 +137,40 @@ function Saludo ({ nombre }: { nombre: string }) {
 }
 
 /**
- * Angulo del gradiente del nombre, distinto cada dia.
+ * El angulo del sistema, 103deg: el gradiente corre a lo LARGO de la palabra.
+ *
+ * `--relleno-gradiente-marca` y la barrita usan este mismo angulo. No es decorativo: recortado sobre
+ * texto, un gradiente casi vertical le cambia el color a cada letra por la mitad y las palabras
+ * quedan partidas en dos.
+ */
+const ANGULO_BASE = 103
+
+/**
+ * Cuanto puede apartarse del angulo base, hacia cada lado.
+ *
+ * Estrecho a proposito. La rotacion libre —cualquier angulo de 0 a 359— hacia que un dia el
+ * gradiente cruzara el nombre en diagonal y otro de arriba a abajo, y ahi el degrade deja de leerse
+ * como degrade: se ve como dos colores pegados con un corte en el medio. Doce grados alcanzan para
+ * que el saludo no sea identico todos los dias y no llegan a torcer el eje de lectura.
+ */
+const DESVIO_MAXIMO = 12
+
+/**
+ * Angulo del gradiente del nombre, distinto cada dia dentro del rango del sistema.
  *
  * Sale de la fecha del calendario (no de `Math.random`): asi el server component sigue siendo
  * deterministico entre pedidos del mismo dia, y no hay destello de hidratacion por un valor que el
  * cliente calcularia distinto al servidor.
  *
- * @returns un angulo entre 0 y 359, estable durante todo el dia
+ * @returns un angulo entre `ANGULO_BASE - DESVIO_MAXIMO` y `ANGULO_BASE + DESVIO_MAXIMO`, estable
+ *   durante todo el dia
  */
 function anguloDelDia (): number {
   const hoy = new Date().toISOString().slice(0, 10) // YYYY-MM-DD
   const hash = [...hoy].reduce((acumulado, caracter) => acumulado * 31 + caracter.charCodeAt(0), 0)
+  const pasos = DESVIO_MAXIMO * 2 + 1
 
-  return Math.abs(hash) % 360
+  return ANGULO_BASE - DESVIO_MAXIMO + (Math.abs(hash) % pasos)
 }
 
 interface PropsMiTrabajo {

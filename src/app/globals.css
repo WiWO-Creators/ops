@@ -426,9 +426,16 @@
    * (bajo AA) — decision consciente para el saludo de Inicio, no para usar en texto de cuerpo.
    * El angulo llega por variable inline (`--angulo-gradiente-marca`) para que cambie por dia.
    *
-   * Las cuatro paradas son las de wiwolab: verde puro, menta, azul y otra vez verde puro. La ultima
-   * repite la primera a proposito — es lo que hace que el ciclo cierre sin salto visible cuando el
-   * fondo vuelve a su posicion inicial.
+   * Las paradas son SIMETRICAS —verde, menta, azul, menta, verde— y no las cuatro de wiwolab en
+   * fila. La version de cuatro sube del verde al azul en tres pasos y vuelve al verde en uno solo:
+   * ese tramo de vuelta comprime medio circulo cromatico en un tercio de la palabra y se lee como un
+   * corte, no como un degrade. Con el menta repetido, la ida y la vuelta miden lo mismo y el ciclo
+   * cierra sin costura por partida doble: el ultimo color es el primero, y el camino de vuelta es el
+   * de ida al reves.
+   *
+   * `in oklab` es el otro medio arreglo. El azul de marca y el verde de marca estan lejisimos, y en
+   * sRGB el camino entre los dos pasa por un turquesa apagado que no es de la paleta y aparece justo
+   * en el medio de una letra. Oklab interpola por luminosidad percibida y ese tramo sale limpio.
    *
    * El brillo se anima con `background-position`, que es la unica via cuando el relleno esta
    * recortado sobre el texto: `transform` moveria la letra, no el color. Es una excepcion de UN
@@ -436,11 +443,23 @@
    * nombre y nada mas. Con `background-size: 200%`, correr la posicion exactamente 200% desplaza un
    * mosaico entero y el bucle no tiene costura. */
   .texto-gradiente-marca {
+    /* Sin `in oklab` primero, porque un navegador que no lo entienda descarta la declaracion entera
+     * —y sin `background-image` el texto es transparente sobre nada, o sea invisible—. La segunda
+     * pisa a la primera donde se entienda. */
     background-image: linear-gradient(
       var(--angulo-gradiente-marca, 103deg),
       var(--wiwo-green) 0%,
-      var(--wiwo-green-300) 30%,
-      var(--wiwo-blue) 65%,
+      var(--wiwo-green-300) 22%,
+      var(--wiwo-blue) 50%,
+      var(--wiwo-green-300) 78%,
+      var(--wiwo-green) 100%
+    );
+    background-image: linear-gradient(
+      var(--angulo-gradiente-marca, 103deg) in oklab,
+      var(--wiwo-green) 0%,
+      var(--wiwo-green-300) 22%,
+      var(--wiwo-blue) 50%,
+      var(--wiwo-green-300) 78%,
       var(--wiwo-green) 100%
     );
     background-size: 200% auto;
