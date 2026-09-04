@@ -71,12 +71,17 @@ interface PropsFormulario {
    * es como se llena la tabla de variantes con typo—, asi que el formulario avisa antes de mandar.
    */
   etiquetasDisponibles: Referencia[]
+  /**
+   * Si la capa de IA esta encendida. Apagada, el campo de texto libre y su boton no se pintan: la
+   * API responde 404 a `/ia/*` y ofrecer un boton que falla es peor que no ofrecerlo.
+   */
+  conIa: boolean
   /** Se llama con la tarea ya creada, para que la tabla vuelva a pedir los datos. */
   onCreada: () => void
 }
 
 export function FormularioTarea (
-  { proyectoId, prioridades, etiquetasDisponibles, onCreada }: PropsFormulario
+  { proyectoId, prioridades, etiquetasDisponibles, conIa, onCreada }: PropsFormulario
 ): ReactElement {
   const [abierto, setAbierto] = useState(false)
   const [nombre, setNombre] = useState('')
@@ -284,6 +289,7 @@ export function FormularioTarea (
         descripcion="Sólo lo indispensable; el resto se completa en el detalle."
       >
         <form className="flex flex-col gap-4" onSubmit={(evento) => { void enviar(evento) }}>
+          {conIa && (
           <div className="border-borde flex flex-col gap-2 border-b pb-4">
             <Campo
               etiqueta="Escribilo como lo dirías"
@@ -327,6 +333,7 @@ export function FormularioTarea (
               <p role="status" className="text-texto-tenue text-xs">{avisoIa}</p>
             )}
           </div>
+          )}
 
           <Campo etiqueta="Nombre" requerido>
             {(props) => (

@@ -14,7 +14,7 @@ export default function TallerTareasPage () {
   return (
     <>
       <SeccionTaller titulo="Tareas del proyecto" nota="Resumen por estado, tabla con acciones masivas y tablero.">
-        <PanelTareas proyectoId={PROYECTO_DE_PRUEBA} capacidades={['view', 'create', 'edit', 'delete']} />
+        <PanelTareas proyectoId={PROYECTO_DE_PRUEBA} capacidades={['view', 'create', 'edit', 'delete']} conIa />
       </SeccionTaller>
 
       <SeccionTaller titulo="Registro de horas" nota="Los permisos por fila y las duraciones los decide el backend.">

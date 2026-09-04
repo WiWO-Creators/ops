@@ -16,6 +16,7 @@ import { Pestanas, type Panel } from '@/componentes/proyecto/Pestanas'
 import { Cargando, ErrorEstado, SinPermiso, Vacio } from '@/componentes/estado/Estados'
 import { listaDe, nombreDe } from '@/datos/catalogos'
 import { ErrorApi } from '@/datos/errores'
+import { iaHabilitada } from '@/datos/ajustes'
 import { cargarLookups } from '@/datos/lookups'
 import { pedir } from '@/datos/servidor'
 import type { Espacio, Lookups } from '@/datos/recursos'
@@ -57,6 +58,8 @@ interface Detalle {
   proyecto: Espacio
   lookups: Lookups
   yo: Yo
+  /** Si la capa de IA esta encendida. Decide si la pestaña de chat existe. */
+  conIa: boolean
 }
 
 /**
@@ -72,13 +75,14 @@ interface Detalle {
  */
 async function cargarDetalle (id: string): Promise<Detalle | ErrorApi> {
   try {
-    const [proyecto, lookups, yo] = await Promise.all([
+    const [proyecto, lookups, yo, conIa] = await Promise.all([
       traerProyecto(id),
       cargarLookups(),
-      pedir<Yo>('/me')
+      pedir<Yo>('/me'),
+      iaHabilitada()
     ])
 
-    return { proyecto: proyecto.data, lookups, yo: yo.data }
+    return { proyecto: proyecto.data, lookups, yo: yo.data, conIa }
   } catch (error) {
     if (error instanceof ErrorApi) return error
 
@@ -131,7 +135,7 @@ export default async function ProyectoPage (props: PageProps<'/espacios/[id]'>) 
     return <ErrorEstado detalle={detalle.message} />
   }
 
-  const { proyecto, lookups, yo } = detalle
+  const { proyecto, lookups, yo, conIa } = detalle
   const capacidadesProyecto = yo.permissions.projects
   const capacidadesTareas = yo.permissions.tasks
   const estados = listaDe(lookups, 'project_statuses')
@@ -157,7 +161,7 @@ export default async function ProyectoPage (props: PageProps<'/espacios/[id]'>) 
     {
       clave: 'tareas',
       etiqueta: GLOSARIO.proceso.plural,
-      contenido: <PanelTareas proyectoId={proyecto.id} capacidades={capacidadesTareas} />
+      contenido: <PanelTareas proyectoId={proyecto.id} capacidades={capacidadesTareas} conIa={conIa} />
     },
     {
       clave: 'tiempos',
@@ -191,7 +195,12 @@ export default async function ProyectoPage (props: PageProps<'/espacios/[id]'>) 
       : []),
     // Ultima, y `paneles[0]` sigue siendo Descripcion: la pestaña por defecto no cambia y abrir el
     // Proyecto no dispara ninguna llamada a `/ia/*` hasta que alguien entra a esta.
-    { clave: 'ia', etiqueta: 'IA', contenido: <PanelChatIA proyectoId={proyecto.id} /> }
+    //
+    // Con la capa de IA apagada la pestaña no existe, en vez de existir y fallar: la API responde
+    // 404 a todo `/ia/*` y la persona no puede distinguir "no esta contratado" de "se rompio".
+    ...(conIa
+      ? [{ clave: 'ia', etiqueta: 'IA', contenido: <PanelChatIA proyectoId={proyecto.id} /> }]
+      : [])
   ]
 
   return (

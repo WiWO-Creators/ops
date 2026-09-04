@@ -52,14 +52,19 @@ const VISTAS: readonly OpcionSegmentada[] = [
 interface PropsPanelTareas {
   proyectoId: number
   capacidades: Capacidad[]
+  /**
+   * Si la capa de IA esta encendida. Viaja desde el servidor y no se consulta aca: `GET /settings`
+   * desde el navegador seria una peticion mas por cada panel que quiera saberlo.
+   */
+  conIa: boolean
 }
 
-export function PanelTareas ({ proyectoId, capacidades }: PropsPanelTareas): ReactElement {
+export function PanelTareas ({ proyectoId, capacidades, conIa }: PropsPanelTareas): ReactElement {
   // `TablaRecurso` y el propio panel leen `useSearchParams`. Sin este limite de Suspense el build de
   // cualquier pagina que los monte falla, y esa pagina la escribe otra persona.
   return (
     <Suspense fallback={<Cargando mensaje="Cargando las tareas…" />}>
-      <TareasDelProyecto proyectoId={proyectoId} capacidades={capacidades} />
+      <TareasDelProyecto proyectoId={proyectoId} capacidades={capacidades} conIa={conIa} />
     </Suspense>
   )
 }
@@ -82,7 +87,7 @@ type Carga =
       avisos: string[]
     }
 
-function TareasDelProyecto ({ proyectoId, capacidades }: PropsPanelTareas): ReactElement {
+function TareasDelProyecto ({ proyectoId, capacidades, conIa }: PropsPanelTareas): ReactElement {
   const router = useRouter()
   const params = useSearchParams()
 
@@ -219,6 +224,7 @@ function TareasDelProyecto ({ proyectoId, capacidades }: PropsPanelTareas): Reac
               proyectoId={proyectoId}
               prioridades={prioridades}
               etiquetasDisponibles={etiquetas}
+              conIa={conIa}
               onCreada={recargar}
             />
           )}
