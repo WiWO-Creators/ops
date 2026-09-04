@@ -180,7 +180,11 @@ export function AccesoGoogle ({ inicial }: PropsAccesoGoogle): ReactElement {
     <div className="flex flex-col gap-6">
       <Seccion titulo="Login con Google">
         <div className="flex flex-col gap-3">
-          <div className="border-linea rounded-tarjeta flex items-center justify-between gap-4 border p-3">
+          {/*
+            La fila se acota a `max-w-2xl`: a ancho completo el interruptor termina a mil pixeles
+            del texto que explica que hace, y deja de leerse como el control de esa frase.
+          */}
+          <div className="border-linea rounded-tarjeta flex max-w-2xl items-center justify-between gap-4 border p-3">
             <div>
               <p className="text-texto text-sm font-semibold">
                 {habilitado ? 'Encendido' : 'Apagado'}
@@ -198,16 +202,23 @@ export function AccesoGoogle ({ inicial }: PropsAccesoGoogle): ReactElement {
               aria-checked={habilitado}
               aria-label="Login con Google"
               onClick={() => { setHabilitado(!habilitado); setConfirmado(false) }}
+              /*
+               * Apagado lleva borde y relleno propio: `bg-relleno-neutro` pelado sobre la tarjeta
+               * clara daba un control del mismo color que su fondo, o sea invisible. Un interruptor
+               * que no se ve es un interruptor que no existe.
+               */
               className={
-                'relative h-6 w-11 shrink-0 rounded-control transition-colors duration-150 ease-neo ' +
-                (habilitado ? 'bg-acento' : 'bg-relleno-neutro')
+                'relative h-6 w-11 shrink-0 cursor-pointer rounded-control border transition-colors duration-150 ease-neo focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-acento ' +
+                (habilitado
+                  ? 'bg-acento border-acento'
+                  : 'bg-relleno-neutro border-linea-fuerte')
               }
             >
               <span
                 aria-hidden="true"
                 className={
-                  'bg-superficie absolute top-0.5 size-5 rounded-control transition-[left] duration-150 ease-neo ' +
-                  (habilitado ? 'left-[1.375rem]' : 'left-0.5')
+                  'bg-superficie border-linea-fuerte absolute top-0.5 size-5 rounded-control border transition-[left] duration-150 ease-neo ' +
+                  (habilitado ? 'left-[1.375rem] border-transparent' : 'left-0.5')
                 }
               />
             </button>
