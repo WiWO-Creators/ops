@@ -3584,6 +3584,229 @@ duración 2) va del `2026-09-10` al `2026-09-14`.
 | `GET /projects/from-template`, `/project-templates/{id}/loquesea` | `404` |
 | `?include=` en cualquier ruta de plantillas | `422` |
 
+### Rama `feat/eta-sla`
+
+ETA por tipo de Proceso, SLA y aprobación del cliente. Los tres son un solo mecanismo:
+
+```
+inicio_del_reloj = approval.resuelta_en   (si el Proceso REQUIERE aprobación)
+                 | start_date              (si no la requiere)
+eta              = inicio_del_reloj + eta_dias del tipo en ese Espacio, en DÍAS HÁBILES
+desviacion_dias  = date_finished - due_date (cerrado) | hoy - due_date (abierto)
+estado_sla       = incumplido (desviacion > 0)
+                 | en_riesgo  (abierto, hoy > eta y aún < due_date)
+                 | en_plazo
+```
+
+Un Proceso sin tipo, sin ETA configurado, sin aprobar todavía o sin `due_date` devuelve `null` en
+esos campos. Nunca un cero: un cero se lee como "cumple".
+
+Los días hábiles son de lunes a viernes. **No hay calendario de feriados**: un feriado corre el ETA
+un día, y ese error es visible y chico frente a inventar un calendario por país y por año.
+
+---
+
+#### Campos nuevos en el objeto Proceso
+
+Los devuelve todo endpoint que presente un Proceso: `GET /tasks`, `GET /tasks/{id}`,
+`GET /tasks?vista=tablero`, `GET /projects/{id}/tasks`, `POST /tasks`, `PATCH /tasks/{id}` y los
+endpoints de aprobación.
+
+| Clave | Tipo | Qué es |
+|---|---|---|
+| `eta` | `string \| null` | Fecha comprometida, `YYYY-MM-DD`. `null` si el Proceso no tiene tipo, el tipo no tiene ETA en ese Espacio, o el reloj no arrancó |
+| `desviacion_dias` | `int \| null` | Días contra el vencimiento. **Positivo = tarde.** `null` si el Proceso no tiene `due_date` |
+| `estado_sla` | `"en_plazo" \| "en_riesgo" \| "incumplido" \| null` | `null` si no tiene `due_date` |
+| `approval` | `object` | Siempre presente, incluso sin aprobación: ver abajo |
+
+Bloque `approval` (las claves nunca faltan; lo que falta es su valor):
+
+| Clave | Tipo | Qué es |
+|---|---|---|
+| `requerida` | `bool` | `false` si el Proceso no necesita aprobación |
+| `estado` | `"pendiente" \| "aprobada" \| "rechazada" \| null` | `null` cuando `requerida` es `false` |
+| `solicitada_en` | `string \| null` | Instante ISO-8601 UTC en que el equipo la pidió |
+| `solicitada_por` | `int \| null` | `staffid` que la pidió |
+| `resuelta_en` | `string \| null` | Instante ISO-8601 UTC de la respuesta del cliente. **Es el origen del reloj del ETA** |
+| `resuelta_por_contacto` | `int \| null` | id del contacto que respondió |
+| `comentario` | `string \| null` | Texto del cliente. Obligatorio al rechazar |
+
+En el **portal** el bloque viaja podado: solo `requerida`, `estado`, `solicitada_en`, `resuelta_en`
+y `comentario`. `eta`, `desviacion_dias` y `estado_sla` **no salen al portal**: miden al equipo
+contra su propio compromiso interno.
+
+#### Filtros y orden nuevos en el listado de Procesos
+
+| Parámetro | Valores | Dónde |
+|---|---|---|
+| `filter[estado_sla]` | `en_plazo`, `en_riesgo`, `incumplido` (lista separada por comas) | panel |
+| `filter[aprobacion]` | `no_requiere`, `pendiente`, `aprobada`, `rechazada` | panel y portal |
+| `sort=eta` / `sort=-eta` | — | panel |
+| `sort=desviacion` / `sort=-desviacion` | — | panel |
+
+`no_requiere` es un valor sintético: cubre los Procesos sin fila de aprobación y los que la tienen
+con `requerida = 0`. Se devuelve como valor filtrable y no como `null` porque un filtro contra
+`null` nunca coincide, y "lo que no pide aprobación" es una de las listas que el equipo quiere ver.
+
+Como en el resto de la API, un **valor** desconocido no es 422: devuelve la lista vacía. Lo que da
+422 es una **clave** de filtro fuera de la whitelist.
+
+---
+
+#### GET /projects/{id}/task-types → 200
+
+Tipos de Proceso que ofrece el Espacio, con su ETA, más el interruptor de aprobación por defecto.
+
+**Guard:** el creador del Espacio (`tblprojects.addedfrom`), un Director (cargo de `wiwo_core`), un
+administrador o un superadministrador. El 404 va antes que el 403: un Espacio que no se puede tocar
+no se distingue de uno que no existe.
+
+| Clave | Tipo | Qué es |
+|---|---|---|
+| `aprobacion_requerida_por_defecto` | `bool` | Si los Procesos nuevos del Espacio nacen pidiendo aprobación |
+| `task_types[].id` | `int` | id de `tbltask_types` — el mismo que consume `tasks.task_type` |
+| `task_types[].name` | `string` | |
+| `task_types[].label_color` | `string \| null` | |
+| `task_types[].text_color` | `string \| null` | |
+| `task_types[].order` | `int` | `sort_order` |
+| `task_types[].eta_dias` | `int \| null` | Días hábiles. `null` = sin ETA: el tipo se ofrece pero no compromete plazo |
+
+```json
+{
+  "data": {
+    "aprobacion_requerida_por_defecto": true,
+    "task_types": [
+      { "id": 97, "name": "Bug", "label_color": "#FF5861", "text_color": "#000000", "order": 1, "eta_dias": 3 },
+      { "id": 98, "name": "Feature", "label_color": "#00B6FF", "text_color": "#000000", "order": 2, "eta_dias": null },
+      { "id": 835, "name": "Revisión legal", "label_color": "#e0e0e0", "text_color": "#000000", "order": 4, "eta_dias": 10 }
+    ]
+  }
+}
+```
+
+**Errores:** `404 not_found` si el Espacio no existe; `403 forbidden` si no lo puede configurar.
+
+#### PUT /projects/{id}/task-types → 200
+
+Reemplaza la configuración completa: qué tipos ofrece el Espacio y con qué ETA. Es PUT y no PATCH
+porque la pantalla edita una tabla entera: **lo que no viene, se va.** Todo en una transacción.
+
+| Clave del cuerpo | Tipo | Obligatoria |
+|---|---|---|
+| `task_types` | `array` | sí |
+| `task_types[].id` | `int` | uno de los dos: `id` para reutilizar un tipo existente |
+| `task_types[].name` | `string` (máx. 50) | uno de los dos: `name` para crear uno nuevo |
+| `task_types[].eta_dias` | `int \| null` (0–260) | no; `null` = sin ETA |
+| `aprobacion_requerida_por_defecto` | `bool` | no; si no viene, el ajuste no se toca |
+
+Pasar el `id` de un tipo que hoy usa otro Espacio es lo que "reutiliza un tipo de un Proyecto
+anterior": no duplica el tipo, agrega una fila a la relación. Sacar un tipo de la lista **no rompe
+las tareas que ya lo tenían**: `tasks.task_type` apunta al catálogo, no a la relación — se les cae
+la oferta, no el dato.
+
+```json
+{
+  "aprobacion_requerida_por_defecto": true,
+  "task_types": [
+    { "id": 97, "eta_dias": 3 },
+    { "id": 98, "eta_dias": null },
+    { "name": "Revisión legal", "eta_dias": 10 }
+  ]
+}
+```
+
+Devuelve el mismo cuerpo que el `GET`, ya releído.
+
+**Errores:** `404`/`403` como el `GET`; `409 conflict` con más de 50 tipos;
+`422 validation_failed` con `task_types` ausente (`task_types: ["required"]`), un id inexistente
+(`task_types.N.id: ["exists"]`), un id repetido (`["duplicated"]`), un ETA fuera de rango
+(`task_types.N.eta_dias: ["between:0,260"]`), un tipo nuevo sin nombre (`["required"]`) o
+`aprobacion_requerida_por_defecto` no booleano (`["boolean"]`).
+
+---
+
+#### POST /tasks/{id}/approval → 200
+
+El equipo le pide la aprobación al cliente. Sin cuerpo.
+
+Es **idempotente sobre una aprobación ya pedida**: la vuelve a dejar en `pendiente` con la fecha de
+hoy, que es lo que hace falta después de un rechazo. Reabrirla **borra `resuelta_en`**, o sea que
+detiene el reloj del ETA: mientras el cliente no responda de nuevo, no hay plazo comprometido.
+
+**No manda ningún correo ni webhook.** El aviso se entrega por el canal que el equipo ya usa.
+
+**Guard:** permiso `edit` sobre `tasks` y visibilidad de fila sobre el Proceso.
+
+Devuelve el bloque `approval` (ver arriba).
+
+**Errores:** `403 forbidden` sin `edit tasks`; `404 not_found` si el Proceso no existe o no es
+visible; `409 conflict` si el Proceso no cuelga de un Espacio (`rel_type != "project"`), porque no
+hay cliente a quien pedírsela.
+
+#### POST /portal/tasks/{id}/approval → 200
+
+El contacto del cliente aprueba o rechaza. **Es la única escritura de todo el portal.**
+
+| Clave del cuerpo | Tipo | Obligatoria |
+|---|---|---|
+| `decision` | `"aprobada" \| "rechazada"` | sí |
+| `comentario` | `string` (máx. 2000) | solo al rechazar |
+
+Al aprobar se escribe `resuelta_en` y **ahí nace el reloj del ETA**. Al rechazar también se escribe
+—rechazar es responder— pero el reloj sigue detenido: solo `aprobada` lo arranca.
+
+**Guard:** las tres puertas que el portal ya aplica para listar tareas — el Espacio es del cliente
+del contacto, el Espacio comparte la pestaña de tareas, y la tarea está marcada visible al cliente
+con su hito no oculto. Sin la tercera, un contacto podría aprobar por id una tarea interna.
+
+```json
+{
+  "data": {
+    "requerida": true,
+    "estado": "aprobada",
+    "solicitada_en": "2026-09-04T21:03:00Z",
+    "resuelta_en": "2026-09-04T21:03:00Z",
+    "comentario": "Dale."
+  }
+}
+```
+
+**Errores:** `401 unauthenticated` con un token de staff; `403 forbidden` si el Espacio no comparte
+tareas o el correo del contacto no está verificado (`email_unverified`); `404 not_found` si la tarea
+no es suya o no es visible en su portal; `409 conflict` si no hay aprobación pendiente
+(`"Este proceso no está esperando tu aprobación."`) o si ya fue respondida
+(`"Esta aprobación ya fue respondida."`); `422 validation_failed` con `decision` fuera de las dos
+(`decision: ["in:aprobada,rechazada"]`) o un rechazo sin motivo (`comentario: ["required"]`).
+
+---
+
+#### Ajuste por Espacio
+
+`wiwo_aprobacion_requerida` en `tblproject_settings` (clave/valor, la tabla ya existía y ya se copia
+al duplicar un Espacio). **Ausente = 0**, el mismo criterio del resto de los ajustes de proyecto:
+una opción sin configurar no puede significar "frena todo".
+
+Con el ajuste encendido, `POST /tasks` deja el Proceso nuevo en `estado: "pendiente"` con
+`requerida: true` y sin `solicitada_en` —todavía nadie se la pidió al cliente—, y su `eta` sale
+`null` hasta que lo aprueben. Cambiar el ajuste después **no reescribe** los Procesos que ya
+estaban: el valor vive en la fila de cada uno.
+
+Se lee y se escribe por `GET|PUT /projects/{id}/task-types`, no por un endpoint aparte: es el mismo
+panel de configuración del Espacio.
+
+---
+
+#### Rutas nuevas para `ops-v2/src/datos/rutas.ts`
+
+Sin estas cuatro entradas el BFF rechaza las llamadas:
+
+```
+GET    /projects/{id}/task-types
+PUT    /projects/{id}/task-types
+POST   /tasks/{id}/approval
+POST   /portal/tasks/{id}/approval
+```
+
 ## Tiempo real
 
 `GET /config/realtime` → `{ "data": { "enabled": true, "key": "…", "cluster": "…" } }`
