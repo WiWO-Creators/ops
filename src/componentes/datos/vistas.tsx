@@ -51,7 +51,7 @@ export function TablaProcesos (props: PropsVistaLista<Proceso>) {
         abrirEn={{ clave: PARAMETRO_TAREA, valor: (proceso) => proceso.id }}
         {...props}
       />
-      <ModalTarea />
+      <ModalTarea puedeEditar={props.capacidades?.includes('edit') ?? false} />
     </>
   )
 }

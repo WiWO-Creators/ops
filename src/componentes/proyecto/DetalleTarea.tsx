@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState, type ReactElement, type ReactNode } from 'react'
 import { ArbolDrive } from '@/componentes/archivos/ArbolDrive'
 import { Cargando, ErrorEstado, Vacio } from '@/componentes/estado/Estados'
+import { EnlacePanelClasico } from '@/componentes/presentadores/EnlacePanelClasico'
 import { GrupoAvatares } from '@/componentes/presentadores/Avatar'
 import { Etiquetas } from '@/componentes/presentadores/Etiqueta'
 import { Fecha } from '@/componentes/presentadores/Fecha'
@@ -12,6 +13,7 @@ import { GLOSARIO } from '@/dominio/glosario'
 import { cn } from '@/lib/clases'
 import type { EstadoLookup, Lookups, Proceso } from '@/datos/recursos'
 import type { Sobre } from '@/datos/tipos'
+import { BloqueSla } from './BloqueSla'
 import { CompartirTarea } from './CompartirTarea'
 import { Cronometros } from './Cronometros'
 import { ListaIteraciones } from './ListaIteraciones'
@@ -34,6 +36,8 @@ import { mensajeDeRespuesta, pedirRespuesta } from '@/datos/cliente'
 
 interface PropsDetalleTarea {
   procesoId: number
+  /** `true` si quien mira tiene `edit` sobre tareas. Solo decide si se ofrece pedir la aprobacion. */
+  puedeEditar?: boolean
   className?: string
 }
 
@@ -44,7 +48,7 @@ type Carga =
   | { fase: 'noEncontrada' }
   | { fase: 'error', mensaje: string }
 
-export function DetalleTarea ({ procesoId, className }: PropsDetalleTarea): ReactElement {
+export function DetalleTarea ({ procesoId, puedeEditar = false, className }: PropsDetalleTarea): ReactElement {
   const [carga, setCarga] = useState<Carga>({ fase: 'cargando' })
   const [intento, setIntento] = useState(0)
 
@@ -111,6 +115,8 @@ export function DetalleTarea ({ procesoId, className }: PropsDetalleTarea): Reac
           </Dato>
         </dl>
 
+        <BloqueSla tarea={tarea} puedeEditar={puedeEditar} onCambiado={reintentar} />
+
         <Contadores counts={tarea.counts} />
 
         <section className="flex flex-col gap-2">
@@ -126,6 +132,8 @@ export function DetalleTarea ({ procesoId, className }: PropsDetalleTarea): Reac
         </section>
 
         <Cronometros procesoId={procesoId} />
+
+        <EnlacePanelClasico entidad="proceso" id={procesoId} className="self-start" />
     </div>
   )
 }

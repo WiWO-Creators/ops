@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import type { ReactElement } from 'react'
 import { GrupoAvatares } from '@/componentes/presentadores/Avatar'
+import { Desviacion, EstadoSla } from '@/componentes/presentadores/EstadoSla'
 import { PARAMETRO_TAREA } from '@/componentes/datos/tabla'
 import { PROCESOS } from '@/definiciones/procesos'
 import type { Proceso } from '@/datos/recursos'
@@ -39,6 +40,17 @@ export const PROCESOS_NAVEGABLES: DefinicionRecurso<Proceso> = {
     // lector de pantalla. Es el mismo grupo apilado que ya usan el tablero y la pestaña de Tareas.
     if (columna.clave === 'assignees') {
       return { ...columna, presentar: (proceso: Proceso) => <GrupoAvatares personas={proceso.assignees} /> }
+    }
+
+    // El texto que arma `procesos.ts` sirve para el CSV y para la prueba; en pantalla la desviacion y
+    // el SLA son la senal compartida con el detalle, el tablero y el Inicio, y sale del presentador
+    // unico. Una celda con `null` no dibuja nada y el motor deja la raya.
+    if (columna.clave === 'desviacion') {
+      return { ...columna, presentar: (proceso: Proceso) => <Desviacion dias={proceso.desviacion_dias} /> }
+    }
+
+    if (columna.clave === 'estado_sla') {
+      return { ...columna, presentar: (proceso: Proceso) => <EstadoSla estado={proceso.estado_sla} /> }
     }
 
     return columna

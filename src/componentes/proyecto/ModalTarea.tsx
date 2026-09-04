@@ -24,7 +24,7 @@ import { DetalleTarea } from './DetalleTarea'
  * "atras" la cierra, porque abrirla fue un `push` del historial.
  */
 
-export function ModalTarea (): ReactElement {
+export function ModalTarea ({ puedeEditar = false }: { puedeEditar?: boolean } = {}): ReactElement {
   const router = useRouter()
   const params = useSearchParams()
 
@@ -70,7 +70,7 @@ export function ModalTarea (): ReactElement {
           </CerrarDialogo>
         </div>
 
-        {tareaAbierta !== null && <DetalleTarea procesoId={tareaAbierta} />}
+        {tareaAbierta !== null && <DetalleTarea procesoId={tareaAbierta} puedeEditar={puedeEditar} />}
       </ContenidoDialogo>
     </Dialogo>
   )

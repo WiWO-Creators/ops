@@ -64,9 +64,43 @@ export interface Proceso {
   }
   /** Cronometro abierto de quien mira, o `null`. Es global: una persona tiene a lo sumo uno. */
   timer_activo: { id: number, staff_id: number, start_time: string } | null
+  /**
+   * Fecha comprometida (`YYYY-MM-DD`), derivada del tipo de Proceso en ese Espacio.
+   *
+   * Las cuatro claves de plazo son **opcionales**: si `wiwo_core` no esta instalado, el guard de
+   * tabla del backend las omite enteras y el frontend no dibuja nada. `null` es otra cosa: la clave
+   * llego, pero el Proceso no tiene tipo, el tipo no tiene ETA, o el reloj no arranco.
+   */
+  eta?: string | null
+  /** Dias contra el vencimiento. **Positivo = tarde.** `null` sin `due_date`. */
+  desviacion_dias?: number | null
+  estado_sla?: EstadoSla | null
+  approval?: AprobacionProceso
   /** Solo en el detalle o con `include=description`. */
   description?: string
   custom_fields?: CampoPersonalizado[]
+}
+
+/** Estado del compromiso de plazo. `null` cuando no hay con que compararlo. */
+export type EstadoSla = 'en_plazo' | 'en_riesgo' | 'incumplido'
+
+/**
+ * Aprobacion del cliente sobre un Proceso.
+ *
+ * Las claves nunca faltan; lo que falta es su valor. `resuelta_en` no es un dato mas: es el origen
+ * del reloj del ETA, y por eso reabrir una aprobacion lo borra.
+ *
+ * Las dos claves de autoria son opcionales porque **el portal recibe el bloque podado**: al cliente
+ * no le viaja quien pidio la aprobacion ni el id del contacto que respondio.
+ */
+export interface AprobacionProceso {
+  requerida: boolean
+  estado: 'pendiente' | 'aprobada' | 'rechazada' | null
+  solicitada_en: string | null
+  solicitada_por?: number | null
+  resuelta_en: string | null
+  resuelta_por_contacto?: number | null
+  comentario: string | null
 }
 
 /** Espacio. `project` en Perfex. Ojo con el glosario: "Proyecto" en la interfaz es otra cosa. */
@@ -504,6 +538,21 @@ export interface TipoTarea {
   name: string
   label_color: string | null
   text_color: string | null
+}
+
+/** Un tipo de Proceso tal como lo ofrece un Espacio, con el ETA que compromete. */
+export interface TipoDeProcesoDelEspacio extends TipoTarea {
+  /** `sort_order` del catalogo. */
+  order: number
+  /** Dias habiles. `null` = el tipo se ofrece pero no compromete plazo. */
+  eta_dias: number | null
+}
+
+/** Respuesta de `GET|PUT /projects/{id}/task-types`: el panel de configuracion del Espacio. */
+export interface ConfiguracionTiposEspacio {
+  /** Si los Procesos nuevos del Espacio nacen pidiendo el visto bueno del cliente. */
+  aprobacion_requerida_por_defecto: boolean
+  task_types: TipoDeProcesoDelEspacio[]
 }
 
 /**

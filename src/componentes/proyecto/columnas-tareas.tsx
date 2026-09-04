@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import { GrupoAvatares } from '@/componentes/presentadores/Avatar'
 import { Etiquetas } from '@/componentes/presentadores/Etiqueta'
+import { Desviacion, EstadoSla } from '@/componentes/presentadores/EstadoSla'
 import { Fecha } from '@/componentes/presentadores/Fecha'
 import { Insignia } from '@/componentes/presentadores/Insignia'
 import { leerError } from '@/datos/errores'
@@ -239,6 +240,21 @@ export function definicionDeTareas ({
       encabezado: 'Fecha de vencimiento',
       ordenPor: 'due_date',
       presentar: (proceso) => <Fecha valor={proceso.due_date} comoVencimiento />
+    },
+    // Las tres del compromiso de plazo van pegadas a "Fecha de vencimiento": se leen contra ella.
+    // Sin `wiwo_core` el backend no manda las claves y las celdas quedan en raya, nunca en cero.
+    { clave: 'eta', encabezado: 'ETA', ordenPor: 'eta', presentar: (proceso) => <Fecha valor={proceso.eta ?? null} /> },
+    {
+      clave: 'desviacion',
+      encabezado: 'Desviación',
+      ordenPor: 'desviacion',
+      numerica: true,
+      presentar: (proceso) => <Desviacion dias={proceso.desviacion_dias} />
+    },
+    {
+      clave: 'estado_sla',
+      encabezado: 'SLA',
+      presentar: (proceso) => <EstadoSla estado={proceso.estado_sla} />
     },
     {
       clave: 'assignees',

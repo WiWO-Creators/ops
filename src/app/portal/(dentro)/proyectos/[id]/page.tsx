@@ -2,11 +2,12 @@ import type { Metadata } from 'next'
 import { cache } from 'react'
 import { Pestanas, type Panel } from '@/componentes/proyecto/Pestanas'
 import { ErrorApi } from '@/datos/errores'
-import type { EspacioPortal } from '@/datos/portal'
+import type { EspacioPortal, TareaPortal } from '@/datos/portal'
 import { pestaniasDelProyecto } from '@/definiciones/portal-proyectos'
 import { BarraProgreso } from '@/componentes/proyecto/CabeceraProyecto'
 import { formatearFecha } from '@/lib/fechas'
 import { cargarDetalle, EstadoDeError, EstadoDelPortal, Volver } from '../../detalle'
+import { AprobacionesPendientes } from './AprobacionesPendientes'
 import {
   PanelArchivos,
   PanelHitos,
@@ -49,6 +50,7 @@ export default async function ProyectoPagina (props: PageProps<'/portal/proyecto
   // Las pestañas salen de lo que dijo la API, nunca de una lista fija: cada proyecto comparte cosas
   // distintas, y adivinar significaria dibujar pestañas que responden 403 al abrirlas.
   const pestanias = pestaniasDelProyecto(proyecto.tabs ?? [])
+  const pendientes = await cargarPendientes(proyecto)
 
   const paneles: Panel[] = pestanias.map(({ clave, etiqueta }) => ({
     clave,
@@ -81,6 +83,10 @@ export default async function ProyectoPagina (props: PageProps<'/portal/proyecto
         )}
       </header>
 
+      {pendientes.length > 0 && (
+        <AprobacionesPendientes proyectoId={proyecto.id} tareas={pendientes} />
+      )}
+
       {paneles.length > 0 ? <Pestanas paneles={paneles} /> : <PanelResumen proyecto={proyecto} />}
     </div>
   )
@@ -108,4 +114,25 @@ function contenidoDePestania (clave: string, proyecto: EspacioPortal): React.Rea
     default:
       return <PanelResumen proyecto={proyecto} />
   }
+}
+
+/**
+ * Las tareas de este proyecto que esperan el visto bueno del contacto.
+ *
+ * Se pide solo si el proyecto comparte la pestaña de tareas: sin ella la API responde 403, y un error
+ * por un bloque que probablemente este vacio no puede tumbar la pantalla entera. Cualquier fallo
+ * —incluido el 404 del guard de tabla, cuando `wiwo_core` no esta instalado— devuelve lista vacia y
+ * el bloque no se dibuja.
+ *
+ * El filtro `aprobacion` es del backend: filtrar en el cliente traeria las cien tareas del proyecto
+ * para mostrar dos.
+ */
+async function cargarPendientes (proyecto: EspacioPortal): Promise<TareaPortal[]> {
+  if (!(proyecto.tabs ?? []).includes('tasks')) return []
+
+  const sobre = await cargarDetalle<TareaPortal[]>(
+    `/portal/projects/${proyecto.id}/tasks?filter[aprobacion]=pendiente&per_page=50`
+  )
+
+  return sobre instanceof ErrorApi ? [] : sobre.data
 }
