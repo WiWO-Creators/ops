@@ -25,6 +25,12 @@ test('notifications pasa para staff: campana, preferencias y el interruptor de c
   assert.equal(rutaPermitida(['notifications'], 'contacto'), false)
 })
 
+test('settings pasa para staff y no para el portal', () => {
+  // Mismo criterio que `notifications`: la API filtra por admin, el BFF solo dice si la ruta existe.
+  assert.equal(rutaPermitida(['settings']), true)
+  assert.equal(rutaPermitida(['settings'], 'contacto'), false)
+})
+
 test('auth NO pasa: los tokens solo los ve /api/sesion', () => {
   assert.equal(rutaPermitida(['auth', 'login']), false)
   assert.equal(rutaPermitida(['auth', 'refresh']), false)

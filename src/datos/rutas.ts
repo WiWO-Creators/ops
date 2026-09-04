@@ -51,6 +51,11 @@ const PREFIJOS_PERMITIDOS = [
   // visor de la cola. La API ya filtra `/settings` y `/mail-queue` por admin; el BFF solo decide si
   // la ruta existe, no quien puede pisarla.
   'notifications',
+  // Ajustes de la instalacion (`GET /settings`, `PATCH /settings`). La API ya exige admin del otro
+  // lado —la comprobacion vive junto a la whitelist de claves, en `Escritura\Ajuste::escribir()`—;
+  // el BFF solo decide si la ruta existe, no quien puede pisarla. El portal no la lleva: un contacto
+  // no configura la instalacion.
+  'settings',
   // Presets personales de filtro de los tableros kanban (tareas e hitos). Privados por staff del
   // lado de la API; el portal no tiene tableros y no los necesita.
   'filter-presets'

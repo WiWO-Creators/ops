@@ -1,3 +1,4 @@
+import { leerError } from './errores.ts'
 import type { StaffReferencia } from './tipos.ts'
 
 /**
@@ -7,6 +8,9 @@ import type { StaffReferencia } from './tipos.ts'
  * Renombrarlos aca obligaria a mantener dos vocabularios y a traducir en cada consulta.
  *
  * Fuente: `docs/contrato-api.md` y las fichas de `docs/modulos/`.
+ *
+ * Es un archivo de tipos salvo por las escrituras del final, que pasan por el BFF y por lo tanto
+ * corren en el navegador. Nada de aca puede importar `server-only`: media aplicacion lo importa.
  */
 
 export interface Etiqueta {
@@ -921,4 +925,112 @@ export interface PresetFiltro {
   name: string
   filters: Record<string, string[]>
   date_created: string
+}
+
+// --- Ajustes de la instalacion (`GET /settings`, `PATCH /settings`) ------------------------------
+
+/**
+ * Tipos de dominio que la API publica para cada opcion editable.
+ *
+ * Son los de `Escritura\Ajuste::EDITABLES`, no los de JavaScript: `entero` viaja como numero,
+ * `enum` y `rol` como texto —son claves de un selector, no valores calculables— y `texto` es una
+ * cadena libre. Estan enumerados para que un `switch` sobre `type` sea exhaustivo: si el backend
+ * agrega un tipo nuevo, el compilador marca los lugares que no lo contemplan en vez de dejar que la
+ * pantalla dibuje un control equivocado en silencio.
+ */
+export type TipoDeAjuste = 'bool' | 'entero' | 'enum' | 'rol' | 'texto'
+
+/**
+ * Una opcion editable con su dominio, tal como la publica `Recursos\RecursoAjustes::presentar()`.
+ *
+ * `value` es `null` cuando la opcion todavia no tiene fila en `tbloptions` — la API lo devuelve
+ * explicitamente, no ausente, para que la pantalla pueda mostrar el campo vacio y escribirlo.
+ *
+ * `min`/`max` solo viajan en `entero` y `options` solo en `enum`: por eso son opcionales y no
+ * `null`. La forma del valor depende del tipo y esa union no se puede estrechar sola, asi que quien
+ * lea un ajuste usa los lectores de `ajustes.ts` en vez de castear.
+ */
+export interface AjusteEditable {
+  group: string
+  type: TipoDeAjuste
+  value: string | number | boolean | null
+  min?: number
+  max?: number
+  options?: string[]
+}
+
+/**
+ * El cuerpo de `GET /settings` y tambien el de la respuesta de `PATCH /settings`.
+ *
+ * `readonly` son los seis valores de formato que cualquiera necesita para pintar —fecha, hora,
+ * separadores, zona— y que la API sirve pero no deja escribir. La lectura pide sesion y nada mas; la
+ * escritura exige administrador.
+ */
+export interface Ajustes {
+  editable: Record<string, AjusteEditable>
+  readonly: Record<string, string | null>
+}
+
+/**
+ * Lo que acepta el cuerpo de `PATCH /settings`: un objeto plano `clave -> valor`, sin envoltorio.
+ *
+ * Se escriben unicamente las claves PRESENTES, asi que mandar solo lo que cambio es lo correcto y no
+ * una optimizacion. Una clave fuera de la whitelist —o de solo lectura— corta la operacion entera
+ * con 422 antes de tocar la base: no hay escritura a medias.
+ */
+export type CambiosDeAjustes = Record<string, string | number | boolean>
+
+/**
+ * Resultado de escribir ajustes. El error es un valor, no una excepcion: el formulario que lo
+ * provoca tiene que poder mostrarlo sin desmontarse.
+ *
+ * `detalles` es el `details` del 422 —`{ clave: ['no_editable' | 'invalid'] }`— y viaja aparte del
+ * mensaje porque el de la API es uno solo para todo el cuerpo ("Hay ajustes que no se pueden
+ * escribir"): sin el detalle, quien administra no sabe cual de las claves fue.
+ */
+export type ResultadoDeAjustes =
+  | { ok: true, ajustes: Ajustes }
+  | { ok: false, mensaje: string, detalles: Record<string, string[]> }
+
+/**
+ * Escribe ajustes por el BFF (`PATCH /settings`).
+ *
+ * No usa `escribirEnBff()` por una sola razon: ese helper reduce el error a un mensaje y pierde el
+ * `details` del 422, que aca es la unica forma de saber que clave rechazo la whitelist.
+ *
+ * La lectura no esta en este archivo sino en `ajustes.ts`: necesita `pedir()`, que es `server-only`,
+ * y a `recursos.ts` lo importan tambien componentes de cliente.
+ *
+ * @param cambios Solo las claves que cambiaron. La API escribe unicamente las presentes, y rechaza
+ *                el cuerpo entero —sin escribir nada— si alguna no esta en la whitelist.
+ * @returns Los ajustes releidos por la API, o el error ya legible con su detalle por campo.
+ */
+export async function guardarAjustes (cambios: CambiosDeAjustes): Promise<ResultadoDeAjustes> {
+  let respuesta: Response
+
+  try {
+    respuesta = await fetch('/api/bff/settings', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(cambios)
+    })
+  } catch {
+    return { ok: false, mensaje: 'No se pudo contactar al servidor. Revisá tu conexión.', detalles: {} }
+  }
+
+  if (!respuesta.ok) {
+    const error = await leerError(respuesta)
+
+    return { ok: false, mensaje: error.message, detalles: error.details ?? {} }
+  }
+
+  try {
+    const sobre = await respuesta.json() as { data: Ajustes }
+
+    return { ok: true, ajustes: sobre.data }
+  } catch {
+    // La API responde el cuerpo completo tambien en el PATCH. Si no llego, la escritura igual ocurrio:
+    // decir que fallo mandaria a repetirla.
+    return { ok: false, mensaje: 'Los ajustes se guardaron, pero la respuesta no se pudo leer. Recargá la pantalla.', detalles: {} }
+  }
 }

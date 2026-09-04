@@ -109,9 +109,10 @@ function seccionesDe (yo: Yo): Seccion[] {
   }
 
   // Administracion no tiene permiso de Perfex propio: la API exige `is_admin` en cada una de sus
-  // rutas (hoy solo avisos por correo), asi que la barra usa la misma llave.
+  // rutas —avisos por correo, y la escritura de `/settings`—, asi que la barra usa la misma llave.
   if (yo.is_admin) {
     secciones.push({ href: '/administracion/correo', etiqueta: 'Avisos por correo', icono: 'administracion' })
+    secciones.push({ href: '/administracion/acceso', etiqueta: 'Acceso con Google', icono: 'administracion' })
   }
 
   return secciones
