@@ -166,6 +166,24 @@ que nada en el servidor parezca fallar.
 
 Revoca el token actual. `?all=1` revoca todas las sesiones del staff. → `204`.
 
+### `POST /impersonate`
+
+Abre una sesión **como otra persona**. Sólo superadministrador (`403` para el resto, incluido un
+`is_admin`). Cuerpo: `{ "staff_id": 53 }`.
+
+Responde `201` con exactamente la misma forma que `POST /auth/login`: el par de tokens más el bloque
+`staff` de la persona suplantada. La sesión emitida es indistinguible de un login normal —misma vida,
+mismo refresco—, así que la única huella queda en `tblactivity_log`, donde se anota antes de emitirla.
+
+Errores: `422` si el `staff_id` falta, es el propio, o es una cuenta dada de baja; `404` si no existe.
+
+**Prefijo propio y NO `staff/{id}/actions/…` a propósito.** El BFF de `ops-v2` reenvía por prefijo y
+`staff` está en su lista blanca: colgarla de ahí dejaría el par de tokens al alcance del JavaScript
+del navegador. Con prefijo propio, y sin agregarlo a `datos/rutas.ts`, la ruta sólo la puede llamar
+el servidor de Next — que es quien guarda la sesión real en su propia cookie para poder volver.
+
+Tampoco va bajo `/auth`: esa rama se atiende sin token, y ésta necesita saber quién pide.
+
 ### `GET /me`
 
 ```json

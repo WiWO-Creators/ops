@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { Suspense, cache } from 'react'
 import { AccionesPersona } from '@/componentes/equipo/AccionesPersona'
+import { BotonSuplantar } from '@/componentes/equipo/BotonSuplantar'
 import { CabeceraPersona } from '@/componentes/equipo/CabeceraPersona'
 import { DialogoPermisos } from '@/componentes/equipo/DialogoPermisos'
 import { DialogoRoles } from '@/componentes/equipo/DialogoRoles'
@@ -201,6 +202,11 @@ export default async function PersonaPage (props: PageProps<'/equipo/[id]'>) {
           <AccionesPersona persona={persona} roles={roles} cargos={cargos} areas={areas} capacidades={capacidades} enFicha />
           {/* Solo un superadministrador reparte los roles: la API rechaza al resto con 422. */}
           {yo.is_superadmin && <DialogoRoles persona={persona} actorId={yo.id} />}
+          {/* Ver el panel con la sesion de esta persona. Misma puerta que los roles —la API exige
+              superadministrador— y sin sentido sobre uno mismo, asi que en la ficha propia no va. */}
+          {yo.is_superadmin && persona.id !== yo.id && (
+            <BotonSuplantar personaId={persona.id} nombre={persona.firstname} activa={persona.active} />
+          )}
           {catalogoDePermisos !== null && (
             <DialogoPermisos
               persona={persona}

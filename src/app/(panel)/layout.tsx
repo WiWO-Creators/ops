@@ -1,10 +1,12 @@
 import Link from 'next/link'
 import { pedir } from '@/datos/servidor'
+import { leerSuplantador } from '@/datos/sesion'
 import type { Yo } from '@/datos/tipos'
 import { GLOSARIO } from '@/dominio/glosario'
 import { puedeVerSeccion } from '@/dominio/permisos'
 import { SelectorTema } from '@/componentes/estructura/SelectorTema'
 import { BarraLateral, BarraLateralMovil, type Seccion } from '@/componentes/estructura/BarraLateral'
+import { BarraSuplantacion } from '@/componentes/estructura/BarraSuplantacion'
 import { Logo } from '@/componentes/estructura/Logo'
 import { Avatar } from '@/componentes/presentadores/Avatar'
 import { ScrollSuave } from '@/componentes/estructura/ScrollSuave'
@@ -24,37 +26,46 @@ import { BotonSalir } from './BotonSalir'
 export default async function PanelLayout ({ children }: { children: React.ReactNode }) {
   const { data: yo } = await pedir<Yo>('/me')
   const secciones = seccionesDe(yo)
+  // La cookie de la sesion real es la unica señal de que esto es una suplantacion. `/me` no puede
+  // decirlo: la API emite la sesion prestada igual que un login normal, a proposito.
+  const suplantando = await leerSuplantador() !== null
 
   return (
     // `h-dvh` y no `min-h-dvh`: el armazon mide exactamente la ventana para que el scroll ocurra
     // dentro de `main` y la barra lateral y la cabecera queden fijas. Con `min-h` el armazon crece
     // con el contenido, y como el `body` no scrollea, lo que sobresale queda inalcanzable.
     //
-    // `aurora` va aca y no en cada pantalla: es el lienzo del panel, no un adorno de la portada. Su
-    // capa es un `::before` fijo detras de todo (`globals.css`), asi que no ocupa lugar ni cambia la
-    // maqueta de ninguna de las ocho pantallas — solo les pone luz debajo. La barra lateral y la
-    // cabecera no llevan fondo propio a proposito: comparten el lienzo, y una barra de otro color
-    // partiria la ventana en dos mundos.
-    <div className="aurora flex h-dvh overflow-hidden">
+    // La columna externa existe para que la franja de suplantacion quede fija arriba de todo: el
+    // armazon de abajo mide lo que sobra, asi que sin franja se ve exactamente igual que antes.
+    <div className="flex h-dvh flex-col overflow-hidden">
+      {suplantando && <BarraSuplantacion nombre={yo.full_name} />}
 
-      <BarraLateral secciones={secciones} />
+      {/* `aurora` va aca y no en cada pantalla: es el lienzo del panel, no un adorno de la portada.
+          Su capa es un `::before` fijo detras de todo (`globals.css`), asi que no ocupa lugar ni
+          cambia la maqueta de ninguna de las ocho pantallas — solo les pone luz debajo. La barra
+          lateral y la cabecera no llevan fondo propio a proposito: comparten el lienzo, y una barra
+          de otro color partiria la ventana en dos mundos. */}
+      <div className="aurora flex min-h-0 flex-1 overflow-hidden">
 
-      <div className="flex min-w-0 flex-1 flex-col">
-        <header className="border-linea flex h-14 shrink-0 items-center gap-3 border-b px-4">
-          {/* Solo en movil: desde `md` el logo encabeza la barra lateral, y dos logos en pantalla
-              serian la misma marca dicha dos veces. */}
-          <Link href="/inicio" aria-label="Inicio" className="min-w-0 md:hidden">
-            <Logo tamano="medio" />
-          </Link>
-          <BarraLateralMovil secciones={secciones} />
-          <SelectorTema className="ml-auto" />
-          <Avatar nombre={yo.full_name} imagen={yo.profile_image_url} />
-          <BotonSalir />
-        </header>
-        {/* El unico contenedor de scroll vertical del armazon. `min-h-0` es lo que se lo permite:
-            sin el, un hijo flex no baja de su altura de contenido y `overflow-y` no llega a actuar.
-            `ScrollSuave` pone el `overflow-y` y el `<main>`; aca solo queda como se mide y se rellena. */}
-        <ScrollSuave className="min-h-0 min-w-0 flex-1 p-4">{children}</ScrollSuave>
+        <BarraLateral secciones={secciones} />
+
+        <div className="flex min-w-0 flex-1 flex-col">
+          <header className="border-linea flex h-14 shrink-0 items-center gap-3 border-b px-4">
+            {/* Solo en movil: desde `md` el logo encabeza la barra lateral, y dos logos en pantalla
+                serian la misma marca dicha dos veces. */}
+            <Link href="/inicio" aria-label="Inicio" className="min-w-0 md:hidden">
+              <Logo tamano="medio" />
+            </Link>
+            <BarraLateralMovil secciones={secciones} />
+            <SelectorTema className="ml-auto" />
+            <Avatar nombre={yo.full_name} imagen={yo.profile_image_url} />
+            <BotonSalir />
+          </header>
+          {/* El unico contenedor de scroll vertical del armazon. `min-h-0` es lo que se lo permite:
+              sin el, un hijo flex no baja de su altura de contenido y `overflow-y` no llega a actuar.
+              `ScrollSuave` pone el `overflow-y` y el `<main>`; aca solo queda como se mide y se rellena. */}
+          <ScrollSuave className="min-h-0 min-w-0 flex-1 p-4">{children}</ScrollSuave>
+        </div>
       </div>
     </div>
   )
