@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { Boton } from '@/componentes/formularios/Boton'
 import { Campo } from '@/componentes/formularios/Campo'
-import { Entrada } from '@/componentes/formularios/Entrada'
+import { CLASES_CASILLA, Entrada } from '@/componentes/formularios/Entrada'
 import { CerrarDialogo, ContenidoDialogo, Dialogo } from '@/componentes/superposiciones/Dialogo'
 import { escribirEnBff } from '@/componentes/datos/mutaciones'
 import {
@@ -19,9 +19,6 @@ interface PropsDialogoContacto {
   onCerrar: () => void
   onGuardado: () => void
 }
-
-/** Clases de una casilla nativa. Nativa y no una primitiva: es una casilla, no un control nuevo. */
-const CASILLA = 'size-4 shrink-0 accent-[var(--color-acento)] cursor-pointer'
 
 /**
  * Alta y edicion de un contacto de cliente.
@@ -203,7 +200,7 @@ export function DialogoContacto ({ clienteId, contacto, onCerrar, onGuardado }: 
                     <label className="text-texto flex cursor-pointer items-center gap-2 text-sm">
                       <input
                         type="checkbox"
-                        className={CASILLA}
+                        className={CLASES_CASILLA}
                         checked={permisos.includes(permiso.clave)}
                         onChange={() => alternarPermiso(permiso.clave)}
                       />
@@ -230,7 +227,7 @@ export function DialogoContacto ({ clienteId, contacto, onCerrar, onGuardado }: 
                   <label className="text-texto flex cursor-pointer items-center gap-2 text-sm">
                     <input
                       type="checkbox"
-                      className={CASILLA}
+                      className={CLASES_CASILLA}
                       checked={avisos[aviso.clave]}
                       onChange={() => setAvisos({ ...avisos, [aviso.clave]: !avisos[aviso.clave] })}
                     />

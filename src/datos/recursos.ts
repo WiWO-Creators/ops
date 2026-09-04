@@ -208,6 +208,20 @@ export interface FichaPersona extends MiembroEquipo {
   counts: { tareas_abiertas: number, espacios: number }
 }
 
+/**
+ * Un area de `GET /roles/catalogo`: la lista de features y capacidades con la que Perfex arma su
+ * formulario de permisos.
+ *
+ * Es el catalogo de lo que se **puede escribir**, que es mas grande que el que la API lee en `/me`.
+ * Se pide para dibujar la matriz en vez de copiarla en el frontend: una feature nueva del panel
+ * aparece sola, y una que se va deja de ofrecerse.
+ */
+export interface AreaDeCatalogo {
+  feature: string
+  name: string
+  capabilities: Array<{ key: string, name: string }>
+}
+
 /** Una columna del tablero, tal como la declara `lookups`. */
 export interface EstadoLookup {
   id: number

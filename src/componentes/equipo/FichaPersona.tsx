@@ -6,53 +6,7 @@ import { Metrica } from '@/componentes/proyecto/ResumenProyecto'
 import { formatearImporte, segundosAHoraMinuto } from '@/componentes/proyecto/formatos'
 import { formatearFecha } from '@/lib/fechas'
 import type { FichaPersona as Persona } from '@/datos/recursos'
-
-/**
- * Nombre en español de cada area de permisos.
- *
- * Las claves son las features de la API (`helpers/staff_helper.php`), y se traducen aca porque son lo
- * unico de la ficha que llega en ingles. Una feature que la API agregue y este mapa no conozca se
- * muestra con su clave cruda: es feo, pero es cierto, y no esconde un permiso que la persona tiene.
- */
-const AREAS: Record<string, string> = {
-  tasks: 'Tareas',
-  projects: 'Proyectos',
-  customers: 'Clientes',
-  staff: 'Equipo',
-  invoices: 'Facturas',
-  payments: 'Pagos',
-  estimates: 'Cotizaciones',
-  proposals: 'Propuestas',
-  expenses: 'Gastos',
-  contracts: 'Contratos',
-  leads: 'Prospectos',
-  tickets: 'Tickets',
-  items: 'Ítems',
-  // Estas cuatro no estan en el catalogo de la API: las escriben modulos del panel viejo, y aparecen
-  // igual en `tblstaff_permissions` de gente real.
-  knowledge_base: 'Base de conocimiento',
-  reports: 'Reportes',
-  goals: 'Metas',
-  prchat: 'Chat interno'
-}
-
-/** Nombre en español de cada capacidad. Misma regla que `AREAS` con las que no estan. */
-const CAPACIDADES: Record<string, string> = {
-  view: 'ver',
-  view_own: 'ver lo propio',
-  create: 'crear',
-  edit: 'editar',
-  delete: 'borrar',
-  create_milestones: 'crear hitos',
-  edit_milestones: 'editar hitos',
-  delete_milestones: 'borrar hitos',
-  edit_timesheet: 'editar horas',
-  edit_own_timesheet: 'editar sus horas',
-  delete_timesheet: 'borrar horas',
-  delete_own_timesheet: 'borrar sus horas',
-  view_all_templates: 'ver todas las plantillas',
-  'view-timesheets': 'ver hojas de horas'
-}
+import { AREAS, CAPACIDADES } from './permisos'
 
 /**
  * Todo lo que la API sabe de una persona, agrupado por para que sirve.
