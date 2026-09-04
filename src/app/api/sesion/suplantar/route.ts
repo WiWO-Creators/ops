@@ -43,7 +43,7 @@ export async function POST (peticion: NextRequest): Promise<NextResponse> {
   // terminaria en la cuenta equivocada. Se corta acá en vez de anidar: nadie necesita dos saltos.
   if (await leerSuplantador() !== null) {
     return NextResponse.json(
-      { mensaje: 'Ya estás viendo el panel como otra persona. Volvé a tu cuenta primero.' },
+      { mensaje: 'Ya estás viendo el panel como otra persona. Vuelve a tu cuenta primero.' },
       { status: 409 }
     )
   }
