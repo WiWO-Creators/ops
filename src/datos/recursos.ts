@@ -338,6 +338,16 @@ export type RolPermisoDrive = 'writer' | 'commenter' | 'reader'
 export type SujetoPermisoDrive = 'staff' | 'contact'
 
 /**
+ * Si Drive llego a dar el acceso o no.
+ *
+ * `sin_cuenta_google` es la unica falla que el backend no puede resolver solo: Google rechaza
+ * compartir con un correo que no tiene cuenta salvo que se le mande su correo de notificacion, y
+ * este panel no lo manda nunca. El backend lo reintenta en cada sincronizacion, asi que la fila se
+ * arregla sola el dia que esa persona crea la cuenta.
+ */
+export type EstadoPermisoDrive = 'otorgado' | 'sin_cuenta_google'
+
+/**
  * Fila de `GET /drive/{folder_id}/permissions`: el acceso real que esa persona tiene hoy en Drive.
  *
  * No es una intencion local ni una lista aparte. El backend la sincroniza solo —en una Tarea el
@@ -353,6 +363,8 @@ export interface PermisoDrive {
   role: RolPermisoDrive
   /** Ausente mientras el backend no lo emita: una fila sin esto se lee como del equipo. */
   subject_type?: SujetoPermisoDrive
+  /** Ausente mientras el backend no lo emita: una fila sin esto se lee como acceso otorgado. */
+  estado?: EstadoPermisoDrive
 }
 
 /** Respuesta de `GET|PATCH /clients/{id}/drive`. `folder: null` es un Cliente sin backfill, no un error. */
