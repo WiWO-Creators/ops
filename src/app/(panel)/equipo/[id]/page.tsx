@@ -3,6 +3,7 @@ import { Suspense, cache } from 'react'
 import { AccionesPersona } from '@/componentes/equipo/AccionesPersona'
 import { CabeceraPersona } from '@/componentes/equipo/CabeceraPersona'
 import { DialogoPermisos } from '@/componentes/equipo/DialogoPermisos'
+import { DialogoRoles } from '@/componentes/equipo/DialogoRoles'
 import { FichaPersona } from '@/componentes/equipo/FichaPersona'
 import { PanelArchivosPersona } from '@/componentes/equipo/PanelArchivosPersona'
 import { PanelHistorialPersona } from '@/componentes/equipo/PanelHistorialPersona'
@@ -198,6 +199,8 @@ export default async function PersonaPage (props: PageProps<'/equipo/[id]'>) {
         <CabeceraPersona persona={persona} />
         <div className="flex flex-wrap items-center gap-2">
           <AccionesPersona persona={persona} roles={roles} cargos={cargos} areas={areas} capacidades={capacidades} enFicha />
+          {/* Solo un superadministrador reparte los roles: la API rechaza al resto con 422. */}
+          {yo.is_superadmin && <DialogoRoles persona={persona} actorId={yo.id} />}
           {catalogoDePermisos !== null && (
             <DialogoPermisos
               persona={persona}
