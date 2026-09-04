@@ -110,9 +110,11 @@ function seccionesDe (yo: Yo): Seccion[] {
     secciones.push({ href: '/equipo/mi-area', etiqueta: 'Mi Área', icono: 'mi_area' })
   }
 
-  // Administracion no tiene permiso de Perfex propio: la API exige `is_admin` en cada una de sus
-  // rutas —avisos por correo, y la escritura de `/settings`—, asi que la barra usa la misma llave.
-  if (yo.is_admin) {
+  // Administracion no tiene permiso de Perfex propio, y `is_admin` es demasiado ancha: en la base
+  // hay una docena de staff marcados admin. La API exige `is_superadmin` en cada una de sus rutas
+  // —avisos por correo, la escritura de `/settings`, el diagnostico de Google y la auditoria—, asi
+  // que la barra usa la misma llave. Esconder el enlace es cosmetica: la compuerta esta en el back.
+  if (yo.is_superadmin) {
     secciones.push({ href: '/administracion/correo', etiqueta: 'Avisos por correo', icono: 'administracion' })
     secciones.push({ href: '/administracion/acceso', etiqueta: 'Acceso con Google', icono: 'administracion' })
   }
