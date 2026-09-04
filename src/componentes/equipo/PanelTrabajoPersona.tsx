@@ -6,7 +6,7 @@ import { CeldaEncabezado, CeldaTabla, CuerpoTabla, EncabezadoTabla, FilaTabla, T
 import { Cargando, ErrorEstado, Vacio } from '@/componentes/estado/Estados'
 import { Fecha } from '@/componentes/presentadores/Fecha'
 import { Insignia } from '@/componentes/presentadores/Insignia'
-import { PARAMETRO_TAREA } from '@/componentes/proyecto/CajonTarea'
+import { PARAMETRO_TAREA } from '@/componentes/datos/tabla'
 import { pedirSobre } from '@/datos/cliente'
 import { GLOSARIO } from '@/dominio/glosario'
 import type { EstadoLookup, Espacio, Proceso } from '@/datos/recursos'

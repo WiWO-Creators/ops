@@ -18,7 +18,7 @@ import { Tarjeta, type TonoTarjeta } from '@/componentes/estructura/Tarjeta'
 import { Insignia } from '@/componentes/presentadores/Insignia'
 import { Fecha } from '@/componentes/presentadores/Fecha'
 import { PARAMETRO_TAREA } from '@/componentes/datos/tabla'
-import { ModalTarea } from '@/componentes/proyecto/CajonTarea'
+import { ModalTarea } from '@/componentes/proyecto/ModalTarea'
 import { CronometroAbierto } from './CronometroAbierto'
 
 /**

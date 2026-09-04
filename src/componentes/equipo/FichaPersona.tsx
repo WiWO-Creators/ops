@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { Filas, Seccion, type Dato } from '@/componentes/presentadores/Ficha'
 import { Insignia } from '@/componentes/presentadores/Insignia'
-import { PARAMETRO_TAREA } from '@/componentes/proyecto/CajonTarea'
+import { PARAMETRO_TAREA } from '@/componentes/datos/tabla'
 import { Metrica } from '@/componentes/proyecto/ResumenProyecto'
 import { ResumenTareasPersona } from './ResumenTareasPersona'
 import { formatearImporte, segundosAHoraMinuto } from '@/componentes/proyecto/formatos'

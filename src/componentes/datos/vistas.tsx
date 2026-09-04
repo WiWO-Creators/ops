@@ -1,6 +1,7 @@
 'use client'
 
-import { ModalTarea, PARAMETRO_TAREA } from '@/componentes/proyecto/CajonTarea'
+import { ModalTarea } from '@/componentes/proyecto/ModalTarea'
+import { PARAMETRO_TAREA } from '@/componentes/datos/tabla'
 import { PROCESOS_NAVEGABLES } from './procesos-navegables'
 import { TablaRecurso } from './TablaRecurso'
 import { TableroFiltrable } from './TableroFiltrable'

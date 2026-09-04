@@ -18,7 +18,7 @@ import type {
 } from '@/datos/recursos'
 import type { Capacidad } from '@/datos/tipos'
 import { AccionesMasivasTareas } from './AccionesMasivasTareas'
-import { ModalTarea } from './CajonTarea'
+import { ModalTarea } from './ModalTarea'
 import { FormularioTarea } from './FormularioTarea'
 import { ResumenEstadosTareas } from './ResumenEstadosTareas'
 import { TarjetaTarea } from './TarjetaTarea'

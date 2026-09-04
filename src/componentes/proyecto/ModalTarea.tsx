@@ -24,9 +24,6 @@ import { DetalleTarea } from './DetalleTarea'
  * "atras" la cierra, porque abrirla fue un `push` del historial.
  */
 
-/** Se reexporta desde aca porque es donde lo buscan los listados que abren el detalle. */
-export { PARAMETRO_TAREA }
-
 export function ModalTarea (): ReactElement {
   const router = useRouter()
   const params = useSearchParams()
