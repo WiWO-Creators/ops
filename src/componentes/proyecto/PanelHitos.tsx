@@ -131,6 +131,7 @@ function HitosDelProyecto ({ proyecto, capacidades }: PropsPanelHitos): ReactEle
             capacidades={capacidades}
             barra={barra}
             revision={revision}
+            board="milestones-tabla"
           />
           )
         : (

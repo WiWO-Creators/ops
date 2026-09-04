@@ -27,9 +27,23 @@ export const HITOS: DefinicionRecurso<HitoDetallado> = {
     { clave: 'avance', encabezado: 'Avance', presentar: (h) => `${h.counts.tasks_done}/${h.counts.tasks}` }
   ],
 
-  filtros: [],
+  /**
+   * Las tres cosas que el backend acepta filtrar sobre un hito (`RecursoHitos::consulta()`).
+   *
+   * El rango es UN filtro con dos claves, no dos filtros: `filter[date_from]` y `filter[date_to]`
+   * viajan por separado pero caen sobre la misma columna (`due_date`), y declararlos sueltos pinta
+   * dos controles de rango y manda `filter[date_from]=a,b`, que el backend lee como `IN`.
+   *
+   * `hide_from_customer` no es una columna de la tabla, pero es la pregunta que el equipo se hace
+   * seguido —"que hitos ve el cliente"— y es una columna real de `tblmilestones`, no un calculo.
+   */
+  filtros: [
+    { clave: 'vence', etiqueta: 'Vence', tipo: 'rangoFechas', clavesRango: ['date_from', 'date_to'] },
+    { clave: 'hide_from_customer', etiqueta: 'Oculto al cliente', tipo: 'booleano' }
+  ],
+  // El avance queda fuera: sale de dos subconsultas de conteo y el backend no lo ordena.
   ordenables: ['name', 'start_date', 'due_date', 'order'],
   ordenPorDefecto: 'order',
-  busqueda: false,
+  busqueda: true,
   includes: []
 }

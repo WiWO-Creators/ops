@@ -39,6 +39,7 @@ export function TablaProyectos ({ inicial, capacidades, opcionesDeFiltro, campos
       inicial={inicial}
       capacidades={capacidades}
       opcionesDeFiltro={opcionesDeFiltro}
+      board="projects"
     />
   )
 }

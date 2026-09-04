@@ -1,8 +1,11 @@
 'use client'
 
-import { useCallback, useEffect, useState, type ReactElement } from 'react'
+import { Suspense, useCallback, useEffect, useMemo, useState, type ReactElement } from 'react'
 import Link from 'next/link'
-import { PaginacionTabla } from '@/componentes/datos/ControlesTabla'
+import { useRouter, useSearchParams, type ReadonlyURLSearchParams } from 'next/navigation'
+import { ControlesTabla, PaginacionTabla } from '@/componentes/datos/ControlesTabla'
+import { PresetsFiltro } from '@/componentes/datos/PresetsFiltro'
+import { hayFiltrosPuestos, urlConParametro } from '@/componentes/datos/tabla'
 import {
   CeldaEncabezado,
   CeldaTabla,
@@ -14,20 +17,17 @@ import {
 import { Cargando, ErrorEstado, Vacio } from '@/componentes/estado/Estados'
 import { CargandoConOrbe } from '@/componentes/estado/Orbe'
 import { Boton } from '@/componentes/formularios/Boton'
-import {
-  ContenidoSelector,
-  DisparadorSelector,
-  Opcion,
-  Selector
-} from '@/componentes/formularios/Selector'
 import { Avatar } from '@/componentes/presentadores/Avatar'
 import { Etiquetas } from '@/componentes/presentadores/Etiqueta'
 import { Fecha } from '@/componentes/presentadores/Fecha'
 import { Insignia } from '@/componentes/presentadores/Insignia'
 import { pedirSobre } from '@/datos/cliente'
+import { construirConsulta, leerConsulta } from '@/datos/consulta'
 import { leerError } from '@/datos/errores'
 import type { PersonaConTiempo, RegistroTiempo, ResumenEspacio } from '@/datos/recursos'
 import type { Capacidad, Paginacion } from '@/datos/tipos'
+import { LOOKUP_PERSONAS_CON_TIEMPO, TIEMPOS } from '@/definiciones/tiempos'
+import type { EstadoConsulta, OpcionFiltro } from '@/definiciones/tipos'
 import { useRecurso } from './carga'
 import { segundosAHoraMinuto } from './formatos'
 import { FormularioTimesheet } from './FormularioTimesheet'
@@ -50,6 +50,11 @@ import { duracionMostrada, hayRegistroCorriendo } from './timesheet'
  * el total de veinticinco filas y lo llamaria el total del proyecto, que es mentira apenas hay una
  * pagina siguiente. Que sea el mismo endpoint tambien garantiza que las dos pestañas informen la
  * misma cifra.
+ *
+ * **El estado de la vista vive en la URL**, no en `useState`: filtros, orden, pagina y busqueda se
+ * leen con `leerConsulta` y se escriben con `construirConsulta`, igual que el resto del producto. Asi
+ * una vista filtrada se comparte con un enlace, el boton "atras" hace lo que se espera, y un preset
+ * guardado se aplica escribiendo la URL en vez de sincronizar dos copias del mismo estado.
  */
 
 interface PropsPanelTiempos {
@@ -57,20 +62,59 @@ interface PropsPanelTiempos {
   capacidades: Capacidad[]
 }
 
-/** Centinela del selector de persona: Radix no acepta `value` vacio en una opcion. */
-const SIN_FILTRO = '__todas__'
-
 type Carga =
   | { fase: 'cargando' }
   | { fase: 'error', mensaje: string }
   | { fase: 'listo', registros: RegistroTiempo[], paginacion: Paginacion | undefined }
 
+/** El menu de columnas esta oculto, pero `ControlesTabla` exige el callback. Estable entre renders. */
+function noOp (): void {}
+
+/**
+ * Combina la consulta nueva con los parametros de la URL que no son de esta pestaña.
+ *
+ * El detalle del Proyecto guarda en la misma URL la pestaña activa (`?tab=`) y la tarea abierta en el
+ * cajon (`?tarea=`), y son de otro dueño: reescribir la query entera al filtrar cerraria la pestaña
+ * de golpe. Se borran solo las claves que produce la consulta vigente —las que escribio este panel—
+ * y todo lo demas se conserva tal cual.
+ *
+ * @param params Los parametros actuales de la URL.
+ * @param consultaVigente La consulta que este panel tiene puesta, para saber que claves le pertenecen.
+ * @param consultaNueva La consulta que se quiere dejar, ya serializada.
+ * @returns La URL relativa lista para `router.replace`, siempre con `?` aunque quede vacia.
+ */
+function urlConservandoAjenos (
+  params: ReadonlyURLSearchParams,
+  consultaVigente: string,
+  consultaNueva: string
+): string {
+  const ajenos = new URLSearchParams(params.toString())
+
+  for (const clave of new URLSearchParams(consultaVigente).keys()) {
+    ajenos.delete(clave)
+  }
+
+  const combinada = [consultaNueva, ajenos.toString()].filter((parte) => parte !== '').join('&')
+
+  return combinada === '' ? '?' : `?${combinada}`
+}
+
 export function PanelTiempos ({ proyectoId, capacidades }: PropsPanelTiempos): ReactElement {
+  // Leer `useSearchParams` exige un limite de Suspense: sin el, el build de cualquier pagina que
+  // monte este panel falla, y esas paginas las escribe otra persona.
+  return (
+    <Suspense fallback={<Cargando alto="min-h-60" mensaje="Cargando las horas…" />}>
+      <TiemposDelProyecto proyectoId={proyectoId} capacidades={capacidades} />
+    </Suspense>
+  )
+}
+
+function TiemposDelProyecto ({ proyectoId, capacidades }: PropsPanelTiempos): ReactElement {
+  const router = useRouter()
+  const params = useSearchParams()
+
   const [carga, setCarga] = useState<Carga>({ fase: 'cargando' })
   const [personas, setPersonas] = useState<PersonaConTiempo[]>([])
-  const [filtroPersona, setFiltroPersona] = useState(SIN_FILTRO)
-  const [pagina, setPagina] = useState(1)
-  const [porPagina, setPorPagina] = useState(25)
   const [intento, setIntento] = useState(0)
   const [ahora, setAhora] = useState(() => new Date())
   const [formulario, setFormulario] = useState<{ abierto: boolean, registro: RegistroTiempo | null }>(
@@ -78,13 +122,37 @@ export function PanelTiempos ({ proyectoId, capacidades }: PropsPanelTiempos): R
   )
   const [aviso, setAviso] = useState<string | null>(null)
   /**
-   * Que combinacion de pagina, filtro e intento corresponde a lo que hay pintado.
+   * Que combinacion de consulta e intento corresponde a lo que hay pintado.
    *
    * Se compara con la vigente para saber si hay una peticion en vuelo. Es derivado y no un
    * `useState` que el efecto prende: prender un estado dentro del efecto encadena renders, y el
    * lint del proyecto lo rechaza.
    */
   const [clavePintada, setClavePintada] = useState<string | null>(null)
+
+  /** Lo que la persona eligio, leido de la URL. Lo desconocido se descarta: un `?page=abc` no viaja. */
+  const estado = useMemo(
+    () => leerConsulta(new URLSearchParams(params.toString()), TIEMPOS),
+    [params]
+  )
+
+  /** La misma consulta, ya podada contra la whitelist del backend. Sin `?` inicial. */
+  const consulta = useMemo(() => construirConsulta(estado, TIEMPOS), [estado])
+
+  /**
+   * Opciones del filtro por persona.
+   *
+   * Salen de la lista que el panel ya pide, no de `/lookups`. Si esa peticion falla la lista queda
+   * vacia y `ControlesTabla` no dibuja el filtro: un desplegable sin opciones no filtra nada.
+   */
+  const opcionesDeFiltro = useMemo<Record<string, OpcionFiltro[]>>(
+    () => ({
+      [LOOKUP_PERSONAS_CON_TIEMPO]: personas.map(
+        (persona) => ({ valor: String(persona.id), etiqueta: persona.full_name })
+      )
+    }),
+    [personas]
+  )
 
   // Accesorio, como el filtro por persona: si falla, la tabla se ve igual y no se muestra ningun
   // error. Lo que no se hace es pintar ceros donde no llego el dato.
@@ -100,21 +168,31 @@ export function PanelTiempos ({ proyectoId, capacidades }: PropsPanelTiempos): R
     recargarResumen()
   }, [recargarResumen])
 
-  /** Identifica la consulta vigente. Cambia con la pagina, el filtro y cada recarga manual. */
-  const clave = `${pagina}|${porPagina}|${filtroPersona}|${intento}`
+  /**
+   * Escribe un cambio parcial de la consulta en la URL, que es la unica dueña del estado.
+   *
+   * `replace` y no `push`: cada filtro seria una entrada del historial y volver atras costaria
+   * quince clics.
+   */
+  const cambiar = useCallback((parcial: Partial<EstadoConsulta>): void => {
+    const siguiente = construirConsulta({ ...estado, ...parcial }, TIEMPOS)
+
+    router.replace(urlConservandoAjenos(params, consulta, siguiente), { scroll: false })
+  }, [estado, consulta, params, router])
+
+  /** Identifica la consulta vigente. Cambia con la URL y con cada recarga manual. */
+  const clave = `${consulta}|${intento}`
   const refrescando = clavePintada !== null && clavePintada !== clave
 
   useEffect(() => {
     const control = new AbortController()
-
-    const params = new URLSearchParams({ page: String(pagina), per_page: String(porPagina) })
-    if (filtroPersona !== SIN_FILTRO) params.set('filter[staff_id]', filtroPersona)
+    const ruta = `projects/${proyectoId}/timesheets${consulta === '' ? '' : `?${consulta}`}`
 
     // Sin volver a 'cargando' al refrescar: la tabla se queda con las filas anteriores hasta que
     // llegan las nuevas, en vez de parpadear a un bloque de carga cada vez que se cambia de pagina.
     // Que no parpadee no quiere decir que no avise: mientras la clave pintada no sea la vigente,
     // el chip dice que hay algo en curso.
-    void pedirSobre<RegistroTiempo[]>(`projects/${proyectoId}/timesheets?${params.toString()}`, control.signal)
+    void pedirSobre<RegistroTiempo[]>(ruta, control.signal)
       .then((sobre) => {
         if (control.signal.aborted) return
 
@@ -132,7 +210,7 @@ export function PanelTiempos ({ proyectoId, capacidades }: PropsPanelTiempos): R
       })
 
     return () => { control.abort() }
-  }, [proyectoId, clave, pagina, porPagina, filtroPersona, intento])
+  }, [proyectoId, consulta, clave])
 
   useEffect(() => {
     const control = new AbortController()
@@ -203,29 +281,36 @@ export function PanelTiempos ({ proyectoId, capacidades }: PropsPanelTiempos): R
     <div className="flex flex-col gap-3">
       {resumen.fase === 'listo' && <TotalesDelProyecto resumen={resumen.datos} />}
 
-      <div className="flex flex-wrap items-center gap-2">
-        {personas.length > 0 && (
-          <Selector value={filtroPersona} onValueChange={(valor) => { setFiltroPersona(valor); setPagina(1) }}>
-            <DisparadorSelector aria-label="Filtrar por persona" className="w-56" />
-            <ContenidoSelector>
-              <Opcion value={SIN_FILTRO}>Todas las personas</Opcion>
-              {personas.map((persona) => (
-                <Opcion key={persona.id} value={String(persona.id)}>{persona.full_name}</Opcion>
-              ))}
-            </ContenidoSelector>
-          </Selector>
-        )}
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <ControlesTabla
+          definicion={TIEMPOS}
+          estado={estado}
+          // La tabla de abajo es a medida y no se arma desde la definicion: no hay columnas que
+          // encender ni apagar, asi que el menu se oculta y estas dos props quedan inertes.
+          visibles={[]}
+          onVisibles={noOp}
+          sinColumnas
+          opcionesDeFiltro={opcionesDeFiltro}
+          onCambiar={cambiar}
+        />
 
-        {capacidades.includes('create') && (
-          <Boton
-            variante="primario"
-            tamano="chico"
-            className="ml-auto"
-            onClick={() => setFormulario({ abierto: true, registro: null })}
-          >
-            Registro de horas
-          </Boton>
-        )}
+        <div className="flex flex-wrap items-center gap-2">
+          <PresetsFiltro
+            board="timesheets"
+            filtrosActuales={estado.filtros}
+            onAplicar={(filtros) => { cambiar({ filtros, pagina: 1 }) }}
+          />
+
+          {capacidades.includes('create') && (
+            <Boton
+              variante="primario"
+              tamano="chico"
+              onClick={() => setFormulario({ abierto: true, registro: null })}
+            >
+              Registro de horas
+            </Boton>
+          )}
+        </div>
       </div>
 
       {aviso !== null && (
@@ -243,10 +328,14 @@ export function PanelTiempos ({ proyectoId, capacidades }: PropsPanelTiempos): R
         <ErrorEstado detalle={carga.mensaje} onReintentar={recargar} />
       )}
 
+      {/* Con filtros puestos, "cuando alguien anote tiempo aparece acá" es falso: puede haber horas
+          de sobra y ninguna que cumpla lo pedido. */}
       {carga.fase === 'listo' && registros.length === 0 && (
         <Vacio
           titulo="No hay horas registradas"
-          descripcion="Cuando alguien anote tiempo en una tarea de este proyecto, aparece acá."
+          descripcion={hayFiltrosPuestos(estado)
+            ? 'Probá quitando filtros o buscando otra cosa.'
+            : 'Cuando alguien anote tiempo en una tarea de este proyecto, aparece acá.'}
         />
       )}
 
@@ -301,8 +390,10 @@ export function PanelTiempos ({ proyectoId, capacidades }: PropsPanelTiempos): R
 
                   <CeldaTabla>
                     <span className="flex flex-wrap items-center gap-1.5">
+                      {/* Conserva el resto de la URL: con `?tarea=12` a secas, abrir una tarea
+                          desde acá se llevaba puestos los filtros y la pestaña activa. */}
                       <Link
-                        href={`?tarea=${registro.task.id}`}
+                        href={urlConParametro(new URLSearchParams(params.toString()), 'tarea', String(registro.task.id))}
                         scroll={false}
                         className="text-texto hover:text-acento font-medium underline-offset-4 hover:underline"
                       >
@@ -359,10 +450,7 @@ export function PanelTiempos ({ proyectoId, capacidades }: PropsPanelTiempos): R
 
       <PaginacionTabla
         paginacion={carga.fase === 'listo' ? carga.paginacion : undefined}
-        onCambiar={(parcial) => {
-          if (parcial.porPagina !== undefined) setPorPagina(parcial.porPagina)
-          if (parcial.pagina !== undefined) setPagina(parcial.pagina)
-        }}
+        onCambiar={cambiar}
       />
 
       <FormularioTimesheet

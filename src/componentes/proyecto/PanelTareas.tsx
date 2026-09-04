@@ -3,8 +3,7 @@
 import { Suspense, useCallback, useEffect, useMemo, useState, type ReactElement } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { TablaRecurso } from '@/componentes/datos/TablaRecurso'
-import { Tablero } from '@/componentes/datos/Tablero'
-import type { GrupoTablero } from '@/componentes/datos/tablero'
+import { TableroFiltrable } from '@/componentes/datos/TableroFiltrable'
 import { Segmentado, type OpcionSegmentada } from '@/componentes/formularios/Segmentado'
 import { Cargando, ErrorEstado } from '@/componentes/estado/Estados'
 import { Cajon, ContenidoCajon } from '@/componentes/superposiciones/Cajon'
@@ -73,8 +72,7 @@ type Carga =
   | {
       fase: 'listo'
       inicial: ResultadoLista<ProcesoAmpliado>
-      grupos: Array<GrupoTablero<ProcesoAmpliado>>
-      /** Para que presentacion se pidieron estos datos. Ver `esperandoLaOtraVista`. */
+      /** Con que presentacion a la vista se pidieron estos datos. Ver `esperandoLaListaDeLaTabla`. */
       esTablero: boolean
       opciones: Record<string, OpcionFiltro[]>
       /** `null` cuando el backend todavia no expone el resumen: la pestaña funciona igual. */
@@ -145,12 +143,13 @@ function TareasDelProyecto ({ proyectoId, capacidades }: PropsPanelTareas): Reac
     return <ErrorEstado detalle={carga.mensaje} onReintentar={recargar} />
   }
 
-  // Al alternar de presentacion, los datos que hay en mano son los de la otra: el tablero y la tabla
-  // guardan la primera pagina en su propio estado al montar, asi que montarlos con una lista vacia
-  // los deja vacios para siempre. Se espera a que llegue lo que corresponde.
-  const esperandoLaOtraVista = carga.esTablero !== enTablero
+  // Al volver del tablero, la lista en mano es la de antes de los filtros que se pusieron alli, y
+  // `TablaRecurso` fija su consulta inicial al montar: montarla ahora la dejaria mostrando esa lista
+  // vieja para siempre. Se espera a que llegue la de la consulta vigente. Entrar al tablero no
+  // espera nada: `TableroFiltrable` pide lo suyo por su cuenta.
+  const esperandoLaListaDeLaTabla = !enTablero && carga.esTablero
 
-  if (esperandoLaOtraVista) return <Cargando mensaje="Cargando las tareas…" />
+  if (esperandoLaListaDeLaTabla) return <Cargando mensaje="Cargando las tareas…" />
 
   /** Escribe la URL conservando lo que no toca. `replace` para no llenar el historial. */
   function irA (cambiar: (siguientes: URLSearchParams) => void): void {
@@ -205,6 +204,10 @@ function TareasDelProyecto ({ proyectoId, capacidades }: PropsPanelTareas): Reac
               // escribiendo `vista=tabla`. Asi la URL que se comparte es la corta.
               if (valor === 'tablero') siguientes.set('vista', 'tablero')
               else siguientes.delete('vista')
+
+              // La pagina es de la tabla: el tablero pagina por columna y arrastrar un `page=3`
+              // hasta el le pediria al BFF una pagina que ahi no significa nada.
+              siguientes.delete('page')
             })
           }}
         />
@@ -218,10 +221,11 @@ function TareasDelProyecto ({ proyectoId, capacidades }: PropsPanelTareas): Reac
 
       {enTablero
         ? (
-          <Tablero
+          <TableroFiltrable<ProcesoAmpliado>
             definicion={definicionDeTablero(definicion, prioridades)}
-            inicial={carga.grupos}
-            consulta={sinPagina(consulta)}
+            ruta={definicion.ruta}
+            board="tasks"
+            opcionesDeFiltro={carga.opciones}
           />
           )
         : (
@@ -247,6 +251,7 @@ function TareasDelProyecto ({ proyectoId, capacidades }: PropsPanelTareas): Reac
                 claseFila={(proceso) => estaVencida(proceso) ? 'bg-superficie-peligro' : undefined}
                 capacidades={capacidades}
                 opcionesDeFiltro={carga.opciones}
+                board="tasks"
               />
             </ProveedorSeleccion>
           </>
@@ -298,15 +303,6 @@ function unicoEstadoFiltrado (crudo: string | null): number | null {
   return Number.isInteger(id) ? id : null
 }
 
-/** Quita `page` de una consulta: el tablero pagina por columna y agrega su propia pagina. */
-function sinPagina (consulta: string): string {
-  const params = new URLSearchParams(consulta)
-
-  params.delete('page')
-
-  return params.toString()
-}
-
 /**
  * La definicion que consume el tablero, con la tarjeta rica del panel.
  *
@@ -331,7 +327,11 @@ function definicionDeTablero (
 }
 
 /**
- * Pide todo lo que la pestaña necesita.
+ * Pide todo lo que la pestaña necesita: la lista para la tabla, los catalogos de los filtros, el
+ * resumen por estado y las definiciones de campos personalizados.
+ *
+ * El tablero no se pide aca: `TableroFiltrable` se lo pide al BFF por su cuenta con los filtros de
+ * la URL.
  *
  * La lista y los catalogos son criticos: sin ellos no hay nada que mostrar, y el fallo se convierte
  * en la pantalla de error. El resumen por estado y las definiciones de campos personalizados son
@@ -343,7 +343,7 @@ function definicionDeTablero (
  * @param proyectoId el proyecto que se esta mirando
  * @param definicion la definicion ya acotada al proyecto
  * @param consulta query string sin `?`
- * @param enTablero si la vista pedida es el tablero
+ * @param enTablero la presentacion a la vista, que queda anotada en el resultado
  * @param senal aborta las peticiones si el componente se desmonta
  * @returns el estado de carga resuelto
  */
@@ -354,17 +354,11 @@ async function cargarPestana (
   enTablero: boolean,
   senal: AbortSignal
 ): Promise<Carga> {
-  const conConsulta = (extra: string): string => {
-    const partes = [consulta, extra].filter((parte) => parte !== '')
-
-    return partes.length === 0 ? definicion.ruta : `${definicion.ruta}?${partes.join('&')}`
-  }
+  const ruta = consulta === '' ? definicion.ruta : `${definicion.ruta}?${consulta}`
 
   try {
     const [lista, lookups] = await Promise.all([
-      enTablero
-        ? pedirSobre<Array<GrupoTablero<ProcesoAmpliado>>>(conConsulta('vista=tablero'), senal)
-        : pedirSobre<ProcesoAmpliado[]>(conConsulta(''), senal),
+      pedirSobre<ProcesoAmpliado[]>(ruta, senal),
       pedirSobre<Lookups>('lookups', senal)
     ])
 
@@ -380,15 +374,10 @@ async function cargarPestana (
     )
     if (campos === null) avisos.push('No se pudieron traer los campos personalizados: la tabla va sin ellos.')
 
-    const datos = lista.data
-
     return {
       fase: 'listo',
       esTablero: enTablero,
-      inicial: enTablero
-        ? { filas: [], paginacion: undefined }
-        : { filas: datos as ProcesoAmpliado[], paginacion: lista.meta?.pagination },
-      grupos: enTablero ? datos as Array<GrupoTablero<ProcesoAmpliado>> : [],
+      inicial: { filas: lista.data, paginacion: lista.meta?.pagination },
       opciones: opcionesDeFiltros(definicion, lookups.data),
       resumen,
       campos: campos ?? [],
