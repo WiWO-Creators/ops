@@ -19,6 +19,12 @@
    * dos: 6.23:1 y 5.72:1. */
   --wiwo-blue-200: #8c8cff;
 
+  /* --- Verde menta, el paso intermedio del gradiente vivo ----------------- */
+  /* El gradiente de marca de wiwolab va del verde puro al azul pasando por un verde menta que
+   * `tokens.css` no trae: `--wiwo-lime` (#8AF84F) es mas amarillo y corta el degrade en seco. Solo
+   * se usa como parada intermedia de un relleno, nunca como texto ni como fondo. */
+  --wiwo-green-300: #6DFF7C;
+
   /* --- Escala tipografica ------------------------------------------------ */
   /* Los peldaños de interfaz (`--step--1` a `--step-1`) son fijos a proposito. Con `clamp()` el
    * cuerpo llegaba a 17.3px en una pantalla de 1440px, y como el tablero y las tarjetas heredan el
