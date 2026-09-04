@@ -134,7 +134,13 @@ function fichaDeStaff (staff) {
     },
     counts: {
       tareas_abiertas: suyos.filter((p) => p.status !== 5).length,
-      espacios: new Set(suyos.map((p) => p.project?.id).filter((id) => id !== undefined)).size
+      espacios: new Set(suyos.map((p) => p.project?.id).filter((id) => id !== undefined)).size,
+      // Un contador por estado que la persona efectivamente tiene, igual que la API real. Faltaba, y
+      // sin el la ficha reventaba en `ResumenTareasPersona`: el contrato lo declara obligatorio.
+      por_estado: [...suyos.reduce(
+        (cuenta, p) => cuenta.set(p.status, (cuenta.get(p.status) ?? 0) + 1),
+        new Map()
+      )].map(([status, total]) => ({ status, total }))
     }
   }
 }
@@ -1405,6 +1411,39 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
 
   // --- A partir de acá, todo exige token ----------------------------------
   const actual = sesion.resolver(token, 'acceso')
+
+  // --- Sesión como otra persona (`POST /impersonate`) ----------------------
+  //
+  // Va acá arriba y no entre los recursos: no es un recurso, es otra puerta de sesión, y la única que
+  // devuelve tokens con un token ya en la mano.
+  if (recurso === 'impersonate') {
+    if (metodo !== 'POST' || resto.length > 0) throw new ErrorApi(404, 'not_found', 'Acción desconocida.')
+    if (!actual.is_superadmin) {
+      throw new ErrorApi(403, 'forbidden', 'Solo un superadministrador entra al panel como otra persona.')
+    }
+
+    const datos = await cuerpo()
+    const objetivoId = Number(datos.staff_id)
+
+    if (!Number.isInteger(objetivoId)) {
+      throw new ErrorApi(422, 'validation_failed', 'Falta "staff_id".', { staff_id: ['required'] })
+    }
+    if (objetivoId === actual.id) {
+      throw new ErrorApi(422, 'validation_failed', 'Ya estás en tu propia cuenta.', { staff_id: ['propio'] })
+    }
+
+    const objetivo = STAFF.find((s) => s.id === objetivoId)
+
+    if (!objetivo) throw new ErrorApi(404, 'not_found', 'No existe esa persona.')
+    if (!objetivo.active) {
+      throw new ErrorApi(422, 'validation_failed', 'Esa cuenta está dada de baja.', { staff_id: ['inactivo'] })
+    }
+
+    return {
+      estado: 201,
+      cuerpo: conDatos({ ...sesion.emitirSesion(objetivo.id), staff: presentarStaff(objetivo) })
+    }
+  }
 
   if (recurso === 'me' && metodo === 'GET') {
     return {

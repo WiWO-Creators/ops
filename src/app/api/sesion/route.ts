@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { llamarApiTipado } from '@/datos/api'
 import { ErrorApi } from '@/datos/errores'
-import { borrarSesion, guardarSesion, leerSesion } from '@/datos/sesion'
+import { borrarSesion, borrarSuplantador, guardarSesion, leerSesion } from '@/datos/sesion'
 import { sesionDesdeTokens } from '@/datos/sobre-sesion'
 import {
   esDesafio,
@@ -106,6 +106,11 @@ export async function DELETE (peticion: NextRequest): Promise<NextResponse> {
   }
 
   await borrarSesion(sujeto)
+
+  // Salir mientras se mira el panel como otra persona sale de las DOS: dejar la cookie de la sesion
+  // real viva significaria que el proximo que entre en esa maquina vea el aviso de suplantacion sobre
+  // una sesion que no es la suya.
+  if (sujeto === 'staff') await borrarSuplantador()
 
   return NextResponse.json({ ok: true })
 }
