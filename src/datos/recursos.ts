@@ -962,10 +962,22 @@ export interface PruebaDeAviso {
   email_delivered_to: string | null
 }
 
-/** Un preset de filtros guardado para un tablero kanban, privado por staff. */
+/**
+ * Las vistas que guardan presets de filtros. Coincide con `RecursoPresetsFiltro::TABLEROS`.
+ *
+ * No son solo kanban: `projects` es el listado de Proyectos y `timesheets` el registro de horas de
+ * un proyecto. Un valor fuera de esta lista devuelve 422.
+ *
+ * `milestones` y `milestones-tabla` son dos vistas de los mismos Hitos y no comparten presets: el
+ * kanban filtra las TAREAS de cada hito y la tabla filtra los HITOS. Un preset cruzado se aplicaria
+ * vacio, porque `construirConsulta` poda lo que la definicion de la otra vista no declara.
+ */
+export type TableroDePreset = 'tasks' | 'milestones' | 'milestones-tabla' | 'projects' | 'timesheets'
+
+/** Un preset de filtros guardado para una vista de lista, privado por staff. */
 export interface PresetFiltro {
   id: number
-  board: 'tasks' | 'milestones'
+  board: TableroDePreset
   name: string
   filters: Record<string, string[]>
   date_created: string

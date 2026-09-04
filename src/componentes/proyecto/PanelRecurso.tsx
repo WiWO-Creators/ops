@@ -8,7 +8,7 @@ import { Cargando, ErrorEstado } from '@/componentes/estado/Estados'
 import { opcionesDeFiltros } from '@/datos/catalogos'
 import { pedirSobre } from '@/datos/cliente'
 import { construirConsulta, leerConsulta } from '@/datos/consulta'
-import type { Lookups } from '@/datos/recursos'
+import type { Lookups, TableroDePreset } from '@/datos/recursos'
 import type { Capacidad } from '@/datos/tipos'
 import type { DefinicionRecurso, OpcionFiltro, ResultadoLista } from '@/definiciones/tipos'
 
@@ -37,6 +37,12 @@ interface PropsPanelRecurso<T> {
    * tabla se refresca sola al cambiar la URL, y crear un registro no cambia la URL.
    */
   revision?: number
+  /**
+   * Tablero de presets de filtros al que pertenece la pestaña. Sin el no se pinta el selector de
+   * presets: un preset guardado bajo un tablero equivocado ofrece filtros que este recurso no acepta,
+   * y aplicarlo devuelve 422.
+   */
+  board?: TableroDePreset
 }
 
 export function PanelRecurso<T> (props: PropsPanelRecurso<T>): ReactElement {
@@ -60,7 +66,8 @@ function ListaDelProyecto<T> ({
   claveFila,
   capacidades = [],
   barra,
-  revision = 0
+  revision = 0,
+  board
 }: PropsPanelRecurso<T>): ReactElement {
   const params = useSearchParams()
 
@@ -129,6 +136,7 @@ function ListaDelProyecto<T> ({
         claveFila={claveFila}
         capacidades={capacidades}
         opcionesDeFiltro={carga.opciones}
+        board={board}
       />
     </div>
   )

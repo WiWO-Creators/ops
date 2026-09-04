@@ -6,6 +6,7 @@ import { alternarOrden, construirConsulta, direccionDe, leerConsulta } from '@/d
 import type { Columna, DefinicionRecurso, EstadoConsulta, OpcionFiltro, ResultadoLista } from '@/definiciones/tipos'
 import { Insignia } from '@/componentes/presentadores/Insignia'
 import type { Capacidad, Sobre } from '@/datos/tipos'
+import type { TableroDePreset } from '@/datos/recursos'
 import { leerError } from '@/datos/errores'
 import { ErrorEstado, Vacio } from '@/componentes/estado/Estados'
 import { CargandoConOrbe } from '@/componentes/estado/Orbe'
@@ -19,6 +20,7 @@ import {
 import { cn } from '@/lib/clases'
 import { CeldaEncabezado, CeldaTabla, CuerpoTabla, EncabezadoTabla, FilaTabla, Tabla } from './Tabla'
 import { ControlesTabla, PaginacionTabla } from './ControlesTabla'
+import { PresetsFiltro } from './PresetsFiltro'
 import {
   clavesVisiblesPorDefecto,
   columnasVisibles,
@@ -86,6 +88,12 @@ interface PropsTablaRecurso<T> {
    * navegador haria aparecer los filtros despues de que la tabla ya se pinto.
    */
   opcionesDeFiltro?: Record<string, OpcionFiltro[]>
+  /**
+   * Bajo que vista se guardan y se leen los presets de filtros. Ausente = la tabla no ofrece presets.
+   *
+   * Es opcional porque no toda tabla los merece: una lista sin filtros no tiene nada que guardar.
+   */
+  board?: TableroDePreset
   className?: string
 }
 
@@ -118,6 +126,7 @@ export function TablaRecurso<T> ({
   abrirEn,
   capacidades = [],
   opcionesDeFiltro,
+  board,
   className
 }: PropsTablaRecurso<T>) {
   const router = useRouter()
@@ -221,14 +230,23 @@ export function TablaRecurso<T> ({
 
   return (
     <div className={cn('flex flex-col gap-3', className)}>
-      <ControlesTabla
-        definicion={definicion}
-        estado={estado}
-        visibles={visibles}
-        opcionesDeFiltro={opcionesDeFiltro}
-        onCambiar={cambiar}
-        onVisibles={setVisibles}
-      />
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <ControlesTabla
+          definicion={definicion}
+          estado={estado}
+          visibles={visibles}
+          opcionesDeFiltro={opcionesDeFiltro}
+          onCambiar={cambiar}
+          onVisibles={setVisibles}
+        />
+        {board !== undefined && (
+          <PresetsFiltro
+            board={board}
+            filtrosActuales={estado.filtros}
+            onAplicar={(filtros) => { cambiar({ filtros, pagina: 1 }) }}
+          />
+        )}
+      </div>
 
       {error !== null
         ? (

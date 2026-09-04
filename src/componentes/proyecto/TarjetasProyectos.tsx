@@ -3,6 +3,7 @@
 import { useCallback, useMemo, useState, useTransition } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { ControlesTabla, PaginacionTabla } from '@/componentes/datos/ControlesTabla'
+import { PresetsFiltro } from '@/componentes/datos/PresetsFiltro'
 import { clavesVisiblesPorDefecto, columnasVisibles, resolverInsignia } from '@/componentes/datos/tabla'
 import { retrasoDeAparicion } from '@/componentes/datos/TablaRecurso'
 import { armarCsv, nombreDeExportacion } from '@/componentes/datos/csv'
@@ -303,15 +304,25 @@ export function TarjetasProyectos ({ resultado, opcionesDeFiltro }: PropsTarjeta
 
   return (
     <div className="flex flex-col gap-3">
-      <ControlesTabla
-        definicion={ESPACIOS}
-        estado={estado}
-        visibles={visibles}
-        opcionesDeFiltro={opcionesDeFiltro}
-        onCambiar={cambiar}
-        onVisibles={setVisibles}
-        sinColumnas
-      />
+      {/* Misma fila que en la tabla: los presets son del tablero `projects`, no de la presentacion,
+          asi que un preset guardado desde tarjetas se abre despues desde la tabla y al reves. Van
+          aca —y no en `VistaEspacios`— porque en la rama de tabla los pinta `TablaRecurso`. */}
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <ControlesTabla
+          definicion={ESPACIOS}
+          estado={estado}
+          visibles={visibles}
+          opcionesDeFiltro={opcionesDeFiltro}
+          onCambiar={cambiar}
+          onVisibles={setVisibles}
+          sinColumnas
+        />
+        <PresetsFiltro
+          board="projects"
+          filtrosActuales={estado.filtros}
+          onAplicar={(filtros) => { cambiar({ filtros, pagina: 1 }) }}
+        />
+      </div>
 
       {resultado.filas.length === 0
         ? (
