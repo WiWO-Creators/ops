@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import type { ReactElement } from 'react'
+import { GrupoAvatares } from '@/componentes/presentadores/Avatar'
 import { PARAMETRO_TAREA } from '@/componentes/proyecto/CajonTarea'
 import { PROCESOS } from '@/definiciones/procesos'
 import type { Proceso } from '@/datos/recursos'
@@ -10,10 +11,10 @@ import type { DefinicionRecurso } from '@/definiciones/tipos'
 import { urlConParametro } from './tabla'
 
 /**
- * La definicion de Procesos con las dos celdas que llevan a algun lado.
+ * La definicion de Procesos con las celdas que necesitan JSX.
  *
  * Vive aparte de `src/definiciones/procesos.ts` porque ese archivo es un `.ts`: las pruebas lo corren
- * con el runner de Node, que despoja tipos pero **no** JSX. Un enlace no cabe alli.
+ * con el runner de Node, que despoja tipos pero **no** JSX. Ni un enlace ni un avatar caben alli.
  *
  * Son dos destinos distintos en la misma fila y confundirlos es peor que no tener el enlace: el
  * nombre abre el detalle de la tarea sin salir del listado, el espacio navega a su pantalla. El clic
@@ -31,6 +32,13 @@ export const PROCESOS_NAVEGABLES: DefinicionRecurso<Proceso> = {
 
     if (columna.clave === 'project') {
       return { ...columna, presentar: (proceso: Proceso) => <EnlaceEspacio proceso={proceso} /> }
+    }
+
+    // Los nombres de los asignados desbordaban la celda y se cortaban a mitad de palabra: la cara
+    // identifica a la persona en menos ancho, y el nombre sigue disponible en el `title` y para el
+    // lector de pantalla. Es el mismo grupo apilado que ya usan el tablero y la pestaña de Tareas.
+    if (columna.clave === 'assignees') {
+      return { ...columna, presentar: (proceso: Proceso) => <GrupoAvatares personas={proceso.assignees} /> }
     }
 
     return columna

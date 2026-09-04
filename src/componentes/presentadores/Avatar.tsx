@@ -88,7 +88,12 @@ interface PropsGrupoAvatares {
  * Pila de avatares con contador de excedente.
  *
  * En Procesos con muchos asignados, mostrarlos todos rompe el alto de la fila de la tabla. El
- * contador conserva la informacion sin romper el layout, y el `title` la deja accesible.
+ * contador conserva la informacion sin romper el layout, y el `title` la deja accesible con el mouse.
+ *
+ * Con el mouse alcanza el `title`, pero una cara no se lee: la pila entera se oculta del arbol de
+ * accesibilidad y los nombres viajan una sola vez en un texto `sr-only`. Sin eso, el lector de
+ * pantalla anunciaria "JA, JL, +2" —o nada, si el avatar es una foto sin describir— y la columna de
+ * asignados dejaria de existir para quien no ve.
  */
 export function GrupoAvatares ({ personas, tamano = 'chico', maximo = 3, className }: PropsGrupoAvatares) {
   if (personas.length === 0) {
@@ -100,26 +105,29 @@ export function GrupoAvatares ({ personas, tamano = 'chico', maximo = 3, classNa
 
   return (
     <span className={cn('inline-flex items-center', className)}>
-      {visibles.map((persona) => (
-        <Avatar
-          key={persona.id}
-          nombre={persona.full_name}
-          imagen={persona.profile_image_url}
-          tamano={tamano}
-          className="ring-superficie-elevada -ml-1 ring-2 first:ml-0"
-        />
-      ))}
-      {restantes > 0 && (
-        <span
-          className={cn(
-            'bg-relleno-neutro text-texto-tenue ring-superficie-elevada -ml-1 inline-flex items-center justify-center rounded-full font-semibold ring-2',
-            TAMANOS[tamano]
-          )}
-          title={personas.slice(maximo).map((p) => p.full_name).join(', ')}
-        >
-          +{restantes}
-        </span>
-      )}
+      <span className="inline-flex items-center" aria-hidden="true">
+        {visibles.map((persona) => (
+          <Avatar
+            key={persona.id}
+            nombre={persona.full_name}
+            imagen={persona.profile_image_url}
+            tamano={tamano}
+            className="ring-superficie-elevada -ml-1 ring-2 first:ml-0"
+          />
+        ))}
+        {restantes > 0 && (
+          <span
+            className={cn(
+              'bg-relleno-neutro text-texto-tenue ring-superficie-elevada -ml-1 inline-flex items-center justify-center rounded-full font-semibold ring-2',
+              TAMANOS[tamano]
+            )}
+            title={personas.slice(maximo).map((p) => p.full_name).join(', ')}
+          >
+            +{restantes}
+          </span>
+        )}
+      </span>
+      <span className="sr-only">{personas.map((persona) => persona.full_name).join(', ')}</span>
     </span>
   )
 }
