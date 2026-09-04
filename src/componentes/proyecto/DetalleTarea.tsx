@@ -16,7 +16,7 @@ import { Cronometros } from './Cronometros'
 import { mensajeDeRespuesta, pedirRespuesta } from '@/datos/cliente'
 
 /**
- * Detalle de una Tarea, para el cajon lateral.
+ * Detalle de una Tarea, para el modal que lo muestra (`ModalTarea`).
  *
  * Pide dos cosas: la tarea (`/tasks/{id}`, que ya trae `description`) y los catalogos (`/lookups`).
  * Los catalogos no son adorno: `status` y `priority` llegan como numeros, y sin la lista un "2" en
@@ -90,7 +90,7 @@ export function DetalleTarea ({ procesoId, className }: PropsDetalleTarea): Reac
           </div>
         </header>
 
-        <dl className="grid grid-cols-2 gap-x-4 gap-y-3">
+        <dl className="grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-3">
           <Dato etiqueta={GLOSARIO.espacio.singular}>{tarea.project?.name ?? SIN_DATO}</Dato>
           <Dato etiqueta={GLOSARIO.hito.singular}>{tarea.milestone?.name ?? SIN_DATO}</Dato>
           <Dato etiqueta="Inicio"><Fecha valor={tarea.start_date} /></Dato>

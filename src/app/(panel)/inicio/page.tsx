@@ -1,3 +1,4 @@
+import { Suspense } from 'react'
 import Link from 'next/link'
 import {
   ArrowRight,
@@ -16,6 +17,7 @@ import { agruparPorVencimiento, cuantosNoListados, procesoConCronometro } from '
 import { Tarjeta, type TonoTarjeta } from '@/componentes/estructura/Tarjeta'
 import { Insignia } from '@/componentes/presentadores/Insignia'
 import { Fecha } from '@/componentes/presentadores/Fecha'
+import { ModalTarea, PARAMETRO_TAREA } from '@/componentes/proyecto/CajonTarea'
 import { CronometroAbierto } from './CronometroAbierto'
 
 /**
@@ -79,6 +81,12 @@ export default async function InicioPage () {
       )}
 
       <Secciones yo={yo} />
+
+      {/* El detalle es el mismo de los listados y se abre con el mismo `?tarea={id}`. Va en un
+          limite de Suspense porque lee `useSearchParams`: sin el, el build de esta pagina falla. */}
+      <Suspense fallback={null}>
+        <ModalTarea />
+      </Suspense>
     </div>
   )
 }
@@ -153,6 +161,9 @@ interface PropsMiTrabajo {
  *
  * Sin nada asignado no se muestra una caja vacia: se muestra la frase y el enlace al listado. Un
  * estado vacio con marco se lee como "algo fallo"; sin marco, como "no tenés nada", que es lo cierto.
+ *
+ * Cada fila abre el detalle sin salir del Inicio: escribe `?tarea={id}`, que es el mismo parametro
+ * que leen los listados. Ver la tarea desde aca no obliga a ir a buscarla al listado completo.
  */
 function MiTrabajo ({ grupos, restantes }: PropsMiTrabajo) {
   return (
@@ -192,12 +203,21 @@ function MiTrabajo ({ grupos, restantes }: PropsMiTrabajo) {
                   <ul className="flex flex-col divide-y divide-linea overflow-hidden rounded-tarjeta border border-linea bg-superficie-elevada">
                     {grupo.procesos.map((proceso) => (
                       <li key={proceso.id}>
-                        <div className="flex items-center justify-between gap-4 px-4 py-3">
+                        {/*
+                          Enlace de verdad y no un `div` con `onClick`: asi la fila se abre con el
+                          teclado, se copia y se abre en otra pestaña. `scroll={false}` porque abrir
+                          el detalle no mueve la pantalla de atras.
+                        */}
+                        <Link
+                          href={`?${PARAMETRO_TAREA}=${proceso.id}`}
+                          scroll={false}
+                          className="flex items-center justify-between gap-4 px-4 py-3 transition-colors duration-150 ease-neo hover:bg-hover focus-visible:bg-hover"
+                        >
                           <span className="min-w-0 flex-1 truncate text-sm text-texto">{proceso.name}</span>
                           <span className="shrink-0 text-sm text-texto-tenue">
                             <Fecha valor={proceso.due_date} />
                           </span>
-                        </div>
+                        </Link>
                       </li>
                     ))}
                   </ul>

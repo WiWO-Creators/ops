@@ -1,34 +1,40 @@
 'use client'
 
+import { X } from 'lucide-react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import type { ReactElement } from 'react'
-import { Cajon, ContenidoCajon } from '@/componentes/superposiciones/Cajon'
+import { Boton } from '@/componentes/formularios/Boton'
+import { CerrarDialogo, ContenidoDialogo, Dialogo } from '@/componentes/superposiciones/Dialogo'
 import { idDeParametro } from '@/componentes/datos/tabla'
 import { GLOSARIO } from '@/dominio/glosario'
 import { DetalleTarea } from './DetalleTarea'
 
 /**
- * El cajon con el detalle de una tarea, atado a `?tarea={id}`.
+ * El modal con el detalle de una tarea, atado a `?tarea={id}`.
  *
- * Es el mismo trato que hace la pestaña de Tareas de un proyecto, sacado a un componente para que
- * cualquier vista que liste tareas —la global incluida— abra el mismo detalle con la misma URL en vez
- * de escribir el suyo.
+ * Es el unico detalle de tarea del producto: cualquier vista que liste tareas —la global, la pestaña
+ * de un espacio, el Inicio— monta este componente y escribe el mismo parametro, en vez de armarse el
+ * suyo.
+ *
+ * **Es un modal centrado y no un panel lateral** a proposito: la descripcion de una tarea suele ser
+ * larga y en 448px de costado se lee en columna de diario. El modal ancho da el doble de superficie
+ * sin sacar a la persona del listado, que es lo que se ganaba con el cajon.
  *
  * **El estado vive en la URL**: la tarea abierta se comparte por chat, recargar no la pierde y
  * "atras" la cierra, porque abrirla fue un `push` del historial.
  */
 
-/** Parametro que abre el detalle. Lo lee este cajon y lo escriben los enlaces de la tabla. */
+/** Parametro que abre el detalle. Lo lee este modal y lo escriben los enlaces que listan tareas. */
 export const PARAMETRO_TAREA = 'tarea'
 
-export function CajonTarea (): ReactElement {
+export function ModalTarea (): ReactElement {
   const router = useRouter()
   const params = useSearchParams()
 
   const tareaAbierta = idDeParametro(params.get(PARAMETRO_TAREA))
 
   /**
-   * Cierra el cajon quitando el parametro y conservando el resto de la URL.
+   * Cierra el modal quitando el parametro y conservando el resto de la URL.
    *
    * `replace` y no `push`: cerrar no es un paso nuevo del historial, y con `push` "atras" reabriria
    * el detalle que la persona acaba de cerrar.
@@ -42,10 +48,29 @@ export function CajonTarea (): ReactElement {
   }
 
   return (
-    <Cajon open={tareaAbierta !== null} onOpenChange={(abierto) => { if (!abierto) cerrar() }}>
-      <ContenidoCajon titulo={GLOSARIO.proceso.singular} descripcion="Detalle y tiempo registrado">
+    <Dialogo open={tareaAbierta !== null} onOpenChange={(abierto) => { if (!abierto) cerrar() }}>
+      <ContenidoDialogo
+        ancho="grande"
+        titulo={GLOSARIO.proceso.singular}
+        descripcion="Detalle y tiempo registrado"
+      >
+        {/* Los demas dialogos cierran con el "Cancelar" de su pie; este no tiene pie, y un modal de
+            esta superficie sin salida visible obliga a adivinar `Escape` o el clic afuera.
+
+            Va `sticky` y no `absolute`: el que scrollea es el panel entero, asi que un boton
+            absoluto se iria con el encabezado apenas se baja por una descripcion larga —justo el
+            caso para el que existe este modal. El fondo propio es lo que evita que el contenido se
+            lea por debajo del boton al pasarle por atras. */}
+        <div className="bg-superficie-flotante sticky top-0 z-10 flex justify-end pb-1">
+          <CerrarDialogo asChild>
+            <Boton variante="sutil" tamano="chico" soloIcono aria-label="Cerrar">
+              <X size={16} strokeWidth={2} aria-hidden="true" />
+            </Boton>
+          </CerrarDialogo>
+        </div>
+
         {tareaAbierta !== null && <DetalleTarea procesoId={tareaAbierta} />}
-      </ContenidoCajon>
-    </Cajon>
+      </ContenidoDialogo>
+    </Dialogo>
   )
 }
