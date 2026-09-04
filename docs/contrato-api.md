@@ -3236,6 +3236,172 @@ enciende ningún envío**: no hay consumidor que lea el valor. Es el interruptor
 que gobierna, a propósito: mergear el envío y su interruptor juntos es exactamente como se manda un
 correo sin querer.
 
+### Rama `feat/compartir-proceso`
+
+Enlace público de sólo lectura para un Proceso: una URL que **cualquiera puede abrir sin sesión de
+ninguna clase** y que muestra una ficha recortada del Proceso. Lo genera el staff desde el panel y lo
+entrega por el canal que ya use (no sale ningún correo, igual que en el resto del módulo).
+
+**Diferencia con el enlace de acceso al portal (`POST /contacts/{id}/access-link`).** Ése es de un
+solo uso y se quema al canjearlo. Éste **no se quema**: se abre tantas veces como haga falta, caduca a
+los **30 días** y se cierra a mano con `DELETE`.
+
+**Qué se guarda.** Nada nuevo: el token vive en `tblapi_tokens` con `tipo = 'enlace'` y el sujeto
+nuevo `sujeto_tipo = 'proceso'`, donde `sujeto_id` es el `taskid`. De la base sólo sale el `sha256`
+del token; el valor en claro existe **una sola vez**, en la respuesta del `POST`.
+
+#### Esquema nuevo (migración `0110`)
+
+Ninguna tabla nueva. Un solo `ALTER`:
+
+```sql
+ALTER TABLE `tblapi_tokens`
+  MODIFY COLUMN `sujeto_tipo` enum('staff','contacto','proceso') NOT NULL DEFAULT 'staff';
+```
+
+El sujeto `proceso` no es una persona: el token apunta a una fila de `tbltasks`. `Tokens::resolver()`
+y `resolverContacto()` filtran por `sujeto_tipo` **dentro de la consulta**, así que un token de enlace
+público es indistinguible de uno inexistente para toda ruta autenticada — no puede convertirse en la
+sesión de nadie. Y al revés: un token de sesión pasado por la URL pública da `404`.
+
+#### `POST /tasks/{id}/share` → `201`
+
+Genera el enlace. Devuelve el token en claro y su vencimiento.
+
+```json
+{ "token": "6ceb3e62…5ec5eb6", "expires_at": "2026-10-04T23:44:59Z" }
+```
+
+| Clave | Tipo | Notas |
+|---|---|---|
+| `token` | string | 64 hexadecimales. **Única vez que existe sin cifrar.** Armar la URL es cosa del front: la API no sabe en qué dominio vive |
+| `expires_at` | string | ISO-8601 UTC. Se relee de `expira_en`, no se calcula con `time()` |
+
+**Si ya había un enlace vivo, lo reemplaza**, y no es una política elegible: de la base sólo sale el
+`sha256`, así que "devolver el vigente" es imposible. Cada `POST` acuña uno nuevo y revoca el
+anterior. **El front no debe llamar a `POST` para saber si hay enlace** —invalidaría el que ya se
+envió—: para eso está el `GET`.
+
+#### `GET /tasks/{id}/share` → `200`
+
+Estado del enlace, **sin el token**.
+
+```json
+{ "shared": true, "expires_at": "2026-10-04T23:44:59Z" }
+```
+
+| Clave | Tipo | Notas |
+|---|---|---|
+| `shared` | bool | `true` sólo si hay un enlace ni revocado ni vencido |
+| `expires_at` | string \| null | `null` cuando `shared` es `false` |
+
+#### `DELETE /tasks/{id}/share` → `204`
+
+Revoca los enlaces vivos del Proceso. Responde `204` **aunque no hubiera ninguno**: el estado final es
+el que se pidió. Es idempotente.
+
+#### Permisos de los tres verbos
+
+Las **dos** capas, y las dos hacen falta:
+
+1. `tasks.edit` — publicar un Proceso a internet es al menos tan fuerte como editarlo, y es el mismo
+   permiso que exige `PATCH /tasks/{id}`. Sin él → `403 {"code":"forbidden"}`.
+2. Que el Proceso sea **visible** para ese staff (misma visibilidad por fila que `GET /tasks/{id}`).
+   Sin ella → `404 {"code":"not_found"}`. Sin esta segunda capa, quien tiene `edit` podría compartir
+   cualquier id probando números.
+
+Sin token de sesión → `401`. Verbo distinto de `GET|POST|DELETE`, o un segmento de más
+(`/tasks/{id}/share/x`) → `404`. Cualquier `?include=` → `422`.
+
+#### `GET /public/tasks/{token}` → `200` — **anónimo**
+
+Ruta **sin autenticación**, bajo su propio prefijo `public`. No va bajo `portal` por el mismo motivo
+que el canje del enlace de acceso no va ahí: `portalRuta()` exige un contacto ya logueado, y quien
+abre un enlace público es anónimo por definición. Tener las rutas sin sesión agrupadas bajo `public`
+es lo que permite auditarlas de un vistazo.
+
+```json
+{
+  "name": "[compartir] proceso de prueba",
+  "status":   { "id": 1, "name": "Por iniciar", "color": "#64748b" },
+  "priority": { "id": 3, "name": "Alto",        "color": "#ff6f00" },
+  "start_date": "2026-09-01",
+  "due_date": "2026-09-30",
+  "date_finished": null,
+  "is_completed": false,
+  "task_type": { "name": "Bug" },
+  "progress": { "checklist_total": 2, "checklist_done": 1, "percent": 50 }
+}
+```
+
+##### La lista blanca, entera
+
+Éstas son **todas** las claves que devuelve. No hay más, y no hay `include` que agregue ninguna.
+
+| Clave | Tipo | Notas |
+|---|---|---|
+| `name` | string | Título del Proceso |
+| `status` | objeto \| null | `id`, `name` (traducido) y `color`. `null` si el estado no está en el catálogo |
+| `priority` | objeto \| null | `id`, `name`, `color`. Misma regla |
+| `start_date` | string \| null | `YYYY-MM-DD`, sin hora ni zona |
+| `due_date` | string \| null | `YYYY-MM-DD` |
+| `date_finished` | string \| null | ISO-8601 UTC; `null` mientras no esté cerrado |
+| `is_completed` | bool | `status === 5` |
+| `task_type` | objeto \| null | **Sólo `name`.** `null` si el Proceso no tiene tipo |
+| `progress` | objeto | `checklist_total`, `checklist_done` (enteros) y `percent` |
+| `progress.percent` | int \| null | `done/total`. Sin checklist: `100` si está completado, si no **`null`** — nunca un cero inventado |
+
+**La proyección es una lista blanca construida a mano en el propio `SELECT`** (`Recursos\ProcesoPublico`),
+no el objeto del staff podado. Una poda es una lista negra disfrazada: cada columna que alguien
+agregue mañana a la ficha del panel aparecería sola en una página abierta a internet. Acá un campo
+nuevo de `tbltasks` **no puede salir** sin que alguien escriba su nombre en ese archivo.
+
+##### Lo que NO sale, y por qué
+
+- `description` — es el cuerpo libre donde el equipo escribe para el equipo.
+- **Dinero**: `hourly_rate`, `billable`, `billed`, cronómetros y horas registradas.
+- **El Espacio y su cliente** (`rel_type`, `rel_id`, hito): el nombre de un Espacio suele ser el
+  nombre del cliente, y este enlace se reenvía a cualquiera.
+- **Asignados y seguidores**: exponen la composición del equipo y sus nombres completos a internet
+  abierto. Quien recibe el enlace quiere saber cómo va el trabajo, no quién lo hace.
+- **Comentarios**: `tbltask_comments` no tiene ninguna marca de "público" —ni Perfex ni el portal la
+  tienen; el portal directamente no muestra comentarios de tareas—, así que hoy no hay forma de
+  distinguir un comentario para el cliente de una discusión interna. Publicarlos todos sería la fuga
+  más grande de este endpoint. Cuando exista la marca (tabla propia + endpoint para marcar) se suman
+  acá, y sólo los marcados.
+- Adjuntos, checklist ítem por ítem (sólo salen los dos contadores), campos personalizados, etiquetas,
+  iteraciones, `is_public`, `visible_to_client`, `addedfrom` y **el id interno del Proceso**.
+
+##### Errores
+
+**Todo lo que puede fallar responde el mismo `404` con el mismo texto**, y eso es deliberado: un
+mensaje distinto por caso convertiría al endpoint en un oráculo que confirma qué Procesos existen.
+
+```json
+{ "error": { "code": "not_found", "message": "No existe ese enlace." } }
+```
+
+Caen ahí: token inexistente, revocado, vencido, reemplazado por un `POST` posterior, de otro tipo de
+sujeto (un token de sesión de staff o de contacto), la ruta sin token, un segmento de más, cualquier
+verbo que no sea `GET`, y **el Proceso borrado después de compartirlo**.
+
+`?include=` de cualquier clase → `422`.
+
+##### Freno por IP
+
+`429 {"code":"rate_limited"}` a los **8 intentos fallidos por IP en 15 minutos**, con la clave
+`publico:<ip>` en `tblapi_intentos` para no mezclarse con los intentos de login (mismo patrón que
+`enlace:` en el canje del portal). **Sólo suman los fallos**: abrir muchas veces un enlace válido es
+el uso normal de la página; probar tokens al azar no lo es.
+
+##### Para el front
+
+- La ruta pública tiene que quedar **fuera del layout del panel** y en las exclusiones del proxy —no
+  lleva sesión de ninguna clase—, y su entrada va igual en `src/datos/rutas.ts` o el BFF la rechaza.
+- El `expires_at` viene en ISO-8601 UTC en los dos endpoints de `share`.
+- Botón "Compartir": `GET` primero para pintar el estado, `POST` sólo cuando el usuario pide generar o
+  regenerar (avisando que el enlace anterior deja de servir), `DELETE` para revocar.
+
 ## Tiempo real
 
 `GET /config/realtime` → `{ "data": { "enabled": true, "key": "…", "cluster": "…" } }`
