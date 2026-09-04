@@ -127,6 +127,19 @@ export function esDesafio (dato: ParDeTokensConStaff | DesafioSegundoFactor): da
 }
 
 /**
+ * Lo que responde `GET /auth/google`: si la entrada con Google esta prendida y con que aplicacion.
+ *
+ * El `client_id` viene de la API y no de una variable de entorno del front a proposito: es editable
+ * desde el panel de administracion, asi que cambiarlo no puede exigir un redespliegue. Cuando
+ * `enabled` es `false` el `client_id` llega en `null` y la pantalla de acceso ni carga el script de
+ * Google.
+ */
+export interface AccesoGoogle {
+  enabled: boolean
+  client_id: string | null
+}
+
+/**
  * Permisos del portal del cliente.
  *
  * No son los del panel: un contacto no tiene capacidades (`view`/`edit`/...) sino secciones enteras
