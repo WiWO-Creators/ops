@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { nombreDeNivel } from './nivel'
 import { Avatar } from '@/componentes/presentadores/Avatar'
 import { Fecha } from '@/componentes/presentadores/Fecha'
 import { Insignia } from '@/componentes/presentadores/Insignia'
@@ -37,9 +38,11 @@ export function CabeceraPersona ({ persona }: { persona: FichaPersona }) {
             <Insignia tono={persona.active ? 'exito' : 'neutro'}>
               {persona.active ? 'Activa' : 'Dada de baja'}
             </Insignia>
-            {persona.is_superadmin
-              ? <Insignia tono="acento">Superadministrador</Insignia>
-              : persona.is_admin && <Insignia tono="acento">Administrador</Insignia>}
+            {/* Una sola insignia, del nivel puesto. Colaborador no lleva ninguna: es el caso comun y
+                una insignia que casi todos tienen deja de distinguir nada. */}
+            {(persona.is_admin || persona.is_superadmin) && (
+              <Insignia tono="acento">{nombreDeNivel(persona)}</Insignia>
+            )}
             {persona.is_director && <Insignia tono="acento">Director</Insignia>}
             {persona.is_not_staff && <Insignia tono="contorno">No es del equipo</Insignia>}
           </div>

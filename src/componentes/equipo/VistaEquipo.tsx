@@ -9,7 +9,7 @@ import { Avatar } from '@/componentes/presentadores/Avatar'
 import { FormularioRecurso } from '@/componentes/proyecto/FormularioRecurso'
 import type { OpcionCampo } from '@/componentes/proyecto/formulario'
 import type { MiembroEquipo } from '@/datos/recursos'
-import type { Capacidad } from '@/datos/tipos'
+import type { Capacidad, ModeloDePermisos } from '@/datos/tipos'
 import { EQUIPO } from '@/definiciones/equipo'
 import type { OpcionFiltro, ResultadoLista } from '@/definiciones/tipos'
 import { AccionesPersona } from './AccionesPersona'
@@ -31,13 +31,20 @@ interface PropsVistaEquipo {
   inicial: ResultadoLista<MiembroEquipo>
   capacidades?: Capacidad[]
   opcionesDeFiltro?: Record<string, OpcionFiltro[]>
+  /**
+   * Modelo de permisos de quien mira. En `nuevo`, la columna y el filtro de Rol no se dibujan y el
+   * alta no ofrece el selector: el rol dejo de existir como concepto. Ver `datos/tipos.ts`.
+   */
+  modeloDePermisos?: ModeloDePermisos
 }
 
 export function VistaEquipo ({
   inicial,
   capacidades = [],
-  opcionesDeFiltro
+  opcionesDeFiltro,
+  modeloDePermisos = 'viejo'
 }: PropsVistaEquipo): ReactElement {
+  const conRol = modeloDePermisos === 'viejo'
   const router = useRouter()
   const [creando, setCreando] = useState(false)
 
@@ -65,7 +72,10 @@ export function VistaEquipo ({
 
     return {
       ...EQUIPO,
-      columnas: EQUIPO.columnas.map((columna) => {
+      // El rol no decide nada en tiempo de ejecucion —es la plantilla que pre-marca checkboxes en el
+      // panel viejo— asi que en el modelo consolidado no se dibuja ni como columna ni como filtro.
+      filtros: EQUIPO.filtros?.filter((filtro) => conRol || filtro.clave !== 'role_id'),
+      columnas: EQUIPO.columnas.filter((columna) => conRol || columna.clave !== 'role_id').map((columna) => {
         if (columna.clave === 'full_name') {
           return {
             ...columna,
@@ -116,7 +126,7 @@ export function VistaEquipo ({
         return columna
       })
     }
-  }, [roles, cargos, areas])
+  }, [roles, cargos, areas, conRol])
 
   return (
     <div className="flex flex-col gap-3">
@@ -138,6 +148,7 @@ export function VistaEquipo ({
           <AccionesPersona
             persona={persona}
             roles={roles}
+            modeloDePermisos={modeloDePermisos}
             cargos={cargos}
             areas={areas}
             capacidades={capacidades}
@@ -152,7 +163,7 @@ export function VistaEquipo ({
           onAbiertoCambia={setCreando}
           titulo="Nueva persona"
           descripcion="No se envía ningún correo: la contraseña hay que entregarla por otro medio."
-          campos={camposDePersona(roles, cargos, areas, true)}
+          campos={camposDePersona(roles, cargos, areas, true, conRol)}
           ruta="staff"
           metodo="POST"
           onGuardado={() => { router.refresh() }}

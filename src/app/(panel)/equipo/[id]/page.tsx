@@ -4,7 +4,7 @@ import { AccionesPersona } from '@/componentes/equipo/AccionesPersona'
 import { BotonSuplantar } from '@/componentes/equipo/BotonSuplantar'
 import { CabeceraPersona } from '@/componentes/equipo/CabeceraPersona'
 import { DialogoPermisos } from '@/componentes/equipo/DialogoPermisos'
-import { DialogoRoles } from '@/componentes/equipo/DialogoRoles'
+import { DialogoNivel } from '@/componentes/equipo/DialogoNivel'
 import { FichaPersona } from '@/componentes/equipo/FichaPersona'
 import { PanelArchivosPersona } from '@/componentes/equipo/PanelArchivosPersona'
 import { PanelHistorialPersona } from '@/componentes/equipo/PanelHistorialPersona'
@@ -199,9 +199,9 @@ export default async function PersonaPage (props: PageProps<'/equipo/[id]'>) {
       <div className="flex flex-wrap items-start justify-between gap-3">
         <CabeceraPersona persona={persona} />
         <div className="flex flex-wrap items-center gap-2">
-          <AccionesPersona persona={persona} roles={roles} cargos={cargos} areas={areas} capacidades={capacidades} enFicha />
-          {/* Solo un superadministrador reparte los roles: la API rechaza al resto con 422. */}
-          {yo.is_superadmin && <DialogoRoles persona={persona} actorId={yo.id} />}
+          <AccionesPersona persona={persona} roles={roles} cargos={cargos} areas={areas} capacidades={capacidades} modeloDePermisos={yo.modelo_permisos} enFicha />
+          {/* Solo un superadministrador reparte el nivel: la API rechaza al resto con 422. */}
+          {yo.is_superadmin && <DialogoNivel persona={persona} actorId={yo.id} />}
           {/* Ver el panel con la sesion de esta persona. Misma puerta que los roles —la API exige
               superadministrador— y sin sentido sobre uno mismo, asi que en la ficha propia no va. */}
           {yo.is_superadmin && persona.id !== yo.id && (

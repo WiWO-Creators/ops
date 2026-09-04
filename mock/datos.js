@@ -80,6 +80,10 @@ export const STAFF = NOMBRES.map(([firstname, lastname], i) => ({
   // pantallas de Administracion. Solo la primera cuenta lo tiene, para que el mock ejercite tambien
   // el caso del admin que NO puede entrar ahi.
   is_superadmin: i === 0,
+  // Que catalogo de permisos le toca (`Acceso\Permisos::usaModeloNuevo()` del backend). La tercera
+  // cuenta esta en el modelo consolidado y el resto en el viejo, para que el mock sirva los dos:
+  // sin una de cada, la ficha con cuatro areas y la de doce no se pueden comparar sin base.
+  modelo_permisos: i === 2 ? 'nuevo' : 'viejo',
   role_id: ciclo(ROLES, i).id,
   active: i !== NOMBRES.length - 1,
   is_not_staff: false,

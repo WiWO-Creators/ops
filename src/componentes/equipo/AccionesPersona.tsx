@@ -15,6 +15,7 @@ import { FormularioRecurso } from '@/componentes/proyecto/FormularioRecurso'
 import type { OpcionCampo } from '@/componentes/proyecto/formulario'
 import { pedirSobre } from '@/datos/cliente'
 import type { MiembroEquipo } from '@/datos/recursos'
+import type { ModeloDePermisos } from '@/datos/tipos'
 import type { Capacidad } from '@/datos/tipos'
 import { camposDePersona } from './campos'
 
@@ -43,6 +44,8 @@ const MAXIMO_HEREDEROS = 200
 interface PropsAccionesPersona {
   persona: MiembroEquipo
   roles: OpcionCampo[]
+  /** Modelo de permisos de quien mira: en `nuevo` el formulario no ofrece el selector de Rol. */
+  modeloDePermisos?: ModeloDePermisos
   cargos: OpcionCampo[]
   areas: OpcionCampo[]
   capacidades: Capacidad[]
@@ -55,6 +58,7 @@ interface PropsAccionesPersona {
 export function AccionesPersona ({
   persona,
   roles,
+  modeloDePermisos = 'viejo',
   cargos,
   areas,
   capacidades,
@@ -136,7 +140,7 @@ export function AccionesPersona ({
           abierto={editando}
           onAbiertoCambia={setEditando}
           titulo={`Editar a ${persona.full_name}`}
-          campos={camposDePersona(roles, cargos, areas, false)}
+          campos={camposDePersona(roles, cargos, areas, false, modeloDePermisos === 'viejo')}
           ruta={`staff/${persona.id}`}
           metodo="PATCH"
           registro={persona as unknown as Record<string, unknown>}

@@ -25,18 +25,24 @@ const LARGOS = { nombre: 50, email: 100, phonenumber: 30 }
  * `cargo_id` y `area_id` (`modules/wiwo_core/cargos_areas.php`) son la organizacion propia del staff,
  * separada del rol (RBAC): ninguno de los dos es requerido, y dejarlos sin elegir es "sin cargo/área".
  *
+ * El selector de Rol solo aparece en el modelo de permisos viejo. Ahi sigue sirviendo para una cosa:
+ * un alta con `role_id` estrena la cuenta con los permisos de ese rol. En el modelo consolidado no
+ * hace falta —la API estrena con `PERMISOS_INICIALES`— y el rol dejo de existir como concepto.
+ *
  * @param roles catalogo `roles` de `GET /lookups`
  * @param cargos catalogo `cargos` de `GET /lookups`
  * @param areas catalogo `areas` de `GET /lookups`
  * @param alta `true` para el formulario de alta
+ * @param conRol `true` para dibujar el selector de Rol (modelo de permisos viejo)
  */
 export function camposDePersona (
   roles: OpcionCampo[],
   cargos: OpcionCampo[],
   areas: OpcionCampo[],
-  alta: boolean
+  alta: boolean,
+  conRol = true
 ): CampoFormulario[] {
-  return [
+  const campos: CampoFormulario[] = [
     { clave: 'firstname', etiqueta: 'Nombre', tipo: 'texto', requerido: true, maximo: LARGOS.nombre },
     { clave: 'lastname', etiqueta: 'Apellido', tipo: 'texto', requerido: true, maximo: LARGOS.nombre },
     { clave: 'email', etiqueta: 'Correo', tipo: 'texto', requerido: true, maximo: LARGOS.email },
@@ -51,15 +57,22 @@ export function camposDePersona (
         ? 'Mínimo 8 caracteres. No se envía ningún correo: entrégasela por otro medio.'
         : 'Déjala en blanco para no cambiarla.'
     },
-    {
-      clave: 'role_id',
-      etiqueta: 'Rol',
-      tipo: 'seleccion',
-      opciones: roles,
-      ...(alta ? { ayuda: 'Estrena la cuenta con los permisos del rol.' } : {})
-    },
     { clave: 'hourly_rate', etiqueta: 'Valor hora', tipo: 'numero', ayuda: 'Se usa para valorizar las horas registradas.' },
     { clave: 'cargo_id', etiqueta: 'Cargo', tipo: 'seleccion', opciones: cargos, seccion: 'Organización' },
     { clave: 'area_id', etiqueta: 'Área', tipo: 'seleccion', opciones: areas }
   ]
+
+  if (!conRol) return campos
+
+  // Antes de `hourly_rate`, que es donde estaba: el orden de un formulario que la gente ya conoce no
+  // cambia por un interruptor.
+  campos.splice(campos.findIndex((campo) => campo.clave === 'hourly_rate'), 0, {
+    clave: 'role_id',
+    etiqueta: 'Rol',
+    tipo: 'seleccion',
+    opciones: roles,
+    ...(alta ? { ayuda: 'Estrena la cuenta con los permisos del rol.' } : {})
+  })
+
+  return campos
 }

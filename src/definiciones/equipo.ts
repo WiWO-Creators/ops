@@ -1,6 +1,7 @@
 import type { DefinicionRecurso } from './tipos.ts'
 import type { MiembroEquipo } from '../datos/recursos.ts'
 import { formatearFecha } from '../lib/fechas.ts'
+import { nombreDeNivel } from '../componentes/equipo/nivel.ts'
 
 /**
  * Definicion del recurso Equipo.
@@ -37,17 +38,13 @@ export const EQUIPO: DefinicionRecurso<MiembroEquipo> = {
     },
     // Las cuatro llegan en cada `GET /staff` y antes no se veian en ninguna parte. Ocultas por
     // defecto: son datos de consulta puntual, y sacarlas a la vista convertiria la tabla en un legajo.
+    // Una columna y no dos: "Administrador: No / Superadministrador: Sí" es un estado que no
+    // significa nada, y leerlo en dos columnas obliga a cruzarlas mentalmente en cada fila.
     {
       clave: 'is_admin',
-      encabezado: 'Administrador',
+      encabezado: 'Nivel',
       ocultaPorDefecto: true,
-      presentar: (m) => (m.is_admin ? 'Sí' : 'No')
-    },
-    {
-      clave: 'is_superadmin',
-      encabezado: 'Superadministrador',
-      ocultaPorDefecto: true,
-      presentar: (m) => (m.is_superadmin ? 'Sí' : 'No')
+      presentar: (m) => nombreDeNivel(m)
     },
     { clave: 'phonenumber', encabezado: 'Teléfono', ocultaPorDefecto: true, presentar: (m) => m.phonenumber ?? '' },
     {

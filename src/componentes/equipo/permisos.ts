@@ -20,20 +20,43 @@
 import type { AreaDeCatalogo } from '@/datos/recursos'
 
 /**
- * Nombre en español de cada area de permisos.
+ * Nombre en español de las cuatro areas que el producto usa de verdad.
  *
  * Las claves son las features de la API (`helpers/staff_helper.php`), y se traducen aca porque son lo
  * unico de la ficha que llega en ingles. Una feature que la API agregue y este mapa no conozca se
  * muestra con su clave cruda: es feo, pero es cierto, y no esconde un permiso que la persona tiene.
+ *
+ * Son las cuatro con pantalla: Procesos, Espacios, Clientes y Equipo. Las demas se mudaron a
+ * `NOMBRES_HEREDADOS`, que no se puede editar.
  */
 export const AREAS: Record<string, string> = {
   tasks: 'Tareas',
   projects: 'Proyectos',
   customers: 'Clientes',
-  staff: 'Equipo',
+  staff: 'Equipo'
+}
+
+/**
+ * Las areas que ya no se editan pero que hay gente que todavia tiene.
+ *
+ * Dos grupos, y ninguno de los dos gobierna una pantalla de este producto:
+ *
+ *   - **Ventas y soporte** (`invoices`, `estimates`, `proposals`, `payments`, `expenses`,
+ *     `contracts`, `leads`, `items`, `tickets`): la instalacion no tiene ni una factura, cotizacion,
+ *     gasto o ticket, y la interfaz no ofrece esas secciones.
+ *   - **Modulos del panel viejo** (`knowledge_base`, `reports`, `goals`, `prchat`,
+ *     `checklist_templates`, `estimate_request`, `roles`, `settings`): son 1.742 filas de gente real,
+ *     y `prchat` ni siquiera esta activo.
+ *
+ * Se traducen igual porque `areasFueraDeLaMatriz()` las lista: la ficha dice "ademas tiene esto" en
+ * vez de esconderlas. Un permiso que desaparece de la vista sin desaparecer de la base es
+ * exactamente la clase de mentira que esta consolidacion vino a sacar.
+ */
+export const NOMBRES_HEREDADOS: Record<string, string> = {
   invoices: 'Facturas',
   payments: 'Pagos',
   estimates: 'Cotizaciones',
+  estimate_request: 'Solicitudes de cotización',
   proposals: 'Propuestas',
   expenses: 'Gastos',
   contracts: 'Contratos',
@@ -42,12 +65,15 @@ export const AREAS: Record<string, string> = {
   items: 'Ítems',
   roles: 'Roles',
   settings: 'Ajustes',
-  // Estas cuatro no estan en el catalogo de la API: las escriben modulos del panel viejo, y aparecen
-  // igual en `tblstaff_permissions` de gente real.
   knowledge_base: 'Base de conocimiento',
   reports: 'Reportes',
   goals: 'Metas',
-  prchat: 'Chat interno'
+  prchat: 'Chat interno',
+  checklist_templates: 'Plantillas de checklist',
+  credit_notes: 'Notas de crédito',
+  subscriptions: 'Suscripciones',
+  email_templates: 'Plantillas de correo',
+  bulk_pdf_exporter: 'Exportador de PDF'
 }
 
 /** Nombre en español de cada capacidad. Misma regla que `AREAS` con las que no estan. */
@@ -117,7 +143,7 @@ export function matrizEditable (
 
     matriz.push({
       feature: area.feature,
-      nombre: AREAS[area.feature] ?? area.name,
+      nombre: AREAS[area.feature] ?? NOMBRES_HEREDADOS[area.feature] ?? area.name,
       capacidades
     })
   }
@@ -218,7 +244,7 @@ export function areasFueraDeLaMatriz (
   return Object.entries(permisosDePersona)
     .filter(([feature, capacidades]) => !editables.has(feature) && capacidades.length > 0)
     .map(([feature, capacidades]) => ({
-      nombre: AREAS[feature] ?? feature,
+      nombre: AREAS[feature] ?? NOMBRES_HEREDADOS[feature] ?? feature,
       capacidades: capacidades.map((clave) => CAPACIDADES[clave] ?? clave).join(', ')
     }))
 }
