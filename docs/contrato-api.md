@@ -3101,6 +3101,141 @@ verlo" sólo le sirve a quien está sondeando la API.
 `counts.iterations` de la ficha y del listado de Procesos sigue igual, con el mismo guard de tabla
 ausente. La columna "Iteraciones" del listado no necesita tocarse.
 
+### Rama `feat/correo-cliente`
+
+Motor de correo al cliente. **Viene apagado, y hoy no manda nada.** Lo que se construyó es la
+cañería y el interruptor: hay un productor que anota en una cola que a un contacto habría que
+escribirle, y un visor de esa cola. **No hay consumidor**: ninguna línea del módulo lee
+`tblwiwo_correo_cliente_cola` para despachar un correo, y el interruptor
+`wiwo_correo_cliente_modo` nace en `apagado`. Una cola con filas `pendiente` y el motor apagado es
+el estado correcto del sistema, no una falla que haya que "arreglar" desde el front.
+
+**Por qué un segundo interruptor.** `wiwo_api_correo_modo` (el de `Nucleo\EfectosExternos`, que
+gobierna `GET|PUT /notifications/settings`) se aplica con filtros que la API registra **por
+petición**: no alcanza a nada que corra fuera de una petición —el cron de Perfex, entre otros—. Un
+consumidor de esta cola será exactamente eso, un proceso de fondo, así que su interruptor vive en el
+dato: una opción de `tbloptions` que el consumidor tendrá que leer. Los dos interruptores son
+independientes y ninguno apaga al otro.
+
+**El token del enlace no se guarda.** `payload_json` lleva contexto no secreto. El token en claro
+del enlace de acceso sigue existiendo una sola vez, en la respuesta de
+`POST /contacts/{id}/access-link`; de la base sólo sale su sha256 (`tblapi_tokens`).
+
+#### Esquema nuevo (migración `0130`)
+
+`tblwiwo_correo_cliente_cola`: `id`, `contact_id`, `plantilla`, `payload_json`,
+`estado enum('pendiente','enviado','error')`, `creada_en`, `enviada_en`, `error`. Sin clave foránea
+a `tblcontacts`: si el contacto se borra, la fila queda huérfana y se sigue mostrando con
+`contact: null`.
+
+Opciones nuevas en `tbloptions`:
+
+| Opción | Valor inicial | Notas |
+|---|---|---|
+| `wiwo_correo_cliente_modo` | `apagado` | `apagado` \| `prueba` \| `real`. Editable por superadmin vía `PATCH /settings`. Hoy los tres se comportan igual —no sale nada— porque no hay quien envíe |
+| `wiwo_correo_cliente_destino_prueba` | `""` | casilla a la que iría todo en modo `prueba`. **No** es editable por la API: sin consumidor no hay nada que redirigir |
+
+#### `POST /contacts/{id}/access-link` → `201` (sin cambios en la respuesta)
+
+El endpoint que ya existía **no cambia su contrato**: sigue devolviendo `{ token, expires_at }` y
+sigue sin mandar ningún correo. Lo único nuevo es un efecto interno: además de devolver el enlace,
+**encola** una fila `pendiente` con `plantilla: "enlace_acceso_portal"`.
+
+```json
+{ "token": "2251881c…5baa4", "expires_at": "2026-09-07 17:42:27" }
+```
+
+No encola —y responde `201` igual— si el contacto no tiene correo cargado, o si la migración `0130`
+todavía no se aplicó en esa instalación. Nunca falla por culpa de la cola.
+
+#### `GET /notifications/client-mail-queue` → `200`
+
+Listado paginado de la cola, **sólo lectura**. Mismo guard y mismo bloque de rutas que
+`GET /notifications/mail-queue`: exige **superadmin**, y con `admin = 1` a secas responde
+`403 {"code":"forbidden"}`.
+
+No tiene escritura de ninguna clase: ni reintentar, ni borrar, ni despachar. Cualquier verbo que no
+sea `GET` → `404 {"code":"not_found"}`.
+
+```json
+{
+  "data": [
+    {
+      "id": 1,
+      "contact": { "id": 21, "name": "Claude Contacto", "email": "claude-contacto@example.com" },
+      "template": "enlace_acceso_portal",
+      "payload": { "expires_at": "2026-09-07 17:42:27", "generado_por": 183 },
+      "status": "pendiente",
+      "created_at": "2026-09-05T00:42:27Z",
+      "sent_at": null,
+      "error": null
+    }
+  ],
+  "meta": {
+    "pagination": {
+      "page": 1, "per_page": 25, "total": 1, "total_pages": 1,
+      "summary": {
+        "total": 1, "pendiente": 1, "enviado": 0, "error": 0,
+        "mode": "apagado", "engine_enabled": false
+      }
+    }
+  }
+}
+```
+
+| Campo | Notas |
+|---|---|
+| `id` | id de fila |
+| `contact` | contacto resuelto (`id`, `name`, `email`). **Puede ser `null`**: no hay clave foránea y el contacto pudo borrarse después de encolar. La fila se muestra igual |
+| `template` | qué correo sería. Hoy sólo existe `enlace_acceso_portal` |
+| `payload` | objeto ya decodificado, o `null` si la columna no trae un JSON válido. **Nunca lleva secretos**: para `enlace_acceso_portal` son `expires_at` y `generado_por` (staffid) |
+| `status` | `pendiente` \| `enviado` \| `error`. Hoy **todas** son `pendiente`: nadie escribe los otros dos |
+| `created_at` | instante ISO-8601 en UTC |
+| `sent_at` | siempre `null` mientras no haya consumidor |
+| `error` | siempre `null` mientras no haya consumidor |
+
+El bloque `summary` vive dentro de `meta.pagination`, igual que en `mail-queue`. `mode` es el valor
+de `wiwo_correo_cliente_modo` ya normalizado (cualquier basura se lee como `apagado`) y
+`engine_enabled` es `mode !== "apagado"`. **Es lo primero que la pantalla tiene que mostrar**: con
+`engine_enabled: false`, las filas pendientes no van a salir nunca.
+
+Parámetros:
+
+| Parámetro | Valores |
+|---|---|
+| `filter[status]` | `pendiente` \| `enviado` \| `error` |
+| `filter[template]` | nombre de plantilla |
+| `filter[contact]` | id de contacto |
+| `filter[date_from]`, `filter[date_to]` | sobre `creada_en` |
+| `sort` | `date` (por defecto `-date`), `status` |
+| `search` | correo, nombre o apellido del contacto |
+| `page`, `per_page` | paginación estándar |
+
+Un filtro fuera de esa lista → `422 {"filter[<clave>]":["unknown"]}`. Un `sort` fuera de la lista →
+`422 {"sort":["unknown:<valor>"]}`.
+
+| Código | Cuándo |
+|---|---|
+| `200` | listado, aunque esté vacío |
+| `401` | sin token |
+| `403` | no es superadmin |
+| `404` | verbo distinto de `GET` |
+| `422` | filtro u orden desconocido |
+
+#### `PATCH /settings` — la clave nueva
+
+`wiwo_correo_cliente_modo` entra en la whitelist de ajustes editables (grupo `correo`), que ya está
+bajo guard de superadmin. `GET /settings` la publica con su dominio:
+
+```json
+{ "group": "correo", "type": "enum", "value": "apagado", "options": ["apagado", "prueba", "real"] }
+```
+
+Escribirla sin ser superadmin → `403 {"code":"forbidden"}`. Cambiarla a `prueba` o `real` **hoy no
+enciende ningún envío**: no hay consumidor que lea el valor. Es el interruptor puesto antes que lo
+que gobierna, a propósito: mergear el envío y su interruptor juntos es exactamente como se manda un
+correo sin querer.
+
 ## Tiempo real
 
 `GET /config/realtime` → `{ "data": { "enabled": true, "key": "…", "cluster": "…" } }`
