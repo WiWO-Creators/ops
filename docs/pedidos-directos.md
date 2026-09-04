@@ -31,24 +31,34 @@ cambia de estado. Back = `wiwo-board`. Front = `ops-v2`.
 | En el listado general, círculo con la foto en vez del nombre del asignado | — | ✅ `main` (`29d60a4`) | Los nombres se cortan con "…" cuando hay varios. Grupo de avatares con "+N", nombre accesible por tooltip y lector de pantalla, e iniciales cuando no hay foto. `columnas-tareas.tsx` + `presentadores/Avatar.tsx` |
 | Presets de filtros también en tablas y tarjetas de proyecto | ✅ `main` (`9b1a181`/`2b9f430`) | ✅ `main` (`b7dbd0c`/`f3feff1`) | Segunda vuelta sobre los presets: `PresetsFiltro.tsx` lo consume desde `TablaRecurso.tsx`, `TableroFiltrable.tsx`, `TarjetasProyectos.tsx` y `PanelTiempos.tsx`. Back: filtros en el listado de hitos y presets para más vistas |
 
-## Pedidos nuevos (04/09/2026) — sin empezar
+## Pedidos nuevos (04/09/2026)
 
-Tanda que el usuario pidió por chat el 04/09. Ninguno está construido; la columna **Ya existe**
-anota lo que el repo aporta hoy, para no arrancar de cero donde ya hay una base.
+Tanda que el usuario pidió por chat el 04/09. Los ocho que no son de IA se construyeron el mismo
+día, uno por rama, con `feature-aislada`. Los tres de IA los tomó otra sesión en paralelo.
 
-| Ítem | Back | Front | Ya existe |
+| Ítem | Back | Front | Notas |
 |---|---|---|---|
-| Iteraciones en la tarea (contador visible y marcable) | 🟡 base | 🟡 base | Back: tabla `tblwiwo_task_iterations` y panel de iteraciones en el modal de tarea (`modules/wiwo_core/wiwo_core.php`). API: `counts.iterations` en `RecursoProcesos.php:538`. Front: columna "Iteraciones" en `columnas-tareas.tsx:250`. Falta definir qué agrega la casilla del pedido |
-| Alertas de tareas atrasadas (desviación) | 🟡 base | ❌ sin empezar | Back: `modules/wiwo_core/deadline_reminders.php` manda tres avisos por correo (temprano, 24 horas y el día). Falta la desviación como dato y su alerta dentro de ops-v2 |
-| ETA: tiempo estimado de espera, estimación y variación | ❌ sin empezar | ❌ sin empezar | Perfex guarda `tbltasks.startdate`/`duedate`; no hay estimación ni variación calculada |
-| Panel del head del Proyecto: configurar SLA | ❌ sin empezar | ❌ sin empezar | |
-| Panel del head del Proyecto: configurar aprobación | ❌ sin empezar | ❌ sin empezar | |
-| Cliente: correo | ❌ sin empezar | ❌ sin empezar | Hoy no se manda ningún correo al cliente: el portal entra por enlace de un solo uso, sin correos |
-| Crear proyecto desde una configuración: hitos y tareas predefinidos, con personas | ❌ sin empezar | ❌ sin empezar | Plantilla de proyecto: hitos, tareas y responsables ya asignados al crear |
-| Tarjetas con orbe: resumen por IA barata (tipo DeepSeek), una vez al día, en proyectos, tareas y clientes | ❌ sin empezar | 🟡 base | Front: el orbe ya existe con siete estados (`src/componentes/estado/Orbe.tsx`, `src/estilos/thinking-orb.css`). Falta el resumen: proveedor de IA, el trabajo diario que lo genera y dónde se guarda |
-| Chat con IA dentro del proyecto para preguntar sobre el board | ❌ sin empezar | ❌ sin empezar | |
-| Link para compartir una tarea: interno muestra todo, externo sólo lectura | ❌ sin empezar | ❌ sin empezar | Base parecida: el enlace de un solo uso del portal del cliente (`624edc5`) |
-| Escribir una tarea con IA | ❌ sin empezar | ❌ sin empezar | |
+| Iteraciones en la tarea (contador visible y marcable) | ✅ `main` (`2cc2e14`) | ✅ `main` (`1dea4b8`) | La tabla `tblwiwo_task_iterations` ya existía y sólo la escribía el panel de Perfex: ahora la API expone `GET|POST /tasks/{id}/iterations` y el detalle muestra la lista con motivo y autor. Permisos: los mismos que para **ver** la tarea, no `tasks.edit` — es el criterio del panel |
+| Alertas de tareas atrasadas (desviación) | ✅ `main` (`d5a1877`) | ✅ `main` (`5196cd5`) | `desviacion_dias` es campo derivado del Proceso; el atraso se muestra como tipografía, no como insignia (la píldora ya la ocupan estado y prioridad) |
+| ETA: tiempo estimado, estimación y variación | ✅ `main` (`d5a1877`/`76986ef`) | ✅ `main` (`5196cd5`) | El ETA sale del **tipo de Proceso**, con días configurables por Espacio en `tblwiwo_eta_por_tipo`. Reusa `tbltask_types` y `tblproject_task_types`, que ya existían. `76986ef` abrió `task_type` a la escritura: sin eso el ETA nunca se calculaba |
+| Panel del head del Proyecto: configurar SLA | ✅ `main` (`d5a1877`) | ✅ `main` (`5196cd5`) | Pestaña "Configuración" del Espacio, visible al creador (`addedfrom`), Directores, admin y superadmin, con las tres capas de compuerta. El SLA compara el cierre real contra la fecha comprometida |
+| Panel del head del Proyecto: configurar aprobación | ✅ `main` (`d5a1877`) | ✅ `main` (`5196cd5`) | La aprobación la da **el cliente desde el portal, antes de empezar**, y recién ahí arranca el reloj del ETA. Interruptor por Espacio en `tblproject_settings` |
+| Cliente: correo | ✅ `main` (`f0dea90`) | ✅ `main` (`cbcf721`) | **Sólo el motor, apagado**: cola, interruptor `wiwo_correo_cliente_modo` en `apagado` y un único productor (el enlace de acceso al portal). No hay consumidor: nadie vacía la cola |
+| Crear proyecto desde una configuración: hitos y tareas predefinidos, con personas | ✅ `main` (`bd32727`) | ✅ `main` (`d6e3b3e`) | Plantillas propias por Director. Los items guardan posiciones relativas, así que al crear con otra duración esperada las fechas se escalan solas; la pantalla muestra la vista previa antes de confirmar |
+| Link para compartir una tarea: interno muestra todo, externo sólo lectura | ✅ `main` (`2e3ed35`) | ✅ `main` (`74a1cbe`) | `/tarea/[token]`, anónimo y sin login. La proyección pública es una **lista blanca explícita de nueve claves**, nunca el objeto del staff podado. Generar uno nuevo invalida el anterior |
+| Tarjetas con orbe: resumen por IA barata, una vez al día | — | — | **Otra sesión**: fuera del alcance de esta tanda |
+| Chat con IA dentro del proyecto para preguntar sobre el board | — | — | **Otra sesión** |
+| Escribir una tarea con IA | — | — | **Otra sesión** |
+
+### Lo que quedó fuera, a propósito
+
+- **Comentarios en el enlace público de una tarea.** El core no tiene marca de "comentario público"
+  (el portal ni siquiera muestra comentarios de tareas) e inventarla exigía una columna en tabla de
+  Perfex —deuda de merge, prohibida— o una tabla y un endpoint de marcado fuera de alcance.
+  Publicarlos todos era la fuga más grande posible. Documentado en el contrato cómo sumarlos.
+- **Reutilizar un tipo de Proceso de otro Espacio desde la interfaz.** La API lo acepta, pero no hay
+  endpoint que liste el catálogo global, así que un selector no tendría de dónde sacar las opciones.
+  El alta es por nombre. Se agrega el día que exista `GET /task-types`.
 
 **Leyenda:** ✅ hecho y mergeado · 🔄 en curso · 🟡 hay base aprovechable, falta el pedido · ❌ sin empezar
 
@@ -58,6 +68,16 @@ Con `board-api` (contenedor podman, puerto 8091) y `ops-v2` (`pnpm dev`, puerto 
 login en `/colab` con el usuario de prueba local (ver memoria de la cuenta). Rutas relevantes:
 `/procesos/tablero` (kanban con filtros y drag&drop), `/equipo` y `/equipo/mi-area` (cargo/área),
 `/archivos` y la pestaña de archivos de una Tarea (árbol de Drive, subida y permisos).
+
+De la tanda del 04/09: pestaña **Configuración** de un Proyecto (tipos con ETA y el interruptor de
+aprobación), detalle de una Tarea (bloque de ETA/desviación/aprobación, lista de iteraciones, botón
+Compartir), `/espacios/plantillas`, `/administracion/correo` (cola nueva, sólo superadmin) y
+`/tarea/{token}` **en una ventana sin sesión**.
+
+El camino que prueba el hilo del ETA es uno solo y hay que recorrerlo entero: configurar un tipo con
+ETA → pedir aprobación de una Tarea → entrar al portal como contacto → aprobar → volver al panel y
+ver que el ETA aparece. Mientras la aprobación está pendiente el ETA es `—` a propósito: el reloj
+todavía no arrancó.
 
 Para el árbol de Drive hacen falta las dos constantes de unidad compartida en `app-config.php`:
 sin ellas el módulo entero lanza `RuntimeException`.

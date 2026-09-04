@@ -3999,6 +3999,73 @@ Lo que evita errores:
 | El modelo no devolvió un JSON con la forma esperada | `502` `provider_error` |
 | Falta una clave del proveedor en el `.env` | `503` `ia_no_configurada` |
 
+### Rama `feat/tipo-de-proceso`
+
+Cierra el hueco que dejaba muerta la cadena de ETA/SLA: `task_type` ya se puede **escribir** en el
+alta y en la edición de un Proceso. Sin esto, ningún Proceso podía recibir un tipo desde ops-v2 y el
+`eta` era siempre `null`, por más ETA que tuviera configurado el Espacio.
+
+No hay endpoints nuevos ni cambia ninguna respuesta: es una clave nueva **de entrada** en
+`POST /tasks` y `PATCH /tasks/{id}`.
+
+---
+
+#### `task_type` en el cuerpo
+
+| Endpoint | Clave | Tipo aceptado | Qué hace |
+|---|---|---|---|
+| `POST /tasks` | `task_type` | `int \| 0 \| null` (opcional) | Fija el tipo del Proceso nuevo |
+| `PATCH /tasks/{id}` | `task_type` | `int \| 0 \| null` | Cambia o limpia el tipo |
+
+**Asimetría entrada/salida, a propósito:** se **escribe** el `id` (un entero), y se **lee** el objeto
+`task_type: { id, name, label_color, text_color } | null` que ya devolvía el Proceso. No se escribe
+el objeto.
+
+**`0` y `null` son lo mismo: "sin tipo".** Los dos limpian el tipo y los dos devuelven
+`task_type: null` en la respuesta. (En la base se guarda `NULL`, no `0`: la columna tiene clave
+foránea al catálogo y el `0` que usa el panel de Perfex para "sin tipo" no existe como fila.)
+
+#### Qué acepta
+
+Un id de tipo **que el Espacio del Proceso ofrezca**, o sea uno de los que devuelve
+`GET /projects/{id}/task-types`. Esa lista es la única fuente de verdad: sale de la relación
+Espacio ↔ tipo, no del catálogo global —que tiene 834 filas, con el mismo nombre repetido 278 veces,
+y ninguna marcada como perteneciente a un Espacio—.
+
+La relación que se mira es la **efectiva**, igual que con `milestone`: si el mismo `PATCH` mueve el
+Proceso a otro Espacio, el tipo se valida contra el Espacio nuevo.
+
+Cadena completa, que es la razón de existir de esta rama:
+
+1. `PUT /projects/{id}/task-types` con `eta_dias` para el tipo.
+2. `POST /tasks` con `rel_type: "project"`, ese `rel_id` y ese `task_type`.
+3. El Proceso devuelve `eta` calculado (y `estado_sla` en cuanto tenga `due_date`).
+
+#### Qué rechaza — todos `422 validation_failed`
+
+| Caso | `details.task_type` en `POST` |
+|---|---|
+| Tipo que no existe en el catálogo | `["no_pertenece_al_espacio"]` |
+| Tipo que existe pero el Espacio **no ofrece** | `["no_pertenece_al_espacio"]` |
+| Proceso que no cuelga de un Espacio (`rel_type` ≠ `project`, o sin relación) | `["sin_espacio"]` |
+| Valor no numérico, o entero menor que 1 | `["invalid"]` |
+
+Los dos primeros comparten código a propósito: para quien llama, un id que el Espacio no ofrece y un
+id que no existe son el mismo error —no está en tu lista—, y distinguirlos solo serviría para
+confirmar qué ids existen en un catálogo que la API no expone.
+
+En `PATCH /tasks/{id}` los cuatro casos son `422` con `details.task_type: ["invalid"]`: el parche
+devuelve `invalid` para **todos** sus campos, es su comportamiento general y no algo de esta clave.
+
+**Un Proceso sin Espacio no lleva tipo.** Es un 422 y no un guardado silencioso: el tipo solo tiene
+sentido —y solo se puede validar— dentro de un Espacio, y aceptarlo en silencio guardaría un dato
+que nunca va a producir un `eta`. Es distinto de `milestone`, que fuera de un Espacio se fuerza a
+`0` sin error porque ahí la API replica lo que hace el panel de Perfex.
+
+**Mover un Proceso fuera de un Espacio limpia su tipo.** Un `PATCH` que cambia `rel_type` a algo que
+no sea `project` deja `task_type` en `null` —igual que ya dejaba `milestone` en `0`—, porque si no
+quedaría apuntando al catálogo de otro Espacio.
+
 ## Tiempo real
 
 `GET /config/realtime` → `{ "data": { "enabled": true, "key": "…", "cluster": "…" } }`
