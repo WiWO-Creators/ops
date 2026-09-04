@@ -166,6 +166,28 @@ test('la deriva del lienzo esta acotada a la pantalla que la pide', () => {
 })
 
 /**
+ * Exactamente dos animaciones perpetuas en todo el panel, y son estas dos.
+ *
+ * Las dos anteriores acotan cada `infinite` conocida a su selector; esta cierra la puerta por la que
+ * entraria una tercera. El guardrail del sistema de diseño no es "estas dos estan bien": es que el
+ * movimiento perpetuo se agrega por excepcion revisada y no porque quedaba lindo.
+ *
+ * Vive aca —y no junto a la funcion que lo estrenaria— a proposito: la animacion de escritura del
+ * resumen del Inicio se ve porque el texto **esta llegando**, no porque una animacion CSS finja que
+ * llega. Con esta prueba ya mergeada, la pantalla que intente fingirla no pasa.
+ */
+test('globals.css declara exactamente dos animaciones infinitas', () => {
+  const css = sinComentarios(globals)
+  const infinitas = [...css.matchAll(/animation:\s*([a-z0-9-]+)[^;]*\binfinite\b/gi)].map(([, nombre]) => nombre)
+
+  assert.deepEqual(
+    infinitas.sort(),
+    ['brillo-marca', 'deriva-lienzo'],
+    'una animacion `infinite` nueva es movimiento perpetuo: va con excepcion revisada, no de contrabando'
+  )
+})
+
+/**
  * El brillo del saludo solo mueve `background-position`, que es lo unico que puede mover.
  *
  * El relleno esta recortado sobre el texto: `transform` moveria la letra en vez del color. Es la

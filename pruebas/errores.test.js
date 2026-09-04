@@ -39,3 +39,15 @@ test('un motivo desconocido se muestra igual, sin guiones bajos', () => {
 test('sin details devuelve el mensaje intacto', () => {
   assert.equal(mensajeConDetalles({ message: 'No tenés permiso.' }), 'No tenés permiso.')
 })
+
+test('un bloque de datos dentro de details no se cuela en la frase', () => {
+  // El `429` de la capa de IA manda el bloque `regeneracion` en `details` para que el frontend no
+  // recalcule la regla del cupo. Sin el filtro, la frase terminaba en "… regeneracion." y esa
+  // palabra la leia la persona.
+  const mensaje = mensajeConDetalles({
+    message: 'Ya regeneraste el resumen dos veces hoy.',
+    details: { regeneracion: { restantes_hoy: 0, puede_ahora: false, disponible_desde: null, motivo: 'cupo' } }
+  })
+
+  assert.equal(mensaje, 'Ya regeneraste el resumen dos veces hoy.')
+})
