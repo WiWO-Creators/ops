@@ -1,6 +1,7 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
+import Script from 'next/script'
 import { useEffect, useRef, useState } from 'react'
 import { Orbe, type EstadoOrbe } from '@/componentes/estado/Orbe'
 import { Logo } from '@/componentes/estructura/Logo'
@@ -8,8 +9,12 @@ import { Boton } from '@/componentes/formularios/Boton'
 import { Campo } from '@/componentes/formularios/Campo'
 import { Entrada } from '@/componentes/formularios/Entrada'
 import { PanelVidrio } from '@/componentes/superposiciones/PanelVidrio'
+import type { AccesoGoogle } from '@/datos/tipos'
 
 type Paso = 'clave' | 'codigo'
+
+/** Por donde llego la credencial. Solo cambia como se traduce el error, no como se entra. */
+type Via = 'clave' | 'google'
 
 interface RespuestaEntrar {
   ok?: boolean
@@ -28,8 +33,11 @@ interface RespuestaEntrar {
  * El orbe de la izquierda es el indicador de progreso de esta pantalla: esta quieto hasta que se
  * envia el formulario y se mueve mientras la API responde. Por eso el boton no lleva su propio
  * indicador — dos cosas girando a la vez por una sola operacion se leen como dos operaciones.
+ *
+ * @param google lo que respondio `GET /auth/google`. Si viene apagado la pantalla es exactamente la
+ *               de siempre: ni el script de Google se descarga.
  */
-export function FormularioEntrar () {
+export function FormularioEntrar ({ google }: { google: AccesoGoogle }) {
   const router = useRouter()
   const [paso, establecerPaso] = useState<Paso>('clave')
   const [metodo, establecerMetodo] = useState<'email' | 'app'>('email')
@@ -65,33 +73,42 @@ export function FormularioEntrar () {
     temporizadorOrbe.current = setTimeout(() => { establecerEstadoOrbe(undefined) }, 1400)
   }
 
-  async function enviar (evento: React.FormEvent<HTMLFormElement>): Promise<void> {
-    evento.preventDefault()
+  /**
+   * Manda una credencial a `/api/sesion` y reacciona a lo que conteste.
+   *
+   * Las dos vias de entrada —correo con contraseña y Google— terminan aca a proposito: el segundo
+   * factor, el orbe y la navegacion son de la pantalla, no de la credencial. Duplicar esto para el
+   * boton de Google era la forma segura de que una de las dos copias se olvidara del `segundoFactor`
+   * y dejara entrar sin el.
+   *
+   * @param cuerpo lo que se manda tal cual al BFF: `{ email, password }`, `{ code }` o
+   *               `{ google: <ID token> }`. Ninguno de esos valores se guarda ni se registra aca.
+   * @param via de donde vino, solo para traducir el error al idioma correcto.
+   */
+  async function abrirSesion (cuerpo: Record<string, unknown>, via: Via): Promise<void> {
     establecerError(null)
     establecerEnviando(true)
     establecerEstadoOrbe('thinking')
-
-    const datos = new FormData(evento.currentTarget)
 
     try {
       const respuesta = await fetch('/api/sesion', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify(Object.fromEntries(datos))
+        body: JSON.stringify(cuerpo)
       })
 
-      const cuerpo = await respuesta.json() as RespuestaEntrar
+      const datos = await respuesta.json() as RespuestaEntrar
 
       if (!respuesta.ok) {
-        establecerError(mensajeDeError(cuerpo, respuesta.status))
+        establecerError(mensajeDeError(datos, respuesta.status, via))
         establecerEnviando(false)
         señalarError()
 
         return
       }
 
-      if (cuerpo.segundoFactor === true) {
-        establecerMetodo(cuerpo.method ?? 'email')
+      if (datos.segundoFactor === true) {
+        establecerMetodo(datos.method ?? 'email')
         establecerPaso('codigo')
         establecerEnviando(false)
         // La credencial era correcta: el segundo factor es un paso mas, no un fallo, asi que el
@@ -113,6 +130,33 @@ export function FormularioEntrar () {
       señalarError()
     }
   }
+
+  async function enviar (evento: React.FormEvent<HTMLFormElement>): Promise<void> {
+    evento.preventDefault()
+
+    await abrirSesion(Object.fromEntries(new FormData(evento.currentTarget)), 'clave')
+  }
+
+  /**
+   * Recibe el ID token de Google y entra con el.
+   *
+   * El JWT no se abre ni se guarda: viaja al BFF, que es el unico que habla con `/auth/google`.
+   * Quien valida la firma, el dominio y el estado de la cuenta es la API.
+   */
+  function entrarConGoogle (credential: string): void {
+    // Google no deshabilita su boton mientras hay una peticion en curso, asi que el segundo clic se
+    // ignora aca: dos `/api/sesion` en paralelo compiten por escribir la misma cookie de sesion.
+    if (enviando) return
+
+    void abrirSesion({ google: credential }, 'google')
+  }
+
+  /*
+   * La aplicacion de Google con la que se dibuja el boton, o `null` si no hay que dibujarlo. Se
+   * resuelve como valor y no como bandera para que el `client_id` llegue ya estrechado a `string`.
+   * En el paso del codigo no aparece: ahi la credencial ya se dio y lo unico que falta es el 2FA.
+   */
+  const clientIdGoogle = paso === 'clave' && google.enabled ? google.client_id : null
 
   return (
     /*
@@ -145,7 +189,8 @@ export function FormularioEntrar () {
               El aviso vive en el formulario y no en el panel del orbe: ese panel se oculta por
               debajo de `lg`, y `display: none` lo saca tambien del arbol de accesibilidad — en
               telefono nadie se enteraria de que la verificacion esta en curso. Aca esta siempre,
-              visible solo para quien lo necesita leer.
+              visible solo para quien lo necesita leer. Cubre las dos vias porque las dos pasan por
+              `abrirSesion`, que es la que prende `enviando`.
             */}
             <p role="status" aria-live="polite" className="sr-only">
               {enviando ? 'Verificando tus datos' : ''}
@@ -233,9 +278,136 @@ export function FormularioEntrar () {
               </Boton>
             )}
           </form>
+
+          {clientIdGoogle !== null && (
+            <EntrarConGoogle clientId={clientIdGoogle} alRecibirCredencial={entrarConGoogle} />
+          )}
         </PanelVidrio>
       </div>
     </main>
+  )
+}
+
+/**
+ * Lo minimo de Google Identity Services que este archivo usa.
+ *
+ * Se declara a mano en vez de instalar `@types/google.accounts`: son tres firmas y una dependencia
+ * menos que actualizar. Es opcional en `window` porque el script se carga tarde y puede no llegar
+ * nunca —bloqueador, red caida—, y en ese caso la pantalla tiene que seguir funcionando.
+ */
+declare global {
+  interface Window {
+    google?: {
+      accounts: {
+        id: {
+          initialize: (opciones: {
+            client_id: string
+            callback: (respuesta: { credential: string }) => void
+            ux_mode?: 'popup' | 'redirect'
+            auto_select?: boolean
+            cancel_on_tap_outside?: boolean
+          }) => void
+          renderButton: (elemento: HTMLElement, opciones: {
+            type?: 'standard' | 'icon'
+            theme?: 'outline' | 'filled_blue' | 'filled_black'
+            size?: 'small' | 'medium' | 'large'
+            text?: 'signin_with' | 'signup_with' | 'continue_with' | 'signin'
+            shape?: 'rectangular' | 'pill' | 'circle' | 'square'
+            logo_alignment?: 'left' | 'center'
+            locale?: string
+          }) => void
+        }
+      }
+    }
+  }
+}
+
+/**
+ * Boton "Entrar con Google", con su separador.
+ *
+ * Usa Google Identity Services y **no** un OAuth con redirect: GIS entrega el ID token directo en el
+ * callback, asi que no hay que registrar URIs de retorno, ni llevar un `state`, ni guardar un client
+ * secret en ningun lado. La credencial se cambia por sesion en `/api/sesion`, que es el unico lugar
+ * que ve tokens.
+ *
+ * El script se carga con `next/script` en vez de inyectar y limpiar una etiqueta a mano: Next lo
+ * descarga una sola vez aunque el componente se monte de nuevo —volver del paso del codigo—, avisa
+ * con `onReady` tambien en ese remontaje, y `lazyOnload` lo deja para el tiempo muerto del
+ * navegador, que es lo correcto para algo que no bloquea la via principal de entrada.
+ *
+ * El boton lo dibuja Google, no el sistema de diseño: su marca no se puede reimplementar por
+ * lineamiento suyo. `filled_black` es la variante que corresponde sobre el vidrio oscuro de esta
+ * pantalla, y lo que renderiza es un elemento con `role="button"` y su propio nombre accesible
+ * ("Iniciar sesión con Google" en `es`), asi que queda anunciado sin envoltorios extra.
+ *
+ * @param clientId la aplicacion de Google configurada en el panel, tal como la devolvio la API
+ * @param alRecibirCredencial que hacer con el ID token
+ */
+function EntrarConGoogle (
+  { clientId, alRecibirCredencial }: { clientId: string, alRecibirCredencial: (credential: string) => void }
+) {
+  const contenedor = useRef<HTMLDivElement>(null)
+  const [scriptListo, establecerScriptListo] = useState(false)
+  /*
+   * El callback se guarda en una referencia y no se pasa directo a `initialize`: Google se queda con
+   * la funcion del primer render para siempre, y esa copia veria `enviando` congelado en `false`.
+   * Ademas, incluirla en las dependencias del efecto redibujaria el boton en cada tecleo.
+   */
+  const ultimoCallback = useRef(alRecibirCredencial)
+
+  useEffect(() => {
+    ultimoCallback.current = alRecibirCredencial
+  })
+
+  useEffect(() => {
+    const destino = contenedor.current
+    const gis = window.google?.accounts.id
+
+    if (!scriptListo || destino === null || gis === undefined) return
+
+    gis.initialize({
+      client_id: clientId,
+      callback: (respuesta) => { ultimoCallback.current(respuesta.credential) },
+      // `popup`: el redirect sacaria a la persona de la pagina y obligaria a una ruta de retorno.
+      ux_mode: 'popup',
+      // Nada de entrar solo: quien abre `/colab` puede estar cambiando de cuenta a proposito.
+      auto_select: false,
+      cancel_on_tap_outside: true
+    })
+
+    gis.renderButton(destino, {
+      type: 'standard',
+      theme: 'filled_black',
+      size: 'large',
+      text: 'signin_with',
+      shape: 'pill',
+      logo_alignment: 'left',
+      locale: 'es'
+    })
+
+    // Google escribe dentro del contenedor por fuera de React. React lo ve vacio, asi que vaciarlo
+    // al desmontar no le pisa nada y evita dos botones apilados si el efecto se vuelve a correr.
+    return () => { destino.replaceChildren() }
+  }, [clientId, scriptListo])
+
+  return (
+    <div className="mt-6">
+      <div className="mb-5 flex items-center gap-3" aria-hidden="true">
+        <span className="h-px flex-1 bg-control-borde" />
+        <span className="text-xs uppercase tracking-wide text-texto-tenue">o</span>
+        <span className="h-px flex-1 bg-control-borde" />
+      </div>
+
+      {/* Sin ancho fijo: GIS acepta pixeles, no porcentajes, y cualquier numero que entre en el
+          panel de escritorio se desborda en un telefono de 320px. Centrado ocupa lo que necesita. */}
+      <div ref={contenedor} className="flex justify-center" />
+
+      <Script
+        src="https://accounts.google.com/gsi/client"
+        strategy="lazyOnload"
+        onReady={() => { establecerScriptListo(true) }}
+      />
+    </div>
   )
 }
 
@@ -307,19 +479,30 @@ function CabeceraMovil ({ estado }: { estado: EstadoOrbe | undefined }) {
  *
  * Los codigos del contrato son estables; los mensajes del servidor no siempre estan en español ni
  * dicen que hacer.
+ *
+ * @param via de donde venia la credencial. Hace falta porque un mismo codigo significa cosas
+ *            distintas segun la puerta: un 401 por Google no es "contraseña incorrecta".
  */
-function mensajeDeError (cuerpo: RespuestaEntrar, estado: number): string {
+function mensajeDeError (cuerpo: RespuestaEntrar, estado: number, via: Via): string {
   if (cuerpo.codigo === 'rate_limited') {
     return 'Demasiados intentos fallidos. Esperá unos minutos antes de volver a probar.'
   }
 
-  if (cuerpo.codigo === 'forbidden') {
-    return 'Tu cuenta está desactivada. Hablá con un administrador.'
-  }
+  // La API separa los dos 403 con codigos propios: `domain_not_allowed` es el dominio fuera de la
+  // lista y `forbidden` la cuenta dada de baja. Distinguirlos por el texto del mensaje seria atarse
+  // a una redaccion que puede cambiar sin aviso.
+  if (cuerpo.codigo === 'domain_not_allowed') return SIN_DOMINIO
+
+  if (cuerpo.codigo === 'forbidden') return CUENTA_APAGADA
 
   if (estado === 401) {
-    return 'Correo o contraseña incorrectos.'
+    return via === 'google'
+      ? 'No pudimos entrar con esa cuenta de Google. Probá con tu correo y contraseña.'
+      : 'Correo o contraseña incorrectos.'
   }
 
   return cuerpo.mensaje ?? 'No se pudo entrar. Intentá de nuevo.'
 }
+
+const SIN_DOMINIO = 'Ese correo no tiene acceso. Entrá con una cuenta de un dominio autorizado.'
+const CUENTA_APAGADA = 'Tu cuenta está desactivada. Hablá con un administrador.'

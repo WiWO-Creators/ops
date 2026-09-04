@@ -27,12 +27,20 @@ interface CuerpoEntrar {
   portal?: unknown
   /** El token del enlace de un solo uso. Su presencia elige la rama de canje. */
   enlace?: unknown
+  /**
+   * El ID token (un JWT) que Google Identity Services entrega en el callback del boton.
+   *
+   * Es una credencial: entra, se reenvia a la API y muere aca. Nunca vuelve al navegador ni se
+   * escribe en un log, igual que la contraseña.
+   */
+  google?: unknown
 }
 
 /**
  * Entra al sistema.
  *
- * Con `email` y `password` llama a `/auth/login`; con `challenge_token` y `code`, a `/auth/2fa`.
+ * Con `email` y `password` llama a `/auth/login`; con `google`, a `/auth/google`; con el codigo
+ * guardado y `code`, a `/auth/2fa`.
  *
  * @returns `{ segundoFactor: true, method }` cuando falta el codigo, o `{ ok: true }` cuando la
  *          sesion quedo abierta. El `challenge_token` **no** se devuelve al navegador: se guarda en
@@ -51,14 +59,19 @@ export async function POST (peticion: NextRequest): Promise<NextResponse> {
 
   try {
     // El canje va primero: es la unica rama que no tiene credenciales que mirar. Despues el portal,
-    // que no tiene segundo factor y por eso se decide antes que el codigo.
+    // que no tiene segundo factor y por eso se decide antes que el codigo. Google va tercero: es del
+    // equipo, asi que nunca compite con el portal, y trae su propia credencial en vez de correo mas
+    // contraseña, asi que tiene que decidirse antes que la rama de clave —que exige los dos campos y
+    // rechazaria la peticion por vacia.
     const respuesta = typeof cuerpo.enlace === 'string'
       ? await canjearEnlace(cuerpo)
       : cuerpo.portal === true
         ? await entrarAlPortal(cuerpo)
-        : codigo === ''
-          ? await entrarConClave(cuerpo)
-          : await entrarConCodigo(peticion, codigo)
+        : typeof cuerpo.google === 'string'
+          ? await entrarConGoogle(cuerpo.google)
+          : codigo === ''
+            ? await entrarConClave(cuerpo)
+            : await entrarConCodigo(peticion, codigo)
 
     return respuesta
   } catch (error) {
@@ -168,6 +181,43 @@ async function entrarConClave (cuerpo: CuerpoEntrar): Promise<NextResponse> {
     cuerpo: { email, password }
   })
 
+  return await abrirSesionDeStaff(data)
+}
+
+/**
+ * Entra con la cuenta de Google del equipo.
+ *
+ * `/auth/google` responde exactamente igual que `/auth/login` —los mismos tokens o el mismo desafio
+ * de segundo factor—, asi que el cierre es el mismo y no se duplica: quien decide si la cuenta puede
+ * entrar y si su dominio esta permitido es la API, no esta ruta.
+ *
+ * @param credential el ID token de Google. Se reenvia tal cual y no se registra en ningun lado.
+ */
+async function entrarConGoogle (credential: string): Promise<NextResponse> {
+  if (credential.trim() === '') {
+    return NextResponse.json({ mensaje: 'Falta la credencial de Google' }, { status: 400 })
+  }
+
+  const { data } = await llamarApiTipado<ParDeTokensConStaff | DesafioSegundoFactor>('/auth/google', {
+    metodo: 'POST',
+    cuerpo: { credential }
+  })
+
+  return await abrirSesionDeStaff(data)
+}
+
+/**
+ * Cierra el acceso del equipo, venga de la clave o de Google.
+ *
+ * Las dos vias comparten el mismo final porque comparten la misma respuesta de la API, y tenerlo una
+ * sola vez es lo que garantiza que el segundo factor no se pueda saltear por la puerta nueva.
+ *
+ * @returns `{ segundoFactor: true, method }` con el desafio guardado en su cookie, o `{ ok: true }`
+ *          con la sesion ya abierta.
+ */
+async function abrirSesionDeStaff (
+  data: ParDeTokensConStaff | DesafioSegundoFactor
+): Promise<NextResponse> {
   if (esDesafio(data)) {
     const respuesta = NextResponse.json({ segundoFactor: true, method: data.method })
 
