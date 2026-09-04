@@ -14,6 +14,7 @@ import type { Yo } from '@/datos/tipos'
 import type { Espacio, Proceso } from '@/datos/recursos'
 import { GLOSARIO } from '@/dominio/glosario'
 import { agruparPorVencimiento, cuantosNoListados, procesoConCronometro } from '@/dominio/inicio'
+import { puedeVerSeccion } from '@/dominio/permisos'
 import { Tarjeta, type TonoTarjeta } from '@/componentes/estructura/Tarjeta'
 import { Insignia } from '@/componentes/presentadores/Insignia'
 import { Fecha } from '@/componentes/presentadores/Fecha'
@@ -80,7 +81,7 @@ export default async function InicioPage () {
 
       <ResumenDelDia />
 
-      {yo.permissions.tasks.includes('view') && (
+      {puedeVerSeccion(yo.permissions.tasks, 'tasks') && (
         <MiTrabajo grupos={grupos} restantes={restantes} />
       )}
 
@@ -91,13 +92,13 @@ export default async function InicioPage () {
         sola peticion desde el navegador. Un solo Suspense para los dos haria que el mas lento
         retuviera al otro.
       */}
-      {yo.permissions.projects.includes('view') && (
+      {puedeVerSeccion(yo.permissions.projects, 'projects') && (
         <Suspense fallback={null}>
           <MisProyectos staffId={yo.id} />
         </Suspense>
       )}
 
-      {yo.permissions.tasks.includes('view') && (
+      {puedeVerSeccion(yo.permissions.tasks, 'tasks') && (
         <Suspense fallback={null}>
           <EnSeguimiento staffId={yo.id} />
         </Suspense>
@@ -124,7 +125,7 @@ export default async function InicioPage () {
  * @returns los procesos propios, o una lista vacia si no hay permiso o la API fallo
  */
 async function misProcesos (yo: Yo): Promise<{ procesos: Proceso[], total: number }> {
-  if (!yo.permissions.tasks.includes('view')) return { procesos: [], total: 0 }
+  if (!puedeVerSeccion(yo.permissions.tasks, 'tasks')) return { procesos: [], total: 0 }
 
   try {
     const { data, meta } = await pedir<Proceso[]>(
@@ -444,7 +445,7 @@ function Secciones ({ yo }: { yo: Yo }) {
 function accesosDe (yo: Yo): Acceso[] {
   const accesos: Acceso[] = []
 
-  if (yo.permissions.tasks.includes('view')) {
+  if (puedeVerSeccion(yo.permissions.tasks, 'tasks')) {
     accesos.push({
       href: '/procesos',
       titulo: GLOSARIO.proceso.plural,
@@ -461,7 +462,7 @@ function accesosDe (yo: Yo): Acceso[] {
     })
   }
 
-  if (yo.permissions.projects.includes('view')) {
+  if (puedeVerSeccion(yo.permissions.projects, 'projects')) {
     accesos.push({
       href: '/espacios',
       titulo: GLOSARIO.espacio.plural,
@@ -471,7 +472,7 @@ function accesosDe (yo: Yo): Acceso[] {
     })
   }
 
-  if (yo.permissions.customers.includes('view')) {
+  if (puedeVerSeccion(yo.permissions.customers, 'customers')) {
     accesos.push({
       href: '/clientes',
       titulo: 'Clientes',
@@ -481,7 +482,7 @@ function accesosDe (yo: Yo): Acceso[] {
     })
   }
 
-  if (yo.permissions.staff.includes('view')) {
+  if (puedeVerSeccion(yo.permissions.staff, 'staff')) {
     accesos.push({
       href: '/equipo',
       titulo: 'Equipo',

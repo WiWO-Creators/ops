@@ -6,6 +6,7 @@ import { GrupoAvatares } from '@/componentes/presentadores/Avatar'
 import type { Columna } from '@/definiciones/tipos'
 import type { Espacio } from '@/datos/recursos'
 import type { Capacidad } from '@/datos/tipos'
+import { puedeVerSeccion } from '@/dominio/permisos'
 import { cn } from '@/lib/clases'
 
 /**
@@ -68,7 +69,7 @@ function CeldaNombre ({ espacio, acciones }: { espacio: Espacio, acciones: Accio
 
   return (
     <span className="group/fila flex min-w-0 items-center gap-2">
-      {capacidades.includes('view')
+      {puedeVerSeccion(capacidades, 'projects')
         ? (
           <Link href={`/espacios/${espacio.id}`} className="hover:text-acento truncate font-medium">
             {espacio.name}
@@ -82,7 +83,7 @@ function CeldaNombre ({ espacio, acciones }: { espacio: Espacio, acciones: Accio
           'group-hover/fila:opacity-100 focus-within:opacity-100'
         )}
       >
-        {capacidades.includes('view') && (
+        {puedeVerSeccion(capacidades, 'projects') && (
           <EnlaceAccion href={`/espacios/${espacio.id}`}>Ver</EnlaceAccion>
         )}
         {capacidades.includes('create') && (

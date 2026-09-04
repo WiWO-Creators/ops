@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { pedir } from '@/datos/servidor'
 import type { Yo } from '@/datos/tipos'
 import { GLOSARIO } from '@/dominio/glosario'
+import { puedeVerSeccion } from '@/dominio/permisos'
 import { SelectorTema } from '@/componentes/estructura/SelectorTema'
 import { BarraLateral, BarraLateralMovil, type Seccion } from '@/componentes/estructura/BarraLateral'
 import { Logo } from '@/componentes/estructura/Logo'
@@ -71,11 +72,11 @@ export default async function PanelLayout ({ children }: { children: React.React
 function seccionesDe (yo: Yo): Seccion[] {
   const secciones: Seccion[] = [{ href: '/inicio', etiqueta: 'Inicio', icono: 'inicio' }]
 
-  if (yo.permissions.tasks.includes('view')) {
+  if (puedeVerSeccion(yo.permissions.tasks, 'tasks')) {
     secciones.push({ href: '/procesos', etiqueta: GLOSARIO.proceso.plural, icono: 'procesos' })
   }
 
-  if (yo.permissions.projects.includes('view')) {
+  if (puedeVerSeccion(yo.permissions.projects, 'projects')) {
     secciones.push({ href: '/espacios', etiqueta: GLOSARIO.espacio.plural, icono: 'espacios' })
   }
 
@@ -95,11 +96,11 @@ function seccionesDe (yo: Yo): Seccion[] {
     icono: 'teletrabajo'
   })
 
-  if (yo.permissions.customers.includes('view')) {
+  if (puedeVerSeccion(yo.permissions.customers, 'customers')) {
     secciones.push({ href: '/clientes', etiqueta: 'Clientes', icono: 'clientes' })
   }
 
-  if (yo.permissions.staff.includes('view')) {
+  if (puedeVerSeccion(yo.permissions.staff, 'staff')) {
     secciones.push({ href: '/equipo', etiqueta: 'Equipo', icono: 'equipo' })
   }
 
