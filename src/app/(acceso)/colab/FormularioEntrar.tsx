@@ -433,9 +433,23 @@ function EntrarConGoogle (
       {/* Sin separador "o": Google dejo de ser la alternativa y paso a ser la puerta. Un "o"
           arriba de todo no separa dos cosas, cuelga de la nada. */}
 
-      {/* Sin ancho fijo: GIS acepta pixeles, no porcentajes, y cualquier numero que entre en el
-          panel de escritorio se desborda en un telefono de 320px. Centrado ocupa lo que necesita. */}
-      <div ref={contenedor} className="flex justify-center" />
+      {/*
+        Sin ancho fijo: GIS acepta pixeles, no porcentajes, y cualquier numero que entre en el
+        panel de escritorio se desborda en un telefono de 320px. Centrado ocupa lo que necesita.
+
+        `scheme-light` no es un descuido sobre el vidrio oscuro: cancela el `color-scheme: dark` que
+        `.panel-vidrio` hereda hasta aca. El boton de Google vive en un iframe suyo, y cuando el
+        esquema del elemento `<iframe>` no coincide con el del documento incrustado —que es claro—,
+        Chrome deja de dibujarlo transparente y pinta el lienzo blanco del documento de Google. Eso
+        es la caja blanca de 255x44 alrededor de la pildora: no sale de nuestro CSS ni del contenido
+        del iframe (adentro solo el disco del logotipo es blanco), sale del lienzo del subdocumento.
+        Con el esquema en claro el iframe vuelve a ser transparente y solo se ve la pildora negra.
+
+        No toca nada mas: este `div` no contiene otra cosa que el iframe de Google, asi que el
+        `color-scheme: dark` del panel —que es el que pinta scrollbars y autocompletado— sigue
+        valiendo para el resto del formulario.
+      */}
+      <div ref={contenedor} className="flex justify-center scheme-light" />
 
       <Script
         src="https://accounts.google.com/gsi/client"
