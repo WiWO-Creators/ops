@@ -562,18 +562,9 @@ function GestorPermisosDrive ({ folderId }: { folderId: string }) {
       return
     }
 
-    const persona = personal.find((p) => p.id === Number(staffId))
-
-    if (carga.fase === 'listo' && persona !== undefined) {
-      setCarga({
-        fase: 'listo',
-        datos: [
-          ...carga.datos.filter((p) => p.staff_id !== persona.id),
-          { staff_id: persona.id, name: persona.full_name, email: persona.email, role: rol }
-        ]
-      })
-    }
-
+    // Se relee en vez de insertar la fila a mano: el alta puede haber quedado sin acceso —correo sin
+    // cuenta de Google— y solo el backend sabe en que `estado` quedo.
+    setIntento((n) => n + 1)
     setStaffId('')
   }
 
@@ -652,6 +643,10 @@ function GestorPermisosDrive ({ folderId }: { folderId: string }) {
  * desde el portal. Mientras el backend no distinga el sujeto —`subject_type` ausente— todas las filas
  * son del equipo y la lista sale plana, sin titulos que separen un solo grupo.
  *
+ * Aparte va un tercer grupo con la gente que quedo sin acceso porque su correo no tiene cuenta de
+ * Google: no puede ir con el resto, porque el titulo de la seccion promete "quien tiene acceso" y
+ * esa gente no lo tiene. Su rol se sigue mostrando, que es lo que va a recibir cuando cree la cuenta.
+ *
  * @param permisos las filas tal como las devolvio la API
  * @param onQuitar saca a alguien del equipo de la carpeta
  */
@@ -659,13 +654,16 @@ function ListaAccesos ({ permisos, onQuitar }: {
   permisos: PermisoDrive[]
   onQuitar: (staffId: number) => void
 }) {
+  const otorgados = permisos.filter((permiso) => (permiso.estado ?? 'otorgado') === 'otorgado')
+  const sinCuenta = permisos.filter((permiso) => permiso.estado === 'sin_cuenta_google')
+
   const grupos: Array<[SujetoPermisoDrive, PermisoDrive[]]> = [
-    ['staff', permisos.filter((permiso) => (permiso.subject_type ?? 'staff') === 'staff')],
-    ['contact', permisos.filter((permiso) => permiso.subject_type === 'contact')]
+    ['staff', otorgados.filter((permiso) => (permiso.subject_type ?? 'staff') === 'staff')],
+    ['contact', otorgados.filter((permiso) => permiso.subject_type === 'contact')]
   ]
   // Basta que haya un contacto para que los titulos hagan falta: sin ellos, una lista de solo
   // contactos se leeria como si fuera el equipo.
-  const conTitulos = permisos.some((permiso) => permiso.subject_type === 'contact')
+  const conTitulos = otorgados.some((permiso) => permiso.subject_type === 'contact')
 
   return (
     <div className="flex flex-col gap-3">
@@ -679,35 +677,72 @@ function ListaAccesos ({ permisos, onQuitar }: {
 
           <ul className="border-linea divide-linea-suave rounded-medio divide-y border">
             {filas.map((permiso) => (
-              <li key={`${sujeto}-${permiso.staff_id}`} className="flex items-center gap-2 px-3 py-2 text-sm">
-                <div className="min-w-0 flex-1">
-                  <p className="text-texto truncate font-medium">{permiso.name}</p>
-                  <p className="text-texto-sutil truncate text-xs">{permiso.email}</p>
-                </div>
-                <span className="text-texto-tenue shrink-0 text-xs">{ETIQUETAS_ROL[permiso.role]}</span>
-                {sujeto === 'staff'
-                  ? (
-                    <Boton
-                      variante="sutil"
-                      tamano="chico"
-                      soloIcono
-                      aria-label={`Quitar a ${permiso.name}`}
-                      onClick={() => { onQuitar(permiso.staff_id) }}
-                    >
-                      <X className="size-3.5" />
-                    </Boton>
-                    )
-                  : (
-                    // El alta y la baja de contactos las maneja el backend con el estado del contacto:
-                    // un boton de quitar acá seria un boton que el backend vuelve a deshacer.
-                    <span className="text-texto-sutil shrink-0 text-xs">Desde el portal</span>
-                    )}
-              </li>
+              <FilaAcceso key={`${sujeto}-${permiso.staff_id}`} permiso={permiso} onQuitar={onQuitar} />
             ))}
           </ul>
         </div>
       ))}
+
+      {sinCuenta.length > 0 && (
+        <div className="flex flex-col gap-1.5">
+          <p className="text-texto-aviso text-xs font-medium tracking-[0.08em] uppercase">
+            Sin acceso todavía
+          </p>
+          <p className="text-texto-sutil text-xs">
+            Drive no comparte con un correo que no tiene cuenta de Google. Se vuelve a intentar solo
+            cada vez que se sincroniza la carpeta: el día que la persona cree su cuenta con ese
+            correo, entra con el rol que figura acá.
+          </p>
+
+          <ul className="border-linea divide-linea-suave bg-superficie-aviso rounded-medio divide-y border">
+            {sinCuenta.map((permiso) => (
+              <FilaAcceso key={`sin-cuenta-${permiso.staff_id}`} permiso={permiso} onQuitar={onQuitar} />
+            ))}
+          </ul>
+        </div>
+      )}
     </div>
+  )
+}
+
+/**
+ * Una persona en la lista de accesos, con su rol y su baja.
+ *
+ * Es la misma fila para quien tiene el acceso y para quien todavia no: lo que distingue a los
+ * segundos es el grupo donde caen, no la fila. El boton de quitar es solo del equipo; el alta y la
+ * baja de contactos las maneja el backend con el estado del contacto, asi que un boton aca seria un
+ * boton que el backend vuelve a deshacer.
+ *
+ * @param permiso la fila tal como la devolvio la API
+ * @param onQuitar saca a alguien del equipo de la carpeta
+ */
+function FilaAcceso ({ permiso, onQuitar }: {
+  permiso: PermisoDrive
+  onQuitar: (staffId: number) => void
+}) {
+  const esEquipo = (permiso.subject_type ?? 'staff') === 'staff'
+
+  return (
+    <li className="flex items-center gap-2 px-3 py-2 text-sm">
+      <div className="min-w-0 flex-1">
+        <p className="text-texto truncate font-medium">{permiso.name}</p>
+        <p className="text-texto-sutil truncate text-xs">{permiso.email}</p>
+      </div>
+      <span className="text-texto-tenue shrink-0 text-xs">{ETIQUETAS_ROL[permiso.role]}</span>
+      {esEquipo
+        ? (
+          <Boton
+            variante="sutil"
+            tamano="chico"
+            soloIcono
+            aria-label={`Quitar a ${permiso.name}`}
+            onClick={() => { onQuitar(permiso.staff_id) }}
+          >
+            <X className="size-3.5" />
+          </Boton>
+          )
+        : <span className="text-texto-sutil shrink-0 text-xs">Desde el portal</span>}
+    </li>
   )
 }
 
