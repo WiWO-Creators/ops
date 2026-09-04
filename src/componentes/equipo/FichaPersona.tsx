@@ -7,7 +7,7 @@ import { ResumenTareasPersona } from './ResumenTareasPersona'
 import { formatearImporte, segundosAHoraMinuto } from '@/componentes/proyecto/formatos'
 import { formatearFecha } from '@/lib/fechas'
 import type { EstadoLookup, FichaPersona as Persona } from '@/datos/recursos'
-import { AREAS, CAPACIDADES } from './permisos'
+import { AREAS, CAPACIDADES, NOMBRES_HEREDADOS } from './permisos'
 
 /**
  * Todo lo que la API sabe de una persona, agrupado por para que sirve.
@@ -106,7 +106,13 @@ export function FichaPersona ({
  */
 function datosDeCuenta (persona: Persona): Dato[] {
   return [
-    { etiqueta: 'Rol', valor: persona.role?.name ?? 'Sin rol' },
+    // El rol solo se muestra en el modelo viejo, y con el modelo de ESTA persona y no el de quien
+    // mira: es su dato. En el consolidado el rol dejo de significar algo —no decide acceso, es la
+    // plantilla que pre-marca checkboxes en el panel viejo— y leerlo aca invita a cambiarlo creyendo
+    // que hace falta.
+    ...(persona.modelo_permisos === 'viejo'
+      ? [{ etiqueta: 'Rol', valor: persona.role?.name ?? 'Sin rol' }]
+      : []),
     { etiqueta: 'Cargo', valor: persona.cargo?.name ?? 'Sin cargo' },
     { etiqueta: 'Área', valor: persona.area?.name ?? 'Sin área' },
     { etiqueta: 'Valor hora', valor: formatearImporte(persona.hourly_rate) },
@@ -147,7 +153,9 @@ function Permisos ({ persona }: { persona: Persona }) {
           <Filas
             key={area}
             datos={[{
-              etiqueta: AREAS[area] ?? area,
+              // Tambien los heredados: la ficha LISTA todo lo que la persona tiene, aunque la
+              // matriz ya no lo edite. Sin el segundo mapa, `invoices` se leia en ingles.
+              etiqueta: AREAS[area] ?? NOMBRES_HEREDADOS[area] ?? area,
               valor: capacidades.map((capacidad) => CAPACIDADES[capacidad] ?? capacidad).join(', ')
             }]}
           />

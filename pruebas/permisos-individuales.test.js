@@ -125,3 +125,51 @@ test('lo que la matriz no muestra se lista aparte, ya traducido', () => {
     { nombre: 'Metas', capacidades: 'ver' }
   ])
 })
+
+/**
+ * El catalogo consolidado: cuatro areas, y las heredadas solo se listan.
+ *
+ * Es la garantia de "ocultar ahora, borrar despues". Si `cuerpoDePermisos()` nombrara una feature
+ * que la matriz no dibujo, el PATCH la vaciaria —la API reescribe **solo lo que el cuerpo nombra**—
+ * y las 1.742 filas de modulos muertos se irian sin que nadie lo pidiera.
+ */
+const CATALOGO_CONSOLIDADO = [
+  { feature: 'tasks', name: 'Tasks', capabilities: [{ key: 'view', name: 'View' }, { key: 'edit', name: 'Edit' }] },
+  { feature: 'projects', name: 'Projects', capabilities: [{ key: 'view', name: 'View' }] },
+  { feature: 'customers', name: 'Customers', capabilities: [{ key: 'view', name: 'View' }] },
+  { feature: 'staff', name: 'Staff', capabilities: [{ key: 'view', name: 'View' }] }
+]
+
+test('el catalogo consolidado dibuja exactamente las cuatro areas con pantalla', () => {
+  const matriz = matrizEditable(CATALOGO_CONSOLIDADO, {}, true)
+
+  assert.deepEqual(matriz.map((area) => area.feature), ['tasks', 'projects', 'customers', 'staff'])
+  assert.deepEqual(matriz.map((area) => area.nombre), ['Tareas', 'Proyectos', 'Clientes', 'Equipo'])
+})
+
+test('el cuerpo NUNCA nombra una feature fuera del catalogo vigente', () => {
+  const matriz = matrizEditable(CATALOGO_CONSOLIDADO, {}, true)
+  const tiene = { tasks: ['view'], goals: ['view', 'edit'], prchat: ['view'], knowledge_base: ['view'] }
+  const cuerpo = cuerpoDePermisos(seleccionInicial(tiene, matriz), matriz)
+
+  assert.deepEqual(Object.keys(cuerpo), ['tasks', 'projects', 'customers', 'staff'])
+  assert.equal('goals' in cuerpo, false, 'nombrarla la vaciaria')
+  assert.equal('prchat' in cuerpo, false)
+})
+
+test('las areas heredadas se listan en español, no con su clave cruda', () => {
+  const matriz = matrizEditable(CATALOGO_CONSOLIDADO, {}, true)
+  const fuera = areasFueraDeLaMatriz({ tasks: ['view'], goals: ['view'], prchat: ['view'] }, matriz)
+
+  assert.deepEqual(fuera, [
+    { nombre: 'Metas', capacidades: 'ver' },
+    { nombre: 'Chat interno', capacidades: 'ver' }
+  ])
+})
+
+test('una feature que nadie tradujo se muestra con su clave, no se esconde', () => {
+  const matriz = matrizEditable(CATALOGO_CONSOLIDADO, {}, true)
+  const fuera = areasFueraDeLaMatriz({ modulo_futuro: ['view'] }, matriz)
+
+  assert.deepEqual(fuera, [{ nombre: 'modulo_futuro', capacidades: 'ver' }])
+})

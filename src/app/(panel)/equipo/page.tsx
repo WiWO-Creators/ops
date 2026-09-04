@@ -41,6 +41,7 @@ export default async function EquipoPage (props: PageProps<'/equipo'>) {
         <VistaEquipo
           inicial={{ filas: lista.data, paginacion: lista.meta?.pagination }}
           capacidades={yo.data.permissions.staff}
+          modeloDePermisos={yo.data.modelo_permisos}
           opcionesDeFiltro={opcionesDeFiltros(EQUIPO, lookups)}
         />
       </Suspense>

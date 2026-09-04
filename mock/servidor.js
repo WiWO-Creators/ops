@@ -29,6 +29,19 @@ const ORIGENES = (process.env.ORIGENES ?? 'http://localhost:3000').split(',').ma
 const ACCIONES = ['view', 'create', 'edit', 'delete']
 const RECURSOS_CON_PERMISO = ['tasks', 'projects', 'customers', 'staff', 'invoices']
 
+/**
+ * Las cuatro del catalogo consolidado (`Acceso\Permisos::FEATURES_NUEVO` del backend).
+ *
+ * `invoices` queda afuera: es la que hace visible la diferencia entre los dos modelos sin inventar
+ * un fixture nuevo.
+ */
+const RECURSOS_CONSOLIDADOS = ['tasks', 'projects', 'customers', 'staff']
+
+/** El catalogo que le toca a una persona segun su modelo. */
+function recursosDe (staff) {
+  return staff.modelo_permisos === 'nuevo' ? RECURSOS_CONSOLIDADOS : RECURSOS_CON_PERMISO
+}
+
 // ---------------------------------------------------------------------------
 // Respuestas
 // ---------------------------------------------------------------------------
@@ -160,8 +173,8 @@ const PERMISOS_EDITADOS = new Map()
  * Los nombres vienen en ingles a proposito —asi los manda Perfex—, para que la traduccion del
  * frontend se ejercite de verdad.
  */
-function catalogoDePermisos () {
-  return RECURSOS_CON_PERMISO.map((recurso) => ({
+function catalogoDePermisos (staff) {
+  return recursosDe(staff).map((recurso) => ({
     feature: recurso,
     name: recurso.charAt(0).toUpperCase() + recurso.slice(1),
     capabilities: ACCIONES.map((accion) => ({ key: accion, name: accion.charAt(0).toUpperCase() + accion.slice(1) }))
@@ -180,14 +193,17 @@ function permisosDe (staff) {
   if (editados !== undefined) return editados
 
   if (staff.is_admin) {
-    return Object.fromEntries(RECURSOS_CON_PERMISO.map((r) => [r, [...ACCIONES]]))
+    return Object.fromEntries(recursosDe(staff).map((r) => [r, [...ACCIONES]]))
   }
   return {
     tasks: ['view', 'create', 'edit'],
     projects: ['view'],
     customers: [],
     staff: ['view'],
-    invoices: []
+    // Con una capacidad y no vacia: es lo que hace que `invoices` sea un permiso HEREDADO de verdad
+    // cuando el actor pasa al catalogo consolidado, y que la ficha ejercite el bloque "ademas tiene
+    // esto". Vacia no aparece en ninguna parte y esa rama no se probaba nunca.
+    invoices: ['view']
   }
 }
 
@@ -1498,9 +1514,13 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
   }
 
   if (recurso === 'roles' && resto[0] === 'catalogo' && metodo === 'GET') {
-    exigirPermiso(actual, 'staff', 'view')
+    // `staff.edit` y no `staff.view`: el catalogo sirve para editar los permisos de alguien, no para
+    // mirar la ficha. Es el gate que la API estrenó al borrar el CRUD de roles.
+    exigirPermiso(actual, 'staff', 'edit')
 
-    return { estado: 200, cuerpo: conDatos(catalogoDePermisos()) }
+    // El catalogo es el del ACTOR, no el de la persona editada: el endpoint no recibe id. Es seguro
+    // en las dos direcciones porque el PATCH toca solo las features que el cuerpo nombra.
+    return { estado: 200, cuerpo: conDatos(catalogoDePermisos(actual)) }
   }
 
   // Edicion de los permisos individuales de una persona. Solo `permissions`: el resto de la ficha se
@@ -1517,6 +1537,26 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
         previos[feature] = [...capacidades]
       }
       PERMISOS_EDITADOS.set(persona.id, previos)
+    }
+
+    // El interruptor del catalogo consolidado. Solo un superadministrador, igual que la API real, y
+    // con el mismo enum de lectura para que no haya dos nombres para una sola cosa.
+    if (datos.modelo_permisos !== undefined) {
+      if (!actual.is_superadmin) {
+        throw new ErrorApi(422, 'validation_failed', 'Revisá los campos de la persona.', {
+          modelo_permisos: ['solo_superadmin']
+        })
+      }
+      if (datos.modelo_permisos !== 'nuevo' && datos.modelo_permisos !== 'viejo') {
+        throw new ErrorApi(422, 'validation_failed', 'Revisá los campos de la persona.', {
+          modelo_permisos: ['invalid']
+        })
+      }
+      persona.modelo_permisos = datos.modelo_permisos
+    }
+
+    for (const bandera of ['is_admin', 'is_superadmin']) {
+      if (datos[bandera] !== undefined) persona[bandera] = datos[bandera] === true
     }
 
     return { estado: 200, cuerpo: conDatos(fichaDeStaff(persona)) }

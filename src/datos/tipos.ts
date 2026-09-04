@@ -104,7 +104,19 @@ export interface Staff {
   active: boolean
   /** Cargo "Director" (`modules/wiwo_core/cargos_areas.php`). Gate de la seccion "Mi Área". */
   is_director: boolean
+  /**
+   * Que catalogo de permisos le toca a esta persona (`Acceso\Permisos::usaModeloNuevo()`).
+   *
+   * NO es un permiso ni cambia lo que puede hacer: el acceso efectivo sale de `permissions`, que la
+   * API resuelve contra `tblstaff_permissions` sin mirar ningun catalogo. Decide cuantas areas se
+   * dibujan en la ficha —cuatro en `nuevo`, doce en `viejo`— mientras la consolidacion se enciende
+   * por tandas. Desaparece cuando no quede nadie en `viejo`.
+   */
+  modelo_permisos: ModeloDePermisos
 }
+
+/** Los dos catalogos de permisos que conviven mientras dura la consolidacion. */
+export type ModeloDePermisos = 'nuevo' | 'viejo'
 
 /** Forma reducida que viaja embebida en `assignees`, `followers` y `members`. */
 export interface StaffReferencia {

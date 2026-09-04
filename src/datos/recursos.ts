@@ -1,5 +1,5 @@
 import { leerError } from './errores.ts'
-import type { StaffReferencia } from './tipos.ts'
+import type { ModeloDePermisos, StaffReferencia } from './tipos.ts'
 
 /**
  * Tipos de los recursos de negocio, con los nombres de campo de la API.
@@ -196,6 +196,13 @@ export interface MiembroEquipo {
   area_id: number | null
   /** Cargo "Director": gate de la seccion "Mi Área". No se deduce comparando por nombre. */
   is_director: boolean
+  /**
+   * En que modelo de permisos esta ESTA persona, que no tiene por que ser el de quien mira.
+   *
+   * Solo un superadministrador lo cambia, y solo mientras dure la consolidacion. Ver
+   * `ModeloDePermisos` en `datos/tipos.ts`.
+   */
+  modelo_permisos: ModeloDePermisos
   phonenumber: string | null
   /** Tarifa por hora. Se usa para valorizar el tiempo registrado. */
   hourly_rate: number

@@ -191,6 +191,7 @@ Tampoco va bajo `/auth`: esa rama se atiende sin token, y ésta necesita saber q
   "id": 12, "email": "alguien@wiwo.me",
   "firstname": "…", "lastname": "…", "full_name": "…",
   "profile_image_url": "…", "is_admin": false, "role_id": 3,
+  "modelo_permisos": "viejo",
   "permissions": { "tasks": ["view","create","edit"], "projects": ["view_own"] },
   "secciones_habilitadas": ["procesos","espacios"],
   "locale": "es", "hourly_rate": 0
@@ -2277,95 +2278,82 @@ Ahora: **se toca sólo el módulo que viene nombrado.**
 | PATCH sin `permissions` | no se toca ningún permiso |
 | `{"is_admin": true}` | se borran **todos** los permisos (un admin no tiene filas: `is_admin()` contesta que sí a todo). Es lo que hace el panel. |
 
-**Catálogo aceptado.** `permissions` ya no se valida contra las 12 features de `Acceso\Permisos`
-(que es la lista que la API *lee* en `/me`) sino contra `get_available_staff_permissions()`, la misma
-fuente que dibuja el formulario del panel: 22 features. Ahora se pueden escribir `roles`, `settings`,
-`knowledge_base`, `reports`, `email_templates`, etc.
+**Catálogo aceptado.** `permissions` se valida contra el catálogo vigente para el actor
+(`CatalogoDePermisos::limpiarMatriz()`): las 22 features de `get_available_staff_permissions()` en el
+modelo viejo —o sea que se pueden escribir `roles`, `settings`, `knowledge_base`, `reports`,
+`email_templates`—, y sólo 4 en el consolidado. Ver "El interruptor del modelo de permisos".
 
 **Escalada de privilegios (nuevo 422).** Quien no es administrador sólo puede otorgar capacidades que
 ya posee. Si pide una que no tiene: `422 validation_failed` con `details: {"permissions": ["escalada"]}`.
-Vale para `PATCH /staff/{id}`, `POST /staff` y todo `/roles`. En un alta, los permisos que se heredan
-del `role_id` (que nadie nombró en el cuerpo) se **recortan** en silencio a lo que el actor tiene, en
+Vale para `PATCH /staff/{id}` y `POST /staff`. En un alta, los permisos que se heredan —del `role_id`
+o de `PERMISOS_INICIALES`, según el modelo— se **recortan** en silencio a lo que el actor tiene, en
 vez de dar 422.
 
 ---
 
-### `GET /roles`
-
-Permiso: `roles.view`.
-
-```json
-{ "data": [ { "id": 2, "name": "Consultor/Director", "permissions": { "tasks": ["view","edit"] }, "staff_count": 148 } ] }
-```
-
-`staff_count` es cuánta gente tiene el rol puesto — lo que el frontend necesita para avisar antes de
-borrar. `permissions` es `[]` (array vacío) cuando el rol no declara ninguno.
-
-Errores: `401`, `403`.
-
 ### `GET /roles/catalogo`
 
-Permiso: `roles.view`. Features y capacidades con las que se dibuja la matriz, ya traducidas.
+**Es lo único que queda bajo `/roles`.** El CRUD —`GET|POST /roles`, `GET|PATCH|DELETE /roles/{id}`—
+se borró: no lo consumía nadie y administraba `tblroles`, que no decide nada en tiempo de ejecución
+(es la plantilla que pre-marca los checkboxes del panel viejo). Cualquier otra cosa bajo `/roles`,
+incluido `/roles` a secas, es `404`.
+
+Permiso: **`staff.edit`** (antes `roles.view`). Es la pregunta que corresponde: el catálogo sirve
+para editar los permisos de una persona, no para administrar roles.
+
+Las features y capacidades con las que se dibuja la matriz, en el orden del panel. Sale de
+`get_available_staff_permissions()`, la misma fuente que el formulario de Perfex, y **se recorta al
+catálogo del actor**: 4 features con el modelo consolidado, 22 con el viejo.
 
 ```json
-{ "data": [ { "feature": "tasks", "name": "Procesos", "capabilities": [ { "key": "view_own", "name": "Ver (propios)" }, { "key": "view", "name": "Ver (global)" } ] } ] }
+{ "data": [
+  { "feature": "tasks", "name": "Tasks",
+    "capabilities": [ { "key": "view", "name": "View" }, { "key": "create", "name": "Create" } ] }
+] }
 ```
 
-22 features. **`goals` y `prchat` no aparecen**: los módulos de Perfex registran sus permisos con el
-filtro `staff_permissions` durante `_app_init()`, que la API no corre a propósito. No se pueden
-editar desde la API — y tampoco se destruyen, porque toda escritura toca sólo lo que nombra.
+El recorte se resuelve por el **actor** y no por la persona editada, porque el endpoint no recibe un
+id. Es seguro en las dos direcciones, porque `PATCH /staff/{id}` toca únicamente las features que el
+cuerpo nombra: un actor consolidado editando a alguien del modelo viejo le deja intactas las 18
+áreas que no vio, y al revés lo que escriba reaparece en el bloque "además tiene esto" de la ficha.
 
-### `GET /roles/{id}`
+`tblroles` y `tblstaff.role` siguen existiendo y `roles` sigue en `GET /lookups`: las lee el panel
+viejo, y `role_id` sigue viajando en la ficha mientras quede gente en el modelo viejo.
 
-Permiso: `roles.view`. Misma forma que un elemento de la lista. `404` si no existe.
+---
 
-### `POST /roles`
+### El interruptor del modelo de permisos
 
-Permiso: `roles.create`.
+Mientras dura la consolidación conviven dos catálogos y cada persona tiene uno:
 
-```json
-{ "name": "Coordinación", "permissions": { "tasks": ["view", "edit"], "projects": ["view"] } }
-```
+| Modelo | Features en `permissions` y en el catálogo |
+|---|---|
+| `viejo` | 12 en `/me`, 22 en `/roles/catalogo` |
+| `nuevo` | 4: `tasks`, `projects`, `customers`, `staff` |
 
-`name` es obligatorio, máximo 150 caracteres y único. `permissions` es opcional (por omisión, ninguno).
-Responde `201` con el rol.
+Se lee en `GET /me` y en `GET /staff/{id}` como `modelo_permisos` (`"nuevo"` \| `"viejo"`), se filtra
+con `filter[permisos_nuevos]=1` en `GET /staff`, y se escribe con
+`PATCH /staff/{id}` `{"modelo_permisos": "nuevo"}` — **sólo un superadministrador** y **sólo al
+editar**, el mismo camino que `is_superadmin`.
 
-Errores: `403`, `409 conflict` (nombre repetido), `422` (`name: requerido|too_long`,
-`permissions: invalid|escalada`).
+Errores: `422` con `modelo_permisos: ["invalid"]` (cualquier valor que no sea `"nuevo"` o `"viejo"`,
+incluidos `null`, `""` y `1`), `["solo_superadmin"]` o `["solo_al_editar"]`.
 
-### `PATCH /roles/{id}`
+**No cambia el acceso de nadie.** Los permisos efectivos salen de `tblstaff_permissions` sin mirar
+ningún catálogo: el interruptor decide qué se muestra y qué se puede editar. Lo peor que puede pasar
+al encenderlo es que la interfaz esconda algo que la persona sí tiene, y se apaga sin desplegar.
 
-Permiso: `roles.edit`. Sólo se tocan las claves que llegan.
+**Las features fuera del catálogo siguen viajando** en `permissions` si la persona las tiene
+(`goals`, `knowledge_base`, `prchat`, `reports`): la ficha las lista como "además tiene esto". Lo que
+no se puede es escribirlas — `PATCH` con `{"permissions": {"goals": [...]}}` es `422 invalid`.
 
-```json
-{ "name": "Coordinación", "permissions": { "tasks": ["view"] }, "aplicar_a_personas": true }
-```
+**Con qué estrena una cuenta nueva** también depende del modelo: en el viejo hereda del `role_id`; en
+el consolidado, de `Staff::PERMISOS_INICIALES` (`tasks` y `projects` sin `view` ni `view_own`), que es
+el perfil que tienen 142 de las 172 personas con permisos. Los dos pasan por el recorte del actor.
 
-`aplicar_a_personas` (opcional, por omisión `false`) replica la casilla *actualizar permisos del
-staff* del panel: aplica la matriz a quienes tienen el rol puesto, **módulo por módulo** y saltándose
-a los administradores. Un rol que no nombra `invoices` deja intactos los permisos de facturación de
-esa gente, en vez de borrárselos como hace el panel.
-
-Sin `aplicar_a_personas`, editar un rol **no cambia el acceso de nadie**: en Perfex el rol es sólo la
-plantilla que pre-marca el formulario; el permiso efectivo vive en `tblstaff_permissions`.
-
-Responde `200` con el rol. Errores: `403`, `404`, `409`, `422`.
-
-### `DELETE /roles/{id}`
-
-Permiso: `roles.delete`. Responde `204`.
-
-Si el rol lo tiene puesto alguien, responde `409 conflict` con el mensaje
-`Ese rol lo tienen N persona(s). Indicá con reasignar_a a qué rol pasan, o reasignar_a=0 para
-dejarlas sin rol.`
-
-- `DELETE /roles/{id}?reasignar_a=7` → esa gente pasa al rol 7 y después se borra.
-- `DELETE /roles/{id}?reasignar_a=0` → esa gente queda sin rol y después se borra.
-
-**La reasignación no toca un solo permiso.** `tblstaff.role` no da acceso a nada, así que nadie gana
-ni pierde nada porque se borre un rol.
-
-Errores: `403`, `404`, `409`, `422` (`reasignar_a: invalid|unknown`).
+**Ascender a `is_admin` borra los permisos de la persona**, como hace el panel. En el modelo
+consolidado ese borrado se acota a las 4 features del catálogo: las demás son las filas que la
+consolidación conserva hasta la pasada de borrado.
 
 ---
 
