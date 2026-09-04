@@ -158,6 +158,89 @@ export function FormularioEntrar ({ google }: { google: AccesoGoogle }) {
    */
   const clientIdGoogle = paso === 'clave' && google.enabled ? google.client_id : null
 
+  /**
+   * El formulario de correo y contraseña.
+   *
+   * Sale a una constante porque se pinta de dos formas segun haya o no acceso con Google, y
+   * duplicar el JSX para envolverlo seria dos copias que se desincronizan.
+   */
+  const formularioDeClave = (
+  <form onSubmit={enviar} className="flex flex-col gap-5" noValidate>
+    {paso === 'clave'
+      ? (
+        <>
+          <Campo etiqueta="Correo" requerido>
+            {(props) => (
+              <Entrada
+                {...props}
+                name="email"
+                type="email"
+                autoComplete="username"
+                autoFocus
+                required
+              />
+            )}
+          </Campo>
+          <Campo etiqueta="Contraseña" requerido>
+            {(props) => (
+              <Entrada
+                {...props}
+                name="password"
+                type="password"
+                autoComplete="current-password"
+                required
+              />
+            )}
+          </Campo>
+        </>
+        )
+      : (
+        <Campo etiqueta="Código de verificación" requerido>
+          {(props) => (
+            <Entrada
+              {...props}
+              name="code"
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              pattern="[0-9]*"
+              maxLength={6}
+              autoFocus
+              required
+              /*
+               * Monoespaciada y con espacio entre cifras: seis digitos que hay que cotejar
+               * contra otra pantalla se leen de a uno, no como palabra. La mono es la unica
+               * de las tres familias con cifras de ancho fijo, asi que el codigo no baila
+               * mientras se escribe.
+               */
+              className="text-center font-mono text-lg tracking-[0.4em] tabular-nums"
+            />
+          )}
+        </Campo>
+        )}
+
+    {/* `cargando` y no `disabled`: deshabilita igual y ademas pone el orbe dentro del boton, que
+        es como el resto del producto dice que hay algo en curso. */}
+    <Boton type="submit" variante="primario" cargando={enviando} className="mt-1 w-full">
+      {paso === 'clave' ? 'Entrar' : 'Verificar'}
+    </Boton>
+
+    {paso === 'codigo' && (
+      <Boton
+        type="button"
+        variante="sutil"
+        tamano="chico"
+        disabled={enviando}
+        onClick={() => {
+          establecerPaso('clave')
+          establecerError(null)
+        }}
+      >
+        Volver
+      </Boton>
+    )}
+  </form>
+  )
+
   return (
     /*
      * `h-dvh` con el scroll adentro y no `min-h-dvh`: el `body` de la aplicacion tiene
@@ -171,7 +254,7 @@ export function FormularioEntrar ({ google }: { google: AccesoGoogle }) {
         <CabeceraMovil estado={estadoOrbe} />
 
         <PanelVidrio className="w-full max-w-sm p-6 sm:p-8">
-          <header className="mb-8">
+          <header className="mb-6">
             <h1 className="font-titular text-3xl font-extrabold tracking-tight text-texto">
               {paso === 'clave' ? 'Entrar' : 'Verificar'}
             </h1>
@@ -184,104 +267,59 @@ export function FormularioEntrar ({ google }: { google: AccesoGoogle }) {
             )}
           </header>
 
-          <form onSubmit={enviar} className="flex flex-col gap-5" noValidate>
-            {/*
-              El aviso vive en el formulario y no en el panel del orbe: ese panel se oculta por
-              debajo de `lg`, y `display: none` lo saca tambien del arbol de accesibilidad — en
-              telefono nadie se enteraria de que la verificacion esta en curso. Aca esta siempre,
-              visible solo para quien lo necesita leer. Cubre las dos vias porque las dos pasan por
-              `abrirSesion`, que es la que prende `enviando`.
-            */}
-            <p role="status" aria-live="polite" className="sr-only">
-              {enviando ? 'Verificando tus datos' : ''}
+          {/*
+            El aviso de progreso y el error viven fuera del `<form>` porque cuando Google esta
+            activo el formulario queda plegado: un error de la via de Google —dominio no
+            autorizado, sobre todo— dentro de un bloque cerrado no lo lee nadie. Aca cubren las
+            dos vias, que es lo que corresponde: las dos pasan por `abrirSesion`.
+
+            El panel del orbe no sirve para esto: se oculta por debajo de `lg` con `display: none`,
+            que lo saca tambien del arbol de accesibilidad.
+          */}
+          <p role="status" aria-live="polite" className="sr-only">
+            {enviando ? 'Verificando tus datos' : ''}
+          </p>
+
+          {error !== null && (
+            <p
+              role="alert"
+              className="mb-5 rounded-chico border border-relleno-peligro/40 bg-superficie-peligro px-3 py-2 text-sm text-texto-peligro"
+            >
+              {error}
             </p>
-
-            {paso === 'clave'
-              ? (
-                <>
-                  <Campo etiqueta="Correo" requerido>
-                    {(props) => (
-                      <Entrada
-                        {...props}
-                        name="email"
-                        type="email"
-                        autoComplete="username"
-                        autoFocus
-                        required
-                      />
-                    )}
-                  </Campo>
-                  <Campo etiqueta="Contraseña" requerido>
-                    {(props) => (
-                      <Entrada
-                        {...props}
-                        name="password"
-                        type="password"
-                        autoComplete="current-password"
-                        required
-                      />
-                    )}
-                  </Campo>
-                </>
-                )
-              : (
-                <Campo etiqueta="Código de verificación" requerido>
-                  {(props) => (
-                    <Entrada
-                      {...props}
-                      name="code"
-                      inputMode="numeric"
-                      autoComplete="one-time-code"
-                      pattern="[0-9]*"
-                      maxLength={6}
-                      autoFocus
-                      required
-                      /*
-                       * Monoespaciada y con espacio entre cifras: seis digitos que hay que cotejar
-                       * contra otra pantalla se leen de a uno, no como palabra. La mono es la unica
-                       * de las tres familias con cifras de ancho fijo, asi que el codigo no baila
-                       * mientras se escribe.
-                       */
-                      className="text-center font-mono text-lg tracking-[0.4em] tabular-nums"
-                    />
-                  )}
-                </Campo>
-                )}
-
-            {error !== null && (
-              <p
-                role="alert"
-                className="rounded-chico border border-relleno-peligro/40 bg-superficie-peligro px-3 py-2 text-sm text-texto-peligro"
-              >
-                {error}
-              </p>
-            )}
-
-            {/* `cargando` y no `disabled`: deshabilita igual y ademas pone el orbe dentro del boton, que
-                es como el resto del producto dice que hay algo en curso. */}
-            <Boton type="submit" variante="primario" cargando={enviando} className="mt-1 w-full">
-              {paso === 'clave' ? 'Entrar' : 'Verificar'}
-            </Boton>
-
-            {paso === 'codigo' && (
-              <Boton
-                type="button"
-                variante="sutil"
-                tamano="chico"
-                disabled={enviando}
-                onClick={() => {
-                  establecerPaso('clave')
-                  establecerError(null)
-                }}
-              >
-                Volver
-              </Boton>
-            )}
-          </form>
+          )}
 
           {clientIdGoogle !== null && (
             <EntrarConGoogle clientId={clientIdGoogle} alRecibirCredencial={entrarConGoogle} />
           )}
+
+          {/*
+            Con Google activo, la contraseña se pliega en vez de desaparecer.
+
+            Google es la puerta principal, pero no puede ser la unica: hay cuentas de staff en
+            dominios que no estan en la lista, y si Google se cae o alguien entra desde un equipo
+            sin su sesion de Google abierta, borrar el formulario deja a esa persona afuera del
+            sistema sin ninguna alternativa. Un `<details>` nativo lo esconde de la vista —que es
+            lo que se pide— sin sacarlo del alcance de quien lo necesita, y sin JavaScript ni
+            estado propio que mantener.
+
+            En el paso del codigo `clientIdGoogle` es null, asi que el 2FA se ve siempre abierto:
+            ahi la credencial ya se dio y plegar el unico campo que queda no tendria sentido.
+          */}
+          {clientIdGoogle !== null
+            ? (
+              <details className="group mt-6 border-t border-borde/60 pt-4">
+                <summary className="cursor-pointer list-none text-center text-sm text-texto-tenue transition-colors hover:text-texto [&::-webkit-details-marker]:hidden">
+                  Entrar con correo y contraseña
+                </summary>
+
+                <div className="mt-5">
+                  {formularioDeClave}
+                </div>
+              </details>
+              )
+            : formularioDeClave}
+
         </PanelVidrio>
       </div>
     </main>
@@ -391,12 +429,9 @@ function EntrarConGoogle (
   }, [clientId, scriptListo])
 
   return (
-    <div className="mt-6">
-      <div className="mb-5 flex items-center gap-3" aria-hidden="true">
-        <span className="h-px flex-1 bg-control-borde" />
-        <span className="text-xs uppercase tracking-wide text-texto-tenue">o</span>
-        <span className="h-px flex-1 bg-control-borde" />
-      </div>
+    <div>
+      {/* Sin separador "o": Google dejo de ser la alternativa y paso a ser la puerta. Un "o"
+          arriba de todo no separa dos cosas, cuelga de la nada. */}
 
       {/* Sin ancho fijo: GIS acepta pixeles, no porcentajes, y cualquier numero que entre en el
           panel de escritorio se desborda en un telefono de 320px. Centrado ocupa lo que necesita. */}
