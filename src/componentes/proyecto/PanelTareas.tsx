@@ -13,6 +13,7 @@ import type { DefinicionRecurso, OpcionFiltro, ResultadoLista } from '@/definici
 import type {
   DefinicionCampoPersonalizado,
   Lookups,
+  Referencia,
   ProcesoAmpliado,
   ResumenEstadoTareas
 } from '@/datos/recursos'
@@ -73,6 +74,8 @@ type Carga =
       /** Con que presentacion a la vista se pidieron estos datos. Ver `esperandoLaListaDeLaTabla`. */
       esTablero: boolean
       opciones: Record<string, OpcionFiltro[]>
+      /** Etiquetas ya creadas: el alta solo acepta estas, la API rechaza las que no existen. */
+      etiquetas: Referencia[]
       /** `null` cuando el backend todavia no expone el resumen: la pestaña funciona igual. */
       resumen: ResumenEstadoTareas[] | null
       campos: DefinicionCampoPersonalizado[]
@@ -95,6 +98,7 @@ function TareasDelProyecto ({ proyectoId, capacidades }: PropsPanelTareas): Reac
   const campos = useMemo(() => carga.fase === 'listo' ? carga.campos : [], [carga])
   const estados = useMemo(() => catalogos.task_statuses ?? [], [catalogos])
   const prioridades = useMemo(() => catalogos.task_priorities ?? [], [catalogos])
+  const etiquetas = useMemo(() => carga.fase === 'listo' ? carga.etiquetas : [], [carga])
 
   /** Vuelve a pedirlo todo. Va fuera del efecto: un `setState` sincronico dentro encadena renders. */
   const recargar = useCallback(() => {
@@ -211,7 +215,12 @@ function TareasDelProyecto ({ proyectoId, capacidades }: PropsPanelTareas): Reac
 
         <div className="ml-auto">
           {capacidades.includes('create') && (
-            <FormularioTarea proyectoId={proyectoId} prioridades={prioridades} onCreada={recargar} />
+            <FormularioTarea
+              proyectoId={proyectoId}
+              prioridades={prioridades}
+              etiquetasDisponibles={etiquetas}
+              onCreada={recargar}
+            />
           )}
         </div>
       </div>
@@ -353,6 +362,7 @@ async function cargarPestana (
       esTablero: enTablero,
       inicial: { filas: lista.data, paginacion: lista.meta?.pagination },
       opciones: opcionesDeFiltros(definicion, lookups.data),
+      etiquetas: lookups.data.tags ?? [],
       resumen,
       campos: campos ?? [],
       avisos

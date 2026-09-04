@@ -1,8 +1,9 @@
+import { mensajeConDetalles } from './errores.ts'
 import type { Sobre } from './tipos'
 
 /** Forma del envelope de error del contrato, tal como llega al navegador. */
 interface SobreError {
-  error?: { code?: string, message?: string }
+  error?: { code?: string, message?: string, details?: Record<string, string[]> }
 }
 
 /**
@@ -32,7 +33,9 @@ export async function mensajeDeRespuesta (respuesta: Response): Promise<string> 
   try {
     const cuerpo = await respuesta.json() as SobreError
 
-    if (cuerpo.error?.message !== undefined) return cuerpo.error.message
+    if (cuerpo.error?.message !== undefined) {
+      return mensajeConDetalles({ message: cuerpo.error.message, details: cuerpo.error.details })
+    }
   } catch {
     // Se cae al mensaje generico de abajo.
   }

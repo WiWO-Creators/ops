@@ -19,6 +19,7 @@ import {
 import { leerError } from '@/datos/errores'
 import { GLOSARIO } from '@/dominio/glosario'
 import type { OpcionFiltro } from '@/definiciones/tipos'
+import type { Referencia } from '@/datos/recursos'
 
 /**
  * Alta de una tarea dentro de un proyecto.
@@ -32,14 +33,24 @@ import type { OpcionFiltro } from '@/definiciones/tipos'
  * abre desde la pestaña de ese proyecto.
  */
 
+/** Id del `datalist` de etiquetas. Uno solo: el formulario se monta una vez por pestaña. */
+const LISTA_ETIQUETAS = 'etiquetas-existentes'
+
 interface PropsFormulario {
   proyectoId: number
   prioridades: OpcionFiltro[]
+  /**
+   * Etiquetas que ya existen. La API rechaza con `422` cualquier otra —crear catalogo desde un alta
+   * es como se llena la tabla de variantes con typo—, asi que el formulario avisa antes de mandar.
+   */
+  etiquetasDisponibles: Referencia[]
   /** Se llama con la tarea ya creada, para que la tabla vuelva a pedir los datos. */
   onCreada: () => void
 }
 
-export function FormularioTarea ({ proyectoId, prioridades, onCreada }: PropsFormulario): ReactElement {
+export function FormularioTarea (
+  { proyectoId, prioridades, etiquetasDisponibles, onCreada }: PropsFormulario
+): ReactElement {
   const [abierto, setAbierto] = useState(false)
   const [nombre, setNombre] = useState('')
   const [prioridad, setPrioridad] = useState('2')
@@ -72,6 +83,22 @@ export function FormularioTarea ({ proyectoId, prioridades, onCreada }: PropsFor
       return
     }
 
+    // Las etiquetas se comparan sin distinguir mayusculas porque la colacion de `tbltags` es `_ci`:
+    // "urgente" y "Urgente" son la misma fila para la API, y rechazar una de las dos aca seria
+    // inventar una regla que el backend no tiene.
+    const pedidas = etiquetas.split(',').map((t) => t.trim()).filter((t) => t !== '')
+    const conocidas = new Set(etiquetasDisponibles.map((e) => e.name.toLowerCase()))
+    const desconocidas = pedidas.filter((t) => !conocidas.has(t.toLowerCase()))
+
+    if (desconocidas.length > 0) {
+      setError(
+        desconocidas.length === 1
+          ? `La etiqueta «${desconocidas[0]}» no existe: elegí una ya creada.`
+          : `Estas etiquetas no existen: ${desconocidas.join(', ')}. Elegí etiquetas ya creadas.`
+      )
+      return
+    }
+
     setEnCurso(true)
     setError(null)
 
@@ -84,9 +111,7 @@ export function FormularioTarea ({ proyectoId, prioridades, onCreada }: PropsFor
       ...(inicio === '' ? {} : { start_date: inicio }),
       ...(vencimiento === '' ? {} : { due_date: vencimiento }),
       ...(descripcion.trim() === '' ? {} : { description: descripcion.trim() }),
-      ...(etiquetas.trim() === ''
-        ? {}
-        : { tags: etiquetas.split(',').map((t) => t.trim()).filter((t) => t !== '') })
+      ...(pedidas.length === 0 ? {} : { tags: pedidas })
     }
 
     try {
@@ -171,14 +196,22 @@ export function FormularioTarea ({ proyectoId, prioridades, onCreada }: PropsFor
             </Campo>
           </div>
 
-          <Campo etiqueta="Etiquetas" ayuda="Separadas por coma.">
+          <Campo etiqueta="Etiquetas" ayuda="Separadas por coma. Sólo etiquetas que ya existen.">
             {(props) => (
-              <Entrada
-                value={etiquetas}
-                onChange={(evento) => setEtiquetas(evento.target.value)}
-                placeholder="urgente, cliente-clave"
-                {...props}
-              />
+              <>
+                <Entrada
+                  value={etiquetas}
+                  onChange={(evento) => setEtiquetas(evento.target.value)}
+                  placeholder="urgente, cliente-clave"
+                  list={LISTA_ETIQUETAS}
+                  {...props}
+                />
+                {/* `datalist` es la sugerencia nativa: no valida ni obliga, y con una sola etiqueta
+                    escrita evita el error antes de que ocurra. */}
+                <datalist id={LISTA_ETIQUETAS}>
+                  {etiquetasDisponibles.map((e) => <option key={e.id} value={e.name} />)}
+                </datalist>
+              </>
             )}
           </Campo>
 

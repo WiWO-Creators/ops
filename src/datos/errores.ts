@@ -1,3 +1,4 @@
+import { GLOSARIO } from '../dominio/glosario.ts'
 import type { CodigoError, SobreError } from './tipos'
 
 /**
@@ -69,10 +70,91 @@ export async function leerError (respuesta: Response): Promise<SobreError['error
   try {
     const cuerpo = await respuesta.json() as SobreError
 
-    if (cuerpo.error?.code !== undefined) return cuerpo.error
+    // El mensaje sale ya con los `details` adentro: quien lo muestra es un `<p>` de formulario, y
+    // "Hay campos que no se pueden guardar." sin decir cual campo no se puede accionar.
+    if (cuerpo.error?.code !== undefined) {
+      return { ...cuerpo.error, message: mensajeConDetalles(cuerpo.error) }
+    }
   } catch {
     // Un 502 del proxy devuelve HTML: se cae al mensaje generico de abajo.
   }
 
   return { code: 'server_error', message: `El servidor respondió ${respuesta.status}` }
+}
+
+/**
+ * Nombres de campo del contrato, con los de la interfaz.
+ *
+ * Sin esto un `422` habla de `rel_id` o `due_date`, que son nombres de la API y no de la pantalla.
+ * Lo que no esté acá se muestra tal cual: un nombre crudo dice más que esconder el campo.
+ */
+const CAMPOS: Record<string, string> = {
+  name: 'Nombre',
+  description: 'Descripción',
+  start_date: 'Fecha de inicio',
+  due_date: 'Fecha de vencimiento',
+  priority: 'Prioridad',
+  billable: 'Facturable',
+  tags: 'Etiquetas',
+  assignees: 'Asignados',
+  followers: 'Seguidores',
+  status: 'Estado',
+  milestone: GLOSARIO.hito.singular,
+  rel_id: GLOSARIO.espacio.singular,
+  rel_type: 'Tipo de vínculo'
+}
+
+/**
+ * Motivos del contrato, en castellano.
+ *
+ * La API mezcla códigos en inglés y en castellano según el endpoint. Lo que no esté acá se muestra
+ * con los guiones bajos cambiados por espacios.
+ */
+const MOTIVOS: Record<string, string> = {
+  requerido: 'falta',
+  required: 'falta',
+  invalid: 'no es válido',
+  no_valido: 'no es válido',
+  formato_invalido: 'tiene un formato inválido',
+  inexistente: 'no existe en el calendario',
+  no_existe: 'no existe',
+  unknown: 'no existe',
+  no_editable: 'no se puede editar',
+  fuera_de_rango: 'está fuera de rango',
+  no_booleano: 'tiene que ser sí o no',
+  boolean: 'tiene que ser sí o no',
+  integer: 'tiene que ser un número entero',
+  date: 'tiene que ser una fecha',
+  length: 'es demasiado largo',
+  no_es_lista: 'tiene que ser una lista',
+  no_soportado: 'no está soportado',
+  anterior_al_inicio: 'es anterior a la fecha de inicio',
+  no_pertenece_al_espacio: `no pertenece a este ${GLOSARIO.espacio.singular.toLowerCase()}`
+}
+
+/**
+ * Mensaje de un error del contrato con sus `details` adentro.
+ *
+ * "Hay campos que no se pueden guardar." no dice cuál campo: el formulario queda lleno y sin pista,
+ * que es exactamente el caso que hacía imposible crear una tarea con una etiqueta que no existía.
+ * Los `details` solo llegan en los `422`; el resto de los errores devuelve su mensaje intacto.
+ *
+ * @param error el sobre de error del contrato
+ * @returns el mensaje, con los campos y sus motivos si los hay
+ */
+export function mensajeConDetalles (error: { message: string, details?: Record<string, string[]> }): string {
+  const detalles = error.details
+
+  if (detalles === undefined) return error.message
+
+  const partes = Object.entries(detalles).map(([campo, motivos]) => {
+    const nombre = CAMPOS[campo] ?? campo
+    const codigo = motivos[0]
+
+    if (codigo === undefined) return nombre
+
+    return `${nombre} ${MOTIVOS[codigo] ?? codigo.replace(/_/g, ' ')}`
+  })
+
+  return partes.length === 0 ? error.message : `${error.message} ${partes.join('; ')}.`
 }

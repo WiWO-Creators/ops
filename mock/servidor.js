@@ -338,9 +338,14 @@ function crearProceso (entrada, autor) {
 
   const asignados = resolverStaff(entrada.assignees, detalles, 'assignees')
   const seguidores = resolverStaff(entrada.followers, detalles, 'followers')
-  const etiquetas = (Array.isArray(entrada.tags) ? entrada.tags : [])
+  // Una etiqueta que no existe es un 422, igual que en la API: descartarla en silencio hacia que el
+  // alta pareciera funcionar contra el mock y fallara contra el backend real.
+  const pedidas = Array.isArray(entrada.tags) ? entrada.tags : []
+  const etiquetas = pedidas
     .map((t) => ETIQUETAS.find((e) => e.id === Number(t) || e.name === t))
     .filter((e) => e !== undefined)
+
+  if (etiquetas.length !== pedidas.length) detalles.tags = ['no_existe']
 
   if (Object.keys(detalles).length > 0) {
     throw new ErrorApi(422, 'validation_failed', 'Hay campos que no se pueden guardar.', detalles)
