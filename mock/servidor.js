@@ -785,6 +785,351 @@ function despromoverAlResto (clienteId, excepto) {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Capa de IA
+// ---------------------------------------------------------------------------
+//
+// Lo que estos endpoints existen para probar NO es el texto: es el ritmo. Un resumen que llega
+// entero al final compila igual, pasa las pruebas igual y hace imposible ver la escritura, que es
+// la funcion entera. Por eso hay `setTimeout` entre deltas y no un `write` con todo junto.
+//
+// Los dos interruptores por query son lo que vuelve verificables dos casos que de otro modo hay que
+// esperar horas o provocar en produccion: `?falla=1` corta el stream a la mitad, `?bloqueado=1`
+// responde el 429 del cupo agotado.
+
+/** Milisegundos entre deltas. Suficiente para ver la escritura sin que el resumen tarde un minuto. */
+const PAUSA_DELTA_MS = 40
+
+/** Caracteres por delta. El proveedor real manda tokens, que son de este orden de tamaño. */
+const TAMANO_DELTA = 6
+
+/** Regeneraciones por dia, igual que la regla del backend. */
+const TOPE_GENERACIONES = 2
+
+/** Resumen del Inicio ya generado, por staff. La clave es el id; el valor, lo que devuelve el GET. */
+const RESUMENES_IA = new Map()
+
+/** Hilo del chat, por `espacioId:staffId`. El hilo es por persona, no por Espacio: es una regla de seguridad. */
+const HILOS_IA = new Map()
+
+/**
+ * Corta un texto en trozos de `TAMANO_DELTA` caracteres.
+ *
+ * Se recorre con el spread y no con `slice` sobre el string: `slice` parte los pares subrogados y un
+ * emoji cortado a la mitad llega al front como dos caracteres de reemplazo.
+ *
+ * @param {string} texto
+ * @returns {string[]}
+ */
+function trozosDe (texto) {
+  const letras = [...texto]
+  const trozos = []
+
+  for (let i = 0; i < letras.length; i += TAMANO_DELTA) {
+    trozos.push(letras.slice(i, i + TAMANO_DELTA).join(''))
+  }
+
+  return trozos
+}
+
+/**
+ * Escribe un stream SSE con la forma exacta del contrato.
+ *
+ * Las cabeceras son las mismas que emitira la API real, `X-Accel-Buffering` incluida: si el BFF deja
+ * de reenviarla, se nota aca y no en produccion detras de Nginx.
+ *
+ * @param {import('node:http').ServerResponse} respuesta
+ * @param {string} texto lo que se escribe, que sale troceado en `event: delta`
+ * @param {{citas?: object[], fin: object, falla: boolean}} opciones
+ */
+function transmitirSSE (respuesta, texto, { citas, fin, falla }) {
+  respuesta.writeHead(200, {
+    'Content-Type': 'text/event-stream; charset=utf-8',
+    'Cache-Control': 'no-cache, no-transform',
+    'X-Accel-Buffering': 'no',
+    'X-Content-Type-Options': 'nosniff',
+    Connection: 'keep-alive'
+  })
+  respuesta.flushHeaders()
+
+  const trozos = trozosDe(texto)
+  // A la mitad, no al final: lo que se prueba es que el front conserve lo que llego y lo marque
+  // "quedo a medias", y eso solo se ve si el corte deja texto util en pantalla.
+  const corte = falla ? Math.ceil(trozos.length / 2) : trozos.length
+  const emitir = (evento, datos) => respuesta.write(`event: ${evento}\ndata: ${JSON.stringify(datos)}\n\n`)
+
+  let vivo = true
+  let i = 0
+
+  // Sin esto, abortar desde el navegador deja el temporizador corriendo y el mock sigue escribiendo
+  // en un socket muerto. F2 aborta el stream cada vez que alguien cambia de pestaña.
+  respuesta.on('close', () => { vivo = false })
+
+  const siguiente = () => {
+    if (!vivo) return
+
+    if (i < corte) {
+      emitir('delta', { t: trozos[i++] })
+      setTimeout(siguiente, PAUSA_DELTA_MS)
+      return
+    }
+
+    if (falla) {
+      emitir('error', { code: 'provider_error', message: 'El proveedor cortó la respuesta.' })
+    } else {
+      if (citas) emitir('citas', { citas })
+      emitir('fin', fin)
+    }
+
+    respuesta.end()
+  }
+
+  siguiente()
+}
+
+/**
+ * Bloque `regeneracion` del contrato.
+ *
+ * Viaja en el GET, en el POST y en el 429 para que el frontend nunca tenga que recalcular la regla.
+ *
+ * @param {number} staffId
+ * @param {boolean} bloqueado interruptor `?bloqueado=1`
+ * @returns {{restantes_hoy: number, puede_ahora: boolean, disponible_desde: string|null, motivo: string|null}}
+ */
+function regeneracionIa (staffId, bloqueado) {
+  const guardado = RESUMENES_IA.get(staffId)
+  const usadas = bloqueado ? TOPE_GENERACIONES : (guardado?.generaciones_dia ?? 0)
+  const restantes = Math.max(0, TOPE_GENERACIONES - usadas)
+  const enCuatroHoras = new Date(Date.now() + 4 * 60 * 60 * 1000).toISOString().replace(/\.\d{3}Z$/, 'Z')
+
+  return {
+    restantes_hoy: restantes,
+    puede_ahora: restantes > 0,
+    disponible_desde: restantes > 0 ? null : enCuatroHoras,
+    motivo: restantes > 0 ? null : 'cupo'
+  }
+}
+
+/**
+ * Texto del resumen, armado con los propios fixtures.
+ *
+ * Sale de los datos y no de una constante para que el mock siga siendo un contrato ejecutable: si
+ * alguien agrega Procesos al fixture, el resumen los nombra.
+ *
+ * @param {object} actual el staff de la sesion
+ * @returns {string}
+ */
+function textoDeResumenIa (actual) {
+  const hoy = new Date().toISOString().slice(0, 10)
+  const suyos = PROCESOS.filter((p) => p.assignees.some((a) => a.id === actual.id) && p.status !== 5)
+  const vencidos = suyos.filter((p) => p.due_date !== null && p.due_date < hoy)
+  const espacios = [...new Set(suyos.map((p) => p.project?.name).filter(Boolean))]
+
+  if (suyos.length === 0) return 'No tenés tareas abiertas asignadas. Nada pendiente de tu lado hoy.'
+
+  const primeras = suyos.slice(0, 2).map((p) => `${p.name} (vence el ${p.due_date})`).join(' y ')
+  const atrasadas = vencidos.length === 0
+    ? 'Ninguna quedó atrasada.'
+    : `Quedaron ${vencidos.length} atrasadas, la más vieja es ${vencidos[0].name}.`
+
+  return `Tenés ${suyos.length} tareas abiertas repartidas en ${espacios.length} proyectos. `
+    + `Las dos más próximas son ${primeras}. ${atrasadas}\n\n`
+    + `El proyecto con más movimiento es ${espacios[0] ?? 'ninguno'}.`
+}
+
+/**
+ * `/ia/*`. Reparte entre los tres recursos de la capa.
+ *
+ * @param {string} metodo
+ * @param {string[]} resto segmentos despues de `ia`
+ * @param {URLSearchParams} parametros
+ * @param {object} actual staff de la sesion
+ * @param {() => Promise<object>} cuerpo
+ * @param {import('node:http').IncomingMessage} peticion
+ */
+async function iaRuta (metodo, resto, parametros, actual, cuerpo, peticion) {
+  const [seccion, ...sub] = resto
+
+  if (seccion === 'inicio') return await resumenInicioIaRuta(metodo, parametros, actual, peticion)
+  if (seccion === 'proyectos' && sub[1] === 'chat') {
+    return await chatEspacioIaRuta(metodo, sub[0], parametros, actual, cuerpo, peticion)
+  }
+  if (seccion === 'tareas' && sub[0] === 'interpretar' && metodo === 'POST') {
+    return await interpretarTareaIaRuta(actual, cuerpo)
+  }
+
+  throw new ErrorApi(404, 'not_found', `Recurso de IA desconocido: "${seccion ?? ''}".`)
+}
+
+/**
+ * `GET|POST /ia/inicio`. El GET lee lo guardado y no consume cuota; el POST genera.
+ *
+ * El POST transmite solo si se pidio con `Accept: text/event-stream`; si no, devuelve el mismo
+ * cuerpo de una vez. Las dos formas existen en la API real y el frontend usa las dos.
+ */
+async function resumenInicioIaRuta (metodo, parametros, actual, peticion) {
+  const bloqueado = parametros.get('bloqueado') === '1'
+  const guardado = RESUMENES_IA.get(actual.id) ?? null
+
+  if (metodo === 'GET') {
+    return {
+      estado: 200,
+      cuerpo: conDatos({
+        texto: guardado?.texto ?? null,
+        generado_en: guardado?.generado_en ?? null,
+        regeneracion: regeneracionIa(actual.id, bloqueado)
+      })
+    }
+  }
+
+  if (metodo !== 'POST') throw new ErrorApi(404, 'not_found', 'Método no disponible en /ia/inicio.')
+
+  if (bloqueado) {
+    throw new ErrorApi(429, 'rate_limited', 'Ya regeneraste el resumen dos veces hoy.', {
+      regeneracion: regeneracionIa(actual.id, true)
+    })
+  }
+
+  const falla = parametros.get('falla') === '1'
+  const texto = textoDeResumenIa(actual)
+  const generadoEn = new Date().toISOString().replace(/\.\d{3}Z$/, 'Z')
+
+  // Una generacion fallida no consume cuota, igual que en el backend.
+  if (!falla) {
+    RESUMENES_IA.set(actual.id, {
+      texto,
+      generado_en: generadoEn,
+      generaciones_dia: (guardado?.generaciones_dia ?? 0) + 1
+    })
+  }
+
+  const fin = {
+    generado_en: generadoEn,
+    regeneracion: regeneracionIa(actual.id, false),
+    uso: { entrada: 3120, salida: [...texto].length }
+  }
+
+  if (!aceptaStream(peticion)) {
+    return { estado: 200, cuerpo: conDatos({ texto, generado_en: generadoEn, regeneracion: fin.regeneracion }) }
+  }
+
+  return { transmitir: (respuesta) => transmitirSSE(respuesta, texto, { fin, falla }) }
+}
+
+/**
+ * `GET|POST|DELETE /ia/proyectos/{id}/chat`.
+ *
+ * El hilo se guarda por `(Espacio, persona)` y no por Espacio: dos personas del mismo Espacio pueden
+ * ver distintas tareas, y un hilo compartido filtraria por el historial lo que el contexto si
+ * filtra. El mock lo replica para que el frontend no se acostumbre a lo contrario.
+ */
+async function chatEspacioIaRuta (metodo, id, parametros, actual, cuerpo, peticion) {
+  const espacio = buscarO404(ESPACIOS, Number(id), 'espacio')
+  const clave = `${espacio.id}:${actual.id}`
+  const hilo = HILOS_IA.get(clave) ?? []
+
+  if (metodo === 'GET') {
+    return { estado: 200, cuerpo: conDatos({ mensajes: hilo, modo: 'cache' }) }
+  }
+
+  if (metodo === 'DELETE') {
+    HILOS_IA.delete(clave)
+
+    return { estado: 204, cuerpo: null }
+  }
+
+  if (metodo !== 'POST') throw new ErrorApi(404, 'not_found', 'Método no disponible en el chat.')
+
+  const datos = await cuerpo()
+  const pregunta = String(datos.pregunta ?? '').trim()
+
+  if (pregunta === '') {
+    throw new ErrorApi(422, 'validation_failed', 'Falta la pregunta.', { pregunta: ['requerido'] })
+  }
+  if (parametros.get('bloqueado') === '1') {
+    throw new ErrorApi(429, 'rate_limited', 'Demasiadas preguntas seguidas. Probá en un rato.', {
+      regeneracion: regeneracionIa(actual.id, true)
+    })
+  }
+
+  const falla = parametros.get('falla') === '1'
+  const abiertas = PROCESOS.filter((p) => p.rel_type === 'project' && p.rel_id === espacio.id && p.status !== 5)
+  const citas = abiertas.slice(0, 2).map((p) => ({ tipo: 'tarea', id: p.id, titulo: p.name }))
+  const texto = `En ${espacio.name} quedan ${abiertas.length} tareas abiertas. `
+    + `Las que empujan la fecha son ${citas.map((c, i) => `${c.titulo} [${i + 1}]`).join(' y ')}. `
+    + 'El resto avanza sin bloqueos.'
+
+  hilo.push({ rol: 'usuario', texto: pregunta })
+  if (!falla) hilo.push({ rol: 'asistente', texto, citas })
+  HILOS_IA.set(clave, hilo)
+
+  const fin = {
+    generado_en: new Date().toISOString().replace(/\.\d{3}Z$/, 'Z'),
+    regeneracion: null,
+    uso: { entrada: 1840, salida: [...texto].length }
+  }
+
+  if (!aceptaStream(peticion)) {
+    return { estado: 200, cuerpo: conDatos({ texto, citas, ...fin }) }
+  }
+
+  return { transmitir: (respuesta) => transmitirSSE(respuesta, texto, { citas, fin, falla }) }
+}
+
+/**
+ * `POST /ia/tareas/interpretar`. Devuelve campos, nunca crea nada.
+ *
+ * Todo id sale de los fixtures: el contrato dice que el backend resuelve contra la base y manda ids
+ * reales, y lo que no resuelve va a `no_resuelto`. Un mock que devolviera nombres sueltos entrenaria
+ * al frontend para un contrato que no existe.
+ */
+async function interpretarTareaIaRuta (actual, cuerpo) {
+  exigirPermiso(actual, 'tasks', 'create')
+
+  const datos = await cuerpo()
+  const texto = String(datos.texto ?? '').trim()
+
+  if (texto === '') {
+    throw new ErrorApi(422, 'validation_failed', 'Falta el texto.', { texto: ['requerido'] })
+  }
+
+  const espacio = ESPACIOS.find((e) => texto.toLowerCase().includes(e.name.toLowerCase())) ?? null
+  const persona = STAFF.find((s) => texto.toLowerCase().includes(s.firstname.toLowerCase())) ?? null
+  const urgente = /urgente|cuanto antes|al tiro/i.test(texto)
+
+  return {
+    estado: 200,
+    cuerpo: conDatos({
+      name: texto.split(/[.\n]/)[0].slice(0, 120),
+      description: null,
+      // Nunca se inventa un vencimiento: si el texto no lo menciona, sale `null`.
+      due_date: /mañana|viernes|lunes|\d{1,2}\/\d{1,2}/i.test(texto) ? proximoLunes() : null,
+      start_date: null,
+      priority: urgente ? (PRIORIDADES.find((p) => p.name === 'Urgente')?.id ?? null) : null,
+      rel_type: espacio === null ? null : 'project',
+      rel_id: espacio?.id ?? null,
+      milestone: null,
+      assignees: persona === null ? [] : [persona.id],
+      tags: [],
+      no_resuelto: persona === null && /@\w+/.test(texto) ? [texto.match(/@\w+/)[0]] : []
+    })
+  }
+}
+
+/** `YYYY-MM-DD` del proximo lunes, para que el mock nunca devuelva una fecha ya pasada. */
+function proximoLunes () {
+  const fecha = new Date()
+
+  fecha.setDate(fecha.getDate() + ((8 - fecha.getDay()) % 7 || 7))
+
+  return fecha.toISOString().slice(0, 10)
+}
+
+/** `true` si el pedido acepta un stream. Es lo que decide entre SSE y JSON, igual que la API real. */
+function aceptaStream (peticion) {
+  return (peticion.headers.accept ?? '').includes('text/event-stream')
+}
+
 /** El principal no se borra ni se desmarca mientras el cliente tenga otros contactos. */
 function exigirNoEsElPrincipalConOtros (contacto) {
   if (!contacto.is_primary) return
@@ -1053,6 +1398,10 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
 
   if (recurso === 'rooms') {
     return await salasRuta(metodo, resto, parametros, actual, cuerpo)
+  }
+
+  if (recurso === 'ia') {
+    return await iaRuta(metodo, resto, parametros, actual, cuerpo, peticion)
   }
 
   if (recurso === 'config' && resto[0] === 'realtime') {
@@ -1372,7 +1721,16 @@ export const servidor = createServer((peticion, respuesta) => {
     || null
 
   resolverRuta(peticion.method, partes.slice(2), url.searchParams, token, () => leerCuerpo(peticion), peticion)
-    .then(({ estado, cuerpo }) => responder(respuesta, estado, cuerpo))
+    .then(({ estado, cuerpo, transmitir }) => {
+      // Un endpoint que transmite escribe el mismo la respuesta: no hay `{estado, cuerpo}` que
+      // serializar, porque el cuerpo se va armando durante varios segundos.
+      if (transmitir !== undefined) {
+        transmitir(respuesta)
+        return
+      }
+
+      responder(respuesta, estado, cuerpo)
+    })
     .catch((error) => {
       if (error instanceof ErrorApi) {
         const cuerpo = { error: { code: error.codigo, message: error.message } }
