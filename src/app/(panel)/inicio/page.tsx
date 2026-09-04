@@ -11,7 +11,7 @@ import {
 } from 'lucide-react'
 import { pedir } from '@/datos/servidor'
 import type { Yo } from '@/datos/tipos'
-import type { Proceso } from '@/datos/recursos'
+import type { Espacio, Proceso } from '@/datos/recursos'
 import { GLOSARIO } from '@/dominio/glosario'
 import { agruparPorVencimiento, cuantosNoListados, procesoConCronometro } from '@/dominio/inicio'
 import { Tarjeta, type TonoTarjeta } from '@/componentes/estructura/Tarjeta'
@@ -20,6 +20,7 @@ import { Fecha } from '@/componentes/presentadores/Fecha'
 import { PARAMETRO_TAREA } from '@/componentes/datos/tabla'
 import { ModalTarea } from '@/componentes/proyecto/ModalTarea'
 import { CronometroAbierto } from './CronometroAbierto'
+import { ResumenDelDia } from './ResumenDelDia'
 
 /**
  * Cuantos procesos propios se traen para armar la pantalla.
@@ -77,8 +78,29 @@ export default async function InicioPage () {
         />
       )}
 
+      <ResumenDelDia />
+
       {yo.permissions.tasks.includes('view') && (
         <MiTrabajo grupos={grupos} restantes={restantes} />
+      )}
+
+      {/*
+        Los dos bloques que siguen son async y van cada uno en SU limite de Suspense. Next hace
+        streaming del boundary: el saludo, el cronometro y "Mi trabajo" se pintan con la primera
+        respuesta —igual de rapido que antes— y estos aterrizan cuando su listado conteste, sin una
+        sola peticion desde el navegador. Un solo Suspense para los dos haria que el mas lento
+        retuviera al otro.
+      */}
+      {yo.permissions.projects.includes('view') && (
+        <Suspense fallback={null}>
+          <MisProyectos staffId={yo.id} />
+        </Suspense>
+      )}
+
+      {yo.permissions.tasks.includes('view') && (
+        <Suspense fallback={null}>
+          <EnSeguimiento staffId={yo.id} />
+        </Suspense>
       )}
 
       <Secciones yo={yo} />
@@ -112,6 +134,121 @@ async function misProcesos (yo: Yo): Promise<{ procesos: Proceso[], total: numbe
     return { procesos: data, total: meta?.pagination?.total ?? data.length }
   } catch {
     return { procesos: [], total: 0 }
+  }
+}
+
+/**
+ * Cuantas filas trae cada uno de los dos bloques secundarios.
+ *
+ * Son un vistazo, no un listado: lo que no entra se busca en su pantalla, que esta a un enlace. Con
+ * mas filas los dos bloques empujan las "Secciones" fuera de toda pantalla razonable.
+ */
+const FILAS_SECUNDARIAS = 5
+
+/**
+ * Los Espacios que integra quien mira.
+ *
+ * Va en su propio `<Suspense>`: es una segunda peticion y no puede retrasar la primera pintada.
+ * Copia el `try/catch` de `misProcesos()` por la misma razon —un listado caido no puede tumbar la
+ * portada— y no muestra caja vacia: sin Espacios, no hay bloque.
+ *
+ * @param staffId a quien pertenecen los Espacios
+ */
+async function MisProyectos ({ staffId }: { staffId: number }) {
+  const espacios = await listar<Espacio>(
+    `/projects?filter[member]=${staffId}&per_page=${FILAS_SECUNDARIAS}&sort=deadline`
+  )
+
+  if (espacios.length === 0) return null
+
+  return (
+    <section className="flex flex-col gap-4">
+      <div className="flex items-baseline justify-between gap-4">
+        <h2 className="font-titular text-titulo font-bold text-texto">Mis {GLOSARIO.espacio.plural.toLowerCase()}</h2>
+        <Link
+          href="/espacios"
+          className="flex items-center gap-1 text-sm font-semibold text-acento hover:underline"
+        >
+          Ver {GLOSARIO.espacio.plural.toLowerCase()}
+          <ArrowRight size={16} strokeWidth={2} aria-hidden="true" />
+        </Link>
+      </div>
+
+      <ul className="flex flex-col divide-y divide-linea overflow-hidden rounded-tarjeta border border-linea bg-superficie-elevada">
+        {espacios.map((espacio) => (
+          <li key={espacio.id}>
+            <Link
+              href={`/espacios/${espacio.id}`}
+              className="flex items-center justify-between gap-4 px-4 py-3 transition-colors duration-150 ease-neo hover:bg-hover focus-visible:bg-hover"
+            >
+              <span className="min-w-0 flex-1 truncate text-sm text-texto">{espacio.name}</span>
+              <span className="shrink-0 text-sm text-texto-tenue">
+                {espacio.counts.tasks_open} {GLOSARIO.proceso.plural.toLowerCase()} abiertas
+              </span>
+            </Link>
+          </li>
+        ))}
+      </ul>
+    </section>
+  )
+}
+
+/**
+ * Los Procesos donde quien mira es seguidor: los que revisa, no los que hace.
+ *
+ * Es informacion distinta de "Mi trabajo" y por eso va aparte: son cosas de las que uno responde sin
+ * tenerlas asignadas, y hoy no aparecen en ninguna parte de la portada.
+ *
+ * @param staffId de quien es el seguimiento
+ */
+async function EnSeguimiento ({ staffId }: { staffId: number }) {
+  const procesos = await listar<Proceso>(
+    `/tasks?filter[follower]=${staffId}&sort=due_date&per_page=${FILAS_SECUNDARIAS}`
+  )
+
+  if (procesos.length === 0) return null
+
+  return (
+    <section className="flex flex-col gap-4">
+      <h2 className="font-titular text-titulo font-bold text-texto">En seguimiento</h2>
+
+      <ul className="flex flex-col divide-y divide-linea overflow-hidden rounded-tarjeta border border-linea bg-superficie-elevada">
+        {procesos.map((proceso) => (
+          <li key={proceso.id}>
+            <Link
+              href={`?${PARAMETRO_TAREA}=${proceso.id}`}
+              scroll={false}
+              className="flex items-center justify-between gap-4 px-4 py-3 transition-colors duration-150 ease-neo hover:bg-hover focus-visible:bg-hover"
+            >
+              <span className="min-w-0 flex-1 truncate text-sm text-texto">{proceso.name}</span>
+              <span className="shrink-0 text-sm text-texto-tenue">
+                <Fecha valor={proceso.due_date} />
+              </span>
+            </Link>
+          </li>
+        ))}
+      </ul>
+    </section>
+  )
+}
+
+/**
+ * Trae un listado y devuelve una lista vacia si algo falla.
+ *
+ * Los dos bloques secundarios son adornos de la portada: si su peticion se cae, lo que tiene que
+ * seguir en pie es el resto de la pantalla. Sin este `catch`, el error del listado atraviesa el
+ * limite de Suspense y se lleva puesta la pagina entera.
+ *
+ * @param ruta la ruta ya armada, con sus filtros
+ * @returns las filas, o una lista vacia si la API fallo
+ */
+async function listar<T> (ruta: string): Promise<T[]> {
+  try {
+    const { data } = await pedir<T[]>(ruta)
+
+    return data
+  } catch {
+    return []
   }
 }
 
