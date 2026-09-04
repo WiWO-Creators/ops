@@ -25,6 +25,10 @@ const PREFIJOS_PERMITIDOS = [
   // de `contacts/{id}`, asi que hace falta el prefijo propio.
   'contacts',
   'projects',
+  // Cubre tambien `tasks/{id}/share`, los tres verbos del enlace publico. La lista es por PREFIJO:
+  // un subrecurso nuevo de `tasks` no necesita entrada propia. Lo que NO esta —ni debe estar— es
+  // `public`: `GET /public/tasks/{token}` es anonimo, y el BFF solo existe para adosar el token de
+  // una persona. Esa ruta la pide el Server Component directo contra la API, igual que `/sala`.
   'tasks',
   // frente: detalle — subrecursos del detalle de Proyecto (contrato secciones 2 y 5).
   'milestones',

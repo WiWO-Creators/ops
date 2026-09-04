@@ -537,6 +537,59 @@ export interface ProcesoAmpliado extends Omit<Proceso, 'custom_fields'> {
   custom_fields?: ValorCampoPersonalizado[]
 }
 
+/**
+ * Estado del enlace publico de una Tarea (`GET /tasks/{id}/share`).
+ *
+ * **No trae el token**, y ese es todo su motivo de existir: de la base solo sale el `sha256`, asi que
+ * el unico modo de tener el valor en claro es acuñar uno nuevo con el `POST` —que revoca el anterior.
+ * Preguntar por el estado no puede costar el enlace que ya se mando.
+ */
+export interface EstadoEnlaceProceso {
+  /** `true` solo si hay un enlace ni revocado ni vencido. */
+  shared: boolean
+  /** ISO-8601 UTC, o `null` cuando no hay enlace vivo. */
+  expires_at: string | null
+}
+
+/**
+ * Enlace recien acuñado (`POST /tasks/{id}/share`).
+ *
+ * `token` es la **unica vez** que el valor existe sin cifrar en todo el sistema: si se pierde de esta
+ * respuesta, no se recupera, se acuña otro. Armar la URL es cosa del frontend — la API no sabe en que
+ * dominio vive.
+ */
+export interface EnlaceProcesoGenerado {
+  token: string
+  expires_at: string
+}
+
+/**
+ * La ficha que ve cualquiera con el enlace (`GET /public/tasks/{token}`).
+ *
+ * Son **nueve claves y ninguna mas**: la API construye la proyeccion a mano en su propio `SELECT`, no
+ * poda el objeto del staff. No hay `include` que agregue nada, asi que esta interfaz es la lista
+ * blanca entera. Fuera quedan a proposito la descripcion, los asignados, el Proyecto, los
+ * comentarios, el dinero, los adjuntos y **el id interno de la Tarea**.
+ */
+export interface ProcesoPublico {
+  name: string
+  status: { id: number, name: string, color: string | null } | null
+  priority: { id: number, name: string, color: string | null } | null
+  start_date: string | null
+  due_date: string | null
+  /** ISO-8601 UTC; `null` mientras no este cerrada. */
+  date_finished: string | null
+  is_completed: boolean
+  /** Solo el nombre del tipo. `null` si la Tarea no tiene. */
+  task_type: { name: string } | null
+  progress: {
+    checklist_total: number
+    checklist_done: number
+    /** `done/total`. Sin lista de control: `100` si esta completada, si no `null` — nunca un cero. */
+    percent: number | null
+  }
+}
+
 /** Una tarjeta del resumen de tareas por estado (`GET /projects/{id}/tasks/summary`). */
 export interface ResumenEstadoTareas {
   status: number

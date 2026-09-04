@@ -12,6 +12,7 @@ import { GLOSARIO } from '@/dominio/glosario'
 import { cn } from '@/lib/clases'
 import type { EstadoLookup, Lookups, Proceso } from '@/datos/recursos'
 import type { Sobre } from '@/datos/tipos'
+import { CompartirTarea } from './CompartirTarea'
 import { Cronometros } from './Cronometros'
 import { ListaIteraciones } from './ListaIteraciones'
 import { mensajeDeRespuesta, pedirRespuesta } from '@/datos/cliente'
@@ -91,6 +92,9 @@ export function DetalleTarea ({ procesoId, className }: PropsDetalleTarea): Reac
           <div className="flex flex-wrap items-center gap-1.5">
             <Insignia tamano="chico" color={estado.color}>{estado.nombre}</Insignia>
             <Insignia tamano="chico" color={prioridad.color}>{prioridad.nombre}</Insignia>
+            {/* Al final de la fila de insignias y no arriba del titulo: compartir es una salida
+                lateral, no lo que la persona vino a hacer al detalle. */}
+            <CompartirTarea procesoId={procesoId} />
           </div>
         </header>
 
