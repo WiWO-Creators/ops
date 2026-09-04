@@ -158,7 +158,11 @@ export function FormularioTarea (
     setAvisoIa(null)
 
     const local = interpretarAltaRapida(limpio, catalogos)
-    const respuesta = await escribirEnBff<CamposTarea>('ia/tareas/interpretar', 'POST', { texto: limpio })
+    // `project_id` acota la interpretacion al Espacio abierto: sin el, el modelo puede vincular la
+    // tarea a otro Espacio que el texto nombre de paso.
+    const respuesta = await escribirEnBff<CamposTarea>(
+      'ia/tareas/interpretar', 'POST', { texto: limpio, project_id: proyectoId }
+    )
     const delModelo = respuesta.ok ? leerCamposTarea(respuesta.datos) : null
     const resultado = fusionarInterpretacion(local, delModelo, catalogos)
 

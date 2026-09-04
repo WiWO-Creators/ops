@@ -210,3 +210,20 @@ test('un payload malformado no revienta la fusion', () => {
   assert.equal(fusion.name, 'Algo')
   assert.deepEqual(fusion.assignees, [15])
 })
+
+test('leerCamposTarea entiende la forma anidada de la API', () => {
+  // La API devuelve `data: {campos, resueltos, no_resuelto, faltantes}`. Leer el nivel equivocado
+  // no da error: cada campo cae a null por su cuenta y la interfaz se queda muda.
+  const leido = leerCamposTarea({
+    campos: { name: 'Arreglar el informe', priority: 4, assignees: [3], tags: ['Digital'] },
+    resueltos: { assignees: [{ id: 3, nombre: 'Franz Albornoz', desde: 'Franz' }] },
+    no_resuelto: ['etiqueta "urgentisimo"'],
+    faltantes: ['description']
+  })
+
+  assert.equal(leido.name, 'Arreglar el informe')
+  assert.equal(leido.priority, 4)
+  assert.deepEqual(leido.assignees, [3])
+  assert.deepEqual(leido.tags, ['Digital'])
+  assert.deepEqual(leido.no_resuelto, ['etiqueta "urgentisimo"'])
+})

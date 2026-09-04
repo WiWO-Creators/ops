@@ -135,13 +135,27 @@ function comoNumero (valor: unknown): number | null {
  * la fusion se hace con lo que si vino. Rechazar todo por un campo de mas seria perder la lectura
  * completa por un detalle.
  *
+ * La API anida: el `data` trae `campos` con el cuerpo listo para `POST /tasks`, y `no_resuelto`
+ * colgando del padre junto a `resueltos` y `faltantes`. Leer el `data` plano —como se hizo mientras
+ * el endpoint no existia— devuelve todo en `null` **sin dar error**, porque cada campo cae por su
+ * cuenta: la interfaz se queda muda y nadie se entera. Por eso esta funcion recibe el envelope
+ * entero y sabe donde vive cada cosa, en vez de confiar en que el llamador acierte el nivel.
+ *
  * @param valor el `data` del envelope, tal como llego
  * @returns los campos normalizados, o `null` si ni siquiera es un objeto
  */
 export function leerCamposTarea (valor: unknown): CamposTarea | null {
   if (typeof valor !== 'object' || valor === null || Array.isArray(valor)) return null
 
-  const crudo = valor as Record<string, unknown>
+  const sobre = valor as Record<string, unknown>
+  const anidado = sobre.campos
+
+  // Se acepta tambien la forma plana: el mock la sirvio asi antes de que existiera el endpoint, y
+  // un `campos` ausente no puede significar "no se entendio nada".
+  const crudo = (typeof anidado === 'object' && anidado !== null && !Array.isArray(anidado))
+    ? { ...anidado as Record<string, unknown>, no_resuelto: sobre.no_resuelto }
+    : sobre
+
   const lista = (campo: unknown): unknown[] => Array.isArray(campo) ? campo : []
 
   return {

@@ -1104,21 +1104,36 @@ async function interpretarTareaIaRuta (actual, cuerpo) {
   const persona = STAFF.find((s) => texto.toLowerCase().includes(s.firstname.toLowerCase())) ?? null
   const urgente = /urgente|cuanto antes|al tiro/i.test(texto)
 
+  const sinResolver = persona === null && /@\w+/.test(texto) ? [texto.match(/@\w+/)[0]] : []
+
+  // La API anida: `campos` es el cuerpo listo para `POST /tasks`, y `resueltos`, `no_resuelto` y
+  // `faltantes` cuelgan del padre. El mock servia una forma plana y el front la leia asi, con lo
+  // que contra el back verdadero todo caia a `null` sin dar error. Ver `leerCamposTarea()`.
   return {
     estado: 200,
     cuerpo: conDatos({
-      name: texto.split(/[.\n]/)[0].slice(0, 120),
-      description: null,
-      // Nunca se inventa un vencimiento: si el texto no lo menciona, sale `null`.
-      due_date: /mañana|viernes|lunes|\d{1,2}\/\d{1,2}/i.test(texto) ? proximoLunes() : null,
-      start_date: null,
-      priority: urgente ? (PRIORIDADES.find((p) => p.name === 'Urgente')?.id ?? null) : null,
-      rel_type: espacio === null ? null : 'project',
-      rel_id: espacio?.id ?? null,
-      milestone: null,
-      assignees: persona === null ? [] : [persona.id],
-      tags: [],
-      no_resuelto: persona === null && /@\w+/.test(texto) ? [texto.match(/@\w+/)[0]] : []
+      campos: {
+        name: texto.split(/[.\n]/)[0].slice(0, 120),
+        description: null,
+        // Nunca se inventa un vencimiento: si el texto no lo menciona, sale `null`.
+        due_date: /mañana|viernes|lunes|\d{1,2}\/\d{1,2}/i.test(texto) ? proximoLunes() : null,
+        start_date: null,
+        priority: urgente ? (PRIORIDADES.find((p) => p.name === 'Urgente')?.id ?? null) : null,
+        rel_type: espacio === null ? null : 'project',
+        rel_id: espacio?.id ?? null,
+        milestone: null,
+        assignees: persona === null ? [] : [persona.id],
+        // Las etiquetas viajan por NOMBRE: `POST /tasks` las busca asi, no por id.
+        tags: []
+      },
+      resueltos: {
+        assignees: persona === null ? [] : [{ id: persona.id, nombre: `${persona.firstname} ${persona.lastname}`, desde: persona.firstname }],
+        followers: [],
+        rel_id: espacio === null ? null : { id: espacio.id, nombre: espacio.name, desde: espacio.name },
+        tags: []
+      },
+      no_resuelto: sinResolver,
+      faltantes: ['description']
     })
   }
 }
