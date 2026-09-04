@@ -2,9 +2,8 @@ import { Suspense } from 'react'
 import { ExternalLink } from 'lucide-react'
 import { Cargando } from '@/componentes/estado/Estados'
 import { PantallaPlantillas } from '@/componentes/proyecto/PantallaPlantillas'
-import { ErrorApi } from '@/datos/errores'
 import { cargarLookups } from '@/datos/lookups'
-import { pedir } from '@/datos/servidor'
+import { pedir, pedirOpcional } from '@/datos/servidor'
 import type { MiembroEquipo, PlantillaEspacio } from '@/datos/recursos'
 import type { Yo } from '@/datos/tipos'
 import { TITULO_PLANTILLAS } from '@/definiciones/plantillas'
@@ -23,26 +22,6 @@ export const metadata = { title: `${TITULO_PLANTILLAS} · WiWO Ops` }
 const TOPE_DE_EQUIPO = 100
 
 /**
- * Trae el equipo tolerando el fallo.
- *
- * Sin la lista de personas la pantalla sigue sirviendo: se arman plantillas sin responsables. Que
- * `/staff` conteste 403 a alguien sin permiso sobre el equipo no puede dejar el listado en blanco.
- *
- * @returns Los miembros, o una lista vacia si la API no los dio.
- */
-async function equipoOVacio (): Promise<MiembroEquipo[]> {
-  try {
-    const sobre = await pedir<MiembroEquipo[]>(`/staff?per_page=${TOPE_DE_EQUIPO}`)
-
-    return sobre.data
-  } catch (fallo) {
-    if (fallo instanceof ErrorApi) return []
-
-    throw fallo
-  }
-}
-
-/**
  * Plantillas de {espacio}: armarlas, editarlas y borrarlas.
  *
  * Se resuelve en el servidor para que la lista no parpadee al montar. El `Suspense` no es decorativo:
@@ -53,7 +32,7 @@ export default async function PlantillasPage () {
     pedir<PlantillaEspacio[]>('/project-templates'),
     pedir<Yo>('/me'),
     cargarLookups(),
-    equipoOVacio()
+    pedirOpcional<MiembroEquipo[]>(`/staff?per_page=${TOPE_DE_EQUIPO}`)
   ])
 
   const clasico = urlClasica('espacios')
@@ -74,7 +53,7 @@ export default async function PlantillasPage () {
           inicial={{ filas: lista.data, paginacion: lista.meta?.pagination }}
           capacidades={yo.data.permissions.projects}
           tiposDeProceso={tiposDeProcesoUnicos(lookups.task_types)}
-          equipo={equipo.map((persona) => ({ valor: String(persona.id), etiqueta: persona.full_name }))}
+          equipo={(equipo.datos ?? []).map((persona) => ({ valor: String(persona.id), etiqueta: persona.full_name }))}
         />
       </Suspense>
 

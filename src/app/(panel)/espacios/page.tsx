@@ -2,9 +2,8 @@ import { Suspense } from 'react'
 import { VistaEspacios } from '@/componentes/proyecto/TarjetasProyectos'
 import { Cargando } from '@/componentes/estado/Estados'
 import { construirConsulta, leerConsulta, paramsDeUrl } from '@/datos/consulta'
-import { ErrorApi } from '@/datos/errores'
 import { cargarLookups, opcionesDeFiltros } from '@/datos/lookups'
-import { pedir } from '@/datos/servidor'
+import { pedir, pedirOpcional } from '@/datos/servidor'
 import type {
   CampoPersonalizadoMeta,
   Cliente,
@@ -26,29 +25,6 @@ export const metadata = { title: 'Proyectos · WiWO Ops' }
  * exhaustivo: el reemplazo es un filtro con busqueda contra el servidor, no subir el numero.
  */
 const TOPE_DE_OPCIONES = 100
-
-/**
- * Pide un recurso tolerando el fallo.
- *
- * Lo usan los datos accesorios de la pantalla —contadores, campos personalizados, opciones de
- * filtro—: que el backend todavia no exponga `/projects/stats` no puede dejar el listado en blanco.
- * El error se devuelve como valor para poder mostrarlo; los de autenticacion no se atrapan, porque
- * `pedir` los resuelve redirigiendo a `/entrar`.
- *
- * @param ruta Ruta relativa a la base de la API.
- * @returns Los datos, o `null` y el mensaje del error.
- */
-async function pedirOpcional<T> (ruta: string): Promise<{ datos: T | null, error: string | null }> {
-  try {
-    const sobre = await pedir<T>(ruta)
-
-    return { datos: sobre.data, error: null }
-  } catch (fallo) {
-    if (fallo instanceof ErrorApi) return { datos: null, error: fallo.message }
-
-    throw fallo
-  }
-}
 
 /** Opciones de un selector a partir de una lista de la API. */
 function opcionesDe<T> (lista: T[] | null, valor: (item: T) => string, etiqueta: (item: T) => string): OpcionFiltro[] {

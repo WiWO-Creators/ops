@@ -5,7 +5,7 @@ import { Cargando } from '@/componentes/estado/Estados'
 import { Segmentado } from '@/componentes/formularios/Segmentado'
 import { construirConsulta, leerConsulta, paramsDeUrl } from '@/datos/consulta'
 import { cargarLookups, opcionesDeFiltros } from '@/datos/lookups'
-import { pedir } from '@/datos/servidor'
+import { pedir, pedirOpcional } from '@/datos/servidor'
 import type { Espacio, MiembroEquipo } from '@/datos/recursos'
 import type { Yo } from '@/datos/tipos'
 import { PROCESOS } from '@/definiciones/procesos'
@@ -31,13 +31,14 @@ export default async function TableroProcesosPage (props: PageProps<'/procesos/t
     cargarLookups(),
     pedir<Yo>('/me'),
     // Catalogos del alta rapida, iguales a los de la lista: el boton tiene que estar en las dos
-    // pantallas, porque la tarea se anota donde uno esta parado.
-    pedir<MiembroEquipo[]>('/staff?per_page=100'),
+    // pantallas, porque la tarea se anota donde uno esta parado. El equipo es opcional por el mismo
+    // motivo que en la lista: `/staff` exige `staff.view` y sin permiso responde 403.
+    pedirOpcional<MiembroEquipo[]>('/staff?per_page=100'),
     pedir<Espacio[]>('/projects?per_page=100')
   ])
 
   const catalogosDeAlta = {
-    personas: equipo.data.map((p) => ({ id: p.id, full_name: p.full_name })),
+    personas: (equipo.datos ?? []).map((p) => ({ id: p.id, full_name: p.full_name })),
     espacios: espacios.data.map((e) => ({ id: e.id, name: e.name })),
     prioridades: lookups.task_priorities.map((p) => ({ id: p.id, name: p.name }))
   }

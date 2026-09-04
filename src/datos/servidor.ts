@@ -52,3 +52,34 @@ export async function pedir<T> (ruta: string, sujeto: Sujeto = 'staff'): Promise
 export async function pedirPortal<T> (ruta: string): Promise<Sobre<T>> {
   return await pedir<T>(ruta, 'contacto')
 }
+
+/**
+ * Pide un recurso tolerando el fallo.
+ *
+ * Es para los datos accesorios de una pantalla —contadores, campos personalizados, catalogos de un
+ * selector—: que la API conteste 403 o 404 ahi no puede tumbar la pagina entera. El caso concreto es
+ * `/staff`, que exige el permiso `staff.view` (`controllers/V1.php:662`) y por eso responde 403 a
+ * casi todo el equipo; pedirlo con `pedir()` para llenar el selector de personas del alta rapida
+ * dejaba `/procesos` y `/procesos/tablero` en "This page couldn't load".
+ *
+ * El error se devuelve como valor en vez de tragarse, para que la pantalla lo pueda mostrar. Los de
+ * autenticacion no se atrapan: `pedir` ya los resuelve redirigiendo a la entrada.
+ *
+ * @param ruta Ruta relativa a la base de la API.
+ * @param sujeto De quien es la sesion con la que pedir. Por defecto la del panel.
+ * @returns Los datos, o `null` con el mensaje del error.
+ */
+export async function pedirOpcional<T> (
+  ruta: string,
+  sujeto: Sujeto = 'staff'
+): Promise<{ datos: T | null, error: string | null }> {
+  try {
+    const sobre = await pedir<T>(ruta, sujeto)
+
+    return { datos: sobre.data, error: null }
+  } catch (fallo) {
+    if (fallo instanceof ErrorApi) return { datos: null, error: fallo.message }
+
+    throw fallo
+  }
+}
