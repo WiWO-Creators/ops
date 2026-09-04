@@ -488,22 +488,12 @@ function mensajeDeError (cuerpo: RespuestaEntrar, estado: number, via: Via): str
     return 'Demasiados intentos fallidos. Esperá unos minutos antes de volver a probar.'
   }
 
-  if (cuerpo.codigo === 'forbidden') {
-    /*
-     * La API usa `forbidden` para dos cosas distintas —cuenta desactivada y dominio no permitido— y
-     * el codigo del contrato no las separa. Se mira el mensaje del servidor, que si las distingue, y
-     * si no dice nada reconocible decide la via: el 403 que puede aparecer entrando con Google y no
-     * con contraseña es justamente el del dominio.
-     */
-    const dice = (cuerpo.mensaje ?? '').toLowerCase()
+  // La API separa los dos 403 con codigos propios: `domain_not_allowed` es el dominio fuera de la
+  // lista y `forbidden` la cuenta dada de baja. Distinguirlos por el texto del mensaje seria atarse
+  // a una redaccion que puede cambiar sin aviso.
+  if (cuerpo.codigo === 'domain_not_allowed') return SIN_DOMINIO
 
-    if (dice.includes('domin') || dice.includes('domain')) return SIN_DOMINIO
-    if (dice.includes('desactiv') || dice.includes('inactiv') || dice.includes('disabled')) {
-      return CUENTA_APAGADA
-    }
-
-    return via === 'google' ? SIN_DOMINIO : CUENTA_APAGADA
-  }
+  if (cuerpo.codigo === 'forbidden') return CUENTA_APAGADA
 
   if (estado === 401) {
     return via === 'google'
