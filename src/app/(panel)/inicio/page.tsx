@@ -17,7 +17,8 @@ import { agruparPorVencimiento, cuantosNoListados, procesoConCronometro } from '
 import { Tarjeta, type TonoTarjeta } from '@/componentes/estructura/Tarjeta'
 import { Insignia } from '@/componentes/presentadores/Insignia'
 import { Fecha } from '@/componentes/presentadores/Fecha'
-import { ModalTarea, PARAMETRO_TAREA } from '@/componentes/proyecto/CajonTarea'
+import { PARAMETRO_TAREA } from '@/componentes/datos/tabla'
+import { ModalTarea } from '@/componentes/proyecto/CajonTarea'
 import { CronometroAbierto } from './CronometroAbierto'
 
 /**

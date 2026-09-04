@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import type { ReactElement } from 'react'
 import { Boton } from '@/componentes/formularios/Boton'
 import { CerrarDialogo, ContenidoDialogo, Dialogo } from '@/componentes/superposiciones/Dialogo'
-import { idDeParametro } from '@/componentes/datos/tabla'
+import { idDeParametro, PARAMETRO_TAREA } from '@/componentes/datos/tabla'
 import { GLOSARIO } from '@/dominio/glosario'
 import { DetalleTarea } from './DetalleTarea'
 
@@ -24,8 +24,8 @@ import { DetalleTarea } from './DetalleTarea'
  * "atras" la cierra, porque abrirla fue un `push` del historial.
  */
 
-/** Parametro que abre el detalle. Lo lee este modal y lo escriben los enlaces que listan tareas. */
-export const PARAMETRO_TAREA = 'tarea'
+/** Se reexporta desde aca porque es donde lo buscan los listados que abren el detalle. */
+export { PARAMETRO_TAREA }
 
 export function ModalTarea (): ReactElement {
   const router = useRouter()
@@ -60,8 +60,12 @@ export function ModalTarea (): ReactElement {
             Va `sticky` y no `absolute`: el que scrollea es el panel entero, asi que un boton
             absoluto se iria con el encabezado apenas se baja por una descripcion larga —justo el
             caso para el que existe este modal. El fondo propio es lo que evita que el contenido se
-            lea por debajo del boton al pasarle por atras. */}
-        <div className="bg-superficie-flotante sticky top-0 z-10 flex justify-end pb-1">
+            lea por debajo del boton al pasarle por atras.
+
+            `-top-6` y no `top-0` porque el scrollport de un contenedor con `overflow` empieza
+            debajo de su relleno: anclado en 0 quedaba una franja arriba por la que el contenido
+            asomaba. */}
+        <div className="bg-superficie-flotante sticky -top-6 z-10 flex justify-end pb-2">
           <CerrarDialogo asChild>
             <Boton variante="sutil" tamano="chico" soloIcono aria-label="Cerrar">
               <X size={16} strokeWidth={2} aria-hidden="true" />
