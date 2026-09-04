@@ -75,16 +75,17 @@ export default async function FichaPublicaDeTarea (props: PageProps<'/tarea/[tok
         aria-label="Avance"
         className="border-linea bg-superficie-elevada rounded-tarjeta flex flex-col gap-2 border p-4"
       >
-        {avance.porcentaje === null
-          ? <p className="text-texto-sutil text-sm">{SIN_DATO}</p>
-          : (
-            <div className="flex items-center gap-3">
-              <BarraProgreso porcentaje={avance.porcentaje} className="min-w-0 flex-1" />
-              <span data-numerico className="text-texto text-sm font-semibold tabular-nums">
-                {avance.porcentaje}%
-              </span>
-            </div>
-            )}
+        {/* Sin porcentaje no se dibuja una barra en cero: diria que el trabajo no arranco, cuando lo
+            que pasa es que no hay lista de control con que medirlo. Queda solo la linea que lo
+            explica. */}
+        {avance.porcentaje !== null && (
+          <div className="flex items-center gap-3">
+            <BarraProgreso porcentaje={avance.porcentaje} className="min-w-0 flex-1" />
+            <span data-numerico className="text-texto text-sm font-semibold tabular-nums">
+              {avance.porcentaje}%
+            </span>
+          </div>
+        )}
         <p className="text-texto-sutil text-xs">{avance.detalle}</p>
       </section>
 
