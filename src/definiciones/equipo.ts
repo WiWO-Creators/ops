@@ -43,6 +43,12 @@ export const EQUIPO: DefinicionRecurso<MiembroEquipo> = {
       ocultaPorDefecto: true,
       presentar: (m) => (m.is_admin ? 'Sí' : 'No')
     },
+    {
+      clave: 'is_superadmin',
+      encabezado: 'Superadministrador',
+      ocultaPorDefecto: true,
+      presentar: (m) => (m.is_superadmin ? 'Sí' : 'No')
+    },
     { clave: 'phonenumber', encabezado: 'Teléfono', ocultaPorDefecto: true, presentar: (m) => m.phonenumber ?? '' },
     {
       clave: 'hourly_rate',

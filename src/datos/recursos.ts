@@ -147,6 +147,12 @@ export interface MiembroEquipo {
   full_name: string
   profile_image_url: string | null
   is_admin: boolean
+  /**
+   * Rol propio por encima de `is_admin` (`modules/wiwo_core/superadmin.php`): suma la configuracion
+   * de la instalacion. Solo otro superadministrador lo reparte, y la API rechaza con 422
+   * `solo_superadmin` a cualquier otro que lo intente.
+   */
+  is_superadmin: boolean
   role_id: number | null
   active: boolean
   /** Cuentas que existen pero no son personal operativo: no van en los selectores de asignacion. */
