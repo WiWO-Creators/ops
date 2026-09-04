@@ -1,0 +1,103 @@
+/*
+ * Tema de LiveKit hecho con los tokens del sistema.
+ *
+ * `@livekit/components-styles` trae dos cosas mezcladas: reglas ESTRUCTURALES que hacen falta —el
+ * dimensionado del `<video>`, el espejo de la camara propia, el letterbox de la pantalla
+ * compartida— y una paleta que no es la nuestra. Las primeras se aprovechan; la segunda se
+ * reemplaza definiendo las mismas variables con los semanticos de `neo.css`.
+ *
+ * Sin este archivo, `data-lk-theme` no existe en ningun nodo y TODAS las `--lk-*` quedan sin
+ * definir. Eso no se ve como "los colores estan feos", se ve como que la sala esta rota: el nombre
+ * del participante hereda la tinta del panel sobre un chip negro y desaparece, y el marcador de
+ * camara apagada queda transparente, o sea un rectangulo vacio.
+ *
+ * El tema se llama `wiwo` y no `default` a proposito: el `default` de la libreria declara
+ * `color-scheme: dark` y forzaria el escenario a oscuro incluso con el panel en claro.
+ */
+
+[data-lk-theme='wiwo'] {
+  --lk-fg: var(--texto);
+  --lk-fg2: var(--texto-tenue);
+  --lk-fg3: var(--texto-sutil);
+
+  --lk-bg: var(--superficie);
+  --lk-bg2: var(--superficie-hundida);
+  --lk-bg3: var(--superficie-elevada);
+  --lk-bg4: var(--superficie-flotante);
+  --lk-bg5: var(--superficie-acentuada);
+
+  --lk-border-color: var(--linea);
+
+  --lk-accent-bg: var(--acento);
+  --lk-accent-fg: var(--acento-contenido);
+  --lk-accent2: var(--acento-fuerte);
+
+  --lk-danger: var(--relleno-peligro);
+  --lk-danger-fg: var(--relleno-peligro-contenido);
+  --lk-success: var(--relleno-exito);
+  --lk-success-fg: var(--relleno-exito-contenido);
+
+  /* Los tres de calidad de conexion son los unicos colores de la libreria que comunican estado por
+     si solos, asi que se mapean a los semanticos de estado y no a la marca. */
+  --lk-connection-excellent: var(--texto-exito);
+  --lk-connection-good: var(--texto-aviso);
+  --lk-connection-poor: var(--texto-peligro);
+
+  --lk-control-fg: var(--texto);
+  --lk-control-bg: var(--control);
+  --lk-control-hover-bg: var(--hover);
+  --lk-control-active-bg: var(--acento);
+  --lk-control-active-hover-bg: var(--acento-fuerte);
+
+  --lk-font-family: var(--font-interfaz);
+  --lk-font-size: 0.875rem;
+  --lk-line-height: 1.5;
+  --lk-border-radius: var(--medium-BorderRadius);
+  --lk-grid-gap: var(--spacing-1_5);
+}
+
+/*
+ * Chip que va ENCIMA de un video.
+ *
+ * Es la unica pieza del modulo que no sigue el tema, y es deliberado: detras no esta el lienzo del
+ * panel sino la imagen de una camara, que puede ser de cualquier color y cambia treinta veces por
+ * segundo. Un chip que se aclarara con el tema oscuro quedaria blanco sobre una cara clara. Oscuro
+ * translucido con texto claro es la unica combinacion que se lee siempre.
+ *
+ * Se define en CSS y no con utilidades de Tailwind porque el par correcto son los dos extremos de
+ * la rampa de marca, no un semantico: los semanticos se dan vuelta con el tema, que es justo lo que
+ * acá no debe pasar.
+ */
+.sobre-video {
+  /* El escalon mas oscuro de la rampa y no la tinta: sobre el lienzo del tema oscuro, la tinta al
+     66% queda del mismo color que el fondo y el chip pierde el contorno. */
+  background-color: color-mix(in srgb, var(--wiwo-ink-900) 72%, transparent);
+  color: var(--wiwo-surface-0);
+}
+
+/*
+ * Fondo de un area de video.
+ *
+ * No usa `--superficie-hundida` a proposito: esa rampa es calida —el beige de la marca— y a tamaño
+ * de ficha de video deja de leerse como superficie y empieza a leerse como que la camara esta
+ * pintando amarillo. Un video vacio tiene que verse neutro en los dos temas, que es lo que hace un
+ * gris sin matiz sobre el que despues encaja cualquier imagen de camara.
+ */
+.lienzo-video {
+  background-color: light-dark(
+    color-mix(in srgb, var(--wiwo-ink) 12%, var(--wiwo-surface-0)),
+    var(--wiwo-ink-850)
+  );
+}
+
+/*
+ * El `<video>` de LiveKit ocupa la ficha entera.
+ *
+ * La libreria ya pone `object-fit: cover` en `.lk-participant-media-video`, pero no le da tamaño al
+ * elemento cuando la ficha no es la suya. Sin esto, el video se dibuja a su tamaño natural —el de
+ * la camara, que puede ser 1280x720— y desborda la celda del mosaico.
+ */
+.ficha-video video {
+  width: 100%;
+  height: 100%;
+}

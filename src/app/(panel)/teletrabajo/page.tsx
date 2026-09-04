@@ -2,8 +2,10 @@ import { Coffee, FolderKanban, Users, type LucideIcon } from 'lucide-react'
 import { pedir } from '@/datos/servidor'
 import { ErrorApi } from '@/datos/errores'
 import { SALAS_COMUNES, salaDeEspacio } from '@/dominio/teletrabajo'
+import { ocupacionDeSalas } from '@/datos/teletrabajo'
 import { GLOSARIO } from '@/dominio/glosario'
 import { Tarjeta } from '@/componentes/estructura/Tarjeta'
+import { Insignia } from '@/componentes/presentadores/Insignia'
 import type { Espacio } from '@/datos/recursos'
 import type { Yo } from '@/datos/tipos'
 
@@ -35,8 +37,13 @@ const ICONOS_DE_SALA: Record<string, LucideIcon> = {
  * entra. La segunda es la que manda; esta solo evita mostrar puertas cerradas.
  */
 export default async function TeletrabajoPage () {
-  const { data: yo } = await pedir<Yo>('/me')
-  const espacios = await espaciosDe(yo.id)
+  // `ocupacionDeSalas()` habla con LiveKit y `/me` con la API propia: son consultas independientes,
+  // asi que van en paralelo y no una tras otra. `espaciosDe` si depende de `yo.id`, por eso queda
+  // encadenada a `/me` dentro del segundo brazo del `Promise.all`.
+  const [ocupacion, espacios] = await Promise.all([
+    ocupacionDeSalas(),
+    pedir<Yo>('/me').then(({ data: yo }) => espaciosDe(yo.id))
+  ])
 
   return (
     <div className="flex flex-col gap-8">
@@ -45,7 +52,8 @@ export default async function TeletrabajoPage () {
           {GLOSARIO.teletrabajo.singular}
         </h1>
         <p className="mt-2 text-sm text-texto-tenue">
-          Llamadas, video y pantalla compartida. El chat sigue donde estaba.
+          Llamadas, video y pantalla compartida, con chat propio dentro de cada sala. Ese chat vive
+          solo mientras dura la llamada: los mensajes no quedan guardados.
         </p>
         <span aria-hidden="true" className="mt-4 block h-1 w-24 rounded-control bg-gradiente-marca" />
       </header>
@@ -62,6 +70,7 @@ export default async function TeletrabajoPage () {
               descripcion={sala.descripcion}
               icono={ICONOS_DE_SALA[sala.id] ?? Users}
               tono="acento"
+              distintivo={distintivoDeOcupacion(ocupacion?.get(sala.id))}
             />
           ))}
         </div>
@@ -72,9 +81,28 @@ export default async function TeletrabajoPage () {
           Salas privadas
         </h2>
 
-        <SalasPrivadas espacios={espacios} />
+        <SalasPrivadas espacios={espacios} ocupacion={ocupacion} />
       </section>
     </div>
+  )
+}
+
+/**
+ * Distintivo de ocupacion para una tarjeta de sala.
+ *
+ * No pinta nada con cero personas (una sala vacia es el estado normal, no una alerta) ni con
+ * `undefined` (la consulta a LiveKit fallo para toda la pantalla, y afirmar "0 dentro" seria mentir
+ * sobre algo que en realidad no se sabe).
+ *
+ * @param cantidad personas dentro de la sala, o `undefined` si no se pudo consultar
+ */
+function distintivoDeOcupacion (cantidad: number | undefined): React.ReactNode {
+  if (!cantidad) return null
+
+  return (
+    <Insignia tono="exito" tamano="chico">
+      {cantidad === 1 ? '1 dentro' : `${cantidad} dentro`}
+    </Insignia>
   )
 }
 
@@ -86,8 +114,11 @@ export default async function TeletrabajoPage () {
  * pertenece a nada, que es una afirmacion falsa sobre su trabajo.
  *
  * @param espacios Espacios que integra, o `null` si la consulta fallo.
+ * @param ocupacion Cuanta gente hay por sala, o `null` si LiveKit no respondio.
  */
-function SalasPrivadas ({ espacios }: { espacios: Espacio[] | null }) {
+function SalasPrivadas (
+  { espacios, ocupacion }: { espacios: Espacio[] | null, ocupacion: Map<string, number> | null }
+) {
   if (espacios === null) {
     return (
       <p className="text-sm text-texto-tenue">
@@ -123,6 +154,7 @@ function SalasPrivadas ({ espacios }: { espacios: Espacio[] | null }) {
             descripcion={espacio.client?.company ?? 'Solo para quienes integran el espacio.'}
             icono={FolderKanban}
             tono="violeta"
+            distintivo={distintivoDeOcupacion(ocupacion?.get(sala))}
           />
         )
       })}

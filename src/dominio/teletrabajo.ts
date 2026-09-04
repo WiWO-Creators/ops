@@ -160,3 +160,124 @@ export function puedeEntrar (
 export function identidadDe (staffId: number, sufijo: string): string {
   return `staff-${staffId}-${sufijo}`
 }
+
+/** Como queda repartido el mosaico de fichas. */
+export interface Mosaico {
+  columnas: number
+  filas: number
+  /** Ancho exacto de cada ficha, en pixeles. El alto sale de la proporcion. */
+  anchoDeFicha: number
+}
+
+/**
+ * Cuanto puede achicarse una ficha a cambio de repartir a lo ancho.
+ *
+ * Sin esta holgura, dos personas en una pantalla apaisada terminan **apiladas**: la cuenta dice que
+ * una sola columna deja la ficha un 3% mas grande, y gana por eso. Pero un 3% de lado no se nota y
+ * media pantalla vacia a los costados si. Dentro de este margen manda el reparto con mas columnas,
+ * que es el que se parece a una reunion y no a una lista.
+ */
+const HOLGURA_A_LO_ANCHO = 0.9
+
+/**
+ * Tope de participantes que acepta el servidor (`livekit/livekit.yaml`, `max_participants`).
+ *
+ * Acota el barrido de `mosaico`: sin tope, una cantidad absurda haria un bucle igual de absurdo.
+ */
+const MAXIMO_DE_FICHAS = 50
+
+/**
+ * Reparte N fichas en el escenario buscando la ficha mas grande posible.
+ *
+ * Es la pieza que faltaba y por la que un video en una sala vacia salia del tamaño de la pantalla:
+ * una grilla de `auto-fit` sabe cuantas columnas entran a lo ancho, pero **no sabe cuantas filas
+ * hay**, asi que no puede repartir el alto. Con una sola persona, la unica celda se comia el
+ * escenario entero y el `object-fit: cover` del video recortaba la cara hasta llenarlo.
+ *
+ * El metodo es fuerza bruta: se prueba cada cantidad de columnas y gana la que deja la ficha mas
+ * grande conservando la proporcion pedida. Son como mucho 50 candidatos —el tope del servidor— y
+ * corre una vez por cambio de tamaño del contenedor, no por fotograma.
+ *
+ * Recibe la medida en vez de leerla del DOM para poder probarse sin navegador.
+ *
+ * @param cantidad   Cuantas fichas hay que colocar.
+ * @param ancho      Ancho disponible del escenario, en pixeles.
+ * @param alto       Alto disponible del escenario, en pixeles.
+ * @param hueco      Separacion entre fichas, en pixeles.
+ * @param proporcion Proporcion deseada de cada ficha (ancho / alto). 16:9 por defecto.
+ * @returns Columnas y filas del mosaico. Nunca menos de 1 de cada una.
+ */
+export function mosaico (
+  cantidad: number,
+  ancho: number,
+  alto: number,
+  hueco: number,
+  proporcion: number = 16 / 9
+): Mosaico {
+  const fichas = Math.min(Math.max(Math.trunc(cantidad), 1), MAXIMO_DE_FICHAS)
+
+  // Antes del primer `ResizeObserver` el contenedor todavia no mide nada. Repartir en cuadrado es
+  // la aproximacion correcta para ese fotograma: la medida real llega enseguida y corrige.
+  if (!(ancho > 0) || !(alto > 0)) {
+    const columnas = Math.ceil(Math.sqrt(fichas))
+    return { columnas, filas: Math.ceil(fichas / columnas), anchoDeFicha: 0 }
+  }
+
+  let mejor: Mosaico = { columnas: 1, filas: fichas, anchoDeFicha: 0 }
+  let mejorLado = -1
+
+  for (let columnas = 1; columnas <= fichas; columnas++) {
+    const filas = Math.ceil(fichas / columnas)
+
+    const anchoDeCelda = (ancho - hueco * (columnas - 1)) / columnas
+    const altoDeCelda = (alto - hueco * (filas - 1)) / filas
+
+    // Una celda que ya no entra no compite: con muchas columnas el ancho disponible se vuelve
+    // negativo y, sin este corte, ganaria por comparar numeros sin sentido.
+    if (anchoDeCelda <= 0 || altoDeCelda <= 0) continue
+
+    // La ficha es la caja de la proporcion pedida **mas grande que entra en la celda**, no la celda
+    // entera. Estirar el video hasta los bordes de una celda apaisada es lo que lo hacia aparecer
+    // recortado y enorme: llena por `cover` y lo que sobra se corta.
+    const lado = Math.min(anchoDeCelda, altoDeCelda * proporcion)
+
+    // Gana el que deja la ficha mas grande, salvo dentro de la holgura: ahi gana el de mas
+    // columnas, que es el que se sigue evaluando despues. Ver `HOLGURA_A_LO_ANCHO`.
+    if (lado >= mejorLado * HOLGURA_A_LO_ANCHO) {
+      mejorLado = Math.max(lado, mejorLado)
+      mejor = { columnas, filas, anchoDeFicha: lado }
+    }
+  }
+
+  return mejor
+}
+
+/**
+ * Saca la foto de perfil de la metadata de un participante.
+ *
+ * LiveKit no tiene un campo para la foto: `metadata` es el unico lugar donde un dato del producto
+ * llega a los demas participantes, y viaja como texto. Por eso se parsea con desconfianza — puede
+ * venir vacia, de una version anterior del formato, o de un token firmado a mano — y cualquier cosa
+ * rara devuelve `null` en vez de tirar la pantalla entera de la llamada.
+ *
+ * Vive en dominio y no dentro de un componente porque la usan tres lugares: las fichas de video, el
+ * panel de participantes y la consulta de quien esta dentro que corre en el servidor.
+ *
+ * @param metadata Cadena cruda del participante.
+ * @returns La URL de la foto, o `null` si no hay o no se pudo leer.
+ */
+export function imagenDeMetadata (metadata: string | undefined): string | null {
+  if (metadata === undefined || metadata === '') return null
+
+  try {
+    const leido: unknown = JSON.parse(metadata)
+
+    if (typeof leido !== 'object' || leido === null) return null
+
+    const imagen = (leido as { imagen?: unknown }).imagen
+
+    return typeof imagen === 'string' && imagen !== '' ? imagen : null
+  } catch {
+    return null
+  }
+}

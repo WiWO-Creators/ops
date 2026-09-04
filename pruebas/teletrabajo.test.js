@@ -13,6 +13,8 @@ import {
   esNombreDeSalaValido,
   espacioDeSala,
   identidadDe,
+  imagenDeMetadata,
+  mosaico,
   puedeEntrar,
   salaComunPorId,
   salaDeEspacio
@@ -107,4 +109,126 @@ test('la identidad separa dos conexiones de la misma persona', () => {
   // Si coincidieran, LiveKit expulsaria la primera pestaña al abrir la segunda.
   assert.notEqual(identidadDe(183, 'a1b2c3d4'), identidadDe(183, 'e5f6a7b8'))
   assert.ok(identidadDe(183, 'a1b2c3d4').includes('183'))
+})
+
+/**
+ * Comprueba que un reparto de verdad entra en el escenario.
+ *
+ * Es la condicion que el mosaico tiene que cumplir siempre y la que el `auto-fit` de CSS no podia
+ * cumplir: con las columnas y filas elegidas, cada ficha tiene ancho y alto positivos.
+ */
+function entra (reparto, cantidad, ancho, alto, hueco) {
+  const { columnas, filas } = reparto
+
+  assert.ok(columnas >= 1 && filas >= 1, 'columnas y filas positivas')
+  assert.ok(columnas * filas >= cantidad, `${columnas}x${filas} no alcanza para ${cantidad}`)
+  assert.ok((ancho - hueco * (columnas - 1)) / columnas > 0, 'la celda tiene ancho')
+  assert.ok((alto - hueco * (filas - 1)) / filas > 0, 'la celda tiene alto')
+
+  assert.ok(reparto.anchoDeFicha > 0, 'la ficha tiene medida')
+  assert.ok(reparto.anchoDeFicha <= (ancho - hueco * (columnas - 1)) / columnas + 0.001, 'la ficha entra a lo ancho')
+  assert.ok(
+    reparto.anchoDeFicha * 9 / 16 <= (alto - hueco * (filas - 1)) / filas + 0.001,
+    'la ficha entra a lo alto'
+  )
+}
+
+test('una sola persona no ocupa el escenario entero', () => {
+  // El bug reportado: al prender la camara estando solo, el video se comia la pantalla. La ficha
+  // es la caja 16:9 que entra, no la celda: en 1600x700 mide 700*16/9 y no 1600.
+  const reparto = mosaico(1, 1600, 700, 12)
+
+  assert.equal(reparto.columnas, 1)
+  assert.equal(reparto.filas, 1)
+  assert.ok(reparto.anchoDeFicha < 1600, 'la ficha no puede ocupar todo el ancho')
+  assert.equal(Math.round(reparto.anchoDeFicha), Math.round(700 * 16 / 9))
+})
+
+test('dos personas van lado a lado en un escenario ancho', () => {
+  // Por la cuenta pelada ganaria una sola columna —deja la ficha un 3% mas grande—, y dos personas
+  // aparecerian apiladas con media pantalla vacia a los costados. La holgura lo corrige.
+  const reparto = mosaico(2, 1600, 700, 12)
+
+  assert.equal(reparto.columnas, 2)
+  assert.equal(reparto.filas, 1)
+})
+
+test('en movil el mosaico se apila en vez de aplastarse', () => {
+  // 390x600 es un telefono en vertical: dos columnas dejarian fichas de 189px de ancho.
+  const reparto = mosaico(2, 390, 600, 12)
+
+  assert.equal(reparto.columnas, 1)
+  entra(reparto, 2, 390, 600, 12)
+})
+
+test('el reparto entra en el escenario para cualquier cantidad y forma', () => {
+  const formas = [
+    [1600, 700], // escritorio ancho
+    [1000, 700], // con el lateral de chat abierto
+    [390, 600], // telefono en vertical
+    [1280, 300] // ventana muy baja
+  ]
+
+  for (const [ancho, alto] of formas) {
+    for (const cantidad of [1, 2, 3, 5, 9, 12, 25, 50]) {
+      entra(mosaico(cantidad, ancho, alto, 12), cantidad, ancho, alto, 12)
+    }
+  }
+})
+
+test('el reparto elegido no achica la ficha mas alla de la holgura', () => {
+  // Se compara contra la fuerza bruta hecha aparte. La holgura permite ceder hasta un 10% de lado
+  // a cambio de repartir a lo ancho; mas que eso ya seria empequeñecer a la gente por estetica.
+  const [ancho, alto, hueco] = [1200, 640, 12]
+
+  for (const cantidad of [3, 5, 7, 9, 15]) {
+    const elegido = mosaico(cantidad, ancho, alto, hueco)
+    const lado = (columnas) => {
+      const filas = Math.ceil(cantidad / columnas)
+      return Math.min(
+        (ancho - hueco * (columnas - 1)) / columnas,
+        ((alto - hueco * (filas - 1)) / filas) * (16 / 9)
+      )
+    }
+
+    let mejor = 0
+    for (let columnas = 1; columnas <= cantidad; columnas++) mejor = Math.max(mejor, lado(columnas))
+
+    assert.ok(
+      elegido.anchoDeFicha >= mejor * 0.9,
+      `${cantidad} fichas: la ficha quedo mas de un 10% por debajo de la mejor posible`
+    )
+    assert.equal(Math.round(elegido.anchoDeFicha), Math.round(lado(elegido.columnas)))
+  }
+})
+
+test('sin medida todavia, el mosaico reparte en cuadrado en vez de romperse', () => {
+  // El primer render ocurre antes de que el ResizeObserver mida: 0x0 no puede tirar una division
+  // por cero ni devolver cero columnas. El ancho cero avisa a quien dibuja que todavia no hay
+  // medida, para que no fije un tamaño inventado.
+  assert.deepEqual(mosaico(4, 0, 0, 12), { columnas: 2, filas: 2, anchoDeFicha: 0 })
+  assert.deepEqual(mosaico(1, 0, 0, 12), { columnas: 1, filas: 1, anchoDeFicha: 0 })
+})
+
+test('una cantidad sin sentido no rompe el mosaico', () => {
+  assert.equal(mosaico(0, 1600, 700, 12).columnas, 1)
+  assert.equal(mosaico(-3, 1600, 700, 12).columnas, 1)
+
+  // Por encima del tope del servidor se recorta: nunca devuelve un reparto imposible.
+  const tope = mosaico(500, 1600, 700, 12)
+  assert.ok(tope.columnas * tope.filas >= 50)
+})
+
+test('la foto del participante se lee de la metadata cuando viene bien', () => {
+  assert.equal(imagenDeMetadata('{"imagen":"https://panel/uploads/ana.jpg"}'), 'https://panel/uploads/ana.jpg')
+})
+
+test('una metadata rota no tumba la ficha del participante', () => {
+  // Llega por la red: puede venir vacia, de otra version del formato o de un token firmado a mano.
+  // Cualquiera de esos casos tiene que dar "sin foto", nunca una excepcion en medio de la llamada.
+  for (const cruda of ['', '{', 'null', '"texto"', '[]', '{"imagen":null}', '{"imagen":42}', '{"imagen":""}', '{"otra":"cosa"}']) {
+    assert.equal(imagenDeMetadata(cruda), null, `deberia ser null con ${JSON.stringify(cruda)}`)
+  }
+
+  assert.equal(imagenDeMetadata(undefined), null)
 })
