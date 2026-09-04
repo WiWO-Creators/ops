@@ -1,7 +1,7 @@
 import { notFound } from 'next/navigation'
 import { pedir } from '@/datos/servidor'
 import { ErrorApi } from '@/datos/errores'
-import { firmarEntrada } from '@/datos/teletrabajo'
+import { firmarEntrada, quienEstaEn } from '@/datos/teletrabajo'
 import {
   espacioDeSala,
   esNombreDeSalaValido,
@@ -9,7 +9,7 @@ import {
   puedeEntrar,
   salaComunPorId
 } from '@/dominio/teletrabajo'
-import { Videollamada } from './Videollamada'
+import { Sala } from './Sala'
 import type { Espacio } from '@/datos/recursos'
 import type { Yo } from '@/datos/tipos'
 
@@ -28,6 +28,10 @@ export const metadata = { title: 'Sala · Teletrabajo · WiWO Ops' }
  *
  * Quien no puede entrar recibe un 404, no un 403. Una sala privada que responde "no tienes permiso"
  * confirma que existe y quienes la usan; una que responde "no existe" no dice nada.
+ *
+ * La identidad se calcula ACA y viaja tambien como prop, ademas de ir dentro del token: la pantalla
+ * necesita saber cual de las fichas es la propia, y leerla del JWT en el navegador seria descifrar
+ * a mano algo que el servidor ya tiene resuelto.
  */
 export default async function SalaDeTeletrabajoPage (props: PageProps<'/teletrabajo/[sala]'>) {
   const { sala } = await props.params
@@ -47,19 +51,25 @@ export default async function SalaDeTeletrabajoPage (props: PageProps<'/teletrab
 
   if (!puedeEntrar(sala, yo.id, miembros)) notFound()
 
-  const entrada = await firmarEntrada(
-    sala,
-    // `randomUUID` distingue esta pestaña de otra de la misma persona. Ver `identidadDe`.
-    identidadDe(yo.id, crypto.randomUUID().slice(0, 8)),
-    yo.full_name
-  )
+  // `randomUUID` distingue esta pestaña de otra de la misma persona. Ver `identidadDe`.
+  const identidad = identidadDe(yo.id, crypto.randomUUID().slice(0, 8))
+
+  // La firma y la consulta de quien esta dentro no dependen una de la otra, y la segunda va contra
+  // otro servidor: encadenarlas le sumaria su latencia entera a la antesala.
+  const [entrada, dentro] = await Promise.all([
+    firmarEntrada(sala, identidad, yo.full_name, yo.profile_image_url),
+    quienEstaEn(sala)
+  ])
 
   return (
-    <Videollamada
+    <Sala
       token={entrada.token}
       url={entrada.url}
       titulo={comun?.nombre ?? espacio?.name ?? sala}
       esPrivada={comun === null}
+      yo={{ nombre: yo.full_name, imagen: yo.profile_image_url }}
+      miIdentidad={identidad}
+      dentro={dentro}
     />
   )
 }

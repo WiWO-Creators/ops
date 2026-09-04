@@ -29,6 +29,8 @@ interface PropsTarjeta {
   tono?: TonoTarjeta
   /** Marca la tarjeta como todavia no disponible: deja de ser enlace y se anuncia como tal. */
   proximamente?: boolean
+  /** Dato vivo que acompaña al título, p. ej. cuánta gente hay dentro de una sala ahora mismo. */
+  distintivo?: React.ReactNode
   className?: string
 }
 
@@ -63,14 +65,18 @@ export function Tarjeta ({
   icono: Icono,
   tono = 'acento',
   proximamente = false,
+  distintivo,
   className
 }: PropsTarjeta) {
   const externo = esExterno(href)
 
   const contenido = (
     <>
-      <span className={cn('mb-4 grid size-11 place-items-center rounded-medio', TONOS[tono])}>
-        <Icono size={20} strokeWidth={2} aria-hidden="true" />
+      <span className="mb-4 flex items-start justify-between">
+        <span className={cn('grid size-11 place-items-center rounded-medio', TONOS[tono])}>
+          <Icono size={20} strokeWidth={2} aria-hidden="true" />
+        </span>
+        {distintivo}
       </span>
       <span className="font-titular flex items-center gap-1.5 text-base font-bold text-texto">
         {titulo}
