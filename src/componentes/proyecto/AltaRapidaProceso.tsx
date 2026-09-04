@@ -15,6 +15,7 @@ import { escribirEnBff } from '@/componentes/datos/mutaciones'
 import { interpretarAltaRapida, type CatalogosAlta } from '@/dominio/alta-rapida'
 import { GLOSARIO } from '@/dominio/glosario'
 import { formatearFecha } from '@/lib/fechas'
+import { VistaPreviaAlta, type MarcaPrevia } from './VistaPreviaAlta'
 
 /**
  * Alta de un Proceso desde cualquier pantalla, en una linea.
@@ -50,6 +51,24 @@ export function AltaRapidaProceso ({ catalogos }: PropsAltaRapida): ReactElement
   const nombreDe = (id: number, lista: ReadonlyArray<{ id: number }>, campo: 'full_name' | 'name'): string => {
     const fila = lista.find((f) => f.id === id) as Record<string, unknown> | undefined
     return fila === undefined ? '' : String(fila[campo])
+  }
+
+  // Las marcas se arman aca, no en la vista previa: los nombres salen de los catalogos de esta
+  // pantalla y la vista previa solo pinta lo que ya viene con nombre. Aca todas son 'texto': el alta
+  // rapida no llama al modelo, su gracia es ser instantanea.
+  const marcas: MarcaPrevia[] = []
+
+  if (leido.due_date !== null) {
+    marcas.push({ texto: `Vence ${formatearFecha(leido.due_date)}`, origen: 'texto' })
+  }
+  if (leido.rel_id !== null) {
+    marcas.push({ texto: nombreDe(leido.rel_id, catalogos.espacios, 'name'), origen: 'texto' })
+  }
+  if (leido.priority !== null) {
+    marcas.push({ texto: nombreDe(leido.priority, catalogos.prioridades, 'name'), origen: 'texto' })
+  }
+  for (const id of leido.assignees) {
+    marcas.push({ texto: nombreDe(id, catalogos.personas, 'full_name'), origen: 'texto' })
   }
 
   function limpiar (): void {
@@ -124,12 +143,7 @@ export function AltaRapidaProceso ({ catalogos }: PropsAltaRapida): ReactElement
             )}
           </Campo>
 
-          <VistaPrevia
-            leido={leido}
-            nombrePersona={(id) => nombreDe(id, catalogos.personas, 'full_name')}
-            nombreEspacio={(id) => nombreDe(id, catalogos.espacios, 'name')}
-            nombrePrioridad={(id) => nombreDe(id, catalogos.prioridades, 'name')}
-          />
+          <VistaPreviaAlta titulo={leido.name} marcas={marcas} sinResolver={leido.sinResolver} />
 
           <p className="text-texto-sutil text-xs">
             <code className="text-texto-tenue">@persona</code> asigna ·{' '}
@@ -152,60 +166,5 @@ export function AltaRapidaProceso ({ catalogos }: PropsAltaRapida): ReactElement
         </form>
       </ContenidoDialogo>
     </Dialogo>
-  )
-}
-
-/**
- * Lo que se entendio de la linea, mientras se escribe.
- *
- * Sin esto la sintaxis es adivinanza: la persona no sabe si `@franz` encontro a alguien hasta que la
- * tarea ya se creo mal. Lo no resuelto se muestra aparte y en tono de aviso, no de error, porque no
- * impide crear.
- */
-function VistaPrevia ({
-  leido,
-  nombrePersona,
-  nombreEspacio,
-  nombrePrioridad
-}: {
-  leido: ReturnType<typeof interpretarAltaRapida>
-  nombrePersona: (id: number) => string
-  nombreEspacio: (id: number) => string
-  nombrePrioridad: (id: number) => string
-}): ReactElement | null {
-  const marcas: string[] = []
-
-  if (leido.due_date !== null) marcas.push(`Vence ${formatearFecha(leido.due_date)}`)
-  if (leido.rel_id !== null) marcas.push(nombreEspacio(leido.rel_id))
-  if (leido.priority !== null) marcas.push(nombrePrioridad(leido.priority))
-  for (const id of leido.assignees) marcas.push(nombrePersona(id))
-
-  if (leido.name.trim() === '' && marcas.length === 0 && leido.sinResolver.length === 0) return null
-
-  return (
-    <div className="border-borde bg-superficie-sutil flex flex-col gap-2 rounded-chico border p-3">
-      <p className="text-texto text-sm font-medium">
-        {leido.name.trim() === '' ? <span className="text-texto-sutil">Sin título todavía</span> : leido.name}
-      </p>
-
-      {marcas.length > 0 && (
-        <ul className="flex flex-wrap gap-1.5">
-          {marcas.map((marca) => (
-            <li
-              key={marca}
-              className="border-borde text-texto-tenue rounded-chico border px-2 py-0.5 text-xs"
-            >
-              {marca}
-            </li>
-          ))}
-        </ul>
-      )}
-
-      {leido.sinResolver.length > 0 && (
-        <p className="text-texto-tenue text-xs">
-          Sin reconocer: {leido.sinResolver.join(', ')} — queda en el título.
-        </p>
-      )}
-    </div>
   )
 }
