@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { Suspense, cache } from 'react'
 import { CabeceraProyecto } from '@/componentes/proyecto/CabeceraProyecto'
 import { PanelActividad } from '@/componentes/proyecto/PanelActividad'
+import { PanelConfiguracionEspacio } from '@/componentes/proyecto/PanelConfiguracionEspacio'
 import { PanelArchivos } from '@/componentes/proyecto/PanelArchivos'
 import { PanelDescripcion } from '@/componentes/proyecto/PanelDescripcion'
 import { PanelDiscusiones } from '@/componentes/proyecto/PanelDiscusiones'
@@ -133,6 +134,11 @@ export default async function ProyectoPage (props: PageProps<'/espacios/[id]'>) 
   const capacidadesProyecto = yo.permissions.projects
   const capacidadesTareas = yo.permissions.tasks
   const estados = listaDe(lookups, 'project_statuses')
+  // La primera de las tres capas del patron de `administracion/acceso`: si no corresponde, la pestaña
+  // ni se agrega. La segunda es el propio panel, que devuelve `SinPermiso`; la tercera —la unica que
+  // de verdad protege— es el 403 de `GET|PUT /projects/{id}/task-types`.
+  const puedeConfigurar =
+    yo.id === proyecto.added_from || yo.is_admin || yo.is_superadmin || yo.is_director
 
   const paneles: Panel[] = [
     {
@@ -174,7 +180,14 @@ export default async function ProyectoPage (props: PageProps<'/espacios/[id]'>) 
       clave: 'actividad',
       etiqueta: 'Actividad',
       contenido: <PanelActividad proyectoId={proyecto.id} capacidades={capacidadesProyecto} />
-    }
+    },
+    ...(puedeConfigurar
+      ? [{
+          clave: 'configuracion',
+          etiqueta: 'Configuración',
+          contenido: <PanelConfiguracionEspacio proyectoId={proyecto.id} puedeConfigurar />
+        }]
+      : [])
   ]
 
   return (

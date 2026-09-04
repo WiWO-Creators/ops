@@ -101,9 +101,26 @@ export interface TareaPortal {
   task_type: number
   tags: Array<{ id: number, name: string }>
   counts: Record<string, number>
+  /**
+   * Aprobacion del cliente, **podada**: sin quien la pidio ni el id del contacto que respondio.
+   *
+   * Opcional porque el guard de tabla del backend omite el bloque entero cuando `wiwo_core` no esta
+   * instalado. El ETA, la desviacion y el estado de SLA **no viajan al portal**: miden al equipo
+   * contra su propio compromiso interno y no son asunto del cliente.
+   */
+  approval?: AprobacionPortal
   /** Solo con `view_task_total_logged_time`. */
   total_logged_seconds?: number
   duration_hm?: string
+}
+
+/** El bloque de aprobacion tal como lo ve un contacto. */
+export interface AprobacionPortal {
+  requerida: boolean
+  estado: 'pendiente' | 'aprobada' | 'rechazada' | null
+  solicitada_en: string | null
+  resuelta_en: string | null
+  comentario: string | null
 }
 
 export interface HitoPortal {

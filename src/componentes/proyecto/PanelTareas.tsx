@@ -263,7 +263,7 @@ function TareasDelProyecto ({ proyectoId, capacidades }: PropsPanelTareas): Reac
           </>
           )}
 
-      <ModalTarea />
+      <ModalTarea puedeEditar={capacidades.includes('edit')} />
     </div>
   )
 }
