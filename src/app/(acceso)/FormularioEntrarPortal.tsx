@@ -158,7 +158,7 @@ export function FormularioEntrarPortal () {
             comparte es este. La salida a `/colab` va al pie y en tono tenue a proposito — el cliente
             no debe leerla como una opcion suya, pero quien la busca la encuentra sin preguntar.
           */}
-          <p className="text-texto-tenue mt-6 text-center text-xs">
+          <p className="text-texto-tenue mt-6 text-center text-sm">
             <Link
               href="/colab"
               className="hover:text-texto underline-offset-4 hover:underline"

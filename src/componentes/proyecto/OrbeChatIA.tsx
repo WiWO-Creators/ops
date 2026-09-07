@@ -4,13 +4,13 @@ import { Suspense, useEffect, useId, useRef, useState, type ReactElement } from 
 import { useSearchParams } from 'next/navigation'
 import { Cargando } from '@/componentes/estado/Estados'
 import { Orbe } from '@/componentes/estado/Orbe'
-import { GLOSARIO } from '@/dominio/glosario'
+import { ASISTENTE, GLOSARIO } from '@/dominio/glosario'
 import { ChatDelProyecto } from './PanelChatIA'
 
 /**
- * El chat de IA del Espacio como orbe flotante, sin salir de la pestaña en la que se este.
+ * WiBot, el chat del Espacio, como orbe flotante: se pregunta sin salir de la pestaña en la que se este.
  *
- * Convive con la pestaña IA en vez de reemplazarla: la pestaña sigue siendo el chat a pantalla
+ * Convive con la pestaña de WiBot en vez de reemplazarla: la pestaña sigue siendo el chat a pantalla
  * completa y con URL propia —un hilo se comparte por enlace—, y el orbe es el acceso rapido desde
  * las Tareas, el Gantt o los Archivos. Los dos montan el MISMO `ChatDelProyecto` y el hilo vive en
  * `dominio/ia-chat.ts`, asi que preguntar en uno y seguir en el otro es la misma conversacion.
@@ -45,7 +45,7 @@ function Flotante ({ proyectoId }: { proyectoId: number }): ReactElement | null 
   const panel = useRef<HTMLDivElement>(null)
   const idPanel = useId()
 
-  // En la pestaña de IA el chat ya ocupa la pantalla: dos copias montadas a la vez serian dos
+  // En la pestaña de WiBot el chat ya ocupa la pantalla: dos copias montadas a la vez serian dos
   // `ModalTarea` peleando por el mismo `?tarea=`, y un orbe que abre lo que ya se esta mirando.
   const enLaPestanaDeIa = params.get('tab') === 'ia'
 
@@ -97,17 +97,20 @@ function Flotante ({ proyectoId }: { proyectoId: number }): ReactElement | null 
           ref={panel}
           id={idPanel}
           role="dialog"
-          aria-label={`Chat de IA de este ${GLOSARIO.espacio.singular}`}
+          aria-label={`${ASISTENTE}, el chat de este ${GLOSARIO.espacio.singular}`}
           className="border-linea bg-superficie-flotante shadow-flotante rounded-tarjeta animate-entrar-abajo fixed bottom-24 right-4 z-50 flex h-[min(32rem,70vh)] w-[min(24rem,calc(100vw-2rem))] flex-col gap-3 border p-3"
         >
           <header className="flex items-center justify-between gap-2">
-            <p className="text-texto text-sm font-semibold">
-              Pregunta por este {GLOSARIO.espacio.singular}
-            </p>
+            <div className="flex flex-col">
+              <p className="text-texto text-sm font-semibold">{ASISTENTE}</p>
+              <p className="text-texto-sutil text-xs">
+                Pregunta por este {GLOSARIO.espacio.singular}
+              </p>
+            </div>
             <button
               type="button"
               onClick={() => setAbierto(false)}
-              aria-label="Cerrar el chat"
+              aria-label={`Cerrar ${ASISTENTE}`}
               className="text-texto-tenue hover:bg-hover hover:text-texto rounded-control px-2 py-1 text-sm"
             >
               Cerrar
@@ -129,7 +132,7 @@ function Flotante ({ proyectoId }: { proyectoId: number }): ReactElement | null 
         onBlur={() => setEncima(false)}
         aria-expanded={abierto}
         aria-controls={abierto ? idPanel : undefined}
-        aria-label={abierto ? 'Cerrar el chat de IA' : `Preguntarle a la IA por este ${GLOSARIO.espacio.singular}`}
+        aria-label={abierto ? `Cerrar ${ASISTENTE}` : `Preguntarle a ${ASISTENTE} por este ${GLOSARIO.espacio.singular}`}
         className="border-linea bg-superficie-flotante shadow-flotante hover:border-linea-fuerte fixed bottom-6 right-4 z-50 inline-flex size-14 items-center justify-center rounded-full border transition-transform duration-150 ease-neo active:scale-[0.96]"
       >
         <Orbe tamano="medio" estado={abierto || encima ? 'thinking' : undefined} />

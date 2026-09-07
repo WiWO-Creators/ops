@@ -24,6 +24,14 @@ export const GLOSARIO = {
   automatizacion: { singular: 'Automatización', plural: 'Automatizaciones' }
 } as const
 
+/**
+ * Como se llama el asistente de IA en la interfaz.
+ *
+ * Fuera de `GLOSARIO` porque no es un concepto que se cuente: no tiene plural. Aca y no escrito a
+ * mano en cada pantalla, para que renombrarlo sea una linea y no una cacería.
+ */
+export const ASISTENTE = 'WiBot'
+
 export type ClaveGlosario = keyof typeof GLOSARIO
 
 /**

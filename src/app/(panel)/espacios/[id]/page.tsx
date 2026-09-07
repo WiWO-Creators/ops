@@ -22,7 +22,7 @@ import { cargarLookups } from '@/datos/lookups'
 import { pedir } from '@/datos/servidor'
 import type { Espacio, Lookups } from '@/datos/recursos'
 import type { Yo } from '@/datos/tipos'
-import { GLOSARIO } from '@/dominio/glosario'
+import { ASISTENTE, GLOSARIO } from '@/dominio/glosario'
 
 /**
  * Pide el Proyecto una sola vez por peticion.
@@ -200,7 +200,7 @@ export default async function ProyectoPage (props: PageProps<'/espacios/[id]'>) 
     // Con la capa de IA apagada la pestaña no existe, en vez de existir y fallar: la API responde
     // 404 a todo `/ia/*` y la persona no puede distinguir "no esta contratado" de "se rompio".
     ...(conIa
-      ? [{ clave: 'ia', etiqueta: 'IA', contenido: <PanelChatIA proyectoId={proyecto.id} /> }]
+      ? [{ clave: 'ia', etiqueta: ASISTENTE, contenido: <PanelChatIA proyectoId={proyecto.id} /> }]
       : [])
   ]
 
