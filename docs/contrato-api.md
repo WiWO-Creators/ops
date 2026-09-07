@@ -1675,6 +1675,7 @@ una transaccion: o entran los cinco grupos o no entra ninguno.
 | `followers` | int[] de `staff_id` | **reemplazo** |
 | `tags` | string[] de nombres | **reemplazo**, y conserva el orden que se manda |
 | `rel_type` + `rel_id` | ver abajo | van **siempre juntas** |
+| `completed_at` | instante ISO-8601 con zona, o `null` | **solo si la tarea esta completada**; ver abajo |
 | `recurring`, `repeat_every`, `recurring_type`, `cycles` | ver abajo | detras de interruptor |
 
 Cualquier otra clave devuelve `422` con `details` nombrandola.
@@ -4003,6 +4004,73 @@ PUT    /projects/{id}/task-types
 POST   /tasks/{id}/approval
 POST   /portal/tasks/{id}/approval
 ```
+
+### Rama `feat/api-asignables-y-cierre`
+
+Dos cosas sin relacion entre si: a quien se le puede asignar un Proceso, y con que fecha se cierra
+uno que se marco tarde.
+
+#### `GET /staff/asignables` — la misma lista de personas para todos
+
+```json
+{ "data": [
+    { "id": 12, "full_name": "Alan Corral", "profile_image_url": null, "area_id": 3, "cargo_id": 2 }
+  ],
+  "meta": { "pagination": { "page": 1, "per_page": 25, "total": 184, "total_pages": 8 } } }
+```
+
+**Es la ruta del selector de asignados.** `GET /staff` exige el permiso `staff.view` y lo tienen 19
+de 184 personas, asi que el selector mostraba gente distinta segun quien abriera la tarea. Esta pide
+**solo sesion**: la misma lista para cualquiera.
+
+Devuelve **cinco claves y ninguna mas** — sin correo, telefono, tarifa ni ultimo acceso. Si necesitas
+el legajo, sigue siendo `GET /staff`, con su permiso.
+
+Las filas son las **activas del equipo** (`active = 1`, sin externos), ordenadas por nombre; es el
+mismo conjunto que `GET /staff?asignables=1`, que no cambia y sigue detras de `staff.view`.
+
+| Parametro | Que hace |
+|---|---|
+| `q` | Busca **por nombre**, no por correo (a diferencia de `GET /staff`) |
+| `filter[area_id]`, `filter[cargo_id]` | Los dos ids que devuelve la propia fila |
+| `sort` | `firstname` \| `lastname`, con `-` para descendente. Por defecto `firstname` |
+| `page`, `per_page`, `fields` | La paginacion estandar del modulo |
+
+Cualquier otro `filter[...]` o `sort` es `422`, igual que en el resto. `?include=` tambien: la fila no
+tiene relaciones. `POST` y `/staff/asignables/{lo-que-sea}` son `404`.
+
+`area_id` y `cargo_id` vienen como id pelado a proposito: los nombres salen de `cargos` y `areas` de
+`GET /lookups`, que el frontend ya trae una vez, en vez de repetirlos en cada una de las 184 filas.
+
+Se solapa con `GET /rooms/people`, que hace lo mismo para el selector de asistentes de una reunion
+sin paginacion ni `area_id`. Los dos siguen vivos; para asignar un Proceso, usa este.
+
+#### `completed_at` en `PATCH /tasks/{id}` — cerrar una tarea hacia atras
+
+```json
+{ "completed_at": "2026-09-01T18:30:00Z" }
+```
+
+**El cierre normal no cambia.** `POST /tasks/{id}/actions/mark-complete`, arrastrar la tarjeta a la
+columna de completado y las acciones masivas siguen fechando el cierre con **la hora de ahora**, que
+es lo correcto casi siempre. `completed_at` es el **segundo paso, explicito**: la tarea que se
+termino el lunes y se marco el jueves quedaba cerrada el jueves, y `desviacion_dias` y `estado_sla`
+—que salen de esa fecha— la median mal.
+
+La fecha se lee en la ficha como **`date_finished`** (la clave de lectura no cambia de nombre), y la
+desviacion se recalcula sola en el siguiente `GET`.
+
+| `details.completed_at` | Cuando |
+|---|---|
+| `no_completado` | La tarea no esta en estado `5`. Completala primero: este parche **no** cambia el estado |
+| `futura` | La fecha esta adelante de ahora |
+| `anterior_al_inicio` | Es anterior a `start_date`. Si el mismo parche mueve `start_date`, manda el nuevo |
+| `invalid` | No es un ISO-8601 con zona (`2026-09-01T18:30:00Z` o `+00:00`) |
+
+`{"completed_at": null}` la vacia. Reabrir la tarea la limpia igual que siempre, sin que el frontend
+haga nada.
+
+Permiso: el mismo `tasks.edit` del resto del parche.
 
 ## Capa de IA
 
