@@ -2,12 +2,18 @@
 
 import { useState, type ReactElement, type ReactNode } from 'react'
 import { Boton } from '@/componentes/formularios/Boton'
+import { Campo } from '@/componentes/formularios/Campo'
+import { Entrada } from '@/componentes/formularios/Entrada'
 import { escribirEnBff } from '@/componentes/datos/mutaciones'
 import { EstadoSla } from '@/componentes/presentadores/EstadoSla'
 import { Fecha } from '@/componentes/presentadores/Fecha'
 import { Insignia, type TonoInsignia } from '@/componentes/presentadores/Insignia'
+import { fechaDeCierre, instanteDeCierre } from '@/dominio/cierre-tarea'
 import { formatearDesviacion, SIN_DATO } from '@/lib/sla'
+import { hoyLocal } from '@/lib/fechas'
+import { cn } from '@/lib/clases'
 import { GLOSARIO } from '@/dominio/glosario'
+import { ESTADO_COMPLETO } from './tareas'
 import type { AprobacionProceso, Proceso } from '@/datos/recursos'
 
 /**
@@ -48,12 +54,28 @@ const APROBACION: Record<string, { etiqueta: string, tono: TonoInsignia }> = {
  * produccion.
  */
 export function hayDatosDeSla (tarea: Proceso): boolean {
-  return tarea.approval !== undefined || tarea.eta !== undefined || tarea.estado_sla !== undefined
+  return (
+    tarea.approval !== undefined ||
+    tarea.eta !== undefined ||
+    tarea.estado_sla !== undefined ||
+    hayCierre(tarea)
+  )
+}
+
+/**
+ * `true` si la Tarea tiene una fecha de cierre que mostrar o corregir.
+ *
+ * Se mira el estado y no solo `date_finished`: una tarea completada sin fecha sellada —importada, o
+ * cerrada por una via que no la puso— es justamente la que hay que poder corregir.
+ */
+function hayCierre (tarea: Proceso): boolean {
+  return tarea.status === ESTADO_COMPLETO || tarea.date_finished !== null
 }
 
 export function BloqueSla ({ tarea, puedeEditar, onCambiado }: PropsBloqueSla): ReactElement | null {
   const [pidiendo, setPidiendo] = useState(false)
   const [fallo, setFallo] = useState<string | null>(null)
+  const [corrigiendoCierre, setCorrigiendoCierre] = useState(false)
 
   if (!hayDatosDeSla(tarea)) return null
 
@@ -61,6 +83,7 @@ export function BloqueSla ({ tarea, puedeEditar, onCambiado }: PropsBloqueSla): 
   const desviacion = formatearDesviacion(tarea.desviacion_dias)
   const tarde = typeof tarea.desviacion_dias === 'number' && tarea.desviacion_dias > 0
   const sinDesviacion = desviacion === null
+  const cerrada = hayCierre(tarea)
 
   /** Pide la aprobacion al cliente. Nunca lanza: el error del contrato se lee debajo del boton. */
   async function pedirAprobacion (): Promise<void> {
@@ -91,7 +114,12 @@ export function BloqueSla ({ tarea, puedeEditar, onCambiado }: PropsBloqueSla): 
     (aprobacion.solicitada_en === null || aprobacion.estado === 'rechazada')
 
   return (
-    <section className="border-linea bg-superficie-elevada rounded-tarjeta grid grid-cols-1 gap-3 border p-3 sm:grid-cols-3">
+    <section
+      className={cn(
+        'border-linea bg-superficie-elevada rounded-tarjeta grid grid-cols-1 gap-3 border p-3',
+        cerrada ? 'sm:grid-cols-2 md:grid-cols-4' : 'sm:grid-cols-3'
+      )}
+    >
       <Celda etiqueta="ETA">
         {tarea.eta === null || tarea.eta === undefined
           ? <span className="text-texto-sutil">{SIN_DATO}</span>
@@ -117,6 +145,29 @@ export function BloqueSla ({ tarea, puedeEditar, onCambiado }: PropsBloqueSla): 
       <Celda etiqueta="Aprobación">
         <Aprobacion aprobacion={aprobacion} />
       </Celda>
+
+      {/* La desviacion sale de esta fecha, asi que se corrige donde se la lee: mirar "+4 d" y tener
+          que buscar en otra pantalla por que dice eso es lo que hacia que nadie la corrigiera. */}
+      {cerrada && (
+        <Celda etiqueta="Cierre">
+          {tarea.date_finished === null
+            ? <span className="text-texto-sutil">{SIN_DATO}</span>
+            : <Fecha valor={tarea.date_finished} conHora />}
+          {puedeEditar && !corrigiendoCierre && (
+            <Boton variante="sutil" tamano="chico" onClick={() => setCorrigiendoCierre(true)}>
+              Corregir
+            </Boton>
+          )}
+        </Celda>
+      )}
+
+      {cerrada && puedeEditar && corrigiendoCierre && (
+        <CorreccionDeCierre
+          tarea={tarea}
+          onCerrar={() => setCorrigiendoCierre(false)}
+          onGuardada={() => { setCorrigiendoCierre(false); onCambiado() }}
+        />
+      )}
 
       {puedePedir && (
         <div className="col-span-full flex flex-col items-start gap-2">
@@ -183,5 +234,81 @@ function Aprobacion ({ aprobacion }: { aprobacion: AprobacionProceso | undefined
         </span>
       )}
     </>
+  )
+}
+
+/**
+ * Corrige a posteriori la fecha de cierre de una Tarea ya completada.
+ *
+ * `mark-complete` sella el cierre con la hora de ahora, que es lo correcto casi siempre. La tarea que
+ * se termino el lunes y se marco el jueves quedaba cerrada el jueves, y la desviacion la media mal.
+ * Esto es el segundo paso explicito del contrato: `PATCH /tasks/{id}` con `completed_at`.
+ *
+ * Los tres rechazos del endpoint (`no_completado`, `futura`, `anterior_al_inicio`) llegan como
+ * `details` del `422` y `escribirEnBff` ya los devuelve traducidos: aca solo se pintan.
+ */
+function CorreccionDeCierre (
+  { tarea, onCerrar, onGuardada }: { tarea: Proceso, onCerrar: () => void, onGuardada: () => void }
+): ReactElement {
+  const [fecha, setFecha] = useState(() => fechaDeCierre(tarea.date_finished) || hoyLocal())
+  const [guardando, setGuardando] = useState(false)
+  const [fallo, setFallo] = useState<string | null>(null)
+
+  /** Manda la fecha nueva. Nunca lanza: el rechazo del contrato se lee debajo del campo. */
+  async function guardar (): Promise<void> {
+    const instante = instanteDeCierre(fecha)
+
+    if (instante === null) {
+      setFallo('Elegí una fecha válida.')
+      return
+    }
+
+    setGuardando(true)
+    setFallo(null)
+
+    const resultado = await escribirEnBff<Proceso>(`tasks/${tarea.id}`, 'PATCH', { completed_at: instante })
+
+    setGuardando(false)
+
+    if (!resultado.ok) {
+      setFallo(resultado.mensaje)
+      return
+    }
+
+    onGuardada()
+  }
+
+  return (
+    <div className="border-linea col-span-full flex flex-col gap-2 border-t pt-3">
+      <Campo
+        etiqueta="Fecha de cierre"
+        ayuda="La desviación se vuelve a calcular contra esta fecha."
+        error={fallo ?? undefined}
+        className="max-w-xs"
+      >
+        {(props) => (
+          <Entrada
+            {...props}
+            type="date"
+            value={fecha}
+            min={tarea.start_date ?? undefined}
+            max={hoyLocal()}
+            onChange={(evento) => setFecha(evento.target.value)}
+          />
+        )}
+      </Campo>
+
+      <div className="flex gap-2">
+        <Boton variante="sutil" tamano="chico" onClick={onCerrar}>Cancelar</Boton>
+        <Boton
+          variante="secundario"
+          tamano="chico"
+          cargando={guardando}
+          onClick={() => { void guardar() }}
+        >
+          Guardar la fecha
+        </Boton>
+      </div>
+    </div>
   )
 }

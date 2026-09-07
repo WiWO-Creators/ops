@@ -101,7 +101,8 @@ const CAMPOS: Record<string, string> = {
   status: 'Estado',
   milestone: GLOSARIO.hito.singular,
   rel_id: GLOSARIO.espacio.singular,
-  rel_type: 'Tipo de vínculo'
+  rel_type: 'Tipo de vínculo',
+  completed_at: 'Fecha de cierre'
 }
 
 /**
@@ -129,6 +130,8 @@ const MOTIVOS: Record<string, string> = {
   no_es_lista: 'tiene que ser una lista',
   no_soportado: 'no está soportado',
   anterior_al_inicio: 'es anterior a la fecha de inicio',
+  futura: 'no puede ser posterior a ahora',
+  no_completado: 'solo se puede corregir en una tarea completada',
   no_pertenece_al_espacio: `no pertenece a este ${GLOSARIO.espacio.singular.toLowerCase()}`
 }
 
