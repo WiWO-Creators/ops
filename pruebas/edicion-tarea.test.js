@@ -8,7 +8,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
-  camposDeTarea, cuerpoDeParche, etiquetasElegidas, personasElegibles
+  camposDeTarea, cuerpoDeParche, nombresDeEtiquetas, personasElegibles
 } from '../src/dominio/edicion-tarea.ts'
 
 const TAREA = {
@@ -113,6 +113,17 @@ test('los elegibles suman a quien ya esta en la tarea sin repetir a los miembros
 test('las etiquetas elegidas ignoran ids que ya no estan en el catalogo', () => {
   const catalogo = [{ id: 5, name: 'urgente' }, { id: 6, name: 'diseño' }]
 
-  assert.deepEqual(etiquetasElegidas(catalogo, [6, 99]), [{ id: 6, name: 'diseño' }])
-  assert.deepEqual(etiquetasElegidas(catalogo, []), [])
+  assert.deepEqual(nombresDeEtiquetas(catalogo, [6, 99]), ['diseño'])
+  assert.deepEqual(nombresDeEtiquetas(catalogo, []), [])
+})
+
+test('una etiqueta escrita a mano se muestra y viaja por su nombre', () => {
+  const catalogo = [{ id: 5, name: 'urgente' }]
+
+  assert.deepEqual(nombresDeEtiquetas(catalogo, [5, 'cliente-clave']), ['urgente', 'cliente-clave'])
+
+  const inicial = camposDeTarea(TAREA, 'algo')
+  const parche = cuerpoDeParche(inicial, { ...inicial, etiquetas: [5, 'cliente-clave'] })
+
+  assert.deepEqual(parche, { tags: [5, 'cliente-clave'] })
 })

@@ -17,7 +17,11 @@ export interface CamposEdicion {
   hito: string
   asignados: number[]
   seguidores: number[]
-  etiquetas: number[]
+  /**
+   * Etiquetas elegidas: un numero es un id del catalogo, una cadena es una etiqueta escrita a mano
+   * que todavia no existe. La API acepta las dos formas y crea la que falta.
+   */
+  etiquetas: Array<number | string>
   descripcion: string
 }
 
@@ -30,7 +34,7 @@ export interface ParcheTarea {
   milestone?: number
   assignees?: number[]
   followers?: number[]
-  tags?: number[]
+  tags?: Array<number | string>
   description?: string | null
 }
 
@@ -98,8 +102,8 @@ export function cuerpoDeParche (inicial: CamposEdicion, actual: CamposEdicion): 
   return parche
 }
 
-/** True si las dos listas tienen los mismos ids, sin importar el orden ni las repeticiones. */
-function mismosIds (unos: number[], otros: number[]): boolean {
+/** True si las dos listas tienen los mismos elementos, sin importar el orden ni las repeticiones. */
+function mismosIds (unos: Array<number | string>, otros: Array<number | string>): boolean {
   const conjunto = new Set(otros)
 
   return new Set(unos).size === conjunto.size && unos.every((id) => conjunto.has(id))
@@ -133,9 +137,16 @@ export function personasElegibles (
 /**
  * Nombres de las etiquetas elegidas, para pintarlas como chips sin volver a pedir el catalogo.
  *
- * Una etiqueta que ya no esta en el catalogo se omite en vez de mostrarse como un id suelto: es el
- * caso de la que borraron mientras el dialogo estaba abierto.
+ * Un id que ya no esta en el catalogo se omite en vez de mostrarse como un numero suelto: es el caso
+ * de la etiqueta que borraron mientras el dialogo estaba abierto. Una etiqueta escrita a mano viaja
+ * como su propio nombre y se muestra tal cual: todavia no tiene id porque la crea la API al guardar.
  */
-export function etiquetasElegidas (catalogo: Etiqueta[], elegidas: number[]): Etiqueta[] {
-  return catalogo.filter((etiqueta) => elegidas.includes(etiqueta.id))
+export function nombresDeEtiquetas (catalogo: Etiqueta[], elegidas: Array<number | string>): string[] {
+  return elegidas.flatMap((elegida) => {
+    if (typeof elegida === 'string') return [elegida]
+
+    const delCatalogo = catalogo.find((etiqueta) => etiqueta.id === elegida)
+
+    return delCatalogo === undefined ? [] : [delCatalogo.name]
+  })
 }

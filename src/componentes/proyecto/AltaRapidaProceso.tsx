@@ -54,8 +54,8 @@ interface PropsAltaRapida {
   /**
    * Etiquetas que ya existen (`lookups.tags`).
    *
-   * La API rechaza con `422` cualquier otra: crear catalogo desde un alta es como se llena la tabla
-   * de etiquetas con variantes con typo. Solo las usa el modo por campos.
+   * Se ofrecen como sugerencia en un `datalist`, no como limite: una etiqueta escrita que no esta
+   * en el catalogo se crea en el alta. Solo las usa el modo por campos.
    */
   etiquetas: Referencia[]
 }
@@ -189,8 +189,8 @@ export function AltaRapidaProceso ({ catalogos, etiquetas }: PropsAltaRapida): R
    * Solo el nombre es obligatorio; lo que quedo sin elegir no viaja, para que la API aplique sus
    * propios valores por defecto en vez de recibir un `null` que significa otra cosa.
    *
-   * Las etiquetas se validan aca y no en el servidor porque la API responde `422` ante una que no
-   * existe: avisar antes es la diferencia entre corregir una palabra y perder el formulario.
+   * Las etiquetas viajan como nombres: la API resuelve las que existen y crea las que no. El
+   * `datalist` sugiere las creadas para que la variante con typo sea la excepcion y no la regla.
    */
   async function crearPorCampos (): Promise<void> {
     if (nombre.trim() === '') {
@@ -199,19 +199,8 @@ export function AltaRapidaProceso ({ catalogos, etiquetas }: PropsAltaRapida): R
     }
 
     // La colacion de `tbltags` es `_ci`: "urgente" y "Urgente" son la misma fila para la API, asi
-    // que rechazar una de las dos aca seria inventar una regla que el backend no tiene.
+    // que no hace falta normalizar nada aca.
     const pedidas = etiquetasEscritas.split(',').map((t) => t.trim()).filter((t) => t !== '')
-    const conocidas = new Set(etiquetas.map((e) => e.name.toLowerCase()))
-    const desconocidas = pedidas.filter((t) => !conocidas.has(t.toLowerCase()))
-
-    if (desconocidas.length > 0) {
-      setError(
-        desconocidas.length === 1
-          ? `La etiqueta «${desconocidas[0]}» no existe: elige una ya creada.`
-          : `Estas etiquetas no existen: ${desconocidas.join(', ')}. Elige etiquetas ya creadas.`
-      )
-      return
-    }
 
     await enviar({
       name: nombre.trim(),
@@ -373,7 +362,7 @@ export function AltaRapidaProceso ({ catalogos, etiquetas }: PropsAltaRapida): R
                   </Campo>
                 </div>
 
-                <Campo etiqueta="Etiquetas" ayuda="Separadas por coma. Sólo etiquetas que ya existen.">
+                <Campo etiqueta="Etiquetas" ayuda="Separadas por coma. Si escribes una que no existe, se crea.">
                   {(props) => (
                     <>
                       <Entrada
@@ -383,8 +372,8 @@ export function AltaRapidaProceso ({ catalogos, etiquetas }: PropsAltaRapida): R
                         list={LISTA_ETIQUETAS}
                         onChange={(evento) => { setEtiquetasEscritas(evento.target.value) }}
                       />
-                      {/* `datalist` es la sugerencia nativa: no valida ni obliga, y con una sola
-                          etiqueta escrita evita el error antes de que ocurra. */}
+                      {/* `datalist` es la sugerencia nativa: no valida ni obliga, y reusar la
+                          etiqueta que ya existe evita fundar la variante con typo. */}
                       <datalist id={LISTA_ETIQUETAS}>
                         {etiquetas.map((e) => <option key={e.id} value={e.name} />)}
                       </datalist>

@@ -67,8 +67,8 @@ interface PropsFormulario {
   proyectoId: number
   prioridades: OpcionFiltro[]
   /**
-   * Etiquetas que ya existen. La API rechaza con `422` cualquier otra —crear catalogo desde un alta
-   * es como se llena la tabla de variantes con typo—, asi que el formulario avisa antes de mandar.
+   * Etiquetas que ya existen. Son sugerencias del `datalist`, no un limite: una etiqueta escrita
+   * que no esta en el catalogo la crea la API al guardar la tarea.
    */
   etiquetasDisponibles: Referencia[]
   /**
@@ -223,21 +223,9 @@ export function FormularioTarea (
       return
     }
 
-    // Las etiquetas se comparan sin distinguir mayusculas porque la colacion de `tbltags` es `_ci`:
-    // "urgente" y "Urgente" son la misma fila para la API, y rechazar una de las dos aca seria
-    // inventar una regla que el backend no tiene.
+    // Viajan como nombres: la API reusa la etiqueta que existe y crea la que no. La colacion de
+    // `tbltags` es `_ci`, asi que "urgente" y "Urgente" terminan en la misma fila.
     const pedidas = etiquetas.split(',').map((t) => t.trim()).filter((t) => t !== '')
-    const conocidas = new Set(etiquetasDisponibles.map((e) => e.name.toLowerCase()))
-    const desconocidas = pedidas.filter((t) => !conocidas.has(t.toLowerCase()))
-
-    if (desconocidas.length > 0) {
-      setError(
-        desconocidas.length === 1
-          ? `La etiqueta «${desconocidas[0]}» no existe: elige una ya creada.`
-          : `Estas etiquetas no existen: ${desconocidas.join(', ')}. Elige etiquetas ya creadas.`
-      )
-      return
-    }
 
     setEnCurso(true)
     setError(null)
@@ -382,7 +370,7 @@ export function FormularioTarea (
             </Campo>
           </div>
 
-          <Campo etiqueta="Etiquetas" ayuda="Separadas por coma. Sólo etiquetas que ya existen.">
+          <Campo etiqueta="Etiquetas" ayuda="Separadas por coma. Si escribes una que no existe, se crea.">
             {(props) => (
               <>
                 <Entrada

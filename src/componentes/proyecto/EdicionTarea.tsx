@@ -25,7 +25,7 @@ import { listaDe } from '@/datos/catalogos'
 import {
   camposDeTarea,
   cuerpoDeParche,
-  etiquetasElegidas,
+  nombresDeEtiquetas,
   personasElegibles,
   type CamposEdicion
 } from '@/dominio/edicion-tarea'
@@ -74,6 +74,8 @@ export function EdicionTarea (
   const [miembros, setMiembros] = useState<StaffReferencia[]>([])
   const [hitos, setHitos] = useState<Hito[]>([])
   const [avisoCatalogo, setAvisoCatalogo] = useState<string | null>(null)
+  /** Lo que se esta escribiendo en el campo de etiqueta nueva, antes de sumarlo a la lista. */
+  const [etiquetaNueva, setEtiquetaNueva] = useState('')
   const [enCurso, setEnCurso] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -139,7 +141,7 @@ export function EdicionTarea (
     onGuardada()
   }
 
-  /** Agrega o saca una etiqueta de las elegidas. */
+  /** Agrega o saca una etiqueta del catalogo de las elegidas. */
   function alternarEtiqueta (id: number): void {
     setCampos((previos) => ({
       ...previos,
@@ -149,7 +151,42 @@ export function EdicionTarea (
     }))
   }
 
-  const elegidas = etiquetasElegidas(etiquetas, campos.etiquetas)
+  /**
+   * Suma una etiqueta escrita a mano. Viaja como nombre y la crea la API al guardar.
+   *
+   * Si el nombre ya esta en el catalogo se agrega el id en vez del texto: mandar el nombre tambien
+   * funcionaria —la API lo resuelve sin distinguir mayusculas— pero dejaria la casilla del menu sin
+   * marcar y la misma etiqueta se veria dos veces.
+   */
+  function agregarEtiquetaEscrita (): void {
+    const nombre = etiquetaNueva.trim()
+    if (nombre === '') return
+
+    const delCatalogo = etiquetas.find((etiqueta) => etiqueta.name.toLowerCase() === nombre.toLowerCase())
+    const valor = delCatalogo === undefined ? nombre : delCatalogo.id
+
+    setEtiquetaNueva('')
+    setCampos((previos) => (
+      previos.etiquetas.some((elegida) => (
+        typeof elegida === 'string' && typeof valor === 'string'
+          ? elegida.toLowerCase() === valor.toLowerCase()
+          : elegida === valor
+      ))
+        ? previos
+        : { ...previos, etiquetas: [...previos.etiquetas, valor] }
+    ))
+  }
+
+  /** Saca una etiqueta escrita a mano, que no tiene casilla en el menu del catalogo. */
+  function quitarEtiquetaEscrita (nombre: string): void {
+    setCampos((previos) => ({
+      ...previos,
+      etiquetas: previos.etiquetas.filter((elegida) => elegida !== nombre)
+    }))
+  }
+
+  const elegidas = nombresDeEtiquetas(etiquetas, campos.etiquetas)
+  const escritas = campos.etiquetas.filter((elegida): elegida is string => typeof elegida === 'string')
 
   return (
     <Dialogo open onOpenChange={(abierto) => { if (!abierto) onCerrar() }}>
@@ -248,7 +285,7 @@ export function EdicionTarea (
             )}
           </Campo>
 
-          <Campo etiqueta="Etiquetas" ayuda="Sólo las que ya existen: el alta de etiquetas se hace en el panel.">
+          <Campo etiqueta="Etiquetas" ayuda="Elige de la lista o escribe una nueva: si no existe, se crea al guardar.">
             {({ id }) => (
               <div className="flex flex-col gap-2">
                 <MenuContextual>
@@ -257,9 +294,7 @@ export function EdicionTarea (
                     className={cn(CLASES_DISPARADOR, campos.etiquetas.length === 0 && 'text-texto-sutil')}
                   >
                     <span className="truncate">
-                      {elegidas.length === 0
-                        ? 'Elegir etiquetas'
-                        : elegidas.map((etiqueta) => etiqueta.name).join(', ')}
+                      {elegidas.length === 0 ? 'Elegir etiquetas' : elegidas.join(', ')}
                     </span>
                   </DisparadorMenu>
 
@@ -279,6 +314,48 @@ export function EdicionTarea (
                     </div>
                   </ContenidoMenu>
                 </MenuContextual>
+
+                {/* El alta va aparte del menu: el menu marca lo que ya existe y esto suma lo que no.
+                    `Enter` no manda el formulario, agrega la etiqueta. */}
+                <div className="flex gap-2">
+                  <Entrada
+                    value={etiquetaNueva}
+                    placeholder="Etiqueta nueva"
+                    maxLength={100}
+                    onChange={(evento) => setEtiquetaNueva(evento.target.value)}
+                    onKeyDown={(evento) => {
+                      if (evento.key !== 'Enter') return
+                      evento.preventDefault()
+                      agregarEtiquetaEscrita()
+                    }}
+                  />
+                  <Boton
+                    type="button"
+                    variante="secundario"
+                    disabled={etiquetaNueva.trim() === ''}
+                    onClick={agregarEtiquetaEscrita}
+                  >
+                    Agregar
+                  </Boton>
+                </div>
+
+                {escritas.length > 0 && (
+                  <ul className="flex flex-wrap gap-1.5">
+                    {escritas.map((nombre) => (
+                      <li key={nombre}>
+                        <button
+                          type="button"
+                          className="border-borde text-texto-sutil hover:text-texto flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs"
+                          onClick={() => quitarEtiquetaEscrita(nombre)}
+                        >
+                          {nombre}
+                          <span aria-hidden="true">×</span>
+                          <span className="sr-only">Quitar</span>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
               </div>
             )}
           </Campo>

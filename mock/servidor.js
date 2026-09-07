@@ -369,14 +369,29 @@ function crearProceso (entrada, autor) {
 
   const asignados = resolverStaff(entrada.assignees, detalles, 'assignees')
   const seguidores = resolverStaff(entrada.followers, detalles, 'followers')
-  // Una etiqueta que no existe es un 422, igual que en la API: descartarla en silencio hacia que el
-  // alta pareciera funcionar contra el mock y fallara contra el backend real.
+  // Igual que la API: un numero es un id del catalogo y tiene que existir (si no, 422); un nombre
+  // que no existe se crea, que es la etiqueta personalizada.
   const pedidas = Array.isArray(entrada.tags) ? entrada.tags : []
-  const etiquetas = pedidas
-    .map((t) => ETIQUETAS.find((e) => e.id === Number(t) || e.name === t))
-    .filter((e) => e !== undefined)
+  const etiquetas = []
+  for (const pedida of pedidas) {
+    if (typeof pedida === 'number') {
+      const delCatalogo = ETIQUETAS.find((e) => e.id === pedida)
+      if (!delCatalogo) detalles.tags = ['no_existe']
+      else etiquetas.push(delCatalogo)
+      continue
+    }
 
-  if (etiquetas.length !== pedidas.length) detalles.tags = ['no_existe']
+    const nombre = String(pedida).trim()
+    const existente = ETIQUETAS.find((e) => e.name.toLowerCase() === nombre.toLowerCase())
+    if (existente) {
+      etiquetas.push(existente)
+      continue
+    }
+
+    const nueva = { id: Math.max(0, ...ETIQUETAS.map((e) => e.id)) + 1, name: nombre }
+    ETIQUETAS.push(nueva)
+    etiquetas.push(nueva)
+  }
 
   if (Object.keys(detalles).length > 0) {
     throw new ErrorApi(422, 'validation_failed', 'Hay campos que no se pueden guardar.', detalles)
