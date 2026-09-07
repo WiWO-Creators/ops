@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useEffect, useRef, useState } from 'react'
 import { Orbe, type EstadoOrbe } from '@/componentes/estado/Orbe'
@@ -151,6 +152,20 @@ export function FormularioEntrarPortal () {
               Entrar
             </Boton>
           </form>
+
+          {/*
+            El equipo llega aca por costumbre: la raiz es la puerta del cliente y el enlace que se
+            comparte es este. La salida a `/colab` va al pie y en tono tenue a proposito — el cliente
+            no debe leerla como una opcion suya, pero quien la busca la encuentra sin preguntar.
+          */}
+          <p className="text-texto-tenue mt-6 text-center text-xs">
+            <Link
+              href="/colab"
+              className="hover:text-texto underline-offset-4 hover:underline"
+            >
+              ¿Eres del equipo? Ingreso de colaborador
+            </Link>
+          </p>
         </PanelVidrio>
       </div>
     </main>
