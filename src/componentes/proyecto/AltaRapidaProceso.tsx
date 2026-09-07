@@ -20,6 +20,14 @@ import {
 } from '@/componentes/superposiciones/Dialogo'
 import { escribirEnBff } from '@/componentes/datos/mutaciones'
 import { interpretarAltaRapida, type CatalogosAlta } from '@/dominio/alta-rapida'
+import {
+  fusionarEspacio,
+  fusionarInterpretacion,
+  leerCamposTarea,
+  type CampoDeTarea,
+  type CatalogosTarea,
+  type TareaFusionada
+} from '@/dominio/ia-tarea'
 import { GLOSARIO } from '@/dominio/glosario'
 import { formatearFecha } from '@/lib/fechas'
 import { VistaPreviaAlta, type MarcaPrevia } from './VistaPreviaAlta'
@@ -46,6 +54,14 @@ import type { Referencia } from '@/datos/recursos'
  *
  * Los dos modos terminan en el mismo `POST /tasks`: lo que cambia es como se llenan los campos, no
  * que se crea.
+ *
+ * === QUE HACE LA IA Y QUE NO ===
+ *
+ * En "Por campos" hay un texto libre con un boton que **rellena el formulario y nada mas**. No crea
+ * la tarea, no manda nada y no decide: vuelca lo que entendio en los campos, marca en la vista
+ * previa que salio de ella, y deja "Deshacer" al lado. Crear sigue siendo un clic aparte sobre
+ * campos que se pueden corregir uno por uno, porque una tarea que aparece sola en el tablero de
+ * alguien es un error que nadie audita hasta que ya paso.
  */
 
 interface PropsAltaRapida {
@@ -58,6 +74,13 @@ interface PropsAltaRapida {
    * de etiquetas con variantes con typo. Solo las usa el modo por campos.
    */
   etiquetas: Referencia[]
+  /**
+   * Si la capa de IA esta encendida (`ia_habilitada`).
+   *
+   * Apagada, el campo de texto libre y su boton no se pintan: la API responde 404 a `/ia/*` y
+   * ofrecer un boton que falla es peor que no ofrecerlo.
+   */
+  conIa: boolean
 }
 
 /** Valor del selector cuando no se eligio nada. Radix no admite `value=""` en una opcion. */
@@ -74,7 +97,19 @@ const MODOS = [
 
 type Modo = typeof MODOS[number]['valor']
 
-export function AltaRapidaProceso ({ catalogos, etiquetas }: PropsAltaRapida): ReactElement {
+/** Los campos manuales, para poder devolverlos tal como estaban antes de que la IA los pisara. */
+interface CamposManuales {
+  nombre: string
+  espacio: string
+  responsable: string
+  prioridad: string
+  inicio: string
+  vencimiento: string
+  etiquetasEscritas: string
+  descripcion: string
+}
+
+export function AltaRapidaProceso ({ catalogos, etiquetas, conIa }: PropsAltaRapida): ReactElement {
   const router = useRouter()
   const [abierto, setAbierto] = useState(false)
   const [modo, setModo] = useState<Modo>('linea')
@@ -93,6 +128,16 @@ export function AltaRapidaProceso ({ catalogos, etiquetas }: PropsAltaRapida): R
   const [etiquetasEscritas, setEtiquetasEscritas] = useState('')
   const [descripcion, setDescripcion] = useState('')
   const [facturable, setFacturable] = useState(true)
+
+  // Lo del texto libre que rellena los campos.
+  const [textoLibre, setTextoLibre] = useState('')
+  const [interpretando, setInterpretando] = useState(false)
+  const [avisoIa, setAvisoIa] = useState<string | null>(null)
+  const [fusion, setFusion] = useState<TareaFusionada | null>(null)
+  const [previo, setPrevio] = useState<CamposManuales | null>(null)
+  // Aparte de `fusion.deIa` porque el Espacio no es uno de los campos que fusiona
+  // `fusionarInterpretacion()`: lo resuelve `fusionarEspacio()`, que es otra decision.
+  const [espacioDeIa, setEspacioDeIa] = useState(false)
 
   // Se recalcula mientras se escribe: la vista previa es lo que hace confiable a una sintaxis que
   // nadie leyo en un manual.
@@ -136,6 +181,105 @@ export function AltaRapidaProceso ({ catalogos, etiquetas }: PropsAltaRapida): R
     setEtiquetasEscritas('')
     setDescripcion('')
     setFacturable(true)
+    setTextoLibre('')
+    setAvisoIa(null)
+    setFusion(null)
+    setPrevio(null)
+    setEspacioDeIa(false)
+  }
+
+  /** Los catalogos con los que se valida todo lo que devuelve el modelo. */
+  const catalogosConEtiquetas: CatalogosTarea = { ...catalogos, etiquetas }
+
+  /**
+   * Vuelca en los campos lo que resolvio la fusion.
+   *
+   * Solo escribe lo que tiene valor: un campo que quedo en `null` no borra lo que ya se habia
+   * escrito a mano antes de apretar el boton.
+   */
+  function volcar (resultado: TareaFusionada, espacioElegido: number | null): void {
+    if (resultado.name !== '') setNombre(resultado.name)
+    if (espacioElegido !== null) setEspacio(String(espacioElegido))
+    if (resultado.assignees[0] !== undefined) setResponsable(String(resultado.assignees[0]))
+    if (resultado.priority !== null) setPrioridad(String(resultado.priority))
+    if (resultado.start_date !== null) setInicio(resultado.start_date)
+    if (resultado.due_date !== null) setVencimiento(resultado.due_date)
+    if (resultado.tags.length > 0) setEtiquetasEscritas(resultado.tags.join(', '))
+    if (resultado.description !== null) setDescripcion(resultado.description)
+  }
+
+  /**
+   * Interpreta el texto libre y rellena los campos. **No crea nada.**
+   *
+   * Corren las dos lecturas en el mismo clic: `interpretarAltaRapida()`, que es instantanea y
+   * gratis, y el modelo. No hay heuristica que decida si vale la pena llamar. Si el modelo no
+   * responde queda lo del parser con el aviso al lado, porque dejar el formulario vacio por un 503
+   * es peor que llenarlo a medias.
+   *
+   * No se manda `project_id`: aca no hay ningun Espacio de partida, asi que el que nombre el texto
+   * es la unica pista, y la API ya sabe resolverlo contra los Espacios que la persona ve.
+   */
+  async function completar (): Promise<void> {
+    const limpio = textoLibre.trim()
+
+    if (limpio === '') {
+      setAvisoIa('Escribe primero qué hay que hacer.')
+      return
+    }
+
+    setInterpretando(true)
+    setAvisoIa(null)
+
+    const localLeido = interpretarAltaRapida(limpio, catalogos)
+    const respuesta = await escribirEnBff<unknown>('ia/tareas/interpretar', 'POST', { texto: limpio })
+    const delModelo = respuesta.ok ? leerCamposTarea(respuesta.datos) : null
+    const resultado = fusionarInterpretacion(localLeido, delModelo, catalogosConEtiquetas)
+    const elegido = fusionarEspacio(localLeido, delModelo, catalogosConEtiquetas)
+
+    if (elegido.descartado !== null) resultado.noResuelto.push(elegido.descartado)
+
+    setPrevio({ nombre, espacio, responsable, prioridad, inicio, vencimiento, etiquetasEscritas, descripcion })
+    volcar(resultado, elegido.id)
+    setFusion(resultado)
+    setEspacioDeIa(elegido.deIa)
+    setInterpretando(false)
+
+    if (!respuesta.ok) setAvisoIa(`${respuesta.mensaje} Quedó sólo lo que se entendió del texto.`)
+    else if (delModelo === null) setAvisoIa('El modelo respondió algo que no se entendió. Quedó sólo lo que se entendió del texto.')
+  }
+
+  /** Devuelve los campos tal como estaban justo antes de la ultima interpretacion. */
+  function deshacer (): void {
+    if (previo === null) return
+
+    setNombre(previo.nombre)
+    setEspacio(previo.espacio)
+    setResponsable(previo.responsable)
+    setPrioridad(previo.prioridad)
+    setInicio(previo.inicio)
+    setVencimiento(previo.vencimiento)
+    setEtiquetasEscritas(previo.etiquetasEscritas)
+    setDescripcion(previo.descripcion)
+    setPrevio(null)
+    setFusion(null)
+    setAvisoIa(null)
+    setEspacioDeIa(false)
+  }
+
+  // Cada marca declara de donde salio: lo que propuso el modelo no puede verse igual que lo que
+  // escribio la persona, porque lo primero hay que revisarlo y lo segundo no.
+  const marcasDeLaFusion: MarcaPrevia[] = []
+
+  if (fusion !== null) {
+    const origen = (campo: CampoDeTarea): 'texto' | 'ia' => fusion.deIa.includes(campo) ? 'ia' : 'texto'
+
+    if (fusion.due_date !== null) marcasDeLaFusion.push({ texto: `Vence ${formatearFecha(fusion.due_date)}`, origen: origen('due_date') })
+    if (fusion.start_date !== null) marcasDeLaFusion.push({ texto: `Empieza ${formatearFecha(fusion.start_date)}`, origen: origen('start_date') })
+    if (espacio !== NINGUNO) marcasDeLaFusion.push({ texto: nombreDe(Number(espacio), catalogos.espacios, 'name'), origen: espacioDeIa ? 'ia' : 'texto' })
+    if (fusion.priority !== null) marcasDeLaFusion.push({ texto: nombreDe(fusion.priority, catalogos.prioridades, 'name'), origen: origen('priority') })
+    for (const id of fusion.assignees) marcasDeLaFusion.push({ texto: nombreDe(id, catalogos.personas, 'full_name'), origen: origen('assignees') })
+    if (fusion.description !== null) marcasDeLaFusion.push({ texto: 'Con descripción', origen: origen('description') })
+    for (const etiqueta of fusion.tags) marcasDeLaFusion.push({ texto: etiqueta, origen: origen('tags') })
   }
 
   /**
@@ -287,6 +431,52 @@ export function AltaRapidaProceso ({ catalogos, etiquetas }: PropsAltaRapida): R
               )
             : (
               <>
+                {conIa && (
+                  <div className="border-borde flex flex-col gap-2 border-b pb-4">
+                    <Campo
+                      etiqueta="Escríbelo como lo dirías"
+                      ayuda="Se convierte en campos y los corriges antes de crear. Nada se crea solo."
+                    >
+                      {(props) => (
+                        <AreaTexto
+                          {...props}
+                          value={textoLibre}
+                          placeholder="Hay que rehacer la grilla de septiembre de Colbún para el viernes, que la vea Franz, es urgente."
+                          onChange={(evento) => { setTextoLibre(evento.target.value) }}
+                        />
+                      )}
+                    </Campo>
+
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Boton
+                        variante="secundario"
+                        tamano="chico"
+                        cargando={interpretando}
+                        onClick={() => { void completar() }}
+                      >
+                        Completar campos
+                      </Boton>
+
+                      {previo !== null && (
+                        <Boton variante="sutil" tamano="chico" onClick={deshacer}>Deshacer</Boton>
+                      )}
+                    </div>
+
+                    {fusion !== null && (
+                      <VistaPreviaAlta
+                        titulo={fusion.name}
+                        origenTitulo={fusion.deIa.includes('name') ? 'ia' : 'texto'}
+                        marcas={marcasDeLaFusion}
+                        sinResolver={fusion.noResuelto}
+                      />
+                    )}
+
+                    {avisoIa !== null && (
+                      <p role="status" className="text-texto-tenue text-xs">{avisoIa}</p>
+                    )}
+                  </div>
+                )}
+
                 <Campo etiqueta="Nombre" requerido>
                   {(props) => (
                     <Entrada
