@@ -614,7 +614,7 @@ function GestorPermisosDrive ({ folderId }: { folderId: string }) {
 
     const control = new AbortController()
 
-    void pedirSobre<MiembroEquipo[]>('staff?per_page=100&filter[active]=1', control.signal)
+    void pedirSobre<MiembroEquipo[]>('staff?per_page=500&filter[active]=1', control.signal)
       .then((sobre) => { setPersonal(sobre.data) })
       .catch(() => {}) // La lista de permisos ya cargo bien: el formulario de alta queda sin opciones.
 

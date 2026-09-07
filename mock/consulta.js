@@ -8,7 +8,8 @@
  */
 
 export const PER_PAGE_POR_DEFECTO = 25
-export const PER_PAGE_MAXIMO = 100
+/** El mismo tope que `Nucleo\Consulta::POR_PAGINA_MAXIMO` de la API: pedir de mas se recorta. */
+export const PER_PAGE_MAXIMO = 500
 
 /** Error con la forma del envelope del contrato. `detalles` solo se usa en 422. */
 export class ErrorApi extends Error {

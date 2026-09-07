@@ -33,11 +33,14 @@ export default async function ProcesosPage (props: PageProps<'/procesos'>) {
     pedir<Proceso[]>(`/tasks${consulta === '' ? '' : `?${consulta}`}`),
     cargarLookups(),
     pedir<Yo>('/me'),
-    // Catalogos del alta rapida. Se piden acotados: son para resolver `@` y `#` mientras se escribe,
-    // no para paginar. El equipo va con `pedirOpcional` porque `/staff` exige `staff.view` y le
-    // contesta 403 a casi todo el equipo: sin eso, esta pantalla no cargaba para ellos.
-    pedirOpcional<MiembroEquipo[]>('/staff?per_page=100'),
-    pedir<Espacio[]>('/projects?per_page=100'),
+    // Catalogos del alta rapida: son para resolver `@` y `#` mientras se escribe, no para paginar,
+    // asi que se piden ENTEROS. Con el tope anterior de 100 entraba poco mas de la mitad de las 184
+    // personas y de los 275 Espacios, y todo lo que quedaba fuera se veia como "no existe": `#Test`
+    // terminaba en el titulo como texto suelto. El equipo va con `pedirOpcional` porque `/staff`
+    // exige `staff.view` y le contesta 403 a casi todo el equipo: sin eso, esta pantalla no cargaba
+    // para ellos.
+    pedirOpcional<MiembroEquipo[]>('/staff?per_page=500'),
+    pedir<Espacio[]>('/projects?per_page=500'),
     opcionesDeCliente()
   ])
 
@@ -67,7 +70,7 @@ export default async function ProcesosPage (props: PageProps<'/procesos'>) {
             ]}
           />
           {yo.data.permissions.tasks.includes('create') && (
-            <AltaRapidaProceso catalogos={catalogosDeAlta} />
+            <AltaRapidaProceso catalogos={catalogosDeAlta} etiquetas={lookups.tags} />
           )}
         </div>
       </header>
