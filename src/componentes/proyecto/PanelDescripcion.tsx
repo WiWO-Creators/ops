@@ -6,7 +6,7 @@ import { Cargando, ErrorEstado } from '@/componentes/estado/Estados'
 import { Etiquetas } from '@/componentes/presentadores/Etiqueta'
 import { Fecha } from '@/componentes/presentadores/Fecha'
 import { Insignia } from '@/componentes/presentadores/Insignia'
-import { esEnlaceValido } from '@/dominio/campos-personalizados'
+import { enlaceSinMarcado, esEnlaceValido } from '@/dominio/campos-personalizados'
 import { GLOSARIO } from '@/dominio/glosario'
 import { BarraProgreso } from './CabeceraProyecto'
 import { Metrica, formatearNumero } from './ResumenProyecto'
@@ -178,7 +178,8 @@ function FichaProyecto ({
  * panel y, en navegadores viejos, un `window.opener` que puede navegar esta.
  */
 function ValorDeCampo ({ campo }: { campo: CampoPersonalizado }): ReactElement {
-  const texto = campo.value ?? ''
+  // El panel viejo guarda estos campos como marcado; `enlaceSinMarcado()` explica por que.
+  const texto = campo.type === 'link' ? enlaceSinMarcado(campo.value ?? '') : campo.value ?? ''
 
   if (texto === '') return <>—</>
 

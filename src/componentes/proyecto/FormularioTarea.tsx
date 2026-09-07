@@ -279,7 +279,8 @@ export function FormularioTarea (
       return
     }
 
-    const fallos = esquemaDeCamposPersonalizados(definiciones).validar(personalizados)
+    const fallos = esquemaDeCamposPersonalizados(definiciones)
+      .validar(personalizados, valoresPorDefecto(definiciones))
 
     setErroresCampos(fallos)
 
@@ -485,7 +486,11 @@ export function FormularioTarea (
             definiciones={definiciones}
             valores={personalizados}
             errores={erroresCampos}
-            onCambiar={setPersonalizados}
+            onCambiar={(valores) => {
+              setPersonalizados(valores)
+              // El error de un campo deja de tener sentido en cuanto alguien lo toca.
+              setErroresCampos({})
+            }}
             deshabilitado={enCurso}
           />
 

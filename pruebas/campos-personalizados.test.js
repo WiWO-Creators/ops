@@ -11,6 +11,7 @@ import {
   alternarOpcion,
   camposOrdenados,
   cuerpoDeCamposPersonalizados,
+  enlaceSinMarcado,
   esEnlaceValido,
   esMultiple,
   esquemaDeCamposPersonalizados,
@@ -112,6 +113,16 @@ test('vaciar un campo obligatorio da un error legible, no un 422', () => {
   assert.deepEqual(esquema.validar({ 3: [], 6: '' }), { 3: 'Falta completar este campo.' })
 })
 
+test('un valor heredado que nadie toco no bloquea el guardado', () => {
+  const esquema = esquemaDeCamposPersonalizados(DEFINICIONES)
+  // 513 valores de la base son marcado del panel viejo, no una URL: validarlos sin que nadie los
+  // haya tocado dejaria esas Tareas sin poder guardar ni el nombre.
+  const iniciales = { 3: ['PR'], 6: '<a href="https://drive.google.com/x">Carpeta</a>' }
+
+  assert.deepEqual(esquema.validar(iniciales, iniciales), {})
+  assert.equal(6 in esquema.validar({ ...iniciales, 6: 'roto' }, iniciales), true)
+})
+
 test('un campo opcional vacio no es un error', () => {
   const esquema = esquemaDeCamposPersonalizados(DEFINICIONES)
 
@@ -124,6 +135,29 @@ test('un enlace tiene que ser abrible', () => {
   assert.deepEqual(esquema.validar({ 3: ['PR'], 6: 'https://drive.google.com/drive/folders/x' }), {})
   assert.equal(6 in esquema.validar({ 3: ['PR'], 6: 'drive.google.com/x' }), true)
   assert.equal(6 in esquema.validar({ 3: ['PR'], 6: 'ftp://interno/x' }), true)
+})
+
+test('un enlace guardado como marcado por el panel viejo se desenvuelve', () => {
+  assert.equal(
+    enlaceSinMarcado('<a href="https://drive.google.com/drive/folders/x?usp=sharing" target="_blank">Carpeta </a>'),
+    'https://drive.google.com/drive/folders/x?usp=sharing'
+  )
+  assert.equal(enlaceSinMarcado('https://wiwo.me'), 'https://wiwo.me')
+  assert.equal(enlaceSinMarcado(''), '')
+})
+
+test('el valor heredado llega al formulario como URL editable', () => {
+  const estado = valoresIniciales(DEFINICIONES, [
+    {
+      id: 6,
+      slug: ENLACE.slug,
+      name: ENLACE.name,
+      type: 'link',
+      value: '<a href="https://drive.google.com/y" target="_blank">Presentación</a>'
+    }
+  ])
+
+  assert.equal(estado[6], 'https://drive.google.com/y')
 })
 
 test('`esEnlaceValido` acepta http y https y nada mas', () => {

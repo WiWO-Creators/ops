@@ -53,10 +53,11 @@ export interface EsquemaCampos {
   /**
    * Valida los valores del formulario contra las definiciones.
    *
-   * @param valores lo que hay cargado en el formulario
+   * @param actuales lo que hay cargado en el formulario
+   * @param iniciales lo que habia al abrirlo; lo que no cambio solo se mira si es obligatorio y quedo vacio
    * @returns los errores por id de campo; objeto vacio si todo pasa
    */
-  validar: (valores: ValoresDeCampos) => ErroresDeCampos
+  validar: (actuales: ValoresDeCampos, iniciales?: ValoresDeCampos) => ErroresDeCampos
 }
 
 /** Los tipos que guardan varias opciones a la vez. Es la misma lista que `CampoPersonalizado.php`. */
@@ -141,6 +142,26 @@ export function fechaHoraParaApi (valor: string): string | null {
 }
 
 /**
+ * La URL de un `link` guardado por el panel viejo como marcado.
+ *
+ * Perfex escribe estos campos con `custom_fields_hyperlink()`, asi que 513 de los valores que hay en
+ * la base no son una URL sino `<a href="…" target="_blank">Carpeta</a>`. La API los devuelve tal cual
+ * y **rechaza** ese marcado al escribir: sin desenvolverlo, el formulario mostraria una etiqueta HTML
+ * en un `<input type="url">` y no se podria guardar nada de esa Tarea.
+ *
+ * El texto del enlace se pierde y no hay donde ponerlo: el tipo `link` guarda una URL, no un `<a>`.
+ * Solo se pierde si alguien edita ese campo; lo que no se toca se guarda como estaba.
+ *
+ * @param texto el valor tal como lo devolvio la API
+ * @returns la URL, o el texto intacto si no era un enlace de marcado
+ */
+export function enlaceSinMarcado (texto: string): string {
+  const enlace = /^\s*<a\s[^>]*href=["']([^"']+)["'][^>]*>.*<\/a>\s*$/i.exec(texto)
+
+  return enlace?.[1] ?? texto
+}
+
+/**
  * Estado inicial del formulario a partir de los valores que trajo la API.
  *
  * Un campo sin fila en `customfieldsvalues` no viene en la lista: queda con su valor vacio, no con
@@ -206,7 +227,9 @@ function desdeApi (
 
   const texto = Array.isArray(valor) ? valor.join(', ') : valor
 
-  return definicion.type === 'date_picker_time' ? fechaHoraParaControl(texto) : texto
+  if (definicion.type === 'date_picker_time') return fechaHoraParaControl(texto)
+
+  return definicion.type === 'link' ? enlaceSinMarcado(texto) : texto
 }
 
 /**
@@ -270,6 +293,11 @@ function esDiaValido (texto: string): boolean {
  * "Hay valores que no se pueden guardar. 3 falta." no le dice nada a nadie— y sobre todo para el alta,
  * donde la Tarea ya se creo cuando el `PATCH` de los campos sale: validar despues seria tarde.
  *
+ * **Solo se valida lo que cambio**, mas los obligatorios que quedaron vacios. Validar el formulario
+ * entero parece mas estricto y es peor: la base arrastra valores que el panel viejo escribio fuera de
+ * contrato, y con esos un guardado que solo cambia el nombre quedaria bloqueado por un campo que la
+ * persona no toco ni ve como suyo. Lo que no viaja en el parche no lo mira nadie.
+ *
  * @param definiciones las definiciones vigentes
  * @returns un objeto con `validar()`
  */
@@ -277,11 +305,17 @@ export function esquemaDeCamposPersonalizados (
   definiciones: DefinicionCampoPersonalizado[]
 ): EsquemaCampos {
   return {
-    validar (valores) {
+    validar (actuales, iniciales = {}) {
       const errores: ErroresDeCampos = {}
 
       for (const definicion of definiciones) {
-        const fallo = validarCampo(definicion, valores[definicion.id] ?? valorVacio(definicion))
+        const ahora = actuales[definicion.id] ?? valorVacio(definicion)
+        const antes = iniciales[definicion.id] ?? valorVacio(definicion)
+        const faltaObligatorio = definicion.required && estaVacio(ahora)
+
+        if (!faltaObligatorio && mismoValor(antes, ahora)) continue
+
+        const fallo = validarCampo(definicion, ahora)
 
         if (fallo !== null) errores[definicion.id] = fallo
       }
