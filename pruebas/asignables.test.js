@@ -7,6 +7,7 @@
  */
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
+import { readdirSync, readFileSync } from 'node:fs'
 import { cargarAsignables, olvidarAsignables, RUTA_DE_ASIGNABLES } from '../src/datos/asignables.ts'
 import { rutaPermitida } from '../src/datos/rutas.ts'
 
@@ -82,4 +83,32 @@ test('una lista vacia se cachea igual: no es un error, es un equipo sin nadie', 
   assert.equal(llamadas.length, 1)
 
   olvidarAsignables()
+})
+
+/**
+ * Pantallas que si pueden pedir `GET /staff` con query: viven dentro de la administracion de
+ * personas, que ya exige `staff.view` para entrar. Cualquier otra que aparezca aca es el mismo
+ * defecto de siempre —"a un usuario le sale una persona y a otro no"— y va a `cargarAsignables`.
+ */
+const PANTALLAS_DE_ADMINISTRACION = new Set([
+  'src/componentes/equipo/AccionesPersona.tsx'
+])
+
+/** Todos los `.ts` y `.tsx` de `src/`, con la ruta relativa a la raiz del proyecto. */
+function fuentesDelPanel (directorio = 'src') {
+  return readdirSync(directorio, { withFileTypes: true }).flatMap((entrada) => {
+    const ruta = `${directorio}/${entrada.name}`
+
+    if (entrada.isDirectory()) return fuentesDelPanel(ruta)
+
+    return /\.tsx?$/.test(entrada.name) ? [ruta] : []
+  })
+}
+
+test('ningun selector de personas vuelve a pedir `GET /staff`, que exige `staff.view`', () => {
+  const culpables = fuentesDelPanel()
+    .filter((ruta) => !PANTALLAS_DE_ADMINISTRACION.has(ruta))
+    .filter((ruta) => /["'`/]staff\?/.test(readFileSync(ruta, 'utf8')))
+
+  assert.deepEqual(culpables, [])
 })

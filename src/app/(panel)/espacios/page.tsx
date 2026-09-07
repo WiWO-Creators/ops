@@ -1,6 +1,7 @@
 import { Suspense } from 'react'
 import { VistaEspacios } from '@/componentes/proyecto/TarjetasProyectos'
 import { Cargando } from '@/componentes/estado/Estados'
+import { RUTA_DE_ASIGNABLES } from '@/datos/asignables'
 import { construirConsulta, leerConsulta, paramsDeUrl } from '@/datos/consulta'
 import { cargarLookups, opcionesDeFiltros } from '@/datos/lookups'
 import { pedir, pedirOpcional } from '@/datos/servidor'
@@ -9,7 +10,7 @@ import type {
   Cliente,
   EstadisticaEstado,
   Espacio,
-  MiembroEquipo,
+  PersonaAsignable,
   PlantillaEspacio
 } from '@/datos/recursos'
 import type { OpcionFiltro } from '@/definiciones/tipos'
@@ -19,10 +20,13 @@ import { ESPACIOS } from '@/definiciones/espacios'
 export const metadata = { title: 'Proyectos · WiWO Ops' }
 
 /**
- * Tope de opciones que se traen para los selectores de Cliente y de Miembros.
+ * Tope de opciones que se traen para el selector de Cliente.
  *
  * Es el maximo que acepta la API en una pagina. Con mas clientes que eso, el selector deja de ser
  * exhaustivo: el reemplazo es un filtro con busqueda contra el servidor, no subir el numero.
+ *
+ * Las personas no pasan por aca: salen de `RUTA_DE_ASIGNABLES`, que trae a las 184 de una y no exige
+ * `staff.view`.
  */
 const TOPE_DE_OPCIONES = 100
 
@@ -53,7 +57,10 @@ export default async function EspaciosPage (props: PageProps<'/espacios'>) {
     pedirOpcional<EstadisticaEstado[]>('/projects/stats'),
     pedirOpcional<CampoPersonalizadoMeta[]>('/custom-fields?para=projects'),
     pedirOpcional<Cliente[]>(`/clients?per_page=${TOPE_DE_OPCIONES}`),
-    pedirOpcional<MiembroEquipo[]>(`/staff?per_page=${TOPE_DE_OPCIONES}`),
+    // Misma fuente que el selector de asignados de la tarea. `/staff` exige `staff.view` —lo tienen
+    // 19 de 184 personas— y ademas cortaba en 100: dos motivos para que el filtro por persona
+    // mostrara gente distinta segun quien abriera la pantalla.
+    pedirOpcional<PersonaAsignable[]>(`/${RUTA_DE_ASIGNABLES}`),
     // Opcional por el mismo motivo que las demas: una instalacion sin la migracion `0120` aplicada
     // devuelve 404 aca, y eso no puede dejar el listado de Espacios en blanco.
     pedirOpcional<PlantillaEspacio[]>('/project-templates')

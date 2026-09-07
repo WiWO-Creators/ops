@@ -2,9 +2,10 @@ import { Suspense } from 'react'
 import { ExternalLink } from 'lucide-react'
 import { Cargando } from '@/componentes/estado/Estados'
 import { PantallaPlantillas } from '@/componentes/proyecto/PantallaPlantillas'
+import { RUTA_DE_ASIGNABLES } from '@/datos/asignables'
 import { cargarLookups } from '@/datos/lookups'
 import { pedir, pedirOpcional } from '@/datos/servidor'
-import type { MiembroEquipo, PlantillaEspacio } from '@/datos/recursos'
+import type { PersonaAsignable, PlantillaEspacio } from '@/datos/recursos'
 import type { Yo } from '@/datos/tipos'
 import { TITULO_PLANTILLAS } from '@/definiciones/plantillas'
 import { GLOSARIO } from '@/dominio/glosario'
@@ -12,14 +13,6 @@ import { urlClasica } from '@/lib/panel-clasico'
 import { tiposDeProcesoUnicos } from '@/lib/plantillas'
 
 export const metadata = { title: `${TITULO_PLANTILLAS} · WiWO Ops` }
-
-/**
- * Tope de personas que se traen para elegir responsables.
- *
- * Es el maximo que acepta la API en una pagina. Con mas equipo que eso el selector deja de ser
- * exhaustivo, y el reemplazo es un buscador contra el servidor, no subir el numero.
- */
-const TOPE_DE_EQUIPO = 100
 
 /**
  * Plantillas de {espacio}: armarlas, editarlas y borrarlas.
@@ -32,7 +25,10 @@ export default async function PlantillasPage () {
     pedir<PlantillaEspacio[]>('/project-templates'),
     pedir<Yo>('/me'),
     cargarLookups(),
-    pedirOpcional<MiembroEquipo[]>(`/staff?per_page=${TOPE_DE_EQUIPO}`)
+    // Misma fuente que el selector de asignados de la tarea: `/staff` exige `staff.view` —lo tienen
+    // 19 de 184 personas— y cortaba en 100, asi que el selector de responsables no era el mismo para
+    // todos ni estaba completo para nadie.
+    pedirOpcional<PersonaAsignable[]>(`/${RUTA_DE_ASIGNABLES}`)
   ])
 
   const clasico = urlClasica('espacios')
