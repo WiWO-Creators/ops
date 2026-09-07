@@ -9,6 +9,7 @@ import { pedir, pedirOpcional } from '@/datos/servidor'
 import type { Espacio, MiembroEquipo, Proceso } from '@/datos/recursos'
 import type { Yo } from '@/datos/tipos'
 import { PROCESOS } from '@/definiciones/procesos'
+import { opcionesDeCliente } from './opciones-de-cliente'
 
 export const metadata = { title: 'Tareas · WiWO Ops' }
 
@@ -28,7 +29,7 @@ export default async function ProcesosPage (props: PageProps<'/procesos'>) {
   // filtrar la lista y pasar al tablero devolvia el tablero sin filtrar.
   const consultaTablero = construirConsulta({ ...estado, orden: [], pagina: 1 }, PROCESOS)
 
-  const [lista, lookups, yo, equipo, espacios] = await Promise.all([
+  const [lista, lookups, yo, equipo, espacios, clientes] = await Promise.all([
     pedir<Proceso[]>(`/tasks${consulta === '' ? '' : `?${consulta}`}`),
     cargarLookups(),
     pedir<Yo>('/me'),
@@ -36,7 +37,8 @@ export default async function ProcesosPage (props: PageProps<'/procesos'>) {
     // no para paginar. El equipo va con `pedirOpcional` porque `/staff` exige `staff.view` y le
     // contesta 403 a casi todo el equipo: sin eso, esta pantalla no cargaba para ellos.
     pedirOpcional<MiembroEquipo[]>('/staff?per_page=100'),
-    pedir<Espacio[]>('/projects?per_page=100')
+    pedir<Espacio[]>('/projects?per_page=100'),
+    opcionesDeCliente()
   ])
 
   const catalogosDeAlta = {
@@ -74,7 +76,7 @@ export default async function ProcesosPage (props: PageProps<'/procesos'>) {
         <TablaProcesos
           inicial={{ filas: lista.data, paginacion: lista.meta?.pagination }}
           capacidades={yo.data.permissions.tasks}
-          opcionesDeFiltro={opcionesDeFiltros(PROCESOS, lookups)}
+          opcionesDeFiltro={{ ...opcionesDeFiltros(PROCESOS, lookups), clients: clientes }}
         />
       </Suspense>
     </section>

@@ -544,8 +544,14 @@ Notas que evitan errores:
   `tbltaskstimers.start_time` y `end_time` no son `DATETIME`. La conversión la hace la API.
 - `counts` evita N+1 en las listas: sin él, cada fila de la tabla pide sus comentarios.
 
-Filtros, **en `filter[...]`**: `status` (admite lista: `filter[status]=1,4`), `priority`,
+Filtros, **en `filter[...]`**: `status` (admite lista: `filter[status]=1,4`), `priority`, `clientid`,
 `project_id`, `milestone_id`, `billable`, `date_from`/`date_to` sobre `due_date`, `q`.
+
+**`filter[clientid]` no es una columna**: `rel_type`/`rel_id` son polimórficos, así que es una
+expresión que cubre las tareas colgadas del cliente en directo (`rel_type = "customer"`) y las de sus
+Espacios (`rel_type = "project"`). Acepta además un valor sintético, `filter[clientid]=personales`:
+las tareas **sueltas de quien pide** —sin cliente y asignadas a uno—. "Suelta" es todo `rel_type` que
+no resuelva a un cliente: `NULL` y también `lead`. Vale igual en la lista y en el tablero.
 
 **Tres van sueltos, no dentro de `filter[]`**: `assignee`, `follower` y `tag`. Se escriben
 `?assignee=12`, y `filter[assignee]=12` responde `422` porque no están en la whitelist de filtros
