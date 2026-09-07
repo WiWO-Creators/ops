@@ -11,7 +11,13 @@ import type { DefinicionRecurso, EstadoConsulta } from '@/definiciones/tipos'
  * Sin dependencias de Next ni de React: se prueba con el runner de Node.
  */
 
-/** Tope duro del backend. Pedir mas no falla: se recorta en silencio, y una UI que ofrezca 200 miente. */
+/**
+ * Tope del selector de tamaño de pagina de las tablas.
+ *
+ * Ya no es el tope del backend —ese subio a 500 para que los catalogos del alta rapida entren en una
+ * lectura—, sino el de esta interfaz: cien filas es lo que una tabla se puede pintar y recorrer sin
+ * volverse inutil. Pedir mas no falla, se recorta, y un selector que ofrezca 500 miente igual.
+ */
 export const POR_PAGINA_MAXIMO = 100
 export const POR_PAGINA_POR_DEFECTO = 25
 

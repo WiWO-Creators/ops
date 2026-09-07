@@ -99,7 +99,7 @@ export function AccionesMasivasTareas ({
     if (elegida.control === 'personas' && personal.length === 0) {
       // Sin señal de aborto: el dialogo vive dentro de la barra, que no se desmonta mientras haya
       // filas seleccionadas, y una peticion de catalogo que llega tarde no hace daño.
-      void pedirSobre<MiembroEquipo[]>('staff?per_page=100&filter[active]=1', new AbortController().signal)
+      void pedirSobre<MiembroEquipo[]>('staff?per_page=500&filter[active]=1', new AbortController().signal)
         .then((sobre) => setPersonal(sobre.data))
         .catch(() => setError('No se pudo traer el equipo.'))
     }

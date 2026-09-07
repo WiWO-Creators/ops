@@ -75,7 +75,7 @@ test('la paginacion recorta y calcula el total de paginas', () => {
 })
 
 test('per_page se recorta al maximo sin fallar', () => {
-  assert.equal(consultar('per_page=5000').paginacion.per_page, 100)
+  assert.equal(consultar('per_page=5000').paginacion.per_page, 500)
 })
 
 test('una pagina vacia sigue devolviendo total_pages coherente', () => {

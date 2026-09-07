@@ -34,8 +34,8 @@ export default async function TableroProcesosPage (props: PageProps<'/procesos/t
     // Catalogos del alta rapida, iguales a los de la lista: el boton tiene que estar en las dos
     // pantallas, porque la tarea se anota donde uno esta parado. El equipo es opcional por el mismo
     // motivo que en la lista: `/staff` exige `staff.view` y sin permiso responde 403.
-    pedirOpcional<MiembroEquipo[]>('/staff?per_page=100'),
-    pedir<Espacio[]>('/projects?per_page=100'),
+    pedirOpcional<MiembroEquipo[]>('/staff?per_page=500'),
+    pedir<Espacio[]>('/projects?per_page=500'),
     opcionesDeCliente()
   ])
 
@@ -61,7 +61,7 @@ export default async function TableroProcesosPage (props: PageProps<'/procesos/t
             ]}
           />
           {yo.data.permissions.tasks.includes('create') && (
-            <AltaRapidaProceso catalogos={catalogosDeAlta} />
+            <AltaRapidaProceso catalogos={catalogosDeAlta} etiquetas={lookups.tags} />
           )}
         </div>
       </header>

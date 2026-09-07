@@ -232,7 +232,7 @@ autenticarse.
 
 | Parámetro | Forma | Nota |
 |---|---|---|
-| Paginación | `?page=2&per_page=25` | `per_page` máximo 100 |
+| Paginación | `?page=2&per_page=25` | `per_page` máximo 500 |
 | Orden | `?sort=-dateadded,name` | `-` es descendente. Whitelist por recurso |
 | Filtros | `?filter[status]=4&filter[project_id]=8` | Whitelist por recurso |
 | Rango de fechas | `?filter[date_from]=2026-01-01&filter[date_to]=2026-03-31` | |
@@ -271,8 +271,10 @@ datos de más sin que nadie se entere; uno que falla se arregla el mismo día.
              "details": { "filter[inventado]": ["unknown"] } } }
 ```
 
-`per_page` es la excepción: pedir 500 se **recorta** a 100 en vez de fallar. Es un cliente optimista,
-no un cliente roto.
+`per_page` es la excepción: pedir de más se **recorta** al máximo en vez de fallar. Es un cliente
+optimista, no un cliente roto. El máximo son 500 porque hay pantallas que necesitan el catálogo
+entero en una lectura —el alta rápida resuelve `@persona` y `#Espacio` contra las listas que trae al
+abrirse—, y un catálogo a medias no se ve como una lista corta sino como una función que falla.
 
 ## Recursos de Fase 1
 
@@ -2965,7 +2967,7 @@ y **ninguna fila enlaza a una entidad**: no hay ficha que abrir.
 | `filter[date_from]` / `filter[date_to]` | `YYYY-MM-DD` | compara contra `date`, que es `datetime`: `date_to` corta a las 00:00 de ese dia |
 | `q` | texto libre | sobre `description` |
 | `sort` | `date`, `id`, con `-` para descendente | por defecto `-date` |
-| `page` / `per_page` | enteros | `per_page` por defecto 25, maximo 100 |
+| `page` / `per_page` | enteros | `per_page` por defecto 25, maximo 500 |
 
 `include` no acepta nada: cualquier valor es `422`.
 
