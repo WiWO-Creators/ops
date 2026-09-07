@@ -166,7 +166,7 @@ test('la deriva del lienzo esta acotada a la pantalla que la pide', () => {
 })
 
 /**
- * Exactamente dos animaciones perpetuas en todo el panel, y son estas dos.
+ * Exactamente tres animaciones perpetuas en todo el panel, y son estas tres.
  *
  * Las dos anteriores acotan cada `infinite` conocida a su selector; esta cierra la puerta por la que
  * entraria una tercera. El guardrail del sistema de diseño no es "estas dos estan bien": es que el
@@ -176,15 +176,35 @@ test('la deriva del lienzo esta acotada a la pantalla que la pide', () => {
  * resumen del Inicio se ve porque el texto **esta llegando**, no porque una animacion CSS finja que
  * llega. Con esta prueba ya mergeada, la pantalla que intente fingirla no pasa.
  */
-test('globals.css declara exactamente dos animaciones infinitas', () => {
+test('globals.css declara exactamente tres animaciones infinitas', () => {
   const css = sinComentarios(globals)
   const infinitas = [...css.matchAll(/animation:\s*([a-z0-9-]+)[^;]*\binfinite\b/gi)].map(([, nombre]) => nombre)
 
   assert.deepEqual(
     infinitas.sort(),
-    ['brillo-marca', 'deriva-lienzo'],
+    ['brillo-marca', 'deriva-lienzo', 'latido'],
     'una animacion `infinite` nueva es movimiento perpetuo: va con excepcion revisada, no de contrabando'
   )
+})
+
+/**
+ * El latido es de la pildora que lo pide, y de ninguna otra.
+ *
+ * Es la tercera excepcion revisada: un espacio en desarrollo late porque pide algo de alguien. El
+ * latido se enciende por la clase `insignia-late`, que la `Insignia` solo pone cuando se lo piden.
+ * Si alguien lo suelta del selector, todas las insignias del panel laten a la vez.
+ */
+test('el latido esta acotado a la insignia que lo pide', () => {
+  const css = sinComentarios(globals)
+  const latidos = [...css.matchAll(/([^{}]*)\{[^}]*animation:\s*latido[^}]*\}/g)]
+
+  assert.equal(latidos.length, 1, 'el latido se declara una sola vez')
+  assert.match(
+    latidos[0][1],
+    /\.insignia-late/,
+    'sin la clase `insignia-late` el latido se derrama sobre todas las insignias del panel'
+  )
+  assert.match(css, /@keyframes latido/, 'la animacion referencia fotogramas que no existen')
 })
 
 /**
