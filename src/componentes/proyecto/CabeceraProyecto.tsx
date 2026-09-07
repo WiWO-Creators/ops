@@ -42,21 +42,23 @@ export function BarraProgreso ({ porcentaje, className }: PropsBarraProgreso) {
 }
 
 /**
- * Los estados de `project_statuses` que la cabecera pinta con la paleta del sistema.
+ * Los dos estados de `project_statuses` que la cabecera pinta con la paleta del sistema.
  *
- * El resto conserva el color que traiga el catalogo: son estados que el panel puede crear y renombrar,
- * y ninguna paleta fija podria seguirles el ritmo. Estos si —marcan si el espacio avanza o esta
- * frenado— y son los que hay que leer sin leer.
+ * El resto conserva el color que traiga el catalogo: son estados que el panel puede crear y
+ * renombrar, y ninguna paleta fija podria seguirles el ritmo. Estos dos si, porque son los que hay
+ * que leer sin leer: si el espacio ya esta cerrado o si todavia pide trabajo.
  */
 const ESTADO_EN_DESARROLLO = 2
-const ESTADOS_DETENIDOS = [3, 5]
+const ESTADO_FINALIZADO = 4
 
 /**
  * Resuelve como se pinta la pildora de estado de la cabecera.
  *
- * En desarrollo va en verde y latiendo: es el espacio que esta vivo y el unico que pide algo de
- * alguien. En pausa y cancelado van en rojo y quietos, porque son la noticia contraria. Cualquier
- * otro cae al color del catalogo, que la `Insignia` dibuja como punto y no como fondo.
+ * Solo dos estados se pintan con la paleta del sistema, y el criterio es "que pide algo de alguien":
+ * **finalizado va en verde** porque es el unico que ya no pide nada, y **en desarrollo va en rojo**
+ * porque es el que si. Los demas —no iniciado, en espera, cancelado— caen al color del catalogo, que
+ * la `Insignia` dibuja como punto y no como fondo: son estados que el panel puede crear y renombrar,
+ * y ademas repartir el rojo entre tres estados lo dejaria sin significar nada.
  *
  * @param status id de `project_statuses` que trae el proyecto
  * @param color color del catalogo para ese estado, o `null` si no lo tiene
@@ -65,10 +67,9 @@ const ESTADOS_DETENIDOS = [3, 5]
 function pildoraDeEstado (status: number, color: string | null): {
   tono?: TonoInsignia
   color?: string | null
-  late?: boolean
 } {
-  if (status === ESTADO_EN_DESARROLLO) return { tono: 'exito', late: true }
-  if (ESTADOS_DETENIDOS.includes(status)) return { tono: 'peligro' }
+  if (status === ESTADO_FINALIZADO) return { tono: 'exito' }
+  if (status === ESTADO_EN_DESARROLLO) return { tono: 'peligro' }
 
   return { color }
 }
