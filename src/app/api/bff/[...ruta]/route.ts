@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { llamarApi } from '@/datos/api'
 import { ErrorApi } from '@/datos/errores'
+import { cabecerasDeOrigen } from '@/datos/origen'
 import { rutaCompartida, rutaPermitida } from '@/datos/rutas'
 import { borrarSesion, guardarSesion, leerSesion } from '@/datos/sesion'
 import { refrescar } from '@/datos/refresco'
@@ -87,7 +88,10 @@ async function reenviar (peticion: NextRequest, ctx: RouteContext<'/api/bff/[...
   const destino = `/${ruta.join('/')}${consulta}`
   const cuerpo = await leerCuerpo(peticion)
 
-  const cabeceras = cabecerasDeEntrada(peticion)
+  // De que maquina es esta persona. Va en toda llamada porque la API lo necesita en dos momentos
+  // distintos: al emitir o rotar una sesion, y en cada latido de presencia.
+  const origen = cabecerasDeOrigen(peticion.headers)
+  const cabeceras = { ...origen, ...cabecerasDeEntrada(peticion) }
 
   let respuesta = await llamarApi(destino, {
     metodo: peticion.method as 'GET',
@@ -97,7 +101,7 @@ async function reenviar (peticion: NextRequest, ctx: RouteContext<'/api/bff/[...
   })
 
   if (respuesta.status === 401 && await esTokenVencido(respuesta)) {
-    const renovada = await intentarRefrescar(sesion)
+    const renovada = await intentarRefrescar(sesion, origen)
 
     if (renovada === null) {
       await borrarSesion(sujeto)
@@ -220,9 +224,9 @@ async function esTokenVencido (respuesta: Response): Promise<boolean> {
  * @returns La sesion nueva, o `null` si la API rechazo el refresco.
  * @throws Cualquier error que no venga de la API.
  */
-async function intentarRefrescar (sesion: Sesion): Promise<Sesion | null> {
+async function intentarRefrescar (sesion: Sesion, origen: Record<string, string>): Promise<Sesion | null> {
   try {
-    return await refrescar(sesion)
+    return await refrescar(sesion, origen)
   } catch (error) {
     if (error instanceof ErrorApi) {
       // Queda registrado: una sesion que se cierra sola es lo primero que se pregunta cuando alguien

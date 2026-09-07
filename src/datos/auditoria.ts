@@ -53,9 +53,9 @@ export interface MetaPresencia {
  * trabaja toda la tarde deja varias filas. Está documentado en `RecursoSesiones` y la pantalla lo
  * dice con todas las letras en vez de fingir que cuenta jornadas.
  *
- * `ip` y `user_agent` son los de quien **llamó a la API**. Como ops-v2 llama desde su servidor, hoy
- * son los del servidor de Ops (`node`) y no los del navegador de la persona. La pantalla los rotula
- * como "origen de la llamada" justamente por eso.
+ * `ip` y `user_agent` son los de la máquina de la persona: el BFF se los reenvía a la API firmados
+ * con el secreto compartido (`datos/origen.ts`). Sin ese secreto configurado son los del servidor de
+ * Ops (`node`), y `dispositivo()` lo dice con esas palabras en vez de disfrazarlo de navegador.
  */
 export interface SesionAbierta {
   id: number

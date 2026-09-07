@@ -15,6 +15,7 @@ export interface SesionDePersona {
   clave: string
   desde: string | null
   ultima: string | null
+  /** Una entrada por maquina distinta desde la que se pidio un token: "190.44.1.1 · Chrome en Windows". */
   origenes: string[]
   tokens: number
   suplantada: PersonaAuditoria | null
@@ -44,7 +45,7 @@ export function agruparSesiones (sesiones: SesionAbierta[]): SesionDePersona[] {
   for (const sesion of sesiones) {
     const clave = sesion.staff === null ? `token:${sesion.id}` : `staff:${sesion.staff.id}`
     const previa = porPersona.get(clave)
-    const origen = [sesion.ip ?? 'sin IP', sesion.user_agent].filter((x) => x !== null).join(' · ')
+    const origen = [sesion.ip ?? 'sin IP', dispositivo(sesion.user_agent)].filter((x) => x !== null).join(' · ')
 
     if (previa === undefined) {
       porPersona.set(clave, {
@@ -97,3 +98,58 @@ export function haceCuanto (segundos: number | null): string {
 
   return `hace ${Math.round(segundos / 60)} minutos`
 }
+
+/**
+ * El `User-Agent` en dos palabras: "Chrome en Windows".
+ *
+ * La cadena cruda son 200 caracteres de historia del navegador —`Mozilla/5.0`, `AppleWebKit`,
+ * `like Gecko`— que en una tabla no se leen: desbordan la fila y esconden el unico dato que se
+ * buscaba, que es desde que maquina entro alguien.
+ *
+ * Se detecta a mano y no con una libreria porque la pregunta es "¿desde donde entro esta persona?",
+ * no "¿que motor de renderizado usa?": son seis navegadores y cinco sistemas, y una dependencia
+ * nueva para eso se actualiza sola hacia problemas que este proyecto no tiene.
+ *
+ * El orden de las comprobaciones NO es alfabetico y no se puede reordenar: Edge se anuncia como
+ * Chrome, Chrome se anuncia como Safari y Opera se anuncia como los dos. Quien mira primero al mas
+ * mentiroso acierta; al reves, todo el mundo usa Safari.
+ *
+ * @param agente el `user_agent` tal como lo devuelve la API; `null` si no se registro
+ * @returns la frase legible, o `null` si no hay nada que decir
+ */
+export function dispositivo (agente: string | null): string | null {
+  if (agente === null || agente.trim() === '') return null
+
+  // Lo que manda el propio servidor de Ops cuando no puede reenviar el navegador de la persona.
+  // Decirlo con todas las letras evita que alguien lea "node" como un dispositivo.
+  if (agente === 'node' || agente.startsWith('node/')) return 'el servidor de Ops'
+
+  const navegador = NAVEGADORES.find(([, patron]) => patron.test(agente))?.[0] ?? null
+  const sistema = SISTEMAS.find(([, patron]) => patron.test(agente))?.[0] ?? null
+
+  if (navegador === null && sistema === null) return agente.slice(0, 40)
+  if (sistema === null) return navegador
+  if (navegador === null) return sistema
+
+  return `${navegador} en ${sistema}`
+}
+
+/** De la mentira mas grande a la mas chica: Edge dice ser Chrome, y Chrome dice ser Safari. */
+const NAVEGADORES: Array<[string, RegExp]> = [
+  ['Edge', /\bEdg(e|A|iOS)?\//],
+  ['Opera', /\bOPR\/|\bOpera\//],
+  ['Samsung Internet', /SamsungBrowser\//],
+  ['Firefox', /\bFirefox\/|\bFxiOS\//],
+  ['Chrome', /\bChrome\/|\bCriOS\//],
+  ['Safari', /\bSafari\//]
+]
+
+/** iPhone y iPad antes que Mac: Safari de iPad se anuncia como Macintosh desde iPadOS 13. */
+const SISTEMAS: Array<[string, RegExp]> = [
+  ['iPhone', /\biPhone\b/],
+  ['iPad', /\biPad\b/],
+  ['Android', /\bAndroid\b/],
+  ['Windows', /\bWindows\b/],
+  ['macOS', /\bMac OS X\b|\bMacintosh\b/],
+  ['Linux', /\bLinux\b|\bX11\b/]
+]
