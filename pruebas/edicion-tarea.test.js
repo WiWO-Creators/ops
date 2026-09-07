@@ -95,8 +95,10 @@ test('quitar a todos los asignados manda la lista vacia, no la omite', () => {
   assert.deepEqual(cuerpoDeParche(campos, { ...campos, asignados: [] }), { assignees: [] })
 })
 
-test('los elegibles suman a quien ya esta en la tarea sin repetir a los miembros', () => {
-  const miembros = [
+test('los elegibles suman a quien ya esta en la tarea sin repetir a las asignables', () => {
+  // La primera lista son TODAS las asignables (`GET /staff/asignables`), no los miembros del
+  // Espacio: se puede asignar a alguien que todavia no es miembro, y el backend lo agrega al guardar.
+  const asignables = [
     { id: 20, full_name: 'Ana Ríos', profile_image_url: null },
     { id: 31, full_name: 'Luis Paz', profile_image_url: null }
   ]
@@ -105,9 +107,9 @@ test('los elegibles suman a quien ya esta en la tarea sin repetir a los miembros
     { id: 44, full_name: 'Eva Sosa', profile_image_url: null }
   ]
 
-  assert.deepEqual(personasElegibles(miembros, enLaTarea).map((p) => p.id), [20, 31, 44])
+  assert.deepEqual(personasElegibles(asignables, enLaTarea).map((p) => p.id), [20, 31, 44])
   assert.deepEqual(personasElegibles([], enLaTarea).map((p) => p.id), [31, 44])
-  assert.deepEqual(personasElegibles(miembros, []).map((p) => p.id), [20, 31])
+  assert.deepEqual(personasElegibles(asignables, []).map((p) => p.id), [20, 31])
 })
 
 test('las etiquetas elegidas ignoran ids que ya no estan en el catalogo', () => {

@@ -185,6 +185,22 @@ export interface Contacto {
   is_primary: boolean
 }
 
+/**
+ * Persona a la que se le puede asignar un Proceso (`GET /staff/asignables`).
+ *
+ * Es la **unica** fuente de personas asignables del panel. No es `MiembroEquipo`: ese viene de
+ * `GET /staff`, que exige el permiso `staff.view` —lo tienen 19 de 184 personas— y por eso mostraba
+ * gente distinta segun quien abriera la pantalla. Esta ruta pide solo sesion, asi que la lista es la
+ * misma para todos.
+ *
+ * `area_id` y `cargo_id` llegan como id pelado; sus nombres salen de `cargos` y `areas` de
+ * `GET /lookups`, que el panel ya trae una vez.
+ */
+export interface PersonaAsignable extends StaffReferencia {
+  area_id: number | null
+  cargo_id: number | null
+}
+
 /** Miembro del equipo. `staff` queda en ingles por convencion del glosario. */
 export interface MiembroEquipo {
   id: number

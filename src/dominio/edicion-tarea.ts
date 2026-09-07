@@ -112,21 +112,26 @@ function mismosIds (unos: Array<number | string>, otros: Array<number | string>)
 /**
  * La lista de personas que puede ofrecer el selector.
  *
- * Los miembros del Espacio son la lista natural para asignar, pero **no alcanzan**: una Tarea puede
- * tener asignados o seguidores que ya no son miembros, o que nunca lo fueron. Sin ellos, el selector
- * no dibuja su chip y el proximo guardado los borra sin que nadie lo haya pedido.
+ * **Son todas las asignables de la instalacion, no los miembros del Espacio.** Recortar por membresia
+ * era lo que hacia que alguien no apareciera al buscarlo: el backend agrega solo al Espacio a quien
+ * se asigna (`CrearProceso::asegurarMiembrosDelEspacio()`), asi que exigir que ya sea miembro para
+ * poder elegirlo invierte el orden real de las cosas.
  *
- * @param miembros los del Espacio, en el orden en que los devolvio la API
+ * Aun con la lista completa hace falta la union: `GET /staff/asignables` devuelve solo a las personas
+ * activas, y una Tarea puede tener asignado a alguien que despues se dio de baja. Sin el, el selector
+ * no dibuja su chip y el proximo guardado lo borra sin que nadie lo haya pedido.
+ *
+ * @param asignables las de `GET /staff/asignables`, en el orden en que las devolvio la API
  * @param yaEnLaTarea asignados y seguidores actuales
- * @returns la union sin repetidos, con los miembros primero
+ * @returns la union sin repetidos, con las asignables primero
  */
 export function personasElegibles (
-  miembros: StaffReferencia[],
+  asignables: StaffReferencia[],
   yaEnLaTarea: StaffReferencia[]
 ): StaffReferencia[] {
-  const vistos = new Set(miembros.map((persona) => persona.id))
+  const vistos = new Set(asignables.map((persona) => persona.id))
 
-  return [...miembros, ...yaEnLaTarea.filter((persona) => {
+  return [...asignables, ...yaEnLaTarea.filter((persona) => {
     if (vistos.has(persona.id)) return false
     vistos.add(persona.id)
 

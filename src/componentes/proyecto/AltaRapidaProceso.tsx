@@ -498,7 +498,7 @@ export function AltaRapidaProceso ({ catalogos, etiquetas, conIa }: PropsAltaRap
 
                   <Campo
                     etiqueta="Responsable"
-                    ayuda={catalogos.personas.length === 0 ? 'No tienes permiso para ver el equipo.' : undefined}
+                    ayuda={catalogos.personas.length === 0 ? 'No se pudo traer el equipo.' : undefined}
                   >
                     {({ id }) => (
                       <Selector

@@ -6,8 +6,9 @@ import { Segmentado } from '@/componentes/formularios/Segmentado'
 import { iaHabilitada } from '@/datos/ajustes'
 import { construirConsulta, leerConsulta, paramsDeUrl } from '@/datos/consulta'
 import { cargarLookups, opcionesDeFiltros } from '@/datos/lookups'
+import { RUTA_DE_ASIGNABLES } from '@/datos/asignables'
 import { pedir, pedirOpcional } from '@/datos/servidor'
-import type { Espacio, MiembroEquipo } from '@/datos/recursos'
+import type { Espacio, PersonaAsignable } from '@/datos/recursos'
 import type { Yo } from '@/datos/tipos'
 import { PROCESOS } from '@/definiciones/procesos'
 import { opcionesDeCliente } from '../opciones-de-cliente'
@@ -33,9 +34,9 @@ export default async function TableroProcesosPage (props: PageProps<'/procesos/t
     cargarLookups(),
     pedir<Yo>('/me'),
     // Catalogos del alta rapida, iguales a los de la lista: el boton tiene que estar en las dos
-    // pantallas, porque la tarea se anota donde uno esta parado. El equipo es opcional por el mismo
-    // motivo que en la lista: `/staff` exige `staff.view` y sin permiso responde 403.
-    pedirOpcional<MiembroEquipo[]>('/staff?per_page=500'),
+    // pantallas, porque la tarea se anota donde uno esta parado. El equipo sale de la misma unica
+    // fuente que el selector de la tarea, `/staff/asignables`, que solo pide sesion.
+    pedirOpcional<PersonaAsignable[]>(`/${RUTA_DE_ASIGNABLES}`),
     pedir<Espacio[]>('/projects?per_page=500'),
     opcionesDeCliente(),
     iaHabilitada()
