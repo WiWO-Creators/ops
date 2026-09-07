@@ -7,6 +7,7 @@ import { AreaTexto } from '@/componentes/formularios/Entrada'
 import { Boton } from '@/componentes/formularios/Boton'
 import { Cargando, ErrorEstado, Vacio } from '@/componentes/estado/Estados'
 import { CargandoConOrbe, Orbe } from '@/componentes/estado/Orbe'
+import { escribirEnBff } from '@/componentes/datos/mutaciones'
 import { pedirSobre } from '@/datos/cliente'
 import { leerSSE } from '@/datos/sse'
 import { leerEventoIA, type Cita } from '@/dominio/ia'
@@ -20,7 +21,7 @@ import {
   type FaseMensaje,
   type Mensaje
 } from '@/dominio/ia-chat'
-import { GLOSARIO } from '@/dominio/glosario'
+import { ASISTENTE, GLOSARIO } from '@/dominio/glosario'
 import { ModalTarea } from './ModalTarea'
 
 /**
@@ -90,6 +91,8 @@ export function ChatDelProyecto (
   const [pregunta, setPregunta] = useState('')
   const [enviando, setEnviando] = useState(false)
   const [intento, setIntento] = useState(0)
+  const [confirmandoBorrado, setConfirmandoBorrado] = useState(false)
+  const [borrando, setBorrando] = useState(false)
   const enCurso = useRef<AbortController | null>(null)
   const desplazador = useRef<HTMLDivElement>(null)
 
@@ -197,6 +200,34 @@ export function ChatDelProyecto (
     }
   }
 
+  /**
+   * Borra el hilo entero, en el servidor y en memoria.
+   *
+   * Es un borron de verdad y no un "ocultar": el contexto que el modelo recibe en la proxima
+   * pregunta es el hilo guardado, asi que limpiarlo solo en pantalla dejaria a la IA respondiendo
+   * sobre una conversacion que la persona ya no ve. Por eso pega el `DELETE` primero y solo vacia
+   * la pantalla si el servidor confirmo.
+   *
+   * El hilo es por (Espacio, persona): la ruta no lleva a quien, lo pone la sesion.
+   */
+  async function borrar (): Promise<void> {
+    setBorrando(true)
+
+    const resultado = await escribirEnBff(ruta(proyectoId), 'DELETE')
+
+    setBorrando(false)
+
+    if (!resultado.ok) {
+      setErrorRespuesta(resultado.mensaje)
+
+      return
+    }
+
+    setConfirmandoBorrado(false)
+    setErrorRespuesta('')
+    escribir([])
+  }
+
   /** Manda lo que hay escrito en el campo como pregunta nueva. */
   function enviar (): void {
     const texto = pregunta.trim()
@@ -265,6 +296,42 @@ export function ChatDelProyecto (
 
   return (
     <div className={desplazable ? 'flex min-h-0 flex-1 flex-col gap-4' : 'flex flex-col gap-4'}>
+      {/* Fuera del desplazador: en el orbe, un boton que se va con el scroll no se encuentra cuando
+          la conversacion es larga, que es justo cuando se quiere borrar. */}
+      {mensajes.length > 0 && (
+        <div className="flex flex-col items-end gap-1">
+          {confirmandoBorrado && (
+            <p className="text-texto-sutil text-xs">
+              Se borra la conversación entera, también la que {ASISTENTE} recuerda.
+            </p>
+          )}
+
+          <div className="flex items-center gap-2">
+            {confirmandoBorrado
+              ? (
+                <>
+                  <Boton tamano="chico" variante="sutil" onClick={() => { setConfirmandoBorrado(false) }}>
+                    Cancelar
+                  </Boton>
+                  <Boton tamano="chico" variante="peligro" cargando={borrando} onClick={() => { void borrar() }}>
+                    Borrar
+                  </Boton>
+                </>
+                )
+              : (
+                <Boton
+                  tamano="chico"
+                  variante="sutil"
+                  disabled={enviando}
+                  onClick={() => { setConfirmandoBorrado(true) }}
+                >
+                  Borrar chat
+                </Boton>
+                )}
+          </div>
+        </div>
+      )}
+
       {desplazable
         ? <div ref={desplazador} className="min-h-0 flex-1 overflow-y-auto pr-1">{conversacion}</div>
         : conversacion}
