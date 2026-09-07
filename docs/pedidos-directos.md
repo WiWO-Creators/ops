@@ -62,12 +62,47 @@ día, uno por rama, con `feature-aislada`. Los tres de IA los tomó otra sesión
 
 **Leyenda:** ✅ hecho y mergeado · 🔄 en curso · 🟡 hay base aprovechable, falta el pedido · ❌ sin empezar
 
+## Pedidos nuevos (07/09/2026)
+
+Tanda que el usuario pidió por chat el 07/09: seis pedidos, casi todos de la ficha de la Tarea y del
+kanban. Se repartieron en diez frentes —uno por rama, con `feature-aislada`— porque tres de ellos
+compartían archivos y otros tres destaparon una pieza de API que faltaba. Ninguno era pérdida de
+datos: los adjuntos, los links y las áreas seguían en la base, y lo que faltaba era la pantalla.
+
+| Ítem | Back | Front | Notas |
+|---|---|---|---|
+| Los adjuntos de la Tarea vuelven a verse | ✅ ya existía | ✅ `main` (`d9c6b79`) | `DetalleTarea.tsx` había reemplazado la sección "Archivos" por el árbol de Drive, que es **otro almacén** y está vacío para toda Tarea anterior al backfill: el contador decía 9 y abajo no se veía nada. El nuevo `PanelAdjuntos` lista, sube, descarga y borra, **debajo** del árbol, que sigue siendo el camino a incentivar. Ahí aparecen también los links viejos de Drive, que son filas de `tblfiles` con `external='gdrive'` |
+| Área de la compañía y Link de Drive editables | ✅ ya existía (`PATCH /custom-fields/values`) | ✅ `main` (`8167cf5`) | Renderizador **genérico** de los diez tipos de campo personalizado (`CamposPersonalizados.tsx` + `dominio/campos-personalizados.ts`), no un campo a mano: la base tiene 29 definiciones. Nace acá `esquemaDeCamposPersonalizados()`, que `convenciones.md` nombraba desde el día uno y no existía. Trampa real: los 513 "Link de Drive" están guardados como HTML (`<a href=…>`) porque los escribió `custom_fields_hyperlink()` del panel viejo, y la API rechaza ese marcado al escribir: se desenvuelven al leer |
+| Los mismos campos, visibles en la ficha sin abrir el editor | ✅ `main` (`6a7fd02`) | ✅ `main` (`2057579`) | `RecursoProcesos::ver()` validaba el `include` y después lo tiraba fijando `['description']`: una línea. Reusa `CamposPersonalizados::paraLote()`, así ficha y listado no pueden divergir (verificado comparando los dos JSON en 41 Tareas). De paso murió el rodeo por el que la edición leía los valores con un `PATCH values: {}` |
+| Buscar personas aunque no estén en el Espacio | ✅ `main` (`987e94f`) | ✅ `main` (`2ddadd8`, `ee65bf1`) | El síntoma que reportó el usuario —"a un usuario le sale una persona y a otro no"— no era del buscador: cada pantalla leía de una fuente distinta y `GET /staff` exige `staff.view`, que tienen 19 de 184 personas. Nace `GET /staff/asignables`, sin ese permiso y con proyección mínima (**no** se aflojó `/staff`: expone correo, teléfono y tarifa). Front: fuente única en `datos/asignables.ts`, memoizada por pestaña. Verificado con dos cuentas: 185 personas en ambas, listas idénticas. "Eso lo terminará agregando" ya lo hacía el back (`asegurarMiembrosDelEspacio()`) |
+| En el kanban, "+" para sumar tareas a un hito | ✅ ya existía | ✅ `main` (`00771f1`) | El "+" abre un diálogo con los dos caminos: crear una Tarea nueva ya colgada del hito, o sumar una de las que no tienen hito. La columna sintética "Sin categorizar" no lo lleva: no es un hito |
+| En el kanban, abrir el modal de la tarea | — | ✅ `main` (`00771f1`) | El modal existía y era único, pero solo lo montaba `PanelTareas`. Ahora también `vistas.tsx` y `PanelHitos`; **no** en `TableroFiltrable`, que daría dos diálogos con el mismo `?tarea={id}`. Se enlaza solo el título: un `<a>` envolviendo la tarjeta compite con el `dragstart` |
+| Elegir la fecha en que se completó una Tarea | ✅ `main` (`987e94f`) | ✅ `main` (`d8d38ca`) | `completed_at` en `PATCH /tasks/{id}` → `datefinished`, con tres rechazos (`no_completado`, `futura`, `anterior_al_inicio`). `mark-complete` sigue fechando con la hora de ahora: corregir es un segundo paso explícito, así ni las masivas ni el arrastre heredan una fecha inventada. Si no se toca la fecha, un clic sigue siendo una sola escritura. Al día elegido se le pone **mediodía**, no 23:59: con el desfase de reloj del contenedor el cierre se corría un día entero |
+| Tareas sin fecha de entrega | ✅ ya existía | ✅ `main` (`1665bd6`, `efccf17`) | No había bloqueo: crear sin vencimiento ya funcionaba en la API y en los dos formularios. El defecto era de lectura —el plazo vacío se leía con el mismo guion que un dato faltante— y se arregló en el presentador `Fecha` (`comoVencimiento`), que cubre las siete superficies que muestran plazos |
+
+### Lo que quedó fuera, a propósito
+
+- **Acciones masivas en el tablero.** Siguen solo en la vista de tabla: `AccionesMasivasTareas` depende
+  de `ProveedorSeleccion` y de la selección por fila de `columnas-tareas.tsx`, y el tablero no tiene
+  casillas. Es trabajo propio del motor de tablero, no un ajuste barato.
+- **`AccionesPersona.tsx:87` sigue leyendo `GET /staff`.** Es el selector de heredero al dar de baja a
+  alguien, dentro de `/equipo`, pantalla que ya exige `staff.view` para entrar: ahí `/staff` es la
+  fuente correcta. Hay una prueba de regresión que barre `src/` y falla si alguna otra pantalla vuelve
+  a pedir `GET /staff` con query.
+
 ## Cómo verificar lo hecho
 
 Con `board-api` (contenedor podman, puerto 8091) y `ops-v2` (`pnpm dev`, puerto 3000) levantados,
 login en `/colab` con el usuario de prueba local (ver memoria de la cuenta). Rutas relevantes:
 `/procesos/tablero` (kanban con filtros y drag&drop), `/equipo` y `/equipo/mi-area` (cargo/área),
 `/archivos` y la pestaña de archivos de una Tarea (árbol de Drive, subida y permisos).
+
+De la tanda del 07/09: ficha de una Tarea (adjuntos debajo del árbol de Drive, Área de la compañía y
+Link de Drive en lectura y en el editor, bloque de cierre con "Corregir"), pestaña **Hitos** en vista
+tablero (el "+" de cada columna), `/procesos/tablero` y el tablero del Espacio (la tarjeta abre el
+modal), y el selector de asignados **mirado con dos cuentas, una sin `staff.view`**: tienen que ver la
+misma gente. Para los adjuntos históricos, ojo: en la base local no está el binario y la descarga da
+404 de la propia API; en producción sí están.
 
 De la tanda del 04/09: pestaña **Configuración** de un Proyecto (tipos con ETA y el interruptor de
 aprobación), detalle de una Tarea (bloque de ETA/desviación/aprobación, lista de iteraciones, botón
