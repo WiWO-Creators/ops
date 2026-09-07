@@ -2,6 +2,7 @@
 
 import { useMemo, useState, useTransition } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
+import { useAccionPresencia } from '@/componentes/auditoria/accion'
 import { ControlesTabla, PaginacionTabla } from '@/componentes/datos/ControlesTabla'
 import { clavesVisiblesPorDefecto } from '@/componentes/datos/tabla'
 import { retrasoDeAparicion } from '@/componentes/datos/TablaRecurso'
@@ -83,6 +84,9 @@ export function VistaClientes ({
   const router = useRouter()
   const params = useSearchParams()
   const [creando, setCreando] = useState(false)
+
+  useAccionPresencia('creando_cliente', creando)
+
   const vista: PresentacionCliente = params.get('vista') === 'tarjetas' ? 'tarjetas' : vistaInicial
 
   /** Cambia de presentacion conservando filtros, orden y pagina. */

@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, type FormEvent, type ReactElement } from 'react'
+import { useAccionPresencia } from '@/componentes/auditoria/accion'
 import { Boton } from '@/componentes/formularios/Boton'
 import { Campo } from '@/componentes/formularios/Campo'
 import { AreaTexto, Entrada } from '@/componentes/formularios/Entrada'
@@ -69,6 +70,8 @@ interface PropsEdicionTarea {
 export function EdicionTarea (
   { tarea, lookups, descripcion, onCerrar, onGuardada }: PropsEdicionTarea
 ): ReactElement {
+  useAccionPresencia('editando_tarea')
+
   const inicial = camposDeTarea(tarea, descripcion)
   const [campos, setCampos] = useState<CamposEdicion>(inicial)
   const [miembros, setMiembros] = useState<StaffReferencia[]>([])
