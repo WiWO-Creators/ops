@@ -6,8 +6,9 @@ import { Segmentado } from '@/componentes/formularios/Segmentado'
 import { iaHabilitada } from '@/datos/ajustes'
 import { construirConsulta, leerConsulta, paramsDeUrl } from '@/datos/consulta'
 import { cargarLookups, opcionesDeFiltros } from '@/datos/lookups'
+import { RUTA_DE_ASIGNABLES } from '@/datos/asignables'
 import { pedir, pedirOpcional } from '@/datos/servidor'
-import type { Espacio, MiembroEquipo, Proceso } from '@/datos/recursos'
+import type { Espacio, PersonaAsignable, Proceso } from '@/datos/recursos'
 import type { Yo } from '@/datos/tipos'
 import { PROCESOS } from '@/definiciones/procesos'
 import { opcionesDeCliente } from './opciones-de-cliente'
@@ -37,10 +38,11 @@ export default async function ProcesosPage (props: PageProps<'/procesos'>) {
     // Catalogos del alta rapida: son para resolver `@` y `#` mientras se escribe, no para paginar,
     // asi que se piden ENTEROS. Con el tope anterior de 100 entraba poco mas de la mitad de las 184
     // personas y de los 275 Espacios, y todo lo que quedaba fuera se veia como "no existe": `#Test`
-    // terminaba en el titulo como texto suelto. El equipo va con `pedirOpcional` porque `/staff`
-    // exige `staff.view` y le contesta 403 a casi todo el equipo: sin eso, esta pantalla no cargaba
-    // para ellos.
-    pedirOpcional<MiembroEquipo[]>('/staff?per_page=500'),
+    // terminaba en el titulo como texto suelto. El equipo sale de `/staff/asignables`, la misma
+    // fuente que el selector de la tarea: `/staff` exige `staff.view` y le contestaba 403 a casi
+    // todo el equipo, que veia el campo "Responsable" vacio. Sigue con `pedirOpcional` porque un
+    // catalogo del alta no puede tumbar la pantalla entera.
+    pedirOpcional<PersonaAsignable[]>(`/${RUTA_DE_ASIGNABLES}`),
     pedir<Espacio[]>('/projects?per_page=500'),
     opcionesDeCliente(),
     // Decide si el alta ofrece el texto libre: con la capa apagada la API responde 404 a `/ia/*`.

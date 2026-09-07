@@ -22,6 +22,7 @@ import {
 import { CLASES_DISPARADOR } from '@/componentes/formularios/Selector'
 import { CerrarDialogo, ContenidoDialogo, Dialogo } from '@/componentes/superposiciones/Dialogo'
 import { escribirEnBff } from '@/componentes/datos/mutaciones'
+import { cargarAsignables } from '@/datos/asignables'
 import { pedirSobre } from '@/datos/cliente'
 import { listaDe } from '@/datos/catalogos'
 import {
@@ -80,9 +81,10 @@ interface PropsEdicionTarea {
  * valores de una Tarea sola —`GET /tasks/{id}` no honra `include=custom_fields`—. Esta explicado en
  * `lecturaDeCamposPersonalizados()`.
  *
- * **Las personas salen de los miembros del Espacio, no de `GET /staff`.** Ese endpoint exige el
- * permiso `staff.view`, que en esta instalacion tienen 19 de 184 personas: poblar el selector desde
- * ahi dejaria el campo vacio justo para quien necesita asignar.
+ * **Las personas salen de `GET /staff/asignables`, la unica fuente del panel.** No de `GET /staff`,
+ * que exige el permiso `staff.view` —19 de 184 personas lo tienen— ni de los miembros del Espacio,
+ * que dejaban fuera del buscador a quien todavia no era miembro. Se puede elegir a cualquiera: el
+ * backend lo agrega al Espacio al guardar.
  */
 export function EdicionTarea (
   { tarea, lookups, descripcion, onCerrar, onGuardada }: PropsEdicionTarea
@@ -91,7 +93,7 @@ export function EdicionTarea (
 
   const inicial = camposDeTarea(tarea, descripcion)
   const [campos, setCampos] = useState<CamposEdicion>(inicial)
-  const [miembros, setMiembros] = useState<StaffReferencia[]>([])
+  const [asignables, setAsignables] = useState<StaffReferencia[]>([])
   const [hitos, setHitos] = useState<Hito[]>([])
   const [avisoCatalogo, setAvisoCatalogo] = useState<string | null>(null)
   /** Lo que se esta escribiendo en el campo de etiqueta nueva, antes de sumarlo a la lista. */
@@ -106,24 +108,37 @@ export function EdicionTarea (
 
   const espacioId = tarea.rel_type === 'project' ? tarea.rel_id : null
 
+  /*
+   * Las personas asignables. Efecto propio y sin `espacioId`: la lista no depende del Espacio, y una
+   * Tarea suelta —sin Espacio— tambien necesita poder asignar. `cargarAsignables` cachea, asi que
+   * abrir la edicion diez veces es una sola peticion.
+   */
+  useEffect(() => {
+    let vivo = true
+
+    void cargarAsignables()
+      .then((personas) => { if (vivo) setAsignables(personas) })
+      .catch(() => {
+        if (vivo) {
+          setAvisoCatalogo('No se pudo traer el equipo: sólo quedan las personas que ya están en la tarea.')
+        }
+      })
+
+    return () => { vivo = false }
+  }, [])
+
   useEffect(() => {
     if (espacioId === null) return
 
     const control = new AbortController()
 
-    void Promise.all([
-      pedirSobre<StaffReferencia[]>(`projects/${espacioId}/members`, control.signal),
-      pedirSobre<Hito[]>(`projects/${espacioId}/milestones`, control.signal)
-    ])
-      .then(([equipo, listaHitos]) => {
-        if (control.signal.aborted) return
-
-        setMiembros(equipo.data)
-        setHitos(listaHitos.data)
+    void pedirSobre<Hito[]>(`projects/${espacioId}/milestones`, control.signal)
+      .then((listaHitos) => {
+        if (!control.signal.aborted) setHitos(listaHitos.data)
       })
       .catch(() => {
         if (!control.signal.aborted) {
-          setAvisoCatalogo('No se pudo traer el equipo ni los hitos del espacio: sólo quedan las personas que ya están en la tarea.')
+          setAvisoCatalogo('No se pudieron traer los hitos del espacio.')
         }
       })
 
@@ -172,7 +187,7 @@ export function EdicionTarea (
     }
   }, [tarea.id])
 
-  const elegibles = personasElegibles(miembros, [...tarea.assignees, ...tarea.followers])
+  const elegibles = personasElegibles(asignables, [...tarea.assignees, ...tarea.followers])
   const prioridades = listaDe(lookups, 'task_priorities')
   const etiquetas = lookups.tags
 

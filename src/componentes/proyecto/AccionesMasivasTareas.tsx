@@ -22,9 +22,10 @@ import {
   ItemMenu,
   MenuContextual
 } from '@/componentes/superposiciones/MenuContextual'
+import { cargarAsignables } from '@/datos/asignables'
 import { pedirSobre } from '@/datos/cliente'
 import { leerError } from '@/datos/errores'
-import type { Hito, MiembroEquipo, ResultadoAccionMasiva } from '@/datos/recursos'
+import type { Hito, PersonaAsignable, ResultadoAccionMasiva } from '@/datos/recursos'
 import type { Capacidad } from '@/datos/tipos'
 import type { OpcionFiltro } from '@/definiciones/tipos'
 import {
@@ -77,7 +78,7 @@ export function AccionesMasivasTareas ({
   const [valor, setValor] = useState('')
   const [enCurso, setEnCurso] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [personal, setPersonal] = useState<MiembroEquipo[]>([])
+  const [personal, setPersonal] = useState<PersonaAsignable[]>([])
   const [hitos, setHitos] = useState<Hito[]>([])
 
   const disponibles = accionesMasivasPermitidas(capacidades)
@@ -97,10 +98,11 @@ export function AccionesMasivasTareas ({
     setError(null)
 
     if (elegida.control === 'personas' && personal.length === 0) {
-      // Sin señal de aborto: el dialogo vive dentro de la barra, que no se desmonta mientras haya
-      // filas seleccionadas, y una peticion de catalogo que llega tarde no hace daño.
-      void pedirSobre<MiembroEquipo[]>('staff?per_page=500&filter[active]=1', new AbortController().signal)
-        .then((sobre) => setPersonal(sobre.data))
+      // `GET /staff/asignables` y no `GET /staff`: este exige `staff.view`, que tienen 19 de 184
+      // personas, y sin el la lista llegaba vacia. Es la misma fuente que el selector de la tarea,
+      // asi que las dos pantallas ofrecen exactamente la misma gente.
+      void cargarAsignables()
+        .then(setPersonal)
         .catch(() => setError('No se pudo traer el equipo.'))
     }
 
@@ -246,7 +248,7 @@ interface PropsControl {
   onValor: (valor: string) => void
   estados: OpcionFiltro[]
   prioridades: OpcionFiltro[]
-  personal: MiembroEquipo[]
+  personal: PersonaAsignable[]
   hitos: Hito[]
 }
 
