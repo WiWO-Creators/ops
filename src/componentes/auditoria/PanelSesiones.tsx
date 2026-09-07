@@ -20,17 +20,15 @@ import { formatearFecha } from '@/lib/fechas'
  * última vez (el más nuevo), y cuántos tokens sostienen esa sesión, que es el dato que se pierde al
  * agrupar y por eso se muestra.
  *
- * === LO QUE FALTA, DICHO EN LA PANTALLA ===
+ * === DE DÓNDE SALE "IP Y DISPOSITIVO" ===
  *
- * Se pidió "logins, IP y dispositivo". Están los dos primeros; el tercero **no existe**:
+ * El BFF le reenvía a la API el `X-Forwarded-For` y el `User-Agent` del navegador, firmados con el
+ * secreto compartido (`datos/origen.ts`), así que la columna dice la máquina de la persona y no la
+ * del servidor que hace de intermediario. Se guarda eso y nada más: ni huella de dispositivo, ni
+ * identificadores nuevos.
  *
- *   - `ip` y el cliente son los de **quien llamó a la API**, y ops-v2 la llama desde su propio
- *     servidor para que el token no llegue nunca al navegador. Hoy dicen "el servidor de Ops", no
- *     "el computador de Fulana". Por eso la columna se llama "Origen de la llamada": rotularla
- *     "Dispositivo" sería inventar un dato.
- *   - El navegador con el que entró cada persona no se registra en ninguna parte. Para tenerlo, el
- *     BFF tendría que reenviar su `User-Agent` y su `X-Forwarded-For`, y eso es una decisión de
- *     privacidad propia, no un detalle de implementación.
+ * Cuando falta ese secreto en una instalación, la API se queda con lo que ve —su propio cliente— y
+ * la columna muestra "el servidor de Ops": el dato sigue siendo verdadero, sólo que menos útil.
  *
  * No se refresca solo: una sesión dura una hora, y un bloque que parpadea cada cuarenta segundos sin
  * cambiar nada sólo distrae de lo que sí cambia.
@@ -67,7 +65,7 @@ export function PanelSesiones ({ sesiones, error }: { sesiones: SesionAbierta[],
               <CeldaEncabezado>Entró</CeldaEncabezado>
               <CeldaEncabezado>Última actividad</CeldaEncabezado>
               <CeldaEncabezado numerica>Tokens</CeldaEncabezado>
-              <CeldaEncabezado>Origen de la llamada</CeldaEncabezado>
+              <CeldaEncabezado>IP y dispositivo</CeldaEncabezado>
             </FilaTabla>
           </EncabezadoTabla>
           <CuerpoTabla>
@@ -107,9 +105,9 @@ export function PanelSesiones ({ sesiones, error }: { sesiones: SesionAbierta[],
       )}
 
       <p className="text-texto-sutil max-w-prose text-xs">
-        El origen es el de quien llamó a la API. Como el panel llama desde el servidor de Ops, para
-        las sesiones del panel dice el servidor y no el equipo de la persona: el navegador con el que
-        entró no queda registrado en ninguna parte.
+        La IP y el navegador son los de la máquina desde la que se pidió cada token. Una sesión con
+        varias renovaciones puede mostrar más de uno: es la misma persona cambiando de red o de
+        equipo. Donde diga «el servidor de Ops», la API no recibió el origen del navegador.
       </p>
     </section>
   )

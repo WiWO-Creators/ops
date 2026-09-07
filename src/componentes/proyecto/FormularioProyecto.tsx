@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useAccionPresencia } from '@/componentes/auditoria/accion'
 import { CerrarDialogo, ContenidoDialogo, Dialogo } from '@/componentes/superposiciones/Dialogo'
 import { Boton } from '@/componentes/formularios/Boton'
 import { Campo } from '@/componentes/formularios/Campo'
@@ -35,6 +36,10 @@ interface PropsFormularioProyecto {
 }
 
 export function FormularioProyecto ({ destino, clientes, estados, onCerrar, onGuardado }: PropsFormularioProyecto) {
+  // Antes del `return null` de abajo: un hook que se saltea segun la prop cambia el orden de hooks
+  // entre renders. Editar un Espacio no esta en el catalogo de acciones, asi que solo cuenta el alta.
+  useAccionPresencia('creando_espacio', destino === 'nuevo')
+
   if (destino === null) return null
 
   const esAlta = destino === 'nuevo'

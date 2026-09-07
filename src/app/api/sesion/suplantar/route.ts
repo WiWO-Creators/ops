@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { llamarApiTipado } from '@/datos/api'
 import { ErrorApi } from '@/datos/errores'
+import { cabecerasDeOrigen } from '@/datos/origen'
 import {
   borrarSuplantador,
   guardarSesion,
@@ -66,7 +67,10 @@ export async function POST (peticion: NextRequest): Promise<NextResponse> {
     const { data } = await llamarApiTipado<ParDeTokensConStaff>('/impersonate', {
       metodo: 'POST',
       token: sesion.acceso,
-      cuerpo: { staff_id: staffId }
+      cuerpo: { staff_id: staffId },
+      // Suplantar emite una sesion nueva: sin el origen, la fila mas delicada de la auditoria
+      // —la que dice "esta abierta por otra persona"— seria la unica sin maquina.
+      cabeceras: cabecerasDeOrigen(peticion.headers)
     })
 
     // La real primero: si el proceso se cortara entre las dos escrituras, es preferible tener la

@@ -3,6 +3,7 @@
 import { useRouter } from 'next/navigation'
 import { useMemo, useState, type FormEvent, type ReactElement } from 'react'
 import { Boton } from '@/componentes/formularios/Boton'
+import { useAccionPresencia } from '@/componentes/auditoria/accion'
 import { Campo } from '@/componentes/formularios/Campo'
 import { AreaTexto, Entrada } from '@/componentes/formularios/Entrada'
 import { Segmentado } from '@/componentes/formularios/Segmentado'
@@ -112,6 +113,8 @@ interface CamposManuales {
 export function AltaRapidaProceso ({ catalogos, etiquetas, conIa }: PropsAltaRapida): ReactElement {
   const router = useRouter()
   const [abierto, setAbierto] = useState(false)
+
+  useAccionPresencia('creando_tarea', abierto)
   const [modo, setModo] = useState<Modo>('linea')
   const [texto, setTexto] = useState('')
   const [enCurso, setEnCurso] = useState(false)

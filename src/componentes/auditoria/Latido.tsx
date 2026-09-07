@@ -2,6 +2,7 @@
 
 import { usePathname } from 'next/navigation'
 import { useEffect } from 'react'
+import { accionEnCurso, escucharAccion } from './accion'
 
 /**
  * Le cuenta al servidor en qué pantalla del panel está parada esta persona.
@@ -12,14 +13,16 @@ import { useEffect } from 'react'
  *
  * === QUÉ MANDA: la ruta, y nada más ===
  *
- * `usePathname()` y punto. Sin query string —`/procesos?q=sueldos` diría qué buscó alguien, que es
- * contenido y no ubicación—, sin título de pantalla, sin nada tecleado. El servidor además valida la
- * ruta contra una expresión y rechaza cualquier otra cosa, así que este componente no es la única
- * barrera: es la primera. La frase legible ("viendo el espacio DELCO") la arma el servidor al leer.
+ * La ruta de `usePathname()` y, si hay un diálogo abierto, cuál de un catálogo cerrado de cinco
+ * (`accion.ts`). Sin query string —`/procesos?q=sueldos` diría qué buscó alguien, que es contenido y
+ * no ubicación—, sin título de pantalla, sin nada tecleado. El servidor además valida las dos cosas
+ * y rechaza cualquier otra, así que este componente no es la única barrera: es la primera. La frase
+ * legible ("creando una tarea", "viendo el espacio DELCO") la arma el servidor al leer.
  *
  * === CUÁNDO LATE ===
  *
- * Al montar, en cada cambio de ruta, y cada `segundos` mientras la pestaña esté **visible**. Con la
+ * Al montar, en cada cambio de ruta, al abrirse o cerrarse un diálogo, y cada `segundos` mientras
+ * la pestaña esté **visible**. Con la
  * pestaña oculta no late: una pestaña olvidada en otro escritorio no es alguien trabajando, y decir
  * que sí es justamente el dato falso que esta pantalla no puede permitirse. Al volver a primer plano
  * late en el acto, para no esperar un intervalo entero antes de reaparecer.
@@ -46,7 +49,7 @@ export function Latido ({ segundos }: { segundos: number }) {
       void fetch('/api/bff/presence', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ route: normalizada }),
+        body: JSON.stringify({ route: normalizada, action: accionEnCurso() }),
         signal: control.signal
       }).catch(() => {
         // Un latido perdido no le importa a nadie: el siguiente lo corrige, y la ventana del
@@ -57,10 +60,12 @@ export function Latido ({ segundos }: { segundos: number }) {
     latir()
 
     const intervalo = globalThis.setInterval(latir, segundos * 1000)
+    const dejarDeEscuchar = escucharAccion(latir)
     document.addEventListener('visibilitychange', latir)
 
     return () => {
       globalThis.clearInterval(intervalo)
+      dejarDeEscuchar()
       document.removeEventListener('visibilitychange', latir)
       control.abort()
     }

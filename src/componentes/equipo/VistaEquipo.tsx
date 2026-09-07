@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { useMemo, useState, type ReactElement } from 'react'
 import { useRouter } from 'next/navigation'
+import { useAccionPresencia } from '@/componentes/auditoria/accion'
 import { TablaRecurso } from '@/componentes/datos/TablaRecurso'
 import { Boton } from '@/componentes/formularios/Boton'
 import { Avatar } from '@/componentes/presentadores/Avatar'
@@ -47,6 +48,9 @@ export function VistaEquipo ({
   const conRol = modeloDePermisos === 'viejo'
   const router = useRouter()
   const [creando, setCreando] = useState(false)
+
+  useAccionPresencia('creando_persona', creando)
+
 
   // Memoizados los dos: `TablaRecurso` usa la definicion como dependencia de sus efectos, y una
   // definicion nueva en cada render volveria a pedir la pagina en bucle.

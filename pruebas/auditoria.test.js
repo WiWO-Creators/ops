@@ -1,7 +1,8 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 
-import { agruparSesiones, haceCuanto } from '../src/componentes/auditoria/presentacion.ts'
+import { accionEnCurso, apilar, desapilar, escucharAccion } from '../src/componentes/auditoria/accion.ts'
+import { agruparSesiones, dispositivo, haceCuanto } from '../src/componentes/auditoria/presentacion.ts'
 import { intervaloDeLatido, TIPOS_AUDITORIA } from '../src/datos/auditoria.ts'
 import { AUDITORIA } from '../src/definiciones/auditoria.ts'
 
@@ -75,7 +76,7 @@ test('los origenes distintos se juntan sin repetirse', () => {
     sesion(3, 183, '2026-09-07T12:00:00Z', '2026-09-07T12:10:00Z', { ip: '10.0.0.9' })
   ])
 
-  assert.deepEqual(filas[0].origenes, ['10.0.0.1 · node', '10.0.0.9 · node'])
+  assert.deepEqual(filas[0].origenes, ['10.0.0.1 · el servidor de Ops', '10.0.0.9 · el servidor de Ops'])
 })
 
 test('una sesion sin fechas no rompe el agrupado ni el orden', () => {
@@ -158,4 +159,117 @@ test('la definicion del historial no pide un orden que la API no acepta', () => 
 
   const porDefecto = String(AUDITORIA.ordenPorDefecto).replace('-', '')
   assert.ok(AUDITORIA.ordenables.includes(porDefecto))
+})
+
+// === El dispositivo, legible ======================================================================
+
+test('el user agent se lee como navegador y sistema, no como 200 caracteres', () => {
+  const chrome = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36'
+
+  assert.equal(dispositivo(chrome), 'Chrome en Windows')
+})
+
+test('los navegadores que mienten se detectan en el orden correcto', () => {
+  // Cada uno de estos dice ser Chrome, o Safari, o los dos. Si el orden se reordena, todos son Safari.
+  const casos = [
+    ['Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36 Edg/141.0.0.0', 'Edge en Windows'],
+    ['Mozilla/5.0 (Windows NT 10.0) AppleWebKit/537.36 Chrome/120 Safari/537.36 OPR/106.0.0.0', 'Opera en Windows'],
+    ['Mozilla/5.0 (Linux; Android 14; SM-S911B) AppleWebKit/537.36 (KHTML, like Gecko) SamsungBrowser/23.0 Chrome/115.0.0.0 Mobile Safari/537.36', 'Samsung Internet en Android'],
+    ['Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15', 'Safari en macOS'],
+    ['Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1', 'Safari en iPhone'],
+    ['Mozilla/5.0 (X11; Linux x86_64; rv:130.0) Gecko/20100101 Firefox/130.0', 'Firefox en Linux'],
+    ['Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/141.0.0.0 Safari/537.36', 'Chrome en Linux']
+  ]
+
+  for (const [agente, esperado] of casos) assert.equal(dispositivo(agente), esperado)
+})
+
+test('el user agent del servidor se dice con esas palabras, no se disfraza de navegador', () => {
+  // Es lo que llega cuando la API no recibio el origen del navegador. Traducirlo a "Chrome" seria
+  // exactamente la mentira que esta columna no puede contar.
+  assert.equal(dispositivo('node'), 'el servidor de Ops')
+})
+
+test('un user agent que no se reconoce no se pierde ni desborda la fila', () => {
+  assert.equal(dispositivo('curl/8.5.0'), 'curl/8.5.0')
+  assert.equal(dispositivo('x'.repeat(300)).length, 40)
+  assert.equal(dispositivo(null), null)
+  assert.equal(dispositivo('   '), null)
+})
+
+test('el origen de la sesion junta IP y dispositivo legible', () => {
+  const filas = agruparSesiones([
+    sesion(1, 183, '2026-09-07T10:00:00Z', '2026-09-07T10:10:00Z', {
+      ip: '190.44.1.1',
+      user_agent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36'
+    })
+  ])
+
+  assert.equal(filas[0].origenes[0], '190.44.1.1 · Chrome en Windows')
+})
+
+test('una sesion sin IP ni user agent no rompe el origen', () => {
+  const filas = agruparSesiones([
+    sesion(1, 183, '2026-09-07T10:00:00Z', '2026-09-07T10:10:00Z', { ip: null, user_agent: null })
+  ])
+
+  assert.equal(filas[0].origenes[0], 'sin IP')
+})
+
+// === Que esta haciendo cada persona ===============================================================
+
+test('sin ningun dialogo abierto no se manda accion', () => {
+  assert.equal(accionEnCurso(), null)
+})
+
+test('el dialogo abierto manda, y al cerrarse se vuelve a la ruta', () => {
+  apilar('creando_tarea')
+  assert.equal(accionEnCurso(), 'creando_tarea')
+
+  desapilar('creando_tarea')
+  assert.equal(accionEnCurso(), null)
+})
+
+test('con dialogos anidados, cerrar el de arriba deja el de abajo', () => {
+  // El caso real: editar una tarea desde adentro de otro formulario. Con una sola variable en vez de
+  // una pila, cerrar el de arriba diria que la persona no esta haciendo nada, con el otro en pantalla.
+  apilar('creando_espacio')
+  apilar('editando_tarea')
+
+  desapilar('editando_tarea')
+  assert.equal(accionEnCurso(), 'creando_espacio')
+
+  desapilar('creando_espacio')
+  assert.equal(accionEnCurso(), null)
+})
+
+test('dos dialogos del mismo tipo son dos entradas', () => {
+  apilar('editando_tarea')
+  apilar('editando_tarea')
+  desapilar('editando_tarea')
+
+  assert.equal(accionEnCurso(), 'editando_tarea')
+
+  desapilar('editando_tarea')
+  assert.equal(accionEnCurso(), null)
+})
+
+test('desapilar algo que no esta abierto no rompe nada', () => {
+  desapilar('creando_cliente')
+
+  assert.equal(accionEnCurso(), null)
+})
+
+test('el latido se entera en el acto de que la accion cambio', () => {
+  // Sin esto, abrir un dialogo tardaria hasta un intervalo entero (45 s) en verse en /auditoria.
+  let avisos = 0
+  const dejar = escucharAccion(() => { avisos++ })
+
+  apilar('creando_persona')
+  desapilar('creando_persona')
+  dejar()
+  apilar('creando_persona')
+  desapilar('creando_persona')
+
+  assert.equal(avisos, 2)
 })

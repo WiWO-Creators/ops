@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { llamarApiTipado } from '@/datos/api'
 import { ErrorApi } from '@/datos/errores'
+import { cabecerasDeOrigen } from '@/datos/origen'
 import { borrarSesion, borrarSuplantador, guardarSesion, leerSesion } from '@/datos/sesion'
 import { sesionDesdeTokens } from '@/datos/sobre-sesion'
 import {
@@ -17,6 +18,14 @@ import {
  * `POST` entra (con o sin segundo factor) y `DELETE` sale. En ningun caso el token viaja al
  * navegador: se cifra dentro de la cookie de sesion.
  */
+
+/**
+ * Las cabeceras que le dicen a la API de que maquina es quien entra (`datos/origen.ts`).
+ *
+ * Viajan por parametro y no se recalculan en cada rama: la peticion es una sola, y recalcularlas
+ * seria la forma de que una rama se olvide y esa sesion quede con la IP del servidor.
+ */
+type Cabeceras = Record<string, string>
 
 interface CuerpoEntrar {
   email?: unknown
@@ -56,6 +65,9 @@ export async function POST (peticion: NextRequest): Promise<NextResponse> {
   }
 
   const codigo = typeof cuerpo.code === 'string' ? cuerpo.code.trim() : ''
+  // Entrar es lo que CREA la fila de sesion que despues se lee en /auditoria: si el origen no viaja
+  // en esta llamada, la auditoria guarda la IP de este servidor y ya no hay donde recuperarla.
+  const origen = cabecerasDeOrigen(peticion.headers)
 
   try {
     // El canje va primero: es la unica rama que no tiene credenciales que mirar. Despues el portal,
@@ -64,14 +76,14 @@ export async function POST (peticion: NextRequest): Promise<NextResponse> {
     // contraseña, asi que tiene que decidirse antes que la rama de clave —que exige los dos campos y
     // rechazaria la peticion por vacia.
     const respuesta = typeof cuerpo.enlace === 'string'
-      ? await canjearEnlace(cuerpo)
+      ? await canjearEnlace(cuerpo, origen)
       : cuerpo.portal === true
-        ? await entrarAlPortal(cuerpo)
+        ? await entrarAlPortal(cuerpo, origen)
         : typeof cuerpo.google === 'string'
-          ? await entrarConGoogle(cuerpo.google)
+          ? await entrarConGoogle(cuerpo.google, origen)
           : codigo === ''
-            ? await entrarConClave(cuerpo)
-            : await entrarConCodigo(peticion, codigo)
+            ? await entrarConClave(cuerpo, origen)
+            : await entrarConCodigo(peticion, codigo, origen)
 
     return respuesta
   } catch (error) {
@@ -125,7 +137,7 @@ export async function DELETE (peticion: NextRequest): Promise<NextResponse> {
  * La API responde exactamente lo mismo que `/auth/portal/login`, asi que la sesion se guarda igual:
  * cookie del contacto, no la del equipo.
  */
-async function canjearEnlace (cuerpo: CuerpoEntrar): Promise<NextResponse> {
+async function canjearEnlace (cuerpo: CuerpoEntrar, origen: Cabeceras): Promise<NextResponse> {
   const enlace = typeof cuerpo.enlace === 'string' ? cuerpo.enlace.trim() : ''
   const password = typeof cuerpo.password === 'string' ? cuerpo.password : ''
 
@@ -135,7 +147,8 @@ async function canjearEnlace (cuerpo: CuerpoEntrar): Promise<NextResponse> {
 
   const { data } = await llamarApiTipado<ParDeTokensConContacto>('/auth/portal/access-link', {
     metodo: 'POST',
-    cuerpo: { token: enlace, password }
+    cuerpo: { token: enlace, password },
+    cabeceras: origen
   })
 
   await guardarSesion(sesionDesdeTokens(data, data.contact.id, 'contacto'))
@@ -150,7 +163,7 @@ async function canjearEnlace (cuerpo: CuerpoEntrar): Promise<NextResponse> {
  * la del panel, asi que alguien del equipo puede tener las dos sesiones abiertas a la vez sin que
  * una pise a la otra.
  */
-async function entrarAlPortal (cuerpo: CuerpoEntrar): Promise<NextResponse> {
+async function entrarAlPortal (cuerpo: CuerpoEntrar, origen: Cabeceras): Promise<NextResponse> {
   const email = typeof cuerpo.email === 'string' ? cuerpo.email.trim() : ''
   const password = typeof cuerpo.password === 'string' ? cuerpo.password : ''
 
@@ -160,7 +173,8 @@ async function entrarAlPortal (cuerpo: CuerpoEntrar): Promise<NextResponse> {
 
   const { data } = await llamarApiTipado<ParDeTokensConContacto>('/auth/portal/login', {
     metodo: 'POST',
-    cuerpo: { email, password }
+    cuerpo: { email, password },
+    cabeceras: origen
   })
 
   await guardarSesion(sesionDesdeTokens(data, data.contact.id, 'contacto'))
@@ -173,7 +187,7 @@ function contactoResumido (contacto: ContactoPortal): { verificado: boolean } {
   return { verificado: contacto.email_verified }
 }
 
-async function entrarConClave (cuerpo: CuerpoEntrar): Promise<NextResponse> {
+async function entrarConClave (cuerpo: CuerpoEntrar, origen: Cabeceras): Promise<NextResponse> {
   const email = typeof cuerpo.email === 'string' ? cuerpo.email.trim() : ''
   const password = typeof cuerpo.password === 'string' ? cuerpo.password : ''
 
@@ -183,7 +197,8 @@ async function entrarConClave (cuerpo: CuerpoEntrar): Promise<NextResponse> {
 
   const { data } = await llamarApiTipado<ParDeTokensConStaff | DesafioSegundoFactor>('/auth/login', {
     metodo: 'POST',
-    cuerpo: { email, password }
+    cuerpo: { email, password },
+    cabeceras: origen
   })
 
   return await abrirSesionDeStaff(data)
@@ -198,14 +213,15 @@ async function entrarConClave (cuerpo: CuerpoEntrar): Promise<NextResponse> {
  *
  * @param credential el ID token de Google. Se reenvia tal cual y no se registra en ningun lado.
  */
-async function entrarConGoogle (credential: string): Promise<NextResponse> {
+async function entrarConGoogle (credential: string, origen: Cabeceras): Promise<NextResponse> {
   if (credential.trim() === '') {
     return NextResponse.json({ mensaje: 'Falta la credencial de Google' }, { status: 400 })
   }
 
   const { data } = await llamarApiTipado<ParDeTokensConStaff | DesafioSegundoFactor>('/auth/google', {
     metodo: 'POST',
-    cuerpo: { credential }
+    cuerpo: { credential },
+    cabeceras: origen
   })
 
   return await abrirSesionDeStaff(data)
@@ -243,7 +259,7 @@ async function abrirSesionDeStaff (
   return NextResponse.json({ ok: true })
 }
 
-async function entrarConCodigo (peticion: NextRequest, codigo: string): Promise<NextResponse> {
+async function entrarConCodigo (peticion: NextRequest, codigo: string, origen: Cabeceras): Promise<NextResponse> {
   const desafio = peticion.cookies.get(COOKIE_DESAFIO)?.value
 
   if (desafio === undefined) {
@@ -255,7 +271,8 @@ async function entrarConCodigo (peticion: NextRequest, codigo: string): Promise<
 
   const { data } = await llamarApiTipado<ParDeTokensConStaff>('/auth/2fa', {
     metodo: 'POST',
-    cuerpo: { challenge_token: desafio, code: codigo }
+    cuerpo: { challenge_token: desafio, code: codigo },
+    cabeceras: origen
   })
 
   await guardarSesion(sesionDesdeTokens(data, data.staff.id, 'staff'))

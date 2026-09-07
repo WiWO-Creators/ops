@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { claveSesion, MARGEN_REFRESCO_SEGUNDOS } from '@/datos/config'
 import { refrescar } from '@/datos/refresco'
+import { cabecerasDeOrigen } from '@/datos/origen'
 import { nombreCookie, opcionesCookie } from '@/datos/sesion'
 import { abrir, porVencer, sellar, type Sujeto } from '@/datos/sobre-sesion'
 
@@ -42,7 +43,7 @@ export async function proxy (peticion: NextRequest): Promise<NextResponse> {
   }
 
   try {
-    const renovada = await refrescar(sesion)
+    const renovada = await refrescar(sesion, cabecerasDeOrigen(peticion.headers))
     const respuesta = NextResponse.next()
 
     respuesta.cookies.set(cookie, sellar(renovada, clave), opcionesCookie())

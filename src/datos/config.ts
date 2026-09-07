@@ -45,5 +45,19 @@ export function cabeceraToken (): 'authorization' | 'x-api-key' {
   return process.env.API_CABECERA_TOKEN === 'x-api-key' ? 'x-api-key' : 'authorization'
 }
 
+/**
+ * Secreto compartido con la API para que crea el origen que el BFF le reenvia.
+ *
+ * Opcional a proposito: sin ella el BFF no manda `X-Forwarded-For` ni el `User-Agent` del navegador,
+ * la API se queda con los datos de quien la llamo y la auditoria muestra el servidor de Ops. Es la
+ * unica variable de este archivo que no hace fallar el arranque, porque su ausencia no rompe nada:
+ * apaga una columna, no una pantalla. Ver `datos/origen.ts`.
+ */
+export function secretoProxy (): string | null {
+  const valor = process.env.PROXY_SECRETO?.trim() ?? ''
+
+  return valor === '' ? null : valor
+}
+
 /** Segundos antes del vencimiento en los que el proxy refresca por adelantado. */
 export const MARGEN_REFRESCO_SEGUNDOS = 60

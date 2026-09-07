@@ -1,6 +1,7 @@
 'use client'
 
 import { useMemo, useState, type FormEvent, type ReactElement } from 'react'
+import { useAccionPresencia } from '@/componentes/auditoria/accion'
 import { Boton } from '@/componentes/formularios/Boton'
 import { Campo } from '@/componentes/formularios/Campo'
 import { AreaTexto, Entrada } from '@/componentes/formularios/Entrada'
@@ -84,6 +85,9 @@ export function FormularioTarea (
   { proyectoId, prioridades, etiquetasDisponibles, conIa, onCreada }: PropsFormulario
 ): ReactElement {
   const [abierto, setAbierto] = useState(false)
+
+  useAccionPresencia('creando_tarea', abierto)
+
   const [nombre, setNombre] = useState('')
   const [prioridad, setPrioridad] = useState('2')
   const [inicio, setInicio] = useState('')
