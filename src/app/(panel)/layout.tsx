@@ -8,9 +8,8 @@ import { SelectorTema } from '@/componentes/estructura/SelectorTema'
 import { BarraLateral, BarraLateralMovil, type Seccion } from '@/componentes/estructura/BarraLateral'
 import { BarraSuplantacion } from '@/componentes/estructura/BarraSuplantacion'
 import { Logo } from '@/componentes/estructura/Logo'
-import { Avatar } from '@/componentes/presentadores/Avatar'
+import { MenuUsuario } from '@/componentes/estructura/MenuUsuario'
 import { ScrollSuave } from '@/componentes/estructura/ScrollSuave'
-import { BotonSalir } from './BotonSalir'
 
 /**
  * Armazon del panel.
@@ -58,8 +57,7 @@ export default async function PanelLayout ({ children }: { children: React.React
             </Link>
             <BarraLateralMovil secciones={secciones} />
             <SelectorTema className="ml-auto" />
-            <Avatar nombre={yo.full_name} imagen={yo.profile_image_url} />
-            <BotonSalir />
+            <MenuUsuario nombre={yo.full_name} imagen={yo.profile_image_url} />
           </header>
           {/* El unico contenedor de scroll vertical del armazon. `min-h-0` es lo que se lo permite:
               sin el, un hijo flex no baja de su altura de contenido y `overflow-y` no llega a actuar.
