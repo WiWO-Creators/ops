@@ -70,7 +70,16 @@ export function PanelChatIA ({ proyectoId }: { proyectoId: number }): ReactEleme
   )
 }
 
-function ChatDelProyecto ({ proyectoId }: { proyectoId: number }): ReactElement {
+/**
+ * El chat en si, sin envase: lo montan la pestaña y el orbe flotante.
+ *
+ * @param proyectoId el Espacio del que habla; el hilo es por (Espacio, persona)
+ * @param desplazable en el orbe el alto esta acotado, asi que la conversacion scrollea sola y el
+ *   campo queda fijo abajo. En la pestaña no: ahi scrollea la pagina entera.
+ */
+export function ChatDelProyecto (
+  { proyectoId, desplazable = false }: { proyectoId: number, desplazable?: boolean }
+): ReactElement {
   const params = useSearchParams()
   const [mensajes, setMensajes] = useState<Mensaje[]>(() => leerHilo(proyectoId).mensajes)
   const [carga, setCarga] = useState<'cargando' | 'listo' | 'error'>(
@@ -82,6 +91,7 @@ function ChatDelProyecto ({ proyectoId }: { proyectoId: number }): ReactElement 
   const [enviando, setEnviando] = useState(false)
   const [intento, setIntento] = useState(0)
   const enCurso = useRef<AbortController | null>(null)
+  const desplazador = useRef<HTMLDivElement>(null)
 
   /** Escribe el hilo en el store de modulo y en el estado local a la vez: una sola fuente. */
   const escribir = useCallback((siguientes: Mensaje[]) => {
@@ -117,6 +127,18 @@ function ChatDelProyecto ({ proyectoId }: { proyectoId: number }): ReactElement 
   useEffect(() => {
     return () => { enCurso.current?.abort() }
   }, [])
+
+  // Solo en el orbe: el alto esta acotado, asi que sin esto la respuesta crece fuera de la vista y
+  // hay que perseguirla con la rueda. En la pestaña scrollea la pagina y moverla seria arrebatarle
+  // el scroll a quien esta leyendo mas arriba.
+  useEffect(() => {
+    if (!desplazable) return
+
+    const caja = desplazador.current
+    if (caja === null) return
+
+    caja.scrollTop = caja.scrollHeight
+  }, [desplazable, mensajes])
 
   /**
    * Manda la pregunta y va escribiendo la respuesta en el hilo.
@@ -203,8 +225,8 @@ function ChatDelProyecto ({ proyectoId }: { proyectoId: number }): ReactElement 
     return <ErrorEstado detalle={errorCarga} onReintentar={() => { setCarga('cargando'); setIntento((n) => n + 1) }} />
   }
 
-  return (
-    <div className="flex flex-col gap-4">
+  const conversacion = (
+    <>
       {mensajes.length === 0
         ? (
           <Vacio
@@ -238,6 +260,14 @@ function ChatDelProyecto ({ proyectoId }: { proyectoId: number }): ReactElement 
             ))}
           </ol>
           )}
+    </>
+  )
+
+  return (
+    <div className={desplazable ? 'flex min-h-0 flex-1 flex-col gap-4' : 'flex flex-col gap-4'}>
+      {desplazable
+        ? <div ref={desplazador} className="min-h-0 flex-1 overflow-y-auto pr-1">{conversacion}</div>
+        : conversacion}
 
       <form
         className="flex flex-col gap-2"

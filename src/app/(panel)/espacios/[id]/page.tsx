@@ -5,6 +5,7 @@ import { PanelActividad } from '@/componentes/proyecto/PanelActividad'
 import { PanelConfiguracionEspacio } from '@/componentes/proyecto/PanelConfiguracionEspacio'
 import { PanelArchivos } from '@/componentes/proyecto/PanelArchivos'
 import { PanelChatIA } from '@/componentes/proyecto/PanelChatIA'
+import { OrbeChatIA } from '@/componentes/proyecto/OrbeChatIA'
 import { PanelDescripcion } from '@/componentes/proyecto/PanelDescripcion'
 import { PanelDiscusiones } from '@/componentes/proyecto/PanelDiscusiones'
 import { PanelGantt } from '@/componentes/proyecto/PanelGantt'
@@ -216,6 +217,10 @@ export default async function ProyectoPage (props: PageProps<'/espacios/[id]'>) 
       <Suspense fallback={<Cargando alto="min-h-36" mensaje="Cargando el detalle…" />}>
         <Pestanas paneles={paneles} />
       </Suspense>
+
+      {/* El mismo chat de la pestaña, al alcance desde cualquier otra: se esconde solo cuando la
+          pestaña de IA es la activa, que es cuando ya se esta viendo. */}
+      {conIa && <OrbeChatIA proyectoId={proyecto.id} />}
     </section>
   )
 }
