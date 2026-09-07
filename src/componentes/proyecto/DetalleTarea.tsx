@@ -14,6 +14,7 @@ import { cn } from '@/lib/clases'
 import type { EstadoLookup, Lookups, Proceso } from '@/datos/recursos'
 import type { Sobre } from '@/datos/tipos'
 import { Boton } from '@/componentes/formularios/Boton'
+import { escribirEnBff } from '@/componentes/datos/mutaciones'
 import { BloqueSla } from './BloqueSla'
 import { CompartirTarea } from './CompartirTarea'
 import { Cronometros } from './Cronometros'
@@ -40,6 +41,10 @@ interface PropsDetalleTarea {
   procesoId: number
   /** `true` si quien mira tiene `edit` sobre tareas. Solo decide si se ofrece pedir la aprobacion. */
   puedeEditar?: boolean
+  /** `true` si quien mira tiene `delete` sobre tareas. La API lo vuelve a exigir igual. */
+  puedeBorrar?: boolean
+  /** Se llama con la tarea ya borrada, para que quien monte el detalle lo cierre y recargue. */
+  onBorrada?: () => void
   className?: string
 }
 
@@ -50,10 +55,51 @@ type Carga =
   | { fase: 'noEncontrada' }
   | { fase: 'error', mensaje: string }
 
-export function DetalleTarea ({ procesoId, puedeEditar = false, className }: PropsDetalleTarea): ReactElement {
+export function DetalleTarea (
+  { procesoId, puedeEditar = false, puedeBorrar = false, onBorrada, className }: PropsDetalleTarea
+): ReactElement {
   const [carga, setCarga] = useState<Carga>({ fase: 'cargando' })
   const [intento, setIntento] = useState(0)
   const [editando, setEditando] = useState(false)
+  const [confirmandoBorrado, setConfirmandoBorrado] = useState(false)
+  const [borrando, setBorrando] = useState(false)
+  const [errorBorrado, setErrorBorrado] = useState<string | null>(null)
+
+  /**
+   * Borra la tarea.
+   *
+   * Va por `POST /tasks/bulk` con un solo id porque es el unico borrado que la API expone para
+   * Procesos: no hay `DELETE /tasks/{id}`. Mandar uno por la via de muchos no es un atajo, es la
+   * misma ruta que ya exige `tasks.delete` y que ya deja la fila en el registro de actividad.
+   *
+   * El borrado es fisico y se lleva por delante asignados, seguidores, comentarios, checklist,
+   * cronometros y etiquetas. Por eso confirma en dos pasos y lo dice antes, no despues.
+   */
+  async function borrar (): Promise<void> {
+    setBorrando(true)
+    setErrorBorrado(null)
+
+    const resultado = await escribirEnBff<{ aplicados: number }>(
+      'tasks/bulk', 'POST', { accion: 'delete', ids: [procesoId] }
+    )
+
+    setBorrando(false)
+
+    if (!resultado.ok) {
+      setErrorBorrado(resultado.mensaje)
+      return
+    }
+
+    // `aplicados: 0` es el caso en que la API acepto el pedido pero no borro nada —la tarea dejo de
+    // ser visible entre medio—. Cerrar como si hubiera funcionado dejaria la tarea en la lista.
+    if (resultado.datos?.aplicados !== 1) {
+      setErrorBorrado('No se pudo borrar: puede que ya no tengas acceso a esta tarea.')
+      return
+    }
+
+    setConfirmandoBorrado(false)
+    onBorrada?.()
+  }
 
   // Vuelve a la fase de carga antes de pedir: si no, el reintento deja el cartel viejo en pantalla
   // mientras la peticion nueva viaja.
@@ -122,7 +168,50 @@ export function DetalleTarea ({ procesoId, puedeEditar = false, className }: Pro
                 Editar
               </Boton>
             )}
+
+            {/* Borrar vive en el detalle y no en la fila del listado: es irreversible, y la decision
+                se toma mirando la tarea, no un renglon de una tabla. Sin `puedeEditar` toma el
+                `ml-auto` para quedar igual de alineado. */}
+            {puedeBorrar && !confirmandoBorrado && (
+              <Boton
+                variante="sutil"
+                tamano="chico"
+                className={puedeEditar ? undefined : 'ml-auto'}
+                onClick={() => { setConfirmandoBorrado(true); setErrorBorrado(null) }}
+              >
+                Eliminar
+              </Boton>
+            )}
           </div>
+
+          {/* Confirmacion en la misma ficha y no en otro dialogo: este detalle YA vive dentro de un
+              modal, y un `Dialog` sobre otro deja los dos peleando por el foco. */}
+          {puedeBorrar && confirmandoBorrado && (
+            <div className="border-linea flex flex-col gap-2 border-t pt-2">
+              <p className="text-texto-sutil text-xs">
+                Se elimina esta {GLOSARIO.proceso.singular.toLowerCase()} y con ella sus comentarios,
+                checklist, tiempo registrado, asignados y seguidores. No se puede deshacer.
+              </p>
+
+              {errorBorrado !== null && (
+                <p role="alert" className="text-texto-peligro text-xs">{errorBorrado}</p>
+              )}
+
+              <div className="flex justify-end gap-2">
+                <Boton variante="sutil" tamano="chico" onClick={() => setConfirmandoBorrado(false)}>
+                  Cancelar
+                </Boton>
+                <Boton
+                  variante="peligro"
+                  tamano="chico"
+                  cargando={borrando}
+                  onClick={() => { void borrar() }}
+                >
+                  Eliminar
+                </Boton>
+              </div>
+            </div>
+          )}
         </header>
 
         {/* Montado solo mientras se edita: asi el formulario arranca siempre en los valores que se
