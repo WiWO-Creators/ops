@@ -162,13 +162,61 @@ export function enlaceSinMarcado (texto: string): string {
 }
 
 /**
+ * Un campo personalizado listo para pintarse en una ficha, en modo lectura.
+ *
+ * `texto` es lo que se muestra y `enlace` lo que se puede abrir: separarlos evita que la pantalla
+ * tenga que volver a preguntar el `type` para decidir entre un `<a>` y un texto llano.
+ */
+export interface CampoLegible {
+  id: number
+  nombre: string
+  texto: string
+  /** La URL, solo cuando el campo es un `link` que un navegador puede abrir. `null` en el resto. */
+  enlace: string | null
+}
+
+/**
+ * Los campos personalizados de una entidad, listos para la ficha.
+ *
+ * **No se ordena aca**: `include=custom_fields` ya devuelve las filas en `field_order`, que es el
+ * mismo orden en que el formulario las pinta. Reordenar por nombre daria dos ordenes distintos para
+ * la misma Tarea segun se la mire o se la edite.
+ *
+ * Los vacios se descartan: la API devuelve una fila por cada valor guardado, y el panel viejo dejo
+ * filas con la cadena vacia. Pintarlas llenaria la ficha de renglones con un guion.
+ *
+ * @param valores lo que trajo `include=custom_fields`
+ * @returns un elemento por campo con algo cargado, en el orden en que llegaron
+ */
+export function camposLegibles (valores: ValorCampoPersonalizado[]): CampoLegible[] {
+  const legibles: CampoLegible[] = []
+
+  for (const valor of valores) {
+    const crudo = Array.isArray(valor.value) ? valor.value.join(', ') : valor.value ?? ''
+    // El panel viejo guarda los `link` como marcado; `enlaceSinMarcado()` explica por que.
+    const texto = (valor.type === 'link' ? enlaceSinMarcado(crudo) : crudo).trim()
+
+    if (texto === '') continue
+
+    legibles.push({
+      id: valor.id,
+      nombre: valor.name,
+      texto,
+      enlace: valor.type === 'link' && esEnlaceValido(texto) ? texto : null
+    })
+  }
+
+  return legibles
+}
+
+/**
  * Estado inicial del formulario a partir de los valores que trajo la API.
  *
  * Un campo sin fila en `customfieldsvalues` no viene en la lista: queda con su valor vacio, no con
  * `undefined`, para que el control sea controlado desde el primer render.
  *
  * @param definiciones las definiciones vigentes
- * @param valores lo que trajo `include=custom_fields`, o el `PATCH` de lectura
+ * @param valores lo que trajo `include=custom_fields`
  * @returns los valores del formulario, con una entrada por definicion
  */
 export function valoresIniciales (
@@ -430,32 +478,4 @@ function paraApi (
   const texto = valor.trim()
 
   return definicion.type === 'date_picker_time' ? fechaHoraParaApi(texto) : texto
-}
-
-/**
- * Cuerpo del `PATCH` que **no escribe nada** y devuelve los valores vigentes de una entidad.
- *
- * Es un rodeo y esta documentado como tal: la API no expone ninguna lectura de los valores de una
- * Tarea. `GET /tasks/{id}` no honra `include=custom_fields` —`RecursoProcesos::ver()` fija los
- * includes en `['description']`— y solo el listado los trae, que no sirve para una fila sola.
- *
- * `CampoPersonalizado::guardarValores()` con `values` vacio no entra a la transaccion ni anota
- * actividad, y devuelve el conjunto completo de valores. Autoriza lo mismo que editar la entidad,
- * que es exactamente el permiso que ya hace falta para abrir el formulario.
- *
- * @param para la entidad del contrato
- * @param relId el id de la entidad
- */
-export function lecturaDeCamposPersonalizados (
-  para: string,
-  relId: number
-): ParcheCamposPersonalizados {
-  return { for: para, rel_id: relId, values: {} }
-}
-
-/** Lo que devuelve `PATCH /custom-fields/values`. */
-export interface RespuestaCamposPersonalizados {
-  for: string
-  rel_id: number
-  values: ValorCampoPersonalizado[]
 }

@@ -9,6 +9,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
   alternarOpcion,
+  camposLegibles,
   camposOrdenados,
   cuerpoDeCamposPersonalizados,
   enlaceSinMarcado,
@@ -17,7 +18,6 @@ import {
   esquemaDeCamposPersonalizados,
   fechaHoraParaApi,
   fechaHoraParaControl,
-  lecturaDeCamposPersonalizados,
   valoresIniciales,
   valoresPorDefecto
 } from '../src/dominio/campos-personalizados.ts'
@@ -246,10 +246,37 @@ test('la fecha con hora vuelve al control sin cambiar de zona', () => {
   assert.equal(fechaHoraParaControl('no es una fecha'), '')
 })
 
-test('el cuerpo de lectura no escribe nada', () => {
-  assert.deepEqual(lecturaDeCamposPersonalizados('tasks', 512), {
-    for: 'tasks',
-    rel_id: 512,
-    values: {}
-  })
+test('la ficha lee el area como lista y el enlace heredado como URL limpia', () => {
+  const leidos = camposLegibles([
+    { id: 3, slug: 'tasks_area', name: 'Área de la compañía', type: 'multiselect', value: ['TechLab', 'Digital Creators'] },
+    { id: 7, slug: 'tasks_drive', name: 'Link de Drive', type: 'link', value: '<a href="https://drive.google.com/d/1" target="_blank">Carpeta</a>' }
+  ])
+
+  assert.deepEqual(leidos, [
+    { id: 3, nombre: 'Área de la compañía', texto: 'TechLab, Digital Creators', enlace: null },
+    { id: 7, nombre: 'Link de Drive', texto: 'https://drive.google.com/d/1', enlace: 'https://drive.google.com/d/1' }
+  ])
+})
+
+test('la ficha no pinta filas vacias ni convierte en enlace lo que no se puede abrir', () => {
+  const leidos = camposLegibles([
+    { id: 1, slug: 'tasks_vacio', name: 'Vacío', type: 'input', value: '' },
+    { id: 2, slug: 'tasks_nulo', name: 'Nulo', type: 'input', value: null },
+    { id: 3, slug: 'tasks_area', name: 'Área', type: 'multiselect', value: [] },
+    { id: 4, slug: 'tasks_espacios', name: 'Espacios', type: 'textarea', value: '   ' },
+    { id: 5, slug: 'tasks_drive', name: 'Link de Drive', type: 'link', value: 'javascript:alert(1)' }
+  ])
+
+  assert.deepEqual(leidos, [
+    { id: 5, nombre: 'Link de Drive', texto: 'javascript:alert(1)', enlace: null }
+  ])
+})
+
+test('la ficha respeta el orden en que la API devolvio los campos', () => {
+  const leidos = camposLegibles([
+    { id: 9, slug: 'tasks_b', name: 'B', type: 'input', value: 'segundo por nombre' },
+    { id: 1, slug: 'tasks_a', name: 'A', type: 'input', value: 'primero por nombre' }
+  ])
+
+  assert.deepEqual(leidos.map((campo) => campo.nombre), ['B', 'A'])
 })

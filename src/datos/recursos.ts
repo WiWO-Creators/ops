@@ -84,7 +84,8 @@ export interface Proceso {
   approval?: AprobacionProceso
   /** Solo en el detalle o con `include=description`. */
   description?: string
-  custom_fields?: CampoPersonalizado[]
+  /** Solo con `include=custom_fields`, tanto en el listado como en la ficha. */
+  custom_fields?: ValorCampoPersonalizado[]
 }
 
 /** Estado del compromiso de plazo. `null` cuando no hay con que compararlo. */
@@ -588,8 +589,9 @@ export interface ConfiguracionTiposEspacio {
 /**
  * Valor de un campo personalizado tal como viaja en `include=custom_fields`.
  *
- * `value` puede ser una lista: un `multiselect` devuelve array, no cadena. `CampoPersonalizado` lo
- * declara solo como cadena, y ensanchar aquel tipo obligaria a tocar codigo de otros frentes.
+ * `value` puede ser una lista: un `multiselect` devuelve array, no cadena. `CampoPersonalizado`
+ * —que declara `value` solo como cadena— quedo para las entidades cuyo listado todavia no distingue
+ * los multivalor; un Proceso si los distingue y usa este.
  */
 export interface ValorCampoPersonalizado extends Omit<CampoPersonalizado, 'value'> {
   value: string | string[] | null
@@ -620,10 +622,9 @@ export interface DefinicionCampoPersonalizado {
  * Son opcionales porque el backend los esta agregando: mientras no lleguen, la columna muestra un
  * guion en vez de romper la tabla.
  */
-export interface ProcesoAmpliado extends Omit<Proceso, 'custom_fields'> {
+export interface ProcesoAmpliado extends Proceso {
   task_type?: TipoTarea | null
   counts: Proceso['counts'] & { iterations?: number }
-  custom_fields?: ValorCampoPersonalizado[]
 }
 
 /**
