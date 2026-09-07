@@ -42,21 +42,21 @@ export function BarraProgreso ({ porcentaje, className }: PropsBarraProgreso) {
 }
 
 /**
- * Los dos estados de `project_statuses` que la cabecera pinta con la paleta del sistema.
+ * Los estados de `project_statuses` que la cabecera pinta con la paleta del sistema.
  *
  * El resto conserva el color que traiga el catalogo: son estados que el panel puede crear y renombrar,
- * y ninguna paleta fija podria seguirles el ritmo. Estos dos no —son los extremos del ciclo de un
- * espacio— y son los que hay que leer sin leer.
+ * y ninguna paleta fija podria seguirles el ritmo. Estos si —marcan si el espacio avanza o esta
+ * frenado— y son los que hay que leer sin leer.
  */
 const ESTADO_EN_DESARROLLO = 2
-const ESTADO_TERMINADO = 4
+const ESTADOS_DETENIDOS = [3, 5]
 
 /**
  * Resuelve como se pinta la pildora de estado de la cabecera.
  *
- * Terminado va en verde y quieto: es una noticia, no una tarea. En desarrollo va en rojo y latiendo,
- * porque es el unico estado que pide algo de alguien. Cualquier otro cae al color del catalogo, que
- * la `Insignia` dibuja como punto y no como fondo.
+ * En desarrollo va en verde y latiendo: es el espacio que esta vivo y el unico que pide algo de
+ * alguien. En pausa y cancelado van en rojo y quietos, porque son la noticia contraria. Cualquier
+ * otro cae al color del catalogo, que la `Insignia` dibuja como punto y no como fondo.
  *
  * @param status id de `project_statuses` que trae el proyecto
  * @param color color del catalogo para ese estado, o `null` si no lo tiene
@@ -67,8 +67,8 @@ function pildoraDeEstado (status: number, color: string | null): {
   color?: string | null
   late?: boolean
 } {
-  if (status === ESTADO_TERMINADO) return { tono: 'exito' }
-  if (status === ESTADO_EN_DESARROLLO) return { tono: 'peligro', late: true }
+  if (status === ESTADO_EN_DESARROLLO) return { tono: 'exito', late: true }
+  if (ESTADOS_DETENIDOS.includes(status)) return { tono: 'peligro' }
 
   return { color }
 }
