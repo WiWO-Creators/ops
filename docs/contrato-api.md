@@ -2962,7 +2962,7 @@ y **ninguna fila enlaza a una entidad**: no hay ficha que abrir.
 
 | Parametro | Valores | Nota |
 |---|---|---|
-| `filter[type]` | `api`, `email`, `login`, `login_fallido`, `denegado`, `cron`, `otro` | lista por comas; un tipo desconocido es `422`, no cero filas en silencio |
+| `filter[type]` | `suplantacion`, `portal`, `login`, `login_fallido`, `api`, `email`, `denegado`, `cron`, `otro` | lista por comas; un tipo desconocido es `422`, no cero filas en silencio |
 | `filter[actor]` | nombre exacto tal como esta escrito | lista por comas |
 | `filter[date_from]` / `filter[date_to]` | `YYYY-MM-DD` | compara contra `date`, que es `datetime`: `date_to` corta a las 00:00 de ese dia |
 | `q` | texto libre | sobre `description` |
@@ -2973,6 +2973,20 @@ y **ninguna fila enlaza a una entidad**: no hay ficha que abrir.
 
 **El tipo se deriva del texto** porque la tabla no tiene columna de tipo. La misma expresion arma
 la columna y el filtro, asi que no pueden divergir.
+
+**Los tipos se evaluan en orden y las cuatro primeras ramas van antes que `api`.** Cuando la lista
+se escribio, los unicos accesos de la base eran los del panel de Perfex (texto en ingles); desde que
+ops-v2 entra por la API, cada acceso lleva el prefijo `[API] ` y caia todo en `api`. Hoy:
+
+| Tipo | Que agrupa |
+|---|---|
+| `suplantacion` | `POST /impersonate`: alguien abrio una sesion como otra persona |
+| `portal` | entradas y fallos del portal del cliente (contactos, no equipo) |
+| `login` | accesos correctos, por la API y por el panel |
+| `login_fallido` | intentos fallidos, por la API y por el panel |
+| `api` | el resto de las acciones que anota Ops |
+
+Ningun tipo se renombro: `filter[type]=api` sigue existiendo y ahora devuelve solo acciones.
 
 #### Respuesta `200`
 
@@ -3004,6 +3018,135 @@ dos `GROUP BY` sobre la tabla entera, y el listado se pide en cada cambio de pag
 
 Los conteos son parte del dato: dicen que `api` es ruido que genera Ops al llamarse a si mismo y
 que conviene filtrarlo.
+
+---
+
+### `POST|DELETE /presence` y `GET /presence` — quien esta conectado y en que pantalla
+
+Presencia en vivo del equipo, en `tblwiwo_presencia` (migracion 0210). **Una fila por persona**: el
+latido hace UPSERT, no historial. El historial ya es `tblactivity_log` y no se duplica.
+
+**Escribir lo puede cualquiera del equipo; leer, solo superadministracion.** Latir es contar donde
+esta uno; leer es mirar donde esta todo el mundo. Exigir superadmin para el `POST` dejaria la lista
+con una sola persona; no exigirlo para el `GET` convertiria esto en un localizador de companeros.
+
+#### `POST /presence` — el latido
+
+```json
+{ "route": "/espacios/42", "action": "creando_tarea" }
+```
+
+| Campo | Obligatorio | Valores |
+|---|---|---|
+| `route` | si | ruta del panel; tiene que calzar con `^/[a-z0-9/_-]*$` y medir 255 o menos |
+| `action` | no | `creando_tarea`, `editando_tarea`, `creando_espacio`, `creando_cliente`, `creando_persona` |
+
+**No acepta texto libre, a proposito.** Una ruta con query string, mayusculas o espacios es `422`, y
+una accion fuera del catalogo tambien. La frase legible la arma el servidor al LEER, resolviendo los
+nombres de Espacio, Cliente y persona contra la base: el navegador no escribe una sola palabra de lo
+que despues se muestra. Es la unica forma de que esto vigile trabajo y no contenido.
+
+El autor sale del token: nadie puede latir por otro. Responde `204`. No anota en `tblactivity_log`
+—un latido cada 45 s por persona ahogaria la tabla que sirve la auditoria—.
+
+#### `DELETE /presence`
+
+Borra el rastro de quien mira. Idempotente, `204`. Lo llama tambien `POST /auth/logout`: quien se
+fue deja de aparecer trabajando en el acto y no cuando vence la ventana.
+
+#### `GET /presence` — ahora mismo
+
+`?window=<segundos>` acota que cuenta como "ahora"; por defecto 150 (tres latidos), maximo 3600.
+
+```json
+{
+  "data": [
+    { "staff": { "id": 183, "full_name": "Dev Prueba", "profile_image_url": "..." },
+      "activity": "creando una tarea", "location": "viendo el espacio DELCO",
+      "route": "/espacios/9", "action": "creando_tarea",
+      "last_seen": "2026-09-07T19:12:51Z", "seconds_ago": 12, "ip": "10.89.0.12",
+      "impersonated_by": null }
+  ],
+  "meta": { "window_seconds": 150, "total": 1 }
+}
+```
+
+`activity` es la accion si hay una en curso y el lugar si no; `location` es siempre el lugar, para
+que la pantalla pueda mostrar las dos cosas sin que el servidor decida como se pegan. Una ruta que
+el mapa de frases no conoce se devuelve como `en /loquesea`: fea a proposito, y cierta.
+`impersonated_by` no es `null` cuando esa sesion la abrio otra persona.
+
+---
+
+### `GET /sessions` — sesiones e ingresos
+
+`tblapi_tokens`, **solo superadministracion**, solo lectura. Cerrar la sesion de otro no esta: es
+una accion destructiva sobre la cuenta de un tercero y merece su propia decision.
+
+**Una fila es un token de acceso, no una jornada.** `POST /auth/refresh` revoca el par viejo y emite
+uno nuevo cada hora, y no hay forma de distinguir en la tabla un login nuevo de una renovacion: las
+dos insertan un par identico. Por eso el filtro por defecto son las vigentes, que si contestan una
+pregunta exacta. La pantalla de ops-v2 las agrupa por persona.
+
+| Parametro | Valores | Nota |
+|---|---|---|
+| `active` | `1` (defecto) / `0` | `0` trae tambien las vencidas y revocadas. No es `filter[...]` porque no es una columna |
+| `filter[staff_id]` | ids | lista por comas |
+| `filter[date_from]` / `filter[date_to]` | `YYYY-MM-DD` | sobre `creado_en` |
+| `q` | texto | sobre `ip` y `user_agent` |
+| `sort` | `created`, `used`, `id` | por defecto `-created` |
+| `page` / `per_page` | enteros | defecto 25, maximo 500 |
+
+```json
+{
+  "data": [
+    { "id": 2996, "staff": { "id": 183, "full_name": "Dev Prueba", "profile_image_url": null },
+      "started_at": "2026-09-07T22:12:51Z", "last_used_at": "2026-09-07T22:12:57Z",
+      "expires_at": "2026-09-07T23:12:51Z", "revoked_at": null, "active": true,
+      "ip": "10.89.0.12", "user_agent": "node", "impersonated_by": null }
+  ],
+  "meta": { "pagination": { "page": 1, "per_page": 25, "total": 22, "total_pages": 1 } }
+}
+```
+
+**`ip` y `user_agent` son los de quien llamo a la API, no los del navegador.** Los escribe
+`Tokens::emitir()` con `REMOTE_ADDR` y `HTTP_USER_AGENT` de la peticion que pidio el token, y ops-v2
+llama a esta API desde su servidor —para eso existe el BFF—, asi que para toda sesion del panel
+dicen el servidor de Ops (`user_agent` literalmente `node`). El navegador con el que entro cada
+persona **no se registra en ninguna parte**; para tenerlo, el BFF tendria que reenviar
+`X-Forwarded-For` y el `User-Agent`, y `Credenciales::ip()` leerlos.
+
+`staff` es `null` si la cuenta ya no existe. `impersonated_by` no es `null` cuando la sesion la
+abrio otra persona por `POST /impersonate`.
+
+### `GET /sessions/impersonations` — suplantaciones vivas
+
+Quien esta usando el panel ahora mismo con la cuenta de otra persona. Alimenta el aviso destacado de
+`/auditoria`.
+
+```json
+{
+  "data": [
+    { "session_id": 3000,
+      "admin":  { "id": 183, "full_name": "Dev Prueba", "profile_image_url": null },
+      "target": { "id": 182, "full_name": "API Prueba", "profile_image_url": null },
+      "started_at": "2026-09-07T22:13:27Z", "expires_at": "2026-09-07T23:13:27Z",
+      "ip": "10.89.0.151" }
+  ],
+  "meta": { "total": 1 }
+}
+```
+
+**Por que existe la columna `tblapi_tokens.suplantado_por` (migracion 0210).** `POST /impersonate`
+anota una linea en `tblactivity_log` al emitir la sesion, y esa linea alcanza para saber que la
+suplantacion EMPEZO. No alcanza para saber si sigue viva: no hay evento de fin —nadie lo emite al
+cerrar la pestaña— y la sesion termina sola cuando el token vence o se revoca. Con la marca en la
+fila del token, "hay alguien siendo suplantado ahora" es una consulta directa y el aviso se apaga
+solo. La marca **viaja al par nuevo en cada rotacion del refresco**: sin eso, el aviso se apagaria a
+la hora con la suplantacion todavia abierta.
+
+Una suplantacion, una entrada: la rotacion deja varios tokens vivos de la misma sesion y se
+devuelve solo el mas reciente de cada par (suplantado, suplantador).
 
 ---
 

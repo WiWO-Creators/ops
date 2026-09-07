@@ -5,7 +5,7 @@ import { ATRIBUTO_ABATIDA, CLAVE_BARRA } from '@/lib/barra-lateral'
 import Link, { useLinkStatus } from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useSyncExternalStore } from 'react'
-import { Building2, DoorOpen, FolderKanban, House, ListChecks, Menu, PanelLeftClose, PanelLeftOpen, SlidersHorizontal, Users, UsersRound, Video } from 'lucide-react'
+import { Building2, DoorOpen, FolderKanban, House, ListChecks, Menu, PanelLeftClose, PanelLeftOpen, ScrollText, SlidersHorizontal, Users, UsersRound, Video } from 'lucide-react'
 import { Cajon, CerrarCajon, ContenidoCajon, DisparadorCajon } from '@/componentes/superposiciones/Cajon'
 import { Logo } from '@/componentes/estructura/Logo'
 import { cn } from '@/lib/clases'
@@ -47,7 +47,9 @@ const ICONOS = {
   mi_area: UsersRound,
   // `SlidersHorizontal` y no `Mail`: la seccion dejo de ser solo el correo cuando se unificaron
   // ahi todas las opciones del superadministrador.
-  administracion: SlidersHorizontal
+  administracion: SlidersHorizontal,
+  // `ScrollText` y no un escudo: esto no protege nada, es el registro de lo que se hizo.
+  auditoria: ScrollText
 } as const
 
 export type IconoSeccion = keyof typeof ICONOS
