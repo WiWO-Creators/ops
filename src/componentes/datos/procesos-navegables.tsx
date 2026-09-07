@@ -5,6 +5,7 @@ import { useSearchParams } from 'next/navigation'
 import type { ReactElement } from 'react'
 import { GrupoAvatares } from '@/componentes/presentadores/Avatar'
 import { Desviacion, EstadoSla } from '@/componentes/presentadores/EstadoSla'
+import { Fecha } from '@/componentes/presentadores/Fecha'
 import { PARAMETRO_TAREA } from '@/componentes/datos/tabla'
 import { PROCESOS } from '@/definiciones/procesos'
 import type { Proceso } from '@/datos/recursos'
@@ -47,6 +48,12 @@ export const PROCESOS_NAVEGABLES: DefinicionRecurso<Proceso> = {
     // unico. Una celda con `null` no dibuja nada y el motor deja la raya.
     if (columna.clave === 'desviacion') {
       return { ...columna, presentar: (proceso: Proceso) => <Desviacion dias={proceso.desviacion_dias} /> }
+    }
+
+    // El vencimiento sale del presentador unico, igual que en la pestaña de Tareas y en el tablero:
+    // ademas de leerse "Sin fecha" cuando no hay plazo, se colorea segun cuan cerca esta.
+    if (columna.clave === 'due_date') {
+      return { ...columna, presentar: (proceso: Proceso) => <Fecha valor={proceso.due_date} comoVencimiento /> }
     }
 
     if (columna.clave === 'estado_sla') {

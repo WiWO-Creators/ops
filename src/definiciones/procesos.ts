@@ -1,7 +1,7 @@
 import type { DefinicionRecurso } from './tipos.ts'
 import type { Proceso } from '../datos/recursos.ts'
 import { GLOSARIO } from '../dominio/glosario.ts'
-import { formatearFecha } from '../lib/fechas.ts'
+import { formatearFecha, formatearVencimiento } from '../lib/fechas.ts'
 import { formatearDesviacion, SIN_DATO, SLA } from '../lib/sla.ts'
 
 /**
@@ -37,7 +37,10 @@ export const PROCESOS: DefinicionRecurso<Proceso> = {
     { clave: 'priority', encabezado: 'Prioridad', ordenPor: 'priority', comoInsignia: 'task_priorities', presentar: (p) => p.priority },
     { clave: 'project', encabezado: GLOSARIO.espacio.singular, presentar: (p) => p.project?.name ?? '' },
     { clave: 'assignees', encabezado: 'Asignados', presentar: (p) => nombresAsignados(p) },
-    { clave: 'due_date', encabezado: 'Vence', ordenPor: 'due_date', presentar: (p) => formatearFecha(p.due_date) },
+    // `formatearVencimiento` y no `formatearFecha`: una tarea puede no tener fecha de entrega a
+    // proposito, y el guion la hace pasar por un dato que falta. En pantalla lo dice el presentador
+    // `Fecha`; este texto es el que baja al CSV.
+    { clave: 'due_date', encabezado: 'Vence', ordenPor: 'due_date', presentar: (p) => formatearVencimiento(p.due_date) },
     // Las tres del compromiso de plazo, juntas y despues de "Vence" porque se leen contra ella.
     // Cuando `wiwo_core` no esta instalado el backend ni siquiera manda las claves, asi que la celda
     // muestra el guion en vez de un cero que nadie conto — mismo criterio que Iteraciones.

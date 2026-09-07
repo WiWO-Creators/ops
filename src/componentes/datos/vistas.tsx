@@ -8,9 +8,10 @@ import { TableroFiltrable } from './TableroFiltrable'
 import { CLIENTES } from '@/definiciones/clientes'
 import { ESPACIOS } from '@/definiciones/espacios'
 import { PROCESOS } from '@/definiciones/procesos'
-import type { OpcionFiltro, ResultadoLista } from '@/definiciones/tipos'
+import { TarjetaTarea } from '@/componentes/proyecto/TarjetaTarea'
+import type { DefinicionRecurso, OpcionFiltro, ResultadoLista } from '@/definiciones/tipos'
 import type { Capacidad } from '@/datos/tipos'
-import type { Cliente, Espacio, Proceso } from '@/datos/recursos'
+import type { Cliente, Espacio, Proceso, ProcesoAmpliado } from '@/datos/recursos'
 
 /**
  * Vistas ya atadas a su definicion.
@@ -67,6 +68,63 @@ export function TablaClientes (props: PropsVistaLista<Cliente>) {
   return <TablaRecurso definicion={CLIENTES} claveFila={(cliente) => cliente.id} {...props} />
 }
 
-export function TableroProcesos (props: { opcionesDeFiltro?: Record<string, OpcionFiltro[]> }) {
-  return <TableroFiltrable<Proceso> definicion={PROCESOS} ruta="tasks" board="tasks" {...props} />
+/**
+ * Tablero global de Tareas.
+ *
+ * Monta el mismo modal de detalle que la tabla y pinta la misma `TarjetaTarea` que el tablero de un
+ * Espacio: hasta ahora este era el unico listado del producto donde una tarjeta no abria nada, y
+ * ademas mostraba el nombre pelado.
+ *
+ * El modal se monta **aca y no dentro de `TableroFiltrable`** porque la pestaña Tareas de un Espacio
+ * ya lo monta por su cuenta —fuera del ternario tabla/tablero, para que la tabla tambien lo tenga—:
+ * ponerlo tambien en el motor abriria dos dialogos con el mismo `?tarea={id}`, dos peticiones del
+ * detalle y dos trampas de foco peleandose.
+ */
+export function TableroProcesos (
+  { opcionesDeFiltro, capacidades = [] }: {
+    opcionesDeFiltro?: Record<string, OpcionFiltro[]>
+    /** Capacidades sobre `tasks`, para los botones del detalle. */
+    capacidades?: Capacidad[]
+  }
+) {
+  return (
+    <>
+      <TableroFiltrable<Proceso>
+        definicion={definicionDeTableroProcesos(opcionesDeFiltro?.task_priorities ?? [])}
+        ruta="tasks"
+        board="tasks"
+        opcionesDeFiltro={opcionesDeFiltro}
+      />
+      <ModalTarea
+        puedeEditar={capacidades.includes('edit')}
+        puedeBorrar={capacidades.includes('delete')}
+      />
+    </>
+  )
+}
+
+/**
+ * `PROCESOS` con la tarjeta rica en vez del nombre pelado.
+ *
+ * La sustitucion se hace aca y no en `src/definiciones/procesos.ts` porque ese archivo es un `.ts`
+ * que corren las pruebas con el despojador de tipos de Node: no admite JSX. Es el mismo motivo por el
+ * que existe `procesos-navegables.tsx`.
+ *
+ * @param prioridades catalogo de prioridades, para el borde de color de la tarjeta
+ * @returns la definicion lista para `TableroFiltrable`
+ */
+function definicionDeTableroProcesos (prioridades: OpcionFiltro[]): DefinicionRecurso<Proceso> {
+  return {
+    ...PROCESOS,
+    tablero: {
+      // Las columnas llegan ordenadas por `order`, NO por `id`: el orden real es 1, 4, 3, 2, 5.
+      columnasDesde: 'task_statuses',
+      rutaMover: 'tasks/:id/mover',
+      // `presentarTarjeta` recibe `unknown` porque el motor no conoce el recurso: la conversion
+      // ocurre en un solo punto, aca, y no en cada campo de la tarjeta.
+      presentarTarjeta: (fila) => (
+        <TarjetaTarea proceso={fila as ProcesoAmpliado} prioridades={prioridades} />
+      )
+    }
+  }
 }

@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo } from 'react'
+import { useMemo, type ReactNode } from 'react'
 import { useRouter, useSearchParams, type ReadonlyURLSearchParams } from 'next/navigation'
 import { construirConsulta, leerConsulta } from '@/datos/consulta'
 import { useRecurso } from '@/componentes/proyecto/carga'
@@ -9,7 +9,7 @@ import { ControlesTabla } from './ControlesTabla'
 import { PresetsFiltro } from './PresetsFiltro'
 import { Tablero } from './Tablero'
 import { unirConsultas } from './tabla'
-import type { CuerpoMover, FilaConId, GrupoTablero } from './tablero'
+import type { ColumnaTablero, CuerpoMover, FilaConId, GrupoTablero } from './tablero'
 import type { DefinicionRecurso, EstadoConsulta, OpcionFiltro } from '@/definiciones/tipos'
 import type { PresetFiltro } from '@/datos/recursos'
 
@@ -40,6 +40,8 @@ interface PropsTableroFiltrable<T extends FilaConId> {
   descripcionVacio?: string
   adaptarCuerpo?: (cuerpo: CuerpoMover) => unknown
   ordenarColumnas?: (grupos: Array<GrupoTablero<T>>) => Array<GrupoTablero<T>>
+  /** Accion propia en la cabecera de cada columna. Ver `Tablero`. */
+  accionDeColumna?: (columna: ColumnaTablero, recargar: () => Promise<void>) => ReactNode
 }
 
 export function TableroFiltrable<T extends FilaConId> ({
@@ -51,7 +53,8 @@ export function TableroFiltrable<T extends FilaConId> ({
   tituloVacio = 'Sin tarjetas',
   descripcionVacio,
   adaptarCuerpo,
-  ordenarColumnas
+  ordenarColumnas,
+  accionDeColumna
 }: PropsTableroFiltrable<T>) {
   const router = useRouter()
   const params = useSearchParams()
@@ -112,6 +115,7 @@ export function TableroFiltrable<T extends FilaConId> ({
               consulta={consulta}
               adaptarCuerpo={adaptarCuerpo}
               ordenarColumnas={ordenarColumnas}
+              accionDeColumna={accionDeColumna}
             />
             )
       )}

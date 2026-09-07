@@ -69,7 +69,10 @@ export default async function TableroProcesosPage (props: PageProps<'/procesos/t
       </header>
 
       <Suspense fallback={<Cargando alto="min-h-36" mensaje="Cargando el tablero…" />}>
-        <TableroProcesos opcionesDeFiltro={{ ...opcionesDeFiltros(PROCESOS, lookups), clients: clientes }} />
+        <TableroProcesos
+          opcionesDeFiltro={{ ...opcionesDeFiltros(PROCESOS, lookups), clients: clientes }}
+          capacidades={yo.data.permissions.tasks}
+        />
       </Suspense>
     </section>
   )

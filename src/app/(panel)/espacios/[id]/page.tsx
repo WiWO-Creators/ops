@@ -172,7 +172,13 @@ export default async function ProyectoPage (props: PageProps<'/espacios/[id]'>) 
     {
       clave: 'hitos',
       etiqueta: GLOSARIO.hito.plural,
-      contenido: <PanelHitos proyecto={proyecto} capacidades={capacidadesProyecto} />
+      contenido: (
+        <PanelHitos
+          proyecto={proyecto}
+          capacidades={capacidadesProyecto}
+          capacidadesTareas={capacidadesTareas}
+        />
+      )
     },
     { clave: 'archivos', etiqueta: 'Archivos', contenido: <PanelArchivos proyectoId={proyecto.id} /> },
     {
