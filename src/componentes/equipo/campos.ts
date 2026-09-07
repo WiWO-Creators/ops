@@ -22,8 +22,10 @@ const LARGOS = { nombre: 50, email: 100, phonenumber: 30 }
  * `is_admin` no esta: se decide desde el listado y solo lo ve un administrador, porque la API rechaza
  * que lo reparta cualquiera con `staff.create`.
  *
- * `cargo_id` y `area_id` (`modules/wiwo_core/cargos_areas.php`) son la organizacion propia del staff,
- * separada del rol (RBAC): ninguno de los dos es requerido, y dejarlos sin elegir es "sin cargo/área".
+ * `empresa_id` (`tblapi_empresas`), `cargo_id` y `area_id` (`modules/wiwo_core/cargos_areas.php`) son
+ * la organizacion del staff, separada del rol (RBAC): ninguno es requerido, y dejarlos sin elegir es
+ * "sin empresa/cargo/área". La empresa va primera de la seccion porque es la unica de las tres que
+ * hoy tiene datos en las 178 cuentas del grupo.
  *
  * El selector de Rol solo aparece en el modelo de permisos viejo. Ahi sigue sirviendo para una cosa:
  * un alta con `role_id` estrena la cuenta con los permisos de ese rol. En el modelo consolidado no
@@ -32,6 +34,7 @@ const LARGOS = { nombre: 50, email: 100, phonenumber: 30 }
  * @param roles catalogo `roles` de `GET /lookups`
  * @param cargos catalogo `cargos` de `GET /lookups`
  * @param areas catalogo `areas` de `GET /lookups`
+ * @param empresas catalogo `empresas` de `GET /lookups`
  * @param alta `true` para el formulario de alta
  * @param conRol `true` para dibujar el selector de Rol (modelo de permisos viejo)
  */
@@ -40,7 +43,8 @@ export function camposDePersona (
   cargos: OpcionCampo[],
   areas: OpcionCampo[],
   alta: boolean,
-  conRol = true
+  conRol = true,
+  empresas: OpcionCampo[] = []
 ): CampoFormulario[] {
   const campos: CampoFormulario[] = [
     { clave: 'firstname', etiqueta: 'Nombre', tipo: 'texto', requerido: true, maximo: LARGOS.nombre },
@@ -58,7 +62,8 @@ export function camposDePersona (
         : 'Déjala en blanco para no cambiarla.'
     },
     { clave: 'hourly_rate', etiqueta: 'Valor hora', tipo: 'numero', ayuda: 'Se usa para valorizar las horas registradas.' },
-    { clave: 'cargo_id', etiqueta: 'Cargo', tipo: 'seleccion', opciones: cargos, seccion: 'Organización' },
+    { clave: 'empresa_id', etiqueta: 'Empresa', tipo: 'seleccion', opciones: empresas, seccion: 'Organización' },
+    { clave: 'cargo_id', etiqueta: 'Cargo', tipo: 'seleccion', opciones: cargos },
     { clave: 'area_id', etiqueta: 'Área', tipo: 'seleccion', opciones: areas }
   ]
 

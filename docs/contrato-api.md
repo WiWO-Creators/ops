@@ -192,6 +192,7 @@ Tampoco va bajo `/auth`: esa rama se atiende sin token, y ésta necesita saber q
   "firstname": "…", "lastname": "…", "full_name": "…",
   "profile_image_url": "…", "is_admin": false, "role_id": 3,
   "modelo_permisos": "viejo",
+  "area_id": null, "empresa_id": 3,
   "permissions": { "tasks": ["view","create","edit"], "projects": ["view_own"] },
   "secciones_habilitadas": ["procesos","espacios"],
   "locale": "es", "hourly_rate": 0
@@ -2326,6 +2327,31 @@ cuerpo nombra: un actor consolidado editando a alguien del modelo viejo le deja 
 
 `tblroles` y `tblstaff.role` siguen existiendo y `roles` sigue en `GET /lookups`: las lee el panel
 viejo, y `role_id` sigue viajando en la ficha mientras quede gente en el modelo viejo.
+
+---
+
+### La empresa, que es pertenencia y no permiso
+
+`tblapi_empresas` (migración 0170) guarda las seis organizaciones del grupo —MGC Global Group, Palta,
+WiWO, HL Prods, Hub MGC y Avantgarde— y `tblstaff.empresa_id` dice a cuál pertenece cada persona.
+**No son las empresas cliente**: una es donde trabaja el equipo, la otra a quién se le factura.
+
+Tabla nueva y columna nueva: `tblcargos`, `cargo_id`, `tblareas`, `area_id` y el gate `is_director`
+quedan exactamente como estaban.
+
+**No otorga ni quita acceso a nada.** No la mira ningún chequeo de la API: agrupa, filtra y —más
+adelante— podrá acotar salas por pertenencia.
+
+| Dónde | Qué |
+|---|---|
+| `GET /me` | `empresa_id` y `area_id` (el área tampoco viajaba antes) |
+| `GET /staff/{id}` | `empresa` con `{id, name}`, junto a `cargo` y `area` |
+| `GET /staff` | `empresa_id` en cada fila; `filter[empresa_id]=2` para filtrar |
+| `GET /lookups` | `empresas`, sólo las activas |
+| `POST\|PATCH /staff` | `empresa_id`; `null`, `''` y `0` son "sin empresa"; un id inexistente es `422 unknown` |
+
+El backfill de la migración fue por dominio de correo, que es el único dato que ya distinguía a las
+seis: cubrió 178 de 184, y las seis restantes quedaron en `null`, que es su estado correcto.
 
 ---
 

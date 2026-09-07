@@ -65,10 +65,16 @@ export function VistaEquipo ({
     etiqueta: opcion.etiqueta
   })), [opcionesDeFiltro])
 
+  const empresas: OpcionCampo[] = useMemo(() => (opcionesDeFiltro?.empresas ?? []).map((opcion) => ({
+    valor: String(opcion.valor),
+    etiqueta: opcion.etiqueta
+  })), [opcionesDeFiltro])
+
   const definicion = useMemo(() => {
     const nombreDeRol = new Map(roles.map((rol) => [rol.valor, rol.etiqueta]))
     const nombreDeCargo = new Map(cargos.map((cargo) => [cargo.valor, cargo.etiqueta]))
     const nombreDeArea = new Map(areas.map((area) => [area.valor, area.etiqueta]))
+    const nombreDeEmpresa = new Map(empresas.map((empresa) => [empresa.valor, empresa.etiqueta]))
 
     return {
       ...EQUIPO,
@@ -105,11 +111,22 @@ export function VistaEquipo ({
           }
         }
 
+        if (columna.clave === 'empresa_id') {
+          return {
+            ...columna,
+            presentar: (persona: MiembroEquipo) => (
+              persona.empresa_id == null
+                ? 'Sin empresa'
+                : nombreDeEmpresa.get(String(persona.empresa_id)) ?? `#${persona.empresa_id}`
+            )
+          }
+        }
+
         if (columna.clave === 'cargo_id') {
           return {
             ...columna,
             presentar: (persona: MiembroEquipo) => (
-              persona.cargo_id === null ? 'Sin cargo' : nombreDeCargo.get(String(persona.cargo_id)) ?? `#${persona.cargo_id}`
+              persona.cargo_id == null ? 'Sin cargo' : nombreDeCargo.get(String(persona.cargo_id)) ?? `#${persona.cargo_id}`
             )
           }
         }
@@ -118,7 +135,7 @@ export function VistaEquipo ({
           return {
             ...columna,
             presentar: (persona: MiembroEquipo) => (
-              persona.area_id === null ? 'Sin área' : nombreDeArea.get(String(persona.area_id)) ?? `#${persona.area_id}`
+              persona.area_id == null ? 'Sin área' : nombreDeArea.get(String(persona.area_id)) ?? `#${persona.area_id}`
             )
           }
         }
@@ -126,7 +143,7 @@ export function VistaEquipo ({
         return columna
       })
     }
-  }, [roles, cargos, areas, conRol])
+  }, [roles, cargos, areas, empresas, conRol])
 
   return (
     <div className="flex flex-col gap-3">
@@ -148,6 +165,7 @@ export function VistaEquipo ({
           <AccionesPersona
             persona={persona}
             roles={roles}
+            empresas={empresas}
             modeloDePermisos={modeloDePermisos}
             cargos={cargos}
             areas={areas}
@@ -163,7 +181,7 @@ export function VistaEquipo ({
           onAbiertoCambia={setCreando}
           titulo="Nueva persona"
           descripcion="No se envía ningún correo: la contraseña hay que entregarla por otro medio."
-          campos={camposDePersona(roles, cargos, areas, true, conRol)}
+          campos={camposDePersona(roles, cargos, areas, true, conRol, empresas)}
           ruta="staff"
           metodo="POST"
           onGuardado={() => { router.refresh() }}

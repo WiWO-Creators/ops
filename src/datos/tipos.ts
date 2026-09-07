@@ -105,6 +105,14 @@ export interface Staff {
   /** Cargo "Director" (`modules/wiwo_core/cargos_areas.php`). Gate de la seccion "Mi Área". */
   is_director: boolean
   /**
+   * Area y empresa de quien mira. Pertenencia, no permiso.
+   *
+   * Viajan en `/me` para no tener que pedir `/staff/{id}` solo para saber a que grupo pertenece uno
+   * mismo, que es lo que hace falta para acotar cosas por pertenencia — las salas, por ejemplo.
+   */
+  area_id: number | null
+  empresa_id: number | null
+  /**
    * Que catalogo de permisos le toca a esta persona (`Acceso\Permisos::usaModeloNuevo()`).
    *
    * NO es un permiso ni cambia lo que puede hacer: el acceso efectivo sale de `permissions`, que la
