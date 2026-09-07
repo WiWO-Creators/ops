@@ -14,8 +14,13 @@ import { cn } from '@/lib/clases'
 import type { EstadoLookup, Lookups, Proceso } from '@/datos/recursos'
 import type { Sobre } from '@/datos/tipos'
 import { Boton } from '@/componentes/formularios/Boton'
+import { Campo } from '@/componentes/formularios/Campo'
+import { Entrada } from '@/componentes/formularios/Entrada'
 import { escribirEnBff } from '@/componentes/datos/mutaciones'
+import { instanteDeCierre } from '@/dominio/cierre-tarea'
+import { hoyLocal } from '@/lib/fechas'
 import { BloqueSla } from './BloqueSla'
+import { ESTADO_COMPLETO } from './tareas'
 import { CompartirTarea } from './CompartirTarea'
 import { Cronometros } from './Cronometros'
 import { EdicionTarea } from './EdicionTarea'
@@ -185,6 +190,12 @@ export function DetalleTarea (
             )}
           </div>
 
+          {/* Completar vive en la ficha porque es donde se mira la tarea para decidir que ya esta.
+              El listado ya tiene su propia accion; esta ademas deja elegir con que fecha cierra. */}
+          {puedeEditar && tarea.status !== ESTADO_COMPLETO && (
+            <CompletarTarea tarea={tarea} onCompletada={reintentar} />
+          )}
+
           {/* Confirmacion en la misma ficha y no en otro dialogo: este detalle YA vive dentro de un
               modal, y un `Dialog` sobre otro deja los dos peleando por el foco. */}
           {puedeBorrar && confirmandoBorrado && (
@@ -265,6 +276,103 @@ export function DetalleTarea (
 }
 
 const SIN_DATO = '—'
+
+/**
+ * Marca la Tarea como completada, eligiendo con que fecha cierra.
+ *
+ * El caso normal —se termino hoy— es **un solo clic**: la fecha ya viene en hoy y, si no se toca,
+ * solo sale el `mark-complete` de siempre, que sella el cierre con la hora de ahora. El campo esta
+ * ahi para el otro caso, el que rompia la desviacion: la tarea que se termino el lunes y se marca el
+ * jueves quedaba cerrada el jueves. Elegir otra fecha agrega un segundo paso explicito,
+ * `PATCH /tasks/{id}` con `completed_at`, que es lo unico que el contrato acepta.
+ *
+ * Los dos pasos se muestran como uno solo, pero no son atomicos: si el `mark-complete` funciono y el
+ * parche no, la tarea **queda completada**. Por eso el fallo lo dice con esas palabras y el boton
+ * pasa a reintentar solo la fecha, en vez de volver a completar algo ya completado.
+ */
+function CompletarTarea (
+  { tarea, onCompletada }: { tarea: Proceso, onCompletada: () => void }
+): ReactElement {
+  const [fecha, setFecha] = useState(() => hoyLocal())
+  const [yaCompletada, setYaCompletada] = useState(false)
+  const [guardando, setGuardando] = useState(false)
+  const [fallo, setFallo] = useState<string | null>(null)
+
+  /** Completa y, si la fecha no es hoy, la corrige. Nunca lanza: el error se lee bajo el campo. */
+  async function completar (): Promise<void> {
+    setGuardando(true)
+    setFallo(null)
+
+    if (!yaCompletada) {
+      const cierre = await escribirEnBff<Proceso>(`tasks/${tarea.id}/actions/mark-complete`, 'POST')
+
+      if (!cierre.ok) {
+        setGuardando(false)
+        setFallo(cierre.mensaje)
+        return
+      }
+
+      setYaCompletada(true)
+    }
+
+    // Hoy ya es lo que sello `mark-complete`: un parche identico solo agregaria una peticion y una
+    // linea mas en el registro de actividad.
+    if (fecha === hoyLocal()) {
+      setGuardando(false)
+      onCompletada()
+      return
+    }
+
+    const instante = instanteDeCierre(fecha)
+
+    if (instante === null) {
+      setGuardando(false)
+      setFallo('Elegí una fecha válida.')
+      return
+    }
+
+    const parche = await escribirEnBff<Proceso>(`tasks/${tarea.id}`, 'PATCH', { completed_at: instante })
+
+    setGuardando(false)
+
+    if (!parche.ok) {
+      setFallo(`La tarea quedó completada, pero la fecha no se pudo guardar. ${parche.mensaje}`)
+      return
+    }
+
+    onCompletada()
+  }
+
+  return (
+    <div className="border-linea flex flex-wrap items-end gap-2 border-t pt-2">
+      <Campo
+        etiqueta="Fecha de completado"
+        error={fallo ?? undefined}
+        className="min-w-44 flex-1"
+      >
+        {(props) => (
+          <Entrada
+            {...props}
+            type="date"
+            value={fecha}
+            min={tarea.start_date ?? undefined}
+            max={hoyLocal()}
+            onChange={(evento) => setFecha(evento.target.value)}
+          />
+        )}
+      </Campo>
+
+      <Boton
+        variante="secundario"
+        tamano="chico"
+        cargando={guardando}
+        onClick={() => { void completar() }}
+      >
+        {yaCompletada ? 'Guardar la fecha' : 'Marcar completada'}
+      </Boton>
+    </div>
+  )
+}
 
 /** Un par etiqueta/valor de la ficha. La etiqueta va en versalita, como en `ResumenProyecto`. */
 function Dato ({ etiqueta, children }: { etiqueta: string, children: ReactNode }): ReactElement {
