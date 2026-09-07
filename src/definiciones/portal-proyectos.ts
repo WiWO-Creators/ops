@@ -1,6 +1,7 @@
 import type { DefinicionRecurso } from './tipos.ts'
 import type { EspacioPortal, PestaniaPortal, TareaPortal } from '../datos/portal.ts'
 import { formatearFecha } from '../lib/fechas.ts'
+import { SIN_DATO } from '../lib/sla.ts'
 import { GLOSARIO } from '../dominio/glosario.ts'
 
 /**
@@ -59,6 +60,7 @@ export const PORTAL_TAREAS: DefinicionRecurso<TareaPortal> = {
   titulo: GLOSARIO.proceso,
 
   columnas: [
+    { clave: 'patente', encabezado: 'ID', sinCortar: true, presentar: (t) => t.patente ?? SIN_DATO },
     { clave: 'name', encabezado: 'Nombre', ordenPor: 'name', presentar: (t) => t.name },
     { clave: 'status', encabezado: 'Estado', comoInsignia: 'task_statuses', presentar: (t) => t.status },
     { clave: 'due_date', encabezado: 'Vence', ordenPor: 'due_date', presentar: (t) => formatearFecha(t.due_date) },

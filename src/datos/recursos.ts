@@ -34,6 +34,12 @@ export interface CampoPersonalizado {
 /** Proceso. `task` en Perfex. */
 export interface Proceso {
   id: number
+  /**
+   * Identificador visible: la patente del Espacio mas un correlativo dentro de el (`PAT-001-07`), o
+   * `WIW-0007` cuando la tarea no cuelga de ningun Espacio. Es `null` mientras el backend no la haya
+   * asignado —la asigna en la primera lectura— o si la instalacion no tiene la tabla.
+   */
+  patente: string | null
   name: string
   status: number
   priority: number

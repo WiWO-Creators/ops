@@ -260,14 +260,30 @@ const OBJETOS = [
  * Procesos. 84 filas: suficientes para ejercitar la paginacion (per_page 25 da 4 paginas) y para que
  * una columna del tablero tenga mas de una pagina propia.
  */
+/** Correlativo por Espacio de la patente de Proceso, como lo lleva el backend. */
+const correlativoDePatente = {}
+
 export const PROCESOS = Array.from({ length: 84 }, (_, i) => {
   const espacio = ciclo(ESPACIOS, i)
   const estado = ciclo(ESTADOS_PROCESO, i)
   const asignados = [ciclo(STAFF, i), ciclo(STAFF, i + 3)]
     .filter((s, pos, todos) => todos.findIndex((o) => o.id === s.id) === pos)
 
+  const suelto = i % 9 === 8
+  const clave = suelto ? 'WIW' : `ESP-${String(espacio.id).padStart(3, '0')}`
+  correlativoDePatente[clave] = (correlativoDePatente[clave] ?? 0) + 1
+  const numero = correlativoDePatente[clave]
+
   return {
     id: 500 + i,
+    // La patente del Espacio + correlativo dentro de el, o el prefijo suelto cuando la tarea no
+    // cuelga de ninguno. El 505 la deja en null a proposito: el backend la asigna en la primera
+    // lectura, asi que la interfaz tiene que saber pintar una tarea que todavia no la tiene.
+    patente: i === 5
+      ? null
+      : suelto
+        ? `WIW-${String(numero).padStart(4, '0')}`
+        : `${clave}-${String(numero).padStart(2, '0')}`,
     name: `${ciclo(VERBOS, i)} ${ciclo(OBJETOS, i + 2)}`,
     description: null,
     status: estado.id,

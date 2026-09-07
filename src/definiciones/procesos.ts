@@ -19,6 +19,9 @@ export const PROCESOS: DefinicionRecurso<Proceso> = {
   titulo: GLOSARIO.proceso,
 
   columnas: [
+    // Va primera y no se puede ordenar: el backend no la declara en `ordenables`, y su orden util
+    // —por Espacio y despues por numero— ya lo da ordenar por Espacio.
+    { clave: 'patente', encabezado: 'ID', sinCortar: true, presentar: (p) => p.patente ?? SIN_DATO },
     { clave: 'name', encabezado: 'Nombre', ordenPor: 'name', presentar: (p) => p.name },
     { clave: 'status', encabezado: 'Estado', ordenPor: 'status', comoInsignia: 'task_statuses', presentar: (p) => p.status },
     { clave: 'priority', encabezado: 'Prioridad', ordenPor: 'priority', comoInsignia: 'task_priorities', presentar: (p) => p.priority },
