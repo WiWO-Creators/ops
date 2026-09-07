@@ -34,7 +34,9 @@ function deCliente<T> (definicion: DefinicionRecurso<T>, clienteId: number, subr
  * Proyectos—. Va como `consultaFija` y no como filtro de la vista justamente para que no aparezca en
  * la URL: ahi seria editable, y cambiar el numero mostraria Tareas de otro cliente bajo este nombre.
  *
- * Se poda el filtro por Proyecto: su selector no tiene catalogo y saldria vacio.
+ * Se poda el filtro por Proyecto —su selector no tiene catalogo y saldria vacio— y el de Cliente: aca
+ * el cliente ya esta fijado por `consultaFija`, y un segundo `filter[clientid]` en la query lo
+ * pisaria y mostraria Tareas de otro cliente bajo este nombre.
  *
  * @param clienteId el cliente que se esta mirando
  * @param capacidades capacidades sobre `tasks`, de `permissions` de `/me`
@@ -47,7 +49,9 @@ export function PanelTareasCliente ({
     () => ({
       ...PROCESOS,
       consultaFija: `filter[clientid]=${encodeURIComponent(String(clienteId))}`,
-      filtros: PROCESOS.filtros.filter((filtro) => filtro.clave !== 'project_id' && filtro.clave !== 'milestone_id'),
+      filtros: PROCESOS.filtros.filter(
+        (filtro) => !['project_id', 'milestone_id', 'clientid'].includes(filtro.clave)
+      ),
       // El tablero mueve tareas por proyecto y no tiene sentido sobre un corte por cliente.
       tablero: undefined
     }),

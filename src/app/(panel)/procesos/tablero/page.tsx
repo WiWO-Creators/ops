@@ -9,6 +9,7 @@ import { pedir, pedirOpcional } from '@/datos/servidor'
 import type { Espacio, MiembroEquipo } from '@/datos/recursos'
 import type { Yo } from '@/datos/tipos'
 import { PROCESOS } from '@/definiciones/procesos'
+import { opcionesDeCliente } from '../opciones-de-cliente'
 
 export const metadata = { title: 'Tablero de Tareas · WiWO Ops' }
 
@@ -27,14 +28,15 @@ export default async function TableroProcesosPage (props: PageProps<'/procesos/t
   const estado = leerConsulta(params, PROCESOS)
   const consulta = construirConsulta({ ...estado, orden: [], pagina: 1 }, PROCESOS)
 
-  const [lookups, yo, equipo, espacios] = await Promise.all([
+  const [lookups, yo, equipo, espacios, clientes] = await Promise.all([
     cargarLookups(),
     pedir<Yo>('/me'),
     // Catalogos del alta rapida, iguales a los de la lista: el boton tiene que estar en las dos
     // pantallas, porque la tarea se anota donde uno esta parado. El equipo es opcional por el mismo
     // motivo que en la lista: `/staff` exige `staff.view` y sin permiso responde 403.
     pedirOpcional<MiembroEquipo[]>('/staff?per_page=100'),
-    pedir<Espacio[]>('/projects?per_page=100')
+    pedir<Espacio[]>('/projects?per_page=100'),
+    opcionesDeCliente()
   ])
 
   const catalogosDeAlta = {
@@ -65,7 +67,7 @@ export default async function TableroProcesosPage (props: PageProps<'/procesos/t
       </header>
 
       <Suspense fallback={<Cargando alto="min-h-36" mensaje="Cargando el tablero…" />}>
-        <TableroProcesos opcionesDeFiltro={opcionesDeFiltros(PROCESOS, lookups)} />
+        <TableroProcesos opcionesDeFiltro={{ ...opcionesDeFiltros(PROCESOS, lookups), clients: clientes }} />
       </Suspense>
     </section>
   )

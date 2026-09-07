@@ -14,6 +14,16 @@ import { formatearDesviacion, SIN_DATO, SLA } from '../lib/sla.ts'
  *
  * Fuente: `docs/modulos/01-procesos.md`.
  */
+/**
+ * Valor sintetico del filtro de Cliente: los Procesos sueltos de quien mira.
+ *
+ * No es el id de un cliente. El backend lo interpreta como "sin cliente Y asignado a mi"
+ * (`RecursoProcesos::CLIENTE_PERSONALES`), y viaja como una opcion mas del mismo desplegable porque
+ * es la misma pregunta —de quien es este Proceso— y no una casilla aparte que se pueda combinar con
+ * un cliente.
+ */
+export const CLIENTE_PERSONALES = 'personales'
+
 export const PROCESOS: DefinicionRecurso<Proceso> = {
   ruta: 'tasks',
   titulo: GLOSARIO.proceso,
@@ -63,6 +73,7 @@ export const PROCESOS: DefinicionRecurso<Proceso> = {
   filtros: [
     { clave: 'status', etiqueta: 'Estado', tipo: 'multiple', desdeLookup: 'task_statuses' },
     { clave: 'priority', etiqueta: 'Prioridad', tipo: 'seleccion', desdeLookup: 'task_priorities' },
+    { clave: 'clientid', etiqueta: GLOSARIO.cliente.singular, tipo: 'seleccion', desdeLookup: 'clients' },
     { clave: 'project_id', etiqueta: GLOSARIO.espacio.singular, tipo: 'seleccion' },
     { clave: 'milestone_id', etiqueta: 'Hito', tipo: 'seleccion' },
     { clave: 'billable', etiqueta: 'Facturable', tipo: 'booleano' },
