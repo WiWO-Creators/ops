@@ -13,9 +13,11 @@ import { GLOSARIO } from '@/dominio/glosario'
 import { cn } from '@/lib/clases'
 import type { EstadoLookup, Lookups, Proceso } from '@/datos/recursos'
 import type { Sobre } from '@/datos/tipos'
+import { Boton } from '@/componentes/formularios/Boton'
 import { BloqueSla } from './BloqueSla'
 import { CompartirTarea } from './CompartirTarea'
 import { Cronometros } from './Cronometros'
+import { EdicionTarea } from './EdicionTarea'
 import { ListaIteraciones } from './ListaIteraciones'
 import { mensajeDeRespuesta, pedirRespuesta } from '@/datos/cliente'
 
@@ -51,6 +53,7 @@ type Carga =
 export function DetalleTarea ({ procesoId, puedeEditar = false, className }: PropsDetalleTarea): ReactElement {
   const [carga, setCarga] = useState<Carga>({ fase: 'cargando' })
   const [intento, setIntento] = useState(0)
+  const [editando, setEditando] = useState(false)
 
   // Vuelve a la fase de carga antes de pedir: si no, el reintento deja el cartel viejo en pantalla
   // mientras la peticion nueva viaja.
@@ -106,8 +109,33 @@ export function DetalleTarea ({ procesoId, puedeEditar = false, className }: Pro
             {/* Al final de la fila de insignias y no arriba del titulo: compartir es una salida
                 lateral, no lo que la persona vino a hacer al detalle. */}
             <CompartirTarea procesoId={procesoId} />
+
+            {/* El alta pide solo lo indispensable, asi que este boton es la unica via para completar
+                el resto: sin el, una tarea creada al vuelo se queda sin asignados para siempre. */}
+            {puedeEditar && (
+              <Boton
+                variante="secundario"
+                tamano="chico"
+                className="ml-auto"
+                onClick={() => setEditando(true)}
+              >
+                Editar
+              </Boton>
+            )}
           </div>
         </header>
+
+        {/* Montado solo mientras se edita: asi el formulario arranca siempre en los valores que se
+            acaban de traer, y cerrar descarta lo que no se guardo. */}
+        {puedeEditar && editando && (
+          <EdicionTarea
+            tarea={tarea}
+            lookups={lookups}
+            descripcion={typeof tarea.description === 'string' ? aTextoPlano(tarea.description) : ''}
+            onCerrar={() => setEditando(false)}
+            onGuardada={reintentar}
+          />
+        )}
 
         <dl className="grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-3">
           <Dato etiqueta={GLOSARIO.espacio.singular}>{tarea.project?.name ?? SIN_DATO}</Dato>

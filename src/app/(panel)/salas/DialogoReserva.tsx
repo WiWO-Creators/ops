@@ -10,7 +10,7 @@ import {
 } from '@/componentes/formularios/Selector'
 import { CerrarDialogo, ContenidoDialogo, Dialogo } from '@/componentes/superposiciones/Dialogo'
 import { escribirEnBff } from '@/componentes/datos/mutaciones'
-import { SelectorPersonas } from './SelectorPersonas'
+import { SelectorPersonas } from '@/componentes/formularios/SelectorPersonas'
 import {
   formatearMinutos, instanteDe, minutosDeHora, PASO_MINUTOS, revisarReserva, seSuperpone,
   sugerirAsistentes
