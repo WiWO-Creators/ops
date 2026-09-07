@@ -564,6 +564,13 @@ Orden: `name`, `due_date`, `start_date`, `date_added`, `priority`, `status`, `co
 (`completed` es derivado: un `CASE` sobre `status`, no una columna).
 Include: `custom_fields`, `description` (se omite en listas: son `longtext`).
 
+**`GET /tasks/{id}?include=custom_fields` devuelve exactamente lo mismo que la fila equivalente de
+`GET /tasks?include=custom_fields`**: el mismo array, en el orden de `field_order`, con `only_admin`
+ya filtrado por el backend. Sin el `include`, la ficha **no** trae la clave; sin valores guardados,
+las dos devuelven `[]`. Es la ruta para leer el Área de la compañía y el Link de Drive en la ficha:
+ya no hace falta el rodeo de pedirlos con un `PATCH /custom-fields/values` de `values: {}`. La
+`description`, en cambio, viaja siempre en la ficha, con o sin `include`.
+
 **Vista de tablero**: `GET /tasks?vista=tablero&filter[project_id]=8` devuelve las tarjetas agrupadas,
 con paginación **por columna**. En tareas hay columnas de miles de filas: cargar la columna entera no
 es una opción.
@@ -1607,6 +1614,10 @@ importa para renderizar el formulario en el orden correcto.
 
 `only_admin` ya lo respeta el backend según quién sea el dueño del token. El frontend no vuelve a
 decidirlo.
+
+Listado y ficha usan **la misma proyección**, así que el `include` vale igual en los dos: en
+`/tasks` y en `/tasks/{id}`, en `/projects` y en `/projects/{id}`, en `/clients` y en
+`/clients/{id}`. En `/leads/{id}` y `/tickets/{id}` los valores viajan siempre, sin pedirlos.
 
 **El tipo de `value` depende del `type`**, porque la base guarda dos transformaciones que hay que
 deshacer al leer:
