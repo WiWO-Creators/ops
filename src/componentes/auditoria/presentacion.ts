@@ -134,13 +134,18 @@ export function dispositivo (agente: string | null): string | null {
   return `${navegador} en ${sistema}`
 }
 
-/** De la mentira mas grande a la mas chica: Edge dice ser Chrome, y Chrome dice ser Safari. */
+/**
+ * De la mentira mas grande a la mas chica: Edge dice ser Chrome, y Chrome dice ser Safari.
+ *
+ * `Chrome` va sin `\b` a proposito: el navegador sin ventana se anuncia como `HeadlessChrome/`, y un
+ * limite de palabra ahi lo dejaria afuera y lo haria caer en Safari, que es la fila siguiente.
+ */
 const NAVEGADORES: Array<[string, RegExp]> = [
   ['Edge', /\bEdg(e|A|iOS)?\//],
   ['Opera', /\bOPR\/|\bOpera\//],
   ['Samsung Internet', /SamsungBrowser\//],
   ['Firefox', /\bFirefox\/|\bFxiOS\//],
-  ['Chrome', /\bChrome\/|\bCriOS\//],
+  ['Chrome', /Chrome\/|\bCriOS\//],
   ['Safari', /\bSafari\//]
 ]
 
