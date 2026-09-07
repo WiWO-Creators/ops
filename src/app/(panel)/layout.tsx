@@ -127,8 +127,7 @@ function seccionesDe (yo: Yo): Seccion[] {
   // —avisos por correo, la escritura de `/settings`, el diagnostico de Google y la auditoria—, asi
   // que la barra usa la misma llave. Esconder el enlace es cosmetica: la compuerta esta en el back.
   if (yo.is_superadmin) {
-    secciones.push({ href: '/administracion/correo', etiqueta: 'Avisos por correo', icono: 'administracion' })
-    secciones.push({ href: '/administracion/acceso', etiqueta: 'Acceso con Google', icono: 'administracion' })
+    secciones.push({ href: '/administracion', etiqueta: 'Administración', icono: 'administracion' })
   }
 
   return secciones

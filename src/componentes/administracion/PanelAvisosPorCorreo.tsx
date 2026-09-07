@@ -13,10 +13,8 @@ import { nombrar } from '@/dominio/glosario'
 import type {
   Ajustes, ConfiguracionCorreo as ConfiguracionCorreoTipo, FilaColaCorreo, FilaColaCorreoCliente
 } from '@/datos/recursos'
-import type { ResumenColaCorreo, ResumenColaCorreoCliente, Yo } from '@/datos/tipos'
+import type { ResumenColaCorreo, ResumenColaCorreoCliente } from '@/datos/tipos'
 import type { ResultadoLista } from '@/definiciones/tipos'
-
-export const metadata = { title: 'Avisos por correo · WiWO Ops' }
 
 interface Detalle {
   configuracion: ConfiguracionCorreoTipo
@@ -93,19 +91,16 @@ async function cargarColaCliente (): Promise<DetalleColaCliente | ErrorApi> {
 }
 
 /**
- * Administración del correo: el interruptor de `Nucleo\EfectosExternos` con el visor de
- * `tblmail_queue`, y el motor de correo al cliente —su modo y su cola— que **no envía nada**.
+ * Pestaña «Avisos por correo» de Administración: el interruptor de `Nucleo\EfectosExternos` con el
+ * visor de `tblmail_queue`, y el motor de correo al cliente —su modo y su cola— que **no envía
+ * nada**.
  *
- * `is_superadmin` se revisa antes de pedir nada más: las rutas de abajo ya exigen superadmin del
- * lado de la API —ahí está la compuerta real—, pero pedirlas igual gastaría un viaje que sabemos que
- * va a volver 403. La comprobación es la misma que decide si la sección aparece en la barra lateral
- * (`seccionesDe` en el layout), y está acá para que entrar por URL directa tampoco pinte nada.
+ * Era una pantalla propia (`/administracion/correo`) hasta que las opciones del superadministrador
+ * se unificaron en una sola sección: ahora es un panel más, y quien comprueba `is_superadmin` es la
+ * página que lo monta. La compuerta real sigue estando en la API, que exige superadmin en cada una
+ * de estas rutas.
  */
-export default async function AdministracionCorreoPage () {
-  const { data: yo } = await pedir<Yo>('/me')
-
-  if (!yo.is_superadmin) return <SinPermiso className="mt-10" />
-
+export async function PanelAvisosPorCorreo () {
   const [detalle, colaCliente] = await Promise.all([cargarDetalle(), cargarColaCliente()])
 
   if (detalle instanceof ErrorApi) {
@@ -115,13 +110,10 @@ export default async function AdministracionCorreoPage () {
 
   return (
     <section className="flex flex-col gap-8">
-      <div>
-        <h1 className="text-texto text-xl font-semibold">Avisos por correo</h1>
-        <p className="text-texto-tenue mt-1 text-sm">
-          El interruptor de efectos externos y la cola de correo que gobierna. Nada de esto toca la lógica de
-          envío: vive en el backend y ya funciona; esta pantalla solo la prende, la apaga y la mira.
-        </p>
-      </div>
+      <p className="text-texto-tenue text-sm">
+        El interruptor de efectos externos y la cola de correo que gobierna. Nada de esto toca la lógica de
+        envío: vive en el backend y ya funciona; esta pestaña solo la prende, la apaga y la mira.
+      </p>
 
       <ConfiguracionCorreo inicial={detalle.configuracion} />
 
