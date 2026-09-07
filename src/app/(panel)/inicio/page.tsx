@@ -109,7 +109,10 @@ export default async function InicioPage () {
       {/* El detalle es el mismo de los listados y se abre con el mismo `?tarea={id}`. Va en un
           limite de Suspense porque lee `useSearchParams`: sin el, el build de esta pagina falla. */}
       <Suspense fallback={null}>
-        <ModalTarea puedeEditar={yo.permissions.tasks.includes('edit')} />
+        <ModalTarea
+          puedeEditar={yo.permissions.tasks.includes('edit')}
+          puedeBorrar={yo.permissions.tasks.includes('delete')}
+        />
       </Suspense>
     </div>
   )

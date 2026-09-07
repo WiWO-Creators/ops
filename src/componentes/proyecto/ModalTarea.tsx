@@ -24,7 +24,9 @@ import { DetalleTarea } from './DetalleTarea'
  * "atras" la cierra, porque abrirla fue un `push` del historial.
  */
 
-export function ModalTarea ({ puedeEditar = false }: { puedeEditar?: boolean } = {}): ReactElement {
+export function ModalTarea (
+  { puedeEditar = false, puedeBorrar = false }: { puedeEditar?: boolean, puedeBorrar?: boolean } = {}
+): ReactElement {
   const router = useRouter()
   const params = useSearchParams()
 
@@ -42,6 +44,17 @@ export function ModalTarea ({ puedeEditar = false }: { puedeEditar?: boolean } =
     siguientes.delete(PARAMETRO_TAREA)
 
     router.replace(`?${siguientes.toString()}`, { scroll: false })
+  }
+
+  /**
+   * Cierra el detalle de una tarea que ya no existe y vuelve a pedir el listado de atras.
+   *
+   * El `refresh()` no es de adorno: sin el, la fila borrada sigue en la tabla hasta que algo mas la
+   * haga recargar, y volver a abrirla muestra "no encontramos esta tarea".
+   */
+  function alBorrar (): void {
+    cerrar()
+    router.refresh()
   }
 
   return (
@@ -70,7 +83,14 @@ export function ModalTarea ({ puedeEditar = false }: { puedeEditar?: boolean } =
           </CerrarDialogo>
         </div>
 
-        {tareaAbierta !== null && <DetalleTarea procesoId={tareaAbierta} puedeEditar={puedeEditar} />}
+        {tareaAbierta !== null && (
+          <DetalleTarea
+            procesoId={tareaAbierta}
+            puedeEditar={puedeEditar}
+            puedeBorrar={puedeBorrar}
+            onBorrada={alBorrar}
+          />
+        )}
       </ContenidoDialogo>
     </Dialogo>
   )
