@@ -92,6 +92,30 @@ export function formatearFecha (valor: string | null | undefined, conHora = fals
 }
 
 /**
+ * Texto que ocupa el lugar de un vencimiento que nadie fijo.
+ *
+ * No es el guion largo del resto de las fechas a proposito: una tarea sin fecha de entrega es una
+ * decision valida —hay trabajo que no tiene plazo— y el guion se lee como "falta el dato". "Sin
+ * fecha" dice que no hay plazo, que es lo que efectivamente pasa.
+ */
+export const SIN_VENCIMIENTO = 'Sin fecha'
+
+/**
+ * Formatea un vencimiento para mostrar.
+ *
+ * Se separa de `formatearFecha` porque solo el vencimiento tiene esta lectura: en `date_added` o en
+ * `last_login` la ausencia si es un dato que falta, y ahi el guion es correcto.
+ *
+ * @param valor fecha `YYYY-MM-DD` de entrega, o `null` si la tarea no tiene plazo
+ * @returns la fecha compacta, o `Sin fecha` si no hay plazo
+ */
+export function formatearVencimiento (valor: string | null | undefined): string {
+  if (!valor) return SIN_VENCIMIENTO
+
+  return formatearFecha(valor)
+}
+
+/**
  * Formatea una fecha como distancia al presente ("hace 3 días", "en 2 semanas").
  *
  * @param valor instante ISO o fecha `YYYY-MM-DD`

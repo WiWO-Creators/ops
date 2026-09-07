@@ -71,7 +71,9 @@ export function TarjetaTarea ({ proceso, prioridades }: PropsTarjeta): ReactElem
             <span className="sr-only"> adjuntos</span>
           </span>
         )}
-        {proceso.due_date !== null && <Fecha valor={proceso.due_date} comoVencimiento />}
+        {/* Siempre visible, tambien sin plazo: la tarjeta dice "Sin fecha" en vez de callarse, que
+            en un tablero se confunde con "no se cargo todavia". */}
+        <Fecha valor={proceso.due_date} comoVencimiento />
       </div>
 
       {proceso.tags.length > 0 && <Etiquetas etiquetas={proceso.tags} />}
