@@ -20,6 +20,7 @@ import { CompartirTarea } from './CompartirTarea'
 import { Cronometros } from './Cronometros'
 import { EdicionTarea } from './EdicionTarea'
 import { ListaIteraciones } from './ListaIteraciones'
+import { PanelAdjuntos } from './PanelArchivos'
 import { mensajeDeRespuesta, pedirRespuesta } from '@/datos/cliente'
 
 /**
@@ -253,6 +254,7 @@ export function DetalleTarea (
         <section className="flex flex-col gap-2">
           <h4 className="text-texto-tenue text-sm font-semibold">Archivos</h4>
           <ArbolDrive raiz="tasks" id={procesoId} />
+          <PanelAdjuntos raiz="tasks" id={procesoId} />
         </section>
 
         <Cronometros procesoId={procesoId} />
