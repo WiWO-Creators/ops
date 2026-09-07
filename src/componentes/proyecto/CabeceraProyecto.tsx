@@ -3,7 +3,7 @@ import { Etiquetas } from '@/componentes/presentadores/Etiqueta'
 import { Fecha } from '@/componentes/presentadores/Fecha'
 import { GrupoAvatares } from '@/componentes/presentadores/Avatar'
 import { ImagenEntidad } from '@/componentes/presentadores/ImagenEntidad'
-import { Insignia } from '@/componentes/presentadores/Insignia'
+import { Insignia, type TonoInsignia } from '@/componentes/presentadores/Insignia'
 import { cn } from '@/lib/clases'
 import { GLOSARIO } from '@/dominio/glosario'
 import { BotonNuevaTarea, MenuProyecto } from './MenuProyecto'
@@ -39,6 +39,38 @@ export function BarraProgreso ({ porcentaje, className }: PropsBarraProgreso) {
       <span className="bg-acento block h-full rounded-full" style={{ width: `${valor}%` }} />
     </span>
   )
+}
+
+/**
+ * Los dos estados de `project_statuses` que la cabecera pinta con la paleta del sistema.
+ *
+ * El resto conserva el color que traiga el catalogo: son estados que el panel puede crear y renombrar,
+ * y ninguna paleta fija podria seguirles el ritmo. Estos dos no —son los extremos del ciclo de un
+ * espacio— y son los que hay que leer sin leer.
+ */
+const ESTADO_EN_DESARROLLO = 2
+const ESTADO_TERMINADO = 4
+
+/**
+ * Resuelve como se pinta la pildora de estado de la cabecera.
+ *
+ * Terminado va en verde y quieto: es una noticia, no una tarea. En desarrollo va en rojo y latiendo,
+ * porque es el unico estado que pide algo de alguien. Cualquier otro cae al color del catalogo, que
+ * la `Insignia` dibuja como punto y no como fondo.
+ *
+ * @param status id de `project_statuses` que trae el proyecto
+ * @param color color del catalogo para ese estado, o `null` si no lo tiene
+ * @returns las props de `Insignia` que corresponden a ese estado
+ */
+function pildoraDeEstado (status: number, color: string | null): {
+  tono?: TonoInsignia
+  color?: string | null
+  late?: boolean
+} {
+  if (status === ESTADO_TERMINADO) return { tono: 'exito' }
+  if (status === ESTADO_EN_DESARROLLO) return { tono: 'peligro', late: true }
+
+  return { color }
 }
 
 interface PropsCabecera {
@@ -93,7 +125,7 @@ export function CabeceraProyecto ({
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <Insignia color={estado.color}>{estado.nombre}</Insignia>
+          <Insignia {...pildoraDeEstado(proyecto.status, estado.color)}>{estado.nombre}</Insignia>
           <BotonNuevaTarea capacidades={capacidadesTareas} />
           <MenuProyecto proyecto={proyecto} estados={estados} capacidades={capacidadesProyecto} />
         </div>

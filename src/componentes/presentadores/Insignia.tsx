@@ -40,6 +40,14 @@ interface PropsInsignia
     VariantProps<typeof insignia> {
   /** Color libre, para estados que vienen de la base (`lookups`) y no de la paleta. */
   color?: string | null
+  /**
+   * Late: un halo que respira alrededor de la pildora, para el unico estado que pide atencion.
+   *
+   * Es opt-in y no un tono: la insignia se usa en tablas de cien filas, y un bucle infinito por fila
+   * seria ruido. Quien pidio menos movimiento la recibe quieta (`prefers-reduced-motion` de
+   * `neo.css`).
+   */
+  late?: boolean
 }
 
 /**
@@ -53,13 +61,18 @@ interface PropsInsignia
  * @param tono paleta semantica; se ignora el contraste solo si se pasa `color`
  * @param tamano alto del componente
  * @param color color crudo de la entidad, si lo tiene
+ * @param late si late el halo alrededor de la pildora; apagado por defecto
  */
-export function Insignia ({ tono, tamano, color, className, children, ...resto }: PropsInsignia) {
+export function Insignia ({ tono, tamano, color, late, className, children, ...resto }: PropsInsignia) {
   const conColor = typeof color === 'string' && color.length > 0
 
   return (
     <span
-      className={cn(insignia({ tono: conColor ? 'neutro' : tono, tamano }), className)}
+      className={cn(
+        insignia({ tono: conColor ? 'neutro' : tono, tamano }),
+        late === true && 'insignia-late',
+        className
+      )}
       {...resto}
     >
       {conColor && (

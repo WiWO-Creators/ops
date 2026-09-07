@@ -477,6 +477,51 @@
   @keyframes brillo-marca {
     to { background-position: 200% 0; }
   }
+
+  /*
+   * El latido de la pildora de estado (`<Insignia late>`).
+   *
+   * Vive aca, junto a su keyframe, y no en el vocabulario compartido de mas abajo, por la misma
+   * razon que la deriva del lienzo y el brillo del saludo: es `infinite`, y un bucle sin final no es
+   * vocabulario —es una excepcion que hay que poder encontrar junto a la regla que la usa—.
+   *
+   * Es un anillo, no un relleno que parpadea. La pildora dice un estado con palabras: si la que
+   * cambia de opacidad fuera ella, el texto se leeria peor cada dos segundos, y "en desarrollo" es
+   * justo el estado que mas se mira. El anillo es transparente salvo su borde de 1px, asi que el
+   * contraste del texto no se toca nunca.
+   *
+   * `currentColor` y no un token de peligro: el halo hereda el color del tono que lo lleve, y el
+   * dia que otro estado necesite latir no hay que tocar este bloque.
+   *
+   * Solo `opacity` y `transform`, como el resto del sistema: el compositor lo resuelve sin volver a
+   * maquetar. Quien pidio menos movimiento lo recibe quieto e invisible —el bloque
+   * `prefers-reduced-motion` de `neo.css` deja el `::after` en su fotograma final, que es opacidad
+   * cero—.
+   */
+  .insignia-late {
+    position: relative;
+  }
+
+  .insignia-late::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border: 1px solid currentColor;
+    border-radius: inherit;
+    /* El halo es decoracion pura: no debe robar el clic del menu que tiene al lado. */
+    pointer-events: none;
+    opacity: 0;
+    animation: latido 2600ms var(--wiwo-ease-emphasized) infinite;
+  }
+
+  /*
+   * Respiracion, no parpadeo: el ciclo empieza y termina apagado, el pico esta en el medio y dura
+   * 2.6s. Un 14% de escala es lo que separa un halo de un boton que crece.
+   */
+  @keyframes latido {
+    0%, 100% { opacity: 0; transform: scale(1); }
+    50% { opacity: 0.55; transform: scale(1.14); }
+  }
 }
 
 /*
