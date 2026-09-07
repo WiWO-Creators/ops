@@ -1,6 +1,5 @@
 import { pedir } from '@/datos/servidor'
-import { FormularioPerfil, type PerfilPropio } from './FormularioPerfil'
-import type { Yo } from '@/datos/tipos'
+import { FormularioPerfil, type PerfilPropio, type YoConTelefono } from './FormularioPerfil'
 
 export const metadata = { title: 'Mi perfil · WiWO Ops' }
 
@@ -11,12 +10,13 @@ export const metadata = { title: 'Mi perfil · WiWO Ops' }
  * token y nunca sobre un id de la URL, asi que no hay nada que un parametro pueda desviar hacia la
  * ficha de otra persona.
  *
- * Los dos pedidos van juntos porque son independientes: `/me` trae la identidad y `/me/perfil` la
- * firma. Encadenarlos sumaria un viaje de red por nada.
+ * Los dos pedidos van juntos porque son independientes: `/me` trae la identidad —incluido el
+ * telefono, que `presentarStaff()` devuelve para esta pantalla— y `/me/perfil` la firma.
+ * Encadenarlos sumaria un viaje de red por nada.
  */
 export default async function PerfilPage () {
   const [yo, perfil] = await Promise.all([
-    pedir<Yo>('/me'),
+    pedir<YoConTelefono>('/me'),
     pedir<PerfilPropio>('/me/perfil')
   ])
 
