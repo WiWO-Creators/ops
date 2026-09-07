@@ -9,8 +9,10 @@ import { Etiquetas } from '@/componentes/presentadores/Etiqueta'
 import { Fecha } from '@/componentes/presentadores/Fecha'
 import { Insignia } from '@/componentes/presentadores/Insignia'
 import { listaDe, nombreDe } from '@/datos/catalogos'
+import { camposLegibles } from '@/dominio/campos-personalizados'
 import { GLOSARIO } from '@/dominio/glosario'
 import { cn } from '@/lib/clases'
+import type { CampoLegible } from '@/dominio/campos-personalizados'
 import type { EstadoLookup, Lookups, Proceso } from '@/datos/recursos'
 import type { Sobre } from '@/datos/tipos'
 import { Boton } from '@/componentes/formularios/Boton'
@@ -32,6 +34,8 @@ import { mensajeDeRespuesta, pedirRespuesta } from '@/datos/cliente'
  * Detalle de una Tarea, para el modal que lo muestra (`ModalTarea`).
  *
  * Pide dos cosas: la tarea (`/tasks/{id}`, que ya trae `description`) y los catalogos (`/lookups`).
+ * La tarea se pide con `?include=custom_fields`: sin ese include la clave no viene, y el "Área de la
+ * compañía" y el "Link de Drive" solo se podrian ver entrando a editar.
  * Los catalogos no son adorno: `status` y `priority` llegan como numeros, y sin la lista un "2" en
  * pantalla no dice nada. Van en la misma tanda porque mostrar el detalle sin ellos es mostrarlo a
  * medias.
@@ -249,6 +253,14 @@ export function DetalleTarea (
           <Dato etiqueta="Etiquetas">
             {tarea.tags.length === 0 ? SIN_DATO : <Etiquetas etiquetas={tarea.tags} maximo={4} />}
           </Dato>
+
+          {/* Los campos personalizados van al final y solo los que tienen algo cargado: son 29
+              definiciones, y una fila con un guion por cada una taparia la ficha entera. */}
+          {camposLegibles(tarea.custom_fields ?? []).map((campo) => (
+            <Dato key={campo.id} etiqueta={campo.nombre}>
+              <ValorPersonalizado campo={campo} />
+            </Dato>
+          ))}
         </dl>
 
         <BloqueSla tarea={tarea} puedeEditar={puedeEditar} onCambiado={reintentar} />
@@ -374,6 +386,31 @@ function CompletarTarea (
   )
 }
 
+/**
+ * El valor de un campo personalizado en la ficha.
+ *
+ * Un `link` se pinta como enlace abrible y no como texto: es lo unico que hace que un "Link de
+ * Drive" sirva de algo desde el panel. `camposLegibles()` ya decidio si la URL se puede abrir, asi
+ * que aca no se vuelve a mirar el `type`.
+ *
+ * `rel="noreferrer"` acompaña a `target="_blank"`: sin el, la pestaña nueva recibe el `Referer` del
+ * panel y, en navegadores viejos, un `window.opener` que puede navegar esta.
+ */
+function ValorPersonalizado ({ campo }: { campo: CampoLegible }): ReactElement {
+  if (campo.enlace === null) return <>{campo.texto}</>
+
+  return (
+    <a
+      href={campo.enlace}
+      target="_blank"
+      rel="noreferrer"
+      className="text-acento break-all underline underline-offset-4"
+    >
+      {campo.texto}
+    </a>
+  )
+}
+
 /** Un par etiqueta/valor de la ficha. La etiqueta va en versalita, como en `ResumenProyecto`. */
 function Dato ({ etiqueta, children }: { etiqueta: string, children: ReactNode }): ReactElement {
   return (
@@ -484,7 +521,7 @@ function aTextoPlano (html: string): string {
 async function cargar (procesoId: number, senal: AbortSignal): Promise<Carga> {
   try {
     const [tarea, lookups] = await Promise.all([
-      pedirRespuesta(`tasks/${procesoId}`, senal),
+      pedirRespuesta(`tasks/${procesoId}?include=custom_fields`, senal),
       pedirRespuesta('lookups', senal)
     ])
 

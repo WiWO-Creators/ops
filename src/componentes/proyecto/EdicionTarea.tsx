@@ -28,10 +28,8 @@ import {
   camposOrdenados,
   cuerpoDeCamposPersonalizados,
   esquemaDeCamposPersonalizados,
-  lecturaDeCamposPersonalizados,
   valoresIniciales,
   type ErroresDeCampos,
-  type RespuestaCamposPersonalizados,
   type ValoresDeCampos
 } from '@/dominio/campos-personalizados'
 import {
@@ -44,7 +42,16 @@ import {
 import { GLOSARIO } from '@/dominio/glosario'
 import { cn } from '@/lib/clases'
 import type { StaffReferencia } from '@/datos/tipos'
-import type { DefinicionCampoPersonalizado, Hito, Lookups, Proceso } from '@/datos/recursos'
+import type {
+  DefinicionCampoPersonalizado,
+  Hito,
+  Lookups,
+  Proceso,
+  ValorCampoPersonalizado
+} from '@/datos/recursos'
+
+/** Lista vacia unica: un `[]` nuevo por render volveria a disparar el efecto de las definiciones. */
+const SIN_CAMPOS: ValorCampoPersonalizado[] = []
 
 interface PropsEdicionTarea {
   tarea: Proceso
@@ -75,10 +82,9 @@ interface PropsEdicionTarea {
  * abrir y no al montar el detalle, que es una peticion que no le sirve a quien solo vino a mirar.
  *
  * Los campos personalizados van en su propia escritura (`PATCH /custom-fields/values`): `PATCH
- * /tasks/{id}` rechaza con `422` cualquier clave fuera de su lista blanca. Y se **leen** con un
- * `PATCH` de valores vacio, que no escribe nada, porque la API no expone ninguna lectura de los
- * valores de una Tarea sola —`GET /tasks/{id}` no honra `include=custom_fields`—. Esta explicado en
- * `lecturaDeCamposPersonalizados()`.
+ * /tasks/{id}` rechaza con `422` cualquier clave fuera de su lista blanca. Los valores no se piden
+ * aparte: llegan en la Tarea, que el detalle trae con `include=custom_fields`. Lo unico que falta
+ * son las definiciones, que dicen que campos existen y de que tipo es cada uno.
  *
  * **Las personas salen de los miembros del Espacio, no de `GET /staff`.** Ese endpoint exige el
  * permiso `staff.view`, que en esta instalacion tienen 19 de 184 personas: poblar el selector desde
@@ -105,6 +111,8 @@ export function EdicionTarea (
   const [erroresCampos, setErroresCampos] = useState<ErroresDeCampos>({})
 
   const espacioId = tarea.rel_type === 'project' ? tarea.rel_id : null
+  /** Los valores que trajo `include=custom_fields`. Vacio si la Tarea llego sin el include. */
+  const valoresDeLaTarea = tarea.custom_fields ?? SIN_CAMPOS
 
   useEffect(() => {
     if (espacioId === null) return
@@ -131,46 +139,35 @@ export function EdicionTarea (
   }, [espacioId])
 
   /*
-   * Definiciones y valores de los campos personalizados. Van en su propio efecto y no en el de
-   * arriba porque no dependen del Espacio: una Tarea suelta tambien los tiene.
+   * Definiciones de los campos personalizados. Van en su propio efecto y no en el de arriba porque
+   * no dependen del Espacio: una Tarea suelta tambien los tiene.
    *
-   * `escribirEnBff` no acepta una señal de aborto, asi que el desmontaje se cubre con una bandera:
-   * el dialogo se cierra descartando lo no guardado y una respuesta tardia no debe repoblarlo.
+   * Los valores ya vienen en la Tarea; lo que hace falta pedir es el catalogo, que ademas es lo que
+   * decide el orden, el tipo y las opciones de cada campo.
    */
   useEffect(() => {
-    let vivo = true
     const control = new AbortController()
 
-    void Promise.all([
-      pedirSobre<DefinicionCampoPersonalizado[]>('custom-fields?para=tasks', control.signal),
-      escribirEnBff<RespuestaCamposPersonalizados>(
-        'custom-fields/values', 'PATCH', lecturaDeCamposPersonalizados('tasks', tarea.id)
-      )
-    ])
-      .then(([sobre, leidos]) => {
-        if (!vivo) return
+    void pedirSobre<DefinicionCampoPersonalizado[]>('custom-fields?para=tasks', control.signal)
+      .then((sobre) => {
+        if (control.signal.aborted) return
 
         const ordenadas = camposOrdenados(sobre.data)
-        const valores = valoresIniciales(ordenadas, leidos.ok ? leidos.datos.values : [])
+        const valores = valoresIniciales(ordenadas, valoresDeLaTarea)
 
         setDefiniciones(ordenadas)
         setPersonalizadosIniciales(valores)
         setPersonalizados(valores)
-
-        if (!leidos.ok) {
-          setAvisoCatalogo(`No se pudieron leer los campos personalizados: ${leidos.mensaje}`)
-        }
       })
       .catch(() => {
         // Sin definiciones el resto del formulario funciona igual; se dice y no se rompe la edicion.
-        if (vivo) setAvisoCatalogo('No se pudieron traer los campos personalizados de la tarea.')
+        if (!control.signal.aborted) {
+          setAvisoCatalogo('No se pudieron traer los campos personalizados de la tarea.')
+        }
       })
 
-    return () => {
-      vivo = false
-      control.abort()
-    }
-  }, [tarea.id])
+    return () => { control.abort() }
+  }, [valoresDeLaTarea])
 
   const elegibles = personasElegibles(miembros, [...tarea.assignees, ...tarea.followers])
   const prioridades = listaDe(lookups, 'task_priorities')
