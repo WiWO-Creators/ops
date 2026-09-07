@@ -65,7 +65,19 @@ export const ESPACIOS: DefinicionRecurso<Espacio> = {
     { clave: 'clientid', etiqueta: 'Cliente', tipo: 'seleccion', desdeLookup: 'clients' },
     { clave: 'member', etiqueta: 'Miembros', tipo: 'multiple', desdeLookup: 'staff' },
     { clave: 'billing_type', etiqueta: 'Facturación', tipo: 'seleccion', opciones: TIPOS_DE_FACTURACION },
-    { clave: 'inicia', etiqueta: 'Inicia', tipo: 'rangoFechas', clavesRango: ['date_from', 'date_to'] }
+    { clave: 'inicia', etiqueta: 'Inicia', tipo: 'rangoFechas', clavesRango: ['date_from', 'date_to'] },
+    // Sin este filtro los archivados no se ven en ninguna parte: el backend los deja fuera de
+    // `GET /projects` mientras nadie mande `filter[archivado]`. Por eso la opcion de reposo no es
+    // "todos" sino "Solo activos", y la unica alternativa trae solo los archivados: pedir
+    // `filter[archivado]=0,1` mostraria las dos cosas mezcladas y el selector no sabria cual esta
+    // puesta al releer la URL.
+    {
+      clave: 'archivado',
+      etiqueta: 'Archivo',
+      etiquetaSinFiltro: 'Solo activos',
+      tipo: 'seleccion',
+      opciones: [{ valor: '1', etiqueta: 'Ver archivados' }]
+    }
   ],
 
   ordenables: ['id', 'name', 'start_date', 'deadline', 'progress'],

@@ -222,7 +222,7 @@ function FiltroSimple ({ filtro, opciones, valores, onCambiar }: PropsFiltroConO
         className={cn(ANCHO_FILTRO, valores.length === 0 && 'text-texto-sutil')}
       />
       <ContenidoSelector>
-        <Opcion value={SIN_FILTRO}>{filtro.etiqueta}: todos</Opcion>
+        <Opcion value={SIN_FILTRO}>{filtro.etiquetaSinFiltro ?? `${filtro.etiqueta}: todos`}</Opcion>
         {opciones.map((opcion) => (
           <Opcion key={opcion.valor} value={opcion.valor}>{opcion.etiqueta}</Opcion>
         ))}

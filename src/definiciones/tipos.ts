@@ -68,6 +68,14 @@ export interface Filtro {
   desdeLookup?: string
   opciones?: OpcionFiltro[]
   /**
+   * Texto de la opcion que quita el filtro. Por defecto dice "<etiqueta>: todos".
+   *
+   * Existe para los filtros cuyo estado sin filtrar NO es "todos": el listado de Espacios esconde
+   * los archivados salvo que se pidan, asi que ahi la opcion de reposo es "Solo activos" y decir
+   * "todos" seria mentir sobre lo que se esta viendo.
+   */
+  etiquetaSinFiltro?: string
+  /**
    * Las dos claves que el backend usa para el rango, en orden desde/hasta. Solo para `rangoFechas`.
    *
    * Un rango es UN control con DOS parametros: la API expone `filter[date_from]` y `filter[date_to]`

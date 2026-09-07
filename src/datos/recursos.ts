@@ -132,6 +132,13 @@ export interface Espacio {
   project_created: string | null
   tags: Etiqueta[]
   counts: { tasks: number, tasks_open: number, milestones: number }
+  /**
+   * Archivado: fuera de la vista diaria, pero sin borrar. Es independiente de `status` —un Espacio
+   * archivado conserva el estado que tenia— y el listado lo esconde salvo que se pida.
+   */
+  archived: boolean
+  /** Cuando se archivo. `null` mientras no lo este. */
+  archived_at: string | null
   custom_fields?: CampoPersonalizado[]
   members?: StaffReferencia[]
 }

@@ -70,12 +70,14 @@ export function MenuProyecto ({ proyecto, estados, capacidades }: PropsMenuProye
   const [editando, setEditando] = useState(false)
   const [copiando, setCopiando] = useState(false)
   const [borrando, setBorrando] = useState(false)
+  const [archivando, setArchivando] = useState(false)
   const [enCurso, setEnCurso] = useState(false)
   const [fallo, setFallo] = useState<string | null>(null)
 
   const puedeCrear = capacidades.includes('create')
   const puedeEditar = capacidades.includes('edit')
   const puedeBorrar = capacidades.includes('delete')
+  const archivado = proyecto.archived
 
   /**
    * Cambia el estado del proyecto.
@@ -102,6 +104,43 @@ export function MenuProyecto ({ proyecto, estados, capacidades }: PropsMenuProye
       router.refresh()
     } catch {
       setFallo('No se pudo cambiar el estado: revisa la conexión.')
+    } finally {
+      setEnCurso(false)
+    }
+  }
+
+  /**
+   * Archiva o desarchiva el proyecto.
+   *
+   * Al archivar se vuelve al listado: el proyecto acaba de salir de el, y quedarse en una ficha de
+   * solo lectura sin decir por que es peor que mostrar la lista de la que ya no forma parte. Al
+   * desarchivar se refresca en el sitio, que es donde la persona queria seguir trabajando.
+   */
+  async function cambiarArchivado (archivar: boolean): Promise<void> {
+    setEnCurso(true)
+    setFallo(null)
+
+    try {
+      const respuesta = await fetch(
+        `/api/bff/projects/${proyecto.id}/actions/${archivar ? 'archive' : 'unarchive'}`,
+        { method: 'POST', headers: { accept: 'application/json' } }
+      )
+
+      if (!respuesta.ok) {
+        setFallo(await mensajeDeRespuesta(respuesta))
+        return
+      }
+
+      setArchivando(false)
+
+      if (archivar) {
+        router.push('/espacios')
+        return
+      }
+
+      router.refresh()
+    } catch {
+      setFallo(`No se pudo ${archivar ? 'archivar' : 'desarchivar'}: revisa la conexión.`)
     } finally {
       setEnCurso(false)
     }
@@ -139,7 +178,9 @@ export function MenuProyecto ({ proyecto, estados, capacidades }: PropsMenuProye
         </DisparadorMenu>
 
         <ContenidoMenu align="end">
-          {puedeEditar && (
+          {/* Editar y "Marcar como" desaparecen mientras esta archivado: el backend responde 422 a
+              cualquier `PATCH` sobre un archivado, y ofrecer una accion que va a fallar es mentir. */}
+          {puedeEditar && !archivado && (
             <ItemMenu onSelect={() => { setEditando(true) }}>
               Editar {GLOSARIO.espacio.singular.toLowerCase()}
             </ItemMenu>
@@ -150,9 +191,9 @@ export function MenuProyecto ({ proyecto, estados, capacidades }: PropsMenuProye
             </ItemMenu>
           )}
 
-          {(puedeCrear || puedeEditar) && estados.length > 0 && <SeparadorMenu />}
+          {(puedeCrear || puedeEditar) && !archivado && estados.length > 0 && <SeparadorMenu />}
 
-          {(puedeCrear || puedeEditar) && estados
+          {(puedeCrear || puedeEditar) && !archivado && estados
             .filter((estado) => estado.id !== proyecto.status)
             .map((estado) => (
               <ItemMenu key={estado.id} onSelect={() => { void marcarComo(estado.id) }}>
@@ -175,6 +216,17 @@ export function MenuProyecto ({ proyecto, estados, capacidades }: PropsMenuProye
             </>
           )}
 
+          {/* Archivar pide `edit`, no `delete`: saca el proyecto de la vista de todo el equipo pero
+              no borra nada, y siempre se puede deshacer desde el mismo menu. */}
+          {puedeEditar && (
+            <>
+              <SeparadorMenu />
+              <ItemMenu onSelect={() => { setArchivando(true) }}>
+                {archivado ? 'Desarchivar' : 'Archivar'} {GLOSARIO.espacio.singular.toLowerCase()}
+              </ItemMenu>
+            </>
+          )}
+
           {puedeBorrar && (
             <>
               <SeparadorMenu />
@@ -185,6 +237,14 @@ export function MenuProyecto ({ proyecto, estados, capacidades }: PropsMenuProye
           )}
         </ContenidoMenu>
       </MenuContextual>
+
+      {/* La ficha no dice en ninguna otra parte que esta archivada: quien llega por un enlace
+          directo se enteraria recien al intentar editar. */}
+      {archivado && (
+        <span className="rounded-full border border-borde px-2 py-0.5 text-xs text-texto-sutil">
+          Archivado
+        </span>
+      )}
 
       {fallo !== null && <span role="alert" className="text-texto-peligro text-xs">{fallo}</span>}
 
@@ -218,6 +278,27 @@ export function MenuProyecto ({ proyecto, estados, capacidades }: PropsMenuProye
         }}
         onGuardado={() => { router.push('/espacios') }}
       />
+
+      <Dialogo open={archivando} onOpenChange={setArchivando}>
+        <ContenidoDialogo
+          titulo={`${archivado ? 'Desarchivar' : 'Archivar'} ${GLOSARIO.espacio.singular.toLowerCase()}`}
+          descripcion={archivado
+            ? `"${proyecto.name}" vuelve al listado y se puede volver a editar.`
+            : `"${proyecto.name}" sale del listado y queda de solo lectura. No se borra nada y se puede deshacer.`}
+          ancho="chico"
+        >
+          <div className="flex justify-end gap-2">
+            <Boton variante="sutil" onClick={() => { setArchivando(false) }}>Cancelar</Boton>
+            <Boton
+              variante="primario"
+              cargando={enCurso}
+              onClick={() => { void cambiarArchivado(!archivado) }}
+            >
+              {archivado ? 'Desarchivar' : 'Archivar'}
+            </Boton>
+          </div>
+        </ContenidoDialogo>
+      </Dialogo>
 
       <Dialogo open={borrando} onOpenChange={setBorrando}>
         <ContenidoDialogo
