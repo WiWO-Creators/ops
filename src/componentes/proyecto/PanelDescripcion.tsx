@@ -6,6 +6,7 @@ import { Cargando, ErrorEstado } from '@/componentes/estado/Estados'
 import { Etiquetas } from '@/componentes/presentadores/Etiqueta'
 import { Fecha } from '@/componentes/presentadores/Fecha'
 import { Insignia } from '@/componentes/presentadores/Insignia'
+import { esEnlaceValido } from '@/dominio/campos-personalizados'
 import { GLOSARIO } from '@/dominio/glosario'
 import { BarraProgreso } from './CabeceraProyecto'
 import { Metrica, formatearNumero } from './ResumenProyecto'
@@ -13,7 +14,7 @@ import { GraficoHoras } from './GraficoHoras'
 import { useRecurso } from './carga'
 import { formatearImporte, segundosAHoraMinuto } from './formatos'
 import { textoDeDias } from './overview'
-import type { Espacio, ResumenEspacio } from '@/datos/recursos'
+import type { CampoPersonalizado, Espacio, ResumenEspacio } from '@/datos/recursos'
 
 /**
  * Pestaña Descripcion: el resumen del Proyecto en un viaje.
@@ -147,7 +148,9 @@ function FichaProyecto ({
         <Dato termino="Horas estimadas">{formatearNumero(proyecto.estimated_hours, ' h')}</Dato>
 
         {(proyecto.custom_fields ?? []).map((campo) => (
-          <Dato key={campo.id} termino={campo.name}>{campo.value ?? '—'}</Dato>
+          <Dato key={campo.id} termino={campo.name}>
+            <ValorDeCampo campo={campo} />
+          </Dato>
         ))}
       </dl>
 
@@ -161,6 +164,38 @@ function FichaProyecto ({
       </div>
     </section>
   )
+}
+
+/**
+ * El valor de un campo personalizado en la ficha.
+ *
+ * Un campo `type: link` se pinta como enlace abrible y no como texto plano: es lo unico que hace que
+ * un "Link de Drive" pegado a mano sirva de algo desde el panel. Se valida antes de convertirlo en
+ * `<a>` porque el valor lo escribio una persona y un `href` con un esquema raro es un enlace que el
+ * navegador no deberia seguir.
+ *
+ * `rel="noreferrer"` acompaña a `target="_blank"`: sin el, la pestaña nueva recibe el `Referer` del
+ * panel y, en navegadores viejos, un `window.opener` que puede navegar esta.
+ */
+function ValorDeCampo ({ campo }: { campo: CampoPersonalizado }): ReactElement {
+  const texto = campo.value ?? ''
+
+  if (texto === '') return <>—</>
+
+  if (campo.type === 'link' && esEnlaceValido(texto)) {
+    return (
+      <a
+        href={texto}
+        target="_blank"
+        rel="noreferrer"
+        className="text-acento break-all underline underline-offset-4"
+      >
+        {texto}
+      </a>
+    )
+  }
+
+  return <>{texto}</>
 }
 
 /**

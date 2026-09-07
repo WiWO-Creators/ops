@@ -4,6 +4,7 @@ import { useEffect, useState, type FormEvent, type ReactElement } from 'react'
 import { useAccionPresencia } from '@/componentes/auditoria/accion'
 import { Boton } from '@/componentes/formularios/Boton'
 import { Campo } from '@/componentes/formularios/Campo'
+import { CamposPersonalizados } from '@/componentes/formularios/CamposPersonalizados'
 import { AreaTexto, Entrada } from '@/componentes/formularios/Entrada'
 import { SelectorPersonas } from '@/componentes/formularios/SelectorPersonas'
 import {
@@ -24,6 +25,16 @@ import { escribirEnBff } from '@/componentes/datos/mutaciones'
 import { pedirSobre } from '@/datos/cliente'
 import { listaDe } from '@/datos/catalogos'
 import {
+  camposOrdenados,
+  cuerpoDeCamposPersonalizados,
+  esquemaDeCamposPersonalizados,
+  lecturaDeCamposPersonalizados,
+  valoresIniciales,
+  type ErroresDeCampos,
+  type RespuestaCamposPersonalizados,
+  type ValoresDeCampos
+} from '@/dominio/campos-personalizados'
+import {
   camposDeTarea,
   cuerpoDeParche,
   nombresDeEtiquetas,
@@ -33,7 +44,7 @@ import {
 import { GLOSARIO } from '@/dominio/glosario'
 import { cn } from '@/lib/clases'
 import type { StaffReferencia } from '@/datos/tipos'
-import type { Hito, Lookups, Proceso } from '@/datos/recursos'
+import type { DefinicionCampoPersonalizado, Hito, Lookups, Proceso } from '@/datos/recursos'
 
 interface PropsEdicionTarea {
   tarea: Proceso
@@ -63,6 +74,12 @@ interface PropsEdicionTarea {
  * los dos catalogos que dependen de la Tarea —los miembros del Espacio y sus hitos— se piden al
  * abrir y no al montar el detalle, que es una peticion que no le sirve a quien solo vino a mirar.
  *
+ * Los campos personalizados van en su propia escritura (`PATCH /custom-fields/values`): `PATCH
+ * /tasks/{id}` rechaza con `422` cualquier clave fuera de su lista blanca. Y se **leen** con un
+ * `PATCH` de valores vacio, que no escribe nada, porque la API no expone ninguna lectura de los
+ * valores de una Tarea sola —`GET /tasks/{id}` no honra `include=custom_fields`—. Esta explicado en
+ * `lecturaDeCamposPersonalizados()`.
+ *
  * **Las personas salen de los miembros del Espacio, no de `GET /staff`.** Ese endpoint exige el
  * permiso `staff.view`, que en esta instalacion tienen 19 de 184 personas: poblar el selector desde
  * ahi dejaria el campo vacio justo para quien necesita asignar.
@@ -81,6 +98,11 @@ export function EdicionTarea (
   const [etiquetaNueva, setEtiquetaNueva] = useState('')
   const [enCurso, setEnCurso] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [definiciones, setDefiniciones] = useState<DefinicionCampoPersonalizado[]>([])
+  /** Los valores tal como se abrio el formulario, para poder mandar solo lo que cambio. */
+  const [personalizadosIniciales, setPersonalizadosIniciales] = useState<ValoresDeCampos>({})
+  const [personalizados, setPersonalizados] = useState<ValoresDeCampos>({})
+  const [erroresCampos, setErroresCampos] = useState<ErroresDeCampos>({})
 
   const espacioId = tarea.rel_type === 'project' ? tarea.rel_id : null
 
@@ -108,11 +130,60 @@ export function EdicionTarea (
     return () => { control.abort() }
   }, [espacioId])
 
+  /*
+   * Definiciones y valores de los campos personalizados. Van en su propio efecto y no en el de
+   * arriba porque no dependen del Espacio: una Tarea suelta tambien los tiene.
+   *
+   * `escribirEnBff` no acepta una señal de aborto, asi que el desmontaje se cubre con una bandera:
+   * el dialogo se cierra descartando lo no guardado y una respuesta tardia no debe repoblarlo.
+   */
+  useEffect(() => {
+    let vivo = true
+    const control = new AbortController()
+
+    void Promise.all([
+      pedirSobre<DefinicionCampoPersonalizado[]>('custom-fields?para=tasks', control.signal),
+      escribirEnBff<RespuestaCamposPersonalizados>(
+        'custom-fields/values', 'PATCH', lecturaDeCamposPersonalizados('tasks', tarea.id)
+      )
+    ])
+      .then(([sobre, leidos]) => {
+        if (!vivo) return
+
+        const ordenadas = camposOrdenados(sobre.data)
+        const valores = valoresIniciales(ordenadas, leidos.ok ? leidos.datos.values : [])
+
+        setDefiniciones(ordenadas)
+        setPersonalizadosIniciales(valores)
+        setPersonalizados(valores)
+
+        if (!leidos.ok) {
+          setAvisoCatalogo(`No se pudieron leer los campos personalizados: ${leidos.mensaje}`)
+        }
+      })
+      .catch(() => {
+        // Sin definiciones el resto del formulario funciona igual; se dice y no se rompe la edicion.
+        if (vivo) setAvisoCatalogo('No se pudieron traer los campos personalizados de la tarea.')
+      })
+
+    return () => {
+      vivo = false
+      control.abort()
+    }
+  }, [tarea.id])
+
   const elegibles = personasElegibles(miembros, [...tarea.assignees, ...tarea.followers])
   const prioridades = listaDe(lookups, 'task_priorities')
   const etiquetas = lookups.tags
 
-  /** Guarda los cambios. Un formulario sin cambios cierra sin escribir: no hay nada que mandar. */
+  /**
+   * Guarda los cambios. Un formulario sin cambios cierra sin escribir: no hay nada que mandar.
+   *
+   * Son dos escrituras porque la API las separa: `PATCH /tasks/{id}` rechaza cualquier clave que no
+   * este en su lista blanca, y los campos personalizados van por `PATCH /custom-fields/values`. Los
+   * campos se validan antes de la primera para que un `required` vacio no deje la Tarea guardada a
+   * medias, y el `422` con el numero del campo por mensaje no llegue nunca a la pantalla.
+   */
   async function guardar (evento: FormEvent<HTMLFormElement>): Promise<void> {
     evento.preventDefault()
 
@@ -121,9 +192,21 @@ export function EdicionTarea (
       return
     }
 
-    const cuerpo = cuerpoDeParche(inicial, campos)
+    const fallos = esquemaDeCamposPersonalizados(definiciones).validar(personalizados)
 
-    if (Object.keys(cuerpo).length === 0) {
+    setErroresCampos(fallos)
+
+    if (Object.keys(fallos).length > 0) {
+      setError('Revisa los campos marcados.')
+      return
+    }
+
+    const cuerpo = cuerpoDeParche(inicial, campos)
+    const parcheCampos = cuerpoDeCamposPersonalizados(
+      'tasks', tarea.id, definiciones, personalizadosIniciales, personalizados
+    )
+
+    if (Object.keys(cuerpo).length === 0 && parcheCampos === null) {
       onCerrar()
       return
     }
@@ -131,15 +214,29 @@ export function EdicionTarea (
     setEnCurso(true)
     setError(null)
 
-    const resultado = await escribirEnBff<Proceso>(`tasks/${tarea.id}`, 'PATCH', cuerpo)
+    if (Object.keys(cuerpo).length > 0) {
+      const resultado = await escribirEnBff<Proceso>(`tasks/${tarea.id}`, 'PATCH', cuerpo)
 
-    setEnCurso(false)
-
-    if (!resultado.ok) {
-      setError(resultado.mensaje)
-      return
+      if (!resultado.ok) {
+        setEnCurso(false)
+        setError(resultado.mensaje)
+        return
+      }
     }
 
+    if (parcheCampos !== null) {
+      const guardados = await escribirEnBff('custom-fields/values', 'PATCH', parcheCampos)
+
+      if (!guardados.ok) {
+        setEnCurso(false)
+        setError(`No se guardaron los campos personalizados: ${guardados.mensaje}`)
+        // El resto ya se escribio: quien mire el detalle tiene que verlo aunque esto haya fallado.
+        onGuardada()
+        return
+      }
+    }
+
+    setEnCurso(false)
     onCerrar()
     onGuardada()
   }
@@ -373,6 +470,14 @@ export function EdicionTarea (
               />
             )}
           </Campo>
+
+          <CamposPersonalizados
+            definiciones={definiciones}
+            valores={personalizados}
+            errores={erroresCampos}
+            onCambiar={setPersonalizados}
+            deshabilitado={enCurso}
+          />
 
           {avisoCatalogo !== null && (
             <p className="text-texto-tenue text-xs">{avisoCatalogo}</p>

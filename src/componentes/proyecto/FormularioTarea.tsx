@@ -1,9 +1,10 @@
 'use client'
 
-import { useMemo, useState, type FormEvent, type ReactElement } from 'react'
+import { useEffect, useMemo, useState, type FormEvent, type ReactElement } from 'react'
 import { useAccionPresencia } from '@/componentes/auditoria/accion'
 import { Boton } from '@/componentes/formularios/Boton'
 import { Campo } from '@/componentes/formularios/Campo'
+import { CamposPersonalizados } from '@/componentes/formularios/CamposPersonalizados'
 import { AreaTexto, Entrada } from '@/componentes/formularios/Entrada'
 import {
   ContenidoSelector,
@@ -18,7 +19,16 @@ import {
   DisparadorDialogo
 } from '@/componentes/superposiciones/Dialogo'
 import { escribirEnBff } from '@/componentes/datos/mutaciones'
+import { pedirSobre } from '@/datos/cliente'
 import { leerError } from '@/datos/errores'
+import {
+  camposOrdenados,
+  cuerpoDeCamposPersonalizados,
+  esquemaDeCamposPersonalizados,
+  valoresPorDefecto,
+  type ErroresDeCampos,
+  type ValoresDeCampos
+} from '@/dominio/campos-personalizados'
 import { interpretarAltaRapida } from '@/dominio/alta-rapida'
 import { GLOSARIO } from '@/dominio/glosario'
 import {
@@ -32,7 +42,7 @@ import { formatearFecha } from '@/lib/fechas'
 import { VistaPreviaAlta, type MarcaPrevia } from './VistaPreviaAlta'
 import type { CamposTarea } from '@/dominio/ia'
 import type { OpcionFiltro } from '@/definiciones/tipos'
-import type { Referencia } from '@/datos/recursos'
+import type { DefinicionCampoPersonalizado, Proceso, Referencia } from '@/datos/recursos'
 
 /**
  * Alta de una tarea dentro de un proyecto.
@@ -44,6 +54,11 @@ import type { Referencia } from '@/datos/recursos'
  *
  * El proyecto no es un campo: viaja como `rel_type`/`rel_id` y no se elige, porque el formulario se
  * abre desde la pestaña de ese proyecto.
+ *
+ * Los campos personalizados se escriben en un segundo paso, y no es una eleccion: `POST /tasks`
+ * rechaza con `422` cualquier clave fuera de su lista blanca, asi que los valores salen recien
+ * despues, con el id que devolvio el alta. Por eso se validan **antes** de crear: si el `PATCH`
+ * fallara, la Tarea ya existiria y no habria nada que deshacer.
  *
  * Arriba de todo hay un texto libre: se escribe la tarea como se hablaria y "Completar campos" la
  * convierte en campos, que despues se corrigen a mano. **Nada se crea sin confirmacion**: el
@@ -97,6 +112,9 @@ export function FormularioTarea (
   const [descripcion, setDescripcion] = useState('')
   const [enCurso, setEnCurso] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [definiciones, setDefiniciones] = useState<DefinicionCampoPersonalizado[]>([])
+  const [personalizados, setPersonalizados] = useState<ValoresDeCampos>({})
+  const [erroresCampos, setErroresCampos] = useState<ErroresDeCampos>({})
   const [textoLibre, setTextoLibre] = useState('')
   const [interpretando, setInterpretando] = useState(false)
   const [avisoIa, setAvisoIa] = useState<string | null>(null)
@@ -116,6 +134,33 @@ export function FormularioTarea (
     etiquetas: etiquetasDisponibles
   }), [prioridades, etiquetasDisponibles])
 
+  /*
+   * Las definiciones se piden al abrir y no al montar la pestaña: son una peticion que no le sirve a
+   * quien pasa por la lista sin crear nada. Si fallan, el alta sigue funcionando sin ellas —el
+   * backend solo exige un `required` cuando el campo viaja— y por eso el fallo no es un error de
+   * pantalla.
+   */
+  useEffect(() => {
+    if (!abierto) return
+
+    const control = new AbortController()
+
+    void pedirSobre<DefinicionCampoPersonalizado[]>('custom-fields?para=tasks', control.signal)
+      .then((sobre) => {
+        if (control.signal.aborted) return
+
+        const ordenadas = camposOrdenados(sobre.data)
+
+        setDefiniciones(ordenadas)
+        setPersonalizados(valoresPorDefecto(ordenadas))
+      })
+      .catch(() => {
+        if (!control.signal.aborted) setDefiniciones([])
+      })
+
+    return () => { control.abort() }
+  }, [abierto])
+
   /** Vacia el formulario para que la proxima alta no arranque con los datos de la anterior. */
   function limpiar (): void {
     setNombre('')
@@ -125,6 +170,8 @@ export function FormularioTarea (
     setFacturable(true)
     setEtiquetas('')
     setDescripcion('')
+    setPersonalizados(valoresPorDefecto(definiciones))
+    setErroresCampos({})
     setError(null)
     setTextoLibre('')
     setAvisoIa(null)
@@ -218,12 +265,26 @@ export function FormularioTarea (
     for (const etiqueta of fusion.tags) marcas.push({ texto: etiqueta, origen: origen('tags') })
   }
 
-  /** Crea la tarea. El nombre es lo unico obligatorio; el resto viaja solo si se completo. */
+  /**
+   * Crea la tarea. El nombre es lo unico obligatorio del alta; el resto viaja solo si se completo.
+   *
+   * Los campos personalizados se validan **antes** del `POST`: van en una escritura aparte, asi que
+   * un `required` sin completar dejaria la Tarea creada y sus campos sin guardar.
+   */
   async function enviar (evento: FormEvent<HTMLFormElement>): Promise<void> {
     evento.preventDefault()
 
     if (nombre.trim() === '') {
       setError('La tarea necesita un nombre.')
+      return
+    }
+
+    const fallos = esquemaDeCamposPersonalizados(definiciones).validar(personalizados)
+
+    setErroresCampos(fallos)
+
+    if (Object.keys(fallos).length > 0) {
+      setError('Revisa los campos marcados.')
       return
     }
 
@@ -256,6 +317,23 @@ export function FormularioTarea (
       if (!respuesta.ok) {
         setError((await leerError(respuesta)).message)
         return
+      }
+
+      const creada = await respuesta.json() as { data: Proceso }
+      const parche = cuerpoDeCamposPersonalizados(
+        'tasks', creada.data.id, definiciones, valoresPorDefecto(definiciones), personalizados
+      )
+
+      if (parche !== null) {
+        const guardados = await escribirEnBff('custom-fields/values', 'PATCH', parche)
+
+        // La Tarea ya existe: no se puede deshacer, asi que se dice exactamente que quedo a medias
+        // y se deja el dialogo abierto para no perder lo escrito. La lista se recarga igual.
+        if (!guardados.ok) {
+          setError(`Se creó la ${GLOSARIO.proceso.singular.toLowerCase()}, pero no se guardaron sus campos: ${guardados.mensaje}`)
+          onCreada()
+          return
+        }
       }
 
       limpiar()
@@ -402,6 +480,14 @@ export function FormularioTarea (
               />
             )}
           </Campo>
+
+          <CamposPersonalizados
+            definiciones={definiciones}
+            valores={personalizados}
+            errores={erroresCampos}
+            onCambiar={setPersonalizados}
+            deshabilitado={enCurso}
+          />
 
           <label className="text-texto flex items-center gap-2 text-sm">
             <input
