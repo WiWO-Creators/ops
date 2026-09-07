@@ -200,6 +200,13 @@ export interface MiembroEquipo {
   /** Organizacion propia del staff (`modules/wiwo_core/cargos_areas.php`), separada de `role_id`. */
   cargo_id: number | null
   area_id: number | null
+  /**
+   * A cual de las seis organizaciones del grupo pertenece (`tblapi_empresas`, migracion 0170).
+   *
+   * Es pertenencia, no permiso: no la mira ningun chequeo de acceso de la API. `null` es "sin
+   * empresa", que es el estado de las cuentas de prueba y de las que no son del grupo.
+   */
+  empresa_id: number | null
   /** Cargo "Director": gate de la seccion "Mi Área". No se deduce comparando por nombre. */
   is_director: boolean
   /**
@@ -255,6 +262,7 @@ export interface FichaPersona extends MiembroEquipo {
   role: Referencia | null
   cargo: Referencia | null
   area: Referencia | null
+  empresa: Referencia | null
   departments: Referencia[]
   permissions: Record<string, string[]>
   tiempo: TiempoDePersona
@@ -311,6 +319,8 @@ export interface Lookups {
   /** Cargos del staff (`modules/wiwo_core/cargos_areas.php`). "Director" es uno de ellos. */
   cargos: Referencia[]
   areas: Referencia[]
+  /** Las seis organizaciones del grupo (`tblapi_empresas`). Solo las activas. */
+  empresas: Referencia[]
   /**
    * Tipos de Proceso (`tbltask_types`). Opcional porque el contrato escrito no los enumeraba y el
    * mock todavia no los sirve; la API real si los devuelve.

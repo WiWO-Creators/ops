@@ -44,6 +44,8 @@ const MAXIMO_HEREDEROS = 200
 interface PropsAccionesPersona {
   persona: MiembroEquipo
   roles: OpcionCampo[]
+  /** Catalogo `empresas` de `GET /lookups`, para el selector de Organización. */
+  empresas?: OpcionCampo[]
   /** Modelo de permisos de quien mira: en `nuevo` el formulario no ofrece el selector de Rol. */
   modeloDePermisos?: ModeloDePermisos
   cargos: OpcionCampo[]
@@ -58,6 +60,7 @@ interface PropsAccionesPersona {
 export function AccionesPersona ({
   persona,
   roles,
+  empresas = [],
   modeloDePermisos = 'viejo',
   cargos,
   areas,
@@ -140,7 +143,7 @@ export function AccionesPersona ({
           abierto={editando}
           onAbiertoCambia={setEditando}
           titulo={`Editar a ${persona.full_name}`}
-          campos={camposDePersona(roles, cargos, areas, false, modeloDePermisos === 'viejo')}
+          campos={camposDePersona(roles, cargos, areas, false, modeloDePermisos === 'viejo', empresas)}
           ruta={`staff/${persona.id}`}
           metodo="PATCH"
           registro={persona as unknown as Record<string, unknown>}

@@ -18,7 +18,7 @@ import { ErrorApi, aplicarConsulta, coincideEnLista, leerIncludes } from './cons
 import * as sesion from './sesion.js'
 import {
   ARCHIVOS, CAMPOS_PERSONALIZADOS, CHECKLIST, CLIENTES, COMENTARIOS, CRONOMETROS,
-  DEPARTAMENTOS, ESPACIOS, ESTADOS_ESPACIO, ESTADOS_PROCESO, ETIQUETAS, HITOS,
+  DEPARTAMENTOS, EMPRESAS_DEL_GRUPO, ESPACIOS, ESTADOS_ESPACIO, ESTADOS_PROCESO, ETIQUETAS, HITOS,
   AVISOS_CONTACTO, CONTACTOS, PRIORIDADES, PROCESOS, RESERVAS, ROLES, SALAS, STAFF, VALORES_CAMPOS
 } from './datos.js'
 
@@ -123,10 +123,12 @@ function fichaDeStaff (staff) {
   const corriendo = CRONOMETROS.find((c) => c.staff_id === staff.id && c.end_time === null)
   const tarea = corriendo === undefined ? null : PROCESOS.find((p) => p.id === corriendo.task_id)
   const rol = ROLES.find((r) => r.id === staff.role_id) ?? null
+  const empresa = EMPRESAS_DEL_GRUPO.find((e) => e.id === staff.empresa_id) ?? null
 
   return {
     ...presentarStaff(staff),
     role: rol,
+    empresa,
     // Solo el primero tiene departamentos: una ficha sin ellos es el caso comun y tiene que estar
     // en el fixture, porque es donde la seccion no se dibuja.
     departments: staff.id === 1 ? DEPARTAMENTOS : [],
@@ -1517,7 +1519,8 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
         project_statuses: ESTADOS_ESPACIO,
         tags: ETIQUETAS,
         roles: ROLES,
-        departments: DEPARTAMENTOS
+        departments: DEPARTAMENTOS,
+        empresas: EMPRESAS_DEL_GRUPO
       })
     }
   }

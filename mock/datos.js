@@ -67,6 +67,22 @@ const NOMBRES = [
  * Staff. El primero es admin; el segundo tiene 2FA por correo, para poder ejercitar ese camino sin
  * tocar el fixture. El ultimo esta inactivo: `POST /auth/login` debe darle 403, no 401.
  */
+/**
+ * Las organizaciones del grupo (`tblapi_empresas`), que NO son las empresas cliente.
+ *
+ * El sufijo `_DEL_GRUPO` no es decorativo: mas abajo ya hay un `EMPRESAS` con los nombres de las
+ * empresas **cliente**, y son dos poblaciones distintas —una es donde trabaja el equipo, la otra a
+ * quien se le factura—. Llamarlas igual dejaba pasar un fixture por el otro.
+ *
+ * Tres y no seis: alcanzan para que la columna y el filtro tengan mas de un valor, que es lo unico
+ * que la pantalla necesita ejercitar.
+ */
+export const EMPRESAS_DEL_GRUPO = [
+  { id: 1, name: 'MGC Global Group' },
+  { id: 2, name: 'Palta' },
+  { id: 3, name: 'WiWO' }
+]
+
 export const STAFF = NOMBRES.map(([firstname, lastname], i) => ({
   id: i + 1,
   email: `${firstname.toLowerCase()}@wiwo.me`,
@@ -84,6 +100,13 @@ export const STAFF = NOMBRES.map(([firstname, lastname], i) => ({
   // cuenta esta en el modelo consolidado y el resto en el viejo, para que el mock sirva los dos:
   // sin una de cada, la ficha con cuatro areas y la de doce no se pueden comparar sin base.
   modelo_permisos: i === 2 ? 'nuevo' : 'viejo',
+  // Empresa de cada uno, repartidas, y la ultima sin ninguna: `null` es el estado de las cuentas
+  // que no son del grupo, y la ficha tiene que saber decir "Sin empresa".
+  empresa_id: i === NOMBRES.length - 1 ? null : ciclo(EMPRESAS_DEL_GRUPO, i).id,
+  // Cargo y area: el fixture no los tenia y la columna Área escribia "#undefined" en todas las
+  // filas. Van con la misma forma que la API real —id o null—, no ausentes.
+  cargo_id: null,
+  area_id: null,
   role_id: ciclo(ROLES, i).id,
   active: i !== NOMBRES.length - 1,
   is_not_staff: false,

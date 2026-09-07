@@ -162,6 +162,10 @@ export default async function PersonaPage (props: PageProps<'/equipo/[id]'>) {
     valor: String(area.id),
     etiqueta: area.name
   }))
+  const empresas: OpcionCampo[] = listaDe(lookups, 'empresas').map((empresa) => ({
+    valor: String(empresa.id),
+    etiqueta: empresa.name
+  }))
 
   const paneles: Panel[] = [
     {
@@ -199,7 +203,7 @@ export default async function PersonaPage (props: PageProps<'/equipo/[id]'>) {
       <div className="flex flex-wrap items-start justify-between gap-3">
         <CabeceraPersona persona={persona} />
         <div className="flex flex-wrap items-center gap-2">
-          <AccionesPersona persona={persona} roles={roles} cargos={cargos} areas={areas} capacidades={capacidades} modeloDePermisos={yo.modelo_permisos} enFicha />
+          <AccionesPersona persona={persona} roles={roles} cargos={cargos} areas={areas} empresas={empresas} capacidades={capacidades} modeloDePermisos={yo.modelo_permisos} enFicha />
           {/* Solo un superadministrador reparte el nivel: la API rechaza al resto con 422. */}
           {yo.is_superadmin && <DialogoNivel persona={persona} actorId={yo.id} />}
           {/* Ver el panel con la sesion de esta persona. Misma puerta que los roles —la API exige

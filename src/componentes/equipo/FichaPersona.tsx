@@ -113,6 +113,7 @@ function datosDeCuenta (persona: Persona): Dato[] {
     ...(persona.modelo_permisos === 'viejo'
       ? [{ etiqueta: 'Rol', valor: persona.role?.name ?? 'Sin rol' }]
       : []),
+    { etiqueta: 'Empresa', valor: persona.empresa?.name ?? 'Sin empresa' },
     { etiqueta: 'Cargo', valor: persona.cargo?.name ?? 'Sin cargo' },
     { etiqueta: 'Área', valor: persona.area?.name ?? 'Sin área' },
     { etiqueta: 'Valor hora', valor: formatearImporte(persona.hourly_rate) },
