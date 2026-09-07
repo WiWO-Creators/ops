@@ -157,7 +157,8 @@ export function moverTarjeta<T extends FilaConId> (
     return { ...grupo, tarjetas, pagination: { ...grupo.pagination, total } }
   })
 
-  const columnaCompleta = (movidos[indiceDestino]?.tarjetas ?? []).map((t) => t.id)
+  const destino = movidos[indiceDestino]
+  const columnaCompleta = (destino?.tarjetas ?? []).map((t) => t.id)
 
   return {
     grupos: movidos,
@@ -168,7 +169,12 @@ export function moverTarjeta<T extends FilaConId> (
       // tarjeta un lugar hacia arriba cada vez que el backend cae en ese camino — que es cuando
       // `columna_completa` llega vacia.
       posicion: columnaCompleta.indexOf(idTarjeta) + 1,
-      columna_completa: columnaCompleta
+      // Una columna paginada NO manda sus ids: el backend le suma el maximo a todo lo que no venga
+      // en el payload (`Tablero::reordenar()`), asi que mandar solo lo cargado empujaria al fondo
+      // las tarjetas que la persona nunca vio. Vacio, la API arma el orden desde la base con
+      // `armarOrden()` e inserta en la posicion pedida — que es correcta porque lo cargado es el
+      // prefijo de ese mismo orden.
+      columna_completa: destino !== undefined && columnaIncompleta(destino) ? [] : columnaCompleta
     }
   }
 }

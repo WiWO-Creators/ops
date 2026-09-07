@@ -167,17 +167,6 @@ export function Tablero<T extends FilaConId> ({
   }
 
   /**
-   * Decide si se puede soltar en una columna.
-   *
-   * Una columna con paginas sin cargar no admite reordenamiento: `columna_completa` viaja con los
-   * ids que tiene el cliente y el backend empuja al fondo todo lo que no le mandaron, o sea que
-   * soltar ahi reescribe el orden de tarjetas que la persona nunca vio.
-   */
-  function admiteSoltar (grupo: GrupoTablero<T>): boolean {
-    return !columnaIncompleta(grupo)
-  }
-
-  /**
    * Resuelve un `drop`: valida la columna destino y dispara el movimiento.
    *
    * @param posicion indice de la tarjeta sobre la que se solto, o el largo de la columna al soltar
@@ -192,11 +181,6 @@ export function Tablero<T extends FilaConId> ({
   ): void {
     evento.preventDefault()
     setArrastrada(null)
-
-    if (!admiteSoltar(grupo)) {
-      setAviso(`"${grupo.columna.name}" tiene tarjetas sin cargar. Carga el resto antes de reordenarla.`)
-      return
-    }
 
     const idTarjeta = Number(evento.dataTransfer.getData('text/plain'))
     if (!Number.isFinite(idTarjeta) || idTarjeta === 0) return
@@ -224,7 +208,7 @@ export function Tablero<T extends FilaConId> ({
             className="bg-superficie-hundida rounded-tarjeta border-linea flex w-72 shrink-0 flex-col gap-2 border p-2"
             onDragOver={(evento) => {
               // Sin `preventDefault` el navegador no considera la zona valida y nunca dispara `drop`.
-              if (admiteSoltar(grupo)) evento.preventDefault()
+              evento.preventDefault()
             }}
             onDrop={(evento) => alSoltar(evento, grupo, grupo.tarjetas.length)}
           >
@@ -258,9 +242,7 @@ export function Tablero<T extends FilaConId> ({
                   setArrastrada(tarjeta.id)
                 }}
                 onDragEnd={() => setArrastrada(null)}
-                onDragOver={(evento) => {
-                  if (admiteSoltar(grupo)) evento.preventDefault()
-                }}
+                onDragOver={(evento) => evento.preventDefault()}
                 onDrop={(evento) => {
                   evento.stopPropagation()
                   alSoltar(evento, grupo, indice, true)
@@ -283,14 +265,12 @@ export function Tablero<T extends FilaConId> ({
                     {grupos.map((destino) => (
                       <ItemMenu
                         key={destino.columna.id}
-                        disabled={destino.columna.id === grupo.columna.id || !admiteSoltar(destino)}
+                        disabled={destino.columna.id === grupo.columna.id}
                         onSelect={() => {
                           void mover(tarjeta.id, destino.columna.id, destino.tarjetas.length)
                         }}
                       >
-                        {admiteSoltar(destino)
-                          ? destino.columna.name
-                          : `${destino.columna.name} (sin cargar del todo)`}
+                        {destino.columna.name}
                       </ItemMenu>
                     ))}
                   </ContenidoMenu>

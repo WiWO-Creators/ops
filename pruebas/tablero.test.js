@@ -132,3 +132,16 @@ test('cargar mas descarta las tarjetas que ya estaban cargadas', () => {
 
   assert.deepEqual(extendido[0].tarjetas.map((t) => t.id), [10, 11, 12, 13])
 })
+
+test('mover a una columna paginada manda columna_completa vacia', () => {
+  const grupos = tablero()
+  // "En progreso" tiene 43 tareas y solo 1 cargada: es lo que ve alguien con el tablero paginado.
+  grupos[1] = { ...grupos[1], pagination: { page: 1, per_page: 25, total: 43, total_pages: 2 } }
+
+  const { cuerpo } = moverTarjeta(grupos, 10, 4, 1)
+
+  // Vacio a proposito: con los ids cargados, el backend empujaria al fondo las 42 no vistas.
+  assert.deepEqual(cuerpo.columna_completa, [])
+  assert.equal(cuerpo.columna, 4)
+  assert.equal(cuerpo.posicion, 2)
+})
