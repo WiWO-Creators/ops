@@ -72,7 +72,20 @@ const PREFIJOS_PERMITIDOS = [
   // lista del portal y no debe estarlo: el contexto que arma el modelo se recorta con la
   // visibilidad del staff, y un contacto no tiene ninguna. Ademas es la unica ruta que gasta
   // dinero por pedido, asi que la superficie se mantiene lo mas chica posible.
-  'ia'
+  'ia',
+  // Centro de auditoria (`/auditoria`). Tres prefijos y no uno porque asi los expone la API:
+  //   - `presence`: el latido lo manda TODO el panel, no solo esta pantalla, asi que tiene que
+  //     poder salir del navegador. Escribir solo cuenta donde esta uno; leer la lista entera exige
+  //     superadministracion del otro lado.
+  //   - `sessions`: sesiones abiertas y suplantaciones vivas.
+  //   - `audit`: el historial de `tblactivity_log`. Ya existia en la API y no estaba aca porque no
+  //     habia pantalla que lo pidiera; sin esta entrada la tabla no puede paginar ni filtrar desde
+  //     el navegador, solo pintar la primera pagina que resuelve el servidor.
+  // Lo que NO entra —ni debe— es `impersonate`: su respuesta es un par de tokens, y dejarla al
+  // alcance del JavaScript es exactamente lo unico que este proxy existe para evitar.
+  'presence',
+  'sessions',
+  'audit'
 ] as const
 
 /**

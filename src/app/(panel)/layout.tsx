@@ -4,9 +4,11 @@ import { leerSuplantador } from '@/datos/sesion'
 import type { Yo } from '@/datos/tipos'
 import { GLOSARIO } from '@/dominio/glosario'
 import { puedeVerSeccion } from '@/dominio/permisos'
+import { intervaloDeLatido } from '@/datos/auditoria'
 import { SelectorTema } from '@/componentes/estructura/SelectorTema'
 import { BarraLateral, BarraLateralMovil, type Seccion } from '@/componentes/estructura/BarraLateral'
 import { BarraSuplantacion } from '@/componentes/estructura/BarraSuplantacion'
+import { Latido } from '@/componentes/auditoria/Latido'
 import { Logo } from '@/componentes/estructura/Logo'
 import { Avatar } from '@/componentes/presentadores/Avatar'
 import { ScrollSuave } from '@/componentes/estructura/ScrollSuave'
@@ -39,6 +41,12 @@ export default async function PanelLayout ({ children }: { children: React.React
     // armazon de abajo mide lo que sobra, asi que sin franja se ve exactamente igual que antes.
     <div className="flex h-dvh flex-col overflow-hidden">
       {suplantando && <BarraSuplantacion nombre={yo.full_name} />}
+
+      {/* No pinta nada: le cuenta al servidor en que pantalla esta esta persona, para el bloque
+          "Ahora mismo" de `/auditoria`. Va en el armazon y no en esa pantalla porque el latido es de
+          todo el panel: montado alla, la unica persona conectada seria la que mira la auditoria.
+          El intervalo se resuelve aca —en el servidor— y viaja como prop; ver `intervaloDeLatido`. */}
+      <Latido segundos={intervaloDeLatido()} />
 
       {/* `aurora` va aca y no en cada pantalla: es el lienzo del panel, no un adorno de la portada.
           Su capa es un `::before` fijo detras de todo (`globals.css`), asi que no ocupa lugar ni
@@ -128,6 +136,13 @@ function seccionesDe (yo: Yo): Seccion[] {
   // que la barra usa la misma llave. Esconder el enlace es cosmetica: la compuerta esta en el back.
   if (yo.is_superadmin) {
     secciones.push({ href: '/administracion', etiqueta: 'Administración', icono: 'administracion' })
+  }
+
+  // Auditoria comparte llave con Administracion y no tiene una propia: la API exige `is_superadmin`
+  // en `/audit`, `/presence` y `/sessions`, asi que la barra usa la misma. Va en su propia seccion y
+  // no como una pestaña de Administracion porque no configura nada: mira.
+  if (yo.is_superadmin) {
+    secciones.push({ href: '/auditoria', etiqueta: 'Auditoría', icono: 'auditoria' })
   }
 
   return secciones
