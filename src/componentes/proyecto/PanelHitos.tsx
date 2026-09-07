@@ -11,6 +11,7 @@ import { formatearFecha } from '@/lib/fechas'
 import { AccionesFila } from './AccionesFila'
 import { BarraProgreso } from './CabeceraProyecto'
 import { FormularioRecurso } from './FormularioRecurso'
+import { ModalTarea } from './ModalTarea'
 import { PanelRecurso } from './PanelRecurso'
 import { TableroHitos } from './TableroHitos'
 import { avanceDeHito } from './hitos'
@@ -52,6 +53,13 @@ interface PropsPanelHitos {
   proyecto: Espacio
   /** Capacidades sobre `projects`, de `permissions` de `/me`. */
   capacidades: Capacidad[]
+  /**
+   * Capacidades sobre `tasks`, de `permissions` de `/me`.
+   *
+   * Son otras que las del Espacio y no se pueden deducir de ellas: mandan sobre el "+" del kanban y
+   * sobre los botones del detalle de una tarea. Vacias, la pestaña sigue funcionando en solo lectura.
+   */
+  capacidadesTareas?: Capacidad[]
 }
 
 export function PanelHitos (props: PropsPanelHitos): ReactElement {
@@ -63,7 +71,7 @@ export function PanelHitos (props: PropsPanelHitos): ReactElement {
   )
 }
 
-function HitosDelProyecto ({ proyecto, capacidades }: PropsPanelHitos): ReactElement {
+function HitosDelProyecto ({ proyecto, capacidades, capacidadesTareas = [] }: PropsPanelHitos): ReactElement {
   const router = useRouter()
   const params = useSearchParams()
   const [revision, setRevision] = useState(0)
@@ -141,9 +149,18 @@ function HitosDelProyecto ({ proyecto, capacidades }: PropsPanelHitos): ReactEle
               key={`${revision}-${String(excluirCompletadas)}`}
               proyectoId={proyecto.id}
               excluirCompletadas={excluirCompletadas}
+              puedeCrear={capacidadesTareas.includes('create')}
             />
           </>
           )}
+
+      {/* Una sola vez y fuera del ternario: las tarjetas del kanban enlazan a `?tarea={id}` y el
+          detalle tiene que abrirse tambien desde la tabla, donde el nombre del hito no lleva a
+          ninguna tarea pero la URL puede venir compartida con el parametro puesto. */}
+      <ModalTarea
+        puedeEditar={capacidadesTareas.includes('edit')}
+        puedeBorrar={capacidadesTareas.includes('delete')}
+      />
 
       <FormularioRecurso
         abierto={creando}

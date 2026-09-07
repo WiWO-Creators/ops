@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useState } from 'react'
+import { useCallback, useState, type ReactNode } from 'react'
 import { Boton } from '@/componentes/formularios/Boton'
 import { Vacio } from '@/componentes/estado/Estados'
 import {
@@ -16,6 +16,7 @@ import {
   moverTarjeta,
   ordenarGrupos,
   posicionAlSoltar,
+  type ColumnaTablero,
   type CuerpoMover,
   type FilaConId,
   type GrupoTablero
@@ -45,6 +46,17 @@ interface PropsTablero<T extends FilaConId> {
    * necesita ademas dejar "Sin categorizar" siempre primera y omitirla cuando queda vacia.
    */
   ordenarColumnas?: (grupos: Array<GrupoTablero<T>>) => Array<GrupoTablero<T>>
+  /**
+   * Accion propia en la cabecera de una columna. El kanban de Hitos pinta ahi el "+" que agrega una
+   * tarea al hito.
+   *
+   * Recibe `recargar` porque despues de escribir hay que refrescar el tablero **por el mismo camino
+   * que usa el arrastre**: quien monta la accion no tiene forma de llegar a el desde afuera, y un
+   * segundo camino de recarga terminaria mostrando algo distinto a lo que deja mover una tarjeta.
+   *
+   * Devolver `null` deja la columna sin accion, que es lo que hace la sintetica "Sin categorizar".
+   */
+  accionDeColumna?: (columna: ColumnaTablero, recargar: () => Promise<void>) => ReactNode
 }
 
 /**
@@ -60,7 +72,8 @@ export function Tablero<T extends FilaConId> ({
   consulta = '',
   // frente: detalle — por defecto, el comportamiento historico.
   adaptarCuerpo = (cuerpo) => cuerpo,
-  ordenarColumnas = ordenarGrupos
+  ordenarColumnas = ordenarGrupos,
+  accionDeColumna
 }: PropsTablero<T>) {
   const tablero = definicion.tablero
   const [grupos, setGrupos] = useState(() => ordenarColumnas(inicial))
@@ -226,6 +239,7 @@ export function Tablero<T extends FilaConId> ({
               <span className="text-texto-tenue ml-auto text-xs tabular-nums">
                 {grupo.pagination.total}
               </span>
+              {accionDeColumna?.(grupo.columna, recargar)}
             </header>
 
             {grupo.tarjetas.length === 0 && (
