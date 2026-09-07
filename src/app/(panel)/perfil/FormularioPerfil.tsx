@@ -5,15 +5,74 @@ import { useEffect, useRef, useState, type ChangeEvent } from 'react'
 import { escribirEnBff, subirArchivoEnBff } from '@/componentes/datos/mutaciones'
 import { Boton } from '@/componentes/formularios/Boton'
 import { Campo } from '@/componentes/formularios/Campo'
-import { AreaTexto } from '@/componentes/formularios/Entrada'
+import { AreaTexto, Entrada } from '@/componentes/formularios/Entrada'
 import { Avatar } from '@/componentes/presentadores/Avatar'
-import { Filas, Seccion } from '@/componentes/presentadores/Ficha'
+import { Seccion } from '@/componentes/presentadores/Ficha'
 import type { Yo } from '@/datos/tipos'
 
 /** Respuesta de `GET|PATCH /me/perfil` y de `POST /me/foto` (`controllers/V1.php:4132`). */
 export interface PerfilPropio {
   email_signature: string
   profile_image_url: string | null
+}
+
+/**
+ * `GET /me` mas el telefono.
+ *
+ * `phonenumber` sale de `presentarStaff()` pero no esta en el tipo `Yo` compartido: solo esta
+ * pantalla lo necesita, y el resto del panel no tiene por que arrastrar un campo que no muestra.
+ */
+export type YoConTelefono = Yo & { phonenumber: string | null }
+
+/**
+ * Largos maximos de `Escritura\Staff::PERFIL_PROPIO_EDITABLE`, que son los de las columnas de
+ * `tblstaff`. Se repiten aca para avisar antes del viaje, no para reemplazar la validacion del
+ * servidor: la unica que manda es la de alla.
+ */
+const LARGOS = { firstname: 50, lastname: 50, email: 100, phonenumber: 30 } as const
+
+type ClaveDato = keyof typeof LARGOS
+type Datos = Record<ClaveDato, string>
+
+/**
+ * Revisa los datos de identidad con las mismas reglas que aplica `editarPerfilPropio()`.
+ *
+ * El correo se mira con una expresion floja a proposito: replicar `FILTER_VALIDATE_EMAIL` en el
+ * navegador solo lograria rechazar direcciones que el servidor si acepta. Aca alcanza con atajar lo
+ * obviamente mal escrito.
+ *
+ * @param datos lo que hay en el formulario
+ * @returns un mensaje por campo invalido; vacio si todo sirve
+ */
+function erroresDe (datos: Datos): Partial<Record<ClaveDato, string>> {
+  const errores: Partial<Record<ClaveDato, string>> = {}
+
+  const etiquetas: Record<ClaveDato, string> = {
+    firstname: 'El nombre',
+    lastname: 'El apellido',
+    email: 'El correo',
+    phonenumber: 'El teléfono'
+  }
+
+  for (const clave of Object.keys(LARGOS) as ClaveDato[]) {
+    const valor = datos[clave].trim()
+
+    if (valor === '') {
+      // El telefono es el unico opcional: la columna admite NULL y hay fichas sin telefono.
+      if (clave !== 'phonenumber') errores[clave] = `${etiquetas[clave]} no puede quedar vacío.`
+      continue
+    }
+
+    if (valor.length > LARGOS[clave]) {
+      errores[clave] = `${etiquetas[clave]} no puede superar ${LARGOS[clave]} caracteres.`
+    }
+  }
+
+  if (errores.email === undefined && datos.email.trim() !== '' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(datos.email.trim())) {
+    errores.email = 'Ese correo no tiene un formato válido.'
+  }
+
+  return errores
 }
 
 /**
@@ -63,21 +122,20 @@ function motivoDeRechazo (archivo: File): string | null {
 }
 
 interface PropsFormularioPerfil {
-  yo: Yo
+  yo: YoConTelefono
   perfil: PerfilPropio
 }
 
 /**
- * Perfil propio: la foto y la firma de correo.
+ * Perfil propio: la foto, los datos de identidad y la firma de correo.
  *
- * Nombre, apellido y correo se muestran pero **no se editan**: `PATCH /me/perfil`
- * (`Escritura\Staff::editarFirmaPropia()`) solo escribe `email_signature`, y el unico camino que
- * escribe los datos de identidad es `PATCH /staff/{id}`, que exige el permiso `staff.edit`. Ofrecer
- * unos campos que van a volver 422 seria peor que decir donde se cambian.
+ * Nombre, apellido, correo y telefono se editan contra `PATCH /me/perfil`
+ * (`Escritura\Staff::editarPerfilPropio()`), que escribe sobre el staff del token y no acepta ningun
+ * id: no hace falta el permiso `staff.edit` porque editar lo propio no es administrar gente.
  *
- * La foto y la firma se guardan por separado, con un boton cada una: son dos endpoints distintos
- * —uno multipart y otro JSON— y juntarlos en un solo "Guardar" obligaria a decidir que hacer cuando
- * uno funciona y el otro no.
+ * Cada bloque se guarda por separado, con su propio boton: son tres endpoints distintos —uno
+ * multipart y dos JSON— y juntarlos en un solo "Guardar" obligaria a decidir que hacer cuando uno
+ * funciona y el otro no.
  */
 export function FormularioPerfil ({ yo, perfil }: PropsFormularioPerfil) {
   const router = useRouter()
@@ -89,6 +147,22 @@ export function FormularioPerfil ({ yo, perfil }: PropsFormularioPerfil) {
   const [subiendo, establecerSubiendo] = useState(false)
   const [errorFoto, establecerErrorFoto] = useState<string | null>(null)
   const [fotoGuardada, establecerFotoGuardada] = useState(false)
+
+  const inicialDatos: Datos = {
+    firstname: yo.firstname,
+    lastname: yo.lastname,
+    email: yo.email,
+    phonenumber: yo.phonenumber ?? ''
+  }
+
+  const [datos, establecerDatos] = useState<Datos>(inicialDatos)
+  // Lo ultimo que la API confirmo. Igual que con la firma: comparar contra la prop no sirve, porque
+  // despues del primer guardado se queda en el valor viejo hasta la proxima navegacion.
+  const [datosConfirmados, establecerDatosConfirmados] = useState<Datos>(inicialDatos)
+  const [erroresDatos, establecerErroresDatos] = useState<Partial<Record<ClaveDato, string>>>({})
+  const [guardandoDatos, establecerGuardandoDatos] = useState(false)
+  const [errorDatos, establecerErrorDatos] = useState<string | null>(null)
+  const [datosGuardados, establecerDatosGuardados] = useState(false)
 
   const [firma, establecerFirma] = useState(perfil.email_signature)
   // La ultima firma que la API confirmo. Es lo que decide si hay algo que guardar: comparar contra
@@ -169,6 +243,56 @@ export function FormularioPerfil ({ yo, perfil }: PropsFormularioPerfil) {
     router.refresh()
   }
 
+  /** Escribe un campo de identidad y borra los errores y el aviso de guardado que ya no aplican. */
+  function cambiarDato (clave: ClaveDato, valor: string): void {
+    establecerDatos((previos) => ({ ...previos, [clave]: valor }))
+    establecerErroresDatos((previos) => ({ ...previos, [clave]: undefined }))
+    establecerErrorDatos(null)
+    establecerDatosGuardados(false)
+  }
+
+  /** Guarda nombre, apellido, correo y telefono. */
+  async function guardarDatos (): Promise<void> {
+    const errores = erroresDe(datos)
+
+    if (Object.keys(errores).length > 0) {
+      establecerErroresDatos(errores)
+      establecerErrorDatos(null)
+      return
+    }
+
+    // Se manda lo recortado porque es lo que el servidor va a guardar: si despues se adoptara el
+    // texto con espacios, el campo diria algo distinto de lo que quedo en la base.
+    const recortados: Datos = {
+      firstname: datos.firstname.trim(),
+      lastname: datos.lastname.trim(),
+      email: datos.email.trim(),
+      phonenumber: datos.phonenumber.trim()
+    }
+
+    establecerGuardandoDatos(true)
+    establecerErroresDatos({})
+    establecerErrorDatos(null)
+    establecerDatosGuardados(false)
+
+    const resultado = await escribirEnBff<PerfilPropio>('me/perfil', 'PATCH', recortados)
+
+    establecerGuardandoDatos(false)
+
+    if (!resultado.ok) {
+      establecerErrorDatos(resultado.mensaje)
+      return
+    }
+
+    establecerDatos(recortados)
+    establecerDatosConfirmados(recortados)
+    establecerDatosGuardados(true)
+
+    // El nombre y el avatar de la cabecera los pinta el layout con `GET /me`, que corre en el
+    // servidor: refrescar el arbol es lo que los actualiza sin recargar la pagina a mano.
+    router.refresh()
+  }
+
   /** Guarda la firma de correo. */
   async function guardarFirma (): Promise<void> {
     if (firma.length > LARGO_MAXIMO_FIRMA) {
@@ -199,6 +323,9 @@ export function FormularioPerfil ({ yo, perfil }: PropsFormularioPerfil) {
   }
 
   const mostrada = previa ?? foto
+
+  const sinCambiosEnDatos = (Object.keys(LARGOS) as ClaveDato[])
+    .every((clave) => datos[clave].trim() === datosConfirmados[clave])
 
   return (
     <div className="mx-auto flex w-full max-w-2xl flex-col gap-8">
@@ -255,17 +382,81 @@ export function FormularioPerfil ({ yo, perfil }: PropsFormularioPerfil) {
       </Seccion>
 
       <Seccion titulo="Tus datos">
-        <Filas
-          datos={[
-            { etiqueta: 'Nombre', valor: yo.firstname === '' ? '—' : yo.firstname },
-            { etiqueta: 'Apellido', valor: yo.lastname === '' ? '—' : yo.lastname },
-            { etiqueta: 'Correo', valor: yo.email === '' ? '—' : yo.email }
-          ]}
-        />
-        <p className="text-texto-sutil text-xs">
-          Estos datos los cambia quien administra el equipo: la API solo deja editar la propia foto y
-          la propia firma de correo.
-        </p>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Campo etiqueta="Nombre" requerido error={erroresDatos.firstname}>
+            {(props) => (
+              <Entrada
+                {...props}
+                value={datos.firstname}
+                maxLength={LARGOS.firstname}
+                autoComplete="given-name"
+                disabled={guardandoDatos}
+                onChange={(evento) => { cambiarDato('firstname', evento.target.value) }}
+              />
+            )}
+          </Campo>
+
+          <Campo etiqueta="Apellido" requerido error={erroresDatos.lastname}>
+            {(props) => (
+              <Entrada
+                {...props}
+                value={datos.lastname}
+                maxLength={LARGOS.lastname}
+                autoComplete="family-name"
+                disabled={guardandoDatos}
+                onChange={(evento) => { cambiarDato('lastname', evento.target.value) }}
+              />
+            )}
+          </Campo>
+
+          <Campo
+            etiqueta="Correo"
+            requerido
+            ayuda="Es con lo que entrás al panel."
+            error={erroresDatos.email}
+          >
+            {(props) => (
+              <Entrada
+                {...props}
+                type="email"
+                value={datos.email}
+                maxLength={LARGOS.email}
+                autoComplete="email"
+                disabled={guardandoDatos}
+                onChange={(evento) => { cambiarDato('email', evento.target.value) }}
+              />
+            )}
+          </Campo>
+
+          <Campo etiqueta="Teléfono" ayuda="Opcional." error={erroresDatos.phonenumber}>
+            {(props) => (
+              <Entrada
+                {...props}
+                type="tel"
+                value={datos.phonenumber}
+                maxLength={LARGOS.phonenumber}
+                autoComplete="tel"
+                disabled={guardandoDatos}
+                onChange={(evento) => { cambiarDato('phonenumber', evento.target.value) }}
+              />
+            )}
+          </Campo>
+        </div>
+
+        <div className="flex items-center gap-3">
+          <Boton
+            variante="primario"
+            tamano="chico"
+            cargando={guardandoDatos}
+            disabled={sinCambiosEnDatos}
+            onClick={() => { void guardarDatos() }}
+          >
+            Guardar datos
+          </Boton>
+          {datosGuardados && <span role="status" className="text-texto-exito text-xs">Datos guardados.</span>}
+        </div>
+
+        {errorDatos !== null && <p role="alert" className="text-texto-peligro text-xs">{errorDatos}</p>}
       </Seccion>
 
       <Seccion titulo="Firma de correo">
