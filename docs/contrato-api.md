@@ -507,7 +507,7 @@ archivo no se copia al proyecto.
 `GET /tasks/{id}/timers` · `GET /tasks/{id}/files` · `POST /tasks`
 
 ```json
-{ "id": 512, "name": "…", "description": "…",
+{ "id": 512, "patente": "GRA-004-07", "name": "…", "description": "…",
   "status": 4, "priority": 2,
   "start_date": "2026-08-01", "due_date": "2026-08-30",
   "date_added": "2026-07-28T10:15:00Z", "date_finished": null,
@@ -528,6 +528,12 @@ archivo no se copia al proyecto.
 
 Notas que evitan errores:
 
+- **`patente` es el identificador visible del Proceso**: la patente del Espacio (`GRA-004`, la misma
+  que nombra su carpeta en Drive) más un correlativo de dos dígitos dentro de ese Espacio. Las tareas
+  que no cuelgan de un Espacio llevan un correlativo global con prefijo fijo: `WIW-0007`. Es
+  `null` sólo si la instalación no tiene la tabla `tblwiwo_task_patentes` (migración `0160`); en una
+  base migrada, la primera lectura de una tarea se la asigna y ya no cambia nunca. **No es
+  ordenable ni filtrable**: no está en las whitelists del backend.
 - **`rel_type` / `rel_id` son polimórficos.** Una tarea puede colgar de un proyecto, un cliente, una
   factura, un ticket… El bloque `project` sólo aparece cuando `rel_type === "project"`.
 - `start_date` y `due_date` son fechas sin hora; `date_added` y `date_finished` son instantes.
@@ -735,7 +741,8 @@ adivinar el id.
 
 **`PATCH /clients/{id}/drive`** con `{ "letras": "ACM" }` cambia el código de 3 letras (se normaliza a
 mayúsculas). `422 validation_failed` si no son exactamente 3 letras, `409 conflict` si otro Cliente ya
-lo usa. La patente de un Espacio no se edita por API: la asigna sola el panel al crearlo.
+lo usa. La patente de un Espacio no se edita por API: se asigna sola —el panel al crear el Espacio, o la
+primera lectura de un Proceso suyo, que la necesita para armar la `patente` de la tarea.
 
 **Subida, borrado y permisos manuales, coordinados pero todavía no construidos.** El frontend (rama
 `feat/drive-carpetas-ui`) ya está armado contra este contrato; falta el lado del backend.

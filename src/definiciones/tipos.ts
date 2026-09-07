@@ -38,6 +38,11 @@ export interface Columna<T> {
   comoInsignia?: string
   /** La columna arranca oculta y se activa desde el selector de columnas. */
   ocultaPorDefecto?: boolean
+  /**
+   * Impide que el valor se parta en dos lineas. Para codigos cortos que se leen de una: partir
+   * `COD-001-01` en `COD-001-` y `01` lo vuelve ilegible y hace que la fila mida el doble.
+   */
+  sinCortar?: boolean
 }
 
 export type TipoFiltro = 'seleccion' | 'multiple' | 'booleano' | 'rangoFechas'

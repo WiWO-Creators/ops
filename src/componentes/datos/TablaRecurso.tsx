@@ -329,7 +329,7 @@ export function TablaRecurso<T> ({
                       onClick={href === null ? undefined : (evento) => { abrirFila(evento, href) }}
                     >
                       {columnas.map((columna) => (
-                        <CeldaTabla key={columna.clave} numerica={columna.numerica}>
+                        <CeldaTabla key={columna.clave} numerica={columna.numerica} sinCortar={columna.sinCortar}>
                           <Celda columna={columna} fila={fila} catalogos={opcionesDeFiltro} />
                         </CeldaTabla>
                       ))}

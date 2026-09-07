@@ -66,12 +66,13 @@ interface PropsCelda extends React.TdHTMLAttributes<HTMLTableCellElement> {
    * actualizarse porque el `1` es mas angosto que el `8`, y las unidades no quedan alineadas.
    */
   numerica?: boolean
+  sinCortar?: boolean
 }
 
-export function CeldaTabla ({ numerica = false, className, ...resto }: PropsCelda) {
+export function CeldaTabla ({ numerica = false, sinCortar = false, className, ...resto }: PropsCelda) {
   return (
     <td
-      className={cn('px-3 py-1.5 align-middle', numerica && 'text-right tabular-nums', className)}
+      className={cn('px-3 py-1.5 align-middle', numerica && 'text-right tabular-nums', sinCortar && 'whitespace-nowrap', className)}
       {...resto}
     />
   )

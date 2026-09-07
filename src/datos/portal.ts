@@ -89,6 +89,8 @@ export type PestaniaPortal =
 /** Tarea de un proyecto, ya podada de todo lo interno. */
 export interface TareaPortal {
   id: number
+  /** Identificador visible del Proceso. Ver `Proceso.patente`. */
+  patente: string | null
   name: string
   description: string | null
   status: number

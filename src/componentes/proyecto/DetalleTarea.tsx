@@ -92,7 +92,14 @@ export function DetalleTarea ({ procesoId, puedeEditar = false, className }: Pro
   return (
     <div className={cn('flex flex-col gap-5', className)}>
         <header className="border-linea bg-superficie-acentuada rounded-tarjeta flex flex-col gap-2 border p-4">
-          <h3 className="font-titular text-texto text-base leading-snug font-extrabold">{tarea.name}</h3>
+          <div className="flex items-start justify-between gap-3">
+            <h3 className="font-titular text-texto text-base leading-snug font-extrabold">{tarea.name}</h3>
+            {/* A la derecha del nombre y en la misma linea: es la etiqueta de la tarea, no un dato
+                mas de la ficha. Se calla si el backend todavia no la asigno. */}
+            {tarea.patente !== null && (
+              <span className="text-texto-tenue shrink-0 font-mono text-xs tracking-wide">{tarea.patente}</span>
+            )}
+          </div>
           <div className="flex flex-wrap items-center gap-1.5">
             <Insignia tamano="chico" color={estado.color}>{estado.nombre}</Insignia>
             <Insignia tamano="chico" color={prioridad.color}>{prioridad.nombre}</Insignia>

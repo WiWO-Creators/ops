@@ -382,8 +382,13 @@ function crearProceso (entrada, autor) {
 
   const primera = [...ESTADOS_PROCESO].sort((a, b) => a.order - b.order)[0]
 
+  const id = Math.max(...PROCESOS.map((p) => p.id)) + 1
+
   return {
-    id: Math.max(...PROCESOS.map((p) => p.id)) + 1,
+    id,
+    // El backend la asigna al leer, no al crear, pero la respuesta del alta ya sale por el mismo
+    // presentador: para quien consume, un Proceso recien creado ya trae patente.
+    patente: patenteDeAlta(espacio),
     name: nombre,
     description: typeof entrada.description === 'string' ? entrada.description : null,
     status: primera.id,
@@ -414,6 +419,21 @@ function crearProceso (entrada, autor) {
     counts: { comments: 0, checklist: 0, checklist_done: 0, attachments: 0 },
     timer_activo: null
   }
+}
+
+/**
+ * Patente del Proceso que se acaba de crear, con el correlativo que sigue dentro de su Espacio.
+ *
+ * Cuenta sobre `PROCESOS` en vez de llevar un contador aparte: el mock se reinicia con el proceso y
+ * un contador propio quedaria desfasado apenas alguien borre una tarea.
+ */
+function patenteDeAlta (espacio) {
+  const clave = espacio === null ? 'WIW' : `ESP-${String(espacio.id).padStart(3, '0')}`
+  const digitos = espacio === null ? 4 : 2
+  const usados = PROCESOS.filter((p) => typeof p.patente === 'string' && p.patente.startsWith(`${clave}-`))
+    .map((p) => Number(p.patente.slice(clave.length + 1)))
+
+  return `${clave}-${String(Math.max(0, ...usados) + 1).padStart(digitos, '0')}`
 }
 
 /**
