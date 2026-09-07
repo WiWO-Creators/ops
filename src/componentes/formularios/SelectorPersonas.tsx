@@ -10,17 +10,17 @@ import {
 } from '@/componentes/superposiciones/MenuContextual'
 import { filtrarPersonas } from '@/dominio/salas'
 import { cn } from '@/lib/clases'
-import type { PersonaDeSala } from '@/datos/recursos'
+import type { StaffReferencia } from '@/datos/tipos'
 
 interface PropsSelectorPersonas {
-  personas: PersonaDeSala[]
+  personas: StaffReferencia[]
   elegidas: number[]
   onCambiar: (ids: number[]) => void
   id?: string
 }
 
 /**
- * Elige quienes del equipo van a la reunion.
+ * Elige a varias personas del equipo: los asistentes de una reunion, los asignados de una Tarea.
  *
  * Menu con marcas y no un `Select`: se eligen varias, y el `Select` de Radix es de una sola opcion.
  * Es el mismo control que usa el filtro múltiple de las tablas, así que se ve y se maneja igual.
