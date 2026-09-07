@@ -3,6 +3,7 @@ import { TableroProcesos } from '@/componentes/datos/vistas'
 import { AltaRapidaProceso } from '@/componentes/proyecto/AltaRapidaProceso'
 import { Cargando } from '@/componentes/estado/Estados'
 import { Segmentado } from '@/componentes/formularios/Segmentado'
+import { iaHabilitada } from '@/datos/ajustes'
 import { construirConsulta, leerConsulta, paramsDeUrl } from '@/datos/consulta'
 import { cargarLookups, opcionesDeFiltros } from '@/datos/lookups'
 import { pedir, pedirOpcional } from '@/datos/servidor'
@@ -28,7 +29,7 @@ export default async function TableroProcesosPage (props: PageProps<'/procesos/t
   const estado = leerConsulta(params, PROCESOS)
   const consulta = construirConsulta({ ...estado, orden: [], pagina: 1 }, PROCESOS)
 
-  const [lookups, yo, equipo, espacios, clientes] = await Promise.all([
+  const [lookups, yo, equipo, espacios, clientes, conIa] = await Promise.all([
     cargarLookups(),
     pedir<Yo>('/me'),
     // Catalogos del alta rapida, iguales a los de la lista: el boton tiene que estar en las dos
@@ -36,7 +37,8 @@ export default async function TableroProcesosPage (props: PageProps<'/procesos/t
     // motivo que en la lista: `/staff` exige `staff.view` y sin permiso responde 403.
     pedirOpcional<MiembroEquipo[]>('/staff?per_page=500'),
     pedir<Espacio[]>('/projects?per_page=500'),
-    opcionesDeCliente()
+    opcionesDeCliente(),
+    iaHabilitada()
   ])
 
   const catalogosDeAlta = {
@@ -61,7 +63,7 @@ export default async function TableroProcesosPage (props: PageProps<'/procesos/t
             ]}
           />
           {yo.data.permissions.tasks.includes('create') && (
-            <AltaRapidaProceso catalogos={catalogosDeAlta} etiquetas={lookups.tags} />
+            <AltaRapidaProceso catalogos={catalogosDeAlta} etiquetas={lookups.tags} conIa={conIa} />
           )}
         </div>
       </header>
