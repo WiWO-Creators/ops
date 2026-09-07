@@ -11,11 +11,12 @@ import {
 import { CerrarDialogo, ContenidoDialogo, Dialogo } from '@/componentes/superposiciones/Dialogo'
 import { Cargando, ErrorEstado, Vacio } from '@/componentes/estado/Estados'
 import { mensajeDeRespuesta, pedirRespuesta, pedirSobre } from '@/datos/cliente'
+import { cargarAsignables } from '@/datos/asignables'
 import { escribirEnBff, subirArchivoEnBff } from '@/componentes/datos/mutaciones'
 import { GLOSARIO } from '@/dominio/glosario'
 import { cn } from '@/lib/clases'
 import type {
-  ArchivoDriveSubido, DriveCliente, DriveTarea, MiembroEquipo, NodoDrive, PermisoDrive, RaizDrive,
+  ArchivoDriveSubido, DriveCliente, DriveTarea, NodoDrive, PermisoDrive, PersonaAsignable, RaizDrive,
   RolPermisoDrive, SujetoPermisoDrive
 } from '@/datos/recursos'
 
@@ -569,7 +570,7 @@ function AccesosDrive ({ folderId, raiz }: { folderId: string, raiz: RaizDrive }
  */
 function GestorPermisosDrive ({ folderId }: { folderId: string }) {
   const [carga, setCarga] = useState<CargaPermisos>({ fase: 'cargando' })
-  const [personal, setPersonal] = useState<MiembroEquipo[]>([])
+  const [personal, setPersonal] = useState<PersonaAsignable[]>([])
   const [staffId, setStaffId] = useState('')
   const [rol, setRol] = useState<RolPermisoDrive>('writer')
   const [agregando, setAgregando] = useState(false)
@@ -609,16 +610,22 @@ function GestorPermisosDrive ({ folderId }: { folderId: string }) {
   }, [folderId, intento])
 
   // El catalogo de personal solo hace falta si la carpeta resulta gestionable, y recien ahi se pide.
+  // Sale de `cargarAsignables` y no de `GET /staff`: esa ruta exige `staff.view` —lo tienen 19 de 184
+  // personas— y dejaba el selector vacio para casi todo el mundo, o sea sin poder compartir con nadie.
+  // El correo con el que Drive comparte no viaja aca: lo resuelve el backend desde `staff_id`
+  // (`Escritura/Drive.php:360`), asi que la proyeccion minima alcanza.
   useEffect(() => {
     if (carga.fase !== 'listo' || personal.length > 0) return
 
-    const control = new AbortController()
+    // `cargarAsignables` no acepta señal de aborto —la promesa la comparten varios componentes—, asi
+    // que el desmontaje se cubre descartando la respuesta, no cancelando la peticion.
+    let vivo = true
 
-    void pedirSobre<MiembroEquipo[]>('staff?per_page=500&filter[active]=1', control.signal)
-      .then((sobre) => { setPersonal(sobre.data) })
+    void cargarAsignables()
+      .then((personas) => { if (vivo) setPersonal(personas) })
       .catch(() => {}) // La lista de permisos ya cargo bien: el formulario de alta queda sin opciones.
 
-    return () => { control.abort() }
+    return () => { vivo = false }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [carga.fase])
 
