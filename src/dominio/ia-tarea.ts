@@ -22,9 +22,10 @@ import type { CamposTarea } from './ia.ts'
  *
  * Lo que no se fusiona, a proposito:
  *
- * - **El Espacio** (`rel_type`/`rel_id`): el formulario de tarea se abre desde su proyecto y el
- *   proyecto viaja fijo. Aceptar el que nombre el modelo seria dejarlo mover la tarea de proyecto
- *   desde una frase.
+ * - **El Espacio** (`rel_type`/`rel_id`), en `fusionarInterpretacion()`: el formulario de tarea se
+ *   abre desde su proyecto y el proyecto viaja fijo, asi que aceptar el que nombre el modelo seria
+ *   dejarlo mover la tarea de proyecto desde una frase. El alta global si tiene donde elegirlo y por
+ *   eso lo resuelve aparte, con `fusionarEspacio()`.
  * - **El hito** (`milestone`): no hay campo en el alta; se elige en el detalle.
  */
 
@@ -223,6 +224,48 @@ export function fusionarInterpretacion (
   fusion.noResuelto = [...new Set(fusion.noResuelto)]
 
   return fusion
+}
+
+/** Que Espacio quedo elegido y de donde salio. */
+export interface EspacioFusionado {
+  /** Id del Espacio, o `null` si no lo resolvio ni el texto ni el modelo. */
+  id: number | null
+  /** `true` cuando lo aporto el modelo y no un `#` escrito a mano. */
+  deIa: boolean
+  /** Lo que el modelo propuso y se descarto por no estar en el catalogo, ya redactado. */
+  descartado: string | null
+}
+
+/**
+ * Decide el Espacio de la tarea cuando la pantalla SI deja elegirlo.
+ *
+ * Vive aparte de `fusionarInterpretacion()` porque las dos pantallas quieren cosas distintas: el
+ * formulario de un Espacio no admite que una frase lo mueva de proyecto, y el alta global no tiene
+ * ningun proyecto de partida, asi que el que nombre el texto es la unica pista que hay.
+ *
+ * Rige la misma regla que el resto de la fusion —lo explicito gana—: un `#Espacio` que el parser ya
+ * resolvio no lo discute el modelo. Y la misma defensa: un id que el catalogo del front no conoce se
+ * descarta, porque mandar un `rel_id` que la interfaz no sabe nombrar es como una tarea termina
+ * colgando del proyecto equivocado.
+ *
+ * @param local lo que devolvio `interpretarAltaRapida()` sobre el mismo texto
+ * @param ia lo que devolvio el modelo, o `null` si la llamada fallo o no se hizo
+ * @param catalogos los Espacios que la interfaz conoce
+ * @returns el id elegido, si vino del modelo, y lo descartado
+ */
+export function fusionarEspacio (
+  local: AltaRapida,
+  ia: CamposTarea | null,
+  catalogos: CatalogosTarea
+): EspacioFusionado {
+  if (local.rel_id !== null) return { id: local.rel_id, deIa: false, descartado: null }
+  if (ia === null || ia.rel_id === null) return { id: null, deIa: false, descartado: null }
+
+  const existe = catalogos.espacios.some((espacio) => espacio.id === ia.rel_id)
+
+  return existe
+    ? { id: ia.rel_id, deIa: true, descartado: null }
+    : { id: null, deIa: false, descartado: `Espacio #${ia.rel_id}` }
 }
 
 /**

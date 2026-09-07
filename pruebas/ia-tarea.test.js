@@ -10,7 +10,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { interpretarAltaRapida } from '../src/dominio/alta-rapida.ts'
-import { fusionarInterpretacion, leerCamposTarea } from '../src/dominio/ia-tarea.ts'
+import { fusionarEspacio, fusionarInterpretacion, leerCamposTarea } from '../src/dominio/ia-tarea.ts'
 
 const CATALOGOS = {
   personas: [
@@ -226,4 +226,43 @@ test('leerCamposTarea entiende la forma anidada de la API', () => {
   assert.deepEqual(leido.assignees, [3])
   assert.deepEqual(leido.tags, ['Digital'])
   assert.deepEqual(leido.no_resuelto, ['etiqueta "urgentisimo"'])
+})
+
+// --- El Espacio, que solo el alta global deja elegir ---------------------------------------------
+
+test('un #Espacio escrito a mano no lo discute el modelo', () => {
+  const elegido = fusionarEspacio(
+    local('Grilla #Colbún'),
+    respuestaIa({ rel_type: 'project', rel_id: 999 }),
+    CATALOGOS
+  )
+
+  assert.deepEqual(elegido, { id: 8, deIa: false, descartado: null })
+})
+
+test('sin # en el texto, el Espacio que nombro el modelo se acepta si esta en catalogo', () => {
+  const elegido = fusionarEspacio(
+    local('Grilla de septiembre'),
+    respuestaIa({ rel_type: 'project', rel_id: 8 }),
+    CATALOGOS
+  )
+
+  assert.deepEqual(elegido, { id: 8, deIa: true, descartado: null })
+})
+
+test('un Espacio fuera de catalogo se descarta en vez de mandarse', () => {
+  const elegido = fusionarEspacio(
+    local('Grilla de septiembre'),
+    respuestaIa({ rel_type: 'project', rel_id: 999 }),
+    CATALOGOS
+  )
+
+  assert.deepEqual(elegido, { id: null, deIa: false, descartado: 'Espacio #999' })
+})
+
+test('sin respuesta del modelo el Espacio queda como lo dejo el parser', () => {
+  assert.deepEqual(
+    fusionarEspacio(local('Grilla suelta'), null, CATALOGOS),
+    { id: null, deIa: false, descartado: null }
+  )
 })

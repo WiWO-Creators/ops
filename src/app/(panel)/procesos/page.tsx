@@ -3,6 +3,7 @@ import { TablaProcesos } from '@/componentes/datos/vistas'
 import { Cargando } from '@/componentes/estado/Estados'
 import { AltaRapidaProceso } from '@/componentes/proyecto/AltaRapidaProceso'
 import { Segmentado } from '@/componentes/formularios/Segmentado'
+import { iaHabilitada } from '@/datos/ajustes'
 import { construirConsulta, leerConsulta, paramsDeUrl } from '@/datos/consulta'
 import { cargarLookups, opcionesDeFiltros } from '@/datos/lookups'
 import { pedir, pedirOpcional } from '@/datos/servidor'
@@ -29,7 +30,7 @@ export default async function ProcesosPage (props: PageProps<'/procesos'>) {
   // filtrar la lista y pasar al tablero devolvia el tablero sin filtrar.
   const consultaTablero = construirConsulta({ ...estado, orden: [], pagina: 1 }, PROCESOS)
 
-  const [lista, lookups, yo, equipo, espacios, clientes] = await Promise.all([
+  const [lista, lookups, yo, equipo, espacios, clientes, conIa] = await Promise.all([
     pedir<Proceso[]>(`/tasks${consulta === '' ? '' : `?${consulta}`}`),
     cargarLookups(),
     pedir<Yo>('/me'),
@@ -41,7 +42,9 @@ export default async function ProcesosPage (props: PageProps<'/procesos'>) {
     // para ellos.
     pedirOpcional<MiembroEquipo[]>('/staff?per_page=500'),
     pedir<Espacio[]>('/projects?per_page=500'),
-    opcionesDeCliente()
+    opcionesDeCliente(),
+    // Decide si el alta ofrece el texto libre: con la capa apagada la API responde 404 a `/ia/*`.
+    iaHabilitada()
   ])
 
   const catalogosDeAlta = {
@@ -70,7 +73,7 @@ export default async function ProcesosPage (props: PageProps<'/procesos'>) {
             ]}
           />
           {yo.data.permissions.tasks.includes('create') && (
-            <AltaRapidaProceso catalogos={catalogosDeAlta} etiquetas={lookups.tags} />
+            <AltaRapidaProceso catalogos={catalogosDeAlta} etiquetas={lookups.tags} conIa={conIa} />
           )}
         </div>
       </header>
