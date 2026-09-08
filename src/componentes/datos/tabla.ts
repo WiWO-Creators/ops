@@ -295,3 +295,33 @@ export function hayFiltrosPuestos (estado: EstadoConsulta): boolean {
 
   return Object.values(estado.filtros).some((valores) => (valores ?? []).some((v) => v !== ''))
 }
+
+/**
+ * El mapa de filtros despues de cambiar uno, con los que dependian de el ya borrados.
+ *
+ * Un filtro cuyo catalogo cuelga de otro (`Filtro.dependeDe`) queda invalido en cuanto aquel cambia:
+ * el valor viejo sigue viajando en la URL y el backend lo aplica igual, asi que la lista vuelve
+ * vacia y nada en pantalla explica por que. Borrarlo aca —donde se escribe el estado, antes del
+ * `router.replace`— es lo que lo saca de la URL, porque `construirConsulta` no serializa una lista
+ * vacia.
+ *
+ * @param filtros los filtros vigentes
+ * @param declarados los filtros de la definicion, que son quienes declaran de quien dependen
+ * @param clave el filtro que se acaba de cambiar
+ * @param valores su valor nuevo; lista vacia para quitarlo
+ * @returns un mapa nuevo, sin mutar el que llego
+ */
+export function filtrosTrasCambiar (
+  filtros: Record<string, string[]>,
+  declarados: Filtro[],
+  clave: string,
+  valores: string[]
+): Record<string, string[]> {
+  const siguientes = { ...filtros, [clave]: valores }
+
+  for (const filtro of declarados) {
+    if (filtro.dependeDe === clave) siguientes[filtro.clave] = []
+  }
+
+  return siguientes
+}

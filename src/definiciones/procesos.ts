@@ -87,7 +87,7 @@ export const PROCESOS: DefinicionRecurso<Proceso> = {
     // opciones, `ControlesTabla` no dibuja el filtro, que es justo lo que corresponde mientras no
     // haya un Espacio elegido.
     { clave: 'project_id', etiqueta: GLOSARIO.espacio.singular, tipo: 'seleccion', desdeLookup: 'projects' },
-    { clave: 'milestone_id', etiqueta: GLOSARIO.hito.singular, tipo: 'seleccion', desdeLookup: 'milestones' },
+    { clave: 'milestone_id', etiqueta: GLOSARIO.hito.singular, tipo: 'seleccion', desdeLookup: 'milestones', dependeDe: 'project_id' },
     { clave: 'billable', etiqueta: 'Facturable', tipo: 'booleano' },
     { clave: 'vence', etiqueta: 'Vence', tipo: 'rangoFechas', clavesRango: ['date_from', 'date_to'] },
     {

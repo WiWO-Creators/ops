@@ -15,6 +15,8 @@ import {
   ordenarColumnasHitos
 } from '../src/componentes/proyecto/hitos.ts'
 import { formatearImporte, segundosAHoraMinuto, textoPlano } from '../src/componentes/proyecto/formatos.ts'
+import { filtrosTrasCambiar } from '../src/componentes/datos/tabla.ts'
+import { PROCESOS } from '../src/definiciones/procesos.ts'
 import { altoDeTramo, maximoDelGrafico, textoDeDias } from '../src/componentes/proyecto/overview.ts'
 import { barraDeGantt, diaDeFecha, rangoDeGantt } from '../src/componentes/proyecto/gantt.ts'
 import {
@@ -226,4 +228,31 @@ test('el filtro por Hito ofrece "Sin hito" en cero, que es lo que guarda la base
 
 test('un Espacio sin hitos no deja un filtro con la unica opcion de no filtrar', () => {
   assert.deepEqual(opcionesDeFiltroDeHito([]), [])
+})
+
+test('cambiar de Espacio borra el Hito, que era del Espacio anterior', () => {
+  // Espacio A + Hito X, y despues Espacio B: el hito X no es de B, asi que dejarlo en la URL hace
+  // que el backend no encuentre ninguna tarea y la lista vuelva vacia sin decir por que.
+  const filtros = filtrosTrasCambiar(
+    { project_id: ['8'], milestone_id: ['31'], status: ['1', '4'] },
+    PROCESOS.filtros,
+    'project_id',
+    ['12']
+  )
+
+  assert.deepEqual(filtros.project_id, ['12'])
+  assert.deepEqual(filtros.milestone_id, [])
+  // Los filtros que no dependen del Espacio se quedan donde estaban.
+  assert.deepEqual(filtros.status, ['1', '4'])
+})
+
+test('cambiar el Hito no arrastra al Espacio: la dependencia va en un solo sentido', () => {
+  const filtros = filtrosTrasCambiar(
+    { project_id: ['8'], milestone_id: ['31'] },
+    PROCESOS.filtros,
+    'milestone_id',
+    ['33']
+  )
+
+  assert.deepEqual(filtros, { project_id: ['8'], milestone_id: ['33'] })
 })
