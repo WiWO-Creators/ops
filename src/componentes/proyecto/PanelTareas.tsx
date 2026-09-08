@@ -20,6 +20,7 @@ import type {
 } from '@/datos/recursos'
 import type { Capacidad } from '@/datos/tipos'
 import { AccionesMasivasTareas } from './AccionesMasivasTareas'
+import { CalendarioTareas } from './CalendarioTareas'
 import { ModalTarea } from './ModalTarea'
 import { FormularioTarea } from './FormularioTarea'
 import { ResumenEstadosTareas } from './ResumenEstadosTareas'
@@ -30,7 +31,7 @@ import { BotonCompletados } from './BotonCompletados'
 import { estaVencida } from './tareas'
 
 /**
- * Pestaña Tareas de un proyecto: resumen por estado, tabla y tablero.
+ * Pestaña Tareas de un proyecto: resumen por estado, tabla, tablero y calendario.
  *
  * No escribe una tabla ni un tablero: arma una `DefinicionRecurso` y se la da a los motores. Lo unico
  * propio es como se pinta cada celda y cada tarjeta.
@@ -46,10 +47,11 @@ import { estaVencida } from './tareas'
 /** Catalogos vacios, estables entre renders: un objeto literal nuevo reconstruiria la definicion. */
 const VACIO_CATALOGOS: Record<string, OpcionFiltro[]> = {}
 
-/** Las dos lecturas de las tareas. `tabla` es la de por defecto y no escribe `?vista=`. */
+/** Las tres lecturas de las tareas. `tabla` es la de por defecto y no escribe `?vista=`. */
 const VISTAS: readonly OpcionSegmentada[] = [
   { valor: 'tabla', etiqueta: 'Tabla', icono: 'tabla' },
-  { valor: 'tablero', etiqueta: 'Tablero', icono: 'tablero' }
+  { valor: 'tablero', etiqueta: 'Tablero', icono: 'tablero' },
+  { valor: 'calendario', etiqueta: 'Calendario', icono: 'calendario' }
 ]
 
 interface PropsPanelTareas {
@@ -94,7 +96,9 @@ function TareasDelProyecto ({ proyectoId, capacidades, conIa }: PropsPanelTareas
   const router = useRouter()
   const params = useSearchParams()
 
-  const enTablero = params.get('vista') === 'tablero'
+  const presentacion = params.get('vista')
+  const enTablero = presentacion === 'tablero'
+  const enCalendario = presentacion === 'calendario'
 
   const [carga, setCarga] = useState<Carga>({ fase: 'cargando' })
   const [intento, setIntento] = useState(0)
@@ -156,7 +160,7 @@ function TareasDelProyecto ({ proyectoId, capacidades, conIa }: PropsPanelTareas
   // `TablaRecurso` fija su consulta inicial al montar: montarla ahora la dejaria mostrando esa lista
   // vieja para siempre. Se espera a que llegue la de la consulta vigente. Entrar al tablero no
   // espera nada: `TableroFiltrable` pide lo suyo por su cuenta.
-  const esperandoLaListaDeLaTabla = !enTablero && carga.esTablero
+  const esperandoLaListaDeLaTabla = !enTablero && !enCalendario && carga.esTablero
 
   if (esperandoLaListaDeLaTabla) return <Cargando mensaje="Cargando las tareas…" />
 
@@ -207,16 +211,16 @@ function TareasDelProyecto ({ proyectoId, capacidades, conIa }: PropsPanelTareas
         <Segmentado
           etiqueta="Presentación"
           opciones={VISTAS}
-          activo={enTablero ? 'tablero' : 'tabla'}
+          activo={enTablero ? 'tablero' : enCalendario ? 'calendario' : 'tabla'}
           onElegir={(valor) => {
             irA((siguientes) => {
               // La tabla es la vista por defecto: se representa QUITANDO el parametro, no
               // escribiendo `vista=tabla`. Asi la URL que se comparte es la corta.
-              if (valor === 'tablero') siguientes.set('vista', 'tablero')
-              else siguientes.delete('vista')
+              if (valor === 'tabla') siguientes.delete('vista')
+              else siguientes.set('vista', valor)
 
-              // La pagina es de la tabla: el tablero pagina por columna y arrastrar un `page=3`
-              // hasta el le pediria al BFF una pagina que ahi no significa nada.
+              // La pagina es de la tabla: el tablero pagina por columna y el calendario reparte por
+              // dia; arrastrar un `page=3` hasta ellos pediria una pagina que ahi no significa nada.
               siguientes.delete('page')
             })
           }}
@@ -235,16 +239,18 @@ function TareasDelProyecto ({ proyectoId, capacidades, conIa }: PropsPanelTareas
         </div>
       </div>
 
-      {enTablero
-        ? (
+      {enCalendario
+        ? <CalendarioTareas definicion={definicion} capacidades={capacidades} />
+        : enTablero
+          ? (
           <TableroFiltrable<ProcesoAmpliado>
             definicion={definicionDeTablero(definicion, estados)}
             ruta={definicion.ruta}
             board="tasks"
             opcionesDeFiltro={carga.opciones}
           />
-          )
-        : (
+            )
+          : (
           <>
             <AccionesMasivasTareas
               proyectoId={proyectoId}
@@ -271,7 +277,7 @@ function TareasDelProyecto ({ proyectoId, capacidades, conIa }: PropsPanelTareas
               />
             </ProveedorSeleccion>
           </>
-          )}
+            )}
 
       <ModalTarea
         puedeEditar={capacidades.includes('edit')}

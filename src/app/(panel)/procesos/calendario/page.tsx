@@ -7,7 +7,7 @@ import { hoyLocal } from '@/lib/fechas'
 import { PROCESOS } from '@/definiciones/procesos'
 import type { Espacio, PersonaAsignable, Proceso, ProcesoConAviso } from '@/datos/recursos'
 import type { Yo } from '@/datos/tipos'
-import { VistaCalendario } from './VistaCalendario'
+import { VistaCalendario } from '@/componentes/datos/VistaCalendario'
 
 export const metadata = { title: 'Calendario de Tareas · WiWO Ops' }
 
