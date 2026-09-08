@@ -23,6 +23,8 @@ export interface CamposEdicion {
    */
   etiquetas: Array<number | string>
   descripcion: string
+  /** Horas estimadas, decimales. `''` es "sin estimacion"; `'0'` es una estimacion de cero. */
+  horasEstimadas: string
 }
 
 /** El cuerpo del `PATCH /tasks/{id}`, con solo las claves que cambiaron. */
@@ -36,6 +38,7 @@ export interface ParcheTarea {
   followers?: number[]
   tags?: Array<number | string>
   description?: string | null
+  estimated_hours?: number | null
 }
 
 /**
@@ -57,7 +60,8 @@ export function camposDeTarea (tarea: Proceso, descripcion: string): CamposEdici
     asignados: tarea.assignees.map((persona) => persona.id),
     seguidores: tarea.followers.map((persona) => persona.id),
     etiquetas: tarea.tags.map((etiqueta) => etiqueta.id),
-    descripcion
+    descripcion,
+    horasEstimadas: typeof tarea.estimated_hours === 'number' ? String(tarea.estimated_hours) : ''
   }
 }
 
@@ -75,8 +79,9 @@ export function camposDeTarea (tarea: Proceso, descripcion: string): CamposEdici
  * Las listas se comparan como conjuntos: reordenar los chips del selector no es un cambio.
  *
  * El vacio de un campo opcional viaja como `null` y no como `''`: la API borra con `null` y rechaza
- * la cadena vacia en las fechas. `milestone` es la excepcion que documenta el contrato — se quita
- * con `0`, porque el campo es un entero en la base.
+ * la cadena vacia en las fechas. Lo mismo con `estimated_hours`, que ademas no se puede mandar como
+ * `''`: la API lo leeria como cero, y cero horas estimadas no es no haber estimado. `milestone` es
+ * la excepcion que documenta el contrato — se quita con `0`, porque el campo es un entero en la base.
  *
  * @param inicial los campos tal como se abrieron
  * @param actual los campos tal como quedaron
@@ -98,8 +103,33 @@ export function cuerpoDeParche (inicial: CamposEdicion, actual: CamposEdicion): 
   if (actual.descripcion.trim() !== inicial.descripcion.trim()) {
     parche.description = actual.descripcion.trim() === '' ? null : actual.descripcion.trim()
   }
+  if (actual.horasEstimadas.trim() !== inicial.horasEstimadas.trim()) {
+    parche.estimated_hours = horasDeTexto(actual.horasEstimadas)
+  }
 
   return parche
+}
+
+/**
+ * Lee el campo de horas estimadas del formulario.
+ *
+ * El vacio es "sin estimacion" y viaja como `null`. Lo que no es un numero finito tambien: un texto a
+ * medio escribir daria `NaN`, y `NaN` serializado en JSON es `null` igual, pero por accidente.
+ *
+ * No recorta ni corrige lo negativo: el backend responde `422` con `estimated_hours: ["invalid"]` y
+ * ese rechazo tiene que llegar a la pantalla. Redondear a cero aca guardaria una estimacion que nadie
+ * escribio y dejaria a la persona creyendo que se acepto lo que puso.
+ *
+ * @param texto el valor crudo del `<input type="number">`
+ * @returns las horas como numero, o `null` si no hay estimacion
+ */
+function horasDeTexto (texto: string): number | null {
+  const limpio = texto.trim()
+  if (limpio === '') return null
+
+  const numero = Number(limpio)
+
+  return Number.isFinite(numero) ? numero : null
 }
 
 /** True si las dos listas tienen los mismos elementos, sin importar el orden ni las repeticiones. */

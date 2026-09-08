@@ -204,6 +204,16 @@ export function EdicionTarea (
       return
     }
 
+    // El `min={0}` del input solo frena las flechas: un valor pegado o escrito a mano llega igual.
+    // El backend lo rechaza con `422` y `estimated_hours: ["invalid"]`, que se muestra tal cual si
+    // llega; esto ahorra el viaje y dice lo mismo antes.
+    const horas = campos.horasEstimadas.trim()
+
+    if (horas !== '' && !(Number(horas) >= 0)) {
+      setError('Las horas estimadas tienen que ser un número de 0 o más.')
+      return
+    }
+
     const fallos = esquemaDeCamposPersonalizados(definiciones)
       .validar(personalizados, personalizadosIniciales)
 
@@ -375,6 +385,19 @@ export function EdicionTarea (
               )}
             </Campo>
           </div>
+
+          <Campo etiqueta="Horas estimadas" ayuda="Acepta decimales. Déjalo vacío si todavía no se estimó.">
+            {(props) => (
+              <Entrada
+                {...props}
+                type="number"
+                min={0}
+                step="0.5"
+                value={campos.horasEstimadas}
+                onChange={(evento) => setCampos({ ...campos, horasEstimadas: evento.target.value })}
+              />
+            )}
+          </Campo>
 
           <Campo etiqueta="Asignados">
             {({ id }) => (

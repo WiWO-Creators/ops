@@ -55,6 +55,11 @@ export interface Proceso {
   billable: boolean
   billed: boolean
   hourly_rate: number
+  /**
+   * Horas estimadas de la Tarea, decimales. `null` cuando nadie la estimo, que no es lo mismo que
+   * cero: cero horas es una estimacion, la ausencia es no haber estimado.
+   */
+  estimated_hours: number | null
   is_public: boolean
   visible_to_client: boolean
   recurring: boolean

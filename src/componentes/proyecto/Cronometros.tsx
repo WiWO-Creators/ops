@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useState, type ReactElement } from 'react'
 import { Boton } from '@/componentes/formularios/Boton'
 import { Cargando, ErrorEstado, Vacio } from '@/componentes/estado/Estados'
+import { Insignia } from '@/componentes/presentadores/Insignia'
+import { compararTiempo, type ComparacionTiempo } from '@/dominio/tiempo-estimado'
 import { formatearFecha } from '@/lib/fechas'
 import { cn } from '@/lib/clases'
 import type { Cronometro, Proceso } from '@/datos/recursos'
@@ -15,12 +17,14 @@ import {
   segundosAcumulados
 } from './cronometro'
 import { RegistroRapido } from './RegistroRapido'
+import { formatearNumero } from './ResumenProyecto'
 
 /**
  * Cronometros de una tarea.
  *
- * Muestra el total acumulado —que corre en vivo mientras haya uno abierto—, los marcajes, el boton
- * de arrancar o detener y el registro rapido de tiempo ya trabajado.
+ * Muestra el total acumulado —que corre en vivo mientras haya uno abierto—, la comparacion contra
+ * las horas estimadas, los marcajes, el boton de arrancar o detener y el registro rapido de tiempo ya
+ * trabajado.
  *
  * El registro rapido solo aparece si la tarea pertenece a un Espacio: el alta de horas cuelga de
  * `POST /projects/{id}/timesheets` y una tarea suelta no tiene ese `{id}`. Reusa el mismo
@@ -121,15 +125,17 @@ export function Cronometros ({ procesoId, className }: PropsCronometros): ReactE
 
   const mio = cronometroAbierto(datos.timers, datos.yoId)
   const impedimento = motivoParaNoArrancar(datos)
+  const registrados = segundosAcumulados(datos.timers, ahora)
 
   return (
     <section className={cn('border-linea bg-superficie-elevada rounded-tarjeta flex flex-col gap-4 border p-4', className)}>
       <header className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex flex-col">
+        <div className="flex flex-col gap-1">
           <h2 className="text-texto-tenue text-sm font-semibold">Tiempo registrado</h2>
           <p className="text-texto font-mono text-2xl font-semibold tabular-nums">
-            {formatearDuracion(segundosAcumulados(datos.timers, ahora))}
+            {formatearDuracion(registrados)}
           </p>
+          <ContraLoEstimado comparacion={compararTiempo(datos.tarea.estimated_hours, registrados)} />
         </div>
 
         {mio !== null
@@ -186,6 +192,64 @@ export function Cronometros ({ procesoId, className }: PropsCronometros): ReactE
           )}
     </section>
   )
+}
+
+/**
+ * Lo estimado al lado de lo registrado, con el desvio.
+ *
+ * Sigue el criterio del panel del Espacio: las horas estimadas se escriben con `formatearNumero` y su
+ * sufijo ` h`, y la ausencia de estimacion no se rellena con un cero.
+ *
+ * **`sin_registro` es el caso normal, no el raro.** Hay miles de tareas historicas y unos cientos de
+ * marcajes: casi todas tienen estimacion y ni un segundo anotado. Por eso ese estado se dice con
+ * palabras ("todavia sin tiempo registrado") y en tono de aviso, no de peligro: no hay desvio que
+ * mostrar, hay una medicion que no se hizo.
+ *
+ * @param comparacion el resultado ya calculado por `compararTiempo`
+ * @returns la linea de comparacion
+ */
+function ContraLoEstimado ({ comparacion }: { comparacion: ComparacionTiempo }): ReactElement {
+  if (comparacion.estado === 'sin_estimacion') {
+    return <p className="text-texto-sutil text-xs">Sin horas estimadas.</p>
+  }
+
+  const estimadas = `Estimado ${formatearNumero(comparacion.estimadas, ' h')}`
+
+  if (comparacion.estado === 'sin_registro') {
+    return (
+      <p className="text-texto-sutil flex flex-wrap items-center gap-2 text-xs">
+        {estimadas}
+        <Insignia tono="aviso" tamano="chico">Todavía sin tiempo registrado</Insignia>
+      </p>
+    )
+  }
+
+  return (
+    <p className="text-texto-sutil flex flex-wrap items-center gap-2 text-xs">
+      {estimadas}
+      <Insignia tono={comparacion.estado === 'excedido' ? 'peligro' : 'exito'} tamano="chico">
+        {textoDeDesvio(comparacion.estado, comparacion.desvio)}
+      </Insignia>
+    </p>
+  )
+}
+
+/**
+ * Texto del chip de desvio.
+ *
+ * El signo va delante del numero —`+2,5 h`— porque el chip se lee de un vistazo y "sobre lo estimado"
+ * queda a la derecha. El caso por debajo muestra el valor absoluto: el menos ya lo dice la palabra.
+ *
+ * @param estado cual de los tres estados con desvio calculado es
+ * @param desvio horas de diferencia, positivo cuando se paso
+ * @returns la frase del chip
+ */
+function textoDeDesvio (estado: 'en_estimacion' | 'excedido' | 'por_debajo', desvio: number): string {
+  if (estado === 'en_estimacion') return 'En la estimación'
+
+  const horas = formatearNumero(Math.abs(desvio), ' h')
+
+  return estado === 'excedido' ? `+${horas} sobre lo estimado` : `${horas} bajo lo estimado`
 }
 
 /** Una fila de la lista de marcajes. El que corre se distingue con un punto, no solo con el texto. */
