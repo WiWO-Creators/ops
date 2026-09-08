@@ -84,6 +84,17 @@ interface PropsCabecera {
   capacidadesProyecto: Capacidad[]
   /** Capacidades sobre `tasks`: rigen el boton "Nueva tarea". */
   capacidadesTareas: Capacidad[]
+  /**
+   * A donde vuelve el enlace de arriba. Por defecto, al listado de Espacios.
+   *
+   * Existe porque el mismo Espacio se mira desde dos secciones: mientras es una Licitacion no vive en
+   * `/espacios`, y volver ahi llevaria a un listado donde no esta.
+   */
+  volverA?: { href: string, etiqueta: string }
+  /** Linea bajo el titulo. Por defecto, el cliente del Espacio. */
+  subtitulo?: string
+  /** Reemplaza "Nueva tarea" y el menu del Espacio, cuyas acciones devuelven a `/espacios`. */
+  acciones?: React.ReactNode
 }
 
 /**
@@ -98,15 +109,18 @@ export function CabeceraProyecto ({
   estado,
   estados,
   capacidadesProyecto,
-  capacidadesTareas
+  capacidadesTareas,
+  volverA = { href: '/espacios', etiqueta: GLOSARIO.espacio.plural },
+  subtitulo,
+  acciones
 }: PropsCabecera) {
   return (
     <header className="border-linea bg-superficie-elevada rounded-tarjeta shadow-1 flex flex-col gap-4 border p-5">
       <Link
-        href="/espacios"
+        href={volverA.href}
         className="text-texto-tenue hover:text-texto w-fit text-xs font-medium transition-colors"
       >
-        ← {GLOSARIO.espacio.plural}
+        ← {volverA.etiqueta}
       </Link>
 
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -121,7 +135,7 @@ export function CabeceraProyecto ({
           />
           <div className="flex min-w-0 flex-col gap-1">
           <h1 className="text-texto text-titulo font-semibold">{proyecto.name}</h1>
-          <p className="text-texto-tenue text-sm">{proyecto.client?.company ?? 'Sin cliente'}</p>
+          <p className="text-texto-tenue text-sm">{subtitulo ?? proyecto.client?.company ?? 'Sin cliente'}</p>
           </div>
         </div>
 
@@ -130,8 +144,12 @@ export function CabeceraProyecto ({
             {...pildoraDeEstado(proyecto.status, estado.color)}
             className={[ESTADO_FINALIZADO, ESTADO_EN_DESARROLLO].includes(proyecto.status) ? 'motion-safe:animate-pulse' : undefined}
           >{estado.nombre}</Insignia>
-          <BotonNuevaTarea capacidades={capacidadesTareas} />
-          <MenuProyecto proyecto={proyecto} estados={estados} capacidades={capacidadesProyecto} />
+          {acciones ?? (
+            <>
+              <BotonNuevaTarea capacidades={capacidadesTareas} />
+              <MenuProyecto proyecto={proyecto} estados={estados} capacidades={capacidadesProyecto} />
+            </>
+          )}
         </div>
       </div>
 
