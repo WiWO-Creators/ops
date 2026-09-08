@@ -7,7 +7,7 @@ Rama en ambos repositorios: `feat/solicitudes-ops`.
 - Frontend: `/home/wiwo/ops.wiwo/ops-v2-wt-solicitudes-ops`.
 - API: `/home/wiwo/ops.wiwo/wiwo-board-wt-solicitudes-ops`.
 
-No están integrados en `main` ni desplegados. Para comprobar el flujo completo, el frontend debe apuntar a una instancia de la API con los cambios de esta rama. El mock sirve para revisar presentación y filtros, pero no implementa todas las escrituras ni la auditoría real.
+La integración de ambos repositorios a `main` fue autorizada. El push por sí solo no confirma el despliegue: para comprobar el flujo completo, el frontend debe apuntar a una instancia de la API con estos cambios. El mock sirve para revisar presentación y filtros, pero no implementa todas las escrituras ni la auditoría real.
 
 ## 1. Estado del proyecto
 
@@ -77,4 +77,4 @@ Una segunda ejecución no debe modificar patentes existentes. Cualquier fallo se
 - Navegador: selección de varias filas, selección de página, cuerpo de las solicitudes y fallo parcial simulado correctos; botón Completados probado en ambos sentidos; pulso y preferencia de movimiento reducido comprobados.
 - Árbol de auditoría revisado en escritorio y móvil con datos simulados. La prueba PHP comprueba la resolución de relaciones del servidor. Capturas locales en `output/playwright/`.
 
-La revisión manual y la reparación de datos existentes siguen pendientes. `feature-aislada` exige aprobación antes de integrar la rama.
+La integración a `main` está autorizada. Quedan pendientes la validación del enlace antiguo concreto y la ejecución de la reparación de patentes existentes en la base de datos correspondiente.
