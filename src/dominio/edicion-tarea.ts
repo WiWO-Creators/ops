@@ -1,3 +1,4 @@
+import { horasDeTexto } from './tiempo-estimado.ts'
 import type { StaffReferencia } from '@/datos/tipos'
 import type { Etiqueta, Proceso } from '@/datos/recursos'
 
@@ -108,28 +109,6 @@ export function cuerpoDeParche (inicial: CamposEdicion, actual: CamposEdicion): 
   }
 
   return parche
-}
-
-/**
- * Lee el campo de horas estimadas del formulario.
- *
- * El vacio es "sin estimacion" y viaja como `null`. Lo que no es un numero finito tambien: un texto a
- * medio escribir daria `NaN`, y `NaN` serializado en JSON es `null` igual, pero por accidente.
- *
- * No recorta ni corrige lo negativo: el backend responde `422` con `estimated_hours: ["invalid"]` y
- * ese rechazo tiene que llegar a la pantalla. Redondear a cero aca guardaria una estimacion que nadie
- * escribio y dejaria a la persona creyendo que se acepto lo que puso.
- *
- * @param texto el valor crudo del `<input type="number">`
- * @returns las horas como numero, o `null` si no hay estimacion
- */
-function horasDeTexto (texto: string): number | null {
-  const limpio = texto.trim()
-  if (limpio === '') return null
-
-  const numero = Number(limpio)
-
-  return Number.isFinite(numero) ? numero : null
 }
 
 /** True si las dos listas tienen los mismos elementos, sin importar el orden ni las repeticiones. */

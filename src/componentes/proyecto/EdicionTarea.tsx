@@ -41,6 +41,7 @@ import {
   type CamposEdicion
 } from '@/dominio/edicion-tarea'
 import { GLOSARIO } from '@/dominio/glosario'
+import { errorDeHorasEstimadas } from '@/dominio/tiempo-estimado'
 import { cn } from '@/lib/clases'
 import type { StaffReferencia } from '@/datos/tipos'
 import type {
@@ -204,13 +205,10 @@ export function EdicionTarea (
       return
     }
 
-    // El `min={0}` del input solo frena las flechas: un valor pegado o escrito a mano llega igual.
-    // El backend lo rechaza con `422` y `estimated_hours: ["invalid"]`, que se muestra tal cual si
-    // llega; esto ahorra el viaje y dice lo mismo antes.
-    const horas = campos.horasEstimadas.trim()
+    const horasMal = errorDeHorasEstimadas(campos.horasEstimadas)
 
-    if (horas !== '' && !(Number(horas) >= 0)) {
-      setError('Las horas estimadas tienen que ser un número de 0 o más.')
+    if (horasMal !== null) {
+      setError(horasMal)
       return
     }
 

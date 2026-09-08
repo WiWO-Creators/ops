@@ -11,7 +11,9 @@
 
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { compararTiempo } from '../src/dominio/tiempo-estimado.ts'
+import {
+  compararTiempo, errorDeHorasEstimadas, horasDeTexto
+} from '../src/dominio/tiempo-estimado.ts'
 
 test('sin estimacion no hay nada que comparar, aunque haya tiempo registrado', () => {
   assert.deepEqual(compararTiempo(null, 7200), { estado: 'sin_estimacion' })
@@ -58,4 +60,20 @@ test('el residuo de dividir segundos no convierte lo justo en excedido', () => {
 
   assert.equal(comparacion.estado, 'en_estimacion')
   assert.equal(comparacion.desvio, 0)
+})
+
+test('el campo vacio es sin estimacion y el cero es una estimacion de cero', () => {
+  assert.equal(horasDeTexto(''), null)
+  assert.equal(horasDeTexto('   '), null)
+  assert.equal(horasDeTexto('0'), 0)
+  assert.equal(horasDeTexto('7.5'), 7.5)
+  assert.equal(horasDeTexto('abc'), null)
+})
+
+test('lo negativo se frena antes del viaje; el vacio y el cero pasan', () => {
+  assert.equal(errorDeHorasEstimadas(''), null)
+  assert.equal(errorDeHorasEstimadas('0'), null)
+  assert.equal(errorDeHorasEstimadas('7.5'), null)
+  assert.match(errorDeHorasEstimadas('-1'), /0 o más/)
+  assert.match(errorDeHorasEstimadas('abc'), /0 o más/)
 })

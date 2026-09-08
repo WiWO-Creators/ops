@@ -61,3 +61,41 @@ export function compararTiempo (
 
   return { estado: desvio > 0 ? 'excedido' : 'por_debajo', estimadas, registradas, desvio }
 }
+
+/**
+ * Lee el campo de horas estimadas de un formulario.
+ *
+ * Lo usan la ficha de la Tarea y el alta rapida: el dato se define al pedir la tarea y se corrige
+ * despues, y las dos pantallas tienen que entender lo mismo por "vacio".
+ *
+ * El vacio es "sin estimacion" y viaja como `null`. Nunca como `''` ni como `0`: la API lee la cadena
+ * vacia como cero, y cero horas estimadas es una estimacion, no la ausencia de una.
+ *
+ * @param texto el valor crudo del `<input type="number">`
+ * @returns las horas como numero, o `null` si no hay estimacion
+ */
+export function horasDeTexto (texto: string): number | null {
+  const limpio = texto.trim()
+  if (limpio === '') return null
+
+  const numero = Number(limpio)
+
+  return Number.isFinite(numero) ? numero : null
+}
+
+/**
+ * Que esta mal en lo que se escribio en el campo de horas estimadas, o `null` si esta bien.
+ *
+ * El `min={0}` del input solo frena las flechas: un valor pegado o escrito a mano llega igual. El
+ * backend lo rechaza con `422` y `estimated_hours: ["invalid"]` —y ese rechazo se muestra tal cual si
+ * llega—, pero decirlo antes ahorra el viaje y deja el foco en el formulario.
+ *
+ * @param texto el valor crudo del campo
+ * @returns el mensaje a mostrar, o `null` si el valor se puede mandar
+ */
+export function errorDeHorasEstimadas (texto: string): string | null {
+  const limpio = texto.trim()
+  if (limpio === '') return null
+
+  return Number(limpio) >= 0 ? null : 'Las horas estimadas tienen que ser un número de 0 o más.'
+}
