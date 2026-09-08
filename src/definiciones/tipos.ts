@@ -51,6 +51,13 @@ export interface OpcionFiltro {
   valor: string
   etiqueta: string
   color?: string
+  /**
+   * La opcion se ve pero no se puede elegir, y la etiqueta dice por que.
+   *
+   * Esconderla seria peor: quien busca un filtro que sabe que existe necesita leer que esta ahi y
+   * que hoy no se puede usar, no quedarse pensando que se lo imagino.
+   */
+  deshabilitada?: boolean
 }
 
 export interface Filtro {
@@ -70,6 +77,15 @@ export interface Filtro {
    * Ej: `task_statuses`. Las opciones fijas van en `opciones`.
    */
   desdeLookup?: string
+  /**
+   * El filtro viaja con el NOMBRE de la opcion, no con su id.
+   *
+   * No es un capricho de presentacion: hay columnas del backend que se filtran por texto y no por
+   * clave —las Etiquetas van contra `tags.name`, los Seguidores contra el nombre completo de la
+   * persona, el Tipo contra el nombre del tipo—. Ademas deduplica el catalogo: `task_types` trae una
+   * fila por Espacio, asi que por id habria cientos de opciones con tres nombres repetidos.
+   */
+  valorPorNombre?: boolean
   opciones?: OpcionFiltro[]
   /**
    * Texto de la opcion que quita el filtro. Por defecto dice "<etiqueta>: todos".

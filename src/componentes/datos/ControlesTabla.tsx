@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { PresetsFiltro } from './PresetsFiltro'
 import { tableroDePresets } from './presets'
+import { claveDeCatalogo } from '@/datos/catalogos'
 import { operadoresCampo } from '@/definiciones/filtros'
 import type { TableroDePreset } from '@/datos/recursos'
 import { POR_PAGINA_MAXIMO } from '@/datos/consulta'
@@ -19,10 +20,14 @@ import {
   Selector
 } from '@/componentes/formularios/Selector'
 import {
+  BuscadorMenu,
   ContenidoMenu,
   DisparadorMenu,
+  GrupoRadioMenu,
   ItemMenuMarcable,
-  MenuContextual
+  ItemMenuRadio,
+  MenuContextual,
+  SinResultadosMenu
 } from '@/componentes/superposiciones/MenuContextual'
 import { cn } from '@/lib/clases'
 import { dependenciaPendiente, filtrosTrasCambiar, opcionesPorPagina, resumenDeFiltro } from './tabla'
@@ -144,15 +149,21 @@ export function ControlesTabla<T> ({
       )}
 
       {disponibles.length > 0 && (
-        <select
-          aria-label="Agregar filtro"
-          value=""
-          className="border-control-borde bg-control text-texto rounded-control h-9 max-w-full border px-2 text-sm"
-          onChange={(evento) => { setAgregados([...agregados, evento.target.value]) }}
-        >
-          <option value="" disabled>Agregar filtro…</option>
-          {disponibles.map((filtro) => <option key={filtro.clave} value={filtro.clave} disabled={filtro.noDisponible !== undefined}>{filtro.etiqueta}{filtro.noDisponible === undefined ? '' : ` — ${filtro.noDisponible}`}</option>)}
-        </select>
+        // El mismo menu que los filtros y no un `<select>` nativo: con todos los campos de la Tarea
+        // declarados, la lista pasa de treinta y elegir a ojo tarda mas que escribir dos letras.
+        <MenuBuscable
+          etiqueta="Agregar filtro"
+          texto="Agregar filtro…"
+          sinFiltrar
+          opciones={disponibles.map((filtro) => ({
+            valor: filtro.clave,
+            etiqueta: filtro.noDisponible === undefined ? filtro.etiqueta : `${filtro.etiqueta} — ${filtro.noDisponible}`,
+            ...(filtro.noDisponible === undefined ? {} : { deshabilitada: true })
+          }))}
+          seleccionadas={[]}
+          multiple={false}
+          onElegir={(clave) => { setAgregados([...agregados, clave]) }}
+        />
       )}
       {activos.map((filtro) => (
         <div key={filtro.clave} className="flex max-w-full items-center gap-1">
@@ -269,7 +280,9 @@ function opcionesDe (filtro: Filtro, desdeServidor: Record<string, OpcionFiltro[
 
   if (filtro.opciones !== undefined) return filtro.opciones
 
-  return filtro.desdeLookup === undefined ? [] : desdeServidor[filtro.desdeLookup] ?? []
+  const clave = claveDeCatalogo(filtro)
+
+  return clave === '' ? [] : desdeServidor[clave] ?? []
 }
 
 /**
@@ -308,76 +321,157 @@ interface PropsFiltroConOpciones extends PropsControlFiltro {
   opciones: OpcionFiltro[]
 }
 
-/** Filtro de un solo valor: desplegable con una opcion para no filtrar. */
-function FiltroSimple ({ filtro, opciones, valores, onCambiar }: PropsFiltroConOpciones) {
+/**
+ * Cantidad de opciones a partir de la cual el desplegable trae buscador.
+ *
+ * Seis deja fuera a los catalogos cortos y fijos —los cinco estados, las cuatro prioridades, los
+ * tres estados de SLA—, donde un campo de texto seria un control mas entre el clic y la unica opcion
+ * que hay. De ahi para arriba empieza a haber que recorrer: el equipo pasa de ciento ochenta
+ * personas y el catalogo de Espacios de doscientos.
+ */
+const UMBRAL_BUSCADOR = 6
+
+interface PropsMenuBuscable {
+  /** Nombre del control, para el lector de pantalla y para el texto del buscador. */
+  etiqueta: string
+  /** Lo que muestra el disparador: la opcion elegida, o "Estado: todos". */
+  texto: string
+  /** Cuantas mas hay elegidas ademas de la que se muestra (`+2`). */
+  extra?: string | null
+  /** Pinta el disparador tenue: es la señal de que el filtro no esta puesto. */
+  sinFiltrar?: boolean
+  opciones: OpcionFiltro[]
+  seleccionadas: string[]
+  /** Varias opciones a la vez: el menu no se cierra al elegir y las filas se marcan. */
+  multiple: boolean
+  /** Etiqueta de la fila que quita el filtro. Solo en los de un valor. */
+  opcionVacia?: string | null
+  /** Recibe el valor elegido; en el modo de varios, el que se marco o desmarco. */
+  onElegir: (valor: string) => void
+}
+
+/**
+ * Desplegable de opciones con busqueda, para un valor o para varios.
+ *
+ * Un solo componente para los dos modos porque en la barra conviven, y lo unico que los distingue es
+ * si el menu se cierra al elegir: que uno se viera como un selector y el otro como un boton solo
+ * hacia parecer que el de al lado estaba roto.
+ *
+ * Sobre el menu de Radix y no sobre su `Select`: el `Select` no admite nada que no sea una opcion
+ * dentro del panel, y sin un campo de texto adentro un catalogo de doscientos Espacios se recorre a
+ * ojo. La semantica no se pierde —`menuitemradio` para el de un valor, `menuitemcheckbox` para el de
+ * varios—, que es lo que un lector de pantalla necesita para decir cual esta elegida.
+ */
+function MenuBuscable ({
+  etiqueta,
+  texto,
+  extra = null,
+  sinFiltrar = false,
+  opciones,
+  seleccionadas,
+  multiple,
+  opcionVacia = null,
+  onElegir
+}: PropsMenuBuscable) {
+  const [consulta, setConsulta] = useState('')
+  const conBuscador = opciones.length >= UMBRAL_BUSCADOR
+  const buscado = consulta.trim().toLowerCase()
+  const visibles = buscado === '' ? opciones : opciones.filter((opcion) => opcion.etiqueta.toLowerCase().includes(buscado))
+
   return (
-    <Selector
-      value={valores[0] ?? SIN_FILTRO}
-      onValueChange={(valor) => onCambiar(valor === SIN_FILTRO ? [] : [valor])}
-    >
-      {/* Tenue mientras no filtra: es la misma señal que usa el filtro de varios valores, y es lo
-          unico que distingue de un vistazo cuales filtros estan puestos y cuales no. */}
-      <DisparadorSelector
-        aria-label={filtro.etiqueta}
-        marcador={filtro.etiqueta}
-        className={cn(ANCHO_FILTRO, valores.length === 0 && 'text-texto-sutil')}
-      />
-      <ContenidoSelector>
-        <Opcion value={SIN_FILTRO}>{filtro.etiquetaSinFiltro ?? `${filtro.etiqueta}: todos`}</Opcion>
-        {opciones.map((opcion) => (
-          <Opcion key={opcion.valor} value={opcion.valor}>{opcion.etiqueta}</Opcion>
-        ))}
-      </ContenidoSelector>
-    </Selector>
+    <MenuContextual onOpenChange={(abierto) => { if (!abierto) setConsulta('') }}>
+      <DisparadorMenu
+        aria-label={etiqueta}
+        // El ancho es fijo: el resumen cambia de largo al elegir, y un disparador que se ensancha
+        // empuja a los filtros de al lado debajo del puntero.
+        className={cn(CLASES_DISPARADOR, ANCHO_FILTRO, sinFiltrar && 'text-texto-sutil')}
+      >
+        <span className="flex min-w-0 items-baseline gap-1">
+          <span className="truncate">{texto}</span>
+          {/* El conteo no se recorta: es lo unico que dice que hay mas de un valor puesto. */}
+          {extra !== null && <span className="text-texto-tenue shrink-0">{extra}</span>}
+        </span>
+        <ChevronSelector />
+      </DisparadorMenu>
+      <ContenidoMenu
+        align="start"
+        // Mas ancho que el disparador y con tope: los nombres largos —un Espacio, un cliente— se leen
+        // enteros sin que el panel se salga de la pantalla en un telefono.
+        className="w-64 max-w-[calc(100vw-2rem)]"
+      >
+        {conBuscador && (
+          <BuscadorMenu valor={consulta} onCambiar={setConsulta} placeholder={`Buscar ${etiqueta.toLowerCase()}…`} />
+        )}
+        {multiple
+          ? visibles.map((opcion) => (
+            <ItemMenuMarcable
+              key={opcion.valor}
+              checked={seleccionadas.includes(opcion.valor)}
+              disabled={opcion.deshabilitada}
+              onCheckedChange={() => { onElegir(opcion.valor) }}
+            >
+              <span className="truncate">{opcion.etiqueta}</span>
+            </ItemMenuMarcable>
+            ))
+          : (
+            <GrupoRadioMenu value={seleccionadas[0] ?? SIN_FILTRO} onValueChange={onElegir}>
+              {/* La fila que quita el filtro no se busca: se esconde mientras hay texto escrito para
+                  que no aparezca como una coincidencia mas. */}
+              {opcionVacia !== null && buscado === '' && <ItemMenuRadio value={SIN_FILTRO}>{opcionVacia}</ItemMenuRadio>}
+              {visibles.map((opcion) => (
+                <ItemMenuRadio key={opcion.valor} value={opcion.valor} disabled={opcion.deshabilitada}>
+                  <span className="truncate">{opcion.etiqueta}</span>
+                </ItemMenuRadio>
+              ))}
+            </GrupoRadioMenu>
+            )}
+        {visibles.length === 0 && <SinResultadosMenu />}
+      </ContenidoMenu>
+    </MenuContextual>
+  )
+}
+
+/** Filtro de un solo valor: menu excluyente, con una fila para no filtrar. */
+function FiltroSimple ({ filtro, opciones, valores, onCambiar }: PropsFiltroConOpciones) {
+  const { texto, extra } = resumenDeFiltro(filtro.etiqueta, opciones, valores)
+
+  return (
+    <MenuBuscable
+      etiqueta={filtro.etiqueta}
+      texto={texto}
+      extra={extra}
+      sinFiltrar={valores.length === 0}
+      opciones={opciones}
+      seleccionadas={valores}
+      multiple={false}
+      opcionVacia={filtro.etiquetaSinFiltro ?? `${filtro.etiqueta}: todos`}
+      onElegir={(valor) => { onCambiar(valor === SIN_FILTRO ? [] : [valor]) }}
+    />
   )
 }
 
 /**
  * Filtro de varios valores: menu con marcas, que el backend traduce a `IN`.
  *
- * El disparador es el mismo que el de un filtro de un solo valor —mismo alto, mismo chevron, mismo
- * "Estado: todos" cuando no filtra— y a proposito: en la barra conviven los dos tipos, y hasta que
- * no se abre el desplegable no hay forma de saber cual es cual. Que uno se viera como un boton y
- * el otro como un selector solo hacia parecer que el de al lado estaba roto.
- *
- * Lo que cambia es el contenido: sigue siendo un menu con marcas, porque elegir varios estados a la
- * vez es lo que la API acepta (`filter[status]=1,4`) y lo que la gente usa.
+ * Elegir varios estados a la vez es lo que la API acepta (`filter[status]=1,4`) y lo que la gente
+ * usa; el menu no se cierra al marcar para que no haya que reabrirlo en cada uno.
  */
 function FiltroMultiple ({ filtro, opciones, valores, onCambiar }: PropsFiltroConOpciones) {
   const { texto, extra } = resumenDeFiltro(filtro.etiqueta, opciones, valores)
 
   return (
-    <MenuContextual>
-      <DisparadorMenu
-        // El ancho es fijo, como el del selector: el resumen cambia de largo al elegir, y un
-        // disparador que se ensancha empuja a los filtros de al lado debajo del puntero.
-        className={cn(CLASES_DISPARADOR, ANCHO_FILTRO, valores.length === 0 && 'text-texto-sutil')}
-      >
-        <span className="flex min-w-0 items-baseline gap-1">
-          <span className="truncate">{texto}</span>
-          {/* El conteo no se recorta: es lo unico que dice que hay mas de un estado puesto. */}
-          {extra !== null && <span className="text-texto-tenue shrink-0">{extra}</span>}
-        </span>
-        <ChevronSelector />
-      </DisparadorMenu>
-      <ContenidoMenu align="start">
-        {opciones.map((opcion) => (
-          <ItemMenuMarcable
-            key={opcion.valor}
-            checked={valores.includes(opcion.valor)}
-            onCheckedChange={() => {
-              onCambiar(
-                valores.includes(opcion.valor)
-                  ? valores.filter((v) => v !== opcion.valor)
-                  : [...valores, opcion.valor]
-              )
-            }}
-          >
-            {opcion.etiqueta}
-          </ItemMenuMarcable>
-        ))}
-      </ContenidoMenu>
-    </MenuContextual>
+    <MenuBuscable
+      etiqueta={filtro.etiqueta}
+      texto={texto}
+      extra={extra}
+      sinFiltrar={valores.length === 0}
+      opciones={opciones}
+      seleccionadas={valores}
+      multiple
+      onElegir={(valor) => {
+        onCambiar(valores.includes(valor) ? valores.filter((v) => v !== valor) : [...valores, valor])
+      }}
+    />
   )
 }
 

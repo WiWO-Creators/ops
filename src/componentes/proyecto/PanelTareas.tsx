@@ -7,6 +7,7 @@ import { TablaRecurso } from '@/componentes/datos/TablaRecurso'
 import { TableroFiltrable } from '@/componentes/datos/TableroFiltrable'
 import { Segmentado, type OpcionSegmentada } from '@/componentes/formularios/Segmentado'
 import { Cargando, ErrorEstado } from '@/componentes/estado/Estados'
+import { staffParaFiltros } from '@/datos/asignables'
 import { opcionesDeFiltros } from '@/datos/catalogos'
 import { pedirSobre } from '@/datos/cliente'
 import { filtrosDeCamposPersonalizados } from '@/definiciones/filtros'
@@ -355,9 +356,13 @@ async function cargarPestana (
     const completa = { ...definicion, filtros: [...definicion.filtros.filter((filtro) => !filtro.clave.startsWith('cf_')), ...filtrosDeCamposPersonalizados(campos)] }
     const query = construirConsulta(leerConsulta(new URLSearchParams(consulta), completa), completa)
     const ruta = `${definicion.ruta}?${query}`
-    const [lista, lookups] = await Promise.all([
+    // El equipo no viene en `/lookups` y es lo que llena los filtros por persona (Asignado, Creado
+    // por, Seguidor). Se pide junto con lo demas y ya esta cacheado por pestaña; si falla, esos
+    // filtros quedan sin opciones y el resto de la tabla no se entera.
+    const [lista, lookups, personas] = await Promise.all([
       pedirSobre<ProcesoAmpliado[]>(ruta, senal),
-      pedirSobre<Lookups>('lookups', senal)
+      pedirSobre<Lookups>('lookups', senal),
+      staffParaFiltros(definicion)
     ])
 
     const avisos: string[] = []
@@ -379,7 +384,7 @@ async function cargarPestana (
       esTablero: enTablero,
       inicial: { filas: lista.data, paginacion: lista.meta?.pagination },
       opciones: {
-        ...opcionesDeFiltros(definicion, lookups.data),
+        ...opcionesDeFiltros(definicion, { ...lookups.data, staff: personas }),
         milestones: opcionesDeFiltroDeHito(hitos ?? [])
       },
       etiquetas: lookups.data.tags ?? [],

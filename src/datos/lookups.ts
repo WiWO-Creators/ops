@@ -1,8 +1,9 @@
 import 'server-only'
 
 import { cache } from 'react'
-import { pedir, pedirPortal } from './servidor.ts'
-import type { Lookups } from './recursos.ts'
+import { RUTA_DE_ASIGNABLES } from './asignables.ts'
+import { pedir, pedirOpcional, pedirPortal } from './servidor.ts'
+import type { Lookups, PersonaAsignable } from './recursos.ts'
 
 /**
  * Carga de los catalogos configurables de Perfex.
@@ -17,9 +18,15 @@ import type { Lookups } from './recursos.ts'
  * La lectura de estas listas vive en `catalogos.ts`, que no depende de Next y por eso se puede probar.
  */
 export const cargarLookups = cache(async (): Promise<Lookups> => {
-  const { data } = await pedir<Lookups>('/lookups')
+  // El equipo va en la misma tanda y no en serie: es un segundo viaje, no una segunda espera. Sale
+  // de `/staff/asignables` —no de `/staff`, que exige `staff.view` y le contesta 403 a casi todo el
+  // equipo— y con `pedirOpcional` porque un catalogo de filtros no puede tumbar una pantalla.
+  const [lookups, equipo] = await Promise.all([
+    pedir<Lookups>('/lookups'),
+    pedirOpcional<PersonaAsignable[]>(`/${RUTA_DE_ASIGNABLES}`)
+  ])
 
-  return data
+  return { ...lookups.data, staff: (equipo.datos ?? []).map((persona) => ({ id: persona.id, name: persona.full_name })) }
 })
 
 /**

@@ -135,8 +135,6 @@ export function leerConsulta<T> (
   for (const filtro of definicion.filtros) {
     if (filtro.noDisponible) continue
     if (filtro.tipo === 'campo') {
-      const asignadoLegado = filtro.clave === 'assignee' ? params.get('assignee') : null
-      if (asignadoLegado !== null && /^\d+$/.test(asignadoLegado)) estado.filtros.assignee = ['eq', asignadoLegado]
       for (const operador of operadoresCampo(filtro)) {
         const valor = params.get(`filter[${filtro.clave}__${operador}]`)
         if (valor === null || valor === '') continue
@@ -154,7 +152,11 @@ export function leerConsulta<T> (
       continue
     }
 
-    const crudo = params.get(`filter[${filtro.clave}]`)
+    // El `assignee` suelto es la forma vieja de "las tareas de esta persona", y sigue llegando desde
+    // enlaces guardados y desde los paneles que arman la URL a mano. Se lee como si viniera envuelto,
+    // pero solo si son identificadores: el backend lo compara contra una columna numerica y un
+    // `assignee=juan` de una URL escrita a mano seria un 422 en vez de una lista.
+    const crudo = params.get(`filter[${filtro.clave}]`) ?? asignadoLegado(filtro.clave, params)
 
     if (crudo === null || crudo === '') continue
 
@@ -180,6 +182,21 @@ export function leerConsulta<T> (
   estado.includes = [...new Set([...(definicion.incluirSiempre ?? []), ...includes])]
 
   return estado
+}
+
+/**
+ * El `assignee` suelto de las URLs viejas, si trae identificadores.
+ *
+ * @param clave La clave del filtro que se esta leyendo.
+ * @param params Los parametros de la URL.
+ * @returns La lista de ids tal como venia, o `null` si no aplica o no son numeros.
+ */
+function asignadoLegado (clave: string, params: URLSearchParams): string | null {
+  if (clave !== 'assignee') return null
+
+  const crudo = params.get('assignee')
+
+  return crudo !== null && /^\d+(,\d+)*$/.test(crudo) ? crudo : null
 }
 
 /**

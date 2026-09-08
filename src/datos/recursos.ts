@@ -385,6 +385,15 @@ export interface Lookups {
    * `tiposDeProcesoUnicos()` en `lib/plantillas.ts`.
    */
   task_types?: EstadoLookup[]
+  /**
+   * El equipo, para los filtros que preguntan por una persona (Asignado, Creado por, Seguidor).
+   *
+   * **No viene de `/lookups`**: lo adjunta `cargarLookups` desde `/staff/asignables`. Se guarda aca
+   * igual porque es un catalogo mas para quien arma un selector, y tenerlo en otro lado obligaba a
+   * cada pantalla de tareas a pedirlo y pasarlo a mano. Ausente en el portal del cliente: al contacto
+   * no le corresponde el catalogo de personas del equipo.
+   */
+  staff?: EstadoLookup[]
 }
 
 /**

@@ -8,7 +8,9 @@ Los filtros se aplican en la API antes de contar y paginar. El calendario añade
 
 - `src/definiciones/`: campos, etiquetas, tipos y catálogos por recurso. `filtros.ts` convierte metadatos de campos personalizados.
 - `src/datos/consulta.ts`: lectura/escritura de filtros en URL y restricciones del calendario. Los filtros existentes conservan su formato; los campos tipados usan `filter[campo__operador]`.
-- `src/componentes/datos/ControlesTabla.tsx`: selector «Agregar filtro», controles según tipo, limpieza y presets. Las vistas configuran esta barra.
+- `src/componentes/datos/ControlesTabla.tsx`: selector «Agregar filtro», controles según tipo, limpieza y presets. Las vistas configuran esta barra. Los desplegables —el de agregar y los de opciones— traen buscador a partir de ocho opciones: se arman sobre el menú de Radix, la única primitiva que admite un campo de texto dentro del panel.
+- `src/datos/asignables.ts` y `src/datos/lookups.ts`: el equipo no viene en `GET /lookups`; se adjunta como catálogo `staff` para los filtros por persona (Asignado, Creado por, Seguidor). En el servidor lo suma `cargarLookups`; en el navegador, `staffParaFiltros`, que solo lo pide si la definición lo declara.
+- `Filtro.valorPorNombre`: el filtro viaja con el nombre de la opción y no con su id, porque la columna del backend es de texto. También deduplica el catálogo: `task_types` trae un tipo por Espacio.
 - `src/componentes/datos/PresetsFiltro.tsx` y `presets.ts`: guardar, aplicar, borrar, exportar e importar; validación y adaptación al destino. La búsqueda se persiste como `__q`, sin enviarla como filtro a la API.
 - API `Nucleo/Consulta.php`: operadores parametrizados sobre campos permitidos; `Recursos/` aporta expresiones de cada entidad y su alcance de permisos.
 - API `Recursos/FiltrosDerivados.php`: compara valores que solo existen después de traducir o deserializar, antes del conteo y la paginación.
@@ -62,3 +64,29 @@ El filtro de campos derivados de actividad y correo escanea candidatos autorizad
 822 pruebas frontend, TypeScript, ESLint de 35 archivos y build de producción con Webpack correctos. Las tres pruebas PHP y el lint de 24 archivos pasan. Navegador: agregar campos, guardar/aplicar, exportar/importar, remapear un hito ajeno sin cambiar de proyecto, barra del calendario de proyecto y vista móvil verificados con mock.
 
 Capturas locales: `output/normalizar-filtros/desktop.png` y `output/normalizar-filtros/mobile.png`. Los artefactos de prueba y el enlace local de dependencias no forman parte del commit.
+
+## Todos los campos de la Tarea, y selectores que se buscan
+
+La barra de Tareas ofrece filtrar por todo lo que la Tarea tiene —treinta y nueve campos, mas los
+personalizados—, con dos ausencias deliberadas: la descripcion, que es lo que contesta la busqueda
+`?q=`, y lo que es orden interno y no un dato (`kanban_order`, `milestone_order`, el detalle de la
+recurrencia).
+
+Los que preguntan por una persona (Asignado, Creado por, Seguidor), por una Etiqueta o por el Tipo
+dejaron de escribirse a mano: son selectores contra su catalogo. Asignado y Creado por viajan por id
+y admiten varias personas; Seguidor, Etiqueta y Tipo se comparan contra texto en el backend, asi que
+van de a uno. El equipo no viene en `GET /lookups`: lo adjunta `cargarLookups` en el servidor y
+`staffParaFiltros` en el navegador.
+
+Todo desplegable con seis o mas opciones trae buscador, incluido el de «Agregar filtro». Estan
+armados sobre el menu de Radix —su `Select` no admite un campo de texto dentro del panel— y
+conservan la semantica: `menuitemradio` cuando se elige uno, `menuitemcheckbox` cuando se eligen
+varios. Desde el campo, la flecha abajo lleva a la primera fila y `Enter` la elige.
+
+El mock aprendio los mismos filtros y los mismos operadores (`filter[campo__op]`, con las mismas
+incompatibilidades que `Nucleo/Consulta.php`): antes conocia nueve claves y ninguna con operador, asi
+que la mitad de la barra fallaba en local y funcionaba en produccion.
+
+Verificacion: `FILTROS_TEST_TIROS=output node pruebas/filtros.browser.mjs` con el mock y Next locales
+—comprueba el buscador de «Agregar filtro», el catalogo de personas y que cada filtro viaje como el
+backend lo espera—, ademas de `pnpm test`, `pnpm typecheck` y ESLint.

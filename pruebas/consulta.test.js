@@ -269,11 +269,12 @@ test('calendario intersecta el período sin perder filtros, búsqueda ni campos 
   assert.equal(sinFiltros.get('filter[due_date__lte]'), rango.hasta)
 })
 
-test('asignado del calendario antiguo migra a filtro por identificador sin perder precisión', () => {
-  const definicion = { ...PROCESOS, filtros: [{ clave: 'assignee', tipo: 'campo', tipoDato: 'numero' }] }
+test('asignado del calendario antiguo migra al selector de personas sin perder precisión', () => {
+  const definicion = { ...PROCESOS, filtros: [{ clave: 'assignee', tipo: 'multiple', desdeLookup: 'staff' }] }
   const estado = leerConsulta(new URLSearchParams('assignee=42'), definicion)
-  assert.deepEqual(estado.filtros.assignee, ['eq', '42'])
-  assert.equal(new URLSearchParams(construirConsulta(estado, definicion)).get('filter[assignee__eq]'), '42')
+  assert.deepEqual(estado.filtros.assignee, ['42'])
+  assert.equal(new URLSearchParams(construirConsulta(estado, definicion)).get('filter[assignee]'), '42')
+  assert.deepEqual(leerConsulta(new URLSearchParams('assignee=42,7'), definicion).filtros.assignee, ['42', '7'])
   assert.deepEqual(leerConsulta(new URLSearchParams('assignee=mal'), definicion).filtros, {})
 })
 
