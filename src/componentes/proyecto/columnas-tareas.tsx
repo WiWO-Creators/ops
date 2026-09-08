@@ -13,7 +13,6 @@ import type { DefinicionCampoPersonalizado, ProcesoAmpliado } from '@/datos/recu
 import type { Capacidad } from '@/datos/tipos'
 import type { Columna, DefinicionRecurso, OpcionFiltro } from '@/definiciones/tipos'
 import { PROCESOS } from '@/definiciones/procesos'
-import { SIN_DATO } from '@/lib/sla'
 import { alternarSeleccion, camposDeTabla, valorDeCampo } from './tareas'
 
 /**
@@ -150,6 +149,7 @@ function EstadoEditable ({ proceso, estados, editable, onCambiado }: PropsEstado
       <select
         value={String(proceso.status)}
         disabled={enCurso}
+        style={{ borderColor: actual?.color ?? undefined }}
         aria-label={`Estado de «${proceso.name}»`}
         onChange={(evento) => { void cambiar(evento.target.value) }}
         className="border-control-borde bg-control text-texto rounded-control h-8 border px-2 text-xs"
@@ -221,7 +221,7 @@ export function definicionDeTareas ({
     },
     // Reemplaza al id interno que ocupaba esta columna: es el mismo lugar y el mismo uso —decir de
     // que tarea se habla— pero con el codigo que tambien se ve en Drive y en el modal.
-    { clave: 'patente', encabezado: 'ID', sinCortar: true, presentar: (proceso) => proceso.patente ?? SIN_DATO },
+    { clave: 'patente', encabezado: 'ID', sinCortar: true, presentar: (proceso) => proceso.patente || `#${proceso.id}` },
     { clave: 'name', encabezado: 'Nombre', ordenPor: 'name', presentar: (proceso) => <EnlaceTarea proceso={proceso} /> },
     { clave: 'task_type', encabezado: 'Task type', presentar: (proceso) => <TipoDeTarea proceso={proceso} /> },
     {

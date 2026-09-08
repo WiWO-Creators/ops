@@ -10,6 +10,7 @@ import type { TableroDePreset } from '@/datos/recursos'
 import { leerError } from '@/datos/errores'
 import { ErrorEstado, Vacio } from '@/componentes/estado/Estados'
 import { CargandoConOrbe } from '@/componentes/estado/Orbe'
+import { CLASES_CASILLA } from '@/componentes/formularios/Entrada'
 import { Boton } from '@/componentes/formularios/Boton'
 import {
   ContenidoMenu,
@@ -94,6 +95,8 @@ interface PropsTablaRecurso<T> {
    * Es opcional porque no toda tabla los merece: una lista sin filtros no tiene nada que guardar.
    */
   board?: TableroDePreset
+  /** Casillas laterales y acciones sobre las filas seleccionadas de la página actual. */
+  seleccionMasiva?: (filas: T[], limpiar: () => void, recargar: () => void) => ReactNode
   className?: string
 }
 
@@ -127,6 +130,7 @@ export function TablaRecurso<T> ({
   capacidades = [],
   opcionesDeFiltro,
   board,
+  seleccionMasiva,
   className
 }: PropsTablaRecurso<T>) {
   const router = useRouter()
@@ -142,13 +146,15 @@ export function TablaRecurso<T> ({
   // hay nada que volver a pedir: pedirlo igual es una peticion de mas en cada montaje.
   const consultaInicial = useRef(consulta)
 
+  const [seleccion, setSeleccion] = useState<{ consulta: string, ids: Array<string | number> }>({ consulta: '', ids: [] })
+  const [revision, setRevision] = useState(0)
   const [resultado, setResultado] = useState<ResultadoLista<T>>(inicial)
   const [error, setError] = useState<CuerpoError | null>(null)
   const [cargando, setCargando] = useState(false)
   const [visibles, setVisibles] = useState(() => clavesVisiblesPorDefecto(definicion.columnas))
 
   useEffect(() => {
-    if (consulta === consultaInicial.current) return
+    if (consulta === consultaInicial.current && revision === 0) return
 
     const control = new AbortController()
 
@@ -168,7 +174,7 @@ export function TablaRecurso<T> ({
     })
 
     return () => control.abort()
-  }, [consulta, definicion.ruta, definicion.consultaFija])
+  }, [consulta, definicion.ruta, definicion.consultaFija, revision])
 
   /**
    * Adopta los datos frescos que baja `router.refresh()`.
@@ -225,6 +231,16 @@ export function TablaRecurso<T> ({
     router.push(href, { scroll: false })
   }
 
+  const seleccionadas = seleccion.consulta === consulta
+    ? resultado.filas.filter((fila) => seleccion.ids.includes(claveFila(fila)))
+    : []
+  const idsSeleccionados = seleccionadas.map(claveFila)
+
+  /** Limita la selección a la consulta y página visibles para evitar acciones sobre filas ocultas. */
+  function seleccionar (ids: Array<string | number>): void {
+    setSeleccion({ consulta, ids })
+  }
+
   const columnas = columnasVisibles(definicion.columnas, visibles)
   const acciones = podarPorPermisos(definicion.acciones, capacidades)
 
@@ -248,11 +264,13 @@ export function TablaRecurso<T> ({
         )}
       </div>
 
+      {seleccionMasiva?.(seleccionadas, () => seleccionar([]), () => setRevision((n) => n + 1))}
+
       {error !== null
         ? (
           <ErrorEstado
             detalle={mensajeDeError(error, definicion.filtros)}
-            onReintentar={() => { router.refresh() }}
+            onReintentar={() => { setRevision((n) => n + 1) }}
           />
           )
         : resultado.filas.length === 0
@@ -276,6 +294,17 @@ export function TablaRecurso<T> ({
               <Tabla>
                 <EncabezadoTabla>
                   <tr>
+                    {seleccionMasiva !== undefined && (
+                      <CeldaEncabezado>
+                        <input type="checkbox" className={CLASES_CASILLA}
+                          aria-label="Seleccionar toda esta página"
+                          disabled={cargando}
+                          checked={seleccionadas.length > 0 && seleccionadas.length === resultado.filas.length}
+                          ref={(elemento) => { if (elemento) elemento.indeterminate = seleccionadas.length > 0 && seleccionadas.length < resultado.filas.length }}
+                          onChange={(evento) => seleccionar(evento.target.checked ? resultado.filas.map(claveFila) : [])}
+                        />
+                      </CeldaEncabezado>
+                    )}
                     {columnas.map((columna) => {
                       const direccion = columna.ordenPor === undefined
                         ? null
@@ -323,11 +352,26 @@ export function TablaRecurso<T> ({
                     return (
                     <FilaTabla
                       key={claveFila(fila)}
-                      className={cn('animate-entrar-abajo', claseFila?.(fila))}
+                      className={cn('animate-entrar-abajo', claseFila?.(fila), idsSeleccionados.includes(claveFila(fila)) && 'bg-seleccionado')}
+                      aria-selected={seleccionMasiva === undefined ? undefined : idsSeleccionados.includes(claveFila(fila))}
                       style={{ animationDelay: retrasoDeAparicion(indice) }}
                       interactiva={href !== null}
                       onClick={href === null ? undefined : (evento) => { abrirFila(evento, href) }}
                     >
+                      {seleccionMasiva !== undefined && (
+                        <CeldaTabla>
+                          <label className="flex min-h-8 cursor-pointer items-center justify-center px-2">
+                            <input type="checkbox" className={CLASES_CASILLA}
+                              aria-label={`Seleccionar fila ${claveFila(fila)}`}
+                              disabled={cargando}
+                              checked={idsSeleccionados.includes(claveFila(fila))}
+                              onChange={(evento) => seleccionar(evento.target.checked
+                                ? [...idsSeleccionados, claveFila(fila)]
+                                : idsSeleccionados.filter((id) => id !== claveFila(fila)))}
+                            />
+                          </label>
+                        </CeldaTabla>
+                      )}
                       {columnas.map((columna) => (
                         <CeldaTabla key={columna.clave} numerica={columna.numerica} sinCortar={columna.sinCortar}>
                           <Celda columna={columna} fila={fila} catalogos={opcionesDeFiltro} />

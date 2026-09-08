@@ -61,9 +61,11 @@ export function Insignia ({ tono, tamano, color, className, children, ...resto }
     <span
       className={cn(
         insignia({ tono: conColor ? 'neutro' : tono, tamano }),
+        conColor && 'border',
         className
       )}
       {...resto}
+      style={{ ...resto.style, ...(conColor ? { borderColor: color } : {}) }}
     >
       {conColor && (
         <span

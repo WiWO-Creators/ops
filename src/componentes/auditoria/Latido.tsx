@@ -2,71 +2,67 @@
 
 import { usePathname } from 'next/navigation'
 import { useEffect } from 'react'
-import { accionEnCurso, escucharAccion } from './accion'
+import { accionEnCurso, escucharAccion, rutaDeTarea } from './accion'
 
 /**
- * Le cuenta al servidor en qué pantalla del panel está parada esta persona.
- *
- * Es lo que alimenta el bloque "Ahora mismo" de `/auditoria`. Va montado en el armazón del panel
- * porque el latido es de todo el panel, no de una pantalla: si viviera dentro de `/auditoria`, la
- * única persona que aparecería conectada sería la que está mirando la auditoría.
- *
- * === QUÉ MANDA: la ruta, y nada más ===
- *
- * La ruta de `usePathname()` y, si hay un diálogo abierto, cuál de un catálogo cerrado de cinco
- * (`accion.ts`). Sin query string —`/procesos?q=sueldos` diría qué buscó alguien, que es contenido y
- * no ubicación—, sin título de pantalla, sin nada tecleado. El servidor además valida las dos cosas
- * y rechaza cualquier otra, así que este componente no es la única barrera: es la primera. La frase
- * legible ("creando una tarea", "viendo el espacio DELCO") la arma el servidor al leer.
- *
- * === CUÁNDO LATE ===
- *
- * Al montar, en cada cambio de ruta, al abrirse o cerrarse un diálogo, y cada `segundos` mientras
- * la pestaña esté **visible**. Con la
- * pestaña oculta no late: una pestaña olvidada en otro escritorio no es alguien trabajando, y decir
- * que sí es justamente el dato falso que esta pantalla no puede permitirse. Al volver a primer plano
- * late en el acto, para no esperar un intervalo entero antes de reaparecer.
- *
- * No renderiza nada y no bloquea nada: un latido que falla se descarta en silencio. Si la API está
- * caída, quien mira la auditoría ve la lista vaciarse, que es lo correcto — nadie está latiendo.
+ * Informa ubicación y acción al navegar o interactuar en cualquier parte del panel.
+ * Los eventos sólo actualizan una marca de actividad: nunca se leen teclas, valores ni contenido.
+ * Cada intervalo envía como máximo una señal de interacción; sin actividad deja de renovar presencia.
+ * @param segundos intervalo de envío configurado por el servidor
  */
 export function Latido ({ segundos }: { segundos: number }) {
   const ruta = usePathname()
 
   useEffect(() => {
-    // Las rutas del panel son minúsculas, dígitos y guiones. Se normaliza y se comprueba contra la
-    // misma expresión que aplica el servidor: si alguna ruta futura no encaja, este componente se
-    // calla en vez de mandar un 422 cada `segundos` para siempre.
     const normalizada = ruta.toLowerCase()
-
     if (!/^\/[a-z0-9/_-]*$/.test(normalizada)) return
 
     const control = new AbortController()
+    let pendiente = true
+    let ultimoEnvio = 0
 
+    /** Envía únicamente actividad nueva y visible; los fallos conservan la señal para reintentar. */
     function latir (): void {
-      if (document.hidden) return
-
+      if (document.hidden || !pendiente) return
+      pendiente = false
+      ultimoEnvio = Date.now()
       void fetch('/api/bff/presence', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ route: normalizada, action: accionEnCurso() }),
+        body: JSON.stringify({ route: rutaDeTarea() ?? normalizada, action: accionEnCurso() }),
         signal: control.signal
+      }).then((respuesta) => {
+        if (!respuesta.ok) pendiente = true
       }).catch(() => {
-        // Un latido perdido no le importa a nadie: el siguiente lo corrige, y la ventana del
-        // servidor tolera varios seguidos sin sacar a la persona de la lista.
+        if (!control.signal.aborted) pendiente = true
       })
     }
 
-    latir()
+    /** Cualquier interacción renueva actividad, con envío limitado al intervalo configurado. */
+    function interactuar (): void {
+      if (document.hidden) return
+      pendiente = true
+      if (Date.now() - ultimoEnvio >= segundos * 1000) latir()
+    }
 
+    /** Un cambio de ubicación o diálogo se comunica sin esperar el siguiente intervalo. */
+    function cambiarContexto (): void {
+      pendiente = true
+      latir()
+    }
+
+    latir()
     const intervalo = globalThis.setInterval(latir, segundos * 1000)
-    const dejarDeEscuchar = escucharAccion(latir)
-    document.addEventListener('visibilitychange', latir)
+    const dejarDeEscuchar = escucharAccion(cambiarContexto)
+    const eventos = ['pointerdown', 'pointermove', 'keydown', 'input', 'change', 'submit', 'scroll', 'wheel', 'touchstart', 'focusin']
+    for (const evento of eventos) document.addEventListener(evento, interactuar, { capture: true, passive: true })
+    document.addEventListener('visibilitychange', interactuar)
 
     return () => {
       globalThis.clearInterval(intervalo)
       dejarDeEscuchar()
-      document.removeEventListener('visibilitychange', latir)
+      for (const evento of eventos) document.removeEventListener(evento, interactuar, true)
+      document.removeEventListener('visibilitychange', interactuar)
       control.abort()
     }
   }, [ruta, segundos])

@@ -160,6 +160,14 @@ test('el valor heredado llega al formulario como URL editable', () => {
   assert.equal(estado[6], 'https://drive.google.com/y')
 })
 
+test('enlaces antiguos conservan parámetros escapados y aceptan marcado multilínea', () => {
+  assert.equal(enlaceSinMarcado('<a href = "https://drive.google.com/x?a=1&amp;b=2&#35;archivo">\nCarpeta\n</a>'), 'https://drive.google.com/x?a=1&b=2#archivo')
+  assert.equal(enlaceSinMarcado('<a href=https://wiwo.me/x>Enlace</a>'), 'https://wiwo.me/x')
+  const [campo] = camposLegibles([{ id: 1, name: 'Link', slug: 'link', type: 'link', value: '<a href="javascript&#58;alert(1)">No abrir</a>' }])
+  assert.equal(campo.enlace, null)
+  assert.equal(enlaceSinMarcado('<a sin href>Roto</a>'), '<a sin href>Roto</a>')
+})
+
 test('`esEnlaceValido` acepta http y https y nada mas', () => {
   assert.equal(esEnlaceValido('http://wiwo.me'), true)
   assert.equal(esEnlaceValido('https://wiwo.me/a?b=1'), true)

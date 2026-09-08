@@ -109,3 +109,27 @@ export function desapilar (accion: AccionPresencia): void {
 function avisar (): void {
   for (const oyente of oyentes) oyente()
 }
+
+
+const tareas: Array<{ id: number }> = []
+
+/** Ruta de la tarea visible, incluso cuando se abre en un panel sobre otra página. */
+export function rutaDeTarea (): string | null {
+  const tarea = tareas.at(-1)
+  return tarea === undefined ? null : `/procesos/${tarea.id}`
+}
+
+/** Registra la tarea visible hasta desmontar su detalle; no transmite contenido del formulario. */
+export function useUbicacionTarea (id: number): void {
+  useEffect(() => {
+    if (!Number.isSafeInteger(id) || id <= 0) return
+    const tarea = { id }
+    tareas.push(tarea)
+    avisar()
+    return () => {
+      const indice = tareas.indexOf(tarea)
+      if (indice >= 0) tareas.splice(indice, 1)
+      avisar()
+    }
+  }, [id])
+}

@@ -126,7 +126,10 @@ export function CabeceraProyecto ({
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <Insignia {...pildoraDeEstado(proyecto.status, estado.color)}>{estado.nombre}</Insignia>
+          <Insignia
+            {...pildoraDeEstado(proyecto.status, estado.color)}
+            className={[ESTADO_FINALIZADO, ESTADO_EN_DESARROLLO].includes(proyecto.status) ? 'motion-safe:animate-pulse' : undefined}
+          >{estado.nombre}</Insignia>
           <BotonNuevaTarea capacidades={capacidadesTareas} />
           <MenuProyecto proyecto={proyecto} estados={estados} capacidades={capacidadesProyecto} />
         </div>

@@ -24,6 +24,8 @@ export interface PersonaAuditoria {
  */
 export interface PersonaConectada {
   staff: PersonaAuditoria
+  /** Jerarquía resuelta en el servidor desde la ubicación actual. */
+  context?: { client: EntidadPresencia | null, project: EntidadPresencia | null, task: EntidadPresencia | null }
   /** Qué está haciendo: la acción en curso si hay una, si no dónde está. Ej: "creando una tarea". */
   activity: string
   /** Dónde está, siempre. Ej: "viendo el espacio DELCO". */
@@ -38,6 +40,11 @@ export interface PersonaConectada {
   ip: string | null
   /** Quién abrió esta sesión en nombre de esta persona, si es una suplantación viva. */
   impersonated_by: PersonaAuditoria | null
+}
+
+export interface EntidadPresencia {
+  id: number
+  name: string
 }
 
 /** Meta de `GET /presence`: cuánto vale "ahora" en esta respuesta. */

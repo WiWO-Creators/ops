@@ -1,3 +1,4 @@
+import { BotonCompletados } from '@/componentes/proyecto/BotonCompletados'
 import { Suspense } from 'react'
 import { TablaProcesos } from '@/componentes/datos/vistas'
 import { Cargando } from '@/componentes/estado/Estados'
@@ -60,6 +61,7 @@ export default async function ProcesosPage (props: PageProps<'/procesos'>) {
       <header className="flex items-center justify-between gap-4">
         <h1 className="text-xl font-semibold text-texto">{PROCESOS.titulo.plural}</h1>
         <div className="flex items-center gap-3">
+          <Suspense><BotonCompletados /></Suspense>
           <Segmentado
             etiqueta={`Presentación de ${PROCESOS.titulo.plural.toLowerCase()}`}
             tamano="medio"
