@@ -25,6 +25,11 @@ const PREFIJOS_PERMITIDOS = [
   // de `contacts/{id}`, asi que hace falta el prefijo propio.
   'contacts',
   'projects',
+  // Licitaciones: el listado, la ficha, la edicion y las acciones de ganar y perder. Prefijo propio
+  // porque la API las cuelga de su raiz aunque por dentro una Licitacion sea un Espacio. Sin esta
+  // entrada el BFF contesta 404 a todo lo que la pantalla pide desde el navegador —buscar, filtrar,
+  // paginar, crear, ganar y perder— y solo funciona la primera pagina que resuelve el servidor.
+  'licitaciones',
   // Plantillas de Espacio. Prefijo propio y no bajo `projects` porque la API las cuelga de su propia
   // raiz: `POST /projects/from-template` devuelve un Espacio y por eso vive alla, pero el CRUD de la
   // plantilla es `/project-templates`.

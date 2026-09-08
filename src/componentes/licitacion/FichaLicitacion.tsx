@@ -35,10 +35,12 @@ export function FichaLicitacion ({
     { etiqueta: 'Ciudad', valor: cliente.city },
     { etiqueta: 'Región', valor: cliente.state },
     { etiqueta: 'Código postal', valor: cliente.zip },
-    // `0` es como Perfex escribe «ningún país»: no tiene nombre que resolver.
+    // `0` es como Perfex escribe «ningún país»: no tiene nombre que resolver. Ausente tampoco: la
+    // API devuelve el JSON del alta sin las claves que nadie llenó, y `nombreDe(paises, undefined)`
+    // pintaba «#undefined» en la ficha.
     {
       etiqueta: 'País',
-      valor: cliente.country_id === null || cliente.country_id === 0 ? null : nombreDe(paises, cliente.country_id)
+      valor: cliente.country_id == null || cliente.country_id === 0 ? null : nombreDe(paises, cliente.country_id)
     }
   ])
 
@@ -78,9 +80,14 @@ export function FichaLicitacion ({
 /**
  * Deja solo las filas que tienen algo escrito.
  *
- * @param filas Rotulos con su valor crudo; `null` o vacio significa "la API no trajo nada".
+ * `cliente` y `contacto` viajan tal cual se guardaron: la API devuelve el JSON del alta sin
+ * completar las claves que nadie llenó, asi que una clave AUSENTE es tan normal como una en `null`.
+ * Por eso se comprueba el tipo y no `!== null`: sin eso, una candidata sin sitio web tumbaba la
+ * pantalla entera con `Cannot read properties of undefined (reading 'trim')`.
+ *
+ * @param filas Rotulos con su valor crudo; ausente, `null` o vacio significa "la API no trajo nada".
  * @returns Las filas con valor, en el mismo orden.
  */
-function conValor (filas: Array<{ etiqueta: string, valor: string | null }>): Dato[] {
-  return filas.filter((fila): fila is Dato => fila.valor !== null && fila.valor.trim() !== '')
+function conValor (filas: Array<{ etiqueta: string, valor: string | null | undefined }>): Dato[] {
+  return filas.filter((fila): fila is Dato => typeof fila.valor === 'string' && fila.valor.trim() !== '')
 }
