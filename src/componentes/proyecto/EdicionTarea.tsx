@@ -389,7 +389,6 @@ export function EdicionTarea (
               <Entrada
                 {...props}
                 type="number"
-                min={0}
                 step="0.5"
                 value={campos.horasEstimadas}
                 onChange={(evento) => setCampos({ ...campos, horasEstimadas: evento.target.value })}
