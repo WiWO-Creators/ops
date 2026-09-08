@@ -20,7 +20,7 @@ import {
   MenuContextual
 } from '@/componentes/superposiciones/MenuContextual'
 import { cn } from '@/lib/clases'
-import { filtrosTrasCambiar, opcionesPorPagina, resumenDeFiltro } from './tabla'
+import { dependenciaPendiente, filtrosTrasCambiar, opcionesPorPagina, resumenDeFiltro } from './tabla'
 
 /**
  * Controles de una vista de lista: busqueda, filtros, columnas y paginacion.
@@ -137,6 +137,7 @@ export function ControlesTabla<T> ({
           filtro={filtro}
           valores={estado.filtros[filtro.clave] ?? []}
           opcionesDeFiltro={opcionesDeFiltro}
+          esperaA={dependenciaPendiente(filtro, definicion.filtros, estado.filtros)}
           onCambiar={(valores) => cambiarFiltro(filtro.clave, valores)}
         />
       ))}
@@ -168,19 +169,34 @@ interface PropsControlFiltro {
   valores: string[]
   /** Opciones ya resueltas para los filtros que las sacan de `/lookups`. */
   opcionesDeFiltro?: Record<string, OpcionFiltro[]>
+  /** El filtro que hay que elegir antes de poder usar este. Ver `dependenciaPendiente`. */
+  esperaA?: Filtro | null
   onCambiar: (valores: string[]) => void
 }
 
 /** Un filtro, con el control que corresponde a su `tipo`. */
-function ControlFiltro ({ filtro, valores, opcionesDeFiltro = {}, onCambiar }: PropsControlFiltro) {
+function ControlFiltro ({
+  filtro,
+  valores,
+  opcionesDeFiltro = {},
+  esperaA = null,
+  onCambiar
+}: PropsControlFiltro) {
   if (filtro.tipo === 'rangoFechas') {
     return <FiltroRangoFechas filtro={filtro} valores={valores} onCambiar={onCambiar} />
   }
 
   const opciones = opcionesDe(filtro, opcionesDeFiltro)
 
-  // Un filtro que saca sus opciones de `/lookups` no se dibuja hasta que alguien se las pase: un
-  // desplegable vacio no filtra nada y ocupa el mismo lugar que uno que si funciona.
+  // Un filtro que cuelga de otro nunca se esconde: se dibuja deshabilitado con la pista de que hacer.
+  // Esconderlo mientras no tenia catalogo era lo que hacia creer que el filtro no existia, y ademas
+  // lo hacia aparecer y desaparecer de la barra segun lo que se eligiera al lado.
+  if (filtro.dependeDe !== undefined && (esperaA !== null || opciones.length === 0)) {
+    return <FiltroEnEspera filtro={filtro} esperaA={esperaA} />
+  }
+
+  // El resto: un filtro que saca sus opciones de `/lookups` no se dibuja hasta que alguien se las
+  // pase. Un desplegable vacio no filtra nada y ocupa el mismo lugar que uno que si funciona.
   if (opciones.length === 0) return null
 
   if (filtro.tipo === 'multiple') {
@@ -208,6 +224,38 @@ function opcionesDe (filtro: Filtro, desdeServidor: Record<string, OpcionFiltro[
   if (filtro.opciones !== undefined) return filtro.opciones
 
   return filtro.desdeLookup === undefined ? [] : desdeServidor[filtro.desdeLookup] ?? []
+}
+
+/**
+ * Un filtro dependiente todavia sin catalogo: se ve, no se usa, y dice por que.
+ *
+ * Es un boton y no un `Selector` porque no hay nada que desplegar; conserva las clases del
+ * disparador para que ocupe el mismo lugar que ocupara cuando se habilite y la barra no salte.
+ *
+ * `aria-disabled` en vez de `disabled`: el atributo nativo lo saca del recorrido con Tab, y quien
+ * navega con teclado nunca llegaria al texto que explica por que no puede usarlo. Asi se anuncia
+ * como no disponible y ademas se puede leer. Sin `onClick`, no hace nada al pulsarlo.
+ */
+function FiltroEnEspera ({ filtro, esperaA }: { filtro: Filtro, esperaA: Filtro | null }) {
+  // Dos motivos distintos y dos textos distintos: falta elegir aquel del que cuelga, o ya se eligio
+  // y no tiene nada que ofrecer. Decir "elegí X" cuando X ya esta elegido seria mentir. Cortos a
+  // proposito: el disparador tiene ancho fijo y lo que no entra se recorta —de ahi el `title`—.
+  const pista = esperaA === null
+    ? `${filtro.etiqueta}: sin opciones`
+    : `${filtro.etiqueta}: elegí ${esperaA.etiqueta}`
+
+  return (
+    <button
+      type="button"
+      aria-disabled="true"
+      // El ancho es fijo y la pista puede no entrar: el titulo la deja leer completa.
+      title={pista}
+      className={cn(CLASES_DISPARADOR, ANCHO_FILTRO, 'text-texto-sutil cursor-not-allowed')}
+    >
+      <span className="truncate">{pista}</span>
+      <ChevronSelector />
+    </button>
+  )
 }
 
 interface PropsFiltroConOpciones extends PropsControlFiltro {

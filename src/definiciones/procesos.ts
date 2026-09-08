@@ -83,9 +83,9 @@ export const PROCESOS: DefinicionRecurso<Proceso> = {
     { clave: 'priority', etiqueta: 'Prioridad', tipo: 'seleccion', desdeLookup: 'task_priorities' },
     { clave: 'clientid', etiqueta: GLOSARIO.cliente.singular, tipo: 'seleccion', desdeLookup: 'clients' },
     // Los dos catalogos los arma la pantalla, no `/lookups`: los Espacios salen de `GET /projects` y
-    // los Hitos de `GET /projects/{id}/milestones`, que exige saber de que Espacio se habla. Sin
-    // opciones, `ControlesTabla` no dibuja el filtro, que es justo lo que corresponde mientras no
-    // haya un Espacio elegido.
+    // los Hitos de `GET /projects/{id}/milestones`, que exige saber de que Espacio se habla. El
+    // `dependeDe` del Hito es lo que hace que, sin Espacio elegido, `ControlesTabla` lo dibuje
+    // deshabilitado con la pista en vez de esconderlo.
     { clave: 'project_id', etiqueta: GLOSARIO.espacio.singular, tipo: 'seleccion', desdeLookup: 'projects' },
     { clave: 'milestone_id', etiqueta: GLOSARIO.hito.singular, tipo: 'seleccion', desdeLookup: 'milestones', dependeDe: 'project_id' },
     { clave: 'billable', etiqueta: 'Facturable', tipo: 'booleano' },

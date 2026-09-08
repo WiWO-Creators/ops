@@ -96,8 +96,10 @@ export function cuerpoMoverHito (cuerpo: CuerpoMover): {
  * `filter[milestone_id]=0` a `milestone IN (0)`. Es el mismo cero de `COLUMNA_SIN_CATEGORIZAR`, la
  * columna sintetica del kanban, y por eso sale de esa constante y no de un literal repetido.
  *
- * Un Espacio sin hitos devuelve la lista vacia y no solo "Sin hito": el motor esconde un filtro sin
- * opciones, y un desplegable con una unica opcion que ademas no filtra nada solo ocupa lugar.
+ * Un Espacio sin hitos devuelve la lista vacia y no solo "Sin hito": un desplegable con una unica
+ * opcion que ademas no filtra nada solo ocupa lugar. Con la lista vacia el motor no lo esconde —el
+ * filtro cuelga de otro, ver `Filtro.dependeDe`— sino que lo dibuja deshabilitado diciendo que no
+ * hay opciones, que es lo mismo sin fingir que se puede elegir algo.
  *
  * @param hitos los hitos del Espacio, tal como los devuelve `GET /projects/{id}/milestones`
  * @returns las opciones para `ControlesTabla`, o vacio si el Espacio no tiene hitos
