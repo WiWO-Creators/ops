@@ -13,7 +13,11 @@ import { hoyLocal } from '../lib/fechas.ts'
  */
 
 export interface CatalogosAlta {
-  personas: ReadonlyArray<{ id: number, full_name: string }>
+  /**
+   * El equipo asignable. `profile_image_url` es opcional porque el parser no lo mira: solo lo usa el
+   * selector de personas del alta, para pintar el avatar de quien ya esta elegido.
+   */
+  personas: ReadonlyArray<{ id: number, full_name: string, profile_image_url?: string | null }>
   espacios: ReadonlyArray<{ id: number, name: string }>
   prioridades: ReadonlyArray<{ id: number, name: string }>
 }

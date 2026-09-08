@@ -43,7 +43,11 @@ export default async function TableroProcesosPage (props: PageProps<'/procesos/t
   ])
 
   const catalogosDeAlta = {
-    personas: (equipo.datos ?? []).map((p) => ({ id: p.id, full_name: p.full_name })),
+    personas: (equipo.datos ?? []).map((p) => ({
+      id: p.id,
+      full_name: p.full_name,
+      profile_image_url: p.profile_image_url
+    })),
     espacios: espacios.data.map((e) => ({ id: e.id, name: e.name })),
     prioridades: lookups.task_priorities.map((p) => ({ id: p.id, name: p.name }))
   }
