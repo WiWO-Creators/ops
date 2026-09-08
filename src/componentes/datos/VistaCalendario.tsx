@@ -54,8 +54,14 @@ import type { OpcionFiltro } from '@/definiciones/tipos'
  * que tienen con lo que se esta mirando. Las que no tienen ninguna de las dos fechas no aparecen en
  * ningun calendario posible y se ven en la tabla; la tira lo dice.
  *
- * El estado vive entero en la URL —`dia`, `vista`, `assignee`, `filter[project_id]`— para que una
- * vista se comparta con un enlace y "atras" haga lo que la persona espera.
+ * El estado vive entero en la URL —`dia`, la clave de `claveVista`, `assignee`, `filter[project_id]`—
+ * para que una vista se comparta con un enlace y "atras" haga lo que la persona espera.
+ *
+ * **La misma grilla sirve dos pantallas**: el calendario global (`/procesos/calendario`, que baja los
+ * datos desde el servidor) y la pestaña Tareas de un Espacio (`CalendarioTareas`, que los pide desde
+ * el navegador contra la ruta acotada del Espacio). Todo lo que cambia entre las dos son props: que
+ * filtros se ofrecen, si hay bloque de alertas y en que clave de la URL se guarda dia/semana. No hay
+ * una segunda grilla ni una segunda aritmetica de fechas: `dominio/calendario.ts` es una sola.
  */
 
 /** Color del borde de la tarjeta segun cuan cerca esta el vencimiento. Mismo criterio que `Fecha`. */
@@ -88,16 +94,36 @@ interface PropsVistaCalendario {
   sinVencimiento: Proceso[]
   /** Mensaje de la API cuando fallo la consulta de lo que arranca en el periodo. */
   errorSinVencimiento: string | null
-  /** `GET /me/vencimientos`: lo propio vencido o por vencer. */
-  avisos: ProcesoConAviso[]
+  /**
+   * `GET /me/vencimientos`: lo propio vencido o por vencer.
+   *
+   * Vacio —el valor por defecto— esconde el bloque entero. Dentro de un Espacio no se pide: ese
+   * endpoint devuelve las tareas propias de TODOS los Espacios, y colgarlas de la pestaña de uno
+   * mostraria plazos de otro sin decirlo. Las alertas viven en el calendario global.
+   */
+  avisos?: ProcesoConAviso[]
   /** Mensaje de la API cuando el listado del periodo fallo. */
   errorTareas: string | null
   /** Mensaje de la API cuando fallaron las alertas. Nunca tumba la grilla. */
-  errorAvisos: string | null
-  espacios: OpcionFiltro[]
-  personas: OpcionFiltro[]
-  espacioElegido: string | null
-  asignadoElegido: string | null
+  errorAvisos?: string | null
+  /** Opciones del filtro de Espacio. Vacio —por defecto— no dibuja el desplegable. */
+  espacios?: OpcionFiltro[]
+  /** Opciones del filtro de persona. Vacio —por defecto— no dibuja el desplegable. */
+  personas?: OpcionFiltro[]
+  espacioElegido?: string | null
+  asignadoElegido?: string | null
+  /**
+   * Clave de la URL donde se guarda dia/semana.
+   *
+   * Es prop y no una constante porque en la pestaña de un Espacio `vista` ya esta ocupada por la
+   * presentacion (tabla, tablero, calendario): alli el modo del calendario viaja en `modo`.
+   */
+  claveVista?: string
+  /**
+   * Dibuja el detalle de la tarea. Se apaga cuando quien monta la grilla ya tiene su propio
+   * `ModalTarea`: dos modales sobre el mismo `?tarea=` abririan la tarea dos veces.
+   */
+  conModal?: boolean
   /** La API devolvio el tope de filas: hay mas de las que se ven. */
   truncado: boolean
   /** Capacidades sobre `tasks`, para los botones del detalle. */
@@ -110,13 +136,15 @@ export function VistaCalendario ({
   tareas,
   sinVencimiento,
   errorSinVencimiento,
-  avisos,
+  avisos = [],
   errorTareas,
-  errorAvisos,
-  espacios,
-  personas,
-  espacioElegido,
-  asignadoElegido,
+  errorAvisos = null,
+  espacios = [],
+  personas = [],
+  espacioElegido = null,
+  asignadoElegido = null,
+  claveVista = 'vista',
+  conModal = true,
   truncado,
   capacidades
 }: PropsVistaCalendario): ReactElement {
@@ -212,7 +240,7 @@ export function VistaCalendario ({
             { valor: 'dia', etiqueta: 'Día' },
             { valor: 'semana', etiqueta: 'Semana' }
           ]}
-          onElegir={(valor) => { router.push(urlCon({ vista: valor }), { scroll: false }) }}
+          onElegir={(valor) => { router.push(urlCon({ [claveVista]: valor }), { scroll: false }) }}
         />
 
         <div className="ml-auto flex flex-wrap items-center gap-2">
@@ -278,10 +306,12 @@ export function VistaCalendario ({
         <TiraSinVencimiento tareas={sinVencimiento} urlDeTarea={(id) => urlDeTarea(params, id)} />
       )}
 
-      <ModalTarea
-        puedeEditar={capacidades.includes('edit')}
-        puedeBorrar={capacidades.includes('delete')}
-      />
+      {conModal && (
+        <ModalTarea
+          puedeEditar={capacidades.includes('edit')}
+          puedeBorrar={capacidades.includes('delete')}
+        />
+      )}
     </section>
   )
 }
