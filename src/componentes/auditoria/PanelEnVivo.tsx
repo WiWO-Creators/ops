@@ -4,11 +4,13 @@ import { useCallback, useEffect, useState } from 'react'
 import { Building2, ChevronRight, FolderOpen, ListTodo, ShieldAlert, Users } from 'lucide-react'
 import { Avatar } from '@/componentes/presentadores/Avatar'
 import { Vacio } from '@/componentes/estado/Estados'
-import { Insignia } from '@/componentes/presentadores/Insignia'
 import type { MetaPresencia, PersonaConectada, SuplantacionViva } from '@/datos/auditoria'
 import { formatearFecha } from '@/lib/fechas'
-import { arbolDePresencia, haceCuanto, type RamaPresencia } from './presentacion'
+import { arbolDePresencia, type RamaPresencia } from './presentacion'
 import { cn } from '@/lib/clases'
+import { Segmentado } from '@/componentes/formularios/Segmentado'
+import { MapaPresencia } from './MapaPresencia'
+import { PersonaActiva } from './PersonaActiva'
 
 /**
  * Lo que pasa **ahora mismo**: quién está conectado, qué está haciendo, y quién está entrando como
@@ -157,6 +159,9 @@ function AhoraMismo ({
   meta: MetaPresencia | null
   error: string | null
 }) {
+  const [vista, setVista] = useState('arbol')
+  const ramas = arbolDePresencia(conectados)
+
   return (
     <section className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -176,6 +181,14 @@ function AhoraMismo ({
       </div>
       {error !== null && <p role="status" className="text-texto-peligro text-pretty text-sm">{error}</p>}
 
+      <Segmentado
+        etiqueta="Vista de actividad"
+        opciones={[{ valor: 'arbol', etiqueta: 'Árbol' }, { valor: 'mapa', etiqueta: 'Mapa' }]}
+        activo={vista}
+        onElegir={setVista}
+        className="self-start"
+      />
+
       {conectados.length === 0
         ? (
           <Vacio
@@ -185,9 +198,14 @@ function AhoraMismo ({
           />
           )
         : (
-          <ul aria-label="Actividad por cliente, proyecto y tarea" className="flex flex-col gap-3">
-            {arbolDePresencia(conectados).map((rama) => <RamaActividad key={rama.clave} rama={rama} />)}
-          </ul>
+          <>
+            <div hidden={vista !== 'arbol'}>
+              <ul aria-label="Actividad por cliente, proyecto y tarea" className="flex flex-col gap-3">
+                {ramas.map((rama) => <RamaActividad key={rama.clave} rama={rama} />)}
+              </ul>
+            </div>
+            <div hidden={vista !== 'mapa'}><MapaPresencia ramas={ramas} /></div>
+          </>
           )}
     </section>
   )
@@ -234,35 +252,6 @@ function RamaActividad ({ rama }: { rama: RamaPresencia }) {
           )}
         </div>
       </details>
-    </li>
-  )
-}
-
-/** Fila de persona: identidad y actividad legibles, tiempo discreto y alerta de suplantación intacta. */
-function PersonaActiva ({ persona }: { persona: PersonaConectada }) {
-  return (
-    <li className={cn(
-      'grid min-w-0 grid-cols-[auto_minmax(0,1fr)] items-start gap-x-2.5 gap-y-1 py-3 sm:grid-cols-[auto_minmax(0,1fr)_auto]',
-      persona.impersonated_by !== null && 'bg-superficie-peligro rounded-control px-2'
-    )}>
-      <Avatar nombre={persona.staff.full_name} imagen={persona.staff.profile_image_url} tamano="medio" />
-      <div className="flex min-w-0 flex-col gap-1">
-        <span className="text-texto break-words text-sm font-medium [overflow-wrap:anywhere]">{persona.staff.full_name}</span>
-        <span className="text-texto-tenue text-pretty break-words text-xs leading-relaxed [overflow-wrap:anywhere]" title={persona.location}>
-          {persona.activity}
-        </span>
-        {persona.action !== null && persona.context?.task == null && (
-          <span className="text-texto-sutil text-pretty break-words text-xs">{persona.location}</span>
-        )}
-        {persona.impersonated_by !== null && (
-          <Insignia tono="peligro" tamano="chico" className="self-start whitespace-normal">
-            Suplantada por {persona.impersonated_by.full_name}
-          </Insignia>
-        )}
-      </div>
-      <span className="text-texto-sutil col-start-2 text-xs tabular-nums sm:col-start-3 sm:pt-0.5">
-        {haceCuanto(persona.seconds_ago)}
-      </span>
     </li>
   )
 }

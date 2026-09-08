@@ -1,0 +1,89 @@
+.lienzo {
+  max-height: min(75vh, 52rem);
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+
+.mapa {
+  display: flex;
+  width: max-content;
+  min-width: 100%;
+  flex-direction: column;
+  gap: 2rem;
+  padding: 2rem;
+}
+
+.rama {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.tarjeta {
+  position: relative;
+  width: 16rem;
+  flex: 0 0 16rem;
+}
+
+.conectada::after {
+  position: absolute;
+  top: 50%;
+  left: 100%;
+  width: 1.25rem;
+  border-top: 1px solid var(--linea-fuerte);
+  content: '';
+}
+
+.hijos {
+  display: flex;
+  flex-direction: column;
+  padding-left: 2.5rem;
+}
+
+.hijos[hidden] {
+  display: none;
+}
+
+.hijos > .rama {
+  padding-block: 0.75rem;
+}
+
+.hijos > .rama::before,
+.hijos > .rama::after {
+  position: absolute;
+  left: -1.25rem;
+  content: '';
+}
+
+.hijos > .rama::before {
+  top: 50%;
+  width: 1.25rem;
+  border-top: 1px solid var(--linea-fuerte);
+}
+
+.hijos > .rama::after {
+  top: 0;
+  bottom: 0;
+  border-left: 1px solid var(--linea-fuerte);
+}
+
+.hijos > .rama:first-child::after {
+  top: 50%;
+}
+
+.hijos > .rama:last-child::after {
+  bottom: 50%;
+}
+
+.hijos > .rama:only-child::after {
+  display: none;
+}
+
+@media (max-width: 640px) {
+  .rama { align-items: flex-start; }
+  .hijos > .rama { padding-block: 0 1.5rem; }
+  .conectada::after,
+  .hijos > .rama::before,
+  .hijos > .rama:first-child::after { top: 2rem; }
+  .hijos > .rama:last-child::after { bottom: auto; height: 2rem; }
+}
