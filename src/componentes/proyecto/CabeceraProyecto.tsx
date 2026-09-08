@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { Etiquetas } from '@/componentes/presentadores/Etiqueta'
 import { Fecha } from '@/componentes/presentadores/Fecha'
-import { GrupoAvatares } from '@/componentes/presentadores/Avatar'
+import { EquipoProyecto } from './EquipoProyecto'
 import { ImagenEntidad } from '@/componentes/presentadores/ImagenEntidad'
 import { Insignia, type TonoInsignia } from '@/componentes/presentadores/Insignia'
 import { cn } from '@/lib/clases'
@@ -135,7 +135,7 @@ export function CabeceraProyecto ({
         </div>
       </div>
 
-      <dl className="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm">
+      <dl className="flex flex-wrap items-start gap-x-6 gap-y-2 text-sm">
         <div className="flex items-center gap-2">
           <dt className="text-texto-sutil">Inicio</dt>
           <dd className="text-texto"><Fecha valor={proyecto.start_date} /></dd>
@@ -144,9 +144,9 @@ export function CabeceraProyecto ({
           <dt className="text-texto-sutil">Entrega</dt>
           <dd><Fecha valor={proyecto.deadline} comoVencimiento /></dd>
         </div>
-        <div className="flex items-center gap-2">
-          <dt className="text-texto-sutil">Equipo</dt>
-          <dd><GrupoAvatares personas={proyecto.members ?? []} maximo={5} /></dd>
+        <div className="flex min-w-0 max-w-full items-start gap-2">
+          <dt className="text-texto-sutil pt-1">Equipo</dt>
+          <dd className="min-w-0"><EquipoProyecto proyectoId={proyecto.id} miembros={proyecto.members ?? []} puedeEditar={capacidadesProyecto.includes('edit')} /></dd>
         </div>
       </dl>
 
