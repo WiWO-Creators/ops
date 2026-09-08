@@ -13,12 +13,14 @@ import { PROCESOS, procesosDelEspacio } from '../src/definiciones/procesos.ts'
 import { ESPACIOS } from '../src/definiciones/espacios.ts'
 import { CLIENTES, NOTAS_CLIENTE } from '../src/definiciones/clientes.ts'
 import { EQUIPO } from '../src/definiciones/equipo.ts'
+import { LICITACIONES } from '../src/definiciones/licitaciones.ts'
 
 const TODAS = [
   ['PROCESOS', PROCESOS],
   ['ESPACIOS', ESPACIOS],
   ['CLIENTES', CLIENTES],
-  ['EQUIPO', EQUIPO]
+  ['EQUIPO', EQUIPO],
+  ['LICITACIONES', LICITACIONES]
 ]
 
 function sinSigno (campo) {
