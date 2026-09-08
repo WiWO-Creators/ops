@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { ShieldAlert } from 'lucide-react'
+import { Building2, ChevronRight, FolderOpen, ListTodo, ShieldAlert, Users } from 'lucide-react'
 import { Avatar } from '@/componentes/presentadores/Avatar'
 import { Vacio } from '@/componentes/estado/Estados'
 import { Insignia } from '@/componentes/presentadores/Insignia'
@@ -158,17 +158,23 @@ function AhoraMismo ({
   error: string | null
 }) {
   return (
-    <section className="flex flex-col gap-3">
-      <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-        <h2 className="text-texto text-titulo font-semibold">Ahora mismo</h2>
-        <span className="text-texto-tenue text-xs">Cliente → proyecto → tarea</span>
-        <p className="text-texto-sutil text-xs">
-          {meta === null
-            ? 'Actividad de los últimos minutos.'
-            : `Quien dio señales en los últimos ${Math.round(meta.window_seconds / 60)} min.`}
-        </p>
-        {error !== null && <span className="text-texto-peligro text-xs">{error}</span>}
+    <section className="flex flex-col gap-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-col gap-1">
+          <h2 className="text-texto text-titulo text-balance font-semibold">Ahora mismo</h2>
+          <p className="text-texto-tenue text-pretty text-xs">Cliente → proyecto → tarea</p>
+        </div>
+        <div className="flex flex-col items-end gap-1">
+          <span className="text-texto flex items-center gap-2 text-sm font-medium tabular-nums">
+            <span aria-hidden="true" className={cn('size-2 rounded-full', error ? 'bg-texto-peligro' : conectados.length > 0 ? 'bg-texto-exito' : 'bg-texto-sutil')} />
+            {conectados.length} {conectados.length === 1 ? 'persona activa' : 'personas activas'}
+          </span>
+          <p className="text-texto-sutil text-xs">
+            {meta === null ? 'Actividad reciente' : `Señales en los últimos ${meta.window_seconds} s`}
+          </p>
+        </div>
       </div>
+      {error !== null && <p role="status" className="text-texto-peligro text-pretty text-sm">{error}</p>}
 
       {conectados.length === 0
         ? (
@@ -179,7 +185,7 @@ function AhoraMismo ({
           />
           )
         : (
-          <ul aria-label="Actividad por cliente, proyecto y tarea" className="flex flex-col gap-2">
+          <ul aria-label="Actividad por cliente, proyecto y tarea" className="flex flex-col gap-3">
             {arbolDePresencia(conectados).map((rama) => <RamaActividad key={rama.clave} rama={rama} />)}
           </ul>
           )}
@@ -188,62 +194,75 @@ function AhoraMismo ({
 }
 
 
-/** Rama desplegable nativa: admite teclado y mantiene su apertura entre actualizaciones. */
+/** Rama nativa con una superficie por cliente y guías que conectan proyectos y tareas. */
 function RamaActividad ({ rama }: { rama: RamaPresencia }) {
+  const esCliente = rama.clave.startsWith('cliente:')
+  const esProyecto = rama.clave.startsWith('proyecto:')
+  const Icono = esCliente ? Building2 : esProyecto ? FolderOpen : ListTodo
+
   return (
-    <li className="border-linea rounded-tarjeta min-w-0 border p-3">
-      <details open>
-        <summary className="text-texto cursor-pointer font-medium focus-visible:outline-2 focus-visible:outline-offset-4">
-          {rama.nombre} <span className="text-texto-sutil text-xs">({rama.total} {rama.total === 1 ? 'persona activa' : 'personas activas'})</span>
+    <li className={cn('min-w-0', esCliente
+      ? 'border-linea bg-superficie-elevada rounded-tarjeta border p-2 sm:p-3'
+      : 'relative before:absolute before:top-6 before:-left-3 before:w-3 before:border-t before:border-linea')}>
+      <details open className="[&[open]>summary>.chevron-rama]:rotate-90">
+        <summary className={cn(
+          'text-texto hover:bg-hover rounded-control flex min-h-12 cursor-pointer list-none items-center gap-2 p-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-acento [&::-webkit-details-marker]:hidden',
+          esCliente ? 'font-semibold' : 'text-sm'
+        )}>
+          <ChevronRight aria-hidden="true" size={14} className="chevron-rama text-texto-sutil shrink-0" />
+          <span className={cn('flex shrink-0 items-center justify-center', esCliente
+            ? 'bg-seleccionado text-acento rounded-control size-9'
+            : 'text-texto-tenue size-6')}>
+            <Icono aria-hidden="true" size={esCliente ? 18 : 16} strokeWidth={1.75} />
+          </span>
+          <span className="min-w-0 flex-1 break-words [overflow-wrap:anywhere]">{rama.nombre}</span>
+          <span className="text-texto-tenue flex shrink-0 items-center gap-1.5 pl-1 text-xs font-normal tabular-nums">
+            <Users aria-hidden="true" size={14} />
+            {rama.total}<span className="sr-only"> {rama.total === 1 ? 'persona activa' : 'personas activas'}</span>
+          </span>
         </summary>
-        {rama.personas.length > 0 && (
-          <ul className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
-            {rama.personas.map((persona) => <PersonaActiva key={persona.staff.id} persona={persona} />)}
-          </ul>
-        )}
-        {rama.ramas.length > 0 && (
-          <ul className="border-linea mt-3 ml-2 flex flex-col gap-2 border-l pl-3">
-            {rama.ramas.map((hija) => <RamaActividad key={hija.clave} rama={hija} />)}
-          </ul>
-        )}
+        <div className={cn('pb-1', esCliente ? 'px-1 sm:px-2' : '')}>
+          {rama.personas.length > 0 && (
+            <ul className="divide-linea-suave ml-3 divide-y sm:ml-6">
+              {rama.personas.map((persona) => <PersonaActiva key={persona.staff.id} persona={persona} />)}
+            </ul>
+          )}
+          {rama.ramas.length > 0 && (
+            <ul className="border-linea ml-3 flex min-w-0 flex-col gap-1 border-l pl-3 sm:ml-5">
+              {rama.ramas.map((hija) => <RamaActividad key={hija.clave} rama={hija} />)}
+            </ul>
+          )}
+        </div>
       </details>
     </li>
   )
 }
 
-/** Identidad, actividad y suplantación de una persona en su rama actual. */
+/** Fila de persona: identidad y actividad legibles, tiempo discreto y alerta de suplantación intacta. */
 function PersonaActiva ({ persona }: { persona: PersonaConectada }) {
   return (
-<li
-                key={persona.staff.id}
-                className={cn(
-                  'border-linea bg-superficie-elevada rounded-tarjeta flex min-w-0 items-center gap-3 border p-3',
-                  // Una persona suplantada no se pinta igual que el resto: lo que se ve en su cuenta
-                  // puede no estar haciéndolo ella.
-                  persona.impersonated_by !== null && 'border-texto-peligro/40 bg-superficie-peligro'
-                )}
-              >
-                <Avatar nombre={persona.staff.full_name} imagen={persona.staff.profile_image_url} tamano="grande" />
-
-                <div className="flex min-w-0 flex-col gap-0.5">
-                  <span className="text-texto truncate font-medium">{persona.staff.full_name}</span>
-                  <span className="text-texto-tenue truncate text-sm" title={persona.route}>
-                    {persona.activity}
-                  </span>
-
-                  {/* La acción tapa el lugar en la frase principal; acá vuelve, para no perder dónde. */}
-                  {persona.action !== null && (
-                    <span className="text-texto-sutil truncate text-xs">{persona.location}</span>
-                  )}
-
-                  <span className="text-texto-sutil text-xs">{haceCuanto(persona.seconds_ago)}</span>
-
-                  {persona.impersonated_by !== null && (
-                    <Insignia tono="peligro" tamano="chico" className="mt-1 self-start">
-                      Suplantada por {persona.impersonated_by.full_name}
-                    </Insignia>
-                  )}
-                </div>
-              </li>
+    <li className={cn(
+      'grid min-w-0 grid-cols-[auto_minmax(0,1fr)] items-start gap-x-2.5 gap-y-1 py-3 sm:grid-cols-[auto_minmax(0,1fr)_auto]',
+      persona.impersonated_by !== null && 'bg-superficie-peligro rounded-control px-2'
+    )}>
+      <Avatar nombre={persona.staff.full_name} imagen={persona.staff.profile_image_url} tamano="medio" />
+      <div className="flex min-w-0 flex-col gap-1">
+        <span className="text-texto break-words text-sm font-medium [overflow-wrap:anywhere]">{persona.staff.full_name}</span>
+        <span className="text-texto-tenue text-pretty break-words text-xs leading-relaxed [overflow-wrap:anywhere]" title={persona.location}>
+          {persona.activity}
+        </span>
+        {persona.action !== null && persona.context?.task == null && (
+          <span className="text-texto-sutil text-pretty break-words text-xs">{persona.location}</span>
+        )}
+        {persona.impersonated_by !== null && (
+          <Insignia tono="peligro" tamano="chico" className="self-start whitespace-normal">
+            Suplantada por {persona.impersonated_by.full_name}
+          </Insignia>
+        )}
+      </div>
+      <span className="text-texto-sutil col-start-2 text-xs tabular-nums sm:col-start-3 sm:pt-0.5">
+        {haceCuanto(persona.seconds_ago)}
+      </span>
+    </li>
   )
 }
