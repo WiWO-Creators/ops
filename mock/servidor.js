@@ -1786,6 +1786,21 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
     return await salasRuta(metodo, resto, parametros, actual, cuerpo)
   }
 
+  // Ajustes de la instalacion. El frontend lee de acá `ia_habilitada`, que decide si la pestaña del
+  // asistente existe y si se puede escribir un Meeting Paper. Viene en `1` para que el mock sirva
+  // para probar la capa de IA; la instalacion real arranca en `0`.
+  if (recurso === 'settings' && metodo === 'GET') {
+    return {
+      estado: 200,
+      cuerpo: conDatos({
+        editable: {
+          ia_habilitada: { value: true, tipo: 'bool' },
+          ia_tope_tokens: { value: 700, tipo: 'int' }
+        }
+      })
+    }
+  }
+
   if (recurso === 'ia') {
     return await iaRuta(metodo, resto, parametros, actual, cuerpo, peticion)
   }
