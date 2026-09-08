@@ -1,7 +1,7 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
-import { useMemo, useState, type FormEvent, type ReactElement } from 'react'
+import { useEffect, useMemo, useState, type FormEvent, type ReactElement } from 'react'
 import { Boton } from '@/componentes/formularios/Boton'
 import { useAccionPresencia } from '@/componentes/auditoria/accion'
 import { Campo } from '@/componentes/formularios/Campo'
@@ -13,6 +13,7 @@ import {
   Opcion,
   Selector
 } from '@/componentes/formularios/Selector'
+import { SelectorPersonas } from '@/componentes/formularios/SelectorPersonas'
 import {
   CerrarDialogo,
   ContenidoDialogo,
@@ -20,6 +21,7 @@ import {
   DisparadorDialogo
 } from '@/componentes/superposiciones/Dialogo'
 import { escribirEnBff } from '@/componentes/datos/mutaciones'
+import { pedirSobre } from '@/datos/cliente'
 import { interpretarAltaRapida, type CatalogosAlta } from '@/dominio/alta-rapida'
 import {
   fusionarEspacio,
@@ -32,7 +34,12 @@ import {
 import { GLOSARIO } from '@/dominio/glosario'
 import { formatearFecha } from '@/lib/fechas'
 import { VistaPreviaAlta, type MarcaPrevia } from './VistaPreviaAlta'
-import type { Referencia } from '@/datos/recursos'
+import type {
+  ConfiguracionTiposEspacio,
+  Referencia,
+  TipoDeProcesoDelEspacio
+} from '@/datos/recursos'
+import type { StaffReferencia } from '@/datos/tipos'
 
 /**
  * Alta de un Proceso desde cualquier pantalla, en una linea.
@@ -50,8 +57,10 @@ import type { Referencia } from '@/datos/recursos'
  * La linea es rapida cuando uno ya sabe la sintaxis, pero deja de serlo en cuanto un `@` no resuelve:
  * hay cuatro personas cuyo nombre empieza con "javier" y el parser, con razon, no elige por nadie.
  * Ahi la unica salida honesta es un campo donde se elija. "Por campos" es el mismo formulario que la
- * pantalla de un Espacio muestra cuando la IA esta apagada, mas el Espacio y el responsable, que ahi
- * vienen fijos y aca no.
+ * pantalla de un Espacio muestra cuando la IA esta apagada, mas el Espacio y los asignados, que ahi
+ * vienen fijos y aca no. Lo accesorio —tipo, seguidores, descripcion— vive plegado en "Mas
+ * detalles": el alta tiene que poder dejar la tarea lista de una vez sin dejar de ser rapida para
+ * quien solo quiere anotar un titulo.
  *
  * Los dos modos terminan en el mismo `POST /tasks`: lo que cambia es como se llenan los campos, no
  * que se crea.
@@ -102,7 +111,9 @@ type Modo = typeof MODOS[number]['valor']
 interface CamposManuales {
   nombre: string
   espacio: string
-  responsable: string
+  asignados: number[]
+  seguidores: number[]
+  tipo: string
   prioridad: string
   inicio: string
   vencimiento: string
@@ -124,13 +135,20 @@ export function AltaRapidaProceso ({ catalogos, etiquetas, conIa }: PropsAltaRap
   // borrar lo que se escribio en el otro, porque se alterna justo cuando un `@` no resolvio.
   const [nombre, setNombre] = useState('')
   const [espacio, setEspacio] = useState(NINGUNO)
-  const [responsable, setResponsable] = useState(NINGUNO)
+  const [asignados, setAsignados] = useState<number[]>([])
+  const [seguidores, setSeguidores] = useState<number[]>([])
   const [prioridad, setPrioridad] = useState(NINGUNO)
   const [inicio, setInicio] = useState('')
   const [vencimiento, setVencimiento] = useState('')
   const [etiquetasEscritas, setEtiquetasEscritas] = useState('')
   const [descripcion, setDescripcion] = useState('')
   const [facturable, setFacturable] = useState(true)
+  // El tipo depende del Espacio, asi que su catalogo se pide y no viene en `catalogos`.
+  const [tipo, setTipo] = useState(NINGUNO)
+  const [tipos, setTipos] = useState<TipoDeProcesoDelEspacio[]>([])
+  const [avisoTipos, setAvisoTipos] = useState<string | null>(null)
+  // Lo accesorio arranca plegado: el alta rapida deja de serlo si hay que pasar por diez campos.
+  const [masDetalles, setMasDetalles] = useState(false)
 
   // Lo del texto libre que rellena los campos.
   const [textoLibre, setTextoLibre] = useState('')
@@ -141,6 +159,56 @@ export function AltaRapidaProceso ({ catalogos, etiquetas, conIa }: PropsAltaRap
   // Aparte de `fusion.deIa` porque el Espacio no es uno de los campos que fusiona
   // `fusionarInterpretacion()`: lo resuelve `fusionarEspacio()`, que es otra decision.
   const [espacioDeIa, setEspacioDeIa] = useState(false)
+
+  /*
+   * Los tipos de Proceso que ofrece el Espacio elegido.
+   *
+   * No salen de `lookups.task_types`: la API valida el tipo contra `tblproject_task_types` —la
+   * relacion Espacio <-> tipo— y rechaza con `422 no_pertenece_al_espacio` cualquier otro id, ademas
+   * de que el catalogo global repite los mismos tres nombres una vez por Espacio. Sin Espacio no hay
+   * tipo posible: el selector queda deshabilitado hasta que se elija uno.
+   */
+  useEffect(() => {
+    if (espacio === NINGUNO) return
+
+    const control = new AbortController()
+
+    void pedirSobre<ConfiguracionTiposEspacio>(`projects/${espacio}/task-types`, control.signal)
+      .then((sobre) => {
+        if (!control.signal.aborted) setTipos(sobre.data.task_types)
+      })
+      .catch(() => {
+        // Sin tipos el alta sigue funcionando: se dice y se deja crear la tarea sin tipo.
+        if (!control.signal.aborted) setAvisoTipos('No se pudieron traer los tipos de este espacio.')
+      })
+
+    return () => { control.abort() }
+  }, [espacio])
+
+  /**
+   * Elige el Espacio y descarta el tipo que hubiera.
+   *
+   * El descarte va aca y no en el efecto: un tipo del Espacio anterior es justo lo que la API
+   * rechaza con `422 no_pertenece_al_espacio`, y dejarlo puesto convertiria un cambio de Espacio en
+   * un error al crear.
+   */
+  function elegirEspacio (valor: string): void {
+    setEspacio(valor)
+    setTipo(NINGUNO)
+    setTipos([])
+    setAvisoTipos(null)
+  }
+
+  // `SelectorPersonas` pinta el avatar de cada persona y los catalogos del alta pueden venir sin la
+  // foto: se completa aca para no obligar a cada pantalla que monta el alta a traerla.
+  const personas: StaffReferencia[] = useMemo(
+    () => catalogos.personas.map((persona) => ({
+      id: persona.id,
+      full_name: persona.full_name,
+      profile_image_url: persona.profile_image_url ?? null
+    })),
+    [catalogos.personas]
+  )
 
   // Se recalcula mientras se escribe: la vista previa es lo que hace confiable a una sintaxis que
   // nadie leyo en un manual.
@@ -177,13 +245,18 @@ export function AltaRapidaProceso ({ catalogos, etiquetas, conIa }: PropsAltaRap
     setError(null)
     setNombre('')
     setEspacio(NINGUNO)
-    setResponsable(NINGUNO)
+    setAsignados([])
+    setSeguidores([])
     setPrioridad(NINGUNO)
     setInicio('')
     setVencimiento('')
     setEtiquetasEscritas('')
     setDescripcion('')
     setFacturable(true)
+    setTipo(NINGUNO)
+    setTipos([])
+    setAvisoTipos(null)
+    setMasDetalles(false)
     setTextoLibre('')
     setAvisoIa(null)
     setFusion(null)
@@ -202,13 +275,18 @@ export function AltaRapidaProceso ({ catalogos, etiquetas, conIa }: PropsAltaRap
    */
   function volcar (resultado: TareaFusionada, espacioElegido: number | null): void {
     if (resultado.name !== '') setNombre(resultado.name)
-    if (espacioElegido !== null) setEspacio(String(espacioElegido))
-    if (resultado.assignees[0] !== undefined) setResponsable(String(resultado.assignees[0]))
+    if (espacioElegido !== null) elegirEspacio(String(espacioElegido))
+    if (resultado.assignees.length > 0) setAsignados([...resultado.assignees])
     if (resultado.priority !== null) setPrioridad(String(resultado.priority))
     if (resultado.start_date !== null) setInicio(resultado.start_date)
     if (resultado.due_date !== null) setVencimiento(resultado.due_date)
     if (resultado.tags.length > 0) setEtiquetasEscritas(resultado.tags.join(', '))
-    if (resultado.description !== null) setDescripcion(resultado.description)
+    // La descripcion vive en "Mas detalles": si queda plegada, lo que el modelo escribio no se
+    // revisa, y revisar antes de crear es toda la gracia del boton.
+    if (resultado.description !== null) {
+      setDescripcion(resultado.description)
+      setMasDetalles(true)
+    }
   }
 
   /**
@@ -241,7 +319,10 @@ export function AltaRapidaProceso ({ catalogos, etiquetas, conIa }: PropsAltaRap
 
     if (elegido.descartado !== null) resultado.noResuelto.push(elegido.descartado)
 
-    setPrevio({ nombre, espacio, responsable, prioridad, inicio, vencimiento, etiquetasEscritas, descripcion })
+    setPrevio({
+      nombre, espacio, asignados, seguidores, tipo, prioridad, inicio, vencimiento,
+      etiquetasEscritas, descripcion
+    })
     volcar(resultado, elegido.id)
     setFusion(resultado)
     setEspacioDeIa(elegido.deIa)
@@ -257,7 +338,9 @@ export function AltaRapidaProceso ({ catalogos, etiquetas, conIa }: PropsAltaRap
 
     setNombre(previo.nombre)
     setEspacio(previo.espacio)
-    setResponsable(previo.responsable)
+    setAsignados(previo.asignados)
+    setSeguidores(previo.seguidores)
+    setTipo(previo.tipo)
     setPrioridad(previo.prioridad)
     setInicio(previo.inicio)
     setVencimiento(previo.vencimiento)
@@ -353,7 +436,9 @@ export function AltaRapidaProceso ({ catalogos, etiquetas, conIa }: PropsAltaRap
       name: nombre.trim(),
       billable: facturable,
       ...(espacio === NINGUNO ? {} : { rel_type: 'project', rel_id: Number(espacio) }),
-      ...(responsable === NINGUNO ? {} : { assignees: [Number(responsable)] }),
+      ...(asignados.length === 0 ? {} : { assignees: asignados }),
+      ...(seguidores.length === 0 ? {} : { followers: seguidores }),
+      ...(tipo === NINGUNO ? {} : { task_type: Number(tipo) }),
       ...(prioridad === NINGUNO ? {} : { priority: Number(prioridad) }),
       ...(inicio === '' ? {} : { start_date: inicio }),
       ...(vencimiento === '' ? {} : { due_date: vencimiento }),
@@ -484,7 +569,7 @@ export function AltaRapidaProceso ({ catalogos, etiquetas, conIa }: PropsAltaRap
                 <div className="grid gap-4 sm:grid-cols-2">
                   <Campo etiqueta={GLOSARIO.espacio.singular}>
                     {({ id }) => (
-                      <Selector value={espacio} onValueChange={setEspacio}>
+                      <Selector value={espacio} onValueChange={elegirEspacio}>
                         <DisparadorSelector id={id} />
                         <ContenidoSelector>
                           <Opcion value={NINGUNO}>Sin {GLOSARIO.espacio.singular.toLowerCase()}</Opcion>
@@ -496,21 +581,14 @@ export function AltaRapidaProceso ({ catalogos, etiquetas, conIa }: PropsAltaRap
                     )}
                   </Campo>
 
-                  <Campo
-                    etiqueta="Responsable"
-                    ayuda={catalogos.personas.length === 0 ? 'No se pudo traer el equipo.' : undefined}
-                  >
+                  <Campo etiqueta="Prioridad">
                     {({ id }) => (
-                      <Selector
-                        value={responsable}
-                        onValueChange={setResponsable}
-                        disabled={catalogos.personas.length === 0}
-                      >
+                      <Selector value={prioridad} onValueChange={setPrioridad}>
                         <DisparadorSelector id={id} />
                         <ContenidoSelector>
-                          <Opcion value={NINGUNO}>Sin responsable</Opcion>
-                          {catalogos.personas.map((fila) => (
-                            <Opcion key={fila.id} value={String(fila.id)}>{fila.full_name}</Opcion>
+                          <Opcion value={NINGUNO}>La que trae por defecto</Opcion>
+                          {catalogos.prioridades.map((fila) => (
+                            <Opcion key={fila.id} value={String(fila.id)}>{fila.name}</Opcion>
                           ))}
                         </ContenidoSelector>
                       </Selector>
@@ -518,17 +596,17 @@ export function AltaRapidaProceso ({ catalogos, etiquetas, conIa }: PropsAltaRap
                   </Campo>
                 </div>
 
-                <Campo etiqueta="Prioridad">
+                <Campo
+                  etiqueta="Asignados"
+                  ayuda={catalogos.personas.length === 0 ? 'No se pudo traer el equipo.' : undefined}
+                >
                   {({ id }) => (
-                    <Selector value={prioridad} onValueChange={setPrioridad}>
-                      <DisparadorSelector id={id} />
-                      <ContenidoSelector>
-                        <Opcion value={NINGUNO}>La que trae por defecto</Opcion>
-                        {catalogos.prioridades.map((fila) => (
-                          <Opcion key={fila.id} value={String(fila.id)}>{fila.name}</Opcion>
-                        ))}
-                      </ContenidoSelector>
-                    </Selector>
+                    <SelectorPersonas
+                      id={id}
+                      personas={personas}
+                      elegidas={asignados}
+                      onCambiar={setAsignados}
+                    />
                   )}
                 </Campo>
 
@@ -574,24 +652,73 @@ export function AltaRapidaProceso ({ catalogos, etiquetas, conIa }: PropsAltaRap
                   )}
                 </Campo>
 
-                <Campo etiqueta="Descripción">
-                  {(props) => (
-                    <AreaTexto
-                      {...props}
-                      value={descripcion}
-                      onChange={(evento) => { setDescripcion(evento.target.value) }}
-                    />
-                  )}
-                </Campo>
+                {/* `details` nativo: pliega sin estado propio ni dependencia, y lo que esconde
+                    sigue estando en el formulario y en el orden de tabulacion. El `open` si es
+                    controlado porque la IA tiene que poder abrirlo al escribir la descripcion. */}
+                <details
+                  className="border-borde rounded-tarjeta border px-3 py-2.5"
+                  open={masDetalles}
+                  onToggle={(evento) => { setMasDetalles(evento.currentTarget.open) }}
+                >
+                  <summary className="text-texto-tenue hover:text-texto cursor-pointer list-none text-sm transition-colors [&::-webkit-details-marker]:hidden">
+                    Más detalles
+                  </summary>
 
-                <label className="text-texto flex items-center gap-2 text-sm">
-                  <input
-                    type="checkbox"
-                    checked={facturable}
-                    onChange={(evento) => { setFacturable(evento.target.checked) }}
-                  />
-                  Facturable
-                </label>
+                  <div className="mt-4 flex flex-col gap-4">
+                    <Campo
+                      etiqueta="Tipo"
+                      ayuda={avisoTipos ?? (
+                        espacio === NINGUNO
+                          ? `Cada ${GLOSARIO.espacio.singular.toLowerCase()} define sus tipos: elige uno primero.`
+                          : tipos.length === 0
+                            ? `Este ${GLOSARIO.espacio.singular.toLowerCase()} no ofrece tipos.`
+                            : undefined
+                      )}
+                    >
+                      {({ id }) => (
+                        <Selector value={tipo} onValueChange={setTipo} disabled={tipos.length === 0}>
+                          <DisparadorSelector id={id} />
+                          <ContenidoSelector>
+                            <Opcion value={NINGUNO}>Sin tipo</Opcion>
+                            {tipos.map((fila) => (
+                              <Opcion key={fila.id} value={String(fila.id)}>{fila.name}</Opcion>
+                            ))}
+                          </ContenidoSelector>
+                        </Selector>
+                      )}
+                    </Campo>
+
+                    <Campo etiqueta="Seguidores" ayuda="Reciben las novedades sin ser responsables.">
+                      {({ id }) => (
+                        <SelectorPersonas
+                          id={id}
+                          personas={personas}
+                          elegidas={seguidores}
+                          onCambiar={setSeguidores}
+                        />
+                      )}
+                    </Campo>
+
+                    <Campo etiqueta="Descripción">
+                      {(props) => (
+                        <AreaTexto
+                          {...props}
+                          value={descripcion}
+                          onChange={(evento) => { setDescripcion(evento.target.value) }}
+                        />
+                      )}
+                    </Campo>
+
+                    <label className="text-texto flex items-center gap-2 text-sm">
+                      <input
+                        type="checkbox"
+                        checked={facturable}
+                        onChange={(evento) => { setFacturable(evento.target.checked) }}
+                      />
+                      Facturable
+                    </label>
+                  </div>
+                </details>
               </>
               )}
 
