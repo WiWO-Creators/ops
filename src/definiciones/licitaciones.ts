@@ -40,11 +40,15 @@ export function etiquetaDeEstado (estado: EstadoLicitacion): string {
  * La API lo devuelve partido en dos porque asi lo escribe Perfex al crear el contacto principal; la
  * interfaz nunca muestra "firstname" y "lastname" en columnas separadas.
  *
- * @param contacto Contacto de la licitacion.
- * @returns Nombre y apellido en una linea, sin espacios sobrantes.
+ * `null` es un valor esperable y no un error: `POST /licitaciones` acepta el alta sin contacto y la
+ * API devuelve la clave en `null`. Se resuelve como cadena vacia para que la columna quede en blanco
+ * en vez de tumbar el listado entero.
+ *
+ * @param contacto Contacto de la licitacion, o `null` si el alta no lo trajo.
+ * @returns Nombre y apellido en una linea, sin espacios sobrantes; vacio si no hay contacto.
  */
-export function nombreDelContacto (contacto: ContactoLicitacion): string {
-  return `${contacto.firstname} ${contacto.lastname}`.trim()
+export function nombreDelContacto (contacto: ContactoLicitacion | null): string {
+  return contacto === null ? '' : `${contacto.firstname} ${contacto.lastname}`.trim()
 }
 
 export const LICITACIONES: DefinicionRecurso<Licitacion> = {

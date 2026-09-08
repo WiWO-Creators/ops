@@ -238,7 +238,8 @@ export interface Licitacion {
   /** Copia de `cliente.company`. Solo para la columna y la busqueda del listado. */
   company: string
   cliente: CandidataLicitacion
-  contacto: ContactoLicitacion
+  /** `null` cuando el alta no trajo contacto: `POST /licitaciones` lo acepta sin el. */
+  contacto: ContactoLicitacion | null
   /** El Cliente **real**, creado al ganar. `null` mientras la licitacion no este ganada. */
   client_id: number | null
   /** Cuando se gano o se perdio. `null` mientras siga abierta. */

@@ -46,9 +46,9 @@ export function FichaLicitacion ({
 
   const persona = conValor([
     { etiqueta: 'Nombre', valor: nombreDelContacto(contacto) },
-    { etiqueta: 'Cargo', valor: contacto.title },
-    { etiqueta: 'Correo', valor: contacto.email },
-    { etiqueta: 'Teléfono', valor: contacto.phonenumber }
+    { etiqueta: 'Cargo', valor: contacto?.title },
+    { etiqueta: 'Correo', valor: contacto?.email },
+    { etiqueta: 'Teléfono', valor: contacto?.phonenumber }
   ])
 
   const seguimiento = conValor([

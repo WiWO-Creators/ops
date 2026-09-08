@@ -132,6 +132,10 @@ function DialogoResultado ({
   const [fallo, setFallo] = useState<string | null>(null)
 
   const ganando = accion === 'ganar'
+  // Sin contacto no se crea ninguno: `Licitacion::ganar()` solo inserta el contacto si la licitacion
+  // lo tenia. Prometerlo en un dialogo que dice "no se puede deshacer" seria mentir.
+  const contacto = nombreDelContacto(licitacion.contacto)
+  const conContacto = contacto === '' ? '' : ` con ${contacto} como contacto principal`
 
   /** Llama a la accion; el error es un valor que se muestra, nunca una excepcion que rompa la ficha. */
   async function confirmar (): Promise<void> {
@@ -167,7 +171,7 @@ function DialogoResultado ({
         titulo={ganando ? 'Marcar como ganada' : 'Marcar como perdida'}
         descripcion={
           ganando
-            ? `Se crea el cliente ${licitacion.company} con ${nombreDelContacto(licitacion.contacto)} como contacto principal, y ${licitacion.espacio.name} pasa a colgar de ese cliente. No se puede deshacer.`
+            ? `Se crea el cliente ${licitacion.company}${conContacto}, y ${licitacion.espacio.name} pasa a colgar de ese cliente. No se puede deshacer.`
             : `Se archiva ${licitacion.espacio.name} con sus tareas, sus hitos y sus archivos. La licitación queda consultable en el histórico.`
         }
       >
