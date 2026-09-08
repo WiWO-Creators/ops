@@ -1,11 +1,17 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
-import { useEffect, useMemo, useState, type FormEvent, type ReactElement } from 'react'
+import { useEffect, useMemo, useRef, useState, useId, type FormEvent, type ReactElement } from 'react'
 import { Boton } from '@/componentes/formularios/Boton'
 import { useAccionPresencia } from '@/componentes/auditoria/accion'
 import { Campo } from '@/componentes/formularios/Campo'
 import { AreaTexto, Entrada } from '@/componentes/formularios/Entrada'
+import { CamposPersonalizados } from '@/componentes/formularios/CamposPersonalizados'
+import { cargarAsignables } from '@/datos/asignables'
+import {
+  camposOrdenados, cuerpoDeCamposPersonalizados, esquemaDeCamposPersonalizados, valoresPorDefecto,
+  type ValoresDeCampos, type ErroresDeCampos
+} from '@/dominio/campos-personalizados'
 import { Segmentado } from '@/componentes/formularios/Segmentado'
 import {
   ContenidoSelector,
@@ -36,55 +42,26 @@ import { errorDeHorasEstimadas, horasDeTexto } from '@/dominio/tiempo-estimado'
 import { formatearFecha } from '@/lib/fechas'
 import { VistaPreviaAlta, type MarcaPrevia } from './VistaPreviaAlta'
 import type {
+  DefinicionCampoPersonalizado,
+  Hito,
+  Lookups,
   ConfiguracionTiposEspacio,
   Referencia,
   TipoDeProcesoDelEspacio
 } from '@/datos/recursos'
 import type { StaffReferencia } from '@/datos/tipos'
 
-/**
- * Alta de un Proceso desde cualquier pantalla, en una linea.
- *
- * Existe por una razon concreta: hasta ahora la unica forma de crear una tarea era entrar al Espacio
- * y usar su formulario, lo que obliga a **saber a que Espacio pertenece antes de poder anotarla**.
- * Esa decision previa es la que termina mandando las tareas a un chat. Aca el Espacio es opcional y
- * se asigna despues.
- *
- * Lo que se escribe se interpreta con `interpretarAltaRapida`, que vive fuera de React porque es la
- * parte con reglas. Lo que el parser no reconoce **queda en el titulo**: nada se pierde en silencio.
- *
- * === POR QUE HAY DOS MODOS ===
- *
- * La linea es rapida cuando uno ya sabe la sintaxis, pero deja de serlo en cuanto un `@` no resuelve:
- * hay cuatro personas cuyo nombre empieza con "javier" y el parser, con razon, no elige por nadie.
- * Ahi la unica salida honesta es un campo donde se elija. "Por campos" es el mismo formulario que la
- * pantalla de un Espacio muestra cuando la IA esta apagada, mas el Espacio y los asignados, que ahi
- * vienen fijos y aca no. Lo accesorio —tipo, seguidores, descripcion, horas estimadas— vive plegado
- * en "Mas detalles": el alta tiene que poder dejar la tarea lista de una vez sin dejar de ser rapida para
- * quien solo quiere anotar un titulo.
- *
- * Los dos modos terminan en el mismo `POST /tasks`: lo que cambia es como se llenan los campos, no
- * que se crea.
- *
- * === QUE HACE LA IA Y QUE NO ===
- *
- * En "Por campos" hay un texto libre con un boton que **rellena el formulario y nada mas**. No crea
- * la tarea, no manda nada y no decide: vuelca lo que entendio en los campos, marca en la vista
- * previa que salio de ella, y deja "Deshacer" al lado. Crear sigue siendo un clic aparte sobre
- * campos que se pueden corregir uno por uno, porque una tarea que aparece sola en el tablero de
- * alguien es un error que nadie audita hasta que ya paso.
- */
-
+/** Formulario único de creación, con entrada por campos o interpretación de una línea. */
 interface PropsAltaRapida {
   /** Personas, Espacios y prioridades contra los que resolver `@`, `#` y `!`. */
-  catalogos: CatalogosAlta
+  catalogos?: CatalogosAlta
   /**
    * Etiquetas que ya existen (`lookups.tags`).
    *
    * Se ofrecen como sugerencia en un `datalist`, no como limite: una etiqueta escrita que no esta
    * en el catalogo se crea en el alta. Solo las usa el modo por campos.
    */
-  etiquetas: Referencia[]
+  etiquetas?: Referencia[]
   /**
    * Si la capa de IA esta encendida (`ia_habilitada`).
    *
@@ -92,13 +69,21 @@ interface PropsAltaRapida {
    * ofrecer un boton que falla es peor que no ofrecerlo.
    */
   conIa: boolean
+  proyectoId?: number
+  hitoInicial?: number
+  integrado?: boolean
+  abrirInicialmente?: boolean
+  onCreada?: () => void
+  onCerrar?: () => void
+  onOcupado?: (ocupado: boolean) => void
 }
 
 /** Valor del selector cuando no se eligio nada. Radix no admite `value=""` en una opcion. */
 const NINGUNO = 'ninguno'
 
 /** `id` del `datalist` de etiquetas; el `list` del campo lo referencia por nombre. */
-const LISTA_ETIQUETAS = 'etiquetas-alta-rapida'
+const CATALOGOS_VACIOS: CatalogosAlta = { personas: [], espacios: [], prioridades: [] }
+const ETIQUETAS_VACIAS: Referencia[] = []
 
 /** Los dos modos del dialogo. */
 const MODOS = [
@@ -111,6 +96,9 @@ type Modo = typeof MODOS[number]['valor']
 /** Los campos manuales, para poder devolverlos tal como estaban antes de que la IA los pisara. */
 interface CamposManuales {
   nombre: string
+  hito: string
+  relacion: string
+  relacionId: string
   espacio: string
   asignados: number[]
   seguidores: number[]
@@ -122,12 +110,41 @@ interface CamposManuales {
   descripcion: string
 }
 
-export function AltaRapidaProceso ({ catalogos, etiquetas, conIa }: PropsAltaRapida): ReactElement {
+export function AltaRapidaProceso ({
+  catalogos: catalogosRecibidos, etiquetas: etiquetasRecibidas, conIa,
+  proyectoId, hitoInicial, integrado = false, abrirInicialmente = false, onCreada, onCerrar, onOcupado
+}: PropsAltaRapida): ReactElement {
   const router = useRouter()
-  const [abierto, setAbierto] = useState(false)
+  const [abierto, setAbierto] = useState(integrado || abrirInicialmente)
+  const listaEtiquetas = useId()
+  const enviando = useRef(false)
+  const [catalogosCargados, setCatalogosCargados] = useState<CatalogosAlta>(catalogosRecibidos ?? CATALOGOS_VACIOS)
+  const [lookups, setLookups] = useState<Lookups | null>(null)
+  const catalogos = catalogosCargados
+  const etiquetas = etiquetasRecibidas ?? lookups?.tags ?? ETIQUETAS_VACIAS
+  const [cargando, setCargando] = useState(true)
+  const [errorCarga, setErrorCarga] = useState<string | null>(null)
+  const [intentoCarga, setIntentoCarga] = useState(0)
+  const [definiciones, setDefiniciones] = useState<DefinicionCampoPersonalizado[]>([])
+  const [personalizados, setPersonalizados] = useState<ValoresDeCampos>({})
+  const [erroresCampos, setErroresCampos] = useState<ErroresDeCampos>({})
+  const [creadaId, setCreadaId] = useState<number | null>(null)
+  const [relacion, setRelacion] = useState('project')
+  const [relacionId, setRelacionId] = useState('')
+  const [estado, setEstado] = useState(NINGUNO)
+  const [hito, setHito] = useState(hitoInicial === undefined ? NINGUNO : String(hitoInicial))
+  const [hitos, setHitos] = useState<Hito[]>([])
+  const [tarifa, setTarifa] = useState('')
+  const [publica, setPublica] = useState(false)
+  const [visibleCliente, setVisibleCliente] = useState(false)
+  const [recurrente, setRecurrente] = useState(false)
+  const [cada, setCada] = useState('1')
+  const [unidad, setUnidad] = useState('month')
+  const [ciclos, setCiclos] = useState('0')
+  const [cierre, setCierre] = useState('')
 
   useAccionPresencia('creando_tarea', abierto)
-  const [modo, setModo] = useState<Modo>('linea')
+  const [modo, setModo] = useState<Modo>('campos')
   const [texto, setTexto] = useState('')
   const [enCurso, setEnCurso] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -135,7 +152,7 @@ export function AltaRapidaProceso ({ catalogos, etiquetas, conIa }: PropsAltaRap
   // Campos del modo "por campos". Viven aparte de la linea a proposito: cambiar de modo no debe
   // borrar lo que se escribio en el otro, porque se alterna justo cuando un `@` no resolvio.
   const [nombre, setNombre] = useState('')
-  const [espacio, setEspacio] = useState(NINGUNO)
+  const [espacio, setEspacio] = useState(proyectoId === undefined ? NINGUNO : String(proyectoId))
   const [asignados, setAsignados] = useState<number[]>([])
   const [seguidores, setSeguidores] = useState<number[]>([])
   const [prioridad, setPrioridad] = useState(NINGUNO)
@@ -151,8 +168,8 @@ export function AltaRapidaProceso ({ catalogos, etiquetas, conIa }: PropsAltaRap
   const [tipo, setTipo] = useState(NINGUNO)
   const [tipos, setTipos] = useState<TipoDeProcesoDelEspacio[]>([])
   const [avisoTipos, setAvisoTipos] = useState<string | null>(null)
-  // Lo accesorio arranca plegado: el alta rapida deja de serlo si hay que pasar por diez campos.
-  const [masDetalles, setMasDetalles] = useState(false)
+  // Los detalles se muestran al abrir; cada persona puede plegarlos mientras completa lo básico.
+  const [masDetalles, setMasDetalles] = useState(true)
 
   // Lo del texto libre que rellena los campos.
   const [textoLibre, setTextoLibre] = useState('')
@@ -164,6 +181,35 @@ export function AltaRapidaProceso ({ catalogos, etiquetas, conIa }: PropsAltaRap
   // `fusionarInterpretacion()`: lo resuelve `fusionarEspacio()`, que es otra decision.
   const [espacioDeIa, setEspacioDeIa] = useState(false)
 
+  // No se habilita el alta hasta conocer también los campos personalizados obligatorios.
+  useEffect(() => {
+    if (!abierto) return
+    const control = new AbortController()
+    const cargar = async (): Promise<void> => {
+      try {
+        const [campos, opciones, personas, espacios] = await Promise.all([
+          pedirSobre<DefinicionCampoPersonalizado[]>('custom-fields?para=tasks', control.signal),
+          pedirSobre<Lookups>('lookups', control.signal),
+          cargarAsignables(),
+          pedirSobre<Referencia[]>('projects?per_page=500', control.signal)
+        ])
+        if (control.signal.aborted) return
+        const ordenadas = camposOrdenados(campos.data)
+        setDefiniciones(ordenadas)
+        setPersonalizados(valoresPorDefecto(ordenadas))
+        setLookups(opciones.data)
+        setCatalogosCargados({ personas, espacios: espacios.data, prioridades: opciones.data.task_priorities })
+        setErrorCarga(null)
+      } catch (fallo) {
+        if (!control.signal.aborted) setErrorCarga(fallo instanceof Error ? fallo.message : 'No se pudieron cargar los campos de la tarea.')
+      } finally {
+        if (!control.signal.aborted) setCargando(false)
+      }
+    }
+    void cargar()
+    return () => { control.abort() }
+  }, [abierto, intentoCarga])
+
   /*
    * Los tipos de Proceso que ofrece el Espacio elegido.
    *
@@ -173,21 +219,26 @@ export function AltaRapidaProceso ({ catalogos, etiquetas, conIa }: PropsAltaRap
    * tipo posible: el selector queda deshabilitado hasta que se elija uno.
    */
   useEffect(() => {
-    if (espacio === NINGUNO) return
+    if (!abierto || espacio === NINGUNO) return
 
     const control = new AbortController()
 
-    void pedirSobre<ConfiguracionTiposEspacio>(`projects/${espacio}/task-types`, control.signal)
-      .then((sobre) => {
-        if (!control.signal.aborted) setTipos(sobre.data.task_types)
+    void Promise.all([
+      pedirSobre<ConfiguracionTiposEspacio>(`projects/${espacio}/task-types`, control.signal),
+      pedirSobre<Hito[]>(`projects/${espacio}/milestones`, control.signal)
+    ]).then(([sobre, lista]) => {
+        if (!control.signal.aborted) {
+          setTipos(sobre.data.task_types)
+          setHitos(lista.data)
+        }
       })
       .catch(() => {
         // Sin tipos el alta sigue funcionando: se dice y se deja crear la tarea sin tipo.
-        if (!control.signal.aborted) setAvisoTipos('No se pudieron traer los tipos de este espacio.')
+        if (!control.signal.aborted) setAvisoTipos('No se pudieron traer los tipos y los hitos de este espacio. Vuelve a elegirlo para reintentar.')
       })
 
     return () => { control.abort() }
-  }, [espacio])
+  }, [espacio, abierto])
 
   /**
    * Elige el Espacio y descarta el tipo que hubiera.
@@ -197,7 +248,11 @@ export function AltaRapidaProceso ({ catalogos, etiquetas, conIa }: PropsAltaRap
    * un error al crear.
    */
   function elegirEspacio (valor: string): void {
+    setRelacion('project')
+    if (valor === espacio) return
     setEspacio(valor)
+    setHito(NINGUNO)
+    setHitos([])
     setTipo(NINGUNO)
     setTipos([])
     setAvisoTipos(null)
@@ -244,11 +299,12 @@ export function AltaRapidaProceso ({ catalogos, etiquetas, conIa }: PropsAltaRap
     marcas.push({ texto: nombreDe(id, catalogos.personas, 'full_name'), origen: 'texto' })
   }
 
+  /** Restablece los valores del alta y conserva el contexto de apertura. */
   function limpiar (): void {
     setTexto('')
     setError(null)
     setNombre('')
-    setEspacio(NINGUNO)
+    setEspacio(proyectoId === undefined ? NINGUNO : String(proyectoId))
     setAsignados([])
     setSeguidores([])
     setPrioridad(NINGUNO)
@@ -261,7 +317,26 @@ export function AltaRapidaProceso ({ catalogos, etiquetas, conIa }: PropsAltaRap
     setTipo(NINGUNO)
     setTipos([])
     setAvisoTipos(null)
-    setMasDetalles(false)
+    setMasDetalles(true)
+    setModo('campos')
+    setHito(hitoInicial === undefined ? NINGUNO : String(hitoInicial))
+    setHitos([])
+    setRelacion('project')
+    setRelacionId('')
+    setEstado(NINGUNO)
+    setTarifa('')
+    setPublica(false)
+    setVisibleCliente(false)
+    setRecurrente(false)
+    setCada('1')
+    setUnidad('month')
+    setCiclos('0')
+    setCierre('')
+    setCreadaId(null)
+    setPersonalizados(valoresPorDefecto(definiciones))
+    setErroresCampos({})
+    setCargando(true)
+    setErrorCarga(null)
     setTextoLibre('')
     setAvisoIa(null)
     setFusion(null)
@@ -302,8 +377,7 @@ export function AltaRapidaProceso ({ catalogos, etiquetas, conIa }: PropsAltaRap
    * responde queda lo del parser con el aviso al lado, porque dejar el formulario vacio por un 503
    * es peor que llenarlo a medias.
    *
-   * No se manda `project_id`: aca no hay ningun Espacio de partida, asi que el que nombre el texto
-   * es la unica pista, y la API ya sabe resolverlo contra los Espacios que la persona ve.
+   * El espacio elegido acota la interpretación; sin selección se resuelve desde el texto.
    */
   async function completar (): Promise<void> {
     const limpio = textoLibre.trim()
@@ -314,10 +388,11 @@ export function AltaRapidaProceso ({ catalogos, etiquetas, conIa }: PropsAltaRap
     }
 
     setInterpretando(true)
+    onOcupado?.(true)
     setAvisoIa(null)
 
     const localLeido = interpretarAltaRapida(limpio, catalogos)
-    const respuesta = await escribirEnBff<unknown>('ia/tareas/interpretar', 'POST', { texto: limpio })
+    const respuesta = await escribirEnBff<unknown>('ia/tareas/interpretar', 'POST', { texto: limpio, ...(espacio === NINGUNO ? {} : { project_id: Number(espacio) }) })
     const delModelo = respuesta.ok ? leerCamposTarea(respuesta.datos) : null
     const resultado = fusionarInterpretacion(localLeido, delModelo, catalogosConEtiquetas)
     const elegido = fusionarEspacio(localLeido, delModelo, catalogosConEtiquetas)
@@ -325,13 +400,14 @@ export function AltaRapidaProceso ({ catalogos, etiquetas, conIa }: PropsAltaRap
     if (elegido.descartado !== null) resultado.noResuelto.push(elegido.descartado)
 
     setPrevio({
-      nombre, espacio, asignados, seguidores, tipo, prioridad, inicio, vencimiento,
+      nombre, hito, relacion, relacionId, espacio, asignados, seguidores, tipo, prioridad, inicio, vencimiento,
       etiquetasEscritas, descripcion
     })
     volcar(resultado, elegido.id)
     setFusion(resultado)
     setEspacioDeIa(elegido.deIa)
     setInterpretando(false)
+    onOcupado?.(false)
 
     if (!respuesta.ok) setAvisoIa(`${respuesta.mensaje} Quedó sólo lo que se entendió del texto.`)
     else if (delModelo === null) setAvisoIa('El modelo respondió algo que no se entendió. Quedó sólo lo que se entendió del texto.')
@@ -346,6 +422,9 @@ export function AltaRapidaProceso ({ catalogos, etiquetas, conIa }: PropsAltaRap
     setAsignados(previo.asignados)
     setSeguidores(previo.seguidores)
     setTipo(previo.tipo)
+    setHito(previo.hito)
+    setRelacion(previo.relacion)
+    setRelacionId(previo.relacionId)
     setPrioridad(previo.prioridad)
     setInicio(previo.inicio)
     setVencimiento(previo.vencimiento)
@@ -379,43 +458,48 @@ export function AltaRapidaProceso ({ catalogos, etiquetas, conIa }: PropsAltaRap
    * @param cuerpo el cuerpo de `POST /tasks`, ya sin campos vacios
    */
   async function enviar (cuerpo: Record<string, unknown>): Promise<void> {
+    if (enviando.current || cargando || errorCarga !== null) return
+    const fallos = esquemaDeCamposPersonalizados(definiciones).validar(personalizados, valoresPorDefecto(definiciones))
+    setErroresCampos(fallos)
+    if (Object.keys(fallos).length > 0) {
+      setError('Revisa los campos personalizados marcados.')
+      setModo('campos')
+      return
+    }
+    enviando.current = true
+    onOcupado?.(true)
     setEnCurso(true)
     setError(null)
-
-    const resultado = await escribirEnBff<{ id: number }>('tasks', 'POST', cuerpo)
-
-    setEnCurso(false)
-
-    if (!resultado.ok) {
-      setError(resultado.mensaje)
-      return
+    try {
+      let id = creadaId
+      if (id === null) {
+        const resultado = await escribirEnBff<{ id: number }>('tasks', 'POST', cuerpo)
+        if (!resultado.ok) { setError(resultado.mensaje); return }
+        if (!Number.isInteger(resultado.datos?.id)) {
+          setError('El servidor no devolvió el identificador. Revisa la lista antes de volver a crear la tarea.')
+          return
+        }
+        id = resultado.datos.id
+        setCreadaId(id)
+      }
+      const parche = cuerpoDeCamposPersonalizados('tasks', id, definiciones, valoresPorDefecto(definiciones), personalizados)
+      if (parche !== null) {
+        const guardados = await escribirEnBff('custom-fields/values', 'PATCH', parche)
+        if (!guardados.ok) {
+          setError(`La tarea #${id} ya está creada. Reintenta guardar sus campos personalizados: ${guardados.mensaje}`)
+          return
+        }
+      }
+      limpiar()
+      setAbierto(false)
+      onCerrar?.()
+      onCreada?.()
+      router.refresh()
+    } finally {
+      enviando.current = false
+      onOcupado?.(false)
+      setEnCurso(false)
     }
-
-    limpiar()
-    setAbierto(false)
-    router.refresh()
-  }
-
-  /**
-   * Alta desde la linea.
-   *
-   * `sinResolver` no bloquea: si alguien escribio `@nadie`, la tarea igual se crea con ese texto en
-   * el titulo. Es preferible una tarea anotada con un dato de mas que una tarea que no se anoto.
-   */
-  async function crearDesdeLinea (): Promise<void> {
-    if (leido.name.trim() === '') {
-      setError('Escribe al menos un título.')
-      return
-    }
-
-    await enviar({
-      name: leido.name,
-      due_date: leido.due_date,
-      priority: leido.priority ?? undefined,
-      assignees: leido.assignees,
-      rel_type: leido.rel_type,
-      rel_id: leido.rel_id
-    })
   }
 
   /**
@@ -428,6 +512,7 @@ export function AltaRapidaProceso ({ catalogos, etiquetas, conIa }: PropsAltaRap
    * `datalist` sugiere las creadas para que la variante con typo sea la excepcion y no la regla.
    */
   async function crearPorCampos (): Promise<void> {
+    if (creadaId !== null) { await enviar({}); return }
     if (nombre.trim() === '') {
       setError('La tarea necesita un nombre.')
       return
@@ -440,6 +525,23 @@ export function AltaRapidaProceso ({ catalogos, etiquetas, conIa }: PropsAltaRap
       return
     }
 
+    if (inicio !== '' && vencimiento !== '' && vencimiento < inicio) {
+      setError('El vencimiento no puede ser anterior al inicio.')
+      return
+    }
+    if (relacion !== 'project' && (!Number.isSafeInteger(Number(relacionId)) || Number(relacionId) < 1)) {
+      setError('Indica el identificador de la relación seleccionada.')
+      return
+    }
+    if (tarifa !== '' && (!Number.isFinite(Number(tarifa)) || Number(tarifa) < 0)) {
+      setError('La tarifa debe ser un número mayor o igual a cero.')
+      return
+    }
+    if (recurrente && (!Number.isInteger(Number(cada)) || Number(cada) < 1 || !Number.isInteger(Number(ciclos)) || Number(ciclos) < 0)) {
+      setError('La frecuencia debe ser un entero positivo y los ciclos un entero mayor o igual a cero.')
+      return
+    }
+
     // La colacion de `tbltags` es `_ci`: "urgente" y "Urgente" son la misma fila para la API, asi
     // que no hace falta normalizar nada aca.
     const pedidas = etiquetasEscritas.split(',').map((t) => t.trim()).filter((t) => t !== '')
@@ -448,10 +550,17 @@ export function AltaRapidaProceso ({ catalogos, etiquetas, conIa }: PropsAltaRap
     await enviar({
       name: nombre.trim(),
       billable: facturable,
-      ...(espacio === NINGUNO ? {} : { rel_type: 'project', rel_id: Number(espacio) }),
+      is_public: publica,
+      visible_to_client: visibleCliente,
+      ...(estado === NINGUNO ? {} : { status: Number(estado) }),
+      ...(relacion !== 'project' || hito === NINGUNO ? {} : { milestone: Number(hito) }),
+      ...(tarifa === '' ? {} : { hourly_rate: Number(tarifa) }),
+      ...(recurrente ? { recurring: true, repeat_every: Number(cada), recurring_type: unidad, cycles: Number(ciclos) } : {}),
+      ...(estado === '5' && cierre !== '' ? { completed_at: new Date(cierre).toISOString() } : {}),
+      ...(relacion !== 'project' ? { rel_type: relacion, rel_id: Number(relacionId) } : espacio === NINGUNO ? {} : { rel_type: 'project', rel_id: Number(espacio) }),
       ...(asignados.length === 0 ? {} : { assignees: asignados }),
       ...(seguidores.length === 0 ? {} : { followers: seguidores }),
-      ...(tipo === NINGUNO ? {} : { task_type: Number(tipo) }),
+      ...(relacion !== 'project' || tipo === NINGUNO ? {} : { task_type: Number(tipo) }),
       ...(prioridad === NINGUNO ? {} : { priority: Number(prioridad) }),
       ...(inicio === '' ? {} : { start_date: inicio }),
       ...(vencimiento === '' ? {} : { due_date: vencimiento }),
@@ -465,27 +574,14 @@ export function AltaRapidaProceso ({ catalogos, etiquetas, conIa }: PropsAltaRap
   async function crear (evento: FormEvent): Promise<void> {
     evento.preventDefault()
 
-    if (modo === 'linea') await crearDesdeLinea()
-    else await crearPorCampos()
+    await crearPorCampos()
   }
 
-  return (
-    <Dialogo
-      open={abierto}
-      onOpenChange={(estado) => {
-        setAbierto(estado)
-        if (!estado) limpiar()
-      }}
-    >
-      <DisparadorDialogo asChild>
-        <Boton variante="primario">Nueva tarea</Boton>
-      </DisparadorDialogo>
-
-      <ContenidoDialogo
-        titulo={`${GLOSARIO.proceso.singular} nuevo`}
-        descripcion={`Una línea o campo por campo. El ${GLOSARIO.espacio.singular.toLowerCase()} puede quedar vacío y asignarse después.`}
-      >
+  const formulario = (
         <form className="flex flex-col gap-4" onSubmit={(evento) => { void crear(evento) }}>
+          {errorCarga !== null && <div role="alert" className="text-texto-peligro text-sm">{errorCarga} <Boton onClick={() => { setCargando(true); setIntentoCarga((valor) => valor + 1) }}>Reintentar carga</Boton></div>}
+          {cargando && <p role="status">Cargando campos…</p>}
+          <fieldset disabled={enCurso || interpretando || cargando || errorCarga !== null || creadaId !== null} className="flex min-w-0 flex-col gap-4">
           <Segmentado
             etiqueta="Cómo escribir la tarea"
             opciones={MODOS}
@@ -493,8 +589,7 @@ export function AltaRapidaProceso ({ catalogos, etiquetas, conIa }: PropsAltaRap
             onElegir={(valor) => { setModo(valor as Modo); setError(null) }}
           />
 
-          {modo === 'linea'
-            ? (
+          {modo === 'linea' && (
               <>
                 <Campo etiqueta="Qué hay que hacer" requerido>
                   {(props) => (
@@ -509,6 +604,10 @@ export function AltaRapidaProceso ({ catalogos, etiquetas, conIa }: PropsAltaRap
                 </Campo>
 
                 <VistaPreviaAlta titulo={leido.name} marcas={marcas} sinResolver={leido.sinResolver} />
+                <Boton variante="secundario" onClick={() => {
+                  volcar(fusionarInterpretacion(leido, null, catalogosConEtiquetas), leido.rel_id)
+                  setModo('campos')
+                }}>Completar campos desde la línea</Boton>
 
                 <p className="text-texto-sutil text-xs">
                   <code className="text-texto-tenue">@persona</code> asigna ·{' '}
@@ -519,8 +618,7 @@ export function AltaRapidaProceso ({ catalogos, etiquetas, conIa }: PropsAltaRap
                   {' '}Si un nombre coincide con varias personas queda en el título: ahí conviene «Por campos».
                 </p>
               </>
-              )
-            : (
+              )}
               <>
                 {conIa && (
                   <div className="border-borde flex flex-col gap-2 border-b pb-4">
@@ -580,8 +678,23 @@ export function AltaRapidaProceso ({ catalogos, etiquetas, conIa }: PropsAltaRap
                   )}
                 </Campo>
 
+                <Campo etiqueta="Relacionada con">
+                  {({ id }) => <Selector value={relacion} onValueChange={(valor) => { setRelacion(valor); setRelacionId('') }}>
+                    <DisparadorSelector id={id} />
+                    <ContenidoSelector>
+                      <Opcion value="project">{GLOSARIO.espacio.singular}</Opcion><Opcion value="customer">Cliente</Opcion>
+                      <Opcion value="lead">Prospecto</Opcion><Opcion value="contract">Contrato</Opcion>
+                      <Opcion value="ticket">Ticket</Opcion><Opcion value="invoice">Factura</Opcion>
+                      <Opcion value="estimate">Presupuesto</Opcion><Opcion value="proposal">Propuesta</Opcion>
+                      <Opcion value="expense">Gasto</Opcion>
+                    </ContenidoSelector>
+                  </Selector>}
+                </Campo>
+                {relacion !== 'project' && <Campo etiqueta="ID de la relación" requerido ayuda="Identificador del registro, disponible en su dirección. Se comprueba al guardar.">
+                  {(props) => <Entrada {...props} type="number" min="1" step="1" value={relacionId} onChange={(evento) => setRelacionId(evento.target.value)} />}
+                </Campo>}
                 <div className="grid gap-4 sm:grid-cols-2">
-                  <Campo etiqueta={GLOSARIO.espacio.singular}>
+                  {relacion === 'project' && <Campo etiqueta={GLOSARIO.espacio.singular}>
                     {({ id }) => (
                       <Selector value={espacio} onValueChange={elegirEspacio}>
                         <DisparadorSelector id={id} />
@@ -593,7 +706,7 @@ export function AltaRapidaProceso ({ catalogos, etiquetas, conIa }: PropsAltaRap
                         </ContenidoSelector>
                       </Selector>
                     )}
-                  </Campo>
+                  </Campo>}
 
                   <Campo etiqueta="Prioridad">
                     {({ id }) => (
@@ -609,6 +722,30 @@ export function AltaRapidaProceso ({ catalogos, etiquetas, conIa }: PropsAltaRap
                     )}
                   </Campo>
                 </div>
+
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <Campo etiqueta="Estado">
+                    {({ id }) => <Selector value={estado} onValueChange={setEstado}>
+                      <DisparadorSelector id={id} />
+                      <ContenidoSelector>
+                        <Opcion value={NINGUNO}>Estado inicial</Opcion>
+                        {lookups?.task_statuses.map((fila) => <Opcion key={fila.id} value={String(fila.id)}>{fila.name}</Opcion>)}
+                      </ContenidoSelector>
+                    </Selector>}
+                  </Campo>
+                  <Campo etiqueta={GLOSARIO.hito.singular} ayuda={avisoTipos ?? (espacio === NINGUNO ? 'Elige un espacio para ver sus hitos.' : undefined)}>
+                    {({ id }) => <Selector value={hito} onValueChange={setHito} disabled={relacion !== 'project' || hitos.length === 0}>
+                      <DisparadorSelector id={id} />
+                      <ContenidoSelector>
+                        <Opcion value={NINGUNO}>Sin hito</Opcion>
+                        {hitos.map((fila) => <Opcion key={fila.id} value={String(fila.id)}>{fila.name}</Opcion>)}
+                      </ContenidoSelector>
+                    </Selector>}
+                  </Campo>
+                </div>
+                {estado === '5' && <Campo etiqueta="Fecha real de cierre" ayuda="Vacío usa la fecha y hora de creación.">
+                  {(props) => <Entrada {...props} type="datetime-local" value={cierre} onChange={(evento) => setCierre(evento.target.value)} />}
+                </Campo>}
 
                 <Campo
                   etiqueta="Asignados"
@@ -654,12 +791,12 @@ export function AltaRapidaProceso ({ catalogos, etiquetas, conIa }: PropsAltaRap
                         {...props}
                         value={etiquetasEscritas}
                         placeholder="urgente, cliente-clave"
-                        list={LISTA_ETIQUETAS}
+                        list={listaEtiquetas}
                         onChange={(evento) => { setEtiquetasEscritas(evento.target.value) }}
                       />
                       {/* `datalist` es la sugerencia nativa: no valida ni obliga, y reusar la
                           etiqueta que ya existe evita fundar la variante con typo. */}
-                      <datalist id={LISTA_ETIQUETAS}>
+                      <datalist id={listaEtiquetas}>
                         {etiquetas.map((e) => <option key={e.id} value={e.name} />)}
                       </datalist>
                     </>
@@ -690,7 +827,7 @@ export function AltaRapidaProceso ({ catalogos, etiquetas, conIa }: PropsAltaRap
                       )}
                     >
                       {({ id }) => (
-                        <Selector value={tipo} onValueChange={setTipo} disabled={tipos.length === 0}>
+                        <Selector value={tipo} onValueChange={setTipo} disabled={relacion !== 'project' || tipos.length === 0}>
                           <DisparadorSelector id={id} />
                           <ContenidoSelector>
                             <Opcion value={NINGUNO}>Sin tipo</Opcion>
@@ -728,13 +865,17 @@ export function AltaRapidaProceso ({ catalogos, etiquetas, conIa }: PropsAltaRap
                         <Entrada
                           {...props}
                           type="number"
-                          step="0.5"
+                          step="any"
+                          min="0"
                           value={horasEstimadas}
                           onChange={(evento) => { setHorasEstimadas(evento.target.value) }}
                         />
                       )}
                     </Campo>
 
+                    <Campo etiqueta="Tarifa por hora">
+                      {(props) => <Entrada {...props} type="number" min="0" step="0.01" value={tarifa} onChange={(evento) => setTarifa(evento.target.value)} />}
+                    </Campo>
                     <label className="text-texto flex items-center gap-2 text-sm">
                       <input
                         type="checkbox"
@@ -743,10 +884,41 @@ export function AltaRapidaProceso ({ catalogos, etiquetas, conIa }: PropsAltaRap
                       />
                       Facturable
                     </label>
+                    <label className="text-texto flex items-center gap-2 text-sm">
+                      <input type="checkbox" checked={publica} onChange={(evento) => setPublica(evento.target.checked)} />
+                      Pública para el equipo
+                    </label>
+                    <label className="text-texto flex items-center gap-2 text-sm">
+                      <input type="checkbox" checked={visibleCliente} onChange={(evento) => setVisibleCliente(evento.target.checked)} />
+                      Visible para el cliente
+                    </label>
+                    <label className="text-texto flex items-center gap-2 text-sm">
+                      <input type="checkbox" checked={recurrente} onChange={(evento) => setRecurrente(evento.target.checked)} />
+                      Recurrente
+                    </label>
+                    {recurrente && <div className="grid gap-4 sm:grid-cols-3">
+                      <Campo etiqueta="Repetir cada">
+                        {(props) => <Entrada {...props} type="number" min="1" max="365" step="1" value={cada} onChange={(evento) => setCada(evento.target.value)} />}
+                      </Campo>
+                      <Campo etiqueta="Unidad">
+                        {({ id }) => <Selector value={unidad} onValueChange={setUnidad}>
+                          <DisparadorSelector id={id} />
+                          <ContenidoSelector>
+                            <Opcion value="day">Días</Opcion><Opcion value="week">Semanas</Opcion>
+                            <Opcion value="month">Meses</Opcion><Opcion value="year">Años</Opcion>
+                          </ContenidoSelector>
+                        </Selector>}
+                      </Campo>
+                      <Campo etiqueta="Ciclos" ayuda="0 = sin límite.">
+                        {(props) => <Entrada {...props} type="number" min="0" max="365" step="1" value={ciclos} onChange={(evento) => setCiclos(evento.target.value)} />}
+                      </Campo>
+                    </div>}
                   </div>
                 </details>
               </>
-              )}
+          </fieldset>
+          <CamposPersonalizados definiciones={definiciones} valores={personalizados} errores={erroresCampos}
+            onCambiar={(valores) => { setPersonalizados(valores); setErroresCampos({}) }} deshabilitado={enCurso || cargando || errorCarga !== null} />
 
           {error !== null && (
             <p role="alert" className="text-texto-peligro text-sm">{error}</p>
@@ -756,9 +928,24 @@ export function AltaRapidaProceso ({ catalogos, etiquetas, conIa }: PropsAltaRap
             <CerrarDialogo asChild>
               <Boton variante="sutil" type="button">Cancelar</Boton>
             </CerrarDialogo>
-            <Boton type="submit" variante="primario" cargando={enCurso}>Crear</Boton>
+            <Boton type="submit" variante="primario" cargando={enCurso} disabled={enCurso || interpretando || cargando || errorCarga !== null}>
+              {creadaId === null ? 'Crear' : 'Reintentar campos personalizados'}
+            </Boton>
           </div>
         </form>
+  )
+
+  if (integrado) return formulario
+
+  return (
+    <Dialogo open={abierto} onOpenChange={(valor) => {
+      if (enviando.current || interpretando) return
+      setAbierto(valor)
+      if (!valor) { limpiar(); onCerrar?.() }
+    }}>
+      <DisparadorDialogo asChild><Boton variante="primario">Nueva tarea</Boton></DisparadorDialogo>
+      <ContenidoDialogo titulo="Nueva tarea" ancho="grande" descripcion="Completa todos los campos antes de crear la tarea.">
+        {formulario}
       </ContenidoDialogo>
     </Dialogo>
   )

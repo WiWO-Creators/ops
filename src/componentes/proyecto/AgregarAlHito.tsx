@@ -1,17 +1,11 @@
 'use client'
 
 import { Plus } from 'lucide-react'
-import { useEffect, useState, type FormEvent, type ReactElement } from 'react'
+import { useEffect, useState, type ReactElement } from 'react'
 import { Boton } from '@/componentes/formularios/Boton'
 import { Campo } from '@/componentes/formularios/Campo'
 import { Entrada } from '@/componentes/formularios/Entrada'
 import { Segmentado, type OpcionSegmentada } from '@/componentes/formularios/Segmentado'
-import {
-  ContenidoSelector,
-  DisparadorSelector,
-  Opcion,
-  Selector
-} from '@/componentes/formularios/Selector'
 import { Cargando, ErrorEstado } from '@/componentes/estado/Estados'
 import {
   CerrarDialogo,
@@ -23,14 +17,13 @@ import { escribirEnBff } from '@/componentes/datos/mutaciones'
 import { pedirSobre } from '@/datos/cliente'
 import { GLOSARIO } from '@/dominio/glosario'
 import {
-  cuerpoDeAltaEnHito,
   filtrarCandidatas,
   movimientoAlHito,
   rutaTareasSinHito,
-  validarAltaEnHito,
   type TareaCandidata
 } from './agregar-al-hito'
 import { cuerpoMoverHito } from './hitos'
+import { AltaRapidaProceso } from './AltaRapidaProceso'
 import type { OpcionFiltro } from '@/definiciones/tipos'
 
 /**
@@ -51,9 +44,6 @@ const CAMINOS: readonly OpcionSegmentada[] = [
   { valor: 'existente', etiqueta: 'Sumar existente' }
 ]
 
-/** Prioridad "Normal" de Perfex. Es el valor por defecto del alta en toda la aplicacion. */
-const PRIORIDAD_POR_DEFECTO = '2'
-
 /** Lo que hace falta para pintar la lista de tareas sin hito. El error es un texto listo. */
 type CargaSueltas =
   | { fase: 'cargando' }
@@ -73,13 +63,10 @@ interface PropsAgregarAlHito {
   onListo: () => void | Promise<void>
 }
 
-export function AgregarAlHito ({ proyectoId, hito, prioridades, onListo }: PropsAgregarAlHito): ReactElement {
+export function AgregarAlHito ({ proyectoId, hito, onListo }: PropsAgregarAlHito): ReactElement {
   const [abierto, setAbierto] = useState(false)
+  const [creando, setCreando] = useState(false)
   const [camino, setCamino] = useState<'nueva' | 'existente'>('nueva')
-
-  const [nombre, setNombre] = useState('')
-  const [prioridad, setPrioridad] = useState(PRIORIDAD_POR_DEFECTO)
-  const [vencimiento, setVencimiento] = useState('')
 
   const [busqueda, setBusqueda] = useState('')
   const [sueltas, setSueltas] = useState<CargaSueltas>({ fase: 'cargando' })
@@ -123,9 +110,6 @@ export function AgregarAlHito ({ proyectoId, hito, prioridades, onListo }: Props
    * puede hacerlo por su cuenta: un `setState` sincronico ahi encadena renders.
    */
   function limpiar (): void {
-    setNombre('')
-    setPrioridad(PRIORIDAD_POR_DEFECTO)
-    setVencimiento('')
     setBusqueda('')
     setError(null)
     setSueltas({ fase: 'cargando' })
@@ -136,33 +120,6 @@ export function AgregarAlHito ({ proyectoId, hito, prioridades, onListo }: Props
     limpiar()
     setAbierto(false)
     await onListo()
-  }
-
-  /** Crea la tarea ya colgada del hito. Un fallo del contrato se muestra, no rompe el dialogo. */
-  async function crear (evento: FormEvent<HTMLFormElement>): Promise<void> {
-    evento.preventDefault()
-
-    const alta = { nombre, prioridad, vencimiento }
-    const invalido = validarAltaEnHito(alta)
-
-    if (invalido !== null) {
-      setError(invalido)
-      return
-    }
-
-    setEnCurso(true)
-    setError(null)
-
-    const respuesta = await escribirEnBff('tasks', 'POST', cuerpoDeAltaEnHito(alta, proyectoId, hito.id))
-
-    setEnCurso(false)
-
-    if (!respuesta.ok) {
-      setError(respuesta.mensaje)
-      return
-    }
-
-    await terminar()
   }
 
   /** Mueve una tarea sin hito a esta columna, por el mismo endpoint que usa el arrastre. */
@@ -192,6 +149,7 @@ export function AgregarAlHito ({ proyectoId, hito, prioridades, onListo }: Props
     <Dialogo
       open={abierto}
       onOpenChange={(siguiente) => {
+        if (creando) return
         setAbierto(siguiente)
         if (!siguiente) limpiar()
       }}
@@ -212,66 +170,32 @@ export function AgregarAlHito ({ proyectoId, hito, prioridades, onListo }: Props
         descripcion={`Crea una ${GLOSARIO.proceso.singular.toLowerCase()} nueva en este ${GLOSARIO.hito.singular.toLowerCase()}, o suma una que hoy no tiene ninguno.`}
       >
         <div className="flex flex-col gap-4">
-          <Segmentado
-            etiqueta="Cómo agregar"
-            opciones={CAMINOS}
-            activo={camino}
-            onElegir={(valor) => {
-              const siguiente = valor === 'existente' ? 'existente' : 'nueva'
+          <fieldset disabled={creando}>
+            <Segmentado
+              etiqueta="Cómo agregar"
+              opciones={CAMINOS}
+              activo={camino}
+              onElegir={(valor) => {
+                if (creando) return
+                const siguiente = valor === 'existente' ? 'existente' : 'nueva'
 
-              setCamino(siguiente)
-              setError(null)
-              if (siguiente === 'existente') setSueltas({ fase: 'cargando' })
-            }}
-          />
+                setCamino(siguiente)
+                setError(null)
+                if (siguiente === 'existente') setSueltas({ fase: 'cargando' })
+              }}
+            />
+          </fieldset>
 
           {camino === 'nueva'
             ? (
-              <form className="flex flex-col gap-4" onSubmit={(evento) => { void crear(evento) }}>
-                <Campo etiqueta="Nombre" requerido>
-                  {(props) => (
-                    <Entrada
-                      value={nombre}
-                      onChange={(evento) => setNombre(evento.target.value)}
-                      placeholder="Revisar el contrato"
-                      {...props}
-                    />
-                  )}
-                </Campo>
-
-                <Campo etiqueta="Prioridad">
-                  {(props) => (
-                    <Selector value={prioridad} onValueChange={setPrioridad}>
-                      <DisparadorSelector marcador="Elige una" id={props.id} />
-                      <ContenidoSelector>
-                        {prioridades.map((opcion) => (
-                          <Opcion key={opcion.valor} value={opcion.valor}>{opcion.etiqueta}</Opcion>
-                        ))}
-                      </ContenidoSelector>
-                    </Selector>
-                  )}
-                </Campo>
-
-                <Campo etiqueta="Fecha de vencimiento">
-                  {(props) => (
-                    <Entrada
-                      type="date"
-                      value={vencimiento}
-                      onChange={(evento) => setVencimiento(evento.target.value)}
-                      {...props}
-                    />
-                  )}
-                </Campo>
-
-                {error !== null && <p role="alert" className="text-texto-peligro text-xs">{error}</p>}
-
-                <div className="flex justify-end gap-2">
-                  <CerrarDialogo asChild>
-                    <Boton variante="sutil" type="button">Cancelar</Boton>
-                  </CerrarDialogo>
-                  <Boton variante="primario" type="submit" cargando={enCurso}>Crear</Boton>
-                </div>
-              </form>
+              <AltaRapidaProceso
+                proyectoId={proyectoId}
+                hitoInicial={hito.id}
+                integrado
+                onOcupado={setCreando}
+                onCreada={() => { void terminar() }}
+                conIa={false}
+              />
               )
             : (
               <div className="flex flex-col gap-3">
