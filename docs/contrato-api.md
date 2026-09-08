@@ -504,6 +504,81 @@ Include: `custom_fields`, `members`.
 requieren `projects.edit`. Un `image_url: null` significa que el panel usa el logo del cliente; ese
 archivo no se copia al proyecto.
 
+### `licitaciones` → **Licitaciones** en la interfaz
+
+`GET /licitaciones` · `GET /licitaciones/{id}` · `POST /licitaciones` · `PATCH /licitaciones/{id}` ·
+`POST /licitaciones/{id}/actions/ganar` · `POST /licitaciones/{id}/actions/perder`
+
+Una Licitación **es un Espacio** con una empresa candidata y su contacto colgados: **`id` es el id del
+Espacio**, no una clave aparte. Los subrecursos de trabajo no se duplican — se piden a
+`/projects/{id}/tasks`, `/milestones`, `/members` y `/files` con ese mismo id.
+
+```json
+{ "id": 93, "estado": "abierta", "company": "Constructora X",
+  "cliente": { "company": "Constructora X", "vat": null, "phonenumber": null, "website": null,
+               "address": null, "city": null, "state": null, "zip": null, "country_id": null },
+  "contacto": { "firstname": "Ana", "lastname": "Díaz", "email": "a@x.cl",
+                "phonenumber": null, "title": null },
+  "client_id": null, "resultado_en": null, "creada_en": "2026-09-08T12:00:00Z",
+  "espacio": { "id": 93, "name": "Licitación puente Maule", "status": 2,
+               "start_date": "2026-09-15", "deadline": null } }
+```
+
+`estado` es `abierta`, `ganada` o `perdida`. **No sale de `/lookups`**: no es un catálogo
+administrable, son las tres ramas del flujo — mismo caso que `billing_type` de un Espacio.
+
+`company` es una copia desnormalizada de `cliente.company`: existe para que `q` y `sort=company`
+signifiquen algo sin bajar por el objeto. `cliente` **no** es el cliente: es la empresa a la que se
+está licitando, que todavía no existe en `tblclients`. `client_id` es el Cliente de verdad y solo se
+llena al ganar. `resultado_en` es cuándo se ganó o se perdió; `null` mientras siga abierta.
+
+**`espacio` viene parcial en el listado** —`id`, `name`, `status`, `start_date`, `deadline`— y
+**completo en `GET /licitaciones/{id}`**, con la misma forma que `GET /projects/{id}`. El listado no
+trae `counts`: sería una consulta por fila para una columna que nadie pidió.
+
+Mientras es licitación, `GET /projects/{id}` y todos sus subrecursos responden `200` normal; lo único
+que la esconde es el **listado** `GET /projects`. Y `client` de ese Espacio es `null`
+(`clientid = 0`), no un objeto vacío.
+
+Filtros: `estado`. Orden: `company`, `start_date` (que es `espacio.start_date`), `creada_en`; por
+defecto `-creada_en`. `q` busca en `company`. **`include` no vale**: la whitelist está vacía a
+propósito y cualquier valor devuelve `422`. **Sin `filter[estado]` se devuelven las tres**, no solo
+las abiertas.
+
+**Escribibles.** `POST /licitaciones` recibe los tres objetos y crea las tres cosas de una vez:
+
+- `cliente`: `company` (obligatoria), `vat`, `phonenumber`, `website`, `address`, `city`, `state`,
+  `zip`, `country_id`.
+- `contacto`: `firstname`, `lastname`, `email` (los tres obligatorios), `phonenumber`, `title`.
+- `espacio`: `name` y `start_date` (obligatorios), `deadline`, `billing_type`, `status`,
+  `description`, `members`, `project_cost`, `project_rate_per_hour`, `estimated_hours`.
+
+Devuelve `201` con el item.
+
+**`PATCH /licitaciones/{id}` acepta SOLO `cliente` y `contacto`**, con todas sus claves opcionales.
+Los campos del Espacio se editan con `PATCH /projects/{id}`, que ya existe; mandarlos acá es `422`.
+**No se escribe una licitación ya ganada o perdida: `409`.**
+
+**No son escribibles** `id`, `estado`, `company` (es copia de `cliente.company`), `client_id`,
+`resultado_en` ni `creada_en`. Los tres del medio los mueven las acciones, que es lo único que puede
+mantenerlos coherentes con lo que se creó en la base.
+
+**`POST /licitaciones/{id}/actions/ganar`** → `200` con el item. Crea el Cliente real a partir de
+`cliente`, su contacto principal a partir de `contacto`, cuelga el Espacio de ese cliente, deja
+`estado: "ganada"`, `client_id` lleno y `resultado_en` con el instante. **Irreversible.**
+
+**`POST /licitaciones/{id}/actions/perder`** → `200` con el item. Archiva el Espacio con sus tareas,
+sus hitos y sus archivos, y deja `estado: "perdida"` y `resultado_en`. La licitación sigue siendo
+consultable y sus subrecursos siguen respondiendo.
+
+Las dos son idempotentes en el sentido estricto: sobre una licitación ya resuelta responden `409`, no
+vuelven a ejecutar nada.
+
+Permisos: no hay feature de Perfex propia. Se aplica `projects` — `view` para leer, `create` para el
+alta, `edit` para el `PATCH` y para las dos acciones.
+
+La sección aparece en `ops-v2` cuando `secciones_habilitadas` de `GET /me` incluye `"licitaciones"`.
+
 ### `tasks` → **Procesos** en la interfaz
 
 `GET /tasks` · `GET /tasks/{id}` · `GET /tasks/{id}/comments` · `GET /tasks/{id}/checklist` ·
