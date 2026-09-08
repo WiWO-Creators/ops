@@ -656,7 +656,7 @@ export function AltaRapidaProceso ({ catalogos, etiquetas, conIa }: PropsAltaRap
                     sigue estando en el formulario y en el orden de tabulacion. El `open` si es
                     controlado porque la IA tiene que poder abrirlo al escribir la descripcion. */}
                 <details
-                  className="border-borde rounded-control border px-3 py-2.5"
+                  className="border-borde rounded-tarjeta border px-3 py-2.5"
                   open={masDetalles}
                   onToggle={(evento) => { setMasDetalles(evento.currentTarget.open) }}
                 >
