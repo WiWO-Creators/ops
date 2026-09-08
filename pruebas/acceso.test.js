@@ -9,7 +9,8 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
   AJUSTES_GOOGLE, ajusteBool, ajusteTexto, dominiosATexto, dominiosDesdeTexto,
-  esDominioPlausible, motivoParaRechazarDominio, tieneAjustesDeGoogle
+  esDominioPlausible, motivoParaRechazarDominio, tieneAjustesDeGoogle,
+  tieneAjustesDeAutoalta, autoaltaSinDominios
 } from '../src/dominio/acceso.ts'
 
 test('acepta dominios plausibles', () => {
@@ -95,4 +96,27 @@ test('un ajuste con otro tipo no se lee como si fuera el esperado', () => {
 
   assert.equal(ajusteTexto(ajustes, AJUSTES_GOOGLE.dominios), '')
   assert.equal(tieneAjustesDeGoogle(ajustes), false)
+})
+
+
+test('el alta automática parte apagada y sin copiar dominios del login', () => {
+  const ajustes = ajustesCompletos()
+  assert.equal(ajusteBool(ajustes, AJUSTES_GOOGLE.autoaltaHabilitada), false)
+  assert.deepEqual(dominiosDesdeTexto(ajusteTexto(ajustes, AJUSTES_GOOGLE.autoaltaDominios)), [])
+  assert.equal(tieneAjustesDeAutoalta(ajustes), false)
+  ajustes.editable[AJUSTES_GOOGLE.autoaltaHabilitada] = { group: 'acceso', type: 'bool', value: false }
+  ajustes.editable[AJUSTES_GOOGLE.autoaltaDominios] = { group: 'acceso', type: 'texto', value: null }
+  assert.equal(tieneAjustesDeAutoalta(ajustes), true)
+  ajustes.editable[AJUSTES_GOOGLE.autoaltaDominios].type = 'enum'
+  assert.equal(tieneAjustesDeAutoalta(ajustes), false)
+})
+
+test('el alta automática exige su propia lista al encenderse y reutiliza validación de dominios', () => {
+  assert.equal(autoaltaSinDominios(true, []), true)
+  assert.equal(autoaltaSinDominios(false, []), false)
+  assert.equal(autoaltaSinDominios(true, dominiosDesdeTexto(' WIWO.me ')), false)
+  assert.deepEqual(dominiosDesdeTexto(' WIWO.me '), ['wiwo.me'])
+  assert.notEqual(motivoParaRechazarDominio('*.wiwo.me', []), null)
+  assert.notEqual(motivoParaRechazarDominio('alguien@wiwo.me', []), null)
+  assert.notEqual(motivoParaRechazarDominio('WIWO.me', ['wiwo.me']), null)
 })
