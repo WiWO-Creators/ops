@@ -4,7 +4,7 @@ import { formatearFecha } from '@/lib/fechas'
 import { cn } from '@/lib/clases'
 import { pedirPortal } from '@/datos/servidor'
 import type { AnuncioPortal } from '@/datos/portal'
-import { ContenidoDeDocumento } from '../ContenidoDeDocumento'
+import { ContenidoHtml } from '@/componentes/presentadores/ContenidoHtml'
 
 export const metadata: Metadata = { title: 'Anuncios · Portal de clientes' }
 
@@ -46,7 +46,7 @@ export default async function AnunciosPagina () {
             {/* El mensaje se redacta en el panel y puede traer HTML: se muestra aislado, igual que
                 el contenido de contratos y propuestas. */}
             <div className="mt-3">
-              <ContenidoDeDocumento html={anuncio.message} alto="h-48" />
+              <ContenidoHtml html={anuncio.message} alto="h-48" />
             </div>
           </li>
         ))}

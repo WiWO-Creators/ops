@@ -946,6 +946,49 @@ export interface NotaEspacio {
   staff_id: number
 }
 
+/**
+ * Meeting Paper: el acta de una reunion del Proyecto.
+ *
+ * A diferencia de `NotaEspacio`, que es privada de quien la escribio, **la ven todos los miembros
+ * del Proyecto**, y por eso las acciones dependen de permisos en vez de ofrecerse siempre.
+ *
+ * `content` es HTML generado por un modelo y saneado por la API. Nunca se inyecta en el DOM: se
+ * pinta dentro de un iframe aislado (`ContenidoHtml`) o se monta en el editor, que lo parsea contra
+ * su propio esquema. La vista de listado no lo trae: la API lo omite a proposito porque son ~20.000
+ * caracteres por fila.
+ */
+export interface Acta {
+  id: number
+  project_id: number
+  title: string
+  /** Solo en el detalle. HTML saneado por la API; ver el docblock de arriba antes de pintarlo. */
+  content?: string
+  client: string
+  meeting_date: string | null
+  place: string
+  modality: string
+  attendees: string[]
+  /** Codigo de la marca del holding: `mgc`, `wiwo`, `palta` o vacio. */
+  brand: string
+  /** URL de la firma que corresponde a `brand`. La resuelve la API; no viaja dentro del HTML. */
+  brand_sign_url: string | null
+  /** `ia` si la dicto un modelo, `manual` si la escribio una persona. */
+  source: string
+  staff_id: number
+  author: { id: number, full_name: string, profile_image_url: string | null } | null
+  date_added: string | null
+  date_updated: string | null
+  updated_by: number | null
+}
+
+/** Lo que ya se sabe del Proyecto al abrir el formulario (`GET /ia/proyectos/{id}/acta/prefill`). */
+export interface PrefillActa {
+  client: string
+  attendees: string[]
+  meeting_date: string
+  title: string
+}
+
 /** Discusion del proyecto. */
 export interface Discusion {
   id: number

@@ -1,10 +1,12 @@
 /**
- * Cuerpo HTML de un contrato o una propuesta, redactado en el editor del panel.
+ * Cuerpo HTML que no se controla: un contrato o una propuesta del panel, o un Meeting Paper que
+ * dicto un modelo.
  *
  * Va dentro de un iframe con `sandbox` vacio y no con `dangerouslySetInnerHTML`. La diferencia
- * importa: ese HTML lo escribe alguien del equipo en el CRM, pero puede haber llegado ahi pegado
- * desde cualquier lado, y en el portal se lo muestra a un tercero. Un `<script>` inyectado ahi
- * correria con la sesion del cliente que lo esta leyendo.
+ * importa: ese HTML lo escribe alguien del equipo en el CRM —pero puede haber llegado ahi pegado
+ * desde cualquier lado— o lo escribe un modelo a partir de lo que se dijo en una reunion. En los
+ * dos casos se lo muestra despues a otra persona, y un `<script>` inyectado ahi correria con la
+ * sesion de quien lo esta leyendo.
  *
  * `sandbox=""` sin ningun permiso apaga el JavaScript y le da al documento un origen opaco, asi que
  * no puede leer cookies, ni navegar la pagina que lo contiene, ni enviar formularios. Es la unica
@@ -15,7 +17,28 @@
  * no una parte de la interfaz: el iframe no hereda los tokens del tema y forzarlos adentro seria
  * pelear con el CSS que el propio contrato traiga.
  */
-export function ContenidoDeDocumento ({ html, alto = 'h-[32rem]' }: { html: string, alto?: string }) {
+export function ContenidoHtml ({
+  html,
+  alto = 'h-[32rem]',
+  titulo = 'Contenido del documento',
+  firma = null,
+  ref
+}: {
+  html: string
+  alto?: string
+  titulo?: string
+  /**
+   * Firma de marca que se agrega al final del documento.
+   *
+   * Va acá y no dentro del HTML guardado a proposito. MeetingMatico congela la URL de la firma
+   * dentro del cuerpo de cada minuta, asi que el dia que esa ruta cambie todas las actas viejas
+   * muestran una imagen rota. Guardando solo el codigo de marca y pintando la firma al mostrar, ese
+   * dia se arregla en un lugar.
+   */
+  firma?: string | null
+  /** Para poder llamar a `print()` del propio documento: sale con su formato, no como texto plano. */
+  ref?: React.Ref<HTMLIFrameElement>
+}) {
   const documento = `<!doctype html>
 <html lang="es"><head><meta charset="utf-8">
 <style>
@@ -29,11 +52,12 @@ export function ContenidoDeDocumento ({ html, alto = 'h-[32rem]' }: { html: stri
   table { border-collapse: collapse }
   td, th { border: 1px solid #ddd; padding: 4px 8px }
 </style></head>
-<body>${html}</body></html>`
+<body>${html}${firma === null || firma === '' ? '' : `<p><img src="${firma}" alt=""></p>`}</body></html>`
 
   return (
     <iframe
-      title="Contenido del documento"
+      ref={ref}
+      title={titulo}
       sandbox=""
       srcDoc={documento}
       // Alto fijo con desplazamiento propio: sin JavaScript adentro no hay forma de que el iframe

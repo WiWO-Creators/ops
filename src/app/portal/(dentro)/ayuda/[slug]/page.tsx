@@ -3,7 +3,7 @@ import { cache } from 'react'
 import { ErrorApi } from '@/datos/errores'
 import type { ArticuloAyudaPortal } from '@/datos/portal'
 import { cargarDetalle, EstadoDeError, Volver } from '../../detalle'
-import { ContenidoDeDocumento } from '../../ContenidoDeDocumento'
+import { ContenidoHtml } from '@/componentes/presentadores/ContenidoHtml'
 
 const cargarArticulo = cache(
   async (slug: string) => await cargarDetalle<ArticuloAyudaPortal>(`/portal/kb/${encodeURIComponent(slug)}`)
@@ -35,7 +35,7 @@ export default async function ArticuloPagina (props: PageProps<'/portal/ayuda/[s
         <h1 className="text-texto mt-1 text-xl font-semibold">{articulo.subject}</h1>
       </header>
 
-      <ContenidoDeDocumento html={articulo.description} />
+      <ContenidoHtml html={articulo.description} />
     </div>
   )
 }

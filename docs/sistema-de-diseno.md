@@ -241,7 +241,12 @@ reimplementan. Es exactamente el trabajo que no hay que hacer.
 Cajon, MenuContextual, Boton, Insignia, Avatar, Etiqueta, Fecha, Cargando, Vacio, Error, Avisos,
 Campo, Entrada, AreaTexto, Selector, SelectorRelacion.
 
-Fuera de Fase 1: gráficos, calendario, editor rico (va `AreaTexto`), línea de tiempo.
+Fuera de Fase 1: gráficos, calendario, línea de tiempo.
+
+El editor rico estaba en esa lista y ya no: el Meeting Paper lo necesita, porque un acta se escribe
+con títulos, listas y negritas, y con `AreaTexto` habría que editar HTML a mano. Vive **solo** ahí
+(`componentes/proyecto/EditorDeActa.tsx`, TipTap cargado con `next/dynamic`), y el resto del panel
+sigue usando `AreaTexto`: la excepción es para documentos, no para cualquier campo largo.
 
 ## El taller
 
