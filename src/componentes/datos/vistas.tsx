@@ -2,7 +2,7 @@
 
 import { ModalTarea } from '@/componentes/proyecto/ModalTarea'
 import { PARAMETRO_TAREA } from '@/componentes/datos/tabla'
-import { PROCESOS_NAVEGABLES } from './procesos-navegables'
+import { PROCESOS_NAVEGABLES } from './celdas-procesos'
 import { TablaRecurso } from './TablaRecurso'
 import { TableroFiltrable } from './TableroFiltrable'
 import { CLIENTES } from '@/definiciones/clientes'

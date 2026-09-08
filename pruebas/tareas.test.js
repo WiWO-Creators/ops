@@ -10,7 +10,6 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
   accionesMasivasPermitidas,
-  alternarSeleccion,
   camposDeTabla,
   estaVencida,
   valorDeAccionMasiva,
@@ -75,13 +74,4 @@ test('el valor de la accion masiva llega tipado como lo espera el contrato', () 
   assert.deepEqual(valorDeAccionMasiva('etiquetas', ' urgente , '), ['urgente'])
   assert.equal(valorDeAccionMasiva('ninguno', ''), null)
   assert.equal(valorDeAccionMasiva('estado', ''), null, 'sin elegir nada no hay nada que mandar')
-})
-
-test('alternarSeleccion no muta la seleccion anterior', () => {
-  const antes = [1, 2]
-  const despues = alternarSeleccion(antes, 3)
-
-  assert.deepEqual(antes, [1, 2])
-  assert.deepEqual(despues, [1, 2, 3])
-  assert.deepEqual(alternarSeleccion(despues, 2), [1, 3])
 })

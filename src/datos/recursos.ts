@@ -67,11 +67,18 @@ export interface Proceso {
   assignees: StaffReferencia[]
   followers: StaffReferencia[]
   tags: Etiqueta[]
+  /**
+   * Tipo de Proceso (`tbltask_types`). Opcional porque el backend lo esta agregando: mientras no
+   * llegue, la columna muestra un guion en vez de romper la tabla.
+   */
+  task_type?: TipoTarea | null
   counts: {
     comments: number
     checklist: number
     checklist_done: number
     attachments: number
+    /** Contador propio de Wiwo (`tblwiwo_task_iterations`). Ausente sin `wiwo_core`. */
+    iterations?: number
   }
   /** Cronometro abierto de quien mira, o `null`. Es global: una persona tiene a lo sumo uno. */
   timer_activo: { id: number, staff_id: number, start_time: string } | null
@@ -656,15 +663,14 @@ export interface DefinicionCampoPersonalizado {
 }
 
 /**
- * Proceso con los campos que agrega la pestaña de Tareas de un proyecto.
+ * Alias historico de `Proceso`.
  *
- * Son opcionales porque el backend los esta agregando: mientras no lleguen, la columna muestra un
- * guion en vez de romper la tabla.
+ * `task_type` e `iterations` vivian aca porque solo los pintaba la pestaña de Tareas de un Espacio.
+ * Desde que las dos vistas de Procesos comparten una sola lista de columnas, los dos campos son del
+ * recurso y no de una pantalla, asi que se mudaron a `Proceso`. El alias queda para no renombrar
+ * veintipico de sitios que no cambian de significado.
  */
-export interface ProcesoAmpliado extends Proceso {
-  task_type?: TipoTarea | null
-  counts: Proceso['counts'] & { iterations?: number }
-}
+export type ProcesoAmpliado = Proceso
 
 /**
  * Estado del enlace publico de una Tarea (`GET /tasks/{id}/share`).
