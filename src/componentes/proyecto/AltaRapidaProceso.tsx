@@ -168,8 +168,6 @@ export function AltaRapidaProceso ({
   const [tipo, setTipo] = useState(NINGUNO)
   const [tipos, setTipos] = useState<TipoDeProcesoDelEspacio[]>([])
   const [avisoTipos, setAvisoTipos] = useState<string | null>(null)
-  // Los detalles se muestran al abrir; cada persona puede plegarlos mientras completa lo básico.
-  const [masDetalles, setMasDetalles] = useState(true)
 
   // Lo del texto libre que rellena los campos.
   const [textoLibre, setTextoLibre] = useState('')
@@ -317,7 +315,6 @@ export function AltaRapidaProceso ({
     setTipo(NINGUNO)
     setTipos([])
     setAvisoTipos(null)
-    setMasDetalles(true)
     setModo('campos')
     setHito(hitoInicial === undefined ? NINGUNO : String(hitoInicial))
     setHitos([])
@@ -361,12 +358,7 @@ export function AltaRapidaProceso ({
     if (resultado.start_date !== null) setInicio(resultado.start_date)
     if (resultado.due_date !== null) setVencimiento(resultado.due_date)
     if (resultado.tags.length > 0) setEtiquetasEscritas(resultado.tags.join(', '))
-    // La descripcion vive en "Mas detalles": si queda plegada, lo que el modelo escribio no se
-    // revisa, y revisar antes de crear es toda la gracia del boton.
-    if (resultado.description !== null) {
-      setDescripcion(resultado.description)
-      setMasDetalles(true)
-    }
+    if (resultado.description !== null) setDescripcion(resultado.description)
   }
 
   /**
@@ -803,118 +795,103 @@ export function AltaRapidaProceso ({
                   )}
                 </Campo>
 
-                {/* `details` nativo: pliega sin estado propio ni dependencia, y lo que esconde
-                    sigue estando en el formulario y en el orden de tabulacion. El `open` si es
-                    controlado porque la IA tiene que poder abrirlo al escribir la descripcion. */}
-                <details
-                  className="border-borde rounded-tarjeta border px-3 py-2.5"
-                  open={masDetalles}
-                  onToggle={(evento) => { setMasDetalles(evento.currentTarget.open) }}
+                <Campo
+                  etiqueta="Tipo"
+                  ayuda={avisoTipos ?? (
+                    espacio === NINGUNO
+                      ? `Cada ${GLOSARIO.espacio.singular.toLowerCase()} define sus tipos: elige uno primero.`
+                      : tipos.length === 0
+                        ? `Este ${GLOSARIO.espacio.singular.toLowerCase()} no ofrece tipos.`
+                        : undefined
+                  )}
                 >
-                  <summary className="text-texto-tenue hover:text-texto cursor-pointer list-none text-sm transition-colors [&::-webkit-details-marker]:hidden">
-                    Más detalles
-                  </summary>
+                  {({ id }) => (
+                    <Selector value={tipo} onValueChange={setTipo} disabled={relacion !== 'project' || tipos.length === 0}>
+                      <DisparadorSelector id={id} />
+                      <ContenidoSelector>
+                        <Opcion value={NINGUNO}>Sin tipo</Opcion>
+                        {tipos.map((fila) => (
+                          <Opcion key={fila.id} value={String(fila.id)}>{fila.name}</Opcion>
+                        ))}
+                      </ContenidoSelector>
+                    </Selector>
+                  )}
+                </Campo>
 
-                  <div className="mt-4 flex flex-col gap-4">
-                    <Campo
-                      etiqueta="Tipo"
-                      ayuda={avisoTipos ?? (
-                        espacio === NINGUNO
-                          ? `Cada ${GLOSARIO.espacio.singular.toLowerCase()} define sus tipos: elige uno primero.`
-                          : tipos.length === 0
-                            ? `Este ${GLOSARIO.espacio.singular.toLowerCase()} no ofrece tipos.`
-                            : undefined
-                      )}
-                    >
-                      {({ id }) => (
-                        <Selector value={tipo} onValueChange={setTipo} disabled={relacion !== 'project' || tipos.length === 0}>
-                          <DisparadorSelector id={id} />
-                          <ContenidoSelector>
-                            <Opcion value={NINGUNO}>Sin tipo</Opcion>
-                            {tipos.map((fila) => (
-                              <Opcion key={fila.id} value={String(fila.id)}>{fila.name}</Opcion>
-                            ))}
-                          </ContenidoSelector>
-                        </Selector>
-                      )}
-                    </Campo>
+                <Campo etiqueta="Seguidores" ayuda="Reciben las novedades sin ser responsables.">
+                  {({ id }) => (
+                    <SelectorPersonas
+                      id={id}
+                      personas={personas}
+                      elegidas={seguidores}
+                      onCambiar={setSeguidores}
+                    />
+                  )}
+                </Campo>
 
-                    <Campo etiqueta="Seguidores" ayuda="Reciben las novedades sin ser responsables.">
-                      {({ id }) => (
-                        <SelectorPersonas
-                          id={id}
-                          personas={personas}
-                          elegidas={seguidores}
-                          onCambiar={setSeguidores}
-                        />
-                      )}
-                    </Campo>
+                <Campo etiqueta="Descripción">
+                  {(props) => (
+                    <AreaTexto
+                      {...props}
+                      value={descripcion}
+                      onChange={(evento) => { setDescripcion(evento.target.value) }}
+                    />
+                  )}
+                </Campo>
 
-                    <Campo etiqueta="Descripción">
-                      {(props) => (
-                        <AreaTexto
-                          {...props}
-                          value={descripcion}
-                          onChange={(evento) => { setDescripcion(evento.target.value) }}
-                        />
-                      )}
-                    </Campo>
+                <Campo etiqueta="Horas estimadas" ayuda="Acepta decimales. Déjalo vacío si todavía no se estimó.">
+                  {(props) => (
+                    <Entrada
+                      {...props}
+                      type="number"
+                      step="any"
+                      min="0"
+                      value={horasEstimadas}
+                      onChange={(evento) => { setHorasEstimadas(evento.target.value) }}
+                    />
+                  )}
+                </Campo>
 
-                    <Campo etiqueta="Horas estimadas" ayuda="Acepta decimales. Déjalo vacío si todavía no se estimó.">
-                      {(props) => (
-                        <Entrada
-                          {...props}
-                          type="number"
-                          step="any"
-                          min="0"
-                          value={horasEstimadas}
-                          onChange={(evento) => { setHorasEstimadas(evento.target.value) }}
-                        />
-                      )}
-                    </Campo>
-
-                    <Campo etiqueta="Tarifa por hora">
-                      {(props) => <Entrada {...props} type="number" min="0" step="0.01" value={tarifa} onChange={(evento) => setTarifa(evento.target.value)} />}
-                    </Campo>
-                    <label className="text-texto flex items-center gap-2 text-sm">
-                      <input
-                        type="checkbox"
-                        checked={facturable}
-                        onChange={(evento) => { setFacturable(evento.target.checked) }}
-                      />
-                      Facturable
-                    </label>
-                    <label className="text-texto flex items-center gap-2 text-sm">
-                      <input type="checkbox" checked={publica} onChange={(evento) => setPublica(evento.target.checked)} />
-                      Pública para el equipo
-                    </label>
-                    <label className="text-texto flex items-center gap-2 text-sm">
-                      <input type="checkbox" checked={visibleCliente} onChange={(evento) => setVisibleCliente(evento.target.checked)} />
-                      Visible para el cliente
-                    </label>
-                    <label className="text-texto flex items-center gap-2 text-sm">
-                      <input type="checkbox" checked={recurrente} onChange={(evento) => setRecurrente(evento.target.checked)} />
-                      Recurrente
-                    </label>
-                    {recurrente && <div className="grid gap-4 sm:grid-cols-3">
-                      <Campo etiqueta="Repetir cada">
-                        {(props) => <Entrada {...props} type="number" min="1" max="365" step="1" value={cada} onChange={(evento) => setCada(evento.target.value)} />}
-                      </Campo>
-                      <Campo etiqueta="Unidad">
-                        {({ id }) => <Selector value={unidad} onValueChange={setUnidad}>
-                          <DisparadorSelector id={id} />
-                          <ContenidoSelector>
-                            <Opcion value="day">Días</Opcion><Opcion value="week">Semanas</Opcion>
-                            <Opcion value="month">Meses</Opcion><Opcion value="year">Años</Opcion>
-                          </ContenidoSelector>
-                        </Selector>}
-                      </Campo>
-                      <Campo etiqueta="Ciclos" ayuda="0 = sin límite.">
-                        {(props) => <Entrada {...props} type="number" min="0" max="365" step="1" value={ciclos} onChange={(evento) => setCiclos(evento.target.value)} />}
-                      </Campo>
-                    </div>}
-                  </div>
-                </details>
+                <Campo etiqueta="Tarifa por hora">
+                  {(props) => <Entrada {...props} type="number" min="0" step="0.01" value={tarifa} onChange={(evento) => setTarifa(evento.target.value)} />}
+                </Campo>
+                <label className="text-texto flex items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={facturable}
+                    onChange={(evento) => { setFacturable(evento.target.checked) }}
+                  />
+                  Facturable
+                </label>
+                <label className="text-texto flex items-center gap-2 text-sm">
+                  <input type="checkbox" checked={publica} onChange={(evento) => setPublica(evento.target.checked)} />
+                  Pública para el equipo
+                </label>
+                <label className="text-texto flex items-center gap-2 text-sm">
+                  <input type="checkbox" checked={visibleCliente} onChange={(evento) => setVisibleCliente(evento.target.checked)} />
+                  Visible para el cliente
+                </label>
+                <label className="text-texto flex items-center gap-2 text-sm">
+                  <input type="checkbox" checked={recurrente} onChange={(evento) => setRecurrente(evento.target.checked)} />
+                  Recurrente
+                </label>
+                {recurrente && <div className="grid gap-4 sm:grid-cols-3">
+                  <Campo etiqueta="Repetir cada">
+                    {(props) => <Entrada {...props} type="number" min="1" max="365" step="1" value={cada} onChange={(evento) => setCada(evento.target.value)} />}
+                  </Campo>
+                  <Campo etiqueta="Unidad">
+                    {({ id }) => <Selector value={unidad} onValueChange={setUnidad}>
+                      <DisparadorSelector id={id} />
+                      <ContenidoSelector>
+                        <Opcion value="day">Días</Opcion><Opcion value="week">Semanas</Opcion>
+                        <Opcion value="month">Meses</Opcion><Opcion value="year">Años</Opcion>
+                      </ContenidoSelector>
+                    </Selector>}
+                  </Campo>
+                  <Campo etiqueta="Ciclos" ayuda="0 = sin límite.">
+                    {(props) => <Entrada {...props} type="number" min="0" max="365" step="1" value={ciclos} onChange={(evento) => setCiclos(evento.target.value)} />}
+                  </Campo>
+                </div>}
               </>
           </fieldset>
           <CamposPersonalizados definiciones={definiciones} valores={personalizados} errores={erroresCampos}
