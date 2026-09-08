@@ -92,6 +92,24 @@ export interface Proceso {
 export type EstadoSla = 'en_plazo' | 'en_riesgo' | 'incumplido'
 
 /**
+ * Un Proceso propio por vencer o ya vencido (`GET /me/vencimientos`).
+ *
+ * Es la cara de lectura del recordatorio que el cron ya manda por correo: la fila tiene la MISMA
+ * forma que en `GET /tasks`, mas el bloque `aviso`. El nivel no lo calcula el frontend —lo calcula la
+ * misma funcion del cron—, asi que la pantalla y el correo nunca dicen cosas distintas.
+ *
+ * `nivel` es `null` en lo ya vencido: el cron deja de avisar cuando la fecha paso, y `vencido` es lo
+ * unico que agrega la API por su cuenta.
+ */
+export interface ProcesoConAviso extends Proceso {
+  aviso: {
+    nivel: number | null
+    estado: 'vencido' | 'hoy' | 'final' | 'temprano'
+    dias_restantes: number
+  }
+}
+
+/**
  * Aprobacion del cliente sobre un Proceso.
  *
  * Las claves nunca faltan; lo que falta es su valor. `resuelta_en` no es un dato mas: es el origen

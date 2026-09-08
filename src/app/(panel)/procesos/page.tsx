@@ -67,7 +67,9 @@ export default async function ProcesosPage (props: PageProps<'/procesos'>) {
 
   return (
     <section className="flex flex-col gap-4">
-      <header className="flex items-center justify-between gap-4">
+      {/* `flex-wrap`: con la tercera presentacion el control segmentado ya no entra al lado del
+          titulo en un telefono, y sin envolver el "Calendario" queda cortado contra el borde. */}
+      <header className="flex flex-wrap items-center justify-between gap-4">
         <h1 className="text-xl font-semibold text-texto">{PROCESOS.titulo.plural}</h1>
         <div className="flex items-center gap-3">
           <Segmentado
@@ -81,6 +83,14 @@ export default async function ProcesosPage (props: PageProps<'/procesos'>) {
                 etiqueta: 'Tablero',
                 icono: 'tablero',
                 href: `/procesos/tablero${consultaTablero === '' ? '' : `?${consultaTablero}`}`
+              },
+              // El calendario recibe los mismos filtros que el tablero, por el mismo motivo: tampoco
+              // pagina ni ordena. Su rango de fechas lo pone el periodo que se este mirando.
+              {
+                valor: 'calendario',
+                etiqueta: 'Calendario',
+                icono: 'calendario',
+                href: `/procesos/calendario${consultaTablero === '' ? '' : `?${consultaTablero}`}`
               }
             ]}
           />

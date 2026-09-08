@@ -60,7 +60,9 @@ export default async function TableroProcesosPage (props: PageProps<'/procesos/t
 
   return (
     <section className="flex min-h-0 flex-col gap-4">
-      <header className="flex items-center justify-between gap-4">
+      {/* `flex-wrap`: con la tercera presentacion el control segmentado ya no entra al lado del
+          titulo en un telefono, y sin envolver el "Calendario" queda cortado contra el borde. */}
+      <header className="flex flex-wrap items-center justify-between gap-4">
         <h1 className="text-xl font-semibold text-texto">Tablero de {PROCESOS.titulo.plural}</h1>
         <div className="flex items-center gap-3">
           <Segmentado
@@ -70,7 +72,13 @@ export default async function TableroProcesosPage (props: PageProps<'/procesos/t
             opciones={[
               // `consulta` ya viene sin orden ni pagina: al volver a la lista viajan solo los filtros.
               { valor: 'tabla', etiqueta: 'Tabla', icono: 'tabla', href: `/procesos${consulta === '' ? '' : `?${consulta}`}` },
-              { valor: 'tablero', etiqueta: 'Tablero', icono: 'tablero', href: '/procesos/tablero' }
+              { valor: 'tablero', etiqueta: 'Tablero', icono: 'tablero', href: '/procesos/tablero' },
+              {
+                valor: 'calendario',
+                etiqueta: 'Calendario',
+                icono: 'calendario',
+                href: `/procesos/calendario${consulta === '' ? '' : `?${consulta}`}`
+              }
             ]}
           />
           {yo.data.permissions.tasks.includes('create') && (
