@@ -16,6 +16,7 @@ export const GLOSARIO = {
   espacio: { singular: 'Proyecto', plural: 'Proyectos' },
   hito: { singular: 'Hito', plural: 'Hitos' },
   prospecto: { singular: 'Prospecto', plural: 'Prospectos' },
+  licitacion: { singular: 'Licitación', plural: 'Licitaciones' },
   cliente: { singular: 'Cliente', plural: 'Clientes' },
   ticket: { singular: 'Ticket', plural: 'Tickets' },
   seguimiento: { singular: 'Seguimiento', plural: 'Seguimiento' },

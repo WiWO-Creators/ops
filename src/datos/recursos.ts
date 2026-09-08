@@ -174,6 +174,85 @@ export interface Espacio {
   members?: StaffReferencia[]
 }
 
+/**
+ * En que quedo una Licitacion.
+ *
+ * No sale de `/lookups`: no es un catalogo que alguien administre en Perfex, son las tres ramas del
+ * flujo. Mismo criterio que `billing_type` de un Espacio.
+ */
+export type EstadoLicitacion = 'abierta' | 'ganada' | 'perdida'
+
+/**
+ * La empresa a la que se le esta licitando, **antes** de que exista como Cliente.
+ *
+ * Son las mismas columnas escribibles de `Cliente` menos las que no aplican todavia (moneda, idioma,
+ * direcciones de facturacion y envio): lo que se copia tal cual el dia que la licitacion se gana.
+ */
+export interface CandidataLicitacion {
+  company: string
+  vat: string | null
+  phonenumber: string | null
+  website: string | null
+  address: string | null
+  city: string | null
+  state: string | null
+  zip: string | null
+  country_id: number | null
+}
+
+/** La persona con la que se habla en la empresa candidata. Al ganar se vuelve su contacto principal. */
+export interface ContactoLicitacion {
+  firstname: string
+  lastname: string
+  email: string
+  phonenumber: string | null
+  title: string | null
+}
+
+/**
+ * El Espacio tal como lo trae el LISTADO de licitaciones: solo lo que la tabla pinta.
+ *
+ * El detalle trae la ficha completa (`Espacio`). El listado no: `counts` obligaria al backend a una
+ * consulta por fila, y ninguna columna del listado lo necesita.
+ */
+export interface EspacioDeLicitacion {
+  id: number
+  name: string
+  status: number
+  start_date: string | null
+  deadline: string | null
+}
+
+/**
+ * Una Licitacion: la empresa candidata, su contacto y el Espacio donde ya se trabaja la propuesta.
+ *
+ * **`id` es el id del Espacio**: son la misma fila vista desde dos lados, asi que los subrecursos de
+ * trabajo se piden a `/projects/{licitacion.id}/…` sin traducir nada.
+ *
+ * `company` viene desnormalizado desde `cliente.company` para que la tabla no tenga que bajar por el
+ * objeto y para que `q` y `sort=company` signifiquen algo en el listado.
+ */
+export interface Licitacion {
+  id: number
+  estado: EstadoLicitacion
+  /** Copia de `cliente.company`. Solo para la columna y la busqueda del listado. */
+  company: string
+  cliente: CandidataLicitacion
+  /** `null` cuando el alta no trajo contacto: `POST /licitaciones` lo acepta sin el. */
+  contacto: ContactoLicitacion | null
+  /** El Cliente **real**, creado al ganar. `null` mientras la licitacion no este ganada. */
+  client_id: number | null
+  /** Cuando se gano o se perdio. `null` mientras siga abierta. */
+  resultado_en: string | null
+  creada_en: string
+  espacio: EspacioDeLicitacion
+}
+
+/** Lo que devuelve `GET /licitaciones/{id}`: igual, pero con la ficha completa del Espacio. */
+export interface LicitacionDetalle extends Licitacion {
+  espacio: Espacio
+}
+
 export interface Cliente {
   /** Es `userid` en la base; la API lo expone como `id`. */
   id: number

@@ -21,10 +21,10 @@ una lista de bugs: es lo que **no se construyó a propósito**, y cada ficha lo 
 > [`../fases/F3-ventas-CANCELADA.md`](../fases/F3-ventas-CANCELADA.md).
 
 > **Los módulos de venta que quedan están OCULTOS en la interfaz.** `secciones_habilitadas` de
-> `GET /me` es la lista fija `["procesos","espacios","salas"]`
-> (`modules/api/controllers/V1.php:2245`), por decisión del usuario. **La API responde, `ops-v2` no
-> ofrece la sección.** Habilitar una es editar esa lista, no desplegar código nuevo. Sin esta
-> aclaración, el ✅ de la tabla se lee como "está en la pantalla", y no lo está.
+> `GET /me` es una lista fija —`["procesos","espacios","salas"]`, más `"licitaciones"` donde ese
+> módulo esté encendido— (`modules/api/controllers/V1.php:2245`), por decisión del usuario. **La API
+> responde, `ops-v2` no ofrece la sección.** Habilitar una es editar esa lista, no desplegar código
+> nuevo. Sin esta aclaración, el ✅ de la tabla se lee como "está en la pantalla", y no lo está.
 
 | # | Módulo | Entidad de Perfex | API | Visible en `ops-v2` | Falta |
 |---|---|---|---|---|---|
@@ -37,6 +37,7 @@ una lista de bugs: es lo que **no se construyó a propósito**, y cada ficha lo 
 | [06](06-salas.md) | Salas de reunión | **ninguna**: tablas propias del módulo `api` | ✅ | sí | Sin Google Calendar, por decisión del usuario |
 | [07](07-teletrabajo.md) | Teletrabajo | **ninguna**: LiveKit propio, sin tabla | — | sí | Sin endpoint de tokens, por decisión de diseño |
 | [10](10-prospectos.md) | Prospectos | `leads` | ✅ | **no** | `POST /leads/{id}/convertir` |
+| [11](11-licitaciones.md) | Licitaciones | `projects` + tablas propias del módulo `api` | en construcción | sí, con la bandera `licitaciones` | El frontend está completo contra el contrato; la API se construye en paralelo |
 | [20](20-facturas.md) | Facturas | `invoices` | ✅ | **no** | PDF, envío, recurrentes, notas de crédito, `tags`, `custom_fields` |
 | [22](22-pagos.md) | Pagos | `invoicepaymentrecords` | ✅ | **no** | `PATCH /payments/{id}`, deliberado |
 | [23](23-gastos.md) | Gastos | `expenses` | ✅ | **no** | Subida del comprobante, borrado, `tags`, `custom_fields` |
@@ -96,8 +97,9 @@ Los pasos, siempre los mismos:
 1. Leer la ficha del módulo y `../contrato-api.md`.
 2. Si la API no tiene el recurso, agregarlo primero en `modules/api/` (ver *Estado de la API* en la
    ficha).
-3. Escribir el tipo en `src/datos/tipos/<modulo>.ts` copiando los nombres de campo del contrato — sin
-   traducir.
+3. Escribir el tipo en `src/datos/recursos.ts` copiando los nombres de campo del contrato — sin
+   traducir. Van todos ahí, junto a los demás recursos; **no hay** un directorio
+   `src/datos/tipos/<modulo>.ts`, y abrir uno partiría en dos el único lugar donde hoy se buscan.
 4. Escribir la definición en `src/definiciones/<modulo>.ts`.
 5. Las pantallas: la lista y el tablero salen de la definición; solo el **detalle** se escribe a mano.
 6. Los nombres visibles salen de `src/dominio/glosario.ts`. Ningún componente escribe "Proceso" a

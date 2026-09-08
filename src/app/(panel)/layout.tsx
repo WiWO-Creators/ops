@@ -97,6 +97,14 @@ function seccionesDe (yo: Yo): Seccion[] {
     secciones.push({ href: '/espacios', etiqueta: GLOSARIO.espacio.plural, icono: 'espacios' })
   }
 
+  // Licitaciones tampoco tiene permiso de Perfex propio: no es una entidad suya, son Espacios con una
+  // empresa candidata colgada. La llave es la bandera de instalacion —el modulo se enciende por
+  // cliente— y no `permissions.projects`: con ese permiso, la seccion aparecería en instalaciones
+  // donde el recurso ni existe, y su listado devolveria 404.
+  if (yo.secciones_habilitadas.includes('licitaciones')) {
+    secciones.push({ href: '/licitaciones', etiqueta: GLOSARIO.licitacion.plural, icono: 'licitaciones' })
+  }
+
   // Salas no tiene permiso de Perfex que consultar: no es una feature suya. Reservar una sala lo
   // puede hacer cualquiera del equipo, asi que la unica llave es la bandera de instalacion.
   if (yo.secciones_habilitadas.includes('salas')) {
