@@ -6,6 +6,7 @@ import type { ReactElement } from 'react'
 import { GrupoAvatares } from '@/componentes/presentadores/Avatar'
 import { Desviacion, EstadoSla } from '@/componentes/presentadores/EstadoSla'
 import { Fecha } from '@/componentes/presentadores/Fecha'
+import { InsigniaHito } from '@/componentes/presentadores/Hito'
 import { PARAMETRO_TAREA } from '@/componentes/datos/tabla'
 import { PROCESOS } from '@/definiciones/procesos'
 import type { Proceso } from '@/datos/recursos'
@@ -58,6 +59,12 @@ export const PROCESOS_NAVEGABLES: DefinicionRecurso<Proceso> = {
 
     if (columna.clave === 'estado_sla') {
       return { ...columna, presentar: (proceso: Proceso) => <EstadoSla estado={proceso.estado_sla} /> }
+    }
+
+    // El texto pelado de `procesos.ts` es el que baja al CSV; en pantalla el hito es una insignia
+    // recortada, la misma que pinta la pestaña Tareas de un Espacio.
+    if (columna.clave === 'milestone') {
+      return { ...columna, presentar: (proceso: Proceso) => <InsigniaHito hito={proceso.milestone} /> }
     }
 
     return columna

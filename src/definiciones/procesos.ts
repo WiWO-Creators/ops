@@ -36,6 +36,11 @@ export const PROCESOS: DefinicionRecurso<Proceso> = {
     { clave: 'status', encabezado: 'Estado', ordenPor: 'status', comoInsignia: 'task_statuses', presentar: (p) => p.status },
     { clave: 'priority', encabezado: 'Prioridad', ordenPor: 'priority', comoInsignia: 'task_priorities', presentar: (p) => p.priority },
     { clave: 'project', encabezado: GLOSARIO.espacio.singular, presentar: (p) => p.project?.name ?? '' },
+    // Pegada al Espacio porque el hito cuelga de el: leidos juntos dicen en que tramo del Espacio
+    // va la tarea. No es ordenable — el backend no declara `milestone` en su whitelist de orden, y
+    // pedirlo devolveria 422. Una tarea sin hito es lo normal, no un dato que falta, pero en la
+    // planilla la raya se lee mejor que una celda vacia.
+    { clave: 'milestone', encabezado: GLOSARIO.hito.singular, presentar: (p) => p.milestone?.name ?? SIN_DATO },
     { clave: 'assignees', encabezado: 'Asignados', presentar: (p) => nombresAsignados(p) },
     // `formatearVencimiento` y no `formatearFecha`: una tarea puede no tener fecha de entrega a
     // proposito, y el guion la hace pasar por un dato que falta. En pantalla lo dice el presentador
@@ -77,8 +82,12 @@ export const PROCESOS: DefinicionRecurso<Proceso> = {
     { clave: 'status', etiqueta: 'Estado', tipo: 'multiple', desdeLookup: 'task_statuses' },
     { clave: 'priority', etiqueta: 'Prioridad', tipo: 'seleccion', desdeLookup: 'task_priorities' },
     { clave: 'clientid', etiqueta: GLOSARIO.cliente.singular, tipo: 'seleccion', desdeLookup: 'clients' },
-    { clave: 'project_id', etiqueta: GLOSARIO.espacio.singular, tipo: 'seleccion' },
-    { clave: 'milestone_id', etiqueta: 'Hito', tipo: 'seleccion' },
+    // Los dos catalogos los arma la pantalla, no `/lookups`: los Espacios salen de `GET /projects` y
+    // los Hitos de `GET /projects/{id}/milestones`, que exige saber de que Espacio se habla. Sin
+    // opciones, `ControlesTabla` no dibuja el filtro, que es justo lo que corresponde mientras no
+    // haya un Espacio elegido.
+    { clave: 'project_id', etiqueta: GLOSARIO.espacio.singular, tipo: 'seleccion', desdeLookup: 'projects' },
+    { clave: 'milestone_id', etiqueta: GLOSARIO.hito.singular, tipo: 'seleccion', desdeLookup: 'milestones' },
     { clave: 'billable', etiqueta: 'Facturable', tipo: 'booleano' },
     { clave: 'vence', etiqueta: 'Vence', tipo: 'rangoFechas', clavesRango: ['date_from', 'date_to'] },
     {

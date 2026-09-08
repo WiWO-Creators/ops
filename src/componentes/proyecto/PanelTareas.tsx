@@ -12,6 +12,7 @@ import { construirConsulta, leerConsulta } from '@/datos/consulta'
 import type { DefinicionRecurso, OpcionFiltro, ResultadoLista } from '@/definiciones/tipos'
 import type {
   DefinicionCampoPersonalizado,
+  Hito,
   Lookups,
   Referencia,
   ProcesoAmpliado,
@@ -24,6 +25,7 @@ import { FormularioTarea } from './FormularioTarea'
 import { ResumenEstadosTareas } from './ResumenEstadosTareas'
 import { TarjetaTarea } from './TarjetaTarea'
 import { definicionDeTareas, ProveedorSeleccion } from './columnas-tareas'
+import { opcionesDeFiltroDeHito, TOPE_DE_HITOS } from './hitos'
 import { estaVencida } from './tareas'
 
 /**
@@ -366,11 +368,21 @@ async function cargarPestana (
     )
     if (campos === null) avisos.push('No se pudieron traer los campos personalizados: la tabla va sin ellos.')
 
+    // Los hitos no salen de `/lookups`: cuelgan de un Espacio, asi que hay que pedirlos por su ruta.
+    // Accesorio como los dos de arriba, pero sin aviso: si no llegan, el motor simplemente no dibuja
+    // el filtro por hito, y una tabla sin ese desplegable sigue sirviendo entera.
+    const hitos = await opcional(
+      pedirSobre<Hito[]>(`projects/${proyectoId}/milestones?per_page=${TOPE_DE_HITOS}`, senal)
+    )
+
     return {
       fase: 'listo',
       esTablero: enTablero,
       inicial: { filas: lista.data, paginacion: lista.meta?.pagination },
-      opciones: opcionesDeFiltros(definicion, lookups.data),
+      opciones: {
+        ...opcionesDeFiltros(definicion, lookups.data),
+        milestones: opcionesDeFiltroDeHito(hitos ?? [])
+      },
       etiquetas: lookups.data.tags ?? [],
       resumen,
       campos: campos ?? [],

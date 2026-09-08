@@ -8,7 +8,12 @@
 
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { avanceDeHito, cuerpoMoverHito, ordenarColumnasHitos } from '../src/componentes/proyecto/hitos.ts'
+import {
+  avanceDeHito,
+  cuerpoMoverHito,
+  opcionesDeFiltroDeHito,
+  ordenarColumnasHitos
+} from '../src/componentes/proyecto/hitos.ts'
 import { formatearImporte, segundosAHoraMinuto, textoPlano } from '../src/componentes/proyecto/formatos.ts'
 import { altoDeTramo, maximoDelGrafico, textoDeDias } from '../src/componentes/proyecto/overview.ts'
 import { barraDeGantt, diaDeFecha, rangoDeGantt } from '../src/componentes/proyecto/gantt.ts'
@@ -207,4 +212,18 @@ test('valoresIniciales siembra el formulario desde un registro existente', () =>
 test('textoPlano traduce los <br /> del panel a saltos de linea, sin interpretarlos como HTML', () => {
   assert.equal(textoPlano('uno<br />dos<BR>tres'), 'uno\ndos\ntres')
   assert.equal(textoPlano(null), '')
+})
+
+test('el filtro por Hito ofrece "Sin hito" en cero, que es lo que guarda la base', () => {
+  // `tbltasks.milestone` vale 0 —no NULL— cuando la tarea no cuelga de ningun hito, y el backend
+  // traduce `filter[milestone_id]=0` a `milestone IN (0)`. Cualquier otro centinela no coincide con
+  // ninguna fila y el filtro devolveria la lista vacia sin decir por que.
+  const opciones = opcionesDeFiltroDeHito([{ id: 7, name: 'SEMANA 1' }, { id: 9, name: 'SEMANA 2' }])
+
+  assert.deepEqual(opciones[0], { valor: '0', etiqueta: 'Sin hito' })
+  assert.deepEqual(opciones.map((o) => o.valor), ['0', '7', '9'])
+})
+
+test('un Espacio sin hitos no deja un filtro con la unica opcion de no filtrar', () => {
+  assert.deepEqual(opcionesDeFiltroDeHito([]), [])
 })
