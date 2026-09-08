@@ -325,3 +325,35 @@ export function filtrosTrasCambiar (
 
   return siguientes
 }
+
+/**
+ * El filtro del que otro cuelga, cuando esa dependencia esta a la vista y todavia sin elegir.
+ *
+ * Un filtro con `dependeDe` no puede armar su catalogo hasta que se elija aquel del que depende: los
+ * Hitos son de un Espacio, y sin Espacio no hay lista que ofrecer. Esconderlo mientras tanto hacia
+ * creer que el filtro no existia; devolver aca el filtro que falta es lo que deja dibujarlo
+ * deshabilitado con la pista de que hacer para usarlo.
+ *
+ * **Solo cuenta si la dependencia esta declarada en esta vista.** Dentro de un Espacio la definicion
+ * quita el filtro por Espacio —ya lo fija la ruta—, asi que ahi el catalogo de Hitos llega resuelto y
+ * el filtro se comporta como cualquier otro: si el Espacio no tiene hitos, no hay nada que ofrecer y
+ * sigue sin dibujarse.
+ *
+ * @param filtro el filtro que se esta por dibujar
+ * @param declarados los filtros de la definicion, que son quienes declaran de quien dependen
+ * @param filtros los valores vigentes de la vista
+ * @returns el filtro que hay que elegir primero, o `null` si no hay nada que esperar
+ */
+export function dependenciaPendiente (
+  filtro: Filtro,
+  declarados: Filtro[],
+  filtros: Record<string, string[]>
+): Filtro | null {
+  if (filtro.dependeDe === undefined) return null
+
+  const requerido = declarados.find((declarado) => declarado.clave === filtro.dependeDe)
+
+  if (requerido === undefined) return null
+
+  return (filtros[requerido.clave] ?? []).some((valor) => valor !== '') ? null : requerido
+}

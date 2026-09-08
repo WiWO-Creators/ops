@@ -15,7 +15,7 @@ import {
   ordenarColumnasHitos
 } from '../src/componentes/proyecto/hitos.ts'
 import { formatearImporte, segundosAHoraMinuto, textoPlano } from '../src/componentes/proyecto/formatos.ts'
-import { filtrosTrasCambiar } from '../src/componentes/datos/tabla.ts'
+import { dependenciaPendiente, filtrosTrasCambiar } from '../src/componentes/datos/tabla.ts'
 import { PROCESOS } from '../src/definiciones/procesos.ts'
 import { altoDeTramo, maximoDelGrafico, textoDeDias } from '../src/componentes/proyecto/overview.ts'
 import { barraDeGantt, diaDeFecha, rangoDeGantt } from '../src/componentes/proyecto/gantt.ts'
@@ -255,4 +255,36 @@ test('cambiar el Hito no arrastra al Espacio: la dependencia va en un solo senti
   )
 
   assert.deepEqual(filtros, { project_id: ['8'], milestone_id: ['33'] })
+})
+
+const FILTRO_HITO = PROCESOS.filtros.find((filtro) => filtro.clave === 'milestone_id')
+
+test('sin Espacio elegido, el filtro por Hito espera: se dibuja deshabilitado en vez de esconderse', () => {
+  // El sintoma que reporto la gente era "el filtro de Hito no existe". Existia, pero sin catalogo, y
+  // el motor escondia los filtros sin opciones.
+  const espera = dependenciaPendiente(FILTRO_HITO, PROCESOS.filtros, { status: ['1'] })
+
+  assert.equal(espera?.clave, 'project_id')
+})
+
+test('con un Espacio elegido, el filtro por Hito ya no espera a nadie', () => {
+  assert.equal(dependenciaPendiente(FILTRO_HITO, PROCESOS.filtros, { project_id: ['8'] }), null)
+  // Un valor vacio en la URL no es una eleccion: `?filter[project_id]=` no dice de que Espacio son
+  // los hitos, asi que el filtro sigue esperando.
+  assert.equal(dependenciaPendiente(FILTRO_HITO, PROCESOS.filtros, { project_id: [''] })?.clave, 'project_id')
+})
+
+test('un filtro que no depende de nadie nunca espera', () => {
+  const estado = PROCESOS.filtros.find((filtro) => filtro.clave === 'status')
+
+  assert.equal(dependenciaPendiente(estado, PROCESOS.filtros, {}), null)
+})
+
+test('dentro de un Espacio el Hito no espera: la ruta ya fija el Espacio y no hay filtro que elegir', () => {
+  // `definicionDeTareas` arma sus filtros quitando el de Espacio, porque lo fija la ruta. Ahi el
+  // catalogo de Hitos baja resuelto y el filtro se comporta como siempre: si el Espacio no tiene
+  // hitos, `opcionesDeFiltroDeHito` devuelve vacio y el motor sigue sin dibujarlo.
+  const enElEspacio = PROCESOS.filtros.filter((filtro) => filtro.clave !== 'project_id')
+
+  assert.equal(dependenciaPendiente(FILTRO_HITO, enElEspacio, {}), null)
 })
