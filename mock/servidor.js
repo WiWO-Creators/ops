@@ -262,6 +262,18 @@ const CONSULTA_ESPACIOS = {
   busqueda: ['name']
 }
 
+/**
+ * Meeting Papers. Sin filtros: la pestaña lista las del Espacio y nada mas.
+ *
+ * Las claves de orden son las del contrato (`date_added`, `meeting_date`), no los nombres de columna
+ * del backend: el frontend nunca ve `creada_en`.
+ */
+const CONSULTA_ACTAS = {
+  filtros: {},
+  orden: ['title', 'date_added', 'meeting_date'],
+  busqueda: ['title', 'client']
+}
+
 const CONSULTA_CLIENTES = {
   filtros: {
     active: (c, v) => String(c.active) === v,
@@ -961,6 +973,103 @@ const RESUMENES_IA = new Map()
 const HILOS_IA = new Map()
 
 /**
+ * Meeting Papers, por Espacio.
+ *
+ * Vive en memoria y no en `datos.js` porque el caso que interesa probar es el ciclo completo
+ * —generar, guardar, corregir, borrar— y para eso las actas tienen que nacer durante la sesion.
+ */
+const ACTAS = []
+
+/** Autoincremental de actas. Arranca alto para que un id de acta no se confunda con uno de tarea. */
+let PROXIMA_ACTA = 900
+
+/** Firma de correo por marca, igual que la constante del backend. */
+const FIRMAS_MARCA = {
+  mgc: 'https://www.meetwiwo.com/assets/logos/Materiales/firmamgc.jpg',
+  wiwo: 'https://www.meetwiwo.com/assets/logos/Materiales/firmawiwo.jpg',
+  palta: 'https://www.meetwiwo.com/assets/logos/Materiales/firmapalta.jpg'
+}
+
+/** Un acta como la devuelve la API. El listado omite `content`, igual que el backend. */
+function presentarActa (acta, { conContenido }) {
+  const autor = STAFF.find((s) => s.id === acta.staff_id) ?? null
+  const publica = {
+    id: acta.id,
+    project_id: acta.project_id,
+    title: acta.title,
+    client: acta.client,
+    meeting_date: acta.meeting_date,
+    place: acta.place,
+    modality: acta.modality,
+    attendees: acta.attendees,
+    brand: acta.brand,
+    brand_sign_url: FIRMAS_MARCA[acta.brand] ?? null,
+    source: acta.source,
+    staff_id: acta.staff_id,
+    author: autor === null ? null : { id: autor.id, full_name: autor.full_name, profile_image_url: autor.profile_image_url ?? null },
+    date_added: acta.date_added,
+    date_updated: acta.date_updated,
+    updated_by: acta.updated_by
+  }
+
+  return conContenido ? { ...publica, content: acta.content } : publica
+}
+
+/** El HTML que "genera" el modelo, con la estructura real del Meeting Paper. */
+function actaGenerada (espacio) {
+  return `<h1>Meeting Paper - Avance de ${espacio.name}</h1>`
+    + '<p><strong>#No especificado</strong></p><hr />'
+    + '<p><strong>Cliente:</strong> Acme SpA</p>'
+    + '<p><strong>Fecha:</strong> 2026-09-08</p>'
+    + '<p><strong>Lugar:</strong> No especificado</p>'
+    + '<p><strong>Modalidad:</strong> Online</p>'
+    + '<p><strong>Objetivo:</strong> Revisar el avance del proyecto.</p>'
+    + '<h2>Asistentes</h2><ul><li><strong>wiwo:</strong> Ana Pérez</li>'
+    + '<li><strong>Cliente:</strong> No especificado</li></ul>'
+    + '<h2>Temas Discutidos y Acuerdos</h2>'
+    + '<h3>Diseño de la home</h3><p>Se revisó el estado actual y se fijó la fecha de entrega.</p>'
+    + '<p><strong>Acción:</strong> Entregar el diseño el 30 de septiembre.</p>'
+    + '<p><strong>Responsable:</strong> Ana Pérez</p>'
+    + '<h3>Proveedor de hosting</h3><p>Sigue pendiente la elección del alojamiento.</p>'
+    + '<p><strong>Acción:</strong> Definir el proveedor.</p>'
+    + '<p><strong>Responsable:</strong> No especificado</p>'
+    + '<h2>Próximos Pasos:</h2><ul><li>Entregar el diseño - <strong>Responsable:</strong> Ana Pérez</li></ul>'
+}
+
+/** Titulo del acta: el del `<h1>`, sin el prefijo, igual que hace el backend. */
+function tituloDeHtml (html) {
+  const encontrado = /<h1[^>]*>(.*?)<\/h1>/is.exec(html)
+  if (encontrado === null) return 'Meeting Paper'
+
+  return encontrado[1].replace(/<[^>]+>/g, '').replace(/^Meeting Paper\s*-\s*/i, '').trim() || 'Meeting Paper'
+}
+
+/** Crea el acta y la deja al frente de la lista. */
+function guardarActa (espacio, actual, campos, html, origen) {
+  const ahora = new Date().toISOString().replace(/\.\d{3}Z$/, 'Z')
+  const acta = {
+    id: (PROXIMA_ACTA += 1),
+    project_id: espacio.id,
+    title: campos.title ?? tituloDeHtml(html),
+    content: html,
+    client: campos.client ?? '',
+    meeting_date: campos.meeting_date ?? null,
+    place: campos.place ?? '',
+    modality: campos.modality ?? '',
+    attendees: campos.attendees ?? [],
+    brand: campos.brand ?? '',
+    source: origen,
+    staff_id: actual.id,
+    date_added: ahora,
+    date_updated: ahora,
+    updated_by: null
+  }
+  ACTAS.unshift(acta)
+
+  return acta
+}
+
+/**
  * Corta un texto en trozos de `TAMANO_DELTA` caracteres.
  *
  * Se recorre con el spread y no con `slice` sobre el string: `slice` parte los pares subrogados y un
@@ -1105,6 +1214,15 @@ async function iaRuta (metodo, resto, parametros, actual, cuerpo, peticion) {
   if (seccion === 'tareas' && sub[0] === 'interpretar' && metodo === 'POST') {
     return await interpretarTareaIaRuta(actual, cuerpo)
   }
+  if (seccion === 'proyectos' && sub[1] === 'acta' && sub[2] === 'prefill' && metodo === 'GET') {
+    return prefillActaIaRuta(sub[0])
+  }
+  if (seccion === 'proyectos' && sub[1] === 'acta' && metodo === 'POST') {
+    return await generarActaIaRuta(sub[0], parametros, actual, peticion)
+  }
+  if (seccion === 'proyectos' && sub[1] === 'acta-transformar' && metodo === 'POST') {
+    return await transformarActaIaRuta(cuerpo)
+  }
 
   throw new ErrorApi(404, 'not_found', `Recurso de IA desconocido: "${seccion ?? ''}".`)
 }
@@ -1222,6 +1340,78 @@ async function chatEspacioIaRuta (metodo, id, parametros, actual, cuerpo, petici
   }
 
   return { transmitir: (respuesta) => transmitirSSE(respuesta, texto, { citas, fin, falla }) }
+}
+
+/** `GET /ia/proyectos/{id}/acta/prefill`. Lo que ya se sabe, para no pedirlo dos veces. */
+function prefillActaIaRuta (id) {
+  const espacio = buscarO404(ESPACIOS, Number(id), 'espacio')
+  const cliente = CLIENTES.find((c) => c.userid === espacio.clientid) ?? null
+  const hoy = new Date().toISOString().slice(0, 10)
+
+  return {
+    estado: 200,
+    cuerpo: conDatos({
+      client: cliente?.company ?? '',
+      attendees: STAFF.filter((s) => (espacio.miembros ?? []).includes(s.id)).map((s) => s.full_name),
+      meeting_date: hoy,
+      title: `Meeting Paper - ${espacio.name} - ${hoy}`
+    })
+  }
+}
+
+/**
+ * `POST /ia/proyectos/{id}/acta`. Genera el Meeting Paper y **lo guarda**.
+ *
+ * El cuerpo llega como `multipart/form-data` —el audio no entra en un JSON— y el mock no lo parsea:
+ * lo drena y responde. Lo que el frontend tiene que poder probar acá es el stream y que el acta
+ * quede guardada, no que el mock sepa leer un multipart.
+ *
+ * Guarda al terminar, igual que el backend: es lo que hace que cambiar de pestaña a mitad de una
+ * generacion no tire el trabajo, y el frontend se programa contra eso.
+ */
+async function generarActaIaRuta (id, parametros, actual, peticion) {
+  const espacio = buscarO404(ESPACIOS, Number(id), 'espacio')
+
+  // Drenar el cuerpo antes de responder: sin esto el socket queda con bytes sin leer y el navegador
+  // ve la conexion cortada en vez de la respuesta.
+  for await (const _trozo of peticion) { /* se descarta */ }
+
+  const falla = parametros.get('falla') === '1'
+  const html = actaGenerada(espacio)
+
+  if (!aceptaStream(peticion)) {
+    if (falla) throw new ErrorApi(502, 'provider_error', 'El proveedor cortó la respuesta.')
+    const acta = guardarActa(espacio, actual, { client: 'Acme SpA', brand: 'wiwo' }, html, 'ia')
+
+    return { estado: 201, cuerpo: conDatos(presentarActa(acta, { conContenido: true })) }
+  }
+
+  const fin = falla
+    ? null
+    : { acta: presentarActa(guardarActa(espacio, actual, { client: 'Acme SpA', brand: 'wiwo' }, html, 'ia'), { conContenido: true }) }
+
+  return { transmitir: (respuesta) => transmitirSSE(respuesta, html, { fin, falla }) }
+}
+
+/** `POST /ia/proyectos/{id}/acta-transformar`. Reescribe un fragmento con una de las cuatro acciones. */
+async function transformarActaIaRuta (cuerpo) {
+  const datos = await cuerpo()
+  const accion = String(datos.accion ?? '')
+  const texto = String(datos.texto ?? '').trim()
+
+  if (!['alargar', 'acortar', 'complejizar', 'simplificar'].includes(accion)) {
+    throw new ErrorApi(422, 'validation_failed', 'No se puede reescribir ese fragmento.', { accion: ['invalid'] })
+  }
+  if (texto === '') {
+    throw new ErrorApi(422, 'validation_failed', 'No se puede reescribir ese fragmento.', { texto: ['required'] })
+  }
+
+  const plano = texto.replace(/<[^>]+>/g, '').trim()
+  const reescrito = accion === 'acortar' || accion === 'simplificar'
+    ? plano.split(' ').slice(0, 8).join(' ') + '.'
+    : `${plano} Además, se dejó constancia del acuerdo para la próxima sesión de trabajo.`
+
+  return { estado: 200, cuerpo: conDatos({ html: `<p>${reescrito}</p>` }) }
 }
 
 /**
@@ -1762,6 +1952,62 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
     }
     const cliente = buscarO404(CLIENTES, Number(resto[0]), 'cliente')
     return { estado: 200, cuerpo: conDatos(conContactos(conCamposPersonalizados(cliente, 'clients', includes), includes)) }
+  }
+
+  // Meeting Paper. Va antes del bloque de `projects`, que solo atiende GET: las actas se crean,
+  // editan y borran, asi que necesitan su propia rama con los cuatro verbos.
+  if (recurso === 'projects' && resto[1] === 'actas') {
+    const espacio = buscarO404(ESPACIOS, Number(resto[0]), 'espacio')
+    const suyas = ACTAS.filter((a) => a.project_id === espacio.id)
+    const actaId = resto[2] === undefined ? null : Number(resto[2])
+
+    if (actaId === null) {
+      if (metodo === 'POST') {
+        const datos = await cuerpo()
+        const titulo = String(datos.title ?? '').trim()
+        if (titulo === '') {
+          throw new ErrorApi(422, 'validation_failed', 'Hay campos que no se pueden escribir.', { title: ['required'] })
+        }
+
+        const acta = guardarActa(espacio, actual, { ...datos, title: titulo }, String(datos.content ?? ''), 'manual')
+
+        return { estado: 201, cuerpo: conDatos(presentarActa(acta, { conContenido: true })) }
+      }
+
+      const { filas, paginacion } = aplicarConsulta(suyas, parametros, CONSULTA_ACTAS)
+
+      return {
+        estado: 200,
+        cuerpo: conDatos(filas.map((a) => presentarActa(a, { conContenido: false })), { pagination: paginacion })
+      }
+    }
+
+    const acta = suyas.find((a) => a.id === actaId)
+    if (acta === undefined) throw new ErrorApi(404, 'not_found', 'No existe ese Meeting Paper.')
+
+    if (metodo === 'PATCH') {
+      const datos = await cuerpo()
+      for (const clave of ['title', 'content', 'client', 'meeting_date', 'place', 'modality', 'brand']) {
+        if (datos[clave] !== undefined) acta[clave] = datos[clave]
+      }
+      if (Array.isArray(datos.attendees)) acta.attendees = datos.attendees
+      acta.date_updated = new Date().toISOString().replace(/\.\d{3}Z$/, 'Z')
+      acta.updated_by = actual.id
+
+      return { estado: 200, cuerpo: conDatos(presentarActa(acta, { conContenido: true })) }
+    }
+
+    if (metodo === 'DELETE') {
+      // Solo el autor o un administrador, igual que el backend.
+      if (acta.staff_id !== actual.id && actual.is_admin !== true) {
+        throw new ErrorApi(403, 'forbidden', 'Solo quien creó este Meeting Paper puede borrarlo.')
+      }
+      ACTAS.splice(ACTAS.indexOf(acta), 1)
+
+      return { estado: 204, cuerpo: null }
+    }
+
+    return { estado: 200, cuerpo: conDatos(presentarActa(acta, { conContenido: true })) }
   }
 
   if (recurso === 'projects' && metodo === 'GET') {

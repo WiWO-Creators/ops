@@ -58,3 +58,38 @@ export function textoPlano (valor: string | null | undefined): string {
 
   return valor.replace(/<br\s*\/?>/gi, '\n').trim()
 }
+
+const ENTIDADES: Record<string, string> = {
+  '&nbsp;': ' ',
+  '&amp;': '&',
+  '&lt;': '<',
+  '&gt;': '>',
+  '&quot;': '"',
+  '&#39;': "'",
+  '&apos;': "'"
+}
+
+/**
+ * Convierte el HTML de Perfex en texto legible.
+ *
+ * No sanitiza para volver a inyectar: quita el marcado y devuelve texto, que es lo unico que se
+ * pinta. Los cierres de bloque y los `<br>` se vuelven saltos de linea para no pegar parrafos
+ * distintos en una sola frase, y el contenido de `<script>`/`<style>` se descarta entero porque no
+ * es texto que nadie quiso escribir.
+ *
+ * @param html el HTML crudo de la API: la `description` de una tarea o el `content` de un acta
+ * @returns el texto plano, sin lineas en blanco de mas y sin espacios en los bordes
+ */
+export function aTextoPlano (html: string): string {
+  const texto = html
+    .replace(/<(script|style)\b[^>]*>[\s\S]*?<\/\1>/gi, '')
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/(p|div|li|tr|h[1-6]|blockquote)\s*>/gi, '\n')
+    .replace(/<[^>]*>/g, '')
+
+  return Object.entries(ENTIDADES)
+    .reduce((acumulado, [entidad, caracter]) => acumulado.replaceAll(entidad, caracter), texto)
+    .replace(/[ \t]+\n/g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
+}

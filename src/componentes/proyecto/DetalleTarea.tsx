@@ -12,6 +12,7 @@ import { Insignia } from '@/componentes/presentadores/Insignia'
 import { listaDe, nombreDe } from '@/datos/catalogos'
 import { camposLegibles } from '@/dominio/campos-personalizados'
 import { GLOSARIO } from '@/dominio/glosario'
+import { aTextoPlano } from '@/componentes/proyecto/formatos'
 import { cn } from '@/lib/clases'
 import type { CampoLegible } from '@/dominio/campos-personalizados'
 import type { EstadoLookup, Lookups, Proceso } from '@/datos/recursos'
@@ -484,40 +485,6 @@ function valorDeCatalogo (lista: EstadoLookup[], id: number): { nombre: string, 
   return { nombre: nombreDe(lista, id), color: lista.find((item) => item.id === id)?.color ?? null }
 }
 
-const ENTIDADES: Record<string, string> = {
-  '&nbsp;': ' ',
-  '&amp;': '&',
-  '&lt;': '<',
-  '&gt;': '>',
-  '&quot;': '"',
-  '&#39;': "'",
-  '&apos;': "'"
-}
-
-/**
- * Convierte el HTML de Perfex en texto legible.
- *
- * No sanitiza para volver a inyectar: quita el marcado y devuelve texto, que es lo unico que se
- * pinta. Los cierres de bloque y los `<br>` se vuelven saltos de linea para no pegar parrafos
- * distintos en una sola frase, y el contenido de `<script>`/`<style>` se descarta entero porque no
- * es texto que nadie quiso escribir.
- *
- * @param html el `description` crudo de la API
- * @returns el texto plano, sin lineas en blanco de mas y sin espacios en los bordes
- */
-function aTextoPlano (html: string): string {
-  const texto = html
-    .replace(/<(script|style)\b[^>]*>[\s\S]*?<\/\1>/gi, '')
-    .replace(/<br\s*\/?>/gi, '\n')
-    .replace(/<\/(p|div|li|tr|h[1-6]|blockquote)\s*>/gi, '\n')
-    .replace(/<[^>]*>/g, '')
-
-  return Object.entries(ENTIDADES)
-    .reduce((acumulado, [entidad, caracter]) => acumulado.replaceAll(entidad, caracter), texto)
-    .replace(/[ \t]+\n/g, '\n')
-    .replace(/\n{3,}/g, '\n\n')
-    .trim()
-}
 
 /**
  * Trae la tarea y los catalogos.
