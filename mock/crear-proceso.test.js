@@ -10,7 +10,7 @@
 import { test, before, after } from 'node:test'
 import assert from 'node:assert/strict'
 import { servidor } from './servidor.js'
-import { ESPACIOS, ESTADOS_PROCESO, STAFF } from './datos.js'
+import { ESPACIOS, ESTADOS_PROCESO, ETIQUETAS, HITOS, STAFF } from './datos.js'
 
 let base
 let token
@@ -134,4 +134,103 @@ test('lo creado aparece despues en el listado', async () => {
     listado.data.some((p) => p.id === alta.cuerpo.data.id),
     'el Proceso recien creado tiene que salir en GET /tasks'
   )
+})
+
+
+test('el alta completa guarda campos y usa los tipos del espacio', async () => {
+  const espacio = ESPACIOS[0]
+  const catalogo = await fetch(`${base}/projects/${espacio.id}/task-types`, {
+    headers: { authorization: `Bearer ${token}` }
+  })
+  assert.equal(catalogo.status, 200)
+  const tipo = (await catalogo.json()).data.task_types[0]
+  const hito = HITOS.find((h) => h.project_id === espacio.id)
+  const { estado, cuerpo } = await crear({
+    name: 'Todos los campos', rel_type: 'project', rel_id: espacio.id,
+    milestone: hito.id, task_type: tipo.id, estimated_hours: 2.5,
+    status: 5, start_date: '2020-01-01', completed_at: '2020-01-02T12:00:00Z',
+    hourly_rate: 12.345, is_public: true, visible_to_client: true, billable: true,
+    recurring: true, repeat_every: 2, recurring_type: 'week', cycles: 3
+  })
+  assert.equal(estado, 201)
+  assert.equal(cuerpo.data.status, 5)
+  assert.equal(cuerpo.data.date_finished, '2020-01-02T12:00:00.000Z')
+  assert.equal(cuerpo.data.hourly_rate, 12.35)
+  assert.equal(cuerpo.data.estimated_hours, 2.5)
+  assert.deepEqual(cuerpo.data.milestone, { id: hito.id, name: hito.name })
+  assert.equal(cuerpo.data.task_type.id, tipo.id)
+  for (const clave of ['is_public', 'visible_to_client', 'billable', 'recurring']) assert.equal(cuerpo.data[clave], true)
+  assert.equal(cuerpo.data.repeat_every, 2)
+  assert.equal(cuerpo.data.recurring_type, 'week')
+  assert.equal(cuerpo.data.cycles, 3)
+})
+
+test('el alta rechaza campos inválidos sin crear etiquetas y conserva defaults nulos', async () => {
+  const etiquetasAntes = ETIQUETAS.length
+  for (const entrada of [
+    { status: 99 }, { status: true }, { hourly_rate: [] }, { hourly_rate: -1 }, { hourly_rate: 1000000000 },
+    { is_public: 'sí' }, { visible_to_client: [] }, { estimated_hours: -2 },
+    { milestone: 999999 }, { task_type: 999999 }, { billed: true },
+    { completed_at: '2020-01-01T12:00:00Z' }, { status: 5, completed_at: '2999-01-01T12:00:00Z' },
+    { recurring: true, repeat_every: 0, recurring_type: 'week' },
+    { recurring: true, repeat_every: 1, recurring_type: 'week', cycles: 1.5 }
+  ]) {
+    const resultado = await crear({ name: 'Inválida', tags: ['No debe crearse'], ...entrada })
+    assert.equal(resultado.estado, 422, JSON.stringify(entrada))
+  }
+  assert.equal(ETIQUETAS.length, etiquetasAntes)
+  const { estado, cuerpo } = await crear({ name: 'Opcionales nulos', estimated_hours: null, hourly_rate: null, milestone: null, task_type: null })
+  assert.equal(estado, 201)
+  assert.equal(cuerpo.data.estimated_hours, null)
+  assert.equal(cuerpo.data.hourly_rate, 0)
+  assert.equal(cuerpo.data.milestone, null)
+  assert.equal(cuerpo.data.task_type, null)
+  assert.equal(cuerpo.data.recurring, false)
+})
+
+
+test('asignables carga personas activas con paginación y proyección mínima', async () => {
+  const respuesta = await fetch(`${base}/staff/asignables?per_page=500`, {
+    headers: { authorization: `Bearer ${token}` }
+  })
+  assert.equal(respuesta.status, 200)
+  const { data } = await respuesta.json()
+  assert.equal(data.length, STAFF.filter((persona) => persona.active && !persona.is_not_staff).length)
+  assert.deepEqual(Object.keys(data[0]).sort(), ['area_id', 'cargo_id', 'full_name', 'id', 'profile_image_url'])
+  const pagina = await fetch(`${base}/staff/asignables?per_page=1&page=2`, {
+    headers: { authorization: `Bearer ${token}` }
+  })
+  assert.equal(pagina.status, 200)
+  assert.deepEqual((await pagina.json()).data, [data[1]])
+  const extra = await fetch(`${base}/staff/asignables/1`, {
+    headers: { authorization: `Bearer ${token}` }
+  })
+  assert.equal(extra.status, 404)
+})
+
+
+test('tablero de hitos agrupa tareas y permite excluir completadas', async () => {
+  const espacio = ESPACIOS[0]
+  const hito = HITOS.find((h) => h.project_id === espacio.id)
+  const alta = await crear({ name: 'En hito para tablero', rel_type: 'project', rel_id: espacio.id, milestone: hito.id })
+  const cerrada = await crear({ name: 'Cerrada en hito', rel_type: 'project', rel_id: espacio.id, milestone: hito.id, status: 5 })
+  assert.equal(alta.estado, 201)
+  assert.equal(cerrada.estado, 201)
+  const ruta = `${base}/projects/${espacio.id}/milestones?vista=tablero&sort=order&per_page=500`
+  const respuesta = await fetch(`${ruta}&excluir_completadas=false`, {
+    headers: { authorization: `Bearer ${token}` }
+  })
+  assert.equal(respuesta.status, 200)
+  const grupos = (await respuesta.json()).data
+  const grupo = grupos.find((g) => g.columna.id === hito.id)
+  assert.equal(grupo.columna.name, hito.name)
+  assert.ok(grupo.tarjetas.some((t) => t.id === alta.cuerpo.data.id))
+  assert.ok(grupo.tarjetas.some((t) => t.id === cerrada.cuerpo.data.id))
+  assert.equal(grupo.pagination.total, grupo.tarjetas.length)
+  assert.ok(grupos.find((g) => g.columna.id === 0).tarjetas.every((t) => t.milestone === null))
+  const filtrada = await fetch(`${ruta}&excluir_completadas=true`, {
+    headers: { authorization: `Bearer ${token}` }
+  })
+  assert.equal(filtrada.status, 200)
+  assert.ok((await filtrada.json()).data.every((g) => g.tarjetas.every((t) => t.status !== 5)))
 })

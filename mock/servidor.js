@@ -23,6 +23,11 @@ import {
 } from './datos.js'
 
 const PUERTO = Number(process.env.PORT ?? 3001)
+/** Un tipo por espacio permite comprobar pertenencia sin duplicar catálogos de producción. */
+const TIPOS_PROCESO = ESPACIOS.map((espacio) => ({
+  id: espacio.id, project_id: espacio.id, name: 'General', label_color: '#64748b',
+  text_color: '#ffffff', order: 1, eta_dias: null
+}))
 const ORIGENES = (process.env.ORIGENES ?? 'http://localhost:3000').split(',').map((o) => o.trim())
 
 /** Recursos sobre los que se declaran permisos, con las acciones posibles. */
@@ -324,7 +329,7 @@ function presentarProcesoEnLista (proceso) {
  * obligar a elegir el Espacio antes de escribir el titulo es exactamente lo que termina empujando
  * la tarea a un chat. El Espacio se asigna despues con `PATCH`.
  *
- * El estado no se acepta del cliente: nace en la primera columna del tablero, como en el panel.
+ * El estado inicial, cierre, tarifa y recurrencia siguen el contrato del alta completa.
  *
  * @param {Record<string, unknown>} entrada cuerpo de la peticion
  * @param {{id: number}} autor staff autenticado, que queda en `added_from`
@@ -332,7 +337,19 @@ function presentarProcesoEnLista (proceso) {
  * @throws {ErrorApi} 422 con `details` por campo
  */
 function crearProceso (entrada, autor) {
+  if (entrada === null || typeof entrada !== 'object' || Array.isArray(entrada)) {
+    throw new ErrorApi(422, 'validation_failed', 'El cuerpo debe ser un objeto.')
+  }
   const detalles = {}
+  const aceptados = new Set([
+    'name', 'description', 'start_date', 'due_date', 'priority', 'billable', 'estimated_hours',
+    'milestone', 'task_type', 'rel_type', 'rel_id', 'assignees', 'followers', 'tags', 'status',
+    'hourly_rate', 'is_public', 'visible_to_client', 'recurring', 'repeat_every', 'recurring_type',
+    'cycles', 'completed_at'
+  ])
+  for (const clave of Object.keys(entrada)) {
+    if (!aceptados.has(clave)) detalles[clave] = ['no_editable']
+  }
   const nombre = typeof entrada.name === 'string' ? entrada.name.trim() : ''
 
   if (nombre === '') detalles.name = ['requerido']
@@ -346,6 +363,59 @@ function crearProceso (entrada, autor) {
     const valor = entrada[clave]
     if (valor !== undefined && valor !== null && !/^\d{4}-\d{2}-\d{2}$/.test(String(valor))) {
       detalles[clave] = ['formato_invalido']
+    }
+  }
+
+  const inicio = entrada.start_date ?? new Date().toISOString().slice(0, 10)
+  if (entrada.due_date && entrada.due_date < inicio) detalles.due_date = ['anterior_al_inicio']
+  const estado = entrada.status ?? 1
+  if (typeof estado === 'boolean' || !ESTADOS_PROCESO.some((e) => e.id === Number(estado))) {
+    detalles.status = ['fuera_de_rango']
+  }
+  const booleanos = {}
+  for (const clave of ['billable', 'is_public', 'visible_to_client']) {
+    const valor = entrada[clave] ?? false
+    if (![true, false, 0, 1, '0', '1'].includes(valor)) detalles[clave] = ['no_booleano']
+    booleanos[clave] = [true, 1, '1'].includes(valor)
+  }
+  const tarifa = Number(entrada.hourly_rate ?? 0)
+  if ((entrada.hourly_rate != null && !['string', 'number'].includes(typeof entrada.hourly_rate)) || !Number.isFinite(tarifa) || tarifa < 0 || tarifa > 999999999.99) {
+    detalles.hourly_rate = ['invalid']
+  }
+  const horas = entrada.estimated_hours == null || entrada.estimated_hours === '' ? null : Number(entrada.estimated_hours)
+  if (horas !== null && (!['string', 'number'].includes(typeof entrada.estimated_hours) || !Number.isFinite(horas) || horas < 0)) {
+    detalles.estimated_hours = ['invalid']
+  }
+  const ahora = new Date().toISOString()
+  let cierre = Number(estado) === 5 ? ahora : null
+  if (Object.hasOwn(entrada, 'completed_at')) {
+    cierre = entrada.completed_at || null
+    if (Number(estado) !== 5) detalles.completed_at = ['no_completado']
+    if (cierre !== null && (typeof cierre !== 'string' || !/^\d{4}-\d{2}-\d{2}T.*(?:Z|[+-]\d{2}:\d{2})$/.test(cierre) || !Number.isFinite(Date.parse(cierre)))) {
+      detalles.completed_at = ['invalid']
+    }
+  }
+  if (cierre !== null && !detalles.completed_at) {
+    cierre = new Date(cierre).toISOString()
+    if (cierre > ahora) detalles.completed_at = ['futura']
+    else if (cierre.slice(0, 10) < inicio) detalles.completed_at = ['anterior_al_inicio']
+  }
+  const recurrente = [true, 1, '1'].includes(entrada.recurring)
+  const frecuencia = Number(entrada.repeat_every)
+  const ciclos = Number(entrada.cycles ?? 0)
+  const clavesRecurrencia = ['recurring', 'repeat_every', 'recurring_type', 'cycles']
+  if (clavesRecurrencia.some((clave) => Object.hasOwn(entrada, clave))) {
+    if (!Object.hasOwn(entrada, 'recurring')) detalles.recurring = ['requerido']
+    else if (![true, false, 0, 1, '0', '1'].includes(entrada.recurring)) detalles.recurring = ['no_booleano']
+    if (process.env.WIWO_PROCESOS_RECURRENTES === '0') detalles.recurring = ['recurrencia_apagada']
+    if (recurrente) {
+      if (!['string', 'number'].includes(typeof entrada.repeat_every) || !Number.isInteger(frecuencia) || frecuencia < 1 || frecuencia > 365) detalles.repeat_every = ['fuera_de_rango']
+      if (!['day', 'week', 'month', 'year'].includes(entrada.recurring_type)) detalles.recurring_type = ['no_soportado']
+      if ((Object.hasOwn(entrada, 'cycles') && !['string', 'number'].includes(typeof entrada.cycles)) || !Number.isInteger(ciclos) || ciclos < 0 || ciclos > 365) detalles.cycles = ['fuera_de_rango']
+    } else {
+      for (const clave of clavesRecurrencia.slice(1)) {
+        if (Object.hasOwn(entrada, clave)) detalles[clave] = ['sobra_sin_recurrencia']
+      }
     }
   }
 
@@ -367,12 +437,21 @@ function crearProceso (entrada, autor) {
     }
   }
 
+  const hito = entrada.milestone == null || Number(entrada.milestone) === 0
+    ? null : HITOS.find((h) => h.id === Number(entrada.milestone))
+  if (entrada.milestone != null && Number(entrada.milestone) !== 0 && (!hito || hito.project_id !== espacio?.id)) {
+    detalles.milestone = ['no_pertenece_al_espacio']
+  }
+  const tipo = entrada.task_type == null ? null : TIPOS_PROCESO.find((t) => t.id === Number(entrada.task_type))
+  if (entrada.task_type != null && (!tipo || tipo.project_id !== espacio?.id)) detalles.task_type = ['no_pertenece_al_espacio']
+
   const asignados = resolverStaff(entrada.assignees, detalles, 'assignees')
   const seguidores = resolverStaff(entrada.followers, detalles, 'followers')
   // Igual que la API: un numero es un id del catalogo y tiene que existir (si no, 422); un nombre
   // que no existe se crea, que es la etiqueta personalizada.
   const pedidas = Array.isArray(entrada.tags) ? entrada.tags : []
   const etiquetas = []
+  const nuevas = []
   for (const pedida of pedidas) {
     if (typeof pedida === 'number') {
       const delCatalogo = ETIQUETAS.find((e) => e.id === pedida)
@@ -382,14 +461,14 @@ function crearProceso (entrada, autor) {
     }
 
     const nombre = String(pedida).trim()
-    const existente = ETIQUETAS.find((e) => e.name.toLowerCase() === nombre.toLowerCase())
+    const existente = [...ETIQUETAS, ...nuevas].find((e) => e.name.toLowerCase() === nombre.toLowerCase())
     if (existente) {
       etiquetas.push(existente)
       continue
     }
 
-    const nueva = { id: Math.max(0, ...ETIQUETAS.map((e) => e.id)) + 1, name: nombre }
-    ETIQUETAS.push(nueva)
+    const nueva = { id: Math.max(0, ...ETIQUETAS.map((e) => e.id), ...nuevas.map((e) => e.id)) + 1, name: nombre }
+    nuevas.push(nueva)
     etiquetas.push(nueva)
   }
 
@@ -397,7 +476,7 @@ function crearProceso (entrada, autor) {
     throw new ErrorApi(422, 'validation_failed', 'Hay campos que no se pueden guardar.', detalles)
   }
 
-  const primera = [...ESTADOS_PROCESO].sort((a, b) => a.order - b.order)[0]
+  ETIQUETAS.push(...nuevas)
 
   const id = Math.max(...PROCESOS.map((p) => p.id)) + 1
 
@@ -408,24 +487,27 @@ function crearProceso (entrada, autor) {
     patente: patenteDeAlta(espacio),
     name: nombre,
     description: typeof entrada.description === 'string' ? entrada.description : null,
-    status: primera.id,
+    status: Number(estado),
     priority: prioridad,
-    start_date: entrada.start_date ?? null,
+    start_date: inicio,
     due_date: entrada.due_date ?? null,
     date_added: new Date().toISOString().replace(/\.\d{3}Z$/, 'Z'),
-    date_finished: null,
+    date_finished: cierre,
     added_from: autor.id,
     rel_type: relType,
     rel_id: relId,
     project: espacio ? { id: espacio.id, name: espacio.name } : null,
-    milestone: null,
-    billable: entrada.billable === true,
+    milestone: hito ? { id: hito.id, name: hito.name } : null,
+    task_type: tipo ? { id: tipo.id, name: tipo.name, label_color: tipo.label_color, text_color: tipo.text_color } : null,
+    estimated_hours: horas,
+    ...booleanos,
     billed: false,
-    hourly_rate: 0,
-    is_public: false,
-    visible_to_client: false,
-    recurring: false,
-    kanban_order: 1,
+    hourly_rate: Math.round(tarifa * 100) / 100,
+    recurring: recurrente,
+    repeat_every: recurrente ? frecuencia : 0,
+    recurring_type: recurrente ? entrada.recurring_type : null,
+    cycles: recurrente ? ciclos : 0,
+    kanban_order: Math.max(0, ...PROCESOS.filter((p) => p.status === Number(estado)).map((p) => p.kanban_order)) + 1,
     assignees: asignados.map((s) => ({
       id: s.id,
       full_name: s.full_name,
@@ -1601,6 +1683,19 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
   }
 
   if (recurso === 'staff' && metodo === 'GET') {
+    // Asignar requiere sesión, no acceso al legajo; la proyección nunca expone correo ni permisos.
+    if (resto[0] === 'asignables') {
+      if (resto.length !== 1) throw new ErrorApi(404, 'not_found', 'Ruta de asignables desconocida.')
+      const personas = STAFF.filter((persona) => persona.active && !persona.is_not_staff)
+        .sort((a, b) => a.firstname.localeCompare(b.firstname))
+        .map(({ id, full_name, profile_image_url, area_id, cargo_id }) => ({
+          id, full_name, profile_image_url, area_id: area_id ?? null, cargo_id: cargo_id ?? null
+        }))
+      const { filas, paginacion } = aplicarConsulta(personas, parametros, {
+        filtros: {}, orden: ['full_name'], busqueda: ['full_name']
+      })
+      return { estado: 200, cuerpo: conDatos(filas, { pagination: paginacion }) }
+    }
     exigirPermiso(actual, 'staff', 'view')
     if (resto.length === 0) {
       const { filas, paginacion } = aplicarConsulta(STAFF.map(presentarStaff), parametros, CONSULTA_STAFF)
@@ -1694,8 +1789,43 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
       const { filas, paginacion } = aplicarConsulta(suyos, parametros, CONSULTA_PROCESOS)
       return { estado: 200, cuerpo: conDatos(filas.map(presentarProcesoEnLista), { pagination: paginacion }) }
     }
+    if (subrecurso === 'task-types') {
+      return { estado: 200, cuerpo: conDatos({
+        aprobacion_requerida_por_defecto: false,
+        task_types: TIPOS_PROCESO.filter((tipo) => tipo.project_id === espacio.id)
+      }) }
+    }
     if (subrecurso === 'milestones') {
-      return { estado: 200, cuerpo: conDatos(HITOS.filter((h) => h.project_id === espacio.id)) }
+      const hitos = HITOS.filter((h) => h.project_id === espacio.id)
+      if (parametros.get('vista') !== 'tablero') return { estado: 200, cuerpo: conDatos(hitos) }
+
+      const columnas = [
+        { id: 0, name: 'Sin categorizar', color: null, order: -1 },
+        ...hitos.map((h) => ({ id: h.id, name: h.name, color: h.color, order: h.milestone_order }))
+      ]
+      const tareas = PROCESOS.filter((p) => p.project?.id === espacio.id)
+      const grupos = columnas.map((columna) => {
+        const suyas = tareas.filter((p) => (p.milestone?.id ?? 0) === columna.id).map((p) => ({
+          ...p,
+          total_logged_seconds: CRONOMETROS.filter((t) => t.task_id === p.id).reduce((total, t) =>
+            total + Math.max(0, (Date.parse(t.end_time ?? new Date().toISOString()) - Date.parse(t.start_time)) / 1000), 0)
+        }))
+        const visibles = suyas.filter((p) => parametros.get('excluir_completadas') === 'false' || p.status !== 5)
+        const { filas, paginacion } = aplicarConsulta(visibles, parametros, {
+          ...CONSULTA_PROCESOS, orden: ['order'], derivadas: { order: (p) => p.kanban_order }
+        })
+        const tarjetas = filas.map((p) => ({
+          ...presentarProcesoEnLista(p),
+          current_user_is_assigned: p.assignees.some((a) => a.id === actual.id),
+          vencida: p.status !== 5 && p.due_date !== null && p.due_date < new Date().toISOString().slice(0, 10)
+        }))
+        return {
+          columna: { ...columna, total_logged_seconds: suyas.reduce((total, p) => total + p.total_logged_seconds, 0) },
+          tarjetas,
+          pagination: paginacion
+        }
+      }).filter((grupo) => grupo.columna.id !== 0 || grupo.pagination.total > 0)
+      return { estado: 200, cuerpo: conDatos(grupos) }
     }
     if (subrecurso === 'members') {
       return { estado: 200, cuerpo: conDatos(miembrosDe(espacio)) }
