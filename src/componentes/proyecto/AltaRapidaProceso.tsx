@@ -32,6 +32,7 @@ import {
   type TareaFusionada
 } from '@/dominio/ia-tarea'
 import { GLOSARIO } from '@/dominio/glosario'
+import { errorDeHorasEstimadas, horasDeTexto } from '@/dominio/tiempo-estimado'
 import { formatearFecha } from '@/lib/fechas'
 import { VistaPreviaAlta, type MarcaPrevia } from './VistaPreviaAlta'
 import type {
@@ -58,8 +59,8 @@ import type { StaffReferencia } from '@/datos/tipos'
  * hay cuatro personas cuyo nombre empieza con "javier" y el parser, con razon, no elige por nadie.
  * Ahi la unica salida honesta es un campo donde se elija. "Por campos" es el mismo formulario que la
  * pantalla de un Espacio muestra cuando la IA esta apagada, mas el Espacio y los asignados, que ahi
- * vienen fijos y aca no. Lo accesorio —tipo, seguidores, descripcion— vive plegado en "Mas
- * detalles": el alta tiene que poder dejar la tarea lista de una vez sin dejar de ser rapida para
+ * vienen fijos y aca no. Lo accesorio —tipo, seguidores, descripcion, horas estimadas— vive plegado
+ * en "Mas detalles": el alta tiene que poder dejar la tarea lista de una vez sin dejar de ser rapida para
  * quien solo quiere anotar un titulo.
  *
  * Los dos modos terminan en el mismo `POST /tasks`: lo que cambia es como se llenan los campos, no
@@ -142,6 +143,9 @@ export function AltaRapidaProceso ({ catalogos, etiquetas, conIa }: PropsAltaRap
   const [vencimiento, setVencimiento] = useState('')
   const [etiquetasEscritas, setEtiquetasEscritas] = useState('')
   const [descripcion, setDescripcion] = useState('')
+  // Se pide en el alta y no solo en la ficha: la estimacion se define al solicitar la tarea, y lo que
+  // no se anota en ese momento no se anota nunca.
+  const [horasEstimadas, setHorasEstimadas] = useState('')
   const [facturable, setFacturable] = useState(true)
   // El tipo depende del Espacio, asi que su catalogo se pide y no viene en `catalogos`.
   const [tipo, setTipo] = useState(NINGUNO)
@@ -252,6 +256,7 @@ export function AltaRapidaProceso ({ catalogos, etiquetas, conIa }: PropsAltaRap
     setVencimiento('')
     setEtiquetasEscritas('')
     setDescripcion('')
+    setHorasEstimadas('')
     setFacturable(true)
     setTipo(NINGUNO)
     setTipos([])
@@ -428,9 +433,17 @@ export function AltaRapidaProceso ({ catalogos, etiquetas, conIa }: PropsAltaRap
       return
     }
 
+    const horasMal = errorDeHorasEstimadas(horasEstimadas)
+
+    if (horasMal !== null) {
+      setError(horasMal)
+      return
+    }
+
     // La colacion de `tbltags` es `_ci`: "urgente" y "Urgente" son la misma fila para la API, asi
     // que no hace falta normalizar nada aca.
     const pedidas = etiquetasEscritas.split(',').map((t) => t.trim()).filter((t) => t !== '')
+    const horas = horasDeTexto(horasEstimadas)
 
     await enviar({
       name: nombre.trim(),
@@ -443,6 +456,7 @@ export function AltaRapidaProceso ({ catalogos, etiquetas, conIa }: PropsAltaRap
       ...(inicio === '' ? {} : { start_date: inicio }),
       ...(vencimiento === '' ? {} : { due_date: vencimiento }),
       ...(descripcion.trim() === '' ? {} : { description: descripcion.trim() }),
+      ...(horas === null ? {} : { estimated_hours: horas }),
       ...(pedidas.length === 0 ? {} : { tags: pedidas })
     })
   }
@@ -705,6 +719,18 @@ export function AltaRapidaProceso ({ catalogos, etiquetas, conIa }: PropsAltaRap
                           {...props}
                           value={descripcion}
                           onChange={(evento) => { setDescripcion(evento.target.value) }}
+                        />
+                      )}
+                    </Campo>
+
+                    <Campo etiqueta="Horas estimadas" ayuda="Acepta decimales. Déjalo vacío si todavía no se estimó.">
+                      {(props) => (
+                        <Entrada
+                          {...props}
+                          type="number"
+                          step="0.5"
+                          value={horasEstimadas}
+                          onChange={(evento) => { setHorasEstimadas(evento.target.value) }}
                         />
                       )}
                     </Campo>

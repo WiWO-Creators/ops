@@ -99,6 +99,7 @@ const CAMPOS: Record<string, string> = {
   assignees: 'Asignados',
   followers: 'Seguidores',
   status: 'Estado',
+  estimated_hours: 'Horas estimadas',
   milestone: GLOSARIO.hito.singular,
   rel_id: GLOSARIO.espacio.singular,
   rel_type: 'Tipo de vínculo',

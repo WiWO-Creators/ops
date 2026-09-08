@@ -1,3 +1,4 @@
+import { horasDeTexto } from './tiempo-estimado.ts'
 import type { StaffReferencia } from '@/datos/tipos'
 import type { Etiqueta, Proceso } from '@/datos/recursos'
 
@@ -23,6 +24,8 @@ export interface CamposEdicion {
    */
   etiquetas: Array<number | string>
   descripcion: string
+  /** Horas estimadas, decimales. `''` es "sin estimacion"; `'0'` es una estimacion de cero. */
+  horasEstimadas: string
 }
 
 /** El cuerpo del `PATCH /tasks/{id}`, con solo las claves que cambiaron. */
@@ -36,6 +39,7 @@ export interface ParcheTarea {
   followers?: number[]
   tags?: Array<number | string>
   description?: string | null
+  estimated_hours?: number | null
 }
 
 /**
@@ -57,7 +61,8 @@ export function camposDeTarea (tarea: Proceso, descripcion: string): CamposEdici
     asignados: tarea.assignees.map((persona) => persona.id),
     seguidores: tarea.followers.map((persona) => persona.id),
     etiquetas: tarea.tags.map((etiqueta) => etiqueta.id),
-    descripcion
+    descripcion,
+    horasEstimadas: typeof tarea.estimated_hours === 'number' ? String(tarea.estimated_hours) : ''
   }
 }
 
@@ -75,8 +80,9 @@ export function camposDeTarea (tarea: Proceso, descripcion: string): CamposEdici
  * Las listas se comparan como conjuntos: reordenar los chips del selector no es un cambio.
  *
  * El vacio de un campo opcional viaja como `null` y no como `''`: la API borra con `null` y rechaza
- * la cadena vacia en las fechas. `milestone` es la excepcion que documenta el contrato — se quita
- * con `0`, porque el campo es un entero en la base.
+ * la cadena vacia en las fechas. Lo mismo con `estimated_hours`, que ademas no se puede mandar como
+ * `''`: la API lo leeria como cero, y cero horas estimadas no es no haber estimado. `milestone` es
+ * la excepcion que documenta el contrato — se quita con `0`, porque el campo es un entero en la base.
  *
  * @param inicial los campos tal como se abrieron
  * @param actual los campos tal como quedaron
@@ -97,6 +103,9 @@ export function cuerpoDeParche (inicial: CamposEdicion, actual: CamposEdicion): 
   if (!mismosIds(actual.etiquetas, inicial.etiquetas)) parche.tags = actual.etiquetas
   if (actual.descripcion.trim() !== inicial.descripcion.trim()) {
     parche.description = actual.descripcion.trim() === '' ? null : actual.descripcion.trim()
+  }
+  if (actual.horasEstimadas.trim() !== inicial.horasEstimadas.trim()) {
+    parche.estimated_hours = horasDeTexto(actual.horasEstimadas)
   }
 
   return parche

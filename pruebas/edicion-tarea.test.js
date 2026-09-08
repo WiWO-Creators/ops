@@ -21,7 +21,8 @@ const TAREA = {
   milestone: { id: 3, name: 'Kickoff' },
   assignees: [{ id: 20, full_name: 'Ana Ríos', profile_image_url: null }],
   followers: [],
-  tags: [{ id: 5, name: 'urgente' }]
+  tags: [{ id: 5, name: 'urgente' }],
+  estimated_hours: 4
 }
 
 test('los campos iniciales salen de la tarea, con vacio donde la API manda null', () => {
@@ -36,7 +37,8 @@ test('los campos iniciales salen de la tarea, con vacio donde la API manda null'
     asignados: [20],
     seguidores: [],
     etiquetas: [5],
-    descripcion: 'Texto de la descripción'
+    descripcion: 'Texto de la descripción',
+    horasEstimadas: '4'
   })
 })
 
@@ -93,6 +95,20 @@ test('quitar a todos los asignados manda la lista vacia, no la omite', () => {
   const campos = camposDeTarea(TAREA, '')
 
   assert.deepEqual(cuerpoDeParche(campos, { ...campos, asignados: [] }), { assignees: [] })
+})
+
+test('borrar las horas estimadas viaja como null, no como cero ni como cadena vacia', () => {
+  const campos = camposDeTarea(TAREA, '')
+
+  assert.deepEqual(cuerpoDeParche(campos, { ...campos, horasEstimadas: '' }), { estimated_hours: null })
+  assert.deepEqual(cuerpoDeParche(campos, { ...campos, horasEstimadas: '2.5' }), { estimated_hours: 2.5 })
+})
+
+test('una tarea sin estimar abre el campo vacio y estimarla en cero es un cambio', () => {
+  const campos = camposDeTarea({ ...TAREA, estimated_hours: null }, '')
+
+  assert.equal(campos.horasEstimadas, '')
+  assert.deepEqual(cuerpoDeParche(campos, { ...campos, horasEstimadas: '0' }), { estimated_hours: 0 })
 })
 
 test('los elegibles suman a quien ya esta en la tarea sin repetir a las asignables', () => {

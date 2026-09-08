@@ -41,6 +41,7 @@ import {
   type CamposEdicion
 } from '@/dominio/edicion-tarea'
 import { GLOSARIO } from '@/dominio/glosario'
+import { errorDeHorasEstimadas } from '@/dominio/tiempo-estimado'
 import { cn } from '@/lib/clases'
 import type { StaffReferencia } from '@/datos/tipos'
 import type {
@@ -201,6 +202,13 @@ export function EdicionTarea (
 
     if (campos.nombre.trim() === '') {
       setError(`La ${GLOSARIO.proceso.singular.toLowerCase()} necesita un nombre.`)
+      return
+    }
+
+    const horasMal = errorDeHorasEstimadas(campos.horasEstimadas)
+
+    if (horasMal !== null) {
+      setError(horasMal)
       return
     }
 
@@ -375,6 +383,18 @@ export function EdicionTarea (
               )}
             </Campo>
           </div>
+
+          <Campo etiqueta="Horas estimadas" ayuda="Acepta decimales. Déjalo vacío si todavía no se estimó.">
+            {(props) => (
+              <Entrada
+                {...props}
+                type="number"
+                step="0.5"
+                value={campos.horasEstimadas}
+                onChange={(evento) => setCampos({ ...campos, horasEstimadas: evento.target.value })}
+              />
+            )}
+          </Campo>
 
           <Campo etiqueta="Asignados">
             {({ id }) => (

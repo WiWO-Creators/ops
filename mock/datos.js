@@ -325,6 +325,9 @@ export const PROCESOS = Array.from({ length: 84 }, (_, i) => {
     billable: i % 3 !== 0,
     billed: false,
     hourly_rate: 0,
+    // Una de cada cuatro sin estimar: en la instalacion real la mayoria tiene estimacion y ningun
+    // marcaje, y el panel de tiempos tiene que poder mostrar los dos casos sin datos inventados.
+    estimated_hours: i % 4 === 3 ? null : (i % 6) + 1.5,
     is_public: false,
     visible_to_client: false,
     recurring: false,
