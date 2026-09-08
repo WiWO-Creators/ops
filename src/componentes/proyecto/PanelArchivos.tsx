@@ -1,9 +1,9 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState, type ChangeEvent, type ReactElement } from 'react'
-import { Download, Trash2, Upload } from 'lucide-react'
+import { useCallback, useEffect, useState, type ReactElement } from 'react'
+import { Download, Trash2 } from 'lucide-react'
 import { ArbolDrive } from '@/componentes/archivos/ArbolDrive'
-import { escribirEnBff, subirArchivoEnBff } from '@/componentes/datos/mutaciones'
+import { escribirEnBff } from '@/componentes/datos/mutaciones'
 import { CeldaEncabezado, CeldaTabla, CuerpoTabla, EncabezadoTabla, FilaTabla, Tabla } from '@/componentes/datos/Tabla'
 import { Cargando, ErrorEstado } from '@/componentes/estado/Estados'
 import { Boton } from '@/componentes/formularios/Boton'
@@ -49,14 +49,16 @@ type Carga =
   | { fase: 'error', mensaje: string }
 
 /**
- * Los adjuntos de un Espacio o de un Proceso: listar, descargar, subir y borrar.
+ * Los adjuntos de un Espacio o de un Proceso: listar, descargar y borrar.
+ *
+ * No se sube por aca a proposito. `tblfiles` es el almacen heredado y se mantiene solo para que lo
+ * que ya estaba siga alcanzable; todo archivo nuevo va al arbol de Drive, que es el camino unico.
  *
  * No monta el motor de tabla a proposito. El endpoint no pagina, la definicion no declara filtros ni
  * busqueda, y el motor lee y escribe la query string de la pagina: dentro del modal de una Tarea eso
  * pelearia con el tablero que quedo abajo. Una tabla propia mantiene el estado donde vive el panel.
  *
- * La lista se repinta con la respuesta del POST, que devuelve el listado completo, y el borrado saca
- * la fila sin volver a pedir nada.
+ * El borrado saca la fila del listado sin volver a pedir nada.
  */
 export function PanelAdjuntos ({ raiz, id }: PropsPanelAdjuntos): ReactElement {
   const ruta = rutaDeAdjuntos(raiz, id)
@@ -87,16 +89,11 @@ export function PanelAdjuntos ({ raiz, id }: PropsPanelAdjuntos): ReactElement {
       : actual))
   }, [])
 
-  /** Reemplaza el listado con el que devolvio la subida. */
-  const repintar = useCallback((archivos: ArchivoProyecto[]) => {
-    setCarga({ fase: 'listo', archivos })
-  }, [])
-
   return (
     <section className="flex flex-col gap-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h4 className="text-texto-tenue text-sm font-semibold">Adjuntos</h4>
-        <SubirAdjunto ruta={ruta} onSubido={repintar} />
+        <p className="text-texto-sutil text-xs">Solo lectura: los archivos nuevos van a Drive.</p>
       </div>
 
       {carga.fase === 'cargando' && <Cargando mensaje="Cargando adjuntos…" />}
@@ -236,62 +233,6 @@ function Acciones (
       </Boton>
 
       {error !== null && <p role="alert" className="text-texto-peligro w-full text-right text-xs">{error}</p>}
-    </div>
-  )
-}
-
-/**
- * Input de archivo oculto mas boton visible, para subir un adjunto.
- *
- * De a uno: el endpoint acepta hasta diez por peticion, pero el ayudante compartido de subida manda
- * un solo campo `file`, y multiplicarlo aca duplicaria logica que ya existe para ganar poco.
- */
-function SubirAdjunto (
-  { ruta, onSubido }: { ruta: string, onSubido: (archivos: ArchivoProyecto[]) => void }
-): ReactElement {
-  const entrada = useRef<HTMLInputElement>(null)
-  const [subiendo, setSubiendo] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-
-  /** Sube el archivo elegido y repinta la lista con el listado que devuelve el POST. */
-  async function alElegirArchivo (evento: ChangeEvent<HTMLInputElement>): Promise<void> {
-    const archivo = evento.target.files?.[0]
-
-    // Se limpia antes de cualquier `await`: sin esto, volver a elegir el mismo archivo no dispara
-    // otro `change` y el segundo intento no hace nada.
-    evento.target.value = ''
-    if (archivo === undefined) return
-
-    setSubiendo(true)
-    setError(null)
-
-    const resultado = await subirArchivoEnBff<ArchivoProyecto[]>(ruta, archivo, 'file')
-
-    setSubiendo(false)
-
-    if (!resultado.ok) {
-      setError(resultado.mensaje)
-      return
-    }
-
-    // El 201 trae el listado entero. Si no llego, el archivo se subio igual: decirlo es mas util que
-    // dejar la tabla en blanco.
-    if (!Array.isArray(resultado.datos)) {
-      setError('Se subió, pero el listado no volvió. Vuelve a abrir la ficha para verlo.')
-      return
-    }
-
-    onSubido(resultado.datos)
-  }
-
-  return (
-    <div className="flex flex-wrap items-center gap-2">
-      <input ref={entrada} type="file" className="sr-only" onChange={(e) => { void alElegirArchivo(e) }} />
-      <Boton variante="secundario" tamano="chico" cargando={subiendo} onClick={() => { entrada.current?.click() }}>
-        <Upload className="size-3.5" aria-hidden="true" />
-        Subir adjunto
-      </Boton>
-      {error !== null && <p role="alert" className="text-texto-peligro text-xs">{error}</p>}
     </div>
   )
 }
