@@ -10,6 +10,7 @@ import { PanelDescripcion } from '@/componentes/proyecto/PanelDescripcion'
 import { PanelDiscusiones } from '@/componentes/proyecto/PanelDiscusiones'
 import { PanelGantt } from '@/componentes/proyecto/PanelGantt'
 import { PanelHitos } from '@/componentes/proyecto/PanelHitos'
+import { PanelActas } from '@/componentes/proyecto/PanelActas'
 import { PanelNotas } from '@/componentes/proyecto/PanelNotas'
 import { PanelTareas } from '@/componentes/proyecto/PanelTareas'
 import { PanelTiempos } from '@/componentes/proyecto/PanelTiempos'
@@ -187,7 +188,11 @@ export default async function ProyectoPage (props: PageProps<'/espacios/[id]'>) 
       contenido: <PanelDiscusiones proyectoId={proyecto.id} capacidades={capacidadesProyecto} />
     },
     { clave: 'gantt', etiqueta: 'Diagrama de Gantt', contenido: <PanelGantt proyectoId={proyecto.id} /> },
-    { clave: 'notas', etiqueta: 'Meeting Paper', contenido: <PanelNotas proyectoId={proyecto.id} /> },
+    // El Meeting Paper conserva el lugar donde el equipo ya lo busca. Va aparte de las Notas y no
+    // adentro porque son dos cosas distintas: la nota es privada de quien la escribio y el acta la ve
+    // todo el Proyecto, asi que sus acciones dependen de permisos en vez de ofrecerse siempre.
+    { clave: 'actas', etiqueta: GLOSARIO.acta.singular, contenido: <PanelActas proyectoId={proyecto.id} conIa={conIa} yo={yo} /> },
+    { clave: 'notas', etiqueta: GLOSARIO.nota.plural, contenido: <PanelNotas proyectoId={proyecto.id} /> },
     {
       clave: 'actividad',
       etiqueta: 'Actividad',

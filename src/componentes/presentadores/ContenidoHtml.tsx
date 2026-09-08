@@ -17,7 +17,28 @@
  * no una parte de la interfaz: el iframe no hereda los tokens del tema y forzarlos adentro seria
  * pelear con el CSS que el propio contrato traiga.
  */
-export function ContenidoHtml ({ html, alto = 'h-[32rem]', titulo = 'Contenido del documento' }: { html: string, alto?: string, titulo?: string }) {
+export function ContenidoHtml ({
+  html,
+  alto = 'h-[32rem]',
+  titulo = 'Contenido del documento',
+  firma = null,
+  ref
+}: {
+  html: string
+  alto?: string
+  titulo?: string
+  /**
+   * Firma de marca que se agrega al final del documento.
+   *
+   * Va acá y no dentro del HTML guardado a proposito. MeetingMatico congela la URL de la firma
+   * dentro del cuerpo de cada minuta, asi que el dia que esa ruta cambie todas las actas viejas
+   * muestran una imagen rota. Guardando solo el codigo de marca y pintando la firma al mostrar, ese
+   * dia se arregla en un lugar.
+   */
+  firma?: string | null
+  /** Para poder llamar a `print()` del propio documento: sale con su formato, no como texto plano. */
+  ref?: React.Ref<HTMLIFrameElement>
+}) {
   const documento = `<!doctype html>
 <html lang="es"><head><meta charset="utf-8">
 <style>
@@ -31,10 +52,11 @@ export function ContenidoHtml ({ html, alto = 'h-[32rem]', titulo = 'Contenido d
   table { border-collapse: collapse }
   td, th { border: 1px solid #ddd; padding: 4px 8px }
 </style></head>
-<body>${html}</body></html>`
+<body>${html}${firma === null || firma === '' ? '' : `<p><img src="${firma}" alt=""></p>`}</body></html>`
 
   return (
     <iframe
+      ref={ref}
       title={titulo}
       sandbox=""
       srcDoc={documento}

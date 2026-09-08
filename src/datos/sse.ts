@@ -18,7 +18,14 @@ export type MetodoSSE = 'GET' | 'POST' | 'DELETE'
 export interface OpcionesSSE {
   /** Por defecto `POST`: en este contrato el `GET` lee lo guardado y el `POST` es el que genera. */
   metodo?: MetodoSSE
-  /** Cuerpo JSON. `undefined` no manda cuerpo ni `content-type`. */
+  /**
+   * Cuerpo del pedido. `undefined` no manda cuerpo ni `content-type`.
+   *
+   * Un objeto viaja como JSON. Un `FormData` viaja tal cual, sin `content-type`: lo necesita la
+   * generacion del Meeting Paper, que manda el audio de la reunion **y** pide el stream en la misma
+   * peticion. Hacerlo en dos pasos —subir el archivo y despues generar— obligaria al backend a
+   * guardar ese audio en algun lado mientras tanto, y el archivo es efimero a proposito.
+   */
   cuerpo?: unknown
   /** Para abortar al desmontar el componente o al cambiar de pestaña. */
   senal?: AbortSignal
@@ -75,7 +82,7 @@ export async function * leerSSE (ruta: string, opciones: OpcionesSSE = {}): Asyn
   const respuesta = await fetch(`/api/bff/${ruta}`, {
     method: metodo,
     headers: cabeceras(cuerpo),
-    body: cuerpo === undefined ? undefined : JSON.stringify(cuerpo),
+    body: aCuerpo(cuerpo),
     signal: senal
   })
 
@@ -85,11 +92,26 @@ export async function * leerSSE (ruta: string, opciones: OpcionesSSE = {}): Asyn
   yield * frames(respuesta.body, senal)
 }
 
-/** Cabeceras del pedido. El `content-type` solo va si hay cuerpo, o el servidor espera uno vacio. */
+/**
+ * Cabeceras del pedido.
+ *
+ * El `content-type` solo va si hay cuerpo JSON. Con `FormData` se omite a proposito: lo pone el
+ * navegador con el `boundary` que genera, y fijarlo a mano deja un multipart que el servidor no
+ * puede partir.
+ */
 function cabeceras (cuerpo: unknown): Record<string, string> {
   const base = { accept: 'text/event-stream' }
 
-  return cuerpo === undefined ? base : { ...base, 'content-type': 'application/json' }
+  if (cuerpo === undefined || cuerpo instanceof FormData) return base
+
+  return { ...base, 'content-type': 'application/json' }
+}
+
+/** El cuerpo tal como lo espera `fetch`: `FormData` sin tocar, lo demas serializado. */
+function aCuerpo (cuerpo: unknown): BodyInit | undefined {
+  if (cuerpo === undefined) return undefined
+
+  return cuerpo instanceof FormData ? cuerpo : JSON.stringify(cuerpo)
 }
 
 /**

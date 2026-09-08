@@ -22,7 +22,14 @@ export const GLOSARIO = {
   seguimiento: { singular: 'Seguimiento', plural: 'Seguimiento' },
   planificador: { singular: 'Planificador', plural: 'Planificador' },
   teletrabajo: { singular: 'Teletrabajo', plural: 'Teletrabajo' },
-  automatizacion: { singular: 'Automatización', plural: 'Automatizaciones' }
+  automatizacion: { singular: 'Automatización', plural: 'Automatizaciones' },
+  // El acta de una reunion. La clave dice `acta` porque asi se llama el recurso en la API
+  // (`/projects/{id}/actas`); el valor es como lo llama el equipo desde antes de que existiera esta
+  // pantalla.
+  acta: { singular: 'Meeting Paper', plural: 'Meeting Papers' },
+  // Las notas privadas. Estaban escritas a mano en la pestaña, que ademas decia "Meeting Paper"
+  // porque hasta ahora eran lo mas parecido que habia.
+  nota: { singular: 'Nota', plural: 'Notas' }
 } as const
 
 /**
