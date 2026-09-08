@@ -1,8 +1,9 @@
 'use client'
 
+import { AccionesMasivasTareas } from '@/componentes/proyecto/AccionesMasivasTareas'
 import { ModalTarea } from '@/componentes/proyecto/ModalTarea'
 import { PARAMETRO_TAREA } from '@/componentes/datos/tabla'
-import { PROCESOS_NAVEGABLES } from './procesos-navegables'
+import { PROCESOS_NAVEGABLES } from './celdas-procesos'
 import { TablaRecurso } from './TablaRecurso'
 import { TableroFiltrable } from './TableroFiltrable'
 import { CLIENTES } from '@/definiciones/clientes'
@@ -42,14 +43,32 @@ interface PropsVistaLista<T> {
  * Usa `PROCESOS_NAVEGABLES` —la misma definicion, con el nombre y el espacio como enlaces— y monta el
  * mismo modal de detalle que la pestaña de Tareas de un proyecto: una tarea abierta se ve igual venga
  * de donde venga, y su URL es la misma.
+ *
+ * Los presets guardados y las acciones masivas son los mismos de la pestaña de un Espacio: se
+ * comparte la vista `tasks` de presets y la misma barra, no una copia. Sin Espacio no se ofrece
+ * "Mover a un hito", que es lo unico que un listado global no puede resolver.
  */
 export function TablaProcesos (props: PropsVistaLista<Proceso>) {
+  const estados = props.opcionesDeFiltro?.task_statuses ?? []
+  const prioridades = props.opcionesDeFiltro?.task_priorities ?? []
+
   return (
     <>
       <TablaRecurso
         definicion={PROCESOS_NAVEGABLES}
         claveFila={(proceso) => proceso.id}
         abrirEn={{ clave: PARAMETRO_TAREA, valor: (proceso) => proceso.id }}
+        board="tasks"
+        seleccionMasiva={(filas, limpiar, recargar) => (
+          <AccionesMasivasTareas
+            filas={filas}
+            capacidades={props.capacidades ?? []}
+            estados={estados}
+            prioridades={prioridades}
+            limpiar={limpiar}
+            recargar={recargar}
+          />
+        )}
         {...props}
       />
       <ModalTarea

@@ -25,7 +25,7 @@ import {
 import { cargarAsignables } from '@/datos/asignables'
 import { pedirSobre } from '@/datos/cliente'
 import { leerError } from '@/datos/errores'
-import type { Hito, PersonaAsignable, ResultadoAccionMasiva } from '@/datos/recursos'
+import type { Hito, PersonaAsignable, Proceso, ResultadoAccionMasiva } from '@/datos/recursos'
 import type { Capacidad } from '@/datos/tipos'
 import type { OpcionFiltro } from '@/definiciones/tipos'
 import {
@@ -46,33 +46,37 @@ import {
  * **El permiso lo vuelve a decidir el backend.** Aca solo se poda lo que ya se sabe que falla, y en
  * `status` ni siquiera eso: el backend aplica fila por fila y devuelve en `meta.omitidos` las que se
  * salteo, que es lo que la barra informa al terminar.
+ *
+ * Recibe la forma que pide `seleccionMasiva` de `TablaRecurso` —las filas, limpiar y recargar—, asi
+ * que la misma barra sirve en la vista global y en la pestaña de un Espacio, y las casillas las
+ * dibuja el motor en las dos.
  */
 
 interface PropsAcciones {
-  proyectoId: number
-  /** Ids de las tareas seleccionadas. */
-  ids: number[]
-  /** Cuantas filas hay en la pagina, para ofrecer "seleccionar todo". */
-  totalEnPagina: number
+  /**
+   * El Espacio, cuando la barra vive dentro de uno. Sin el se poda "Mover a un hito": los hitos
+   * cuelgan de un Espacio y la API no expone un listado global, el mismo motivo por el que el filtro
+   * de Hito depende de elegir Espacio.
+   */
+  proyectoId?: number
+  /** Las tareas seleccionadas en la pagina visible. */
+  filas: Proceso[]
   capacidades: Capacidad[]
   estados: OpcionFiltro[]
   prioridades: OpcionFiltro[]
-  onSeleccionarTodo: () => void
-  onLimpiar: () => void
+  limpiar: () => void
   /** Se llama cuando el backend confirmo: la tabla tiene que volver a pedir los datos. */
-  onAplicado: () => void
+  recargar: () => void
 }
 
 export function AccionesMasivasTareas ({
   proyectoId,
-  ids,
-  totalEnPagina,
+  filas,
   capacidades,
   estados,
   prioridades,
-  onSeleccionarTodo,
-  onLimpiar,
-  onAplicado
+  limpiar,
+  recargar
 }: PropsAcciones): ReactElement | null {
   const [accion, setAccion] = useState<AccionMasivaDescrita | null>(null)
   const [valor, setValor] = useState('')
@@ -81,7 +85,9 @@ export function AccionesMasivasTareas ({
   const [personal, setPersonal] = useState<PersonaAsignable[]>([])
   const [hitos, setHitos] = useState<Hito[]>([])
 
+  const ids = filas.map((fila) => fila.id)
   const disponibles = accionesMasivasPermitidas(capacidades)
+    .filter((accion) => accion.control !== 'hito' || proyectoId !== undefined)
 
   if (ids.length === 0 || disponibles.length === 0) return null
 
@@ -106,7 +112,7 @@ export function AccionesMasivasTareas ({
         .catch(() => setError('No se pudo traer el equipo.'))
     }
 
-    if (elegida.control === 'hito' && hitos.length === 0) {
+    if (elegida.control === 'hito' && proyectoId !== undefined && hitos.length === 0) {
       void pedirSobre<Hito[]>(`projects/${proyectoId}/milestones`, new AbortController().signal)
         .then((sobre) => setHitos(sobre.data))
         .catch(() => setError('No se pudieron traer los hitos.'))
@@ -147,8 +153,8 @@ export function AccionesMasivasTareas ({
       const omitidos = sobre.meta?.omitidos ?? []
 
       setAccion(null)
-      onLimpiar()
-      onAplicado()
+      limpiar()
+      recargar()
 
       if (omitidos.length > 0) {
         setError(`Se aplicó a ${sobre.data.aplicados}. ${omitidos.length} quedaron sin cambiar por permisos.`)
@@ -170,13 +176,7 @@ export function AccionesMasivasTareas ({
         {ids.length} seleccionada{ids.length === 1 ? '' : 's'}
       </span>
 
-      {ids.length < totalEnPagina && (
-        <Boton variante="sutil" tamano="chico" onClick={onSeleccionarTodo}>
-          Seleccionar las {totalEnPagina} de esta página
-        </Boton>
-      )}
-
-      <Boton variante="sutil" tamano="chico" onClick={onLimpiar}>
+      <Boton variante="sutil" tamano="chico" onClick={limpiar}>
         Limpiar
       </Boton>
 

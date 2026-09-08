@@ -2,6 +2,7 @@
 
 import { Suspense, useCallback, useEffect, useMemo, useState, type ReactElement } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
+import { PARAMETRO_TAREA } from '@/componentes/datos/tabla'
 import { TablaRecurso } from '@/componentes/datos/TablaRecurso'
 import { TableroFiltrable } from '@/componentes/datos/TableroFiltrable'
 import { Segmentado, type OpcionSegmentada } from '@/componentes/formularios/Segmentado'
@@ -25,7 +26,7 @@ import { ModalTarea } from './ModalTarea'
 import { FormularioTarea } from './FormularioTarea'
 import { ResumenEstadosTareas } from './ResumenEstadosTareas'
 import { TarjetaTarea } from './TarjetaTarea'
-import { definicionDeTareas, ProveedorSeleccion } from './columnas-tareas'
+import { definicionDeTareas } from './columnas-tareas'
 import { opcionesDeFiltroDeHito, TOPE_DE_HITOS } from './hitos'
 import { BotonCompletados } from './BotonCompletados'
 import { estaVencida } from './tareas'
@@ -102,7 +103,6 @@ function TareasDelProyecto ({ proyectoId, capacidades, conIa }: PropsPanelTareas
 
   const [carga, setCarga] = useState<Carga>({ fase: 'cargando' })
   const [intento, setIntento] = useState(0)
-  const [seleccion, setSeleccion] = useState<number[]>([])
 
   // Se memoizan porque son dependencias del `useMemo` de la definicion: un array nuevo en cada
   // render la reconstruiria siempre, y con ella todas las celdas.
@@ -114,7 +114,6 @@ function TareasDelProyecto ({ proyectoId, capacidades, conIa }: PropsPanelTareas
 
   /** Vuelve a pedirlo todo. Va fuera del efecto: un `setState` sincronico dentro encadena renders. */
   const recargar = useCallback(() => {
-    setSeleccion([])
     setCarga({ fase: 'cargando' })
     setIntento((n) => n + 1)
   }, [])
@@ -184,7 +183,6 @@ function TareasDelProyecto ({ proyectoId, capacidades, conIa }: PropsPanelTareas
   }
 
   const estadoFiltrado = unicoEstadoFiltrado(params.get('filter[status]'))
-  const filas = carga.inicial.filas
 
   return (
     <div className="flex flex-col gap-4">
@@ -251,32 +249,32 @@ function TareasDelProyecto ({ proyectoId, capacidades, conIa }: PropsPanelTareas
           />
             )
           : (
-          <>
-            <AccionesMasivasTareas
-              proyectoId={proyectoId}
-              ids={seleccion}
-              totalEnPagina={filas.length}
-              capacidades={capacidades}
-              estados={estados}
-              prioridades={prioridades}
-              onSeleccionarTodo={() => setSeleccion(filas.map((fila) => fila.id))}
-              onLimpiar={() => setSeleccion([])}
-              onAplicado={recargar}
-            />
-
-            <ProveedorSeleccion seleccion={seleccion} onSeleccion={setSeleccion}>
-              <TablaRecurso
-                key={intento}
-                definicion={definicion}
-                inicial={carga.inicial}
-                claveFila={(proceso) => proceso.id}
-                claseFila={(proceso) => estaVencida(proceso) ? 'bg-superficie-peligro' : undefined}
+          <TablaRecurso
+            key={intento}
+            definicion={definicion}
+            inicial={carga.inicial}
+            claveFila={(proceso) => proceso.id}
+            claseFila={(proceso) => estaVencida(proceso) ? 'bg-superficie-peligro' : undefined}
+            // La fila entera abre el detalle, igual que en la vista global. El enlace del nombre
+            // sigue siendo el camino del teclado; esto es la comodidad del mouse encima de el.
+            abrirEn={{ clave: PARAMETRO_TAREA, valor: (proceso) => proceso.id }}
+            capacidades={capacidades}
+            opcionesDeFiltro={carga.opciones}
+            board="tasks"
+            // La seleccion la dibuja el motor. `recargar` es el del panel y no el del motor a
+            // proposito: una accion masiva tambien cambia el resumen por estado de arriba.
+            seleccionMasiva={(filas, limpiar) => (
+              <AccionesMasivasTareas
+                proyectoId={proyectoId}
+                filas={filas}
                 capacidades={capacidades}
-                opcionesDeFiltro={carga.opciones}
-                board="tasks"
+                estados={estados}
+                prioridades={prioridades}
+                limpiar={limpiar}
+                recargar={recargar}
               />
-            </ProveedorSeleccion>
-          </>
+            )}
+          />
             )}
 
       <ModalTarea

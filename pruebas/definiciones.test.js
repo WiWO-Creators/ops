@@ -9,7 +9,7 @@
 
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { PROCESOS } from '../src/definiciones/procesos.ts'
+import { PROCESOS, procesosDelEspacio } from '../src/definiciones/procesos.ts'
 import { ESPACIOS } from '../src/definiciones/espacios.ts'
 import { CLIENTES, NOTAS_CLIENTE } from '../src/definiciones/clientes.ts'
 import { EQUIPO } from '../src/definiciones/equipo.ts'
@@ -195,4 +195,50 @@ test('PLANTILLAS: una duracion nula o en cero se muestra como guion, nunca como 
   assert.equal(columna.presentar({ duration_days: null }), '—')
   assert.equal(columna.presentar({ duration_days: 0 }), '—')
   assert.equal(columna.presentar({ duration_days: 30 }), '30 d')
+})
+
+// frente: unificacion — la pestaña Tareas de un Espacio y el listado global son la MISMA tabla. Lo
+// que sigue vigila que la del Espacio siga siendo la global menos lo que no aplica, y no una lista
+// paralela que se vuelva a separar.
+
+test('procesosDelEspacio acota por la ruta y no por un filtro visible', () => {
+  const definicion = procesosDelEspacio(7)
+
+  assert.equal(definicion.ruta, 'projects/7/tasks')
+  // Un `filter[project_id]` en la URL seria editable por quien mira: bastaria cambiar el numero para
+  // ver las tareas de otro Espacio bajo este encabezado.
+  assert.ok(!definicion.filtros.some((f) => f.clave === 'project_id'))
+  // Un Espacio es de un solo cliente: el desplegable solo podria devolver todo o nada.
+  assert.ok(!definicion.filtros.some((f) => f.clave === 'clientid'))
+})
+
+test('procesosDelEspacio conserva el resto de los filtros de la vista global', () => {
+  const global = PROCESOS.filtros.map((f) => f.clave).filter((c) => c !== 'project_id' && c !== 'clientid')
+
+  assert.deepEqual(procesosDelEspacio(7).filtros.map((f) => f.clave), global)
+})
+
+test('las dos vistas de Procesos comparten columnas, orden y encabezados', () => {
+  const esperadas = PROCESOS.columnas.filter((c) => c.clave !== 'project')
+  const enElEspacio = procesosDelEspacio(7).columnas
+
+  assert.deepEqual(enElEspacio.map((c) => c.clave), esperadas.map((c) => c.clave))
+  assert.deepEqual(enElEspacio.map((c) => c.encabezado), esperadas.map((c) => c.encabezado))
+  // La columna de Espacio repetiria el titulo de la pantalla en cada fila.
+  assert.ok(!enElEspacio.some((c) => c.clave === 'project'))
+})
+
+test('PROCESOS trae las columnas que antes solo tenia la pestaña de un Espacio', () => {
+  const claves = PROCESOS.columnas.map((c) => c.clave)
+
+  for (const clave of ['task_type', 'tags', 'iterations', 'date_added']) {
+    assert.ok(claves.includes(clave), `falta la columna ${clave}`)
+  }
+})
+
+test('ningun encabezado de PROCESOS quedo sin traducir', () => {
+  for (const columna of PROCESOS.columnas) {
+    assert.ok(columna.encabezado.length > 0, `${columna.clave} no tiene encabezado`)
+    assert.ok(!/^Task type$/i.test(columna.encabezado), `${columna.clave} sigue en ingles`)
+  }
 })

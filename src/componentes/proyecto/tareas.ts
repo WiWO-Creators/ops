@@ -133,14 +133,3 @@ export function valorDeAccionMasiva (
 
   return Number.isInteger(numero) && numero > 0 ? numero : null
 }
-
-/**
- * Alterna un id dentro de la seleccion.
- *
- * @param seleccion los ids ya seleccionados
- * @param id el que se toco
- * @returns la seleccion nueva; no muta la anterior
- */
-export function alternarSeleccion (seleccion: number[], id: number): number[] {
-  return seleccion.includes(id) ? seleccion.filter((n) => n !== id) : [...seleccion, id]
-}

@@ -35,6 +35,10 @@ export const PROCESOS: DefinicionRecurso<Proceso> = {
     { clave: 'name', encabezado: 'Nombre', ordenPor: 'name', presentar: (p) => p.name },
     { clave: 'status', encabezado: 'Estado', ordenPor: 'status', comoInsignia: 'task_statuses', presentar: (p) => p.status },
     { clave: 'priority', encabezado: 'Prioridad', ordenPor: 'priority', comoInsignia: 'task_priorities', presentar: (p) => p.priority },
+    // El tipo de Proceso lo configura cada Espacio en Perfex y es de donde sale el ETA comprometido:
+    // leerlo al lado de la prioridad explica por que una tarea tiene la fecha que tiene. En pantalla
+    // se pinta con los dos colores del catalogo; este texto es el que baja al CSV.
+    { clave: 'task_type', encabezado: 'Tipo', presentar: (p) => p.task_type?.name ?? SIN_DATO },
     { clave: 'project', encabezado: GLOSARIO.espacio.singular, presentar: (p) => p.project?.name ?? '' },
     // Pegada al Espacio porque el hito cuelga de el: leidos juntos dicen en que tramo del Espacio
     // va la tarea. No es ordenable — el backend no declara `milestone` en su whitelist de orden, y
@@ -61,6 +65,16 @@ export const PROCESOS: DefinicionRecurso<Proceso> = {
       clave: 'estado_sla',
       encabezado: 'SLA',
       presentar: (p) => (p.estado_sla == null ? SIN_DATO : SLA[p.estado_sla].etiqueta)
+    },
+    { clave: 'tags', encabezado: 'Etiquetas', presentar: (p) => p.tags.map((etiqueta) => etiqueta.name).join(', ') },
+    {
+      clave: 'iterations',
+      encabezado: 'Iteraciones',
+      numerica: true,
+      // Contador propio de Wiwo (`tblwiwo_task_iterations`). Arranca oculta porque sin `wiwo_core` el
+      // backend no manda la clave y la columna seria una fila de guiones ocupando ancho.
+      ocultaPorDefecto: true,
+      presentar: (p) => p.counts.iterations ?? SIN_DATO
     },
     {
       clave: 'start_date',
@@ -160,4 +174,47 @@ function nombresAsignados (proceso: Proceso): string {
   const restantes = proceso.assignees.length - visibles.length
 
   return restantes > 0 ? `${visibles.join(', ')} +${restantes}` : visibles.join(', ')
+}
+
+/**
+ * Columnas de `PROCESOS` que no significan nada dentro de un Espacio.
+ *
+ * Todas las tareas del listado son de ese Espacio: la columna repetiria el titulo de la pantalla en
+ * cada fila.
+ */
+const COLUMNAS_FUERA_DEL_ESPACIO = ['project']
+
+/**
+ * Filtros de `PROCESOS` que no significan nada dentro de un Espacio.
+ *
+ * `project_id` ofreceria cambiar de Espacio sin cambiar de pantalla. `clientid` es peor: un Espacio
+ * es de un solo cliente, asi que el desplegable solo puede devolver todo o nada. Se podan a
+ * proposito y no por accidente —el catalogo de clientes ni siquiera baja en esta pantalla—, para que
+ * agregarlos vuelva a ser una decision y no un descuido.
+ */
+const FILTROS_FUERA_DEL_ESPACIO = ['project_id', 'clientid']
+
+/**
+ * `PROCESOS` acotado a la pestaña Tareas de un Espacio.
+ *
+ * **Acotar por la ruta y no por un filtro.** `GET /projects/{id}/tasks` inyecta `filter[project_id]`
+ * del lado del backend y acepta el resto de los parametros del listado. Un filtro en la URL quedaria
+ * visible, editable y borrable por quien mira: sacarlo dejaria el panel de un Espacio mostrando las
+ * tareas de todos.
+ *
+ * Las columnas son las mismas de la vista global —mismo orden, mismos encabezados— menos las que no
+ * aplican: las dos vistas se derivan de una sola lista para que no vuelvan a separarse.
+ *
+ * @param proyectoId el Espacio que se esta mirando
+ * @returns la definicion acotada, sin las celdas ricas todavia
+ */
+export function procesosDelEspacio (proyectoId: number): DefinicionRecurso<Proceso> {
+  return {
+    ...PROCESOS,
+    ruta: `projects/${encodeURIComponent(String(proyectoId))}/tasks`,
+    columnas: PROCESOS.columnas.filter((columna) => !COLUMNAS_FUERA_DEL_ESPACIO.includes(columna.clave)),
+    filtros: PROCESOS.filtros.filter((filtro) => !FILTROS_FUERA_DEL_ESPACIO.includes(filtro.clave)),
+    // Los campos personalizados son columnas: sin el include, sus celdas llegan vacias.
+    incluirSiempre: ['custom_fields']
+  }
 }
