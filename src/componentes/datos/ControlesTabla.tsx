@@ -20,7 +20,7 @@ import {
   MenuContextual
 } from '@/componentes/superposiciones/MenuContextual'
 import { cn } from '@/lib/clases'
-import { opcionesPorPagina, resumenDeFiltro } from './tabla'
+import { filtrosTrasCambiar, opcionesPorPagina, resumenDeFiltro } from './tabla'
 
 /**
  * Controles de una vista de lista: busqueda, filtros, columnas y paginacion.
@@ -82,9 +82,16 @@ export function ControlesTabla<T> ({
   onVisibles,
   sinColumnas = false
 }: PropsControles<T>) {
-  /** Cambia un filtro y vuelve a la primera pagina: la 7 de un listado nuevo casi nunca existe. */
+  /**
+   * Cambia un filtro y vuelve a la primera pagina: la 7 de un listado nuevo casi nunca existe.
+   *
+   * Los filtros que colgaban del que cambio se van con el: ver `filtrosTrasCambiar`.
+   */
   function cambiarFiltro (clave: string, valores: string[]) {
-    onCambiar({ filtros: { ...estado.filtros, [clave]: valores }, pagina: 1 })
+    onCambiar({
+      filtros: filtrosTrasCambiar(estado.filtros, definicion.filtros, clave, valores),
+      pagina: 1
+    })
   }
 
   function alternarColumna (clave: string) {

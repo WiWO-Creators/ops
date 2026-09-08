@@ -76,6 +76,15 @@ export interface Filtro {
    */
   etiquetaSinFiltro?: string
   /**
+   * Clave del filtro del que este depende: cuando aquel cambia, este se borra.
+   *
+   * Existe porque un catalogo puede colgar de otro filtro. Los Hitos son de un Espacio: filtrar por
+   * Espacio A e Hito X y despues pasar al Espacio B dejaba el `milestone_id` de A en la URL, y la
+   * lista devolvia vacio sin decir por que —el hito no es de ese Espacio, asi que ninguna tarea
+   * coincide—. Los filtros que no dependen de nadie no declaran esto y se comportan como siempre.
+   */
+  dependeDe?: string
+  /**
    * Las dos claves que el backend usa para el rango, en orden desde/hasta. Solo para `rangoFechas`.
    *
    * Un rango es UN control con DOS parametros: la API expone `filter[date_from]` y `filter[date_to]`

@@ -12,6 +12,7 @@ import type { Espacio, PersonaAsignable } from '@/datos/recursos'
 import type { Yo } from '@/datos/tipos'
 import { PROCESOS } from '@/definiciones/procesos'
 import { opcionesDeCliente } from '../opciones-de-cliente'
+import { opcionesDeHito } from '../opciones-de-hito'
 
 export const metadata = { title: 'Tablero de Tareas · WiWO Ops' }
 
@@ -30,7 +31,7 @@ export default async function TableroProcesosPage (props: PageProps<'/procesos/t
   const estado = leerConsulta(params, PROCESOS)
   const consulta = construirConsulta({ ...estado, orden: [], pagina: 1 }, PROCESOS)
 
-  const [lookups, yo, equipo, espacios, clientes, conIa] = await Promise.all([
+  const [lookups, yo, equipo, espacios, clientes, hitos, conIa] = await Promise.all([
     cargarLookups(),
     pedir<Yo>('/me'),
     // Catalogos del alta rapida, iguales a los de la lista: el boton tiene que estar en las dos
@@ -39,8 +40,13 @@ export default async function TableroProcesosPage (props: PageProps<'/procesos/t
     pedirOpcional<PersonaAsignable[]>(`/${RUTA_DE_ASIGNABLES}`),
     pedir<Espacio[]>('/projects?per_page=500'),
     opcionesDeCliente(),
+    opcionesDeHito(estado.filtros.project_id),
     iaHabilitada()
   ])
+
+  // El catalogo de Espacios ya venia para el alta rapida; darselo tambien al filtro es lo que hace
+  // que el filtro por Hito tenga de donde salir, porque un hito cuelga de un Espacio.
+  const espaciosDeFiltro = espacios.data.map((espacio) => ({ valor: String(espacio.id), etiqueta: espacio.name }))
 
   const catalogosDeAlta = {
     personas: (equipo.datos ?? []).map((p) => ({
@@ -75,7 +81,7 @@ export default async function TableroProcesosPage (props: PageProps<'/procesos/t
 
       <Suspense fallback={<Cargando alto="min-h-36" mensaje="Cargando el tablero…" />}>
         <TableroProcesos
-          opcionesDeFiltro={{ ...opcionesDeFiltros(PROCESOS, lookups), clients: clientes }}
+          opcionesDeFiltro={{ ...opcionesDeFiltros(PROCESOS, lookups), clients: clientes, projects: espaciosDeFiltro, milestones: hitos }}
           capacidades={yo.data.permissions.tasks}
         />
       </Suspense>

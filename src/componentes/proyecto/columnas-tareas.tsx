@@ -7,12 +7,14 @@ import { GrupoAvatares } from '@/componentes/presentadores/Avatar'
 import { Etiquetas } from '@/componentes/presentadores/Etiqueta'
 import { Desviacion, EstadoSla } from '@/componentes/presentadores/EstadoSla'
 import { Fecha } from '@/componentes/presentadores/Fecha'
+import { InsigniaHito } from '@/componentes/presentadores/Hito'
 import { Insignia } from '@/componentes/presentadores/Insignia'
 import { leerError } from '@/datos/errores'
 import type { DefinicionCampoPersonalizado, ProcesoAmpliado } from '@/datos/recursos'
 import type { Capacidad } from '@/datos/tipos'
 import type { Columna, DefinicionRecurso, OpcionFiltro } from '@/definiciones/tipos'
 import { PROCESOS } from '@/definiciones/procesos'
+import { GLOSARIO } from '@/dominio/glosario'
 import { SIN_DATO } from '@/lib/sla'
 import { alternarSeleccion, camposDeTabla, valorDeCampo } from './tareas'
 
@@ -224,6 +226,9 @@ export function definicionDeTareas ({
     { clave: 'patente', encabezado: 'ID', sinCortar: true, presentar: (proceso) => proceso.patente ?? SIN_DATO },
     { clave: 'name', encabezado: 'Nombre', ordenPor: 'name', presentar: (proceso) => <EnlaceTarea proceso={proceso} /> },
     { clave: 'task_type', encabezado: 'Task type', presentar: (proceso) => <TipoDeTarea proceso={proceso} /> },
+    // El hito del Espacio abierto. No es ordenable: el backend no declara `milestone` entre los
+    // campos de orden y pedirlo devolveria 422.
+    { clave: 'milestone', encabezado: GLOSARIO.hito.singular, presentar: (proceso) => <InsigniaHito hito={proceso.milestone} /> },
     {
       clave: 'status',
       encabezado: 'Estado',

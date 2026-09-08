@@ -1,5 +1,6 @@
-import type { ColumnaHito, TarjetaHito } from '@/datos/recursos'
+import type { ColumnaHito, Referencia, TarjetaHito } from '@/datos/recursos'
 import type { CuerpoMover, FilaConId, GrupoTablero } from '@/componentes/datos/tablero'
+import type { OpcionFiltro } from '@/definiciones/tipos'
 
 /**
  * Logica pura del kanban y de la tabla de Hitos.
@@ -13,6 +14,15 @@ import type { CuerpoMover, FilaConId, GrupoTablero } from '@/componentes/datos/t
 
 /** Id de la columna sintetica "Sin categorizar": las tareas sin hito viven ahi. */
 export const COLUMNA_SIN_CATEGORIZAR = 0
+
+/**
+ * Tope de hitos que se piden para poblar el filtro por Hito.
+ *
+ * Es el maximo que acepta la API en una pagina, el mismo que usa el selector de Clientes. Ningun
+ * Espacio de esta instalacion se acerca —hay 268 hitos repartidos en 275 Espacios—, y si alguno lo
+ * pasara, el reemplazo es un filtro con busqueda contra el servidor, no subir el numero.
+ */
+export const TOPE_DE_HITOS = 100
 
 /** Un grupo del kanban de hitos, con la columna enriquecida que manda el contrato. */
 export type GrupoHito = GrupoTablero<TarjetaHito> & { columna: ColumnaHito }
@@ -76,4 +86,27 @@ export function cuerpoMoverHito (cuerpo: CuerpoMover): {
     posicion: cuerpo.posicion,
     columna_completa: cuerpo.columna_completa
   }
+}
+
+/**
+ * Opciones del filtro por Hito de un listado de Tareas.
+ *
+ * "Sin hito" va primera y vale `0`, no una cadena vacia ni un centinela inventado: en la base
+ * `tbltasks.milestone` guarda **0** cuando la tarea no cuelga de ningun hito, y el backend traduce
+ * `filter[milestone_id]=0` a `milestone IN (0)`. Es el mismo cero de `COLUMNA_SIN_CATEGORIZAR`, la
+ * columna sintetica del kanban, y por eso sale de esa constante y no de un literal repetido.
+ *
+ * Un Espacio sin hitos devuelve la lista vacia y no solo "Sin hito": el motor esconde un filtro sin
+ * opciones, y un desplegable con una unica opcion que ademas no filtra nada solo ocupa lugar.
+ *
+ * @param hitos los hitos del Espacio, tal como los devuelve `GET /projects/{id}/milestones`
+ * @returns las opciones para `ControlesTabla`, o vacio si el Espacio no tiene hitos
+ */
+export function opcionesDeFiltroDeHito (hitos: Referencia[]): OpcionFiltro[] {
+  if (hitos.length === 0) return []
+
+  return [
+    { valor: String(COLUMNA_SIN_CATEGORIZAR), etiqueta: 'Sin hito' },
+    ...hitos.map((hito) => ({ valor: String(hito.id), etiqueta: hito.name }))
+  ]
 }

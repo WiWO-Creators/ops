@@ -12,6 +12,7 @@ import type { Espacio, PersonaAsignable, Proceso } from '@/datos/recursos'
 import type { Yo } from '@/datos/tipos'
 import { PROCESOS } from '@/definiciones/procesos'
 import { opcionesDeCliente } from './opciones-de-cliente'
+import { opcionesDeHito } from './opciones-de-hito'
 
 export const metadata = { title: 'Tareas · WiWO Ops' }
 
@@ -31,7 +32,7 @@ export default async function ProcesosPage (props: PageProps<'/procesos'>) {
   // filtrar la lista y pasar al tablero devolvia el tablero sin filtrar.
   const consultaTablero = construirConsulta({ ...estado, orden: [], pagina: 1 }, PROCESOS)
 
-  const [lista, lookups, yo, equipo, espacios, clientes, conIa] = await Promise.all([
+  const [lista, lookups, yo, equipo, espacios, clientes, hitos, conIa] = await Promise.all([
     pedir<Proceso[]>(`/tasks${consulta === '' ? '' : `?${consulta}`}`),
     cargarLookups(),
     pedir<Yo>('/me'),
@@ -45,9 +46,14 @@ export default async function ProcesosPage (props: PageProps<'/procesos'>) {
     pedirOpcional<PersonaAsignable[]>(`/${RUTA_DE_ASIGNABLES}`),
     pedir<Espacio[]>('/projects?per_page=500'),
     opcionesDeCliente(),
+    opcionesDeHito(estado.filtros.project_id),
     // Decide si el alta ofrece el texto libre: con la capa apagada la API responde 404 a `/ia/*`.
     iaHabilitada()
   ])
+
+  // El catalogo de Espacios ya venia para el alta rapida; darselo tambien al filtro es lo que hace
+  // que el filtro por Hito tenga de donde salir, porque un hito cuelga de un Espacio.
+  const espaciosDeFiltro = espacios.data.map((espacio) => ({ valor: String(espacio.id), etiqueta: espacio.name }))
 
   const catalogosDeAlta = {
     personas: (equipo.datos ?? []).map((p) => ({
@@ -88,7 +94,7 @@ export default async function ProcesosPage (props: PageProps<'/procesos'>) {
         <TablaProcesos
           inicial={{ filas: lista.data, paginacion: lista.meta?.pagination }}
           capacidades={yo.data.permissions.tasks}
-          opcionesDeFiltro={{ ...opcionesDeFiltros(PROCESOS, lookups), clients: clientes }}
+          opcionesDeFiltro={{ ...opcionesDeFiltros(PROCESOS, lookups), clients: clientes, projects: espaciosDeFiltro, milestones: hitos }}
         />
       </Suspense>
     </section>

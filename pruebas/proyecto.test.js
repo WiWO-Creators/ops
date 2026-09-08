@@ -8,8 +8,15 @@
 
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { avanceDeHito, cuerpoMoverHito, ordenarColumnasHitos } from '../src/componentes/proyecto/hitos.ts'
+import {
+  avanceDeHito,
+  cuerpoMoverHito,
+  opcionesDeFiltroDeHito,
+  ordenarColumnasHitos
+} from '../src/componentes/proyecto/hitos.ts'
 import { formatearImporte, segundosAHoraMinuto, textoPlano } from '../src/componentes/proyecto/formatos.ts'
+import { filtrosTrasCambiar } from '../src/componentes/datos/tabla.ts'
+import { PROCESOS } from '../src/definiciones/procesos.ts'
 import { altoDeTramo, maximoDelGrafico, textoDeDias } from '../src/componentes/proyecto/overview.ts'
 import { barraDeGantt, diaDeFecha, rangoDeGantt } from '../src/componentes/proyecto/gantt.ts'
 import {
@@ -207,4 +214,45 @@ test('valoresIniciales siembra el formulario desde un registro existente', () =>
 test('textoPlano traduce los <br /> del panel a saltos de linea, sin interpretarlos como HTML', () => {
   assert.equal(textoPlano('uno<br />dos<BR>tres'), 'uno\ndos\ntres')
   assert.equal(textoPlano(null), '')
+})
+
+test('el filtro por Hito ofrece "Sin hito" en cero, que es lo que guarda la base', () => {
+  // `tbltasks.milestone` vale 0 —no NULL— cuando la tarea no cuelga de ningun hito, y el backend
+  // traduce `filter[milestone_id]=0` a `milestone IN (0)`. Cualquier otro centinela no coincide con
+  // ninguna fila y el filtro devolveria la lista vacia sin decir por que.
+  const opciones = opcionesDeFiltroDeHito([{ id: 7, name: 'SEMANA 1' }, { id: 9, name: 'SEMANA 2' }])
+
+  assert.deepEqual(opciones[0], { valor: '0', etiqueta: 'Sin hito' })
+  assert.deepEqual(opciones.map((o) => o.valor), ['0', '7', '9'])
+})
+
+test('un Espacio sin hitos no deja un filtro con la unica opcion de no filtrar', () => {
+  assert.deepEqual(opcionesDeFiltroDeHito([]), [])
+})
+
+test('cambiar de Espacio borra el Hito, que era del Espacio anterior', () => {
+  // Espacio A + Hito X, y despues Espacio B: el hito X no es de B, asi que dejarlo en la URL hace
+  // que el backend no encuentre ninguna tarea y la lista vuelva vacia sin decir por que.
+  const filtros = filtrosTrasCambiar(
+    { project_id: ['8'], milestone_id: ['31'], status: ['1', '4'] },
+    PROCESOS.filtros,
+    'project_id',
+    ['12']
+  )
+
+  assert.deepEqual(filtros.project_id, ['12'])
+  assert.deepEqual(filtros.milestone_id, [])
+  // Los filtros que no dependen del Espacio se quedan donde estaban.
+  assert.deepEqual(filtros.status, ['1', '4'])
+})
+
+test('cambiar el Hito no arrastra al Espacio: la dependencia va en un solo sentido', () => {
+  const filtros = filtrosTrasCambiar(
+    { project_id: ['8'], milestone_id: ['31'] },
+    PROCESOS.filtros,
+    'milestone_id',
+    ['33']
+  )
+
+  assert.deepEqual(filtros, { project_id: ['8'], milestone_id: ['33'] })
 })
