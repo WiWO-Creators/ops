@@ -10,7 +10,7 @@ import type { Ajustes, TipoDeAjuste } from '../datos/recursos.ts'
  */
 
 /**
- * Las tres claves del grupo `acceso` de `Escritura\Ajuste::EDITABLES`.
+ * Las claves del grupo `acceso` de `Escritura\Ajuste::EDITABLES`.
  *
  * Enumeradas aca y no sueltas por la pantalla: son el contrato con la API —una clave mal escrita es
  * un 422 con `no_editable`, no un campo que se ignora— y asi hay un solo lugar donde corregirlas si
@@ -19,7 +19,9 @@ import type { Ajustes, TipoDeAjuste } from '../datos/recursos.ts'
 export const AJUSTES_GOOGLE = {
   habilitado: 'wiwo_google_login_enabled',
   dominios: 'wiwo_google_login_domains',
-  clienteId: 'wiwo_google_client_id'
+  clienteId: 'wiwo_google_client_id',
+  autoaltaHabilitada: 'wiwo_google_autoalta_enabled',
+  autoaltaDominios: 'wiwo_google_autoalta_domains'
 } as const
 
 /**
@@ -121,4 +123,24 @@ export function ajusteTexto (ajustes: Ajustes, nombre: string): string {
   const ajuste = ajusteDe(ajustes, nombre, 'texto')
 
   return typeof ajuste?.value === 'string' ? ajuste.value : ''
+}
+
+/**
+ * Comprueba que la API publica ambos ajustes de alta automática con sus tipos esperados.
+ * @param ajustes Ajustes recibidos de la API.
+ * @returns Si el panel puede editar el alta automática.
+ */
+export function tieneAjustesDeAutoalta (ajustes: Ajustes): boolean {
+  return ajusteDe(ajustes, AJUSTES_GOOGLE.autoaltaHabilitada, 'bool') !== null &&
+    ajusteDe(ajustes, AJUSTES_GOOGLE.autoaltaDominios, 'texto') !== null
+}
+
+/**
+ * Impide habilitar el alta automática sin una lista propia de dominios.
+ * @param habilitada Estado solicitado del interruptor.
+ * @param dominios Dominios de alta automática, independientes del login.
+ * @returns Si falta al menos un dominio para poder guardar.
+ */
+export function autoaltaSinDominios (habilitada: boolean, dominios: string[]): boolean {
+  return habilitada && dominios.length === 0
 }
