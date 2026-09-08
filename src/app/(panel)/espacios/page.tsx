@@ -15,7 +15,7 @@ import type {
 } from '@/datos/recursos'
 import type { OpcionFiltro } from '@/definiciones/tipos'
 import type { Yo } from '@/datos/tipos'
-import { ESPACIOS } from '@/definiciones/espacios'
+import { ESPACIOS, espaciosConCampos } from '@/definiciones/espacios'
 
 export const metadata = { title: 'Proyectos · WiWO Ops' }
 
@@ -46,16 +46,17 @@ function opcionesDe<T> (lista: T[] | null, valor: (item: T) => string, etiqueta:
  */
 export default async function EspaciosPage (props: PageProps<'/espacios'>) {
   const params = paramsDeUrl(await props.searchParams)
-  const estado = leerConsulta(params, ESPACIOS)
-  const consulta = construirConsulta(estado, ESPACIOS)
+  const campos = await pedir<CampoPersonalizadoMeta[]>('/custom-fields?para=projects')
+  const definicion = espaciosConCampos(campos.data)
+  const estado = leerConsulta(params, definicion)
+  const consulta = construirConsulta(estado, definicion)
   const vista = params.get('vista') === 'tabla' ? 'tabla' : 'tarjetas'
 
-  const [lista, lookups, yo, estadisticas, campos, clientes, equipo, plantillas] = await Promise.all([
+  const [lista, lookups, yo, estadisticas, clientes, equipo, plantillas] = await Promise.all([
     pedir<Espacio[]>(`/projects${consulta === '' ? '' : `?${consulta}`}`),
     cargarLookups(),
     pedir<Yo>('/me'),
     pedirOpcional<EstadisticaEstado[]>('/projects/stats'),
-    pedirOpcional<CampoPersonalizadoMeta[]>('/custom-fields?para=projects'),
     pedirOpcional<Cliente[]>(`/clients?per_page=${TOPE_DE_OPCIONES}`),
     // Misma fuente que el selector de asignados de la tarea. `/staff` exige `staff.view` —lo tienen
     // 19 de 184 personas— y ademas cortaba en 100: dos motivos para que el filtro por persona
@@ -87,7 +88,7 @@ export default async function EspaciosPage (props: PageProps<'/espacios'>) {
           vistaInicial={vista}
           estadisticas={estadisticas.datos}
           errorEstadisticas={estadisticas.error}
-          campos={campos.datos ?? []}
+          campos={campos.data}
           plantillas={plantillas.datos ?? []}
         />
       </Suspense>

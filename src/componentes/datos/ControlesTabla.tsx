@@ -1,5 +1,10 @@
 'use client'
 
+import { useState } from 'react'
+import { PresetsFiltro } from './PresetsFiltro'
+import { tableroDePresets } from './presets'
+import { operadoresCampo } from '@/definiciones/filtros'
+import type { TableroDePreset } from '@/datos/recursos'
 import { POR_PAGINA_MAXIMO } from '@/datos/consulta'
 import type { DefinicionRecurso, EstadoConsulta, Filtro, OpcionFiltro } from '@/definiciones/tipos'
 import type { Paginacion } from '@/datos/tipos'
@@ -65,6 +70,7 @@ interface PropsControles<T> {
    * ve, y un control que no hace nada es peor que uno ausente.
    */
   sinColumnas?: boolean
+  board?: TableroDePreset
 }
 
 /**
@@ -80,8 +86,14 @@ export function ControlesTabla<T> ({
   opcionesDeFiltro = {},
   onCambiar,
   onVisibles,
-  sinColumnas = false
+  sinColumnas = false,
+  board
 }: PropsControles<T>) {
+  const [agregados, setAgregados] = useState<string[]>([])
+  const activos = definicion.filtros.filter((filtro) => agregados.includes(filtro.clave) || (estado.filtros[filtro.clave]?.length ?? 0) > 0)
+  const disponibles = definicion.filtros.filter((filtro) => !activos.includes(filtro))
+  const tablero = board ?? tableroDePresets(definicion.ruta)
+
   /**
    * Cambia un filtro y vuelve a la primera pagina: la 7 de un listado nuevo casi nunca existe.
    *
@@ -131,17 +143,50 @@ export function ControlesTabla<T> ({
         </form>
       )}
 
-      {definicion.filtros.map((filtro) => (
+      {disponibles.length > 0 && (
+        <select
+          aria-label="Agregar filtro"
+          value=""
+          className="border-control-borde bg-control text-texto rounded-control h-9 max-w-full border px-2 text-sm"
+          onChange={(evento) => { setAgregados([...agregados, evento.target.value]) }}
+        >
+          <option value="" disabled>Agregar filtro…</option>
+          {disponibles.map((filtro) => <option key={filtro.clave} value={filtro.clave} disabled={filtro.noDisponible !== undefined}>{filtro.etiqueta}{filtro.noDisponible === undefined ? '' : ` — ${filtro.noDisponible}`}</option>)}
+        </select>
+      )}
+      {activos.map((filtro) => (
+        <div key={filtro.clave} className="flex max-w-full items-center gap-1">
         <ControlFiltro
-          key={filtro.clave}
           filtro={filtro}
           valores={estado.filtros[filtro.clave] ?? []}
           opcionesDeFiltro={opcionesDeFiltro}
           esperaA={dependenciaPendiente(filtro, definicion.filtros, estado.filtros)}
           onCambiar={(valores) => cambiarFiltro(filtro.clave, valores)}
         />
+          <Boton tamano="chico" variante="sutil" aria-label={`Quitar filtro ${filtro.etiqueta}`} onClick={() => {
+            setAgregados(agregados.filter((clave) => clave !== filtro.clave))
+            cambiarFiltro(filtro.clave, [])
+          }}>Quitar</Boton>
+        </div>
       ))}
 
+      {(activos.length > 0 || estado.busqueda !== '') && (
+        <Boton tamano="chico" variante="sutil" onClick={() => {
+          setAgregados([])
+          onCambiar({ filtros: {}, busqueda: '', pagina: 1 })
+        }}>Limpiar filtros</Boton>
+      )}
+      {tablero !== null && (
+        <PresetsFiltro
+          key={tablero}
+          board={tablero}
+          filtrosActuales={estado.filtros}
+          busqueda={estado.busqueda}
+          definicion={definicion}
+          opcionesDeFiltro={opcionesDeFiltro}
+          onAplicar={(filtros, busqueda) => { setAgregados([]); onCambiar({ filtros, busqueda, pagina: 1 }) }}
+        />
+      )}
       {!sinColumnas && (
       <MenuContextual>
         <DisparadorMenu asChild>
@@ -182,6 +227,8 @@ function ControlFiltro ({
   esperaA = null,
   onCambiar
 }: PropsControlFiltro) {
+  if (filtro.tipo === 'campo') return <FiltroCampo key={JSON.stringify(valores)} filtro={filtro} valores={valores} onCambiar={onCambiar} />
+
   if (filtro.tipo === 'rangoFechas') {
     return <FiltroRangoFechas filtro={filtro} valores={valores} onCambiar={onCambiar} />
   }
@@ -195,9 +242,8 @@ function ControlFiltro ({
     return <FiltroEnEspera filtro={filtro} esperaA={esperaA} />
   }
 
-  // El resto: un filtro que saca sus opciones de `/lookups` no se dibuja hasta que alguien se las
-  // pase. Un desplegable vacio no filtra nada y ocupa el mismo lugar que uno que si funciona.
-  if (opciones.length === 0) return null
+  // Sin catálogo conserva su lugar y explica por qué no se puede usar todavía.
+  if (opciones.length === 0) return <FiltroEnEspera filtro={filtro} esperaA={null} />
 
   if (filtro.tipo === 'multiple') {
     return <FiltroMultiple filtro={filtro} opciones={opciones} valores={valores} onCambiar={onCambiar} />
@@ -425,5 +471,34 @@ export function PaginacionTabla ({ paginacion, onCambiar }: PropsPaginacion) {
         </Boton>
       </div>
     </div>
+  )
+}
+
+/**
+ * Edita una condición tipada y solo la aplica al enviar un valor válido.
+ * @param props Configuración, valores actuales y callback de aplicación.
+ * @returns Formulario accesible de una condición.
+ */
+function FiltroCampo ({ filtro, valores, onCambiar }: PropsControlFiltro) {
+  const operadores = operadoresCampo(filtro)
+  const [operador, setOperador] = useState(valores[0] ?? operadores[0] ?? 'eq')
+  const [valor, setValor] = useState(valores[1] ?? '')
+  const sinValor = operador === 'empty' || operador === 'not_empty'
+  const etiquetas: Record<string, string> = { eq: 'Es igual a', ne: 'Es distinto de', contains: 'Contiene', gt: 'Mayor que', gte: 'Mayor o igual', lt: 'Menor que', lte: 'Menor o igual', empty: 'Está vacío', not_empty: 'No está vacío' }
+
+  return (
+    <form className="border-linea flex max-w-full flex-wrap items-center gap-2 rounded-chico border p-2" onSubmit={(evento) => {
+      evento.preventDefault()
+      onCambiar([operador, sinValor ? '1' : valor])
+    }}>
+      <span className="text-sm">{filtro.etiqueta}</span>
+      <select aria-label={`Operador de ${filtro.etiqueta}`} className="border-control-borde bg-control text-texto rounded-control h-9 border px-2 text-sm" value={operador} onChange={(evento) => { setOperador(evento.target.value) }}>
+        {operadores.map((op) => <option key={op} value={op}>{etiquetas[op]}</option>)}
+      </select>
+      {!sinValor && (filtro.tipoDato === 'booleano'
+        ? <select required aria-label={`Valor de ${filtro.etiqueta}`} className="border-control-borde bg-control text-texto rounded-control h-9 border px-2 text-sm" value={valor} onChange={(evento) => { setValor(evento.target.value) }}><option value="">Elegir…</option><option value="1">Sí</option><option value="0">No</option></select>
+        : <Entrada required aria-label={`Valor de ${filtro.etiqueta}`} className="w-40" type={filtro.tipoDato === 'numero' ? 'number' : filtro.tipoDato === 'fecha' ? 'date' : 'text'} step={filtro.tipoDato === 'numero' ? 'any' : undefined} value={valor} onChange={(evento) => { setValor(evento.target.value) }} />)}
+      <Boton type="submit" tamano="chico" disabled={!sinValor && valor.trim() === ''}>Aplicar</Boton>
+    </form>
   )
 }

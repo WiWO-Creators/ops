@@ -1254,7 +1254,7 @@ export interface PruebaDeAviso {
  * kanban filtra las TAREAS de cada hito y la tabla filtra los HITOS. Un preset cruzado se aplicaria
  * vacio, porque `construirConsulta` poda lo que la definicion de la otra vista no declara.
  */
-export type TableroDePreset = 'tasks' | 'milestones' | 'milestones-tabla' | 'projects' | 'timesheets'
+export type TableroDePreset = 'tasks' | 'milestones' | 'milestones-tabla' | 'projects' | 'timesheets' | 'clients' | 'staff' | 'tickets' | 'discussions' | 'notes' | 'activity' | 'mail-queue' | 'files' | 'project-templates' | 'audit'
 
 /** Un preset de filtros guardado para una vista de lista, privado por staff. */
 export interface PresetFiltro {

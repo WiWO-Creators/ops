@@ -1,3 +1,4 @@
+import { filtrosDeCamposPersonalizados } from './filtros.ts'
 import type { Columna, DefinicionRecurso, OpcionFiltro } from './tipos.ts'
 import type { CampoPersonalizadoMeta, Espacio } from '../datos/recursos.ts'
 import { GLOSARIO } from '../dominio/glosario.ts'
@@ -61,6 +62,22 @@ export const ESPACIOS: DefinicionRecurso<Espacio> = {
   ],
 
   filtros: [
+    { clave: 'id', etiqueta: 'ID', tipo: 'campo', tipoDato: 'numero' },
+    { clave: 'name', etiqueta: 'Nombre', tipo: 'campo', tipoDato: 'texto' },
+    { clave: 'description', etiqueta: 'Descripción', tipo: 'campo', tipoDato: 'texto' },
+    { clave: 'tags', etiqueta: 'Etiquetas', tipo: 'campo', tipoDato: 'texto' },
+    { clave: 'start_date', etiqueta: 'Inicio', tipo: 'campo', tipoDato: 'fecha' },
+    { clave: 'deadline', etiqueta: 'Entrega', tipo: 'campo', tipoDato: 'fecha' },
+    { clave: 'progress', etiqueta: 'Avance', tipo: 'campo', tipoDato: 'numero' },
+    { clave: 'tasks_open', etiqueta: 'Tareas abiertas', tipo: 'campo', tipoDato: 'numero' },
+    { clave: 'date_finished', etiqueta: 'Finalizado', tipo: 'campo', tipoDato: 'fecha' },
+    { clave: 'progress_from_tasks', etiqueta: 'Avance por tareas', tipo: 'campo', tipoDato: 'booleano' },
+    { clave: 'project_cost', etiqueta: 'Costo', tipo: 'campo', tipoDato: 'numero' },
+    { clave: 'project_rate_per_hour', etiqueta: 'Tarifa por hora', tipo: 'campo', tipoDato: 'numero' },
+    { clave: 'estimated_hours', etiqueta: 'Horas estimadas', tipo: 'campo', tipoDato: 'numero' },
+    { clave: 'added_from', etiqueta: 'Creado por', tipo: 'campo', tipoDato: 'numero' },
+    { clave: 'project_created', etiqueta: 'Creado', tipo: 'campo', tipoDato: 'fecha' },
+    { clave: 'archived_at', etiqueta: 'Archivado el', tipo: 'campo', tipoDato: 'fecha' },
     { clave: 'status', etiqueta: 'Estado', tipo: 'multiple', desdeLookup: 'project_statuses' },
     { clave: 'clientid', etiqueta: 'Cliente', tipo: 'seleccion', desdeLookup: 'clients' },
     { clave: 'member', etiqueta: 'Miembros', tipo: 'multiple', desdeLookup: 'staff' },
@@ -146,5 +163,5 @@ export function columnasDeCamposPersonalizados (campos: CampoPersonalizadoMeta[]
  * @returns Una definicion nueva; `ESPACIOS` no se muta.
  */
 export function espaciosConCampos (campos: CampoPersonalizadoMeta[]): DefinicionRecurso<Espacio> {
-  return { ...ESPACIOS, columnas: [...ESPACIOS.columnas, ...columnasDeCamposPersonalizados(campos)] }
+  return { ...ESPACIOS, filtros: [...ESPACIOS.filtros, ...filtrosDeCamposPersonalizados(campos)], columnas: [...ESPACIOS.columnas, ...columnasDeCamposPersonalizados(campos)] }
 }

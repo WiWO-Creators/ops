@@ -1,3 +1,5 @@
+import { filtrosDeCamposPersonalizados } from '@/definiciones/filtros'
+import type { DefinicionCampoPersonalizado } from '@/datos/recursos'
 import { BotonCompletados } from '@/componentes/proyecto/BotonCompletados'
 import { Suspense } from 'react'
 import { TableroProcesos } from '@/componentes/datos/vistas'
@@ -29,8 +31,10 @@ export const metadata = { title: 'Tablero de Tareas · WiWO Ops' }
  */
 export default async function TableroProcesosPage (props: PageProps<'/procesos/tablero'>) {
   const params = paramsDeUrl(await props.searchParams)
-  const estado = leerConsulta(params, PROCESOS)
-  const consulta = construirConsulta({ ...estado, orden: [], pagina: 1 }, PROCESOS)
+  const campos = await pedir<DefinicionCampoPersonalizado[]>('/custom-fields?para=tasks')
+  const definicion = { ...PROCESOS, filtros: [...PROCESOS.filtros, ...filtrosDeCamposPersonalizados(campos.data)] }
+  const estado = leerConsulta(params, definicion)
+  const consulta = construirConsulta({ ...estado, orden: [], pagina: 1 }, definicion)
 
   const [lookups, yo, equipo, espacios, clientes, hitos, conIa] = await Promise.all([
     cargarLookups(),
@@ -91,6 +95,7 @@ export default async function TableroProcesosPage (props: PageProps<'/procesos/t
 
       <Suspense fallback={<Cargando alto="min-h-36" mensaje="Cargando el tablero…" />}>
         <TableroProcesos
+          camposPersonalizados={campos.data}
           opcionesDeFiltro={{ ...opcionesDeFiltros(PROCESOS, lookups), clients: clientes, projects: espaciosDeFiltro, milestones: hitos }}
           capacidades={yo.data.permissions.tasks}
         />

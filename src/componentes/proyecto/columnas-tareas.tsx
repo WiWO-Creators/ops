@@ -8,6 +8,7 @@ import type { DefinicionCampoPersonalizado, Proceso } from '@/datos/recursos'
 import type { Capacidad } from '@/datos/tipos'
 import type { Columna, DefinicionRecurso, OpcionFiltro } from '@/definiciones/tipos'
 import { procesosDelEspacio } from '@/definiciones/procesos'
+import { filtrosDeCamposPersonalizados } from '@/definiciones/filtros'
 import { camposDeTabla, valorDeCampo } from './tareas'
 
 /**
@@ -127,6 +128,7 @@ export function definicionDeTareas ({
 
   return {
     ...base,
+    filtros: [...base.filtros, ...filtrosDeCamposPersonalizados(camposPersonalizados)],
     columnas: [
       ...conCeldasRicas(base.columnas).map((columna): Columna<Proceso> => {
         if (columna.clave !== 'status') return columna

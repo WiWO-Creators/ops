@@ -1,3 +1,4 @@
+import { operadoresCampo } from '../definiciones/filtros.ts'
 import type { DefinicionRecurso, EstadoConsulta } from '@/definiciones/tipos'
 
 /**
@@ -76,9 +77,17 @@ export function construirConsulta<T> (estado: EstadoConsulta, definicion: Defini
   for (const clave of Object.keys(estado.filtros).sort()) {
     const filtro = porClave.get(clave)
 
-    if (filtro === undefined) continue
+    if (filtro === undefined || filtro.noDisponible) continue
 
-    const valores = (estado.filtros[clave] ?? []).filter((v) => v !== '')
+    const originales = estado.filtros[clave] ?? []
+    if (filtro.tipo === 'campo') {
+      const [operador = '', valor = ''] = originales
+      if (!operadoresCampo(filtro).includes(operador)) continue
+      if (operador === 'empty' || operador === 'not_empty') params.set(`filter[${clave}__${operador}]`, '1')
+      else if (valor !== '') params.set(`filter[${clave}__${operador}]`, valor)
+      continue
+    }
+    const valores = originales.filter((v) => v !== '')
 
     if (valores.length === 0) continue
 
@@ -87,8 +96,8 @@ export function construirConsulta<T> (estado: EstadoConsulta, definicion: Defini
     if (filtro.clavesRango !== undefined) {
       const [desde, hasta] = filtro.clavesRango
 
-      if (valores[0] !== undefined) params.set(`filter[${desde}]`, valores[0])
-      if (valores[1] !== undefined) params.set(`filter[${hasta}]`, valores[1])
+      if (originales[0]) params.set(`filter[${desde}]`, originales[0])
+      if (originales[1]) params.set(`filter[${hasta}]`, originales[1])
 
       continue
     }
@@ -124,6 +133,18 @@ export function leerConsulta<T> (
   estado.porPagina = acotarPorPagina(enteroPositivo(params.get('per_page')) ?? POR_PAGINA_POR_DEFECTO)
 
   for (const filtro of definicion.filtros) {
+    if (filtro.noDisponible) continue
+    if (filtro.tipo === 'campo') {
+      const asignadoLegado = filtro.clave === 'assignee' ? params.get('assignee') : null
+      if (asignadoLegado !== null && /^\d+$/.test(asignadoLegado)) estado.filtros.assignee = ['eq', asignadoLegado]
+      for (const operador of operadoresCampo(filtro)) {
+        const valor = params.get(`filter[${filtro.clave}__${operador}]`)
+        if (valor === null || valor === '') continue
+        estado.filtros[filtro.clave] = [operador, ['empty', 'not_empty'].includes(operador) ? '' : valor]
+        break
+      }
+      continue
+    }
     if (filtro.clavesRango !== undefined) {
       const [desde, hasta] = filtro.clavesRango
       const extremos = [params.get(`filter[${desde}]`) ?? '', params.get(`filter[${hasta}]`) ?? '']
@@ -200,4 +221,29 @@ function enteroPositivo (crudo: string | null): number | null {
   const valor = Number(crudo)
 
   return Number.isInteger(valor) && valor > 0 ? valor : null
+}
+
+/**
+ * Acota tareas al período del calendario manteniendo todos los filtros elegidos.
+ * @param estado Filtros de la vista.
+ * @param definicion Catálogo del recurso.
+ * @param rango Período visible, inclusivo.
+ * @param sinVencimiento Selecciona tareas sin entrega que empiezan en el período.
+ * @returns Consulta de API con rango intersectado, sin paginación de la tabla.
+ */
+export function consultaDelCalendario<T> (
+  estado: EstadoConsulta,
+  definicion: DefinicionRecurso<T>,
+  rango: { desde: string, hasta: string },
+  sinVencimiento = false
+): URLSearchParams {
+  const params = new URLSearchParams(construirConsulta({ ...estado, orden: [], pagina: 1 }, definicion))
+  const prefijo = sinVencimiento ? 'start_date' : 'due_date'
+  const desde = params.get(`filter[${prefijo}__gte]`)
+  const hasta = params.get(`filter[${prefijo}__lte]`)
+  params.set(`filter[${prefijo}__gte]`, desde && desde > rango.desde ? desde : rango.desde)
+  params.set(`filter[${prefijo}__lte]`, hasta && hasta < rango.hasta ? hasta : rango.hasta)
+  params.set('sort', sinVencimiento ? 'start_date' : 'due_date')
+  if (sinVencimiento) params.set('filter[due_date__empty]', '1')
+  return params
 }

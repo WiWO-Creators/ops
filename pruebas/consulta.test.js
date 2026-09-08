@@ -199,3 +199,99 @@ test('un rango con un solo extremo viaja igual: la API acepta date_from suelto',
 
   assert.equal(decodeURIComponent(construirConsulta(estado, CON_RANGO)), 'filter[date_from]=2026-01-01')
 })
+
+test('campos con operadores conservan comas, vacíos y descartan operadores inválidos', () => {
+  const definicion = { ...PROCESOS, filtros: [
+    ...PROCESOS.filtros,
+    { clave: 'name', tipo: 'campo', tipoDato: 'texto' },
+    { clave: 'hours', tipo: 'campo', tipoDato: 'numero' },
+    { clave: 'deadline', tipo: 'campo', tipoDato: 'fecha' }
+  ] }
+  const estado = { ...estadoInicial(definicion), filtros: {
+    name: ['contains', 'Diseño, revisión'], hours: ['gte', '0'], deadline: ['empty', '']
+  } }
+  const params = new URLSearchParams(construirConsulta(estado, definicion))
+  assert.equal(params.get('filter[name__contains]'), 'Diseño, revisión')
+  assert.equal(params.get('filter[deadline__empty]'), '1')
+  assert.deepEqual(leerConsulta(params, definicion).filtros, estado.filtros)
+  assert.deepEqual(leerConsulta(new URLSearchParams('filter[hours__contains]=3&filter[name__drop]=x'), definicion).filtros, {})
+  const invalido = construirConsulta({ ...estado, filtros: { hours: ['contains', '3'], name: ['eq', ''] } }, definicion)
+  assert.equal(new URLSearchParams(invalido).has('filter[hours__contains]'), false)
+  assert.equal(new URLSearchParams(invalido).has('filter[name__eq]'), false)
+})
+
+test('un rango con solo extremo final conserva el extremo al serializar', () => {
+  const definicion = { ...PROCESOS, filtros: [{ clave: 'vence', tipo: 'rangoFechas', clavesRango: ['date_from', 'date_to'] }] }
+  const estado = { ...estadoInicial(definicion), filtros: { vence: ['', '2026-09-08'] } }
+  const params = new URLSearchParams(construirConsulta(estado, definicion))
+  assert.equal(params.has('filter[date_from]'), false)
+  assert.equal(params.get('filter[date_to]'), '2026-09-08')
+  assert.deepEqual(leerConsulta(params, definicion).filtros, estado.filtros)
+})
+
+test('campos personalizados generan filtros también cuando su columna está oculta', async () => {
+  const { filtrosDeCamposPersonalizados } = await import('../src/definiciones/filtros.ts')
+  const campos = [
+    { id: 4, name: 'Entrega', type: 'date_picker', order: 2, show_on_table: true },
+    { id: 3, name: 'Costo', type: 'number', order: 1, show_on_table: false }
+  ]
+  assert.deepEqual(filtrosDeCamposPersonalizados(campos), [
+    { clave: 'cf_3', etiqueta: 'Costo', tipo: 'campo', tipoDato: 'numero' },
+    { clave: 'cf_4', etiqueta: 'Entrega', tipo: 'campo', tipoDato: 'fecha' }
+  ])
+  assert.equal(campos[0].id, 4)
+  assert.deepEqual(filtrosDeCamposPersonalizados([]), [])
+})
+
+test('calendario intersecta el período sin perder filtros, búsqueda ni campos personalizados', async () => {
+  const { consultaDelCalendario } = await import('../src/datos/consulta.ts')
+  const definicion = { ...PROCESOS, filtros: [...PROCESOS.filtros,
+    { clave: 'vence', tipo: 'rangoFechas', clavesRango: ['date_from', 'date_to'] },
+    { clave: 'cf_7', tipo: 'campo', tipoDato: 'texto' }
+  ] }
+  const estado = { ...estadoInicial(definicion), pagina: 4, busqueda: 'Informe', filtros: {
+    status: ['2'], vence: ['2026-09-09', '2026-09-11'], cf_7: ['contains', 'Cliente, equipo']
+  } }
+  const rango = { desde: '2026-09-07', hasta: '2026-09-13' }
+  const vence = consultaDelCalendario(estado, definicion, rango)
+  assert.equal(vence.get('filter[date_from]'), '2026-09-09')
+  assert.equal(vence.get('filter[date_to]'), '2026-09-11')
+  assert.equal(vence.get('filter[status]'), '2')
+  assert.equal(vence.get('filter[cf_7__contains]'), 'Cliente, equipo')
+  assert.equal(vence.get('q'), 'Informe')
+  assert.equal(vence.has('page'), false)
+  const empieza = consultaDelCalendario(estado, definicion, rango, true)
+  assert.equal(empieza.get('filter[date_from]'), '2026-09-09')
+  assert.equal(empieza.get('filter[start_date__gte]'), rango.desde)
+  assert.equal(empieza.get('filter[due_date__empty]'), '1')
+  const sinFiltros = consultaDelCalendario(estadoInicial(definicion), definicion, rango)
+  assert.equal(sinFiltros.get('filter[due_date__gte]'), rango.desde)
+  assert.equal(sinFiltros.get('filter[due_date__lte]'), rango.hasta)
+})
+
+test('asignado del calendario antiguo migra a filtro por identificador sin perder precisión', () => {
+  const definicion = { ...PROCESOS, filtros: [{ clave: 'assignee', tipo: 'campo', tipoDato: 'numero' }] }
+  const estado = leerConsulta(new URLSearchParams('assignee=42'), definicion)
+  assert.deepEqual(estado.filtros.assignee, ['eq', '42'])
+  assert.equal(new URLSearchParams(construirConsulta(estado, definicion)).get('filter[assignee__eq]'), '42')
+  assert.deepEqual(leerConsulta(new URLSearchParams('assignee=mal'), definicion).filtros, {})
+})
+
+test('calendario conserva rango disjunto válido y combina extremos tipados sin invertir el legacy', async () => {
+  const { consultaDelCalendario } = await import('../src/datos/consulta.ts')
+  const definicion = { ...PROCESOS, filtros: [
+    { clave: 'vence', tipo: 'rangoFechas', clavesRango: ['date_from', 'date_to'] },
+    { clave: 'due_date', tipo: 'campo', tipoDato: 'fecha' },
+    { clave: 'start_date', tipo: 'campo', tipoDato: 'fecha' }
+  ] }
+  const rango = { desde: '2026-09-07', hasta: '2026-09-13' }
+  const estado = { ...estadoInicial(definicion), filtros: { vence: ['2026-10-01', '2026-10-15'], due_date: ['gte', '2026-10-02'] } }
+  const consulta = consultaDelCalendario(estado, definicion, rango)
+  assert.equal(consulta.get('filter[date_from]'), '2026-10-01')
+  assert.equal(consulta.get('filter[date_to]'), '2026-10-15')
+  assert.equal(consulta.get('filter[due_date__gte]'), '2026-10-02')
+  assert.equal(consulta.get('filter[due_date__lte]'), rango.hasta)
+  const empieza = consultaDelCalendario({ ...estado, filtros: { start_date: ['lte', '2026-09-09'] } }, definicion, rango, true)
+  assert.equal(empieza.get('filter[start_date__gte]'), rango.desde)
+  assert.equal(empieza.get('filter[start_date__lte]'), '2026-09-09')
+})

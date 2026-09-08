@@ -21,7 +21,6 @@ import {
 import { cn } from '@/lib/clases'
 import { CeldaEncabezado, CeldaTabla, CuerpoTabla, EncabezadoTabla, FilaTabla, Tabla } from './Tabla'
 import { ControlesTabla, PaginacionTabla } from './ControlesTabla'
-import { PresetsFiltro } from './PresetsFiltro'
 import {
   clavesVisiblesPorDefecto,
   columnasVisibles,
@@ -248,6 +247,7 @@ export function TablaRecurso<T> ({
     <div className={cn('flex flex-col gap-3', className)}>
       <div className="flex flex-wrap items-start justify-between gap-2">
         <ControlesTabla
+          board={board}
           definicion={definicion}
           estado={estado}
           visibles={visibles}
@@ -255,13 +255,6 @@ export function TablaRecurso<T> ({
           onCambiar={cambiar}
           onVisibles={setVisibles}
         />
-        {board !== undefined && (
-          <PresetsFiltro
-            board={board}
-            filtrosActuales={estado.filtros}
-            onAplicar={(filtros) => { cambiar({ filtros, pagina: 1 }) }}
-          />
-        )}
       </div>
 
       {seleccionMasiva?.(seleccionadas, () => seleccionar([]), () => setRevision((n) => n + 1))}

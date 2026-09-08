@@ -1,3 +1,5 @@
+import { filtrosDeCamposPersonalizados } from '@/definiciones/filtros'
+import type { DefinicionCampoPersonalizado } from '@/datos/recursos'
 import { BotonCompletados } from '@/componentes/proyecto/BotonCompletados'
 import { Suspense } from 'react'
 import { TablaProcesos } from '@/componentes/datos/vistas'
@@ -26,12 +28,14 @@ export const metadata = { title: 'Tareas · WiWO Ops' }
  */
 export default async function ProcesosPage (props: PageProps<'/procesos'>) {
   const params = paramsDeUrl(await props.searchParams)
-  const estado = leerConsulta(params, PROCESOS)
-  const consulta = construirConsulta(estado, PROCESOS)
+  const campos = await pedir<DefinicionCampoPersonalizado[]>('/custom-fields?para=tasks')
+  const definicion = { ...PROCESOS, filtros: [...PROCESOS.filtros, ...filtrosDeCamposPersonalizados(campos.data)] }
+  const estado = leerConsulta(params, definicion)
+  const consulta = construirConsulta(estado, definicion)
   // El tablero pagina por columna y no admite orden, asi que el salto lleva los filtros y descarta
   // orden y pagina — lo mismo que hace `/procesos/tablero` al armar su propia consulta. Sin esto,
   // filtrar la lista y pasar al tablero devolvia el tablero sin filtrar.
-  const consultaTablero = construirConsulta({ ...estado, orden: [], pagina: 1 }, PROCESOS)
+  const consultaTablero = construirConsulta({ ...estado, orden: [], pagina: 1 }, definicion)
 
   const [lista, lookups, yo, equipo, espacios, clientes, hitos, conIa] = await Promise.all([
     pedir<Proceso[]>(`/tasks${consulta === '' ? '' : `?${consulta}`}`),
@@ -104,6 +108,7 @@ export default async function ProcesosPage (props: PageProps<'/procesos'>) {
 
       <Suspense fallback={<Cargando alto="min-h-36" mensaje={`Cargando ${PROCESOS.titulo.plural.toLowerCase()}…`} />}>
         <TablaProcesos
+          camposPersonalizados={campos.data}
           inicial={{ filas: lista.data, paginacion: lista.meta?.pagination }}
           capacidades={yo.data.permissions.tasks}
           opcionesDeFiltro={{ ...opcionesDeFiltros(PROCESOS, lookups), clients: clientes, projects: espaciosDeFiltro, milestones: hitos }}

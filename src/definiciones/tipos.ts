@@ -45,7 +45,7 @@ export interface Columna<T> {
   sinCortar?: boolean
 }
 
-export type TipoFiltro = 'seleccion' | 'multiple' | 'booleano' | 'rangoFechas'
+export type TipoFiltro = 'seleccion' | 'multiple' | 'booleano' | 'rangoFechas' | 'campo'
 
 export interface OpcionFiltro {
   valor: string
@@ -61,6 +61,10 @@ export interface Filtro {
   clave: string
   etiqueta: string
   tipo: TipoFiltro
+  /** Tipo del valor en un filtro de campo con operador. */
+  tipoDato?: 'texto' | 'numero' | 'fecha' | 'booleano'
+  /** Explica por qué este campo no puede filtrarse todavía. */
+  noDisponible?: string
   /**
    * De donde salen las opciones cuando son configurables en Perfex.
    * Ej: `task_statuses`. Las opciones fijas van en `opciones`.
