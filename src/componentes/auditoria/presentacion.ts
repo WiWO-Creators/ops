@@ -1,4 +1,4 @@
-import type { PersonaAuditoria, SesionAbierta } from '../../datos/auditoria.ts'
+import type { PersonaAuditoria, PersonaConectada, SesionAbierta } from '../../datos/auditoria.ts'
 
 /**
  * Logica pura del centro de auditoria.
@@ -158,3 +158,45 @@ const SISTEMAS: Array<[string, RegExp]> = [
   ['macOS', /\bMac OS X\b|\bMacintosh\b/],
   ['Linux', /\bLinux\b|\bX11\b/]
 ]
+
+
+export interface RamaPresencia {
+  clave: string
+  nombre: string
+  personas: PersonaConectada[]
+  ramas: RamaPresencia[]
+  total: number
+}
+
+/**
+ * Agrupa personas por cliente → proyecto → tarea según su ubicación actual.
+ * Conserva actividad general y relaciones ausentes sin inventar asignaciones.
+ * @param personas latidos vigentes del servidor
+ * @returns ramas con personas en su nivel real y cantidades acumuladas
+ */
+export function arbolDePresencia (personas: PersonaConectada[]): RamaPresencia[] {
+  const raiz: RamaPresencia[] = []
+  for (const persona of personas) {
+    const contexto = persona.context
+    const niveles = [
+      { entidad: contexto?.client, tipo: 'cliente', vacio: 'Sin cliente / actividad general' },
+      { entidad: contexto?.project, tipo: 'proyecto', vacio: 'Sin proyecto' },
+      { entidad: contexto?.task, tipo: 'tarea', vacio: 'Sin tarea' }
+    ]
+    const ultimoNivel = contexto?.task != null ? 2 : contexto?.project != null ? 1 : 0
+    let ramas = raiz
+    for (const [indice, nivel] of niveles.entries()) {
+      if (indice > ultimoNivel) break
+      const clave = `${nivel.tipo}:${nivel.entidad?.id ?? 'sin'}`
+      let rama = ramas.find((actual) => actual.clave === clave)
+      if (rama === undefined) {
+        rama = { clave, nombre: nivel.entidad?.name ?? nivel.vacio, personas: [], ramas: [], total: 0 }
+        ramas.push(rama)
+      }
+      rama.total++
+      if (indice === ultimoNivel) rama.personas.push(persona)
+      ramas = rama.ramas
+    }
+  }
+  return raiz
+}

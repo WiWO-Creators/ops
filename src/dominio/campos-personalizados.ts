@@ -156,9 +156,20 @@ export function fechaHoraParaApi (valor: string): string | null {
  * @returns la URL, o el texto intacto si no era un enlace de marcado
  */
 export function enlaceSinMarcado (texto: string): string {
-  const enlace = /^\s*<a\s[^>]*href=["']([^"']+)["'][^>]*>.*<\/a>\s*$/i.exec(texto)
+  const enlace = /^\s*<a\s[^>]*\bhref\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))[^>]*>[\s\S]*<\/a>\s*$/i.exec(texto)
 
-  return enlace?.[1] ?? texto
+  if (enlace === null) return texto
+
+  const url = enlace[1] ?? enlace[2] ?? enlace[3] ?? ''
+  const entidades: Record<string, string> = { amp: '&', quot: '"', apos: "'", lt: '<', gt: '>' }
+
+  return url.replace(/&(#x[\da-f]+|#\d+|amp|quot|apos|lt|gt);/gi, (original, entidad: string) => {
+    if (!entidad.startsWith('#')) return entidades[entidad.toLowerCase()] ?? original
+    const codigo = entidad.charAt(1).toLowerCase() === 'x'
+      ? parseInt(entidad.slice(2), 16)
+      : Number(entidad.slice(1))
+    return codigo > 0 && codigo <= 0x10FFFF ? String.fromCodePoint(codigo) : original
+  })
 }
 
 /**

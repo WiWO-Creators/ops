@@ -7,7 +7,7 @@ import { Vacio } from '@/componentes/estado/Estados'
 import { Insignia } from '@/componentes/presentadores/Insignia'
 import type { MetaPresencia, PersonaConectada, SuplantacionViva } from '@/datos/auditoria'
 import { formatearFecha } from '@/lib/fechas'
-import { haceCuanto } from './presentacion'
+import { arbolDePresencia, haceCuanto, type RamaPresencia } from './presentacion'
 import { cn } from '@/lib/clases'
 
 /**
@@ -161,6 +161,7 @@ function AhoraMismo ({
     <section className="flex flex-col gap-3">
       <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
         <h2 className="text-texto text-titulo font-semibold">Ahora mismo</h2>
+        <span className="text-texto-tenue text-xs">Cliente → proyecto → tarea</span>
         <p className="text-texto-sutil text-xs">
           {meta === null
             ? 'Actividad de los últimos minutos.'
@@ -173,17 +174,50 @@ function AhoraMismo ({
         ? (
           <Vacio
             titulo="Nadie conectado en este momento"
-            descripcion="Aparece aquí quien tenga el panel abierto y a la vista. Una pestaña en segundo plano no cuenta."
+            descripcion="Aparece aquí quien navegue o interactúe con el panel. La presencia caduca al dejar de usarlo."
             className="border-linea bg-superficie-hundida rounded-tarjeta border"
           />
           )
         : (
-          <ul className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
-            {conectados.map((persona) => (
-              <li
+          <ul aria-label="Actividad por cliente, proyecto y tarea" className="flex flex-col gap-2">
+            {arbolDePresencia(conectados).map((rama) => <RamaActividad key={rama.clave} rama={rama} />)}
+          </ul>
+          )}
+    </section>
+  )
+}
+
+
+/** Rama desplegable nativa: admite teclado y mantiene su apertura entre actualizaciones. */
+function RamaActividad ({ rama }: { rama: RamaPresencia }) {
+  return (
+    <li className="border-linea rounded-tarjeta min-w-0 border p-3">
+      <details open>
+        <summary className="text-texto cursor-pointer font-medium focus-visible:outline-2 focus-visible:outline-offset-4">
+          {rama.nombre} <span className="text-texto-sutil text-xs">({rama.total} {rama.total === 1 ? 'persona activa' : 'personas activas'})</span>
+        </summary>
+        {rama.personas.length > 0 && (
+          <ul className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+            {rama.personas.map((persona) => <PersonaActiva key={persona.staff.id} persona={persona} />)}
+          </ul>
+        )}
+        {rama.ramas.length > 0 && (
+          <ul className="border-linea mt-3 ml-2 flex flex-col gap-2 border-l pl-3">
+            {rama.ramas.map((hija) => <RamaActividad key={hija.clave} rama={hija} />)}
+          </ul>
+        )}
+      </details>
+    </li>
+  )
+}
+
+/** Identidad, actividad y suplantación de una persona en su rama actual. */
+function PersonaActiva ({ persona }: { persona: PersonaConectada }) {
+  return (
+<li
                 key={persona.staff.id}
                 className={cn(
-                  'border-linea bg-superficie-elevada rounded-tarjeta flex items-center gap-3 border p-3',
+                  'border-linea bg-superficie-elevada rounded-tarjeta flex min-w-0 items-center gap-3 border p-3',
                   // Una persona suplantada no se pinta igual que el resto: lo que se ve en su cuenta
                   // puede no estar haciéndolo ella.
                   persona.impersonated_by !== null && 'border-texto-peligro/40 bg-superficie-peligro'
@@ -211,9 +245,5 @@ function AhoraMismo ({
                   )}
                 </div>
               </li>
-            ))}
-          </ul>
-          )}
-    </section>
   )
 }

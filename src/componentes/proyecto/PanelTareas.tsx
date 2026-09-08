@@ -26,6 +26,7 @@ import { ResumenEstadosTareas } from './ResumenEstadosTareas'
 import { TarjetaTarea } from './TarjetaTarea'
 import { definicionDeTareas, ProveedorSeleccion } from './columnas-tareas'
 import { opcionesDeFiltroDeHito, TOPE_DE_HITOS } from './hitos'
+import { BotonCompletados } from './BotonCompletados'
 import { estaVencida } from './tareas'
 
 /**
@@ -202,6 +203,7 @@ function TareasDelProyecto ({ proyectoId, capacidades, conIa }: PropsPanelTareas
       )}
 
       <div className="flex flex-wrap items-center gap-2">
+        <BotonCompletados />
         <Segmentado
           etiqueta="Presentación"
           opciones={VISTAS}
@@ -236,7 +238,7 @@ function TareasDelProyecto ({ proyectoId, capacidades, conIa }: PropsPanelTareas
       {enTablero
         ? (
           <TableroFiltrable<ProcesoAmpliado>
-            definicion={definicionDeTablero(definicion, prioridades)}
+            definicion={definicionDeTablero(definicion, estados)}
             ruta={definicion.ruta}
             board="tasks"
             opcionesDeFiltro={carga.opciones}
@@ -305,7 +307,7 @@ function unicoEstadoFiltrado (crudo: string | null): number | null {
  */
 function definicionDeTablero (
   definicion: DefinicionRecurso<ProcesoAmpliado>,
-  prioridades: OpcionFiltro[]
+  estados: OpcionFiltro[]
 ): DefinicionRecurso<ProcesoAmpliado> {
   return {
     ...definicion,
@@ -314,7 +316,7 @@ function definicionDeTablero (
       columnasDesde: 'task_statuses',
       rutaMover: 'tasks/:id/mover',
       presentarTarjeta: (fila) => (
-        <TarjetaTarea proceso={fila as ProcesoAmpliado} prioridades={prioridades} />
+        <TarjetaTarea proceso={fila as ProcesoAmpliado} estados={estados} />
       )
     }
   }

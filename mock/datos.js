@@ -19,10 +19,11 @@ const ciclo = (lista, i) => lista[i % lista.length]
  * ordene por `id` arma las columnas del tablero al reves.
  */
 export const ESTADOS_PROCESO = [
-  { id: 1, name: 'No iniciado', color: '#64748b', order: 1, filter_default: true },
-  { id: 4, name: 'En progreso', color: '#3b82f6', order: 2, filter_default: true },
+  { id: 1, name: 'Por iniciar', color: '#f97316', order: 1, filter_default: true },
+  { id: 4, name: 'En proceso', color: '#eab308', order: 2, filter_default: true },
   { id: 3, name: 'En pruebas', color: '#0284c7', order: 3, filter_default: true },
   { id: 2, name: 'Esperando respuesta', color: '#84cc16', order: 4, filter_default: true },
+  { id: 6, name: 'Cambios', color: '#a855f7', order: 5, filter_default: true },
   { id: 5, name: 'Completado', color: '#22c55e', order: 100, filter_default: false }
 ]
 

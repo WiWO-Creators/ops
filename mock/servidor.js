@@ -1690,7 +1690,7 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
       return { estado: 200, cuerpo: conDatos(conCamposPersonalizados(presentarEspacio(espacio, includes), 'projects', includes)) }
     }
     if (subrecurso === 'tasks') {
-      const suyos = PROCESOS.filter((p) => p.project?.id === espacio.id)
+      const suyos = PROCESOS.filter((p) => p.project?.id === espacio.id && (parametros.get('filter[status]')?.trim() || p.status !== 5))
       const { filas, paginacion } = aplicarConsulta(suyos, parametros, CONSULTA_PROCESOS)
       return { estado: 200, cuerpo: conDatos(filas.map(presentarProcesoEnLista), { pagination: paginacion }) }
     }
@@ -1716,13 +1716,13 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
       if (parametros.get('vista') === 'tablero') {
         // Las columnas salen de `lookups`, ordenadas por `order` y no por `id`: los ids de estado de
         // Perfex no siguen el orden de visualizacion.
-        const columnas = [...ESTADOS_PROCESO].sort((a, b) => a.order - b.order)
+        const columnas = ESTADOS_PROCESO.filter((e) => parametros.get('filter[status]')?.trim() || e.id !== 5).sort((a, b) => a.order - b.order)
         return {
           estado: 200,
           cuerpo: conDatos(columnas.map((columna) => {
             const parametrosColumna = new URLSearchParams(parametros)
             parametrosColumna.set('filter[status]', String(columna.id))
-            const { filas, paginacion } = aplicarConsulta(PROCESOS, parametrosColumna, CONSULTA_PROCESOS)
+            const { filas, paginacion } = aplicarConsulta(PROCESOS.filter((p) => !parametros.get('filter[status]')?.trim() || parametros.get('filter[status]').split(',').includes(String(p.status))), parametrosColumna, CONSULTA_PROCESOS)
             return {
               columna: { id: columna.id, name: columna.name, color: columna.color, order: columna.order },
               tarjetas: filas.map(presentarProcesoEnLista),
@@ -1732,7 +1732,7 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
         }
       }
 
-      const { filas, paginacion } = aplicarConsulta(PROCESOS, parametros, CONSULTA_PROCESOS)
+      const { filas, paginacion } = aplicarConsulta(PROCESOS.filter((p) => parametros.get('filter[status]')?.trim() || p.status !== 5), parametros, CONSULTA_PROCESOS)
       return { estado: 200, cuerpo: conDatos(filas.map(presentarProcesoEnLista), { pagination: paginacion }) }
     }
 

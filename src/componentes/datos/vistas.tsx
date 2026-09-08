@@ -90,7 +90,7 @@ export function TableroProcesos (
   return (
     <>
       <TableroFiltrable<Proceso>
-        definicion={definicionDeTableroProcesos(opcionesDeFiltro?.task_priorities ?? [])}
+        definicion={definicionDeTableroProcesos(opcionesDeFiltro?.task_statuses ?? [])}
         ruta="tasks"
         board="tasks"
         opcionesDeFiltro={opcionesDeFiltro}
@@ -110,10 +110,10 @@ export function TableroProcesos (
  * que corren las pruebas con el despojador de tipos de Node: no admite JSX. Es el mismo motivo por el
  * que existe `procesos-navegables.tsx`.
  *
- * @param prioridades catalogo de prioridades, para el borde de color de la tarjeta
+ * @param estados catalogo de estados, para el borde de color de la tarjeta
  * @returns la definicion lista para `TableroFiltrable`
  */
-function definicionDeTableroProcesos (prioridades: OpcionFiltro[]): DefinicionRecurso<Proceso> {
+function definicionDeTableroProcesos (estados: OpcionFiltro[]): DefinicionRecurso<Proceso> {
   return {
     ...PROCESOS,
     tablero: {
@@ -123,7 +123,7 @@ function definicionDeTableroProcesos (prioridades: OpcionFiltro[]): DefinicionRe
       // `presentarTarjeta` recibe `unknown` porque el motor no conoce el recurso: la conversion
       // ocurre en un solo punto, aca, y no en cada campo de la tarjeta.
       presentarTarjeta: (fila) => (
-        <TarjetaTarea proceso={fila as ProcesoAmpliado} prioridades={prioridades} />
+        <TarjetaTarea proceso={fila as ProcesoAmpliado} estados={estados} />
       )
     }
   }

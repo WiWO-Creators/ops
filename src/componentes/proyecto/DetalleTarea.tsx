@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState, type ReactElement, type ReactNode } from 'react'
 import { ArbolDrive } from '@/componentes/archivos/ArbolDrive'
+import { useUbicacionTarea } from '@/componentes/auditoria/accion'
 import { Cargando, ErrorEstado, Vacio } from '@/componentes/estado/Estados'
 import { EnlacePanelClasico } from '@/componentes/presentadores/EnlacePanelClasico'
 import { GrupoAvatares } from '@/componentes/presentadores/Avatar'
@@ -68,6 +69,7 @@ type Carga =
 export function DetalleTarea (
   { procesoId, puedeEditar = false, puedeBorrar = false, onBorrada, className }: PropsDetalleTarea
 ): ReactElement {
+  useUbicacionTarea(procesoId)
   const [carga, setCarga] = useState<Carga>({ fase: 'cargando' })
   const [intento, setIntento] = useState(0)
   const [editando, setEditando] = useState(false)
@@ -147,17 +149,14 @@ export function DetalleTarea (
   const { tarea, lookups } = carga
   const estado = valorDeCatalogo(listaDe(lookups, 'task_statuses'), tarea.status)
   const prioridad = valorDeCatalogo(listaDe(lookups, 'task_priorities'), tarea.priority)
+  const enlaces = camposLegibles((tarea.custom_fields ?? []).filter((campo) => campo.type === 'link'))
 
   return (
     <div className={cn('flex flex-col gap-5', className)}>
         <header className="border-linea bg-superficie-acentuada rounded-tarjeta flex flex-col gap-2 border p-4">
           <div className="flex items-start justify-between gap-3">
             <h3 className="font-titular text-texto text-base leading-snug font-extrabold">{tarea.name}</h3>
-            {/* A la derecha del nombre y en la misma linea: es la etiqueta de la tarea, no un dato
-                mas de la ficha. Se calla si el backend todavia no la asigno. */}
-            {tarea.patente !== null && (
-              <span className="text-texto-tenue shrink-0 font-mono text-xs tracking-wide">{tarea.patente}</span>
-            )}
+            <span className="text-texto-tenue shrink-0 font-mono text-xs tracking-wide">{tarea.patente || `#${tarea.id}`}</span>
           </div>
           <div className="flex flex-wrap items-center gap-1.5">
             <Insignia tamano="chico" color={estado.color}>{estado.nombre}</Insignia>
@@ -256,12 +255,23 @@ export function DetalleTarea (
 
           {/* Los campos personalizados van al final y solo los que tienen algo cargado: son 29
               definiciones, y una fila con un guion por cada una taparia la ficha entera. */}
-          {camposLegibles(tarea.custom_fields ?? []).map((campo) => (
+          {camposLegibles((tarea.custom_fields ?? []).filter((campo) => campo.type !== 'link')).map((campo) => (
             <Dato key={campo.id} etiqueta={campo.nombre}>
               <ValorPersonalizado campo={campo} />
             </Dato>
           ))}
         </dl>
+
+        <section className="flex flex-col gap-2">
+          <h4 className="text-texto-tenue text-sm font-semibold">Enlaces</h4>
+          {enlaces.length === 0
+            ? <p className="text-texto-sutil text-sm">Sin enlaces guardados.{puedeEditar ? ' Puedes agregarlos al editar la tarea.' : ''}</p>
+            : <dl className="grid gap-3 sm:grid-cols-2">
+                {enlaces.map((campo) => (
+                  <Dato key={campo.id} etiqueta={campo.nombre}><ValorPersonalizado campo={campo} /></Dato>
+                ))}
+              </dl>}
+        </section>
 
         <BloqueSla tarea={tarea} puedeEditar={puedeEditar} onCambiado={reintentar} />
 

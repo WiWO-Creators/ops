@@ -1,6 +1,7 @@
 'use client'
 
 import { useMemo } from 'react'
+import { AccionesMasivasProyectos } from './AccionesMasivasProyectos'
 import { TablaRecurso } from '@/componentes/datos/TablaRecurso'
 import { enriquecerColumnas, type AccionesDeFila } from './ColumnasProyecto'
 import { espaciosConCampos } from '@/definiciones/espacios'
@@ -40,6 +41,10 @@ export function TablaProyectos ({ inicial, capacidades, opcionesDeFiltro, campos
       capacidades={capacidades}
       opcionesDeFiltro={opcionesDeFiltro}
       board="projects"
+      seleccionMasiva={capacidades.includes('edit') ? (filas, limpiar, recargar) => (
+        <AccionesMasivasProyectos filas={filas} estados={opcionesDeFiltro?.project_statuses ?? []}
+          limpiar={limpiar} recargar={recargar} />
+      ) : undefined}
     />
   )
 }

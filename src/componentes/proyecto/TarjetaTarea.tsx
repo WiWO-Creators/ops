@@ -12,31 +12,31 @@ import type { OpcionFiltro } from '@/definiciones/tipos'
 /**
  * Tarjeta de una tarea en el tablero.
  *
- * Muestra lo mismo que la tarjeta del panel viejo: el borde superior con el color de la prioridad, el
+ * Muestra lo mismo que la tarjeta del panel viejo: el borde superior con el color del estado, el
  * nombre, los asignados, los contadores de checklist, comentarios y adjuntos, el vencimiento y las
  * etiquetas. Los contadores van con su icono y su texto accesible: un "3" suelto no dice de que.
  */
 
 interface PropsTarjeta {
   proceso: ProcesoAmpliado
-  /** Catalogo de prioridades, para sacar el color del borde. */
-  prioridades: OpcionFiltro[]
+  /** Catalogo de estados, para sacar el color del borde. */
+  estados: OpcionFiltro[]
 }
 
-export function TarjetaTarea ({ proceso, prioridades }: PropsTarjeta): ReactElement {
+export function TarjetaTarea ({ proceso, estados }: PropsTarjeta): ReactElement {
   const params = useSearchParams()
   const siguientes = new URLSearchParams(params.toString())
   siguientes.set('tarea', String(proceso.id))
 
-  const prioridad = prioridades.find((opcion) => opcion.valor === String(proceso.priority))
+  const estado = estados.find((opcion) => opcion.valor === String(proceso.status))
 
   return (
     <div className="flex flex-col gap-2">
       <span
         aria-hidden="true"
         className="rounded-control h-1 w-full"
-        // El color de la prioridad lo administra Perfex: es un dato, no un token del sistema.
-        style={{ backgroundColor: prioridad?.color ?? 'transparent' }}
+        // El color del estado lo administra Perfex: es un dato, no un token del sistema.
+        style={{ backgroundColor: estado?.color ?? 'transparent' }}
       />
 
       <Link
