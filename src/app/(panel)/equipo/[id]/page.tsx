@@ -5,6 +5,7 @@ import { BotonSuplantar } from '@/componentes/equipo/BotonSuplantar'
 import { CabeceraPersona } from '@/componentes/equipo/CabeceraPersona'
 import { DialogoPermisos } from '@/componentes/equipo/DialogoPermisos'
 import { DialogoNivel } from '@/componentes/equipo/DialogoNivel'
+import { DialogoNivelBase } from '@/componentes/equipo/DialogoNivelBase'
 import { FichaPersona } from '@/componentes/equipo/FichaPersona'
 import { PanelArchivosPersona } from '@/componentes/equipo/PanelArchivosPersona'
 import { PanelHistorialPersona } from '@/componentes/equipo/PanelHistorialPersona'
@@ -206,6 +207,9 @@ export default async function PersonaPage (props: PageProps<'/equipo/[id]'>) {
           <AccionesPersona persona={persona} roles={roles} cargos={cargos} areas={areas} empresas={empresas} capacidades={capacidades} modeloDePermisos={yo.modelo_permisos} enFicha />
           {/* Solo un superadministrador reparte el nivel: la API rechaza al resto con 422. */}
           {yo.is_superadmin && <DialogoNivel persona={persona} actorId={yo.id} />}
+          {/* Los cinco escalones de abajo de la escalera, que viven en tabla propia. Misma puerta:
+              `PUT /staff/{id}/nivel` exige superadministrador y contesta 403 al resto. */}
+          {yo.is_superadmin && <DialogoNivelBase persona={persona} actorId={yo.id} />}
           {/* Ver el panel con la sesion de esta persona. Misma puerta que los roles —la API exige
               superadministrador— y sin sentido sobre uno mismo, asi que en la ficha propia no va. */}
           {yo.is_superadmin && persona.id !== yo.id && (
