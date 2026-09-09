@@ -35,6 +35,10 @@ const PREFIJOS_PERMITIDOS = [
   // entrada el BFF contesta 404 a todo lo que la pantalla pide desde el navegador —buscar, filtrar,
   // paginar, crear, ganar y perder— y solo funciona la primera pagina que resuelve el servidor.
   'licitaciones',
+  // Upselling: el listado, la ficha, la edicion y las acciones de ganar y perder. Prefijo propio
+  // por el mismo motivo que `licitaciones`. **No esta en la lista del portal y no debe estarlo**:
+  // un upsell abierto es justamente lo que el cliente no tiene que ver.
+  'upsells',
   // Plantillas de Espacio. Prefijo propio y no bajo `projects` porque la API las cuelga de su propia
   // raiz: `POST /projects/from-template` devuelve un Espacio y por eso vive alla, pero el CRUD de la
   // plantilla es `/project-templates`.

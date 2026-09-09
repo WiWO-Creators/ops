@@ -3,6 +3,8 @@
 import { useState, type ReactElement } from 'react'
 import { escribirEnBff } from '@/componentes/datos/mutaciones'
 import { Boton } from '@/componentes/formularios/Boton'
+import { Campo } from '@/componentes/formularios/Campo'
+import { Entrada } from '@/componentes/formularios/Entrada'
 import { ContenidoDialogo, Dialogo } from '@/componentes/superposiciones/Dialogo'
 
 /**
@@ -31,6 +33,16 @@ interface PropsDialogoResultado {
   accion: AccionDeResultado | null
   /** Que pasa al confirmar, escrito para cada rama. Es lo unico propio de cada seccion. */
   descripcion: Record<AccionDeResultado, string>
+  /**
+   * Rotulo del campo libre que viaja como `motivo` en el cuerpo de la accion. Sin esto no se pinta
+   * ningun campo y la accion va con el cuerpo vacio.
+   *
+   * Existe porque un upsell guarda POR QUE se gano o se perdio, y ese texto **solo se puede escribir
+   * al cerrar**: el `PATCH` de la oportunidad responde 409 en cuanto esta cerrada. Sin el campo acá,
+   * habria que acordarse de escribir el motivo antes de apretar el boton. Una licitacion no tiene esa
+   * columna y no pasa la prop.
+   */
+  motivo?: string
   onCerrar: () => void
   onHecho: () => void
 }
@@ -39,11 +51,13 @@ export function DialogoResultado ({
   base,
   accion,
   descripcion,
+  motivo,
   onCerrar,
   onHecho
 }: PropsDialogoResultado): ReactElement {
   const [enviando, setEnviando] = useState(false)
   const [fallo, setFallo] = useState<string | null>(null)
+  const [texto, setTexto] = useState('')
 
   const ganando = accion === 'ganar'
 
@@ -54,7 +68,11 @@ export function DialogoResultado ({
     setEnviando(true)
     setFallo(null)
 
-    const resultado = await escribirEnBff<unknown>(`${base}/actions/${accion}`, 'POST')
+    // El cuerpo vacio es lo normal: explicar el resultado es opcional, y una cadena en blanco no es
+    // una explicacion. La API la trataria igual que `null`, pero mandarla seria decir algo distinto.
+    const cuerpo = motivo === undefined || texto.trim() === '' ? undefined : { motivo: texto.trim() }
+
+    const resultado = await escribirEnBff<unknown>(`${base}/actions/${accion}`, 'POST', cuerpo)
 
     setEnviando(false)
 
@@ -72,6 +90,7 @@ export function DialogoResultado ({
     if (abierto) return
 
     setFallo(null)
+    setTexto('')
     onCerrar()
   }
 
@@ -81,6 +100,19 @@ export function DialogoResultado ({
         titulo={ganando ? 'Marcar como ganada' : 'Marcar como perdida'}
         descripcion={accion === null ? '' : descripcion[accion]}
       >
+        {motivo !== undefined && (
+          <Campo etiqueta={motivo}>
+            {(props) => (
+              <Entrada
+                {...props}
+                value={texto}
+                maxLength={255}
+                onChange={(evento) => { setTexto(evento.target.value) }}
+              />
+            )}
+          </Campo>
+        )}
+
         {fallo !== null && <p role="alert" className="text-texto-peligro text-sm">{fallo}</p>}
 
         <div className="mt-4 flex justify-end gap-2">

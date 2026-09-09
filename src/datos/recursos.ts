@@ -336,6 +336,40 @@ export interface LicitacionDetalle extends Licitacion {
   espacio: Espacio
 }
 
+/**
+ * Un Upsell: una oportunidad comercial sobre un cliente que **ya existe**.
+ *
+ * Espejo de `Licitacion` con una diferencia que lo cambia todo: el Espacio nace con el `clientid`
+ * REAL, no en 0. Por eso `client` viene siempre, y por eso el backend tiene que esconderlo tambien
+ * del portal del cliente mientras la oportunidad siga abierta.
+ *
+ * **`id` es el id del Espacio**, igual que en una Licitacion.
+ */
+export interface Upsell {
+  id: number
+  estado: EstadoLicitacion
+  /** Lo que se espera vender. `null` es "todavia no se sabe", que no es lo mismo que 0. */
+  monto_estimado: number | null
+  /** Id de `currencies` de `GET /lookups`. */
+  moneda_id: number | null
+  /** 0 a 100. */
+  probabilidad: number | null
+  /** Por que se gano o se perdio. Se escribe al cerrar. */
+  motivo: string | null
+  /** El cliente, que existe desde el dia uno. Sale de `tblprojects.clientid`, no de una columna. */
+  client_id: number | null
+  client: { id: number, company: string, image_url: string | null } | null
+  /** Cuando se gano o se perdio. `null` mientras siga abierto. */
+  resultado_en: string | null
+  creada_en: string
+  espacio: EspacioDeLicitacion
+}
+
+/** Lo que devuelve `GET /upsells/{id}`: igual, pero con la ficha completa del Espacio. */
+export interface UpsellDetalle extends Upsell {
+  espacio: Espacio
+}
+
 export interface Cliente {
   /** Es `userid` en la base; la API lo expone como `id`. */
   id: number

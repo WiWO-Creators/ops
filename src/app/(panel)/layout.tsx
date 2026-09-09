@@ -141,6 +141,12 @@ function seccionesDe (yo: Yo): Seccion[] {
     secciones.push({ href: '/licitaciones', etiqueta: GLOSARIO.licitacion.plural, icono: 'licitaciones' })
   }
 
+  // Upselling cierra el bloque comercial: es el mismo flujo de Licitaciones pero sobre un cliente
+  // que ya existe, asi que va justo despues y con el mismo icono.
+  if (yo.secciones_habilitadas.includes('upsells')) {
+    secciones.push({ href: '/upsells', etiqueta: GLOSARIO.upsell.plural, icono: 'licitaciones' })
+  }
+
   // Salas no tiene permiso de Perfex que consultar: no es una feature suya. Reservar una sala lo
   // puede hacer cualquiera del equipo, asi que la unica llave es la bandera de instalacion.
   if (yo.secciones_habilitadas.includes('salas')) {
