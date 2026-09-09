@@ -390,6 +390,16 @@ export interface Cliente {
   datecreated: string
   /** No nulo si el cliente nacio de convertir un prospecto. */
   lead_id: number | null
+  /**
+   * Codigo de 4 letras del cliente, del que cuelgan las patentes de sus Espacios y sus Procesos.
+   * `null` mientras no lo tenga.
+   */
+  letras: string | null
+  /**
+   * `true` solo cuando falta el codigo Y el nombre no da para derivarlo: hay que escribirlo a mano
+   * y nadie lo va a resolver por su cuenta. Con `letras` ya puesto siempre es `false`.
+   */
+  letras_pendientes: boolean
   billing: {
     street: string | null
     city: string | null
