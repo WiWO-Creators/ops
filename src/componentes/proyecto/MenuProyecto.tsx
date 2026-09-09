@@ -11,6 +11,7 @@ import {
   MenuContextual,
   SeparadorMenu
 } from '@/componentes/superposiciones/MenuContextual'
+import { escribirEnBff } from '@/componentes/datos/mutaciones'
 import { mensajeDeRespuesta } from '@/datos/cliente'
 import { GLOSARIO } from '@/dominio/glosario'
 import { FormularioRecurso } from './FormularioRecurso'
@@ -34,6 +35,13 @@ interface PropsMenuProyecto {
   estados: EstadoLookup[]
   /** Capacidades sobre `projects`, de `permissions` de `/me`. */
   capacidades: Capacidad[]
+  /**
+   * Si quien mira figura en el equipo del Espacio. Rige el item "Salir".
+   *
+   * Es opcional porque la misma cabecera la monta `/licitaciones/{id}`, donde la accion no aplica:
+   * ahi la prop no viaja y el item no se pinta.
+   */
+  esMiembro?: boolean
 }
 
 /** Campos editables de un Espacio, exactamente los que acepta `PATCH /projects/{id}`. */
@@ -65,12 +73,13 @@ function camposDeCopia (): CampoFormulario[] {
   ]
 }
 
-export function MenuProyecto ({ proyecto, estados, capacidades }: PropsMenuProyecto): ReactElement {
+export function MenuProyecto ({ proyecto, estados, capacidades, esMiembro = false }: PropsMenuProyecto): ReactElement {
   const router = useRouter()
   const [editando, setEditando] = useState(false)
   const [copiando, setCopiando] = useState(false)
   const [borrando, setBorrando] = useState(false)
   const [archivando, setArchivando] = useState(false)
+  const [saliendo, setSaliendo] = useState(false)
   const [enCurso, setEnCurso] = useState(false)
   const [fallo, setFallo] = useState<string | null>(null)
 
@@ -170,6 +179,33 @@ export function MenuProyecto ({ proyecto, estados, capacidades }: PropsMenuProye
     }
   }
 
+  /**
+   * Saca a quien mira del equipo del Espacio.
+   *
+   * Se vuelve al listado en vez de refrescar: sin `projects.view` global, el Espacio deja de ser
+   * visible en cuanto se sale, y quedarse aca daria un 404 al primer refresco.
+   *
+   * El error del backend se muestra literal a proposito. El 422 de "te quedan N tareas abiertas" es
+   * la mitad del valor de la accion: reemplazarlo por un generico dejaria a la persona sin saber
+   * que tiene que pasar para poder salir.
+   */
+  async function salir (): Promise<void> {
+    setEnCurso(true)
+    setFallo(null)
+
+    const resultado = await escribirEnBff(`projects/${proyecto.id}/actions/leave`, 'POST')
+
+    setEnCurso(false)
+
+    if (!resultado.ok) {
+      setFallo(resultado.mensaje)
+      return
+    }
+
+    setSaliendo(false)
+    router.push('/espacios')
+  }
+
   return (
     <span className="flex flex-col items-end gap-1">
       <MenuContextual>
@@ -235,6 +271,18 @@ export function MenuProyecto ({ proyecto, estados, capacidades }: PropsMenuProye
               </ItemMenu>
             </>
           )}
+
+          {/* Salir NO mira capacidades, y ese es todo el punto: `projects.edit` protege reescribir
+              el equipo ajeno, y quien se queda pegado a un Espacio en el que ya no trabaja es
+              justamente quien no lo tiene. La unica condicion es estar en el equipo. */}
+          {esMiembro && (
+            <>
+              <SeparadorMenu />
+              <ItemMenu peligroso onSelect={() => { setSaliendo(true) }}>
+                Salir del {GLOSARIO.espacio.singular.toLowerCase()}
+              </ItemMenu>
+            </>
+          )}
         </ContenidoMenu>
       </MenuContextual>
 
@@ -296,6 +344,27 @@ export function MenuProyecto ({ proyecto, estados, capacidades }: PropsMenuProye
             >
               {archivado ? 'Desarchivar' : 'Archivar'}
             </Boton>
+          </div>
+        </ContenidoDialogo>
+      </Dialogo>
+
+      <Dialogo open={saliendo} onOpenChange={setSaliendo}>
+        <ContenidoDialogo
+          titulo={`Salir del ${GLOSARIO.espacio.singular.toLowerCase()}`}
+          descripcion={`Dejás de ser parte del equipo de "${proyecto.name}". Si no tenés permiso `
+            + `para ver todos los ${GLOSARIO.espacio.plural.toLowerCase()}, este va a dejar de `
+            + 'aparecerte y vas a necesitar que alguien te vuelva a sumar.'}
+          ancho="chico"
+        >
+          {/* El error se repite aca dentro y no solo bajo el boton "Mas": el dialogo tapa la
+              cabecera, y el 422 de las tareas abiertas es justo lo que hay que leer. */}
+          {fallo !== null && (
+            <p role="alert" className="text-texto-peligro mb-3 text-sm">{fallo}</p>
+          )}
+
+          <div className="flex justify-end gap-2">
+            <Boton variante="sutil" onClick={() => { setSaliendo(false) }}>Cancelar</Boton>
+            <Boton variante="peligro" cargando={enCurso} onClick={() => { void salir() }}>Salir</Boton>
           </div>
         </ContenidoDialogo>
       </Dialogo>

@@ -525,6 +525,28 @@ Include: `custom_fields`, `members`.
 requieren `projects.edit`. Un `image_url: null` significa que el panel usa el logo del cliente; ese
 archivo no se copia al proyecto.
 
+#### `POST /projects/{id}/actions/leave` → `204` — salir del equipo
+
+Saca **sólo la fila de quien pide** del equipo. No devuelve la ficha: quien no tiene `projects.view`
+global deja de ver el Espacio en cuanto sale —incluido uno que creó él—, así que un `GET` posterior
+le contestaría `404`. La interfaz tiene que volver al listado y advertir esa pérdida de visibilidad
+**antes** de confirmar.
+
+**No exige `projects.edit`**, a diferencia de `PUT /projects/{id}/members`. Ese permiso protege
+reescribir el equipo ajeno; salirse uno mismo no toca a nadie más, y pedirlo dejaría la acción en
+manos de quienes no la necesitan. Por eso el ítem del menú se muestra sin mirar capacidades.
+
+| Respuesta | Cuándo |
+|---|---|
+| `204` | salió |
+| `404 not_found` | el Espacio no existe o no lo ve |
+| `422 not_member` | no está en el equipo |
+| `422 open_tasks` | le quedan Procesos **abiertos** asignados ahí; el `message` trae el número |
+
+El `422 open_tasks` **se muestra tal cual**: es la mitad del valor de la acción. El backend lo
+bloquea porque cualquier escritura posterior sobre esas tareas re-agrega al asignado al Espacio, así
+que dejarlo salir sería una acción que se deshace sola. Tareas ya completadas no cuentan.
+
 ### `licitaciones` → **Licitaciones** en la interfaz
 
 `GET /licitaciones` · `GET /licitaciones/{id}` · `POST /licitaciones` · `PATCH /licitaciones/{id}` ·

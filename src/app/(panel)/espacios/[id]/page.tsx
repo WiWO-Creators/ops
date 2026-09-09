@@ -223,6 +223,7 @@ export default async function ProyectoPage (props: PageProps<'/espacios/[id]'>) 
         estados={estados}
         capacidadesProyecto={capacidadesProyecto}
         capacidadesTareas={capacidadesTareas}
+        esMiembro={(proyecto.members ?? []).some((persona) => persona.id === yo.id)}
       />
 
       <Suspense fallback={<Cargando alto="min-h-36" mensaje="Cargando el detalle…" />}>

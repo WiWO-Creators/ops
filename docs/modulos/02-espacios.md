@@ -75,6 +75,33 @@ separado deja el espacio en un estado que el panel no habría producido.
 **Cambiar `status` arrastra `date_finished`** y escribe una entrada en el feed del proyecto. Eso lo
 hace el backend; el frontend solo tiene que refrescar el item después.
 
+### Salir del equipo — `POST /projects/{id}/actions/leave` → `204`
+
+Ítem "Salir del Espacio" al final del menú "Más", en tono peligroso, con diálogo de confirmación.
+Sólo saca la fila de quien lo pide; el equipo del resto no se toca (para eso está "Editar equipo",
+que sigue siendo `PUT /projects/{id}/members` y sigue pidiendo `projects.edit`).
+
+**El ítem se muestra sin mirar capacidades.** La única condición es figurar en el equipo
+(`esMiembro`, que la página calcula con `members` y `yo`). `projects.edit` protege reescribir el
+equipo ajeno; quien se queda pegado a un Espacio en el que ya no trabaja es justamente quien no lo
+tiene, y esconderle la acción la volvería inútil.
+
+**Guard de tareas abiertas.** Si le quedan Procesos abiertos asignados en ese Espacio, la API
+responde `422 open_tasks` con el número adentro del mensaje, y **ese mensaje se muestra tal cual**.
+No es una regla decorativa: cualquier escritura posterior sobre esas tareas (alta, edición o acción
+masiva) re-agrega al asignado al Espacio, así que dejarlo salir sería una acción que se deshace sola
+y sin avisar. Tareas ya completadas no cuentan — con lo cual editar una tarea cerrada vieja sí puede
+volver a meter a la persona; es un techo conocido y aceptado del backend.
+
+**Pérdida de visibilidad, que hay que advertir antes de confirmar.** Quien no tenga `projects.view`
+global deja de ver el Espacio en cuanto sale, **incluido uno que creó él**: por eso la API devuelve
+`204` y no la ficha, y por eso al salir se vuelve a `/espacios` en lugar de refrescar (quedarse daría
+un `404`). El texto del diálogo lo dice explícitamente.
+
+Se puede salir aunque el Espacio quede sin nadie, y al creador no se lo protege: no existe un campo
+"responsable" que quede huérfano. En `/licitaciones/{id}`, que monta la misma cabecera, la prop no
+viaja y el ítem no se pinta.
+
 ## Permisos
 
 Feature `projects`, en `permissions.projects` de `GET /me`. La visibilidad por fila la resuelve el
