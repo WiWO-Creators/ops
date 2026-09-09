@@ -23,6 +23,13 @@ interface PropsVisorColaCorreo {
    * alguien debería ir a arreglar.
    */
   aviso?: ReactNode
+  /**
+   * Botonera del encabezado, a la derecha del resumen.
+   *
+   * La usa la cola de correo al cliente, que sí se escribe: ahí vive el botón que abre el
+   * compositor. La de Perfex no la pasa, y por eso su encabezado se ve igual que antes.
+   */
+  acciones?: ReactNode
   /** La tabla. La monta quien llama: cada cola tiene sus columnas y su forma de paginar. */
   children: ReactNode
 }
@@ -30,14 +37,15 @@ interface PropsVisorColaCorreo {
 /**
  * Marco común de los dos visores de cola de correo: el resumen de la cola entera y su tabla.
  *
- * Los dos son de solo lectura, y eso no es una omisión: ninguna de las dos APIs expone reintentar,
- * borrar ni despachar. Mirar una cola no manda nada a nadie, que es justamente lo que las hace
- * seguras de tener en pantalla.
+ * La de Perfex sigue siendo de solo lectura: su API no expone reintentar, borrar ni despachar. La de
+ * correo al cliente sí se escribe —encolar a mano, corregir lo pendiente, reintentar lo que falló,
+ * descartar—, y para eso está el hueco `acciones`. Ni aun así se manda nada a nadie: lo que se
+ * escribe es la cola, no un correo.
  *
  * El resumen es de la cola entera, sin los filtros que la persona ponga en la tabla — por eso dice
  * «Cola completa» y no cambia al filtrar: mezclar los dos números confundiría más de lo que ayuda.
  */
-export function VisorColaCorreo ({ contadores, total, aviso, children }: PropsVisorColaCorreo): ReactElement {
+export function VisorColaCorreo ({ contadores, total, aviso, acciones, children }: PropsVisorColaCorreo): ReactElement {
   return (
     <div className="flex flex-col gap-4">
       {aviso}
@@ -50,6 +58,7 @@ export function VisorColaCorreo ({ contadores, total, aviso, children }: PropsVi
           </Insignia>
         ))}
         <span className="text-texto-sutil text-xs">· {total} en total</span>
+        {acciones !== undefined && <div className="ml-auto">{acciones}</div>}
       </div>
 
       {children}
