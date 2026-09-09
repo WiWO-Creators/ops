@@ -7,6 +7,7 @@ import { FichaCliente } from '@/componentes/cliente/FichaCliente'
 import { PanelFocalesCliente } from '@/componentes/cliente/FocalesCliente'
 import { PanelContactos } from '@/componentes/cliente/PanelContactos'
 import { PanelProyectosCliente } from '@/componentes/cliente/PanelProyectosCliente'
+import { SemaforoCliente } from '@/componentes/clientes/SemaforoCliente'
 import {
   PanelArchivosCliente,
   PanelNotasCliente,
@@ -19,7 +20,9 @@ import { ErrorApi } from '@/datos/errores'
 import { cargarLookups } from '@/datos/lookups'
 import { pedir } from '@/datos/servidor'
 import type { Yo } from '@/datos/tipos'
-import type { ClienteConEnvio, ContactoCompleto, EstadoLookup, Lookups, Moneda } from '@/datos/recursos'
+import type {
+  ClienteConEnvio, ContactoCompleto, EstadoLookup, Lookups, Moneda, ScoreCliente
+} from '@/datos/recursos'
 import type { OpcionCampo } from '@/componentes/proyecto/formulario'
 import { GLOSARIO } from '@/dominio/glosario'
 
@@ -63,6 +66,27 @@ interface Detalle {
   contactos: ContactoCompleto[]
   lookups: Lookups
   yo: Yo
+  score: ScoreCliente | null
+}
+
+/**
+ * La foto del semaforo, o `null` si esta pantalla no puede o no debe mostrarla.
+ *
+ * Se traga su propio error a proposito y no es pereza: `GET /scores/{id}` responde 403 a quien no
+ * llega al escalon `focal` —que son casi todos— y 404 mientras el cron no haya sacado la primera
+ * foto del cliente. Ninguno de los dos es un problema de la ficha, y dejarlos subir convertiria un
+ * indicador opcional en una pantalla rota para la mayoria de la gente.
+ */
+async function traerScore (id: string): Promise<ScoreCliente | null> {
+  try {
+    const respuesta = await pedir<ScoreCliente>(`/scores/${id}`)
+
+    return respuesta.data
+  } catch (error) {
+    if (error instanceof ErrorApi) return null
+
+    throw error
+  }
 }
 
 /**
@@ -78,15 +102,16 @@ interface Detalle {
  */
 async function cargarDetalle (id: string): Promise<Detalle | ErrorApi> {
   try {
-    const [cliente, contactos, lookups, yo] = await Promise.all([
+    const [cliente, contactos, lookups, yo, score] = await Promise.all([
       traerCliente(id),
       // Con los dados de baja incluidos: la pestaña los muestra atenuados para poder reactivarlos.
       pedir<ContactoCompleto[]>(`/clients/${id}/contacts`),
       cargarLookups(),
-      pedir<Yo>('/me')
+      pedir<Yo>('/me'),
+      traerScore(id)
     ])
 
-    return { cliente: cliente.data, contactos: contactos.data, lookups, yo: yo.data }
+    return { cliente: cliente.data, contactos: contactos.data, lookups, yo: yo.data, score }
   } catch (error) {
     if (error instanceof ErrorApi) return error
 
@@ -126,7 +151,7 @@ export default async function ClientePage (props: PageProps<'/clientes/[id]'>) {
     return <ErrorEstado detalle={detalle.message} />
   }
 
-  const { cliente, contactos, lookups, yo } = detalle
+  const { cliente, contactos, lookups, yo, score } = detalle
   const capacidadesTareas = yo.permissions.tasks
   const activos = contactos.filter((contacto) => contacto.active).length
 
@@ -198,6 +223,10 @@ export default async function ClientePage (props: PageProps<'/clientes/[id]'>) {
           capacidades={yo.permissions.customers}
         />
       </div>
+
+      {/* Se dibuja solo si hay foto y la persona llega al escalon que la ve: con `score` en `null`
+          el componente no renderiza nada y la ficha queda como estaba. */}
+      <SemaforoCliente score={score} />
 
       <Suspense fallback={<Cargando alto="min-h-36" mensaje="Cargando el detalle…" />}>
         <Pestanas paneles={paneles} />

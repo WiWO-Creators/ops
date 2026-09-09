@@ -1,3 +1,4 @@
+import Link from 'next/link'
 import { Suspense } from 'react'
 import { AccesoGoogle } from '@/componentes/administracion/AccesoGoogle'
 import { FormularioDeAjustes } from '@/componentes/administracion/FormularioDeAjustes'
@@ -118,6 +119,16 @@ export default async function AdministracionPage () {
           Todo lo que cambia el comportamiento de Ops para el equipo entero. Solo lo ve —y solo lo puede
           guardar— un superadministrador.
         </p>
+        {/* La casilla entrante es una pantalla aparte y no una pestaña mas: tiene su propio listado
+            paginado de fichas, y meterlo en una pestaña obligaria a bajarlo en cada visita a
+            Administracion aunque nadie lo mire. El enlace vive aca porque si no, a la pantalla solo
+            se llega escribiendo la URL. */}
+        <Link
+          href="/administracion/correos-entrantes"
+          className="text-acento mt-3 inline-block text-sm font-semibold underline underline-offset-4"
+        >
+          Casilla entrante: briefs y puntajes de los correos que llegan
+        </Link>
       </div>
 
       {/* El `Suspense` no es decorativo: `Pestanas` usa `useSearchParams`, y sin ese límite el build
