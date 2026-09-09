@@ -458,7 +458,17 @@ export interface Lookups {
   departments: Referencia[]
   /** Cargos del staff (`modules/wiwo_core/cargos_areas.php`). "Director" es uno de ellos. */
   cargos: Referencia[]
+  /** Areas del EQUIPO (`tblareas`): la que lleva puesta cada persona en su ficha. */
   areas: Referencia[]
+  /**
+   * Areas de la COMPAÑÍA, las del campo personalizado multiselect de los Procesos. **No es lo mismo
+   * que `areas`**: aquellas son del equipo y estas se marcan en cada Proceso, que puede llevar
+   * varias y estar en manos de alguien de otra area.
+   *
+   * El `id` es el propio texto de la opcion, porque eso es lo que guarda la base y lo que espera
+   * `filter[area]`. Opcional: sin el campo configurado en la instalacion, la API manda lista vacia.
+   */
+  task_areas?: Array<{ id: string, name: string }>
   /** Las seis organizaciones del grupo (`tblapi_empresas`). Solo las activas. */
   empresas: Referencia[]
   /**

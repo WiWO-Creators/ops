@@ -643,7 +643,22 @@ Notas que evitan errores:
 - `counts` evita N+1 en las listas: sin él, cada fila de la tabla pide sus comentarios.
 
 Filtros, **en `filter[...]`**: `status` (admite lista: `filter[status]=1,4`), `priority`, `clientid`,
-`project_id`, `milestone_id`, `billable`, `date_from`/`date_to` sobre `due_date`, `q`.
+`project_id`, `milestone_id`, `billable`, `date_from`/`date_to` sobre `due_date`, `q`, `area` y
+`area_asignado`.
+
+**`filter[area]` y `filter[area_asignado]` son dos áreas distintas** y conviene no mezclarlas:
+
+- **`filter[area]` es el área de la COMPAÑÍA**: el campo personalizado multiselect que cada Proceso
+  lleva marcado. El valor es el **texto** de la opción, no un id (`filter[area]=Content Studio`), y
+  las opciones válidas viajan en `lookups.task_areas` con `id === name`. Un Proceso puede tener
+  varias y aparece al filtrar por cualquiera de ellas. El match es exacto por opción: filtrar por
+  `Content` **no** devuelve los de `Content Studio`. Si la instalación no tiene el campo configurado,
+  `task_areas` viene vacío y el filtro no devuelve nada.
+- **`filter[area_asignado]` es el área del EQUIPO** (`tblareas`, la misma de `lookups.areas` y del
+  filtro `area_id` de `/staff`): devuelve los Procesos cuyo **asignado** pertenece a esa área. Toma
+  ids enteros y admite lista (`filter[area_asignado]=2,3`); un valor no entero responde `422`.
+
+Los dos valen igual en el listado, en `?vista=tablero` y en `GET /projects/{id}/tasks`.
 
 **`filter[clientid]` no es una columna**: `rel_type`/`rel_id` son polimórficos, así que es una
 expresión que cubre las tareas colgadas del cliente en directo (`rel_type = "customer"`) y las de sus
