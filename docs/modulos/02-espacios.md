@@ -12,7 +12,7 @@ El contenedor de trabajo de un cliente: sus Procesos, sus Hitos, su gente y sus 
 | Pantalla | Ruta | Qué muestra |
 |---|---|---|
 | Lista | `/espacios` | Tabla genérica |
-| Detalle | `/espacios/[id]` | Resumen, avance, cliente, fechas, miembros |
+| Detalle | `/espacios/[id]` | Identificador copiable, resumen, avance, cliente, fechas, miembros |
 | Procesos del espacio | `/espacios/[id]/procesos` | La misma tabla y el mismo tablero del módulo Procesos, con el filtro fijo |
 | Hitos | `/espacios/[id]/hitos` | Tablero de hitos |
 | Archivos | `/espacios/[id]/archivos` | Lista de adjuntos |

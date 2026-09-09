@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { CodigoCopiable } from '@/componentes/presentadores/CodigoCopiable'
 import { Etiquetas } from '@/componentes/presentadores/Etiqueta'
 import { Fecha } from '@/componentes/presentadores/Fecha'
 import { EquipoProyecto } from './EquipoProyecto'
@@ -135,7 +136,10 @@ export function CabeceraProyecto ({
           />
           <div className="flex min-w-0 flex-col gap-1">
           <h1 className="text-texto text-titulo font-semibold">{proyecto.name}</h1>
-          <p className="text-texto-tenue text-sm">{subtitulo ?? proyecto.client?.company ?? 'Sin cliente'}</p>
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="text-texto-tenue text-sm">{subtitulo ?? proyecto.client?.company ?? 'Sin cliente'}</p>
+            <CodigoCopiable valor={proyecto.patente ?? `#${proyecto.id}`} />
+          </div>
           </div>
         </div>
 

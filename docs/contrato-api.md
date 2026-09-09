@@ -491,7 +491,7 @@ asignación se guarda y se lee igual, pero no abre visibilidad hasta que se pren
 `GET /projects/{id}/milestones` · `GET /projects/{id}/members` · `GET /projects/{id}/files`
 
 ```json
-{ "id": 8, "name": "…", "image_url": null, "description": "…",
+{ "id": 8, "name": "…", "patente": "ACM-001", "image_url": null, "description": "…",
   "status": 2, "client": { "id": 42, "company": "…", "image_url": "https://…/logo.png" },
   "billing_type": 1, "start_date": "2026-01-15", "deadline": "2026-06-30",
   "date_finished": null, "progress": 45, "progress_from_tasks": true,
@@ -509,6 +509,13 @@ y cuenta las tareas. Y `status = 4` (Finalizado) fuerza 100 sin importar nada m�
 cálculo; servir la columna tal cual sería mentir.
 
 `counts` viene siempre: es lo que la lista necesita para no hacer una consulta por fila.
+
+**`patente` es el identificador visible del Espacio** (`ACM-001`: las letras del cliente más un
+correlativo). Viaja en el listado y en el detalle, en la misma consulta que el resto de la fila. Es
+`null` cuando el Espacio todavía no tiene patente asignada, y también cuando la instalación no tiene
+la tabla `tblwiwo_project_patentes` (migración `0160`) — en los dos casos la interfaz cae a `#id`,
+igual que hace con la del Proceso. A diferencia de aquélla, **acá no hay reparación perezosa**: la
+lectura no asigna nada. `/portal` no devuelve este campo: es un código interno.
 
 Filtros: `status`, `clientid`, `member` (staff id), `date_from`/`date_to` sobre `start_date`, `q`.
 Orden: `name`, `start_date`, `deadline`, `progress`.
