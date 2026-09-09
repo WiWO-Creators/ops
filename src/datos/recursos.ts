@@ -1660,3 +1660,88 @@ export interface ScoreCliente {
   /** Solo en `GET /scores/{clientId}`: las ultimas fotos, de la mas vieja a la mas nueva. */
   historia?: PuntoScoreCliente[]
 }
+
+// --- Casilla entrante ----------------------------------------------------------------------------
+// Las fichas que deja el cron que lee la casilla corporativa (`GET /correos-entrantes`). Van al
+// final del archivo, despues de las plantillas, porque es lo ultimo que se agrego.
+
+/** Los tres modos del lector, en riesgo creciente. Espeja `Correo\ConfigCasilla::MODOS`. */
+export type ModoCasillaEntrante = 'apagado' | 'prueba' | 'real'
+
+/** Las nueve etiquetas que el modelo puede poner. Espeja `IA\BriefDeCorreo::CLASIFICACIONES`. */
+export type ClasificacionCorreoEntrante =
+  | 'reclamo'
+  | 'solicitud'
+  | 'consulta'
+  | 'coordinacion'
+  | 'aprobacion'
+  | 'comercial'
+  | 'administrativo'
+  | 'automatico'
+  | 'otro'
+
+/**
+ * `ok` es una ficha con brief y score. `sin_ia` es un correo que se leyo y se registro pero cuyo
+ * brief el modelo no pudo dar: la fila existe a proposito, para no perder el correo.
+ */
+export type EstadoCorreoEntrante = 'ok' | 'sin_ia'
+
+/** Una ficha de `GET /correos-entrantes`. El cuerpo del correo NO viaja: solo el brief. */
+export interface FichaCorreoEntrante {
+  id: number
+  /** Cabecera `Message-ID` del original, para ir a buscarlo en la casilla. */
+  message_id: string
+  sender: string
+  sender_name: string
+  domain: string
+  /** `null` cuando el dominio no casa con ningun cliente, es generico, o casa con mas de uno. */
+  client_id: number | null
+  client_name: string | null
+  subject: string
+  /** `null` solo cuando `status` es `sin_ia`. */
+  brief: string | null
+  /**
+   * Salud de la relacion leida en ESTE correo, de 1 a 100. No es urgencia ni prioridad.
+   * Es el dato que alimenta el semaforo del cliente; esta pantalla solo lo muestra.
+   */
+  score: number | null
+  category: ClasificacionCorreoEntrante
+  status: EstadoCorreoEntrante
+  /** Fecha del correo. `null` si la cabecera venia rota. */
+  received_at: string | null
+  processed_at: string
+}
+
+/** El resumen que viaja en `meta.pagination.summary` de `GET /correos-entrantes`. */
+export interface ResumenCorreosEntrantes {
+  total: number
+  sin_cliente: number
+  sin_ia: number
+  reclamos: number
+  score_promedio: number | null
+}
+
+/**
+ * El estado de la casilla, tal como lo devuelve `GET /correos-entrantes/settings`.
+ *
+ * La contraseña NO esta acá y nunca va a estar: vive en el `.env` del servidor. Lo unico que se
+ * dice de ella es `has_password`, para poder mostrar que falta sembrarla.
+ */
+export interface ConfiguracionCasillaEntrante {
+  mode: ModoCasillaEntrante
+  host: string
+  port: string
+  encryption: string
+  username: string
+  folder: string
+  /** Carpeta a la que se mueve el original en modo `real`. El correo no se borra nunca al leer. */
+  processed_folder: string
+  batch_size: number
+  purge_enabled: boolean
+  purge_days: number
+  has_password: boolean
+  /** Nombres de las opciones o claves que faltan para poder conectarse. Vacio = completa. */
+  missing: string[]
+  /** Si la extension `imap` de PHP existe en este servidor. Sin ella el lector no arranca. */
+  imap_available: boolean
+}
