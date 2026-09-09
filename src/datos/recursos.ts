@@ -144,6 +144,13 @@ export interface AprobacionProceso {
 export interface Espacio {
   id: number
   name: string
+  /**
+   * Identificador visible del Espacio (`ACM-001`): las letras del cliente mas un correlativo.
+   * Es `null` mientras el backend no lo haya asignado, y viene ausente en las respuestas del
+   * portal, que no expone el codigo interno. Se pinta como `patente || '#' + id`, igual que el
+   * del Proceso.
+   */
+  patente?: string | null
   /** Imagen propia del proyecto; si es `null`, la interfaz usa el logo del cliente. */
   image_url: string | null
   description: string | null
