@@ -10,8 +10,9 @@ import { CargandoConOrbe, Orbe } from '@/componentes/estado/Orbe'
 import { escribirEnBff } from '@/componentes/datos/mutaciones'
 import { pedirSobre } from '@/datos/cliente'
 import { leerSSE } from '@/datos/sse'
-import { leerEventoIA, type Cita } from '@/dominio/ia'
+import { leerEventoIA, type AccionIA, type Cita, type PasoIA } from '@/dominio/ia'
 import {
+  conAccionResuelta,
   guardarHilo,
   hrefDeCita,
   LARGO_MAXIMO_PREGUNTA,
@@ -21,15 +22,21 @@ import {
   type FaseMensaje,
   type Mensaje
 } from '@/dominio/ia-chat'
+import { TarjetaPropuestaIA } from './TarjetaPropuestaIA'
 import { ASISTENTE, GLOSARIO } from '@/dominio/glosario'
 import { ModalTarea } from './ModalTarea'
 
 /**
  * Pestaña de IA de un Proyecto: se le pregunta por el estado y contesta citando.
  *
- * **Solo responde y cita.** No propone acciones y no escribe nada, y esa garantia no la da el prompt:
- * la da que este archivo no importa una sola funcion de escritura. El unico `POST` que hace es el de
- * la pregunta.
+ * **Responde, cita y —con las escrituras encendidas— propone.** Proponer no es escribir: lo que
+ * llega es una tarjeta con un id, y `TarjetaPropuestaIA` la confirma mandando SOLO ese id. Este
+ * archivo no arma un cuerpo de escritura en ningun lado: el QUE vive congelado en el servidor desde
+ * que se propuso.
+ *
+ * Con el interruptor de escrituras apagado no llega ningun `event: propuesta` ni ningun
+ * `event: paso`, y esta pantalla es exactamente la de antes. No hace falta preguntar por el
+ * interruptor: la ausencia de los eventos ES el interruptor.
  *
  * Es una pestaña y no un cajon a proposito. El cajon es modal —Radix pone `inert` lo de atras—, asi
  * que la supuesta ventaja de "seguir viendo el Proyecto" es falsa, y una cita a una Tarea abriria un
@@ -158,11 +165,13 @@ export function ChatDelProyecto (
 
     let acumulado = ''
     let citas: Cita[] = []
+    let paso: PasoIA | null = null
+    let acciones: AccionIA[] = []
     let fallo = false
 
     /** Repinta la burbuja de la IA con lo que se lleva acumulado. */
     const pintar = (fase: FaseMensaje): void => {
-      escribir([...previos, { rol: 'ia', texto: acumulado, citas, fase }])
+      escribir([...previos, { rol: 'ia', texto: acumulado, citas, paso, acciones, fase }])
     }
 
     pintar('generando')
@@ -173,9 +182,15 @@ export function ChatDelProyecto (
       for await (const crudo of leerSSE(ruta(proyectoId), opciones)) {
         const evento = leerEventoIA(crudo)
 
+        // Un evento que este parser no conoce vuelve como `null` y se saltea: es lo que hace que
+        // un backend mas nuevo no rompa esta pantalla, y al reves.
         if (evento === null || evento.tipo === 'fin') continue
         if (evento.tipo === 'delta') acumulado += evento.texto
         if (evento.tipo === 'citas') citas = evento.citas
+        // La fase `fin` de un paso no se limpia: dejar el ultimo puesto evita el parpadeo entre una
+        // herramienta y la siguiente, y el paso entero desaparece cuando la burbuja deja de generar.
+        if (evento.tipo === 'paso') paso = evento.paso
+        if (evento.tipo === 'propuesta') acciones = [...acciones, evento.accion]
         if (evento.tipo === 'error') {
           setErrorRespuesta(evento.mensaje)
           fallo = true
@@ -235,7 +250,10 @@ export function ChatDelProyecto (
     if (texto === '' || enviando) return
 
     setPregunta('')
-    void preguntar(texto, [...mensajes, { rol: 'persona', texto, citas: [], fase: 'listo' }])
+    void preguntar(texto, [
+      ...mensajes,
+      { rol: 'persona', texto, citas: [], paso: null, acciones: [], fase: 'listo' }
+    ])
   }
 
   /**
@@ -286,6 +304,7 @@ export function ChatDelProyecto (
                     params={params}
                     error={errorRespuesta}
                     onReintentar={() => reintentar(indice)}
+                    onAccionResuelta={(accion) => { escribir(conAccionResuelta(mensajes, accion)) }}
                   />
                   )
             ))}
@@ -357,9 +376,11 @@ export function ChatDelProyecto (
 
         <div className="flex flex-wrap items-center justify-between gap-2">
           {/* Siempre visible, tambien con el hilo lleno: es el limite de la funcion, no un aviso de
-              bienvenida que se lee una vez. */}
+              bienvenida que se lee una vez. La frase vale en los dos estados del interruptor: con
+              las escrituras apagadas no cambia nada nunca, y con ellas encendidas no cambia nada
+              hasta que alguien aprieta Confirmar. */}
           <p className="text-texto-sutil text-xs">
-            Responde sobre el estado de este {GLOSARIO.espacio.singular}. No crea ni cambia nada.
+            Responde sobre el estado de este {GLOSARIO.espacio.singular}. No cambia nada sin que lo confirmes.
           </p>
           <Boton type="submit" variante="primario" disabled={pregunta.trim() === '' || enviando}>
             Preguntar
@@ -399,19 +420,27 @@ function BurbujaIA ({
   mensaje,
   params,
   error,
-  onReintentar
+  onReintentar,
+  onAccionResuelta
 }: {
   mensaje: Mensaje
   params: URLSearchParams
   error: string
   onReintentar: () => void
+  onAccionResuelta: (accion: AccionIA) => void
 }): ReactElement {
   const esperando = mensaje.fase === 'generando' && mensaje.texto === ''
+
+  // El indicador sale de lo que el servidor mando en `event: paso`. Sin paso —backend viejo,
+  // escrituras apagadas, o el modelo que no consulto nada— se queda con el texto fijo de siempre.
+  const indicador = mensaje.fase === 'generando' && mensaje.paso !== null
+    ? { mensaje: mensaje.paso.etiqueta, estado: mensaje.paso.orbe }
+    : { mensaje: `Leyendo el ${GLOSARIO.espacio.singular}…`, estado: 'thinking' as const }
 
   return (
     <li className="border-linea bg-superficie-hundida rounded-tarjeta flex flex-col gap-2 border p-3">
       {esperando
-        ? <CargandoConOrbe mensaje={`Leyendo el ${GLOSARIO.espacio.singular}…`} estado="thinking" retardoMs={0} />
+        ? <CargandoConOrbe mensaje={indicador.mensaje} estado={indicador.estado} retardoMs={0} />
         : (
           <p className="text-texto whitespace-pre-wrap text-sm">
             {partirConCitas(mensaje.texto, mensaje.citas).map((tramo, indice) => (
@@ -460,6 +489,16 @@ function BurbujaIA ({
             ))}
           </ul>
         </div>
+      )}
+
+      {mensaje.acciones.length > 0 && (
+        <ul aria-label="Acciones propuestas" className="flex flex-col gap-2">
+          {mensaje.acciones.map((accion) => (
+            <li key={accion.id}>
+              <TarjetaPropuestaIA accion={accion} onResuelta={onAccionResuelta} />
+            </li>
+          ))}
+        </ul>
       )}
 
       {mensaje.fase === 'error' && (

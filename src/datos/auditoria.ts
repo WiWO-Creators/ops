@@ -109,6 +109,7 @@ export type TipoAuditoria =
   | 'portal'
   | 'login'
   | 'login_fallido'
+  | 'wibot'
   | 'api'
   | 'email'
   | 'denegado'
@@ -161,6 +162,10 @@ export const TIPOS_AUDITORIA: Record<TipoAuditoria, { etiqueta: string, tono: 'n
   login_fallido: { etiqueta: 'Acceso fallido', tono: 'peligro' },
   denegado: { etiqueta: 'Acceso denegado', tono: 'peligro' },
   login: { etiqueta: 'Ingreso', tono: 'acento' },
+  // Escrituras que WiBot propuso y una persona confirmó. Van en `aviso` y no en `neutro`: son
+  // acciones que ejecutó el sistema por sugerencia de un modelo, y quien abre esta pantalla las
+  // busca. El actor de la fila es quien confirmó, que es lo que hay que poder leer de un vistazo.
+  wibot: { etiqueta: 'Acción de WiBot', tono: 'aviso' },
   portal: { etiqueta: 'Portal del cliente', tono: 'aviso' },
   api: { etiqueta: 'Acción en Ops', tono: 'neutro' },
   email: { etiqueta: 'Correo enviado', tono: 'contorno' },
