@@ -3,6 +3,8 @@ import assert from 'node:assert/strict'
 import {
   ACEPTA,
   LIMITE_BYTES,
+  LIMITE_DOCUMENTO_BYTES,
+  MIME_DOCUMENTO,
   extensionDe,
   formatoPeso,
   inferirMime,
@@ -130,4 +132,52 @@ test('el orden por defecto está entre los ordenables que el backend acepta', ()
       assert.ok(ACTAS.ordenables.includes(columna.ordenPor), `columna ${columna.clave}`)
     }
   }
+})
+
+/**
+ * Subir un Meeting Paper ya redactado.
+ *
+ * El segundo parámetro de `validarArchivo` es opcional a propósito: sin él manda la regla de
+ * siempre, que es lo que verifican las pruebas de arriba. Estas cubren solo el modo `documento`.
+ */
+test('validarArchivo en modo documento acepta lo que la API sabe leer', () => {
+  assert.equal(validarArchivo({ name: 'acta.pdf', size: 1024 }, 'documento'), null)
+  assert.equal(validarArchivo({ name: 'acta.docx', size: 1024 }, 'documento'), null)
+  assert.equal(validarArchivo({ name: 'ACTA.MD', size: 1024 }, 'documento'), null, 'la extensión no distingue mayúsculas')
+  assert.equal(validarArchivo({ name: 'acta.htm', size: 1024 }, 'documento'), null)
+
+  assert.match(validarArchivo({ name: 'reunion.m4a', size: 1024 }, 'documento') ?? '', /PDF, DOCX/)
+  assert.match(validarArchivo({ name: 'acta.pdf', size: 0 }, 'documento') ?? '', /vacío/)
+})
+
+// `.doc` es el binario de Word 97 y no se lee sin una librería. El mensaje genérico dejaría a la
+// persona mirando lo que para ella es un documento de Word como cualquier otro.
+test('un .doc dice qué hacer, no solo que no se puede', () => {
+  const mensaje = validarArchivo({ name: 'acta.doc', size: 1024 }, 'documento') ?? ''
+  assert.match(mensaje, /\.doc/)
+  assert.match(mensaje, /PDF/)
+  assert.match(mensaje, /docx/)
+})
+
+test('el tope del documento es propio y más bajo que el del audio', () => {
+  assert.equal(LIMITE_DOCUMENTO_BYTES, 20 * 1024 * 1024)
+  assert.ok(LIMITE_DOCUMENTO_BYTES < LIMITE_BYTES, 'un PDF de 48 MB son miles de páginas, no un acta')
+
+  assert.equal(validarArchivo({ name: 'acta.pdf', size: LIMITE_DOCUMENTO_BYTES }, 'documento'), null, 'el borde exacto entra')
+  const grande = validarArchivo({ name: 'acta.pdf', size: LIMITE_DOCUMENTO_BYTES + 1 }, 'documento')
+  assert.match(grande ?? '', /20,0 MB/)
+
+  // Sin modo, un PDF de 30 MB ni siquiera llega al tope: no es audio ni imagen.
+  assert.match(validarArchivo({ name: 'acta.pdf', size: 30 * 1024 * 1024 }) ?? '', /audio o de imagen/)
+})
+
+test('el selector de documento ofrece exactamente lo que la API extrae', () => {
+  assert.deepEqual(Object.keys(MIME_DOCUMENTO), ['pdf', 'docx', 'txt', 'md', 'html', 'htm'])
+  assert.equal(MIME_DOCUMENTO.doc, undefined, '.doc no se ofrece: se rechaza con su propio mensaje')
+
+  for (const extension of Object.keys(MIME_DOCUMENTO)) {
+    assert.ok(ACEPTA.documento.includes(`.${extension}`), `falta .${extension} en el selector`)
+  }
+  assert.ok(!ACEPTA.documento.includes('.m4a'))
+  assert.ok(!ACEPTA.audio.includes('.pdf'))
 })
