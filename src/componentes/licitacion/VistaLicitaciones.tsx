@@ -31,15 +31,21 @@ interface PropsVistaLicitaciones {
   /** Capacidades sobre `projects`: una Licitacion **es** un Espacio, y el backend usa ese permiso. */
   capacidades?: Capacidad[]
   opcionesDeFiltro?: Record<string, OpcionFiltro[]>
-  /** Catalogo `countries` de `GET /lookups`, para el formulario de alta. */
-  paises: OpcionCampo[]
+  /**
+   * Los prospectos entre los que elegir en el alta, ya en forma de opciones.
+   *
+   * Desde `0320` una licitacion no carga su propia empresa: cuelga de un prospecto que ya existe. La
+   * lista baja resuelta del servidor porque el `<select>` la necesita completa desde el primer
+   * render, y son pocas decenas de filas.
+   */
+  prospectos: OpcionCampo[]
 }
 
 export function VistaLicitaciones ({
   inicial,
   capacidades = [],
   opcionesDeFiltro,
-  paises
+  prospectos
 }: PropsVistaLicitaciones) {
   const router = useRouter()
   const [creando, setCreando] = useState(false)
@@ -88,8 +94,8 @@ export function VistaLicitaciones ({
           abierto={creando}
           onAbiertoCambia={setCreando}
           titulo={`Nueva ${GLOSARIO.licitacion.singular.toLowerCase()}`}
-          descripcion={`Se crea el ${GLOSARIO.espacio.singular.toLowerCase()} donde se prepara la propuesta. El cliente no se crea todavía: eso pasa al ganar.`}
-          campos={camposDeLicitacion(paises)}
+          descripcion={`Se crea el ${GLOSARIO.espacio.singular.toLowerCase()} donde se prepara la propuesta, colgado del prospecto que se elija. El cliente no se crea todavía: eso pasa al ganar.`}
+          campos={camposDeLicitacion(prospectos)}
           ruta="licitaciones"
           metodo="POST"
           onGuardado={() => { router.refresh() }}

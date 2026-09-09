@@ -3,13 +3,11 @@ import { cache } from 'react'
 import { AccionesLicitacion } from '@/componentes/licitacion/AccionesLicitacion'
 import { FichaLicitacion } from '@/componentes/licitacion/FichaLicitacion'
 import { DetalleDeEspacio } from '@/componentes/proyecto/DetalleDeEspacio'
-import type { OpcionCampo } from '@/componentes/proyecto/formulario'
 import { ErrorEstado, SinPermiso, Vacio } from '@/componentes/estado/Estados'
-import { listaDe } from '@/datos/catalogos'
 import { ErrorApi } from '@/datos/errores'
 import { cargarLookups } from '@/datos/lookups'
 import { pedir } from '@/datos/servidor'
-import type { EstadoLookup, LicitacionDetalle, Lookups } from '@/datos/recursos'
+import type { LicitacionDetalle, Lookups } from '@/datos/recursos'
 import type { Yo } from '@/datos/tipos'
 import { GLOSARIO } from '@/dominio/glosario'
 
@@ -113,7 +111,6 @@ export default async function LicitacionPage (props: PageProps<'/licitaciones/[i
   }
 
   const { licitacion, lookups, yo } = detalle
-  const paises = listaDe(lookups, 'countries')
 
   return (
     <DetalleDeEspacio
@@ -124,19 +121,10 @@ export default async function LicitacionPage (props: PageProps<'/licitaciones/[i
       volverA={{ href: '/licitaciones', etiqueta: GLOSARIO.licitacion.plural }}
       subtitulo={licitacion.company}
       acciones={
-        <AccionesLicitacion
-          licitacion={licitacion}
-          paises={comoOpciones(paises)}
-          capacidades={yo.permissions.projects}
-        />
+        <AccionesLicitacion licitacion={licitacion} capacidades={yo.permissions.projects} />
       }
-      ficha={<FichaLicitacion licitacion={licitacion} paises={paises} />}
+      ficha={<FichaLicitacion licitacion={licitacion} />}
       etiquetaPestanas={`Secciones de la ${GLOSARIO.licitacion.singular.toLowerCase()}`}
     />
   )
-}
-
-/** Un catalogo de `/lookups` en la forma que espera un campo `seleccion` del formulario. */
-function comoOpciones (lista: EstadoLookup[]): OpcionCampo[] {
-  return lista.map((item) => ({ valor: String(item.id), etiqueta: item.name }))
 }

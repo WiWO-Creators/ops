@@ -25,6 +25,11 @@ const PREFIJOS_PERMITIDOS = [
   // de `contacts/{id}`, asi que hace falta el prefijo propio.
   'contacts',
   'projects',
+  // Prospectos: el listado, la ficha, la edicion, el borrado y el subrecurso `contactos`. La lista
+  // es por PREFIJO, asi que esta entrada cubre `prospectos/{id}/contactos/{cid}` sin una segunda.
+  // NO es `/leads`: aquel es el embudo heredado de Perfex, que no tiene pantalla en este panel y
+  // por eso tampoco entrada aca.
+  'prospectos',
   // Licitaciones: el listado, la ficha, la edicion y las acciones de ganar y perder. Prefijo propio
   // porque la API las cuelga de su raiz aunque por dentro una Licitacion sea un Espacio. Sin esta
   // entrada el BFF contesta 404 a todo lo que la pantalla pide desde el navegador —buscar, filtrar,
