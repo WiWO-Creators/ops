@@ -139,9 +139,9 @@ Y la que más pesa para la interfaz:
 >
 > Lo que **sí** existe es la infraestructura: `Escritura/Aviso.php` escribe en la campana y encola
 > correo detrás de su propio interruptor, y `/notifications` sirve la campana, el contador, las
-> preferencias por persona y el visor de la cola. Lo que falta es que las escrituras la llamen y que
-> el front muestre la campana: hoy el front sólo lee `/notifications/settings` y
-> `/notifications/mail-queue` desde `/administracion/correo`.
+> preferencias por persona y el visor de la cola. **La campana ya está en el front** —la de la
+> cabecera, con LIVE (`docs/modulos/08-live.md`)—, así que lo único que falta es que las escrituras
+> llamen a `Aviso.php`: mientras no lo hagan, la campana muestra lo que dejó el panel clásico.
 >
 > Mientras siga así, **la interfaz no puede decir "enviado", "notificado" ni "el cliente fue
 > avisado"**, y quien complete un Proceso desde `ops-v2` tiene que avisar por otro medio.

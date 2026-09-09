@@ -90,7 +90,12 @@ const PREFIJOS_PERMITIDOS = [
   // alcance del JavaScript es exactamente lo unico que este proxy existe para evitar.
   'presence',
   'sessions',
-  'audit'
+  'audit',
+  // LIVE: la jornada propia (`/me/jornada` ya entra por `me`), el tablero del equipo y el medidor de
+  // un Espacio (`/projects/{id}/timer`, que entra por `projects`). Solo falta `live`, que la API
+  // cuelga de su propia raiz. Sin esta entrada el BFF contesta 404 al tablero y el panel del equipo
+  // se queda con la unica pagina que resolvio el servidor, sin refrescarse nunca.
+  'live'
 ] as const
 
 /**

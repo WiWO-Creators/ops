@@ -5,7 +5,7 @@ import { ATRIBUTO_ABATIDA, CLAVE_BARRA } from '@/lib/barra-lateral'
 import Link, { useLinkStatus } from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useSyncExternalStore } from 'react'
-import { Building2, DoorOpen, FolderKanban, Gavel, House, ListChecks, Menu, PanelLeftClose, PanelLeftOpen, ScrollText, SlidersHorizontal, Users, UsersRound, Video } from 'lucide-react'
+import { Building2, DoorOpen, FolderKanban, Gavel, House, ListChecks, Menu, PanelLeftClose, PanelLeftOpen, Radio, ScrollText, SlidersHorizontal, Users, UsersRound, Video } from 'lucide-react'
 import { Cajon, CerrarCajon, ContenidoCajon, DisparadorCajon } from '@/componentes/superposiciones/Cajon'
 import { Logo } from '@/componentes/estructura/Logo'
 import { cn } from '@/lib/clases'
@@ -36,6 +36,9 @@ const EVENTO_BARRA = 'wiwo:barra-lateral'
  */
 const ICONOS = {
   inicio: House,
+  // `Radio` y no un reloj: LIVE no mide duraciones, dice quien esta al aire ahora. El reloj ya es el
+  // vocabulario del cronometro, que es otra cosa.
+  live: Radio,
   procesos: ListChecks,
   espacios: FolderKanban,
   // El martillo de la adjudicacion. `FolderKanban` ya es Espacios, y una licitacion no es una carpeta

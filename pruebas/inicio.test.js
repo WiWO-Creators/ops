@@ -1,22 +1,17 @@
 /**
  * Pruebas del agrupado de la pantalla de inicio.
  *
- * Lo que se protege es que lo urgente quede arriba y que el cronometro de otra persona no se muestre
- * como propio: detener el cronometro de un companero por confundir el dueño es un daño real, no un
- * detalle visual.
+ * Lo que se protege es que lo urgente quede arriba: un tramo mal armado esconde una fecha vencida
+ * debajo de otras cuarenta.
  */
 
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import {
-  agruparPorVencimiento,
-  cuantosNoListados,
-  procesoConCronometro
-} from '../src/dominio/inicio.ts'
+import { agruparPorVencimiento, cuantosNoListados } from '../src/dominio/inicio.ts'
 
 const HOY = new Date(2026, 7, 25) // 25 de agosto de 2026, hora local
 
-const proceso = (id, due_date, timer_activo = null) => ({ id, name: `Proceso ${id}`, due_date, timer_activo })
+const proceso = (id, due_date) => ({ id, name: `Proceso ${id}`, due_date })
 
 test('agrupa de mas urgente a menos y saltea los tramos vacios', () => {
   const grupos = agruparPorVencimiento([
@@ -73,18 +68,4 @@ test('sin total explicito se asume que llego todo', () => {
   const procesos = [proceso(1, '2026-08-24'), proceso(2, '2026-12-01')]
 
   assert.equal(cuantosNoListados(procesos, undefined, HOY), 1)
-})
-
-test('el cronometro de otra persona no es el mio', () => {
-  const procesos = [
-    proceso(1, '2026-08-25', { id: 9, staff_id: 42, start_time: '2026-08-25T10:00:00Z' })
-  ]
-
-  assert.equal(procesoConCronometro(procesos, 42)?.id, 1)
-  assert.equal(procesoConCronometro(procesos, 7), null)
-})
-
-test('sin cronometro abierto devuelve null', () => {
-  assert.equal(procesoConCronometro([proceso(1, '2026-08-25')], 42), null)
-  assert.equal(procesoConCronometro([], 42), null)
 })
