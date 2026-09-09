@@ -62,25 +62,18 @@ export const MIME_DOCUMENTO: Record<string, string> = {
 /**
  * Tope del documento subido, 20 MB. Es el mismo de la API, no uno más bajo.
  *
- * La razón por la que el audio se corta antes que la API (25 contra 48) es la memoria del proceso
- * de Next, y un documento de 20 MB no la mueve: el tope de acá y el de allá coinciden porque el que
- * manda es el del documento, no el del proceso.
  */
 export const LIMITE_DOCUMENTO_BYTES = 20 * 1024 * 1024
 
 /**
- * Tope de subida, 25 MB.
- *
- * Es más bajo que el de la API (48 MB) a propósito, y no por prudencia: el BFF hace
- * `await peticion.formData()` y reenvía ese `FormData`, o sea que **el archivo entero pasa por la
- * memoria del proceso de Next**, dos veces contando el reencode. Con varias subidas a la vez, un
- * archivo de 100 MB —el tope que usaba MeetingMatico— tumba el proceso que sirve todo el panel.
- *
- * Con la grabadora a 32 kbps, 25 MB son ~1 hora y 45 minutos de reunión.
+ * Tope de subida de imágenes, 25 MB.
  */
 export const LIMITE_BYTES = 25 * 1024 * 1024
 
-/** Tope de la grabación en vivo. Más allá, el archivo no entra en `LIMITE_BYTES`. */
+/** Tope de audio, igual a los 100 MB de EntradaDeActa::MAX_AUDIO_BYTES en la API. */
+export const LIMITE_AUDIO_BYTES = 100 * 1024 * 1024
+
+/** Tope de duración de la grabación en vivo. */
 export const MAXIMO_GRABACION_MS = 90 * 60 * 1000
 
 /** Los cinco modos de entrada del asistente. */
@@ -114,9 +107,8 @@ export function inferirMime (nombre: string): string | null {
 /**
  * Comprueba que el archivo se pueda mandar.
  *
- * El modo es **opcional** a propósito: sin él vale la regla de siempre —audio o imagen, 25 MB—, que
- * es lo que esperan las llamadas y las pruebas que ya existían. Solo el modo `documento` cambia la
- * lista de extensiones y el tope.
+ * Sin modo se aceptan audio e imagen, con topes de 100 y 25 MB según la extensión.
+ * El modo `documento` cambia la lista de extensiones y el tope.
  *
  * Esto no reemplaza la validación del servidor, que es la que manda: acá se evita subir 20 MB para
  * que la API los rechace, nada más.
@@ -151,8 +143,9 @@ export function validarArchivo (
     return 'Solo se aceptan archivos de audio o de imagen.'
   }
 
-  if (archivo.size > LIMITE_BYTES) {
-    return `El archivo pesa ${formatoPeso(archivo.size)} y el máximo son ${formatoPeso(LIMITE_BYTES)}.`
+  const limite = MIME_AUDIO[extensionDe(archivo.name)] !== undefined ? LIMITE_AUDIO_BYTES : LIMITE_BYTES
+  if (archivo.size > limite) {
+    return `El archivo pesa ${formatoPeso(archivo.size)} y el máximo son ${formatoPeso(limite)}.`
   }
 
   return null
