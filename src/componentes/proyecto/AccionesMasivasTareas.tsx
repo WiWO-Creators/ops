@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, type ReactElement } from 'react'
+import { useEffect, useState, type ReactElement } from 'react'
 import { Boton } from '@/componentes/formularios/Boton'
 import { CargandoConOrbe } from '@/componentes/estado/Orbe'
 import { Campo } from '@/componentes/formularios/Campo'
@@ -25,7 +25,7 @@ import {
 import { cargarAsignables } from '@/datos/asignables'
 import { pedirSobre } from '@/datos/cliente'
 import { leerError } from '@/datos/errores'
-import type { Hito, PersonaAsignable, Proceso, ResultadoAccionMasiva } from '@/datos/recursos'
+import type { Hito, PersonaAsignable, Proceso, Referencia, ResultadoAccionMasiva } from '@/datos/recursos'
 import type { Capacidad } from '@/datos/tipos'
 import type { OpcionFiltro } from '@/definiciones/tipos'
 import {
@@ -85,6 +85,39 @@ export function AccionesMasivasTareas ({
   const [personal, setPersonal] = useState<PersonaAsignable[]>([])
   const [hitos, setHitos] = useState<Hito[]>([])
 
+  const [proyectos, setProyectos] = useState<Referencia[]>([])
+  const [cargandoProyectos, setCargandoProyectos] = useState(false)
+  const [errorProyectos, setErrorProyectos] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (accion?.control !== 'proyecto') return
+    const control = new AbortController()
+    /** Carga el catálogo completo de destinos visibles, sin truncarlo en la primera página. */
+    async function cargarProyectos (): Promise<void> {
+      setCargandoProyectos(true)
+      setErrorProyectos(null)
+      setProyectos([])
+      try {
+        const destinos: Referencia[] = []
+        let pagina = 1
+        let ultima = 1
+        do {
+          const sobre = await pedirSobre<Referencia[]>(`projects?per_page=500&page=${pagina}`, control.signal)
+          destinos.push(...sobre.data)
+          ultima = sobre.meta?.pagination?.total_pages ?? 1
+          pagina++
+        } while (pagina <= ultima)
+        if (!control.signal.aborted) setProyectos(destinos)
+      } catch {
+        if (!control.signal.aborted) setErrorProyectos('No se pudieron cargar los proyectos. Cierra y vuelve a abrir para reintentar.')
+      } finally {
+        if (!control.signal.aborted) setCargandoProyectos(false)
+      }
+    }
+    void cargarProyectos()
+    return () => { control.abort() }
+  }, [accion?.control])
+
   const ids = filas.map((fila) => fila.id)
   const disponibles = accionesMasivasPermitidas(capacidades)
     .filter((accion) => accion.control !== 'hito' || proyectoId !== undefined)
@@ -121,12 +154,17 @@ export function AccionesMasivasTareas ({
 
   /** Manda la accion al backend y avisa cuantas se aplicaron y cuantas se saltearon. */
   async function aplicar (): Promise<void> {
-    if (accion === null) return
+    if (accion === null || enCurso) return
 
     const valorTipado = valorDeAccionMasiva(accion.control, valor)
 
     if (accion.control !== 'ninguno' && valorTipado === null) {
       setError('Elige un valor antes de aplicar.')
+      return
+    }
+
+    if (accion.control === 'proyecto' && (cargandoProyectos || !proyectos.some((proyecto) => proyecto.id === valorTipado))) {
+      setError('Elige un proyecto disponible antes de aplicar.')
       return
     }
 
@@ -203,13 +241,24 @@ export function AccionesMasivasTareas ({
         <p role="alert" className="text-texto-peligro w-full text-xs">{error}</p>
       )}
 
-      <Dialogo open={accion !== null} onOpenChange={(abierto) => { if (!abierto) setAccion(null) }}>
+      <Dialogo open={accion !== null} onOpenChange={(abierto) => { if (!abierto && !enCurso) setAccion(null) }}>
         <ContenidoDialogo
           titulo={accion?.etiqueta ?? ''}
-          descripcion={`Se aplica a ${ids.length} tarea${ids.length === 1 ? '' : 's'}.`}
+          descripcion={accion?.control === 'proyecto'
+            ? `Las ${ids.length} tareas seleccionadas pasarán al proyecto elegido. Las que cambien de proyecto quedarán sin hito ni tipo.`
+            : `Se aplica a ${ids.length} tarea${ids.length === 1 ? '' : 's'}.`}
         >
           <div className="flex flex-col gap-4">
-            {accion !== null && (
+            {accion?.control === 'proyecto' ? (
+              <Campo etiqueta="Proyecto destino" requerido>
+                {({ id }) => <Selector value={valor} onValueChange={setValor} disabled={enCurso || cargandoProyectos || proyectos.length === 0}>
+                  <DisparadorSelector id={id} marcador={cargandoProyectos ? 'Cargando proyectos…' : 'Elige un proyecto'} />
+                  <ContenidoSelector>
+                    {proyectos.map((proyecto) => <Opcion key={proyecto.id} value={String(proyecto.id)}>{proyecto.name}</Opcion>)}
+                  </ContenidoSelector>
+                </Selector>}
+              </Campo>
+            ) : accion !== null && (
               <ControlDeAccion
                 accion={accion}
                 valor={valor}
@@ -221,18 +270,22 @@ export function AccionesMasivasTareas ({
               />
             )}
 
+            {accion?.control === 'proyecto' && errorProyectos !== null && <p role="alert" className="text-texto-peligro text-xs">{errorProyectos}</p>}
+            {accion?.control === 'proyecto' && !cargandoProyectos && errorProyectos === null && proyectos.length === 0 && <p role="status" className="text-texto-sutil text-sm">No hay proyectos disponibles.</p>}
+
             {error !== null && <p role="alert" className="text-texto-peligro text-xs">{error}</p>}
 
             <div className="flex justify-end gap-2">
               <CerrarDialogo asChild>
-                <Boton variante="sutil">Cancelar</Boton>
+                <Boton variante="sutil" disabled={enCurso}>Cancelar</Boton>
               </CerrarDialogo>
               <Boton
                 variante={accion?.peligrosa === true ? 'peligro' : 'primario'}
                 cargando={enCurso}
+                disabled={enCurso || (accion?.control === 'proyecto' && (cargandoProyectos || valor === '' || errorProyectos !== null || proyectos.length === 0))}
                 onClick={() => { void aplicar() }}
               >
-                Aplicar
+                {accion?.control === 'proyecto' ? 'Agregar a proyecto' : 'Aplicar'}
               </Boton>
             </div>
           </div>

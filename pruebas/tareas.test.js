@@ -62,7 +62,7 @@ test('un multiselect se muestra unido y un campo ausente no rompe la celda', () 
 test('eliminar en masa solo se ofrece con delete, el resto con edit', () => {
   assert.deepEqual(accionesMasivasPermitidas(['view']).map((a) => a.clave), [])
   assert.deepEqual(accionesMasivasPermitidas(['edit']).map((a) => a.clave),
-    ['status', 'priority', 'assignees', 'milestone', 'billable', 'tags'])
+    ['status', 'priority', 'assignees', 'project', 'milestone', 'billable', 'tags'])
   assert.deepEqual(accionesMasivasPermitidas(['delete']).map((a) => a.clave), ['delete'])
 })
 
@@ -74,4 +74,15 @@ test('el valor de la accion masiva llega tipado como lo espera el contrato', () 
   assert.deepEqual(valorDeAccionMasiva('etiquetas', ' urgente , '), ['urgente'])
   assert.equal(valorDeAccionMasiva('ninguno', ''), null)
   assert.equal(valorDeAccionMasiva('estado', ''), null, 'sin elegir nada no hay nada que mandar')
+})
+
+
+test('agregar a proyecto requiere un destino con id positivo y permiso de edición', () => {
+  assert.deepEqual(accionesMasivasPermitidas(['edit']).find((accion) => accion.clave === 'project'), {
+    clave: 'project', etiqueta: 'Agregar a proyecto', control: 'proyecto', requiere: 'edit'
+  })
+  assert.equal(valorDeAccionMasiva('proyecto', '42'), 42)
+  for (const invalido of ['', ' ', '0', '-1', '1.5', 'abc']) {
+    assert.equal(valorDeAccionMasiva('proyecto', invalido), null)
+  }
 })
