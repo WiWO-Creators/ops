@@ -8,19 +8,9 @@ import { ContenidoDialogo, Dialogo } from '@/componentes/superposiciones/Dialogo
 import { mensajeDeRespuesta } from '@/datos/cliente'
 
 /**
- * Los dos botones de "eliminar" que tienen Clientes y Equipo, y su confirmacion.
- *
- * La API distingue **dar de baja** de **borrar**, y la interfaz tiene que mostrar esa diferencia o el
- * segundo paso no se entiende:
- *
- *  - Dar de baja es `DELETE {ruta}`. Se deshace desde el mismo lugar, con "Reactivar".
- *  - Borrar es `DELETE {ruta}?purgar=1`, **solo aparece si ya esta dado de baja**, y se lleva por
- *    delante lo que diga `advertencia`. La API responde 409 si se intenta sobre algo activo, asi que
- *    esconder el boton no es la unica red: es la que evita llegar hasta el error.
- *
- * El borrado definitivo pide **escribir el nombre** para confirmar. Es el unico dialogo del producto
- * que lo hace, y es a proposito: borrar un cliente se lleva sus proyectos, y borrar a una persona
- * mueve su trabajo a otra. Un "¿estás seguro?" con un botón rojo no es proporcional a eso.
+ * Baja, reactivación y borrado definitivo de Clientes y Equipo.
+ * Clientes usa PATCH para desactivar y DELETE con confirmación escrita para borrar.
+ * Equipo conserva DELETE para la baja y ?purgar=1 con transferencia para el borrado.
  */
 
 interface PropsBajaYBorrado {
@@ -28,6 +18,8 @@ interface PropsBajaYBorrado {
   ruta: string
   /** Como se llama lo que se va a borrar, para el texto y para la confirmacion escrita. */
   nombre: string
+  /** Activa el contrato de clientes: baja por PATCH y borrado con confirmación en el cuerpo. */
+  usaPapelera?: boolean
   activo: boolean
   puedeEditar: boolean
   puedeBorrar: boolean
@@ -57,6 +49,7 @@ interface PropsBajaYBorrado {
 export function BajaYBorrado ({
   ruta,
   nombre,
+  usaPapelera = false,
   activo,
   puedeEditar,
   puedeBorrar,
@@ -73,10 +66,12 @@ export function BajaYBorrado ({
   const [fallo, setFallo] = useState<string | null>(null)
 
   const extra = extraDeBorrado?.({ deshabilitado: enCurso })
-  const nombreCoincide = escrito.trim() === nombre.trim()
+  const confirmacion = usaPapelera ? 'ELIMINAR' : nombre.trim()
+  const confirmacionCoincide = escrito.trim() === confirmacion
 
   /** Manda la baja, la reactivacion o el borrado. Nunca lanza: el fallo se muestra donde se pidio. */
-  async function escribir (metodo: 'DELETE' | 'PATCH', sufijo: string, cuerpo?: unknown): Promise<void> {
+  async function escribir (metodo: 'DELETE' | 'PATCH', sufijo: string, cuerpo?: unknown, definitivo = false): Promise<void> {
+    if (enCurso || (definitivo && (!confirmacionCoincide || (extra !== undefined && extra.consulta === null)))) return
     setEnCurso(true)
     setFallo(null)
 
@@ -95,7 +90,7 @@ export function BajaYBorrado ({
       setConfirmando(false)
       setEscrito('')
 
-      if (sufijo.startsWith('?purgar=1') && alBorrar !== undefined) {
+      if (definitivo && alBorrar !== undefined) {
         alBorrar()
         return
       }
@@ -112,7 +107,7 @@ export function BajaYBorrado ({
     <>
       {puedeEditar && (activo
         ? (
-          <Boton variante="sutil" tamano={tamano} cargando={enCurso} onClick={() => { void escribir('DELETE', '') }}>
+          <Boton variante="sutil" tamano={tamano} cargando={enCurso} onClick={() => { void escribir(usaPapelera ? 'PATCH' : 'DELETE', '', usaPapelera ? { active: false } : undefined) }}>
             Dar de baja
           </Boton>
           )
@@ -137,17 +132,18 @@ export function BajaYBorrado ({
         <p role="alert" className="text-texto-peligro w-full text-xs">{fallo}</p>
       )}
 
-      <Dialogo open={confirmando} onOpenChange={(abierto) => { setConfirmando(abierto); setEscrito('') }}>
+      <Dialogo open={confirmando} onOpenChange={(abierto) => { if (!enCurso) { setConfirmando(abierto); setEscrito('') } }}>
         <ContenidoDialogo titulo="Eliminar definitivamente" descripcion={advertencia}>
           <div className="flex flex-col gap-4">
             {extra?.control}
 
-            <Campo etiqueta={`Escribe «${nombre}» para confirmar`} requerido>
+            <Campo etiqueta={`Escribe «${confirmacion}» para confirmar`} requerido>
               {(props) => (
                 <Entrada
                   {...props}
                   value={escrito}
                   autoComplete="off"
+                  disabled={enCurso}
                   onChange={(evento) => { setEscrito(evento.target.value) }}
                 />
               )}
@@ -156,12 +152,15 @@ export function BajaYBorrado ({
             {fallo !== null && <p role="alert" className="text-texto-peligro text-sm">{fallo}</p>}
 
             <div className="flex justify-end gap-2">
-              <Boton variante="sutil" onClick={() => { setConfirmando(false); setEscrito('') }}>Cancelar</Boton>
+              <Boton variante="sutil" disabled={enCurso} onClick={() => { setConfirmando(false); setEscrito('') }}>Cancelar</Boton>
               <Boton
                 variante="peligro"
                 cargando={enCurso}
-                disabled={!nombreCoincide || (extra !== undefined && extra.consulta === null)}
-                onClick={() => { void escribir('DELETE', `?purgar=1${extra?.consulta ?? ''}`) }}
+                disabled={enCurso || !confirmacionCoincide || (extra !== undefined && extra.consulta === null)}
+                onClick={() => {
+                  void escribir('DELETE', usaPapelera ? '' : `?purgar=1${extra?.consulta ?? ''}`,
+                    usaPapelera ? { confirmacion: escrito.trim() } : undefined, true)
+                }}
               >
                 Eliminar
               </Boton>
