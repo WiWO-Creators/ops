@@ -1,5 +1,5 @@
 /**
- * Pruebas del chat de IA del Proyecto.
+ * Pruebas del chat de WiBot.
  *
  * Lo que se protege aca es **a donde apunta una cita**. Que el chat conteste de mas o de menos se ve
  * leyendo; que `[2]` enlace al Hito de otro Proyecto no se ve: se ve un enlace prolijo que lleva al
@@ -13,10 +13,11 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
   conAccionResuelta,
-  esBorrado,
   esResoluble,
   estadoDeAccion,
+  guardarHilo,
   hrefDeCita,
+  leerHilo,
   leerMensajesGuardados,
   partirConCitas,
   segundosParaExpirar
@@ -69,37 +70,32 @@ test('un texto sin marcadores sale en un solo tramo, y el vacio no da ninguno', 
   assert.deepEqual(partirConCitas('', []), [])
 })
 
-test('la cita de tarea abre el modal encima, sin sacar de la pestaña del chat', () => {
-  const params = new URLSearchParams('tab=ia&pagina=3')
-
-  assert.equal(hrefDeCita(TAREA, params), '?tab=ia&pagina=3&tarea=512')
+test('la cita es una ruta absoluta: el chat ya no esta dentro de la ficha de un Espacio', () => {
+  // El fallo que esta prueba existe para atrapar: un `?tarea=512` pegado a la pantalla vigente. Con
+  // el chat en todo el panel, la Tarea citada puede ser de otro Espacio y el enlace tiene que
+  // llevar igual a esa, no a lo que esa pantalla entienda por `?tarea=`.
+  assert.equal(hrefDeCita(TAREA), '/procesos?tarea=512')
+  assert.equal(hrefDeCita({ tipo: 'espacio', id: 44, titulo: 'Colbun' }), '/espacios/44')
 })
 
-test('la cita de discusion cambia de pestaña y abre la discusion', () => {
-  const cita = { tipo: 'discusion', id: 31, titulo: 'Presupuesto de la etapa 2' }
-
-  assert.equal(hrefDeCita(cita, new URLSearchParams('tab=ia')), '?tab=discusiones&discusion=31')
+test('la cita que no se puede resolver no se enlaza a ningun lado', () => {
+  // `discusion` e `hito` solo existen como pestaña de la ficha de un Espacio, y la cita no dice de
+  // cual. Enlazarlas a la ficha vigente abriria la pestaña del Espacio equivocado, que es
+  // exactamente lo que un enlace prolijo no puede hacer.
+  assert.equal(hrefDeCita(HITO), null)
+  assert.equal(hrefDeCita({ tipo: 'discusion', id: 31, titulo: 'Presupuesto de la etapa 2' }), null)
 })
 
-test('la cita de hito solo cambia de pestaña: PanelHitos todavia no lee un ?hito=', () => {
-  assert.equal(hrefDeCita(HITO, new URLSearchParams('tab=ia')), '?tab=hitos')
-})
+test('el hilo es uno solo y sobrevive a que el chat se desmonte', () => {
+  // Lo que se protege: navegar de pantalla desmonta el chat, y al volver a abrirlo la conversacion
+  // tiene que seguir ahi. Sin esto, cada cambio de ruta empezaria de cero.
+  const mensajes = [{ rol: 'persona', texto: 'hola', citas: [], paso: null, acciones: [], fase: 'listo' }]
 
-test('cada tipo enlaza a lo suyo y ninguno usa el parametro de otro', () => {
-  // El fallo que esta prueba existe para atrapar: que un `hito` termine escribiendo `?tarea=7` y
-  // abra la Tarea 7, que es de otra entidad y probablemente de otro Proyecto.
-  const params = new URLSearchParams()
+  guardarHilo({ mensajes, cargado: true })
 
-  assert.equal(hrefDeCita({ ...HITO, tipo: 'tarea' }, params), '?tarea=7')
-  assert.equal(hrefDeCita(HITO, params), '?tab=hitos')
-  assert.equal(hrefDeCita({ tipo: 'espacio', id: 44, titulo: 'Colbun' }, params), '?tab=descripcion')
-})
+  assert.deepEqual(leerHilo(), { mensajes, cargado: true })
 
-test('el resto de la vista sobrevive al salto', () => {
-  const params = new URLSearchParams('tab=ia&filtro[status]=1&orden=-duedate')
-
-  assert.match(hrefDeCita(TAREA, params), /filtro%5Bstatus%5D=1/)
-  assert.match(hrefDeCita(TAREA, params), /orden=-duedate/)
+  guardarHilo({ mensajes: [], cargado: false })
 })
 
 test('el hilo guardado se lee traduciendo el rol y descartando lo que no se entiende', () => {
@@ -159,13 +155,6 @@ test('sin instante de caducidad no se ofrece confirmar', () => {
   assert.equal(segundosParaExpirar(propuesta({ expira_en: null }), ANTES), 0)
   assert.equal(segundosParaExpirar(propuesta({ expira_en: 'ayer' }), ANTES), 0)
   assert.equal(esResoluble(propuesta({ expira_en: null }), ANTES), false)
-})
-
-test('solo los dos borrados se pintan en tono de peligro', () => {
-  assert.equal(esBorrado(propuesta({ herramienta: 'eliminar_tarea' })), true)
-  assert.equal(esBorrado(propuesta({ herramienta: 'eliminar_espacio' })), true)
-  assert.equal(esBorrado(propuesta({ herramienta: 'archivar_espacio' })), false)
-  assert.equal(esBorrado(propuesta()), false)
 })
 
 test('resolver una accion reemplaza solo esa y deja el resto del hilo igual', () => {
