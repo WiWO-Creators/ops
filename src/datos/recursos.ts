@@ -1556,3 +1556,86 @@ export interface PlantillaEspacio {
 export interface PlantillaEspacioDetallada extends PlantillaEspacio {
   items: ItemPlantilla[]
 }
+
+// --- Semaforo del cliente: la foto diaria del score 1-100 ------------------------------------
+
+/** Los cuatro tramos del semaforo. `sin_datos` NO es un cuarto nivel malo: es ausencia de universo. */
+export type SemaforoCliente = 'verde' | 'amarillo' | 'rojo' | 'sin_datos'
+
+/**
+ * Una de las tres señales que arman el score, con su sub-score y los contadores crudos que lo
+ * explican.
+ *
+ * Los contadores viajan SIEMPRE, tambien cuando `score` es `null`: son lo que permite escribir "sin
+ * datos porque este cliente no tiene un solo Proceso con vencimiento" en vez de un guion. Un 43 sin
+ * explicacion es ruido.
+ *
+ * `score` en `null` significa que la señal **no aplica** —no hay universo que medir— y que su peso
+ * quedo fuera del promedio. No significa cero.
+ */
+export interface SenalScore {
+  /** Cuanto explica esta señal del score total, en puntos sobre 100. */
+  peso: number
+  score: number | null
+}
+
+/** Cumplimiento de plazos: el historial contra los vencimientos comprometidos. */
+export interface SenalPlazos extends SenalScore {
+  /** Procesos con `duedate`. Sin vencimiento no hay contra que medir. */
+  medibles: number
+  incumplidos: number
+  en_riesgo: number
+  /** Dias de atraso promedio de los incumplidos. `null` si no hay ninguno. */
+  atraso_promedio: number | null
+}
+
+/** Carga y actividad: de los Procesos abiertos, cuantos se movieron dentro de la ventana. */
+export interface SenalCarga extends SenalScore {
+  abiertos: number
+  con_movimiento: number
+  estancados: number
+  /** Dias hacia atras que cuentan como "se movio". */
+  dias_ventana: number
+}
+
+/** Lo que vence pronto, con los umbrales de aviso ya configurados en el panel. */
+export interface SenalVencimientos extends SenalScore {
+  por_vencer: number
+  criticos: number
+  vencidos: number
+}
+
+/** Un punto del historico, para dibujar la tendencia. */
+export interface PuntoScoreCliente {
+  fecha: string
+  score: number | null
+  semaforo: SemaforoCliente
+}
+
+/**
+ * La foto diaria del semaforo de un cliente, tal como la devuelven `GET /scores` y
+ * `GET /scores/{clientId}`.
+ *
+ * `score` va de 1 a 100, o es `null` cuando ninguna señal tiene datos. El 0 no existe a proposito:
+ * si algo vale 0 es un error, no un cliente muy malo.
+ */
+export interface ScoreCliente {
+  client_id: number
+  /** Nombre del cliente. Viene resuelto por el servidor para no pedir la ficha aparte. */
+  cliente: string | null
+  /** Dia de la foto, `YYYY-MM-DD`. El calculo corre una vez al dia. */
+  fecha: string
+  score: number | null
+  semaforo: SemaforoCliente
+  /** Puntos ganados o perdidos contra la foto anterior. `null` si no hay con que comparar. */
+  variacion: number | null
+  espacios: number
+  procesos: number
+  senales: {
+    plazos: SenalPlazos
+    carga: SenalCarga
+    vencimientos: SenalVencimientos
+  }
+  /** Solo en `GET /scores/{clientId}`: las ultimas fotos, de la mas vieja a la mas nueva. */
+  historia?: PuntoScoreCliente[]
+}
