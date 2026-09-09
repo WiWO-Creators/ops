@@ -127,24 +127,14 @@ function seccionesDe (yo: Yo): Seccion[] {
     secciones.push({ href: '/espacios', etiqueta: GLOSARIO.espacio.plural, icono: 'espacios' })
   }
 
-  // Licitaciones tampoco tiene permiso de Perfex propio: no es una entidad suya, son Espacios con una
-  // empresa candidata colgada. La llave es la bandera de instalacion —el modulo se enciende por
-  // cliente— y no `permissions.projects`: con ese permiso, la seccion aparecería en instalaciones
-  // donde el recurso ni existe, y su listado devolveria 404.
-  // Prospectos va antes que Licitaciones porque es su contenedor: una licitación se crea eligiendo
-  // un prospecto, y el orden del menú es el orden en que se recorre el flujo comercial.
+  // Prospectos contiene el acceso a sus licitaciones. La bandera de instalación habilita el módulo.
   if (yo.secciones_habilitadas.includes('prospectos')) {
     secciones.push({ href: '/prospectos', etiqueta: 'Prospectos', icono: 'licitaciones' })
   }
 
-  if (yo.secciones_habilitadas.includes('licitaciones')) {
-    secciones.push({ href: '/licitaciones', etiqueta: GLOSARIO.licitacion.plural, icono: 'licitaciones' })
-  }
-
-  // Upselling cierra el bloque comercial: es el mismo flujo de Licitaciones pero sobre un cliente
-  // que ya existe, asi que va justo despues y con el mismo icono.
+  // Upselling corresponde a oportunidades sobre clientes existentes.
   if (yo.secciones_habilitadas.includes('upsells')) {
-    secciones.push({ href: '/upsells', etiqueta: GLOSARIO.upsell.plural, icono: 'licitaciones' })
+    secciones.push({ href: '/upsells', etiqueta: GLOSARIO.upsell.plural, icono: 'upsells' })
   }
 
   // Salas no tiene permiso de Perfex que consultar: no es una feature suya. Reservar una sala lo

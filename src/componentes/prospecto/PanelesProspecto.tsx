@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { useMemo, useState, type ReactElement } from 'react'
 import { useRouter } from 'next/navigation'
 import { Boton } from '@/componentes/formularios/Boton'
+import { camposDeLicitacion } from '@/componentes/licitacion/campos'
 import { PanelRecurso } from '@/componentes/proyecto/PanelRecurso'
 import { FormularioRecurso } from '@/componentes/proyecto/FormularioRecurso'
 import type { CampoFormulario } from '@/componentes/proyecto/formulario'
@@ -114,12 +115,21 @@ export function PanelContactosProspecto ({
  * editable, y cambiar el numero mostraria las licitaciones de otra empresa bajo este nombre.
  *
  * @param prospectoId el prospecto que se esta mirando
+ * @param prospectoNombre nombre de la empresa, usado en el alta de su licitación
  * @param capacidades capacidades sobre `projects`, de `permissions` de `/me`
  */
 export function PanelLicitacionesProspecto ({
   prospectoId,
+  prospectoNombre,
   capacidades
-}: { prospectoId: number, capacidades: Capacidad[] }): ReactElement {
+}: { prospectoId: number, prospectoNombre: string, capacidades: Capacidad[] }): ReactElement {
+  const router = useRouter()
+  const [creando, setCreando] = useState(false)
+  const [revision, setRevision] = useState(0)
+  const campos = useMemo(() => camposDeLicitacion([
+    { valor: String(prospectoId), etiqueta: prospectoNombre }
+  ]), [prospectoId, prospectoNombre])
+  const registro = useMemo(() => ({ prospecto_id: prospectoId }), [prospectoId])
   const definicion = useMemo<DefinicionRecurso<Licitacion>>(() => ({
     ...LICITACIONES,
     consultaFija: `filter[prospecto_id]=${encodeURIComponent(String(prospectoId))}`,
@@ -144,11 +154,41 @@ export function PanelLicitacionesProspecto ({
   }), [prospectoId])
 
   return (
-    <PanelRecurso
-      definicion={definicion}
-      claveFila={(licitacion) => licitacion.id}
-      capacidades={capacidades}
-    />
+    <>
+      <PanelRecurso
+        definicion={definicion}
+        claveFila={(licitacion) => licitacion.id}
+        capacidades={capacidades}
+        revision={revision}
+        barra={capacidades.includes('create')
+          ? (
+            <div className="flex justify-end">
+              <Boton tamano="chico" variante="primario" onClick={() => { setCreando(true) }}>
+                Nueva licitación
+              </Boton>
+            </div>
+            )
+          : undefined}
+      />
+      {capacidades.includes('create') && (
+        <FormularioRecurso
+          abierto={creando}
+          onAbiertoCambia={setCreando}
+          titulo="Nueva licitación"
+          descripcion={`Se creará un proyecto para preparar la propuesta de ${prospectoNombre}.`}
+          campos={campos}
+          registro={registro}
+          ruta="licitaciones"
+          metodo="POST"
+          onGuardado={() => {
+            setRevision((n) => n + 1)
+            router.refresh()
+          }}
+          columnas={2}
+          ancho="grande"
+        />
+      )}
+    </>
   )
 }
 
