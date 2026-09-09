@@ -243,6 +243,19 @@ export const CLIENTES = EMPRESAS.map((company, i) => ({
   tags: i % 3 === 0 ? [ETIQUETAS[1]] : []
 }))
 
+/**
+ * Las personas asignadas a cada cliente (`tblcustomer_admins`), por id de cliente.
+ *
+ * Fuera de `CLIENTES` a proposito: `GET /clients/{id}` no las devuelve, y colgarlas del objeto
+ * obligaria a acordarse de podarlas en cada respuesta que lo emite.
+ *
+ * Se reparten tres formas para que la pantalla se pueda mirar en las tres: con varias personas, con
+ * una sola y sin nadie —que es como esta la mayoria de los clientes reales—.
+ */
+export const ADMINS_DE_CLIENTE = new Map(
+  CLIENTES.map((cliente, i) => [cliente.id, [[1, 3], [2], []][i % 3]])
+)
+
 const NOMBRES_ESPACIO = [
   'Rediseño de marca', 'Portal de autogestión', 'Migración de datos',
   'Campaña Q3', 'Aplicación móvil', 'Integración contable',
