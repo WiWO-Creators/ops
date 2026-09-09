@@ -36,6 +36,7 @@ una lista de bugs: es lo que **no se construyó a propósito**, y cada ficha lo 
 | [05](05-mi-trabajo.md) | Mi trabajo | vistas sobre `tasks` | ✅ | sí | — |
 | [06](06-salas.md) | Salas de reunión | **ninguna**: tablas propias del módulo `api` | ✅ | sí | Sin Google Calendar, por decisión del usuario |
 | [07](07-teletrabajo.md) | Teletrabajo | **ninguna**: LiveKit propio, sin tabla | — | sí | Sin endpoint de tokens, por decisión de diseño |
+| [08](08-live.md) | LIVE: jornada y medidor | **ninguna**: tablas propias del módulo `api` | en construcción | sí | El frontend está completo contra el contrato; la API se construye en paralelo. La campana consume `/notifications`, que ya existía sin consumidor |
 | [10](10-prospectos.md) | Prospectos | `leads` | ✅ | **no** | `POST /leads/{id}/convertir` |
 | [11](11-licitaciones.md) | Licitaciones | `projects` + tablas propias del módulo `api` | en construcción | sí, con la bandera `licitaciones` | El frontend está completo contra el contrato; la API se construye en paralelo |
 | [20](20-facturas.md) | Facturas | `invoices` | ✅ | **no** | PDF, envío, recurrentes, notas de crédito, `tags`, `custom_fields` |
@@ -47,8 +48,8 @@ una lista de bugs: es lo que **no se construyó a propósito**, y cada ficha lo 
 Dos cosas que la tabla no puede decir en una celda:
 
 - **Ninguna escritura de la API avisa a nadie.** Ni correo, ni campana, ni Pusher. La
-  infraestructura existe —`Escritura/Aviso.php` y todo `/notifications`—, pero las escrituras no la
-  llaman y el front no tiene campana. La interfaz no puede decir "enviado".
+  infraestructura existe —`Escritura/Aviso.php` y todo `/notifications`— y desde LIVE la campana ya
+  está en la cabecera, pero las escrituras siguen sin llamarla. La interfaz no puede decir "enviado".
 - **`?include=` desconocido es `422` en todos lados.** La grieta que este documento describía —seis
   de los ocho ignorando el `include` en silencio— está cerrada, y con ella la de las fichas, la de los
   subrecursos de Espacio y Proceso y la de todo `/portal/*`. Donde no hay relaciones opcionales la

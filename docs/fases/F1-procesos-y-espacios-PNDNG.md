@@ -14,8 +14,8 @@ Es la fase que decide si el proyecto sirve. Todo lo demás es alcance.
 - `[x]` El armazón del panel: barra lateral, área de contenido, detalle en diálogo centrado.
 - `[ ]` **Buscador global (⌘K).** No hay componente ni ruta en `src/`. La API sí lo sirve desde que
   se cerró F0: `GET /search` cruza Procesos, Espacios, Clientes y Personas.
-- `[ ]` Cronómetro activo visible en toda la navegación: hoy `CronometroAbierto.tsx` vive dentro de
-  `/inicio` y no se ve desde ninguna otra pantalla.
+- `[x]` Cronómetro activo visible en toda la navegación: lo hace el control de jornada de la
+  cabecera (`docs/modulos/08-live.md`). `CronometroAbierto.tsx` se borró con él.
 - `[ ]` Enlace "Abrir en el panel clásico". No hay una sola aparición de `board.wiwo.me` en `src/`.
 
 ### Procesos (tareas)

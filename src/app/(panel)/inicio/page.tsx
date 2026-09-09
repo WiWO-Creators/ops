@@ -13,14 +13,13 @@ import { pedir } from '@/datos/servidor'
 import type { Yo } from '@/datos/tipos'
 import type { Espacio, Proceso } from '@/datos/recursos'
 import { GLOSARIO } from '@/dominio/glosario'
-import { agruparPorVencimiento, cuantosNoListados, procesoConCronometro } from '@/dominio/inicio'
+import { agruparPorVencimiento, cuantosNoListados } from '@/dominio/inicio'
 import { puedeVerSeccion } from '@/dominio/permisos'
 import { Tarjeta, type TonoTarjeta } from '@/componentes/estructura/Tarjeta'
 import { Insignia } from '@/componentes/presentadores/Insignia'
 import { Fecha } from '@/componentes/presentadores/Fecha'
 import { PARAMETRO_TAREA } from '@/componentes/datos/tabla'
 import { ModalTarea } from '@/componentes/proyecto/ModalTarea'
-import { CronometroAbierto } from './CronometroAbierto'
 import { ResumenDelDia } from './ResumenDelDia'
 
 /**
@@ -44,9 +43,12 @@ const URL_SOPORTE = 'https://wiwo.center'
  * Inicio del panel.
  *
  * Hace dos cosas en una pantalla: dice a donde ir y muestra lo que hay que hacer hoy. El orden no es
- * casual — primero el cronometro olvidado (lo unico que cuesta dinero), despues el trabajo propio, y
- * al final el acceso a las secciones. Quien entra a trabajar encuentra su trabajo; quien entra a
- * navegar baja dos pantallazos.
+ * casual — primero el trabajo propio y al final el acceso a las secciones. Quien entra a trabajar
+ * encuentra su trabajo; quien entra a navegar baja dos pantallazos.
+ *
+ * El aviso del cronometro olvidado ya no vive aca: lo dice el control de jornada de la cabecera, en
+ * las ocho pantallas y no solo al entrar. Mostrarlo tambien aca serian dos contadores del mismo
+ * hecho, uno de ellos parado.
  *
  * Los permisos aca solo **ocultan controles**: la API filtra igual. Se pide `/tasks` unicamente si
  * quien mira puede verlos, porque sin permiso la peticion responde 403 y tumbaria la pantalla entera
@@ -56,7 +58,6 @@ export default async function InicioPage () {
   const { data: yo } = await pedir<Yo>('/me')
   const { procesos, total } = await misProcesos(yo)
 
-  const cronometro = procesoConCronometro(procesos, yo.id)
   const grupos = agruparPorVencimiento(procesos)
   const restantes = cuantosNoListados(procesos, total)
 
@@ -70,14 +71,6 @@ export default async function InicioPage () {
   return (
     <div className="lienzo-vivo mx-auto flex max-w-5xl flex-col gap-10 px-1 py-6 sm:py-10">
       <Saludo nombre={yo.firstname} />
-
-      {cronometro?.timer_activo != null && (
-        <CronometroAbierto
-          procesoId={cronometro.id}
-          nombre={cronometro.name}
-          desde={cronometro.timer_activo.start_time}
-        />
-      )}
 
       <ResumenDelDia />
 

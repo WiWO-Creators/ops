@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState, type ReactElement } from 'react'
 import { Boton } from '@/componentes/formularios/Boton'
 import { Cargando, ErrorEstado, Vacio } from '@/componentes/estado/Estados'
 import { Insignia } from '@/componentes/presentadores/Insignia'
+import { avisarCambioDeMedidor } from '@/componentes/live/medidor'
 import { compararTiempo, type ComparacionTiempo } from '@/dominio/tiempo-estimado'
 import { formatearFecha } from '@/lib/fechas'
 import { cn } from '@/lib/clases'
@@ -116,6 +117,9 @@ export function Cronometros ({ procesoId, className }: PropsCronometros): ReactE
     setEnCurso(false)
 
     if (respuesta.ok) {
+      // El control de jornada de la cabecera mira el mismo cronometro: sin este aviso se queda con el
+      // estado viejo hasta su proximo intervalo.
+      avisarCambioDeMedidor()
       recargar()
       return
     }
