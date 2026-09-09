@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { cn } from '@/lib/clases'
+import type { EstadoOrbe } from '@/dominio/orbe'
 
 /**
  * Los estados del orbe.
@@ -17,15 +18,13 @@ import { cn } from '@/lib/clases'
  *
  * `undefined` es reposo: no hay ninguna operacion. No es lo mismo que `idle`, que es un estado
  * declarado y se ve.
+ *
+ * La lista en si vive en `dominio/orbe.ts` —un modulo sin JSX— y se reexporta acá, que sigue siendo
+ * de donde la importa todo el mundo. El motivo esta escrito allá: `node --test` no lee un `.tsx`, y
+ * `dominio/ia.ts` valida contra esa lista, en tiempo de ejecucion, el `orbe` que llega en un evento
+ * SSE.
  */
-export type EstadoOrbe =
-  | 'idle'
-  | 'listening'
-  | 'thinking'
-  | 'generating'
-  | 'routing'
-  | 'success'
-  | 'error'
+export { ESTADOS_ORBE, type EstadoOrbe } from '@/dominio/orbe'
 
 export type TamanoOrbe = 'chico' | 'medio' | 'grande' | 'marca'
 

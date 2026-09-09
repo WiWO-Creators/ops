@@ -20,6 +20,9 @@ const leer = (ruta) => readFileSync(new URL(ruta, import.meta.url), 'utf8')
 const css = leer('../src/estilos/thinking-orb.css')
 const componente = leer('../src/componentes/estado/Orbe.tsx')
 const estados = leer('../src/componentes/estado/Estados.tsx')
+// La lista de estados vive en un modulo sin JSX para que `dominio/ia.ts` la pueda validar en
+// tiempo de ejecucion y probarse con `node --test`, que no lee un `.tsx`. `Orbe.tsx` la reexporta.
+const listaEstados = leer('../src/dominio/orbe.ts')
 
 /** Los comentarios del proyecto nombran lo que esta prohibido para explicar por que: hay que sacarlos. */
 const sinComentarios = (fuente) => fuente.replace(/\/\*[\s\S]*?\*\//g, '')
@@ -31,9 +34,11 @@ const ESTADOS = ['idle', 'listening', 'thinking', 'generating', 'routing', 'succ
 const TAMANOS = ['orbe-chico', 'orbe-medio', 'orbe-grande', 'orbe-marca']
 
 test('los siete estados del componente tienen reglas en la hoja', () => {
-  const declarados = [...componente.matchAll(/^\s*\|\s*'([a-z]+)'$/gm)].map(([, estado]) => estado)
+  const declarados = [...listaEstados.matchAll(/^\s*'([a-z]+)',?$/gm)].map(([, estado]) => estado)
 
   assert.deepEqual(declarados, ESTADOS, 'EstadoOrbe dejo de ser los siete estados de neo')
+  assert.match(componente, /export \{ ESTADOS_ORBE, type EstadoOrbe \} from '@\/dominio\/orbe'/,
+    'Orbe.tsx tiene que seguir reexportando la lista: es de donde la importa todo el mundo')
 
   for (const estado of ESTADOS) {
     assert.ok(

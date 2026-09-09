@@ -115,3 +115,109 @@ test('varias lineas data: se concatenan antes de parsear', () => {
     { tipo: 'citas', citas: [{ tipo: 'tarea', id: 1, titulo: 'a' }] }
   )
 })
+
+test('lee un paso y valida su estado de orbe contra los siete que existen', () => {
+  assert.deepEqual(
+    leerEventoIA(frame('paso', {
+      fase: 'inicio', herramienta: 'crear_tarea', etiqueta: 'Preparando una tarea nueva…', orbe: 'thinking'
+    })),
+    {
+      tipo: 'paso',
+      paso: { fase: 'inicio', herramienta: 'crear_tarea', etiqueta: 'Preparando una tarea nueva…', orbe: 'thinking' }
+    }
+  )
+
+  // `orbe` termina como prop de `Orbe.tsx`, que lo usa para elegir clase CSS. Un estado inventado
+  // no lanza: deja la animacion a medias, que es peor porque no se ve.
+  assert.equal(leerEventoIA(frame('paso', { fase: 'inicio', herramienta: 'x', etiqueta: 'y', orbe: 'brillando' })), null)
+  assert.equal(leerEventoIA(frame('paso', { fase: 'empezando', herramienta: 'x', etiqueta: 'y', orbe: 'thinking' })), null)
+  assert.equal(leerEventoIA(frame('paso', { fase: 'inicio', herramienta: 'x', etiqueta: '', orbe: 'thinking' })), null)
+})
+
+test('la etiqueta de un paso se recorta antes de pintarse', () => {
+  // Sale de un mapa cerrado del servidor, pero llega por la red y se pinta en una linea de altura
+  // fija: diez mil caracteres deforman el panel entero.
+  const evento = leerEventoIA(frame('paso', {
+    fase: 'fin', herramienta: 'x', etiqueta: 'a'.repeat(5000), orbe: 'routing'
+  }))
+
+  assert.equal(evento.paso.etiqueta.length, 120)
+})
+
+test('lee una propuesta con su resumen y su detalle', () => {
+  assert.deepEqual(
+    leerEventoIA(frame('propuesta', {
+      id: 12,
+      herramienta: 'eliminar_tarea',
+      resumen: 'Mandar a la papelera la tarea "Corregir el informe"',
+      detalle: ['Se puede restaurar durante 30 días desde la Papelera.'],
+      estado: 'pendiente',
+      resultado: null,
+      expira_en: '2026-09-04T12:30:00Z'
+    })),
+    {
+      tipo: 'propuesta',
+      accion: {
+        id: 12,
+        herramienta: 'eliminar_tarea',
+        resumen: 'Mandar a la papelera la tarea "Corregir el informe"',
+        detalle: ['Se puede restaurar durante 30 días desde la Papelera.'],
+        estado: 'pendiente',
+        resultado: null,
+        expira_en: '2026-09-04T12:30:00Z'
+      }
+    }
+  )
+})
+
+test('una propuesta con un estado que no existe se descarta entera', () => {
+  // La tarjeta es un boton que escribe en el sistema: una con datos a medias es peor que ninguna.
+  const base = { id: 1, herramienta: 'crear_tarea', resumen: 'x', detalle: [], resultado: null, expira_en: null }
+
+  assert.equal(leerEventoIA(frame('propuesta', { ...base, estado: 'casi' })), null)
+  assert.equal(leerEventoIA(frame('propuesta', { ...base, estado: 'pendiente', id: '1' })), null)
+  assert.equal(leerEventoIA(frame('propuesta', { ...base, estado: 'pendiente', resumen: '' })), null)
+})
+
+test('un frontend viejo pinta la respuesta igual: no hace falta versionar el stream', () => {
+  // Esta es la prueba de compatibilidad. `parserViejo` es `leerEventoIA()` tal como era ANTES de
+  // que existieran `paso` y `propuesta`: solo conoce cuatro eventos y devuelve `null` para el
+  // resto. Se comprueba que un stream nuevo, leido con el parser viejo, produce exactamente el
+  // mismo texto y las mismas citas que producia antes — sin tarjeta y sin indicadores, pero sin
+  // perder una sola palabra.
+  const parserViejo = (crudo) => {
+    const nombre = crudo.split('\n').find((l) => l.startsWith('event:'))?.slice(6).trim()
+
+    return ['delta', 'citas', 'fin', 'error'].includes(nombre) ? leerEventoIA(crudo) : null
+  }
+
+  const stream = [
+    frame('paso', { fase: 'inicio', herramienta: 'tareas_del_espacio', etiqueta: 'Revisando…', orbe: 'routing' }),
+    frame('delta', { t: 'Te dejé preparada la tarea ' }),
+    frame('delta', { t: '"Revisar el brief" [1].' }),
+    frame('propuesta', {
+      id: 3, herramienta: 'crear_tarea', resumen: 'Crear la tarea "Revisar el brief"',
+      detalle: [], estado: 'pendiente', resultado: null, expira_en: '2026-09-04T12:30:00Z'
+    }),
+    frame('citas', { citas: [{ tipo: 'tarea', id: 9, titulo: 'Revisar el brief' }] }),
+    frame('fin', { generado_en: '2026-09-04T12:00:00Z', regeneracion: null, uso: null })
+  ]
+
+  let texto = ''
+  let citas = []
+  let vistos = 0
+
+  for (const crudo of stream) {
+    const evento = parserViejo(crudo)
+
+    if (evento === null) continue
+
+    vistos++
+    if (evento.tipo === 'delta') texto += evento.texto
+    if (evento.tipo === 'citas') citas = evento.citas
+  }
+
+  assert.equal(texto, 'Te dejé preparada la tarea "Revisar el brief" [1].')
+  assert.deepEqual(citas, [{ tipo: 'tarea', id: 9, titulo: 'Revisar el brief' }])
+  assert.equal(vistos, 4, 'el parser viejo ignora los dos eventos nuevos y no ve nada mas')
+})

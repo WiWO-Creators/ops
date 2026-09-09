@@ -14,7 +14,18 @@
  *
  * Por eso `leerEventoIA()` **devuelve `null` en vez de lanzar**: un frame que no se entiende se
  * ignora y el stream sigue. Lanzar convertiria un token raro en una pantalla rota.
+ *
+ * === ESA TOLERANCIA ES TAMBIEN EL CONTRATO DE COMPATIBILIDAD ===
+ *
+ * Se escribio como defensa contra frames corruptos, y desde que el backend emite `paso` y
+ * `propuesta` es ademas lo que hace que **no haga falta versionar el stream**: un cliente que no
+ * conoce esos dos eventos recibe `null` por cada uno, `PanelChatIA` los saltea y la respuesta se
+ * pinta exactamente igual, sin indicadores y sin tarjeta. Un backend nuevo no rompe un frontend
+ * viejo, que es la unica combinacion que puede darse en un despliegue —el backend va primero—.
+ * Comprobado en `pruebas/ia.test.js`, con el parser anterior a estos dos eventos.
  */
+
+import { ESTADOS_ORBE, type EstadoOrbe } from './orbe.ts'
 
 /** Una referencia que el modelo cito y el servidor ya verifico contra la base. */
 export interface Cita {
@@ -74,15 +85,70 @@ export interface CamposTarea {
   no_resuelto: string[]
 }
 
+/**
+ * Un paso de lo que WiBot esta haciendo antes de empezar a escribir.
+ *
+ * La `etiqueta` la escribe el SERVIDOR, desde un mapa cerrado con una entrada por herramienta.
+ * Nunca sale del modelo, y por eso se puede pintar: si el modelo pudiera escribirla, un texto
+ * inyectado en una descripcion pintaria "Guardando borrador…" mientras propone un borrado. Aun asi
+ * llega por la red, asi que se valida y se recorta como cualquier otra cadena de este archivo.
+ */
+export interface PasoIA {
+  fase: 'inicio' | 'fin'
+  herramienta: string
+  etiqueta: string
+  orbe: EstadoOrbe
+}
+
+/** En que punto de su vida esta una propuesta de escritura. Los seis del backend, sin inventar. */
+export type EstadoAccion = 'pendiente' | 'ejecutando' | 'ejecutada' | 'rechazada' | 'expirada' | 'fallida'
+
+/**
+ * Una escritura que WiBot dejo preparada y que una persona confirma o rechaza.
+ *
+ * `resumen` y `detalle` los escribe el servidor con los argumentos ya normalizados y los titulos
+ * leidos de la base. Es la misma regla que rige los titulos de las citas, y acá pesa mas: es lo que
+ * se lee antes de apretar Confirmar.
+ */
+export interface AccionIA {
+  id: number
+  herramienta: string
+  resumen: string
+  detalle: string[]
+  estado: EstadoAccion
+  /** Lo que devolvio la escritura, o el error real si fallo. `null` mientras sigue pendiente. */
+  resultado: string | null
+  /** ISO-8601. Pasado ese instante, confirmar responde `409` y la tarjeta se pinta caducada. */
+  expira_en: string | null
+}
+
 /** Un frame del stream, ya interpretado. El `tipo` es el nombre del `event:` del contrato. */
 export type EventoIA =
   | { tipo: 'delta', texto: string }
   | { tipo: 'citas', citas: Cita[] }
+  | { tipo: 'paso', paso: PasoIA }
+  | { tipo: 'propuesta', accion: AccionIA }
   | { tipo: 'fin', generado_en: string | null, regeneracion: Regeneracion | null, uso: UsoIA | null }
   | { tipo: 'error', codigo: string, mensaje: string }
 
 /** Los cuatro tipos de cita que el contrato reconoce. Cada uno tiene su destino en `ia-chat.ts`. */
 const TIPOS_CITA = ['tarea', 'discusion', 'hito', 'espacio'] as const
+
+/** Los seis estados de una propuesta. Uno que no este acá descarta la tarjeta entera. */
+const ESTADOS_ACCION = ['pendiente', 'ejecutando', 'ejecutada', 'rechazada', 'expirada', 'fallida'] as const
+
+/**
+ * Caracteres de la `etiqueta` de un paso antes de recortarla.
+ *
+ * El mapa del servidor tiene entradas de 40 caracteres, asi que 120 no recorta nada real. Existe
+ * para lo otro: la etiqueta llega por la red y se pinta dentro de una linea de altura fija, y un
+ * valor de diez mil caracteres —por un bug, no por un ataque— deformaria el panel entero.
+ */
+const LARGO_MAXIMO_ETIQUETA = 120
+
+/** Lineas de `detalle` de una propuesta, y caracteres de cada una. Mismo motivo que la etiqueta. */
+const MAXIMO_DETALLE = 12
+const LARGO_MAXIMO_DETALLE = 500
 
 /** `true` si el valor es un objeto JSON plano. Descarta `null` y los arrays, que tambien son `object`. */
 export function esObjeto (valor: unknown): valor is Record<string, unknown> {
@@ -150,6 +216,18 @@ export function leerEventoIA (crudo: string): EventoIA | null {
       : null
   }
 
+  if (nombre === 'paso') {
+    const paso = leerPaso(datos)
+
+    return paso === null ? null : { tipo: 'paso', paso }
+  }
+
+  if (nombre === 'propuesta') {
+    const accion = leerAccion(datos)
+
+    return accion === null ? null : { tipo: 'propuesta', accion }
+  }
+
   if (nombre === 'fin') {
     return {
       tipo: 'fin',
@@ -189,6 +267,72 @@ export function leerCita (valor: unknown): Cita | null {
   if (typeof titulo !== 'string') return null
 
   return { tipo: conocido, id, titulo }
+}
+
+/**
+ * Valida un paso del evento `paso`.
+ *
+ * Tan estricto como `leerCita()`, y con dos cuidados propios:
+ *
+ *   - **`orbe` se valida contra los siete estados que `Orbe.tsx` declara.** Un valor fuera de esa
+ *     lista descarta el evento entero en vez de llegar como prop: el orbe lo usa para elegir clase
+ *     CSS, y un estado inventado deja la animacion a medias sin ningun error a la vista.
+ *   - **`etiqueta` se recorta.** Viene del mapa cerrado del servidor, pero llega por la red y se
+ *     pinta: el borde se valida igual, que es la regla de este archivo.
+ *
+ * @param datos el payload del frame
+ * @returns el paso, o `null` si le falta algo o el estado del orbe no existe
+ */
+export function leerPaso (datos: Record<string, unknown>): PasoIA | null {
+  const { fase, herramienta, etiqueta, orbe } = datos
+
+  if (fase !== 'inicio' && fase !== 'fin') return null
+  if (typeof herramienta !== 'string' || herramienta === '') return null
+  if (typeof etiqueta !== 'string' || etiqueta === '') return null
+
+  const estado = ESTADOS_ORBE.find((candidato) => candidato === orbe)
+
+  if (estado === undefined) return null
+
+  return { fase, herramienta, etiqueta: etiqueta.slice(0, LARGO_MAXIMO_ETIQUETA), orbe: estado }
+}
+
+/**
+ * Valida una propuesta, venga del evento `propuesta` o del `acciones` de un mensaje guardado.
+ *
+ * Una propuesta invalida se descarta y las demas sobreviven, igual que con las citas: la tarjeta es
+ * un boton que escribe en el sistema, y una con datos a medias es peor que ninguna.
+ *
+ * @param valor el payload del frame, o una entrada del array `acciones`
+ * @returns la accion, o `null` si no tiene la forma del contrato
+ */
+export function leerAccion (valor: unknown): AccionIA | null {
+  if (!esObjeto(valor)) return null
+
+  const { id, herramienta, resumen, detalle, estado, resultado, expira_en: expira } = valor
+
+  if (typeof id !== 'number' || !Number.isFinite(id)) return null
+  if (typeof herramienta !== 'string' || herramienta === '') return null
+  if (typeof resumen !== 'string' || resumen === '') return null
+
+  const conocido = ESTADOS_ACCION.find((candidato) => candidato === estado)
+
+  if (conocido === undefined) return null
+
+  return {
+    id,
+    herramienta,
+    resumen: resumen.slice(0, LARGO_MAXIMO_DETALLE),
+    detalle: Array.isArray(detalle)
+      ? detalle
+        .filter((linea): linea is string => typeof linea === 'string' && linea !== '')
+        .slice(0, MAXIMO_DETALLE)
+        .map((linea) => linea.slice(0, LARGO_MAXIMO_DETALLE))
+      : [],
+    estado: conocido,
+    resultado: typeof resultado === 'string' ? resultado.slice(0, LARGO_MAXIMO_DETALLE) : null,
+    expira_en: typeof expira === 'string' ? expira : null
+  }
 }
 
 /**
