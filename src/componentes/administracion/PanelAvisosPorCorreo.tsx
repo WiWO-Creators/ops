@@ -2,9 +2,8 @@ import { ColaCorreoAlCliente } from '@/componentes/administracion/ColaCorreoAlCl
 import { ConfiguracionCorreo } from '@/componentes/administracion/ConfiguracionCorreo'
 import { ModoCorreoAlCliente } from '@/componentes/administracion/ModoCorreoAlCliente'
 import { VisorColaCorreo } from '@/componentes/administracion/VisorColaCorreo'
-import { TablaRecurso } from '@/componentes/datos/TablaRecurso'
+import { VistaColaCorreo } from '@/componentes/administracion/VistaColaCorreo'
 import { ErrorEstado, SinPermiso } from '@/componentes/estado/Estados'
-import { COLA_CORREO } from '@/definiciones/cola-correo'
 import { leerAjustes } from '@/datos/ajustes'
 import { ErrorApi } from '@/datos/errores'
 import { pedir } from '@/datos/servidor'
@@ -128,7 +127,7 @@ export async function PanelAvisosPorCorreo () {
           ]}
           total={detalle.resumen.total}
         >
-          <TablaRecurso definicion={COLA_CORREO} inicial={detalle.cola} claveFila={(fila) => fila.id} />
+          <VistaColaCorreo inicial={detalle.cola} />
         </VisorColaCorreo>
       </div>
 
