@@ -4172,6 +4172,202 @@ haga nada.
 
 Permiso: el mismo `tasks.edit` del resto del parche.
 
+## Recursos de la ola 3 (tanda del 09/09/2026)
+
+Siete frentes construidos en paralelo: la escalera de permisos, el focal de cliente, el semaforo, la
+cola de correo editable, el consumidor y el digest, la casilla entrante, y las actas para WiBot. Lo
+que sigue son **solo los endpoints nuevos**; los interruptores que gobiernan cada motor estan en la
+ficha de cada rama, y todos nacen apagados.
+
+### Rama `feat/niveles-permiso`
+
+La escalera pasa de tres escalones a siete: `usuario < focal < lider < head < gerente < admin <
+superadmin`. Es **ortogonal** al interruptor `permisos_nuevos`, que sigue decidiendo que catalogo de
+capacidades aplica; esto decide el **piso** de cada persona.
+
+#### `GET /me` — campo nuevo `nivel`
+
+```json
+{ "data": { "id": 12, "nivel": "head", "permissions": { "tasks": ["view", "create"] } } }
+```
+
+`nivel` es uno de los siete de arriba. Sale de, en este orden: la bandera `superadmin`/`admin` de
+`tblstaff`, el override en `tblwiwo_nivel_persona`, el mapa `wiwo_permisos_niveles_por_rol` contra el
+rol de Perfex, y `usuario` si no hay nada.
+
+#### `GET|PUT /staff/{id}/nivel` — repartir el escalon
+
+```json
+{ "data": { "staff_id": 12, "nivel": "head", "heredado": false } }
+```
+
+`PUT` acepta `{"nivel": "head"}` o `{"nivel": null}` — **`null` no es `usuario`**: significa "el que
+le de su rol", y confundirlos degrada a quien tenga rol Director o Gerencia.
+
+Solo **superadmin**, y **solo los cinco de abajo**: `admin` y `superadmin` no se reparten por aca.
+Escribirlos seria una segunda puerta al nivel administrador que se saltea los guards de
+`Escritura\Staff`, y ademas mentiria — otorga el piso pero ninguna pantalla de configuracion, porque
+`is_superadmin` lee la columna. Cambiarse el escalon a uno mismo responde **409**.
+
+### Rama `feat/focal-cliente`
+
+#### `GET /clients/minimos` — el directorio que ve todo el mundo
+
+```json
+{ "data": [ { "id": 4, "company": "Converse", "image_url": null, "active": true } ],
+  "meta": { "pagination": { "page": 1, "per_page": 25, "total": 121, "total_pages": 5 } } }
+```
+
+**No exige `customers.view`.** Es la respuesta a "todo el mundo tiene que poder ver que un cliente
+existe, sin ver su legajo". Devuelve **cuatro claves y ninguna mas**: pedir mas con `?fields=` no
+sirve, porque la proyeccion la hace el `SELECT`. `?include=` responde **422** — la lista blanca esta
+vacia a proposito. Abrir la ficha (`GET /clients/{id}`) sigue exigiendo permiso y devuelve **404** a
+quien no lo tiene.
+
+`company` nunca viene vacio: el backend cae a `Cliente #N`. **No** cae al nombre del contacto
+primario, que es lo que hace `nombreVisible()` en el resto de la API — eso filtraria el nombre de una
+persona por una ruta sin permiso.
+
+#### `GET|PUT /clients/{id}/focales` — quien responde por la cuenta
+
+```json
+{ "data": [ { "staff_id": 12, "full_name": "Alan Corral", "otorgo_asignacion": true } ] }
+```
+
+`PUT` recibe `{"focales": [12, 31]}` y reemplaza la lista entera. Exige `customers.edit`.
+
+Nombrar focal **asegura** la fila en `tblcustomer_admins`, que es de donde sale la visibilidad de los
+Espacios del cliente (el escalon del medio de la `0190`). `otorgo_asignacion` recuerda si esa fila la
+creo este endpoint: al quitar el focal se borra solo si la creamos nosotros, para no sacarle el
+cliente a quien ya estaba asignado desde la pestaña Equipo.
+
+`PUT /clients/{id}/admins` **conserva a los focales** aunque la lista que reciba no los nombre.
+
+#### `GET /clients/{id}/areas` — las areas de servicio, derivadas
+
+```json
+{ "data": ["Content Studio", "Digital Creators", "PR"] }
+```
+
+No hay tabla de areas ni campo nuevo: se derivan del campo personalizado multiselect `Area de la
+compañia` de las **tareas** del cliente (2.440 filas con dato). El id del campo vive en la opcion
+`wiwo_campo_area_id`, no hardcodeado; sin ella la ruta devuelve `[]` en vez de adivinar. Mira las dos
+ramas de `rel_type` —`project` y `customer`—, porque hay 143 tareas colgadas directo del cliente.
+
+Cliente sin Procesos devuelve `[]`, no error.
+
+#### Filtro `filter[focal]=1` en `GET /clients`
+
+"Mis clientes": los que la persona de la sesion tiene como focal. El staffid sale de la sesion, nunca
+del cliente.
+
+### Rama `feat/semaforo`
+
+#### `GET /scores` y `GET /scores/{clientId}` — el semaforo de 1 a 100
+
+```json
+{ "data": { "client_id": 4, "cliente": "Converse", "fecha": "2026-09-09",
+            "score": 45, "semaforo": "rojo", "variacion": -7,
+            "espacios": 8, "procesos": 102,
+            "senales": { "plazos": { "score": 29, "medibles": 91, "incumplidos": 45,
+                                     "atraso_promedio": 22.5 },
+                         "carga": { "score": 62, "abiertos": 37, "estancados": 14 },
+                         "vencimientos": { "score": 52, "vencidos": 15, "criticos": 1 } },
+            "historia": [ { "fecha": "2026-09-08", "score": 52, "semaforo": "amarillo" } ] } }
+```
+
+**Solo lectura.** La foto la saca el cron una vez al dia; no hay `POST /scores/recalcular`, que seria
+un boton para desempatar una discusion recalculando.
+
+| Cosa | Regla |
+|---|---|
+| Quien lo ve | `focal`, `head`, `gerente`, `admin`, `superadmin`. `lider` y `usuario` reciben **403** |
+| El focal | Solo **sus** clientes. Pedir uno ajeno devuelve **404**, no 403 |
+| Sin `tblwiwo_focales` | Un focal ve **cero** clientes: la compuerta falla cerrada |
+| `score` | 1 a 100, o `null`. **El 0 no existe**: si algo vale 0 es un error |
+| `semaforo` | `verde` >= 75, `amarillo` >= 50, `rojo` < 50, y `sin_datos` cuando `score` es `null` |
+| `sin_datos` | **No es un cuarto nivel malo**: es ausencia de universo (cliente sin Espacios o sin Procesos) |
+| `historia` | Solo en `/scores/{clientId}`. Hasta 30 fotos, de la mas vieja a la mas nueva |
+
+Los pesos son plazos 45, carga 30, vencimientos 25, y el promedio se hace **solo sobre las señales
+con universo**: una sin datos vale `null` y su peso sale del divisor. Por eso un cliente con todo
+cerrado a tiempo da 100 y no un numero castigado por no tener trabajo abierto.
+
+### Rama `feat/cola-editable`
+
+La cola de correo al cliente deja de ser solo lectura. Sigue siendo **superadmin**.
+
+| Metodo | Ruta | Que hace |
+|---|---|---|
+| `POST` | `/notifications/client-mail-queue` | Encola a mano, desde el compositor |
+| `PATCH` | `/notifications/client-mail-queue/{id}` | Edita el payload, o reintenta |
+| `DELETE` | `/notifications/client-mail-queue/{id}` | Descarta |
+
+Reintentar **no es ruta propia**: es `PATCH {"status": "pendiente"}` sobre una fila en `error`.
+`status` no acepta ningun otro valor — escribir `enviado` desde afuera seria declarar enviado un
+correo que nunca salio.
+
+| Caso | Respuesta |
+|---|---|
+| Editar o descartar una fila `enviado` | **409**. Es un hecho registrado, no un borrador |
+| Clave fuera de la lista blanca en `payload` | **422**. La lista es `expires_at`, `generado_por`, `nota` |
+| `status` distinto de `pendiente` | **422** |
+| Reintentar una fila que ya esta `pendiente` | **409** |
+| Sin la migracion `0130` | **409** |
+
+**El token en claro nunca entra en `payload_json`.** El filtro vive en `encolar()`, el unico lugar
+que escribe esa columna, y no en cada llamador: asi el invariante no depende de que nadie se olvide.
+El productor automatico (`POST /contacts/{id}/access-link`) filtra **en silencio**, porque no puede
+empezar a devolver 422 por culpa de la cola.
+
+### Rama `feat/casilla-entrante`
+
+#### `GET /correos-entrantes` — las fichas de la casilla corporativa
+
+```json
+{ "data": [ { "id": 3, "remitente": "florencia@noihotels.com", "dominio": "noihotels.com",
+              "client_id": 19, "cliente": "NOI Hotels", "asunto": "Reporte de octubre",
+              "brief": "Reclama que es la tercera vez que solicita el reporte...",
+              "score": 15, "clasificacion": "reclamo", "recibido_en": "2026-09-09 10:12:00" } ],
+  "meta": { "pagination": { "page": 1, "per_page": 25, "total": 3, "total_pages": 1 } } }
+```
+
+El correo original **no se guarda**: se guarda el brief y el puntaje. `client_id` es `null` cuando el
+dominio no matchea ningun cliente, cuando matchea a dos, o cuando es generico (gmail, hotmail): la
+ficha se guarda igual. Atribuir un reclamo al cliente equivocado ensucia dos semaforos y nadie se
+entera.
+
+#### `GET /correos-entrantes/by-client?days=90` — el agregado por cliente
+
+```json
+{ "data": [ { "client_id": 19, "emails": 7, "score_avg": 42.1, "worst_score": 15, "complaints": 2 } ] }
+```
+
+Existe para que el semaforo lo pondere el dia que se decida como. **Hoy no lo consume nadie.**
+
+#### `GET|PATCH /correos-entrantes/settings` — el lector
+
+Superadmin. `wiwo_correo_entrante_modo` es `apagado | prueba | real`; `prueba` lee y ficha pero **no
+marca leido ni mueve nada**, `real` ademas mueve el original a la carpeta `Procesados`.
+
+**El original nunca se borra al leer.** El borrado real vive en la purga, que exige su propio
+interruptor (`wiwo_correo_entrante_purga`, en 0), modo `real`, y que hayan pasado N dias (30 por
+defecto, piso 7). Es lo unico irreversible del modulo.
+
+La contraseña de la casilla va en `CORREO_ENTRANTE_PASSWORD` del `.env`. **No viaja por la API**, ni
+enmascarada. `imap_available` dice si la extension existe en el servidor: sin ella el lector devuelve
+`sin_extension_imap` y no arranca.
+
+### Rama `feat/actas-wibot`
+
+Sin endpoints nuevos. WiBot gana la herramienta `actas_del_espacio` (listar las actas del Espacio, o
+traer una por `acta_id`), y el contenido llega en **markdown derivado del HTML al leer** — no hay
+columna nueva, porque una copia guardada se desincroniza el dia que alguien edite el acta desde el
+editor y entonces WiBot citaria una version que ya nadie ve.
+
+Respeta el borrado blando y los permisos de ver el Espacio: la herramienta no tiene SQL propio, pasa
+por `RecursoActas`.
+
 ## Capa de IA
 
 Toda la rama `/ia/*` vive detrás de un interruptor global: el ajuste **`ia_habilitada`**, que
