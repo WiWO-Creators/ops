@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { Suspense, cache } from 'react'
 import { AccionesCliente } from '@/componentes/cliente/AccionesCliente'
 import { CabeceraCliente } from '@/componentes/cliente/CabeceraCliente'
+import { PanelEquipoCliente } from '@/componentes/cliente/EquipoCliente'
 import { FichaCliente } from '@/componentes/cliente/FichaCliente'
 import { PanelContactos } from '@/componentes/cliente/PanelContactos'
 import { PanelProyectosCliente } from '@/componentes/cliente/PanelProyectosCliente'
@@ -152,6 +153,11 @@ export default async function ClientePage (props: PageProps<'/clientes/[id]'>) {
           capacidades={yo.permissions.customers}
         />
       )
+    },
+    {
+      clave: 'equipo',
+      etiqueta: 'Equipo',
+      contenido: <PanelEquipoCliente clienteId={cliente.id} capacidades={yo.permissions.customers} />
     },
     {
       clave: 'proyectos',

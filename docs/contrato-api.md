@@ -252,7 +252,7 @@ lo ignora:
 | Listas acotadas (`/projects/{id}/invoices`, `/projects/{id}/expenses`, …) | **nada** |
 | Los ocho subrecursos de un Espacio (`milestones`, `timesheets`, `notes`, `activity`, `discussions`, `files`, `members`, `gantt`), más `overview` y `/projects/stats` | **nada** |
 | Los cinco subrecursos de un Proceso (`comments`, `checklist`, `timers`, `assignees`, `files`) | **nada** |
-| `/clients/{id}/notes` y `/clients/{id}/files` | **nada** |
+| `/clients/{id}/notes`, `/clients/{id}/files` y `/clients/{id}/admins` | **nada** |
 | `/discussions/*`, `/comments/*`, `/me`, `/lookups`, `/custom-fields` | **nada** |
 | Todo `/portal/*` | **nada** |
 
@@ -470,6 +470,20 @@ cliente actualizado.
 sus contactos, tickets, notas, suscripciones, contratos, propuestas, gastos, campos personalizados,
 archivos, tareas y **todos sus proyectos**. Si el cliente tiene facturas, cotizaciones o notas de
 crédito, Perfex se niega y la API responde `409`.
+
+#### `GET`/`PUT /clients/{id}/admins` — las personas asignadas al cliente
+
+`GET` devuelve la lista de personas; `PUT` con `{ "admins": [12, 34] }` la **reemplaza entera**. Una
+lista vacía deja el cliente sin nadie asignado, y es un estado válido. Cada persona viene con la
+misma forma que en `GET /projects/{id}/members`, así que el selector de personas es el mismo.
+
+**Asignar acá reparte visibilidad, no etiquetas.** Quien figura en la lista ve **todos** los Espacios
+y **todos** los Procesos de ese cliente, sin ser miembro de cada Espacio ni asignado de cada Proceso.
+Sacar a alguien se lo cierra, salvo lo que siga viendo por membresía o asignación directa. Por eso
+`PUT` exige `customers.edit`, el mismo permiso que editar la ficha.
+
+El escalón está detrás de un interruptor del servidor: con las reglas de permisos apagadas la
+asignación se guarda y se lee igual, pero no abre visibilidad hasta que se prendan.
 
 ### `projects` → **Espacios** en la interfaz
 

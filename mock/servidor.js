@@ -17,7 +17,7 @@ import { fileURLToPath } from 'node:url'
 import { ErrorApi, aplicarConsulta, coincideEnLista, leerIncludes } from './consulta.js'
 import * as sesion from './sesion.js'
 import {
-  ARCHIVOS, CAMPOS_PERSONALIZADOS, CHECKLIST, CLIENTES, COMENTARIOS, CRONOMETROS,
+  ADMINS_DE_CLIENTE, ARCHIVOS, CAMPOS_PERSONALIZADOS, CHECKLIST, CLIENTES, COMENTARIOS, CRONOMETROS,
   DEPARTAMENTOS, EMPRESAS_DEL_GRUPO, ESPACIOS, ESTADOS_ESPACIO, ESTADOS_PROCESO, ETIQUETAS, HITOS,
   AVISOS_CONTACTO, CONTACTOS, PRIORIDADES, PROCESOS, RESERVAS, ROLES, SALAS, STAFF, VALORES_CAMPOS
 } from './datos.js'
@@ -1907,6 +1907,39 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
       return { estado: 200, cuerpo: conDatos(filas, { pagination: paginacion }) }
     }
     return { estado: 200, cuerpo: conDatos(fichaDeStaff(buscarO404(STAFF, Number(resto[0]), 'staff'))) }
+  }
+
+  // --- Personas asignadas a un cliente --------------------------------------
+  //
+  // Antes del bloque de `clients`, que es solo GET, por el mismo motivo que los contactos: un PUT
+  // caeria al 404 final.
+  //
+  // La lista se reemplaza entera, como en la API: la respuesta del PUT es la lista ya guardada, que
+  // es lo que el panel vuelve a pintar.
+  if (recurso === 'clients' && resto[1] === 'admins') {
+    const cliente = buscarO404(CLIENTES, Number(resto[0]), 'cliente')
+
+    if (metodo === 'PUT') {
+      exigirPermiso(actual, 'customers', 'edit')
+      const datos = await cuerpo()
+
+      if (!Array.isArray(datos.admins)) {
+        throw new ErrorApi(422, 'validation_failed', 'Falta la lista de personas.', { admins: ['required'] })
+      }
+
+      const ids = [...new Set(datos.admins.map(Number))]
+
+      if (ids.some((id) => !STAFF.some((persona) => persona.id === id))) {
+        throw new ErrorApi(422, 'validation_failed', 'Hay personas que no existen.', { admins: ['unknown'] })
+      }
+
+      ADMINS_DE_CLIENTE.set(cliente.id, ids)
+    }
+
+    exigirPermiso(actual, 'customers', 'view')
+    const asignados = ADMINS_DE_CLIENTE.get(cliente.id) ?? []
+
+    return { estado: 200, cuerpo: conDatos(STAFF.filter((s) => asignados.includes(s.id)).map(presentarStaff)) }
   }
 
   // --- Contactos de un cliente ---------------------------------------------
