@@ -70,10 +70,14 @@ export async function subirArchivoEnBff<T> (ruta: string, archivo: File, campo: 
   if (!respuesta.ok) return { ok: false, mensaje: await mensajeDeRespuesta(respuesta) }
 
   try {
-    const sobre = await respuesta.json() as { data: T }
+    const sobre: unknown = await respuesta.json()
 
-    return { ok: true, datos: sobre.data }
+    if (sobre !== null && typeof sobre === 'object' && 'data' in sobre && sobre.data != null) {
+      return { ok: true, datos: sobre.data as T }
+    }
   } catch {
-    return { ok: true, datos: undefined as T }
+    // Un proxy puede devolver HTML con estado 200; eso no confirma que el archivo se haya guardado.
   }
+
+  return { ok: false, mensaje: 'El servidor no confirmó que el archivo se haya guardado. Inténtalo nuevamente.' }
 }
