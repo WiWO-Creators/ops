@@ -589,6 +589,42 @@ function exigirPermiso (staff, recurso, accion) {
   }
 }
 
+/** Exige superadministrador, o lanza 403. Mismo texto que `Acceso\\Permisos::exigirSuperadmin()`. */
+function exigirSuperadmin (staff, queProtege) {
+  if (staff.is_superadmin !== true) {
+    throw new ErrorApi(403, 'forbidden', `Solo un superadministrador ${queProtege}.`)
+  }
+}
+
+/**
+ * La escalera de permisos del mock (`modules/api/Acceso/Reglas.php`).
+ *
+ * Solo los cinco escalones de abajo se pueden escribir: `admin` y `superadmin` salen de las banderas
+ * de Perfex, y la API los rechaza con 422 por esta puerta. Los ids del mapa son los de `ROLES` del
+ * mock, no los de la base real.
+ */
+const NIVELES_ASIGNABLES = ['usuario', 'focal', 'lider', 'head', 'gerente']
+const NIVELES_POR_ROL = { 1: 'gerente', 2: 'lider', 3: 'usuario' }
+
+/** Override por persona, en memoria. Ausencia de entrada = "el que diga su rol". */
+const NIVELES_ASIGNADOS = new Map()
+
+/**
+ * El escalon de una persona, resuelto con el mismo orden que `Acceso\\Permisos::nivel()`: las
+ * banderas de Perfex mandan sobre todo, despues el override, y al final el rol.
+ */
+function nivelDe (staff) {
+  const asignado = NIVELES_ASIGNADOS.get(staff.id) ?? null
+
+  if (staff.is_superadmin === true) return { nivel: 'superadmin', nivel_asignado: asignado }
+  if (staff.is_admin === true) return { nivel: 'admin', nivel_asignado: asignado }
+
+  return {
+    nivel: asignado ?? NIVELES_POR_ROL[staff.role_id] ?? 'usuario',
+    nivel_asignado: asignado
+  }
+}
+
 /**
  * Resuelve una peticion ya enrutada.
  *
@@ -1776,6 +1812,9 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
       cuerpo: conDatos({
         ...presentarStaff(actual),
         permissions: permisosDe(actual),
+        // El escalon de la escalera, por el mismo resolutor que `GET /staff/{id}/nivel`: dos
+        // verdades sobre el mismo dato es como el mock deja de ser un contrato ejecutable.
+        nivel: nivelDe(actual).nivel,
         secciones_habilitadas: ['procesos', 'espacios', 'salas'],
         locale: 'es'
       })
@@ -1850,6 +1889,45 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
 
   // Edicion de los permisos individuales de una persona. Solo `permissions`: el resto de la ficha se
   // edita con el formulario de Equipo, que el mock no necesita para probar esta pantalla.
+  // --- El escalon de la escalera de permisos --------------------------------
+  //
+  // Antes de los bloques de `staff`, que son PATCH y GET: un PUT caeria al 404 final.
+  //
+  // El mock guarda el override en memoria y resuelve igual que `Acceso\\Permisos::nivel()`: las
+  // banderas de Perfex mandan sobre todo, despues el override, y al final el rol. Si el orden fuera
+  // otro, el dialogo se veria bien contra el mock y mentiria contra la API.
+  if (recurso === 'staff' && resto[1] === 'nivel') {
+    // `staff.view` primero y para los dos metodos, igual que la API real: la compuerta del recurso
+    // `/staff` entero corre antes de mirar el subrecurso.
+    exigirPermiso(actual, 'staff', 'view')
+
+    const persona = buscarO404(STAFF, Number(resto[0]), 'staff')
+
+    if (metodo === 'PUT') {
+      exigirSuperadmin(actual, 'reparte los niveles de permiso')
+
+      if (persona.id === actual.id) {
+        throw new ErrorApi(409, 'conflict', 'No podés cambiarte el nivel a vos mismo. Pedíselo a otro superadministrador.')
+      }
+
+      const datos = await cuerpo()
+      const nivel = datos.nivel ?? null
+
+      // Los dos escalones de arriba salen de las banderas de Perfex y esta puerta no los escribe.
+      if (nivel !== null && !NIVELES_ASIGNABLES.includes(nivel)) {
+        throw new ErrorApi(422, 'validation_failed',
+          `El nivel tiene que ser uno de: ${NIVELES_ASIGNABLES.join(', ')}.`, { nivel: [`unknown:${nivel}`] })
+      }
+
+      if (nivel === null) NIVELES_ASIGNADOS.delete(persona.id)
+      else NIVELES_ASIGNADOS.set(persona.id, nivel)
+    } else if (metodo !== 'GET') {
+      throw new ErrorApi(404, 'not_found', 'Subrecurso desconocido.')
+    }
+
+    return { estado: 200, cuerpo: conDatos(nivelDe(persona)) }
+  }
+
   if (recurso === 'staff' && metodo === 'PATCH') {
     exigirPermiso(actual, 'staff', 'edit')
     const persona = buscarO404(STAFF, Number(resto[0]), 'staff')
