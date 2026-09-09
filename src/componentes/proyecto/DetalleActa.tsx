@@ -183,6 +183,9 @@ export function DetalleActa ({
             html={acta.content ?? ''}
             titulo={`Meeting Paper: ${acta.title}`}
             firma={acta.brand_sign_url}
+            // Mas alto que el de un contrato del portal: un acta se lee entera de corrido, y
+            // desplazar dentro de un iframe cada dos temas rompe la lectura.
+            alto="h-[46rem]"
           />
           )}
 

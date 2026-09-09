@@ -96,6 +96,21 @@ try {
   const html = await pagina.frameLocator('iframe').locator('body').innerHTML()
   assert.ok(html.includes('Meeting Paper'), 'El acta no llegó al iframe')
 
+  // --- El documento se ve como un documento, y con la tipografía de la marca.
+  //
+  // La fuente entra al iframe solo gracias a la cabecera CORS que `next.config.ts` pone sobre
+  // `/fonts/`: el iframe tiene origen opaco, y sin esa cabecera el navegador descarta la fuente EN
+  // SILENCIO y el acta cae a la del sistema. Es exactamente la clase de cosa que se rompe en un
+  // refactor y nadie nota hasta que alguien imprime un acta.
+  const tipografia = await pagina.frameLocator('iframe').locator('h1').first().evaluate((nodo) => ({
+    familia: getComputedStyle(nodo).fontFamily,
+    tamano: getComputedStyle(nodo).fontSize,
+    cargada: [...document.fonts].some((f) => f.family === 'Plus Jakarta Sans' && f.status === 'loaded')
+  }))
+  assert.ok(tipografia.familia.includes('Plus Jakarta Sans'), 'El documento no declara la tipografía de marca')
+  assert.ok(tipografia.cargada, 'La fuente no cargó dentro del iframe: revisa los headers de /fonts/ en next.config.ts')
+  assert.equal(tipografia.tamano, '32px', 'El título del acta perdió su jerarquía')
+
   // --- El editor se carga recién al corregir: es el chunk de 415 KB que no debe pagar quien solo lee.
   await clicPorTexto(pagina, 'Corregir')
   await pagina.waitForFunction(() => document.querySelector('.ProseMirror') !== null, { timeout: 20000 })
