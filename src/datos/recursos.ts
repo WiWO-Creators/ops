@@ -1556,3 +1556,24 @@ export interface PlantillaEspacio {
 export interface PlantillaEspacioDetallada extends PlantillaEspacio {
   items: ItemPlantilla[]
 }
+
+// Bloque agregado por el frente de Focal de cliente. Va al final a proposito: otros frentes editan
+// este mismo archivo y un bloque contiguo hace trivial el merge.
+
+/**
+ * Un cliente visto por `GET /clients/minimos`: existe, se llama asi, y esta activo o no.
+ *
+ * Es la respuesta a "todo el mundo tiene que poder ver que un cliente existe, sin ver su legajo".
+ * La ruta no exige `customers.view` y **no devuelve nada mas que estos cuatro campos**: pedirle mas
+ * con `?fields=` no sirve, porque la proyeccion la hace el `SELECT` del backend.
+ *
+ * Abrir la ficha (`GET /clients/{id}`) sigue exigiendo permiso: esto no es un `Cliente` recortado,
+ * es otra cosa.
+ */
+export interface ClienteMinimo {
+  id: number
+  /** Razon social; nunca vacio (el backend cae a `Cliente #N`). */
+  company: string
+  image_url: string | null
+  active: boolean
+}

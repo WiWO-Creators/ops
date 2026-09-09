@@ -4,6 +4,7 @@ import { AccionesCliente } from '@/componentes/cliente/AccionesCliente'
 import { CabeceraCliente } from '@/componentes/cliente/CabeceraCliente'
 import { PanelEquipoCliente } from '@/componentes/cliente/EquipoCliente'
 import { FichaCliente } from '@/componentes/cliente/FichaCliente'
+import { PanelFocalesCliente } from '@/componentes/cliente/FocalesCliente'
 import { PanelContactos } from '@/componentes/cliente/PanelContactos'
 import { PanelProyectosCliente } from '@/componentes/cliente/PanelProyectosCliente'
 import {
@@ -158,6 +159,14 @@ export default async function ClientePage (props: PageProps<'/clientes/[id]'>) {
       clave: 'equipo',
       etiqueta: 'Equipo',
       contenido: <PanelEquipoCliente clienteId={cliente.id} capacidades={yo.permissions.customers} />
+    },
+    // Focales va aparte de Equipo y no adentro: son dos listas con dos significados. En Equipo esta
+    // quien trabaja la cuenta; en Focales, quien responde por ella. Mezclarlas obligaria a marcar
+    // cual es cual dentro de un mismo selector, que es justo lo que se lee mal.
+    {
+      clave: 'focales',
+      etiqueta: 'Focales',
+      contenido: <PanelFocalesCliente clienteId={cliente.id} capacidades={yo.permissions.customers} />
     },
     {
       clave: 'proyectos',
