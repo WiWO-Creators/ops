@@ -102,6 +102,12 @@ export const PROCESOS: DefinicionRecurso<Proceso> = {
     // deshabilitado con la pista en vez de esconderlo.
     { clave: 'project_id', etiqueta: GLOSARIO.espacio.singular, tipo: 'seleccion', desdeLookup: 'projects' },
     { clave: 'milestone_id', etiqueta: GLOSARIO.hito.singular, tipo: 'seleccion', desdeLookup: 'milestones', dependeDe: 'project_id' },
+    // Las dos areas van pegadas para que se lean como par. Son preguntas distintas: la primera es
+    // el area de la compañía que el Proceso lleva marcada (campo personalizado), la segunda es el
+    // area del equipo a la que pertenece quien lo tiene asignado. Sin el apellido en la etiqueta
+    // quedan dos "Área" indistinguibles en la barra.
+    { clave: 'area', etiqueta: 'Área de la compañía', tipo: 'seleccion', desdeLookup: 'task_areas' },
+    { clave: 'area_asignado', etiqueta: 'Área del asignado', tipo: 'seleccion', desdeLookup: 'areas' },
     { clave: 'billable', etiqueta: 'Facturable', tipo: 'booleano' },
     { clave: 'vence', etiqueta: 'Vence', tipo: 'rangoFechas', clavesRango: ['date_from', 'date_to'] },
     {

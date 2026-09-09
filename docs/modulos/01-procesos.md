@@ -40,7 +40,7 @@ Y `GET /lookups`, que trae `task_statuses` y `task_priorities`.
 
 | Capacidad | Valores admitidos |
 |---|---|
-| `filter[]` | `status`, `priority`, `project_id`, `milestone_id`, `billable`, `date_from`, `date_to` (los dos sobre `duedate`) |
+| `filter[]` | `status`, `priority`, `project_id`, `milestone_id`, `billable`, `date_from`, `date_to` (los dos sobre `duedate`), `area`, `area_asignado` |
 | `sort` | `name`, `due_date`, `start_date`, `date_added`, `priority`, `status`. Prefijo `-` para descendente. Por defecto `due_date` |
 | `q` | Busca en `name` |
 | `include` | `custom_fields`, `description` |
@@ -48,6 +48,14 @@ Y `GET /lookups`, que trae `task_statuses` y `task_priorities`.
 
 Una lista separada por comas en un `filter[]` se traduce a `IN (...)`: `filter[status]=1,2` trae los
 dos estados. Cualquier nombre fuera de esas listas devuelve `422`.
+
+**Las dos áreas no son la misma cosa.** `filter[area]` es el **área de la compañía**: el campo
+personalizado multiselect que el Proceso lleva marcado, cuyo valor es el texto de la opción
+(`filter[area]=Content Studio`) y cuyo catálogo es `lookups.task_areas`. `filter[area_asignado]` es
+el **área del equipo** (`lookups.areas`, `tblareas`, la misma de la pantalla de Equipo) y pregunta
+por el área de quien tiene el Proceso asignado. Un Proceso de Content Studio lo puede estar haciendo
+alguien de Diseño, así que las dos preguntas conviven y se combinan con AND. Por eso los selectores
+se llaman "Área de la compañía" y "Área del asignado": sin apellido son indistinguibles en la barra.
 
 ### La vista tablero tiene otra forma
 
