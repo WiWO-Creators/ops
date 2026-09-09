@@ -28,7 +28,18 @@ import type { DefinicionCampoPersonalizado, ValorCampoPersonalizado } from '@/da
  */
 
 /** Valor de un campo en el formulario: escalar como cadena, multivalor como lista de opciones. */
-export type ValorDeCampo = string | string[]
+export interface ValorEnlace {
+  url: string
+  apodo_link: string
+}
+
+export type ValorDeCampo = string | string[] | ValorEnlace
+
+/** Distingue un enlace editable de los valores escalares y multivalor. */
+export function esValorEnlace (valor: ValorDeCampo): valor is ValorEnlace {
+  return typeof valor === 'object' && valor !== null && !Array.isArray(valor) &&
+    typeof valor.url === 'string' && typeof valor.apodo_link === 'string'
+}
 
 /**
  * Valores del formulario indexados **por id de campo**.
@@ -42,7 +53,7 @@ export type ValoresDeCampos = Record<number, ValorDeCampo>
 export interface ParcheCamposPersonalizados {
   for: string
   rel_id: number
-  values: Record<number, string | string[] | null>
+  values: Record<number, ValorDeCampo | null>
 }
 
 /** Errores de validacion, indexados por id de campo. Vacio significa que se puede enviar. */
@@ -71,6 +82,9 @@ const LARGO_TEXTO = 1000
 
 /** Tope de un `link`, tal como lo exige el backend. */
 const LARGO_ENLACE = 2048
+
+/** Límite del apodo de enlace que acepta la API. */
+export const LARGO_APODO_ENLACE = 255
 
 /**
  * `true` si el campo guarda varias opciones a la vez.
@@ -101,11 +115,13 @@ export function camposOrdenados (
  * @param definicion la definicion del campo
  */
 export function valorVacio (definicion: DefinicionCampoPersonalizado): ValorDeCampo {
+  if (definicion.type === 'link') return { url: '', apodo_link: '' }
   return esMultiple(definicion.type) ? [] : ''
 }
 
 /** `true` si el valor no tiene nada cargado. Es el mismo criterio de vaciado que aplica la API. */
 export function estaVacio (valor: ValorDeCampo): boolean {
+  if (esValorEnlace(valor)) return valor.url.trim() === '' && valor.apodo_link.trim() === ''
   return Array.isArray(valor) ? valor.length === 0 : valor.trim() === ''
 }
 
@@ -142,33 +158,31 @@ export function fechaHoraParaApi (valor: string): string | null {
 }
 
 /**
- * La URL de un `link` guardado por el panel viejo como marcado.
- *
- * Perfex escribe estos campos con `custom_fields_hyperlink()`, asi que 513 de los valores que hay en
- * la base no son una URL sino `<a href="…" target="_blank">Carpeta</a>`. La API los devuelve tal cual
- * y **rechaza** ese marcado al escribir: sin desenvolverlo, el formulario mostraria una etiqueta HTML
- * en un `<input type="url">` y no se podria guardar nada de esa Tarea.
- *
- * El texto del enlace se pierde y no hay donde ponerlo: el tipo `link` guarda una URL, no un `<a>`.
- * Solo se pierde si alguien edita ese campo; lo que no se toca se guarda como estaba.
- *
- * @param texto el valor tal como lo devolvio la API
- * @returns la URL, o el texto intacto si no era un enlace de marcado
+ * Extrae URL y apodo del enlace heredado de Perfex, sin interpretar HTML.
+ * @param texto URL plana o etiqueta de enlace guardada por Perfex
+ * @returns URL original y apodo como texto plano
  */
+export function enlaceConApodo (texto: string): ValorEnlace {
+  const enlace = /^\s*<a\b[^>]*?\s+href\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))[^>]*>([\s\S]*)<\/a>\s*$/i.exec(texto)
+  if (enlace === null) return { url: texto, apodo_link: '' }
+  return {
+    url: decodificarEntidades(enlace[1] ?? enlace[2] ?? enlace[3] ?? ''),
+    apodo_link: decodificarEntidades((enlace[4] ?? '').replace(/<[^>]*>/g, '')).trim()
+  }
+}
+
+/** Devuelve solo la URL del enlace heredado para consumidores que no necesitan su apodo. */
 export function enlaceSinMarcado (texto: string): string {
-  const enlace = /^\s*<a\s[^>]*\bhref\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))[^>]*>[\s\S]*<\/a>\s*$/i.exec(texto)
+  return enlaceConApodo(texto).url
+}
 
-  if (enlace === null) return texto
-
-  const url = enlace[1] ?? enlace[2] ?? enlace[3] ?? ''
-  const entidades: Record<string, string> = { amp: '&', quot: '"', apos: "'", lt: '<', gt: '>' }
-
-  return url.replace(/&(#x[\da-f]+|#\d+|amp|quot|apos|lt|gt);/gi, (original, entidad: string) => {
+/** Decodifica las entidades HTML habituales y numéricas sin ejecutar ni interpretar marcado. */
+function decodificarEntidades (texto: string): string {
+  const entidades: Record<string, string> = { amp: '&', quot: '"', apos: "'", lt: '<', gt: '>', nbsp: '\u00a0' }
+  return texto.replace(/&(#x[\da-f]+|#\d+|amp|quot|apos|lt|gt|nbsp);/gi, (original, entidad: string) => {
     if (!entidad.startsWith('#')) return entidades[entidad.toLowerCase()] ?? original
-    const codigo = entidad.charAt(1).toLowerCase() === 'x'
-      ? parseInt(entidad.slice(2), 16)
-      : Number(entidad.slice(1))
-    return codigo > 0 && codigo <= 0x10FFFF ? String.fromCodePoint(codigo) : original
+    const codigo = entidad.charAt(1).toLowerCase() === 'x' ? parseInt(entidad.slice(2), 16) : Number(entidad.slice(1))
+    return codigo > 0 && codigo <= 0x10FFFF && !(codigo >= 0xD800 && codigo <= 0xDFFF) ? String.fromCodePoint(codigo) : original
   })
 }
 
@@ -204,8 +218,11 @@ export function camposLegibles (valores: ValorCampoPersonalizado[]): CampoLegibl
 
   for (const valor of valores) {
     const crudo = Array.isArray(valor.value) ? valor.value.join(', ') : valor.value ?? ''
-    // El panel viejo guarda los `link` como marcado; `enlaceSinMarcado()` explica por que.
-    const texto = (valor.type === 'link' ? enlaceSinMarcado(crudo) : crudo).trim()
+    const enlace = valor.type === 'link' ? enlaceConApodo(crudo) : null
+    const url = enlace?.url.trim() ?? ''
+    const valido = esEnlaceValido(url) && url.length <= LARGO_ENLACE
+    const texto = enlace === null ? crudo.trim() : crudo.trim() === '' ? '' : valido
+      ? enlace.apodo_link.trim() || 'Abrir enlace' : 'Enlace no válido'
 
     if (texto === '') continue
 
@@ -213,7 +230,7 @@ export function camposLegibles (valores: ValorCampoPersonalizado[]): CampoLegibl
       id: valor.id,
       nombre: valor.name,
       texto,
-      enlace: valor.type === 'link' && esEnlaceValido(texto) ? texto : null
+      enlace: enlace !== null && valido ? url : null
     })
   }
 
@@ -282,13 +299,13 @@ function desdeApi (
     return opciones.filter((opcion) => elegidas.includes(opcion))
   }
 
-  if (valor === null) return ''
+  if (valor === null) return valorVacio(definicion)
 
   const texto = Array.isArray(valor) ? valor.join(', ') : valor
 
   if (definicion.type === 'date_picker_time') return fechaHoraParaControl(texto)
 
-  return definicion.type === 'link' ? enlaceSinMarcado(texto) : texto
+  return definicion.type === 'link' ? enlaceConApodo(texto) : texto
 }
 
 /**
@@ -405,7 +422,8 @@ function validarCampo (
       : 'Hay una opción elegida que ya no existe.'
   }
 
-  const texto = valor.trim()
+  if (esValorEnlace(valor) && definicion.type !== 'link') return 'Este campo no admite un enlace con apodo.'
+  const texto = (esValorEnlace(valor) ? valor.url : valor).trim()
 
   switch (definicion.type) {
     case 'select':
@@ -413,6 +431,7 @@ function validarCampo (
     case 'number':
       return Number.isFinite(Number(texto)) ? null : 'Tiene que ser un número.'
     case 'link':
+      if (esValorEnlace(valor) && [...valor.apodo_link.trim()].length > LARGO_APODO_ENLACE) return 'El apodo no puede superar 255 caracteres.'
       if (!esEnlaceValido(texto)) return 'Tiene que ser un enlace completo, con http:// o https://.'
 
       return texto.length <= LARGO_ENLACE ? null : 'El enlace es demasiado largo.'
@@ -436,6 +455,12 @@ function mismoValor (uno: ValorDeCampo, otro: ValorDeCampo): boolean {
     return uno.length === otro.length && uno.every((opcion, indice) => opcion === otro[indice])
   }
 
+  if (esValorEnlace(uno) || esValorEnlace(otro)) {
+    if (Array.isArray(uno) || Array.isArray(otro)) return false
+    const primero = esValorEnlace(uno) ? uno : enlaceConApodo(uno)
+    const segundo = esValorEnlace(otro) ? otro : enlaceConApodo(otro)
+    return primero.url.trim() === segundo.url.trim() && primero.apodo_link.trim() === segundo.apodo_link.trim()
+  }
   return uno === otro
 }
 
@@ -482,9 +507,14 @@ export function cuerpoDeCamposPersonalizados (
 function paraApi (
   definicion: DefinicionCampoPersonalizado,
   valor: ValorDeCampo
-): string | string[] | null {
+): ValorDeCampo | null {
   if (estaVacio(valor)) return null
   if (Array.isArray(valor)) return valor
+  if (esValorEnlace(valor)) {
+    const url = valor.url.trim()
+    const apodo = valor.apodo_link.trim()
+    return apodo === '' ? url : { url, apodo_link: apodo }
+  }
 
   const texto = valor.trim()
 

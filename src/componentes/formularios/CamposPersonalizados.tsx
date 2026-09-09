@@ -19,6 +19,9 @@ import {
 import {
   alternarOpcion,
   esMultiple,
+  esValorEnlace,
+  enlaceConApodo,
+  LARGO_APODO_ENLACE,
   type ErroresDeCampos,
   type ValorDeCampo,
   type ValoresDeCampos
@@ -155,7 +158,34 @@ function ControlDeCampo ({
         )
   }
 
-  const texto = typeof valor === 'string' ? valor : valor.join(', ')
+  if (definicion.type === 'link') {
+    const enlace = esValorEnlace(valor) ? valor : enlaceConApodo(Array.isArray(valor) ? valor.join(', ') : valor)
+    return (
+      <div className="flex min-w-0 flex-col gap-3">
+        <Entrada
+          {...campo}
+          type="url"
+          placeholder="https://…"
+          value={enlace.url}
+          disabled={deshabilitado}
+          onChange={(evento) => onCambiar({ ...enlace, url: evento.target.value })}
+        />
+        <Campo etiqueta="Nombre del enlace" ayuda="Se mostrará en el tablero en lugar de la URL.">
+          {(props) => <Entrada
+            {...props}
+            name={`apodo_link-${definicion.id}`}
+            placeholder="Carpeta del proyecto"
+            maxLength={LARGO_APODO_ENLACE}
+            value={enlace.apodo_link}
+            disabled={deshabilitado}
+            onChange={(evento) => onCambiar({ ...enlace, apodo_link: evento.target.value })}
+          />}
+        </Campo>
+      </div>
+    )
+  }
+
+  const texto = typeof valor === 'string' ? valor : Array.isArray(valor) ? valor.join(', ') : ''
 
   switch (definicion.type) {
     case 'select':

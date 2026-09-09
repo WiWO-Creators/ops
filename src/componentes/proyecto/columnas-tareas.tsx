@@ -2,6 +2,7 @@
 
 import { useState, type ReactElement } from 'react'
 import { conCeldasRicas } from '@/componentes/datos/celdas-procesos'
+import { EnlacePersonalizado } from '@/componentes/presentadores/EnlacePersonalizado'
 import { Insignia } from '@/componentes/presentadores/Insignia'
 import { leerError } from '@/datos/errores'
 import type { DefinicionCampoPersonalizado, Proceso } from '@/datos/recursos'
@@ -144,7 +145,9 @@ export function definicionDeTareas ({
       ...camposDeTabla(camposPersonalizados).map((campo): Columna<Proceso> => ({
         clave: campo.slug,
         encabezado: campo.name,
-        presentar: (proceso) => valorDeCampo(proceso, campo.slug) || '—'
+        presentar: (proceso) => campo.type === 'link'
+          ? <EnlacePersonalizado valor={valorDeCampo(proceso, campo.slug)} />
+          : valorDeCampo(proceso, campo.slug) || '—'
       }))
     ]
   }
