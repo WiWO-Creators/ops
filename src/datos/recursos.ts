@@ -63,6 +63,9 @@ export interface Proceso {
   is_public: boolean
   visible_to_client: boolean
   recurring: boolean
+  repeat_every?: number
+  recurring_type?: string | null
+  cycles?: number
   kanban_order: number
   assignees: StaffReferencia[]
   followers: StaffReferencia[]

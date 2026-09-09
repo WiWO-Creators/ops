@@ -8,7 +8,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
-  camposDeTarea, cuerpoDeParche, nombresDeEtiquetas, personasElegibles
+  camposDeTarea, cuerpoDeParche, errorDeCamposEdicion, nombresDeEtiquetas, personasElegibles
 } from '../src/dominio/edicion-tarea.ts'
 
 const TAREA = {
@@ -30,6 +30,17 @@ test('los campos iniciales salen de la tarea, con vacio donde la API manda null'
 
   assert.deepEqual(campos, {
     nombre: 'Carta de oferta',
+    relacion: '',
+    relacionId: '',
+    tipo: '',
+    facturable: false,
+    tarifaHora: '0',
+    publica: false,
+    visibleCliente: false,
+    recurrente: false,
+    repetirCada: '1',
+    unidadRecurrencia: 'month',
+    ciclos: '0',
     prioridad: '2',
     inicio: '2026-09-07',
     vencimiento: '',
@@ -144,4 +155,72 @@ test('una etiqueta escrita a mano se muestra y viaja por su nombre', () => {
   const parche = cuerpoDeParche(inicial, { ...inicial, etiquetas: [5, 'cliente-clave'] })
 
   assert.deepEqual(parche, { tags: [5, 'cliente-clave'] })
+})
+
+
+test('agregar, cambiar y quitar una relación limpia las dependencias anteriores', () => {
+  const inicial = camposDeTarea({ ...TAREA, rel_type: 'project', rel_id: 2, task_type: { id: 7 } }, '')
+  assert.deepEqual(cuerpoDeParche(inicial, { ...inicial, relacionId: '4', hito: '', tipo: '' }), {
+    rel_type: 'project', rel_id: 4, milestone: 0, task_type: null
+  })
+  assert.deepEqual(cuerpoDeParche(inicial, { ...inicial, relacion: '', relacionId: '' }), {
+    rel_type: null, rel_id: null, milestone: 0, task_type: null
+  })
+  const sinRelacion = camposDeTarea({ ...TAREA, milestone: null }, '')
+  assert.deepEqual(cuerpoDeParche(sinRelacion, { ...sinRelacion, relacion: 'project', relacionId: '4', hito: '9', tipo: '8' }), {
+    rel_type: 'project', rel_id: 4, milestone: 9, task_type: 8
+  })
+  assert.deepEqual(cuerpoDeParche(inicial, { ...inicial, tipo: '' }), { task_type: null })
+  assert.deepEqual(cuerpoDeParche(inicial, { ...inicial, relacionId: '4', hito: '', tipo: '7' }), {
+    rel_type: 'project', rel_id: 4, milestone: 0, task_type: 7
+  })
+})
+
+test('facturación y visibilidad conservan valores y permiten desactivarlos', () => {
+  const inicial = camposDeTarea({ ...TAREA, billable: true, hourly_rate: 20, is_public: true, visible_to_client: true }, '')
+  assert.deepEqual(cuerpoDeParche(inicial, inicial), {})
+  assert.deepEqual(cuerpoDeParche(inicial, { ...inicial, facturable: false, tarifaHora: '0', publica: false, visibleCliente: false }), {
+    billable: false, hourly_rate: 0, is_public: false, visible_to_client: false
+  })
+})
+
+test('recurrencia se activa completa, se reprograma completa y se cancela sin campos extra', () => {
+  const inicial = camposDeTarea(TAREA, '')
+  const actual = { ...inicial, recurrente: true, repetirCada: '2', unidadRecurrencia: 'week', ciclos: '4' }
+  assert.deepEqual(cuerpoDeParche(inicial, actual), { recurring: true, repeat_every: 2, recurring_type: 'week', cycles: 4 })
+  assert.deepEqual(cuerpoDeParche(actual, { ...actual, ciclos: '0' }), { recurring: true, repeat_every: 2, recurring_type: 'week', cycles: 0 })
+  assert.deepEqual(cuerpoDeParche(actual, { ...actual, recurrente: false }), { recurring: false })
+  assert.deepEqual(cuerpoDeParche(inicial, { ...inicial, ciclos: '5' }), {})
+  const cargada = camposDeTarea({ ...TAREA, recurring: true, repeat_every: 3, recurring_type: 'day', cycles: 7 }, '')
+  assert.equal(cargada.repetirCada, '3')
+  assert.equal(cargada.unidadRecurrencia, 'day')
+  assert.equal(cargada.ciclos, '7')
+  assert.deepEqual(cuerpoDeParche(cargada, cargada), {})
+})
+
+test('validación acepta límites y rechaza relaciones, tarifas, fechas y recurrencias inválidas', () => {
+  const inicial = camposDeTarea(TAREA, '')
+  assert.equal(errorDeCamposEdicion(inicial), null)
+  for (const campos of [
+    { relacion: 'customer', relacionId: '' }, { relacion: 'project', relacionId: '-1' },
+    { relacion: 'project', relacionId: '1.5' }, { tarifaHora: '' }, { tarifaHora: '-1' }, { tarifaHora: 'Infinity' },
+    { tarifaHora: 'abc' }, { tarifaHora: '1000000000' }, { vencimiento: '2026-09-06' },
+    { recurrente: true, repetirCada: '0' }, { recurrente: true, repetirCada: '366' },
+    { recurrente: true, repetirCada: '1.5' }, { recurrente: true, unidadRecurrencia: 'invalid' },
+    { recurrente: true, ciclos: '' }, { recurrente: true, ciclos: '-1' },
+    { recurrente: true, ciclos: '366' }, { recurrente: true, ciclos: '1.5' }
+  ]) assert.equal(typeof errorDeCamposEdicion({ ...inicial, ...campos }), 'string', JSON.stringify(campos))
+  assert.equal(errorDeCamposEdicion({ ...inicial, relacion: 'project', relacionId: '1', tarifaHora: '0', recurrente: true, repetirCada: '1', ciclos: '0' }), null)
+  assert.equal(errorDeCamposEdicion({ ...inicial, recurrente: true, repetirCada: '365', ciclos: '365', vencimiento: inicial.inicio }), null)
+})
+
+
+test('Sin proyecto valida, borra la relación y equivale a una relación inicial vacía', () => {
+  const inicial = camposDeTarea({ ...TAREA, rel_type: 'project', rel_id: 2, task_type: { id: 7 } }, '')
+  const sinProyecto = { ...inicial, relacionId: '' }
+  assert.equal(errorDeCamposEdicion(sinProyecto), null)
+  assert.deepEqual(cuerpoDeParche(inicial, sinProyecto), { rel_type: null, rel_id: null, milestone: 0, task_type: null })
+  const vacia = camposDeTarea({ ...TAREA, milestone: null }, '')
+  assert.deepEqual(cuerpoDeParche(vacia, { ...vacia, relacion: 'project' }), {})
+  assert.equal(errorDeCamposEdicion({ ...vacia, tarifaHora: '999999999.99' }), null)
 })
