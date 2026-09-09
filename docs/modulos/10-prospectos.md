@@ -1,6 +1,14 @@
-# Prospectos
+# Leads — embudo heredado de Perfex (sin pantalla)
 
-> `leads`. Se deja en inglés en la API y en el código; "Prospecto" es solo el nombre visible.
+> **Esto NO es [Prospectos](12-prospectos.md).** Se llamaba así hasta que la entidad nueva tomó el
+> nombre visible, que estaba libre porque este módulo **nunca tuvo pantalla en `ops-v2`**. Un lead de
+> Perfex es **una persona** moviéndose por etapas de un embudo; un Prospecto de `/prospectos` es
+> **una empresa** con varias personas de contacto y varias licitaciones colgando. Son cosas
+> distintas, en tablas distintas, y ninguna escribe la del otro.
+>
+> `leads`. La ruta de la API **no cambió**: sigue siendo `/leads`. Lo que se renombró es la clase que
+> la sirve, `Recursos\RecursoProspectos` → `Recursos\RecursoLeads`, para que dos cosas distintas no
+> se llamen igual dentro del mismo espacio de nombres.
 
 ## Qué resuelve
 

@@ -8,62 +8,62 @@ import { Boton } from '@/componentes/formularios/Boton'
 import { FormularioRecurso } from '@/componentes/proyecto/FormularioRecurso'
 import type { OpcionCampo } from '@/componentes/proyecto/formulario'
 import { GLOSARIO } from '@/dominio/glosario'
-import type { Licitacion } from '@/datos/recursos'
+import type { Upsell } from '@/datos/recursos'
 import type { Capacidad } from '@/datos/tipos'
-import { LICITACIONES } from '@/definiciones/licitaciones'
+import { UPSELLS } from '@/definiciones/upsells'
 import type { OpcionFiltro, ResultadoLista } from '@/definiciones/tipos'
-import { camposDeLicitacion } from './campos'
+import { camposDeUpsell } from './campos'
 
 /**
- * Listado de Licitaciones.
+ * Listado de oportunidades de Upselling.
  *
- * Solo tabla: una licitacion se compara por empresa, estado y fecha de inicio, y esas tres
- * comparaciones se hacen en columnas. La vista de tarjetas de `/clientes` y `/espacios` existe porque
- * ahi hay imagen y avatares que mirar; aca no.
+ * Solo tabla, igual que Licitaciones: una oportunidad se compara por cliente, estado, monto y
+ * probabilidad, y esas cuatro comparaciones se hacen en columnas.
  *
- * Vive del lado cliente de la frontera por la misma restriccion que `TablaClientes`: una
- * `DefinicionRecurso` esta llena de funciones y **una funcion no cruza de un Server Component a uno
- * cliente**, asi que la definicion se importa de este lado y la pagina solo manda datos serializables.
+ * Vive del lado cliente de la frontera porque una `DefinicionRecurso` esta llena de funciones y
+ * **una funcion no cruza de un Server Component a uno cliente**.
  */
-interface PropsVistaLicitaciones {
+interface PropsVistaUpsells {
   /** Primera pagina ya resuelta en el servidor: sin esto la tabla parpadearia al montar. */
-  inicial: ResultadoLista<Licitacion>
-  /** Capacidades sobre `projects`: una Licitacion **es** un Espacio, y el backend usa ese permiso. */
+  inicial: ResultadoLista<Upsell>
+  /** Capacidades sobre `projects`: un Upsell **es** un Espacio, y el backend usa ese permiso. */
   capacidades?: Capacidad[]
   opcionesDeFiltro?: Record<string, OpcionFiltro[]>
   /**
-   * Los prospectos entre los que elegir en el alta, ya en forma de opciones.
+   * Los clientes ACTIVOS entre los que elegir en el alta.
    *
-   * Desde `0320` una licitacion no carga su propia empresa: cuelga de un prospecto que ya existe. La
-   * lista baja resuelta del servidor porque el `<select>` la necesita completa desde el primer
-   * render, y son pocas decenas de filas.
+   * Sale de `GET /clients/minimos?filter[active]=1`, la ruta que existe justamente para esto: que
+   * cualquiera del equipo pueda ver que un cliente existe sin ver su legajo.
    */
-  prospectos: OpcionCampo[]
+  clientes: OpcionCampo[]
+  /** Catalogo `currencies` de `GET /lookups`. */
+  monedas: OpcionCampo[]
 }
 
-export function VistaLicitaciones ({
+export function VistaUpsells ({
   inicial,
   capacidades = [],
   opcionesDeFiltro,
-  prospectos
-}: PropsVistaLicitaciones) {
+  clientes,
+  monedas
+}: PropsVistaUpsells) {
   const router = useRouter()
   const [creando, setCreando] = useState(false)
 
   // Se memoiza porque `TablaRecurso` la usa como dependencia de sus efectos: una definicion nueva en
   // cada render volveria a pedir la pagina en bucle.
   const definicion = useMemo(() => ({
-    ...LICITACIONES,
-    columnas: LICITACIONES.columnas.map((columna) => (
-      columna.clave === 'company'
+    ...UPSELLS,
+    columnas: UPSELLS.columnas.map((columna) => (
+      columna.clave === 'espacio'
         ? {
             ...columna,
-            presentar: (licitacion: Licitacion) => (
+            presentar: (upsell: Upsell) => (
               <Link
-                href={`/licitaciones/${licitacion.id}`}
+                href={`/upsells/${upsell.id}`}
                 className="text-texto hover:text-acento font-medium underline-offset-4 hover:underline"
               >
-                {licitacion.company}
+                {upsell.espacio.name}
               </Link>
             )
           }
@@ -76,7 +76,7 @@ export function VistaLicitaciones ({
       {capacidades.includes('create') && (
         <div className="flex justify-end">
           <Boton tamano="chico" variante="primario" onClick={() => { setCreando(true) }}>
-            Nueva {GLOSARIO.licitacion.singular.toLowerCase()}
+            Nueva oportunidad
           </Boton>
         </div>
       )}
@@ -84,7 +84,7 @@ export function VistaLicitaciones ({
       <TablaRecurso
         definicion={definicion}
         inicial={inicial}
-        claveFila={(licitacion) => licitacion.id}
+        claveFila={(upsell) => upsell.id}
         capacidades={capacidades}
         opcionesDeFiltro={opcionesDeFiltro}
       />
@@ -93,10 +93,10 @@ export function VistaLicitaciones ({
         <FormularioRecurso
           abierto={creando}
           onAbiertoCambia={setCreando}
-          titulo={`Nueva ${GLOSARIO.licitacion.singular.toLowerCase()}`}
-          descripcion={`Se crea el ${GLOSARIO.espacio.singular.toLowerCase()} donde se prepara la propuesta, colgado del prospecto que se elija. El cliente no se crea todavía: eso pasa al ganar.`}
-          campos={camposDeLicitacion(prospectos)}
-          ruta="licitaciones"
+          titulo="Nueva oportunidad"
+          descripcion={`Se crea el ${GLOSARIO.espacio.singular.toLowerCase()} donde se prepara la propuesta. No aparece entre los proyectos del cliente —ni en su portal— hasta que la oportunidad se gane.`}
+          campos={camposDeUpsell(clientes, monedas)}
+          ruta="upsells"
           metodo="POST"
           onGuardado={() => { router.refresh() }}
           columnas={2}

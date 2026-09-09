@@ -182,7 +182,17 @@ export interface Espacio {
 }
 
 /**
- * En que quedo una Licitacion.
+ * En que quedo un Prospecto. **No es una columna**: la API lo deriva del resumen de sus
+ * licitaciones (`abierto` si tiene alguna abierta, si no `ganado` si tiene alguna ganada, si no
+ * `perdido`, y `sin_licitaciones` cuando todavia no tiene ninguna).
+ *
+ * Ganar y perder son POR LICITACION —se pueden ganar 2 de 4—, asi que el prospecto no tiene ni un
+ * boton ni un endpoint para cambiar esto.
+ */
+export type EstadoProspecto = 'abierto' | 'ganado' | 'perdido' | 'sin_licitaciones'
+
+/**
+ * En que quedo una Licitacion o un Upsell.
  *
  * No sale de `/lookups`: no es un catalogo que alguien administre en Perfex, son las tres ramas del
  * flujo. Mismo criterio que `billing_type` de un Espacio.
@@ -192,10 +202,11 @@ export type EstadoLicitacion = 'abierta' | 'ganada' | 'perdida'
 /**
  * La empresa a la que se le esta licitando, **antes** de que exista como Cliente.
  *
- * Son las mismas columnas escribibles de `Cliente` menos las que no aplican todavia (moneda, idioma,
- * direcciones de facturacion y envio): lo que se copia tal cual el dia que la licitacion se gana.
+ * Vive en el Prospecto y no en cada Licitacion: dos licitaciones a la misma empresa son dos
+ * licitaciones de un solo prospecto. Son las mismas columnas escribibles de `Cliente` menos las
+ * direcciones de facturacion y envio: lo que se copia tal cual el dia que se gana la primera.
  */
-export interface CandidataLicitacion {
+export interface EmpresaCandidata {
   company: string
   vat: string | null
   phonenumber: string | null
@@ -205,15 +216,56 @@ export interface CandidataLicitacion {
   state: string | null
   zip: string | null
   country_id: number | null
+  default_currency: number | null
+  default_language: string | null
 }
 
-/** La persona con la que se habla en la empresa candidata. Al ganar se vuelve su contacto principal. */
-export interface ContactoLicitacion {
+/** Una persona de contacto de la empresa candidata. Al ganar se da de alta como contacto real. */
+export interface PersonaDeContacto {
   firstname: string
   lastname: string
   email: string
   phonenumber: string | null
   title: string | null
+}
+
+/**
+ * Una persona de contacto tal como cuelga de un Prospecto.
+ *
+ * `contacto_id` es el contacto REAL bajo el cliente. `null` mientras el prospecto no haya ganado
+ * ninguna licitacion; en cuanto lo tiene, ese contacto ya existe y se da de baja desde el cliente
+ * (la API responde `409` a un `DELETE` de esta fila).
+ */
+export interface ContactoProspecto {
+  id: number
+  prospecto_id: number
+  contacto: PersonaDeContacto | null
+  es_principal: boolean
+  contacto_id: number | null
+  creado_en: string
+}
+
+/**
+ * Un Prospecto: la empresa candidata, sus contactos y las licitaciones que se le estan preparando.
+ *
+ * Los tres contadores vienen resueltos por el backend en la misma consulta del listado: pedirlos por
+ * fila serian tres viajes por prospecto para pintar una columna.
+ */
+export interface Prospecto {
+  id: number
+  empresa: string
+  estado: EstadoProspecto
+  cliente: EmpresaCandidata
+  /** El Cliente **real**, creado al ganar la primera licitacion. `null` hasta entonces. */
+  client_id: number | null
+  client: { id: number, company: string, image_url: string | null } | null
+  /** Cuando nacio el cliente real. `null` mientras no exista. */
+  convertido_en: string | null
+  creado_en: string
+  creado_por: number
+  licitaciones_total: number
+  licitaciones_abiertas: number
+  licitaciones_ganadas: number
 }
 
 /**
@@ -230,25 +282,49 @@ export interface EspacioDeLicitacion {
   deadline: string | null
 }
 
+/** Una licitacion vista desde la ficha de su Prospecto: el bloque de contexto, no el listado. */
+export interface LicitacionDeProspecto {
+  id: number
+  estado: EstadoLicitacion
+  resultado_en: string | null
+  creada_en: string
+  espacio: EspacioDeLicitacion
+}
+
+/** Lo que devuelve `GET /prospectos/{id}`: el prospecto con sus dos listas de hijos, ya en lote. */
+export interface ProspectoDetalle extends Prospecto {
+  contactos: ContactoProspecto[]
+  licitaciones: LicitacionDeProspecto[]
+}
+
+/** El Prospecto del que cuelga una Licitacion, tal como viene en cada fila del listado. */
+export interface ProspectoDeLicitacion {
+  id: number
+  empresa: string
+  client_id: number | null
+  client: { id: number, company: string, image_url: string | null } | null
+}
+
 /**
- * Una Licitacion: la empresa candidata, su contacto y el Espacio donde ya se trabaja la propuesta.
+ * Una Licitacion: el Espacio donde se trabaja la propuesta, colgado de un Prospecto.
  *
  * **`id` es el id del Espacio**: son la misma fila vista desde dos lados, asi que los subrecursos de
  * trabajo se piden a `/projects/{licitacion.id}/…` sin traducir nada.
  *
- * `company` viene desnormalizado desde `cliente.company` para que la tabla no tenga que bajar por el
- * objeto y para que `q` y `sort=company` signifiquen algo en el listado.
+ * La empresa y sus contactos **no viven aca**: viven en el prospecto. `company` viene resuelto por
+ * el JOIN para que la tabla no tenga que bajar por el objeto y para que `q` y `sort=company`
+ * signifiquen algo en el listado.
  */
 export interface Licitacion {
   id: number
   estado: EstadoLicitacion
-  /** Copia de `cliente.company`. Solo para la columna y la busqueda del listado. */
+  prospecto_id: number
+  prospecto: ProspectoDeLicitacion
+  /** El nombre del prospecto, resuelto por el JOIN. Solo para la columna y la busqueda del listado. */
   company: string
-  cliente: CandidataLicitacion
-  /** `null` cuando el alta no trajo contacto: `POST /licitaciones` lo acepta sin el. */
-  contacto: ContactoLicitacion | null
-  /** El Cliente **real**, creado al ganar. `null` mientras la licitacion no este ganada. */
+  /** El Cliente **real** del prospecto. `null` mientras no haya ganado ninguna licitacion. */
   client_id: number | null
+  client: { id: number, company: string, image_url: string | null } | null
   /** Cuando se gano o se perdio. `null` mientras siga abierta. */
   resultado_en: string | null
   creada_en: string
@@ -257,6 +333,40 @@ export interface Licitacion {
 
 /** Lo que devuelve `GET /licitaciones/{id}`: igual, pero con la ficha completa del Espacio. */
 export interface LicitacionDetalle extends Licitacion {
+  espacio: Espacio
+}
+
+/**
+ * Un Upsell: una oportunidad comercial sobre un cliente que **ya existe**.
+ *
+ * Espejo de `Licitacion` con una diferencia que lo cambia todo: el Espacio nace con el `clientid`
+ * REAL, no en 0. Por eso `client` viene siempre, y por eso el backend tiene que esconderlo tambien
+ * del portal del cliente mientras la oportunidad siga abierta.
+ *
+ * **`id` es el id del Espacio**, igual que en una Licitacion.
+ */
+export interface Upsell {
+  id: number
+  estado: EstadoLicitacion
+  /** Lo que se espera vender. `null` es "todavia no se sabe", que no es lo mismo que 0. */
+  monto_estimado: number | null
+  /** Id de `currencies` de `GET /lookups`. */
+  moneda_id: number | null
+  /** 0 a 100. */
+  probabilidad: number | null
+  /** Por que se gano o se perdio. Se escribe al cerrar. */
+  motivo: string | null
+  /** El cliente, que existe desde el dia uno. Sale de `tblprojects.clientid`, no de una columna. */
+  client_id: number | null
+  client: { id: number, company: string, image_url: string | null } | null
+  /** Cuando se gano o se perdio. `null` mientras siga abierto. */
+  resultado_en: string | null
+  creada_en: string
+  espacio: EspacioDeLicitacion
+}
+
+/** Lo que devuelve `GET /upsells/{id}`: igual, pero con la ficha completa del Espacio. */
+export interface UpsellDetalle extends Upsell {
   espacio: Espacio
 }
 
