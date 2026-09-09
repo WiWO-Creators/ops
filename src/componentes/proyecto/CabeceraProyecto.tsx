@@ -96,6 +96,13 @@ interface PropsCabecera {
   subtitulo?: string
   /** Reemplaza "Nueva tarea" y el menu del Espacio, cuyas acciones devuelven a `/espacios`. */
   acciones?: React.ReactNode
+  /**
+   * Si quien mira esta en el equipo. Solo rige el item "Salir del Espacio" del menu.
+   *
+   * Se reenvia tal cual y no se deduce aca de `proyecto.members`: la cabecera no sabe quien mira, y
+   * `members` puede no venir si la pagina no lo pidio.
+   */
+  esMiembro?: boolean
 }
 
 /**
@@ -113,7 +120,8 @@ export function CabeceraProyecto ({
   capacidadesTareas,
   volverA = { href: '/espacios', etiqueta: GLOSARIO.espacio.plural },
   subtitulo,
-  acciones
+  acciones,
+  esMiembro
 }: PropsCabecera) {
   return (
     <header className="border-linea bg-superficie-elevada rounded-tarjeta shadow-1 flex flex-col gap-4 border p-5">
@@ -151,7 +159,7 @@ export function CabeceraProyecto ({
           {acciones ?? (
             <>
               <BotonNuevaTarea capacidades={capacidadesTareas} />
-              <MenuProyecto proyecto={proyecto} estados={estados} capacidades={capacidadesProyecto} />
+              <MenuProyecto proyecto={proyecto} estados={estados} capacidades={capacidadesProyecto} esMiembro={esMiembro} />
             </>
           )}
         </div>
