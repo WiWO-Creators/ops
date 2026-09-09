@@ -3,12 +3,11 @@
 import Link from 'next/link'
 import { useState, type ReactElement } from 'react'
 import { useRouter } from 'next/navigation'
-import { escribirEnBff } from '@/componentes/datos/mutaciones'
 import { Boton } from '@/componentes/formularios/Boton'
 import { FormularioRecurso } from '@/componentes/proyecto/FormularioRecurso'
 import type { OpcionCampo } from '@/componentes/proyecto/formulario'
-import { ContenidoDialogo, Dialogo } from '@/componentes/superposiciones/Dialogo'
-import type { Licitacion, LicitacionDetalle } from '@/datos/recursos'
+import { DialogoResultado } from '@/componentes/proyecto/DialogoResultado'
+import type { LicitacionDetalle } from '@/datos/recursos'
 import type { Capacidad } from '@/datos/tipos'
 import { nombreDelContacto } from '@/definiciones/licitaciones'
 import { GLOSARIO } from '@/dominio/glosario'
@@ -41,6 +40,11 @@ export function AccionesLicitacion ({ licitacion, paises, capacidades }: PropsAc
 
   const abierta = licitacion.estado === 'abierta'
   const puedeEditar = capacidades.includes('edit')
+
+  // Sin contacto no se crea ninguno: `Licitacion::ganar()` solo inserta el contacto si la licitacion
+  // lo tenia. Prometerlo en un dialogo que dice "no se puede deshacer" seria mentir.
+  const contacto = nombreDelContacto(licitacion.contacto)
+  const conContacto = contacto === '' ? '' : ` con ${contacto} como contacto principal`
 
   return (
     <div className="flex flex-wrap items-center gap-2">
@@ -88,8 +92,12 @@ export function AccionesLicitacion ({ licitacion, paises, capacidades }: PropsAc
       )}
 
       <DialogoResultado
-        licitacion={licitacion}
+        base={`licitaciones/${licitacion.id}`}
         accion={confirmando}
+        descripcion={{
+          ganar: `Se crea el cliente ${licitacion.company}${conContacto}, y ${licitacion.espacio.name} pasa a colgar de ese cliente. No se puede deshacer.`,
+          perder: `Se archiva ${licitacion.espacio.name} con sus tareas, sus hitos y sus archivos. La licitación queda consultable en el histórico.`
+        }}
         onCerrar={() => { setConfirmando(null) }}
         onHecho={() => { router.refresh() }}
       />
@@ -106,89 +114,5 @@ function Enlace ({ href, children }: { href: string, children: React.ReactNode }
     >
       {children}
     </Link>
-  )
-}
-
-/**
- * Confirmacion de ganar o perder, con las consecuencias escritas **antes** de apretar.
- *
- * El dialogo no se cierra si la llamada falla: cerrarlo dejaria el mensaje de error sin donde
- * mostrarse, y quien lo apreto creyendo que funciono se enteraria recien al recargar.
- *
- * @param accion Cual de las dos se esta confirmando, o `null` cuando el dialogo esta cerrado.
- */
-function DialogoResultado ({
-  licitacion,
-  accion,
-  onCerrar,
-  onHecho
-}: {
-  licitacion: Licitacion
-  accion: 'ganar' | 'perder' | null
-  onCerrar: () => void
-  onHecho: () => void
-}): ReactElement {
-  const [enviando, setEnviando] = useState(false)
-  const [fallo, setFallo] = useState<string | null>(null)
-
-  const ganando = accion === 'ganar'
-  // Sin contacto no se crea ninguno: `Licitacion::ganar()` solo inserta el contacto si la licitacion
-  // lo tenia. Prometerlo en un dialogo que dice "no se puede deshacer" seria mentir.
-  const contacto = nombreDelContacto(licitacion.contacto)
-  const conContacto = contacto === '' ? '' : ` con ${contacto} como contacto principal`
-
-  /** Llama a la accion; el error es un valor que se muestra, nunca una excepcion que rompa la ficha. */
-  async function confirmar (): Promise<void> {
-    if (accion === null) return
-
-    setEnviando(true)
-    setFallo(null)
-
-    const resultado = await escribirEnBff<Licitacion>(`licitaciones/${licitacion.id}/actions/${accion}`, 'POST')
-
-    setEnviando(false)
-
-    if (!resultado.ok) {
-      setFallo(resultado.mensaje)
-      return
-    }
-
-    cerrar(false)
-    onHecho()
-  }
-
-  /** Cierra limpiando el error: el mensaje de un intento viejo no debe recibir al siguiente. */
-  function cerrar (abierto: boolean): void {
-    if (abierto) return
-
-    setFallo(null)
-    onCerrar()
-  }
-
-  return (
-    <Dialogo open={accion !== null} onOpenChange={cerrar}>
-      <ContenidoDialogo
-        titulo={ganando ? 'Marcar como ganada' : 'Marcar como perdida'}
-        descripcion={
-          ganando
-            ? `Se crea el cliente ${licitacion.company}${conContacto}, y ${licitacion.espacio.name} pasa a colgar de ese cliente. No se puede deshacer.`
-            : `Se archiva ${licitacion.espacio.name} con sus tareas, sus hitos y sus archivos. La licitación queda consultable en el histórico.`
-        }
-      >
-        {fallo !== null && <p role="alert" className="text-texto-peligro text-sm">{fallo}</p>}
-
-        <div className="mt-4 flex justify-end gap-2">
-          <Boton type="button" variante="sutil" onClick={() => { cerrar(false) }}>Cancelar</Boton>
-          <Boton
-            type="button"
-            variante={ganando ? 'primario' : 'peligro'}
-            cargando={enviando}
-            onClick={() => { void confirmar() }}
-          >
-            {ganando ? 'Ganar' : 'Perder'}
-          </Boton>
-        </div>
-      </ContenidoDialogo>
-    </Dialogo>
   )
 }
