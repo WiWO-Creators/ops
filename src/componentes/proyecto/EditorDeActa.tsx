@@ -80,7 +80,7 @@ export function EditorDeActa ({ htmlInicial, onCambio, proyectoId, conIa = true 
     content: htmlInicial,
     editorProps: {
       attributes: {
-        class: 'acta-editor min-h-[24rem] rounded-chico border border-control-borde bg-control p-4 focus:outline-none'
+        class: 'acta-editor rounded-chico border-linea min-h-[24rem] border px-8 py-10 focus:outline-none'
       }
     },
     onUpdate: ({ editor: actual }) => { onCambio(actual.getHTML()) }

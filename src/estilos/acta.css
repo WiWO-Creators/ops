@@ -1,0 +1,112 @@
+/*
+ * El Meeting Paper mientras se corrige.
+ *
+ * Es la misma hoja que se ve en el visor y que sale impresa, y eso es todo el punto: el visor pinta
+ * el acta dentro de un iframe con su propia hoja de estilos (`presentadores/ContenidoHtml.tsx`), y
+ * si el editor mostrara otra cosa —el tipo de letra de la interfaz, otros tamaños de titulo— habria
+ * que corregir a ciegas y descubrir como quedo recien al guardar. Las medidas de los dos lados
+ * tienen que moverse juntas.
+ *
+ * Vive en un archivo y no en clases de utilidad porque lo que se estila son los nodos que produce el
+ * editor —`h2`, `li`, `blockquote`—, que no existen en el JSX: escribirlo con variantes arbitrarias
+ * de Tailwind seria una sola linea de trescientos caracteres.
+ *
+ * El documento es claro SIEMPRE, tambien con la interfaz en oscuro, por la misma razon que el visor:
+ * es una hoja de papel, no una parte del panel. Un acta que se ve blanca al leerla y gris al
+ * corregirla es la clase de detalle que hace dudar de si se guardo bien.
+ */
+
+.acta-editor {
+  background: #fff;
+  color: #374151;
+  font-family: 'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-serif;
+  font-size: 16px;
+  line-height: 1.75;
+  overflow-wrap: anywhere;
+}
+
+.acta-editor :is(h1, h2, h3, h4) {
+  color: #111827;
+  font-weight: 700;
+}
+
+.acta-editor h1 {
+  margin: 0 0 1.25rem;
+  font-size: 2rem;
+  font-weight: 800;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+}
+
+.acta-editor h2 {
+  margin: 2.25rem 0 0.9rem;
+  font-size: 1.4rem;
+  line-height: 1.35;
+  letter-spacing: -0.01em;
+}
+
+.acta-editor h3 {
+  margin: 1.75rem 0 0.5rem;
+  font-size: 1.1rem;
+  line-height: 1.5;
+}
+
+.acta-editor p {
+  margin: 0 0 1.1rem;
+}
+
+.acta-editor :is(strong, b) {
+  color: #111827;
+  font-weight: 600;
+}
+
+.acta-editor :is(ul, ol) {
+  margin: 0 0 1.25rem;
+  padding-left: 1.5rem;
+}
+
+.acta-editor ul {
+  list-style: disc;
+}
+
+.acta-editor ol {
+  list-style: decimal;
+}
+
+.acta-editor li {
+  margin: 0.35rem 0;
+  padding-left: 0.25rem;
+}
+
+.acta-editor li::marker {
+  color: #9ca3af;
+}
+
+.acta-editor hr {
+  margin: 2rem 0;
+  border: 0;
+  border-top: 1px solid #e5e7eb;
+}
+
+.acta-editor blockquote {
+  margin: 1.5rem 0;
+  padding-left: 1rem;
+  border-left: 3px solid #e5e7eb;
+  color: #4b5563;
+  font-style: italic;
+}
+
+.acta-editor a {
+  color: #1d4ed8;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+/* El marcador de posición de TipTap, que se pinta sobre el primer párrafo vacío. */
+.acta-editor p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  color: #9ca3af;
+  pointer-events: none;
+}
