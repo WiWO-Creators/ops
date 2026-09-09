@@ -30,7 +30,7 @@ export function CodigoCopiable ({ valor, className }: PropsCodigoCopiable) {
   useEffect(() => () => { window.clearTimeout(temporizador.current) }, [])
 
   const copiar = useCallback(() => {
-    navigator.clipboard.writeText(valor)
+    navigator.clipboard?.writeText(valor)
       .then(() => {
         setCopiado(true)
         window.clearTimeout(temporizador.current)
