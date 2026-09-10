@@ -29,6 +29,44 @@ before(async () => {
 
 after(() => new Promise((resolver) => servidor.close(resolver)))
 
+test('orden de hitos persiste con filtros y rechaza ids invalidos o falta de permiso', async () => {
+  const proyecto = ESPACIOS[0].id
+  const hitos = HITOS.filter((hito) => hito.project_id === proyecto)
+  const anterior = hitos.map((hito) => hito.milestone_order)
+  const orden = hitos.map((hito) => hito.id).reverse()
+  const ruta = `${base}/projects/${proyecto}/milestones`
+  const headers = { 'content-type': 'application/json', authorization: `Bearer ${token}` }
+  try {
+    const guardado = await fetch(`${ruta}/orden`, { method: 'PATCH', headers, body: JSON.stringify({ orden }) })
+    assert.equal(guardado.status, 200)
+    assert.deepEqual((await guardado.json()).data.map((hito) => hito.id), orden)
+    for (const consulta of ['?vista=tablero', '?vista=tablero&filter[status]=5']) {
+      const respuesta = await fetch(`${ruta}${consulta}`, { headers })
+      const grupos = (await respuesta.json()).data.filter((grupo) => grupo.columna.id > 0)
+      assert.deepEqual(grupos.map((grupo) => grupo.columna.id), orden)
+      assert.deepEqual(grupos.map((grupo) => grupo.columna.order), [1, 2])
+    }
+    for (const invalido of [null, [], [0], [-1], [1.5], [orden[0], orden[0]], [HITOS.find((hito) => hito.project_id !== proyecto).id]]) {
+      const rechazo = await fetch(`${ruta}/orden`, { method: 'PATCH', headers, body: JSON.stringify({ orden: invalido }) })
+      assert.equal(rechazo.status, 422)
+      await rechazo.arrayBuffer()
+    }
+    const login = await fetch(`${base}/auth/login`, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ email: STAFF[2].email, password: 'mock1234' })
+    })
+    const restringido = (await login.json()).data.access_token
+    const denegado = await fetch(`${ruta}/orden`, {
+      method: 'PATCH', headers: { ...headers, authorization: `Bearer ${restringido}` }, body: JSON.stringify({ orden })
+    })
+    assert.equal(denegado.status, 403)
+    await denegado.arrayBuffer()
+    assert.deepEqual(hitos.map((hito) => hito.milestone_order), [2, 1])
+  } finally {
+    hitos.forEach((hito, indice) => { hito.milestone_order = anterior[indice] })
+  }
+})
+
 /** Manda el alta y devuelve estado y cuerpo ya parseados. */
 async function crear (cuerpo) {
   const respuesta = await fetch(`${base}/tasks`, {

@@ -36,6 +36,7 @@ interface PropsTableroHitos {
   excluirCompletadas: boolean
   /** Habilita el "+" de cada columna. Viene de la capacidad `create` sobre tareas. */
   puedeCrear: boolean
+  puedeEditar: boolean
 }
 
 /**
@@ -71,7 +72,7 @@ function definicionDeHitos (proyectoId: number, excluirCompletadas: boolean): De
   }
 }
 
-export function TableroHitos ({ proyectoId, excluirCompletadas, puedeCrear }: PropsTableroHitos): ReactElement {
+export function TableroHitos ({ proyectoId, excluirCompletadas, puedeCrear, puedeEditar }: PropsTableroHitos): ReactElement {
   const [lookups, setLookups] = useState<Lookups | null>(null)
 
   useEffect(() => {
@@ -136,6 +137,7 @@ export function TableroHitos ({ proyectoId, excluirCompletadas, puedeCrear }: Pr
       adaptarCuerpo={adaptar}
       ordenarColumnas={ordenar}
       accionDeColumna={accionDeColumna}
+      rutaOrdenColumnas={puedeEditar ? `${definicion.ruta}/orden` : undefined}
     />
   )
 }

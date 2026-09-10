@@ -59,6 +59,36 @@ export function ordenarGrupos<T> (grupos: Array<GrupoTablero<T>>): Array<GrupoTa
 }
 
 /**
+ * Reordena columnas reales sin mover la columna sintetica ni modificar el tablero anterior.
+ *
+ * @param grupos tablero actual
+ * @param origen id positivo de la columna arrastrada
+ * @param destino id positivo de la columna cuya posicion original ocupara
+ * @returns copia con orden consecutivo desde 1, o `null` si el movimiento no es valido
+ */
+export function moverColumna<T> (
+  grupos: Array<GrupoTablero<T>>,
+  origen: number,
+  destino: number
+): Array<GrupoTablero<T>> | null {
+  if (!Number.isSafeInteger(origen) || !Number.isSafeInteger(destino) || origen <= 0 || destino <= 0 || origen === destino) return null
+
+  const columnas = grupos.filter((grupo) => grupo.columna.id > 0)
+  const desde = columnas.findIndex((grupo) => grupo.columna.id === origen)
+  const hasta = columnas.findIndex((grupo) => grupo.columna.id === destino)
+  if (desde === -1 || hasta === -1) return null
+
+  const [movida] = columnas.splice(desde, 1)
+  columnas.splice(hasta, 0, movida!)
+  let indice = 0
+  return grupos.map((grupo) => {
+    if (grupo.columna.id <= 0) return grupo
+    const siguiente = columnas[indice++]!
+    return { ...siguiente, columna: { ...siguiente.columna, order: indice } }
+  })
+}
+
+/**
  * Indica si la columna tiene paginas sin cargar.
  *
  * Importa porque `columna_completa` viaja con los ids que tiene el cliente: si le faltan tarjetas,

@@ -2136,7 +2136,7 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
     return { estado: 200, cuerpo: conDatos(presentarActa(acta, { conContenido: true })) }
   }
 
-  if (recurso === 'projects' && metodo === 'GET') {
+  if (recurso === 'projects' && (metodo === 'GET' || (metodo === 'PATCH' && resto[1] === 'milestones' && resto[2] === 'orden'))) {
     exigirPermiso(actual, 'projects', 'view')
     const includes = leerIncludes(parametros, ['custom_fields', 'members'])
 
@@ -2168,7 +2168,19 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
       }) }
     }
     if (subrecurso === 'milestones') {
-      const hitos = HITOS.filter((h) => h.project_id === espacio.id)
+      const hitos = HITOS.filter((h) => h.project_id === espacio.id).sort((a, b) => a.milestone_order - b.milestone_order)
+      if (metodo === 'PATCH') {
+        exigirPermiso(actual, 'projects', 'edit')
+        const { orden } = await cuerpo()
+        if (!Array.isArray(orden) || orden.length === 0) {
+          throw new ErrorApi(422, 'validation_failed', 'Falta el orden.', { orden: ['required'] })
+        }
+        if (new Set(orden).size !== orden.length || orden.some((id) => !Number.isSafeInteger(id) || id <= 0 || !hitos.some((hito) => hito.id === id))) {
+          throw new ErrorApi(422, 'validation_failed', 'Hay hitos que no son de este espacio.', { orden: ['unknown'] })
+        }
+        orden.forEach((id, posicion) => { hitos.find((hito) => hito.id === id).milestone_order = posicion + 1 })
+        return { estado: 200, cuerpo: conDatos(hitos.sort((a, b) => a.milestone_order - b.milestone_order)) }
+      }
       if (parametros.get('vista') !== 'tablero') return { estado: 200, cuerpo: conDatos(hitos) }
 
       const columnas = [
