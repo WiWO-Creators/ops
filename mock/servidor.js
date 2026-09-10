@@ -184,7 +184,7 @@ function catalogoDePermisos (staff) {
   return recursosDe(staff).map((recurso) => ({
     feature: recurso,
     name: recurso.charAt(0).toUpperCase() + recurso.slice(1),
-    capabilities: ACCIONES.map((accion) => ({ key: accion, name: accion.charAt(0).toUpperCase() + accion.slice(1) }))
+    capabilities: (recurso === 'projects' ? [...ACCIONES, 'edit_milestones'] : ACCIONES).map((accion) => ({ key: accion, name: accion.charAt(0).toUpperCase() + accion.slice(1) }))
   }))
 }
 
@@ -200,7 +200,7 @@ function permisosDe (staff) {
   if (editados !== undefined) return editados
 
   if (staff.is_admin) {
-    return Object.fromEntries(recursosDe(staff).map((r) => [r, [...ACCIONES]]))
+    return Object.fromEntries(recursosDe(staff).map((r) => [r, r === 'projects' ? [...ACCIONES, 'edit_milestones'] : [...ACCIONES]]))
   }
   return {
     tasks: ['view', 'create', 'edit'],
@@ -2170,7 +2170,7 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
     if (subrecurso === 'milestones') {
       const hitos = HITOS.filter((h) => h.project_id === espacio.id).sort((a, b) => a.milestone_order - b.milestone_order)
       if (metodo === 'PATCH') {
-        exigirPermiso(actual, 'projects', 'edit')
+        exigirPermiso(actual, 'projects', 'edit_milestones')
         const { orden } = await cuerpo()
         if (!Array.isArray(orden) || orden.length === 0) {
           throw new ErrorApi(422, 'validation_failed', 'Falta el orden.', { orden: ['required'] })

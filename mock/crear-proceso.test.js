@@ -62,8 +62,27 @@ test('orden de hitos persiste con filtros y rechaza ids invalidos o falta de per
     assert.equal(denegado.status, 403)
     await denegado.arrayBuffer()
     assert.deepEqual(hitos.map((hito) => hito.milestone_order), [2, 1])
+    for (const [permiso, estado] of [['edit', 403], ['edit_milestones', 200]]) {
+      const cambio = await fetch(`${base}/staff/${STAFF[2].id}`, {
+        method: 'PATCH', headers,
+        body: JSON.stringify({ permissions: { projects: ['view', permiso] } })
+      })
+      assert.equal(cambio.status, 200)
+      await cambio.arrayBuffer()
+      const resultado = await fetch(`${ruta}/orden`, {
+        method: 'PATCH', headers: { ...headers, authorization: `Bearer ${restringido}` }, body: JSON.stringify({ orden })
+      })
+      assert.equal(resultado.status, estado, `Reordenar exige ${permiso === 'edit' ? 'más que editar el proyecto' : 'editar hitos'}`)
+      await resultado.arrayBuffer()
+    }
   } finally {
     hitos.forEach((hito, indice) => { hito.milestone_order = anterior[indice] })
+    const restaurado = await fetch(`${base}/staff/${STAFF[2].id}`, {
+      method: 'PATCH', headers,
+      body: JSON.stringify({ permissions: { projects: ['view'] } })
+    })
+    assert.equal(restaurado.status, 200)
+    await restaurado.arrayBuffer()
   }
 })
 

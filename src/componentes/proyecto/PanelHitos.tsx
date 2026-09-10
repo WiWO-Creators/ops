@@ -150,7 +150,7 @@ function HitosDelProyecto ({ proyecto, capacidades, capacidadesTareas = [] }: Pr
               proyectoId={proyecto.id}
               excluirCompletadas={excluirCompletadas}
               puedeCrear={capacidadesTareas.includes('create')}
-              puedeEditar={puedeEditar}
+              puedeEditar={capacidades.includes('edit_milestones')}
             />
           </>
           )}
