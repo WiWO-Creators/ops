@@ -581,6 +581,23 @@ function buscarO404 (filas, id, que) {
   return fila
 }
 
+/**
+ * Descripcion de un item de la lista de control, como la guarda la API.
+ *
+ * Replica `ChecklistProceso::descripcion()`: sin HTML salvo los saltos, nunca vacia y con los saltos
+ * de linea convertidos a `<br />` (`nl2br()`). Ese HTML no es un detalle del servidor: el panel lo
+ * vuelve a texto plano al pintarlo, y un mock que devolviera el texto crudo no probaria ese paso.
+ */
+function descripcionDeItem (valor) {
+  const texto = typeof valor === 'string' ? valor.replace(/<[^>]*>/g, '').trim() : ''
+
+  if (texto === '' || texto.length > 5000) {
+    throw new ErrorApi(422, 'validation_failed', 'Hay campos que no se pueden guardar.', { description: ['invalid'] })
+  }
+
+  return texto.replace(/\n/g, '<br />\n')
+}
+
 /** Exige que el staff tenga una accion sobre un recurso, o lanza 403. */
 function exigirPermiso (staff, recurso, accion) {
   const permisos = permisosDe(staff)
@@ -2270,6 +2287,45 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
     }
     if (metodo === 'GET' && subrecurso === 'checklist') {
       return { estado: 200, cuerpo: conDatos(CHECKLIST.filter((c) => c.task_id === proceso.id)) }
+    }
+    if (metodo === 'POST' && subrecurso === 'checklist') {
+      const item = {
+        id: CHECKLIST.reduce((mayor, c) => Math.max(mayor, c.id), 0) + 1,
+        task_id: proceso.id,
+        description: descripcionDeItem((await cuerpo()).description),
+        finished: false,
+        order: CHECKLIST.filter((c) => c.task_id === proceso.id).length + 1,
+        assigned: null
+      }
+      CHECKLIST.push(item)
+      proceso.counts.checklist += 1
+      return { estado: 201, cuerpo: conDatos(item) }
+    }
+    if ((metodo === 'PATCH' || metodo === 'DELETE') && subrecurso === 'checklist') {
+      const indice = CHECKLIST.findIndex((c) => c.task_id === proceso.id && c.id === Number(extra))
+      if (indice === -1) throw new ErrorApi(404, 'not_found', `No existe el item "${extra}".`)
+
+      const item = CHECKLIST[indice]
+
+      if (metodo === 'DELETE') {
+        CHECKLIST.splice(indice, 1)
+        proceso.counts.checklist -= 1
+        if (item.finished) proceso.counts.checklist_done -= 1
+        return { estado: 204, cuerpo: null }
+      }
+
+      const parche = await cuerpo()
+      if ('description' in parche) item.description = descripcionDeItem(parche.description)
+      if ('finished' in parche) {
+        if (typeof parche.finished !== 'boolean') {
+          throw new ErrorApi(422, 'validation_failed', 'Hay campos que no se pueden guardar.', { finished: ['boolean'] })
+        }
+        if (item.finished !== parche.finished) {
+          proceso.counts.checklist_done += parche.finished ? 1 : -1
+          item.finished = parche.finished
+        }
+      }
+      return { estado: 200, cuerpo: conDatos(item) }
     }
     if (metodo === 'GET' && subrecurso === 'timers') {
       return { estado: 200, cuerpo: conDatos(CRONOMETROS.filter((c) => c.task_id === proceso.id)) }
