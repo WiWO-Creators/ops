@@ -32,6 +32,8 @@ import type { Lookups, TarjetaHito } from '@/datos/recursos'
 
 interface PropsTableroHitos {
   proyectoId: number
+  /** Nombre del Proyecto. Lo pide el camino "Traer de otro proyecto" del "+", que lo muestra. */
+  proyectoNombre: string
   /** Cuando es `true` el backend no manda las tareas completadas. Es el valor por defecto del panel. */
   excluirCompletadas: boolean
   /** Habilita el "+" de cada columna. Viene de la capacidad `create` sobre tareas. */
@@ -72,7 +74,13 @@ function definicionDeHitos (proyectoId: number, excluirCompletadas: boolean): De
   }
 }
 
-export function TableroHitos ({ proyectoId, excluirCompletadas, puedeCrear, puedeEditar }: PropsTableroHitos): ReactElement {
+export function TableroHitos ({
+  proyectoId,
+  proyectoNombre,
+  excluirCompletadas,
+  puedeCrear,
+  puedeEditar
+}: PropsTableroHitos): ReactElement {
   const [lookups, setLookups] = useState<Lookups | null>(null)
 
   useEffect(() => {
@@ -116,13 +124,14 @@ export function TableroHitos ({ proyectoId, excluirCompletadas, puedeCrear, pued
       return (
         <AgregarAlHito
           proyectoId={proyectoId}
+          proyectoNombre={proyectoNombre}
           hito={{ id: columna.id, name: columna.name }}
           prioridades={prioridades}
           onListo={recargar}
         />
       )
     },
-    [puedeCrear, proyectoId, prioridades]
+    [puedeCrear, proyectoId, proyectoNombre, prioridades]
   )
 
   return (
