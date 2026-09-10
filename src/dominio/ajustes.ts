@@ -1,5 +1,5 @@
 import { nombrar } from './glosario.ts'
-import type { Ajustes, Lookups } from '../datos/recursos.ts'
+import type { AjusteEditable, Ajustes, Lookups } from '../datos/recursos.ts'
 
 /**
  * Reglas de los ajustes de la instalacion (`GET|PATCH /settings`), sin nada de React ni de Next.
@@ -245,4 +245,46 @@ export function dominiosDeAjustes (lookups: Lookups): Record<string, Record<stri
     default_task_status: { ...VALORES_CON_NOMBRE.default_task_status, ...porId(lookups.task_statuses) },
     default_staff_role: porId(lookups.roles)
   }
+}
+
+/**
+ * Por que la capa de IA esta o no disponible.
+ *
+ * Los tres motivos de "no" se arreglan en lugares distintos: `apagada` es un interruptor del panel,
+ * `ausente` una instalacion a la que nunca se le escribio el ajuste, y `no_se_pudo_leer` la API que
+ * no contesta. Colapsarlos en un booleano deja a quien mira una pantalla sin boton y sin forma de
+ * saber a quien reclamarle.
+ */
+export type MotivoIa = 'encendida' | 'apagada' | 'ausente' | 'no_se_pudo_leer'
+
+/**
+ * El estado de la capa de IA tal como lo leyo el servidor, con su motivo.
+ *
+ * Vive aca y no en `datos/ajustes.ts` porque lo leen componentes de cliente, y ese archivo es
+ * `server-only`: un `import type` se borra al compilar, pero deja puesta la trampa para el primer
+ * `import` de valor que alguien agregue despues.
+ */
+export interface EstadoIa {
+  activa: boolean
+  motivo: MotivoIa
+  /** El mensaje de la API cuando `motivo` es `no_se_pudo_leer`. Vacio en el resto de los casos. */
+  detalle?: string
+}
+
+/**
+ * Traduce el valor de `ia_habilitada` tal como viaja en `GET /settings` a su motivo.
+ *
+ * `GET /settings` presenta las opciones de tipo `bool` como booleano o como `null` —`null` es que la
+ * opcion viaja sin fila detras en `tbloptions`—, y `undefined` es que no viaja en absoluto. Esos dos
+ * ultimos casos no son "apagada": nadie la apago, nunca se guardo, y encenderla es escribir el
+ * ajuste una vez en vez de buscar quien lo desactivo.
+ *
+ * @param valor lo que trae `editable.ia_habilitada?.value`
+ * @returns el motivo; `no_se_pudo_leer` no sale de aca, lo pone quien atrapa el fallo de red
+ */
+export function motivoDeIa (valor: AjusteEditable['value'] | undefined): Exclude<MotivoIa, 'no_se_pudo_leer'> {
+  if (valor === true) return 'encendida'
+  if (valor === undefined || valor === null) return 'ausente'
+
+  return 'apagada'
 }
