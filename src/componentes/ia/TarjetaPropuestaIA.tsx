@@ -28,6 +28,21 @@ import { esResoluble, estadoDeAccion, segundosParaExpirar } from '@/dominio/ia-c
  * señal de eso que hay en la tarjeta. Por eso el parrafo envuelve, parte las palabras largas y no
  * lleva ningun tope de lineas.
  *
+ * === LO ASUMIDO SE LEE APARTE, Y MAS BAJITO ===
+ *
+ * Cuando al pedido le falta un dato, el servidor completa lo mas razonable y lo escribe en
+ * `supuestos`. Mezclado dentro del `detalle` seria indistinguible de lo que la persona pidio, que
+ * es justo lo que hay que poder distinguir antes de apretar Confirmar: lo pedido no se revisa, lo
+ * asumido si. Por eso va en su propia lista, con encabezado propio y un tono mas apagado que el del
+ * detalle —`sutil` contra `tenue`—: se lee como "esto lo completé yo".
+ *
+ * === EL DETALLE TAMPOCO SE CORTA ===
+ *
+ * Una propuesta de tipo `plan` trae un paso por linea, numerado y con sus lineas indentadas debajo.
+ * De ahi el `whitespace-pre-wrap`: sin el, el navegador colapsa la sangria y los ocho pasos quedan
+ * como un bloque plano donde no se ve donde termina uno y empieza el siguiente. Y como el resumen,
+ * el detalle no lleva tope de lineas: si es largo, la tarjeta crece.
+ *
  * === EL BOTON DESHABILITADO NO ES LA IDEMPOTENCIA ===
  *
  * La idempotencia real esta en el servidor: un `UPDATE ... WHERE estado='pendiente'` que la segunda
@@ -129,8 +144,21 @@ export function TarjetaPropuestaIA (
 
       {accion.detalle.length > 0 && (
         <ul className="text-texto-tenue flex flex-col gap-0.5 text-xs">
-          {accion.detalle.map((linea, indice) => <li key={indice}>{linea}</li>)}
+          {accion.detalle.map((linea, indice) => (
+            <li key={indice} className="break-words whitespace-pre-wrap">{linea}</li>
+          ))}
         </ul>
+      )}
+
+      {accion.supuestos.length > 0 && (
+        <div className="text-texto-sutil flex flex-col gap-0.5 text-xs">
+          <p className="font-medium">Asumí:</p>
+          <ul className="flex flex-col gap-0.5">
+            {accion.supuestos.map((linea, indice) => (
+              <li key={indice} className="break-words whitespace-pre-wrap">{linea}</li>
+            ))}
+          </ul>
+        </div>
       )}
 
       {abierta

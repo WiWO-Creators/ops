@@ -13,6 +13,17 @@ import { leerEventoIA } from '../src/dominio/ia.ts'
 
 const frame = (evento, datos) => `event: ${evento}\ndata: ${typeof datos === 'string' ? datos : JSON.stringify(datos)}`
 
+/** Una propuesta minima valida, para probar un campo a la vez sin repetir los otros seis. */
+const propuesta = (campos) => leerEventoIA(frame('propuesta', {
+  id: 12,
+  herramienta: 'crear_tarea',
+  resumen: 'Crear la tarea "Revisar el brief"',
+  estado: 'pendiente',
+  resultado: null,
+  expira_en: '2026-09-04T12:30:00Z',
+  ...campos
+})).accion
+
 test('lee un delta', () => {
   assert.deepEqual(leerEventoIA(frame('delta', { t: 'Hoy tenés ' })), { tipo: 'delta', texto: 'Hoy tenés ' })
 })
@@ -151,6 +162,7 @@ test('lee una propuesta con su resumen y su detalle', () => {
       herramienta: 'eliminar_tarea',
       resumen: 'Mandar a la papelera la tarea "Corregir el informe"',
       detalle: ['Se puede restaurar durante 30 días desde la Papelera.'],
+      supuestos: ['Espacio: el que estás mirando (asumido)'],
       estado: 'pendiente',
       resultado: null,
       expira_en: '2026-09-04T12:30:00Z'
@@ -162,12 +174,65 @@ test('lee una propuesta con su resumen y su detalle', () => {
         herramienta: 'eliminar_tarea',
         resumen: 'Mandar a la papelera la tarea "Corregir el informe"',
         detalle: ['Se puede restaurar durante 30 días desde la Papelera.'],
+        supuestos: ['Espacio: el que estás mirando (asumido)'],
         estado: 'pendiente',
         resultado: null,
         expira_en: '2026-09-04T12:30:00Z'
       }
     }
   )
+})
+
+test('una propuesta sin `supuestos` trae [] y no rompe', () => {
+  // Una fila guardada antes de que el campo existiera. El unico despliegue posible es backend
+  // primero, pero el hilo viejo sigue en la base y se vuelve a leer en cada `GET /ia/chat`.
+  const accion = propuesta({ detalle: ['Espacio: NESTLÉ'] })
+
+  assert.deepEqual(accion.supuestos, [])
+  assert.deepEqual(accion.detalle, ['Espacio: NESTLÉ'])
+})
+
+test('`supuestos` con basura adentro pierde la basura y conserva lo legible', () => {
+  // Mismo filtro que `detalle`: fuera lo que no sea texto o venga vacio, y cada linea recortada.
+  const accion = propuesta({
+    supuestos: ['Inicio: hoy (asumido)', '', null, 42, { a: 1 }, ['x'], undefined, 'b'.repeat(900)]
+  })
+
+  assert.equal(accion.supuestos.length, 2)
+  assert.equal(accion.supuestos[0], 'Inicio: hoy (asumido)')
+  assert.equal(accion.supuestos[1].length, 500)
+})
+
+test('`supuestos` que no es un array se descarta sin descartar la propuesta', () => {
+  // Es un campo informativo: perderlo no vale tirar el boton de Confirmar entero.
+  for (const basura of ['Inicio: hoy', 42, { 0: 'x' }, null]) {
+    assert.deepEqual(propuesta({ supuestos: basura }).supuestos, [], JSON.stringify(basura))
+  }
+})
+
+test('un plan de 8 pasos entra entero: el tope del cliente no lo corta', () => {
+  // El backend topea los pasos de un `plan` en 8, cada uno con su resumen mas su detalle. Si el
+  // tope del cliente se comiera eso, la persona confirmaria una transaccion que no pudo leer.
+  const lineas = Array.from({ length: 8 }, (_, i) => [
+    `${i + 1}. Crear la tarea "Paso ${i + 1}"`,
+    '   Espacio: NESTLÉ | AGOSTO 2026',
+    '   Prioridad: Media',
+    '   Responsable: Ana'
+  ]).flat()
+
+  const accion = propuesta({ herramienta: 'plan', resumen: 'Un plan de 8 pasos', detalle: lineas })
+
+  assert.deepEqual(accion.detalle, lineas)
+})
+
+test('si el tope igual recorta, la ultima linea dice cuantas faltan', () => {
+  // La red defensiva sigue existiendo por si el backend emite de mas, pero cortar en silencio es el
+  // mismo bug con otra cara: se confirma lo que no se pudo leer.
+  const accion = propuesta({ detalle: Array.from({ length: 60 }, (_, i) => `linea ${i + 1}`) })
+
+  assert.equal(accion.detalle.length, 40)
+  assert.equal(accion.detalle[38], 'linea 39')
+  assert.equal(accion.detalle[39], '… (21 líneas más)')
 })
 
 test('una propuesta con un estado que no existe se descarta entera', () => {
