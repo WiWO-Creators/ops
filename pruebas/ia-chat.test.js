@@ -20,6 +20,7 @@ import {
   leerHilo,
   leerMensajesGuardados,
   partirConCitas,
+  respuestaAPreguntas,
   segundosParaExpirar
 } from '../src/dominio/ia-chat.ts'
 
@@ -109,8 +110,8 @@ test('el hilo guardado se lee traduciendo el rol y descartando lo que no se enti
   })
 
   assert.deepEqual(mensajes, [
-    { rol: 'persona', texto: '¿Que quedo pendiente?', citas: [], paso: null, acciones: [], fase: 'listo' },
-    { rol: 'ia', texto: 'Falta [1].', citas: [TAREA], paso: null, acciones: [], fase: 'listo' }
+    { rol: 'persona', texto: '¿Que quedo pendiente?', citas: [], paso: null, acciones: [], preguntas: [], fase: 'listo' },
+    { rol: 'ia', texto: 'Falta [1].', citas: [TAREA], paso: null, acciones: [], preguntas: [], fase: 'listo' }
   ])
 })
 
@@ -188,4 +189,55 @@ test('el hilo guardado trae las propuestas de cada mensaje y descarta las rotas'
 
   assert.equal(mensajes[0].acciones.length, 1, 'la propuesta con un estado que no existe no llega')
   assert.equal(mensajes[0].acciones[0].id, 5)
+})
+
+/** Un mensaje del hilo, con lo minimo para que `respuestaAPreguntas()` lo lea. */
+const enHilo = (rol, texto) => ({ rol, texto, citas: [], paso: null, acciones: [], preguntas: [], fase: 'listo' })
+
+test('una pregunta sin mensaje siguiente sigue abierta', () => {
+  const mensajes = [enHilo('persona', 'publica la discusión'), enHilo('ia', '¿Quién la ve?')]
+
+  assert.equal(respuestaAPreguntas(mensajes, 1), null)
+})
+
+test('el mensaje siguiente de la persona ES la respuesta, y cierra la pregunta', () => {
+  // Sin este bloqueo la misma respuesta se manda dos veces y el modelo propone dos veces lo mismo:
+  // dos tarjetas de Confirmar para una sola intencion. Se deriva del hilo y no de un `useState`
+  // para que sobreviva a cerrar y volver a abrir el chat, que desmonta la tarjeta pero no el hilo.
+  const mensajes = [
+    enHilo('persona', 'publica la discusión'),
+    enHilo('ia', '¿Quién la ve?'),
+    enHilo('persona', 'Solo el equipo'),
+    enHilo('ia', 'Listo, te dejé la propuesta.')
+  ]
+
+  assert.equal(respuestaAPreguntas(mensajes, 1), 'Solo el equipo')
+  assert.equal(respuestaAPreguntas(mensajes, 3), null, 'el ultimo mensaje todavia no tiene respuesta')
+})
+
+test('el hilo guardado devuelve las preguntas de un mensaje y descarta las rotas', () => {
+  const mensajes = leerMensajesGuardados({
+    mensajes: [{
+      rol: 'asistente',
+      texto: '¿Quién la ve?',
+      preguntas: [
+        {
+          campo: 'visible_para_el_cliente',
+          pregunta: '¿El cliente la ve?',
+          opciones: [{ valor: false, etiqueta: 'Solo el equipo', descripcion: 'Puertas adentro.' }],
+          admite_texto: false
+        },
+        { campo: 'sin_opciones', pregunta: '¿Y esta?', opciones: [] }
+      ]
+    }]
+  })
+
+  assert.equal(mensajes[0].preguntas.length, 1, 'la pregunta sin opciones validas no llega')
+  assert.equal(mensajes[0].preguntas[0].opciones[0].valor, false)
+})
+
+test('un mensaje guardado sin `preguntas` trae [] y no rompe', () => {
+  const mensajes = leerMensajesGuardados({ mensajes: [{ rol: 'asistente', texto: 'Hoy vencen dos.' }] })
+
+  assert.deepEqual(mensajes[0].preguntas, [])
 })
