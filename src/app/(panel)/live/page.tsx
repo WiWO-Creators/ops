@@ -77,6 +77,7 @@ export default async function LivePage () {
       {equipo !== null && (
         <PanelEquipo
           alcance={alcance}
+          operador={{ id: yo.id, is_admin: yo.is_admin, is_superadmin: yo.is_superadmin }}
           segundos={segundos}
           inicial={equipo instanceof ErrorApi ? [] : equipo.data}
           errorInicial={mensaje(equipo)}

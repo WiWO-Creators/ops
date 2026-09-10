@@ -6,14 +6,15 @@ import { useRouter } from 'next/navigation'
 import { Boton } from '@/componentes/formularios/Boton'
 import { PanelRecurso } from '@/componentes/proyecto/PanelRecurso'
 import { FormularioRecurso } from '@/componentes/proyecto/FormularioRecurso'
-import type { CampoFormulario } from '@/componentes/proyecto/formulario'
-import type { ContactoProspecto, Licitacion } from '@/datos/recursos'
+import type { CampoFormulario, OpcionCampo } from '@/componentes/proyecto/formulario'
+import type { ContactoProspecto, Licitacion, Prospecto } from '@/datos/recursos'
 import type { Capacidad } from '@/datos/tipos'
 import { LICITACIONES } from '@/definiciones/licitaciones'
 import { CONTACTOS_DE_PROSPECTO } from '@/definiciones/prospectos'
 import type { DefinicionRecurso } from '@/definiciones/tipos'
 import { GLOSARIO } from '@/dominio/glosario'
 import { CAMPOS_DE_CONTACTO } from './campos'
+import { FlujoLicitacion } from './FlujoLicitacion'
 
 /**
  * Las dos pestañas de listado del detalle de Prospecto.
@@ -113,13 +114,20 @@ export function PanelContactosProspecto ({
  * Va como `consultaFija` y no como filtro de la vista para que no aparezca en la URL: ahi seria
  * editable, y cambiar el numero mostraria las licitaciones de otra empresa bajo este nombre.
  *
- * @param prospectoId el prospecto que se esta mirando
+ * @param prospecto la empresa que se está mirando, usada en el asistente de alta
  * @param capacidades capacidades sobre `projects`, de `permissions` de `/me`
  */
 export function PanelLicitacionesProspecto ({
-  prospectoId,
+  prospecto,
+  contactos,
+  usuarioId,
+  paises,
   capacidades
-}: { prospectoId: number, capacidades: Capacidad[] }): ReactElement {
+}: { prospecto: Pick<Prospecto, 'id' | 'empresa' | 'cliente'>, contactos: ContactoProspecto[], usuarioId: number, paises: OpcionCampo[], capacidades: Capacidad[] }): ReactElement {
+  const prospectoId = prospecto.id
+  const router = useRouter()
+  const [creando, setCreando] = useState(false)
+  const [revision, setRevision] = useState(0)
   const definicion = useMemo<DefinicionRecurso<Licitacion>>(() => ({
     ...LICITACIONES,
     consultaFija: `filter[prospecto_id]=${encodeURIComponent(String(prospectoId))}`,
@@ -144,11 +152,37 @@ export function PanelLicitacionesProspecto ({
   }), [prospectoId])
 
   return (
-    <PanelRecurso
-      definicion={definicion}
-      claveFila={(licitacion) => licitacion.id}
-      capacidades={capacidades}
-    />
+    <>
+      <PanelRecurso
+        definicion={definicion}
+        claveFila={(licitacion) => licitacion.id}
+        capacidades={capacidades}
+        revision={revision}
+        barra={capacidades.includes('create')
+          ? (
+            <div className="flex justify-end">
+              <Boton tamano="chico" variante="primario" onClick={() => { setCreando(true) }}>
+                Nueva licitación
+              </Boton>
+            </div>
+            )
+          : undefined}
+      />
+      {creando && capacidades.includes('create') && (
+        <FlujoLicitacion
+          usuarioId={usuarioId}
+          capacidades={capacidades}
+          paises={paises}
+          prospecto={prospecto}
+          contactos={contactos}
+          onCerrar={() => { setCreando(false) }}
+          onGuardado={() => {
+            setRevision((n) => n + 1)
+            router.refresh()
+          }}
+        />
+      )}
+    </>
   )
 }
 

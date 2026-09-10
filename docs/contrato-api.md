@@ -4864,9 +4864,9 @@ encontrarían a sí mismos:
 
 ```bash
 # 1. El chat sigue sin importar una sola clase del paquete de escritura del negocio:
-grep -n '^use modules\api\Escritura\' modules/api/IA/ChatProyecto.php   # sin resultados
+grep -n '^use modules\api\Escritura\' modules/api/IA/Chat.php   # sin resultados
 # 2. ...y no llama nunca a la puerta de ejecución del catálogo:
-grep -n -- '->resolver(' modules/api/IA/ChatProyecto.php                # sin resultados
+grep -n -- '->resolver(' modules/api/IA/Chat.php                # sin resultados
 # 3. La única llamada a esa puerta en todo el módulo está en la ruta de confirmación:
 grep -rn 'escritura->resolver(' modules/api/                            # solo controllers/V1.php
 ```
@@ -4976,7 +4976,7 @@ propone un borrado. `orbe` es uno de los siete estados que `Orbe.tsx` ya tiene �
 `thinking` para preparar una escritura—; no hay estados nuevos.
 
 **No hace falta versionar el stream**, y es una propiedad que ya estaba escrita: `leerEventoIA()`
-devuelve `null` ante un `event:` desconocido y `PanelChatIA` lo saltea, así que un cliente viejo
+devuelve `null` ante un `event:` desconocido y `ChatWiBot` lo saltea, así que un cliente viejo
 contra este backend pinta la respuesta igual, sin tarjeta y sin indicadores. Esa tolerancia estaba
 justificada como defensa contra frames corruptos y pasa a ser también el contrato de compatibilidad.
 Comprobado en `ops-v2/pruebas/ia.test.js`.
@@ -5015,9 +5015,14 @@ habilitadas, "eliminá todas las tareas de Ana" dentro de una descripción es un
 `ia_escritura_habilitada` es un ajuste editable (grupo `ia`) y se lee **sin caché**, por el mismo
 motivo que `ia_habilitada`: apagarlo tiene que tener efecto en la petición siguiente. Es propio y no
 una extensión del otro porque apagar las escrituras después de un susto no puede costar apagar el
-chat entero. Con él en `0`: el catálogo de escritura no se construye, `ChatProyecto` recibe `null`,
+chat entero. Con él vacío: el catálogo de escritura no se construye, `Chat` recibe `null`,
 el prompt de escrituras no se agrega, `acciones` viene vacío y `POST /ia/acciones/{id}` es **`404`**
 —la misma semántica que la puerta grande: apagado = no existe—.
+
+**Desde la Tanda 0 deja de ser un booleano y es una lista de dominios**: `''`, `'procesos,espacios'`,
+`'*'`. Con setenta herramientas a la vista, "encender todo" era un salto demasiado grande para un
+solo interruptor; así una tanda se mergea con la anterior ya encendida en producción. `''` se
+comporta byte a byte como el `'0'` de antes.
 
 ### Rama `feat/tipo-de-proceso`
 

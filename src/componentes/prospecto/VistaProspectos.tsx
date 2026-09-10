@@ -5,13 +5,12 @@ import { useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { TablaRecurso } from '@/componentes/datos/TablaRecurso'
 import { Boton } from '@/componentes/formularios/Boton'
-import { FormularioRecurso } from '@/componentes/proyecto/FormularioRecurso'
+import { FlujoLicitacion } from './FlujoLicitacion'
 import type { OpcionCampo } from '@/componentes/proyecto/formulario'
 import type { Prospecto } from '@/datos/recursos'
 import type { Capacidad } from '@/datos/tipos'
 import { PROSPECTOS } from '@/definiciones/prospectos'
 import type { ResultadoLista } from '@/definiciones/tipos'
-import { camposDeAltaDeProspecto } from './campos'
 
 /**
  * Listado de Prospectos.
@@ -24,6 +23,7 @@ import { camposDeAltaDeProspecto } from './campos'
  * cliente**, asi que la definicion se importa de este lado y la pagina solo manda datos serializables.
  */
 interface PropsVistaProspectos {
+  usuarioId: number
   /** Primera pagina ya resuelta en el servidor: sin esto la tabla parpadearia al montar. */
   inicial: ResultadoLista<Prospecto>
   /** Capacidades sobre `projects`: el prospecto es la antesala de un Espacio y usa ese permiso. */
@@ -32,7 +32,7 @@ interface PropsVistaProspectos {
   paises: OpcionCampo[]
 }
 
-export function VistaProspectos ({ inicial, capacidades = [], paises }: PropsVistaProspectos) {
+export function VistaProspectos ({ inicial, capacidades = [], paises, usuarioId }: PropsVistaProspectos) {
   const router = useRouter()
   const [creando, setCreando] = useState(false)
 
@@ -74,18 +74,13 @@ export function VistaProspectos ({ inicial, capacidades = [], paises }: PropsVis
         capacidades={capacidades}
       />
 
-      {capacidades.includes('create') && (
-        <FormularioRecurso
-          abierto={creando}
-          onAbiertoCambia={setCreando}
-          titulo="Nuevo prospecto"
-          descripcion="La empresa a la que se le va a licitar. El cliente no se crea todavía: eso pasa al ganar la primera licitación."
-          campos={camposDeAltaDeProspecto(paises)}
-          ruta="prospectos"
-          metodo="POST"
+      {creando && capacidades.includes('create') && (
+        <FlujoLicitacion
+          usuarioId={usuarioId}
+          capacidades={capacidades}
+          paises={paises}
+          onCerrar={() => { setCreando(false) }}
           onGuardado={() => { router.refresh() }}
-          columnas={2}
-          ancho="grande"
         />
       )}
     </div>

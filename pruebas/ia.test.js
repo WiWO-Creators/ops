@@ -179,6 +179,30 @@ test('una propuesta con un estado que no existe se descarta entera', () => {
   assert.equal(leerEventoIA(frame('propuesta', { ...base, estado: 'pendiente', resumen: '' })), null)
 })
 
+test('lee un navegar y deja pasar el prefill tal cual', () => {
+  assert.deepEqual(
+    leerEventoIA(frame('navegar', { href: '/procesos?tarea=7', etiqueta: 'la tarea Revisar el brief', prefill: null })),
+    { tipo: 'navegar', href: '/procesos?tarea=7', etiqueta: 'la tarea Revisar el brief', prefill: null }
+  )
+
+  const conPrefill = leerEventoIA(frame('navegar', { href: '/procesos', etiqueta: 'el alta', prefill: { name: 'x' } }))
+
+  assert.deepEqual(conPrefill.prefill, { name: 'x' })
+})
+
+test('un navegar que apunta fuera del panel se descarta entero', () => {
+  // Lo que esta prueba protege: `router.push()` sigue sin chistar lo que le den. Un `//host` o un
+  // `https://` en ese campo convertiria una respuesta de un modelo en una redireccion afuera.
+  for (const href of ['https://evil.example/x', '//evil.example/x', '/\\evil.example', 'procesos', '', 'javascript:alert(1)']) {
+    assert.equal(leerEventoIA(frame('navegar', { href, etiqueta: 'algo' })), null, href)
+  }
+})
+
+test('un navegar sin etiqueta se descarta: la pantalla cambia sola y hay que decir a donde', () => {
+  assert.equal(leerEventoIA(frame('navegar', { href: '/procesos', etiqueta: '' })), null)
+  assert.equal(leerEventoIA(frame('navegar', { href: '/procesos' })), null)
+})
+
 test('un frontend viejo pinta la respuesta igual: no hace falta versionar el stream', () => {
   // Esta es la prueba de compatibilidad. `parserViejo` es `leerEventoIA()` tal como era ANTES de
   // que existieran `paso` y `propuesta`: solo conoce cuatro eventos y devuelve `null` para el
