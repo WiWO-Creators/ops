@@ -132,7 +132,7 @@ export default async function ProspectoPage (props: PageProps<'/prospectos/[id]'
     {
       clave: 'licitaciones',
       etiqueta: ETIQUETA_LICITACIONES,
-      contenido: <PanelLicitacionesProspecto prospectoId={prospecto.id} prospectoNombre={prospecto.empresa} capacidades={capacidades} />
+      contenido: <PanelLicitacionesProspecto prospecto={prospecto} contactos={prospecto.contactos} usuarioId={yo.id} paises={comoOpciones(paises)} capacidades={capacidades} />
     }
   ]
 

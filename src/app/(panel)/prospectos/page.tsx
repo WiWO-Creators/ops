@@ -41,6 +41,7 @@ export default async function ProspectosPage (props: PageProps<'/prospectos'>) {
 
       <Suspense fallback={<Cargando alto="min-h-36" mensaje="Cargando prospectos…" />}>
         <VistaProspectos
+          usuarioId={yo.data.id}
           inicial={{ filas: lista.data, paginacion: lista.meta?.pagination }}
           capacidades={yo.data.permissions.projects}
           paises={comoOpciones(listaDe(lookups, 'countries'))}

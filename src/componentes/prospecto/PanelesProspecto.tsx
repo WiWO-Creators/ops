@@ -4,17 +4,17 @@ import Link from 'next/link'
 import { useMemo, useState, type ReactElement } from 'react'
 import { useRouter } from 'next/navigation'
 import { Boton } from '@/componentes/formularios/Boton'
-import { camposDeLicitacion } from '@/componentes/licitacion/campos'
 import { PanelRecurso } from '@/componentes/proyecto/PanelRecurso'
 import { FormularioRecurso } from '@/componentes/proyecto/FormularioRecurso'
-import type { CampoFormulario } from '@/componentes/proyecto/formulario'
-import type { ContactoProspecto, Licitacion } from '@/datos/recursos'
+import type { CampoFormulario, OpcionCampo } from '@/componentes/proyecto/formulario'
+import type { ContactoProspecto, Licitacion, Prospecto } from '@/datos/recursos'
 import type { Capacidad } from '@/datos/tipos'
 import { LICITACIONES } from '@/definiciones/licitaciones'
 import { CONTACTOS_DE_PROSPECTO } from '@/definiciones/prospectos'
 import type { DefinicionRecurso } from '@/definiciones/tipos'
 import { GLOSARIO } from '@/dominio/glosario'
 import { CAMPOS_DE_CONTACTO } from './campos'
+import { FlujoLicitacion } from './FlujoLicitacion'
 
 /**
  * Las dos pestañas de listado del detalle de Prospecto.
@@ -114,22 +114,20 @@ export function PanelContactosProspecto ({
  * Va como `consultaFija` y no como filtro de la vista para que no aparezca en la URL: ahi seria
  * editable, y cambiar el numero mostraria las licitaciones de otra empresa bajo este nombre.
  *
- * @param prospectoId el prospecto que se esta mirando
- * @param prospectoNombre nombre de la empresa, usado en el alta de su licitación
+ * @param prospecto la empresa que se está mirando, usada en el asistente de alta
  * @param capacidades capacidades sobre `projects`, de `permissions` de `/me`
  */
 export function PanelLicitacionesProspecto ({
-  prospectoId,
-  prospectoNombre,
+  prospecto,
+  contactos,
+  usuarioId,
+  paises,
   capacidades
-}: { prospectoId: number, prospectoNombre: string, capacidades: Capacidad[] }): ReactElement {
+}: { prospecto: Pick<Prospecto, 'id' | 'empresa' | 'cliente'>, contactos: ContactoProspecto[], usuarioId: number, paises: OpcionCampo[], capacidades: Capacidad[] }): ReactElement {
+  const prospectoId = prospecto.id
   const router = useRouter()
   const [creando, setCreando] = useState(false)
   const [revision, setRevision] = useState(0)
-  const campos = useMemo(() => camposDeLicitacion([
-    { valor: String(prospectoId), etiqueta: prospectoNombre }
-  ]), [prospectoId, prospectoNombre])
-  const registro = useMemo(() => ({ prospecto_id: prospectoId }), [prospectoId])
   const definicion = useMemo<DefinicionRecurso<Licitacion>>(() => ({
     ...LICITACIONES,
     consultaFija: `filter[prospecto_id]=${encodeURIComponent(String(prospectoId))}`,
@@ -170,22 +168,18 @@ export function PanelLicitacionesProspecto ({
             )
           : undefined}
       />
-      {capacidades.includes('create') && (
-        <FormularioRecurso
-          abierto={creando}
-          onAbiertoCambia={setCreando}
-          titulo="Nueva licitación"
-          descripcion={`Se creará un proyecto para preparar la propuesta de ${prospectoNombre}.`}
-          campos={campos}
-          registro={registro}
-          ruta="licitaciones"
-          metodo="POST"
+      {creando && capacidades.includes('create') && (
+        <FlujoLicitacion
+          usuarioId={usuarioId}
+          capacidades={capacidades}
+          paises={paises}
+          prospecto={prospecto}
+          contactos={contactos}
+          onCerrar={() => { setCreando(false) }}
           onGuardado={() => {
             setRevision((n) => n + 1)
             router.refresh()
           }}
-          columnas={2}
-          ancho="grande"
         />
       )}
     </>

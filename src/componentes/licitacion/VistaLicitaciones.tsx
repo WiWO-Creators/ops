@@ -1,18 +1,12 @@
 'use client'
 
 import Link from 'next/link'
-import { useMemo, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useMemo } from 'react'
 import { TablaRecurso } from '@/componentes/datos/TablaRecurso'
-import { Boton } from '@/componentes/formularios/Boton'
-import { FormularioRecurso } from '@/componentes/proyecto/FormularioRecurso'
-import type { OpcionCampo } from '@/componentes/proyecto/formulario'
-import { GLOSARIO } from '@/dominio/glosario'
 import type { Licitacion } from '@/datos/recursos'
 import type { Capacidad } from '@/datos/tipos'
 import { LICITACIONES } from '@/definiciones/licitaciones'
 import type { OpcionFiltro, ResultadoLista } from '@/definiciones/tipos'
-import { camposDeLicitacion } from './campos'
 
 /**
  * Listado de Licitaciones.
@@ -31,24 +25,13 @@ interface PropsVistaLicitaciones {
   /** Capacidades sobre `projects`: una Licitacion **es** un Espacio, y el backend usa ese permiso. */
   capacidades?: Capacidad[]
   opcionesDeFiltro?: Record<string, OpcionFiltro[]>
-  /**
-   * Los prospectos entre los que elegir en el alta, ya en forma de opciones.
-   *
-   * Desde `0320` una licitacion no carga su propia empresa: cuelga de un prospecto que ya existe. La
-   * lista baja resuelta del servidor porque el `<select>` la necesita completa desde el primer
-   * render, y son pocas decenas de filas.
-   */
-  prospectos: OpcionCampo[]
 }
 
 export function VistaLicitaciones ({
   inicial,
   capacidades = [],
-  opcionesDeFiltro,
-  prospectos
+  opcionesDeFiltro
 }: PropsVistaLicitaciones) {
-  const router = useRouter()
-  const [creando, setCreando] = useState(false)
 
   // Se memoiza porque `TablaRecurso` la usa como dependencia de sus efectos: una definicion nueva en
   // cada render volveria a pedir la pagina en bucle.
@@ -75,9 +58,9 @@ export function VistaLicitaciones ({
     <div className="flex flex-col gap-3">
       {capacidades.includes('create') && (
         <div className="flex justify-end">
-          <Boton tamano="chico" variante="primario" onClick={() => { setCreando(true) }}>
-            Nueva {GLOSARIO.licitacion.singular.toLowerCase()}
-          </Boton>
+          <Link href="/prospectos" className="text-acento text-sm font-semibold underline underline-offset-4">
+            Crear licitación desde un prospecto
+          </Link>
         </div>
       )}
 
@@ -89,20 +72,6 @@ export function VistaLicitaciones ({
         opcionesDeFiltro={opcionesDeFiltro}
       />
 
-      {capacidades.includes('create') && (
-        <FormularioRecurso
-          abierto={creando}
-          onAbiertoCambia={setCreando}
-          titulo={`Nueva ${GLOSARIO.licitacion.singular.toLowerCase()}`}
-          descripcion={`Se crea el ${GLOSARIO.espacio.singular.toLowerCase()} donde se prepara la propuesta, colgado del prospecto que se elija. El cliente no se crea todavía: eso pasa al ganar.`}
-          campos={camposDeLicitacion(prospectos)}
-          ruta="licitaciones"
-          metodo="POST"
-          onGuardado={() => { router.refresh() }}
-          columnas={2}
-          ancho="grande"
-        />
-      )}
     </div>
   )
 }

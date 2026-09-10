@@ -5,7 +5,7 @@ import { VistaLicitaciones } from '@/componentes/licitacion/VistaLicitaciones'
 import { construirConsulta, leerConsulta, paramsDeUrl } from '@/datos/consulta'
 import { cargarLookups, opcionesDeFiltros } from '@/datos/lookups'
 import { pedir } from '@/datos/servidor'
-import type { Licitacion, Prospecto } from '@/datos/recursos'
+import type { Licitacion } from '@/datos/recursos'
 import type { Yo } from '@/datos/tipos'
 import { LICITACIONES } from '@/definiciones/licitaciones'
 
@@ -27,13 +27,10 @@ export default async function LicitacionesPage (props: PageProps<'/licitaciones'
   const estado = leerConsulta(params, LICITACIONES)
   const consulta = construirConsulta(estado, LICITACIONES)
 
-  const [lista, lookups, yo, prospectos] = await Promise.all([
+  const [lista, lookups, yo] = await Promise.all([
     pedir<Licitacion[]>(`/licitaciones${consulta === '' ? '' : `?${consulta}`}`),
     cargarLookups(),
-    pedir<Yo>('/me'),
-    // Para el `<select>` del alta. `per_page` alto y no paginado: es un selector, y una segunda
-    // pagina que nadie puede pedir desde un `<select>` seria una lista incompleta sin decirlo.
-    pedir<Prospecto[]>('/prospectos?per_page=200&sort=empresa')
+    pedir<Yo>('/me')
   ])
 
   return (
@@ -48,7 +45,6 @@ export default async function LicitacionesPage (props: PageProps<'/licitaciones'
           inicial={{ filas: lista.data, paginacion: lista.meta?.pagination }}
           capacidades={yo.data.permissions.projects}
           opcionesDeFiltro={opcionesDeFiltros(LICITACIONES, lookups)}
-          prospectos={prospectos.data.map((p) => ({ valor: String(p.id), etiqueta: p.empresa }))}
         />
       </Suspense>
     </section>
