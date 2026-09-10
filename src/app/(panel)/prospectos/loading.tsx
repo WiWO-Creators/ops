@@ -1,5 +1,5 @@
 import { Cargando } from '@/componentes/estado/Estados'
-import { PROSPECTOS } from '@/definiciones/prospectos'
+import { GLOSARIO } from '@/dominio/glosario'
 
 /**
  * Lo que ocupa la pantalla mientras el servidor arma la lista de prospectos.
@@ -13,8 +13,8 @@ import { PROSPECTOS } from '@/definiciones/prospectos'
 export default function CargandoProspectos () {
   return (
     <section className="flex flex-col gap-4">
-      <h1 className="text-xl font-semibold text-texto">{PROSPECTOS.titulo.plural}</h1>
-      <Cargando mensaje="Cargando prospectos…" />
+      <h1 className="text-xl font-semibold text-texto">{GLOSARIO.licitacion.plural}</h1>
+      <Cargando mensaje="Cargando licitaciones…" />
     </section>
   )
 }
