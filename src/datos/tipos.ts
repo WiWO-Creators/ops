@@ -133,7 +133,7 @@ export interface StaffReferencia {
   profile_image_url: string | null
 }
 
-export type Capacidad = 'view' | 'create' | 'edit' | 'delete'
+export type Capacidad = 'view' | 'create' | 'edit' | 'delete' | 'edit_milestones'
 export type AreaPermiso = 'tasks' | 'projects' | 'customers' | 'staff'
 
 /**
