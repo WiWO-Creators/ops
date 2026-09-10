@@ -1,7 +1,7 @@
 /**
  * Contrato de la capa de IA, del lado del navegador.
  *
- * Aca viven los tipos que F1 (resumen del Inicio), F2 (chat del Espacio) y F3 (alta de tarea)
+ * Aca viven los tipos que F1 (resumen del Inicio), F2 (chat de WiBot) y F3 (alta de tarea)
  * comparten, y la lectura de un frame SSE. `datos/sse.ts` parte el texto en frames; este archivo es
  * el unico que sabe que significan.
  *
@@ -19,7 +19,7 @@
  *
  * Se escribio como defensa contra frames corruptos, y desde que el backend emite `paso` y
  * `propuesta` es ademas lo que hace que **no haga falta versionar el stream**: un cliente que no
- * conoce esos dos eventos recibe `null` por cada uno, `PanelChatIA` los saltea y la respuesta se
+ * conoce esos dos eventos recibe `null` por cada uno, `ChatWiBot` los saltea y la respuesta se
  * pinta exactamente igual, sin indicadores y sin tarjeta. Un backend nuevo no rompe un frontend
  * viejo, que es la unica combinacion que puede darse en un despliegue —el backend va primero—.
  * Comprobado en `pruebas/ia.test.js`, con el parser anterior a estos dos eventos.
@@ -128,6 +128,7 @@ export type EventoIA =
   | { tipo: 'citas', citas: Cita[] }
   | { tipo: 'paso', paso: PasoIA }
   | { tipo: 'propuesta', accion: AccionIA }
+  | { tipo: 'navegar', href: string, etiqueta: string, prefill: Record<string, unknown> | null }
   | { tipo: 'fin', generado_en: string | null, regeneracion: Regeneracion | null, uso: UsoIA | null }
   | { tipo: 'error', codigo: string, mensaje: string }
 
@@ -190,7 +191,7 @@ function leerFrame (crudo: string): { nombre: string, datos: Record<string, unkn
  * Interpreta un frame SSE de la capa de IA.
  *
  * Es un trust boundary: el texto viene de la red y lo escribio un modelo. Todo lo que no encaje en
- * una de las cuatro formas del contrato se descarta.
+ * una de las formas del contrato se descarta.
  *
  * El `fin` es la excepcion deliberada a esa estrictez: si sus bloques opcionales (`regeneracion`,
  * `uso`) vienen mal, el evento **igual se acepta** con esos campos en `null`. Descartar el `fin`
@@ -227,6 +228,8 @@ export function leerEventoIA (crudo: string): EventoIA | null {
 
     return accion === null ? null : { tipo: 'propuesta', accion }
   }
+
+  if (nombre === 'navegar') return leerNavegar(datos)
 
   if (nombre === 'fin') {
     return {
@@ -333,6 +336,48 @@ export function leerAccion (valor: unknown): AccionIA | null {
     resultado: typeof resultado === 'string' ? resultado.slice(0, LARGO_MAXIMO_DETALLE) : null,
     expira_en: typeof expira === 'string' ? expira : null
   }
+}
+
+/**
+ * Valida el evento `navegar`, con el que el servidor lleva a la persona a otra pantalla.
+ *
+ * **El `href` lo arma siempre el servidor.** Acá no se completa, ni se corrige, ni se le pega una
+ * base: solo se comprueba que sea una ruta de este panel. Esa comprobación es la frontera y por eso
+ * no se puede saltear por corta: `router.push()` sigue sin chistar un `https://…` o un `//host`, y
+ * eso convertiría una respuesta de un modelo en una redirección fuera de Ops. Un `href` que no
+ * empieza con una sola barra descarta el evento entero, que es lo mismo que hace el resto del
+ * archivo con lo que no encaja.
+ *
+ * `prefill` viaja tal cual para quien sepa qué hacer con él: son los campos que el servidor deja
+ * preparados para la pantalla de destino, no algo que este archivo interprete.
+ *
+ * @param datos el payload del frame
+ * @returns el evento, o `null` si el destino no es interno o le falta la etiqueta
+ */
+function leerNavegar (datos: Record<string, unknown>): EventoIA | null {
+  const { href, etiqueta, prefill } = datos
+
+  if (typeof href !== 'string' || !esRutaInterna(href)) return null
+  if (typeof etiqueta !== 'string' || etiqueta === '') return null
+
+  return {
+    tipo: 'navegar',
+    href,
+    etiqueta: etiqueta.slice(0, LARGO_MAXIMO_ETIQUETA),
+    prefill: esObjeto(prefill) ? prefill : null
+  }
+}
+
+/**
+ * `true` si el destino es una ruta de este panel y no una salida a otro sitio.
+ *
+ * Una sola barra al principio y nada de `//` ni `/\`: las dos formas las lee el navegador como
+ * "protocolo relativo" y terminan en otro dominio.
+ *
+ * @param href el destino tal como llego
+ */
+function esRutaInterna (href: string): boolean {
+  return /^\/(?![/\\])/.test(href)
 }
 
 /**

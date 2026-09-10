@@ -4,8 +4,6 @@ import { CabeceraProyecto } from '@/componentes/proyecto/CabeceraProyecto'
 import { PanelActividad } from '@/componentes/proyecto/PanelActividad'
 import { PanelConfiguracionEspacio } from '@/componentes/proyecto/PanelConfiguracionEspacio'
 import { PanelArchivos } from '@/componentes/proyecto/PanelArchivos'
-import { PanelChatIA } from '@/componentes/proyecto/PanelChatIA'
-import { OrbeChatIA } from '@/componentes/proyecto/OrbeChatIA'
 import { PanelDescripcion } from '@/componentes/proyecto/PanelDescripcion'
 import { PanelDiscusiones } from '@/componentes/proyecto/PanelDiscusiones'
 import { PanelGantt } from '@/componentes/proyecto/PanelGantt'
@@ -23,7 +21,7 @@ import { cargarLookups } from '@/datos/lookups'
 import { pedir } from '@/datos/servidor'
 import type { Espacio, Lookups } from '@/datos/recursos'
 import type { Yo } from '@/datos/tipos'
-import { ASISTENTE, GLOSARIO } from '@/dominio/glosario'
+import { GLOSARIO } from '@/dominio/glosario'
 
 /**
  * Pide el Proyecto una sola vez por peticion.
@@ -60,7 +58,7 @@ interface Detalle {
   proyecto: Espacio
   lookups: Lookups
   yo: Yo
-  /** Si la capa de IA esta encendida. Decide si la pestaña de chat existe. */
+  /** Si la capa de IA esta encendida. Decide el alta rapida por texto y el Meeting Paper. */
   conIa: boolean
 }
 
@@ -204,14 +202,6 @@ export default async function ProyectoPage (props: PageProps<'/espacios/[id]'>) 
           etiqueta: 'Configuración',
           contenido: <PanelConfiguracionEspacio proyectoId={proyecto.id} puedeConfigurar />
         }]
-      : []),
-    // Ultima, y `paneles[0]` sigue siendo Descripcion: la pestaña por defecto no cambia y abrir el
-    // Proyecto no dispara ninguna llamada a `/ia/*` hasta que alguien entra a esta.
-    //
-    // Con la capa de IA apagada la pestaña no existe, en vez de existir y fallar: la API responde
-    // 404 a todo `/ia/*` y la persona no puede distinguir "no esta contratado" de "se rompio".
-    ...(conIa
-      ? [{ clave: 'ia', etiqueta: ASISTENTE, contenido: <PanelChatIA proyectoId={proyecto.id} /> }]
       : [])
   ]
 
@@ -229,10 +219,6 @@ export default async function ProyectoPage (props: PageProps<'/espacios/[id]'>) 
       <Suspense fallback={<Cargando alto="min-h-36" mensaje="Cargando el detalle…" />}>
         <Pestanas paneles={paneles} />
       </Suspense>
-
-      {/* El mismo chat de la pestaña, al alcance desde cualquier otra: se esconde solo cuando la
-          pestaña de IA es la activa, que es cuando ya se esta viendo. */}
-      {conIa && <OrbeChatIA proyectoId={proyecto.id} />}
     </section>
   )
 }
