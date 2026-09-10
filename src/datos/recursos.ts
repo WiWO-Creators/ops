@@ -953,7 +953,7 @@ export interface ResumenEstadoTareas {
 }
 
 /** Acciones que acepta `POST /tasks/bulk`. */
-export type AccionMasiva = 'status' | 'priority' | 'assignees' | 'milestone' | 'billable' | 'tags' | 'delete'
+export type AccionMasiva = 'status' | 'priority' | 'assignees' | 'project' | 'milestone' | 'billable' | 'tags' | 'delete'
 
 /** Respuesta de `POST /tasks/bulk`: cuantas se aplicaron y cuales se saltearon por permisos. */
 export interface ResultadoAccionMasiva {

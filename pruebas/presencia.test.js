@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs'
 import vm from 'node:vm'
 import ts from 'typescript'
 import { arbolDePresencia } from '../src/componentes/auditoria/presentacion.ts'
+import { pantallaDeRuta } from '../src/dominio/pantalla.ts'
 
 test('árbol mantiene cliente → proyecto → tarea, actividad general y relaciones ausentes', () => {
   const client = { id: 1, name: 'Cliente' }
@@ -50,6 +51,7 @@ test('latido detecta interacciones globales, limita envíos y no renueva una pes
     setInterval: funcion => { intervalo = funcion; return 1 }, clearInterval: () => {},
     require: nombre => ({
       'next/navigation': { usePathname: () => '/espacios/2' },
+      '@/dominio/pantalla': { pantallaDeRuta },
       react: { useEffect: funcion => { cerrar = funcion() } },
       './accion': {
         accionEnCurso: () => null, rutaDeTarea: () => tarea,
@@ -87,4 +89,15 @@ test('latido detecta interacciones globales, limita envíos y no renueva una pes
   cerrar()
   assert.equal(eventos.size, 0)
   await Promise.resolve()
+})
+
+test('la pantalla que se manda es la misma para la presencia y para WiBot', () => {
+  // Las dos salen de la misma función a propósito: si divergen, el servidor cree que la persona
+  // pregunta desde una pantalla y está parada en otra.
+  assert.equal(pantallaDeRuta('/Espacios/2'), '/espacios/2')
+  assert.equal(pantallaDeRuta('/procesos'), '/procesos')
+  assert.equal(pantallaDeRuta('/equipo/mi-area'), '/equipo/mi-area')
+  // Lo que no tiene forma de ruta del panel no se manda a medias.
+  assert.equal(pantallaDeRuta('/espacios/2?tarea=7'), null)
+  assert.equal(pantallaDeRuta('/espacios/dos%20mil'), null)
 })

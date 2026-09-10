@@ -10,8 +10,9 @@ import type { EstadoLookup, Prospecto } from '@/datos/recursos'
 import type { OpcionCampo } from '@/componentes/proyecto/formulario'
 import type { Yo } from '@/datos/tipos'
 import { PROSPECTOS } from '@/definiciones/prospectos'
+import { GLOSARIO } from '@/dominio/glosario'
 
-export const metadata = { title: 'Prospectos · WiWO Ops' }
+export const metadata = { title: 'Licitaciones · WiWO Ops' }
 
 /**
  * Lista de Prospectos: las empresas a las que se les esta licitando.
@@ -35,12 +36,13 @@ export default async function ProspectosPage (props: PageProps<'/prospectos'>) {
   return (
     <section className="flex flex-col gap-4">
       <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-        <h1 className="text-xl font-semibold text-texto">{PROSPECTOS.titulo.plural}</h1>
+        <h1 className="text-xl font-semibold text-texto">{GLOSARIO.licitacion.plural}</h1>
         <TotalDelListado paginacion={lista.meta?.pagination} />
       </div>
 
-      <Suspense fallback={<Cargando alto="min-h-36" mensaje="Cargando prospectos…" />}>
+      <Suspense fallback={<Cargando alto="min-h-36" mensaje="Cargando licitaciones…" />}>
         <VistaProspectos
+          usuarioId={yo.data.id}
           inicial={{ filas: lista.data, paginacion: lista.meta?.pagination }}
           capacidades={yo.data.permissions.projects}
           paises={comoOpciones(listaDe(lookups, 'countries'))}

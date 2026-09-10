@@ -1,7 +1,7 @@
 /**
  * Contrato de la capa de IA, del lado del navegador.
  *
- * Aca viven los tipos que F1 (resumen del Inicio), F2 (chat del Espacio) y F3 (alta de tarea)
+ * Aca viven los tipos que F1 (resumen del Inicio), F2 (chat de WiBot) y F3 (alta de tarea)
  * comparten, y la lectura de un frame SSE. `datos/sse.ts` parte el texto en frames; este archivo es
  * el unico que sabe que significan.
  *
@@ -19,7 +19,7 @@
  *
  * Se escribio como defensa contra frames corruptos, y desde que el backend emite `paso` y
  * `propuesta` es ademas lo que hace que **no haga falta versionar el stream**: un cliente que no
- * conoce esos dos eventos recibe `null` por cada uno, `PanelChatIA` los saltea y la respuesta se
+ * conoce esos dos eventos recibe `null` por cada uno, `ChatWiBot` los saltea y la respuesta se
  * pinta exactamente igual, sin indicadores y sin tarjeta. Un backend nuevo no rompe un frontend
  * viejo, que es la unica combinacion que puede darse en un despliegue —el backend va primero—.
  * Comprobado en `pruebas/ia.test.js`, con el parser anterior a estos dos eventos.
@@ -115,6 +115,14 @@ export interface AccionIA {
   herramienta: string
   resumen: string
   detalle: string[]
+  /**
+   * Lo que el servidor completo por su cuenta porque el pedido no lo decia.
+   *
+   * Va aparte de `detalle` y no mezclado con el: un «Inicio: hoy» que la persona pidio y uno que el
+   * servidor asumio se leen igual, y el segundo es el que hay que revisar antes de confirmar. Una
+   * propuesta sin nada asumido trae `[]`, que es tambien lo que devuelve una fila vieja sin la clave.
+   */
+  supuestos: string[]
   estado: EstadoAccion
   /** Lo que devolvio la escritura, o el error real si fallo. `null` mientras sigue pendiente. */
   resultado: string | null
@@ -128,6 +136,7 @@ export type EventoIA =
   | { tipo: 'citas', citas: Cita[] }
   | { tipo: 'paso', paso: PasoIA }
   | { tipo: 'propuesta', accion: AccionIA }
+  | { tipo: 'navegar', href: string, etiqueta: string, prefill: Record<string, unknown> | null }
   | { tipo: 'fin', generado_en: string | null, regeneracion: Regeneracion | null, uso: UsoIA | null }
   | { tipo: 'error', codigo: string, mensaje: string }
 
@@ -146,8 +155,18 @@ const ESTADOS_ACCION = ['pendiente', 'ejecutando', 'ejecutada', 'rechazada', 'ex
  */
 const LARGO_MAXIMO_ETIQUETA = 120
 
-/** Lineas de `detalle` de una propuesta, y caracteres de cada una. Mismo motivo que la etiqueta. */
-const MAXIMO_DETALLE = 12
+/**
+ * Lineas que se pintan de una lista de una propuesta, y caracteres de cada una.
+ *
+ * **Es una red, no la politica.** Quien decide cuanto se cuenta es el backend, que ya no emite mas
+ * lineas de las que se pintan y dice en la ultima que quedo afuera. Esto protege del backend con un
+ * bug, y por eso el numero tiene que quedar por encima de lo que un pedido real produce: el tope de
+ * pasos de un `plan` es 8, y cada paso gasta su resumen mas su detalle —cuatro lineas largas—, o
+ * sea 32. 40 deja margen y sigue siendo un techo.
+ *
+ * El aviso de recorte cuenta dentro del tope: lo que se pinta nunca pasa de `MAXIMO_DETALLE` lineas.
+ */
+const MAXIMO_DETALLE = 40
 const LARGO_MAXIMO_DETALLE = 500
 
 /** `true` si el valor es un objeto JSON plano. Descarta `null` y los arrays, que tambien son `object`. */
@@ -190,7 +209,7 @@ function leerFrame (crudo: string): { nombre: string, datos: Record<string, unkn
  * Interpreta un frame SSE de la capa de IA.
  *
  * Es un trust boundary: el texto viene de la red y lo escribio un modelo. Todo lo que no encaje en
- * una de las cuatro formas del contrato se descarta.
+ * una de las formas del contrato se descarta.
  *
  * El `fin` es la excepcion deliberada a esa estrictez: si sus bloques opcionales (`regeneracion`,
  * `uso`) vienen mal, el evento **igual se acepta** con esos campos en `null`. Descartar el `fin`
@@ -227,6 +246,8 @@ export function leerEventoIA (crudo: string): EventoIA | null {
 
     return accion === null ? null : { tipo: 'propuesta', accion }
   }
+
+  if (nombre === 'navegar') return leerNavegar(datos)
 
   if (nombre === 'fin') {
     return {
@@ -309,7 +330,7 @@ export function leerPaso (datos: Record<string, unknown>): PasoIA | null {
 export function leerAccion (valor: unknown): AccionIA | null {
   if (!esObjeto(valor)) return null
 
-  const { id, herramienta, resumen, detalle, estado, resultado, expira_en: expira } = valor
+  const { id, herramienta, resumen, detalle, supuestos, estado, resultado, expira_en: expira } = valor
 
   if (typeof id !== 'number' || !Number.isFinite(id)) return null
   if (typeof herramienta !== 'string' || herramienta === '') return null
@@ -323,16 +344,83 @@ export function leerAccion (valor: unknown): AccionIA | null {
     id,
     herramienta,
     resumen: resumen.slice(0, LARGO_MAXIMO_DETALLE),
-    detalle: Array.isArray(detalle)
-      ? detalle
-        .filter((linea): linea is string => typeof linea === 'string' && linea !== '')
-        .slice(0, MAXIMO_DETALLE)
-        .map((linea) => linea.slice(0, LARGO_MAXIMO_DETALLE))
-      : [],
+    detalle: leerLineas(detalle),
+    supuestos: leerLineas(supuestos),
     estado: conocido,
     resultado: typeof resultado === 'string' ? resultado.slice(0, LARGO_MAXIMO_DETALLE) : null,
     expira_en: typeof expira === 'string' ? expira : null
   }
+}
+
+/**
+ * Valida una de las listas de texto de una propuesta —`detalle` o `supuestos`—.
+ *
+ * Las dos llegan del mismo sitio y se pintan igual, asi que se validan con la misma regla: fuera lo
+ * que no sea texto o venga vacio, cada linea recortada a lo que entra en la tarjeta, y el conjunto
+ * a `MAXIMO_DETALLE`.
+ *
+ * **Si el tope se activa, se dice.** Antes recortaba en silencio y la tarjeta pintaba doce de
+ * veinticuatro lineas sin ninguna marca: la persona confirmaba una escritura leyendo la mitad. Una
+ * red que corta callada es el mismo bug con otra cara, y por eso la ultima linea cuenta las que
+ * faltan en vez de desaparecer.
+ *
+ * @param valor el campo tal como llego, sin validar
+ * @returns las lineas utiles, con el aviso final si hubo recorte; `[]` si el campo no es un array
+ */
+function leerLineas (valor: unknown): string[] {
+  if (!Array.isArray(valor)) return []
+
+  const lineas = valor
+    .filter((linea): linea is string => typeof linea === 'string' && linea !== '')
+    .map((linea) => linea.slice(0, LARGO_MAXIMO_DETALLE))
+
+  if (lineas.length <= MAXIMO_DETALLE) return lineas
+
+  const visibles = lineas.slice(0, MAXIMO_DETALLE - 1)
+
+  return [...visibles, `… (${lineas.length - visibles.length} líneas más)`]
+}
+
+/**
+ * Valida el evento `navegar`, con el que el servidor lleva a la persona a otra pantalla.
+ *
+ * **El `href` lo arma siempre el servidor.** Acá no se completa, ni se corrige, ni se le pega una
+ * base: solo se comprueba que sea una ruta de este panel. Esa comprobación es la frontera y por eso
+ * no se puede saltear por corta: `router.push()` sigue sin chistar un `https://…` o un `//host`, y
+ * eso convertiría una respuesta de un modelo en una redirección fuera de Ops. Un `href` que no
+ * empieza con una sola barra descarta el evento entero, que es lo mismo que hace el resto del
+ * archivo con lo que no encaja.
+ *
+ * `prefill` viaja tal cual para quien sepa qué hacer con él: son los campos que el servidor deja
+ * preparados para la pantalla de destino, no algo que este archivo interprete.
+ *
+ * @param datos el payload del frame
+ * @returns el evento, o `null` si el destino no es interno o le falta la etiqueta
+ */
+function leerNavegar (datos: Record<string, unknown>): EventoIA | null {
+  const { href, etiqueta, prefill } = datos
+
+  if (typeof href !== 'string' || !esRutaInterna(href)) return null
+  if (typeof etiqueta !== 'string' || etiqueta === '') return null
+
+  return {
+    tipo: 'navegar',
+    href,
+    etiqueta: etiqueta.slice(0, LARGO_MAXIMO_ETIQUETA),
+    prefill: esObjeto(prefill) ? prefill : null
+  }
+}
+
+/**
+ * `true` si el destino es una ruta de este panel y no una salida a otro sitio.
+ *
+ * Una sola barra al principio y nada de `//` ni `/\`: las dos formas las lee el navegador como
+ * "protocolo relativo" y terminan en otro dominio.
+ *
+ * @param href el destino tal como llego
+ */
+function esRutaInterna (href: string): boolean {
+  return /^\/(?![/\\])/.test(href)
 }
 
 /**

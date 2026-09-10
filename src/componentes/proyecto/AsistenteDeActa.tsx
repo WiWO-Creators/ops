@@ -9,7 +9,7 @@ import { pedirSobre } from '@/datos/cliente'
 import { leerSSE } from '@/datos/sse'
 import { leerEventoIA } from '@/dominio/ia'
 import { MARCAS, MODALIDADES } from '@/definiciones/actas'
-import { ACEPTA, LIMITE_BYTES, LIMITE_DOCUMENTO_BYTES, formatoPeso, validarArchivo } from '@/dominio/actas'
+import { ACEPTA, LIMITE_AUDIO_BYTES, LIMITE_BYTES, LIMITE_DOCUMENTO_BYTES, formatoPeso, validarArchivo } from '@/dominio/actas'
 import { aTextoPlano } from './formatos'
 import { GrabadoraDeAudio } from './GrabadoraDeAudio'
 import type { Acta, PrefillActa } from '@/datos/recursos'
@@ -270,7 +270,7 @@ export function AsistenteDeActa ({ proyectoId, onCreada, onCancelar }: PropsAsis
           etiqueta={ETIQUETA_ARCHIVO[modo]}
           ayuda={modo === 'documento'
             ? `PDF, DOCX, TXT, MD o HTML, hasta ${formatoPeso(LIMITE_DOCUMENTO_BYTES)}.`
-            : `Hasta ${formatoPeso(LIMITE_BYTES)}.`}
+            : `Hasta ${formatoPeso(modo === 'audio' ? LIMITE_AUDIO_BYTES : LIMITE_BYTES)}.`}
           error={errorArchivo ?? undefined}
         >
           {(props) => (

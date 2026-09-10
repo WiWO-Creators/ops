@@ -148,8 +148,10 @@ function HitosDelProyecto ({ proyecto, capacidades, capacidadesTareas = [] }: Pr
             <TableroHitos
               key={`${revision}-${String(excluirCompletadas)}`}
               proyectoId={proyecto.id}
+              proyectoNombre={proyecto.name}
               excluirCompletadas={excluirCompletadas}
               puedeCrear={capacidadesTareas.includes('create')}
+              puedeEditar={capacidades.includes('edit_milestones')}
             />
           </>
           )}

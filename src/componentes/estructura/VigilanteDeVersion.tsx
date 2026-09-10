@@ -157,7 +157,9 @@ export function VigilanteDeVersion ({ version, segundos }: PropsVigilante) {
         <div
           role="status"
           className={cn(
-            'border-linea bg-superficie-flotante fixed bottom-4 left-1/2 z-50 -translate-x-1/2',
+            // En movil sube por encima del boton del chat (`ia/OrbeChatIA`, `bottom-6 right-4`,
+            // 56px): centrada y a 30rem, la barra le llega justo encima en pantallas angostas.
+            'border-linea bg-superficie-flotante fixed bottom-24 left-1/2 z-50 -translate-x-1/2 sm:bottom-4',
             'flex w-[min(30rem,calc(100vw-2rem))] items-center gap-3 rounded-2xl border px-4 py-3 shadow-lg'
           )}
         >

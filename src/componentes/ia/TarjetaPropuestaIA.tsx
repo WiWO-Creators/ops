@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, type ReactElement } from 'react'
 import { Boton } from '@/componentes/formularios/Boton'
 import { escribirEnBff } from '@/componentes/datos/mutaciones'
 import { leerAccion, type AccionIA } from '@/dominio/ia'
-import { esBorrado, esResoluble, estadoDeAccion, segundosParaExpirar } from '@/dominio/ia-chat'
+import { esResoluble, estadoDeAccion, segundosParaExpirar } from '@/dominio/ia-chat'
 
 /**
  * La tarjeta de una escritura que WiBot dejo preparada.
@@ -19,6 +19,29 @@ import { esBorrado, esResoluble, estadoDeAccion, segundosParaExpirar } from '@/d
  * El `resumen` y el `detalle` los escribio el SERVIDOR con los argumentos normalizados y los titulos
  * leidos de la base, nunca el modelo. Es la barrera mas dura de todas las que protegen esto, y solo
  * funciona si lo que se lee antes de apretar es verdad.
+ *
+ * === EL RESUMEN SE MUESTRA ENTERO ===
+ *
+ * Desde que WiBot vive en todo el panel, la propuesta puede ser sobre un Espacio que **no** es el
+ * que la persona esta mirando, y el ambito viene dentro del `resumen`. Recortarlo con un `truncate`
+ * o un `line-clamp` esconderia justo la parte que avisa que la accion es en otro lado: es la unica
+ * señal de eso que hay en la tarjeta. Por eso el parrafo envuelve, parte las palabras largas y no
+ * lleva ningun tope de lineas.
+ *
+ * === LO ASUMIDO SE LEE APARTE, Y MAS BAJITO ===
+ *
+ * Cuando al pedido le falta un dato, el servidor completa lo mas razonable y lo escribe en
+ * `supuestos`. Mezclado dentro del `detalle` seria indistinguible de lo que la persona pidio, que
+ * es justo lo que hay que poder distinguir antes de apretar Confirmar: lo pedido no se revisa, lo
+ * asumido si. Por eso va en su propia lista, con encabezado propio y un tono mas apagado que el del
+ * detalle —`sutil` contra `tenue`—: se lee como "esto lo completé yo".
+ *
+ * === EL DETALLE TAMPOCO SE CORTA ===
+ *
+ * Una propuesta de tipo `plan` trae un paso por linea, numerado y con sus lineas indentadas debajo.
+ * De ahi el `whitespace-pre-wrap`: sin el, el navegador colapsa la sangria y los ocho pasos quedan
+ * como un bloque plano donde no se ve donde termina uno y empieza el siguiente. Y como el resumen,
+ * el detalle no lleva tope de lineas: si es largo, la tarjeta crece.
  *
  * === EL BOTON DESHABILITADO NO ES LA IDEMPOTENCIA ===
  *
@@ -113,21 +136,29 @@ export function TarjetaPropuestaIA (
     onResuelta(resuelta)
   }
 
-  const peligro = esBorrado(accion)
   const estado = ESTADOS[estadoDeAccion(accion, ahora)]
 
   return (
-    <div
-      className={`border-linea rounded-tarjeta flex flex-col gap-2 border p-3 ${
-        peligro && abierta ? 'bg-superficie-peligro' : 'bg-superficie'
-      }`}
-    >
-      <p className="text-texto text-sm font-medium">{accion.resumen}</p>
+    <div className="border-linea bg-superficie rounded-tarjeta flex flex-col gap-2 border p-3">
+      <p className="text-texto break-words text-sm font-medium">{accion.resumen}</p>
 
       {accion.detalle.length > 0 && (
         <ul className="text-texto-tenue flex flex-col gap-0.5 text-xs">
-          {accion.detalle.map((linea, indice) => <li key={indice}>{linea}</li>)}
+          {accion.detalle.map((linea, indice) => (
+            <li key={indice} className="break-words whitespace-pre-wrap">{linea}</li>
+          ))}
         </ul>
+      )}
+
+      {accion.supuestos.length > 0 && (
+        <div className="text-texto-sutil flex flex-col gap-0.5 text-xs">
+          <p className="font-medium">Asumí:</p>
+          <ul className="flex flex-col gap-0.5">
+            {accion.supuestos.map((linea, indice) => (
+              <li key={indice} className="break-words whitespace-pre-wrap">{linea}</li>
+            ))}
+          </ul>
+        </div>
       )}
 
       {abierta
@@ -136,7 +167,7 @@ export function TarjetaPropuestaIA (
             <div className="flex flex-wrap items-center gap-2">
               <Boton
                 tamano="chico"
-                variante={peligro ? 'peligro' : 'primario'}
+                variante="primario"
                 cargando={enviando}
                 disabled={enviando}
                 onClick={() => { void resolver('confirmar') }}
@@ -156,11 +187,7 @@ export function TarjetaPropuestaIA (
               </span>
             </div>
 
-            <p className="text-texto-sutil text-xs">
-              {peligro
-                ? 'Va a la papelera: se puede restaurar durante 30 días.'
-                : 'No se hace nada hasta que confirmes.'}
-            </p>
+            <p className="text-texto-sutil text-xs">No se hace nada hasta que confirmes.</p>
           </>
           )
         : (

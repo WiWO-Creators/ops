@@ -12,6 +12,7 @@ import assert from 'node:assert/strict'
 import {
   agregarPagina,
   columnaIncompleta,
+  moverColumna,
   moverTarjeta,
   ordenarGrupos,
   posicionAlSoltar
@@ -50,6 +51,35 @@ test('ordenar no muta el arreglo recibido', () => {
   const grupos = tablero()
   ordenarGrupos(grupos)
   assert.equal(grupos[0].columna.id, 1)
+})
+
+test('mover columnas en ambos sentidos conserva datos, fija la sintetica y no muta', () => {
+  const previo = tablero()
+  const sintetica = { columna: { id: 0, name: 'Sin hito', color: null, order: 0 }, tarjetas: [], pagination: completa(0) }
+  previo.splice(1, 0, sintetica)
+  const copia = structuredClone(previo)
+  const abajo = moverColumna(previo, 1, 5)
+  const arriba = moverColumna(previo, 5, 1)
+
+  assert.deepEqual(abajo.map((grupo) => grupo.columna.id), [4, 0, 5, 1])
+  assert.deepEqual(arriba.map((grupo) => grupo.columna.id), [5, 0, 1, 4])
+  for (const resultado of [abajo, arriba]) {
+    assert.equal(resultado[1], sintetica)
+    assert.deepEqual(resultado.filter((grupo) => grupo.columna.id > 0).map((grupo) => grupo.columna.order), [1, 2, 3])
+    for (const grupo of resultado) {
+      const original = previo.find((item) => item.columna.id === grupo.columna.id)
+      assert.equal(grupo.tarjetas, original.tarjetas)
+      assert.equal(grupo.pagination, original.pagination)
+    }
+  }
+  assert.deepEqual(previo, copia)
+})
+
+test('mover columnas rechaza tablero vacio, ids inexistentes y movimientos invalidos', () => {
+  assert.equal(moverColumna([], 1, 4), null)
+  for (const [origen, destino] of [[1, 1], [0, 4], [1, 0], [-1, 4], [1, -1], [999, 4], [1, 999], [NaN, 4], [1, Infinity], [1.5, 4], [1, null]]) {
+    assert.equal(moverColumna(tablero(), origen, destino), null)
+  }
 })
 
 test('mover a otra columna saca de la de origen y ajusta los dos contadores', () => {

@@ -90,7 +90,7 @@ function NoEncontrado () {
       descripcion="Puede que lo hayan borrado, o que el enlace esté mal escrito."
       accion={
         <Link href="/prospectos" className="text-acento text-sm font-semibold underline underline-offset-4">
-          Volver a Prospectos
+          Volver a Licitaciones
         </Link>
       }
     />
@@ -132,7 +132,7 @@ export default async function ProspectoPage (props: PageProps<'/prospectos/[id]'
     {
       clave: 'licitaciones',
       etiqueta: ETIQUETA_LICITACIONES,
-      contenido: <PanelLicitacionesProspecto prospectoId={prospecto.id} capacidades={capacidades} />
+      contenido: <PanelLicitacionesProspecto prospecto={prospecto} contactos={prospecto.contactos} usuarioId={yo.id} paises={comoOpciones(paises)} capacidades={capacidades} />
     }
   ]
 
@@ -144,7 +144,7 @@ export default async function ProspectoPage (props: PageProps<'/prospectos/[id]'
             href="/prospectos"
             className="text-texto-sutil hover:text-texto w-fit text-xs font-medium transition-colors"
           >
-            ← Prospectos
+            ← Licitaciones
           </Link>
 
           <div className="flex flex-wrap items-center gap-2">

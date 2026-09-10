@@ -2,6 +2,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import {
   ACEPTA,
+  LIMITE_AUDIO_BYTES,
   LIMITE_BYTES,
   LIMITE_DOCUMENTO_BYTES,
   MIME_DOCUMENTO,
@@ -51,10 +52,13 @@ test('validarArchivo rechaza lo que la API rechazaría, antes de subirlo', () =>
   assert.match(validarArchivo({ name: 'acta.pdf', size: 1024 }) ?? '', /audio o de imagen/)
   assert.match(validarArchivo({ name: 'reunion.m4a', size: 0 }) ?? '', /vacío/)
 
-  const grande = validarArchivo({ name: 'reunion.m4a', size: LIMITE_BYTES + 1 })
-  assert.match(grande ?? '', /25,0 MB/, 'el mensaje dice cuánto pesa y cuánto se acepta')
+  const grande = validarArchivo({ name: 'reunion.m4a', size: LIMITE_AUDIO_BYTES + 1 })
+  assert.match(grande ?? '', /100,0 MB/, 'el mensaje dice cuánto pesa y cuánto se acepta')
 
-  assert.equal(validarArchivo({ name: 'reunion.m4a', size: LIMITE_BYTES }), null, 'el borde exacto entra')
+  assert.equal(validarArchivo({ name: 'reunion.m4a', size: 100 * 1024 * 1024 }), null, 'el borde exacto entra')
+  assert.equal(validarArchivo({ name: '2026-09-08 10-04-02.mp4', size: Math.ceil(38.5 * 1024 * 1024) }, 'audio'), null)
+  assert.equal(validarArchivo({ name: 'pizarra.jpg', size: LIMITE_BYTES }, 'imagen'), null)
+  assert.match(validarArchivo({ name: 'pizarra.jpg', size: LIMITE_BYTES + 1 }, 'imagen') ?? '', /25,0 MB/)
 })
 
 test('el peso se lee de un vistazo', () => {

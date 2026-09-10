@@ -68,27 +68,3 @@ export const CAMPOS_DE_CONTACTO: CampoFormulario[] = [
   { clave: 'phonenumber', etiqueta: 'Teléfono', tipo: 'texto', maximo: LARGOS.telefono },
   { clave: 'title', etiqueta: 'Cargo', tipo: 'texto', maximo: LARGOS.cargo }
 ]
-
-/**
- * Campos del **alta** de un Prospecto: la empresa y, opcionalmente, su primera persona de contacto.
- *
- * El contacto del alta va anidado (`contacto.…`) porque ahi si `POST /prospectos` lo recibe como
- * objeto. Los siguientes se agregan desde la pestaña Contactos, con el cuerpo plano.
- *
- * @param paises Catalogo `countries` de `GET /lookups`.
- * @returns Los campos de las dos secciones, en el orden en que se llenan.
- */
-export function camposDeAltaDeProspecto (paises: OpcionCampo[]): CampoFormulario[] {
-  return [
-    ...camposDeProspecto(paises),
-    ...CAMPOS_DE_CONTACTO.map((campo, indice) => ({
-      ...campo,
-      clave: `contacto.${campo.clave}`,
-      // El contacto entero es opcional en el alta, asi que ninguno de sus campos puede ser
-      // obligatorio: marcar "Nombre" como requerido impediria guardar un prospecto sin contacto.
-      // La API valida el trio completo si el objeto viene con algo escrito.
-      requerido: false,
-      ...(indice === 0 ? { seccion: 'Primer contacto (opcional)' } : {})
-    }))
-  ]
-}

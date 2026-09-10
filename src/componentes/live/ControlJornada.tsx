@@ -267,19 +267,10 @@ export function ControlJornada ({
   async function detenerMedidor (): Promise<void> {
     if (medidor === null) return
 
-    const ruta = medidor.task !== null
-      ? `tasks/${medidor.task.id}/timer`
-      : medidor.project !== null ? `projects/${medidor.project.id}/timer` : null
-
-    if (ruta === null) {
-      setAviso('El medidor abierto no apunta a nada que se pueda detener. Cierra la jornada para pararlo.')
-      return
-    }
-
     setEnCurso(true)
     setAviso(null)
 
-    const respuesta = await llamar(ruta, 'DELETE')
+    const respuesta = await llamar(`live/timers/${medidor.id}`, 'DELETE')
 
     setEnCurso(false)
 

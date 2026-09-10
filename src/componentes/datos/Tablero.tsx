@@ -1,6 +1,7 @@
 'use client'
 
-import { useCallback, useState, type ReactNode } from 'react'
+import { GripVertical, MoreHorizontal } from 'lucide-react'
+import { useCallback, useRef, useState, type ReactNode } from 'react'
 import { Boton } from '@/componentes/formularios/Boton'
 import { Vacio } from '@/componentes/estado/Estados'
 import {
@@ -14,6 +15,7 @@ import {
   agregarPagina,
   columnaIncompleta,
   moverTarjeta,
+  moverColumna,
   ordenarGrupos,
   posicionAlSoltar,
   type ColumnaTablero,
@@ -57,6 +59,8 @@ interface PropsTablero<T extends FilaConId> {
    * Devolver `null` deja la columna sin accion, que es lo que hace la sintetica "Sin categorizar".
    */
   accionDeColumna?: (columna: ColumnaTablero, recargar: () => Promise<void>) => ReactNode
+  /** Ruta que habilita guardar el orden de columnas con id positivo. */
+  rutaOrdenColumnas?: string
 }
 
 /**
@@ -73,10 +77,14 @@ export function Tablero<T extends FilaConId> ({
   // frente: detalle — por defecto, el comportamiento historico.
   adaptarCuerpo = (cuerpo) => cuerpo,
   ordenarColumnas = ordenarGrupos,
-  accionDeColumna
+  accionDeColumna,
+  rutaOrdenColumnas
 }: PropsTablero<T>) {
   const tablero = definicion.tablero
   const [grupos, setGrupos] = useState(() => ordenarColumnas(inicial))
+  const guardandoOrden = useRef(false)
+  const [columnaArrastrada, setColumnaArrastrada] = useState<number | null>(null)
+  const [destinoColumna, setDestinoColumna] = useState<number | null>(null)
   const [aviso, setAviso] = useState<string | null>(null)
   const [ocupado, setOcupado] = useState(false)
   const [arrastrada, setArrastrada] = useState<number | null>(null)
@@ -116,7 +124,7 @@ export function Tablero<T extends FilaConId> ({
    * caso real y esperado (la columna no existe, el proceso esta facturado), no un bug.
    */
   async function mover (idTarjeta: number, idColumna: number, posicion: number): Promise<void> {
-    if (tablero === undefined) return
+    if (tablero === undefined || ocupado || guardandoOrden.current) return
 
     const previo = grupos
     const movimiento = moverTarjeta(previo, idTarjeta, idColumna, posicion)
@@ -148,8 +156,43 @@ export function Tablero<T extends FilaConId> ({
     }
   }
 
+  /**
+   * Guarda el orden de columnas y revierte la vista si falla la petición.
+   * @param origen id de la columna movida
+   * @param destino id de la columna cuya posición ocupará
+   * @returns promesa resuelta al finalizar; los errores se muestran en el tablero
+   */
+  async function reordenar (origen: number, destino: number): Promise<void> {
+    if (rutaOrdenColumnas === undefined || ocupado || guardandoOrden.current) return
+    const siguientes = moverColumna(grupos, origen, destino)
+    if (siguientes === null) return
+    const previo = grupos
+    guardandoOrden.current = true
+    setOcupado(true)
+    setAviso(null)
+    setGrupos(siguientes)
+    try {
+      const respuesta = await fetch(`/api/bff/${rutaOrdenColumnas}`, {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json', accept: 'application/json' },
+        body: JSON.stringify({ orden: siguientes.map((g) => g.columna.id).filter((id) => id > 0) })
+      })
+      if (!respuesta.ok) {
+        setGrupos(previo)
+        setAviso(await mensajeDeError(respuesta))
+      }
+    } catch {
+      setGrupos(previo)
+      setAviso('No se pudo guardar el orden: revisa la conexión e inténtalo de nuevo.')
+    } finally {
+      guardandoOrden.current = false
+      setOcupado(false)
+    }
+  }
+
   /** Trae la pagina siguiente de UNA columna y la agrega al final. */
   async function cargarMas (idColumna: number): Promise<void> {
+    if (ocupado || guardandoOrden.current) return
     const grupo = grupos.find((g) => g.columna.id === idColumna)
     if (grupo === undefined) return
 
@@ -193,6 +236,13 @@ export function Tablero<T extends FilaConId> ({
     sobreTarjeta = false
   ): void {
     evento.preventDefault()
+    if (columnaArrastrada !== null) {
+      void reordenar(columnaArrastrada, grupo.columna.id)
+      setColumnaArrastrada(null)
+      setDestinoColumna(null)
+      return
+    }
+    if (evento.dataTransfer.types.includes('application/x-columna-tablero')) return
     setArrastrada(null)
 
     const idTarjeta = Number(evento.dataTransfer.getData('text/plain'))
@@ -203,7 +253,7 @@ export function Tablero<T extends FilaConId> ({
   }
 
   return (
-    <div className="flex flex-col gap-3">
+    <div className="flex flex-col gap-3" aria-busy={ocupado}>
       {aviso !== null && (
         <p
           role="alert"
@@ -213,19 +263,78 @@ export function Tablero<T extends FilaConId> ({
         </p>
       )}
 
+      <p role="status" className="sr-only">{ocupado ? 'Guardando cambios…' : ''}</p>
       <div className="flex items-start gap-3 overflow-x-auto pb-2">
-        {grupos.map((grupo) => (
+        {grupos.map((grupo, indiceGrupo) => (
           <section
             key={grupo.columna.id}
             aria-label={grupo.columna.name}
-            className="bg-superficie-hundida rounded-tarjeta border-linea flex w-72 shrink-0 flex-col gap-2 border p-2"
+            className={cn(
+              'bg-superficie-hundida rounded-tarjeta border-linea flex w-72 shrink-0 flex-col gap-2 border p-2',
+              columnaArrastrada === grupo.columna.id && 'opacity-50',
+              destinoColumna === grupo.columna.id && 'outline-acento outline-2'
+            )}
             onDragOver={(evento) => {
               // Sin `preventDefault` el navegador no considera la zona valida y nunca dispara `drop`.
               evento.preventDefault()
+              if (columnaArrastrada !== null && grupo.columna.id > 0) setDestinoColumna(grupo.columna.id)
             }}
             onDrop={(evento) => alSoltar(evento, grupo, grupo.tarjetas.length)}
           >
             <header className="flex items-center gap-2 px-1">
+              {rutaOrdenColumnas !== undefined && grupo.columna.id > 0 && (
+                <>
+                  <Boton
+                    variante="sutil"
+                    tamano="chico"
+                    soloIcono
+                    disabled={ocupado}
+                    draggable={!ocupado}
+                    aria-label={`Reordenar ${grupo.columna.name}`}
+                    title="Arrastra para reordenar"
+                    className="shrink-0 cursor-grab active:cursor-grabbing"
+                    onKeyDown={(evento) => {
+                      if (evento.key !== 'ArrowLeft' && evento.key !== 'ArrowRight') return
+                      evento.preventDefault()
+                      const vecino = grupos[indiceGrupo + (evento.key === 'ArrowLeft' ? -1 : 1)]
+                      if (vecino) void reordenar(grupo.columna.id, vecino.columna.id)
+                    }}
+                    onDragStart={(evento) => {
+                      evento.stopPropagation()
+                      evento.dataTransfer.setData('application/x-columna-tablero', String(grupo.columna.id))
+                      evento.dataTransfer.effectAllowed = 'move'
+                      setColumnaArrastrada(grupo.columna.id)
+                    }}
+                    onDragEnd={() => {
+                      setColumnaArrastrada(null)
+                      setDestinoColumna(null)
+                    }}
+                  >
+                    <GripVertical className="size-4" aria-hidden="true" />
+                  </Boton>
+                  <MenuContextual>
+                    <DisparadorMenu asChild>
+                      <Boton variante="sutil" tamano="chico" soloIcono disabled={ocupado} aria-label={`Opciones de orden de ${grupo.columna.name}`}>
+                        <MoreHorizontal className="size-4" aria-hidden="true" />
+                      </Boton>
+                    </DisparadorMenu>
+                    <ContenidoMenu align="start">
+                      <ItemMenu
+                        disabled={ocupado || (grupos[indiceGrupo - 1]?.columna.id ?? 0) <= 0}
+                        onSelect={() => { void reordenar(grupo.columna.id, (grupos[indiceGrupo - 1]?.columna.id ?? 0)) }}
+                      >
+                        Mover a la izquierda
+                      </ItemMenu>
+                      <ItemMenu
+                        disabled={ocupado || indiceGrupo === grupos.length - 1}
+                        onSelect={() => { void reordenar(grupo.columna.id, (grupos[indiceGrupo + 1]?.columna.id ?? 0)) }}
+                      >
+                        Mover a la derecha
+                      </ItemMenu>
+                    </ContenidoMenu>
+                  </MenuContextual>
+                </>
+              )}
               {grupo.columna.color !== null && (
                 <span
                   aria-hidden="true"
@@ -249,7 +358,7 @@ export function Tablero<T extends FilaConId> ({
             {grupo.tarjetas.map((tarjeta, indice) => (
               <article
                 key={tarjeta.id}
-                draggable
+                draggable={!ocupado}
                 onDragStart={(evento) => {
                   evento.dataTransfer.setData('text/plain', String(tarjeta.id))
                   evento.dataTransfer.effectAllowed = 'move'

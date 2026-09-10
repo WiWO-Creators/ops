@@ -5,12 +5,15 @@ import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Boton } from '@/componentes/formularios/Boton'
 import { Cargando, ErrorEstado } from '@/componentes/estado/Estados'
+import { LimiteDeError } from '@/componentes/estado/LimiteDeError'
+import { BloqueCopiable } from '@/componentes/presentadores/BloqueCopiable'
 import { ACTAS } from '@/definiciones/actas'
 import { useRecurso } from './carga'
 import { AsistenteDeActa } from './AsistenteDeActa'
 import { DetalleActa } from './DetalleActa'
 import { PanelRecurso } from './PanelRecurso'
 import type { Acta } from '@/datos/recursos'
+import type { EstadoIa } from '@/dominio/ajustes'
 import type { Yo } from '@/datos/tipos'
 import type { DefinicionRecurso } from '@/definiciones/tipos'
 
@@ -36,10 +39,39 @@ import type { DefinicionRecurso } from '@/definiciones/tipos'
 
 interface PropsPanelActas {
   proyectoId: number
-  /** Sin la capa de IA se puede leer y corregir, pero no generar ni reescribir. */
-  conIa: boolean
+  /**
+   * Estado de la capa de IA. Sin ella se puede leer y corregir, pero no generar ni reescribir.
+   *
+   * Llega con el motivo y no como booleano porque la pantalla lo dice en voz alta: ver
+   * `MOTIVO_IA`.
+   */
+  ia: EstadoIa
   /** Para saber si esta persona puede borrar un acta ajena. */
   yo: Yo
+}
+
+/**
+ * Que se le dice a la persona por cada motivo por el que no hay IA.
+ *
+ * Los tres se veian igual —un boton gris y "esta desactivada"— y se arreglan en lugares distintos:
+ * uno es un interruptor del panel, otro una instalacion a la que nunca se le escribio el ajuste, y
+ * el tercero la API que no contesta. Decir cual es no es un lujo de depuracion: es la diferencia
+ * entre que la persona sepa a quien pedirselo y que abra un ticket que dice "no funciona".
+ */
+const MOTIVO_IA: Record<EstadoIa['motivo'], { titulo: string, ayuda: string }> = {
+  encendida: { titulo: '', ayuda: '' },
+  apagada: {
+    titulo: 'La escritura con IA está apagada en esta instalación.',
+    ayuda: 'Se enciende en Administración → Ajustes → Funciones con IA. Los Meeting Papers ya escritos se siguen leyendo y corrigiendo igual.'
+  },
+  ausente: {
+    titulo: 'Esta instalación nunca configuró las funciones con IA.',
+    ayuda: 'El ajuste "Funciones con IA" no tiene valor guardado. Hay que entrar a Administración → Ajustes, encenderlo y guardar una vez.'
+  },
+  no_se_pudo_leer: {
+    titulo: 'No se pudo leer si la IA está disponible.',
+    ayuda: 'Falló la lectura de los ajustes contra la API. No es el Meeting Paper: mientras esto falle, media aplicación va a comportarse raro.'
+  }
 }
 
 export function PanelActas (props: PropsPanelActas): ReactElement {
@@ -51,10 +83,11 @@ export function PanelActas (props: PropsPanelActas): ReactElement {
   )
 }
 
-function ActasDelProyecto ({ proyectoId, conIa, yo }: PropsPanelActas): ReactElement {
+function ActasDelProyecto ({ proyectoId, ia, yo }: PropsPanelActas): ReactElement {
   const router = useRouter()
   const params = useSearchParams()
   const [revision, setRevision] = useState(0)
+  const [motivoALaVista, setMotivoALaVista] = useState(false)
 
   const recargar = useCallback(() => { setRevision((n) => n + 1) }, [])
   const pedida = params.get('acta')
@@ -85,47 +118,54 @@ function ActasDelProyecto ({ proyectoId, conIa, yo }: PropsPanelActas): ReactEle
 
   if (pedida === 'nuevo') {
     return (
-      <AsistenteDeActa
-        proyectoId={proyectoId}
-        onCreada={(acta) => {
-          recargar()
-          ir(String(acta.id))
-        }}
-        onCancelar={() => { ir(null) }}
-      />
+      <LimiteDeError zona="Meeting Paper — asistente de creación">
+        <AsistenteDeActa
+          proyectoId={proyectoId}
+          onCreada={(acta) => {
+            recargar()
+            ir(String(acta.id))
+          }}
+          onCancelar={() => { ir(null) }}
+        />
+      </LimiteDeError>
     )
   }
 
   const abierta = idPositivo(pedida)
   if (abierta !== null) {
     return (
-      <ActaAbierta
-        actaId={abierta}
-        proyectoId={proyectoId}
-        conIa={conIa}
-        yo={yo}
-        onCambiada={recargar}
-        onBorrada={() => {
-          recargar()
-          ir(null)
-        }}
-        onVolver={() => { ir(null) }}
-      />
+      <LimiteDeError zona="Meeting Paper — acta abierta">
+        <ActaAbierta
+          actaId={abierta}
+          proyectoId={proyectoId}
+          conIa={ia.activa}
+          yo={yo}
+          onCambiada={recargar}
+          onBorrada={() => {
+            recargar()
+            ir(null)
+          }}
+          onVolver={() => { ir(null) }}
+        />
+      </LimiteDeError>
     )
   }
 
+  const motivo = MOTIVO_IA[ia.motivo]
+
+  // El boton no se deshabilita aunque no haya IA. Un boton gris no dice por que lo esta, y quien lo
+  // aprieta se queda sin saber si falta un ajuste, si la API se cayo o si el sistema se rompio: el
+  // clic abre el motivo, que es lo unico que esa persona puede reportar o arreglar.
   const barra = (
     <div className="flex items-center justify-end gap-3">
-      {!conIa && (
-        <span className="text-texto-sutil text-xs">
-          La escritura con IA está desactivada en esta instalación.
-        </span>
-      )}
+      {!ia.activa && <span className="text-texto-sutil text-xs">{motivo.titulo}</span>}
       <Boton
         variante="primario"
         tamano="chico"
-        disabled={!conIa}
-        onClick={() => { ir('nuevo') }}
+        onClick={() => {
+          if (ia.activa) ir('nuevo')
+          else setMotivoALaVista(true)
+        }}
       >
         Nuevo Meeting Paper
       </Boton>
@@ -133,13 +173,48 @@ function ActasDelProyecto ({ proyectoId, conIa, yo }: PropsPanelActas): ReactEle
   )
 
   return (
-    <PanelRecurso
-      definicion={definicion}
-      claveFila={(acta) => acta.id}
-      barra={barra}
-      revision={revision}
-    />
+    <div className="flex flex-col gap-4">
+      {motivoALaVista && !ia.activa && (
+        <div className="flex flex-col gap-3">
+          <ErrorEstado
+            titulo={motivo.titulo}
+            detalle={motivo.ayuda}
+            onReintentar={() => { setMotivoALaVista(false) }}
+          />
+          <BloqueCopiable titulo="Detalle para reportarlo" texto={detalleDelMotivo(proyectoId, ia)} />
+        </div>
+      )}
+
+      <PanelRecurso
+        definicion={definicion}
+        claveFila={(acta) => acta.id}
+        barra={barra}
+        revision={revision}
+      />
+    </div>
   )
+}
+
+/**
+ * El texto que la persona copia cuando el Meeting Paper no la deja crear nada.
+ *
+ * Lleva el Espacio y la URL porque el mismo motivo en dos Espacios puede ser un permiso y no un
+ * ajuste, y `detalle` porque cuando la API es la que falla, su codigo y su estado HTTP son lo unico
+ * que separa "se cayo" de "la sesion vencio".
+ *
+ * @param proyectoId el Espacio desde el que se reporta
+ * @param ia el estado de la capa de IA tal como lo leyo el servidor
+ * @returns el detalle en texto plano, listo para pegar
+ */
+function detalleDelMotivo (proyectoId: number, ia: EstadoIa): string {
+  return [
+    'Zona: Meeting Paper — botón "Nuevo Meeting Paper"',
+    `Espacio: ${proyectoId}`,
+    `URL: ${typeof window === 'undefined' ? '(servidor)' : window.location.href}`,
+    `IA activa: ${String(ia.activa)}`,
+    `Motivo: ${ia.motivo}`,
+    ia.detalle === undefined ? '' : `Detalle: ${ia.detalle}`
+  ].filter((linea) => linea !== '').join('\n')
 }
 
 /**

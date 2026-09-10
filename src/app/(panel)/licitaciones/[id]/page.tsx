@@ -81,8 +81,8 @@ function NoEncontrada () {
       titulo={`Esa ${GLOSARIO.licitacion.singular.toLowerCase()} no existe`}
       descripcion="Puede que la hayan borrado, o que el enlace esté mal escrito."
       accion={
-        <Link href="/licitaciones" className="text-acento text-sm font-semibold underline underline-offset-4">
-          Volver a {GLOSARIO.licitacion.plural}
+        <Link href="/prospectos" className="text-acento text-sm font-semibold underline underline-offset-4">
+          Volver a Prospectos
         </Link>
       }
     />
@@ -118,7 +118,7 @@ export default async function LicitacionPage (props: PageProps<'/licitaciones/[i
       lookups={lookups}
       capacidadesProyecto={yo.permissions.projects}
       capacidadesTareas={yo.permissions.tasks}
-      volverA={{ href: '/licitaciones', etiqueta: GLOSARIO.licitacion.plural }}
+      volverA={{ href: `/prospectos/${licitacion.prospecto_id}?tab=licitaciones`, etiqueta: licitacion.company }}
       subtitulo={licitacion.company}
       acciones={
         <AccionesLicitacion licitacion={licitacion} capacidades={yo.permissions.projects} />

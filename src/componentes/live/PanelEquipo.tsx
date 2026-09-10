@@ -5,12 +5,15 @@ import { Users } from 'lucide-react'
 import { Vacio } from '@/componentes/estado/Estados'
 import type { AlcanceDeLive } from '@/dominio/live'
 import type { FilaDeLive } from '@/datos/live'
+import type { Yo } from '@/datos/tipos'
+import { escucharMedidor } from './medidor'
 import { cn } from '@/lib/clases'
 import { agruparPorEspacio } from './presentacion'
 import { FilaEnVivo } from './FilaEnVivo'
 
 interface PropsPanelEquipo {
   inicial: FilaDeLive[]
+  operador: Pick<Yo, 'id' | 'is_admin' | 'is_superadmin'>
   /** Mensaje si el servidor no pudo leer el tablero al pintar. */
   errorInicial?: string | null
   /** Cada cuantos segundos se vuelve a preguntar. Lo resuelve el servidor (`intervaloDeLive()`). */
@@ -42,7 +45,7 @@ interface PropsPanelEquipo {
  * que si se comparte es lo que de verdad es comun: `Avatar`, `Insignia`, `Vacio`, `haceCuanto()` y
  * `formatearDuracion()`.
  */
-export function PanelEquipo ({ inicial, errorInicial = null, segundos, alcance }: PropsPanelEquipo) {
+export function PanelEquipo ({ inicial, errorInicial = null, segundos, alcance, operador }: PropsPanelEquipo) {
   const [filas, setFilas] = useState(inicial)
   const [transcurrido, setTranscurrido] = useState(0)
   const [error, setError] = useState<string | null>(errorInicial)
@@ -83,10 +86,12 @@ export function PanelEquipo ({ inicial, errorInicial = null, segundos, alcance }
       })
     }
 
+    const dejarDeEscuchar = escucharMedidor(tic)
     const intervalo = globalThis.setInterval(tic, segundos * 1000)
     document.addEventListener('visibilitychange', tic)
 
     return () => {
+      dejarDeEscuchar()
       globalThis.clearInterval(intervalo)
       document.removeEventListener('visibilitychange', tic)
       control.abort()
@@ -162,7 +167,12 @@ export function PanelEquipo ({ inicial, errorInicial = null, segundos, alcance }
                 </h3>
                 <ul className="divide-linea-suave divide-y">
                   {grupo.personas.map((fila) => (
-                    <FilaEnVivo key={fila.staff.id} fila={fila} transcurrido={transcurrido} />
+                    <FilaEnVivo
+                      key={`${fila.staff.id}:${fila.medidor?.id ?? 'sin-medidor'}`}
+                      fila={fila}
+                      transcurrido={transcurrido}
+                      puedeDetener={operador.is_admin || operador.is_superadmin || operador.id === fila.staff.id}
+                    />
                   ))}
                 </ul>
               </li>

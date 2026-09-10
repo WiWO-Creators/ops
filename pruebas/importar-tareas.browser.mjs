@@ -140,7 +140,42 @@ try {
   })
   assert.equal(archivarActivo, false, 'Archivar no puede estar habilitado antes de importar')
 
-  console.log(`Importar tareas: menú, diálogo, validación e informe OK — "${resumen}"`)
+  // --- La segunda puerta: el "+" de una columna del kanban de Hitos, con el hito ya decidido.
+  await pagina.goto(
+    new URL(`/espacios/${espacioDestino}?tab=hitos`, destino).href,
+    { waitUntil: 'domcontentloaded' }
+  )
+  await pagina.waitForFunction(() => document.body.textContent?.includes('Tablero'), { timeout: 30000 })
+
+  const columna = await pagina.evaluate(() => {
+    const boton = [...document.querySelectorAll('button')]
+      .find((b) => (b.getAttribute('aria-label') ?? '').startsWith('Agregar una tarea a'))
+    if (boton === undefined) return null
+    boton.click()
+
+    return boton.getAttribute('aria-label')
+  })
+  assert.ok(columna !== null, 'No se encontró el "+" de ninguna columna del kanban de hitos')
+
+  await pagina.waitForFunction(
+    () => document.querySelector('[role="dialog"]')?.textContent?.includes('Traer de otro proyecto') === true,
+    { timeout: 15000 }
+  )
+
+  await clicPorTexto(pagina, 'Traer de otro proyecto')
+
+  // El hito NO se elige acá: lo decidió la columna. El diálogo lo dice en vez de ofrecer un selector.
+  await pagina.waitForFunction(
+    () => document.querySelector('[role="dialog"]')?.textContent?.includes('Entran a') === true,
+    { timeout: 15000 }
+  )
+
+  const hayselector = await pagina.evaluate(() =>
+    document.querySelector('[role="dialog"]')?.textContent?.includes('Hito de destino') === true
+  )
+  assert.equal(hayselector, false, 'Con el hito decidido por la columna no debe pedirse de nuevo')
+
+  console.log(`Importar tareas: menú, diálogo, validación, informe y "+" del hito OK — "${resumen}"`)
 } finally {
   await navegador.close()
 }

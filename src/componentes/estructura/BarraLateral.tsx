@@ -5,7 +5,7 @@ import { ATRIBUTO_ABATIDA, CLAVE_BARRA } from '@/lib/barra-lateral'
 import Link, { useLinkStatus } from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useSyncExternalStore } from 'react'
-import { Building2, DoorOpen, FolderKanban, Gavel, House, ListChecks, Menu, PanelLeftClose, PanelLeftOpen, Radio, ScrollText, SlidersHorizontal, Users, UsersRound, Video } from 'lucide-react'
+import { Building2, DoorOpen, FolderKanban, Gavel, House, ListChecks, Menu, PanelLeftClose, PanelLeftOpen, Radio, ScrollText, SlidersHorizontal, TrendingUp, Users, UsersRound, Video } from 'lucide-react'
 import { Cajon, CerrarCajon, ContenidoCajon, DisparadorCajon } from '@/componentes/superposiciones/Cajon'
 import { Logo } from '@/componentes/estructura/Logo'
 import { cn } from '@/lib/clases'
@@ -44,6 +44,7 @@ const ICONOS = {
   // El martillo de la adjudicacion. `FolderKanban` ya es Espacios, y una licitacion no es una carpeta
   // mas: es lo que todavia no se gano.
   licitaciones: Gavel,
+  upsells: TrendingUp,
   salas: DoorOpen,
   // `Video` y no `DoorOpen`: Salas son las de la oficina y Teletrabajo las de la pantalla. Con dos
   // puertas, la barra diria que son lo mismo.
@@ -77,6 +78,7 @@ export interface Seccion {
  * @returns `true` si la seccion corresponde a la ruta actual
  */
 function estaActiva (href: string, ruta: string): boolean {
+  if (href === '/prospectos' && (ruta === '/licitaciones' || ruta.startsWith('/licitaciones/'))) return true
   return ruta === href || ruta.startsWith(`${href}/`)
 }
 

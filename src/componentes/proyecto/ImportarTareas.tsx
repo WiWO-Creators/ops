@@ -33,17 +33,21 @@ import {
 /**
  * Trae las tareas de otro Proyecto a un Hito de este, deja comprobar la copia y archiva el viejo.
  *
- * Los tres pasos viven en un solo dialogo a proposito. El pedido no es "copiar tareas": es
- * reorganizar Proyectos-por-mes en Hitos de un Proyecto, y ese trabajo no esta hecho hasta que el
- * Proyecto viejo salio de la lista. Repartirlo en tres pantallas es confiar en que alguien se
- * acuerde de volver a comprobar, y lo que pasa cuando no vuelve es que quedan las tareas duplicadas
- * en dos lugares.
+ * Los tres pasos viven juntos a proposito. El pedido no es "copiar tareas": es reorganizar
+ * Proyectos-por-mes en Hitos de un Proyecto, y ese trabajo no esta hecho hasta que el Proyecto viejo
+ * salio de la lista. Repartirlo en tres pantallas es confiar en que alguien se acuerde de volver a
+ * comprobar, y lo que pasa cuando no vuelve es que quedan las tareas duplicadas en dos lugares.
+ *
+ * DOS PUERTAS, UN SOLO CUERPO. Se entra desde el menu "Mas" de la ficha —ahi hay que elegir el Hito—
+ * y desde el "+" de una columna del kanban de Hitos, donde el Hito ya esta decidido por la columna
+ * en la que se apreto. Por eso `CuerpoImportarTareas` esta separado del dialogo: la segunda puerta
+ * ya vive dentro de un dialogo, y anidar uno adentro de otro deja dos capas de foco peleandose.
  *
  * El boton de archivar solo se habilita cuando el informe del backend dice `listo`. La regla no se
  * reimplementa aca: dos versiones de la misma condicion se separan en cuanto una cambia.
  */
 
-/** Lo que se esta mostrando dentro del dialogo. */
+/** Lo que se esta mostrando. */
 type Fase = 'elegir' | 'informe'
 
 /** Carga de una lista que alimenta un selector. */
@@ -63,6 +67,7 @@ interface PropsImportarTareas {
   onArchivado: () => void
 }
 
+/** Puerta desde el menu "Mas" de la ficha: dialogo propio, con el Hito a elegir. */
 export function ImportarTareas ({
   destino,
   abierto,
@@ -70,23 +75,84 @@ export function ImportarTareas ({
   onImportado,
   onArchivado
 }: PropsImportarTareas): ReactElement {
+  const [ocupado, setOcupado] = useState(false)
+
+  return (
+    <Dialogo
+      open={abierto}
+      onOpenChange={(siguiente) => {
+        if (ocupado) return
+        onAbiertoCambia(siguiente)
+      }}
+    >
+      <ContenidoDialogo
+        titulo={`Importar ${GLOSARIO.proceso.plural.toLowerCase()} de otro ${GLOSARIO.espacio.singular.toLowerCase()}`}
+        descripcion={`Se copian todas las ${GLOSARIO.proceso.plural.toLowerCase()} del `
+          + `${GLOSARIO.espacio.singular.toLowerCase()} que elijas a un ${GLOSARIO.hito.singular.toLowerCase()} `
+          + `de "${destino.name}". Las originales no se tocan: primero comprobás que la copia quedó `
+          + 'igual y recién después archivás el viejo.'}
+        ancho="grande"
+      >
+        {/* Se desmonta al cerrar —`abierto &&`— y no solo se oculta: es lo que devuelve el diálogo a
+            su primer paso sin un `limpiar()` que haya que acordarse de llamar en cada salida. */}
+        {abierto && (
+          <CuerpoImportarTareas
+            destino={destino}
+            onImportado={onImportado}
+            onArchivado={onArchivado}
+            onCerrar={() => { onAbiertoCambia(false) }}
+            onOcupado={setOcupado}
+          />
+        )}
+      </ContenidoDialogo>
+    </Dialogo>
+  )
+}
+
+interface PropsCuerpo {
+  destino: { id: number, name: string }
+  /**
+   * Hito ya decidido. Cuando viene, el paso de elegirlo no se muestra: es el caso del "+" de una
+   * columna del kanban, donde la columna en la que se apretó ES la respuesta.
+   */
+  hitoFijo?: HitoDestino
+  onImportado: () => void
+  onArchivado: () => void
+  onCerrar: () => void
+  /** Avisa que hay una escritura en curso, para que el diálogo que lo contiene no se cierre encima. */
+  onOcupado?: (ocupado: boolean) => void
+}
+
+/** El cuerpo de la operacion, sin dialogo propio. Sirve a las dos puertas. */
+export function CuerpoImportarTareas ({
+  destino,
+  hitoFijo,
+  onImportado,
+  onArchivado,
+  onCerrar,
+  onOcupado
+}: PropsCuerpo): ReactElement {
   const [fase, setFase] = useState<Fase>('elegir')
   const [busqueda, setBusqueda] = useState('')
   const [origenId, setOrigenId] = useState<number | null>(null)
-  const [hitoId, setHitoId] = useState<number | null>(null)
+  const [hitoId, setHitoId] = useState<number | null>(hitoFijo?.id ?? null)
   const [informe, setInforme] = useState<InformeImportacion | null>(null)
   const [enCurso, setEnCurso] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [intento, setIntento] = useState(0)
 
   const [origenes, setOrigenes] = useState<Carga<ProyectoCandidato[]>>({ fase: 'cargando' })
-  const [hitos, setHitos] = useState<Carga<HitoDestino[]>>({ fase: 'cargando' })
+  const [hitos, setHitos] = useState<Carga<HitoDestino[]>>(
+    hitoFijo === undefined ? { fase: 'cargando' } : { fase: 'listo', datos: [hitoFijo] }
+  )
 
-  // Las dos listas se piden al abrir y no al montar: el dialogo vive en la cabecera de todas las
-  // fichas de Proyecto, y nadie tiene por que pagar dos peticiones por entrar a mirar una.
+  /** Un solo lugar donde se marca la escritura en curso, para no olvidar avisar hacia afuera. */
+  function marcarEnCurso (valor: boolean): void {
+    setEnCurso(valor)
+    onOcupado?.(valor)
+  }
+
   useEffect(() => {
-    if (!abierto) return
-
     const control = new AbortController()
 
     void pedirSobre<ProyectoCandidato[]>(rutaProyectosOrigen(), control.signal)
@@ -97,28 +163,20 @@ export function ImportarTareas ({
         if (!control.signal.aborted) setOrigenes({ fase: 'error', mensaje: mensajeDe(fallo) })
       })
 
-    void pedirSobre<HitoDestino[]>(rutaHitosDestino(destino.id), control.signal)
-      .then((sobre) => {
-        if (!control.signal.aborted) setHitos({ fase: 'listo', datos: sobre.data })
-      })
-      .catch((fallo: unknown) => {
-        if (!control.signal.aborted) setHitos({ fase: 'error', mensaje: mensajeDe(fallo) })
-      })
+    // Con el Hito ya decidido no hay nada que elegir, así que la lista no se pide: es una petición
+    // entera ahorrada en la puerta que más se va a usar.
+    if (hitoFijo === undefined) {
+      void pedirSobre<HitoDestino[]>(rutaHitosDestino(destino.id), control.signal)
+        .then((sobre) => {
+          if (!control.signal.aborted) setHitos({ fase: 'listo', datos: sobre.data })
+        })
+        .catch((fallo: unknown) => {
+          if (!control.signal.aborted) setHitos({ fase: 'error', mensaje: mensajeDe(fallo) })
+        })
+    }
 
     return () => { control.abort() }
-  }, [abierto, destino.id, intento])
-
-  /** Deja el dialogo como recien abierto. Lo elegido la vez anterior no sirve para la proxima. */
-  function limpiar (): void {
-    setFase('elegir')
-    setBusqueda('')
-    setOrigenId(null)
-    setHitoId(null)
-    setInforme(null)
-    setError(null)
-    setOrigenes({ fase: 'cargando' })
-    setHitos({ fase: 'cargando' })
-  }
+  }, [destino.id, hitoFijo, intento])
 
   /**
    * Trae el informe de verificacion.
@@ -135,7 +193,7 @@ export function ImportarTareas ({
       return
     }
 
-    setEnCurso(true)
+    marcarEnCurso(true)
     setError(null)
 
     try {
@@ -149,7 +207,7 @@ export function ImportarTareas ({
     } catch (fallo: unknown) {
       setError(mensajeDe(fallo))
     } finally {
-      setEnCurso(false)
+      marcarEnCurso(false)
     }
   }
 
@@ -160,7 +218,7 @@ export function ImportarTareas ({
   async function importar (): Promise<void> {
     if (origenId === null || hitoId === null) return
 
-    setEnCurso(true)
+    marcarEnCurso(true)
     setError(null)
 
     const respuesta = await escribirEnBff<InformeImportacion>(
@@ -169,7 +227,7 @@ export function ImportarTareas ({
       cuerpoDeImportacion(origenId, hitoId)
     )
 
-    setEnCurso(false)
+    marcarEnCurso(false)
 
     if (!respuesta.ok) {
       setError(respuesta.mensaje)
@@ -184,26 +242,25 @@ export function ImportarTareas ({
   /**
    * Archiva el Proyecto de origen, que es el final del trabajo.
    *
-   * Se cierra el dialogo al terminar: el Proyecto que se acaba de vaciar ya no tiene nada que
-   * mostrar aca, y dejar el informe abierto invita a apretar "Importar" otra vez.
+   * Se cierra al terminar: el Proyecto que se acaba de vaciar ya no tiene nada que mostrar aca, y
+   * dejar el informe abierto invita a apretar "Importar" otra vez.
    */
   async function archivarOrigen (): Promise<void> {
     if (informe === null) return
 
-    setEnCurso(true)
+    marcarEnCurso(true)
     setError(null)
 
     const respuesta = await escribirEnBff(`projects/${informe.origen.id}/actions/archive`, 'POST')
 
-    setEnCurso(false)
+    marcarEnCurso(false)
 
     if (!respuesta.ok) {
       setError(respuesta.mensaje)
       return
     }
 
-    limpiar()
-    onAbiertoCambia(false)
+    onCerrar()
     onArchivado()
   }
 
@@ -212,105 +269,85 @@ export function ImportarTareas ({
     : []
 
   return (
-    <Dialogo
-      open={abierto}
-      onOpenChange={(siguiente) => {
-        if (enCurso) return
-        onAbiertoCambia(siguiente)
-        if (!siguiente) limpiar()
-      }}
-    >
-      <ContenidoDialogo
-        titulo={`Importar ${GLOSARIO.proceso.plural.toLowerCase()} de otro ${GLOSARIO.espacio.singular.toLowerCase()}`}
-        descripcion={`Se copian todas las ${GLOSARIO.proceso.plural.toLowerCase()} del `
-          + `${GLOSARIO.espacio.singular.toLowerCase()} que elijas a un ${GLOSARIO.hito.singular.toLowerCase()} `
-          + `de "${destino.name}". Las originales no se tocan: primero comprobás que la copia quedó `
-          + 'igual y recién después archivás el viejo.'}
-        ancho="grande"
-      >
+    <div className="flex flex-col">
+      {fase === 'elegir'
+        ? (
+          <PasoElegir
+            origenes={origenes}
+            hitos={hitos}
+            hitoFijo={hitoFijo}
+            candidatos={candidatos}
+            busqueda={busqueda}
+            origenId={origenId}
+            hitoId={hitoId}
+            enCurso={enCurso}
+            onBusqueda={setBusqueda}
+            onOrigen={setOrigenId}
+            onHito={setHitoId}
+            onReintentar={() => {
+              setOrigenes({ fase: 'cargando' })
+              if (hitoFijo === undefined) setHitos({ fase: 'cargando' })
+              setIntento((n) => n + 1)
+            }}
+          />
+          )
+        : (
+          <PasoInforme informe={informe} />
+          )}
+
+      {error !== null && <p role="alert" className="text-texto-peligro mt-3 text-sm">{error}</p>}
+
+      <div className="mt-4 flex flex-wrap justify-end gap-2">
         {fase === 'elegir'
           ? (
-            <PasoElegir
-              origenes={origenes}
-              hitos={hitos}
-              candidatos={candidatos}
-              busqueda={busqueda}
-              origenId={origenId}
-              hitoId={hitoId}
-              enCurso={enCurso}
-              onBusqueda={setBusqueda}
-              onOrigen={setOrigenId}
-              onHito={setHitoId}
-              onReintentar={() => {
-                setOrigenes({ fase: 'cargando' })
-                setHitos({ fase: 'cargando' })
-                setIntento((n) => n + 1)
-              }}
-            />
+            <>
+              <Boton variante="sutil" disabled={enCurso} onClick={onCerrar}>Cancelar</Boton>
+              <Boton variante="primario" cargando={enCurso} onClick={() => { void comprobar() }}>
+                Ver qué se va a copiar
+              </Boton>
+            </>
             )
           : (
-            <PasoInforme informe={informe} />
-            )}
+            <>
+              <Boton variante="sutil" disabled={enCurso} onClick={() => { setFase('elegir') }}>
+                Volver
+              </Boton>
 
-        {error !== null && <p role="alert" className="text-texto-peligro mt-3 text-sm">{error}</p>}
-
-        <div className="mt-4 flex justify-end gap-2">
-          {fase === 'elegir'
-            ? (
-              <>
-                <Boton
-                  variante="sutil"
-                  disabled={enCurso}
-                  onClick={() => { onAbiertoCambia(false); limpiar() }}
-                >
-                  Cancelar
+              {informe !== null && informe.pendientes > 0 && (
+                <Boton variante="primario" cargando={enCurso} onClick={() => { void importar() }}>
+                  Copiar {informe.pendientes} {informe.pendientes === 1
+                    ? GLOSARIO.proceso.singular.toLowerCase()
+                    : GLOSARIO.proceso.plural.toLowerCase()}
                 </Boton>
-                <Boton variante="primario" cargando={enCurso} onClick={() => { void comprobar() }}>
-                  Ver qué se va a copiar
-                </Boton>
-              </>
-              )
-            : (
-              <>
-                <Boton variante="sutil" disabled={enCurso} onClick={() => { setFase('elegir') }}>
-                  Volver
-                </Boton>
-
-                {informe !== null && informe.pendientes > 0 && (
-                  <Boton variante="primario" cargando={enCurso} onClick={() => { void importar() }}>
-                    Copiar {informe.pendientes} {informe.pendientes === 1
-                      ? GLOSARIO.proceso.singular.toLowerCase()
-                      : GLOSARIO.proceso.plural.toLowerCase()}
-                  </Boton>
-                )}
-
-                {informe !== null && informe.pendientes === 0 && (
-                  <Boton variante="secundario" cargando={enCurso} onClick={() => { void comprobar() }}>
-                    Volver a comprobar
-                  </Boton>
-                )}
-
-                {/* Archivar cierra el ciclo, y por eso esta aca y no en otro menu: quien acaba de
-                    comprobar que la copia esta bien es quien tiene que poder terminar el trabajo. */}
-                <Boton
-                  variante="peligro"
-                  disabled={!habilitaArchivar(informe) || enCurso}
-                  onClick={() => { void archivarOrigen() }}
-                >
-                  Archivar {informe === null ? '' : `"${informe.origen.nombre}"`}
-                </Boton>
-              </>
               )}
-        </div>
-      </ContenidoDialogo>
-    </Dialogo>
+
+              {informe !== null && informe.pendientes === 0 && (
+                <Boton variante="secundario" cargando={enCurso} onClick={() => { void comprobar() }}>
+                  Volver a comprobar
+                </Boton>
+              )}
+
+              {/* Archivar cierra el ciclo, y por eso esta aca y no en otro menu: quien acaba de
+                  comprobar que la copia esta bien es quien tiene que poder terminar el trabajo. */}
+              <Boton
+                variante="peligro"
+                disabled={!habilitaArchivar(informe) || enCurso}
+                onClick={() => { void archivarOrigen() }}
+              >
+                Archivar {informe === null ? '' : `"${informe.origen.nombre}"`}
+              </Boton>
+            </>
+            )}
+      </div>
+    </div>
   )
 }
 
-/** Primer paso: de dónde salen las tareas y a qué hito entran. */
+/** Primer paso: de dónde salen las tareas y —si no vino decidido— a qué hito entran. */
 function PasoElegir ({
   origenes,
   hitos,
+  hitoFijo,
   candidatos,
   busqueda,
   origenId,
@@ -323,6 +360,7 @@ function PasoElegir ({
 }: {
   origenes: Carga<ProyectoCandidato[]>
   hitos: Carga<HitoDestino[]>
+  hitoFijo?: HitoDestino
   candidatos: ProyectoCandidato[]
   busqueda: string
   origenId: number | null
@@ -388,27 +426,35 @@ function PasoElegir ({
           </ul>
           )}
 
-      <Campo etiqueta={`${GLOSARIO.hito.singular} de destino`} requerido>
-        {(props) => (
-          <Selector
-            value={hitoId === null ? undefined : String(hitoId)}
-            onValueChange={(valor) => { onHito(Number(valor)) }}
-            disabled={enCurso}
-          >
-            <DisparadorSelector
-              marcador={hitos.datos.length === 0
-                ? `Este ${GLOSARIO.espacio.singular.toLowerCase()} no tiene ${GLOSARIO.hito.plural.toLowerCase()}`
-                : `Elegí un ${GLOSARIO.hito.singular.toLowerCase()}`}
-              id={props.id}
-            />
-            <ContenidoSelector>
-              {hitos.datos.map((hito) => (
-                <Opcion key={hito.id} value={String(hito.id)}>{hito.name}</Opcion>
-              ))}
-            </ContenidoSelector>
-          </Selector>
-        )}
-      </Campo>
+      {hitoFijo === undefined
+        ? (
+          <Campo etiqueta={`${GLOSARIO.hito.singular} de destino`} requerido>
+            {(props) => (
+              <Selector
+                value={hitoId === null ? undefined : String(hitoId)}
+                onValueChange={(valor) => { onHito(Number(valor)) }}
+                disabled={enCurso}
+              >
+                <DisparadorSelector
+                  marcador={hitos.datos.length === 0
+                    ? `Este ${GLOSARIO.espacio.singular.toLowerCase()} no tiene ${GLOSARIO.hito.plural.toLowerCase()}`
+                    : `Elegí un ${GLOSARIO.hito.singular.toLowerCase()}`}
+                  id={props.id}
+                />
+                <ContenidoSelector>
+                  {hitos.datos.map((hito) => (
+                    <Opcion key={hito.id} value={String(hito.id)}>{hito.name}</Opcion>
+                  ))}
+                </ContenidoSelector>
+              </Selector>
+            )}
+          </Campo>
+          )
+        : (
+          <p className="text-texto-sutil text-xs">
+            Entran a <strong className="text-texto font-medium">{hitoFijo.name}</strong>.
+          </p>
+          )}
     </div>
   )
 }

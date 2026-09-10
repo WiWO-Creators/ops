@@ -4,8 +4,6 @@ import { CabeceraProyecto } from '@/componentes/proyecto/CabeceraProyecto'
 import { PanelActividad } from '@/componentes/proyecto/PanelActividad'
 import { PanelConfiguracionEspacio } from '@/componentes/proyecto/PanelConfiguracionEspacio'
 import { PanelArchivos } from '@/componentes/proyecto/PanelArchivos'
-import { PanelChatIA } from '@/componentes/proyecto/PanelChatIA'
-import { OrbeChatIA } from '@/componentes/proyecto/OrbeChatIA'
 import { PanelDescripcion } from '@/componentes/proyecto/PanelDescripcion'
 import { PanelDiscusiones } from '@/componentes/proyecto/PanelDiscusiones'
 import { PanelGantt } from '@/componentes/proyecto/PanelGantt'
@@ -18,12 +16,13 @@ import { Pestanas, type Panel } from '@/componentes/proyecto/Pestanas'
 import { Cargando, ErrorEstado, SinPermiso, Vacio } from '@/componentes/estado/Estados'
 import { listaDe, nombreDe } from '@/datos/catalogos'
 import { ErrorApi } from '@/datos/errores'
-import { iaHabilitada } from '@/datos/ajustes'
+import { estadoIa } from '@/datos/ajustes'
+import type { EstadoIa } from '@/dominio/ajustes'
 import { cargarLookups } from '@/datos/lookups'
 import { pedir } from '@/datos/servidor'
 import type { Espacio, Lookups } from '@/datos/recursos'
 import type { Yo } from '@/datos/tipos'
-import { ASISTENTE, GLOSARIO } from '@/dominio/glosario'
+import { GLOSARIO } from '@/dominio/glosario'
 
 /**
  * Pide el Proyecto una sola vez por peticion.
@@ -60,8 +59,14 @@ interface Detalle {
   proyecto: Espacio
   lookups: Lookups
   yo: Yo
-  /** Si la capa de IA esta encendida. Decide si la pestaña de chat existe. */
-  conIa: boolean
+  /**
+   * Si la capa de IA esta encendida, y por que no lo esta cuando no lo esta.
+   *
+   * Decide el alta rapida por texto y el Meeting Paper. Viaja con el motivo y no como booleano
+   * porque el Meeting Paper lo muestra: un boton que no hace nada y no dice por que es el fallo que
+   * nadie puede reportar.
+   */
+  ia: EstadoIa
 }
 
 /**
@@ -77,14 +82,14 @@ interface Detalle {
  */
 async function cargarDetalle (id: string): Promise<Detalle | ErrorApi> {
   try {
-    const [proyecto, lookups, yo, conIa] = await Promise.all([
+    const [proyecto, lookups, yo, ia] = await Promise.all([
       traerProyecto(id),
       cargarLookups(),
       pedir<Yo>('/me'),
-      iaHabilitada()
+      estadoIa()
     ])
 
-    return { proyecto: proyecto.data, lookups, yo: yo.data, conIa }
+    return { proyecto: proyecto.data, lookups, yo: yo.data, ia }
   } catch (error) {
     if (error instanceof ErrorApi) return error
 
@@ -137,7 +142,8 @@ export default async function ProyectoPage (props: PageProps<'/espacios/[id]'>) 
     return <ErrorEstado detalle={detalle.message} />
   }
 
-  const { proyecto, lookups, yo, conIa } = detalle
+  const { proyecto, lookups, yo, ia } = detalle
+  const conIa = ia.activa
   const capacidadesProyecto = yo.permissions.projects
   const capacidadesTareas = yo.permissions.tasks
   const estados = listaDe(lookups, 'project_statuses')
@@ -191,7 +197,7 @@ export default async function ProyectoPage (props: PageProps<'/espacios/[id]'>) 
     // El Meeting Paper conserva el lugar donde el equipo ya lo busca. Va aparte de las Notas y no
     // adentro porque son dos cosas distintas: la nota es privada de quien la escribio y el acta la ve
     // todo el Proyecto, asi que sus acciones dependen de permisos en vez de ofrecerse siempre.
-    { clave: 'actas', etiqueta: GLOSARIO.acta.singular, contenido: <PanelActas proyectoId={proyecto.id} conIa={conIa} yo={yo} /> },
+    { clave: 'actas', etiqueta: GLOSARIO.acta.singular, contenido: <PanelActas proyectoId={proyecto.id} ia={ia} yo={yo} /> },
     { clave: 'notas', etiqueta: GLOSARIO.nota.plural, contenido: <PanelNotas proyectoId={proyecto.id} /> },
     {
       clave: 'actividad',
@@ -204,14 +210,6 @@ export default async function ProyectoPage (props: PageProps<'/espacios/[id]'>) 
           etiqueta: 'Configuración',
           contenido: <PanelConfiguracionEspacio proyectoId={proyecto.id} puedeConfigurar />
         }]
-      : []),
-    // Ultima, y `paneles[0]` sigue siendo Descripcion: la pestaña por defecto no cambia y abrir el
-    // Proyecto no dispara ninguna llamada a `/ia/*` hasta que alguien entra a esta.
-    //
-    // Con la capa de IA apagada la pestaña no existe, en vez de existir y fallar: la API responde
-    // 404 a todo `/ia/*` y la persona no puede distinguir "no esta contratado" de "se rompio".
-    ...(conIa
-      ? [{ clave: 'ia', etiqueta: ASISTENTE, contenido: <PanelChatIA proyectoId={proyecto.id} /> }]
       : [])
   ]
 
@@ -229,10 +227,6 @@ export default async function ProyectoPage (props: PageProps<'/espacios/[id]'>) 
       <Suspense fallback={<Cargando alto="min-h-36" mensaje="Cargando el detalle…" />}>
         <Pestanas paneles={paneles} />
       </Suspense>
-
-      {/* El mismo chat de la pestaña, al alcance desde cualquier otra: se esconde solo cuando la
-          pestaña de IA es la activa, que es cuando ya se esta viendo. */}
-      {conIa && <OrbeChatIA proyectoId={proyecto.id} />}
     </section>
   )
 }
