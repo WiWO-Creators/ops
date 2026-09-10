@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from 'next'
 import { SCRIPT_BARRA_INICIAL } from '@/lib/barra-lateral'
+import { SCRIPT_BIENVENIDA_INICIAL } from '@/lib/bienvenida'
 import { SCRIPT_TEMA_INICIAL } from '@/lib/tema'
 import './globals.css'
 
@@ -28,6 +29,12 @@ export default function RaizLayout ({ children }: { children: React.ReactNode })
         <script dangerouslySetInnerHTML={{ __html: SCRIPT_TEMA_INICIAL }} />
         {/* Mismo motivo que el de arriba, para el ancho de la barra lateral. */}
         <script dangerouslySetInnerHTML={{ __html: SCRIPT_BARRA_INICIAL }} />
+        {/*
+          Y el mismo motivo otra vez, para la bienvenida de despues de actualizar: si el telon lo
+          pusiera React, la pagina nueva se veria unos cientos de milisegundos antes de que la tape la
+          animacion, que es el orden inverso al que se quiere. Ver `lib/bienvenida.ts`.
+        */}
+        <script dangerouslySetInnerHTML={{ __html: SCRIPT_BIENVENIDA_INICIAL }} />
       </head>
       <body>{children}</body>
     </html>

@@ -1,0 +1,158 @@
+/**
+ * La bienvenida que tapa la pantalla despues de actualizar: el telon y el monito que construye.
+ *
+ * El telon (`html[data-bienvenida]`) y la capa de React son dos cosas distintas a proposito. El
+ * script del `<head>` pone el atributo antes del primer pintado, asi que el telon existe desde el
+ * primer fotograma; la capa con el monito llega cuando React monta, varios cientos de milisegundos
+ * despues. Sin el telon, esa ventana muestra el panel entero y despues lo tapa el dibujo — el orden
+ * inverso al que se pidio.
+ *
+ * Nada de esto necesita apagarse bajo `prefers-reduced-motion`: el bloque global de `neo.css` reduce
+ * toda animacion del documento a 0.01ms, y quien pidio menos movimiento ve el mismo cartel, quieto y
+ * mas corto (`VigilanteDeVersion` acorta tambien la espera).
+ */
+
+/**
+ * El telon liso, del color de la pagina. No dibuja nada: solo evita el destello.
+ *
+ * Va en `body::before` y no en `html::before` porque `body` es quien tiene el color de fondo
+ * resuelto. `z-index: 60` lo deja por encima del panel (el mayor en uso es 50) y por debajo de la
+ * capa de React, que es la que finalmente se ve.
+ */
+html[data-bienvenida] body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  background: var(--superficie);
+  view-transition-name: telon-bienvenida;
+}
+
+/**
+ * Por que el telon y la capa tienen `view-transition-name` propio.
+ *
+ * El panel envuelve cada pagina en `<ViewTransition>` (`estructura/TransicionDePagina.tsx`), y la
+ * carga que sigue a una actualizacion tambien entra con esa transicion. Mientras corre, el navegador
+ * pinta la pagina como un pseudo-elemento `::view-transition-new(root)` en la capa superior, POR
+ * ENCIMA de cualquier `z-index` del documento: la bienvenida quedaba tapada por el panel durante los
+ * primeros fotogramas, que es justo lo que tenia que evitar.
+ *
+ * Un nombre propio saca al elemento del grupo `root` y le da el suyo, que se pinta despues. Es la
+ * unica forma de estar por encima de una transicion sin apagarla para todo el mundo.
+ */
+.bienvenida-capa {
+  view-transition-name: capa-bienvenida;
+}
+
+/**
+ * El muro, bloque por bloque.
+ *
+ * `forwards` es lo que los deja puestos: sin eso vuelven a `opacity: 0` al terminar y el muro se
+ * desarma. El retraso lo pone cada `<rect>` con `--retraso`, para que el escalonado se lea en el
+ * dibujo y no haya que contar reglas aca.
+ */
+@keyframes monito-bloque-entra {
+  from {
+    opacity: 0;
+    transform: translateY(-16px);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.monito-bloque {
+  transform-box: view-box;
+  opacity: 0;
+  animation: monito-bloque-entra 420ms var(--retraso, 0ms) cubic-bezier(0.2, 0.8, 0.3, 1) forwards;
+}
+
+/**
+ * El martillazo: levantar despacio, bajar de golpe, rebotar.
+ *
+ * El reposo son 6 grados y esta DENTRO de los keyframes, no en un atributo `transform` del SVG: la
+ * animacion pisa la propiedad, asi que un reposo escrito afuera desapareceria en el primer fotograma
+ * y el brazo arrancaria horizontal.
+ *
+ * `transform-box: view-box` hace que `transform-origin` se lea en coordenadas del `viewBox`, que es
+ * donde estan las del hombro. Con el valor de fabrica (`fill-box`) el origen seria la esquina de la
+ * caja del grupo y el brazo giraria alrededor del martillo.
+ */
+@keyframes monito-martillar {
+  0% {
+    transform: rotate(6deg);
+  }
+
+  35% {
+    transform: rotate(-52deg);
+  }
+
+  50% {
+    transform: rotate(14deg);
+  }
+
+  62% {
+    transform: rotate(6deg);
+  }
+
+  100% {
+    transform: rotate(6deg);
+  }
+}
+
+.monito-brazo {
+  transform-box: view-box;
+  transform-origin: 65px 68px;
+  animation: monito-martillar 900ms ease-in-out infinite;
+}
+
+/**
+ * Las chispas, en el fotograma del impacto.
+ *
+ * Misma duracion que el brazo (900ms) y el pico al 52%, justo despues del 50% en que el martillo
+ * llega abajo. Es la unica forma de que golpe y chispa coincidan sin un temporizador en JavaScript.
+ */
+@keyframes monito-chispa {
+  0%,
+  45% {
+    opacity: 0;
+    transform: scale(0.4);
+  }
+
+  52% {
+    opacity: 1;
+    transform: scale(1);
+  }
+
+  72%,
+  100% {
+    opacity: 0;
+    transform: scale(1.35);
+  }
+}
+
+.monito-chispas {
+  transform-box: view-box;
+  transform-origin: 110px 56px;
+  opacity: 0;
+  animation: monito-chispa 900ms ease-in-out infinite;
+}
+
+/** El peso del cuerpo al golpear. Pixel y medio: mas que eso deja de ser esfuerzo y parece un salto. */
+@keyframes monito-cuerpo-golpe {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+
+  50% {
+    transform: translateY(1.5px);
+  }
+}
+
+.monito-cuerpo {
+  transform-box: view-box;
+  animation: monito-cuerpo-golpe 900ms ease-in-out infinite;
+}

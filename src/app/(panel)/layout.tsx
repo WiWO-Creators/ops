@@ -6,6 +6,7 @@ import { GLOSARIO } from '@/dominio/glosario'
 import { puedeVerSeccion } from '@/dominio/permisos'
 import { intervaloDeLatido } from '@/datos/auditoria'
 import { intervaloDeLive, type EstadoDeJornada } from '@/datos/live'
+import { intervaloDeVersion, versionDelServidor } from '@/datos/version'
 import type { ConteoDeAvisos } from '@/datos/avisos'
 import { SelectorTema } from '@/componentes/estructura/SelectorTema'
 import { BarraLateral, BarraLateralMovil, type Seccion } from '@/componentes/estructura/BarraLateral'
@@ -16,6 +17,7 @@ import { ControlJornada } from '@/componentes/live/ControlJornada'
 import { Logo } from '@/componentes/estructura/Logo'
 import { MenuUsuario } from '@/componentes/estructura/MenuUsuario'
 import { ScrollSuave } from '@/componentes/estructura/ScrollSuave'
+import { VigilanteDeVersion } from '@/componentes/estructura/VigilanteDeVersion'
 
 /**
  * Armazon del panel.
@@ -59,6 +61,13 @@ export default async function PanelLayout ({ children }: { children: React.React
           todo el panel: montado alla, la unica persona conectada seria la que mira la auditoria.
           El intervalo se resuelve aca —en el servidor— y viaja como prop; ver `intervaloDeLatido`. */}
       <Latido segundos={intervaloDeLatido()} />
+
+      {/* Tampoco pinta nada mientras no haya nada que decir: avisa cuando el servidor pasa a servir
+          otra version que la que esta pestaña tiene cargada, y recibe con la obra del monito a quien
+          acepta actualizar. Va en el armazon —como el latido— porque el bundle viejo es de todo el
+          panel, no de una pantalla. La version se resuelve aca, en el servidor, y viaja como prop:
+          es el unico valor del que se sabe que corresponde al JavaScript que se acaba de mandar. */}
+      <VigilanteDeVersion version={versionDelServidor()} segundos={intervaloDeVersion()} />
 
       {/* `aurora` va aca y no en cada pantalla: es el lienzo del panel, no un adorno de la portada.
           Su capa es un `::before` fijo detras de todo (`globals.css`), asi que no ocupa lugar ni
