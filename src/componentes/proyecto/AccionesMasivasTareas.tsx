@@ -4,7 +4,7 @@ import { useEffect, useState, type ReactElement } from 'react'
 import { Boton } from '@/componentes/formularios/Boton'
 import { CargandoConOrbe } from '@/componentes/estado/Orbe'
 import { Campo } from '@/componentes/formularios/Campo'
-import { Entrada } from '@/componentes/formularios/Entrada'
+import { CLASES_CASILLA, Entrada } from '@/componentes/formularios/Entrada'
 import {
   ContenidoSelector,
   DisparadorSelector,
@@ -22,6 +22,7 @@ import {
   ItemMenu,
   MenuContextual
 } from '@/componentes/superposiciones/MenuContextual'
+import { normalizar } from '@/dominio/salas'
 import { cargarAsignables } from '@/datos/asignables'
 import { pedirSobre } from '@/datos/cliente'
 import { leerError } from '@/datos/errores'
@@ -85,6 +86,8 @@ export function AccionesMasivasTareas ({
   const [personal, setPersonal] = useState<PersonaAsignable[]>([])
   const [hitos, setHitos] = useState<Hito[]>([])
 
+  const [destinos, setDestinos] = useState<number[]>([])
+  const [busquedaProyecto, setBusquedaProyecto] = useState('')
   const [proyectos, setProyectos] = useState<Referencia[]>([])
   const [cargandoProyectos, setCargandoProyectos] = useState(false)
   const [errorProyectos, setErrorProyectos] = useState<string | null>(null)
@@ -134,6 +137,8 @@ export function AccionesMasivasTareas ({
   function abrir (elegida: AccionMasivaDescrita): void {
     setAccion(elegida)
     setValor('')
+    setDestinos([])
+    setBusquedaProyecto('')
     setError(null)
 
     if (elegida.control === 'personas' && personal.length === 0) {
@@ -156,14 +161,14 @@ export function AccionesMasivasTareas ({
   async function aplicar (): Promise<void> {
     if (accion === null || enCurso) return
 
-    const valorTipado = valorDeAccionMasiva(accion.control, valor)
+    const valorTipado = accion.control === 'proyecto' ? destinos : valorDeAccionMasiva(accion.control, valor)
 
     if (accion.control !== 'ninguno' && valorTipado === null) {
       setError('Elige un valor antes de aplicar.')
       return
     }
 
-    if (accion.control === 'proyecto' && (cargandoProyectos || !proyectos.some((proyecto) => proyecto.id === valorTipado))) {
+    if (accion.control === 'proyecto' && (cargandoProyectos || destinos.length === 0 || destinos.some((id) => !proyectos.some((proyecto) => proyecto.id === id)))) {
       setError('Elige un proyecto disponible antes de aplicar.')
       return
     }
@@ -245,19 +250,57 @@ export function AccionesMasivasTareas ({
         <ContenidoDialogo
           titulo={accion?.etiqueta ?? ''}
           descripcion={accion?.control === 'proyecto'
-            ? `Las ${ids.length} tareas seleccionadas pasarán al proyecto elegido. Las que cambien de proyecto quedarán sin hito ni tipo.`
+            ? `Elige uno o más proyectos para las ${ids.length} tareas seleccionadas. Cada copia tendrá su propio código.`
             : `Se aplica a ${ids.length} tarea${ids.length === 1 ? '' : 's'}.`}
         >
           <div className="flex flex-col gap-4">
             {accion?.control === 'proyecto' ? (
-              <Campo etiqueta="Proyecto destino" requerido>
-                {({ id }) => <Selector value={valor} onValueChange={setValor} disabled={enCurso || cargandoProyectos || proyectos.length === 0}>
-                  <DisparadorSelector id={id} marcador={cargandoProyectos ? 'Cargando proyectos…' : 'Elige un proyecto'} />
-                  <ContenidoSelector>
-                    {proyectos.map((proyecto) => <Opcion key={proyecto.id} value={String(proyecto.id)}>{proyecto.name}</Opcion>)}
-                  </ContenidoSelector>
-                </Selector>}
-              </Campo>
+              <fieldset className="flex min-w-0 flex-col gap-2" disabled={enCurso || cargandoProyectos || errorProyectos !== null}>
+                <legend className="mb-2 text-sm font-medium">Proyectos destino</legend>
+                <Entrada
+                  type="search"
+                  aria-label="Buscar proyectos por nombre"
+                  placeholder="Escribe el nombre del proyecto…"
+                  value={busquedaProyecto}
+                  onChange={(evento) => setBusquedaProyecto(evento.target.value)}
+                />
+                {cargandoProyectos ? <p role="status" className="text-texto-sutil text-sm">Cargando proyectos…</p> : (
+                  <div className="border-linea max-h-48 overflow-y-auto rounded-chico border">
+                    {proyectos.filter((proyecto) => normalizar(proyecto.name).includes(normalizar(busquedaProyecto))).map((proyecto) => (
+                      <label key={proyecto.id} className="hover:bg-superficie-hundida flex min-h-11 cursor-pointer items-center gap-3 px-3 py-2 text-sm">
+                        <input
+                          type="checkbox"
+                          className={CLASES_CASILLA}
+                          checked={destinos.includes(proyecto.id)}
+                          onChange={(evento) => setDestinos((previos) => evento.target.checked
+                            ? [...previos, proyecto.id]
+                            : previos.filter((id) => id !== proyecto.id))}
+                        />
+                        <span className="min-w-0 break-words">{proyecto.name}</span>
+                      </label>
+                    ))}
+                    {proyectos.length > 0 && !proyectos.some((proyecto) => normalizar(proyecto.name).includes(normalizar(busquedaProyecto))) && (
+                      <p role="status" className="text-texto-sutil px-3 py-3 text-sm">No hay proyectos con ese nombre.</p>
+                    )}
+                  </div>
+                )}
+                {destinos.length > 0 && (
+                  <div className="flex flex-col gap-2 text-sm" aria-live="polite">
+                    <p>{destinos.length} proyecto{destinos.length === 1 ? '' : 's'} seleccionado{destinos.length === 1 ? '' : 's'}:</p>
+                    <ol className="flex max-h-28 flex-col gap-1 overflow-y-auto">
+                      {destinos.map((id, indice) => (
+                        <li key={id} className="flex min-w-0 items-center justify-between gap-2">
+                          <span className="min-w-0 break-words">{proyectos.find((proyecto) => proyecto.id === id)?.name} · {indice === 0 ? 'Originales' : 'Copias'}</span>
+                          <Boton variante="sutil" tamano="chico" disabled={enCurso} aria-label={`Quitar ${proyectos.find((proyecto) => proyecto.id === id)?.name}`} onClick={() => setDestinos((previos) => previos.filter((destino) => destino !== id))}>Quitar</Boton>
+                        </li>
+                      ))}
+                    </ol>
+                    <p className="text-texto-sutil">
+                      Se trasladarán {ids.length} tareas al primer proyecto{destinos.length > 1 ? ` y se crearán ${ids.length * (destinos.length - 1)} copias en los demás` : ''}. Las tareas trasladadas quedarán sin el hito ni el tipo del proyecto anterior.
+                    </p>
+                  </div>
+                )}
+              </fieldset>
             ) : accion !== null && (
               <ControlDeAccion
                 accion={accion}
@@ -282,7 +325,7 @@ export function AccionesMasivasTareas ({
               <Boton
                 variante={accion?.peligrosa === true ? 'peligro' : 'primario'}
                 cargando={enCurso}
-                disabled={enCurso || (accion?.control === 'proyecto' && (cargandoProyectos || valor === '' || errorProyectos !== null || proyectos.length === 0))}
+                disabled={enCurso || (accion?.control === 'proyecto' && (cargandoProyectos || destinos.length === 0 || errorProyectos !== null || proyectos.length === 0))}
                 onClick={() => { void aplicar() }}
               >
                 {accion?.control === 'proyecto' ? 'Agregar a proyecto' : 'Aplicar'}
