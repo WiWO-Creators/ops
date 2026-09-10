@@ -192,6 +192,12 @@ export function tituloDeActa (html: string, reserva = 'Meeting Paper'): string {
  * en orden y se devuelve `''` para que el navegador elija el suyo, que es lo que hace que iPhone y
  * Mac funcionen sin una rama por sistema.
  *
+ * **`audio/mp4` va primero, y no es una preferencia estética.** El proveedor que transcribe el audio
+ * acepta wav, m4a, mp3, aac y flac, y rechaza `webm`, `ogg` y `opus` por nombre. Una grabación en
+ * mp4/AAC llega lista; una en webm obliga al servidor a convertirla con ffmpeg antes de poder
+ * escucharla. `webm` queda de respaldo porque sigue siendo lo único que graban los navegadores
+ * viejos, y convertir es más lento que no tener grabadora.
+ *
  * @param soporta normalmente `MediaRecorder.isTypeSupported`; se inyecta para poder probarlo
  */
 export function mimeDeGrabacion (soporta?: (tipo: string) => boolean): string {
@@ -199,7 +205,7 @@ export function mimeDeGrabacion (soporta?: (tipo: string) => boolean): string {
     ? () => false
     : (tipo: string) => MediaRecorder.isTypeSupported(tipo))
 
-  for (const candidato of ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4']) {
+  for (const candidato of ['audio/mp4', 'audio/webm;codecs=opus', 'audio/webm']) {
     if (probar(candidato)) return candidato
   }
 
