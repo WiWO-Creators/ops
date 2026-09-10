@@ -141,7 +141,7 @@ function seccionesDe (yo: Yo): Seccion[] {
 
   // Prospectos contiene el acceso a sus licitaciones. La bandera de instalación habilita el módulo.
   if (yo.secciones_habilitadas.includes('prospectos')) {
-    secciones.push({ href: '/prospectos', etiqueta: 'Prospectos', icono: 'licitaciones' })
+    secciones.push({ href: '/prospectos', etiqueta: GLOSARIO.licitacion.plural, icono: 'licitaciones' })
   }
 
   // Upselling corresponde a oportunidades sobre clientes existentes.
