@@ -16,7 +16,8 @@ import { Pestanas, type Panel } from '@/componentes/proyecto/Pestanas'
 import { Cargando, ErrorEstado, SinPermiso, Vacio } from '@/componentes/estado/Estados'
 import { listaDe, nombreDe } from '@/datos/catalogos'
 import { ErrorApi } from '@/datos/errores'
-import { iaHabilitada } from '@/datos/ajustes'
+import { estadoIa } from '@/datos/ajustes'
+import type { EstadoIa } from '@/dominio/ajustes'
 import { cargarLookups } from '@/datos/lookups'
 import { pedir } from '@/datos/servidor'
 import type { Espacio, Lookups } from '@/datos/recursos'
@@ -58,8 +59,14 @@ interface Detalle {
   proyecto: Espacio
   lookups: Lookups
   yo: Yo
-  /** Si la capa de IA esta encendida. Decide el alta rapida por texto y el Meeting Paper. */
-  conIa: boolean
+  /**
+   * Si la capa de IA esta encendida, y por que no lo esta cuando no lo esta.
+   *
+   * Decide el alta rapida por texto y el Meeting Paper. Viaja con el motivo y no como booleano
+   * porque el Meeting Paper lo muestra: un boton que no hace nada y no dice por que es el fallo que
+   * nadie puede reportar.
+   */
+  ia: EstadoIa
 }
 
 /**
@@ -75,14 +82,14 @@ interface Detalle {
  */
 async function cargarDetalle (id: string): Promise<Detalle | ErrorApi> {
   try {
-    const [proyecto, lookups, yo, conIa] = await Promise.all([
+    const [proyecto, lookups, yo, ia] = await Promise.all([
       traerProyecto(id),
       cargarLookups(),
       pedir<Yo>('/me'),
-      iaHabilitada()
+      estadoIa()
     ])
 
-    return { proyecto: proyecto.data, lookups, yo: yo.data, conIa }
+    return { proyecto: proyecto.data, lookups, yo: yo.data, ia }
   } catch (error) {
     if (error instanceof ErrorApi) return error
 
@@ -135,7 +142,8 @@ export default async function ProyectoPage (props: PageProps<'/espacios/[id]'>) 
     return <ErrorEstado detalle={detalle.message} />
   }
 
-  const { proyecto, lookups, yo, conIa } = detalle
+  const { proyecto, lookups, yo, ia } = detalle
+  const conIa = ia.activa
   const capacidadesProyecto = yo.permissions.projects
   const capacidadesTareas = yo.permissions.tasks
   const estados = listaDe(lookups, 'project_statuses')
@@ -189,7 +197,7 @@ export default async function ProyectoPage (props: PageProps<'/espacios/[id]'>) 
     // El Meeting Paper conserva el lugar donde el equipo ya lo busca. Va aparte de las Notas y no
     // adentro porque son dos cosas distintas: la nota es privada de quien la escribio y el acta la ve
     // todo el Proyecto, asi que sus acciones dependen de permisos en vez de ofrecerse siempre.
-    { clave: 'actas', etiqueta: GLOSARIO.acta.singular, contenido: <PanelActas proyectoId={proyecto.id} conIa={conIa} yo={yo} /> },
+    { clave: 'actas', etiqueta: GLOSARIO.acta.singular, contenido: <PanelActas proyectoId={proyecto.id} ia={ia} yo={yo} /> },
     { clave: 'notas', etiqueta: GLOSARIO.nota.plural, contenido: <PanelNotas proyectoId={proyecto.id} /> },
     {
       clave: 'actividad',
