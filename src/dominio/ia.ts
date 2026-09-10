@@ -130,12 +130,48 @@ export interface AccionIA {
   expira_en: string | null
 }
 
+/**
+ * Una opcion elegible de una pregunta de WiBot.
+ *
+ * `valor` es del tipo del argumento que la pregunta resuelve: `boolean` en los campos de si/no y
+ * `string` `AAAA-MM-DD` en las fechas. De ahi el cuidado con `false`, que es un valor legitimo y a
+ * la vez falsy: **es la opcion segura de los tres campos booleanos** —la que deja algo fuera del
+ * portal del cliente—, y cualquier filtro escrito con `!valor` o con `??` la borraria justo a ella,
+ * dejando a la persona eligiendo entre "si" y nada. Por eso se valida por `typeof` y nunca por
+ * verdad.
+ */
+export interface OpcionPregunta {
+  valor: boolean | string
+  /** El texto del boton, y tambien lo que se manda como mensaje al elegirla. */
+  etiqueta: string
+  /** La consecuencia de elegirla, escrita por el servidor. Es lo que hace informada la eleccion. */
+  descripcion: string
+}
+
+/**
+ * Algo que WiBot necesita saber antes de escribir, y que decidio preguntar en vez de asumir.
+ *
+ * **La pregunta cierra el turno.** El mensaje que la trae no deja ninguna tarjeta de propuesta para
+ * esa accion, y la respuesta viaja como el mensaje siguiente de la persona: no hay endpoint de
+ * respuesta ni fila que resolver. Por eso este tipo no lleva `id` ni `estado`, al reves que
+ * `AccionIA` —que si los lleva porque su confirmacion escribe—.
+ */
+export interface PreguntaIA {
+  /** El argumento que la pregunta resuelve. Identifica de que se trata; no se pinta. */
+  campo: string
+  pregunta: string
+  opciones: OpcionPregunta[]
+  /** `true` solo cuando las opciones no agotan el dominio —las fechas—: ahi se puede escribir. */
+  admite_texto: boolean
+}
+
 /** Un frame del stream, ya interpretado. El `tipo` es el nombre del `event:` del contrato. */
 export type EventoIA =
   | { tipo: 'delta', texto: string }
   | { tipo: 'citas', citas: Cita[] }
   | { tipo: 'paso', paso: PasoIA }
   | { tipo: 'propuesta', accion: AccionIA }
+  | { tipo: 'pregunta', pregunta: PreguntaIA }
   | { tipo: 'navegar', href: string, etiqueta: string, prefill: Record<string, unknown> | null }
   | { tipo: 'fin', generado_en: string | null, regeneracion: Regeneracion | null, uso: UsoIA | null }
   | { tipo: 'error', codigo: string, mensaje: string }
@@ -168,6 +204,14 @@ const LARGO_MAXIMO_ETIQUETA = 120
  */
 const MAXIMO_DETALLE = 40
 const LARGO_MAXIMO_DETALLE = 500
+
+/**
+ * Opciones que se leen de una pregunta.
+ *
+ * Otra red, no la politica: el backend manda dos o tres por pregunta. Seis deja margen de sobra y
+ * evita que un bug del servidor convierta la burbuja en una lista de botones sin fondo.
+ */
+const MAXIMO_OPCIONES = 6
 
 /** `true` si el valor es un objeto JSON plano. Descarta `null` y los arrays, que tambien son `object`. */
 export function esObjeto (valor: unknown): valor is Record<string, unknown> {
@@ -245,6 +289,12 @@ export function leerEventoIA (crudo: string): EventoIA | null {
     const accion = leerAccion(datos)
 
     return accion === null ? null : { tipo: 'propuesta', accion }
+  }
+
+  if (nombre === 'pregunta') {
+    const pregunta = leerPregunta(datos)
+
+    return pregunta === null ? null : { tipo: 'pregunta', pregunta }
   }
 
   if (nombre === 'navegar') return leerNavegar(datos)
@@ -379,6 +429,70 @@ function leerLineas (valor: unknown): string[] {
   const visibles = lineas.slice(0, MAXIMO_DETALLE - 1)
 
   return [...visibles, `… (${lineas.length - visibles.length} líneas más)`]
+}
+
+/**
+ * Valida una pregunta, venga del evento `pregunta` o del `preguntas` de un mensaje guardado.
+ *
+ * **Sin ninguna opcion valida se descarta entera**, por el mismo criterio que descarta un `navegar`
+ * con `href` malo: una pregunta sin botones es una pregunta que no se puede contestar, y pintarla
+ * dejaria a la persona mirando un texto que le pide algo y no le da con que. Que se descarte no
+ * pierde nada util: el turno queda como una respuesta de texto y la persona sigue escribiendo.
+ *
+ * `descripcion` cae a `''` en vez de descartar la opcion: el boton sigue siendo elegible sin su
+ * consecuencia al lado, y perder la opcion segura por un campo informativo seria el peor cambio.
+ *
+ * @param valor el payload del frame, o una entrada del array `preguntas`
+ * @returns la pregunta, o `null` si no tiene la forma del contrato o se quedo sin opciones
+ */
+export function leerPregunta (valor: unknown): PreguntaIA | null {
+  if (!esObjeto(valor)) return null
+
+  const { campo, pregunta, opciones, admite_texto: admiteTexto } = valor
+
+  if (typeof campo !== 'string' || campo === '') return null
+  if (typeof pregunta !== 'string' || pregunta === '') return null
+  if (!Array.isArray(opciones)) return null
+
+  const utiles = opciones
+    .map(leerOpcion)
+    .filter((opcion) => opcion !== null)
+    .slice(0, MAXIMO_OPCIONES)
+
+  if (utiles.length === 0) return null
+
+  return {
+    campo,
+    pregunta: pregunta.slice(0, LARGO_MAXIMO_DETALLE),
+    opciones: utiles,
+    admite_texto: admiteTexto === true
+  }
+}
+
+/**
+ * Valida una opcion suelta de una pregunta.
+ *
+ * El `valor` se comprueba por `typeof` **a proposito**: es lo unico que deja pasar `false`, que es
+ * el valor de la opcion segura de los tres campos booleanos. Un `if (!elegido)` o un
+ * `elegido ?? null` la descartarian sin que nada falle a la vista, y la pregunta quedaria ofreciendo
+ * solo el "si".
+ *
+ * @param valor una entrada del array `opciones`
+ * @returns la opcion, o `null` si le falta el valor o la etiqueta
+ */
+function leerOpcion (valor: unknown): OpcionPregunta | null {
+  if (!esObjeto(valor)) return null
+
+  const { valor: elegido, etiqueta, descripcion } = valor
+
+  if (typeof elegido !== 'boolean' && (typeof elegido !== 'string' || elegido === '')) return null
+  if (typeof etiqueta !== 'string' || etiqueta === '') return null
+
+  return {
+    valor: elegido,
+    etiqueta: etiqueta.slice(0, LARGO_MAXIMO_ETIQUETA),
+    descripcion: typeof descripcion === 'string' ? descripcion.slice(0, LARGO_MAXIMO_DETALLE) : ''
+  }
 }
 
 /**

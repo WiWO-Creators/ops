@@ -4920,6 +4920,41 @@ segmento, y la fila ya lleva su `project_id` y su `staffid`. **No transmite**: e
             "expira_en": "2026-09-09T18:29:50Z" } }
 ```
 
+#### `event: pregunta` — cuando el dato falta y asumirlo sería peligroso
+
+Hermano de `event: propuesta`. Orden del stream:
+`paso*` → `delta*` → `propuesta*` → **`pregunta*`** → `navegar*` → `citas` → `fin`.
+
+```json
+{ "campo": "visible_para_el_cliente",
+  "pregunta": "¿El cliente ve la discusión «Ajustes del brief» en su portal?",
+  "opciones": [
+    { "valor": false, "etiqueta": "Solo el equipo",
+      "descripcion": "No aparece en el portal del cliente; el hilo queda puertas adentro." },
+    { "valor": true, "etiqueta": "También el cliente",
+      "descripcion": "Aparece en su portal, y despublicarla después no borra lo que ya leyó." }],
+  "admite_texto": false }
+```
+
+**Cuándo pregunta en vez de asumir**, y el criterio es del servidor, no del modelo: cuando el dato
+afecta a otras entidades (el rango de fechas del Espacio manda sobre sus hitos), lo ve alguien de
+afuera (el cliente), o cambia el comportamiento para toda la empresa (un campo personalizado
+obligatorio). Lo demás se asume y va en `supuestos`.
+
+**La pregunta cierra el turno.** No llega ningún `propuesta` para esa acción y no hay nada que
+confirmar. **La respuesta viaja como el mensaje siguiente de la persona**, por el mismo camino que
+una pregunta escrita a mano: no hay endpoint de respuesta ni estado pendiente que guardar.
+
+**Las opciones las escribe el servidor**, con `valor` del tipo real del argumento —`false` es un
+valor legítimo, cuidado con los `if (!valor)`— y `descripcion` diciendo la **consecuencia**, no
+repitiendo la etiqueta. Si las escribiera el modelo, un texto inyectado podría ofrecer «Sí, publicar
+al cliente» como si fuera una opción legítima, que es el mismo motivo por el que `resumen` y
+`detalle` tampoco salen del modelo.
+
+`admite_texto` es `true` solo cuando las opciones no agotan el dominio. Tope de 3 preguntas por
+turno. No se persisten: viven lo que vive el turno, y en el JSON no-stream viajan en `preguntas`, al
+lado de `acciones`.
+
 #### `supuestos` — lo que WiBot completó por su cuenta
 
 Cuando al pedido le falta un dato, WiBot **asume lo más razonable y lo deja escrito acá** en vez de
