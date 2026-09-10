@@ -28,6 +28,7 @@ import { ESTADO_COMPLETO } from './tareas'
 import { CompartirTarea } from './CompartirTarea'
 import { Cronometros } from './Cronometros'
 import { EdicionTarea } from './EdicionTarea'
+import { ListaChecklist } from './ListaChecklist'
 import { ListaIteraciones } from './ListaIteraciones'
 import { PanelAdjuntos } from './PanelArchivos'
 import { mensajeDeRespuesta, pedirRespuesta } from '@/datos/cliente'
@@ -283,6 +284,8 @@ export function DetalleTarea (
           <Descripcion html={tarea.description} />
         </section>
 
+        <ListaChecklist procesoId={procesoId} />
+
         <ListaIteraciones procesoId={procesoId} />
 
         <section className="flex flex-col gap-2">
@@ -437,14 +440,15 @@ function Dato ({ etiqueta, children }: { etiqueta: string, children: ReactNode }
 /**
  * Los contadores que la API ya resuelve.
  *
- * La lista de control se muestra como "hechos de total" y no como dos numeros sueltos: "3" sin el
- * total no dice si falta todo o nada.
+ * La lista de control **no** esta aca aunque `counts` la traiga: su panel se recarga solo al tildar
+ * un item, y este bloque viene del `GET /tasks/{id}` que se pidio al abrir. Los dos numeros a la
+ * vez serian el viejo y el nuevo discutiendo sobre trabajo dado por hecho, asi que el conteo vive
+ * en el encabezado de `ListaChecklist`, que es el que siempre esta al dia.
  */
 function Contadores ({ counts }: { counts: Proceso['counts'] }): ReactElement {
   return (
-    <ul className="border-linea bg-superficie-elevada rounded-tarjeta grid grid-cols-3 gap-2 border p-3">
+    <ul className="border-linea bg-superficie-elevada rounded-tarjeta grid grid-cols-2 gap-2 border p-3">
       <Contador etiqueta="Comentarios" valor={String(counts.comments)} />
-      <Contador etiqueta="Lista" valor={`${counts.checklist_done}/${counts.checklist}`} />
       <Contador etiqueta="Adjuntos" valor={String(counts.attachments)} />
     </ul>
   )

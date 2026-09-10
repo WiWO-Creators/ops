@@ -410,7 +410,9 @@ export const CHECKLIST = PROCESOS.flatMap((p) =>
     task_id: p.id,
     description: `Punto ${j + 1}`,
     finished: j < p.counts.checklist_done,
-    list_order: j + 1,
+    // `order`, no `list_order`: la columna se llama asi en la tabla, pero el contrato la publica
+    // renombrada (`RecursoProcesos::checklist()`).
+    order: j + 1,
     assigned: null
   }))
 )
