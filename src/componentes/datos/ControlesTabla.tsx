@@ -109,7 +109,7 @@ export function ControlesTabla<T> ({
       {definicion.busqueda && (
         <form
           role="search"
-          className="flex items-center gap-2"
+          className="flex items-center gap-1.5"
           onSubmit={(evento) => {
             evento.preventDefault()
             const campo = new FormData(evento.currentTarget).get('q')
@@ -392,11 +392,18 @@ interface PropsPaginacion {
  *
  * Sin `meta` no se dibuja nada: inventar "pagina 1 de 1" cuando el backend no dijo cuantas hay es
  * afirmar algo que no se sabe.
+ *
+ * Con una sola pagina que ademas entra holgada tampoco se dibuja nada: "Pagina 1 de 1" repite el total
+ * que ya esta en la cabecera del listado, y el selector de filas por pagina y los dos botones no
+ * llevan a ningun lado. Se vuelven a mostrar en cuanto hay una segunda pagina o el tamaño de pagina
+ * empieza a recortar.
  */
 export function PaginacionTabla ({ paginacion, onCambiar }: PropsPaginacion) {
   if (paginacion === undefined) return null
 
   const { page, per_page: porPagina, total, total_pages: totalPaginas } = paginacion
+
+  if (totalPaginas <= 1 && total <= porPagina) return null
 
   return (
     <div className="text-texto-tenue flex flex-wrap items-center justify-between gap-2 text-xs">
