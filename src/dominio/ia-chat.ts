@@ -15,10 +15,8 @@ import { esObjeto, leerAccion, leerCita, type AccionIA, type Cita, type PasoIA }
  * navegar de una pantalla a otra desmonta lo que haya montado. Con el estado dentro del componente
  * la conversacion se perderia en cada ida y vuelta.
  *
- * Y es **uno solo**, no uno por Espacio: el chat dejo de vivir dentro de una ficha, asi que la
- * conversacion es de la persona con WiBot y sigue siendo la misma mientras ella cambia de pantalla.
- * Es tambien lo que hace util el evento `navegar`: WiBot lleva a otra pantalla y la conversacion
- * que llevo hasta ahi sigue ahi.
+ * El hilo global y los de cada proyecto se guardan por separado. Abrir un proyecto nunca usa
+ * mensajes de otro como contexto ni borra la conversación global.
  */
 
 /**
@@ -83,29 +81,31 @@ const SEPARADOR = /(\[\d+\])/
 const COLGANTE = /\[\d*$/
 
 /**
- * La conversacion viva, una sola por pestaña del navegador.
+ * Conversaciones vivas de la pestaña del navegador, separadas por proyecto y ámbito global.
  *
  * Se recarga la pagina y se va, como corresponde: lo que persiste de verdad es lo que el servidor
  * guarda y devuelve en el `GET`. Esto es la copia con la que se pinta mientras tanto.
  */
-let HILO: Hilo = { mensajes: [], cargado: false }
+const HILOS = new Map<number | undefined, Hilo>()
 
 /**
  * Devuelve la conversacion en memoria.
  *
+ * @param proyectoId proyecto del hilo; omitido para la conversación global
  * @returns el hilo guardado; vacio y sin cargar la primera vez
  */
-export function leerHilo (): Hilo {
-  return HILO
+export function leerHilo (proyectoId?: number): Hilo {
+  return HILOS.get(proyectoId) ?? { mensajes: [], cargado: false }
 }
 
 /**
  * Guarda la conversacion en memoria.
  *
  * @param hilo el hilo completo, ya con los mensajes nuevos
+ * @param proyectoId proyecto del hilo; omitido para la conversación global
  */
-export function guardarHilo (hilo: Hilo): void {
-  HILO = hilo
+export function guardarHilo (hilo: Hilo, proyectoId?: number): void {
+  HILOS.set(proyectoId, hilo)
 }
 
 /**

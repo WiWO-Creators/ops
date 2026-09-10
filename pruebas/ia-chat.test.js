@@ -86,7 +86,7 @@ test('la cita que no se puede resolver no se enlaza a ningun lado', () => {
   assert.equal(hrefDeCita({ tipo: 'discusion', id: 31, titulo: 'Presupuesto de la etapa 2' }), null)
 })
 
-test('el hilo es uno solo y sobrevive a que el chat se desmonte', () => {
+test('el hilo global sobrevive a que el chat se desmonte', () => {
   // Lo que se protege: navegar de pantalla desmonta el chat, y al volver a abrirlo la conversacion
   // tiene que seguir ahi. Sin esto, cada cambio de ruta empezaria de cero.
   const mensajes = [{ rol: 'persona', texto: 'hola', citas: [], paso: null, acciones: [], fase: 'listo' }]
@@ -188,4 +188,19 @@ test('el hilo guardado trae las propuestas de cada mensaje y descarta las rotas'
 
   assert.equal(mensajes[0].acciones.length, 1, 'la propuesta con un estado que no existe no llega')
   assert.equal(mensajes[0].acciones[0].id, 5)
+})
+
+
+test('los proyectos no comparten historial ni borran el hilo global', () => {
+  const hilo = (texto) => ({ mensajes: [{ rol: 'persona', texto, citas: [], paso: null, acciones: [], fase: 'listo' }], cargado: true })
+  guardarHilo(hilo('global'))
+  guardarHilo(hilo('proyecto uno'), 1)
+  guardarHilo(hilo('proyecto dos'), 2)
+  assert.deepEqual(leerHilo(3), { mensajes: [], cargado: false })
+  assert.equal(leerHilo(1).mensajes[0].texto, 'proyecto uno')
+  guardarHilo({ mensajes: [], cargado: true }, 1)
+  assert.equal(leerHilo(1).mensajes.length, 0)
+  assert.equal(leerHilo(2).mensajes[0].texto, 'proyecto dos')
+  assert.equal(leerHilo().mensajes[0].texto, 'global')
+  guardarHilo({ mensajes: [], cargado: false })
 })

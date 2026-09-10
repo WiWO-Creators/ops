@@ -56,8 +56,6 @@ import { ASISTENTE, GLOSARIO } from '@/dominio/glosario'
  * una cita a una Tarea es un salto al listado global, que la abre por id venga del Espacio que venga.
  */
 
-/** Ruta del chat en el BFF. La misma para el GET del hilo, el POST de la pregunta y el DELETE. */
-const RUTA = 'ia/chat'
 
 /**
  * Preguntas de arranque del estado vacio.
@@ -81,12 +79,25 @@ const MENSAJE_GENERICO = 'No se pudo completar la respuesta.'
  * @param desplazable en el orbe el alto esta acotado, asi que la conversacion scrollea sola y el
  *   campo queda fijo abajo. Sin esto scrollea lo que lo contenga.
  */
-export function ChatWiBot ({ desplazable = false }: { desplazable?: boolean } = {}): ReactElement {
+interface PropsChatWiBot {
+  desplazable?: boolean
+  proyecto?: { id: number, name: string }
+}
+
+/** Monta un hilo independiente al cambiar entre proyectos o el chat global. */
+export function ChatWiBot (props: PropsChatWiBot = {}): ReactElement {
+  return <ConversacionWiBot key={props.proyecto?.id ?? 'global'} {...props} />
+}
+
+/** Conversación con historial y rutas de acciones limitadas al alcance indicado. */
+function ConversacionWiBot ({ desplazable = false, proyecto }: PropsChatWiBot): ReactElement {
+  const proyectoId = proyecto?.id
+  const rutaChat = proyectoId === undefined ? 'ia/chat' : `ia/proyectos/${proyectoId}/chat`
   const router = useRouter()
   const ruta = usePathname()
-  const [mensajes, setMensajes] = useState<Mensaje[]>(() => leerHilo().mensajes)
+  const [mensajes, setMensajes] = useState<Mensaje[]>(() => leerHilo(proyectoId).mensajes)
   const [carga, setCarga] = useState<'cargando' | 'listo' | 'error'>(
-    () => leerHilo().cargado ? 'listo' : 'cargando'
+    () => leerHilo(proyectoId).cargado ? 'listo' : 'cargando'
   )
   const [errorCarga, setErrorCarga] = useState('')
   const [errorRespuesta, setErrorRespuesta] = useState('')
@@ -101,18 +112,18 @@ export function ChatWiBot ({ desplazable = false }: { desplazable?: boolean } = 
 
   /** Escribe el hilo en el store de modulo y en el estado local a la vez: una sola fuente. */
   const escribir = useCallback((siguientes: Mensaje[]) => {
-    guardarHilo({ mensajes: siguientes, cargado: true })
+    guardarHilo({ mensajes: siguientes, cargado: true }, proyectoId)
     setMensajes(siguientes)
-  }, [])
+  }, [proyectoId])
 
   // El hilo guardado se pide UNA vez y no cada vez que se abre el chat: repetir el GET pisaria lo
   // que hay en memoria, incluida una respuesta interrumpida que el servidor no guardo.
   useEffect(() => {
-    if (leerHilo().cargado) return
+    if (leerHilo(proyectoId).cargado) return
 
     const abortador = new AbortController()
 
-    void pedirSobre<unknown>(RUTA, abortador.signal)
+    void pedirSobre<unknown>(rutaChat, abortador.signal)
       .then((sobre) => {
         if (abortador.signal.aborted) return
 
@@ -127,7 +138,7 @@ export function ChatWiBot ({ desplazable = false }: { desplazable?: boolean } = 
       })
 
     return () => { abortador.abort() }
-  }, [intento, escribir])
+  }, [intento, escribir, proyectoId, rutaChat])
 
   // Al desmontar —cerrar el chat— se corta el stream en curso.
   useEffect(() => {
@@ -177,10 +188,10 @@ export function ChatWiBot ({ desplazable = false }: { desplazable?: boolean } = 
       // `pantalla` es lo que le dice al servidor donde esta parada la persona, para que "esta tarea"
       // se pueda resolver. Si el pathname no pasa la validacion no viaja a medias: se pregunta sin
       // pantalla y el servidor responde sin ese contexto.
-      const pantalla = pantallaDeRuta(ruta)
+      const pantalla = proyectoId === undefined ? pantallaDeRuta(ruta) : null
       const cuerpo = pantalla === null ? { pregunta: texto } : { pregunta: texto, pantalla }
 
-      for await (const crudo of leerSSE(RUTA, { cuerpo, senal: abortador.signal })) {
+      for await (const crudo of leerSSE(rutaChat, { cuerpo, senal: abortador.signal })) {
         const evento = leerEventoIA(crudo)
 
         // Un evento que este parser no conoce vuelve como `null` y se saltea: es lo que hace que
@@ -192,7 +203,7 @@ export function ChatWiBot ({ desplazable = false }: { desplazable?: boolean } = 
         // herramienta y la siguiente, y el paso entero desaparece cuando la burbuja deja de generar.
         if (evento.tipo === 'paso') paso = evento.paso
         if (evento.tipo === 'propuesta') acciones = [...acciones, evento.accion]
-        if (evento.tipo === 'navegar') {
+        if (evento.tipo === 'navegar' && proyectoId === undefined) {
           // El `href` ya lo valido `leerEventoIA()` como ruta interna; aca no se toca. Se dice a
           // donde se fue porque la pantalla cambia sola debajo de quien esta leyendo.
           setDestino(evento.etiqueta)
@@ -235,7 +246,7 @@ export function ChatWiBot ({ desplazable = false }: { desplazable?: boolean } = 
   async function borrar (): Promise<void> {
     setBorrando(true)
 
-    const resultado = await escribirEnBff(RUTA, 'DELETE')
+    const resultado = await escribirEnBff(rutaChat, 'DELETE')
 
     setBorrando(false)
 
@@ -287,7 +298,7 @@ export function ChatWiBot ({ desplazable = false }: { desplazable?: boolean } = 
         ? (
           <Vacio
             titulo={`Pregúntale a ${ASISTENTE}`}
-            descripcion="Responde con lo que hay cargado en Ops y cita de dónde lo sacó."
+            descripcion={proyecto === undefined ? "Responde con lo que hay cargado en Ops y cita de dónde lo sacó." : `Pregunta por las tareas, hitos y avances de ${proyecto.name}.`}
             accion={
               <div className="flex flex-wrap justify-center gap-2">
                 {SUGERENCIAS.map((sugerencia) => (
@@ -308,6 +319,7 @@ export function ChatWiBot ({ desplazable = false }: { desplazable?: boolean } = 
                   <BurbujaIA
                     key={indice}
                     mensaje={mensaje}
+                    proyectoId={proyectoId}
                     error={errorRespuesta}
                     onReintentar={() => reintentar(indice)}
                     onAccionResuelta={(accion) => { escribir(conAccionResuelta(mensajes, accion)) }}
@@ -321,6 +333,12 @@ export function ChatWiBot ({ desplazable = false }: { desplazable?: boolean } = 
 
   return (
     <div className={desplazable ? 'flex min-h-0 flex-1 flex-col gap-4' : 'flex flex-col gap-4'}>
+      {proyecto !== undefined && (
+        <div className="border-linea flex flex-col gap-1 border-b pb-3">
+          <h2 className="text-texto text-base font-semibold">WiBot · {proyecto.name}</h2>
+          <p className="text-texto-sutil text-sm">Esta conversación solo consulta y modifica este proyecto.</p>
+        </div>
+      )}
       {/* Fuera del desplazador: en el orbe, un boton que se va con el scroll no se encuentra cuando
           la conversacion es larga, que es justo cuando se quiere borrar. */}
       {mensajes.length > 0 && (
@@ -383,7 +401,7 @@ export function ChatWiBot ({ desplazable = false }: { desplazable?: boolean } = 
           maxLength={LARGO_MAXIMO_PREGUNTA}
           disabled={enviando}
           aria-label="Tu pregunta"
-          placeholder="Pregunta lo que necesites…"
+          placeholder={proyecto === undefined ? "Pregunta lo que necesites…" : "Pregunta sobre este proyecto…"}
         />
 
         <div className="flex flex-wrap items-center justify-between gap-2">
@@ -392,7 +410,7 @@ export function ChatWiBot ({ desplazable = false }: { desplazable?: boolean } = 
               las escrituras apagadas no cambia nada nunca, y con ellas encendidas no cambia nada
               hasta que alguien aprieta Confirmar. */}
           <p className="text-texto-sutil text-xs">
-            Responde con lo que hay cargado en Ops. No cambia nada sin que lo confirmes.
+            {proyecto === undefined ? 'Responde con lo que hay cargado en Ops.' : 'Solo trabaja en este proyecto.'} No cambia nada sin que lo confirmes.
           </p>
           <Boton type="submit" variante="primario" disabled={pregunta.trim() === '' || enviando}>
             Preguntar
@@ -432,9 +450,11 @@ function BurbujaIA ({
   mensaje,
   error,
   onReintentar,
-  onAccionResuelta
+  onAccionResuelta,
+  proyectoId
 }: {
   mensaje: Mensaje
+  proyectoId?: number
   error: string
   onReintentar: () => void
   onAccionResuelta: (accion: AccionIA) => void
@@ -445,7 +465,7 @@ function BurbujaIA ({
   // escrituras apagadas, o el modelo que no consulto nada— se queda con el texto fijo de siempre.
   const indicador = mensaje.fase === 'generando' && mensaje.paso !== null
     ? { mensaje: mensaje.paso.etiqueta, estado: mensaje.paso.orbe }
-    : { mensaje: 'Buscando en Ops…', estado: 'thinking' as const }
+    : { mensaje: proyectoId === undefined ? 'Buscando en Ops…' : 'Buscando en este proyecto…', estado: 'thinking' as const }
 
   return (
     <li className="border-linea bg-superficie-hundida rounded-tarjeta flex flex-col gap-2 border p-3">
@@ -490,7 +510,7 @@ function BurbujaIA ({
         <ul aria-label="Acciones propuestas" className="flex flex-col gap-2">
           {mensaje.acciones.map((accion) => (
             <li key={accion.id}>
-              <TarjetaPropuestaIA accion={accion} onResuelta={onAccionResuelta} />
+              <TarjetaPropuestaIA accion={accion} onResuelta={onAccionResuelta} proyectoId={proyectoId} />
             </li>
           ))}
         </ul>

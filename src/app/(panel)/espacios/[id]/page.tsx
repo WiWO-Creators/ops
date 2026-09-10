@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { ChatWiBot } from '@/componentes/ia/ChatWiBot'
 import { Suspense, cache } from 'react'
 import { CabeceraProyecto } from '@/componentes/proyecto/CabeceraProyecto'
 import { PanelActividad } from '@/componentes/proyecto/PanelActividad'
@@ -198,6 +199,7 @@ export default async function ProyectoPage (props: PageProps<'/espacios/[id]'>) 
     // adentro porque son dos cosas distintas: la nota es privada de quien la escribio y el acta la ve
     // todo el Proyecto, asi que sus acciones dependen de permisos en vez de ofrecerse siempre.
     { clave: 'actas', etiqueta: GLOSARIO.acta.singular, contenido: <PanelActas proyectoId={proyecto.id} ia={ia} yo={yo} /> },
+    ...(conIa ? [{ clave: 'wibot', etiqueta: 'WiBot', contenido: <ChatWiBot proyecto={{ id: proyecto.id, name: proyecto.name }} /> }] : []),
     { clave: 'notas', etiqueta: GLOSARIO.nota.plural, contenido: <PanelNotas proyectoId={proyecto.id} /> },
     {
       clave: 'actividad',

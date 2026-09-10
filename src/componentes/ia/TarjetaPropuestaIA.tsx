@@ -78,7 +78,7 @@ const ESTADOS: Record<string, { texto: string, clase: string }> = {
  * @param onResuelta se llama con la accion ya resuelta que devolvio el servidor
  */
 export function TarjetaPropuestaIA (
-  { accion, onResuelta }: { accion: AccionIA, onResuelta: (accion: AccionIA) => void }
+  { accion, onResuelta, proyectoId }: { accion: AccionIA, onResuelta: (accion: AccionIA) => void, proyectoId?: number }
 ): ReactElement {
   const [ahora, setAhora] = useState(() => Date.now())
   const [enviando, setEnviando] = useState(false)
@@ -112,7 +112,8 @@ export function TarjetaPropuestaIA (
     setEnviando(true)
     setError('')
 
-    const resultado = await escribirEnBff<unknown>(`ia/acciones/${accion.id}`, 'POST', { decision })
+    const ruta = proyectoId === undefined ? `ia/acciones/${accion.id}` : `ia/proyectos/${proyectoId}/acciones/${accion.id}`
+    const resultado = await escribirEnBff<unknown>(ruta, 'POST', { decision })
 
     enVuelo.current = false
     setEnviando(false)
