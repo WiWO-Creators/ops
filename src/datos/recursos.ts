@@ -144,6 +144,13 @@ export interface AprobacionProceso {
 export interface Espacio {
   id: number
   name: string
+  /**
+   * Identificador visible del Espacio (`ACM-001`): las letras del cliente mas un correlativo.
+   * Es `null` mientras el backend no lo haya asignado, y viene ausente en las respuestas del
+   * portal, que no expone el codigo interno. Se pinta como `patente || '#' + id`, igual que el
+   * del Proceso.
+   */
+  patente?: string | null
   /** Imagen propia del proyecto; si es `null`, la interfaz usa el logo del cliente. */
   image_url: string | null
   description: string | null
@@ -175,7 +182,17 @@ export interface Espacio {
 }
 
 /**
- * En que quedo una Licitacion.
+ * En que quedo un Prospecto. **No es una columna**: la API lo deriva del resumen de sus
+ * licitaciones (`abierto` si tiene alguna abierta, si no `ganado` si tiene alguna ganada, si no
+ * `perdido`, y `sin_licitaciones` cuando todavia no tiene ninguna).
+ *
+ * Ganar y perder son POR LICITACION —se pueden ganar 2 de 4—, asi que el prospecto no tiene ni un
+ * boton ni un endpoint para cambiar esto.
+ */
+export type EstadoProspecto = 'abierto' | 'ganado' | 'perdido' | 'sin_licitaciones'
+
+/**
+ * En que quedo una Licitacion o un Upsell.
  *
  * No sale de `/lookups`: no es un catalogo que alguien administre en Perfex, son las tres ramas del
  * flujo. Mismo criterio que `billing_type` de un Espacio.
@@ -185,10 +202,11 @@ export type EstadoLicitacion = 'abierta' | 'ganada' | 'perdida'
 /**
  * La empresa a la que se le esta licitando, **antes** de que exista como Cliente.
  *
- * Son las mismas columnas escribibles de `Cliente` menos las que no aplican todavia (moneda, idioma,
- * direcciones de facturacion y envio): lo que se copia tal cual el dia que la licitacion se gana.
+ * Vive en el Prospecto y no en cada Licitacion: dos licitaciones a la misma empresa son dos
+ * licitaciones de un solo prospecto. Son las mismas columnas escribibles de `Cliente` menos las
+ * direcciones de facturacion y envio: lo que se copia tal cual el dia que se gana la primera.
  */
-export interface CandidataLicitacion {
+export interface EmpresaCandidata {
   company: string
   vat: string | null
   phonenumber: string | null
@@ -198,15 +216,56 @@ export interface CandidataLicitacion {
   state: string | null
   zip: string | null
   country_id: number | null
+  default_currency: number | null
+  default_language: string | null
 }
 
-/** La persona con la que se habla en la empresa candidata. Al ganar se vuelve su contacto principal. */
-export interface ContactoLicitacion {
+/** Una persona de contacto de la empresa candidata. Al ganar se da de alta como contacto real. */
+export interface PersonaDeContacto {
   firstname: string
   lastname: string
   email: string
   phonenumber: string | null
   title: string | null
+}
+
+/**
+ * Una persona de contacto tal como cuelga de un Prospecto.
+ *
+ * `contacto_id` es el contacto REAL bajo el cliente. `null` mientras el prospecto no haya ganado
+ * ninguna licitacion; en cuanto lo tiene, ese contacto ya existe y se da de baja desde el cliente
+ * (la API responde `409` a un `DELETE` de esta fila).
+ */
+export interface ContactoProspecto {
+  id: number
+  prospecto_id: number
+  contacto: PersonaDeContacto | null
+  es_principal: boolean
+  contacto_id: number | null
+  creado_en: string
+}
+
+/**
+ * Un Prospecto: la empresa candidata, sus contactos y las licitaciones que se le estan preparando.
+ *
+ * Los tres contadores vienen resueltos por el backend en la misma consulta del listado: pedirlos por
+ * fila serian tres viajes por prospecto para pintar una columna.
+ */
+export interface Prospecto {
+  id: number
+  empresa: string
+  estado: EstadoProspecto
+  cliente: EmpresaCandidata
+  /** El Cliente **real**, creado al ganar la primera licitacion. `null` hasta entonces. */
+  client_id: number | null
+  client: { id: number, company: string, image_url: string | null } | null
+  /** Cuando nacio el cliente real. `null` mientras no exista. */
+  convertido_en: string | null
+  creado_en: string
+  creado_por: number
+  licitaciones_total: number
+  licitaciones_abiertas: number
+  licitaciones_ganadas: number
 }
 
 /**
@@ -223,25 +282,49 @@ export interface EspacioDeLicitacion {
   deadline: string | null
 }
 
+/** Una licitacion vista desde la ficha de su Prospecto: el bloque de contexto, no el listado. */
+export interface LicitacionDeProspecto {
+  id: number
+  estado: EstadoLicitacion
+  resultado_en: string | null
+  creada_en: string
+  espacio: EspacioDeLicitacion
+}
+
+/** Lo que devuelve `GET /prospectos/{id}`: el prospecto con sus dos listas de hijos, ya en lote. */
+export interface ProspectoDetalle extends Prospecto {
+  contactos: ContactoProspecto[]
+  licitaciones: LicitacionDeProspecto[]
+}
+
+/** El Prospecto del que cuelga una Licitacion, tal como viene en cada fila del listado. */
+export interface ProspectoDeLicitacion {
+  id: number
+  empresa: string
+  client_id: number | null
+  client: { id: number, company: string, image_url: string | null } | null
+}
+
 /**
- * Una Licitacion: la empresa candidata, su contacto y el Espacio donde ya se trabaja la propuesta.
+ * Una Licitacion: el Espacio donde se trabaja la propuesta, colgado de un Prospecto.
  *
  * **`id` es el id del Espacio**: son la misma fila vista desde dos lados, asi que los subrecursos de
  * trabajo se piden a `/projects/{licitacion.id}/…` sin traducir nada.
  *
- * `company` viene desnormalizado desde `cliente.company` para que la tabla no tenga que bajar por el
- * objeto y para que `q` y `sort=company` signifiquen algo en el listado.
+ * La empresa y sus contactos **no viven aca**: viven en el prospecto. `company` viene resuelto por
+ * el JOIN para que la tabla no tenga que bajar por el objeto y para que `q` y `sort=company`
+ * signifiquen algo en el listado.
  */
 export interface Licitacion {
   id: number
   estado: EstadoLicitacion
-  /** Copia de `cliente.company`. Solo para la columna y la busqueda del listado. */
+  prospecto_id: number
+  prospecto: ProspectoDeLicitacion
+  /** El nombre del prospecto, resuelto por el JOIN. Solo para la columna y la busqueda del listado. */
   company: string
-  cliente: CandidataLicitacion
-  /** `null` cuando el alta no trajo contacto: `POST /licitaciones` lo acepta sin el. */
-  contacto: ContactoLicitacion | null
-  /** El Cliente **real**, creado al ganar. `null` mientras la licitacion no este ganada. */
+  /** El Cliente **real** del prospecto. `null` mientras no haya ganado ninguna licitacion. */
   client_id: number | null
+  client: { id: number, company: string, image_url: string | null } | null
   /** Cuando se gano o se perdio. `null` mientras siga abierta. */
   resultado_en: string | null
   creada_en: string
@@ -250,6 +333,40 @@ export interface Licitacion {
 
 /** Lo que devuelve `GET /licitaciones/{id}`: igual, pero con la ficha completa del Espacio. */
 export interface LicitacionDetalle extends Licitacion {
+  espacio: Espacio
+}
+
+/**
+ * Un Upsell: una oportunidad comercial sobre un cliente que **ya existe**.
+ *
+ * Espejo de `Licitacion` con una diferencia que lo cambia todo: el Espacio nace con el `clientid`
+ * REAL, no en 0. Por eso `client` viene siempre, y por eso el backend tiene que esconderlo tambien
+ * del portal del cliente mientras la oportunidad siga abierta.
+ *
+ * **`id` es el id del Espacio**, igual que en una Licitacion.
+ */
+export interface Upsell {
+  id: number
+  estado: EstadoLicitacion
+  /** Lo que se espera vender. `null` es "todavia no se sabe", que no es lo mismo que 0. */
+  monto_estimado: number | null
+  /** Id de `currencies` de `GET /lookups`. */
+  moneda_id: number | null
+  /** 0 a 100. */
+  probabilidad: number | null
+  /** Por que se gano o se perdio. Se escribe al cerrar. */
+  motivo: string | null
+  /** El cliente, que existe desde el dia uno. Sale de `tblprojects.clientid`, no de una columna. */
+  client_id: number | null
+  client: { id: number, company: string, image_url: string | null } | null
+  /** Cuando se gano o se perdio. `null` mientras siga abierto. */
+  resultado_en: string | null
+  creada_en: string
+  espacio: EspacioDeLicitacion
+}
+
+/** Lo que devuelve `GET /upsells/{id}`: igual, pero con la ficha completa del Espacio. */
+export interface UpsellDetalle extends Upsell {
   espacio: Espacio
 }
 
@@ -273,6 +390,16 @@ export interface Cliente {
   datecreated: string
   /** No nulo si el cliente nacio de convertir un prospecto. */
   lead_id: number | null
+  /**
+   * Codigo de 4 letras del cliente, del que cuelgan las patentes de sus Espacios y sus Procesos.
+   * `null` mientras no lo tenga.
+   */
+  letras: string | null
+  /**
+   * `true` solo cuando falta el codigo Y el nombre no da para derivarlo: hay que escribirlo a mano
+   * y nadie lo va a resolver por su cuenta. Con `letras` ya puesto siempre es `false`.
+   */
+  letras_pendientes: boolean
   billing: {
     street: string | null
     city: string | null
@@ -451,7 +578,17 @@ export interface Lookups {
   departments: Referencia[]
   /** Cargos del staff (`modules/wiwo_core/cargos_areas.php`). "Director" es uno de ellos. */
   cargos: Referencia[]
+  /** Areas del EQUIPO (`tblareas`): la que lleva puesta cada persona en su ficha. */
   areas: Referencia[]
+  /**
+   * Areas de la COMPAÑÍA, las del campo personalizado multiselect de los Procesos. **No es lo mismo
+   * que `areas`**: aquellas son del equipo y estas se marcan en cada Proceso, que puede llevar
+   * varias y estar en manos de alguien de otra area.
+   *
+   * El `id` es el propio texto de la opcion, porque eso es lo que guarda la base y lo que espera
+   * `filter[area]`. Opcional: sin el campo configurado en la instalacion, la API manda lista vacia.
+   */
+  task_areas?: Array<{ id: string, name: string }>
   /** Las seis organizaciones del grupo (`tblapi_empresas`). Solo las activas. */
   empresas: Referencia[]
   /**
@@ -1555,4 +1692,193 @@ export interface PlantillaEspacio {
 /** La misma plantilla con sus items, tal como la devuelve `GET /project-templates/{id}`. */
 export interface PlantillaEspacioDetallada extends PlantillaEspacio {
   items: ItemPlantilla[]
+}
+
+// Bloque agregado por el frente de Focal de cliente. Va al final a proposito: otros frentes editan
+// este mismo archivo y un bloque contiguo hace trivial el merge.
+
+/**
+ * Un cliente visto por `GET /clients/minimos`: existe, se llama asi, y esta activo o no.
+ *
+ * Es la respuesta a "todo el mundo tiene que poder ver que un cliente existe, sin ver su legajo".
+ * La ruta no exige `customers.view` y **no devuelve nada mas que estos cuatro campos**: pedirle mas
+ * con `?fields=` no sirve, porque la proyeccion la hace el `SELECT` del backend.
+ *
+ * Abrir la ficha (`GET /clients/{id}`) sigue exigiendo permiso: esto no es un `Cliente` recortado,
+ * es otra cosa.
+ */
+export interface ClienteMinimo {
+  id: number
+  /** Razon social; nunca vacio (el backend cae a `Cliente #N`). */
+  company: string
+  image_url: string | null
+  active: boolean
+}
+
+// --- Semaforo del cliente: la foto diaria del score 1-100 ------------------------------------
+
+/** Los cuatro tramos del semaforo. `sin_datos` NO es un cuarto nivel malo: es ausencia de universo. */
+export type SemaforoCliente = 'verde' | 'amarillo' | 'rojo' | 'sin_datos'
+
+/**
+ * Una de las tres señales que arman el score, con su sub-score y los contadores crudos que lo
+ * explican.
+ *
+ * Los contadores viajan SIEMPRE, tambien cuando `score` es `null`: son lo que permite escribir "sin
+ * datos porque este cliente no tiene un solo Proceso con vencimiento" en vez de un guion. Un 43 sin
+ * explicacion es ruido.
+ *
+ * `score` en `null` significa que la señal **no aplica** —no hay universo que medir— y que su peso
+ * quedo fuera del promedio. No significa cero.
+ */
+export interface SenalScore {
+  /** Cuanto explica esta señal del score total, en puntos sobre 100. */
+  peso: number
+  score: number | null
+}
+
+/** Cumplimiento de plazos: el historial contra los vencimientos comprometidos. */
+export interface SenalPlazos extends SenalScore {
+  /** Procesos con `duedate`. Sin vencimiento no hay contra que medir. */
+  medibles: number
+  incumplidos: number
+  en_riesgo: number
+  /** Dias de atraso promedio de los incumplidos. `null` si no hay ninguno. */
+  atraso_promedio: number | null
+}
+
+/** Carga y actividad: de los Procesos abiertos, cuantos se movieron dentro de la ventana. */
+export interface SenalCarga extends SenalScore {
+  abiertos: number
+  con_movimiento: number
+  estancados: number
+  /** Dias hacia atras que cuentan como "se movio". */
+  dias_ventana: number
+}
+
+/** Lo que vence pronto, con los umbrales de aviso ya configurados en el panel. */
+export interface SenalVencimientos extends SenalScore {
+  por_vencer: number
+  criticos: number
+  vencidos: number
+}
+
+/** Un punto del historico, para dibujar la tendencia. */
+export interface PuntoScoreCliente {
+  fecha: string
+  score: number | null
+  semaforo: SemaforoCliente
+}
+
+/**
+ * La foto diaria del semaforo de un cliente, tal como la devuelven `GET /scores` y
+ * `GET /scores/{clientId}`.
+ *
+ * `score` va de 1 a 100, o es `null` cuando ninguna señal tiene datos. El 0 no existe a proposito:
+ * si algo vale 0 es un error, no un cliente muy malo.
+ */
+export interface ScoreCliente {
+  client_id: number
+  /** Nombre del cliente. Viene resuelto por el servidor para no pedir la ficha aparte. */
+  cliente: string | null
+  /** Dia de la foto, `YYYY-MM-DD`. El calculo corre una vez al dia. */
+  fecha: string
+  score: number | null
+  semaforo: SemaforoCliente
+  /** Puntos ganados o perdidos contra la foto anterior. `null` si no hay con que comparar. */
+  variacion: number | null
+  espacios: number
+  procesos: number
+  senales: {
+    plazos: SenalPlazos
+    carga: SenalCarga
+    vencimientos: SenalVencimientos
+  }
+  /** Solo en `GET /scores/{clientId}`: las ultimas fotos, de la mas vieja a la mas nueva. */
+  historia?: PuntoScoreCliente[]
+}
+
+// --- Casilla entrante ----------------------------------------------------------------------------
+// Las fichas que deja el cron que lee la casilla corporativa (`GET /correos-entrantes`). Van al
+// final del archivo, despues de las plantillas, porque es lo ultimo que se agrego.
+
+/** Los tres modos del lector, en riesgo creciente. Espeja `Correo\ConfigCasilla::MODOS`. */
+export type ModoCasillaEntrante = 'apagado' | 'prueba' | 'real'
+
+/** Las nueve etiquetas que el modelo puede poner. Espeja `IA\BriefDeCorreo::CLASIFICACIONES`. */
+export type ClasificacionCorreoEntrante =
+  | 'reclamo'
+  | 'solicitud'
+  | 'consulta'
+  | 'coordinacion'
+  | 'aprobacion'
+  | 'comercial'
+  | 'administrativo'
+  | 'automatico'
+  | 'otro'
+
+/**
+ * `ok` es una ficha con brief y score. `sin_ia` es un correo que se leyo y se registro pero cuyo
+ * brief el modelo no pudo dar: la fila existe a proposito, para no perder el correo.
+ */
+export type EstadoCorreoEntrante = 'ok' | 'sin_ia'
+
+/** Una ficha de `GET /correos-entrantes`. El cuerpo del correo NO viaja: solo el brief. */
+export interface FichaCorreoEntrante {
+  id: number
+  /** Cabecera `Message-ID` del original, para ir a buscarlo en la casilla. */
+  message_id: string
+  sender: string
+  sender_name: string
+  domain: string
+  /** `null` cuando el dominio no casa con ningun cliente, es generico, o casa con mas de uno. */
+  client_id: number | null
+  client_name: string | null
+  subject: string
+  /** `null` solo cuando `status` es `sin_ia`. */
+  brief: string | null
+  /**
+   * Salud de la relacion leida en ESTE correo, de 1 a 100. No es urgencia ni prioridad.
+   * Es el dato que alimenta el semaforo del cliente; esta pantalla solo lo muestra.
+   */
+  score: number | null
+  category: ClasificacionCorreoEntrante
+  status: EstadoCorreoEntrante
+  /** Fecha del correo. `null` si la cabecera venia rota. */
+  received_at: string | null
+  processed_at: string
+}
+
+/** El resumen que viaja en `meta.pagination.summary` de `GET /correos-entrantes`. */
+export interface ResumenCorreosEntrantes {
+  total: number
+  sin_cliente: number
+  sin_ia: number
+  reclamos: number
+  score_promedio: number | null
+}
+
+/**
+ * El estado de la casilla, tal como lo devuelve `GET /correos-entrantes/settings`.
+ *
+ * La contraseña NO esta acá y nunca va a estar: vive en el `.env` del servidor. Lo unico que se
+ * dice de ella es `has_password`, para poder mostrar que falta sembrarla.
+ */
+export interface ConfiguracionCasillaEntrante {
+  mode: ModoCasillaEntrante
+  host: string
+  port: string
+  encryption: string
+  username: string
+  folder: string
+  /** Carpeta a la que se mueve el original en modo `real`. El correo no se borra nunca al leer. */
+  processed_folder: string
+  batch_size: number
+  purge_enabled: boolean
+  purge_days: number
+  has_password: boolean
+  /** Nombres de las opciones o claves que faltan para poder conectarse. Vacio = completa. */
+  missing: string[]
+  /** Si la extension `imap` de PHP existe en este servidor. Sin ella el lector no arranca. */
+  imap_available: boolean
 }

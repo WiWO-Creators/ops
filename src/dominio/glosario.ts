@@ -15,8 +15,13 @@ export const GLOSARIO = {
   proceso: { singular: 'Tarea', plural: 'Tareas' },
   espacio: { singular: 'Proyecto', plural: 'Proyectos' },
   hito: { singular: 'Hito', plural: 'Hitos' },
+  // La empresa candidata de `/prospectos`, con sus contactos y sus licitaciones. **No** es el
+  // embudo `/leads` de Perfex, que no tiene pantalla en este panel y por eso no tiene entrada acá.
   prospecto: { singular: 'Prospecto', plural: 'Prospectos' },
   licitacion: { singular: 'Licitación', plural: 'Licitaciones' },
+  // La oportunidad comercial sobre un cliente que ya existe. El plural es el nombre de la sección
+  // ("Upselling") y no "Upsells": es como lo llama el equipo, y no hay traducción que lo mejore.
+  upsell: { singular: 'Upsell', plural: 'Upselling' },
   cliente: { singular: 'Cliente', plural: 'Clientes' },
   ticket: { singular: 'Ticket', plural: 'Tickets' },
   seguimiento: { singular: 'Seguimiento', plural: 'Seguimiento' },

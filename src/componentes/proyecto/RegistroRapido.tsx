@@ -3,6 +3,7 @@
 import { Minus, Plus } from 'lucide-react'
 import { useState, type ReactElement } from 'react'
 import { Boton } from '@/componentes/formularios/Boton'
+import { avisarCambioDeMedidor } from '@/componentes/live/medidor'
 import { leerError } from '@/datos/errores'
 import { cn } from '@/lib/clases'
 import {
@@ -73,6 +74,8 @@ export function RegistroRapido ({
       }
 
       setMinutos(0)
+      // El control de jornada de la cabecera cuenta el tiempo cubierto por marcajes.
+      avisarCambioDeMedidor()
       onRegistrado()
     } catch {
       setAviso('No se pudo registrar el tiempo: revisa la conexión.')

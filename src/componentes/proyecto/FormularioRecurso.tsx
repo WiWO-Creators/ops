@@ -177,7 +177,7 @@ interface PropsControl {
  * Se usan controles nativos (`<input type="date">`, `<input type="color">`, `<input type="checkbox">`)
  * en vez de widgets propios: el navegador ya resuelve teclado, formato regional y accesibilidad.
  */
-function ControlDeCampo ({ campo, valor, error, alCambiar }: PropsControl): ReactElement {
+export function ControlDeCampo ({ campo, valor, error, alCambiar }: PropsControl): ReactElement {
   const id = `campo-${campo.clave}`
 
   if (campo.tipo === 'booleano') {

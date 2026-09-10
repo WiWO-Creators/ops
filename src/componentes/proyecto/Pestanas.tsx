@@ -1,7 +1,7 @@
 'use client'
 
-import { ViewTransition } from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { startTransition, ViewTransition } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { cn } from '@/lib/clases'
 
 /**
@@ -30,9 +30,8 @@ export interface Panel {
  * Los paneles llegan ya renderizados desde el servidor y se muestran alternando cual se monta: pasar
  * la pestaña por navegacion volveria a pedir a la API los cinco recursos de la pantalla en cada clic.
  *
- * El movimiento se apoya en que `router.replace` ya es una transicion de React: eso basta para que
- * `<ViewTransition>` y el `view-transition-name` del subrayado se activen sin coordinar tiempos a
- * mano. El subrayado se desliza de una pestaña a la otra y el panel hace crossfade en vez de saltar.
+ * La History API actualiza `useSearchParams` sin navegación al servidor. `startTransition` mantiene
+ * la animación del indicador y del panel sin esperar otra petición para seleccionar la pestaña.
  *
  * @param paneles pestañas en el orden en que se muestran; la primera es la de por defecto
  * @param etiqueta nombre accesible de la barra; nombra la pantalla que la monta, no "pestañas"
@@ -45,7 +44,6 @@ export function Pestanas ({
   paneles: Panel[]
   etiqueta?: string
 }) {
-  const router = useRouter()
   const params = useSearchParams()
   const porDefecto = paneles[0]
 
@@ -59,7 +57,9 @@ export function Pestanas ({
     const siguientes = new URLSearchParams(params.toString())
     siguientes.set('tab', clave)
 
-    router.replace(`?${siguientes.toString()}`, { scroll: false })
+    startTransition(() => {
+      window.history.replaceState(null, '', `?${siguientes.toString()}${window.location.hash}`)
+    })
   }
 
   return (

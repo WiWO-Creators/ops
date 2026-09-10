@@ -3,11 +3,9 @@ import { Cargando } from '@/componentes/estado/Estados'
 import { TotalDelListado } from '@/componentes/datos/TotalDelListado'
 import { VistaLicitaciones } from '@/componentes/licitacion/VistaLicitaciones'
 import { construirConsulta, leerConsulta, paramsDeUrl } from '@/datos/consulta'
-import { listaDe } from '@/datos/catalogos'
 import { cargarLookups, opcionesDeFiltros } from '@/datos/lookups'
 import { pedir } from '@/datos/servidor'
-import type { EstadoLookup, Licitacion } from '@/datos/recursos'
-import type { OpcionCampo } from '@/componentes/proyecto/formulario'
+import type { Licitacion } from '@/datos/recursos'
 import type { Yo } from '@/datos/tipos'
 import { LICITACIONES } from '@/definiciones/licitaciones'
 
@@ -47,19 +45,8 @@ export default async function LicitacionesPage (props: PageProps<'/licitaciones'
           inicial={{ filas: lista.data, paginacion: lista.meta?.pagination }}
           capacidades={yo.data.permissions.projects}
           opcionesDeFiltro={opcionesDeFiltros(LICITACIONES, lookups)}
-          paises={comoOpciones(listaDe(lookups, 'countries'))}
         />
       </Suspense>
     </section>
   )
-}
-
-/**
- * Un catalogo de `GET /lookups` en la forma que espera un campo `seleccion`.
- *
- * El id viaja como cadena porque un `<select>` no conoce otro tipo; `cuerpoDelFormulario` lo vuelve
- * numero antes de mandarlo.
- */
-function comoOpciones (lista: EstadoLookup[]): OpcionCampo[] {
-  return lista.map((item) => ({ valor: String(item.id), etiqueta: item.name }))
 }

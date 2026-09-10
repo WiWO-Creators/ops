@@ -42,6 +42,8 @@ interface PropsTableroFiltrable<T extends FilaConId> {
   ordenarColumnas?: (grupos: Array<GrupoTablero<T>>) => Array<GrupoTablero<T>>
   /** Accion propia en la cabecera de cada columna. Ver `Tablero`. */
   accionDeColumna?: (columna: ColumnaTablero, recargar: () => Promise<void>) => ReactNode
+  /** Ruta que habilita guardar el orden de columnas con id positivo. */
+  rutaOrdenColumnas?: string
 }
 
 export function TableroFiltrable<T extends FilaConId> ({
@@ -54,7 +56,8 @@ export function TableroFiltrable<T extends FilaConId> ({
   descripcionVacio,
   adaptarCuerpo,
   ordenarColumnas,
-  accionDeColumna
+  accionDeColumna,
+  rutaOrdenColumnas
 }: PropsTableroFiltrable<T>) {
   const router = useRouter()
   const params = useSearchParams()
@@ -116,6 +119,7 @@ export function TableroFiltrable<T extends FilaConId> ({
               adaptarCuerpo={adaptarCuerpo}
               ordenarColumnas={ordenarColumnas}
               accionDeColumna={accionDeColumna}
+              rutaOrdenColumnas={rutaOrdenColumnas}
             />
             )
       )}

@@ -90,6 +90,62 @@ datos: los adjuntos, los links y las áreas seguían en la base, y lo que faltab
   fuente correcta. Hay una prueba de regresión que barre `src/` y falla si alguna otra pantalla vuelve
   a pedir `GET /staff` con query.
 
+## Pedidos nuevos (09/09/2026)
+
+Tanda de siete pedidos que el usuario dio por chat el 09/09. Se repartieron en **siete frentes en
+paralelo**, uno por rama con `feature-aislada`, y el merge lo hizo el coordinador en orden para que
+no se pisaran en `controllers/V1.php` ni en `datos/recursos.ts`. La bitácora completa —reporte por
+frente, con lo verificado y lo que no— quedó en el scratchpad de la sesión.
+
+| Ítem | Back | Front | Notas |
+|---|---|---|---|
+| Permisos en siete escalones (`usuario < focal < lider < head < gerente < admin < superadmin`) | ✅ `main` (`99fc90d`) | ✅ `main` (`7529716`) | Migración `0270`, `tblwiwo_nivel_persona` + mapa `wiwo_permisos_niveles_por_rol` por rol de Perfex. **Cero regresión por construcción**: los escalones nuevos no reparten capacidades propias y `head` hereda el piso de lectura que tenía `admin`, así que el piso acumulado de cada persona sale byte a byte igual al de antes (probado en 9 perfiles). `admin` y `superadmin` **no** se asignan por la tabla nueva: sería una segunda puerta que se saltea los guards de `Escritura/Staff` |
+| Focal por cliente, con visibilidad de todas sus áreas y Espacios | ✅ `main` (`23d0baa`) | ✅ `main` (`44a31ec`) | Migración `0300`, `tblwiwo_focales`. Nombrar focal **asegura** la fila en `tblcustomer_admins`, de donde ya sale la visibilidad; `otorgo_asignacion` recuerda si la creamos, para que revocar no le saque el cliente a quien ya estaba en la pestaña Equipo. Las áreas se **derivan** del campo personalizado `Area de la compañía` de las tareas (2.440 filas con dato), no de una tabla nueva |
+| Ver que un cliente existe sin poder entrar a su data | ✅ `main` (`23d0baa`) | ✅ `main` (`44a31ec`) | `GET /clients/minimos`, sin `customers.view`, cuatro claves y ninguna más. Usa `company` y **no** `nombreVisible()`, que cae al nombre del contacto primario y habría filtrado el nombre de una persona por una ruta sin permiso |
+| Semáforo con score de 1 a 100, solo para directores, gerentes y focals | ✅ `main` (`53a253d`) | ✅ `main` (`b68ba6a`, montado en `80a2d7f`) | Migración `0280`, foto diaria en `tblapi_score_cliente`. Tres señales —plazos 45, carga 30, vencimientos 25— y el promedio se hace **solo sobre las que tienen universo**, así un cliente con todo cerrado a tiempo da 100 y no queda castigado por no tener trabajo abierto. `lider` y `usuario` reciben 403; el focal, solo sus clientes, y sin la tabla de focales ve **cero** (falla cerrada). **Umbrales sin calibrar**: ver abajo |
+| Cola de correo editable y compositor centralizado del admin | ✅ `main` (`c08e248`) | ✅ `main` (`2d76de5`) | POST/PATCH/DELETE sobre `client-mail-queue`, superadmin. Solo se toca lo `pendiente`: editar o descartar una fila `enviado` responde 409, porque es la constancia de un correo que salió. El token en claro sigue sin poder entrar en `payload_json`, y el filtro vive en `encolar()` —el único lugar que escribe esa columna— para que el invariante no dependa de que nadie se olvide |
+| Alertas por correo: consumidor de la cola y digest diario de pendientes y atrasos | ✅ `main` (`bee3601`) | — | 11 archivos, todos en `wiwo_core`, **cero parches al core**. El digest y el aviso por tarea son mutuamente excluyentes **por construcción** (un `if/return`, no dos opciones que alguien pueda prender a la vez). Los dos motores se mergearon **apagados**. Ojo: el consumidor hoy no despacha nada — ver abajo |
+| Leer la casilla corporativa: brief y puntaje por IA, sin guardar el original | ✅ `main` (`b5c34c3`) | ✅ `main` (`70f40d3`) | Migración `0290`. Reusa el cliente IMAP que ya existía. **El original no se borra al leer**: se mueve a `Procesados` y la purga es un interruptor aparte, apagado, con piso de 7 días. El cuerpo pasa por `Contexto::limpiar()` antes del prompt, y está probado con un correo que intenta dictar su propia ficha: el modelo no obedeció |
+| Leer los Meeting Papers como contexto de WiBot | ✅ `main` (`4df266f`, cableado en `0f95706`) | — | Herramienta `actas_del_espacio`. El markdown se **deriva del HTML al leer**, sin columna nueva: una copia guardada se desincroniza el día que alguien edite el acta y WiBot citaría una versión que ya nadie ve. Un acta real pasa de 1.403 a 965 caracteres |
+
+### Integración con wiwo.center
+
+**Fuera de alcance por decisión del usuario en esta tanda.** El soporte sigue viviendo en
+[wiwo.center](https://wiwo.center) y Ops no lo consume.
+
+### Lo que quedó abierto, y es decisión de negocio
+
+- **Los umbrales del semáforo no están calibrados.** Con el dump de producción, **76 de los 79
+  clientes con datos caen en rojo**. No es un error de la fórmula —1.099 de 1.848 Procesos cerrados
+  se cerraron tarde y 345 de 628 abiertos ya están vencidos—, pero con esa realidad un semáforo de
+  75/50 no discrimina nada. `UMBRAL_VERDE` y `UMBRAL_AMARILLO` son dos constantes de una línea en
+  `Salud/ScoreCliente.php`.
+- **El consumidor de la cola no despacha nada todavía.** `enlace_acceso_portal` quedó bloqueada a
+  propósito y es la única plantilla que alguien encola. El motivo: el consumidor tendría que emitir
+  su propio enlace, y `Tokens::emitirEnlace()` revoca los anteriores del mismo contacto, así que el
+  enlace que el staff ya copió y mandó a mano dejaría de servir. Los tres caminos son: que el correo
+  mande y ese enlace muera, que `emitirEnlace()` deje de revocar, o que la cola guarde con qué
+  reusar el enlace vivo.
+- **Nadie tiene el escalón `focal` todavía.** Ser focal de un cliente (la relación) y estar en el
+  escalón `focal` (la escalera) son dos cosas: la primera se reparte en la pestaña Focales del
+  cliente, la segunda en el diálogo "Escalón" de la ficha de la persona. Sin la segunda, un focal no
+  ve el semáforo.
+- **La casilla entrante no tiene credenciales.** Falta sembrar host, usuario y
+  `CORREO_ENTRANTE_PASSWORD` en el `.env`, y **este servidor no tiene la extensión `imap` de PHP**:
+  la lectura real nunca se pudo probar.
+
+### Lo que quedó fuera, a propósito
+
+- **Redirección de los correos de la corporación a la casilla.** Es trabajo de cPanel/Workspace, no
+  de código: no se tocó.
+- **El score de los correos entrantes no alimenta el semáforo.** `GET /correos-entrantes/by-client`
+  expone el agregado y nadie lo consume: cómo se pondera un reclamo dentro del score es una decisión
+  que no estaba tomada.
+- **Sin verificación por HTTP contra el board.** Ningún frente pudo levantar la API real: no hay
+  contenedor arriba y `levantar-board-podman.sh` empieza con `podman rm -f board-db`, que habría
+  borrado la base que estaban usando los otros agentes. Lo que sí corrió —y contra el dump de
+  producción real— fue el cálculo del score, las migraciones y la lógica de escritura.
+
 ## Cómo verificar lo hecho
 
 Con `board-api` (contenedor podman, puerto 8091) y `ops-v2` (`pnpm dev`, puerto 3000) levantados,

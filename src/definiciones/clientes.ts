@@ -29,7 +29,17 @@ export const CLIENTES: DefinicionRecurso<Cliente> = {
 
   filtros: [
     { clave: 'active', etiqueta: 'Activo', tipo: 'booleano' },
-    { clave: 'country_id', etiqueta: 'País', tipo: 'seleccion' }
+    { clave: 'country_id', etiqueta: 'País', tipo: 'seleccion' },
+    // "Mis clientes" son las cuentas donde una es focal, y el reposo es la cartera entera. Va como
+    // `seleccion` de una sola opcion y no como `booleano` porque el "No" de un booleano seria "los
+    // clientes de los que NO soy focal", que nadie pide y que ademas se lee como un error.
+    {
+      clave: 'focal',
+      etiqueta: 'Cartera',
+      etiquetaSinFiltro: 'Todos los clientes',
+      tipo: 'seleccion',
+      opciones: [{ valor: '1', etiqueta: 'Mis clientes' }]
+    }
   ],
 
   ordenables: ['company', 'datecreated'],

@@ -1,3 +1,4 @@
+import { CodigoPendiente } from './CodigoPendiente'
 import { Vacio } from '@/componentes/estado/Estados'
 import { Filas, Seccion } from '@/componentes/presentadores/Ficha'
 import { textoDeCampo } from '@/definiciones/espacios'
@@ -88,6 +89,10 @@ export function FichaCliente ({ cliente, paises, monedas }: PropsFicha) {
         <Seccion titulo="Campos personalizados">
           <Filas datos={personalizados} />
         </Seccion>
+      )}
+
+      {cliente.letras_pendientes && (
+        <CodigoPendiente clienteId={cliente.id} nombre={cliente.company} />
       )}
 
       {cliente.lead_id !== null && (

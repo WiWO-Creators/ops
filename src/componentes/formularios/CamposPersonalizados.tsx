@@ -70,6 +70,7 @@ export function CamposPersonalizados ({
         <Campo
           key={definicion.id}
           etiqueta={definicion.name}
+          ayuda={definicion.type === 'link' ? 'Acepta enlaces de Google Drive, OneDrive o SharePoint. Configura el acceso de los destinatarios en el servicio donde está el archivo.' : undefined}
           requerido={definicion.required}
           error={errores[definicion.id]}
         >

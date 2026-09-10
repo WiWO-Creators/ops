@@ -133,12 +133,36 @@ export interface StaffReferencia {
   profile_image_url: string | null
 }
 
-export type Capacidad = 'view' | 'create' | 'edit' | 'delete'
+export type Capacidad = 'view' | 'create' | 'edit' | 'delete' | 'edit_milestones'
 export type AreaPermiso = 'tasks' | 'projects' | 'customers' | 'staff'
+
+/**
+ * La escalera de permisos, de menor a mayor (`modules/api/Acceso/Reglas.php`).
+ *
+ *     usuario < focal < lider < head < gerente < admin < superadmin
+ *
+ * Es un eje, no un conjunto de casillas: cada escalón hereda el piso de los anteriores. Los cinco de
+ * abajo se reparten desde la ficha de Equipo (`PUT /staff/{id}/nivel`); los dos de arriba salen de
+ * las banderas de Perfex y los reparte el diálogo de Nivel, que ya existía.
+ *
+ * **No reemplaza a `permissions`.** El nivel pone un PISO y la API lo UNE con lo que la persona
+ * tenga en su matriz: nadie pierde una capacidad por bajar de escalón. Para decidir si se dibuja un
+ * botón se sigue mirando `permissions`, que ya viene con el piso aplicado.
+ */
+export type NivelPermiso =
+  | 'usuario'
+  | 'focal'
+  | 'lider'
+  | 'head'
+  | 'gerente'
+  | 'admin'
+  | 'superadmin'
 
 /** Respuesta de `GET /me`. */
 export interface Yo extends Staff {
   permissions: Record<AreaPermiso, Capacidad[]>
+  /** El escalón de quien mira, ya resuelto por la API (banderas, override y rol). */
+  nivel: NivelPermiso
   secciones_habilitadas: string[]
   locale: string
 }

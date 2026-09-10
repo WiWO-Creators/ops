@@ -57,6 +57,7 @@ export function AccionesCliente ({
       )}
 
       <BajaYBorrado
+        usaPapelera
         ruta={`clients/${cliente.id}`}
         nombre={cliente.company}
         activo={cliente.active}

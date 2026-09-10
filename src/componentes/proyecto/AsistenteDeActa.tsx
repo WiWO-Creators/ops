@@ -9,7 +9,7 @@ import { pedirSobre } from '@/datos/cliente'
 import { leerSSE } from '@/datos/sse'
 import { leerEventoIA } from '@/dominio/ia'
 import { MARCAS, MODALIDADES } from '@/definiciones/actas'
-import { ACEPTA, formatoPeso, validarArchivo } from '@/dominio/actas'
+import { ACEPTA, LIMITE_AUDIO_BYTES, LIMITE_BYTES, LIMITE_DOCUMENTO_BYTES, formatoPeso, validarArchivo } from '@/dominio/actas'
 import { aTextoPlano } from './formatos'
 import { GrabadoraDeAudio } from './GrabadoraDeAudio'
 import type { Acta, PrefillActa } from '@/datos/recursos'
@@ -108,7 +108,7 @@ export function AsistenteDeActa ({ proyectoId, onCreada, onCancelar }: PropsAsis
       return
     }
 
-    const problema = validarArchivo(elegido)
+    const problema = validarArchivo(elegido, modo)
     if (problema !== null) {
       setArchivo(null)
       setErrorArchivo(problema)
@@ -194,9 +194,13 @@ export function AsistenteDeActa ({ proyectoId, onCreada, onCancelar }: PropsAsis
         <div className="flex items-center gap-3">
           <Orbe medida="2.5rem" estado="generating" />
           <div className="flex flex-col">
-            <p className="text-texto text-sm font-medium">Escribiendo el Meeting Paper…</p>
+            <p className="text-texto text-sm font-medium">
+              {modo === 'documento'
+                ? 'Leyendo el Meeting Paper y dejándolo en el formato del sistema…'
+                : 'Escribiendo el Meeting Paper…'}
+            </p>
             <p className="text-texto-sutil text-xs">
-              {archivo === null
+              {archivo === null || modo === 'documento'
                 ? `Van ${segundos} s.`
                 : `Van ${segundos} s. Escuchar una reunión larga puede tardar varios minutos.`}
             </p>
@@ -208,6 +212,12 @@ export function AsistenteDeActa ({ proyectoId, onCreada, onCancelar }: PropsAsis
         </p>
 
         <span role="status" className="sr-only">Generando el Meeting Paper</span>
+
+        {modo === 'documento' && (
+          <p className="text-texto-sutil text-xs">
+            El archivo no se guarda: lo que queda es este Meeting Paper. Revísalo antes de cerrar.
+          </p>
+        )}
 
         <p className="text-texto-sutil text-xs">
           Puedes cambiar de pestaña: el acta se guarda sola al terminar.
@@ -227,6 +237,13 @@ export function AsistenteDeActa ({ proyectoId, onCreada, onCancelar }: PropsAsis
         setModo(siguiente)
         elegirArchivo(null)
       }} />
+
+      {modo === 'documento' && (
+        <p className="text-texto-sutil text-xs">
+          El archivo no se guarda: lo que queda es el Meeting Paper que se escriba a partir de él.
+          Revísalo antes de cerrar.
+        </p>
+      )}
 
       {modo === 'texto' && (
         <Campo etiqueta="Apuntes de la reunión" ayuda="Pega lo que anotaste, o la transcripción.">
@@ -248,17 +265,19 @@ export function AsistenteDeActa ({ proyectoId, onCreada, onCancelar }: PropsAsis
         />
       )}
 
-      {(modo === 'audio' || modo === 'imagen') && (
+      {(modo === 'audio' || modo === 'imagen' || modo === 'documento') && (
         <Campo
-          etiqueta={modo === 'audio' ? 'Archivo de audio' : 'Foto de la pizarra o del cuaderno'}
-          ayuda={`Hasta ${formatoPeso(25 * 1024 * 1024)}.`}
+          etiqueta={ETIQUETA_ARCHIVO[modo]}
+          ayuda={modo === 'documento'
+            ? `PDF, DOCX, TXT, MD o HTML, hasta ${formatoPeso(LIMITE_DOCUMENTO_BYTES)}.`
+            : `Hasta ${formatoPeso(modo === 'audio' ? LIMITE_AUDIO_BYTES : LIMITE_BYTES)}.`}
           error={errorArchivo ?? undefined}
         >
           {(props) => (
             <input
               {...props}
               type="file"
-              accept={modo === 'audio' ? ACEPTA.audio : ACEPTA.imagen}
+              accept={ACEPTA[modo]}
               onChange={(evento) => { elegirArchivo(evento.target.files?.[0] ?? null) }}
               className="text-texto-tenue file:rounded-control file:border-control-borde file:bg-control file:text-texto text-sm file:mr-3 file:border file:px-3 file:py-1.5 file:text-sm"
             />
@@ -342,20 +361,28 @@ export function AsistenteDeActa ({ proyectoId, onCreada, onCancelar }: PropsAsis
 
       {!listoParaGenerar && error === null && (
         <p className="text-texto-sutil text-right text-xs">
-          Hace falta un audio, una imagen o los apuntes de la reunión.
+          Hace falta un audio, una imagen, un documento o los apuntes de la reunión.
         </p>
       )}
     </div>
   )
 }
 
-/** Los cuatro modos de entrada, como un grupo de radio accesible. */
+/** Etiqueta del campo de archivo, por modo. */
+const ETIQUETA_ARCHIVO: Record<'audio' | 'imagen' | 'documento', string> = {
+  audio: 'Archivo de audio',
+  imagen: 'Foto de la pizarra o del cuaderno',
+  documento: 'Meeting Paper ya redactado'
+}
+
+/** Los cinco modos de entrada, como un grupo de radio accesible. */
 function SelectorDeModo ({ modo, onCambio }: { modo: ModoEntrada, onCambio: (modo: ModoEntrada) => void }): ReactElement {
   const opciones: Array<{ valor: ModoEntrada, etiqueta: string }> = [
     { valor: 'texto', etiqueta: 'Apuntes' },
     { valor: 'grabar', etiqueta: 'Grabar' },
     { valor: 'audio', etiqueta: 'Subir audio' },
-    { valor: 'imagen', etiqueta: 'Foto' }
+    { valor: 'imagen', etiqueta: 'Foto' },
+    { valor: 'documento', etiqueta: 'Subir documento' }
   ]
 
   return (

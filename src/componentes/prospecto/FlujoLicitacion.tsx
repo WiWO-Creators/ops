@@ -1,0 +1,222 @@
+'use client'
+
+import Link from 'next/link'
+import { useMemo, useRef, useState, type FormEvent } from 'react'
+import { useRouter } from 'next/navigation'
+import { Boton } from '@/componentes/formularios/Boton'
+import { camposDeLicitacion } from '@/componentes/licitacion/campos'
+import { ControlDeCampo } from '@/componentes/proyecto/FormularioRecurso'
+import { cuerpoDelFormulario, validarFormulario, valoresIniciales, type CampoFormulario, type OpcionCampo } from '@/componentes/proyecto/formulario'
+import { ContenidoDialogo, Dialogo } from '@/componentes/superposiciones/Dialogo'
+import { mensajeDeRespuesta } from '@/datos/cliente'
+import type { ContactoProspecto, Prospecto } from '@/datos/recursos'
+import type { Capacidad } from '@/datos/tipos'
+import { claveBorrador, crearBorrador, eliminarBorrador, guardarBorrador, leerBorrador, type BorradorLicitacion } from '@/dominio/flujo-licitacion'
+import { CAMPOS_DE_CONTACTO, camposDeProspecto } from './campos'
+
+const PASOS = ['Prospecto', 'Contacto', 'Licitación'] as const
+const GRUPOS = ['valoresProspecto', 'valoresContacto', 'valoresLicitacion'] as const
+
+interface PropsFlujo {
+  usuarioId: number
+  capacidades: Capacidad[]
+  paises: OpcionCampo[]
+  prospecto?: Pick<Prospecto, 'id' | 'empresa' | 'cliente'>
+  contactos?: ContactoProspecto[]
+  onCerrar: () => void
+  onGuardado: () => void
+}
+
+/** Recupera el avance local sin impedir abrir el formulario si el almacenamiento está bloqueado. */
+function cargarBorrador (clave: string, inicial: BorradorLicitacion) {
+  try {
+    const guardado = leerBorrador(window.localStorage, clave)
+    return { borrador: guardado ?? inicial, aviso: null as string | null, recuperado: guardado !== null }
+  } catch (error) {
+    return { borrador: inicial, aviso: error instanceof Error ? error.message : 'No se pudo recuperar el borrador.', recuperado: false }
+  }
+}
+
+/**
+ * Guía el alta comercial en tres formularios y conserva campos e IDs confirmados por usuario.
+ * Cada avance guarda su entidad; volver atrás actualiza el mismo registro.
+ * Las respuestas ambiguas detienen los reintentos para evitar crear registros duplicados.
+ */
+export function FlujoLicitacion ({ usuarioId, capacidades, paises, prospecto, contactos = [], onCerrar, onGuardado }: PropsFlujo) {
+  const router = useRouter()
+  const clave = claveBorrador(usuarioId, prospecto?.id)
+  const camposEmpresa = useMemo(() => camposDeProspecto(paises), [paises])
+  const camposLicitacion = useMemo(() => camposDeLicitacion([]).filter((campo) => campo.clave !== 'prospecto_id'), [])
+  const [carga] = useState(() => cargarBorrador(clave, crearBorrador(prospecto?.id ?? null,
+    valoresIniciales(camposEmpresa, prospecto ? { cliente: prospecto.cliente } : null))))
+  const [borrador, setBorrador] = useState(carga.borrador)
+  const [aviso, setAviso] = useState(carga.aviso)
+  const [guardadoLocal, setGuardadoLocal] = useState(carga.recuperado)
+  const [fallo, setFallo] = useState<string | null>(null)
+  const [errores, setErrores] = useState<Record<string, string>>({})
+  const [guardando, setGuardando] = useState(false)
+  const enviando = useRef(false)
+  const puedeEditar = capacidades.includes('edit')
+  const paso = borrador.paso
+  const grupo = GRUPOS[paso]
+  const campos = paso === 0 ? camposEmpresa : paso === 1 ? CAMPOS_DE_CONTACTO : camposLicitacion
+  const soloLectura = paso === 0 && (prospecto !== undefined || (borrador.prospectoId !== null && !puedeEditar)) || paso === 1 && !puedeEditar
+  const sinPermiso = !capacidades.includes('create') || (!puedeEditar && (borrador.prospectoId === null || paso === 1 && borrador.contactoId === null))
+  const rutaRevision = borrador.prospectoId === null ? '/prospectos' : `/prospectos/${borrador.prospectoId}?tab=${paso === 2 ? 'licitaciones' : 'contactos'}`
+
+  /** Escribe inmediatamente para conservar también los IDs recibidos antes de cerrar o recargar. */
+  function actualizar (siguiente: BorradorLicitacion): boolean {
+    setBorrador(siguiente)
+    try {
+      guardarBorrador(window.localStorage, clave, siguiente)
+      setGuardadoLocal(true)
+      setAviso(null)
+      return true
+    } catch (error) {
+      setGuardadoLocal(false)
+      setAviso(error instanceof Error ? error.message : 'No se pudo guardar el borrador. Mantén esta ventana abierta.')
+      return false
+    }
+  }
+
+  /** Cierra únicamente cuando el avance quedó guardado en el navegador. */
+  function guardarYSalir (): void {
+    if (enviando.current || !actualizar(borrador)) return
+    onGuardado()
+    onCerrar()
+  }
+
+  /** Descarta sólo el avance local; los registros confirmados en la aplicación permanecen. */
+  function descartar (): void {
+    if (!window.confirm('¿Descartar este borrador? Los prospectos y contactos ya guardados permanecerán en la aplicación.')) return
+    try {
+      eliminarBorrador(window.localStorage, clave)
+      onGuardado()
+      onCerrar()
+    } catch (error) {
+      setAviso(error instanceof Error ? error.message : 'No se pudo descartar el borrador.')
+    }
+  }
+
+  /** Cambia de etapa sin borrar sus campos ni los identificadores ya confirmados. */
+  function cambiarPaso (siguiente: 0 | 1 | 2): void {
+    setErrores({})
+    setFallo(null)
+    actualizar({ ...borrador, paso: siguiente })
+  }
+
+  /** Selecciona un contacto existente o prepara uno nuevo, manteniendo el mismo prospecto. */
+  function elegirContacto (valor: string | boolean): void {
+    const contacto = contactos.find((item) => String(item.id) === valor)
+    setErrores({})
+    actualizar({ ...borrador, contactoId: contacto?.id ?? null, valoresContacto: valoresIniciales(CAMPOS_DE_CONTACTO, contacto?.contacto ? { ...contacto.contacto } : null) })
+  }
+
+  /** Valida la etapa, guarda o actualiza su recurso y avanza sólo tras recibir un ID válido. */
+  async function continuar (evento: FormEvent): Promise<void> {
+    evento.preventDefault()
+    if (enviando.current || borrador.pendiente !== null || borrador.licitacionId !== null || sinPermiso) return
+    const encontrados = validarFormulario(campos, borrador[grupo])
+    if (paso === 1 && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(borrador.valoresContacto.email ?? ''))) encontrados.email = 'Escribe un correo válido.'
+    setErrores(encontrados)
+    if (Object.keys(encontrados).length > 0) return
+    if (soloLectura) { cambiarPaso(paso === 0 ? 1 : 2); return }
+
+    const id = paso === 0 ? borrador.prospectoId : paso === 1 ? borrador.contactoId : null
+    const metodo = id === null ? 'POST' : 'PATCH'
+    const ruta = paso === 0 ? `prospectos${id === null ? '' : `/${id}`}`
+      : paso === 1 ? `prospectos/${borrador.prospectoId}/contactos${id === null ? '' : `/${id}`}` : 'licitaciones'
+    const cuerpo = cuerpoDelFormulario(campos, borrador[grupo])
+    if (paso === 2) cuerpo.prospecto_id = borrador.prospectoId
+    const pendiente = metodo === 'POST' ? (paso === 0 ? 'prospecto' : paso === 1 ? 'contacto' : 'licitacion') : null
+    // Sin un checkpoint durable, una recarga tras el POST podría repetir el alta.
+    if (!actualizar({ ...borrador, pendiente })) return
+    enviando.current = true
+    setGuardando(true)
+    setFallo(null)
+    try {
+      const respuesta = await fetch(`/api/bff/${ruta}`, { method: metodo, headers: { 'content-type': 'application/json' }, body: JSON.stringify(cuerpo) })
+      if (!respuesta.ok) {
+        if (respuesta.status >= 400 && respuesta.status < 500) actualizar({ ...borrador, pendiente: null })
+        setFallo(await mensajeDeRespuesta(respuesta))
+        return
+      }
+      const sobre = await respuesta.json() as { data?: { id?: number } }
+      const confirmado = sobre.data?.id ?? (metodo === 'PATCH' ? id : null)
+      if (!Number.isSafeInteger(confirmado) || (confirmado ?? 0) <= 0) throw new Error('El servidor no confirmó el registro guardado.')
+      if (paso === 2) {
+        actualizar({ ...borrador, pendiente: null, licitacionId: confirmado as number })
+        eliminarBorrador(window.localStorage, clave)
+        onGuardado()
+        onCerrar()
+        router.push(`/licitaciones/${confirmado}`)
+        return
+      }
+      actualizar({ ...borrador, pendiente: null, paso: paso === 0 ? 1 : 2,
+        ...(paso === 0 ? { prospectoId: confirmado as number } : { contactoId: confirmado as number }) })
+    } catch {
+      setFallo('No se pudo confirmar el guardado. Revisa la conexión y los registros antes de reintentar.')
+    } finally {
+      enviando.current = false
+      setGuardando(false)
+    }
+  }
+
+  /** Reutiliza los controles existentes con validación y valores independientes para cada paso. */
+  function dibujarCampo (campo: CampoFormulario) {
+    return <ControlDeCampo key={campo.clave} campo={campo} valor={borrador[grupo][campo.clave]} error={errores[campo.clave]}
+      alCambiar={(valor) => { actualizar({ ...borrador, [grupo]: { ...borrador[grupo], [campo.clave]: valor } }) }} />
+  }
+
+  const opcionesContacto = contactos.map((contacto) => ({ valor: String(contacto.id), etiqueta: `${contacto.contacto?.firstname ?? ''} ${contacto.contacto?.lastname ?? ''}`.trim() || `Contacto #${contacto.id}` }))
+  if (borrador.contactoId !== null && !contactos.some((contacto) => contacto.id === borrador.contactoId)) opcionesContacto.push({ valor: String(borrador.contactoId), etiqueta: 'Contacto guardado en este flujo' })
+
+  return (
+    <Dialogo open onOpenChange={(abierto) => { if (!abierto) guardarYSalir() }}>
+      <ContenidoDialogo titulo="Preparar licitación" descripcion="Completa cada paso. Puedes guardar y continuar después." ancho="grande">
+        <ol aria-label="Pasos de la licitación" className="mb-5 grid grid-cols-3 gap-2 text-sm">
+          {PASOS.map((nombre, indice) => <li key={nombre} aria-current={paso === indice ? 'step' : undefined}
+            className={paso === indice ? 'text-acento font-semibold' : 'text-texto-tenue'}>{indice + 1}. {nombre}</li>)}
+        </ol>
+        <form onSubmit={(evento) => { void continuar(evento) }} className="flex flex-col gap-4">
+          <h2 className="font-semibold">{PASOS[paso]}</h2>
+          {paso > 0 && <p className="text-texto-tenue text-sm">{String(borrador.valoresProspecto['cliente.company'] ?? prospecto?.empresa ?? '')}</p>}
+          {paso === 1 && opcionesContacto.length > 0 && (
+            <fieldset disabled={guardando || borrador.pendiente !== null || borrador.licitacionId !== null}>
+              <ControlDeCampo campo={{ clave: 'contacto_elegido', etiqueta: 'Usar contacto', tipo: 'seleccion', opciones: [...(puedeEditar ? [{ valor: 'nuevo', etiqueta: 'Nuevo contacto' }] : []), ...opcionesContacto] }}
+                valor={borrador.contactoId === null ? (puedeEditar ? 'nuevo' : '') : String(borrador.contactoId)} error={undefined} alCambiar={elegirContacto} />
+            </fieldset>
+          )}
+          <fieldset disabled={guardando || borrador.pendiente !== null || borrador.licitacionId !== null || soloLectura} className="grid gap-4 sm:grid-cols-2">
+            {(paso === 0 ? campos.slice(0, 1) : campos).map(dibujarCampo)}
+            {paso === 0 && <details className="sm:col-span-2" open={campos.slice(1).some((campo) => errores[campo.clave]) || undefined}>
+              <summary className="text-texto-tenue cursor-pointer text-sm">Datos adicionales de la empresa (opcional)</summary>
+              <div className="mt-4 grid gap-4 sm:grid-cols-2">{campos.slice(1).map(dibujarCampo)}</div>
+            </details>}
+          </fieldset>
+          {sinPermiso && <p role="alert" className="text-texto-peligro text-sm">Necesitas permiso de creación de proyectos y, para añadir un contacto, permiso de edición.</p>}
+          {borrador.licitacionId !== null && <p role="status" className="text-sm">La licitación ya está creada. <Link href={`/licitaciones/${borrador.licitacionId}`} className="text-acento underline">Abrir licitación</Link></p>}
+          {borrador.pendiente !== null && !guardando && <div role="alert" className="flex flex-col gap-2 text-sm">
+            <p>No se pudo confirmar la última creación. Revisa si se guardó antes de reintentar para evitar duplicados.</p>
+            <Link href={rutaRevision} target="_blank" className="text-acento underline">Revisar registros</Link>
+            <Boton type="button" variante="sutil" onClick={() => { actualizar({ ...borrador, pendiente: null }); setFallo(null) }}>Ya revisé; permitir reintento</Boton>
+          </div>}
+          {fallo !== null && <p role="alert" className="text-texto-peligro text-sm">{fallo}</p>}
+          {aviso !== null ? <p role="alert" className="text-texto-peligro text-sm">{aviso}</p>
+            : <p role="status" className="text-texto-tenue text-xs">{guardadoLocal ? 'Borrador guardado en este navegador.' : 'El avance se guarda automáticamente en este navegador.'} Los pasos completados ya están guardados en la aplicación.</p>}
+          <div className="flex flex-wrap justify-end gap-2">
+            <Boton type="button" variante="sutil" disabled={guardando} onClick={descartar}>Descartar borrador</Boton>
+            {aviso !== null && <Boton type="button" variante="sutil" disabled={guardando} onClick={() => {
+              if (window.confirm('¿Cerrar sin guardar los últimos cambios del borrador?')) onCerrar()
+            }}>Cerrar sin guardar</Boton>}
+            {paso > 0 && <Boton type="button" variante="sutil" disabled={guardando || borrador.pendiente !== null || borrador.licitacionId !== null} onClick={() => { cambiarPaso(paso === 2 ? 1 : 0) }}>Atrás</Boton>}
+            <Boton type="button" variante="secundario" disabled={guardando} onClick={guardarYSalir}>Guardar y salir</Boton>
+            <Boton type="submit" cargando={guardando} disabled={sinPermiso || borrador.pendiente !== null || borrador.licitacionId !== null}>
+              {paso === 2 ? 'Crear licitación' : soloLectura ? 'Continuar' : 'Guardar y continuar'}
+            </Boton>
+          </div>
+        </form>
+      </ContenidoDialogo>
+    </Dialogo>
+  )
+}

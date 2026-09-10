@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { CodigoCopiable } from '@/componentes/presentadores/CodigoCopiable'
 import { Etiquetas } from '@/componentes/presentadores/Etiqueta'
 import { Fecha } from '@/componentes/presentadores/Fecha'
 import { EquipoProyecto } from './EquipoProyecto'
@@ -95,6 +96,13 @@ interface PropsCabecera {
   subtitulo?: string
   /** Reemplaza "Nueva tarea" y el menu del Espacio, cuyas acciones devuelven a `/espacios`. */
   acciones?: React.ReactNode
+  /**
+   * Si quien mira esta en el equipo. Solo rige el item "Salir del Espacio" del menu.
+   *
+   * Se reenvia tal cual y no se deduce aca de `proyecto.members`: la cabecera no sabe quien mira, y
+   * `members` puede no venir si la pagina no lo pidio.
+   */
+  esMiembro?: boolean
 }
 
 /**
@@ -112,7 +120,8 @@ export function CabeceraProyecto ({
   capacidadesTareas,
   volverA = { href: '/espacios', etiqueta: GLOSARIO.espacio.plural },
   subtitulo,
-  acciones
+  acciones,
+  esMiembro
 }: PropsCabecera) {
   return (
     <header className="border-linea bg-superficie-elevada rounded-tarjeta shadow-1 flex flex-col gap-4 border p-5">
@@ -135,7 +144,10 @@ export function CabeceraProyecto ({
           />
           <div className="flex min-w-0 flex-col gap-1">
           <h1 className="text-texto text-titulo font-semibold">{proyecto.name}</h1>
-          <p className="text-texto-tenue text-sm">{subtitulo ?? proyecto.client?.company ?? 'Sin cliente'}</p>
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="text-texto-tenue text-sm">{subtitulo ?? proyecto.client?.company ?? 'Sin cliente'}</p>
+            <CodigoCopiable valor={proyecto.patente ?? `#${proyecto.id}`} />
+          </div>
           </div>
         </div>
 
@@ -147,7 +159,13 @@ export function CabeceraProyecto ({
           {acciones ?? (
             <>
               <BotonNuevaTarea capacidades={capacidadesTareas} />
-              <MenuProyecto proyecto={proyecto} estados={estados} capacidades={capacidadesProyecto} />
+              <MenuProyecto
+                proyecto={proyecto}
+                estados={estados}
+                capacidades={capacidadesProyecto}
+                capacidadesTareas={capacidadesTareas}
+                esMiembro={esMiembro}
+              />
             </>
           )}
         </div>

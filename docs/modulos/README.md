@@ -21,8 +21,8 @@ una lista de bugs: es lo que **no se construyó a propósito**, y cada ficha lo 
 > [`../fases/F3-ventas-CANCELADA.md`](../fases/F3-ventas-CANCELADA.md).
 
 > **Los módulos de venta que quedan están OCULTOS en la interfaz.** `secciones_habilitadas` de
-> `GET /me` es una lista fija —`["procesos","espacios","salas"]`, más `"licitaciones"` donde ese
-> módulo esté encendido— (`modules/api/controllers/V1.php:2245`), por decisión del usuario. **La API
+> `GET /me` es una lista fija —`["procesos","espacios","salas"]`, más `"prospectos"`, `"licitaciones"` y `"upsells"` donde esos
+> módulos estén encendidos— (`modules/api/controllers/V1.php:2245`), por decisión del usuario. **La API
 > responde, `ops-v2` no ofrece la sección.** Habilitar una es editar esa lista, no desplegar código
 > nuevo. Sin esta aclaración, el ✅ de la tabla se lee como "está en la pantalla", y no lo está.
 
@@ -36,8 +36,11 @@ una lista de bugs: es lo que **no se construyó a propósito**, y cada ficha lo 
 | [05](05-mi-trabajo.md) | Mi trabajo | vistas sobre `tasks` | ✅ | sí | — |
 | [06](06-salas.md) | Salas de reunión | **ninguna**: tablas propias del módulo `api` | ✅ | sí | Sin Google Calendar, por decisión del usuario |
 | [07](07-teletrabajo.md) | Teletrabajo | **ninguna**: LiveKit propio, sin tabla | — | sí | Sin endpoint de tokens, por decisión de diseño |
-| [10](10-prospectos.md) | Prospectos | `leads` | ✅ | **no** | `POST /leads/{id}/convertir` |
-| [11](11-licitaciones.md) | Licitaciones | `projects` + tablas propias del módulo `api` | en construcción | sí, con la bandera `licitaciones` | El frontend está completo contra el contrato; la API se construye en paralelo |
+| [08](08-live.md) | LIVE: jornada y medidor | **ninguna**: tablas propias del módulo `api` | en construcción | sí | El frontend está completo contra el contrato; la API se construye en paralelo. La campana consume `/notifications`, que ya existía sin consumidor |
+| [10](10-prospectos.md) | Leads (embudo de Perfex) | `leads` | ✅ | **no**, y no se planea | Sin pantalla: lo reemplaza [Prospectos](12-prospectos.md), que es otra entidad |
+| [11](11-licitaciones.md) | Licitaciones | `projects` + `tblapi_licitaciones` | ✅ | sí, con la bandera `licitaciones` | — |
+| [12](12-prospectos.md) | Prospectos (empresa candidata) | `tblapi_prospectos` + `tblapi_prospecto_contactos` | ✅ | sí, con la bandera `prospectos` | — |
+| [13](13-upselling.md) | Upselling | `projects` + `tblapi_upsells` | ✅ | sí, con la bandera `upsells` | — |
 | [20](20-facturas.md) | Facturas | `invoices` | ✅ | **no** | PDF, envío, recurrentes, notas de crédito, `tags`, `custom_fields` |
 | [22](22-pagos.md) | Pagos | `invoicepaymentrecords` | ✅ | **no** | `PATCH /payments/{id}`, deliberado |
 | [23](23-gastos.md) | Gastos | `expenses` | ✅ | **no** | Subida del comprobante, borrado, `tags`, `custom_fields` |
@@ -47,8 +50,8 @@ una lista de bugs: es lo que **no se construyó a propósito**, y cada ficha lo 
 Dos cosas que la tabla no puede decir en una celda:
 
 - **Ninguna escritura de la API avisa a nadie.** Ni correo, ni campana, ni Pusher. La
-  infraestructura existe —`Escritura/Aviso.php` y todo `/notifications`—, pero las escrituras no la
-  llaman y el front no tiene campana. La interfaz no puede decir "enviado".
+  infraestructura existe —`Escritura/Aviso.php` y todo `/notifications`— y desde LIVE la campana ya
+  está en la cabecera, pero las escrituras siguen sin llamarla. La interfaz no puede decir "enviado".
 - **`?include=` desconocido es `422` en todos lados.** La grieta que este documento describía —seis
   de los ocho ignorando el `include` en silencio— está cerrada, y con ella la de las fichas, la de los
   subrecursos de Espacio y Proceso y la de todo `/portal/*`. Donde no hay relaciones opcionales la

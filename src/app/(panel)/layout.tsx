@@ -1,14 +1,20 @@
 import Link from 'next/link'
-import { pedir } from '@/datos/servidor'
+import { pedir, pedirOpcional } from '@/datos/servidor'
 import { leerSuplantador } from '@/datos/sesion'
 import type { Yo } from '@/datos/tipos'
 import { GLOSARIO } from '@/dominio/glosario'
 import { puedeVerSeccion } from '@/dominio/permisos'
 import { intervaloDeLatido } from '@/datos/auditoria'
+import { iaHabilitada } from '@/datos/ajustes'
+import { intervaloDeLive, type EstadoDeJornada } from '@/datos/live'
+import type { ConteoDeAvisos } from '@/datos/avisos'
 import { SelectorTema } from '@/componentes/estructura/SelectorTema'
 import { BarraLateral, BarraLateralMovil, type Seccion } from '@/componentes/estructura/BarraLateral'
 import { BarraSuplantacion } from '@/componentes/estructura/BarraSuplantacion'
 import { Latido } from '@/componentes/auditoria/Latido'
+import { OrbeChatIA } from '@/componentes/ia/OrbeChatIA'
+import { Campana } from '@/componentes/avisos/Campana'
+import { ControlJornada } from '@/componentes/live/ControlJornada'
 import { Logo } from '@/componentes/estructura/Logo'
 import { MenuUsuario } from '@/componentes/estructura/MenuUsuario'
 import { ScrollSuave } from '@/componentes/estructura/ScrollSuave'
@@ -27,6 +33,18 @@ import { ScrollSuave } from '@/componentes/estructura/ScrollSuave'
 export default async function PanelLayout ({ children }: { children: React.ReactNode }) {
   const { data: yo } = await pedir<Yo>('/me')
   const secciones = seccionesDe(yo)
+  const segundosDeLive = intervaloDeLive()
+  // Los dos van con `pedirOpcional`: son accesorios de la cabecera y ninguno puede tumbar el armazon
+  // entero, que es lo que pasaria con `pedir()` el dia que la API conteste 403 o 500 en uno de ellos.
+  // Resolverlos aca —y no al montar en el navegador— es lo que evita que el contador y el globo
+  // aparezcan en blanco y salten a su valor un segundo despues, en cada navegacion.
+  const [jornada, avisos, conIa] = await Promise.all([
+    pedirOpcional<EstadoDeJornada>('/me/jornada'),
+    pedirOpcional<ConteoDeAvisos>('/notifications/count'),
+    // Con la capa de IA apagada el orbe no existe, en vez de existir y fallar: la API responde 404 a
+    // todo `/ia/*` y la persona no podria distinguir "no esta contratado" de "se rompio".
+    iaHabilitada()
+  ])
   // La cookie de la sesion real es la unica señal de que esto es una suplantacion. `/me` no puede
   // decirlo: la API emite la sesion prestada igual que un login normal, a proposito.
   const suplantando = await leerSuplantador() !== null
@@ -47,6 +65,13 @@ export default async function PanelLayout ({ children }: { children: React.React
           El intervalo se resuelve aca —en el servidor— y viaja como prop; ver `intervaloDeLatido`. */}
       <Latido segundos={intervaloDeLatido()} />
 
+      {/* Por el mismo motivo que el latido: el chat dejo de ser de un Espacio y su asunto es todo el
+          panel. Montado aca —fuera del contenedor que scrollea— el orbe flota sobre cualquier
+          pantalla, y el hilo sobrevive a navegar porque el armazon no se desmonta al cambiar de
+          ruta. Le manda al servidor en que pantalla esta parada la persona, la misma cadena que el
+          latido: ver `dominio/pantalla.ts`. */}
+      {conIa && <OrbeChatIA />}
+
       {/* `aurora` va aca y no en cada pantalla: es el lienzo del panel, no un adorno de la portada.
           Su capa es un `::before` fijo detras de todo (`globals.css`), asi que no ocupa lugar ni
           cambia la maqueta de ninguna de las ocho pantallas — solo les pone luz debajo. La barra
@@ -64,7 +89,19 @@ export default async function PanelLayout ({ children }: { children: React.React
               <Logo tamano="medio" />
             </Link>
             <BarraLateralMovil secciones={secciones} />
-            <SelectorTema className="ml-auto" />
+            {/* Uno solo en toda la aplicacion, y aca y no en la barra lateral: la barra se abate a un
+                riel y en movil se esconde dentro de un cajon, justo donde mas falta hace saber que hay
+                un medidor corriendo. Colapsado no crece mas que un boton porque la cabecera mide
+                `h-14` fijos. */}
+            <ControlJornada
+              variante="compacta"
+              segundos={segundosDeLive}
+              inicial={jornada.datos}
+              errorInicial={jornada.error}
+              className="ml-auto"
+            />
+            <Campana inicial={avisos.datos} segundos={segundosDeLive} />
+            <SelectorTema />
             <MenuUsuario nombre={yo.full_name} imagen={yo.profile_image_url} />
           </header>
           {/* El unico contenedor de scroll vertical del armazon. `min-h-0` es lo que se lo permite:
@@ -89,6 +126,11 @@ export default async function PanelLayout ({ children }: { children: React.React
 function seccionesDe (yo: Yo): Seccion[] {
   const secciones: Seccion[] = [{ href: '/inicio', etiqueta: 'Inicio', icono: 'inicio' }]
 
+  // Sin condicion, y es la unica seccion asi: todo el mundo tiene al menos su propia vista —abrir la
+  // jornada y ver su medidor—. Lo que cambia con el rol es cuanta gente mas se ve, y eso lo decide
+  // `alcanceDeLive()` dentro de la pantalla, no la barra.
+  secciones.push({ href: '/live', etiqueta: 'En vivo', icono: 'live' })
+
   if (puedeVerSeccion(yo.permissions.tasks, 'tasks')) {
     secciones.push({ href: '/procesos', etiqueta: GLOSARIO.proceso.plural, icono: 'procesos' })
   }
@@ -97,12 +139,14 @@ function seccionesDe (yo: Yo): Seccion[] {
     secciones.push({ href: '/espacios', etiqueta: GLOSARIO.espacio.plural, icono: 'espacios' })
   }
 
-  // Licitaciones tampoco tiene permiso de Perfex propio: no es una entidad suya, son Espacios con una
-  // empresa candidata colgada. La llave es la bandera de instalacion —el modulo se enciende por
-  // cliente— y no `permissions.projects`: con ese permiso, la seccion aparecería en instalaciones
-  // donde el recurso ni existe, y su listado devolveria 404.
-  if (yo.secciones_habilitadas.includes('licitaciones')) {
-    secciones.push({ href: '/licitaciones', etiqueta: GLOSARIO.licitacion.plural, icono: 'licitaciones' })
+  // Prospectos contiene el acceso a sus licitaciones. La bandera de instalación habilita el módulo.
+  if (yo.secciones_habilitadas.includes('prospectos')) {
+    secciones.push({ href: '/prospectos', etiqueta: GLOSARIO.licitacion.plural, icono: 'licitaciones' })
+  }
+
+  // Upselling corresponde a oportunidades sobre clientes existentes.
+  if (yo.secciones_habilitadas.includes('upsells')) {
+    secciones.push({ href: '/upsells', etiqueta: GLOSARIO.upsell.plural, icono: 'upsells' })
   }
 
   // Salas no tiene permiso de Perfex que consultar: no es una feature suya. Reservar una sala lo

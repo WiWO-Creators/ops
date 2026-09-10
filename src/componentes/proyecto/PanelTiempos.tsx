@@ -21,6 +21,7 @@ import { Avatar } from '@/componentes/presentadores/Avatar'
 import { Etiquetas } from '@/componentes/presentadores/Etiqueta'
 import { Fecha } from '@/componentes/presentadores/Fecha'
 import { Insignia } from '@/componentes/presentadores/Insignia'
+import { avisarCambioDeMedidor } from '@/componentes/live/medidor'
 import { pedirSobre } from '@/datos/cliente'
 import { construirConsulta, leerConsulta } from '@/datos/consulta'
 import { leerError } from '@/datos/errores'
@@ -249,6 +250,8 @@ function TiemposDelProyecto ({ proyectoId, capacidades }: PropsPanelTiempos): Re
         return
       }
 
+      // El control de jornada de la cabecera mira el mismo cronometro.
+      avisarCambioDeMedidor()
       recargar()
     } catch {
       setAviso('No se pudo detener: revisa la conexión.')

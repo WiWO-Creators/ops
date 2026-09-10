@@ -2,6 +2,7 @@
 
 import { usePathname } from 'next/navigation'
 import { useEffect } from 'react'
+import { pantallaDeRuta } from '@/dominio/pantalla'
 import { accionEnCurso, escucharAccion, rutaDeTarea } from './accion'
 
 /**
@@ -14,8 +15,10 @@ export function Latido ({ segundos }: { segundos: number }) {
   const ruta = usePathname()
 
   useEffect(() => {
-    const normalizada = ruta.toLowerCase()
-    if (!/^\/[a-z0-9/_-]*$/.test(normalizada)) return
+    // La misma normalización que manda WiBot como `pantalla`: si las dos divergen, el servidor
+    // resuelve mal de qué está hablando la persona.
+    const normalizada = pantallaDeRuta(ruta)
+    if (normalizada === null) return
 
     const control = new AbortController()
     let pendiente = true

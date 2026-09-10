@@ -9,7 +9,7 @@
 
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { clavesDelGrupo, dominiosDeAjustes, etiquetaDeAjuste, grupoDeAjustes } from '../src/dominio/ajustes.ts'
+import { clavesDelGrupo, dominiosDeAjustes, etiquetaDeAjuste, grupoDeAjustes, motivoDeIa } from '../src/dominio/ajustes.ts'
 
 /** Un cuerpo de `GET /settings` con lo mínimo para probar el agrupado. */
 const AJUSTES = {
@@ -66,4 +66,25 @@ test('el redondeo del cronómetro tiene nombre para cada número', () => {
 
   assert.equal(dominios.round_off_task_timer_option['0'], 'No redondear')
   assert.equal(dominios.round_off_task_timer_option['1'], 'Redondear hacia arriba')
+})
+
+/**
+ * Lo que separa "apagada" de "nunca se configuró" es un `false` de un `null`, y los dos llegan como
+ * "no hay IA". Confundirlos manda a la persona a apagar un interruptor que no está encendido.
+ */
+test('el motivo de la IA distingue apagada de nunca configurada', () => {
+  assert.equal(motivoDeIa(true), 'encendida')
+  assert.equal(motivoDeIa(false), 'apagada')
+  // `null`: la opción viaja en `/settings` sin fila detrás en `tbloptions`.
+  assert.equal(motivoDeIa(null), 'ausente')
+  // `undefined`: la opción no viaja en absoluto.
+  assert.equal(motivoDeIa(undefined), 'ausente')
+})
+
+test('un valor que no es booleano no se cuela como encendida', () => {
+  // `GET /settings` presenta los `bool` ya convertidos, pero la cadena "0" es verdadera en
+  // JavaScript: si alguna vez llegara sin convertir, tiene que leerse como apagada y no al revés.
+  assert.equal(motivoDeIa('0'), 'apagada')
+  assert.equal(motivoDeIa('1'), 'apagada')
+  assert.equal(motivoDeIa(0), 'apagada')
 })

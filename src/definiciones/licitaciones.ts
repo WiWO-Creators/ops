@@ -1,14 +1,18 @@
 import type { DefinicionRecurso, OpcionFiltro } from './tipos.ts'
-import type { ContactoLicitacion, EstadoLicitacion, Licitacion } from '../datos/recursos.ts'
+import type { EstadoLicitacion, Licitacion } from '../datos/recursos.ts'
 import { GLOSARIO } from '../dominio/glosario.ts'
 import { formatearFecha } from '../lib/fechas.ts'
 
 /**
  * Definicion del recurso Licitaciones.
  *
- * Fuente: `docs/modulos/11-licitaciones.md`. Una Licitacion **es** un Espacio con una empresa
- * candidata colgada: por eso el listado muestra el nombre del Espacio y su fecha de inicio, y por eso
- * el detalle puede reusar tal cual los paneles del detalle de Espacio.
+ * Fuente: `docs/modulos/11-licitaciones.md`. Una Licitacion **es** un Espacio colgado de un
+ * Prospecto —la empresa candidata—: por eso el listado muestra el nombre del Espacio y su fecha de
+ * inicio, y por eso el detalle puede reusar tal cual los paneles del detalle de Espacio.
+ *
+ * `filter[prospecto_id]` existe en el backend pero **no** se declara en `filtros`: se usa como
+ * `consultaFija` desde la ficha del Prospecto, donde no debe viajar en la URL. Ver
+ * `componentes/prospecto/PanelesProspecto.tsx`.
  */
 
 /**
@@ -34,30 +38,15 @@ export function etiquetaDeEstado (estado: EstadoLicitacion): string {
   return ESTADOS_DE_LICITACION.find((opcion) => opcion.valor === estado)?.etiqueta ?? estado
 }
 
-/**
- * Nombre completo del contacto de la candidata.
- *
- * La API lo devuelve partido en dos porque asi lo escribe Perfex al crear el contacto principal; la
- * interfaz nunca muestra "firstname" y "lastname" en columnas separadas.
- *
- * `null` es un valor esperable y no un error: `POST /licitaciones` acepta el alta sin contacto y la
- * API devuelve la clave en `null`. Se resuelve como cadena vacia para que la columna quede en blanco
- * en vez de tumbar el listado entero.
- *
- * @param contacto Contacto de la licitacion, o `null` si el alta no lo trajo.
- * @returns Nombre y apellido en una linea, sin espacios sobrantes; vacio si no hay contacto.
- */
-export function nombreDelContacto (contacto: ContactoLicitacion | null): string {
-  return contacto === null ? '' : `${contacto.firstname} ${contacto.lastname}`.trim()
-}
-
 export const LICITACIONES: DefinicionRecurso<Licitacion> = {
   ruta: 'licitaciones',
   titulo: GLOSARIO.licitacion,
 
   columnas: [
+    // `company` es el nombre del PROSPECTO, resuelto por el JOIN del backend. La columna Contacto
+    // desapareció con `0320`: las personas viven en el prospecto, que puede tener varias, y elegir
+    // una para la fila sería inventar cuál.
     { clave: 'company', encabezado: 'Empresa', ordenPor: 'company', presentar: (l) => l.company },
-    { clave: 'contacto', encabezado: 'Contacto', presentar: (l) => nombreDelContacto(l.contacto) },
     // Sin `comoInsignia`: ese camino busca el valor en un catalogo de `/lookups` y estos estados no
     // viven ahi, asi que la columna quedaria en blanco.
     { clave: 'estado', encabezado: 'Estado', presentar: (l) => etiquetaDeEstado(l.estado) },

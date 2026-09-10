@@ -1,23 +1,13 @@
 import Link from 'next/link'
-import { Suspense, cache } from 'react'
+import { cache } from 'react'
 import { AccionesLicitacion } from '@/componentes/licitacion/AccionesLicitacion'
 import { FichaLicitacion } from '@/componentes/licitacion/FichaLicitacion'
-import { CabeceraProyecto } from '@/componentes/proyecto/CabeceraProyecto'
-import { PanelActividad } from '@/componentes/proyecto/PanelActividad'
-import { PanelArchivos } from '@/componentes/proyecto/PanelArchivos'
-import { PanelDescripcion } from '@/componentes/proyecto/PanelDescripcion'
-import { PanelDiscusiones } from '@/componentes/proyecto/PanelDiscusiones'
-import { PanelHitos } from '@/componentes/proyecto/PanelHitos'
-import { PanelTareas } from '@/componentes/proyecto/PanelTareas'
-import { PanelTiempos } from '@/componentes/proyecto/PanelTiempos'
-import { Pestanas, type Panel } from '@/componentes/proyecto/Pestanas'
-import type { OpcionCampo } from '@/componentes/proyecto/formulario'
-import { Cargando, ErrorEstado, SinPermiso, Vacio } from '@/componentes/estado/Estados'
-import { listaDe, nombreDe } from '@/datos/catalogos'
+import { DetalleDeEspacio } from '@/componentes/proyecto/DetalleDeEspacio'
+import { ErrorEstado, SinPermiso, Vacio } from '@/componentes/estado/Estados'
 import { ErrorApi } from '@/datos/errores'
 import { cargarLookups } from '@/datos/lookups'
 import { pedir } from '@/datos/servidor'
-import type { EstadoLookup, LicitacionDetalle, Lookups } from '@/datos/recursos'
+import type { LicitacionDetalle, Lookups } from '@/datos/recursos'
 import type { Yo } from '@/datos/tipos'
 import { GLOSARIO } from '@/dominio/glosario'
 
@@ -91,8 +81,8 @@ function NoEncontrada () {
       titulo={`Esa ${GLOSARIO.licitacion.singular.toLowerCase()} no existe`}
       descripcion="Puede que la hayan borrado, o que el enlace esté mal escrito."
       accion={
-        <Link href="/licitaciones" className="text-acento text-sm font-semibold underline underline-offset-4">
-          Volver a {GLOSARIO.licitacion.plural}
+        <Link href="/prospectos" className="text-acento text-sm font-semibold underline underline-offset-4">
+          Volver a Prospectos
         </Link>
       }
     />
@@ -102,16 +92,12 @@ function NoEncontrada () {
 /**
  * Detalle de una Licitacion.
  *
- * Las pestañas de trabajo son **las mismas** del detalle de un Espacio, montadas con
- * `licitacion.espacio.id` en lugar de `proyecto.id`: una licitacion es un Espacio con una empresa
- * candidata colgada, y sus tareas, hitos, tiempos y archivos ya viven en los endpoints de Espacio. No
- * hay envoltorios ni paneles propios; es el mismo patron de `PanelesCliente.tsx`.
+ * Las pestañas de trabajo son **las mismas** del detalle de un Espacio: las monta `DetalleDeEspacio`
+ * con `licitacion.espacio`, el mismo componente que usa Upselling. Aca solo se decide que va en la
+ * pestaña Ficha y que botones tiene la cabecera.
  *
  * Ganada o perdida, las pestañas siguen ahi: el trabajo que se hizo no desaparece porque se haya
  * resuelto la licitacion. Lo que cambia son las acciones de la cabecera.
- *
- * El `Suspense` no es decorativo: `Pestanas` usa `useSearchParams`, y sin ese limite el build de la
- * ruta falla.
  */
 export default async function LicitacionPage (props: PageProps<'/licitaciones/[id]'>) {
   const { id } = await props.params
@@ -125,102 +111,20 @@ export default async function LicitacionPage (props: PageProps<'/licitaciones/[i
   }
 
   const { licitacion, lookups, yo } = detalle
-  const espacio = licitacion.espacio
-  const capacidadesProyecto = yo.permissions.projects
-  const capacidadesTareas = yo.permissions.tasks
-  const paises = listaDe(lookups, 'countries')
-
-  const paneles: Panel[] = [
-    {
-      clave: 'ficha',
-      etiqueta: 'Ficha',
-      contenido: (
-        <div className="flex flex-col gap-6">
-          <FichaLicitacion licitacion={licitacion} paises={paises} />
-          <PanelDescripcion
-            proyecto={espacio}
-            estado={estadoDelEspacio(lookups, espacio.status)}
-            tipoFacturacion={nombreDe(listaDe(lookups, 'billing_types'), espacio.billing_type)}
-            puedeVerMontos={capacidadesProyecto.includes('edit')}
-          />
-        </div>
-      )
-    },
-    {
-      clave: 'tareas',
-      etiqueta: GLOSARIO.proceso.plural,
-      // Sin IA: el chat de proyecto es del detalle de Espacio, y aca todavia no hay proyecto ganado.
-      contenido: <PanelTareas proyectoId={espacio.id} capacidades={capacidadesTareas} conIa={false} />
-    },
-    {
-      clave: 'hitos',
-      etiqueta: GLOSARIO.hito.plural,
-      contenido: (
-        <PanelHitos
-          proyecto={espacio}
-          capacidades={capacidadesProyecto}
-          capacidadesTareas={capacidadesTareas}
-        />
-      )
-    },
-    {
-      clave: 'tiempos',
-      etiqueta: 'Tiempos',
-      contenido: <PanelTiempos proyectoId={espacio.id} capacidades={capacidadesTareas} />
-    },
-    { clave: 'archivos', etiqueta: 'Archivos', contenido: <PanelArchivos proyectoId={espacio.id} /> },
-    {
-      clave: 'discusiones',
-      etiqueta: 'Discusiones',
-      contenido: <PanelDiscusiones proyectoId={espacio.id} capacidades={capacidadesProyecto} />
-    },
-    {
-      clave: 'actividad',
-      etiqueta: 'Actividad',
-      contenido: <PanelActividad proyectoId={espacio.id} capacidades={capacidadesProyecto} />
-    }
-  ]
 
   return (
-    <section className="flex flex-col gap-4">
-      <CabeceraProyecto
-        proyecto={espacio}
-        estado={estadoDelEspacio(lookups, espacio.status)}
-        estados={listaDe(lookups, 'project_statuses')}
-        capacidadesProyecto={capacidadesProyecto}
-        capacidadesTareas={capacidadesTareas}
-        volverA={{ href: '/licitaciones', etiqueta: GLOSARIO.licitacion.plural }}
-        subtitulo={licitacion.company}
-        acciones={
-          <AccionesLicitacion
-            licitacion={licitacion}
-            paises={comoOpciones(paises)}
-            capacidades={capacidadesProyecto}
-          />
-        }
-      />
-
-      <Suspense fallback={<Cargando alto="min-h-36" mensaje="Cargando el detalle…" />}>
-        <Pestanas paneles={paneles} etiqueta={`Secciones de la ${GLOSARIO.licitacion.singular.toLowerCase()}`} />
-      </Suspense>
-    </section>
+    <DetalleDeEspacio
+      espacio={licitacion.espacio}
+      lookups={lookups}
+      capacidadesProyecto={yo.permissions.projects}
+      capacidadesTareas={yo.permissions.tasks}
+      volverA={{ href: `/prospectos/${licitacion.prospecto_id}?tab=licitaciones`, etiqueta: licitacion.company }}
+      subtitulo={licitacion.company}
+      acciones={
+        <AccionesLicitacion licitacion={licitacion} capacidades={yo.permissions.projects} />
+      }
+      ficha={<FichaLicitacion licitacion={licitacion} />}
+      etiquetaPestanas={`Secciones de la ${GLOSARIO.licitacion.singular.toLowerCase()}`}
+    />
   )
-}
-
-/**
- * Resuelve el estado del Espacio contra `project_statuses`.
- *
- * @param lookups catalogos ya cargados
- * @param status id del estado que trae el Espacio
- * @returns nombre legible y color; un id que el catalogo no conoce se muestra como `#id` sin color
- */
-function estadoDelEspacio (lookups: Lookups, status: number): { nombre: string, color: string | null } {
-  const encontrado = listaDe(lookups, 'project_statuses').find((item) => item.id === status)
-
-  return { nombre: encontrado?.name ?? `#${status}`, color: encontrado?.color ?? null }
-}
-
-/** Un catalogo de `/lookups` en la forma que espera un campo `seleccion` del formulario. */
-function comoOpciones (lista: EstadoLookup[]): OpcionCampo[] {
-  return lista.map((item) => ({ valor: String(item.id), etiqueta: item.name }))
 }

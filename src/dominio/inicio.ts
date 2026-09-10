@@ -81,21 +81,6 @@ export function cuantosNoListados (procesos: Proceso[], total = procesos.length,
   return Math.max(0, total - listados)
 }
 
-/**
- * Encuentra el proceso donde quien mira dejo un cronometro corriendo.
- *
- * `timer_activo` viaja en cada proceso del listado, asi que esto no cuesta una peticion extra. Se
- * compara contra `staffId` porque el campo puede traer el cronometro de otra persona sobre la misma
- * tarea: mostrarlo como propio invitaria a detener el trabajo de un companero.
- *
- * @param procesos los procesos del listado
- * @param staffId id de quien mira
- * @returns el proceso con el cronometro propio abierto, o `null`
- */
-export function procesoConCronometro (procesos: Proceso[], staffId: number): Proceso | null {
-  return procesos.find((proceso) => proceso.timer_activo?.staff_id === staffId) ?? null
-}
-
 /** Tramo de un proceso. `due_date` puede faltar, y ahi `estadoVencimiento` responde `sin-fecha`. */
 function tramoDe (proceso: Proceso, hoy: Date): EstadoVencimiento {
   return estadoVencimiento(proceso.due_date, hoy)

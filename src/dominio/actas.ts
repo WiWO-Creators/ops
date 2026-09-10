@@ -44,27 +44,46 @@ export const MIME_IMAGEN: Record<string, string> = {
 }
 
 /**
- * Tope de subida, 25 MB.
+ * Extensión de documento a su tipo MIME: un Meeting Paper que ya se escribió fuera del sistema.
  *
- * Es más bajo que el de la API (48 MB) a propósito, y no por prudencia: el BFF hace
- * `await peticion.formData()` y reenvía ese `FormData`, o sea que **el archivo entero pasa por la
- * memoria del proceso de Next**, dos veces contando el reencode. Con varias subidas a la vez, un
- * archivo de 100 MB —el tope que usaba MeetingMatico— tumba el proceso que sirve todo el panel.
+ * `.doc` **no está a propósito**. El binario de Word 97 no se lee sin una librería, y dejarlo caer
+ * en el "solo se aceptan…" genérico deja a la persona mirando lo que para ella es un documento de
+ * Word como cualquier otro. `validarArchivo` lo contesta con su propio mensaje, que dice qué hacer.
+ */
+export const MIME_DOCUMENTO: Record<string, string> = {
+  pdf: 'application/pdf',
+  docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  txt: 'text/plain',
+  md: 'text/markdown',
+  html: 'text/html',
+  htm: 'text/html'
+}
+
+/**
+ * Tope del documento subido, 20 MB. Es el mismo de la API, no uno más bajo.
  *
- * Con la grabadora a 32 kbps, 25 MB son ~1 hora y 45 minutos de reunión.
+ */
+export const LIMITE_DOCUMENTO_BYTES = 20 * 1024 * 1024
+
+/**
+ * Tope de subida de imágenes, 25 MB.
  */
 export const LIMITE_BYTES = 25 * 1024 * 1024
 
-/** Tope de la grabación en vivo. Más allá, el archivo no entra en `LIMITE_BYTES`. */
+/** Tope de audio, igual a los 100 MB de EntradaDeActa::MAX_AUDIO_BYTES en la API. */
+export const LIMITE_AUDIO_BYTES = 100 * 1024 * 1024
+
+/** Tope de duración de la grabación en vivo. */
 export const MAXIMO_GRABACION_MS = 90 * 60 * 1000
 
-/** Los cuatro modos de entrada del asistente. */
-export type ModoEntrada = 'texto' | 'grabar' | 'audio' | 'imagen'
+/** Los cinco modos de entrada del asistente. */
+export type ModoEntrada = 'texto' | 'grabar' | 'audio' | 'imagen' | 'documento'
 
 /** Extensiones que el selector de archivos ofrece, por modo. */
-export const ACEPTA: Record<'audio' | 'imagen', string> = {
+export const ACEPTA: Record<'audio' | 'imagen' | 'documento', string> = {
   audio: Object.keys(MIME_AUDIO).map((e) => `.${e}`).join(','),
-  imagen: Object.keys(MIME_IMAGEN).map((e) => `.${e}`).join(',')
+  imagen: Object.keys(MIME_IMAGEN).map((e) => `.${e}`).join(','),
+  documento: Object.keys(MIME_DOCUMENTO).map((e) => `.${e}`).join(',')
 }
 
 /** Extensión en minúsculas, sin punto. Cadena vacía si el nombre no tiene. */
@@ -88,18 +107,45 @@ export function inferirMime (nombre: string): string | null {
 /**
  * Comprueba que el archivo se pueda mandar.
  *
+ * Sin modo se aceptan audio e imagen, con topes de 100 y 25 MB según la extensión.
+ * El modo `documento` cambia la lista de extensiones y el tope.
+ *
+ * Esto no reemplaza la validación del servidor, que es la que manda: acá se evita subir 20 MB para
+ * que la API los rechace, nada más.
+ *
  * @param archivo el archivo elegido
+ * @param modo    de dónde sale el acta; solo `documento` cambia lo que se acepta
  * @returns el mensaje de error para la persona, o `null` si está bien
  */
-export function validarArchivo (archivo: { name: string, size: number }): string | null {
+export function validarArchivo (
+  archivo: { name: string, size: number },
+  modo?: ModoEntrada
+): string | null {
   if (archivo.size === 0) return 'El archivo está vacío.'
+
+  if (modo === 'documento') {
+    if (extensionDe(archivo.name) === 'doc') {
+      return 'Los archivos .doc no se pueden leer. Guarda el documento como PDF o como .docx y vuelve a subirlo.'
+    }
+
+    if (MIME_DOCUMENTO[extensionDe(archivo.name)] === undefined) {
+      return 'Solo se aceptan documentos PDF, DOCX, TXT, MD o HTML.'
+    }
+
+    if (archivo.size > LIMITE_DOCUMENTO_BYTES) {
+      return `El documento pesa ${formatoPeso(archivo.size)} y el máximo son ${formatoPeso(LIMITE_DOCUMENTO_BYTES)}.`
+    }
+
+    return null
+  }
 
   if (inferirMime(archivo.name) === null) {
     return 'Solo se aceptan archivos de audio o de imagen.'
   }
 
-  if (archivo.size > LIMITE_BYTES) {
-    return `El archivo pesa ${formatoPeso(archivo.size)} y el máximo son ${formatoPeso(LIMITE_BYTES)}.`
+  const limite = MIME_AUDIO[extensionDe(archivo.name)] !== undefined ? LIMITE_AUDIO_BYTES : LIMITE_BYTES
+  if (archivo.size > limite) {
+    return `El archivo pesa ${formatoPeso(archivo.size)} y el máximo son ${formatoPeso(limite)}.`
   }
 
   return null
