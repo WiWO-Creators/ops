@@ -159,7 +159,13 @@ export function CabeceraProyecto ({
           {acciones ?? (
             <>
               <BotonNuevaTarea capacidades={capacidadesTareas} />
-              <MenuProyecto proyecto={proyecto} estados={estados} capacidades={capacidadesProyecto} esMiembro={esMiembro} />
+              <MenuProyecto
+                proyecto={proyecto}
+                estados={estados}
+                capacidades={capacidadesProyecto}
+                capacidadesTareas={capacidadesTareas}
+                esMiembro={esMiembro}
+              />
             </>
           )}
         </div>

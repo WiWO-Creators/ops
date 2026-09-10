@@ -5086,6 +5086,121 @@ que nunca va a producir un `eta`. Es distinto de `milestone`, que fuera de un Es
 no sea `project` deja `task_type` en `null` —igual que ya dejaba `milestone` en `0`—, porque si no
 quedaría apuntando al catálogo de otro Espacio.
 
+### Rama `feat/importar-tareas`
+
+Traer todas las tareas de un Espacio a un **Hito** de otro. Existe para un caso concreto: hay
+colaboradores que abrieron un Espacio por mes, y esos meses tienen que pasar a ser Hitos de un solo
+Espacio.
+
+El ciclo completo son tres pasos, y el contrato los expone como tales: **importar**, **comprobar** y
+recién entonces **archivar** el Espacio viejo con `POST /projects/{id}/actions/archive`, que ya
+existía. Archivar sin haber comprobado es lo que este frente existe para evitar.
+
+#### `POST /projects/{id}/actions/import-tasks`
+
+`{id}` es el Espacio de **destino**: el que recibe. El cuerpo dice de dónde salen y a qué Hito entran.
+
+```json
+{ "origen_id": 100, "hito_id": 77 }
+```
+
+Responde `201` con el **informe de verificación** (la misma forma que el `GET` de abajo) en `data`, y
+el recuento de la corrida en `meta`:
+
+```json
+{ "data": { "…": "informe" }, "meta": { "importadas": 12, "omitidas": 0, "ids": [901, 902] } }
+```
+
+**Copia, no mueve.** Las tareas siguen en el Espacio de origen. Es lo que hace posible comparar
+origen contra copia; mover no deja contra qué comparar y volver atrás sería a mano.
+
+**La copia es exacta.** No desplaza fechas —a diferencia de `POST /projects/{id}/actions/copy`, que sí
+lo hace para que un Espacio clonado arranque cuando le toca—: si las corriera, el Hito "Septiembre"
+quedaría con tareas de octubre. Las columnas de `tbltasks` se leen enteras, así que cualquier campo
+que se agregue al Proceso viaja solo.
+
+**Lo único que a propósito NO queda igual es la patente.** `tblwiwo_task_patentes.patente` tiene un
+`UNIQUE`: dos tareas no pueden compartir identificador visible, así que la copia recibe una nueva.
+
+| Qué viaja con cada tarea | Qué no, y por qué |
+|---|---|
+| Asignados, seguidores, checklist, comentarios | Recordatorios: mandan correo, y duplicarlos avisa dos veces por una tarea que ni siquiera es la que se estaba mirando |
+| Horas registradas (`tbltaskstimers`) | Carpetas y permisos de Drive: son punteros a recursos de afuera, y duplicar la fila haría que dos tareas escriban en la misma carpeta |
+| Etiquetas, campos personalizados, adjuntos | Tokens de enlace público: duplicarlos haría que un enlace de un solo uso abra dos Procesos |
+| Iteraciones y estado de aprobación | Avisos de vencimiento y bitácora de cambios: son el historial de la tarea original; una tarea recién creada no tiene uno |
+| Dependencias **con las dos puntas dentro del lote** | Una dependencia con una punta afuera: apuntaría a una tarea del Espacio viejo, y el Gantt dibujaría una flecha hacia algo que en el nuevo no existe |
+
+**Es idempotente.** Cada copia guarda de qué tarea salió, así que reimportar saltea las que ya tienen
+copia en ese Hito en vez de duplicarlas — dos clics o una conexión cortada dan el mismo resultado que
+una sola corrida. Esas salteadas vuelven en `meta.omitidas`.
+
+**Todo en una transacción.** Si un `INSERT` falla a mitad de camino no queda nada: un Hito con la
+mitad de las tareas y la mitad de sus asignados es peor que no haber importado.
+
+#### `GET /projects/{id}/import-tasks?origen_id=&hito_id=`
+
+El informe de verificación. Es el **mismo endpoint antes y después** de importar, porque la pregunta
+es la misma y lo único que cambia es cuántas copias ya existen: antes es la previsualización
+("cuántas van a venir"), después es la comprobación que habilita a archivar.
+
+```json
+{
+  "data": {
+    "origen": { "id": 100, "nombre": "Septiembre 2026", "tareas": 12 },
+    "destino": { "id": 200, "nombre": "Cuenta Acme" },
+    "hito": { "id": 77, "nombre": "Septiembre" },
+    "importadas": 12,
+    "pendientes": 0,
+    "listo": true,
+    "diferencias": []
+  }
+}
+```
+
+`listo` es lo único que el frontend tiene que mirar para habilitar el archivado: es `true` cuando no
+queda nada pendiente, no hay diferencias y el origen tenía al menos una tarea. Recalcularlo en el
+cliente es tener dos versiones de la misma regla.
+
+Cada elemento de `diferencias` nombra una tarea, el dato que no coincide y los dos valores. Los
+valores vienen recortados a 80 caracteres y en una sola línea: el informe se lee en una tabla, y una
+`description` de mil palabras con HTML adentro no dice más que su principio.
+
+```json
+{ "tarea_origen": 1, "nombre": "Revisión", "copia_id": 901,
+  "campo": "priority", "origen": "2", "copia": "1" }
+```
+
+El `campo` puede ser una columna del Proceso (`priority`, `duedate`, …) o el nombre de una tabla hija
+(`task_assigned`, `taskstimers`, …); en ese segundo caso los dos valores son **cantidades de filas**,
+no contenidos.
+
+#### Permisos y códigos
+
+Hace falta `create` sobre `tasks` —crear tareas, no editar el Espacio— y ver los **dos** Espacios. El
+`GET` exige lo mismo que el `POST`: es una lectura sobre una operación de escritura, y aflojar ahí
+diría qué tiene el Espacio de origen a quien no puede verlo.
+
+| Situación | Código |
+|---|---|
+| Sin `create` sobre `tasks` | `403` |
+| Un Espacio que no existe, está en la papelera o no es visible | `404` |
+| Hito inexistente | `404` |
+| `origen_id` igual a `{id}` | `422` `origen_id: ["same_as_destination"]` |
+| El Hito no pertenece al Espacio de destino | `422` `hito_id: ["wrong_project"]` |
+| Más de 1000 tareas en el origen | `422` `origen_id: ["too_many"]` |
+| Falta `origen_id` o `hito_id` en el cuerpo | `422` |
+| Falta `origen_id` o `hito_id` en la query del `GET` | `400` |
+| `POST` sobre `/projects/{id}/import-tasks`, o cualquier subrecurso debajo | `404` |
+
+#### Lo que este frente NO hace
+
+- **No archiva solo.** El archivado sigue siendo `POST /projects/{id}/actions/archive` sobre el
+  Espacio de origen, disparado por la persona después de leer el informe. Encadenarlo a la
+  importación sería archivar sin que nadie haya comprobado nada.
+- **No borra las tareas del origen.** Quedan ahí; el Espacio archivado las conserva.
+- **No lo cubre el mock.** El mock no hace escritura sobre Espacios (ver "Lo que el mock no hace"),
+  así que esta operación se prueba contra el backend real.
+
 ## Tiempo real
 
 `GET /config/realtime` → `{ "data": { "enabled": true, "key": "…", "cluster": "…" } }`

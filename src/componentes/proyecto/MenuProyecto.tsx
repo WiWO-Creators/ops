@@ -15,6 +15,7 @@ import { escribirEnBff } from '@/componentes/datos/mutaciones'
 import { mensajeDeRespuesta } from '@/datos/cliente'
 import { GLOSARIO } from '@/dominio/glosario'
 import { FormularioRecurso } from './FormularioRecurso'
+import { ImportarTareas } from './ImportarTareas'
 import type { CampoFormulario } from './formulario'
 import type { EstadoLookup, Espacio } from '@/datos/recursos'
 import type { Capacidad } from '@/datos/tipos'
@@ -35,6 +36,11 @@ interface PropsMenuProyecto {
   estados: EstadoLookup[]
   /** Capacidades sobre `projects`, de `permissions` de `/me`. */
   capacidades: Capacidad[]
+  /**
+   * Capacidades sobre `tasks`. Rige el item de importar: el endpoint exige `tasks.create`, no
+   * `projects.edit`, y ofrecer una accion que va a dar 403 es una forma de mentir.
+   */
+  capacidadesTareas: Capacidad[]
   /**
    * Si quien mira figura en el equipo del Espacio. Rige el item "Salir".
    *
@@ -73,12 +79,19 @@ function camposDeCopia (): CampoFormulario[] {
   ]
 }
 
-export function MenuProyecto ({ proyecto, estados, capacidades, esMiembro = false }: PropsMenuProyecto): ReactElement {
+export function MenuProyecto ({
+  proyecto,
+  estados,
+  capacidades,
+  capacidadesTareas,
+  esMiembro = false
+}: PropsMenuProyecto): ReactElement {
   const router = useRouter()
   const [editando, setEditando] = useState(false)
   const [copiando, setCopiando] = useState(false)
   const [borrando, setBorrando] = useState(false)
   const [archivando, setArchivando] = useState(false)
+  const [importando, setImportando] = useState(false)
   const [saliendo, setSaliendo] = useState(false)
   const [enCurso, setEnCurso] = useState(false)
   const [fallo, setFallo] = useState<string | null>(null)
@@ -86,6 +99,7 @@ export function MenuProyecto ({ proyecto, estados, capacidades, esMiembro = fals
   const puedeCrear = capacidades.includes('create')
   const puedeEditar = capacidades.includes('edit')
   const puedeBorrar = capacidades.includes('delete')
+  const puedeImportar = capacidadesTareas.includes('create')
   const archivado = proyecto.archived
 
   /**
@@ -227,6 +241,14 @@ export function MenuProyecto ({ proyecto, estados, capacidades, esMiembro = fals
             </ItemMenu>
           )}
 
+          {/* Importar no se ofrece sobre un Espacio archivado: recibiria tareas que nadie va a ver
+              hasta desarchivarlo, que es lo contrario de lo que se estaba ordenando. */}
+          {puedeImportar && !archivado && (
+            <ItemMenu onSelect={() => { setImportando(true) }}>
+              Importar {GLOSARIO.proceso.plural.toLowerCase()} de otro {GLOSARIO.espacio.singular.toLowerCase()}
+            </ItemMenu>
+          )}
+
           {(puedeCrear || puedeEditar) && !archivado && estados.length > 0 && <SeparadorMenu />}
 
           {(puedeCrear || puedeEditar) && !archivado && estados
@@ -325,6 +347,14 @@ export function MenuProyecto ({ proyecto, estados, capacidades, esMiembro = fals
           members: true
         }}
         onGuardado={() => { router.push('/espacios') }}
+      />
+
+      <ImportarTareas
+        destino={{ id: proyecto.id, name: proyecto.name }}
+        abierto={importando}
+        onAbiertoCambia={setImportando}
+        onImportado={() => { router.refresh() }}
+        onArchivado={() => { router.refresh() }}
       />
 
       <Dialogo open={archivando} onOpenChange={setArchivando}>
