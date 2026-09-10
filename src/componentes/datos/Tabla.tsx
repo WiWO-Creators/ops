@@ -24,11 +24,14 @@ export function Tabla ({ className, children, ...resto }: React.TableHTMLAttribu
  *
  * Sin mayusculas forzadas —regla de Neo, que las quita explicitamente de Bootstrap— y en tono tenue:
  * el encabezado orienta, no compite con los datos. Se queda fijo al hacer scroll vertical.
+ *
+ * La linea inferior no es adorno: `CuerpoTabla` separa fila de fila, pero sin ella el limite entre el
+ * encabezado y la primera fila es el unico que no existe, y la banda de titulos flota.
  */
 export function EncabezadoTabla ({ className, ...resto }: React.HTMLAttributes<HTMLTableSectionElement>) {
   return (
     <thead
-      className={cn('bg-superficie-hundida text-texto-tenue sticky top-0 z-10 text-xs', className)}
+      className={cn('bg-superficie-hundida text-texto-tenue border-linea sticky top-0 z-10 border-b text-xs tracking-wide', className)}
       {...resto}
     />
   )
@@ -66,24 +69,39 @@ interface PropsCelda extends React.TdHTMLAttributes<HTMLTableCellElement> {
    * actualizarse porque el `1` es mas angosto que el `8`, y las unidades no quedan alineadas.
    */
   numerica?: boolean
+  /**
+   * La columna se encoge a su contenido y le cede el ancho sobrante a las de texto.
+   *
+   * `w-px` en una tabla de layout automatico no mide un pixel: es el minimo, y el navegador lo sube
+   * hasta lo que el contenido necesita. Sin esto, siete columnas cortas se reparten el ancho entero
+   * y los valores quedan a media pantalla de su encabezado.
+   */
+  angosta?: boolean
   sinCortar?: boolean
 }
 
-export function CeldaTabla ({ numerica = false, sinCortar = false, className, ...resto }: PropsCelda) {
+export function CeldaTabla ({ numerica = false, angosta = false, sinCortar = false, className, ...resto }: PropsCelda) {
   return (
     <td
-      className={cn('px-3 py-1.5 align-middle', numerica && 'text-right tabular-nums', sinCortar && 'whitespace-nowrap', className)}
+      className={cn(
+        'px-4 py-2 align-middle',
+        (numerica || angosta) && 'w-px whitespace-nowrap',
+        numerica && 'text-right tabular-nums',
+        sinCortar && 'whitespace-nowrap',
+        className
+      )}
       {...resto}
     />
   )
 }
 
-export function CeldaEncabezado ({ numerica = false, className, ...resto }: PropsCelda & React.ThHTMLAttributes<HTMLTableCellElement>) {
+export function CeldaEncabezado ({ numerica = false, angosta = false, className, ...resto }: PropsCelda & React.ThHTMLAttributes<HTMLTableCellElement>) {
   return (
     <th
       scope="col"
       className={cn(
-        'px-3 py-2 text-left font-semibold whitespace-nowrap',
+        'px-4 py-2 text-left font-medium whitespace-nowrap',
+        (numerica || angosta) && 'w-px',
         numerica && 'text-right',
         className
       )}

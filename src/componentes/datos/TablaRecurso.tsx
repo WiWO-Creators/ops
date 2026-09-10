@@ -97,6 +97,15 @@ interface PropsTablaRecurso<T> {
   board?: TableroDePreset
   /** Casillas laterales y acciones sobre las filas seleccionadas de la página actual. */
   seleccionMasiva?: (filas: T[], limpiar: () => void, recargar: () => void) => ReactNode
+  /**
+   * Accion principal del listado —"Nueva licitación", "Nuevo cliente"—, al extremo derecho de la
+   * barra de herramientas.
+   *
+   * Existe como ranura y no como fila propia arriba de la tabla porque un boton solo, alineado a la
+   * derecha en una linea vacia, abre una banda muerta entre el titulo y la tabla y se lee como si
+   * fuera de otra pantalla. En la barra queda a la altura del buscador, que es donde se lo busca.
+   */
+  accion?: ReactNode
   className?: string
 }
 
@@ -131,6 +140,7 @@ export function TablaRecurso<T> ({
   opcionesDeFiltro,
   board,
   seleccionMasiva,
+  accion,
   className
 }: PropsTablaRecurso<T>) {
   const router = useRouter()
@@ -255,13 +265,16 @@ export function TablaRecurso<T> ({
           onCambiar={cambiar}
           onVisibles={setVisibles}
         />
-        {board !== undefined && (
-          <PresetsFiltro
-            board={board}
-            filtrosActuales={estado.filtros}
-            onAplicar={(filtros) => { cambiar({ filtros, pagina: 1 }) }}
-          />
-        )}
+        <div className="flex items-center gap-2">
+          {board !== undefined && (
+            <PresetsFiltro
+              board={board}
+              filtrosActuales={estado.filtros}
+              onAplicar={(filtros) => { cambiar({ filtros, pagina: 1 }) }}
+            />
+          )}
+          {accion}
+        </div>
       </div>
 
       {seleccionMasiva?.(seleccionadas, () => seleccionar([]), () => setRevision((n) => n + 1))}
@@ -314,6 +327,7 @@ export function TablaRecurso<T> ({
                         <CeldaEncabezado
                           key={columna.clave}
                           numerica={columna.numerica}
+                          angosta={columna.angosta}
                           aria-sort={columna.ordenPor === undefined
                             ? undefined
                             : direccion === 'asc' ? 'ascending' : direccion === 'desc' ? 'descending' : 'none'}
@@ -373,7 +387,7 @@ export function TablaRecurso<T> ({
                         </CeldaTabla>
                       )}
                       {columnas.map((columna) => (
-                        <CeldaTabla key={columna.clave} numerica={columna.numerica} sinCortar={columna.sinCortar}>
+                        <CeldaTabla key={columna.clave} numerica={columna.numerica} angosta={columna.angosta} sinCortar={columna.sinCortar}>
                           <Celda columna={columna} fila={fila} catalogos={opcionesDeFiltro} />
                         </CeldaTabla>
                       ))}
