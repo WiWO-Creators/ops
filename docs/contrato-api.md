@@ -4913,11 +4913,44 @@ segmento, y la fila ya lleva su `project_id` y su `staffid`. **No transmite**: e
 
 ```json
 { "data": { "id": 12, "herramienta": "crear_tarea",
-            "resumen": "Crear la tarea \"Revisar el brief de septiembre\"",
+            "resumen": "Crear la tarea «Revisar el brief de septiembre» en el Espacio «NESTLÉ»",
             "detalle": ["Espacio: NESTLÉ | AGOSTO 2026", "Prioridad: Media"],
+            "supuestos": ["Prioridad: Media, porque no la dijiste"],
             "estado": "ejecutada", "resultado": "Tarea creada (#2781).",
             "expira_en": "2026-09-09T18:29:50Z" } }
 ```
+
+#### `supuestos` — lo que WiBot completó por su cuenta
+
+Cuando al pedido le falta un dato, WiBot **asume lo más razonable y lo deja escrito acá** en vez de
+repreguntar. Es una lista de strings, igual que `detalle`, y va aparte por un motivo: mezclada con el
+detalle, una suposición es indistinguible de algo que la persona pidió.
+
+La regla del servidor: **todo valor que salió de un `?? default` va en `supuestos`, no en `detalle`.**
+Y como `resumen` y `detalle`, lo escribe el servidor leyendo la base — el modelo no tiene ninguna
+clave por la que escribir esa lista.
+
+Una fila vieja sin la clave devuelve `[]`. En la interfaz se pinta bajo «Asumí:», con tono atenuado.
+
+#### `herramienta: "plan"` — varios pasos, una tarjeta
+
+Un pedido de varios pasos —«creá la tarea X, sumale contexto y ordená los hitos»— no entra como
+propuestas sueltas: son tres, y el tope por turno es tres. `plan` es **una** propuesta que contiene
+hasta 8 pasos:
+
+- `resumen` es una frase fija del servidor, `Un plan de N pasos`. El detalle es donde está la verdad.
+- `detalle` trae cada paso **numerado**, con sus líneas indentadas debajo. Pintalo respetando la
+  sangría (`white-space: pre-wrap`): sin eso el navegador la colapsa y los ocho pasos se leen como un
+  bloque plano.
+- Un clic ejecuta todos, **en orden y dentro de una transacción**. Si el paso 3 de 5 falla, se
+  revierten los anteriores, la fila queda `fallida` y llega el error real del paso que falló.
+- Se valida entero al proponer: si un solo paso no pasa su permiso o su validación, **no se inserta
+  nada** y el modelo recibe el error para contarlo en prosa.
+
+**Techo conocido**: lo que las clases de `Escritura/` hacen fuera de la base —correo,
+notificaciones— no lo revierte la transacción.
+
+`plan` no aparece en el catálogo si el interruptor no dejó ninguna herramienta de escritura viva.
 
 **Al confirmar, en este orden**: `SELECT` de la fila con `staffid` de la sesión (la de otra persona es
 **`404`, no `403`**) → si caducó, se sella `expirada` y `409` → **la cerradura**:

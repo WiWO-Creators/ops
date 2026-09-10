@@ -115,6 +115,14 @@ export interface AccionIA {
   herramienta: string
   resumen: string
   detalle: string[]
+  /**
+   * Lo que el servidor completo por su cuenta porque el pedido no lo decia.
+   *
+   * Va aparte de `detalle` y no mezclado con el: un «Inicio: hoy» que la persona pidio y uno que el
+   * servidor asumio se leen igual, y el segundo es el que hay que revisar antes de confirmar. Una
+   * propuesta sin nada asumido trae `[]`, que es tambien lo que devuelve una fila vieja sin la clave.
+   */
+  supuestos: string[]
   estado: EstadoAccion
   /** Lo que devolvio la escritura, o el error real si fallo. `null` mientras sigue pendiente. */
   resultado: string | null
@@ -147,8 +155,18 @@ const ESTADOS_ACCION = ['pendiente', 'ejecutando', 'ejecutada', 'rechazada', 'ex
  */
 const LARGO_MAXIMO_ETIQUETA = 120
 
-/** Lineas de `detalle` de una propuesta, y caracteres de cada una. Mismo motivo que la etiqueta. */
-const MAXIMO_DETALLE = 12
+/**
+ * Lineas que se pintan de una lista de una propuesta, y caracteres de cada una.
+ *
+ * **Es una red, no la politica.** Quien decide cuanto se cuenta es el backend, que ya no emite mas
+ * lineas de las que se pintan y dice en la ultima que quedo afuera. Esto protege del backend con un
+ * bug, y por eso el numero tiene que quedar por encima de lo que un pedido real produce: el tope de
+ * pasos de un `plan` es 8, y cada paso gasta su resumen mas su detalle —cuatro lineas largas—, o
+ * sea 32. 40 deja margen y sigue siendo un techo.
+ *
+ * El aviso de recorte cuenta dentro del tope: lo que se pinta nunca pasa de `MAXIMO_DETALLE` lineas.
+ */
+const MAXIMO_DETALLE = 40
 const LARGO_MAXIMO_DETALLE = 500
 
 /** `true` si el valor es un objeto JSON plano. Descarta `null` y los arrays, que tambien son `object`. */
@@ -312,7 +330,7 @@ export function leerPaso (datos: Record<string, unknown>): PasoIA | null {
 export function leerAccion (valor: unknown): AccionIA | null {
   if (!esObjeto(valor)) return null
 
-  const { id, herramienta, resumen, detalle, estado, resultado, expira_en: expira } = valor
+  const { id, herramienta, resumen, detalle, supuestos, estado, resultado, expira_en: expira } = valor
 
   if (typeof id !== 'number' || !Number.isFinite(id)) return null
   if (typeof herramienta !== 'string' || herramienta === '') return null
@@ -326,16 +344,41 @@ export function leerAccion (valor: unknown): AccionIA | null {
     id,
     herramienta,
     resumen: resumen.slice(0, LARGO_MAXIMO_DETALLE),
-    detalle: Array.isArray(detalle)
-      ? detalle
-        .filter((linea): linea is string => typeof linea === 'string' && linea !== '')
-        .slice(0, MAXIMO_DETALLE)
-        .map((linea) => linea.slice(0, LARGO_MAXIMO_DETALLE))
-      : [],
+    detalle: leerLineas(detalle),
+    supuestos: leerLineas(supuestos),
     estado: conocido,
     resultado: typeof resultado === 'string' ? resultado.slice(0, LARGO_MAXIMO_DETALLE) : null,
     expira_en: typeof expira === 'string' ? expira : null
   }
+}
+
+/**
+ * Valida una de las listas de texto de una propuesta —`detalle` o `supuestos`—.
+ *
+ * Las dos llegan del mismo sitio y se pintan igual, asi que se validan con la misma regla: fuera lo
+ * que no sea texto o venga vacio, cada linea recortada a lo que entra en la tarjeta, y el conjunto
+ * a `MAXIMO_DETALLE`.
+ *
+ * **Si el tope se activa, se dice.** Antes recortaba en silencio y la tarjeta pintaba doce de
+ * veinticuatro lineas sin ninguna marca: la persona confirmaba una escritura leyendo la mitad. Una
+ * red que corta callada es el mismo bug con otra cara, y por eso la ultima linea cuenta las que
+ * faltan en vez de desaparecer.
+ *
+ * @param valor el campo tal como llego, sin validar
+ * @returns las lineas utiles, con el aviso final si hubo recorte; `[]` si el campo no es un array
+ */
+function leerLineas (valor: unknown): string[] {
+  if (!Array.isArray(valor)) return []
+
+  const lineas = valor
+    .filter((linea): linea is string => typeof linea === 'string' && linea !== '')
+    .map((linea) => linea.slice(0, LARGO_MAXIMO_DETALLE))
+
+  if (lineas.length <= MAXIMO_DETALLE) return lineas
+
+  const visibles = lineas.slice(0, MAXIMO_DETALLE - 1)
+
+  return [...visibles, `… (${lineas.length - visibles.length} líneas más)`]
 }
 
 /**
