@@ -7,15 +7,55 @@ desde arriba, sin importar en qué pantalla se arrancó.
 **Sólo existe en `ops-v2`.** El panel de Perfex no tiene jornada: tiene cronómetros sueltos por tarea
 y nada que los encuadre. La API de LIVE se construyó en paralelo a esta interfaz.
 
-## La jornada es la llave del medidor
+## La jornada es la llave del medidor, y el Espacio es la llave de la jornada
 
 Ningún cronómetro arranca sin una jornada abierta: la API responde **409** a `POST /projects/{id}/timer`
-y a `POST /tasks/{id}/timer` cuando no la hay. La interfaz no muestra ese error crudo — pinta
-**"Abrir jornada y arrancar"**, que abre la jornada y reintenta **una sola vez**. Una cadena de
-reintentos convertiría un 409 legítimo (ya hay un medidor corriendo) en un bucle silencioso.
+y a `POST /tasks/{id}/timer` cuando no la hay.
+
+Por eso la jornada ya **no se abre sola**. El único botón es **"Abrir jornada y empezar"**, y está
+inerte hasta elegir un Espacio: abre la jornada y arranca el medidor en el mismo gesto, con un solo
+reintento (`abrirYArrancar()`). Una cadena de reintentos convertiría un 409 legítimo —ya hay un
+medidor corriendo— en un bucle silencioso.
+
+El motivo no es de interfaz: una jornada abierta sin medidor es tiempo que después nadie sabe
+imputar, y aparecía sola porque abrir era un clic y elegir Espacio era otro. Ahora son el mismo.
 
 `mensajeDeFalloDeMedidor()` (`src/dominio/live.ts`) nombra las dos causas del 409 porque la API no las
 distingue, y es el texto que queda cuando ese reintento tampoco alcanzó.
+
+## El Espacio bloquea; la Tarea se pide
+
+No son la misma exigencia, y la diferencia la manda la API: se puede medir un Espacio sin Tarea
+(`task_id = 0`), y hay trabajo real que no cuelga de ninguna Tarea. Así que el Espacio es condición
+para abrir, y la Tarea es un aviso **persistente** —no un error— con su selector al lado, en el
+control y en la fila del tablero.
+
+`SelectorTarea` lista sólo las Tareas **asignadas** a quien mira: arrancar un cronómetro sobre una
+Tarea ajena responde 403, y un combo con todas ofrecería opciones que fallan al elegirlas, con el
+error llegando **después** de haber detenido el medidor anterior. `assignee` va suelto en la query y
+no dentro de `filter[]`, que responde 422.
+
+Elegir Tarea detiene el medidor de Espacio y arranca el de la Tarea, en ese orden. Si el arranque
+falla después del cierre, la persona se quedó sin medidor y hay que decírselo con esas palabras.
+
+## Cerrar la jornada pasa por el resumen
+
+"Cerrar jornada" ya no cierra: abre `CierreJornada`, un diálogo que no se va con `Escape` ni
+clicando fuera. Sólo se sale por sus dos botones —"Seguir trabajando" y "Confirmar cierre"—, así que
+no es una trampa, pero tampoco se cierra la jornada por descuido.
+
+Dentro va `GET /me/jornada/resumen`: en qué se fue el día, agrupado por Espacio y Tarea, más lo
+medido y lo que quedó **sin cubrir**, que es la razón de existir de la pantalla. Y un formulario para
+sumar lo que se trabajó sin el medidor andando, que manda `POST /projects/{id}/timesheets` —el mismo
+endpoint del Registro rápido, con su misma validación de duración—.
+
+Si el resumen no carga, la jornada **se cierra igual**. Un backend a medias no puede dejar a nadie
+con la jornada abierta para siempre.
+
+Ojo con un detalle del backend: el tiempo agregado a mano se guarda como un tramo que termina
+**ahora**, así que una duración mayor a lo que lleva abierta la jornada empieza antes que ella y no
+entra en `items` ni en `measured_seconds`. El diálogo lo acusa explícitamente —"quedó registrado
+igual"— para que nadie lo agregue dos veces.
 
 ## Un solo control, en la cabecera
 
@@ -84,11 +124,18 @@ propia vista.
 | Método | Ruta | Respuesta |
 |---|---|---|
 | `POST` | `/me/jornada` | `201 {id, started_at, note}`; **409** si ya hay una abierta |
+| `GET` | `/me/jornada/resumen` | en **qué** se fue la jornada abierta, por Espacio y Tarea; **404** si no hay ninguna |
 | `POST` | `/me/jornada/cierre` | `{id, started_at, ended_at, seconds, auto_closed, timers_stopped}`; 409 si no hay |
 | `GET` | `/me/jornada` | `{open, seconds, measured_seconds, uncovered_seconds, over_journey, timer}` |
 | `GET` | `/live` | `{data: [...], meta: {scope}}` |
 | `POST\|DELETE` | `/projects/{id}/timer` | `201` / `204`; **409** al arrancar sin jornada |
 | `POST\|DELETE` | `/tasks/{id}/timer` | ya existía; ahora también **409** sin jornada |
+
+El `timer` de `GET /me/jornada` tiene **la misma forma** que el `medidor` del tablero. Venía plano
+—`task_id`, `project_id`, `task_name`, `project_name`— y la interfaz, que tiene un solo tipo para el
+mismo hecho, pintaba **"Sin destino"** con cualquier cronómetro corriendo. Se unificó en la API
+(`Jornada::cronometroAbierto()`), donde además el Espacio se resuelve por los dos caminos: sin eso,
+medir una Tarea no decía a qué Proyecto pertenece.
 
 Fila de `/live`:
 

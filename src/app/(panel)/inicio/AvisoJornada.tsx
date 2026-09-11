@@ -3,11 +3,9 @@
 import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { ArrowRight } from 'lucide-react'
-import { Boton } from '@/componentes/formularios/Boton'
-import { avisarCambioDeMedidor, escucharMedidor } from '@/componentes/live/medidor'
+import { escucharMedidor } from '@/componentes/live/medidor'
 import type { EstadoDeJornada, MedidorEnVivo } from '@/datos/live'
 import { GLOSARIO } from '@/dominio/glosario'
-import { mensajeDeFalloDeJornada } from '@/dominio/live'
 
 /**
  * Lo que le falta a la jornada de hoy para que el tiempo quede imputado.
@@ -66,6 +64,13 @@ const TITULOS: Record<Falta, string> = {
   tarea: `Elige la ${GLOSARIO.proceso.singular} en la que estás trabajando`
 }
 
+/** Lo que dice el enlace. Nombra la acción que falta, no "ir a": «Iniciar jornada» es lo que se va a hacer. */
+const ACCIONES: Record<Falta, string> = {
+  jornada: 'Iniciar jornada',
+  medidor: `Elegir ${GLOSARIO.espacio.singular}`,
+  tarea: `Elegir ${GLOSARIO.proceso.singular}`
+}
+
 /**
  * El texto que explica por qué importa.
  *
@@ -113,8 +118,6 @@ function detalle (falta: Falta, proyecto: string | null): string {
  */
 export function AvisoJornada ({ inicial }: { inicial: EstadoDeJornada | null }) {
   const [estado, setEstado] = useState<EstadoDeJornada | null>(inicial)
-  const [enCurso, setEnCurso] = useState(false)
-  const [aviso, setAviso] = useState<string | null>(null)
 
   /**
    * Vuelve a preguntarle a la API cómo quedó la jornada. Nunca lanza.
@@ -151,43 +154,6 @@ export function AvisoJornada ({ inicial }: { inicial: EstadoDeJornada | null }) 
     }
   }, [refrescar])
 
-  /**
-   * Abre la jornada y avisa al resto del panel.
-   *
-   * El `409` no es un error que mostrar: significa que ya había una jornada abierta —otra pestaña se
-   * adelantó— y lo único que hace falta es volver a leer el estado, que es justo lo que dispara
-   * `avisarCambioDeMedidor()` a través de la suscripción de arriba.
-   */
-  async function iniciar (): Promise<void> {
-    setEnCurso(true)
-    setAviso(null)
-
-    let estadoHttp: number
-
-    try {
-      const respuesta = await fetch('/api/bff/me/jornada', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: '{}'
-      })
-
-      estadoHttp = respuesta.status
-    } catch {
-      // Sin respuesta no hay código: `0` es lo que `mensajeDeFalloDeJornada` traduce a "revisa la
-      // conexión" en vez de a un número inventado.
-      estadoHttp = 0
-    }
-
-    setEnCurso(false)
-
-    if ((estadoHttp >= 200 && estadoHttp < 300) || estadoHttp === 409) {
-      avisarCambioDeMedidor()
-      return
-    }
-
-    setAviso(mensajeDeFalloDeJornada(estadoHttp, true))
-  }
-
   const falta = queFalta(estado)
 
   if (falta === null) return null
@@ -205,26 +171,15 @@ export function AvisoJornada ({ inicial }: { inicial: EstadoDeJornada | null }) 
         <p className="text-texto-tenue mt-1 text-pretty text-sm">
           {detalle(falta, destino?.proyectoNombre ?? null)}
         </p>
-        {aviso !== null && <p role="alert" className="text-texto-peligro mt-2 text-pretty text-xs">{aviso}</p>}
       </div>
 
-      {falta === 'jornada'
-        ? (
-          <Boton variante="primario" cargando={enCurso} onClick={() => { void iniciar() }}>
-            Iniciar jornada
-          </Boton>
-          )
-        : (
-          <Link
-            href={enlaceDe(falta, destino)}
-            className="text-acento flex items-center gap-1 text-sm font-semibold hover:underline"
-          >
-            {falta === 'medidor'
-              ? `Elegir ${GLOSARIO.espacio.singular}`
-              : `Elegir ${GLOSARIO.proceso.singular}`}
-            <ArrowRight size={16} strokeWidth={2.5} aria-hidden="true" />
-          </Link>
-          )}
+      <Link
+        href={enlaceDe(falta, destino)}
+        className="text-acento flex items-center gap-1 text-sm font-semibold hover:underline"
+      >
+        {ACCIONES[falta]}
+        <ArrowRight size={16} strokeWidth={2.5} aria-hidden="true" />
+      </Link>
     </section>
   )
 }
@@ -232,16 +187,23 @@ export function AvisoJornada ({ inicial }: { inicial: EstadoDeJornada | null }) 
 /**
  * A dónde mandar a elegir.
  *
- * El Proyecto se elige en el control de jornada, que vive en `/live`. La Tarea no: se arranca desde
- * su ficha, así que el destino es el Proyecto que ya se está midiendo, donde están sus Tareas. Sin
- * Proyecto conocido queda el listado completo, que es el único lugar seguro.
+ * === POR QUÉ ESTE AVISO NO ABRE LA JORNADA ÉL MISMO ===
  *
- * @param falta qué se está recordando; `jornada` no llega acá, se resuelve con un botón
+ * Porque abrir la jornada ya no es un botón suelto: exige elegir el Proyecto, y por eso el control
+ * la abre y arranca el medidor en el mismo gesto. Un botón acá que sólo hiciera `POST /me/jornada`
+ * sería la puerta de atrás a lo que la pantalla entera existe para impedir —una jornada corriendo
+ * sin nada que medir—, y encima la más cómoda de las dos. El aviso recuerda; `/live` abre.
+ *
+ * La Tarea es el otro caso: no se arranca desde el control sino desde la ficha del proceso, así que
+ * el destino es el Proyecto que ya se está midiendo, donde están sus Tareas. Sin Proyecto conocido
+ * queda el listado completo, que es el único lugar seguro.
+ *
+ * @param falta qué se está recordando
  * @param destino sobre qué corre el medidor, si corre
  * @returns la ruta del panel
  */
 function enlaceDe (falta: Falta, destino: DestinoDelMedidor | null): string {
-  if (falta === 'medidor') return '/live'
+  if (falta === 'jornada' || falta === 'medidor') return '/live'
 
   return destino?.proyectoId == null ? '/procesos' : `/espacios/${destino.proyectoId}`
 }
