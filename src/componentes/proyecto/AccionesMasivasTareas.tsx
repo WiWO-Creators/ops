@@ -301,7 +301,7 @@ export function AccionesMasivasTareas ({
         <ContenidoDialogo
           titulo={accion?.etiqueta ?? ''}
           descripcion={accion?.control === 'proyecto'
-            ? `Elige uno o más proyectos para las ${ids.length} tareas seleccionadas. Cada copia tendrá su propio código.`
+            ? `Elige uno o más proyectos para ${ids.length === 1 ? 'la tarea seleccionada' : `las ${ids.length} tareas seleccionadas`}. Cada copia tendrá su propio código.`
             : `Se aplica a ${ids.length} tarea${ids.length === 1 ? '' : 's'}.`}
         >
           <div className="flex flex-col gap-4">
