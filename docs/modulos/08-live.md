@@ -12,10 +12,10 @@ y nada que los encuadre. La API de LIVE se construyó en paralelo a esta interfa
 Ningún cronómetro arranca sin una jornada abierta: la API responde **409** a `POST /tasks/{id}/timer`
 cuando no la hay.
 
-Por eso la jornada ya **no se abre sola**, y desde el 2026-09-11 tampoco se abre a medias: abrir pide
-**Proyecto y Tarea**, y la API los exige (`POST /me/jornada` con `project_id` y `task_id`). Abrir la
-jornada y arrancar el cronómetro son el mismo gesto (`abrirYArrancar()`), sin reintentos: una cadena
-de reintentos convertiría un 409 legítimo —ya hay un medidor corriendo— en un bucle silencioso.
+Por eso la jornada ya **no se abre sola**: abrir pide el **Proyecto**, y la API lo exige
+(`POST /me/jornada` con `project_id`; `task_id` viaja sólo si se eligió una Tarea). Abrir la jornada y
+arrancar el medidor son el mismo gesto (`abrirYArrancar()`), sin reintentos: una cadena de reintentos
+convertiría un 409 legítimo —ya hay un medidor corriendo— en un bucle silencioso.
 
 El motivo no es de interfaz: una jornada abierta sin medidor es tiempo que después nadie sabe
 imputar, y aparecía sola porque abrir era un clic y elegir el destino era otro. Ahora son el mismo.
@@ -23,29 +23,49 @@ imputar, y aparecía sola porque abrir era un clic y elegir el destino era otro.
 `mensajeDeFalloDeMedidor()` (`src/dominio/live.ts`) nombra las dos causas del 409 porque la API no las
 distingue, y es el texto que queda cuando ese reintento tampoco alcanzó.
 
-## El Proyecto y la Tarea bloquean los dos
+## El Proyecto bloquea; la Tarea se pide
 
-**Esto revierte una decisión de este mismo documento.** Hasta el 2026-09-11 decía "el Espacio bloquea;
-la Tarea se pide": la migración `0260` había creado a propósito el medidor de Espacio —`task_id = 0`
-con `project_id` lleno— para el trabajo que no cuelga de ninguna Tarea, y la Tarea era un aviso
-persistente con su selector al lado.
+**Regla vigente: Proyecto obligatorio, Tarea opcional.** `POST /me/jornada` exige `project_id` y
+rechaza con 422 si falta; `task_id` es opcional, y cuando viene se comprueba que la Tarea pertenezca a
+ese Proyecto (`Jornada::destinoValidado()`). Sin Tarea se arranca el **medidor de Espacio** de la
+migración `0260`: la fila de `tbltaskstimers` con `task_id = 0` y `project_id` lleno.
 
-La reunión lo revirtió, textual: «es indispensable marcar la tarea y el proyecto exactos para que el
-registro sea útil». Tiempo cargado a un Proyecto entero dice a quién facturarle y no dice en qué se
-fue el día, que es la pregunta que LIVE existe para contestar. El aviso persistente, además, tenía un
-desenlace predecible: se arrancaba, se leía el aviso y se paraba — tramos de segundos que no son
-trabajo y que la migración `0440` limpia.
+### El vaivén del 2026-09-11, para que nadie lo lea como un descuido
 
-Qué cambió, concretamente:
+Esta sección cambió dos veces el mismo día, y las dos a propósito:
 
-| Antes | Ahora |
-|---|---|
-| `POST /me/jornada` pedía `project_id` | pide `project_id` **y** `task_id`, y comprueba que la Tarea sea de ese Proyecto (`Jornada::destinoValidado()`) |
-| `POST /projects/{id}/timer` arrancaba un medidor sin Tarea | responde **422**; `Cronometro` se quedó sin `arrancarEspacio()` |
-| el aviso de Tarea con su selector al lado | no hay medidor sin Tarea que avisar |
+| Cuándo | Qué decía | Por qué |
+|---|---|---|
+| hasta la mañana del 11/09 | el Espacio bloquea; la Tarea se pide con un aviso | es lo que la `0260` había construido: el medidor de Espacio existe para el trabajo que no cuelga de ninguna Tarea |
+| reunión del 11/09 (RQ-JOR-4) | los dos bloquean | textual: «es indispensable marcar la tarea y el proyecto exactos para que el registro sea útil» — tiempo cargado a un Proyecto entero dice a quién facturarle y no en qué se fue el día |
+| esa misma tarde, el cliente | vuelve a bloquear sólo el Proyecto | quiere **poder iniciar jornada eligiendo sólo un Proyecto, para demostrar que se está trabajando en ese Proyecto**; obligar a elegir Tarea le impedía abrir el día |
 
-`DELETE /projects/{id}/timer` sigue vivo: en la base hay medidores de Espacio abiertos de antes del
-cambio y ésa es su salida. Se cierra la puerta, no se tapia la salida.
+Lo que la reversión deshizo: `destinoValidado()` dejó de exigir `task_id`, `POST /projects/{id}/timer`
+volvió a arrancar el medidor de Espacio y `Cronometro::arrancarEspacio()` se restituyó del historial
+tal cual estaba. La migración `0440`, que iba a borrar las filas históricas con `task_id = 0`, quedó
+**neutralizada**: bajo la regla vigente esas filas vuelven a ser legítimas y no se borró ninguna. El
+archivo sigue en el repo con su nombre, vacío y con el motivo escrito, y el sha de la versión con el
+`DELETE` quedó en `SHAS_HISTORICOS` de `migrar.php` por si algún entorno la hubiera anotado.
+
+Lo que la reversión **no** deshizo: la comprobación de que la Tarea, cuando viene, sea de ese
+Proyecto. Nunca fue la parte que molestaba, y sin ella `project_id` sería decorativo —la fila cuelga
+de la Tarea y el Espacio se deriva de su `rel_id`—.
+
+### Pedir sin bloquear
+
+La Tarea se sigue ofreciendo, porque el registro con Tarea es el bueno: dice en qué se fue el rato y
+no sólo a quién facturarle. Lo que cambia es cómo se pide.
+
+- En el modal, el tercer escalón se pinta igual y lleva debajo una línea que dice que conviene
+  elegirla. El botón no la espera.
+- En el control de la cabecera, medir sin Tarea muestra una línea en tono sutil —no de aviso— que
+  ofrece detener y volver a arrancar sobre una Tarea.
+- En el Inicio, `AvisoJornada` sigue recordándolo con su tarjeta.
+- En el tablero En Vivo, el escalón vacío se pinta con una insignia **neutra** que dice «Sin Tarea».
+  El tono `aviso` quedó para lo que sí está mal: el medidor sin Espacio.
+
+Ninguno de los cuatro bloquea nada. Pedir es poner la opción delante; bloquear es lo que el cliente
+pidió quitar.
 
 `SelectorTarea` lista sólo las Tareas **asignadas** a quien mira y **del Proyecto elegido**: arrancar
 un cronómetro sobre una Tarea ajena responde 403, y un combo con todas ofrecería opciones que fallan
@@ -85,9 +105,10 @@ Tres decisiones, y las tres son sobre no encerrar a nadie:
    API, y sin salida, porque al intentar abrirla le respondería 409. Lo contrario se corrige solo —el
    control repregunta cada `intervaloDeLive()` segundos y la compuerta aparece en cuanto hay dato—.
 2. **"No puedo abrir mi jornada"** abre dos puertas reales: cerrar sesión, o entrar sin jornada por
-   esta vez. Hace falta: quien no tiene Proyectos asignados, quien no tiene Tareas en el que eligió y
-   cualquiera el día que la API falle se quedarían frente a un botón inerte, expulsados del sistema
-   entero por un dato que no depende de ellos.
+   esta vez. Hace falta: quien no tiene Proyectos asignados y cualquiera el día que la API falle se
+   quedarían frente a un botón inerte, expulsados del sistema entero por un dato que no depende de
+   ellos. Que la Tarea sea opcional achica ese grupo —quien tiene Proyecto y ninguna Tarea asignada ya
+   puede abrir— pero no lo vacía.
 3. **Entrar sin jornada no la finge.** No abre nada ni marca nada: el aviso del Inicio y el control de
    la cabecera siguen diciendo que falta, y la siguiente recarga vuelve a pedirla. Es una excepción
    por esta vez, que es la única forma de que obligue sin encerrar. Cerrar la jornada también la
@@ -195,14 +216,14 @@ propia vista.
 | Método | Ruta | Respuesta |
 |---|---|---|
 | `POST` | `/me/jornada` | `201 {id, started_at, note}`; **409** si ya hay una abierta |
-| | | `project_id` y `task_id` obligatorios: **422** sin ellos o si la Tarea no es de ese Proyecto |
+| | | `project_id` obligatorio y `task_id` opcional: **422** sin el primero, o si el `task_id` que viene no es un entero positivo o no es de ese Proyecto |
 | `GET` | `/me/jornada/resumen` | en **qué** se fue la jornada abierta, por Espacio y Tarea; **404** si no hay ninguna |
 | `POST` | `/me/jornada/cierre` | `{id, started_at, ended_at, seconds, auto_closed, timers_stopped, comment}`; 409 si no hay |
 | | | Cuerpo opcional `{comment}`: el comentario del día del modal de cierre, máx. 2000 caracteres (422 si se pasa). Sin cuerpo también cierra |
 | `GET` | `/me/jornada` | `{open, seconds, measured_seconds, uncovered_seconds, over_journey, timer}` |
 | `GET` | `/live` | `{data: [...], meta: {scope}}` |
-| `POST` | `/projects/{id}/timer` | **422**: ya no se mide contra un Espacio entero |
-| `DELETE` | `/projects/{id}/timer` | `204`; sigue vivo para detener los medidores de Espacio históricos |
+| `POST` | `/projects/{id}/timer` | `201`: el medidor de Espacio, la fila con `task_id = 0` y `project_id` lleno |
+| `DELETE` | `/projects/{id}/timer` | `204`; lo detiene |
 | `POST\|DELETE` | `/tasks/{id}/timer` | ya existía; ahora también **409** sin jornada |
 
 El `timer` de `GET /me/jornada` tiene **casi** la misma forma que el `medidor` del tablero: la
@@ -255,10 +276,13 @@ encabezado del grupo y otra vez dentro de cada fila. `agruparPorEspacio()` se fu
 `ordenarPorActividad()`, que es lo único que aquel agrupado aportaba de verdad —quien mide primero,
 después quien sólo tiene jornada, después el resto; a igualdad, alfabético—.
 
-Medir un Espacio sin Tarea **no se esconde**: el escalón de la Tarea se pinta igual, con un aviso de
-que falta elegirla. Ya no se pueden crear filas así —ver "El Proyecto y la Tarea bloquean los dos"—
-pero las históricas que la `0440` preservó siguen apareciendo, y esconderlas sería el único caso en
-que la pantalla mentiría.
+Medir un Espacio sin Tarea **no se esconde ni se marca como defecto**: el escalón de la Tarea se
+pinta igual, con una insignia neutra que dice «Sin Tarea». Es una elección válida —ver "El Proyecto
+bloquea; la Tarea se pide"— así que ni se oculta ni se reprocha. Esconderlo dejaría un hueco donde el
+ojo espera una línea; pintarlo en `aviso` regañaría a quien hizo lo que el cliente pidió poder hacer.
+
+El `aviso` queda para el medidor **sin Espacio**: ahí no hay a qué imputar el tiempo por ningún
+camino, y de ésos hay en la base desde antes del módulo.
 
 ## Pruebas
 

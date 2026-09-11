@@ -160,7 +160,7 @@ export function FilaEnVivo ({ fila, transcurrido, puedeDetener, estados = [] }: 
                 </dt>
                 <dd className="flex min-w-0 flex-1 flex-wrap items-baseline gap-2">
                   {nivel.pendiente
-                    ? <Insignia tono="aviso" tamano="chico">{nivel.valor}</Insignia>
+                    ? <Insignia tono={nivel.tono} tamano="chico">{nivel.valor}</Insignia>
                     : (
                       <span className="text-texto text-sm font-medium break-words [overflow-wrap:anywhere]">
                         {nivel.valor}

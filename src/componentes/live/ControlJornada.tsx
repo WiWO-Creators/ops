@@ -46,13 +46,17 @@ import { avisarCambioDeMedidor, escucharMedidor } from './medidor'
  * Y arranca en cero: el primer pintado del cliente tiene que dar el mismo texto que el del servidor,
  * o React reporta un error de hidratacion. El contador empieza a correr despues del montaje.
  *
- * === EL PROYECTO Y LA TAREA BLOQUEAN LOS DOS ===
+ * === EL PROYECTO BLOQUEA; LA TAREA SE PIDE ===
  *
- * Ya no hay "el Espacio bloquea y la Tarea se pide". La reunion del 2026-09-11 revirtio la decision
- * de la migracion `0260`: sin Proceso exacto el registro no es util, porque tiempo cargado a un
- * Proyecto entero dice a quien facturarle y no dice en que se fue el dia. La API lo exige
- * (`POST /me/jornada` pide `project_id` Y `task_id`, y comprueba que uno pertenezca al otro) y
- * `POST /projects/{id}/timer` —el unico camino que escribia filas sin Proceso— responde 422.
+ * La reunion del 2026-09-11 hizo obligatorias a las dos y el cliente lo revirtio el mismo dia: quiere
+ * poder abrir la jornada eligiendo solo un Proyecto, para demostrar que esta trabajando en el. La API
+ * quedo igual: `POST /me/jornada` exige `project_id`, acepta `task_id` opcional y comprueba que la
+ * Tarea, cuando viene, sea de ese Proyecto.
+ *
+ * De ahi los dos arranques de este control. Con Tarea se arranca su cronometro; sin ella, el medidor
+ * de Espacio de la migracion `0260` (`POST /projects/{id}/timer`, la fila con `task_id = 0` y
+ * `project_id` lleno). Es un `if` y no dos flujos: la eleccion la hace el modal y aca solo se
+ * traduce a la ruta que corresponde.
  *
  * === POR QUE LA ELECCION VIVE EN UN MODAL Y NO ACA DENTRO ===
  *
@@ -225,25 +229,27 @@ export function ControlJornada ({
   }
 
   /**
-   * Abre la jornada con su Proyecto y su Tarea, en **una sola peticion**.
+   * Abre la jornada con su Proyecto y —si se eligio— su Tarea, en **una sola peticion**.
    *
    * Antes eran dos —`POST /me/jornada` y despues el arranque del medidor— y entre una y otra cabia
    * un corte de red: la jornada quedaba abierta y sin nada que medir, que es justo lo que la regla
-   * quiere impedir. Lo resuelve la API: con `project_id` y `task_id` abre las dos cosas o ninguna, y
-   * si el cronometro falla descarta la jornada que acababa de abrir.
+   * quiere impedir. Lo resuelve la API: con el destino en el cuerpo abre las dos cosas o ninguna, y
+   * si el medidor falla descarta la jornada que acababa de abrir.
+   *
+   * `task_id` no viaja cuando no hay Tarea, en vez de viajar en `0` o en `null`: la API entiende los
+   * tres como "sin Proceso", pero omitirlo es lo unico que no depende de esa equivalencia.
    *
    * Por eso aca no hay compensacion ni reintento. Un fallo deja el estado como estaba y el aviso
-   * dice por que: 403 si la Tarea no es suya, 404 si ya no esta, 422 si el par no se corresponde,
+   * dice por que: 403 si el destino no es suyo, 404 si ya no esta, 422 si el par no se corresponde,
    * 409 si otra pestaña abrio la jornada primero.
    */
-  async function abrirYArrancar (espacioId: number, tareaId: number): Promise<void> {
+  async function abrirYArrancar (espacioId: number, tareaId: number | null): Promise<void> {
     setEnCurso(true)
     setAviso(null)
 
-    const respuesta = await llamar('me/jornada', 'POST', {
-      project_id: espacioId,
-      task_id: tareaId
-    })
+    const respuesta = await llamar('me/jornada', 'POST', tareaId === null
+      ? { project_id: espacioId }
+      : { project_id: espacioId, task_id: tareaId })
 
     setEnCurso(false)
 
@@ -296,16 +302,19 @@ export function ControlJornada ({
   }
 
   /**
-   * Arranca el cronometro de una Tarea con la jornada ya abierta.
+   * Arranca el medidor con la jornada ya abierta. Sirve para elegir a que se le imputa el rato
+   * siguiente sin cerrar el dia y volver a abrirlo.
    *
-   * El Proyecto no viaja: la fila cuelga de la Tarea y el Espacio se deriva de su `rel_id`. Sirve
-   * para elegir a que se le imputa el rato siguiente sin cerrar el dia y volver a abrirlo.
+   * Con Tarea va a `tasks/{id}/timer` y el Proyecto no viaja: la fila cuelga de la Tarea y el Espacio
+   * se deriva de su `rel_id`. Sin Tarea va a `projects/{id}/timer`, que escribe la fila con
+   * `task_id = 0` y el `project_id` lleno —el medidor de Espacio de la `0260`—.
    */
-  async function arrancar (tareaId: number): Promise<void> {
+  async function arrancar (espacioId: number, tareaId: number | null): Promise<void> {
     setEnCurso(true)
     setAviso(null)
 
-    const respuesta = await llamar(`tasks/${tareaId}/timer`, 'POST')
+    const ruta = tareaId === null ? `projects/${espacioId}/timer` : `tasks/${tareaId}/timer`
+    const respuesta = await llamar(ruta, 'POST')
 
     setEnCurso(false)
 
@@ -390,7 +399,7 @@ export function ControlJornada ({
         aviso={destinoAbierto && !confirmandoCierre ? aviso : null}
         onElegir={(espacioId, tareaId) => {
           if (jornadaAbierta) {
-            void arrancar(tareaId)
+            void arrancar(espacioId, tareaId)
             return
           }
 
@@ -622,15 +631,17 @@ function CuerpoControl ({
                     </Boton>
                   </div>
 
-                  {/* Un medidor sin Tarea ya no se puede crear: los que quedan son filas viejas del
-                      medidor de Espacio de la `0260`. No se ofrece un selector para arreglarlas —eso
-                      era un detener-y-arrancar encadenado, con la persona sin medidor si el segundo
-                      paso fallaba—: se dice que hay que detener y volver a arrancar, que son los dos
-                      botones que ya estan en pantalla. */}
+                  {/* Medir el Proyecto entero es una eleccion valida desde que la Tarea volvio a ser
+                      opcional, asi que esto informa y no reprocha: tono sutil, y "si quieres".
+
+                      No se ofrece un selector para cambiarlo —eso era un detener-y-arrancar
+                      encadenado, con la persona sin medidor si el segundo paso fallaba—: se nombran
+                      los dos botones que ya estan en pantalla. */}
                   {medidor.task === null && (
-                    <p role="status" className="text-texto-aviso text-xs text-pretty">
-                      Esto se está midiendo sin {GLOSARIO.proceso.singular.toLowerCase()}. Deténlo y
-                      vuelve a arrancar eligiendo en cuál trabajas.
+                    <p role="status" className="text-texto-sutil text-xs text-pretty">
+                      Se está midiendo el {GLOSARIO.espacio.singular.toLowerCase()} entero, sin{' '}
+                      {GLOSARIO.proceso.singular.toLowerCase()}. Si quieres afinarlo, detenlo y vuelve
+                      a arrancar eligiendo una.
                     </p>
                   )}
                 </>

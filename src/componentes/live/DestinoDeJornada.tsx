@@ -10,7 +10,7 @@ import { SelectorEspacio } from './SelectorEspacio'
 import { SelectorTarea } from './SelectorTarea'
 
 /**
- * El destino de lo que se va a medir: quién, en qué Proyecto y en qué Tarea.
+ * El destino de lo que se va a medir: quién, en qué Proyecto y —si quiere— en qué Tarea.
  *
  * === POR QUE UN MODAL Y NO EL DESPLEGABLE DE LA CABECERA ===
  *
@@ -31,11 +31,19 @@ import { SelectorTarea } from './SelectorTarea'
  * asignadas a uno dentro de ese Proyecto): al revés habría que ofrecer todas las Tareas de la
  * empresa para después descartar las que no encajan.
  *
- * === POR QUE LOS DOS SON OBLIGATORIOS ===
+ * === EL PROYECTO OBLIGA; LA TAREA SE PIDE ===
  *
- * Porque la API ya no acepta otra cosa: `POST /me/jornada` exige `project_id` y `task_id`, y
- * comprueba además que la Tarea pertenezca al Proyecto. El botón deshabilitado no es la regla, es el
- * reflejo de la regla — sin él la persona descubriría el 422 después de apretar.
+ * El botón se habilita con el Proyecto elegido, aunque no haya Tarea. La reunión del 2026-09-11 las
+ * hizo obligatorias a las dos y el cliente lo revirtió el mismo día: quiere poder abrir la jornada
+ * eligiendo sólo un Proyecto, para demostrar que está trabajando en él.
+ *
+ * El tercer escalón no se esconde ni se atenúa por eso. Un registro con Tarea dice en qué se fue el
+ * día y uno sin ella sólo a quién facturarle, así que la Tarea se sigue ofreciendo con una línea que
+ * dice que conviene elegirla. Una línea, no un bloqueo y no un reproche: quien no la elige tiene sus
+ * motivos y ya está abriendo su jornada.
+ *
+ * Lo que el botón sí refleja es lo que la API rechaza: `POST /me/jornada` exige `project_id` y
+ * comprueba que la Tarea, **cuando viene**, pertenezca a ese Proyecto.
  *
  * === POR QUE ESTA VENTANA NO ES UNA TRAMPA ===
  *
@@ -47,6 +55,9 @@ import { SelectorTarea } from './SelectorTarea'
  * Por eso "No puedo abrir mi jornada" abre siempre una salida con dos puertas reales: cerrar sesión,
  * o entrar sin jornada. Está a un clic de distancia y no en la fila principal a propósito: obligar es
  * poner la excepción un paso más lejos que la regla, no tapiarla.
+ *
+ * Que la Tarea sea opcional achica ese grupo —quien tiene Proyecto y ninguna Tarea asignada ya puede
+ * abrir— pero no lo vacía: sigue habiendo quien no tiene ningún Proyecto y días en que la API falla.
  */
 
 interface PropsDestinoDeJornada {
@@ -65,7 +76,8 @@ interface PropsDestinoDeJornada {
   enCurso: boolean
   /** Por qué no se pudo. Se pinta dentro: encima del velo no se ve nada más. */
   aviso: string | null
-  onElegir: (espacioId: number, tareaId: number) => void
+  /** `tareaId` es `null` cuando se eligió sólo el Proyecto: se mide contra el Proyecto entero. */
+  onElegir: (espacioId: number, tareaId: number | null) => void
   /** Sólo en `medidor`: salir sin arrancar nada. */
   onCancelar?: () => void
   /** Sólo en `apertura`: la salida de emergencia, cuando abrir la jornada no es posible. */
@@ -94,10 +106,10 @@ export function DestinoDeJornada ({
         ancho="chico"
         titulo={obligatorio
           ? 'Antes de empezar, di en qué vas a trabajar'
-          : `Elige ${GLOSARIO.espacio.singular.toLowerCase()} y ${GLOSARIO.proceso.singular.toLowerCase()}`}
+          : 'Elige dónde medir'}
         descripcion={obligatorio
-          ? 'La jornada se abre sobre un trabajo concreto: sin eso las horas de hoy no se pueden imputar a nada.'
-          : 'El cronómetro mide contra una Tarea, nunca contra el Proyecto entero.'}
+          ? `Elige el ${GLOSARIO.espacio.singular.toLowerCase()}: sin eso las horas de hoy no se pueden imputar a nada. La ${GLOSARIO.proceso.singular.toLowerCase()} es opcional.`
+          : `El cronómetro mide contra el ${GLOSARIO.espacio.singular.toLowerCase()}, y contra una ${GLOSARIO.proceso.singular.toLowerCase()} suya si eliges una.`}
         // Los dos gestos con los que se descarta una ventana sin leerla. Sólo en `apertura`: ahí la
         // salida son los botones, incluida la de emergencia. Ver el docblock de arriba.
         onEscapeKeyDown={(evento) => { if (obligatorio) evento.preventDefault() }}
@@ -127,7 +139,7 @@ interface PropsCuerpo {
   staffId: number
   enCurso: boolean
   aviso: string | null
-  onElegir: (espacioId: number, tareaId: number) => void
+  onElegir: (espacioId: number, tareaId: number | null) => void
   onCancelar?: () => void
   onEntrarSinJornada?: () => void
 }
@@ -155,9 +167,11 @@ function CuerpoDestino ({
 
   const idEspacio = useId()
   const idTarea = useId()
+  const idAyudaTarea = useId()
 
   const { espacio, tarea } = eleccion
-  const completo = espacio !== null && tarea !== null
+  // El Proyecto es lo único que bloquea. Ver el docblock del módulo.
+  const completo = espacio !== null
 
   if (atascado) {
     return (
@@ -197,14 +211,22 @@ function CuerpoDestino ({
               </p>
               )
             : (
-              <SelectorTarea
-                id={idTarea}
-                espacioId={espacio}
-                staffId={staffId}
-                valor={tarea}
-                onElegir={(id) => { setEleccion((previa) => ({ ...previa, tarea: id })) }}
-                deshabilitado={enCurso}
-              />
+              <>
+                <SelectorTarea
+                  id={idTarea}
+                  espacioId={espacio}
+                  staffId={staffId}
+                  valor={tarea}
+                  describedBy={idAyudaTarea}
+                  onElegir={(id) => { setEleccion((previa) => ({ ...previa, tarea: id })) }}
+                  deshabilitado={enCurso}
+                />
+                {/* Una ayuda, no un reproche: se puede seguir sin ella y el botón no espera. */}
+                <p id={idAyudaTarea} className="text-texto-sutil text-xs text-pretty">
+                  Puedes seguir sin elegirla, pero con ella queda registrado en qué se fue el rato y
+                  no sólo en qué {GLOSARIO.espacio.singular.toLowerCase()}.
+                </p>
+              </>
               )}
         </Escalon>
       </ol>
@@ -234,7 +256,7 @@ function CuerpoDestino ({
           variante="primario"
           cargando={enCurso}
           disabled={!completo || enCurso}
-          onClick={() => { if (espacio !== null && tarea !== null) onElegir(espacio, tarea) }}
+          onClick={() => { if (espacio !== null) onElegir(espacio, tarea) }}
         >
           <Play size={14} strokeWidth={2} aria-hidden="true" />
           {obligatorio ? 'Abrir jornada y empezar' : 'Arrancar'}
