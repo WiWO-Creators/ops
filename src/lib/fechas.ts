@@ -152,6 +152,34 @@ export function formatearRelativo (
 }
 
 /**
+ * Dias calendario que faltan para una fecha, contados contra hoy.
+ *
+ * Se cuenta por dia calendario y no por instante: los dos extremos se llevan a medianoche UTC antes
+ * de restar, asi que el resultado no depende de la hora a la que se mire ni del huso de quien mira.
+ * Es la misma cuenta que ya hacia `estadoVencimiento`, extraida porque la banda de alertas de
+ * Licitaciones necesita el numero y no solo el tramo: dos copias de esta resta son dos formas de
+ * equivocarse en un dia.
+ *
+ * @param fecha fecha `YYYY-MM-DD`
+ * @param hoy dia de referencia, inyectable para pruebas
+ * @returns dias enteros —negativo si ya paso, `0` si es hoy—, o `null` si no es una fecha sin hora
+ */
+export function diasHasta (
+  fecha: string | null | undefined,
+  hoy: Date = new Date()
+): number | null {
+  if (!fecha || !esFechaSola(fecha)) return null
+
+  const [anio, mes, dia] = fecha.split('-').map(Number)
+  if (anio === undefined || mes === undefined || dia === undefined) return null
+
+  const objetivo = Date.UTC(anio, mes - 1, dia)
+  const referencia = Date.UTC(hoy.getFullYear(), hoy.getMonth(), hoy.getDate())
+
+  return Math.round((objetivo - referencia) / 86400000)
+}
+
+/**
  * Clasifica un vencimiento respecto de hoy.
  *
  * Compara por dia calendario y no por instante: una tarea que vence hoy a las 09:00 sigue siendo "de
@@ -165,14 +193,9 @@ export function estadoVencimiento (
   vencimiento: string | null | undefined,
   hoy: Date = new Date()
 ): 'vencido' | 'hoy' | 'proximo' | 'lejano' | 'sin-fecha' {
-  if (!vencimiento || !esFechaSola(vencimiento)) return 'sin-fecha'
+  const dias = diasHasta(vencimiento, hoy)
 
-  const [anio, mes, dia] = vencimiento.split('-').map(Number)
-  if (anio === undefined || mes === undefined || dia === undefined) return 'sin-fecha'
-
-  const objetivo = Date.UTC(anio, mes - 1, dia)
-  const referencia = Date.UTC(hoy.getFullYear(), hoy.getMonth(), hoy.getDate())
-  const dias = Math.round((objetivo - referencia) / 86400000)
+  if (dias === null) return 'sin-fecha'
 
   if (dias < 0) return 'vencido'
   if (dias === 0) return 'hoy'
