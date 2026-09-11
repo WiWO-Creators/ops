@@ -51,33 +51,42 @@ export type Carga<T> =
  * @returns El estado de carga y la funcion para reintentar.
  */
 export function useListaPaginada<T> (ruta: string, queSon: string, version = 0): [Carga<T>, () => void] {
-  const [carga, setCarga] = useState<Carga<T>>({ fase: 'cargando' })
   const [intento, setIntento] = useState(0)
+  const clave = `${ruta}|${intento}|${version}`
+
+  // Lo guardado lleva la clave de la peticion que lo trajo, y "cargando" se DERIVA de que esa clave
+  // ya no sea la vigente. Marcarlo con un `setCarga({ fase: 'cargando' })' al entrar al efecto
+  // encadenaba un render de mas en cada cambio de pagina, y ademas dejaba una ventana en la que la
+  // pagina nueva se pintaba con las filas de la anterior.
+  const [guardado, setGuardado] = useState<{ clave: string, carga: Carga<T> } | null>(null)
 
   const reintentar = useCallback(() => { setIntento((n) => n + 1) }, [])
 
   useEffect(() => {
     const control = new AbortController()
 
-    setCarga({ fase: 'cargando' })
-
     void pedirSobre<T[]>(ruta, control.signal)
       .then((sobre) => {
         if (control.signal.aborted) return
 
-        setCarga({ fase: 'listo', filas: sobre.data, paginacion: sobre.meta?.pagination })
+        setGuardado({ clave, carga: { fase: 'listo', filas: sobre.data, paginacion: sobre.meta?.pagination } })
       })
       .catch((fallo: unknown) => {
         if (control.signal.aborted) return
 
-        setCarga({
-          fase: 'error',
-          mensaje: fallo instanceof Error ? fallo.message : `No se pudieron cargar ${queSon}.`
+        setGuardado({
+          clave,
+          carga: {
+            fase: 'error',
+            mensaje: fallo instanceof Error ? fallo.message : `No se pudieron cargar ${queSon}.`
+          }
         })
       })
 
     return () => { control.abort() }
-  }, [ruta, queSon, intento, version])
+  }, [clave, ruta, queSon])
+
+  const carga: Carga<T> = guardado?.clave === clave ? guardado.carga : { fase: 'cargando' }
 
   return [carga, reintentar]
 }
