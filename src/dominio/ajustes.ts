@@ -84,7 +84,10 @@ export const GRUPOS_DE_AJUSTES: Record<string, { titulo: string, ayuda: string }
   [GRUPO_AVISOS_LICITACION]: {
     titulo: `Avisos de ${GLOSARIO.licitacion.plural}`,
     ayuda: `Si el aviso de plazo de una ${GLOSARIO.licitacion.singular.toLowerCase()} —su vencimiento o una ${GLOSARIO.hito.singular}— además sale por correo. La banda de la pantalla se muestra igual: esto gobierna solo lo que sale de Ops.`
-  }
+  },
+  jornada: {
+    titulo: 'Jornada',
+    ayuda: 'A qué hora se cierran solas las jornadas que quedaron abiertas.'  }
 }
 
 /**
@@ -185,7 +188,7 @@ export const ETIQUETAS_DE_AJUSTES: Record<string, { etiqueta: string, ayuda?: st
   // --- correo ---
   wiwo_resumen_equipo_envio: {
     etiqueta: 'Enviar el resumen del equipo a las jefaturas',
-    ayuda: 'A las 20:00 se arma igual y queda en la pantalla; esto decide si además sale por correo. Apagado de fábrica: es el interruptor de la parte que sale de Ops.'
+    ayuda: 'A las 20:00 se arma igual y queda en la pantalla; esto decide si además sale por correo. Cada jefatura recibe el resumen de su equipo. Apagado de fábrica: es el interruptor de la parte que sale de Ops.'
   },
   wiwo_recordatorio_jornada_envio: {
     etiqueta: 'Recordar a las 10:00 a quien no abrió su jornada',
@@ -195,10 +198,20 @@ export const ETIQUETAS_DE_AJUSTES: Record<string, { etiqueta: string, ayuda?: st
     etiqueta: 'Recordar a las 15:00 a quien no registró tareas',
     ayuda: 'Un correo y un aviso en la campana, de lunes a viernes, a quien tiene la jornada abierta y todavía no registró tiempo en ninguna tarea. Apagado de fábrica.'
   },
+
+
+  // --- jornada ---
+  wiwo_live_cierre_automatico: {
+    etiqueta: 'Cerrar solas las jornadas que quedaron abiertas',
+    ayuda: 'Apagado, una jornada que nadie cerró se queda abierta hasta que la persona la cierre a mano.'
+  },
+  wiwo_live_hora_cierre: {
+    etiqueta: 'Hora del cierre automático (HH:MM)',
+    ayuda: 'Rige para toda la empresa, sin excepción por cargo ni modalidad. Cada jornada se cierra a esta hora del día en que empezó, no del día de hoy. Ojo: esto mueve el cierre de jornadas, no el corte de cronómetros del programador, que se cambia en el servidor (OPS_TIMER_CUTOFF_HOUR) y tiene que quedar en la misma hora.'
+  },
   [AJUSTE_AVISOS_LICITACION]: {
     etiqueta: `Avisar por correo los plazos de ${GLOSARIO.licitacion.plural.toLowerCase()}`,
-    ayuda: `El aviso se escribe igual en la campana y la banda de la pantalla se muestra igual; esto decide si además sale por correo a quien sigue la ${GLOSARIO.licitacion.singular.toLowerCase()}. Apagado de fábrica, como todo efecto externo.`
-  }
+    ayuda: `El aviso se escribe igual en la campana y la banda de la pantalla se muestra igual; esto decide si además sale por correo a quien sigue la ${GLOSARIO.licitacion.singular.toLowerCase()}. Apagado de fábrica, como todo efecto externo.`  }
 }
 
 /**
