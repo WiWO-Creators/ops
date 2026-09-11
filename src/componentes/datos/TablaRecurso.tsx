@@ -29,12 +29,12 @@ import {
   hayFiltrosPuestos,
   mensajeDeError,
   podarPorPermisos,
-  resolverInsignia,
   rutaDeAccion,
   unirConsultas,
   urlConParametro,
   type CuerpoError
 } from './tabla'
+import { resolverEstado } from '@/dominio/estados-tarea'
 
 /**
  * Motor de tabla declarativo.
@@ -513,9 +513,13 @@ async function pedirLista<T> (ruta: string, consulta: string, senal: AbortSignal
  * Contenido de una celda.
  *
  * Cuando la columna declara `comoInsignia`, el valor se resuelve contra el catalogo y se pinta con su
- * nombre y su color. Un valor que el catalogo no conoce cae al valor crudo: eso pasa cuando alguien
- * agrega un estado en Perfex y la pantalla todavia no lo recargo, y un id visible es mas util que una
- * celda vacia.
+ * nombre y su color. Un valor que el catalogo no conoce cae a su id en una insignia de contorno: eso
+ * pasa cuando alguien agrega un estado en Perfex y la pantalla todavia no lo recargo, y un id visible
+ * es mas util que una celda vacia. La fila no cambia de forma por eso —insignia sigue siendo
+ * insignia—, que es lo que hacia que una Tarea con estado nuevo se leyera distinto del resto.
+ *
+ * La resolucion es la misma que usa `<EstadoDeTarea>` fuera de la tabla: un solo `resolverEstado`
+ * para todas las pantallas donde aparece una Tarea.
  */
 function Celda<T> ({
   columna,
@@ -530,11 +534,21 @@ function Celda<T> ({
 
   if (columna.comoInsignia === undefined) return <>{contenido}</>
 
-  const insignia = resolverInsignia(contenido, catalogos?.[columna.comoInsignia])
+  // Un presentador que ya devuelve su propio elemento —el estado editable de la pestaña Tareas—
+  // pinta lo suyo: resolverlo contra el catalogo daria un id inventado en vez de un control.
+  if (typeof contenido !== 'string' && typeof contenido !== 'number') return <>{contenido}</>
 
-  if (insignia === null) return <>{contenido}</>
+  const insignia = resolverEstado(contenido, catalogos?.[columna.comoInsignia])
 
-  return <Insignia color={insignia.color} tamano="chico">{insignia.etiqueta}</Insignia>
+  return (
+    <Insignia
+      tono={insignia.desconocido ? 'contorno' : 'neutro'}
+      color={insignia.color}
+      tamano="chico"
+    >
+      {insignia.etiqueta}
+    </Insignia>
+  )
 }
 
 /**

@@ -3,12 +3,13 @@
 import { useState, type ReactElement } from 'react'
 import { conCeldasRicas } from '@/componentes/datos/celdas-procesos'
 import { EnlacePersonalizado } from '@/componentes/presentadores/EnlacePersonalizado'
-import { Insignia } from '@/componentes/presentadores/Insignia'
 import { leerError } from '@/datos/errores'
+import { resolverEstado } from '@/dominio/estados-tarea'
 import type { DefinicionCampoPersonalizado, Proceso } from '@/datos/recursos'
 import type { Capacidad } from '@/datos/tipos'
 import type { Columna, DefinicionRecurso, OpcionFiltro } from '@/definiciones/tipos'
 import { procesosDelEspacio } from '@/definiciones/procesos'
+import { EstadoDeTarea } from './EstadoDeTarea'
 import { camposDeTabla, valorDeCampo } from './tareas'
 
 /**
@@ -38,17 +39,18 @@ interface PropsEstado {
  * fuera del parche porque arrastra cascadas —fecha de fin, cronometros—, y `bulk` es el unico
  * endpoint que lo cambia con las reglas de permiso del panel. Un id es un caso particular de varios.
  *
- * Sin `edit tasks` se pinta la insignia y nada mas: el backend igual decide fila por fila, pero
- * ofrecer un selector que siempre responde 403 es peor que no ofrecerlo.
+ * Sin `edit tasks` se pinta `<EstadoDeTarea>` y nada mas: el backend igual decide fila por fila,
+ * pero ofrecer un selector que siempre responde 403 es peor que no ofrecerlo. Es el mismo
+ * componente que usan la ficha y las tarjetas, y el color del borde del selector sale del mismo
+ * `resolverEstado`: el estado se lee igual se pueda editar o no.
  */
 function EstadoEditable ({ proceso, estados, editable, onCambiado }: PropsEstado): ReactElement {
   const [enCurso, setEnCurso] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const actual = estados.find((estado) => estado.valor === String(proceso.status))
-  const insignia = <Insignia color={actual?.color} tamano="chico">{actual?.etiqueta ?? `#${proceso.status}`}</Insignia>
+  const actual = resolverEstado(proceso.status, estados)
 
-  if (!editable) return insignia
+  if (!editable) return <EstadoDeTarea status={proceso.status} catalogo={estados} />
 
   /** Cambia el estado y le pide al panel que recargue: el backend es quien sabe como quedo la fila. */
   async function cambiar (valor: string): Promise<void> {
@@ -86,7 +88,7 @@ function EstadoEditable ({ proceso, estados, editable, onCambiado }: PropsEstado
       <select
         value={String(proceso.status)}
         disabled={enCurso}
-        style={{ borderColor: actual?.color ?? undefined }}
+        style={{ borderColor: actual.color }}
         aria-label={`Estado de «${proceso.name}»`}
         onChange={(evento) => { void cambiar(evento.target.value) }}
         className="border-control-borde bg-control text-texto rounded-control h-8 border px-2 text-xs"
