@@ -22,10 +22,10 @@ interface PropsTarjetaProyecto {
 /**
  * Tarjeta de un Proyecto en el listado.
  *
- * El enlace vive en el titulo y no en la tarjeta entera: un `div` clickeable no se alcanza con
- * teclado ni se anuncia como destino, y envolver toda la tarjeta en un `<a>` mete el estado, el
- * avance y las etiquetas dentro del nombre del enlace. El realce al pasar el mouse se aplica al
- * `article`, asi que la superficie sigue leyendose como una unidad.
+ * El enlace sigue siendo el del titulo, pero se estira sobre toda la tarjeta con un `::after`
+ * posicionado: asi se puede entrar clickeando cualquier parte sin envolver la tarjeta en un `<a>`
+ * —eso meteria el estado, el avance y las etiquetas dentro del nombre del enlace— ni usar un `div`
+ * clickeable, que no se alcanza con teclado ni se anuncia como destino.
  *
  * @param espacio fila tal como la devuelve `GET /projects`
  * @param estados catalogo de estados ya resuelto por el servidor
@@ -36,7 +36,7 @@ export function TarjetaProyecto ({ espacio, estados, className }: PropsTarjetaPr
   return (
     <article
       className={cn(
-        'border-linea bg-superficie-elevada rounded-tarjeta shadow-1 flex h-full flex-col gap-3 border p-4',
+        'border-linea bg-superficie-elevada rounded-tarjeta shadow-1 relative flex h-full flex-col gap-3 border p-4',
         'ease-neo transition-[transform,box-shadow] duration-150',
         'hover:shadow-2 hover:scale-[1.01] focus-within:shadow-2 active:scale-[0.99]',
         className
@@ -49,9 +49,15 @@ export function TarjetaProyecto ({ espacio, estados, className }: PropsTarjetaPr
           imagenEfectiva={espacio.image_url ?? espacio.client?.image_url}
         />
         <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-          <h3 className="truncate text-base leading-tight font-semibold">
-            <Link href={`/espacios/${espacio.id}`} className="hover:text-acento">
-              {espacio.name}
+          {/* El recorte del nombre va en un `span` interno y no en el `h3` ni en el `Link`: un
+              `overflow-hidden` entre la tarjeta y el `::after` que la cubre lo recortaria a el
+              tambien, y el clic dejaria de alcanzar toda la superficie. */}
+          <h3 className="min-w-0 text-base leading-tight font-semibold">
+            <Link
+              href={`/espacios/${espacio.id}`}
+              className="hover:text-acento block after:absolute after:inset-0 after:content-['']"
+            >
+              <span className="block truncate">{espacio.name}</span>
             </Link>
           </h3>
           <p className={cn('truncate text-xs', espacio.client === null ? 'text-texto-sutil' : 'text-texto-tenue')}>
