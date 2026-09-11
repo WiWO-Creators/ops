@@ -4,6 +4,7 @@ import { Seccion } from '@/componentes/presentadores/Ficha'
 import {
   horasYMinutos,
   proporcion,
+  type AusenteDelResumen,
   type ItemDelResumen,
   type PersonaDelResumen,
   type ResumenDeEquipo
@@ -67,6 +68,8 @@ export function ResumenDelEquipo ({ resumen }: { resumen: ResumenDeEquipo }) {
                 ))}
               </ul>
             </Seccion>
+
+            <Ausentes ausentes={detalle.ausentes} />
           </>
           )}
     </div>
@@ -108,6 +111,36 @@ function Totales ({ resumen }: { resumen: ResumenDeEquipo }) {
         )}
       </div>
     </div>
+  )
+}
+
+/**
+ * Quiénes no marcaron el inicio de su jornada, por nombre.
+ *
+ * Nombres y no un número: «8 personas no marcaron» obliga a abrir otra pantalla para saber a quién
+ * llamar, y el resumen existe justamente para no tener que abrir nada.
+ *
+ * `undefined` es un resumen guardado antes de que la lista existiera y no se dibuja nada: decir «sin
+ * ausentes» de un día que nunca los calculó sería inventar el dato. La lista vacía sí se dibuja,
+ * porque «no faltó nadie» es información.
+ */
+function Ausentes ({ ausentes }: { ausentes?: AusenteDelResumen[] }) {
+  if (ausentes === undefined) return null
+
+  return (
+    <Seccion titulo="Sin inicio de jornada">
+      {ausentes.length === 0
+        ? <p className="text-texto-tenue text-sm">Todo el equipo marcó el inicio de su jornada.</p>
+        : (
+          <ul className="flex flex-wrap gap-2">
+            {ausentes.map((ausente) => (
+              <li key={ausente.staff_id}>
+                <Insignia tono="contorno" tamano="chico">{ausente.nombre}</Insignia>
+              </li>
+            ))}
+          </ul>
+          )}
+    </Seccion>
   )
 }
 
