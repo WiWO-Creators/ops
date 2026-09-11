@@ -24,6 +24,7 @@ import { escribirEnBff } from '@/componentes/datos/mutaciones'
 import { instanteDeCierre } from '@/dominio/cierre-tarea'
 import { hoyLocal } from '@/lib/fechas'
 import { BloqueSla } from './BloqueSla'
+import { CabeceraFichaTarea } from './CabeceraFichaTarea'
 import { ESTADO_COMPLETO } from './tareas'
 import { CompartirTarea } from './CompartirTarea'
 import { EstadoDeTarea } from './EstadoDeTarea'
@@ -156,10 +157,14 @@ export function DetalleTarea (
   return (
     <div className={cn('flex flex-col gap-5', className)}>
         <header className="border-linea bg-superficie-acentuada rounded-tarjeta flex flex-col gap-2 border p-4">
-          <div className="flex items-start justify-between gap-3">
-            <h3 className="font-titular text-texto text-base leading-snug font-extrabold">{tarea.name}</h3>
-            <span className="text-texto-tenue shrink-0 font-mono text-xs tracking-wide">{tarea.patente || `#${tarea.id}`}</span>
-          </div>
+          {/* `nivel={3}`: el dialogo que monta esta ficha ya aporta el `h2` que la nombra, asi que el
+              titulo de la Tarea cuelga de el. El tamaño es el mismo que en la vista compartida. */}
+          <CabeceraFichaTarea
+            titulo={tarea.name}
+            marca={tarea.project?.name ?? null}
+            codigo={tarea.patente ?? `#${tarea.id}`}
+            nivel={3}
+          />
           <div className="flex flex-wrap items-center gap-1.5">
             <EstadoDeTarea status={tarea.status} catalogo={listaDe(lookups, 'task_statuses')} />
             <Insignia tamano="chico" color={prioridad.color}>{prioridad.nombre}</Insignia>
@@ -231,6 +236,14 @@ export function DetalleTarea (
           )}
         </header>
 
+        {/* La descripcion va inmediatamente debajo de la cabecera y no al final: es lo que cuenta de
+            que se trata la Tarea, y leerla despues de los contadores y los enlaces obliga a bajar
+            hasta el fondo para entender la ficha que se acaba de abrir. */}
+        <section className="flex flex-col gap-2">
+          <h4 className="text-texto-tenue text-sm font-semibold">Descripción</h4>
+          <Descripcion html={tarea.description} />
+        </section>
+
         {/* Montado solo mientras se edita: asi el formulario arranca siempre en los valores que se
             acaban de traer, y cerrar descarta lo que no se guardo. */}
         {puedeEditar && editando && (
@@ -278,11 +291,6 @@ export function DetalleTarea (
         <BloqueSla tarea={tarea} puedeEditar={puedeEditar} onCambiado={reintentar} />
 
         <Contadores counts={tarea.counts} />
-
-        <section className="flex flex-col gap-2">
-          <h4 className="text-texto-tenue text-sm font-semibold">Descripción</h4>
-          <Descripcion html={tarea.description} />
-        </section>
 
         <ListaChecklist procesoId={procesoId} />
 
