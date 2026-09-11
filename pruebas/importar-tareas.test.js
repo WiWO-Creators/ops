@@ -2,6 +2,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 
 import {
+  cargarProyectosOrigen,
   cuerpoDeImportacion,
   filtrarOrigenes,
   habilitaArchivar,
@@ -12,6 +13,37 @@ import {
   rutaProyectosOrigen,
   validarImportacion
 } from '../src/componentes/proyecto/importar-tareas.ts'
+
+test('busca NESTLÉ febrero después de los primeros 200 proyectos y propaga errores', async () => {
+  const control = new AbortController()
+  const paginas = []
+  const febrero = { id: 1, name: 'NESTLÉ Febrero', archived: true }
+  const proyectos = await cargarProyectosOrigen(async (ruta, senal) => {
+    assert.equal(senal, control.signal)
+    const params = new URLSearchParams(ruta.split('?')[1])
+    assert.equal(params.get('filter[archivado]'), '0,1')
+    const pagina = Number(params.get('page'))
+    paginas.push(pagina)
+    return {
+      data: pagina === 1
+        ? Array.from({ length: 200 }, (_, i) => ({ id: i + 2, name: `Proyecto ${i}` }))
+        : [febrero],
+      meta: { pagination: { total_pages: 2 } }
+    }
+  }, control.signal)
+  assert.deepEqual(paginas, [1, 2])
+  assert.equal(proyectos.length, 201)
+  assert.deepEqual(filtrarOrigenes(proyectos, 999, 'nestle febrero'), [febrero])
+  assert.deepEqual(await cargarProyectosOrigen(async () => ({ data: [] }), control.signal), [])
+  await assert.rejects(cargarProyectosOrigen(async (ruta) => {
+    if (new URLSearchParams(ruta.split('?')[1]).get('page') === '2') throw new Error('falló la página')
+    return { data: [], meta: { pagination: { total_pages: 2 } } }
+  }, control.signal), /falló la página/)
+  control.abort()
+  await assert.rejects(cargarProyectosOrigen(async () => {
+    assert.fail('no debe solicitar páginas después de cancelar')
+  }, control.signal), { name: 'AbortError' })
+})
 
 /** Informe con los valores que dan "todo bien"; cada prueba pisa lo que le interesa. */
 function informe (cambios = {}) {
