@@ -353,6 +353,17 @@ export const PROCESOS = Array.from({ length: 84 }, (_, i) => {
     })),
     followers: i % 5 === 0 ? [{ id: ciclo(STAFF, i + 1).id, full_name: ciclo(STAFF, i + 1).full_name }] : [],
     tags: i % 4 === 0 ? [ciclo(ETIQUETAS, i)] : [],
+    // Una de cada siete espera el visto bueno del cliente. Sin ninguna pendiente, el bloque
+    // "Esperan tu visto bueno" del portal no se dibuja nunca y queda sin ejercitar.
+    aprobacion: i % 7 === 1
+      ? {
+          requerida: true,
+          estado: 'pendiente',
+          solicitada_en: `2026-09-${String((i % 27) + 1).padStart(2, '0')}T09:00:00Z`,
+          resuelta_en: null,
+          comentario: null
+        }
+      : undefined,
     counts: {
       comments: i % 7,
       checklist: i % 5,

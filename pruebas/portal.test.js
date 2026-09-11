@@ -149,3 +149,33 @@ test('sin nombre de pila el saludo cae al nombre completo', () => {
   assert.equal(saludar({ firstname: '', full_name: 'Ana Soto' }), 'Ana Soto')
   assert.equal(saludar({ firstname: '   ', full_name: 'Ana Soto' }), 'Ana Soto')
 })
+
+/**
+ * El bloque "Esperan tu visto bueno" pinta el estado de cada {proceso}.
+ *
+ * Es la unica pantalla del portal donde una Tarea aparece fuera de la tabla, asi que es la unica que
+ * puede quedarse sin estado sin que `comoInsignia` la cubra. La insignia sale de `EstadoDeTarea`,
+ * que devuelve `null` si no le llega el catalogo: si alguien deja de pasar `estados` desde el
+ * servidor, la insignia desaparece en silencio y nada falla. Esto lo hace fallar.
+ */
+test('el catalogo de estados del portal alcanza para resolver una Tarea pendiente', async () => {
+  const { PROCESOS } = await import('../mock/datos.js')
+  const { resolverEstado } = await import('../src/dominio/estados-tarea.ts')
+  const { ESTADOS_PROCESO } = await import('../mock/datos.js')
+
+  const pendientes = PROCESOS.filter((p) => p.aprobacion?.estado === 'pendiente')
+  assert.ok(pendientes.length > 0, 'el fixture tiene que traer alguna esperando visto bueno')
+
+  for (const tarea of pendientes) {
+    const estado = resolverEstado(tarea.status, ESTADOS_PROCESO)
+    assert.equal(estado.desconocido, false, `el estado ${tarea.status} tiene que estar en el catalogo`)
+    assert.ok(estado.etiqueta.length > 0, 'una Tarea que espera visto bueno no puede quedar sin estado')
+  }
+})
+
+/** Sin catalogo no hay insignia: es la guarda que evita una lista de "#1" y "#4". */
+test('sin catalogo el estado no se inventa', async () => {
+  const { resolverEstado } = await import('../src/dominio/estados-tarea.ts')
+
+  assert.equal(resolverEstado(1, []).desconocido, true)
+})

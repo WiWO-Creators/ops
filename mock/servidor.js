@@ -1879,7 +1879,17 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
       if (resto[2] === 'tasks' && resto.length === 3) {
         const { filas, paginacion } = aplicarConsulta(
           tareasDelEspacio.map(presentarTareaPortal), parametros,
-          { filtros: { status: 'status' }, orden: ['due_date', 'name'], busqueda: ['name'] }
+          {
+            filtros: {
+              status: 'status',
+              // `aprobacion` lo pide la pagina del proyecto para el bloque de visto bueno. Sin el,
+              // el mock respondia 422 y el bloque no se dibujaba nunca: quedaba sin ejercitar.
+              // Lee del bloque ya presentado (`approval`), que es la forma que viaja al portal.
+              aprobacion: (fila, valor) => (fila.approval?.estado ?? null) === valor
+            },
+            orden: ['due_date', 'name'],
+            busqueda: ['name']
+          }
         )
         return { estado: 200, cuerpo: conDatos(filas, { pagination: paginacion }) }
       }
@@ -2710,7 +2720,17 @@ function presentarTareaPortal (proceso) {
     milestone: proceso.milestone ?? 0,
     milestone_order: proceso.milestone_order ?? 0,
     task_type: proceso.task_type ?? 0,
-    tags: proceso.tags ?? []
+    tags: proceso.tags ?? [],
+    // Podado como en la API real: sin quien la pidio ni el id del contacto que respondio.
+    ...(proceso.aprobacion === undefined ? {} : {
+      approval: {
+        requerida: proceso.aprobacion.requerida,
+        estado: proceso.aprobacion.estado,
+        solicitada_en: proceso.aprobacion.solicitada_en ?? null,
+        resuelta_en: proceso.aprobacion.resuelta_en ?? null,
+        comentario: proceso.aprobacion.comentario ?? null
+      }
+    })
   }
 }
 
