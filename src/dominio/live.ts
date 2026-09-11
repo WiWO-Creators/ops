@@ -28,7 +28,7 @@ export function faltaAbrirJornada (estado: EstadoDeJornada | null): boolean {
 }
 
 /** Hasta donde llega el tablero de quien mira. Es la traduccion de `meta.scope` de `GET /live`. */
-export type AlcanceDeLive = 'todo' | 'area' | 'propio'
+export type AlcanceDeLive = 'todo' | 'subordinados' | 'area' | 'propio'
 
 /**
  * Que parte del equipo puede ver esta persona en el tablero.
@@ -42,14 +42,23 @@ export type AlcanceDeLive = 'todo' | 'area' | 'propio'
  * es `is_director`, igual que "Mi Área": el cargo Director no otorga capabilities de Perfex, asi que
  * `permissions` nunca lo delata.
  *
+ * `dirige_areas` va ANTES que `is_director` y es lo que arregla el caso que faltaba: quien dirige un
+ * area del organigrama (`tblareas.jefe_staffid`) pero no tiene el cargo Director ni `staff.view` caia
+ * en `propio`, y esta pantalla ni le pedia el tablero — aunque la API se lo hubiera dado entero. Las
+ * dos llaves conviven porque son dos cosas distintas: el arbol de areas y el cargo de antes.
+ *
  * Esconder no autoriza: quien fuerce `/live` recibe de la API el alcance que le corresponde, no el
- * que diga esta funcion. `meta.scope` es la verdad; esto solo decide que se dibuja.
+ * que diga esta funcion. `meta.scope` es la verdad; esto solo decide que se dibuja. Y al reves
+ * tampoco quita nada: esta funcion solo puede AMPLIAR lo que se pide, nunca recortar el piso que el
+ * nivel de la persona ya le da.
  *
  * @param yo la sesion de quien mira (`GET /me`)
- * @returns `todo` para el equipo entero, `area` para su area, `propio` para nadie mas que uno mismo
+ * @returns `todo` para el equipo entero, `subordinados` para su rama del organigrama, `area` para su
+ *          area, `propio` para nadie mas que uno mismo
  */
 export function alcanceDeLive (yo: Yo): AlcanceDeLive {
   if (yo.is_superadmin || puedeVerSeccion(yo.permissions.staff, 'staff')) return 'todo'
+  if (yo.dirige_areas) return 'subordinados'
   if (yo.is_director) return 'area'
 
   return 'propio'

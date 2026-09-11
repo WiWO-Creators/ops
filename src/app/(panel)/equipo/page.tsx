@@ -1,4 +1,5 @@
 import { Suspense } from 'react'
+import Link from 'next/link'
 import { VistaEquipo } from '@/componentes/equipo/VistaEquipo'
 import { Cargando } from '@/componentes/estado/Estados'
 import { TotalDelListado } from '@/componentes/datos/TotalDelListado'
@@ -35,7 +36,20 @@ export default async function EquipoPage (props: PageProps<'/equipo'>) {
     <section className="flex flex-col gap-4">
       <TituloModulo
         titulo={EQUIPO.titulo.plural}
-        acciones={<TotalDelListado paginacion={lista.meta?.pagination} />}
+        acciones={
+          <div className="flex items-center gap-3">
+            {/* La entrada a Jerarquías vive acá y no en la barra lateral: agregarla al menú toca
+                `(panel)/layout.tsx`, que es de otro frente. Quien no dirige nada recibe 403 de la
+                API al entrar, así que el enlace no revela nada que la pantalla no cuide. */}
+            <Link
+              href="/equipo/jerarquia"
+              className="text-acento text-sm font-semibold hover:underline"
+            >
+              Jerarquías
+            </Link>
+            <TotalDelListado paginacion={lista.meta?.pagination} />
+          </div>
+        }
       />
 
       <Suspense fallback={<Cargando alto="min-h-36" mensaje={`Cargando ${EQUIPO.titulo.plural.toLowerCase()}…`} />}>

@@ -108,7 +108,12 @@ const PREFIJOS_PERMITIDOS = [
   // Salud de un Cliente y de un Espacio: el semaforo de 0 a 100 con su historico. Prefijo propio
   // porque la API los cuelga de su raiz (`/scores`, `/scores/{id}`) y no del recurso puntuado.
   'scores',
-  'live'
+  'live',
+  // El organigrama de areas (`/jerarquia`): leerlo y reacomodarlo desde la pantalla de jefaturas.
+  // Raiz propia porque asi lo expone la API, y por el mismo motivo que `/me/mi-area` no cuelga de
+  // `/staff`: dirigir un area no otorga `staff.view`, y un jefe sin ese permiso tiene que poder
+  // ordenar a su gente igual. Quien manda sobre que area lo decide la API, no esta lista.
+  'jerarquia'
 ] as const
 
 /**

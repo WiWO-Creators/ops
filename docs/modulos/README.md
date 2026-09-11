@@ -37,6 +37,7 @@ una lista de bugs: es lo que **no se construyó a propósito**, y cada ficha lo 
 | [06](06-salas.md) | Salas de reunión | **ninguna**: tablas propias del módulo `api` | ✅ | sí | Sin Google Calendar, por decisión del usuario |
 | [07](07-teletrabajo.md) | Teletrabajo | **ninguna**: LiveKit propio, sin tabla | — | sí | Sin endpoint de tokens, por decisión de diseño |
 | [08](08-live.md) | LIVE: jornada y medidor | **ninguna**: tablas propias del módulo `api` | en construcción | sí | El frontend está completo contra el contrato; la API se construye en paralelo. La campana consume `/notifications`, que ya existía sin consumidor |
+| [09](09-jerarquias.md) | Jerarquías del equipo | `tblareas` (`area_superior_id`, `jefe_staffid`) y `tblstaff.area_id` | sí | sí | Es el dato que le faltaba a En Vivo. El catálogo de 16 áreas existe pero el árbol está **vacío**: 0 con superior, 0 con jefatura y 184 personas sin área. Cargarlo es trabajo de las jefaturas |
 | [10](10-prospectos.md) | Leads (embudo de Perfex) | `leads` | ✅ | **no**, y no se planea | Sin pantalla: lo reemplaza [Prospectos](12-prospectos.md), que es otra entidad |
 | [11](11-licitaciones.md) | Licitaciones | `projects` + `tblapi_licitaciones` | ✅ | sí, con la bandera `licitaciones` | — |
 | [12](12-prospectos.md) | Prospectos (empresa candidata) | `tblapi_prospectos` + `tblapi_prospecto_contactos` | ✅ | sí, con la bandera `prospectos` | — |

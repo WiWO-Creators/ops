@@ -192,6 +192,7 @@ Tampoco va bajo `/auth`: esa rama se atiende sin token, y ésta necesita saber q
   "firstname": "…", "lastname": "…", "full_name": "…",
   "profile_image_url": "…", "is_admin": false, "role_id": 3,
   "modelo_permisos": "viejo",
+  "is_director": false, "dirige_areas": false,
   "area_id": null, "empresa_id": 3,
   "permissions": { "tasks": ["view","create","edit"], "projects": ["view_own"] },
   "secciones_habilitadas": ["procesos","espacios"],
@@ -206,6 +207,12 @@ revoca sin desplegar.
 **Hoy `secciones_habilitadas` es la lista fija `["procesos","espacios"]`** (`controllers/V1.php:1415`).
 Los ocho recursos de ventas, comercial y soporte responden igual, pero la interfaz **no los ofrece**:
 es decisión del usuario, no un pendiente técnico. Habilitar una sección es editar esa lista.
+
+`is_director` y `dirige_areas` son dos cosas distintas y conviven. La primera es el cargo "Director"
+(`modules/wiwo_core/cargos_areas.php`), la regla vieja: "ve a los de su área". La segunda es el árbol
+de `tblareas`: dirige al menos un área, y ve además todo lo que cuelga de ella. Ninguna de las dos es
+un permiso ni aparece en `permissions` — el cargo y la jefatura no otorgan capabilities de Perfex, que
+es justamente por lo que hay que mirarlas aparte. El árbol se configura en `/jerarquia`.
 
 `permissions` **no trae una clave `tickets`**: Perfex no tiene una feature de permisos con ese nombre
 (ver el recurso `tickets` más abajo).
@@ -4411,6 +4418,65 @@ editor y entonces WiBot citaria una version que ya nadie ve.
 
 Respeta el borrado blando y los permisos de ver el Espacio: la herramienta no tiene SQL propio, pasa
 por `RecursoActas`.
+
+## Jerarquías del equipo
+
+El árbol de dependencias: `tblareas` (`area_superior_id`, `jefe_staffid`) más `tblstaff.area_id`. No
+hay tabla nueva y no hace falta: el jefe de alguien es quien dirige el área que lleva puesta, y sus
+subordinados directos son la gente de las áreas que dirige. Ver `docs/modulos/09-jerarquias.md`.
+
+Raíz propia y no bajo `/staff` por lo mismo que `/me/mi-area`: `/staff` exige `staff.view` y dirigir
+un área no otorga capabilities de Perfex.
+
+### `GET /jerarquia`
+
+```json
+{ "data": {
+  "hay_organigrama": true, "es_admin": false,
+  "areas": [
+    { "id": 3, "name": "PR", "area_superior_id": 1, "jefe_staffid": 42, "editable": true,
+      "personas": [ { "id": 42, "full_name": "…", "active": true } ] }
+  ],
+  "sin_area":   [ { "id": 88, "full_name": "…", "active": true } ],
+  "asignables": [ { "id": 42, "full_name": "…", "active": true } ]
+} }
+```
+
+Un administrador recibe el organigrama entero; una jefatura, sólo su rama. `editable` viene resuelto:
+la pantalla no vuelve a decidir quién manda sobre qué. `hay_organigrama` es `false` en una instalación
+sin las columnas del árbol, y ahí no hay nada que configurar.
+
+**403** a quien no dirige ningún área y no administra.
+
+### `POST /jerarquia/areas` y `PUT /jerarquia/areas/{id}`
+
+Cuerpo: `{"name": "PR", "area_superior_id": 1, "jefe_staffid": 42}`. Los dos últimos admiten `null`.
+Responden el árbol completo, con la misma forma que `GET /jerarquia`.
+
+El alta es sólo para quien administra (**403** si no): un área nueva nace fuera de la rama de quien la
+creó y nadie la vería. Borrar áreas **no está en la API**: sigue en el panel viejo, que ya tiene la
+guarda de referencias.
+
+| Caso | Estado |
+|---|---|
+| Área colgada de sí misma o de su descendencia | **422** `area_superior_id: ciclo` |
+| Nombre vacío, de más de 191 caracteres o repetido | **422** |
+| Área superior o jefatura inexistente, o jefatura inactiva | **422** |
+| Área fuera de la rama propia | **403** |
+| La instalación no tiene las columnas del árbol | **409** |
+
+### `PUT /jerarquia/personas/{id}`
+
+Cuerpo: `{"area_id": 3}`. `null`, `""`, `0` y la clave ausente significan lo mismo: sacarla del área
+que tenga. Responde el árbol completo.
+
+Quien no administra necesita mando sobre **los dos extremos**: sumar gente que hoy es de otro es
+sacársela a ese otro. La excepción es la gente sin área, que no es de nadie y cualquier jefatura puede
+recoger — es lo mismo que ya dejaba hacer el panel viejo en `Mi_area.php::add_staff()`.
+
+**Lo que no se valida, a propósito**: dejar un área sin jefatura o una persona sin área. Las dos son
+estados legítimos, y son *el* estado hoy: **0 áreas y 184 personas sin `area_id`**. La pantalla las
+cuenta; la API no las prohíbe.
 
 ## Capa de IA
 
