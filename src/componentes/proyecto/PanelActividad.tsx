@@ -2,14 +2,12 @@
 
 import { useState, type ReactElement } from 'react'
 import { PaginacionTabla } from '@/componentes/datos/ControlesTabla'
-import { Cargando, ErrorEstado, Vacio } from '@/componentes/estado/Estados'
-import { Avatar } from '@/componentes/presentadores/Avatar'
+import { Cargando, ErrorEstado } from '@/componentes/estado/Estados'
 import { mensajeDeRespuesta } from '@/datos/cliente'
 import type { ActividadEspacio } from '@/datos/recursos'
 import type { Capacidad } from '@/datos/tipos'
-import { agruparPorDia, autorDeEntrada, horaDeEntrada } from './actividad'
+import { LineaDeActividad } from './LineaDeActividad'
 import { useRecurso } from './carga'
-import { textoPlano } from './formatos'
 
 /**
  * Pestaña Actividad del Proyecto, como linea de tiempo.
@@ -52,43 +50,19 @@ export function PanelActividad ({ proyectoId, capacidades }: PropsPanelActividad
   if (estado.fase === 'cargando') return <Cargando alto="min-h-60" mensaje="Cargando la actividad…" />
   if (estado.fase === 'error') return <ErrorEstado detalle={estado.mensaje} onReintentar={recargar} />
 
-  const dias = agruparPorDia(estado.datos)
-
   return (
     <div className="flex flex-col gap-4">
-      {dias.length === 0
-        ? (
-          <Vacio
-            titulo="Todavía no hay actividad"
-            descripcion="Cuando alguien cree, edite o complete algo en este proyecto, queda registrado acá."
+      <LineaDeActividad
+        entradas={estado.datos}
+        accion={(entrada) => (
+          <InterruptorVisibilidad
+            entrada={entrada}
+            proyectoId={proyectoId}
+            habilitado={puedeCambiarVisibilidad}
+            recargar={recargar}
           />
-          )
-        : (
-          // Ancho acotado: la actividad se LEE, no se compara columna contra columna. A 1440px sin
-          // tope, la descripcion y su interruptor quedan a media pantalla de distancia y la linea de
-          // texto pasa de las 75 letras que se leen de un renglon.
-          <ol className="flex max-w-3xl flex-col gap-6">
-            {dias.map((dia) => (
-              <li key={`${dia.titulo}-${dia.entradas[0]?.id ?? 0}`} className="flex flex-col gap-2">
-                <h3 className="text-texto-sutil text-[0.6875rem] font-medium tracking-[0.08em] uppercase">
-                  {dia.titulo}
-                </h3>
-
-                <ol>
-                  {dia.entradas.map((entrada) => (
-                    <Entrada
-                      key={entrada.id}
-                      entrada={entrada}
-                      proyectoId={proyectoId}
-                      habilitado={puedeCambiarVisibilidad}
-                      recargar={recargar}
-                    />
-                  ))}
-                </ol>
-              </li>
-            ))}
-          </ol>
-          )}
+        )}
+      />
 
       <PaginacionTabla
         paginacion={estado.meta?.pagination}
@@ -98,70 +72,6 @@ export function PanelActividad ({ proyectoId, capacidades }: PropsPanelActividad
         }}
       />
     </div>
-  )
-}
-
-interface PropsEntrada {
-  entrada: ActividadEspacio
-  proyectoId: number
-  habilitado: boolean
-  recargar: () => void
-}
-
-/**
- * Una entrada de la linea de tiempo.
- *
- * La hora vive en su propia columna y el contenido cuelga de una regla de 1px: es lo que convierte
- * una lista en una linea de tiempo sin pintar puntos, que obligarian a que el halo de cada punto
- * conozca el color de la superficie de atras.
- *
- * @param entrada la entrada tal como la devuelve `GET /projects/{id}/activity`
- * @param proyectoId el proyecto, para la ruta del interruptor
- * @param habilitado si quien mira puede cambiar la visibilidad
- * @param recargar vuelve a pedir el feed despues de un cambio
- */
-function Entrada ({ entrada, proyectoId, habilitado, recargar }: PropsEntrada): ReactElement {
-  const detalle = textoPlano(entrada.additional_data)
-  const hora = horaDeEntrada(entrada.date_added)
-  const autor = autorDeEntrada(entrada)
-
-  return (
-    <li className="grid grid-cols-[4.5rem_minmax(0,1fr)] gap-x-3">
-      <span data-numerico className="text-texto-sutil pt-2.5 text-right text-xs tabular-nums">
-        {hora}
-      </span>
-
-      {/* En una sola columna hasta `sm`: a 420px la descripcion y el interruptor no entran en el mismo
-          renglon, y forzarlos parte el texto en tres palabras por linea. */}
-      <div className="border-linea-suave flex min-w-0 flex-col gap-1 border-l py-2 pl-4 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
-        {/* Que pasó y su detalle van juntos, sin nada en el medio: el interruptor es del otro lado. */}
-        <div className="flex min-w-0 flex-col gap-1">
-          <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
-            <Avatar
-              nombre={autor}
-              imagen={entrada.staff?.profile_image_url}
-              tamano="chico"
-            />
-            <span className="text-texto text-sm font-medium">{autor}</span>
-            <span className="text-texto-tenue min-w-0 text-sm">{entrada.description}</span>
-          </div>
-
-          {detalle !== '' && (
-            <p className="text-texto-sutil text-xs whitespace-pre-line">{detalle}</p>
-          )}
-        </div>
-
-        {/* Al costado y no debajo: puesto en su propio renglon, el interruptor se repite veinticinco
-            veces y termina pesando mas que lo que paso. Contra el margen derecho arma una columna que
-            se lee de un vistazo. */}
-        <InterruptorVisibilidad
-          entrada={entrada}
-          proyectoId={proyectoId}
-          habilitado={habilitado}
-          recargar={recargar}
-        />
-      </div>
-    </li>
   )
 }
 

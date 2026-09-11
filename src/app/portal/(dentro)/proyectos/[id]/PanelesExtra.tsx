@@ -18,6 +18,7 @@ import type {
   DiscusionPortal,
   TiempoPortal
 } from '@/datos/portal'
+import { LineaDeActividad } from '@/componentes/proyecto/LineaDeActividad'
 import { Bloque } from '../../detalle'
 
 /**
@@ -99,27 +100,23 @@ async function Comentarios ({
   )
 }
 
-/** Registro de actividad del proyecto, solo lo que el equipo marcó como visible. */
+/**
+ * Registro de actividad del proyecto, solo lo que el equipo marcó como visible.
+ *
+ * La misma linea de tiempo que ve el equipo, sin el interruptor de visibilidad: eso es lo unico que
+ * cambia, y por eso es una prop y no otro componente. Antes acá habia una lista plana sin autor ni
+ * hora, o sea que la misma actividad se leia distinto segun quien la mirara.
+ */
 export async function PanelActividadPortal ({ proyectoId }: { proyectoId: number }) {
   const { data } = await pedirPortal<ActividadPortal[]>(
     `/portal/projects/${proyectoId}/activity?per_page=50`
   )
 
-  if (data.length === 0) {
-    return <Vacio titulo="Sin actividad" descripcion="Todavía no hay movimientos para mostrar." />
-  }
-
   return (
-    <ol className="flex flex-col gap-2">
-      {data.map((entrada) => (
-        <li key={entrada.id} className="border-linea-suave flex flex-wrap gap-x-3 border-b pb-2 text-sm last:border-0">
-          <span className="text-texto">{entrada.description}</span>
-          <span className="text-texto-tenue ml-auto whitespace-nowrap">
-            {formatearFecha(entrada.date_added)}
-          </span>
-        </li>
-      ))}
-    </ol>
+    <LineaDeActividad
+      entradas={data}
+      vacio={{ titulo: 'Sin actividad', descripcion: 'Todavía no hay movimientos para mostrar.' }}
+    />
   )
 }
 
