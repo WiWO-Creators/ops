@@ -153,7 +153,7 @@ jobs:
               readSync(descriptor, buffer, 0, buffer.length, size - buffer.length);
               for (const line of buffer.toString('utf8').split('\n').slice(-51)) {
                 let record;
-                try { record = JSON.parse(line); } catch { continue; }
+                try { record = JSON.parse(line.slice(line.indexOf('{'))); } catch { continue; }
                 if (!record || !states.has(record.estado)) continue;
                 const safe = { estado: record.estado };
                 if (typeof record.fecha === 'string' && /^\d{4}-\d{2}-\d{2}T[\d:.]+Z$/.test(record.fecha)) safe.fecha = record.fecha;
