@@ -126,7 +126,7 @@ jobs:
             node scripts/cron.mjs --check
             pm2 startup systemd -u root --hp /root
             systemctl is-enabled pm2-root
-            pm2 startOrRestart ecosystem.cron.cjs --update-env
+            pm2 startOrRestart ecosystem.config.cjs --update-env
             pm2 restart ops-v2
             pm2 save
             chmod 600 /root/.pm2/dump.pm2
