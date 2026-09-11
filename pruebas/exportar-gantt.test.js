@@ -19,6 +19,7 @@ import {
   recortarTexto,
   svgDeGantt
 } from '../src/componentes/proyecto/exportar-gantt.ts'
+import { GLOSARIO } from '../src/dominio/glosario.ts'
 
 const ESTADOS = [
   { id: 1, name: 'Sin empezar' },
@@ -137,7 +138,7 @@ test('la duracion cuenta los dos extremos y una sola fecha dura un dia', () => {
 })
 
 test('el encabezado del grupo cambia con la agrupacion y nunca se repite con el de estado', () => {
-  assert.equal(columnasDeGantt('milestones')[0].encabezado, 'Hitos')
+  assert.equal(columnasDeGantt('milestones')[0].encabezado, GLOSARIO.hito.plural)
   assert.equal(columnasDeGantt('members')[0].encabezado, 'Miembros')
   assert.equal(columnasDeGantt('status')[0].encabezado, 'Estado del grupo')
   assert.equal(columnasDeGantt('status')[5].encabezado, 'Estado')
@@ -151,7 +152,7 @@ test('el CSV escapa comas, comillas y saltos de linea del nombre de la Tarea', (
   const csv = csvDeGantt(grupos, opciones())
   const [encabezado, fila] = csv.split('\r\n')
 
-  assert.equal(encabezado, 'Hitos,Tarea,Inicio,Entrega,Duración (días),Estado,Avance (%),Vencida,Depende de')
+  assert.equal(encabezado, `${GLOSARIO.hito.plural},Tarea,Inicio,Entrega,Duración (días),Estado,Avance (%),Vencida,Depende de`)
   assert.ok(fila.startsWith('Hito 1,"Campaña ""70 años"", fase 1'), fila)
 })
 
@@ -194,7 +195,7 @@ test('el diagrama preparado trae medidas, escala y resumen de lo que se esta vie
   assert.match(diagrama.titulo, /Proyecto #13/)
   assert.match(diagrama.subtitulo, /2 Tareas/)
   assert.match(diagrama.subtitulo, /escala Día/)
-  assert.match(diagrama.subtitulo, /agrupado por Hitos/)
+  assert.ok(diagrama.subtitulo.includes(`agrupado por ${GLOSARIO.hito.plural}`), diagrama.subtitulo)
 })
 
 test('el SVG sale entero y con el nombre de la Tarea escapado', () => {
