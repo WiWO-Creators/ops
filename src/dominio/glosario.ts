@@ -14,7 +14,7 @@
 export const GLOSARIO = {
   proceso: { singular: 'Tarea', plural: 'Tareas' },
   espacio: { singular: 'Proyecto', plural: 'Proyectos' },
-  hito: { singular: 'Hito', plural: 'Hitos' },
+  hito: { singular: 'Fecha Clave', plural: 'Fechas Clave' },
   // La empresa candidata de `/prospectos`, con sus contactos y sus licitaciones. **No** es el
   // embudo `/leads` de Perfex, que no tiene pantalla en este panel y por eso no tiene entrada acá.
   prospecto: { singular: 'Prospecto', plural: 'Prospectos' },
