@@ -255,7 +255,7 @@ async function EnSeguimiento ({ staffId, estados }: { staffId: number, estados: 
               className="flex items-center justify-between gap-4 px-4 py-3 transition-colors duration-150 ease-neo hover:bg-hover focus-visible:bg-hover"
             >
               <span className="min-w-0 flex-1 truncate text-sm text-texto">{proceso.name}</span>
-              <EstadoDeTarea status={proceso.status} catalogo={estados} />
+              <EstadoDeTarea status={proceso.status} catalogo={estados} className="shrink-0" />
               <span className="shrink-0 text-sm text-texto-tenue">
                 <Fecha valor={proceso.due_date} />
               </span>
@@ -410,7 +410,7 @@ function MiTrabajo ({ grupos, restantes, estados }: PropsMiTrabajo) {
                           className="flex items-center justify-between gap-4 px-4 py-3 transition-colors duration-150 ease-neo hover:bg-hover focus-visible:bg-hover"
                         >
                           <span className="min-w-0 flex-1 truncate text-sm text-texto">{proceso.name}</span>
-                          <EstadoDeTarea status={proceso.status} catalogo={estados} />
+                          <EstadoDeTarea status={proceso.status} catalogo={estados} className="shrink-0" />
                           <span className="shrink-0 text-sm text-texto-tenue">
                             <Fecha valor={proceso.due_date} />
                           </span>
