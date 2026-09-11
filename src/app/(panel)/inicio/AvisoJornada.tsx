@@ -17,23 +17,7 @@ import { mensajeDeFalloDeJornada } from '@/dominio/live'
  */
 type Falta = 'jornada' | 'medidor' | 'tarea'
 
-/**
- * Las claves del medidor **plano**, el que devuelve hoy `GET /me/jornada`.
- *
- * `MedidorEnVivo` describe la forma de `GET /live` —`project` y `task` anidados— y las dos rutas no
- * coinciden: la jornada propia manda `project_id`, `project_name`, `task_id` y `task_name` sueltos,
- * con `task_id: 0` (no `null`) cuando se mide sobre el Proyecto entero. Verificado contra la API.
- *
- * Se declara acá y no en `datos/live.ts` porque ese tipo es de la pantalla de otro: el día que la
- * API unifique las dos formas, esto se borra entero y no queda nada suelto en el resto del panel.
- */
-interface MedidorPlano {
-  task_id?: number | null
-  project_id?: number | null
-  project_name?: string | null
-}
-
-/** El destino del medidor, leído de cualquiera de las dos formas que devuelve la API. */
+/** El destino del medidor: si hay Tarea, y el Proyecto al que pertenece. */
 interface DestinoDelMedidor {
   /** `true` si el tiempo se está imputando a una Tarea y no solo al Proyecto. */
   tarea: boolean
@@ -42,18 +26,20 @@ interface DestinoDelMedidor {
 }
 
 /**
- * Resuelve sobre qué está corriendo el medidor, tolerando las dos formas de la API.
+ * Resuelve sobre qué está corriendo el medidor.
  *
- * @param medidor el medidor tal como vino, anidado o plano
+ * Existe como función y no como tres lecturas sueltas porque los tres datos se leen juntos en dos
+ * sitios —el mensaje y el enlace— y separarlos deja que uno diga "sin Tarea" mientras el otro
+ * enlaza como si la hubiera.
+ *
+ * @param medidor el medidor de `GET /me/jornada`, con la misma forma que el de `GET /live`
  * @returns si hay Tarea, y el Proyecto al que pertenece el medidor
  */
 function destinoDelMedidor (medidor: MedidorEnVivo): DestinoDelMedidor {
-  const plano = medidor as unknown as MedidorPlano
-
   return {
-    tarea: medidor.task != null || (plano.task_id ?? 0) > 0,
-    proyectoId: medidor.project?.id ?? plano.project_id ?? null,
-    proyectoNombre: medidor.project?.name ?? plano.project_name ?? null
+    tarea: medidor.task !== null,
+    proyectoId: medidor.project?.id ?? null,
+    proyectoNombre: medidor.project?.name ?? null
   }
 }
 
