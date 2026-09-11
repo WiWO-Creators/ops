@@ -3,6 +3,7 @@ import { Vacio } from '@/componentes/estado/Estados'
 import { formatearFecha } from '@/lib/fechas'
 import { aTextoPlano, formatearImporte } from '@/componentes/proyecto/formatos'
 import { BarraProgreso } from '@/componentes/proyecto/CabeceraProyecto'
+import { AvanceDeHito, VencimientoDeHito } from '@/componentes/presentadores/Hito'
 import { Metrica, formatearNumero, textoPlazo } from '@/componentes/proyecto/ResumenProyecto'
 import { DatoDeFicha } from '@/componentes/proyecto/DatoDeFicha'
 import { Fecha } from '@/componentes/presentadores/Fecha'
@@ -137,8 +138,11 @@ export async function PanelTareas ({ proyectoId }: { proyectoId: number }) {
 /**
  * Hitos, como lista con su avance.
  *
- * No es un tablero como en el panel: el cliente mira el estado, no lo mueve, y un kanban sugiere que
- * se puede arrastrar.
+ * El equipo los ve en una tabla, con orden y acciones por fila; el cliente los lee de corrido y con
+ * su descripcion, que en una celda no entra. Lo que NO cambia son las dos piezas que dicen algo del
+ * hito —el vencimiento y el avance—: salen de `presentadores/Hito`, las mismas que pinta la tabla
+ * del panel. Antes acá estaban escritas de nuevo, y el avance se calculaba distinto: un hito sin
+ * tareas mostraba una barra en 0% en vez de decir que no tiene ninguna.
  */
 export async function PanelHitos ({ proyectoId }: { proyectoId: number }) {
   const { data } = await pedirPortal<HitoPortal[]>(`/portal/projects/${proyectoId}/milestones`)
@@ -149,33 +153,23 @@ export async function PanelHitos ({ proyectoId }: { proyectoId: number }) {
 
   return (
     <ul className="flex flex-col gap-3">
-      {data.map((hito) => {
-        const avance = hito.counts.tasks === 0 ? 0 : Math.round(hito.counts.tasks_done * 100 / hito.counts.tasks)
+      {data.map((hito) => (
+        <li
+          key={hito.id}
+          className="rounded-tarjeta border-linea bg-superficie-elevada shadow-1 border p-4"
+        >
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <span className="font-titular text-texto font-semibold">{hito.name}</span>
+            <span className="text-texto-tenue text-sm"><VencimientoDeHito hito={hito} /></span>
+          </div>
 
-        return (
-          <li
-            key={hito.id}
-            className="rounded-tarjeta border-linea bg-superficie-elevada shadow-1 border p-4"
-          >
-            <div className="flex flex-wrap items-baseline justify-between gap-2">
-              <span className="font-titular text-texto font-semibold">{hito.name}</span>
-              <span className="text-texto-tenue text-sm">
-                {hito.due_date !== null && formatearFecha(hito.due_date)}
-                {hito.vencido && <span className="text-texto-peligro ml-2">Vencido</span>}
-              </span>
-            </div>
+          {hito.description !== null && hito.description !== '' && (
+            <p className="text-texto-tenue mt-1 text-sm whitespace-pre-line">{hito.description}</p>
+          )}
 
-            {hito.description !== null && hito.description !== '' && (
-              <p className="text-texto-tenue mt-1 text-sm whitespace-pre-line">{hito.description}</p>
-            )}
-
-            <BarraProgreso porcentaje={avance} className="mt-3" />
-            <p className="text-texto-sutil mt-1 text-xs">
-              {hito.counts.tasks_done} de {hito.counts.tasks} {GLOSARIO.proceso.plural.toLowerCase()}
-            </p>
-          </li>
-        )
-      })}
+          <div className="mt-3"><AvanceDeHito hito={hito} /></div>
+        </li>
+      ))}
     </ul>
   )
 }
