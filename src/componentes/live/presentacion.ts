@@ -114,6 +114,32 @@ export function ordenarPorActividad (filas: FilaDeLive[]): FilaDeLive[] {
 }
 
 /**
+ * El tablero partido en dos: quien esta en su jornada y quien todavia no la abrio.
+ *
+ * === POR QUE DOS LISTAS Y NO UNA ORDENADA ===
+ *
+ * Porque `GET /live` devuelve **a toda la empresa**, no solo a quien trabaja: en la base real son
+ * 184 filas para 1 persona midiendo. Con una sola lista, el tablero de "quien esta trabajando ahora"
+ * son 183 tarjetas identicas que dicen "Sin jornada abierta" y una, arriba del todo, que dice algo.
+ * El orden ya ponia la util primera; el problema no era el orden, era el peso: 183 tarjetas de tres
+ * lineas empujan fuera de la pantalla justo lo que la pantalla contesta.
+ *
+ * Quien no abrio jornada no desaparece —es un dato, y es el que mira una jefatura— pero pasa a
+ * ocupar lo que ocupa: un nombre en una lista que se despliega, no una tarjeta.
+ *
+ * @param filas el tablero tal como llega de `GET /live`
+ * @returns `activos` con jornada o medidor, `enReposo` el resto; las dos ya ordenadas
+ */
+export function repartirTablero (filas: FilaDeLive[]): { activos: FilaDeLive[], enReposo: FilaDeLive[] } {
+  const enOrden = ordenarPorActividad(filas)
+
+  return {
+    activos: enOrden.filter((fila) => fila.jornada !== null || fila.medidor !== null),
+    enReposo: enOrden.filter((fila) => fila.jornada === null && fila.medidor === null)
+  }
+}
+
+/**
  * Quien esta midiendo va antes que quien solo tiene jornada, y ese antes que quien no tiene nada.
  *
  * A igualdad, alfabetico por nombre: cualquier otro criterio —el id, el orden de la API— reordena la

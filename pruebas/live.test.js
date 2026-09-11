@@ -11,7 +11,7 @@
 
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { cargoYArea, ordenarPorActividad, trabajoDeLaFila } from '../src/componentes/live/presentacion.ts'
+import { cargoYArea, ordenarPorActividad, repartirTablero, trabajoDeLaFila } from '../src/componentes/live/presentacion.ts'
 import { alcanceDeLive, mensajeDeFalloDeJornada, mensajeDeFalloDeMedidor } from '../src/dominio/live.ts'
 import { GLOSARIO } from '../src/dominio/glosario.ts'
 
@@ -201,4 +201,35 @@ test('el 403 distingue arrancar de detener', () => {
 test('el 409 de la jornada no es ambiguo y se dice tal cual', () => {
   assert.match(mensajeDeFalloDeJornada(409, true), /ya tienes una jornada/i)
   assert.match(mensajeDeFalloDeJornada(409, false), /no tienes ninguna/i)
+})
+
+/**
+ * El tablero se parte en dos, y el corte es tener jornada.
+ *
+ * `GET /live` devuelve a toda la empresa: en la base real, 184 filas para una persona midiendo. Si
+ * las 183 restantes entran en la misma lista que la que trabaja, la pantalla que contesta "quien
+ * esta trabajando ahora" es una pared de tarjetas que dicen "Sin jornada abierta".
+ */
+test('repartirTablero separa a quien tiene jornada de quien no', () => {
+  const filas = [
+    fila(1, 'Zoe'),
+    fila(2, 'Ana', { jornada: true }),
+    fila(3, 'Beto', { espacio: DELCO }),
+    fila(4, 'Ada')
+  ]
+
+  const { activos, enReposo } = repartirTablero(filas)
+
+  assert.deepEqual(activos.map((f) => f.staff.name), ['Beto', 'Ana'])
+  assert.deepEqual(enReposo.map((f) => f.staff.name), ['Ada', 'Zoe'])
+  assert.equal(activos.length + enReposo.length, filas.length, 'no se puede perder una fila')
+})
+
+/** Un medidor sin jornada es raro, pero es actividad: no puede caer en el pliegue. */
+test('repartirTablero cuenta como activo el medidor sin jornada', () => {
+  const huerfano = { ...fila(9, 'Huerfano', { espacio: ACME }), jornada: null }
+  const { activos, enReposo } = repartirTablero([huerfano])
+
+  assert.equal(activos.length, 1)
+  assert.equal(enReposo.length, 0)
 })

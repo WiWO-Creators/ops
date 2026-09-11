@@ -1,14 +1,15 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Users } from 'lucide-react'
+import { ChevronRight, Users } from 'lucide-react'
 import { Vacio } from '@/componentes/estado/Estados'
+import { Avatar } from '@/componentes/presentadores/Avatar'
 import type { AlcanceDeLive } from '@/dominio/live'
 import type { FilaDeLive } from '@/datos/live'
 import type { Yo } from '@/datos/tipos'
 import { escucharMedidor } from './medidor'
 import { cn } from '@/lib/clases'
-import { ordenarPorActividad } from './presentacion'
+import { cargoYArea, repartirTablero } from './presentacion'
 import { FilaEnVivo } from './FilaEnVivo'
 
 interface PropsPanelEquipo {
@@ -120,7 +121,7 @@ export function PanelEquipo ({ inicial, errorInicial = null, segundos, alcance, 
     return () => { globalThis.clearInterval(id) }
   }, [hayMedidores])
 
-  const enOrden = ordenarPorActividad(filas)
+  const { activos, enReposo } = repartirTablero(filas)
   const midiendo = filas.filter((fila) => fila.medidor !== null).length
 
   return (
@@ -151,7 +152,7 @@ export function PanelEquipo ({ inicial, errorInicial = null, segundos, alcance, 
         <p role="status" className="text-texto-peligro text-pretty text-sm">{error}</p>
       )}
 
-      {enOrden.length === 0
+      {activos.length === 0
         ? (
           <Vacio
             titulo="Nadie con jornada abierta"
@@ -161,7 +162,7 @@ export function PanelEquipo ({ inicial, errorInicial = null, segundos, alcance, 
           )
         : (
           <ul className="flex flex-col gap-2">
-            {enOrden.map((fila) => (
+            {activos.map((fila) => (
               <FilaEnVivo
                 key={`${fila.staff.id}:${fila.medidor?.id ?? 'sin-medidor'}`}
                 fila={fila}
@@ -171,6 +172,47 @@ export function PanelEquipo ({ inicial, errorInicial = null, segundos, alcance, 
             ))}
           </ul>
           )}
+
+      {enReposo.length > 0 && <SinJornada filas={enReposo} />}
     </section>
+  )
+}
+
+/**
+ * Quien todavia no abrio su jornada, plegado.
+ *
+ * `<details>` nativo y no un `useState`: es exactamente lo que el elemento hace, lo hace con su
+ * propia accesibilidad —`aria-expanded`, teclado, buscar en la pagina lo abre solo— y no repinta el
+ * tablero al abrirlo. Empieza cerrado porque son la mayoria de las filas y ninguna contesta la
+ * pregunta de la pantalla.
+ *
+ * Sin contador de tiempo: no hay ninguno que contar, y por eso tampoco se monta `FilaEnVivo`, que
+ * existe para colgar la jerarquia de un medidor que aca no existe.
+ */
+function SinJornada ({ filas }: { filas: FilaDeLive[] }) {
+  return (
+    <details className="border-linea bg-superficie-hundida rounded-tarjeta group border">
+      <summary className="text-texto-tenue hover:text-texto flex cursor-pointer list-none items-center gap-2 px-3 py-2.5 text-sm font-medium">
+        <ChevronRight
+          size={14}
+          strokeWidth={2}
+          aria-hidden="true"
+          className="shrink-0 transition-transform duration-150 group-open:rotate-90"
+        />
+        Sin jornada abierta
+        <span className="text-texto-sutil tabular-nums">({filas.length})</span>
+      </summary>
+
+      <ul className="flex flex-wrap gap-x-4 gap-y-2 px-3 pb-3 pt-1">
+        {filas.map((fila) => (
+          <li key={fila.staff.id} className="flex min-w-0 items-center gap-2">
+            <Avatar nombre={fila.staff.name} imagen={fila.staff.avatar} tamano="chico" />
+            <span className="text-texto-tenue truncate text-sm" title={cargoYArea(fila.staff) ?? undefined}>
+              {fila.staff.name}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </details>
   )
 }
