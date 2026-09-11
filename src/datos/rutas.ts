@@ -117,7 +117,15 @@ const PREFIJOS_PERMITIDOS = [
   // Un solo prefijo cubre las cuatro rutas, porque la lista es por PREFIJO: la lectura entera, el
   // alta y la edicion de un area, el borrado, y el movimiento de una persona
   // (`/jerarquia/personas/{id}`) — que tambien cuelga de aca y no de `staff`.
-  'jerarquia'
+    'jerarquia',
+  // El panel de accesos (`/accesos`): el catalogo, los escalones, los roles, las personas, las areas,
+  // los cargos y los interruptores del modelo de permisos. Raiz propia porque asi lo expone la API.
+  // Sin esta entrada el BFF contesta 404 a TODAS las escrituras de la pantalla y solo se ve el
+  // catalogo que resolvio el servidor. La API exige superadministrador en cada una de sus rutas; el
+  // BFF solo decide si la ruta existe, no quien puede pisarla. El portal no la lleva ni la puede
+  // llevar: un contacto no reparte permisos.
+  'accesos'
+
 ] as const
 
 /**

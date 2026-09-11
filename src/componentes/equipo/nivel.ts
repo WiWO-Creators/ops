@@ -16,6 +16,13 @@
  *
  * Por eso `banderasDe('superadmin')` pone **las dos** en `true`. No es defensivo: es la traducción
  * correcta de "acceso a todo" a un backend que tiene dos columnas para decirlo.
+ *
+ * === Esta lista ya no es la fuente de verdad de los escalones ===
+ *
+ * Desde que existe `GET /accesos/catalogo` (`src/datos/accesos.ts`), los escalones —con su piso, su
+ * alcance y cuánta gente los usa— los publica la API y se administran en `/administracion/accesos`.
+ * Lo de acá sigue vivo porque este diálogo escribe las DOS BANDERAS de Perfex, que son otra cosa: no
+ * son una fila de `tblwiwo_escalones` sino las columnas que abren el panel y la configuración.
  */
 import type { FichaPersona } from '@/datos/recursos'
 

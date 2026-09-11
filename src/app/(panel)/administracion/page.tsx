@@ -139,6 +139,16 @@ export default async function AdministracionPage () {
         >
           Incidentes: los errores 500 que guardó la API
         </Link>
+
+        {/* Accesos vive aparte por lo mismo que las otras dos: tiene su propio catalogo y su listado
+            paginado de personas, y traerlos en cada visita a Administracion para que casi nunca se
+            miren seria pagarlo de gusto. El enlace vive aca porque es la unica puerta que tiene. */}
+        <Link
+          href="/administracion/accesos"
+          className="text-acento mt-2 block text-sm font-semibold underline underline-offset-4"
+        >
+          Accesos: escalones, roles, personas, áreas y los interruptores de permisos
+        </Link>
       </div>
 
       {/* El `Suspense` no es decorativo: `Pestanas` usa `useSearchParams`, y sin ese límite el build
