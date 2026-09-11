@@ -1994,7 +1994,7 @@ async function personasDeAccesos (metodo, id, parametros, actual, cuerpo) {
     const escalon = parametros.get('escalon')
     const rol = parametros.get('rol')
     const area = parametros.get('area')
-    const pagina = Math.max(1, Number(parametros.get('pagina') ?? 1) || 1)
+    const pagina = Math.max(1, Number(parametros.get('page') ?? 1) || 1)
     const porPagina = 25
 
     const filas = STAFF

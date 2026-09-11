@@ -304,7 +304,7 @@ export function consultaDePersonas (
   if (filtros.escalon !== '') parametros.set('escalon', filtros.escalon)
   if (filtros.rol !== '') parametros.set('rol', filtros.rol)
   if (filtros.area !== '') parametros.set('area', filtros.area)
-  if (pagina > 1) parametros.set('pagina', String(pagina))
+  if (pagina > 1) parametros.set('page', String(pagina))
 
   const texto = parametros.toString()
 

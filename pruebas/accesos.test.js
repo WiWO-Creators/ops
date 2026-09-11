@@ -146,7 +146,7 @@ test('los filtros vacíos no viajan y la página uno tampoco', () => {
   assert.equal(consultaDePersonas({ buscar: '', escalon: '', rol: '', area: '' }, 1), '')
   assert.equal(
     consultaDePersonas({ buscar: '  ana  ', escalon: 'head', rol: '', area: '' }, 3),
-    '?buscar=ana&escalon=head&pagina=3'
+    '?buscar=ana&escalon=head&page=3'
   )
 })
 
