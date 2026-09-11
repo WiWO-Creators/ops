@@ -1,6 +1,6 @@
 # Exportar las tareas de una persona a Google Sheets
 
-Desde Equipo, la ficha de una persona ofrece «Exportar tareas a Sheets» a los administradores. Crea una hoja nueva en una carpeta elegida del Drive compartido, con todas las tareas asignadas que el administrador puede consultar, incluidas las completadas. No reutiliza el límite de 50 filas de la ficha.
+Desde Equipo, la ficha de una persona ofrece «Exportar tareas a Sheets» a los administradores. Crea una hoja nueva automáticamente en la raíz del Drive compartido que ya usa la aplicación, con todas las tareas asignadas que el administrador puede consultar, incluidas las completadas. No reutiliza el límite de 50 filas de la ficha.
 
 La hoja contiene ID, proyecto, tarea, estado, inicio, vencimiento y enlace a Ops. Deja libres «Avance / comentarios», «Bloqueos» y «Fecha comprometida». Los cambios en Google Sheets no se sincronizan hacia Ops.
 
@@ -10,13 +10,13 @@ La hoja contiene ID, proyecto, tarea, estado, inicio, vencimiento y enlace a Ops
 - Backend: `wiwo-board-wt-exportar-tareas-sheets`, misma rama.
 - Formulario local: http://localhost:3131/equipo/1, API mock en 3132. Acceso ficticio: `ana@wiwo.me`, contraseña `mock1234`.
 - La vista local permite revisar el formulario. La creación en Google se intercepta solamente en la prueba de navegador; el mock no crea hojas.
-- Para una prueba real, conectar ambas ramas y proporcionar una carpeta del Drive compartido ya configurado. El origen del frontend debe figurar en `APP_API_ALLOWED_ORIGINS`, la lista que ya usa la API.
+- Para una prueba real, conectar ambas ramas; se reutiliza el Drive compartido ya configurado. El origen del frontend debe figurar en `APP_API_ALLOWED_ORIGINS`, la lista que ya usa la API.
 
 ## Recorrido
 
 1. Entrar como administrador a Equipo y abrir una ficha. Pulsar «Exportar tareas a Sheets».
-2. Pegar el enlace de una carpeta del Drive compartido de WiWO. También admite el ID de carpeta. Un enlace de archivo o de otro dominio debe deshabilitar la creación.
-3. Marcar «Dar acceso de edición» si la persona debe poder completar la hoja. No se envía correo de notificación. La hoja siempre hereda los permisos de la carpeta.
+2. Comprobar que se indica el destino automático en el Drive compartido de WiWO. No debe solicitar un enlace ni un ID de carpeta.
+3. Marcar «Dar acceso de edición» si la persona debe poder completar la hoja. No se envía correo de notificación. La hoja siempre hereda los permisos del Drive compartido.
 4. Pulsar «Crear Google Sheets». Debe mostrar la cantidad exportada y «Abrir Google Sheets».
 5. Abrir la hoja y comprobar tareas de todas las páginas, estados legibles, enlaces a Ops y las tres columnas de seguimiento vacías.
 6. Crear otra exportación. Debe generar otra hoja sin alterar los comentarios de la anterior.
@@ -25,10 +25,10 @@ La hoja contiene ID, proyecto, tarea, estado, inicio, vencimiento y enlace a Ops
 ## Casos y verificación
 
 - 501 tareas, completadas, sin proyecto y ninguna tarea: prueba PHP con servicios simulados. Una persona sin tareas produce una hoja con encabezados y cero filas.
-- Se rechazan no administradores, persona inexistente, correo inválido cuando se comparte, carpeta de otro Drive, sin escritura y origen no autorizado.
+- Se rechazan no administradores, persona inexistente, correo inválido cuando se comparte, destino enviado por el cliente, Drive sin escritura y origen no autorizado.
 - Los textos que empiezan como fórmulas se neutralizan al escribir CSV.
-- Fallo de creación ambiguo: revisar la carpeta antes de reintentar. Fallo al compartir: resultado parcial con enlace.
-- Frontend: compilación de producción, TypeScript, ESLint, prueba de enlaces y `node pruebas/exportar-tareas-sheets.browser.mjs` aprobados.
+- Fallo de creación ambiguo: revisar el Drive compartido antes de reintentar. Fallo al compartir: resultado parcial con enlace.
+- Frontend: compilación de producción, TypeScript, ESLint, `node pruebas/exportar-tareas-sheets.browser.mjs` aprobados.
 - Backend: `php modules/api/pruebas/exportar_tareas_sheets.php` y lint aprobados.
 - Capturas: `output/playwright/sheets/`. Las pruebas no realizan llamadas de escritura reales a Google.
 

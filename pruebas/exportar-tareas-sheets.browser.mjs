@@ -17,11 +17,10 @@ try {
     pagina.on('pageerror', error => errores.push(error.message))
     let llamadas = 0
     let fallar = false
-    const folderId = 'carpeta_exportacion_123'
     await pagina.route('**/api/bff/staff/1/tasks/export-sheet', async ruta => {
       llamadas++
       assert.equal(ruta.request().method(), 'POST')
-      assert.deepEqual(ruta.request().postDataJSON(), { folder_id: folderId, compartir_con_persona: true, ops_origin: destino.origin })
+      assert.deepEqual(ruta.request().postDataJSON(), { compartir_con_persona: true, ops_origin: destino.origin })
       if (fallar) return ruta.fulfill({ status: 503, json: { error: { code: 'service_unavailable', message: 'Google Drive no está disponible.' } } })
       return ruta.fulfill({ json: { data: { id: 'hoja_prueba', url: 'https://docs.google.com/spreadsheets/d/hoja_prueba/edit', name: 'Tareas de Ana', total: 125, compartida: false, advertencia: 'Hoja creada. No se pudo dar acceso a la persona; puedes compartirla desde Google Sheets.' } } })
     })
@@ -29,11 +28,10 @@ try {
     await pagina.getByRole('button', { name: 'Exportar tareas a Sheets' }).click()
     const dialogo = pagina.getByRole('dialog')
     const crear = dialogo.getByRole('button', { name: 'Crear Google Sheets', exact: true })
-    assert.equal(await crear.isDisabled(), true)
-    await dialogo.getByLabel('Carpeta de Drive').fill('https://ejemplo.com/drive/folders/invalid')
-    assert.equal(await crear.isDisabled(), true)
+    assert.equal(await crear.isEnabled(), true)
+    assert.equal(await dialogo.getByRole('textbox').count(), 0)
+    assert.match(await dialogo.textContent(), /automáticamente en el Drive compartido de WiWO/)
     assert.equal(llamadas, 0)
-    await dialogo.getByLabel('Carpeta de Drive').fill(`https://drive.google.com/drive/folders/${folderId}`)
     await dialogo.getByRole('checkbox').check()
     await mkdir('output/playwright/sheets', { recursive: true })
     await pagina.screenshot({ path: `output/playwright/sheets/${movil ? 'movil' : 'escritorio'}-formulario.png` })
@@ -49,13 +47,13 @@ try {
     await crear.click()
     await dialogo.getByRole('alert').waitFor()
     assert.match(await dialogo.getByRole('alert').textContent(), /Google Drive no está disponible/)
-    assert.equal(await dialogo.getByLabel('Carpeta de Drive').inputValue(), `https://drive.google.com/drive/folders/${folderId}`)
+    assert.equal(await dialogo.getByRole('checkbox').isChecked(), true)
     assert.equal(await crear.isEnabled(), true)
     assert.equal(await pagina.evaluate(() => document.documentElement.scrollWidth > innerWidth), false)
     assert.deepEqual(errores, [])
     await contexto.close()
   }
-  console.log('Sheets: formulario, destino inválido, exportación, fallo parcial y error recuperable OK en escritorio y móvil.')
+  console.log('Sheets: destino automático, exportación, fallo parcial y error recuperable OK en escritorio y móvil.')
 } finally {
   await navegador.close()
 }
