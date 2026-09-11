@@ -122,7 +122,7 @@ function datosDeCuenta (persona: Persona): Dato[] {
       : []),
     { etiqueta: 'Empresa', valor: persona.empresa?.name ?? 'Sin empresa' },
     { etiqueta: 'Cargo', valor: persona.cargo?.name ?? 'Sin cargo' },
-    { etiqueta: 'Área', valor: persona.area?.name ?? 'Sin área' },
+    { etiqueta: 'Áreas', valor: (persona.areas ?? (persona.area ? [persona.area] : [])).map((area) => area.name).join(', ') || 'Sin área' },
     { etiqueta: 'Valor hora', valor: formatearImporte(persona.hourly_rate) },
     { etiqueta: 'Cuenta creada', valor: formatearFecha(persona.date_created) },
     { etiqueta: 'Último acceso', valor: persona.last_login === null ? 'Nunca' : formatearFecha(persona.last_login, true) },

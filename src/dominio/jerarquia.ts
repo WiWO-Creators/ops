@@ -1,4 +1,4 @@
-import type { AreaDelEquipo } from '../datos/jerarquia.ts'
+import type { AreaDelEquipo, PersonaDeJerarquia } from '../datos/jerarquia.ts'
 
 /**
  * Un área ya ubicada en el árbol.
@@ -113,17 +113,19 @@ function estaEnUnCiclo (id: number, padreDe: Map<number, number | undefined>): b
  *
  * @param rama los nodos hermanos de un mismo nivel
  * @param nivel la profundidad que les corresponde
- * @returns la gente que suman entre todos, con sus descendientes
+ * @returns los ids únicos de la gente activa, incluyendo sus descendientes
  */
-function ordenarRama (rama: NodoArea[], nivel: number): number {
+function ordenarRama (rama: NodoArea[], nivel: number): Set<number> {
   rama.sort((una, otra) => una.area.name.localeCompare(otra.area.name, 'es'))
 
-  let total = 0
+  const total = new Set<number>()
 
   for (const nodo of rama) {
     nodo.nivel = nivel
-    nodo.alcance = cuantosEn(nodo.area) + ordenarRama(nodo.hijas, nivel + 1)
-    total += nodo.alcance
+    const personas = ordenarRama(nodo.hijas, nivel + 1)
+    nodo.area.personas.filter((persona) => persona.active).forEach((persona) => personas.add(persona.id))
+    nodo.alcance = personas.size
+    personas.forEach((id) => total.add(id))
   }
 
   return total
@@ -221,4 +223,29 @@ export function loQueRetieneElArea (nodo: NodoArea): string | null {
   }
 
   return partes.length === 0 ? null : partes.join(' y ')
+}
+
+/**
+ * Personas activas de otras áreas que aún no pertenecen al destino, sin duplicados.
+ *
+ * @param areas las áreas visibles del organigrama
+ * @param destino el área a la que se pueden sumar personas
+ * @returns una fila por persona, con sus áreas actuales visibles
+ */
+export function personasParaSumar (
+  areas: AreaDelEquipo[], destino: AreaDelEquipo
+): Array<{ persona: PersonaDeJerarquia, desde: string }> {
+  const actuales = new Set(destino.personas.map((persona) => persona.id))
+  const candidatas = new Map<number, { persona: PersonaDeJerarquia, desde: string }>()
+
+  for (const area of areas) {
+    if (area.id === destino.id) continue
+    for (const persona of area.personas) {
+      if (!persona.active || actuales.has(persona.id)) continue
+      const anterior = candidatas.get(persona.id)
+      candidatas.set(persona.id, { persona, desde: anterior ? `${anterior.desde}, ${area.name}` : area.name })
+    }
+  }
+
+  return [...candidatas.values()]
 }

@@ -426,3 +426,121 @@ test('lookups sirve las áreas del mismo catálogo que administra /jerarquia', a
 
   assert.deepEqual(lookups.areas, jerarquia.areas.map(({ id, name }) => ({ id, name })))
 })
+
+test('membresías múltiples: agregar y quitar conserva otras áreas y valida antes de escribir', async () => {
+  const original = await leerJerarquia()
+  const analytics = areaLlamada(original, 'Analytics')
+  const content = areaLlamada(original, 'Content Studio')
+  const persona = content.personas.find((otra) => otra.active)
+  const idsDe = (arbol) => arbol.areas.filter((area) => area.personas.some((otra) => otra.id === persona.id)).map((area) => area.id).sort()
+  const cambiar = (datos, comoQuien = headersJefa) => fetch(`${base}/jerarquia/personas/${persona.id}`, {
+    method: 'PUT', headers: comoQuien, body: JSON.stringify(datos)
+  })
+
+  try {
+    // Carla dirige Analytics y puede sumar a alguien de otra área sin quitar esa membresía.
+    for (let intento = 0; intento < 2; intento++) {
+      assert.equal((await cambiar({ area_id: analytics.id, accion: 'agregar' })).status, 200)
+    }
+    const esperadas = [analytics.id, content.id].sort()
+    assert.deepEqual(idsDe(await leerJerarquia()), esperadas)
+    const ficha = (await (await fetch(`${base}/staff/${persona.id}`, { headers })).json()).data
+    assert.deepEqual(ficha.area_ids.sort(), esperadas)
+    assert.equal(ficha.area_id, content.id)
+    const asignables = (await (await fetch(`${base}/staff/asignables`, { headers })).json()).data
+    assert.deepEqual(asignables.find((otra) => otra.id === persona.id).area_ids.sort(), esperadas)
+    const miArea = (await (await fetch(`${base}/me/mi-area`, { headers: headersJefa })).json()).data
+    assert.equal(miArea.area_staff.some((otra) => otra.id === persona.id), true)
+
+    for (const datos of [null, {}, { area_id: null, accion: 'agregar' }, { area_id: null, accion: 'quitar' },
+      { area_id: true, accion: 'agregar' }, { area_id: [], accion: 'agregar' },
+      { area_id: 99999, accion: 'agregar' }, { area_id: analytics.id, accion: 'invalid' }]) {
+      assert.equal((await cambiar(datos)).status, 422, JSON.stringify(datos))
+      assert.deepEqual(idsDe(await leerJerarquia()), esperadas)
+    }
+    for (const datos of [{ area_id: content.id, accion: 'quitar' }, { area_id: content.id, accion: 'agregar' }, { area_id: null }]) {
+      assert.equal((await cambiar(datos)).status, 403)
+      assert.deepEqual(idsDe(await leerJerarquia()), esperadas)
+    }
+    assert.equal((await cambiar({ area_id: analytics.id, accion: 'quitar' }, headersSinArea)).status, 403)
+    assert.deepEqual(idsDe(await leerJerarquia()), esperadas)
+    for (let intento = 0; intento < 2; intento++) {
+      assert.equal((await cambiar({ area_id: analytics.id, accion: 'quitar' })).status, 200)
+    }
+    assert.deepEqual(idsDe(await leerJerarquia()), [content.id])
+    assert.equal((await leerJerarquia()).sin_area.some((otra) => otra.id === persona.id), false)
+
+    // Eliminar la principal promueve una secundaria; quitar la última deja sin área.
+    assert.equal((await cambiar({ area_id: analytics.id, accion: 'agregar' })).status, 200)
+    assert.equal((await cambiar({ area_id: content.id, accion: 'quitar' }, headers)).status, 200)
+    const promovida = (await (await fetch(`${base}/staff/${persona.id}`, { headers })).json()).data
+    assert.equal(promovida.area_id, analytics.id)
+    assert.equal((await cambiar({ area_id: analytics.id, accion: 'quitar' })).status, 200)
+    assert.equal((await leerJerarquia()).sin_area.some((otra) => otra.id === persona.id), true)
+  } finally {
+    assert.equal((await cambiar({ area_id: content.id }, headers)).status, 200)
+  }
+})
+
+test('borrar área cuenta membresías secundarias y limpia las de personas inactivas', async () => {
+  const creada = await fetch(`${base}/jerarquia/areas`, {
+    method: 'POST', headers, body: JSON.stringify({ name: 'Área secundaria temporal' })
+  })
+  assert.equal(creada.status, 201)
+  const area = areaLlamada(await arbolDe(creada), 'Área secundaria temporal')
+  const agregar = (id, accion) => fetch(`${base}/jerarquia/personas/${id}`, {
+    method: 'PUT', headers, body: JSON.stringify({ area_id: area.id, accion })
+  })
+  const borrar = () => fetch(`${base}/jerarquia/areas/${area.id}`, { method: 'DELETE', headers })
+  try {
+    assert.equal((await agregar(5, 'agregar')).status, 200)
+    const bloqueada = await borrar()
+    assert.equal(bloqueada.status, 409)
+    assert.match((await bloqueada.json()).error.message, /1 persona\(s\) asignada\(s\)/)
+    assert.equal((await agregar(5, 'quitar')).status, 200)
+    assert.equal((await agregar(8, 'agregar')).status, 200)
+    assert.equal((await borrar()).status, 200)
+    const inactiva = (await (await fetch(`${base}/staff/8`, { headers })).json()).data
+    assert.equal(inactiva.area_ids.includes(area.id), false)
+    assert.notEqual(inactiva.area_id, area.id)
+  } finally {
+    const existente = (await leerJerarquia()).areas.some((otra) => otra.id === area.id)
+    if (existente) {
+      await agregar(5, 'quitar')
+      await agregar(8, 'quitar')
+      await borrar()
+    }
+  }
+})
+
+test('editar ficha reemplaza área múltiple, admite vacío y rechaza inválidos sin perder asignaciones', async () => {
+  const original = await leerJerarquia()
+  const analytics = areaLlamada(original, 'Analytics')
+  const content = areaLlamada(original, 'Content Studio')
+  const cambiar = (datos, comoQuien = headers) => fetch(`${base}/staff/5`, {
+    method: 'PATCH', headers: comoQuien, body: JSON.stringify(datos)
+  })
+  const ficha = async () => (await (await fetch(`${base}/staff/5`, { headers })).json()).data
+  try {
+    const respuesta = await cambiar({ area_ids: [content.id, analytics.id, content.id] })
+    assert.equal(respuesta.status, 200)
+    assert.deepEqual((await ficha()).area_ids, [content.id, analytics.id])
+    assert.equal((await ficha()).area_id, analytics.id)
+    for (const datos of [null, { area_ids: null }, { area_ids: '1' }, { area_ids: [analytics.id, 99999] },
+      { area_ids: [true] }, { area_ids: [[]] }, { area_ids: [1.2] }, { area_id: true },
+      { area_ids: [content.id], area_id: analytics.id }, { area_ids: [content.id], area_id: null }]) {
+      assert.equal((await cambiar(datos)).status, 422)
+      assert.deepEqual((await ficha()).area_ids, [content.id, analytics.id])
+    }
+    assert.equal((await cambiar({ area_ids: [] }, headersSinArea)).status, 403)
+    assert.deepEqual((await ficha()).area_ids, [content.id, analytics.id])
+    assert.equal((await cambiar({ area_ids: [content.id, analytics.id], area_id: content.id })).status, 200)
+    assert.equal((await ficha()).area_id, content.id)
+    assert.equal((await cambiar({ area_ids: [] })).status, 200)
+    assert.deepEqual((await ficha()).area_ids, [])
+    assert.equal((await ficha()).area_id, null)
+    assert.equal((await leerJerarquia()).sin_area.some((persona) => persona.id === 5), true)
+  } finally {
+    assert.equal((await cambiar({ area_id: analytics.id })).status, 200)
+  }
+})

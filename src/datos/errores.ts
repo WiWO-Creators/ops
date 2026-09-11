@@ -112,6 +112,7 @@ const CAMPOS: Record<string, string> = {
   // pantalla son "De qué área cuelga" y "Quién la dirige", que es como los lee quien los completa.
   area_superior_id: 'Área superior',
   jefe_staffid: 'Quien dirige',
+  area_ids: 'Áreas',
   area_id: 'Área'
 }
 

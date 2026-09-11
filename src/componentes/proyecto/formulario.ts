@@ -8,7 +8,7 @@
 
 import { aFechaLocal } from '../../lib/fechas.ts'
 
-export type TipoCampo = 'texto' | 'area' | 'fecha' | 'color' | 'booleano' | 'numero' | 'seleccion'
+export type TipoCampo = 'texto' | 'area' | 'fecha' | 'color' | 'booleano' | 'numero' | 'seleccion' | 'seleccion-multiple'
 
 /** Una opcion de un campo `seleccion`. El valor viaja como cadena y se convierte al armar el cuerpo. */
 export interface OpcionCampo {
@@ -59,7 +59,7 @@ export interface CampoFormulario {
 }
 
 /** Valores del formulario en crudo, tal como los escribe el navegador. */
-export type ValoresFormulario = Record<string, string | boolean>
+export type ValoresFormulario = Record<string, string | boolean | string[]>
 
 /**
  * Valida los campos antes de mandar nada.
@@ -79,6 +79,15 @@ export function validarFormulario (
 
   for (const campo of campos) {
     const valor = valores[campo.clave]
+
+    if (campo.tipo === 'seleccion-multiple') {
+      if (!Array.isArray(valor) || valor.some((id) => !(campo.opciones ?? []).some((opcion) => opcion.valor === id))) {
+        errores[campo.clave] = 'Elegí opciones válidas.'
+      } else if (campo.requerido === true && valor.length === 0) {
+        errores[campo.clave] = 'Este campo es obligatorio.'
+      }
+      continue
+    }
 
     if (campo.tipo === 'booleano') continue
 
@@ -140,6 +149,12 @@ export function cuerpoDelFormulario (
 
   for (const campo of campos) {
     const valor = valores[campo.clave]
+
+    if (campo.tipo === 'seleccion-multiple') {
+      escribirEn(cuerpo, campo.clave, [...new Set(Array.isArray(valor) ? valor : [])]
+        .map((id) => /^\d+$/.test(id) ? Number(id) : id))
+      continue
+    }
 
     if (campo.tipo === 'booleano') {
       escribirEn(cuerpo, campo.clave, valor === true)
@@ -221,6 +236,11 @@ export function valoresIniciales (
 
   for (const campo of campos) {
     const crudo = registro === null ? undefined : leerDe(registro, campo.clave)
+
+    if (campo.tipo === 'seleccion-multiple') {
+      valores[campo.clave] = Array.isArray(crudo) ? [...new Set(crudo.map(String))] : []
+      continue
+    }
 
     if (campo.tipo === 'booleano') {
       valores[campo.clave] = crudo === true

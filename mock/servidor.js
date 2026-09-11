@@ -115,7 +115,7 @@ async function leerCuerpo (peticion) {
 /** Quita del staff los campos que la API nunca expone. */
 function presentarStaff (staff) {
   const { password, two_factor: dosFactores, ...publico } = staff
-  return publico
+  return { ...publico, area_ids: areasDePersona(staff) }
 }
 
 /**
@@ -863,6 +863,26 @@ const RENOMBRE_BLOQUEADO = 'El nombre de un área no se puede cambiar acá: los 
 const SIN_JERARQUIA = 'No diriges ningún área, así que no hay organigrama que mostrarte. Si deberías dirigir una, pídeselo a quien administre el sistema.'
 
 /**
+ * Devuelve las membresías, incluyendo fixtures anteriores con solo área principal.
+ * @param {object} persona la fila de staff
+ * @returns {number[]} identificadores de sus áreas
+ */
+function areasDePersona (persona) {
+  return persona.area_ids ?? (persona.area_id == null ? [] : [persona.area_id])
+}
+
+/**
+ * Guarda membresías únicas y conserva la principal mientras siga asignada.
+ * @param {object} persona la fila que se actualiza
+ * @param {number[]} areas membresías validadas
+ * @returns {void}
+ */
+function guardarAreasDePersona (persona, areas) {
+  persona.area_ids = [...new Set(areas)]
+  if (!persona.area_ids.includes(persona.area_id)) persona.area_id = persona.area_ids[0] ?? null
+}
+
+/**
  * Una persona, con lo unico que la jerarquia necesita de ella.
  *
  * `active` viaja porque una baja puede seguir colgada de un area: la pantalla la marca en vez de
@@ -890,7 +910,7 @@ function areaDeJerarquia (area, actual) {
     en_tareas: OPCIONES_AREA_EN_TAREAS.some((opcion) => mismoNombre(opcion, area.name)),
     // Todo el mundo, no solo quien esta activo: una baja puede seguir colgada del area y el contrato
     // la emite con `active: false` para que la pantalla la marque en vez de esconderla.
-    personas: STAFF.filter((persona) => !persona.is_not_staff && persona.area_id === area.id)
+    personas: STAFF.filter((persona) => !persona.is_not_staff && areasDePersona(persona).includes(area.id))
       .map(personaDeJerarquia)
   }
 }
@@ -966,7 +986,7 @@ function arbolCompleto (actual) {
     hay_organigrama: AREAS.length > 0,
     es_admin: esAdmin,
     areas: visibles.map((area) => areaDeJerarquia(area, actual)),
-    sin_area: activos.filter((persona) => persona.area_id === null).map(personaDeJerarquia),
+    sin_area: activos.filter((persona) => areasDePersona(persona).length === 0).map(personaDeJerarquia),
     asignables: activos.map(personaDeJerarquia)
   }
 }
@@ -982,7 +1002,7 @@ function arbolCompleto (actual) {
  * @throws {ErrorApi} 409 si algo la retiene
  */
 function exigirAreaLibre (area) {
-  const gente = staffActivo().filter((persona) => persona.area_id === area.id).length
+  const gente = staffActivo().filter((persona) => areasDePersona(persona).includes(area.id)).length
   const hijas = AREAS.filter((otra) => otra.area_superior_id === area.id).length
   const procesos = PROCESOS_POR_AREA[area.name] ?? 0
 
@@ -1124,6 +1144,9 @@ async function jerarquiaRuta (metodo, resto, cuerpo, actual) {
 
       exigirAreaLibre(area)
 
+      for (const persona of STAFF) {
+        guardarAreasDePersona(persona, areasDePersona(persona).filter((areaId) => areaId !== area.id))
+      }
       AREAS.splice(AREAS.indexOf(area), 1)
 
       // Devuelve el arbol entero y no un 204: borrar un area puede dejar huerfanas a las que
@@ -1160,23 +1183,32 @@ async function jerarquiaRuta (metodo, resto, cuerpo, actual) {
 
     const persona = buscarO404(STAFF, Number(id), 'persona')
     const datos = await cuerpo()
-    const destino = datos.area_id === null || datos.area_id === undefined ? null : Number(datos.area_id)
-
-    if (destino !== null && !AREAS.some((area) => area.id === destino)) {
+    if (datos === null || typeof datos !== 'object' || Array.isArray(datos)) {
+      throw new ErrorApi(422, 'validation_failed', 'Revisá los campos.', { area_id: ['required'] })
+    }
+    const accion = datos.accion ?? 'mover'
+    if (!['agregar', 'quitar'].includes(accion) && datos.accion !== undefined) {
+      throw new ErrorApi(422, 'validation_failed', 'Revisá los campos.', { accion: ['invalid'] })
+    }
+    const destino = datos.area_id === null ? null : Number(datos.area_id)
+    const valido = typeof datos.area_id === 'number' || (typeof datos.area_id === 'string' && /^\d+$/.test(datos.area_id))
+    if ((destino === null && accion !== 'mover') ||
+        (destino !== null && (!valido || !Number.isInteger(destino) || !AREAS.some((area) => area.id === destino)))) {
       throw new ErrorApi(422, 'validation_failed', 'Revisá los campos.', { area_id: ['no_existe'] })
     }
 
-    // Se mira el area de la que sale y aquella a la que entra: quien dirige un area puede sumar y
-    // sacar de la suya, y no mover gente entre dos areas ajenas.
-    for (const areaId of [persona.area_id, destino]) {
+    const actuales = areasDePersona(persona)
+    const afectadas = accion === 'mover' ? [...actuales, destino] : [destino]
+    for (const areaId of afectadas) {
       const area = AREAS.find((otra) => otra.id === areaId)
-
       if (area !== undefined && !puedeEditarArea(actual, area)) {
-        throw new ErrorApi(403, 'forbidden', `No puedes mover gente de «${area.name}».`)
+        throw new ErrorApi(403, 'forbidden', `No puedes modificar integrantes de «${area.name}».`)
       }
     }
-
-    persona.area_id = destino
+    const nuevas = accion === 'agregar' ? [...actuales, destino]
+      : accion === 'quitar' ? actuales.filter((areaId) => areaId !== destino)
+        : destino === null ? [] : [destino]
+    guardarAreasDePersona(persona, nuevas)
 
     // El arbol entero y no la persona: moverla cambia quien cuelga de quien y que se puede editar, y
     // recalcularlo en el navegador seria una segunda copia de las reglas de la API.
@@ -2472,7 +2504,7 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
         // Todo el mundo del area, bajas incluidas: la pantalla las marca como "Dada de baja".
         area_staff: area === null
           ? []
-          : STAFF.filter((persona) => persona.area_id === area.id).map(presentarStaff)
+          : STAFF.filter((persona) => areasDePersona(persona).includes(area.id)).map(presentarStaff)
       })
     }
   }
@@ -2613,6 +2645,33 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
     const persona = buscarO404(STAFF, Number(resto[0]), 'staff')
     const datos = await cuerpo()
 
+    if (datos === null || typeof datos !== 'object' || Array.isArray(datos)) {
+      throw new ErrorApi(422, 'validation_failed', 'Revisá los campos de la persona.')
+    }
+    let areasNuevas
+    if (datos.area_ids !== undefined || datos.area_id !== undefined) {
+      const entrada = datos.area_ids !== undefined ? datos.area_ids : datos.area_id === null ? [] : [datos.area_id]
+      const campo = datos.area_ids !== undefined ? 'area_ids' : 'area_id'
+      if (!Array.isArray(entrada) || entrada.some((id) =>
+        !((typeof id === 'number' || (typeof id === 'string' && /^\d+$/.test(id))) &&
+          Number.isInteger(Number(id)) && AREAS.some((area) => area.id === Number(id))))) {
+        throw new ErrorApi(422, 'validation_failed', 'Revisá los campos de la persona.', {
+          [campo]: ['no_existe']
+        })
+      }
+      areasNuevas = entrada.map(Number)
+      if (datos.area_ids !== undefined && datos.area_id !== undefined) {
+        const principalValida = datos.area_id === null ? areasNuevas.length === 0
+          : (typeof datos.area_id === 'number' || (typeof datos.area_id === 'string' && /^\d+$/.test(datos.area_id))) &&
+            areasNuevas.includes(Number(datos.area_id))
+        if (!principalValida) {
+          throw new ErrorApi(422, 'validation_failed', 'Revisá los campos de la persona.', {
+            area_id: ['no_pertenece']
+          })
+        }
+      }
+    }
+
     if (datos.permissions !== undefined) {
       // Mismo contrato que la API real: solo se reescriben las areas nombradas; las demas quedan.
       const previos = { ...permisosDe(persona) }
@@ -2638,18 +2697,9 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
       persona.modelo_permisos = datos.modelo_permisos
     }
 
-    // El area de una persona: `null` la deja sin area. Es la unica forma de mover gente entre areas,
-    // asi que sin esto el organigrama dibuja el arbol y no puede poblarlo.
-    if (datos.area_id !== undefined) {
-      const area = datos.area_id === null ? null : Number(datos.area_id)
-
-      if (area !== null && !AREAS.some((otra) => otra.id === area)) {
-        throw new ErrorApi(422, 'validation_failed', 'Revisá los campos de la persona.', {
-          area_id: ['no_existe']
-        })
-      }
-
-      persona.area_id = area
+    if (areasNuevas !== undefined) {
+      guardarAreasDePersona(persona, areasNuevas)
+      if (datos.area_id !== undefined) persona.area_id = datos.area_id === null ? null : Number(datos.area_id)
     }
 
     for (const bandera of ['is_admin', 'is_superadmin']) {
@@ -2665,8 +2715,9 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
       if (resto.length !== 1) throw new ErrorApi(404, 'not_found', 'Ruta de asignables desconocida.')
       const personas = STAFF.filter((persona) => persona.active && !persona.is_not_staff)
         .sort((a, b) => a.firstname.localeCompare(b.firstname))
-        .map(({ id, full_name, profile_image_url, area_id, cargo_id }) => ({
-          id, full_name, profile_image_url, area_id: area_id ?? null, cargo_id: cargo_id ?? null
+        .map((persona) => ({
+          id: persona.id, full_name: persona.full_name, profile_image_url: persona.profile_image_url,
+          area_id: persona.area_id ?? null, area_ids: areasDePersona(persona), cargo_id: persona.cargo_id ?? null
         }))
       const { filas, paginacion } = aplicarConsulta(personas, parametros, {
         filtros: {}, orden: ['full_name'], busqueda: ['full_name']

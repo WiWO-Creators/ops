@@ -14,6 +14,7 @@ import {
   areasElegiblesComoSuperior,
   areasSinJefatura,
   construirArbol,
+  personasParaSumar,
   cuantosEn,
   descendenciaDe,
   loQueRetieneElArea
@@ -223,4 +224,19 @@ test('las bajas no se cuentan: siguen colgadas del área pero ya no trabajan', (
 test('cuenta las áreas que todavía no tienen quién las dirija', () => {
   assert.equal(areasSinJefatura(ARBOL_REAL), 0)
   assert.equal(areasSinJefatura([area(1, 'Huérfana', null, null), area(2, 'Con jefe', null, 5)]), 1)
+})
+
+
+test('una persona en varias áreas cuenta una vez por rama y se ofrece una sola vez', () => {
+  const persona = { id: 99, full_name: 'Ana', active: true }
+  const areas = [
+    area(1, 'Dirección', null, null),
+    { ...area(2, 'Diseño', 1, null), personas: [persona] },
+    { ...area(3, 'Producción', 1, null), editable: false, personas: [persona] }
+  ]
+  assert.equal(construirArbol(areas)[0].alcance, 1)
+  assert.deepEqual(personasParaSumar(areas, areas[0]), [{ persona, desde: 'Diseño, Producción' }])
+  assert.deepEqual(personasParaSumar(areas, areas[1]), [])
+  assert.deepEqual(personasParaSumar([], areas[0]), [])
+  assert.deepEqual(personasParaSumar([{ ...areas[1], personas: [{ ...persona, active: false }] }], areas[0]), [])
 })

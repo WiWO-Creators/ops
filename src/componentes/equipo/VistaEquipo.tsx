@@ -139,7 +139,8 @@ export function VistaEquipo ({
           return {
             ...columna,
             presentar: (persona: MiembroEquipo) => (
-              persona.area_id == null ? 'Sin área' : nombreDeArea.get(String(persona.area_id)) ?? `#${persona.area_id}`
+              (persona.area_ids ?? (persona.area_id == null ? [] : [persona.area_id]))
+                .map((id) => nombreDeArea.get(String(id)) ?? `#${id}`).join(', ') || 'Sin área'
             )
           }
         }

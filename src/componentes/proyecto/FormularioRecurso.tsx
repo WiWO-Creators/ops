@@ -212,9 +212,9 @@ function proyectoDeLaRuta (ruta: string): number | null {
 
 interface PropsControl {
   campo: CampoFormulario
-  valor: string | boolean | undefined
+  valor: string | boolean | string[] | undefined
   error: string | undefined
-  alCambiar: (valor: string | boolean) => void
+  alCambiar: (valor: string | boolean | string[]) => void
   /** Contexto para el asistente de IA de los campos `area`. Solo suma; puede faltar. */
   titulo?: string
   /** El Espacio del recurso, si cuelga de uno. Solo suma contexto para el asistente. */
@@ -252,6 +252,34 @@ export function ControlDeCampo (
   }
 
   const texto = typeof valor === 'string' ? valor : ''
+
+  if (campo.tipo === 'seleccion-multiple') {
+    const elegidas = Array.isArray(valor) ? valor : []
+
+    return (
+      <fieldset className="flex flex-col gap-2" aria-describedby={`${id}-ayuda`}>
+        <legend className="text-texto text-sm font-medium">{campo.etiqueta}</legend>
+        <p id={`${id}-ayuda`} className="text-texto-tenue text-xs">{campo.ayuda}</p>
+        <div className="flex max-h-48 flex-col gap-2 overflow-y-auto">
+          {(campo.opciones ?? []).map((opcion) => (
+            <label key={opcion.valor} className="text-texto flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                className="accent-acento size-4"
+                checked={elegidas.includes(opcion.valor)}
+                onChange={(evento) => alCambiar(evento.target.checked
+                  ? [...elegidas, opcion.valor]
+                  : elegidas.filter((elegida) => elegida !== opcion.valor))}
+              />
+              {opcion.etiqueta}
+            </label>
+          ))}
+          {campo.opciones?.length === 0 && <p className="text-texto-sutil text-xs">No hay opciones disponibles.</p>}
+        </div>
+        {error !== undefined && <p role="alert" className="text-texto-peligro text-xs">{error}</p>}
+      </fieldset>
+    )
+  }
 
   if (campo.tipo === 'seleccion') {
     return (
