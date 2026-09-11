@@ -7,8 +7,7 @@ import { ImagenEntidad } from '@/componentes/presentadores/ImagenEntidad'
 import { Insignia, type TonoInsignia } from '@/componentes/presentadores/Insignia'
 import { cn } from '@/lib/clases'
 import { GLOSARIO } from '@/dominio/glosario'
-import { BotonNuevaTarea, MenuProyecto } from './MenuProyecto'
-import type { EstadoLookup, Espacio } from '@/datos/recursos'
+import type { ProyectoVista } from '@/dominio/proyecto'
 import type { Capacidad } from '@/datos/tipos'
 
 interface PropsBarraProgreso {
@@ -79,53 +78,55 @@ export function pildoraDeEstado (status: number, color: string | null): {
 }
 
 interface PropsCabecera {
-  proyecto: Espacio
-  /** Nombre y color del estado, ya resueltos contra `lookups` por quien renderiza. */
+  /** El proyecto como vista. El panel y el portal la arman con `dominio/proyecto`. */
+  proyecto: ProyectoVista
+  /** Nombre y color del estado, ya resueltos contra el catalogo por quien renderiza. */
   estado: { nombre: string, color: string | null }
-  /** Estados de proyecto, para las opciones "Marcar como" del menu. */
-  estados: EstadoLookup[]
-  /** Capacidades sobre `projects`. */
-  capacidadesProyecto: Capacidad[]
-  /** Capacidades sobre `tasks`: rigen el boton "Nueva tarea". */
-  capacidadesTareas: Capacidad[]
+  /**
+   * Capacidades sobre `projects`. Rigen solo lo que la cabecera decide por su cuenta —si la imagen
+   * y el equipo se pueden editar—; las acciones de la seccion llegan por `acciones`.
+   */
+  capacidades?: Capacidad[]
   /**
    * A donde vuelve el enlace de arriba. Por defecto, al listado de Espacios.
    *
-   * Existe porque el mismo Espacio se mira desde dos secciones: mientras es una Licitacion no vive en
-   * `/espacios`, y volver ahi llevaria a un listado donde no esta.
+   * Existe porque el mismo Espacio se mira desde varias secciones: mientras es una Licitacion no
+   * vive en `/espacios`, y el cliente lo mira desde `/portal/proyectos`.
    */
   volverA?: { href: string, etiqueta: string }
-  /** Linea bajo el titulo. Por defecto, el cliente del Espacio. */
+  /** Linea bajo el titulo. Por defecto, el cliente del proyecto. */
   subtitulo?: string
-  /** Reemplaza "Nueva tarea" y el menu del Espacio, cuyas acciones devuelven a `/espacios`. */
-  acciones?: React.ReactNode
   /**
-   * Si quien mira esta en el equipo. Solo rige el item "Salir del Espacio" del menu.
+   * Botonera de la seccion. Nada en el portal, que no escribe.
    *
-   * Se reenvia tal cual y no se deduce aca de `proyecto.members`: la cabecera no sabe quien mira, y
-   * `members` puede no venir si la pagina no lo pidio.
+   * `MenuProyecto` y `BotonNuevaTarea` **no** viven acá dentro: necesitan el `Espacio` entero del
+   * panel y saben escribir. Tenerlos adentro obligaba a que la cabecera conociera el contrato del
+   * equipo, y por eso el portal no podia usarla y termino con una copia. Ahora cada pantalla pasa
+   * la suya.
    */
-  esMiembro?: boolean
+  acciones?: React.ReactNode
 }
 
 /**
  * Cabecera del detalle de un Proyecto: identidad, estado, plazos, equipo y avance.
  *
- * @param proyecto el espacio ya cargado, con `members` incluido si la API lo trajo
- * @param estado el estado legible; el color viene de `project_statuses` y se pinta como punto
+ * La dibujan las cuatro pantallas que muestran un Proyecto —Espacios, Licitaciones, Upselling y el
+ * portal del cliente—, y por eso no sabe de ninguna: recibe una `ProyectoVista` y una botonera.
+ *
+ * @param proyecto el proyecto como vista
+ * @param estado el estado legible; el color viene de `project_statuses`
  * @returns el bloque superior de la pantalla de detalle
  */
 export function CabeceraProyecto ({
   proyecto,
   estado,
-  estados,
-  capacidadesProyecto,
-  capacidadesTareas,
+  capacidades = [],
   volverA = { href: '/espacios', etiqueta: GLOSARIO.espacio.plural },
   subtitulo,
-  acciones,
-  esMiembro
+  acciones
 }: PropsCabecera) {
+  const puedeEditar = capacidades.includes('edit')
+
   return (
     <header className="border-linea bg-superficie-elevada rounded-tarjeta shadow-1 flex flex-col gap-4 border p-5">
       <Link
@@ -140,16 +141,18 @@ export function CabeceraProyecto ({
           <ImagenEntidad
             nombre={proyecto.name}
             imagenPropia={proyecto.image_url}
-            imagenEfectiva={proyecto.image_url ?? proyecto.client?.image_url}
+            imagenEfectiva={proyecto.image_url ?? proyecto.cliente?.image_url}
             ruta={`projects/${proyecto.id}`}
-            puedeEditar={capacidadesProyecto.includes('edit')}
+            puedeEditar={puedeEditar}
             tamano="grande"
           />
           <div className="flex min-w-0 flex-col gap-1">
           <h1 className="text-texto text-titulo font-semibold">{proyecto.name}</h1>
           <div className="flex flex-wrap items-center gap-2">
-            <p className="text-texto-tenue text-sm">{subtitulo ?? proyecto.client?.company ?? 'Sin cliente'}</p>
-            <CodigoCopiable valor={proyecto.patente ?? `#${proyecto.id}`} />
+            <p className="text-texto-tenue text-sm">{subtitulo ?? proyecto.cliente?.company ?? 'Sin cliente'}</p>
+            {/* Sin patente no se pinta nada: el portal no publica el codigo interno, y un `#12`
+                ahi seria un dato de la base puesto delante del cliente. */}
+            {proyecto.patente !== null && <CodigoCopiable valor={proyecto.patente} />}
           </div>
           </div>
         </div>
@@ -159,18 +162,7 @@ export function CabeceraProyecto ({
             {...pildoraDeEstado(proyecto.status, estado.color)}
             className={ESTADOS_DESTACADOS.includes(proyecto.status) ? 'motion-safe:animate-pulse' : undefined}
           >{estado.nombre}</Insignia>
-          {acciones ?? (
-            <>
-              <BotonNuevaTarea capacidades={capacidadesTareas} />
-              <MenuProyecto
-                proyecto={proyecto}
-                estados={estados}
-                capacidades={capacidadesProyecto}
-                capacidadesTareas={capacidadesTareas}
-                esMiembro={esMiembro}
-              />
-            </>
-          )}
+          {acciones}
         </div>
       </div>
 
@@ -185,7 +177,7 @@ export function CabeceraProyecto ({
         </div>
         <div className="flex min-w-0 max-w-full items-start gap-2">
           <dt className="text-texto-sutil pt-1">Equipo</dt>
-          <dd className="min-w-0"><EquipoProyecto proyectoId={proyecto.id} miembros={proyecto.members ?? []} puedeEditar={capacidadesProyecto.includes('edit')} /></dd>
+          <dd className="min-w-0"><EquipoProyecto proyectoId={proyecto.id} miembros={proyecto.members} puedeEditar={puedeEditar} /></dd>
         </div>
       </dl>
 

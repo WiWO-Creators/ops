@@ -13,6 +13,7 @@ import { listaDe, nombreDe } from '@/datos/catalogos'
 import type { Espacio, Lookups } from '@/datos/recursos'
 import type { Capacidad } from '@/datos/tipos'
 import { GLOSARIO } from '@/dominio/glosario'
+import { proyectoDelPanel } from '@/dominio/proyecto'
 
 /**
  * Cabecera y pestañas de trabajo de un Espacio que se mira desde otra seccion.
@@ -120,11 +121,9 @@ export function DetalleDeEspacio ({
   return (
     <section className="flex flex-col gap-4">
       <CabeceraProyecto
-        proyecto={espacio}
+        proyecto={proyectoDelPanel(espacio)}
         estado={estado}
-        estados={listaDe(lookups, 'project_statuses')}
-        capacidadesProyecto={capacidadesProyecto}
-        capacidadesTareas={capacidadesTareas}
+        capacidades={capacidadesProyecto}
         volverA={volverA}
         subtitulo={subtitulo}
         acciones={acciones}
