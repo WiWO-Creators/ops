@@ -79,6 +79,16 @@ test('la cita es una ruta absoluta: el chat ya no esta dentro de la ficha de un 
   assert.equal(hrefDeCita({ tipo: 'espacio', id: 44, titulo: 'Colbun' }), '/espacios/44')
 })
 
+test('el Meeting Paper citado abre la pestaña de actas de SU Espacio', () => {
+  // El acta no tiene pantalla propia: vive en una pestaña de la ficha. Por eso el enlace se arma con
+  // el `espacio_id` que trae la cita y nunca con la URL vigente, que seria la ficha equivocada.
+  assert.equal(
+    hrefDeCita({ tipo: 'acta', id: 9, titulo: 'Kickoff', espacio_id: 44 }),
+    '/espacios/44?tab=actas'
+  )
+  assert.equal(hrefDeCita({ tipo: 'acta', id: 9, titulo: 'Kickoff' }), null, 'sin Espacio no hay a donde ir')
+})
+
 test('la cita que no se puede resolver no se enlaza a ningun lado', () => {
   // `discusion` e `hito` solo existen como pestaña de la ficha de un Espacio, y la cita no dice de
   // cual. Enlazarlas a la ficha vigente abriria la pestaña del Espacio equivocado, que es

@@ -1121,6 +1121,15 @@ export interface Acta {
   title: string
   /** Solo en el detalle. HTML saneado por la API; ver el docblock de arriba antes de pintarlo. */
   content?: string
+  /**
+   * El mismo acta en datos. Viaja siempre que viaje `content`, y nunca sin el.
+   *
+   * No es una segunda copia guardada: la API la deriva del HTML en cada lectura, asi que no puede
+   * quedar desfasada de lo que se ve en pantalla ni obliga a migrar las actas ya escritas. Tampoco
+   * es IA —se deriva de la columna, sin llamar a ningun proveedor—, asi que sigue llegando con el
+   * kill-switch apagado.
+   */
+  structure?: EstructuraActa
   client: string
   meeting_date: string | null
   place: string
@@ -1137,6 +1146,22 @@ export interface Acta {
   date_added: string | null
   date_updated: string | null
   updated_by: number | null
+}
+
+/**
+ * El Meeting Paper partido en datos, para quien no puede leer el HTML: un bot, una integracion, otro
+ * panel. La forma la arma `RecursoActas::comoEstructura()`.
+ *
+ * Un acta escrita a mano sin titulos trae una sola seccion sin titulo y las otras dos listas vacias:
+ * la estructura se degrada, nunca falla. El HTML de `content` sigue siendo la version completa.
+ */
+export interface EstructuraActa {
+  /** Una por titulo del acta, en el orden del documento. `content` viene en markdown. */
+  sections: Array<{ title: string, level: number, content: string }>
+  /** Un tema tratado con lo que se resolvio. `action` y `owner` son `null` si el acta no los dice. */
+  agreements: Array<{ topic: string, detail: string, action: string | null, owner: string | null }>
+  /** Los proximos pasos, con el responsable separado del texto para poder filtrarlo. */
+  commitments: Array<{ text: string, owner: string | null }>
 }
 
 /** Lo que ya se sabe del Proyecto al abrir el formulario (`GET /ia/proyectos/{id}/acta/prefill`). */

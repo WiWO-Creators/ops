@@ -80,6 +80,25 @@ test('lee las citas y descarta solo las que vienen mal', () => {
   })
 })
 
+test('la cita de un Meeting Paper llega con el Espacio del que es', () => {
+  // Sin `espacio_id` un acta no se puede enlazar: no tiene pantalla propia, vive dentro de la ficha
+  // del Espacio. Lo que se protege es que ese id sobreviva al lector y no se caiga con el resto.
+  assert.deepEqual(
+    leerEventoIA(frame('citas', { citas: [{ tipo: 'acta', id: 9, titulo: 'Kickoff', espacio_id: 44 }] })),
+    { tipo: 'citas', citas: [{ tipo: 'acta', id: 9, titulo: 'Kickoff', espacio_id: 44 }] }
+  )
+})
+
+test('una cita sin Espacio utilizable no se descarta: pierde el enlace, no el dato', () => {
+  // Un backend anterior a la Tanda 0 no manda `espacio_id`, y el de hoy lo manda en `null` cuando no
+  // sabe de cual es. Los dos casos son la misma cita, sin la clave.
+  const sinClave = leerEventoIA(frame('citas', { citas: [{ tipo: 'acta', id: 9, titulo: 'Kickoff' }] }))
+  const conNulo = leerEventoIA(frame('citas', { citas: [{ tipo: 'acta', id: 9, titulo: 'Kickoff', espacio_id: null }] }))
+
+  assert.deepEqual(sinClave.citas, [{ tipo: 'acta', id: 9, titulo: 'Kickoff' }])
+  assert.deepEqual(conNulo.citas, sinClave.citas)
+})
+
 test('un bloque de citas que no es lista devuelve null', () => {
   assert.equal(leerEventoIA(frame('citas', { citas: 'ninguna' })), null)
 })
