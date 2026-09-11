@@ -26,6 +26,10 @@ interface PropsFlujo {
   usuarioId: number
   capacidades: Capacidad[]
   paises: OpcionCampo[]
+  /** Catalogo `areas` de `GET /lookups` (las areas del equipo), para el campo Área del paso 3. */
+  areas: OpcionCampo[]
+  /** Catalogo `staff` de `GET /lookups`, para los campos Owner y Focal del paso 3. */
+  staff: OpcionCampo[]
   prospecto?: Pick<Prospecto, 'id' | 'empresa' | 'cliente'>
   contactos?: ContactoProspecto[]
   onCerrar: () => void
@@ -47,11 +51,16 @@ function cargarBorrador (clave: string, inicial: BorradorLicitacion) {
  * Cada avance guarda su entidad; volver atrás actualiza el mismo registro.
  * Las respuestas ambiguas detienen los reintentos para evitar crear registros duplicados.
  */
-export function FlujoLicitacion ({ usuarioId, capacidades, paises, prospecto, contactos = [], onCerrar, onGuardado }: PropsFlujo) {
+export function FlujoLicitacion ({ usuarioId, capacidades, paises, areas, staff, prospecto, contactos = [], onCerrar, onGuardado }: PropsFlujo) {
   const router = useRouter()
   const clave = claveBorrador(usuarioId, prospecto?.id)
   const camposEmpresa = useMemo(() => camposDeProspecto(paises), [paises])
-  const camposLicitacion = useMemo(() => camposDeLicitacion([]).filter((campo) => campo.clave !== 'prospecto_id'), [])
+  // `prospecto_id` se quita porque el prospecto ya quedó elegido en el paso 1. Los catalogos van en
+  // las dependencias: sin ellas los selectores se congelarían con lo que hubiera en el primer render.
+  const camposLicitacion = useMemo(
+    () => camposDeLicitacion([], areas, staff).filter((campo) => campo.clave !== 'prospecto_id'),
+    [areas, staff]
+  )
   const [carga] = useState(() => cargarBorrador(clave, crearBorrador(prospecto?.id ?? null,
     valoresIniciales(camposEmpresa, prospecto ? { cliente: prospecto.cliente } : null))))
   const [borrador, setBorrador] = useState(carga.borrador)

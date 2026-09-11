@@ -115,6 +115,9 @@ export function PanelContactosProspecto ({
  * editable, y cambiar el numero mostraria las licitaciones de otra empresa bajo este nombre.
  *
  * @param prospecto la empresa que se está mirando, usada en el asistente de alta
+ * @param paises catalogo `countries` de `GET /lookups`, para el paso de la empresa
+ * @param areas catalogo `areas` de `GET /lookups`, para el campo Área del asistente
+ * @param staff catalogo `staff` de `GET /lookups`, para los campos Owner y Focal del asistente
  * @param capacidades capacidades sobre `projects`, de `permissions` de `/me`
  */
 export function PanelLicitacionesProspecto ({
@@ -122,8 +125,10 @@ export function PanelLicitacionesProspecto ({
   contactos,
   usuarioId,
   paises,
+  areas,
+  staff,
   capacidades
-}: { prospecto: Pick<Prospecto, 'id' | 'empresa' | 'cliente'>, contactos: ContactoProspecto[], usuarioId: number, paises: OpcionCampo[], capacidades: Capacidad[] }): ReactElement {
+}: { prospecto: Pick<Prospecto, 'id' | 'empresa' | 'cliente'>, contactos: ContactoProspecto[], usuarioId: number, paises: OpcionCampo[], areas: OpcionCampo[], staff: OpcionCampo[], capacidades: Capacidad[] }): ReactElement {
   const prospectoId = prospecto.id
   const router = useRouter()
   const [creando, setCreando] = useState(false)
@@ -173,6 +178,8 @@ export function PanelLicitacionesProspecto ({
           usuarioId={usuarioId}
           capacidades={capacidades}
           paises={paises}
+          areas={areas}
+          staff={staff}
           prospecto={prospecto}
           contactos={contactos}
           onCerrar={() => { setCreando(false) }}
