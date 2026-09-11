@@ -1,4 +1,4 @@
-import type { AreaDelEquipo } from '../datos/recursos.ts'
+import type { AreaDelEquipo } from '../datos/jerarquia.ts'
 
 /**
  * Un área ya ubicada en el árbol.
@@ -16,9 +16,15 @@ export interface NodoArea {
   alcance: number
 }
 
-/** La gente propia de un área, sin la de las que cuelgan. */
-function cuantosEn (area: AreaDelEquipo): number {
-  return area.personas.length
+/**
+ * La gente propia de un área que sigue en el equipo, sin la de las que cuelgan.
+ *
+ * Las bajas se descuentan: `areas[].personas` **no** las filtra —la API consulta por `area_id` y
+ * nada más— y contarlas haría que un área diga "3 personas" donde solo trabajan 2, y que el alcance
+ * prometa gente que ya no está.
+ */
+export function cuantosEn (area: AreaDelEquipo): number {
+  return area.personas.filter((persona) => persona.active).length
 }
 
 /**
@@ -27,32 +33,46 @@ function cuantosEn (area: AreaDelEquipo): number {
  * `GET /jerarquia` devuelve filas sueltas con `area_superior_id`; anidarlas es trabajo de la
  * pantalla.
  *
- * Dos casos que **no** se descartan, porque descartarlos escondería áreas que existen y dejaría a su
- * gente invisible sin que nadie se entere:
+ * La pieza fina es el **superior efectivo**: el `area_superior_id` de una fila sirve solo si esa área
+ * vino en el listado y no es ella misma. Sin esa distinción se rompe el caso más común de todos —el
+ * de cualquiera que no administre—, porque la API le manda **solo su rama**, y la raíz de esa rama
+ * cuelga de un área que no le llegó. Subiendo la cadena entera hasta encontrar el hueco se
+ * promovería a raíz también a las hijas, y la jefatura vería su organigrama plano: sin sangría, sin
+ * niveles y sin el "ve a N con lo que cuelga", que es justamente lo que la pantalla existe para
+ * mostrar. Cortando solo el eslabón roto, la estructura de abajo queda intacta.
  *
- *  - Un área cuyo `area_superior_id` apunta a otra que no vino en el listado (porque la borraron
- *    entre dos peticiones) se dibuja como raíz.
- *  - Un ciclo en los datos —A cuelga de B y B de A— también se rompe dibujando esas áreas como
- *    raíces, en vez de colgarse en un recorrido infinito.
+ * Un ciclo se corta igual de fino. La API lo rechaza al escribir, pero puede quedar uno de un
+ * `UPDATE` a mano, y un árbol con un ciclo no termina de recorrerse nunca. Se promueve a raíz cada
+ * área que forma parte del ciclo —y solo esas, no las que cuelgan de ellas— para que se vea y se
+ * pueda arreglar.
  *
  * @param areas el listado plano tal como llega de la API
  * @returns las raíces, ordenadas por nombre, con sus hijas anidadas y ordenadas igual
  */
 export function construirArbol (areas: AreaDelEquipo[]): NodoArea[] {
-  const porId = new Map(areas.map((area) => [area.id, area]))
   const nodos = new Map<number, NodoArea>(
     areas.map((area) => [area.id, { area, hijas: [], nivel: 0, alcance: cuantosEn(area) }])
   )
+
+  // El superior efectivo de cada área: `undefined` si no vino, si apunta a sí misma o si no está en
+  // el listado. Es lo único que se mira de acá en adelante.
+  const padreDe = new Map<number, number | undefined>(areas.map((area) => {
+    const superior = area.area_superior_id
+
+    return [area.id, superior !== null && superior !== area.id && nodos.has(superior) ? superior : undefined]
+  }))
+
   const raices: NodoArea[] = []
 
   for (const area of areas) {
     const nodo = nodos.get(area.id)
-    const padre = area.area_superior_id === null ? undefined : nodos.get(area.area_superior_id)
 
     if (nodo === undefined) continue
 
-    if (padre === undefined || !cuelgaDeUnaRaiz(porId, area)) raices.push(nodo)
-    else padre.hijas.push(nodo)
+    const padreNodo = nodos.get(padreDe.get(area.id) ?? -1)
+
+    if (padreNodo === undefined || estaEnUnCiclo(area.id, padreDe)) raices.push(nodo)
+    else padreNodo.hijas.push(nodo)
   }
 
   ordenarRama(raices, 0)
@@ -61,26 +81,30 @@ export function construirArbol (areas: AreaDelEquipo[]): NodoArea[] {
 }
 
 /**
- * `true` si subiendo por `area_superior_id` se llega a una raíz sin repetir ninguna.
+ * Si subir por los superiores desde esta área vuelve a ella: está dentro de un ciclo.
  *
- * Devuelve `false` tanto para un ciclo como para un área cuyo superior no está en el listado: los
- * dos casos terminan igual —esa área se dibuja como raíz— y por eso no hace falta distinguirlos.
+ * Lleva el conjunto de lo ya visto, así que termina también cuando la cadena entra en un ciclo del
+ * que esta área **no** forma parte — y ahí devuelve `false`, porque el área de abajo no tiene la
+ * culpa y arrancarla de su lugar sería aplanar de más.
+ *
+ * @param id el área desde la que se sube
+ * @param padreDe el superior efectivo de cada área
  */
-function cuelgaDeUnaRaiz (porId: Map<number, AreaDelEquipo>, area: AreaDelEquipo): boolean {
-  const vistas = new Set<number>([area.id])
-  let actual = area
+function estaEnUnCiclo (id: number, padreDe: Map<number, number | undefined>): boolean {
+  const vistas = new Set<number>([id])
+  let actual = padreDe.get(id)
 
-  while (actual.area_superior_id !== null) {
-    const padre = porId.get(actual.area_superior_id)
+  while (actual !== undefined) {
+    if (actual === id) return true
+    if (vistas.has(actual)) return false
 
-    if (padre === undefined || vistas.has(padre.id)) return false
-
-    vistas.add(padre.id)
-    actual = padre
+    vistas.add(actual)
+    actual = padreDe.get(actual)
   }
 
-  return true
+  return false
 }
+
 
 /**
  * Ordena una rama por nombre, le fija el nivel y acumula el alcance hacia arriba.
@@ -143,6 +167,20 @@ export function descendenciaDe (areas: AreaDelEquipo[], id: number): Set<number>
 }
 
 /**
+ * Cuántas áreas todavía no tienen quién las dirija.
+ *
+ * Un área sin jefatura es el fallo silencioso que la pantalla existe para evitar: su gente no reporta
+ * a nadie y no aparece en el tablero de ninguna jefatura. Por fila se ve una a una; el total es lo
+ * que hace que con veinte áreas alguien se entere.
+ *
+ * @param areas el listado plano
+ * @returns cuántas están sin jefatura
+ */
+export function areasSinJefatura (areas: AreaDelEquipo[]): number {
+  return areas.filter((area) => area.jefe_staffid === null).length
+}
+
+/**
  * Las áreas que pueden ser el superior de otra, en el orden del árbol y con su nivel.
  *
  * Saca del selector el área que se está editando y todo lo que cuelga de ella: colgarla ahí sería
@@ -174,11 +212,9 @@ export function areasElegiblesComoSuperior (areas: AreaDelEquipo[], idEditada: n
 export function loQueRetieneElArea (nodo: NodoArea): string | null {
   const partes: string[] = []
 
-  if (nodo.area.personas.length > 0) {
-    partes.push(nodo.area.personas.length === 1
-      ? '1 persona asignada'
-      : `${nodo.area.personas.length} personas asignadas`)
-  }
+  const gente = cuantosEn(nodo.area)
+
+  if (gente > 0) partes.push(gente === 1 ? '1 persona asignada' : `${gente} personas asignadas`)
 
   if (nodo.hijas.length > 0) {
     partes.push(nodo.hijas.length === 1 ? '1 área que cuelga de ella' : `${nodo.hijas.length} áreas que cuelgan de ella`)

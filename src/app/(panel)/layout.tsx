@@ -216,17 +216,17 @@ function seccionesDe (yo: Yo): Seccion[] {
     secciones.push({ href: '/equipo/mi-area', etiqueta: 'Mi Área', icono: 'mi_area' })
   }
 
-  // Organigrama tiene entrada propia y no vive solo dentro de Administracion: la API lo abre a quien
-  // administra Y a quien dirige un area —`GET /jerarquia` le sirve su rama—, asi que colgarlo de una
-  // seccion que la barra solo le muestra a un superadministrador lo dejaba imposible de encontrar
-  // para la mitad de quienes lo necesitan.
+  // Jerarquias tiene entrada propia y no solo los dos enlaces desde Equipo y Mi Área: quien tiene que
+  // cargar el organigrama entra muchas veces, y una pantalla a la que solo se llega desde otra es
+  // facil de no encontrar.
   //
   // La llave es `dirige_areas` y **no** `is_director`: aquel es el cargo de `tblcargos` —la regla
   // vieja— y hoy las 184 cuentas llevan cargo "Staff", asi que con esa llave la entrada no le
-  // aparecia a ningun jefe de area. `dirige_areas` sale del `jefe_staffid` del arbol, que es
-  // exactamente el criterio con el que la API decide el 403.
+  // aparecia a ninguna jefatura. `dirige_areas` sale del `jefe_staffid` del arbol, que es
+  // exactamente el criterio con el que la API decide el 403. Esconderla es cosmetica: la compuerta
+  // esta en el back, y la pantalla muestra su mensaje tal cual.
   if (yo.dirige_areas || yo.is_admin || yo.is_superadmin) {
-    secciones.push({ href: '/administracion/organigrama', etiqueta: 'Organigrama', icono: 'organigrama' })
+    secciones.push({ href: '/equipo/jerarquia', etiqueta: 'Jerarquías', icono: 'organigrama' })
   }
 
   // Administracion no tiene permiso de Perfex propio, y `is_admin` es demasiado ancha: en la base

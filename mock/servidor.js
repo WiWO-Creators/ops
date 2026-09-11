@@ -854,7 +854,7 @@ async function salasRuta (metodo, resto, parametros, actual, cuerpo) {
 }
 
 /** Largo maximo del nombre de un area, tomado de `tblareas.name`. */
-const LARGO_NOMBRE_AREA = 100
+const LARGO_NOMBRE_AREA = 191
 
 /** Mensaje del 409 al intentar renombrar, redactado para mostrarse tal cual en la pantalla. */
 const RENOMBRE_BLOQUEADO = 'El nombre de un área no se puede cambiar acá: los Procesos guardan el nombre, no el id, y renombrarla los desconectaría en silencio. Pedilo si hace falta.'
@@ -862,9 +862,14 @@ const RENOMBRE_BLOQUEADO = 'El nombre de un área no se puede cambiar acá: los 
 /** Mensaje del 403 de `/jerarquia`, redactado para mostrarse tal cual en la pantalla. */
 const SIN_JERARQUIA = 'No diriges ningún área, así que no hay organigrama que mostrarte. Si deberías dirigir una, pídeselo a quien administre el sistema.'
 
-/** Una persona, con lo unico que la jerarquia necesita de ella. */
+/**
+ * Una persona, con lo unico que la jerarquia necesita de ella.
+ *
+ * `active` viaja porque una baja puede seguir colgada de un area: la pantalla la marca en vez de
+ * esconderla, que es lo que deja un area "con 3 personas" donde solo trabajan 2.
+ */
 function personaDeJerarquia (staff) {
-  return { id: staff.id, full_name: staff.full_name }
+  return { id: staff.id, full_name: staff.full_name, active: staff.active }
 }
 
 /**
@@ -872,9 +877,8 @@ function personaDeJerarquia (staff) {
  *
  * @param {object} area la fila cruda de `AREAS`
  * @param {object} actual quien pide, para resolver `editable`
- * @param {object[]} activos el staff activo, para repartir `personas`
  */
-function areaDeJerarquia (area, actual, activos) {
+function areaDeJerarquia (area, actual) {
   return {
     id: area.id,
     name: area.name,
@@ -884,7 +888,10 @@ function areaDeJerarquia (area, actual, activos) {
     // `false` = ese nombre no figura entre las opciones de los Procesos, asi que el area no cruza con
     // ninguno. No es un error: simplemente no trae nada, y por eso hay que hacerlo visible.
     en_tareas: OPCIONES_AREA_EN_TAREAS.some((opcion) => mismoNombre(opcion, area.name)),
-    personas: activos.filter((persona) => persona.area_id === area.id).map(personaDeJerarquia)
+    // Todo el mundo, no solo quien esta activo: una baja puede seguir colgada del area y el contrato
+    // la emite con `active: false` para que la pantalla la marque en vez de esconderla.
+    personas: STAFF.filter((persona) => !persona.is_not_staff && persona.area_id === area.id)
+      .map(personaDeJerarquia)
   }
 }
 
@@ -958,7 +965,7 @@ function arbolCompleto (actual) {
   return {
     hay_organigrama: AREAS.length > 0,
     es_admin: esAdmin,
-    areas: visibles.map((area) => areaDeJerarquia(area, actual, activos)),
+    areas: visibles.map((area) => areaDeJerarquia(area, actual)),
     sin_area: activos.filter((persona) => persona.area_id === null).map(personaDeJerarquia),
     asignables: activos.map(personaDeJerarquia)
   }
@@ -1022,9 +1029,13 @@ function validarArea (datos, areaEditada) {
 
     if (nombre === '') detalles.name = ['requerido']
     else if (nombre.length > LARGO_NOMBRE_AREA) detalles.name = ['length']
-    else if (AREAS.some((otra) => otra.id !== areaEditada?.id && otra.name.toLowerCase() === nombre.toLowerCase())) {
+    else if (AREAS.some((otra) => otra.id !== areaEditada?.id && mismoNombre(otra.name, nombre))) {
       detalles.name = ['duplicado']
-    } else salida.name = nombre
+    } else if (areaEditada === null) {
+      // Solo el alta escribe el nombre. En una edicion ya se comprobo que es el mismo, y volver a
+      // escribirlo cambiaria la caja o los espacios de un texto que las Tareas tienen guardado.
+      salida.name = nombre
+    }
   }
 
   if (datos.area_superior_id !== undefined) {
@@ -1101,7 +1112,7 @@ async function jerarquiaRuta (metodo, resto, cuerpo, actual) {
         OPCIONES_AREA_EN_TAREAS.push(area.name)
       }
 
-      return { estado: 201, cuerpo: conDatos(areaDeJerarquia(area, actual, staffActivo())) }
+      return { estado: 201, cuerpo: conDatos(arbolCompleto(actual)) }
     }
 
     const area = buscarO404(AREAS, Number(id), 'área')
@@ -1141,7 +1152,7 @@ async function jerarquiaRuta (metodo, resto, cuerpo, actual) {
 
     Object.assign(area, validarArea(datos, area))
 
-    return { estado: 200, cuerpo: conDatos(areaDeJerarquia(area, actual, staffActivo())) }
+    return { estado: 200, cuerpo: conDatos(arbolCompleto(actual)) }
   }
 
   if (seccion === 'personas') {
@@ -1167,7 +1178,9 @@ async function jerarquiaRuta (metodo, resto, cuerpo, actual) {
 
     persona.area_id = destino
 
-    return { estado: 200, cuerpo: conDatos(personaDeJerarquia(persona)) }
+    // El arbol entero y no la persona: moverla cambia quien cuelga de quien y que se puede editar, y
+    // recalcularlo en el navegador seria una segunda copia de las reglas de la API.
+    return { estado: 200, cuerpo: conDatos(arbolCompleto(actual)) }
   }
 
   throw new ErrorApi(404, 'not_found', 'Subrecurso de jerarquía desconocido.')
@@ -2443,6 +2456,24 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
     return {
       estado: 201,
       cuerpo: conDatos({ ...sesion.emitirSesion(objetivo.id), staff: presentarStaff(objetivo) })
+    }
+  }
+
+  // `GET /me/mi-area`. Va ANTES del bloque de `me`, que responde la propia ficha a cualquier resto:
+  // sin esta rama, "Mi Área" recibia el staff en vez de `{area, area_staff}` y la pantalla reventaba
+  // al leer `area_staff.length`. El mock no la tenia y por eso nadie lo habia notado.
+  if (recurso === 'me' && resto[0] === 'mi-area' && metodo === 'GET') {
+    const area = AREAS.find((otra) => otra.id === actual.area_id) ?? null
+
+    return {
+      estado: 200,
+      cuerpo: conDatos({
+        area: area === null ? null : { id: area.id, name: area.name },
+        // Todo el mundo del area, bajas incluidas: la pantalla las marca como "Dada de baja".
+        area_staff: area === null
+          ? []
+          : STAFF.filter((persona) => persona.area_id === area.id).map(presentarStaff)
+      })
     }
   }
 

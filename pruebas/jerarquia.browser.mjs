@@ -1,5 +1,5 @@
 /**
- * Recorrido del Organigrama en un navegador de verdad, contra el build y la API mock locales.
+ * Recorrido de Jerarquías en un navegador de verdad, contra el build y la API mock locales.
  *
  * Va contra `next start` y no contra `next dev` a propósito: en `dev` la página no hidrata y ningún
  * clic responde, así que una corrida ahí da verde sin haber probado nada.
@@ -26,7 +26,7 @@ import { chromium } from 'playwright'
 const destino = new URL(process.env.ORGANIGRAMA_TEST_URL ?? 'http://localhost:3097')
 assert.ok(['localhost', '127.0.0.1'].includes(destino.hostname), 'Solo se permite un entorno local.')
 
-const salida = 'output/playwright/organigrama'
+const salida = 'output/playwright/jerarquia'
 await mkdir(salida, { recursive: true })
 
 /** Un nombre distinto en cada corrida: el mock conserva lo creado mientras siga levantado. */
@@ -35,7 +35,7 @@ const RAIZ = `Raíz ${sello}`
 const HIJA = `Hija ${sello}`
 
 /** La ruta de la pantalla. */
-const RUTA = '/administracion/organigrama'
+const RUTA = '/equipo/jerarquia'
 
 /**
  * Clic por `evaluate`.
@@ -84,7 +84,7 @@ async function cerrarDialogo (pagina) {
  * «…de los Procesos».
  */
 function fila (pagina, nombre) {
-  return pagina.locator(`li[role="treeitem"]:has(span.font-semibold:text-is("${nombre}"))`).first()
+  return pagina.locator(`li[aria-level]:has(span.font-semibold:text-is("${nombre}"))`).first()
 }
 
 /** Abre la pantalla con la sesión de esa cuenta del mock, en el ancho pedido. */
@@ -98,7 +98,7 @@ async function entrar (navegador, email, viewport = { width: 1440, height: 1000 
 
   const pagina = await contexto.newPage()
   await pagina.goto(new URL(RUTA, destino).href)
-  await pagina.locator('h1:has-text("Organigrama")').waitFor()
+  await pagina.locator('h1:has-text("Jerarquías")').waitFor()
 
   return pagina
 }
@@ -120,16 +120,19 @@ try {
   // --- Quien administra: el organigrama entero --------------------------------
   const pagina = await entrar(navegador, 'ana@wiwo.me')
   pagina.on('pageerror', (error) => errores.push(error.message))
-  await pagina.locator('[role="tree"]').waitFor()
+  await pagina.locator('ul[aria-label="Áreas del equipo"]').waitFor()
 
   const cabecera = await pagina.locator('main').innerText()
   assert.match(cabecera, /En vivo/, 'Falta la explicación de para qué sirve el organigrama')
   visto.push('La cabecera explica que quien dirige un área ve a su gente y a la de las que cuelgan.')
 
   assert.match(cabecera, /1 persona sin área/, 'Falta el aviso de cuánta gente queda por ubicar')
-  visto.push('El aviso de «sin área» está arriba de todo, no escondido: en el fixture es 1 de 7.')
+  assert.match(cabecera, /no aparecen en el tablero de ninguna jefatura/, 'El aviso tiene que decir la consecuencia')
+  assert.match(cabecera, /áreas sin jefatura/, 'Falta el segundo hueco: las áreas sin quién las dirija')
+  assert.match(cabecera, /su gente no reporta a nadie/, 'y su consecuencia')
+  visto.push('El aviso «Para que cada jefatura vea a su gente falta» nombra los dos huecos con su consecuencia: 1 persona sin área y 13 áreas sin jefatura.')
 
-  const sembradas = await pagina.locator('li[role="treeitem"]').count()
+  const sembradas = await pagina.locator('li[aria-level]').count()
   assert.equal(sembradas, 17, `Se esperaban las 17 áreas del fixture, hay ${sembradas}`)
   visto.push(`El árbol pinta las ${sembradas} áreas del fixture, con la rama Wiwo › Creatividad › Analytics ya anidada.`)
 
@@ -165,8 +168,11 @@ try {
   await pagina.locator('[role="dialog"]').waitFor()
   await elegirEnSelector(pagina, 'Quién la dirige', 'Carla Méndez')
   await clicar(pagina.locator('[role="dialog"] button:has-text("Guardar")'))
-  await fila(pagina, HIJA).locator('text=La dirige alguien de otra área').waitFor()
-  visto.push('Ponerle jefe: la fila deja de decir «Sin quien la dirija» y avisa que quien la dirige todavía no está dentro del área.')
+  await fila(pagina, HIJA).locator('text=Dirige Carla Méndez').waitFor()
+  await fila(pagina, HIJA).locator('text=(desde otra área)').waitFor()
+  assert.equal(await fila(pagina, HIJA).locator('text=Sin jefatura').count(), 0,
+    'Con jefatura puesta, la insignia roja tiene que irse')
+  visto.push('Ponerle jefe: la fila pierde la insignia «Sin jefatura» y pasa a «Dirige Carla Méndez», avisando además que todavía no está dentro del área.')
 
   // --- El nombre no se puede editar -------------------------------------------
   await clicar(fila(pagina, HIJA).locator('button:has-text("Editar")'))
@@ -230,10 +236,14 @@ try {
   await fila(pagina, HIJA).locator('text=1 persona').waitFor()
   visto.push('Asignar una persona: Gina Ferrer sale de «Sin área» y entra a la hija, que pasa a contar 1 persona.')
 
-  // Vaciada la lista, el panel y el aviso desaparecen en vez de quedar diciendo cero.
+  // Vaciada la lista, el panel desaparece y el aviso deja de nombrar ese hueco en vez de decir cero.
   await panelSinArea.waitFor({ state: 'detached' })
-  await pagina.locator('text=Todo el equipo tiene área').waitFor()
-  visto.push('Con la lista vacía, el aviso pasa a «Todo el equipo tiene área» y el panel de pendientes desaparece.')
+  await pagina.locator('text=sin área').first().waitFor({ state: 'detached' })
+
+  // Pero el otro hueco sigue: el fixture tiene áreas sin jefatura, y el aviso no se calla por eso.
+  const faltaAun = await pagina.locator('main').innerText()
+  assert.match(faltaAun, /áreas sin jefatura/, 'El aviso tiene que seguir nombrando las áreas sin jefatura')
+  visto.push('Con «sin área» en cero, ese renglón del aviso desaparece y queda el otro hueco: «áreas sin jefatura · su gente no reporta a nadie».')
 
   // --- Traer a alguien de otra área -------------------------------------------
   const panelArea = pagina.locator(`aside[aria-label="Gente de ${HIJA}"]`)
@@ -299,13 +309,13 @@ try {
   await clicar(panelArea.locator('li:has-text("Gina") button:has-text("Sacar")'))
   await fila(pagina, HIJA).locator('text=0 personas').waitFor()
 
-  const antesDeBorrar = await pagina.locator('li[role="treeitem"]').count()
+  const antesDeBorrar = await pagina.locator('li[aria-level]').count()
   await clicar(fila(pagina, HIJA).locator('button:has-text("Borrar")'))
   await pagina.locator('[role="dialog"] button:has-text("Borrar")').waitFor()
   await clicar(pagina.locator('[role="dialog"] button:has-text("Borrar")'))
   await fila(pagina, HIJA).waitFor({ state: 'detached' })
 
-  const despuesDeBorrar = await pagina.locator('li[role="treeitem"]').count()
+  const despuesDeBorrar = await pagina.locator('li[aria-level]').count()
   assert.equal(despuesDeBorrar, antesDeBorrar - 1, 'El árbol tendría que quedar con un área menos')
   // El DELETE devuelve el árbol entero: la pantalla se repinta con eso, sin pedirlo otra vez.
   await pagina.locator('text=2 personas sin área').waitFor()
@@ -314,12 +324,12 @@ try {
   // --- Quien dirige un área: solo su rama -------------------------------------
   const deCarla = await entrar(navegador, 'carla@wiwo.me')
   deCarla.on('pageerror', (error) => errores.push(error.message))
-  await deCarla.locator('[role="tree"]').waitFor()
+  await deCarla.locator('ul[aria-label="Áreas del equipo"]').waitFor()
 
-  const suyas = await deCarla.locator('li[role="treeitem"]').count()
+  const suyas = await deCarla.locator('li[aria-level]').count()
   assert.equal(await deCarla.locator('button:has-text("Nueva área")').count(), 0,
     'Quien no administra no debería ver el botón de crear un área')
-  assert.equal(await deCarla.locator('li[role="treeitem"] button:has-text("Borrar")').count(), 0,
+  assert.equal(await deCarla.locator('li[aria-level] button:has-text("Borrar")').count(), 0,
     'Borrar es de quien administra: no debería ofrecerse acá')
   visto.push(`Quien dirige un área ve solo su rama (${suyas === 1 ? '1 área' : `${suyas} áreas`}) y no se le ofrece ni «Nueva área» ni «Borrar».`)
 
@@ -336,7 +346,7 @@ try {
 
   const enLaBarra = deCarla.locator(`nav a[href="${RUTA}"]`)
   await enLaBarra.first().waitFor()
-  visto.push(`Con dirige_areas=${String(carla.dirige_areas)} e is_director=${String(carla.is_director)} —el caso de todo el equipo hoy— la barra lateral igual muestra la entrada propia «Organigrama».`)
+  visto.push(`Con dirige_areas=${String(carla.dirige_areas)} e is_director=${String(carla.is_director)} —el caso de todo el equipo hoy— la barra lateral igual muestra la entrada propia «Jerarquías».`)
 
   // --- Quien no dirige nada: el 403 explicado ---------------------------------
   const deElena = await entrar(navegador, 'elena@wiwo.me')
@@ -346,15 +356,28 @@ try {
 
   const explicacion = await deElena.locator('main').innerText()
   assert.match(explicacion, /No diriges ningún área/, `El 403 no se explicó: "${explicacion}"`)
-  assert.equal(await deElena.locator('[role="tree"]').count(), 0, 'No debería dibujarse ningún árbol')
+  assert.equal(await deElena.locator('ul[aria-label="Áreas del equipo"]').count(), 0, 'No debería dibujarse ningún árbol')
   assert.equal(await deElena.locator('button:has-text("Reintentar")').count(), 0,
     'Un 403 no se reintenta: ofrecer el botón sería mentir sobre lo que va a pasar')
   visto.push('Quien no dirige nada ve el mensaje del 403 tal cual lo manda la API, sin árbol y sin botón de reintentar.')
 
+  // --- Las dos puertas que ya existían siguen llegando acá ---------------------
+  for (const [desde, texto] of [['/equipo', 'Jerarquías'], ['/equipo/mi-area', 'Configurar jerarquías']]) {
+    await pagina.goto(new URL(desde, destino).href)
+
+    const enlace = pagina.locator(`a[href="${RUTA}"]:has-text("${texto}")`).first()
+    await enlace.waitFor()
+    await clicar(enlace)
+    await pagina.locator('h1:has-text("Jerarquías")').waitFor()
+
+    assert.equal(new URL(pagina.url()).pathname, RUTA, `el enlace de ${desde} tiene que llegar a ${RUTA}`)
+  }
+  visto.push('Los dos enlaces que ya existían —«Jerarquías» en Equipo y «Configurar jerarquías» en Mi Área— llegan a la pantalla buena.')
+
   // --- Ancho de teléfono ------------------------------------------------------
   const movil = await entrar(navegador, 'ana@wiwo.me', { width: 390, height: 844 })
   movil.on('pageerror', (error) => errores.push(error.message))
-  await movil.locator('[role="tree"]').waitFor()
+  await movil.locator('ul[aria-label="Áreas del equipo"]').waitFor()
 
   const desborde = await movil.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1)
   assert.equal(desborde, false, 'La pantalla desborda a lo ancho en un teléfono')

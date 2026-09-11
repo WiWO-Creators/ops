@@ -115,11 +115,14 @@ export const AREAS = [
 /**
  * A que area pertenece cada persona del fixture, por indice de `NOMBRES`.
  *
- * Gina (indice 6) queda sin area y Hugo (indice 7) esta dado de baja: las dos ausencias son el
- * estado inicial de las 184 cuentas reales, y sin al menos una de cada la pantalla no ejercita ni
- * el "sin área" ni el descuento de las bajas al contar la gente de un area.
+ * Gina (indice 6) queda sin area: es el estado inicial de las 184 cuentas reales, y sin al menos una
+ * asi la pantalla no ejercita el panel de "Sin área".
+ *
+ * Hugo (indice 7) esta dado de baja **y sigue colgado de un area**, que es exactamente para lo que
+ * el contrato emite `active` en cada persona. Sin este caso, nadie nota que un area puede decir
+ * "3 personas" donde solo trabajan 2.
  */
-const AREA_POR_INDICE = [1, 2, 3, 4, 3, 4, null, null]
+const AREA_POR_INDICE = [1, 2, 3, 4, 3, 4, null, 4]
 
 const NOMBRES = [
   ['Ana', 'Ríos'], ['Bruno', 'Cabral'], ['Carla', 'Méndez'], ['Diego', 'Sosa'],

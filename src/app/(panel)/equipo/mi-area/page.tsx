@@ -51,17 +51,6 @@ export default async function MiAreaPage () {
         }
       />
 
-      {/* La única puerta al organigrama para quien dirige un área sin administrar la instalación: la
-          pantalla vive bajo `/administracion`, que la barra lateral solo le muestra a un
-          superadministrador. La API ya deja entrar a los directores —`GET /jerarquia` les sirve su
-          rama—, así que lo único que faltaba era el enlace. */}
-      <Link
-        href="/administracion/organigrama"
-        className="text-acento text-sm font-semibold underline underline-offset-4"
-      >
-        Organigrama: armá tu rama y repartí a tu gente entre las áreas
-      </Link>
-
       {miArea.area === null && (
         <Vacio
           titulo="No tienes un área asignada"

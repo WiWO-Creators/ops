@@ -37,6 +37,17 @@ async function leerJerarquia (comoQuien = headers) {
   return (await (await fetch(`${base}/jerarquia`, { headers: comoQuien })).json()).data
 }
 
+/**
+ * El arbol que devolvio una escritura.
+ *
+ * Las tres escrituras contestan el arbol entero y no la fila tocada: mover algo cambia quien cuelga
+ * de quien y que se puede editar, y recalcularlo en el navegador seria una segunda copia de las
+ * reglas de la API.
+ */
+async function arbolDe (respuesta) {
+  return (await respuesta.json()).data
+}
+
 /** El area de ese nombre dentro de una jerarquia ya leida. */
 function areaLlamada (jerarquia, nombre) {
   const area = jerarquia.areas.find((otra) => otra.name === nombre)
@@ -145,16 +156,19 @@ test('colgar un área de su propia descendencia es un ciclo', async () => {
   }
 })
 
-test('crear un área y colgarle otra la deja anidada', async () => {
-  const raiz = (await (await fetch(`${base}/jerarquia/areas`, {
+test('crear un área y colgarle otra la deja anidada, y el alta devuelve el árbol', async () => {
+  const trasRaiz = await arbolDe(await fetch(`${base}/jerarquia/areas`, {
     method: 'POST',
     headers,
     body: JSON.stringify({ name: 'Raíz de prueba' })
-  })).json()).data
+  }))
 
+  // No devuelve el área creada: devuelve todo, con ella adentro.
+  const raiz = areaLlamada(trasRaiz, 'Raíz de prueba')
   assert.equal(raiz.area_superior_id, null)
   assert.equal(raiz.jefe_staffid, null)
   assert.deepEqual(raiz.personas, [])
+  assert.equal(Array.isArray(trasRaiz.sin_area), true)
 
   const alta = await fetch(`${base}/jerarquia/areas`, {
     method: 'POST',
@@ -164,7 +178,7 @@ test('crear un área y colgarle otra la deja anidada', async () => {
 
   assert.equal(alta.status, 201)
 
-  const hija = (await alta.json()).data
+  const hija = areaLlamada(await arbolDe(alta), 'Hija de prueba')
   assert.equal(hija.area_superior_id, raiz.id)
   assert.equal(hija.jefe_staffid, 3)
 
@@ -175,7 +189,7 @@ test('crear un área y colgarle otra la deja anidada', async () => {
   })
 
   assert.equal(editada.status, 200)
-  assert.equal((await editada.json()).data.jefe_staffid, null)
+  assert.equal(areaLlamada(await arbolDe(editada), 'Hija de prueba').jefe_staffid, null)
 })
 
 test('mover una persona la saca de una lista y la pone en la otra', async () => {
@@ -192,9 +206,10 @@ test('mover una persona la saca de una lista y la pone en la otra', async () => 
 
   assert.equal(movida.status, 200)
 
-  const conElenaMovida = await leerJerarquia()
+  // También devuelve el árbol entero: no hace falta volver a pedirlo para ver las dos listas.
+  const conElenaMovida = await arbolDe(movida)
   assert.equal(areaLlamada(conElenaMovida, 'Analytics').personas.length, 1)
-  assert.equal(areaLlamada(conElenaMovida, 'Content Studio').personas.length, 3)
+  assert.equal(areaLlamada(conElenaMovida, 'Content Studio').personas.length, 4)
 
   const soltada = await fetch(`${base}/jerarquia/personas/5`, {
     method: 'PUT',
@@ -204,7 +219,7 @@ test('mover una persona la saca de una lista y la pone en la otra', async () => 
 
   assert.equal(soltada.status, 200)
 
-  const suelta = await leerJerarquia()
+  const suelta = await arbolDe(soltada)
   assert.deepEqual(suelta.sin_area.map((persona) => persona.full_name).sort(), ['Elena Paz', 'Gina Ferrer'])
 
   // Se la devuelve a Analytics para no dejar el fixture torcido para las pruebas que sigan.
@@ -258,7 +273,7 @@ test('quien dirige un área sí puede sumar gente a la suya', async () => {
   })
 
   assert.equal(sumada.status, 200)
-  assert.equal(areaLlamada(await leerJerarquia(), 'Analytics').personas.length, 3)
+  assert.equal(areaLlamada(await arbolDe(sumada), 'Analytics').personas.length, 3)
 
   await fetch(`${base}/jerarquia/personas/7`, {
     method: 'PUT',
@@ -277,11 +292,11 @@ test('en_tareas marca el área que no cruza con ningún Proceso', async () => {
 })
 
 test('un área recién creada nace alineada: el alta sincroniza el nombre', async () => {
-  const nueva = (await (await fetch(`${base}/jerarquia/areas`, {
+  const nueva = areaLlamada(await arbolDe(await fetch(`${base}/jerarquia/areas`, {
     method: 'POST',
     headers,
     body: JSON.stringify({ name: 'Área recién nacida' })
-  })).json()).data
+  })), 'Área recién nacida')
 
   assert.equal(nueva.en_tareas, true)
 
@@ -309,7 +324,7 @@ test('renombrar es 409 con su explicación; reenviar el mismo nombre no lo es', 
   })
 
   assert.equal(soloMueve.status, 200)
-  assert.equal((await soloMueve.json()).data.jefe_staffid, null)
+  assert.equal(areaLlamada(await arbolDe(soloMueve), 'Analytics').jefe_staffid, null)
 
   await fetch(`${base}/jerarquia/areas/${analytics.id}`, {
     method: 'PUT',
@@ -344,18 +359,18 @@ test('el PUT exige las tres claves presentes, aunque dos vengan en null', async 
 })
 
 test('borrar un área vacía devuelve el árbol entero, ya sin ella', async () => {
-  const creada = (await (await fetch(`${base}/jerarquia/areas`, {
+  const creada = areaLlamada(await arbolDe(await fetch(`${base}/jerarquia/areas`, {
     method: 'POST',
     headers,
     body: JSON.stringify({ name: 'Área para borrar' })
-  })).json()).data
+  })), 'Área para borrar')
 
   const borrada = await fetch(`${base}/jerarquia/areas/${creada.id}`, { method: 'DELETE', headers })
 
   assert.equal(borrada.status, 200)
 
   // No es un 204: devuelve todo, porque borrar puede dejar huérfanas a las que colgaban.
-  const arbol = (await borrada.json()).data
+  const arbol = await arbolDe(borrada)
   assert.equal(Array.isArray(arbol.areas), true)
   assert.equal(arbol.areas.some((area) => area.id === creada.id), false)
   assert.equal(Array.isArray(arbol.sin_area), true)
