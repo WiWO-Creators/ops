@@ -13,6 +13,7 @@ import { ACEPTA, LIMITE_AUDIO_BYTES, LIMITE_BYTES, LIMITE_DOCUMENTO_BYTES, forma
 import { aTextoPlano } from './formatos'
 import { GrabadoraDeAudio } from './GrabadoraDeAudio'
 import type { Acta, PrefillActa } from '@/datos/recursos'
+import type { PasoIA } from '@/dominio/ia'
 import type { ModoEntrada } from '@/dominio/actas'
 
 /**
@@ -63,6 +64,10 @@ export function AsistenteDeActa ({ proyectoId, onCreada, onCancelar }: PropsAsis
   const [asistentes, setAsistentes] = useState('')
 
   const [fase, setFase] = useState<'entrada' | 'generando' | 'error'>('entrada')
+  // Lo que el servidor dice que está haciendo antes de escribir. Transcribir una reunión de una
+  // hora son varios minutos sin un solo `delta`, y sin esto la pantalla no dice nada en todo ese
+  // rato: la persona no puede distinguir "está escuchando" de "se colgó".
+  const [paso, setPaso] = useState<PasoIA | null>(null)
   const [avance, setAvance] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [segundos, setSegundos] = useState(0)
@@ -128,6 +133,7 @@ export function AsistenteDeActa ({ proyectoId, onCreada, onCancelar }: PropsAsis
     enCurso.current = control
 
     setFase('generando')
+    setPaso(null)
     setAvance('')
     setError(null)
     setSegundos(0)
@@ -152,6 +158,11 @@ export function AsistenteDeActa ({ proyectoId, onCreada, onCancelar }: PropsAsis
         if (evento.tipo === 'delta') {
           acumulado += evento.texto
           setAvance(acumulado)
+        }
+
+        // El paso se limpia cuando termina: a partir del primer `delta` lo que se ve es el texto.
+        if (evento.tipo === 'paso') {
+          setPaso(evento.paso.fase === 'fin' ? null : evento.paso)
         }
 
         if (evento.tipo === 'error') {
@@ -192,12 +203,12 @@ export function AsistenteDeActa ({ proyectoId, onCreada, onCancelar }: PropsAsis
     return (
       <div className="border-linea bg-superficie-hundida rounded-tarjeta flex flex-col gap-3 border p-6">
         <div className="flex items-center gap-3">
-          <Orbe medida="2.5rem" estado="generating" />
+          <Orbe medida="2.5rem" estado={paso?.orbe ?? 'generating'} />
           <div className="flex flex-col">
             <p className="text-texto text-sm font-medium">
-              {modo === 'documento'
+              {paso?.etiqueta ?? (modo === 'documento'
                 ? 'Leyendo el Meeting Paper y dejándolo en el formato del sistema…'
-                : 'Escribiendo el Meeting Paper…'}
+                : 'Escribiendo el Meeting Paper…')}
             </p>
             <p className="text-texto-sutil text-xs">
               {archivo === null || modo === 'documento'
