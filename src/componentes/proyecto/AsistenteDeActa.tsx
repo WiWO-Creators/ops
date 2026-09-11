@@ -7,7 +7,7 @@ import { Orbe } from '@/componentes/estado/Orbe'
 import { pedirSobre } from '@/datos/cliente'
 import { leerSSE } from '@/datos/sse'
 import { leerEventoIA } from '@/dominio/ia'
-import { validarArchivo } from '@/dominio/actas'
+import { validarArchivos } from '@/dominio/actas'
 import { cn } from '@/lib/clases'
 import { aTextoPlano } from './formatos'
 import { DatosDelActa, resumenDeDatos, type DatosDeActa } from './acta/DatosDelActa'
@@ -84,7 +84,7 @@ interface PropsAsistente {
 export function AsistenteDeActa ({ proyectoId, onCreada, onCancelar }: PropsAsistente): ReactElement {
   const [modo, setModo] = useState<ModoEntrada>('texto')
   const [texto, setTexto] = useState('')
-  const [archivo, setArchivo] = useState<File | null>(null)
+  const [archivos, setArchivos] = useState<File[]>([])
   const [errorArchivo, setErrorArchivo] = useState<string | null>(null)
 
   const [datos, setDatos] = useState<DatosDeActa>({
@@ -142,27 +142,29 @@ export function AsistenteDeActa ({ proyectoId, onCreada, onCancelar }: PropsAsis
     return () => { clearInterval(temporizador) }
   }, [fase])
 
-  function elegirArchivo (elegido: File | null): void {
+  /**
+   * Acepta la selección entera o ninguna.
+   *
+   * Quedarse con los archivos buenos y descartar el malo en silencio es perder uno sin que nadie lo
+   * note: quien eligió cinco fotos de una pizarra espera que se suban las cinco. El error dice qué
+   * pasa y con cuál, y la selección se limpia.
+   */
+  function elegirArchivos (elegidos: File[]): void {
     setErrorArchivo(null)
 
-    if (elegido === null) {
-      setArchivo(null)
+    const problema = elegidos.length === 0 ? null : validarArchivos(elegidos, modo)
 
-      return
-    }
-
-    const problema = validarArchivo(elegido, modo)
     if (problema !== null) {
-      setArchivo(null)
+      setArchivos([])
       setErrorArchivo(problema)
 
       return
     }
 
-    setArchivo(elegido)
+    setArchivos(elegidos)
   }
 
-  const listoParaGenerar = (archivo !== null || texto.trim() !== '') && fase !== 'generando'
+  const listoParaGenerar = (archivos.length > 0 || texto.trim() !== '') && fase !== 'generando'
 
   async function generar (): Promise<void> {
     if (!listoParaGenerar) return
@@ -177,7 +179,10 @@ export function AsistenteDeActa ({ proyectoId, onCreada, onCancelar }: PropsAsis
     setSegundos(0)
 
     const cuerpo = new FormData()
-    if (archivo !== null) cuerpo.append('file', archivo)
+    // `file[]` y no `file`: PHP se queda con el ÚLTIMO valor cuando un campo multipart se repite sin
+    // corchetes, así que mandar cinco fotos como `file` dejaría cuatro en el camino sin ningún error.
+    // Con los corchetes PHP las agrupa en `$_FILES['file']` y `EntradaDeActa` las lee todas.
+    for (const archivo of archivos) cuerpo.append('file[]', archivo)
     if (texto.trim() !== '') cuerpo.append('texto', texto.trim())
     cuerpo.append('cliente', datos.cliente)
     cuerpo.append('fecha', datos.fecha)
@@ -249,7 +254,7 @@ export function AsistenteDeActa ({ proyectoId, onCreada, onCancelar }: PropsAsis
                 : 'Escribiendo el Meeting Paper…')}
             </p>
             <p className="text-texto-sutil text-xs">
-              {archivo === null || modo === 'documento'
+              {archivos.length === 0 || modo === 'documento'
                 ? `Van ${segundos} s.`
                 : `Van ${segundos} s. Escuchar una reunión larga puede tardar varios minutos.`}
             </p>
@@ -265,9 +270,9 @@ export function AsistenteDeActa ({ proyectoId, onCreada, onCancelar }: PropsAsis
         <span role="status" className="sr-only">Generando el Meeting Paper</span>
 
         <p className="text-texto-sutil text-xs">
-          {modo === 'documento'
-            ? 'El archivo no se guarda: lo que queda es este Meeting Paper. Puedes cambiar de pestaña, se guarda solo al terminar.'
-            : 'Puedes cambiar de pestaña: el acta se guarda sola al terminar.'}
+          {archivos.length === 0
+            ? 'Puedes cambiar de pestaña: el acta se guarda sola al terminar.'
+            : `Puedes cambiar de pestaña: el acta se guarda sola al terminar, con ${archivos.length === 1 ? 'el archivo adjunto' : 'los archivos adjuntos'}.`}
         </p>
       </div>
     )
@@ -286,13 +291,13 @@ export function AsistenteDeActa ({ proyectoId, onCreada, onCancelar }: PropsAsis
             modo={modo}
             onModo={(siguiente) => {
               setModo(siguiente)
-              elegirArchivo(null)
+              elegirArchivos([])
             }}
             texto={texto}
             onTexto={setTexto}
-            archivo={archivo}
+            archivos={archivos}
             errorArchivo={errorArchivo}
-            onArchivo={elegirArchivo}
+            onArchivos={elegirArchivos}
           />
         </Paso>
 

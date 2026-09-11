@@ -1082,6 +1082,22 @@ const ACTAS = []
 /** Autoincremental de actas. Arranca alto para que un id de acta no se confunda con uno de tarea. */
 let PROXIMA_ACTA = 900
 
+/** Autoincremental de adjuntos del acta. */
+let PROXIMO_ADJUNTO = 7000
+
+/**
+ * El unico binario que el mock sirve: un PNG liso de 640x360.
+ *
+ * Es lo que devuelve la descarga de CUALQUIER adjunto de acta, sin importar que se haya subido: el
+ * mock no guarda los bytes, solo los nombres. Mide 640x360 y no 1x1 a proposito — con un pixel la
+ * miniatura carga pero no se ve, y entonces no hay forma de mirar si el titulo y el boton quedaron
+ * bien puestos respecto de la imagen, que es justo lo que esta pantalla hay que revisar a ojo.
+ */
+const PLACEHOLDER_PNG = Buffer.from(
+  'iVBORw0KGgoAAAANSUhEUgAAAoAAAAFoCAIAAABIUN0GAAAEg0lEQVR42u3VMQ0AAAgEsdeCLNQhlWCCqUkV3HKpHgDgWSQAAAMGAAMGAAwYAAwYADBgADBgAMCAAcCAAQADBgADBgADBgAMGAAMGAAwYAAwYADAgAHAgAEAAwYAAwYAAwYADBgADBgAMGAAMGAAwIABwIABAAMGAAMGAAMGAAwYAAwYADBgADBgAMCAAcCAAQADBgADBgADBgAMGAAMGAAwYAAwYADAgAHAgAEAAwYAAwYAAwYADBgADBgAMGAAMGAAwIABwIABAAMGAAMGAAMGAAwYAAwYADBgADBgAMCAAcCAAQADBgADBgADBgAMGAAMGAAwYAAwYADAgAHAgAEAAwYAAwYAAwYADBgADBgAMGAAMGAAwIABwIABAAMGAAMGAANWAQAMGAAMGAAwYAAwYADAgAHAgAEAAwYAAwYADBgADBgADBgAMGAAMGAAwIABwIABAAMGAAMGAAwYAAwYAAwYADBgADBgAMCAAcCAAQADBgADBgAMGAAMGAAMGAAwYAAwYADAgAHAgAEAAwYAAwYADBgADBgADBgAMGAAMGAAwIABwIABAAMGAAMGAAwYAAwYAAwYADBgADBgAMCAAcCAAQADBgADBgAMGAAMGAAMGAAwYAAwYADAgAHAgAEAAwYAAwYADBgADBgADBgAMGAAMGAAwIABwIABAAMGAAMGAAwYAAwYAAwYADBgADBgAMCAAcCAAQADBgADBgAMGAAMGAAMWAUAMGAAMGAAwIABwIABAAMGAAMGAAwYAAwYADBgADBgADBgAMCAAcCAAQADBgADBgAMGAAMGAAwYAAwYAAwYADAgAHAgAEAAwYAAwYADBgADBgAMGAAMGAAMGAAwIABwIABAAMGAAMGAAwYAAwYADBgADBgADBgAMCAAcCAAQADBgADBgAMGAAMGAAwYAAwYAAwYADAgAHAgAEAAwYAAwYADBgADBgAMGAAMGAAMGAAwIABwIABAAMGAAMGAAwYAAwYADBgADBgADBgAMCAAcCAAQADBgADBgAMGAAMGAAwYAAwYAAwYADAgAHAgAEAAwYAAwYADBgADBgAMGAAMGAAMGAAwIABwIABAAMGAAMGAAwYAAwYADBgADBgADBgCQDAgAHAgAEAAwYAAwYADBgADBgAMGAAMGAAwIABwIABwIABAAMGAAMGAAwYAAwYADBgADBgAMCAAcCAAcCAAQADBgADBgAMGAAMGAAwYAAwYADAgAHAgAHAgAEAAwYAAwYADBgADBgAMGAAMGAAwIABwIABwIABAAMGAAMGAAwYAAwYADBgADBgAMCAAcCAAcCAAQADBgADBgAMGAAMGAAwYAAwYADAgAHAgAHAgAEAAwYAAwYADBgADBgAMGAAMGAAwIABwIABwIABAAMGAAMGAAwYAAwYADBgADBgAMCAAcCAAcCAAQADBgADBgAMGAAMGAAwYAAwYADAgAHAgAHAgFUAAAMGAAMGAAwYAAwYADBgADBgAMCAAcCAAQADBgADBgADBgAMGAAMGAAwYAAwYADAgAHAgAGAs2zlqnsqBR5hAAAAAElFTkSuQmCC',
+  'base64'
+)
+
 /** Firma de correo por marca, igual que la constante del backend. */
 const FIRMAS_MARCA = {
   mgc: 'https://www.meetwiwo.com/assets/logos/Materiales/firmamgc.jpg',
@@ -1089,7 +1105,12 @@ const FIRMAS_MARCA = {
   palta: 'https://www.meetwiwo.com/assets/logos/Materiales/firmapalta.jpg'
 }
 
-/** Un acta como la devuelve la API. El listado omite `content`, igual que el backend. */
+/**
+ * Un acta como la devuelve la API. El listado omite `content`, igual que el backend.
+ *
+ * `attachments` y `project_name` viajan SOLO en el detalle, por lo mismo que `content`: el listado
+ * pinta una tabla de titulos y no necesita ni los archivos ni el nombre del Espacio repetido.
+ */
 function presentarActa (acta, { conContenido }) {
   const autor = STAFF.find((s) => s.id === acta.staff_id) ?? null
   const publica = {
@@ -1111,7 +1132,16 @@ function presentarActa (acta, { conContenido }) {
     updated_by: acta.updated_by
   }
 
-  return conContenido ? { ...publica, content: acta.content } : publica
+  if (!conContenido) return publica
+
+  const espacio = ESPACIOS.find((e) => e.id === acta.project_id) ?? null
+
+  return {
+    ...publica,
+    content: acta.content,
+    project_name: espacio?.name ?? '',
+    attachments: acta.attachments ?? []
+  }
 }
 
 /** El HTML que "genera" el modelo, con la estructura real del Meeting Paper. */
@@ -1143,8 +1173,12 @@ function tituloDeHtml (html) {
   return encontrado[1].replace(/<[^>]+>/g, '').replace(/^Meeting Paper\s*-\s*/i, '').trim() || 'Meeting Paper'
 }
 
-/** Crea el acta y la deja al frente de la lista. */
-function guardarActa (espacio, actual, campos, html, origen) {
+/**
+ * Crea el acta y la deja al frente de la lista.
+ *
+ * @param {Array<{name: string, size: number, type: string}>} adjuntos los archivos que se subieron
+ */
+function guardarActa (espacio, actual, campos, html, origen, adjuntos = []) {
   const ahora = new Date().toISOString().replace(/\.\d{3}Z$/, 'Z')
   const acta = {
     id: (PROXIMA_ACTA += 1),
@@ -1161,7 +1195,20 @@ function guardarActa (espacio, actual, campos, html, origen) {
     staff_id: actual.id,
     date_added: ahora,
     date_updated: ahora,
-    updated_by: null
+    updated_by: null,
+    attachments: adjuntos.map((adjunto) => ({
+      id: (PROXIMO_ADJUNTO += 1),
+      acta_id: PROXIMA_ACTA,
+      name: adjunto.name,
+      // El de disco lo desambigua el backend; el mock imita el sufijo para que el frontend no se
+      // acostumbre a que los dos nombres sean iguales.
+      file_name: `${PROXIMA_ACTA}-${adjunto.name}`,
+      filetype: adjunto.type,
+      size: adjunto.size,
+      staff_id: actual.id,
+      url: `/api/v1/files/acta/${PROXIMO_ADJUNTO}/download`,
+      date_added: ahora
+    }))
   }
   ACTAS.unshift(acta)
 
@@ -1472,24 +1519,90 @@ async function generarActaIaRuta (id, parametros, actual, peticion) {
   const espacio = buscarO404(ESPACIOS, Number(id), 'espacio')
 
   // Drenar el cuerpo antes de responder: sin esto el socket queda con bytes sin leer y el navegador
-  // ve la conexion cortada en vez de la respuesta.
-  for await (const _trozo of peticion) { /* se descarta */ }
+  // ve la conexion cortada en vez de la respuesta. De paso se anotan los archivos que venian, que es
+  // lo que el frontend espera ver listado en la ficha del acta.
+  const adjuntos = await adjuntosDelMultipart(peticion)
 
   const falla = parametros.get('falla') === '1'
   const html = actaGenerada(espacio)
+  const campos = { client: 'Acme SpA', brand: 'wiwo' }
 
   if (!aceptaStream(peticion)) {
     if (falla) throw new ErrorApi(502, 'provider_error', 'El proveedor cortó la respuesta.')
-    const acta = guardarActa(espacio, actual, { client: 'Acme SpA', brand: 'wiwo' }, html, 'ia')
+    const acta = guardarActa(espacio, actual, campos, html, 'ia', adjuntos)
 
     return { estado: 201, cuerpo: conDatos(presentarActa(acta, { conContenido: true })) }
   }
 
   const fin = falla
     ? null
-    : { acta: presentarActa(guardarActa(espacio, actual, { client: 'Acme SpA', brand: 'wiwo' }, html, 'ia'), { conContenido: true }) }
+    : { acta: presentarActa(guardarActa(espacio, actual, campos, html, 'ia', adjuntos), { conContenido: true }) }
 
   return { transmitir: (respuesta) => transmitirSSE(respuesta, html, { fin, falla }) }
+}
+
+/** Extension a MIME, lo justo para que la ficha del acta sepa cual adjunto es una imagen. */
+const MIME_DE_ADJUNTO = {
+  png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', webp: 'image/webp', gif: 'image/gif',
+  heic: 'image/heic', heif: 'image/heif',
+  m4a: 'audio/aac', mp3: 'audio/mpeg', wav: 'audio/wav', ogg: 'audio/ogg', webm: 'audio/webm',
+  mp4: 'audio/aac', mov: 'audio/quicktime',
+  pdf: 'application/pdf', txt: 'text/plain', md: 'text/markdown', html: 'text/html',
+  docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+}
+
+/**
+ * Los archivos que venian en el multipart, sacados del propio flujo mientras se drena.
+ *
+ * El mock NO parsea multipart, y no deberia: eso seria reimplementar PHP para probar el frontend.
+ * Lo que hace es leer los `filename="..."` de las cabeceras de cada parte, que son ASCII y viajan
+ * antes de los bytes del archivo. Alcanza para lo unico que esta pantalla necesita del mock: que el
+ * acta quede con tantos adjuntos como archivos se eligieron, con sus nombres reales.
+ *
+ * El tamaño es un REPARTO del cuerpo entre los archivos, no el de cada uno: medirlo de verdad es
+ * parsear los limites. Sirve para que la ficha muestre un peso creible y nada mas.
+ *
+ * La memoria no crece con el archivo: se mira trozo a trozo y solo se arrastran los ultimos bytes,
+ * por si una cabecera quedo partida entre dos. El desplazamiento absoluto evita contar dos veces el
+ * `filename` que cae justo en ese arrastre.
+ */
+async function adjuntosDelMultipart (peticion) {
+  const ARRASTRE = 512
+  const patron = /filename="([^"\r\n]*)"/g
+  const nombres = []
+  let cola = ''
+  let base = 0
+  let ultimo = -1
+  let bytes = 0
+
+  for await (const trozo of peticion) {
+    bytes += trozo.length
+    const texto = cola + trozo.toString('latin1')
+
+    patron.lastIndex = 0
+    let encontrado = patron.exec(texto)
+    while (encontrado !== null) {
+      const absoluto = base + encontrado.index
+      if (absoluto > ultimo && encontrado[1] !== '') {
+        nombres.push(encontrado[1])
+        ultimo = absoluto
+      }
+      encontrado = patron.exec(texto)
+    }
+
+    cola = texto.slice(-ARRASTRE)
+    base += texto.length - cola.length
+  }
+
+  if (nombres.length === 0) return []
+
+  const reparto = Math.max(1, Math.round(bytes / nombres.length))
+
+  return nombres.map((name) => ({
+    name,
+    size: reparto,
+    type: MIME_DE_ADJUNTO[name.split('.').pop()?.toLowerCase() ?? ''] ?? 'application/octet-stream'
+  }))
 }
 
 /** `POST /ia/proyectos/{id}/acta-transformar`. Reescribe un fragmento con una de las cuatro acciones. */
@@ -2579,6 +2692,30 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
     }
 
     throw new ErrorApi(404, 'not_found', 'Ruta de proceso desconocida.')
+  }
+
+  // `GET /files/acta/{id}/download`: el binario de un adjunto del Meeting Paper.
+  //
+  // Es el unico binario que el mock sirve de verdad, y es a proposito: la ficha del acta pinta las
+  // fotos como miniatura, asi que con metadata en JSON no hay forma de ver si el titulo y el boton
+  // quedaron bien puestos respecto de la imagen. Un PNG de 1x1 alcanza para que el `<img>` cargue.
+  if (recurso === 'files' && metodo === 'GET' && resto[0] === 'acta' && resto[2] === 'download') {
+    const adjunto = ACTAS
+      .flatMap((acta) => acta.attachments ?? [])
+      .find((a) => a.id === Number(resto[1]))
+
+    if (adjunto === undefined) throw new ErrorApi(404, 'not_found', 'No existe ese adjunto.')
+
+    return {
+      transmitir: (respuesta) => {
+        respuesta.writeHead(200, {
+          'Content-Type': adjunto.filetype === '' ? 'application/octet-stream' : adjunto.filetype,
+          'Content-Disposition': `attachment; filename="${adjunto.name.replace(/"/g, '')}"`,
+          'X-Content-Type-Options': 'nosniff'
+        })
+        respuesta.end(PLACEHOLDER_PNG)
+      }
+    }
   }
 
   if (recurso === 'files' && metodo === 'GET' && resto[1] === 'download') {

@@ -88,6 +88,30 @@ export const LIMITE_AUDIO_BYTES = 100 * 1024 * 1024
 /** Tope de duración de la grabación en vivo. */
 export const MAXIMO_GRABACION_MS = 90 * 60 * 1000
 
+/**
+ * Cuántos archivos se pueden mandar en una generación: 10, el mismo `EntradaDeActa::MAX_ARCHIVOS`
+ * de la API.
+ */
+export const MAXIMO_ARCHIVOS = 10
+
+/**
+ * Tope de la SUMA de todos los archivos, 120 MB.
+ *
+ * No es la suma de los topes por archivo y no tiene que serlo. Lo que manda acá es el
+ * `post_max_size` de PHP, que en este repo son 128 MB (`.user.ini` y `docker/Dockerfile`): cuando el
+ * multipart se pasa de ese número, PHP **descarta el cuerpo entero** —no hay error por archivo que
+ * mirar, sólo `$_FILES` y `$_POST` vacíos— y lo único que queda del otro lado es un 413 deducido del
+ * `Content-Length`. Con un archivo eso no pasaba nunca, porque el tope de audio son 100 MB; con diez
+ * se alcanza sin esfuerzo.
+ *
+ * Los 8 MB de diferencia con el 128 no son prudencia: son el sobre del multipart —los `boundary`, las
+ * cabeceras de cada parte y los seis campos de texto del formulario— que también cuenta para
+ * `post_max_size` y que acá no se puede medir antes de armarlo.
+ *
+ * Si el `post_max_size` del servidor donde corre la API cambia, este número cambia con él.
+ */
+export const LIMITE_TOTAL_BYTES = 120 * 1024 * 1024
+
 /** Los cinco modos de entrada del asistente. */
 export type ModoEntrada = 'texto' | 'grabar' | 'audio' | 'imagen' | 'documento'
 
@@ -163,6 +187,49 @@ export function validarArchivo (
   return null
 }
 
+/**
+ * Comprueba que se pueda mandar TODO lo elegido.
+ *
+ * Se rechaza la selección entera y no el archivo malo: quien eligió cinco fotos de una pizarra
+ * espera que se suban las cinco, y subir cuatro en silencio es perder una sin que nadie lo note. El
+ * mensaje nombra el archivo, porque "el archivo pesa 32 MB" con cinco elegidos no dice cuál sacar.
+ *
+ * El tope de la suma es el que importa cuando hay varios: lo fija el `post_max_size` de PHP, no los
+ * topes por archivo. Ver `LIMITE_TOTAL_BYTES`.
+ *
+ * Esto no reemplaza la validación del servidor, que es la que manda.
+ *
+ * @param archivos los archivos elegidos, en el orden en que se van a mandar
+ * @param modo     de dónde sale el acta; sólo `documento` cambia lo que se acepta
+ * @returns el mensaje de error para la persona, o `null` si está bien
+ */
+export function validarArchivos (
+  archivos: ReadonlyArray<{ name: string, size: number }>,
+  modo?: ModoEntrada
+): string | null {
+  if (archivos.length === 0) return null
+
+  if (archivos.length > MAXIMO_ARCHIVOS) {
+    return `Se pueden subir hasta ${MAXIMO_ARCHIVOS} archivos por Meeting Paper y elegiste ${archivos.length}.`
+  }
+
+  for (const archivo of archivos) {
+    const problema = validarArchivo(archivo, modo)
+
+    if (problema !== null) {
+      return archivos.length === 1 ? problema : `${archivo.name}: ${problema}`
+    }
+  }
+
+  const total = archivos.reduce((suma, archivo) => suma + archivo.size, 0)
+
+  if (total > LIMITE_TOTAL_BYTES) {
+    return `Entre todos suman ${formatoPeso(total)} y el servidor acepta hasta ${formatoPeso(LIMITE_TOTAL_BYTES)} por envío. Saca alguno y vuelve a intentar.`
+  }
+
+  return null
+}
+
 /** Peso legible, con un decimal a partir de un mega. */
 export function formatoPeso (bytes: number): string {
   if (!Number.isFinite(bytes) || bytes <= 0) return '0 KB'
@@ -170,6 +237,35 @@ export function formatoPeso (bytes: number): string {
   if (bytes < 1024 * 1024) return `${Math.max(1, Math.round(bytes / 1024))} KB`
 
   return `${(bytes / (1024 * 1024)).toFixed(1).replace('.', ',')} MB`
+}
+
+/**
+ * Los tipos de imagen que un navegador dibuja.
+ *
+ * **No es `MIME_IMAGEN`.** `heic` y `heif` se aceptan al subir —es lo que sale de un iPhone sin
+ * convertir— pero ningún navegador de escritorio los pinta, así que una miniatura de un `.heic` es
+ * un icono roto, que se lee como "el archivo se corrompió". Esos adjuntos se listan igual, con su
+ * nombre y su botón de descarga, pero sin previsualización.
+ */
+const IMAGEN_PINTABLE = new Set(['image/png', 'image/jpeg', 'image/webp', 'image/gif', 'image/avif'])
+
+/**
+ * Si un adjunto se puede mostrar como miniatura en la ficha del acta.
+ *
+ * Manda el MIME, que la API guarda del contenido real con `finfo` y no del `Content-Type` que mandó
+ * el navegador. La extensión es la reserva para las filas viejas o para cuando `finfo` no estaba
+ * disponible en el servidor y la columna quedó vacía.
+ *
+ * @param mime   `filetype` tal como lo devuelve la API; puede venir vacío o nulo
+ * @param nombre nombre del archivo, para la reserva por extensión
+ */
+export function seVeComoImagen (mime: string | null | undefined, nombre: string): boolean {
+  // `split(';')` recorta el `; charset=binary` que algunos `finfo` agregan al tipo.
+  const declarado = ((mime ?? '').toLowerCase().split(';')[0] ?? '').trim()
+
+  if (declarado !== '') return IMAGEN_PINTABLE.has(declarado)
+
+  return IMAGEN_PINTABLE.has(MIME_IMAGEN[extensionDe(nombre)] ?? '')
 }
 
 /**
