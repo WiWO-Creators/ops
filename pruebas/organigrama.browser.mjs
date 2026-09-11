@@ -103,6 +103,15 @@ async function entrar (navegador, email, viewport = { width: 1440, height: 1000 
   return pagina
 }
 
+/** Lo que `/me` dice de quien está mirando esa página. */
+async function quienMira (pagina) {
+  const respuesta = await pagina.request.get(new URL('/api/bff/me', destino).href)
+
+  assert.ok(respuesta.ok(), `GET /me: HTTP ${respuesta.status()}`)
+
+  return (await respuesta.json()).data
+}
+
 const navegador = await chromium.launch()
 const visto = []
 const errores = []
@@ -316,9 +325,18 @@ try {
 
   // La entrada propia en la barra: quien dirige un área no llega a «Administración», así que sin
   // esto la única puerta al organigrama sería otra pantalla.
+  //
+  // Y la llave tiene que ser `dirige_areas` y no el cargo `is_director`: hoy las 184 cuentas de
+  // producción llevan cargo "Staff", así que con esa llave la entrada no le aparecería a ningún jefe
+  // de área. Se comprueba el caso exacto: dirige un área y NO tiene el cargo.
+  const carla = await quienMira(deCarla)
+  assert.equal(carla.dirige_areas, true, 'Carla dirige un área')
+  assert.notEqual(carla.is_director, true, 'y no tiene el cargo Director: ése es el caso de todo el equipo hoy')
+  assert.notEqual(carla.is_admin, true, 'ni administra')
+
   const enLaBarra = deCarla.locator(`nav a[href="${RUTA}"]`)
   await enLaBarra.first().waitFor()
-  visto.push('La barra lateral tiene entrada propia «Organigrama» para quien dirige un área, no solo para un superadministrador.')
+  visto.push(`Con dirige_areas=${String(carla.dirige_areas)} e is_director=${String(carla.is_director)} —el caso de todo el equipo hoy— la barra lateral igual muestra la entrada propia «Organigrama».`)
 
   // --- Quien no dirige nada: el 403 explicado ---------------------------------
   const deElena = await entrar(navegador, 'elena@wiwo.me')

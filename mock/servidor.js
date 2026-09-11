@@ -2452,10 +2452,10 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
       cuerpo: conDatos({
         ...presentarStaff(actual),
         permissions: permisosDe(actual),
-        // Dirigir un area es dirigirla de verdad, no llevar un cargo: sale de `AREAS` y no de una
-        // bandera suelta en el fixture. Asi el mock no puede decir que alguien es Director mientras
-        // `/jerarquia` le contesta 403 por no tener ninguna a cargo.
-        is_director: AREAS.some((area) => area.jefe_staffid === actual.id),
+        // Dirigir un area sale del `jefe_staffid` del arbol, no de un cargo: asi el mock no puede
+        // decir que alguien dirige algo mientras `/jerarquia` le contesta 403 por no tener ninguna.
+        // `is_director` es otra cosa —el cargo de `tblcargos`— y se deja como estaba.
+        dirige_areas: AREAS.some((area) => area.jefe_staffid === actual.id),
         // El escalon de la escalera, por el mismo resolutor que `GET /staff/{id}/nivel`: dos
         // verdades sobre el mismo dato es como el mock deja de ser un contrato ejecutable.
         nivel: nivelDe(actual).nivel,

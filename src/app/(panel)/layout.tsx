@@ -219,10 +219,13 @@ function seccionesDe (yo: Yo): Seccion[] {
   // Organigrama tiene entrada propia y no vive solo dentro de Administracion: la API lo abre a quien
   // administra Y a quien dirige un area —`GET /jerarquia` le sirve su rama—, asi que colgarlo de una
   // seccion que la barra solo le muestra a un superadministrador lo dejaba imposible de encontrar
-  // para la mitad de quienes lo necesitan. La llave es la misma de "Mi Área" mas las de
-  // administracion, que es lo mas cerca del criterio de la API que se puede resolver con `/me`; la
-  // compuerta real sigue siendo el 403, y la pantalla lo muestra con el mensaje que manda el back.
-  if (yo.is_director || yo.is_admin || yo.is_superadmin) {
+  // para la mitad de quienes lo necesitan.
+  //
+  // La llave es `dirige_areas` y **no** `is_director`: aquel es el cargo de `tblcargos` —la regla
+  // vieja— y hoy las 184 cuentas llevan cargo "Staff", asi que con esa llave la entrada no le
+  // aparecia a ningun jefe de area. `dirige_areas` sale del `jefe_staffid` del arbol, que es
+  // exactamente el criterio con el que la API decide el 403.
+  if (yo.dirige_areas || yo.is_admin || yo.is_superadmin) {
     secciones.push({ href: '/administracion/organigrama', etiqueta: 'Organigrama', icono: 'organigrama' })
   }
 
