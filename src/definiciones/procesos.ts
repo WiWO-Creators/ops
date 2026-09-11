@@ -125,7 +125,11 @@ export const PROCESOS: DefinicionRecurso<Proceso> = {
     // el area de la compañía que el Proceso lleva marcada (campo personalizado), la segunda es el
     // area del equipo a la que pertenece quien lo tiene asignado. Sin el apellido en la etiqueta
     // quedan dos "Área" indistinguibles en la barra.
-    { clave: 'area', etiqueta: 'Área de la compañía', tipo: 'seleccion', desdeLookup: 'task_areas' },
+    // `multiple` y no `seleccion`: el campo es un multiselect y un Proceso puede llevar varias
+    // areas, asi que preguntar por una sola obligaba a repetir la busqueda por cada
+    // departamento. El backend ya acepta la lista —`RecursoProcesos` arma un `FIND_IN_SET` por
+    // valor y los une con OR—, no es una columna de texto de las que dan 422.
+    { clave: 'area', etiqueta: 'Área de la compañía', tipo: 'multiple', desdeLookup: 'task_areas' },
     { clave: 'area_asignado', etiqueta: 'Área del asignado', tipo: 'seleccion', desdeLookup: 'areas' },
     { clave: 'clientid', etiqueta: GLOSARIO.cliente.singular, tipo: 'seleccion', desdeLookup: 'clients' },
     // Por nombre y no por id: el catalogo trae un tipo por Espacio, asi que "Bug" son cientos de
