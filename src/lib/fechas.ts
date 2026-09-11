@@ -199,6 +199,82 @@ export function hoyLocal (ahora: Date = new Date()): string {
   return `${anio}-${mes}-${dia}`
 }
 
+/** Separador de la fecha escrita a mano. Es el de Chile y el de Argentina: `31/12/2026`. */
+const SEPARADOR_LOCAL = '/'
+
+/**
+ * Pasa una fecha del contrato al orden en que se lee y se escribe acá: `2026-12-31` -> `31/12/2026`.
+ *
+ * Existe porque `<input type="date">` **no** respeta el `lang` del documento: el navegador dibuja el
+ * orden de dia, mes y año segun el idioma del sistema operativo, asi que en un equipo en ingles el
+ * mismo formulario pide MM/DD/AAAA sin avisar. Quien escribe 03/09 queriendo el 3 de septiembre
+ * guarda el 9 de marzo, y no hay nada en pantalla que lo delate.
+ *
+ * Lo que no reconoce se devuelve tal cual, sin inventar: mientras se tipea, el valor pasa por formas
+ * incompletas (`31/1`) que no son una fecha todavia y que no hay que borrar de abajo del cursor.
+ *
+ * @param valor Fecha `YYYY-MM-DD`, o lo que haya escrito a medio escribir.
+ * @returns La fecha en `DD/MM/AAAA`, o la entrada intacta si no tenia la forma del contrato.
+ */
+export function aFechaLocal (valor: string | null | undefined): string {
+  if (typeof valor !== 'string') return ''
+  if (!esFechaSola(valor)) return valor
+
+  const [anio = '', mes = '', dia = ''] = valor.split('-')
+
+  return [dia, mes, anio].join(SEPARADOR_LOCAL)
+}
+
+/**
+ * Pasa lo escrito en `DD/MM/AAAA` a la fecha `YYYY-MM-DD` que espera la API.
+ *
+ * Comprueba que el dia exista de verdad —el 31 de febrero no pasa— construyendo la fecha en UTC y
+ * viendo si sobrevive: `Date` desborda en silencio y convierte el 31/02 en el 3 de marzo, que es
+ * exactamente el tipo de dato que despues nadie entiende de donde salio. El calculo va en UTC por el
+ * mismo motivo que el resto de este modulo: una fecha sin hora no tiene huso que aplicarle.
+ *
+ * @param texto Lo que hay escrito en el campo.
+ * @returns La fecha en `YYYY-MM-DD`, o `null` si esta incompleta o no existe en el calendario.
+ */
+export function aFechaDelContrato (texto: string | null | undefined): string | null {
+  if (typeof texto !== 'string') return null
+
+  const partes = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(texto.trim())
+  if (partes === null) return null
+
+  const [, dia = '', mes = '', anio = ''] = partes
+  const instante = new Date(Date.UTC(Number(anio), Number(mes) - 1, Number(dia)))
+
+  // Si el dia no existia, `Date.UTC` lo corrio al mes siguiente y el texto que vuelve ya no es el que
+  // entro. Comparar el resultado es mas barato y mas exacto que una tabla de dias por mes con el
+  // caso bisiesto a mano.
+  const iso = instante.toISOString().slice(0, 10)
+
+  return iso === `${anio}-${mes}-${dia}` ? iso : null
+}
+
+/**
+ * Va poniendo las barras mientras se escribe, para que el campo se lea `31/12/2026` sin tipearlas.
+ *
+ * Solo deja pasar digitos y corta en ocho, asi que al valor nunca llega otra cosa: ni una letra, ni
+ * una barra de mas, ni un noveno digito. Pegar `31-12-2026` o `31 12 2026` termina igual de bien que
+ * tipearlo porque los separadores se descartan y quedan los ocho digitos en orden.
+ *
+ * ponytail: el cursor salta al final si se edita en medio del texto. Se arregla con
+ * `setSelectionRange` el dia que alguien lo pida; escribir de corrido, que es el caso normal, no lo
+ * nota.
+ *
+ * @param texto Lo que acaba de quedar en el input.
+ * @returns El mismo texto con la mascara puesta.
+ */
+export function enmascararFechaLocal (texto: string): string {
+  const digitos = texto.replace(/\D/g, '').slice(0, 8)
+
+  return [digitos.slice(0, 2), digitos.slice(2, 4), digitos.slice(4, 8)]
+    .filter((parte) => parte !== '')
+    .join(SEPARADOR_LOCAL)
+}
+
 /**
  * Suma dias a una fecha `YYYY-MM-DD` sin pasar por el huso local.
  *

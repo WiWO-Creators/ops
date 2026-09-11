@@ -13,6 +13,8 @@ import {
 import { Dialogo, ContenidoDialogo } from '@/componentes/superposiciones/Dialogo'
 import { mensajeDeRespuesta } from '@/datos/cliente'
 import { cn } from '@/lib/clases'
+import { aFechaDelContrato, aFechaLocal, enmascararFechaLocal } from '@/lib/fechas'
+import { AsistenteDescripcion } from './AsistenteDescripcion'
 import {
   cuerpoDelFormulario,
   validarFormulario,
@@ -142,6 +144,8 @@ export function FormularioRecurso ({
                   campo={campo}
                   valor={valores[campo.clave]}
                   error={errores[campo.clave]}
+                  titulo={tituloEscrito(campos, valores)}
+                  proyectoId={proyectoDeLaRuta(ruta)}
                   alCambiar={(valor) => { setValores((previos) => ({ ...previos, [campo.clave]: valor })) }}
                 />
               </Fragment>
@@ -164,20 +168,72 @@ export function FormularioRecurso ({
   )
 }
 
+/**
+ * El titulo que se esta escribiendo, para darle contexto al asistente de IA.
+ *
+ * Es el primer campo de texto del formulario: en las siete altas que usan este componente —Fecha
+ * Clave, Nota, Discusion, Proyecto, Licitacion, Upsell, Iteracion— ese campo es siempre el nombre o
+ * el asunto. Buscarlo asi y no pedirselo a cada pantalla es lo que hace que el boton aparezca en las
+ * siete sin tocar siete archivos.
+ *
+ * @param campos La descripcion del formulario.
+ * @param valores Lo que hay escrito.
+ * @returns El titulo, o la cadena vacia si el formulario no tiene uno (el asistente lo admite).
+ */
+function tituloEscrito (campos: CampoFormulario[], valores: ValoresFormulario): string {
+  const primero = campos.find((campo) => campo.tipo === 'texto')
+
+  if (primero === undefined) return ''
+
+  const valor = valores[primero.clave]
+
+  return typeof valor === 'string' ? valor : ''
+}
+
+/**
+ * El Espacio al que pertenece lo que se esta creando, leido de la ruta del BFF.
+ *
+ * `projects/93/notes` y `projects/93` son el mismo Espacio 93; `tasks/40/iterations` no cuelga de
+ * ninguno. Sacarlo de la ruta evita una prop que las siete pantallas tendrian que pasar y que seis
+ * se olvidarian: la ruta ya lo sabe porque es la que va a recibir el `POST`.
+ *
+ * @param ruta Ruta del BFF sin barra inicial.
+ * @returns El id del Espacio, o `null` si la ruta no cuelga de uno.
+ */
+function proyectoDeLaRuta (ruta: string): number | null {
+  const encontrado = /^projects\/(\d+)(?:\/|$)/.exec(ruta)
+
+  if (encontrado === null) return null
+
+  const id = Number(encontrado[1])
+
+  return Number.isSafeInteger(id) && id > 0 ? id : null
+}
+
 interface PropsControl {
   campo: CampoFormulario
   valor: string | boolean | undefined
   error: string | undefined
   alCambiar: (valor: string | boolean) => void
+  /** Contexto para el asistente de IA de los campos `area`. Solo suma; puede faltar. */
+  titulo?: string
+  /** El Espacio del recurso, si cuelga de uno. Solo suma contexto para el asistente. */
+  proyectoId?: number | null
 }
 
 /**
  * Dibuja el control que corresponde al tipo del campo.
  *
- * Se usan controles nativos (`<input type="date">`, `<input type="color">`, `<input type="checkbox">`)
- * en vez de widgets propios: el navegador ya resuelve teclado, formato regional y accesibilidad.
+ * Se usan controles nativos (`<input type="color">`, `<input type="checkbox">`) en vez de widgets
+ * propios: el navegador ya resuelve teclado, formato regional y accesibilidad.
+ *
+ * La excepcion es la fecha. `<input type="date">` es el unico nativo que **no** respeta el idioma del
+ * documento: dibuja dia, mes y año en el orden del sistema operativo, asi que en un equipo en ingles
+ * el formulario pide MM/DD/AAAA sin avisarlo. Ver `EntradaFecha`.
  */
-export function ControlDeCampo ({ campo, valor, error, alCambiar }: PropsControl): ReactElement {
+export function ControlDeCampo (
+  { campo, valor, error, alCambiar, titulo = '', proyectoId = null }: PropsControl
+): ReactElement {
   const id = `campo-${campo.clave}`
 
   if (campo.tipo === 'booleano') {
@@ -219,6 +275,54 @@ export function ControlDeCampo ({ campo, valor, error, alCambiar }: PropsControl
     )
   }
 
+  if (campo.tipo === 'fecha') {
+    return (
+      <Campo
+        etiqueta={campo.etiqueta}
+        requerido={campo.requerido}
+        ayuda={campo.ayuda ?? 'Día, mes y año: 31/12/2026.'}
+        {...(error === undefined ? {} : { error })}
+      >
+        {(props) => <EntradaFecha props={props} valor={texto} alCambiar={alCambiar} />}
+      </Campo>
+    )
+  }
+
+  if (campo.tipo === 'area') {
+    return (
+      <>
+        <Campo
+          etiqueta={campo.etiqueta}
+          requerido={campo.requerido}
+          {...(campo.ayuda === undefined ? {} : { ayuda: campo.ayuda })}
+          {...(error === undefined ? {} : { error })}
+        >
+          {(props) => (
+            <AreaTexto
+              {...props}
+              rows={4}
+              value={texto}
+              onChange={(evento) => { alCambiar(evento.target.value) }}
+            />
+          )}
+        </Campo>
+
+        {/* Se monta siempre y se esconde solo, como en `EdicionTarea`: con la capa de IA apagada la
+            sonda del propio asistente recibe un 404 y no pinta nada. Asi ningun formulario tiene que
+            enterarse de si la IA esta contratada. */}
+        {campo.sinAsistenteIa !== true && (
+          <div className="flex justify-end">
+            <AsistenteDescripcion
+              titulo={titulo}
+              proyectoId={proyectoId}
+              onRedactada={(redactado) => { alCambiar(redactado) }}
+            />
+          </div>
+        )}
+      </>
+    )
+  }
+
   return (
     <Campo
       etiqueta={campo.etiqueta}
@@ -227,33 +331,86 @@ export function ControlDeCampo ({ campo, valor, error, alCambiar }: PropsControl
       {...(error === undefined ? {} : { error })}
     >
       {(props) => (
-        campo.tipo === 'area'
-          ? (
-            <AreaTexto
-              {...props}
-              rows={4}
-              value={texto}
-              onChange={(evento) => { alCambiar(evento.target.value) }}
-            />
-            )
-          : (
-            <Entrada
-              {...props}
-              type={tipoHtml(campo.tipo)}
-              value={texto}
-              {...(campo.min === undefined ? {} : { min: campo.min })}
-              {...(campo.max === undefined ? {} : { max: campo.max })}
-              onChange={(evento) => { alCambiar(evento.target.value) }}
-            />
-            )
+        <Entrada
+          {...props}
+          type={tipoHtml(campo.tipo)}
+          value={texto}
+          {...(campo.min === undefined ? {} : { min: campo.min })}
+          {...(campo.max === undefined ? {} : { max: campo.max })}
+          onChange={(evento) => { alCambiar(evento.target.value) }}
+        />
       )}
     </Campo>
   )
 }
 
-/** Traduce el tipo de campo al `type` del input nativo. */
+/** Los identificadores que `Campo` le cablea a su control. */
+type PropsDeCampo = Parameters<Parameters<typeof Campo>[0]['children']>[0]
+
+/**
+ * Campo de fecha que se lee y se escribe como se lee y se escribe acá: `31/12/2026`.
+ *
+ * === POR QUE NO ES UN `<input type="date">` ===
+ *
+ * Porque ese control ignora el `lang="es"` del documento y ordena dia, mes y año segun el idioma del
+ * SISTEMA OPERATIVO. En un equipo en ingles —la mitad de los notebooks del equipo— el mismo
+ * formulario pide MM/DD/AAAA, y quien escribe 03/09 pensando en el 3 de septiembre guarda el 9 de
+ * marzo. No hay atributo, CSS ni `lang` que lo cambie: es decision del navegador y no se expone.
+ *
+ * === POR QUE NO ES UN CALENDARIO PROPIO ===
+ *
+ * Porque el problema es el formato, no el calendario. Un date picker son cientos de lineas, foco,
+ * teclado, zonas horarias y accesibilidad a mano, para resolver algo que un input de texto con
+ * mascara resuelve entero. Lo que se pierde es el almanaque desplegable; lo que se gana es que la
+ * fecha guardada sea la que la persona quiso.
+ *
+ * === QUE VIAJA HACIA ARRIBA ===
+ *
+ * El valor del formulario sigue siendo `YYYY-MM-DD`, sin excepcion: la traduccion muere acá y ni
+ * `validarFormulario` ni `cuerpoDelFormulario` se enteran. Mientras la fecha esta a medio escribir
+ * sube el texto crudo, que no pasa el formato y hace que el formulario lo señale al guardar: es
+ * preferible a subir vacio, que perderia en silencio lo tipeado.
+ */
+function EntradaFecha (
+  { props, valor, alCambiar }: {
+    props: PropsDeCampo
+    valor: string
+    alCambiar: (valor: string) => void
+  }
+): ReactElement {
+  const [texto, setTexto] = useState(() => aFechaLocal(valor))
+
+  // El valor puede cambiar desde afuera —el dialogo se reabre y se vuelve a sembrar—, y entonces lo
+  // escrito ya no corresponde. Se resincroniza en el render y no en un efecto por el mismo motivo que
+  // la siembra de `FormularioRecurso`: el campo tiene que aparecer con el dato, no aparecer vacio y
+  // llenarse en un segundo render.
+  const [valorPrevio, setValorPrevio] = useState(valor)
+  if (valor !== valorPrevio) {
+    setValorPrevio(valor)
+    setTexto(aFechaLocal(valor))
+  }
+
+  return (
+    <Entrada
+      {...props}
+      type="text"
+      inputMode="numeric"
+      autoComplete="off"
+      placeholder="DD/MM/AAAA"
+      maxLength={10}
+      value={texto}
+      onChange={(evento) => {
+        const escrito = enmascararFechaLocal(evento.target.value)
+
+        setTexto(escrito)
+        alCambiar(aFechaDelContrato(escrito) ?? escrito)
+      }}
+    />
+  )
+}
+
+/** Traduce el tipo de campo al `type` del input nativo. La fecha no pasa por acá: ver `EntradaFecha`. */
 function tipoHtml (tipo: CampoFormulario['tipo']): string {
-  if (tipo === 'fecha') return 'date'
   if (tipo === 'color') return 'color'
   if (tipo === 'numero') return 'number'
 

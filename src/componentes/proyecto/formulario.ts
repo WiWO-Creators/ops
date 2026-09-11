@@ -6,6 +6,8 @@
  * y este modulo, que valida y arma el cuerpo. La parte visual vive en `FormularioRecurso.tsx`.
  */
 
+import { aFechaLocal } from '../../lib/fechas.ts'
+
 export type TipoCampo = 'texto' | 'area' | 'fecha' | 'color' | 'booleano' | 'numero' | 'seleccion'
 
 /** Una opcion de un campo `seleccion`. El valor viaja como cadena y se convierte al armar el cuerpo. */
@@ -36,6 +38,17 @@ export interface CampoFormulario {
    * dos ediciones que se pueden desincronizar.
    */
   seccion?: string
+  /**
+   * Apaga el boton de redaccion con IA en un campo `area`.
+   *
+   * El asistente se ofrece **por defecto** en toda caja de descripcion: son todas la misma caja en
+   * blanco delante de la misma persona, y pedirle a cada formulario que lo encienda termina en siete
+   * formularios donde seis se olvidaron. Quedar fuera es la excepcion y se dice acá, en una linea,
+   * en vez de duplicar el componente para el caso que no aplica.
+   *
+   * Solo tiene sentido en `area`; en los demas tipos no se mira.
+   */
+  sinAsistenteIa?: boolean
   /**
    * Si esta vacio, el campo no viaja en el cuerpo.
    *
@@ -85,15 +98,18 @@ export function validarFormulario (
 
     if (campo.tipo === 'fecha') {
       if (!/^\d{4}-\d{2}-\d{2}$/.test(texto)) {
-        errores[campo.clave] = 'Usa el formato AAAA-MM-DD.'
+        // El mensaje nombra el formato que se ESCRIBE, no el que viaja: el campo pide `DD/MM/AAAA` y
+        // `ControlDeCampo` traduce. Decir "AAAA-MM-DD" mandaria a corregir algo que no esta a la
+        // vista.
+        errores[campo.clave] = 'Usa el formato DD/MM/AAAA.'
         continue
       }
       if (campo.min !== undefined && texto < campo.min) {
-        errores[campo.clave] = `No puede ser anterior al ${campo.min}.`
+        errores[campo.clave] = `No puede ser anterior al ${aFechaLocal(campo.min)}.`
         continue
       }
       if (campo.max !== undefined && texto > campo.max) {
-        errores[campo.clave] = `No puede ser posterior al ${campo.max}.`
+        errores[campo.clave] = `No puede ser posterior al ${aFechaLocal(campo.max)}.`
         continue
       }
     }
