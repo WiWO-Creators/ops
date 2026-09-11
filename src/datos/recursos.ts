@@ -1115,6 +1115,33 @@ export interface NotaEspacio {
  * su propio esquema. La vista de listado no lo trae: la API lo omite a proposito porque son ~20.000
  * caracteres por fila.
  */
+/**
+ * Un archivo con el que se escribio un Meeting Paper: el audio de la reunion, la foto de la pizarra
+ * o el documento que alguien ya habia redactado.
+ *
+ * Antes no existia: los tres eran solo la fuente de entrada del modelo y morian con la peticion. Lo
+ * que quedaba del audio de una reunion de dos horas era el texto que el modelo escribio a partir de
+ * el, y nada mas.
+ *
+ * `url` la emite la API contra `/api/v1/...` y **no se usa tal cual**: `origenDeArchivo()` la
+ * traduce al proxy, porque el token vive en una cookie que solo lee el BFF. Sirve tambien de `src`
+ * de la miniatura, que es una peticion del navegador como cualquier otra.
+ */
+export interface AdjuntoActa {
+  id: number
+  acta_id: number
+  /** El nombre con el que se subio, que es el unico que la persona reconoce. */
+  name: string
+  /** El nombre en disco, desambiguado por la API. Dos `IMG_0001.jpg` no pueden llamarse igual. */
+  file_name: string
+  /** Tipo real del contenido, leido por la API con `finfo`. Puede venir vacio. */
+  filetype: string
+  size: number
+  staff_id: number
+  url: string | null
+  date_added: string | null
+}
+
 export interface Acta {
   id: number
   project_id: number
@@ -1146,6 +1173,16 @@ export interface Acta {
   date_added: string | null
   date_updated: string | null
   updated_by: number | null
+  /**
+   * Solo en el detalle. Los archivos de la reunion, en el orden en que se subieron: el primero es el
+   * que leyo el modelo. El listado no los trae, por lo mismo que no trae `content`.
+   */
+  attachments?: AdjuntoActa[]
+  /**
+   * Solo en el detalle. Nombre del Proyecto del que cuelga, que va junto a cada foto: una imagen de
+   * una pizarra no dice sola de que proyecto es, y `project_id` no es algo que nadie lea.
+   */
+  project_name?: string
 }
 
 /**
