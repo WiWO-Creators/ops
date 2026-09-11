@@ -83,8 +83,14 @@ export interface FilaDeLive {
   seconds_today: number
 }
 
-/** Hasta donde alcanza a ver quien pidio el tablero, segun la API. */
-export type AlcanceApi = 'all' | 'area' | 'self'
+/**
+ * Hasta donde alcanza a ver quien pidio el tablero, segun la API.
+ *
+ * `subordinados` y `area` traen el MISMO recorte —la rama del organigrama— y se distinguen por de
+ * donde salio: el arbol de `tblareas` o el cargo Director de antes. Ver
+ * `Recursos\RecursoJornadas::visibilidad()`.
+ */
+export type AlcanceApi = 'all' | 'subordinados' | 'area' | 'self'
 
 /** `meta` de `GET /live`. */
 export interface MetaDeLive {

@@ -112,8 +112,20 @@ un solo oyente en toda la aplicación.
 | Alcance | Llave | Qué se dibuja |
 |---|---|---|
 | `todo` | `is_superadmin` o `staff.view` | El equipo entero |
+| `subordinados` | `dirige_areas` | Su rama del organigrama: su gente y la de las áreas que cuelgan |
 | `area` | `is_director` | Su área |
 | `propio` | el resto | Sólo el control de jornada; `PanelEquipo` no se monta |
+
+`subordinados` va **antes** que `area` y arregla el caso que faltaba: quien dirige un área de
+`tblareas` pero no tiene el cargo Director ni `staff.view` caía en `propio`, así que esta pantalla ni
+le pedía el tablero — aunque la API se lo hubiera dado entero. Las dos llaves conviven porque son dos
+cosas distintas: el árbol de áreas y el cargo de antes.
+
+`subordinados` y `area` traen el **mismo** recorte del lado de la API (la rama entera, no sólo el
+primer escalón) y se distinguen por de dónde salió, para poder titular "Mi gente" en vez de "Mi área".
+Nadie gana ni pierde una fila por el cambio de nombre: el piso que da el nivel sigue intacto.
+
+El árbol que decide todo esto se configura en `/equipo/jerarquia` — ver `docs/modulos/09-jerarquias.md`.
 
 La compuerta real es la API: `meta.scope` de `GET /live` dice hasta dónde llegó de verdad. Esconder no
 autoriza. Por eso la sección va en la barra lateral **sin condición**: todo el mundo tiene al menos su

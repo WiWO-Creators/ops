@@ -13,6 +13,20 @@ import { cargoYArea, repartirTablero } from './presentacion'
 import { FilaEnVivo } from './FilaEnVivo'
 import type { OpcionFiltro } from '@/definiciones/tipos'
 
+/**
+ * El titulo del tablero segun hasta donde ve quien mira.
+ *
+ * `subordinados` es la rama del organigrama —la gente que depende de esta persona, directa o por
+ * debajo—, `area` es la regla vieja del cargo Director. Las filas son las mismas que la API ya
+ * filtro; esto solo las nombra.
+ */
+const TITULO_POR_ALCANCE: Record<AlcanceDeLive, string> = {
+  todo: 'El equipo, ahora',
+  subordinados: 'Mi gente, ahora',
+  area: 'Mi área, ahora',
+  propio: 'Mi jornada, ahora'
+}
+
 interface PropsPanelEquipo {
   inicial: FilaDeLive[]
   operador: Pick<Yo, 'id' | 'is_admin' | 'is_superadmin'>
@@ -145,7 +159,7 @@ export function PanelEquipo ({
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-col gap-1">
           <h2 className="text-texto text-titulo text-balance font-semibold">
-            {alcance === 'area' ? 'Mi área, ahora' : 'El equipo, ahora'}
+            {TITULO_POR_ALCANCE[alcance]}
           </h2>
           <p className="text-texto-tenue text-pretty text-xs">
             Cada persona, con lo que está midiendo ahora

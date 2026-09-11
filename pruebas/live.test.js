@@ -19,6 +19,7 @@ import { GLOSARIO } from '../src/dominio/glosario.ts'
 const yo = (extra = {}) => ({
   is_superadmin: false,
   is_director: false,
+  dirige_areas: false,
   permissions: { tasks: [], projects: [], customers: [], staff: [] },
   ...extra
 })
@@ -53,6 +54,16 @@ test('el cargo Director abre el area, aunque Perfex no le haya dado ninguna capa
   assert.equal(alcanceDeLive(yo({ is_director: true })), 'area')
 })
 
+test('quien dirige un area del organigrama ve a su gente, sin cargo ni capacidad de Perfex', () => {
+  // El caso que antes caia en `propio`: la API le daba el tablero entero de su rama y la pantalla
+  // ni se lo pedia, asi que el lider no veia a nadie.
+  assert.equal(alcanceDeLive(yo({ dirige_areas: true })), 'subordinados')
+})
+
+test('el organigrama gana sobre el cargo Director, que es la regla anterior', () => {
+  assert.equal(alcanceDeLive(yo({ dirige_areas: true, is_director: true })), 'subordinados')
+})
+
 test('quien puede ver el Equipo ve el tablero entero', () => {
   const conStaffView = yo({ permissions: { tasks: [], projects: [], customers: [], staff: ['view'] } })
 
@@ -66,6 +77,15 @@ test('el superadministrador ve el tablero entero aunque no tenga la capacidad de
 test('el alcance total gana sobre el de area', () => {
   const ambos = yo({
     is_director: true,
+    permissions: { tasks: [], projects: [], customers: [], staff: ['view'] }
+  })
+
+  assert.equal(alcanceDeLive(ambos), 'todo')
+})
+
+test('el alcance total gana tambien sobre el del organigrama', () => {
+  const ambos = yo({
+    dirige_areas: true,
     permissions: { tasks: [], projects: [], customers: [], staff: ['view'] }
   })
 
