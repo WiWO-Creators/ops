@@ -9,6 +9,7 @@
 @import '../estilos/livekit.css';
 @import '../estilos/acta.css';
 @import '../estilos/monito.css';
+@import '../estilos/entrada-pagina.css';
 
 /*
  * Variante `oscuro:`: se activa cuando el documento se esta viendo en oscuro DE VERDAD.
