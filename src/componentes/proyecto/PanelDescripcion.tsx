@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import type { ReactElement, ReactNode } from 'react'
+import type { ReactElement } from 'react'
 import { Cargando, ErrorEstado } from '@/componentes/estado/Estados'
 import { Etiquetas } from '@/componentes/presentadores/Etiqueta'
 import { Fecha } from '@/componentes/presentadores/Fecha'
@@ -13,6 +13,7 @@ import { Metrica, formatearNumero } from './ResumenProyecto'
 import { GraficoHoras } from './GraficoHoras'
 import { useRecurso } from './carga'
 import { aTextoPlano, formatearImporte, segundosAHoraMinuto } from './formatos'
+import { DatoDeFicha as Dato } from './DatoDeFicha'
 import { textoDeDias } from './overview'
 import type { CampoPersonalizado, Espacio, ResumenEspacio } from '@/datos/recursos'
 
@@ -77,16 +78,6 @@ export function PanelDescripcion ({
           <GraficoHoras proyectoId={proyecto.id} />
         </div>
       </div>
-    </div>
-  )
-}
-
-/** Una entrada de la ficha: termino y definicion, en una fila. */
-function Dato ({ termino, children }: { termino: string, children: ReactNode }): ReactElement {
-  return (
-    <div className="border-linea-suave flex flex-wrap items-baseline justify-between gap-2 border-b py-2 last:border-b-0">
-      <dt className="text-texto-sutil text-xs">{termino}</dt>
-      <dd className="text-texto min-w-0 text-sm">{children}</dd>
     </div>
   )
 }

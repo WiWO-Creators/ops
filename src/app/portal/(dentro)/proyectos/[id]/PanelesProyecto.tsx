@@ -1,9 +1,12 @@
 import Link from 'next/link'
 import { Vacio } from '@/componentes/estado/Estados'
 import { formatearFecha } from '@/lib/fechas'
-import { formatearImporte } from '@/componentes/proyecto/formatos'
+import { aTextoPlano, formatearImporte } from '@/componentes/proyecto/formatos'
 import { BarraProgreso } from '@/componentes/proyecto/CabeceraProyecto'
-import { Metrica } from '@/componentes/proyecto/ResumenProyecto'
+import { Metrica, formatearNumero, textoPlazo } from '@/componentes/proyecto/ResumenProyecto'
+import { DatoDeFicha } from '@/componentes/proyecto/DatoDeFicha'
+import { Fecha } from '@/componentes/presentadores/Fecha'
+import type { EmpresaPortal } from '@/datos/tipos'
 import { pedirPortal } from '@/datos/servidor'
 import { cargarLookupsDelPortal, opcionesDeFiltros } from '@/datos/lookups'
 import { PORTAL_TAREAS } from '@/definiciones/portal-proyectos'
@@ -15,7 +18,7 @@ import type {
   TareaPortal,
   TicketPortal
 } from '@/datos/portal'
-import { Bloque, EstadoDelPortal, NombreDeArchivo } from '../../detalle'
+import { EstadoDelPortal, NombreDeArchivo } from '../../detalle'
 import { TablaDeTareas } from './TablaDeTareas'
 
 /**
@@ -25,45 +28,88 @@ import { TablaDeTareas } from './TablaDeTareas'
  * acaso serian siete llamadas a la API para mostrar una.
  */
 
+/**
+ * La pestaña Descripcion, que es la misma que abre un colaborador en el panel.
+ *
+ * Mismo armado que `PanelDescripcion`: barra de avance arriba, la ficha a la izquierda y las
+ * metricas a la derecha. Las filas de la ficha son las mismas, con el mismo rotulo y en el mismo
+ * orden, y salen del mismo componente.
+ *
+ * Faltan cuatro filas que el panel muestra y la API del portal no manda: tipo de facturacion, fecha
+ * de creacion, campos personalizados y etiquetas. No es una decision de producto sino el contrato:
+ * el dia que `GET /portal/projects/{id}` las emita, se agregan acá y la ficha queda identica.
+ *
+ * Las metricas tampoco son las cuatro del panel. `Gastos` sale del modulo de ventas, que produccion
+ * no usa, y el registro total de horas necesita el `overview` del panel, que el portal no tiene.
+ */
 export async function PanelResumen ({ proyecto }: { proyecto: EspacioPortal }) {
-  const finanzas = proyecto.project_cost !== undefined || proyecto.estimated_hours !== undefined
+  const { data: empresa } = await pedirPortal<EmpresaPortal>('/portal/company')
+  const descripcion = aTextoPlano(proyecto.description ?? '')
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <Metrica etiqueta="Avance" valor={`${proyecto.progress}%`} />
-        <Metrica etiqueta={GLOSARIO.proceso.plural} valor={String(proyecto.counts.tasks)} />
-        <Metrica etiqueta="Pendientes" valor={String(proyecto.counts.tasks_open)} />
-        <Metrica etiqueta={GLOSARIO.hito.plural} valor={String(proyecto.counts.milestones)} />
+      <div className="flex items-center gap-3">
+        <BarraProgreso porcentaje={proyecto.progress} className="min-w-0 flex-1" />
+        <span data-numerico className="text-texto text-sm font-semibold">
+          {Math.round(proyecto.progress)}%
+        </span>
       </div>
 
-      {/* Los importes aparecen solo si el proyecto los comparte: la API ni siquiera emite las
-          claves cuando no, asi que `undefined` aca significa "no corresponde" y no "vacio". */}
-      {finanzas && (
-        <Bloque titulo="Presupuesto">
-          <dl className="grid gap-x-8 gap-y-3 sm:grid-cols-3">
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,22rem)_minmax(0,1fr)]">
+        <section className="border-linea bg-superficie-elevada rounded-tarjeta shadow-1 flex flex-col gap-3 border p-5">
+          <h2 className="text-texto text-sm font-semibold">
+            Resumen del {GLOSARIO.espacio.singular.toLowerCase()}
+          </h2>
+
+          <dl className="flex flex-col">
+            <DatoDeFicha termino={`${GLOSARIO.espacio.singular} #`}>{proyecto.id}</DatoDeFicha>
+            <DatoDeFicha termino={GLOSARIO.cliente.singular}>{empresa.company}</DatoDeFicha>
+
+            {/* Los importes solo llegan con `view_finance_overview`: la API ni siquiera emite las
+                claves cuando no, asi que `undefined` significa "no corresponde" y no "vacio". */}
             {proyecto.project_cost !== undefined && proyecto.project_cost !== null && (
-              <Dato rotulo="Costo" valor={formatearImporte(proyecto.project_cost, null)} />
+              <DatoDeFicha termino="Costo total">{formatearImporte(proyecto.project_cost, null)}</DatoDeFicha>
             )}
             {proyecto.project_rate_per_hour !== undefined && proyecto.project_rate_per_hour !== null && (
-              <Dato rotulo="Por hora" valor={formatearImporte(proyecto.project_rate_per_hour, null)} />
+              <DatoDeFicha termino="Tarifa por hora">
+                {formatearImporte(proyecto.project_rate_per_hour, null)}
+              </DatoDeFicha>
             )}
-            {proyecto.estimated_hours !== undefined && proyecto.estimated_hours !== null && (
-              <Dato rotulo="Horas estimadas" valor={String(proyecto.estimated_hours)} />
+
+            <DatoDeFicha termino="Estado">
+              <EstadoDelPortal catalogo="project_statuses" valor={proyecto.status} />
+            </DatoDeFicha>
+            <DatoDeFicha termino="Fecha de inicio"><Fecha valor={proyecto.start_date} /></DatoDeFicha>
+
+            {proyecto.deadline !== null && (
+              <DatoDeFicha termino="Fecha límite"><Fecha valor={proyecto.deadline} comoVencimiento /></DatoDeFicha>
             )}
+            {proyecto.date_finished !== null && (
+              <DatoDeFicha termino="Fecha de finalización">
+                <span className="text-texto-exito"><Fecha valor={proyecto.date_finished} /></span>
+              </DatoDeFicha>
+            )}
+
+            <DatoDeFicha termino="Horas estimadas">{formatearNumero(proyecto.estimated_hours, ' h')}</DatoDeFicha>
           </dl>
-        </Bloque>
-      )}
 
-    </div>
-  )
-}
+          <div className="flex flex-col gap-1">
+            <h3 className="text-texto-sutil text-xs">Descripción</h3>
+            <p className="text-texto text-sm whitespace-pre-line">
+              {descripcion === '' ? 'Sin descripción' : descripcion}
+            </p>
+          </div>
+        </section>
 
-function Dato ({ rotulo, valor }: { rotulo: string, valor: string }) {
-  return (
-    <div>
-      <dt className="text-texto-sutil text-xs tracking-wide uppercase">{rotulo}</dt>
-      <dd className="text-texto mt-0.5 text-sm">{valor}</dd>
+        <div className="grid grid-cols-2 gap-3 self-start md:grid-cols-3">
+          <Metrica
+            etiqueta={`${GLOSARIO.proceso.plural} abiertas`}
+            valor={`${proyecto.counts.tasks_open} / ${proyecto.counts.tasks}`}
+          />
+          <Metrica etiqueta="Días restantes" valor={textoPlazo(proyecto.deadline)} />
+          <Metrica etiqueta={GLOSARIO.hito.plural} valor={String(proyecto.counts.milestones)} />
+        </div>
+      </div>
     </div>
   )
 }

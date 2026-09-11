@@ -64,8 +64,16 @@ function diasRestantes (entrega: string | null | undefined, hoy: Date = new Date
   return Math.round((objetivo - referencia) / 86400000)
 }
 
-/** Texto de la metrica de plazo: los dias que faltan, o el aviso de que ya paso. */
-function textoPlazo (entrega: string | null): string {
+/**
+ * Texto de la metrica de plazo: los dias que faltan, o el aviso de que ya paso.
+ *
+ * Exportada porque el portal del cliente pinta la misma metrica: el plazo que ve el cliente y el que
+ * ve quien lo atiende tienen que contar los dias igual.
+ *
+ * @param entrega fecha de entrega `YYYY-MM-DD`, o `null`
+ * @returns los dias que faltan, "Vencido", o el guion cuando no hay fecha
+ */
+export function textoPlazo (entrega: string | null): string {
   const dias = diasRestantes(entrega)
   if (dias === null) return SIN_DATO
   if (dias < 0) return 'Vencido'
