@@ -76,6 +76,12 @@ export function mensajeDeFalloDeMedidor (estado: number, arrancando: boolean): s
  * que la pantalla quedo vieja: otra pestaña ya hizo el cambio. Por eso el texto invita a mirar de
  * nuevo en vez de a reintentar.
  *
+ * **`403`, `404` y `422` solo aparecen al abrir con Espacio.** Desde que `POST /me/jornada` acepta
+ * `project_id`, la misma peticion abre la jornada y arranca el medidor, asi que puede fallar por el
+ * Espacio y no por la jornada. La jornada no queda abierta: la API la descarta. El texto nombra el
+ * Espacio porque es lo que la persona tiene que cambiar; decir "no se pudo abrir la jornada (403)"
+ * la dejaria buscando en el lugar equivocado.
+ *
  * @param estado codigo HTTP de la respuesta; `0` si la peticion no llego a salir
  * @param abriendo `true` si el fallo fue al abrir, `false` al cerrar
  * @returns el mensaje a mostrar; nunca vacio
@@ -87,6 +93,12 @@ export function mensajeDeFalloDeJornada (estado: number, abriendo: boolean): str
     return abriendo
       ? 'Ya tienes una jornada abierta.'
       : 'No tienes ninguna jornada abierta.'
+  }
+
+  if (abriendo) {
+    if (estado === 403) return 'No puedes medir tiempo en ese Espacio. Elige otro.'
+    if (estado === 404) return 'Ese Espacio ya no existe o no lo puedes ver. Elige otro.'
+    if (estado === 422) return 'Elige el Espacio en el que vas a trabajar.'
   }
 
   return `No se pudo ${abriendo ? 'abrir' : 'cerrar'} la jornada (el servidor respondió ${estado}).`

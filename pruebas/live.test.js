@@ -249,3 +249,25 @@ test('esJefatura deja fuera a lider, focal y usuario', () => {
     assert.equal(esJefatura(nivel), false, `${nivel} no tendría que ver el resumen`)
   }
 })
+
+/**
+ * Abrir con Espacio puede fallar por el Espacio, no por la jornada.
+ *
+ * Desde que `POST /me/jornada` acepta `project_id`, la misma peticion arranca el medidor, asi que
+ * devuelve el 403/404 del Espacio. Un mensaje que hable de la jornada mandaria a la persona a
+ * buscar donde no es: la jornada no quedo abierta —la API la descarta— y lo que tiene que cambiar
+ * es el Espacio.
+ */
+test('el fallo al abrir con Espacio nombra el Espacio, no la jornada', () => {
+  assert.match(mensajeDeFalloDeJornada(403, true), /Espacio/)
+  assert.match(mensajeDeFalloDeJornada(404, true), /Espacio/)
+  assert.match(mensajeDeFalloDeJornada(422, true), /Espacio/)
+
+  // Al cerrar no hay Espacio en juego: ahi 403 sigue siendo un fallo generico.
+  assert.doesNotMatch(mensajeDeFalloDeJornada(403, false), /Espacio/)
+})
+
+/** El 409 sigue siendo el de la jornada: otra pestaña la abrio primero. */
+test('el 409 al abrir sigue hablando de la jornada', () => {
+  assert.equal(mensajeDeFalloDeJornada(409, true), 'Ya tienes una jornada abierta.')
+})

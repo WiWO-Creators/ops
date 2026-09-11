@@ -181,12 +181,16 @@ export function ControlJornada ({
    * `0` significa que la peticion no llego a salir: sin respuesta no hay codigo, y
    * `mensajeDeFalloDe*` lo traduce a "revisa la conexion" en vez de a un numero inventado.
    */
-  async function llamar (ruta: string, metodo: 'POST' | 'DELETE'): Promise<number> {
+  async function llamar (
+    ruta: string,
+    metodo: 'POST' | 'DELETE',
+    cuerpo: Record<string, unknown> = {}
+  ): Promise<number> {
     try {
       const respuesta = await fetch(`/api/bff/${ruta}`, {
         method: metodo,
         headers: metodo === 'POST' ? { 'content-type': 'application/json' } : undefined,
-        body: metodo === 'POST' ? '{}' : undefined
+        body: metodo === 'POST' ? JSON.stringify(cuerpo) : undefined
       })
 
       return respuesta.status
@@ -200,11 +204,18 @@ export function ControlJornada ({
     return estadoHttp >= 200 && estadoHttp < 300
   }
 
-  async function abrirJornada (): Promise<boolean> {
+  async function abrirJornada (espacioId?: number): Promise<boolean> {
     setEnCurso(true)
     setAviso(null)
 
-    const respuesta = await llamar('me/jornada', 'POST')
+    // Con `project_id`, la API abre la jornada Y arranca el medidor del Espacio en la misma
+    // escritura, y descarta la jornada si el medidor no arranca. Sin el, abre la jornada sola: es lo
+    // que hace el boton de "abrir jornada" de la variante compacta, que no elige Espacio.
+    const respuesta = await llamar(
+      'me/jornada',
+      'POST',
+      espacioId === undefined ? {} : { project_id: espacioId }
+    )
 
     setEnCurso(false)
 
@@ -304,23 +315,21 @@ export function ControlJornada ({
   }
 
   /**
-   * Abre la jornada y arranca el medidor. **Un solo reintento**, nunca una cadena: si el segundo
-   * arranque tambien falla, el motivo ya no es la jornada y repetirlo solo esconde el error.
+   * Abre la jornada con su Espacio, en **una sola peticion**.
+   *
+   * Antes eran dos —`POST /me/jornada` y despues `POST /projects/{id}/timer`— y entre una y otra
+   * cabia un corte de red: la jornada quedaba abierta y sin Espacio, que es justo lo que la regla
+   * de "el medidor es obligatorio" quiere impedir. Ahora lo resuelve la API: con `project_id` abre
+   * las dos cosas o ninguna, y si el medidor falla descarta la jornada que acababa de abrir.
+   *
+   * Por eso aca no hay compensacion ni reintento. Un fallo deja el estado como estaba y el aviso
+   * dice por que: 403 si no es miembro del Espacio, 404 si el Espacio ya no esta, 409 si otra
+   * pestaña abrio la jornada primero.
    */
   async function abrirYArrancar (espacioId: number): Promise<void> {
-    if (!await abrirJornada()) return
+    if (!await abrirJornada(espacioId)) return
 
-    setEnCurso(true)
-
-    const respuesta = await llamar(`projects/${espacioId}/timer`, 'POST')
-
-    setEnCurso(false)
-
-    if (acepto(respuesta)) avisarCambioDeMedidor()
-    else setAviso(mensajeDeFalloDeMedidor(respuesta, true))
-
-    // Se recarga pase lo que pase: la jornada quedo abierta aunque el medidor no arrancara.
-    recargar()
+    avisarCambioDeMedidor()
   }
 
   async function detenerMedidor (): Promise<void> {
