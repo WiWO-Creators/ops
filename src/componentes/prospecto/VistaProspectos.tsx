@@ -50,9 +50,13 @@ interface PropsVistaProspectos {
   capacidades?: Capacidad[]
   /** Catalogo `countries` de `GET /lookups`, para el formulario de alta. */
   paises: OpcionCampo[]
+  /** Catalogo `areas` de `GET /lookups`, para el campo Área del alta de licitación. */
+  areas: OpcionCampo[]
+  /** Catalogo `staff` de `GET /lookups`, para los campos Owner y Focal del alta de licitación. */
+  staff: OpcionCampo[]
 }
 
-export function VistaProspectos ({ inicial, capacidades = [], paises, usuarioId }: PropsVistaProspectos) {
+export function VistaProspectos ({ inicial, capacidades = [], paises, areas, staff, usuarioId }: PropsVistaProspectos) {
   const router = useRouter()
   const [creando, setCreando] = useState(false)
 
@@ -111,6 +115,8 @@ export function VistaProspectos ({ inicial, capacidades = [], paises, usuarioId 
           usuarioId={usuarioId}
           capacidades={capacidades}
           paises={paises}
+          areas={areas}
+          staff={staff}
           onCerrar={() => { setCreando(false) }}
           onGuardado={() => { router.refresh() }}
         />
