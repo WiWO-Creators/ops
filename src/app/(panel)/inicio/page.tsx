@@ -9,9 +9,10 @@ import {
   ListChecks,
   Users
 } from 'lucide-react'
-import { pedir } from '@/datos/servidor'
+import { pedir, pedirOpcional } from '@/datos/servidor'
 import type { Yo } from '@/datos/tipos'
 import type { Espacio, Proceso } from '@/datos/recursos'
+import type { EstadoDeJornada } from '@/datos/live'
 import { GLOSARIO } from '@/dominio/glosario'
 import { agruparPorVencimiento, cuantosNoListados } from '@/dominio/inicio'
 import { puedeVerSeccion } from '@/dominio/permisos'
@@ -20,6 +21,7 @@ import { Insignia } from '@/componentes/presentadores/Insignia'
 import { Fecha } from '@/componentes/presentadores/Fecha'
 import { PARAMETRO_TAREA } from '@/componentes/datos/tabla'
 import { ModalTarea } from '@/componentes/proyecto/ModalTarea'
+import { AvisoJornada } from './AvisoJornada'
 import { ResumenDelDia } from './ResumenDelDia'
 
 /**
@@ -50,13 +52,23 @@ const URL_SOPORTE = 'https://wiwo.center'
  * las ocho pantallas y no solo al entrar. Mostrarlo tambien aca serian dos contadores del mismo
  * hecho, uno de ellos parado.
  *
+ * Lo que si vive aca es `AvisoJornada`, que no es un contador: es el recordatorio de lo que FALTA
+ * —abrir la jornada, elegir el Proyecto, elegir la Tarea— y desaparece en cuanto no falta nada.
+ *
  * Los permisos aca solo **ocultan controles**: la API filtra igual. Se pide `/tasks` unicamente si
  * quien mira puede verlos, porque sin permiso la peticion responde 403 y tumbaria la pantalla entera
  * por una seccion que ni siquiera le corresponde.
  */
 export default async function InicioPage () {
   const { data: yo } = await pedir<Yo>('/me')
-  const { procesos, total } = await misProcesos(yo)
+
+  // Los dos viajes salen juntos: el recordatorio de jornada no tiene por que esperar a los procesos
+  // ni al reves. Va por `pedirOpcional` porque un fallo leyendo la jornada no puede tumbar la
+  // portada entera — el aviso simplemente no se pinta.
+  const [{ procesos, total }, jornada] = await Promise.all([
+    misProcesos(yo),
+    pedirOpcional<EstadoDeJornada>('/me/jornada')
+  ])
 
   const grupos = agruparPorVencimiento(procesos)
   const restantes = cuantosNoListados(procesos, total)
@@ -71,6 +83,8 @@ export default async function InicioPage () {
   return (
     <div className="lienzo-vivo mx-auto flex max-w-5xl flex-col gap-10 px-1 py-6 sm:py-10">
       <Saludo nombre={yo.firstname} />
+
+      <AvisoJornada inicial={jornada.datos} />
 
       <ResumenDelDia />
 
