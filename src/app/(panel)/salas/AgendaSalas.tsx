@@ -10,6 +10,7 @@ import { Segmentado } from '@/componentes/formularios/Segmentado'
 import { Insignia } from '@/componentes/presentadores/Insignia'
 import { CerrarDialogo, ContenidoDialogo, Dialogo } from '@/componentes/superposiciones/Dialogo'
 import { escribirEnBff } from '@/componentes/datos/mutaciones'
+import { TituloModulo } from '@/componentes/estructura/TituloModulo'
 import { DialogoReserva, type BorradorReserva } from './DialogoReserva'
 import { DialogoSalas } from './DialogoSalas'
 import { CalendarioSalas } from './CalendarioSalas'
@@ -75,21 +76,22 @@ export function AgendaSalas ({ dia, vista, salas, reservas, personas, yoId, esAd
 
   return (
     <section className="flex flex-col gap-4">
-      <header className="flex flex-wrap items-center gap-3">
-        <h1 className="text-texto text-xl font-semibold">Salas</h1>
-
-        <div className="ml-auto flex items-center gap-2">
-          <Segmentado
-            etiqueta="Vista de salas"
-            activo={vista}
-            opciones={[
-              { valor: 'agenda', etiqueta: 'Agenda', href: `/salas?dia=${dia}` },
-              { valor: 'calendario', etiqueta: 'Calendario', href: `/salas?dia=${dia}&vista=calendario` }
-            ]}
-          />
-          {esAdmin && <DialogoSalas salas={salas} onCambio={() => router.refresh()} />}
-        </div>
-      </header>
+      <TituloModulo
+        titulo="Salas"
+        acciones={
+          <>
+            <Segmentado
+              etiqueta="Vista de salas"
+              activo={vista}
+              opciones={[
+                { valor: 'agenda', etiqueta: 'Agenda', href: `/salas?dia=${dia}` },
+                { valor: 'calendario', etiqueta: 'Calendario', href: `/salas?dia=${dia}&vista=calendario` }
+              ]}
+            />
+            {esAdmin && <DialogoSalas salas={salas} onCambio={() => router.refresh()} />}
+          </>
+        }
+      />
 
       {vista === 'calendario'
         ? <CalendarioSalas dia={dia} salas={salas} reservas={reservas} />

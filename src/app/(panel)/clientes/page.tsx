@@ -9,6 +9,7 @@ import { cargarLookups, opcionesDeFiltros } from '@/datos/lookups'
 import { pedir } from '@/datos/servidor'
 import type { Cliente, ClienteMinimo, EstadoLookup } from '@/datos/recursos'
 import type { OpcionCampo } from '@/componentes/proyecto/formulario'
+import { TituloModulo } from '@/componentes/estructura/TituloModulo'
 import type { Sobre, Yo } from '@/datos/tipos'
 import { CLIENTES } from '@/definiciones/clientes'
 
@@ -48,10 +49,10 @@ export default async function ClientesPage (props: PageProps<'/clientes'>) {
 
   return (
     <section className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-        <h1 className="text-xl font-semibold text-texto">{CLIENTES.titulo.plural}</h1>
-        <TotalDelListado paginacion={lista.meta?.pagination} />
-      </div>
+      <TituloModulo
+        titulo={CLIENTES.titulo.plural}
+        acciones={<TotalDelListado paginacion={lista.meta?.pagination} />}
+      />
 
       <Suspense fallback={<Cargando alto="min-h-36" mensaje={`Cargando ${CLIENTES.titulo.plural.toLowerCase()}…`} />}>
         <VistaClientes
@@ -94,12 +95,10 @@ async function pedirCartera (consulta: string): Promise<Sobre<Cliente[]> | null>
 function Directorio ({ clientes }: { clientes: ClienteMinimo[] }) {
   return (
     <section className="flex flex-col gap-4">
-      <div className="flex flex-col gap-1">
-        <h1 className="text-xl font-semibold text-texto">{CLIENTES.titulo.plural}</h1>
-        <p className="text-texto-tenue text-sm">
-          Estos son los clientes de la casa. Para entrar a la ficha de uno hace falta permiso.
-        </p>
-      </div>
+      <TituloModulo
+        titulo={CLIENTES.titulo.plural}
+        descripcion="Estos son los clientes de la casa. Para entrar a la ficha de uno hace falta permiso."
+      />
 
       <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
         {clientes.map((cliente) => (

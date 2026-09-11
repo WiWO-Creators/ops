@@ -8,6 +8,7 @@ import { cargarLookups, opcionesDeFiltros } from '@/datos/lookups'
 import { pedir } from '@/datos/servidor'
 import type { ClienteMinimo, EstadoLookup, Upsell } from '@/datos/recursos'
 import type { OpcionCampo } from '@/componentes/proyecto/formulario'
+import { TituloModulo } from '@/componentes/estructura/TituloModulo'
 import type { Yo } from '@/datos/tipos'
 import { UPSELLS } from '@/definiciones/upsells'
 
@@ -41,10 +42,10 @@ export default async function UpsellsPage (props: PageProps<'/upsells'>) {
 
   return (
     <section className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-        <h1 className="text-xl font-semibold text-texto">{UPSELLS.titulo.plural}</h1>
-        <TotalDelListado paginacion={lista.meta?.pagination} />
-      </div>
+      <TituloModulo
+        titulo={UPSELLS.titulo.plural}
+        acciones={<TotalDelListado paginacion={lista.meta?.pagination} />}
+      />
 
       <Suspense fallback={<Cargando alto="min-h-36" mensaje="Cargando oportunidades…" />}>
         <VistaUpsells

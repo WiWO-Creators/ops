@@ -5,6 +5,7 @@ import { FormularioDeAjustes } from '@/componentes/administracion/FormularioDeAj
 import { PanelAvisosPorCorreo } from '@/componentes/administracion/PanelAvisosPorCorreo'
 import { Cargando, ErrorEstado, SinPermiso } from '@/componentes/estado/Estados'
 import { Pestanas, type Panel } from '@/componentes/proyecto/Pestanas'
+import { TituloModulo } from '@/componentes/estructura/TituloModulo'
 import { leerAjustes } from '@/datos/ajustes'
 import { ErrorApi } from '@/datos/errores'
 import { cargarLookups } from '@/datos/lookups'
@@ -114,11 +115,10 @@ export default async function AdministracionPage () {
   return (
     <section className="flex flex-col gap-4">
       <div>
-        <h1 className="text-texto text-xl font-semibold">Administración</h1>
-        <p className="text-texto-tenue mt-1 text-sm">
-          Todo lo que cambia el comportamiento de Ops para el equipo entero. Solo lo ve —y solo lo puede
-          guardar— un superadministrador.
-        </p>
+        <TituloModulo
+          titulo="Administración"
+          descripcion="Todo lo que cambia el comportamiento de Ops para el equipo entero. Solo lo ve —y solo lo puede guardar— un superadministrador."
+        />
         {/* La casilla entrante es una pantalla aparte y no una pestaña mas: tiene su propio listado
             paginado de fichas, y meterlo en una pestaña obligaria a bajarlo en cada visita a
             Administracion aunque nadie lo mire. El enlace vive aca porque si no, a la pantalla solo
