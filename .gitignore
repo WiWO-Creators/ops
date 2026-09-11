@@ -4,6 +4,8 @@ out/
 build/
 .env
 .env.local
+.env.cron
+.env.cron.tmp
 *.tsbuildinfo
 .DS_Store
 graphify-out/
