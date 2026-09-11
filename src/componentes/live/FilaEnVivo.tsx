@@ -36,6 +36,28 @@ import type { OpcionFiltro } from '@/definiciones/tipos'
  *
  * `transcurrido` llega por prop y no se calcula aca: el tic de un segundo es UNO, del panel, y no
  * cincuenta intervalos independientes que despierten la pestaña cincuenta veces por segundo.
+ *
+ * === POR QUE EL NOMBRE ES UN `h3` Y NO UN `h1` (RQ-JOR-16) ===
+ *
+ * El requerimiento pide que el nombre se lea como un H1: que sea lo primero que se ve de la fila y
+ * que domine sobre el cargo, el Proyecto, la Tarea y los tiempos. Eso es peso VISUAL, y es lo que
+ * se hizo — el nombre subio a `text-base sm:text-lg`, por encima del `text-sm` de los niveles de
+ * abajo y del `text-xs` del cargo.
+ *
+ * Lo que no se hizo es cambiar la etiqueta a `<h1>`, porque romperia la pagina:
+ *
+ *   - `/live` ya tiene su unico `h1` —"En vivo"—, que lo pone `<TituloModulo>`.
+ *   - `<PanelEquipo>` cuelga de el con un `h2` ("El equipo, ahora").
+ *   - Esta fila es un `<li>` DENTRO de ese `h2`, y hay una por persona.
+ *
+ * O sea que un `<h1>` aca no seria uno: serian tantos como personas en el tablero, todos al mismo
+ * nivel que el titulo de la pantalla. Un lector de pantalla que navega por encabezados —la forma
+ * normal de recorrer una pagina sin verla— pasaria de "En vivo" a treinta "En vivo" mas, sin
+ * ninguna pista de que son las filas de una lista. El `h3` es el nivel correcto bajo ese `h2`, y
+ * saltarse niveles tambien es un fallo de WCAG (1.3.1, Info y relaciones).
+ *
+ * La jerarquia que pedia el requerimiento —persona → Proyecto → Tarea → tiempo— se ve igual; lo que
+ * no se hace es mentirle al arbol del documento para conseguirla.
  */
 export function FilaEnVivo ({ fila, transcurrido, puedeDetener, estados = [] }: {
   fila: FilaDeLive
@@ -95,7 +117,8 @@ export function FilaEnVivo ({ fila, transcurrido, puedeDetener, estados = [] }: 
         <Avatar nombre={staff.name} imagen={staff.avatar} tamano="grande" />
 
         <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-          <h3 className="text-texto text-sm leading-tight font-semibold break-words [overflow-wrap:anywhere]">
+          {/* RQ-JOR-16: el nombre manda visualmente, pero sigue siendo un `h3`. Ver el docblock. */}
+          <h3 className="text-texto text-base leading-tight font-semibold break-words sm:text-lg [overflow-wrap:anywhere]">
             {staff.name}
           </h3>
           {titulo !== null && (

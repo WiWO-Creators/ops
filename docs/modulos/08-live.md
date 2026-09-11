@@ -125,7 +125,8 @@ propia vista.
 |---|---|---|
 | `POST` | `/me/jornada` | `201 {id, started_at, note}`; **409** si ya hay una abierta |
 | `GET` | `/me/jornada/resumen` | en **qué** se fue la jornada abierta, por Espacio y Tarea; **404** si no hay ninguna |
-| `POST` | `/me/jornada/cierre` | `{id, started_at, ended_at, seconds, auto_closed, timers_stopped}`; 409 si no hay |
+| `POST` | `/me/jornada/cierre` | `{id, started_at, ended_at, seconds, auto_closed, timers_stopped, comment}`; 409 si no hay |
+| | | Cuerpo opcional `{comment}`: el comentario del día del modal de cierre, máx. 2000 caracteres (422 si se pasa). Sin cuerpo también cierra |
 | `GET` | `/me/jornada` | `{open, seconds, measured_seconds, uncovered_seconds, over_journey, timer}` |
 | `GET` | `/live` | `{data: [...], meta: {scope}}` |
 | `POST\|DELETE` | `/projects/{id}/timer` | `201` / `204`; **409** al arrancar sin jornada |

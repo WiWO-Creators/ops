@@ -228,11 +228,22 @@ export function ControlJornada ({
     return false
   }
 
-  async function cerrarJornada (): Promise<void> {
+  /**
+   * Cierra la jornada con el comentario que se escribio en el dialogo.
+   *
+   * `comentario` viene ya recortado de `<CierreJornada>` y es `null` cuando no se escribio nada: la
+   * API lo acepta ausente —este POST se mandaba vacio hasta ahora— y rechaza con 422 lo que pase de
+   * su tope, que es el mismo `maxLength` del campo.
+   */
+  async function cerrarJornada (comentario: string | null): Promise<void> {
     setEnCurso(true)
     setAviso(null)
 
-    const respuesta = await llamar('me/jornada/cierre', 'POST')
+    const respuesta = await llamar(
+      'me/jornada/cierre',
+      'POST',
+      comentario === null ? {} : { comment: comentario }
+    )
 
     setEnCurso(false)
 
@@ -379,7 +390,7 @@ export function ControlJornada ({
       staffId={staffId}
       cerrando={enCurso}
       aviso={confirmandoCierre ? aviso : null}
-      onConfirmar={() => { void cerrarJornada() }}
+      onConfirmar={(comentario) => { void cerrarJornada(comentario) }}
     />
   )
 
