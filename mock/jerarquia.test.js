@@ -544,3 +544,66 @@ test('editar ficha reemplaza área múltiple, admite vacío y rechaza inválidos
     assert.equal((await cambiar({ area_id: analytics.id })).status, 200)
   }
 })
+
+test('administración comparte membresías con ficha y jerarquía; filtra y cuenta áreas secundarias', async () => {
+  const leer = async (ruta) => (await (await fetch(`${base}/${ruta}`, { headers })).json()).data
+  const original = await leer('staff/5')
+  const analytics = areaLlamada(await leerJerarquia(), 'Analytics')
+  const content = areaLlamada(await leerJerarquia(), 'Content Studio')
+  const catalogo = await leer('accesos/catalogo')
+  const cuentaInicial = catalogo.areas.find((area) => area.id === content.id).personas
+  assert.equal(catalogo.areas.find((area) => area.id === content.id).nombre, content.name)
+  const cambiar = (datos, comoQuien = headers) => fetch(`${base}/accesos/personas/5`, {
+    method: 'PUT', headers: comoQuien, body: JSON.stringify(datos)
+  })
+  try {
+    assert.equal((await cambiar({ area_ids: [analytics.id, content.id, content.id] })).status, 200)
+    assert.deepEqual((await leer('staff/5')).area_ids, [analytics.id, content.id])
+    assert.equal((await leer('staff/5')).area_id, analytics.id)
+    assert.equal(areaLlamada(await leerJerarquia(), content.name).personas.some((persona) => persona.id === 5), true)
+    const filtradas = await leer(`accesos/personas?area=${content.id}`)
+    assert.deepEqual(filtradas.find((persona) => persona.staffid === 5).area_ids, [analytics.id, content.id])
+    assert.equal((await leer('accesos/catalogo')).areas.find((area) => area.id === content.id).personas, cuentaInicial + 1)
+    for (const datos of [null, { area_ids: null }, { area_ids: [999999], rol_id: 999999 }, { area_ids: [true] }, { area_ids: [content.id], area_id: analytics.id }]) {
+      assert.equal((await cambiar(datos)).status, 422)
+      const persona = await leer('staff/5')
+      assert.deepEqual(persona.area_ids, [analytics.id, content.id])
+      assert.equal(persona.role_id, original.role_id)
+    }
+    assert.equal((await cambiar({ area_ids: [] }, headersSinArea)).status, 403)
+    assert.deepEqual((await leer('staff/5')).area_ids, [analytics.id, content.id])
+    // Una membresía que se agrega desde jerarquía también aparece en administración.
+    assert.equal((await cambiar({ area_ids: [] })).status, 200)
+    assert.equal((await leer(`accesos/personas?area=${content.id}`)).some((persona) => persona.staffid === 5), false)
+    assert.equal((await fetch(`${base}/jerarquia/personas/5`, {
+      method: 'PUT', headers, body: JSON.stringify({ area_id: content.id, accion: 'agregar' })
+    })).status, 200)
+    assert.deepEqual((await leer('accesos/personas')).find((persona) => persona.staffid === 5).area_ids, [content.id])
+  } finally {
+    assert.equal((await cambiar({ area_ids: original.area_ids, area_id: original.area_id })).status, 200)
+  }
+})
+
+test('administración no borra un área usada solo como membresía secundaria', async () => {
+  const creacion = await fetch(`${base}/accesos/areas`, {
+    method: 'POST', headers, body: JSON.stringify({ nombre: 'Secundaria de administración' })
+  })
+  assert.equal(creacion.status, 201)
+  const area = (await creacion.json()).data
+  const borrar = () => fetch(`${base}/accesos/areas/${area.id}`, { method: 'DELETE', headers })
+  const cambiar = (accion) => fetch(`${base}/jerarquia/personas/5`, {
+    method: 'PUT', headers, body: JSON.stringify({ area_id: area.id, accion })
+  })
+  try {
+    assert.equal((await cambiar('agregar')).status, 200)
+    assert.equal((await borrar()).status, 409)
+    assert.equal((await cambiar('quitar')).status, 200)
+    assert.equal((await borrar()).status, 204)
+    assert.equal((await leerJerarquia()).areas.some((otra) => otra.id === area.id), false)
+  } finally {
+    if ((await leerJerarquia()).areas.some((otra) => otra.id === area.id)) {
+      await cambiar('quitar')
+      await borrar()
+    }
+  }
+})

@@ -36,4 +36,4 @@ La vista local con API mock sirve para comprobar la interfaz. La persistencia y 
 - SQL de pertenencias probado con SQLite. La concurrencia y el bloqueo transaccional requieren todavía una comprobación integrada sobre MySQL; no se ejecutaron contra producción.
 - Backend incluye la actualización `wiwo_core` 1.3.8. Los datos principales existentes se conservan y las pertenencias adicionales usan una tabla propia.
 
-Los cambios siguen en sus worktrees, pendientes de revisión y aprobación antes de integrar en `main` y publicar.
+La publicación en `main` fue autorizada el 11 de septiembre de 2026. La integración incluye el selector de múltiples áreas de `/administracion/accesos` y la creación automática de la tabla de pertenencias durante el despliegue.

@@ -883,6 +883,42 @@ function guardarAreasDePersona (persona, areas) {
 }
 
 /**
+ * Valida la edición de membresías antes de cualquier escritura de la persona.
+ * @param {object} datos campos recibidos por ficha o administración
+ * @returns {number[]|undefined} pertenencias propuestas, o undefined si no se editan
+ * @throws {ErrorApi} 422 para campos inválidos o principal fuera de la lista
+ */
+function validarAreasDePersona (datos) {
+  if (datos === null || typeof datos !== 'object' || Array.isArray(datos)) {
+    throw new ErrorApi(422, 'validation_failed', 'Revisá los campos de la persona.')
+  }
+  let areasNuevas
+  if (datos.area_ids !== undefined || datos.area_id !== undefined) {
+    const entrada = datos.area_ids !== undefined ? datos.area_ids : datos.area_id === null ? [] : [datos.area_id]
+    const campo = datos.area_ids !== undefined ? 'area_ids' : 'area_id'
+    if (!Array.isArray(entrada) || entrada.some((id) =>
+      !((typeof id === 'number' || (typeof id === 'string' && /^\d+$/.test(id))) &&
+        Number.isInteger(Number(id)) && AREAS.some((area) => area.id === Number(id))))) {
+      throw new ErrorApi(422, 'validation_failed', 'Revisá los campos de la persona.', {
+        [campo]: ['no_existe']
+      })
+    }
+    areasNuevas = entrada.map(Number)
+    if (datos.area_ids !== undefined && datos.area_id !== undefined) {
+      const principalValida = datos.area_id === null ? areasNuevas.length === 0
+        : (typeof datos.area_id === 'number' || (typeof datos.area_id === 'string' && /^\d+$/.test(datos.area_id))) &&
+          areasNuevas.includes(Number(datos.area_id))
+      if (!principalValida) {
+        throw new ErrorApi(422, 'validation_failed', 'Revisá los campos de la persona.', {
+          area_id: ['no_pertenece']
+        })
+      }
+    }
+  }
+  return areasNuevas
+}
+
+/**
  * Una persona, con lo unico que la jerarquia necesita de ella.
  *
  * `active` viaja porque una baja puede seguir colgada de un area: la pantalla la marca en vez de
@@ -2176,13 +2212,6 @@ const ESCALONES = [
   { clave: 'superadmin', nombre: 'Superadministrador', orden: 7, piso: {}, alcance: 'todo', jefatura: false, asignable: false, sistema: true }
 ]
 
-/** Las areas del organigrama. La segunda cuelga de la primera: el arbol tiene que tener profundidad. */
-const AREAS_ACCESOS = [
-  { id: 1, nombre: 'Operaciones', area_superior_id: null, jefe_staffid: 1 },
-  { id: 2, nombre: 'Diseño', area_superior_id: 1, jefe_staffid: 2 },
-  { id: 3, nombre: 'Desarrollo', area_superior_id: 1, jefe_staffid: null }
-]
-
 /** Los cargos. Los dos primeros son los por defecto de la instalacion: la API los protege del borrado. */
 const CARGOS_ACCESOS = [
   { id: 1, nombre: 'Director', porDefecto: true },
@@ -2222,8 +2251,8 @@ const INTERRUPTORES = [
   }
 ]
 
-/** El override de area y cargo por persona. `staffid -> {area_id, cargo_id}`. */
-const PERTENENCIA = new Map([[1, { area_id: 1, cargo_id: 1 }], [2, { area_id: 2, cargo_id: 2 }]])
+/** Cargos iniciales y editados desde administración. */
+const CARGOS_POR_PERSONA = new Map([[1, 1], [2, 2]])
 
 /** Siguiente id de una lista con ids numericos. */
 function siguienteId (filas) {
@@ -2244,7 +2273,7 @@ function contarPersonas (predicado) {
 
 /** La pertenencia de una persona, con el default del fixture. */
 function pertenenciaDe (staff) {
-  return PERTENENCIA.get(staff.id) ?? { area_id: staff.area_id, cargo_id: staff.cargo_id }
+  return { area_id: staff.area_id, area_ids: areasDePersona(staff), cargo_id: CARGOS_POR_PERSONA.has(staff.id) ? CARGOS_POR_PERSONA.get(staff.id) : staff.cargo_id }
 }
 
 /** El catalogo entero: lo que la pantalla necesita en una sola llamada. */
@@ -2257,10 +2286,7 @@ function catalogoDeAccesos () {
       escalon: NIVELES_POR_ROL[rol.id] ?? null,
       personas: contarPersonas((s) => s.role_id === rol.id)
     })),
-    areas: AREAS_ACCESOS.map((area) => ({
-      ...area,
-      personas: contarPersonas((s) => pertenenciaDe(s).area_id === area.id)
-    })),
+    areas: AREAS.map(presentarAreaDeAccesos),
     cargos: CARGOS_ACCESOS.map(({ porDefecto: _porDefecto, ...cargo }) => ({
       ...cargo,
       personas: contarPersonas((s) => pertenenciaDe(s).cargo_id === cargo.id)
@@ -2367,7 +2393,7 @@ async function personasDeAccesos (metodo, id, parametros, actual, cuerpo) {
       .filter((s) => buscar === '' || s.full_name.toLowerCase().includes(buscar) || s.email.toLowerCase().includes(buscar))
       .filter((s) => escalon === null || nivelDe(s).nivel === escalon)
       .filter((s) => rol === null || s.role_id === Number(rol))
-      .filter((s) => area === null || pertenenciaDe(s).area_id === Number(area))
+      .filter((s) => area === null || areasDePersona(s).includes(Number(area)))
       .map((s) => {
         const { area_id: areaId, cargo_id: cargoId } = pertenenciaDe(s)
         const { nivel, nivel_asignado: asignado } = nivelDe(s)
@@ -2380,6 +2406,7 @@ async function personasDeAccesos (metodo, id, parametros, actual, cuerpo) {
           escalon_efectivo: nivel,
           escalon_override: asignado,
           area_id: areaId,
+          area_ids: areasDePersona(s),
           cargo_id: cargoId,
           activo: s.active
         }
@@ -2407,6 +2434,7 @@ async function personasDeAccesos (metodo, id, parametros, actual, cuerpo) {
   if (!persona) throw new ErrorApi(404, 'not_found', 'No existe esa persona.')
 
   const datos = await cuerpo()
+  const areasNuevas = validarAreasDePersona(datos)
 
   if (datos.escalon !== undefined) {
     if (persona.id === actual.id) {
@@ -2428,14 +2456,11 @@ async function personasDeAccesos (metodo, id, parametros, actual, cuerpo) {
 
   if (datos.rol_id !== undefined) persona.role_id = datos.rol_id
 
-  if (datos.area_id !== undefined || datos.cargo_id !== undefined) {
-    const puesta = pertenenciaDe(persona)
-
-    PERTENENCIA.set(persona.id, {
-      area_id: datos.area_id === undefined ? puesta.area_id : datos.area_id,
-      cargo_id: datos.cargo_id === undefined ? puesta.cargo_id : datos.cargo_id
-    })
+  if (areasNuevas !== undefined) {
+    guardarAreasDePersona(persona, areasNuevas)
+    if (datos.area_id !== undefined) persona.area_id = datos.area_id === null ? null : Number(datos.area_id)
   }
+  if (datos.cargo_id !== undefined) CARGOS_POR_PERSONA.set(persona.id, datos.cargo_id)
 
   return { estado: 200, cuerpo: conDatos({ staffid: persona.id }) }
 }
@@ -2582,6 +2607,16 @@ async function rolesDeAccesos (metodo, id, cuerpo) {
   return { estado: 204, cuerpo: null }
 }
 
+/**
+ * Presenta el catálogo compartido con el nombre y conteo esperados por administración.
+ * @param {object} area fila del catálogo de jerarquía
+ * @returns {object} área con sus integrantes de todas las membresías
+ */
+function presentarAreaDeAccesos (area) {
+  const { name, ...datos } = area
+  return { ...datos, nombre: name, personas: contarPersonas((persona) => areasDePersona(persona).includes(area.id)) }
+}
+
 /** Alta, edicion y borrado de areas, con el rechazo de ciclos. */
 async function areasDeAccesos (metodo, id, cuerpo) {
   if (metodo === 'POST' && id === undefined) {
@@ -2593,18 +2628,18 @@ async function areasDeAccesos (metodo, id, cuerpo) {
     }
 
     const area = {
-      id: siguienteId(AREAS_ACCESOS),
-      nombre,
+      id: siguienteId(AREAS),
+      name: nombre,
       area_superior_id: datos.area_superior_id ?? null,
       jefe_staffid: datos.jefe_staffid ?? null
     }
 
-    AREAS_ACCESOS.push(area)
+    AREAS.push(area)
 
-    return { estado: 201, cuerpo: conDatos({ ...area, personas: 0 }) }
+    return { estado: 201, cuerpo: conDatos(presentarAreaDeAccesos(area)) }
   }
 
-  const area = AREAS_ACCESOS.find((una) => una.id === Number(id))
+  const area = AREAS.find((una) => una.id === Number(id))
 
   if (!area) throw new ErrorApi(404, 'not_found', 'No existe esa área.')
 
@@ -2622,25 +2657,25 @@ async function areasDeAccesos (metodo, id, cuerpo) {
       throw new ErrorApi(422, 'validation_failed', 'Esa área superior haría un ciclo.', { area_superior_id: ['ciclo'] })
     }
 
-    area.nombre = nombre
+    area.name = nombre
     area.area_superior_id = superior
     area.jefe_staffid = datos.jefe_staffid ?? null
 
     return {
       estado: 200,
-      cuerpo: conDatos({ ...area, personas: contarPersonas((s) => pertenenciaDe(s).area_id === area.id) })
+      cuerpo: conDatos(presentarAreaDeAccesos(area))
     }
   }
 
   if (metodo !== 'DELETE') throw new ErrorApi(404, 'not_found', 'Recurso desconocido.')
 
-  const personas = contarPersonas((s) => pertenenciaDe(s).area_id === area.id)
+  const personas = contarPersonas((s) => areasDePersona(s).includes(area.id))
 
   if (personas > 0) {
     throw new ErrorApi(409, 'conflict', `Esa área tiene ${personas} persona(s) dentro. Muévelas antes de borrarla.`)
   }
 
-  AREAS_ACCESOS.splice(AREAS_ACCESOS.indexOf(area), 1)
+  AREAS.splice(AREAS.indexOf(area), 1)
 
   return { estado: 204, cuerpo: null }
 }
@@ -2655,7 +2690,7 @@ function haceCiclo (areaId, superiorId) {
     if (vistas.has(actual)) return false
 
     vistas.add(actual)
-    actual = AREAS_ACCESOS.find((una) => una.id === actual)?.area_superior_id ?? null
+    actual = AREAS.find((una) => una.id === actual)?.area_superior_id ?? null
   }
 
   return false
@@ -3218,32 +3253,7 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
     const persona = buscarO404(STAFF, Number(resto[0]), 'staff')
     const datos = await cuerpo()
 
-    if (datos === null || typeof datos !== 'object' || Array.isArray(datos)) {
-      throw new ErrorApi(422, 'validation_failed', 'Revisá los campos de la persona.')
-    }
-    let areasNuevas
-    if (datos.area_ids !== undefined || datos.area_id !== undefined) {
-      const entrada = datos.area_ids !== undefined ? datos.area_ids : datos.area_id === null ? [] : [datos.area_id]
-      const campo = datos.area_ids !== undefined ? 'area_ids' : 'area_id'
-      if (!Array.isArray(entrada) || entrada.some((id) =>
-        !((typeof id === 'number' || (typeof id === 'string' && /^\d+$/.test(id))) &&
-          Number.isInteger(Number(id)) && AREAS.some((area) => area.id === Number(id))))) {
-        throw new ErrorApi(422, 'validation_failed', 'Revisá los campos de la persona.', {
-          [campo]: ['no_existe']
-        })
-      }
-      areasNuevas = entrada.map(Number)
-      if (datos.area_ids !== undefined && datos.area_id !== undefined) {
-        const principalValida = datos.area_id === null ? areasNuevas.length === 0
-          : (typeof datos.area_id === 'number' || (typeof datos.area_id === 'string' && /^\d+$/.test(datos.area_id))) &&
-            areasNuevas.includes(Number(datos.area_id))
-        if (!principalValida) {
-          throw new ErrorApi(422, 'validation_failed', 'Revisá los campos de la persona.', {
-            area_id: ['no_pertenece']
-          })
-        }
-      }
-    }
+    const areasNuevas = validarAreasDePersona(datos)
 
     if (datos.permissions !== undefined) {
       // Mismo contrato que la API real: solo se reescriben las areas nombradas; las demas quedan.

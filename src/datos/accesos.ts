@@ -104,6 +104,7 @@ export interface PersonaDeAccesos {
   /** Solo el override por persona, o `null` si hereda el de su rol. */
   escalon_override: string | null
   area_id: number | null
+  area_ids?: number[]
   cargo_id: number | null
   activo: boolean
 }
@@ -118,6 +119,7 @@ export interface CambioDePersona {
   rol_id?: number | null
   escalon?: string | null
   area_id?: number | null
+  area_ids?: number[]
   cargo_id?: number | null
 }
 
