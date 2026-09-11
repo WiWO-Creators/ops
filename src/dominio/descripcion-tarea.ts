@@ -128,6 +128,61 @@ export function errorDeDescripcion (texto: string, queEs = 'La tarea'): string |
 }
 
 /**
+ * Minimo de palabras que tiene que traer un pedido antes de dejarlo llegar al modelo.
+ *
+ * Cuatro y no dos: con "arreglar esto" el modelo no interpreta, inventa —y lo que inventa entra al
+ * formulario con cara de dato revisado—. Cuatro palabras es lo que ocupa la frase mas corta que
+ * todavia dice algo ("revisar la propuesta de Colbun"), asi que el piso corta el ruido sin obligar
+ * a redactar un parrafo.
+ */
+export const MINIMO_PALABRAS_DETALLE = 4
+
+/**
+ * Minimo de caracteres del mismo pedido.
+ *
+ * Va junto al de palabras porque solo el conteo de palabras se pasa con "ver el tema con el que"
+ * —cinco palabras, trece letras, cero informacion—. Los dos a la vez es lo que distingue un pedido
+ * corto de uno vacio.
+ */
+export const MINIMO_CARACTERES_DETALLE = 25
+
+/**
+ * Que le falta al pedido para que valga la pena llamar al modelo, o `null` si ya alcanza.
+ *
+ * Es el requisito previo del alta con IA: sin un minimo de detalle el modelo no tiene de donde
+ * sacar el para quien ni el cuando, y devuelve un formulario lleno de suposiciones que despues hay
+ * que revisar campo por campo. Cuesta menos pedir tres palabras mas que desarmar eso.
+ *
+ * El mensaje nombra lo que falta y cuanto falta: "escribe un poco mas" no le dice a nadie si el
+ * problema es el largo o el contenido.
+ *
+ * @param texto lo escrito en el campo de texto libre
+ * @returns el mensaje a mostrar, o `null` cuando el pedido tiene detalle suficiente
+ */
+export function errorDeDetalle (texto: string): string | null {
+  if (descripcionVacia(texto)) return 'Escribe primero qué hay que hacer.'
+
+  // Los invisibles se sacan antes de contar: pegados desde un correo, "hola\u200b mundo" contaria
+  // como una palabra mas de las que se ven.
+  const limpio = texto.replace(/[\u200B-\u200D\u2060\uFEFF]/g, '').trim()
+  const palabras = limpio === '' ? [] : limpio.split(/\s+/)
+
+  if (palabras.length < MINIMO_PALABRAS_DETALLE) {
+    const faltan = MINIMO_PALABRAS_DETALLE - palabras.length
+
+    return `Cuéntame un poco más: falta${faltan === 1 ? '' : 'n'} ${faltan} palabra${faltan === 1 ? '' : 's'}. `
+      + 'Di qué hay que hacer, para quién y cuándo.'
+  }
+
+  if (limpio.length < MINIMO_CARACTERES_DETALLE) {
+    return `Muy corto para interpretarlo: escribe al menos ${MINIMO_CARACTERES_DETALLE} caracteres `
+      + `(llevas ${limpio.length}). Agrega para quién es o con qué se da por terminada.`
+  }
+
+  return null
+}
+
+/**
  * Arma el cuerpo del pedido al asistente con lo que se contesto.
  *
  * Las respuestas en blanco se caen: una persona puede no tener nada que decir de "para quién es", y

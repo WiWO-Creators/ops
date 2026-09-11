@@ -17,7 +17,8 @@ import {
   PREGUNTAS_DESCRIPCION,
   TOPE_RESPUESTA,
   cuerpoDeRedaccion,
-  descripcionVacia
+  descripcionVacia,
+  errorDeDetalle
 } from '@/dominio/descripcion-tarea'
 
 /** La ruta del asistente en la API. Se usa dos veces —la sonda y la redaccion— y es la misma. */
@@ -123,6 +124,18 @@ export function AsistenteDescripcion (
 
     if (cuerpo === null) {
       setError('Contesta al menos una de las preguntas para que el asistente tenga con qué escribir.')
+
+      return
+    }
+
+    // El mismo piso de detalle que el alta en una linea, y por el mismo motivo: contestar "x" a la
+    // primera pregunta pasaba el filtro de "no esta vacio" y le pedia al modelo que inventara la
+    // tarea entera. Se mide sobre todo lo contestado, no pregunta por pregunta: el "para quién"
+    // puede quedar vacio a proposito.
+    const flojo = errorDeDetalle(cuerpo.respuestas.map((par) => par.respuesta).join(' '))
+
+    if (flojo !== null) {
+      setError(flojo)
 
       return
     }
