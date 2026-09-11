@@ -36,6 +36,16 @@ export interface TemaDeMarca {
   altoLogo: string
   /** Texto corto bajo el logo. Es lo que el documento dice de sí mismo. */
   pie: string
+  /**
+   * El color de la marca, en hexadecimal.
+   *
+   * Es el mismo valor que `cssDeMarcas()` escribe en `--marca-acento` —de hecho lo escribe desde
+   * acá—, y está en el tema porque hay superficies que no son el documento y no pueden leer una
+   * variable CSS que vive dentro del iframe del visor: la tarjeta del listado, por ejemplo, tiñe su
+   * filete superior con esto. Una segunda tabla de colores se habría desincronizado en la primera
+   * corrección, que es justo lo que este módulo existe para evitar.
+   */
+  color: string
 }
 
 /**
@@ -51,7 +61,8 @@ export const TEMAS: Record<CodigoDeMarca, TemaDeMarca> = {
     nombre: 'WiWO',
     logo: '/marca/actas/wiwo.png',
     altoLogo: '2rem',
-    pie: 'Acta levantada por WiWO'
+    pie: 'Acta levantada por WiWO',
+    color: '#3BFF00'
   },
   mgc: {
     codigo: 'mgc',
@@ -60,14 +71,16 @@ export const TEMAS: Record<CodigoDeMarca, TemaDeMarca> = {
     // propio sitio, donde las secciones alternan #F5F5F5 y #0D0D12.
     logo: '/marca/actas/mgc-blanco.png',
     altoLogo: '2.2rem',
-    pie: 'Acta levantada por MGC Global Group'
+    pie: 'Acta levantada por MGC Global Group',
+    color: '#F9063B'
   },
   palta: {
     codigo: 'palta',
     nombre: 'Palta',
     logo: '/marca/actas/palta.png',
     altoLogo: '1.5rem',
-    pie: 'Acta levantada por Agencia Palta'
+    pie: 'Acta levantada por Agencia Palta',
+    color: '#20BB4E'
   }
 }
 
@@ -127,7 +140,7 @@ export function cssDeMarcas (origen: string): string {
   .marca-wiwo {
     --marca-tinta: #161715;
     --marca-texto: #3B3C38;
-    --marca-acento: #3BFF00;
+    --marca-acento: ${TEMAS.wiwo.color};
     --marca-filete: #3BFF00;
     --marca-banda: #161715;
     --marca-banda-tinta: #F4F5F2;
@@ -141,7 +154,7 @@ export function cssDeMarcas (origen: string): string {
   .marca-palta {
     --marca-tinta: #141414;
     --marca-texto: #2B2B2B;
-    --marca-acento: #20BB4E;
+    --marca-acento: ${TEMAS.palta.color};
     --marca-filete: #64F545;
     --marca-banda: #EFEFEF;
     --marca-banda-tinta: #141414;
@@ -154,7 +167,7 @@ export function cssDeMarcas (origen: string): string {
   .marca-mgc {
     --marca-tinta: #12121A;
     --marca-texto: #4A4A5A;
-    --marca-acento: #F9063B;
+    --marca-acento: ${TEMAS.mgc.color};
     --marca-filete: #F9063B;
     --marca-banda: #0D0D12;
     --marca-banda-tinta: #FAFAFA;
