@@ -1,21 +1,21 @@
 /**
  * Pruebas del "+" de una columna del kanban de Hitos.
  *
- * Lo que se rompe en silencio aca son tres cosas: que el listado de candidatas pida `milestone_id=0`
+ * Lo que se rompe en silencio aca son dos cosas: que el listado de candidatas pida `milestone_id=0`
  * —con cualquier otro valor trae tareas que YA tienen hito y "sumarlas" seria sacarlas del suyo—,
- * que el alta mande `milestone` en el mismo `POST` en vez de crear la tarea suelta, y que el
- * movimiento viaje con `columna_completa` vacia: una lista incompleta hace que el backend empuje al
- * fondo todo lo que no le mandaron.
+ * y que el movimiento viaje con `columna_completa` vacia: una lista incompleta hace que el backend
+ * empuje al fondo todo lo que no le mandaron.
+ *
+ * El alta ya no se prueba aca: la hace `AltaRapidaProceso`, que es el unico camino de creacion y el
+ * unico que exige la descripcion.
  */
 
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
-  cuerpoDeAltaEnHito,
   filtrarCandidatas,
   movimientoAlHito,
-  rutaTareasSinHito,
-  validarAltaEnHito
+  rutaTareasSinHito
 } from '../src/componentes/proyecto/agregar-al-hito.ts'
 
 test('la ruta de candidatas acota al Espacio y pide solo las que no tienen hito', () => {
@@ -51,36 +51,6 @@ test('el buscador sin coincidencias devuelve una lista vacia, no todas', () => {
   const tareas = [{ id: 1, name: 'Una' }]
 
   assert.deepEqual(filtrarCandidatas(tareas, 'zzz'), [])
-})
-
-test('el alta exige nombre y valida el formato de la fecha', () => {
-  assert.equal(validarAltaEnHito({ nombre: '   ', prioridad: '2', vencimiento: '' }), 'La tarea necesita un nombre.')
-  assert.equal(validarAltaEnHito({ nombre: 'Algo', prioridad: '2', vencimiento: '12-03-2026' }), 'Usa el formato AAAA-MM-DD en el vencimiento.')
-  assert.equal(validarAltaEnHito({ nombre: 'Algo', prioridad: '2', vencimiento: '' }), null)
-  assert.equal(validarAltaEnHito({ nombre: 'Algo', prioridad: '2', vencimiento: '2026-03-12' }), null)
-})
-
-test('el alta cuelga la tarea del hito y del Espacio en un solo POST', () => {
-  const cuerpo = cuerpoDeAltaEnHito(
-    { nombre: '  Revisar el contrato  ', prioridad: '3', vencimiento: '2026-03-12' },
-    80,
-    12
-  )
-
-  assert.deepEqual(cuerpo, {
-    name: 'Revisar el contrato',
-    rel_type: 'project',
-    rel_id: 80,
-    milestone: 12,
-    priority: 3,
-    due_date: '2026-03-12'
-  })
-})
-
-test('el alta omite lo que no se completo en vez de mandar vacios', () => {
-  const cuerpo = cuerpoDeAltaEnHito({ nombre: 'Algo', prioridad: '', vencimiento: '' }, 80, 12)
-
-  assert.deepEqual(cuerpo, { name: 'Algo', rel_type: 'project', rel_id: 80, milestone: 12 })
 })
 
 test('sumar una tarea suelta la deja primera y no reordena la columna', () => {

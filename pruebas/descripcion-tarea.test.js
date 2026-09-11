@@ -16,9 +16,12 @@ import {
   PREGUNTAS_DESCRIPCION,
   TOPE_DESCRIPCION,
   TOPE_RESPUESTA,
+  MINIMO_CARACTERES_DETALLE,
+  MINIMO_PALABRAS_DETALLE,
   cuerpoDeRedaccion,
   descripcionVacia,
-  errorDeDescripcion
+  errorDeDescripcion,
+  errorDeDetalle
 } from '../src/dominio/descripcion-tarea.ts'
 
 /** Las claves de las tres preguntas, para no repetirlas en cada caso. */
@@ -135,4 +138,50 @@ test('las preguntas son tres, con clave unica y con ayuda', () => {
     assert.ok(pregunta.texto.trim() !== '')
     assert.ok(pregunta.ayuda.trim() !== '')
   }
+})
+
+test('errorDeDetalle: el pedido vacio se reclama como vacio, no como corto', () => {
+  assert.equal(errorDeDetalle(''), 'Escribe primero qué hay que hacer.')
+  assert.equal(errorDeDetalle('   \u00a0 '), 'Escribe primero qué hay que hacer.')
+})
+
+test('errorDeDetalle: pocas palabras dicen cuantas faltan', () => {
+  const mensaje = errorDeDetalle('arreglar esto')
+
+  assert.ok(mensaje !== null)
+  assert.match(mensaje, /faltan 2 palabras/)
+})
+
+test('errorDeDetalle: la singular no dice "1 palabras"', () => {
+  const mensaje = errorDeDetalle('revisar el flyer')
+
+  assert.ok(mensaje !== null)
+  assert.match(mensaje, /falta 1 palabra\./)
+})
+
+test('errorDeDetalle: con las palabras justas pero muy corto se reclama el largo', () => {
+  const mensaje = errorDeDetalle('ver el tema con el')
+
+  assert.ok(mensaje !== null)
+  assert.match(mensaje, new RegExp(`al menos ${MINIMO_CARACTERES_DETALLE} caracteres`))
+  assert.match(mensaje, /llevas 18/)
+})
+
+test('errorDeDetalle: justo en el umbral pasa', () => {
+  // Justo en los dos pisos a la vez: 4 palabras y 25 caracteres. El umbral es inclusivo.
+  const justo = 'Revisar la propuesta hoyy'
+
+  assert.equal(justo.split(/\s+/).length, MINIMO_PALABRAS_DETALLE)
+  assert.equal(justo.length, MINIMO_CARACTERES_DETALLE)
+  assert.equal(errorDeDetalle(justo), null)
+  assert.equal(errorDeDetalle('Armar la grilla de septiembre para Colbún'), null)
+})
+
+test('errorDeDetalle: los invisibles no cuentan como palabra ni como largo', () => {
+  // Con los de ancho cero el texto llega a 25 caracteres; sin ellos son 13 y no alcanza.
+  const pegado = 'ver\u200b el\u200b tema\u200b con\u200b el\u200b\u200b\u200b\u200b\u200b\u200b\u200b'
+  const mensaje = errorDeDetalle(pegado)
+
+  assert.ok(mensaje !== null)
+  assert.match(mensaje, /llevas 18/)
 })

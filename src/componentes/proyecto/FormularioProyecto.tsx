@@ -13,6 +13,7 @@ import type { OpcionFiltro } from '@/definiciones/tipos'
 import { TIPOS_DE_FACTURACION } from '@/definiciones/espacios'
 import { GLOSARIO } from '@/dominio/glosario'
 import { hoyLocal } from '@/lib/fechas'
+import { enFormatoTitulo } from '@/lib/titulo'
 
 /**
  * Alta y edicion de un Proyecto.
@@ -110,7 +111,7 @@ function Campos ({
     }
 
     const comunes = {
-      name: nombre.trim(),
+      name: enFormatoTitulo(nombre),
       description: descripcion,
       start_date: inicio === '' ? null : inicio,
       deadline: entrega === '' ? null : entrega,

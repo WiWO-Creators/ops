@@ -37,10 +37,11 @@ import {
   type CatalogosTarea,
   type TareaFusionada
 } from '@/dominio/ia-tarea'
-import { errorDeDescripcion } from '@/dominio/descripcion-tarea'
+import { errorDeDescripcion, errorDeDetalle } from '@/dominio/descripcion-tarea'
 import { GLOSARIO } from '@/dominio/glosario'
 import { errorDeHorasEstimadas, horasDeTexto } from '@/dominio/tiempo-estimado'
 import { formatearFecha } from '@/lib/fechas'
+import { enFormatoTitulo } from '@/lib/titulo'
 import { AsistenteDescripcion } from './AsistenteDescripcion'
 import { VistaPreviaAlta, type MarcaPrevia } from './VistaPreviaAlta'
 import type {
@@ -398,8 +399,12 @@ export function AltaRapidaProceso ({
   async function completar (): Promise<void> {
     const limpio = textoLibre.trim()
 
-    if (limpio === '') {
-      setAvisoIa('Escribe primero qué hay que hacer.')
+    // Requisito previo: sin un pedido con detalle el modelo no interpreta, supone. El aviso dice
+    // que le falta —cuantas palabras, cuantos caracteres— y no solo que no alcanza.
+    const flojo = errorDeDetalle(limpio)
+
+    if (flojo !== null) {
+      setAvisoIa(flojo)
       return
     }
 
@@ -580,7 +585,9 @@ export function AltaRapidaProceso ({
     const horas = horasDeTexto(horasEstimadas)
 
     await enviar({
-      name: nombre.trim(),
+      // En formato de titulo al guardar y no mientras se escribe: corregir el campo bajo el
+      // cursor pelea con quien esta tecleando. Solo convierte lo que viene todo en mayusculas.
+      name: enFormatoTitulo(nombre),
       billable: facturable,
       is_public: publica,
       visible_to_client: visibleCliente,
