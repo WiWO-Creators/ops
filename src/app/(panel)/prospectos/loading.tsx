@@ -1,3 +1,4 @@
+import { TituloModulo } from '@/componentes/estructura/TituloModulo'
 import { Cargando } from '@/componentes/estado/Estados'
 import { GLOSARIO } from '@/dominio/glosario'
 
@@ -13,7 +14,7 @@ import { GLOSARIO } from '@/dominio/glosario'
 export default function CargandoProspectos () {
   return (
     <section className="flex flex-col gap-4">
-      <h1 className="text-xl font-semibold text-texto">{GLOSARIO.licitacion.plural}</h1>
+      <TituloModulo titulo={GLOSARIO.licitacion.plural} />
       <Cargando mensaje="Cargando licitaciones…" />
     </section>
   )

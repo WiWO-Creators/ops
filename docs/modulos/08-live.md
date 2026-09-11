@@ -117,11 +117,26 @@ no un desplegable.
 ## Qué no se reusó, y por qué
 
 `arbolDePresencia()` y `PersonaActiva` están tipados contra `PersonaConectada` y viven de `activity`,
-`location` y `route`, que en LIVE no existen; además su árbol es de tres niveles y el de LIVE es de
-uno. Sí se reusan `Avatar`, `Insignia`, `Vacio`, `haceCuanto()` y `formatearDuracion()`.
+`location` y `route`, que en LIVE no existen. Sí se reusan `Avatar`, `Insignia`, `Vacio`,
+`haceCuanto()` y `formatearDuracion()`.
+
+## La jerarquía es la persona, no el Espacio
+
+El tablero agrupaba por Espacio y dentro ponía una fila plana que mezclaba Tarea y Espacio en un
+mismo texto. Ahora la raíz es **la persona**, y debajo cuelgan los cuatro escalones que se pidieron:
+persona con su cargo → Proyecto que está midiendo → Tarea → tiempo.
+
+Agrupar por Espacio dejó de tener sentido con la persona arriba: repetiría el Proyecto en el
+encabezado del grupo y otra vez dentro de cada fila. `agruparPorEspacio()` se fue y en su lugar quedó
+`ordenarPorActividad()`, que es lo único que aquel agrupado aportaba de verdad —quien mide primero,
+después quien sólo tiene jornada, después el resto; a igualdad, alfabético—.
+
+Medir un Espacio sin Tarea **no se esconde**: el escalón de la Tarea se pinta igual, con un aviso de
+que falta elegirla. Es el dato que la pantalla existe para hacer visible.
 
 ## Pruebas
 
-`pruebas/live.test.js` cubre lo que se rompe en silencio: `alcanceDeLive()`, `agruparPorEspacio()` —que
-ninguna fila se pierda y que el grupo sin Espacio quede último— y `mensajeDeFalloDeMedidor()`. El resto
-es JSX.
+`pruebas/live.test.js` cubre lo que se rompe en silencio: `alcanceDeLive()`,
+`ordenarPorActividad()` —que ninguna fila se pierda y que el orden no baile entre refrescos—,
+`trabajoDeLaFila()`, `cargoYArea()` y `mensajeDeFalloDeMedidor()`. `pruebas/cierre-jornada.test.js`
+cubre el resumen del cierre. El resto es JSX.
