@@ -219,6 +219,7 @@ export function DetalleActa ({
             htmlInicial={acta.content ?? ''}
             proyectoId={proyectoId}
             conIa={conIa}
+            marca={acta.brand}
             onCambio={(siguiente) => {
               setHtml(siguiente)
               setSucio(true)
@@ -230,7 +231,7 @@ export function DetalleActa ({
             ref={marco}
             html={acta.content ?? ''}
             titulo={`Meeting Paper: ${acta.title}`}
-            firma={acta.brand_sign_url}
+            marca={acta.brand}
             // Sin esto "Imprimir" lanza `SecurityError` y no imprime: con el origen opaco del
             // `sandbox` vacio el padre no puede ni leer `contentWindow.print`.
             imprimible

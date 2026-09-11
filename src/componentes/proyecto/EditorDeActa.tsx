@@ -10,6 +10,7 @@ import { Boton } from '@/componentes/formularios/Boton'
 import { escribirEnBff } from '@/componentes/datos/mutaciones'
 import { cn } from '@/lib/clases'
 import type { LucideIcon } from 'lucide-react'
+import { claseDeMarca, cssDeMarcas } from '@/dominio/marcas-acta'
 
 /**
  * Editor del Meeting Paper, con reescritura por IA del fragmento seleccionado.
@@ -68,9 +69,16 @@ interface PropsEditor {
   proyectoId: number
   /** Apaga la reescritura por IA cuando la capa está desactivada. */
   conIa?: boolean
+  /**
+   * Marca que firma el acta, para corregirla con la misma cara con la que se va a ver.
+   *
+   * Sin esto el editor mostraría el documento con los colores y la tipografía genéricos y el visor
+   * con los de la marca: quien corrige estaría trabajando sobre algo que no es lo que se manda.
+   */
+  marca?: string | null
 }
 
-export function EditorDeActa ({ htmlInicial, onCambio, proyectoId, conIa = true }: PropsEditor): ReactElement {
+export function EditorDeActa ({ htmlInicial, onCambio, proyectoId, conIa = true, marca = null }: PropsEditor): ReactElement {
   const [reescribiendo, setReescribiendo] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -89,7 +97,8 @@ export function EditorDeActa ({ htmlInicial, onCambio, proyectoId, conIa = true 
     content: htmlInicial,
     editorProps: {
       attributes: {
-        class: 'acta-editor rounded-chico border-linea min-h-[24rem] border px-8 py-10 focus:outline-none'
+        class: `acta-editor acta-marca ${claseDeMarca(marca)} rounded-chico border-linea min-h-[24rem]`
+          + ' border px-8 py-10 focus:outline-none'
       }
     },
     onUpdate: ({ editor: actual }) => { onCambio(actual.getHTML()) }
@@ -142,6 +151,11 @@ export function EditorDeActa ({ htmlInicial, onCambio, proyectoId, conIa = true 
 
   return (
     <div className="flex flex-col gap-2">
+      {/* Las mismas reglas que inyecta el visor en su iframe, servidas acá desde el mismo módulo:
+          es lo único que mantiene a los dos lados mostrando el mismo documento. El origen va vacío
+          porque acá sí resuelven las rutas relativas; el iframe es el que necesita el absoluto. */}
+      <style>{cssDeMarcas('')}</style>
+
       <BarraDeFormato editor={editor} />
 
       {conIa && (
