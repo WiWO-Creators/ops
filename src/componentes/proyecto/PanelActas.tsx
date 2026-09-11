@@ -4,6 +4,7 @@ import { Suspense, useCallback, useMemo, useState, type ReactElement } from 'rea
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Boton } from '@/componentes/formularios/Boton'
+import { Insignia } from '@/componentes/presentadores/Insignia'
 import { Cargando, ErrorEstado } from '@/componentes/estado/Estados'
 import { LimiteDeError } from '@/componentes/estado/LimiteDeError'
 import { BloqueCopiable } from '@/componentes/presentadores/BloqueCopiable'
@@ -57,18 +58,25 @@ interface PropsPanelActas {
  * uno es un interruptor del panel, otro una instalacion a la que nunca se le escribio el ajuste, y
  * el tercero la API que no contesta. Decir cual es no es un lujo de depuracion: es la diferencia
  * entre que la persona sepa a quien pedirselo y que abra un ticket que dice "no funciona".
+ *
+ * `chip` es la version corta que vive en la barra. La frase entera al lado del boton competia con el
+ * boton y empujaba la barra a dos lineas en pantallas angostas; el motivo completo sigue estando, a
+ * un clic, donde ademas viene con el detalle copiable.
  */
-const MOTIVO_IA: Record<EstadoIa['motivo'], { titulo: string, ayuda: string }> = {
-  encendida: { titulo: '', ayuda: '' },
+const MOTIVO_IA: Record<EstadoIa['motivo'], { chip: string, titulo: string, ayuda: string }> = {
+  encendida: { chip: '', titulo: '', ayuda: '' },
   apagada: {
+    chip: 'IA apagada',
     titulo: 'La escritura con IA está apagada en esta instalación.',
     ayuda: 'Se enciende en Administración → Ajustes → Funciones con IA. Los Meeting Papers ya escritos se siguen leyendo y corrigiendo igual.'
   },
   ausente: {
+    chip: 'IA sin configurar',
     titulo: 'Esta instalación nunca configuró las funciones con IA.',
     ayuda: 'El ajuste "Funciones con IA" no tiene valor guardado. Hay que entrar a Administración → Ajustes, encenderlo y guardar una vez.'
   },
   no_se_pudo_leer: {
+    chip: 'Estado de la IA desconocido',
     titulo: 'No se pudo leer si la IA está disponible.',
     ayuda: 'Falló la lectura de los ajustes contra la API. No es el Meeting Paper: mientras esto falle, media aplicación va a comportarse raro.'
   }
@@ -158,7 +166,7 @@ function ActasDelProyecto ({ proyectoId, ia, yo }: PropsPanelActas): ReactElemen
   // clic abre el motivo, que es lo unico que esa persona puede reportar o arreglar.
   const barra = (
     <div className="flex items-center justify-end gap-3">
-      {!ia.activa && <span className="text-texto-sutil text-xs">{motivo.titulo}</span>}
+      {!ia.activa && <Insignia tono="aviso" tamano="chico">{motivo.chip}</Insignia>}
       <Boton
         variante="primario"
         tamano="chico"

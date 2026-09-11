@@ -5,12 +5,31 @@ import { useRef, useState, type ReactElement } from 'react'
 import { Boton } from '@/componentes/formularios/Boton'
 import { ContenidoHtml } from '@/componentes/presentadores/ContenidoHtml'
 import { Fecha } from '@/componentes/presentadores/Fecha'
+import { Insignia } from '@/componentes/presentadores/Insignia'
 import { Dialogo, ContenidoDialogo } from '@/componentes/superposiciones/Dialogo'
+import {
+  ContenidoMenu,
+  DisparadorMenu,
+  ItemMenu,
+  MenuContextual
+} from '@/componentes/superposiciones/MenuContextual'
 import { escribirEnBff } from '@/componentes/datos/mutaciones'
 import type { Acta } from '@/datos/recursos'
 
 /**
  * Un Meeting Paper: se lee, se corrige y se imprime.
+ *
+ * === LAS ACCIONES TIENEN PESOS DISTINTOS PORQUE NO VALEN LO MISMO ===
+ *
+ * Eran seis botones en fila —Volver, Corregir, Guardar, Descartar, Imprimir, Eliminar— todos del
+ * mismo tamaño y del mismo tono, así que encontrar el que se quería costaba leerlos los seis. Ahora
+ * el regreso es navegación y va solo arriba; de las acciones del acta queda a la vista la probable
+ * como primaria —Corregir leyendo, Guardar editando—, su acompañante como secundaria, y Eliminar
+ * vive en el menú de `⋯`: es destructiva y rarísima, y un botón rojo permanente en la cabecera de
+ * algo que se abre para leer es ruido con riesgo.
+ *
+ * `Imprimir` ya no se dibuja deshabilitada mientras se corrige: un control apagado que aparece solo
+ * para decir que no se puede usar ocupa el mismo lugar que uno que sí.
  *
  * El editor se carga con `next/dynamic` y `ssr: false`. Son ~100 KB de TipTap, y sin esto entran en
  * el chunk de `/espacios/[id]` —la pantalla más usada del panel— aunque nadie abra un acta. Con la
@@ -107,63 +126,87 @@ export function DetalleActa ({
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <Boton variante="sutil" tamano="chico" onClick={volver}>← Volver a los Meeting Papers</Boton>
+      {/* El regreso va solo y arriba de todo: es navegación, no una de las acciones del acta, y
+          mezclado con ellas competía por la misma mirada. */}
+      <Boton variante="sutil" tamano="chico" onClick={volver} className="-ml-3 self-start">
+        ← Volver a los Meeting Papers
+      </Boton>
 
-        <div className="flex flex-wrap gap-2">
-          {!editando && (
-            <Boton variante="secundario" tamano="chico" onClick={() => { setEditando(true) }}>
-              Corregir
-            </Boton>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <header className="flex min-w-0 flex-col gap-1.5">
+          <div className="flex flex-wrap items-center gap-2">
+            <h2 className="text-texto text-lg font-semibold">{acta.title}</h2>
+            {acta.source === 'ia' && (
+              <Insignia tono="acento" tamano="chico">Escrito con IA</Insignia>
+            )}
+          </div>
+          <p className="text-texto-tenue text-sm">
+            {acta.client === '' ? 'Sin cliente' : acta.client}
+            {acta.meeting_date !== null && <> · <Fecha valor={acta.meeting_date} /></>}
+            {acta.author !== null && <> · {acta.author.full_name}</>}
+          </p>
+          {acta.attendees.length > 0 && (
+            <p className="text-texto-sutil text-xs">Asistentes: {acta.attendees.join(', ')}</p>
           )}
-          {editando && (
-            <>
-              <Boton
-                variante="sutil"
-                tamano="chico"
-                onClick={() => {
-                  setHtml(acta.content ?? '')
-                  setSucio(false)
-                  setEditando(false)
-                }}
-              >
-                Descartar cambios
-              </Boton>
-              <Boton variante="primario" tamano="chico" cargando={guardando} onClick={() => { void guardar() }}>
-                Guardar
-              </Boton>
-            </>
-          )}
-          <Boton
-            variante="secundario"
-            tamano="chico"
-            onClick={() => { marco.current?.contentWindow?.print() }}
-            disabled={editando}
-          >
-            Imprimir
-          </Boton>
+        </header>
+
+        {/* Una acción probable con peso de primaria, una de apoyo y lo destructivo guardado. Las seis
+            en fila y con el mismo peso obligaban a leerlas todas para encontrar la que se quería. */}
+        <div className="flex shrink-0 flex-wrap items-center gap-2">
+          {editando
+            ? (
+              <>
+                <Boton
+                  variante="sutil"
+                  tamano="chico"
+                  onClick={() => {
+                    setHtml(acta.content ?? '')
+                    setSucio(false)
+                    setEditando(false)
+                  }}
+                >
+                  Descartar cambios
+                </Boton>
+                <Boton variante="primario" tamano="chico" cargando={guardando} onClick={() => { void guardar() }}>
+                  Guardar
+                </Boton>
+              </>
+              )
+            : (
+              <>
+                <Boton
+                  variante="secundario"
+                  tamano="chico"
+                  onClick={() => { marco.current?.contentWindow?.print() }}
+                >
+                  Imprimir
+                </Boton>
+                <Boton variante="primario" tamano="chico" onClick={() => { setEditando(true) }}>
+                  Corregir
+                </Boton>
+              </>
+              )}
+
           {puedeBorrar && (
-            <Boton variante="peligro" tamano="chico" onClick={() => { setConfirmando(true) }}>
-              Eliminar
-            </Boton>
+            <MenuContextual>
+              <DisparadorMenu asChild>
+                <Boton variante="sutil" tamano="chico" soloIcono aria-label="Más acciones del Meeting Paper">
+                  <span aria-hidden="true">⋯</span>
+                </Boton>
+              </DisparadorMenu>
+              <ContenidoMenu align="end">
+                <ItemMenu peligroso onSelect={() => { setConfirmando(true) }}>Eliminar</ItemMenu>
+              </ContenidoMenu>
+            </MenuContextual>
           )}
         </div>
       </div>
 
-      <header className="flex flex-col gap-1">
-        <h2 className="text-texto text-lg font-semibold">{acta.title}</h2>
-        <p className="text-texto-tenue text-sm">
-          {acta.client === '' ? 'Sin cliente' : acta.client}
-          {acta.meeting_date !== null && <> · <Fecha valor={acta.meeting_date} /></>}
-          {acta.author !== null && <> · {acta.author.full_name}</>}
-          {acta.source === 'ia' && <> · escrito con IA</>}
+      {error !== null && (
+        <p role="alert" className="bg-superficie-peligro text-texto-peligro rounded-chico px-3 py-2 text-sm">
+          {error}
         </p>
-        {acta.attendees.length > 0 && (
-          <p className="text-texto-sutil text-xs">Asistentes: {acta.attendees.join(', ')}</p>
-        )}
-      </header>
-
-      {error !== null && <p role="alert" className="text-texto-peligro text-sm">{error}</p>}
+      )}
 
       {editando
         ? (

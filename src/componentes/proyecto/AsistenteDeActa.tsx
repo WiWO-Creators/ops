@@ -1,23 +1,36 @@
 'use client'
 
-import { useEffect, useRef, useState, type ReactElement } from 'react'
+import { useEffect, useId, useRef, useState, type ReactElement } from 'react'
 import { Boton } from '@/componentes/formularios/Boton'
-import { Campo } from '@/componentes/formularios/Campo'
-import { Entrada, AreaTexto } from '@/componentes/formularios/Entrada'
+import { Insignia } from '@/componentes/presentadores/Insignia'
 import { Orbe } from '@/componentes/estado/Orbe'
 import { pedirSobre } from '@/datos/cliente'
 import { leerSSE } from '@/datos/sse'
 import { leerEventoIA } from '@/dominio/ia'
-import { MARCAS, MODALIDADES } from '@/definiciones/actas'
-import { ACEPTA, LIMITE_AUDIO_BYTES, LIMITE_BYTES, LIMITE_DOCUMENTO_BYTES, formatoPeso, validarArchivo } from '@/dominio/actas'
+import { validarArchivo } from '@/dominio/actas'
+import { cn } from '@/lib/clases'
 import { aTextoPlano } from './formatos'
-import { GrabadoraDeAudio } from './GrabadoraDeAudio'
+import { DatosDelActa, resumenDeDatos, type DatosDeActa } from './acta/DatosDelActa'
+import { FuenteDelActa } from './acta/FuenteDelActa'
+import { Paso } from './acta/Paso'
 import type { Acta, PrefillActa } from '@/datos/recursos'
 import type { PasoIA } from '@/dominio/ia'
 import type { ModoEntrada } from '@/dominio/actas'
 
 /**
  * Asistente de creación de un Meeting Paper.
+ *
+ * === LA PANTALLA SON DOS PASOS, Y UNO ES OPCIONAL ===
+ *
+ * Tenía cinco modos de entrada, seis campos y el bloque de generación a la vista al mismo tiempo y
+ * con el mismo peso, así que no contestaba "¿qué hago primero?". Lo que la ordena no es estética: de
+ * todo eso lo único que el asistente exige es el MATERIAL —`listoParaGenerar` mira el archivo y el
+ * texto, nada más—, y tres de los seis campos llegan rellenados desde el propio Proyecto.
+ *
+ * Así que el paso 1 pide el material —se elige el modo y solo aparece el control de ese modo— y el
+ * paso 2 son los datos de cabecera, plegados bajo un resumen de lo que ya traen. Ninguna función se
+ * fue: los cinco modos, los seis campos, el stream y el orbe siguen estando, a un clic de distancia
+ * en vez de todos encima.
  *
  * === POR QUE NO ES UN `FormularioRecurso` ===
  *
@@ -43,6 +56,24 @@ import type { ModoEntrada } from '@/dominio/actas'
  * cuesta— y el acta aparece en el listado igual.
  */
 
+/** Recipiente de los dos pasos y del bloque de generación: una sola tarjeta, sin tarjetas adentro. */
+const TARJETA = 'border-linea bg-superficie-elevada rounded-tarjeta border p-4 sm:p-5'
+
+/**
+ * Qué falta para poder generar, según el modo elegido.
+ *
+ * Enumerar las cinco alternativas —"hace falta un audio, una imagen, un documento o los apuntes"—
+ * obligaba a releer la lista entera para encontrar la que aplica. Con el modo ya elegido, la frase
+ * habla de una sola cosa.
+ */
+const FALTA: Record<ModoEntrada, string> = {
+  texto: 'Pega los apuntes de la reunión para poder escribirla.',
+  grabar: 'Graba la reunión para poder escribirla.',
+  audio: 'Elige el archivo de audio de la reunión.',
+  imagen: 'Elige la foto de la pizarra o del cuaderno.',
+  documento: 'Elige el Meeting Paper ya redactado.'
+}
+
 interface PropsAsistente {
   proyectoId: number
   /** Se llama con el acta ya guardada. El panel la abre para revisarla. */
@@ -56,12 +87,16 @@ export function AsistenteDeActa ({ proyectoId, onCreada, onCancelar }: PropsAsis
   const [archivo, setArchivo] = useState<File | null>(null)
   const [errorArchivo, setErrorArchivo] = useState<string | null>(null)
 
-  const [cliente, setCliente] = useState('')
-  const [fecha, setFecha] = useState('')
-  const [lugar, setLugar] = useState('')
-  const [modalidad, setModalidad] = useState('')
-  const [marca, setMarca] = useState('wiwo')
-  const [asistentes, setAsistentes] = useState('')
+  const [datos, setDatos] = useState<DatosDeActa>({
+    cliente: '',
+    fecha: '',
+    lugar: '',
+    modalidad: '',
+    marca: 'wiwo',
+    asistentes: ''
+  })
+  const [datosALaVista, setDatosALaVista] = useState(false)
+  const idDatos = useId()
 
   const [fase, setFase] = useState<'entrada' | 'generando' | 'error'>('entrada')
   // Lo que el servidor dice que está haciendo antes de escribir. Transcribir una reunión de una
@@ -81,9 +116,12 @@ export function AsistenteDeActa ({ proyectoId, onCreada, onCancelar }: PropsAsis
     void pedirSobre<PrefillActa>(`ia/proyectos/${proyectoId}/acta/prefill`, control.signal)
       .then((sobre) => {
         if (control.signal.aborted) return
-        setCliente(sobre.data.client)
-        setFecha(sobre.data.meeting_date)
-        setAsistentes(sobre.data.attendees.join('\n'))
+        setDatos((previos) => ({
+          ...previos,
+          cliente: sobre.data.client,
+          fecha: sobre.data.meeting_date,
+          asistentes: sobre.data.attendees.join('\n')
+        }))
       })
       .catch(() => {
         // El prefill es una comodidad: si falla, se escribe a mano. No se muestra ningún error.
@@ -141,12 +179,12 @@ export function AsistenteDeActa ({ proyectoId, onCreada, onCancelar }: PropsAsis
     const cuerpo = new FormData()
     if (archivo !== null) cuerpo.append('file', archivo)
     if (texto.trim() !== '') cuerpo.append('texto', texto.trim())
-    cuerpo.append('cliente', cliente)
-    cuerpo.append('fecha', fecha)
-    cuerpo.append('lugar', lugar)
-    cuerpo.append('modalidad', modalidad)
-    cuerpo.append('marca', marca)
-    cuerpo.append('asistentes', asistentes)
+    cuerpo.append('cliente', datos.cliente)
+    cuerpo.append('fecha', datos.fecha)
+    cuerpo.append('lugar', datos.lugar)
+    cuerpo.append('modalidad', datos.modalidad)
+    cuerpo.append('marca', datos.marca)
+    cuerpo.append('asistentes', datos.asistentes)
 
     let acumulado = ''
 
@@ -201,11 +239,11 @@ export function AsistenteDeActa ({ proyectoId, onCreada, onCancelar }: PropsAsis
 
   if (fase === 'generando') {
     return (
-      <div className="border-linea bg-superficie-hundida rounded-tarjeta flex flex-col gap-3 border p-6">
-        <div className="flex items-center gap-3">
+      <div className={cn(TARJETA, 'flex flex-col gap-4')}>
+        <div className="flex items-start gap-3">
           <Orbe medida="2.5rem" estado={paso?.orbe ?? 'generating'} />
-          <div className="flex flex-col">
-            <p className="text-texto text-sm font-medium">
+          <div className="flex min-w-0 flex-col gap-0.5">
+            <p className="text-texto text-sm font-semibold">
               {paso?.etiqueta ?? (modo === 'documento'
                 ? 'Leyendo el Meeting Paper y dejándolo en el formato del sistema…'
                 : 'Escribiendo el Meeting Paper…')}
@@ -218,20 +256,18 @@ export function AsistenteDeActa ({ proyectoId, onCreada, onCancelar }: PropsAsis
           </div>
         </div>
 
-        <p className="text-texto-tenue max-w-prose text-sm whitespace-pre-wrap">
-          {aTextoPlano(avance)}
-        </p>
-
-        <span role="status" className="sr-only">Generando el Meeting Paper</span>
-
-        {modo === 'documento' && (
-          <p className="text-texto-sutil text-xs">
-            El archivo no se guarda: lo que queda es este Meeting Paper. Revísalo antes de cerrar.
+        {avance !== '' && (
+          <p className="border-linea text-texto-tenue max-w-prose border-t pt-4 text-sm whitespace-pre-wrap">
+            {aTextoPlano(avance)}
           </p>
         )}
 
+        <span role="status" className="sr-only">Generando el Meeting Paper</span>
+
         <p className="text-texto-sutil text-xs">
-          Puedes cambiar de pestaña: el acta se guarda sola al terminar.
+          {modo === 'documento'
+            ? 'El archivo no se guarda: lo que queda es este Meeting Paper. Puedes cambiar de pestaña, se guarda solo al terminar.'
+            : 'Puedes cambiar de pestaña: el acta se guarda sola al terminar.'}
         </p>
       </div>
     )
@@ -244,176 +280,63 @@ export function AsistenteDeActa ({ proyectoId, onCreada, onCancelar }: PropsAsis
         <Boton variante="sutil" tamano="chico" onClick={onCancelar}>Cancelar</Boton>
       </div>
 
-      <SelectorDeModo modo={modo} onCambio={(siguiente) => {
-        setModo(siguiente)
-        elegirArchivo(null)
-      }} />
+      <div className={cn(TARJETA, 'flex flex-col')}>
+        <Paso numero={1} titulo="El material de la reunión" className="pb-5">
+          <FuenteDelActa
+            modo={modo}
+            onModo={(siguiente) => {
+              setModo(siguiente)
+              elegirArchivo(null)
+            }}
+            texto={texto}
+            onTexto={setTexto}
+            archivo={archivo}
+            errorArchivo={errorArchivo}
+            onArchivo={elegirArchivo}
+          />
+        </Paso>
 
-      {modo === 'documento' && (
-        <p className="text-texto-sutil text-xs">
-          El archivo no se guarda: lo que queda es el Meeting Paper que se escriba a partir de él.
-          Revísalo antes de cerrar.
-        </p>
-      )}
-
-      {modo === 'texto' && (
-        <Campo etiqueta="Apuntes de la reunión" ayuda="Pega lo que anotaste, o la transcripción.">
-          {(props) => (
-            <AreaTexto
-              {...props}
-              rows={8}
-              value={texto}
-              onChange={(evento) => { setTexto(evento.target.value) }}
-            />
-          )}
-        </Campo>
-      )}
-
-      {modo === 'grabar' && (
-        <GrabadoraDeAudio
-          onGrabado={(grabado) => { elegirArchivo(grabado) }}
-          onDescartado={() => { elegirArchivo(null) }}
-        />
-      )}
-
-      {(modo === 'audio' || modo === 'imagen' || modo === 'documento') && (
-        <Campo
-          etiqueta={ETIQUETA_ARCHIVO[modo]}
-          ayuda={modo === 'documento'
-            ? `PDF, DOCX, TXT, MD o HTML, hasta ${formatoPeso(LIMITE_DOCUMENTO_BYTES)}.`
-            : `Hasta ${formatoPeso(modo === 'audio' ? LIMITE_AUDIO_BYTES : LIMITE_BYTES)}.`}
-          error={errorArchivo ?? undefined}
+        <Paso
+          numero={2}
+          titulo="Datos del acta"
+          insignia={<Insignia tono="contorno" tamano="chico">Opcional</Insignia>}
+          resumen={resumenDeDatos(datos)}
+          plegable={{
+            abierto: datosALaVista,
+            idPanel: idDatos,
+            onAlternar: () => { setDatosALaVista((visible) => !visible) }
+          }}
+          /* `pt-6` y no `pt-5`: el encabezado plegable sube 1.5 por su propio margen negativo —el
+             que agranda el área de clic—, así que el aire real sobre él queda igual al de abajo. */
+          className="border-linea border-t pt-6"
         >
-          {(props) => (
-            <input
-              {...props}
-              type="file"
-              accept={ACEPTA[modo]}
-              onChange={(evento) => { elegirArchivo(evento.target.files?.[0] ?? null) }}
-              className="text-texto-tenue file:rounded-control file:border-control-borde file:bg-control file:text-texto text-sm file:mr-3 file:border file:px-3 file:py-1.5 file:text-sm"
-            />
-          )}
-        </Campo>
-      )}
-
-      {archivo !== null && modo !== 'grabar' && (
-        <p className="text-texto-tenue text-sm">
-          {archivo.name} ({formatoPeso(archivo.size)})
-        </p>
-      )}
-
-      <div className="grid gap-4 sm:grid-cols-2">
-        <Campo etiqueta="Cliente">
-          {(props) => <Entrada {...props} value={cliente} onChange={(e) => { setCliente(e.target.value) }} />}
-        </Campo>
-
-        <Campo etiqueta="Fecha de la reunión">
-          {(props) => <Entrada {...props} type="date" value={fecha} onChange={(e) => { setFecha(e.target.value) }} />}
-        </Campo>
-
-        <Campo etiqueta="Lugar">
-          {(props) => <Entrada {...props} value={lugar} onChange={(e) => { setLugar(e.target.value) }} />}
-        </Campo>
-
-        <Campo etiqueta="Modalidad">
-          {(props) => (
-            <select
-              {...props}
-              value={modalidad}
-              onChange={(e) => { setModalidad(e.target.value) }}
-              className="rounded-chico border-control-borde bg-control text-texto h-9 w-full border px-3 text-sm"
-            >
-              <option value="">Sin especificar</option>
-              {MODALIDADES.map((opcion) => (
-                <option key={opcion.valor} value={opcion.valor}>{opcion.etiqueta}</option>
-              ))}
-            </select>
-          )}
-        </Campo>
-
-        <Campo etiqueta="Marca" ayuda="Decide qué firma se muestra en el acta.">
-          {(props) => (
-            <select
-              {...props}
-              value={marca}
-              onChange={(e) => { setMarca(e.target.value) }}
-              className="rounded-chico border-control-borde bg-control text-texto h-9 w-full border px-3 text-sm"
-            >
-              {MARCAS.map((opcion) => (
-                <option key={opcion.valor} value={opcion.valor}>{opcion.etiqueta}</option>
-              ))}
-            </select>
-          )}
-        </Campo>
-
-        <Campo etiqueta="Asistentes" ayuda="Uno por línea.">
-          {(props) => (
-            <AreaTexto
-              {...props}
-              rows={3}
-              value={asistentes}
-              onChange={(e) => { setAsistentes(e.target.value) }}
-            />
-          )}
-        </Campo>
+          <DatosDelActa
+            valores={datos}
+            onCambio={(parcial) => { setDatos((previos) => ({ ...previos, ...parcial })) }}
+          />
+        </Paso>
       </div>
 
-      {error !== null && <p role="alert" className="text-texto-peligro text-sm">{error}</p>}
+      {error !== null && (
+        <p role="alert" className="bg-superficie-peligro text-texto-peligro rounded-chico px-3 py-2 text-sm">
+          {error}
+        </p>
+      )}
 
-      <div className="flex justify-end gap-2">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
+        {!listoParaGenerar && error === null && (
+          <p className="text-texto-sutil text-xs sm:mr-auto">{FALTA[modo]}</p>
+        )}
+
         <Boton
           variante="primario"
           onClick={() => { void generar() }}
           disabled={!listoParaGenerar}
+          className="w-full sm:w-auto"
         >
           Escribir el Meeting Paper
         </Boton>
       </div>
-
-      {!listoParaGenerar && error === null && (
-        <p className="text-texto-sutil text-right text-xs">
-          Hace falta un audio, una imagen, un documento o los apuntes de la reunión.
-        </p>
-      )}
-    </div>
-  )
-}
-
-/** Etiqueta del campo de archivo, por modo. */
-const ETIQUETA_ARCHIVO: Record<'audio' | 'imagen' | 'documento', string> = {
-  audio: 'Archivo de audio',
-  imagen: 'Foto de la pizarra o del cuaderno',
-  documento: 'Meeting Paper ya redactado'
-}
-
-/** Los cinco modos de entrada, como un grupo de radio accesible. */
-function SelectorDeModo ({ modo, onCambio }: { modo: ModoEntrada, onCambio: (modo: ModoEntrada) => void }): ReactElement {
-  const opciones: Array<{ valor: ModoEntrada, etiqueta: string }> = [
-    { valor: 'texto', etiqueta: 'Apuntes' },
-    { valor: 'grabar', etiqueta: 'Grabar' },
-    { valor: 'audio', etiqueta: 'Subir audio' },
-    { valor: 'imagen', etiqueta: 'Foto' },
-    { valor: 'documento', etiqueta: 'Subir documento' }
-  ]
-
-  return (
-    <div role="radiogroup" aria-label="De dónde sale el acta" className="flex flex-wrap gap-1">
-      {opciones.map((opcion) => (
-        <button
-          key={opcion.valor}
-          type="button"
-          role="radio"
-          aria-checked={modo === opcion.valor}
-          onClick={() => { onCambio(opcion.valor) }}
-          className={
-            modo === opcion.valor
-              ? 'rounded-control bg-acento text-acento-contenido px-3 py-1.5 text-sm font-semibold'
-              : 'rounded-control text-texto-tenue hover:bg-hover px-3 py-1.5 text-sm font-medium'
-          }
-        >
-          {opcion.etiqueta}
-        </button>
-      ))}
     </div>
   )
 }
