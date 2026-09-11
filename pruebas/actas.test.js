@@ -40,6 +40,18 @@ test('un .mp4 se trata como audio: es el .m4a que renombró iCloud', () => {
   assert.equal(inferirMime('grabacion.mp4'), 'audio/aac')
 })
 
+test('el selector permite grabaciones en contenedores de video y otros formatos de audio', () => {
+  for (const extension of ['mp4', 'm4v', 'mov', 'mkv', 'avi', '3gp', 'wma', 'amr']) {
+    assert.ok(ACEPTA.audio.split(',').includes(`.${extension}`))
+    assert.equal(validarArchivo({ name: `reunion.${extension.toUpperCase()}`, size: 1024 }, 'audio'), null)
+    assert.match(inferirMime(`reunion.${extension}`), /^audio\//)
+    assert.match(validarArchivo({ name: `reunion.${extension}`, size: 0 }, 'audio'), /vacío/)
+    assert.match(validarArchivo({ name: `reunion.${extension}`, size: LIMITE_AUDIO_BYTES + 1 }, 'audio'), /máximo/)
+  }
+  assert.match(validarArchivo({ name: 'reunion.exe', size: 1024 }, 'audio'), /Solo se aceptan/)
+  assert.match(validarArchivo({ name: '', size: 1024 }, 'audio'), /Solo se aceptan/)
+})
+
 test('extensionDe aísla la última extensión', () => {
   assert.equal(extensionDe('acta.final.m4a'), 'm4a')
   assert.equal(extensionDe('sinpunto'), '')

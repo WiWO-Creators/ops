@@ -1,5 +1,5 @@
 import type { EstadoLookup, Lookups } from './recursos.ts'
-import type { DefinicionRecurso, OpcionFiltro } from '../definiciones/tipos.ts'
+import type { DefinicionRecurso, Filtro, OpcionFiltro } from '../definiciones/tipos.ts'
 
 /**
  * Lectura de los catalogos configurables de Perfex.
@@ -55,6 +55,22 @@ export function nombreDe (lista: EstadoLookup[], id: number): string {
  * @param lookups Los catalogos ya cargados.
  * @returns Un mapa indexado por `Filtro.desdeLookup`, listo para pasar a `TablaRecurso`.
  */
+/**
+ * Clave con la que un filtro busca su catalogo ya resuelto.
+ *
+ * No alcanza con `desdeLookup`: un mismo catalogo se usa de dos maneras —el Asignado va por id de
+ * persona y el Seguidor por su nombre— y con una sola clave el segundo pisaria las opciones del
+ * primero.
+ *
+ * @param filtro El filtro, con su origen declarado.
+ * @returns La clave del mapa de opciones, o cadena vacia si el filtro no saca opciones de un catalogo.
+ */
+export function claveDeCatalogo (filtro: Filtro): string {
+  if (filtro.desdeLookup === undefined) return ''
+
+  return filtro.valorPorNombre === true ? `${filtro.desdeLookup}:nombre` : filtro.desdeLookup
+}
+
 export function opcionesDeFiltros<T> (
   definicion: DefinicionRecurso<T>,
   lookups: Lookups
@@ -62,14 +78,34 @@ export function opcionesDeFiltros<T> (
   const mapa: Record<string, OpcionFiltro[]> = {}
 
   for (const filtro of definicion.filtros) {
-    if (filtro.desdeLookup === undefined || mapa[filtro.desdeLookup] !== undefined) continue
+    const clave = claveDeCatalogo(filtro)
 
-    mapa[filtro.desdeLookup] = listaDe(lookups, filtro.desdeLookup).map((item) => ({
-      valor: String(item.id),
+    if (clave === '' || mapa[clave] !== undefined) continue
+
+    const lista = listaDe(lookups, filtro.desdeLookup as string).map((item) => ({
+      valor: filtro.valorPorNombre === true ? item.name : String(item.id),
       etiqueta: item.name,
       ...(item.color === undefined ? {} : { color: item.color })
     }))
+
+    // Por nombre, el catalogo casi siempre repite: `task_types` trae una fila por Espacio y el
+    // equipo tiene homonimos. Dos opciones con el mismo valor son la misma pregunta escrita dos
+    // veces, y ademas rompen la clave de React.
+    mapa[clave] = filtro.valorPorNombre === true ? sinRepetidos(lista) : lista
   }
 
   return mapa
+}
+
+/** Deja una sola opcion por valor, conservando el orden en que llegaron. */
+function sinRepetidos (opciones: OpcionFiltro[]): OpcionFiltro[] {
+  const vistos = new Set<string>()
+
+  return opciones.filter((opcion) => {
+    if (opcion.valor === '' || vistos.has(opcion.valor)) return false
+
+    vistos.add(opcion.valor)
+
+    return true
+  })
 }

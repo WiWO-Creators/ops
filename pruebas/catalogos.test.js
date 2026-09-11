@@ -8,7 +8,7 @@
 
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { columnasDelTablero, listaDe, nombreDe, opcionesDeFiltros } from '../src/datos/catalogos.ts'
+import { claveDeCatalogo, columnasDelTablero, listaDe, nombreDe, opcionesDeFiltros } from '../src/datos/catalogos.ts'
 
 const LOOKUPS = {
   task_statuses: [
@@ -67,4 +67,32 @@ test('un desdeLookup que no existe da lista vacia en vez de romper', () => {
   const definicion = { filtros: [{ clave: 'x', etiqueta: 'X', tipo: 'seleccion', desdeLookup: 'no_existe' }] }
 
   assert.deepEqual(opcionesDeFiltros(definicion, LOOKUPS).no_existe, [])
+})
+
+test('un filtro por nombre viaja con el nombre, sin repetir y sin pisar al que va por id', () => {
+  const lookups = {
+    ...LOOKUPS,
+    // El catalogo real trae un tipo por Espacio: los tres nombres se repiten cientos de veces.
+    task_types: [
+      { id: 1, name: 'Bug' },
+      { id: 2, name: 'Feature' },
+      { id: 40, name: 'Bug' }
+    ],
+    staff: [{ id: 3, name: 'Ana Díaz' }, { id: 7, name: 'Luis Soto' }]
+  }
+  const definicion = {
+    filtros: [
+      { clave: 'assignee', etiqueta: 'Asignado', tipo: 'multiple', desdeLookup: 'staff' },
+      { clave: 'followers', etiqueta: 'Seguidor', tipo: 'seleccion', desdeLookup: 'staff', valorPorNombre: true },
+      { clave: 'task_type_name', etiqueta: 'Tipo', tipo: 'seleccion', desdeLookup: 'task_types', valorPorNombre: true }
+    ]
+  }
+
+  const mapa = opcionesDeFiltros(definicion, lookups)
+
+  assert.equal(claveDeCatalogo(definicion.filtros[0]), 'staff')
+  assert.equal(claveDeCatalogo(definicion.filtros[1]), 'staff:nombre')
+  assert.deepEqual(mapa.staff, [{ valor: '3', etiqueta: 'Ana Díaz' }, { valor: '7', etiqueta: 'Luis Soto' }])
+  assert.deepEqual(mapa['staff:nombre'], [{ valor: 'Ana Díaz', etiqueta: 'Ana Díaz' }, { valor: 'Luis Soto', etiqueta: 'Luis Soto' }])
+  assert.deepEqual(mapa['task_types:nombre'], [{ valor: 'Bug', etiqueta: 'Bug' }, { valor: 'Feature', etiqueta: 'Feature' }])
 })

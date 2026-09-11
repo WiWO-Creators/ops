@@ -4,7 +4,6 @@ import { Suspense, useCallback, useEffect, useMemo, useState, type ReactElement 
 import Link from 'next/link'
 import { useRouter, useSearchParams, type ReadonlyURLSearchParams } from 'next/navigation'
 import { ControlesTabla, PaginacionTabla } from '@/componentes/datos/ControlesTabla'
-import { PresetsFiltro } from '@/componentes/datos/PresetsFiltro'
 import { hayFiltrosPuestos, urlConParametro } from '@/componentes/datos/tabla'
 import {
   CeldaEncabezado,
@@ -298,11 +297,6 @@ function TiemposDelProyecto ({ proyectoId, capacidades }: PropsPanelTiempos): Re
         />
 
         <div className="flex flex-wrap items-center gap-2">
-          <PresetsFiltro
-            board="timesheets"
-            filtrosActuales={estado.filtros}
-            onAplicar={(filtros) => { cambiar({ filtros, pagina: 1 }) }}
-          />
 
           {capacidades.includes('create') && (
             <Boton

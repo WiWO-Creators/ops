@@ -24,8 +24,19 @@ export interface Columna<T> {
    * No tiene por que ser igual a `clave`: la columna "Vence" ordena por `due_date`.
    */
   ordenPor?: string
-  /** Alinea a la derecha y usa cifras tabulares. Para importes y cantidades. */
+  /** Alinea a la derecha y usa cifras tabulares. Para importes y cantidades. Implica `angosta`. */
   numerica?: boolean
+  /**
+   * La columna se encoge a su contenido en vez de repartirse el ancho sobrante de la tabla.
+   *
+   * Una tabla de layout automatico reparte el sobrante entre todas las columnas por igual, asi que
+   * una de valores cortos —un estado, un si/no— termina tan ancha como una de nombres y deja su
+   * insignia flotando lejos de la fila que califica. Marcarla angosta le devuelve ese ancho a las
+   * columnas de texto, que es donde hace falta.
+   *
+   * `numerica` ya lo implica: un contador nunca quiere ancho de sobra.
+   */
+  angosta?: boolean
   /**
    * Pinta el valor como insignia, resolviendo su nombre y su color contra un catalogo de `/lookups`.
    *
@@ -45,12 +56,19 @@ export interface Columna<T> {
   sinCortar?: boolean
 }
 
-export type TipoFiltro = 'seleccion' | 'multiple' | 'booleano' | 'rangoFechas'
+export type TipoFiltro = 'seleccion' | 'multiple' | 'booleano' | 'rangoFechas' | 'campo'
 
 export interface OpcionFiltro {
   valor: string
   etiqueta: string
   color?: string
+  /**
+   * La opcion se ve pero no se puede elegir, y la etiqueta dice por que.
+   *
+   * Esconderla seria peor: quien busca un filtro que sabe que existe necesita leer que esta ahi y
+   * que hoy no se puede usar, no quedarse pensando que se lo imagino.
+   */
+  deshabilitada?: boolean
 }
 
 export interface Filtro {
@@ -61,11 +79,24 @@ export interface Filtro {
   clave: string
   etiqueta: string
   tipo: TipoFiltro
+  /** Tipo del valor en un filtro de campo con operador. */
+  tipoDato?: 'texto' | 'numero' | 'fecha' | 'booleano'
+  /** Explica por qué este campo no puede filtrarse todavía. */
+  noDisponible?: string
   /**
    * De donde salen las opciones cuando son configurables en Perfex.
    * Ej: `task_statuses`. Las opciones fijas van en `opciones`.
    */
   desdeLookup?: string
+  /**
+   * El filtro viaja con el NOMBRE de la opcion, no con su id.
+   *
+   * No es un capricho de presentacion: hay columnas del backend que se filtran por texto y no por
+   * clave —las Etiquetas van contra `tags.name`, los Seguidores contra el nombre completo de la
+   * persona, el Tipo contra el nombre del tipo—. Ademas deduplica el catalogo: `task_types` trae una
+   * fila por Espacio, asi que por id habria cientos de opciones con tres nombres repetidos.
+   */
+  valorPorNombre?: boolean
   opciones?: OpcionFiltro[]
   /**
    * Texto de la opcion que quita el filtro. Por defecto dice "<etiqueta>: todos".

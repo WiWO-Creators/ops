@@ -6,7 +6,6 @@ import { construirConsulta, leerConsulta } from '@/datos/consulta'
 import { useRecurso } from '@/componentes/proyecto/carga'
 import { Cargando, ErrorEstado, Vacio } from '@/componentes/estado/Estados'
 import { ControlesTabla } from './ControlesTabla'
-import { PresetsFiltro } from './PresetsFiltro'
 import { Tablero } from './Tablero'
 import { unirConsultas } from './tabla'
 import type { ColumnaTablero, CuerpoMover, FilaConId, GrupoTablero } from './tablero'
@@ -88,6 +87,7 @@ export function TableroFiltrable<T extends FilaConId> ({
     <div className="flex flex-col gap-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <ControlesTabla
+          board={board}
           definicion={definicion}
           estado={estado}
           visibles={[]}
@@ -95,11 +95,6 @@ export function TableroFiltrable<T extends FilaConId> ({
           onCambiar={cambiar}
           onVisibles={() => {}}
           sinColumnas
-        />
-        <PresetsFiltro
-          board={board}
-          filtrosActuales={estado.filtros}
-          onAplicar={(filtros) => { cambiar({ filtros }) }}
         />
       </div>
 

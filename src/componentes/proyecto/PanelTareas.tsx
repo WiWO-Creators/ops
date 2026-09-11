@@ -7,8 +7,10 @@ import { TablaRecurso } from '@/componentes/datos/TablaRecurso'
 import { TableroFiltrable } from '@/componentes/datos/TableroFiltrable'
 import { Segmentado, type OpcionSegmentada } from '@/componentes/formularios/Segmentado'
 import { Cargando, ErrorEstado } from '@/componentes/estado/Estados'
+import { staffParaFiltros } from '@/datos/asignables'
 import { opcionesDeFiltros } from '@/datos/catalogos'
 import { pedirSobre } from '@/datos/cliente'
+import { filtrosDeCamposPersonalizados } from '@/definiciones/filtros'
 import { construirConsulta, leerConsulta } from '@/datos/consulta'
 import type { DefinicionRecurso, OpcionFiltro, ResultadoLista } from '@/definiciones/tipos'
 import type {
@@ -129,18 +131,13 @@ function TareasDelProyecto ({ proyectoId, capacidades, conIa }: PropsPanelTareas
     [proyectoId, campos, capacidades, estados, recargar]
   )
 
-  const consulta = useMemo(
-    () => construirConsulta(leerConsulta(new URLSearchParams(params.toString()), definicion), definicion),
-    [params, definicion]
-  )
-
   // Se pide con la consulta vigente al montar y cada vez que algo escribio, pero NO cuando la
   // consulta cambia: de eso se encarga `TablaRecurso`, que ya sabe pedir la pagina siguiente. Pedirla
   // tambien desde aca duplicaria cada filtro y cada cambio de orden.
   useEffect(() => {
     const control = new AbortController()
 
-    void cargarPestana(proyectoId, definicion, consulta, enTablero, control.signal)
+    void cargarPestana(proyectoId, definicion, params.toString(), enTablero, control.signal)
       .then((resultado) => { if (!control.signal.aborted) setCarga(resultado) })
 
     return () => { control.abort() }
@@ -238,7 +235,7 @@ function TareasDelProyecto ({ proyectoId, capacidades, conIa }: PropsPanelTareas
       </div>
 
       {enCalendario
-        ? <CalendarioTareas definicion={definicion} capacidades={capacidades} />
+        ? <CalendarioTareas definicion={definicion} capacidades={capacidades} opcionesDeFiltro={carga.opciones} />
         : enTablero
           ? (
           <TableroFiltrable<ProcesoAmpliado>
@@ -354,12 +351,18 @@ async function cargarPestana (
   enTablero: boolean,
   senal: AbortSignal
 ): Promise<Carga> {
-  const ruta = consulta === '' ? definicion.ruta : `${definicion.ruta}?${consulta}`
-
   try {
-    const [lista, lookups] = await Promise.all([
+    const campos = (await pedirSobre<DefinicionCampoPersonalizado[]>('custom-fields?para=tasks', senal)).data
+    const completa = { ...definicion, filtros: [...definicion.filtros.filter((filtro) => !filtro.clave.startsWith('cf_')), ...filtrosDeCamposPersonalizados(campos)] }
+    const query = construirConsulta(leerConsulta(new URLSearchParams(consulta), completa), completa)
+    const ruta = `${definicion.ruta}?${query}`
+    // El equipo no viene en `/lookups` y es lo que llena los filtros por persona (Asignado, Creado
+    // por, Seguidor). Se pide junto con lo demas y ya esta cacheado por pestaña; si falla, esos
+    // filtros quedan sin opciones y el resto de la tabla no se entera.
+    const [lista, lookups, personas] = await Promise.all([
       pedirSobre<ProcesoAmpliado[]>(ruta, senal),
-      pedirSobre<Lookups>('lookups', senal)
+      pedirSobre<Lookups>('lookups', senal),
+      staffParaFiltros(definicion)
     ])
 
     const avisos: string[] = []
@@ -368,11 +371,6 @@ async function cargarPestana (
       pedirSobre<ResumenEstadoTareas[]>(`projects/${proyectoId}/tasks/summary`, senal)
     )
     if (resumen === null) avisos.push('El resumen por estado todavía no está disponible en la API.')
-
-    const campos = await opcional(
-      pedirSobre<DefinicionCampoPersonalizado[]>('custom-fields?para=tasks', senal)
-    )
-    if (campos === null) avisos.push('No se pudieron traer los campos personalizados: la tabla va sin ellos.')
 
     // Los hitos no salen de `/lookups`: cuelgan de un Espacio, asi que hay que pedirlos por su ruta.
     // Accesorio como los dos de arriba, pero sin aviso: si no llegan, el motor simplemente no dibuja
@@ -386,7 +384,7 @@ async function cargarPestana (
       esTablero: enTablero,
       inicial: { filas: lista.data, paginacion: lista.meta?.pagination },
       opciones: {
-        ...opcionesDeFiltros(definicion, lookups.data),
+        ...opcionesDeFiltros(definicion, { ...lookups.data, staff: personas }),
         milestones: opcionesDeFiltroDeHito(hitos ?? [])
       },
       etiquetas: lookups.data.tags ?? [],

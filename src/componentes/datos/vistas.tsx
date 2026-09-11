@@ -8,6 +8,8 @@ import { TablaRecurso } from './TablaRecurso'
 import { TableroFiltrable } from './TableroFiltrable'
 import { CLIENTES } from '@/definiciones/clientes'
 import { ESPACIOS } from '@/definiciones/espacios'
+import { filtrosDeCamposPersonalizados } from '@/definiciones/filtros'
+import type { DefinicionCampoPersonalizado } from '@/datos/recursos'
 import { PROCESOS } from '@/definiciones/procesos'
 import { TarjetaTarea } from '@/componentes/proyecto/TarjetaTarea'
 import type { DefinicionRecurso, OpcionFiltro, ResultadoLista } from '@/definiciones/tipos'
@@ -34,6 +36,7 @@ import type { Cliente, Espacio, Proceso, ProcesoAmpliado } from '@/datos/recurso
 interface PropsVistaLista<T> {
   inicial: ResultadoLista<T>
   capacidades?: Capacidad[]
+  camposPersonalizados?: DefinicionCampoPersonalizado[]
   opcionesDeFiltro?: Record<string, OpcionFiltro[]>
 }
 
@@ -55,7 +58,7 @@ export function TablaProcesos (props: PropsVistaLista<Proceso>) {
   return (
     <>
       <TablaRecurso
-        definicion={PROCESOS_NAVEGABLES}
+        definicion={{ ...PROCESOS_NAVEGABLES, filtros: [...PROCESOS_NAVEGABLES.filtros, ...filtrosDeCamposPersonalizados(props.camposPersonalizados ?? [])] }}
         claveFila={(proceso) => proceso.id}
         abrirEn={{ clave: PARAMETRO_TAREA, valor: (proceso) => proceso.id }}
         board="tasks"
@@ -100,7 +103,8 @@ export function TablaClientes (props: PropsVistaLista<Cliente>) {
  * detalle y dos trampas de foco peleandose.
  */
 export function TableroProcesos (
-  { opcionesDeFiltro, capacidades = [] }: {
+  { opcionesDeFiltro, capacidades = [], camposPersonalizados = [] }: {
+    camposPersonalizados?: DefinicionCampoPersonalizado[]
     opcionesDeFiltro?: Record<string, OpcionFiltro[]>
     /** Capacidades sobre `tasks`, para los botones del detalle. */
     capacidades?: Capacidad[]
@@ -109,7 +113,7 @@ export function TableroProcesos (
   return (
     <>
       <TableroFiltrable<Proceso>
-        definicion={definicionDeTableroProcesos(opcionesDeFiltro?.task_statuses ?? [])}
+        definicion={{ ...definicionDeTableroProcesos(opcionesDeFiltro?.task_statuses ?? []), filtros: [...PROCESOS.filtros, ...filtrosDeCamposPersonalizados(camposPersonalizados)] }}
         ruta="tasks"
         board="tasks"
         opcionesDeFiltro={opcionesDeFiltro}
