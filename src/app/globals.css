@@ -483,9 +483,23 @@
    * sobre blanco da 1.5:1. Un `h1` de pantalla es lo primero que alguien lee para saber donde esta:
    * va con el gradiente cuyas dos paradas cumplen AA por si solas.
    *
-   * El brillo es el mismo `brillo-marca` del saludo y por la misma razon tecnica: con el relleno
-   * recortado sobre el texto, `transform` moveria la letra en vez del color, asi que la unica via es
-   * `background-position`. El area repintada es la caja del titulo —dos o tres palabras— y nada mas.
+   * === POR QUE EL BRILLO PASA UNA VEZ Y NO EN BUCLE ===
+   *
+   * El saludo del Inicio brilla cada 8 s para siempre, y podria haberse copiado tal cual. No se
+   * copio: ese saludo se mira de paso en UNA pantalla, y este titulo esta SIEMPRE en pantalla, en
+   * las catorce. Es exactamente el escenario que el guardrail del sistema de diseño prohibe —y que
+   * `pruebas/marca.test.js` defiende contando los `infinite`—: ya paso con el latido de la pildora
+   * de estado, que se quito por lo mismo. Un titulo que late mientras alguien lee una tabla debajo
+   * compite con lo que esa persona vino a hacer.
+   *
+   * Asi que el degradado barre UNA vez al entrar a la pantalla y se queda quieto. Con las
+   * transiciones de vista del panel, eso ocurre en cada navegacion: se ve al llegar, que es cuando
+   * el titulo importa, y no mientras se trabaja.
+   *
+   * Es `background-position` y no `transform` por una razon tecnica, no estetica: con el relleno
+   * recortado sobre el texto, `transform` moveria la letra en vez del color. El area repintada es
+   * la caja del titulo —dos o tres palabras— y nada mas. Correr exactamente 200% sobre un fondo de
+   * 200% desplaza un mosaico entero, asi que el estado final es identico al inicial y no hay salto.
    *
    * Quien pidio menos movimiento lo recibe en 0.01ms: lo resuelve el bloque `prefers-reduced-motion`
    * de `neo.css`, que ya cubre `animation-duration` sobre `*`.
@@ -499,7 +513,7 @@
     -webkit-background-clip: text;
     background-clip: text;
     color: transparent;
-    animation: brillo-marca 8s linear infinite;
+    animation: brillo-marca 1.4s var(--wiwo-ease-emphasized) both;
   }
 
   @keyframes brillo-marca {

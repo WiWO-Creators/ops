@@ -308,8 +308,6 @@ export function ControlJornada ({
    * arranque tambien falla, el motivo ya no es la jornada y repetirlo solo esconde el error.
    */
   async function abrirYArrancar (espacioId: number): Promise<void> {
-    setPendiente(null)
-
     if (!await abrirJornada()) return
 
     setEnCurso(true)

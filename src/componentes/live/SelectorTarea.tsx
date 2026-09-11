@@ -71,28 +71,36 @@ export function SelectorTarea ({
   id,
   className
 }: PropsSelectorTarea) {
-  const [tareas, setTareas] = useState<Proceso[] | null>(null)
-  const [error, setError] = useState<string | null>(null)
+  // La respuesta se guarda JUNTO al Espacio del que salio, y no en un estado aparte que haya que
+  // limpiar al cambiar de Espacio. Limpiarlo seria un `setTareas(null)` sincrono dentro del efecto:
+  // un render en cascada, y ademas la puerta a la ventana en la que el combo muestra las Tareas del
+  // Espacio anterior como si fueran del nuevo. Con la llave adentro, una respuesta vieja
+  // sencillamente no coincide y se ignora.
+  const [traido, setTraido] = useState<{ espacioId: number, tareas: Proceso[] } | null>(null)
+  const [fallo, setFallo] = useState<{ espacioId: number, mensaje: string } | null>(null)
 
   useEffect(() => {
     const control = new AbortController()
-
-    setTareas(null)
-    setError(null)
 
     pedirSobre<Proceso[]>(
       `tasks?assignee=${staffId}&filter[project_id]=${espacioId}&filter[status]=${ESTADOS_ABIERTOS}&per_page=${TAREAS_A_TRAER}&sort=due_date`,
       control.signal
     )
-      .then((sobre) => { setTareas(sobre.data) })
-      .catch((fallo: unknown) => {
+      .then((sobre) => { setTraido({ espacioId, tareas: sobre.data }) })
+      .catch((error: unknown) => {
         if (control.signal.aborted) return
 
-        setError(fallo instanceof Error ? fallo.message : 'No se pudo cargar la lista.')
+        setFallo({
+          espacioId,
+          mensaje: error instanceof Error ? error.message : 'No se pudo cargar la lista.'
+        })
       })
 
     return () => { control.abort() }
   }, [espacioId, staffId])
+
+  const tareas = traido?.espacioId === espacioId ? traido.tareas : null
+  const error = fallo?.espacioId === espacioId ? fallo.mensaje : null
 
   if (error !== null) {
     return <p className="text-texto-peligro text-xs">{error}</p>
