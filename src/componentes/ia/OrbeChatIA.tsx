@@ -26,6 +26,22 @@ import { ChatWiBot } from './ChatWiBot'
  * La regla del sistema de diseño prohibe animaciones infinitas en elementos SIEMPRE visibles, y este
  * boton lo esta en todo el panel. En reposo va el orbe quieto; se anima al pasar por encima, al
  * enfocarlo con el teclado y mientras el panel esta abierto, que son estados que terminan.
+ *
+ * === POR QUE EL BOTON LLEVA EL GRADIENTE DE MARCA ===
+ *
+ * Porque antes no llevaba color: era `bg-superficie-flotante` con `border-linea`, o sea el mismo
+ * papel que la tarjeta de atras separado por una linea de tinta al 14%. Eso da 1.1:1 contra la
+ * pagina: el boton no se veia, se adivinaba por la sombra.
+ *
+ * El gradiente de marca es el unico relleno del sistema que no cambia con el tema, asi que el mismo
+ * disco resuelve claro y oscuro. Medido contra las dos paginas (`#FBFBEA` y `#161715`), el borde del
+ * control cumple el 3:1 de la pauta 1.4.11 en mas de la mitad del recorrido en AMBOS temas —el azul
+ * da 5.81:1 sobre claro y el verde 13.27:1 sobre oscuro—, que es lo que hace que el control se
+ * identifique mire quien mire. Encima va tinta y nunca blanco (`text-gradiente-marca-contenido`): el
+ * tramo verde deja el blanco en 1.35:1.
+ *
+ * `hover:brightness-95` y no un segundo gradiente: es el mismo gesto de hover que ya usan las
+ * variantes rellenas de `Boton`.
  */
 export function OrbeChatIA (): ReactElement {
   const [abierto, setAbierto] = useState(false)
@@ -109,7 +125,7 @@ export function OrbeChatIA (): ReactElement {
         aria-expanded={abierto}
         aria-controls={abierto ? idPanel : undefined}
         aria-label={abierto ? `Cerrar ${ASISTENTE}` : `Preguntarle a ${ASISTENTE}`}
-        className="border-linea bg-superficie-flotante shadow-flotante hover:border-linea-fuerte fixed bottom-6 right-4 z-50 inline-flex size-14 items-center justify-center rounded-full border transition-transform duration-150 ease-neo active:scale-[0.96]"
+        className="bg-gradiente-marca text-gradiente-marca-contenido shadow-flotante fixed bottom-6 right-4 z-50 inline-flex size-14 items-center justify-center rounded-full transition-[transform,filter] duration-150 ease-neo hover:brightness-95 active:scale-[0.96]"
       >
         <Orbe tamano="medio" estado={abierto || encima ? 'thinking' : undefined} />
       </button>
