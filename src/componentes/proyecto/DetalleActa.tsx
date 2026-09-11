@@ -15,6 +15,9 @@ import {
   MenuContextual
 } from '@/componentes/superposiciones/MenuContextual'
 import { escribirEnBff } from '@/componentes/datos/mutaciones'
+import { bloquesDeHtml } from '@/dominio/acta-bloques'
+import { TEMAS, temaDeMarca, type CodigoDeMarca } from '@/dominio/marcas-acta'
+import type { MetaDelActa } from '@/dominio/exportar-acta'
 import { origenDeArchivo } from '@/definiciones/archivos'
 import { formatoPeso, seVeComoImagen } from '@/dominio/actas'
 import { nombrar } from '@/dominio/glosario'
@@ -81,6 +84,8 @@ export function DetalleActa ({
   const [borrando, setBorrando] = useState(false)
   const [confirmando, setConfirmando] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [exportando, setExportando] = useState<'pdf' | 'docx' | null>(null)
+  const [cambiandoMarca, setCambiandoMarca] = useState(false)
   const marco = useRef<HTMLIFrameElement>(null)
 
   async function guardar (): Promise<void> {
@@ -104,6 +109,75 @@ export function DetalleActa ({
     setSucio(false)
     setEditando(false)
     onCambiada(resultado.datos)
+  }
+
+  /**
+   * Cambia la marca que firma el acta.
+   *
+   * Se puede cambiar después de creada porque el acta se escribe antes de saber quién la firma:
+   * una reunión que empezó siendo de WiWO termina facturándose por MGC, y hasta ahora eso obligaba
+   * a rehacer el documento entero. La API ya aceptaba `brand` en la edición; lo que faltaba era
+   * poder decirlo desde acá.
+   */
+  async function cambiarMarca (codigo: CodigoDeMarca): Promise<void> {
+    if (codigo === acta.brand) return
+
+    setCambiandoMarca(true)
+    setError(null)
+
+    const resultado = await escribirEnBff<Acta>(
+      `projects/${proyectoId}/actas/${acta.id}`,
+      'PATCH',
+      { brand: codigo }
+    )
+
+    setCambiandoMarca(false)
+
+    if (!resultado.ok) {
+      setError(resultado.mensaje)
+
+      return
+    }
+
+    onCambiada(resultado.datos)
+  }
+
+  /**
+   * Baja el acta como PDF o como Word.
+   *
+   * Los dos generadores se cargan al pulsar y no con la pantalla: entre `pdfmake` y `docx` son
+   * cientos de kilobytes que nadie necesita para leer un acta, y esta pantalla vive dentro de la
+   * más usada del panel.
+   */
+  async function exportar (formato: 'pdf' | 'docx'): Promise<void> {
+    setExportando(formato)
+    setError(null)
+
+    try {
+      const bloques = bloquesDeHtml(acta.content ?? '')
+      const tema = temaDeMarca(acta.brand)
+      const meta: MetaDelActa = {
+        titulo: acta.title,
+        cliente: acta.client,
+        fecha: acta.meeting_date,
+        lugar: acta.place,
+        autor: acta.author?.full_name ?? ''
+      }
+
+      if (formato === 'pdf') {
+        const { descargarPdf } = await import('@/dominio/exportar-pdf')
+        await descargarPdf(bloques, tema, meta)
+      } else {
+        const { descargarDocx } = await import('@/dominio/exportar-docx')
+        await descargarDocx(bloques, tema, meta)
+      }
+    } catch {
+      // El motivo real —una fuente que no bajó, memoria, un HTML raro— no le dice nada a nadie acá;
+      // lo que importa es que el botón no se quede girando y que quede el camino de siempre.
+      setError('No se pudo generar el archivo. Prueba con Imprimir, que usa el motor del navegador.')
+    } finally {
+      setExportando(null)
+    }
   }
 
   async function borrar (): Promise<void> {
@@ -153,6 +227,26 @@ export function DetalleActa ({
           {acta.attendees.length > 0 && (
             <p className="text-texto-sutil text-xs">Asistentes: {acta.attendees.join(', ')}</p>
           )}
+
+          {/* El estilo se cambia desde acá y no desde el formulario de creación porque el acta se
+              escribe antes de saber quién la firma: una reunión que arrancó siendo de WiWO puede
+              terminar facturándose por MGC, y rehacer el documento por eso no tiene sentido. */}
+          {!editando && (
+            <MenuContextual>
+              <DisparadorMenu asChild>
+                <Boton variante="sutil" tamano="chico" cargando={cambiandoMarca} className="-ml-3 self-start">
+                  Estilo: {temaDeMarca(acta.brand).nombre}
+                </Boton>
+              </DisparadorMenu>
+              <ContenidoMenu align="start">
+                {Object.values(TEMAS).map((tema) => (
+                  <ItemMenu key={tema.codigo} onSelect={() => { void cambiarMarca(tema.codigo) }}>
+                    {tema.nombre}{tema.codigo === acta.brand ? ' ·' : ''}
+                  </ItemMenu>
+                ))}
+              </ContenidoMenu>
+            </MenuContextual>
+          )}
         </header>
 
         {/* Una acción probable con peso de primaria, una de apoyo y lo destructivo guardado. Las seis
@@ -179,13 +273,21 @@ export function DetalleActa ({
               )
             : (
               <>
-                <Boton
-                  variante="secundario"
-                  tamano="chico"
-                  onClick={() => { marco.current?.contentWindow?.print() }}
-                >
-                  Imprimir
-                </Boton>
+                {/* Los tres caminos de salida en un solo control: bajar el archivo es lo que se pide
+                    casi siempre, e imprimir queda para quien quiere el diálogo del navegador. */}
+                <MenuContextual>
+                  <DisparadorMenu asChild>
+                    <Boton variante="secundario" tamano="chico" cargando={exportando !== null}>
+                      <Download size={14} strokeWidth={2} aria-hidden="true" className="shrink-0" />
+                      Exportar
+                    </Boton>
+                  </DisparadorMenu>
+                  <ContenidoMenu align="end">
+                    <ItemMenu onSelect={() => { void exportar('pdf') }}>Descargar PDF</ItemMenu>
+                    <ItemMenu onSelect={() => { void exportar('docx') }}>Descargar Word (.docx)</ItemMenu>
+                    <ItemMenu onSelect={() => { marco.current?.contentWindow?.print() }}>Imprimir</ItemMenu>
+                  </ContenidoMenu>
+                </MenuContextual>
                 <Boton variante="primario" tamano="chico" onClick={() => { setEditando(true) }}>
                   Corregir
                 </Boton>
