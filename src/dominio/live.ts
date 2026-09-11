@@ -101,6 +101,14 @@ export function mensajeDeFalloDeJornada (estado: number, abriendo: boolean): str
     if (estado === 422) return 'Elige el Espacio en el que vas a trabajar.'
   }
 
+  // Al cerrar, el unico 422 que la API puede devolver a esta pantalla es el comentario pasado de
+  // largo: el instante de cierre lo sella el servidor y nunca se manda desde aca. El `maxLength`
+  // del campo lo hace practicamente inalcanzable, pero un mensaje que dice "respondio 422" no le
+  // deja nada que hacer a quien igual llegue.
+  if (!abriendo && estado === 422) {
+    return 'El comentario del día es demasiado largo. Acórtalo y vuelve a intentar.'
+  }
+
   return `No se pudo ${abriendo ? 'abrir' : 'cerrar'} la jornada (el servidor respondió ${estado}).`
 }
 
