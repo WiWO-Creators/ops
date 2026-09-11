@@ -9,14 +9,16 @@ import { Fecha } from '@/componentes/presentadores/Fecha'
 import { pedirSobre } from '@/datos/cliente'
 import { opcionesDeFiltros } from '@/datos/catalogos'
 import { PARAMETRO_TAREA } from '@/componentes/datos/tabla'
-import { PROCESOS } from '@/definiciones/procesos'
+import { filtrosDeCamposPersonalizados } from '@/definiciones/filtros'
+import { Cargando, ErrorEstado } from '@/componentes/estado/Estados'
+import { procesosDelEspacio } from '@/definiciones/procesos'
 import { GLOSARIO } from '@/dominio/glosario'
 import { AgregarAlHito } from './AgregarAlHito'
 import { COLUMNA_SIN_CATEGORIZAR, cuerpoMoverHito, ordenarColumnasHitos } from './hitos'
 import { segundosAHoraMinuto } from './formatos'
 import type { ColumnaTablero, CuerpoMover, GrupoTablero } from '@/componentes/datos/tablero'
 import type { DefinicionRecurso, OpcionFiltro } from '@/definiciones/tipos'
-import type { Lookups, TarjetaHito } from '@/datos/recursos'
+import type { DefinicionCampoPersonalizado, Hito, Lookups, TarjetaHito } from '@/datos/recursos'
 
 /**
  * Kanban de Hitos: una columna por hito, mas la sintetica "Sin categorizar".
@@ -42,28 +44,20 @@ interface PropsTableroHitos {
 }
 
 /**
- * Los filtros del tablero de Hitos son los de tarea, no los del hito: las tarjetas SON tareas
- * agrupadas por hito. Se toman prestados de `PROCESOS` en vez de declararse de nuevo —mismo
- * `desdeLookup`, misma whitelist que ya valida el backend— salvo `project_id` y `milestone_id`, que
- * acá no tienen sentido: el proyecto ya lo dice la ruta, y el hito ya lo dice la columna.
- */
-const CLAVES_FILTRO_HITOS = ['status', 'priority', 'billable', 'vence']
-
-/**
- * Definicion del tablero de Hitos.
+ * Definición del tablero de Hitos con el catálogo completo de filtros de tareas.
  *
  * `columnasDesde` no se usa aca —las columnas llegan dentro de la respuesta del tablero, no de
  * `/lookups`— pero el tipo lo exige, asi que se declara la clave que mas se le parece.
  */
-function definicionDeHitos (proyectoId: number, excluirCompletadas: boolean): DefinicionRecurso<TarjetaHito> {
+function definicionDeHitos (proyectoId: number, excluirCompletadas: boolean, campos: DefinicionCampoPersonalizado[]): DefinicionRecurso<TarjetaHito> {
   return {
     ruta: `projects/${encodeURIComponent(String(proyectoId))}/milestones`,
     titulo: GLOSARIO.hito,
     columnas: [{ clave: 'name', encabezado: 'Nombre', presentar: (t) => t.name }],
-    filtros: PROCESOS.filtros.filter((filtro) => CLAVES_FILTRO_HITOS.includes(filtro.clave)),
+    filtros: [...procesosDelEspacio(proyectoId).filtros, ...filtrosDeCamposPersonalizados(campos)],
     ordenables: ['order'],
     ordenPorDefecto: 'order',
-    busqueda: false,
+    busqueda: true,
     includes: [],
     consultaFija: `excluir_completadas=${String(excluirCompletadas)}`,
     tablero: {
@@ -81,27 +75,29 @@ export function TableroHitos ({
   puedeCrear,
   puedeEditar
 }: PropsTableroHitos): ReactElement {
-  const [lookups, setLookups] = useState<Lookups | null>(null)
+  const [catalogos, setCatalogos] = useState<{ lookups: Lookups, campos: DefinicionCampoPersonalizado[], hitos: Hito[] } | null>(null)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     const control = new AbortController()
-
-    void pedirSobre<Lookups>('lookups', control.signal)
-      .then((sobre) => { if (!control.signal.aborted) setLookups(sobre.data) })
-      .catch(() => {})
-
+    void Promise.all([
+      pedirSobre<Lookups>('lookups', control.signal),
+      pedirSobre<DefinicionCampoPersonalizado[]>('custom-fields?para=tasks', control.signal),
+      pedirSobre<Hito[]>(`projects/${proyectoId}/milestones?per_page=100`, control.signal)
+    ]).then(([lookups, campos, hitos]) => {
+      if (!control.signal.aborted) setCatalogos({ lookups: lookups.data, campos: campos.data, hitos: hitos.data })
+    }).catch((fallo: unknown) => {
+      if (!control.signal.aborted) setError(fallo instanceof Error ? fallo.message : 'No se pudieron cargar los filtros.')
+    })
     return () => { control.abort() }
-  }, [])
+  }, [proyectoId])
 
-  const definicion = definicionDeHitos(proyectoId, excluirCompletadas)
-  const opciones = useMemo(
-    () => lookups === null ? undefined : opcionesDeFiltros(definicion, lookups),
-    // `definicion` se reconstruye en cada render y no es dependencia real: lo que cambia las opciones
-    // son los catalogos. Meterla aca recalcularia el mapa entero en cada pintado.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [lookups]
-  )
-  const prioridades = useMemo<OpcionFiltro[]>(() => opciones?.task_priorities ?? [], [opciones])
+  const definicion = definicionDeHitos(proyectoId, excluirCompletadas, catalogos?.campos ?? [])
+  const opciones: Record<string, OpcionFiltro[]> | undefined = catalogos === null ? undefined : {
+    ...opcionesDeFiltros(definicion, catalogos.lookups),
+    milestones: [{ valor: '0', etiqueta: 'Sin hito' }, ...catalogos.hitos.map((hito) => ({ valor: String(hito.id), etiqueta: hito.name }))]
+  }
+  const prioridades = useMemo<OpcionFiltro[]>(() => catalogos?.lookups.task_priorities.map((prioridad) => ({ valor: String(prioridad.id), etiqueta: prioridad.name })) ?? [], [catalogos])
 
   // Estables entre renders: `Tablero` los usa dentro de un `useCallback` y una identidad nueva por
   // render volveria a pedir el tablero en bucle.
@@ -134,11 +130,14 @@ export function TableroHitos ({
     [puedeCrear, proyectoId, proyectoNombre, prioridades]
   )
 
+  if (error) return <ErrorEstado detalle={error} />
+  if (catalogos === null) return <Cargando mensaje="Cargando filtros…" />
+
   return (
     <TableroFiltrable<TarjetaHito>
       definicion={definicion}
       ruta={definicion.ruta}
-      board="milestones"
+      board="tasks"
       opcionesDeFiltro={opciones}
       mensajeError={`No se pudo cargar el tablero de ${GLOSARIO.hito.plural.toLowerCase()}.`}
       tituloVacio={`Sin ${GLOSARIO.hito.plural.toLowerCase()}`}

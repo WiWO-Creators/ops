@@ -53,6 +53,8 @@ export const AUDITORIA: DefinicionRecurso<RegistroAuditoria> = {
   ],
 
   filtros: [
+    { clave: 'date', etiqueta: 'Fecha', tipo: 'campo', tipoDato: 'fecha' },
+    { clave: 'description', etiqueta: 'Descripción', tipo: 'campo', tipoDato: 'texto' },
     { clave: 'type', etiqueta: 'Tipo', tipo: 'multiple' },
     { clave: 'actor', etiqueta: 'Persona', tipo: 'seleccion' },
     { clave: 'fecha', etiqueta: 'Fecha', tipo: 'rangoFechas', clavesRango: ['date_from', 'date_to'] }

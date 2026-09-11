@@ -11,6 +11,17 @@ import type { Etiqueta, Proceso } from '@/datos/recursos'
  */
 export interface CamposEdicion {
   nombre: string
+  relacion: string
+  relacionId: string
+  tipo: string
+  facturable: boolean
+  tarifaHora: string
+  publica: boolean
+  visibleCliente: boolean
+  recurrente: boolean
+  repetirCada: string
+  unidadRecurrencia: string
+  ciclos: string
   prioridad: string
   inicio: string
   vencimiento: string
@@ -31,6 +42,17 @@ export interface CamposEdicion {
 /** El cuerpo del `PATCH /tasks/{id}`, con solo las claves que cambiaron. */
 export interface ParcheTarea {
   name?: string
+  rel_type?: string | null
+  rel_id?: number | null
+  task_type?: number | null
+  billable?: boolean
+  hourly_rate?: number
+  is_public?: boolean
+  visible_to_client?: boolean
+  recurring?: boolean
+  repeat_every?: number
+  recurring_type?: string
+  cycles?: number
   priority?: number
   start_date?: string | null
   due_date?: string | null
@@ -54,10 +76,21 @@ export interface ParcheTarea {
 export function camposDeTarea (tarea: Proceso, descripcion: string): CamposEdicion {
   return {
     nombre: tarea.name,
+    relacion: tarea.rel_type ?? '',
+    relacionId: tarea.rel_id == null ? '' : String(tarea.rel_id),
+    tipo: tarea.task_type == null ? '' : String(tarea.task_type.id),
+    facturable: tarea.billable ?? false,
+    tarifaHora: String(tarea.hourly_rate ?? 0),
+    publica: tarea.is_public ?? false,
+    visibleCliente: tarea.visible_to_client ?? false,
+    recurrente: tarea.recurring ?? false,
+    repetirCada: String(tarea.repeat_every || 1),
+    unidadRecurrencia: tarea.recurring_type || 'month',
+    ciclos: String(tarea.cycles ?? 0),
     prioridad: String(tarea.priority),
     inicio: tarea.start_date ?? '',
     vencimiento: tarea.due_date ?? '',
-    hito: tarea.milestone === null ? '' : String(tarea.milestone.id),
+    hito: tarea.milestone == null ? '' : String(tarea.milestone.id),
     asignados: tarea.assignees.map((persona) => persona.id),
     seguidores: tarea.followers.map((persona) => persona.id),
     etiquetas: tarea.tags.map((etiqueta) => etiqueta.id),
@@ -97,7 +130,36 @@ export function cuerpoDeParche (inicial: CamposEdicion, actual: CamposEdicion): 
   if (actual.vencimiento !== inicial.vencimiento) {
     parche.due_date = actual.vencimiento === '' ? null : actual.vencimiento
   }
-  if (actual.hito !== inicial.hito) parche.milestone = actual.hito === '' ? 0 : Number(actual.hito)
+  const relacionInicial = inicial.relacion === 'project' && inicial.relacionId === '' ? '' : inicial.relacion
+  const relacionActual = actual.relacion === 'project' && actual.relacionId === '' ? '' : actual.relacion
+  const cambiaRelacion = relacionActual !== relacionInicial || (relacionActual !== '' && actual.relacionId !== inicial.relacionId)
+  if (cambiaRelacion) {
+    parche.rel_type = relacionActual === '' ? null : relacionActual
+    parche.rel_id = relacionActual === '' ? null : Number(actual.relacionId)
+    parche.milestone = relacionActual === 'project' && actual.hito !== ''
+      ? Number(actual.hito) : 0
+    parche.task_type = relacionActual === 'project' && actual.tipo !== ''
+      ? Number(actual.tipo) : null
+  } else {
+    if (actual.hito !== inicial.hito) parche.milestone = actual.hito === '' ? 0 : Number(actual.hito)
+    if (actual.tipo !== inicial.tipo) parche.task_type = actual.tipo === '' ? null : Number(actual.tipo)
+  }
+  if (actual.facturable !== inicial.facturable) parche.billable = actual.facturable
+  if (actual.tarifaHora.trim() !== inicial.tarifaHora.trim()) parche.hourly_rate = Number(actual.tarifaHora)
+  if (actual.publica !== inicial.publica) parche.is_public = actual.publica
+  if (actual.visibleCliente !== inicial.visibleCliente) parche.visible_to_client = actual.visibleCliente
+  const cambiaRecurrencia = actual.recurrente !== inicial.recurrente || (actual.recurrente && (
+    actual.repetirCada !== inicial.repetirCada || actual.unidadRecurrencia !== inicial.unidadRecurrencia ||
+    actual.ciclos !== inicial.ciclos
+  ))
+  if (cambiaRecurrencia) {
+    parche.recurring = actual.recurrente
+    if (actual.recurrente) {
+      parche.repeat_every = Number(actual.repetirCada)
+      parche.recurring_type = actual.unidadRecurrencia
+      parche.cycles = Number(actual.ciclos)
+    }
+  }
   if (!mismosIds(actual.asignados, inicial.asignados)) parche.assignees = actual.asignados
   if (!mismosIds(actual.seguidores, inicial.seguidores)) parche.followers = actual.seguidores
   if (!mismosIds(actual.etiquetas, inicial.etiquetas)) parche.tags = actual.etiquetas
@@ -109,6 +171,33 @@ export function cuerpoDeParche (inicial: CamposEdicion, actual: CamposEdicion): 
   }
 
   return parche
+}
+
+/**
+ * Valida los campos dependientes antes de enviar el formulario.
+ * @param campos valores actuales del formulario
+ * @returns el primer error o null si son válidos
+ */
+export function errorDeCamposEdicion (campos: CamposEdicion): string | null {
+  const sinProyecto = campos.relacion === 'project' && campos.relacionId === ''
+  if (campos.relacion !== '' && !sinProyecto && (!Number.isSafeInteger(Number(campos.relacionId)) || Number(campos.relacionId) <= 0)) {
+    return 'Selecciona una relación válida.'
+  }
+  if (campos.tarifaHora.trim() === '' || !Number.isFinite(Number(campos.tarifaHora)) || Number(campos.tarifaHora) < 0 || Number(campos.tarifaHora) > 999999999.99) {
+    return 'La tarifa por hora debe ser un número entre 0 y 999999999.99.'
+  }
+  if (campos.inicio !== '' && campos.vencimiento !== '' && campos.vencimiento < campos.inicio) {
+    return 'El vencimiento no puede ser anterior al inicio.'
+  }
+  if (!campos.recurrente) return null
+  const cada = Number(campos.repetirCada)
+  const ciclos = Number(campos.ciclos)
+  if (!Number.isInteger(cada) || cada < 1 || cada > 365) return 'La repetición debe ser un entero entre 1 y 365.'
+  if (!['day', 'week', 'month', 'year'].includes(campos.unidadRecurrencia)) return 'Selecciona una unidad de recurrencia válida.'
+  if (campos.ciclos.trim() === '' || !Number.isInteger(ciclos) || ciclos < 0 || ciclos > 365) {
+    return 'Los ciclos deben ser un entero entre 0 y 365.'
+  }
+  return null
 }
 
 /** True si las dos listas tienen los mismos elementos, sin importar el orden ni las repeticiones. */

@@ -1,12 +1,14 @@
 import { Segmentado } from '@/componentes/formularios/Segmentado'
-import { construirConsulta, leerConsulta, paramsDeUrl } from '@/datos/consulta'
-import { RUTA_DE_ASIGNABLES } from '@/datos/asignables'
+import { construirConsulta, consultaDelCalendario, leerConsulta, paramsDeUrl } from '@/datos/consulta'
+import { cargarLookups, opcionesDeFiltros } from '@/datos/lookups'
+import { filtrosDeCamposPersonalizados } from '@/definiciones/filtros'
+import { opcionesDeCliente } from '../opciones-de-cliente'
+import { opcionesDeHito } from '../opciones-de-hito'
 import { pedir, pedirOpcional } from '@/datos/servidor'
 import { esDiaValido, leerVista, rangoDeVista, TOPE_POR_VISTA } from '@/dominio/calendario'
 import { hoyLocal } from '@/lib/fechas'
 import { PROCESOS } from '@/definiciones/procesos'
-import { opcionesDeEstados } from '@/dominio/estados-tarea'
-import type { Espacio, Lookups, PersonaAsignable, Proceso, ProcesoConAviso } from '@/datos/recursos'
+import type { DefinicionCampoPersonalizado, Espacio, Proceso, ProcesoConAviso } from '@/datos/recursos'
 import type { Yo } from '@/datos/tipos'
 import { VistaCalendario } from '@/componentes/datos/VistaCalendario'
 import { TituloModulo } from '@/componentes/estructura/TituloModulo'
@@ -35,7 +37,9 @@ export const metadata = { title: 'Calendario de Tareas · WiWO Ops' }
  */
 export default async function CalendarioProcesosPage (props: PageProps<'/procesos/calendario'>) {
   const params = paramsDeUrl(await props.searchParams)
-  const estado = leerConsulta(params, PROCESOS)
+  const campos = await pedir<DefinicionCampoPersonalizado[]>('/custom-fields?para=tasks')
+  const definicion = { ...PROCESOS, filtros: [...PROCESOS.filtros, ...filtrosDeCamposPersonalizados(campos.data)] }
+  const estado = leerConsulta(params, definicion)
   const vista = leerVista(params.get('vista'))
 
   const pedido = params.get('dia') ?? ''
@@ -44,38 +48,20 @@ export default async function CalendarioProcesosPage (props: PageProps<'/proceso
   // `dia` ya paso por `esDiaValido`, asi que el rango nunca es null; el `??` es para el tipo.
   const rango = rangoDeVista(dia, vista) ?? { desde: dia, hasta: dia }
 
-  const espacioElegido = estado.filtros.project_id?.[0] ?? null
-  // `assignee` es un parametro suelto de la API, no un `filter[...]`: no pasa por `construirConsulta`
-  // y por eso se lee y se valida aca. Un valor no numerico devuelve 422, asi que se descarta antes.
-  const crudoAsignado = params.get('assignee') ?? ''
-  const asignadoElegido = /^\d+$/.test(crudoAsignado) ? crudoAsignado : null
+  const porVencer = consultaDelCalendario(estado, definicion, rango)
+  const porEmpezar = consultaDelCalendario(estado, definicion, rango, true)
+  porVencer.set('per_page', String(TOPE_POR_VISTA))
+  porEmpezar.set('per_page', String(TOPE_POR_VISTA))
 
-  const comunes = new URLSearchParams({ per_page: String(TOPE_POR_VISTA) })
-  if (espacioElegido !== null) comunes.set('filter[project_id]', espacioElegido)
-  if (asignadoElegido !== null) comunes.set('assignee', asignadoElegido)
-
-  const porVencer = new URLSearchParams(comunes)
-  porVencer.set('filter[date_from]', rango.desde)
-  porVencer.set('filter[date_to]', rango.hasta)
-  porVencer.set('sort', 'due_date')
-
-  const porEmpezar = new URLSearchParams(comunes)
-  porEmpezar.set('filter[start_from]', rango.desde)
-  porEmpezar.set('filter[start_to]', rango.hasta)
-  porEmpezar.set('sort', 'start_date')
-
-  const [tareas, arrancan, avisos, espacios, equipo, catalogos, yo] = await Promise.all([
+  const [tareas, arrancan, avisos, espacios, lookups, clientes, hitos, yo] = await Promise.all([
     pedirOpcional<Proceso[]>(`/tasks?${porVencer.toString()}`),
     pedirOpcional<Proceso[]>(`/tasks?${porEmpezar.toString()}`),
     pedirOpcional<ProcesoConAviso[]>('/me/vencimientos'),
     // El mismo catalogo que llena el filtro de Espacio en la tabla y en el tablero.
     pedirOpcional<Espacio[]>('/projects?per_page=500'),
-    // `/staff/asignables` y no `/staff`: el segundo exige `staff.view` y le contesta 403 a casi todo
-    // el equipo, que veria el filtro de persona vacio.
-    pedirOpcional<PersonaAsignable[]>(`/${RUTA_DE_ASIGNABLES}`),
-    // El estado de cada tarea, para que la grilla diga en que va lo que vence y no solo cuando vence.
-    // Por `pedirOpcional` como el resto: si el catalogo no viene, la grilla se pinta sin insignias.
-    pedirOpcional<Lookups>('/lookups'),
+    cargarLookups(),
+    opcionesDeCliente(),
+    opcionesDeHito(estado.filtros.project_id),
     pedir<Yo>('/me')
   ])
 
@@ -84,14 +70,7 @@ export default async function CalendarioProcesosPage (props: PageProps<'/proceso
   // el periodo. Es una lista corta: ya viene acotada por el rango y por los filtros de la vista.
   const sinVencimiento = (arrancan.datos ?? []).filter((tarea) => tarea.due_date === null)
 
-  // Los filtros viajan de vuelta a la tabla y al tablero, sin orden ni pagina: es lo mismo que hacen
-  // esas dos pantallas entre si. `assignee` no viaja porque ninguna de las dos lo tiene.
-  //
-  // El filtro "Vence" de la tabla se descarta: en el calendario ese rango ES el periodo, y dejarlo
-  // en la URL pondria un `filter[date_from]` que no filtra nada de lo que se ve y que ademas volveria
-  // a la tabla como si la persona lo hubiera puesto aca.
-  const { vence: _vence, ...filtrosSinRango } = estado.filtros
-  const consulta = construirConsulta({ ...estado, filtros: filtrosSinRango, orden: [], pagina: 1 }, PROCESOS)
+  const consulta = construirConsulta({ ...estado, orden: [], pagina: 1 }, definicion)
 
   return (
     <section className="flex flex-col gap-4">
@@ -125,11 +104,8 @@ export default async function CalendarioProcesosPage (props: PageProps<'/proceso
         avisos={avisos.datos ?? []}
         errorTareas={tareas.error}
         errorAvisos={avisos.error}
-        espacios={(espacios.datos ?? []).map((espacio) => ({ valor: String(espacio.id), etiqueta: espacio.name }))}
-        personas={(equipo.datos ?? []).map((persona) => ({ valor: String(persona.id), etiqueta: persona.full_name }))}
-        estados={opcionesDeEstados(catalogos.datos?.task_statuses)}
-        espacioElegido={espacioElegido}
-        asignadoElegido={asignadoElegido}
+        camposPersonalizados={campos.data}
+        opcionesDeFiltro={{ ...opcionesDeFiltros(definicion, lookups), clients: clientes, projects: (espacios.datos ?? []).map((espacio) => ({ valor: String(espacio.id), etiqueta: espacio.name })), milestones: hitos }}
         truncado={delPeriodo.length >= TOPE_POR_VISTA}
         capacidades={yo.data.permissions.tasks}
       />

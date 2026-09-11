@@ -37,16 +37,23 @@ import { errorDeDescripcion } from '@/dominio/descripcion-tarea'
 import {
   camposDeTarea,
   cuerpoDeParche,
+  errorDeCamposEdicion,
   nombresDeEtiquetas,
   personasElegibles,
   type CamposEdicion
 } from '@/dominio/edicion-tarea'
+import { fechaDeCierre, instanteDeCierre } from '@/dominio/cierre-tarea'
 import { GLOSARIO } from '@/dominio/glosario'
 import { errorDeHorasEstimadas } from '@/dominio/tiempo-estimado'
+import { ESTADO_COMPLETO } from './tareas'
+import { hoyLocal } from '@/lib/fechas'
 import { cn } from '@/lib/clases'
 import { AsistenteDescripcion } from './AsistenteDescripcion'
 import type { StaffReferencia } from '@/datos/tipos'
 import type {
+  ConfiguracionTiposEspacio,
+  Referencia,
+  TipoDeProcesoDelEspacio,
   DefinicionCampoPersonalizado,
   Hito,
   Lookups,
@@ -69,44 +76,30 @@ interface PropsEdicionTarea {
 }
 
 /**
- * Edicion de una Tarea ya creada.
- *
- * El alta pide lo indispensable a proposito, asi que **esta es la unica pantalla donde se completa el
- * resto**: asignados, seguidores, etiquetas, hito, fechas, prioridad y descripcion. Sin ella, una
- * tarea creada con lo minimo se queda asi para siempre.
- *
- * Manda un `PATCH /tasks/{id}` con **solo lo que cambio** (`cuerpoDeParche`). Reenviar el formulario
- * entero no es equivalente: `assignees` reemplaza la lista y cierra los cronometros de quien sale, y
- * `milestone` se valida contra el Espacio, asi que un guardado que solo toca el nombre se llevaria un
- * `422` por un hito que nadie miro.
- *
- * **Se monta solo mientras esta abierto**, y de ahi sale gratis lo que si no habria que programar:
- * el formulario arranca en los valores de la Tarea recien traida, cerrar descarta lo no guardado, y
- * los dos catalogos que dependen de la Tarea —los miembros del Espacio y sus hitos— se piden al
- * abrir y no al montar el detalle, que es una peticion que no le sirve a quien solo vino a mirar.
- *
- * Los campos personalizados van en su propia escritura (`PATCH /custom-fields/values`): `PATCH
- * /tasks/{id}` rechaza con `422` cualquier clave fuera de su lista blanca. Los valores no se piden
- * aparte: llegan en la Tarea, que el detalle trae con `include=custom_fields`. Lo unico que falta
- * son las definiciones, que dicen que campos existen y de que tipo es cada uno.
- *
- * **Las personas salen de `GET /staff/asignables`, la unica fuente del panel.** No de `GET /staff`,
- * que exige el permiso `staff.view` —19 de 184 personas lo tienen— ni de los miembros del Espacio,
- * que dejaban fuera del buscador a quien todavia no era miembro. Se puede elegir a cualquiera: el
- * backend lo agrega al Espacio al guardar.
+ * Edita los campos de una tarea y carga los catálogos del proyecto seleccionado.
+ * Envía solo los cambios; estado, cierre y campos personalizados conservan sus escrituras propias.
+ * @param props Tarea, catálogos y callbacks de cierre y actualización del detalle.
+ * @returns El diálogo de edición con validación y errores de guardado.
  */
 export function EdicionTarea (
   { tarea, lookups, descripcion, onCerrar, onGuardada }: PropsEdicionTarea
 ): ReactElement {
   useAccionPresencia('editando_tarea')
 
-  const inicial = camposDeTarea(tarea, descripcion)
+  const [inicial, setInicial] = useState(() => camposDeTarea(tarea, descripcion))
   const [campos, setCampos] = useState<CamposEdicion>(inicial)
   const [asignables, setAsignables] = useState<StaffReferencia[]>([])
+  const [proyectos, setProyectos] = useState<Referencia[]>(tarea.project ? [tarea.project] : [])
+  const [tipos, setTipos] = useState<TipoDeProcesoDelEspacio[]>([])
+  const [estado, setEstado] = useState(String(tarea.status))
+  const [estadoGuardado, setEstadoGuardado] = useState(String(tarea.status))
+  const [cierre, setCierre] = useState(fechaDeCierre(tarea.date_finished))
+  const [cierreGuardado, setCierreGuardado] = useState(fechaDeCierre(tarea.date_finished))
   const [hitos, setHitos] = useState<Hito[]>([])
   const [avisoCatalogo, setAvisoCatalogo] = useState<string | null>(null)
   /** Lo que se esta escribiendo en el campo de etiqueta nueva, antes de sumarlo a la lista. */
   const [etiquetaNueva, setEtiquetaNueva] = useState('')
+  const [guardadoParcial, setGuardadoParcial] = useState(false)
   const [enCurso, setEnCurso] = useState(false)
   const [error, setError] = useState<string | null>(null)
   /**
@@ -127,7 +120,7 @@ export function EdicionTarea (
   const [personalizados, setPersonalizados] = useState<ValoresDeCampos>({})
   const [erroresCampos, setErroresCampos] = useState<ErroresDeCampos>({})
 
-  const espacioId = tarea.rel_type === 'project' ? tarea.rel_id : null
+  const espacioId = campos.relacion === 'project' && campos.relacionId !== '' ? Number(campos.relacionId) : null
   /** Los valores que trajo `include=custom_fields`. Vacio si la Tarea llego sin el include. */
   const valoresDeLaTarea = tarea.custom_fields ?? SIN_CAMPOS
 
@@ -151,22 +144,59 @@ export function EdicionTarea (
   }, [])
 
   useEffect(() => {
-    if (espacioId === null) return
-
     const control = new AbortController()
-
-    void pedirSobre<Hito[]>(`projects/${espacioId}/milestones`, control.signal)
-      .then((listaHitos) => {
-        if (!control.signal.aborted) setHitos(listaHitos.data)
-      })
-      .catch(() => {
+    /** Carga todas las páginas para que ningún proyecto quede fuera del selector. */
+    async function cargarProyectos (): Promise<void> {
+      try {
+        const lista: Referencia[] = []
+        let pagina = 1
+        let ultima = 1
+        do {
+          const sobre = await pedirSobre<Referencia[]>(`projects?per_page=500&page=${pagina}`, control.signal)
+          lista.push(...sobre.data)
+          ultima = sobre.meta?.pagination?.total_pages ?? 1
+          pagina++
+        } while (pagina <= ultima)
         if (!control.signal.aborted) {
-          setAvisoCatalogo('No se pudieron traer los hitos del espacio.')
+          if (tarea.project && !lista.some((proyecto) => proyecto.id === tarea.project?.id)) lista.unshift(tarea.project)
+          setProyectos(lista)
         }
-      })
+      } catch {
+        if (!control.signal.aborted) setAvisoCatalogo('No se pudieron cargar los proyectos. Cierra y vuelve a abrir para reintentar.')
+      }
+    }
+    void cargarProyectos()
+    return () => { control.abort() }
+  }, [tarea.project])
 
+  useEffect(() => {
+    if (espacioId === null) return
+    const control = new AbortController()
+    void Promise.all([
+      pedirSobre<Hito[]>(`projects/${espacioId}/milestones`, control.signal),
+      pedirSobre<ConfiguracionTiposEspacio>(`projects/${espacioId}/task-types`, control.signal)
+    ]).then(([listaHitos, configuracion]) => {
+      if (control.signal.aborted) return
+      setHitos(listaHitos.data)
+      setTipos(configuracion.data.task_types)
+    }).catch(() => {
+      if (!control.signal.aborted) setAvisoCatalogo('No se pudieron cargar los hitos y tipos del proyecto. Vuelve a elegirlo para reintentar.')
+    })
     return () => { control.abort() }
   }, [espacioId])
+
+  /** Cierra el editor y refresca el detalle si alguna escritura ya se completó. */
+  function cerrar (): void {
+    onCerrar()
+    if (guardadoParcial) onGuardada()
+  }
+
+  /** Cambia la relación y descarta selecciones que pertenecen al proyecto anterior. */
+  function cambiarRelacion (relacion: string, relacionId: string): void {
+    setCampos((previos) => ({ ...previos, relacion, relacionId, hito: '', tipo: '' }))
+    setHitos([])
+    setTipos([])
+  }
 
   /*
    * Definiciones de los campos personalizados. Van en su propio efecto y no en el de arriba porque
@@ -220,9 +250,12 @@ export function EdicionTarea (
     }
 
     // Cortesia, no la regla. La regla la aplica `PATCH /tasks/{id}`, que desde esta tanda devuelve
-    // 422 con `description: ["requerido"]` si la clave viaja vacia. Se exige acá y no en
+    // 422 con `description: ["requerido"]` si la clave viaja vacia. Se exige aca y no en
     // `cuerpoDeParche()` porque este es el formulario de edicion completo: el parche parcial que
     // manda el tablero al mover una tarjeta no trae `description` y no tiene que traerla.
+    //
+    // Va PRIMERO porque es la unica validacion que mueve el foco: si corriera despues de la de
+    // fechas, quien deja las dos mal veria el error de la fecha y el cursor saltado al cuerpo.
     const descripcionMal = errorDeDescripcion(
       campos.descripcion,
       `La ${GLOSARIO.proceso.singular.toLowerCase()}`
@@ -232,6 +265,16 @@ export function EdicionTarea (
       setErrorDescripcion(descripcionMal)
       setError(null)
       cajaDescripcion.current?.querySelector('textarea')?.focus()
+      return
+    }
+
+    const camposMal = errorDeCamposEdicion(campos)
+    if (camposMal !== null) { setError(camposMal); return }
+    const cambioEstado = estado !== estadoGuardado
+    const cambioCierre = Number(estado) === ESTADO_COMPLETO && cierre !== cierreGuardado
+    const instante = cambioCierre ? instanteDeCierre(cierre) : null
+    if (cambioCierre && cierre !== '' && (instante === null || cierre > hoyLocal() || (campos.inicio !== '' && cierre < campos.inicio))) {
+      setError('La fecha de cierre debe estar entre el inicio de la tarea y hoy.')
       return
     }
 
@@ -257,8 +300,8 @@ export function EdicionTarea (
       'tasks', tarea.id, definiciones, personalizadosIniciales, personalizados
     )
 
-    if (Object.keys(cuerpo).length === 0 && parcheCampos === null) {
-      onCerrar()
+    if (Object.keys(cuerpo).length === 0 && parcheCampos === null && !cambioEstado && !cambioCierre) {
+      cerrar()
       return
     }
 
@@ -273,6 +316,33 @@ export function EdicionTarea (
         setError(resultado.mensaje)
         return
       }
+      setInicial(campos)
+      setGuardadoParcial(true)
+    }
+
+    if (cambioEstado) {
+      const resultado = await escribirEnBff<Proceso>(`tasks/${tarea.id}/actions/${Number(estado) === ESTADO_COMPLETO ? 'mark-complete' : 'reopen'}`, 'POST', Number(estado) === ESTADO_COMPLETO ? undefined : { status: Number(estado) })
+      if (!resultado.ok) {
+        setEnCurso(false)
+        setError(`No se guardó el estado: ${resultado.mensaje}`)
+        return
+      }
+      setEstadoGuardado(estado)
+      const cierreAutomatico = Number(estado) === ESTADO_COMPLETO
+        ? fechaDeCierre(resultado.datos?.date_finished) || hoyLocal() : ''
+      setCierreGuardado(cierreAutomatico)
+      if (!cambioCierre) setCierre(cierreAutomatico)
+      setGuardadoParcial(true)
+    }
+    if (cambioCierre) {
+      const resultado = await escribirEnBff(`tasks/${tarea.id}`, 'PATCH', { completed_at: instante })
+      if (!resultado.ok) {
+        setEnCurso(false)
+        setError(`No se guardó la fecha de cierre: ${resultado.mensaje}`)
+        return
+      }
+      setCierreGuardado(cierre)
+      setGuardadoParcial(true)
     }
 
     if (parcheCampos !== null) {
@@ -281,8 +351,6 @@ export function EdicionTarea (
       if (!guardados.ok) {
         setEnCurso(false)
         setError(`No se guardaron los campos personalizados: ${guardados.mensaje}`)
-        // El resto ya se escribio: quien mire el detalle tiene que verlo aunque esto haya fallado.
-        onGuardada()
         return
       }
     }
@@ -340,12 +408,13 @@ export function EdicionTarea (
   const escritas = campos.etiquetas.filter((elegida): elegida is string => typeof elegida === 'string')
 
   return (
-    <Dialogo open onOpenChange={(abierto) => { if (!abierto) onCerrar() }}>
+    <Dialogo open onOpenChange={(abierto) => { if (!abierto) cerrar() }}>
       <ContenidoDialogo
         titulo={`Editar ${GLOSARIO.proceso.singular.toLowerCase()}`}
         descripcion="Se guarda sólo lo que cambies."
       >
-        <form className="flex flex-col gap-4" onSubmit={(evento) => { void guardar(evento) }}>
+        <form onSubmit={(evento) => { void guardar(evento) }}>
+          <fieldset disabled={enCurso} className="flex min-w-0 flex-col gap-4">
           <Campo etiqueta="Nombre" requerido>
             {(props) => (
               <Entrada
@@ -355,6 +424,53 @@ export function EdicionTarea (
               />
             )}
           </Campo>
+
+          <Campo etiqueta="Relacionada con">
+            {({ id }) => <Selector value={campos.relacion || 'ninguna'} onValueChange={(valor) => cambiarRelacion(valor === 'ninguna' ? '' : valor, '')}>
+              <DisparadorSelector id={id} />
+              <ContenidoSelector>
+                <Opcion value="ninguna">Sin relación</Opcion>
+                <Opcion value="project">{GLOSARIO.espacio.singular}</Opcion>
+                <Opcion value="customer">Cliente</Opcion><Opcion value="lead">Prospecto</Opcion>
+                <Opcion value="contract">Contrato</Opcion><Opcion value="ticket">Ticket</Opcion>
+                <Opcion value="invoice">Factura</Opcion><Opcion value="estimate">Presupuesto</Opcion>
+                <Opcion value="proposal">Propuesta</Opcion><Opcion value="expense">Gasto</Opcion>
+              </ContenidoSelector>
+            </Selector>}
+          </Campo>
+          {campos.relacion === 'project' && <Campo etiqueta={GLOSARIO.espacio.singular}>
+            {({ id }) => <Selector value={campos.relacionId || 'ninguno'} onValueChange={(valor) => cambiarRelacion('project', valor === 'ninguno' ? '' : valor)}>
+              <DisparadorSelector id={id} />
+              <ContenidoSelector>
+                <Opcion value="ninguno">Sin {GLOSARIO.espacio.singular.toLowerCase()}</Opcion>
+                {proyectos.map((proyecto) => <Opcion key={proyecto.id} value={String(proyecto.id)}>{proyecto.name}</Opcion>)}
+              </ContenidoSelector>
+            </Selector>}
+          </Campo>}
+          {campos.relacion !== '' && campos.relacion !== 'project' && <Campo etiqueta="ID de la relación" requerido ayuda="Identificador del registro, disponible en su dirección. Se comprueba al guardar.">
+            {(props) => <Entrada {...props} type="number" min="1" step="1" value={campos.relacionId} onChange={(evento) => cambiarRelacion(campos.relacion, evento.target.value)} />}
+          </Campo>}
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Campo etiqueta="Estado">
+              {({ id }) => <Selector value={estado} onValueChange={setEstado}>
+                <DisparadorSelector id={id} />
+                <ContenidoSelector>{listaDe(lookups, 'task_statuses').map((opcion) => <Opcion key={opcion.id} value={String(opcion.id)}>{opcion.name}</Opcion>)}</ContenidoSelector>
+              </Selector>}
+            </Campo>
+            <Campo etiqueta="Tipo" ayuda={espacioId === null ? 'Elige un proyecto para seleccionar el tipo.' : undefined}>
+              {({ id }) => <Selector disabled={espacioId === null} value={campos.tipo || 'ninguno'} onValueChange={(valor) => setCampos({ ...campos, tipo: valor === 'ninguno' ? '' : valor })}>
+                <DisparadorSelector id={id} />
+                <ContenidoSelector>
+                  <Opcion value="ninguno">Sin tipo</Opcion>
+                  {tipos.map((tipo) => <Opcion key={tipo.id} value={String(tipo.id)}>{tipo.name}</Opcion>)}
+                  {campos.tipo && tarea.task_type && !tipos.some((tipo) => String(tipo.id) === campos.tipo) && <Opcion value={campos.tipo}>{tarea.task_type.name}</Opcion>}
+                </ContenidoSelector>
+              </Selector>}
+            </Campo>
+          </div>
+          {Number(estado) === ESTADO_COMPLETO && <Campo etiqueta="Fecha de cierre" ayuda="Déjala sin cambios para conservar el cierre actual; al completar se usa la fecha de hoy.">
+            {(props) => <Entrada {...props} type="date" min={campos.inicio || undefined} max={hoyLocal()} value={cierre} onChange={(evento) => setCierre(evento.target.value)} />}
+          </Campo>}
 
           <div className="grid gap-4 sm:grid-cols-2">
             <Campo etiqueta="Prioridad">
@@ -386,6 +502,7 @@ export function EdicionTarea (
                     {hitos.map((hito) => (
                       <Opcion key={hito.id} value={String(hito.id)}>{hito.name}</Opcion>
                     ))}
+                    {campos.hito && tarea.milestone && !hitos.some((hito) => String(hito.id) === campos.hito) && <Opcion value={campos.hito}>{tarea.milestone.name}</Opcion>}
                   </ContenidoSelector>
                 </Selector>
               )}
@@ -419,12 +536,41 @@ export function EdicionTarea (
               <Entrada
                 {...props}
                 type="number"
-                step="0.5"
+                step="any"
+                min="0"
                 value={campos.horasEstimadas}
                 onChange={(evento) => setCampos({ ...campos, horasEstimadas: evento.target.value })}
               />
             )}
           </Campo>
+
+          <Campo etiqueta="Tarifa por hora">
+            {(props) => <Entrada {...props} required type="number" min="0" step="0.01" value={campos.tarifaHora} onChange={(evento) => setCampos({ ...campos, tarifaHora: evento.target.value })} />}
+          </Campo>
+          {([
+            ['facturable', 'Facturable'], ['publica', 'Pública para el equipo'],
+            ['visibleCliente', 'Visible para el cliente'], ['recurrente', 'Recurrente']
+          ] as const).map(([clave, etiqueta]) => <label key={clave} className="text-texto flex items-center gap-2 text-sm">
+            <input type="checkbox" checked={campos[clave]} onChange={(evento) => setCampos({ ...campos, [clave]: evento.target.checked })} />
+            {etiqueta}
+          </label>)}
+          {campos.recurrente && <div className="grid gap-4 sm:grid-cols-3">
+            <Campo etiqueta="Repetir cada">
+              {(props) => <Entrada {...props} required type="number" min="1" max="365" step="1" value={campos.repetirCada} onChange={(evento) => setCampos({ ...campos, repetirCada: evento.target.value })} />}
+            </Campo>
+            <Campo etiqueta="Unidad">
+              {({ id }) => <Selector value={campos.unidadRecurrencia} onValueChange={(valor) => setCampos({ ...campos, unidadRecurrencia: valor })}>
+                <DisparadorSelector id={id} />
+                <ContenidoSelector>
+                  <Opcion value="day">Días</Opcion><Opcion value="week">Semanas</Opcion>
+                  <Opcion value="month">Meses</Opcion><Opcion value="year">Años</Opcion>
+                </ContenidoSelector>
+              </Selector>}
+            </Campo>
+            <Campo etiqueta="Ciclos" ayuda="0 = sin límite.">
+              {(props) => <Entrada {...props} required type="number" min="0" max="365" step="1" value={campos.ciclos} onChange={(evento) => setCampos({ ...campos, ciclos: evento.target.value })} />}
+            </Campo>
+          </div>}
 
           <Campo etiqueta="Asignados">
             {({ id }) => (
@@ -585,6 +731,7 @@ export function EdicionTarea (
             </CerrarDialogo>
             <Boton variante="primario" type="submit" cargando={enCurso}>Guardar</Boton>
           </div>
+          </fieldset>
         </form>
       </ContenidoDialogo>
     </Dialogo>

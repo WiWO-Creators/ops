@@ -66,6 +66,13 @@ export const EQUIPO: DefinicionRecurso<MiembroEquipo> = {
   ],
 
   filtros: [
+    { clave: 'full_name', etiqueta: 'Nombre', tipo: 'campo', tipoDato: 'texto' },
+    { clave: 'email', etiqueta: 'Correo', tipo: 'campo', tipoDato: 'texto' },
+    { clave: 'last_login', etiqueta: 'Último acceso', tipo: 'campo', tipoDato: 'fecha' },
+    { clave: 'is_admin', etiqueta: 'Administrador', tipo: 'campo', tipoDato: 'booleano' },
+    { clave: 'phonenumber', etiqueta: 'Teléfono', tipo: 'campo', tipoDato: 'texto' },
+    { clave: 'hourly_rate', etiqueta: 'Tarifa por hora', tipo: 'campo', tipoDato: 'numero' },
+    { clave: 'date_created', etiqueta: 'Creado', tipo: 'campo', tipoDato: 'fecha' },
     { clave: 'active', etiqueta: 'Activo', tipo: 'booleano' },
     { clave: 'role_id', etiqueta: 'Rol', tipo: 'seleccion', desdeLookup: 'roles' },
     { clave: 'empresa_id', etiqueta: 'Empresa', tipo: 'seleccion', desdeLookup: 'empresas' },

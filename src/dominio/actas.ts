@@ -15,11 +15,21 @@
  *
  * Se decide por extensión y no por `file.type` porque `file.type` llega vacío en varios navegadores
  * y sistemas, y un tipo vacío no se puede validar contra nada.
+ *
+ * **Los contenedores de video están a propósito.** Una reunión grabada en Meet, en Zoom o con el
+ * teléfono sale como `.mp4`, `.mov` o `.mkv`, y lo único que interesa de ese archivo es la pista de
+ * sonido: la imagen no entra en un acta. El servidor la descarta al convertir, así que acá se listan
+ * como audio y el MIME declarado dice la intención, no lo que el contenedor es por dentro.
  */
 export const MIME_AUDIO: Record<string, string> = {
   m4a: 'audio/aac',
   aac: 'audio/aac',
   mp4: 'audio/aac',
+  m4v: 'audio/aac',
+  mov: 'audio/aac',
+  mkv: 'audio/aac',
+  avi: 'audio/aac',
+  '3gp': 'audio/aac',
   mp3: 'audio/mp3',
   mpeg: 'audio/mp3',
   mpga: 'audio/mp3',
@@ -29,6 +39,8 @@ export const MIME_AUDIO: Record<string, string> = {
   flac: 'audio/flac',
   aiff: 'audio/aiff',
   aif: 'audio/aiff',
+  wma: 'audio/x-ms-wma',
+  amr: 'audio/amr',
   webm: 'audio/webm'
 }
 

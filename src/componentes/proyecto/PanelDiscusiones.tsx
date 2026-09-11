@@ -4,14 +4,12 @@ import { Suspense, useCallback, useMemo, useState, type ReactElement } from 'rea
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Boton } from '@/componentes/formularios/Boton'
-import { Avatar } from '@/componentes/presentadores/Avatar'
-import { Fecha } from '@/componentes/presentadores/Fecha'
-import { Insignia } from '@/componentes/presentadores/Insignia'
 import { Cargando, ErrorEstado, Vacio } from '@/componentes/estado/Estados'
 import { DISCUSIONES } from '@/definiciones/discusiones'
 import { AccionesFila } from './AccionesFila'
 import { FormularioRecurso } from './FormularioRecurso'
 import { PanelRecurso } from './PanelRecurso'
+import { ComentarioDeDiscusion } from './ComentarioDeDiscusion'
 import { useRecurso } from './carga'
 import type { CampoFormulario } from './formulario'
 import type { ComentarioDiscusion, Discusion } from '@/datos/recursos'
@@ -200,40 +198,7 @@ function DetalleDiscusion ({ discusionId }: { discusionId: number }): ReactEleme
       {estado.fase === 'listo' && estado.datos.length > 0 && (
         <ul className="flex flex-col gap-2">
           {estado.datos.map((comentario) => (
-            <li
-              key={comentario.id}
-              className="border-linea bg-superficie-elevada rounded-tarjeta shadow-1 flex gap-3 border p-3"
-            >
-              <Avatar
-                nombre={comentario.author?.full_name ?? 'Sin autor'}
-                imagen={comentario.author?.profile_image_url ?? null}
-              />
-
-              <div className="flex min-w-0 flex-1 flex-col gap-1">
-                <span className="flex flex-wrap items-center gap-2">
-                  <span className="text-texto text-sm font-medium">
-                    {comentario.author?.full_name ?? 'Sin autor'}
-                  </span>
-                  {comentario.author?.es_cliente === true && (
-                    <Insignia tamano="chico">Cliente</Insignia>
-                  )}
-                  <Fecha valor={comentario.created} conHora className="text-texto-tenue text-xs" />
-                </span>
-
-                <p className="text-texto text-sm whitespace-pre-line">{comentario.content}</p>
-
-                {comentario.file !== null && (
-                  <a
-                    href={comentario.file.url}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="text-acento w-fit text-xs font-semibold underline underline-offset-4"
-                  >
-                    {comentario.file.name}
-                  </a>
-                )}
-              </div>
-            </li>
+            <ComentarioDeDiscusion key={comentario.id} comentario={comentario} />
           ))}
         </ul>
       )}

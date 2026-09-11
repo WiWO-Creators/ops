@@ -63,6 +63,9 @@ export interface Proceso {
   is_public: boolean
   visible_to_client: boolean
   recurring: boolean
+  repeat_every?: number
+  recurring_type?: string | null
+  cycles?: number
   kanban_order: number
   assignees: StaffReferencia[]
   followers: StaffReferencia[]
@@ -601,6 +604,15 @@ export interface Lookups {
    * `tiposDeProcesoUnicos()` en `lib/plantillas.ts`.
    */
   task_types?: EstadoLookup[]
+  /**
+   * El equipo, para los filtros que preguntan por una persona (Asignado, Creado por, Seguidor).
+   *
+   * **No viene de `/lookups`**: lo adjunta `cargarLookups` desde `/staff/asignables`. Se guarda aca
+   * igual porque es un catalogo mas para quien arma un selector, y tenerlo en otro lado obligaba a
+   * cada pantalla de tareas a pedirlo y pasarlo a mano. Ausente en el portal del cliente: al contacto
+   * no le corresponde el catalogo de personas del equipo.
+   */
+  staff?: EstadoLookup[]
 }
 
 /**
@@ -1522,7 +1534,7 @@ export interface PruebaDeAviso {
  * kanban filtra las TAREAS de cada hito y la tabla filtra los HITOS. Un preset cruzado se aplicaria
  * vacio, porque `construirConsulta` poda lo que la definicion de la otra vista no declara.
  */
-export type TableroDePreset = 'tasks' | 'milestones' | 'milestones-tabla' | 'projects' | 'timesheets'
+export type TableroDePreset = 'tasks' | 'milestones' | 'milestones-tabla' | 'projects' | 'timesheets' | 'clients' | 'staff' | 'tickets' | 'discussions' | 'notes' | 'activity' | 'mail-queue' | 'files' | 'project-templates' | 'audit'
 
 /** Un preset de filtros guardado para una vista de lista, privado por staff. */
 export interface PresetFiltro {

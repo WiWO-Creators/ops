@@ -2,6 +2,8 @@ import Link from 'next/link'
 import { ChatWiBot } from '@/componentes/ia/ChatWiBot'
 import { Suspense, cache } from 'react'
 import { CabeceraProyecto } from '@/componentes/proyecto/CabeceraProyecto'
+import { BotonNuevaTarea, MenuProyecto } from '@/componentes/proyecto/MenuProyecto'
+import { proyectoDelPanel } from '@/dominio/proyecto'
 import { PanelActividad } from '@/componentes/proyecto/PanelActividad'
 import { PanelConfiguracionEspacio } from '@/componentes/proyecto/PanelConfiguracionEspacio'
 import { PanelArchivos } from '@/componentes/proyecto/PanelArchivos'
@@ -218,12 +220,21 @@ export default async function ProyectoPage (props: PageProps<'/espacios/[id]'>) 
   return (
     <section className="flex flex-col gap-4">
       <CabeceraProyecto
-        proyecto={proyecto}
+        proyecto={proyectoDelPanel(proyecto)}
         estado={estadoDelProyecto(lookups, proyecto.status)}
-        estados={estados}
-        capacidadesProyecto={capacidadesProyecto}
-        capacidadesTareas={capacidadesTareas}
-        esMiembro={(proyecto.members ?? []).some((persona) => persona.id === yo.id)}
+        capacidades={capacidadesProyecto}
+        acciones={
+          <>
+            <BotonNuevaTarea capacidades={capacidadesTareas} />
+            <MenuProyecto
+              proyecto={proyecto}
+              estados={estados}
+              capacidades={capacidadesProyecto}
+              capacidadesTareas={capacidadesTareas}
+              esMiembro={(proyecto.members ?? []).some((persona) => persona.id === yo.id)}
+            />
+          </>
+        }
       />
 
       <Suspense fallback={<Cargando alto="min-h-36" mensaje="Cargando el detalle…" />}>

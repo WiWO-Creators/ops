@@ -14,7 +14,7 @@
 import { createServer } from 'node:http'
 import { resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { ErrorApi, aplicarConsulta, coincideEnLista, leerIncludes } from './consulta.js'
+import { ErrorApi, aplicarConsulta, campoFiltrable, coincideEnLista, leerIncludes } from './consulta.js'
 import * as sesion from './sesion.js'
 import {
   ADMINS_DE_CLIENTE, ARCHIVOS, CAMPOS_PERSONALIZADOS, CHECKLIST, CLIENTES, COMENTARIOS, CRONOMETROS,
@@ -228,17 +228,63 @@ function conCamposPersonalizados (fila, entidad, includes) {
 const ESTADO_COMPLETADO = 5
 
 const CONSULTA_PROCESOS = {
+  // La whitelist de `RecursoProcesos::consulta()`, campo por campo: la interfaz ofrece filtrar por
+  // todo lo que la Tarea tiene, y si el mock conoce la mitad, la mitad de los filtros falla aca y
+  // funciona en produccion —o al reves—.
   filtros: {
     status: coincideEnLista((p) => p.status),
     priority: coincideEnLista((p) => p.priority),
     project_id: coincideEnLista((p) => p.project?.id ?? null),
     milestone_id: coincideEnLista((p) => p.milestone?.id ?? null),
-    assignee: coincideEnLista((p) => p.assignees.map((a) => a.id)),
+    clientid: coincideEnLista((p) => (
+      p.rel_type === 'customer' ? p.rel_id : ESPACIOS.find((e) => e.id === p.project?.id)?.clientid ?? null
+    )),
+    // Los dos sueltos, por id, que la API conserva de la interfaz vieja.
     follower: coincideEnLista((p) => p.followers.map((f) => f.id)),
     tag: coincideEnLista((p) => p.tags.map((t) => t.id)),
-    billable: (p, v) => String(p.billable) === v,
+    // Los cuatro rangos: dos sobre el vencimiento y dos sobre el inicio.
     date_from: (p, v) => p.due_date >= v,
-    date_to: (p, v) => p.due_date <= v
+    date_to: (p, v) => p.due_date <= v,
+    start_from: (p, v) => p.start_date >= v,
+    start_to: (p, v) => p.start_date <= v,
+
+    id: campoFiltrable((p) => p.id, 'numero'),
+    name: campoFiltrable((p) => p.name),
+    patente: campoFiltrable((p) => p.patente),
+    description: campoFiltrable((p) => p.description),
+    // Por id acepta varios; por nombre es texto y va de a uno, igual que en la API.
+    assignee: campoFiltrable((p) => p.assignees.map((a) => a.id), 'numero'),
+    assignees: campoFiltrable((p) => p.assignees.map((a) => a.full_name)),
+    followers: campoFiltrable((p) => p.followers.map((f) => f.full_name)),
+    tags: campoFiltrable((p) => p.tags.map((t) => t.name)),
+    task_type: campoFiltrable((p) => p.task_type?.id ?? null, 'numero'),
+    task_type_name: campoFiltrable((p) => p.task_type?.name ?? null),
+    added_from: campoFiltrable((p) => p.added_from, 'numero'),
+    // `completed` no es una columna ni aca ni alla: sale del estado.
+    completed: campoFiltrable((p) => (p.status === ESTADO_COMPLETADO ? 1 : 0), 'numero'),
+    billable: campoFiltrable((p) => Number(p.billable), 'numero'),
+    billed: campoFiltrable((p) => Number(p.billed), 'numero'),
+    is_public: campoFiltrable((p) => Number(p.is_public), 'numero'),
+    visible_to_client: campoFiltrable((p) => Number(p.visible_to_client), 'numero'),
+    recurring: campoFiltrable((p) => Number(p.recurring), 'numero'),
+    hourly_rate: campoFiltrable((p) => p.hourly_rate, 'numero'),
+    estimated_hours: campoFiltrable((p) => p.estimated_hours, 'numero'),
+    comments: campoFiltrable((p) => p.counts.comments, 'numero'),
+    checklist: campoFiltrable((p) => p.counts.checklist, 'numero'),
+    checklist_done: campoFiltrable((p) => p.counts.checklist_done, 'numero'),
+    attachments: campoFiltrable((p) => p.counts.attachments, 'numero'),
+    // Los cinco de `wiwo_core`: el fixture no los trae, asi que responden como lo que son —vacios—
+    // en vez de con un 422 que haria creer que el filtro no existe.
+    iterations: campoFiltrable((p) => p.counts.iterations ?? null, 'numero'),
+    n_iteraciones: campoFiltrable((p) => p.counts.iterations ?? null, 'numero'),
+    eta: campoFiltrable((p) => p.eta ?? null, 'fecha'),
+    desviacion: campoFiltrable((p) => p.desviacion_dias ?? null, 'numero'),
+    estado_sla: campoFiltrable((p) => p.estado_sla ?? null),
+    aprobacion: campoFiltrable((p) => p.aprobacion?.estado ?? null),
+    start_date: campoFiltrable((p) => p.start_date, 'fecha'),
+    due_date: campoFiltrable((p) => p.due_date, 'fecha'),
+    date_added: campoFiltrable((p) => p.date_added, 'fecha'),
+    date_finished: campoFiltrable((p) => p.date_finished, 'fecha')
   },
   orden: ['name', 'due_date', 'start_date', 'date_added', 'priority', 'status', 'completed'],
   // `completed` no es un campo: la API lo resuelve con un CASE sobre `status`
@@ -1821,7 +1867,7 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
           estado: 200,
           cuerpo: conDatos({
             ...presentarEspacioPortal(espacio),
-            tabs: ['overview', 'tasks', 'milestones'],
+            tabs: ['overview', 'tasks', 'milestones', 'files', 'activity'],
             members: STAFF.filter((persona) => espacio.miembros.includes(persona.id))
               .map(({ id, full_name, profile_image_url }) => ({ id, full_name, profile_image_url }))
           })
@@ -1857,6 +1903,61 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
           }
         })
         return { estado: 200, cuerpo: conDatos(hitos) }
+      }
+
+      if (resto[2] === 'files' && resto.length === 3) {
+        // Uno externo a proposito: es el caso que el portal no sabia distinguir antes de compartir
+        // `origenDeArchivo`, y sin una fila asi ninguna prueba lo nota.
+        return {
+          estado: 200,
+          cuerpo: conDatos([
+            {
+              id: 900 + espacio.id,
+              file_name: `acta_${espacio.id}_5f3a.pdf`,
+              original_file_name: 'acta.pdf',
+              subject: 'Acta de la reunión inicial',
+              filetype: 'application/pdf',
+              date_added: '2026-08-02T11:00:00Z',
+              url: `/api/v1/files/${900 + espacio.id}/download`,
+              thumbnail_url: null
+            },
+            {
+              id: 950 + espacio.id,
+              file_name: 'plano.dwg',
+              original_file_name: null,
+              subject: null,
+              filetype: 'application/acad',
+              date_added: '2026-08-05T09:30:00Z',
+              url: 'https://drive.ejemplo.cl/plano',
+              thumbnail_url: null,
+              external: 'gdrive'
+            }
+          ])
+        }
+      }
+
+      if (resto[2] === 'activity' && resto.length === 3) {
+        return {
+          estado: 200,
+          cuerpo: conDatos([
+            {
+              id: 1,
+              description: 'creó el proyecto',
+              additional_data: null,
+              date_added: '2026-08-02T11:00:00Z',
+              staff: { id: 1, full_name: STAFF[0].full_name },
+              contact: null
+            },
+            {
+              id: 2,
+              description: 'aprobó una tarea',
+              additional_data: 'Con comentario del cliente.',
+              date_added: '2026-08-05T16:20:00Z',
+              staff: null,
+              contact: { id: 1, full_name: 'Renata Ferreyra' }
+            }
+          ])
+        }
       }
 
       throw new ErrorApi(404, 'not_found', `Recurso desconocido: "${resto[2] ?? ''}".`)

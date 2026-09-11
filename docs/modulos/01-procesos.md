@@ -40,7 +40,7 @@ Y `GET /lookups`, que trae `task_statuses` y `task_priorities`.
 
 | Capacidad | Valores admitidos |
 |---|---|
-| `filter[]` | `status`, `priority`, `project_id`, `milestone_id`, `billable`, `date_from`, `date_to` (los dos sobre `duedate`), `area`, `area_asignado` |
+| `filter[]` | Todos los campos de la Tarea. Por id: `status`, `priority`, `assignee`, `added_from`, `project_id`, `milestone_id`, `clientid`, `task_type`. Por texto: `name`, `patente`, `description`, `assignees`, `followers`, `tags`, `task_type_name`, `estado_sla`, `aprobacion`. Numericos: `id`, `comments`, `checklist`, `checklist_done`, `attachments`, `iterations`, `desviacion`, `hourly_rate`, `estimated_hours`. Fechas: `start_date`, `due_date`, `eta`, `date_added`, `date_finished`. Si/no: `billable`, `billed`, `completed`, `recurring`, `is_public`, `visible_to_client`. Rangos: `date_from`/`date_to` (sobre `duedate`) y `start_from`/`start_to` (sobre `startdate`). Mas los campos personalizados, `area` y `area_asignado` (las dos areas no son lo mismo, ver abajo) |
 | `sort` | `name`, `due_date`, `start_date`, `date_added`, `priority`, `status`. Prefijo `-` para descendente. Por defecto `due_date` |
 | `q` | Busca en `name` |
 | `include` | `custom_fields`, `description` |
@@ -48,6 +48,13 @@ Y `GET /lookups`, que trae `task_statuses` y `task_priorities`.
 
 Una lista separada por comas en un `filter[]` se traduce a `IN (...)`: `filter[status]=1,2` trae los
 dos estados. Cualquier nombre fuera de esas listas devuelve `422`.
+
+**La coma vale solo donde la columna no es texto.** `status`, `priority`, `assignee` o `added_from`
+aceptan varios valores; `tags`, `followers` o `task_type_name` se comparan contra texto y una lista
+ahi es un `422`. Por eso la interfaz ofrece esos tres de a uno.
+
+Cada clave admite ademas un operador como sufijo: `filter[name__contains]`, `filter[due_date__gte]`,
+`filter[eta__empty]=1`. Sin sufijo, la comparacion es de igualdad.
 
 **Las dos áreas no son la misma cosa.** `filter[area]` es el **área de la compañía**: el campo
 personalizado multiselect que el Proceso lleva marcado, cuyo valor es el texto de la opción

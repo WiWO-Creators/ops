@@ -4,13 +4,13 @@ import { Pestanas, type Panel } from '@/componentes/proyecto/Pestanas'
 import { ErrorApi } from '@/datos/errores'
 import type { EspacioPortal, TareaPortal } from '@/datos/portal'
 import { pestaniasDelProyecto } from '@/definiciones/portal-proyectos'
-import Link from 'next/link'
-import { BarraProgreso } from '@/componentes/proyecto/CabeceraProyecto'
+import { CabeceraProyecto } from '@/componentes/proyecto/CabeceraProyecto'
 import { aTextoPlano } from '@/componentes/proyecto/formatos'
-import { Fecha } from '@/componentes/presentadores/Fecha'
-import { GrupoAvatares } from '@/componentes/presentadores/Avatar'
+import { pedirPortal } from '@/datos/servidor'
+import type { EmpresaPortal } from '@/datos/tipos'
 import { GLOSARIO } from '@/dominio/glosario'
-import { cargarDetalle, EstadoDeError, EstadoDelPortal } from '../../detalle'
+import { proyectoDelPortal } from '@/dominio/proyecto'
+import { cargarDetalle, EstadoDeError, estadoDelPortal } from '../../detalle'
 import { AprobacionesPendientes } from './AprobacionesPendientes'
 import {
   PanelArchivos,
@@ -51,16 +51,19 @@ export default async function ProyectoPagina (props: PageProps<'/portal/proyecto
   }
 
   const proyecto = sobre.data
+  // La empresa es la del propio contacto y la cabecera la pinta como subtitulo, igual que el panel
+  // pinta el cliente del Espacio.
+  const { data: empresa } = await pedirPortal<EmpresaPortal>('/portal/company')
   // La API devuelve la descripcion como HTML del panel viejo: sin despojarla, el cliente lee los
   // `<p>` en pantalla. Es el mismo tratamiento que le da el panel a la descripcion de una tarea.
   const descripcion = aTextoPlano(proyecto.description ?? '')
   // Las pestañas salen de lo que dijo la API, nunca de una lista fija: cada proyecto comparte cosas
   // distintas, y adivinar significaria dibujar pestañas que responden 403 al abrirlas.
   const pestanias = pestaniasDelProyecto(proyecto.tabs ?? [])
-  // La descripcion la lleva la pestaña Descripcion, como en el panel. Se queda en la cabecera solo
-  // cuando esa pestaña no esta compartida: un proyecto que no la comparte igual tiene derecho a
-  // contar de que se trata, y ahi es el unico lugar donde cabe.
-  const descripcionEnLaCabecera = !pestanias.some((p) => p.clave === 'overview')
+  // La descripcion la lleva la pestaña Descripcion, como en el panel. Se dibuja suelta solo cuando
+  // esa pestaña no esta compartida: un proyecto que no la comparte igual tiene derecho a contar de
+  // que se trata, y ahi es el unico lugar donde cabe.
+  const descripcionSuelta = !pestanias.some((p) => p.clave === 'overview')
   const pendientes = await cargarPendientes(proyecto)
 
   const paneles: Panel[] = pestanias.map(({ clave, etiqueta }) => ({
@@ -71,53 +74,20 @@ export default async function ProyectoPagina (props: PageProps<'/portal/proyecto
 
   return (
     <div className="flex flex-col gap-4">
-      {/* La cabecera es la misma tarjeta que ve un colaborador en el panel: mismo envoltorio, mismo
-          orden y los mismos presentadores —`Fecha`, `GrupoAvatares`, `BarraProgreso` y la pildora de
-          estado—. Lo que falta respecto del panel es lo que el portal no recibe o no deja tocar:
-          imagen, etiquetas, patente y las acciones sobre el proyecto. No es una diferencia de
-          estilo. */}
-      <header className="border-linea bg-superficie-elevada rounded-tarjeta shadow-1 flex flex-col gap-4 border p-5">
-        <Link
-          href="/portal/proyectos"
-          className="text-texto-tenue hover:text-texto w-fit text-xs font-medium transition-colors"
-        >
-          ← {GLOSARIO.espacio.plural}
-        </Link>
+      {/* La MISMA cabecera que ve un colaborador: el componente, no una copia con las mismas
+          clases. Lo que cambia es lo que se le pasa —una `ProyectoVista` armada desde el contrato
+          del portal, sin capacidades y sin botonera—, no el dibujo. */}
+      <CabeceraProyecto
+        proyecto={proyectoDelPortal(proyecto, empresa)}
+        estado={await estadoDelPortal('project_statuses', proyecto.status)}
+        volverA={{ href: '/portal/proyectos', etiqueta: GLOSARIO.espacio.plural }}
+      />
 
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <h1 className="text-texto text-titulo min-w-0 font-semibold">{proyecto.name}</h1>
-          <EstadoDelPortal catalogo="project_statuses" valor={proyecto.status} />
-        </div>
-
-        <dl className="flex flex-wrap items-start gap-x-6 gap-y-2 text-sm">
-          <div className="flex items-center gap-2">
-            <dt className="text-texto-sutil">Inicio</dt>
-            <dd className="text-texto"><Fecha valor={proyecto.start_date} /></dd>
-          </div>
-          <div className="flex items-center gap-2">
-            <dt className="text-texto-sutil">Entrega</dt>
-            <dd><Fecha valor={proyecto.deadline} comoVencimiento /></dd>
-          </div>
-          {/* El equipo solo llega con `view_team_members`; sin el permiso la fila no se dibuja. */}
-          {proyecto.members !== undefined && (
-            <div className="flex min-w-0 max-w-full items-center gap-2">
-              <dt className="text-texto-sutil">Equipo</dt>
-              <dd className="min-w-0"><GrupoAvatares personas={proyecto.members} maximo={5} /></dd>
-            </div>
-          )}
-        </dl>
-
-        {descripcionEnLaCabecera && descripcion !== '' && (
-          <p className="text-texto-tenue max-w-prose text-sm whitespace-pre-line">{descripcion}</p>
-        )}
-
-        <div className="flex items-center gap-3">
-          <BarraProgreso porcentaje={proyecto.progress} className="min-w-0 flex-1" />
-          <span data-numerico className="text-texto text-sm font-semibold">
-            {Math.round(proyecto.progress)}%
-          </span>
-        </div>
-      </header>
+      {/* La descripcion vive en la pestaña Descripcion, como en el panel. Suelta acá solo cuando esa
+          pestaña no esta compartida: es el unico caso en que si no, no se leeria en ningun lado. */}
+      {descripcionSuelta && descripcion !== '' && (
+        <p className="text-texto-tenue max-w-prose text-sm whitespace-pre-line">{descripcion}</p>
+      )}
 
       {pendientes.length > 0 && (
         <AprobacionesPendientes proyectoId={proyecto.id} tareas={pendientes} />
