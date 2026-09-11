@@ -1,8 +1,8 @@
 # Exportar las tareas de una persona a Google Sheets
 
-Desde Equipo, la ficha de una persona ofrece «Exportar tareas a Sheets» a los administradores. Crea una hoja nueva automáticamente en la raíz del Drive compartido que ya usa la aplicación, con todas las tareas asignadas que el administrador puede consultar, incluidas las completadas. No reutiliza el límite de 50 filas de la ficha.
+Desde Equipo, la ficha de una persona ofrece «Exportar tareas a Sheets» a los administradores. Crea una hoja nueva automáticamente en una carpeta `EXPORT_(nombre)` dentro del Drive compartido que ya usa la aplicación, con todas las tareas asignadas que el administrador puede consultar, incluidas las completadas. No reutiliza el límite de 50 filas de la ficha.
 
-La hoja contiene ID, proyecto, tarea, estado, inicio, vencimiento y enlace a Ops. Deja libres «Avance / comentarios», «Bloqueos» y «Fecha comprometida». Los cambios en Google Sheets no se sincronizan hacia Ops.
+La hoja contiene ID, proyecto, tarea, estado, inicio, vencimiento y enlace a Ops. No agrega columnas de seguimiento predefinidas: cada persona puede añadir libremente columnas y notas. Los cambios en Google Sheets no se sincronizan hacia Ops.
 
 ## Entorno de revisión
 
@@ -15,11 +15,11 @@ La hoja contiene ID, proyecto, tarea, estado, inicio, vencimiento y enlace a Ops
 ## Recorrido
 
 1. Entrar como administrador a Equipo y abrir una ficha. Pulsar «Exportar tareas a Sheets».
-2. Comprobar que se indica el destino automático en el Drive compartido de WiWO. No debe solicitar un enlace ni un ID de carpeta.
+2. Comprobar que se indica la carpeta automática, por ejemplo `EXPORT_Ana Ríos`, dentro del Drive compartido de WiWO. No debe solicitar un enlace ni un ID de carpeta.
 3. Marcar «Dar acceso de edición» si la persona debe poder completar la hoja. No se envía correo de notificación. La hoja siempre hereda los permisos del Drive compartido.
 4. Pulsar «Crear Google Sheets». Debe mostrar la cantidad exportada y «Abrir Google Sheets».
-5. Abrir la hoja y comprobar tareas de todas las páginas, estados legibles, enlaces a Ops y las tres columnas de seguimiento vacías.
-6. Crear otra exportación. Debe generar otra hoja sin alterar los comentarios de la anterior.
+5. Abrir la hoja y comprobar tareas de todas las páginas, estados legibles, enlaces a Ops y libertad para añadir sus propias columnas.
+6. Crear otra exportación. Debe generar otra hoja dentro de la misma carpeta sin alterar las notas de la anterior. La carpeta se vincula al identificador de la persona, para no mezclar homónimos.
 7. Si falla compartir, debe conservarse el enlace de la hoja creada y mostrarse el aviso; no repetir la creación para resolver el permiso.
 
 ## Casos y verificación

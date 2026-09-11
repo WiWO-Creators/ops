@@ -67,8 +67,8 @@ export function ExportarTareasSheets ({ personaId, nombre, email }: Props) {
           </div>
         ) : (
           <form onSubmit={(evento) => { void exportar(evento) }} className="flex flex-col gap-5" aria-busy={exportando}>
-            <p className="text-texto-tenue text-sm">Incluye todas sus tareas asignadas que puedes consultar, también las completadas. Tendrá columnas vacías para avance, bloqueos y fecha comprometida.</p>
-            <p className="text-texto-tenue text-sm">Se guardará automáticamente en el Drive compartido de WiWO y heredará sus permisos.</p>
+            <p className="text-texto-tenue text-sm">Incluye todas sus tareas asignadas que puedes consultar, también las completadas. La persona podrá añadir libremente columnas y notas en la hoja.</p>
+            <p className="text-texto-tenue text-sm">Se guardará en la carpeta <strong className="break-words">EXPORT_{nombre}</strong> del Drive compartido de WiWO. La carpeta se crea automáticamente y se reutiliza en las siguientes exportaciones.</p>
             <label className="flex items-start gap-2 text-sm">
               <input type="checkbox" className="accent-acento mt-1 size-4 shrink-0" checked={compartir} disabled={exportando || email === ''} onChange={(evento) => { setCompartir(evento.target.checked) }} />
               <span>Dar acceso de edición a {nombre}<span className="text-texto-tenue block break-all">{email || 'Esta persona no tiene correo registrado.'}</span></span>
