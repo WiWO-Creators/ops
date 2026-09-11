@@ -477,6 +477,50 @@
     animation: brillo-marca 8s linear infinite;
   }
 
+
+  /*
+   * El asistente de alta de licitacion, en grande.
+   *
+   * === POR QUE UNA CLASE Y NO TOCAR `Entrada`, `Campo` O `Boton` ===
+   *
+   * La queja fue que los pasos del alta se ven chicos: los controles del panel miden 36px de alto y
+   * el texto sale a 13px, que en un portatil de catorce pulgadas y con prisa se lee apretado. Pero
+   * esos tres componentes los comparten las catorce pantallas del panel, y agrandarlos ahi habria
+   * reescalado tablas, filtros y formularios que nadie pidio cambiar. El asistente se sube solo,
+   * por descendencia de esta clase, y el resto del producto queda exactamente igual.
+   *
+   * Un selector de clase + elemento (0,1,1) gana por especificidad a la utilidad de Tailwind
+   * (`.h-9`, `.text-sm`: 0,1,0), asi que no hace falta `!important` en ninguna regla.
+   *
+   * 2.75rem (44px) y no 40: es el objetivo tactil minimo de WCAG 2.5.8, y este formulario tambien se
+   * llena desde tablet.
+   */
+  .asistente-licitacion label,
+  .asistente-licitacion summary {
+    font-size: var(--text-base);
+  }
+
+  /* La casilla queda fuera: un `min-height` sobre ella la deforma en vez de agrandarla. */
+  .asistente-licitacion input:not([type='checkbox']),
+  .asistente-licitacion [role='combobox'],
+  .asistente-licitacion button {
+    min-height: 2.75rem;
+  }
+
+  /* El area de texto se agranda sola con `field-sizing`, asi que solo se le sube la letra: pisarle
+   * el alto minimo la encogeria de 5rem a 2.75rem, que es al reves de lo que se pidio. */
+  .asistente-licitacion input,
+  .asistente-licitacion textarea,
+  .asistente-licitacion [role='combobox'],
+  .asistente-licitacion button {
+    font-size: var(--text-base);
+  }
+
+  .asistente-licitacion input[type='checkbox'] {
+    width: 1.25rem;
+    height: 1.25rem;
+  }
+
   @keyframes brillo-marca {
     to { background-position: 200% 0; }
   }
