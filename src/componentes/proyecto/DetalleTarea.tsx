@@ -244,9 +244,6 @@ export function DetalleTarea (
           <Descripcion html={tarea.description} />
         </section>
 
-        {/* Arriba del todo y no al final: el cronometro es lo que se viene a hacer al abrir una
-            tarea, y enterrado bajo descripcion, checklist y archivos obligaba a bajar cada vez. */}
-        <Cronometros procesoId={procesoId} />
         {/* Montado solo mientras se edita: asi el formulario arranca siempre en los valores que se
             acaban de traer, y cerrar descarta lo que no se guardo. */}
         {puedeEditar && editando && (
@@ -279,6 +276,12 @@ export function DetalleTarea (
             </Dato>
           ))}
         </dl>
+
+        {/* Detras del titulo y la ficha de datos, y no al final de todo: poner tiempo es a lo que
+            se viene al abrir una Tarea, y enterrado bajo checklist y archivos obligaba a bajar cada
+            vez. Tampoco va antes de los datos: primero se reconoce la Tarea, despues se le cuenta
+            el tiempo. */}
+        <Cronometros procesoId={procesoId} />
 
         <section className="flex flex-col gap-2">
           <h4 className="text-texto-tenue text-sm font-semibold">Enlaces</h4>
