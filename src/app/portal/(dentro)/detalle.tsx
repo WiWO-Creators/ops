@@ -1,5 +1,6 @@
 import { ErrorEstado, SinPermiso, Vacio } from '@/componentes/estado/Estados'
 import { Insignia } from '@/componentes/presentadores/Insignia'
+import { ESTADOS_DESTACADOS, pildoraDeEstado } from '@/componentes/proyecto/CabeceraProyecto'
 import { ErrorApi } from '@/datos/errores'
 import { pedirPortal } from '@/datos/servidor'
 import type { Sobre } from '@/datos/tipos'
@@ -74,6 +75,11 @@ function Enlace ({ href, children }: { href: string, children: React.ReactNode }
  *
  * Se resuelve en el servidor porque el catalogo ya se pide ahi: mandarlo entero al navegador para
  * pintar una insignia seria cargar seis listas para usar una fila.
+ *
+ * El estado de un proyecto se pinta con la misma regla que en el panel —`pildoraDeEstado`, verde el
+ * finalizado y rojo el que sigue pidiendo trabajo, con el mismo latido— para que el cliente y quien
+ * lo atiende esten mirando literalmente la misma pildora. El resto de los catalogos conserva el
+ * color que traigan.
  */
 export async function EstadoDelPortal ({ catalogo, valor }: { catalogo: string, valor: number }) {
   const lookups = await cargarLookupsDelPortal()
@@ -81,7 +87,18 @@ export async function EstadoDelPortal ({ catalogo, valor }: { catalogo: string, 
 
   if (opcion === undefined) return null
 
-  return <Insignia color={opcion.color ?? undefined}>{opcion.name}</Insignia>
+  if (catalogo !== 'project_statuses') {
+    return <Insignia color={opcion.color ?? undefined}>{opcion.name}</Insignia>
+  }
+
+  return (
+    <Insignia
+      {...pildoraDeEstado(valor, opcion.color ?? null)}
+      className={ESTADOS_DESTACADOS.includes(valor) ? 'motion-safe:animate-pulse' : undefined}
+    >
+      {opcion.name}
+    </Insignia>
+  )
 }
 
 /**

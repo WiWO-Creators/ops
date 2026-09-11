@@ -1,6 +1,5 @@
 import Link from 'next/link'
 import { Vacio } from '@/componentes/estado/Estados'
-import { Insignia } from '@/componentes/presentadores/Insignia'
 import { formatearFecha } from '@/lib/fechas'
 import { formatearImporte } from '@/componentes/proyecto/formatos'
 import { BarraProgreso } from '@/componentes/proyecto/CabeceraProyecto'
@@ -56,17 +55,6 @@ export async function PanelResumen ({ proyecto }: { proyecto: EspacioPortal }) {
         </Bloque>
       )}
 
-      {proyecto.members !== undefined && proyecto.members.length > 0 && (
-        <Bloque titulo="Equipo">
-          <ul className="flex flex-wrap gap-2">
-            {proyecto.members.map((persona) => (
-              <li key={persona.id}>
-                <Insignia>{persona.full_name}</Insignia>
-              </li>
-            ))}
-          </ul>
-        </Bloque>
-      )}
     </div>
   )
 }

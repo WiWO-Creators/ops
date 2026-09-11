@@ -49,8 +49,11 @@ export function BarraProgreso ({ porcentaje, className }: PropsBarraProgreso) {
  * renombrar, y ninguna paleta fija podria seguirles el ritmo. Estos dos si, porque son los que hay
  * que leer sin leer: si el espacio ya esta cerrado o si todavia pide trabajo.
  */
-const ESTADO_EN_DESARROLLO = 2
-const ESTADO_FINALIZADO = 4
+export const ESTADO_EN_DESARROLLO = 2
+export const ESTADO_FINALIZADO = 4
+
+/** Los dos estados que la cabecera pinta con la paleta del sistema y anima. */
+export const ESTADOS_DESTACADOS = [ESTADO_FINALIZADO, ESTADO_EN_DESARROLLO]
 
 /**
  * Resuelve como se pinta la pildora de estado de la cabecera.
@@ -65,7 +68,7 @@ const ESTADO_FINALIZADO = 4
  * @param color color del catalogo para ese estado, o `null` si no lo tiene
  * @returns las props de `Insignia` que corresponden a ese estado
  */
-function pildoraDeEstado (status: number, color: string | null): {
+export function pildoraDeEstado (status: number, color: string | null): {
   tono?: TonoInsignia
   color?: string | null
 } {
@@ -154,7 +157,7 @@ export function CabeceraProyecto ({
         <div className="flex flex-wrap items-center gap-2">
           <Insignia
             {...pildoraDeEstado(proyecto.status, estado.color)}
-            className={[ESTADO_FINALIZADO, ESTADO_EN_DESARROLLO].includes(proyecto.status) ? 'motion-safe:animate-pulse' : undefined}
+            className={ESTADOS_DESTACADOS.includes(proyecto.status) ? 'motion-safe:animate-pulse' : undefined}
           >{estado.nombre}</Insignia>
           {acciones ?? (
             <>
