@@ -1,4 +1,5 @@
 import { horasDeTexto } from './tiempo-estimado.ts'
+import { enFormatoTitulo } from '../lib/titulo.ts'
 import type { StaffReferencia } from '@/datos/tipos'
 import type { Etiqueta, Proceso } from '@/datos/recursos'
 
@@ -124,7 +125,10 @@ export function camposDeTarea (tarea: Proceso, descripcion: string): CamposEdici
 export function cuerpoDeParche (inicial: CamposEdicion, actual: CamposEdicion): ParcheTarea {
   const parche: ParcheTarea = {}
 
-  if (actual.nombre.trim() !== inicial.nombre.trim()) parche.name = actual.nombre.trim()
+  // La comparacion sigue siendo contra el texto crudo: `enFormatoTitulo` solo decide como se
+  // guarda lo que cambio, no si cambio. Asi abrir y cerrar la edicion sin tocar el nombre no
+  // manda un parche con el nombre reformateado.
+  if (actual.nombre.trim() !== inicial.nombre.trim()) parche.name = enFormatoTitulo(actual.nombre)
   if (actual.prioridad !== inicial.prioridad) parche.priority = Number(actual.prioridad)
   if (actual.inicio !== inicial.inicio) parche.start_date = actual.inicio === '' ? null : actual.inicio
   if (actual.vencimiento !== inicial.vencimiento) {

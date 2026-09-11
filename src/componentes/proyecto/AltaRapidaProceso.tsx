@@ -41,6 +41,7 @@ import { errorDeDescripcion, errorDeDetalle } from '@/dominio/descripcion-tarea'
 import { GLOSARIO } from '@/dominio/glosario'
 import { errorDeHorasEstimadas, horasDeTexto } from '@/dominio/tiempo-estimado'
 import { formatearFecha } from '@/lib/fechas'
+import { enFormatoTitulo } from '@/lib/titulo'
 import { AsistenteDescripcion } from './AsistenteDescripcion'
 import { VistaPreviaAlta, type MarcaPrevia } from './VistaPreviaAlta'
 import type {
@@ -584,7 +585,9 @@ export function AltaRapidaProceso ({
     const horas = horasDeTexto(horasEstimadas)
 
     await enviar({
-      name: nombre.trim(),
+      // En formato de titulo al guardar y no mientras se escribe: corregir el campo bajo el
+      // cursor pelea con quien esta tecleando. Solo convierte lo que viene todo en mayusculas.
+      name: enFormatoTitulo(nombre),
       billable: facturable,
       is_public: publica,
       visible_to_client: visibleCliente,
