@@ -3,6 +3,7 @@
 import { Suspense, useCallback, useMemo, useState, type ReactElement } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
+import { Plus } from 'lucide-react'
 import { Boton } from '@/componentes/formularios/Boton'
 import { Insignia } from '@/componentes/presentadores/Insignia'
 import { Cargando, ErrorEstado } from '@/componentes/estado/Estados'
@@ -175,6 +176,10 @@ function ActasDelProyecto ({ proyectoId, ia, yo }: PropsPanelActas): ReactElemen
           else setMotivoALaVista(true)
         }}
       >
+        {/* El icono va `aria-hidden`: el nombre del boton ya lo dice la etiqueta de al lado, y un
+            `+` anunciado por el lector de pantalla solo agrega ruido. El tamaño y el grosor son los
+            del resto del panel (`BarraLateral`), a escala de boton chico. */}
+        <Plus size={16} strokeWidth={2} aria-hidden="true" className="shrink-0" />
         Nuevo Meeting Paper
       </Boton>
     </div>
