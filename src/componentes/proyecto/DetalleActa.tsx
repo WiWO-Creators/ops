@@ -35,13 +35,14 @@ import type { Acta } from '@/datos/recursos'
  * el chunk de `/espacios/[id]` —la pantalla más usada del panel— aunque nadie abra un acta. Con la
  * carga diferida, el peso lo paga quien pulsa "Corregir".
  *
- * En lectura el HTML se pinta dentro de `ContenidoHtml`, el iframe con `sandbox=""`. Lo escribió un
+ * En lectura el HTML se pinta dentro de `ContenidoHtml`, el iframe sin `allow-scripts`. Lo escribió un
  * modelo a partir de lo que se dijo en una reunión, así que es contenido que no controlamos aunque
  * la API ya lo haya saneado: las dos capas son a propósito.
  *
  * Imprimir usa el `print()` del propio iframe, que sale con el formato real del documento. Es un PDF
  * decente y cero dependencias, contra el `jsPDF` de MeetingMatico, que vuelca texto plano y pierde
- * todo el formato.
+ * todo el formato. Para que el padre pueda llamarlo, el visor va con `imprimible`: ver
+ * `ContenidoHtml`, que explica por que esos dos permisos no dejan correr una linea de codigo ajeno.
  */
 
 const EditorDeActa = dynamic(
@@ -226,6 +227,9 @@ export function DetalleActa ({
             html={acta.content ?? ''}
             titulo={`Meeting Paper: ${acta.title}`}
             firma={acta.brand_sign_url}
+            // Sin esto "Imprimir" lanza `SecurityError` y no imprime: con el origen opaco del
+            // `sandbox` vacio el padre no puede ni leer `contentWindow.print`.
+            imprimible
             // Mas alto que el de un contrato del portal: un acta se lee entera de corrido, y
             // desplazar dentro de un iframe cada dos temas rompe la lectura.
             alto="h-[46rem]"

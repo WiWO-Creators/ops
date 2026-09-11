@@ -84,13 +84,35 @@ try {
   assert.match(pagina.url(), /acta=\d+/, 'El acta abierta tiene que quedar en la URL')
 
   // --- El acta se pinta dentro del iframe aislado, nunca en la página.
+  //
+  // El `sandbox` lleva los dos permisos que "Imprimir" necesita y NINGUNO más. Con el `sandbox`
+  // vacío que tenía antes, el padre ni siquiera podía leer `contentWindow.print`: Chromium
+  // contestaba `SecurityError` por el origen opaco y el botón no imprimía nada.
+  //
+  // Lo que esta prueba cuida de verdad es la ausencia de `allow-scripts`. Es el permiso que, junto a
+  // `allow-same-origin`, le daría a un acta escrita por un modelo la sesión de quien la lee; sin él
+  // el documento no ejecuta ni un `<script>` ni un `onerror`, así que el origen no le sirve a nadie.
   const marco = await pagina.evaluate(() => {
     const iframe = document.querySelector('iframe')
+    if (iframe === null) return null
 
-    return iframe === null ? null : { sandbox: iframe.getAttribute('sandbox'), tieneSrcDoc: iframe.hasAttribute('srcdoc') }
+    let alcanzaPrint
+    try {
+      alcanzaPrint = typeof iframe.contentWindow.print === 'function'
+    } catch (fallo) {
+      alcanzaPrint = `${fallo.name}: ${fallo.message}`
+    }
+
+    return {
+      sandbox: iframe.getAttribute('sandbox'),
+      tieneSrcDoc: iframe.hasAttribute('srcdoc'),
+      alcanzaPrint
+    }
   })
   assert.notEqual(marco, null, 'El visor tiene que ser un iframe')
-  assert.equal(marco.sandbox, '', 'El iframe tiene que ir con sandbox vacío')
+  assert.equal(marco.sandbox, 'allow-same-origin allow-modals', 'El visor perdió o ensanchó su sandbox')
+  assert.doesNotMatch(marco.sandbox, /allow-scripts/, 'con `allow-scripts` el acta corre código con la sesión de quien la lee')
+  assert.equal(marco.alcanzaPrint, true, '"Imprimir" no puede llamar a print() sobre el visor')
   assert.ok(marco.tieneSrcDoc)
 
   const html = await pagina.frameLocator('iframe').locator('body').innerHTML()
@@ -166,6 +188,7 @@ try {
   assert.deepEqual(despues, ['ended'], 'El micrófono quedó tomado después de cambiar de pestaña')
 
   console.log('Meeting Paper: pestaña, generación en streaming, visor aislado, editor diferido y listado OK')
+  console.log('  el visor deja imprimir sin dejar correr scripts')
   console.log('  el micrófono se suelta al cambiar de pestaña')
   console.log(`  ${filas.length} acta(s) en la lista`)
 } finally {
