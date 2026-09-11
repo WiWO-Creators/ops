@@ -3,7 +3,7 @@ import { pedir, pedirOpcional } from '@/datos/servidor'
 import { leerSuplantador } from '@/datos/sesion'
 import type { Yo } from '@/datos/tipos'
 import { GLOSARIO } from '@/dominio/glosario'
-import { puedeVerSeccion } from '@/dominio/permisos'
+import { puedeVerFocals, puedeVerSeccion } from '@/dominio/permisos'
 import { intervaloDeLatido } from '@/datos/auditoria'
 import { iaHabilitada } from '@/datos/ajustes'
 import { intervaloDeLive, type EstadoDeJornada } from '@/datos/live'
@@ -143,6 +143,12 @@ function seccionesDe (yo: Yo): Seccion[] {
   // `alcanceDeLive()` dentro de la pantalla, no la barra.
   secciones.push({ href: '/live', etiqueta: 'En vivo', icono: 'live' })
 
+  // Tampoco lleva condicion, y por el mismo motivo que `/live`: es el trabajo PROPIO. La pantalla no
+  // lista nada que no este asignado a quien mira, asi que no hay permiso que preguntar — un perfil
+  // sin `tasks.view` ve sus asignaciones igual, que es justamente la regla de `puedeVerSeccion`.
+  // Va antes que Tareas: primero lo de uno, despues el listado de toda la casa.
+  secciones.push({ href: '/mis-tareas', etiqueta: `Mis ${GLOSARIO.proceso.plural}`, icono: 'mis_tareas' })
+
   if (puedeVerSeccion(yo.permissions.tasks, 'tasks')) {
     secciones.push({ href: '/procesos', etiqueta: GLOSARIO.proceso.plural, icono: 'procesos' })
   }
@@ -181,11 +187,15 @@ function seccionesDe (yo: Yo): Seccion[] {
     secciones.push({ href: '/clientes', etiqueta: 'Clientes', icono: 'clientes' })
   }
 
-  // Focals va sin condicion, como `/live` y por el mismo motivo: la compuerta real es la API, que
-  // responde 403 a quien no es jefatura ni focal, y la pantalla lo dice con `SinPermiso`. Esconder
-  // la entrada con un `nivel` calculado aca seria una segunda opinion sobre el permiso, que se
-  // desincroniza sola el dia que el backend cambie la suya.
-  secciones.push({ href: '/focals', etiqueta: GLOSARIO.focal.plural, icono: 'focals' })
+  // Focals se muestra de focal hacia arriba. Iba sin condicion —la compuerta real es la API, que
+  // responde 403 a quien no es focal ni jefatura, y la pantalla lo dice con `SinPermiso`—, pero el
+  // cliente pidio lo contrario: que la entrada exista solo para quien la puede usar. Sigue siendo
+  // COSMETICA: la autorizacion del servidor no se toca, y esconder no autoriza. El escalon lo
+  // resuelve la API en `GET /me` (`yo.nivel`), asi que esto no es una segunda opinion sobre el
+  // permiso sino la lectura del mismo dato. Ver `puedeVerFocals` para el caso del `nivel` ausente.
+  if (puedeVerFocals(yo.nivel)) {
+    secciones.push({ href: '/focals', etiqueta: GLOSARIO.focal.plural, icono: 'focals' })
+  }
 
   if (puedeVerSeccion(yo.permissions.staff, 'staff')) {
     secciones.push({ href: '/equipo', etiqueta: 'Equipo', icono: 'equipo' })

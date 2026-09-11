@@ -5,7 +5,7 @@ import { ATRIBUTO_ABATIDA, CLAVE_BARRA } from '@/lib/barra-lateral'
 import Link, { useLinkStatus } from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useSyncExternalStore } from 'react'
-import { Building2, DoorOpen, FolderKanban, Gavel, House, ListChecks, Menu, PanelLeftClose, PanelLeftOpen, Radio, ScrollText, SlidersHorizontal, Target, TrendingUp, Users, UsersRound, Video } from 'lucide-react'
+import { Building2, ClipboardList, DoorOpen, FolderKanban, Gavel, House, ListChecks, Menu, PanelLeftClose, PanelLeftOpen, Radio, ScrollText, SlidersHorizontal, Target, TrendingUp, Users, UsersRound, Video } from 'lucide-react'
 import { Cajon, CerrarCajon, ContenidoCajon, DisparadorCajon } from '@/componentes/superposiciones/Cajon'
 import { Logo } from '@/componentes/estructura/Logo'
 import { cn } from '@/lib/clases'
@@ -39,6 +39,9 @@ const ICONOS = {
   // `Radio` y no un reloj: LIVE no mide duraciones, dice quien esta al aire ahora. El reloj ya es el
   // vocabulario del cronometro, que es otra cosa.
   live: Radio,
+  // `ClipboardList` y no otro `ListChecks`: Tareas es el listado de toda la casa y Mis Tareas es la
+  // hoja de una persona. Con el mismo icono la barra diria que son la misma pantalla.
+  mis_tareas: ClipboardList,
   procesos: ListChecks,
   espacios: FolderKanban,
   // El martillo de la adjudicacion. `FolderKanban` ya es Espacios, y una licitacion no es una carpeta
