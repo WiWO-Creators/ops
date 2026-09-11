@@ -223,6 +223,7 @@ export default async function ProyectoPage (props: PageProps<'/espacios/[id]'>) 
         proyecto={proyectoDelPanel(proyecto)}
         estado={estadoDelProyecto(lookups, proyecto.status)}
         capacidades={capacidadesProyecto}
+        yoId={yo.id}
         acciones={
           <>
             <BotonNuevaTarea capacidades={capacidadesTareas} />

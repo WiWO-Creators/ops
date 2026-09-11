@@ -222,6 +222,18 @@ export function MenuProyecto ({
 
   return (
     <span className="flex flex-col items-end gap-1">
+      <span className="flex flex-wrap items-center justify-end gap-2">
+      {/* Salir es un boton y no un item del menu "Mas" porque es la salida de quien ya no trabaja
+          aca: enterrada tras un menu no la encuentra justamente quien la necesita. NO mira
+          capacidades, y ese es todo el punto: `projects.edit` protege reescribir el equipo ajeno, y
+          quien se queda pegado a un Espacio del que no participa es quien no lo tiene. La unica
+          condicion es estar en el equipo. */}
+      {esMiembro && (
+        <Boton variante="sutil" tamano="chico" disabled={enCurso} onClick={() => { setSaliendo(true) }}>
+          Salir del {GLOSARIO.espacio.singular.toLowerCase()}
+        </Boton>
+      )}
+
       <MenuContextual>
         <DisparadorMenu asChild>
           <Boton variante="secundario" tamano="chico" disabled={enCurso}>Más</Boton>
@@ -294,19 +306,9 @@ export function MenuProyecto ({
             </>
           )}
 
-          {/* Salir NO mira capacidades, y ese es todo el punto: `projects.edit` protege reescribir
-              el equipo ajeno, y quien se queda pegado a un Espacio en el que ya no trabaja es
-              justamente quien no lo tiene. La unica condicion es estar en el equipo. */}
-          {esMiembro && (
-            <>
-              <SeparadorMenu />
-              <ItemMenu peligroso onSelect={() => { setSaliendo(true) }}>
-                Salir del {GLOSARIO.espacio.singular.toLowerCase()}
-              </ItemMenu>
-            </>
-          )}
         </ContenidoMenu>
       </MenuContextual>
+      </span>
 
       {/* La ficha no dice en ninguna otra parte que esta archivada: quien llega por un enlace
           directo se enteraria recien al intentar editar. */}

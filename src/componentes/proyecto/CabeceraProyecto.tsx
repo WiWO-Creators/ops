@@ -105,6 +105,9 @@ interface PropsCabecera {
    * la suya.
    */
   acciones?: React.ReactNode
+
+  /** Quien mira, si lo hay. Solo lo usa el editor de equipo, para reconocer una salida propia. */
+  yoId?: number
 }
 
 /**
@@ -123,7 +126,8 @@ export function CabeceraProyecto ({
   capacidades = [],
   volverA = { href: '/espacios', etiqueta: GLOSARIO.espacio.plural },
   subtitulo,
-  acciones
+  acciones,
+  yoId
 }: PropsCabecera) {
   const puedeEditar = capacidades.includes('edit')
 
@@ -177,7 +181,7 @@ export function CabeceraProyecto ({
         </div>
         <div className="flex min-w-0 max-w-full items-start gap-2">
           <dt className="text-texto-sutil pt-1">Equipo</dt>
-          <dd className="min-w-0"><EquipoProyecto proyectoId={proyecto.id} miembros={proyecto.members} puedeEditar={puedeEditar} /></dd>
+          <dd className="min-w-0"><EquipoProyecto proyectoId={proyecto.id} miembros={proyecto.members} puedeEditar={puedeEditar} yoId={yoId} /></dd>
         </div>
       </dl>
 
