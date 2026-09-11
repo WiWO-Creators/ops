@@ -26,6 +26,7 @@ import { hoyLocal } from '@/lib/fechas'
 import { BloqueSla } from './BloqueSla'
 import { ESTADO_COMPLETO } from './tareas'
 import { CompartirTarea } from './CompartirTarea'
+import { EstadoDeTarea } from './EstadoDeTarea'
 import { Cronometros } from './Cronometros'
 import { EdicionTarea } from './EdicionTarea'
 import { ListaChecklist } from './ListaChecklist'
@@ -149,7 +150,6 @@ export function DetalleTarea (
   }
 
   const { tarea, lookups } = carga
-  const estado = valorDeCatalogo(listaDe(lookups, 'task_statuses'), tarea.status)
   const prioridad = valorDeCatalogo(listaDe(lookups, 'task_priorities'), tarea.priority)
   const enlaces = camposLegibles((tarea.custom_fields ?? []).filter((campo) => campo.type === 'link'))
 
@@ -161,7 +161,7 @@ export function DetalleTarea (
             <span className="text-texto-tenue shrink-0 font-mono text-xs tracking-wide">{tarea.patente || `#${tarea.id}`}</span>
           </div>
           <div className="flex flex-wrap items-center gap-1.5">
-            <Insignia tamano="chico" color={estado.color}>{estado.nombre}</Insignia>
+            <EstadoDeTarea status={tarea.status} catalogo={listaDe(lookups, 'task_statuses')} />
             <Insignia tamano="chico" color={prioridad.color}>{prioridad.nombre}</Insignia>
             {/* Al final de la fila de insignias y no arriba del titulo: compartir es una salida
                 lateral, no lo que la persona vino a hacer al detalle. */}

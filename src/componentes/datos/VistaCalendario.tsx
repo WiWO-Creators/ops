@@ -17,6 +17,7 @@ import { ErrorEstado, Vacio } from '@/componentes/estado/Estados'
 import { GrupoAvatares } from '@/componentes/presentadores/Avatar'
 import { Insignia } from '@/componentes/presentadores/Insignia'
 import { PARAMETRO_TAREA } from '@/componentes/datos/tabla'
+import { EstadoDeTarea } from '@/componentes/proyecto/EstadoDeTarea'
 import { ModalTarea } from '@/componentes/proyecto/ModalTarea'
 import {
   agruparPorVencimiento,
@@ -110,6 +111,13 @@ interface PropsVistaCalendario {
   espacios?: OpcionFiltro[]
   /** Opciones del filtro de persona. Vacio —por defecto— no dibuja el desplegable. */
   personas?: OpcionFiltro[]
+  /**
+   * `task_statuses` de `GET /lookups`: el estado de cada tarea listada.
+   *
+   * Vacio —el valor por defecto— no pinta la insignia en vez de pintar el id crudo: en un calendario
+   * el estado es contexto, y un "#4" repetido en cada tarjeta es peor que no decir nada.
+   */
+  estados?: OpcionFiltro[]
   espacioElegido?: string | null
   asignadoElegido?: string | null
   /**
@@ -141,6 +149,7 @@ export function VistaCalendario ({
   errorAvisos = null,
   espacios = [],
   personas = [],
+  estados = [],
   espacioElegido = null,
   asignadoElegido = null,
   claveVista = 'vista',
@@ -192,7 +201,7 @@ export function VistaCalendario ({
 
   return (
     <section className="flex flex-col gap-4">
-      <AvisoDeVencimientos avisos={avisos} error={errorAvisos} />
+      <AvisoDeVencimientos avisos={avisos} error={errorAvisos} estados={estados} />
 
       <div className="flex flex-wrap items-center gap-2">
         <Boton
@@ -289,6 +298,7 @@ export function VistaCalendario ({
                   vista={vista}
                   tareas={porDia.get(fecha) ?? []}
                   urlDeTarea={(id) => urlDeTarea(params, id)}
+                  estados={estados}
                 />
               ))}
             </div>
@@ -303,7 +313,11 @@ export function VistaCalendario ({
       )}
 
       {sinVencimiento.length > 0 && (
-        <TiraSinVencimiento tareas={sinVencimiento} urlDeTarea={(id) => urlDeTarea(params, id)} />
+        <TiraSinVencimiento
+          tareas={sinVencimiento}
+          urlDeTarea={(id) => urlDeTarea(params, id)}
+          estados={estados}
+        />
       )}
 
       {conModal && (
@@ -336,6 +350,8 @@ interface PropsColumna {
   vista: ModoCalendario
   tareas: Proceso[]
   urlDeTarea: (id: number) => string
+  /** `task_statuses`, para la insignia de cada tarjeta. Vacio no pinta ninguna. */
+  estados: OpcionFiltro[]
 }
 
 /**
@@ -345,7 +361,7 @@ interface PropsColumna {
  * dejaria las otras seis como una tira de un centimetro. `data-lenis-prevent` la saca del scroll
  * suave del armazon; sin eso, Lenis se queda el gesto y la lista no se mueve.
  */
-function ColumnaDia ({ dia, esHoy, vista, tareas, urlDeTarea }: PropsColumna): ReactElement {
+function ColumnaDia ({ dia, esHoy, vista, tareas, urlDeTarea, estados }: PropsColumna): ReactElement {
   return (
     <section
       className={cn(
@@ -383,7 +399,7 @@ function ColumnaDia ({ dia, esHoy, vista, tareas, urlDeTarea }: PropsColumna): R
             )}
           >
             {tareas.map((tarea) => (
-              <TarjetaDelDia key={tarea.id} tarea={tarea} href={urlDeTarea(tarea.id)} />
+              <TarjetaDelDia key={tarea.id} tarea={tarea} href={urlDeTarea(tarea.id)} estados={estados} />
             ))}
           </ul>
           )}
@@ -401,7 +417,9 @@ function ColumnaDia ({ dia, esHoy, vista, tareas, urlDeTarea }: PropsColumna): R
  * "Desde <fecha>" es como se representa el tramo de una tarea que ademas tiene inicio: texto y no
  * barra. Ver el docblock de `VistaCalendario`.
  */
-function TarjetaDelDia ({ tarea, href }: { tarea: Proceso, href: string }): ReactElement {
+function TarjetaDelDia (
+  { tarea, href, estados }: { tarea: Proceso, href: string, estados: OpcionFiltro[] }
+): ReactElement {
   return (
     <li>
       <Link
@@ -416,6 +434,7 @@ function TarjetaDelDia ({ tarea, href }: { tarea: Proceso, href: string }): Reac
         <span className="text-texto text-xs leading-snug font-medium">{tarea.name}</span>
 
         <span className="text-texto-sutil flex flex-wrap items-center gap-x-2 gap-y-1 text-[0.6875rem]">
+          <EstadoDeTarea status={tarea.status} catalogo={estados} />
           {tarea.patente !== null && <span className="tabular-nums">{tarea.patente}</span>}
           {tarea.start_date !== null && (
             <span title={`Empieza el ${formatearFecha(tarea.start_date)}`}>
@@ -438,7 +457,11 @@ function TarjetaDelDia ({ tarea, href }: { tarea: Proceso, href: string }): Reac
  * que EMPIEZAN en el periodo, que es el unico vinculo que tienen con lo que se esta mirando.
  */
 function TiraSinVencimiento (
-  { tareas, urlDeTarea }: { tareas: Proceso[], urlDeTarea: (id: number) => string }
+  { tareas, urlDeTarea, estados }: {
+    tareas: Proceso[]
+    urlDeTarea: (id: number) => string
+    estados: OpcionFiltro[]
+  }
 ): ReactElement {
   return (
     <section className="border-linea rounded-tarjeta border border-dashed p-3">
@@ -457,6 +480,7 @@ function TiraSinVencimiento (
               className="border-linea rounded-chico bg-superficie hover:bg-hover text-texto flex items-center gap-2 border px-2 py-1.5 text-xs transition-colors duration-150"
             >
               {tarea.name}
+              <EstadoDeTarea status={tarea.status} catalogo={estados} />
               {tarea.start_date !== null && (
                 <span className="text-texto-sutil text-[0.6875rem]">Desde {formatearFecha(tarea.start_date)}</span>
               )}
@@ -481,7 +505,12 @@ function TiraSinVencimiento (
  * Un fallo de este endpoint NO tumba el calendario: se avisa en una linea y la grilla sigue.
  */
 function AvisoDeVencimientos (
-  { avisos, error }: { avisos: ProcesoConAviso[], error: string | null }
+  { avisos, error, estados }: {
+    avisos: ProcesoConAviso[]
+    error: string | null
+    /** `task_statuses`, para que la alerta diga tambien en que estado esta lo que vence. */
+    estados: OpcionFiltro[]
+  }
 ): ReactElement | null {
   if (error !== null) {
     return (
@@ -534,6 +563,7 @@ function AvisoDeVencimientos (
             >
               {tarea.name}
             </Link>
+            <EstadoDeTarea status={tarea.status} catalogo={estados} />
             <span className="text-texto-sutil">{formatearFecha(tarea.due_date)}</span>
           </li>
         ))}

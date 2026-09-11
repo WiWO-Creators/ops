@@ -8,6 +8,7 @@ import { Etiquetas } from '@/componentes/presentadores/Etiqueta'
 import { Fecha } from '@/componentes/presentadores/Fecha'
 import type { ProcesoAmpliado } from '@/datos/recursos'
 import type { OpcionFiltro } from '@/definiciones/tipos'
+import { resolverEstado } from '@/dominio/estados-tarea'
 
 /**
  * Tarjeta de una tarea en el tablero.
@@ -15,6 +16,11 @@ import type { OpcionFiltro } from '@/definiciones/tipos'
  * Muestra lo mismo que la tarjeta del panel viejo: el borde superior con el color del estado, el
  * nombre, los asignados, los contadores de checklist, comentarios y adjuntos, el vencimiento y las
  * etiquetas. Los contadores van con su icono y su texto accesible: un "3" suelto no dice de que.
+ *
+ * **Sin insignia de estado, a proposito**: esta tarjeta solo se pinta dentro de un tablero, y la
+ * columna que la contiene ya lleva el nombre del estado en su encabezado. Repetirlo en cada tarjeta
+ * seria decir treinta veces lo que la columna dice una. El color del borde sale del mismo
+ * `resolverEstado` que usan la tabla y `<EstadoDeTarea>`: el dato es uno solo, cambia como se pinta.
  */
 
 interface PropsTarjeta {
@@ -28,7 +34,7 @@ export function TarjetaTarea ({ proceso, estados }: PropsTarjeta): ReactElement 
   const siguientes = new URLSearchParams(params.toString())
   siguientes.set('tarea', String(proceso.id))
 
-  const estado = estados.find((opcion) => opcion.valor === String(proceso.status))
+  const estado = resolverEstado(proceso.status, estados)
 
   return (
     <div className="flex flex-col gap-2">
@@ -36,7 +42,7 @@ export function TarjetaTarea ({ proceso, estados }: PropsTarjeta): ReactElement 
         aria-hidden="true"
         className="rounded-control h-1 w-full"
         // El color del estado lo administra Perfex: es un dato, no un token del sistema.
-        style={{ backgroundColor: estado?.color ?? 'transparent' }}
+        style={{ backgroundColor: estado.color ?? 'transparent' }}
       />
 
       <Link

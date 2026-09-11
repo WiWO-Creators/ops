@@ -13,6 +13,11 @@ import { resolverEstado, type CatalogoDeEstados } from '@/dominio/estados-tarea'
  * El color sale del catalogo de Perfex, nunca de un mapa en el frontend. Un estado que el catalogo
  * no conoce se pinta igual, con su id y sin color: una Tarea sin estado visible es peor que un id.
  *
+ * **Sin catalogo no pinta nada.** No es lo mismo que un id desconocido: si `/lookups` no llego, no
+ * hay con que traducir NINGUN estado, y una lista entera de "#1" y "#4" es ruido que no dice nada.
+ * Un id suelto solo vale cuando el resto de la lista si tiene nombre. Asi la guarda vive una vez
+ * aca y no repetida en cada pantalla que monta el componente.
+ *
  * @param status el `status` de la Tarea, tal como lo devuelve la API
  * @param catalogo `task_statuses` de `GET /lookups`, en cualquiera de sus dos formas
  * @param tamano alto de la insignia; `chico` en listas y tarjetas, `medio` en una ficha
@@ -27,7 +32,9 @@ export function EstadoDeTarea ({
   catalogo: CatalogoDeEstados | undefined
   tamano?: 'chico' | 'medio'
   className?: string
-}): ReactElement {
+}): ReactElement | null {
+  if (catalogo === undefined || catalogo.length === 0) return null
+
   const estado = resolverEstado(status, catalogo)
 
   return (

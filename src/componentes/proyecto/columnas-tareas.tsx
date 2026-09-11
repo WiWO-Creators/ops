@@ -44,7 +44,7 @@ interface PropsEstado {
  * componente que usan la ficha y las tarjetas, y el color del borde del selector sale del mismo
  * `resolverEstado`: el estado se lee igual se pueda editar o no.
  */
-function EstadoEditable ({ proceso, estados, editable, onCambiado }: PropsEstado): ReactElement {
+function EstadoEditable ({ proceso, estados, editable, onCambiado }: PropsEstado): ReactElement | null {
   const [enCurso, setEnCurso] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
