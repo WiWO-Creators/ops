@@ -476,6 +476,32 @@
     animation: brillo-marca 8s linear infinite;
   }
 
+  /*
+   * El titulo de un modulo: el gradiente ACCESIBLE (`--gradiente-texto`), no el de marca.
+   *
+   * `.texto-gradiente-marca` existe para seis caracteres de un saludo y recorta el verde puro, que
+   * sobre blanco da 1.5:1. Un `h1` de pantalla es lo primero que alguien lee para saber donde esta:
+   * va con el gradiente cuyas dos paradas cumplen AA por si solas.
+   *
+   * El brillo es el mismo `brillo-marca` del saludo y por la misma razon tecnica: con el relleno
+   * recortado sobre el texto, `transform` moveria la letra en vez del color, asi que la unica via es
+   * `background-position`. El area repintada es la caja del titulo —dos o tres palabras— y nada mas.
+   *
+   * Quien pidio menos movimiento lo recibe en 0.01ms: lo resuelve el bloque `prefers-reduced-motion`
+   * de `neo.css`, que ya cubre `animation-duration` sobre `*`.
+   */
+  .texto-gradiente-animado {
+    background-image: var(--gradiente-texto);
+    background-size: 200% auto;
+    /* La posicion inicial se declara para que el fotograma final tenga contra que interpolar en los
+     * DOS ejes; si no, el gradiente cae mientras corre en vez de solo correr. */
+    background-position: 0 0;
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    animation: brillo-marca 8s linear infinite;
+  }
+
   @keyframes brillo-marca {
     to { background-position: 200% 0; }
   }
