@@ -1,5 +1,6 @@
 import { ColaCorreoAlCliente } from '@/componentes/administracion/ColaCorreoAlCliente'
 import { ConfiguracionCorreo } from '@/componentes/administracion/ConfiguracionCorreo'
+import { FormularioDeAjustes } from '@/componentes/administracion/FormularioDeAjustes'
 import { ModoCorreoAlCliente } from '@/componentes/administracion/ModoCorreoAlCliente'
 import { VisorColaCorreo } from '@/componentes/administracion/VisorColaCorreo'
 import { VistaColaCorreo } from '@/componentes/administracion/VistaColaCorreo'
@@ -7,6 +8,9 @@ import { ErrorEstado, SinPermiso } from '@/componentes/estado/Estados'
 import { leerAjustes } from '@/datos/ajustes'
 import { ErrorApi } from '@/datos/errores'
 import { pedir } from '@/datos/servidor'
+import {
+  clavesDeAvisosDeLicitacion, GRUPO_AVISOS_LICITACION
+} from '@/dominio/alertas-licitacion'
 import { esResumenColaCliente } from '@/dominio/correo-cliente'
 import { nombrar } from '@/dominio/glosario'
 import type {
@@ -115,6 +119,19 @@ export async function PanelAvisosPorCorreo () {
       </p>
 
       <ConfiguracionCorreo inicial={detalle.configuracion} />
+
+      {/*
+        El interruptor de los avisos de plazo de Licitaciones. Va debajo del de efectos externos
+        porque depende de el: con el correo en «apagado» esto no manda nada aunque este encendido.
+        Nace apagado —`FormularioDeAjustes` marca la casilla solo con `value === true`, y la clave
+        ausente vale `null`—, que es como se mergea en esta casa todo lo que sale por correo.
+      */}
+      <FormularioDeAjustes
+        inicial={detalle.ajustes}
+        grupo={GRUPO_AVISOS_LICITACION}
+        claves={clavesDeAvisosDeLicitacion(detalle.ajustes)}
+        dominios={{}}
+      />
 
       <div>
         <h2 className="text-texto mb-3 text-base font-semibold">Cola de correo</h2>

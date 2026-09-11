@@ -1,4 +1,5 @@
-import { nombrar } from './glosario.ts'
+import { AJUSTE_AVISOS_LICITACION, GRUPO_AVISOS_LICITACION } from './alertas-licitacion.ts'
+import { GLOSARIO, nombrar } from './glosario.ts'
 import type { AjusteEditable, Ajustes, Lookups } from '../datos/recursos.ts'
 
 /**
@@ -76,6 +77,13 @@ export const GRUPOS_DE_AJUSTES: Record<string, { titulo: string, ayuda: string }
   correo: {
     titulo: 'Correo',
     ayuda: 'Los motores de correo y su modo de operación.'
+  },
+  // No es un grupo de `GET /settings`: es el titulo de la caja que dibuja el interruptor de avisos
+  // de Licitaciones dentro de la pestaña «Avisos por correo». `FormularioDeAjustes` usa el grupo
+  // solo para el encabezado; las claves que pinta se le pasan por separado.
+  [GRUPO_AVISOS_LICITACION]: {
+    titulo: `Avisos de ${GLOSARIO.licitacion.plural}`,
+    ayuda: `Si el aviso de plazo de una ${GLOSARIO.licitacion.singular.toLowerCase()} —su vencimiento o una ${GLOSARIO.hito.singular}— además sale por correo. La banda de la pantalla se muestra igual: esto gobierna solo lo que sale de Ops.`
   }
 }
 
@@ -186,6 +194,10 @@ export const ETIQUETAS_DE_AJUSTES: Record<string, { etiqueta: string, ayuda?: st
   wiwo_recordatorio_tareas_envio: {
     etiqueta: 'Recordar a las 15:00 a quien no registró tareas',
     ayuda: 'Un correo y un aviso en la campana, de lunes a viernes, a quien tiene la jornada abierta y todavía no registró tiempo en ninguna tarea. Apagado de fábrica.'
+  },
+  [AJUSTE_AVISOS_LICITACION]: {
+    etiqueta: `Avisar por correo los plazos de ${GLOSARIO.licitacion.plural.toLowerCase()}`,
+    ayuda: `El aviso se escribe igual en la campana y la banda de la pantalla se muestra igual; esto decide si además sale por correo a quien sigue la ${GLOSARIO.licitacion.singular.toLowerCase()}. Apagado de fábrica, como todo efecto externo.`
   }
 }
 
