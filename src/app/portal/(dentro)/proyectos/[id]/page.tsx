@@ -4,9 +4,13 @@ import { Pestanas, type Panel } from '@/componentes/proyecto/Pestanas'
 import { ErrorApi } from '@/datos/errores'
 import type { EspacioPortal, TareaPortal } from '@/datos/portal'
 import { pestaniasDelProyecto } from '@/definiciones/portal-proyectos'
+import Link from 'next/link'
 import { BarraProgreso } from '@/componentes/proyecto/CabeceraProyecto'
-import { formatearFecha } from '@/lib/fechas'
-import { cargarDetalle, EstadoDeError, EstadoDelPortal, Volver } from '../../detalle'
+import { aTextoPlano } from '@/componentes/proyecto/formatos'
+import { Fecha } from '@/componentes/presentadores/Fecha'
+import { GrupoAvatares } from '@/componentes/presentadores/Avatar'
+import { GLOSARIO } from '@/dominio/glosario'
+import { cargarDetalle, EstadoDeError, EstadoDelPortal } from '../../detalle'
 import { AprobacionesPendientes } from './AprobacionesPendientes'
 import {
   PanelArchivos,
@@ -47,6 +51,9 @@ export default async function ProyectoPagina (props: PageProps<'/portal/proyecto
   }
 
   const proyecto = sobre.data
+  // La API devuelve la descripcion como HTML del panel viejo: sin despojarla, el cliente lee los
+  // `<p>` en pantalla. Es el mismo tratamiento que le da el panel a la descripcion de una tarea.
+  const descripcion = aTextoPlano(proyecto.description ?? '')
   // Las pestañas salen de lo que dijo la API, nunca de una lista fija: cada proyecto comparte cosas
   // distintas, y adivinar significaria dibujar pestañas que responden 403 al abrirlas.
   const pestanias = pestaniasDelProyecto(proyecto.tabs ?? [])
@@ -60,27 +67,54 @@ export default async function ProyectoPagina (props: PageProps<'/portal/proyecto
 
   return (
     <div className="flex flex-col gap-4">
-      <Volver href="/portal/proyectos">Proyectos</Volver>
+      {/* La cabecera es la misma tarjeta que ve un colaborador en el panel: mismo envoltorio, mismo
+          orden y los mismos presentadores —`Fecha`, `GrupoAvatares`, `BarraProgreso` y la pildora de
+          estado—. Lo que falta respecto del panel es lo que el portal no recibe o no deja tocar:
+          imagen, etiquetas, patente y las acciones sobre el proyecto. No es una diferencia de
+          estilo. */}
+      <header className="border-linea bg-superficie-elevada rounded-tarjeta shadow-1 flex flex-col gap-4 border p-5">
+        <Link
+          href="/portal/proyectos"
+          className="text-texto-tenue hover:text-texto w-fit text-xs font-medium transition-colors"
+        >
+          ← {GLOSARIO.espacio.plural}
+        </Link>
 
-      <header className="flex flex-col gap-3">
-        <div className="flex flex-wrap items-center gap-3">
-          <h1 className="text-texto text-xl font-semibold">{proyecto.name}</h1>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <h1 className="text-texto text-titulo min-w-0 font-semibold">{proyecto.name}</h1>
           <EstadoDelPortal catalogo="project_statuses" valor={proyecto.status} />
         </div>
 
-        <div className="flex flex-wrap items-center gap-4">
-          <BarraProgreso porcentaje={proyecto.progress} className="max-w-xs" />
-          <span className="text-texto-tenue text-sm tabular-nums">{proyecto.progress}%</span>
-          {proyecto.deadline !== null && (
-            <span className="text-texto-tenue text-sm">Entrega: {formatearFecha(proyecto.deadline)}</span>
+        <dl className="flex flex-wrap items-start gap-x-6 gap-y-2 text-sm">
+          <div className="flex items-center gap-2">
+            <dt className="text-texto-sutil">Inicio</dt>
+            <dd className="text-texto"><Fecha valor={proyecto.start_date} /></dd>
+          </div>
+          <div className="flex items-center gap-2">
+            <dt className="text-texto-sutil">Entrega</dt>
+            <dd><Fecha valor={proyecto.deadline} comoVencimiento /></dd>
+          </div>
+          {/* El equipo solo llega con `view_team_members`; sin el permiso la fila no se dibuja. */}
+          {proyecto.members !== undefined && (
+            <div className="flex min-w-0 max-w-full items-center gap-2">
+              <dt className="text-texto-sutil">Equipo</dt>
+              <dd className="min-w-0"><GrupoAvatares personas={proyecto.members} maximo={5} /></dd>
+            </div>
           )}
-        </div>
+        </dl>
 
         {/* La descripcion vive en el encabezado y no en el panel Resumen: un proyecto que no comparte
             la pestaña de resumen igual tiene derecho a contar de que se trata. */}
-        {proyecto.description !== null && proyecto.description !== '' && (
-          <p className="text-texto-tenue max-w-prose text-sm whitespace-pre-line">{proyecto.description}</p>
+        {descripcion !== '' && (
+          <p className="text-texto-tenue max-w-prose text-sm whitespace-pre-line">{descripcion}</p>
         )}
+
+        <div className="flex items-center gap-3">
+          <BarraProgreso porcentaje={proyecto.progress} className="min-w-0 flex-1" />
+          <span data-numerico className="text-texto text-sm font-semibold">
+            {Math.round(proyecto.progress)}%
+          </span>
+        </div>
       </header>
 
       {pendientes.length > 0 && (

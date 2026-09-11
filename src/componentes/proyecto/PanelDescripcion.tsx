@@ -12,7 +12,7 @@ import { BarraProgreso } from './CabeceraProyecto'
 import { Metrica, formatearNumero } from './ResumenProyecto'
 import { GraficoHoras } from './GraficoHoras'
 import { useRecurso } from './carga'
-import { formatearImporte, segundosAHoraMinuto } from './formatos'
+import { aTextoPlano, formatearImporte, segundosAHoraMinuto } from './formatos'
 import { textoDeDias } from './overview'
 import type { CampoPersonalizado, Espacio, ResumenEspacio } from '@/datos/recursos'
 
@@ -103,6 +103,10 @@ function FichaProyecto ({
   tipoFacturacion,
   puedeVerMontos
 }: PropsPanelDescripcion): ReactElement {
+  // El panel viejo guarda la descripcion como HTML. Sin despojarla se leen los `<p>` en pantalla,
+  // igual que pasaba con la descripcion de una tarea antes de `aTextoPlano`.
+  const descripcion = aTextoPlano(proyecto.description ?? '')
+
   return (
     <section className="border-linea bg-superficie-elevada rounded-tarjeta shadow-1 flex flex-col gap-3 border p-5">
       <h2 className="text-texto text-sm font-semibold">Resumen del {GLOSARIO.espacio.singular.toLowerCase()}</h2>
@@ -159,7 +163,7 @@ function FichaProyecto ({
       <div className="flex flex-col gap-1">
         <h3 className="text-texto-sutil text-xs">Descripción</h3>
         <p className="text-texto text-sm whitespace-pre-line">
-          {proyecto.description ?? 'Sin descripción'}
+          {descripcion === '' ? 'Sin descripción' : descripcion}
         </p>
       </div>
     </section>
