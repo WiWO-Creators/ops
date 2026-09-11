@@ -18,6 +18,7 @@ import {
   moverColumna,
   ordenarGrupos,
   posicionAlSoltar,
+  sacarTarjeta,
   type ColumnaTablero,
   type CuerpoMover,
   type FilaConId,
@@ -61,6 +62,17 @@ interface PropsTablero<T extends FilaConId> {
   accionDeColumna?: (columna: ColumnaTablero, recargar: () => Promise<void>) => ReactNode
   /** Ruta que habilita guardar el orden de columnas con id positivo. */
   rutaOrdenColumnas?: string
+  /**
+   * Todos los destinos a los que se puede mover una tarjeta, tenga columna o no.
+   *
+   * El menu "Mover a…" ofrecia solo las columnas del tablero, y el tablero de Procesos no pinta
+   * "Completado" —muestra el trabajo abierto—: no habia forma de completar una tarea desde el
+   * kanban. Con esto el menu ofrece el catalogo entero y la tarjeta desaparece al mandarla a un
+   * estado sin columna, que es lo que se espera al completarla.
+   *
+   * Sin el prop el menu se comporta como antes: solo las columnas cargadas.
+   */
+  destinos?: ColumnaTablero[]
 }
 
 /**
@@ -78,7 +90,8 @@ export function Tablero<T extends FilaConId> ({
   adaptarCuerpo = (cuerpo) => cuerpo,
   ordenarColumnas = ordenarGrupos,
   accionDeColumna,
-  rutaOrdenColumnas
+  rutaOrdenColumnas,
+  destinos
 }: PropsTablero<T>) {
   const tablero = definicion.tablero
   const [grupos, setGrupos] = useState(() => ordenarColumnas(inicial))
@@ -117,6 +130,18 @@ export function Tablero<T extends FilaConId> ({
     return <Vacio titulo={`${definicion.titulo.plural} no tiene vista de tablero`} />
   }
 
+  // Las columnas del tablero primero —en su orden— y después los destinos que no tienen columna,
+  // que van al final por lo mismo que "Completado" no es una columna: no son parte del flujo que el
+  // tablero pinta. `cuantas` es la posición donde cae la tarjeta; para un destino sin columna la
+  // decide `sacarTarjeta()` y el valor no se usa.
+  const idsEnPantalla = new Set(grupos.map((grupo) => grupo.columna.id))
+  const destinosDelMenu = [
+    ...grupos.map((grupo) => ({ columna: grupo.columna, cuantas: grupo.tarjetas.length })),
+    ...(destinos ?? [])
+      .filter((columna) => !idsEnPantalla.has(columna.id))
+      .map((columna) => ({ columna, cuantas: 0 }))
+  ]
+
   /**
    * Mueve una tarjeta en pantalla y confirma con la API.
    *
@@ -127,7 +152,12 @@ export function Tablero<T extends FilaConId> ({
     if (tablero === undefined || ocupado || guardandoOrden.current) return
 
     const previo = grupos
-    const movimiento = moverTarjeta(previo, idTarjeta, idColumna, posicion)
+    // Un destino sin columna en pantalla —"Completado" en el tablero de Procesos— se saca del
+    // tablero en vez de reubicarse: no hay dónde ponerlo, y la tarjeta tiene que irse igual.
+    const enPantalla = previo.some((grupo) => grupo.columna.id === idColumna)
+    const movimiento = enPantalla
+      ? moverTarjeta(previo, idTarjeta, idColumna, posicion)
+      : sacarTarjeta(previo, idTarjeta, idColumna)
     if (movimiento === null) return
 
     setGrupos(movimiento.grupos)
@@ -385,12 +415,12 @@ export function Tablero<T extends FilaConId> ({
                     </Boton>
                   </DisparadorMenu>
                   <ContenidoMenu align="start">
-                    {grupos.map((destino) => (
+                    {destinosDelMenu.map((destino) => (
                       <ItemMenu
                         key={destino.columna.id}
                         disabled={destino.columna.id === grupo.columna.id}
                         onSelect={() => {
-                          void mover(tarjeta.id, destino.columna.id, destino.tarjetas.length)
+                          void mover(tarjeta.id, destino.columna.id, destino.cuantas)
                         }}
                       >
                         {destino.columna.name}
