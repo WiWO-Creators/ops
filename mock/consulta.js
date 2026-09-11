@@ -197,12 +197,8 @@ export function aplicarConsulta (filas, parametros, definicion) {
   let resultado = filas
 
   for (const [clave, valor] of Object.entries(leerFiltros(parametros))) {
-    const predicado = permitidos[clave]
-    if (!predicado) {
-      throw new ErrorApi(422, 'validation_failed', `Filtro desconocido: "${clave}".`, {
-        [`filter[${clave}]`]: ['unknown']
-      })
-    }
+    const predicado = predicadoDeFiltro(permitidos, clave, valor)
+
     resultado = resultado.filter((fila) => predicado(fila, valor))
   }
 
@@ -259,4 +255,121 @@ export function coincideEnLista (extraer) {
     const propios = Array.isArray(propio) ? propio : [propio]
     return propios.some((p) => buscados.includes(String(p)))
   }
+}
+
+/**
+ * Operadores que la API acepta como sufijo de la clave: `filter[name__contains]`.
+ *
+ * Los cinco de comparacion no valen sobre texto y `contains` solo vale sobre texto, igual que en
+ * `Nucleo/Consulta.php`: el mock rechaza lo mismo que produccion o el frontend aprende a mandar algo
+ * que despues falla.
+ */
+const OPERADORES = ['eq', 'ne', 'gt', 'gte', 'lt', 'lte', 'contains', 'empty', 'not_empty']
+
+/**
+ * Declara un campo filtrable con operadores.
+ *
+ * @param {(fila: object) => unknown} leer De donde sale el valor de la fila. Puede devolver una lista.
+ * @param {'texto'|'numero'|'fecha'} [tipo] Que comparaciones admite.
+ * @returns {{leer: (fila: object) => unknown, tipo: string}} La declaracion, para la whitelist.
+ */
+export function campoFiltrable (leer, tipo = 'texto') {
+  return { leer, tipo }
+}
+
+/**
+ * Resuelve el predicado de una clave de filtro, con o sin operador.
+ *
+ * @param {Record<string, unknown>} permitidos Whitelist del recurso.
+ * @param {string} clave Clave tal como llego, quizas con `__operador`.
+ * @param {string} valor Valor recibido.
+ * @returns {(fila: object, valor: string) => boolean}
+ * @throws {ErrorApi} 422 si el campo, el operador o el valor no corresponden.
+ */
+function predicadoDeFiltro (permitidos, clave, valor) {
+  const directo = permitidos[clave]
+  if (typeof directo === 'function') return directo
+
+  const corte = clave.lastIndexOf('__')
+  const campo = corte === -1 ? clave : clave.slice(0, corte)
+  const operador = corte === -1 ? 'eq' : clave.slice(corte + 2)
+  const declarado = permitidos[campo]
+
+  if (declarado === undefined || (corte !== -1 && !OPERADORES.includes(operador))) {
+    throw new ErrorApi(422, 'validation_failed', `Filtro desconocido: "${clave}".`, {
+      [`filter[${clave}]`]: ['unknown']
+    })
+  }
+
+  if (typeof declarado === 'function') {
+    if (operador !== 'eq') {
+      throw new ErrorApi(422, 'validation_failed', 'Valor u operador incompatible con el campo.', {
+        [`filter[${clave}]`]: ['invalid']
+      })
+    }
+
+    return declarado
+  }
+
+  const { leer, tipo } = declarado
+  const esTexto = tipo === 'texto'
+
+  if ((esTexto && ['gt', 'gte', 'lt', 'lte'].includes(operador)) || (operador === 'contains' && !esTexto)) {
+    throw new ErrorApi(422, 'validation_failed', 'Valor u operador incompatible con el campo.', {
+      [`filter[${clave}]`]: ['invalid']
+    })
+  }
+
+  return (fila) => cumple(leer(fila), operador, valor, esTexto)
+}
+
+/**
+ * Compara el valor de una fila con el del filtro.
+ *
+ * Una lista en la fila —los asignados, las etiquetas— coincide si lo hace alguno de sus elementos,
+ * que es lo que hace el `EXISTS` del backend.
+ *
+ * @param {unknown} propio Valor de la fila.
+ * @param {string} operador Uno de `OPERADORES`.
+ * @param {string} valor Valor del filtro.
+ * @param {boolean} esTexto Si la comparacion es de texto.
+ * @returns {boolean}
+ */
+function cumple (propio, operador, valor, esTexto) {
+  const propios = Array.isArray(propio) ? propio : [propio]
+  const vacio = propios.length === 0 || propios.every((v) => v === null || v === undefined || v === '')
+
+  if (operador === 'empty') return vacio
+  if (operador === 'not_empty') return !vacio
+  if (vacio) return operador === 'ne'
+
+  // La coma es una lista solo donde el backend la acepta: sobre texto es parte del valor.
+  const buscados = esTexto ? [valor] : valor.split(',').map((v) => v.trim()).filter(Boolean)
+  const coincide = propios.some((uno) => buscados.some((buscado) => comparaUno(uno, operador, buscado)))
+
+  return operador === 'ne' ? !coincide : coincide
+}
+
+/**
+ * Una comparacion suelta entre el valor de la fila y uno del filtro.
+ *
+ * @param {unknown} propio
+ * @param {string} operador
+ * @param {string} buscado
+ * @returns {boolean}
+ */
+function comparaUno (propio, operador, buscado) {
+  const texto = String(propio)
+
+  if (operador === 'contains') return texto.toLowerCase().includes(buscado.toLowerCase())
+  if (operador === 'eq' || operador === 'ne') return texto === buscado
+
+  const izquierda = Number.isNaN(Number(propio)) ? texto : Number(propio)
+  const derecha = Number.isNaN(Number(buscado)) ? buscado : Number(buscado)
+
+  if (operador === 'gt') return izquierda > derecha
+  if (operador === 'gte') return izquierda >= derecha
+  if (operador === 'lt') return izquierda < derecha
+
+  return izquierda <= derecha
 }

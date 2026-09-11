@@ -25,7 +25,13 @@ export const DISCUSIONES: DefinicionRecurso<Discusion> = {
     { clave: 'staff', encabezado: 'Publicado por', presentar: (d) => d.staff?.full_name ?? d.contact?.full_name ?? '' }
   ],
 
-  filtros: [],
+  filtros: [
+    { clave: 'subject', etiqueta: 'Asunto', tipo: 'campo', tipoDato: 'texto' },
+    { clave: 'last_activity', etiqueta: 'Última actividad', tipo: 'campo', tipoDato: 'fecha' },
+    { clave: 'comments', etiqueta: 'Comentarios', tipo: 'campo', tipoDato: 'numero' },
+    { clave: 'show_to_customer', etiqueta: 'Visible al cliente', tipo: 'campo', tipoDato: 'booleano' },
+    { clave: 'staff', etiqueta: 'Publicado por', tipo: 'campo', tipoDato: 'texto' },
+  ],
   ordenables: ['subject', 'last_activity', 'date_created'],
   ordenPorDefecto: '-last_activity',
   busqueda: true,
@@ -48,7 +54,11 @@ export const NOTAS: DefinicionRecurso<NotaEspacio> = {
     { clave: 'date_added', encabezado: 'Fecha añadida', ordenPor: 'date_added', presentar: (n) => formatearFecha(n.date_added) }
   ],
 
-  filtros: [],
+  filtros: [
+    { clave: 'title', etiqueta: 'Título', tipo: 'campo', tipoDato: 'texto' },
+    { clave: 'content', etiqueta: 'Contenido', tipo: 'campo', tipoDato: 'texto' },
+    { clave: 'date_added', etiqueta: 'Creado', tipo: 'campo', tipoDato: 'fecha' },
+  ],
   ordenables: ['title', 'date_added'],
   ordenPorDefecto: '-date_added',
   busqueda: false,
@@ -73,7 +83,13 @@ export const ACTIVIDAD: DefinicionRecurso<ActividadEspacio> = {
     { clave: 'visible_to_customer', encabezado: 'Visible para el cliente', presentar: (a) => (a.visible_to_customer ? 'Sí' : 'No') }
   ],
 
-  filtros: [],
+  filtros: [
+    { clave: 'date_added', etiqueta: 'Fecha', tipo: 'campo', tipoDato: 'fecha' },
+    { clave: 'staff', etiqueta: 'Persona', tipo: 'campo', tipoDato: 'texto' },
+    { clave: 'description', etiqueta: 'Descripción', tipo: 'campo', tipoDato: 'texto' },
+    { clave: 'additional_data', etiqueta: 'Detalle', tipo: 'campo', tipoDato: 'texto' },
+    { clave: 'visible_to_customer', etiqueta: 'Visible al cliente', tipo: 'campo', tipoDato: 'booleano' },
+  ],
   ordenables: ['date_added'],
   ordenPorDefecto: '-date_added',
   busqueda: false,

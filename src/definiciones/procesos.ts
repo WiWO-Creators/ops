@@ -92,10 +92,29 @@ export const PROCESOS: DefinicionRecurso<Proceso> = {
     }
   ],
 
+  /**
+   * Todos los campos de la Tarea que responden una pregunta sobre ella.
+   *
+   * Quedan afuera a proposito los textos largos —la descripcion— y lo que es orden interno y no un
+   * dato: `kanban_order`, `milestone_order`, el detalle de la recurrencia. Filtrar por descripcion es
+   * lo que hace la busqueda `?q=`, y ofrecerla ademas como filtro invita a escribir media frase
+   * exacta para no encontrar nada.
+   *
+   * El orden es el de la barra "Agregar filtro": primero por lo que se pregunta todos los dias
+   * —quien, en que Espacio, en que estado—, despues las fechas, los si/no y al final los contadores.
+   *
+   * Que un filtro sea `seleccion` o `multiple` NO es una eleccion de diseño: el backend traduce la
+   * lista separada por comas a `IN (...)` solo cuando la columna tiene tipo numerico o es una
+   * expresion sin tipo declarado. Sobre texto —Etiquetas, Seguidor, Tipo— una lista es un error 422,
+   * asi que esos van de a uno.
+   */
   filtros: [
     { clave: 'status', etiqueta: 'Estado', tipo: 'multiple', desdeLookup: 'task_statuses' },
-    { clave: 'priority', etiqueta: 'Prioridad', tipo: 'seleccion', desdeLookup: 'task_priorities' },
-    { clave: 'clientid', etiqueta: GLOSARIO.cliente.singular, tipo: 'seleccion', desdeLookup: 'clients' },
+    { clave: 'priority', etiqueta: 'Prioridad', tipo: 'multiple', desdeLookup: 'task_priorities' },
+    // `assignee` es el id de la persona y acepta varios; `assignees` (mas abajo) es el nombre y sirve
+    // para buscar por pedazo. Son dos preguntas distintas: "de estas tres personas" y "alguien que
+    // se llame asi".
+    { clave: 'assignee', etiqueta: 'Asignado', tipo: 'multiple', desdeLookup: 'staff' },
     // Los dos catalogos los arma la pantalla, no `/lookups`: los Espacios salen de `GET /projects` y
     // los Hitos de `GET /projects/{id}/milestones`, que exige saber de que Espacio se habla. El
     // `dependeDe` del Hito es lo que hace que, sin Espacio elegido, `ControlesTabla` lo dibuje
@@ -108,8 +127,14 @@ export const PROCESOS: DefinicionRecurso<Proceso> = {
     // quedan dos "Área" indistinguibles en la barra.
     { clave: 'area', etiqueta: 'Área de la compañía', tipo: 'seleccion', desdeLookup: 'task_areas' },
     { clave: 'area_asignado', etiqueta: 'Área del asignado', tipo: 'seleccion', desdeLookup: 'areas' },
-    { clave: 'billable', etiqueta: 'Facturable', tipo: 'booleano' },
-    { clave: 'vence', etiqueta: 'Vence', tipo: 'rangoFechas', clavesRango: ['date_from', 'date_to'] },
+    { clave: 'clientid', etiqueta: GLOSARIO.cliente.singular, tipo: 'seleccion', desdeLookup: 'clients' },
+    // Por nombre y no por id: el catalogo trae un tipo por Espacio, asi que "Bug" son cientos de
+    // filas con id distinto y elegir una sola dejaria fuera a las tareas de los demas Espacios.
+    { clave: 'task_type_name', etiqueta: 'Tipo', tipo: 'seleccion', desdeLookup: 'task_types', valorPorNombre: true },
+    { clave: 'tags', etiqueta: 'Etiqueta', tipo: 'seleccion', desdeLookup: 'tags', valorPorNombre: true },
+    // El backend compara el nombre completo de quien sigue la tarea, no su id.
+    { clave: 'followers', etiqueta: 'Seguidor', tipo: 'seleccion', desdeLookup: 'staff', valorPorNombre: true },
+    { clave: 'added_from', etiqueta: 'Creado por', tipo: 'multiple', desdeLookup: 'staff' },
     {
       clave: 'estado_sla',
       etiqueta: 'SLA',
@@ -123,7 +148,7 @@ export const PROCESOS: DefinicionRecurso<Proceso> = {
     {
       clave: 'aprobacion',
       etiqueta: 'Aprobación',
-      tipo: 'seleccion',
+      tipo: 'multiple',
       // `no_requiere` es un valor sintetico del backend: cubre los Procesos sin fila de aprobacion y
       // los que la tienen apagada. Un filtro contra `null` no coincidiria con ninguno.
       opciones: [
@@ -132,7 +157,39 @@ export const PROCESOS: DefinicionRecurso<Proceso> = {
         { valor: 'aprobada', etiqueta: 'Aprobada' },
         { valor: 'rechazada', etiqueta: 'Rechazada' }
       ]
-    }
+    },
+
+    // Los dos rangos son la misma pregunta sobre dos fechas distintas —que vence en la semana, que
+    // arranca en la semana—, y se combinan con AND como cualquier otro par.
+    { clave: 'vence', etiqueta: 'Vence entre', tipo: 'rangoFechas', clavesRango: ['date_from', 'date_to'] },
+    { clave: 'inicio', etiqueta: 'Empieza entre', tipo: 'rangoFechas', clavesRango: ['start_from', 'start_to'] },
+    { clave: 'due_date', etiqueta: 'Vencimiento', tipo: 'campo', tipoDato: 'fecha' },
+    { clave: 'start_date', etiqueta: 'Inicio', tipo: 'campo', tipoDato: 'fecha' },
+    { clave: 'eta', etiqueta: 'ETA', tipo: 'campo', tipoDato: 'fecha' },
+    { clave: 'date_added', etiqueta: 'Creado', tipo: 'campo', tipoDato: 'fecha' },
+    { clave: 'date_finished', etiqueta: 'Finalizado', tipo: 'campo', tipoDato: 'fecha' },
+
+    // `completed` no es una columna: el backend lo calcula del estado (5 = completada). Es la
+    // pregunta que mas se hace sobre una tarea y no se contestaba desde aca.
+    { clave: 'completed', etiqueta: 'Completado', tipo: 'booleano' },
+    { clave: 'billable', etiqueta: 'Facturable', tipo: 'booleano' },
+    { clave: 'billed', etiqueta: 'Facturado', tipo: 'booleano' },
+    { clave: 'recurring', etiqueta: 'Recurrente', tipo: 'booleano' },
+    { clave: 'is_public', etiqueta: 'Público', tipo: 'booleano' },
+    { clave: 'visible_to_client', etiqueta: 'Visible al cliente', tipo: 'booleano' },
+
+    { clave: 'name', etiqueta: 'Nombre', tipo: 'campo', tipoDato: 'texto' },
+    { clave: 'patente', etiqueta: 'ID', tipo: 'campo', tipoDato: 'texto' },
+    { clave: 'id', etiqueta: 'ID interno', tipo: 'campo', tipoDato: 'numero' },
+    { clave: 'assignees', etiqueta: 'Asignado (nombre)', tipo: 'campo', tipoDato: 'texto' },
+    { clave: 'desviacion', etiqueta: 'Desviación', tipo: 'campo', tipoDato: 'numero' },
+    { clave: 'estimated_hours', etiqueta: 'Horas estimadas', tipo: 'campo', tipoDato: 'numero' },
+    { clave: 'hourly_rate', etiqueta: 'Tarifa por hora', tipo: 'campo', tipoDato: 'numero' },
+    { clave: 'iterations', etiqueta: 'Iteraciones', tipo: 'campo', tipoDato: 'numero' },
+    { clave: 'comments', etiqueta: 'Comentarios', tipo: 'campo', tipoDato: 'numero' },
+    { clave: 'checklist', etiqueta: 'Elementos de checklist', tipo: 'campo', tipoDato: 'numero' },
+    { clave: 'checklist_done', etiqueta: 'Checklist completado', tipo: 'campo', tipoDato: 'numero' },
+    { clave: 'attachments', etiqueta: 'Adjuntos', tipo: 'campo', tipoDato: 'numero' }
   ],
 
   // `eta` y `desviacion` van aca ademas de en su columna: sin declararlos, `construirConsulta` poda

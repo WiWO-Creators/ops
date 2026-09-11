@@ -28,6 +28,11 @@ export const CLIENTES: DefinicionRecurso<Cliente> = {
   ],
 
   filtros: [
+    { clave: 'company', etiqueta: 'Empresa', tipo: 'campo', tipoDato: 'texto' },
+    { clave: 'vat', etiqueta: 'RUT', tipo: 'campo', tipoDato: 'texto' },
+    { clave: 'phonenumber', etiqueta: 'Teléfono', tipo: 'campo', tipoDato: 'texto' },
+    { clave: 'city', etiqueta: 'Ciudad', tipo: 'campo', tipoDato: 'texto' },
+    { clave: 'datecreated', etiqueta: 'Creado', tipo: 'campo', tipoDato: 'fecha' },
     { clave: 'active', etiqueta: 'Activo', tipo: 'booleano' },
     { clave: 'country_id', etiqueta: 'País', tipo: 'seleccion' },
     // "Mis clientes" son las cuentas donde una es focal, y el reposo es la cartera entera. Va como
@@ -78,7 +83,12 @@ export const NOTAS_CLIENTE: DefinicionRecurso<NotaCliente> = {
     }
   ],
 
-  filtros: [],
+  filtros: [
+    { clave: 'description', etiqueta: 'Nota', tipo: 'campo', tipoDato: 'texto' },
+    { clave: 'staff', etiqueta: 'Autor', tipo: 'campo', tipoDato: 'texto' },
+    { clave: 'date_contacted', etiqueta: 'Fecha contacto', tipo: 'campo', tipoDato: 'fecha' },
+    { clave: 'date_added', etiqueta: 'Creado', tipo: 'campo', tipoDato: 'fecha' },
+  ],
   ordenables: ['date_added', 'date_contacted'],
   ordenPorDefecto: '-date_added',
   busqueda: true,

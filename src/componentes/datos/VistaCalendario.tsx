@@ -7,12 +7,6 @@ import { AlertTriangle, ChevronLeft, ChevronRight } from 'lucide-react'
 import { Boton } from '@/componentes/formularios/Boton'
 import { Entrada } from '@/componentes/formularios/Entrada'
 import { Segmentado } from '@/componentes/formularios/Segmentado'
-import {
-  ContenidoSelector,
-  DisparadorSelector,
-  Opcion,
-  Selector
-} from '@/componentes/formularios/Selector'
 import { ErrorEstado, Vacio } from '@/componentes/estado/Estados'
 import { GrupoAvatares } from '@/componentes/presentadores/Avatar'
 import { Insignia } from '@/componentes/presentadores/Insignia'
@@ -29,12 +23,16 @@ import {
   TOPE_POR_VISTA,
   type VistaCalendario as ModoCalendario
 } from '@/dominio/calendario'
-import { GLOSARIO } from '@/dominio/glosario'
 import { cn } from '@/lib/clases'
 import { estadoVencimiento, formatearFecha, hoyLocal } from '@/lib/fechas'
 import type { Proceso, ProcesoConAviso } from '@/datos/recursos'
 import type { Capacidad } from '@/datos/tipos'
-import type { OpcionFiltro } from '@/definiciones/tipos'
+import { ControlesTabla } from './ControlesTabla'
+import { construirConsulta, leerConsulta } from '@/datos/consulta'
+import { PROCESOS } from '@/definiciones/procesos'
+import { filtrosDeCamposPersonalizados } from '@/definiciones/filtros'
+import type { DefinicionCampoPersonalizado } from '@/datos/recursos'
+import type { DefinicionRecurso, EstadoConsulta, OpcionFiltro } from '@/definiciones/tipos'
 
 /**
  * Calendario de Procesos: la misma lista de tareas leida por dia y por semana.
@@ -54,7 +52,7 @@ import type { OpcionFiltro } from '@/definiciones/tipos'
  * que tienen con lo que se esta mirando. Las que no tienen ninguna de las dos fechas no aparecen en
  * ningun calendario posible y se ven en la tabla; la tira lo dice.
  *
- * El estado vive entero en la URL —`dia`, la clave de `claveVista`, `assignee`, `filter[project_id]`—
+ * El estado vive entero en la URL —`dia`, la clave de `claveVista` y los filtros del recurso—
  * para que una vista se comparta con un enlace y "atras" haga lo que la persona espera.
  *
  * **La misma grilla sirve dos pantallas**: el calendario global (`/procesos/calendario`, que baja los
@@ -72,17 +70,6 @@ const BORDE_VENCIMIENTO = {
   lejano: 'border-l-linea',
   'sin-fecha': 'border-l-linea'
 } as const
-
-/**
- * Centinela de "sin filtrar" de los desplegables.
- *
- * Radix Select no acepta un item con valor vacio, y "todos" tiene que ser elegible. Es el mismo
- * centinela que usa `ControlesTabla`; viaja solo por la interfaz y nunca llega a la URL.
- */
-const SIN_FILTRO = '__todos__'
-
-/** Ancho de los dos desplegables, para que la barra no se reacomode al elegir. */
-const ANCHO_FILTRO = 'w-52'
 
 interface PropsVistaCalendario {
   /** Dia ancla del periodo, ya validado por el servidor. */
@@ -106,12 +93,9 @@ interface PropsVistaCalendario {
   errorTareas: string | null
   /** Mensaje de la API cuando fallaron las alertas. Nunca tumba la grilla. */
   errorAvisos?: string | null
-  /** Opciones del filtro de Espacio. Vacio —por defecto— no dibuja el desplegable. */
-  espacios?: OpcionFiltro[]
-  /** Opciones del filtro de persona. Vacio —por defecto— no dibuja el desplegable. */
-  personas?: OpcionFiltro[]
-  espacioElegido?: string | null
-  asignadoElegido?: string | null
+  definicion?: DefinicionRecurso<Proceso>
+  camposPersonalizados?: DefinicionCampoPersonalizado[]
+  opcionesDeFiltro?: Record<string, OpcionFiltro[]>
   /**
    * Clave de la URL donde se guarda dia/semana.
    *
@@ -139,10 +123,9 @@ export function VistaCalendario ({
   avisos = [],
   errorTareas,
   errorAvisos = null,
-  espacios = [],
-  personas = [],
-  espacioElegido = null,
-  asignadoElegido = null,
+  definicion: definicionProp,
+  camposPersonalizados = [],
+  opcionesDeFiltro,
   claveVista = 'vista',
   conModal = true,
   truncado,
@@ -150,6 +133,20 @@ export function VistaCalendario ({
 }: PropsVistaCalendario): ReactElement {
   const router = useRouter()
   const params = useSearchParams()
+
+  const definicion = definicionProp ?? { ...PROCESOS, filtros: [...PROCESOS.filtros, ...filtrosDeCamposPersonalizados(camposPersonalizados)] }
+  const estado = leerConsulta(new URLSearchParams(params.toString()), definicion)
+
+  /** Actualiza filtros preservando período, modo y contexto del proyecto. */
+  function cambiarFiltros (parcial: Partial<EstadoConsulta>): void {
+    const siguientes = new URLSearchParams(params.toString())
+    for (const clave of [...siguientes.keys()]) {
+      if (clave.startsWith('filter[') || ['q', 'sort', 'page', 'per_page', 'include', 'assignee', PARAMETRO_TAREA].includes(clave)) siguientes.delete(clave)
+    }
+    const consulta = construirConsulta({ ...estado, ...parcial, pagina: 1 }, definicion)
+    for (const [clave, valor] of new URLSearchParams(consulta)) siguientes.set(clave, valor)
+    router.replace(`?${siguientes}`, { scroll: false })
+  }
 
   const dias = diasDeVista(dia, vista)
   const porDia = agruparPorVencimiento(tareas, dias)
@@ -183,15 +180,11 @@ export function VistaCalendario ({
     router.push(urlCon({ dia: nuevoDia }), { scroll: false })
   }
 
-  /** Cambia un filtro. `replace`: filtrar es afinar lo que ya se mira, no ir a otro lado. */
-  function filtrar (clave: string, valor: string | null): void {
-    router.replace(urlCon({ [clave]: valor }), { scroll: false })
-  }
-
   const vacio = tareas.length === 0 && sinVencimiento.length === 0
 
   return (
     <section className="flex flex-col gap-4">
+      <ControlesTabla definicion={definicion} estado={estado} visibles={[]} onVisibles={() => {}} onCambiar={cambiarFiltros} opcionesDeFiltro={opcionesDeFiltro} board="tasks" sinColumnas />
       <AvisoDeVencimientos avisos={avisos} error={errorAvisos} />
 
       <div className="flex flex-wrap items-center gap-2">
@@ -243,20 +236,7 @@ export function VistaCalendario ({
           onElegir={(valor) => { router.push(urlCon({ [claveVista]: valor }), { scroll: false }) }}
         />
 
-        <div className="ml-auto flex flex-wrap items-center gap-2">
-          <FiltroSimple
-            etiqueta="Asignado"
-            opciones={personas}
-            valor={asignadoElegido}
-            onCambiar={(valor) => filtrar('assignee', valor)}
-          />
-          <FiltroSimple
-            etiqueta={GLOSARIO.espacio.singular}
-            opciones={espacios}
-            valor={espacioElegido}
-            onCambiar={(valor) => filtrar('filter[project_id]', valor)}
-          />
-        </div>
+
       </div>
 
       {truncado && (
@@ -272,7 +252,7 @@ export function VistaCalendario ({
             <Vacio
               titulo="Nada vence en este período"
               descripcion={
-                espacioElegido !== null || asignadoElegido !== null
+                Object.keys(estado.filtros).length > 0 || estado.busqueda !== ''
                   ? 'Con los filtros puestos no queda ninguna entrega. Quítalos o mira otro período.'
                   : 'No hay entregas ni vencimientos anotados. Mira otro período o revisa la tabla completa.'
               }
@@ -561,45 +541,4 @@ function textoDeAviso (aviso: ProcesoConAviso['aviso']): string {
   if (aviso.estado === 'hoy') return 'Vence hoy'
 
   return aviso.dias_restantes === 1 ? 'Vence mañana' : `En ${aviso.dias_restantes} días`
-}
-
-interface PropsFiltroSimple {
-  etiqueta: string
-  opciones: OpcionFiltro[]
-  valor: string | null
-  onCambiar: (valor: string | null) => void
-}
-
-/**
- * Desplegable de un filtro, con la opcion de no filtrar.
- *
- * Es el mismo control que arma `ControlesTabla` —mismo disparador, mismo centinela, mismo "tenue
- * mientras no filtra"— y no un componente compartido: `ControlesTabla` dibuja los NUEVE filtros de la
- * definicion de Procesos, incluido el rango de fechas que esta pantalla ya resuelve con el periodo.
- * Traerla entera pondria dos controles que se pelean por `filter[date_from]`.
- *
- * Sin opciones no se dibuja: un desplegable vacio no filtra nada y ocupa el lugar de uno que si
- * funciona. Es lo mismo que hace `ControlFiltro`.
- */
-function FiltroSimple ({ etiqueta, opciones, valor, onCambiar }: PropsFiltroSimple): ReactElement | null {
-  if (opciones.length === 0) return null
-
-  return (
-    <Selector
-      value={valor ?? SIN_FILTRO}
-      onValueChange={(elegido) => onCambiar(elegido === SIN_FILTRO ? null : elegido)}
-    >
-      <DisparadorSelector
-        aria-label={etiqueta}
-        marcador={etiqueta}
-        className={cn(ANCHO_FILTRO, valor === null && 'text-texto-sutil')}
-      />
-      <ContenidoSelector>
-        <Opcion value={SIN_FILTRO}>{etiqueta}: todos</Opcion>
-        {opciones.map((opcion) => (
-          <Opcion key={opcion.valor} value={opcion.valor}>{opcion.etiqueta}</Opcion>
-        ))}
-      </ContenidoSelector>
-    </Selector>
-  )
 }

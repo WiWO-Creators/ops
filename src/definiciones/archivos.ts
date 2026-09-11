@@ -43,7 +43,13 @@ export const ARCHIVOS: DefinicionRecurso<ArchivoProyecto> = {
     { clave: 'external', encabezado: 'Origen', presentar: (a) => (a.external === null || a.external === '' ? 'Interno' : a.external) }
   ],
 
-  filtros: [],
+  filtros: [
+    { clave: 'file_name', etiqueta: 'Nombre', tipo: 'campo', tipoDato: 'texto' },
+    { clave: 'filetype', etiqueta: 'Tipo', tipo: 'campo', tipoDato: 'texto' },
+    { clave: 'visible_to_customer', etiqueta: 'Visible al cliente', tipo: 'campo', tipoDato: 'booleano' },
+    { clave: 'date_added', etiqueta: 'Subido', tipo: 'campo', tipoDato: 'fecha' },
+    { clave: 'external', etiqueta: 'Origen', tipo: 'campo', tipoDato: 'texto' },
+  ],
   ordenables: ['file_name', 'date_added'],
   ordenPorDefecto: '-date_added',
   busqueda: false,

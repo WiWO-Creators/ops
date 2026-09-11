@@ -1,5 +1,6 @@
 import { pedirSobre } from './cliente.ts'
-import type { PersonaAsignable } from './recursos.ts'
+import type { EstadoLookup, PersonaAsignable } from './recursos.ts'
+import type { DefinicionRecurso } from '../definiciones/tipos.ts'
 
 /**
  * Tope de la unica pagina que se pide.
@@ -53,4 +54,25 @@ export async function cargarAsignables (): Promise<PersonaAsignable[]> {
 /** Olvida lo cacheado. Solo para las pruebas: en la pantalla no hay ningun momento que lo pida. */
 export function olvidarAsignables (): void {
   enMemoria = null
+}
+
+/**
+ * El equipo como catalogo de filtros, para las vistas que se arman en el navegador.
+ *
+ * Los filtros por persona —Asignado, Creado por, Seguidor— salen de aca y no de `/lookups`, que no
+ * trae al equipo. Se pide solo si la definicion lo declara: los paneles de Notas o de Archivos no
+ * preguntan por personas y no tienen por que gastar un viaje.
+ *
+ * Un fallo devuelve la lista vacia en vez de propagarse: esos filtros quedan sin opciones —el motor
+ * los dibuja diciendolo— y el resto de la tabla se pinta igual.
+ *
+ * @param definicion El recurso que se esta listando.
+ * @returns El catalogo con la forma de un lookup, o vacio si no hace falta.
+ */
+export async function staffParaFiltros<T> (definicion: DefinicionRecurso<T>): Promise<EstadoLookup[]> {
+  if (!definicion.filtros.some((filtro) => filtro.desdeLookup === 'staff')) return []
+
+  const personas = await cargarAsignables().catch(() => [])
+
+  return personas.map((persona) => ({ id: persona.id, name: persona.full_name }))
 }

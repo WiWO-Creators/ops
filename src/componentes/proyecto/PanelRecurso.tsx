@@ -5,6 +5,7 @@ import { useSearchParams } from 'next/navigation'
 import { TablaRecurso } from '@/componentes/datos/TablaRecurso'
 import { unirConsultas } from '@/componentes/datos/tabla'
 import { Cargando, ErrorEstado } from '@/componentes/estado/Estados'
+import { staffParaFiltros } from '@/datos/asignables'
 import { opcionesDeFiltros } from '@/datos/catalogos'
 import { pedirSobre } from '@/datos/cliente'
 import { construirConsulta, leerConsulta } from '@/datos/consulta'
@@ -174,15 +175,16 @@ async function primeraPagina<T> (
   senal: AbortSignal
 ): Promise<Carga<T>> {
   try {
-    const [lista, lookups] = await Promise.all([
+    const [lista, lookups, staff] = await Promise.all([
       pedirSobre<T[]>(rutaConConsulta(definicion, consulta), senal),
-      pedirSobre<Lookups>('lookups', senal)
+      pedirSobre<Lookups>('lookups', senal),
+      staffParaFiltros(definicion)
     ])
 
     return {
       fase: 'listo',
       inicial: { filas: lista.data, paginacion: lista.meta?.pagination },
-      opciones: opcionesDeFiltros(definicion, lookups.data)
+      opciones: opcionesDeFiltros(definicion, { ...lookups.data, staff })
     }
   } catch (fallo) {
     if (senal.aborted) return { fase: 'cargando' }
