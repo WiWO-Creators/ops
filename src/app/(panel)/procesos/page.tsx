@@ -4,6 +4,7 @@ import { TablaProcesos } from '@/componentes/datos/vistas'
 import { Cargando } from '@/componentes/estado/Estados'
 import { AltaRapidaProceso } from '@/componentes/proyecto/AltaRapidaProceso'
 import { Segmentado } from '@/componentes/formularios/Segmentado'
+import { TituloModulo } from '@/componentes/estructura/TituloModulo'
 import { iaHabilitada } from '@/datos/ajustes'
 import { construirConsulta, leerConsulta, paramsDeUrl } from '@/datos/consulta'
 import { cargarLookups, opcionesDeFiltros } from '@/datos/lookups'
@@ -68,39 +69,39 @@ export default async function ProcesosPage (props: PageProps<'/procesos'>) {
 
   return (
     <section className="flex flex-col gap-4">
-      {/* `flex-wrap`: con la tercera presentacion el control segmentado ya no entra al lado del
-          titulo en un telefono, y sin envolver el "Calendario" queda cortado contra el borde. */}
-      <header className="flex flex-wrap items-center justify-between gap-4">
-        <h1 className="text-xl font-semibold text-texto">{PROCESOS.titulo.plural}</h1>
-        <div className="flex items-center gap-3">
-          <Suspense><BotonCompletados /></Suspense>
-          <Segmentado
-            etiqueta={`Presentación de ${PROCESOS.titulo.plural.toLowerCase()}`}
-            tamano="medio"
-            activo="tabla"
-            opciones={[
-              { valor: 'tabla', etiqueta: 'Tabla', icono: 'tabla', href: '/procesos' },
-              {
-                valor: 'tablero',
-                etiqueta: 'Tablero',
-                icono: 'tablero',
-                href: `/procesos/tablero${consultaTablero === '' ? '' : `?${consultaTablero}`}`
-              },
-              // El calendario recibe los mismos filtros que el tablero, por el mismo motivo: tampoco
-              // pagina ni ordena. Su rango de fechas lo pone el periodo que se este mirando.
-              {
-                valor: 'calendario',
-                etiqueta: 'Calendario',
-                icono: 'calendario',
-                href: `/procesos/calendario${consultaTablero === '' ? '' : `?${consultaTablero}`}`
-              }
-            ]}
-          />
-          {yo.data.permissions.tasks.includes('create') && (
-            <AltaRapidaProceso catalogos={catalogosDeAlta} etiquetas={lookups.tags} conIa={conIa} />
-          )}
-        </div>
-      </header>
+      <TituloModulo
+        titulo={PROCESOS.titulo.plural}
+        acciones={
+          <div className="flex items-center gap-3">
+            <Suspense><BotonCompletados /></Suspense>
+            <Segmentado
+              etiqueta={`Presentación de ${PROCESOS.titulo.plural.toLowerCase()}`}
+              tamano="medio"
+              activo="tabla"
+              opciones={[
+                { valor: 'tabla', etiqueta: 'Tabla', icono: 'tabla', href: '/procesos' },
+                {
+                  valor: 'tablero',
+                  etiqueta: 'Tablero',
+                  icono: 'tablero',
+                  href: `/procesos/tablero${consultaTablero === '' ? '' : `?${consultaTablero}`}`
+                },
+                // El calendario recibe los mismos filtros que el tablero, por el mismo motivo: tampoco
+                // pagina ni ordena. Su rango de fechas lo pone el periodo que se este mirando.
+                {
+                  valor: 'calendario',
+                  etiqueta: 'Calendario',
+                  icono: 'calendario',
+                  href: `/procesos/calendario${consultaTablero === '' ? '' : `?${consultaTablero}`}`
+                }
+              ]}
+            />
+            {yo.data.permissions.tasks.includes('create') && (
+              <AltaRapidaProceso catalogos={catalogosDeAlta} etiquetas={lookups.tags} conIa={conIa} />
+            )}
+          </div>
+        }
+      />
 
       <Suspense fallback={<Cargando alto="min-h-36" mensaje={`Cargando ${PROCESOS.titulo.plural.toLowerCase()}…`} />}>
         <TablaProcesos

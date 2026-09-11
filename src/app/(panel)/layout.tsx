@@ -106,6 +106,9 @@ export default async function PanelLayout ({ children }: { children: React.React
               variante="compacta"
               segundos={segundosDeLive}
               inicial={jornada.datos}
+              // Para listar SUS Tareas al elegir sobre cual se esta midiendo: solo se puede arrancar
+              // un cronometro sobre una Tarea asignada a uno, y la sesion ya esta resuelta acá.
+              staffId={yo.id}
               errorInicial={jornada.error}
               className="ml-auto"
             />

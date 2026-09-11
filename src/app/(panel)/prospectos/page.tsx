@@ -8,6 +8,7 @@ import { cargarLookups } from '@/datos/lookups'
 import { pedir } from '@/datos/servidor'
 import type { EstadoLookup, Prospecto } from '@/datos/recursos'
 import type { OpcionCampo } from '@/componentes/proyecto/formulario'
+import { TituloModulo } from '@/componentes/estructura/TituloModulo'
 import type { Yo } from '@/datos/tipos'
 import { PROSPECTOS } from '@/definiciones/prospectos'
 import { GLOSARIO } from '@/dominio/glosario'
@@ -35,10 +36,10 @@ export default async function ProspectosPage (props: PageProps<'/prospectos'>) {
 
   return (
     <section className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-        <h1 className="text-xl font-semibold text-texto">{GLOSARIO.licitacion.plural}</h1>
-        <TotalDelListado paginacion={lista.meta?.pagination} />
-      </div>
+      <TituloModulo
+        titulo={GLOSARIO.licitacion.plural}
+        acciones={<TotalDelListado paginacion={lista.meta?.pagination} />}
+      />
 
       <Suspense fallback={<Cargando alto="min-h-36" mensaje="Cargando licitaciones…" />}>
         <VistaProspectos

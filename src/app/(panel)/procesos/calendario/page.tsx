@@ -8,6 +8,7 @@ import { PROCESOS } from '@/definiciones/procesos'
 import type { Espacio, PersonaAsignable, Proceso, ProcesoConAviso } from '@/datos/recursos'
 import type { Yo } from '@/datos/tipos'
 import { VistaCalendario } from '@/componentes/datos/VistaCalendario'
+import { TituloModulo } from '@/componentes/estructura/TituloModulo'
 
 export const metadata = { title: 'Calendario de Tareas · WiWO Ops' }
 
@@ -90,26 +91,26 @@ export default async function CalendarioProcesosPage (props: PageProps<'/proceso
 
   return (
     <section className="flex flex-col gap-4">
-      {/* `flex-wrap`: con tres presentaciones el control segmentado ya no entra al lado del titulo en
-          un telefono, y sin envolver el "Calendario" queda cortado contra el borde. */}
-      <header className="flex flex-wrap items-center justify-between gap-4">
-        <h1 className="text-texto text-xl font-semibold">Calendario de {PROCESOS.titulo.plural}</h1>
-        <Segmentado
-          etiqueta={`Presentación de ${PROCESOS.titulo.plural.toLowerCase()}`}
-          tamano="medio"
-          activo="calendario"
-          opciones={[
-            { valor: 'tabla', etiqueta: 'Tabla', icono: 'tabla', href: `/procesos${consulta === '' ? '' : `?${consulta}`}` },
-            {
-              valor: 'tablero',
-              etiqueta: 'Tablero',
-              icono: 'tablero',
-              href: `/procesos/tablero${consulta === '' ? '' : `?${consulta}`}`
-            },
-            { valor: 'calendario', etiqueta: 'Calendario', icono: 'calendario', href: '/procesos/calendario' }
-          ]}
-        />
-      </header>
+      <TituloModulo
+        titulo={`Calendario de ${PROCESOS.titulo.plural}`}
+        acciones={
+          <Segmentado
+            etiqueta={`Presentación de ${PROCESOS.titulo.plural.toLowerCase()}`}
+            tamano="medio"
+            activo="calendario"
+            opciones={[
+              { valor: 'tabla', etiqueta: 'Tabla', icono: 'tabla', href: `/procesos${consulta === '' ? '' : `?${consulta}`}` },
+              {
+                valor: 'tablero',
+                etiqueta: 'Tablero',
+                icono: 'tablero',
+                href: `/procesos/tablero${consulta === '' ? '' : `?${consulta}`}`
+              },
+              { valor: 'calendario', etiqueta: 'Calendario', icono: 'calendario', href: '/procesos/calendario' }
+            ]}
+          />
+        }
+      />
 
       <VistaCalendario
         dia={dia}

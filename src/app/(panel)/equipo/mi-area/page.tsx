@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { Avatar } from '@/componentes/presentadores/Avatar'
 import { Insignia } from '@/componentes/presentadores/Insignia'
 import { ErrorEstado, SinPermiso, Vacio } from '@/componentes/estado/Estados'
+import { TituloModulo } from '@/componentes/estructura/TituloModulo'
 import { ErrorApi } from '@/datos/errores'
 import { pedir } from '@/datos/servidor'
 import type { MiArea } from '@/datos/recursos'
@@ -37,10 +38,10 @@ export default async function MiAreaPage () {
 
   return (
     <section className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-        <h1 className="text-xl font-semibold text-texto">Mi Área</h1>
-        {miArea.area !== null && <Insignia tono="acento">{miArea.area.name}</Insignia>}
-      </div>
+      <TituloModulo
+        titulo="Mi Área"
+        acciones={miArea.area === null ? undefined : <Insignia tono="acento">{miArea.area.name}</Insignia>}
+      />
 
       {miArea.area === null && (
         <Vacio

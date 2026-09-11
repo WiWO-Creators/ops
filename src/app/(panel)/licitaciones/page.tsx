@@ -2,6 +2,7 @@ import { Suspense } from 'react'
 import { Cargando } from '@/componentes/estado/Estados'
 import { TotalDelListado } from '@/componentes/datos/TotalDelListado'
 import { VistaLicitaciones } from '@/componentes/licitacion/VistaLicitaciones'
+import { TituloModulo } from '@/componentes/estructura/TituloModulo'
 import { construirConsulta, leerConsulta, paramsDeUrl } from '@/datos/consulta'
 import { cargarLookups, opcionesDeFiltros } from '@/datos/lookups'
 import { pedir } from '@/datos/servidor'
@@ -35,10 +36,10 @@ export default async function LicitacionesPage (props: PageProps<'/licitaciones'
 
   return (
     <section className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-        <h1 className="text-xl font-semibold text-texto">{LICITACIONES.titulo.plural}</h1>
-        <TotalDelListado paginacion={lista.meta?.pagination} />
-      </div>
+      <TituloModulo
+        titulo={LICITACIONES.titulo.plural}
+        acciones={<TotalDelListado paginacion={lista.meta?.pagination} />}
+      />
 
       <Suspense fallback={<Cargando alto="min-h-36" mensaje={`Cargando ${LICITACIONES.titulo.plural.toLowerCase()}…`} />}>
         <VistaLicitaciones

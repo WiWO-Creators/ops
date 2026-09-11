@@ -46,6 +46,11 @@ export interface CierreDeJornada {
  * `project` y `task` son excluyentes en la practica —se mide un Espacio o un proceso dentro de el—
  * pero los dos pueden venir: un medidor de proceso tambien dice a que Espacio pertenece. Los dos en
  * `null` es un medidor huerfano, y la interfaz lo muestra igual en vez de esconderlo.
+ *
+ * `GET /me/jornada` devolvia esto **plano** (`project_id`, `project_name`, `task_id`, `task_name`,
+ * con `task_id: 0` por "sin Tarea") y por eso el control pintaba "Sin destino" con cualquier
+ * cronometro corriendo. El backend lo unifico: las dos rutas mandan la forma anidada, y un medidor de
+ * Tarea ahora tambien trae su `project`, derivado de `rel_type`/`rel_id`. Verificado contra la API.
  */
 export interface MedidorEnVivo {
   id: number
@@ -95,6 +100,36 @@ export interface EstadoDeJornada {
   uncovered_seconds: number
   over_journey: boolean
   timer: MedidorEnVivo | null
+}
+
+/**
+ * Una linea del resumen de cierre: cuanto se midio y sobre que.
+ *
+ * `task` en `null` es tiempo medido sobre el Espacio sin bajar a una Tarea —lo que deja el medidor de
+ * la cabecera cuando nadie eligio Tarea— y `project` en `null` es una Tarea que no cuelga de ningun
+ * Espacio. Los dos casos existen en la base, asi que los dos se nombran en vez de esconderse.
+ */
+export interface ItemDeResumen {
+  project: { id: number, name: string } | null
+  task: { id: number, name: string } | null
+  seconds: number
+  corriendo: boolean
+}
+
+/**
+ * Resumen del dia para el modal de cierre (`GET /me/jornada/resumen`).
+ *
+ * `uncovered_seconds` es la razon de existir de esa pantalla: la jornada mide presencia declarada y
+ * los medidores miden trabajo imputado, y la diferencia es el tiempo que al dia siguiente nadie sabe
+ * a que cargar. Por eso se muestra antes de confirmar el cierre y no despues.
+ *
+ * La API responde **404** cuando no hay jornada abierta.
+ */
+export interface ResumenDeJornada {
+  jornada: JornadaEnVivo
+  measured_seconds: number
+  uncovered_seconds: number
+  items: ItemDeResumen[]
 }
 
 /** Valor por defecto del intervalo del tablero, en segundos. */

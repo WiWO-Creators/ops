@@ -1,17 +1,19 @@
 /**
- * Pruebas de LIVE: quien ve a quien, como se agrupa el tablero y que se le dice a la persona cuando
- * el medidor no arranca.
+ * Pruebas de LIVE: quien ve a quien, como se lee y se ordena el tablero, y que se le dice a la
+ * persona cuando el medidor no arranca.
  *
  * Las tres cosas se rompen en silencio. Un alcance mal resuelto le pide a la API un tablero que no
- * le corresponde —o se lo esconde a quien si lo tiene—; un agrupado que pierde una fila deja a
- * alguien invisible en el tablero de su jefatura; y un mensaje que no distingue el `409` de la
- * jornada del `409` del medidor deja a la persona sin saber que apretar.
+ * le corresponde —o se lo esconde a quien si lo tiene—; una jerarquia que se come el nivel de la
+ * Tarea deja "midiendo el Proyecto entero" indistinguible de "midiendo una Tarea", que es el unico
+ * caso que esta pantalla existe para delatar; y un mensaje que no distingue el `409` de la jornada
+ * del `409` del medidor deja a la persona sin saber que apretar.
  */
 
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { agruparPorEspacio } from '../src/componentes/live/presentacion.ts'
+import { cargoYArea, ordenarPorActividad, repartirTablero, trabajoDeLaFila } from '../src/componentes/live/presentacion.ts'
 import { alcanceDeLive, mensajeDeFalloDeJornada, mensajeDeFalloDeMedidor } from '../src/dominio/live.ts'
+import { GLOSARIO } from '../src/dominio/glosario.ts'
 
 /** Un `/me` minimo: solo lo que `alcanceDeLive` mira. */
 const yo = (extra = {}) => ({
@@ -70,72 +72,103 @@ test('el alcance total gana sobre el de area', () => {
   assert.equal(alcanceDeLive(ambos), 'todo')
 })
 
-test('agrupa por el Espacio que cada quien esta midiendo', () => {
-  const grupos = agruparPorEspacio([
-    fila(1, 'Ana', { espacio: DELCO }),
-    fila(2, 'Beto', { espacio: ACME }),
-    fila(3, 'Carla', { espacio: DELCO })
-  ])
-
-  assert.deepEqual(grupos.map((g) => g.nombre), ['DELCO', 'ACME'])
-  assert.deepEqual(grupos[0].personas.map((p) => p.staff.name), ['Ana', 'Carla'])
-})
-
-test('un tablero vacio da una lista vacia, no un grupo vacio', () => {
-  assert.deepEqual(agruparPorEspacio([]), [])
-})
-
-test('quien no mide nada cae en su grupo, y ese grupo va siempre ultimo', () => {
-  const grupos = agruparPorEspacio([
-    fila(1, 'Ana'),
-    fila(2, 'Beto', { espacio: DELCO }),
-    fila(3, 'Carla')
-  ])
-
-  assert.equal(grupos.at(-1).clave, 'sin-espacio')
-  assert.equal(grupos.at(-1).personas.length, 2)
-  // El nombre sale del glosario: la interfaz llama "Proyecto" a un Espacio.
-  assert.match(grupos.at(-1).nombre, /^Sin /)
-})
-
-test('ninguna fila se pierde por el camino', () => {
-  const filas = [
-    fila(1, 'Ana', { espacio: DELCO }),
-    fila(2, 'Beto'),
-    fila(3, 'Carla', { espacio: ACME }),
-    fila(4, 'Dora', { espacio: DELCO })
-  ]
-  const total = agruparPorEspacio(filas).reduce((suma, g) => suma + g.personas.length, 0)
-
-  assert.equal(total, filas.length)
-})
-
-test('un medidor sobre una tarea sin Espacio no inventa un grupo', () => {
-  const grupos = agruparPorEspacio([fila(1, 'Ana', { tarea: { id: 77, name: 'Status semanal' } })])
-
-  assert.equal(grupos.length, 1)
-  assert.equal(grupos[0].clave, 'sin-espacio')
-})
-
-test('dentro del grupo, quien mide va antes que quien solo tiene jornada', () => {
-  const grupos = agruparPorEspacio([
+test('quien mide va antes que quien solo tiene jornada, y ese antes que quien no tiene nada', () => {
+  const orden = ordenarPorActividad([
     fila(1, 'Zoe', { jornada: true }),
     fila(2, 'Ana'),
     fila(3, 'Beto', { tarea: { id: 5, name: 'Algo' } })
   ])
 
-  assert.deepEqual(grupos[0].personas.map((p) => p.staff.name), ['Beto', 'Zoe', 'Ana'])
+  assert.deepEqual(orden.map((f) => f.staff.name), ['Beto', 'Zoe', 'Ana'])
 })
 
-test('el orden de los grupos no depende del orden en que llegaron las filas', () => {
-  const filas = [
-    fila(1, 'Ana', { espacio: ACME }),
-    fila(2, 'Beto', { espacio: DELCO }),
-    fila(3, 'Carla', { espacio: DELCO })
-  ]
+test('a igualdad, alfabetico en español: la Ñ y los acentos no se van al final', () => {
+  const orden = ordenarPorActividad([
+    fila(1, 'Zoe', { espacio: DELCO }),
+    fila(2, 'Ñato', { espacio: ACME }),
+    fila(3, 'Ángela', { espacio: DELCO })
+  ])
 
-  assert.deepEqual(agruparPorEspacio(filas).map((g) => g.nombre), ['DELCO', 'ACME'])
-  assert.deepEqual(agruparPorEspacio([...filas].reverse()).map((g) => g.nombre), ['DELCO', 'ACME'])
+  assert.deepEqual(orden.map((f) => f.staff.name), ['Ángela', 'Ñato', 'Zoe'])
+})
+
+test('ninguna fila se pierde por el camino, y la lista original no se toca', () => {
+  const filas = [
+    fila(1, 'Ana', { espacio: DELCO }),
+    fila(2, 'Beto'),
+    fila(3, 'Carla', { espacio: ACME })
+  ]
+  const antes = filas.map((f) => f.staff.name)
+  const orden = ordenarPorActividad(filas)
+
+  assert.equal(orden.length, filas.length)
+  // Ordenar el estado de React en el sitio es como se consiguen los repintados que no ocurren.
+  assert.deepEqual(filas.map((f) => f.staff.name), antes)
+})
+
+test('un tablero vacio da una lista vacia', () => {
+  assert.deepEqual(ordenarPorActividad([]), [])
+})
+
+test('quien mide cuelga dos niveles, y sus nombres salen del glosario', () => {
+  const trabajo = trabajoDeLaFila(
+    fila(1, 'Ana', { espacio: DELCO, tarea: { id: 77, name: 'Status semanal' } })
+  )
+
+  assert.equal(trabajo.midiendo, true)
+  assert.deepEqual(trabajo.niveles.map((n) => n.etiqueta), [
+    GLOSARIO.espacio.singular,
+    GLOSARIO.proceso.singular
+  ])
+  assert.deepEqual(trabajo.niveles.map((n) => n.valor), ['DELCO', 'Status semanal'])
+  assert.ok(trabajo.niveles.every((n) => !n.pendiente))
+})
+
+test('un medidor de Espacio sin Tarea lo dice, en vez de dejar el hueco', () => {
+  const trabajo = trabajoDeLaFila(fila(1, 'Ana', { espacio: DELCO }))
+
+  assert.equal(trabajo.niveles.length, 2)
+  assert.equal(trabajo.niveles[0].valor, 'DELCO')
+  assert.equal(trabajo.niveles[1].pendiente, true)
+  assert.match(trabajo.niveles[1].valor, new RegExp(GLOSARIO.proceso.singular))
+})
+
+test('una Tarea suelta conserva su nivel y avisa que no hay Espacio detras', () => {
+  const trabajo = trabajoDeLaFila(fila(1, 'Ana', { tarea: { id: 77, name: 'Status semanal' } }))
+
+  assert.equal(trabajo.niveles[0].pendiente, true)
+  assert.equal(trabajo.niveles[1].valor, 'Status semanal')
+  assert.equal(trabajo.niveles[1].pendiente, false)
+})
+
+test('el medidor huerfano se muestra igual, con los dos niveles pendientes', () => {
+  const huerfano = fila(1, 'Ana', { jornada: true })
+  huerfano.medidor = { id: 1, project: null, task: null, start_time: '2026-09-09T12:30:00Z', seconds: 600 }
+  const trabajo = trabajoDeLaFila(huerfano)
+
+  assert.equal(trabajo.midiendo, true)
+  assert.deepEqual(trabajo.niveles.map((n) => n.pendiente), [true, true])
+})
+
+test('sin medidor no hay jerarquia que colgar, y el motivo distingue los dos casos', () => {
+  const conJornada = trabajoDeLaFila(fila(1, 'Ana', { jornada: true }))
+  const sinJornada = trabajoDeLaFila(fila(2, 'Beto'))
+
+  assert.equal(conJornada.midiendo, false)
+  assert.equal(sinJornada.midiendo, false)
+  assert.notEqual(conJornada.motivo, sinJornada.motivo)
+  assert.match(sinJornada.motivo, /sin jornada/i)
+})
+
+test('sin cargo ni area no se pinta un separador suelto', () => {
+  assert.equal(cargoYArea({ cargo: null, area: null }), null)
+  assert.equal(cargoYArea({ cargo: '  ', area: null }), null)
+})
+
+test('el cargo y el area van juntos, y no se repiten cuando dicen lo mismo', () => {
+  assert.equal(cargoYArea({ cargo: 'Diseñadora', area: 'Creativo' }), 'Diseñadora · Creativo')
+  assert.equal(cargoYArea({ cargo: 'Diseño', area: 'Diseño' }), 'Diseño')
+  assert.equal(cargoYArea({ cargo: null, area: 'Creativo' }), 'Creativo')
 })
 
 test('el 409 al arrancar nombra las dos causas, porque la API no las distingue', () => {
@@ -168,4 +201,35 @@ test('el 403 distingue arrancar de detener', () => {
 test('el 409 de la jornada no es ambiguo y se dice tal cual', () => {
   assert.match(mensajeDeFalloDeJornada(409, true), /ya tienes una jornada/i)
   assert.match(mensajeDeFalloDeJornada(409, false), /no tienes ninguna/i)
+})
+
+/**
+ * El tablero se parte en dos, y el corte es tener jornada.
+ *
+ * `GET /live` devuelve a toda la empresa: en la base real, 184 filas para una persona midiendo. Si
+ * las 183 restantes entran en la misma lista que la que trabaja, la pantalla que contesta "quien
+ * esta trabajando ahora" es una pared de tarjetas que dicen "Sin jornada abierta".
+ */
+test('repartirTablero separa a quien tiene jornada de quien no', () => {
+  const filas = [
+    fila(1, 'Zoe'),
+    fila(2, 'Ana', { jornada: true }),
+    fila(3, 'Beto', { espacio: DELCO }),
+    fila(4, 'Ada')
+  ]
+
+  const { activos, enReposo } = repartirTablero(filas)
+
+  assert.deepEqual(activos.map((f) => f.staff.name), ['Beto', 'Ana'])
+  assert.deepEqual(enReposo.map((f) => f.staff.name), ['Ada', 'Zoe'])
+  assert.equal(activos.length + enReposo.length, filas.length, 'no se puede perder una fila')
+})
+
+/** Un medidor sin jornada es raro, pero es actividad: no puede caer en el pliegue. */
+test('repartirTablero cuenta como activo el medidor sin jornada', () => {
+  const huerfano = { ...fila(9, 'Huerfano', { espacio: ACME }), jornada: null }
+  const { activos, enReposo } = repartirTablero([huerfano])
+
+  assert.equal(activos.length, 1)
+  assert.equal(enReposo.length, 0)
 })

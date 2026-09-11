@@ -3,6 +3,7 @@ import { PanelEnVivo } from '@/componentes/auditoria/PanelEnVivo'
 import { PanelSesiones } from '@/componentes/auditoria/PanelSesiones'
 import { VistaHistorial } from '@/componentes/auditoria/VistaHistorial'
 import { Cargando, ErrorEstado, SinPermiso } from '@/componentes/estado/Estados'
+import { TituloModulo } from '@/componentes/estructura/TituloModulo'
 import { construirConsulta, leerConsulta, paramsDeUrl } from '@/datos/consulta'
 import { ErrorApi } from '@/datos/errores'
 import { pedir } from '@/datos/servidor'
@@ -100,14 +101,10 @@ export default async function AuditoriaPage (props: PageProps<'/auditoria'>) {
 
   return (
     <section className="flex flex-col gap-8">
-      <div className="flex flex-col gap-1">
-        <h1 className="text-texto text-xl font-semibold">Auditoría</h1>
-        <p className="text-texto-tenue max-w-prose text-sm">
-          Actividad de trabajo del equipo dentro de Ops: en qué pantalla está cada quien, qué sesiones
-          hay abiertas y qué se hizo. No se registra nada de lo que se escribe ni nada fuera de la
-          aplicación.
-        </p>
-      </div>
+      <TituloModulo
+        titulo="Auditoría"
+        descripcion="Actividad de trabajo del equipo dentro de Ops: en qué pantalla está cada quien, qué sesiones hay abiertas y qué se hizo. No se registra nada de lo que se escribe ni nada fuera de la aplicación."
+      />
 
       <PanelEnVivo
         segundos={segundos}

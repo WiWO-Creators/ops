@@ -1,14 +1,15 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Users } from 'lucide-react'
+import { ChevronRight, Users } from 'lucide-react'
 import { Vacio } from '@/componentes/estado/Estados'
+import { Avatar } from '@/componentes/presentadores/Avatar'
 import type { AlcanceDeLive } from '@/dominio/live'
 import type { FilaDeLive } from '@/datos/live'
 import type { Yo } from '@/datos/tipos'
 import { escucharMedidor } from './medidor'
 import { cn } from '@/lib/clases'
-import { agruparPorEspacio } from './presentacion'
+import { cargoYArea, repartirTablero } from './presentacion'
 import { FilaEnVivo } from './FilaEnVivo'
 
 interface PropsPanelEquipo {
@@ -23,7 +24,14 @@ interface PropsPanelEquipo {
 }
 
 /**
- * El equipo, ahora mismo, agrupado por el Espacio que cada quien esta midiendo.
+ * El equipo, ahora mismo: una tarjeta por persona, con lo que esta trabajando colgando de ella.
+ *
+ * === POR QUE UNA LISTA PLANA Y NO GRUPOS POR ESPACIO ===
+ *
+ * Porque la raiz de la jerarquia es la persona. Un encabezado de Espacio sobre un grupo repetiria el
+ * mismo Proyecto que ya dice cada tarjeta —el mismo dato dos veces, uno encima del otro— y de paso
+ * partiria en dos listas a la gente que no esta midiendo. Lo que queda es el ORDEN
+ * (`ordenarPorActividad`): quien mide arriba, quien solo tiene jornada despues, el resto al final.
  *
  * === POR QUE SE REFRESCA SOLO Y NO CON `router.refresh()` ===
  *
@@ -41,8 +49,9 @@ interface PropsPanelEquipo {
  * === POR QUE NO REUSA EL ARBOL DE PRESENCIA ===
  *
  * `arbolDePresencia` y `PersonaActiva` estan tipados contra `PersonaConectada` y viven de `activity`,
- * `location` y `route`, que aca no existen. Y su arbol es de tres niveles; el de LIVE es de uno. Lo
- * que si se comparte es lo que de verdad es comun: `Avatar`, `Insignia`, `Vacio`, `haceCuanto()` y
+ * `location` y `route`, que aca no existen. Y su arbol se pliega en tres niveles; el de LIVE no se
+ * pliega: persona, Espacio y Tarea caben enteros en la tarjeta, que es el punto. Lo que si se
+ * comparte es lo que de verdad es comun: `Avatar`, `Insignia`, `Vacio`, `haceCuanto()` y
  * `formatearDuracion()`.
  */
 export function PanelEquipo ({ inicial, errorInicial = null, segundos, alcance, operador }: PropsPanelEquipo) {
@@ -112,7 +121,7 @@ export function PanelEquipo ({ inicial, errorInicial = null, segundos, alcance, 
     return () => { globalThis.clearInterval(id) }
   }, [hayMedidores])
 
-  const grupos = agruparPorEspacio(filas)
+  const { activos, enReposo } = repartirTablero(filas)
   const midiendo = filas.filter((fila) => fila.medidor !== null).length
 
   return (
@@ -122,10 +131,12 @@ export function PanelEquipo ({ inicial, errorInicial = null, segundos, alcance, 
           <h2 className="text-texto text-titulo text-balance font-semibold">
             {alcance === 'area' ? 'Mi área, ahora' : 'El equipo, ahora'}
           </h2>
-          <p className="text-texto-tenue text-pretty text-xs">Agrupado por proyecto en curso</p>
+          <p className="text-texto-tenue text-pretty text-xs">
+            Cada persona, con lo que está midiendo ahora
+          </p>
         </div>
 
-        <span className="text-texto flex items-center gap-2 text-sm font-medium tabular-nums">
+        <span className="border-linea bg-superficie-elevada text-texto rounded-control flex items-center gap-2 border px-3 py-1.5 text-sm font-medium tabular-nums">
           <span
             aria-hidden="true"
             className={cn('size-2 rounded-full', error !== null
@@ -141,7 +152,7 @@ export function PanelEquipo ({ inicial, errorInicial = null, segundos, alcance, 
         <p role="status" className="text-texto-peligro text-pretty text-sm">{error}</p>
       )}
 
-      {grupos.length === 0
+      {activos.length === 0
         ? (
           <Vacio
             titulo="Nadie con jornada abierta"
@@ -150,35 +161,58 @@ export function PanelEquipo ({ inicial, errorInicial = null, segundos, alcance, 
           />
           )
         : (
-          <ul className="flex flex-col gap-3">
-            {grupos.map((grupo) => (
-              <li
-                key={grupo.clave}
-                className="border-linea bg-superficie-elevada rounded-tarjeta border p-3"
-              >
-                <h3 className="text-texto flex items-center justify-between gap-2 text-sm font-semibold">
-                  <span className="min-w-0 break-words [overflow-wrap:anywhere]">{grupo.nombre}</span>
-                  <span className="text-texto-tenue shrink-0 text-xs font-normal tabular-nums">
-                    {grupo.personas.length}
-                    <span className="sr-only">
-                      {grupo.personas.length === 1 ? ' persona' : ' personas'}
-                    </span>
-                  </span>
-                </h3>
-                <ul className="divide-linea-suave divide-y">
-                  {grupo.personas.map((fila) => (
-                    <FilaEnVivo
-                      key={`${fila.staff.id}:${fila.medidor?.id ?? 'sin-medidor'}`}
-                      fila={fila}
-                      transcurrido={transcurrido}
-                      puedeDetener={operador.is_admin || operador.is_superadmin || operador.id === fila.staff.id}
-                    />
-                  ))}
-                </ul>
-              </li>
+          <ul className="flex flex-col gap-2">
+            {activos.map((fila) => (
+              <FilaEnVivo
+                key={`${fila.staff.id}:${fila.medidor?.id ?? 'sin-medidor'}`}
+                fila={fila}
+                transcurrido={transcurrido}
+                puedeDetener={operador.is_admin || operador.is_superadmin || operador.id === fila.staff.id}
+              />
             ))}
           </ul>
           )}
+
+      {enReposo.length > 0 && <SinJornada filas={enReposo} />}
     </section>
+  )
+}
+
+/**
+ * Quien todavia no abrio su jornada, plegado.
+ *
+ * `<details>` nativo y no un `useState`: es exactamente lo que el elemento hace, lo hace con su
+ * propia accesibilidad —`aria-expanded`, teclado, buscar en la pagina lo abre solo— y no repinta el
+ * tablero al abrirlo. Empieza cerrado porque son la mayoria de las filas y ninguna contesta la
+ * pregunta de la pantalla.
+ *
+ * Sin contador de tiempo: no hay ninguno que contar, y por eso tampoco se monta `FilaEnVivo`, que
+ * existe para colgar la jerarquia de un medidor que aca no existe.
+ */
+function SinJornada ({ filas }: { filas: FilaDeLive[] }) {
+  return (
+    <details className="border-linea bg-superficie-hundida rounded-tarjeta group border">
+      <summary className="text-texto-tenue hover:text-texto flex cursor-pointer list-none items-center gap-2 px-3 py-2.5 text-sm font-medium">
+        <ChevronRight
+          size={14}
+          strokeWidth={2}
+          aria-hidden="true"
+          className="shrink-0 transition-transform duration-150 group-open:rotate-90"
+        />
+        Sin jornada abierta
+        <span className="text-texto-sutil tabular-nums">({filas.length})</span>
+      </summary>
+
+      <ul className="flex flex-wrap gap-x-4 gap-y-2 px-3 pb-3 pt-1">
+        {filas.map((fila) => (
+          <li key={fila.staff.id} className="flex min-w-0 items-center gap-2">
+            <Avatar nombre={fila.staff.name} imagen={fila.staff.avatar} tamano="chico" />
+            <span className="text-texto-tenue truncate text-sm" title={cargoYArea(fila.staff) ?? undefined}>
+              {fila.staff.name}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </details>
   )
 }

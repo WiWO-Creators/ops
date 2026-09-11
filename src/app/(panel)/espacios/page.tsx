@@ -1,6 +1,7 @@
 import { Suspense } from 'react'
 import { VistaEspacios } from '@/componentes/proyecto/TarjetasProyectos'
 import { Cargando } from '@/componentes/estado/Estados'
+import { TituloModulo } from '@/componentes/estructura/TituloModulo'
 import { RUTA_DE_ASIGNABLES } from '@/datos/asignables'
 import { construirConsulta, leerConsulta, paramsDeUrl } from '@/datos/consulta'
 import { cargarLookups, opcionesDeFiltros } from '@/datos/lookups'
@@ -77,7 +78,7 @@ export default async function EspaciosPage (props: PageProps<'/espacios'>) {
 
   return (
     <section className="flex flex-col gap-4">
-      <h1 className="text-xl font-semibold text-texto">{ESPACIOS.titulo.plural}</h1>
+      <TituloModulo titulo={ESPACIOS.titulo.plural} />
 
       <Suspense fallback={<Cargando alto="min-h-36" mensaje={`Cargando ${ESPACIOS.titulo.plural.toLowerCase()}…`} />}>
         <VistaEspacios

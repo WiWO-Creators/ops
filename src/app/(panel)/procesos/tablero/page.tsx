@@ -4,6 +4,7 @@ import { TableroProcesos } from '@/componentes/datos/vistas'
 import { AltaRapidaProceso } from '@/componentes/proyecto/AltaRapidaProceso'
 import { Cargando } from '@/componentes/estado/Estados'
 import { Segmentado } from '@/componentes/formularios/Segmentado'
+import { TituloModulo } from '@/componentes/estructura/TituloModulo'
 import { iaHabilitada } from '@/datos/ajustes'
 import { construirConsulta, leerConsulta, paramsDeUrl } from '@/datos/consulta'
 import { cargarLookups, opcionesDeFiltros } from '@/datos/lookups'
@@ -61,33 +62,33 @@ export default async function TableroProcesosPage (props: PageProps<'/procesos/t
 
   return (
     <section className="flex min-h-0 flex-col gap-4">
-      {/* `flex-wrap`: con la tercera presentacion el control segmentado ya no entra al lado del
-          titulo en un telefono, y sin envolver el "Calendario" queda cortado contra el borde. */}
-      <header className="flex flex-wrap items-center justify-between gap-4">
-        <h1 className="text-xl font-semibold text-texto">Tablero de {PROCESOS.titulo.plural}</h1>
-        <div className="flex items-center gap-3">
-          <Suspense><BotonCompletados /></Suspense>
-          <Segmentado
-            etiqueta={`Presentación de ${PROCESOS.titulo.plural.toLowerCase()}`}
-            tamano="medio"
-            activo="tablero"
-            opciones={[
-              // `consulta` ya viene sin orden ni pagina: al volver a la lista viajan solo los filtros.
-              { valor: 'tabla', etiqueta: 'Tabla', icono: 'tabla', href: `/procesos${consulta === '' ? '' : `?${consulta}`}` },
-              { valor: 'tablero', etiqueta: 'Tablero', icono: 'tablero', href: '/procesos/tablero' },
-              {
-                valor: 'calendario',
-                etiqueta: 'Calendario',
-                icono: 'calendario',
-                href: `/procesos/calendario${consulta === '' ? '' : `?${consulta}`}`
-              }
-            ]}
-          />
-          {yo.data.permissions.tasks.includes('create') && (
-            <AltaRapidaProceso catalogos={catalogosDeAlta} etiquetas={lookups.tags} conIa={conIa} />
-          )}
-        </div>
-      </header>
+      <TituloModulo
+        titulo={`Tablero de ${PROCESOS.titulo.plural}`}
+        acciones={
+          <div className="flex items-center gap-3">
+            <Suspense><BotonCompletados /></Suspense>
+            <Segmentado
+              etiqueta={`Presentación de ${PROCESOS.titulo.plural.toLowerCase()}`}
+              tamano="medio"
+              activo="tablero"
+              opciones={[
+                // `consulta` ya viene sin orden ni pagina: al volver a la lista viajan solo los filtros.
+                { valor: 'tabla', etiqueta: 'Tabla', icono: 'tabla', href: `/procesos${consulta === '' ? '' : `?${consulta}`}` },
+                { valor: 'tablero', etiqueta: 'Tablero', icono: 'tablero', href: '/procesos/tablero' },
+                {
+                  valor: 'calendario',
+                  etiqueta: 'Calendario',
+                  icono: 'calendario',
+                  href: `/procesos/calendario${consulta === '' ? '' : `?${consulta}`}`
+                }
+              ]}
+            />
+            {yo.data.permissions.tasks.includes('create') && (
+              <AltaRapidaProceso catalogos={catalogosDeAlta} etiquetas={lookups.tags} conIa={conIa} />
+            )}
+          </div>
+        }
+      />
 
       <Suspense fallback={<Cargando alto="min-h-36" mensaje="Cargando el tablero…" />}>
         <TableroProcesos
