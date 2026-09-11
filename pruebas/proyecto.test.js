@@ -14,7 +14,7 @@ import {
   opcionesDeFiltroDeHito,
   ordenarColumnasHitos
 } from '../src/componentes/proyecto/hitos.ts'
-import { formatearImporte, segundosAHoraMinuto, textoPlano } from '../src/componentes/proyecto/formatos.ts'
+import { aTextoPlano, formatearImporte, segundosAHoraMinuto, textoPlano } from '../src/componentes/proyecto/formatos.ts'
 import { dependenciaPendiente, filtrosTrasCambiar } from '../src/componentes/datos/tabla.ts'
 import { PROCESOS } from '../src/definiciones/procesos.ts'
 import { altoDeTramo, maximoDelGrafico, textoDeDias } from '../src/componentes/proyecto/overview.ts'
@@ -287,4 +287,23 @@ test('dentro de un Espacio el Hito no espera: la ruta ya fija el Espacio y no ha
   const enElEspacio = PROCESOS.filtros.filter((filtro) => filtro.clave !== 'project_id')
 
   assert.equal(dependenciaPendiente(FILTRO_HITO, enElEspacio, {}), null)
+})
+
+test('la descripcion de un proyecto pierde el marcado del panel viejo', () => {
+  // El caso real: la cabecera del portal pintaba `<p>...</p>` tal cual y el cliente leia las
+  // etiquetas en pantalla.
+  assert.equal(
+    aTextoPlano('<p>Proyecto de comunicaciones internas para WOM.</p>'),
+    'Proyecto de comunicaciones internas para WOM.'
+  )
+})
+
+test('dos parrafos quedan como dos lineas, no pegados', () => {
+  assert.equal(aTextoPlano('<p>Uno.</p><p>Dos.</p>'), 'Uno.\nDos.')
+})
+
+test('marcado sin texto es descripcion vacia', () => {
+  // Importa porque el portal decide con esto si dibuja el parrafo: `<p></p>` no es una descripcion.
+  assert.equal(aTextoPlano('<p></p>'), '')
+  assert.equal(aTextoPlano('<p>&nbsp;</p>'), '')
 })
