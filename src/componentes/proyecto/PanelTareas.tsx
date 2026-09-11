@@ -251,7 +251,10 @@ function TareasDelProyecto ({ proyectoId, capacidades, conIa }: PropsPanelTareas
             definicion={definicion}
             inicial={carga.inicial}
             claveFila={(proceso) => proceso.id}
-            claseFila={(proceso) => estaVencida(proceso) ? 'bg-superficie-peligro' : undefined}
+            // `alerta-vencida` es el parpadeo acotado (`estilos/alerta-vencida.css`), que se apaga
+            // solo a los seis ciclos y no corre para quien pidio menos movimiento. El rojo de
+            // fondo es lo que queda cuando se apaga, asi que la alerta no depende de la animacion.
+            claseFila={(proceso) => estaVencida(proceso) ? 'bg-superficie-peligro alerta-vencida' : undefined}
             // La fila entera abre el detalle, igual que en la vista global. El enlace del nombre
             // sigue siendo el camino del teclado; esto es la comodidad del mouse encima de el.
             abrirEn={{ clave: PARAMETRO_TAREA, valor: (proceso) => proceso.id }}
