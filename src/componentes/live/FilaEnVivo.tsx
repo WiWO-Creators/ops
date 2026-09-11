@@ -8,10 +8,13 @@ import { avisarCambioDeMedidor } from './medidor'
 import { haceCuanto } from '@/componentes/auditoria/presentacion'
 import { Avatar } from '@/componentes/presentadores/Avatar'
 import { Insignia } from '@/componentes/presentadores/Insignia'
+import { EstadoDeTarea } from '@/componentes/proyecto/EstadoDeTarea'
+import { GLOSARIO } from '@/dominio/glosario'
 import { formatearDuracion } from '@/componentes/proyecto/cronometro'
 import { cargoYArea, trabajoDeLaFila } from './presentacion'
 import { cn } from '@/lib/clases'
 import type { FilaDeLive } from '@/datos/live'
+import type { OpcionFiltro } from '@/definiciones/tipos'
 
 /**
  * Una persona del tablero, con lo que esta trabajando colgando de ella.
@@ -34,10 +37,17 @@ import type { FilaDeLive } from '@/datos/live'
  * `transcurrido` llega por prop y no se calcula aca: el tic de un segundo es UNO, del panel, y no
  * cincuenta intervalos independientes que despierten la pestaña cincuenta veces por segundo.
  */
-export function FilaEnVivo ({ fila, transcurrido, puedeDetener }: {
+export function FilaEnVivo ({ fila, transcurrido, puedeDetener, estados = [] }: {
   fila: FilaDeLive
   transcurrido: number
   puedeDetener: boolean
+  /**
+   * `task_statuses` de `GET /lookups`, para decir en que estado esta la Tarea que se mide.
+   *
+   * Vacio —el valor por defecto— no pinta la insignia: sin catalogo no hay con que traducir el id, y
+   * de eso se encarga `<EstadoDeTarea>`.
+   */
+  estados?: OpcionFiltro[]
 }) {
   const [confirmando, setConfirmando] = useState(false)
   const [enCurso, setEnCurso] = useState(false)
@@ -125,7 +135,7 @@ export function FilaEnVivo ({ fila, transcurrido, puedeDetener }: {
                 <dt className="text-texto-sutil w-20 shrink-0 text-xs font-medium tracking-[0.08em] uppercase">
                   {nivel.etiqueta}
                 </dt>
-                <dd className="min-w-0 flex-1">
+                <dd className="flex min-w-0 flex-1 flex-wrap items-baseline gap-2">
                   {nivel.pendiente
                     ? <Insignia tono="aviso" tamano="chico">{nivel.valor}</Insignia>
                     : (
@@ -133,6 +143,18 @@ export function FilaEnVivo ({ fila, transcurrido, puedeDetener }: {
                         {nivel.valor}
                       </span>
                       )}
+
+                  {/* El estado va pegado al nombre de la Tarea y no en un nivel propio: es un rasgo
+                      de ese nivel, no un cuarto escalon de la lectura.
+
+                      Se exige el `status` presente y no solo la Tarea: la API lo manda desde
+                      `RecursoJornadas::medidoresCorriendo()`, pero contra un backend anterior llega
+                      `undefined`, y ahi "Sin estado" en cada fila mentiria sobre un dato que nadie
+                      dejo vacio. Tambien llega `null` cuando la Tarea esta en la papelera. */}
+                  {nivel.etiqueta === GLOSARIO.proceso.singular
+                    && medidor?.task?.status !== undefined && medidor.task.status !== null && (
+                    <EstadoDeTarea status={medidor.task.status} catalogo={estados} />
+                  )}
                 </dd>
               </div>
             ))}

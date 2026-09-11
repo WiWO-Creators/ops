@@ -11,7 +11,7 @@ import { pedirSobre } from '@/datos/cliente'
 import { GLOSARIO } from '@/dominio/glosario'
 import type { Capacidad, StaffReferencia } from '@/datos/tipos'
 
-/** `GET`/`PUT /clients/{id}/focales`, con el id ya escapado. */
+/** `GET`/`PUT /clients/{id}/focales`, con el id ya escapado. La ruta conserva el nombre de la API. */
 function rutaDeFocales (clienteId: number): string {
   return `clients/${encodeURIComponent(String(clienteId))}/focales`
 }
@@ -31,9 +31,13 @@ function mismasPersonas (unos: number[], otros: number[]): boolean {
 }
 
 /**
- * Pestaña Focales del Cliente: quién responde por la cuenta, y en qué áreas se la atiende.
+ * Pestaña Focals del Cliente: quién responde por la cuenta, y en qué áreas se la atiende.
+
+ * El nombre visible sale del glosario (`GLOSARIO.focal`) y nunca escrito a mano: la sección propia
+ * de esta gente se llama igual, y dos lugares que escriben la misma palabra son dos lugares que
+ * pueden terminar diciendo cosas distintas.
  *
- * **Nombrar a alguien focal reparte acceso.** Quien esté acá ve todos los {@link GLOSARIO.espacio} y
+ * **Nombrar a alguien {@link GLOSARIO.focal} reparte acceso.** Quien esté acá ve todos los {@link GLOSARIO.espacio} y
  * todas las {@link GLOSARIO.proceso} del cliente, aunque no sea miembro de ninguno. La pantalla lo
  * dice con esas palabras a propósito: una lista de personas al lado de un cliente se lee como un
  * dato de contacto, y esto no lo es.
@@ -74,7 +78,7 @@ export function PanelFocalesCliente ({ clienteId, capacidades }: {
       pedirSobre<string[]>(rutaDeAreas(clienteId), aborto.signal)
     ]).then(([disponibles, focales, deAreas]) => {
       if (aborto.signal.aborted) return
-      // Conserva a quien ya es focal aunque no figure en el catalogo de asignables: si se dio de
+      // Conserva a quien ya es Focal aunque no figure en el catalogo de asignables: si se dio de
       // baja, el selector lo mostraria vacio y guardar lo sacaria sin que nadie lo pidiera.
       setPersonas([...new Map([...disponibles, ...focales.data].map((p) => [p.id, p])).values()])
       setAsignadas(focales.data)
@@ -82,7 +86,11 @@ export function PanelFocalesCliente ({ clienteId, capacidades }: {
       setAreas(deAreas.data)
       setCargado(true)
     }).catch((fallo: unknown) => {
-      if (!aborto.signal.aborted) setError(fallo instanceof Error ? fallo.message : 'No se pudieron cargar los focales.')
+      if (!aborto.signal.aborted) {
+        setError(fallo instanceof Error
+          ? fallo.message
+          : `No se pudieron cargar los ${GLOSARIO.focal.plural.toLowerCase()}.`)
+      }
     }).finally(() => {
       if (!aborto.signal.aborted) setCargando(false)
     })
@@ -90,7 +98,7 @@ export function PanelFocalesCliente ({ clienteId, capacidades }: {
     return () => aborto.abort()
   }, [clienteId])
 
-  /** Reemplaza la lista entera; una lista vacia deja al cliente sin focal. */
+  /** Reemplaza la lista entera; una lista vacia deja al cliente sin Focal. */
   async function guardar (evento: React.FormEvent) {
     evento.preventDefault()
     if (!cargado || enviando) return
@@ -112,12 +120,12 @@ export function PanelFocalesCliente ({ clienteId, capacidades }: {
     setGuardado(true)
   }
 
-  if (cargando) return <Cargando alto="min-h-36" mensaje="Cargando los focales…" />
+  if (cargando) return <Cargando alto="min-h-36" mensaje={`Cargando los ${GLOSARIO.focal.plural.toLowerCase()}…`} />
 
   if (!cargado) {
     return (
       <p role="alert" className="text-texto-peligro text-sm">
-        {error ?? 'No se pudieron cargar los focales.'} Recarga la página si el problema continúa.
+        {error ?? `No se pudieron cargar los ${GLOSARIO.focal.plural.toLowerCase()}.`} Recarga la página si el problema continúa.
       </p>
     )
   }
@@ -128,19 +136,25 @@ export function PanelFocalesCliente ({ clienteId, capacidades }: {
         ? (
           <form onSubmit={guardar} className="flex w-full max-w-md flex-col gap-3">
             <fieldset disabled={enviando} className="min-w-0">
-              <legend className="mb-1 text-sm font-medium">Focales de la cuenta</legend>
+              <legend className="mb-1 text-sm font-medium">{GLOSARIO.focal.plural} de la cuenta</legend>
               <p className="text-texto-tenue mb-2 text-xs">
-                El focal responde por el cliente y ve todos sus {GLOSARIO.espacio.plural.toLowerCase()} y todas
-                sus {GLOSARIO.proceso.plural.toLowerCase()}.
+                El {GLOSARIO.focal.singular} responde por el cliente y ve todos
+                sus {GLOSARIO.espacio.plural.toLowerCase()} y todas sus {GLOSARIO.proceso.plural.toLowerCase()}.
               </p>
               <SelectorPersonas personas={personas} elegidas={elegidas} onCambiar={setElegidas} />
               {elegidas.length === 0 && (
-                <p className="text-texto-tenue mt-2 text-xs">El cliente quedará sin focal.</p>
+                <p className="text-texto-tenue mt-2 text-xs">
+                  El cliente quedará sin {GLOSARIO.focal.singular.toLowerCase()}.
+                </p>
               )}
             </fieldset>
 
             {error !== null && <p role="alert" className="text-texto-peligro text-sm">{error}</p>}
-            {guardado && <p role="status" className="text-texto-tenue text-xs">Focales actualizados.</p>}
+            {guardado && (
+              <p role="status" className="text-texto-tenue text-xs">
+                {GLOSARIO.focal.plural} actualizados.
+              </p>
+            )}
 
             <div>
               <Boton
@@ -150,7 +164,7 @@ export function PanelFocalesCliente ({ clienteId, capacidades }: {
                 disabled={enviando || mismasPersonas(elegidas, asignadas.map((persona) => persona.id))}
                 cargando={enviando}
               >
-                Guardar focales
+                Guardar {GLOSARIO.focal.plural.toLowerCase()}
               </Boton>
             </div>
           </form>
@@ -167,8 +181,8 @@ function ListaFocales ({ personas }: { personas: StaffReferencia[] }) {
   if (personas.length === 0) {
     return (
       <Vacio
-        titulo="Este cliente no tiene focal"
-        descripcion={`Quien sea focal verá todos los ${GLOSARIO.espacio.plural.toLowerCase()} y todas las ${GLOSARIO.proceso.plural.toLowerCase()} del cliente.`}
+        titulo={`Este cliente no tiene ${GLOSARIO.focal.singular.toLowerCase()}`}
+        descripcion={`Quien sea ${GLOSARIO.focal.singular.toLowerCase()} verá todos los ${GLOSARIO.espacio.plural.toLowerCase()} y todas las ${GLOSARIO.proceso.plural.toLowerCase()} del cliente.`}
       />
     )
   }

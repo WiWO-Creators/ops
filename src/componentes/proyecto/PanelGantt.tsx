@@ -26,8 +26,11 @@ import {
   zoomSugerido,
   type FilaGantt,
   type MarcaGantt,
+  type RangoGantt,
   type ZoomGantt
 } from './gantt'
+import { ExportarGantt } from './ExportarGantt'
+import { NOMBRE_DE_AGRUPACION, NOMBRE_DE_ZOOM } from './exportar-gantt'
 import type { AgrupacionGantt, GrupoGantt, Lookups } from '@/datos/recursos'
 
 /**
@@ -51,20 +54,16 @@ import type { AgrupacionGantt, GrupoGantt, Lookups } from '@/datos/recursos'
  * Los grupos sin tareas no llegan: los omite la API, igual que el panel.
  */
 
-/** Las tres agrupaciones del panel, con su etiqueta. `milestones` es la de por defecto. */
-const AGRUPACIONES = [
-  { valor: 'milestones', etiqueta: GLOSARIO.hito.plural },
-  { valor: 'members', etiqueta: 'Miembros' },
-  { valor: 'status', etiqueta: 'Estado' }
-] as const
-
-/** Etiqueta visible de cada zoom. */
-const NOMBRE_ZOOM: Record<ZoomGantt, string> = {
-  dia: 'Día',
-  semana: 'Semana',
-  mes: 'Mes',
-  anio: 'Año'
-}
+/**
+ * Las tres agrupaciones del panel, en el orden en que se muestran. `milestones` es la de por defecto.
+ *
+ * Las etiquetas salen de `exportar-gantt.ts` y no se escriben acá: el pie del archivo exportado dice
+ * por cual esta agrupado el diagrama, y dos copias del mismo nombre se separan en el primer renombre.
+ */
+const AGRUPACIONES = (['milestones', 'members', 'status'] as const).map((valor) => ({
+  valor,
+  etiqueta: NOMBRE_DE_AGRUPACION[valor]
+}))
 
 /** Parametros con los que el diagrama guarda su estado en la URL. */
 const PARAMETRO = { agrupar: 'gantt-agrupar', zoom: 'gantt-zoom', estado: 'gantt-estado' } as const
@@ -98,6 +97,18 @@ export function PanelGantt ({ proyectoId }: { proyectoId: number }): ReactElemen
   )
   const lookups = useRecurso<Lookups>('lookups', 'No se pudieron cargar los estados.')
 
+  // El dia se congela al montar: recalcularlo en cada render movería el marcador de hoy y la marca
+  // de vencida en medio de una sesion abierta desde ayer, sin que nada mas cambie en pantalla.
+  const [hoy] = useState(() => hoyLocal())
+  const grupos = estado.fase === 'listo' ? estado.datos : []
+  const rango = rangoDeGantt(grupos)
+  const zoomPedido = params.get(PARAMETRO.zoom)
+  // El zoom se resuelve acá y no dentro del diagrama porque el archivo exportado tiene que salir en
+  // la misma escala que se esta viendo.
+  const zoom: ZoomGantt = esZoomGantt(zoomPedido)
+    ? zoomPedido
+    : rango === null ? 'mes' : zoomSugerido(rango)
+
   /** Escribe un parametro del diagrama en la URL conservando el resto de la vista. */
   function elegir (clave: string, valor: string | null): void {
     const siguientes = new URLSearchParams(params.toString())
@@ -129,8 +140,8 @@ export function PanelGantt ({ proyectoId }: { proyectoId: number }): ReactElemen
         <Segmentado
           etiqueta="Escala"
           etiquetaVisible
-          opciones={ZOOMS.map((z) => ({ valor: z, etiqueta: NOMBRE_ZOOM[z] }))}
-          activo={params.get(PARAMETRO.zoom)}
+          opciones={ZOOMS.map((z) => ({ valor: z, etiqueta: NOMBRE_DE_ZOOM[z] }))}
+          activo={zoomPedido}
           onElegir={(valor) => { elegir(PARAMETRO.zoom, valor) }}
         />
 
@@ -141,12 +152,23 @@ export function PanelGantt ({ proyectoId }: { proyectoId: number }): ReactElemen
             onAlternar={alternarEstado}
           />
         )}
+
+        {estado.fase === 'listo' && (
+          <ExportarGantt
+            grupos={grupos}
+            zoom={zoom}
+            agrupar={agrupar}
+            hoy={hoy}
+            proyectoId={proyectoId}
+            estados={lookups.estado.fase === 'listo' ? lookups.estado.datos.task_statuses : []}
+          />
+        )}
       </div>
 
       {estado.fase === 'cargando' && <Cargando mensaje="Cargando el Gantt…" />}
       {estado.fase === 'error' && <ErrorEstado detalle={estado.mensaje} onReintentar={recargar} />}
       {estado.fase === 'listo' && (
-        <Diagrama grupos={estado.datos} zoomPedido={params.get(PARAMETRO.zoom)} />
+        <Diagrama grupos={grupos} rango={rango} zoom={zoom} hoy={hoy} />
       )}
     </div>
   )
@@ -263,26 +285,24 @@ function useAnchoMedido (): [RefObject<HTMLDivElement | null>, number] {
  * El diagrama en si: la escala, la columna de nombres, la de pistas y las flechas encima.
  *
  * @param grupos los grupos ya cargados
- * @param zoomPedido el zoom que venia en la URL, o `null` para el que sugiere la duracion
+ * @param rango la linea de tiempo, o `null` si nada tiene fechas
+ * @param zoom la escala ya resuelta por el panel
+ * @param hoy fecha `YYYY-MM-DD` congelada por el panel
  * @returns la grilla de pistas, o el estado vacio si nada tiene fechas que dibujar
  */
 function Diagrama ({
   grupos,
-  zoomPedido
+  rango,
+  zoom,
+  hoy
 }: {
   grupos: GrupoGantt[]
-  zoomPedido: string | null
+  rango: RangoGantt | null
+  zoom: ZoomGantt
+  hoy: string
 }): ReactElement {
   const [caja, anchoCaja] = useAnchoMedido()
   const idResumen = useId()
-  // El dia se congela al montar: recalcularlo en cada render movería el marcador de hoy y la marca
-  // de vencida en medio de una sesion abierta desde ayer, sin que nada mas cambie en pantalla.
-  const [hoy] = useState(() => hoyLocal())
-  const rango = rangoDeGantt(grupos)
-
-  const zoom: ZoomGantt = esZoomGantt(zoomPedido)
-    ? zoomPedido
-    : rango === null ? 'mes' : zoomSugerido(rango)
 
   if (rango === null) {
     return (
@@ -410,7 +430,7 @@ function Diagrama ({
         <p>
           Diagrama de Gantt de {tareas.size}{' '}
           {GLOSARIO.proceso.plural.toLowerCase()} entre {formatearFecha(fechaDeDia(rango.inicio))} y{' '}
-          {formatearFecha(fechaDeDia(rango.fin))}, en escala de {NOMBRE_ZOOM[zoom].toLowerCase()}.
+          {formatearFecha(fechaDeDia(rango.fin))}, en escala de {NOMBRE_DE_ZOOM[zoom].toLowerCase()}.
         </p>
         {vencidas > 0 && (
           <p>

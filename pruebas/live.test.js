@@ -12,7 +12,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { cargoYArea, ordenarPorActividad, repartirTablero, trabajoDeLaFila } from '../src/componentes/live/presentacion.ts'
-import { alcanceDeLive, mensajeDeFalloDeJornada, mensajeDeFalloDeMedidor } from '../src/dominio/live.ts'
+import { alcanceDeLive, esJefatura, mensajeDeFalloDeJornada, mensajeDeFalloDeMedidor } from '../src/dominio/live.ts'
 import { GLOSARIO } from '../src/dominio/glosario.ts'
 
 /** Un `/me` minimo: solo lo que `alcanceDeLive` mira. */
@@ -232,4 +232,20 @@ test('repartirTablero cuenta como activo el medidor sin jornada', () => {
 
   assert.equal(activos.length, 1)
   assert.equal(enReposo.length, 0)
+})
+
+/**
+ * El enlace al resumen del equipo se ofrece solo a quien puede abrirlo.
+ *
+ * Esconder no autoriza —la compuerta es el 403 de la API— pero un enlace que lleva a una pantalla
+ * sin permiso tampoco informa: la mitad de la empresa lo vería y ninguna lo podría usar.
+ */
+test('esJefatura deja fuera a lider, focal y usuario', () => {
+  for (const nivel of ['head', 'gerente', 'admin', 'superadmin']) {
+    assert.equal(esJefatura(nivel), true, `${nivel} tendría que ver el resumen`)
+  }
+
+  for (const nivel of ['usuario', 'focal', 'lider']) {
+    assert.equal(esJefatura(nivel), false, `${nivel} no tendría que ver el resumen`)
+  }
 })

@@ -1,11 +1,15 @@
+import Link from 'next/link'
+import { ArrowRight } from 'lucide-react'
 import { ControlJornada } from '@/componentes/live/ControlJornada'
 import { PanelEquipo } from '@/componentes/live/PanelEquipo'
 import { TituloModulo } from '@/componentes/estructura/TituloModulo'
 import { ErrorApi } from '@/datos/errores'
 import { intervaloDeLive, type EstadoDeJornada, type FilaDeLive } from '@/datos/live'
+import type { Lookups } from '@/datos/recursos'
 import { pedir } from '@/datos/servidor'
+import { opcionesDeEstados } from '@/dominio/estados-tarea'
 import type { Sobre, Yo } from '@/datos/tipos'
-import { alcanceDeLive } from '@/dominio/live'
+import { alcanceDeLive, esJefatura } from '@/dominio/live'
 
 export const metadata = { title: 'En vivo · WiWO Ops' }
 
@@ -53,16 +57,36 @@ export default async function LivePage () {
   const alcance = alcanceDeLive(yo)
   const segundos = intervaloDeLive()
 
-  const [jornada, equipo] = await Promise.all([
+  // El catalogo se pide junto al tablero y solo cuando hay tablero: sin equipo que mostrar no hay
+  // ninguna insignia que pintar. Va por `traer` como los demas —un `/lookups` caido deja el tablero
+  // sin el estado de la Tarea, no la pantalla en blanco— y baja como prop, fuera del latido del
+  // panel: `task_statuses` no cambia entre dos consultas de `/live`.
+  const [jornada, equipo, catalogos] = await Promise.all([
     traer<EstadoDeJornada>('/me/jornada'),
-    alcance === 'propio' ? Promise.resolve(null) : traer<FilaDeLive[]>('/live')
+    alcance === 'propio' ? Promise.resolve(null) : traer<FilaDeLive[]>('/live'),
+    alcance === 'propio' ? Promise.resolve(null) : traer<Lookups>('/lookups')
   ])
+
+  const estados = catalogos === null || catalogos instanceof ErrorApi
+    ? []
+    : opcionesDeEstados(catalogos.data.task_statuses)
 
   return (
     <section className="mx-auto flex w-full max-w-5xl flex-col gap-8">
       <TituloModulo
         titulo="En vivo"
         descripcion="Tu jornada y el tiempo que estás midiendo ahora. La jornada es la ventana en la que se puede medir: sin ella abierta, ningún cronómetro arranca."
+        acciones={esJefatura(yo.nivel)
+          ? (
+            <Link
+              href="/live/resumen"
+              className="text-acento inline-flex items-center gap-1 text-sm font-semibold hover:underline"
+            >
+              Resumen del equipo
+              <ArrowRight size={16} strokeWidth={2.5} aria-hidden="true" />
+            </Link>
+            )
+          : undefined}
       />
 
       <ControlJornada
@@ -80,6 +104,7 @@ export default async function LivePage () {
           segundos={segundos}
           inicial={equipo instanceof ErrorApi ? [] : equipo.data}
           errorInicial={mensaje(equipo)}
+          estados={estados}
         />
       )}
     </section>

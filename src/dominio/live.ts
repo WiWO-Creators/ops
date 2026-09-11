@@ -5,7 +5,7 @@
  * Las dos se prueban sin montar nada (`pruebas/live.test.js`).
  */
 import { puedeVerSeccion } from './permisos.ts'
-import type { Yo } from '@/datos/tipos'
+import type { NivelPermiso, Yo } from '@/datos/tipos'
 
 /** Hasta donde llega el tablero de quien mira. Es la traduccion de `meta.scope` de `GET /live`. */
 export type AlcanceDeLive = 'todo' | 'area' | 'propio'
@@ -90,4 +90,27 @@ export function mensajeDeFalloDeJornada (estado: number, abriendo: boolean): str
   }
 
   return `No se pudo ${abriendo ? 'abrir' : 'cerrar'} la jornada (el servidor respondió ${estado}).`
+}
+
+/**
+ * Los escalones que reciben el resumen del equipo de las 20:00.
+ *
+ * Espeja la regla de la API (`Escritura\ResumenDelEquipo`), que responde **403** a quien no está en
+ * la lista. Existe para no ofrecer un enlace que lleva a una pantalla sin permiso: esconder no
+ * autoriza —la compuerta es la API— pero enseñarle una puerta cerrada a media empresa tampoco
+ * informa a nadie.
+ *
+ * `lider` queda fuera a propósito: conduce un equipo, no la casa, y el resumen es de toda ella.
+ * `focal` tampoco, que además ya no es un escalón sino una relación con clientes.
+ */
+const JEFATURAS: readonly NivelPermiso[] = ['head', 'gerente', 'admin', 'superadmin']
+
+/**
+ * Si a esta persona le corresponde ver el resumen del equipo.
+ *
+ * @param nivel el escalón que resolvió la API en `GET /me`
+ * @returns `true` para jefaturas
+ */
+export function esJefatura (nivel: NivelPermiso): boolean {
+  return JEFATURAS.includes(nivel)
 }

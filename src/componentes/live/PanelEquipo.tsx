@@ -11,6 +11,7 @@ import { escucharMedidor } from './medidor'
 import { cn } from '@/lib/clases'
 import { cargoYArea, repartirTablero } from './presentacion'
 import { FilaEnVivo } from './FilaEnVivo'
+import type { OpcionFiltro } from '@/definiciones/tipos'
 
 interface PropsPanelEquipo {
   inicial: FilaDeLive[]
@@ -21,6 +22,14 @@ interface PropsPanelEquipo {
   segundos: number
   /** Hasta donde ve quien mira. Solo cambia el titulo: la API ya filtro las filas. */
   alcance: AlcanceDeLive
+  /**
+   * `task_statuses` de `GET /lookups`, para el estado de la Tarea que cada quien esta midiendo.
+   *
+   * Baja del servidor como prop y **no entra en el latido de 30 segundos**: el catalogo no cambia
+   * entre dos consultas del tablero, y volver a pedirlo en cada tic convertiria un dato estable en
+   * trafico permanente. Vacio —el valor por defecto— no pinta insignias.
+   */
+  estados?: OpcionFiltro[]
 }
 
 /**
@@ -54,7 +63,14 @@ interface PropsPanelEquipo {
  * comparte es lo que de verdad es comun: `Avatar`, `Insignia`, `Vacio`, `haceCuanto()` y
  * `formatearDuracion()`.
  */
-export function PanelEquipo ({ inicial, errorInicial = null, segundos, alcance, operador }: PropsPanelEquipo) {
+export function PanelEquipo ({
+  inicial,
+  errorInicial = null,
+  segundos,
+  alcance,
+  operador,
+  estados = []
+}: PropsPanelEquipo) {
   const [filas, setFilas] = useState(inicial)
   const [transcurrido, setTranscurrido] = useState(0)
   const [error, setError] = useState<string | null>(errorInicial)
@@ -168,6 +184,7 @@ export function PanelEquipo ({ inicial, errorInicial = null, segundos, alcance, 
                 fila={fila}
                 transcurrido={transcurrido}
                 puedeDetener={operador.is_admin || operador.is_superadmin || operador.id === fila.staff.id}
+                estados={estados}
               />
             ))}
           </ul>

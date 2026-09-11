@@ -164,15 +164,45 @@ export function EditorDeActa ({ htmlInicial, onCambio, proyectoId, conIa = true 
   )
 }
 
-/** Los formatos que el esquema entiende. Lo que no está acá tampoco se guarda. */
+/**
+ * Los formatos que el esquema entiende. Lo que no está acá tampoco se guarda.
+ *
+ * Cada formato dice si está puesto con su propia consulta y no con un nombre de nodo suelto: los dos
+ * niveles de título son el mismo nodo `heading`, así que con el nombre a secas se encendían los dos
+ * botones a la vez y la barra mentía sobre lo que estaba aplicado.
+ */
 function BarraDeFormato ({ editor }: { editor: Editor }): ReactElement {
-  const botones: Array<{ etiqueta: string, activo: string, aplicar: () => void }> = [
-    { etiqueta: 'Título', activo: 'heading', aplicar: () => editor.chain().focus().toggleHeading({ level: 2 }).run() },
-    { etiqueta: 'Subtítulo', activo: 'heading', aplicar: () => editor.chain().focus().toggleHeading({ level: 3 }).run() },
-    { etiqueta: 'Negrita', activo: 'bold', aplicar: () => editor.chain().focus().toggleBold().run() },
-    { etiqueta: 'Cursiva', activo: 'italic', aplicar: () => editor.chain().focus().toggleItalic().run() },
-    { etiqueta: 'Lista', activo: 'bulletList', aplicar: () => editor.chain().focus().toggleBulletList().run() },
-    { etiqueta: 'Cita', activo: 'blockquote', aplicar: () => editor.chain().focus().toggleBlockquote().run() }
+  const botones: Array<{ etiqueta: string, puesto: boolean, aplicar: () => void }> = [
+    {
+      etiqueta: 'Título',
+      puesto: editor.isActive('heading', { level: 2 }),
+      aplicar: () => editor.chain().focus().toggleHeading({ level: 2 }).run()
+    },
+    {
+      etiqueta: 'Subtítulo',
+      puesto: editor.isActive('heading', { level: 3 }),
+      aplicar: () => editor.chain().focus().toggleHeading({ level: 3 }).run()
+    },
+    {
+      etiqueta: 'Negrita',
+      puesto: editor.isActive('bold'),
+      aplicar: () => editor.chain().focus().toggleBold().run()
+    },
+    {
+      etiqueta: 'Cursiva',
+      puesto: editor.isActive('italic'),
+      aplicar: () => editor.chain().focus().toggleItalic().run()
+    },
+    {
+      etiqueta: 'Lista',
+      puesto: editor.isActive('bulletList'),
+      aplicar: () => editor.chain().focus().toggleBulletList().run()
+    },
+    {
+      etiqueta: 'Cita',
+      puesto: editor.isActive('blockquote'),
+      aplicar: () => editor.chain().focus().toggleBlockquote().run()
+    }
   ]
 
   return (
@@ -182,10 +212,10 @@ function BarraDeFormato ({ editor }: { editor: Editor }): ReactElement {
           key={boton.etiqueta}
           type="button"
           onClick={boton.aplicar}
-          aria-pressed={editor.isActive(boton.activo)}
+          aria-pressed={boton.puesto}
           className={cn(
-            'rounded-control px-2 py-1 text-xs font-medium transition-colors',
-            editor.isActive(boton.activo) ? 'bg-acento text-acento-contenido' : 'text-texto-tenue hover:bg-hover'
+            'rounded-control ease-neo px-2.5 py-1 text-xs font-semibold transition-colors duration-rapida',
+            boton.puesto ? 'bg-acento text-acento-contenido' : 'text-texto-tenue hover:bg-hover hover:text-texto'
           )}
         >
           {boton.etiqueta}

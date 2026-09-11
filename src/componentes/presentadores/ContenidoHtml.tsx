@@ -13,6 +13,27 @@
  * forma de mostrar HTML ajeno sin escribir un saneador propio, y un saneador propio a base de
  * expresiones regulares da mas confianza de la que merece.
  *
+ * === `imprimible`, Y POR QUE NO ABRE NINGUNA PUERTA ===
+ *
+ * Con el origen opaco, el padre **no puede ni leer** `contentWindow.print`: Chromium contesta
+ * `SecurityError: Blocked a frame with origin "null" from accessing a cross-origin frame`. O sea que
+ * el boton "Imprimir" del Meeting Paper no imprimia nada; tiraba esa excepcion y se quedaba ahi.
+ *
+ * `imprimible` suma los dos unicos permisos que hacen falta: `allow-same-origin` para que el padre
+ * alcance `print()` y `allow-modals` para que se abra el dialogo. **Lo que NO suma es
+ * `allow-scripts`, y ahi esta todo el asunto**: sin ese permiso el documento no ejecuta nada —ni un
+ * `<script>`, ni un `onerror` de `<img>`, ni un `href="javascript:"`—, asi que el origen que
+ * `allow-same-origin` le concede no lo puede usar nadie. Verificado en Chromium: con
+ * `allow-same-origin allow-modals` la consola sigue diciendo *"Blocked script execution... the
+ * 'allow-scripts' permission is not set"* y el `window.parent` del padre queda intacto.
+ *
+ * La pareja peligrosa es `allow-scripts` **junto a** `allow-same-origin`: eso si le daria a un acta
+ * escrita por un modelo la sesion de quien la lee. Si alguna vez alguien necesita scripts aca, la
+ * respuesta no es agregar el permiso: es dejar de usar este componente.
+ *
+ * Solo lo pide quien de verdad imprime. Los contratos y las propuestas del portal siguen con el
+ * `sandbox` vacio.
+ *
  * El documento se pinta con sus propios colores —fondo claro, letra oscura— porque es un documento,
  * no una parte de la interfaz: el iframe no hereda los tokens del tema y forzarlos adentro seria
  * pelear con el CSS que el propio contrato traiga.
@@ -120,6 +141,7 @@ export function ContenidoHtml ({
   alto = 'h-[32rem]',
   titulo = 'Contenido del documento',
   firma = null,
+  imprimible = false,
   ref
 }: {
   html: string
@@ -134,6 +156,13 @@ export function ContenidoHtml ({
    * dia se arregla en un lugar.
    */
   firma?: string | null
+  /**
+   * Permite que quien lo monta llame a `print()` sobre este iframe.
+   *
+   * Ver el docblock: relaja el `sandbox` a `allow-same-origin allow-modals` y **nunca** a
+   * `allow-scripts`, que es lo que mantiene el HTML ajeno inerte.
+   */
+  imprimible?: boolean
   /** Para poder llamar a `print()` del propio documento: sale con su formato, no como texto plano. */
   ref?: React.Ref<HTMLIFrameElement>
 }) {
@@ -152,7 +181,7 @@ export function ContenidoHtml ({
     <iframe
       ref={ref}
       title={titulo}
-      sandbox=""
+      sandbox={imprimible ? 'allow-same-origin allow-modals' : ''}
       srcDoc={documento}
       // Alto fijo con desplazamiento propio: sin JavaScript adentro no hay forma de que el iframe
       // informe su altura, y dejarlo crecer solo no es posible. Un alto generoso cubre la mayoria

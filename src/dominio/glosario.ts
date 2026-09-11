@@ -23,6 +23,10 @@ export const GLOSARIO = {
   // ("Upselling") y no "Upsells": es como lo llama el equipo, y no hay traducción que lo mejore.
   upsell: { singular: 'Upsell', plural: 'Upselling' },
   cliente: { singular: 'Cliente', plural: 'Clientes' },
+  // Quien responde por una cuenta. La clave sigue diciendo `focal` porque asi se llama el recurso
+  // de la API (`/clients/{id}/focales`); el plural es "Focals" y no "Focales" porque es como lo
+  // llama el equipo, y esa palabra nombra a la vez a la persona y a su pantalla.
+  focal: { singular: 'Focal', plural: 'Focals' },
   ticket: { singular: 'Ticket', plural: 'Tickets' },
   seguimiento: { singular: 'Seguimiento', plural: 'Seguimiento' },
   planificador: { singular: 'Planificador', plural: 'Planificador' },

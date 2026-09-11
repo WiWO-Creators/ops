@@ -18,9 +18,13 @@ export function leerConfiguracion (env = process.env) {
   const frecuencia = env.OPS_CRON_POLL_SCHEDULE || '*/5 * * * *'
   const jornadas = env.OPS_CRON_LIVE_SCHEDULE || '*/15 * * * *'
   const papelera = env.OPS_CRON_TRASH_SCHEDULE || '0 3 * * *'
-  if (![frecuencia, jornadas, papelera].every((expresion) => cron.validate(expresion))) throw new Error('OPS_CRON_*_SCHEDULE contiene una expresión cron inválida.')
+  // El resumen del día del equipo. Su hora vive acá y sólo acá: el backend calcula el día que le
+  // pidan y no tiene opción de hora propia, así que no hay dos relojes que puedan separarse.
+  // No se toca OPS_TIMER_CUTOFF_HOUR: ése es el corte de cronómetros, que es otra cosa.
+  const resumen = env.OPS_CRON_RESUMEN_SCHEDULE || '0 20 * * *'
+  if (![frecuencia, jornadas, papelera, resumen].every((expresion) => cron.validate(expresion))) throw new Error('OPS_CRON_*_SCHEDULE contiene una expresión cron inválida.')
   const [horas, minutos] = hora.split(':').map(Number)
-  return { base: base.href.replace(/\/$/, '') + '/', secret, hora, timeout, frecuencia, jornadas, papelera, zona: 'America/Santiago', corte: `${minutos} ${horas} * * *` }
+  return { base: base.href.replace(/\/$/, '') + '/', secret, hora, timeout, frecuencia, jornadas, papelera, resumen, zona: 'America/Santiago', corte: `${minutos} ${horas} * * *` }
 }
 
 /** Escribe registros estructurados para PM2 sin incluir secretos ni cuerpos de respuestas. */
@@ -66,7 +70,7 @@ export function crearProgramador (config, { fetchImpl = fetch, cronImpl = cron, 
 
   /** Ejecuta un trabajo con exclusión local y registra su resultado, incluso si falla la red. */
   async function ejecutar (trabajo) {
-    if (!['rutinas', 'jornadas', 'papelera', 'cortar_cronometros'].includes(trabajo)) throw new Error('Trabajo desconocido.')
+    if (!['rutinas', 'jornadas', 'papelera', 'cortar_cronometros', 'resumen_equipo'].includes(trabajo)) throw new Error('Trabajo desconocido.')
     if (detenido || pendientes.has(trabajo)) return { status: 'skipped', reason: 'local_overlap_or_stopped' }
     const inicio = Date.now()
     const promesa = (async () => {
@@ -106,6 +110,10 @@ export function crearProgramador (config, { fetchImpl = fetch, cronImpl = cron, 
       ['rutinas-y-recuperacion', config.frecuencia, () => ejecutarConCorte('rutinas')],
       ['jornadas', config.jornadas, () => ejecutarConCorte('jornadas')],
       ['papelera', config.papelera, () => ejecutar('papelera')],
+      // Sin recuperación al arranque, a diferencia de las tres de arriba: el resumen es de una hora
+      // fija del día y dispararlo al reiniciar el proceso a las 03:00 escribiría el resumen de un día
+      // a medio empezar y, con el interruptor encendido, mandaría el correo antes de tiempo.
+      ['resumen-del-equipo', config.resumen, () => ejecutar('resumen_equipo')],
       ['corte-diario', config.corte, () => ejecutar('cortar_cronometros')]
     ]) {
       const tarea = cronImpl.schedule(expresion, accion, { name: nombre, timezone: config.zona, noOverlap: true })

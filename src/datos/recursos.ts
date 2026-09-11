@@ -1015,6 +1015,15 @@ export interface PersonaConTiempo {
 export interface TareaElegible {
   id: number
   name: string
+  /**
+   * Estado de la Tarea (`task_statuses`).
+   *
+   * El formulario de horas **no lo pinta**: la consulta del backend ya excluye "Completo" y no carga
+   * el catalogo, asi que la insignia costaria una peticion de `/lookups` por dialogo para adornar un
+   * desplegable de eleccion. Viaja igual porque el contrato lo manda y quien lo necesite no tiene
+   * que volver a tocar la API.
+   */
+  status: number
 }
 
 /** Asignado de una tarea (`GET /tasks/{taskId}/assignees`). */

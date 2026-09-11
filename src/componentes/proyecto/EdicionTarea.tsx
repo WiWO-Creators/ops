@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, type FormEvent, type ReactElement } from 'react'
+import { useEffect, useRef, useState, type FormEvent, type ReactElement } from 'react'
 import { useAccionPresencia } from '@/componentes/auditoria/accion'
 import { Boton } from '@/componentes/formularios/Boton'
 import { Campo } from '@/componentes/formularios/Campo'
@@ -33,6 +33,7 @@ import {
   type ErroresDeCampos,
   type ValoresDeCampos
 } from '@/dominio/campos-personalizados'
+import { errorDeDescripcion } from '@/dominio/descripcion-tarea'
 import {
   camposDeTarea,
   cuerpoDeParche,
@@ -47,6 +48,7 @@ import { errorDeHorasEstimadas } from '@/dominio/tiempo-estimado'
 import { ESTADO_COMPLETO } from './tareas'
 import { hoyLocal } from '@/lib/fechas'
 import { cn } from '@/lib/clases'
+import { AsistenteDescripcion } from './AsistenteDescripcion'
 import type { StaffReferencia } from '@/datos/tipos'
 import type {
   ConfiguracionTiposEspacio,
@@ -100,6 +102,18 @@ export function EdicionTarea (
   const [guardadoParcial, setGuardadoParcial] = useState(false)
   const [enCurso, setEnCurso] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  /**
+   * El error de la descripcion, aparte del cartel generico del formulario.
+   *
+   * La descripcion pasa a ser obligatoria tambien acá, y **este es el formulario que mas lo va a
+   * doler**: 1.700 de las 3.046 Tareas que existen no tienen ninguna, asi que cualquiera que abra
+   * una de esas para correr una fecha se encuentra con que antes tiene que escribirla. Por eso el
+   * mensaje va junto al campo, el foco se pone ahi, y el asistente de IA esta a un clic de
+   * distancia: la obligacion sin la ayuda al lado se cumple escribiendo un guion.
+   */
+  const [errorDescripcion, setErrorDescripcion] = useState<string | null>(null)
+  /** Caja del campo Descripcion, solo para poder enfocarlo. `AreaTexto` no reenvia `ref`. */
+  const cajaDescripcion = useRef<HTMLDivElement | null>(null)
   const [definiciones, setDefiniciones] = useState<DefinicionCampoPersonalizado[]>([])
   /** Los valores tal como se abrio el formulario, para poder mandar solo lo que cambio. */
   const [personalizadosIniciales, setPersonalizadosIniciales] = useState<ValoresDeCampos>({})
@@ -232,6 +246,25 @@ export function EdicionTarea (
 
     if (campos.nombre.trim() === '') {
       setError(`La ${GLOSARIO.proceso.singular.toLowerCase()} necesita un nombre.`)
+      return
+    }
+
+    // Cortesia, no la regla. La regla la aplica `PATCH /tasks/{id}`, que desde esta tanda devuelve
+    // 422 con `description: ["requerido"]` si la clave viaja vacia. Se exige aca y no en
+    // `cuerpoDeParche()` porque este es el formulario de edicion completo: el parche parcial que
+    // manda el tablero al mover una tarjeta no trae `description` y no tiene que traerla.
+    //
+    // Va PRIMERO porque es la unica validacion que mueve el foco: si corriera despues de la de
+    // fechas, quien deja las dos mal veria el error de la fecha y el cursor saltado al cuerpo.
+    const descripcionMal = errorDeDescripcion(
+      campos.descripcion,
+      `La ${GLOSARIO.proceso.singular.toLowerCase()}`
+    )
+
+    if (descripcionMal !== null) {
+      setErrorDescripcion(descripcionMal)
+      setError(null)
+      cajaDescripcion.current?.querySelector('textarea')?.focus()
       return
     }
 
@@ -636,16 +669,41 @@ export function EdicionTarea (
             )}
           </Campo>
 
-          <Campo etiqueta="Descripción">
-            {(props) => (
-              <AreaTexto
-                {...props}
-                rows={5}
-                value={campos.descripcion}
-                onChange={(evento) => setCampos({ ...campos, descripcion: evento.target.value })}
+          <div ref={cajaDescripcion} className="flex flex-col gap-2">
+            <Campo
+              etiqueta="Descripción"
+              requerido
+              error={errorDescripcion ?? undefined}
+              ayuda="Qué hay que hacer y con qué se da por terminada. Quien abra la Tarea no estuvo en la conversación donde se pidió."
+            >
+              {(props) => (
+                <AreaTexto
+                  {...props}
+                  rows={5}
+                  value={campos.descripcion}
+                  onChange={(evento) => {
+                    setCampos({ ...campos, descripcion: evento.target.value })
+                    setErrorDescripcion(null)
+                  }}
+                />
+              )}
+            </Campo>
+
+            {/* Se monta siempre y se oculta solo: no hay por donde bajarle un `conIa` —el detalle de
+                la Tarea que lo abre no lo recibe—, asi que la sonda del propio asistente es la que
+                decide. Con la capa apagada la API contesta 404 y el boton no aparece. */}
+            <div className="flex justify-end">
+              <AsistenteDescripcion
+                titulo={campos.nombre}
+                proyectoId={espacioId}
+                deshabilitado={enCurso}
+                onRedactada={(texto) => {
+                  setCampos({ ...campos, descripcion: texto })
+                  setErrorDescripcion(null)
+                }}
               />
-            )}
-          </Campo>
+            </div>
+          </div>
 
           <CamposPersonalizados
             definiciones={definiciones}

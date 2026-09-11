@@ -97,9 +97,19 @@ try {
   }
   await pagina.goto(new URL(`/procesos?tarea=${tarea.id}`, destino).href, { waitUntil: 'domcontentloaded', timeout: 90000 })
   await pagina.waitForLoadState('networkidle')
+
+  // --- La descripción es obligatoria desde la tanda del 11/09: el formulario no deja guardar sin
+  // ella, y la fixture viene sin descripción. Se comprueba que bloquea ANTES de rellenarla, porque
+  // si no el resto de la prueba pasaría sin saber que esa regla existe.
   await abrir()
+  await dialogo.getByRole('button', { name: 'Guardar', exact: true }).click()
+  await dialogo.waitFor()
+  assert.equal(parches.length, 0, 'Guardar sin descripción no puede escribir.')
+
+  await dialogo.getByLabel(/^Descripción/).fill('Referencia de prueba para el recorrido de edición.')
   await guardar()
-  assert.equal(parches.length, 0, 'Guardar sin cambios no escribe.')
+  assert.equal(parches.length, 1, 'Con descripción, el guardado escribe.')
+  parches.length = 0
   await abrir()
   await elegir('Relacionada con', 'Proyecto')
   await elegir('Proyecto', ESPACIOS[0].name)

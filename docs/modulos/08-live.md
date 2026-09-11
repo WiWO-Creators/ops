@@ -131,7 +131,10 @@ propia vista.
 | `POST\|DELETE` | `/projects/{id}/timer` | `201` / `204`; **409** al arrancar sin jornada |
 | `POST\|DELETE` | `/tasks/{id}/timer` | ya existía; ahora también **409** sin jornada |
 
-El `timer` de `GET /me/jornada` tiene **la misma forma** que el `medidor` del tablero. Venía plano
+El `timer` de `GET /me/jornada` tiene **casi** la misma forma que el `medidor` del tablero: la
+única diferencia es que el tablero manda además el `status` de la Tarea, para que la fila pueda
+pintar su estado, y la jornada propia no —ahí el estado no se muestra, porque el control ya dice
+sobre qué se está midiendo—. El tipo de TypeScript es el mismo y el campo va opcional. Venía plano
 —`task_id`, `project_id`, `task_name`, `project_name`— y la interfaz, que tiene un solo tipo para el
 mismo hecho, pintaba **"Sin destino"** con cualquier cronómetro corriendo. Se unificó en la API
 (`Jornada::cronometroAbierto()`), donde además el Espacio se resuelve por los dos caminos: sin eso,
@@ -141,7 +144,7 @@ Fila de `/live`:
 
 ```ts
 {staff:{id,name,avatar,cargo,area}, jornada:{id,started_at,seconds}|null,
- medidor:{id,project:{id,name}|null,task:{id,name}|null,start_time,seconds}|null,
+ medidor:{id,project:{id,name}|null,task:{id,name,status}|null,start_time,seconds}|null,
  presencia:{last_seen,seconds_ago}|null, seconds_today}
 ```
 

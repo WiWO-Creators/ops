@@ -13,6 +13,9 @@ import { pedir, pedirOpcional } from '@/datos/servidor'
 import type { Yo } from '@/datos/tipos'
 import type { Espacio, Proceso } from '@/datos/recursos'
 import type { EstadoDeJornada } from '@/datos/live'
+import { cargarLookups, listaDe } from '@/datos/lookups'
+import type { OpcionFiltro } from '@/definiciones/tipos'
+import { opcionesDeEstados } from '@/dominio/estados-tarea'
 import { GLOSARIO } from '@/dominio/glosario'
 import { agruparPorVencimiento, cuantosNoListados } from '@/dominio/inicio'
 import { puedeVerSeccion } from '@/dominio/permisos'
@@ -20,6 +23,7 @@ import { Tarjeta, type TonoTarjeta } from '@/componentes/estructura/Tarjeta'
 import { Insignia } from '@/componentes/presentadores/Insignia'
 import { Fecha } from '@/componentes/presentadores/Fecha'
 import { PARAMETRO_TAREA } from '@/componentes/datos/tabla'
+import { EstadoDeTarea } from '@/componentes/proyecto/EstadoDeTarea'
 import { ModalTarea } from '@/componentes/proyecto/ModalTarea'
 import { AvisoJornada } from './AvisoJornada'
 import { ResumenDelDia } from './ResumenDelDia'
@@ -65,9 +69,10 @@ export default async function InicioPage () {
   // Los dos viajes salen juntos: el recordatorio de jornada no tiene por que esperar a los procesos
   // ni al reves. Va por `pedirOpcional` porque un fallo leyendo la jornada no puede tumbar la
   // portada entera — el aviso simplemente no se pinta.
-  const [{ procesos, total }, jornada] = await Promise.all([
+  const [{ procesos, total }, jornada, estados] = await Promise.all([
     misProcesos(yo),
-    pedirOpcional<EstadoDeJornada>('/me/jornada')
+    pedirOpcional<EstadoDeJornada>('/me/jornada'),
+    estadosDeTarea()
   ])
 
   const grupos = agruparPorVencimiento(procesos)
@@ -89,7 +94,7 @@ export default async function InicioPage () {
       <ResumenDelDia />
 
       {puedeVerSeccion(yo.permissions.tasks, 'tasks') && (
-        <MiTrabajo grupos={grupos} restantes={restantes} />
+        <MiTrabajo grupos={grupos} restantes={restantes} estados={estados} />
       )}
 
       {/*
@@ -107,7 +112,7 @@ export default async function InicioPage () {
 
       {puedeVerSeccion(yo.permissions.tasks, 'tasks') && (
         <Suspense fallback={null}>
-          <EnSeguimiento staffId={yo.id} />
+          <EnSeguimiento staffId={yo.id} estados={estados} />
         </Suspense>
       )}
 
@@ -145,6 +150,24 @@ async function misProcesos (yo: Yo): Promise<{ procesos: Proceso[], total: numbe
     return { procesos: data, total: meta?.pagination?.total ?? data.length }
   } catch {
     return { procesos: [], total: 0 }
+  }
+}
+
+/**
+ * El catalogo de estados de Tarea, para las insignias de los dos bloques de trabajo.
+ *
+ * Va por `try`/`catch` y no por `cargarLookups` a secas por la misma regla que el resto de la
+ * portada: si `/lookups` se cae, el Inicio sigue sirviendo para ver el trabajo y para navegar. Sin
+ * catalogo las insignias no se pintan —`<EstadoDeTarea>` se encarga—, que es mejor que una columna
+ * de ids sueltos.
+ *
+ * @returns `task_statuses` como opciones, o vacio si la API fallo
+ */
+async function estadosDeTarea (): Promise<OpcionFiltro[]> {
+  try {
+    return opcionesDeEstados(listaDe(await cargarLookups(), 'task_statuses'))
+  } catch {
+    return []
   }
 }
 
@@ -212,7 +235,7 @@ async function MisProyectos ({ staffId }: { staffId: number }) {
  *
  * @param staffId de quien es el seguimiento
  */
-async function EnSeguimiento ({ staffId }: { staffId: number }) {
+async function EnSeguimiento ({ staffId, estados }: { staffId: number, estados: OpcionFiltro[] }) {
   const procesos = await listar<Proceso>(
     `/tasks?filter[follower]=${staffId}&sort=due_date&per_page=${FILAS_SECUNDARIAS}`
   )
@@ -232,6 +255,7 @@ async function EnSeguimiento ({ staffId }: { staffId: number }) {
               className="flex items-center justify-between gap-4 px-4 py-3 transition-colors duration-150 ease-neo hover:bg-hover focus-visible:bg-hover"
             >
               <span className="min-w-0 flex-1 truncate text-sm text-texto">{proceso.name}</span>
+              <EstadoDeTarea status={proceso.status} catalogo={estados} className="shrink-0" />
               <span className="shrink-0 text-sm text-texto-tenue">
                 <Fecha valor={proceso.due_date} />
               </span>
@@ -324,6 +348,8 @@ function anguloDelDia (): number {
 interface PropsMiTrabajo {
   grupos: ReturnType<typeof agruparPorVencimiento>
   restantes: number
+  /** `task_statuses` de `GET /lookups`. Vacio no pinta insignias. */
+  estados: OpcionFiltro[]
 }
 
 /**
@@ -335,7 +361,7 @@ interface PropsMiTrabajo {
  * Cada fila abre el detalle sin salir del Inicio: escribe `?tarea={id}`, que es el mismo parametro
  * que leen los listados. Ver la tarea desde aca no obliga a ir a buscarla al listado completo.
  */
-function MiTrabajo ({ grupos, restantes }: PropsMiTrabajo) {
+function MiTrabajo ({ grupos, restantes, estados }: PropsMiTrabajo) {
   return (
     <section className="flex flex-col gap-4">
       <div className="flex items-baseline justify-between gap-4">
@@ -384,6 +410,7 @@ function MiTrabajo ({ grupos, restantes }: PropsMiTrabajo) {
                           className="flex items-center justify-between gap-4 px-4 py-3 transition-colors duration-150 ease-neo hover:bg-hover focus-visible:bg-hover"
                         >
                           <span className="min-w-0 flex-1 truncate text-sm text-texto">{proceso.name}</span>
+                          <EstadoDeTarea status={proceso.status} catalogo={estados} className="shrink-0" />
                           <span className="shrink-0 text-sm text-texto-tenue">
                             <Fecha valor={proceso.due_date} />
                           </span>

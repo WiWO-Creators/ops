@@ -55,7 +55,15 @@ export interface CierreDeJornada {
 export interface MedidorEnVivo {
   id: number
   project: { id: number, name: string } | null
-  task: { id: number, name: string } | null
+  /**
+   * `status` es el estado de la Tarea (`task_statuses`), para que el tablero diga en que va lo que
+   * se esta midiendo y no solo como se llama.
+   *
+   * Es opcional porque esta misma forma sirve al `timer` de `GET /me/jornada`, que no lo manda:
+   * `RecursoJornadas::medidoresCorriendo()` lo agrego y `Escritura\Jornada::cronometroAbierto()` no.
+   * Llega `null` cuando la Tarea esta en la papelera, nunca `0`.
+   */
+  task: { id: number, name: string, status?: number | null } | null
   start_time: string
   seconds: number
 }

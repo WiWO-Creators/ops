@@ -9,6 +9,9 @@ import { Insignia } from '@/componentes/presentadores/Insignia'
 import { PARAMETRO_TAREA } from '@/componentes/datos/tabla'
 import { pedirSobre } from '@/datos/cliente'
 import { GLOSARIO } from '@/dominio/glosario'
+import { resolverEstado } from '@/dominio/estados-tarea'
+import { EstadoDeTarea } from '@/componentes/proyecto/EstadoDeTarea'
+import { ESTADO_COMPLETO } from '@/componentes/proyecto/tareas'
 import type { EstadoLookup, Espacio, Proceso } from '@/datos/recursos'
 
 /**
@@ -19,8 +22,20 @@ import type { EstadoLookup, Espacio, Proceso } from '@/datos/recursos'
  */
 const POR_PAGINA = 50
 
-/** Estados que cuentan como trabajo abierto: todo menos "Completo" (5). */
-const ESTADOS_ABIERTOS = '1,2,3,4'
+/**
+ * Los estados que cuentan como trabajo abierto: todos los del catalogo menos "Completo".
+ *
+ * Salia de una lista fija `'1,2,3,4'`, y por eso una Tarea en "Cambios" —el estado 6, agregado
+ * despues en Perfex— no aparecia en el trabajo abierto de nadie. El catalogo lo administra el panel,
+ * asi que un estado nuevo tiene que entrar solo.
+ *
+ * @param estados `task_statuses` de `GET /lookups`
+ * @returns los ids separados por coma, o vacio si el catalogo no llego — ahi no se filtra por estado
+ *          en vez de mandar un `filter[status]=` vacio, que el backend rechaza
+ */
+function estadosAbiertos (estados: EstadoLookup[]): string {
+  return estados.filter((estado) => estado.id !== ESTADO_COMPLETO).map((estado) => estado.id).join(',')
+}
 
 type Carga<T> =
   | { fase: 'cargando' }
@@ -105,8 +120,9 @@ function useLista<T> (ruta: string, queSon: string): [Carga<T>, () => void] {
 /** Las Tareas sin terminar que tiene asignadas. */
 function TareasAsignadas ({ personaId, nombre, estados }: { personaId: number, nombre: string, estados: EstadoLookup[] }) {
   const plural = GLOSARIO.proceso.plural.toLowerCase()
+  const abiertos = estadosAbiertos(estados)
   const [carga, reintentar] = useLista<Proceso>(
-    `tasks?assignee=${personaId}&filter[status]=${ESTADOS_ABIERTOS}&per_page=${POR_PAGINA}&sort=due_date`,
+    `tasks?assignee=${personaId}${abiertos === '' ? '' : `&filter[status]=${abiertos}`}&per_page=${POR_PAGINA}&sort=due_date`,
     plural
   )
 
@@ -137,43 +153,39 @@ function TareasAsignadas ({ personaId, nombre, estados }: { personaId: number, n
         </EncabezadoTabla>
 
         <CuerpoTabla>
-          {carga.filas.map((tarea) => {
-            const estado = estados.find((e) => e.id === tarea.status)
+          {carga.filas.map((tarea) => (
+            <FilaTabla key={tarea.id}>
+              <CeldaTabla>
+                <Link
+                  href={`/procesos?${PARAMETRO_TAREA}=${tarea.id}`}
+                  className="text-texto hover:text-acento font-medium underline-offset-4 hover:underline"
+                >
+                  {tarea.name}
+                </Link>
+              </CeldaTabla>
 
-            return (
-              <FilaTabla key={tarea.id}>
-                <CeldaTabla>
-                  <Link
-                    href={`/procesos?${PARAMETRO_TAREA}=${tarea.id}`}
-                    className="text-texto hover:text-acento font-medium underline-offset-4 hover:underline"
-                  >
-                    {tarea.name}
-                  </Link>
-                </CeldaTabla>
+              <CeldaTabla>
+                <EstadoDeTarea status={tarea.status} catalogo={estados} tamano="medio" />
+              </CeldaTabla>
 
-                <CeldaTabla>
-                  <Insignia color={estado?.color ?? null}>{estado?.name ?? `#${tarea.status}`}</Insignia>
-                </CeldaTabla>
+              <CeldaTabla className="text-texto-tenue">
+                {tarea.project === null
+                  ? '—'
+                  : (
+                    <Link
+                      href={`/espacios/${tarea.project.id}`}
+                      className="hover:text-acento underline-offset-4 hover:underline"
+                    >
+                      {tarea.project.name}
+                    </Link>
+                    )}
+              </CeldaTabla>
 
-                <CeldaTabla className="text-texto-tenue">
-                  {tarea.project === null
-                    ? '—'
-                    : (
-                      <Link
-                        href={`/espacios/${tarea.project.id}`}
-                        className="hover:text-acento underline-offset-4 hover:underline"
-                      >
-                        {tarea.project.name}
-                      </Link>
-                      )}
-                </CeldaTabla>
-
-                <CeldaTabla>
-                  <Fecha valor={tarea.due_date} comoVencimiento />
-                </CeldaTabla>
-              </FilaTabla>
-            )
-          })}
+              <CeldaTabla>
+                <Fecha valor={tarea.due_date} comoVencimiento />
+              </CeldaTabla>
+            </FilaTabla>
+          ))}
         </CuerpoTabla>
       </Tabla>
 
@@ -225,7 +237,7 @@ function ProyectosDeLaPersona ({ personaId, nombre, estados }: { personaId: numb
 
         <CuerpoTabla>
           {carga.filas.map((proyecto) => {
-            const estado = estados.find((e) => e.id === proyecto.status)
+            const estado = resolverEstado(proyecto.status, estados)
 
             return (
               <FilaTabla key={proyecto.id}>
@@ -239,7 +251,7 @@ function ProyectosDeLaPersona ({ personaId, nombre, estados }: { personaId: numb
                 </CeldaTabla>
 
                 <CeldaTabla>
-                  <Insignia color={estado?.color ?? null}>{estado?.name ?? `#${proyecto.status}`}</Insignia>
+                  <Insignia color={estado.color}>{estado.etiqueta}</Insignia>
                 </CeldaTabla>
 
                 <CeldaTabla className="text-texto-tenue">{proyecto.client?.company ?? '—'}</CeldaTabla>

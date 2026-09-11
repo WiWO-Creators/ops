@@ -37,9 +37,11 @@ import {
   type CatalogosTarea,
   type TareaFusionada
 } from '@/dominio/ia-tarea'
+import { errorDeDescripcion } from '@/dominio/descripcion-tarea'
 import { GLOSARIO } from '@/dominio/glosario'
 import { errorDeHorasEstimadas, horasDeTexto } from '@/dominio/tiempo-estimado'
 import { formatearFecha } from '@/lib/fechas'
+import { AsistenteDescripcion } from './AsistenteDescripcion'
 import { VistaPreviaAlta, type MarcaPrevia } from './VistaPreviaAlta'
 import type {
   DefinicionCampoPersonalizado,
@@ -160,6 +162,23 @@ export function AltaRapidaProceso ({
   const [vencimiento, setVencimiento] = useState('')
   const [etiquetasEscritas, setEtiquetasEscritas] = useState('')
   const [descripcion, setDescripcion] = useState('')
+  /**
+   * El error de la descripcion va aparte del `error` del formulario.
+   *
+   * La descripcion es obligatoria desde esta tanda, y el cartel generico de arriba del boton Crear
+   * no sirve para un campo que esta a media pantalla de distancia: hay que verlo donde se escribe y
+   * hay que quedar parado ahi. Por eso este estado y `enfocarDescripcion()`, y por eso no es un
+   * `alert()`, que ademas se lleva el foco a un boton de Aceptar y lo devuelve al body.
+   */
+  const [errorDescripcion, setErrorDescripcion] = useState<string | null>(null)
+  /**
+   * Caja del campo Descripcion, solo para poder enfocarlo.
+   *
+   * Se apunta al contenedor y se busca el `textarea` adentro, como ya hace `ChatDeSala`: `AreaTexto`
+   * no reenvia `ref`, y el `id` que cablea `Campo` lo genera `Campo` con su `useId()` y no sale de
+   * su funcion hija.
+   */
+  const cajaDescripcion = useRef<HTMLDivElement | null>(null)
   // Se pide en el alta y no solo en la ficha: la estimacion se define al solicitar la tarea, y lo que
   // no se anota en ese momento no se anota nunca.
   const [horasEstimadas, setHorasEstimadas] = useState('')
@@ -301,6 +320,7 @@ export function AltaRapidaProceso ({
   function limpiar (): void {
     setTexto('')
     setError(null)
+    setErrorDescripcion(null)
     setNombre('')
     setEspacio(proyectoId === undefined ? NINGUNO : String(proyectoId))
     setAsignados([])
@@ -358,7 +378,11 @@ export function AltaRapidaProceso ({
     if (resultado.start_date !== null) setInicio(resultado.start_date)
     if (resultado.due_date !== null) setVencimiento(resultado.due_date)
     if (resultado.tags.length > 0) setEtiquetasEscritas(resultado.tags.join(', '))
-    if (resultado.description !== null) setDescripcion(resultado.description)
+    if (resultado.description !== null) {
+      setDescripcion(resultado.description)
+      // El reclamo de "falta la descripcion" deja de tener sentido en cuanto algo la llena.
+      setErrorDescripcion(null)
+    }
   }
 
   /**
@@ -494,6 +518,11 @@ export function AltaRapidaProceso ({
     }
   }
 
+  /** Deja el cursor en el campo Descripcion. Ver `cajaDescripcion`. */
+  function enfocarDescripcion (): void {
+    cajaDescripcion.current?.querySelector('textarea')?.focus()
+  }
+
   /**
    * Alta por campos.
    *
@@ -507,6 +536,17 @@ export function AltaRapidaProceso ({
     if (creadaId !== null) { await enviar({}); return }
     if (nombre.trim() === '') {
       setError('La tarea necesita un nombre.')
+      return
+    }
+
+    // Cortesia, no la regla: la regla la aplica `POST /tasks`, que devuelve 422 con
+    // `description: ["requerido"]`. Esto solo evita el viaje y deja el foco donde se arregla.
+    const descripcionMal = errorDeDescripcion(descripcion, `La ${GLOSARIO.proceso.singular.toLowerCase()}`)
+
+    if (descripcionMal !== null) {
+      setErrorDescripcion(descripcionMal)
+      setError(null)
+      enfocarDescripcion()
       return
     }
 
@@ -556,7 +596,9 @@ export function AltaRapidaProceso ({
       ...(prioridad === NINGUNO ? {} : { priority: Number(prioridad) }),
       ...(inicio === '' ? {} : { start_date: inicio }),
       ...(vencimiento === '' ? {} : { due_date: vencimiento }),
-      ...(descripcion.trim() === '' ? {} : { description: descripcion.trim() }),
+      // Siempre viaja: es obligatoria, y omitirla cuando esta vacia le escondia al servidor
+      // justamente el caso que ahora tiene que rechazar.
+      description: descripcion.trim(),
       ...(horas === null ? {} : { estimated_hours: horas }),
       ...(pedidas.length === 0 ? {} : { tags: pedidas })
     })
@@ -829,15 +871,37 @@ export function AltaRapidaProceso ({
                   )}
                 </Campo>
 
-                <Campo etiqueta="Descripción">
-                  {(props) => (
-                    <AreaTexto
-                      {...props}
-                      value={descripcion}
-                      onChange={(evento) => { setDescripcion(evento.target.value) }}
-                    />
+                <div ref={cajaDescripcion} className="flex flex-col gap-2">
+                  <Campo
+                    etiqueta="Descripción"
+                    requerido
+                    error={errorDescripcion ?? undefined}
+                    ayuda="Qué hay que hacer y con qué se da por terminada. Quien abra la tarea no estuvo en esta conversación."
+                  >
+                    {(props) => (
+                      <AreaTexto
+                        {...props}
+                        rows={4}
+                        value={descripcion}
+                        onChange={(evento) => { setDescripcion(evento.target.value); setErrorDescripcion(null) }}
+                      />
+                    )}
+                  </Campo>
+
+                  {/* Con la capa de IA apagada el asistente no existe y el campo se escribe a mano.
+                      `conIa` evita hasta la sonda; el propio componente se oculta igual si la API
+                      dice que no. */}
+                  {conIa && (
+                    <div className="flex justify-end">
+                      <AsistenteDescripcion
+                        titulo={nombre}
+                        proyectoId={relacion === 'project' && espacio !== NINGUNO ? Number(espacio) : null}
+                        deshabilitado={enCurso}
+                        onRedactada={(texto) => { setDescripcion(texto); setErrorDescripcion(null) }}
+                      />
+                    </div>
                   )}
-                </Campo>
+                </div>
 
                 <Campo etiqueta="Horas estimadas" ayuda="Acepta decimales. Déjalo vacío si todavía no se estimó.">
                   {(props) => (
