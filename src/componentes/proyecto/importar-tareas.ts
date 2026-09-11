@@ -14,7 +14,9 @@
  * el alias `@/` no lo resolveria el runner de Node.
  */
 
-/** Cuantos Proyectos se traen para el buscador de origen. Mas que eso no entra sin paginar. */
+import type { Sobre } from '../../datos/tipos'
+
+/** Tamaño de cada página del buscador de origen. */
 export const MAXIMO_ORIGENES = 200
 
 /** Lo minimo que el dialogo necesita saber de un Proyecto candidato a ser el origen. */
@@ -58,16 +60,42 @@ export interface InformeImportacion {
  * y varios de esos ya se archivaron antes de que existiera esta pantalla. Sin el filtro el listado
  * fuerza `archivado = 0` y deja justo afuera a los que mas se necesitan.
  *
+ * @param pagina Página del listado, empezando en uno.
  * @returns la ruta sin barra inicial, lista para `pedirSobre`
  */
-export function rutaProyectosOrigen (): string {
+export function rutaProyectosOrigen (pagina = 1): string {
   const params = new URLSearchParams({
     'filter[archivado]': '0,1',
     per_page: String(MAXIMO_ORIGENES),
+    page: String(pagina),
     sort: '-id'
   })
 
   return `projects?${params.toString()}`
+}
+
+/**
+ * Carga todas las páginas para que la búsqueda también encuentre proyectos antiguos.
+ * @param pedir Cliente del BFF que obtiene cada página.
+ * @param senal Señal de cancelación al cerrar el diálogo.
+ * @returns Todos los proyectos accesibles, incluidos los archivados.
+ * @throws El error del cliente si una página falla o se cancela la carga.
+ */
+export async function cargarProyectosOrigen (
+  pedir: (ruta: string, senal: AbortSignal) => Promise<Sobre<ProyectoCandidato[]>>,
+  senal: AbortSignal
+): Promise<ProyectoCandidato[]> {
+  const proyectos: ProyectoCandidato[] = []
+  let totalPaginas = 1
+
+  for (let pagina = 1; pagina <= totalPaginas; pagina++) {
+    senal.throwIfAborted()
+    const sobre = await pedir(rutaProyectosOrigen(pagina), senal)
+    proyectos.push(...sobre.data)
+    totalPaginas = sobre.meta?.pagination?.total_pages ?? 1
+  }
+
+  return proyectos
 }
 
 /**

@@ -87,9 +87,12 @@ test('el título nunca queda vacío: un acta sin nombre no se puede guardar', ()
 })
 
 test('la grabación elige un tipo que el navegador sepa grabar', () => {
+  // webm primero: los dos formatos pasan igual por ffmpeg en el servidor, y a 32 kbps opus comprime
+  // voz mejor que AAC, así que lo que cambia es cuánto sube la persona.
   assert.equal(mimeDeGrabacion(() => true), 'audio/webm;codecs=opus')
   // Safari: no graba webm. Sin esta caída, la grabación falla en todos los iPhone.
   assert.equal(mimeDeGrabacion((tipo) => tipo === 'audio/mp4'), 'audio/mp4')
+  assert.equal(mimeDeGrabacion((tipo) => tipo.startsWith('audio/webm')), 'audio/webm;codecs=opus')
   assert.equal(mimeDeGrabacion(() => false), '', 'sin candidatos, decide el navegador')
 })
 

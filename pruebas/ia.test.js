@@ -310,3 +310,107 @@ test('un frontend viejo pinta la respuesta igual: no hace falta versionar el str
   assert.deepEqual(citas, [{ tipo: 'tarea', id: 9, titulo: 'Revisar el brief' }])
   assert.equal(vistos, 4, 'el parser viejo ignora los dos eventos nuevos y no ve nada mas')
 })
+
+/** Una pregunta minima valida, para probar un campo a la vez sin repetir los otros tres. */
+const preguntaCon = (campos) => leerEventoIA(frame('pregunta', {
+  campo: 'visible_para_el_cliente',
+  pregunta: '¿El cliente ve la discusión «Ajustes del brief» en su portal?',
+  opciones: [{ valor: false, etiqueta: 'Solo el equipo', descripcion: 'No aparece en el portal.' }],
+  admite_texto: false,
+  ...campos
+}))
+
+test('lee una pregunta con sus opciones y la consecuencia de cada una', () => {
+  assert.deepEqual(
+    leerEventoIA(frame('pregunta', {
+      campo: 'visible_para_el_cliente',
+      pregunta: '¿El cliente ve la discusión «Ajustes del brief» en su portal?',
+      opciones: [
+        { valor: false, etiqueta: 'Solo el equipo', descripcion: 'No aparece en el portal del cliente.' },
+        { valor: true, etiqueta: 'También el cliente', descripcion: 'Aparece en su portal.' }
+      ],
+      admite_texto: false
+    })),
+    {
+      tipo: 'pregunta',
+      pregunta: {
+        campo: 'visible_para_el_cliente',
+        pregunta: '¿El cliente ve la discusión «Ajustes del brief» en su portal?',
+        opciones: [
+          { valor: false, etiqueta: 'Solo el equipo', descripcion: 'No aparece en el portal del cliente.' },
+          { valor: true, etiqueta: 'También el cliente', descripcion: 'Aparece en su portal.' }
+        ],
+        admite_texto: false
+      }
+    }
+  )
+})
+
+test('la opcion con `valor: false` sobrevive al filtro', () => {
+  // Esta es LA prueba de este evento. `false` es falsy y a la vez es la opcion segura de los tres
+  // campos booleanos: un `if (!valor)` o un `valor ?? null` en el filtro la borraria sin que nada
+  // falle a la vista, y la pregunta quedaria ofreciendo unicamente el "sí".
+  const opciones = preguntaCon({
+    opciones: [
+      { valor: false, etiqueta: 'Solo el equipo', descripcion: 'Queda puertas adentro.' },
+      { valor: true, etiqueta: 'También el cliente', descripcion: 'Aparece en su portal.' }
+    ]
+  }).pregunta.opciones
+
+  assert.equal(opciones.length, 2)
+  assert.equal(opciones[0].valor, false)
+})
+
+test('una pregunta sin ninguna opcion valida se descarta entera', () => {
+  // Mismo criterio que un `navegar` con `href` malo: una pregunta sin botones pide algo y no da con
+  // que contestarlo. Descartarla deja el turno como una respuesta de texto, que es utilizable.
+  assert.equal(preguntaCon({ opciones: [] }), null)
+  assert.equal(preguntaCon({ opciones: [{ etiqueta: 'Sin valor' }, { valor: true }] }), null)
+  assert.equal(preguntaCon({ opciones: 'ninguna' }), null)
+  assert.equal(preguntaCon({ campo: '' }), null)
+  assert.equal(preguntaCon({ pregunta: '' }), null)
+})
+
+test('las opciones con basura se pierden y las legibles sobreviven', () => {
+  const pregunta = preguntaCon({
+    campo: 'fecha_de_vencimiento',
+    opciones: [
+      null,
+      42,
+      ['x'],
+      { valor: '2026-09-10', etiqueta: 'Hoy', descripcion: 'Vence hoy mismo.' },
+      { valor: '', etiqueta: 'Vacía' },
+      { valor: '2026-09-14', etiqueta: '' },
+      { valor: '2026-09-14', etiqueta: 'El próximo lunes', descripcion: 99 },
+      { valor: {}, etiqueta: 'Un objeto' }
+    ],
+    admite_texto: true
+  }).pregunta
+
+  assert.deepEqual(pregunta.opciones, [
+    { valor: '2026-09-10', etiqueta: 'Hoy', descripcion: 'Vence hoy mismo.' },
+    // La descripcion es informativa: si viene rota cae a '' y el boton sigue siendo elegible.
+    { valor: '2026-09-14', etiqueta: 'El próximo lunes', descripcion: '' }
+  ])
+  assert.equal(pregunta.admite_texto, true)
+})
+
+test('los textos de una pregunta se recortan y las opciones tienen tope', () => {
+  const pregunta = preguntaCon({
+    pregunta: 'a'.repeat(900),
+    opciones: Array.from({ length: 12 }, (_, i) => ({
+      valor: `2026-09-${i + 10}`, etiqueta: 'b'.repeat(400), descripcion: 'c'.repeat(900)
+    }))
+  }).pregunta
+
+  assert.equal(pregunta.pregunta.length, 500)
+  assert.equal(pregunta.opciones.length, 6)
+  assert.equal(pregunta.opciones[0].etiqueta.length, 120)
+  assert.equal(pregunta.opciones[0].descripcion.length, 500)
+})
+
+test('`admite_texto` que no es booleano se lee como false', () => {
+  // Encenderlo por error abriria un campo libre en un si/no, donde lo escrito no es contestable.
+  assert.equal(preguntaCon({ admite_texto: 'sí' }).pregunta.admite_texto, false)
+  assert.equal(preguntaCon({ admite_texto: undefined }).pregunta.admite_texto, false)
+})

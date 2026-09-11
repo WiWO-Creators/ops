@@ -192,6 +192,12 @@ export function tituloDeActa (html: string, reserva = 'Meeting Paper'): string {
  * en orden y se devuelve `''` para que el navegador elija el suyo, que es lo que hace que iPhone y
  * Mac funcionen sin una rama por sistema.
  *
+ * **El orden es por peso, no por formato de destino.** Whisper lee mp3, wav y flac, así que el
+ * servidor convierte con ffmpeg tanto lo que graba Chrome como lo que graba Safari: ninguno de los
+ * dos llega listo y elegir uno para "ahorrarse la conversión" no ahorra nada. Lo que sí cambia es
+ * cuánto sube la persona: a 32 kbps, opus comprime voz mejor que AAC, así que `audio/webm` va
+ * primero y `audio/mp4` queda para Safari, que no graba webm.
+ *
  * @param soporta normalmente `MediaRecorder.isTypeSupported`; se inyecta para poder probarlo
  */
 export function mimeDeGrabacion (soporta?: (tipo: string) => boolean): string {

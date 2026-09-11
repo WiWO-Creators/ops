@@ -1,10 +1,16 @@
 import { PARAMETRO_TAREA } from '../componentes/datos/tabla.ts'
-import { esObjeto, leerAccion, leerCita, type AccionIA, type Cita, type PasoIA } from './ia.ts'
+import {
+  esObjeto, leerAccion, leerCita, leerPregunta,
+  type AccionIA, type Cita, type PasoIA, type PreguntaIA
+} from './ia.ts'
 
 /**
  * El hilo del chat de WiBot, y lo que hace falta para pintarlo.
  *
- * El chat responde, cita y —con el interruptor de escrituras encendido— **propone**. Proponer no es
+ * El chat responde, cita y —con el interruptor de escrituras encendido— **propone** o **pregunta**.
+ * Preguntar es lo que hace cuando le falta un dato que cambia el efecto de la escritura: en vez de
+ * asumirlo deja opciones, ese turno no trae tarjeta para esa accion, y la respuesta entra al hilo
+ * como un mensaje mas de la persona. Proponer no es
  * escribir: lo que llega es una tarjeta con un id, y confirmarla es un `POST` que **solo manda ese
  * id**. Ni una funcion de este archivo arma un cuerpo de escritura, y `hrefDeCita()` sigue
  * produciendo unicamente URLs de lectura. El QUE de la escritura vive congelado en la fila del
@@ -43,6 +49,14 @@ export interface Mensaje {
   paso: PasoIA | null
   /** Las escrituras que este mensaje dejo propuestas. Vacio en todo lo demas. */
   acciones: AccionIA[]
+  /**
+   * Lo que WiBot necesito preguntar antes de proponer. Vacio en todo lo demas.
+   *
+   * Un mensaje que trae preguntas **no trae la propuesta de esa accion**: la pregunta cierra el
+   * turno. La respuesta no se guarda aca porque no es un campo de este mensaje sino el mensaje
+   * siguiente del hilo —ver `respuestaAPreguntas()`—.
+   */
+  preguntas: PreguntaIA[]
   fase: FaseMensaje
 }
 
@@ -259,6 +273,30 @@ export function conAccionResuelta (mensajes: Mensaje[], accion: AccionIA): Mensa
 }
 
 /**
+ * Lo que la persona contesto a las preguntas de un mensaje, o `null` si todavia no contesto.
+ *
+ * **No hay estado de "pregunta contestada" en ningun lado, y no hace falta inventarlo.** La pregunta
+ * cierra el turno y la respuesta es el mensaje siguiente de la persona, asi que el propio hilo ya
+ * dice si se contesto. Derivarlo en vez de guardarlo es lo que hace que la tarjeta siga bloqueada
+ * despues de cerrar y volver a abrir el chat —el componente se desmonta, el hilo vive en el modulo—
+ * y tambien despues de recargar y releer el hilo guardado del servidor.
+ *
+ * Contestar cierra **todas** las preguntas del turno, aunque la persona haya elegido en una sola. No
+ * es un atajo: al mandar el mensaje el turno ya se cerro y el modelo respondio con un contexto
+ * nuevo, asi que un boton que siguiera vivo mandaria una respuesta a una pregunta que ya no esta
+ * sobre la mesa —y haria proponer dos veces, que es exactamente lo que este bloqueo evita—.
+ *
+ * @param mensajes el hilo completo
+ * @param indice posicion del mensaje que trae las preguntas
+ * @returns el texto que la persona mando despues, o `null` si todavia no mando nada
+ */
+export function respuestaAPreguntas (mensajes: Mensaje[], indice: number): string | null {
+  const siguiente = mensajes[indice + 1]
+
+  return siguiente !== undefined && siguiente.rol === 'persona' ? siguiente.texto : null
+}
+
+/**
  * Lee el hilo guardado que devuelve `GET /ia/chat`.
  *
  * Es un trust boundary como el de `leerEventoIA()`: el cuerpo viene de la red y sus textos los
@@ -294,6 +332,10 @@ function leerMensaje (valor: unknown): Mensaje | null {
     ? valor.acciones.map(leerAccion).filter((accion) => accion !== null)
     : []
 
+  const preguntas = Array.isArray(valor.preguntas)
+    ? valor.preguntas.map(leerPregunta).filter((pregunta) => pregunta !== null)
+    : []
+
   return {
     rol: valor.rol === 'asistente' || valor.rol === 'ia' ? 'ia' : 'persona',
     texto: valor.texto,
@@ -301,6 +343,7 @@ function leerMensaje (valor: unknown): Mensaje | null {
     // El paso es del momento: un hilo guardado no lo trae y no tendria sentido que lo trajera.
     paso: null,
     acciones,
+    preguntas,
     fase: 'listo'
   }
 }

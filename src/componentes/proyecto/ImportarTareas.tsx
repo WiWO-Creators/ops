@@ -16,6 +16,7 @@ import { escribirEnBff } from '@/componentes/datos/mutaciones'
 import { pedirSobre } from '@/datos/cliente'
 import { GLOSARIO } from '@/dominio/glosario'
 import {
+  cargarProyectosOrigen,
   cuerpoDeImportacion,
   filtrarOrigenes,
   habilitaArchivar,
@@ -23,7 +24,6 @@ import {
   rutaHitosDestino,
   rutaImportar,
   rutaInforme,
-  rutaProyectosOrigen,
   validarImportacion,
   type HitoDestino,
   type InformeImportacion,
@@ -155,9 +155,9 @@ export function CuerpoImportarTareas ({
   useEffect(() => {
     const control = new AbortController()
 
-    void pedirSobre<ProyectoCandidato[]>(rutaProyectosOrigen(), control.signal)
-      .then((sobre) => {
-        if (!control.signal.aborted) setOrigenes({ fase: 'listo', datos: sobre.data })
+    void cargarProyectosOrigen(pedirSobre, control.signal)
+      .then((datos) => {
+        if (!control.signal.aborted) setOrigenes({ fase: 'listo', datos })
       })
       .catch((fallo: unknown) => {
         if (!control.signal.aborted) setOrigenes({ fase: 'error', mensaje: mensajeDe(fallo) })

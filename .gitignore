@@ -4,10 +4,15 @@ out/
 build/
 .env
 .env.local
+.env.cron
+.env.cron.tmp
 *.tsbuildinfo
 .DS_Store
 graphify-out/
 comparacion.png
+
+# Capturas y trazas que deja Playwright al verificar una pantalla. Se regeneran corriendo la prueba.
+output/
 
 # Lo regenera `next build` en cada despliegue; tenerlo versionado ensuciaba el arbol del servidor.
 next-env.d.ts

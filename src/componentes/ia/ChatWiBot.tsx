@@ -10,7 +10,7 @@ import { CargandoConOrbe, Orbe } from '@/componentes/estado/Orbe'
 import { escribirEnBff } from '@/componentes/datos/mutaciones'
 import { pedirSobre } from '@/datos/cliente'
 import { leerSSE } from '@/datos/sse'
-import { leerEventoIA, type AccionIA, type Cita, type PasoIA } from '@/dominio/ia'
+import { leerEventoIA, type AccionIA, type Cita, type PasoIA, type PreguntaIA } from '@/dominio/ia'
 import {
   conAccionResuelta,
   guardarHilo,
@@ -19,17 +19,22 @@ import {
   leerHilo,
   leerMensajesGuardados,
   partirConCitas,
+  respuestaAPreguntas,
   type FaseMensaje,
   type Mensaje
 } from '@/dominio/ia-chat'
 import { pantallaDeRuta } from '@/dominio/pantalla'
+import { TarjetaPreguntaIA } from './TarjetaPreguntaIA'
 import { TarjetaPropuestaIA } from './TarjetaPropuestaIA'
 import { ASISTENTE, GLOSARIO } from '@/dominio/glosario'
 
 /**
  * El chat de WiBot: se le pregunta por el estado de Ops y contesta citando.
  *
- * **Responde, cita, navega y —con las escrituras encendidas— propone.** Proponer no es escribir: lo
+ * **Responde, cita, navega y —con las escrituras encendidas— propone o pregunta.** Preguntar es lo
+ * que hace cuando le falta un dato que cambia el efecto de la escritura: deja opciones, ese turno no
+ * trae tarjeta para esa accion, y elegir una manda su etiqueta por el mismo camino que una pregunta
+ * escrita a mano. No hay endpoint de respuesta. Proponer no es escribir: lo
  * que llega es una tarjeta con un id, y `TarjetaPropuestaIA` la confirma mandando SOLO ese id. Este
  * archivo no arma un cuerpo de escritura en ningun lado: el QUE vive congelado en el servidor desde
  * que se propuso.
@@ -175,11 +180,12 @@ function ConversacionWiBot ({ desplazable = false, proyecto }: PropsChatWiBot): 
     let citas: Cita[] = []
     let paso: PasoIA | null = null
     let acciones: AccionIA[] = []
+    let preguntas: PreguntaIA[] = []
     let fallo = false
 
     /** Repinta la burbuja de la IA con lo que se lleva acumulado. */
     const pintar = (fase: FaseMensaje): void => {
-      escribir([...previos, { rol: 'ia', texto: acumulado, citas, paso, acciones, fase }])
+      escribir([...previos, { rol: 'ia', texto: acumulado, citas, paso, acciones, preguntas, fase }])
     }
 
     pintar('generando')
@@ -203,6 +209,7 @@ function ConversacionWiBot ({ desplazable = false, proyecto }: PropsChatWiBot): 
         // herramienta y la siguiente, y el paso entero desaparece cuando la burbuja deja de generar.
         if (evento.tipo === 'paso') paso = evento.paso
         if (evento.tipo === 'propuesta') acciones = [...acciones, evento.accion]
+        if (evento.tipo === 'pregunta') preguntas = [...preguntas, evento.pregunta]
         if (evento.tipo === 'navegar' && proyectoId === undefined) {
           // El `href` ya lo valido `leerEventoIA()` como ruta interna; aca no se toca. Se dice a
           // donde se fue porque la pantalla cambia sola debajo de quien esta leyendo.
@@ -261,6 +268,24 @@ function ConversacionWiBot ({ desplazable = false, proyecto }: PropsChatWiBot): 
     escribir([])
   }
 
+  /**
+   * Manda un texto como mensaje de la persona.
+   *
+   * Es el unico camino que existe, y por eso lo comparten el campo de abajo y las tarjetas de
+   * pregunta: contestar una pregunta ES mandar el mensaje siguiente, no una operacion aparte. Si
+   * cada uno tuviera el suyo, el hilo terminaria con dos formas de crecer y una sola probada.
+   *
+   * @param texto lo que se manda, ya recortado
+   */
+  function enviarTexto (texto: string): void {
+    if (texto === '' || enviando) return
+
+    void preguntar(texto, [
+      ...mensajes,
+      { rol: 'persona', texto, citas: [], paso: null, acciones: [], preguntas: [], fase: 'listo' }
+    ])
+  }
+
   /** Manda lo que hay escrito en el campo como pregunta nueva. */
   function enviar (): void {
     const texto = pregunta.trim()
@@ -268,10 +293,7 @@ function ConversacionWiBot ({ desplazable = false, proyecto }: PropsChatWiBot): 
     if (texto === '' || enviando) return
 
     setPregunta('')
-    void preguntar(texto, [
-      ...mensajes,
-      { rol: 'persona', texto, citas: [], paso: null, acciones: [], fase: 'listo' }
-    ])
+    enviarTexto(texto)
   }
 
   /**
@@ -321,7 +343,9 @@ function ConversacionWiBot ({ desplazable = false, proyecto }: PropsChatWiBot): 
                     mensaje={mensaje}
                     proyectoId={proyectoId}
                     error={errorRespuesta}
+                    respuesta={respuestaAPreguntas(mensajes, indice)}
                     onReintentar={() => reintentar(indice)}
+                    onResponder={enviarTexto}
                     onAccionResuelta={(accion) => { escribir(conAccionResuelta(mensajes, accion)) }}
                   />
                   )
@@ -443,20 +467,26 @@ function BurbujaPersona ({ texto }: { texto: string }): ReactElement {
  *
  * @param mensaje el mensaje a pintar, con su fase
  * @param error mensaje del fallo, cuando la fase es `error`
+ * @param respuesta lo que la persona ya contesto a las preguntas de este mensaje, o `null`
  * @param onReintentar vuelve a mandar la misma pregunta
+ * @param onResponder manda una respuesta a una pregunta como mensaje de la persona
  * @param onAccionResuelta recibe la propuesta ya resuelta por el servidor
  */
 function BurbujaIA ({
   mensaje,
   error,
+  respuesta,
   onReintentar,
+  onResponder,
   onAccionResuelta,
   proyectoId
 }: {
   mensaje: Mensaje
   proyectoId?: number
   error: string
+  respuesta: string | null
   onReintentar: () => void
+  onResponder: (texto: string) => void
   onAccionResuelta: (accion: AccionIA) => void
 }): ReactElement {
   const esperando = mensaje.fase === 'generando' && mensaje.texto === ''
@@ -511,6 +541,16 @@ function BurbujaIA ({
           {mensaje.acciones.map((accion) => (
             <li key={accion.id}>
               <TarjetaPropuestaIA accion={accion} onResuelta={onAccionResuelta} proyectoId={proyectoId} />
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {mensaje.preguntas.length > 0 && (
+        <ul aria-label={`Preguntas de ${ASISTENTE}`} className="flex flex-col gap-2">
+          {mensaje.preguntas.map((pregunta, indice) => (
+            <li key={indice}>
+              <TarjetaPreguntaIA pregunta={pregunta} respuesta={respuesta} onResponder={onResponder} />
             </li>
           ))}
         </ul>
