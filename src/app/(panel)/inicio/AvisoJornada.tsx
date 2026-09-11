@@ -164,21 +164,21 @@ export function AvisoJornada ({ inicial }: { inicial: EstadoDeJornada | null }) 
   return (
     <section
       role="status"
-      className="border-linea-fuerte bg-superficie-aviso rounded-tarjeta flex flex-wrap items-center justify-between gap-x-6 gap-y-3 border-l-4 p-4"
+      className="border-texto-aviso/35 bg-superficie-aviso rounded-tarjeta shadow-1 flex flex-wrap items-center justify-between gap-x-6 gap-y-4 border border-l-4 border-l-relleno-aviso p-5 sm:p-6"
     >
       <div className="min-w-56 flex-1">
-        <h2 className="text-texto-aviso text-sm font-semibold">{TITULOS[falta]}</h2>
-        <p className="text-texto-tenue mt-1 text-pretty text-sm">
+        <h2 className="text-texto-aviso text-titulo font-bold">{TITULOS[falta]}</h2>
+        <p className="text-texto-tenue mt-1.5 max-w-prose text-pretty text-base">
           {detalle(falta, destino?.proyectoNombre ?? null)}
         </p>
       </div>
 
       <Link
         href={enlaceDe(falta, destino)}
-        className="text-acento flex items-center gap-1 text-sm font-semibold hover:underline"
+        className="border-texto-aviso/40 text-texto-aviso rounded-control ease-neo flex items-center gap-1.5 border px-4 py-2.5 text-base font-bold transition-colors duration-150 hover:bg-hover"
       >
         {ACCIONES[falta]}
-        <ArrowRight size={16} strokeWidth={2.5} aria-hidden="true" />
+        <ArrowRight size={18} strokeWidth={2.5} aria-hidden="true" />
       </Link>
     </section>
   )

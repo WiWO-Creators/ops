@@ -250,7 +250,7 @@ export function ResumenDelDia () {
   const bloqueo = regeneracion === null ? null : motivoDeBloqueo(regeneracion)
 
   return (
-    <section className="flex flex-col gap-3 rounded-tarjeta border border-linea bg-superficie-elevada p-5 shadow-1">
+    <section className="flex flex-col gap-4 rounded-tarjeta border border-linea bg-superficie-elevada p-5 shadow-1 sm:p-6">
       <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
         <h2 className="font-titular text-titulo font-bold text-texto">Tu resumen de hoy</h2>
 
@@ -281,7 +281,7 @@ export function ResumenDelDia () {
       </div>
 
       {fase === 'cargando'
-        ? <p className="text-sm text-texto-sutil">Buscando tu resumen…</p>
+        ? <p className="text-base text-texto-sutil">Buscando tu resumen…</p>
         : <Cuerpo texto={texto} escribiendo={escribiendo} fase={fase} />}
 
       {/*
@@ -324,10 +324,10 @@ function Cuerpo ({ texto, escribiendo, fase }: PropsCuerpo) {
     <>
       {texto === ''
         ? fase !== 'pensando' && (
-          <p className="text-sm text-texto-tenue">Todavía no hay un resumen de hoy.</p>
+          <p className="text-base text-texto-tenue">Todavía no hay un resumen de hoy.</p>
           )
         : (
-          <p aria-hidden={escribiendo || undefined} className="whitespace-pre-line text-sm leading-relaxed text-texto">
+          <p aria-hidden={escribiendo || undefined} className="max-w-prose whitespace-pre-line text-base leading-relaxed text-texto">
             {texto}
             {fase === 'escribiendo' && (
               <Orbe medida="1.1rem" estado="generating" className="ml-1 inline-flex align-middle" />
@@ -336,7 +336,7 @@ function Cuerpo ({ texto, escribiendo, fase }: PropsCuerpo) {
           )}
 
       {fase === 'pensando' && (
-        <p className="flex items-center gap-2 text-sm text-texto-tenue">
+        <p className="flex items-center gap-2 text-base text-texto-tenue">
           <Orbe medida="1.1rem" estado="thinking" className="inline-flex shrink-0 align-middle" />
           {MENSAJE_PENSANDO}
         </p>
