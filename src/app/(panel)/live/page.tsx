@@ -1,3 +1,5 @@
+import Link from 'next/link'
+import { ArrowRight } from 'lucide-react'
 import { ControlJornada } from '@/componentes/live/ControlJornada'
 import { PanelEquipo } from '@/componentes/live/PanelEquipo'
 import { TituloModulo } from '@/componentes/estructura/TituloModulo'
@@ -7,7 +9,7 @@ import type { Lookups } from '@/datos/recursos'
 import { pedir } from '@/datos/servidor'
 import { opcionesDeEstados } from '@/dominio/estados-tarea'
 import type { Sobre, Yo } from '@/datos/tipos'
-import { alcanceDeLive } from '@/dominio/live'
+import { alcanceDeLive, esJefatura } from '@/dominio/live'
 
 export const metadata = { title: 'En vivo · WiWO Ops' }
 
@@ -74,6 +76,17 @@ export default async function LivePage () {
       <TituloModulo
         titulo="En vivo"
         descripcion="Tu jornada y el tiempo que estás midiendo ahora. La jornada es la ventana en la que se puede medir: sin ella abierta, ningún cronómetro arranca."
+        acciones={esJefatura(yo.nivel)
+          ? (
+            <Link
+              href="/live/resumen"
+              className="text-acento inline-flex items-center gap-1 text-sm font-semibold hover:underline"
+            >
+              Resumen del equipo
+              <ArrowRight size={16} strokeWidth={2.5} aria-hidden="true" />
+            </Link>
+            )
+          : undefined}
       />
 
       <ControlJornada

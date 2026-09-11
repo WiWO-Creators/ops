@@ -181,6 +181,12 @@ function seccionesDe (yo: Yo): Seccion[] {
     secciones.push({ href: '/clientes', etiqueta: 'Clientes', icono: 'clientes' })
   }
 
+  // Focals va sin condicion, como `/live` y por el mismo motivo: la compuerta real es la API, que
+  // responde 403 a quien no es jefatura ni focal, y la pantalla lo dice con `SinPermiso`. Esconder
+  // la entrada con un `nivel` calculado aca seria una segunda opinion sobre el permiso, que se
+  // desincroniza sola el dia que el backend cambie la suya.
+  secciones.push({ href: '/focals', etiqueta: GLOSARIO.focal.plural, icono: 'focals' })
+
   if (puedeVerSeccion(yo.permissions.staff, 'staff')) {
     secciones.push({ href: '/equipo', etiqueta: 'Equipo', icono: 'equipo' })
   }
