@@ -101,7 +101,12 @@ export default async function PanelLayout ({ children }: { children: React.React
             {/* Uno solo en toda la aplicacion, y aca y no en la barra lateral: la barra se abate a un
                 riel y en movil se esconde dentro de un cajon, justo donde mas falta hace saber que hay
                 un medidor corriendo. Colapsado no crece mas que un boton porque la cabecera mide
-                `h-14` fijos. */}
+                `h-14` fijos.
+
+                Esta instancia —y solo esta— es ademas la compuerta de entrada: si consta que no hay
+                jornada abierta, monta el modal que obliga a elegir Proyecto y Tarea antes de seguir.
+                Va aca porque el armazon esta en las ocho pantallas y no se desmonta al navegar, asi
+                que no hay ruta del panel que se salte el bloqueo. Ver `ControlJornada`. */}
             <ControlJornada
               variante="compacta"
               segundos={segundosDeLive}
@@ -109,6 +114,9 @@ export default async function PanelLayout ({ children }: { children: React.React
               // Para listar SUS Tareas al elegir sobre cual se esta midiendo: solo se puede arrancar
               // un cronometro sobre una Tarea asignada a uno, y la sesion ya esta resuelta acá.
               staffId={yo.id}
+              // Primer escalon de la jerarquia del modal. No se elige: la API saca el `staff_id` del
+              // token, asi que un combo de personas prometeria algo que el backend rechaza.
+              nombre={yo.full_name}
               errorInicial={jornada.error}
               className="ml-auto"
             />

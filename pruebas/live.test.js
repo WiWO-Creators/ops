@@ -253,18 +253,18 @@ test('esJefatura deja fuera a lider, focal y usuario', () => {
 /**
  * Abrir con Espacio puede fallar por el Espacio, no por la jornada.
  *
- * Desde que `POST /me/jornada` acepta `project_id`, la misma peticion arranca el medidor, asi que
- * devuelve el 403/404 del Espacio. Un mensaje que hable de la jornada mandaria a la persona a
- * buscar donde no es: la jornada no quedo abierta —la API la descarta— y lo que tiene que cambiar
- * es el Espacio.
+ * Desde que `POST /me/jornada` recibe `project_id` y `task_id`, la misma peticion arranca el
+ * cronometro, asi que devuelve el 403/404 de la Tarea. Un mensaje que hable de la jornada mandaria a
+ * la persona a buscar donde no es: la jornada no quedo abierta —la API la descarta— y lo que tiene
+ * que cambiar es el destino.
  */
-test('el fallo al abrir con Espacio nombra el Espacio, no la jornada', () => {
-  assert.match(mensajeDeFalloDeJornada(403, true), /Espacio/)
-  assert.match(mensajeDeFalloDeJornada(404, true), /Espacio/)
-  assert.match(mensajeDeFalloDeJornada(422, true), /Espacio/)
+test('el fallo al abrir con destino nombra la Tarea, no la jornada', () => {
+  assert.match(mensajeDeFalloDeJornada(403, true), /Tarea/)
+  assert.match(mensajeDeFalloDeJornada(404, true), /Tarea/)
+  assert.match(mensajeDeFalloDeJornada(422, true), /Tarea/)
 
-  // Al cerrar no hay Espacio en juego: ahi 403 sigue siendo un fallo generico.
-  assert.doesNotMatch(mensajeDeFalloDeJornada(403, false), /Espacio/)
+  // Al cerrar no hay destino en juego: ahi 403 sigue siendo un fallo generico.
+  assert.doesNotMatch(mensajeDeFalloDeJornada(403, false), /Tarea/)
 })
 
 /** El 409 sigue siendo el de la jornada: otra pestaña la abrio primero. */

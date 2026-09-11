@@ -5,7 +5,27 @@
  * Las dos se prueban sin montar nada (`pruebas/live.test.js`).
  */
 import { puedeVerSeccion } from './permisos.ts'
+import type { EstadoDeJornada } from '@/datos/live'
 import type { NivelPermiso, Yo } from '@/datos/tipos'
+
+/**
+ * Si hay que exigirle a esta persona que abra su jornada antes de dejarla usar el panel.
+ *
+ * === POR QUE `null` NO BLOQUEA ===
+ *
+ * `null` es "no se pudo leer", no "no hay jornada". Bloquear ahi seria adivinar: quien ya tiene la
+ * jornada abierta se quedaria frente a un velo por un fallo de la API, sin poder abrir nada porque
+ * el 409 le diria que ya la tiene. Un backend caido no puede sacar a media empresa del sistema.
+ *
+ * Lo contrario —dejar pasar a alguien que no la abrio porque la API tardo— se corrige solo: el
+ * control repregunta cada `intervaloDeLive()` segundos y la compuerta aparece en cuanto hay dato.
+ *
+ * @param estado el estado de la jornada tal como llega de `GET /me/jornada`, o `null` si no se pudo leer
+ * @returns `true` solo cuando consta que no hay jornada abierta
+ */
+export function faltaAbrirJornada (estado: EstadoDeJornada | null): boolean {
+  return estado !== null && estado.open === null
+}
 
 /** Hasta donde llega el tablero de quien mira. Es la traduccion de `meta.scope` de `GET /live`. */
 export type AlcanceDeLive = 'todo' | 'area' | 'propio'
@@ -76,11 +96,15 @@ export function mensajeDeFalloDeMedidor (estado: number, arrancando: boolean): s
  * que la pantalla quedo vieja: otra pestaña ya hizo el cambio. Por eso el texto invita a mirar de
  * nuevo en vez de a reintentar.
  *
- * **`403`, `404` y `422` solo aparecen al abrir con Espacio.** Desde que `POST /me/jornada` acepta
- * `project_id`, la misma peticion abre la jornada y arranca el medidor, asi que puede fallar por el
- * Espacio y no por la jornada. La jornada no queda abierta: la API la descarta. El texto nombra el
- * Espacio porque es lo que la persona tiene que cambiar; decir "no se pudo abrir la jornada (403)"
- * la dejaria buscando en el lugar equivocado.
+ * **`403`, `404` y `422` solo aparecen al abrir con destino.** Desde que `POST /me/jornada` recibe
+ * `project_id` y `task_id`, la misma peticion abre la jornada y arranca el cronometro, asi que puede
+ * fallar por la Tarea y no por la jornada. La jornada no queda abierta: la API la descarta. El texto
+ * nombra el destino porque es lo que la persona tiene que cambiar; decir "no se pudo abrir la
+ * jornada (403)" la dejaria buscando en el lugar equivocado.
+ *
+ * El `422` tiene dos causas —falta uno de los dos, o la Tarea no es de ese Proyecto— y el texto
+ * nombra la segunda: la primera no puede llegar desde esta interfaz, que no deja apretar el boton
+ * sin los dos elegidos.
  *
  * @param estado codigo HTTP de la respuesta; `0` si la peticion no llego a salir
  * @param abriendo `true` si el fallo fue al abrir, `false` al cerrar
@@ -96,9 +120,9 @@ export function mensajeDeFalloDeJornada (estado: number, abriendo: boolean): str
   }
 
   if (abriendo) {
-    if (estado === 403) return 'No puedes medir tiempo en ese Espacio. Elige otro.'
-    if (estado === 404) return 'Ese Espacio ya no existe o no lo puedes ver. Elige otro.'
-    if (estado === 422) return 'Elige el Espacio en el que vas a trabajar.'
+    if (estado === 403) return 'No puedes medir tiempo sobre eso. Elige otra Tarea.'
+    if (estado === 404) return 'Eso ya no existe o no lo puedes ver. Elige otra Tarea.'
+    if (estado === 422) return 'Esa Tarea no pertenece al Proyecto que elegiste. Vuelve a elegir.'
   }
 
   return `No se pudo ${abriendo ? 'abrir' : 'cerrar'} la jornada (el servidor respondió ${estado}).`

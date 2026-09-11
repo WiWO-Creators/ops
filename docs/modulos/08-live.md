@@ -7,36 +7,94 @@ desde arriba, sin importar en qué pantalla se arrancó.
 **Sólo existe en `ops-v2`.** El panel de Perfex no tiene jornada: tiene cronómetros sueltos por tarea
 y nada que los encuadre. La API de LIVE se construyó en paralelo a esta interfaz.
 
-## La jornada es la llave del medidor, y el Espacio es la llave de la jornada
+## La jornada es la llave del medidor, y el destino es la llave de la jornada
 
-Ningún cronómetro arranca sin una jornada abierta: la API responde **409** a `POST /projects/{id}/timer`
-y a `POST /tasks/{id}/timer` cuando no la hay.
+Ningún cronómetro arranca sin una jornada abierta: la API responde **409** a `POST /tasks/{id}/timer`
+cuando no la hay.
 
-Por eso la jornada ya **no se abre sola**. El único botón es **"Abrir jornada y empezar"**, y está
-inerte hasta elegir un Espacio: abre la jornada y arranca el medidor en el mismo gesto, con un solo
-reintento (`abrirYArrancar()`). Una cadena de reintentos convertiría un 409 legítimo —ya hay un
-medidor corriendo— en un bucle silencioso.
+Por eso la jornada ya **no se abre sola**, y desde el 2026-09-11 tampoco se abre a medias: abrir pide
+**Proyecto y Tarea**, y la API los exige (`POST /me/jornada` con `project_id` y `task_id`). Abrir la
+jornada y arrancar el cronómetro son el mismo gesto (`abrirYArrancar()`), sin reintentos: una cadena
+de reintentos convertiría un 409 legítimo —ya hay un medidor corriendo— en un bucle silencioso.
 
 El motivo no es de interfaz: una jornada abierta sin medidor es tiempo que después nadie sabe
-imputar, y aparecía sola porque abrir era un clic y elegir Espacio era otro. Ahora son el mismo.
+imputar, y aparecía sola porque abrir era un clic y elegir el destino era otro. Ahora son el mismo.
 
 `mensajeDeFalloDeMedidor()` (`src/dominio/live.ts`) nombra las dos causas del 409 porque la API no las
 distingue, y es el texto que queda cuando ese reintento tampoco alcanzó.
 
-## El Espacio bloquea; la Tarea se pide
+## El Proyecto y la Tarea bloquean los dos
 
-No son la misma exigencia, y la diferencia la manda la API: se puede medir un Espacio sin Tarea
-(`task_id = 0`), y hay trabajo real que no cuelga de ninguna Tarea. Así que el Espacio es condición
-para abrir, y la Tarea es un aviso **persistente** —no un error— con su selector al lado, en el
-control y en la fila del tablero.
+**Esto revierte una decisión de este mismo documento.** Hasta el 2026-09-11 decía "el Espacio bloquea;
+la Tarea se pide": la migración `0260` había creado a propósito el medidor de Espacio —`task_id = 0`
+con `project_id` lleno— para el trabajo que no cuelga de ninguna Tarea, y la Tarea era un aviso
+persistente con su selector al lado.
 
-`SelectorTarea` lista sólo las Tareas **asignadas** a quien mira: arrancar un cronómetro sobre una
-Tarea ajena responde 403, y un combo con todas ofrecería opciones que fallan al elegirlas, con el
-error llegando **después** de haber detenido el medidor anterior. `assignee` va suelto en la query y
-no dentro de `filter[]`, que responde 422.
+La reunión lo revirtió, textual: «es indispensable marcar la tarea y el proyecto exactos para que el
+registro sea útil». Tiempo cargado a un Proyecto entero dice a quién facturarle y no dice en qué se
+fue el día, que es la pregunta que LIVE existe para contestar. El aviso persistente, además, tenía un
+desenlace predecible: se arrancaba, se leía el aviso y se paraba — tramos de segundos que no son
+trabajo y que la migración `0440` limpia.
 
-Elegir Tarea detiene el medidor de Espacio y arranca el de la Tarea, en ese orden. Si el arranque
-falla después del cierre, la persona se quedó sin medidor y hay que decírselo con esas palabras.
+Qué cambió, concretamente:
+
+| Antes | Ahora |
+|---|---|
+| `POST /me/jornada` pedía `project_id` | pide `project_id` **y** `task_id`, y comprueba que la Tarea sea de ese Proyecto (`Jornada::destinoValidado()`) |
+| `POST /projects/{id}/timer` arrancaba un medidor sin Tarea | responde **422**; `Cronometro` se quedó sin `arrancarEspacio()` |
+| el aviso de Tarea con su selector al lado | no hay medidor sin Tarea que avisar |
+
+`DELETE /projects/{id}/timer` sigue vivo: en la base hay medidores de Espacio abiertos de antes del
+cambio y ésa es su salida. Se cierra la puerta, no se tapia la salida.
+
+`SelectorTarea` lista sólo las Tareas **asignadas** a quien mira y **del Proyecto elegido**: arrancar
+un cronómetro sobre una Tarea ajena responde 403, y un combo con todas ofrecería opciones que fallan
+al elegirlas. `assignee` va suelto en la query y no dentro de `filter[]`, que responde 422.
+
+## Empezar el día pasa por un modal que no se descarta
+
+`DestinoDeJornada` es el espejo de `CierreJornada` en el otro extremo del día, y por el mismo motivo:
+lo que no se elige al empezar ya no se puede elegir después. Un desplegable de cabecera sirve para
+operar, no para obligar — se cierra clicando en cualquier parte.
+
+Pide **tres escalones, en este orden**: nombre → Proyecto → Tarea. El nombre no es un combo: la
+jornada es de quien tiene la sesión y la API saca el `staff_id` del token, así que ofrecerlo sería
+prometer algo que el backend rechaza. Se muestra porque con varias sesiones abiertas —o suplantando a
+alguien— es lo único que dice de quién va a ser el registro. La Tarea va después del Proyecto y
+filtrada por él; al revés habría que ofrecer todas las Tareas de la empresa para después descartarlas.
+
+El mismo modal, en modo `medidor`, es el que arranca un cronómetro con la jornada ya abierta. Ahí
+**sí** se descarta con `Escape`: quien ya abrió su día no está bloqueado, sólo no está midiendo. Con
+él se fueron las **dos** copias del selector de Espacio que vivían dentro de `ControlJornada`.
+
+## El bloqueo de entrada, y por qué no encierra a nadie
+
+Iniciar jornada es obligatorio de verdad: la instancia de `ControlJornada` que vive en el armazón del
+panel (`src/app/(panel)/layout.tsx`) monta el modal en modo `apertura` cuando consta que no hay
+jornada abierta. Como el armazón está en las ocho pantallas y no se desmonta al navegar, no hay ruta
+del panel que se salte el bloqueo. Antes sólo había un aviso en el Inicio (`AvisoJornada`), que se
+leía o no se leía.
+
+Sólo la variante `compacta` lo monta. En `/live` conviven las dos instancias, y dos modales con el
+mismo trabajo se pisarían.
+
+Tres decisiones, y las tres son sobre no encerrar a nadie:
+
+1. **`estado === null` no bloquea** (`faltaAbrirJornada()`). `null` es "no se pudo leer", no "no hay
+   jornada": bloquear ahí dejaría a quien ya la tiene abierta frente a un velo por un fallo de la
+   API, y sin salida, porque al intentar abrirla le respondería 409. Lo contrario se corrige solo —el
+   control repregunta cada `intervaloDeLive()` segundos y la compuerta aparece en cuanto hay dato—.
+2. **"No puedo abrir mi jornada"** abre dos puertas reales: cerrar sesión, o entrar sin jornada por
+   esta vez. Hace falta: quien no tiene Proyectos asignados, quien no tiene Tareas en el que eligió y
+   cualquiera el día que la API falle se quedarían frente a un botón inerte, expulsados del sistema
+   entero por un dato que no depende de ellos.
+3. **Entrar sin jornada no la finge.** No abre nada ni marca nada: el aviso del Inicio y el control de
+   la cabecera siguen diciendo que falta, y la siguiente recarga vuelve a pedirla. Es una excepción
+   por esta vez, que es la única forma de que obligue sin encerrar. Cerrar la jornada también la
+   revoca: el día siguiente empieza como cualquier otro.
+
+La salida está a un clic de distancia y no en la fila principal a propósito. Obligar es poner la
+excepción un paso más lejos que la regla, no tapiarla.
 
 ## Cerrar la jornada pasa por el resumen
 
@@ -61,7 +119,8 @@ igual"— para que nadie lo agregue dos veces.
 
 `ControlJornada` vive en la cabecera del panel (`src/app/(panel)/layout.tsx`) y es **el único** de toda
 la aplicación. Colapsado es un botón de `h-8` —el contador, o "Iniciar jornada"—; abierto despliega
-jornada, medidor y el selector de Espacio. En `/live` se monta **el mismo componente** con
+jornada y medidor. Los selectores ya no están ahí dentro: viven en `DestinoDeJornada`, que es también
+la compuerta de entrada. En `/live` se monta **el mismo componente** con
 `variante="panel"`. Un segundo componente para la pantalla grande sería la segunda copia de la lógica
 de arranque, y con ella la segunda forma de que los dos números digan cosas distintas.
 
@@ -124,11 +183,13 @@ propia vista.
 | Método | Ruta | Respuesta |
 |---|---|---|
 | `POST` | `/me/jornada` | `201 {id, started_at, note}`; **409** si ya hay una abierta |
+| | | `project_id` y `task_id` obligatorios: **422** sin ellos o si la Tarea no es de ese Proyecto |
 | `GET` | `/me/jornada/resumen` | en **qué** se fue la jornada abierta, por Espacio y Tarea; **404** si no hay ninguna |
 | `POST` | `/me/jornada/cierre` | `{id, started_at, ended_at, seconds, auto_closed, timers_stopped}`; 409 si no hay |
 | `GET` | `/me/jornada` | `{open, seconds, measured_seconds, uncovered_seconds, over_journey, timer}` |
 | `GET` | `/live` | `{data: [...], meta: {scope}}` |
-| `POST\|DELETE` | `/projects/{id}/timer` | `201` / `204`; **409** al arrancar sin jornada |
+| `POST` | `/projects/{id}/timer` | **422**: ya no se mide contra un Espacio entero |
+| `DELETE` | `/projects/{id}/timer` | `204`; sigue vivo para detener los medidores de Espacio históricos |
 | `POST\|DELETE` | `/tasks/{id}/timer` | ya existía; ahora también **409** sin jornada |
 
 El `timer` de `GET /me/jornada` tiene **casi** la misma forma que el `medidor` del tablero: la
@@ -182,11 +243,14 @@ encabezado del grupo y otra vez dentro de cada fila. `agruparPorEspacio()` se fu
 después quien sólo tiene jornada, después el resto; a igualdad, alfabético—.
 
 Medir un Espacio sin Tarea **no se esconde**: el escalón de la Tarea se pinta igual, con un aviso de
-que falta elegirla. Es el dato que la pantalla existe para hacer visible.
+que falta elegirla. Ya no se pueden crear filas así —ver "El Proyecto y la Tarea bloquean los dos"—
+pero las históricas que la `0440` preservó siguen apareciendo, y esconderlas sería el único caso en
+que la pantalla mentiría.
 
 ## Pruebas
 
 `pruebas/live.test.js` cubre lo que se rompe en silencio: `alcanceDeLive()`,
 `ordenarPorActividad()` —que ninguna fila se pierda y que el orden no baile entre refrescos—,
 `trabajoDeLaFila()`, `cargoYArea()` y `mensajeDeFalloDeMedidor()`. `pruebas/cierre-jornada.test.js`
-cubre el resumen del cierre. El resto es JSX.
+cubre el resumen del cierre, y `pruebas/inicio-jornada.test.js` la compuerta de entrada —sobre todo
+que un estado que no se pudo leer **no** bloquee—. El resto es JSX.

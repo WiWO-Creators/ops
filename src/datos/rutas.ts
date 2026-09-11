@@ -100,8 +100,9 @@ const PREFIJOS_PERMITIDOS = [
   'presence',
   'sessions',
   'audit',
-  // LIVE: la jornada propia (`/me/jornada` ya entra por `me`), el tablero del equipo y el medidor de
-  // un Espacio (`/projects/{id}/timer`, que entra por `projects`). Solo falta `live`, que la API
+  // LIVE: la jornada propia (`/me/jornada` ya entra por `me`), el tablero del equipo y la detencion
+  // de un medidor de Espacio historico (`DELETE /projects/{id}/timer`, que entra por `projects`; su
+  // `POST` responde 422 desde que no hay registros sin Tarea). Solo falta `live`, que la API
   // cuelga de su propia raiz. Sin esta entrada el BFF contesta 404 al tablero y el panel del equipo
   // se queda con la unica pagina que resolvio el servidor, sin refrescarse nunca.
   // Salud de un Cliente y de un Espacio: el semaforo de 0 a 100 con su historico. Prefijo propio
