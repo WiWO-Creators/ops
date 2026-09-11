@@ -172,6 +172,12 @@ export const ETIQUETAS_DE_AJUSTES: Record<string, { etiqueta: string, ayuda?: st
   ia_dias_reconstruccion: {
     etiqueta: `Rehacer el análisis del ${nombrar('espacio').toLowerCase()} cada (días)`,
     ayuda: 'Techo contra la deriva: pasados estos días el análisis se arma de cero en vez de actualizarse por incrementos.'
+  },
+
+  // --- correo ---
+  wiwo_resumen_equipo_envio: {
+    etiqueta: 'Enviar el resumen del equipo a las jefaturas',
+    ayuda: 'A las 20:00 se arma igual y queda en la pantalla; esto decide si además sale por correo. Apagado de fábrica: es el interruptor de la parte que sale de Ops.'
   }
 }
 
