@@ -19,6 +19,24 @@ const PREFIJO_BFF = '/api/bff/'
  * - `descargable`: vive en el disco del panel y se baja por el BFF.
  * - `sinEnlace`: la fila no trae ninguna de las dos cosas y no hay nada que ofrecer.
  */
+/**
+ * Lo minimo que una fila de archivos necesita para nombrarse y enlazarse.
+ *
+ * Se declara lo que se usa y no `ArchivoProyecto` entero: la misma decision la toman la pestaña del
+ * equipo y la del cliente, y el contrato del portal (`ArchivoPortal`) no manda `rel_type`, `size`
+ * ni `external`. Atarlo al tipo del panel fue lo que dejo al portal con su propia copia, mas pobre:
+ * no distinguia los adjuntos externos y mostraba el nombre en disco en vez del que la persona
+ * escribio.
+ */
+export interface ArchivoParaMostrar {
+  file_name: string
+  original_file_name: string | null
+  subject: string | null
+  url: string | null
+  /** Ausente en el portal: ahi no llegan adjuntos externos. */
+  external?: string | null
+}
+
 export type OrigenDeArchivo =
   | { tipo: 'externo', servicio: string, enlace: string }
   | { tipo: 'descargable', ruta: string }
@@ -79,7 +97,7 @@ export function rutaDeAdjuntos (raiz: RaizDeAdjuntos, id: number): string {
  * @param archivo La fila de `tblfiles` o `tblproject_files` tal como llega de la API.
  * @returns El nombre legible, nunca vacio mientras la API mande `file_name`.
  */
-export function nombreDeArchivo (archivo: ArchivoProyecto): string {
+export function nombreDeArchivo (archivo: ArchivoParaMostrar): string {
   return archivo.subject ?? archivo.original_file_name ?? archivo.file_name
 }
 
@@ -95,7 +113,7 @@ export function nombreDeArchivo (archivo: ArchivoProyecto): string {
  * @param archivo La fila tal como llega de la API.
  * @returns El origen ya resuelto, con el enlace o la ruta lista para usar.
  */
-export function origenDeArchivo (archivo: ArchivoProyecto): OrigenDeArchivo {
+export function origenDeArchivo (archivo: ArchivoParaMostrar): OrigenDeArchivo {
   const url = archivo.url ?? ''
   const servicio = archivo.external ?? ''
 

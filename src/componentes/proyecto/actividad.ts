@@ -1,5 +1,4 @@
 import { formatearFecha } from '../../lib/fechas.ts'
-import type { ActividadEspacio } from '../../datos/recursos.ts'
 
 /**
  * Agrupacion del feed de actividad por dia.
@@ -16,11 +15,29 @@ import type { ActividadEspacio } from '../../datos/recursos.ts'
 /** Lo que `formatearFecha` devuelve cuando no hay fecha. Misma marca en todo el producto. */
 const SIN_DATO = '—'
 
+/**
+ * Lo minimo que una entrada tiene que traer para pintarse.
+ *
+ * Se declara lo que se NECESITA y no el tipo del panel: la misma linea de tiempo la pintan el feed
+ * del Espacio (`ActividadEspacio`), el historial de una persona y el portal del cliente
+ * (`ActividadPortal`), y cada contrato trae campos de mas que acá no importan. Atarla a uno de los
+ * tres era lo que obligaba a los otros a escribir su propia copia.
+ *
+ * `profile_image_url` es opcional porque el portal no lo manda: ahi el avatar sale con iniciales.
+ */
+export interface EntradaDeActividad {
+  description: string
+  additional_data: string | null
+  date_added: string | null
+  staff: { full_name: string, profile_image_url?: string | null } | null
+  contact: { full_name: string } | null
+}
+
 /** Un dia del feed con sus entradas, en el orden en que las mando la API. */
-export interface DiaDeActividad {
+export interface DiaDeActividad<T = EntradaDeActividad> {
   /** El dia ya formateado (`24 ago 2026`), o el guion largo si las entradas no traen fecha. */
   titulo: string
-  entradas: ActividadEspacio[]
+  entradas: T[]
 }
 
 /**
@@ -33,8 +50,10 @@ export interface DiaDeActividad {
  * @param entradas el feed tal como llego
  * @returns los dias, en el mismo orden en que llegaron las entradas
  */
-export function agruparPorDia (entradas: ActividadEspacio[]): DiaDeActividad[] {
-  const dias: DiaDeActividad[] = []
+export function agruparPorDia<T extends { date_added: string | null }> (
+  entradas: T[]
+): Array<DiaDeActividad<T>> {
+  const dias: Array<DiaDeActividad<T>> = []
 
   for (const entrada of entradas) {
     const titulo = formatearFecha(entrada.date_added)
@@ -82,6 +101,6 @@ export function horaDeEntrada (valor: string | null | undefined): string {
  * @param entrada una entrada del feed
  * @returns el nombre a mostrar
  */
-export function autorDeEntrada (entrada: ActividadEspacio): string {
+export function autorDeEntrada (entrada: EntradaDeActividad): string {
   return entrada.staff?.full_name ?? entrada.contact?.full_name ?? 'Sistema'
 }
