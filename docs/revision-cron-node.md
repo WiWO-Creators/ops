@@ -6,7 +6,7 @@
 
 Node programa cuatro trabajos independientes: `/rutinas` cada cinco minutos, `/jornadas` cada quince minutos, `/papelera` diariamente y el corte de cronómetros a la hora configurada. Cada cinco minutos se comprueban también cortes pendientes; al arrancar se recuperan todos los trabajos. Antes de ejecutar rutinas y jornadas se recupera el corte pendiente para evitar que un cierre antiguo asigne una hora posterior. La limpieza de papelera usa `OPS_CRON_TRASH_SCHEDULE`, cuyo valor predeterminado es `0 3 * * *`. Los horarios usan `America/Santiago`, incluyendo los cambios de horario de Chile. El corte se guarda en el backend para que repetir una solicitud no duplique el cierre.
 
-El corte diario confirmado es a las **19:30 de America/Santiago**. El despliegue exige `OPS_TIMER_CUTOFF_HOUR=19:30` en ambos repositorios.
+El corte diario confirmado es a las **20:00 de America/Santiago** (migración `0430` del board; antes 19:30). El despliegue exige `OPS_TIMER_CUTOFF_HOUR=20:00` en ambos repositorios: la variable del deploy del board y el `.env.cron` de este proceso. Si no coinciden, `crearProgramador().comprobar()` corta el arranque.
 
 ## Inventario cubierto
 

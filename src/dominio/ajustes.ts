@@ -76,6 +76,10 @@ export const GRUPOS_DE_AJUSTES: Record<string, { titulo: string, ayuda: string }
   correo: {
     titulo: 'Correo',
     ayuda: 'Los motores de correo y su modo de operación.'
+  },
+  jornada: {
+    titulo: 'Jornada',
+    ayuda: 'A qué hora se cierran solas las jornadas que quedaron abiertas.'
   }
 }
 
@@ -177,7 +181,17 @@ export const ETIQUETAS_DE_AJUSTES: Record<string, { etiqueta: string, ayuda?: st
   // --- correo ---
   wiwo_resumen_equipo_envio: {
     etiqueta: 'Enviar el resumen del equipo a las jefaturas',
-    ayuda: 'A las 20:00 se arma igual y queda en la pantalla; esto decide si además sale por correo. Apagado de fábrica: es el interruptor de la parte que sale de Ops.'
+    ayuda: 'A las 20:00 se arma igual y queda en la pantalla; esto decide si además sale por correo. Cada jefatura recibe el resumen de su equipo. Apagado de fábrica: es el interruptor de la parte que sale de Ops.'
+  },
+
+  // --- jornada ---
+  wiwo_live_cierre_automatico: {
+    etiqueta: 'Cerrar solas las jornadas que quedaron abiertas',
+    ayuda: 'Apagado, una jornada que nadie cerró se queda abierta hasta que la persona la cierre a mano.'
+  },
+  wiwo_live_hora_cierre: {
+    etiqueta: 'Hora del cierre automático (HH:MM)',
+    ayuda: 'Rige para toda la empresa, sin excepción por cargo ni modalidad. Cada jornada se cierra a esta hora del día en que empezó, no del día de hoy. Ojo: esto mueve el cierre de jornadas, no el corte de cronómetros del programador, que se cambia en el servidor (OPS_TIMER_CUTOFF_HOUR) y tiene que quedar en la misma hora.'
   }
 }
 
