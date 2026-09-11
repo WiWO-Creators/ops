@@ -145,9 +145,15 @@ export function FilaEnVivo ({ fila, transcurrido, puedeDetener, estados = [] }: 
                       )}
 
                   {/* El estado va pegado al nombre de la Tarea y no en un nivel propio: es un rasgo
-                      de ese nivel, no un cuarto escalon de la lectura. */}
-                  {nivel.etiqueta === GLOSARIO.proceso.singular && !nivel.pendiente && (
-                    <EstadoDeTarea status={medidor?.task?.status} catalogo={estados} />
+                      de ese nivel, no un cuarto escalon de la lectura.
+
+                      Se exige el `status` presente y no solo la Tarea: la API lo manda desde
+                      `RecursoJornadas::medidoresCorriendo()`, pero contra un backend anterior llega
+                      `undefined`, y ahi "Sin estado" en cada fila mentiria sobre un dato que nadie
+                      dejo vacio. Tambien llega `null` cuando la Tarea esta en la papelera. */}
+                  {nivel.etiqueta === GLOSARIO.proceso.singular
+                    && medidor?.task?.status !== undefined && medidor.task.status !== null && (
+                    <EstadoDeTarea status={medidor.task.status} catalogo={estados} />
                   )}
                 </dd>
               </div>

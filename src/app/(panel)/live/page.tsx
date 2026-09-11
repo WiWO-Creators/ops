@@ -3,7 +3,9 @@ import { PanelEquipo } from '@/componentes/live/PanelEquipo'
 import { TituloModulo } from '@/componentes/estructura/TituloModulo'
 import { ErrorApi } from '@/datos/errores'
 import { intervaloDeLive, type EstadoDeJornada, type FilaDeLive } from '@/datos/live'
+import type { Lookups } from '@/datos/recursos'
 import { pedir } from '@/datos/servidor'
+import { opcionesDeEstados } from '@/dominio/estados-tarea'
 import type { Sobre, Yo } from '@/datos/tipos'
 import { alcanceDeLive } from '@/dominio/live'
 
@@ -53,10 +55,19 @@ export default async function LivePage () {
   const alcance = alcanceDeLive(yo)
   const segundos = intervaloDeLive()
 
-  const [jornada, equipo] = await Promise.all([
+  // El catalogo se pide junto al tablero y solo cuando hay tablero: sin equipo que mostrar no hay
+  // ninguna insignia que pintar. Va por `traer` como los demas —un `/lookups` caido deja el tablero
+  // sin el estado de la Tarea, no la pantalla en blanco— y baja como prop, fuera del latido del
+  // panel: `task_statuses` no cambia entre dos consultas de `/live`.
+  const [jornada, equipo, catalogos] = await Promise.all([
     traer<EstadoDeJornada>('/me/jornada'),
-    alcance === 'propio' ? Promise.resolve(null) : traer<FilaDeLive[]>('/live')
+    alcance === 'propio' ? Promise.resolve(null) : traer<FilaDeLive[]>('/live'),
+    alcance === 'propio' ? Promise.resolve(null) : traer<Lookups>('/lookups')
   ])
+
+  const estados = catalogos === null || catalogos instanceof ErrorApi
+    ? []
+    : opcionesDeEstados(catalogos.data.task_statuses)
 
   return (
     <section className="mx-auto flex w-full max-w-5xl flex-col gap-8">
@@ -80,6 +91,7 @@ export default async function LivePage () {
           segundos={segundos}
           inicial={equipo instanceof ErrorApi ? [] : equipo.data}
           errorInicial={mensaje(equipo)}
+          estados={estados}
         />
       )}
     </section>

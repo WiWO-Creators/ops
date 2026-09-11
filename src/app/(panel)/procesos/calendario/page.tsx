@@ -5,7 +5,8 @@ import { pedir, pedirOpcional } from '@/datos/servidor'
 import { esDiaValido, leerVista, rangoDeVista, TOPE_POR_VISTA } from '@/dominio/calendario'
 import { hoyLocal } from '@/lib/fechas'
 import { PROCESOS } from '@/definiciones/procesos'
-import type { Espacio, PersonaAsignable, Proceso, ProcesoConAviso } from '@/datos/recursos'
+import { opcionesDeEstados } from '@/dominio/estados-tarea'
+import type { Espacio, Lookups, PersonaAsignable, Proceso, ProcesoConAviso } from '@/datos/recursos'
 import type { Yo } from '@/datos/tipos'
 import { VistaCalendario } from '@/componentes/datos/VistaCalendario'
 import { TituloModulo } from '@/componentes/estructura/TituloModulo'
@@ -63,7 +64,7 @@ export default async function CalendarioProcesosPage (props: PageProps<'/proceso
   porEmpezar.set('filter[start_to]', rango.hasta)
   porEmpezar.set('sort', 'start_date')
 
-  const [tareas, arrancan, avisos, espacios, equipo, yo] = await Promise.all([
+  const [tareas, arrancan, avisos, espacios, equipo, catalogos, yo] = await Promise.all([
     pedirOpcional<Proceso[]>(`/tasks?${porVencer.toString()}`),
     pedirOpcional<Proceso[]>(`/tasks?${porEmpezar.toString()}`),
     pedirOpcional<ProcesoConAviso[]>('/me/vencimientos'),
@@ -72,6 +73,9 @@ export default async function CalendarioProcesosPage (props: PageProps<'/proceso
     // `/staff/asignables` y no `/staff`: el segundo exige `staff.view` y le contesta 403 a casi todo
     // el equipo, que veria el filtro de persona vacio.
     pedirOpcional<PersonaAsignable[]>(`/${RUTA_DE_ASIGNABLES}`),
+    // El estado de cada tarea, para que la grilla diga en que va lo que vence y no solo cuando vence.
+    // Por `pedirOpcional` como el resto: si el catalogo no viene, la grilla se pinta sin insignias.
+    pedirOpcional<Lookups>('/lookups'),
     pedir<Yo>('/me')
   ])
 
@@ -123,6 +127,7 @@ export default async function CalendarioProcesosPage (props: PageProps<'/proceso
         errorAvisos={avisos.error}
         espacios={(espacios.datos ?? []).map((espacio) => ({ valor: String(espacio.id), etiqueta: espacio.name }))}
         personas={(equipo.datos ?? []).map((persona) => ({ valor: String(persona.id), etiqueta: persona.full_name }))}
+        estados={opcionesDeEstados(catalogos.datos?.task_statuses)}
         espacioElegido={espacioElegido}
         asignadoElegido={asignadoElegido}
         truncado={delPeriodo.length >= TOPE_POR_VISTA}

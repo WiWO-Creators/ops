@@ -238,7 +238,7 @@ function TareasDelProyecto ({ proyectoId, capacidades, conIa }: PropsPanelTareas
       </div>
 
       {enCalendario
-        ? <CalendarioTareas definicion={definicion} capacidades={capacidades} />
+        ? <CalendarioTareas definicion={definicion} capacidades={capacidades} estados={estados} />
         : enTablero
           ? (
           <TableroFiltrable<ProcesoAmpliado>
