@@ -204,18 +204,13 @@ export function ControlJornada ({
     return estadoHttp >= 200 && estadoHttp < 300
   }
 
-  async function abrirJornada (espacioId?: number): Promise<boolean> {
+  async function abrirJornada (espacioId: number): Promise<boolean> {
     setEnCurso(true)
     setAviso(null)
 
-    // Con `project_id`, la API abre la jornada Y arranca el medidor del Espacio en la misma
-    // escritura, y descarta la jornada si el medidor no arranca. Sin el, abre la jornada sola: es lo
-    // que hace el boton de "abrir jornada" de la variante compacta, que no elige Espacio.
-    const respuesta = await llamar(
-      'me/jornada',
-      'POST',
-      espacioId === undefined ? {} : { project_id: espacioId }
-    )
+    // El Espacio no es opcional ni aca ni en la API, que responde 422 sin el: abre la jornada Y
+    // arranca su medidor en la misma escritura, y descarta la jornada si el medidor no arranca.
+    const respuesta = await llamar('me/jornada', 'POST', { project_id: espacioId })
 
     setEnCurso(false)
 
