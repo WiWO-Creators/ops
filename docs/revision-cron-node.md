@@ -29,7 +29,7 @@ Además se ejecutan `before_cron_run` y `after_cron_run`, respetando los módulo
 
 1. Configurar el mismo secret de GitHub Actions `OPS_CRON_SECRET` en ambos repositorios, con al menos 32 caracteres. Se recomienda un valor aleatorio hexadecimal de 64 caracteres; nunca copiarlo a commits, capturas o logs.
 2. Configurar la variable `OPS_TIMER_CUTOFF_HOUR` en ambos repositorios con la hora confirmada en formato `HH:MM` de 24 horas.
-3. En el frontend configurar `OPS_CRON_BASE_URL=https://board.wiwo.me/api/cron`. Opcionalmente configurar `OPS_CRON_REQUEST_TIMEOUT_MS`: valor predeterminado `240000` ms y máximo admitido `300000` ms. `OPS_CRON_TRASH_SCHEDULE` permite cambiar la programación de papelera; su valor predeterminado es `0 3 * * *` en Santiago.
+3. En el frontend configurar `OPS_CRON_BASE_URL=https://board.wiwo.me/index.php/api/cron`. Opcionalmente configurar `OPS_CRON_REQUEST_TIMEOUT_MS`: valor predeterminado `240000` ms y máximo admitido `300000` ms. `OPS_CRON_TRASH_SCHEDULE` permite cambiar la programación de papelera; su valor predeterminado es `0 3 * * *` en Santiago.
 4. Desplegar primero Board. Su workflow crea atómicamente `application/config/ops-cron.php` con permisos `0600` y propietario de `application/config/database.php`. El usuario PHP debe poder leer ese archivo; el preflight del siguiente paso detecta un backend sin configuración accesible.
 5. Desplegar Ops. El workflow escribe `.env.cron` con permisos `0600`, ejecuta `node scripts/cron.mjs --check` contra `GET /estado` sin disparar trabajos y valida hora/zona antes de reiniciar servicios. Luego registra PM2 en systemd, ejecuta `pm2 startOrRestart ecosystem.cron.cjs --update-env`, guarda la lista de procesos y verifica `pm2-root` activo y habilitado.
 
