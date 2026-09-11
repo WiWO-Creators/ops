@@ -105,13 +105,17 @@ export interface Staff {
   /** Cargo "Director" (`modules/wiwo_core/cargos_areas.php`). Gate de la seccion "Mi Área". */
   is_director: boolean
   /**
-   * Si dirige al menos un área del organigrama (`tblareas.jefe_staffid`).
+   * Si dirige al menos un área del organigrama (`tblareas.jefe_staffid`, `Organigrama::areasQueDirige()`).
    *
    * **No es un permiso y no reemplaza a `is_director`**: conviven. El cargo Director es la regla
    * vieja —"ve a los de su área"— y esto es el árbol de `tblareas`, que además baja por toda la
    * descendencia. Existe porque sin él el panel no sabía que a esta persona le corresponde el
    * tablero del equipo: quien dirige un área pero no tiene ni el cargo ni `staff.view` se quedaba
    * sin pedirlo, aunque la API se lo hubiera dado.
+   *
+   * Confundirlos es el error caro y ya se cometió una vez: hoy las 184 cuentas de producción llevan
+   * el cargo "Staff", así que **`is_director` no lo tiene nadie**. Todo lo que dependa del
+   * organigrama —la entrada de la barra lateral, entre otras cosas— se decide con esta bandera.
    */
   dirige_areas: boolean
   /**

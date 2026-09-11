@@ -107,7 +107,12 @@ const CAMPOS: Record<string, string> = {
   recurring: 'Recurrente',
   repeat_every: 'Repetir cada',
   recurring_type: 'Unidad',
-  cycles: 'Ciclos'
+  cycles: 'Ciclos',
+  // Organigrama de areas. `area_superior_id` y `jefe_staffid` son los nombres de la tabla; en la
+  // pantalla son "De qué área cuelga" y "Quién la dirige", que es como los lee quien los completa.
+  area_superior_id: 'Área superior',
+  jefe_staffid: 'Quien dirige',
+  area_id: 'Área'
 }
 
 /**
@@ -139,7 +144,11 @@ const MOTIVOS: Record<string, string> = {
   no_completado: 'solo se puede corregir en una tarea completada',
   no_pertenece_al_espacio: `no pertenece a este ${GLOSARIO.espacio.singular.toLowerCase()}`,
   recurrencia_apagada: 'no se puede usar: la recurrencia está desactivada en esta instalación',
-  sobra_sin_recurrencia: 'sobra si la tarea no es recurrente'
+  sobra_sin_recurrencia: 'sobra si la tarea no es recurrente',
+  duplicado: 'ya está usado por otra',
+  // El motivo dice la consecuencia y no la palabra "ciclo": quien completa el formulario no piensa
+  // en grafos, piensa en que acaba de colgar un área de una que ya colgaba de ella.
+  ciclo: 'no puede ser un área que ya cuelga de esta'
 }
 
 /**

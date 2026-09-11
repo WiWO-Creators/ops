@@ -113,6 +113,10 @@ const PREFIJOS_PERMITIDOS = [
   // Raiz propia porque asi lo expone la API, y por el mismo motivo que `/me/mi-area` no cuelga de
   // `/staff`: dirigir un area no otorga `staff.view`, y un jefe sin ese permiso tiene que poder
   // ordenar a su gente igual. Quien manda sobre que area lo decide la API, no esta lista.
+  //
+  // Un solo prefijo cubre las cuatro rutas, porque la lista es por PREFIJO: la lectura entera, el
+  // alta y la edicion de un area, el borrado, y el movimiento de una persona
+  // (`/jerarquia/personas/{id}`) — que tambien cuelga de aca y no de `staff`.
   'jerarquia'
 ] as const
 

@@ -4448,7 +4448,7 @@ un área no otorga capabilities de Perfex.
   "hay_organigrama": true, "es_admin": false,
   "areas": [
     { "id": 3, "name": "PR", "area_superior_id": 1, "jefe_staffid": 42, "editable": true,
-      "personas": [ { "id": 42, "full_name": "…", "active": true } ] }
+      "en_tareas": true, "personas": [ { "id": 42, "full_name": "…", "active": true } ] }
   ],
   "sin_area":   [ { "id": 88, "full_name": "…", "active": true } ],
   "asignables": [ { "id": 42, "full_name": "…", "active": true } ]
@@ -4459,6 +4459,15 @@ Un administrador recibe el organigrama entero; una jefatura, sólo su rama. `edi
 la pantalla no vuelve a decidir quién manda sobre qué. `hay_organigrama` es `false` en una instalación
 sin las columnas del árbol, y ahí no hay nada que configurar.
 
+`areas[].personas` **no filtra las bajas** —la consulta es por `area_id` y nada más—, mientras que
+`sin_area` y `asignables` traen sólo activos. De ahí el `active` de cada persona: una baja que quedó
+colgada de un área hay que poder verla para sacarla, y no hay que contarla.
+
+`en_tareas` dice si el nombre del área figura entre las opciones del campo "Área de la compañía" de
+los Procesos. Son la misma lista —la migración siembra `tblareas` con esos 16 nombres— y se cruzan
+**por texto**. En `false`, esa área no cruza con ningún Proceso y nadie se entera: no hay error,
+simplemente no trae nada.
+
 **403** a quien no dirige ningún área y no administra.
 
 ### `POST /jerarquia/areas` y `PUT /jerarquia/areas/{id}`
@@ -4466,17 +4475,43 @@ sin las columnas del árbol, y ahí no hay nada que configurar.
 Cuerpo: `{"name": "PR", "area_superior_id": 1, "jefe_staffid": 42}`. Los dos últimos admiten `null`.
 Responden el árbol completo, con la misma forma que `GET /jerarquia`.
 
+El `PUT` exige **las tres claves presentes**, aunque dos vengan en `null`: un cuerpo parcial
+desenganchaba el área del árbol en silencio.
+
 El alta es sólo para quien administra (**403** si no): un área nueva nace fuera de la rama de quien la
-creó y nadie la vería. Borrar áreas **no está en la API**: sigue en el panel viejo, que ya tiene la
-guarda de referencias.
+creó y nadie la vería. El alta además **sincroniza el nombre** con las opciones de los Procesos, así
+que un área recién creada nace con `en_tareas: true`.
+
+**Renombrar está bloqueado**: un `name` distinto del que tiene responde **409**. Los Procesos guardan
+el nombre del área y no su id, así que cambiarlo dejaría huérfanos a los ~2.900 que lo tienen escrito.
+Reenviar el nombre actual no cuenta como renombre —la comparación ignora mayúsculas y espacios de los
+bordes—, así que el formulario puede mandar el cuerpo entero.
 
 | Caso | Estado |
 |---|---|
 | Área colgada de sí misma o de su descendencia | **422** `area_superior_id: ciclo` |
 | Nombre vacío, de más de 191 caracteres o repetido | **422** |
+| Falta alguna de las tres claves en un `PUT` | **422** `required` |
 | Área superior o jefatura inexistente, o jefatura inactiva | **422** |
 | Área fuera de la rama propia | **403** |
+| Renombrar un área | **409** |
 | La instalación no tiene las columnas del árbol | **409** |
+
+### `DELETE /jerarquia/areas/{id}`
+
+Sólo para quien administra (**403** si no), por lo mismo que el alta: la guarda que impide dejar gente
+colgando de la nada es de toda la instalación, no de una rama. Responde el árbol completo — borrar
+puede dejar huérfanas a las áreas que colgaban, así que la pantalla necesita el estado entero y no
+sólo la confirmación.
+
+**409** si el área está en uso, con las tres cuentas ya redactadas para mostrarse tal cual:
+
+> El área "Analytics" está en uso: 0 persona(s) asignada(s), 0 área(s) que dependen de ella y 24
+> Proceso(s) marcado(s) con ese nombre. Movelos antes de borrarla.
+
+La tercera cuenta es la que sorprende: un área puede verse **vacía en la pantalla** —sin gente y sin
+áreas debajo— y aun así no poder borrarse, porque hay Procesos marcados con ese nombre y eso no se ve
+desde el organigrama.
 
 ### `PUT /jerarquia/personas/{id}`
 

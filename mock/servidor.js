@@ -17,9 +17,10 @@ import { fileURLToPath } from 'node:url'
 import { ErrorApi, aplicarConsulta, campoFiltrable, coincideEnLista, leerIncludes } from './consulta.js'
 import * as sesion from './sesion.js'
 import {
-  ADMINS_DE_CLIENTE, ARCHIVOS, CAMPOS_PERSONALIZADOS, CHECKLIST, CLIENTES, COMENTARIOS, CRONOMETROS,
+  ADMINS_DE_CLIENTE, AREAS, ARCHIVOS, CAMPOS_PERSONALIZADOS, CHECKLIST, CLIENTES, COMENTARIOS, CRONOMETROS,
   DEPARTAMENTOS, EMPRESAS_DEL_GRUPO, ESPACIOS, ESTADOS_ESPACIO, ESTADOS_PROCESO, ETIQUETAS, HITOS,
-  AVISOS_CONTACTO, CONTACTOS, PRIORIDADES, PROCESOS, RESERVAS, ROLES, SALAS, STAFF, VALORES_CAMPOS
+  AVISOS_CONTACTO, CONTACTOS, OPCIONES_AREA_EN_TAREAS, PRIORIDADES, PROCESOS, PROCESOS_POR_AREA,
+  RESERVAS, ROLES, SALAS, STAFF, VALORES_CAMPOS
 } from './datos.js'
 
 const PUERTO = Number(process.env.PORT ?? 3001)
@@ -850,6 +851,339 @@ async function salasRuta (metodo, resto, parametros, actual, cuerpo) {
   }
 
   return { estado: 200, cuerpo: conDatos(actual.is_admin ? sala : sinToken(sala)) }
+}
+
+/** Largo maximo del nombre de un area, tomado de `tblareas.name`. */
+const LARGO_NOMBRE_AREA = 191
+
+/** Mensaje del 409 al intentar renombrar, redactado para mostrarse tal cual en la pantalla. */
+const RENOMBRE_BLOQUEADO = 'El nombre de un área no se puede cambiar acá: los Procesos guardan el nombre, no el id, y renombrarla los desconectaría en silencio. Pedilo si hace falta.'
+
+/** Mensaje del 403 de `/jerarquia`, redactado para mostrarse tal cual en la pantalla. */
+const SIN_JERARQUIA = 'No diriges ningún área, así que no hay organigrama que mostrarte. Si deberías dirigir una, pídeselo a quien administre el sistema.'
+
+/**
+ * Una persona, con lo unico que la jerarquia necesita de ella.
+ *
+ * `active` viaja porque una baja puede seguir colgada de un area: la pantalla la marca en vez de
+ * esconderla, que es lo que deja un area "con 3 personas" donde solo trabajan 2.
+ */
+function personaDeJerarquia (staff) {
+  return { id: staff.id, full_name: staff.full_name, active: staff.active }
+}
+
+/**
+ * Un area con la forma que sirve `/jerarquia`.
+ *
+ * @param {object} area la fila cruda de `AREAS`
+ * @param {object} actual quien pide, para resolver `editable`
+ */
+function areaDeJerarquia (area, actual) {
+  return {
+    id: area.id,
+    name: area.name,
+    area_superior_id: area.area_superior_id,
+    jefe_staffid: area.jefe_staffid,
+    editable: puedeEditarArea(actual, area),
+    // `false` = ese nombre no figura entre las opciones de los Procesos, asi que el area no cruza con
+    // ninguno. No es un error: simplemente no trae nada, y por eso hay que hacerlo visible.
+    en_tareas: OPCIONES_AREA_EN_TAREAS.some((opcion) => mismoNombre(opcion, area.name)),
+    // Todo el mundo, no solo quien esta activo: una baja puede seguir colgada del area y el contrato
+    // la emite con `active: false` para que la pantalla la marque en vez de esconderla.
+    personas: STAFF.filter((persona) => !persona.is_not_staff && persona.area_id === area.id)
+      .map(personaDeJerarquia)
+  }
+}
+
+/** Compara dos nombres de area como los compara la API: sin mayusculas ni espacios de los bordes. */
+function mismoNombre (uno, otro) {
+  return String(uno).trim().toLowerCase() === String(otro).trim().toLowerCase()
+}
+
+/** El staff activo que se reparte entre las areas. */
+function staffActivo () {
+  return STAFF.filter((persona) => persona.active && !persona.is_not_staff)
+}
+
+/**
+ * Los ids del area dada y de todo lo que cuelga de ella, a cualquier profundidad.
+ *
+ * @param {number} id el area de la que se parte
+ * @returns {Set<number>} el id propio incluido
+ */
+function descendenciaDeArea (id) {
+  const dentro = new Set([id])
+  let crecio = true
+
+  // Barridos sucesivos en vez de recursion: el arbol viene plano y asi un dato con un ciclo ya
+  // guardado termina igual en vez de desbordar la pila.
+  while (crecio) {
+    crecio = false
+
+    for (const area of AREAS) {
+      if (area.area_superior_id !== null && dentro.has(area.area_superior_id) && !dentro.has(area.id)) {
+        dentro.add(area.id)
+        crecio = true
+      }
+    }
+  }
+
+  return dentro
+}
+
+/**
+ * Que areas ve esta persona, y cuales puede editar.
+ *
+ * Quien administra ve el organigrama entero y lo edita entero. Quien no, ve **su rama** —las areas
+ * que dirige y todo lo que cuelga de ellas— pero solo edita las que dirige: puede reorganizar lo
+ * suyo sin poder tocar el area de al lado.
+ *
+ * @param {object} actual la persona que pide
+ * @returns {{visibles: object[], esAdmin: boolean}}
+ */
+function alcanceDeJerarquia (actual) {
+  const esAdmin = actual.is_superadmin === true || actual.is_admin === true
+
+  if (esAdmin) return { visibles: AREAS, esAdmin }
+
+  const propias = AREAS.filter((area) => area.jefe_staffid === actual.id)
+  const suRama = new Set(propias.flatMap((area) => [...descendenciaDeArea(area.id)]))
+
+  return { visibles: AREAS.filter((area) => suRama.has(area.id)), esAdmin }
+}
+
+/**
+ * Todo lo que sirve `GET /jerarquia`, para quien pide.
+ *
+ * Vive aparte porque el `DELETE` devuelve exactamente esto: borrar un area puede dejar huerfanas a
+ * las que colgaban de ella, y la pantalla necesita el estado completo para repintarse bien.
+ */
+function arbolCompleto (actual) {
+  const { visibles, esAdmin } = alcanceDeJerarquia(actual)
+  const activos = staffActivo()
+
+  return {
+    hay_organigrama: AREAS.length > 0,
+    es_admin: esAdmin,
+    areas: visibles.map((area) => areaDeJerarquia(area, actual)),
+    sin_area: activos.filter((persona) => persona.area_id === null).map(personaDeJerarquia),
+    asignables: activos.map(personaDeJerarquia)
+  }
+}
+
+/**
+ * Lanza el 409 si el area esta en uso, con las tres cuentas ya redactadas.
+ *
+ * La tercera es la que sorprende: un area puede verse vacia en la pantalla —sin gente y sin hijas— y
+ * aun asi no poder borrarse, porque hay Procesos marcados con ese nombre. Por eso el mensaje las dice
+ * las tres aunque dos esten en cero: quien lo lee tiene que entender cual de las tres lo frena.
+ *
+ * @param {object} area el area que se quiere borrar
+ * @throws {ErrorApi} 409 si algo la retiene
+ */
+function exigirAreaLibre (area) {
+  const gente = staffActivo().filter((persona) => persona.area_id === area.id).length
+  const hijas = AREAS.filter((otra) => otra.area_superior_id === area.id).length
+  const procesos = PROCESOS_POR_AREA[area.name] ?? 0
+
+  if (gente === 0 && hijas === 0 && procesos === 0) return
+
+  throw new ErrorApi(409, 'conflict',
+    `El área "${area.name}" está en uso: ${gente} persona(s) asignada(s), ${hijas} área(s) que ` +
+    `dependen de ella y ${procesos} Proceso(s) marcado(s) con ese nombre. Movelos antes de borrarla.`)
+}
+
+/** `true` si esta persona puede escribir sobre esa area. */
+function puedeEditarArea (actual, area) {
+  return actual.is_superadmin === true || actual.is_admin === true || area.jefe_staffid === actual.id
+}
+
+/**
+ * Valida el cuerpo de un alta o una edicion de area y devuelve los campos ya normalizados.
+ *
+ * Junta TODOS los motivos antes de lanzar: un formulario con dos campos mal completados tiene que
+ * enterarse de los dos de una vez, no de a uno por viaje.
+ *
+ * `area_superior_id` y `jefe_staffid` distinguen "no vino" de "vino en null": lo primero es no
+ * tocar el campo y lo segundo es soltarlo. Por eso el retorno usa la ausencia de la clave para la
+ * ausencia del campo, y el llamador solo escribe lo que esta presente.
+ *
+ * @param {object} datos cuerpo crudo de la peticion
+ * @param {object|null} areaEditada el area que se esta editando, o `null` en un alta
+ * @returns {{name?:string, area_superior_id?:number|null, jefe_staffid?:number|null}}
+ * @throws {ErrorApi} 422 con un motivo por campo
+ */
+function validarArea (datos, areaEditada) {
+  const detalles = {}
+  const salida = {}
+
+  if (datos.name !== undefined || areaEditada === null) {
+    const nombre = String(datos.name ?? '').trim()
+
+    // Renombrar esta bloqueado: los Procesos guardan el NOMBRE del area y no su id, asi que
+    // cambiarlo los desconectaria en silencio. Reenviar el mismo nombre no es renombrar —la
+    // comparacion ignora mayusculas y bordes—, asi que el formulario puede mandar el cuerpo entero.
+    if (areaEditada !== null && nombre !== '' && !mismoNombre(nombre, areaEditada.name)) {
+      throw new ErrorApi(409, 'conflict', RENOMBRE_BLOQUEADO)
+    }
+
+    if (nombre === '') detalles.name = ['requerido']
+    else if (nombre.length > LARGO_NOMBRE_AREA) detalles.name = ['length']
+    else if (AREAS.some((otra) => otra.id !== areaEditada?.id && mismoNombre(otra.name, nombre))) {
+      detalles.name = ['duplicado']
+    } else if (areaEditada === null) {
+      // Solo el alta escribe el nombre. En una edicion ya se comprobo que es el mismo, y volver a
+      // escribirlo cambiaria la caja o los espacios de un texto que las Tareas tienen guardado.
+      salida.name = nombre
+    }
+  }
+
+  if (datos.area_superior_id !== undefined) {
+    const superior = datos.area_superior_id === null ? null : Number(datos.area_superior_id)
+
+    if (superior !== null && !AREAS.some((otra) => otra.id === superior)) {
+      detalles.area_superior_id = ['no_existe']
+    } else if (areaEditada !== null && superior !== null && descendenciaDeArea(areaEditada.id).has(superior)) {
+      // Colgarla de si misma o de una que ya cuelga de ella dejaria un ciclo, y el arbol entero se
+      // volveria irrecorrible: la comprobacion es del backend justamente porque es el que sabe.
+      detalles.area_superior_id = ['ciclo']
+    } else salida.area_superior_id = superior
+  }
+
+  if (datos.jefe_staffid !== undefined) {
+    const jefe = datos.jefe_staffid === null ? null : Number(datos.jefe_staffid)
+
+    if (jefe !== null && !STAFF.some((persona) => persona.id === jefe && persona.active)) {
+      detalles.jefe_staffid = ['no_existe']
+    } else salida.jefe_staffid = jefe
+  }
+
+  if (Object.keys(detalles).length > 0) {
+    throw new ErrorApi(422, 'validation_failed', 'Revisá los campos del área.', detalles)
+  }
+
+  return salida
+}
+
+/**
+ * `/jerarquia`, `/jerarquia/areas` y `/jerarquia/personas/{id}`.
+ *
+ * Una sola lectura sirve la pantalla entera —el arbol, la gente de cada area, quien no tiene area y
+ * el catalogo de asignables— porque las cuatro cosas cambian juntas: mover a alguien saca una fila
+ * de una lista y la pone en otra, y pedirlas por separado deja la pantalla mostrando dos momentos
+ * distintos del mismo dato.
+ */
+async function jerarquiaRuta (metodo, resto, cuerpo, actual) {
+  const [seccion, id] = resto
+
+  if (seccion === undefined) {
+    if (metodo !== 'GET') throw new ErrorApi(404, 'not_found', 'Verbo no soportado en /jerarquia.')
+
+    const { visibles, esAdmin } = alcanceDeJerarquia(actual)
+
+    // Quien no dirige nada y no administra no tiene organigrama que mirar. Es 403 y no una respuesta
+    // vacia: vacia se lee como "todavia no hay areas", que es otra cosa y llevaria a crearlas.
+    if (!esAdmin && visibles.length === 0) throw new ErrorApi(403, 'forbidden', SIN_JERARQUIA)
+
+    return { estado: 200, cuerpo: conDatos(arbolCompleto(actual)) }
+  }
+
+  if (seccion === 'areas') {
+    if (id === undefined) {
+      if (metodo !== 'POST') throw new ErrorApi(404, 'not_found', 'Verbo no soportado en /jerarquia/areas.')
+
+      const { esAdmin } = alcanceDeJerarquia(actual)
+
+      if (!esAdmin) throw new ErrorApi(403, 'forbidden', 'Solo quien administra puede crear un área.')
+
+      const campos = validarArea(await cuerpo(), null)
+      const area = {
+        id: Math.max(0, ...AREAS.map((otra) => otra.id)) + 1,
+        name: campos.name,
+        area_superior_id: campos.area_superior_id ?? null,
+        jefe_staffid: campos.jefe_staffid ?? null
+      }
+
+      AREAS.push(area)
+
+      // El alta sincroniza el nombre con las opciones de los Procesos: por eso un area recien creada
+      // nace alineada y no con la insignia de desalineada puesta desde el minuto cero.
+      if (!OPCIONES_AREA_EN_TAREAS.some((opcion) => mismoNombre(opcion, area.name))) {
+        OPCIONES_AREA_EN_TAREAS.push(area.name)
+      }
+
+      return { estado: 201, cuerpo: conDatos(arbolCompleto(actual)) }
+    }
+
+    const area = buscarO404(AREAS, Number(id), 'área')
+
+    if (metodo === 'DELETE') {
+      const { esAdmin } = alcanceDeJerarquia(actual)
+
+      if (!esAdmin) throw new ErrorApi(403, 'forbidden', 'Solo quien administra puede borrar un área.')
+
+      exigirAreaLibre(area)
+
+      AREAS.splice(AREAS.indexOf(area), 1)
+
+      // Devuelve el arbol entero y no un 204: borrar un area puede dejar huerfanas a las que
+      // colgaban de ella, asi que la pantalla necesita el estado completo y no solo la confirmacion.
+      return { estado: 200, cuerpo: conDatos(arbolCompleto(actual)) }
+    }
+
+    // `PUT` y no `PATCH`: asi lo expone la API, y exige las tres claves presentes aunque dos vengan
+    // en `null`. Un cuerpo parcial desenganchaba el area del arbol en silencio.
+    if (metodo !== 'PUT') throw new ErrorApi(404, 'not_found', 'Verbo no soportado en /jerarquia/areas/{id}.')
+
+    if (!puedeEditarArea(actual, area)) {
+      throw new ErrorApi(403, 'forbidden', 'Solo se puede editar un área que diriges.')
+    }
+
+    const datos = await cuerpo()
+    const faltantes = {}
+
+    for (const clave of ['name', 'area_superior_id', 'jefe_staffid']) {
+      if (datos[clave] === undefined) faltantes[clave] = ['required']
+    }
+
+    if (Object.keys(faltantes).length > 0) {
+      throw new ErrorApi(422, 'validation_failed', 'Faltan campos del área.', faltantes)
+    }
+
+    Object.assign(area, validarArea(datos, area))
+
+    return { estado: 200, cuerpo: conDatos(arbolCompleto(actual)) }
+  }
+
+  if (seccion === 'personas') {
+    if (metodo !== 'PUT') throw new ErrorApi(404, 'not_found', 'Verbo no soportado en /jerarquia/personas/{id}.')
+
+    const persona = buscarO404(STAFF, Number(id), 'persona')
+    const datos = await cuerpo()
+    const destino = datos.area_id === null || datos.area_id === undefined ? null : Number(datos.area_id)
+
+    if (destino !== null && !AREAS.some((area) => area.id === destino)) {
+      throw new ErrorApi(422, 'validation_failed', 'Revisá los campos.', { area_id: ['no_existe'] })
+    }
+
+    // Se mira el area de la que sale y aquella a la que entra: quien dirige un area puede sumar y
+    // sacar de la suya, y no mover gente entre dos areas ajenas.
+    for (const areaId of [persona.area_id, destino]) {
+      const area = AREAS.find((otra) => otra.id === areaId)
+
+      if (area !== undefined && !puedeEditarArea(actual, area)) {
+        throw new ErrorApi(403, 'forbidden', `No puedes mover gente de «${area.name}».`)
+      }
+    }
+
+    persona.area_id = destino
+
+    // El arbol entero y no la persona: moverla cambia quien cuelga de quien y que se puede editar, y
+    // recalcularlo en el navegador seria una segunda copia de las reglas de la API.
+    return { estado: 200, cuerpo: conDatos(arbolCompleto(actual)) }
+  }
+
+  throw new ErrorApi(404, 'not_found', 'Subrecurso de jerarquía desconocido.')
 }
 
 /** `/rooms/bookings` y `/rooms/bookings/{id}`. */
@@ -2125,12 +2459,34 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
     }
   }
 
+  // `GET /me/mi-area`. Va ANTES del bloque de `me`, que responde la propia ficha a cualquier resto:
+  // sin esta rama, "Mi Área" recibia el staff en vez de `{area, area_staff}` y la pantalla reventaba
+  // al leer `area_staff.length`. El mock no la tenia y por eso nadie lo habia notado.
+  if (recurso === 'me' && resto[0] === 'mi-area' && metodo === 'GET') {
+    const area = AREAS.find((otra) => otra.id === actual.area_id) ?? null
+
+    return {
+      estado: 200,
+      cuerpo: conDatos({
+        area: area === null ? null : { id: area.id, name: area.name },
+        // Todo el mundo del area, bajas incluidas: la pantalla las marca como "Dada de baja".
+        area_staff: area === null
+          ? []
+          : STAFF.filter((persona) => persona.area_id === area.id).map(presentarStaff)
+      })
+    }
+  }
+
   if (recurso === 'me' && metodo === 'GET') {
     return {
       estado: 200,
       cuerpo: conDatos({
         ...presentarStaff(actual),
         permissions: permisosDe(actual),
+        // Dirigir un area sale del `jefe_staffid` del arbol, no de un cargo: asi el mock no puede
+        // decir que alguien dirige algo mientras `/jerarquia` le contesta 403 por no tener ninguna.
+        // `is_director` es otra cosa —el cargo de `tblcargos`— y se deja como estaba.
+        dirige_areas: AREAS.some((area) => area.jefe_staffid === actual.id),
         // El escalon de la escalera, por el mismo resolutor que `GET /staff/{id}/nivel`: dos
         // verdades sobre el mismo dato es como el mock deja de ser un contrato ejecutable.
         nivel: nivelDe(actual).nivel,
@@ -2180,10 +2536,15 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
         tags: ETIQUETAS,
         roles: ROLES,
         departments: DEPARTAMENTOS,
+        // El catalogo de areas sale del mismo array que administra `/jerarquia`: dos listas separadas
+        // divergen apenas alguien crea un area desde el organigrama.
+        areas: AREAS.map(({ id, name }) => ({ id, name })),
         empresas: EMPRESAS_DEL_GRUPO
       })
     }
   }
+
+  if (recurso === 'jerarquia') return jerarquiaRuta(metodo, resto, cuerpo, actual)
 
   if (recurso === 'custom-fields' && metodo === 'GET') {
     const para = parametros.get('para') ?? ''
@@ -2275,6 +2636,20 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
         })
       }
       persona.modelo_permisos = datos.modelo_permisos
+    }
+
+    // El area de una persona: `null` la deja sin area. Es la unica forma de mover gente entre areas,
+    // asi que sin esto el organigrama dibuja el arbol y no puede poblarlo.
+    if (datos.area_id !== undefined) {
+      const area = datos.area_id === null ? null : Number(datos.area_id)
+
+      if (area !== null && !AREAS.some((otra) => otra.id === area)) {
+        throw new ErrorApi(422, 'validation_failed', 'Revisá los campos de la persona.', {
+          area_id: ['no_existe']
+        })
+      }
+
+      persona.area_id = area
     }
 
     for (const bandera of ['is_admin', 'is_superadmin']) {
