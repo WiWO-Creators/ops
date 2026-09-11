@@ -18,8 +18,13 @@ export interface NivelDeTrabajo {
   etiqueta: string
   /** El nombre, o el aviso de que todavia no hay ninguno. */
   valor: string
-  /** `true` cuando `valor` es el aviso y no un nombre: se pinta distinto. */
+  /** `true` cuando `valor` es un marcador y no un nombre: se pinta como insignia y no como texto. */
   pendiente: boolean
+  /**
+   * Como se pinta ese marcador. `neutro` es "no hay nada que decir aca y esta bien"; `aviso` es
+   * "esto falta y alguien tendria que mirarlo". Solo se lee cuando `pendiente` es `true`.
+   */
+  tono: 'neutro' | 'aviso'
 }
 
 /**
@@ -36,11 +41,20 @@ export type TrabajoEnVivo =
 /**
  * Que cuelga de una persona en el tablero: el Espacio primero, la Tarea despues.
  *
- * Los dos niveles se devuelven **siempre** que haya medidor, incluso vacios. Un medidor de Espacio
- * sin Tarea elegida es el caso que la pantalla existe para delatar —es tiempo que despues no se puede
- * imputar a nada— y esconderlo tras un hueco lo vuelve invisible justo para quien tendria que
- * pedirlo. Lo mismo con el medidor huerfano, que la API admite y `datos/live.ts` documenta: se
- * muestra tal como esta en vez de desaparecer de la lista.
+ * Los dos niveles se devuelven **siempre** que haya medidor, incluso vacios. Esconder el nivel vacio
+ * dejaria un hueco donde el ojo espera una linea, y la fila de al lado —que si la tiene— se leeria
+ * como si dijera otra cosa. Lo mismo con el medidor huerfano, que la API admite y `datos/live.ts`
+ * documenta: se muestra tal como esta en vez de desaparecer de la lista.
+ *
+ * === MEDIR UN PROYECTO SIN TAREA NO ES UN DEFECTO ===
+ *
+ * Lo fue durante unas horas el 2026-09-11, cuando la Tarea era obligatoria, y el nivel vacio se
+ * pintaba como un aviso: "Falta elegir Tarea". El cliente revirtio esa regla el mismo dia —quiere
+ * poder demostrar que trabaja en un Proyecto sin elegir Tarea— asi que ese estado es ahora legitimo
+ * y se pinta `neutro`: dice lo que hay, "Sin Tarea", sin regañar a quien lo eligio.
+ *
+ * El `aviso` queda para lo que si esta mal: el medidor sin Espacio. Ahi no hay a que imputar el
+ * tiempo por ningun camino, y de esos hay en la base desde antes del modulo.
  *
  * Cuando no hay medidor no hay jerarquia que colgar, y lo que queda es el motivo: o no hay jornada
  * abierta —y entonces ningun cronometro puede arrancar— o la hay y nadie arranco ninguno.
@@ -64,12 +78,16 @@ export function trabajoDeLaFila (fila: FilaDeLive): TrabajoEnVivo {
       {
         etiqueta: GLOSARIO.espacio.singular,
         valor: medidor.project?.name ?? `Sin ${GLOSARIO.espacio.singular.toLowerCase()}`,
-        pendiente: medidor.project === null
+        pendiente: medidor.project === null,
+        tono: 'aviso'
       },
       {
         etiqueta: GLOSARIO.proceso.singular,
-        valor: medidor.task?.name ?? `Falta elegir ${GLOSARIO.proceso.singular}`,
-        pendiente: medidor.task === null
+        valor: medidor.task?.name ?? `Sin ${GLOSARIO.proceso.singular.toLowerCase()}`,
+        pendiente: medidor.task === null,
+        // Sin Tarea pero con Proyecto es la eleccion que el cliente pidio poder hacer. Sin ninguno de
+        // los dos es un medidor huerfano, y eso si hay que mirarlo.
+        tono: medidor.project === null ? 'aviso' : 'neutro'
       }
     ]
   }

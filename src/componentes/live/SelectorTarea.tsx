@@ -39,6 +39,8 @@ interface PropsSelectorTarea {
   deshabilitado?: boolean
   /** Para asociarlo con la etiqueta que lo nombra desde afuera. */
   id?: string
+  /** Id del texto que lo explica. Lo lee el lector de pantalla junto con la etiqueta. */
+  describedBy?: string
   className?: string
 }
 
@@ -69,6 +71,7 @@ export function SelectorTarea ({
   onElegir,
   deshabilitado = false,
   id,
+  describedBy,
   className
 }: PropsSelectorTarea) {
   // La respuesta se guarda JUNTO al Espacio del que salio, y no en un estado aparte que haya que
@@ -127,6 +130,7 @@ export function SelectorTarea ({
     >
       <DisparadorSelector
         id={id}
+        aria-describedby={describedBy}
         marcador={cargando ? 'Cargando…' : `Elige una ${GLOSARIO.proceso.singular.toLowerCase()}`}
         className={cn('w-full', className)}
       />

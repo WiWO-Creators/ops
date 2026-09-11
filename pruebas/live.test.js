@@ -150,7 +150,22 @@ test('un medidor de Espacio sin Tarea lo dice, en vez de dejar el hueco', () => 
   assert.equal(trabajo.niveles.length, 2)
   assert.equal(trabajo.niveles[0].valor, 'DELCO')
   assert.equal(trabajo.niveles[1].pendiente, true)
-  assert.match(trabajo.niveles[1].valor, new RegExp(GLOSARIO.proceso.singular))
+  assert.match(trabajo.niveles[1].valor, new RegExp(GLOSARIO.proceso.singular, 'i'))
+})
+
+test('con Proyecto y sin Tarea el nivel vacio es neutro: es una eleccion valida, no un defecto', () => {
+  // La Tarea volvio a ser opcional el 2026-09-11. Pintar "aviso" ahi seria regañar a quien hizo
+  // exactamente lo que el cliente pidio poder hacer.
+  const trabajo = trabajoDeLaFila(fila(1, 'Ana', { espacio: DELCO }))
+
+  assert.equal(trabajo.niveles[1].tono, 'neutro')
+  assert.doesNotMatch(trabajo.niveles[1].valor, /falta/i)
+})
+
+test('el Espacio vacio si es un aviso: sin el no hay a que imputar el tiempo por ningun camino', () => {
+  const trabajo = trabajoDeLaFila(fila(1, 'Ana', { tarea: { id: 77, name: 'Status semanal' } }))
+
+  assert.equal(trabajo.niveles[0].tono, 'aviso')
 })
 
 test('una Tarea suelta conserva su nivel y avisa que no hay Espacio detras', () => {
@@ -161,13 +176,15 @@ test('una Tarea suelta conserva su nivel y avisa que no hay Espacio detras', () 
   assert.equal(trabajo.niveles[1].pendiente, false)
 })
 
-test('el medidor huerfano se muestra igual, con los dos niveles pendientes', () => {
+test('el medidor huerfano se muestra igual, con los dos niveles pendientes y en aviso', () => {
   const huerfano = fila(1, 'Ana', { jornada: true })
   huerfano.medidor = { id: 1, project: null, task: null, start_time: '2026-09-09T12:30:00Z', seconds: 600 }
   const trabajo = trabajoDeLaFila(huerfano)
 
   assert.equal(trabajo.midiendo, true)
   assert.deepEqual(trabajo.niveles.map((n) => n.pendiente), [true, true])
+  // Sin Espacio no hay eleccion legitima que defender: los dos niveles avisan.
+  assert.deepEqual(trabajo.niveles.map((n) => n.tono), ['aviso', 'aviso'])
 })
 
 test('sin medidor no hay jerarquia que colgar, y el motivo distingue los dos casos', () => {
@@ -271,16 +288,21 @@ test('esJefatura deja fuera a lider, focal y usuario', () => {
 })
 
 /**
- * Abrir con Espacio puede fallar por el Espacio, no por la jornada.
+ * Abrir con destino puede fallar por el destino, no por la jornada.
  *
- * Desde que `POST /me/jornada` recibe `project_id` y `task_id`, la misma peticion arranca el
- * cronometro, asi que devuelve el 403/404 de la Tarea. Un mensaje que hable de la jornada mandaria a
- * la persona a buscar donde no es: la jornada no quedo abierta —la API la descarta— y lo que tiene
- * que cambiar es el destino.
+ * Desde que `POST /me/jornada` recibe el destino, la misma peticion arranca el medidor, asi que
+ * devuelve su 403/404. Un mensaje que hable de la jornada mandaria a la persona a buscar donde no
+ * es: la jornada no quedo abierta —la API la descarta— y lo que tiene que cambiar es el destino.
+ *
+ * El 403 y el 404 nombran los DOS niveles desde que la Tarea es opcional: sin ella se abre contra el
+ * Proyecto entero, y ahi el que no existe o no es suyo es el Proyecto.
  */
-test('el fallo al abrir con destino nombra la Tarea, no la jornada', () => {
-  assert.match(mensajeDeFalloDeJornada(403, true), /Tarea/)
-  assert.match(mensajeDeFalloDeJornada(404, true), /Tarea/)
+test('el fallo al abrir con destino nombra el destino, no la jornada', () => {
+  for (const codigo of [403, 404]) {
+    assert.match(mensajeDeFalloDeJornada(codigo, true), /Proyecto/)
+    assert.match(mensajeDeFalloDeJornada(codigo, true), /Tarea/)
+  }
+
   assert.match(mensajeDeFalloDeJornada(422, true), /Tarea/)
 
   // Al cerrar no hay destino en juego: ahi 403 sigue siendo un fallo generico.

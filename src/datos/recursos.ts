@@ -507,8 +507,12 @@ export interface TiempoDePersona {
   esta_semana_segundos: number
   corriendo: {
     id: number
+    /** `0` es el medidor de Espacio puro de la `0260`: se mide el Proyecto entero, sin Tarea. */
     task_id: number
     task_name: string | null
+    /** El Espacio del cronómetro, venga de su `project_id` o del `rel_id` de la Tarea. */
+    project_id: number | null
+    project_name: string | null
     start_time: string | null
     segundos: number
   } | null
