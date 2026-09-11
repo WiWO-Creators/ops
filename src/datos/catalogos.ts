@@ -1,3 +1,4 @@
+import { GLOSARIO } from '../dominio/glosario.ts'
 import type { EstadoLookup, Lookups } from './recursos.ts'
 import type { DefinicionRecurso, Filtro, OpcionFiltro } from '../definiciones/tipos.ts'
 
@@ -95,6 +96,40 @@ export function opcionesDeFiltros<T> (
   }
 
   return mapa
+}
+
+/**
+ * Valor del filtro de Espacio que pide los Procesos que no cuelgan de ninguno.
+ *
+ * Es el valor sintetico que entiende la API (`filter[project_id]=ninguno`), no un id: un Espacio con
+ * id `0` no existe, y mandar `0` o vacio devolvia cero filas sin decir por que. Los demas valores del
+ * filtro son ids numericos, asi que no colisiona con ninguno.
+ */
+export const SIN_ESPACIO = 'ninguno'
+
+/**
+ * Opciones del filtro por Espacio de un listado de Procesos.
+ *
+ * "Sin proyecto" va primera porque es la unica opcion que no se puede alcanzar de otra forma: las
+ * tareas sin Espacio estan en la lista pero repartidas entre las ultimas paginas, y hasta que este
+ * filtro existio no habia manera de pedirlas para asignarles uno con "Agregar a proyecto".
+ *
+ * Vive aca y no en cada pagina porque las tres vistas de Procesos —tabla, tablero y calendario—
+ * arman este mismo catalogo, y una copia que se desincronice deja una vista filtrando distinto que
+ * las otras.
+ *
+ * A diferencia de `opcionesDeFiltroDeHito`, un catalogo vacio NO deja el desplegable vacio: "Sin
+ * proyecto" sigue siendo una pregunta que se puede contestar aunque no haya ningun Espacio a la
+ * vista.
+ *
+ * @param espacios Los Espacios visibles, tal como los devuelve `GET /projects`.
+ * @returns Las opciones para `ControlesTabla`, con "Sin proyecto" al frente.
+ */
+export function opcionesDeFiltroDeEspacio (espacios: Array<{ id: number, name: string }>): OpcionFiltro[] {
+  return [
+    { valor: SIN_ESPACIO, etiqueta: `Sin ${GLOSARIO.espacio.singular.toLowerCase()}` },
+    ...espacios.map((espacio) => ({ valor: String(espacio.id), etiqueta: espacio.name }))
+  ]
 }
 
 /** Deja una sola opcion por valor, conservando el orden en que llegaron. */

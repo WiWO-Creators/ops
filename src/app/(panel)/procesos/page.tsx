@@ -9,7 +9,7 @@ import { Segmentado } from '@/componentes/formularios/Segmentado'
 import { TituloModulo } from '@/componentes/estructura/TituloModulo'
 import { iaHabilitada } from '@/datos/ajustes'
 import { construirConsulta, leerConsulta, paramsDeUrl } from '@/datos/consulta'
-import { cargarLookups, opcionesDeFiltros } from '@/datos/lookups'
+import { cargarLookups, opcionesDeFiltroDeEspacio, opcionesDeFiltros } from '@/datos/lookups'
 import { RUTA_DE_ASIGNABLES } from '@/datos/asignables'
 import { pedir, pedirOpcional } from '@/datos/servidor'
 import type { Espacio, PersonaAsignable, Proceso } from '@/datos/recursos'
@@ -59,7 +59,7 @@ export default async function ProcesosPage (props: PageProps<'/procesos'>) {
 
   // El catalogo de Espacios ya venia para el alta rapida; darselo tambien al filtro es lo que hace
   // que el filtro por Hito tenga de donde salir, porque un hito cuelga de un Espacio.
-  const espaciosDeFiltro = espacios.data.map((espacio) => ({ valor: String(espacio.id), etiqueta: espacio.name }))
+  const espaciosDeFiltro = opcionesDeFiltroDeEspacio(espacios.data)
 
   const catalogosDeAlta = {
     personas: (equipo.datos ?? []).map((p) => ({
