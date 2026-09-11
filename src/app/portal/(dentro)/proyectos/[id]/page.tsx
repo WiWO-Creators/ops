@@ -6,6 +6,7 @@ import type { EspacioPortal, TareaPortal } from '@/datos/portal'
 import { pestaniasDelProyecto } from '@/definiciones/portal-proyectos'
 import { CabeceraProyecto } from '@/componentes/proyecto/CabeceraProyecto'
 import { aTextoPlano } from '@/componentes/proyecto/formatos'
+import { cargarLookupsDelPortal, listaDe } from '@/datos/lookups'
 import { pedirPortal } from '@/datos/servidor'
 import type { EmpresaPortal } from '@/datos/tipos'
 import { GLOSARIO } from '@/dominio/glosario'
@@ -90,7 +91,14 @@ export default async function ProyectoPagina (props: PageProps<'/portal/proyecto
       )}
 
       {pendientes.length > 0 && (
-        <AprobacionesPendientes proyectoId={proyecto.id} tareas={pendientes} />
+        <AprobacionesPendientes
+          proyectoId={proyecto.id}
+          tareas={pendientes}
+          // El catalogo se pide aca y no dentro del panel: `cargarLookupsDelPortal` es `server-only`
+          // y el panel es cliente. `cache()` lo comparte con la pestaña de Tareas, asi que la pagina
+          // no pide `/portal/lookups` dos veces por pintar la insignia.
+          estados={listaDe(await cargarLookupsDelPortal(), 'task_statuses')}
+        />
       )}
 
       {paneles.length > 0 ? <Pestanas paneles={paneles} /> : <PanelResumen proyecto={proyecto} />}
