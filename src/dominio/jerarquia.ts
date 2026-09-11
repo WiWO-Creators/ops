@@ -146,7 +146,7 @@ export function aplanarArbol (raices: NodoArea[]): NodoArea[] {
  * @param id el área de la que se parte
  * @returns el conjunto, con el id propio incluido
  */
-export function descendenciaDe (areas: AreaDelEquipo[], id: number): Set<number> {
+export function descendenciaDe (areas: Array<Pick<AreaDelEquipo, 'id' | 'area_superior_id'>>, id: number): Set<number> {
   const dentro = new Set([id])
   let crecio = true
 
