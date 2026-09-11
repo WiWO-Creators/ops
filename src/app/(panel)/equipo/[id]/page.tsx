@@ -7,6 +7,7 @@ import { DialogoPermisos } from '@/componentes/equipo/DialogoPermisos'
 import { DialogoNivel } from '@/componentes/equipo/DialogoNivel'
 import { DialogoNivelBase } from '@/componentes/equipo/DialogoNivelBase'
 import { FichaPersona } from '@/componentes/equipo/FichaPersona'
+import { ExportarTareasSheets } from '@/componentes/equipo/ExportarTareasSheets'
 import { PanelArchivosPersona } from '@/componentes/equipo/PanelArchivosPersona'
 import { PanelHistorialPersona } from '@/componentes/equipo/PanelHistorialPersona'
 import { PanelHorasPersona } from '@/componentes/equipo/PanelHorasPersona'
@@ -204,6 +205,7 @@ export default async function PersonaPage (props: PageProps<'/equipo/[id]'>) {
       <div className="flex flex-wrap items-start justify-between gap-3">
         <CabeceraPersona persona={persona} />
         <div className="flex flex-wrap items-center gap-2">
+          {yo.is_admin && <ExportarTareasSheets personaId={persona.id} nombre={persona.full_name} email={persona.email} />}
           <AccionesPersona persona={persona} roles={roles} cargos={cargos} areas={areas} empresas={empresas} capacidades={capacidades} modeloDePermisos={yo.modelo_permisos} enFicha />
           {/* Solo un superadministrador reparte el nivel: la API rechaza al resto con 422. */}
           {yo.is_superadmin && <DialogoNivel persona={persona} actorId={yo.id} />}
