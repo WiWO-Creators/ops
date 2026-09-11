@@ -9,15 +9,8 @@ import { cn } from '@/lib/clases'
  * divergido: unas paginas decian `text-xl font-semibold` y otras `font-titular text-pantalla
  * font-extrabold`. Un cambio de estilo del encabezado era una busqueda global; ahora es un archivo.
  *
- * === POR QUE EL GRADIENTE ACCESIBLE Y NO EL DE MARCA ===
- *
- * `.texto-gradiente-marca` —el del saludo del Inicio— recorta el verde puro, que sobre blanco da
- * 1.5:1 de contraste. Sirve para seis caracteres decorativos; no para el texto que dice en que
- * pantalla esta uno. `.texto-gradiente-animado` usa `--gradiente-texto`, cuyas dos paradas cumplen
- * AA por si solas, y le suma el mismo brillo de 8s.
- *
- * La barra de debajo si lleva el gradiente de marca (`bg-gradiente-marca`): ahi es un **relleno**
- * sobre una superficie, que es exactamente para lo que ese token existe.
+ * El titulo comparte el degradado de marca y el ciclo de brillo del saludo de Inicio.
+ * La preferencia de movimiento reducido se respeta desde los estilos globales.
  *
  * === SERVIDOR, NO CLIENTE ===
  *
