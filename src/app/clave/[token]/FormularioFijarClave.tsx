@@ -11,7 +11,6 @@ import { PanelVidrio } from '@/componentes/superposiciones/PanelVidrio'
 
 interface RespuestaCanje {
   ok?: boolean
-  contacto?: { verificado: boolean }
   mensaje?: string
   codigo?: string
 }

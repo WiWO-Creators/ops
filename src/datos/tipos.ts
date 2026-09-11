@@ -236,8 +236,6 @@ export interface ContactoPortal {
   phonenumber: string | null
   title: string | null
   is_primary: boolean
-  /** `false` obliga a mandar a verificar: la API responde 403 en todo lo demas. */
-  email_verified: boolean
   last_login: string | null
   direction: string | null
 }

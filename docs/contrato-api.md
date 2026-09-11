@@ -4114,7 +4114,7 @@ con su hito no oculto. Sin la tercera, un contacto podría aprobar por id una ta
 ```
 
 **Errores:** `401 unauthenticated` con un token de staff; `403 forbidden` si el Espacio no comparte
-tareas o el correo del contacto no está verificado (`email_unverified`); `404 not_found` si la tarea
+tareas; `404 not_found` si la tarea
 no es suya o no es visible en su portal; `409 conflict` si no hay aprobación pendiente
 (`"Este proceso no está esperando tu aprobación."`) o si ya fue respondida
 (`"Esta aprobación ya fue respondida."`); `422 validation_failed` con `decision` fuera de las dos
