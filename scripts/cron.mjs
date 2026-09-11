@@ -148,7 +148,8 @@ async function main () {
   if (process.send) process.send('ready')
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+const entrada = process.env.pm_exec_path || process.argv[1]
+if (entrada && import.meta.url === pathToFileURL(entrada).href) {
   main().catch((error) => {
     registrar({ estado: 'inicio_fallido', tipo: error instanceof Error ? error.name : 'Error', http: error?.http ?? null,
       detalle: /^(OPS_|Timeout|El backend)/.test(error?.message ?? '') ? error.message : 'Revisa la configuración y la conectividad con el backend.' })

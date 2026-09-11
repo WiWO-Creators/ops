@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
+import { spawnSync } from 'node:child_process'
+import { fileURLToPath } from 'node:url'
 import { crearProgramador, leerConfiguracion } from '../scripts/cron.mjs'
 
 const entorno = {
@@ -94,4 +96,21 @@ test('node-cron real arranca y se detiene; un corte fallido bloquea las rutinas 
   await new Promise((resolve) => setImmediate(resolve))
   await programador.detener()
   assert.deepEqual(llamadas, ['/api/cron/estado', '/api/cron/cortar_cronometros'])
+})
+
+
+test('PM2 importa el entrypoint y ejecuta preflight sin disparar trabajos', () => {
+  const script = new URL('../scripts/cron.mjs', import.meta.url)
+  const codigo = `
+    process.argv.push('--check');
+    globalThis.fetch = async () => new Response(JSON.stringify(${JSON.stringify(listo)}));
+    await import(${JSON.stringify(script.href)});
+  `
+  const resultado = spawnSync(process.execPath, ['--input-type=module', '-e', codigo], {
+    env: { ...process.env, ...entorno, pm_exec_path: fileURLToPath(script) },
+    encoding: 'utf8', timeout: 10000
+  })
+  assert.equal(resultado.status, 0, resultado.stderr)
+  assert.match(resultado.stdout, /configuracion_verificada/)
+  assert.doesNotMatch(resultado.stdout, /iniciado/)
 })
