@@ -146,7 +146,7 @@ export function AccionesPersona ({
           campos={camposDePersona(roles, cargos, areas, false, modeloDePermisos === 'viejo', empresas)}
           ruta={`staff/${persona.id}`}
           metodo="PATCH"
-          registro={persona as unknown as Record<string, unknown>}
+          registro={{ ...persona, area_ids: persona.area_ids ?? (persona.area_id == null ? [] : [persona.area_id]) }}
           onGuardado={refrescar}
         />
       )}

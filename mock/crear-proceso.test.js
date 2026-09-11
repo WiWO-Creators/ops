@@ -253,7 +253,7 @@ test('asignables carga personas activas con paginación y proyección mínima', 
   assert.equal(respuesta.status, 200)
   const { data } = await respuesta.json()
   assert.equal(data.length, STAFF.filter((persona) => persona.active && !persona.is_not_staff).length)
-  assert.deepEqual(Object.keys(data[0]).sort(), ['area_id', 'cargo_id', 'full_name', 'id', 'profile_image_url'])
+  assert.deepEqual(Object.keys(data[0]).sort(), ['area_id', 'area_ids', 'cargo_id', 'full_name', 'id', 'profile_image_url'])
   const pagina = await fetch(`${base}/staff/asignables?per_page=1&page=2`, {
     headers: { authorization: `Bearer ${token}` }
   })

@@ -9,8 +9,11 @@ import { Cargando, ErrorEstado, Vacio } from '@/componentes/estado/Estados'
 import { Boton } from '@/componentes/formularios/Boton'
 import { Entrada } from '@/componentes/formularios/Entrada'
 import {
-  ContenidoSelector, DisparadorSelector, Opcion, Selector
+  CLASES_DISPARADOR, ChevronSelector, ContenidoSelector, DisparadorSelector, Opcion, Selector
 } from '@/componentes/formularios/Selector'
+import {
+  ContenidoMenu, DisparadorMenu, ItemMenuMarcable, MenuContextual
+} from '@/componentes/superposiciones/MenuContextual'
 import { Insignia } from '@/componentes/presentadores/Insignia'
 import { pedirSobre } from '@/datos/cliente'
 import { consultaDePersonas, escalonesAsignables, nombreDeEscalon } from '@/dominio/accesos'
@@ -170,7 +173,7 @@ export function PanelPersonas ({ catalogo, recargar, actorId }: PropsPanelPerson
                   <CeldaEncabezado>Persona</CeldaEncabezado>
                   <CeldaEncabezado>Rol</CeldaEncabezado>
                   <CeldaEncabezado>Escalón</CeldaEncabezado>
-                  <CeldaEncabezado>Área</CeldaEncabezado>
+                  <CeldaEncabezado>Áreas</CeldaEncabezado>
                   <CeldaEncabezado>Cargo</CeldaEncabezado>
                 </tr>
               </EncabezadoTabla>
@@ -292,6 +295,8 @@ function FilaDePersona ({
   onCambiar: (cambio: CambioDePersona) => void
 }) {
   const efectivo = nombreDeEscalon(catalogo.escalones, persona.escalon_efectivo)
+  const areas = persona.area_ids ?? (persona.area_id === null ? [] : [persona.area_id])
+  const nombresDeAreas = areas.map((id) => catalogo.areas.find((area) => area.id === id)?.nombre ?? `#${id}`)
 
   return (
     <FilaTabla>
@@ -341,14 +346,32 @@ function FilaDePersona ({
       </CeldaTabla>
 
       <CeldaTabla>
-        <DesplegableDeFila
-          etiqueta={`Área de ${persona.nombre}`}
-          marcador="Sin área"
-          valor={persona.area_id === null ? null : String(persona.area_id)}
-          deshabilitado={ocupada}
-          opciones={catalogo.areas.map((area) => ({ valor: String(area.id), etiqueta: area.nombre }))}
-          onCambiar={(valor) => { onCambiar({ area_id: valor === null ? null : Number(valor) }) }}
-        />
+        <MenuContextual>
+          <DisparadorMenu
+            className={CLASES_DISPARADOR}
+            aria-label={`Áreas de ${persona.nombre}`}
+            disabled={ocupada}
+          >
+            <span className="truncate">{nombresDeAreas.join(', ') || 'Sin área'}</span>
+            <ChevronSelector />
+          </DisparadorMenu>
+          <ContenidoMenu align="start" className="max-h-64 overflow-y-auto">
+            {catalogo.areas.map((area) => (
+              <ItemMenuMarcable
+                key={area.id}
+                checked={areas.includes(area.id)}
+                disabled={ocupada}
+                onCheckedChange={(marcada) => onCambiar({
+                  area_ids: marcada
+                    ? [...new Set([...areas, area.id])]
+                    : areas.filter((id) => id !== area.id)
+                })}
+              >
+                {area.nombre}
+              </ItemMenuMarcable>
+            ))}
+          </ContenidoMenu>
+        </MenuContextual>
       </CeldaTabla>
 
       <CeldaTabla>

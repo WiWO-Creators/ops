@@ -463,6 +463,7 @@ export interface MiembroEquipo {
   /** Organizacion propia del staff (`modules/wiwo_core/cargos_areas.php`), separada de `role_id`. */
   cargo_id: number | null
   area_id: number | null
+  area_ids?: number[]
   /**
    * A cual de las seis organizaciones del grupo pertenece (`tblapi_empresas`, migracion 0170).
    *
@@ -529,6 +530,7 @@ export interface FichaPersona extends MiembroEquipo {
   role: Referencia | null
   cargo: Referencia | null
   area: Referencia | null
+  areas?: Referencia[]
   empresa: Referencia | null
   departments: Referencia[]
   permissions: Record<string, string[]>

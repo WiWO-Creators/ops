@@ -123,7 +123,7 @@ export function FlujoLicitacion ({ usuarioId, capacidades, paises, areas, staff,
   }
 
   /** Selecciona un contacto existente o prepara uno nuevo, manteniendo el mismo prospecto. */
-  function elegirContacto (valor: string | boolean): void {
+  function elegirContacto (valor: string | boolean | string[]): void {
     const contacto = contactos.find((item) => String(item.id) === valor)
     setErrores({})
     actualizar({ ...borrador, contactoId: contacto?.id ?? null, valoresContacto: valoresIniciales(CAMPOS_DE_CONTACTO, contacto?.contacto ? { ...contacto.contacto } : null) })

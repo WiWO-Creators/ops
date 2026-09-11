@@ -15,6 +15,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
   cuerpoDelFormulario,
+  validarFormulario,
   valoresIniciales
 } from '../src/componentes/proyecto/formulario.ts'
 import { camposDeCliente } from '../src/componentes/cliente/campos.ts'
@@ -112,4 +113,22 @@ test('los campos de una persona no incluyen la condicion de administrador', () =
   // La API la rechaza salvo que quien escribe ya sea admin: ofrecerla en el formulario a cualquiera
   // con `staff.create` seria ofrecer un 422.
   assert.ok(!claves.includes('is_admin'))
+})
+
+
+test('las áreas de una persona se editan juntas y se pueden vaciar', () => {
+  const areas = [...AREAS, { valor: '2', etiqueta: 'Diseño' }]
+  const campos = camposDePersona(ROLES, CARGOS, areas, false)
+  const area = campos.find((campo) => campo.clave === 'area_ids')
+  const ids = areas.map((opcion) => opcion.valor)
+  const iniciales = valoresIniciales([area], { area_ids: ids.map(Number) })
+
+  assert.deepEqual(iniciales.area_ids, ids)
+  assert.deepEqual(validarFormulario([area], iniciales), {})
+  assert.deepEqual(cuerpoDelFormulario([area], iniciales), { area_ids: ids.map(Number) })
+  assert.deepEqual(cuerpoDelFormulario([area], { area_ids: [] }), { area_ids: [] })
+  assert.deepEqual(valoresIniciales([area], null), { area_ids: [] })
+  assert.ok(validarFormulario([area], { area_ids: ['inexistente'] }).area_ids)
+  assert.ok(validarFormulario([area], { area_ids: '1' }).area_ids)
+  assert.deepEqual(cuerpoDelFormulario([area], { area_ids: ['1', '1'] }), { area_ids: [1] })
 })

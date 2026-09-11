@@ -20,6 +20,7 @@ import {
   areasElegiblesComoSuperior,
   areasSinJefatura,
   construirArbol,
+  personasParaSumar,
   cuantosEn,
   loQueRetieneElArea,
   type NodoArea
@@ -637,7 +638,7 @@ function PanelSinArea ({ arbol, nodo, onArbol }: PropsPanel) {
     setMoviendo(persona.id)
     setError(null)
 
-    const fallo = await moverPersona(persona, areaId, onArbol)
+    const fallo = await cambiarAreaPersona(persona, areaId, 'agregar', onArbol)
 
     setMoviendo(null)
     setError(fallo)
@@ -704,29 +705,28 @@ function PanelSinArea ({ arbol, nodo, onArbol }: PropsPanel) {
 }
 
 /**
- * Mueve a una persona con `PUT /jerarquia/personas/{id}` y entrega el árbol que devuelve.
+ * Agrega o quita una membresía y entrega el organigrama actualizado.
  *
- * Vive fuera de los dos paneles porque los dos hacen exactamente esto: uno manda gente hacia un área
- * y el otro la saca. `null` la deja sin área.
- *
- * @param persona a quién se mueve
- * @param areaId el área destino, o `null` para soltarla
- * @param onArbol qué hacer con el árbol que devuelve la API
- * @returns el mensaje del fallo, o `null` si salió bien
+ * @param persona la persona cuya membresía cambia
+ * @param areaId el área concreta que se agrega o quita
+ * @param accion el cambio de membresía; las otras áreas se conservan
+ * @param onArbol recibe el árbol devuelto por la API
+ * @returns el mensaje de error, o null al completar el cambio
  */
-async function moverPersona (
+async function cambiarAreaPersona (
   persona: PersonaDeJerarquia,
-  areaId: number | null,
+  areaId: number,
+  accion: 'agregar' | 'quitar',
   onArbol: (arbol: ArbolDeJerarquia) => void
 ): Promise<string | null> {
   const resultado = await escribirEnBff<ArbolDeJerarquia>(
-    `jerarquia/personas/${persona.id}`, 'PUT', { area_id: areaId }
+    `jerarquia/personas/${persona.id}`, 'PUT', { area_id: areaId, accion }
   )
 
-  if (!resultado.ok) return `No se pudo mover a ${persona.full_name}. ${resultado.mensaje}`
+  if (!resultado.ok) return `No se pudieron cambiar las áreas de ${persona.full_name}. ${resultado.mensaje}`
 
   if (!esArbol(resultado.datos)) {
-    return `Se movió a ${persona.full_name}, pero el servidor no devolvió el organigrama. Recargá la pantalla.`
+    return `Se actualizaron las áreas de ${persona.full_name}, pero el servidor no devolvió el organigrama. Recargá la pantalla.`
   }
 
   onArbol(resultado.datos)
@@ -745,13 +745,8 @@ function PanelDelArea ({ arbol, nodo, onArbol }: PropsPanel & { nodo: NodoArea }
   const [moviendo, setMoviendo] = useState<number | null>(null)
   const [error, setError] = useState<string | null>(null)
 
-  /** Quién está en otra área editable, con el nombre de esa área para saber de dónde sale. */
-  const deOtrasAreas = useMemo(() => arbol.areas
-    .filter((area) => area.id !== nodo.area.id && area.editable)
-    .flatMap((area) => area.personas
-      .filter((persona) => persona.active)
-      .map((persona) => ({ persona, desde: area.name }))),
-  [arbol.areas, nodo.area.id])
+  const deOtrasAreas = useMemo(() => personasParaSumar(arbol.areas, nodo.area),
+    [arbol.areas, nodo.area])
 
   const termino = busqueda.trim().toLowerCase()
   const candidatos = deOtrasAreas.filter(
@@ -759,11 +754,11 @@ function PanelDelArea ({ arbol, nodo, onArbol }: PropsPanel & { nodo: NodoArea }
   )
   const gente = cuantosEn(nodo.area)
 
-  async function mover (persona: PersonaDeJerarquia, areaId: number | null): Promise<void> {
+  async function cambiar (persona: PersonaDeJerarquia, accion: 'agregar' | 'quitar'): Promise<void> {
     setMoviendo(persona.id)
     setError(null)
 
-    const fallo = await moverPersona(persona, areaId, onArbol)
+    const fallo = await cambiarAreaPersona(persona, nodo.area.id, accion, onArbol)
 
     setMoviendo(null)
     setError(fallo)
@@ -807,9 +802,9 @@ function PanelDelArea ({ arbol, nodo, onArbol }: PropsPanel & { nodo: NodoArea }
                   variante="sutil"
                   tamano="chico"
                   cargando={moviendo === persona.id}
-                  onClick={() => { void mover(persona, null) }}
+                  onClick={() => { void cambiar(persona, 'quitar') }}
                 >
-                  Sacar
+                  Quitar de esta área
                 </Boton>
               )}
             </li>
@@ -819,7 +814,7 @@ function PanelDelArea ({ arbol, nodo, onArbol }: PropsPanel & { nodo: NodoArea }
 
       {nodo.area.editable && deOtrasAreas.length > 0 && (
         <div className="flex flex-col gap-2">
-          <Campo etiqueta="Traer de otra área">
+          <Campo etiqueta="Sumar desde otras áreas" ayuda="Conserva sus áreas actuales.">
             {(props) => (
               <Entrada
                 {...props}
@@ -841,8 +836,7 @@ function PanelDelArea ({ arbol, nodo, onArbol }: PropsPanel & { nodo: NodoArea }
 
                     <span className="min-w-0 flex-1">
                       <span className="text-texto block truncate text-sm">{persona.full_name}</span>
-                      {/* De dónde sale: traerla acá la saca de donde estaba, y eso hay que verlo
-                          antes de apretar, no después. */}
+                      {/* Áreas actuales: se conservan al sumar a la persona. */}
                       <span className="text-texto-sutil block truncate text-xs">{desde}</span>
                     </span>
 
@@ -850,9 +844,9 @@ function PanelDelArea ({ arbol, nodo, onArbol }: PropsPanel & { nodo: NodoArea }
                       variante="secundario"
                       tamano="chico"
                       cargando={moviendo === persona.id}
-                      onClick={() => { void mover(persona, nodo.area.id) }}
+                      onClick={() => { void cambiar(persona, 'agregar') }}
                     >
-                      Traer
+                      Sumar
                     </Boton>
                   </li>
                 ))}

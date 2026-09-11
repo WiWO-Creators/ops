@@ -30,7 +30,7 @@ export const EQUIPO: DefinicionRecurso<MiembroEquipo> = {
     // literalmente "#undefined" para una fila a la que le faltara el campo.
     { clave: 'empresa_id', encabezado: 'Empresa', presentar: (m) => (m.empresa_id == null ? '' : `#${m.empresa_id}`) },
     { clave: 'cargo_id', encabezado: 'Cargo', ocultaPorDefecto: true, presentar: (m) => (m.cargo_id == null ? '' : `#${m.cargo_id}`) },
-    { clave: 'area_id', encabezado: 'Área', presentar: (m) => (m.area_id == null ? '' : `#${m.area_id}`) },
+    { clave: 'area_id', encabezado: 'Áreas', presentar: (m) => (m.area_id == null ? '' : `#${m.area_id}`) },
     { clave: 'active', encabezado: 'Activo', presentar: (m) => (m.active ? 'Sí' : 'No') },
     {
       clave: 'last_login',

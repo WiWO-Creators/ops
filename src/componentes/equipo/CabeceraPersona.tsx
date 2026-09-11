@@ -63,7 +63,7 @@ export function CabeceraPersona ({ persona }: { persona: FichaPersona }) {
               />
             )}
             <DatoLinea etiqueta="Rol" valor={persona.role?.name ?? 'Sin rol'} />
-            <DatoLinea etiqueta="Área" valor={persona.area?.name ?? 'Sin área'} />
+            <DatoLinea etiqueta="Áreas" valor={(persona.areas ?? (persona.area ? [persona.area] : [])).map((area) => area.name).join(', ') || 'Sin área'} />
             <DatoLinea
               etiqueta="Último acceso"
               valor={persona.last_login === null ? 'Nunca' : <Fecha valor={persona.last_login} conHora />}
