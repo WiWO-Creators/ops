@@ -378,7 +378,11 @@ export function AltaRapidaProceso ({
     if (resultado.start_date !== null) setInicio(resultado.start_date)
     if (resultado.due_date !== null) setVencimiento(resultado.due_date)
     if (resultado.tags.length > 0) setEtiquetasEscritas(resultado.tags.join(', '))
-    if (resultado.description !== null) setDescripcion(resultado.description)
+    if (resultado.description !== null) {
+      setDescripcion(resultado.description)
+      // El reclamo de "falta la descripcion" deja de tener sentido en cuanto algo la llena.
+      setErrorDescripcion(null)
+    }
   }
 
   /**
