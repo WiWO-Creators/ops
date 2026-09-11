@@ -192,11 +192,11 @@ export function tituloDeActa (html: string, reserva = 'Meeting Paper'): string {
  * en orden y se devuelve `''` para que el navegador elija el suyo, que es lo que hace que iPhone y
  * Mac funcionen sin una rama por sistema.
  *
- * **`audio/mp4` va primero, y no es una preferencia estética.** El proveedor que transcribe el audio
- * acepta wav, m4a, mp3, aac y flac, y rechaza `webm`, `ogg` y `opus` por nombre. Una grabación en
- * mp4/AAC llega lista; una en webm obliga al servidor a convertirla con ffmpeg antes de poder
- * escucharla. `webm` queda de respaldo porque sigue siendo lo único que graban los navegadores
- * viejos, y convertir es más lento que no tener grabadora.
+ * **El orden es por peso, no por formato de destino.** Whisper lee mp3, wav y flac, así que el
+ * servidor convierte con ffmpeg tanto lo que graba Chrome como lo que graba Safari: ninguno de los
+ * dos llega listo y elegir uno para "ahorrarse la conversión" no ahorra nada. Lo que sí cambia es
+ * cuánto sube la persona: a 32 kbps, opus comprime voz mejor que AAC, así que `audio/webm` va
+ * primero y `audio/mp4` queda para Safari, que no graba webm.
  *
  * @param soporta normalmente `MediaRecorder.isTypeSupported`; se inyecta para poder probarlo
  */
@@ -205,7 +205,7 @@ export function mimeDeGrabacion (soporta?: (tipo: string) => boolean): string {
     ? () => false
     : (tipo: string) => MediaRecorder.isTypeSupported(tipo))
 
-  for (const candidato of ['audio/mp4', 'audio/webm;codecs=opus', 'audio/webm']) {
+  for (const candidato of ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4']) {
     if (probar(candidato)) return candidato
   }
 
