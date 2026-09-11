@@ -6,6 +6,7 @@ import { PARAMETRO_TAREA } from '@/componentes/datos/tabla'
 import { PROCESOS_NAVEGABLES } from './celdas-procesos'
 import { TablaRecurso } from './TablaRecurso'
 import { TableroFiltrable } from './TableroFiltrable'
+import type { ColumnaTablero } from './tablero'
 import { CLIENTES } from '@/definiciones/clientes'
 import { ESPACIOS } from '@/definiciones/espacios'
 import { filtrosDeCamposPersonalizados } from '@/definiciones/filtros'
@@ -117,6 +118,7 @@ export function TableroProcesos (
         ruta="tasks"
         board="tasks"
         opcionesDeFiltro={opcionesDeFiltro}
+        destinos={destinosDeProcesos(opcionesDeFiltro?.task_statuses ?? [])}
       />
       <ModalTarea
         puedeEditar={capacidades.includes('edit')}
@@ -136,6 +138,25 @@ export function TableroProcesos (
  * @param estados catalogo de estados, para el borde de color de la tarjeta
  * @returns la definicion lista para `TableroFiltrable`
  */
+/**
+ * Los estados como destinos del menu "Mover a…" del tablero.
+ *
+ * El tablero solo trae como columnas los estados con `filter_default`, y "Completado" no lo tiene:
+ * sin esto el menu no ofrecia completar una tarea. El orden no importa —el menu pone estos despues
+ * de las columnas— pero el tipo lo pide.
+ *
+ * @param estados el catalogo de `/lookups`, ya traducido a opciones de filtro
+ * @returns una columna por estado, en el orden del catalogo
+ */
+function destinosDeProcesos (estados: OpcionFiltro[]): ColumnaTablero[] {
+  return estados.map((estado, indice) => ({
+    id: Number(estado.valor),
+    name: estado.etiqueta,
+    color: estado.color ?? null,
+    order: indice
+  }))
+}
+
 function definicionDeTableroProcesos (estados: OpcionFiltro[]): DefinicionRecurso<Proceso> {
   return {
     ...PROCESOS,
