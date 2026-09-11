@@ -57,6 +57,10 @@ export default async function ProyectoPagina (props: PageProps<'/portal/proyecto
   // Las pestañas salen de lo que dijo la API, nunca de una lista fija: cada proyecto comparte cosas
   // distintas, y adivinar significaria dibujar pestañas que responden 403 al abrirlas.
   const pestanias = pestaniasDelProyecto(proyecto.tabs ?? [])
+  // La descripcion la lleva la pestaña Descripcion, como en el panel. Se queda en la cabecera solo
+  // cuando esa pestaña no esta compartida: un proyecto que no la comparte igual tiene derecho a
+  // contar de que se trata, y ahi es el unico lugar donde cabe.
+  const descripcionEnLaCabecera = !pestanias.some((p) => p.clave === 'overview')
   const pendientes = await cargarPendientes(proyecto)
 
   const paneles: Panel[] = pestanias.map(({ clave, etiqueta }) => ({
@@ -103,9 +107,7 @@ export default async function ProyectoPagina (props: PageProps<'/portal/proyecto
           )}
         </dl>
 
-        {/* La descripcion vive en el encabezado y no en el panel Resumen: un proyecto que no comparte
-            la pestaña de resumen igual tiene derecho a contar de que se trata. */}
-        {descripcion !== '' && (
+        {descripcionEnLaCabecera && descripcion !== '' && (
           <p className="text-texto-tenue max-w-prose text-sm whitespace-pre-line">{descripcion}</p>
         )}
 
