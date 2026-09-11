@@ -28,7 +28,7 @@ export interface PersonaConectada {
   context?: { client: EntidadPresencia | null, project: EntidadPresencia | null, task: EntidadPresencia | null }
   /** Qué está haciendo: la acción en curso si hay una, si no dónde está. Ej: "creando una tarea". */
   activity: string
-  /** Dónde está, siempre. Ej: "viendo el espacio DELCO". */
+  /** Dónde está, siempre. Ej: "viendo el proyecto DELCO". */
   location: string
   /** Ruta cruda del panel, para poder auditar la frase. */
   route: string
