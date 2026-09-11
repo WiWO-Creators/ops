@@ -189,20 +189,17 @@ export async function PanelArchivos ({ proyectoId }: { proyectoId: number }) {
 
   return (
     <ul className="flex flex-col gap-2">
-      {data.map((archivo) => {
-        const rotulado = archivo.subject !== null && archivo.subject !== ''
-
-        return (
-          <li
-            key={archivo.id}
-            className="rounded-chico border-linea flex flex-wrap items-baseline gap-x-3 gap-y-1 border p-3"
-          >
-            <NombreDeArchivo archivo={archivo} />
-            {rotulado && <span className="text-texto-tenue text-sm">{archivo.subject}</span>}
-            <span className="text-texto-tenue ml-auto text-xs">{formatearFecha(archivo.date_added)}</span>
-          </li>
-        )
-      })}
+      {/* El rotulo ya no va aparte: `nombreDeArchivo` devuelve el `subject` cuando lo hay, que es
+          lo que la persona escribio. Repetirlo al lado lo mostraba dos veces. */}
+      {data.map((archivo) => (
+        <li
+          key={archivo.id}
+          className="rounded-chico border-linea flex flex-wrap items-baseline gap-x-3 gap-y-1 border p-3"
+        >
+          <NombreDeArchivo archivo={archivo} />
+          <span className="text-texto-tenue ml-auto text-xs">{formatearFecha(archivo.date_added)}</span>
+        </li>
+      ))}
     </ul>
   )
 }

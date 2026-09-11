@@ -8,7 +8,8 @@
 
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { CATALOGO_PORTAL, enlaceDeDescarga, saludar, seccionesDelPortal } from '../src/dominio/portal.ts'
+import { CATALOGO_PORTAL, saludar, seccionesDelPortal } from '../src/dominio/portal.ts'
+import { nombreDeArchivo, origenDeArchivo } from '../src/definiciones/archivos.ts'
 
 test('solo muestra las secciones que la API habilito', () => {
   const secciones = seccionesDelPortal(['projects', 'files', 'kb'])
@@ -90,25 +91,53 @@ test('las tareas del proyecto no declaran ruta propia', () => {
   assert.equal(PORTAL_PROYECTOS.ruta, 'portal/projects')
 })
 
-/** Un archivo del portal con lo minimo que mira `enlaceDeDescarga`. */
-function archivo (url) {
-  return { id: 1, file_name: 'plano.pdf', original_file_name: null, subject: null, filetype: null, date_added: null, url, thumbnail_url: null }
+/**
+ * Un archivo del portal. Lo resuelve `definiciones/archivos`, el mismo modulo que usa la pestaña
+ * del equipo: estas pruebas existen para que la fila del portal siga cayendo ahi y no vuelva a
+ * tener su propia version.
+ */
+function archivo (url, extra = {}) {
+  return {
+    id: 1,
+    file_name: 'plano_5f3a.pdf',
+    original_file_name: null,
+    subject: null,
+    filetype: null,
+    date_added: null,
+    url,
+    thumbnail_url: null,
+    ...extra
+  }
 }
 
 test('un archivo del servidor se descarga por el BFF, que es quien tiene el token', () => {
-  assert.equal(enlaceDeDescarga(archivo('/api/v1/files/7')), '/api/bff/files/7')
+  assert.deepEqual(origenDeArchivo(archivo('/api/v1/files/7')), {
+    tipo: 'descargable',
+    ruta: '/api/bff/files/7'
+  })
 })
 
-test('un adjunto externo se enlaza tal cual', () => {
-  // No hay nada nuestro que autorizar: pasarlo por el BFF solo agregaria un salto que puede fallar.
-  assert.equal(enlaceDeDescarga(archivo('https://cdn.ejemplo.cl/plano.pdf')), 'https://cdn.ejemplo.cl/plano.pdf')
+test('un adjunto externo del portal se reconoce como externo', () => {
+  // Antes el portal no miraba `external` y lo enlazaba como si fuera propio. Es la diferencia que
+  // justifica compartir el modulo en vez de copiarlo.
+  assert.deepEqual(origenDeArchivo(archivo('https://drive.ejemplo.cl/x', { external: 'gdrive' })), {
+    tipo: 'externo',
+    servicio: 'gdrive',
+    enlace: 'https://drive.ejemplo.cl/x'
+  })
 })
 
 test('un archivo sin url no da enlace', () => {
-  // Cadena vacia y no la ruta del BFF: con `href=""` el navegador recarga la pantalla en vez de
-  // descargar, y el cliente cree que el archivo esta roto.
-  assert.equal(enlaceDeDescarga(archivo(null)), '')
-  assert.equal(enlaceDeDescarga(archivo('')), '')
+  // Sin esto el portal pintaba `href=""`, que recarga la pantalla en vez de descargar y deja al
+  // cliente creyendo que el archivo esta roto.
+  assert.equal(origenDeArchivo(archivo(null)).tipo, 'sinEnlace')
+  assert.equal(origenDeArchivo(archivo('')).tipo, 'sinEnlace')
+})
+
+test('el portal muestra el nombre que escribio la persona, no el de disco', () => {
+  assert.equal(nombreDeArchivo(archivo(null)), 'plano_5f3a.pdf')
+  assert.equal(nombreDeArchivo(archivo(null, { original_file_name: 'plano.pdf' })), 'plano.pdf')
+  assert.equal(nombreDeArchivo(archivo(null, { subject: 'Plano de planta' })), 'Plano de planta')
 })
 
 test('el saludo usa el nombre de pila', () => {

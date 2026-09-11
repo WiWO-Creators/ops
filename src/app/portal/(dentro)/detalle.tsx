@@ -6,7 +6,7 @@ import type { Sobre } from '@/datos/tipos'
 import type { ArchivoPortal } from '@/datos/portal'
 import { listaDe } from '@/datos/catalogos'
 import { cargarLookupsDelPortal } from '@/datos/lookups'
-import { enlaceDeDescarga } from '@/dominio/portal'
+import { nombreDeArchivo, origenDeArchivo } from '@/definiciones/archivos'
 import Link from 'next/link'
 
 /**
@@ -116,30 +116,33 @@ async function opcionDelPortal (catalogo: string, valor: number) {
 /**
  * El nombre de un archivo, como enlace de descarga cuando hay algo que descargar.
  *
- * Sin `url` no hay binario: `enlaceDeDescarga` devuelve cadena vacia y un `<a href="">` recargaria
- * la pantalla en vez de bajar el archivo. Ahi el nombre queda como texto.
+ * El nombre y el origen los decide `definiciones/archivos`, que es de donde los saca la pestaña del
+ * equipo: si el portal los resolviera por su cuenta, el mismo archivo se llamaria distinto segun
+ * quien lo mire —el nombre en disco que ensucia Perfex contra el que la persona escribio— y un
+ * adjunto externo quedaria sin enlace.
  *
- * Vive aca porque lo dibujan dos pantallas —la seccion Archivos y la pestaña del proyecto— y la
- * guarda tiene que ser la misma en las dos.
+ * Sin binario ni enlace el nombre queda como texto: un `<a href="">` recarga la pantalla en vez de
+ * bajar nada.
  *
  * @param archivo el archivo tal como lo devuelve la API del portal
- * @returns el nombre enlazado, o el nombre a secas si no se puede descargar
+ * @returns el nombre enlazado, o el nombre a secas si no hay de donde bajarlo
  */
 export function NombreDeArchivo ({ archivo }: { archivo: ArchivoPortal }) {
-  const enlace = enlaceDeDescarga(archivo)
+  const origen = origenDeArchivo(archivo)
+  const nombre = nombreDeArchivo(archivo)
+  const clase = 'text-texto hover:text-acento text-sm font-medium underline-offset-4 hover:underline'
 
-  if (enlace === '') {
-    return <span className="text-texto text-sm font-medium">{archivo.file_name}</span>
+  if (origen.tipo === 'sinEnlace') {
+    return <span className="text-texto text-sm font-medium">{nombre}</span>
   }
 
-  return (
-    <a
-      href={enlace}
-      className="text-texto hover:text-acento text-sm font-medium underline-offset-4 hover:underline"
-    >
-      {archivo.file_name}
-    </a>
-  )
+  if (origen.tipo === 'externo') {
+    return (
+      <a href={origen.enlace} target="_blank" rel="noreferrer" className={clase}>{nombre}</a>
+    )
+  }
+
+  return <a href={origen.ruta} className={clase}>{nombre}</a>
 }
 
 /** Lista de datos en dos columnas, con los vacios omitidos. */

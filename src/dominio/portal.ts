@@ -1,5 +1,4 @@
 import { GLOSARIO } from './glosario.ts'
-import type { ArchivoPortal } from '@/datos/portal'
 import type { YoPortal } from '@/datos/tipos'
 
 /**
@@ -46,22 +45,6 @@ export function seccionesDelPortal (habilitadas: readonly string[]): SeccionPort
 }
 
 export { CATALOGO as CATALOGO_PORTAL }
-
-/**
- * A donde apunta la descarga de un archivo del portal.
- *
- * La API devuelve rutas propias (`/api/v1/files/...`) para lo que vive en el servidor y URLs enteras
- * para los adjuntos externos. Las primeras pasan por el BFF, que es el unico que tiene el token; las
- * segundas van tal cual, porque no hay nada nuestro que autorizar.
- *
- * @param archivo el archivo tal como lo devuelve la API del portal
- * @returns la URL de descarga, o cadena vacia si el archivo no trae ninguna
- */
-export function enlaceDeDescarga (archivo: ArchivoPortal): string {
-  const url = archivo.url ?? ''
-
-  return url.startsWith('/api/v1/') ? `/api/bff${url.slice('/api/v1'.length)}` : url
-}
 
 /**
  * Con que nombre saludar al contacto en el inicio.
