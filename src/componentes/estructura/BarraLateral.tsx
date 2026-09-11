@@ -5,7 +5,7 @@ import { ATRIBUTO_ABATIDA, CLAVE_BARRA } from '@/lib/barra-lateral'
 import Link, { useLinkStatus } from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useSyncExternalStore } from 'react'
-import { Building2, DoorOpen, FolderKanban, Gavel, House, ListChecks, Menu, PanelLeftClose, PanelLeftOpen, Radio, ScrollText, SlidersHorizontal, TrendingUp, Users, UsersRound, Video } from 'lucide-react'
+import { Building2, DoorOpen, FolderKanban, Gavel, House, ListChecks, Menu, PanelLeftClose, PanelLeftOpen, Radio, ScrollText, SlidersHorizontal, Target, TrendingUp, Users, UsersRound, Video } from 'lucide-react'
 import { Cajon, CerrarCajon, ContenidoCajon, DisparadorCajon } from '@/componentes/superposiciones/Cajon'
 import { Logo } from '@/componentes/estructura/Logo'
 import { cn } from '@/lib/clases'
@@ -50,6 +50,9 @@ const ICONOS = {
   // puertas, la barra diria que son lo mismo.
   teletrabajo: Video,
   clientes: Building2,
+  // `Target` y no otro edificio: Clientes es la cartera entera de la casa y Focals son las cuentas
+  // de las que uno responde. Con dos `Building2` la barra diria que son la misma pantalla.
+  focals: Target,
   equipo: Users,
   mi_area: UsersRound,
   // `SlidersHorizontal` y no `Mail`: la seccion dejo de ser solo el correo cuando se unificaron
