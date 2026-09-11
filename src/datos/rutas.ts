@@ -104,6 +104,9 @@ const PREFIJOS_PERMITIDOS = [
   // un Espacio (`/projects/{id}/timer`, que entra por `projects`). Solo falta `live`, que la API
   // cuelga de su propia raiz. Sin esta entrada el BFF contesta 404 al tablero y el panel del equipo
   // se queda con la unica pagina que resolvio el servidor, sin refrescarse nunca.
+  // Salud de un Cliente y de un Espacio: el semaforo de 0 a 100 con su historico. Prefijo propio
+  // porque la API los cuelga de su raiz (`/scores`, `/scores/{id}`) y no del recurso puntuado.
+  'scores',
   'live'
 ] as const
 
