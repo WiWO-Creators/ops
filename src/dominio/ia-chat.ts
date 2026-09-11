@@ -85,6 +85,16 @@ export type TramoRespuesta = { texto: string } | { cita: Cita }
  */
 export const LARGO_MAXIMO_PREGUNTA = 1000
 
+/**
+ * Como se pide una pestaña de la ficha de un Espacio por URL.
+ *
+ * El nombre del parametro lo lee `componentes/proyecto/Pestanas.tsx` y la clave la declara
+ * `app/(panel)/espacios/[id]/page.tsx`. Se repiten acá —y no se importan— porque los dos son
+ * componentes de cliente y este modulo lo cargan tambien las pruebas, que no compilan JSX.
+ */
+const PARAMETRO_PESTANA = 'tab'
+const PESTANA_ACTAS = 'actas'
+
 /** Marcador de cita como lo reescribe el servidor: `[1]`, `[12]`. El indice es 1-based. */
 const MARCADOR = /^\[(\d+)\]$/
 
@@ -193,10 +203,14 @@ function citaDeMarcador (parte: string, citas: Cita[]): Cita | null {
  *   - `tarea` al listado global con `?tarea={id}`, que monta el unico detalle de Tarea del producto
  *     y lo pide por id: sirva quien sirva de Espacio, abre la que es.
  *   - `espacio` a su ficha.
+ *   - `acta` a la pestaña de Meeting Paper de **su** Espacio, que la cita dice en `espacio_id`. Un
+ *     acta no tiene pantalla propia —vive dentro de la ficha— asi que sin ese id no hay a donde ir,
+ *     y entonces se pinta como texto: pegar `?tab=actas` a la URL vigente abriria las actas del
+ *     Espacio equivocado, que es el fallo mudo que esta funcion existe para evitar.
  *
- * `discusion` e `hito` devuelven `null` **a proposito**: solo existen como pestaña de la ficha de un
- * Espacio y la cita no dice de cual. Mientras el contrato no traiga ese id, se pintan como texto sin
- * enlace, que es lo mismo que ya se hace con un marcador que no tiene cita.
+ * `discusion` e `hito` siguen devolviendo `null`. El mismo `espacio_id` les serviria —desde la Tanda
+ * 0 el servidor lo manda para las tres— pero enlazarlas es otro cambio y esta funcion no lo hace
+ * hoy: se pintan como texto sin enlace, igual que un marcador que no tiene cita.
  *
  * @param cita la cita a enlazar
  * @returns la ruta absoluta, o `null` si el destino no se puede resolver con lo que trae la cita
@@ -204,6 +218,9 @@ function citaDeMarcador (parte: string, citas: Cita[]): Cita | null {
 export function hrefDeCita (cita: Cita): string | null {
   if (cita.tipo === 'tarea') return `/procesos?${PARAMETRO_TAREA}=${cita.id}`
   if (cita.tipo === 'espacio') return `/espacios/${cita.id}`
+  if (cita.tipo === 'acta' && cita.espacio_id !== undefined) {
+    return `/espacios/${cita.espacio_id}?${PARAMETRO_PESTANA}=${PESTANA_ACTAS}`
+  }
 
   return null
 }

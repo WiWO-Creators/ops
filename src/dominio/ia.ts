@@ -29,10 +29,18 @@ import { ESTADOS_ORBE, type EstadoOrbe } from './orbe.ts'
 
 /** Una referencia que el modelo cito y el servidor ya verifico contra la base. */
 export interface Cita {
-  tipo: 'tarea' | 'discusion' | 'hito' | 'espacio'
+  tipo: 'tarea' | 'discusion' | 'hito' | 'espacio' | 'acta'
   id: number
   /** El titulo que salio del `SELECT`, nunca el que escribio el modelo. */
   titulo: string
+  /**
+   * El Espacio del que es lo citado, cuando el servidor lo manda.
+   *
+   * Un Meeting Paper, un hito y una discusion **solo existen como pestaña dentro de la ficha de un
+   * Espacio**: sin este id no hay ruta que armar y la cita se pinta como texto. Va opcional porque
+   * un backend anterior a la Tanda 0 no lo mandaba, y una cita sin el sigue valiendo como texto.
+   */
+  espacio_id?: number
 }
 
 /**
@@ -176,8 +184,8 @@ export type EventoIA =
   | { tipo: 'fin', generado_en: string | null, regeneracion: Regeneracion | null, uso: UsoIA | null }
   | { tipo: 'error', codigo: string, mensaje: string }
 
-/** Los cuatro tipos de cita que el contrato reconoce. Cada uno tiene su destino en `ia-chat.ts`. */
-const TIPOS_CITA = ['tarea', 'discusion', 'hito', 'espacio'] as const
+/** Los cinco tipos de cita que el contrato reconoce. Cada uno tiene su destino en `ia-chat.ts`. */
+const TIPOS_CITA = ['tarea', 'discusion', 'hito', 'espacio', 'acta'] as const
 
 /** Los seis estados de una propuesta. Uno que no este acá descarta la tarjeta entera. */
 const ESTADOS_ACCION = ['pendiente', 'ejecutando', 'ejecutada', 'rechazada', 'expirada', 'fallida'] as const
@@ -330,14 +338,19 @@ export function leerEventoIA (crudo: string): EventoIA | null {
 export function leerCita (valor: unknown): Cita | null {
   if (!esObjeto(valor)) return null
 
-  const { tipo, id, titulo } = valor
+  const { tipo, id, titulo, espacio_id: espacioId } = valor
   const conocido = TIPOS_CITA.find((candidato) => candidato === tipo)
 
   if (conocido === undefined) return null
   if (typeof id !== 'number' || !Number.isFinite(id)) return null
   if (typeof titulo !== 'string') return null
 
-  return { tipo: conocido, id, titulo }
+  // El `espacio_id` no hace fallar la cita si falta o viene raro: sin el se pierde el enlace, no el
+  // dato. Por eso la clave no se pone en vez de ponerse en `null`: una cita sin Espacio y una de un
+  // backend que todavia no lo manda son el mismo caso.
+  if (typeof espacioId !== 'number' || !Number.isFinite(espacioId)) return { tipo: conocido, id, titulo }
+
+  return { tipo: conocido, id, titulo, espacio_id: espacioId }
 }
 
 /**
