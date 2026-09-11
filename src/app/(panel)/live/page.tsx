@@ -1,5 +1,6 @@
 import { ControlJornada } from '@/componentes/live/ControlJornada'
 import { PanelEquipo } from '@/componentes/live/PanelEquipo'
+import { TituloModulo } from '@/componentes/estructura/TituloModulo'
 import { ErrorApi } from '@/datos/errores'
 import { intervaloDeLive, type EstadoDeJornada, type FilaDeLive } from '@/datos/live'
 import { pedir } from '@/datos/servidor'
@@ -59,16 +60,14 @@ export default async function LivePage () {
 
   return (
     <section className="mx-auto flex w-full max-w-5xl flex-col gap-8">
-      <div className="flex flex-col gap-1">
-        <h1 className="text-texto text-xl font-semibold">En vivo</h1>
-        <p className="text-texto-tenue max-w-prose text-sm">
-          Tu jornada y el tiempo que estás midiendo ahora. La jornada es la ventana en la que se puede
-          medir: sin ella abierta, ningún cronómetro arranca.
-        </p>
-      </div>
+      <TituloModulo
+        titulo="En vivo"
+        descripcion="Tu jornada y el tiempo que estás midiendo ahora. La jornada es la ventana en la que se puede medir: sin ella abierta, ningún cronómetro arranca."
+      />
 
       <ControlJornada
         variante="panel"
+        staffId={yo.id}
         segundos={segundos}
         inicial={jornada instanceof ErrorApi ? null : jornada.data}
         errorInicial={mensaje(jornada)}
