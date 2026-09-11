@@ -23,7 +23,7 @@
  *
  * Filtrar filas es trabajo de la API: esto solo decide que se dibuja. Esconder no autoriza.
  */
-import type { AreaPermiso } from '@/datos/tipos'
+import type { AreaPermiso, NivelPermiso } from '@/datos/tipos'
 
 /**
  * True si hay que dibujar la seccion de un area para quien tiene esas capacidades.
@@ -37,4 +37,39 @@ export function puedeVerSeccion (capacidades: readonly string[], area: AreaPermi
   if (area === 'customers') return capacidades.length > 0
 
   return true
+}
+
+/**
+ * La escalera de permisos completa, de menor a mayor.
+ *
+ * Es la misma de `datos/tipos.ts` y la del backend (`modules/api/Acceso/Reglas.php`). Vive aca como
+ * ARREGLO —y no como el catalogo de `componentes/equipo/nivelBase.ts`, que solo lista los cinco
+ * escalones que ese dialogo puede escribir— porque lo unico que se le pregunta es el ORDEN: quien
+ * esta de tal escalon hacia arriba.
+ */
+const ESCALERA: readonly NivelPermiso[] = [
+  'usuario', 'focal', 'lider', 'head', 'gerente', 'admin', 'superadmin'
+]
+
+/**
+ * True si hay que dibujar la entrada de Focals para quien mira.
+ *
+ * El cliente la pidio visible "de focal hacia arriba" y por eso deja de mostrarse a todo el mundo.
+ * **Esconderla no autoriza nada**: la compuerta sigue siendo la API, que responde 403 a quien no es
+ * focal ni jefatura, y la pantalla lo dice con `SinPermiso`. Esto solo evita ofrecer una puerta que
+ * para la mayoria del equipo estaba cerrada.
+ *
+ * Ante un escalon que no se reconoce —`/me` de una API vieja que todavia no manda `nivel`, o un
+ * escalon nuevo que este panel no conoce— la entrada SE MUESTRA: es el comportamiento de siempre, y
+ * esconderla por no saber le sacaria la pantalla a quien si la tiene.
+ *
+ * @param nivel El escalon que resolvio la API en `GET /me`.
+ * @returns Si la seccion se dibuja.
+ */
+export function puedeVerFocals (nivel: NivelPermiso | null | undefined): boolean {
+  const posicion = nivel === null || nivel === undefined ? -1 : ESCALERA.indexOf(nivel)
+
+  if (posicion === -1) return true
+
+  return posicion >= ESCALERA.indexOf('focal')
 }
