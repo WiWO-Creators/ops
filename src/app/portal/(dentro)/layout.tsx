@@ -12,7 +12,7 @@ import { ScrollSuave } from '@/componentes/estructura/ScrollSuave'
  * Armazon del portal del cliente.
  *
  * Hermano de `(panel)/layout.tsx`, no una variante suya: comparten el sistema de diseño y nada mas.
- * La navegacion va horizontal en el encabezado porque el portal tiene diez destinos y no cuarenta —
+ * La navegacion va horizontal en el encabezado porque el portal tiene cinco destinos y no cuarenta —
  * una barra lateral de 220px seria peso muerto en la pantalla de alguien que entra a mirar el avance
  * de su proyecto y se va.
  *
