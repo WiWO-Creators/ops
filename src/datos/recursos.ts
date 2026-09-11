@@ -1903,3 +1903,43 @@ export interface ConfiguracionCasillaEntrante {
   /** Si la extension `imap` de PHP existe en este servidor. Sin ella el lector no arranca. */
   imap_available: boolean
 }
+
+// --- Incidentes ----------------------------------------------------------------------------------
+// Los errores 500 de la API, guardados para poder mirarlos despues (`GET /incidentes`). Van al final
+// del archivo, despues de la casilla entrante, porque es lo ultimo que se agrego.
+
+/** A quien se le cayo la peticion. `proceso` es el recurso de la API que la interfaz llama Tarea. */
+export type SujetoIncidente = 'staff' | 'contacto' | 'proceso'
+
+/**
+ * Una fila de `GET /incidentes`. Es el error 500 sin la traza: esa solo viaja en el detalle.
+ *
+ * `incidente` —ocho hexadecimales— es el identificador que ve la persona y el que se dicta por
+ * telefono cuando alguien reporta que "se cayo": con el se pide el detalle y se busca en el log.
+ */
+export interface Incidente {
+  incidente: string
+  /** Clase de la excepcion, tal cual (`RuntimeException`, `PDOException`). */
+  tipo: string
+  mensaje: string
+  archivo: string
+  linea: number
+  /** Verbo HTTP de la peticion que se cayo. */
+  metodo: string
+  uri: string
+  /** `null` cuando la peticion se cayo sin sesion, o antes de poder atribuirla a alguien. */
+  sujeto_tipo: SujetoIncidente | null
+  sujeto_id: number | null
+  sujeto_nombre: string | null
+  creado_en: string
+}
+
+/**
+ * El incidente con su traza, tal como lo devuelve `GET /incidentes/{incidente}`.
+ *
+ * La traza es `null` cuando la excepcion no la trajo: el incidente existe igual, porque perder el
+ * registro de un 500 por no tener traza seria perder justamente el que hay que investigar.
+ */
+export interface IncidenteConTraza extends Incidente {
+  traza: string | null
+}

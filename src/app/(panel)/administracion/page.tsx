@@ -129,6 +129,16 @@ export default async function AdministracionPage () {
         >
           Casilla entrante: briefs y puntajes de los correos que llegan
         </Link>
+
+        {/* Los incidentes viven aparte por lo mismo que la casilla: es un listado paginado propio, y
+            traerlo en cada visita a Administracion para que casi nunca se mire seria pagarlo de
+            gusto. El enlace vive aca porque es la unica puerta que tiene. */}
+        <Link
+          href="/administracion/incidentes"
+          className="text-acento mt-2 block text-sm font-semibold underline underline-offset-4"
+        >
+          Incidentes: los errores 500 que guardó la API
+        </Link>
       </div>
 
       {/* El `Suspense` no es decorativo: `Pestanas` usa `useSearchParams`, y sin ese límite el build
