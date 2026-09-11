@@ -139,6 +139,16 @@ export default async function AdministracionPage () {
         >
           Incidentes: los errores 500 que guardó la API
         </Link>
+
+        {/* El organigrama vive aparte por lo mismo que las otras dos: es una pantalla de trabajo con
+            su propio árbol y su propio reparto de gente, y traerla en cada visita a Administración
+            para que casi nunca se toque sería pagarla de gusto. */}
+        <Link
+          href="/administracion/organigrama"
+          className="text-acento mt-2 block text-sm font-semibold underline underline-offset-4"
+        >
+          Organigrama: el árbol de áreas y quién está en cada una
+        </Link>
       </div>
 
       {/* El `Suspense` no es decorativo: `Pestanas` usa `useSearchParams`, y sin ese límite el build

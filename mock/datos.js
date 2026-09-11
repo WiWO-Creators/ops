@@ -59,6 +59,40 @@ export const DEPARTAMENTOS = [
   { id: 2, name: 'Ventas' }
 ]
 
+/**
+ * Organigrama de areas del equipo (`tblareas`), lo que sirve `GET /jerarquia`.
+ *
+ * Son **las mismas** areas de la compañia que ya usan las Tareas: la migracion las siembra con esos
+ * 16 nombres, todas sueltas, sin jefe y sin colgar de nadie. Ese es el estado inicial real, y el
+ * trabajo de quien administra es ordenarlas en arbol, ponerles jefe y meterles gente.
+ *
+ * El fixture se aparta del estado recien sembrado en una sola cosa, a proposito: deja ya armada una
+ * rama de tres niveles (Wiwo › Creatividad › Analytics y Content Studio). Sin al menos un arbol
+ * hecho, el mock no ejercita ni el anidado, ni el alcance, ni el `ciclo` de un PUT — y todo eso
+ * habria que armarlo a mano antes de poder mirarlo una sola vez.
+ *
+ * Es mutable: las escrituras de `/jerarquia` empujan a este mismo array.
+ */
+export const AREAS = [
+  { id: 1, name: 'Wiwo', area_superior_id: null, jefe_staffid: 1 },
+  { id: 2, name: 'Creatividad', area_superior_id: 1, jefe_staffid: 2 },
+  { id: 3, name: 'Analytics', area_superior_id: 2, jefe_staffid: 3 },
+  { id: 4, name: 'Content Studio', area_superior_id: 2, jefe_staffid: 4 },
+  // Las doce restantes, tal como las deja la migracion: sueltas, sin jefe y sin superior.
+  ...['PR', 'TechLab', 'Influencer', 'CX SAC', 'Digital Creators', 'Storytelling',
+    'Palta', 'HL', 'iLuk', 'Aima', 'Foundaxis', 'Inteligencia']
+    .map((name, i) => ({ id: i + 5, name, area_superior_id: null, jefe_staffid: null }))
+]
+
+/**
+ * A que area pertenece cada persona del fixture, por indice de `NOMBRES`.
+ *
+ * Gina (indice 6) queda sin area y Hugo (indice 7) esta dado de baja: las dos ausencias son el
+ * estado inicial de las 184 cuentas reales, y sin al menos una de cada la pantalla no ejercita ni
+ * el "sin área" ni el descuento de las bajas al contar la gente de un area.
+ */
+const AREA_POR_INDICE = [1, 2, 3, 4, 3, 4, null, null]
+
 const NOMBRES = [
   ['Ana', 'Ríos'], ['Bruno', 'Cabral'], ['Carla', 'Méndez'], ['Diego', 'Sosa'],
   ['Elena', 'Paz'], ['Facundo', 'Lugo'], ['Gina', 'Ferrer'], ['Hugo', 'Márquez']
@@ -107,7 +141,7 @@ export const STAFF = NOMBRES.map(([firstname, lastname], i) => ({
   // Cargo y area: el fixture no los tenia y la columna Área escribia "#undefined" en todas las
   // filas. Van con la misma forma que la API real —id o null—, no ausentes.
   cargo_id: null,
-  area_id: null,
+  area_id: AREA_POR_INDICE[i] ?? null,
   role_id: ciclo(ROLES, i).id,
   active: i !== NOMBRES.length - 1,
   is_not_staff: false,
