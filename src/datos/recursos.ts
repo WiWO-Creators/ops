@@ -1164,7 +1164,14 @@ export interface Acta {
   attendees: string[]
   /** Codigo de la marca del holding: `mgc`, `wiwo`, `palta` o vacio. */
   brand: string
-  /** URL de la firma que corresponde a `brand`. La resuelve la API; no viaja dentro del HTML. */
+  /**
+   * URL de la firma que corresponde a `brand`, resuelta por la API contra un dominio externo.
+   *
+   * El visor ya no la usa: la marca entera —logotipo, colores y pie— la pinta
+   * `dominio/marcas-acta.ts` con archivos de este mismo dominio, porque una imagen remota en
+   * un documento que se imprime deja un hueco en el PDF y nadie se entera. Se mantiene en el
+   * tipo porque la API la sigue mandando.
+   */
   brand_sign_url: string | null
   /** `ia` si la dicto un modelo, `manual` si la escribio una persona. */
   source: string
