@@ -13,6 +13,10 @@ import {
   camposOrdenados,
   cuerpoDeCamposPersonalizados,
   enlaceSinMarcado,
+  enlaceConApodo,
+  esValorEnlace,
+  valorVacio,
+  estaVacio,
   esEnlaceValido,
   esMultiple,
   esquemaDeCamposPersonalizados,
@@ -83,7 +87,7 @@ test('los valores iniciales completan todos los campos, tambien los que no vinie
 
   // En el orden de las opciones, no en el de llegada: si no, guardar reordenaria el valor.
   assert.deepEqual(estado[3], ['PR', 'Wiwo'])
-  assert.equal(estado[6], '')
+  assert.deepEqual(estado[6], { url: '', apodo_link: '' })
 })
 
 test('una opcion que ya no existe en el catalogo se descarta al abrir', () => {
@@ -98,7 +102,7 @@ test('el `default_value` de un multivalor llega separado por comas', () => {
   const estado = valoresPorDefecto([{ ...AREA, default_value: 'PR, Wiwo' }, ENLACE])
 
   assert.deepEqual(estado[3], ['PR', 'Wiwo'])
-  assert.equal(estado[6], '')
+  assert.deepEqual(estado[6], { url: '', apodo_link: '' })
 })
 
 test('alternar una opcion la agrega y la saca, siempre en el orden del catalogo', () => {
@@ -157,7 +161,7 @@ test('el valor heredado llega al formulario como URL editable', () => {
     }
   ])
 
-  assert.equal(estado[6], 'https://drive.google.com/y')
+  assert.deepEqual(estado[6], { url: 'https://drive.google.com/y', apodo_link: 'Presentación' })
 })
 
 test('enlaces antiguos conservan parámetros escapados y aceptan marcado multilínea', () => {
@@ -262,7 +266,7 @@ test('la ficha lee el area como lista y el enlace heredado como URL limpia', () 
 
   assert.deepEqual(leidos, [
     { id: 3, nombre: 'Área de la compañía', texto: 'TechLab, Digital Creators', enlace: null },
-    { id: 7, nombre: 'Link de Drive', texto: 'https://drive.google.com/d/1', enlace: 'https://drive.google.com/d/1' }
+    { id: 7, nombre: 'Link de Drive', texto: 'Carpeta', enlace: 'https://drive.google.com/d/1' }
   ])
 })
 
@@ -276,7 +280,7 @@ test('la ficha no pinta filas vacias ni convierte en enlace lo que no se puede a
   ])
 
   assert.deepEqual(leidos, [
-    { id: 5, nombre: 'Link de Drive', texto: 'javascript:alert(1)', enlace: null }
+    { id: 5, nombre: 'Link de Drive', texto: 'Enlace no válido', enlace: null }
   ])
 })
 
@@ -287,4 +291,44 @@ test('la ficha respeta el orden en que la API devolvio los campos', () => {
   ])
 
   assert.deepEqual(leidos.map((campo) => campo.nombre), ['B', 'A'])
+})
+
+
+test('apodos se leen como texto, decodifican unicode y no ejecutan marcado', () => {
+  assert.deepEqual(enlaceConApodo('<a href="https://wiwo.me?a=1&amp;b=2"><b>Diseño</b> &amp; &#x1F4C1;</a>'), {
+    url: 'https://wiwo.me?a=1&b=2', apodo_link: 'Diseño & 📁'
+  })
+  assert.deepEqual(enlaceConApodo('https://wiwo.me'), { url: 'https://wiwo.me', apodo_link: '' })
+  assert.deepEqual(enlaceConApodo('<a href="https://wiwo.me">&lt;script&gt;alert(1)&lt;/script&gt;</a>'), {
+    url: 'https://wiwo.me', apodo_link: '<script>alert(1)</script>'
+  })
+  for (const value of ['javascript:alert(1)', '<a href="javascript&#58;alert(1)">Abrir</a>', '<a roto>' + 'x'.repeat(3000)]) {
+    assert.deepEqual(camposLegibles([{ ...ENLACE, value }]), [{ id: 6, nombre: ENLACE.name, texto: 'Enlace no válido', enlace: null }])
+  }
+  assert.equal(camposLegibles([{ ...ENLACE, value: 'https://wiwo.me' }])[0].texto, 'Abrir enlace')
+})
+
+test('editar solo apodo o URL preserva la otra parte, y borrar ambas envía null', () => {
+  const inicial = valoresIniciales([ENLACE], [{ ...ENLACE, value: '<a href="https://wiwo.me">Diseño</a>' }])
+  const parche = (valor) => cuerpoDeCamposPersonalizados('tasks', 7, [ENLACE], inicial, { 6: valor })
+  assert.equal(parche({ ...inicial[6] }), null)
+  assert.equal(parche({ url: ' https://wiwo.me ', apodo_link: ' Diseño ' }), null)
+  assert.deepEqual(parche({ ...inicial[6], apodo_link: 'Manual' }).values[6], { url: 'https://wiwo.me', apodo_link: 'Manual' })
+  assert.deepEqual(parche({ ...inicial[6], url: 'https://wiwo.me/nueva' }).values[6], { url: 'https://wiwo.me/nueva', apodo_link: 'Diseño' })
+  assert.equal(parche({ ...inicial[6], apodo_link: '' }).values[6], 'https://wiwo.me')
+  assert.equal(parche(valorVacio(ENLACE)).values[6], null)
+  assert.equal(esValorEnlace(inicial[6]), true)
+  assert.equal(esValorEnlace([]), false)
+  assert.equal(estaVacio({ url: '', apodo_link: 'Falta URL' }), false)
+})
+
+test('apodo exige URL segura y respeta límites incluyendo unicode', () => {
+  const esquema = esquemaDeCamposPersonalizados([ENLACE])
+  for (const valor of [
+    { url: '', apodo_link: 'Manual' }, { url: 'javascript:alert(1)', apodo_link: 'Manual' },
+    { url: 'https://wiwo.me', apodo_link: 'x'.repeat(256) }, { url: 'https://wiwo.me/' + 'x'.repeat(2048), apodo_link: '' }
+  ]) assert.ok(esquema.validar({ 6: valor })[6])
+  assert.deepEqual(esquema.validar({ 6: { url: 'https://wiwo.me', apodo_link: '📁'.repeat(255) } }), {})
+  assert.deepEqual(esquema.validar({ 6: { url: 'https://wiwo.me/' + 'x'.repeat(2048 - 'https://wiwo.me/'.length), apodo_link: '' } }), {})
+  assert.ok(esquemaDeCamposPersonalizados([{ ...ENLACE, required: true }]).validar({ 6: valorVacio(ENLACE) })[6])
 })
