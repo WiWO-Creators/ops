@@ -26,7 +26,7 @@ import { normalizar } from '@/dominio/salas'
 import { cargarAsignables } from '@/datos/asignables'
 import { pedirSobre } from '@/datos/cliente'
 import { leerError } from '@/datos/errores'
-import type { Hito, PersonaAsignable, Proceso, Referencia, ResultadoAccionMasiva } from '@/datos/recursos'
+import type { Espacio, Hito, PersonaAsignable, Proceso, ResultadoAccionMasiva } from '@/datos/recursos'
 import type { Capacidad } from '@/datos/tipos'
 import type { OpcionFiltro } from '@/definiciones/tipos'
 import {
@@ -52,6 +52,55 @@ import {
  * que la misma barra sirve en la vista global y en la pestaña de un Espacio, y las casillas las
  * dibuja el motor en las dos.
  */
+
+/**
+ * Un Espacio como destino de la copia masiva.
+ *
+ * `GET /projects` ya devuelve la patente y el Cliente en la misma fila del listado, asi que
+ * mostrarlos no cuesta una peticion mas. Se pidieron porque el nombre solo no alcanza para elegir:
+ * hay Espacios homonimos en Clientes distintos ("Gestion Paid Media" existe para varios), y la
+ * patente es el codigo con el que se los nombra fuera de la pantalla.
+ */
+type ProyectoDestino = Pick<Espacio, 'id' | 'name' | 'patente' | 'client'>
+
+/**
+ * El codigo visible de un Espacio.
+ *
+ * Cae a `#id` cuando no hay patente, igual que el resto de la interfaz: un Espacio recien creado, o
+ * una instalacion sin la tabla de patentes, no puede quedar sin identificador en una lista donde el
+ * nombre se repite.
+ */
+function codigoDeProyecto (proyecto: ProyectoDestino): string {
+  const patente = proyecto.patente ?? null
+  return patente === null || patente === '' ? `#${proyecto.id}` : patente
+}
+
+/**
+ * Todo el texto por el que se puede encontrar un Espacio en el buscador del dialogo.
+ *
+ * Incluye el codigo y el Cliente y no solo el nombre: quien copia veinte tareas a "Bodenor" escribe
+ * el Cliente, no el nombre del Espacio, y quien trabaja con codigos escribe la patente.
+ */
+function textoBuscableDeProyecto (proyecto: ProyectoDestino): string {
+  return normalizar(`${proyecto.name} ${codigoDeProyecto(proyecto)} ${proyecto.client?.company ?? ''}`)
+}
+
+/**
+ * Como se nombra un destino ya elegido: codigo, nombre y Cliente en una sola linea.
+ *
+ * Va en una linea y no en dos como la lista de arriba porque aca cada destino comparte renglon con
+ * su boton de quitar y con la marca de "Originales"/"Copias".
+ *
+ * @param proyectos el catalogo cargado
+ * @param id        el destino elegido
+ * @returns el texto, o el `#id` pelado si el catalogo todavia no lo tiene
+ */
+function etiquetaDeDestino (proyectos: ProyectoDestino[], id: number): string {
+  const proyecto = proyectos.find((candidato) => candidato.id === id)
+  if (proyecto === undefined) return `#${id}`
+  const cliente = proyecto.client === null ? '' : ` · ${proyecto.client.company}`
+  return `${codigoDeProyecto(proyecto)} · ${proyecto.name}${cliente}`
+}
 
 interface PropsAcciones {
   /**
@@ -88,7 +137,7 @@ export function AccionesMasivasTareas ({
 
   const [destinos, setDestinos] = useState<number[]>([])
   const [busquedaProyecto, setBusquedaProyecto] = useState('')
-  const [proyectos, setProyectos] = useState<Referencia[]>([])
+  const [proyectos, setProyectos] = useState<ProyectoDestino[]>([])
   const [cargandoProyectos, setCargandoProyectos] = useState(false)
   const [errorProyectos, setErrorProyectos] = useState<string | null>(null)
 
@@ -101,11 +150,11 @@ export function AccionesMasivasTareas ({
       setErrorProyectos(null)
       setProyectos([])
       try {
-        const destinos: Referencia[] = []
+        const destinos: ProyectoDestino[] = []
         let pagina = 1
         let ultima = 1
         do {
-          const sobre = await pedirSobre<Referencia[]>(`projects?per_page=500&page=${pagina}`, control.signal)
+          const sobre = await pedirSobre<ProyectoDestino[]>(`projects?per_page=500&page=${pagina}`, control.signal)
           destinos.push(...sobre.data)
           ultima = sobre.meta?.pagination?.total_pages ?? 1
           pagina++
@@ -122,6 +171,8 @@ export function AccionesMasivasTareas ({
   }, [accion?.control])
 
   const ids = filas.map((fila) => fila.id)
+  const buscado = normalizar(busquedaProyecto)
+  const coincidentes = proyectos.filter((proyecto) => textoBuscableDeProyecto(proyecto).includes(buscado))
   const disponibles = accionesMasivasPermitidas(capacidades)
     .filter((accion) => accion.control !== 'hito' || proyectoId !== undefined)
 
@@ -254,19 +305,35 @@ export function AccionesMasivasTareas ({
             : `Se aplica a ${ids.length} tarea${ids.length === 1 ? '' : 's'}.`}
         >
           <div className="flex flex-col gap-4">
+            {/* Las tareas que se van a copiar, por su nombre. La cuenta sola ("1 tareas
+                seleccionadas") no deja comprobar que lo seleccionado es lo que se creia: la tabla
+                queda tapada por el dialogo. */}
+            {accion?.control === 'proyecto' && (
+              <div className="flex min-w-0 flex-col gap-1">
+                <p className="text-sm font-medium">Tarea{ids.length === 1 ? '' : 's'} a copiar</p>
+                <ul className="text-texto-sutil flex max-h-28 flex-col gap-1 overflow-y-auto text-sm">
+                  {filas.map((fila) => (
+                    <li key={fila.id} className="min-w-0 break-words">
+                      <span data-numerico className="font-mono text-xs">{fila.patente ?? `#${fila.id}`}</span>
+                      {' · '}{fila.name}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
             {accion?.control === 'proyecto' ? (
               <fieldset className="flex min-w-0 flex-col gap-2" disabled={enCurso || cargandoProyectos || errorProyectos !== null}>
                 <legend className="mb-2 text-sm font-medium">Proyectos destino</legend>
                 <Entrada
                   type="search"
-                  aria-label="Buscar proyectos por nombre"
-                  placeholder="Escribe el nombre del proyecto…"
+                  aria-label="Buscar proyectos por nombre, código o cliente"
+                  placeholder="Escribe el nombre, el código o el cliente…"
                   value={busquedaProyecto}
                   onChange={(evento) => setBusquedaProyecto(evento.target.value)}
                 />
                 {cargandoProyectos ? <p role="status" className="text-texto-sutil text-sm">Cargando proyectos…</p> : (
                   <div className="border-linea max-h-48 overflow-y-auto rounded-chico border">
-                    {proyectos.filter((proyecto) => normalizar(proyecto.name).includes(normalizar(busquedaProyecto))).map((proyecto) => (
+                    {coincidentes.map((proyecto) => (
                       <label key={proyecto.id} className="hover:bg-superficie-hundida flex min-h-11 cursor-pointer items-center gap-3 px-3 py-2 text-sm">
                         <input
                           type="checkbox"
@@ -276,11 +343,19 @@ export function AccionesMasivasTareas ({
                             ? [...previos, proyecto.id]
                             : previos.filter((id) => id !== proyecto.id))}
                         />
-                        <span className="min-w-0 break-words">{proyecto.name}</span>
+                        <span className="flex min-w-0 flex-col">
+                          <span className="min-w-0 break-words">{proyecto.name}</span>
+                          {/* El codigo y el Cliente en una segunda linea tenue: son para desempatar
+                              homonimos, no lo primero que se lee. */}
+                          <span className="text-texto-sutil min-w-0 break-words text-xs">
+                            <span data-numerico className="font-mono">{codigoDeProyecto(proyecto)}</span>
+                            {proyecto.client !== null && ` · ${proyecto.client.company}`}
+                          </span>
+                        </span>
                       </label>
                     ))}
-                    {proyectos.length > 0 && !proyectos.some((proyecto) => normalizar(proyecto.name).includes(normalizar(busquedaProyecto))) && (
-                      <p role="status" className="text-texto-sutil px-3 py-3 text-sm">No hay proyectos con ese nombre.</p>
+                    {proyectos.length > 0 && coincidentes.length === 0 && (
+                      <p role="status" className="text-texto-sutil px-3 py-3 text-sm">No hay proyectos con ese nombre, código ni cliente.</p>
                     )}
                   </div>
                 )}
@@ -290,8 +365,8 @@ export function AccionesMasivasTareas ({
                     <ol className="flex max-h-28 flex-col gap-1 overflow-y-auto">
                       {destinos.map((id, indice) => (
                         <li key={id} className="flex min-w-0 items-center justify-between gap-2">
-                          <span className="min-w-0 break-words">{proyectos.find((proyecto) => proyecto.id === id)?.name} · {indice === 0 ? 'Originales' : 'Copias'}</span>
-                          <Boton variante="sutil" tamano="chico" disabled={enCurso} aria-label={`Quitar ${proyectos.find((proyecto) => proyecto.id === id)?.name}`} onClick={() => setDestinos((previos) => previos.filter((destino) => destino !== id))}>Quitar</Boton>
+                          <span className="min-w-0 break-words">{etiquetaDeDestino(proyectos, id)} · {indice === 0 ? 'Originales' : 'Copias'}</span>
+                          <Boton variante="sutil" tamano="chico" disabled={enCurso} aria-label={`Quitar ${etiquetaDeDestino(proyectos, id)}`} onClick={() => setDestinos((previos) => previos.filter((destino) => destino !== id))}>Quitar</Boton>
                         </li>
                       ))}
                     </ol>
