@@ -178,6 +178,14 @@ export const ETIQUETAS_DE_AJUSTES: Record<string, { etiqueta: string, ayuda?: st
   wiwo_resumen_equipo_envio: {
     etiqueta: 'Enviar el resumen del equipo a las jefaturas',
     ayuda: 'A las 20:00 se arma igual y queda en la pantalla; esto decide si además sale por correo. Apagado de fábrica: es el interruptor de la parte que sale de Ops.'
+  },
+  wiwo_recordatorio_jornada_envio: {
+    etiqueta: 'Recordar a las 10:00 a quien no abrió su jornada',
+    ayuda: 'Un correo y un aviso en la campana, de lunes a viernes, a quien todavía no marcó el inicio de su jornada. Apagado de fábrica.'
+  },
+  wiwo_recordatorio_tareas_envio: {
+    etiqueta: 'Recordar a las 15:00 a quien no registró tareas',
+    ayuda: 'Un correo y un aviso en la campana, de lunes a viernes, a quien tiene la jornada abierta y todavía no registró tiempo en ninguna tarea. Apagado de fábrica.'
   }
 }
 

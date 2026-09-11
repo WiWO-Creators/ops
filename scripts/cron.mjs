@@ -22,9 +22,16 @@ export function leerConfiguracion (env = process.env) {
   // pidan y no tiene opción de hora propia, así que no hay dos relojes que puedan separarse.
   // No se toca OPS_TIMER_CUTOFF_HOUR: ése es el corte de cronómetros, que es otra cosa.
   const resumen = env.OPS_CRON_RESUMEN_SCHEDULE || '0 20 * * *'
-  if (![frecuencia, jornadas, papelera, resumen].every((expresion) => cron.validate(expresion))) throw new Error('OPS_CRON_*_SCHEDULE contiene una expresión cron inválida.')
+  // Los dos recordatorios del día: el de las 10:00 a quien no abrió jornada y el de las 15:00 a
+  // quien la tiene abierta sin registrar tareas. Sus horas viven acá y sólo acá, igual que la del
+  // resumen: el backend calcula siempre el día de hoy y no tiene opción de hora propia, así que no
+  // hay dos relojes que puedan separarse. Salir de fábrica en '0' es cosa del interruptor de la
+  // base (migración `0460`), no de estas expresiones: el trabajo corre igual y no escribe a nadie.
+  const recordatorioJornada = env.OPS_CRON_RECORDATORIO_JORNADA_SCHEDULE || '0 10 * * *'
+  const recordatorioTareas = env.OPS_CRON_RECORDATORIO_TAREAS_SCHEDULE || '0 15 * * *'
+  if (![frecuencia, jornadas, papelera, resumen, recordatorioJornada, recordatorioTareas].every((expresion) => cron.validate(expresion))) throw new Error('OPS_CRON_*_SCHEDULE contiene una expresión cron inválida.')
   const [horas, minutos] = hora.split(':').map(Number)
-  return { base: base.href.replace(/\/$/, '') + '/', secret, hora, timeout, frecuencia, jornadas, papelera, resumen, zona: 'America/Santiago', corte: `${minutos} ${horas} * * *` }
+  return { base: base.href.replace(/\/$/, '') + '/', secret, hora, timeout, frecuencia, jornadas, papelera, resumen, recordatorioJornada, recordatorioTareas, zona: 'America/Santiago', corte: `${minutos} ${horas} * * *` }
 }
 
 /** Escribe registros estructurados para PM2 sin incluir secretos ni cuerpos de respuestas. */
@@ -70,7 +77,7 @@ export function crearProgramador (config, { fetchImpl = fetch, cronImpl = cron, 
 
   /** Ejecuta un trabajo con exclusión local y registra su resultado, incluso si falla la red. */
   async function ejecutar (trabajo) {
-    if (!['rutinas', 'jornadas', 'papelera', 'cortar_cronometros', 'resumen_equipo'].includes(trabajo)) throw new Error('Trabajo desconocido.')
+    if (!['rutinas', 'jornadas', 'papelera', 'cortar_cronometros', 'resumen_equipo', 'recordatorio_jornada', 'recordatorio_tareas'].includes(trabajo)) throw new Error('Trabajo desconocido.')
     if (detenido || pendientes.has(trabajo)) return { status: 'skipped', reason: 'local_overlap_or_stopped' }
     const inicio = Date.now()
     const promesa = (async () => {
@@ -114,6 +121,11 @@ export function crearProgramador (config, { fetchImpl = fetch, cronImpl = cron, 
       // fija del día y dispararlo al reiniciar el proceso a las 03:00 escribiría el resumen de un día
       // a medio empezar y, con el interruptor encendido, mandaría el correo antes de tiempo.
       ['resumen-del-equipo', config.resumen, () => ejecutar('resumen_equipo')],
+      // Los dos recordatorios, por el mismo motivo sin recuperación al arranque: son de una hora
+      // fija y dispararlos al reiniciar el proceso a cualquier otra escribiría a destiempo. El de
+      // las 10:00 le llegaría a las 16:00 a media empresa, cuando ya lleva seis horas trabajando.
+      ['recordatorio-sin-jornada', config.recordatorioJornada, () => ejecutar('recordatorio_jornada')],
+      ['recordatorio-sin-tareas', config.recordatorioTareas, () => ejecutar('recordatorio_tareas')],
       ['corte-diario', config.corte, () => ejecutar('cortar_cronometros')]
     ]) {
       const tarea = cronImpl.schedule(expresion, accion, { name: nombre, timezone: config.zona, noOverlap: true })
