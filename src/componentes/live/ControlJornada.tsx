@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useId, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Clock, Play, Square, Timer } from 'lucide-react'
 import { Boton } from '@/componentes/formularios/Boton'
 import {
@@ -11,12 +11,11 @@ import {
 import { formatearDuracion } from '@/componentes/proyecto/cronometro'
 import type { EstadoDeJornada } from '@/datos/live'
 import { GLOSARIO } from '@/dominio/glosario'
-import { mensajeDeFalloDeJornada, mensajeDeFalloDeMedidor } from '@/dominio/live'
+import { faltaAbrirJornada, mensajeDeFalloDeJornada, mensajeDeFalloDeMedidor } from '@/dominio/live'
 import { cn } from '@/lib/clases'
 import { CierreJornada } from './CierreJornada'
+import { DestinoDeJornada } from './DestinoDeJornada'
 import { avisarCambioDeMedidor, escucharMedidor } from './medidor'
-import { SelectorEspacio } from './SelectorEspacio'
-import { SelectorTarea } from './SelectorTarea'
 
 /**
  * Jornada y medidor, en un solo control.
@@ -47,17 +46,32 @@ import { SelectorTarea } from './SelectorTarea'
  * Y arranca en cero: el primer pintado del cliente tiene que dar el mismo texto que el del servidor,
  * o React reporta un error de hidratacion. El contador empieza a correr despues del montaje.
  *
- * === EL PROYECTO BLOQUEA, LA TAREA AVISA ===
+ * === EL PROYECTO Y LA TAREA BLOQUEAN LOS DOS ===
  *
- * No se abre jornada sin elegir Proyecto: una jornada sin medidor es tiempo que al dia siguiente
- * nadie sabe imputar, y es el agujero que este control existe para tapar. Abrir y arrancar son **un
- * solo gesto** (`abrirYArrancar`), no dos botones que la persona tenga que acordarse de apretar en
- * orden.
+ * Ya no hay "el Espacio bloquea y la Tarea se pide". La reunion del 2026-09-11 revirtio la decision
+ * de la migracion `0260`: sin Proceso exacto el registro no es util, porque tiempo cargado a un
+ * Proyecto entero dice a quien facturarle y no dice en que se fue el dia. La API lo exige
+ * (`POST /me/jornada` pide `project_id` Y `task_id`, y comprueba que uno pertenezca al otro) y
+ * `POST /projects/{id}/timer` —el unico camino que escribia filas sin Proceso— responde 422.
  *
- * La Tarea, en cambio, se pide con un aviso visible y persistente, no con un bloqueo: la API acepta
- * medir un Espacio sin Tarea (`task_id = 0`) y hay trabajo real que no cuelga de ninguna. Bloquear
- * ahi seria inventar una regla que el backend no tiene, y el precio serian Tareas falsas creadas para
- * poder empezar a medir.
+ * === POR QUE LA ELECCION VIVE EN UN MODAL Y NO ACA DENTRO ===
+ *
+ * Porque un desplegable no obliga: se cierra clicando en cualquier parte y quien no queria elegir
+ * simplemente no elige. `DestinoDeJornada` es la ventana que se abre **sola** al entrar sin jornada
+ * y no se va con `Escape` — el mismo trato que ya tenia el cierre, aplicado al lado que mas importa,
+ * porque lo que no se elige al empezar ya no se puede elegir despues.
+ *
+ * Ese modal es tambien el unico sitio donde se elige destino: el control tenia dos copias del
+ * selector de Espacio —una para abrir y otra para arrancar— y las dos se fueron con el.
+ *
+ * === EL BLOQUEO NO PUEDE DEJAR A NADIE ENCERRADO ===
+ *
+ * La ventana se exige solo con `estado` leido de verdad: si la API no contesto, `estado` es `null` y
+ * no se bloquea nada. Un backend caido no puede dejar a media empresa mirando un velo — y ademas no
+ * hay forma de saber si esa persona ya tiene la jornada abierta, asi que bloquear seria adivinar.
+ *
+ * El resto de las salidas —cerrar sesion, o entrar sin jornada por esta vez— vive dentro del modal.
+ * Ver `DestinoDeJornada`.
  */
 
 interface PropsControlJornada {
@@ -71,6 +85,8 @@ interface PropsControlJornada {
    * sobre una Tarea asignada a uno —la API responde 403 al resto— asi que el combo pide `assignee`.
    */
   staffId: number
+  /** Su nombre, primer escalon de la jerarquia del modal. No se elige: la jornada es de quien mira. */
+  nombre: string
   /** Mensaje si el servidor no pudo leer la jornada al pintar. */
   errorInicial?: string | null
   className?: string
@@ -81,6 +97,7 @@ export function ControlJornada ({
   segundos,
   inicial,
   staffId,
+  nombre,
   errorInicial = null,
   className
 }: PropsControlJornada) {
@@ -89,9 +106,12 @@ export function ControlJornada ({
   const [errorDeRed, setErrorDeRed] = useState<string | null>(errorInicial)
   const [aviso, setAviso] = useState<string | null>(null)
   const [enCurso, setEnCurso] = useState(false)
-  const [espacioElegido, setEspacioElegido] = useState<number | null>(null)
   /** `true` mientras el dialogo de cierre esta abierto. Cerrar la jornada ya no es un solo clic. */
   const [confirmandoCierre, setConfirmandoCierre] = useState(false)
+  /** `true` cuando el modal de destino se pidio a mano, y no porque falte la jornada. */
+  const [pidiendoDestino, setPidiendoDestino] = useState(false)
+  /** `true` cuando se uso la salida de emergencia. Dura lo que dure esta pestaña; ver el docblock. */
+  const [entroSinJornada, setEntroSinJornada] = useState(false)
   const [intento, setIntento] = useState(0)
 
   /** Cuando se leyo `estado`. El contador cuenta desde aca, no desde `started_at`. */
@@ -204,19 +224,34 @@ export function ControlJornada ({
     return estadoHttp >= 200 && estadoHttp < 300
   }
 
-  async function abrirJornada (espacioId: number): Promise<boolean> {
+  /**
+   * Abre la jornada con su Proyecto y su Tarea, en **una sola peticion**.
+   *
+   * Antes eran dos —`POST /me/jornada` y despues el arranque del medidor— y entre una y otra cabia
+   * un corte de red: la jornada quedaba abierta y sin nada que medir, que es justo lo que la regla
+   * quiere impedir. Lo resuelve la API: con `project_id` y `task_id` abre las dos cosas o ninguna, y
+   * si el cronometro falla descarta la jornada que acababa de abrir.
+   *
+   * Por eso aca no hay compensacion ni reintento. Un fallo deja el estado como estaba y el aviso
+   * dice por que: 403 si la Tarea no es suya, 404 si ya no esta, 422 si el par no se corresponde,
+   * 409 si otra pestaña abrio la jornada primero.
+   */
+  async function abrirYArrancar (espacioId: number, tareaId: number): Promise<void> {
     setEnCurso(true)
     setAviso(null)
 
-    // El Espacio no es opcional ni aca ni en la API, que responde 422 sin el: abre la jornada Y
-    // arranca su medidor en la misma escritura, y descarta la jornada si el medidor no arranca.
-    const respuesta = await llamar('me/jornada', 'POST', { project_id: espacioId })
+    const respuesta = await llamar('me/jornada', 'POST', {
+      project_id: espacioId,
+      task_id: tareaId
+    })
 
     setEnCurso(false)
 
     if (acepto(respuesta)) {
+      setPidiendoDestino(false)
+      avisarCambioDeMedidor()
       recargar()
-      return true
+      return
     }
 
     setAviso(mensajeDeFalloDeJornada(respuesta, true))
@@ -224,8 +259,6 @@ export function ControlJornada ({
     // pestaña la abrio. Se vuelve a leer para que el control lo muestre ahora y no en el proximo
     // intervalo, con la persona mirando un boton que ya no corresponde.
     if (respuesta === 409) recargar()
-
-    return false
   }
 
   /**
@@ -253,21 +286,31 @@ export function ControlJornada ({
     }
 
     setConfirmandoCierre(false)
+    // Cerrar la jornada la vuelve a exigir: es el mismo estado que al entrar por la mañana, y la
+    // excepcion que se hubiera usado antes no puede sobrevivir al dia que ya se cerro.
+    setEntroSinJornada(false)
     // El cierre detiene los medidores abiertos del lado de la API: las fichas de proceso que esten
     // montadas tienen que enterarse igual que si se hubiera detenido a mano.
     avisarCambioDeMedidor()
     recargar()
   }
 
-  async function arrancar (espacioId: number): Promise<void> {
+  /**
+   * Arranca el cronometro de una Tarea con la jornada ya abierta.
+   *
+   * El Proyecto no viaja: la fila cuelga de la Tarea y el Espacio se deriva de su `rel_id`. Sirve
+   * para elegir a que se le imputa el rato siguiente sin cerrar el dia y volver a abrirlo.
+   */
+  async function arrancar (tareaId: number): Promise<void> {
     setEnCurso(true)
     setAviso(null)
 
-    const respuesta = await llamar(`projects/${espacioId}/timer`, 'POST')
+    const respuesta = await llamar(`tasks/${tareaId}/timer`, 'POST')
 
     setEnCurso(false)
 
     if (acepto(respuesta)) {
+      setPidiendoDestino(false)
       avisarCambioDeMedidor()
       recargar()
       return
@@ -275,67 +318,10 @@ export function ControlJornada ({
 
     setAviso(mensajeDeFalloDeMedidor(respuesta, true))
     // El 409 con la jornada cerrada de por medio —se cerro sola a la hora de corte, o desde otra
-    // pestaña— se resuelve volviendo a leer: el control pasa a ofrecer "Abrir jornada", que abre y
-    // arranca el mismo Espacio en un gesto. No se reintenta aca: una cadena de reintentos convierte
-    // un 409 legitimo (ya hay un medidor corriendo) en un bucle silencioso.
+    // pestaña— se resuelve volviendo a leer: el control pasa a exigir la apertura otra vez. No se
+    // reintenta aca: una cadena de reintentos convierte un 409 legitimo (ya hay un medidor
+    // corriendo) en un bucle silencioso.
     if (respuesta === 409) recargar()
-  }
-
-  /**
-   * Pasa el medidor del Espacio a una Tarea suya: detener el actual y arrancar el de la Tarea.
-   *
-   * En ese orden porque la API no deja dos medidores corriendo a la vez. El riesgo del orden es que
-   * el segundo paso falle y la persona quede **sin medidor sin haberlo pedido**, asi que ese caso se
-   * dice con todas las letras en vez de dejarlo en silencio: el aviso nombra lo que paso, no solo el
-   * error de la API.
-   */
-  async function elegirTarea (tareaId: number): Promise<void> {
-    if (medidor === null) return
-
-    setEnCurso(true)
-    setAviso(null)
-
-    const detenido = await llamar(`live/timers/${medidor.id}`, 'DELETE')
-
-    if (!acepto(detenido)) {
-      setEnCurso(false)
-      setAviso(mensajeDeFalloDeMedidor(detenido, false))
-      return
-    }
-
-    const arrancado = await llamar(`tasks/${tareaId}/timer`, 'POST')
-
-    setEnCurso(false)
-
-    if (!acepto(arrancado)) {
-      setAviso(
-        `Se detuvo el medidor y no se pudo arrancar el de la ${GLOSARIO.proceso.singular.toLowerCase()}: ` +
-        `ahora no estás midiendo tiempo. ${mensajeDeFalloDeMedidor(arrancado, true)}`
-      )
-    }
-
-    // Pase lo que pase con el arranque: el medidor anterior ya se detuvo y el resto del panel tiene
-    // que enterarse.
-    avisarCambioDeMedidor()
-    recargar()
-  }
-
-  /**
-   * Abre la jornada con su Espacio, en **una sola peticion**.
-   *
-   * Antes eran dos —`POST /me/jornada` y despues `POST /projects/{id}/timer`— y entre una y otra
-   * cabia un corte de red: la jornada quedaba abierta y sin Espacio, que es justo lo que la regla
-   * de "el medidor es obligatorio" quiere impedir. Ahora lo resuelve la API: con `project_id` abre
-   * las dos cosas o ninguna, y si el medidor falla descarta la jornada que acababa de abrir.
-   *
-   * Por eso aca no hay compensacion ni reintento. Un fallo deja el estado como estaba y el aviso
-   * dice por que: 403 si no es miembro del Espacio, 404 si el Espacio ya no esta, 409 si otra
-   * pestaña abrio la jornada primero.
-   */
-  async function abrirYArrancar (espacioId: number): Promise<void> {
-    if (!await abrirJornada(espacioId)) return
-
-    avisarCambioDeMedidor()
   }
 
   async function detenerMedidor (): Promise<void> {
@@ -357,6 +343,11 @@ export function ControlJornada ({
     recargar()
   }
 
+  // La compuerta de entrada. Solo la monta la variante de la cabecera: es la unica que existe una
+  // sola vez en toda la aplicacion, y dos modales con el mismo trabajo se pisarian en `/live`.
+  const exigeJornada = variante === 'compacta' && !entroSinJornada && faltaAbrirJornada(estado)
+  const destinoAbierto = exigeJornada || pidiendoDestino
+
   const cuerpo = (
     <CuerpoControl
       estado={estado}
@@ -364,50 +355,69 @@ export function ControlJornada ({
       jornadaAbierta={jornadaAbierta}
       segundosJornada={segundosJornada}
       segundosMedidor={segundosMedidor}
-      espacioElegido={espacioElegido}
-      onElegirEspacio={setEspacioElegido}
-      staffId={staffId}
       enCurso={enCurso}
-      aviso={confirmandoCierre ? null : aviso}
+      aviso={confirmandoCierre || destinoAbierto ? null : aviso}
       errorDeRed={errorDeRed}
-      onAbrirYArrancar={(id) => { void abrirYArrancar(id) }}
+      onElegirDestino={() => { setAviso(null); setPidiendoDestino(true) }}
       onCerrar={() => { setConfirmandoCierre(true) }}
-      onArrancar={(id) => { void arrancar(id) }}
-      onElegirTarea={(id) => { void elegirTarea(id) }}
       onDetener={() => { void detenerMedidor() }}
     />
   )
 
   /*
-   * Fuera del desplegable a proposito. El control compacto vive dentro de un menu de Radix, y un
-   * clic en el dialogo ocurre fuera de ese menu: el menu se cierra, y con el se desmontaria el
-   * dialogo entero a mitad del cierre. Como hermano sobrevive a que el desplegable se cierre.
+   * Los dos dialogos van fuera del desplegable a proposito. El control compacto vive dentro de un
+   * menu de Radix, y un clic en un dialogo ocurre fuera de ese menu: el menu se cierra, y con el se
+   * desmontaria el dialogo entero a mitad de la operacion. Como hermanos sobreviven a que el
+   * desplegable se cierre.
    */
-  const dialogo = (
-    <CierreJornada
-      abierto={confirmandoCierre}
-      onSeguir={() => { setConfirmandoCierre(false) }}
-      staffId={staffId}
-      cerrando={enCurso}
-      aviso={confirmandoCierre ? aviso : null}
-      onConfirmar={(comentario) => { void cerrarJornada(comentario) }}
-    />
-  )
+  const dialogos = (
+    <>
+      <CierreJornada
+        abierto={confirmandoCierre}
+        onSeguir={() => { setConfirmandoCierre(false) }}
+        staffId={staffId}
+        cerrando={enCurso}
+        aviso={confirmandoCierre ? aviso : null}
+        onConfirmar={(comentario) => { void cerrarJornada(comentario) }}
+      />
+
+      <DestinoDeJornada
+        abierto={destinoAbierto && !confirmandoCierre}
+        modo={jornadaAbierta ? 'medidor' : 'apertura'}
+        nombre={nombre}
+        staffId={staffId}
+        enCurso={enCurso}
+        aviso={destinoAbierto && !confirmandoCierre ? aviso : null}
+        onElegir={(espacioId, tareaId) => {
+          if (jornadaAbierta) {
+            void arrancar(tareaId)
+            return
+          }
+
+          void abrirYArrancar(espacioId, tareaId)
+        }}
+        onCancelar={() => { setPidiendoDestino(false); setAviso(null) }}
+        onEntrarSinJornada={() => {
+          setEntroSinJornada(true)
+          setPidiendoDestino(false)
+          setAviso(null)
+        }}
+      />
+    </>  )
 
   if (variante === 'panel') {
     return (
       <section className={cn('border-linea bg-superficie-elevada rounded-tarjeta border p-4', className)}>
         <h2 className="text-texto text-titulo mb-3 font-semibold">Mi jornada</h2>
         {cuerpo}
-        {dialogo}
+        {dialogos}
       </section>
     )
   }
 
   return (
     <>
-    {/* `modal={false}` para que el desplegable no apague los eventos del resto del documento: el
-        selector de Espacio se pinta en su propio portal, y con el menu modal quedaria inerte. */}
+    {/* `modal={false}` para que el desplegable no apague los eventos del resto del documento. */}
     <MenuContextual modal={false}>
       <DisparadorMenu
         aria-label="Jornada y medidor"
@@ -430,8 +440,8 @@ export function ControlJornada ({
       <ContenidoMenu
         align="end"
         className="w-80 p-3"
-        // Un clic dentro del desplegable del selector de Espacio ocurre fuera de este menu —vive en
-        // otro portal— y lo cerraria justo al elegir. Los popovers propios no cuentan como afuera.
+        // Un clic dentro de un popover propio ocurre fuera de este menu —vive en otro portal— y lo
+        // cerraria justo al elegir. Los popovers propios no cuentan como afuera.
         onInteractOutside={(evento) => {
           const destino = evento.target
 
@@ -443,7 +453,7 @@ export function ControlJornada ({
         {cuerpo}
       </ContenidoMenu>
     </MenuContextual>
-    {dialogo}
+    {dialogos}
     </>
   )
 }
@@ -467,16 +477,11 @@ interface PropsCuerpo {
   jornadaAbierta: boolean
   segundosJornada: number
   segundosMedidor: number
-  espacioElegido: number | null
-  onElegirEspacio: (id: number) => void
-  staffId: number
   enCurso: boolean
   aviso: string | null
   errorDeRed: string | null
-  onAbrirYArrancar: (espacioId: number) => void
+  onElegirDestino: () => void
   onCerrar: () => void
-  onArrancar: (espacioId: number) => void
-  onElegirTarea: (tareaId: number) => void
   onDetener: () => void
 }
 
@@ -486,9 +491,9 @@ interface PropsCuerpo {
  * Ese orden no es decorativo: sin jornada no hay medidor, y ponerlo al reves ofreceria arrancar algo
  * que la API va a rechazar.
  *
- * Con la jornada cerrada el selector de Espacio vive **arriba**, junto al boton de abrir: elegir el
- * Proyecto y abrir la jornada son el mismo gesto. Solo cuando ya hay jornada y el medidor esta
- * detenido baja a la seccion del medidor, que es donde vuelve a tener sentido.
+ * Ya no lleva selectores. Los dos que tenia —uno para abrir la jornada y otro para arrancar el
+ * medidor despues— eran dos copias del mismo combo en el mismo componente, y los dos pedian solo el
+ * Proyecto. Ahora los dos botones abren `DestinoDeJornada`, que es el unico sitio donde se elige.
  */
 function CuerpoControl ({
   estado,
@@ -496,21 +501,13 @@ function CuerpoControl ({
   jornadaAbierta,
   segundosJornada,
   segundosMedidor,
-  espacioElegido,
-  onElegirEspacio,
-  staffId,
   enCurso,
   aviso,
   errorDeRed,
-  onAbrirYArrancar,
+  onElegirDestino,
   onCerrar,
-  onArrancar,
-  onElegirTarea,
   onDetener
 }: PropsCuerpo) {
-  const idEspacio = useId()
-  const idTarea = useId()
-
   return (
     <div className="flex flex-col gap-3">
       <section className="flex flex-col gap-2">
@@ -553,32 +550,20 @@ function CuerpoControl ({
           </p>
         )}
 
-        {/* Sin jornada: elegir Proyecto es parte de abrirla, no un paso posterior que se pueda
-            saltar. El boton no se puede apretar hasta que haya uno elegido, y al apretarlo abre la
-            jornada Y arranca el medidor de ese Proyecto en un solo gesto (`abrirYArrancar`). */}
+        {/* Sin jornada: el boton no abre nada por si mismo, abre la ventana donde se elige el
+            Proyecto y la Tarea. Es el mismo gesto que hace la compuerta al entrar, para que quien
+            uso la salida de emergencia tenga por donde volver. */}
         {!jornadaAbierta && (
-          <>
-            <label htmlFor={idEspacio} className="text-texto-sutil text-xs">
-              En qué {GLOSARIO.espacio.singular.toLowerCase()} vas a trabajar
-            </label>
-            <SelectorEspacio
-              id={idEspacio}
-              valor={espacioElegido}
-              onElegir={onElegirEspacio}
-              deshabilitado={enCurso}
-            />
-            <Boton
-              variante="primario"
-              tamano="chico"
-              cargando={enCurso}
-              disabled={espacioElegido === null || enCurso}
-              onClick={() => { if (espacioElegido !== null) onAbrirYArrancar(espacioElegido) }}
-              className="self-start"
-            >
-              <Play size={14} strokeWidth={2} aria-hidden="true" />
-              Abrir jornada y empezar
-            </Boton>
-          </>
+          <Boton
+            variante="primario"
+            tamano="chico"
+            disabled={enCurso}
+            onClick={onElegirDestino}
+            className="self-start"
+          >
+            <Play size={14} strokeWidth={2} aria-hidden="true" />
+            Abrir jornada y empezar
+          </Boton>
         )}
       </section>
 
@@ -595,21 +580,14 @@ function CuerpoControl ({
             {medidor === null
               ? (
                 <>
-                  <label htmlFor={idEspacio} className="text-texto-sutil text-xs">
-                    Sobre qué {GLOSARIO.espacio.singular.toLowerCase()} medir
-                  </label>
-                  <SelectorEspacio
-                    id={idEspacio}
-                    valor={espacioElegido}
-                    onElegir={onElegirEspacio}
-                    deshabilitado={enCurso}
-                  />
+                  <p className="text-texto-sutil text-xs">
+                    No estás midiendo nada: las horas de tu jornada se están yendo sin cubrir.
+                  </p>
                   <Boton
                     variante="primario"
                     tamano="chico"
-                    cargando={enCurso}
-                    disabled={espacioElegido === null || enCurso}
-                    onClick={() => { if (espacioElegido !== null) onArrancar(espacioElegido) }}
+                    disabled={enCurso}
+                    onClick={onElegirDestino}
                     className="self-start"
                   >
                     <Play size={14} strokeWidth={2} aria-hidden="true" />
@@ -644,27 +622,16 @@ function CuerpoControl ({
                     </Boton>
                   </div>
 
-                  {/* Aviso, no error: la API acepta medir un Proyecto sin Tarea y hay trabajo que no
-                      cuelga de ninguna. `role="status"` y no `alert` por lo mismo — se anuncia sin
-                      interrumpir, y se queda hasta que haya Tarea. */}
-                  {/* Se mide el Espacio pero nadie dijo sobre que Tarea: el caso que el aviso atiende. */}
-                  {medidor.task === null && medidor.project !== null && (
-                    <>
-                      <p role="status" className="text-texto-aviso text-xs text-pretty">
-                        Elige la {GLOSARIO.proceso.singular.toLowerCase()} en la que estás trabajando.
-                      </p>
-                      <label htmlFor={idTarea} className="sr-only">
-                        {GLOSARIO.proceso.singular} en la que estás trabajando
-                      </label>
-                      <SelectorTarea
-                        id={idTarea}
-                        espacioId={medidor.project.id}
-                        staffId={staffId}
-                        valor={null}
-                        onElegir={onElegirTarea}
-                        deshabilitado={enCurso}
-                      />
-                    </>
+                  {/* Un medidor sin Tarea ya no se puede crear: los que quedan son filas viejas del
+                      medidor de Espacio de la `0260`. No se ofrece un selector para arreglarlas —eso
+                      era un detener-y-arrancar encadenado, con la persona sin medidor si el segundo
+                      paso fallaba—: se dice que hay que detener y volver a arrancar, que son los dos
+                      botones que ya estan en pantalla. */}
+                  {medidor.task === null && (
+                    <p role="status" className="text-texto-aviso text-xs text-pretty">
+                      Esto se está midiendo sin {GLOSARIO.proceso.singular.toLowerCase()}. Deténlo y
+                      vuelve a arrancar eligiendo en cuál trabajas.
+                    </p>
                   )}
                 </>
                 )}
