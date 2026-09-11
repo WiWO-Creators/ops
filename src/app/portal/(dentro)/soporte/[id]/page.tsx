@@ -1,21 +1,36 @@
 import type { Metadata } from 'next'
+import { cache } from 'react'
 import { formatearFecha } from '@/lib/fechas'
 import { cn } from '@/lib/clases'
 import type { TicketPortalDetalle } from '@/datos/portal'
 import { ErrorApi } from '@/datos/errores'
 import { Bloque, cargarDetalle, Datos, EstadoDeError, EstadoDelPortal, Volver } from '../../detalle'
 
-export const metadata: Metadata = { title: 'Ticket · Portal de clientes' }
+/**
+ * `cache()` evita que `generateMetadata` y la pagina pidan el mismo ticket dos veces en la misma
+ * peticion, igual que en el detalle de proyecto.
+ */
+const cargarTicket = cache(
+  async (id: string) => await cargarDetalle<TicketPortalDetalle>(`/portal/tickets/${id}`)
+)
+
+export async function generateMetadata (props: PageProps<'/portal/soporte/[id]'>): Promise<Metadata> {
+  const { id } = await props.params
+  const sobre = await cargarTicket(id)
+  const asunto = sobre instanceof ErrorApi ? 'Ticket' : sobre.data.subject
+
+  return { title: `${asunto} · Portal de clientes` }
+}
 
 /**
  * Hilo de un ticket de soporte.
  *
  * Solo lectura: responder es una escritura, y el portal nuevo no expone ninguna. Quien necesite
- * contestar lo sigue haciendo por el portal viejo o por correo.
+ * contestar lo sigue haciendo por correo.
  */
 export default async function TicketPagina (props: PageProps<'/portal/soporte/[id]'>) {
   const { id } = await props.params
-  const sobre = await cargarDetalle<TicketPortalDetalle>(`/portal/tickets/${id}`)
+  const sobre = await cargarTicket(id)
 
   if (sobre instanceof ErrorApi) {
     return <EstadoDeError error={sobre} volverA="/portal/soporte" etiqueta="Soporte" />

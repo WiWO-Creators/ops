@@ -7,7 +7,7 @@ import { ErrorApi } from '@/datos/errores'
 import { pedirPortal } from '@/datos/servidor'
 import type { AnuncioPortal, EspacioPortal } from '@/datos/portal'
 import type { YoPortal } from '@/datos/tipos'
-import { seccionesDelPortal } from '@/dominio/portal'
+import { saludar, seccionesDelPortal } from '@/dominio/portal'
 import { GLOSARIO } from '@/dominio/glosario'
 import { Bloque } from './detalle'
 
@@ -22,13 +22,18 @@ export const metadata: Metadata = { title: 'Inicio · Portal de clientes' }
  * Cada bloque se pide con `sinFallar`: una seccion que este apagada para este contacto responde 403
  * o 404, y eso no puede tumbar la portada entera. Un inicio a medias es mejor que una pantalla de
  * error.
+ *
+ * Los proyectos se piden enteros aunque la lista muestre cinco: las tres metricas de arriba cuentan
+ * sobre lo que llego, asi que pedir una pagina corta no acorta la pantalla, la hace mentir. El tope
+ * de 100 es el maximo de la API; un cliente con mas proyectos que eso veria las metricas cortadas y
+ * necesitaria que la API devuelva los totales ya sumados.
  */
 export default async function PortalInicio () {
   const { data: yo } = await pedirPortal<YoPortal>('/portal/me')
   const secciones = seccionesDelPortal(yo.secciones_habilitadas)
 
   const [proyectos, anuncios] = await Promise.all([
-    sinFallar<EspacioPortal[]>('/portal/projects?per_page=5'),
+    sinFallar<EspacioPortal[]>('/portal/projects?per_page=100'),
     sinFallar<AnuncioPortal[]>('/portal/announcements')
   ])
 
@@ -38,7 +43,7 @@ export default async function PortalInicio () {
   return (
     <section className="flex flex-col gap-6">
       <div>
-        <h1 className="text-texto text-xl font-semibold">Hola, {yo.firstname.trim()}</h1>
+        <h1 className="text-texto text-xl font-semibold">Hola, {saludar(yo)}</h1>
         <p className="text-texto-tenue mt-1 text-sm">
           Acá vas a encontrar todo lo que compartimos contigo.
         </p>
@@ -73,7 +78,7 @@ export default async function PortalInicio () {
       {proyectos !== null && proyectos.length > 0 && (
         <Bloque titulo={GLOSARIO.espacio.plural}>
           <ul className="flex flex-col gap-4">
-            {proyectos.map((proyecto) => (
+            {proyectos.slice(0, 5).map((proyecto) => (
               <li key={proyecto.id}>
                 <div className="flex flex-wrap items-baseline justify-between gap-2">
                   <Link

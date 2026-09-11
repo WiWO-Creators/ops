@@ -1,3 +1,4 @@
+import Link from 'next/link'
 import { Vacio } from '@/componentes/estado/Estados'
 import { Insignia } from '@/componentes/presentadores/Insignia'
 import { formatearFecha } from '@/lib/fechas'
@@ -15,7 +16,7 @@ import type {
   TareaPortal,
   TicketPortal
 } from '@/datos/portal'
-import { Bloque, enlaceDeDescarga, EstadoDelPortal } from '../../detalle'
+import { Bloque, EstadoDelPortal, NombreDeArchivo } from '../../detalle'
 import { TablaDeTareas } from './TablaDeTareas'
 
 /**
@@ -155,8 +156,6 @@ export async function PanelArchivos ({ proyectoId }: { proyectoId: number }) {
   return (
     <ul className="flex flex-col gap-2">
       {data.map((archivo) => {
-        // Sin `url` no hay nada que descargar: el nombre queda como texto y no como un enlace roto.
-        const enlace = enlaceDeDescarga(archivo)
         const rotulado = archivo.subject !== null && archivo.subject !== ''
 
         return (
@@ -164,16 +163,7 @@ export async function PanelArchivos ({ proyectoId }: { proyectoId: number }) {
             key={archivo.id}
             className="rounded-chico border-linea flex flex-wrap items-baseline gap-x-3 gap-y-1 border p-3"
           >
-            {enlace === ''
-              ? <span className="text-texto text-sm font-medium">{archivo.file_name}</span>
-              : (
-                <a
-                  href={enlace}
-                  className="text-texto hover:text-acento text-sm font-medium underline-offset-4 hover:underline"
-                >
-                  {archivo.file_name}
-                </a>
-                )}
+            <NombreDeArchivo archivo={archivo} />
             {rotulado && <span className="text-texto-tenue text-sm">{archivo.subject}</span>}
             <span className="text-texto-tenue ml-auto text-xs">{formatearFecha(archivo.date_added)}</span>
           </li>
@@ -200,12 +190,12 @@ export async function PanelTicketsDelProyecto ({ proyectoId }: { proyectoId: num
     <ul className="flex flex-col gap-2">
       {data.map((ticket) => (
         <li key={ticket.id} className="rounded-chico border-linea flex flex-wrap items-center gap-3 border p-3">
-          <a
+          <Link
             href={`/portal/soporte/${ticket.id}`}
             className="text-texto hover:text-acento text-sm font-medium underline-offset-4 hover:underline"
           >
             {ticket.subject}
-          </a>
+          </Link>
           <EstadoDelPortal catalogo="ticket_statuses" valor={ticket.status} />
           <span className="text-texto-tenue ml-auto text-sm">{formatearFecha(ticket.date)}</span>
         </li>

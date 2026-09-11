@@ -1,4 +1,13 @@
 import { Vacio } from '@/componentes/estado/Estados'
+import {
+  CeldaEncabezado,
+  CeldaTabla,
+  CuerpoTabla,
+  EncabezadoTabla,
+  FilaTabla,
+  Tabla
+} from '@/componentes/datos/Tabla'
+import { GLOSARIO } from '@/dominio/glosario'
 import { formatearFecha } from '@/lib/fechas'
 import { cn } from '@/lib/clases'
 import { pedirPortal } from '@/datos/servidor'
@@ -132,28 +141,30 @@ export async function PanelTiempos ({ proyectoId }: { proyectoId: number }) {
         Total: <span className="text-texto font-medium tabular-nums">{horasYMinutos(total)}</span>
       </p>
 
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="text-texto-sutil border-linea-suave border-b text-left text-xs tracking-wide uppercase">
-              <th className="pb-2 font-medium">Tarea</th>
-              <th className="pb-2 font-medium">Quién</th>
-              <th className="pb-2 font-medium">Fecha</th>
-              <th className="pb-2 text-right font-medium">Tiempo</th>
-            </tr>
-          </thead>
-          <tbody>
-            {data.map((registro) => (
-              <tr key={registro.id} className="border-linea-suave border-b last:border-0">
-                <td className="text-texto py-2">{registro.task.name}</td>
-                <td className="text-texto-tenue py-2">{registro.staff?.full_name ?? ''}</td>
-                <td className="text-texto-tenue py-2">{formatearFecha(registro.start_time)}</td>
-                <td className="text-texto py-2 text-right tabular-nums">{registro.duration_hm}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      {/* La tabla del sistema y no un `<table>` a mano: el portal y el panel tienen que envejecer
+          juntos, y esta era la ultima grilla del portal dibujada por fuera. */}
+      <Tabla>
+        <EncabezadoTabla>
+          <tr>
+            <CeldaEncabezado>{GLOSARIO.proceso.singular}</CeldaEncabezado>
+            <CeldaEncabezado>Quién</CeldaEncabezado>
+            <CeldaEncabezado>Fecha</CeldaEncabezado>
+            <CeldaEncabezado numerica>Tiempo</CeldaEncabezado>
+          </tr>
+        </EncabezadoTabla>
+        <CuerpoTabla>
+          {data.map((registro) => (
+            <FilaTabla key={registro.id}>
+              <CeldaTabla className="text-texto">{registro.task.name}</CeldaTabla>
+              <CeldaTabla className="text-texto-tenue">{registro.staff?.full_name ?? ''}</CeldaTabla>
+              <CeldaTabla className="text-texto-tenue" sinCortar>
+                {formatearFecha(registro.start_time)}
+              </CeldaTabla>
+              <CeldaTabla numerica>{registro.duration_hm}</CeldaTabla>
+            </FilaTabla>
+          ))}
+        </CuerpoTabla>
+      </Tabla>
     </div>
   )
 }

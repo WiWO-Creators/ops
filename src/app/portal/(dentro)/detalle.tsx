@@ -6,14 +6,15 @@ import type { Sobre } from '@/datos/tipos'
 import type { ArchivoPortal } from '@/datos/portal'
 import { listaDe } from '@/datos/catalogos'
 import { cargarLookupsDelPortal } from '@/datos/lookups'
+import { enlaceDeDescarga } from '@/dominio/portal'
 import Link from 'next/link'
 
 /**
  * Piezas compartidas por las pantallas de detalle del portal.
  *
- * Los cinco detalles —factura, presupuesto, propuesta, contrato y ticket— tienen la misma forma:
- * migaja de vuelta, titulo con su estado, una lista de datos y el cuerpo propio de cada uno. Lo que
- * cambia es el cuerpo, y eso es lo que cada pagina escribe.
+ * Los tres detalles —proyecto, ticket y articulo de ayuda— tienen la misma forma: migaja de vuelta,
+ * titulo con su estado, una lista de datos y el cuerpo propio de cada uno. Lo que cambia es el
+ * cuerpo, y eso es lo que cada pagina escribe.
  */
 
 /**
@@ -84,16 +85,32 @@ export async function EstadoDelPortal ({ catalogo, valor }: { catalogo: string, 
 }
 
 /**
- * A donde apunta la descarga de un archivo del portal.
+ * El nombre de un archivo, como enlace de descarga cuando hay algo que descargar.
  *
- * La API devuelve rutas propias (`/api/v1/files/...`) para lo que vive en el servidor y URLs enteras
- * para los adjuntos externos. Las primeras pasan por el BFF, que es el unico que tiene el token; las
- * segundas van tal cual, porque no hay nada nuestro que autorizar.
+ * Sin `url` no hay binario: `enlaceDeDescarga` devuelve cadena vacia y un `<a href="">` recargaria
+ * la pantalla en vez de bajar el archivo. Ahi el nombre queda como texto.
+ *
+ * Vive aca porque lo dibujan dos pantallas —la seccion Archivos y la pestaña del proyecto— y la
+ * guarda tiene que ser la misma en las dos.
+ *
+ * @param archivo el archivo tal como lo devuelve la API del portal
+ * @returns el nombre enlazado, o el nombre a secas si no se puede descargar
  */
-export function enlaceDeDescarga (archivo: ArchivoPortal): string {
-  const url = archivo.url ?? ''
+export function NombreDeArchivo ({ archivo }: { archivo: ArchivoPortal }) {
+  const enlace = enlaceDeDescarga(archivo)
 
-  return url.startsWith('/api/v1/') ? `/api/bff${url.slice('/api/v1'.length)}` : url
+  if (enlace === '') {
+    return <span className="text-texto text-sm font-medium">{archivo.file_name}</span>
+  }
+
+  return (
+    <a
+      href={enlace}
+      className="text-texto hover:text-acento text-sm font-medium underline-offset-4 hover:underline"
+    >
+      {archivo.file_name}
+    </a>
+  )
 }
 
 /** Lista de datos en dos columnas, con los vacios omitidos. */
