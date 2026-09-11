@@ -85,7 +85,7 @@ test('una sola lectura trae el árbol, su gente, quién no tiene área y los asi
 test('quien administra edita todo; quien dirige un área ve su rama y solo edita lo suyo', async () => {
   const deAdmin = await leerJerarquia()
   assert.equal(deAdmin.areas.every((area) => area.editable), true)
-  assert.equal(deAdmin.areas.length, 16)
+  assert.equal(deAdmin.areas.length, 17)
 
   const deCarla = await leerJerarquia(headersJefa)
   assert.equal(deCarla.es_admin, false)
@@ -137,7 +137,7 @@ test('colgar un área de su propia descendencia es un ciclo', async () => {
     const respuesta = await fetch(`${base}/jerarquia/areas/${wiwo.id}`, {
       method: 'PUT',
       headers,
-      body: JSON.stringify({ area_superior_id: superior })
+      body: JSON.stringify({ name: wiwo.name, area_superior_id: superior, jefe_staffid: wiwo.jefe_staffid })
     })
 
     assert.equal(respuesta.status, 422, `deberia rechazar colgarla de ${superior}`)
@@ -171,7 +171,7 @@ test('crear un área y colgarle otra la deja anidada', async () => {
   const editada = await fetch(`${base}/jerarquia/areas/${hija.id}`, {
     method: 'PUT',
     headers,
-    body: JSON.stringify({ jefe_staffid: null })
+    body: JSON.stringify({ name: hija.name, area_superior_id: hija.area_superior_id, jefe_staffid: null })
   })
 
   assert.equal(editada.status, 200)
@@ -241,7 +241,7 @@ test('quien dirige un área no puede crear áreas ni tocar las ajenas', async ()
   const edicion = await fetch(`${base}/jerarquia/areas/${ajena.id}`, {
     method: 'PUT',
     headers: headersJefa,
-    body: JSON.stringify({ jefe_staffid: null })
+    body: JSON.stringify({ name: ajena.name, area_superior_id: null, jefe_staffid: null })
   })
 
   assert.equal(edicion.status, 403)
@@ -265,6 +265,144 @@ test('quien dirige un área sí puede sumar gente a la suya', async () => {
     headers: headersJefa,
     body: JSON.stringify({ area_id: null })
   })
+})
+
+test('en_tareas marca el área que no cruza con ningún Proceso', async () => {
+  const jerarquia = await leerJerarquia()
+
+  // Las 16 sembradas salen de las opciones de los Procesos: nacen alineadas.
+  assert.equal(areaLlamada(jerarquia, 'Analytics').en_tareas, true)
+  // «Retail» quedó desalineada: su nombre ya no figura entre esas opciones.
+  assert.equal(areaLlamada(jerarquia, 'Retail').en_tareas, false)
+})
+
+test('un área recién creada nace alineada: el alta sincroniza el nombre', async () => {
+  const nueva = (await (await fetch(`${base}/jerarquia/areas`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({ name: 'Área recién nacida' })
+  })).json()).data
+
+  assert.equal(nueva.en_tareas, true)
+
+  await fetch(`${base}/jerarquia/areas/${nueva.id}`, { method: 'DELETE', headers })
+})
+
+test('renombrar es 409 con su explicación; reenviar el mismo nombre no lo es', async () => {
+  const analytics = areaLlamada(await leerJerarquia(), 'Analytics')
+
+  const renombrada = await fetch(`${base}/jerarquia/areas/${analytics.id}`, {
+    method: 'PUT',
+    headers,
+    body: JSON.stringify({ name: 'Analítica', area_superior_id: analytics.area_superior_id, jefe_staffid: analytics.jefe_staffid })
+  })
+
+  assert.equal(renombrada.status, 409)
+  assert.match((await renombrada.json()).error.message, /no se puede cambiar acá/)
+  assert.equal(areaLlamada(await leerJerarquia(), 'Analytics').name, 'Analytics')
+
+  // Mismo nombre con otra caja y espacios de sobra: no es un renombre y el PUT tiene que pasar.
+  const soloMueve = await fetch(`${base}/jerarquia/areas/${analytics.id}`, {
+    method: 'PUT',
+    headers,
+    body: JSON.stringify({ name: '  aNaLyTiCs  ', area_superior_id: analytics.area_superior_id, jefe_staffid: null })
+  })
+
+  assert.equal(soloMueve.status, 200)
+  assert.equal((await soloMueve.json()).data.jefe_staffid, null)
+
+  await fetch(`${base}/jerarquia/areas/${analytics.id}`, {
+    method: 'PUT',
+    headers,
+    body: JSON.stringify({ name: 'Analytics', area_superior_id: analytics.area_superior_id, jefe_staffid: 3 })
+  })
+})
+
+test('el PUT exige las tres claves presentes, aunque dos vengan en null', async () => {
+  const analytics = areaLlamada(await leerJerarquia(), 'Analytics')
+
+  // Un cuerpo parcial desenganchaba el área del árbol en silencio: ahora falta lo que falta.
+  const parcial = await fetch(`${base}/jerarquia/areas/${analytics.id}`, {
+    method: 'PUT',
+    headers,
+    body: JSON.stringify({ jefe_staffid: 3 })
+  })
+
+  assert.equal(parcial.status, 422)
+  assert.deepEqual((await parcial.json()).error.details, {
+    name: ['required'],
+    area_superior_id: ['required']
+  })
+
+  const completo = await fetch(`${base}/jerarquia/areas/${analytics.id}`, {
+    method: 'PUT',
+    headers,
+    body: JSON.stringify({ name: 'Analytics', area_superior_id: analytics.area_superior_id, jefe_staffid: 3 })
+  })
+
+  assert.equal(completo.status, 200)
+})
+
+test('borrar un área vacía devuelve el árbol entero, ya sin ella', async () => {
+  const creada = (await (await fetch(`${base}/jerarquia/areas`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({ name: 'Área para borrar' })
+  })).json()).data
+
+  const borrada = await fetch(`${base}/jerarquia/areas/${creada.id}`, { method: 'DELETE', headers })
+
+  assert.equal(borrada.status, 200)
+
+  // No es un 204: devuelve todo, porque borrar puede dejar huérfanas a las que colgaban.
+  const arbol = (await borrada.json()).data
+  assert.equal(Array.isArray(arbol.areas), true)
+  assert.equal(arbol.areas.some((area) => area.id === creada.id), false)
+  assert.equal(Array.isArray(arbol.sin_area), true)
+  assert.equal(Array.isArray(arbol.asignables), true)
+})
+
+test('el 409 al borrar trae las tres cuentas, y la tercera es la que sorprende', async () => {
+  const jerarquia = await leerJerarquia()
+
+  // Analytics tiene gente y Procesos: el mensaje nombra las tres cuentas aunque una esté en cero.
+  const conGente = await fetch(`${base}/jerarquia/areas/${areaLlamada(jerarquia, 'Analytics').id}`, {
+    method: 'DELETE',
+    headers
+  })
+
+  assert.equal(conGente.status, 409)
+  assert.match((await conGente.json()).error.message,
+    /El área "Analytics" está en uso: 2 persona\(s\) asignada\(s\), 0 área\(s\) que dependen de ella y 412 Proceso\(s\)/)
+
+  // Creatividad tiene dos áreas colgando.
+  const conHijas = await fetch(`${base}/jerarquia/areas/${areaLlamada(jerarquia, 'Creatividad').id}`, {
+    method: 'DELETE',
+    headers
+  })
+
+  assert.equal(conHijas.status, 409)
+  assert.match((await conHijas.json()).error.message, /2 área\(s\) que dependen de ella/)
+
+  // PR se ve VACÍA en la pantalla —sin gente, sin hijas— y aun así no se puede borrar.
+  const pr = areaLlamada(jerarquia, 'PR')
+  assert.equal(pr.personas.length, 0)
+
+  const vaciaPeroUsada = await fetch(`${base}/jerarquia/areas/${pr.id}`, { method: 'DELETE', headers })
+
+  assert.equal(vaciaPeroUsada.status, 409)
+  assert.match((await vaciaPeroUsada.json()).error.message,
+    /0 persona\(s\) asignada\(s\), 0 área\(s\) que dependen de ella y 24 Proceso\(s\)/)
+})
+
+test('quien dirige un área no puede borrar ninguna', async () => {
+  const analytics = areaLlamada(await leerJerarquia(), 'Analytics')
+  const respuesta = await fetch(`${base}/jerarquia/areas/${analytics.id}`, {
+    method: 'DELETE',
+    headers: headersJefa
+  })
+
+  assert.equal(respuesta.status, 403)
 })
 
 test('lookups sirve las áreas del mismo catálogo que administra /jerarquia', async () => {

@@ -13,7 +13,8 @@ import {
   aplanarArbol,
   areasElegiblesComoSuperior,
   construirArbol,
-  descendenciaDe
+  descendenciaDe,
+  loQueRetieneElArea
 } from '../src/dominio/organigrama.ts'
 
 /**
@@ -32,6 +33,7 @@ function area (id, name, superior, jefe, nombres = []) {
     area_superior_id: superior,
     jefe_staffid: jefe,
     editable: true,
+    en_tareas: true,
     personas: nombres.map((full_name, i) => ({ id: id * 100 + i, full_name }))
   }
 }
@@ -143,4 +145,19 @@ test('el selector de superior no ofrece el área ni nada que cuelgue de ella', (
 
 test('en un alta todas las áreas sirven como superior', () => {
   assert.equal(areasElegiblesComoSuperior(ARBOL_REAL, null).length, ARBOL_REAL.length)
+})
+
+test('nombra lo que ya se ve que retiene a un área, y calla cuando no se ve nada', () => {
+  const raices = construirArbol(ARBOL_REAL)
+
+  assert.equal(loQueRetieneElArea(nodo(raices, 'Analytics')), '5 personas asignadas')
+  assert.equal(
+    loQueRetieneElArea(nodo(raices, 'Operaciones')),
+    '1 persona asignada y 2 áreas que cuelgan de ella'
+  )
+
+  // Sin gente ni hijas no hay nada que la pantalla pueda anticipar. Que devuelva `null` NO significa
+  // que se pueda borrar: los Procesos marcados con ese nombre solo los conoce la API.
+  const vacia = construirArbol([area(7, 'Recién creada', null, null)])
+  assert.equal(loQueRetieneElArea(vacia[0]), null)
 })

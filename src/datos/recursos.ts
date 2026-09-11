@@ -661,6 +661,16 @@ export interface AreaDelEquipo {
    * solo edita lo que dirige, y deducir esa regla aca seria mantener dos copias de la misma.
    */
   editable: boolean
+  /**
+   * `false` cuando el nombre del area **no** figura entre las opciones del campo "Área de la
+   * compañía" de los Procesos.
+   *
+   * Las areas del equipo y las de la compañia son las mismas y se cruzan **por texto**: un area
+   * desalineada no cruza con ningun Proceso y nadie se entera — no hay error, simplemente no trae
+   * nada. Es tambien el motivo por el que renombrar esta bloqueado. Un area recien creada nace en
+   * `true`, porque el alta sincroniza el nombre sola.
+   */
+  en_tareas: boolean
   /** La gente **activa** de esta area. No incluye la de las areas hijas: esas cuelgan aparte. */
   personas: PersonaDeJerarquia[]
 }

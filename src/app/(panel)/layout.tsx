@@ -216,6 +216,16 @@ function seccionesDe (yo: Yo): Seccion[] {
     secciones.push({ href: '/equipo/mi-area', etiqueta: 'Mi Área', icono: 'mi_area' })
   }
 
+  // Organigrama tiene entrada propia y no vive solo dentro de Administracion: la API lo abre a quien
+  // administra Y a quien dirige un area —`GET /jerarquia` le sirve su rama—, asi que colgarlo de una
+  // seccion que la barra solo le muestra a un superadministrador lo dejaba imposible de encontrar
+  // para la mitad de quienes lo necesitan. La llave es la misma de "Mi Área" mas las de
+  // administracion, que es lo mas cerca del criterio de la API que se puede resolver con `/me`; la
+  // compuerta real sigue siendo el 403, y la pantalla lo muestra con el mensaje que manda el back.
+  if (yo.is_director || yo.is_admin || yo.is_superadmin) {
+    secciones.push({ href: '/administracion/organigrama', etiqueta: 'Organigrama', icono: 'organigrama' })
+  }
+
   // Administracion no tiene permiso de Perfex propio, y `is_admin` es demasiado ancha: en la base
   // hay una docena de staff marcados admin. La API exige `is_superadmin` en cada una de sus rutas
   // —avisos por correo, la escritura de `/settings`, el diagnostico de Google y la auditoria—, asi

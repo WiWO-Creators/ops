@@ -158,3 +158,31 @@ export function areasElegiblesComoSuperior (areas: AreaDelEquipo[], idEditada: n
 
   return aplanarArbol(construirArbol(areas)).filter((nodo) => !prohibidas.has(nodo.area.id))
 }
+
+/**
+ * Lo que la pantalla ya sabe que retiene a un área, para anticiparlo antes de intentar borrarla.
+ *
+ * Son dos de las tres cuentas que mira la API: la gente asignada y las áreas que cuelgan. **La
+ * tercera no se puede saber desde acá** —cuántos Procesos están marcados con ese nombre— y es
+ * justamente la que sorprende: un área puede verse vacía en el árbol y aun así no poder borrarse.
+ * Por eso el diálogo avisa de las dos que conoce y advierte de la tercera, en vez de prometer que se
+ * va a poder.
+ *
+ * @param nodo el área a borrar, ya ubicada en el árbol
+ * @returns la frase con lo que la retiene, o `null` si por lo que se ve está libre
+ */
+export function loQueRetieneElArea (nodo: NodoArea): string | null {
+  const partes: string[] = []
+
+  if (nodo.area.personas.length > 0) {
+    partes.push(nodo.area.personas.length === 1
+      ? '1 persona asignada'
+      : `${nodo.area.personas.length} personas asignadas`)
+  }
+
+  if (nodo.hijas.length > 0) {
+    partes.push(nodo.hijas.length === 1 ? '1 área que cuelga de ella' : `${nodo.hijas.length} áreas que cuelgan de ella`)
+  }
+
+  return partes.length === 0 ? null : partes.join(' y ')
+}

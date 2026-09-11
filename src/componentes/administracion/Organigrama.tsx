@@ -20,6 +20,7 @@ import {
   areasElegiblesComoSuperior,
   aplanarArbol,
   construirArbol,
+  loQueRetieneElArea,
   type NodoArea
 } from '@/dominio/organigrama'
 import type { AreaDelEquipo, Jerarquia, PersonaDeJerarquia } from '@/datos/recursos'
@@ -34,7 +35,10 @@ const TOPE_DE_LISTA = 25
 const NINGUNA = 'ninguna'
 
 /** Qué diálogo está abierto, y sobre qué área. */
-type Formulario = { modo: 'alta' } | { modo: 'edicion', nodo: NodoArea }
+type Formulario =
+  | { modo: 'alta' }
+  | { modo: 'edicion', nodo: NodoArea }
+  | { modo: 'borrado', nodo: NodoArea }
 
 /** Lo que devolvió la carga: los datos, el 403 con su explicación, o un fallo recuperable. */
 type Carga =
@@ -157,8 +161,10 @@ export function Organigrama () {
             <ArbolDeAreas
               nodos={nodos}
               elegida={elegida}
+              esAdmin={jerarquia.es_admin}
               onElegir={setElegida}
               onEditar={(nodo) => { setFormulario({ modo: 'edicion', nodo }) }}
+              onBorrar={(nodo) => { setFormulario({ modo: 'borrado', nodo }) }}
             />
             )}
 
@@ -170,12 +176,26 @@ export function Organigrama () {
         </div>
       </div>
 
-      {formulario !== null && (
+      {(formulario?.modo === 'alta' || formulario?.modo === 'edicion') && (
         <FormularioDeArea
           jerarquia={jerarquia}
           nodo={formulario.modo === 'edicion' ? formulario.nodo : null}
           onCerrar={() => { setFormulario(null) }}
           onGuardado={() => { setFormulario(null); recargar() }}
+        />
+      )}
+
+      {formulario?.modo === 'borrado' && (
+        <DialogoBorrar
+          nodo={formulario.nodo}
+          onCerrar={() => { setFormulario(null) }}
+          onBorrada={(arbol) => {
+            setFormulario(null)
+            setElegida(null)
+            // El `DELETE` devuelve el árbol entero, así que se pinta con eso en vez de pedirlo otra
+            // vez: borrar puede dejar huérfanas a las que colgaban, y ese estado ya vino resuelto.
+            setCarga({ estado: 'datos', jerarquia: arbol })
+          }}
         />
       )}
     </div>
@@ -216,8 +236,11 @@ function PendientesDeArea ({ cantidad, total }: { cantidad: number, total: numbe
 interface PropsArbol {
   nodos: NodoArea[]
   elegida: number | null
+  /** Borrar es de quien administra: sin esto la fila no dibuja el botón. */
+  esAdmin: boolean
   onElegir: (id: number) => void
   onEditar: (nodo: NodoArea) => void
+  onBorrar: (nodo: NodoArea) => void
 }
 
 /**
@@ -227,7 +250,7 @@ interface PropsArbol {
  * márgenes que se acumulan y la última fila queda contra el borde derecho. Acá la jerarquía la dice
  * la sangría y el `aria-level`, que es lo que lee un lector de pantalla de todos modos.
  */
-function ArbolDeAreas ({ nodos, elegida, onElegir, onEditar }: PropsArbol) {
+function ArbolDeAreas ({ nodos, elegida, esAdmin, onElegir, onEditar, onBorrar }: PropsArbol) {
   return (
     <ul role="tree" aria-label="Áreas del equipo" className="border-linea rounded-tarjeta divide-linea-suave divide-y border">
       {nodos.map((nodo) => (
@@ -235,8 +258,10 @@ function ArbolDeAreas ({ nodos, elegida, onElegir, onEditar }: PropsArbol) {
           key={nodo.area.id}
           nodo={nodo}
           elegida={nodo.area.id === elegida}
+          esAdmin={esAdmin}
           onElegir={onElegir}
           onEditar={onEditar}
+          onBorrar={onBorrar}
         />
       ))}
     </ul>
@@ -246,12 +271,14 @@ function ArbolDeAreas ({ nodos, elegida, onElegir, onEditar }: PropsArbol) {
 interface PropsFila {
   nodo: NodoArea
   elegida: boolean
+  esAdmin: boolean
   onElegir: (id: number) => void
   onEditar: (nodo: NodoArea) => void
+  onBorrar: (nodo: NodoArea) => void
 }
 
 /** Una fila del árbol: el área, quién la dirige, cuánta gente tiene y qué se le puede hacer. */
-function FilaDeArea ({ nodo, elegida, onElegir, onEditar }: PropsFila) {
+function FilaDeArea ({ nodo, elegida, esAdmin, onElegir, onEditar, onBorrar }: PropsFila) {
   const { area, nivel, alcance } = nodo
   const jefe = area.personas.find((persona) => persona.id === area.jefe_staffid)
 
@@ -273,6 +300,19 @@ function FilaDeArea ({ nodo, elegida, onElegir, onEditar }: PropsFila) {
           <div className="flex flex-wrap items-center gap-2">
             {nivel > 0 && <span aria-hidden="true" className="text-texto-sutil text-xs">└</span>}
             <span className="text-texto font-semibold">{area.name}</span>
+
+            {/* La insignia dice la CONSECUENCIA y no el estado: "desalineada" no le dice nada a
+                nadie, y el punto es que esta área no trae ningún Proceso y nadie se entera, porque
+                no hay error — simplemente viene vacía. */}
+            {!area.en_tareas && (
+              <Insignia
+                tono="aviso"
+                tamano="chico"
+                title={`«${area.name}» no coincide con ninguna de las áreas de los Procesos, así que no cruza con ninguno: donde se filtre por área, esta no va a traer nada.`}
+              >
+                No coincide con ninguna área de los Procesos
+              </Insignia>
+            )}
           </div>
 
           <div className="text-texto-tenue flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
@@ -300,6 +340,11 @@ function FilaDeArea ({ nodo, elegida, onElegir, onEditar }: PropsFila) {
               que dirige, y el botón que la API va a rechazar no tiene por qué existir. */}
           {area.editable && (
             <Boton variante="sutil" tamano="chico" onClick={() => { onEditar(nodo) }}>Editar</Boton>
+          )}
+
+          {/* Borrar es solo de quien administra, igual que crear. */}
+          {esAdmin && (
+            <Boton variante="sutil" tamano="chico" onClick={() => { onBorrar(nodo) }}>Borrar</Boton>
           )}
         </div>
       </div>
@@ -338,7 +383,12 @@ interface PropsFormulario {
 /**
  * Alta y edición de un área: su nombre, de qué área cuelga y quién la dirige.
  *
- * El selector de área superior no ofrece la propia ni su descendencia. Es lo mismo que la API
+ * **El nombre solo se escribe al crear.** Renombrar está bloqueado del lado de la API —contesta
+ * 409— porque los Procesos guardan el nombre del área y no su id, así que cambiarlo los
+ * desconectaría en silencio. En la edición se muestra como dato, con el motivo al lado: ofrecer un
+ * campo que se rechaza al guardar es peor que no ofrecerlo.
+ *
+ * El selector de área superior tampoco ofrece la propia ni su descendencia. Es lo mismo que la API
  * rechaza con `ciclo`, y ofrecerlo para después explicar que no se puede es hacerle perder un viaje
  * a quien completa el formulario.
  */
@@ -361,7 +411,7 @@ function FormularioDeArea ({ jerarquia, nodo, onCerrar, onGuardado }: PropsFormu
 
   /** Manda el alta (`POST`) o la edición (`PUT`, no `PATCH`) y avisa al llamador si salió bien. */
   async function guardar (): Promise<void> {
-    if (nombreLimpio === '') {
+    if (area === null && nombreLimpio === '') {
       setError('Poné un nombre para el área.')
 
       return
@@ -369,8 +419,11 @@ function FormularioDeArea ({ jerarquia, nodo, onCerrar, onGuardado }: PropsFormu
 
     if (errorNombre !== undefined) return
 
+    // Las tres claves van siempre, aunque dos vayan en `null`: el `PUT` las exige presentes, porque
+    // un cuerpo parcial desenganchaba el área del árbol en silencio. En la edición `name` es el que
+    // ya tenía —reenviarlo no cuenta como renombre— y por eso el campo puede ser de solo lectura.
     const cuerpo = {
-      name: nombreLimpio,
+      name: area?.name ?? nombreLimpio,
       area_superior_id: superior === NINGUNA ? null : Number(superior),
       jefe_staffid: jefe === NINGUNA ? null : Number(jefe)
     }
@@ -403,18 +456,31 @@ function FormularioDeArea ({ jerarquia, nodo, onCerrar, onGuardado }: PropsFormu
           onSubmit={(evento) => { evento.preventDefault(); void guardar() }}
           className="flex flex-col gap-4"
         >
-          <Campo etiqueta="Nombre" requerido error={errorNombre}>
-            {(props) => (
-              <Entrada
-                {...props}
-                value={nombre}
-                maxLength={LARGO_NOMBRE}
-                autoFocus
-                placeholder="Analytics"
-                onChange={(evento) => { setNombre(evento.target.value) }}
-              />
-            )}
-          </Campo>
+          {area === null
+            ? (
+              <Campo etiqueta="Nombre" requerido error={errorNombre}>
+                {(props) => (
+                  <Entrada
+                    {...props}
+                    value={nombre}
+                    maxLength={LARGO_NOMBRE}
+                    autoFocus
+                    placeholder="Analytics"
+                    onChange={(evento) => { setNombre(evento.target.value) }}
+                  />
+                )}
+              </Campo>
+              )
+            : (
+              <div className="border-linea bg-superficie-hundida rounded-tarjeta flex flex-col gap-1 border p-3">
+                <p className="text-texto-sutil text-xs">Nombre</p>
+                <p className="text-texto text-sm font-medium">{area.name}</p>
+                <p className="text-texto-sutil text-xs">
+                  No se puede cambiar acá: los Procesos guardan el nombre del área y no su id, así que
+                  renombrarla los desconectaría en silencio. Pedilo si hace falta.
+                </p>
+              </div>
+              )}
 
           <Campo
             etiqueta="De qué área cuelga"
@@ -706,5 +772,82 @@ function PanelDelArea ({ jerarquia, nodo, onCambio }: PropsPanel & { nodo: NodoA
         </div>
       )}
     </aside>
+  )
+}
+
+/**
+ * Confirmación de borrado.
+ *
+ * La pantalla anticipa lo que ya sabe —gente asignada y áreas que cuelgan— y **advierte de lo que no
+ * puede saber**: cuántos Procesos están marcados con ese nombre. Esa tercera cuenta es la que
+ * sorprende, porque un área puede verse vacía acá y aun así no poder borrarse. Por eso el botón se
+ * ofrece igual: el único que sabe si se puede es el servidor, y su 409 llega con las tres cuentas ya
+ * redactadas y se muestra tal cual.
+ */
+function DialogoBorrar ({ nodo, onCerrar, onBorrada }: {
+  nodo: NodoArea
+  onCerrar: () => void
+  onBorrada: (arbol: Jerarquia) => void
+}) {
+  const [borrando, setBorrando] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const retiene = loQueRetieneElArea(nodo)
+
+  async function borrar (): Promise<void> {
+    setBorrando(true)
+    setError(null)
+
+    const resultado = await escribirEnBff<Jerarquia>(`jerarquia/areas/${nodo.area.id}`, 'DELETE')
+
+    setBorrando(false)
+
+    // El `DELETE` devuelve el árbol entero. Se comprueba antes de usarlo: si algún día contestara
+    // otra cosa, pintar con eso dejaría la pantalla en blanco sin decir por qué.
+    if (resultado.ok && Array.isArray(resultado.datos?.areas)) {
+      onBorrada(resultado.datos)
+
+      return
+    }
+
+    setError(resultado.ok
+      ? 'El área se borró, pero el servidor no devolvió el organigrama. Recargá la pantalla.'
+      : resultado.mensaje)
+  }
+
+  return (
+    <Dialogo open onOpenChange={(abierto) => { if (!abierto) onCerrar() }}>
+      <ContenidoDialogo
+        ancho="chico"
+        titulo={`Borrar ${nodo.area.name}`}
+        descripcion="El área desaparece del organigrama. No se borra ninguna persona."
+      >
+        <div className="mb-4 flex flex-col gap-2 text-sm">
+          {retiene !== null && (
+            <p className="text-texto">
+              Ojo: «{nodo.area.name}» tiene {retiene}. Mientras siga así, no se va a poder borrar.
+            </p>
+          )}
+
+          {/* Se dice siempre, incluso cuando el área se ve vacía: es justamente ahí donde el 409
+              sorprende, porque los Procesos marcados con este nombre no se ven en esta pantalla. */}
+          <p className="text-texto-tenue text-xs">
+            Puede haber además Procesos marcados con este nombre. Eso no se ve desde acá: si los hay,
+            el servidor no va a dejar borrarla y va a decir cuántos son.
+          </p>
+        </div>
+
+        {error !== null && <p role="alert" className="text-texto-peligro mb-3 text-sm">{error}</p>}
+
+        <div className="flex justify-end gap-2">
+          <CerrarDialogo asChild>
+            <Boton variante="sutil">Cancelar</Boton>
+          </CerrarDialogo>
+          <Boton variante="peligro" cargando={borrando} onClick={() => { void borrar() }}>
+            Borrar
+          </Boton>
+        </div>
+      </ContenidoDialogo>
+    </Dialogo>
   )
 }

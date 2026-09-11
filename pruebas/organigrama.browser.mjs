@@ -5,13 +5,14 @@
  * clic responde, así que una corrida ahí da verde sin haber probado nada.
  *
  * Cubre el camino entero de quien ordena el organigrama —crear una raíz, colgarle una hija, ponerle
- * jefe, renombrarla, sacar a alguien de «Sin área» y traerlo de otra—, los dos caminos de error que
- * la pantalla tiene que resolver sola —el nombre repetido, que vuelve como 422, y el ciclo, que ni
- * se llega a ofrecer— y las dos caras del permiso: quien dirige un área ve solo su rama, y quien no
- * dirige nada recibe el 403 con su explicación.
+ * jefe, sacar a alguien de «Sin área», traerlo de otra y borrar un área—, los caminos de error que
+ * la pantalla tiene que resolver —el nombre repetido (422), el ciclo (que ni se llega a ofrecer), el
+ * área con gente y el área que se ve vacía pero está usada por Procesos (los dos 409)—, la insignia
+ * del área que no coincide con ninguna de los Procesos, el nombre que no se puede editar, y las dos
+ * caras del permiso: quien dirige un área ve solo su rama, y quien no dirige nada recibe el 403.
  *
  * El mock guarda en memoria lo que la corrida crea: hay que reiniciarlo entre una corrida y la
- * siguiente, o la cuenta de áreas sembradas ya no da 16.
+ * siguiente, o la cuenta de áreas sembradas ya no da 17.
  *
  *     PORT=3098 node mock/servidor.js
  *     PORT=3097 pnpm start        # con API_BASE apuntando al mock
@@ -75,9 +76,15 @@ async function cerrarDialogo (pagina) {
   await pagina.locator('[role="dialog"]').waitFor({ state: 'detached' })
 }
 
-/** La fila del árbol cuyo nombre de área coincide. */
+/**
+ * La fila del árbol de esa área, por nombre exacto.
+ *
+ * Exacto y sobre el `span` del nombre, no `:has-text()` sobre la fila entera: aquello es subcadena y
+ * sin distinguir mayúsculas, así que buscar «PR» también encontraba la fila que lleva la insignia
+ * «…de los Procesos».
+ */
 function fila (pagina, nombre) {
-  return pagina.locator(`li[role="treeitem"]:has-text("${nombre}")`).first()
+  return pagina.locator(`li[role="treeitem"]:has(span.font-semibold:text-is("${nombre}"))`).first()
 }
 
 /** Abre la pantalla con la sesión de esa cuenta del mock, en el ancho pedido. */
@@ -114,8 +121,15 @@ try {
   visto.push('El aviso de «sin área» está arriba de todo, no escondido: en el fixture es 1 de 7.')
 
   const sembradas = await pagina.locator('li[role="treeitem"]').count()
-  assert.equal(sembradas, 16, `Se esperaban las 16 áreas sembradas, hay ${sembradas}`)
-  visto.push(`El árbol pinta las ${sembradas} áreas sembradas, con la rama Wiwo › Creatividad › Analytics ya anidada.`)
+  assert.equal(sembradas, 17, `Se esperaban las 17 áreas del fixture, hay ${sembradas}`)
+  visto.push(`El árbol pinta las ${sembradas} áreas del fixture, con la rama Wiwo › Creatividad › Analytics ya anidada.`)
+
+  // --- La insignia del área que no cruza con ningún Proceso -------------------
+  const desalineada = fila(pagina, 'Retail')
+  await desalineada.locator('text=No coincide con ninguna área de los Procesos').waitFor()
+  assert.equal(await fila(pagina, 'Analytics').locator('text=No coincide con ninguna área').count(), 0,
+    'Un área alineada no debería llevar la insignia')
+  visto.push('«Retail» lleva la insignia «No coincide con ninguna área de los Procesos»; «Analytics», que sí coincide, no la lleva.')
 
   // --- Crear un área raíz -----------------------------------------------------
   await clicar(pagina.locator('button:has-text("Nueva área")'))
@@ -145,12 +159,23 @@ try {
   await fila(pagina, HIJA).locator('text=La dirige alguien de otra área').waitFor()
   visto.push('Ponerle jefe: la fila deja de decir «Sin quien la dirija» y avisa que quien la dirige todavía no está dentro del área.')
 
-  // --- Renombrar --------------------------------------------------------------
+  // --- El nombre no se puede editar -------------------------------------------
   await clicar(fila(pagina, HIJA).locator('button:has-text("Editar")'))
-  await pagina.locator('[role="dialog"] input').first().fill(`${HIJA} bis`)
-  await clicar(pagina.locator('[role="dialog"] button:has-text("Guardar")'))
-  await fila(pagina, `${HIJA} bis`).waitFor()
-  visto.push(`Renombrar: «${HIJA}» pasa a «${HIJA} bis» sin perder de quién cuelga.`)
+  await pagina.locator('[role="dialog"]').waitFor()
+
+  assert.equal(await pagina.locator('[role="dialog"] input').count(), 0,
+    'La edición no debería ofrecer el nombre como campo escribible')
+  const textoEdicion = await pagina.locator('[role="dialog"]').innerText()
+  assert.match(textoEdicion, /los Procesos guardan el nombre del área y no su id/,
+    'Falta el motivo por el que no se puede renombrar')
+  visto.push('Editar un área no ofrece el nombre: lo muestra como dato y explica que los Procesos guardan el nombre y no el id.')
+
+  await cerrarDialogo(pagina)
+
+  // Un área recién creada nace alineada, porque el alta sincroniza el nombre.
+  assert.equal(await fila(pagina, HIJA).locator('text=No coincide con ninguna área').count(), 0,
+    'Un área recién creada debería nacer alineada con los Procesos')
+  visto.push('El área recién creada nace alineada: no le aparece la insignia.')
 
   // --- El ciclo ni se ofrece --------------------------------------------------
   await clicar(fila(pagina, RAIZ).locator('button:has-text("Editar")'))
@@ -164,9 +189,9 @@ try {
   const opciones = await pagina.locator('[role="option"]').allInnerTexts()
   const limpias = opciones.map((texto) => texto.replace(/ /g, '').trim())
   assert.ok(!limpias.includes(RAIZ), 'El área no debería poder colgarse de sí misma')
-  assert.ok(!limpias.includes(`${HIJA} bis`), 'El área no debería poder colgarse de su propia descendencia')
+  assert.ok(!limpias.includes(HIJA), 'El área no debería poder colgarse de su propia descendencia')
   assert.ok(limpias.includes('Wiwo'), 'Las áreas ajenas a la rama sí tienen que ofrecerse')
-  visto.push(`Colgar un área de su propia descendencia: el selector no ofrece ni «${RAIZ}» ni «${HIJA} bis», y sí el resto del árbol.`)
+  visto.push(`Colgar un área de su propia descendencia: el selector no ofrece ni «${RAIZ}» ni «${HIJA}», y sí el resto del árbol.`)
 
   await pagina.keyboard.press('Escape')
   await pagina.locator('[role="option"]').first().waitFor({ state: 'detached' })
@@ -187,13 +212,13 @@ try {
   await cerrarDialogo(pagina)
 
   // --- Sumar a alguien que no tenía área --------------------------------------
-  await clicar(fila(pagina, `${HIJA} bis`).locator('button:has-text("Gente")'))
+  await clicar(fila(pagina, HIJA).locator('button:has-text("Gente")'))
   const panelSinArea = pagina.locator('aside[aria-label="Personas sin área"]')
   await panelSinArea.waitFor()
 
   await panelSinArea.locator('input[type="search"]').fill('Gina')
   await clicar(panelSinArea.locator('li:has-text("Gina") button:has-text("Sumar")'))
-  await fila(pagina, `${HIJA} bis`).locator('text=1 persona').waitFor()
+  await fila(pagina, HIJA).locator('text=1 persona').waitFor()
   visto.push('Asignar una persona: Gina Ferrer sale de «Sin área» y entra a la hija, que pasa a contar 1 persona.')
 
   // Vaciada la lista, el panel y el aviso desaparecen en vez de quedar diciendo cero.
@@ -202,10 +227,10 @@ try {
   visto.push('Con la lista vacía, el aviso pasa a «Todo el equipo tiene área» y el panel de pendientes desaparece.')
 
   // --- Traer a alguien de otra área -------------------------------------------
-  const panelArea = pagina.locator(`aside[aria-label="Gente de ${HIJA} bis"]`)
+  const panelArea = pagina.locator(`aside[aria-label="Gente de ${HIJA}"]`)
   await panelArea.locator('input[type="search"]').fill('Elena')
   await clicar(panelArea.locator('li:has-text("Elena") button:has-text("Traer")'))
-  await fila(pagina, `${HIJA} bis`).locator('text=2 personas').waitFor()
+  await fila(pagina, HIJA).locator('text=2 personas').waitFor()
   await fila(pagina, 'Analytics').locator('text=1 persona').waitFor()
   visto.push('Traer de otra área: Elena Paz pasa de Analytics a la hija; las dos filas actualizan su cuenta.')
 
@@ -220,8 +245,62 @@ try {
 
   // --- Sacar a alguien --------------------------------------------------------
   await clicar(panelArea.locator('li:has-text("Elena") button:has-text("Sacar")'))
-  await fila(pagina, `${HIJA} bis`).locator('text=1 persona').waitFor()
+  await fila(pagina, HIJA).locator('text=1 persona').waitFor()
   visto.push('Sacar a alguien: Elena vuelve a quedar sin área y la fila baja a 1 persona.')
+
+  // --- Borrar un área con gente: el 409 con las tres cuentas -------------------
+  await clicar(fila(pagina, HIJA).locator('button:has-text("Borrar")'))
+  await pagina.locator('[role="dialog"]').waitFor()
+
+  const anticipado = await pagina.locator('[role="dialog"]').innerText()
+  assert.match(anticipado, /tiene 1 persona asignada/, 'El diálogo no anticipa lo que ya se ve')
+  assert.match(anticipado, /Puede haber además Procesos marcados con este nombre/,
+    'El diálogo no anticipa la cuenta que la pantalla no puede saber')
+  visto.push('El diálogo de borrado anticipa lo que ya se ve («tiene 1 persona asignada») y advierte de los Procesos, que desde la pantalla no se ven.')
+
+  await clicar(pagina.locator('[role="dialog"] button:has-text("Borrar")'))
+  const avisoGente = pagina.locator('[role="dialog"] [role="alert"]').first()
+  await avisoGente.waitFor()
+  const textoGente = (await avisoGente.innerText()).trim()
+  assert.match(textoGente, /está en uso: 1 persona\(s\) asignada\(s\)/, `El 409 no llegó entero: "${textoGente}"`)
+  visto.push(`Borrar un área con gente: «${textoGente}»`)
+
+  await cerrarDialogo(pagina)
+
+  // --- Borrar un área que se ve VACÍA pero está usada por Procesos ------------
+  const pr = fila(pagina, 'PR')
+  await pr.locator('text=0 personas').waitFor()
+  await clicar(pr.locator('button:has-text("Borrar")'))
+  await pagina.locator('[role="dialog"]').waitFor()
+
+  const sinAnticipo = await pagina.locator('[role="dialog"]').innerText()
+  assert.ok(!sinAnticipo.includes('persona asignada'), 'PR no tiene gente: no hay nada que anticipar')
+  await clicar(pagina.locator('[role="dialog"] button:has-text("Borrar")'))
+
+  const avisoPr = pagina.locator('[role="dialog"] [role="alert"]').first()
+  await avisoPr.waitFor()
+  const textoPr = (await avisoPr.innerText()).trim()
+  assert.match(textoPr, /0 persona\(s\) asignada\(s\), 0 área\(s\) que dependen de ella y 24 Proceso\(s\)/,
+    `El 409 por Procesos no llegó entero: "${textoPr}"`)
+  visto.push(`Borrar un área que se ve vacía: «${textoPr}» — la tercera cuenta es la única que la frena.`)
+
+  await cerrarDialogo(pagina)
+
+  // --- Borrar un área vacía de verdad -----------------------------------------
+  await clicar(panelArea.locator('li:has-text("Gina") button:has-text("Sacar")'))
+  await fila(pagina, HIJA).locator('text=0 personas').waitFor()
+
+  const antesDeBorrar = await pagina.locator('li[role="treeitem"]').count()
+  await clicar(fila(pagina, HIJA).locator('button:has-text("Borrar")'))
+  await pagina.locator('[role="dialog"] button:has-text("Borrar")').waitFor()
+  await clicar(pagina.locator('[role="dialog"] button:has-text("Borrar")'))
+  await fila(pagina, HIJA).waitFor({ state: 'detached' })
+
+  const despuesDeBorrar = await pagina.locator('li[role="treeitem"]').count()
+  assert.equal(despuesDeBorrar, antesDeBorrar - 1, 'El árbol tendría que quedar con un área menos')
+  // El DELETE devuelve el árbol entero: la pantalla se repinta con eso, sin pedirlo otra vez.
+  await pagina.locator('text=2 personas sin área').waitFor()
+  visto.push(`Borrar un área vacía: «${HIJA}» desaparece del árbol (${antesDeBorrar} → ${despuesDeBorrar}) y el aviso de «sin área» pasa a 2 con el árbol que devolvió el DELETE.`)
 
   // --- Quien dirige un área: solo su rama -------------------------------------
   const deCarla = await entrar(navegador, 'carla@wiwo.me')
@@ -231,7 +310,15 @@ try {
   const suyas = await deCarla.locator('li[role="treeitem"]').count()
   assert.equal(await deCarla.locator('button:has-text("Nueva área")').count(), 0,
     'Quien no administra no debería ver el botón de crear un área')
-  visto.push(`Quien dirige un área ve solo su rama (${suyas} de las 18) y no se le ofrece «Nueva área».`)
+  assert.equal(await deCarla.locator('li[role="treeitem"] button:has-text("Borrar")').count(), 0,
+    'Borrar es de quien administra: no debería ofrecerse acá')
+  visto.push(`Quien dirige un área ve solo su rama (${suyas === 1 ? '1 área' : `${suyas} áreas`}) y no se le ofrece ni «Nueva área» ni «Borrar».`)
+
+  // La entrada propia en la barra: quien dirige un área no llega a «Administración», así que sin
+  // esto la única puerta al organigrama sería otra pantalla.
+  const enLaBarra = deCarla.locator(`nav a[href="${RUTA}"]`)
+  await enLaBarra.first().waitFor()
+  visto.push('La barra lateral tiene entrada propia «Organigrama» para quien dirige un área, no solo para un superadministrador.')
 
   // --- Quien no dirige nada: el 403 explicado ---------------------------------
   const deElena = await entrar(navegador, 'elena@wiwo.me')
