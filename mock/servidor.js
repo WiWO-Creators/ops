@@ -1784,6 +1784,84 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
       }
     }
 
+    // Catalogos que el portal necesita para pintar estados y ofrecer filtros. Es un subconjunto del
+    // `/lookups` del panel: el cliente no tiene por que recibir roles ni departamentos.
+    if (seccion === 'lookups') {
+      return {
+        estado: 200,
+        cuerpo: conDatos({
+          project_statuses: ESTADOS_ESPACIO,
+          task_statuses: ESTADOS_PROCESO,
+          task_priorities: PRIORIDADES
+        })
+      }
+    }
+
+    // Proyectos del cliente. Solo los de su empresa: el portal jamas lista los de otra, y una
+    // prueba que no lo ejercite no distingue "filtra bien" de "no filtra".
+    if (seccion === 'projects') {
+      if (!contacto.permissions.includes('projects')) {
+        throw new ErrorApi(403, 'forbidden', 'Este contacto no tiene acceso a proyectos.')
+      }
+
+      const mios = ESPACIOS.filter((espacio) => espacio.clientid === contacto.client_id)
+
+      if (resto.length === 1) {
+        const { filas, paginacion } = aplicarConsulta(mios.map(presentarEspacioPortal), parametros, {
+          filtros: { status: 'status' }, orden: ['name', 'deadline', 'progress'], busqueda: ['name']
+        })
+        return { estado: 200, cuerpo: conDatos(filas, { pagination: paginacion }) }
+      }
+
+      const espacio = mios.find((e) => e.id === Number(resto[1]))
+      if (!espacio) throw new ErrorApi(404, 'not_found', 'Proyecto inexistente.')
+
+      if (resto.length === 2) {
+        return {
+          estado: 200,
+          cuerpo: conDatos({
+            ...presentarEspacioPortal(espacio),
+            tabs: ['overview', 'tasks', 'milestones'],
+            members: STAFF.filter((persona) => espacio.miembros.includes(persona.id))
+              .map(({ id, full_name, profile_image_url }) => ({ id, full_name, profile_image_url }))
+          })
+        }
+      }
+
+      const tareasDelEspacio = PROCESOS.filter((p) => p.rel_type === 'project' && p.rel_id === espacio.id)
+
+      if (resto[2] === 'tasks' && resto.length === 3) {
+        const { filas, paginacion } = aplicarConsulta(
+          tareasDelEspacio.map(presentarTareaPortal), parametros,
+          { filtros: { status: 'status' }, orden: ['due_date', 'name'], busqueda: ['name'] }
+        )
+        return { estado: 200, cuerpo: conDatos(filas, { pagination: paginacion }) }
+      }
+
+      if (resto[2] === 'milestones' && resto.length === 3) {
+        const hitos = HITOS.filter((h) => h.project_id === espacio.id).map((hito) => {
+          const suyas = tareasDelEspacio.filter((t) => t.milestone === hito.id)
+
+          return {
+            id: hito.id,
+            name: hito.name,
+            description: hito.description,
+            start_date: hito.start_date,
+            due_date: hito.due_date,
+            project_id: hito.project_id,
+            color: hito.color,
+            order: hito.milestone_order,
+            date_created: hito.datecreated,
+            counts: { tasks: suyas.length, tasks_done: suyas.filter((t) => t.status === 5).length },
+            vencido: hito.due_date !== null && hito.due_date < '2026-09-11'
+          }
+        })
+        return { estado: 200, cuerpo: conDatos(hitos) }
+      }
+
+      throw new ErrorApi(404, 'not_found', `Recurso desconocido: "${resto[2] ?? ''}".`)
+    }
+
     throw new ErrorApi(404, 'not_found', `Recurso desconocido: "${seccion ?? ''}".`)
   }
 
@@ -2490,6 +2568,51 @@ function presentarContacto (contacto) {
  * Mismo criterio que la API real: las que dependen de un permiso salen de `permissions`, y archivos,
  * anuncios, ayuda y perfil los ve cualquier contacto logueado.
  */
+/**
+ * Un Espacio como lo devuelve el portal del cliente.
+ *
+ * La descripcion sale **con marcado**, que es lo que guarda el panel viejo y lo que manda la API
+ * real. Sin eso, el mock nunca reproduce el `<p>` que el cliente terminaba leyendo en pantalla.
+ */
+function presentarEspacioPortal (espacio) {
+  const tareas = PROCESOS.filter((p) => p.rel_type === 'project' && p.rel_id === espacio.id)
+
+  return {
+    id: espacio.id,
+    name: espacio.name,
+    description: `<p>${espacio.description}</p>`,
+    status: espacio.status,
+    start_date: espacio.start_date,
+    deadline: espacio.deadline,
+    date_finished: espacio.date_finished,
+    progress: espacio.progress,
+    counts: {
+      tasks: tareas.length,
+      tasks_open: tareas.filter((t) => t.status !== 5).length,
+      milestones: HITOS.filter((h) => h.project_id === espacio.id).length
+    }
+  }
+}
+
+/** Un Proceso como lo devuelve el portal: sin horas, sin asignados y sin comentarios internos. */
+function presentarTareaPortal (proceso) {
+  return {
+    id: proceso.id,
+    patente: proceso.patente,
+    name: proceso.name,
+    description: proceso.description ?? null,
+    status: proceso.status,
+    priority: proceso.priority,
+    start_date: proceso.start_date ?? null,
+    due_date: proceso.due_date ?? null,
+    date_finished: proceso.date_finished ?? null,
+    milestone: proceso.milestone ?? 0,
+    milestone_order: proceso.milestone_order ?? 0,
+    task_type: proceso.task_type ?? 0,
+    tags: proceso.tags ?? []
+  }
+}
+
 function seccionesDelPortal (contacto) {
   const conPermiso = ['projects', 'invoices', 'estimates', 'proposals', 'contracts', 'support']
     .filter((f) => contacto.permissions.includes(f))
