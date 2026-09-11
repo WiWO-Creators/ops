@@ -51,3 +51,22 @@ test('un bloque de datos dentro de details no se cuela en la frase', () => {
 
   assert.equal(mensaje, 'Ya regeneraste el resumen dos veces hoy.')
 })
+
+test('los motivos del organigrama llegan en castellano y apuntando al campo', () => {
+  // Los dos errores que la pantalla de Organigrama tiene que saber explicar. Sin estas claves, el
+  // formulario decia "area_superior_id ciclo", que no es una frase que nadie pueda accionar.
+  assert.equal(
+    mensajeConDetalles({ message: 'Revisá los campos del área.', details: { name: ['duplicado'] } }),
+    'Revisá los campos del área. Nombre ya está usado por otra.'
+  )
+
+  assert.equal(
+    mensajeConDetalles({ message: 'Revisá los campos del área.', details: { area_superior_id: ['ciclo'] } }),
+    'Revisá los campos del área. Área superior no puede ser un área que ya cuelga de esta.'
+  )
+
+  assert.match(
+    mensajeConDetalles({ message: 'Revisá los campos.', details: { jefe_staffid: ['no_existe'] } }),
+    /Quien dirige no existe\.$/
+  )
+})

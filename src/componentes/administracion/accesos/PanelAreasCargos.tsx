@@ -14,7 +14,7 @@ import {
 } from '@/componentes/formularios/Selector'
 import { CerrarDialogo, ContenidoDialogo, Dialogo } from '@/componentes/superposiciones/Dialogo'
 import { cargarAsignables } from '@/datos/asignables'
-import { areasProhibidasComoSuperior } from '@/datos/jerarquia'
+import { descendenciaDe } from '@/dominio/jerarquia'
 import { motivoParaRechazarNombre } from '@/dominio/accesos'
 import { CabeceraDePanel, DialogoConfirmar, MensajeDeError, SIN_VALOR } from './piezas'
 import type { AreaDeAccesos, CargoDeAccesos, CatalogoDeAccesos } from '@/datos/accesos'
@@ -236,7 +236,7 @@ function DialogoDeArea ({
 
   const otros = areas.filter((otra) => otra.id !== area?.id).map((otra) => otra.nombre)
   const motivo = motivoParaRechazarNombre(nombre, otros)
-  const prohibidas = area === null ? new Set<number>() : areasProhibidasComoSuperior(areas, area.id)
+  const prohibidas = area === null ? new Set<number>() : descendenciaDe(areas, area.id)
   const posiblesSuperiores = areas.filter((otra) => !prohibidas.has(otra.id))
 
   /** Manda el alta o la edición del área. */

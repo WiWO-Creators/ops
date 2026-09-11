@@ -38,9 +38,10 @@ export default async function EquipoPage (props: PageProps<'/equipo'>) {
         titulo={EQUIPO.titulo.plural}
         acciones={
           <div className="flex items-center gap-3">
-            {/* La entrada a Jerarquías vive acá y no en la barra lateral: agregarla al menú toca
-                `(panel)/layout.tsx`, que es de otro frente. Quien no dirige nada recibe 403 de la
-                API al entrar, así que el enlace no revela nada que la pantalla no cuide. */}
+            {/* Atajo desde el listado del equipo. La entrada de la barra lateral existe además,
+                para quien administra o dirige un área; este enlace es para quien llega mirando al
+                equipo y quiere acomodarlo. Quien no dirige nada recibe 403 de la API al entrar, así
+                que el enlace no revela nada que la pantalla no cuide. */}
             <Link
               href="/equipo/jerarquia"
               className="text-acento text-sm font-semibold hover:underline"

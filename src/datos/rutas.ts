@@ -113,7 +113,11 @@ const PREFIJOS_PERMITIDOS = [
   // Raiz propia porque asi lo expone la API, y por el mismo motivo que `/me/mi-area` no cuelga de
   // `/staff`: dirigir un area no otorga `staff.view`, y un jefe sin ese permiso tiene que poder
   // ordenar a su gente igual. Quien manda sobre que area lo decide la API, no esta lista.
-  'jerarquia',
+  //
+  // Un solo prefijo cubre las cuatro rutas, porque la lista es por PREFIJO: la lectura entera, el
+  // alta y la edicion de un area, el borrado, y el movimiento de una persona
+  // (`/jerarquia/personas/{id}`) — que tambien cuelga de aca y no de `staff`.
+    'jerarquia',
   // El panel de accesos (`/accesos`): el catalogo, los escalones, los roles, las personas, las areas,
   // los cargos y los interruptores del modelo de permisos. Raiz propia porque asi lo expone la API.
   // Sin esta entrada el BFF contesta 404 a TODAS las escrituras de la pantalla y solo se ve el
@@ -121,6 +125,7 @@ const PREFIJOS_PERMITIDOS = [
   // BFF solo decide si la ruta existe, no quien puede pisarla. El portal no la lleva ni la puede
   // llevar: un contacto no reparte permisos.
   'accesos'
+
 ] as const
 
 /**
