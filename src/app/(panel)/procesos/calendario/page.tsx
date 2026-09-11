@@ -1,6 +1,6 @@
 import { Segmentado } from '@/componentes/formularios/Segmentado'
 import { construirConsulta, consultaDelCalendario, leerConsulta, paramsDeUrl } from '@/datos/consulta'
-import { cargarLookups, opcionesDeFiltros } from '@/datos/lookups'
+import { cargarLookups, opcionesDeFiltroDeEspacio, opcionesDeFiltros } from '@/datos/lookups'
 import { filtrosDeCamposPersonalizados } from '@/definiciones/filtros'
 import { opcionesDeCliente } from '../opciones-de-cliente'
 import { opcionesDeHito } from '../opciones-de-hito'
@@ -105,7 +105,7 @@ export default async function CalendarioProcesosPage (props: PageProps<'/proceso
         errorTareas={tareas.error}
         errorAvisos={avisos.error}
         camposPersonalizados={campos.data}
-        opcionesDeFiltro={{ ...opcionesDeFiltros(definicion, lookups), clients: clientes, projects: (espacios.datos ?? []).map((espacio) => ({ valor: String(espacio.id), etiqueta: espacio.name })), milestones: hitos }}
+        opcionesDeFiltro={{ ...opcionesDeFiltros(definicion, lookups), clients: clientes, projects: opcionesDeFiltroDeEspacio(espacios.datos ?? []), milestones: hitos }}
         truncado={delPeriodo.length >= TOPE_POR_VISTA}
         capacidades={yo.data.permissions.tasks}
       />

@@ -695,6 +695,19 @@ Espacios (`rel_type = "project"`). Acepta además un valor sintético, `filter[c
 las tareas **sueltas de quien pide** —sin cliente y asignadas a uno—. "Suelta" es todo `rel_type` que
 no resuelva a un cliente: `NULL` y también `lead`. Vale igual en la lista y en el tablero.
 
+**`filter[project_id]=ninguno`: los Procesos que no cuelgan de ningún Espacio.** Segundo valor
+sintético, montado sobre el filtro que ya existe por el mismo motivo que `clientid=personales`: en la
+pantalla el selector de Espacio es **un** control, y "Espacio X" y "Sin proyecto" son opciones
+excluyentes de la misma pregunta. "Sin Espacio" es la negación exacta de la expresión que resuelve
+`filter[project_id]=8`, así que cubre de una vez las formas en que la base escribe lo mismo:
+`rel_type` `NULL`, vacío o de otra entidad (`customer`, `lead`), y también el `rel_id` nulo o `0` de
+una fila que dice `project` y no apunta a ninguno. Vale igual en la lista y en `?vista=tablero`.
+
+Pedirlo **junto a un Espacio concreto** es `422 {"project_id":["exclusive"]}`, no una lista vacía:
+tanto `filter[project_id]=ninguno,8` como un `filter[project_id__eq]=8` al lado. "Sin Espacio y del
+Espacio 8" es una condición imposible, y sus cero filas no se distinguen de un filtro que simplemente
+no encontró nada. En `GET /projects/{id}/tasks` no aplica: ese endpoint fija el Espacio él mismo.
+
 **Tres van sueltos, no dentro de `filter[]`**: `assignee`, `follower` y `tag`. Se escriben
 `?assignee=12`, y `filter[assignee]=12` responde `422` porque no están en la whitelist de filtros
 (`RecursoProcesos::idDeFiltro()` los lee de los parámetros de primer nivel). La distinción no es

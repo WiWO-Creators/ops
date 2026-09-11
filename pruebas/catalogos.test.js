@@ -8,7 +8,9 @@
 
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { claveDeCatalogo, columnasDelTablero, listaDe, nombreDe, opcionesDeFiltros } from '../src/datos/catalogos.ts'
+import { claveDeCatalogo, columnasDelTablero, listaDe, nombreDe, opcionesDeFiltroDeEspacio, opcionesDeFiltros, SIN_ESPACIO } from '../src/datos/catalogos.ts'
+import { construirConsulta, leerConsulta } from '../src/datos/consulta.ts'
+import { PROCESOS } from '../src/definiciones/procesos.ts'
 
 const LOOKUPS = {
   task_statuses: [
@@ -95,4 +97,29 @@ test('un filtro por nombre viaja con el nombre, sin repetir y sin pisar al que v
   assert.deepEqual(mapa.staff, [{ valor: '3', etiqueta: 'Ana Díaz' }, { valor: '7', etiqueta: 'Luis Soto' }])
   assert.deepEqual(mapa['staff:nombre'], [{ valor: 'Ana Díaz', etiqueta: 'Ana Díaz' }, { valor: 'Luis Soto', etiqueta: 'Luis Soto' }])
   assert.deepEqual(mapa['task_types:nombre'], [{ valor: 'Bug', etiqueta: 'Bug' }, { valor: 'Feature', etiqueta: 'Feature' }])
+})
+
+test('"Sin proyecto" encabeza el catalogo de Espacios y no pisa a ninguno', () => {
+  const opciones = opcionesDeFiltroDeEspacio([{ id: 8, name: 'Anker' }, { id: 12, name: 'Fila' }])
+
+  assert.deepEqual(opciones[0], { valor: SIN_ESPACIO, etiqueta: 'Sin proyecto' })
+  assert.deepEqual(opciones.slice(1), [{ valor: '8', etiqueta: 'Anker' }, { valor: '12', etiqueta: 'Fila' }])
+  // El valor sintetico no puede coincidir con el id de un Espacio, o elegir uno pediria el otro.
+  assert.equal(opciones.filter((o) => o.valor === SIN_ESPACIO).length, 1)
+})
+
+test('sin Espacios visibles la opcion sigue estando: es la unica que no depende del catalogo', () => {
+  assert.deepEqual(opcionesDeFiltroDeEspacio([]), [{ valor: SIN_ESPACIO, etiqueta: 'Sin proyecto' }])
+})
+
+test('elegir "Sin proyecto" viaja a la API y sobrevive a la URL', () => {
+  const estado = { pagina: 1, porPagina: 25, filtros: { project_id: [SIN_ESPACIO] }, orden: [], busqueda: '', includes: [] }
+  const query = construirConsulta(estado, PROCESOS)
+
+  // Tal cual lo espera el backend: el valor sintetico de `RecursoProcesos`, sin traducir.
+  assert.equal(query, 'filter%5Bproject_id%5D=ninguno')
+
+  // Y vuelve del query string igual, que es lo que hace que recargar o compartir el enlace no pierda
+  // el filtro.
+  assert.deepEqual(leerConsulta(new URLSearchParams(query), PROCESOS).filtros.project_id, [SIN_ESPACIO])
 })
