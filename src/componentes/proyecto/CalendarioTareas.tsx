@@ -10,7 +10,7 @@ import { esDiaValido, leerVista, rangoDeVista, TOPE_POR_VISTA } from '@/dominio/
 import { hoyLocal } from '@/lib/fechas'
 import type { Proceso, ProcesoAmpliado } from '@/datos/recursos'
 import type { Capacidad } from '@/datos/tipos'
-import type { DefinicionRecurso, OpcionFiltro } from '@/definiciones/tipos'
+import type { DefinicionRecurso } from '@/definiciones/tipos'
 
 /**
  * Calendario de la pestaña Tareas de un Espacio: la tercera lectura, junto a la tabla y el tablero.
@@ -115,7 +115,6 @@ export function CalendarioTareas ({ definicion, capacidades, opcionesDeFiltro }:
       errorTareas={errorTareas}
       truncado={tareas.length >= TOPE_POR_VISTA}
       claveVista={CLAVE_MODO}
-      opcionesDeFiltro={opcionesDeFiltro}
       // El detalle lo dibuja `PanelTareas` una sola vez para las tres presentaciones.
       conModal={false}
       capacidades={capacidades}
