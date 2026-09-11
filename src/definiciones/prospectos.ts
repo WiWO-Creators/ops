@@ -60,14 +60,18 @@ export function nombreDelContacto (contacto: PersonaDeContacto | null): string {
 
 export const PROSPECTOS: DefinicionRecurso<Prospecto> = {
   ruta: 'prospectos',
-  titulo: GLOSARIO.prospecto,
+  // `licitacion` y no `prospecto`: el titulo del recurso es lo que la tabla usa para el placeholder
+  // del buscador y para el estado vacio, y la seccion se llama Licitaciones desde que el menu dejo de
+  // ofrecer las dos. Decir "Buscar prospectos…" bajo un titulo que dice Licitaciones obliga a quien
+  // mira a deducir que son lo mismo. La entidad sigue siendo un Prospecto puertas adentro.
+  titulo: GLOSARIO.licitacion,
 
   columnas: [
     { clave: 'empresa', encabezado: 'Empresa', ordenPor: 'empresa', presentar: (p) => p.empresa },
     // Sin `comoInsignia`: ese camino busca el valor en un catalogo de `/lookups` y estos estados no
     // viven ahi, asi que la columna quedaria en blanco.
-    { clave: 'estado', encabezado: 'Estado', presentar: (p) => etiquetaDeEstadoDeProspecto(p.estado) },
-    { clave: 'licitaciones_total', encabezado: 'Licitaciones', numerica: true, presentar: (p) => p.licitaciones_total },
+    { clave: 'estado', encabezado: 'Estado', angosta: true, presentar: (p) => etiquetaDeEstadoDeProspecto(p.estado) },
+    { clave: 'licitaciones_total', encabezado: 'Total', numerica: true, presentar: (p) => p.licitaciones_total },
     { clave: 'licitaciones_abiertas', encabezado: 'Abiertas', numerica: true, presentar: (p) => p.licitaciones_abiertas },
     { clave: 'licitaciones_ganadas', encabezado: 'Ganadas', numerica: true, presentar: (p) => p.licitaciones_ganadas },
     { clave: 'client', encabezado: 'Cliente', presentar: (p) => p.client?.company ?? '' },

@@ -24,8 +24,19 @@ export interface Columna<T> {
    * No tiene por que ser igual a `clave`: la columna "Vence" ordena por `due_date`.
    */
   ordenPor?: string
-  /** Alinea a la derecha y usa cifras tabulares. Para importes y cantidades. */
+  /** Alinea a la derecha y usa cifras tabulares. Para importes y cantidades. Implica `angosta`. */
   numerica?: boolean
+  /**
+   * La columna se encoge a su contenido en vez de repartirse el ancho sobrante de la tabla.
+   *
+   * Una tabla de layout automatico reparte el sobrante entre todas las columnas por igual, asi que
+   * una de valores cortos —un estado, un si/no— termina tan ancha como una de nombres y deja su
+   * insignia flotando lejos de la fila que califica. Marcarla angosta le devuelve ese ancho a las
+   * columnas de texto, que es donde hace falta.
+   *
+   * `numerica` ya lo implica: un contador nunca quiere ancho de sobra.
+   */
+  angosta?: boolean
   /**
    * Pinta el valor como insignia, resolviendo su nombre y su color contra un catalogo de `/lookups`.
    *
