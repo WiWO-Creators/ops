@@ -47,5 +47,11 @@ test('el 409 al abrir sigue diciendo que ya hay una, y no habla de Tareas', () =
 })
 
 test('al cerrar no aparecen los textos del destino: ahi no se elige nada', () => {
-  assert.match(mensajeDeFalloDeJornada(422, false), /cerrar la jornada/)
+  // Se comprueba la intencion y no el texto: el 422 al cerrar tiene mensaje propio desde que la
+  // caja de comentarios existe, y comparar contra la frase generica ataba la prueba a una
+  // redaccion. Lo que importa es que al cerrar nunca se hable de elegir Proyecto ni Tarea.
+  const mensaje = mensajeDeFalloDeJornada(422, false)
+
+  assert.doesNotMatch(mensaje, /Tarea/)
+  assert.doesNotMatch(mensaje, /Proyecto/)
 })
