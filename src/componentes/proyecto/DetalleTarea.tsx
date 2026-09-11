@@ -231,6 +231,10 @@ export function DetalleTarea (
           )}
         </header>
 
+        {/* Arriba del todo y no al final: el cronometro es lo que se viene a hacer al abrir una
+            tarea, y enterrado bajo descripcion, checklist y archivos obligaba a bajar cada vez. */}
+        <Cronometros procesoId={procesoId} />
+
         {/* Montado solo mientras se edita: asi el formulario arranca siempre en los valores que se
             acaban de traer, y cerrar descarta lo que no se guardo. */}
         {puedeEditar && editando && (
@@ -293,8 +297,6 @@ export function DetalleTarea (
           <ArbolDrive raiz="tasks" id={procesoId} />
           <PanelAdjuntos raiz="tasks" id={procesoId} />
         </section>
-
-        <Cronometros procesoId={procesoId} />
 
         <EnlacePanelClasico entidad="proceso" id={procesoId} className="self-start" />
     </div>
