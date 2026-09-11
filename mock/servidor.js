@@ -1821,7 +1821,7 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
           estado: 200,
           cuerpo: conDatos({
             ...presentarEspacioPortal(espacio),
-            tabs: ['overview', 'tasks', 'milestones'],
+            tabs: ['overview', 'tasks', 'milestones', 'files', 'activity'],
             members: STAFF.filter((persona) => espacio.miembros.includes(persona.id))
               .map(({ id, full_name, profile_image_url }) => ({ id, full_name, profile_image_url }))
           })
@@ -1857,6 +1857,61 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
           }
         })
         return { estado: 200, cuerpo: conDatos(hitos) }
+      }
+
+      if (resto[2] === 'files' && resto.length === 3) {
+        // Uno externo a proposito: es el caso que el portal no sabia distinguir antes de compartir
+        // `origenDeArchivo`, y sin una fila asi ninguna prueba lo nota.
+        return {
+          estado: 200,
+          cuerpo: conDatos([
+            {
+              id: 900 + espacio.id,
+              file_name: `acta_${espacio.id}_5f3a.pdf`,
+              original_file_name: 'acta.pdf',
+              subject: 'Acta de la reunión inicial',
+              filetype: 'application/pdf',
+              date_added: '2026-08-02T11:00:00Z',
+              url: `/api/v1/files/${900 + espacio.id}/download`,
+              thumbnail_url: null
+            },
+            {
+              id: 950 + espacio.id,
+              file_name: 'plano.dwg',
+              original_file_name: null,
+              subject: null,
+              filetype: 'application/acad',
+              date_added: '2026-08-05T09:30:00Z',
+              url: 'https://drive.ejemplo.cl/plano',
+              thumbnail_url: null,
+              external: 'gdrive'
+            }
+          ])
+        }
+      }
+
+      if (resto[2] === 'activity' && resto.length === 3) {
+        return {
+          estado: 200,
+          cuerpo: conDatos([
+            {
+              id: 1,
+              description: 'creó el proyecto',
+              additional_data: null,
+              date_added: '2026-08-02T11:00:00Z',
+              staff: { id: 1, full_name: STAFF[0].full_name },
+              contact: null
+            },
+            {
+              id: 2,
+              description: 'aprobó una tarea',
+              additional_data: 'Con comentario del cliente.',
+              date_added: '2026-08-05T16:20:00Z',
+              staff: null,
+              contact: { id: 1, full_name: 'Renata Ferreyra' }
+            }
+          ])
+        }
       }
 
       throw new ErrorApi(404, 'not_found', `Recurso desconocido: "${resto[2] ?? ''}".`)
