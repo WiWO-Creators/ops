@@ -134,11 +134,18 @@ function vuelveASiMisma (id: number, padreDe: Map<number, number | undefined>): 
  * Espeja `Escritura\Jerarquia::exigirSinCiclo()`, que es la que manda: esto sólo evita ofrecer en el
  * selector una opción que la API va a rechazar con un 422.
  *
+ * Pide lo mínimo que necesita —el id y el superior— y no el `AreaDelArbol` entero: el panel de
+ * accesos administra las mismas áreas con otra forma (`AreaDeAccesos`), y la regla del ciclo es una
+ * sola. Con el tipo ancho las dos pantallas la comparten en vez de tener cada una su copia.
+ *
  * @param areas las áreas planas
  * @param id el área que se está editando
  * @returns los ids que hay que esconder del selector de área superior
  */
-export function areasProhibidasComoSuperior (areas: AreaDelArbol[], id: number): Set<number> {
+export function areasProhibidasComoSuperior (
+  areas: Array<Pick<AreaDelArbol, 'id' | 'area_superior_id'>>,
+  id: number
+): Set<number> {
   const prohibidas = new Set<number>([id])
 
   // Por niveles, como el recorrido de la API. Se corta cuando una pasada no agrega nada, así que un
