@@ -23,6 +23,7 @@
  *
  * Filtrar filas es trabajo de la API: esto solo decide que se dibuja. Esconder no autoriza.
  */
+import { GLOSARIO } from './glosario.ts'
 import type { AreaPermiso, Yo } from '@/datos/tipos'
 
 /**
@@ -46,8 +47,8 @@ export function puedeVerSeccion (capacidades: readonly string[], area: AreaPermi
  * Cliente. Quien no es focal de nadie no la ve, sea quien sea —direccion y superadministracion
  * incluidas—, porque no es una pantalla de supervision sino la cartera propia, y a quien no tiene
  * cartera le mostraba una lista vacia. Antes se decidia por el escalon ("de focal hacia arriba"),
- * que era una aproximacion equivocada en las dos direcciones: hay focales de tres cuentas con nivel
- * `usuario` —que se quedaban sin su propia pantalla— y jefaturas sin ninguna cuenta a cargo que si
+ * que era una aproximacion equivocada en las dos direcciones: hay focales de tres cuentas de escalon
+ * `staff` —que se quedaban sin su propia pantalla— y jefaturas sin ninguna cuenta a cargo que si
  * la veian.
  *
  * **Esconderla no autoriza nada**: la compuerta sigue siendo la API, que responde 403 a quien no
@@ -85,4 +86,40 @@ export function puedeVerFocals (yo: Pick<Yo, 'es_focal'>): boolean {
  */
 export function puedeVerMiArea (yo: Pick<Yo, 'area_id' | 'area_ids'>): boolean {
   return yo.area_id !== null || (yo.area_ids ?? []).length > 0
+}
+
+/**
+ * Nombre en español de cada área de permisos.
+ *
+ * Son cinco y no doce: con el modelo de dos ejes la matriz por persona desapareció y `permissions`
+ * pasó a ser constante, así que las áreas de Perfex que este producto nunca usó —facturas, tickets,
+ * propuestas— dejaron de llegar. Lo que no esté acá cae a su clave en vez de esconderse: un permiso
+ * que desaparece de la vista sin desaparecer de la base es la clase de mentira que este modelo vino a
+ * sacar.
+ */
+const NOMBRE_DE_AREA: Record<string, string> = {
+  tasks: GLOSARIO.proceso.plural,
+  projects: GLOSARIO.espacio.plural,
+  customers: GLOSARIO.cliente.plural,
+  staff: 'Equipo',
+  leads: 'Prospectos'
+}
+
+/** Nombre en español de cada capacidad. Misma regla que `NOMBRE_DE_AREA` con las que no están. */
+const NOMBRE_DE_CAPACIDAD: Record<string, string> = {
+  view: 'ver',
+  create: 'crear',
+  edit: 'editar',
+  delete: 'borrar',
+  edit_milestones: 'editar hitos'
+}
+
+/** Nombre legible de un área de permisos. Cae a la clave cuando no la conoce. */
+export function etiquetaDeArea (area: string): string {
+  return NOMBRE_DE_AREA[area] ?? area
+}
+
+/** Nombre legible de una capacidad. Cae a la clave cuando no la conoce. */
+export function etiquetaDeCapacidad (capacidad: string): string {
+  return NOMBRE_DE_CAPACIDAD[capacidad] ?? capacidad
 }

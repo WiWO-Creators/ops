@@ -15,16 +15,15 @@ interface PropsPanelInterruptores {
 }
 
 /**
- * Los interruptores que deciden qué modelo de permisos rige.
+ * El interruptor de emergencia de la jerarquía.
  *
- * No son ajustes de comodidad: cada uno cambia, de golpe y para todo el mundo, de dónde sale el
- * acceso. Apagar las reglas por escalón deja a cada persona solo con sus casillas de Perfex; apagar
- * el alcance devuelve la lectura global a quien la tenía. Por eso **cada cambio pasa por una
- * confirmación** que dice qué se lleva por delante antes de tocarlo, y no hay guardado en lote: un
- * botón "Guardar" al pie invitaría a mover dos y confirmar una sola vez.
+ * Es uno solo —`wiwo_permisos_jerarquia`— y no es un ajuste de comodidad: apagarlo deja a cada
+ * persona con lo suyo y nada más, porque la descendencia en el árbol deja de otorgar. Administración
+ * y superadministración siguen viendo todo. Es la marcha atrás sin deploy, y por eso **el cambio pasa
+ * por una confirmación** que dice qué se lleva por delante antes de tocarlo.
  *
- * La lista sale del catálogo de la API, que es también la lista blanca del `PUT`: un interruptor
- * nuevo del backend aparece acá solo, y uno que no esté en esa lista devuelve 422.
+ * La lista sale del catálogo de la API, que es también la lista blanca del `PUT`: cualquier clave que
+ * no esté en ella devuelve 422.
  */
 export function PanelInterruptores ({ catalogo, recargar }: PropsPanelInterruptores) {
   const [confirmando, setConfirmando] = useState<InterruptorDeAccesos | null>(null)
@@ -61,14 +60,14 @@ export function PanelInterruptores ({ catalogo, recargar }: PropsPanelInterrupto
     <div className="flex flex-col gap-4">
       <CabeceraDePanel
         titulo="Interruptores"
-        descripcion="De dónde sale el acceso. Cada uno cambia lo que ve el equipo entero en el momento en que se toca, así que se confirman de a uno."
+        descripcion="La marcha atrás de la jerarquía. Cambia lo que ve el equipo entero en el momento en que se toca, así que se confirma antes de guardarse."
       />
 
       {catalogo.interruptores.length === 0
         ? (
           <Vacio
             titulo="No hay interruptores"
-            descripcion="Esta instalación no publica ninguno. El modelo de permisos es el que esté sembrado en la base y no se puede cambiar desde acá."
+            descripcion="Esta instalación no publica ninguno. La jerarquía queda como esté sembrada en la base y no se puede apagar desde acá."
           />
           )
         : (

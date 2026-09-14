@@ -9,7 +9,7 @@ import type { Lookups } from '@/datos/recursos'
 import { pedir } from '@/datos/servidor'
 import { opcionesDeEstados } from '@/dominio/estados-tarea'
 import type { Sobre, Yo } from '@/datos/tipos'
-import { alcanceDeLive, esJefatura } from '@/dominio/live'
+import { alcanceDeLive, recibeElResumenDelEquipo } from '@/dominio/live'
 
 export const metadata = { title: 'En vivo · WiWO Ops' }
 
@@ -76,7 +76,7 @@ export default async function LivePage () {
       <TituloModulo
         titulo="En vivo"
         descripcion="Tu jornada y el tiempo que estás midiendo ahora. La jornada es la ventana en la que se puede medir: sin ella abierta, ningún cronómetro arranca."
-        acciones={esJefatura(yo.nivel)
+        acciones={recibeElResumenDelEquipo(yo)
           ? (
             <Link
               href="/live/resumen"

@@ -1,7 +1,7 @@
 import type { DefinicionRecurso } from './tipos.ts'
 import type { MiembroEquipo } from '../datos/recursos.ts'
 import { formatearFecha } from '../lib/fechas.ts'
-import { nombreDeNivel } from '../componentes/equipo/nivel.ts'
+import { nombreDeRolDeSistema } from '../dominio/rol-sistema.ts'
 
 /**
  * Definicion del recurso Equipo.
@@ -45,9 +45,9 @@ export const EQUIPO: DefinicionRecurso<MiembroEquipo> = {
     // significa nada, y leerlo en dos columnas obliga a cruzarlas mentalmente en cada fila.
     {
       clave: 'is_admin',
-      encabezado: 'Nivel',
+      encabezado: 'Rol de sistema',
       ocultaPorDefecto: true,
-      presentar: (m) => nombreDeNivel(m)
+      presentar: (m) => nombreDeRolDeSistema(m)
     },
     { clave: 'phonenumber', encabezado: 'Teléfono', ocultaPorDefecto: true, presentar: (m) => m.phonenumber ?? '' },
     {

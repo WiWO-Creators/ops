@@ -124,6 +124,24 @@ export const AREAS = [
  */
 const AREA_POR_INDICE = [1, 2, 3, 4, 3, 4, null, 4]
 
+/**
+ * El escalon jerarquico de cada persona, por indice de `NOMBRES`.
+ *
+ * Nombra el puesto y nada mas: el alcance real sale del arbol (`JEFE_POR_INDICE` y la jefatura de
+ * area). Estan los cuatro representados porque la pantalla de accesos los filtra de a uno y un
+ * escalon sin nadie no distingue "no hay" de "no filtra".
+ */
+const ESCALON_POR_INDICE = ['gerencia', 'director', 'director', 'lead', 'lead', 'staff', 'staff', 'staff']
+
+/**
+ * El jefe directo de cada persona (`jefe_staffid`), por indice de `NOMBRES`.
+ *
+ * Un arbol chico y coherente: Ana arriba sin jefe, Bruno y Carla colgando de ella, dos leads debajo
+ * y el resto de staff al pie. Hugo, que esta dado de baja, sigue colgado: el arbol tiene que poder
+ * mostrar ramas con gente inactiva.
+ */
+const JEFE_POR_INDICE = [null, 1, 1, 2, 3, 4, 4, 5]
+
 const NOMBRES = [
   ['Ana', 'Ríos'], ['Bruno', 'Cabral'], ['Carla', 'Méndez'], ['Diego', 'Sosa'],
   ['Elena', 'Paz'], ['Facundo', 'Lugo'], ['Gina', 'Ferrer'], ['Hugo', 'Márquez']
@@ -162,10 +180,10 @@ export const STAFF = NOMBRES.map(([firstname, lastname], i) => ({
   // pantallas de Administracion. Solo la primera cuenta lo tiene, para que el mock ejercite tambien
   // el caso del admin que NO puede entrar ahi.
   is_superadmin: i === 0,
-  // Que catalogo de permisos le toca (`Acceso\Permisos::usaModeloNuevo()` del backend). La tercera
-  // cuenta esta en el modelo consolidado y el resto en el viejo, para que el mock sirva los dos:
-  // sin una de cada, la ficha con cuatro areas y la de doce no se pueden comparar sin base.
-  modelo_permisos: i === 2 ? 'nuevo' : 'viejo',
+  // Los dos ejes del arbol de personas: donde esta parada y de quien cuelga. No otorgan capacidades
+  // —eso lo decide `is_admin`/`is_superadmin`—, pero son lo que la pantalla de accesos edita.
+  escalon: ESCALON_POR_INDICE[i] ?? 'staff',
+  jefe_staffid: JEFE_POR_INDICE[i] ?? null,
   // Empresa de cada uno, repartidas, y la ultima sin ninguna: `null` es el estado de las cuentas
   // que no son del grupo, y la ficha tiene que saber decir "Sin empresa".
   empresa_id: i === NOMBRES.length - 1 ? null : ciclo(EMPRESAS_DEL_GRUPO, i).id,

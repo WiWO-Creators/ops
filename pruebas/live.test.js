@@ -25,7 +25,7 @@ import {
   claveDeJornadaPospuesta,
   claveDeRecordatorioDeDestino,
   clienteDeJornada,
-  esJefatura,
+  recibeElResumenDelEquipo,
   fijarRecordatorioDeDestino,
   filtrarPorNombre,
   fraseDeJornadaSinDestino,
@@ -301,15 +301,25 @@ test('repartirTablero cuenta como activo el medidor sin jornada', () => {
  *
  * Esconder no autoriza —la compuerta es el 403 de la API— pero un enlace que lleva a una pantalla
  * sin permiso tampoco informa: la mitad de la empresa lo vería y ninguna lo podría usar.
+ *
+ * Son dos llaves y no una porque los ejes son independientes: un administrador ve todas las filas sin
+ * conducir a nadie, y una gerencia conduce sin ser administradora.
  */
-test('esJefatura deja fuera a lider, focal y usuario', () => {
-  for (const nivel of ['head', 'gerente', 'admin', 'superadmin']) {
-    assert.equal(esJefatura(nivel), true, `${nivel} tendría que ver el resumen`)
+test('el resumen del equipo se ofrece a la conducción y a la administración', () => {
+  const nadie = { is_admin: false, is_superadmin: false, escalon: 'staff' }
+
+  assert.equal(recibeElResumenDelEquipo(nadie), false, 'staff sin banderas no conduce a nadie')
+
+  for (const escalon of ['lead', 'director', 'gerencia']) {
+    assert.equal(
+      recibeElResumenDelEquipo({ ...nadie, escalon }),
+      true,
+      `${escalon} tendría que ver el resumen`
+    )
   }
 
-  for (const nivel of ['usuario', 'focal', 'lider']) {
-    assert.equal(esJefatura(nivel), false, `${nivel} no tendría que ver el resumen`)
-  }
+  assert.equal(recibeElResumenDelEquipo({ ...nadie, is_admin: true }), true, 'el administrador ve todo')
+  assert.equal(recibeElResumenDelEquipo({ ...nadie, is_superadmin: true }), true, 'y el superadministrador también')
 })
 
 /**

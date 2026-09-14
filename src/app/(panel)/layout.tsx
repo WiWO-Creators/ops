@@ -197,9 +197,9 @@ function seccionesDe (yo: Yo): Seccion[] {
 
   // Focals se muestra SOLO a quien es focal de al menos un Cliente, sin excepciones hacia arriba: no
   // es una pantalla de supervision sino la cartera propia, y a quien no tiene cartera le quedaba una
-  // lista vacia. La llave es `yo.es_focal` y **no** `yo.nivel`: el escalon y el hecho de responder
+  // lista vacia. La llave es `yo.es_focal` y **no** `yo.escalon`: el escalon y el hecho de responder
   // por una cuenta son dos cosas distintas, y decidir por el escalon se equivocaba en las dos
-  // direcciones —focales con nivel `usuario` sin su propia pantalla, jefaturas sin cuentas a cargo
+  // direcciones —focales de escalon `staff` sin su propia pantalla, jefaturas sin cuentas a cargo
   // que si la veian—. Sigue siendo COSMETICA: la autorizacion del servidor no se toca y esconder no
   // autoriza; el dato sale de la misma API que responde el 403. Ver `puedeVerFocals` para el caso de
   // una API vieja que todavia no manda el campo.

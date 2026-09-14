@@ -3,161 +3,100 @@
  *
  * Lo que se protege son cuatro cosas que, si se rompen, reparten permisos mal y en silencio:
  *
- *   1. Que **dos escalones no puedan compartir el orden**. El orden ES la herencia del piso: con dos
- *      en la misma posición, "lo que está debajo" deja de estar definido y el piso que la API suma
- *      depende del orden en que devuelva las filas.
- *   2. Que un escalón de **sistema** solo mande el nombre. La API rechaza el resto con 422, así que
- *      mandar el cuerpo entero convertiría un renombre legítimo en un error.
- *   3. Que una feature sin capacidades **desaparezca del piso** en vez de quedar como lista vacía:
- *      es la forma que devuelve la API, y un `{tasks: []}` de más haría ver cambios donde no hay.
- *   4. Que los filtros vacíos **no viajen** en la consulta de personas. Mandar `escalon=` obligaría a
+ *   1. Que los filtros vacíos **no viajen** en la consulta de personas. Mandar `escalon=` obligaría a
  *      la API a decidir si eso es "sin escalón" o "cualquiera".
+ *   2. Que el árbol **no se trague a nadie**: quien cuelga de un jefe que no está en la lista tiene
+ *      que subir a la raíz, no desaparecer. Un árbol que esconde gente es el problema que esta
+ *      pantalla vino a resolver.
+ *   3. Que un árbol con un **ciclo** no cuelgue la pantalla ni pierda filas. Los datos pueden traerlo
+ *      —la base no siempre lo impidió— y el recorrido tiene que terminar igual.
+ *   4. Que el buscador de jefe **no ofrezca un ciclo**: la persona y toda su descendencia quedan
+ *      fuera, porque la API las rechaza con 422 y descubrirlo al guardar no explica nada.
  */
 
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
-  borradorDeEscalon,
-  capacidadesDelPiso,
+  arbolDePersonas,
   consultaDePersonas,
-  cuerpoDeEscalon,
-  escalonesAsignables,
+  descendenciaDe,
   estaEncendido,
-  motivoParaRechazarEscalon,
-  motivoParaRechazarNombre,
-  nombreDeEscalon,
-  pisoConCapacidad
+  jefesPosiblesPara,
+  motivoParaRechazarNombre
 } from '../src/dominio/accesos.ts'
 
-/** Un escalón con lo mínimo, para no repetir el objeto entero en cada prueba. */
-function escalon (clave, orden, extra = {}) {
-  return {
-    clave,
-    nombre: clave,
-    orden,
-    piso: {},
-    alcance: 'propio',
-    jefatura: false,
-    asignable: true,
-    sistema: false,
-    personas: 0,
-    ...extra
-  }
+/** Un nodo del árbol con lo mínimo, para no repetir el objeto entero en cada prueba. */
+function nodo (staffid, nombre, jefe = null, escalon = 'staff') {
+  return { staffid, nombre, escalon, jefe_staffid: jefe }
 }
 
-const CATALOGO = [
-  escalon('usuario', 1, { nombre: 'Usuario', sistema: true }),
-  escalon('lider', 2, { nombre: 'Líder' }),
-  escalon('head', 3, { nombre: 'Head', asignable: false })
-]
-
-test('el orden repetido se rechaza y nombra a quien lo ocupa', () => {
-  const borrador = { ...borradorDeEscalon(), clave: 'gerente', nombre: 'Gerencia', orden: '2' }
-  const motivo = motivoParaRechazarEscalon(borrador, CATALOGO, null)
-
-  assert.match(motivo ?? '', /Líder/)
+test('los filtros vacíos no viajan en la consulta de personas', () => {
+  assert.equal(consultaDePersonas({ buscar: '', escalon: '', area: '' }, 1), '')
+  assert.equal(consultaDePersonas({ buscar: '  ', escalon: '', area: '' }, 1), '')
 })
 
-test('el mismo orden en el escalón que se edita no es un choque consigo mismo', () => {
-  const borrador = { ...borradorDeEscalon(CATALOGO[1]), nombre: 'Líder de equipo' }
-
-  assert.equal(motivoParaRechazarEscalon(borrador, CATALOGO, 'lider'), null)
-})
-
-test('la clave se valida con el formato de la API y solo al crear', () => {
-  const malo = { ...borradorDeEscalon(), clave: 'Jefe-De-Area', nombre: 'Jefe', orden: '9' }
-  assert.match(motivoParaRechazarEscalon(malo, CATALOGO, null) ?? '', /clave/)
-
-  const bueno = { ...malo, clave: 'jefe_de_area' }
-  assert.equal(motivoParaRechazarEscalon(bueno, CATALOGO, null), null)
-})
-
-test('la clave duplicada se rechaza antes de salir', () => {
-  const borrador = { ...borradorDeEscalon(), clave: 'lider', nombre: 'Otro líder', orden: '9' }
-
-  assert.match(motivoParaRechazarEscalon(borrador, CATALOGO, null) ?? '', /lider/)
-})
-
-test('el nombre vacío y el orden no entero se rechazan', () => {
-  const sinNombre = { ...borradorDeEscalon(), clave: 'x_y', nombre: '   ', orden: '9' }
-  assert.match(motivoParaRechazarEscalon(sinNombre, CATALOGO, null) ?? '', /nombre/)
-
-  const sinOrden = { ...borradorDeEscalon(), clave: 'x_y', nombre: 'X', orden: '' }
-  assert.match(motivoParaRechazarEscalon(sinOrden, CATALOGO, null) ?? '', /orden/)
-
-  const ordenCero = { ...borradorDeEscalon(), clave: 'x_y', nombre: 'X', orden: '0' }
-  assert.match(motivoParaRechazarEscalon(ordenCero, CATALOGO, null) ?? '', /orden/)
-})
-
-test('un escalón de sistema solo valida y solo manda el nombre', () => {
-  const borrador = { ...borradorDeEscalon(CATALOGO[0]), nombre: 'Colaborador', orden: '2' }
-
-  // El orden 2 ya lo ocupa Líder, y aun así no bloquea: en los de sistema la API lo ignora.
-  assert.equal(motivoParaRechazarEscalon(borrador, CATALOGO, 'usuario', true), null)
-  assert.deepEqual(cuerpoDeEscalon(borrador, 'usuario', true), { nombre: 'Colaborador' })
-})
-
-test('el cuerpo del alta lleva la clave y el de la edición no', () => {
-  const borrador = {
-    ...borradorDeEscalon(),
-    clave: 'jefe_de_area',
-    nombre: 'Jefe de área',
-    orden: '4',
-    alcance: 'area',
-    jefatura: true,
-    piso: { tasks: ['view'] }
-  }
-
-  assert.equal(cuerpoDeEscalon(borrador, null).clave, 'jefe_de_area')
-  assert.equal(cuerpoDeEscalon(borrador, 'jefe_de_area').clave, undefined)
-  assert.deepEqual(cuerpoDeEscalon(borrador, null).piso, { tasks: ['view'] })
-  assert.equal(cuerpoDeEscalon(borrador, null).orden, 4)
-})
-
-test('desmarcar la última capacidad saca la feature del piso', () => {
-  const conUna = pisoConCapacidad({}, 'tasks', 'view', true)
-  assert.deepEqual(conUna, { tasks: ['view'] })
-
-  const vacio = pisoConCapacidad(conUna, 'tasks', 'view', false)
-  assert.deepEqual(vacio, {})
-  assert.equal(capacidadesDelPiso(vacio), 0)
-})
-
-test('marcar dos veces la misma capacidad no la duplica', () => {
-  const una = pisoConCapacidad({ tasks: ['view'] }, 'tasks', 'view', true)
-
-  assert.deepEqual(una, { tasks: ['view'] })
-  assert.equal(capacidadesDelPiso({ tasks: ['view', 'edit'], projects: ['view'] }), 3)
-})
-
-test('solo los escalones asignables se ofrecen, y en orden', () => {
-  const asignables = escalonesAsignables([CATALOGO[2], CATALOGO[1], CATALOGO[0]])
-
-  assert.deepEqual(asignables.map((uno) => uno.clave), ['usuario', 'lider'])
-})
-
-test('un escalón que ya no está en el catálogo se muestra por su clave, no vacío', () => {
-  assert.equal(nombreDeEscalon(CATALOGO, 'lider'), 'Líder')
-  assert.equal(nombreDeEscalon(CATALOGO, 'fantasma'), 'fantasma')
-  assert.equal(nombreDeEscalon(CATALOGO, null), '—')
-})
-
-test('los filtros vacíos no viajan y la página uno tampoco', () => {
-  assert.equal(consultaDePersonas({ buscar: '', escalon: '', rol: '', area: '' }, 1), '')
+test('la consulta lleva lo que sí está puesto, y la página solo a partir de la segunda', () => {
   assert.equal(
-    consultaDePersonas({ buscar: '  ana  ', escalon: 'head', rol: '', area: '' }, 3),
-    '?buscar=ana&escalon=head&page=3'
+    consultaDePersonas({ buscar: ' Ana ', escalon: 'lead', area: '3' }, 2),
+    '?buscar=Ana&escalon=lead&area=3&pagina=2'
   )
+  assert.equal(consultaDePersonas({ buscar: '', escalon: 'gerencia', area: '' }, 1), '?escalon=gerencia')
 })
 
-test('un nombre repetido se rechaza sin mirar mayúsculas ni espacios', () => {
-  assert.equal(motivoParaRechazarNombre('Analytics', ['Diseño']), null)
-  assert.match(motivoParaRechazarNombre('  analytics ', ['Analytics']) ?? '', /Ya existe/)
-  assert.match(motivoParaRechazarNombre('   ', []) ?? '', /vacío/)
+test('un nombre vacío, uno larguísimo y uno repetido se frenan antes del viaje', () => {
+  assert.equal(motivoParaRechazarNombre('   '), 'El nombre no puede quedar vacío.')
+  assert.match(motivoParaRechazarNombre('x'.repeat(81)), /80 caracteres/)
+  assert.match(motivoParaRechazarNombre('Diseño', ['  diseño ']), /Ya existe/)
+  assert.equal(motivoParaRechazarNombre('Diseño', ['Producto']), null)
 })
 
-test('solo el "1" de tbloptions cuenta como encendido', () => {
+test('solo el uno enciende un interruptor de tbloptions', () => {
   assert.equal(estaEncendido('1'), true)
   assert.equal(estaEncendido('0'), false)
   assert.equal(estaEncendido(''), false)
+})
+
+test('el árbol cuelga a cada persona de su jefe y ordena por nombre', () => {
+  const ramas = arbolDePersonas([
+    nodo(3, 'Carla', 1),
+    nodo(1, 'Ana', null, 'gerencia'),
+    nodo(2, 'Bruno', 1),
+    nodo(4, 'Diego', 2)
+  ])
+
+  assert.equal(ramas.length, 1, 'una sola raíz: Ana')
+  assert.equal(ramas[0].nodo.nombre, 'Ana')
+  assert.deepEqual(ramas[0].hijas.map((hija) => hija.nodo.nombre), ['Bruno', 'Carla'])
+  assert.equal(ramas[0].hijas[0].hijas[0].nodo.nombre, 'Diego')
+  assert.equal(ramas[0].hijas[0].hijas[0].profundidad, 2)
+})
+
+/** Un jefe que no está en la lista —una cuenta de baja— no puede hacer desaparecer a su gente. */
+test('quien cuelga de alguien que no está en la lista sube a la raíz', () => {
+  const ramas = arbolDePersonas([nodo(1, 'Ana', 99), nodo(2, 'Bruno', null)])
+
+  assert.deepEqual(ramas.map((rama) => rama.nodo.nombre), ['Ana', 'Bruno'])
+})
+
+test('un ciclo en los datos no cuelga el recorrido ni pierde a nadie', () => {
+  const ramas = arbolDePersonas([nodo(1, 'Ana', 2), nodo(2, 'Bruno', 1)])
+
+  assert.equal(ramas.length, 1, 'el grupo encerrado en el ciclo se promueve a raíz')
+  assert.equal(ramas[0].nodo.nombre, 'Ana')
+  assert.deepEqual(ramas[0].hijas.map((hija) => hija.nodo.nombre), ['Bruno'])
+  assert.equal(ramas[0].hijas[0].hijas.length, 0, 'la cadena se corta antes de repetir')
+})
+
+test('la descendencia incluye a la persona y a todo lo que cuelga de ella', () => {
+  const nodos = [nodo(1, 'Ana'), nodo(2, 'Bruno', 1), nodo(3, 'Carla', 2), nodo(4, 'Diego')]
+
+  assert.deepEqual([...descendenciaDe(nodos, 1)].sort(), [1, 2, 3])
+  assert.deepEqual([...descendenciaDe(nodos, 4)], [4])
+})
+
+test('el buscador de jefe no ofrece a la persona ni a su propia gente', () => {
+  const nodos = [nodo(1, 'Ana'), nodo(2, 'Bruno', 1), nodo(3, 'Carla', 2), nodo(4, 'Diego')]
+  const persona = { staffid: 1, nombre: 'Ana', correo: 'ana@wiwo.me', escalon: 'gerencia', jefe_staffid: null, jefe_nombre: null, area_id: null, cargo_id: null, activo: true }
+
+  assert.deepEqual(jefesPosiblesPara(nodos, persona).map((uno) => uno.nombre), ['Diego'])
 })

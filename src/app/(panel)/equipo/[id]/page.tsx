@@ -4,9 +4,7 @@ import { AccionesPersona } from '@/componentes/equipo/AccionesPersona'
 import { BotonSuplantar } from '@/componentes/equipo/BotonSuplantar'
 import { CabeceraPersona } from '@/componentes/equipo/CabeceraPersona'
 import { ClientesDeFocal } from '@/componentes/equipo/ClientesDeFocal'
-import { DialogoPermisos } from '@/componentes/equipo/DialogoPermisos'
-import { DialogoNivel } from '@/componentes/equipo/DialogoNivel'
-import { DialogoNivelBase } from '@/componentes/equipo/DialogoNivelBase'
+import { DialogoRolSistema } from '@/componentes/equipo/DialogoRolSistema'
 import { FichaPersona } from '@/componentes/equipo/FichaPersona'
 import { ExportarTareasSheets } from '@/componentes/equipo/ExportarTareasSheets'
 import { PanelArchivosPersona } from '@/componentes/equipo/PanelArchivosPersona'
@@ -21,7 +19,7 @@ import { ErrorApi } from '@/datos/errores'
 import { cargarLookups } from '@/datos/lookups'
 import { pedir } from '@/datos/servidor'
 import { GLOSARIO } from '@/dominio/glosario'
-import type { AreaDeCatalogo, FichaPersona as Persona, Lookups } from '@/datos/recursos'
+import type { FichaPersona as Persona, Lookups } from '@/datos/recursos'
 import type { Yo } from '@/datos/tipos'
 
 /**
@@ -88,32 +86,6 @@ async function cargarDetalle (id: string): Promise<Detalle | ErrorApi> {
   }
 }
 
-/**
- * Trae el catalogo de permisos, o `null` si esta pantalla no puede ofrecerlo.
- *
- * `GET /roles/catalogo` exige `roles.view`: quien administra gente pero no roles ve la ficha entera y
- * simplemente no ve el boton de permisos. Por eso el error es un `null` y no una pantalla de error —
- * el catalogo es para una accion opcional, no para pintar la ficha.
- *
- * Solo se pide a quien puede editar personas: al resto le sobra el viaje.
- *
- * @param puedeEditar `true` si quien mira tiene `staff.edit`.
- * @returns Las areas del catalogo, o `null` si no se pidio o la API dijo que no.
- */
-async function cargarCatalogoDePermisos (puedeEditar: boolean): Promise<AreaDeCatalogo[] | null> {
-  if (!puedeEditar) return null
-
-  try {
-    const { data } = await pedir<AreaDeCatalogo[]>('/roles/catalogo')
-
-    return data
-  } catch (error) {
-    if (error instanceof ErrorApi) return null
-
-    throw error
-  }
-}
-
 /** Estado de persona inexistente: la API respondio 404 o el id de la URL no es de nadie. */
 function NoEncontrada () {
   return (
@@ -156,7 +128,6 @@ export default async function PersonaPage (props: PageProps<'/equipo/[id]'>) {
   // Las de `customers`, no las de `staff`: la pestaña Clientes reparte acceso a cuentas, y el permiso
   // tiene que ser el mismo que pide la misma edición desde la ficha del Cliente.
   const capacidadesDeClientes = yo.permissions.customers ?? []
-  const catalogoDePermisos = await cargarCatalogoDePermisos(capacidades.includes('edit'))
   const roles: OpcionCampo[] = listaDe(lookups, 'roles').map((rol) => ({
     valor: String(rol.id),
     etiqueta: rol.name
@@ -222,24 +193,15 @@ export default async function PersonaPage (props: PageProps<'/equipo/[id]'>) {
         <CabeceraPersona persona={persona} />
         <div className="flex flex-wrap items-center gap-2">
           {yo.is_admin && <ExportarTareasSheets personaId={persona.id} nombre={persona.full_name} email={persona.email} />}
-          <AccionesPersona persona={persona} roles={roles} cargos={cargos} areas={areas} empresas={empresas} capacidades={capacidades} modeloDePermisos={yo.modelo_permisos} enFicha />
-          {/* Solo un superadministrador reparte el nivel: la API rechaza al resto con 422. */}
-          {yo.is_superadmin && <DialogoNivel persona={persona} actorId={yo.id} />}
-          {/* Los cinco escalones de abajo de la escalera, que viven en tabla propia. Misma puerta:
-              `PUT /staff/{id}/nivel` exige superadministrador y contesta 403 al resto. */}
-          {yo.is_superadmin && <DialogoNivelBase persona={persona} actorId={yo.id} />}
+          <AccionesPersona persona={persona} roles={roles} cargos={cargos} areas={areas} empresas={empresas} capacidades={capacidades} enFicha />
+          {/* Solo un superadministrador reparte el rol de sistema: la API rechaza al resto con 422.
+              El escalon jerarquico es el otro eje y se reparte en `/administracion/accesos`, junto
+              con el jefe: sin ver el arbol, cambiar un escalon suelto no explica nada. */}
+          {yo.is_superadmin && <DialogoRolSistema persona={persona} actorId={yo.id} />}
           {/* Ver el panel con la sesion de esta persona. Misma puerta que los roles —la API exige
               superadministrador— y sin sentido sobre uno mismo, asi que en la ficha propia no va. */}
           {yo.is_superadmin && persona.id !== yo.id && (
             <BotonSuplantar personaId={persona.id} nombre={persona.firstname} activa={persona.active} />
-          )}
-          {catalogoDePermisos !== null && (
-            <DialogoPermisos
-              persona={persona}
-              catalogo={catalogoDePermisos}
-              permisosDelActor={yo.permissions}
-              actorEsAdmin={yo.is_admin}
-            />
           )}
         </div>
       </div>

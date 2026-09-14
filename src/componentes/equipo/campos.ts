@@ -27,23 +27,21 @@ const LARGOS = { nombre: 50, email: 100, phonenumber: 30 }
  * "sin empresa/cargo/área". La empresa va primera de la seccion porque es la unica de las tres que
  * hoy tiene datos en las 178 cuentas del grupo.
  *
- * El selector de Rol solo aparece en el modelo de permisos viejo. Ahi sigue sirviendo para una cosa:
- * un alta con `role_id` estrena la cuenta con los permisos de ese rol. En el modelo consolidado no
- * hace falta —la API estrena con `PERMISOS_INICIALES`— y el rol dejo de existir como concepto.
+ * El selector de Rol sigue ahi porque un alta con `role_id` estrena la cuenta con la plantilla de
+ * ese rol en el panel viejo. Lo que el rol ya NO hace es decidir acceso: desde el modelo de dos ejes
+ * eso sale del rol de sistema y del arbol de personas.
  *
  * @param roles catalogo `roles` de `GET /lookups`
  * @param cargos catalogo `cargos` de `GET /lookups`
  * @param areas catalogo `areas` de `GET /lookups`
  * @param empresas catalogo `empresas` de `GET /lookups`
  * @param alta `true` para el formulario de alta
- * @param conRol `true` para dibujar el selector de Rol (modelo de permisos viejo)
  */
 export function camposDePersona (
   roles: OpcionCampo[],
   cargos: OpcionCampo[],
   areas: OpcionCampo[],
   alta: boolean,
-  conRol = true,
   empresas: OpcionCampo[] = []
 ): CampoFormulario[] {
   const campos: CampoFormulario[] = [
@@ -66,8 +64,6 @@ export function camposDePersona (
     { clave: 'cargo_id', etiqueta: 'Cargo', tipo: 'seleccion', opciones: cargos },
     { clave: 'area_ids', etiqueta: 'Áreas', tipo: 'seleccion-multiple', opciones: areas, ayuda: 'Podés marcar varias áreas. Sin marcas, queda sin área.' }
   ]
-
-  if (!conRol) return campos
 
   // Antes de `hourly_rate`, que es donde estaba: el orden de un formulario que la gente ya conoce no
   // cambia por un interruptor.

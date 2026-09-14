@@ -8,7 +8,7 @@ import { formatearImporte, segundosAHoraMinuto } from '@/componentes/proyecto/fo
 import { formatearFecha } from '@/lib/fechas'
 import { GLOSARIO } from '@/dominio/glosario'
 import type { EstadoLookup, FichaPersona as Persona } from '@/datos/recursos'
-import { AREAS, CAPACIDADES, NOMBRES_HEREDADOS } from './permisos'
+import { etiquetaDeArea, etiquetaDeCapacidad } from '@/dominio/permisos'
 
 /**
  * Todo lo que la API sabe de una persona, agrupado por para que sirve.
@@ -113,13 +113,9 @@ export function FichaPersona ({
  */
 function datosDeCuenta (persona: Persona): Dato[] {
   return [
-    // El rol solo se muestra en el modelo viejo, y con el modelo de ESTA persona y no el de quien
-    // mira: es su dato. En el consolidado el rol dejo de significar algo —no decide acceso, es la
-    // plantilla que pre-marca checkboxes en el panel viejo— y leerlo aca invita a cambiarlo creyendo
-    // que hace falta.
-    ...(persona.modelo_permisos === 'viejo'
-      ? [{ etiqueta: 'Rol', valor: persona.role?.name ?? 'Sin rol' }]
-      : []),
+    // El rol de Perfex se muestra como dato de la cuenta, no como permiso: desde el modelo de dos
+    // ejes no decide acceso —es la plantilla que pre-marca checkboxes en el panel viejo—.
+    { etiqueta: 'Rol', valor: persona.role?.name ?? 'Sin rol' },
     { etiqueta: 'Empresa', valor: persona.empresa?.name ?? 'Sin empresa' },
     { etiqueta: 'Cargo', valor: persona.cargo?.name ?? 'Sin cargo' },
     { etiqueta: 'Áreas', valor: (persona.areas ?? (persona.area ? [persona.area] : [])).map((area) => area.name).join(', ') || 'Sin área' },
@@ -133,6 +129,10 @@ function datosDeCuenta (persona: Persona): Dato[] {
 
 /**
  * Los permisos efectivos de la persona, un area por linea.
+ *
+ * Son de LECTURA y no se editan: desde el modelo de dos ejes no hay matriz por persona. Lo que se ve
+ * acá lo derivan los dos ejes —el rol de sistema y el escalón con el árbol—, así que la forma de
+ * cambiarlo es cambiar uno de esos dos, no marcar una casilla.
  *
  * A un administrador la API le devuelve el catalogo completo, y por eso se lo dice con todas las
  * letras en vez de dejar creer que alguien se los cargo uno por uno.
@@ -154,17 +154,15 @@ function Permisos ({ persona }: { persona: Persona }) {
         <p className="text-texto-sutil text-xs">Es administrador: tiene todo, sin depender de su rol.</p>
       )}
 
-      {/* En tres columnas, y no en una: son doce areas, y apiladas convierten la ficha en una torre
-          de permisos con el resto de los datos perdido arriba. */}
+      {/* En varias columnas, y no en una: apiladas convierten la ficha en una torre de permisos con
+          el resto de los datos perdido arriba. */}
       <div className="grid gap-x-8 gap-y-1 sm:grid-cols-2 lg:grid-cols-3">
         {areas.map(([area, capacidades]) => (
           <Filas
             key={area}
             datos={[{
-              // Tambien los heredados: la ficha LISTA todo lo que la persona tiene, aunque la
-              // matriz ya no lo edite. Sin el segundo mapa, `invoices` se leia en ingles.
-              etiqueta: AREAS[area] ?? NOMBRES_HEREDADOS[area] ?? area,
-              valor: capacidades.map((capacidad) => CAPACIDADES[capacidad] ?? capacidad).join(', ')
+              etiqueta: etiquetaDeArea(area),
+              valor: capacidades.map((capacidad) => etiquetaDeCapacidad(capacidad)).join(', ')
             }]}
           />
         ))}

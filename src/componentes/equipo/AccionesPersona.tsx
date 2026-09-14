@@ -15,7 +15,6 @@ import { FormularioRecurso } from '@/componentes/proyecto/FormularioRecurso'
 import type { OpcionCampo } from '@/componentes/proyecto/formulario'
 import { pedirSobre } from '@/datos/cliente'
 import type { MiembroEquipo } from '@/datos/recursos'
-import type { ModeloDePermisos } from '@/datos/tipos'
 import type { Capacidad } from '@/datos/tipos'
 import { camposDePersona } from './campos'
 
@@ -46,8 +45,6 @@ interface PropsAccionesPersona {
   roles: OpcionCampo[]
   /** Catalogo `empresas` de `GET /lookups`, para el selector de Organización. */
   empresas?: OpcionCampo[]
-  /** Modelo de permisos de quien mira: en `nuevo` el formulario no ofrece el selector de Rol. */
-  modeloDePermisos?: ModeloDePermisos
   cargos: OpcionCampo[]
   areas: OpcionCampo[]
   capacidades: Capacidad[]
@@ -61,7 +58,6 @@ export function AccionesPersona ({
   persona,
   roles,
   empresas = [],
-  modeloDePermisos = 'viejo',
   cargos,
   areas,
   capacidades,
@@ -143,7 +139,7 @@ export function AccionesPersona ({
           abierto={editando}
           onAbiertoCambia={setEditando}
           titulo={`Editar a ${persona.full_name}`}
-          campos={camposDePersona(roles, cargos, areas, false, modeloDePermisos === 'viejo', empresas)}
+          campos={camposDePersona(roles, cargos, areas, false, empresas)}
           ruta={`staff/${persona.id}`}
           metodo="PATCH"
           registro={{ ...persona, area_ids: persona.area_ids ?? (persona.area_id == null ? [] : [persona.area_id]) }}

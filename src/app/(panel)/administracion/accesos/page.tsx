@@ -30,15 +30,15 @@ async function cargar (): Promise<CatalogoDeAccesos | ErrorApi> {
 /**
  * Accesos: quién puede qué, en una sola pantalla.
  *
- * Antes esto estaba repartido en cinco lugares que no se veían entre sí: los escalones vivían
- * escritos a mano en dos archivos del frontend, el mapa de roles solo en `tbloptions`, el área y el
- * cargo en la ficha de cada persona, el árbol en `/equipo/jerarquia`, y los interruptores del modelo
- * de permisos en ningún lado —se cambiaban con un `UPDATE` a mano—. El resultado era que nadie podía
- * responder "por qué esta persona ve esto" sin abrir la base.
+ * Antes esto estaba repartido en lugares que no se veían entre sí: los escalones escritos a mano en
+ * dos archivos del frontend, el mapa de roles solo en `tbloptions`, el área y el cargo en la ficha de
+ * cada persona, el árbol en `/equipo/jerarquia`, y los interruptores en ningún lado —se cambiaban con
+ * un `UPDATE` a mano—. El resultado era que nadie podía responder "por qué esta persona ve esto" sin
+ * abrir la base.
  *
- * **Los escalones ya no están hardcodeados**: salen de `GET /accesos/catalogo`, con su piso, su
- * alcance y cuánta gente los usa. `componentes/equipo/nivel.ts` y `nivelBase.ts` siguen existiendo
- * porque los usan las dos puertas viejas de la ficha de una persona, y cambiarlas es otro trabajo.
+ * **El modelo tiene dos ejes y esta pantalla los separa.** El escalón jerárquico nombra el puesto y
+ * no otorga nada; el alcance sale del árbol de personas, que por eso tiene su propia pestaña. El otro
+ * eje —administrador y superadministrador— se reparte en la ficha de cada persona, en `/equipo`.
  *
  * `is_superadmin` se revisa antes de pedir nada: todas las rutas de `/accesos` ya exigen
  * superadministrador —ahí está la compuerta real— pero pedirlas igual gastaría un viaje que sabemos
@@ -62,7 +62,7 @@ export default async function AccesosPage () {
     <section className="flex flex-col gap-4">
       <TituloModulo
         titulo="Accesos"
-        descripcion="La escalera de permisos y quién está en ella: escalones, roles, personas, áreas y cargos, y los interruptores que deciden de dónde sale el acceso de todo el equipo."
+        descripcion="Quién está en cada escalón y de quién cuelga. El escalón nombra el puesto; lo que cada uno ve sale del árbol de personas. Acá también viven las áreas, los cargos y la marcha atrás de la jerarquía."
       />
 
       {/* El `Suspense` no es decorativo: `Pestanas` usa `useSearchParams`, y sin ese límite el build

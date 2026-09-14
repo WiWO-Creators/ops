@@ -5,6 +5,7 @@
  * presentar (ver `src/dominio/glosario.ts`). Este archivo describe la *forma* de las respuestas,
  * no los recursos de negocio — esos llegan con sus modulos.
  */
+import type { Escalon } from '../dominio/escalon.ts'
 
 /** Envelope de exito. `meta` se omite cuando esta vacio. */
 export interface Sobre<T> {
@@ -136,19 +137,7 @@ export interface Staff {
    */
   area_ids?: number[]
   empresa_id: number | null
-  /**
-   * Que catalogo de permisos le toca a esta persona (`Acceso\Permisos::usaModeloNuevo()`).
-   *
-   * NO es un permiso ni cambia lo que puede hacer: el acceso efectivo sale de `permissions`, que la
-   * API resuelve contra `tblstaff_permissions` sin mirar ningun catalogo. Decide cuantas areas se
-   * dibujan en la ficha —cuatro en `nuevo`, doce en `viejo`— mientras la consolidacion se enciende
-   * por tandas. Desaparece cuando no quede nadie en `viejo`.
-   */
-  modelo_permisos: ModeloDePermisos
 }
-
-/** Los dos catalogos de permisos que conviven mientras dura la consolidacion. */
-export type ModeloDePermisos = 'nuevo' | 'viejo'
 
 /** Forma reducida que viaja embebida en `assignees`, `followers` y `members`. */
 export interface StaffReferencia {
@@ -158,43 +147,56 @@ export interface StaffReferencia {
 }
 
 export type Capacidad = 'view' | 'create' | 'edit' | 'delete' | 'edit_milestones'
-export type AreaPermiso = 'tasks' | 'projects' | 'customers' | 'staff'
 
 /**
- * La escalera de permisos, de menor a mayor (`modules/api/Acceso/Reglas.php`).
+ * Las áreas de permisos que el producto usa de verdad.
  *
- *     usuario < focal < lider < head < gerente < admin < superadmin
- *
- * Es un eje, no un conjunto de casillas: cada escalón hereda el piso de los anteriores. Los cinco de
- * abajo se reparten desde la ficha de Equipo (`PUT /staff/{id}/nivel`); los dos de arriba salen de
- * las banderas de Perfex y los reparte el diálogo de Nivel, que ya existía.
- *
- * **No reemplaza a `permissions`.** El nivel pone un PISO y la API lo UNE con lo que la persona
- * tenga en su matriz: nadie pierde una capacidad por bajar de escalón. Para decidir si se dibuja un
- * botón se sigue mirando `permissions`, que ya viene con el piso aplicado.
+ * `leads` entra acá porque la API la devuelve en `permissions` y las licitaciones se apoyan en ella;
+ * no estaba antes porque el catálogo viejo tenía doce áreas y nadie sabía cuáles miraba el panel.
  */
-export type NivelPermiso =
-  | 'usuario'
-  | 'focal'
-  | 'lider'
-  | 'head'
-  | 'gerente'
-  | 'admin'
-  | 'superadmin'
+export type AreaPermiso = 'tasks' | 'projects' | 'customers' | 'staff' | 'leads'
 
 /** Respuesta de `GET /me`. */
 export interface Yo extends Staff {
+  /**
+   * Lo que la persona puede hacer en cada área.
+   *
+   * Desde el modelo de dos ejes es **constante para todo el que no sea administrador**: la matriz por
+   * persona desapareció y el recorte ya no se hace por capacidad sino por filas —lo suyo y lo de su
+   * descendencia en el árbol—, que es trabajo de la API. Sigue viniendo porque es lo que decide si
+   * se dibuja un botón; dejó de ser lo que decide cuánto se ve.
+   */
   permissions: Record<AreaPermiso, Capacidad[]>
-  /** El escalón de quien mira, ya resuelto por la API (banderas, override y rol). */
-  nivel: NivelPermiso
+  /**
+   * El escalón jerárquico de quien mira (`tblwiwo_escalon_persona.escalon`).
+   *
+   * **Nombra el puesto y no otorga nada**: el alcance sale del árbol de personas. Ver
+   * `dominio/escalon.ts`, que es la única lista de los cuatro escalones en el frontend.
+   */
+  escalon: Escalon
+  /**
+   * De quién cuelga en el árbol (`tblstaff.jefe_staffid`), o `null` si no cuelga de nadie.
+   *
+   * Es la primera de las dos fuentes del alcance; la otra es la jefatura de área. No es un permiso:
+   * lo que hace es decir dónde está la persona, y de ahí sale hacia abajo qué le corresponde ver.
+   */
+  jefe_staffid: number | null
+  /**
+   * Si de esta persona cuelga alguien: por la cadena de jefes o por dirigir un área.
+   *
+   * Lo resuelve la API recorriendo el árbol, que es donde está la verdad. **No se deduce del
+   * escalón**: un `director` sin nadie debajo no es jefatura de nadie, y confundir el nombre del
+   * puesto con el alcance real es el error que este modelo vino a cerrar.
+   */
+  es_jefatura: boolean
   /**
    * Si quien mira figura como focal de al menos un Cliente (`tblwiwo_focales`).
    *
    * **Pertenencia, no permiso**: no abre nada por sí solo. La autorización de la pantalla de Focals
    * es y sigue siendo el `403` de la API (`V1::scoresRuta()`), que la resuelve en cada pedido. Esto
    * existe sólo para decidir si se OFRECE la sección, que antes se adivinaba con `nivel` — y el
-   * escalón y el hecho de ser focal son dos cosas distintas: hay focales de tres cuentas con nivel
-   * `usuario`, y gerencias que no responden por ninguna.
+   * escalón y el hecho de ser focal son dos cosas distintas: hay focales de tres cuentas de escalón
+   * `staff`, y gerencias que no responden por ninguna.
    *
    * Opcional a propósito: una API vieja que todavía no lo manda lo deja en `undefined`, y
    * `puedeVerFocals()` trata ese caso como "no sé" y muestra la entrada, que es como estaba antes.
