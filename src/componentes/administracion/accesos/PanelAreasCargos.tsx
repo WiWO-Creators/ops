@@ -123,7 +123,7 @@ function SeccionAreas ({
     <div className="flex flex-col gap-4">
       <CabeceraDePanel
         titulo="Áreas"
-        descripcion="El organigrama. De quién depende alguien se deriva de su área: el jefe es quien dirige el área que lleva puesta."
+        descripcion="La segunda fuente del alcance. Quien figura como jefatura de un área alcanza a toda su gente y a la de las áreas que cuelgan de ella; pertenecer a un área, en cambio, no alcanza a nadie. Por eso dos leads de la misma área no se ven entre sí."
         accion={
           <Boton variante="primario" onClick={() => { setEditando({ area: null }) }}>
             Nueva área

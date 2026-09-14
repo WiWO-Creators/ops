@@ -5,7 +5,7 @@ import type { PersonaAuditoria, PersonaConectada, SesionAbierta } from '../../da
  *
  * Vive en un `.ts` y no dentro de los componentes porque necesita prueba: Node puede despojar los
  * tipos de un `.ts`, pero no el JSX de un `.tsx`. Es la misma razon por la que existen
- * `componentes/equipo/nivel.ts` y `componentes/datos/tabla.ts`.
+ * `dominio/escalon.ts` y `componentes/datos/tabla.ts`.
  */
 
 /** Una sesion ya agrupada: todos los tokens vivos de una persona vistos como una sola. */

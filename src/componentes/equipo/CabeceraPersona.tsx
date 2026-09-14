@@ -1,8 +1,8 @@
 import Link from 'next/link'
-import { nombreDeNivel } from './nivel'
 import { Avatar } from '@/componentes/presentadores/Avatar'
 import { Fecha } from '@/componentes/presentadores/Fecha'
 import { Insignia } from '@/componentes/presentadores/Insignia'
+import { nombreDeRolDeSistema } from '@/dominio/rol-sistema'
 import type { FichaPersona } from '@/datos/recursos'
 
 /**
@@ -38,10 +38,10 @@ export function CabeceraPersona ({ persona }: { persona: FichaPersona }) {
             <Insignia tono={persona.active ? 'exito' : 'neutro'}>
               {persona.active ? 'Activa' : 'Dada de baja'}
             </Insignia>
-            {/* Una sola insignia, del nivel puesto. Colaborador no lleva ninguna: es el caso comun y
-                una insignia que casi todos tienen deja de distinguir nada. */}
+            {/* Una sola insignia, del rol de sistema puesto. Usuario no lleva ninguna: es el caso
+                comun y una insignia que casi todos tienen deja de distinguir nada. */}
             {(persona.is_admin || persona.is_superadmin) && (
-              <Insignia tono="acento">{nombreDeNivel(persona)}</Insignia>
+              <Insignia tono="acento">{nombreDeRolDeSistema(persona)}</Insignia>
             )}
             {persona.is_director && <Insignia tono="acento">Director</Insignia>}
             {persona.is_not_staff && <Insignia tono="contorno">No es del equipo</Insignia>}

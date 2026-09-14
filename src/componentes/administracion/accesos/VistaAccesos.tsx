@@ -4,11 +4,11 @@ import { useCallback, useState } from 'react'
 import { Pestanas, type Panel } from '@/componentes/proyecto/Pestanas'
 import { pedirSobre } from '@/datos/cliente'
 import { MensajeDeError } from './piezas'
+import { PanelArbol } from './PanelArbol'
 import { PanelAreasCargos } from './PanelAreasCargos'
 import { PanelEscalones } from './PanelEscalones'
 import { PanelInterruptores } from './PanelInterruptores'
 import { PanelPersonas } from './PanelPersonas'
-import { PanelRoles } from './PanelRoles'
 import type { CatalogoDeAccesos } from '@/datos/accesos'
 
 interface PropsVistaAccesos {
@@ -21,10 +21,13 @@ interface PropsVistaAccesos {
 /**
  * El panel de accesos: un solo dueño del catálogo y cinco pestañas que lo leen.
  *
- * El catálogo vive acá y no en cada panel por una razón concreta: las cinco pestañas miran los mismos
- * datos desde ángulos distintos —borrar un escalón cambia el contador de los roles, mover a alguien
- * de área cambia el de las áreas—, y con una copia por pestaña la segunda mostraría números viejos
+ * El catálogo vive acá y no en cada panel por una razón concreta: las pestañas miran los mismos datos
+ * desde ángulos distintos —mover a alguien de escalón cambia el contador de los escalones, cambiarle
+ * el área cambia el de las áreas—, y con una copia por pestaña la segunda mostraría números viejos
  * sin que nada avisara.
+ *
+ * El árbol es la excepción y se pide aparte: no es un contador del catálogo sino la estructura
+ * entera, y es la única pestaña que explica de dónde sale el alcance de cada persona.
  *
  * Se recarga con `pedirSobre()` y no con `router.refresh()` a propósito: el refresco del router
  * vuelve a resolver la ruta entera en el servidor y pierde la pestaña abierta y el estado de los
@@ -60,17 +63,17 @@ export function VistaAccesos ({ inicial, actorId }: PropsVistaAccesos) {
     {
       clave: 'escalones',
       etiqueta: 'Escalones',
-      contenido: <PanelEscalones catalogo={catalogo} recargar={recargar} />
-    },
-    {
-      clave: 'roles',
-      etiqueta: 'Roles',
-      contenido: <PanelRoles catalogo={catalogo} recargar={recargar} />
+      contenido: <PanelEscalones catalogo={catalogo} />
     },
     {
       clave: 'personas',
       etiqueta: 'Personas',
       contenido: <PanelPersonas catalogo={catalogo} recargar={recargar} actorId={actorId} />
+    },
+    {
+      clave: 'arbol',
+      etiqueta: 'Árbol',
+      contenido: <PanelArbol />
     },
     {
       clave: 'areas',

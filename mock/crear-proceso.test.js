@@ -29,7 +29,7 @@ before(async () => {
 
 after(() => new Promise((resolver) => servidor.close(resolver)))
 
-test('orden de hitos persiste con filtros y rechaza ids invalidos o falta de permiso', async () => {
+test('orden de hitos persiste con filtros, rechaza ids invalidos y lo reordena cualquier persona', async () => {
   const proyecto = ESPACIOS[0].id
   const hitos = HITOS.filter((hito) => hito.project_id === proyecto)
   const anterior = hitos.map((hito) => hito.milestone_order)
@@ -51,38 +51,27 @@ test('orden de hitos persiste con filtros y rechaza ids invalidos o falta de per
       assert.equal(rechazo.status, 422)
       await rechazo.arrayBuffer()
     }
+    // En el modelo nuevo `edit_milestones` lo tiene todo el mundo: lo que separa a dos personas es
+    // cuantas filas ven, no que pueden hacer. Quien no administra reordena, y quien no tiene sesion
+    // sigue rebotando: ese es el 401 que la pantalla tiene que saber leer.
     const login = await fetch(`${base}/auth/login`, {
       method: 'POST', headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ email: STAFF[2].email, password: 'mock1234' })
     })
-    const restringido = (await login.json()).data.access_token
-    const denegado = await fetch(`${ruta}/orden`, {
-      method: 'PATCH', headers: { ...headers, authorization: `Bearer ${restringido}` }, body: JSON.stringify({ orden })
+    const comun = (await login.json()).data.access_token
+    const reordenado = await fetch(`${ruta}/orden`, {
+      method: 'PATCH', headers: { ...headers, authorization: `Bearer ${comun}` }, body: JSON.stringify({ orden })
     })
-    assert.equal(denegado.status, 403)
-    await denegado.arrayBuffer()
-    assert.deepEqual(hitos.map((hito) => hito.milestone_order), [2, 1])
-    for (const [permiso, estado] of [['edit', 403], ['edit_milestones', 200]]) {
-      const cambio = await fetch(`${base}/staff/${STAFF[2].id}`, {
-        method: 'PATCH', headers,
-        body: JSON.stringify({ permissions: { projects: ['view', permiso] } })
-      })
-      assert.equal(cambio.status, 200)
-      await cambio.arrayBuffer()
-      const resultado = await fetch(`${ruta}/orden`, {
-        method: 'PATCH', headers: { ...headers, authorization: `Bearer ${restringido}` }, body: JSON.stringify({ orden })
-      })
-      assert.equal(resultado.status, estado, `Reordenar exige ${permiso === 'edit' ? 'más que editar el proyecto' : 'editar hitos'}`)
-      await resultado.arrayBuffer()
-    }
+    assert.equal(reordenado.status, 200)
+    await reordenado.arrayBuffer()
+
+    const sinSesion = await fetch(`${ruta}/orden`, {
+      method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ orden })
+    })
+    assert.equal(sinSesion.status, 401)
+    await sinSesion.arrayBuffer()
   } finally {
     hitos.forEach((hito, indice) => { hito.milestone_order = anterior[indice] })
-    const restaurado = await fetch(`${base}/staff/${STAFF[2].id}`, {
-      method: 'PATCH', headers,
-      body: JSON.stringify({ permissions: { projects: ['view'] } })
-    })
-    assert.equal(restaurado.status, 200)
-    await restaurado.arrayBuffer()
   }
 })
 

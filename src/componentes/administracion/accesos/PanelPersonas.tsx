@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { escribirEnBff } from '@/componentes/datos/mutaciones'
 import {
   CeldaEncabezado, CeldaTabla, CuerpoTabla, EncabezadoTabla, FilaTabla, Tabla
@@ -9,27 +9,32 @@ import { Cargando, ErrorEstado, Vacio } from '@/componentes/estado/Estados'
 import { Boton } from '@/componentes/formularios/Boton'
 import { Entrada } from '@/componentes/formularios/Entrada'
 import {
-  CLASES_DISPARADOR, ChevronSelector, ContenidoSelector, DisparadorSelector, Opcion, Selector
+  ContenidoSelector, DisparadorSelector, Opcion, Selector
 } from '@/componentes/formularios/Selector'
-import {
-  ContenidoMenu, DisparadorMenu, ItemMenuMarcable, MenuContextual
-} from '@/componentes/superposiciones/MenuContextual'
 import { Insignia } from '@/componentes/presentadores/Insignia'
+import {
+  CerrarDialogo, ContenidoDialogo, Dialogo, DisparadorDialogo
+} from '@/componentes/superposiciones/Dialogo'
 import { pedirSobre } from '@/datos/cliente'
-import { consultaDePersonas, escalonesAsignables, nombreDeEscalon } from '@/dominio/accesos'
+import { consultaDePersonas, jefesPosiblesPara } from '@/dominio/accesos'
+import { ESCALONES, type Escalon } from '@/dominio/escalon'
 import { CabeceraDePanel, MensajeDeError, SIN_VALOR } from './piezas'
-import type { CambioDePersona, CatalogoDeAccesos, PersonaDeAccesos } from '@/datos/accesos'
+import type {
+  CambioDePersona, CatalogoDeAccesos, NodoDeArbol, PersonaDeAccesos
+} from '@/datos/accesos'
 import type { Paginacion } from '@/datos/tipos'
 
 /** Los filtros de la barra. La cadena vacía es "sin filtrar": `consultaDePersonas()` no la emite. */
 interface Filtros {
   buscar: string
   escalon: string
-  rol: string
   area: string
 }
 
-const SIN_FILTROS: Filtros = { buscar: '', escalon: '', rol: '', area: '' }
+const SIN_FILTROS: Filtros = { buscar: '', escalon: '', area: '' }
+
+/** Cuántos candidatos a jefe se listan de una vez. Lo demás se acota escribiendo en el buscador. */
+const MAXIMO_CANDIDATOS = 50
 
 /** Una página ya traída, etiquetada con la consulta que la pidió. */
 interface Cargado {
@@ -40,26 +45,26 @@ interface Cargado {
 
 interface PropsPanelPersonas {
   catalogo: CatalogoDeAccesos
-  /** Vuelve a pedir el catálogo: los contadores por escalón, rol y área cambian con cada cambio. */
+  /** Vuelve a pedir el catálogo: los contadores por escalón y área cambian con cada cambio. */
   recargar: () => void
   /** `id` de quien administra: la API impide cambiarse el escalón a uno mismo. */
   actorId: number
 }
 
 /**
- * Quién es quién: el rol, el escalón, el área y el cargo de cada persona, en una sola tabla.
+ * Quién es quién: el escalón, el jefe, el área y el cargo de cada persona, en una sola tabla.
  *
- * Es la pantalla que reemplaza al recorrido por las fichas: antes, mover a alguien de área y de
- * escalón eran dos diálogos en dos lugares distintos de `/equipo`, y no había forma de ver de una
- * pasada quién quedó sin área o con un escalón puesto a mano que ya nadie recuerda.
+ * **Las dos columnas que importan son Escalón y Jefe, y no significan lo mismo.** El escalón nombra
+ * el puesto —`staff`, `lead`, `director`, `gerencia`— y no otorga nada por sí solo. El jefe es el que
+ * decide el alcance: lo que alguien ve es su descendencia en el árbol, así que mover a una persona de
+ * jefe cambia lo que ven todos los que están por encima de ella. Por eso el árbol tiene su propia
+ * pestaña: sin verlo, este cambio no se puede razonar.
  *
- * **El escalón efectivo y el override se muestran separados a propósito.** El efectivo es el que
- * gobierna hoy —la API lo resuelve con las banderas de Perfex, el override y el rol—; el override es
- * lo único que esta tabla escribe. Mostrar uno solo haría que quitar un override pareciera no haber
- * hecho nada cuando la persona vuelve al mismo escalón por su rol.
+ * Desengancharse es un cambio legítimo y tiene su propio botón: alguien sin jefe no desaparece, queda
+ * viendo solo lo suyo.
  *
  * Cada cambio se escribe al elegirlo y manda **solo el campo que cambió**: la API escribe únicamente
- * las claves presentes, así que reenviar las otras cuatro dispararía sus guards sin motivo.
+ * las claves presentes, así que reenviar las otras tres dispararía sus guards sin motivo.
  */
 export function PanelPersonas ({ catalogo, recargar, actorId }: PropsPanelPersonas) {
   const [filtros, setFiltros] = useState<Filtros>(SIN_FILTROS)
@@ -69,11 +74,11 @@ export function PanelPersonas ({ catalogo, recargar, actorId }: PropsPanelPerson
   const [fallo, setFallo] = useState<{ clave: string, mensaje: string } | null>(null)
   const [errorEscritura, setErrorEscritura] = useState<string | null>(null)
   const [escribiendo, setEscribiendo] = useState<number | null>(null)
+  const [arbol, setArbol] = useState<NodoDeArbol[]>([])
   /** Cambia para forzar un repedido de la misma consulta después de escribir. */
   const [version, setVersion] = useState(0)
 
   const consulta = consultaDePersonas(filtros, pagina)
-  const asignables = escalonesAsignables(catalogo.escalones)
   /** Qué está pidiendo la pantalla ahora mismo. Lo que no coincida es de una consulta anterior. */
   const clave = `${consulta}#${version}`
 
@@ -101,6 +106,20 @@ export function PanelPersonas ({ catalogo, recargar, actorId }: PropsPanelPerson
 
     return () => { control.abort() }
   }, [consulta, clave])
+
+  // El árbol se pide entero y aparte del listado: el buscador de jefe necesita a TODA la gente, no
+  // solo a la página que se está viendo, y con el árbol completo se puede descartar de antemano al
+  // candidato que cerraría un ciclo. Se repide cuando algo se escribe, porque un jefe nuevo cambia
+  // quién puede ser jefe de quién.
+  useEffect(() => {
+    const control = new AbortController()
+
+    pedirSobre<NodoDeArbol[]>('accesos/arbol', control.signal)
+      .then((sobre) => { setArbol(sobre.data) })
+      .catch(() => { if (!control.signal.aborted) setArbol([]) })
+
+    return () => { control.abort() }
+  }, [version])
 
   /**
    * Escribe un campo de una persona y vuelve a pedir la página.
@@ -132,11 +151,18 @@ export function PanelPersonas ({ catalogo, recargar, actorId }: PropsPanelPerson
     setPagina(1)
   }
 
+  /** Deja la barra como estaba al entrar. */
+  function limpiar (): void {
+    setEscrito('')
+    setFiltros(SIN_FILTROS)
+    setPagina(1)
+  }
+
   return (
     <div className="flex flex-col gap-4">
       <CabeceraDePanel
         titulo="Personas"
-        descripcion="El rol, el escalón, el área y el cargo de cada persona. Cada cambio se guarda al elegirlo."
+        descripcion="El escalón, el jefe, el área y el cargo de cada persona. El jefe es lo que decide el alcance; el escalón solo nombra el puesto. Cada cambio se guarda al elegirlo."
       />
 
       <BarraDeFiltros
@@ -145,7 +171,7 @@ export function PanelPersonas ({ catalogo, recargar, actorId }: PropsPanelPerson
         escrito={escrito}
         onEscribir={setEscrito}
         onFiltrar={filtrar}
-        onLimpiar={() => { setEscrito(''); setFiltros(SIN_FILTROS); setPagina(1) }}
+        onLimpiar={limpiar}
       />
 
       {errorEscritura !== null && <MensajeDeError>{errorEscritura}</MensajeDeError>}
@@ -160,7 +186,7 @@ export function PanelPersonas ({ catalogo, recargar, actorId }: PropsPanelPerson
         <Vacio
           titulo="Ninguna persona coincide"
           descripcion="Prueba con otro texto o quita los filtros. El buscador mira el nombre y el correo."
-          accion={<Boton onClick={() => { setEscrito(''); setFiltros(SIN_FILTROS); setPagina(1) }}>Quitar los filtros</Boton>}
+          accion={<Boton onClick={limpiar}>Quitar los filtros</Boton>}
         />
       )}
 
@@ -171,9 +197,9 @@ export function PanelPersonas ({ catalogo, recargar, actorId }: PropsPanelPerson
               <EncabezadoTabla>
                 <tr>
                   <CeldaEncabezado>Persona</CeldaEncabezado>
-                  <CeldaEncabezado>Rol</CeldaEncabezado>
                   <CeldaEncabezado>Escalón</CeldaEncabezado>
-                  <CeldaEncabezado>Áreas</CeldaEncabezado>
+                  <CeldaEncabezado>Jefe</CeldaEncabezado>
+                  <CeldaEncabezado>Área</CeldaEncabezado>
                   <CeldaEncabezado>Cargo</CeldaEncabezado>
                 </tr>
               </EncabezadoTabla>
@@ -183,7 +209,7 @@ export function PanelPersonas ({ catalogo, recargar, actorId }: PropsPanelPerson
                     key={persona.staffid}
                     persona={persona}
                     catalogo={catalogo}
-                    asignables={asignables}
+                    arbol={arbol}
                     esUnoMismo={persona.staffid === actorId}
                     ocupada={escribiendo === persona.staffid}
                     onCambiar={(cambio) => { void cambiar(persona, cambio) }}
@@ -200,7 +226,7 @@ export function PanelPersonas ({ catalogo, recargar, actorId }: PropsPanelPerson
   )
 }
 
-/** La barra de búsqueda y los tres filtros del catálogo. */
+/** La barra de búsqueda y los dos filtros del catálogo. */
 function BarraDeFiltros ({
   catalogo, filtros, escrito, onEscribir, onFiltrar, onLimpiar
 }: {
@@ -211,7 +237,7 @@ function BarraDeFiltros ({
   onFiltrar: (cambio: Partial<Filtros>) => void
   onLimpiar: () => void
 }) {
-  const hayFiltros = filtros.buscar !== '' || filtros.escalon !== '' || filtros.rol !== '' || filtros.area !== ''
+  const hayFiltros = filtros.buscar !== '' || filtros.escalon !== '' || filtros.area !== ''
 
   return (
     <div className="flex flex-wrap items-end gap-3">
@@ -235,15 +261,8 @@ function BarraDeFiltros ({
       <FiltroDeLista
         etiqueta="Todos los escalones"
         valor={filtros.escalon}
-        opciones={catalogo.escalones.map((escalon) => ({ valor: escalon.clave, etiqueta: escalon.nombre }))}
+        opciones={ESCALONES.map((escalon) => ({ valor: escalon.clave, etiqueta: escalon.nombre }))}
         onCambiar={(valor) => { onFiltrar({ escalon: valor }) }}
-      />
-
-      <FiltroDeLista
-        etiqueta="Todos los roles"
-        valor={filtros.rol}
-        opciones={catalogo.roles.map((rol) => ({ valor: String(rol.id), etiqueta: rol.nombre }))}
-        onCambiar={(valor) => { onFiltrar({ rol: valor }) }}
       />
 
       <FiltroDeLista
@@ -283,21 +302,17 @@ function FiltroDeLista ({
   )
 }
 
-/** Una fila del listado, con sus cuatro desplegables. */
+/** Una fila del listado, con su escalón, su jefe, su área y su cargo. */
 function FilaDePersona ({
-  persona, catalogo, asignables, esUnoMismo, ocupada, onCambiar
+  persona, catalogo, arbol, esUnoMismo, ocupada, onCambiar
 }: {
   persona: PersonaDeAccesos
   catalogo: CatalogoDeAccesos
-  asignables: ReturnType<typeof escalonesAsignables>
+  arbol: NodoDeArbol[]
   esUnoMismo: boolean
   ocupada: boolean
   onCambiar: (cambio: CambioDePersona) => void
 }) {
-  const efectivo = nombreDeEscalon(catalogo.escalones, persona.escalon_efectivo)
-  const areas = persona.area_ids ?? (persona.area_id === null ? [] : [persona.area_id])
-  const nombresDeAreas = areas.map((id) => catalogo.areas.find((area) => area.id === id)?.nombre ?? `#${id}`)
-
   return (
     <FilaTabla>
       <CeldaTabla>
@@ -309,69 +324,52 @@ function FilaDePersona ({
       </CeldaTabla>
 
       <CeldaTabla>
-        <DesplegableDeFila
-          etiqueta={`Rol de ${persona.nombre}`}
-          marcador="Sin rol"
-          valor={persona.rol_id === null ? null : String(persona.rol_id)}
-          deshabilitado={ocupada}
-          opciones={catalogo.roles.map((rol) => ({ valor: String(rol.id), etiqueta: rol.nombre }))}
-          onCambiar={(valor) => { onCambiar({ rol_id: valor === null ? null : Number(valor) }) }}
-        />
-      </CeldaTabla>
-
-      <CeldaTabla>
         {esUnoMismo
           // La API lo frena con 409; acá se adelanta para que el motivo se lea antes de intentarlo.
           ? (
             <span className="text-texto-tenue text-xs">
-              {efectivo} · no puedes cambiarte el escalón a ti mismo
+              {ESCALONES.find((escalon) => escalon.clave === persona.escalon)?.nombre ?? persona.escalon}
+              {' '}· no puedes cambiarte el escalón a ti mismo
             </span>
             )
           : (
-            <div className="flex flex-col gap-1">
-              <DesplegableDeFila
-                etiqueta={`Escalón de ${persona.nombre}`}
-                marcador="El que dé su rol"
-                valor={persona.escalon_override}
-                deshabilitado={ocupada}
-                opciones={asignables.map((escalon) => ({ valor: escalon.clave, etiqueta: escalon.nombre }))}
-                onCambiar={(valor) => { onCambiar({ escalon: valor }) }}
+            <Selector
+              value={persona.escalon}
+              disabled={ocupada}
+              onValueChange={(elegido) => { onCambiar({ escalon: elegido as Escalon }) }}
+            >
+              <DisparadorSelector
+                marcador="Sin escalón"
+                aria-label={`Escalón de ${persona.nombre}`}
+                className="min-w-36"
               />
-              <span className="text-texto-tenue text-xs">
-                Hoy manda <strong className="font-medium">{efectivo}</strong>
-                {persona.escalon_override === null ? ', heredado de su rol.' : ', puesto a mano.'}
-              </span>
-            </div>
+              <ContenidoSelector>
+                {ESCALONES.map((escalon) => (
+                  <Opcion key={escalon.clave} value={escalon.clave}>{escalon.nombre}</Opcion>
+                ))}
+              </ContenidoSelector>
+            </Selector>
             )}
       </CeldaTabla>
 
       <CeldaTabla>
-        <MenuContextual>
-          <DisparadorMenu
-            className={CLASES_DISPARADOR}
-            aria-label={`Áreas de ${persona.nombre}`}
-            disabled={ocupada}
-          >
-            <span className="truncate">{nombresDeAreas.join(', ') || 'Sin área'}</span>
-            <ChevronSelector />
-          </DisparadorMenu>
-          <ContenidoMenu align="start" className="max-h-64 overflow-y-auto">
-            {catalogo.areas.map((area) => (
-              <ItemMenuMarcable
-                key={area.id}
-                checked={areas.includes(area.id)}
-                disabled={ocupada}
-                onCheckedChange={(marcada) => onCambiar({
-                  area_ids: marcada
-                    ? [...new Set([...areas, area.id])]
-                    : areas.filter((id) => id !== area.id)
-                })}
-              >
-                {area.nombre}
-              </ItemMenuMarcable>
-            ))}
-          </ContenidoMenu>
-        </MenuContextual>
+        <SelectorDeJefe
+          persona={persona}
+          arbol={arbol}
+          ocupada={ocupada}
+          onCambiar={onCambiar}
+        />
+      </CeldaTabla>
+
+      <CeldaTabla>
+        <DesplegableDeFila
+          etiqueta={`Área de ${persona.nombre}`}
+          marcador="Sin área"
+          valor={persona.area_id === null ? null : String(persona.area_id)}
+          deshabilitado={ocupada}
+          opciones={catalogo.areas.map((area) => ({ valor: String(area.id), etiqueta: area.nombre }))}
+          onCambiar={(valor) => { onCambiar({ area_id: valor === null ? null : Number(valor) }) }}
+        />
       </CeldaTabla>
 
       <CeldaTabla>
@@ -389,10 +387,107 @@ function FilaDePersona ({
 }
 
 /**
+ * De quién cuelga esta persona: un buscador y no un desplegable.
+ *
+ * Un desplegable con las ciento ochenta y pico cuentas de la casa no es elegible: hay que leerlo
+ * entero para encontrar a alguien. El buscador filtra por nombre y correo y muestra los primeros
+ * resultados, que es como se busca a una persona.
+ *
+ * **La lista ya viene sin los imposibles.** `jefesPosiblesPara()` saca a la persona y a toda su
+ * descendencia: elegir a alguien que cuelga de ella cerraría un ciclo, y la API lo rechaza con 422.
+ * Descubrirlo después de guardar no le explica nada a nadie.
+ */
+function SelectorDeJefe ({
+  persona, arbol, ocupada, onCambiar
+}: {
+  persona: PersonaDeAccesos
+  arbol: NodoDeArbol[]
+  ocupada: boolean
+  onCambiar: (cambio: CambioDePersona) => void
+}) {
+  const [abierto, setAbierto] = useState(false)
+  const [buscado, setBuscado] = useState('')
+
+  const posibles = useMemo(() => jefesPosiblesPara(arbol, persona), [arbol, persona])
+  const texto = buscado.trim().toLowerCase()
+  const encontrados = (texto === '' ? posibles : posibles.filter((uno) => uno.nombre.toLowerCase().includes(texto)))
+    .slice(0, MAXIMO_CANDIDATOS)
+
+  /** Escribe el jefe elegido —o `null` para desenganchar— y cierra el diálogo. */
+  function elegir (jefeStaffid: number | null): void {
+    setAbierto(false)
+    setBuscado('')
+    onCambiar({ jefe_staffid: jefeStaffid })
+  }
+
+  return (
+    <Dialogo open={abierto} onOpenChange={setAbierto}>
+      <div className="flex flex-col items-start gap-1">
+        <span className="text-texto text-sm">{persona.jefe_nombre ?? 'Sin jefe'}</span>
+        <DisparadorDialogo asChild>
+          <Boton variante="sutil" tamano="chico" disabled={ocupada}>
+            {persona.jefe_staffid === null ? 'Poner jefe' : 'Cambiar jefe'}
+          </Boton>
+        </DisparadorDialogo>
+      </div>
+
+      <ContenidoDialogo
+        titulo={`Jefe de ${persona.nombre}`}
+        descripcion="De quién cuelga en el árbol. Es lo que decide qué ve quien está por encima: su jefe pasa a ver todo lo de esta persona y lo de quienes cuelgan de ella."
+        ancho="chico"
+      >
+        <div className="flex flex-col gap-3">
+          <Entrada
+            type="search"
+            value={buscado}
+            placeholder="Buscar por nombre"
+            aria-label="Buscar a quién ponerle de jefe"
+            onChange={(evento) => { setBuscado(evento.target.value) }}
+          />
+
+          {encontrados.length === 0
+            ? (
+              <p className="text-texto-tenue text-sm">
+                Nadie coincide. Quien cuelga de {persona.nombre} no aparece: sería un círculo.
+              </p>
+              )
+            : (
+              <ul className="border-linea rounded-tarjeta max-h-64 divide-y overflow-y-auto border">
+                {encontrados.map((candidato) => (
+                  <li key={candidato.staffid}>
+                    <button
+                      type="button"
+                      className="hover:bg-superficie-hundida text-texto w-full px-3 py-2 text-left text-sm"
+                      onClick={() => { elegir(candidato.staffid) }}
+                    >
+                      {candidato.nombre}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+              )}
+
+          <div className="flex flex-wrap justify-end gap-2">
+            {persona.jefe_staffid !== null && (
+              <Boton variante="peligro" type="button" onClick={() => { elegir(null) }}>
+                Desenganchar
+              </Boton>
+            )}
+            <CerrarDialogo asChild>
+              <Boton variante="sutil" type="button">Cancelar</Boton>
+            </CerrarDialogo>
+          </div>
+        </div>
+      </ContenidoDialogo>
+    </Dialogo>
+  )
+}
+
+/**
  * Desplegable de una celda, con la opción de vaciar el campo arriba.
  *
- * "Sin nada" siempre es una opción legítima: quitarle el área a alguien o devolverlo al escalón de su
- * rol son cambios que la pantalla tiene que poder hacer, y sin esta fila solo se podría subir.
+ * "Sin nada" siempre es una opción legítima: quitarle el área o el cargo a alguien es un cambio que
+ * la pantalla tiene que poder hacer, y sin esta fila solo se podría poner.
  */
 function DesplegableDeFila ({
   etiqueta, marcador, valor, deshabilitado, opciones, onCambiar

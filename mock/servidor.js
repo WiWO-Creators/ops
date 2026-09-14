@@ -33,19 +33,25 @@ const ORIGENES = (process.env.ORIGENES ?? 'http://localhost:3000').split(',').ma
 
 /** Recursos sobre los que se declaran permisos, con las acciones posibles. */
 const ACCIONES = ['view', 'create', 'edit', 'delete']
-const RECURSOS_CON_PERMISO = ['tasks', 'projects', 'customers', 'staff', 'invoices']
+const RECURSOS_CON_PERMISO = ['tasks', 'projects', 'customers', 'staff', 'leads', 'invoices']
+
+/** Las capacidades de un recurso. Solo los Espacios tienen una fuera de las cuatro de siempre. */
+function capacidadesDe (recurso) {
+  return recurso === 'projects' ? [...ACCIONES, 'edit_milestones'] : [...ACCIONES]
+}
 
 /**
- * Las cuatro del catalogo consolidado (`Acceso\Permisos::FEATURES_NUEVO` del backend).
+ * Lo que puede cualquiera que no sea administrador, que ahora es lo mismo para todo el mundo.
  *
- * `invoices` queda afuera: es la que hace visible la diferencia entre los dos modelos sin inventar
- * un fixture nuevo.
+ * El modelo nuevo no reparte casillas por persona: quien no es admin trabaja con este juego fijo, y
+ * lo que cambia entre dos personas es CUANTAS filas ve, que sale del arbol y no de aca.
  */
-const RECURSOS_CONSOLIDADOS = ['tasks', 'projects', 'customers', 'staff']
-
-/** El catalogo que le toca a una persona segun su modelo. */
-function recursosDe (staff) {
-  return staff.modelo_permisos === 'nuevo' ? RECURSOS_CONSOLIDADOS : RECURSOS_CON_PERMISO
+const PERMISOS_DE_PERSONA = {
+  tasks: ['view', 'create', 'edit', 'delete'],
+  projects: ['view', 'create', 'edit', 'delete', 'edit_milestones'],
+  customers: ['view', 'create', 'edit', 'delete'],
+  staff: ['view'],
+  leads: ['view', 'delete']
 }
 
 // ---------------------------------------------------------------------------
@@ -167,52 +173,19 @@ function fichaDeStaff (staff) {
 }
 
 /**
- * Permisos individuales editados desde la ficha, por id de persona.
- *
- * Vive en memoria y pisa a `permisosDe()`: es lo que hace que guardar la matriz se vea al refrescar,
- * igual que en la API real, donde estos permisos son filas de `tblstaff_permissions` y no una
- * propiedad del rol.
- */
-const PERMISOS_EDITADOS = new Map()
-
-/**
- * El catalogo de `GET /roles/catalogo`: las features y capacidades que el panel sabe escribir.
- *
- * Los nombres vienen en ingles a proposito —asi los manda Perfex—, para que la traduccion del
- * frontend se ejercite de verdad.
- */
-function catalogoDePermisos (staff) {
-  return recursosDe(staff).map((recurso) => ({
-    feature: recurso,
-    name: recurso.charAt(0).toUpperCase() + recurso.slice(1),
-    capabilities: (recurso === 'projects' ? [...ACCIONES, 'edit_milestones'] : ACCIONES).map((accion) => ({ key: accion, name: accion.charAt(0).toUpperCase() + accion.slice(1) }))
-  }))
-}
-
-/**
  * Arma el mapa de permisos que el frontend usa para podar columnas y acciones.
  *
- * Un admin puede todo. El resto trabaja sus Procesos pero NO ve clientes ni facturas: es un recorte
- * realista en Perfex, y es lo que hace que el 403 sea alcanzable desde el mock. Sin un permiso
- * denegado de verdad, la rama de "sin permiso" del frontend nunca se ejercita hasta produccion.
+ * Un admin puede todo, incluidas las facturas. El resto recibe siempre `PERMISOS_DE_PERSONA`: no
+ * ve facturas, y de las personas solo el listado. Esas dos son las que dejan alcanzable el 403
+ * desde el mock; sin un permiso denegado de verdad, la rama de "sin permiso" del frontend no se
+ * ejercita hasta produccion.
  */
 function permisosDe (staff) {
-  const editados = PERMISOS_EDITADOS.get(staff.id)
-  if (editados !== undefined) return editados
+  if (staff.is_admin === true || staff.is_superadmin === true) {
+    return Object.fromEntries(RECURSOS_CON_PERMISO.map((recurso) => [recurso, capacidadesDe(recurso)]))
+  }
 
-  if (staff.is_admin) {
-    return Object.fromEntries(recursosDe(staff).map((r) => [r, r === 'projects' ? [...ACCIONES, 'edit_milestones'] : [...ACCIONES]]))
-  }
-  return {
-    tasks: ['view', 'create', 'edit'],
-    projects: ['view'],
-    customers: [],
-    staff: ['view'],
-    // Con una capacidad y no vacia: es lo que hace que `invoices` sea un permiso HEREDADO de verdad
-    // cuando el actor pasa al catalogo consolidado, y que la ficha ejercite el bloque "ademas tiene
-    // esto". Vacia no aparece en ninguna parte y esa rama no se probaba nunca.
-    invoices: ['view']
-  }
+  return Object.fromEntries(Object.entries(PERMISOS_DE_PERSONA).map(([recurso, capacidades]) => [recurso, [...capacidades]]))
 }
 
 /** Adjunta `custom_fields` a una fila si el cliente lo pidio con `include`. */
@@ -793,35 +766,6 @@ function registrarReporte (cuerpo, actual) {
 function exigirSuperadmin (staff, queProtege) {
   if (staff.is_superadmin !== true) {
     throw new ErrorApi(403, 'forbidden', `Solo un superadministrador ${queProtege}.`)
-  }
-}
-
-/**
- * La escalera de permisos del mock (`modules/api/Acceso/Reglas.php`).
- *
- * Solo los cinco escalones de abajo se pueden escribir: `admin` y `superadmin` salen de las banderas
- * de Perfex, y la API los rechaza con 422 por esta puerta. Los ids del mapa son los de `ROLES` del
- * mock, no los de la base real.
- */
-const NIVELES_ASIGNABLES = ['usuario', 'focal', 'lider', 'head', 'gerente']
-const NIVELES_POR_ROL = { 1: 'gerente', 2: 'lider', 3: 'usuario' }
-
-/** Override por persona, en memoria. Ausencia de entrada = "el que diga su rol". */
-const NIVELES_ASIGNADOS = new Map()
-
-/**
- * El escalon de una persona, resuelto con el mismo orden que `Acceso\\Permisos::nivel()`: las
- * banderas de Perfex mandan sobre todo, despues el override, y al final el rol.
- */
-function nivelDe (staff) {
-  const asignado = NIVELES_ASIGNADOS.get(staff.id) ?? null
-
-  if (staff.is_superadmin === true) return { nivel: 'superadmin', nivel_asignado: asignado }
-  if (staff.is_admin === true) return { nivel: 'admin', nivel_asignado: asignado }
-
-  return {
-    nivel: asignado ?? NIVELES_POR_ROL[staff.role_id] ?? 'usuario',
-    nivel_asignado: asignado
   }
 }
 
@@ -2326,30 +2270,33 @@ function editarContacto (contacto, datos) {
 }
 
 // ---------------------------------------------------------------------------
-// Accesos: escalones, roles, personas, areas, cargos e interruptores
+// Accesos: escalones, personas, arbol, areas, cargos e interruptores
 // ---------------------------------------------------------------------------
 //
 // Sirve `/accesos` tal como lo describe el contrato del modulo, para que la pantalla
 // `/administracion/accesos` se pueda ver y ejercitar antes de que el modulo exista en Perfex.
 //
-// El estado vive en memoria del proceso: crear un escalon y recargar la pagina lo sigue mostrando,
-// y reiniciar el mock devuelve la semilla. Es lo que hace falta para probar el ida y vuelta de la
-// pantalla sin montar una base.
+// Los dos ejes son independientes y no se mezclan aca: el rol de sistema vive en las banderas de
+// Perfex (`is_admin`/`is_superadmin`) y no se escribe por estas rutas; el escalon jerarquico y el
+// jefe directo si, y son lo unico que esta pantalla edita de una persona.
 //
-// El mapa de rol a escalon NO es una copia: es el mismo `NIVELES_POR_ROL` que usa `nivelDe()`, asi
-// que cambiar el escalon de un rol aca se ve en `GET /me` y en `GET /staff/{id}/nivel`. Dos
-// verdades sobre el mismo dato es como el mock deja de ser un contrato ejecutable.
+// El escalon NO otorga capacidades: nombra el puesto. Quien ve que, sale del arbol de personas
+// —la cadena de `jefe_staffid` y la jefatura de area—, que es el mismo `jefe_staffid` que administra
+// `/jerarquia`. Dos verdades sobre el mismo dato es como el mock deja de ser un contrato ejecutable.
+//
+// El estado vive en memoria del proceso: mover a alguien de jefe y recargar la pagina lo sigue
+// mostrando, y reiniciar el mock devuelve la semilla.
 
-/** La semilla de escalones, con el piso y el alcance de `Reglas::PISO` y `Alcance::POR_NIVEL`. */
+/** Los cuatro escalones jerarquicos. Son fijos: no se crean, no se borran y no se renombran. */
 const ESCALONES = [
-  { clave: 'usuario', nombre: 'Usuario', orden: 1, piso: { tasks: ['view', 'create', 'edit'], projects: ['view'] }, alcance: 'propio', jefatura: false, asignable: true, sistema: true },
-  { clave: 'focal', nombre: 'Focal', orden: 2, piso: { customers: ['view'] }, alcance: 'propio', jefatura: false, asignable: true, sistema: false },
-  { clave: 'lider', nombre: 'Líder', orden: 3, piso: { staff: ['view'] }, alcance: 'area', jefatura: true, asignable: true, sistema: false },
-  { clave: 'head', nombre: 'Head', orden: 4, piso: { projects: ['view', 'create', 'edit'], customers: ['view'] }, alcance: 'todo', jefatura: true, asignable: true, sistema: false },
-  { clave: 'gerente', nombre: 'Gerencia', orden: 5, piso: { customers: ['view', 'edit'] }, alcance: 'todo', jefatura: true, asignable: true, sistema: false },
-  { clave: 'admin', nombre: 'Administrador', orden: 6, piso: {}, alcance: 'todo', jefatura: false, asignable: false, sistema: true },
-  { clave: 'superadmin', nombre: 'Superadministrador', orden: 7, piso: {}, alcance: 'todo', jefatura: false, asignable: false, sistema: true }
+  { clave: 'staff', nombre: 'Staff', orden: 1 },
+  { clave: 'lead', nombre: 'Lead', orden: 2 },
+  { clave: 'director', nombre: 'Director', orden: 3 },
+  { clave: 'gerencia', nombre: 'Gerencia', orden: 4 }
 ]
+
+/** Las claves validas para escribir un escalon, en el orden en que la pantalla las muestra. */
+const CLAVES_DE_ESCALON = ESCALONES.map((escalon) => escalon.clave)
 
 /** Los cargos. Los dos primeros son los por defecto de la instalacion: la API los protege del borrado. */
 const CARGOS_ACCESOS = [
@@ -2358,35 +2305,19 @@ const CARGOS_ACCESOS = [
   { id: 3, nombre: 'Practicante', porDefecto: false }
 ]
 
-/** Los interruptores del modelo de permisos, con su valor actual. Es tambien la lista blanca del PUT. */
+/**
+ * El unico interruptor que queda del modelo de permisos, con su valor actual.
+ *
+ * Es tambien la lista blanca del PUT: cualquier otra clave vuelve con 422. Los del modelo viejo
+ * —reglas por escalon, alcance, roles de administracion— se fueron con el, y dejarlos serviria una
+ * pantalla que ya no existe.
+ */
 const INTERRUPTORES = [
   {
-    clave: 'wiwo_permisos_reglas',
+    clave: 'wiwo_permisos_jerarquia',
     valor: '1',
-    tipo: 'booleano',
-    nombre: 'Reglas de permiso por escalón',
-    descripcion: 'Apagarlo deja a cada persona solo con sus casillas de Perfex: el piso del escalón deja de sumar.'
-  },
-  {
-    clave: 'wiwo_permisos_alcance',
-    valor: '0',
-    tipo: 'booleano',
-    nombre: 'Alcance por escalón',
-    descripcion: 'Encenderlo recorta cuántas filas ve cada persona según el alcance de su escalón. Hoy ven todo 33 personas; con esto, 12.'
-  },
-  {
-    clave: 'wiwo_permisos_roles_admin',
-    valor: '0',
-    tipo: 'booleano',
-    nombre: 'Los roles de administración abren el panel',
-    descripcion: 'Encenderlo hace que ciertos roles den acceso de administrador sin tocar la bandera de Perfex.'
-  },
-  {
-    clave: 'wiwo_campo_area_id',
-    valor: '1',
-    tipo: 'booleano',
-    nombre: 'Área como campo de la persona',
-    descripcion: 'Apagarlo deja de resolver el área de cada persona, y el alcance «su área» pasa a no recortar nada.'
+    nombre: 'Alcance por jerarquía',
+    descripcion: 'Encendido, cada persona ve lo suyo y lo de quienes cuelgan de ella en el árbol. Apagado, el alcance deja de recortar filas.'
   }
 ]
 
@@ -2398,14 +2329,22 @@ function siguienteId (filas) {
   return filas.reduce((mayor, fila) => Math.max(mayor, fila.id), 0) + 1
 }
 
-/** El escalon con el que se presenta: sin el `porDefecto` interno de los cargos. */
+/** El escalon con cuanta gente lo tiene puesto. */
 function presentarEscalon (escalon) {
-  const personas = STAFF.filter((s) => nivelDe(s).nivel === escalon.clave).length
-
-  return { ...escalon, personas }
+  return { ...escalon, personas: STAFF.filter((persona) => persona.escalon === escalon.clave).length }
 }
 
-/** Cuantas personas usan un rol, un area o un cargo. */
+/**
+ * Si una persona tiene gente a cargo: alguien cuelga de ella, o dirige un area.
+ *
+ * Las dos vias cuentan porque son las dos que el alcance real mira. Mirar solo una deja jefaturas
+ * de area sin subordinados directos pareciendo hojas del arbol.
+ */
+function esJefatura (staff) {
+  return STAFF.some((otra) => otra.jefe_staffid === staff.id) || AREAS.some((area) => area.jefe_staffid === staff.id)
+}
+
+/** Cuantas personas usan un area o un cargo. */
 function contarPersonas (predicado) {
   return STAFF.filter(predicado).length
 }
@@ -2419,65 +2358,13 @@ function pertenenciaDe (staff) {
 function catalogoDeAccesos () {
   return {
     escalones: ESCALONES.map(presentarEscalon),
-    roles: ROLES.map((rol) => ({
-      id: rol.id,
-      nombre: rol.name,
-      escalon: NIVELES_POR_ROL[rol.id] ?? null,
-      personas: contarPersonas((s) => s.role_id === rol.id)
-    })),
     areas: AREAS.map(presentarAreaDeAccesos),
     cargos: CARGOS_ACCESOS.map(({ porDefecto: _porDefecto, ...cargo }) => ({
       ...cargo,
       personas: contarPersonas((s) => pertenenciaDe(s).cargo_id === cargo.id)
     })),
-    features: Object.fromEntries(
-      RECURSOS_CON_PERMISO.map((recurso) => [
-        recurso,
-        recurso === 'projects' ? [...ACCIONES, 'edit_milestones'] : [...ACCIONES]
-      ])
-    ),
-    alcances: ['propio', 'area', 'todo'],
+    features: Object.fromEntries(RECURSOS_CON_PERMISO.map((recurso) => [recurso, capacidadesDe(recurso)])),
     interruptores: INTERRUPTORES.map((uno) => ({ ...uno }))
-  }
-}
-
-/** Valida el cuerpo de un escalon. Lanza 422 con el detalle por campo, como la API real. */
-function exigirEscalonValido (datos, claveOriginal) {
-  const nombre = String(datos.nombre ?? '').trim()
-
-  if (nombre === '') {
-    throw new ErrorApi(422, 'validation_failed', 'El nombre es obligatorio.', { nombre: ['required'] })
-  }
-
-  if (claveOriginal === null) {
-    const clave = String(datos.clave ?? '')
-
-    if (!/^[a-z_]{2,30}$/.test(clave)) {
-      throw new ErrorApi(422, 'validation_failed', 'La clave no tiene el formato pedido.', { clave: ['invalid'] })
-    }
-    if (ESCALONES.some((uno) => uno.clave === clave)) {
-      throw new ErrorApi(422, 'validation_failed', 'Ya existe un escalón con esa clave.', { clave: ['duplicado'] })
-    }
-  }
-
-  const orden = Number(datos.orden)
-
-  if (!Number.isInteger(orden) || orden < 1) {
-    throw new ErrorApi(422, 'validation_failed', 'El orden tiene que ser un entero.', { orden: ['invalid'] })
-  }
-  if (ESCALONES.some((uno) => uno.orden === orden && uno.clave !== claveOriginal)) {
-    throw new ErrorApi(422, 'validation_failed', 'Ese orden ya está ocupado.', { orden: ['duplicado'] })
-  }
-  if (!['propio', 'area', 'todo'].includes(datos.alcance)) {
-    throw new ErrorApi(422, 'validation_failed', 'Ese alcance no existe.', { alcance: ['invalid'] })
-  }
-
-  const features = new Set(RECURSOS_CON_PERMISO)
-
-  for (const [feature, capacidades] of Object.entries(datos.piso ?? {})) {
-    if (!features.has(feature) || !Array.isArray(capacidades)) {
-      throw new ErrorApi(422, 'validation_failed', `La feature "${feature}" no existe.`, { piso: ['invalid'] })
-    }
   }
 }
 
@@ -2493,9 +2380,21 @@ async function accesosRuta (metodo, resto, parametros, actual, cuerpo) {
     return { estado: 200, cuerpo: conDatos(catalogoDeAccesos()) }
   }
 
+  // El arbol entero y plano: la pantalla lo arma sola con `jefe_staffid`. Solo gente activa, porque
+  // una baja no manda a nadie.
+  if (seccion === 'arbol' && metodo === 'GET') {
+    return {
+      estado: 200,
+      cuerpo: conDatos(STAFF.filter((persona) => persona.active).map((persona) => ({
+        staffid: persona.id,
+        nombre: persona.full_name,
+        escalon: persona.escalon,
+        jefe_staffid: persona.jefe_staffid ?? null
+      })))
+    }
+  }
+
   if (seccion === 'personas') return await personasDeAccesos(metodo, id, parametros, actual, cuerpo)
-  if (seccion === 'escalones') return await escalonesDeAccesos(metodo, id, cuerpo)
-  if (seccion === 'roles') return await rolesDeAccesos(metodo, id, cuerpo)
   if (seccion === 'areas') return await areasDeAccesos(metodo, id, cuerpo)
   if (seccion === 'cargos') return await cargosDeAccesos(metodo, id, cuerpo)
 
@@ -2518,32 +2417,30 @@ async function accesosRuta (metodo, resto, parametros, actual, cuerpo) {
   throw new ErrorApi(404, 'not_found', 'Recurso desconocido.')
 }
 
-/** El listado paginado de personas y la escritura de su rol, escalon, area y cargo. */
+/** El listado paginado de personas y la escritura de su escalon, jefe, area y cargo. */
 async function personasDeAccesos (metodo, id, parametros, actual, cuerpo) {
   if (metodo === 'GET' && id === undefined) {
     const buscar = (parametros.get('buscar') ?? '').toLowerCase()
     const escalon = parametros.get('escalon')
-    const rol = parametros.get('rol')
     const area = parametros.get('area')
-    const pagina = Math.max(1, Number(parametros.get('page') ?? 1) || 1)
+    // `pagina` es el nombre del contrato; `page` se acepta porque es el que manda la pantalla vieja.
+    const pagina = Math.max(1, Number(parametros.get('pagina') ?? parametros.get('page') ?? 1) || 1)
     const porPagina = 25
 
     const filas = STAFF
       .filter((s) => buscar === '' || s.full_name.toLowerCase().includes(buscar) || s.email.toLowerCase().includes(buscar))
-      .filter((s) => escalon === null || nivelDe(s).nivel === escalon)
-      .filter((s) => rol === null || s.role_id === Number(rol))
+      .filter((s) => escalon === null || s.escalon === escalon)
       .filter((s) => area === null || areasDePersona(s).includes(Number(area)))
       .map((s) => {
         const { area_id: areaId, cargo_id: cargoId } = pertenenciaDe(s)
-        const { nivel, nivel_asignado: asignado } = nivelDe(s)
 
         return {
           staffid: s.id,
           nombre: s.full_name,
           correo: s.email,
-          rol_id: s.role_id,
-          escalon_efectivo: nivel,
-          escalon_override: asignado,
+          escalon: s.escalon,
+          jefe_staffid: s.jefe_staffid ?? null,
+          jefe_nombre: STAFF.find((otra) => otra.id === s.jefe_staffid)?.full_name ?? null,
           area_id: areaId,
           area_ids: areasDePersona(s),
           cargo_id: cargoId,
@@ -2580,20 +2477,17 @@ async function personasDeAccesos (metodo, id, parametros, actual, cuerpo) {
       throw new ErrorApi(409, 'conflict', 'No puedes cambiarte el escalón a ti mismo.')
     }
 
-    if (datos.escalon === null) {
-      NIVELES_ASIGNADOS.delete(persona.id)
-    } else {
-      const escalon = ESCALONES.find((uno) => uno.clave === datos.escalon)
-
-      if (!escalon || !escalon.asignable) {
-        throw new ErrorApi(422, 'validation_failed', 'Ese escalón no se puede asignar.', { escalon: ['invalid'] })
-      }
-
-      NIVELES_ASIGNADOS.set(persona.id, datos.escalon)
+    if (!CLAVES_DE_ESCALON.includes(datos.escalon)) {
+      throw new ErrorApi(422, 'validation_failed',
+        `El escalón tiene que ser uno de: ${CLAVES_DE_ESCALON.join(', ')}.`, { escalon: ['invalid'] })
     }
+
+    persona.escalon = datos.escalon
   }
 
-  if (datos.rol_id !== undefined) persona.role_id = datos.rol_id
+  if (datos.jefe_staffid !== undefined) {
+    persona.jefe_staffid = jefeValidado(persona, datos.jefe_staffid)
+  }
 
   if (areasNuevas !== undefined) {
     guardarAreasDePersona(persona, areasNuevas)
@@ -2604,146 +2498,55 @@ async function personasDeAccesos (metodo, id, parametros, actual, cuerpo) {
   return { estado: 200, cuerpo: conDatos({ staffid: persona.id }) }
 }
 
-/** Alta, edicion y borrado de escalones. */
-async function escalonesDeAccesos (metodo, clave, cuerpo) {
-  if (metodo === 'POST' && clave === undefined) {
-    const datos = await cuerpo()
-    exigirEscalonValido(datos, null)
+/**
+ * Valida el jefe que se le quiere poner a alguien y devuelve el id ya normalizado.
+ *
+ * @param {object} persona la fila de staff que se esta editando
+ * @param {number|null} propuesto el `jefe_staffid` del cuerpo; `null` la desengancha
+ * @returns {number|null} el id del jefe, o `null` si queda sin jefe
+ * @throws {ErrorApi} 422 si el jefe no existe, es ella misma, o cierra un ciclo en el arbol
+ */
+function jefeValidado (persona, propuesto) {
+  if (propuesto === null) return null
 
-    const nuevo = {
-      clave: String(datos.clave),
-      nombre: String(datos.nombre).trim(),
-      orden: Number(datos.orden),
-      piso: datos.piso ?? {},
-      alcance: datos.alcance,
-      jefatura: datos.jefatura === true,
-      asignable: datos.asignable === true,
-      sistema: false
-    }
+  const jefeId = Number(propuesto)
 
-    ESCALONES.push(nuevo)
-
-    return { estado: 201, cuerpo: conDatos(presentarEscalon(nuevo)) }
+  if (!STAFF.some((otra) => otra.id === jefeId)) {
+    throw new ErrorApi(422, 'validation_failed', 'Esa persona no existe.', { jefe_staffid: ['unknown'] })
+  }
+  if (jefeId === persona.id) {
+    throw new ErrorApi(422, 'validation_failed', 'Nadie puede ser su propio jefe.', { jefe_staffid: ['propio'] })
+  }
+  if (cuelgaDe(jefeId, persona.id)) {
+    throw new ErrorApi(422, 'validation_failed', 'Ese jefe haría un ciclo en el árbol.', { jefe_staffid: ['ciclo'] })
   }
 
-  const escalon = ESCALONES.find((uno) => uno.clave === clave)
-
-  if (!escalon) throw new ErrorApi(404, 'not_found', 'No existe ese escalón.')
-
-  if (metodo === 'PUT') {
-    const datos = await cuerpo()
-
-    if (escalon.sistema) {
-      const nombre = String(datos.nombre ?? '').trim()
-
-      if (nombre === '') {
-        throw new ErrorApi(422, 'validation_failed', 'El nombre es obligatorio.', { nombre: ['required'] })
-      }
-
-      escalon.nombre = nombre
-
-      return { estado: 200, cuerpo: conDatos(presentarEscalon(escalon)) }
-    }
-
-    exigirEscalonValido(datos, escalon.clave)
-
-    escalon.nombre = String(datos.nombre).trim()
-    escalon.orden = Number(datos.orden)
-    escalon.piso = datos.piso ?? {}
-    escalon.alcance = datos.alcance
-    escalon.jefatura = datos.jefatura === true
-    escalon.asignable = datos.asignable === true
-
-    return { estado: 200, cuerpo: conDatos(presentarEscalon(escalon)) }
-  }
-
-  if (metodo !== 'DELETE') throw new ErrorApi(404, 'not_found', 'Recurso desconocido.')
-
-  if (escalon.sistema) {
-    throw new ErrorApi(409, 'conflict', 'Los escalones de sistema no se borran.')
-  }
-
-  const roles = ROLES.filter((rol) => NIVELES_POR_ROL[rol.id] === escalon.clave).map((rol) => rol.name)
-  const personas = [...NIVELES_ASIGNADOS.values()].filter((valor) => valor === escalon.clave).length
-
-  if (roles.length > 0 || personas > 0) {
-    throw new ErrorApi(
-      409,
-      'conflict',
-      `Ese escalón está en uso: ${personas} persona(s)${roles.length > 0 ? ` y los roles ${roles.join(', ')}` : ''}.`
-    )
-  }
-
-  ESCALONES.splice(ESCALONES.indexOf(escalon), 1)
-
-  return { estado: 204, cuerpo: null }
+  return jefeId
 }
 
-/** Alta, renombre, mapeo y borrado de roles. */
-async function rolesDeAccesos (metodo, id, cuerpo) {
-  if (metodo === 'POST' && id === undefined) {
-    const datos = await cuerpo()
-    const nombre = String(datos.nombre ?? '').trim()
+/**
+ * Si `staffId` esta en la rama que cuelga de `posibleJefeId`, subiendo por `jefe_staffid`.
+ *
+ * El `Set` corta un arbol ya ciclado —que el fixture no tiene, pero una escritura a medias si podria
+ * dejar— en vez de colgar el proceso.
+ *
+ * @param {number} staffId de quien se quiere saber si desciende
+ * @param {number} posibleJefeId la raiz de la rama
+ * @returns {boolean}
+ */
+function cuelgaDe (staffId, posibleJefeId) {
+  const vistos = new Set()
+  let actual = staffId
 
-    if (nombre === '') {
-      throw new ErrorApi(422, 'validation_failed', 'El nombre es obligatorio.', { nombre: ['required'] })
-    }
+  while (actual !== null && actual !== undefined) {
+    if (actual === posibleJefeId) return true
+    if (vistos.has(actual)) return false
 
-    const rol = { id: siguienteId(ROLES), name: nombre }
-    ROLES.push(rol)
-
-    if (datos.escalon) NIVELES_POR_ROL[rol.id] = datos.escalon
-
-    return { estado: 201, cuerpo: conDatos({ id: rol.id, nombre: rol.name, escalon: datos.escalon ?? null, personas: 0 }) }
+    vistos.add(actual)
+    actual = STAFF.find((otra) => otra.id === actual)?.jefe_staffid ?? null
   }
 
-  const rol = ROLES.find((uno) => uno.id === Number(id))
-
-  if (!rol) throw new ErrorApi(404, 'not_found', 'No existe ese rol.')
-
-  if (metodo === 'PUT') {
-    const datos = await cuerpo()
-
-    if (datos.nombre !== undefined) {
-      const nombre = String(datos.nombre).trim()
-
-      if (nombre === '') {
-        throw new ErrorApi(422, 'validation_failed', 'El nombre es obligatorio.', { nombre: ['required'] })
-      }
-
-      rol.name = nombre
-    }
-
-    if (datos.escalon !== undefined) {
-      if (datos.escalon === null) delete NIVELES_POR_ROL[rol.id]
-      else if (!ESCALONES.some((uno) => uno.clave === datos.escalon)) {
-        throw new ErrorApi(422, 'validation_failed', 'Ese escalón no existe.', { escalon: ['invalid'] })
-      } else NIVELES_POR_ROL[rol.id] = datos.escalon
-    }
-
-    return {
-      estado: 200,
-      cuerpo: conDatos({
-        id: rol.id,
-        nombre: rol.name,
-        escalon: NIVELES_POR_ROL[rol.id] ?? null,
-        personas: contarPersonas((s) => s.role_id === rol.id)
-      })
-    }
-  }
-
-  if (metodo !== 'DELETE') throw new ErrorApi(404, 'not_found', 'Recurso desconocido.')
-
-  const personas = contarPersonas((s) => s.role_id === rol.id)
-
-  if (personas > 0) {
-    throw new ErrorApi(409, 'conflict', `Ese rol tiene ${personas} persona(s). Muévelas antes de borrarlo.`)
-  }
-
-  ROLES.splice(ROLES.indexOf(rol), 1)
-  delete NIVELES_POR_ROL[rol.id]
-
-  return { estado: 204, cuerpo: null }
+  return false
 }
 
 /**
@@ -3603,9 +3406,14 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
         // decir que alguien dirige algo mientras `/jerarquia` le contesta 403 por no tener ninguna.
         // `is_director` es otra cosa —el cargo de `tblcargos`— y se deja como estaba.
         dirige_areas: AREAS.some((area) => area.jefe_staffid === actual.id),
-        // El escalon de la escalera, por el mismo resolutor que `GET /staff/{id}/nivel`: dos
-        // verdades sobre el mismo dato es como el mock deja de ser un contrato ejecutable.
-        nivel: nivelDe(actual).nivel,
+        // Los dos ejes del modelo nuevo: el escalon dice que puesto ocupa, y el jefe de quien
+        // cuelga. Ninguno otorga capacidades —eso es `permissions` y las banderas de Perfex—, pero
+        // son lo que la interfaz usa para saber que le toca ver.
+        escalon: actual.escalon,
+        jefe_staffid: actual.jefe_staffid ?? null,
+        // Tener gente a cargo: alguien cuelga de ella, o dirige un area. Se resuelve por el mismo
+        // `esJefatura()` que usa `/accesos`, para que el mock no diga dos cosas del mismo dato.
+        es_jefatura: esJefatura(actual),
         secciones_habilitadas: ['procesos', 'espacios', 'salas'],
         locale: 'es'
       })
@@ -3686,88 +3494,14 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
     return { estado: 200, cuerpo: conDatos(definiciones.filter((d) => !d.only_admin || actual.is_admin)) }
   }
 
-  if (recurso === 'roles' && resto[0] === 'catalogo' && metodo === 'GET') {
-    // `staff.edit` y no `staff.view`: el catalogo sirve para editar los permisos de alguien, no para
-    // mirar la ficha. Es el gate que la API estrenó al borrar el CRUD de roles.
-    exigirPermiso(actual, 'staff', 'edit')
-
-    // El catalogo es el del ACTOR, no el de la persona editada: el endpoint no recibe id. Es seguro
-    // en las dos direcciones porque el PATCH toca solo las features que el cuerpo nombra.
-    return { estado: 200, cuerpo: conDatos(catalogoDePermisos(actual)) }
-  }
-
-  // Edicion de los permisos individuales de una persona. Solo `permissions`: el resto de la ficha se
-  // edita con el formulario de Equipo, que el mock no necesita para probar esta pantalla.
-  // --- El escalon de la escalera de permisos --------------------------------
-  //
-  // Antes de los bloques de `staff`, que son PATCH y GET: un PUT caeria al 404 final.
-  //
-  // El mock guarda el override en memoria y resuelve igual que `Acceso\\Permisos::nivel()`: las
-  // banderas de Perfex mandan sobre todo, despues el override, y al final el rol. Si el orden fuera
-  // otro, el dialogo se veria bien contra el mock y mentiria contra la API.
-  if (recurso === 'staff' && resto[1] === 'nivel') {
-    // `staff.view` primero y para los dos metodos, igual que la API real: la compuerta del recurso
-    // `/staff` entero corre antes de mirar el subrecurso.
-    exigirPermiso(actual, 'staff', 'view')
-
-    const persona = buscarO404(STAFF, Number(resto[0]), 'staff')
-
-    if (metodo === 'PUT') {
-      exigirSuperadmin(actual, 'reparte los niveles de permiso')
-
-      if (persona.id === actual.id) {
-        throw new ErrorApi(409, 'conflict', 'No podés cambiarte el nivel a vos mismo. Pedíselo a otro superadministrador.')
-      }
-
-      const datos = await cuerpo()
-      const nivel = datos.nivel ?? null
-
-      // Los dos escalones de arriba salen de las banderas de Perfex y esta puerta no los escribe.
-      if (nivel !== null && !NIVELES_ASIGNABLES.includes(nivel)) {
-        throw new ErrorApi(422, 'validation_failed',
-          `El nivel tiene que ser uno de: ${NIVELES_ASIGNABLES.join(', ')}.`, { nivel: [`unknown:${nivel}`] })
-      }
-
-      if (nivel === null) NIVELES_ASIGNADOS.delete(persona.id)
-      else NIVELES_ASIGNADOS.set(persona.id, nivel)
-    } else if (metodo !== 'GET') {
-      throw new ErrorApi(404, 'not_found', 'Subrecurso desconocido.')
-    }
-
-    return { estado: 200, cuerpo: conDatos(nivelDe(persona)) }
-  }
-
+  // Edicion de la ficha de una persona. Los permisos NO se editan por aca: en el modelo nuevo son
+  // los mismos para todo el que no sea administrador, y las casillas por persona ya no existen.
   if (recurso === 'staff' && metodo === 'PATCH') {
     exigirPermiso(actual, 'staff', 'edit')
     const persona = buscarO404(STAFF, Number(resto[0]), 'staff')
     const datos = await cuerpo()
 
     const areasNuevas = validarAreasDePersona(datos)
-
-    if (datos.permissions !== undefined) {
-      // Mismo contrato que la API real: solo se reescriben las areas nombradas; las demas quedan.
-      const previos = { ...permisosDe(persona) }
-      for (const [feature, capacidades] of Object.entries(datos.permissions)) {
-        previos[feature] = [...capacidades]
-      }
-      PERMISOS_EDITADOS.set(persona.id, previos)
-    }
-
-    // El interruptor del catalogo consolidado. Solo un superadministrador, igual que la API real, y
-    // con el mismo enum de lectura para que no haya dos nombres para una sola cosa.
-    if (datos.modelo_permisos !== undefined) {
-      if (!actual.is_superadmin) {
-        throw new ErrorApi(422, 'validation_failed', 'Revisá los campos de la persona.', {
-          modelo_permisos: ['solo_superadmin']
-        })
-      }
-      if (datos.modelo_permisos !== 'nuevo' && datos.modelo_permisos !== 'viejo') {
-        throw new ErrorApi(422, 'validation_failed', 'Revisá los campos de la persona.', {
-          modelo_permisos: ['invalid']
-        })
-      }
-      persona.modelo_permisos = datos.modelo_permisos
-    }
 
     if (areasNuevas !== undefined) {
       guardarAreasDePersona(persona, areasNuevas)

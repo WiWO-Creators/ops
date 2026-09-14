@@ -8,11 +8,12 @@
  * que se apoyan en `localStorage` se les pasa el almacenamiento —y el dia, la que lo lleva— asi que
  * tampoco necesitan un navegador ni dependen del reloj de quien corre las pruebas.
  */
+import { esJefatura } from './escalon.ts'
 import { GLOSARIO } from './glosario.ts'
 import { puedeVerSeccion } from './permisos.ts'
 import { normalizar } from './salas.ts'
 import type { ClienteDeJornada, EstadoDeJornada } from '@/datos/live'
-import type { NivelPermiso, Yo } from '@/datos/tipos'
+import type { Yo } from '@/datos/tipos'
 
 /**
  * Si hay que exigirle a esta persona que abra su jornada antes de dejarla usar el panel.
@@ -350,26 +351,21 @@ export function mensajeDeFalloDeJornada (estado: number, abriendo: boolean): str
 }
 
 /**
- * Los escalones que reciben el resumen del equipo de las 20:00.
+ * Si a esta persona le corresponde el resumen del equipo de las 20:00.
  *
- * Espeja la regla de la API (`Escritura\ResumenDelEquipo`), que responde **403** a quien no está en
- * la lista. Existe para no ofrecer un enlace que lleva a una pantalla sin permiso: esconder no
- * autoriza —la compuerta es la API— pero enseñarle una puerta cerrada a media empresa tampoco
- * informa a nadie.
+ * Espeja la regla de la API (`Escritura\ResumenDelEquipo`), que responde **403** a quien no manda a
+ * nadie. Existe para no ofrecer un enlace que lleva a una pantalla sin permiso: esconder no autoriza
+ * —la compuerta es la API— pero enseñarle una puerta cerrada a media empresa tampoco informa a nadie.
  *
- * `lider` queda fuera a propósito: conduce un equipo, no la casa, y el resumen es de toda ella.
- * `focal` tampoco, que además ya no es un escalón sino una relación con clientes.
+ * Dos llaves y no una: el rol de sistema y el escalón son ejes independientes. Un administrador ve
+ * todas las filas aunque no conduzca a nadie, y una jefatura ve a su gente sin ser administradora.
+ * El escalón lo resuelve `esJefatura()` de `dominio/escalon.ts`, que es la única lista de los cuatro.
+ *
+ * @param yo quien mira, tal como lo devolvió `GET /me`
+ * @returns `true` para administración y para los escalones de conducción
  */
-const JEFATURAS: readonly NivelPermiso[] = ['head', 'gerente', 'admin', 'superadmin']
-
-/**
- * Si a esta persona le corresponde ver el resumen del equipo.
- *
- * @param nivel el escalón que resolvió la API en `GET /me`
- * @returns `true` para jefaturas
- */
-export function esJefatura (nivel: NivelPermiso): boolean {
-  return JEFATURAS.includes(nivel)
+export function recibeElResumenDelEquipo (yo: Pick<Yo, 'is_admin' | 'is_superadmin' | 'escalon'>): boolean {
+  return yo.is_admin || yo.is_superadmin || esJefatura(yo.escalon)
 }
 
 /**
