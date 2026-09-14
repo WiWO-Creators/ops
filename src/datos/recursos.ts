@@ -1355,6 +1355,11 @@ export interface HitoDetallado extends Hito {
 /** Tarjeta del kanban de hitos. */
 export interface TarjetaHito {
   id: number
+  /**
+   * Identificador visible de la Tarea (`PAT-001-07`), el mismo de `Proceso.patente`. Es `null`
+   * mientras el backend no la haya asignado o si la instalacion no tiene la tabla.
+   */
+  patente: string | null
   name: string
   status: number
   start_date: string | null
