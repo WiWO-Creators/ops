@@ -154,53 +154,64 @@ export function VistaEspacios ({
   }
 
   return (
-    <div className="flex flex-col gap-3">
-      <PastillasEstado
-        estadisticas={estadisticas}
-        error={errorEstadisticas}
-        seleccion={estado.filtros.status ?? []}
-        onCambiar={(estados) => { cambiarConsulta({ filtros: { ...estado.filtros, status: estados }, pagina: 1 }) }}
-      />
-
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <Segmentado
-          etiqueta="Presentación del listado"
-          opciones={VISTAS}
-          activo={vista}
-          onElegir={(valor) => { cambiarVista(valor as Vista) }}
+    // `gap-4` entre la cabecera y el listado, `gap-3` dentro de la cabecera: el salto de separacion es
+    // lo que agrupa las pastillas con la barra de acciones sin necesidad de una caja ni de una linea.
+    <div className="flex flex-col gap-4">
+      <header className="flex flex-col gap-3">
+        <PastillasEstado
+          estadisticas={estadisticas}
+          error={errorEstadisticas}
+          seleccion={estado.filtros.status ?? []}
+          onCambiar={(estados) => { cambiarConsulta({ filtros: { ...estado.filtros, status: estados }, pagina: 1 }) }}
         />
 
-        <div className="flex flex-wrap items-center gap-2">
-          <Boton tamano="chico" variante="sutil" cargando={refrescando} onClick={refrescar}>
-            Refrescar
-          </Boton>
-          <Boton
-            tamano="chico"
-            onClick={() => { descargarCsv(campos, inicial.filas, opcionesDeFiltro) }}
-            disabled={inicial.filas.length === 0}
-          >
-            Exportar CSV
-          </Boton>
-          {/* La pantalla de plantillas es donde se arman; desde aca solo se entra a verla. Es un
-              enlace y no un boton porque va a otra ruta. */}
-          <Link
-            href="/espacios/plantillas"
-            className="text-texto-tenue hover:text-texto text-xs underline-offset-4 hover:underline"
-          >
-            Plantillas
-          </Link>
-          {capacidades.includes('create') && (
-            <>
-              <Boton tamano="chico" onClick={() => { setDesdePlantilla(true) }}>
-                Desde plantilla
-              </Boton>
-              <Boton tamano="chico" variante="primario" onClick={() => { setAEditar('nuevo') }}>
-                Nuevo {GLOSARIO.espacio.singular.toLowerCase()}
-              </Boton>
-            </>
-          )}
+        {/* Navegacion a la izquierda, acciones a la derecha y la primaria al final. Antes las cinco
+            piezas iban en un mismo monton a la derecha, con un enlace subrayado entre dos botones. */}
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <Segmentado
+              etiqueta="Presentación del listado"
+              opciones={VISTAS}
+              activo={vista}
+              onElegir={(valor) => { cambiarVista(valor as Vista) }}
+            />
+
+            <span aria-hidden="true" className="bg-linea hidden h-5 w-px sm:block" />
+
+            {/* La pantalla de plantillas es donde se arman; desde aca solo se entra a verla. Es un
+                enlace y no un boton porque va a otra ruta. */}
+            <Link
+              href="/espacios/plantillas"
+              className="text-texto-tenue hover:text-texto text-xs underline-offset-4 hover:underline"
+            >
+              Plantillas
+            </Link>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <Boton tamano="chico" variante="sutil" cargando={refrescando} onClick={refrescar}>
+              Refrescar
+            </Boton>
+            <Boton
+              tamano="chico"
+              onClick={() => { descargarCsv(campos, inicial.filas, opcionesDeFiltro) }}
+              disabled={inicial.filas.length === 0}
+            >
+              Exportar CSV
+            </Boton>
+            {capacidades.includes('create') && (
+              <>
+                <Boton tamano="chico" onClick={() => { setDesdePlantilla(true) }}>
+                  Desde plantilla
+                </Boton>
+                <Boton tamano="chico" variante="primario" onClick={() => { setAEditar('nuevo') }}>
+                  Nuevo {GLOSARIO.espacio.singular.toLowerCase()}
+                </Boton>
+              </>
+            )}
+          </div>
         </div>
-      </div>
+      </header>
 
       {vista === 'tabla'
         ? (
@@ -362,9 +373,11 @@ export function TarjetasProyectos ({ resultado, opcionesDeFiltro, campos }: Prop
             {/* Igual que en la tabla: refrescar atenua las tarjetas viejas en vez de taparlas, y el
                 aviso va en un chip sobre la esquina. Sin indicador, la atenuacion se lee como un fallo. */}
             {pendiente && <CargandoConOrbe mensaje="Actualizando…" className="absolute right-2 top-2 z-10" />}
+            {/* Tres columnas desde `lg` y no desde `xl`: entre 1024 y 1207px sobraba ancho para una
+                tercera tarjeta y se pintaban dos, enormes y con el texto perdido en el medio. */}
             <ul
               className={cn(
-                'grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3',
+                'grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3',
                 pendiente && 'opacity-60 transition-opacity'
               )}
             >
