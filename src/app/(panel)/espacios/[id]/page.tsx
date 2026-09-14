@@ -7,6 +7,7 @@ import { proyectoDelPanel } from '@/dominio/proyecto'
 import { PanelActividad } from '@/componentes/proyecto/PanelActividad'
 import { PanelConfiguracionEspacio } from '@/componentes/proyecto/PanelConfiguracionEspacio'
 import { PanelArchivos } from '@/componentes/proyecto/PanelArchivos'
+import { PanelCalendario } from '@/componentes/proyecto/PanelCalendario'
 import { PanelDescripcion } from '@/componentes/proyecto/PanelDescripcion'
 import { PanelDiscusiones } from '@/componentes/proyecto/PanelDiscusiones'
 import { PanelGantt } from '@/componentes/proyecto/PanelGantt'
@@ -197,6 +198,11 @@ export default async function ProyectoPage (props: PageProps<'/espacios/[id]'>) 
       contenido: <PanelDiscusiones proyectoId={proyecto.id} capacidades={capacidadesProyecto} />
     },
     { clave: 'gantt', etiqueta: 'Diagrama de Gantt', contenido: <PanelGantt proyectoId={proyecto.id} /> },
+    // Va pegada al Gantt porque las dos leen las mismas fechas, y despues porque son dos preguntas
+    // distintas: el Gantt muestra duraciones y dependencias, el calendario muestra el dia de
+    // entrega. Sus capacidades son las de `tasks` y no las del Espacio: lo que abre es el detalle de
+    // un Proceso.
+    { clave: 'calendario', etiqueta: 'Calendario', contenido: <PanelCalendario proyectoId={proyecto.id} capacidades={capacidadesTareas} /> },
     // El Meeting Paper conserva el lugar donde el equipo ya lo busca. Va aparte de las Notas y no
     // adentro porque son dos cosas distintas: la nota es privada de quien la escribio y el acta la ve
     // todo el Proyecto, asi que sus acciones dependen de permisos en vez de ofrecerse siempre.
