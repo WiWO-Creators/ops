@@ -6,6 +6,7 @@ import { useSearchParams } from 'next/navigation'
 import { TableroFiltrable } from '@/componentes/datos/TableroFiltrable'
 import { GrupoAvatares } from '@/componentes/presentadores/Avatar'
 import { Fecha } from '@/componentes/presentadores/Fecha'
+import { CodigoCopiable } from '@/componentes/presentadores/CodigoCopiable'
 import { pedirSobre } from '@/datos/cliente'
 import { listaDe, opcionesDeFiltros } from '@/datos/catalogos'
 import { PARAMETRO_TAREA } from '@/componentes/datos/tabla'
@@ -207,7 +208,9 @@ export function TableroHitos ({
  * Tarjeta de una tarea dentro del kanban de hitos.
  *
  * Muestra lo mismo que la del panel: quienes la tienen asignada, el nombre —tachado si esta
- * completa—, el tiempo registrado y el rango de fechas.
+ * completa—, el tiempo registrado y el rango de fechas, mas la patente en un chip que se copia de
+ * un clic (`CodigoCopiable`). La patente es el codigo con el que la tarea se nombra fuera de la
+ * pantalla —en un mensaje, en una reunion—, y hasta ahora habia que abrir el detalle para leerla.
  *
  * El nombre es un enlace a `?tarea={id}` y no un texto plano: es el mismo modal de detalle que abre
  * la tabla y el tablero de Tareas, y hasta ahora este kanban era el unico listado desde el que una
@@ -241,14 +244,27 @@ function TarjetaDeHito ({
 
   return (
     <div className="flex flex-col gap-2">
-      {puedeEditarTareas && (
-        <MenuEstadoTarea
-          tareaId={tarea.id}
-          nombreTarea={tarea.name}
-          estado={tarea.status}
-          catalogo={estados}
-          onCambiado={onEstadoCambiado}
-        />
+      {(puedeEditarTareas || tarea.patente !== null) && (
+        <div className="flex items-start gap-2">
+          {puedeEditarTareas && (
+            <MenuEstadoTarea
+              tareaId={tarea.id}
+              nombreTarea={tarea.name}
+              estado={tarea.status}
+              catalogo={estados}
+              onCambiado={onEstadoCambiado}
+            />
+          )}
+
+          {/* Sin patente no se pinta nada, igual que en `CabeceraProyecto`: un `#12` no es el
+              codigo con el que se nombra la tarea fuera de la pantalla. */}
+          {tarea.patente !== null && (
+            <CodigoCopiable
+              valor={tarea.patente}
+              className="bg-superficie-hundida ml-auto shrink-0"
+            />
+          )}
+        </div>
       )}
 
       {tarea.assignees.length > 0 && <GrupoAvatares personas={tarea.assignees} maximo={4} />}
