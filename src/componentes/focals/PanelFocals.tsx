@@ -1,11 +1,13 @@
 'use client'
 
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import Link from 'next/link'
-import { ChevronRight, Sparkles } from 'lucide-react'
+import { ArrowUpRight, ChevronRight, Sparkles } from 'lucide-react'
+import { ControlesDeCartera } from './ControlesDeCartera'
 import { Boton } from '@/componentes/formularios/Boton'
 import { Insignia } from '@/componentes/presentadores/Insignia'
-import { DesgloseSenales, Puntaje, TRAMOS } from '@/componentes/clientes/SemaforoCliente'
+import { Vacio } from '@/componentes/estado/Estados'
+import { DesgloseSenales, TRAMOS, Variacion } from '@/componentes/clientes/SemaforoCliente'
 import { mensajeDeRespuesta } from '@/datos/cliente'
 import {
   contarPorTramo,
@@ -18,7 +20,15 @@ import {
   type EstadoRedactado,
   type ScoreEspacio
 } from '@/datos/focals'
-import type { ScoreCliente } from '@/datos/recursos'
+import {
+  filtrarCartera,
+  nombreDeCuenta,
+  ordenarCartera,
+  resumirCartera,
+  type FiltroDeCartera,
+  type OrdenDeCartera
+} from '@/dominio/cartera'
+import type { ScoreCliente, SemaforoCliente } from '@/datos/recursos'
 import { ASISTENTE, GLOSARIO } from '@/dominio/glosario'
 import { cn } from '@/lib/clases'
 
@@ -31,6 +41,17 @@ import { cn } from '@/lib/clases'
  * cuentas está mal?" y recién después "¿qué parte de esa cuenta la tiene mal?". Una tabla de todos
  * los {@link GLOSARIO.espacio} ordenados por score contesta la segunda y hace imposible la primera:
  * una cuenta con cuatro proyectos regulares se lee peor que otra con uno pésimo, y no lo está.
+ *
+ * === Por qué la fila empieza por el número ===
+ *
+ * Porque con veinte cuentas la pregunta no se contesta leyendo veinte nombres: se contesta mirando
+ * una columna de números alineados y frenando en el más bajo. El puntaje va primero, en su propia
+ * columna y en cifras tabulares, para que esa columna exista. El nombre viene después: sirve para
+ * confirmar en cuál se paró el ojo, no para encontrarla.
+ *
+ * La barra de reparto que sigue al nombre es el mismo dato que el recuento escrito al lado, dibujado:
+ * una cuenta con cinco de cinco {@link GLOSARIO.espacio} en rojo se ve entera roja antes de leer
+ * ninguna palabra, y una con uno malo entre seis buenos deja de parecer lo mismo.
  *
  * === Por qué el párrafo de Thinking Orb es un botón y no aparece solo ===
  *
@@ -52,69 +73,197 @@ export function PanelFocals ({
   cuentas: CuentaFocal[]
   mostrarFocal?: boolean
 }) {
+  const [texto, setTexto] = useState('')
+  const [filtro, setFiltro] = useState<FiltroDeCartera>('todas')
+  const [orden, setOrden] = useState<OrdenDeCartera>('peor')
+
+  const resumen = useMemo(() => resumirCartera(cuentas), [cuentas])
+  const visibles = useMemo(
+    () => ordenarCartera(filtrarCartera(cuentas, texto, filtro), orden),
+    [cuentas, texto, filtro, orden]
+  )
+
   return (
-    <ul className="flex flex-col gap-3">
-      {cuentas.map((cuenta) => (
-        <li key={cuenta.cliente.client_id}>
-          <TarjetaCuenta cuenta={cuenta} mostrarFocal={mostrarFocal} />
-        </li>
-      ))}
-    </ul>
+    // El ancho se corta a propósito: en una pantalla de 1440 una fila estirada de borde a borde deja
+    // medio metro de vacío entre el nombre de la cuenta y quien responde por ella, y leer los dos
+    // extremos de la misma fila obliga a barrer la pantalla entera con los ojos.
+    <div className="flex max-w-5xl flex-col gap-4">
+      <ControlesDeCartera
+        resumen={resumen}
+        visibles={visibles.length}
+        texto={texto}
+        filtro={filtro}
+        orden={orden}
+        onTexto={setTexto}
+        onFiltro={setFiltro}
+        onOrden={setOrden}
+      />
+
+      {visibles.length === 0
+        ? (
+          <Vacio
+            titulo="Ninguna cuenta coincide con el recorte"
+            descripcion="Prueba con parte del nombre, o quita el filtro que está puesto."
+          />
+          )
+        : (
+          <ul className="flex flex-col gap-2">
+            {visibles.map((cuenta) => (
+              <li key={cuenta.cliente.client_id}>
+                <FilaCuenta cuenta={cuenta} mostrarFocal={mostrarFocal} />
+              </li>
+            ))}
+          </ul>
+          )}
+    </div>
   )
 }
 
 /**
- * Una cuenta: su semáforo, cuántos {@link GLOSARIO.espacio} tiene en cada tramo, y el detalle.
+ * Una cuenta: su puntaje, cómo se reparten sus {@link GLOSARIO.espacio} y el detalle.
  *
  * El detalle arranca cerrado a propósito. Un Focal con doce cuentas necesita ver las doce de un
  * vistazo para elegir en cuál entrar; abiertas, la primera ya ocupa la pantalla entera.
+ *
+ * La fila entera es **un solo botón**, y no un botón con un enlace adentro: así el clic cae en
+ * cualquier parte y no hay que apuntarle a una flecha de 16 píxeles. El enlace a la ficha del
+ * cliente vive dentro del detalle, donde es un destino elegido y no un accidente del clic.
  */
-function TarjetaCuenta ({ cuenta, mostrarFocal }: { cuenta: CuentaFocal, mostrarFocal: boolean }) {
+function FilaCuenta ({ cuenta, mostrarFocal }: { cuenta: CuentaFocal, mostrarFocal: boolean }) {
   const [abierta, setAbierta] = useState(false)
   const { cliente, espacios } = cuenta
+  const tramo = TRAMOS[cliente.semaforo] ?? TRAMOS.sin_datos
+  const nombre = nombreDeCuenta(cuenta)
 
   return (
-    <section className="border-linea bg-superficie-elevada rounded-tarjeta shadow-1 border">
-      <header className="flex flex-wrap items-center justify-between gap-3 p-4">
-        <div className="flex min-w-0 flex-col gap-1">
-          <Link
-            href={`/clientes/${cliente.client_id}`}
-            className="text-texto hover:text-acento truncate font-medium underline-offset-4 hover:underline"
+    <article
+      className={cn(
+        'border-linea bg-superficie-elevada rounded-tarjeta shadow-1 overflow-hidden border',
+        abierta && 'border-linea-fuerte'
+      )}
+    >
+      <button
+        type="button"
+        onClick={() => { setAbierta(!abierta) }}
+        aria-expanded={abierta}
+        className={cn(
+          'ease-neo duration-rapida grid w-full grid-cols-[3rem_minmax(0,1fr)_auto] items-center',
+          'gap-x-3 gap-y-1 p-3 text-start transition-colors hover:bg-hover',
+          'focus-visible:outline-foco focus-visible:outline-2 focus-visible:-outline-offset-2',
+          'sm:grid-cols-[3rem_minmax(0,1fr)_auto_auto]'
+        )}
+      >
+        <span className="flex flex-col items-end gap-0.5">
+          <span
+            className={cn('text-[22px] leading-none font-semibold tabular-nums', tramo.numero)}
+            title={cliente.score === null ? 'Todavía no hay datos para calcular el score' : 'Score de 1 a 100'}
           >
-            {cliente.cliente ?? `Cliente #${cliente.client_id}`}
-          </Link>
-          <RecuentoDeTramos espacios={espacios} />
-          {mostrarFocal && <QuienResponde cliente={cliente} />}
-        </div>
+            {cliente.score ?? '—'}
+          </span>
+          <Variacion puntos={cliente.variacion} />
+        </span>
 
-        <div className="flex items-center gap-3">
-          <Puntaje score={cliente.score} semaforo={cliente.semaforo} variacion={cliente.variacion} />
-          <BotonDetalle
-            abierto={abierta}
-            onAlternar={() => { setAbierta(!abierta) }}
-            etiqueta={`Detalle de ${cliente.cliente ?? 'la cuenta'}`}
-          />
-        </div>
-      </header>
+        <span className="flex min-w-0 flex-col gap-1">
+          <span className="flex items-center gap-2">
+            <span className="text-texto truncate text-sm font-semibold">{nombre}</span>
+            <Insignia tono={tramo.tono} tamano="chico">{tramo.etiqueta}</Insignia>
+          </span>
+
+          <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
+            <BarraDeReparto espacios={espacios} />
+            <RecuentoDeTramos espacios={espacios} />
+          </span>
+        </span>
+
+        {mostrarFocal && (
+          <span className="col-start-2 sm:col-start-3">
+            <QuienResponde cliente={cliente} />
+          </span>
+        )}
+
+        <ChevronRight
+          size={16}
+          aria-hidden="true"
+          className={cn(
+            'text-texto-sutil ease-neo duration-rapida col-start-3 row-start-1 justify-self-end',
+            'transition-transform sm:col-start-4',
+            abierta && 'rotate-90'
+          )}
+        />
+      </button>
 
       {abierta && (
         <div className="border-linea flex flex-col gap-4 border-t p-4">
           <section className="flex flex-col gap-2">
-            <h3 className="text-texto-tenue text-xs font-medium uppercase tracking-wide">
-              Por qué el cliente tiene ese puntaje
-            </h3>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h3 className="text-texto-tenue text-xs font-medium tracking-wide uppercase">
+                Por qué el cliente tiene ese puntaje
+              </h3>
+
+              <Link
+                href={`/clientes/${cliente.client_id}`}
+                className={cn(
+                  'text-texto-tenue hover:text-acento rounded-control ease-neo duration-rapida',
+                  'inline-flex items-center gap-1 text-xs underline-offset-4 transition-colors hover:underline',
+                  'focus-visible:outline-foco focus-visible:outline-2 focus-visible:outline-offset-2'
+                )}
+              >
+                Abrir la ficha de {nombre}
+                <ArrowUpRight aria-hidden="true" className="size-3.5" />
+              </Link>
+            </div>
+
             <DesgloseSenales senales={cliente.senales} />
           </section>
 
           <section className="flex flex-col gap-2">
-            <h3 className="text-texto-tenue text-xs font-medium uppercase tracking-wide">
+            <h3 className="text-texto-tenue text-xs font-medium tracking-wide uppercase">
               Sus {GLOSARIO.espacio.plural.toLowerCase()}
             </h3>
             <ListaEspacios espacios={espacios} />
           </section>
         </div>
       )}
-    </section>
+    </article>
+  )
+}
+
+/**
+ * Cómo se reparten los {@link GLOSARIO.espacio} de una cuenta entre los cuatro tramos.
+ *
+ * Es el recuento de al lado, dibujado. Existe porque "6 Proyectos · 5 críticos" obliga a leer dos
+ * números y dividirlos mentalmente, y la misma información como una barra casi entera en rojo no
+ * obliga a nada. El texto queda igual al lado: la barra sola sería color sin palabras, que es
+ * ilegible para quien no distingue el rojo del verde y en una captura en blanco y negro.
+ *
+ * `aria-hidden` porque el recuento escrito ya lo dice con todas las letras.
+ */
+function BarraDeReparto ({ espacios }: { espacios: ScoreEspacio[] }) {
+  if (espacios.length === 0) return null
+
+  const cuenta = contarPorTramo(espacios)
+  const partes: { tramo: SemaforoCliente, cuantos: number, fondo: string }[] = [
+    { tramo: 'rojo', cuantos: cuenta.rojo, fondo: 'bg-texto-peligro' },
+    { tramo: 'amarillo', cuantos: cuenta.amarillo, fondo: 'bg-texto-aviso' },
+    { tramo: 'verde', cuantos: cuenta.verde, fondo: 'bg-texto-exito' },
+    { tramo: 'sin_datos', cuantos: cuenta.sin_datos, fondo: 'bg-linea-fuerte' }
+  ]
+
+  return (
+    <span
+      aria-hidden="true"
+      className="bg-superficie-hundida flex h-1.5 w-20 shrink-0 gap-px overflow-hidden rounded-full"
+    >
+      {partes
+        .filter((parte) => parte.cuantos > 0)
+        .map((parte) => (
+          <span
+            key={parte.tramo}
+            className={parte.fondo}
+            style={{ width: `${(parte.cuantos / espacios.length) * 100}%` }}
+          />
+        ))}
+    </span>
   )
 }
 
@@ -130,7 +279,7 @@ function RecuentoDeTramos ({ espacios }: { espacios: ScoreEspacio[] }) {
 
   if (espacios.length === 0) {
     return (
-      <span className="text-texto-tenue text-xs">
+      <span className="text-texto-sutil text-xs">
         Sin {espaciosGlosario.plural.toLowerCase()}: no hay nada que abrir todavía.
       </span>
     )
@@ -157,7 +306,9 @@ function RecuentoDeTramos ({ espacios }: { espacios: ScoreEspacio[] }) {
  * hablarlo, que es la mitad de la pregunta.
  *
  * Una cuenta sin focal se dibuja como tal —y no se omite el renglón— porque es justamente el caso
- * que hay que ver: un cliente del que nadie responde no tiene a quién reclamarle el rojo.
+ * que hay que ver: un cliente del que nadie responde no tiene a quién reclamarle el rojo. Por eso
+ * lleva tono de aviso y el resto de las cuentas, sólo el nombre en gris: lo que hay que encontrar
+ * acá es la ausencia.
  */
 function QuienResponde ({ cliente }: { cliente: ScoreCliente }) {
   const nombres = nombresDeFocales(cliente)
@@ -165,18 +316,16 @@ function QuienResponde ({ cliente }: { cliente: ScoreCliente }) {
 
   if (nombres.length === 0) {
     return (
-      <Insignia tono="contorno" tamano="chico" className="self-start">
+      <Insignia tono="aviso" tamano="chico" className="self-start">
         Sin {focal.toLowerCase()}
       </Insignia>
     )
   }
 
   return (
-    <Insignia tono="neutro" tamano="chico" className="max-w-full self-start">
-      <span className="truncate">
-        {focal}: {nombres.join(', ')}
-      </span>
-    </Insignia>
+    <span className="text-texto-tenue block max-w-48 truncate text-xs">
+      {focal}: <span className="text-texto">{nombres.join(', ')}</span>
+    </span>
   )
 }
 
@@ -237,6 +386,12 @@ function FilaEspacio ({ espacio }: { espacio: ScoreEspacio }) {
     <article className="border-linea rounded-control border">
       <header className="flex flex-wrap items-center justify-between gap-2 px-3 py-2">
         <div className="flex min-w-0 items-center gap-2">
+          <span
+            className={cn('w-8 shrink-0 text-end text-base leading-none font-semibold tabular-nums', tramo.numero)}
+            title={espacio.score === null ? 'Todavía no hay datos para calcular el score' : 'Score de 1 a 100'}
+          >
+            {espacio.score ?? '—'}
+          </span>
           <Link
             href={`/espacios/${espacio.project_id}`}
             className="text-texto hover:text-acento max-w-64 truncate text-sm underline-offset-4 hover:underline"
@@ -246,19 +401,11 @@ function FilaEspacio ({ espacio }: { espacio: ScoreEspacio }) {
           <Insignia tono={tramo.tono} tamano="chico">{tramo.etiqueta}</Insignia>
         </div>
 
-        <div className="flex items-center gap-2">
-          <span
-            className={cn('text-lg leading-none font-semibold tabular-nums', tramo.numero)}
-            title={espacio.score === null ? 'Todavía no hay datos para calcular el score' : 'Score de 1 a 100'}
-          >
-            {espacio.score ?? '—'}
-          </span>
-          <BotonDetalle
-            abierto={abierto}
-            onAlternar={() => { setAbierto(!abierto) }}
-            etiqueta={`Detalle de ${nombreDe(espacio)}`}
-          />
-        </div>
+        <BotonDetalle
+          abierto={abierto}
+          onAlternar={() => { setAbierto(!abierto) }}
+          etiqueta={`Detalle de ${nombreDe(espacio)}`}
+        />
       </header>
 
       {abierto && (
@@ -372,12 +519,16 @@ function BotonDetalle (
       onClick={onAlternar}
       aria-expanded={abierto}
       aria-label={etiqueta}
-      className="text-texto-tenue hover:text-texto hover:bg-hover rounded-control flex h-8 w-8 shrink-0 items-center justify-center"
+      className={cn(
+        'text-texto-tenue hover:text-texto hover:bg-hover rounded-control flex h-8 w-8 shrink-0',
+        'items-center justify-center',
+        'focus-visible:outline-foco focus-visible:outline-2 focus-visible:outline-offset-2'
+      )}
     >
       <ChevronRight
         size={16}
         aria-hidden="true"
-        className={cn('transition-transform', abierto && 'rotate-90')}
+        className={cn('ease-neo duration-rapida transition-transform', abierto && 'rotate-90')}
       />
     </button>
   )

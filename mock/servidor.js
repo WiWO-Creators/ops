@@ -1991,6 +1991,9 @@ async function iaRuta (metodo, resto, parametros, actual, cuerpo, peticion) {
   const [seccion, ...sub] = resto
 
   if (seccion === 'inicio') return await resumenInicioIaRuta(metodo, parametros, actual, peticion)
+  if (seccion === 'proyectos' && sub[1] === 'estado' && metodo === 'POST') {
+    return estadoDeEspacioIaRuta(sub[0])
+  }
   if (seccion === 'proyectos' && sub[1] === 'chat') {
     return await chatEspacioIaRuta(metodo, sub[0], parametros, actual, cuerpo, peticion)
   }
@@ -3125,6 +3128,286 @@ async function jornadaRuta (metodo, resto, actual, cuerpo) {
   throw new ErrorApi(404, 'not_found', 'Ruta de jornada desconocida.')
 }
 
+// ---------------------------------------------------------------------------
+// Semaforo de cuentas y Proyectos (`/scores`)
+// ---------------------------------------------------------------------------
+
+/**
+ * Quien responde por cada cuenta (`tblwiwo_focales`), por id de cliente.
+ *
+ * No sale de `ADMINS_DE_CLIENTE` porque no son lo mismo: administrar la ficha de un cliente es un
+ * permiso, y ser su focal es una responsabilidad. Dos cuentas quedan sin nadie a proposito —un
+ * cliente sin focal es un estado normal, no un error, y es lo unico que deja probar el filtro "Sin
+ * focal"—, y la primera persona cubre los cuatro tramos del semaforo para que la pantalla propia no
+ * se vea entera de un solo color.
+ */
+const FOCALES_DE_CLIENTE = new Map([
+  [1, [1]], [2, [1, 3]], [3, []], [4, [1]], [5, [2]], [6, []], [7, [1, 4]]
+])
+
+/** Estado "Terminado" de un Espacio. La foto diaria no puntua lo que ya se cerro. */
+const ESTADO_ESPACIO_TERMINADO = 4
+
+/** Los pesos del contrato, en puntos sobre 100: plazos 45, carga 30, vencimientos 25. */
+const PESOS_DEL_SCORE = { plazos: 45, carga: 30, vencimientos: 25 }
+
+/** Dias hacia atras que cuentan como "se movio" en la señal de carga. */
+const DIAS_DE_VENTANA = 14
+
+/**
+ * Los estados de salud ya redactados, por id de Proyecto.
+ *
+ * En memoria y no en el fixture: lo que la pantalla tiene que poder mirar es la diferencia entre el
+ * primer pedido —que redacta— y el segundo —que devuelve lo mismo sin pagar el modelo—, y eso solo
+ * existe si el mock recuerda lo que ya escribio.
+ */
+const ESTADOS_DE_SALUD = new Map()
+
+/**
+ * El score de una fila, estable entre reinicios y repartido entre los cuatro tramos.
+ *
+ * Sale del id y no de los Procesos porque el calculo real es un promedio ponderado que corre en el
+ * cron: replicarlo aca seria mantener dos formulas y que ninguna sea la verdadera. Lo que el mock si
+ * tiene que garantizar es que la pantalla vea rojos, amarillos y verdes a la vez, y eso lo da el
+ * reparto — nada de `Math.random()`, que cambiaria el semaforo en cada recarga.
+ */
+function scoreDeterminista (id) {
+  return 18 + ((id * 23) % 83)
+}
+
+/** Los mismos cortes del contrato: verde >= 75, amarillo >= 50, rojo < 50, y `sin_datos` sin score. */
+function semaforoDe (score) {
+  if (score === null) return 'sin_datos'
+  if (score >= 75) return 'verde'
+
+  return score >= 50 ? 'amarillo' : 'rojo'
+}
+
+/** Puntos contra la foto anterior. Tambien derivada del id, con ganadores y perdedores. */
+function variacionDeterminista (id) {
+  return ((id * 11) % 15) - 7
+}
+
+/** El dia de la foto. El cron corre una vez al dia, asi que todas las filas comparten fecha. */
+function fechaDeLaFoto () {
+  return new Date().toISOString().slice(0, 10)
+}
+
+/** Dias enteros entre dos fechas `YYYY-MM-DD`, en signo positivo si la segunda es posterior. */
+function diasEntre (desde, hasta) {
+  return Math.round((Date.parse(hasta) - Date.parse(desde)) / 86400000)
+}
+
+/** Deja un sub-score dentro del rango del contrato: de 1 a 100, porque el 0 no existe. */
+function acotarScore (valor) {
+  return Math.min(100, Math.max(1, valor))
+}
+
+/**
+ * Las tres señales de una fila, con los contadores sacados de los Procesos de verdad.
+ *
+ * Los contadores viajan siempre porque son lo que permite escribir "sin datos porque no hay un solo
+ * Proceso con vencimiento" en vez de un guion. Los sub-scores, en cambio, se reparten alrededor del
+ * total en vez de recalcularse: el promedio ponderado es del backend, y lo que el frontend necesita
+ * es que las tres señales cuenten la misma historia que el semaforo.
+ *
+ * Una señal sin universo vale `null` —no cero—: su peso sale del divisor en el calculo real.
+ *
+ * @param {object[]} procesos los Procesos que la fila abarca
+ * @param {number|null} score el total ya resuelto de la fila
+ * @returns {object} las tres señales en la forma de `ScoreCliente['senales']`
+ */
+function senalesDe (procesos, score) {
+  const hoy = fechaDeLaFoto()
+  const abiertos = procesos.filter((p) => p.status !== ESTADO_COMPLETADO)
+  const medibles = procesos.filter((p) => p.due_date !== null)
+  const incumplidos = medibles.filter((p) => p.due_date < hoy && p.status !== ESTADO_COMPLETADO)
+  const porVencer = abiertos.filter((p) => p.due_date !== null && p.due_date >= hoy && diasEntre(hoy, p.due_date) <= 7)
+  // El fixture no guarda la ultima actividad de un Proceso, asi que el movimiento se reparte de
+  // forma estable por id: si no, "estancados" seria siempre el total y la señal no diria nada.
+  const conMovimiento = abiertos.filter((p) => p.id % 2 === 0)
+
+  return {
+    plazos: {
+      peso: PESOS_DEL_SCORE.plazos,
+      score: medibles.length === 0 ? null : acotarScore(score - 8),
+      medibles: medibles.length,
+      incumplidos: incumplidos.length,
+      en_riesgo: porVencer.length,
+      atraso_promedio: incumplidos.length === 0
+        ? null
+        : Math.round(incumplidos.reduce((suma, p) => suma + diasEntre(p.due_date, hoy), 0) * 10 / incumplidos.length) / 10
+    },
+    carga: {
+      peso: PESOS_DEL_SCORE.carga,
+      score: abiertos.length === 0 ? null : acotarScore(score),
+      abiertos: abiertos.length,
+      con_movimiento: conMovimiento.length,
+      estancados: abiertos.length - conMovimiento.length,
+      dias_ventana: DIAS_DE_VENTANA
+    },
+    vencimientos: {
+      peso: PESOS_DEL_SCORE.vencimientos,
+      score: abiertos.length === 0 ? null : acotarScore(score + 9),
+      por_vencer: porVencer.length,
+      criticos: porVencer.filter((p) => diasEntre(hoy, p.due_date) <= 2).length,
+      vencidos: incumplidos.length
+    }
+  }
+}
+
+/** Los Espacios que entran en la foto del dia. Lo terminado ya no se puntua: no hay nada que cuidar. */
+function espaciosDeLaFoto () {
+  return ESPACIOS.filter((espacio) => espacio.status !== ESTADO_ESPACIO_TERMINADO)
+}
+
+/** Los Procesos que cuelgan de un Espacio. Los sueltos no son de nadie y no entran en ningun score. */
+function procesosDeEspacio (espacio) {
+  return PROCESOS.filter((p) => p.project?.id === espacio.id)
+}
+
+/**
+ * La foto de un Proyecto, en la forma de `ScoreEspacio`.
+ *
+ * Un Proyecto sin un solo Proceso queda en `sin_datos` y no en 1: es ausencia de universo, no un
+ * desastre, y la pantalla los pinta distinto.
+ */
+function scoreDeEspacio (espacio) {
+  const procesos = procesosDeEspacio(espacio)
+  const cliente = CLIENTES.find((c) => c.id === espacio.clientid) ?? null
+  const score = procesos.length === 0 ? null : scoreDeterminista(espacio.id)
+
+  return {
+    project_id: espacio.id,
+    espacio: espacio.name,
+    client_id: cliente?.id ?? null,
+    cliente: cliente?.company ?? null,
+    fecha: fechaDeLaFoto(),
+    score,
+    semaforo: semaforoDe(score),
+    variacion: score === null ? null : variacionDeterminista(espacio.id),
+    procesos: procesos.length,
+    senales: senalesDe(procesos, score),
+    estado: ESTADOS_DE_SALUD.get(espacio.id) ?? null
+  }
+}
+
+/**
+ * La foto de una cuenta, en la forma de `ScoreCliente`.
+ *
+ * El score NO es el promedio de sus Proyectos: el backend lo calcula sobre las Tareas, y promediar
+ * aca ensañaria a la pantalla una relacion que en produccion no se cumple.
+ */
+function scoreDeCliente (cliente) {
+  const espacios = espaciosDeLaFoto().filter((espacio) => espacio.clientid === cliente.id)
+  const procesos = espacios.flatMap(procesosDeEspacio)
+  const score = espacios.length === 0 ? null : scoreDeterminista(cliente.id)
+
+  return {
+    client_id: cliente.id,
+    cliente: cliente.company,
+    fecha: fechaDeLaFoto(),
+    score,
+    semaforo: semaforoDe(score),
+    variacion: score === null ? null : variacionDeterminista(cliente.id),
+    espacios: espacios.length,
+    procesos: procesos.length,
+    senales: senalesDe(procesos, score),
+    focales: (FOCALES_DE_CLIENTE.get(cliente.id) ?? [])
+      .map((id) => STAFF.find((persona) => persona.id === id))
+      .filter((persona) => persona !== undefined)
+      .map((persona) => ({ id: persona.id, full_name: persona.full_name }))
+  }
+}
+
+/**
+ * Del peor score al mejor, y lo que no se puede puntuar al final.
+ *
+ * El orden lo pone el servidor, no la pantalla: un `sin_datos` arriba ocuparia el lugar de lo
+ * urgente sin ser urgente. Los empates conservan el orden del fixture, que es el de alta.
+ */
+function ordenDelSemaforo (uno, otro) {
+  return (uno.score ?? Infinity) - (otro.score ?? Infinity)
+}
+
+/**
+ * `GET /scores` y `GET /scores/espacios`: el semaforo de las cuentas y el de sus Proyectos.
+ *
+ * Solo lectura: la foto la saca el cron una vez al dia y no hay forma de pedir un recalculo.
+ * `?focal=me` recorta a las cuentas de quien pregunta; sin el parametro viaja la cartera entera, que
+ * es la MISMA ruta y no un permiso aparte.
+ *
+ * @param {string[]} resto segmentos despues de `scores`
+ * @param {URLSearchParams} parametros
+ * @param {object} actual staff de la sesion
+ * @returns {{estado: number, cuerpo: object}}
+ * @throws {ErrorApi} 404 si el subrecurso no existe
+ */
+function scoresRuta (resto, parametros, actual) {
+  const soloMias = parametros.get('focal') === 'me'
+  const cuentas = CLIENTES.filter((cliente) => (
+    !soloMias || (FOCALES_DE_CLIENTE.get(cliente.id) ?? []).includes(actual.id)
+  ))
+
+  if (resto.length === 0) {
+    return { estado: 200, cuerpo: conDatos(cuentas.map(scoreDeCliente).sort(ordenDelSemaforo)) }
+  }
+
+  if (resto.length === 1 && resto[0] === 'espacios') {
+    const suyos = new Set(cuentas.map((cliente) => cliente.id))
+
+    return {
+      estado: 200,
+      cuerpo: conDatos(
+        espaciosDeLaFoto().filter((espacio) => suyos.has(espacio.clientid))
+          .map(scoreDeEspacio).sort(ordenDelSemaforo)
+      )
+    }
+  }
+
+  throw new ErrorApi(404, 'not_found', `Recurso de semáforo desconocido: "${resto.join('/')}".`)
+}
+
+/**
+ * `POST /ia/proyectos/{id}/estado`: el parrafo con que la IA explica el semaforo de un Proyecto.
+ *
+ * Un Proyecto fuera de la foto del dia responde 409 y no 404, porque la pantalla distingue "todavia
+ * no hay nada que explicar" de "la IA esta apagada" —esa es la rama del 404— y sin un caso asi en el
+ * mock ese mensaje no se mira nunca.
+ *
+ * El segundo pedido sobre el mismo Proyecto devuelve lo ya escrito con `reutilizado: true`: es el
+ * unico modo de ver que la pantalla no vuelve a cobrar el modelo por lo mismo.
+ *
+ * @param {string} id el Proyecto, tal como vino en la ruta
+ * @returns {{estado: number, cuerpo: object}}
+ * @throws {ErrorApi} 404 si el Proyecto no existe, 409 si no tiene foto de hoy
+ */
+function estadoDeEspacioIaRuta (id) {
+  const espacio = buscarO404(ESPACIOS, Number(id), 'Espacio')
+
+  if (espacio.status === ESTADO_ESPACIO_TERMINADO) {
+    throw new ErrorApi(409, 'conflict', 'Todavía no hay foto de hoy de este Proyecto.')
+  }
+
+  const guardado = ESTADOS_DE_SALUD.get(espacio.id)
+
+  if (guardado !== undefined) return { estado: 200, cuerpo: conDatos({ ...guardado, reutilizado: true }) }
+
+  const { plazos, vencimientos } = scoreDeEspacio(espacio).senales
+  const redactado = {
+    texto: `El semáforo de ${espacio.name} lo explica el cumplimiento de plazos: ` +
+      `${plazos.incumplidos} de ${plazos.medibles} Procesos con vencimiento llegaron tarde, y quedan ` +
+      `${vencimientos.por_vencer} por vencer esta semana. Lo urgente es acordar fechas nuevas con el ` +
+      'cliente antes de que se sumen los que vencen; el resto del trabajo viene al día.',
+    generado_en: new Date().toISOString().slice(0, 19).replace('T', ' '),
+    vigente: true
+  }
+
+  ESTADOS_DE_SALUD.set(espacio.id, redactado)
+
+  return { estado: 200, cuerpo: conDatos({ ...redactado, reutilizado: false }) }
+}
+
 async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, peticion) {
   const [recurso, ...resto] = segmentos
 
@@ -3608,6 +3891,12 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
 
   if (recurso === 'ia') {
     return await iaRuta(metodo, resto, parametros, actual, cuerpo, peticion)
+  }
+
+  // El semáforo: las dos lecturas que monta la pantalla de Focals. Sin ellas la pantalla no se puede
+  // abrir contra el mock, que es justo donde se mira antes de que exista el cron.
+  if (recurso === 'scores' && metodo === 'GET') {
+    return scoresRuta(resto, parametros, actual)
   }
 
   if (recurso === 'config' && resto[0] === 'realtime') {
