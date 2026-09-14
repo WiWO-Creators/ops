@@ -1,7 +1,7 @@
 /**
  * La pantalla en la que esta parada una persona, tal como la nombra el backend.
  *
- * La misma cadena viaja por dos caminos distintos —el latido de presencia y cada pregunta a WiBot—
+ * La misma cadena viaja por dos caminos distintos —el latido de presencia y cada pregunta a Thinking Orb—
  * y **tiene que ser la misma**: el servidor resuelve con ella el ambito de lo que se le pregunta,
  * asi que un `/Espacios/2` por un lado y un `/espacios/2` por el otro serian dos pantallas para el.
  * Por eso vive aca y no duplicada en cada uno.

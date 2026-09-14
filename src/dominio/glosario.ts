@@ -47,7 +47,7 @@ export const GLOSARIO = {
  * Fuera de `GLOSARIO` porque no es un concepto que se cuente: no tiene plural. Aca y no escrito a
  * mano en cada pantalla, para que renombrarlo sea una linea y no una cacería.
  */
-export const ASISTENTE = 'WiBot'
+export const ASISTENTE = 'Thinking Orb'
 
 export type ClaveGlosario = keyof typeof GLOSARIO
 

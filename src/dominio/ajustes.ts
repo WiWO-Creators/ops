@@ -1,5 +1,5 @@
 import { AJUSTE_AVISOS_LICITACION, GRUPO_AVISOS_LICITACION } from './alertas-licitacion.ts'
-import { GLOSARIO, nombrar } from './glosario.ts'
+import { ASISTENTE, GLOSARIO, nombrar } from './glosario.ts'
 import type { AjusteEditable, Ajustes, Lookups } from '../datos/recursos.ts'
 
 /**
@@ -173,8 +173,8 @@ export const ETIQUETAS_DE_AJUSTES: Record<string, { etiqueta: string, ayuda?: st
     ayuda: 'Interruptor de toda la capa. Apagado, la API responde 404 a cada función de IA y Ops deja de ofrecerlas.'
   },
   ia_escritura_habilitada: {
-    etiqueta: 'Dejar que WiBot proponga cambios',
-    ayuda: 'Interruptor aparte del de arriba. Apagado, WiBot solo lee. Encendido, puede dejar propuestas —crear o editar una tarea, comentar, cambiar el equipo, mandar algo a la papelera— que no se ejecutan hasta que alguien las confirma en el chat. Ningún borrado es definitivo: todo va a la papelera y se restaura durante 30 días.'
+    etiqueta: `Dejar que ${ASISTENTE} proponga cambios`,
+    ayuda: `Interruptor aparte del de arriba. Apagado, ${ASISTENTE} solo lee. Encendido, puede dejar propuestas —crear o editar una tarea, comentar, cambiar el equipo, mandar algo a la papelera— que no se ejecutan hasta que alguien las confirma en el chat. Ningún borrado es definitivo: todo va a la papelera y se restaura durante 30 días.`
   },
   ia_tope_tokens: {
     etiqueta: 'Largo máximo de la respuesta (tokens)',

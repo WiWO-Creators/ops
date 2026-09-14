@@ -3,7 +3,7 @@
  *
  * Lo que se verifica es lo que el servidor NO garantiza y la pantalla tiene que resolver sola: unir
  * dos listados que llegan por separado, ordenar los Proyectos de una cuenta, y traducir los tres
- * códigos con los que WiBot dice "esto no está roto".
+ * códigos con los que Thinking Orb dice "esto no está roto".
  *
  * La fórmula del semáforo no se prueba acá: vive entera en el backend (`Salud\Formula`) y repetirla
  * en el front daría dos verdades sobre el mismo puntaje. Lo que sí se prueba es que los `sin_datos`
@@ -142,7 +142,7 @@ test('la ruta del estado escapa el id', () => {
   assert.equal(rutaDeEstado(12), 'ia/proyectos/12/estado')
 })
 
-test('404 es WiBot apagado y 409 es que todavía no corrió el cálculo', () => {
+test('404 es Thinking Orb apagado y 409 es que todavía no corrió el cálculo', () => {
   // Los dos son estados normales del sistema, y la diferencia importa: en uno no hay nada que hacer
   // y en el otro basta con esperar al cálculo del día.
   const apagado = mensajeDeFalloDeEstado(404, 'Recurso desconocido: "ia".')
@@ -159,7 +159,7 @@ test('lo que no está previsto se cuenta con las palabras del servidor', () => {
 })
 
 test('ninguno de los tres mensajes previstos sugiere que el semáforo se rompió', () => {
-  // El párrafo es lo único que falta cuando WiBot no contesta: el puntaje se sigue viendo. Si el
+  // El párrafo es lo único que falta cuando Thinking Orb no contesta: el puntaje se sigue viendo. Si el
   // mensaje dijera "no se pudo cargar el semáforo", mandaría a alguien a revisar un cálculo sano.
   for (const codigo of [404, 409, 429]) {
     assert.doesNotMatch(mensajeDeFalloDeEstado(codigo, 'x'), /no se pudo cargar el sem/i)

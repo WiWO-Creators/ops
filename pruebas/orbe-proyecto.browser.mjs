@@ -4,7 +4,7 @@ import { chromium } from 'playwright'
 import { STAFF } from '../mock/datos.js'
 
 /** Verifica el chat de proyecto contra un frontend local, interceptando toda escritura. */
-const destino = new URL(process.env.WIBOT_TEST_URL ?? 'http://localhost:3122')
+const destino = new URL(process.env.ORBE_TEST_URL ?? 'http://localhost:3122')
 assert.ok(['localhost', '127.0.0.1', '[::1]'].includes(destino.hostname))
 const navegador = await chromium.launch({ executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE })
 try {
@@ -44,12 +44,12 @@ try {
   assert.deepEqual(solicitudes.find(s => s.metodo === 'POST' && s.path.endsWith('/chat')), { path: '/api/bff/ia/proyectos/1/chat', metodo: 'POST', cuerpo: { pregunta: 'Resume este proyecto' } })
   assert.deepEqual(solicitudes.find(s => s.path.endsWith('/acciones/71')), { path: '/api/bff/ia/proyectos/1/acciones/71', metodo: 'POST', cuerpo: { decision: 'confirmar' } })
   await mkdir('output/playwright', { recursive: true })
-  await pagina.screenshot({ path: 'output/playwright/wibot-proyecto-desktop.png', fullPage: true })
-  await pagina.getByRole('button', { name: 'Preguntarle a WiBot', exact: true }).click()
-  const global = pagina.getByRole('dialog', { name: 'WiBot', exact: true })
+  await pagina.screenshot({ path: 'output/playwright/orbe-proyecto-desktop.png', fullPage: true })
+  await pagina.getByRole('button', { name: 'Preguntarle a Thinking Orb', exact: true }).click()
+  const global = pagina.getByRole('dialog', { name: 'Thinking Orb', exact: true })
   await global.getByText('Historial exclusivo global', { exact: true }).waitFor()
   assert.equal(await global.getByText('Historial exclusivo 1', { exact: true }).count(), 0)
-  await global.getByRole('button', { name: 'Cerrar WiBot', exact: true }).click()
+  await global.getByRole('button', { name: 'Cerrar Thinking Orb', exact: true }).click()
   await pagina.getByRole('button', { name: 'Borrar chat', exact: true }).click()
   await pagina.getByRole('button', { name: 'Borrar', exact: true }).click()
   await pagina.getByText('Historial exclusivo 1', { exact: true }).waitFor({ state: 'hidden' })
@@ -64,9 +64,9 @@ try {
   await entrada.scrollIntoViewIfNeeded()
   const caja = await entrada.boundingBox()
   assert.ok(caja && caja.x >= 0 && caja.x + caja.width <= 390, 'Campo de chat dentro del ancho móvil.')
-  await pagina.screenshot({ path: 'output/playwright/wibot-proyecto-movil.png', fullPage: true })
+  await pagina.screenshot({ path: 'output/playwright/orbe-proyecto-movil.png', fullPage: true })
   assert.deepEqual(errores, [])
-  console.info('WiBot proyecto: alcance visible, envío y confirmación scoped, navegación bloqueada, historial separado de global y otro proyecto, borrado scoped, entrada vacía y móvil correctos.')
+  console.info('Thinking Orb proyecto: alcance visible, envío y confirmación scoped, navegación bloqueada, historial separado de global y otro proyecto, borrado scoped, entrada vacía y móvil correctos.')
 } finally {
   await navegador.close()
 }

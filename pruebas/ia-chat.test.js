@@ -1,5 +1,5 @@
 /**
- * Pruebas del chat de WiBot.
+ * Pruebas del chat de Thinking Orb.
  *
  * Lo que se protege aca es **a donde apunta una cita**. Que el chat conteste de mas o de menos se ve
  * leyendo; que `[2]` enlace al Hito de otro Proyecto no se ve: se ve un enlace prolijo que lleva al
