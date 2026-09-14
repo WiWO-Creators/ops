@@ -186,6 +186,15 @@ export function VistaEspacios ({
             >
               Plantillas
             </Link>
+
+            {/* Las de {hito} son otra pantalla porque son otra escala: estas se aplican al crear un
+                {hito} dentro de un {espacio} que ya existe, no al crear el {espacio}. */}
+            <Link
+              href="/espacios/plantillas-hito"
+              className="text-texto-tenue hover:text-texto text-xs underline-offset-4 hover:underline"
+            >
+              Plantillas de {GLOSARIO.hito.plural.toLowerCase()}
+            </Link>
           </div>
 
           <div className="flex flex-wrap items-center gap-2">

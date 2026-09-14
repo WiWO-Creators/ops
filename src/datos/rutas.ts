@@ -43,6 +43,10 @@ const PREFIJOS_PERMITIDOS = [
   // raiz: `POST /projects/from-template` devuelve un Espacio y por eso vive alla, pero el CRUD de la
   // plantilla es `/project-templates`.
   'project-templates',
+  // Plantillas de Hito. Prefijo propio por el mismo motivo que `project-templates`: aplicarla vive
+  // en `POST /projects/{id}/milestones` con `plantilla_id` —lo que devuelve son los hitos del
+  // Espacio—, pero el CRUD de la plantilla cuelga de su propia raiz.
+  'hito-plantillas',
   // Cubre tambien `tasks/{id}/share`, los tres verbos del enlace publico. La lista es por PREFIJO:
   // un subrecurso nuevo de `tasks` no necesita entrada propia. Lo que NO esta —ni debe estar— es
   // `public`: `GET /public/tasks/{token}` es anonimo, y el BFF solo existe para adosar el token de

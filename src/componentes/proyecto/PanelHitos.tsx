@@ -8,8 +8,8 @@ import { Cargando } from '@/componentes/estado/Estados'
 import { HITOS } from '@/definiciones/hitos'
 import { GLOSARIO } from '@/dominio/glosario'
 import { AccionesFila } from './AccionesFila'
+import { AltaDeHito } from './AltaDeHito'
 import { AvanceDeHito, VencimientoDeHito } from '@/componentes/presentadores/Hito'
-import { FormularioRecurso } from './FormularioRecurso'
 import { ModalTarea } from './ModalTarea'
 import { PanelRecurso } from './PanelRecurso'
 import { TableroHitos } from './TableroHitos'
@@ -165,13 +165,13 @@ function HitosDelProyecto ({ proyecto, capacidades, capacidadesTareas = [] }: Pr
         puedeCrear={capacidadesTareas.includes('create')}
       />
 
-      <FormularioRecurso
+      {/* El alta del hito y la del hito desde plantilla son la misma: `AltaDeHito` es este mismo
+          `FormularioRecurso` con el desplegable de plantilla y la lista de lo que va a crear. */}
+      <AltaDeHito
         abierto={creando}
         onAbiertoCambia={setCreando}
-        titulo={`Nuevo ${GLOSARIO.hito.singular.toLowerCase()}`}
         campos={campos}
-        ruta={`projects/${proyecto.id}/milestones`}
-        metodo="POST"
+        proyectoId={proyecto.id}
         onGuardado={recargar}
       />
     </div>
@@ -213,7 +213,10 @@ function camposDeHito (proyecto: Espacio): CampoFormulario[] {
     { clave: 'description_visible_to_customer', etiqueta: 'Descripción visible para el cliente', tipo: 'booleano' },
     { clave: 'hide_from_customer', etiqueta: 'Ocultar al cliente', tipo: 'booleano' },
     { clave: 'color', etiqueta: 'Color', tipo: 'color' },
-    { clave: 'order', etiqueta: 'Orden', tipo: 'numero' }
+    // `omitirSiVacio` y no un `0`: dejarlo en blanco quiere decir "ponlo al final", y el backend ya
+    // sabe hacerlo (`ultimo + 1`). Sin esto el campo vacio viaja como `null` y el alta muere con un
+    // `422 order integer` por un dato que nadie eligio.
+    { clave: 'order', etiqueta: 'Orden', tipo: 'numero', ayuda: 'Vacío lo pone al final.', omitirSiVacio: true }
   ]
 }
 
