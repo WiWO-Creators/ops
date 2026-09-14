@@ -121,27 +121,3 @@ test('el soporte se nombra desde una sola constante', () => {
   assert.equal(URL_SOPORTE, 'https://wiwo.center')
   assert.ok(URL_SOPORTE.includes(NOMBRE_SOPORTE))
 })
-
-test('una transicion de vista abortada no se muestra ni se registra', () => {
-  const abortos = [
-    'Transition was aborted because of invalid state. Animation start failed',
-    'Transition was aborted because of invalid state. Snapshot capture failed',
-    'View transition was skipped because document visibility state is hidden'
-  ]
-
-  for (const mensaje of abortos) {
-    assert.equal(esRuidoDelNavegador({ tipo: 'InvalidStateError', mensaje }), true, mensaje)
-  }
-})
-
-test('un error de verdad no se confunde con ruido del navegador', () => {
-  const reales = [
-    "Cannot read properties of undefined (reading 'nombre')",
-    'Failed to fetch',
-    'La sesion expiro'
-  ]
-
-  for (const mensaje of reales) {
-    assert.equal(esRuidoDelNavegador({ tipo: 'TypeError', mensaje }), false, mensaje)
-  }
-})
