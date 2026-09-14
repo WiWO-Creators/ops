@@ -10,7 +10,8 @@ import { readFileSync } from 'node:fs'
 import test from 'node:test'
 import {
   arbolDelArea, areasDelMapa, colorDeArea, cuantasCajas, cuantosSinArea, descendenciaDe,
-  filasDeLista, filtrarFilas, jefesElegibles, nombreDeArea, ordenarFilas, personasDelArbol
+  filasDeLista, filtrarFilas, jefesElegibles, nombreDeArea, ordenarFilas, partirAreasPorPoblacion,
+  personasDelArbol, personasDelArea, resumirMapa
 } from '../src/dominio/organigrama.ts'
 
 /** Una persona del organigrama con lo mínimo, para no repetir seis campos en cada caso. */
@@ -234,4 +235,51 @@ test('el orden por nombre y por área se da vuelta, y no toca las filas que reci
     ['Analytics/Carla', 'Analytics/Diego', 'Sin área/Elena', 'Wiwo/Ana', 'Wiwo/Bruno']
   )
   assert.deepEqual(filas.map((fila) => fila.persona.nombre), antes, 'ordenar no muta la entrada')
+})
+
+test('el mapa parte las áreas con gente de las que no tienen a nadie', () => {
+  const { pobladas, vacias } = partirAreasPorPoblacion(areasDelMapa(ORGANIGRAMA))
+
+  // Las pobladas van de la más grande a la más chica: es el orden en que se busca a alguien. Empate
+  // en dos, así que manda el nombre.
+  assert.deepEqual(pobladas.map((una) => una.nombre), ['Analytics', 'Wiwo'])
+  assert.deepEqual(vacias.map((una) => una.nombre), ['Retail'])
+})
+
+test('un área propia vacía se queda entre las vacías', () => {
+  // Subirla al primer bloque diría que ahí hay alguien, y no lo hay. Que sea propia se dice con la
+  // insignia, no con el lugar.
+  const propiaVacia = { ...ORGANIGRAMA, yo: { ...ORGANIGRAMA.yo, areas: [3] } }
+  const { pobladas, vacias } = partirAreasPorPoblacion(areasDelMapa(propiaVacia))
+
+  assert.deepEqual(vacias.map((una) => una.id), [3])
+  assert.equal(pobladas.some((una) => una.id === 3), false)
+})
+
+test('el resumen del mapa no cuenta como "sin jefatura" a un área vacía', () => {
+  const resumen = resumirMapa(ORGANIGRAMA)
+
+  assert.equal(resumen.personas, 5)
+  assert.equal(resumen.areasConGente, 2)
+  assert.equal(resumen.areasVacias, 1)
+  assert.equal(resumen.sinArea, 1)
+  // Retail no tiene jefatura, pero tampoco tiene a quién dirigir: contarla inflaría el número que se
+  // mira para saber qué falta arreglar.
+  assert.equal(resumen.sinJefatura, 0)
+})
+
+test('el resumen marca el área con gente que se quedó sin jefatura', () => {
+  const huerfana = {
+    ...ORGANIGRAMA,
+    areas: ORGANIGRAMA.areas.map((una) => una.id === 1 ? { ...una, jefe_staffid: null } : una)
+  }
+
+  assert.equal(resumirMapa(huerfana).sinJefatura, 1)
+})
+
+test('las caras de un área salen con la jefatura primero', () => {
+  // Ana es gerencia y Bruno lead: la cara que sirve para reconocer el área va antes.
+  assert.deepEqual(personasDelArea(PERSONAS, 1).map((una) => una.nombre), ['Ana', 'Bruno'])
+  assert.deepEqual(personasDelArea(PERSONAS, null).map((una) => una.nombre), ['Elena'])
+  assert.deepEqual(personasDelArea(PERSONAS, 3), [])
 })

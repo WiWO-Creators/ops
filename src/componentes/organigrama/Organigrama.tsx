@@ -26,7 +26,7 @@ import { escribirEnBff } from '@/componentes/datos/mutaciones'
 import { pedirSobre } from '@/datos/cliente'
 import {
   arbolDelArea, areasDelMapa, colorDeArea, cuantasCajas, cuantosSinArea, descendenciaDe,
-  filasDeLista, personasDelArbol
+  filasDeLista, personasDelArbol, resumirMapa
 } from '@/dominio/organigrama'
 import { guardarVista, leerVista, suscribirVista, vistaDelServidor } from '@/lib/vista-organigrama'
 import type { OpcionSegmentada } from '@/componentes/formularios/Segmentado'
@@ -83,6 +83,7 @@ export function Organigrama ({ inicial }: { inicial: DatosDeOrganigrama }) {
   )
   const areas = useMemo(() => areasDelMapa(datos), [datos])
   const mias = useMemo(() => new Set(datos.yo.areas), [datos.yo.areas])
+  const resumen = useMemo(() => resumirMapa(datos), [datos])
 
   const raices = useMemo(
     () => vista === undefined ? [] : arbolDelArea(datos.personas, vista),
@@ -214,6 +215,8 @@ export function Organigrama ({ inicial }: { inicial: DatosDeOrganigrama }) {
         areas={areas}
         mias={mias}
         sinArea={cuantosSinArea(datos)}
+        resumen={resumen}
+        personas={datos.personas}
         personasPorId={personasPorId}
         onEntrar={(areaId) => { setVista(areaId); setError(null) }}
       />

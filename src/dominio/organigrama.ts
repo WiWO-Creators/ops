@@ -411,3 +411,88 @@ export function ordenarFilas (
 function escalaDe (escalon: string): number {
   return ESCALONES.find((uno) => uno.clave === escalon)?.orden ?? 0
 }
+
+/**
+ * El mapa partido en dos: las áreas que tienen gente y las que no.
+ *
+ * Existe porque hoy catorce de quince áreas están en cero, y una grilla que las mezcla obliga a
+ * barrer quince tarjetas idénticas para dar con la única que tiene equipo. Las pobladas van
+ * primero y de la más grande a la más chica —es el orden en que se busca a alguien—, y las vacías
+ * quedan juntas al final, donde se pueden mirar como lo que son: una lista de áreas por poblar.
+ *
+ * Las áreas propias no se sacan de su grupo: un área propia sin gente sigue estando vacía, y
+ * subirla al primer bloque diría que ahí hay alguien. Se marcan aparte, con la insignia.
+ *
+ * @param areas el catálogo ya ordenado por {@link areasDelMapa}
+ * @returns los dos grupos; las entradas son las mismas, sin copiar
+ */
+export function partirAreasPorPoblacion (
+  areas: AreaDelOrganigrama[]
+): { pobladas: AreaDelOrganigrama[], vacias: AreaDelOrganigrama[] } {
+  const pobladas = areas
+    .filter((area) => area.personas > 0)
+    .sort((una, otra) => otra.personas - una.personas || una.nombre.localeCompare(otra.nombre, 'es'))
+
+  const vacias = areas
+    .filter((area) => area.personas === 0)
+    .sort((una, otra) => una.nombre.localeCompare(otra.nombre, 'es'))
+
+  return { pobladas, vacias }
+}
+
+/** Los totales que encabezan el mapa: de cuánta casa se está hablando. */
+export interface ResumenDelMapa {
+  /** Cuánta gente visible hay, con área o sin ella. */
+  personas: number
+  /** Cuántas áreas tienen al menos una persona. */
+  areasConGente: number
+  /** Cuántas áreas están vacías. */
+  areasVacias: number
+  /** Cuánta gente no lleva ningún área puesta. */
+  sinArea: number
+  /** Cuántas áreas con gente no tienen a nadie dirigiéndolas. */
+  sinJefatura: number
+}
+
+/**
+ * Cuenta el mapa entero de una pasada.
+ *
+ * Las áreas vacías **no** entran en `sinJefatura`: un área sin gente tampoco tiene a quién dirigir,
+ * y contarla ahí inflaría el número que se mira para saber qué falta arreglar.
+ *
+ * @param organigrama la respuesta de la API, ya recortada a quien mira
+ * @returns los totales de la cabecera
+ */
+export function resumirMapa (organigrama: Organigrama): ResumenDelMapa {
+  const conGente = organigrama.areas.filter((area) => area.personas > 0)
+
+  return {
+    personas: organigrama.personas.length,
+    areasConGente: conGente.length,
+    areasVacias: organigrama.areas.length - conGente.length,
+    sinArea: cuantosSinArea(organigrama),
+    sinJefatura: conGente.filter((area) => area.jefe_staffid === null).length
+  }
+}
+
+/**
+ * Quiénes están en un área, para dibujar sus caras en la tarjeta del mapa.
+ *
+ * Se ordena por escalón y después por nombre para que la jefatura y los leads salgan primero: son
+ * las caras que sirven para reconocer un área de un vistazo, y las que alguien busca cuando quiere
+ * saber con quién hablar.
+ *
+ * @param personas el listado plano que mandó la API
+ * @param areaId el área, o `null` para quienes no llevan ninguna
+ * @returns las personas de esa área, ordenadas
+ */
+export function personasDelArea (
+  personas: PersonaDelOrganigrama[],
+  areaId: number | null
+): PersonaDelOrganigrama[] {
+  return personas
+    .filter((persona) => persona.area_id === areaId)
+    .sort((una, otra) =>
+      escalaDe(otra.escalon) - escalaDe(una.escalon) ||
+      una.nombre.localeCompare(otra.nombre, 'es'))
+}
