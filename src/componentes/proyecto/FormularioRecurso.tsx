@@ -1,6 +1,6 @@
 'use client'
 
-import { Fragment, useState, type ReactElement } from 'react'
+import { Fragment, useState, type ReactElement, type ReactNode } from 'react'
 import { Boton } from '@/componentes/formularios/Boton'
 import { Campo } from '@/componentes/formularios/Campo'
 import { AreaTexto, Entrada } from '@/componentes/formularios/Entrada'
@@ -56,6 +56,15 @@ interface PropsFormulario {
   columnas?: 1 | 2
   /** Ancho del dialogo, para acompañar a `columnas`. */
   ancho?: 'chico' | 'medio' | 'grande'
+  /**
+   * Bloque propio que se dibuja bajo los campos, con los valores en curso.
+   *
+   * Existe por el alta de Hito con plantilla: elegir una plantilla crea Tareas que quien confirma
+   * todavia no vio, y una lista de campos no puede mostrarlas. Es una funcion de los valores y no un
+   * nodo fijo porque lo que se muestra depende de lo que se lleva escrito — la plantilla elegida y
+   * las fechas del Hito.
+   */
+  pie?: (valores: ValoresFormulario) => ReactNode
 }
 
 export function FormularioRecurso ({
@@ -69,7 +78,8 @@ export function FormularioRecurso ({
   registro = null,
   onGuardado,
   columnas = 1,
-  ancho = 'medio'
+  ancho = 'medio',
+  pie
 }: PropsFormulario): ReactElement {
   const [valores, setValores] = useState<ValoresFormulario>(() => valoresIniciales(campos, registro))
   const [errores, setErrores] = useState<Record<string, string>>({})
@@ -151,6 +161,8 @@ export function FormularioRecurso ({
               </Fragment>
             ))}
           </div>
+
+          {pie?.(valores)}
 
           {fallo !== null && (
             <p role="alert" className="text-texto-peligro text-sm">{fallo}</p>
@@ -290,9 +302,17 @@ export function ControlDeCampo (
         {...(error === undefined ? {} : { error })}
       >
         {(props) => (
-          <Selector value={texto} onValueChange={alCambiar}>
+          <Selector
+            value={texto === '' ? SIN_VALOR : texto}
+            onValueChange={(valor) => { alCambiar(valor === SIN_VALOR ? '' : valor) }}
+          >
             <DisparadorSelector marcador="Elige una opción" id={props.id} />
             <ContenidoSelector>
+              {/* La opcion que vacia el campo. Sin ella un desplegable opcional se puede llenar pero
+                  no volver a dejar en blanco, y arrepentirse obliga a cerrar el formulario. */}
+              {campo.requerido !== true && (
+                <Opcion value={SIN_VALOR}>{campo.etiquetaSinValor ?? 'Sin definir'}</Opcion>
+              )}
               {(campo.opciones ?? []).map((opcion) => (
                 <Opcion key={opcion.valor} value={opcion.valor}>{opcion.etiqueta}</Opcion>
               ))}
@@ -371,6 +391,15 @@ export function ControlDeCampo (
     </Campo>
   )
 }
+
+/**
+ * Valor del item que vacia un desplegable opcional.
+ *
+ * Radix Select no acepta un `<Opcion value="">`, asi que "sin elegir" necesita un valor propio que
+ * muere aca: hacia arriba sigue viajando la cadena vacia, que es lo que `cuerpoDelFormulario`
+ * traduce a `null`.
+ */
+const SIN_VALOR = '__sin_valor__'
 
 /** Los identificadores que `Campo` le cablea a su control. */
 type PropsDeCampo = Parameters<Parameters<typeof Campo>[0]['children']>[0]

@@ -2102,3 +2102,54 @@ export interface Incidente {
 export interface IncidenteConTraza extends Incidente {
   traza: string | null
 }
+
+// frente: plantillas de Hito
+// Bloque agregado por el frente de Plantillas de Hito. Va al final a proposito: otros frentes editan
+// este mismo archivo y un bloque contiguo hace trivial el merge.
+
+/**
+ * Tarea de una plantilla de Hito.
+ *
+ * **No guarda fechas**: guarda a cuantos dias del INICIO DEL HITO cae cada extremo. Por eso la misma
+ * plantilla sirve para el hito de enero y para el de febrero.
+ *
+ * `null` en un offset no es cero: significa "la fecha del hito" —su inicio para el arranque, su
+ * cierre para el vencimiento—. Confundirlos haria que una tarea sin vencimiento declarado venciera
+ * el mismo dia que empieza.
+ */
+export interface TareaDePlantillaHito {
+  id: number
+  name: string
+  description: string | null
+  /** Posicion declarada: el indice en la lista que se mando. */
+  order: number
+  /** Dias desde el inicio del hito hasta el arranque de la tarea. Entero 0..3650, o `null`. */
+  start_offset_days: number | null
+  /** Dias desde el inicio del hito hasta el vencimiento de la tarea. Entero 0..3650, o `null`. */
+  due_offset_days: number | null
+  /** Escala de `tbltasks`: 1 baja, 2 media, 3 alta, 4 urgente. */
+  priority: number
+  /** Tipo de Proceso. Al instanciar se descarta en silencio si el Espacio no lo ofrece. */
+  task_type_id: number | null
+}
+
+/** Plantilla de Hito tal como la devuelve `GET /hito-plantillas` (el listado, sin `tasks`). */
+export interface PlantillaHito {
+  id: number
+  name: string
+  description: string | null
+  created_by: number
+  date_created: string
+  /**
+   * Lo resuelve el servidor (`created_by === yo` o administrador). El frontend no puede deducirlo.
+   *
+   * A diferencia de las plantillas de Espacio, aca **todo el staff las ve**: lo que `can_edit`
+   * decide es quien puede tocarlas, no quien puede usarlas.
+   */
+  can_edit: boolean
+}
+
+/** La misma plantilla con sus tareas, tal como la devuelve `GET /hito-plantillas/{id}`. */
+export interface PlantillaHitoDetallada extends PlantillaHito {
+  tasks: TareaDePlantillaHito[]
+}

@@ -32,6 +32,13 @@ export interface CampoFormulario {
   /** Solo para `seleccion`. La opcion vacia se agrega sola cuando el campo no es requerido. */
   opciones?: OpcionCampo[]
   /**
+   * Texto de esa opcion vacia. Por defecto dice "Sin definir".
+   *
+   * Existe para los campos donde el vacio tiene nombre propio: en el alta de Hito la opcion de
+   * reposo es "Sin plantilla", y decir "Sin definir" daria a entender que falta completar algo.
+   */
+  etiquetaSinValor?: string
+  /**
    * Titulo que precede a este campo, para partir un formulario largo en bloques.
    *
    * Va en el campo y no en una lista aparte para que agregar un campo a un bloque sea una linea y no

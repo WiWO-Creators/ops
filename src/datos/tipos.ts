@@ -146,7 +146,7 @@ export interface StaffReferencia {
   profile_image_url: string | null
 }
 
-export type Capacidad = 'view' | 'create' | 'edit' | 'delete' | 'edit_milestones'
+export type Capacidad = 'view' | 'create' | 'edit' | 'delete' | 'create_milestones' | 'edit_milestones'
 
 /**
  * Las áreas de permisos que el producto usa de verdad.
