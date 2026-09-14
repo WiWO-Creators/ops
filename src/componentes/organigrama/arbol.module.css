@@ -1,0 +1,206 @@
+/**
+ * El dibujo del árbol: cajas y líneas, sin ninguna librería de grafos.
+ *
+ * Las líneas son bordes de pseudo-elementos sobre listas anidadas, así que no hay nada que medir en
+ * el DOM ni que recalcular al redimensionar: el navegador centra los conectores solo. Una librería
+ * de grafos habría traído posicionamiento absoluto, un `ResizeObserver` y un layout que no sabe
+ * nada de `prefers-reduced-motion`.
+ *
+ * Va en un módulo CSS y no en clases de Tailwind porque son pseudo-elementos con reglas de
+ * `:first-child`/`:last-child` y un cambio de orientación completo por ancho: escrito con utilidades
+ * sería una cadena ilegible repetida en tres lugares.
+ *
+ * Dos orientaciones del MISMO marcado:
+ *   - de 680px para arriba, el organigrama clásico de arriba abajo;
+ *   - por debajo, una sangría vertical con rieles, que es lo único que se recorre con el pulgar sin
+ *     romper el layout.
+ */
+
+.lienzo {
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  padding-block: 0.5rem;
+}
+
+.arbol {
+  display: flex;
+  width: max-content;
+  min-width: 100%;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.5rem;
+}
+
+.rama {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  margin: 0;
+  padding: var(--salto) 0 0 0;
+  list-style: none;
+}
+
+/* El tallo que baja del padre hasta la barra de sus hijos. */
+.rama::before {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  width: 0;
+  height: var(--salto);
+  border-left: var(--trazo) solid var(--color-linea-fuerte);
+  content: '';
+}
+
+/* La rama de más arriba no cuelga de nadie: sin tallo y sin el salto que lo aloja. */
+.raiz {
+  padding-top: 0;
+}
+
+.raiz::before {
+  display: none;
+}
+
+/*
+ * Cada nodo se apila con su rama y se CENTRA sobre ella.
+ *
+ * El centrado no es estético: el `<li>` es tan ancho como lo más ancho que contenga —su caja o la
+ * rama que cuelga de él—, y sin `align-items: center` la caja se pega al borde izquierdo mientras la
+ * rama se despliega hacia la derecha. Un jefe con dos personas quedaba corrido respecto de la barra
+ * que lo une a ellas, y con tres niveles el árbol entero se abría en diagonal.
+ */
+.nodo {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: var(--salto) 0 0 0;
+  list-style: none;
+}
+
+/* La separación entre hermanos va como margen de la CAJA y no como relleno del `<li>`, y no es un
+   capricho. El relleno del `<li>` ensancha la rama sin ensanchar el hueco donde la rama de abajo
+   tiene que caber, así que cada nivel salía unos píxeles corrido respecto de su padre y el tallo
+   dejaba de caer en el medio. Con el margen en la caja, el ancho del `<li>` y el de la rama que
+   cuelga de él coinciden exactamente y el árbol baja a plomo. */
+.caja {
+  margin-inline: 0.375rem;
+}
+
+/* Las dos mitades de la barra horizontal que une a los hermanos, más el bajante de cada uno. */
+.nodo::before,
+.nodo::after {
+  position: absolute;
+  top: 0;
+  right: 50%;
+  width: 50%;
+  height: var(--salto);
+  border-top: var(--trazo) solid var(--color-linea-fuerte);
+  content: '';
+}
+
+.nodo::after {
+  right: auto;
+  left: 50%;
+  border-left: var(--trazo) solid var(--color-linea-fuerte);
+}
+
+/* Hijo único: no hay barra que dibujar, sólo el tallo del padre. */
+.nodo:only-child {
+  padding-top: 0;
+}
+
+.nodo:only-child::before,
+.nodo:only-child::after {
+  display: none;
+}
+
+/* Los extremos no continúan la barra hacia afuera. */
+.nodo:first-child::before,
+.nodo:last-child::after {
+  border: 0 none;
+}
+
+.nodo:last-child::before {
+  border-right: var(--trazo) solid var(--color-linea-fuerte);
+  border-top-right-radius: 0.375rem;
+}
+
+.nodo:first-child::after {
+  border-top-left-radius: 0.375rem;
+}
+
+.arbol,
+.rama {
+  --salto: 1.5rem;
+  --trazo: 1px;
+}
+
+/* Pantalla angosta: el mismo marcado, en sangría vertical. Un organigrama de arriba abajo en 380px
+   obliga a un desplazamiento lateral sin fin, y el pulgar se pierde. */
+@media (max-width: 679px) {
+  .arbol {
+    width: 100%;
+    min-width: 0;
+    align-items: stretch;
+    gap: 0.5rem;
+  }
+
+  .lienzo {
+    overflow-x: visible;
+  }
+
+  .rama {
+    flex-direction: column;
+    align-items: stretch;
+    margin-left: 1.125rem;
+    padding: 0.5rem 0 0 1rem;
+    border-left: var(--trazo) solid var(--color-linea-fuerte);
+  }
+
+  .raiz {
+    margin-left: 0;
+    padding-left: 0;
+    border-left: 0 none;
+  }
+
+  .rama::before {
+    display: none;
+  }
+
+  .nodo,
+  .nodo:only-child {
+    align-items: stretch;
+    padding: 0.375rem 0 0 0;
+  }
+
+  /* En sangría no hay hermanos que separar: el riel ya hace ese trabajo. */
+  .caja {
+    margin-inline: 0;
+  }
+
+  /* Un solo brazo que sale del riel hacia la caja, a la altura del texto. */
+  .nodo::before,
+  .nodo:only-child::before {
+    top: 1.65rem;
+    right: auto;
+    left: -1rem;
+    display: block;
+    width: 1rem;
+    height: 0;
+    border: 0 none;
+    border-top: var(--trazo) solid var(--color-linea-fuerte);
+    border-radius: 0;
+  }
+
+  .nodo::after,
+  .nodo:only-child::after {
+    display: none;
+  }
+
+  /* La raíz no cuelga de ningún riel, así que no le sale ningún brazo. Va al final del bloque a
+     propósito: tiene la misma especificidad que la regla de arriba y sólo gana por venir después. */
+  .raiz > .nodo::before,
+  .raiz > .nodo:only-child::before {
+    display: none;
+  }
+}

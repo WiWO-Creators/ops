@@ -122,6 +122,12 @@ const PREFIJOS_PERMITIDOS = [
   // alta y la edicion de un area, el borrado, y el movimiento de una persona
   // (`/jerarquia/personas/{id}`) — que tambien cuelga de aca y no de `staff`.
     'jerarquia',
+  // El organigrama visual (`GET /organigrama`): el mapa de areas y la gente, ya recortado por la API
+  // a lo que quien pregunta puede ver. Raiz propia porque asi lo expone la API, y no cuelga de
+  // `/staff` por lo mismo que `/jerarquia`: ver el organigrama no exige `staff.view`, y de hecho la
+  // pantalla existe para todo el mundo. La reasignacion NO entra por aca —va por
+  // `accesos/personas/{id}`, que ya esta mas abajo—, asi que este prefijo es de solo lectura.
+  'organigrama',
   // El panel de accesos (`/accesos`): el catalogo, los escalones, los roles, las personas, las areas,
   // los cargos y los interruptores del modelo de permisos. Raiz propia porque asi lo expone la API.
   // Sin esta entrada el BFF contesta 404 a TODAS las escrituras de la pantalla y solo se ve el

@@ -215,12 +215,11 @@ function seccionesDe (yo: Yo): Seccion[] {
   // otorga capabilities, asi que nunca dependio de `permissions.staff` y un director sin `staff.view`
   // igual ve a su gente por esta puerta.
   //
-  // La llave ya no es `is_director` sino la PERTENENCIA a un area: la pantalla muestra el area propia
-  // y quien la integra, asi que sin area no hay nada que mostrar, y con area la hay aunque no se
-  // dirija nada. Con `is_director` la entrada estaba practicamente muerta: las 184 cuentas de
-  // produccion llevan cargo "Staff". Se miran los dos campos del area —la columna vieja y la tabla
-  // multiarea— por lo que explica `puedeVerMiArea`.
-  if (puedeVerMiArea(yo)) {
+  // Desde que la pantalla es el organigrama (`GET /organigrama`) no hay llave que valga: le responde
+  // algo a todo el mundo —quien no tiene area ni gente se ve a si mismo y a sus jefes—, y las dos
+  // llaves anteriores escondian la entrada justo a quien mas la necesita. El porque, en
+  // `puedeVerMiArea`.
+  if (puedeVerMiArea()) {
     secciones.push({ href: '/equipo/mi-area', etiqueta: 'Mi Área', icono: 'mi_area' })
   }
 
