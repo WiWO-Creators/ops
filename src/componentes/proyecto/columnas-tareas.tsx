@@ -8,7 +8,9 @@ import { resolverEstado } from '@/dominio/estados-tarea'
 import type { DefinicionCampoPersonalizado, Proceso } from '@/datos/recursos'
 import type { Capacidad } from '@/datos/tipos'
 import type { Columna, DefinicionRecurso, OpcionFiltro } from '@/definiciones/tipos'
+import type { FuenteDeProyecto } from '@/dominio/fuente-proyecto'
 import { procesosDelEspacio } from '@/definiciones/procesos'
+import { procesosDelContacto } from '@/definiciones/portal-proyectos'
 import { filtrosDeCamposPersonalizados } from '@/definiciones/filtros'
 import { EstadoDeTarea } from './EstadoDeTarea'
 import { camposDeTabla, valorDeCampo } from './tareas'
@@ -105,6 +107,8 @@ function EstadoEditable ({ proceso, estados, editable, onCambiado }: PropsEstado
 
 interface OpcionesDefinicion {
   proyectoId: number
+  /** De donde bajan los Procesos. Aporta la ruta y, con ella, el sujeto de la peticion. */
+  fuente: FuenteDeProyecto
   /** Definiciones de `GET /custom-fields?para=tasks`; solo las de `show_on_table` son columna. */
   camposPersonalizados: DefinicionCampoPersonalizado[]
   capacidades: Capacidad[]
@@ -116,21 +120,31 @@ interface OpcionesDefinicion {
 /**
  * La definicion de Procesos lista para la pestaña Tareas de un Espacio.
  *
- * @param opciones espacio, catalogos y el aviso de recarga
+ * **Acá es el unico lugar de la pestaña donde se mira el sujeto**, y no es una excepcion a la regla:
+ * esta funcion es capa de definiciones, no un panel. Que columnas y que filtros existen es una
+ * propiedad del contrato de cada sujeto —el del contacto emite menos claves y acepta menos
+ * filtros—, asi que decidirlo acá es lo que deja a la tabla, al tablero y al calendario sin una sola
+ * rama adentro.
+ *
+ * @param opciones espacio, fuente de datos, catalogos y el aviso de recarga
  * @returns la definicion lista para `TablaRecurso`
  */
 export function definicionDeTareas ({
   proyectoId,
+  fuente,
   camposPersonalizados,
   capacidades,
   estados,
   onCambiado
 }: OpcionesDefinicion): DefinicionRecurso<Proceso> {
   const editable = capacidades.includes('edit')
-  const base = procesosDelEspacio(proyectoId)
+  const base = fuente.sujeto === 'portal' ? procesosDelContacto(proyectoId) : procesosDelEspacio(proyectoId)
 
   return {
     ...base,
+    // La ruta la manda la fuente y no la definicion base: es lo unico que hace que el mismo dibujo
+    // pida al sujeto que corresponde.
+    ruta: fuente.tareas,
     filtros: [...base.filtros, ...filtrosDeCamposPersonalizados(camposPersonalizados)],
     columnas: [
       ...conCeldasRicas(base.columnas).map((columna): Columna<Proceso> => {

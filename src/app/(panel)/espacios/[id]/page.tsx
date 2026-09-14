@@ -4,6 +4,7 @@ import { Suspense, cache } from 'react'
 import { CabeceraProyecto } from '@/componentes/proyecto/CabeceraProyecto'
 import { BotonNuevaTarea, MenuProyecto } from '@/componentes/proyecto/MenuProyecto'
 import { proyectoDelPanel } from '@/dominio/proyecto'
+import { fuenteDelPanel } from '@/dominio/fuente-proyecto'
 import { PanelActividad } from '@/componentes/proyecto/PanelActividad'
 import { PanelConfiguracionEspacio } from '@/componentes/proyecto/PanelConfiguracionEspacio'
 import { PanelArchivos } from '@/componentes/proyecto/PanelArchivos'
@@ -154,6 +155,10 @@ export default async function ProyectoPage (props: PageProps<'/espacios/[id]'>) 
   // La primera de las tres capas del patron de `administracion/acceso`: si no corresponde, la pestaña
   // ni se agrega. La segunda es el propio panel, que devuelve `SinPermiso`; la tercera —la unica que
   // de verdad protege— es el 403 de `GET|PUT /projects/{id}/task-types`.
+  // De donde bajan los datos de cada pestaña. La arma la pagina y no el panel: es lo unico que
+  // distingue esta pantalla de la del portal, que monta los mismos paneles con la fuente del
+  // contacto. Ver `dominio/fuente-proyecto.ts`.
+  const fuente = fuenteDelPanel(proyecto.id)
   const puedeConfigurar =
     yo.id === proyecto.added_from || yo.is_admin || yo.is_superadmin || yo.is_director
 
@@ -173,7 +178,7 @@ export default async function ProyectoPage (props: PageProps<'/espacios/[id]'>) 
     {
       clave: 'tareas',
       etiqueta: GLOSARIO.proceso.plural,
-      contenido: <PanelTareas proyectoId={proyecto.id} capacidades={capacidadesTareas} conIa={conIa} />
+      contenido: <PanelTareas proyectoId={proyecto.id} fuente={fuente} capacidades={capacidadesTareas} conIa={conIa} />
     },
     {
       clave: 'tiempos',
@@ -202,7 +207,7 @@ export default async function ProyectoPage (props: PageProps<'/espacios/[id]'>) 
     // distintas: el Gantt muestra duraciones y dependencias, el calendario muestra el dia de
     // entrega. Sus capacidades son las de `tasks` y no las del Espacio: lo que abre es el detalle de
     // un Proceso.
-    { clave: 'calendario', etiqueta: 'Calendario', contenido: <PanelCalendario proyectoId={proyecto.id} capacidades={capacidadesTareas} /> },
+    { clave: 'calendario', etiqueta: 'Calendario', contenido: <PanelCalendario proyectoId={proyecto.id} fuente={fuente} capacidades={capacidadesTareas} /> },
     // El Meeting Paper conserva el lugar donde el equipo ya lo busca. Va aparte de las Notas y no
     // adentro porque son dos cosas distintas: la nota es privada de quien la escribio y el acta la ve
     // todo el Proyecto, asi que sus acciones dependen de permisos en vez de ofrecerse siempre.

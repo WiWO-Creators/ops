@@ -22,6 +22,7 @@ import type {
   ResumenEstadoTareas
 } from '@/datos/recursos'
 import type { Capacidad } from '@/datos/tipos'
+import { conConsulta, type FuenteDeProyecto } from '@/dominio/fuente-proyecto'
 import { AccionesMasivasTareas } from './AccionesMasivasTareas'
 import { CalendarioTareas } from './CalendarioTareas'
 import { ModalTarea } from './ModalTarea'
@@ -59,6 +60,18 @@ const VISTAS: readonly OpcionSegmentada[] = [
 
 interface PropsPanelTareas {
   proyectoId: number
+  /**
+   * De donde bajan los datos: del panel del colaborador o del portal del cliente.
+   *
+   * Es lo unico que cambia entre los dos sujetos. Adentro de esta pestaña **no hay ninguna rama por
+   * sujeto**: las rutas llegan resueltas y los recursos que un contacto no tiene llegan en `null`,
+   * asi que el resumen por estado y las columnas personalizadas simplemente no se piden.
+   */
+  fuente: FuenteDeProyecto
+  /**
+   * Lo que se puede escribir sobre Procesos. `[]` apaga el alta, las acciones masivas y la edicion
+   * en linea: es como el portal deja la pestaña en solo lectura, sin quitarle ninguna lectura.
+   */
   capacidades: Capacidad[]
   /**
    * Si la capa de IA esta encendida. Viaja desde el servidor y no se consulta aca: `GET /settings`
@@ -67,12 +80,12 @@ interface PropsPanelTareas {
   conIa: boolean
 }
 
-export function PanelTareas ({ proyectoId, capacidades, conIa }: PropsPanelTareas): ReactElement {
+export function PanelTareas (props: PropsPanelTareas): ReactElement {
   // `TablaRecurso` y el propio panel leen `useSearchParams`. Sin este limite de Suspense el build de
   // cualquier pagina que los monte falla, y esa pagina la escribe otra persona.
   return (
     <Suspense fallback={<Cargando mensaje="Cargando las tareas…" />}>
-      <TareasDelProyecto proyectoId={proyectoId} capacidades={capacidades} conIa={conIa} />
+      <TareasDelProyecto {...props} />
     </Suspense>
   )
 }
@@ -95,7 +108,7 @@ type Carga =
       avisos: string[]
     }
 
-function TareasDelProyecto ({ proyectoId, capacidades, conIa }: PropsPanelTareas): ReactElement {
+function TareasDelProyecto ({ proyectoId, fuente, capacidades, conIa }: PropsPanelTareas): ReactElement {
   const router = useRouter()
   const params = useSearchParams()
 
@@ -123,12 +136,13 @@ function TareasDelProyecto ({ proyectoId, capacidades, conIa }: PropsPanelTareas
   const definicion = useMemo(
     () => definicionDeTareas({
       proyectoId,
+      fuente,
       camposPersonalizados: campos,
       capacidades,
       estados,
       onCambiado: recargar
     }),
-    [proyectoId, campos, capacidades, estados, recargar]
+    [proyectoId, fuente, campos, capacidades, estados, recargar]
   )
 
   // Se pide con la consulta vigente al montar y cada vez que algo escribio, pero NO cuando la
@@ -137,7 +151,7 @@ function TareasDelProyecto ({ proyectoId, capacidades, conIa }: PropsPanelTareas
   useEffect(() => {
     const control = new AbortController()
 
-    void cargarPestana(proyectoId, definicion, params.toString(), enTablero, control.signal)
+    void cargarPestana(fuente, definicion, params.toString(), enTablero, control.signal)
       .then((resultado) => { if (!control.signal.aborted) setCarga(resultado) })
 
     return () => { control.abort() }
@@ -180,6 +194,9 @@ function TareasDelProyecto ({ proyectoId, capacidades, conIa }: PropsPanelTareas
   }
 
   const estadoFiltrado = unicoEstadoFiltrado(params.get('filter[status]'))
+  // Las acciones masivas cambian estado, prioridad, asignados y borran: sin ninguna de esas
+  // capacidades la barra quedaria vacia y las casillas de seleccion no llevarian a ningun lado.
+  const puedeAccionarEnMasa = capacidades.includes('edit') || capacidades.includes('delete')
 
   return (
     <div className="flex flex-col gap-4">
@@ -235,13 +252,16 @@ function TareasDelProyecto ({ proyectoId, capacidades, conIa }: PropsPanelTareas
       </div>
 
       {enCalendario
+        // Sin `fuente`: este calendario arma sus rutas desde `definicion.ruta`, que ya es la suya.
         ? <CalendarioTareas definicion={definicion} capacidades={capacidades} opcionesDeFiltro={carga.opciones} />
         : enTablero
           ? (
           <TableroFiltrable<ProcesoAmpliado>
             definicion={definicionDeTablero(definicion, estados)}
             ruta={definicion.ruta}
-            board="tasks"
+            // Sin `board` fijo: `ControlesTabla` lo deduce de la ruta y devuelve `null` para el
+            // portal, que no tiene presets de filtro. Escribirlo a mano pediria `filter-presets` con
+            // la sesion de un contacto, que es un 404 del BFF y un aviso de error en pantalla.
             opcionesDeFiltro={carga.opciones}
           />
             )
@@ -260,24 +280,32 @@ function TareasDelProyecto ({ proyectoId, capacidades, conIa }: PropsPanelTareas
             abrirEn={{ clave: PARAMETRO_TAREA, valor: (proceso) => proceso.id }}
             capacidades={capacidades}
             opcionesDeFiltro={carga.opciones}
-            board="tasks"
+            // Ver el comentario del tablero: el `board` sale de la ruta, no escrito a mano.
+            //
             // La seleccion la dibuja el motor. `recargar` es el del panel y no el del motor a
             // proposito: una accion masiva tambien cambia el resumen por estado de arriba.
-            seleccionMasiva={(filas, limpiar) => (
-              <AccionesMasivasTareas
-                proyectoId={proyectoId}
-                filas={filas}
-                capacidades={capacidades}
-                estados={estados}
-                prioridades={prioridades}
-                limpiar={limpiar}
-                recargar={recargar}
-              />
-            )}
+            //
+            // Sin capacidad de escritura no se pasa: las casillas de seleccion por fila existen para
+            // llegar a estas acciones, y ofrecerlas para despues no poder hacer nada con ellas es
+            // como el portal terminaria con una barra de acciones vacia encima de la tabla.
+            seleccionMasiva={puedeAccionarEnMasa
+              ? (filas, limpiar) => (
+                <AccionesMasivasTareas
+                  proyectoId={proyectoId}
+                  filas={filas}
+                  capacidades={capacidades}
+                  estados={estados}
+                  prioridades={prioridades}
+                  limpiar={limpiar}
+                  recargar={recargar}
+                />
+                )
+              : undefined}
           />
             )}
 
       <ModalTarea
+        fuente={fuente}
         puedeEditar={capacidades.includes('edit')}
         puedeBorrar={capacidades.includes('delete')}
         puedeCrear={capacidades.includes('create')}
@@ -341,7 +369,11 @@ function definicionDeTablero (
  *
  * Nunca lanza: el error del contrato es un valor mas.
  *
- * @param proyectoId el proyecto que se esta mirando
+ * **Ninguna ruta se escribe aca.** Todas salen de `fuente`, y las que llegan en `null` son los
+ * recursos que ese sujeto no tiene: no se piden y la pestaña se dibuja igual. Eso es lo que deja
+ * esta funcion sin una sola rama por sujeto.
+ *
+ * @param fuente de donde bajan los datos: panel del colaborador o portal del cliente
  * @param definicion la definicion ya acotada al proyecto
  * @param consulta query string sin `?`
  * @param enTablero la presentacion a la vista, que queda anotada en el resultado
@@ -349,38 +381,46 @@ function definicionDeTablero (
  * @returns el estado de carga resuelto
  */
 async function cargarPestana (
-  proyectoId: number,
+  fuente: FuenteDeProyecto,
   definicion: DefinicionRecurso<ProcesoAmpliado>,
   consulta: string,
   enTablero: boolean,
   senal: AbortSignal
 ): Promise<Carga> {
   try {
-    const campos = (await pedirSobre<DefinicionCampoPersonalizado[]>('custom-fields?para=tasks', senal)).data
+    // Sin campos personalizados no hay columnas ni filtros `cf_`, y la tabla es la misma sin ellos.
+    const campos = fuente.camposDeTareas === null
+      ? []
+      : (await pedirSobre<DefinicionCampoPersonalizado[]>(fuente.camposDeTareas, senal)).data
     const completa = { ...definicion, filtros: [...definicion.filtros.filter((filtro) => !filtro.clave.startsWith('cf_')), ...filtrosDeCamposPersonalizados(campos)] }
     const query = construirConsulta(leerConsulta(new URLSearchParams(consulta), completa), completa)
-    const ruta = `${definicion.ruta}?${query}`
+    const ruta = conConsulta(fuente.tareas, query)
     // El equipo no viene en `/lookups` y es lo que llena los filtros por persona (Asignado, Creado
     // por, Seguidor). Se pide junto con lo demas y ya esta cacheado por pestaña; si falla, esos
-    // filtros quedan sin opciones y el resto de la tabla no se entera.
+    // filtros quedan sin opciones y el resto de la tabla no se entera. En el portal la definicion no
+    // declara ningun filtro por persona, asi que `staffParaFiltros` no pide nada.
     const [lista, lookups, personas] = await Promise.all([
       pedirSobre<ProcesoAmpliado[]>(ruta, senal),
-      pedirSobre<Lookups>('lookups', senal),
+      pedirSobre<Lookups>(fuente.lookups, senal),
       staffParaFiltros(definicion)
     ])
 
     const avisos: string[] = []
 
-    const resumen = await opcional(
-      pedirSobre<ResumenEstadoTareas[]>(`projects/${proyectoId}/tasks/summary`, senal)
-    )
-    if (resumen === null) avisos.push('El resumen por estado todavía no está disponible en la API.')
+    const resumen = fuente.resumenDeTareas === null
+      ? null
+      : await opcional(pedirSobre<ResumenEstadoTareas[]>(fuente.resumenDeTareas, senal))
+    // El aviso es para el backend que todavia no lo expone, no para el sujeto que no lo tiene: con
+    // la ruta en `null` las tarjetas de arriba simplemente no van, y no hay nada que avisar.
+    if (fuente.resumenDeTareas !== null && resumen === null) {
+      avisos.push('El resumen por estado todavía no está disponible en la API.')
+    }
 
     // Los hitos no salen de `/lookups`: cuelgan de un Espacio, asi que hay que pedirlos por su ruta.
     // Accesorio como los dos de arriba, pero sin aviso: si no llegan, el motor simplemente no dibuja
     // el filtro por hito, y una tabla sin ese desplegable sigue sirviendo entera.
     const hitos = await opcional(
-      pedirSobre<Hito[]>(`projects/${proyectoId}/milestones?per_page=${TOPE_DE_HITOS}`, senal)
+      pedirSobre<Hito[]>(conConsulta(fuente.hitos, `per_page=${TOPE_DE_HITOS}`), senal)
     )
 
     return {

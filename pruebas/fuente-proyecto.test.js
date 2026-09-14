@@ -13,71 +13,53 @@
  *  3. Los `null` del portal son **los mismos** que el diseño declara. Son lo que apaga la escritura
  *     y las columnas internas sin una rama; agregar uno de mas dejaria un panel sin datos y quitar
  *     uno haria que el cliente pida un recurso que no le corresponde.
+ *  4. **Todo es texto.** La fuente la arma un Server Component y la recibe un panel, que es cliente:
+ *     una funcion adentro rompe la serializacion de React y la pagina no compila.
  */
 
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { fuenteDelPanel, fuenteDelPortal, TAREA_DEL_PANEL } from '../src/dominio/fuente-proyecto.ts'
+import {
+  conConsulta,
+  conId,
+  fuenteDelPanel,
+  fuenteDelPortal,
+  TAREA_DEL_PANEL
+} from '../src/dominio/fuente-proyecto.ts'
 
-const PROYECTO = 7
-const panel = fuenteDelPanel(PROYECTO)
-const portal = fuenteDelPortal(PROYECTO)
+const panel = fuenteDelPanel(7)
+const portal = fuenteDelPortal(7)
 
 /** Los recursos que el contacto no tiene. Son los unicos `null` permitidos. */
 const SIN_RECURSO = ['subrecursosDeTarea', 'resumenDeTareas', 'camposDeTareas', 'dependenciasDeTareas']
-
-/**
- * Resuelve una clave de la fuente a la ruta que produce.
- *
- * Las funciones se llaman con un argumento de juguete: lo que interesa es la ruta, no el valor.
- *
- * @param fuente Una de las dos fuentes.
- * @param clave La clave a resolver.
- * @returns La ruta, o `null` si el sujeto no tiene ese recurso.
- */
-function rutaDe (fuente, clave) {
-  const valor = fuente[clave]
-
-  if (valor === null) return null
-  if (typeof valor === 'function') return valor(clave === 'tareas' || clave === 'calendario' ? '' : 3)
-
-  return valor
-}
 
 test('las dos fuentes declaran las mismas claves', () => {
   assert.deepEqual(Object.keys(panel).sort(), Object.keys(portal).sort())
 })
 
-test('cada clave tiene el mismo tipo en las dos fuentes', () => {
-  for (const clave of Object.keys(panel)) {
-    if (SIN_RECURSO.includes(clave)) continue
-
-    assert.equal(typeof portal[clave], typeof panel[clave], clave)
+test('la fuente es serializable: solo texto y null', () => {
+  // Cruza el limite de Server a Client Component. Una funcion adentro es un error de build.
+  for (const fuente of [panel, portal, TAREA_DEL_PANEL]) {
+    for (const [clave, valor] of Object.entries(fuente)) {
+      assert.equal(valor === null || typeof valor === 'string', true, `${clave} es ${typeof valor}`)
+    }
   }
 })
 
 test('todas las rutas del portal empiezan con portal/', () => {
-  for (const clave of Object.keys(portal)) {
-    if (clave === 'sujeto') continue
+  for (const [clave, valor] of Object.entries(portal)) {
+    if (clave === 'sujeto' || valor === null) continue
 
-    const ruta = rutaDe(portal, clave)
-
-    if (ruta === null) continue
-
-    assert.equal(ruta.startsWith('portal/'), true, `${clave} → ${ruta}`)
+    assert.equal(valor.startsWith('portal/'), true, `${clave} → ${valor}`)
   }
 })
 
 test('ninguna ruta lleva barra inicial: el BFF ya pone el prefijo', () => {
   for (const fuente of [panel, portal]) {
-    for (const clave of Object.keys(fuente)) {
-      if (clave === 'sujeto') continue
+    for (const [clave, valor] of Object.entries(fuente)) {
+      if (clave === 'sujeto' || valor === null) continue
 
-      const ruta = rutaDe(fuente, clave)
-
-      if (ruta === null) continue
-
-      assert.equal(ruta.startsWith('/'), false, `${clave} → ${ruta}`)
+      assert.equal(valor.startsWith('/'), false, `${clave} → ${valor}`)
     }
   }
 })
@@ -95,40 +77,42 @@ test('el panel tiene todos los recursos: ningun null', () => {
 })
 
 test('las rutas del panel cuelgan del proyecto que se pidio', () => {
-  assert.equal(panel.tareas(''), 'projects/7/tasks')
-  assert.equal(panel.tareas('page=2'), 'projects/7/tasks?page=2')
+  assert.equal(panel.tareas, 'projects/7/tasks')
   assert.equal(panel.resumen, 'projects/7/overview')
-  assert.equal(panel.hitos(500), 'projects/7/milestones?per_page=500')
-  assert.equal(panel.acta(12), 'projects/7/actas/12')
+  assert.equal(panel.hitos, 'projects/7/milestones')
+  assert.equal(panel.tiempos, 'projects/7/timesheets')
+  assert.equal(panel.gantt, 'projects/7/gantt')
 })
 
 test('el calendario del portal es su ruta propia y no el listado de tareas', () => {
   // La API lo exige aparte (`exigirPestania('calendar')`) aunque lo acote con las mismas dos
   // condiciones que las Tareas: pedirle el listado seria pasar por la pestaña equivocada.
-  assert.equal(portal.calendario(''), 'portal/projects/7/calendar')
-  assert.equal(portal.calendario('sort=due_date'), 'portal/projects/7/calendar?sort=due_date')
+  assert.equal(portal.calendario, 'portal/projects/7/calendar')
   // En el panel el calendario es una lectura mas del mismo listado.
-  assert.equal(panel.calendario(''), panel.tareas(''))
+  assert.equal(panel.calendario, panel.tareas)
 })
 
 test('el detalle de un Proceso del portal cuelga del proyecto', () => {
   // Nunca `portal/tasks/{id}`: la API del contacto no expone Procesos sueltos, y la pertenencia al
   // proyecto es lo que la deja decidir si esa tarea le corresponde.
-  assert.equal(portal.tarea(512), 'portal/projects/7/tasks/512')
+  assert.equal(conId(portal.tarea, 512), 'portal/projects/7/tasks/512')
 })
 
 test('el detalle del panel pide los campos personalizados', () => {
   // Sin el include la clave no viaja, y el "Área de la compañía" solo se veria entrando a editar.
-  assert.equal(panel.tarea(512), 'tasks/512?include=custom_fields')
+  assert.equal(conId(panel.tarea, 512), 'tasks/512?include=custom_fields')
 })
 
-test('un id no se interpola en crudo', () => {
-  const fuente = fuenteDelPanel(Number('7'))
+test('conId resuelve el id antes del query, no despues', () => {
+  assert.equal(conId('tasks/:id?include=custom_fields', 9), 'tasks/9?include=custom_fields')
+  assert.equal(conId(panel.comentarios, 3), 'discussions/3/comments?tipo=regular')
+  assert.equal(conId(portal.comentarios, 3), 'portal/projects/7/discussions/3/comments')
+})
 
-  assert.equal(fuente.tareas(''), 'projects/7/tasks')
-  // El id llega como numero, asi que no hay nada que escapar; lo que se prueba es que la ruta no se
-  // arme con texto libre.
-  assert.equal(fuente.tarea(0), 'tasks/0?include=custom_fields')
+test('conConsulta respeta la ruta que ya trae query', () => {
+  assert.equal(conConsulta('projects/7/tasks', ''), 'projects/7/tasks')
+  assert.equal(conConsulta('projects/7/tasks', 'page=2'), 'projects/7/tasks?page=2')
+  assert.equal(conConsulta('tasks/9?include=custom_fields', 'page=2'), 'tasks/9?include=custom_fields&page=2')
 })
 
 test('la fuente del proyecto satisface la del detalle de una tarea', () => {
@@ -141,7 +125,7 @@ test('la fuente del proyecto satisface la del detalle de una tarea', () => {
 })
 
 test('el detalle suelto del panel es el que ya usaban las pantallas sin proyecto', () => {
-  assert.equal(TAREA_DEL_PANEL.tarea(9), 'tasks/9?include=custom_fields')
+  assert.equal(conId(TAREA_DEL_PANEL.tarea, 9), 'tasks/9?include=custom_fields')
   assert.equal(TAREA_DEL_PANEL.lookups, 'lookups')
-  assert.equal(TAREA_DEL_PANEL.subrecursosDeTarea(9), 'tasks/9')
+  assert.equal(conId(TAREA_DEL_PANEL.subrecursosDeTarea, 9), 'tasks/9')
 })

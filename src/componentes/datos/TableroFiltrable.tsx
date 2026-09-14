@@ -30,8 +30,14 @@ interface PropsTableroFiltrable<T extends FilaConId> {
   definicion: DefinicionRecurso<T>
   /** Primer segmento de la ruta en el BFF. Ej: `tasks`, o `projects/80/milestones`. */
   ruta: string
-  /** Bajo que tablero se guardan y se leen los presets. */
-  board: PresetFiltro['board']
+  /**
+   * Bajo que tablero se guardan y se leen los presets.
+   *
+   * Omitirlo deja que `ControlesTabla` lo deduzca de `definicion.ruta`, que es lo correcto cuando el
+   * mismo tablero sirve a los dos sujetos: para una ruta del portal no hay presets —el contacto no
+   * los tiene— y pedirlos igual seria un 404 del BFF con su aviso de error en pantalla.
+   */
+  board?: PresetFiltro['board']
   /** Opciones ya resueltas de los filtros que las sacan de `/lookups`. */
   opcionesDeFiltro?: Record<string, OpcionFiltro[]>
   mensajeError?: string

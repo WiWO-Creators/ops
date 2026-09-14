@@ -14,6 +14,7 @@ import type { Espacio, Lookups } from '@/datos/recursos'
 import type { Capacidad } from '@/datos/tipos'
 import { GLOSARIO } from '@/dominio/glosario'
 import { proyectoDelPanel } from '@/dominio/proyecto'
+import { fuenteDelPanel } from '@/dominio/fuente-proyecto'
 
 /**
  * Cabecera y pestañas de trabajo de un Espacio que se mira desde otra seccion.
@@ -87,7 +88,7 @@ export function DetalleDeEspacio ({
       clave: 'tareas',
       etiqueta: GLOSARIO.proceso.plural,
       // Sin IA: el chat de proyecto es del detalle de Espacio, y aca todavia no hay proyecto cerrado.
-      contenido: <PanelTareas proyectoId={espacio.id} capacidades={capacidadesTareas} conIa={false} />
+      contenido: <PanelTareas proyectoId={espacio.id} fuente={fuenteDelPanel(espacio.id)} capacidades={capacidadesTareas} conIa={false} />
     },
     {
       clave: 'hitos',

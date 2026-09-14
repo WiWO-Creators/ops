@@ -17,6 +17,7 @@ import { cn } from '@/lib/clases'
 import type { CampoLegible } from '@/dominio/campos-personalizados'
 import type { EstadoLookup, Lookups, Proceso } from '@/datos/recursos'
 import type { Sobre } from '@/datos/tipos'
+import { conId, type FuenteDeTarea } from '@/dominio/fuente-proyecto'
 import { Boton } from '@/componentes/formularios/Boton'
 import { Campo } from '@/componentes/formularios/Campo'
 import { Entrada } from '@/componentes/formularios/Entrada'
@@ -25,7 +26,8 @@ import { instanteDeCierre } from '@/dominio/cierre-tarea'
 import { hoyLocal } from '@/lib/fechas'
 import { BloqueSla } from './BloqueSla'
 import { CabeceraFichaTarea } from './CabeceraFichaTarea'
-import { ESTADO_COMPLETO } from './tareas'
+import { ComentarioDeDiscusion } from './ComentarioDeDiscusion'
+import { ESTADO_COMPLETO, type ProcesoDeFicha } from './tareas'
 import { CompartirTarea } from './CompartirTarea'
 import { BotonDuplicarTarea } from './DuplicarTarea'
 import { EstadoDeTarea } from './EstadoDeTarea'
@@ -41,12 +43,24 @@ import { mensajeDeRespuesta, pedirRespuesta } from '@/datos/cliente'
 /**
  * Detalle de una Tarea, para el modal que lo muestra (`ModalTarea`).
  *
- * Pide dos cosas: la tarea (`/tasks/{id}`, que ya trae `description`) y los catalogos (`/lookups`).
- * La tarea se pide con `?include=custom_fields`: sin ese include la clave no viene, y el "Área de la
- * compañía" y el "Link de Drive" solo se podrian ver entrando a editar.
- * Los catalogos no son adorno: `status` y `priority` llegan como numeros, y sin la lista un "2" en
- * pantalla no dice nada. Van en la misma tanda porque mostrar el detalle sin ellos es mostrarlo a
- * medias.
+ * Pide dos cosas, las dos por `fuente`: la tarea y los catalogos. Los catalogos no son adorno:
+ * `status` y `priority` llegan como numeros, y sin la lista un "2" en pantalla no dice nada. Van en
+ * la misma tanda porque mostrar el detalle sin ellos es mostrarlo a medias.
+ *
+ * **Es la misma ficha para los dos sujetos**, y no tiene ni una rama por sujeto. Lo que la adapta
+ * son dos cosas y nada mas:
+ *
+ *  - **La clave ausente no se dibuja.** El tipo que consume es `ProcesoDeFicha`, donde todo lo
+ *    podable es opcional: si el contrato no manda asignados, etiquetas, contadores o campos
+ *    personalizados, esas filas y esas secciones no existen. `undefined` es "no corresponde", no
+ *    "vacio".
+ *  - **`fuente.subrecursosDeTarea` en `null`** apaga los bloques que se piden aparte —cronometros,
+ *    lista de control, iteraciones, Drive, adjuntos, el enlace publico y el enlace al panel viejo—,
+ *    porque son rutas que ese sujeto no tiene. Lo que el contrato si manda adentro de la ficha
+ *    (comentarios, checklist, adjuntos, tiempo registrado) se lee igual, de solo lectura.
+ *
+ * Lo que **escribe** no depende de ninguna de las dos: entra por `puedeEditar`, `puedeBorrar` y
+ * `puedeCrear`, que en el portal llegan en `false`.
  *
  * El 404 se separa del error a proposito: un id que no existe —un enlace viejo, una tarea borrada—
  * no tiene nada que reintentar, y ofrecer un boton que va a fallar igual es mentir.
@@ -57,6 +71,8 @@ import { mensajeDeRespuesta, pedirRespuesta } from '@/datos/cliente'
 
 interface PropsDetalleTarea {
   procesoId: number
+  /** De donde baja la ficha. Ver `FuenteDeTarea`: aporta las dos rutas y apaga los subrecursos. */
+  fuente: FuenteDeTarea
   /** `true` si quien mira tiene `edit` sobre tareas. Solo decide si se ofrece pedir la aprobacion. */
   puedeEditar?: boolean
   /** `true` si quien mira tiene `delete` sobre tareas. La API lo vuelve a exigir igual. */
@@ -76,13 +92,14 @@ interface PropsDetalleTarea {
 /** Estado de la carga. El error es un texto ya listo para mostrar, no un envelope. */
 type Carga =
   | { fase: 'cargando' }
-  | { fase: 'listo', tarea: Proceso, lookups: Lookups }
+  | { fase: 'listo', tarea: ProcesoDeFicha, lookups: Lookups }
   | { fase: 'noEncontrada' }
   | { fase: 'error', mensaje: string }
 
 export function DetalleTarea (
   {
     procesoId,
+    fuente,
     puedeEditar = false,
     puedeBorrar = false,
     puedeCrear = false,
@@ -145,12 +162,12 @@ export function DetalleTarea (
   useEffect(() => {
     const control = new AbortController()
 
-    void cargar(procesoId, control.signal).then((resultado) => {
+    void cargar(fuente, procesoId, control.signal).then((resultado) => {
       if (!control.signal.aborted) setCarga(resultado)
     })
 
     return () => { control.abort() }
-  }, [procesoId, intento])
+  }, [fuente, procesoId, intento])
 
   if (carga.fase === 'cargando') return <Cargando mensaje="Cargando la tarea…" className={className} />
 
@@ -170,7 +187,12 @@ export function DetalleTarea (
 
   const { tarea, lookups } = carga
   const prioridad = valorDeCatalogo(listaDe(lookups, 'task_priorities'), tarea.priority)
-  const enlaces = camposLegibles((tarea.custom_fields ?? []).filter((campo) => campo.type === 'link'))
+  // Los subrecursos —cronometros, lista de control, iteraciones, Drive, adjuntos, enlace publico—
+  // cuelgan de rutas que solo el equipo tiene. Con la raiz en `null` no se montan: es lo que deja la
+  // ficha del cliente sin una sola peticion que vaya a devolver 404.
+  const subrecursos = fuente.subrecursosDeTarea
+  const camposPersonalizados = tarea.custom_fields
+  const enlaces = camposLegibles((camposPersonalizados ?? []).filter((campo) => campo.type === 'link'))
 
   return (
     <div className={cn('flex flex-col gap-5', className)}>
@@ -200,8 +222,12 @@ export function DetalleTarea (
               : <EstadoDeTarea status={tarea.status} catalogo={listaDe(lookups, 'task_statuses')} />}
             <Insignia tamano="chico" color={prioridad.color}>{prioridad.nombre}</Insignia>
             {/* Al final de la fila de insignias y no arriba del titulo: compartir es una salida
-                lateral, no lo que la persona vino a hacer al detalle. */}
-            <CompartirTarea procesoId={procesoId} />
+                lateral, no lo que la persona vino a hacer al detalle.
+
+                Solo con los subrecursos del equipo: el enlace publico vive en `tasks/{id}/share`,
+                que un contacto no tiene, y de todos modos compartir hacia afuera lo que ya se le
+                compartio a el no es una accion del portal. */}
+            {subrecursos !== null && <CompartirTarea procesoId={procesoId} />}
 
             {/* Duplicar vive al lado de compartir y no entre "Editar" y "Eliminar": las dos son
                 salidas laterales sobre la tarea que se esta mirando, y las de la derecha son las que
@@ -291,7 +317,10 @@ export function DetalleTarea (
             acaban de traer, y cerrar descarta lo que no se guardo. */}
         {puedeEditar && editando && (
           <EdicionTarea
-            tarea={tarea}
+            // El formulario necesita la Tarea entera —facturacion, seguidores, recurrencia— y solo
+            // se monta con `puedeEditar`, que es una capacidad del panel: alli la ficha llego por
+            // `GET /tasks/{id}` y trae todo. En el portal `puedeEditar` es `false` y esto no existe.
+            tarea={tarea as Proceso}
             lookups={lookups}
             descripcion={typeof tarea.description === 'string' ? aTextoPlano(tarea.description) : ''}
             onCerrar={() => setEditando(false)}
@@ -299,36 +328,46 @@ export function DetalleTarea (
           />
         )}
 
+        {/* Cada fila existe solo si el contrato mando su clave. `undefined` es "no corresponde" y no
+            "vacio": una fila "Asignados —" en el portal insinuaria que la Tarea no tiene a nadie. */}
         <dl className="grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-3">
-          <Dato etiqueta={GLOSARIO.espacio.singular}>{tarea.project?.name ?? SIN_DATO}</Dato>
+          {tarea.project !== undefined && (
+            <Dato etiqueta={GLOSARIO.espacio.singular}>{tarea.project?.name ?? SIN_DATO}</Dato>
+          )}
           {/* El Hito se cambia desde acá y no solo arrastrando la tarjeta en el kanban: la ficha
               es donde se mira la tarea para decidir a que semana pertenece. Sin Espacio no hay
               catalogo de hitos que ofrecer, asi que ahi queda el nombre suelto. */}
-          <Dato etiqueta={GLOSARIO.hito.singular}>
-            {puedeEditar && tarea.project !== null
-              ? (
-                  <MenuHitoTarea
-                    tareaId={tarea.id}
-                    nombreTarea={tarea.name}
-                    espacioId={tarea.project.id}
-                    hito={tarea.milestone}
-                    onCambiado={reintentar}
-                  />
-                )
-              : tarea.milestone?.name ?? SIN_DATO}
-          </Dato>
+          {tarea.milestone !== undefined && (
+            <Dato etiqueta={GLOSARIO.hito.singular}>
+              {puedeEditar && tarea.project !== undefined && tarea.project !== null
+                ? (
+                    <MenuHitoTarea
+                      tareaId={tarea.id}
+                      nombreTarea={tarea.name}
+                      espacioId={tarea.project.id}
+                      hito={tarea.milestone}
+                      onCambiado={reintentar}
+                    />
+                  )
+                : tarea.milestone?.name ?? SIN_DATO}
+            </Dato>
+          )}
           <Dato etiqueta="Inicio"><Fecha valor={tarea.start_date} /></Dato>
           <Dato etiqueta="Entrega"><Fecha valor={tarea.due_date} comoVencimiento /></Dato>
-          <Dato etiqueta="Asignados">
-            <GrupoAvatares personas={tarea.assignees} tamano="chico" />
-          </Dato>
-          <Dato etiqueta="Etiquetas">
-            {tarea.tags.length === 0 ? SIN_DATO : <Etiquetas etiquetas={tarea.tags} maximo={4} />}
-          </Dato>
+          {tarea.assignees !== undefined && (
+            <Dato etiqueta="Asignados">
+              <GrupoAvatares personas={tarea.assignees} tamano="chico" />
+            </Dato>
+          )}
+          {tarea.tags !== undefined && (
+            <Dato etiqueta="Etiquetas">
+              {tarea.tags.length === 0 ? SIN_DATO : <Etiquetas etiquetas={tarea.tags} maximo={4} />}
+            </Dato>
+          )}
 
           {/* Los campos personalizados van al final y solo los que tienen algo cargado: son 29
               definiciones, y una fila con un guion por cada una taparia la ficha entera. */}
-          {camposLegibles((tarea.custom_fields ?? []).filter((campo) => campo.type !== 'link')).map((campo) => (
+          {camposLegibles((camposPersonalizados ?? []).filter((campo) => campo.type !== 'link')).map((campo) => (
             <Dato key={campo.id} etiqueta={campo.nombre}>
               <ValorPersonalizado campo={campo} />
             </Dato>
@@ -339,35 +378,212 @@ export function DetalleTarea (
             se viene al abrir una Tarea, y enterrado bajo checklist y archivos obligaba a bajar cada
             vez. Tampoco va antes de los datos: primero se reconoce la Tarea, despues se le cuenta
             el tiempo. */}
-        <Cronometros procesoId={procesoId} />
+        {subrecursos !== null && <Cronometros procesoId={procesoId} />}
 
-        <section className="flex flex-col gap-2">
-          <h4 className="text-texto-tenue text-sm font-semibold">Enlaces</h4>
-          {enlaces.length === 0
-            ? <p className="text-texto-sutil text-sm">Sin enlaces guardados.{puedeEditar ? ' Puedes agregarlos al editar la tarea.' : ''}</p>
-            : <dl className="grid gap-3 sm:grid-cols-2">
-                {enlaces.map((campo) => (
-                  <Dato key={campo.id} etiqueta={campo.nombre}><ValorPersonalizado campo={campo} /></Dato>
-                ))}
-              </dl>}
-        </section>
+        {/* Sin los cronometros —el cliente no marca horas— queda el total, y solo si el Proyecto lo
+            comparte (`view_task_total_logged_time`). */}
+        <TiempoRegistrado segundos={tarea.total_logged_seconds} legible={tarea.duration_hm} />
+
+        {/* La seccion entera desaparece cuando el contrato no manda campos personalizados: el
+            "Sin enlaces guardados" es informacion para quien puede agregarlos, no para quien no. */}
+        {camposPersonalizados !== undefined && (
+          <section className="flex flex-col gap-2">
+            <h4 className="text-texto-tenue text-sm font-semibold">Enlaces</h4>
+            {enlaces.length === 0
+              ? <p className="text-texto-sutil text-sm">Sin enlaces guardados.{puedeEditar ? ' Puedes agregarlos al editar la tarea.' : ''}</p>
+              : <dl className="grid gap-3 sm:grid-cols-2">
+                  {enlaces.map((campo) => (
+                    <Dato key={campo.id} etiqueta={campo.nombre}><ValorPersonalizado campo={campo} /></Dato>
+                  ))}
+                </dl>}
+          </section>
+        )}
 
         <BloqueSla tarea={tarea} puedeEditar={puedeEditar} onCambiado={reintentar} />
 
-        <Contadores counts={tarea.counts} />
+        {tarea.counts !== undefined && <Contadores counts={tarea.counts} />}
 
-        <ListaChecklist procesoId={procesoId} />
+        {/* La lista de control se escribe desde su propio panel, que se recarga solo al tildar. Donde
+            no hay esa ruta, lo que llego adentro de la ficha se lee y no se toca. */}
+        {subrecursos !== null
+          ? <ListaChecklist procesoId={procesoId} />
+          : <ChecklistDeLectura items={tarea.checklist} />}
 
-        <ListaIteraciones procesoId={procesoId} />
+        {subrecursos !== null && <ListaIteraciones procesoId={procesoId} />}
 
-        <section className="flex flex-col gap-2">
-          <h4 className="text-texto-tenue text-sm font-semibold">Archivos</h4>
-          <ArbolDrive raiz="tasks" id={procesoId} />
-          <PanelAdjuntos raiz="tasks" id={procesoId} />
-        </section>
+        {/* Drive y los adjuntos del panel son dos almacenes con escritura propia. El cliente ve los
+            adjuntos que el contrato le manda, y solo si el Proyecto los comparte. */}
+        {subrecursos !== null
+          ? (
+            <section className="flex flex-col gap-2">
+              <h4 className="text-texto-tenue text-sm font-semibold">Archivos</h4>
+              <ArbolDrive raiz="tasks" id={procesoId} />
+              <PanelAdjuntos raiz="tasks" id={procesoId} />
+            </section>
+            )
+          : <AdjuntosDeLectura adjuntos={tarea.attachments} />}
 
-        <EnlacePanelClasico entidad="proceso" id={procesoId} className="self-start" />
+        <Comentarios comentarios={tarea.comments} />
+
+        {subrecursos !== null && (
+          <EnlacePanelClasico entidad="proceso" id={procesoId} className="self-start" />
+        )}
     </div>
+  )
+}
+
+/**
+ * El tiempo registrado en la Tarea, como una sola linea.
+ *
+ * Es lo que queda del bloque de cronometros cuando quien mira no marca horas: el total, ya sumado
+ * por el backend. No se dibuja si el contrato no lo manda —el Proyecto puede no compartirlo— ni se
+ * calcula acá: un total propio y uno del servidor discutiendo es como se llega a dos numeros.
+ *
+ * @param segundos Total en segundos, o `undefined` si no corresponde mostrarlo.
+ * @param legible El mismo total ya formateado por el backend, si vino.
+ * @returns La linea, o nada.
+ */
+function TiempoRegistrado (
+  { segundos, legible }: { segundos: number | undefined, legible: string | undefined }
+): ReactElement | null {
+  if (segundos === undefined) return null
+
+  return (
+    <section className="border-linea bg-superficie-elevada rounded-tarjeta flex items-baseline justify-between gap-3 border p-3">
+      <h4 className="text-texto-sutil text-xs font-medium tracking-[0.08em] uppercase">
+        Tiempo registrado
+      </h4>
+      <span data-numerico className="text-texto text-sm font-semibold tabular-nums">
+        {legible ?? `${Math.round(segundos / 3600)} h`}
+      </span>
+    </section>
+  )
+}
+
+/**
+ * La lista de control, de solo lectura.
+ *
+ * Las casillas van deshabilitadas y no escondidas: lo que se comunica es el avance, y una lista de
+ * frases sin casilla no se lee como una lista de control. El conteo va en el titulo, igual que en el
+ * panel que si escribe.
+ *
+ * @param items Los items, o `undefined` si el contrato no los manda.
+ * @returns La lista, o nada.
+ */
+function ChecklistDeLectura (
+  { items }: { items: ProcesoDeFicha['checklist'] }
+): ReactElement | null {
+  if (items === undefined) return null
+
+  const hechos = items.filter((item) => item.finished).length
+
+  return (
+    <section className="flex flex-col gap-2">
+      <h4 className="text-texto-tenue text-sm font-semibold">
+        Lista de control {items.length > 0 && <span className="text-texto-sutil font-normal">{hechos}/{items.length}</span>}
+      </h4>
+
+      {items.length === 0
+        ? <p className="text-texto-sutil text-sm">Esta {GLOSARIO.proceso.singular.toLowerCase()} no tiene lista de control.</p>
+        : (
+          <ul className="flex flex-col gap-1">
+            {items.map((item) => (
+              <li key={item.id} className="flex items-baseline gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={item.finished}
+                  disabled
+                  aria-label={item.description}
+                  className="accent-acento size-4 shrink-0"
+                />
+                <span className={item.finished ? 'text-texto-tenue line-through' : 'text-texto'}>
+                  {aTextoPlano(item.description)}
+                </span>
+              </li>
+            ))}
+          </ul>
+          )}
+    </section>
+  )
+}
+
+/**
+ * Los adjuntos de la Tarea, de solo lectura.
+ *
+ * Un adjunto sin `url` se muestra igual, como texto: el nombre dice que el archivo existe, y
+ * esconderlo haria pensar que no hay ninguno.
+ *
+ * @param adjuntos Los adjuntos, o `undefined` si el contrato no los manda.
+ * @returns La lista, o nada.
+ */
+function AdjuntosDeLectura (
+  { adjuntos }: { adjuntos: ProcesoDeFicha['attachments'] }
+): ReactElement | null {
+  if (adjuntos === undefined) return null
+
+  return (
+    <section className="flex flex-col gap-2">
+      <h4 className="text-texto-tenue text-sm font-semibold">Archivos</h4>
+
+      {adjuntos.length === 0
+        ? <p className="text-texto-sutil text-sm">Sin archivos adjuntos.</p>
+        : (
+          <ul className="flex flex-col gap-2">
+            {adjuntos.map((adjunto) => {
+              const nombre = adjunto.subject ?? adjunto.file_name
+
+              return (
+                <li key={adjunto.id} className="rounded-chico border-linea border p-3 text-sm">
+                  {adjunto.url === null
+                    ? <span className="text-texto">{nombre}</span>
+                    : (
+                      <a
+                        href={adjunto.url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-acento break-all underline underline-offset-4"
+                      >
+                        {nombre}
+                      </a>
+                      )}
+                </li>
+              )
+            })}
+          </ul>
+          )}
+    </section>
+  )
+}
+
+/**
+ * La conversacion de la Tarea, de solo lectura.
+ *
+ * Usa la **misma tarjeta** que los comentarios de una discusion (`ComentarioDeDiscusion`): son la
+ * misma conversacion leida en otro lugar, y dos tarjetas distintas es como la del cliente termino
+ * sin avatar y sin la insignia de quien es del cliente.
+ *
+ * @param comentarios Los comentarios, o `undefined` si el contrato no los manda.
+ * @returns El hilo, o nada.
+ */
+function Comentarios (
+  { comentarios }: { comentarios: ProcesoDeFicha['comments'] }
+): ReactElement | null {
+  if (comentarios === undefined) return null
+
+  return (
+    <section className="flex flex-col gap-2">
+      <h4 className="text-texto-tenue text-sm font-semibold">Comentarios</h4>
+
+      {comentarios.length === 0
+        ? <p className="text-texto-sutil text-sm">Todavía no hay comentarios.</p>
+        : (
+          <ul className="flex flex-col gap-2">
+            {comentarios.map((comentario) => (
+              <ComentarioDeDiscusion key={comentario.id} comentario={comentario} />
+            ))}
+          </ul>
+          )}
+    </section>
   )
 }
 
@@ -387,7 +603,7 @@ const SIN_DATO = '—'
  * pasa a reintentar solo la fecha, en vez de volver a completar algo ya completado.
  */
 function CompletarTarea (
-  { tarea, onCompletada }: { tarea: Proceso, onCompletada: () => void }
+  { tarea, onCompletada }: { tarea: ProcesoDeFicha, onCompletada: () => void }
 ): ReactElement {
   const [fecha, setFecha] = useState(() => hoyLocal())
   const [yaCompletada, setYaCompletada] = useState(false)
@@ -515,7 +731,7 @@ function Dato ({ etiqueta, children }: { etiqueta: string, children: ReactNode }
  * vez serian el viejo y el nuevo discutiendo sobre trabajo dado por hecho, asi que el conteo vive
  * en el encabezado de `ListaChecklist`, que es el que siempre esta al dia.
  */
-function Contadores ({ counts }: { counts: Proceso['counts'] }): ReactElement {
+function Contadores ({ counts }: { counts: NonNullable<ProcesoDeFicha['counts']> }): ReactElement {
   return (
     <ul className="border-linea bg-superficie-elevada rounded-tarjeta grid grid-cols-2 gap-2 border p-3">
       <Contador etiqueta="Comentarios" valor={String(counts.comments)} />
@@ -565,15 +781,16 @@ function valorDeCatalogo (lista: EstadoLookup[], id: number): { nombre: string, 
  *
  * Nunca lanza: el error del contrato es un valor mas y el cajon tiene que poder mostrarlo.
  *
+ * @param fuente de donde baja la ficha: aporta las dos rutas y con ellas el sujeto
  * @param procesoId la tarea
  * @param senal aborta las dos peticiones si el componente se desmonta
  * @returns el estado de carga resuelto — `listo`, `noEncontrada` o `error`
  */
-async function cargar (procesoId: number, senal: AbortSignal): Promise<Carga> {
+async function cargar (fuente: FuenteDeTarea, procesoId: number, senal: AbortSignal): Promise<Carga> {
   try {
     const [tarea, lookups] = await Promise.all([
-      pedirRespuesta(`tasks/${procesoId}?include=custom_fields`, senal),
-      pedirRespuesta('lookups', senal)
+      pedirRespuesta(conId(fuente.tarea, procesoId), senal),
+      pedirRespuesta(fuente.lookups, senal)
     ])
 
     if (tarea.status === 404) return { fase: 'noEncontrada' }
@@ -581,7 +798,7 @@ async function cargar (procesoId: number, senal: AbortSignal): Promise<Carga> {
     if (!tarea.ok) return { fase: 'error', mensaje: await mensajeDeRespuesta(tarea) }
     if (!lookups.ok) return { fase: 'error', mensaje: await mensajeDeRespuesta(lookups) }
 
-    const sobreTarea = await tarea.json() as Sobre<Proceso>
+    const sobreTarea = await tarea.json() as Sobre<ProcesoDeFicha>
     const sobreLookups = await lookups.json() as Sobre<Lookups>
 
     return { fase: 'listo', tarea: sobreTarea.data, lookups: sobreLookups.data }

@@ -7,6 +7,7 @@ import { Boton } from '@/componentes/formularios/Boton'
 import { CerrarDialogo, ContenidoDialogo, Dialogo } from '@/componentes/superposiciones/Dialogo'
 import { idDeParametro, PARAMETRO_TAREA } from '@/componentes/datos/tabla'
 import { GLOSARIO } from '@/dominio/glosario'
+import { TAREA_DEL_PANEL, type FuenteDeTarea } from '@/dominio/fuente-proyecto'
 import { DetalleTarea } from './DetalleTarea'
 
 /**
@@ -22,14 +23,26 @@ import { DetalleTarea } from './DetalleTarea'
  *
  * **El estado vive en la URL**: la tarea abierta se comparte por chat, recargar no la pierde y
  * "atras" la cierra, porque abrirla fue un `push` del historial.
+ *
+ * **Tambien es el unico detalle del portal.** Lo que cambia de un sujeto al otro son las dos rutas y
+ * los subrecursos, y eso entra por `fuente`; lo que se puede escribir entra por las tres
+ * capacidades, que en el portal llegan en `false`. Adentro no hay ninguna rama por sujeto.
  */
 
 export function ModalTarea (
-  { puedeEditar = false, puedeBorrar = false, puedeCrear = false }: {
+  { puedeEditar = false, puedeBorrar = false, puedeCrear = false, fuente = TAREA_DEL_PANEL }: {
     puedeEditar?: boolean
     puedeBorrar?: boolean
     /** Habilita "Duplicar…" en la ficha. Viene de la capacidad `create` sobre tareas. */
     puedeCrear?: boolean
+    /**
+     * De donde baja la ficha.
+     *
+     * Por defecto la del equipo sin Proyecto (`tasks/{id}`), que es lo que ya pedian el Inicio, Mis
+     * Tareas, el calendario global y el listado de Procesos: esas pantallas no cambian. La pestaña
+     * de un Proyecto pasa la suya, y el portal la del contacto.
+     */
+    fuente?: FuenteDeTarea
   } = {}
 ): ReactElement {
   const router = useRouter()
@@ -102,6 +115,7 @@ export function ModalTarea (
         {tareaAbierta !== null && (
           <DetalleTarea
             procesoId={tareaAbierta}
+            fuente={fuente}
             puedeEditar={puedeEditar}
             puedeBorrar={puedeBorrar}
             puedeCrear={puedeCrear}
