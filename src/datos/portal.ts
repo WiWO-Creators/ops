@@ -107,7 +107,12 @@ export type PestaniaPortal =
   | 'estimates'
   | 'invoices'
 
-/** Tarea de un proyecto, ya podada de todo lo interno. */
+/**
+ * Tarea de un proyecto, ya podada de todo lo interno.
+ *
+ * Sin `tags`: el portal no publica etiquetas. Son vocabulario interno de gestion y ninguna pantalla
+ * del cliente las pinta; declararlas hacia que viajaran en el payload para nada.
+ */
 export interface TareaPortal {
   id: number
   /** Identificador visible del Proceso. Ver `Proceso.patente`. */
@@ -122,7 +127,6 @@ export interface TareaPortal {
   milestone: number
   milestone_order: number
   task_type: number
-  tags: Array<{ id: number, name: string }>
   counts: Record<string, number>
   /**
    * Aprobacion del cliente, **podada**: sin quien la pidio ni el id del contacto que respondio.

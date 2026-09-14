@@ -38,7 +38,6 @@ const FILA = {
   milestone: 0,
   milestone_order: 0,
   task_type: 0,
-  tags: [],
   counts: {}
 }
 
