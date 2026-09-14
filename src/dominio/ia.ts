@@ -64,8 +64,33 @@ export interface UsoIA {
   salida: number
 }
 
+/** Tarea vigente que el servidor verificó para el resumen de Inicio. */
+export interface TareaResumen {
+  id: number
+  name: string
+  project_name: string | null
+  due_date: string | null
+  recomendacion: string
+}
+
+/** Descarta referencias incompletas y duplicadas antes de construir enlaces a tareas. */
+export function leerTareasResumen (valor: unknown): TareaResumen[] {
+  if (!Array.isArray(valor)) return []
+  const ids = new Set<number>()
+  return valor.filter((t): t is TareaResumen => {
+    if (t === null || typeof t !== 'object' || !Number.isSafeInteger(t.id) || t.id <= 0 ||
+      typeof t.name !== 'string' || t.name.trim() === '' ||
+      (t.project_name !== null && typeof t.project_name !== 'string') ||
+      (t.due_date !== null && (typeof t.due_date !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(t.due_date))) ||
+      typeof t.recomendacion !== 'string' || ids.has(t.id)) return false
+    ids.add(t.id)
+    return true
+  })
+}
+
 /** Lo que devuelve `GET /ia/inicio`. `texto: null` significa que nunca se genero. */
 export interface ResumenIA {
+  tareas: TareaResumen[]
   texto: string | null
   generado_en: string | null
   regeneracion: Regeneracion
@@ -181,7 +206,7 @@ export type EventoIA =
   | { tipo: 'propuesta', accion: AccionIA }
   | { tipo: 'pregunta', pregunta: PreguntaIA }
   | { tipo: 'navegar', href: string, etiqueta: string, prefill: Record<string, unknown> | null }
-  | { tipo: 'fin', generado_en: string | null, regeneracion: Regeneracion | null, uso: UsoIA | null }
+  | { tipo: 'fin', tareas?: TareaResumen[], generado_en: string | null, regeneracion: Regeneracion | null, uso: UsoIA | null }
   | { tipo: 'error', codigo: string, mensaje: string }
 
 /** Los cinco tipos de cita que el contrato reconoce. Cada uno tiene su destino en `ia-chat.ts`. */
@@ -310,6 +335,7 @@ export function leerEventoIA (crudo: string): EventoIA | null {
   if (nombre === 'fin') {
     return {
       tipo: 'fin',
+      ...(Array.isArray(datos.tareas) ? { tareas: leerTareasResumen(datos.tareas) } : {}),
       generado_en: typeof datos.generado_en === 'string' ? datos.generado_en : null,
       regeneracion: leerRegeneracion(datos.regeneracion),
       uso: leerUso(datos.uso)
