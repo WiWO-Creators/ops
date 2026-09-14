@@ -2,11 +2,11 @@
  * Reglas de LIVE que no dependen de React ni de la red.
  *
  * Seis preguntas: **hasta donde ve** quien mira, **que se le dice** cuando el medidor no arranca,
- * **si hoy ya dijo que no** a abrir la jornada, **que opciones quedan** cuando busca en un combo,
- * **con que cuerpo se abre el dia** por cada uno de los tres caminos, y **como se cuenta** una jornada
- * que corre sin destino. Todas se prueban sin montar nada (`pruebas/live.test.js`): a la de la
- * jornada pospuesta se le pasan el almacenamiento y el dia, asi que tampoco necesita un navegador ni
- * depende del reloj de quien corre las pruebas.
+ * **si hoy ya dijo que no** a abrir la jornada, **si quiere que se le recuerde** asignar el destino
+ * despues de abrirla, **que opciones quedan** cuando busca en un combo, y **como se cuenta** una
+ * jornada que corre sin destino. Todas se prueban sin montar nada (`pruebas/live.test.js`): a las dos
+ * que se apoyan en `localStorage` se les pasa el almacenamiento —y el dia, la que lo lleva— asi que
+ * tampoco necesitan un navegador ni dependen del reloj de quien corre las pruebas.
  */
 import { GLOSARIO } from './glosario.ts'
 import { puedeVerSeccion } from './permisos.ts'
@@ -132,6 +132,90 @@ export function olvidarJornadaPospuesta (
 }
 
 /**
+ * Donde queda anotado que esta persona no quiere volver a ver el recordatorio de asignar destino.
+ *
+ * === POR QUE NO LLEVA EL DIA, Y POR QUE SI LLEVA EL `staffId` ===
+ *
+ * Al reves que la marca de posponer, esta decision es para siempre: quien marca "no volver a
+ * mostrarme esto" lo dice del aviso entero y no del martes. Por eso la clave no lleva fecha —una que
+ * caducara a medianoche convertiria la casilla en una mentira, y a la semana siguiente la persona
+ * estaria desmarcandola otra vez sin entender por que volvio— y por eso hace falta un sitio donde
+ * volver a encenderla: la casilla del control de la cabecera.
+ *
+ * El `staffId` esta por el mismo motivo que en la marca de posponer: en un equipo compartido, dos
+ * cuentas en el mismo navegador no pueden heredar una decision que no tomaron.
+ *
+ * === LA PREFERENCIA ES DEL NAVEGADOR, NO DE LA CUENTA ===
+ *
+ * Vive en `localStorage` y no en la API porque no hay donde ponerla del lado del servidor: `/settings`
+ * son los ajustes de la instalacion y `/me/perfil` guarda identidad y firma, no gustos. La
+ * consecuencia esta asumida y es deliberada: quien silencie el recordatorio en su computador lo
+ * volvera a ver desde otro equipo, desde otro navegador, o despues de limpiar los datos del sitio.
+ * Es un recordatorio y no un permiso, asi que el precio de que reaparezca alguna vez sale mas barato
+ * que el de un endpoint de preferencias personales que hoy no existe.
+ *
+ * @param staffId de quien es la decision
+ * @returns la clave con la que leer, escribir y borrar la marca
+ */
+export function claveDeRecordatorioDeDestino (staffId: number): string {
+  return `wiwo:recordatorio-destino:v1:${staffId}`
+}
+
+/**
+ * Si hay que mostrarle el recordatorio de asignar destino a esta persona.
+ *
+ * Lo guardado es el **silencio** y no el consentimiento, asi que la ausencia de marca significa "se
+ * muestra". Al reves —guardar "quiero verlo"— el estado de fabrica seria el silencio, y quien entrara
+ * por primera vez no veria nunca el aviso que esto existe para dar.
+ *
+ * Un fallo degrada a `true` por el mismo criterio que `jornadaPospuestaHoy()`: con el almacenamiento
+ * bloqueado lo unico que se pierde es la memoria de la preferencia, y de las dos degradaciones
+ * posibles la que muestra de mas se corrige en un clic, mientras que la que calla para siempre
+ * esconde el aviso sin que nadie lo haya pedido.
+ *
+ * @param almacenamiento normalmente `window.localStorage`
+ * @param staffId de quien es la decision
+ * @returns `true` salvo que conste la marca de silencio de esta persona
+ */
+export function recordatorioDeDestinoActivo (
+  almacenamiento: Almacenamiento,
+  staffId: number
+): boolean {
+  try {
+    return almacenamiento.getItem(claveDeRecordatorioDeDestino(staffId)) === null
+  } catch {
+    return true
+  }
+}
+
+/**
+ * Enciende o apaga el recordatorio para esta persona.
+ *
+ * Una sola funcion para los dos sentidos y no dos: la casilla del aviso y la del control de la
+ * cabecera escriben la MISMA preferencia, y con una funcion por sentido el dia que la clave cambie
+ * una de las dos se queda escribiendo en la vieja.
+ *
+ * @param almacenamiento normalmente `window.localStorage`
+ * @param staffId de quien es la decision
+ * @param activo `true` para volver a mostrarlo, `false` para no mostrarlo mas
+ * @returns `false` si el navegador no dejo guardar la preferencia; la decision vale igual en esta pestana
+ */
+export function fijarRecordatorioDeDestino (
+  almacenamiento: Almacenamiento,
+  staffId: number,
+  activo: boolean
+): boolean {
+  try {
+    if (activo) almacenamiento.removeItem(claveDeRecordatorioDeDestino(staffId))
+    else almacenamiento.setItem(claveDeRecordatorioDeDestino(staffId), MARCA_PUESTA)
+
+    return true
+  } catch {
+    return false
+  }
+}
+
+/**
  * Las opciones cuyo nombre coincide con lo que se escribio en el buscador de un combo.
  *
  * `normalizar` —el mismo de la agenda de salas— saca acentos y mayusculas antes de comparar: sin eso
@@ -234,21 +318,12 @@ export function mensajeDeFalloDeMedidor (estado: number, arrancando: boolean): s
  * que la pantalla quedo vieja: otra pestaña ya hizo el cambio. Por eso el texto invita a mirar de
  * nuevo en vez de a reintentar.
  *
- * **`403`, `404` y `422` solo aparecen al abrir con destino.** Desde que `POST /me/jornada` recibe
- * el destino, la misma peticion abre la jornada y arranca el medidor, asi que puede fallar por el
- * destino y no por la jornada. La jornada no queda abierta: la API la descarta. El texto nombra el
- * destino porque es lo que la persona tiene que cambiar; decir "no se pudo abrir la jornada (403)"
- * la dejaria buscando en el lugar equivocado.
- *
- * El `403` y el `404` nombran los dos niveles y no solo la Tarea: desde que la Tarea es opcional se
- * puede abrir contra el Proyecto entero, y ahi el que no existe o no es suyo es el Proyecto.
- *
- * El `422` ya no tiene una sola causa. Desde que el Proyecto dejo de ser obligatorio, la API lo
- * devuelve tambien por un `client_id` que no existe o esta en la papelera — y ese caso NO pasa por
- * aca: lo traduce `mensajeDeFalloDeCliente()`, que es quien sabe que se mando un Cliente. Lo que
- * queda para este texto es el 422 del camino con Proyecto, y ahi la unica causa alcanzable desde
- * esta interfaz es la Tarea que no pertenece al Proyecto: el `task_id` nunca viaja sin su
- * `project_id`, y ninguno de los dos sale del combo con basura adentro.
+ * **Al abrir ya no queda nada mas que traducir.** Hubo un tiempo en que esta ventana mandaba el
+ * destino dentro del cuerpo, y entonces la misma peticion podia fallar por el destino y no por la
+ * jornada: el 403, el 404 y el 422 hablaban del Proyecto o de la Tarea. La apertura dejo de pedir
+ * destino —el cuerpo sale vacio— asi que lo unico que la API puede objetar ahora es que el dia ya
+ * este abierto. Aquellos textos se fueron con el camino que los producia: conservarlos mandaria a
+ * revisar un combo que la ventana ya no tiene.
  *
  * @param estado codigo HTTP de la respuesta; `0` si la peticion no llego a salir
  * @param abriendo `true` si el fallo fue al abrir, `false` al cerrar
@@ -261,12 +336,6 @@ export function mensajeDeFalloDeJornada (estado: number, abriendo: boolean): str
     return abriendo
       ? 'Ya tienes una jornada abierta.'
       : 'No tienes ninguna jornada abierta.'
-  }
-
-  if (abriendo) {
-    if (estado === 403) return 'No puedes medir tiempo sobre eso. Elige otro Proyecto o Tarea.'
-    if (estado === 404) return 'Eso ya no existe o no lo puedes ver. Elige otro Proyecto o Tarea.'
-    if (estado === 422) return 'Esa Tarea no pertenece al Proyecto que elegiste. Vuelve a elegir.'
   }
 
   // Al cerrar, el unico 422 que la API puede devolver a esta pantalla es el comentario pasado de
@@ -301,85 +370,6 @@ const JEFATURAS: readonly NivelPermiso[] = ['head', 'gerente', 'admin', 'superad
  */
 export function esJefatura (nivel: NivelPermiso): boolean {
   return JEFATURAS.includes(nivel)
-}
-
-/**
- * Con que se abre el dia. Los tres caminos que la API acepta, nombrados.
- *
- * Es un tipo discriminado y no un objeto con tres campos opcionales porque los tres son
- * **excluyentes** y un objeto los dejaria combinarse: `{espacioId, clienteId}` no significa nada —el
- * Cliente de una jornada con Espacio sale del Espacio— y el compilador no tendria como impedirlo.
- * Asi, cada camino se nombra una vez y el `switch` de `cuerpoDeApertura()` no puede olvidarse de uno.
- */
-export type DestinoDeApertura =
-  /** El camino de siempre: se mide contra el Espacio, y contra un Proceso suyo si se eligio. */
-  | { tipo: 'espacio', espacioId: number, procesoId: number | null }
-  /** Se sabe para quien es el dia pero todavia no en que se va a trabajar. No arranca cronometro. */
-  | { tipo: 'cliente', clienteId: number }
-  /** No se sabe ninguna de las dos cosas. Tampoco arranca cronometro. */
-  | { tipo: 'en-blanco' }
-
-/**
- * El cuerpo de `POST /me/jornada` para cada camino.
- *
- * Los ids ausentes se **omiten** en vez de viajar en `null` o en `0`. La API entiende los tres como
- * "no elegi", pero omitirlos es lo unico que no depende de esa equivalencia: el dia que un campo
- * pase a distinguir `null` de ausente —que es exactamente lo que ya hace `PATCH`, donde `null`
- * significa *quitar*— este cuerpo sigue diciendo lo mismo.
- *
- * `task_id` no puede salir de aca sin su `project_id`: la API responde 422
- * `project_id: ["requerido_con_proceso"]` y el tipo `DestinoDeApertura` ya lo hace imposible, porque
- * el Proceso solo existe dentro de la rama que trae el Espacio.
- *
- * @param destino cual de los tres caminos se eligio
- * @returns el objeto a serializar como cuerpo; `{}` para el camino en blanco
- */
-export function cuerpoDeApertura (destino: DestinoDeApertura): Record<string, number> {
-  if (destino.tipo === 'cliente') return { client_id: destino.clienteId }
-  if (destino.tipo === 'en-blanco') return {}
-
-  return destino.procesoId === null
-    ? { project_id: destino.espacioId }
-    : { project_id: destino.espacioId, task_id: destino.procesoId }
-}
-
-/** Que se eligio en la ventana de apertura. `null` en los dos es "todavia nada". */
-export interface EleccionDeApertura {
-  espacio: number | null
-  cliente: number | null
-}
-
-/** Cuales de las tres salidas de la ventana de apertura estan disponibles ahora mismo. */
-export interface SalidasDeApertura {
-  /** El camino principal. Pide Espacio; el Proceso sigue siendo opcional. */
-  conEspacio: boolean
-  /** La salida con Cliente. Pide Cliente y **exige que no haya Espacio**. */
-  soloCliente: boolean
-  /** La salida en blanco. No pide nada, y por eso nunca se apaga. */
-  enBlanco: boolean
-}
-
-/**
- * Que botones de la ventana de apertura se pueden apretar.
- *
- * Vive aca y no dentro del componente porque es la regla que impide mandarle a la API una peticion
- * que ya se sabe invalida: sin Cliente elegido, el `POST` del segundo camino saldria con `{}` y
- * abriria una jornada en blanco que nadie pidio — un fallo silencioso, que es el peor de todos.
- *
- * `soloCliente` se apaga con un Espacio elegido y no solo sin Cliente. Con Espacio ese boton seria
- * una trampa: abriria el dia **descartando** la eleccion que la persona ya hizo, porque el cuerpo con
- * `client_id` no lleva `project_id`. En la interfaz esa combinacion ni se ofrece —el selector de
- * Cliente se esconde en cuanto hay Espacio— pero la regla se afirma aca igual: esconder no valida.
- *
- * @param eleccion lo elegido hasta ahora en la ventana
- * @returns que puede apretarse; `enBlanco` siempre en `true`
- */
-export function salidasDeApertura (eleccion: EleccionDeApertura): SalidasDeApertura {
-  return {
-    conEspacio: eleccion.espacio !== null,
-    soloCliente: eleccion.espacio === null && eleccion.cliente !== null,
-    enBlanco: true
-  }
 }
 
 /**
@@ -444,8 +434,8 @@ export function fraseDeJornadaSinDestino (cliente: ClienteDeJornada | null): str
  *
  * Aparte de `mensajeDeFalloDeJornada()` porque contesta otra pregunta. Ese habla de abrir y cerrar el
  * dia; este habla de un campo de un dia que ya esta abierto, y sus codigos significan otra cosa: el
- * `409` no es "ya tienes una jornada" sino "no tienes ninguna", y el `422` no es una Tarea que no
- * encaja sino un Cliente que ya no esta.
+ * `409` no es "ya tienes una jornada" sino "no tienes ninguna", y el `422` no es un comentario de
+ * cierre demasiado largo sino un Cliente que ya no esta.
  *
  * Ese `422` es el unico que esta interfaz puede provocar: el `client_id` sale de un combo, asi que no
  * puede ir con basura, y el `PATCH` siempre manda la clave —un `PATCH` sin `client_id` es 422
