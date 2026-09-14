@@ -29,7 +29,7 @@ import { TarjetaPropuestaIA } from './TarjetaPropuestaIA'
 import { ASISTENTE, GLOSARIO } from '@/dominio/glosario'
 
 /**
- * El chat de WiBot: se le pregunta por el estado de Ops y contesta citando.
+ * El chat de Thinking Orb: se le pregunta por el estado de Ops y contesta citando.
  *
  * **Responde, cita, navega y —con las escrituras encendidas— propone o pregunta.** Preguntar es lo
  * que hace cuando le falta un dato que cambia el efecto de la escritura: deja opciones, ese turno no
@@ -84,18 +84,18 @@ const MENSAJE_GENERICO = 'No se pudo completar la respuesta.'
  * @param desplazable en el orbe el alto esta acotado, asi que la conversacion scrollea sola y el
  *   campo queda fijo abajo. Sin esto scrollea lo que lo contenga.
  */
-interface PropsChatWiBot {
+interface PropsChatOrbe {
   desplazable?: boolean
   proyecto?: { id: number, name: string }
 }
 
 /** Monta un hilo independiente al cambiar entre proyectos o el chat global. */
-export function ChatWiBot (props: PropsChatWiBot = {}): ReactElement {
-  return <ConversacionWiBot key={props.proyecto?.id ?? 'global'} {...props} />
+export function ChatOrbe (props: PropsChatOrbe = {}): ReactElement {
+  return <ConversacionOrbe key={props.proyecto?.id ?? 'global'} {...props} />
 }
 
 /** Conversación con historial y rutas de acciones limitadas al alcance indicado. */
-function ConversacionWiBot ({ desplazable = false, proyecto }: PropsChatWiBot): ReactElement {
+function ConversacionOrbe ({ desplazable = false, proyecto }: PropsChatOrbe): ReactElement {
   const proyectoId = proyecto?.id
   const rutaChat = proyectoId === undefined ? 'ia/chat' : `ia/proyectos/${proyectoId}/chat`
   const router = useRouter()
@@ -359,7 +359,7 @@ function ConversacionWiBot ({ desplazable = false, proyecto }: PropsChatWiBot): 
     <div className={desplazable ? 'flex min-h-0 flex-1 flex-col gap-4' : 'flex flex-col gap-4'}>
       {proyecto !== undefined && (
         <div className="border-linea flex flex-col gap-1 border-b pb-3">
-          <h2 className="text-texto text-base font-semibold">WiBot · {proyecto.name}</h2>
+          <h2 className="text-texto text-base font-semibold">{ASISTENTE} · {proyecto.name}</h2>
           <p className="text-texto-sutil text-sm">Esta conversación solo consulta y modifica este proyecto.</p>
         </div>
       )}

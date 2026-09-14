@@ -5,7 +5,7 @@ import {
 } from './ia.ts'
 
 /**
- * El hilo del chat de WiBot, y lo que hace falta para pintarlo.
+ * El hilo del chat de Thinking Orb, y lo que hace falta para pintarlo.
  *
  * El chat responde, cita y —con el interruptor de escrituras encendido— **propone** o **pregunta**.
  * Preguntar es lo que hace cuando le falta un dato que cambia el efecto de la escritura: en vez de
@@ -40,7 +40,7 @@ export interface Mensaje {
   /** Verificadas por el servidor contra la base. Los de la persona siempre traen `[]`. */
   citas: Cita[]
   /**
-   * Lo ultimo que WiBot dijo estar haciendo, o `null`.
+   * Lo ultimo que Thinking Orb dijo estar haciendo, o `null`.
    *
    * Solo vive mientras la burbuja esta en `generando`: es el indicador, no historia. Un backend sin
    * los eventos `paso` —o el interruptor de escrituras apagado, que no cambia esto— deja `null`, y
@@ -50,7 +50,7 @@ export interface Mensaje {
   /** Las escrituras que este mensaje dejo propuestas. Vacio en todo lo demas. */
   acciones: AccionIA[]
   /**
-   * Lo que WiBot necesito preguntar antes de proponer. Vacio en todo lo demas.
+   * Lo que Thinking Orb necesito preguntar antes de proponer. Vacio en todo lo demas.
    *
    * Un mensaje que trae preguntas **no trae la propuesta de esa accion**: la pregunta cierra el
    * turno. La respuesta no se guarda aca porque no es un campo de este mensaje sino el mensaje

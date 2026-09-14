@@ -91,7 +91,7 @@ test('latido detecta interacciones globales, limita envíos y no renueva una pes
   await Promise.resolve()
 })
 
-test('la pantalla que se manda es la misma para la presencia y para WiBot', () => {
+test('la pantalla que se manda es la misma para la presencia y para Thinking Orb', () => {
   // Las dos salen de la misma función a propósito: si divergen, el servidor cree que la persona
   // pregunta desde una pantalla y está parada en otra.
   assert.equal(pantallaDeRuta('/Espacios/2'), '/espacios/2')

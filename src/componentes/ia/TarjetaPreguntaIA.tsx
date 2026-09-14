@@ -7,7 +7,7 @@ import { LARGO_MAXIMO_PREGUNTA } from '@/dominio/ia-chat'
 import { type PreguntaIA } from '@/dominio/ia'
 
 /**
- * La tarjeta de algo que WiBot necesita saber y prefirio preguntar antes que asumir.
+ * La tarjeta de algo que Thinking Orb necesita saber y prefirio preguntar antes que asumir.
  *
  * === POR QUE NO HAY ENDPOINT DE RESPUESTA ===
  *

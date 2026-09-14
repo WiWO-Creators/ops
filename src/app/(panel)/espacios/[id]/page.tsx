@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { ChatWiBot } from '@/componentes/ia/ChatWiBot'
+import { ChatOrbe } from '@/componentes/ia/ChatOrbe'
 import { Suspense, cache } from 'react'
 import { CabeceraProyecto } from '@/componentes/proyecto/CabeceraProyecto'
 import { BotonNuevaTarea, MenuProyecto } from '@/componentes/proyecto/MenuProyecto'
@@ -25,7 +25,7 @@ import { cargarLookups } from '@/datos/lookups'
 import { pedir } from '@/datos/servidor'
 import type { Espacio, Lookups } from '@/datos/recursos'
 import type { Yo } from '@/datos/tipos'
-import { GLOSARIO } from '@/dominio/glosario'
+import { ASISTENTE, GLOSARIO } from '@/dominio/glosario'
 
 /**
  * Pide el Proyecto una sola vez por peticion.
@@ -201,7 +201,11 @@ export default async function ProyectoPage (props: PageProps<'/espacios/[id]'>) 
     // adentro porque son dos cosas distintas: la nota es privada de quien la escribio y el acta la ve
     // todo el Proyecto, asi que sus acciones dependen de permisos en vez de ofrecerse siempre.
     { clave: 'actas', etiqueta: GLOSARIO.acta.singular, contenido: <PanelActas proyectoId={proyecto.id} ia={ia} yo={yo} /> },
-    ...(conIa ? [{ clave: 'wibot', etiqueta: 'WiBot', contenido: <ChatWiBot proyecto={{ id: proyecto.id, name: proyecto.name }} /> }] : []),
+    // La clave se queda en `wibot` aunque el asistente ahora se llame Thinking Orb: no es texto, es
+    // el valor que viaja en `?tab=` de esta ficha. Cambiarla dejaría muerto cualquier enlace que
+    // alguien haya guardado o pegado en una discusión, y el nombre del asistente no se lee de ahí
+    // sino de la etiqueta, que sí sale de `ASISTENTE`.
+    ...(conIa ? [{ clave: 'wibot', etiqueta: ASISTENTE, contenido: <ChatOrbe proyecto={{ id: proyecto.id, name: proyecto.name }} /> }] : []),
     { clave: 'notas', etiqueta: GLOSARIO.nota.plural, contenido: <PanelNotas proyectoId={proyecto.id} /> },
     {
       clave: 'actividad',

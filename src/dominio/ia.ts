@@ -1,7 +1,7 @@
 /**
  * Contrato de la capa de IA, del lado del navegador.
  *
- * Aca viven los tipos que F1 (resumen del Inicio), F2 (chat de WiBot) y F3 (alta de tarea)
+ * Aca viven los tipos que F1 (resumen del Inicio), F2 (chat de Thinking Orb) y F3 (alta de tarea)
  * comparten, y la lectura de un frame SSE. `datos/sse.ts` parte el texto en frames; este archivo es
  * el unico que sabe que significan.
  *
@@ -19,7 +19,7 @@
  *
  * Se escribio como defensa contra frames corruptos, y desde que el backend emite `paso` y
  * `propuesta` es ademas lo que hace que **no haga falta versionar el stream**: un cliente que no
- * conoce esos dos eventos recibe `null` por cada uno, `ChatWiBot` los saltea y la respuesta se
+ * conoce esos dos eventos recibe `null` por cada uno, `ChatOrbe` los saltea y la respuesta se
  * pinta exactamente igual, sin indicadores y sin tarjeta. Un backend nuevo no rompe un frontend
  * viejo, que es la unica combinacion que puede darse en un despliegue —el backend va primero—.
  * Comprobado en `pruebas/ia.test.js`, con el parser anterior a estos dos eventos.
@@ -94,7 +94,7 @@ export interface CamposTarea {
 }
 
 /**
- * Un paso de lo que WiBot esta haciendo antes de empezar a escribir.
+ * Un paso de lo que Thinking Orb esta haciendo antes de empezar a escribir.
  *
  * La `etiqueta` la escribe el SERVIDOR, desde un mapa cerrado con una entrada por herramienta.
  * Nunca sale del modelo, y por eso se puede pintar: si el modelo pudiera escribirla, un texto
@@ -112,7 +112,7 @@ export interface PasoIA {
 export type EstadoAccion = 'pendiente' | 'ejecutando' | 'ejecutada' | 'rechazada' | 'expirada' | 'fallida'
 
 /**
- * Una escritura que WiBot dejo preparada y que una persona confirma o rechaza.
+ * Una escritura que Thinking Orb dejo preparada y que una persona confirma o rechaza.
  *
  * `resumen` y `detalle` los escribe el servidor con los argumentos ya normalizados y los titulos
  * leidos de la base. Es la misma regla que rige los titulos de las citas, y acá pesa mas: es lo que
@@ -139,7 +139,7 @@ export interface AccionIA {
 }
 
 /**
- * Una opcion elegible de una pregunta de WiBot.
+ * Una opcion elegible de una pregunta de Thinking Orb.
  *
  * `valor` es del tipo del argumento que la pregunta resuelve: `boolean` en los campos de si/no y
  * `string` `AAAA-MM-DD` en las fechas. De ahi el cuidado con `false`, que es un valor legitimo y a
@@ -157,7 +157,7 @@ export interface OpcionPregunta {
 }
 
 /**
- * Algo que WiBot necesita saber antes de escribir, y que decidio preguntar en vez de asumir.
+ * Algo que Thinking Orb necesita saber antes de escribir, y que decidio preguntar en vez de asumir.
  *
  * **La pregunta cierra el turno.** El mensaje que la trae no deja ninguna tarjeta de propuesta para
  * esa accion, y la respuesta viaja como el mensaje siguiente de la persona: no hay endpoint de
