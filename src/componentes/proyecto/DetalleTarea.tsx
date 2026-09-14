@@ -28,6 +28,8 @@ import { CabeceraFichaTarea } from './CabeceraFichaTarea'
 import { ESTADO_COMPLETO } from './tareas'
 import { CompartirTarea } from './CompartirTarea'
 import { EstadoDeTarea } from './EstadoDeTarea'
+import { MenuEstadoTarea } from './MenuEstadoTarea'
+import { MenuHitoTarea } from './MenuHitoTarea'
 import { Cronometros } from './Cronometros'
 import { EdicionTarea } from './EdicionTarea'
 import { ListaChecklist } from './ListaChecklist'
@@ -166,7 +168,20 @@ export function DetalleTarea (
             nivel={3}
           />
           <div className="flex flex-wrap items-center gap-1.5">
-            <EstadoDeTarea status={tarea.status} catalogo={listaDe(lookups, 'task_statuses')} />
+            {/* La insignia de estado es ademas un menu cuando se puede editar: es el gesto mas
+                repetido de la ficha, y hasta ahora obligaba a abrir el formulario entero y guardarlo
+                para mover un estado. Es el mismo control que ya usa el kanban de Hitos. */}
+            {puedeEditar
+              ? (
+                  <MenuEstadoTarea
+                    tareaId={tarea.id}
+                    nombreTarea={tarea.name}
+                    estado={tarea.status}
+                    catalogo={listaDe(lookups, 'task_statuses')}
+                    onCambiado={reintentar}
+                  />
+                )
+              : <EstadoDeTarea status={tarea.status} catalogo={listaDe(lookups, 'task_statuses')} />}
             <Insignia tamano="chico" color={prioridad.color}>{prioridad.nombre}</Insignia>
             {/* Al final de la fila de insignias y no arriba del titulo: compartir es una salida
                 lateral, no lo que la persona vino a hacer al detalle. */}
@@ -258,7 +273,22 @@ export function DetalleTarea (
 
         <dl className="grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-3">
           <Dato etiqueta={GLOSARIO.espacio.singular}>{tarea.project?.name ?? SIN_DATO}</Dato>
-          <Dato etiqueta={GLOSARIO.hito.singular}>{tarea.milestone?.name ?? SIN_DATO}</Dato>
+          {/* El Hito se cambia desde acá y no solo arrastrando la tarjeta en el kanban: la ficha
+              es donde se mira la tarea para decidir a que semana pertenece. Sin Espacio no hay
+              catalogo de hitos que ofrecer, asi que ahi queda el nombre suelto. */}
+          <Dato etiqueta={GLOSARIO.hito.singular}>
+            {puedeEditar && tarea.project !== null
+              ? (
+                  <MenuHitoTarea
+                    tareaId={tarea.id}
+                    nombreTarea={tarea.name}
+                    espacioId={tarea.project.id}
+                    hito={tarea.milestone}
+                    onCambiado={reintentar}
+                  />
+                )
+              : tarea.milestone?.name ?? SIN_DATO}
+          </Dato>
           <Dato etiqueta="Inicio"><Fecha valor={tarea.start_date} /></Dato>
           <Dato etiqueta="Entrega"><Fecha valor={tarea.due_date} comoVencimiento /></Dato>
           <Dato etiqueta="Asignados">
