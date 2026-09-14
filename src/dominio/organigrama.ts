@@ -496,3 +496,66 @@ export function personasDelArea (
       escalaDe(otra.escalon) - escalaDe(una.escalon) ||
       una.nombre.localeCompare(otra.nombre, 'es'))
 }
+
+/**
+ * Lo mínimo que hace falta saber de una persona para ofrecerla en el diálogo de poblar un área.
+ *
+ * Es un tipo estructural y no `PersonaDelOrganigrama` porque la pantalla de Accesos trae la suya
+ * —`PersonaDeAccesos`, sin avatar— y las dos sirven igual: obligar a una de las dos a convertirse a
+ * la otra sería una copia de los mismos campos con otro nombre.
+ */
+export interface PersonaElegible {
+  staffid: number
+  nombre: string
+  area_id: number | null
+  /** Opcional: la lista de asignables de Accesos no lo trae, y el buscador se arregla sin él. */
+  correo?: string
+}
+
+/**
+ * Quiénes se pueden sumar a un área: toda la gente visible que todavía no está en ella.
+ *
+ * Quien ya está no aparece —agregarlo sería un cambio que no cambia nada—, y quien no tiene área va
+ * primero: es a quien realmente hay que colocar, y con 31 personas sueltas buscarlas entre las demás
+ * es el trabajo que esta lista viene a ahorrar.
+ *
+ * La comparación normaliza acentos, porque nadie escribe la tilde al buscar a alguien.
+ *
+ * @param personas el listado plano que mandó la API
+ * @param areaId el área que se está poblando, o `null` para el grupo "Sin área"
+ * @param consulta lo escrito en el buscador; vacío no recorta nada
+ * @returns las candidatas, con las que no tienen área primero y el resto por nombre
+ */
+export function candidatasParaArea<T extends PersonaElegible> (
+  personas: T[],
+  areaId: number | null,
+  consulta: string
+): T[] {
+  const aguja = sinAcentos(consulta)
+
+  return personas
+    .filter((persona) => {
+      if (persona.area_id === areaId) return false
+      if (aguja === '') return true
+
+      return sinAcentos(`${persona.nombre} ${persona.correo ?? ''}`).includes(aguja)
+    })
+    .sort((una, otra) => {
+      const pesoUna = una.area_id === null ? 0 : 1
+      const pesoOtra = otra.area_id === null ? 0 : 1
+
+      if (pesoUna !== pesoOtra) return pesoUna - pesoOtra
+
+      return una.nombre.localeCompare(otra.nombre, 'es')
+    })
+}
+
+/**
+ * Minúsculas y sin acentos, para comparar lo que se escribe con lo que está escrito.
+ *
+ * @param texto un nombre, un correo o lo tecleado en el buscador
+ * @returns el mismo texto comparable
+ */
+function sinAcentos (texto: string): string {
+  return texto.trim().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
+}
