@@ -30,7 +30,7 @@ export const EQUIPO: DefinicionRecurso<MiembroEquipo> = {
     // literalmente "#undefined" para una fila a la que le faltara el campo.
     { clave: 'empresa_id', encabezado: 'Empresa', presentar: (m) => (m.empresa_id == null ? '' : `#${m.empresa_id}`) },
     { clave: 'cargo_id', encabezado: 'Cargo', ocultaPorDefecto: true, presentar: (m) => (m.cargo_id == null ? '' : `#${m.cargo_id}`) },
-    { clave: 'area_id', encabezado: 'Área', presentar: (m) => (m.area_id == null ? '' : `#${m.area_id}`) },
+    { clave: 'area_id', encabezado: 'Áreas', presentar: (m) => (m.area_id == null ? '' : `#${m.area_id}`) },
     { clave: 'active', encabezado: 'Activo', presentar: (m) => (m.active ? 'Sí' : 'No') },
     {
       clave: 'last_login',
@@ -66,6 +66,13 @@ export const EQUIPO: DefinicionRecurso<MiembroEquipo> = {
   ],
 
   filtros: [
+    { clave: 'full_name', etiqueta: 'Nombre', tipo: 'campo', tipoDato: 'texto' },
+    { clave: 'email', etiqueta: 'Correo', tipo: 'campo', tipoDato: 'texto' },
+    { clave: 'last_login', etiqueta: 'Último acceso', tipo: 'campo', tipoDato: 'fecha' },
+    { clave: 'is_admin', etiqueta: 'Administrador', tipo: 'campo', tipoDato: 'booleano' },
+    { clave: 'phonenumber', etiqueta: 'Teléfono', tipo: 'campo', tipoDato: 'texto' },
+    { clave: 'hourly_rate', etiqueta: 'Tarifa por hora', tipo: 'campo', tipoDato: 'numero' },
+    { clave: 'date_created', etiqueta: 'Creado', tipo: 'campo', tipoDato: 'fecha' },
     { clave: 'active', etiqueta: 'Activo', tipo: 'booleano' },
     { clave: 'role_id', etiqueta: 'Rol', tipo: 'seleccion', desdeLookup: 'roles' },
     { clave: 'empresa_id', etiqueta: 'Empresa', tipo: 'seleccion', desdeLookup: 'empresas' },

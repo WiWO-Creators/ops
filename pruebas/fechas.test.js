@@ -8,7 +8,16 @@
 
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { estadoVencimiento, formatearFecha, formatearRelativo, formatearVencimiento, SIN_VENCIMIENTO } from '../src/lib/fechas.ts'
+import {
+  aFechaDelContrato,
+  aFechaLocal,
+  enmascararFechaLocal,
+  estadoVencimiento,
+  formatearFecha,
+  formatearRelativo,
+  formatearVencimiento,
+  SIN_VENCIMIENTO
+} from '../src/lib/fechas.ts'
 
 test('una fecha sin hora no se corre de dia', () => {
   // `new Date('2026-08-24')` daria 23 de agosto en Argentina. El texto tiene que decir 24.
@@ -84,4 +93,75 @@ test('una tarea sin vencimiento nunca queda clasificada como vencida', () => {
   assert.equal(estadoVencimiento(null), 'sin-fecha')
   assert.equal(estadoVencimiento(''), 'sin-fecha')
   assert.equal(estadoVencimiento(undefined), 'sin-fecha')
+})
+
+/**
+ * Escritura de fechas en formato local.
+ *
+ * `<input type="date">` ordena dia, mes y año segun el idioma del SISTEMA OPERATIVO, no segun el
+ * `lang` del documento: en un equipo en ingles el mismo formulario pide MM/DD/AAAA y quien escribe
+ * 03/09 pensando en el 3 de septiembre guarda el 9 de marzo. Estas tres funciones son las que
+ * sostienen el campo de texto que lo reemplaza, asi que un error acá es una fecha mal guardada.
+ */
+
+test('una fecha del contrato se lee en el orden de acá', () => {
+  assert.equal(aFechaLocal('2026-12-31'), '31/12/2026')
+  assert.equal(aFechaLocal('2026-01-05'), '05/01/2026')
+})
+
+test('lo que no es una fecha del contrato vuelve intacto, para no borrar lo que se esta tipeando', () => {
+  assert.equal(aFechaLocal('31/1'), '31/1')
+  assert.equal(aFechaLocal(''), '')
+  assert.equal(aFechaLocal(null), '')
+  assert.equal(aFechaLocal(undefined), '')
+})
+
+test('lo escrito vuelve al formato que viaja a la API', () => {
+  assert.equal(aFechaDelContrato('31/12/2026'), '2026-12-31')
+  assert.equal(aFechaDelContrato(' 05/01/2026 '), '2026-01-05')
+})
+
+test('una fecha a medio escribir todavia no es una fecha', () => {
+  assert.equal(aFechaDelContrato('31/12/20'), null)
+  assert.equal(aFechaDelContrato('31/12'), null)
+  assert.equal(aFechaDelContrato(''), null)
+  assert.equal(aFechaDelContrato(null), null)
+  assert.equal(aFechaDelContrato(undefined), null)
+})
+
+test('un dia que no existe se rechaza en vez de correrse al mes siguiente', () => {
+  // `Date` desborda en silencio: el 31 de febrero se vuelve el 3 de marzo, y ese dato despues nadie
+  // entiende de donde salio.
+  assert.equal(aFechaDelContrato('31/02/2026'), null)
+  assert.equal(aFechaDelContrato('29/02/2025'), null)
+  assert.equal(aFechaDelContrato('29/02/2024'), '2024-02-29')
+  assert.equal(aFechaDelContrato('00/01/2026'), null)
+  assert.equal(aFechaDelContrato('01/13/2026'), null)
+})
+
+test('el ida y vuelta no corre el dia', () => {
+  for (const fecha of ['2026-01-01', '2026-02-29', '2024-02-29', '2026-12-31', '2026-07-15']) {
+    const local = aFechaLocal(fecha)
+    const vuelta = aFechaDelContrato(local)
+
+    // El 29/02/2026 no existe: `aFechaLocal` lo escribe igual porque solo reordena, y es
+    // `aFechaDelContrato` quien lo ataja. Los que existen tienen que volver identicos.
+    assert.equal(vuelta, fecha === '2026-02-29' ? null : fecha)
+  }
+})
+
+test('la mascara pone las barras sola y no deja entrar nada que no sea un digito', () => {
+  assert.equal(enmascararFechaLocal('3'), '3')
+  assert.equal(enmascararFechaLocal('31'), '31')
+  assert.equal(enmascararFechaLocal('312'), '31/2')
+  assert.equal(enmascararFechaLocal('31122026'), '31/12/2026')
+  assert.equal(enmascararFechaLocal('31/12/2026'), '31/12/2026')
+  assert.equal(enmascararFechaLocal('31-12-2026'), '31/12/2026')
+  assert.equal(enmascararFechaLocal('31 12 2026'), '31/12/2026')
+  assert.equal(enmascararFechaLocal('abc'), '')
+  assert.equal(enmascararFechaLocal(''), '')
+})
+
+test('la mascara corta en ocho digitos: no hay fecha mas larga', () => {
+  assert.equal(enmascararFechaLocal('311220269999'), '31/12/2026')
 })

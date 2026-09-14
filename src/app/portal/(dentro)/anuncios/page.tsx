@@ -2,9 +2,10 @@ import type { Metadata } from 'next'
 import { Vacio } from '@/componentes/estado/Estados'
 import { formatearFecha } from '@/lib/fechas'
 import { cn } from '@/lib/clases'
-import { pedirPortal } from '@/datos/servidor'
+import { ErrorApi } from '@/datos/errores'
 import type { AnuncioPortal } from '@/datos/portal'
 import { ContenidoHtml } from '@/componentes/presentadores/ContenidoHtml'
+import { cargarDetalle, EstadoDeError } from '../detalle'
 
 export const metadata: Metadata = { title: 'Anuncios · Portal de clientes' }
 
@@ -13,9 +14,18 @@ export const metadata: Metadata = { title: 'Anuncios · Portal de clientes' }
  *
  * Los ya descartados se muestran igual, atenuados: descartar es una escritura y este portal no
  * escribe, asi que ocultarlos aca haria desaparecer un aviso sin que nadie pueda recuperarlo.
+ *
+ * Se pide con `cargarDetalle` por lo mismo que Ayuda y Archivos: con la seccion apagada la API
+ * responde 403 o 404, y eso es una pantalla que explica, no un error generico.
  */
 export default async function AnunciosPagina () {
-  const { data } = await pedirPortal<AnuncioPortal[]>('/portal/announcements')
+  const sobre = await cargarDetalle<AnuncioPortal[]>('/portal/announcements')
+
+  if (sobre instanceof ErrorApi) {
+    return <EstadoDeError error={sobre} volverA="/portal" etiqueta="el inicio" />
+  }
+
+  const { data } = sobre
 
   if (data.length === 0) {
     return (
@@ -44,7 +54,7 @@ export default async function AnunciosPagina () {
               <span className="text-texto-tenue text-sm">{formatearFecha(anuncio.date_added)}</span>
             </div>
             {/* El mensaje se redacta en el panel y puede traer HTML: se muestra aislado, igual que
-                el contenido de contratos y propuestas. */}
+                el cuerpo de un articulo de ayuda. */}
             <div className="mt-3">
               <ContenidoHtml html={anuncio.message} alto="h-48" />
             </div>

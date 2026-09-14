@@ -1,3 +1,4 @@
+import { filtrosDeCamposPersonalizados } from './filtros.ts'
 import type { Columna, DefinicionRecurso, OpcionFiltro } from './tipos.ts'
 import type { CampoPersonalizadoMeta, Espacio } from '../datos/recursos.ts'
 import { GLOSARIO } from '../dominio/glosario.ts'
@@ -61,6 +62,22 @@ export const ESPACIOS: DefinicionRecurso<Espacio> = {
   ],
 
   filtros: [
+    { clave: 'id', etiqueta: 'ID', tipo: 'campo', tipoDato: 'numero' },
+    { clave: 'name', etiqueta: 'Nombre', tipo: 'campo', tipoDato: 'texto' },
+    { clave: 'description', etiqueta: 'Descripción', tipo: 'campo', tipoDato: 'texto' },
+    { clave: 'tags', etiqueta: 'Etiquetas', tipo: 'campo', tipoDato: 'texto' },
+    { clave: 'start_date', etiqueta: 'Inicio', tipo: 'campo', tipoDato: 'fecha' },
+    { clave: 'deadline', etiqueta: 'Entrega', tipo: 'campo', tipoDato: 'fecha' },
+    { clave: 'progress', etiqueta: 'Avance', tipo: 'campo', tipoDato: 'numero' },
+    { clave: 'tasks_open', etiqueta: 'Tareas abiertas', tipo: 'campo', tipoDato: 'numero' },
+    { clave: 'date_finished', etiqueta: 'Finalizado', tipo: 'campo', tipoDato: 'fecha' },
+    { clave: 'progress_from_tasks', etiqueta: 'Avance por tareas', tipo: 'campo', tipoDato: 'booleano' },
+    { clave: 'project_cost', etiqueta: 'Costo', tipo: 'campo', tipoDato: 'numero' },
+    { clave: 'project_rate_per_hour', etiqueta: 'Tarifa por hora', tipo: 'campo', tipoDato: 'numero' },
+    { clave: 'estimated_hours', etiqueta: 'Horas estimadas', tipo: 'campo', tipoDato: 'numero' },
+    { clave: 'added_from', etiqueta: 'Creado por', tipo: 'campo', tipoDato: 'numero' },
+    { clave: 'project_created', etiqueta: 'Creado', tipo: 'campo', tipoDato: 'fecha' },
+    { clave: 'archived_at', etiqueta: 'Archivado el', tipo: 'campo', tipoDato: 'fecha' },
     { clave: 'status', etiqueta: 'Estado', tipo: 'multiple', desdeLookup: 'project_statuses' },
     { clave: 'clientid', etiqueta: 'Cliente', tipo: 'seleccion', desdeLookup: 'clients' },
     { clave: 'member', etiqueta: 'Miembros', tipo: 'multiple', desdeLookup: 'staff' },
@@ -146,5 +163,44 @@ export function columnasDeCamposPersonalizados (campos: CampoPersonalizadoMeta[]
  * @returns Una definicion nueva; `ESPACIOS` no se muta.
  */
 export function espaciosConCampos (campos: CampoPersonalizadoMeta[]): DefinicionRecurso<Espacio> {
-  return { ...ESPACIOS, columnas: [...ESPACIOS.columnas, ...columnasDeCamposPersonalizados(campos)] }
+  return { ...ESPACIOS, filtros: [...ESPACIOS.filtros, ...filtrosDeCamposPersonalizados(campos)], columnas: [...ESPACIOS.columnas, ...columnasDeCamposPersonalizados(campos)] }
+}
+
+/**
+ * Estado "En desarrollo" del catalogo `project_statuses`.
+ *
+ * El id 2 es codigo del panel y no dato editable: Perfex lo traduce en
+ * `wiwo-board/application/language/spanish/spanish_lang.php` (`$lang['project_status_2'] = 'En
+ * desarrollo'`). El nombre y el color si se administran, por eso la pantalla los sigue tomando de
+ * `/lookups` y aca solo vive el identificador.
+ */
+export const ESTADO_EN_DESARROLLO = '2'
+
+/**
+ * Filtros con los que abre el listado de Espacios cuando nadie pidio una consulta.
+ *
+ * A esta pantalla se entra a mirar lo que esta en marcha, no el archivo completo, asi que la entrada
+ * limpia viene acotada a "En desarrollo". El filtro no se aplica en secreto: la pagina lo escribe en
+ * la URL, y de ahi lo leen las pastillas y los controles, que lo muestran marcado y lo dejan quitar
+ * de un clic.
+ *
+ * La señal para distinguir "recien llegue" de "quite el estado a proposito" es que la URL no traiga
+ * NINGUN parametro. Con cualquiera —hasta `?vista=tabla`— la consulta ya es de quien mira, y reponer
+ * el defecto ahi dejaria "ver todos" fuera de alcance.
+ *
+ * @param params Parametros de la URL, tal como llegaron.
+ * @param estadosDisponibles Ids de `project_statuses`, en texto, como los publica `/lookups`.
+ * @returns Los filtros de entrada, o `null` cuando no corresponde aplicarlos.
+ */
+export function filtrosDeEntradaDeEspacios (
+  params: URLSearchParams,
+  estadosDisponibles: string[]
+): Record<string, string[]> | null {
+  if (params.toString() !== '') return null
+
+  // Una instalacion con otra numeracion de estados abre sin filtro: una pantalla vacia que no explica
+  // por que no hay nada es peor que una lista larga.
+  if (!estadosDisponibles.includes(ESTADO_EN_DESARROLLO)) return null
+
+  return { status: [ESTADO_EN_DESARROLLO] }
 }

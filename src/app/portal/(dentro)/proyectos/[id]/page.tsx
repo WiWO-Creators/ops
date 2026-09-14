@@ -4,9 +4,14 @@ import { Pestanas, type Panel } from '@/componentes/proyecto/Pestanas'
 import { ErrorApi } from '@/datos/errores'
 import type { EspacioPortal, TareaPortal } from '@/datos/portal'
 import { pestaniasDelProyecto } from '@/definiciones/portal-proyectos'
-import { BarraProgreso } from '@/componentes/proyecto/CabeceraProyecto'
-import { formatearFecha } from '@/lib/fechas'
-import { cargarDetalle, EstadoDeError, EstadoDelPortal, Volver } from '../../detalle'
+import { CabeceraProyecto } from '@/componentes/proyecto/CabeceraProyecto'
+import { aTextoPlano } from '@/componentes/proyecto/formatos'
+import { cargarLookupsDelPortal, listaDe } from '@/datos/lookups'
+import { pedirPortal } from '@/datos/servidor'
+import type { EmpresaPortal } from '@/datos/tipos'
+import { GLOSARIO } from '@/dominio/glosario'
+import { proyectoDelPortal } from '@/dominio/proyecto'
+import { cargarDetalle, EstadoDeError, estadoDelPortal } from '../../detalle'
 import { AprobacionesPendientes } from './AprobacionesPendientes'
 import {
   PanelArchivos,
@@ -47,9 +52,19 @@ export default async function ProyectoPagina (props: PageProps<'/portal/proyecto
   }
 
   const proyecto = sobre.data
+  // La empresa es la del propio contacto y la cabecera la pinta como subtitulo, igual que el panel
+  // pinta el cliente del Espacio.
+  const { data: empresa } = await pedirPortal<EmpresaPortal>('/portal/company')
+  // La API devuelve la descripcion como HTML del panel viejo: sin despojarla, el cliente lee los
+  // `<p>` en pantalla. Es el mismo tratamiento que le da el panel a la descripcion de una tarea.
+  const descripcion = aTextoPlano(proyecto.description ?? '')
   // Las pestañas salen de lo que dijo la API, nunca de una lista fija: cada proyecto comparte cosas
   // distintas, y adivinar significaria dibujar pestañas que responden 403 al abrirlas.
   const pestanias = pestaniasDelProyecto(proyecto.tabs ?? [])
+  // La descripcion la lleva la pestaña Descripcion, como en el panel. Se dibuja suelta solo cuando
+  // esa pestaña no esta compartida: un proyecto que no la comparte igual tiene derecho a contar de
+  // que se trata, y ahi es el unico lugar donde cabe.
+  const descripcionSuelta = !pestanias.some((p) => p.clave === 'overview')
   const pendientes = await cargarPendientes(proyecto)
 
   const paneles: Panel[] = pestanias.map(({ clave, etiqueta }) => ({
@@ -60,31 +75,30 @@ export default async function ProyectoPagina (props: PageProps<'/portal/proyecto
 
   return (
     <div className="flex flex-col gap-4">
-      <Volver href="/portal/proyectos">Proyectos</Volver>
+      {/* La MISMA cabecera que ve un colaborador: el componente, no una copia con las mismas
+          clases. Lo que cambia es lo que se le pasa —una `ProyectoVista` armada desde el contrato
+          del portal, sin capacidades y sin botonera—, no el dibujo. */}
+      <CabeceraProyecto
+        proyecto={proyectoDelPortal(proyecto, empresa)}
+        estado={await estadoDelPortal('project_statuses', proyecto.status)}
+        volverA={{ href: '/portal/proyectos', etiqueta: GLOSARIO.espacio.plural }}
+      />
 
-      <header className="flex flex-col gap-3">
-        <div className="flex flex-wrap items-center gap-3">
-          <h1 className="text-texto text-xl font-semibold">{proyecto.name}</h1>
-          <EstadoDelPortal catalogo="project_statuses" valor={proyecto.status} />
-        </div>
-
-        <div className="flex flex-wrap items-center gap-4">
-          <BarraProgreso porcentaje={proyecto.progress} className="max-w-xs" />
-          <span className="text-texto-tenue text-sm tabular-nums">{proyecto.progress}%</span>
-          {proyecto.deadline !== null && (
-            <span className="text-texto-tenue text-sm">Entrega: {formatearFecha(proyecto.deadline)}</span>
-          )}
-        </div>
-
-        {/* La descripcion vive en el encabezado y no en el panel Resumen: un proyecto que no comparte
-            la pestaña de resumen igual tiene derecho a contar de que se trata. */}
-        {proyecto.description !== null && proyecto.description !== '' && (
-          <p className="text-texto-tenue max-w-prose text-sm whitespace-pre-line">{proyecto.description}</p>
-        )}
-      </header>
+      {/* La descripcion vive en la pestaña Descripcion, como en el panel. Suelta acá solo cuando esa
+          pestaña no esta compartida: es el unico caso en que si no, no se leeria en ningun lado. */}
+      {descripcionSuelta && descripcion !== '' && (
+        <p className="text-texto-tenue max-w-prose text-sm whitespace-pre-line">{descripcion}</p>
+      )}
 
       {pendientes.length > 0 && (
-        <AprobacionesPendientes proyectoId={proyecto.id} tareas={pendientes} />
+        <AprobacionesPendientes
+          proyectoId={proyecto.id}
+          tareas={pendientes}
+          // El catalogo se pide aca y no dentro del panel: `cargarLookupsDelPortal` es `server-only`
+          // y el panel es cliente. `cache()` lo comparte con la pestaña de Tareas, asi que la pagina
+          // no pide `/portal/lookups` dos veces por pintar la insignia.
+          estados={listaDe(await cargarLookupsDelPortal(), 'task_statuses')}
+        />
       )}
 
       {paneles.length > 0 ? <Pestanas paneles={paneles} /> : <PanelResumen proyecto={proyecto} />}

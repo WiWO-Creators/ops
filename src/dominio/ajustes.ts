@@ -1,4 +1,5 @@
-import { nombrar } from './glosario.ts'
+import { AJUSTE_AVISOS_LICITACION, GRUPO_AVISOS_LICITACION } from './alertas-licitacion.ts'
+import { ASISTENTE, GLOSARIO, nombrar } from './glosario.ts'
 import type { AjusteEditable, Ajustes, Lookups } from '../datos/recursos.ts'
 
 /**
@@ -76,7 +77,17 @@ export const GRUPOS_DE_AJUSTES: Record<string, { titulo: string, ayuda: string }
   correo: {
     titulo: 'Correo',
     ayuda: 'Los motores de correo y su modo de operación.'
-  }
+  },
+  // No es un grupo de `GET /settings`: es el titulo de la caja que dibuja el interruptor de avisos
+  // de Licitaciones dentro de la pestaña «Avisos por correo». `FormularioDeAjustes` usa el grupo
+  // solo para el encabezado; las claves que pinta se le pasan por separado.
+  [GRUPO_AVISOS_LICITACION]: {
+    titulo: `Avisos de ${GLOSARIO.licitacion.plural}`,
+    ayuda: `Si el aviso de plazo de una ${GLOSARIO.licitacion.singular.toLowerCase()} —su vencimiento o una ${GLOSARIO.hito.singular}— además sale por correo. La banda de la pantalla se muestra igual: esto gobierna solo lo que sale de Ops.`
+  },
+  jornada: {
+    titulo: 'Jornada',
+    ayuda: 'A qué hora se cierran solas las jornadas que quedaron abiertas.'  }
 }
 
 /**
@@ -162,8 +173,8 @@ export const ETIQUETAS_DE_AJUSTES: Record<string, { etiqueta: string, ayuda?: st
     ayuda: 'Interruptor de toda la capa. Apagado, la API responde 404 a cada función de IA y Ops deja de ofrecerlas.'
   },
   ia_escritura_habilitada: {
-    etiqueta: 'Dejar que WiBot proponga cambios',
-    ayuda: 'Interruptor aparte del de arriba. Apagado, WiBot solo lee. Encendido, puede dejar propuestas —crear o editar una tarea, comentar, cambiar el equipo, mandar algo a la papelera— que no se ejecutan hasta que alguien las confirma en el chat. Ningún borrado es definitivo: todo va a la papelera y se restaura durante 30 días.'
+    etiqueta: `Dejar que ${ASISTENTE} proponga cambios`,
+    ayuda: `Interruptor aparte del de arriba. Apagado, ${ASISTENTE} solo lee. Encendido, puede dejar propuestas —crear o editar una tarea, comentar, cambiar el equipo, mandar algo a la papelera— que no se ejecutan hasta que alguien las confirma en el chat. Ningún borrado es definitivo: todo va a la papelera y se restaura durante 30 días.`
   },
   ia_tope_tokens: {
     etiqueta: 'Largo máximo de la respuesta (tokens)',
@@ -172,7 +183,35 @@ export const ETIQUETAS_DE_AJUSTES: Record<string, { etiqueta: string, ayuda?: st
   ia_dias_reconstruccion: {
     etiqueta: `Rehacer el análisis del ${nombrar('espacio').toLowerCase()} cada (días)`,
     ayuda: 'Techo contra la deriva: pasados estos días el análisis se arma de cero en vez de actualizarse por incrementos.'
-  }
+  },
+
+  // --- correo ---
+  wiwo_resumen_equipo_envio: {
+    etiqueta: 'Enviar el resumen del equipo a las jefaturas',
+    ayuda: 'A las 20:00 se arma igual y queda en la pantalla; esto decide si además sale por correo. Cada jefatura recibe el resumen de su equipo. Apagado de fábrica: es el interruptor de la parte que sale de Ops.'
+  },
+  wiwo_recordatorio_jornada_envio: {
+    etiqueta: 'Recordar a las 10:00 a quien no abrió su jornada',
+    ayuda: 'Un correo y un aviso en la campana, de lunes a viernes, a quien todavía no marcó el inicio de su jornada. Apagado de fábrica.'
+  },
+  wiwo_recordatorio_tareas_envio: {
+    etiqueta: 'Recordar a las 15:00 a quien no registró tareas',
+    ayuda: 'Un correo y un aviso en la campana, de lunes a viernes, a quien tiene la jornada abierta y todavía no registró tiempo en ninguna tarea. Apagado de fábrica.'
+  },
+
+
+  // --- jornada ---
+  wiwo_live_cierre_automatico: {
+    etiqueta: 'Cerrar solas las jornadas que quedaron abiertas',
+    ayuda: 'Apagado, una jornada que nadie cerró se queda abierta hasta que la persona la cierre a mano.'
+  },
+  wiwo_live_hora_cierre: {
+    etiqueta: 'Hora del cierre automático (HH:MM)',
+    ayuda: 'Rige para toda la empresa, sin excepción por cargo ni modalidad. Cada jornada se cierra a esta hora del día en que empezó, no del día de hoy. Ojo: esto mueve el cierre de jornadas, no el corte de cronómetros del programador, que se cambia en el servidor (OPS_TIMER_CUTOFF_HOUR) y tiene que quedar en la misma hora.'
+  },
+  [AJUSTE_AVISOS_LICITACION]: {
+    etiqueta: `Avisar por correo los plazos de ${GLOSARIO.licitacion.plural.toLowerCase()}`,
+    ayuda: `El aviso se escribe igual en la campana y la banda de la pantalla se muestra igual; esto decide si además sale por correo a quien sigue la ${GLOSARIO.licitacion.singular.toLowerCase()}. Apagado de fábrica, como todo efecto externo.`  }
 }
 
 /**

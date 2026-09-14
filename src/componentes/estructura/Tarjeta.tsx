@@ -21,12 +21,29 @@ const TONOS = {
 
 export type TonoTarjeta = keyof typeof TONOS
 
+/**
+ * Los dos tamaños de la tarjeta.
+ *
+ * `grande` es para una grilla que ES la pantalla —la portada— y no un accesorio de ella: ahi la
+ * tarjeta es el elemento que se mira, y a tamaño normal la grilla se leia como una lista de notas al
+ * pie. Crece todo junto —caja, chip, icono y titulo— porque agrandar solo el relleno deja un icono
+ * de 20px flotando en una tarjeta del doble de alto.
+ */
+const TAMANOS = {
+  normal: { caja: 'p-5', chip: 'size-11 rounded-medio', icono: 20, titulo: 'text-base', descripcion: 'text-sm', hueco: 'mb-4' },
+  grande: { caja: 'p-6 sm:p-7', chip: 'size-14 rounded-tarjeta', icono: 26, titulo: 'text-titulo', descripcion: 'text-base', hueco: 'mb-5' }
+} as const
+
+export type TamanoTarjeta = keyof typeof TAMANOS
+
 interface PropsTarjeta {
   href: string
   titulo: string
   descripcion: string
   icono: LucideIcon
   tono?: TonoTarjeta
+  /** Cuanto pesa la tarjeta en su pantalla. `grande` cuando la grilla es el contenido principal. */
+  tamano?: TamanoTarjeta
   /** Marca la tarjeta como todavia no disponible: deja de ser enlace y se anuncia como tal. */
   proximamente?: boolean
   /** Dato vivo que acompaña al título, p. ej. cuánta gente hay dentro de una sala ahora mismo. */
@@ -64,25 +81,32 @@ export function Tarjeta ({
   descripcion,
   icono: Icono,
   tono = 'acento',
+  tamano = 'normal',
   proximamente = false,
   distintivo,
   className
 }: PropsTarjeta) {
   const externo = esExterno(href)
+  const medida = TAMANOS[tamano]
 
   const contenido = (
     <>
-      <span className="mb-4 flex items-start justify-between">
-        <span className={cn('grid size-11 place-items-center rounded-medio', TONOS[tono])}>
-          <Icono size={20} strokeWidth={2} aria-hidden="true" />
+      <span className={cn('flex items-start justify-between', medida.hueco)}>
+        <span className={cn('grid place-items-center', medida.chip, TONOS[tono])}>
+          <Icono size={medida.icono} strokeWidth={2} aria-hidden="true" />
         </span>
         {distintivo}
       </span>
-      <span className="font-titular flex items-center gap-1.5 text-base font-bold text-texto">
+      {/*
+        Plantilla y no `cn()` en los dos: `tailwind-merge` toma un `text-*` que no es un peldaño
+        suyo —`text-titulo`— por un color, y lo borraba contra el `text-texto` de al lado. Aca no
+        hay conflicto que resolver: uno es tamaño y el otro color.
+      */}
+      <span className={`font-titular flex items-center gap-1.5 font-bold text-texto ${medida.titulo}`}>
         {titulo}
         {externo && <ArrowUpRight size={16} strokeWidth={2.5} aria-hidden="true" className="text-texto-tenue" />}
       </span>
-      <span className="mt-1 text-sm leading-relaxed text-texto-tenue">{descripcion}</span>
+      <span className={`mt-1 leading-relaxed text-texto-tenue ${medida.descripcion}`}>{descripcion}</span>
       {externo && <span className="sr-only">Se abre en una pestaña nueva</span>}
       {proximamente && (
         <span className="mt-3">
@@ -93,7 +117,8 @@ export function Tarjeta ({
   )
 
   const clases = cn(
-    'flex flex-col rounded-tarjeta border border-linea bg-superficie-elevada p-5 shadow-1',
+    'flex flex-col rounded-tarjeta border border-linea bg-superficie-elevada shadow-1',
+    medida.caja,
     className
   )
 

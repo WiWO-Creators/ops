@@ -16,11 +16,40 @@ export interface StaffEnVivo {
   area: string | null
 }
 
-/** Jornada abierta, tal como viaja en el tablero. `seconds` lo calcula el servidor. */
+/**
+ * El Cliente para quien es el dia, cuando la jornada se abrio sin Espacio.
+ *
+ * **No es un destino**: contra un Cliente no se mide tiempo —`tbltaskstimers` solo sabe de Procesos y
+ * Espacios— asi que esto no aparece nunca en `MedidorEnVivo`. Es para quien es la jornada, no contra
+ * que corre el cronometro.
+ *
+ * Viene con el nombre puesto (`Escritura\Jornada` lo resuelve contra `tblclients`), y por eso la
+ * cabecera no pide `/clients/{id}` para escribir una palabra.
+ */
+export interface ClienteDeJornada {
+  id: number
+  name: string
+}
+
+/**
+ * Jornada abierta, tal como viaja en el tablero. `seconds` lo calcula el servidor.
+ *
+ * `client` es **opcional y anulable**, y las dos cosas significan algo distinto. Ausente
+ * (`undefined`) es una API sin la migracion `0520` aplicada: no sabe del campo y no lo manda, y esta
+ * pantalla no puede quedarse en blanco por eso. `null` es una API que si sabe y dice que no hay
+ * Cliente —o que el que habia se borro o se fue a la papelera, caso en que degrada a `null` en vez de
+ * romper la lectura del dia—. Ninguno de los dos se lee con `client.name` a pelo; ver
+ * `clienteDeJornada()`.
+ *
+ * Solo lo mandan las rutas propias (`open` de `GET /me/jornada` y `jornada` del resumen). El tablero
+ * `GET /live` no lo trae, y por eso el campo es opcional en vez de vivir en un tipo aparte: es la
+ * misma jornada vista por dos rutas, y partirla en dos tipos obligaria a convertir de una a otra.
+ */
 export interface JornadaEnVivo {
   id: number
   started_at: string
   seconds: number
+  client?: ClienteDeJornada | null
 }
 
 /** Lo que se abre al arrancar la jornada. */
@@ -46,11 +75,24 @@ export interface CierreDeJornada {
  * `project` y `task` son excluyentes en la practica —se mide un Espacio o un proceso dentro de el—
  * pero los dos pueden venir: un medidor de proceso tambien dice a que Espacio pertenece. Los dos en
  * `null` es un medidor huerfano, y la interfaz lo muestra igual en vez de esconderlo.
+ *
+ * `GET /me/jornada` devolvia esto **plano** (`project_id`, `project_name`, `task_id`, `task_name`,
+ * con `task_id: 0` por "sin Tarea") y por eso el control pintaba "Sin destino" con cualquier
+ * cronometro corriendo. El backend lo unifico: las dos rutas mandan la forma anidada, y un medidor de
+ * Tarea ahora tambien trae su `project`, derivado de `rel_type`/`rel_id`. Verificado contra la API.
  */
 export interface MedidorEnVivo {
   id: number
   project: { id: number, name: string } | null
-  task: { id: number, name: string } | null
+  /**
+   * `status` es el estado de la Tarea (`task_statuses`), para que el tablero diga en que va lo que
+   * se esta midiendo y no solo como se llama.
+   *
+   * Es opcional porque esta misma forma sirve al `timer` de `GET /me/jornada`, que no lo manda:
+   * `RecursoJornadas::medidoresCorriendo()` lo agrego y `Escritura\Jornada::cronometroAbierto()` no.
+   * Llega `null` cuando la Tarea esta en la papelera, nunca `0`.
+   */
+  task: { id: number, name: string, status?: number | null } | null
   start_time: string
   seconds: number
 }
@@ -70,8 +112,14 @@ export interface FilaDeLive {
   seconds_today: number
 }
 
-/** Hasta donde alcanza a ver quien pidio el tablero, segun la API. */
-export type AlcanceApi = 'all' | 'area' | 'self'
+/**
+ * Hasta donde alcanza a ver quien pidio el tablero, segun la API.
+ *
+ * `subordinados` y `area` traen el MISMO recorte —la rama del organigrama— y se distinguen por de
+ * donde salio: el arbol de `tblareas` o el cargo Director de antes. Ver
+ * `Recursos\RecursoJornadas::visibilidad()`.
+ */
+export type AlcanceApi = 'all' | 'subordinados' | 'area' | 'self'
 
 /** `meta` de `GET /live`. */
 export interface MetaDeLive {
@@ -95,6 +143,36 @@ export interface EstadoDeJornada {
   uncovered_seconds: number
   over_journey: boolean
   timer: MedidorEnVivo | null
+}
+
+/**
+ * Una linea del resumen de cierre: cuanto se midio y sobre que.
+ *
+ * `task` en `null` es tiempo medido sobre el Espacio sin bajar a una Tarea —lo que deja el medidor de
+ * la cabecera cuando nadie eligio Tarea— y `project` en `null` es una Tarea que no cuelga de ningun
+ * Espacio. Los dos casos existen en la base, asi que los dos se nombran en vez de esconderse.
+ */
+export interface ItemDeResumen {
+  project: { id: number, name: string } | null
+  task: { id: number, name: string } | null
+  seconds: number
+  corriendo: boolean
+}
+
+/**
+ * Resumen del dia para el modal de cierre (`GET /me/jornada/resumen`).
+ *
+ * `uncovered_seconds` es la razon de existir de esa pantalla: la jornada mide presencia declarada y
+ * los medidores miden trabajo imputado, y la diferencia es el tiempo que al dia siguiente nadie sabe
+ * a que cargar. Por eso se muestra antes de confirmar el cierre y no despues.
+ *
+ * La API responde **404** cuando no hay jornada abierta.
+ */
+export interface ResumenDeJornada {
+  jornada: JornadaEnVivo
+  measured_seconds: number
+  uncovered_seconds: number
+  items: ItemDeResumen[]
 }
 
 /** Valor por defecto del intervalo del tablero, en segundos. */

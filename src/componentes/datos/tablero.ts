@@ -209,6 +209,47 @@ export function moverTarjeta<T extends FilaConId> (
   }
 }
 
+/**
+ * Saca una tarjeta del tablero para mandarla a una columna que el tablero no pinta.
+ *
+ * Es el caso de "Completado" en el tablero de Procesos: el estado existe y se puede mover ahi, pero
+ * no tiene columna —el tablero muestra el trabajo abierto, no el archivo—. Sin esto no habia forma
+ * de completar una tarea desde el tablero: `moverTarjeta()` devuelve `null` cuando el destino no es
+ * una de las columnas cargadas, que para el arrastre es lo correcto.
+ *
+ * La tarjeta desaparece de la pantalla, que es lo que la persona espera al completarla.
+ *
+ * `columna_completa` viaja vacia siempre: la columna destino no esta cargada, asi que no hay orden
+ * que mandar y la API lo arma desde la base (`Tablero::reordenar()`). Con `posicion: 1` la tarjeta
+ * queda arriba de su nueva columna.
+ *
+ * @param grupos tablero actual
+ * @param idTarjeta id de la tarjeta que se mueve
+ * @param idColumna id de la columna destino, que NO esta en `grupos`
+ * @returns el tablero sin la tarjeta y el cuerpo a enviar, o `null` si la tarjeta no esta cargada
+ */
+export function sacarTarjeta<T extends FilaConId> (
+  grupos: Array<GrupoTablero<T>>,
+  idTarjeta: number,
+  idColumna: number
+): Movimiento<T> | null {
+  const origen = ubicar(grupos, idTarjeta)
+  if (origen === null) return null
+
+  const movidos = grupos.map((grupo, indice) => indice !== origen.indiceGrupo
+    ? grupo
+    : {
+        ...grupo,
+        tarjetas: grupo.tarjetas.filter((t) => t.id !== idTarjeta),
+        pagination: { ...grupo.pagination, total: grupo.pagination.total - 1 }
+      })
+
+  return {
+    grupos: movidos,
+    cuerpo: { columna: idColumna, posicion: 1, columna_completa: [] }
+  }
+}
+
 /** Encierra un indice dentro de `[0, maximo]`. Un `splice` con indice fuera de rango miente en silencio. */
 function acotar (indice: number, maximo: number): number {
   if (indice < 0) return 0

@@ -1,6 +1,6 @@
-# WiBot dentro de un proyecto
+# Thinking Orb dentro de un proyecto
 
-La ficha del proyecto recupera la pestaña **WiBot** cuando la IA está habilitada. La conversación solo usa datos del proyecto abierto. Su historial es independiente del chat global y del de otros proyectos. Las acciones se confirman en una ruta del mismo proyecto y el servidor vuelve a validar que sus elementos sigan perteneciendo a él.
+La ficha del proyecto recupera la pestaña **Thinking Orb** cuando la IA está habilitada. La conversación solo usa datos del proyecto abierto. Su historial es independiente del chat global y del de otros proyectos. Las acciones se confirman en una ruta del mismo proyecto y el servidor vuelve a validar que sus elementos sigan perteneciendo a él.
 
 ## Revisión
 
@@ -10,7 +10,7 @@ Ambos usan la rama `feat/wibot-proyecto`.
 
 La prueba local usa `http://localhost:3122/espacios/1?tab=wibot`, con datos simulados. Las peticiones del chat se interceptan en la prueba de navegador; no llama al proveedor de IA ni modifica proyectos reales.
 
-1. Abre un proyecto y entra en **WiBot**. Debe mostrar el nombre del proyecto y explicar su alcance.
+1. Abre un proyecto y entra en **Thinking Orb**. Debe mostrar el nombre del proyecto y explicar su alcance.
 2. Pregunta por sus tareas atrasadas. El envío debe usar `POST /ia/proyectos/{id}/chat`.
 3. Abre otro proyecto: no debe aparecer la conversación anterior. Vuelve al primero: debe conservarla.
 4. Abre el chat global: su historial sigue separado. Borrar el chat del proyecto no debe borrar el global ni el de otro proyecto.

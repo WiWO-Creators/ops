@@ -1,10 +1,13 @@
 import Link from 'next/link'
-import { ChatWiBot } from '@/componentes/ia/ChatWiBot'
+import { ChatOrbe } from '@/componentes/ia/ChatOrbe'
 import { Suspense, cache } from 'react'
 import { CabeceraProyecto } from '@/componentes/proyecto/CabeceraProyecto'
+import { BotonNuevaTarea, MenuProyecto } from '@/componentes/proyecto/MenuProyecto'
+import { proyectoDelPanel } from '@/dominio/proyecto'
 import { PanelActividad } from '@/componentes/proyecto/PanelActividad'
 import { PanelConfiguracionEspacio } from '@/componentes/proyecto/PanelConfiguracionEspacio'
 import { PanelArchivos } from '@/componentes/proyecto/PanelArchivos'
+import { PanelCalendario } from '@/componentes/proyecto/PanelCalendario'
 import { PanelDescripcion } from '@/componentes/proyecto/PanelDescripcion'
 import { PanelDiscusiones } from '@/componentes/proyecto/PanelDiscusiones'
 import { PanelGantt } from '@/componentes/proyecto/PanelGantt'
@@ -23,7 +26,7 @@ import { cargarLookups } from '@/datos/lookups'
 import { pedir } from '@/datos/servidor'
 import type { Espacio, Lookups } from '@/datos/recursos'
 import type { Yo } from '@/datos/tipos'
-import { GLOSARIO } from '@/dominio/glosario'
+import { ASISTENTE, GLOSARIO } from '@/dominio/glosario'
 
 /**
  * Pide el Proyecto una sola vez por peticion.
@@ -195,11 +198,20 @@ export default async function ProyectoPage (props: PageProps<'/espacios/[id]'>) 
       contenido: <PanelDiscusiones proyectoId={proyecto.id} capacidades={capacidadesProyecto} />
     },
     { clave: 'gantt', etiqueta: 'Diagrama de Gantt', contenido: <PanelGantt proyectoId={proyecto.id} /> },
+    // Va pegada al Gantt porque las dos leen las mismas fechas, y despues porque son dos preguntas
+    // distintas: el Gantt muestra duraciones y dependencias, el calendario muestra el dia de
+    // entrega. Sus capacidades son las de `tasks` y no las del Espacio: lo que abre es el detalle de
+    // un Proceso.
+    { clave: 'calendario', etiqueta: 'Calendario', contenido: <PanelCalendario proyectoId={proyecto.id} capacidades={capacidadesTareas} /> },
     // El Meeting Paper conserva el lugar donde el equipo ya lo busca. Va aparte de las Notas y no
     // adentro porque son dos cosas distintas: la nota es privada de quien la escribio y el acta la ve
     // todo el Proyecto, asi que sus acciones dependen de permisos en vez de ofrecerse siempre.
     { clave: 'actas', etiqueta: GLOSARIO.acta.singular, contenido: <PanelActas proyectoId={proyecto.id} ia={ia} yo={yo} /> },
-    ...(conIa ? [{ clave: 'wibot', etiqueta: 'WiBot', contenido: <ChatWiBot proyecto={{ id: proyecto.id, name: proyecto.name }} /> }] : []),
+    // La clave se queda en `wibot` aunque el asistente ahora se llame Thinking Orb: no es texto, es
+    // el valor que viaja en `?tab=` de esta ficha. Cambiarla dejaría muerto cualquier enlace que
+    // alguien haya guardado o pegado en una discusión, y el nombre del asistente no se lee de ahí
+    // sino de la etiqueta, que sí sale de `ASISTENTE`.
+    ...(conIa ? [{ clave: 'wibot', etiqueta: ASISTENTE, contenido: <ChatOrbe proyecto={{ id: proyecto.id, name: proyecto.name }} /> }] : []),
     { clave: 'notas', etiqueta: GLOSARIO.nota.plural, contenido: <PanelNotas proyectoId={proyecto.id} /> },
     {
       clave: 'actividad',
@@ -218,12 +230,22 @@ export default async function ProyectoPage (props: PageProps<'/espacios/[id]'>) 
   return (
     <section className="flex flex-col gap-4">
       <CabeceraProyecto
-        proyecto={proyecto}
+        proyecto={proyectoDelPanel(proyecto)}
         estado={estadoDelProyecto(lookups, proyecto.status)}
-        estados={estados}
-        capacidadesProyecto={capacidadesProyecto}
-        capacidadesTareas={capacidadesTareas}
-        esMiembro={(proyecto.members ?? []).some((persona) => persona.id === yo.id)}
+        capacidades={capacidadesProyecto}
+        yoId={yo.id}
+        acciones={
+          <>
+            <BotonNuevaTarea capacidades={capacidadesTareas} />
+            <MenuProyecto
+              proyecto={proyecto}
+              estados={estados}
+              capacidades={capacidadesProyecto}
+              capacidadesTareas={capacidadesTareas}
+              esMiembro={(proyecto.members ?? []).some((persona) => persona.id === yo.id)}
+            />
+          </>
+        }
       />
 
       <Suspense fallback={<Cargando alto="min-h-36" mensaje="Cargando el detalle…" />}>

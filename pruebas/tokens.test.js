@@ -15,7 +15,7 @@ const AHORA = 1_700_000_000_000 // epoch ms
 
 test('el vencimiento relativo se guarda como epoch absoluto', () => {
   const sesion = sesionDesdeTokens(
-    { access_token: 'acc', expires_in: 3600, refresh_token: 'ref', refresh_expires_in: 2592000 },
+    { access_token: 'acc', expires_in: 3600, refresh_token: 'ref', refresh_expires_in: 7776000 },
     7,
     'staff',
     AHORA
@@ -31,7 +31,7 @@ test('la respuesta de refresh no trae staff y aun asi arma la sesion', () => {
     access_token: 'acc2',
     expires_in: 3600,
     refresh_token: 'ref2',
-    refresh_expires_in: 2592000
+    refresh_expires_in: 7776000
   }
 
   const sesion = sesionDesdeTokens(respuestaDeRefresh, 42, 'staff', AHORA)
@@ -45,7 +45,7 @@ test('un refresco de contacto sigue siendo de contacto', () => {
     access_token: 'acc3',
     expires_in: 3600,
     refresh_token: 'ref3',
-    refresh_expires_in: 2592000
+    refresh_expires_in: 7776000
   }
 
   // Es la propiedad que impide que el portal sea una escalera al panel: el refresco no puede

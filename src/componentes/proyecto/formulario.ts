@@ -6,7 +6,9 @@
  * y este modulo, que valida y arma el cuerpo. La parte visual vive en `FormularioRecurso.tsx`.
  */
 
-export type TipoCampo = 'texto' | 'area' | 'fecha' | 'color' | 'booleano' | 'numero' | 'seleccion'
+import { aFechaLocal } from '../../lib/fechas.ts'
+
+export type TipoCampo = 'texto' | 'area' | 'fecha' | 'color' | 'booleano' | 'numero' | 'seleccion' | 'seleccion-multiple'
 
 /** Una opcion de un campo `seleccion`. El valor viaja como cadena y se convierte al armar el cuerpo. */
 export interface OpcionCampo {
@@ -37,6 +39,17 @@ export interface CampoFormulario {
    */
   seccion?: string
   /**
+   * Apaga el boton de redaccion con IA en un campo `area`.
+   *
+   * El asistente se ofrece **por defecto** en toda caja de descripcion: son todas la misma caja en
+   * blanco delante de la misma persona, y pedirle a cada formulario que lo encienda termina en siete
+   * formularios donde seis se olvidaron. Quedar fuera es la excepcion y se dice acá, en una linea,
+   * en vez de duplicar el componente para el caso que no aplica.
+   *
+   * Solo tiene sentido en `area`; en los demas tipos no se mira.
+   */
+  sinAsistenteIa?: boolean
+  /**
    * Si esta vacio, el campo no viaja en el cuerpo.
    *
    * Existe por la contraseña: en una edicion, dejarla en blanco quiere decir "no la cambies", y
@@ -46,7 +59,7 @@ export interface CampoFormulario {
 }
 
 /** Valores del formulario en crudo, tal como los escribe el navegador. */
-export type ValoresFormulario = Record<string, string | boolean>
+export type ValoresFormulario = Record<string, string | boolean | string[]>
 
 /**
  * Valida los campos antes de mandar nada.
@@ -67,6 +80,15 @@ export function validarFormulario (
   for (const campo of campos) {
     const valor = valores[campo.clave]
 
+    if (campo.tipo === 'seleccion-multiple') {
+      if (!Array.isArray(valor) || valor.some((id) => !(campo.opciones ?? []).some((opcion) => opcion.valor === id))) {
+        errores[campo.clave] = 'Elegí opciones válidas.'
+      } else if (campo.requerido === true && valor.length === 0) {
+        errores[campo.clave] = 'Este campo es obligatorio.'
+      }
+      continue
+    }
+
     if (campo.tipo === 'booleano') continue
 
     const texto = typeof valor === 'string' ? valor.trim() : ''
@@ -85,15 +107,18 @@ export function validarFormulario (
 
     if (campo.tipo === 'fecha') {
       if (!/^\d{4}-\d{2}-\d{2}$/.test(texto)) {
-        errores[campo.clave] = 'Usa el formato AAAA-MM-DD.'
+        // El mensaje nombra el formato que se ESCRIBE, no el que viaja: el campo pide `DD/MM/AAAA` y
+        // `ControlDeCampo` traduce. Decir "AAAA-MM-DD" mandaria a corregir algo que no esta a la
+        // vista.
+        errores[campo.clave] = 'Usa el formato DD/MM/AAAA.'
         continue
       }
       if (campo.min !== undefined && texto < campo.min) {
-        errores[campo.clave] = `No puede ser anterior al ${campo.min}.`
+        errores[campo.clave] = `No puede ser anterior al ${aFechaLocal(campo.min)}.`
         continue
       }
       if (campo.max !== undefined && texto > campo.max) {
-        errores[campo.clave] = `No puede ser posterior al ${campo.max}.`
+        errores[campo.clave] = `No puede ser posterior al ${aFechaLocal(campo.max)}.`
         continue
       }
     }
@@ -124,6 +149,12 @@ export function cuerpoDelFormulario (
 
   for (const campo of campos) {
     const valor = valores[campo.clave]
+
+    if (campo.tipo === 'seleccion-multiple') {
+      escribirEn(cuerpo, campo.clave, [...new Set(Array.isArray(valor) ? valor : [])]
+        .map((id) => /^\d+$/.test(id) ? Number(id) : id))
+      continue
+    }
 
     if (campo.tipo === 'booleano') {
       escribirEn(cuerpo, campo.clave, valor === true)
@@ -205,6 +236,11 @@ export function valoresIniciales (
 
   for (const campo of campos) {
     const crudo = registro === null ? undefined : leerDe(registro, campo.clave)
+
+    if (campo.tipo === 'seleccion-multiple') {
+      valores[campo.clave] = Array.isArray(crudo) ? [...new Set(crudo.map(String))] : []
+      continue
+    }
 
     if (campo.tipo === 'booleano') {
       valores[campo.clave] = crudo === true

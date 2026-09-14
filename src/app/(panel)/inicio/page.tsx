@@ -7,19 +7,28 @@ import {
   FolderKanban,
   LifeBuoy,
   ListChecks,
+  TriangleAlert,
   Users
 } from 'lucide-react'
-import { pedir } from '@/datos/servidor'
+import { cn } from '@/lib/clases'
+import { pedir, pedirOpcional } from '@/datos/servidor'
 import type { Yo } from '@/datos/tipos'
 import type { Espacio, Proceso } from '@/datos/recursos'
+import type { EstadoDeJornada } from '@/datos/live'
+import { cargarLookups, listaDe } from '@/datos/lookups'
+import type { OpcionFiltro } from '@/definiciones/tipos'
+import { opcionesDeEstados } from '@/dominio/estados-tarea'
 import { GLOSARIO } from '@/dominio/glosario'
-import { agruparPorVencimiento, cuantosNoListados } from '@/dominio/inicio'
+import { agruparPorVencimiento, cuantosNoListados, type GrupoInicio } from '@/dominio/inicio'
 import { puedeVerSeccion } from '@/dominio/permisos'
 import { Tarjeta, type TonoTarjeta } from '@/componentes/estructura/Tarjeta'
+import { TituloModulo } from '@/componentes/estructura/TituloModulo'
 import { Insignia } from '@/componentes/presentadores/Insignia'
 import { Fecha } from '@/componentes/presentadores/Fecha'
 import { PARAMETRO_TAREA } from '@/componentes/datos/tabla'
+import { EstadoDeTarea } from '@/componentes/proyecto/EstadoDeTarea'
 import { ModalTarea } from '@/componentes/proyecto/ModalTarea'
+import { AvisoJornada } from './AvisoJornada'
 import { ResumenDelDia } from './ResumenDelDia'
 
 /**
@@ -50,13 +59,24 @@ const URL_SOPORTE = 'https://wiwo.center'
  * las ocho pantallas y no solo al entrar. Mostrarlo tambien aca serian dos contadores del mismo
  * hecho, uno de ellos parado.
  *
+ * Lo que si vive aca es `AvisoJornada`, que no es un contador: es el recordatorio de lo que FALTA
+ * —abrir la jornada, elegir el Proyecto, elegir la Tarea— y desaparece en cuanto no falta nada.
+ *
  * Los permisos aca solo **ocultan controles**: la API filtra igual. Se pide `/tasks` unicamente si
  * quien mira puede verlos, porque sin permiso la peticion responde 403 y tumbaria la pantalla entera
  * por una seccion que ni siquiera le corresponde.
  */
 export default async function InicioPage () {
   const { data: yo } = await pedir<Yo>('/me')
-  const { procesos, total } = await misProcesos(yo)
+
+  // Los dos viajes salen juntos: el recordatorio de jornada no tiene por que esperar a los procesos
+  // ni al reves. Va por `pedirOpcional` porque un fallo leyendo la jornada no puede tumbar la
+  // portada entera — el aviso simplemente no se pinta.
+  const [{ procesos, total }, jornada, estados] = await Promise.all([
+    misProcesos(yo),
+    pedirOpcional<EstadoDeJornada>('/me/jornada'),
+    estadosDeTarea()
+  ])
 
   const grupos = agruparPorVencimiento(procesos)
   const restantes = cuantosNoListados(procesos, total)
@@ -69,13 +89,19 @@ export default async function InicioPage () {
   // que ya esta puesta. La portada es la unica pantalla que se mira de paso, y la unica donde ese
   // movimiento no queda debajo de datos.
   return (
-    <div className="lienzo-vivo mx-auto flex max-w-5xl flex-col gap-10 px-1 py-6 sm:py-10">
+    // `max-w-6xl` y no `5xl`: la portada es la unica pantalla sin tabla ni ficha, y el ancho de
+    // lectura no la limita —lo que la limita es la grilla de accesos, que con 1152px entra en tres
+    // columnas holgadas en vez de tres apretadas. El aire vertical crece con la ventana: en una
+    // pantalla chica el contenido no sobra y separar de mas obliga a deslizar para ver lo urgente.
+    <div className="lienzo-vivo mx-auto flex max-w-6xl flex-col gap-10 px-1 py-6 sm:gap-14 sm:py-12">
       <Saludo nombre={yo.firstname} />
+
+      <AvisoJornada inicial={jornada.datos} />
 
       <ResumenDelDia />
 
       {puedeVerSeccion(yo.permissions.tasks, 'tasks') && (
-        <MiTrabajo grupos={grupos} restantes={restantes} />
+        <MiTrabajo grupos={grupos} restantes={restantes} estados={estados} />
       )}
 
       {/*
@@ -93,7 +119,7 @@ export default async function InicioPage () {
 
       {puedeVerSeccion(yo.permissions.tasks, 'tasks') && (
         <Suspense fallback={null}>
-          <EnSeguimiento staffId={yo.id} />
+          <EnSeguimiento staffId={yo.id} estados={estados} />
         </Suspense>
       )}
 
@@ -135,6 +161,24 @@ async function misProcesos (yo: Yo): Promise<{ procesos: Proceso[], total: numbe
 }
 
 /**
+ * El catalogo de estados de Tarea, para las insignias de los dos bloques de trabajo.
+ *
+ * Va por `try`/`catch` y no por `cargarLookups` a secas por la misma regla que el resto de la
+ * portada: si `/lookups` se cae, el Inicio sigue sirviendo para ver el trabajo y para navegar. Sin
+ * catalogo las insignias no se pintan —`<EstadoDeTarea>` se encarga—, que es mejor que una columna
+ * de ids sueltos.
+ *
+ * @returns `task_statuses` como opciones, o vacio si la API fallo
+ */
+async function estadosDeTarea (): Promise<OpcionFiltro[]> {
+  try {
+    return opcionesDeEstados(listaDe(await cargarLookups(), 'task_statuses'))
+  } catch {
+    return []
+  }
+}
+
+/**
  * Cuantas filas trae cada uno de los dos bloques secundarios.
  *
  * Son un vistazo, no un listado: lo que no entra se busca en su pantalla, que esta a un enlace. Con
@@ -159,26 +203,21 @@ async function MisProyectos ({ staffId }: { staffId: number }) {
   if (espacios.length === 0) return null
 
   return (
-    <section className="flex flex-col gap-4">
-      <div className="flex items-baseline justify-between gap-4">
-        <h2 className="font-titular text-titulo font-bold text-texto">Mis {GLOSARIO.espacio.plural.toLowerCase()}</h2>
-        <Link
-          href="/espacios"
-          className="flex items-center gap-1 text-sm font-semibold text-acento hover:underline"
-        >
-          Ver {GLOSARIO.espacio.plural.toLowerCase()}
-          <ArrowRight size={16} strokeWidth={2} aria-hidden="true" />
-        </Link>
-      </div>
+    <section className="flex flex-col gap-6">
+      <TituloModulo
+        nivel="h2"
+        titulo={`Mis ${GLOSARIO.espacio.plural.toLowerCase()}`}
+        acciones={<VerTodo href="/espacios" etiqueta={`Ver ${GLOSARIO.espacio.plural.toLowerCase()}`} />}
+      />
 
-      <ul className="flex flex-col divide-y divide-linea overflow-hidden rounded-tarjeta border border-linea bg-superficie-elevada">
+      <ul className="flex flex-col divide-y divide-linea overflow-hidden rounded-tarjeta border border-linea bg-superficie-elevada shadow-1">
         {espacios.map((espacio) => (
           <li key={espacio.id}>
             <Link
               href={`/espacios/${espacio.id}`}
-              className="flex items-center justify-between gap-4 px-4 py-3 transition-colors duration-150 ease-neo hover:bg-hover focus-visible:bg-hover"
+              className="flex flex-wrap items-center gap-x-4 gap-y-1 px-5 py-4 transition-colors duration-150 ease-neo hover:bg-hover focus-visible:bg-hover"
             >
-              <span className="min-w-0 flex-1 truncate text-sm text-texto">{espacio.name}</span>
+              <span className="min-w-0 flex-1 basis-full truncate text-base text-texto sm:basis-auto">{espacio.name}</span>
               <span className="shrink-0 text-sm text-texto-tenue">
                 {espacio.counts.tasks_open} {GLOSARIO.proceso.plural.toLowerCase()} abiertas
               </span>
@@ -198,7 +237,7 @@ async function MisProyectos ({ staffId }: { staffId: number }) {
  *
  * @param staffId de quien es el seguimiento
  */
-async function EnSeguimiento ({ staffId }: { staffId: number }) {
+async function EnSeguimiento ({ staffId, estados }: { staffId: number, estados: OpcionFiltro[] }) {
   const procesos = await listar<Proceso>(
     `/tasks?filter[follower]=${staffId}&sort=due_date&per_page=${FILAS_SECUNDARIAS}`
   )
@@ -206,23 +245,12 @@ async function EnSeguimiento ({ staffId }: { staffId: number }) {
   if (procesos.length === 0) return null
 
   return (
-    <section className="flex flex-col gap-4">
-      <h2 className="font-titular text-titulo font-bold text-texto">En seguimiento</h2>
+    <section className="flex flex-col gap-6">
+      <TituloModulo nivel="h2" titulo="En seguimiento" />
 
-      <ul className="flex flex-col divide-y divide-linea overflow-hidden rounded-tarjeta border border-linea bg-superficie-elevada">
+      <ul className="flex flex-col divide-y divide-linea overflow-hidden rounded-tarjeta border border-linea bg-superficie-elevada shadow-1">
         {procesos.map((proceso) => (
-          <li key={proceso.id}>
-            <Link
-              href={`?${PARAMETRO_TAREA}=${proceso.id}`}
-              scroll={false}
-              className="flex items-center justify-between gap-4 px-4 py-3 transition-colors duration-150 ease-neo hover:bg-hover focus-visible:bg-hover"
-            >
-              <span className="min-w-0 flex-1 truncate text-sm text-texto">{proceso.name}</span>
-              <span className="shrink-0 text-sm text-texto-tenue">
-                <Fecha valor={proceso.due_date} />
-              </span>
-            </Link>
-          </li>
+          <FilaDeProceso key={proceso.id} proceso={proceso} estados={estados} />
         ))}
       </ul>
     </section>
@@ -252,7 +280,7 @@ async function listar<T> (ruta: string): Promise<T[]> {
 /** Encabezado de la pantalla. El nombre va en gradiente; el resto, en tinta. */
 function Saludo ({ nombre }: { nombre: string }) {
   return (
-    <header>
+    <header className="flex flex-col gap-3">
       <h1 className="font-titular text-pantalla font-extrabold tracking-tight text-texto">
         Hola,{' '}
         {/*
@@ -263,10 +291,33 @@ function Saludo ({ nombre }: { nombre: string }) {
           {nombre}
         </span>
       </h1>
-      <p className="mt-2 text-sm text-texto-tenue">¿Qué vas a mover hoy?</p>
+      {/* La pregunta es la segunda voz del saludo, no una nota al pie: a 13px se leia como una
+          advertencia de sistema debajo de un titulo de 56px. */}
+      <p className="max-w-prose text-pretty text-titulo text-texto-tenue">¿Qué vas a mover hoy?</p>
       {/* La barra es la firma de marca de la pantalla: es donde el gradiente puede ser gradiente. */}
-      <span aria-hidden="true" className="mt-4 block h-1 w-24 rounded-control bg-gradiente-marca" />
+      <span aria-hidden="true" className="mt-1 block h-1.5 w-32 rounded-control bg-gradiente-marca" />
     </header>
+  )
+}
+
+/**
+ * El enlace al listado completo que acompaña a un titulo de seccion.
+ *
+ * Vive como funcion porque son dos secciones con el mismo gesto —"esto es un vistazo, el listado
+ * esta alla"— y dos copias de la misma fila de clases divergen en cuanto alguien toca una.
+ *
+ * @param href la pantalla que lista todo
+ * @param etiqueta lo que dice el enlace; nombra el destino, no la accion de mirar
+ */
+function VerTodo ({ href, etiqueta }: { href: string, etiqueta: string }) {
+  return (
+    <Link
+      href={href}
+      className="flex items-center gap-1.5 rounded-control px-3 py-2 text-base font-semibold text-acento transition-colors duration-150 ease-neo hover:bg-hover"
+    >
+      {etiqueta}
+      <ArrowRight size={18} strokeWidth={2.25} aria-hidden="true" />
+    </Link>
   )
 }
 
@@ -310,6 +361,8 @@ function anguloDelDia (): number {
 interface PropsMiTrabajo {
   grupos: ReturnType<typeof agruparPorVencimiento>
   restantes: number
+  /** `task_statuses` de `GET /lookups`. Vacio no pinta insignias. */
+  estados: OpcionFiltro[]
 }
 
 /**
@@ -321,23 +374,18 @@ interface PropsMiTrabajo {
  * Cada fila abre el detalle sin salir del Inicio: escribe `?tarea={id}`, que es el mismo parametro
  * que leen los listados. Ver la tarea desde aca no obliga a ir a buscarla al listado completo.
  */
-function MiTrabajo ({ grupos, restantes }: PropsMiTrabajo) {
+function MiTrabajo ({ grupos, restantes, estados }: PropsMiTrabajo) {
   return (
-    <section className="flex flex-col gap-4">
-      <div className="flex items-baseline justify-between gap-4">
-        <h2 className="font-titular text-titulo font-bold text-texto">Mi trabajo</h2>
-        <Link
-          href="/procesos"
-          className="flex items-center gap-1 text-sm font-semibold text-acento hover:underline"
-        >
-          Ver {GLOSARIO.proceso.plural.toLowerCase()}
-          <ArrowRight size={16} strokeWidth={2} aria-hidden="true" />
-        </Link>
-      </div>
+    <section className="flex flex-col gap-6">
+      <TituloModulo
+        nivel="h2"
+        titulo="Mi trabajo"
+        acciones={<VerTodo href="/procesos" etiqueta={`Ver ${GLOSARIO.proceso.plural.toLowerCase()}`} />}
+      />
 
       {grupos.length === 0
         ? (
-          <p className="text-sm text-texto-tenue">
+          <p className="text-base text-texto-tenue">
             No tienes {GLOSARIO.proceso.plural.toLowerCase()} por vencer.
             {restantes > 0 && ` Hay ${restantes} sin fecha cercana.`}
           </p>
@@ -346,44 +394,7 @@ function MiTrabajo ({ grupos, restantes }: PropsMiTrabajo) {
           <>
             <div className="flex flex-col gap-5">
               {grupos.map((grupo) => (
-                <div key={grupo.tramo} className="flex flex-col gap-2">
-                  <div className="flex items-center gap-2">
-                    <h3 className="text-menor font-semibold uppercase tracking-wide text-texto-sutil">
-                      {grupo.etiqueta}
-                    </h3>
-                    <Insignia tono={grupo.tramo === 'vencido' ? 'peligro' : 'neutro'} tamano="chico">
-                      {grupo.total}
-                    </Insignia>
-                  </div>
-
-                  <ul className="flex flex-col divide-y divide-linea overflow-hidden rounded-tarjeta border border-linea bg-superficie-elevada">
-                    {grupo.procesos.map((proceso) => (
-                      <li key={proceso.id}>
-                        {/*
-                          Enlace de verdad y no un `div` con `onClick`: asi la fila se abre con el
-                          teclado, se copia y se abre en otra pestaña. `scroll={false}` porque abrir
-                          el detalle no mueve la pantalla de atras.
-                        */}
-                        <Link
-                          href={`?${PARAMETRO_TAREA}=${proceso.id}`}
-                          scroll={false}
-                          className="flex items-center justify-between gap-4 px-4 py-3 transition-colors duration-150 ease-neo hover:bg-hover focus-visible:bg-hover"
-                        >
-                          <span className="min-w-0 flex-1 truncate text-sm text-texto">{proceso.name}</span>
-                          <span className="shrink-0 text-sm text-texto-tenue">
-                            <Fecha valor={proceso.due_date} />
-                          </span>
-                        </Link>
-                      </li>
-                    ))}
-                  </ul>
-
-                  {grupo.total > grupo.procesos.length && (
-                    <p className="text-sm text-texto-sutil">
-                      y {grupo.total - grupo.procesos.length} más
-                    </p>
-                  )}
-                </div>
+                <GrupoDeVencimiento key={grupo.tramo} grupo={grupo} estados={estados} />
               ))}
             </div>
 
@@ -395,6 +406,112 @@ function MiTrabajo ({ grupos, restantes }: PropsMiTrabajo) {
           </>
           )}
     </section>
+  )
+}
+
+/**
+ * Un tramo de vencimiento, como tarjeta propia.
+ *
+ * === POR QUE LO VENCIDO SE PINTA DE ROJO ===
+ *
+ * Porque hasta ahora la unica diferencia entre "Vencidos" y "Próximos días" era una insignia de 20px
+ * de alto: los tres tramos pesaban igual y el unico accionable no se distinguia de un vistazo. El
+ * rojo es la alerta del sistema —`superficie-peligro` y `texto-peligro`, los tokens que ya usan las
+ * insignias—, y viene con el riel a la izquierda y el triangulo, no solo con el color: quien no
+ * distingue el rojo tiene que poder ver igual cual de los tres bloques urge. La palabra "Vencidos"
+ * es la tercera señal y la unica que lee un lector de pantalla.
+ *
+ * Las filas quedan sobre la superficie normal a proposito: el rojo marca el bloque, no el texto de
+ * cada Tarea, que es lo que hay que poder leer.
+ *
+ * @param grupo el tramo ya armado por `agruparPorVencimiento`
+ * @param estados catalogo de estados para las insignias de cada fila
+ */
+function GrupoDeVencimiento ({ grupo, estados }: { grupo: GrupoInicio, estados: OpcionFiltro[] }) {
+  const urgente = grupo.tramo === 'vencido'
+
+  return (
+    <div
+      className={cn(
+        'overflow-hidden rounded-tarjeta border bg-superficie-elevada shadow-1',
+        urgente ? 'border-l-4 border-texto-peligro/35 border-l-relleno-peligro' : 'border-linea'
+      )}
+    >
+      <div
+        className={cn(
+          'flex flex-wrap items-center gap-x-3 gap-y-2 border-b px-5 py-4',
+          urgente ? 'border-texto-peligro/25 bg-superficie-peligro' : 'border-linea bg-superficie-hundida'
+        )}
+      >
+        {urgente && (
+          <TriangleAlert size={20} strokeWidth={2.25} aria-hidden="true" className="shrink-0 text-texto-peligro" />
+        )}
+        {/*
+          Plantilla y no `cn()`: para `tailwind-merge` un `text-*` que no es un peldaño conocido
+          —`text-titulo` lo es de este proyecto— es un COLOR, asi que lo daba por pisado por
+          `text-texto-peligro` y lo borraba. El titulo salia a 14px sin que nada fallara.
+        */}
+        <h3 className={`font-titular text-titulo font-bold ${urgente ? 'text-texto-peligro' : 'text-texto'}`}>
+          {grupo.etiqueta}
+        </h3>
+        <Insignia
+          tono={urgente ? 'peligro' : 'neutro'}
+          className={cn('h-7 px-3 text-base font-bold tabular-nums', urgente && 'ring-1 ring-inset ring-texto-peligro/30')}
+        >
+          {grupo.total}
+        </Insignia>
+      </div>
+
+      <ul className="flex flex-col divide-y divide-linea">
+        {grupo.procesos.map((proceso) => (
+          <FilaDeProceso key={proceso.id} proceso={proceso} estados={estados} />
+        ))}
+      </ul>
+
+      {grupo.total > grupo.procesos.length && (
+        <p className="border-t border-linea px-5 py-3 text-sm text-texto-sutil">
+          y {grupo.total - grupo.procesos.length} más
+        </p>
+      )}
+    </div>
+  )
+}
+
+/**
+ * Una Tarea, como fila de listado de la portada.
+ *
+ * Es la misma fila en "Mi trabajo" y en "En seguimiento", y estaba escrita dos veces: la primera vez
+ * que las dos copias dejaron de ser iguales fue al agrandarlas.
+ *
+ * En pantalla angosta el nombre se lleva su propio renglon (`basis-full`) y el estado y la fecha
+ * bajan debajo. Los tres en una linea de 400px dejaban al nombre —lo unico que identifica la Tarea—
+ * en dos o tres palabras cortadas.
+ *
+ * @param proceso la Tarea a mostrar
+ * @param estados catalogo de estados; vacio no pinta insignia
+ */
+function FilaDeProceso ({ proceso, estados }: { proceso: Proceso, estados: OpcionFiltro[] }) {
+  return (
+    <li>
+      {/*
+        Enlace de verdad y no un `div` con `onClick`: asi la fila se abre con el teclado, se copia y
+        se abre en otra pestaña. `scroll={false}` porque abrir el detalle no mueve la pantalla de
+        atras.
+      */}
+      <Link
+        href={`?${PARAMETRO_TAREA}=${proceso.id}`}
+        scroll={false}
+        className="flex flex-wrap items-center gap-x-4 gap-y-2 px-5 py-4 transition-colors duration-150 ease-neo hover:bg-hover focus-visible:bg-hover"
+      >
+        <span className="min-w-0 flex-1 basis-full truncate text-base text-texto sm:basis-auto">
+          {proceso.name}
+        </span>
+        <EstadoDeTarea status={proceso.status} catalogo={estados} className="shrink-0" />
+        <span className="shrink-0 text-sm text-texto-tenue">
+          <Fecha valor={proceso.due_date} />
+        </span>
+      </Link>
+    </li>
   )
 }
 
@@ -412,10 +529,10 @@ function Secciones ({ yo }: { yo: Yo }) {
   const accesos = accesosDe(yo)
 
   return (
-    <section className="flex flex-col gap-4">
-      <h2 className="font-titular text-titulo font-bold text-texto">Ir a</h2>
+    <section className="flex flex-col gap-6">
+      <TituloModulo nivel="h2" titulo="Ir a" />
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
         {accesos.map((acceso) => (
           <Tarjeta
             key={acceso.href}
@@ -424,6 +541,7 @@ function Secciones ({ yo }: { yo: Yo }) {
             descripcion={acceso.descripcion}
             icono={acceso.icono}
             tono={acceso.tono}
+            tamano="grande"
             proximamente={acceso.proximamente}
           />
         ))}

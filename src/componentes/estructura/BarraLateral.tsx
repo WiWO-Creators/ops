@@ -5,7 +5,7 @@ import { ATRIBUTO_ABATIDA, CLAVE_BARRA } from '@/lib/barra-lateral'
 import Link, { useLinkStatus } from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useSyncExternalStore } from 'react'
-import { Building2, DoorOpen, FolderKanban, Gavel, House, ListChecks, Menu, PanelLeftClose, PanelLeftOpen, Radio, ScrollText, SlidersHorizontal, TrendingUp, Users, UsersRound, Video } from 'lucide-react'
+import { Building2, ClipboardList, DoorOpen, FolderKanban, Gavel, House, ListChecks, Menu, Network, PanelLeftClose, PanelLeftOpen, Radio, ScrollText, SlidersHorizontal, Target, TrendingUp, Users, UsersRound, Video } from 'lucide-react'
 import { Cajon, CerrarCajon, ContenidoCajon, DisparadorCajon } from '@/componentes/superposiciones/Cajon'
 import { Logo } from '@/componentes/estructura/Logo'
 import { cn } from '@/lib/clases'
@@ -39,6 +39,9 @@ const ICONOS = {
   // `Radio` y no un reloj: LIVE no mide duraciones, dice quien esta al aire ahora. El reloj ya es el
   // vocabulario del cronometro, que es otra cosa.
   live: Radio,
+  // `ClipboardList` y no otro `ListChecks`: Tareas es el listado de toda la casa y Mis Tareas es la
+  // hoja de una persona. Con el mismo icono la barra diria que son la misma pantalla.
+  mis_tareas: ClipboardList,
   procesos: ListChecks,
   espacios: FolderKanban,
   // El martillo de la adjudicacion. `FolderKanban` ya es Espacios, y una licitacion no es una carpeta
@@ -50,8 +53,14 @@ const ICONOS = {
   // puertas, la barra diria que son lo mismo.
   teletrabajo: Video,
   clientes: Building2,
+  // `Target` y no otro edificio: Clientes es la cartera entera de la casa y Focals son las cuentas
+  // de las que uno responde. Con dos `Building2` la barra diria que son la misma pantalla.
+  focals: Target,
   equipo: Users,
   mi_area: UsersRound,
+  // `Network` y no otro grupo de personas: Equipo y Mi Área ya son gente, y lo que distingue al
+  // Organigrama es justamente la estructura — quien cuelga de quien.
+  organigrama: Network,
   // `SlidersHorizontal` y no `Mail`: la seccion dejo de ser solo el correo cuando se unificaron
   // ahi todas las opciones del superadministrador.
   administracion: SlidersHorizontal,

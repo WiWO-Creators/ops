@@ -9,7 +9,9 @@ import { escribirEnBff } from '@/componentes/datos/mutaciones'
 import { EnlacePanelClasico } from '@/componentes/presentadores/EnlacePanelClasico'
 import { GLOSARIO } from '@/dominio/glosario'
 import { formatearFecha } from '@/lib/fechas'
+import { EstadoDeTarea } from '@/componentes/proyecto/EstadoDeTarea'
 import type { AprobacionPortal, TareaPortal } from '@/datos/portal'
+import type { CatalogoDeEstados } from '@/dominio/estados-tarea'
 
 /**
  * Las {procesos} que esperan el visto bueno del cliente, arriba de todo en el detalle del proyecto.
@@ -29,9 +31,11 @@ interface PropsAprobaciones {
   proyectoId: number
   /** Solo las que estan en `pendiente`; el filtrado lo hace la API. */
   tareas: TareaPortal[]
+  /** `task_statuses` del portal. Sin el, la insignia no se pinta. */
+  estados: CatalogoDeEstados | undefined
 }
 
-export function AprobacionesPendientes ({ proyectoId, tareas }: PropsAprobaciones) {
+export function AprobacionesPendientes ({ proyectoId, tareas, estados }: PropsAprobaciones) {
   // Las resueltas se sacan de la lista sin recargar la pantalla entera; el `refresh` deja al servidor
   // ponerse al dia para la proxima visita.
   const [resueltas, setResueltas] = useState<number[]>([])
@@ -56,6 +60,7 @@ export function AprobacionesPendientes ({ proyectoId, tareas }: PropsAprobacione
         {pendientes.map((tarea) => (
           <FilaAprobacion
             key={tarea.id}
+            estados={estados}
             tarea={tarea}
             onResuelta={() => { setResueltas((previas) => [...previas, tarea.id]) }}
           />
@@ -68,7 +73,11 @@ export function AprobacionesPendientes ({ proyectoId, tareas }: PropsAprobacione
 }
 
 /** Una {proceso} a la espera, con sus dos salidas. */
-function FilaAprobacion ({ tarea, onResuelta }: { tarea: TareaPortal, onResuelta: () => void }) {
+function FilaAprobacion ({ tarea, estados, onResuelta }: {
+  tarea: TareaPortal
+  estados: CatalogoDeEstados | undefined
+  onResuelta: () => void
+}) {
   const router = useRouter()
   const [enviando, setEnviando] = useState(false)
   const [fallo, setFallo] = useState<string | null>(null)
@@ -112,7 +121,12 @@ function FilaAprobacion ({ tarea, onResuelta }: { tarea: TareaPortal, onResuelta
     <li className="flex flex-col gap-2 py-3">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-texto min-w-0 truncate text-sm font-medium" title={tarea.name}>{tarea.name}</p>
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
+            <p className="text-texto min-w-0 truncate text-sm font-medium" title={tarea.name}>{tarea.name}</p>
+            {/* El mismo componente que el panel: una {proceso} dice en que va donde sea que aparezca,
+                y el catalogo lo resuelve `dominio/estados-tarea`, no un mapa propio del portal. */}
+            <EstadoDeTarea status={tarea.status} catalogo={estados} />
+          </div>
           <p className="text-texto-sutil text-xs">
             {tarea.due_date !== null && `Entrega estimada: ${formatearFecha(tarea.due_date)}`}
             {tarea.due_date !== null && pedida !== null && ' · '}

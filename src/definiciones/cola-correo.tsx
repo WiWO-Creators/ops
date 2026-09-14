@@ -51,6 +51,12 @@ export const COLA_CORREO: DefinicionRecurso<FilaColaCorreo> = {
   ],
 
   filtros: [
+    { clave: 'subject', etiqueta: 'Asunto', tipo: 'campo', tipoDato: 'texto' },
+    { clave: 'from', etiqueta: 'Remitente', tipo: 'campo', tipoDato: 'texto' },
+    { clave: 'attachments', etiqueta: 'Adjuntos', tipo: 'campo', tipoDato: 'numero' },
+    { clave: 'to', etiqueta: 'Para', tipo: 'campo', tipoDato: 'texto' },
+    { clave: 'engine', etiqueta: 'Motor', tipo: 'campo', tipoDato: 'texto' },
+    { clave: 'date', etiqueta: 'Fecha', tipo: 'campo', tipoDato: 'fecha' },
     {
       clave: 'status',
       etiqueta: 'Estado',
