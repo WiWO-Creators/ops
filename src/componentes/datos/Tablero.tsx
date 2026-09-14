@@ -147,6 +147,8 @@ export function Tablero<T extends FilaConId> ({
   // que van al final por lo mismo que "Completado" no es una columna: no son parte del flujo que el
   // tablero pinta. `cuantas` es la posición donde cae la tarjeta; para un destino sin columna la
   // decide `sacarTarjeta()` y el valor no se usa.
+  // Sin ruta de mover el tablero es de solo lectura: ni arrastre ni menu. Ver `DefinicionTablero`.
+  const puedeMover = tablero.rutaMover !== undefined
   const idsEnPantalla = new Set(grupos.map((grupo) => grupo.columna.id))
   const destinosDelMenu = [
     ...grupos.map((grupo) => ({ columna: grupo.columna, cuantas: grupo.tarjetas.length })),
@@ -162,7 +164,7 @@ export function Tablero<T extends FilaConId> ({
    * caso real y esperado (la columna no existe, el proceso esta facturado), no un bug.
    */
   async function mover (idTarjeta: number, idColumna: number, posicion: number): Promise<void> {
-    if (tablero === undefined || ocupado || guardandoOrden.current) return
+    if (tablero?.rutaMover === undefined || ocupado || guardandoOrden.current) return
 
     const previo = grupos
     // Un destino sin columna en pantalla —"Completado" en el tablero de Procesos— se saca del
@@ -401,7 +403,7 @@ export function Tablero<T extends FilaConId> ({
             {grupo.tarjetas.map((tarjeta, indice) => (
               <article
                 key={tarjeta.id}
-                draggable={!ocupado}
+                draggable={puedeMover && !ocupado}
                 onDragStart={(evento) => {
                   evento.dataTransfer.setData('text/plain', String(tarjeta.id))
                   evento.dataTransfer.effectAllowed = 'move'
@@ -425,6 +427,7 @@ export function Tablero<T extends FilaConId> ({
                     el motor. Envuelve en vez de apilarse para que dos botones cortos no se coman dos
                     renglones de una tarjeta que ya es angosta. */}
                 <div className="flex flex-wrap items-center gap-1">
+                  {puedeMover && (
                   <MenuContextual>
                     <DisparadorMenu asChild>
                       <Boton variante="sutil" tamano="chico" disabled={ocupado}>
@@ -445,6 +448,7 @@ export function Tablero<T extends FilaConId> ({
                       ))}
                     </ContenidoMenu>
                   </MenuContextual>
+                  )}
 
                   {accionDeTarjeta?.(tarjeta, recargar)}
                 </div>

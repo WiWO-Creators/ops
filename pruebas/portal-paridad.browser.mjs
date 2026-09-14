@@ -111,8 +111,20 @@ await pagina.waitForLoadState('networkidle')
 await pagina.waitForSelector('[aria-label="Presentación"]')
 visto.columnasDelTablero = await pagina.$$eval('h3, [data-columna]', (ns) => ns.map((n) => n.textContent.trim()).filter(Boolean))
 visto.textoTablero = (await pagina.textContent('body')).includes('No se pudo cargar el tablero')
+visto.tarjetasArrastrables = await pagina.$$eval('article[draggable="true"]', (ns) => ns.length)
+visto.botonesDelTablero = await pagina.$$eval('article button', (ns) => ns.map((n) => n.textContent.trim()))
+// Solo dentro de las tarjetas: el payload RSC de la pagina trae las etiquetas de las Tareas que
+// esperan visto bueno —eso es contrato de la API, no de este panel— y buscarlas en todo el `body`
+// encontraria ese texto dentro de un `<script>`.
+visto.etiquetasEnTarjetas = (await pagina.$$eval('article', (ns) => ns.map((n) => n.textContent).join(' '))).includes('urgente')
 await pagina.screenshot({ path: `${SALIDA}/portal-tareas-tablero.png`, fullPage: true })
 assert.equal(visto.textoTablero, false, 'el tablero del portal fallo')
+assert.equal(visto.columnasDelTablero.length > 0, true, 'el tablero no pinto columnas')
+// Mover una tarjeta cambia el estado: es escritura, y sin capacidad no se ofrece ni arrastrando.
+assert.equal(visto.tarjetasArrastrables, 0, 'las tarjetas del portal se pueden arrastrar')
+assert.equal(visto.botonesDelTablero.includes('Mover a…'), false, 'el portal ofrece mover tarjetas')
+// Las etiquetas son vocabulario interno: no son columna de la tabla del cliente ni van en su tarjeta.
+assert.equal(visto.etiquetasEnTarjetas, false, 'la tarjeta del portal pinta etiquetas internas')
 
 // ---- `?vista=calendario` en el portal cae a la tabla y no pide un rango que da 422 -------------
 await ir('/portal/proyectos/1?tab=tasks&vista=calendario')
@@ -199,6 +211,14 @@ assert.equal(visto.panelCasillas > 0, true, 'el panel perdio la seleccion masiva
 visto.presentacionesDelPanel = await pagina.$$eval('[aria-label="Presentación"] button', (ns) => ns.map((n) => n.textContent.trim()))
 assert.deepEqual(visto.presentacionesDelPanel, ['Tabla', 'Tablero', 'Calendario'], 'el panel perdio una lectura')
 
+await ir('/espacios/1?tab=tareas&vista=tablero')
+await pagina.waitForSelector('article')
+visto.panelArrastrables = await pagina.$$eval('article[draggable="true"]', (ns) => ns.length)
+visto.panelBotonesDelTablero = await pagina.$$eval('article button', (ns) => ns.map((n) => n.textContent.trim()))
+await pagina.screenshot({ path: `${SALIDA}/panel-tareas-tablero.png`, fullPage: true })
+assert.equal(visto.panelArrastrables > 0, true, 'el panel perdio el arrastre del tablero')
+assert.equal(visto.panelBotonesDelTablero.includes('Mover a…'), true, 'el panel perdio "Mover a…"')
+
 await ir('/espacios/1?tab=tareas&vista=calendario')
 await pagina.waitForSelector('[aria-label="Vista"], [aria-label="Presentación"]')
 await pagina.screenshot({ path: `${SALIDA}/panel-tareas-calendario.png`, fullPage: true })
@@ -209,5 +229,5 @@ await pagina.screenshot({ path: `${SALIDA}/panel-calendario.png`, fullPage: true
 
 await navegador.close()
 
-console.log(JSON.stringify(visto, null, 2).slice(0, 4000))
+console.log(JSON.stringify(visto, null, 2))
 console.log('\nerrores de consola:', errores.length === 0 ? 'ninguno' : errores.slice(0, 10))

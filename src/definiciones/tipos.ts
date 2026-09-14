@@ -129,8 +129,14 @@ export interface Filtro {
 export interface DefinicionTablero {
   /** Clave de `GET /lookups` con las columnas del tablero. Ej: `task_statuses`. */
   columnasDesde: string
-  /** Ruta de la accion de mover, con `:id`. Ej: `tasks/:id/mover`. */
-  rutaMover: string
+  /**
+   * Ruta de la accion de mover, con `:id`. Ej: `tasks/:id/mover`.
+   *
+   * Ausente deja el tablero de **solo lectura**: sin arrastre y sin el menu "Mover a…". Mover cambia
+   * el estado de la fila, asi que es una escritura, y un tablero que la ofrece cuando quien mira no
+   * puede escribir solo puede terminar en un 403 o en un 404.
+   */
+  rutaMover?: string
   /** Presenta una tarjeta. Recibe la misma fila que la tabla. */
   presentarTarjeta: Presentador<unknown>
 }

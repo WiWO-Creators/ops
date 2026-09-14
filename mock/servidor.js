@@ -3631,7 +3631,12 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
         // El tablero devuelve una columna por estado con sus tarjetas, igual que el del panel: es la
         // misma lectura del mismo listado, y el cliente la abre igual que el equipo.
         if (parametros.get('vista') === 'tablero') {
-          return { estado: 200, cuerpo: conDatos(tableroDeTareasPortal(tareasDelEspacio, parametros)) }
+          return {
+            estado: 200,
+            cuerpo: conDatos(tableroDeProcesos(
+              tareasDelEspacio, parametros, presentarTareaPortal, CONSULTA_TAREAS_PORTAL
+            ))
+          }
         }
 
         const { filas, paginacion } = aplicarConsulta(tareasDelEspacio, parametros, CONSULTA_TAREAS_PORTAL)
@@ -4189,6 +4194,20 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
     }
     if (subrecurso === 'tasks') {
       const suyos = PROCESOS.filter((p) => p.project?.id === espacio.id && (parametros.get('filter[status]')?.trim() || p.status !== 5))
+
+      // El tablero de la pestaña Tareas de un Espacio. Faltaba: el mock devolvia la lista plana y el
+      // motor de tablero se quedaba sin columnas, asi que esa vista nunca se pudo ver contra el mock.
+      if (parametros.get('vista') === 'tablero') {
+        return {
+          estado: 200,
+          cuerpo: conDatos(tableroDeProcesos(
+            PROCESOS.filter((p) => p.project?.id === espacio.id),
+            parametros,
+            presentarProcesoEnLista
+          ))
+        }
+      }
+
       const { filas, paginacion } = aplicarConsulta(suyos, parametros, CONSULTA_PROCESOS)
       return { estado: 200, cuerpo: conDatos(filas.map(presentarProcesoEnLista), { pagination: paginacion }) }
     }
@@ -4623,17 +4642,20 @@ const CONSULTA_TAREAS_PORTAL = {
 }
 
 /**
- * El tablero de Procesos del portal: una columna por estado, con sus tarjetas.
+ * El tablero de Procesos de un Proyecto: una columna por estado, con sus tarjetas.
  *
- * Misma forma que el del panel, que es lo que permite que el cliente abra el mismo tablero. La
- * columna "Completo" solo aparece cuando se filtro por estado, igual que alla: un tablero que
- * arranca mostrando lo terminado empuja lo pendiente fuera de la pantalla.
+ * **Uno solo para los dos sujetos**, que es lo que permite que el cliente abra el mismo tablero que
+ * el equipo: lo que cambia es la whitelist de la consulta y como se presenta cada tarjeta. La columna
+ * "Completo" solo aparece cuando se filtro por estado, en los dos: un tablero que arranca mostrando
+ * lo terminado empuja lo pendiente fuera de la pantalla.
  *
  * @param {object[]} tareas Los Procesos del Proyecto, en crudo.
  * @param {URLSearchParams} parametros Query de la peticion.
+ * @param {(proceso: object) => object} presentar Como sale cada tarjeta para ese sujeto.
+ * @param {object} consulta Whitelist de filtros, orden y busqueda de ese sujeto.
  * @returns {object[]} Un grupo por estado.
  */
-function tableroDeTareasPortal (tareas, parametros) {
+function tableroDeProcesos (tareas, parametros, presentar, consulta = CONSULTA_PROCESOS) {
   const filtradoPorEstado = parametros.get('filter[status]')?.trim()
   const columnas = ESTADOS_PROCESO
     .filter((estado) => filtradoPorEstado || estado.id !== 5)
@@ -4643,11 +4665,11 @@ function tableroDeTareasPortal (tareas, parametros) {
     const parametrosColumna = new URLSearchParams(parametros)
     parametrosColumna.set('filter[status]', String(columna.id))
 
-    const { filas, paginacion } = aplicarConsulta(tareas, parametrosColumna, CONSULTA_TAREAS_PORTAL)
+    const { filas, paginacion } = aplicarConsulta(tareas, parametrosColumna, consulta)
 
     return {
       columna: { id: columna.id, name: columna.name, color: columna.color, order: columna.order },
-      tarjetas: filas.map(presentarTareaPortal),
+      tarjetas: filas.map(presentar),
       pagination: paginacion
     }
   })

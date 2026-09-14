@@ -283,7 +283,7 @@ function TareasDelProyecto ({ proyectoId, fuente, capacidades, conIa }: PropsPan
         : enTablero
           ? (
           <TableroFiltrable<ProcesoAmpliado>
-            definicion={definicionDeTablero(definicion, estados)}
+            definicion={definicionDeTablero(definicion, estados, capacidades.includes('edit'))}
             ruta={definicion.ruta}
             // Sin `board` fijo: `ControlesTabla` lo deduce de la ruta y devuelve `null` para el
             // portal, que no tiene presets de filtro. Escribirlo a mano pediria `filter-presets` con
@@ -363,22 +363,50 @@ function unicoEstadoFiltrado (crudo: string | null): number | null {
  *
  * `presentarTarjeta` recibe `unknown` porque el motor no conoce el recurso: la conversion ocurre en
  * un solo punto, aca, y no en cada campo de la tarjeta.
+ *
+ * Dos cosas no son decoracion:
+ *
+ *  - **`rutaMover` solo con `edit`.** Mover una tarjeta cambia el estado de la Tarea: es una
+ *    escritura, y sin la capacidad el tablero queda de solo lectura —sin arrastre y sin el menu
+ *    "Mover a…"— en vez de ofrecer un gesto que solo puede terminar en 403.
+ *  - **La tarjeta muestra lo que la tabla muestra.** Asignados y Etiquetas son columna en el panel y
+ *    no en el contrato del contacto; una tarjeta que las pinta igual le filtraria al cliente el
+ *    vocabulario interno que la tabla de al lado ya no le muestra.
+ *
+ * @param definicion La definicion vigente, con sus columnas.
+ * @param estados El catalogo de estados, para el color del borde de cada tarjeta.
+ * @param puedeMover Si quien mira tiene `edit` sobre Procesos.
+ * @returns La definicion con su bloque de tablero.
  */
 function definicionDeTablero (
   definicion: DefinicionRecurso<ProcesoAmpliado>,
-  estados: OpcionFiltro[]
+  estados: OpcionFiltro[],
+  puedeMover: boolean
 ): DefinicionRecurso<ProcesoAmpliado> {
+  const columnas = new Set(definicion.columnas.map((columna) => columna.clave))
+
   return {
     ...definicion,
     tablero: {
       // Las columnas llegan ordenadas por `order`, NO por `id`: el orden real es 1, 4, 3, 2, 5.
       columnasDesde: 'task_statuses',
-      rutaMover: 'tasks/:id/mover',
+      ...(puedeMover ? { rutaMover: 'tasks/:id/mover' } : {}),
       // `ProcesoDeTarjeta` y no `ProcesoAmpliado`: la tarjeta declara lo minimo que dibuja, y el
       // contrato del cliente manda menos que el del equipo.
-      presentarTarjeta: (fila) => (
-        <TarjetaTarea proceso={fila as ProcesoDeTarjeta} estados={estados} />
-      )
+      presentarTarjeta: (fila) => {
+        const proceso = fila as ProcesoDeTarjeta
+
+        return (
+          <TarjetaTarea
+            proceso={{
+              ...proceso,
+              assignees: columnas.has('assignees') ? proceso.assignees : undefined,
+              tags: columnas.has('tags') ? proceso.tags : undefined
+            }}
+            estados={estados}
+          />
+        )
+      }
     }
   }
 }
