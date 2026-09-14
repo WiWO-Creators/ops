@@ -68,6 +68,10 @@ export function AvisosDeError () {
     // El id lo lleva el efecto y no un `useRef` porque tambien lo usa el `then` del reporte: hace
     // falta el mismo numero en los dos momentos para poder actualizar la fila que ya se dibujo.
     let ultimoId = 0
+    // La pila vive en el layout raiz y no se desmonta navegando, pero el modo estricto de React si
+    // la desmonta y la vuelve a montar: sin esta bandera, el reporte que estaba en vuelo escribiria
+    // estado sobre el efecto viejo.
+    let vivo = true
     const activos = mostrados.current
 
     /**
@@ -106,6 +110,8 @@ export function AvisosDeError () {
       if (aviso.incidente !== undefined || aviso.reporte === undefined) return
 
       void reportarIncidente(aviso.reporte).then((incidente) => {
+        if (!vivo) return
+
         establecerAvisos((actuales) => actuales.map(
           (previo) => previo.id === id ? { ...previo, incidente, pidiendo: false } : previo
         ))
@@ -148,6 +154,7 @@ export function AvisosDeError () {
     window.addEventListener('unhandledrejection', alRechazarse)
 
     return () => {
+      vivo = false
       window.removeEventListener(EVENTO_ERROR, alAvisar)
       window.removeEventListener('error', alRomperse)
       window.removeEventListener('unhandledrejection', alRechazarse)
