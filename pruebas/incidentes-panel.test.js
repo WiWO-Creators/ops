@@ -15,7 +15,7 @@
 
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { EVENTO_ERROR, avisarError } from '../src/lib/aviso-de-error.ts'
+import { EVENTO_ERROR, avisarError, esRuidoDelNavegador } from '../src/lib/aviso-de-error.ts'
 import { NOMBRE_SOPORTE, URL_SOPORTE } from '../src/lib/soporte.ts'
 import { describirFalla, describirOrigen, describirPeticion } from '../src/dominio/incidentes.ts'
 import { ErrorApi, incidenteDe, mensajeParaPantalla } from '../src/datos/errores.ts'
@@ -120,4 +120,28 @@ test('la peticion se dice en castellano, y la ruta desconocida se muestra tal cu
 test('el soporte se nombra desde una sola constante', () => {
   assert.equal(URL_SOPORTE, 'https://wiwo.center')
   assert.ok(URL_SOPORTE.includes(NOMBRE_SOPORTE))
+})
+
+test('una transicion de vista abortada no se muestra ni se registra', () => {
+  const abortos = [
+    'Transition was aborted because of invalid state. Animation start failed',
+    'Transition was aborted because of invalid state. Snapshot capture failed',
+    'View transition was skipped because document visibility state is hidden'
+  ]
+
+  for (const mensaje of abortos) {
+    assert.equal(esRuidoDelNavegador({ tipo: 'InvalidStateError', mensaje }), true, mensaje)
+  }
+})
+
+test('un error de verdad no se confunde con ruido del navegador', () => {
+  const reales = [
+    "Cannot read properties of undefined (reading 'nombre')",
+    'Failed to fetch',
+    'La sesion expiro'
+  ]
+
+  for (const mensaje of reales) {
+    assert.equal(esRuidoDelNavegador({ tipo: 'TypeError', mensaje }), false, mensaje)
+  }
 })

@@ -2,6 +2,7 @@
 
 import * as Radix from '@radix-ui/react-dialog'
 import { X } from 'lucide-react'
+import { naceEnLosAvisos } from '@/lib/aviso-de-error'
 import { cn } from '@/lib/clases'
 
 /**
@@ -55,6 +56,7 @@ export function ContenidoDialogo ({
   ancho = 'medio',
   className,
   children,
+  onInteractOutside,
   ...resto
 }: PropsContenido) {
   return (
@@ -82,6 +84,17 @@ export function ContenidoDialogo ({
           ANCHOS[ancho],
           className
         )}
+        onInteractOutside={(evento) => {
+          // La pila de avisos se dibuja encima del dialogo, en otro portal. Sin esto, cerrar el
+          // aviso del error que acaba de ocurrir cuenta como clic fuera y cierra el formulario: la
+          // persona pierde lo que estaba escribiendo justo cuando el panel le pide que reporte algo.
+          if (naceEnLosAvisos(evento.target)) {
+            evento.preventDefault()
+            return
+          }
+
+          onInteractOutside?.(evento)
+        }}
         {...resto}
       >
         {cerrable && (

@@ -145,6 +145,38 @@ async function reenviar (peticion: NextRequest, ctx: RouteContext<'/api/bff/[...
 const ESTADOS_ESPERADOS = new Set([401, 409, 422, 429])
 
 /**
+ * Errores esperados de UNA ruta concreta, que en cualquier otra si serian una falla.
+ *
+ * El caso que abrio la lista: `GET /projects/{id}/task-types` responde `403` a quien no sea el
+ * creador del Espacio, un Director o un administrador, porque la API usa el mismo guard para leer los
+ * tipos que para configurarlos (`Escritura\EtaPorTipo::ver()`). El alta rapida de Procesos pide esa
+ * lista para llenar el selector de tipo y ya sabe seguir sin ella, asi que ese `403` es el
+ * comportamiento previsto y no un incidente: registrarlo llena Incidentes con una fila por cada
+ * persona que abre el formulario en un Espacio ajeno.
+ *
+ * Es por ruta y no un `403` general a proposito: un `403` en cualquier otro lado sigue siendo algo que
+ * nadie previo y que hay que poder investigar.
+ */
+const ESPERADOS_POR_RUTA: ReadonlyArray<{ metodo: string, estado: number, ruta: RegExp }> = [
+  { metodo: 'GET', estado: 403, ruta: /^\/projects\/\d+\/task-types(?:\?|$)/ }
+]
+
+/**
+ * `true` si ese error, en esa ruta, es un desenlace previsto y no hay que registrarlo.
+ *
+ * @param estado el codigo que devolvio la API
+ * @param metodo el metodo de la peticion
+ * @param destino la ruta de la API que se llamo, con su consulta
+ */
+function esEsperado (estado: number, metodo: string, destino: string): boolean {
+  if (ESTADOS_ESPERADOS.has(estado)) return true
+
+  return ESPERADOS_POR_RUTA.some(
+    (regla) => regla.estado === estado && regla.metodo === metodo && regla.ruta.test(destino)
+  )
+}
+
+/**
  * Reenvia un error de la API asegurandose de que lleve numero de incidente.
  *
  * Es la unica excepcion al «reenvia tal cual» del resto del proxy, y tiene un motivo: hasta ahora
@@ -170,7 +202,7 @@ async function conIncidente (
 ): Promise<NextResponse> {
   const cabeceras = cabecerasDeSalida(respuesta)
 
-  if (ESTADOS_ESPERADOS.has(respuesta.status)) {
+  if (esEsperado(respuesta.status, metodo, destino)) {
     return new NextResponse(respuesta.body, { status: respuesta.status, headers: cabeceras })
   }
 

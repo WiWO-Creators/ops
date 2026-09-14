@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { AlertTriangle, X } from 'lucide-react'
 import { CodigoCopiable } from '@/componentes/presentadores/CodigoCopiable'
-import { EVENTO_ERROR, reportarIncidente, type AvisoDeError } from '@/lib/aviso-de-error'
+import { ATRIBUTO_AVISOS, EVENTO_ERROR, esRuidoDelNavegador, reportarIncidente, type AvisoDeError } from '@/lib/aviso-de-error'
 import { NOMBRE_SOPORTE, URL_SOPORTE } from '@/lib/soporte'
 
 /** Cuantos avisos se ven a la vez. Mas que esto tapa la pantalla que la persona intenta usar. */
@@ -41,6 +41,8 @@ interface AvisoEnPila {
  * los errores que nadie atrapo —un `undefined` al pintar una lista, una promesa que nadie espero— y
  * son justamente los que antes no dejaban ningun rastro. Un error de carga de un recurso (una imagen
  * que no esta) no cuenta: llega como el mismo evento pero no corta lo que la persona estaba haciendo.
+ * El ruido del navegador tampoco —ver `esRuidoDelNavegador()` en `lib/aviso-de-error.ts`—: hay
+ * errores que el navegador emite sin que se rompa nada y que solo tapan a los que si importan.
  */
 export function AvisosDeError () {
   const [avisos, establecerAvisos] = useState<AvisoEnPila[]>([])
@@ -126,27 +128,29 @@ export function AvisosDeError () {
     const alRomperse = (evento: ErrorEvent): void => {
       if (evento.error === undefined || evento.error === null) return
 
-      agregar({
-        mensaje: 'Algo falló en esta pantalla. Ya quedó registrado.',
-        reporte: {
-          tipo: nombreDelError(evento.error),
-          mensaje: textoDelError(evento.error),
-          metodo: 'VISTA',
-          traza: trazaDelError(evento.error)
-        }
-      })
+      const reporte = {
+        tipo: nombreDelError(evento.error),
+        mensaje: textoDelError(evento.error),
+        metodo: 'VISTA',
+        traza: trazaDelError(evento.error)
+      }
+
+      if (esRuidoDelNavegador(reporte)) return
+
+      agregar({ mensaje: 'Algo falló en esta pantalla. Ya quedó registrado.', reporte })
     }
 
     const alRechazarse = (evento: PromiseRejectionEvent): void => {
-      agregar({
-        mensaje: 'Una acción quedó a medias por un error. Ya quedó registrado.',
-        reporte: {
-          tipo: nombreDelError(evento.reason),
-          mensaje: textoDelError(evento.reason),
-          metodo: 'PROMESA',
-          traza: trazaDelError(evento.reason)
-        }
-      })
+      const reporte = {
+        tipo: nombreDelError(evento.reason),
+        mensaje: textoDelError(evento.reason),
+        metodo: 'PROMESA',
+        traza: trazaDelError(evento.reason)
+      }
+
+      if (esRuidoDelNavegador(reporte)) return
+
+      agregar({ mensaje: 'Una acción quedó a medias por un error. Ya quedó registrado.', reporte })
     }
 
     window.addEventListener(EVENTO_ERROR, alAvisar)
@@ -165,6 +169,10 @@ export function AvisosDeError () {
 
   return (
     <div
+      // El atributo marca la pila para las superposiciones: estando por encima de ellas, un clic aca
+      // le llega a Radix como «clic fuera» y le cerraria el dialogo a quien solo queria descartar el
+      // aviso. Ver `naceEnLosAvisos()` en `lib/aviso-de-error.ts`.
+      {...{ [ATRIBUTO_AVISOS]: '' }}
       // `z-[55]` queda sobre los dialogos y los cajones —z-50, el mayor en uso— porque un error al
       // guardar desde un dialogo tiene que verse; y bajo el telon de la bienvenida, que es 60.
       //

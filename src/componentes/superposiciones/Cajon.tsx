@@ -1,6 +1,7 @@
 'use client'
 
 import * as Radix from '@radix-ui/react-dialog'
+import { naceEnLosAvisos } from '@/lib/aviso-de-error'
 import { cn } from '@/lib/clases'
 
 /**
@@ -28,6 +29,7 @@ export function ContenidoCajon ({
   tituloOculto = false,
   className,
   children,
+  onInteractOutside,
   ...resto
 }: PropsContenidoCajon) {
   return (
@@ -52,6 +54,16 @@ export function ContenidoCajon ({
           'sm:data-[state=open]:animate-entrar-derecha sm:data-[state=closed]:animate-salir-derecha',
           className
         )}
+        onInteractOutside={(evento) => {
+          // Misma razon que en `Dialogo`: la pila de avisos vive por encima del cajon y en otro
+          // portal, asi que descartar un aviso contaria como clic fuera y cerraria el panel.
+          if (naceEnLosAvisos(evento.target)) {
+            evento.preventDefault()
+            return
+          }
+
+          onInteractOutside?.(evento)
+        }}
         {...resto}
       >
         <header className="border-linea flex shrink-0 flex-col gap-1 border-b px-6 py-4">

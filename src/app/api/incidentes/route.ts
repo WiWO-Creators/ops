@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { registrarIncidente } from '@/datos/incidentes'
+import { esRuidoDelNavegador } from '@/lib/aviso-de-error'
 import { leerSesion } from '@/datos/sesion'
 import type { Sujeto } from '@/datos/sobre-sesion'
 
@@ -47,6 +48,13 @@ export async function POST (peticion: NextRequest): Promise<NextResponse> {
   // Un reporte sin mensaje no describe nada y ocuparia una fila con un codigo que no lleva a ningun
   // lado. Se contesta como si se hubiera guardado: el navegador no tiene nada mejor que hacer.
   if (mensaje === '') {
+    return NextResponse.json({ incidente: null }, { status: 200 })
+  }
+
+  // El panel ya descarta el ruido del navegador antes de llamar, pero la version del panel que corre
+  // en una pestana abierta hace rato puede ser la anterior. El filtro se repite aca para que ningun
+  // cliente viejo llene la tabla con transiciones abortadas.
+  if (esRuidoDelNavegador({ tipo: texto(cuerpo.tipo), mensaje })) {
     return NextResponse.json({ incidente: null }, { status: 200 })
   }
 
