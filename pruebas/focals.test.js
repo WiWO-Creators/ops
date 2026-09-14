@@ -18,6 +18,7 @@ import {
   contarPorTramo,
   mensajeDeFalloDeEstado,
   nombreDe,
+  nombresDeFocales,
   ordenarPorSemaforo,
   rutaDeEstado
 } from '../src/datos/focals.ts'
@@ -164,4 +165,29 @@ test('ninguno de los tres mensajes previstos sugiere que el semáforo se rompió
   for (const codigo of [404, 409, 429]) {
     assert.doesNotMatch(mensajeDeFalloDeEstado(codigo, 'x'), /no se pudo cargar el sem/i)
   }
+})
+
+test('los focales de una cuenta se dibujan en el orden de alta que puso el servidor', () => {
+  const cuenta = {
+    focales: [
+      { id: 53, full_name: 'Ana Pérez' },
+      { id: 61, full_name: 'Luis Muñoz' }
+    ]
+  }
+
+  assert.deepEqual(nombresDeFocales(cuenta), ['Ana Pérez', 'Luis Muñoz'])
+})
+
+test('una cuenta sin focal, o una API vieja, dan lista vacía y no rompen la tarjeta', () => {
+  // Los tres casos son el mismo para la pantalla: no hay a quién nombrar. Distinguirlos la obligaría
+  // a dibujar tres estados de los que dos no significan nada distinto para quien mira.
+  assert.deepEqual(nombresDeFocales({ focales: [] }), [])
+  assert.deepEqual(nombresDeFocales({}), [])
+  assert.deepEqual(nombresDeFocales({ focales: undefined }), [])
+})
+
+test('un nombre en blanco no pinta una insignia vacía', () => {
+  const cuenta = { focales: [{ id: 7, full_name: '   ' }, { id: 8, full_name: ' Ana Pérez ' }] }
+
+  assert.deepEqual(nombresDeFocales(cuenta), ['Ana Pérez'])
 })

@@ -44,9 +44,14 @@ export function puedeVerSeccion (capacidades: readonly string[], area: AreaPermi
  * True si hay que dibujar la entrada de Focals para quien mira.
  *
  * La regla es la PERTENENCIA y nada mas: la seccion existe para quien responde por al menos un
- * Cliente. Quien no es focal de nadie no la ve, sea quien sea —direccion y superadministracion
- * incluidas—, porque no es una pantalla de supervision sino la cartera propia, y a quien no tiene
- * cartera le mostraba una lista vacia. Antes se decidia por el escalon ("de focal hacia arriba"),
+ * Cliente. Quien no es focal de nadie no la ve, porque no es una pantalla de supervision sino la
+ * cartera propia, y a quien no tiene cartera le mostraba una lista vacia.
+ *
+ * La excepcion son la superadministracion y la gerencia ({@link puedeVerTodosLosFocals}): para ellas
+ * la pantalla SI es de supervision —todas las cuentas, con su focal al lado— y exigirles figurar en
+ * `tblwiwo_focales` les escondia una vista que les corresponde por su lugar, no por su cartera.
+ *
+ * Antes se decidia por el escalon ("de focal hacia arriba"),
  * que era una aproximacion equivocada en las dos direcciones: hay focales de tres cuentas de escalon
  * `staff` —que se quedaban sin su propia pantalla— y jefaturas sin ninguna cuenta a cargo que si
  * la veian.
@@ -61,8 +66,35 @@ export function puedeVerSeccion (capacidades: readonly string[], area: AreaPermi
  * @param yo Quien mira, tal como lo devolvio `GET /me`.
  * @returns Si la seccion se dibuja.
  */
-export function puedeVerFocals (yo: Pick<Yo, 'es_focal'>): boolean {
+export function puedeVerFocals (yo: Pick<Yo, 'es_focal' | 'is_superadmin' | 'escalon'>): boolean {
+  if (puedeVerTodosLosFocals(yo)) return true
+
   return yo.es_focal ?? true
+}
+
+/**
+ * True si a quien mira le corresponde la cartera ENTERA y no la suya: superadministracion y gerencia.
+ *
+ * Es la diferencia entre "mis cuentas" y "todas las cuentas, con su focal al lado". Quien pasa por
+ * aca no necesita figurar en `tblwiwo_focales`: la pantalla le muestra cada cliente como si fuera su
+ * focal, que es justo lo que una gerencia necesita para saber como va la operacion sin que alguien
+ * la tenga que agregar a mano a cada cuenta.
+ *
+ * **Por que estos dos y no `is_admin` ni `director`.** `is_admin` la tiene medio equipo y es el eje
+ * de las filas, no el del puesto; `director` conduce una parte del arbol y su cartera propia es la
+ * respuesta correcta para el. La cartera entera es una vista de direccion general, y los dos roles
+ * que la describen son la superadministracion —el rol de sistema mas alto— y el escalon `gerencia`.
+ *
+ * **Esconder no autoriza, pero acá tampoco hace falta**: la API ya le abre la cartera entera a
+ * cualquiera de escalon `director` para arriba y a los administradores (`V1::scoresRuta()`). Esto no
+ * agranda ese permiso: elige, dentro de lo que la API ya contesta, a quien se le muestra todo y a
+ * quien su propia cartera.
+ *
+ * @param yo Quien mira, tal como lo devolvio `GET /me`.
+ * @returns Si la pantalla muestra todas las cuentas.
+ */
+export function puedeVerTodosLosFocals (yo: Pick<Yo, 'is_superadmin' | 'escalon'>): boolean {
+  return yo.is_superadmin === true || yo.escalon === 'gerencia'
 }
 
 /**

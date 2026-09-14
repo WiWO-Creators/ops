@@ -72,6 +72,18 @@ export const RUTA_CLIENTES_FOCAL = '/scores?focal=me'
 /** `GET /scores/espacios?focal=me`: los Proyectos de esos mismos clientes, de una sola vez. */
 export const RUTA_ESPACIOS_FOCAL = '/scores/espacios?focal=me'
 
+/**
+ * `GET /scores`: la cartera entera, para quien la pantalla es de supervision y no la propia.
+ *
+ * Es la MISMA ruta sin `?focal=me`, no un endpoint nuevo ni un permiso nuevo: la API ya le devuelve
+ * todos los clientes visibles a quien alcanza el escalon (`V1::scoresRuta()`). Lo unico que cambia
+ * es que la pantalla deja de pedirle el recorte.
+ */
+export const RUTA_CLIENTES_TODOS = '/scores'
+
+/** `GET /scores/espacios`: los Proyectos de esa misma cartera entera. */
+export const RUTA_ESPACIOS_TODOS = '/scores/espacios'
+
 /** `POST /ia/proyectos/{id}/estado`, para el BFF (sin barra inicial), con el id ya escapado. */
 export function rutaDeEstado (espacioId: number): string {
   return `ia/proyectos/${encodeURIComponent(String(espacioId))}/estado`
@@ -148,6 +160,23 @@ export function contarPorTramo (espacios: ScoreEspacio[]): Record<SemaforoClient
 /** El nombre del Proyecto, o una marca legible si el servidor no lo trae. */
 export function nombreDe (espacio: ScoreEspacio): string {
   return espacio.espacio ?? `#${espacio.project_id}`
+}
+
+/**
+ * Los nombres de quienes responden por una cuenta, listos para dibujar.
+ *
+ * Se filtran los vacíos porque un `full_name` en blanco —una persona dada de alta sin nombre— pinta
+ * una insignia sin texto, que se lee como un error de la pantalla y no como lo que es. Una API vieja
+ * que todavía no manda `focales` cae en el mismo lugar que un cliente sin focal nombrado: lista
+ * vacía, y la pantalla lo dice con palabras.
+ *
+ * @param cliente la fila del semáforo, tal como llegó de `GET /scores`
+ * @returns un nombre por persona, en el orden de alta que puso el servidor
+ */
+export function nombresDeFocales (cliente: Pick<ScoreCliente, 'focales'>): string[] {
+  return (cliente.focales ?? [])
+    .map((focal) => focal.full_name.trim())
+    .filter((nombre) => nombre !== '')
 }
 
 /**

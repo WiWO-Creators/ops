@@ -1,10 +1,20 @@
 import { PanelFocals } from '@/componentes/focals/PanelFocals'
 import { SinPermiso, Vacio } from '@/componentes/estado/Estados'
 import { TituloModulo } from '@/componentes/estructura/TituloModulo'
-import { agruparPorCliente, RUTA_CLIENTES_FOCAL, RUTA_ESPACIOS_FOCAL, type ScoreEspacio } from '@/datos/focals'
+import {
+  agruparPorCliente,
+  RUTA_CLIENTES_FOCAL,
+  RUTA_CLIENTES_TODOS,
+  RUTA_ESPACIOS_FOCAL,
+  RUTA_ESPACIOS_TODOS,
+  type CuentaFocal,
+  type ScoreEspacio
+} from '@/datos/focals'
 import { ErrorApi } from '@/datos/errores'
 import { pedir } from '@/datos/servidor'
 import type { ScoreCliente } from '@/datos/recursos'
+import type { Yo } from '@/datos/tipos'
+import { puedeVerTodosLosFocals } from '@/dominio/permisos'
 import { ASISTENTE, GLOSARIO } from '@/dominio/glosario'
 
 export const metadata = { title: `${GLOSARIO.focal.plural} · WiWO Ops` }
@@ -19,10 +29,19 @@ export const metadata = { title: `${GLOSARIO.focal.plural} · WiWO Ops` }
  * la ficha del cliente, y para saber cómo iban sus cuentas había que abrirlas de a una. Esta
  * pantalla es esa lista, ordenada por lo que está peor.
  *
+ * === La misma pantalla, dos lecturas ===
+ *
+ * Para un Focal es SU cartera: las cuentas de las que responde. Para la superadministración y la
+ * gerencia es la cartera ENTERA, con el nombre del focal al lado de cada cuenta — como si fueran
+ * focal de todas, sin que nadie las tenga que agregar una por una. Lo decide
+ * {@link puedeVerTodosLosFocals}, y lo único que cambia es si la llamada lleva `?focal=me`: la ruta
+ * es la misma y el permiso también, porque la API ya le abre la cartera entera a quien alcanza el
+ * escalón (`V1::scoresRuta()`).
+ *
  * === Por qué las dos llamadas van en paralelo y no anidadas ===
  *
  * Podrían ser una por cliente —los {@link GLOSARIO.espacio} de cada uno—, y serían N+1 peticiones
- * para una cartera de doce cuentas. `?focal=me` devuelve de una sola vez todo lo que esta persona
+ * para una cartera de doce cuentas. Cada ruta devuelve de una sola vez todo lo que esta persona
  * puede ver, y el agrupado se hace acá, donde no cuesta nada.
  *
  * === Esconder no autoriza ===
@@ -32,7 +51,9 @@ export const metadata = { title: `${GLOSARIO.focal.plural} · WiWO Ops` }
  * para decidir quién entra; sin él la ruta mostraría el límite de error genérico.
  */
 export default async function FocalsPage () {
-  const [cuentas, error] = await cargarCartera()
+  const yo = await pedir<Yo>('/me')
+  const todas = puedeVerTodosLosFocals(yo.data)
+  const [cuentas, error] = await cargarCartera(todas)
 
   if (error !== null) {
     return (
@@ -48,21 +69,46 @@ export default async function FocalsPage () {
       <TituloModulo
         titulo={GLOSARIO.focal.plural}
         descripcion={
-          'Las cuentas de las que respondes, de la que peor está a la que mejor. El puntaje sale de ' +
-          'la fórmula —cumplimiento de plazos, carga y vencimientos—; el estado en palabras lo ' +
-          `redacta ${ASISTENTE} a partir de esas mismas señales.`
+          (todas
+            ? 'Todas las cuentas, de la que peor está a la que mejor, con quien responde por cada una. '
+            : 'Las cuentas de las que respondes, de la que peor está a la que mejor. ') +
+          'El puntaje sale de la fórmula —cumplimiento de plazos, carga y vencimientos—; el estado ' +
+          `en palabras lo redacta ${ASISTENTE} a partir de esas mismas señales.`
         }
       />
 
       {cuentas.length === 0
-        ? (
-          <Vacio
-            titulo={`No eres ${GLOSARIO.focal.singular.toLowerCase()} de ningún cliente`}
-            descripcion={`El ${GLOSARIO.focal.singular.toLowerCase()} de una cuenta se nombra desde la ficha del cliente, en su pestaña ${GLOSARIO.focal.plural}.`}
-          />
-          )
-        : <PanelFocals cuentas={cuentas} />}
+        ? <CarteraVacia todas={todas} />
+        : <PanelFocals cuentas={cuentas} mostrarFocal={todas} />}
     </section>
+  )
+}
+
+/**
+ * El vacío dice cosas distintas según quién mire: a un Focal, que no responde por ninguna cuenta; a
+ * una gerencia, que no hay ni un cliente con semáforo calculado, que es un problema del cron y no
+ * suyo. Un solo texto para los dos mandaría a la gerencia a buscarse en una pestaña de cliente.
+ */
+function CarteraVacia ({ todas }: { todas: boolean }) {
+  const focal = GLOSARIO.focal.singular.toLowerCase()
+
+  if (todas) {
+    return (
+      <Vacio
+        titulo="Todavía no hay cuentas con semáforo"
+        descripcion={
+          'El puntaje lo calcula una corrida diaria. Si la lista sigue vacía mañana, es que esa ' +
+          'corrida no está pasando.'
+        }
+      />
+    )
+  }
+
+  return (
+    <Vacio
+      titulo={`No eres ${focal} de ningún cliente`}
+      descripcion={`El ${focal} de una cuenta se nombra desde la ficha del cliente, en su pestaña ${GLOSARIO.focal.plural}.`}
+    />
   )
 }
 
@@ -73,13 +119,14 @@ export default async function FocalsPage () {
  * Cualquier otro error sube y lo muestra el límite de error de la ruta: un 500 de la API no es lo
  * mismo que "no tienes permiso" y no puede contarse igual.
  *
+ * @param todas si la pantalla es la cartera entera y no la propia
  * @returns las cuentas agrupadas, o el error de permiso que impidió armarlas
  */
-async function cargarCartera (): Promise<[ReturnType<typeof agruparPorCliente>, ErrorApi | null]> {
+async function cargarCartera (todas: boolean): Promise<[CuentaFocal[], ErrorApi | null]> {
   try {
     const [clientes, espacios] = await Promise.all([
-      pedir<ScoreCliente[]>(RUTA_CLIENTES_FOCAL),
-      pedir<ScoreEspacio[]>(RUTA_ESPACIOS_FOCAL)
+      pedir<ScoreCliente[]>(todas ? RUTA_CLIENTES_TODOS : RUTA_CLIENTES_FOCAL),
+      pedir<ScoreEspacio[]>(todas ? RUTA_ESPACIOS_TODOS : RUTA_ESPACIOS_FOCAL)
     ])
 
     return [agruparPorCliente(clientes.data, espacios.data), null]
