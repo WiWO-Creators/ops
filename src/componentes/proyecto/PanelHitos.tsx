@@ -54,8 +54,9 @@ interface PropsPanelHitos {
   /**
    * Capacidades sobre `tasks`, de `permissions` de `/me`.
    *
-   * Son otras que las del Espacio y no se pueden deducir de ellas: mandan sobre el "+" del kanban y
-   * sobre los botones del detalle de una tarea. Vacias, la pestaña sigue funcionando en solo lectura.
+   * Son otras que las del Espacio y no se pueden deducir de ellas: mandan sobre el "+" del kanban,
+   * sobre el menu de estado de cada tarjeta y sobre los botones del detalle de una tarea. Vacias, la
+   * pestaña sigue funcionando en solo lectura.
    */
   capacidadesTareas?: Capacidad[]
 }
@@ -150,6 +151,7 @@ function HitosDelProyecto ({ proyecto, capacidades, capacidadesTareas = [] }: Pr
               excluirCompletadas={excluirCompletadas}
               puedeCrear={capacidadesTareas.includes('create')}
               puedeEditar={capacidades.includes('edit_milestones')}
+              puedeEditarTareas={capacidadesTareas.includes('edit')}
             />
           </>
           )}
