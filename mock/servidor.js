@@ -1279,18 +1279,19 @@ function textoDeResumenIa (actual) {
   const hoy = new Date().toISOString().slice(0, 10)
   const suyos = PROCESOS.filter((p) => p.assignees.some((a) => a.id === actual.id) && p.status !== 5)
   const vencidos = suyos.filter((p) => p.due_date !== null && p.due_date < hoy)
-  const espacios = [...new Set(suyos.map((p) => p.project?.name).filter(Boolean))]
+  return `Tienes ${suyos.length} tareas abiertas asignadas, ${vencidos.length} vencidas. Revisa las tareas seleccionadas a continuación.`
+}
 
-  if (suyos.length === 0) return 'No tenés tareas abiertas asignadas. Nada pendiente de tu lado hoy.'
-
-  const primeras = suyos.slice(0, 2).map((p) => `${p.name} (vence el ${p.due_date})`).join(' y ')
-  const atrasadas = vencidos.length === 0
-    ? 'Ninguna quedó atrasada.'
-    : `Quedaron ${vencidos.length} atrasadas, la más vieja es ${vencidos[0].name}.`
-
-  return `Tenés ${suyos.length} tareas abiertas repartidas en ${espacios.length} proyectos. `
-    + `Las dos más próximas son ${primeras}. ${atrasadas}\n\n`
-    + `El proyecto con más movimiento es ${espacios[0] ?? 'ninguno'}.`
+/** Referencias actuales de tareas asignadas para probar los enlaces del resumen. */
+function tareasDeResumenIa (actual) {
+  return PROCESOS.filter((p) => p.assignees.some((a) => a.id === actual.id) && p.status !== 5)
+    .slice(0, 6).map((p) => ({
+      id: p.id,
+      name: p.name,
+      project_name: p.project?.name ?? null,
+      due_date: p.due_date,
+      recomendacion: 'Revisa si sigue pendiente. Si ya está resuelta, márcala como completada; si sigue vigente, acuerda una fecha realista.'
+    }))
 }
 
 /**
@@ -1340,7 +1341,8 @@ async function resumenInicioIaRuta (metodo, parametros, actual, peticion) {
     return {
       estado: 200,
       cuerpo: conDatos({
-        texto: guardado?.texto ?? null,
+        texto: guardado ? textoDeResumenIa(actual) : null,
+        tareas: guardado ? tareasDeResumenIa(actual) : [],
         generado_en: guardado?.generado_en ?? null,
         regeneracion: regeneracionIa(actual.id, bloqueado)
       })
@@ -1369,13 +1371,14 @@ async function resumenInicioIaRuta (metodo, parametros, actual, peticion) {
   }
 
   const fin = {
+    tareas: tareasDeResumenIa(actual),
     generado_en: generadoEn,
     regeneracion: regeneracionIa(actual.id, false),
     uso: { entrada: 3120, salida: [...texto].length }
   }
 
   if (!aceptaStream(peticion)) {
-    return { estado: 200, cuerpo: conDatos({ texto, generado_en: generadoEn, regeneracion: fin.regeneracion }) }
+    return { estado: 200, cuerpo: conDatos({ texto, tareas: fin.tareas, generado_en: generadoEn, regeneracion: fin.regeneracion }) }
   }
 
   return { transmitir: (respuesta) => transmitirSSE(respuesta, texto, { fin, falla }) }

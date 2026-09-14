@@ -1,9 +1,12 @@
 'use client'
 
+import Link from 'next/link'
+import { useSearchParams } from 'next/navigation'
+import { PARAMETRO_TAREA, urlConParametro } from '@/componentes/datos/tabla'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { mensajeDeRespuesta, pedirRespuesta } from '@/datos/cliente'
 import { leerSSE } from '@/datos/sse'
-import { leerEventoIA, type Regeneracion, type ResumenIA } from '@/dominio/ia'
+import { leerEventoIA, leerTareasResumen, type TareaResumen, type Regeneracion, type ResumenIA } from '@/dominio/ia'
 import { crearCola, motivoDeBloqueo, type ColaDeEscritura } from '@/dominio/ia-resumen'
 import type { Sobre } from '@/datos/tipos'
 import { formatearFecha, formatearRelativo } from '@/lib/fechas'
@@ -57,6 +60,8 @@ type Cierre = 'fin' | 'error'
  * `regeneracion` del backend y `motivoDeBloqueo()` solo la pone en palabras.
  */
 export function ResumenDelDia () {
+  const params = useSearchParams()
+  const [tareas, establecerTareas] = useState<TareaResumen[]>([])
   const [texto, establecerTexto] = useState('')
   const [generadoEn, establecerGeneradoEn] = useState<string | null>(null)
   const [regeneracion, establecerRegeneracion] = useState<Regeneracion | null>(null)
@@ -147,6 +152,7 @@ export function ResumenDelDia () {
           buffer.empujar(evento.texto)
         }
         if (evento.tipo === 'fin') {
+          establecerTareas(evento.tareas ?? [])
           establecerGeneradoEn(evento.generado_en)
           if (evento.regeneracion !== null) establecerRegeneracion(evento.regeneracion)
           cerrar('fin')
@@ -192,6 +198,7 @@ export function ResumenDelDia () {
 
       const { data } = await respuesta.json() as Sobre<ResumenIA>
 
+      establecerTareas(leerTareasResumen(data.tareas))
       establecerTexto(data.texto ?? '')
       establecerGeneradoEn(data.generado_en)
       establecerRegeneracion(data.regeneracion)
@@ -283,6 +290,26 @@ export function ResumenDelDia () {
       {fase === 'cargando'
         ? <p className="text-sm text-texto-sutil">Buscando tu resumen…</p>
         : <Cuerpo texto={texto} escribiendo={escribiendo} fase={fase} />}
+
+      {tareas.length > 0 && (
+        <ul className="divide-y divide-linea">
+          {tareas.map((tarea) => (
+            <li key={tarea.id} className="py-4 first:pt-1 last:pb-0">
+              <Link
+                href={urlConParametro(new URLSearchParams(params.toString()), PARAMETRO_TAREA, String(tarea.id))}
+                scroll={false}
+                className="font-semibold text-accion underline decoration-accion/30 underline-offset-4 hover:decoration-current focus-visible:outline-2 focus-visible:outline-offset-4"
+              >
+                {tarea.name}
+              </Link>
+              <p className="mt-1 text-sm text-texto-sutil">
+                {tarea.project_name ?? 'Sin proyecto'} · {tarea.due_date === null ? 'Sin fecha' : `Vencimiento: ${formatearFecha(tarea.due_date)}`}
+              </p>
+              <p className="mt-2 text-sm text-texto">{tarea.recomendacion}</p>
+            </li>
+          ))}
+        </ul>
+      )}
 
       {/*
         Un live region que cambia sesenta veces por segundo es tortura para un lector de pantalla:

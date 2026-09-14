@@ -9,7 +9,7 @@
 
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { leerEventoIA } from '../src/dominio/ia.ts'
+import { leerEventoIA, leerTareasResumen } from '../src/dominio/ia.ts'
 
 const frame = (evento, datos) => `event: ${evento}\ndata: ${typeof datos === 'string' ? datos : JSON.stringify(datos)}`
 
@@ -413,4 +413,12 @@ test('`admite_texto` que no es booleano se lee como false', () => {
   // Encenderlo por error abriria un campo libre en un si/no, donde lo escrito no es contestable.
   assert.equal(preguntaCon({ admite_texto: 'sí' }).pregunta.admite_texto, false)
   assert.equal(preguntaCon({ admite_texto: undefined }).pregunta.admite_texto, false)
+})
+
+test('el resumen acepta tareas verificadas sin proyecto y descarta enlaces inválidos o repetidos', () => {
+  const tarea = { id: 12, name: 'Tarea antigua', project_name: null, due_date: null, recomendacion: 'Revisar si sigue pendiente.' }
+  const entrada = [tarea, null, {}, { ...tarea, id: -1 }, { ...tarea, id: '12' }, { ...tarea, id: 13, name: '' }, { ...tarea, id: 14, due_date: 42 }, tarea]
+  assert.deepEqual(leerTareasResumen(entrada), [tarea])
+  assert.deepEqual(leerTareasResumen(null), [])
+  assert.deepEqual(leerEventoIA(frame('fin', { tareas: entrada })).tareas, [tarea])
 })
