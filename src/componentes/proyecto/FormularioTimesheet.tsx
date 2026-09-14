@@ -13,7 +13,7 @@ import {
 import { CerrarDialogo, ContenidoDialogo, Dialogo } from '@/componentes/superposiciones/Dialogo'
 import { pedirSobre } from '@/datos/cliente'
 import { leerError } from '@/datos/errores'
-import type { AsignadoTarea, RegistroTiempo, TareaElegible } from '@/datos/recursos'
+import type { AsignadoTarea, Etiqueta, TareaElegible } from '@/datos/recursos'
 import { AYUDA_DURACION, validarTimesheet, type EntradaTimesheet } from './timesheet'
 
 /**
@@ -31,26 +31,44 @@ import { AYUDA_DURACION, validarTimesheet, type EntradaTimesheet } from './times
  * lo que quedo de la vez anterior es la forma mas facil de registrar dos veces la misma hora.
  */
 
+/**
+ * Lo minimo de un registro que el formulario necesita para abrirse en modo edicion.
+ *
+ * Se declara lo que se usa y no `RegistroTiempo`: la tabla que ofrece el boton de editar ya trabaja
+ * con la forma minima compartida entre los dos contratos, y atar el formulario al tipo completo la
+ * obligaria a un `as` para pasarle una fila que si tiene todo lo que hace falta.
+ */
+export interface RegistroEditable {
+  id: number
+  task: { id: number }
+  /** `null` cuando el registro quedo sin persona. */
+  staff: { id: number } | null
+  start_time: string
+  end_time: string | null
+  note: string | null
+  tags?: Etiqueta[]
+}
+
 interface PropsFormulario {
   proyectoId: number
   abierto: boolean
   /** El registro que se edita, o `null` para un alta. */
-  registro: RegistroTiempo | null
+  registro: RegistroEditable | null
   onOpenChange: (abierto: boolean) => void
   onGuardado: () => void
 }
 
 /** Estado inicial de los campos, ya sea vacio o con lo que trae el registro que se edita. */
-function entradaInicial (registro: RegistroTiempo | null): EntradaTimesheet {
+function entradaInicial (registro: RegistroEditable | null): EntradaTimesheet {
   return {
     modo: 'fechas',
     taskId: registro === null ? '' : String(registro.task.id),
-    staffId: registro === null ? '' : String(registro.staff.id),
+    staffId: registro?.staff === null || registro?.staff === undefined ? '' : String(registro.staff.id),
     inicio: paraCampoLocal(registro?.start_time ?? null),
     fin: paraCampoLocal(registro?.end_time ?? null),
     duracion: '',
     nota: registro?.note ?? '',
-    etiquetas: registro === null ? '' : registro.tags.map((etiqueta) => etiqueta.name).join(', ')
+    etiquetas: (registro?.tags ?? []).map((etiqueta) => etiqueta.name).join(', ')
   }
 }
 

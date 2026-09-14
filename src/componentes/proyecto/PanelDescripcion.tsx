@@ -14,14 +14,28 @@ import { GraficoHoras } from './GraficoHoras'
 import { useRecurso } from './carga'
 import { aTextoPlano, formatearImporte, segundosAHoraMinuto } from './formatos'
 import { DatoDeFicha as Dato } from './DatoDeFicha'
-import { textoDeDias } from './overview'
-import type { CampoPersonalizado, Espacio, ResumenEspacio } from '@/datos/recursos'
+import {
+  montosDeLaFicha,
+  simboloDelResumen,
+  textoDeDias,
+  type ProyectoDeFicha,
+  type ResumenDeProyecto,
+  type TiempoRegistradoDeResumen
+} from './overview'
+import type { CampoPersonalizado } from '@/datos/recursos'
+import type { FuenteDeProyecto } from '@/dominio/fuente-proyecto'
 
 /**
  * Pestaña Descripcion: el resumen del Proyecto en un viaje.
  *
- * Todo lo cuantitativo sale de `GET /projects/{id}/overview`, que replica los calculos del panel
- * (avance, tareas abiertas, dias restantes, tiempo registrado y gastos). **No se recalcula nada aca**:
+ * **La misma la abren el equipo y el cliente.** Lo unico que cambia es de donde bajan los datos
+ * —`fuente`— y cuanto manda cada contrato: el del contacto no publica etiquetas, campos
+ * personalizados, tipo de facturacion, gastos ni los importes del tiempo registrado. La regla es una
+ * sola y no hay ninguna rama por sujeto: **la clave que no llega no se dibuja**, que no es lo mismo
+ * que pintar un cero.
+ *
+ * Todo lo cuantitativo sale de `{fuente.resumen}`, que replica los calculos del panel (avance,
+ * tareas abiertas, dias restantes, tiempo registrado y gastos). **No se recalcula nada aca**:
  * duplicar esas reglas del lado del navegador haria que las dos pantallas del sistema informaran
  * cifras distintas en cuanto una de las dos se toque.
  *
@@ -31,23 +45,49 @@ import type { CampoPersonalizado, Espacio, ResumenEspacio } from '@/datos/recurs
  */
 
 interface PropsPanelDescripcion {
-  proyecto: Espacio
+  proyecto: ProyectoDeFicha
   /** Nombre y color del estado, ya resueltos contra `project_statuses`. */
   estado: { nombre: string, color: string | null }
-  /** Nombre del tipo de facturacion, ya resuelto contra `billing_types`. */
-  tipoFacturacion: string
+  /**
+   * Cliente del Proyecto, ya resuelto por quien monta el panel.
+   *
+   * Llega resuelto y no como parte del Proyecto porque los dos contratos lo dicen distinto: el del
+   * equipo lo trae adentro (`client`), y al contacto la API no le manda el cliente del Proyecto
+   * —que es el suyo— sino su propia empresa, en `GET /portal/company`. `href` en `null` cuando quien
+   * mira no tiene una pantalla de clientes a donde ir: un enlace que responde 403 es peor que texto.
+   */
+  cliente: { nombre: string, href: string | null } | null
+  /**
+   * Nombre del tipo de facturacion, ya resuelto contra `billing_types`.
+   *
+   * Ausente cuando el contrato del sujeto no lo publica: la fila no se dibuja.
+   */
+  tipoFacturacion?: string
   /** `true` si quien mira tiene `edit projects`: el panel esconde los montos al resto. */
   puedeVerMontos: boolean
+  /** De donde bajan los datos de este Proyecto. Ver `dominio/fuente-proyecto.ts`. */
+  fuente: FuenteDeProyecto
+  /**
+   * Ruta del grafico de horas registradas por dia.
+   *
+   * `null` cuando el sujeto no tiene ese recurso —el contacto no lo tiene— y entonces el bloque no
+   * se monta. No sale de `fuente` porque es un subrecurso del resumen y no una pestaña: el unico
+   * que lo pide es este panel.
+   */
+  rutaDelGrafico: string | null
 }
 
 export function PanelDescripcion ({
   proyecto,
   estado,
+  cliente,
   tipoFacturacion,
-  puedeVerMontos
+  puedeVerMontos,
+  fuente,
+  rutaDelGrafico
 }: PropsPanelDescripcion): ReactElement {
-  const { estado: carga, recargar } = useRecurso<ResumenEspacio>(
-    `projects/${proyecto.id}/overview`,
+  const { estado: carga, recargar } = useRecurso<ResumenDeProyecto>(
+    fuente.resumen,
     'No se pudo cargar el resumen del proyecto.'
   )
 
@@ -66,6 +106,7 @@ export function PanelDescripcion ({
         <FichaProyecto
           proyecto={proyecto}
           estado={estado}
+          cliente={cliente}
           tipoFacturacion={tipoFacturacion}
           puedeVerMontos={puedeVerMontos}
         />
@@ -75,7 +116,7 @@ export function PanelDescripcion ({
           {carga.fase === 'error' && <ErrorEstado detalle={carga.mensaje} onReintentar={recargar} />}
           {carga.fase === 'listo' && <Indicadores resumen={carga.datos} />}
 
-          <GraficoHoras proyectoId={proyecto.id} />
+          {rutaDelGrafico !== null && <GraficoHoras ruta={rutaDelGrafico} />}
         </div>
       </div>
     </div>
@@ -88,15 +129,19 @@ export function PanelDescripcion ({
  * El monto de facturacion solo se muestra con `edit projects`, igual que en el panel: el costo del
  * proyecto y la tarifa por hora son informacion comercial y no la ve cualquier miembro.
  */
+type PropsFicha = Pick<PropsPanelDescripcion, 'proyecto' | 'estado' | 'cliente' | 'tipoFacturacion' | 'puedeVerMontos'>
+
 function FichaProyecto ({
   proyecto,
   estado,
+  cliente,
   tipoFacturacion,
   puedeVerMontos
-}: PropsPanelDescripcion): ReactElement {
+}: PropsFicha): ReactElement {
   // El panel viejo guarda la descripcion como HTML. Sin despojarla se leen los `<p>` en pantalla,
   // igual que pasaba con la descripcion de una tarea antes de `aTextoPlano`.
   const descripcion = aTextoPlano(proyecto.description ?? '')
+  const montos = montosDeLaFicha(proyecto, puedeVerMontos)
 
   return (
     <section className="border-linea bg-superficie-elevada rounded-tarjeta shadow-1 flex flex-col gap-3 border p-5">
@@ -106,29 +151,32 @@ function FichaProyecto ({
         <Dato termino={`${GLOSARIO.espacio.singular} #`}>{proyecto.id}</Dato>
 
         <Dato termino={GLOSARIO.cliente.singular}>
-          {proyecto.client === null
+          {cliente === null
             ? 'Sin cliente'
-            : (
-              <Link
-                href={`/clientes?filter[id]=${proyecto.client.id}`}
-                className="text-acento underline underline-offset-4"
-              >
-                {proyecto.client.company}
-              </Link>
-              )}
+            : cliente.href === null
+              ? cliente.nombre
+              : (
+                <Link href={cliente.href} className="text-acento underline underline-offset-4">
+                  {cliente.nombre}
+                </Link>
+                )}
         </Dato>
 
-        <Dato termino="Tipo de facturación">{tipoFacturacion}</Dato>
-
-        {puedeVerMontos && proyecto.billing_type === 1 && (
-          <Dato termino="Costo total">{formatearImporte(proyecto.project_cost)}</Dato>
+        {tipoFacturacion !== undefined && (
+          <Dato termino="Tipo de facturación">{tipoFacturacion}</Dato>
         )}
-        {puedeVerMontos && proyecto.billing_type === 2 && (
-          <Dato termino="Tarifa por hora">{formatearImporte(proyecto.project_rate_per_hour)}</Dato>
+
+        {montos.costo !== null && <Dato termino="Costo total">{formatearImporte(montos.costo)}</Dato>}
+        {montos.tarifa !== null && (
+          <Dato termino="Tarifa por hora">{formatearImporte(montos.tarifa)}</Dato>
         )}
 
         <Dato termino="Estado"><Insignia color={estado.color}>{estado.nombre}</Insignia></Dato>
-        <Dato termino="Fecha de creación"><Fecha valor={proyecto.project_created} /></Dato>
+
+        {proyecto.project_created !== undefined && (
+          <Dato termino="Fecha de creación"><Fecha valor={proyecto.project_created} /></Dato>
+        )}
+
         <Dato termino="Fecha de inicio"><Fecha valor={proyecto.start_date} /></Dato>
 
         {proyecto.deadline !== null && (
@@ -140,7 +188,9 @@ function FichaProyecto ({
           </Dato>
         )}
 
-        <Dato termino="Horas estimadas">{formatearNumero(proyecto.estimated_hours, ' h')}</Dato>
+        {proyecto.estimated_hours !== undefined && (
+          <Dato termino="Horas estimadas">{formatearNumero(proyecto.estimated_hours, ' h')}</Dato>
+        )}
 
         {(proyecto.custom_fields ?? []).map((campo) => (
           <Dato key={campo.id} termino={campo.name}>
@@ -149,7 +199,7 @@ function FichaProyecto ({
         ))}
       </dl>
 
-      {proyecto.tags.length > 0 && <Etiquetas etiquetas={proyecto.tags} maximo={8} />}
+      {(proyecto.tags ?? []).length > 0 && <Etiquetas etiquetas={proyecto.tags ?? []} maximo={8} />}
 
       <div className="flex flex-col gap-1">
         <h3 className="text-texto-sutil text-xs">Descripción</h3>
@@ -178,13 +228,16 @@ function ValorDeCampo ({ campo }: { campo: CampoPersonalizado }): ReactElement {
 }
 
 /**
- * Tarjetas de Tareas abiertas, Dias restantes, Registro total de horas y Gastos.
+ * Tarjetas de Procesos abiertos, Dias restantes, Hitos, Registro total de horas y Gastos.
  *
- * Las dos ultimas dependen de `muestra_finanzas`: cuando el backend lo apaga, los importes vienen en
- * cero y no se pintan.
+ * Cada tarjeta y cada bloque dependen de que su clave haya llegado. No es defensa contra un backend
+ * roto: es el contrato. `logged_time` solo viaja con `view_task_total_logged_time`, `expenses` solo
+ * en el contrato del equipo —produccion no usa el modulo de ventas— y `milestones` solo en el del
+ * contacto. Pintar un "00:00" o un "$0" donde la clave no llego seria inventar una cifra.
  */
-function Indicadores ({ resumen }: { resumen: ResumenEspacio }): ReactElement {
-  const simbolo = resumen.currency?.symbol ?? null
+function Indicadores ({ resumen }: { resumen: ResumenDeProyecto }): ReactElement {
+  const simbolo = simboloDelResumen(resumen)
+  const tiempo = resumen.logged_time
 
   return (
     <div className="flex flex-col gap-4">
@@ -194,11 +247,23 @@ function Indicadores ({ resumen }: { resumen: ResumenEspacio }): ReactElement {
           valor={`${resumen.tasks.open} / ${resumen.tasks.total}`}
         />
         <Metrica etiqueta="Días restantes" valor={textoDeDias(resumen.days)} />
-        <Metrica
-          etiqueta="Registro total de horas"
-          valor={segundosAHoraMinuto(resumen.logged_time.total_seconds)}
-        />
-        <Metrica etiqueta="Gastos" valor={formatearImporte(resumen.expenses.total, simbolo)} />
+
+        {resumen.milestones !== undefined && (
+          <Metrica
+            etiqueta={GLOSARIO.hito.plural}
+            valor={resumen.milestones.overdue > 0
+              ? `${resumen.milestones.total} · ${resumen.milestones.overdue} vencidos`
+              : String(resumen.milestones.total)}
+          />
+        )}
+
+        {tiempo !== undefined && (
+          <Metrica etiqueta="Registro total de horas" valor={segundosAHoraMinuto(tiempo.total_seconds)} />
+        )}
+
+        {resumen.expenses !== undefined && (
+          <Metrica etiqueta="Gastos" valor={formatearImporte(resumen.expenses.total, simbolo)} />
+        )}
       </div>
 
       <div className="grid gap-3 md:grid-cols-2">
@@ -221,48 +286,67 @@ function Indicadores ({ resumen }: { resumen: ResumenEspacio }): ReactElement {
         )}
       </div>
 
-      {resumen.logged_time.muestra_finanzas && (
+      {tiempo !== undefined && tiempo.muestra_finanzas === true && (
+        <BloqueDeFinanzas tiempo={tiempo} simbolo={simbolo} />
+      )}
+
+      {resumen.expenses !== undefined && (
         <section className="border-linea bg-superficie-elevada rounded-tarjeta shadow-1 flex flex-col gap-3 border p-4">
-          <h3 className="text-texto text-sm font-semibold">Registro total de horas</h3>
+          <h3 className="text-texto text-sm font-semibold">Gastos</h3>
           <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-            <Cifra
-              etiqueta="Registradas"
-              tiempo={resumen.logged_time.total_seconds}
-              importe={null}
-              simbolo={simbolo}
-            />
-            <Cifra
-              etiqueta="Facturables"
-              tiempo={resumen.logged_time.billable_seconds}
-              importe={resumen.logged_time.billable_amount}
-              simbolo={simbolo}
-            />
-            <Cifra
-              etiqueta="Facturadas"
-              tiempo={resumen.logged_time.billed_seconds}
-              importe={resumen.logged_time.billed_amount}
-              simbolo={simbolo}
-            />
-            <Cifra
-              etiqueta="No facturadas"
-              tiempo={resumen.logged_time.unbilled_seconds}
-              importe={resumen.logged_time.unbilled_amount}
-              simbolo={simbolo}
-            />
+            <Cifra etiqueta="Total" tiempo={null} importe={resumen.expenses.total} simbolo={simbolo} />
+            <Cifra etiqueta="Facturables" tiempo={null} importe={resumen.expenses.billable} simbolo={simbolo} />
+            <Cifra etiqueta="Facturados" tiempo={null} importe={resumen.expenses.billed} simbolo={simbolo} />
+            <Cifra etiqueta="No facturados" tiempo={null} importe={resumen.expenses.unbilled} simbolo={simbolo} />
           </div>
         </section>
       )}
-
-      <section className="border-linea bg-superficie-elevada rounded-tarjeta shadow-1 flex flex-col gap-3 border p-4">
-        <h3 className="text-texto text-sm font-semibold">Gastos</h3>
-        <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-          <Cifra etiqueta="Total" tiempo={null} importe={resumen.expenses.total} simbolo={simbolo} />
-          <Cifra etiqueta="Facturables" tiempo={null} importe={resumen.expenses.billable} simbolo={simbolo} />
-          <Cifra etiqueta="Facturados" tiempo={null} importe={resumen.expenses.billed} simbolo={simbolo} />
-          <Cifra etiqueta="No facturados" tiempo={null} importe={resumen.expenses.unbilled} simbolo={simbolo} />
-        </div>
-      </section>
     </div>
+  )
+}
+
+/**
+ * Desglose facturable / facturado / no facturado del tiempo registrado.
+ *
+ * Solo se monta con `muestra_finanzas`, que es el unico contrato donde los cuatro pares de claves
+ * viajan; los `?? 0` son el piso del tipo, no un valor de negocio.
+ *
+ * @param tiempo el bloque `logged_time` del resumen
+ * @param simbolo simbolo de la moneda, o `null` para el de la instalacion
+ * @returns el bloque de importes
+ */
+function BloqueDeFinanzas ({
+  tiempo,
+  simbolo
+}: {
+  tiempo: TiempoRegistradoDeResumen
+  simbolo: string | null
+}): ReactElement {
+  return (
+    <section className="border-linea bg-superficie-elevada rounded-tarjeta shadow-1 flex flex-col gap-3 border p-4">
+      <h3 className="text-texto text-sm font-semibold">Registro total de horas</h3>
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+        <Cifra etiqueta="Registradas" tiempo={tiempo.total_seconds} importe={null} simbolo={simbolo} />
+        <Cifra
+          etiqueta="Facturables"
+          tiempo={tiempo.billable_seconds ?? 0}
+          importe={tiempo.billable_amount ?? 0}
+          simbolo={simbolo}
+        />
+        <Cifra
+          etiqueta="Facturadas"
+          tiempo={tiempo.billed_seconds ?? 0}
+          importe={tiempo.billed_amount ?? 0}
+          simbolo={simbolo}
+        />
+        <Cifra
+          etiqueta="No facturadas"
+          tiempo={tiempo.unbilled_seconds ?? 0}
+          importe={tiempo.unbilled_amount ?? 0}
+          simbolo={simbolo}
+        />
+      </div>
+    </section>
   )
 }
 

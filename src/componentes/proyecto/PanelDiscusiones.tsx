@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Boton } from '@/componentes/formularios/Boton'
 import { Cargando, ErrorEstado, Vacio } from '@/componentes/estado/Estados'
-import { DISCUSIONES } from '@/definiciones/discusiones'
+import { definicionDeDiscusiones } from '@/definiciones/discusiones'
 import { AccionesFila } from './AccionesFila'
 import { FormularioRecurso } from './FormularioRecurso'
 import { PanelRecurso } from './PanelRecurso'
@@ -15,9 +15,15 @@ import type { CampoFormulario } from './formulario'
 import type { ComentarioDiscusion, Discusion } from '@/datos/recursos'
 import type { Capacidad } from '@/datos/tipos'
 import type { DefinicionRecurso } from '@/definiciones/tipos'
+import { conId, type FuenteDeProyecto } from '@/dominio/fuente-proyecto'
 
 /**
  * Pestaña Discusiones del Proyecto: listado y detalle con sus comentarios.
+ *
+ * **La misma la abren el equipo y el cliente.** Lo unico que cambia es de donde bajan los datos
+ * —`fuente`— y que columnas y filtros declara cada contrato, que resuelve `definicionDeDiscusiones`
+ * en la capa de definiciones: acá no hay ninguna rama por sujeto. Con `capacidades={[]}` no hay
+ * "Nueva discusión" ni acciones por fila, y el hilo se lee igual.
  *
  * La discusion abierta viaja en `?discusion={id}`, no en el estado del componente: asi se comparte
  * por enlace, "atras" vuelve al listado, y el asunto puede ser un enlace de verdad —clic del medio,
@@ -33,6 +39,8 @@ const CAMPOS: CampoFormulario[] = [
 
 interface PropsPanelDiscusiones {
   proyectoId: number
+  /** De donde bajan las discusiones y sus comentarios. Ver `dominio/fuente-proyecto.ts`. */
+  fuente: FuenteDeProyecto
   /** Capacidades sobre `projects`: crear y editar discusiones cuelgan del permiso del proyecto. */
   capacidades: Capacidad[]
 }
@@ -46,7 +54,7 @@ export function PanelDiscusiones (props: PropsPanelDiscusiones): ReactElement {
   )
 }
 
-function DiscusionesDelProyecto ({ proyectoId, capacidades }: PropsPanelDiscusiones): ReactElement {
+function DiscusionesDelProyecto ({ proyectoId, fuente, capacidades }: PropsPanelDiscusiones): ReactElement {
   const params = useSearchParams()
   const [revision, setRevision] = useState(0)
   const [creando, setCreando] = useState(false)
@@ -57,12 +65,13 @@ function DiscusionesDelProyecto ({ proyectoId, capacidades }: PropsPanelDiscusio
   const puedeEditar = capacidades.includes('edit')
   const puedeBorrar = capacidades.includes('delete')
 
-  const definicion = useMemo<DefinicionRecurso<Discusion>>(
-    () => ({
-      ...DISCUSIONES,
-      ruta: `projects/${encodeURIComponent(String(proyectoId))}/discussions`,
+  const definicion = useMemo<DefinicionRecurso<Discusion>>(() => {
+    const base = definicionDeDiscusiones(fuente, proyectoId)
+
+    return {
+      ...base,
       columnas: [
-        ...DISCUSIONES.columnas.map((columna) => (
+        ...base.columnas.map((columna) => (
           columna.clave === 'subject'
             ? { ...columna, presentar: (d: Discusion) => <EnlaceDiscusion discusion={d} /> }
             : columna
@@ -87,11 +96,10 @@ function DiscusionesDelProyecto ({ proyectoId, capacidades }: PropsPanelDiscusio
             }]
           : [])
       ]
-    }),
-    [proyectoId, puedeEditar, puedeBorrar, recargar]
-  )
+    }
+  }, [fuente, proyectoId, puedeEditar, puedeBorrar, recargar])
 
-  if (abierta !== null) return <DetalleDiscusion discusionId={abierta} />
+  if (abierta !== null) return <DetalleDiscusion fuente={fuente} discusionId={abierta} />
 
   const barra = capacidades.includes('create')
     ? (
@@ -111,6 +119,7 @@ function DiscusionesDelProyecto ({ proyectoId, capacidades }: PropsPanelDiscusio
         capacidades={capacidades}
         barra={barra}
         revision={revision}
+        rutaLookups={fuente.lookups}
       />
 
       <FormularioRecurso
@@ -118,7 +127,7 @@ function DiscusionesDelProyecto ({ proyectoId, capacidades }: PropsPanelDiscusio
         onAbiertoCambia={setCreando}
         titulo="Nueva discusión"
         campos={CAMPOS}
-        ruta={`projects/${proyectoId}/discussions`}
+        ruta={fuente.discusiones}
         metodo="POST"
         onGuardado={recargar}
       />
@@ -166,11 +175,17 @@ function EnlaceDiscusion ({ discusion }: { discusion: Discusion }): ReactElement
  * Los comentarios se piden aparte y no como `include`: el hilo puede ser largo y el listado no lo
  * necesita.
  */
-function DetalleDiscusion ({ discusionId }: { discusionId: number }): ReactElement {
+function DetalleDiscusion ({
+  fuente,
+  discusionId
+}: {
+  fuente: FuenteDeProyecto
+  discusionId: number
+}): ReactElement {
   const router = useRouter()
   const params = useSearchParams()
   const { estado, recargar } = useRecurso<ComentarioDiscusion[]>(
-    `discussions/${discusionId}/comments?tipo=regular`,
+    conId(fuente.comentarios, discusionId),
     'No se pudieron cargar los comentarios.'
   )
 

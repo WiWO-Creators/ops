@@ -170,8 +170,13 @@ export default async function ProyectoPage (props: PageProps<'/espacios/[id]'>) 
         <PanelDescripcion
           proyecto={proyecto}
           estado={estadoDelProyecto(lookups, proyecto.status)}
+          cliente={proyecto.client === null
+            ? null
+            : { nombre: proyecto.client.company, href: `/clientes?filter[id]=${proyecto.client.id}` }}
           tipoFacturacion={nombreDe(listaDe(lookups, 'billing_types'), proyecto.billing_type)}
           puedeVerMontos={capacidadesProyecto.includes('edit')}
+          fuente={fuente}
+          rutaDelGrafico={`${fuente.resumen}/chart`}
         />
       )
     },
@@ -183,7 +188,7 @@ export default async function ProyectoPage (props: PageProps<'/espacios/[id]'>) 
     {
       clave: 'tiempos',
       etiqueta: 'Tiempos',
-      contenido: <PanelTiempos proyectoId={proyecto.id} capacidades={capacidadesTareas} />
+      contenido: <PanelTiempos proyectoId={proyecto.id} fuente={fuente} capacidades={capacidadesTareas} />
     },
     {
       clave: 'hitos',
@@ -191,6 +196,7 @@ export default async function ProyectoPage (props: PageProps<'/espacios/[id]'>) 
       contenido: (
         <PanelHitos
           proyecto={proyecto}
+          fuente={fuente}
           capacidades={capacidadesProyecto}
           capacidadesTareas={capacidadesTareas}
         />
@@ -200,9 +206,9 @@ export default async function ProyectoPage (props: PageProps<'/espacios/[id]'>) 
     {
       clave: 'discusiones',
       etiqueta: 'Discusiones',
-      contenido: <PanelDiscusiones proyectoId={proyecto.id} capacidades={capacidadesProyecto} />
+      contenido: <PanelDiscusiones proyectoId={proyecto.id} fuente={fuente} capacidades={capacidadesProyecto} />
     },
-    { clave: 'gantt', etiqueta: 'Diagrama de Gantt', contenido: <PanelGantt proyectoId={proyecto.id} /> },
+    { clave: 'gantt', etiqueta: 'Diagrama de Gantt', contenido: <PanelGantt proyectoId={proyecto.id} fuente={fuente} /> },
     // Va pegada al Gantt porque las dos leen las mismas fechas, y despues porque son dos preguntas
     // distintas: el Gantt muestra duraciones y dependencias, el calendario muestra el dia de
     // entrega. Sus capacidades son las de `tasks` y no las del Espacio: lo que abre es el detalle de
@@ -221,7 +227,7 @@ export default async function ProyectoPage (props: PageProps<'/espacios/[id]'>) 
     {
       clave: 'actividad',
       etiqueta: 'Actividad',
-      contenido: <PanelActividad proyectoId={proyecto.id} capacidades={capacidadesProyecto} />
+      contenido: <PanelActividad fuente={fuente} capacidades={capacidadesProyecto} />
     },
     ...(puedeConfigurar
       ? [{

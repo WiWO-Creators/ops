@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { Boton } from '@/componentes/formularios/Boton'
 import { Segmentado, type OpcionSegmentada } from '@/componentes/formularios/Segmentado'
 import { Cargando } from '@/componentes/estado/Estados'
-import { HITOS } from '@/definiciones/hitos'
+import { definicionDeHitos } from '@/definiciones/hitos'
 import { GLOSARIO } from '@/dominio/glosario'
 import { AccionesFila } from './AccionesFila'
 import { AltaDeHito } from './AltaDeHito'
@@ -14,12 +14,18 @@ import { ModalTarea } from './ModalTarea'
 import { PanelRecurso } from './PanelRecurso'
 import { TableroHitos } from './TableroHitos'
 import type { CampoFormulario } from './formulario'
-import type { Espacio, HitoDetallado } from '@/datos/recursos'
+import type { HitoDetallado } from '@/datos/recursos'
 import type { Capacidad } from '@/datos/tipos'
-import type { DefinicionRecurso } from '@/definiciones/tipos'
+import type { Columna, DefinicionRecurso } from '@/definiciones/tipos'
+import type { FuenteDeProyecto } from '@/dominio/fuente-proyecto'
 
 /**
  * Pestaña Hitos: tabla y kanban, con el alternador en la URL.
+ *
+ * **La misma la abren el equipo y el cliente.** Lo unico que cambia es de donde bajan los datos
+ * —`fuente`— y que ofrece cada contrato, y eso lo resuelve `definicionDeHitos` en la capa de
+ * definiciones: acá no hay ninguna rama por sujeto. Con `capacidades={[]}` desaparecen el alta y las
+ * acciones por fila, y sin kanban desaparece el alternador de vistas.
  *
  * La vista elegida viaja en `?vistaHitos=tabla|tablero` y no en `useState` por la misma razon que el
  * resto del estado de las vistas: asi se comparte por enlace y "atras" hace lo que la persona espera.
@@ -47,8 +53,18 @@ const VISTAS: readonly OpcionSegmentada[] = [
   { valor: 'tablero', etiqueta: 'Tablero', icono: 'tablero' }
 ]
 
+/** Lo minimo del Proyecto que la pestaña usa: las cotas de fecha del alta y el nombre del kanban. */
+interface ProyectoDeHitos {
+  id: number
+  name: string
+  start_date: string | null
+  deadline: string | null
+}
+
 interface PropsPanelHitos {
-  proyecto: Espacio
+  proyecto: ProyectoDeHitos
+  /** De donde bajan los Hitos de este Proyecto. Ver `dominio/fuente-proyecto.ts`. */
+  fuente: FuenteDeProyecto
   /** Capacidades sobre `projects`, de `permissions` de `/me`. */
   capacidades: Capacidad[]
   /**
@@ -70,13 +86,26 @@ export function PanelHitos (props: PropsPanelHitos): ReactElement {
   )
 }
 
-function HitosDelProyecto ({ proyecto, capacidades, capacidadesTareas = [] }: PropsPanelHitos): ReactElement {
+function HitosDelProyecto ({
+  proyecto,
+  fuente,
+  capacidades,
+  capacidadesTareas = []
+}: PropsPanelHitos): ReactElement {
   const router = useRouter()
   const params = useSearchParams()
   const [revision, setRevision] = useState(0)
   const [creando, setCreando] = useState(false)
 
-  const vista = params.get('vistaHitos') === 'tabla' ? 'tabla' : 'tablero'
+  // Memoizado: `PanelRecurso` vuelve a pedir la pagina cada vez que cambia la identidad de la
+  // definicion, y sin esto cada render dispararia una peticion nueva.
+  const { definicion: base, conTablero } = useMemo(
+    () => definicionDeHitos(fuente, proyecto.id),
+    [fuente, proyecto.id]
+  )
+  // Sin kanban la unica lectura es la tabla, y el parametro de la URL no puede pedir una vista que
+  // el contrato no tiene.
+  const vista = !conTablero || params.get('vistaHitos') === 'tabla' ? 'tabla' : 'tablero'
   // Sin parametro se muestra todo: hay que pedir `si` para esconder las completadas.
   const excluirCompletadas = params.get('excluirCompletadas') === 'si'
   const puedeEditar = capacidades.includes('edit')
@@ -95,29 +124,35 @@ function HitosDelProyecto ({ proyecto, capacidades, capacidadesTareas = [] }: Pr
   const campos = useMemo(() => camposDeHito(proyecto), [proyecto])
 
   const definicion = useMemo(
-    () => definicionDeTablaHitos(proyecto.id, campos, puedeEditar, capacidades.includes('delete'), recargar),
-    [proyecto.id, campos, puedeEditar, capacidades, recargar]
+    () => definicionDeTablaHitos(base, proyecto.id, campos, puedeEditar, capacidades.includes('delete'), recargar),
+    [base, proyecto.id, campos, puedeEditar, capacidades, recargar]
   )
 
   const barra = (
     <div className="flex flex-wrap items-center justify-between gap-3">
-      <Segmentado
-        etiqueta="Vista de hitos"
-        opciones={VISTAS}
-        activo={vista}
-        onElegir={(valor) => { cambiar('vistaHitos', valor) }}
-      />
+      {conTablero && (
+        <Segmentado
+          etiqueta="Vista de hitos"
+          opciones={VISTAS}
+          activo={vista}
+          onElegir={(valor) => { cambiar('vistaHitos', valor) }}
+        />
+      )}
 
       <div className="flex flex-wrap items-center gap-3">
-        <label className="text-texto-tenue flex items-center gap-2 text-xs">
-          <input
-            type="checkbox"
-            checked={excluirCompletadas}
-            onChange={(evento) => { cambiar('excluirCompletadas', evento.target.checked ? 'si' : 'no') }}
-            className="accent-acento size-4"
-          />
-          Excluir {GLOSARIO.proceso.plural.toLowerCase()} completadas
-        </label>
+        {/* Solo lo lee el kanban: en la tabla el filtro por estado es una columna de la definicion,
+            y un control que no cambia nada de lo que se ve es peor que no tenerlo. */}
+        {conTablero && (
+          <label className="text-texto-tenue flex items-center gap-2 text-xs">
+            <input
+              type="checkbox"
+              checked={excluirCompletadas}
+              onChange={(evento) => { cambiar('excluirCompletadas', evento.target.checked ? 'si' : 'no') }}
+              className="accent-acento size-4"
+            />
+            Excluir {GLOSARIO.proceso.plural.toLowerCase()} completadas
+          </label>
+        )}
 
         {puedeCrear && (
           <Boton variante="primario" tamano="chico" onClick={() => { setCreando(true) }}>
@@ -138,7 +173,8 @@ function HitosDelProyecto ({ proyecto, capacidades, capacidadesTareas = [] }: Pr
             capacidades={capacidades}
             barra={barra}
             revision={revision}
-            board="milestones-tabla"
+            rutaLookups={fuente.lookups}
+            board={conTablero ? 'milestones-tabla' : undefined}
           />
           )
         : (
@@ -160,6 +196,7 @@ function HitosDelProyecto ({ proyecto, capacidades, capacidadesTareas = [] }: Pr
           detalle tiene que abrirse tambien desde la tabla, donde el nombre del hito no lleva a
           ninguna tarea pero la URL puede venir compartida con el parametro puesto. */}
       <ModalTarea
+        fuente={fuente}
         puedeEditar={capacidadesTareas.includes('edit')}
         puedeBorrar={capacidadesTareas.includes('delete')}
         puedeCrear={capacidadesTareas.includes('create')}
@@ -188,7 +225,7 @@ function HitosDelProyecto ({ proyecto, capacidades, capacidadesTareas = [] }: Pr
  * @param proyecto el espacio, del que salen las cotas
  * @returns la descripcion de campos para `FormularioRecurso`
  */
-function camposDeHito (proyecto: Espacio): CampoFormulario[] {
+function camposDeHito (proyecto: ProyectoDeHitos): CampoFormulario[] {
   const inicio = proyecto.start_date ?? undefined
   const limite = proyecto.deadline ?? undefined
 
@@ -221,8 +258,9 @@ function camposDeHito (proyecto: Espacio): CampoFormulario[] {
 }
 
 /**
- * La definicion de Hitos acotada al proyecto, con avance, marca de vencido y acciones por fila.
+ * La definicion de Hitos del sujeto, con avance, marca de vencido y acciones por fila.
  *
+ * @param base la definicion que eligio `definicionDeHitos`, con la ruta y las columnas del contrato
  * @param proyectoId el proyecto que se esta mirando
  * @param campos descripcion del formulario de edicion, con las cotas de fecha del proyecto
  * @param puedeEditar habilita el boton de editar
@@ -231,13 +269,14 @@ function camposDeHito (proyecto: Espacio): CampoFormulario[] {
  * @returns la definicion lista para `PanelRecurso`
  */
 function definicionDeTablaHitos (
+  base: DefinicionRecurso<HitoDetallado>,
   proyectoId: number,
   campos: CampoFormulario[],
   puedeEditar: boolean,
   puedeBorrar: boolean,
   recargar: () => void
 ): DefinicionRecurso<HitoDetallado> {
-  const columnas = HITOS.columnas.map((columna) => {
+  const columnas: Array<Columna<HitoDetallado>> = base.columnas.map((columna) => {
     if (columna.clave === 'due_date') {
       return { ...columna, presentar: (h: HitoDetallado) => <VencimientoDeHito hito={h} /> }
     }
@@ -267,10 +306,6 @@ function definicionDeTablaHitos (
     })
   }
 
-  return {
-    ...HITOS,
-    ruta: `projects/${encodeURIComponent(String(proyectoId))}/milestones`,
-    columnas
-  }
+  return { ...base, columnas }
 }
 

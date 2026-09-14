@@ -19,7 +19,7 @@ export default function TallerTareasPage () {
       </SeccionTaller>
 
       <SeccionTaller titulo="Registro de horas" nota="Los permisos por fila y las duraciones los decide el backend.">
-        <PanelTiempos proyectoId={PROYECTO_DE_PRUEBA} capacidades={['view', 'create', 'edit', 'delete']} />
+        <PanelTiempos proyectoId={PROYECTO_DE_PRUEBA} fuente={fuenteDelPanel(PROYECTO_DE_PRUEBA)} capacidades={['view', 'create', 'edit', 'delete']} />
       </SeccionTaller>
     </>
   )

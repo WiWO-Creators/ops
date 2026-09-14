@@ -1,5 +1,6 @@
 import type { DefinicionRecurso } from './tipos.ts'
 import type { RegistroTiempo } from '../datos/recursos.ts'
+import type { FuenteDeProyecto } from '../dominio/fuente-proyecto.ts'
 
 /**
  * Definicion del recurso Tiempos, para la barra de controles de la pestaña del Proyecto.
@@ -58,4 +59,92 @@ export const TIEMPOS: DefinicionRecurso<RegistroTiempo> = {
   ordenPorDefecto: '-start_time',
   busqueda: true,
   includes: []
+}
+
+/**
+ * Las columnas de la tabla de horas, en el orden en que se dibujan.
+ *
+ * La tabla es a medida —avatar, insignias y botones por fila— asi que no sale de `columnas`, pero
+ * **cuales existen sigue siendo propiedad del contrato**: sin esta lista, la tabla del cliente
+ * dibujaba una columna "Etiquetas" siempre vacia y una "Hora (decimal)" que no llega.
+ */
+export const COLUMNAS_DE_TIEMPO = [
+  'staff', 'task', 'tags', 'start_time', 'end_time', 'note', 'hm', 'decimal', 'acciones'
+] as const
+
+export type ColumnaDeTiempo = typeof COLUMNAS_DE_TIEMPO[number]
+
+/** Las columnas que el contrato del contacto **si** emite (ver `TiempoPortal`). */
+const COLUMNAS_DE_TIEMPO_DEL_CONTACTO: readonly ColumnaDeTiempo[] = [
+  'staff', 'task', 'start_time', 'end_time', 'note', 'hm'
+]
+
+/** Que ofrece la pestaña Tiempos segun de que contrato bajen los datos. */
+export interface PestaniaDeTiempos {
+  definicion: DefinicionRecurso<RegistroTiempo>
+  columnas: readonly ColumnaDeTiempo[]
+  /**
+   * Si el sujeto tiene el listado de quienes cargaron horas (`{tiempos}/staff`).
+   *
+   * `false` para el contacto: ese subrecurso no existe en su contrato, y el filtro por persona sin
+   * opciones es un desplegable vacio.
+   */
+  conFiltroDePersonas: boolean
+}
+
+/**
+ * Los registros de horas de un Proyecto para el equipo.
+ *
+ * @param proyectoId El Proyecto que se esta mirando.
+ * @returns La definicion con la ruta ya acotada al Proyecto.
+ */
+export function tiemposDelEspacio (proyectoId: number): DefinicionRecurso<RegistroTiempo> {
+  return { ...TIEMPOS, ruta: `projects/${encodeURIComponent(String(proyectoId))}/timesheets` }
+}
+
+/**
+ * Los registros de horas de un Proyecto tal como los ve un contacto.
+ *
+ * Filtros, orden, busqueda y paginacion **si** viajan: `RecursoTimesheets::paraContacto()` usa la
+ * misma whitelist que el endpoint del equipo. Se caen tres filtros y por motivos distintos: el de
+ * persona porque su catalogo no existe para un contacto, y los de facturable y facturada porque la
+ * facturacion del equipo no es asunto del cliente —su contrato ni siquiera publica esas claves—.
+ *
+ * @param proyectoId El Proyecto que el cliente esta mirando.
+ * @returns La definicion lista para la tabla del portal.
+ */
+export function tiemposDelContacto (proyectoId: number): DefinicionRecurso<RegistroTiempo> {
+  const sinFiltro = ['staff_id', 'billable', 'billed']
+
+  return {
+    ...TIEMPOS,
+    ruta: `portal/projects/${encodeURIComponent(String(proyectoId))}/timesheets`,
+    filtros: TIEMPOS.filtros.filter((filtro) => !sinFiltro.includes(filtro.clave))
+  }
+}
+
+/**
+ * Elige la definicion de Tiempos que corresponde al sujeto.
+ *
+ * **Es la unica lectura de `sujeto`** de esta pestaña, y vive en la capa de definiciones a proposito:
+ * que columnas y que filtros existen es propiedad del contrato, no del dibujo.
+ *
+ * @param fuente De donde bajan los datos del Proyecto.
+ * @param proyectoId El Proyecto que se esta mirando.
+ * @returns La definicion, las columnas y las lecturas que ese contrato ofrece.
+ */
+export function definicionDeTiempos (fuente: FuenteDeProyecto, proyectoId: number): PestaniaDeTiempos {
+  if (fuente.sujeto === 'portal') {
+    return {
+      definicion: tiemposDelContacto(proyectoId),
+      columnas: COLUMNAS_DE_TIEMPO_DEL_CONTACTO,
+      conFiltroDePersonas: false
+    }
+  }
+
+  return {
+    definicion: tiemposDelEspacio(proyectoId),
+    columnas: COLUMNAS_DE_TIEMPO,
+    conFiltroDePersonas: true
+  }
 }

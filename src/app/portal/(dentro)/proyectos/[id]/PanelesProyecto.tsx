@@ -1,165 +1,32 @@
 import Link from 'next/link'
 import { Vacio } from '@/componentes/estado/Estados'
 import { formatearFecha } from '@/lib/fechas'
-import { aTextoPlano, formatearImporte } from '@/componentes/proyecto/formatos'
-import { BarraProgreso } from '@/componentes/proyecto/CabeceraProyecto'
-import { AvanceDeHito, VencimientoDeHito } from '@/componentes/presentadores/Hito'
-import { Metrica, formatearNumero, textoPlazo } from '@/componentes/proyecto/ResumenProyecto'
-import { DatoDeFicha } from '@/componentes/proyecto/DatoDeFicha'
-import { Fecha } from '@/componentes/presentadores/Fecha'
-import type { EmpresaPortal } from '@/datos/tipos'
 import { pedirPortal } from '@/datos/servidor'
-import { GLOSARIO } from '@/dominio/glosario'
-import type {
-  ArchivoPortal,
-  EspacioPortal,
-  HitoPortal,
-  TicketPortal
-} from '@/datos/portal'
+import type { ArchivoPortal, TicketPortal } from '@/datos/portal'
 import { EstadoDelPortal, NombreDeArchivo } from '../../detalle'
 
 /**
- * El contenido de cada pestaña del proyecto.
+ * Las dos pestañas del proyecto que el portal dibuja por su cuenta.
  *
- * Cada panel se pide en el servidor y solo cuando la pestaña esta habilitada: pedirlos todos por si
- * acaso serian siete llamadas a la API para mostrar una.
+ * Se piden en el servidor y solo cuando la pestaña esta habilitada: pedirlas todas por si acaso
+ * serian dos llamadas a la API para mostrar una.
  */
-
-/**
- * La pestaña Descripcion, que es la misma que abre un colaborador en el panel.
- *
- * Mismo armado que `PanelDescripcion`: barra de avance arriba, la ficha a la izquierda y las
- * metricas a la derecha. Las filas de la ficha son las mismas, con el mismo rotulo y en el mismo
- * orden, y salen del mismo componente.
- *
- * Faltan cuatro filas que el panel muestra y la API del portal no manda: tipo de facturacion, fecha
- * de creacion, campos personalizados y etiquetas. No es una decision de producto sino el contrato:
- * el dia que `GET /portal/projects/{id}` las emita, se agregan acá y la ficha queda identica.
- *
- * Las metricas tampoco son las cuatro del panel. `Gastos` sale del modulo de ventas, que produccion
- * no usa, y el registro total de horas necesita el `overview` del panel, que el portal no tiene.
- */
-export async function PanelResumen ({ proyecto }: { proyecto: EspacioPortal }) {
-  const { data: empresa } = await pedirPortal<EmpresaPortal>('/portal/company')
-  const descripcion = aTextoPlano(proyecto.description ?? '')
-
-  return (
-    <div className="flex flex-col gap-4">
-      <div className="flex items-center gap-3">
-        <BarraProgreso porcentaje={proyecto.progress} className="min-w-0 flex-1" />
-        <span data-numerico className="text-texto text-sm font-semibold">
-          {Math.round(proyecto.progress)}%
-        </span>
-      </div>
-
-      <div className="grid gap-4 xl:grid-cols-[minmax(0,22rem)_minmax(0,1fr)]">
-        <section className="border-linea bg-superficie-elevada rounded-tarjeta shadow-1 flex flex-col gap-3 border p-5">
-          <h2 className="text-texto text-sm font-semibold">
-            Resumen del {GLOSARIO.espacio.singular.toLowerCase()}
-          </h2>
-
-          <dl className="flex flex-col">
-            <DatoDeFicha termino={`${GLOSARIO.espacio.singular} #`}>{proyecto.id}</DatoDeFicha>
-            <DatoDeFicha termino={GLOSARIO.cliente.singular}>{empresa.company}</DatoDeFicha>
-
-            {/* Los importes solo llegan con `view_finance_overview`: la API ni siquiera emite las
-                claves cuando no, asi que `undefined` significa "no corresponde" y no "vacio". */}
-            {proyecto.project_cost !== undefined && proyecto.project_cost !== null && (
-              <DatoDeFicha termino="Costo total">{formatearImporte(proyecto.project_cost, null)}</DatoDeFicha>
-            )}
-            {proyecto.project_rate_per_hour !== undefined && proyecto.project_rate_per_hour !== null && (
-              <DatoDeFicha termino="Tarifa por hora">
-                {formatearImporte(proyecto.project_rate_per_hour, null)}
-              </DatoDeFicha>
-            )}
-
-            <DatoDeFicha termino="Estado">
-              <EstadoDelPortal catalogo="project_statuses" valor={proyecto.status} />
-            </DatoDeFicha>
-            <DatoDeFicha termino="Fecha de inicio"><Fecha valor={proyecto.start_date} /></DatoDeFicha>
-
-            {proyecto.deadline !== null && (
-              <DatoDeFicha termino="Fecha límite"><Fecha valor={proyecto.deadline} comoVencimiento /></DatoDeFicha>
-            )}
-            {proyecto.date_finished !== null && (
-              <DatoDeFicha termino="Fecha de finalización">
-                <span className="text-texto-exito"><Fecha valor={proyecto.date_finished} /></span>
-              </DatoDeFicha>
-            )}
-
-            <DatoDeFicha termino="Horas estimadas">{formatearNumero(proyecto.estimated_hours, ' h')}</DatoDeFicha>
-          </dl>
-
-          <div className="flex flex-col gap-1">
-            <h3 className="text-texto-sutil text-xs">Descripción</h3>
-            <p className="text-texto text-sm whitespace-pre-line">
-              {descripcion === '' ? 'Sin descripción' : descripcion}
-            </p>
-          </div>
-        </section>
-
-        <div className="grid grid-cols-2 gap-3 self-start md:grid-cols-3">
-          <Metrica
-            etiqueta={`${GLOSARIO.proceso.plural} abiertas`}
-            valor={`${proyecto.counts.tasks_open} / ${proyecto.counts.tasks}`}
-          />
-          <Metrica etiqueta="Días restantes" valor={textoPlazo(proyecto.deadline)} />
-          <Metrica etiqueta={GLOSARIO.hito.plural} valor={String(proyecto.counts.milestones)} />
-        </div>
-      </div>
-    </div>
-  )
-}
 
 /*
- * La pestaña Tareas ya no vive acá: la dibuja `componentes/proyecto/PanelTareas`, el mismo panel que
- * abre un colaborador, con la fuente del contacto y `capacidades={[]}`. Con eso el cliente gano la
- * tabla completa, el tablero, el calendario y el detalle de una Tarea, que esta copia no tenia.
+ * Acá quedan DOS pestañas, y es a proposito: archivos y tickets son lo unico del proyecto donde el
+ * contrato del cliente no es una version podada del contrato del equipo, sino otra cosa.
  *
- * Se perdio a cambio la primera pagina resuelta en el servidor: el panel compartido recibe un id y
- * pide lo suyo al montarse, asi que la tabla del cliente ahora muestra su bloque de carga como la
- * del equipo. Es el precio de tener un solo dibujo, y esta anotado para que no se lea como un
- * descuido.
- */
-
-/**
- * Hitos, como lista con su avance.
+ * Las demas —Descripcion, Tareas, Hitos, Tiempos, Discusiones, Gantt, Calendario y Actividad— las
+ * dibuja el MISMO panel que abre un colaborador (`componentes/proyecto/Panel*`), con la fuente del
+ * contacto y `capacidades={[]}`. Con eso el cliente gano la tabla completa, el tablero, la ficha de
+ * una Tarea, los filtros, el orden y la paginacion que estas copias no tenian, y las dos pantallas
+ * dejaron de poder desincronizarse.
  *
- * El equipo los ve en una tabla, con orden y acciones por fila; el cliente los lee de corrido y con
- * su descripcion, que en una celda no entra. Lo que NO cambia son las dos piezas que dicen algo del
- * hito —el vencimiento y el avance—: salen de `presentadores/Hito`, las mismas que pinta la tabla
- * del panel. Antes acá estaban escritas de nuevo, y el avance se calculaba distinto: un hito sin
- * tareas mostraba una barra en 0% en vez de decir que no tiene ninguna.
+ * Se perdio a cambio la primera pagina resuelta en el servidor: los paneles compartidos son de
+ * cliente, reciben un id y piden lo suyo al montarse, asi que las tablas del cliente ahora muestran
+ * su bloque de carga como las del equipo. Es el precio de tener un solo dibujo, y esta anotado para
+ * que no se lea como un descuido.
  */
-export async function PanelHitos ({ proyectoId }: { proyectoId: number }) {
-  const { data } = await pedirPortal<HitoPortal[]>(`/portal/projects/${proyectoId}/milestones`)
-
-  if (data.length === 0) {
-    return <Vacio titulo={`Sin ${GLOSARIO.hito.plural.toLowerCase()}`} descripcion="Todavía no hay nada que mostrar acá." />
-  }
-
-  return (
-    <ul className="flex flex-col gap-3">
-      {data.map((hito) => (
-        <li
-          key={hito.id}
-          className="rounded-tarjeta border-linea bg-superficie-elevada shadow-1 border p-4"
-        >
-          <div className="flex flex-wrap items-baseline justify-between gap-2">
-            <span className="font-titular text-texto font-semibold">{hito.name}</span>
-            <span className="text-texto-tenue text-sm"><VencimientoDeHito hito={hito} /></span>
-          </div>
-
-          {hito.description !== null && hito.description !== '' && (
-            <p className="text-texto-tenue mt-1 text-sm whitespace-pre-line">{hito.description}</p>
-          )}
-
-          <div className="mt-3"><AvanceDeHito hito={hito} /></div>
-        </li>
-      ))}
-    </ul>
-  )
-}
 
 export async function PanelArchivos ({ proyectoId }: { proyectoId: number }) {
   const { data } = await pedirPortal<ArchivoPortal[]>(`/portal/projects/${proyectoId}/files`)

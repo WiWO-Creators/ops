@@ -4,9 +4,10 @@ import { useState, type ReactElement } from 'react'
 import { PaginacionTabla } from '@/componentes/datos/ControlesTabla'
 import { Cargando, ErrorEstado } from '@/componentes/estado/Estados'
 import { mensajeDeRespuesta } from '@/datos/cliente'
-import type { ActividadEspacio } from '@/datos/recursos'
 import type { Capacidad } from '@/datos/tipos'
+import { conConsulta, type FuenteDeProyecto } from '@/dominio/fuente-proyecto'
 import { LineaDeActividad } from './LineaDeActividad'
+import type { EntradaDeActividad } from './actividad'
 import { useRecurso } from './carga'
 
 /**
@@ -24,12 +25,28 @@ import { useRecurso } from './carga'
  * `description` y `additional_data` llegan ya traducidas y con los pseudo-tags `<seconds>` y `<lang>`
  * resueltos por la API. Rehacer esa sustitucion aca seria duplicar logica del backend.
  *
- * El interruptor de "Visible para el cliente" solo se ofrece con `create projects`, igual que en el
- * panel: es lo que decide que ve el cliente en su portal.
+ * **La misma linea de tiempo la abren el equipo y el cliente.** Lo unico que cambia es de donde
+ * bajan las entradas —`fuente`— y que manda cada contrato. El interruptor de "Visible para el
+ * cliente" se dibuja **solo cuando la entrada trae esa clave**, que es lo que el contrato dice: el
+ * del contacto no la emite —al portal solo llegan las visibles, y el campo seria siempre "Sí"— y
+ * entonces la fila no lleva control. Sobre esa clave, `create projects` decide si ademas se puede
+ * cambiar.
  */
 
+/**
+ * Lo minimo que la linea de tiempo pinta de una entrada.
+ *
+ * Se declara lo que se usa y no `ActividadEspacio`: la misma pestaña la abre el contacto, y su
+ * contrato no publica `visible_to_customer`. Clave ausente = interruptor que no se dibuja.
+ */
+interface EntradaDeProyecto extends EntradaDeActividad {
+  id: number
+  visible_to_customer?: boolean
+}
+
 interface PropsPanelActividad {
-  proyectoId: number
+  /** De donde baja la actividad de este Proyecto. Ver `dominio/fuente-proyecto.ts`. */
+  fuente: FuenteDeProyecto
   /** Capacidades sobre `projects`. */
   capacidades: Capacidad[]
 }
@@ -37,13 +54,13 @@ interface PropsPanelActividad {
 /** Cuantas entradas trae cada pagina. Es el mismo tope por defecto que usa el motor de tabla. */
 const POR_PAGINA = 25
 
-export function PanelActividad ({ proyectoId, capacidades }: PropsPanelActividad): ReactElement {
+export function PanelActividad ({ fuente, capacidades }: PropsPanelActividad): ReactElement {
   const [pagina, setPagina] = useState(1)
   const [porPagina, setPorPagina] = useState(POR_PAGINA)
   const puedeCambiarVisibilidad = capacidades.includes('create')
 
-  const { estado, recargar } = useRecurso<ActividadEspacio[]>(
-    `projects/${proyectoId}/activity?page=${pagina}&per_page=${porPagina}`,
+  const { estado, recargar } = useRecurso<EntradaDeProyecto[]>(
+    conConsulta(fuente.actividad, `page=${pagina}&per_page=${porPagina}`),
     'No se pudo cargar la actividad del proyecto.'
   )
 
@@ -55,12 +72,17 @@ export function PanelActividad ({ proyectoId, capacidades }: PropsPanelActividad
       <LineaDeActividad
         entradas={estado.datos}
         accion={(entrada) => (
-          <InterruptorVisibilidad
-            entrada={entrada}
-            proyectoId={proyectoId}
-            habilitado={puedeCambiarVisibilidad}
-            recargar={recargar}
-          />
+          entrada.visible_to_customer === undefined
+            ? null
+            : (
+              <InterruptorVisibilidad
+                entrada={entrada}
+                visible={entrada.visible_to_customer}
+                ruta={fuente.actividad}
+                habilitado={puedeCambiarVisibilidad}
+                recargar={recargar}
+              />
+              )
         )}
       />
 
@@ -76,8 +98,11 @@ export function PanelActividad ({ proyectoId, capacidades }: PropsPanelActividad
 }
 
 interface PropsInterruptor {
-  entrada: ActividadEspacio
-  proyectoId: number
+  entrada: EntradaDeProyecto
+  /** El valor que trae la entrada, ya comprobado por quien lo monta: acá nunca es `undefined`. */
+  visible: boolean
+  /** Ruta del feed de este Proyecto; la entrada cuelga de ella. */
+  ruta: string
   habilitado: boolean
   recargar: () => void
 }
@@ -90,11 +115,12 @@ interface PropsInterruptor {
  */
 function InterruptorVisibilidad ({
   entrada,
-  proyectoId,
+  visible: inicial,
+  ruta,
   habilitado,
   recargar
 }: PropsInterruptor): ReactElement {
-  const [visible, setVisible] = useState(entrada.visible_to_customer)
+  const [visible, setVisible] = useState(inicial)
   const [guardando, setGuardando] = useState(false)
   const [fallo, setFallo] = useState<string | null>(null)
 
@@ -107,7 +133,7 @@ function InterruptorVisibilidad ({
     setFallo(null)
 
     try {
-      const respuesta = await fetch(`/api/bff/projects/${proyectoId}/activity/${entrada.id}`, {
+      const respuesta = await fetch(`/api/bff/${ruta}/${entrada.id}`, {
         method: 'PATCH',
         headers: { 'content-type': 'application/json', accept: 'application/json' },
         body: JSON.stringify({ visible_to_customer: siguiente })

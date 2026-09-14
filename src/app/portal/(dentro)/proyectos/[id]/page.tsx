@@ -5,8 +5,15 @@ import { ErrorApi } from '@/datos/errores'
 import type { EspacioPortal, TareaPortal } from '@/datos/portal'
 import { pestaniasDelProyecto } from '@/definiciones/portal-proyectos'
 import { CabeceraProyecto } from '@/componentes/proyecto/CabeceraProyecto'
+import { PanelActividad } from '@/componentes/proyecto/PanelActividad'
 import { PanelCalendario } from '@/componentes/proyecto/PanelCalendario'
+import { PanelDescripcion } from '@/componentes/proyecto/PanelDescripcion'
+import { PanelDiscusiones } from '@/componentes/proyecto/PanelDiscusiones'
+import { PanelGantt } from '@/componentes/proyecto/PanelGantt'
+import { PanelHitos } from '@/componentes/proyecto/PanelHitos'
 import { PanelTareas } from '@/componentes/proyecto/PanelTareas'
+import { PanelTiempos } from '@/componentes/proyecto/PanelTiempos'
+import { Vacio } from '@/componentes/estado/Estados'
 import { aTextoPlano } from '@/componentes/proyecto/formatos'
 import { cargarLookupsDelPortal, listaDe } from '@/datos/lookups'
 import { pedirPortal } from '@/datos/servidor'
@@ -16,18 +23,7 @@ import { fuenteDelPortal, type FuenteDeProyecto } from '@/dominio/fuente-proyect
 import { proyectoDelPortal } from '@/dominio/proyecto'
 import { cargarDetalle, EstadoDeError, estadoDelPortal } from '../../detalle'
 import { AprobacionesPendientes } from './AprobacionesPendientes'
-import {
-  PanelArchivos,
-  PanelHitos,
-  PanelResumen,
-  PanelTicketsDelProyecto
-} from './PanelesProyecto'
-import {
-  PanelActividadPortal,
-  PanelDiscusiones,
-  PanelGantt,
-  PanelTiempos
-} from './PanelesExtra'
+import { PanelArchivos, PanelTicketsDelProyecto } from './PanelesProyecto'
 
 /**
  * Detalle de un proyecto, con las pestañas que el equipo compartio.
@@ -68,6 +64,8 @@ export default async function ProyectoPagina (props: PageProps<'/portal/proyecto
   // que se trata, y ahi es el unico lugar donde cabe.
   const descripcionSuelta = !pestanias.some((p) => p.clave === 'overview')
   const pendientes = await cargarPendientes(proyecto)
+  // El estado, resuelto una vez: lo pinta la cabecera y lo repite la ficha de la pestaña Descripcion.
+  const estado = await estadoDelPortal('project_statuses', proyecto.status)
   // De donde bajan los datos de cada pestaña. Es lo unico que distingue esta pantalla de la del
   // colaborador, que monta los mismos paneles con `fuenteDelPanel`. Ver `dominio/fuente-proyecto.ts`.
   const fuente = fuenteDelPortal(proyecto.id)
@@ -75,7 +73,7 @@ export default async function ProyectoPagina (props: PageProps<'/portal/proyecto
   const paneles: Panel[] = pestanias.map(({ clave, etiqueta }) => ({
     clave,
     etiqueta,
-    contenido: contenidoDePestania(clave, proyecto, fuente)
+    contenido: contenidoDePestania(clave, proyecto, fuente, { empresa: empresa.company, estado })
   }))
 
   return (
@@ -85,7 +83,7 @@ export default async function ProyectoPagina (props: PageProps<'/portal/proyecto
           del portal, sin capacidades y sin botonera—, no el dibujo. */}
       <CabeceraProyecto
         proyecto={proyectoDelPortal(proyecto, empresa)}
-        estado={await estadoDelPortal('project_statuses', proyecto.status)}
+        estado={estado}
         volverA={{ href: '/portal/proyectos', etiqueta: GLOSARIO.espacio.plural }}
       />
 
@@ -106,9 +104,24 @@ export default async function ProyectoPagina (props: PageProps<'/portal/proyecto
         />
       )}
 
-      {paneles.length > 0 ? <Pestanas paneles={paneles} /> : <PanelResumen proyecto={proyecto} />}
+      {paneles.length > 0
+        ? <Pestanas paneles={paneles} />
+        : (
+          <Vacio
+            titulo="Todavía no hay nada compartido"
+            descripcion="Cuando el equipo comparta algo de este proyecto, aparece acá."
+          />
+          )}
     </div>
   )
+}
+
+/** Lo que la pagina ya resolvio y alguna pestaña necesita: no se vuelve a pedir dentro del panel. */
+interface DatosDeLaPagina {
+  /** Nombre de la empresa del contacto, de `GET /portal/company`. */
+  empresa: string
+  /** Estado del proyecto, ya resuelto contra `project_statuses` del portal. */
+  estado: { nombre: string, color: string | null }
 }
 
 /**
@@ -123,10 +136,32 @@ export default async function ProyectoPagina (props: PageProps<'/portal/proyecto
  * @param clave La pestaña, tal como la nombra la API.
  * @param proyecto El proyecto ya cargado.
  * @param fuente Las rutas del contacto para este proyecto.
+ * @param pagina Lo que la pagina ya resolvio y algun panel necesita.
  * @returns El contenido de esa pestaña.
  */
-function contenidoDePestania (clave: string, proyecto: EspacioPortal, fuente: FuenteDeProyecto): React.ReactNode {
+function contenidoDePestania (
+  clave: string,
+  proyecto: EspacioPortal,
+  fuente: FuenteDeProyecto,
+  pagina: DatosDeLaPagina
+): React.ReactNode {
   switch (clave) {
+    case 'overview':
+      return (
+        <PanelDescripcion
+          proyecto={proyecto}
+          estado={pagina.estado}
+          // `href` en `null`: el cliente no tiene pantalla de clientes a donde ir, y el nombre es el
+          // de su propia empresa —la API del contacto no publica el cliente del proyecto—.
+          cliente={{ nombre: pagina.empresa, href: null }}
+          // Sin tipo de facturacion: el contrato del contacto no lo publica, asi que la fila no va.
+          // Los importes si, cuando la API los mando: `view_finance_overview` ya decidio del otro lado.
+          puedeVerMontos
+          fuente={fuente}
+          // El grafico de horas por dia es un subrecurso del resumen que el contacto no tiene.
+          rutaDelGrafico={null}
+        />
+      )
     case 'tasks':
       // `conIa={false}`: la capa de IA es del panel, y el alta por texto que habilita ni se ofrece
       // con `capacidades={[]}`.
@@ -134,21 +169,23 @@ function contenidoDePestania (clave: string, proyecto: EspacioPortal, fuente: Fu
     case 'calendar':
       return <PanelCalendario proyectoId={proyecto.id} fuente={fuente} capacidades={[]} />
     case 'milestones':
-      return <PanelHitos proyectoId={proyecto.id} />
+      return <PanelHitos proyecto={proyecto} fuente={fuente} capacidades={[]} />
+    case 'timesheets':
+      return <PanelTiempos proyectoId={proyecto.id} fuente={fuente} capacidades={[]} />
+    case 'discussions':
+      return <PanelDiscusiones proyectoId={proyecto.id} fuente={fuente} capacidades={[]} />
+    case 'gantt':
+      return <PanelGantt proyectoId={proyecto.id} fuente={fuente} />
+    case 'activity':
+      return <PanelActividad fuente={fuente} capacidades={[]} />
     case 'files':
       return <PanelArchivos proyectoId={proyecto.id} />
     case 'tickets':
       return <PanelTicketsDelProyecto proyectoId={proyecto.id} />
-    case 'discussions':
-      return <PanelDiscusiones proyectoId={proyecto.id} />
-    case 'timesheets':
-      return <PanelTiempos proyectoId={proyecto.id} />
-    case 'gantt':
-      return <PanelGantt proyectoId={proyecto.id} />
-    case 'activity':
-      return <PanelActividadPortal proyectoId={proyecto.id} />
     default:
-      return <PanelResumen proyecto={proyecto} />
+      // `pestaniasDelProyecto` ya filtro contra `PESTANIAS_PROYECTO`: acá solo cae una pestaña que
+      // esa lista declara y esta pagina todavia no construyo. Nada, antes que un panel equivocado.
+      return null
   }
 }
 

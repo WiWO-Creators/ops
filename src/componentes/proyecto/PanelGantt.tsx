@@ -23,6 +23,7 @@ import {
   esZoomGantt,
   filasDeGantt,
   flechasDeGantt,
+  lecturasDelGantt,
   marcasDeGantt,
   ocultarCompletadasDeGantt,
   posicionDeHoy,
@@ -36,9 +37,15 @@ import {
 import { ExportarGantt } from './ExportarGantt'
 import { NOMBRE_DE_AGRUPACION, NOMBRE_DE_ZOOM } from './exportar-gantt'
 import type { AgrupacionGantt, GrupoGantt, Lookups } from '@/datos/recursos'
+import { conConsulta, type FuenteDeProyecto } from '@/dominio/fuente-proyecto'
 
 /**
  * Pestaña Diagrama de Gantt del Proyecto.
+ *
+ * **El mismo lo abren el equipo y el cliente.** Lo unico que cambia es de donde bajan los grupos
+ * —`fuente`— y que agrupaciones acepta cada contrato, que resuelve `lecturasDelGantt`: acá no hay
+ * ninguna rama por sujeto. El diagrama no se arrastra para nadie (ver abajo), asi que no hay nada
+ * que apagar en el portal mas alla de lo que el endpoint no atiende.
  *
  * Se dibuja con CSS propio y **sin dependencias nuevas**: cada fila es una pista de ancho completo y
  * cada barra un bloque posicionado en porcentaje sobre la linea de tiempo. Una libreria de Gantt
@@ -66,17 +73,6 @@ import type { AgrupacionGantt, GrupoGantt, Lookups } from '@/datos/recursos'
  * hablar del mismo estado y, encendidas a la vez, se piden dos cosas incompatibles —solo completadas
  * y ninguna completada— que dejarian el diagrama vacio sin nada que lo explique.
  */
-
-/**
- * Las tres agrupaciones del panel, en el orden en que se muestran. `milestones` es la de por defecto.
- *
- * Las etiquetas salen de `exportar-gantt.ts` y no se escriben acá: el pie del archivo exportado dice
- * por cual esta agrupado el diagrama, y dos copias del mismo nombre se separan en el primer renombre.
- */
-const AGRUPACIONES = (['milestones', 'members', 'status'] as const).map((valor) => ({
-  valor,
-  etiqueta: NOMBRE_DE_AGRUPACION[valor]
-}))
 
 /** Parametros con los que el diagrama guarda su estado en la URL. */
 const PARAMETRO = {
@@ -107,22 +103,37 @@ function esCebrada (indice: number): boolean {
   return indice % 2 === 1
 }
 
-export function PanelGantt ({ proyectoId }: { proyectoId: number }): ReactElement {
+/**
+ * @param proyectoId El Proyecto que se esta mirando. Lo usa la exportacion para nombrar el archivo.
+ * @param fuente De donde bajan los grupos del diagrama. Ver `dominio/fuente-proyecto.ts`.
+ * @returns El diagrama con sus controles.
+ */
+export function PanelGantt ({
+  proyectoId,
+  fuente
+}: {
+  proyectoId: number
+  fuente: FuenteDeProyecto
+}): ReactElement {
   const router = useRouter()
   const params = useSearchParams()
 
+  // Las etiquetas salen de `exportar-gantt.ts` y no se escriben acá: el pie del archivo exportado
+  // dice por cual esta agrupado el diagrama, y dos copias del mismo nombre se separan en el primer
+  // renombre.
+  const agrupaciones = lecturasDelGantt(fuente).agrupaciones
   const pedida = params.get(PARAMETRO.agrupar)
-  const agrupar: AgrupacionGantt = AGRUPACIONES.some((o) => o.valor === pedida)
+  const agrupar: AgrupacionGantt = agrupaciones.includes(pedida as AgrupacionGantt)
     ? pedida as AgrupacionGantt
     : 'milestones'
 
   const estados = leerEstados(params.get(PARAMETRO.estado))
   const ocultarCompletadas = params.get(PARAMETRO.completadas) === COMPLETADAS_OCULTAS
   const { estado, recargar } = useRecurso<GrupoGantt[]>(
-    rutaDelGantt(proyectoId, agrupar, estados),
+    rutaDelGantt(fuente, agrupar, estados),
     'No se pudo cargar el diagrama de Gantt.'
   )
-  const lookups = useRecurso<Lookups>('lookups', 'No se pudieron cargar los estados.')
+  const lookups = useRecurso<Lookups>(fuente.lookups, 'No se pudieron cargar los estados.')
 
   // El dia se congela al montar: recalcularlo en cada render movería el marcador de hoy y la marca
   // de vencida en medio de una sesion abierta desde ayer, sin que nada mas cambie en pantalla.
@@ -193,13 +204,16 @@ export function PanelGantt ({ proyectoId }: { proyectoId: number }): ReactElemen
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
-        <Segmentado
-          etiqueta="Agrupar por"
-          etiquetaVisible
-          opciones={AGRUPACIONES.map((o) => ({ valor: o.valor, etiqueta: o.etiqueta }))}
-          activo={agrupar}
-          onElegir={(valor) => { elegir({ [PARAMETRO.agrupar]: valor }) }}
-        />
+        {/* Con una sola agrupacion no hay nada que elegir: un control de una opcion es ruido. */}
+        {agrupaciones.length > 1 && (
+          <Segmentado
+            etiqueta="Agrupar por"
+            etiquetaVisible
+            opciones={agrupaciones.map((valor) => ({ valor, etiqueta: NOMBRE_DE_AGRUPACION[valor] }))}
+            activo={agrupar}
+            onElegir={(valor) => { elegir({ [PARAMETRO.agrupar]: valor }) }}
+          />
+        )}
 
         <Segmentado
           etiqueta="Escala"
@@ -252,16 +266,16 @@ export function PanelGantt ({ proyectoId }: { proyectoId: number }): ReactElemen
 /**
  * Ruta del diagrama en la API, con el filtro por estado si lo hay.
  *
- * @param proyectoId id del proyecto
+ * @param fuente de donde bajan los grupos de este sujeto
  * @param agrupar como se agrupan las filas
  * @param estados ids de `task_statuses` elegidos; vacio significa "todos"
  * @returns la ruta relativa que consume `useRecurso`
  */
-function rutaDelGantt (proyectoId: number, agrupar: AgrupacionGantt, estados: number[]): string {
+function rutaDelGantt (fuente: FuenteDeProyecto, agrupar: AgrupacionGantt, estados: number[]): string {
   const consulta = new URLSearchParams({ agrupar })
   if (estados.length > 0) consulta.set('filter[status]', estados.join(','))
 
-  return `projects/${String(proyectoId)}/gantt?${consulta.toString()}`
+  return conConsulta(fuente.gantt, consulta.toString())
 }
 
 /**
