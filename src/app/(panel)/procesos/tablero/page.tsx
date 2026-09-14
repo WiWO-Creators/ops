@@ -1,12 +1,15 @@
+import { filtrosDeCamposPersonalizados } from '@/definiciones/filtros'
+import type { DefinicionCampoPersonalizado } from '@/datos/recursos'
 import { BotonCompletados } from '@/componentes/proyecto/BotonCompletados'
 import { Suspense } from 'react'
 import { TableroProcesos } from '@/componentes/datos/vistas'
 import { AltaRapidaProceso } from '@/componentes/proyecto/AltaRapidaProceso'
 import { Cargando } from '@/componentes/estado/Estados'
 import { Segmentado } from '@/componentes/formularios/Segmentado'
+import { TituloModulo } from '@/componentes/estructura/TituloModulo'
 import { iaHabilitada } from '@/datos/ajustes'
 import { construirConsulta, leerConsulta, paramsDeUrl } from '@/datos/consulta'
-import { cargarLookups, opcionesDeFiltros } from '@/datos/lookups'
+import { cargarLookups, opcionesDeFiltroDeEspacio, opcionesDeFiltros } from '@/datos/lookups'
 import { RUTA_DE_ASIGNABLES } from '@/datos/asignables'
 import { pedir, pedirOpcional } from '@/datos/servidor'
 import type { Espacio, PersonaAsignable } from '@/datos/recursos'
@@ -29,8 +32,10 @@ export const metadata = { title: 'Tablero de Tareas · WiWO Ops' }
  */
 export default async function TableroProcesosPage (props: PageProps<'/procesos/tablero'>) {
   const params = paramsDeUrl(await props.searchParams)
-  const estado = leerConsulta(params, PROCESOS)
-  const consulta = construirConsulta({ ...estado, orden: [], pagina: 1 }, PROCESOS)
+  const campos = await pedir<DefinicionCampoPersonalizado[]>('/custom-fields?para=tasks')
+  const definicion = { ...PROCESOS, filtros: [...PROCESOS.filtros, ...filtrosDeCamposPersonalizados(campos.data)] }
+  const estado = leerConsulta(params, definicion)
+  const consulta = construirConsulta({ ...estado, orden: [], pagina: 1 }, definicion)
 
   const [lookups, yo, equipo, espacios, clientes, hitos, conIa] = await Promise.all([
     cargarLookups(),
@@ -47,7 +52,7 @@ export default async function TableroProcesosPage (props: PageProps<'/procesos/t
 
   // El catalogo de Espacios ya venia para el alta rapida; darselo tambien al filtro es lo que hace
   // que el filtro por Hito tenga de donde salir, porque un hito cuelga de un Espacio.
-  const espaciosDeFiltro = espacios.data.map((espacio) => ({ valor: String(espacio.id), etiqueta: espacio.name }))
+  const espaciosDeFiltro = opcionesDeFiltroDeEspacio(espacios.data)
 
   const catalogosDeAlta = {
     personas: (equipo.datos ?? []).map((p) => ({
@@ -61,36 +66,37 @@ export default async function TableroProcesosPage (props: PageProps<'/procesos/t
 
   return (
     <section className="flex min-h-0 flex-col gap-4">
-      {/* `flex-wrap`: con la tercera presentacion el control segmentado ya no entra al lado del
-          titulo en un telefono, y sin envolver el "Calendario" queda cortado contra el borde. */}
-      <header className="flex flex-wrap items-center justify-between gap-4">
-        <h1 className="text-xl font-semibold text-texto">Tablero de {PROCESOS.titulo.plural}</h1>
-        <div className="flex items-center gap-3">
-          <Suspense><BotonCompletados /></Suspense>
-          <Segmentado
-            etiqueta={`Presentación de ${PROCESOS.titulo.plural.toLowerCase()}`}
-            tamano="medio"
-            activo="tablero"
-            opciones={[
-              // `consulta` ya viene sin orden ni pagina: al volver a la lista viajan solo los filtros.
-              { valor: 'tabla', etiqueta: 'Tabla', icono: 'tabla', href: `/procesos${consulta === '' ? '' : `?${consulta}`}` },
-              { valor: 'tablero', etiqueta: 'Tablero', icono: 'tablero', href: '/procesos/tablero' },
-              {
-                valor: 'calendario',
-                etiqueta: 'Calendario',
-                icono: 'calendario',
-                href: `/procesos/calendario${consulta === '' ? '' : `?${consulta}`}`
-              }
-            ]}
-          />
-          {yo.data.permissions.tasks.includes('create') && (
-            <AltaRapidaProceso catalogos={catalogosDeAlta} etiquetas={lookups.tags} conIa={conIa} />
-          )}
-        </div>
-      </header>
+      <TituloModulo
+        titulo={`Tablero de ${PROCESOS.titulo.plural}`}
+        acciones={
+          <div className="flex items-center gap-3">
+            <Suspense><BotonCompletados /></Suspense>
+            <Segmentado
+              etiqueta={`Presentación de ${PROCESOS.titulo.plural.toLowerCase()}`}
+              tamano="medio"
+              activo="tablero"
+              opciones={[
+                // `consulta` ya viene sin orden ni pagina: al volver a la lista viajan solo los filtros.
+                { valor: 'tabla', etiqueta: 'Tabla', icono: 'tabla', href: `/procesos${consulta === '' ? '' : `?${consulta}`}` },
+                { valor: 'tablero', etiqueta: 'Tablero', icono: 'tablero', href: '/procesos/tablero' },
+                {
+                  valor: 'calendario',
+                  etiqueta: 'Calendario',
+                  icono: 'calendario',
+                  href: `/procesos/calendario${consulta === '' ? '' : `?${consulta}`}`
+                }
+              ]}
+            />
+            {yo.data.permissions.tasks.includes('create') && (
+              <AltaRapidaProceso catalogos={catalogosDeAlta} etiquetas={lookups.tags} conIa={conIa} />
+            )}
+          </div>
+        }
+      />
 
       <Suspense fallback={<Cargando alto="min-h-36" mensaje="Cargando el tablero…" />}>
         <TableroProcesos
+          camposPersonalizados={campos.data}
           opcionesDeFiltro={{ ...opcionesDeFiltros(PROCESOS, lookups), clients: clientes, projects: espaciosDeFiltro, milestones: hitos }}
           capacidades={yo.data.permissions.tasks}
         />

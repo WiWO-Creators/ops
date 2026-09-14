@@ -1,0 +1,81 @@
+/**
+ * La obra deja paso al panel: luz de marca, titulo enfocado y tres grupos de contenido.
+ * Solo corre al montar la pagina. Los datos que se refrescan conservan sus nodos y no la reinician.
+ * El estado sin animacion es visible; no hay esperas de JavaScript ni bloqueos de interaccion.
+ */
+.entrada-pagina {
+  display: contents;
+  --entrada-curva: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.entrada-pagina::before {
+  content: '';
+  position: fixed;
+  inset: 0 0 auto;
+  height: min(22rem, 45vh);
+  pointer-events: none;
+  opacity: 0;
+  background: radial-gradient(ellipse at 45% 0%, var(--aurora-verde), transparent 55%),
+    radial-gradient(ellipse at 70% 0%, var(--aurora-azul), transparent 65%);
+  animation: entrada-luz 760ms var(--entrada-curva);
+}
+
+.entrada-pagina h1 {
+  animation: entrada-titulo 640ms var(--entrada-curva) backwards;
+}
+
+.entrada-pagina header .bg-gradiente-marca[aria-hidden] {
+  transform-origin: left center;
+  animation: entrada-firma 560ms 100ms var(--entrada-curva) backwards;
+}
+
+/* Solo grupos de primer nivel, nunca cada tarjeta o fila. El ultimo termina a los 760 ms. */
+.entrada-pagina > :is(div, section) > :nth-child(-n + 4):not(header):not(:has(h1)) {
+  animation: entrada-contenido 580ms 80ms var(--entrada-curva) backwards;
+}
+
+.entrada-pagina > :is(div, section) > :nth-child(3):not(header):not(:has(h1)) {
+  animation-delay: 130ms;
+}
+
+.entrada-pagina > :is(div, section) > :nth-child(4):not(header):not(:has(h1)) {
+  animation-delay: 180ms;
+}
+
+/* La entrada no se consume detras de la cortina ni durante su fundido de salida. */
+html:is([data-bienvenida], :has(.bienvenida-capa)) .entrada-pagina::before,
+html:is([data-bienvenida], :has(.bienvenida-capa)) .entrada-pagina h1,
+html:is([data-bienvenida], :has(.bienvenida-capa)) .entrada-pagina header .bg-gradiente-marca[aria-hidden],
+html:is([data-bienvenida], :has(.bienvenida-capa)) .entrada-pagina > :is(div, section) > :nth-child(-n + 4):not(header):not(:has(h1)) {
+  animation-play-state: paused;
+}
+
+@keyframes entrada-luz {
+  0% { opacity: 0; transform: translateX(-8%); }
+  28% { opacity: 0.9; }
+  100% { opacity: 0; transform: translateX(8%); }
+}
+
+@keyframes entrada-titulo {
+  from { opacity: 0.7; filter: blur(3px); transform: translateY(10px); }
+  to { opacity: 1; filter: blur(0); transform: none; }
+}
+
+@keyframes entrada-firma {
+  from { transform: scaleX(0.15); }
+  to { transform: scaleX(1); }
+}
+
+@keyframes entrada-contenido {
+  from { opacity: 0.8; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .entrada-pagina::before,
+  .entrada-pagina h1,
+  .entrada-pagina header .bg-gradiente-marca[aria-hidden],
+  .entrada-pagina > :is(div, section) > :nth-child(-n + 4):not(header):not(:has(h1)) {
+    animation: none;
+  }
+}

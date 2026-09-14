@@ -15,9 +15,18 @@ export const GLOSARIO = {
   proceso: { singular: 'Tarea', plural: 'Tareas' },
   espacio: { singular: 'Proyecto', plural: 'Proyectos' },
   hito: { singular: 'Hito', plural: 'Hitos' },
+  // La empresa candidata de `/prospectos`, con sus contactos y sus licitaciones. **No** es el
+  // embudo `/leads` de Perfex, que no tiene pantalla en este panel y por eso no tiene entrada acá.
   prospecto: { singular: 'Prospecto', plural: 'Prospectos' },
   licitacion: { singular: 'Licitación', plural: 'Licitaciones' },
+  // La oportunidad comercial sobre un cliente que ya existe. El plural es el nombre de la sección
+  // ("Upselling") y no "Upsells": es como lo llama el equipo, y no hay traducción que lo mejore.
+  upsell: { singular: 'Upsell', plural: 'Upselling' },
   cliente: { singular: 'Cliente', plural: 'Clientes' },
+  // Quien responde por una cuenta. La clave sigue diciendo `focal` porque asi se llama el recurso
+  // de la API (`/clients/{id}/focales`); el plural es "Focals" y no "Focales" porque es como lo
+  // llama el equipo, y esa palabra nombra a la vez a la persona y a su pantalla.
+  focal: { singular: 'Focal', plural: 'Focals' },
   ticket: { singular: 'Ticket', plural: 'Tickets' },
   seguimiento: { singular: 'Seguimiento', plural: 'Seguimiento' },
   planificador: { singular: 'Planificador', plural: 'Planificador' },
@@ -38,7 +47,7 @@ export const GLOSARIO = {
  * Fuera de `GLOSARIO` porque no es un concepto que se cuente: no tiene plural. Aca y no escrito a
  * mano en cada pantalla, para que renombrarlo sea una linea y no una cacería.
  */
-export const ASISTENTE = 'WiBot'
+export const ASISTENTE = 'Thinking Orb'
 
 export type ClaveGlosario = keyof typeof GLOSARIO
 

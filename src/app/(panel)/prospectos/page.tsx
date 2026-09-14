@@ -1,0 +1,66 @@
+import { Suspense } from 'react'
+import { Cargando } from '@/componentes/estado/Estados'
+import { TotalDelListado } from '@/componentes/datos/TotalDelListado'
+import { VistaProspectos } from '@/componentes/prospecto/VistaProspectos'
+import { construirConsulta, leerConsulta, paramsDeUrl } from '@/datos/consulta'
+import { listaDe } from '@/datos/catalogos'
+import { cargarLookups } from '@/datos/lookups'
+import { pedir } from '@/datos/servidor'
+import type { EstadoLookup, Prospecto } from '@/datos/recursos'
+import type { OpcionCampo } from '@/componentes/proyecto/formulario'
+import { TituloModulo } from '@/componentes/estructura/TituloModulo'
+import type { Yo } from '@/datos/tipos'
+import { PROSPECTOS } from '@/definiciones/prospectos'
+import { GLOSARIO } from '@/dominio/glosario'
+
+export const metadata = { title: 'Licitaciones · WiWO Ops' }
+
+/**
+ * Lista de Prospectos: las empresas a las que se les esta licitando.
+ *
+ * La primera pagina se resuelve en el servidor para que la lista no parpadee al montar; de ahi en
+ * adelante el motor pide al BFF. El `Suspense` no es decorativo: la vista usa `useSearchParams`, y
+ * sin el limite el build de esta ruta falla.
+ */
+export default async function ProspectosPage (props: PageProps<'/prospectos'>) {
+  const params = paramsDeUrl(await props.searchParams)
+
+  const estado = leerConsulta(params, PROSPECTOS)
+  const consulta = construirConsulta(estado, PROSPECTOS)
+
+  const [lista, lookups, yo] = await Promise.all([
+    pedir<Prospecto[]>(`/prospectos${consulta === '' ? '' : `?${consulta}`}`),
+    cargarLookups(),
+    pedir<Yo>('/me')
+  ])
+
+  return (
+    <section className="flex flex-col gap-4">
+      <TituloModulo
+        titulo={GLOSARIO.licitacion.plural}
+        acciones={<TotalDelListado paginacion={lista.meta?.pagination} />}
+      />
+
+      <Suspense fallback={<Cargando alto="min-h-36" mensaje="Cargando licitaciones…" />}>
+        <VistaProspectos
+          usuarioId={yo.data.id}
+          inicial={{ filas: lista.data, paginacion: lista.meta?.pagination }}
+          capacidades={yo.data.permissions.projects}
+          paises={comoOpciones(listaDe(lookups, 'countries'))}
+          areas={comoOpciones(listaDe(lookups, 'areas'))}
+          staff={comoOpciones(listaDe(lookups, 'staff'))}
+        />
+      </Suspense>
+    </section>
+  )
+}
+
+/**
+ * Un catalogo de `GET /lookups` en la forma que espera un campo `seleccion`.
+ *
+ * El id viaja como cadena porque un `<select>` no conoce otro tipo; `cuerpoDelFormulario` lo vuelve
+ * numero antes de mandarlo.
+ */
+function comoOpciones (lista: EstadoLookup[]): OpcionCampo[] {
+  return lista.map((item) => ({ valor: String(item.id), etiqueta: item.name }))
+}

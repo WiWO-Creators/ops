@@ -6,7 +6,6 @@ import { construirConsulta, leerConsulta } from '@/datos/consulta'
 import { useRecurso } from '@/componentes/proyecto/carga'
 import { Cargando, ErrorEstado, Vacio } from '@/componentes/estado/Estados'
 import { ControlesTabla } from './ControlesTabla'
-import { PresetsFiltro } from './PresetsFiltro'
 import { Tablero } from './Tablero'
 import { unirConsultas } from './tabla'
 import type { ColumnaTablero, CuerpoMover, FilaConId, GrupoTablero } from './tablero'
@@ -42,6 +41,10 @@ interface PropsTableroFiltrable<T extends FilaConId> {
   ordenarColumnas?: (grupos: Array<GrupoTablero<T>>) => Array<GrupoTablero<T>>
   /** Accion propia en la cabecera de cada columna. Ver `Tablero`. */
   accionDeColumna?: (columna: ColumnaTablero, recargar: () => Promise<void>) => ReactNode
+  /** Ruta que habilita guardar el orden de columnas con id positivo. */
+  rutaOrdenColumnas?: string
+  /** Todos los destinos del menu "Mover a…", tengan columna en el tablero o no. Ver `Tablero`. */
+  destinos?: ColumnaTablero[]
 }
 
 export function TableroFiltrable<T extends FilaConId> ({
@@ -54,7 +57,9 @@ export function TableroFiltrable<T extends FilaConId> ({
   descripcionVacio,
   adaptarCuerpo,
   ordenarColumnas,
-  accionDeColumna
+  accionDeColumna,
+  rutaOrdenColumnas,
+  destinos
 }: PropsTableroFiltrable<T>) {
   const router = useRouter()
   const params = useSearchParams()
@@ -85,6 +90,7 @@ export function TableroFiltrable<T extends FilaConId> ({
     <div className="flex flex-col gap-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <ControlesTabla
+          board={board}
           definicion={definicion}
           estado={estado}
           visibles={[]}
@@ -92,11 +98,6 @@ export function TableroFiltrable<T extends FilaConId> ({
           onCambiar={cambiar}
           onVisibles={() => {}}
           sinColumnas
-        />
-        <PresetsFiltro
-          board={board}
-          filtrosActuales={estado.filtros}
-          onAplicar={(filtros) => { cambiar({ filtros }) }}
         />
       </div>
 
@@ -116,6 +117,8 @@ export function TableroFiltrable<T extends FilaConId> ({
               adaptarCuerpo={adaptarCuerpo}
               ordenarColumnas={ordenarColumnas}
               accionDeColumna={accionDeColumna}
+              rutaOrdenColumnas={rutaOrdenColumnas}
+              destinos={destinos}
             />
             )
       )}

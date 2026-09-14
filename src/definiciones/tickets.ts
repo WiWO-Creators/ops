@@ -33,6 +33,10 @@ export const TICKETS: DefinicionRecurso<TicketEspacio> = {
   ],
 
   filtros: [
+    { clave: 'ticketid', etiqueta: 'ID', tipo: 'campo', tipoDato: 'numero' },
+    { clave: 'subject', etiqueta: 'Asunto', tipo: 'campo', tipoDato: 'texto' },
+    { clave: 'date', etiqueta: 'Creado', tipo: 'campo', tipoDato: 'fecha' },
+    { clave: 'lastreply', etiqueta: 'Última respuesta', tipo: 'campo', tipoDato: 'fecha' },
     { clave: 'status', etiqueta: 'Estado', tipo: 'multiple', desdeLookup: 'ticket_statuses' },
     { clave: 'priority', etiqueta: 'Prioridad', tipo: 'seleccion', desdeLookup: 'ticket_priorities' },
     { clave: 'department', etiqueta: 'Departamento', tipo: 'seleccion', desdeLookup: 'departments' },

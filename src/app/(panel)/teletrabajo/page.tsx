@@ -6,6 +6,7 @@ import { ocupacionDeSalas } from '@/datos/teletrabajo'
 import { GLOSARIO } from '@/dominio/glosario'
 import { Tarjeta } from '@/componentes/estructura/Tarjeta'
 import { Insignia } from '@/componentes/presentadores/Insignia'
+import { TituloModulo } from '@/componentes/estructura/TituloModulo'
 import type { Espacio } from '@/datos/recursos'
 import type { Yo } from '@/datos/tipos'
 
@@ -47,16 +48,10 @@ export default async function TeletrabajoPage () {
 
   return (
     <div className="flex flex-col gap-8">
-      <header>
-        <h1 className="font-titular text-pantalla font-extrabold tracking-tight text-texto">
-          {GLOSARIO.teletrabajo.singular}
-        </h1>
-        <p className="mt-2 text-sm text-texto-tenue">
-          Llamadas, video y pantalla compartida, con chat propio dentro de cada sala. Ese chat vive
-          solo mientras dura la llamada: los mensajes no quedan guardados.
-        </p>
-        <span aria-hidden="true" className="mt-4 block h-1 w-24 rounded-control bg-gradiente-marca" />
-      </header>
+      <TituloModulo
+        titulo={GLOSARIO.teletrabajo.singular}
+        descripcion="Llamadas, video y pantalla compartida, con chat propio dentro de cada sala. Ese chat vive solo mientras dura la llamada: los mensajes no quedan guardados."
+      />
 
       <section className="flex flex-col gap-4">
         <h2 className="font-titular text-titulo font-bold text-texto">Salas comunes</h2>

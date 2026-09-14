@@ -7,14 +7,12 @@ import { Segmentado, type OpcionSegmentada } from '@/componentes/formularios/Seg
 import { Cargando } from '@/componentes/estado/Estados'
 import { HITOS } from '@/definiciones/hitos'
 import { GLOSARIO } from '@/dominio/glosario'
-import { formatearFecha } from '@/lib/fechas'
 import { AccionesFila } from './AccionesFila'
-import { BarraProgreso } from './CabeceraProyecto'
+import { AvanceDeHito, VencimientoDeHito } from '@/componentes/presentadores/Hito'
 import { FormularioRecurso } from './FormularioRecurso'
 import { ModalTarea } from './ModalTarea'
 import { PanelRecurso } from './PanelRecurso'
 import { TableroHitos } from './TableroHitos'
-import { avanceDeHito } from './hitos'
 import type { CampoFormulario } from './formulario'
 import type { Espacio, HitoDetallado } from '@/datos/recursos'
 import type { Capacidad } from '@/datos/tipos'
@@ -56,8 +54,9 @@ interface PropsPanelHitos {
   /**
    * Capacidades sobre `tasks`, de `permissions` de `/me`.
    *
-   * Son otras que las del Espacio y no se pueden deducir de ellas: mandan sobre el "+" del kanban y
-   * sobre los botones del detalle de una tarea. Vacias, la pestaña sigue funcionando en solo lectura.
+   * Son otras que las del Espacio y no se pueden deducir de ellas: mandan sobre el "+" del kanban,
+   * sobre el menu de estado de cada tarjeta y sobre los botones del detalle de una tarea. Vacias, la
+   * pestaña sigue funcionando en solo lectura.
    */
   capacidadesTareas?: Capacidad[]
 }
@@ -148,8 +147,11 @@ function HitosDelProyecto ({ proyecto, capacidades, capacidadesTareas = [] }: Pr
             <TableroHitos
               key={`${revision}-${String(excluirCompletadas)}`}
               proyectoId={proyecto.id}
+              proyectoNombre={proyecto.name}
               excluirCompletadas={excluirCompletadas}
               puedeCrear={capacidadesTareas.includes('create')}
+              puedeEditar={capacidades.includes('edit_milestones')}
+              puedeEditarTareas={capacidadesTareas.includes('edit')}
             />
           </>
           )}
@@ -233,10 +235,10 @@ function definicionDeTablaHitos (
 ): DefinicionRecurso<HitoDetallado> {
   const columnas = HITOS.columnas.map((columna) => {
     if (columna.clave === 'due_date') {
-      return { ...columna, presentar: (h: HitoDetallado) => <Vencimiento hito={h} /> }
+      return { ...columna, presentar: (h: HitoDetallado) => <VencimientoDeHito hito={h} /> }
     }
     if (columna.clave === 'avance') {
-      return { ...columna, presentar: (h: HitoDetallado) => <Avance hito={h} /> }
+      return { ...columna, presentar: (h: HitoDetallado) => <AvanceDeHito hito={h} /> }
     }
     return columna
   })
@@ -268,34 +270,3 @@ function definicionDeTablaHitos (
   }
 }
 
-/** Fecha de vencimiento con la marca de vencido, igual que en el panel. */
-function Vencimiento ({ hito }: { hito: HitoDetallado }): ReactElement {
-  return (
-    <span className="flex flex-wrap items-center gap-2">
-      <span className={hito.vencido ? 'text-texto-peligro' : undefined}>
-        {formatearFecha(hito.due_date)}
-      </span>
-      {hito.vencido && (
-        <span className="bg-relleno-peligro text-relleno-peligro-contenido rounded-control px-2 py-0.5 text-xs font-semibold">
-          Vencido
-        </span>
-      )}
-    </span>
-  )
-}
-
-/** Avance del hito: barra y contador. Sin tareas no hay barra, porque no hay nada que medir. */
-function Avance ({ hito }: { hito: HitoDetallado }): ReactElement {
-  const avance = avanceDeHito(hito.counts)
-
-  if (avance === null) return <span className="text-texto-sutil text-xs">Sin {GLOSARIO.proceso.plural.toLowerCase()}</span>
-
-  return (
-    <span className="flex min-w-24 items-center gap-2">
-      <BarraProgreso porcentaje={avance} className="min-w-0 flex-1" />
-      <span data-numerico className="text-texto-tenue text-xs">
-        {hito.counts.tasks_done}/{hito.counts.tasks}
-      </span>
-    </span>
-  )
-}

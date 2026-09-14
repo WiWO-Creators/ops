@@ -2,6 +2,7 @@ import { CeldaEncabezado, CeldaTabla, CuerpoTabla, EncabezadoTabla, FilaTabla, T
 import { ErrorEstado, SinPermiso, Vacio } from '@/componentes/estado/Estados'
 import { Fecha } from '@/componentes/presentadores/Fecha'
 import { Insignia, type TonoInsignia } from '@/componentes/presentadores/Insignia'
+import { TituloModulo } from '@/componentes/estructura/TituloModulo'
 import { ErrorApi } from '@/datos/errores'
 import { pedir } from '@/datos/servidor'
 import type {
@@ -136,13 +137,10 @@ export default async function CorreosEntrantesPage () {
 
   return (
     <section className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-texto text-xl font-semibold">Correos entrantes</h1>
-        <p className="text-texto-tenue mt-1 text-sm">
-          Qué están diciendo los clientes. De cada correo que llega a la casilla corporativa queda un
-          resumen y un puntaje de salud de la relación. El correo original no se borra nunca al leerlo.
-        </p>
-      </div>
+      <TituloModulo
+        titulo="Correos entrantes"
+        descripcion="Qué están diciendo los clientes. De cada correo que llega a la casilla corporativa queda un resumen y un puntaje de salud de la relación. El correo original no se borra nunca al leerlo."
+      />
 
       <EstadoDeLaCasilla config={config} />
 

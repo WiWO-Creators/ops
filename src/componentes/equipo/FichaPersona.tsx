@@ -6,6 +6,7 @@ import { Metrica } from '@/componentes/proyecto/ResumenProyecto'
 import { ResumenTareasPersona } from './ResumenTareasPersona'
 import { formatearImporte, segundosAHoraMinuto } from '@/componentes/proyecto/formatos'
 import { formatearFecha } from '@/lib/fechas'
+import { GLOSARIO } from '@/dominio/glosario'
 import type { EstadoLookup, FichaPersona as Persona } from '@/datos/recursos'
 import { AREAS, CAPACIDADES, NOMBRES_HEREDADOS } from './permisos'
 
@@ -47,12 +48,18 @@ export function FichaPersona ({
           <Insignia tono="aviso">Cronómetro corriendo</Insignia>
           <span className="text-texto-tenue">
             desde hace {segundosAHoraMinuto(corriendo.segundos)} en{' '}
-            <Link
-              href={`/procesos?${PARAMETRO_TAREA}=${corriendo.task_id}`}
-              className="text-acento underline underline-offset-4"
-            >
-              {corriendo.task_name ?? `#${corriendo.task_id}`}
-            </Link>
+            {/* `task_id = 0` es el medidor de Espacio: se mide el Proyecto entero, sin Tarea. Sin
+                este caso el enlace iba a `?tarea=0` y el texto decía «#0», que no es nada. */}
+            {corriendo.task_id === 0
+              ? <span className="text-texto">{corriendo.project_name ?? `${GLOSARIO.espacio.singular} sin nombre`}</span>
+              : (
+                <Link
+                  href={`/procesos?${PARAMETRO_TAREA}=${corriendo.task_id}`}
+                  className="text-acento underline underline-offset-4"
+                >
+                  {corriendo.task_name ?? `#${corriendo.task_id}`}
+                </Link>
+                )}
           </span>
         </p>
       )}
@@ -115,7 +122,7 @@ function datosDeCuenta (persona: Persona): Dato[] {
       : []),
     { etiqueta: 'Empresa', valor: persona.empresa?.name ?? 'Sin empresa' },
     { etiqueta: 'Cargo', valor: persona.cargo?.name ?? 'Sin cargo' },
-    { etiqueta: 'Área', valor: persona.area?.name ?? 'Sin área' },
+    { etiqueta: 'Áreas', valor: (persona.areas ?? (persona.area ? [persona.area] : [])).map((area) => area.name).join(', ') || 'Sin área' },
     { etiqueta: 'Valor hora', valor: formatearImporte(persona.hourly_rate) },
     { etiqueta: 'Cuenta creada', valor: formatearFecha(persona.date_created) },
     { etiqueta: 'Último acceso', valor: persona.last_login === null ? 'Nunca' : formatearFecha(persona.last_login, true) },

@@ -1,0 +1,53 @@
+/**
+ * La alerta de una Tarea incumplida: la fila roja, ademas, parpadea.
+ *
+ * El rojo de fondo ya existia (`bg-superficie-peligro`) y no alcanzaba: en una tabla larga es una
+ * fila mas de otro color, y quien la mira de arriba abajo la pasa de largo. El parpadeo es lo que
+ * la trae al frente.
+ *
+ * === POR QUE ACOTADO Y NO INFINITO ===
+ *
+ * Un parpadeo permanente deja de avisar a los diez segundos y pasa a molestar: la vista lo aprende
+ * y lo ignora, pero el ojo no. Ademas hay gente para la que no es una molestia sino un riesgo
+ * —sensibilidad vestibular, fotosensibilidad—, y una tabla con quince vencidas serian quince focos
+ * latiendo a la vez sin parar. Seis ciclos de 1.1s avisan al entrar (unos siete segundos) y despues
+ * la fila se queda en su rojo, que sigue diciendo lo mismo sin gritarlo. La frecuencia esta debajo
+ * de los 3 Hz que WCAG 2.3.1 marca como limite.
+ *
+ * === POR QUE LA ENTRADA DE LA FILA VIAJA EN LA MISMA DECLARACION ===
+ *
+ * `animation` es una lista, no una propiedad que se acumule entre reglas: declarar solo el parpadeo
+ * aca pisaria el `animate-entrar-abajo` que la tabla le pone a cada fila y las vencidas apareceran
+ * de golpe mientras las demas entran. Las dos van juntas, con los mismos tokens de la utilidad.
+ */
+.alerta-vencida {
+  animation:
+    entrar-abajo var(--wiwo-motion-fast) var(--wiwo-ease-emphasized) both,
+    alerta-vencida 1.1s ease-in-out 6;
+}
+
+@keyframes alerta-vencida {
+  0%,
+  100% {
+    background-color: var(--superficie-peligro);
+  }
+
+  50% {
+    background-color: color-mix(in oklab, var(--relleno-peligro) 30%, transparent);
+  }
+}
+
+/*
+ * Quien pidio menos movimiento no recibe ninguno. El reset de `neo.css` ya recorta la duracion de
+ * cualquier animacion, pero la garantia se declara aca: lo que la protege no puede depender de una
+ * regla global que alguien ajuste por otro motivo.
+ *
+ * Y no se queda sin alerta: el rojo sigue, y la fila suma una barra a la izquierda que la distingue
+ * de una seleccionada o de una resaltada por cualquier otra cosa.
+ */
+@media (prefers-reduced-motion: reduce) {
+  .alerta-vencida {
+    animation: none;
+    box-shadow: inset 3px 0 0 0 var(--relleno-peligro);
+  }
+}

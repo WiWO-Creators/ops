@@ -2,6 +2,7 @@ import { Suspense } from 'react'
 import { ExternalLink } from 'lucide-react'
 import { Cargando } from '@/componentes/estado/Estados'
 import { PantallaPlantillas } from '@/componentes/proyecto/PantallaPlantillas'
+import { TituloModulo } from '@/componentes/estructura/TituloModulo'
 import { RUTA_DE_ASIGNABLES } from '@/datos/asignables'
 import { cargarLookups } from '@/datos/lookups'
 import { pedir, pedirOpcional } from '@/datos/servidor'
@@ -35,14 +36,10 @@ export default async function PlantillasPage () {
 
   return (
     <section className="flex flex-col gap-4">
-      <header className="flex flex-col gap-1">
-        <h1 className="text-texto text-xl font-semibold">{TITULO_PLANTILLAS}</h1>
-        <p className="text-texto-tenue max-w-prose text-sm">
-          Un esqueleto de {GLOSARIO.hito.plural.toLowerCase()} y {GLOSARIO.proceso.plural.toLowerCase()} que
-          se reusa. No guarda fechas: guarda a cuántos días del inicio cae cada cosa, así que al crear
-          el {GLOSARIO.espacio.singular.toLowerCase()} las fechas salen solas de la duración que se pida.
-        </p>
-      </header>
+      <TituloModulo
+        titulo={TITULO_PLANTILLAS}
+        descripcion={`Un esqueleto de ${GLOSARIO.hito.plural.toLowerCase()} y ${GLOSARIO.proceso.plural.toLowerCase()} que se reusa. No guarda fechas: guarda a cuántos días del inicio cae cada cosa, así que al crear el ${GLOSARIO.espacio.singular.toLowerCase()} las fechas salen solas de la duración que se pida.`}
+      />
 
       <Suspense fallback={<Cargando alto="min-h-36" mensaje="Cargando las plantillas…" />}>
         <PantallaPlantillas

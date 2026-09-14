@@ -63,6 +63,9 @@ export interface Proceso {
   is_public: boolean
   visible_to_client: boolean
   recurring: boolean
+  repeat_every?: number
+  recurring_type?: string | null
+  cycles?: number
   kanban_order: number
   assignees: StaffReferencia[]
   followers: StaffReferencia[]
@@ -182,7 +185,17 @@ export interface Espacio {
 }
 
 /**
- * En que quedo una Licitacion.
+ * En que quedo un Prospecto. **No es una columna**: la API lo deriva del resumen de sus
+ * licitaciones (`abierto` si tiene alguna abierta, si no `ganado` si tiene alguna ganada, si no
+ * `perdido`, y `sin_licitaciones` cuando todavia no tiene ninguna).
+ *
+ * Ganar y perder son POR LICITACION —se pueden ganar 2 de 4—, asi que el prospecto no tiene ni un
+ * boton ni un endpoint para cambiar esto.
+ */
+export type EstadoProspecto = 'abierto' | 'ganado' | 'perdido' | 'sin_licitaciones'
+
+/**
+ * En que quedo una Licitacion o un Upsell.
  *
  * No sale de `/lookups`: no es un catalogo que alguien administre en Perfex, son las tres ramas del
  * flujo. Mismo criterio que `billing_type` de un Espacio.
@@ -192,10 +205,11 @@ export type EstadoLicitacion = 'abierta' | 'ganada' | 'perdida'
 /**
  * La empresa a la que se le esta licitando, **antes** de que exista como Cliente.
  *
- * Son las mismas columnas escribibles de `Cliente` menos las que no aplican todavia (moneda, idioma,
- * direcciones de facturacion y envio): lo que se copia tal cual el dia que la licitacion se gana.
+ * Vive en el Prospecto y no en cada Licitacion: dos licitaciones a la misma empresa son dos
+ * licitaciones de un solo prospecto. Son las mismas columnas escribibles de `Cliente` menos las
+ * direcciones de facturacion y envio: lo que se copia tal cual el dia que se gana la primera.
  */
-export interface CandidataLicitacion {
+export interface EmpresaCandidata {
   company: string
   vat: string | null
   phonenumber: string | null
@@ -205,15 +219,56 @@ export interface CandidataLicitacion {
   state: string | null
   zip: string | null
   country_id: number | null
+  default_currency: number | null
+  default_language: string | null
 }
 
-/** La persona con la que se habla en la empresa candidata. Al ganar se vuelve su contacto principal. */
-export interface ContactoLicitacion {
+/** Una persona de contacto de la empresa candidata. Al ganar se da de alta como contacto real. */
+export interface PersonaDeContacto {
   firstname: string
   lastname: string
   email: string
   phonenumber: string | null
   title: string | null
+}
+
+/**
+ * Una persona de contacto tal como cuelga de un Prospecto.
+ *
+ * `contacto_id` es el contacto REAL bajo el cliente. `null` mientras el prospecto no haya ganado
+ * ninguna licitacion; en cuanto lo tiene, ese contacto ya existe y se da de baja desde el cliente
+ * (la API responde `409` a un `DELETE` de esta fila).
+ */
+export interface ContactoProspecto {
+  id: number
+  prospecto_id: number
+  contacto: PersonaDeContacto | null
+  es_principal: boolean
+  contacto_id: number | null
+  creado_en: string
+}
+
+/**
+ * Un Prospecto: la empresa candidata, sus contactos y las licitaciones que se le estan preparando.
+ *
+ * Los tres contadores vienen resueltos por el backend en la misma consulta del listado: pedirlos por
+ * fila serian tres viajes por prospecto para pintar una columna.
+ */
+export interface Prospecto {
+  id: number
+  empresa: string
+  estado: EstadoProspecto
+  cliente: EmpresaCandidata
+  /** El Cliente **real**, creado al ganar la primera licitacion. `null` hasta entonces. */
+  client_id: number | null
+  client: { id: number, company: string, image_url: string | null } | null
+  /** Cuando nacio el cliente real. `null` mientras no exista. */
+  convertido_en: string | null
+  creado_en: string
+  creado_por: number
+  licitaciones_total: number
+  licitaciones_abiertas: number
+  licitaciones_ganadas: number
 }
 
 /**
@@ -230,25 +285,49 @@ export interface EspacioDeLicitacion {
   deadline: string | null
 }
 
+/** Una licitacion vista desde la ficha de su Prospecto: el bloque de contexto, no el listado. */
+export interface LicitacionDeProspecto {
+  id: number
+  estado: EstadoLicitacion
+  resultado_en: string | null
+  creada_en: string
+  espacio: EspacioDeLicitacion
+}
+
+/** Lo que devuelve `GET /prospectos/{id}`: el prospecto con sus dos listas de hijos, ya en lote. */
+export interface ProspectoDetalle extends Prospecto {
+  contactos: ContactoProspecto[]
+  licitaciones: LicitacionDeProspecto[]
+}
+
+/** El Prospecto del que cuelga una Licitacion, tal como viene en cada fila del listado. */
+export interface ProspectoDeLicitacion {
+  id: number
+  empresa: string
+  client_id: number | null
+  client: { id: number, company: string, image_url: string | null } | null
+}
+
 /**
- * Una Licitacion: la empresa candidata, su contacto y el Espacio donde ya se trabaja la propuesta.
+ * Una Licitacion: el Espacio donde se trabaja la propuesta, colgado de un Prospecto.
  *
  * **`id` es el id del Espacio**: son la misma fila vista desde dos lados, asi que los subrecursos de
  * trabajo se piden a `/projects/{licitacion.id}/…` sin traducir nada.
  *
- * `company` viene desnormalizado desde `cliente.company` para que la tabla no tenga que bajar por el
- * objeto y para que `q` y `sort=company` signifiquen algo en el listado.
+ * La empresa y sus contactos **no viven aca**: viven en el prospecto. `company` viene resuelto por
+ * el JOIN para que la tabla no tenga que bajar por el objeto y para que `q` y `sort=company`
+ * signifiquen algo en el listado.
  */
 export interface Licitacion {
   id: number
   estado: EstadoLicitacion
-  /** Copia de `cliente.company`. Solo para la columna y la busqueda del listado. */
+  prospecto_id: number
+  prospecto: ProspectoDeLicitacion
+  /** El nombre del prospecto, resuelto por el JOIN. Solo para la columna y la busqueda del listado. */
   company: string
-  cliente: CandidataLicitacion
-  /** `null` cuando el alta no trajo contacto: `POST /licitaciones` lo acepta sin el. */
-  contacto: ContactoLicitacion | null
-  /** El Cliente **real**, creado al ganar. `null` mientras la licitacion no este ganada. */
+  /** El Cliente **real** del prospecto. `null` mientras no haya ganado ninguna licitacion. */
   client_id: number | null
+  client: { id: number, company: string, image_url: string | null } | null
   /** Cuando se gano o se perdio. `null` mientras siga abierta. */
   resultado_en: string | null
   creada_en: string
@@ -257,6 +336,40 @@ export interface Licitacion {
 
 /** Lo que devuelve `GET /licitaciones/{id}`: igual, pero con la ficha completa del Espacio. */
 export interface LicitacionDetalle extends Licitacion {
+  espacio: Espacio
+}
+
+/**
+ * Un Upsell: una oportunidad comercial sobre un cliente que **ya existe**.
+ *
+ * Espejo de `Licitacion` con una diferencia que lo cambia todo: el Espacio nace con el `clientid`
+ * REAL, no en 0. Por eso `client` viene siempre, y por eso el backend tiene que esconderlo tambien
+ * del portal del cliente mientras la oportunidad siga abierta.
+ *
+ * **`id` es el id del Espacio**, igual que en una Licitacion.
+ */
+export interface Upsell {
+  id: number
+  estado: EstadoLicitacion
+  /** Lo que se espera vender. `null` es "todavia no se sabe", que no es lo mismo que 0. */
+  monto_estimado: number | null
+  /** Id de `currencies` de `GET /lookups`. */
+  moneda_id: number | null
+  /** 0 a 100. */
+  probabilidad: number | null
+  /** Por que se gano o se perdio. Se escribe al cerrar. */
+  motivo: string | null
+  /** El cliente, que existe desde el dia uno. Sale de `tblprojects.clientid`, no de una columna. */
+  client_id: number | null
+  client: { id: number, company: string, image_url: string | null } | null
+  /** Cuando se gano o se perdio. `null` mientras siga abierto. */
+  resultado_en: string | null
+  creada_en: string
+  espacio: EspacioDeLicitacion
+}
+
+/** Lo que devuelve `GET /upsells/{id}`: igual, pero con la ficha completa del Espacio. */
+export interface UpsellDetalle extends Upsell {
   espacio: Espacio
 }
 
@@ -280,6 +393,16 @@ export interface Cliente {
   datecreated: string
   /** No nulo si el cliente nacio de convertir un prospecto. */
   lead_id: number | null
+  /**
+   * Codigo de 4 letras del cliente, del que cuelgan las patentes de sus Espacios y sus Procesos.
+   * `null` mientras no lo tenga.
+   */
+  letras: string | null
+  /**
+   * `true` solo cuando falta el codigo Y el nombre no da para derivarlo: hay que escribirlo a mano
+   * y nadie lo va a resolver por su cuenta. Con `letras` ya puesto siempre es `false`.
+   */
+  letras_pendientes: boolean
   billing: {
     street: string | null
     city: string | null
@@ -340,6 +463,7 @@ export interface MiembroEquipo {
   /** Organizacion propia del staff (`modules/wiwo_core/cargos_areas.php`), separada de `role_id`. */
   cargo_id: number | null
   area_id: number | null
+  area_ids?: number[]
   /**
    * A cual de las seis organizaciones del grupo pertenece (`tblapi_empresas`, migracion 0170).
    *
@@ -384,8 +508,12 @@ export interface TiempoDePersona {
   esta_semana_segundos: number
   corriendo: {
     id: number
+    /** `0` es el medidor de Espacio puro de la `0260`: se mide el Proyecto entero, sin Tarea. */
     task_id: number
     task_name: string | null
+    /** El Espacio del cronómetro, venga de su `project_id` o del `rel_id` de la Tarea. */
+    project_id: number | null
+    project_name: string | null
     start_time: string | null
     segundos: number
   } | null
@@ -402,6 +530,7 @@ export interface FichaPersona extends MiembroEquipo {
   role: Referencia | null
   cargo: Referencia | null
   area: Referencia | null
+  areas?: Referencia[]
   empresa: Referencia | null
   departments: Referencia[]
   permissions: Record<string, string[]>
@@ -458,7 +587,17 @@ export interface Lookups {
   departments: Referencia[]
   /** Cargos del staff (`modules/wiwo_core/cargos_areas.php`). "Director" es uno de ellos. */
   cargos: Referencia[]
+  /** Areas del EQUIPO (`tblareas`): la que lleva puesta cada persona en su ficha. */
   areas: Referencia[]
+  /**
+   * Areas de la COMPAÑÍA, las del campo personalizado multiselect de los Procesos. **No es lo mismo
+   * que `areas`**: aquellas son del equipo y estas se marcan en cada Proceso, que puede llevar
+   * varias y estar en manos de alguien de otra area.
+   *
+   * El `id` es el propio texto de la opcion, porque eso es lo que guarda la base y lo que espera
+   * `filter[area]`. Opcional: sin el campo configurado en la instalacion, la API manda lista vacia.
+   */
+  task_areas?: Array<{ id: string, name: string }>
   /** Las seis organizaciones del grupo (`tblapi_empresas`). Solo las activas. */
   empresas: Referencia[]
   /**
@@ -471,6 +610,15 @@ export interface Lookups {
    * `tiposDeProcesoUnicos()` en `lib/plantillas.ts`.
    */
   task_types?: EstadoLookup[]
+  /**
+   * El equipo, para los filtros que preguntan por una persona (Asignado, Creado por, Seguidor).
+   *
+   * **No viene de `/lookups`**: lo adjunta `cargarLookups` desde `/staff/asignables`. Se guarda aca
+   * igual porque es un catalogo mas para quien arma un selector, y tenerlo en otro lado obligaba a
+   * cada pantalla de tareas a pedirlo y pasarlo a mano. Ausente en el portal del cliente: al contacto
+   * no le corresponde el catalogo de personas del equipo.
+   */
+  staff?: EstadoLookup[]
 }
 
 /**
@@ -823,7 +971,7 @@ export interface ResumenEstadoTareas {
 }
 
 /** Acciones que acepta `POST /tasks/bulk`. */
-export type AccionMasiva = 'status' | 'priority' | 'assignees' | 'milestone' | 'billable' | 'tags' | 'delete'
+export type AccionMasiva = 'status' | 'priority' | 'assignees' | 'project' | 'milestone' | 'billable' | 'tags' | 'delete'
 
 /** Respuesta de `POST /tasks/bulk`: cuantas se aplicaron y cuales se saltearon por permisos. */
 export interface ResultadoAccionMasiva {
@@ -873,6 +1021,15 @@ export interface PersonaConTiempo {
 export interface TareaElegible {
   id: number
   name: string
+  /**
+   * Estado de la Tarea (`task_statuses`).
+   *
+   * El formulario de horas **no lo pinta**: la consulta del backend ya excluye "Completo" y no carga
+   * el catalogo, asi que la insignia costaria una peticion de `/lookups` por dialogo para adornar un
+   * desplegable de eleccion. Viaja igual porque el contrato lo manda y quien lo necesite no tiene
+   * que volver a tocar la API.
+   */
+  status: number
 }
 
 /** Asignado de una tarea (`GET /tasks/{taskId}/assignees`). */
@@ -964,12 +1121,48 @@ export interface NotaEspacio {
  * su propio esquema. La vista de listado no lo trae: la API lo omite a proposito porque son ~20.000
  * caracteres por fila.
  */
+/**
+ * Un archivo con el que se escribio un Meeting Paper: el audio de la reunion, la foto de la pizarra
+ * o el documento que alguien ya habia redactado.
+ *
+ * Antes no existia: los tres eran solo la fuente de entrada del modelo y morian con la peticion. Lo
+ * que quedaba del audio de una reunion de dos horas era el texto que el modelo escribio a partir de
+ * el, y nada mas.
+ *
+ * `url` la emite la API contra `/api/v1/...` y **no se usa tal cual**: `origenDeArchivo()` la
+ * traduce al proxy, porque el token vive en una cookie que solo lee el BFF. Sirve tambien de `src`
+ * de la miniatura, que es una peticion del navegador como cualquier otra.
+ */
+export interface AdjuntoActa {
+  id: number
+  acta_id: number
+  /** El nombre con el que se subio, que es el unico que la persona reconoce. */
+  name: string
+  /** El nombre en disco, desambiguado por la API. Dos `IMG_0001.jpg` no pueden llamarse igual. */
+  file_name: string
+  /** Tipo real del contenido, leido por la API con `finfo`. Puede venir vacio. */
+  filetype: string
+  size: number
+  staff_id: number
+  url: string | null
+  date_added: string | null
+}
+
 export interface Acta {
   id: number
   project_id: number
   title: string
   /** Solo en el detalle. HTML saneado por la API; ver el docblock de arriba antes de pintarlo. */
   content?: string
+  /**
+   * El mismo acta en datos. Viaja siempre que viaje `content`, y nunca sin el.
+   *
+   * No es una segunda copia guardada: la API la deriva del HTML en cada lectura, asi que no puede
+   * quedar desfasada de lo que se ve en pantalla ni obliga a migrar las actas ya escritas. Tampoco
+   * es IA —se deriva de la columna, sin llamar a ningun proveedor—, asi que sigue llegando con el
+   * kill-switch apagado.
+   */
+  structure?: EstructuraActa
   client: string
   meeting_date: string | null
   place: string
@@ -977,7 +1170,14 @@ export interface Acta {
   attendees: string[]
   /** Codigo de la marca del holding: `mgc`, `wiwo`, `palta` o vacio. */
   brand: string
-  /** URL de la firma que corresponde a `brand`. La resuelve la API; no viaja dentro del HTML. */
+  /**
+   * URL de la firma que corresponde a `brand`, resuelta por la API contra un dominio externo.
+   *
+   * El visor ya no la usa: la marca entera —logotipo, colores y pie— la pinta
+   * `dominio/marcas-acta.ts` con archivos de este mismo dominio, porque una imagen remota en
+   * un documento que se imprime deja un hueco en el PDF y nadie se entera. Se mantiene en el
+   * tipo porque la API la sigue mandando.
+   */
   brand_sign_url: string | null
   /** `ia` si la dicto un modelo, `manual` si la escribio una persona. */
   source: string
@@ -986,6 +1186,32 @@ export interface Acta {
   date_added: string | null
   date_updated: string | null
   updated_by: number | null
+  /**
+   * Solo en el detalle. Los archivos de la reunion, en el orden en que se subieron: el primero es el
+   * que leyo el modelo. El listado no los trae, por lo mismo que no trae `content`.
+   */
+  attachments?: AdjuntoActa[]
+  /**
+   * Solo en el detalle. Nombre del Proyecto del que cuelga, que va junto a cada foto: una imagen de
+   * una pizarra no dice sola de que proyecto es, y `project_id` no es algo que nadie lea.
+   */
+  project_name?: string
+}
+
+/**
+ * El Meeting Paper partido en datos, para quien no puede leer el HTML: un bot, una integracion, otro
+ * panel. La forma la arma `RecursoActas::comoEstructura()`.
+ *
+ * Un acta escrita a mano sin titulos trae una sola seccion sin titulo y las otras dos listas vacias:
+ * la estructura se degrada, nunca falla. El HTML de `content` sigue siendo la version completa.
+ */
+export interface EstructuraActa {
+  /** Una por titulo del acta, en el orden del documento. `content` viene en markdown. */
+  sections: Array<{ title: string, level: number, content: string }>
+  /** Un tema tratado con lo que se resolvio. `action` y `owner` son `null` si el acta no los dice. */
+  agreements: Array<{ topic: string, detail: string, action: string | null, owner: string | null }>
+  /** Los proximos pasos, con el responsable separado del texto para poder filtrarlo. */
+  commitments: Array<{ text: string, owner: string | null }>
 }
 
 /** Lo que ya se sabe del Proyecto al abrir el formulario (`GET /ia/proyectos/{id}/acta/prefill`). */
@@ -1383,7 +1609,7 @@ export interface PruebaDeAviso {
  * kanban filtra las TAREAS de cada hito y la tabla filtra los HITOS. Un preset cruzado se aplicaria
  * vacio, porque `construirConsulta` poda lo que la definicion de la otra vista no declara.
  */
-export type TableroDePreset = 'tasks' | 'milestones' | 'milestones-tabla' | 'projects' | 'timesheets'
+export type TableroDePreset = 'tasks' | 'milestones' | 'milestones-tabla' | 'projects' | 'timesheets' | 'clients' | 'staff' | 'tickets' | 'discussions' | 'notes' | 'activity' | 'mail-queue' | 'files' | 'project-templates' | 'audit'
 
 /** Un preset de filtros guardado para una vista de lista, privado por staff. */
 export interface PresetFiltro {
@@ -1751,4 +1977,44 @@ export interface ConfiguracionCasillaEntrante {
   missing: string[]
   /** Si la extension `imap` de PHP existe en este servidor. Sin ella el lector no arranca. */
   imap_available: boolean
+}
+
+// --- Incidentes ----------------------------------------------------------------------------------
+// Los errores 500 de la API, guardados para poder mirarlos despues (`GET /incidentes`). Van al final
+// del archivo, despues de la casilla entrante, porque es lo ultimo que se agrego.
+
+/** A quien se le cayo la peticion. `proceso` es el recurso de la API que la interfaz llama Tarea. */
+export type SujetoIncidente = 'staff' | 'contacto' | 'proceso'
+
+/**
+ * Una fila de `GET /incidentes`. Es el error 500 sin la traza: esa solo viaja en el detalle.
+ *
+ * `incidente` —ocho hexadecimales— es el identificador que ve la persona y el que se dicta por
+ * telefono cuando alguien reporta que "se cayo": con el se pide el detalle y se busca en el log.
+ */
+export interface Incidente {
+  incidente: string
+  /** Clase de la excepcion, tal cual (`RuntimeException`, `PDOException`). */
+  tipo: string
+  mensaje: string
+  archivo: string
+  linea: number
+  /** Verbo HTTP de la peticion que se cayo. */
+  metodo: string
+  uri: string
+  /** `null` cuando la peticion se cayo sin sesion, o antes de poder atribuirla a alguien. */
+  sujeto_tipo: SujetoIncidente | null
+  sujeto_id: number | null
+  sujeto_nombre: string | null
+  creado_en: string
+}
+
+/**
+ * El incidente con su traza, tal como lo devuelve `GET /incidentes/{incidente}`.
+ *
+ * La traza es `null` cuando la excepcion no la trajo: el incidente existe igual, porque perder el
+ * registro de un 500 por no tener traza seria perder justamente el que hay que investigar.
+ */
+export interface IncidenteConTraza extends Incidente {
+  traza: string | null
 }

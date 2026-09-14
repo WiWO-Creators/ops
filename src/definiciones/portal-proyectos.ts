@@ -87,15 +87,26 @@ export const PORTAL_TAREAS: DefinicionRecurso<TareaPortal> = {
  * El orden lo fija esta lista y no el arreglo `tabs` que manda la API: el backend enumera lo que se
  * puede ver, el producto decide en que orden se lee.
  */
+/**
+ * Las pestañas que el portal sabe dibujar, **en el orden y con los rotulos del panel**.
+ *
+ * Cada clave es la del contrato de la API; el rotulo es el que ve el cliente, y es palabra por
+ * palabra el de `(panel)/espacios/[id]`: la misma pestaña no puede llamarse "Horas" para el cliente
+ * y "Tiempos" para quien lo atiende, porque despues los dos hablan por telefono. Cuando el panel
+ * renombre una, se renombra acá.
+ *
+ * Tickets es la unica sin equivalente en el panel —soporte no es una pestaña del proyecto ahi— y por
+ * eso va al final, antes de Actividad, que en el panel cierra la fila.
+ */
 export const PESTANIAS_PROYECTO: Array<{ clave: PestaniaPortal, etiqueta: string }> = [
-  { clave: 'overview', etiqueta: 'Resumen' },
+  { clave: 'overview', etiqueta: 'Descripción' },
   { clave: 'tasks', etiqueta: GLOSARIO.proceso.plural },
+  { clave: 'timesheets', etiqueta: 'Tiempos' },
   { clave: 'milestones', etiqueta: GLOSARIO.hito.plural },
   { clave: 'files', etiqueta: 'Archivos' },
+  { clave: 'discussions', etiqueta: 'Discusiones' },
+  { clave: 'gantt', etiqueta: 'Diagrama de Gantt' },
   { clave: 'tickets', etiqueta: GLOSARIO.ticket.plural },
-  { clave: 'discussions', etiqueta: 'Conversaciones' },
-  { clave: 'timesheets', etiqueta: 'Horas' },
-  { clave: 'gantt', etiqueta: 'Planificación' },
   { clave: 'activity', etiqueta: 'Actividad' }
 ]
 

@@ -29,8 +29,8 @@ interface PropsAvatar {
  * cuando `uploads/` tiene rutas que ya no existen, que en el panel actual pasa seguido.
  */
 export function Avatar ({ nombre, imagen, tamano = 'medio', className }: PropsAvatar) {
-  const [fallo, setFallo] = useState(false)
-  const mostrarImagen = typeof imagen === 'string' && imagen.length > 0 && !fallo
+  const [imagenFallida, setImagenFallida] = useState<string | null>(null)
+  const mostrarImagen = typeof imagen === 'string' && imagen.length > 0 && imagenFallida !== imagen
 
   /**
    * Detecta una imagen que ya fallo antes de que React adjuntara `onError`.
@@ -41,8 +41,8 @@ export function Avatar ({ nombre, imagen, tamano = 'medio', className }: PropsAv
    * imagen. Es el caso comun con rutas de `uploads/` que ya no existen.
    */
   const detectarFalloPrevio = useCallback((elemento: HTMLImageElement | null) => {
-    if (elemento?.complete && elemento.naturalWidth === 0) setFallo(true)
-  }, [])
+    if (elemento?.complete && elemento.naturalWidth === 0) setImagenFallida(imagen ?? null)
+  }, [imagen])
 
   return (
     <span
@@ -68,7 +68,7 @@ export function Avatar ({ nombre, imagen, tamano = 'medio', className }: PropsAv
             src={imagen}
             alt={nombre}
             className="size-full object-cover"
-            onError={() => setFallo(true)}
+            onError={() => setImagenFallida(imagen ?? null)}
           />
           )
         : iniciales(nombre, tamano === 'chico' ? 1 : 2)}

@@ -8,6 +8,9 @@
 @import '../estilos/vidrio.css';
 @import '../estilos/livekit.css';
 @import '../estilos/acta.css';
+@import '../estilos/monito.css';
+@import '../estilos/entrada-pagina.css';
+@import '../estilos/alerta-vencida.css';
 
 /*
  * Variante `oscuro:`: se activa cuando el documento se esta viendo en oscuro DE VERDAD.
@@ -425,7 +428,7 @@
 
   /* Variante de marca del gradiente de texto: verde a azul, igual que la barrita (`bg-gradiente-marca`)
    * y no el `--gradiente-texto` accesible. El verde puro recortado en texto da 1.5:1 de contraste
-   * (bajo AA) — decision consciente para el saludo de Inicio, no para usar en texto de cuerpo.
+   * (bajo AA) — decision visual compartida por el saludo y los titulos, no para texto de cuerpo.
    * El angulo llega por variable inline (`--angulo-gradiente-marca`) para que cambie por dia.
    *
    * Las paradas son SIMETRICAS —verde, menta, azul, menta, verde— y no las cuatro de wiwolab en
@@ -440,11 +443,11 @@
    * en el medio de una letra. Oklab interpola por luminosidad percibida y ese tramo sale limpio.
    *
    * El brillo se anima con `background-position`, que es la unica via cuando el relleno esta
-   * recortado sobre el texto: `transform` moveria la letra, no el color. Es una excepcion de UN
-   * elemento —seis caracteres de un saludo—, no una superficie: el area repintada es la caja del
-   * nombre y nada mas. Con `background-size: 200%`, correr la posicion exactamente 200% desplaza un
+   * recortado sobre el texto: `transform` moveria la letra, no el color. El area repintada se limita a las letras
+   * del saludo o del titulo, sin mover su caja. Con `background-size: 200%`, correr la posicion exactamente 200% desplaza un
    * mosaico entero y el bucle no tiene costura. */
-  .texto-gradiente-marca {
+  .texto-gradiente-marca,
+  .texto-gradiente-animado {
     /* Sin `in oklab` primero, porque un navegador que no lo entienda descarta la declaracion entera
      * —y sin `background-image` el texto es transparente sobre nada, o sea invisible—. La segunda
      * pisa a la primera donde se entienda. */
@@ -473,6 +476,50 @@
     background-clip: text;
     color: transparent;
     animation: brillo-marca 8s linear infinite;
+  }
+
+
+  /*
+   * El asistente de alta de licitacion, en grande.
+   *
+   * === POR QUE UNA CLASE Y NO TOCAR `Entrada`, `Campo` O `Boton` ===
+   *
+   * La queja fue que los pasos del alta se ven chicos: los controles del panel miden 36px de alto y
+   * el texto sale a 13px, que en un portatil de catorce pulgadas y con prisa se lee apretado. Pero
+   * esos tres componentes los comparten las catorce pantallas del panel, y agrandarlos ahi habria
+   * reescalado tablas, filtros y formularios que nadie pidio cambiar. El asistente se sube solo,
+   * por descendencia de esta clase, y el resto del producto queda exactamente igual.
+   *
+   * Un selector de clase + elemento (0,1,1) gana por especificidad a la utilidad de Tailwind
+   * (`.h-9`, `.text-sm`: 0,1,0), asi que no hace falta `!important` en ninguna regla.
+   *
+   * 2.75rem (44px) y no 40: es el objetivo tactil minimo de WCAG 2.5.8, y este formulario tambien se
+   * llena desde tablet.
+   */
+  .asistente-licitacion label,
+  .asistente-licitacion summary {
+    font-size: var(--text-base);
+  }
+
+  /* La casilla queda fuera: un `min-height` sobre ella la deforma en vez de agrandarla. */
+  .asistente-licitacion input:not([type='checkbox']),
+  .asistente-licitacion [role='combobox'],
+  .asistente-licitacion button {
+    min-height: 2.75rem;
+  }
+
+  /* El area de texto se agranda sola con `field-sizing`, asi que solo se le sube la letra: pisarle
+   * el alto minimo la encogeria de 5rem a 2.75rem, que es al reves de lo que se pidio. */
+  .asistente-licitacion input,
+  .asistente-licitacion textarea,
+  .asistente-licitacion [role='combobox'],
+  .asistente-licitacion button {
+    font-size: var(--text-base);
+  }
+
+  .asistente-licitacion input[type='checkbox'] {
+    width: 1.25rem;
+    height: 1.25rem;
   }
 
   @keyframes brillo-marca {

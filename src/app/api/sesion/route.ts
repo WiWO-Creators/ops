@@ -6,7 +6,6 @@ import { borrarSesion, borrarSuplantador, guardarSesion, leerSesion } from '@/da
 import { sesionDesdeTokens } from '@/datos/sobre-sesion'
 import {
   esDesafio,
-  type ContactoPortal,
   type DesafioSegundoFactor,
   type ParDeTokensConContacto,
   type ParDeTokensConStaff
@@ -153,7 +152,7 @@ async function canjearEnlace (cuerpo: CuerpoEntrar, origen: Cabeceras): Promise<
 
   await guardarSesion(sesionDesdeTokens(data, data.contact.id, 'contacto'))
 
-  return NextResponse.json({ ok: true, contacto: contactoResumido(data.contact) })
+  return NextResponse.json({ ok: true })
 }
 
 /**
@@ -179,13 +178,9 @@ async function entrarAlPortal (cuerpo: CuerpoEntrar, origen: Cabeceras): Promise
 
   await guardarSesion(sesionDesdeTokens(data, data.contact.id, 'contacto'))
 
-  return NextResponse.json({ ok: true, contacto: contactoResumido(data.contact) })
+  return NextResponse.json({ ok: true })
 }
 
-/** Lo minimo que la pantalla de entrar necesita saber para decidir a donde mandar. */
-function contactoResumido (contacto: ContactoPortal): { verificado: boolean } {
-  return { verificado: contacto.email_verified }
-}
 
 async function entrarConClave (cuerpo: CuerpoEntrar, origen: Cabeceras): Promise<NextResponse> {
   const email = typeof cuerpo.email === 'string' ? cuerpo.email.trim() : ''

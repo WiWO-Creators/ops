@@ -1,6 +1,14 @@
 import { Vacio } from '@/componentes/estado/Estados'
+import {
+  CeldaEncabezado,
+  CeldaTabla,
+  CuerpoTabla,
+  EncabezadoTabla,
+  FilaTabla,
+  Tabla
+} from '@/componentes/datos/Tabla'
+import { GLOSARIO } from '@/dominio/glosario'
 import { formatearFecha } from '@/lib/fechas'
-import { cn } from '@/lib/clases'
 import { pedirPortal } from '@/datos/servidor'
 import type {
   ActividadPortal,
@@ -9,6 +17,8 @@ import type {
   DiscusionPortal,
   TiempoPortal
 } from '@/datos/portal'
+import { ComentarioDeDiscusion } from '@/componentes/proyecto/ComentarioDeDiscusion'
+import { LineaDeActividad } from '@/componentes/proyecto/LineaDeActividad'
 import { Bloque } from '../../detalle'
 
 /**
@@ -66,51 +76,34 @@ async function Comentarios ({
     `/portal/projects/${proyectoId}/discussions/${hiloId}/comments`
   )
 
+  // La misma tarjeta que ve el equipo: avatar, la marca de quien es del cliente, la hora y el
+  // adjunto. Antes era una burbuja propia sin nada de eso.
   return (
-    <ol className="flex flex-col gap-3">
+    <ul className="flex flex-col gap-2">
       {data.map((comentario) => (
-        <li
-          key={comentario.id}
-          className={cn(
-            'rounded-chico border p-3',
-            comentario.author?.es_cliente === true
-              ? 'border-linea-suave bg-transparent'
-              : 'border-linea bg-superficie'
-          )}
-        >
-          <p className="text-texto-tenue mb-1 text-xs">
-            <span className="text-texto font-medium">{comentario.author?.full_name ?? 'Alguien'}</span>
-            {' · '}
-            {formatearFecha(comentario.created)}
-          </p>
-          <p className="text-texto text-sm whitespace-pre-line">{comentario.content}</p>
-        </li>
+        <ComentarioDeDiscusion key={comentario.id} comentario={comentario} />
       ))}
-    </ol>
+    </ul>
   )
 }
 
-/** Registro de actividad del proyecto, solo lo que el equipo marcó como visible. */
+/**
+ * Registro de actividad del proyecto, solo lo que el equipo marcó como visible.
+ *
+ * La misma linea de tiempo que ve el equipo, sin el interruptor de visibilidad: eso es lo unico que
+ * cambia, y por eso es una prop y no otro componente. Antes acá habia una lista plana sin autor ni
+ * hora, o sea que la misma actividad se leia distinto segun quien la mirara.
+ */
 export async function PanelActividadPortal ({ proyectoId }: { proyectoId: number }) {
   const { data } = await pedirPortal<ActividadPortal[]>(
     `/portal/projects/${proyectoId}/activity?per_page=50`
   )
 
-  if (data.length === 0) {
-    return <Vacio titulo="Sin actividad" descripcion="Todavía no hay movimientos para mostrar." />
-  }
-
   return (
-    <ol className="flex flex-col gap-2">
-      {data.map((entrada) => (
-        <li key={entrada.id} className="border-linea-suave flex flex-wrap gap-x-3 border-b pb-2 text-sm last:border-0">
-          <span className="text-texto">{entrada.description}</span>
-          <span className="text-texto-tenue ml-auto whitespace-nowrap">
-            {formatearFecha(entrada.date_added)}
-          </span>
-        </li>
-      ))}
-    </ol>
+    <LineaDeActividad
+      entradas={data}
+      vacio={{ titulo: 'Sin actividad', descripcion: 'Todavía no hay movimientos para mostrar.' }}
+    />
   )
 }
 
@@ -132,28 +125,30 @@ export async function PanelTiempos ({ proyectoId }: { proyectoId: number }) {
         Total: <span className="text-texto font-medium tabular-nums">{horasYMinutos(total)}</span>
       </p>
 
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="text-texto-sutil border-linea-suave border-b text-left text-xs tracking-wide uppercase">
-              <th className="pb-2 font-medium">Tarea</th>
-              <th className="pb-2 font-medium">Quién</th>
-              <th className="pb-2 font-medium">Fecha</th>
-              <th className="pb-2 text-right font-medium">Tiempo</th>
-            </tr>
-          </thead>
-          <tbody>
-            {data.map((registro) => (
-              <tr key={registro.id} className="border-linea-suave border-b last:border-0">
-                <td className="text-texto py-2">{registro.task.name}</td>
-                <td className="text-texto-tenue py-2">{registro.staff?.full_name ?? ''}</td>
-                <td className="text-texto-tenue py-2">{formatearFecha(registro.start_time)}</td>
-                <td className="text-texto py-2 text-right tabular-nums">{registro.duration_hm}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      {/* La tabla del sistema y no un `<table>` a mano: el portal y el panel tienen que envejecer
+          juntos, y esta era la ultima grilla del portal dibujada por fuera. */}
+      <Tabla>
+        <EncabezadoTabla>
+          <tr>
+            <CeldaEncabezado>{GLOSARIO.proceso.singular}</CeldaEncabezado>
+            <CeldaEncabezado>Quién</CeldaEncabezado>
+            <CeldaEncabezado>Fecha</CeldaEncabezado>
+            <CeldaEncabezado numerica>Tiempo</CeldaEncabezado>
+          </tr>
+        </EncabezadoTabla>
+        <CuerpoTabla>
+          {data.map((registro) => (
+            <FilaTabla key={registro.id}>
+              <CeldaTabla className="text-texto">{registro.task.name}</CeldaTabla>
+              <CeldaTabla className="text-texto-tenue">{registro.staff?.full_name ?? ''}</CeldaTabla>
+              <CeldaTabla className="text-texto-tenue" sinCortar>
+                {formatearFecha(registro.start_time)}
+              </CeldaTabla>
+              <CeldaTabla numerica>{registro.duration_hm}</CeldaTabla>
+            </FilaTabla>
+          ))}
+        </CuerpoTabla>
+      </Tabla>
     </div>
   )
 }

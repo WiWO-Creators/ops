@@ -1,8 +1,8 @@
 'use client'
 
-import { Suspense, useCallback, useEffect, useRef, useState, type ReactElement } from 'react'
+import { useCallback, useEffect, useRef, useState, type ReactElement } from 'react'
 import Link from 'next/link'
-import { useSearchParams } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import { AreaTexto } from '@/componentes/formularios/Entrada'
 import { Boton } from '@/componentes/formularios/Boton'
 import { Cargando, ErrorEstado, Vacio } from '@/componentes/estado/Estados'
@@ -10,41 +10,57 @@ import { CargandoConOrbe, Orbe } from '@/componentes/estado/Orbe'
 import { escribirEnBff } from '@/componentes/datos/mutaciones'
 import { pedirSobre } from '@/datos/cliente'
 import { leerSSE } from '@/datos/sse'
-import { leerEventoIA, type Cita } from '@/dominio/ia'
+import { leerEventoIA, type AccionIA, type Cita, type PasoIA, type PreguntaIA } from '@/dominio/ia'
 import {
+  conAccionResuelta,
   guardarHilo,
   hrefDeCita,
   LARGO_MAXIMO_PREGUNTA,
   leerHilo,
   leerMensajesGuardados,
   partirConCitas,
+  respuestaAPreguntas,
   type FaseMensaje,
   type Mensaje
 } from '@/dominio/ia-chat'
+import { pantallaDeRuta } from '@/dominio/pantalla'
+import { TarjetaPreguntaIA } from './TarjetaPreguntaIA'
+import { TarjetaPropuestaIA } from './TarjetaPropuestaIA'
 import { ASISTENTE, GLOSARIO } from '@/dominio/glosario'
-import { ModalTarea } from './ModalTarea'
 
 /**
- * Pestaña de IA de un Proyecto: se le pregunta por el estado y contesta citando.
+ * El chat de Thinking Orb: se le pregunta por el estado de Ops y contesta citando.
  *
- * **Solo responde y cita.** No propone acciones y no escribe nada, y esa garantia no la da el prompt:
- * la da que este archivo no importa una sola funcion de escritura. El unico `POST` que hace es el de
- * la pregunta.
+ * **Responde, cita, navega y —con las escrituras encendidas— propone o pregunta.** Preguntar es lo
+ * que hace cuando le falta un dato que cambia el efecto de la escritura: deja opciones, ese turno no
+ * trae tarjeta para esa accion, y elegir una manda su etiqueta por el mismo camino que una pregunta
+ * escrita a mano. No hay endpoint de respuesta. Proponer no es escribir: lo
+ * que llega es una tarjeta con un id, y `TarjetaPropuestaIA` la confirma mandando SOLO ese id. Este
+ * archivo no arma un cuerpo de escritura en ningun lado: el QUE vive congelado en el servidor desde
+ * que se propuso.
  *
- * Es una pestaña y no un cajon a proposito. El cajon es modal —Radix pone `inert` lo de atras—, asi
- * que la supuesta ventaja de "seguir viendo el Proyecto" es falsa, y una cita a una Tarea abriria un
- * `Dialog` sobre otro `Dialog` con el foco peleando. La pestaña, en cambio, no cuesta nada hasta que
- * se abre (`Pestanas` monta solo la activa), viaja en la URL —un hilo se comparte por enlace— y deja
- * que `?tarea={id}` abra el modal **encima**, sin conflicto.
+ * Con el interruptor de escrituras apagado no llega ningun `event: propuesta` ni ningun
+ * `event: paso`, y esta pantalla es exactamente la de antes. No hace falta preguntar por el
+ * interruptor: la ausencia de los eventos ES el interruptor.
  *
- * El hilo no vive aca sino en `dominio/ia-chat.ts`, porque cambiar de pestaña desmonta este
- * componente entero. Lo que si vive aca es el `AbortController` del stream en curso: al desmontar se
- * aborta, y lo que llego queda marcado `interrumpido`. Se aborta y no se deja correr porque un
- * stream que escribe cuando nadie mira igual quema tokens del proveedor.
+ * === POR QUE EL CHAT NO ES DE UN ESPACIO ===
+ *
+ * Vivia dentro de la ficha de un Espacio, como pestaña y como orbe, y el hilo era por Espacio. Ahora
+ * lo monta el armazon del panel: hay uno solo, la conversacion es de la persona y sigue viva
+ * mientras ella cambia de pantalla. Lo que reemplaza al Espacio de la ruta es `pantalla`: donde esta
+ * parada quien pregunta, para que "esta tarea" signifique algo. Es la misma cadena que manda el
+ * latido de presencia, y por eso las dos salen de `pantallaDeRuta()`.
+ *
+ * El hilo no vive aca sino en `dominio/ia-chat.ts`, porque cerrar el chat desmonta este componente
+ * entero. Lo que si vive aca es el `AbortController` del stream en curso: al desmontar se aborta, y
+ * lo que llego queda marcado `interrumpido`. Se aborta y no se deja correr porque un stream que
+ * escribe cuando nadie mira igual quema tokens del proveedor.
+ *
+ * No monta `ModalTarea`: las pantallas que listan Tareas ya montan la suya, y dos modales sobre el
+ * mismo `?tarea={id}` serian dos dialogos, dos peticiones del detalle y dos trampas de foco. Por eso
+ * una cita a una Tarea es un salto al listado global, que la abre por id venga del Espacio que venga.
  */
 
-/** Ruta del chat en el BFF. La misma para el GET del hilo y el POST de la pregunta. */
-const ruta = (proyectoId: number): string => `ia/proyectos/${encodeURIComponent(String(proyectoId))}/chat`
 
 /**
  * Preguntas de arranque del estado vacio.
@@ -55,39 +71,42 @@ const ruta = (proyectoId: number): string => `ia/proyectos/${encodeURIComponent(
  */
 const SUGERENCIAS = [
   `¿Qué ${GLOSARIO.proceso.plural.toLowerCase()} están atrasadas y de quién son?`,
-  `¿Cómo viene el ${GLOSARIO.hito.singular.toLowerCase()} más próximo?`,
+  '¿Qué vence esta semana?',
   '¿Qué se movió en la última semana?'
 ]
 
 /** Lo que se dice cuando el fallo no trae mensaje propio. */
 const MENSAJE_GENERICO = 'No se pudo completar la respuesta.'
 
-export function PanelChatIA ({ proyectoId }: { proyectoId: number }): ReactElement {
-  // Lee `useSearchParams`: sin este limite de Suspense el build de la pagina falla.
-  return (
-    <Suspense fallback={<Cargando mensaje="Cargando el chat…" />}>
-      <ChatDelProyecto proyectoId={proyectoId} />
-    </Suspense>
-  )
+/**
+ * El chat en si, sin envase: lo monta el orbe flotante del armazon.
+ *
+ * @param desplazable en el orbe el alto esta acotado, asi que la conversacion scrollea sola y el
+ *   campo queda fijo abajo. Sin esto scrollea lo que lo contenga.
+ */
+interface PropsChatOrbe {
+  desplazable?: boolean
+  proyecto?: { id: number, name: string }
 }
 
-/**
- * El chat en si, sin envase: lo montan la pestaña y el orbe flotante.
- *
- * @param proyectoId el Espacio del que habla; el hilo es por (Espacio, persona)
- * @param desplazable en el orbe el alto esta acotado, asi que la conversacion scrollea sola y el
- *   campo queda fijo abajo. En la pestaña no: ahi scrollea la pagina entera.
- */
-export function ChatDelProyecto (
-  { proyectoId, desplazable = false }: { proyectoId: number, desplazable?: boolean }
-): ReactElement {
-  const params = useSearchParams()
+/** Monta un hilo independiente al cambiar entre proyectos o el chat global. */
+export function ChatOrbe (props: PropsChatOrbe = {}): ReactElement {
+  return <ConversacionOrbe key={props.proyecto?.id ?? 'global'} {...props} />
+}
+
+/** Conversación con historial y rutas de acciones limitadas al alcance indicado. */
+function ConversacionOrbe ({ desplazable = false, proyecto }: PropsChatOrbe): ReactElement {
+  const proyectoId = proyecto?.id
+  const rutaChat = proyectoId === undefined ? 'ia/chat' : `ia/proyectos/${proyectoId}/chat`
+  const router = useRouter()
+  const ruta = usePathname()
   const [mensajes, setMensajes] = useState<Mensaje[]>(() => leerHilo(proyectoId).mensajes)
   const [carga, setCarga] = useState<'cargando' | 'listo' | 'error'>(
     () => leerHilo(proyectoId).cargado ? 'listo' : 'cargando'
   )
   const [errorCarga, setErrorCarga] = useState('')
   const [errorRespuesta, setErrorRespuesta] = useState('')
+  const [destino, setDestino] = useState('')
   const [pregunta, setPregunta] = useState('')
   const [enviando, setEnviando] = useState(false)
   const [intento, setIntento] = useState(0)
@@ -98,18 +117,18 @@ export function ChatDelProyecto (
 
   /** Escribe el hilo en el store de modulo y en el estado local a la vez: una sola fuente. */
   const escribir = useCallback((siguientes: Mensaje[]) => {
-    guardarHilo(proyectoId, { mensajes: siguientes, cargado: true })
+    guardarHilo({ mensajes: siguientes, cargado: true }, proyectoId)
     setMensajes(siguientes)
   }, [proyectoId])
 
-  // El hilo guardado se pide UNA vez por Proyecto y no en cada vuelta a la pestaña: repetir el GET
-  // pisaria lo que hay en memoria, incluida una respuesta interrumpida que el servidor no guardo.
+  // El hilo guardado se pide UNA vez y no cada vez que se abre el chat: repetir el GET pisaria lo
+  // que hay en memoria, incluida una respuesta interrumpida que el servidor no guardo.
   useEffect(() => {
     if (leerHilo(proyectoId).cargado) return
 
     const abortador = new AbortController()
 
-    void pedirSobre<unknown>(ruta(proyectoId), abortador.signal)
+    void pedirSobre<unknown>(rutaChat, abortador.signal)
       .then((sobre) => {
         if (abortador.signal.aborted) return
 
@@ -124,16 +143,16 @@ export function ChatDelProyecto (
       })
 
     return () => { abortador.abort() }
-  }, [proyectoId, intento, escribir])
+  }, [intento, escribir, proyectoId, rutaChat])
 
-  // Al desmontar —cambiar de pestaña, salir del Proyecto— se corta el stream en curso.
+  // Al desmontar —cerrar el chat— se corta el stream en curso.
   useEffect(() => {
     return () => { enCurso.current?.abort() }
   }, [])
 
   // Solo en el orbe: el alto esta acotado, asi que sin esto la respuesta crece fuera de la vista y
-  // hay que perseguirla con la rueda. En la pestaña scrollea la pagina y moverla seria arrebatarle
-  // el scroll a quien esta leyendo mas arriba.
+  // hay que perseguirla con la rueda. Sin acotar scrollea la pagina y moverla seria arrebatarle el
+  // scroll a quien esta leyendo mas arriba.
   useEffect(() => {
     if (!desplazable) return
 
@@ -155,27 +174,48 @@ export function ChatDelProyecto (
     enCurso.current = abortador
     setEnviando(true)
     setErrorRespuesta('')
+    setDestino('')
 
     let acumulado = ''
     let citas: Cita[] = []
+    let paso: PasoIA | null = null
+    let acciones: AccionIA[] = []
+    let preguntas: PreguntaIA[] = []
     let fallo = false
 
     /** Repinta la burbuja de la IA con lo que se lleva acumulado. */
     const pintar = (fase: FaseMensaje): void => {
-      escribir([...previos, { rol: 'ia', texto: acumulado, citas, fase }])
+      escribir([...previos, { rol: 'ia', texto: acumulado, citas, paso, acciones, preguntas, fase }])
     }
 
     pintar('generando')
 
     try {
-      const opciones = { cuerpo: { pregunta: texto }, senal: abortador.signal }
+      // `pantalla` es lo que le dice al servidor donde esta parada la persona, para que "esta tarea"
+      // se pueda resolver. Si el pathname no pasa la validacion no viaja a medias: se pregunta sin
+      // pantalla y el servidor responde sin ese contexto.
+      const pantalla = proyectoId === undefined ? pantallaDeRuta(ruta) : null
+      const cuerpo = pantalla === null ? { pregunta: texto } : { pregunta: texto, pantalla }
 
-      for await (const crudo of leerSSE(ruta(proyectoId), opciones)) {
+      for await (const crudo of leerSSE(rutaChat, { cuerpo, senal: abortador.signal })) {
         const evento = leerEventoIA(crudo)
 
+        // Un evento que este parser no conoce vuelve como `null` y se saltea: es lo que hace que
+        // un backend mas nuevo no rompa esta pantalla, y al reves.
         if (evento === null || evento.tipo === 'fin') continue
         if (evento.tipo === 'delta') acumulado += evento.texto
         if (evento.tipo === 'citas') citas = evento.citas
+        // La fase `fin` de un paso no se limpia: dejar el ultimo puesto evita el parpadeo entre una
+        // herramienta y la siguiente, y el paso entero desaparece cuando la burbuja deja de generar.
+        if (evento.tipo === 'paso') paso = evento.paso
+        if (evento.tipo === 'propuesta') acciones = [...acciones, evento.accion]
+        if (evento.tipo === 'pregunta') preguntas = [...preguntas, evento.pregunta]
+        if (evento.tipo === 'navegar' && proyectoId === undefined) {
+          // El `href` ya lo valido `leerEventoIA()` como ruta interna; aca no se toca. Se dice a
+          // donde se fue porque la pantalla cambia sola debajo de quien esta leyendo.
+          setDestino(evento.etiqueta)
+          router.push(evento.href)
+        }
         if (evento.tipo === 'error') {
           setErrorRespuesta(evento.mensaje)
           fallo = true
@@ -187,7 +227,7 @@ export function ChatDelProyecto (
 
       pintar(fallo ? 'error' : 'listo')
     } catch (error: unknown) {
-      // Abortado es lo que pasa al cambiar de pestaña: no es un fallo y lo que llego se conserva.
+      // Abortado es lo que pasa al cerrar el chat: no es un fallo y lo que llego se conserva.
       if (abortador.signal.aborted) {
         pintar('interrumpido')
       } else {
@@ -208,12 +248,12 @@ export function ChatDelProyecto (
    * sobre una conversacion que la persona ya no ve. Por eso pega el `DELETE` primero y solo vacia
    * la pantalla si el servidor confirmo.
    *
-   * El hilo es por (Espacio, persona): la ruta no lleva a quien, lo pone la sesion.
+   * El hilo es de la persona: la ruta no lleva a quien, lo pone la sesion.
    */
   async function borrar (): Promise<void> {
     setBorrando(true)
 
-    const resultado = await escribirEnBff(ruta(proyectoId), 'DELETE')
+    const resultado = await escribirEnBff(rutaChat, 'DELETE')
 
     setBorrando(false)
 
@@ -228,6 +268,24 @@ export function ChatDelProyecto (
     escribir([])
   }
 
+  /**
+   * Manda un texto como mensaje de la persona.
+   *
+   * Es el unico camino que existe, y por eso lo comparten el campo de abajo y las tarjetas de
+   * pregunta: contestar una pregunta ES mandar el mensaje siguiente, no una operacion aparte. Si
+   * cada uno tuviera el suyo, el hilo terminaria con dos formas de crecer y una sola probada.
+   *
+   * @param texto lo que se manda, ya recortado
+   */
+  function enviarTexto (texto: string): void {
+    if (texto === '' || enviando) return
+
+    void preguntar(texto, [
+      ...mensajes,
+      { rol: 'persona', texto, citas: [], paso: null, acciones: [], preguntas: [], fase: 'listo' }
+    ])
+  }
+
   /** Manda lo que hay escrito en el campo como pregunta nueva. */
   function enviar (): void {
     const texto = pregunta.trim()
@@ -235,7 +293,7 @@ export function ChatDelProyecto (
     if (texto === '' || enviando) return
 
     setPregunta('')
-    void preguntar(texto, [...mensajes, { rol: 'persona', texto, citas: [], fase: 'listo' }])
+    enviarTexto(texto)
   }
 
   /**
@@ -261,8 +319,8 @@ export function ChatDelProyecto (
       {mensajes.length === 0
         ? (
           <Vacio
-            titulo={`Pregunta por el estado de este ${GLOSARIO.espacio.singular}`}
-            descripcion="Responde con lo que hay cargado y cita de donde lo sacó."
+            titulo={`Pregúntale a ${ASISTENTE}`}
+            descripcion={proyecto === undefined ? "Responde con lo que hay cargado en Ops y cita de dónde lo sacó." : `Pregunta por las tareas, hitos y avances de ${proyecto.name}.`}
             accion={
               <div className="flex flex-wrap justify-center gap-2">
                 {SUGERENCIAS.map((sugerencia) => (
@@ -283,9 +341,12 @@ export function ChatDelProyecto (
                   <BurbujaIA
                     key={indice}
                     mensaje={mensaje}
-                    params={params}
+                    proyectoId={proyectoId}
                     error={errorRespuesta}
+                    respuesta={respuestaAPreguntas(mensajes, indice)}
                     onReintentar={() => reintentar(indice)}
+                    onResponder={enviarTexto}
+                    onAccionResuelta={(accion) => { escribir(conAccionResuelta(mensajes, accion)) }}
                   />
                   )
             ))}
@@ -296,6 +357,12 @@ export function ChatDelProyecto (
 
   return (
     <div className={desplazable ? 'flex min-h-0 flex-1 flex-col gap-4' : 'flex flex-col gap-4'}>
+      {proyecto !== undefined && (
+        <div className="border-linea flex flex-col gap-1 border-b pb-3">
+          <h2 className="text-texto text-base font-semibold">{ASISTENTE} · {proyecto.name}</h2>
+          <p className="text-texto-sutil text-sm">Esta conversación solo consulta y modifica este proyecto.</p>
+        </div>
+      )}
       {/* Fuera del desplazador: en el orbe, un boton que se va con el scroll no se encuentra cuando
           la conversacion es larga, que es justo cuando se quiere borrar. */}
       {mensajes.length > 0 && (
@@ -336,6 +403,12 @@ export function ChatDelProyecto (
         ? <div ref={desplazador} className="min-h-0 flex-1 overflow-y-auto pr-1">{conversacion}</div>
         : conversacion}
 
+      {/* La pantalla de atras cambio sola: quien estaba leyendo el chat tiene que enterarse de que
+          lo que hay detras ya no es lo que estaba mirando. */}
+      {destino !== '' && (
+        <p role="status" className="text-texto-tenue text-xs">Te llevé a {destino}.</p>
+      )}
+
       <form
         className="flex flex-col gap-2"
         onSubmit={(evento) => { evento.preventDefault(); enviar() }}
@@ -352,23 +425,22 @@ export function ChatDelProyecto (
           maxLength={LARGO_MAXIMO_PREGUNTA}
           disabled={enviando}
           aria-label="Tu pregunta"
-          placeholder={`Pregunta por el estado de este ${GLOSARIO.espacio.singular}…`}
+          placeholder={proyecto === undefined ? "Pregunta lo que necesites…" : "Pregunta sobre este proyecto…"}
         />
 
         <div className="flex flex-wrap items-center justify-between gap-2">
           {/* Siempre visible, tambien con el hilo lleno: es el limite de la funcion, no un aviso de
-              bienvenida que se lee una vez. */}
+              bienvenida que se lee una vez. La frase vale en los dos estados del interruptor: con
+              las escrituras apagadas no cambia nada nunca, y con ellas encendidas no cambia nada
+              hasta que alguien aprieta Confirmar. */}
           <p className="text-texto-sutil text-xs">
-            Responde sobre el estado de este {GLOSARIO.espacio.singular}. No crea ni cambia nada.
+            {proyecto === undefined ? 'Responde con lo que hay cargado en Ops.' : 'Solo trabaja en este proyecto.'} No cambia nada sin que lo confirmes.
           </p>
           <Boton type="submit" variante="primario" disabled={pregunta.trim() === '' || enviando}>
             Preguntar
           </Boton>
         </div>
       </form>
-
-      {/* Una cita a una Tarea abre este modal ENCIMA de la pestaña; cerrarlo deja la vista en el chat. */}
-      <ModalTarea />
     </div>
   )
 }
@@ -390,42 +462,50 @@ function BurbujaPersona ({ texto }: { texto: string }): ReactElement {
  * Las citas se pintan **de dos formas a la vez** a proposito: el superindice deja leer de corrido sin
  * cortar la frase, y la lista de fuentes deja escanear de donde salio todo sin releer el parrafo.
  *
+ * Una cita sin destino —`hrefDeCita()` devuelve `null`— se pinta igual, pero sin enlace: el numero y
+ * el titulo siguen diciendo de donde salio la frase, y un enlace al lugar equivocado seria peor.
+ *
  * @param mensaje el mensaje a pintar, con su fase
- * @param params los parametros vigentes de la URL, para que las citas conserven la vista
  * @param error mensaje del fallo, cuando la fase es `error`
+ * @param respuesta lo que la persona ya contesto a las preguntas de este mensaje, o `null`
  * @param onReintentar vuelve a mandar la misma pregunta
+ * @param onResponder manda una respuesta a una pregunta como mensaje de la persona
+ * @param onAccionResuelta recibe la propuesta ya resuelta por el servidor
  */
 function BurbujaIA ({
   mensaje,
-  params,
   error,
-  onReintentar
+  respuesta,
+  onReintentar,
+  onResponder,
+  onAccionResuelta,
+  proyectoId
 }: {
   mensaje: Mensaje
-  params: URLSearchParams
+  proyectoId?: number
   error: string
+  respuesta: string | null
   onReintentar: () => void
+  onResponder: (texto: string) => void
+  onAccionResuelta: (accion: AccionIA) => void
 }): ReactElement {
   const esperando = mensaje.fase === 'generando' && mensaje.texto === ''
+
+  // El indicador sale de lo que el servidor mando en `event: paso`. Sin paso —backend viejo,
+  // escrituras apagadas, o el modelo que no consulto nada— se queda con el texto fijo de siempre.
+  const indicador = mensaje.fase === 'generando' && mensaje.paso !== null
+    ? { mensaje: mensaje.paso.etiqueta, estado: mensaje.paso.orbe }
+    : { mensaje: proyectoId === undefined ? 'Buscando en Ops…' : 'Buscando en este proyecto…', estado: 'thinking' as const }
 
   return (
     <li className="border-linea bg-superficie-hundida rounded-tarjeta flex flex-col gap-2 border p-3">
       {esperando
-        ? <CargandoConOrbe mensaje={`Leyendo el ${GLOSARIO.espacio.singular}…`} estado="thinking" retardoMs={0} />
+        ? <CargandoConOrbe mensaje={indicador.mensaje} estado={indicador.estado} retardoMs={0} />
         : (
           <p className="text-texto whitespace-pre-wrap text-sm">
             {partirConCitas(mensaje.texto, mensaje.citas).map((tramo, indice) => (
               'cita' in tramo
-                ? (
-                  <Link
-                    key={indice}
-                    href={hrefDeCita(tramo.cita, params)}
-                    aria-label={`Ver ${tramo.cita.titulo}`}
-                    className="text-acento hover:underline"
-                  >
-                    <sup className="font-semibold">[{mensaje.citas.indexOf(tramo.cita) + 1}]</sup>
-                  </Link>
-                  )
+                ? <Marcador key={indice} cita={tramo.cita} numero={mensaje.citas.indexOf(tramo.cita) + 1} />
                 : <span key={indice}>{tramo.texto}</span>
             ))}
             {mensaje.fase === 'generando' && (
@@ -449,17 +529,31 @@ function BurbujaIA ({
           <ul className="flex flex-wrap gap-1.5">
             {mensaje.citas.map((cita, indice) => (
               <li key={indice}>
-                <Link
-                  href={hrefDeCita(cita, params)}
-                  className="border-linea bg-superficie text-texto-tenue rounded-control hover:bg-hover hover:text-texto inline-flex items-center gap-1 border px-2 py-0.5 text-xs"
-                >
-                  <span className="text-texto-sutil">[{indice + 1}]</span>
-                  {cita.titulo}
-                </Link>
+                <Fuente cita={cita} numero={indice + 1} />
               </li>
             ))}
           </ul>
         </div>
+      )}
+
+      {mensaje.acciones.length > 0 && (
+        <ul aria-label="Acciones propuestas" className="flex flex-col gap-2">
+          {mensaje.acciones.map((accion) => (
+            <li key={accion.id}>
+              <TarjetaPropuestaIA accion={accion} onResuelta={onAccionResuelta} proyectoId={proyectoId} />
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {mensaje.preguntas.length > 0 && (
+        <ul aria-label={`Preguntas de ${ASISTENTE}`} className="flex flex-col gap-2">
+          {mensaje.preguntas.map((pregunta, indice) => (
+            <li key={indice}>
+              <TarjetaPreguntaIA pregunta={pregunta} respuesta={respuesta} onResponder={onResponder} />
+            </li>
+          ))}
+        </ul>
       )}
 
       {mensaje.fase === 'error' && (
@@ -482,4 +576,34 @@ function BurbujaIA ({
       )}
     </li>
   )
+}
+
+/** El superindice en medio de la frase: enlace si la cita tiene destino, texto si no. */
+function Marcador ({ cita, numero }: { cita: Cita, numero: number }): ReactElement {
+  const href = hrefDeCita(cita)
+  const superindice = <sup className="font-semibold">[{numero}]</sup>
+
+  if (href === null) return <span className="text-texto-sutil">{superindice}</span>
+
+  return (
+    <Link href={href} aria-label={`Ver ${cita.titulo}`} className="text-acento hover:underline">
+      {superindice}
+    </Link>
+  )
+}
+
+/** Una fuente del pie: la misma regla que el marcador, con el titulo al lado del numero. */
+function Fuente ({ cita, numero }: { cita: Cita, numero: number }): ReactElement {
+  const href = hrefDeCita(cita)
+  const clases = 'border-linea bg-superficie text-texto-tenue rounded-control inline-flex items-center gap-1 border px-2 py-0.5 text-xs'
+  const contenido = (
+    <>
+      <span className="text-texto-sutil">[{numero}]</span>
+      {cita.titulo}
+    </>
+  )
+
+  if (href === null) return <span className={clases}>{contenido}</span>
+
+  return <Link href={href} className={`${clases} hover:bg-hover hover:text-texto`}>{contenido}</Link>
 }

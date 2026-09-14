@@ -1,4 +1,3 @@
-import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { SelectorTema } from '@/componentes/estructura/SelectorTema'
 import { Avatar } from '@/componentes/presentadores/Avatar'
@@ -13,7 +12,7 @@ import { ScrollSuave } from '@/componentes/estructura/ScrollSuave'
  * Armazon del portal del cliente.
  *
  * Hermano de `(panel)/layout.tsx`, no una variante suya: comparten el sistema de diseño y nada mas.
- * La navegacion va horizontal en el encabezado porque el portal tiene diez destinos y no cuarenta —
+ * La navegacion va horizontal en el encabezado porque el portal tiene cinco destinos y no cuarenta —
  * una barra lateral de 220px seria peso muerto en la pantalla de alguien que entra a mirar el avance
  * de su proyecto y se va.
  *
@@ -22,10 +21,6 @@ import { ScrollSuave } from '@/componentes/estructura/ScrollSuave'
  */
 export default async function PortalLayout ({ children }: { children: React.ReactNode }) {
   const { data: yo } = await pedirPortal<YoPortal>('/portal/me')
-
-  // Sin correo verificado la API responde 403 en todo lo demas, asi que no hay portal que dibujar:
-  // se manda a la pantalla que explica que hacer.
-  if (!yo.email_verified) redirect('/portal/verificar')
 
   const { data: empresa } = await pedirPortal<EmpresaPortal>('/portal/company')
   const secciones = seccionesDelPortal(yo.secciones_habilitadas)

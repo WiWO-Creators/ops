@@ -1,56 +1,24 @@
+import Link from 'next/link'
 import { Filas, Seccion, type Dato } from '@/componentes/presentadores/Ficha'
-import { nombreDe } from '@/datos/catalogos'
-import type { EstadoLookup, Licitacion } from '@/datos/recursos'
-import { etiquetaDeEstado, nombreDelContacto } from '@/definiciones/licitaciones'
+import type { Licitacion } from '@/datos/recursos'
+import { etiquetaDeEstado } from '@/definiciones/licitaciones'
 import { formatearFecha } from '@/lib/fechas'
 
 /**
- * Pestaña Ficha de una Licitacion: la empresa candidata y su contacto.
+ * Pestaña Ficha de una Licitacion: de quien es y en que quedo.
  *
- * Lo del Espacio —descripcion, plazos, montos— no se repite aca: lo muestra `PanelDescripcion`, que
+ * **Ya no repite el legajo de la empresa.** Desde `0320` la empresa y sus personas de contacto viven
+ * en el Prospecto, que es uno solo para todas sus licitaciones; copiarlo acá garantizaba que el
+ * listado y la ficha mostraran datos distintos el dia que alguien editara uno de los dos. Lo que
+ * queda es el enlace a la ficha donde eso se lee y se edita.
+ *
+ * Lo del Espacio —descripcion, plazos, montos— tampoco se repite: lo muestra `PanelDescripcion`, que
  * es el mismo panel del detalle de un Espacio y va debajo de esta ficha.
  *
- * Las filas sin valor no se dibujan. Una ficha en guiones no dice "no hay teléfono", dice "esta
- * pantalla no funciona"; se muestra lo que hay.
- *
  * @param licitacion La licitacion ya cargada.
- * @param paises Catalogo `countries` de `GET /lookups`, para resolver `country_id`.
  * @returns Las dos secciones de la ficha.
  */
-export function FichaLicitacion ({
-  licitacion,
-  paises
-}: {
-  licitacion: Licitacion
-  paises: EstadoLookup[]
-}) {
-  const { cliente, contacto } = licitacion
-
-  const empresa = conValor([
-    { etiqueta: 'Nombre o razón social', valor: cliente.company },
-    { etiqueta: 'RUT', valor: cliente.vat },
-    { etiqueta: 'Teléfono', valor: cliente.phonenumber },
-    { etiqueta: 'Sitio web', valor: cliente.website },
-    { etiqueta: 'Dirección', valor: cliente.address },
-    { etiqueta: 'Ciudad', valor: cliente.city },
-    { etiqueta: 'Región', valor: cliente.state },
-    { etiqueta: 'Código postal', valor: cliente.zip },
-    // `0` es como Perfex escribe «ningún país»: no tiene nombre que resolver. Ausente tampoco: la
-    // API devuelve el JSON del alta sin las claves que nadie llenó, y `nombreDe(paises, undefined)`
-    // pintaba «#undefined» en la ficha.
-    {
-      etiqueta: 'País',
-      valor: cliente.country_id == null || cliente.country_id === 0 ? null : nombreDe(paises, cliente.country_id)
-    }
-  ])
-
-  const persona = conValor([
-    { etiqueta: 'Nombre', valor: nombreDelContacto(contacto) },
-    { etiqueta: 'Cargo', valor: contacto?.title },
-    { etiqueta: 'Correo', valor: contacto?.email },
-    { etiqueta: 'Teléfono', valor: contacto?.phonenumber }
-  ])
-
+export function FichaLicitacion ({ licitacion }: { licitacion: Licitacion }) {
   const seguimiento = conValor([
     { etiqueta: 'Estado', valor: etiquetaDeEstado(licitacion.estado) },
     { etiqueta: 'Alta', valor: formatearFecha(licitacion.creada_en, true) },
@@ -61,13 +29,39 @@ export function FichaLicitacion ({
   ])
 
   return (
-    <div className="grid max-w-5xl gap-x-8 gap-y-6 sm:grid-cols-2 lg:grid-cols-3">
+    <div className="grid max-w-5xl gap-x-8 gap-y-6 sm:grid-cols-2">
       <Seccion titulo="Empresa candidata">
-        <Filas datos={empresa} />
-      </Seccion>
+        <dl className="flex flex-col gap-2 text-sm">
+          <div className="flex flex-col gap-0.5">
+            <dt className="text-texto-sutil text-xs">Prospecto</dt>
+            <dd>
+              <Link
+                href={`/prospectos/${licitacion.prospecto_id}`}
+                className="text-acento font-medium underline-offset-4 hover:underline"
+              >
+                {licitacion.prospecto.empresa}
+              </Link>
+            </dd>
+          </div>
 
-      <Seccion titulo="Contacto">
-        <Filas datos={persona} />
+          {licitacion.client_id !== null && (
+            <div className="flex flex-col gap-0.5">
+              <dt className="text-texto-sutil text-xs">Cliente</dt>
+              <dd>
+                <Link
+                  href={`/clientes/${licitacion.client_id}`}
+                  className="text-acento font-medium underline-offset-4 hover:underline"
+                >
+                  {licitacion.client?.company ?? `Cliente #${licitacion.client_id}`}
+                </Link>
+              </dd>
+            </div>
+          )}
+
+          <p className="text-texto-tenue text-xs">
+            El RUT, la dirección y las personas de contacto se leen y se editan en el prospecto.
+          </p>
+        </dl>
       </Seccion>
 
       <Seccion titulo="Seguimiento">
@@ -79,11 +73,6 @@ export function FichaLicitacion ({
 
 /**
  * Deja solo las filas que tienen algo escrito.
- *
- * `cliente` y `contacto` viajan tal cual se guardaron: la API devuelve el JSON del alta sin
- * completar las claves que nadie llenó, asi que una clave AUSENTE es tan normal como una en `null`.
- * Por eso se comprueba el tipo y no `!== null`: sin eso, una candidata sin sitio web tumbaba la
- * pantalla entera con `Cannot read properties of undefined (reading 'trim')`.
  *
  * @param filas Rotulos con su valor crudo; ausente, `null` o vacio significa "la API no trajo nada".
  * @returns Las filas con valor, en el mismo orden.

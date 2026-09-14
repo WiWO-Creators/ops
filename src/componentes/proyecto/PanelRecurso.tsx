@@ -5,6 +5,7 @@ import { useSearchParams } from 'next/navigation'
 import { TablaRecurso } from '@/componentes/datos/TablaRecurso'
 import { unirConsultas } from '@/componentes/datos/tabla'
 import { Cargando, ErrorEstado } from '@/componentes/estado/Estados'
+import { staffParaFiltros } from '@/datos/asignables'
 import { opcionesDeFiltros } from '@/datos/catalogos'
 import { pedirSobre } from '@/datos/cliente'
 import { construirConsulta, leerConsulta } from '@/datos/consulta'
@@ -43,6 +44,11 @@ interface PropsPanelRecurso<T> {
    * y aplicarlo devuelve 422.
    */
   board?: TableroDePreset
+  /**
+   * Como se dibuja una fila en tarjetas. Se pasa tal cual al motor de tabla, que es quien ofrece el
+   * alternador y recuerda la eleccion en la URL. Ausente = la pestaña solo se ve como tabla.
+   */
+  tarjeta?: (fila: T) => ReactNode
 }
 
 export function PanelRecurso<T> (props: PropsPanelRecurso<T>): ReactElement {
@@ -67,7 +73,8 @@ function ListaDelProyecto<T> ({
   capacidades = [],
   barra,
   revision = 0,
-  board
+  board,
+  tarjeta
 }: PropsPanelRecurso<T>): ReactElement {
   const params = useSearchParams()
 
@@ -137,6 +144,7 @@ function ListaDelProyecto<T> ({
         capacidades={capacidades}
         opcionesDeFiltro={carga.opciones}
         board={board}
+        tarjeta={tarjeta}
       />
     </div>
   )
@@ -174,15 +182,16 @@ async function primeraPagina<T> (
   senal: AbortSignal
 ): Promise<Carga<T>> {
   try {
-    const [lista, lookups] = await Promise.all([
+    const [lista, lookups, staff] = await Promise.all([
       pedirSobre<T[]>(rutaConConsulta(definicion, consulta), senal),
-      pedirSobre<Lookups>('lookups', senal)
+      pedirSobre<Lookups>('lookups', senal),
+      staffParaFiltros(definicion)
     ])
 
     return {
       fase: 'listo',
       inicial: { filas: lista.data, paginacion: lista.meta?.pagination },
-      opciones: opcionesDeFiltros(definicion, lookups.data)
+      opciones: opcionesDeFiltros(definicion, { ...lookups.data, staff })
     }
   } catch (fallo) {
     if (senal.aborted) return { fase: 'cargando' }

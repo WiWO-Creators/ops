@@ -12,7 +12,6 @@ import { PanelVidrio } from '@/componentes/superposiciones/PanelVidrio'
 
 interface RespuestaEntrar {
   ok?: boolean
-  contacto?: { verificado: boolean }
   mensaje?: string
   codigo?: string
 }
@@ -71,9 +70,7 @@ export function FormularioEntrarPortal () {
       }
 
       establecerEstadoOrbe('success')
-      // La sesion quedo abierta igual: quien no verifico su correo entra a la pantalla que se lo
-      // explica, no a un error.
-      router.replace(cuerpo.contacto?.verificado === false ? '/portal/verificar' : '/portal')
+      router.replace('/portal')
       router.refresh()
     } catch {
       establecerError('No se pudo contactar al servidor. Revisa tu conexión.')

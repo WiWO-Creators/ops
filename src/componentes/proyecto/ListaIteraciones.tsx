@@ -34,7 +34,11 @@ import type { IteracionProceso } from '@/datos/recursos'
  * viaje: la API lo rechaza igual con un `422`, pero el mensaje del borde dice cuanto sobra.
  */
 const CAMPOS: CampoFormulario[] = [
-  { clave: 'reason', etiqueta: '¿Por qué se rehace?', tipo: 'area', requerido: true, maximo: 2000 }
+  // Sin el boton de IA, que en las demas cajas de descripcion viene por defecto. El asistente redacta
+  // *que hay que hacer* a partir de tres preguntas —que, para quien, con que se cierra— y acá la
+  // pregunta es otra: por que lo que ya se hizo no sirvio. Contestarla es un dato que solo tiene
+  // quien estuvo, no algo que se pueda redactar mejor.
+  { clave: 'reason', etiqueta: '¿Por qué se rehace?', tipo: 'area', requerido: true, maximo: 2000, sinAsistenteIa: true }
 ]
 
 export function ListaIteraciones ({ procesoId }: { procesoId: number }): ReactElement {

@@ -23,6 +23,9 @@ import type {
 /** Ancho de la sangria por nivel del arbol, en rem. */
 const SANGRIA_POR_NIVEL = 1.25
 
+/** Letras del código de Cliente. El backend valida exactamente `[A-Z]{4}`. */
+const LARGO_CODIGO_CLIENTE = 4
+
 type Carga<T> =
   | { fase: 'cargando' }
   | { fase: 'error', mensaje: string }
@@ -439,7 +442,16 @@ function NodoArbol ({ nodo, nivel, folderId, onEliminado }: PropsNodoArbol) {
   )
 }
 
-/** Input del codigo de 3 letras del Cliente, que fija el nombre de su carpeta en Drive. */
+/**
+ * Input del codigo de 4 letras del Cliente, del que cuelga la patente de todos sus Espacios.
+ *
+ * Cambiarlo arrastra en cascada las patentes de sus Espacios y Procesos y el nombre de sus carpetas
+ * en Drive: el backend lo hace en una transaccion, aca solo se manda el codigo.
+ *
+ * El input filtra a A-Z en mayuscula en vez de dejar escribir cualquier cosa y comerse un 422: el
+ * backend acepta exactamente `[A-Z]{4}`, y un campo que acepta lo que el servidor rechaza es una
+ * trampa, no una validacion.
+ */
 function CodigoCliente ({ clienteId, letrasActuales, onActualizado }: {
   clienteId: number
   letrasActuales: string | null
@@ -469,15 +481,15 @@ function CodigoCliente ({ clienteId, letrasActuales, onActualizado }: {
 
   return (
     <div className="flex items-end gap-2">
-      <Campo etiqueta="Código de 3 letras" error={error} className="max-w-32">
+      <Campo etiqueta="Código de 4 letras" error={error} className="max-w-32">
         {(props) => (
           <Entrada
             {...props}
             value={letras}
-            maxLength={3}
-            placeholder="ABC"
+            maxLength={LARGO_CODIGO_CLIENTE}
+            placeholder="CNSA"
             onChange={(evento) => {
-              setLetras(evento.target.value.toUpperCase())
+              setLetras(evento.target.value.toUpperCase().replace(/[^A-Z]/g, ''))
               setError(undefined)
             }}
           />
@@ -488,7 +500,7 @@ function CodigoCliente ({ clienteId, letrasActuales, onActualizado }: {
         variante="secundario"
         tamano="chico"
         cargando={guardando}
-        disabled={!sucio || letras.length !== 3}
+        disabled={!sucio || letras.length !== LARGO_CODIGO_CLIENTE}
         onClick={() => { void guardar() }}
       >
         Guardar

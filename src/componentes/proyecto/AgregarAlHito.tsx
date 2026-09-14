@@ -24,24 +24,30 @@ import {
 } from './agregar-al-hito'
 import { cuerpoMoverHito } from './hitos'
 import { AltaRapidaProceso } from './AltaRapidaProceso'
+import { CuerpoImportarTareas } from './ImportarTareas'
 import type { OpcionFiltro } from '@/definiciones/tipos'
 
 /**
  * El "+" de la cabecera de una columna del kanban de Hitos.
  *
- * Abre un solo dialogo con los dos caminos que la persona puede querer: **crear** una tarea que nazca
- * ya colgada de ese hito, o **sumar** una de las que hoy no tienen ninguno. Son dos caminos y no dos
- * botones porque quien aprieta el "+" todavia no decidio cual de los dos es: la decision se toma
- * viendo la lista de sueltas.
+ * Abre un solo dialogo con los tres caminos que la persona puede querer: **crear** una tarea que nazca
+ * ya colgada de ese hito, **sumar** una de las que hoy no tienen ninguno, o **traer** todas las de
+ * otro Proyecto. Son caminos y no botones sueltos porque quien aprieta el "+" todavia no decidio
+ * cual es: la decision se toma viendo la lista de sueltas.
+ *
+ * El tercero es el que resuelve el caso de los Proyectos-por-mes: entrar por la columna del mes y
+ * traerle el Proyecto entero. Aca el Hito NO se elige —es la columna en la que se apreto—, y por eso
+ * `CuerpoImportarTareas` recibe `hitoFijo` y se saltea ese paso.
  *
  * No lo lleva la columna sintetica "Sin categorizar": no es un hito, es el cajon de lo que no se
  * clasifico, y "agregar algo sin clasificar" ya es crear una tarea a secas.
  */
 
-/** Los dos caminos del dialogo. `nueva` es el primero porque es el que se usa a diario. */
+/** Los tres caminos del dialogo. `nueva` es el primero porque es el que se usa a diario. */
 const CAMINOS: readonly OpcionSegmentada[] = [
   { valor: 'nueva', etiqueta: 'Crear nueva' },
-  { valor: 'existente', etiqueta: 'Sumar existente' }
+  { valor: 'existente', etiqueta: 'Sumar existente' },
+  { valor: 'importar', etiqueta: 'Traer de otro proyecto' }
 ]
 
 /** Lo que hace falta para pintar la lista de tareas sin hito. El error es un texto listo. */
@@ -52,6 +58,8 @@ type CargaSueltas =
 
 interface PropsAgregarAlHito {
   proyectoId: number
+  /** Nombre del Proyecto que se esta mirando. Lo pide el camino de importar, que lo muestra. */
+  proyectoNombre: string
   /** El hito de la columna donde se apreto el "+". */
   hito: { id: number, name: string }
   /** Catalogo de prioridades, para el selector del alta. */
@@ -63,10 +71,15 @@ interface PropsAgregarAlHito {
   onListo: () => void | Promise<void>
 }
 
-export function AgregarAlHito ({ proyectoId, hito, onListo }: PropsAgregarAlHito): ReactElement {
+export function AgregarAlHito ({
+  proyectoId,
+  proyectoNombre,
+  hito,
+  onListo
+}: PropsAgregarAlHito): ReactElement {
   const [abierto, setAbierto] = useState(false)
   const [creando, setCreando] = useState(false)
-  const [camino, setCamino] = useState<'nueva' | 'existente'>('nueva')
+  const [camino, setCamino] = useState<'nueva' | 'existente' | 'importar'>('nueva')
 
   const [busqueda, setBusqueda] = useState('')
   const [sueltas, setSueltas] = useState<CargaSueltas>({ fase: 'cargando' })
@@ -167,7 +180,9 @@ export function AgregarAlHito ({ proyectoId, hito, onListo }: PropsAgregarAlHito
 
       <ContenidoDialogo
         titulo={`Agregar a "${hito.name}"`}
-        descripcion={`Crea una ${GLOSARIO.proceso.singular.toLowerCase()} nueva en este ${GLOSARIO.hito.singular.toLowerCase()}, o suma una que hoy no tiene ninguno.`}
+        descripcion={`Crea una ${GLOSARIO.proceso.singular.toLowerCase()} nueva en este `
+          + `${GLOSARIO.hito.singular.toLowerCase()}, suma una que hoy no tiene ninguno, o trae `
+          + `todas las de otro ${GLOSARIO.espacio.singular.toLowerCase()}.`}
       >
         <div className="flex flex-col gap-4">
           <fieldset disabled={creando}>
@@ -177,7 +192,7 @@ export function AgregarAlHito ({ proyectoId, hito, onListo }: PropsAgregarAlHito
               activo={camino}
               onElegir={(valor) => {
                 if (creando) return
-                const siguiente = valor === 'existente' ? 'existente' : 'nueva'
+                const siguiente = valor === 'existente' || valor === 'importar' ? valor : 'nueva'
 
                 setCamino(siguiente)
                 setError(null)
@@ -186,19 +201,30 @@ export function AgregarAlHito ({ proyectoId, hito, onListo }: PropsAgregarAlHito
             />
           </fieldset>
 
-          {camino === 'nueva'
-            ? (
-              <AltaRapidaProceso
-                proyectoId={proyectoId}
-                hitoInicial={hito.id}
-                integrado
-                onOcupado={setCreando}
-                onCreada={() => { void terminar() }}
-                conIa={false}
-              />
-              )
-            : (
-              <div className="flex flex-col gap-3">
+          {camino === 'nueva' && (
+            <AltaRapidaProceso
+              proyectoId={proyectoId}
+              hitoInicial={hito.id}
+              integrado
+              onOcupado={setCreando}
+              onCreada={() => { void terminar() }}
+              conIa={false}
+            />
+          )}
+
+          {camino === 'importar' && (
+            <CuerpoImportarTareas
+              destino={{ id: proyectoId, name: proyectoNombre }}
+              hitoFijo={hito}
+              onImportado={() => { void onListo() }}
+              onArchivado={() => { void terminar() }}
+              onCerrar={() => { void terminar() }}
+              onOcupado={setCreando}
+            />
+          )}
+
+          {camino === 'existente' && (
+            <div className="flex flex-col gap-3">
                 <Campo etiqueta={`Buscar entre las ${GLOSARIO.proceso.plural.toLowerCase()} sin ${GLOSARIO.hito.singular.toLowerCase()}`}>
                   {(props) => (
                     <Entrada
@@ -254,8 +280,8 @@ export function AgregarAlHito ({ proyectoId, hito, onListo }: PropsAgregarAlHito
                     <Boton variante="sutil" type="button">Cancelar</Boton>
                   </CerrarDialogo>
                 </div>
-              </div>
-              )}
+            </div>
+          )}
         </div>
       </ContenidoDialogo>
     </Dialogo>

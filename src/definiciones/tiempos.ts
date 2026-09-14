@@ -33,6 +33,11 @@ export const TIEMPOS: DefinicionRecurso<RegistroTiempo> = {
   columnas: [],
 
   filtros: [
+    { clave: 'task_id', etiqueta: 'ID de tarea', tipo: 'campo', tipoDato: 'numero' },
+    { clave: 'note', etiqueta: 'Nota', tipo: 'campo', tipoDato: 'texto' },
+    { clave: 'start_time', etiqueta: 'Inicio', tipo: 'campo', tipoDato: 'fecha' },
+    { clave: 'end_time', etiqueta: 'Fin', tipo: 'campo', tipoDato: 'fecha' },
+    { clave: 'duration', etiqueta: 'Duración (segundos)', tipo: 'campo', tipoDato: 'numero' },
     // `staff_id` acepta varios ids separados por coma (el backend los traduce a `IN`), asi que el
     // control es de seleccion multiple y no uno solo.
     { clave: 'staff_id', etiqueta: 'Persona', tipo: 'multiple', desdeLookup: LOOKUP_PERSONAS_CON_TIEMPO },

@@ -1,7 +1,7 @@
 /**
  * Contrato de la capa de IA, del lado del navegador.
  *
- * Aca viven los tipos que F1 (resumen del Inicio), F2 (chat del Espacio) y F3 (alta de tarea)
+ * Aca viven los tipos que F1 (resumen del Inicio), F2 (chat de Thinking Orb) y F3 (alta de tarea)
  * comparten, y la lectura de un frame SSE. `datos/sse.ts` parte el texto en frames; este archivo es
  * el unico que sabe que significan.
  *
@@ -14,14 +14,33 @@
  *
  * Por eso `leerEventoIA()` **devuelve `null` en vez de lanzar**: un frame que no se entiende se
  * ignora y el stream sigue. Lanzar convertiria un token raro en una pantalla rota.
+ *
+ * === ESA TOLERANCIA ES TAMBIEN EL CONTRATO DE COMPATIBILIDAD ===
+ *
+ * Se escribio como defensa contra frames corruptos, y desde que el backend emite `paso` y
+ * `propuesta` es ademas lo que hace que **no haga falta versionar el stream**: un cliente que no
+ * conoce esos dos eventos recibe `null` por cada uno, `ChatOrbe` los saltea y la respuesta se
+ * pinta exactamente igual, sin indicadores y sin tarjeta. Un backend nuevo no rompe un frontend
+ * viejo, que es la unica combinacion que puede darse en un despliegue —el backend va primero—.
+ * Comprobado en `pruebas/ia.test.js`, con el parser anterior a estos dos eventos.
  */
+
+import { ESTADOS_ORBE, type EstadoOrbe } from './orbe.ts'
 
 /** Una referencia que el modelo cito y el servidor ya verifico contra la base. */
 export interface Cita {
-  tipo: 'tarea' | 'discusion' | 'hito' | 'espacio'
+  tipo: 'tarea' | 'discusion' | 'hito' | 'espacio' | 'acta'
   id: number
   /** El titulo que salio del `SELECT`, nunca el que escribio el modelo. */
   titulo: string
+  /**
+   * El Espacio del que es lo citado, cuando el servidor lo manda.
+   *
+   * Un Meeting Paper, un hito y una discusion **solo existen como pestaña dentro de la ficha de un
+   * Espacio**: sin este id no hay ruta que armar y la cita se pinta como texto. Va opcional porque
+   * un backend anterior a la Tanda 0 no lo mandaba, y una cita sin el sigue valiendo como texto.
+   */
+  espacio_id?: number
 }
 
 /**
@@ -74,15 +93,133 @@ export interface CamposTarea {
   no_resuelto: string[]
 }
 
+/**
+ * Un paso de lo que Thinking Orb esta haciendo antes de empezar a escribir.
+ *
+ * La `etiqueta` la escribe el SERVIDOR, desde un mapa cerrado con una entrada por herramienta.
+ * Nunca sale del modelo, y por eso se puede pintar: si el modelo pudiera escribirla, un texto
+ * inyectado en una descripcion pintaria "Guardando borrador…" mientras propone un borrado. Aun asi
+ * llega por la red, asi que se valida y se recorta como cualquier otra cadena de este archivo.
+ */
+export interface PasoIA {
+  fase: 'inicio' | 'fin'
+  herramienta: string
+  etiqueta: string
+  orbe: EstadoOrbe
+}
+
+/** En que punto de su vida esta una propuesta de escritura. Los seis del backend, sin inventar. */
+export type EstadoAccion = 'pendiente' | 'ejecutando' | 'ejecutada' | 'rechazada' | 'expirada' | 'fallida'
+
+/**
+ * Una escritura que Thinking Orb dejo preparada y que una persona confirma o rechaza.
+ *
+ * `resumen` y `detalle` los escribe el servidor con los argumentos ya normalizados y los titulos
+ * leidos de la base. Es la misma regla que rige los titulos de las citas, y acá pesa mas: es lo que
+ * se lee antes de apretar Confirmar.
+ */
+export interface AccionIA {
+  id: number
+  herramienta: string
+  resumen: string
+  detalle: string[]
+  /**
+   * Lo que el servidor completo por su cuenta porque el pedido no lo decia.
+   *
+   * Va aparte de `detalle` y no mezclado con el: un «Inicio: hoy» que la persona pidio y uno que el
+   * servidor asumio se leen igual, y el segundo es el que hay que revisar antes de confirmar. Una
+   * propuesta sin nada asumido trae `[]`, que es tambien lo que devuelve una fila vieja sin la clave.
+   */
+  supuestos: string[]
+  estado: EstadoAccion
+  /** Lo que devolvio la escritura, o el error real si fallo. `null` mientras sigue pendiente. */
+  resultado: string | null
+  /** ISO-8601. Pasado ese instante, confirmar responde `409` y la tarjeta se pinta caducada. */
+  expira_en: string | null
+}
+
+/**
+ * Una opcion elegible de una pregunta de Thinking Orb.
+ *
+ * `valor` es del tipo del argumento que la pregunta resuelve: `boolean` en los campos de si/no y
+ * `string` `AAAA-MM-DD` en las fechas. De ahi el cuidado con `false`, que es un valor legitimo y a
+ * la vez falsy: **es la opcion segura de los tres campos booleanos** —la que deja algo fuera del
+ * portal del cliente—, y cualquier filtro escrito con `!valor` o con `??` la borraria justo a ella,
+ * dejando a la persona eligiendo entre "si" y nada. Por eso se valida por `typeof` y nunca por
+ * verdad.
+ */
+export interface OpcionPregunta {
+  valor: boolean | string
+  /** El texto del boton, y tambien lo que se manda como mensaje al elegirla. */
+  etiqueta: string
+  /** La consecuencia de elegirla, escrita por el servidor. Es lo que hace informada la eleccion. */
+  descripcion: string
+}
+
+/**
+ * Algo que Thinking Orb necesita saber antes de escribir, y que decidio preguntar en vez de asumir.
+ *
+ * **La pregunta cierra el turno.** El mensaje que la trae no deja ninguna tarjeta de propuesta para
+ * esa accion, y la respuesta viaja como el mensaje siguiente de la persona: no hay endpoint de
+ * respuesta ni fila que resolver. Por eso este tipo no lleva `id` ni `estado`, al reves que
+ * `AccionIA` —que si los lleva porque su confirmacion escribe—.
+ */
+export interface PreguntaIA {
+  /** El argumento que la pregunta resuelve. Identifica de que se trata; no se pinta. */
+  campo: string
+  pregunta: string
+  opciones: OpcionPregunta[]
+  /** `true` solo cuando las opciones no agotan el dominio —las fechas—: ahi se puede escribir. */
+  admite_texto: boolean
+}
+
 /** Un frame del stream, ya interpretado. El `tipo` es el nombre del `event:` del contrato. */
 export type EventoIA =
   | { tipo: 'delta', texto: string }
   | { tipo: 'citas', citas: Cita[] }
+  | { tipo: 'paso', paso: PasoIA }
+  | { tipo: 'propuesta', accion: AccionIA }
+  | { tipo: 'pregunta', pregunta: PreguntaIA }
+  | { tipo: 'navegar', href: string, etiqueta: string, prefill: Record<string, unknown> | null }
   | { tipo: 'fin', generado_en: string | null, regeneracion: Regeneracion | null, uso: UsoIA | null }
   | { tipo: 'error', codigo: string, mensaje: string }
 
-/** Los cuatro tipos de cita que el contrato reconoce. Cada uno tiene su destino en `ia-chat.ts`. */
-const TIPOS_CITA = ['tarea', 'discusion', 'hito', 'espacio'] as const
+/** Los cinco tipos de cita que el contrato reconoce. Cada uno tiene su destino en `ia-chat.ts`. */
+const TIPOS_CITA = ['tarea', 'discusion', 'hito', 'espacio', 'acta'] as const
+
+/** Los seis estados de una propuesta. Uno que no este acá descarta la tarjeta entera. */
+const ESTADOS_ACCION = ['pendiente', 'ejecutando', 'ejecutada', 'rechazada', 'expirada', 'fallida'] as const
+
+/**
+ * Caracteres de la `etiqueta` de un paso antes de recortarla.
+ *
+ * El mapa del servidor tiene entradas de 40 caracteres, asi que 120 no recorta nada real. Existe
+ * para lo otro: la etiqueta llega por la red y se pinta dentro de una linea de altura fija, y un
+ * valor de diez mil caracteres —por un bug, no por un ataque— deformaria el panel entero.
+ */
+const LARGO_MAXIMO_ETIQUETA = 120
+
+/**
+ * Lineas que se pintan de una lista de una propuesta, y caracteres de cada una.
+ *
+ * **Es una red, no la politica.** Quien decide cuanto se cuenta es el backend, que ya no emite mas
+ * lineas de las que se pintan y dice en la ultima que quedo afuera. Esto protege del backend con un
+ * bug, y por eso el numero tiene que quedar por encima de lo que un pedido real produce: el tope de
+ * pasos de un `plan` es 8, y cada paso gasta su resumen mas su detalle —cuatro lineas largas—, o
+ * sea 32. 40 deja margen y sigue siendo un techo.
+ *
+ * El aviso de recorte cuenta dentro del tope: lo que se pinta nunca pasa de `MAXIMO_DETALLE` lineas.
+ */
+const MAXIMO_DETALLE = 40
+const LARGO_MAXIMO_DETALLE = 500
+
+/**
+ * Opciones que se leen de una pregunta.
+ *
+ * Otra red, no la politica: el backend manda dos o tres por pregunta. Seis deja margen de sobra y
+ * evita que un bug del servidor convierta la burbuja en una lista de botones sin fondo.
+ */
+const MAXIMO_OPCIONES = 6
 
 /** `true` si el valor es un objeto JSON plano. Descarta `null` y los arrays, que tambien son `object`. */
 export function esObjeto (valor: unknown): valor is Record<string, unknown> {
@@ -124,7 +261,7 @@ function leerFrame (crudo: string): { nombre: string, datos: Record<string, unkn
  * Interpreta un frame SSE de la capa de IA.
  *
  * Es un trust boundary: el texto viene de la red y lo escribio un modelo. Todo lo que no encaje en
- * una de las cuatro formas del contrato se descarta.
+ * una de las formas del contrato se descarta.
  *
  * El `fin` es la excepcion deliberada a esa estrictez: si sus bloques opcionales (`regeneracion`,
  * `uso`) vienen mal, el evento **igual se acepta** con esos campos en `null`. Descartar el `fin`
@@ -149,6 +286,26 @@ export function leerEventoIA (crudo: string): EventoIA | null {
       ? { tipo: 'citas', citas: datos.citas.map(leerCita).filter((cita) => cita !== null) }
       : null
   }
+
+  if (nombre === 'paso') {
+    const paso = leerPaso(datos)
+
+    return paso === null ? null : { tipo: 'paso', paso }
+  }
+
+  if (nombre === 'propuesta') {
+    const accion = leerAccion(datos)
+
+    return accion === null ? null : { tipo: 'propuesta', accion }
+  }
+
+  if (nombre === 'pregunta') {
+    const pregunta = leerPregunta(datos)
+
+    return pregunta === null ? null : { tipo: 'pregunta', pregunta }
+  }
+
+  if (nombre === 'navegar') return leerNavegar(datos)
 
   if (nombre === 'fin') {
     return {
@@ -181,14 +338,216 @@ export function leerEventoIA (crudo: string): EventoIA | null {
 export function leerCita (valor: unknown): Cita | null {
   if (!esObjeto(valor)) return null
 
-  const { tipo, id, titulo } = valor
+  const { tipo, id, titulo, espacio_id: espacioId } = valor
   const conocido = TIPOS_CITA.find((candidato) => candidato === tipo)
 
   if (conocido === undefined) return null
   if (typeof id !== 'number' || !Number.isFinite(id)) return null
   if (typeof titulo !== 'string') return null
 
-  return { tipo: conocido, id, titulo }
+  // El `espacio_id` no hace fallar la cita si falta o viene raro: sin el se pierde el enlace, no el
+  // dato. Por eso la clave no se pone en vez de ponerse en `null`: una cita sin Espacio y una de un
+  // backend que todavia no lo manda son el mismo caso.
+  if (typeof espacioId !== 'number' || !Number.isFinite(espacioId)) return { tipo: conocido, id, titulo }
+
+  return { tipo: conocido, id, titulo, espacio_id: espacioId }
+}
+
+/**
+ * Valida un paso del evento `paso`.
+ *
+ * Tan estricto como `leerCita()`, y con dos cuidados propios:
+ *
+ *   - **`orbe` se valida contra los siete estados que `Orbe.tsx` declara.** Un valor fuera de esa
+ *     lista descarta el evento entero en vez de llegar como prop: el orbe lo usa para elegir clase
+ *     CSS, y un estado inventado deja la animacion a medias sin ningun error a la vista.
+ *   - **`etiqueta` se recorta.** Viene del mapa cerrado del servidor, pero llega por la red y se
+ *     pinta: el borde se valida igual, que es la regla de este archivo.
+ *
+ * @param datos el payload del frame
+ * @returns el paso, o `null` si le falta algo o el estado del orbe no existe
+ */
+export function leerPaso (datos: Record<string, unknown>): PasoIA | null {
+  const { fase, herramienta, etiqueta, orbe } = datos
+
+  if (fase !== 'inicio' && fase !== 'fin') return null
+  if (typeof herramienta !== 'string' || herramienta === '') return null
+  if (typeof etiqueta !== 'string' || etiqueta === '') return null
+
+  const estado = ESTADOS_ORBE.find((candidato) => candidato === orbe)
+
+  if (estado === undefined) return null
+
+  return { fase, herramienta, etiqueta: etiqueta.slice(0, LARGO_MAXIMO_ETIQUETA), orbe: estado }
+}
+
+/**
+ * Valida una propuesta, venga del evento `propuesta` o del `acciones` de un mensaje guardado.
+ *
+ * Una propuesta invalida se descarta y las demas sobreviven, igual que con las citas: la tarjeta es
+ * un boton que escribe en el sistema, y una con datos a medias es peor que ninguna.
+ *
+ * @param valor el payload del frame, o una entrada del array `acciones`
+ * @returns la accion, o `null` si no tiene la forma del contrato
+ */
+export function leerAccion (valor: unknown): AccionIA | null {
+  if (!esObjeto(valor)) return null
+
+  const { id, herramienta, resumen, detalle, supuestos, estado, resultado, expira_en: expira } = valor
+
+  if (typeof id !== 'number' || !Number.isFinite(id)) return null
+  if (typeof herramienta !== 'string' || herramienta === '') return null
+  if (typeof resumen !== 'string' || resumen === '') return null
+
+  const conocido = ESTADOS_ACCION.find((candidato) => candidato === estado)
+
+  if (conocido === undefined) return null
+
+  return {
+    id,
+    herramienta,
+    resumen: resumen.slice(0, LARGO_MAXIMO_DETALLE),
+    detalle: leerLineas(detalle),
+    supuestos: leerLineas(supuestos),
+    estado: conocido,
+    resultado: typeof resultado === 'string' ? resultado.slice(0, LARGO_MAXIMO_DETALLE) : null,
+    expira_en: typeof expira === 'string' ? expira : null
+  }
+}
+
+/**
+ * Valida una de las listas de texto de una propuesta —`detalle` o `supuestos`—.
+ *
+ * Las dos llegan del mismo sitio y se pintan igual, asi que se validan con la misma regla: fuera lo
+ * que no sea texto o venga vacio, cada linea recortada a lo que entra en la tarjeta, y el conjunto
+ * a `MAXIMO_DETALLE`.
+ *
+ * **Si el tope se activa, se dice.** Antes recortaba en silencio y la tarjeta pintaba doce de
+ * veinticuatro lineas sin ninguna marca: la persona confirmaba una escritura leyendo la mitad. Una
+ * red que corta callada es el mismo bug con otra cara, y por eso la ultima linea cuenta las que
+ * faltan en vez de desaparecer.
+ *
+ * @param valor el campo tal como llego, sin validar
+ * @returns las lineas utiles, con el aviso final si hubo recorte; `[]` si el campo no es un array
+ */
+function leerLineas (valor: unknown): string[] {
+  if (!Array.isArray(valor)) return []
+
+  const lineas = valor
+    .filter((linea): linea is string => typeof linea === 'string' && linea !== '')
+    .map((linea) => linea.slice(0, LARGO_MAXIMO_DETALLE))
+
+  if (lineas.length <= MAXIMO_DETALLE) return lineas
+
+  const visibles = lineas.slice(0, MAXIMO_DETALLE - 1)
+
+  return [...visibles, `… (${lineas.length - visibles.length} líneas más)`]
+}
+
+/**
+ * Valida una pregunta, venga del evento `pregunta` o del `preguntas` de un mensaje guardado.
+ *
+ * **Sin ninguna opcion valida se descarta entera**, por el mismo criterio que descarta un `navegar`
+ * con `href` malo: una pregunta sin botones es una pregunta que no se puede contestar, y pintarla
+ * dejaria a la persona mirando un texto que le pide algo y no le da con que. Que se descarte no
+ * pierde nada util: el turno queda como una respuesta de texto y la persona sigue escribiendo.
+ *
+ * `descripcion` cae a `''` en vez de descartar la opcion: el boton sigue siendo elegible sin su
+ * consecuencia al lado, y perder la opcion segura por un campo informativo seria el peor cambio.
+ *
+ * @param valor el payload del frame, o una entrada del array `preguntas`
+ * @returns la pregunta, o `null` si no tiene la forma del contrato o se quedo sin opciones
+ */
+export function leerPregunta (valor: unknown): PreguntaIA | null {
+  if (!esObjeto(valor)) return null
+
+  const { campo, pregunta, opciones, admite_texto: admiteTexto } = valor
+
+  if (typeof campo !== 'string' || campo === '') return null
+  if (typeof pregunta !== 'string' || pregunta === '') return null
+  if (!Array.isArray(opciones)) return null
+
+  const utiles = opciones
+    .map(leerOpcion)
+    .filter((opcion) => opcion !== null)
+    .slice(0, MAXIMO_OPCIONES)
+
+  if (utiles.length === 0) return null
+
+  return {
+    campo,
+    pregunta: pregunta.slice(0, LARGO_MAXIMO_DETALLE),
+    opciones: utiles,
+    admite_texto: admiteTexto === true
+  }
+}
+
+/**
+ * Valida una opcion suelta de una pregunta.
+ *
+ * El `valor` se comprueba por `typeof` **a proposito**: es lo unico que deja pasar `false`, que es
+ * el valor de la opcion segura de los tres campos booleanos. Un `if (!elegido)` o un
+ * `elegido ?? null` la descartarian sin que nada falle a la vista, y la pregunta quedaria ofreciendo
+ * solo el "si".
+ *
+ * @param valor una entrada del array `opciones`
+ * @returns la opcion, o `null` si le falta el valor o la etiqueta
+ */
+function leerOpcion (valor: unknown): OpcionPregunta | null {
+  if (!esObjeto(valor)) return null
+
+  const { valor: elegido, etiqueta, descripcion } = valor
+
+  if (typeof elegido !== 'boolean' && (typeof elegido !== 'string' || elegido === '')) return null
+  if (typeof etiqueta !== 'string' || etiqueta === '') return null
+
+  return {
+    valor: elegido,
+    etiqueta: etiqueta.slice(0, LARGO_MAXIMO_ETIQUETA),
+    descripcion: typeof descripcion === 'string' ? descripcion.slice(0, LARGO_MAXIMO_DETALLE) : ''
+  }
+}
+
+/**
+ * Valida el evento `navegar`, con el que el servidor lleva a la persona a otra pantalla.
+ *
+ * **El `href` lo arma siempre el servidor.** Acá no se completa, ni se corrige, ni se le pega una
+ * base: solo se comprueba que sea una ruta de este panel. Esa comprobación es la frontera y por eso
+ * no se puede saltear por corta: `router.push()` sigue sin chistar un `https://…` o un `//host`, y
+ * eso convertiría una respuesta de un modelo en una redirección fuera de Ops. Un `href` que no
+ * empieza con una sola barra descarta el evento entero, que es lo mismo que hace el resto del
+ * archivo con lo que no encaja.
+ *
+ * `prefill` viaja tal cual para quien sepa qué hacer con él: son los campos que el servidor deja
+ * preparados para la pantalla de destino, no algo que este archivo interprete.
+ *
+ * @param datos el payload del frame
+ * @returns el evento, o `null` si el destino no es interno o le falta la etiqueta
+ */
+function leerNavegar (datos: Record<string, unknown>): EventoIA | null {
+  const { href, etiqueta, prefill } = datos
+
+  if (typeof href !== 'string' || !esRutaInterna(href)) return null
+  if (typeof etiqueta !== 'string' || etiqueta === '') return null
+
+  return {
+    tipo: 'navegar',
+    href,
+    etiqueta: etiqueta.slice(0, LARGO_MAXIMO_ETIQUETA),
+    prefill: esObjeto(prefill) ? prefill : null
+  }
+}
+
+/**
+ * `true` si el destino es una ruta de este panel y no una salida a otro sitio.
+ *
+ * Una sola barra al principio y nada de `//` ni `/\`: las dos formas las lee el navegador como
+ * "protocolo relativo" y terminan en otro dominio.
+ *
+ * @param href el destino tal como llego
+ */
+function esRutaInterna (href: string): boolean {
+  return /^\/(?![/\\])/.test(href)
 }
 
 /**

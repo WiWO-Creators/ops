@@ -5,7 +5,7 @@ import { useSearchParams } from 'next/navigation'
 import { VistaCalendario } from '@/componentes/datos/VistaCalendario'
 import { Cargando } from '@/componentes/estado/Estados'
 import { pedirSobre } from '@/datos/cliente'
-import { construirConsulta, leerConsulta } from '@/datos/consulta'
+import { consultaDelCalendario, leerConsulta } from '@/datos/consulta'
 import { esDiaValido, leerVista, rangoDeVista, TOPE_POR_VISTA } from '@/dominio/calendario'
 import { hoyLocal } from '@/lib/fechas'
 import type { Proceso, ProcesoAmpliado } from '@/datos/recursos'
@@ -27,9 +27,7 @@ import type { DefinicionRecurso } from '@/definiciones/tipos'
  * Espacios— y colgarlas de la pestaña de uno mostraria plazos ajenos a lo que se esta mirando. Ese
  * bloque se queda en el calendario global, que es donde la pregunta "que me vence" tiene sentido.
  *
- * **Sin desplegables propios**: hereda los filtros que ya estan puestos en la URL —los de la tabla y
- * las tarjetas de resumen de arriba—, asi que cambiar de presentacion no cambia lo que se ve. El de
- * Espacio no existe aca por definicion, y ninguno nuevo se inventa.
+ * Comparte controles, presets y filtros con tabla y tablero. El proyecto queda fijado por la ruta.
  */
 
 /**
@@ -52,10 +50,11 @@ interface PropsCalendarioTareas {
   /** La definicion ya acotada al Espacio: aporta la ruta y la whitelist de filtros. */
   definicion: DefinicionRecurso<ProcesoAmpliado>
   /** Capacidades sobre `tasks`. Viajan a la grilla para los enlaces al detalle. */
+  opcionesDeFiltro?: Record<string, import('@/definiciones/tipos').OpcionFiltro[]>
   capacidades: Capacidad[]
 }
 
-export function CalendarioTareas ({ definicion, capacidades }: PropsCalendarioTareas): ReactElement {
+export function CalendarioTareas ({ definicion, capacidades, opcionesDeFiltro }: PropsCalendarioTareas): ReactElement {
   const params = useSearchParams()
 
   const pedido = params.get('dia') ?? ''
@@ -106,6 +105,8 @@ export function CalendarioTareas ({ definicion, capacidades }: PropsCalendarioTa
 
   return (
     <VistaCalendario
+      definicion={definicion}
+      opcionesDeFiltro={opcionesDeFiltro}
       dia={dia}
       vista={vista}
       tareas={tareas}
@@ -129,9 +130,7 @@ export function CalendarioTareas ({ definicion, capacidades }: PropsCalendarioTa
  * pregunta por lo que EMPIEZA en el periodo. Pedir los cuatro filtros juntos no sirve: se combinan
  * con AND y acotarian a lo que empieza **y** vence dentro del rango.
  *
- * El filtro "Vence" de la tabla se descarta: aca ese rango ES el periodo, y dejarlo pondria un
- * `filter[date_from]` peleando con el que arma esta funcion. En la URL se queda, para que volver a
- * la tabla lo devuelva tal como estaba.
+ * El período intersecta el filtro de vencimiento y conserva todas las demás condiciones.
  *
  * @param definicion La definicion acotada al Espacio: ruta y whitelist de filtros.
  * @param consulta Los parametros de la URL, en crudo.
@@ -149,24 +148,10 @@ function rutasDelPeriodo (
   const rango = rangoDeVista(dia, vista) ?? { desde: dia, hasta: dia }
 
   const estado = leerConsulta(new URLSearchParams(consulta), definicion)
-  const { vence: _vence, ...filtrosSinRango } = estado.filtros
-
-  // Sin orden ni pagina: el calendario reparte por dia, no pagina. El `per_page` de la tabla tampoco
-  // sirve —25 filas dejarian medio periodo afuera— y se pisa con el tope del backend.
-  const comunes = new URLSearchParams(
-    construirConsulta({ ...estado, filtros: filtrosSinRango, orden: [], pagina: 1 }, definicion)
-  )
-  comunes.set('per_page', String(TOPE_POR_VISTA))
-
-  const porVencer = new URLSearchParams(comunes)
-  porVencer.set('filter[date_from]', rango.desde)
-  porVencer.set('filter[date_to]', rango.hasta)
-  porVencer.set('sort', 'due_date')
-
-  const porEmpezar = new URLSearchParams(comunes)
-  porEmpezar.set('filter[start_from]', rango.desde)
-  porEmpezar.set('filter[start_to]', rango.hasta)
-  porEmpezar.set('sort', 'start_date')
+  const porVencer = consultaDelCalendario(estado, definicion, rango)
+  const porEmpezar = consultaDelCalendario(estado, definicion, rango, true)
+  porVencer.set('per_page', String(TOPE_POR_VISTA))
+  porEmpezar.set('per_page', String(TOPE_POR_VISTA))
 
   return [`${definicion.ruta}?${porVencer.toString()}`, `${definicion.ruta}?${porEmpezar.toString()}`]
 }

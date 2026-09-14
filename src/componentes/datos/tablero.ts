@@ -59,6 +59,36 @@ export function ordenarGrupos<T> (grupos: Array<GrupoTablero<T>>): Array<GrupoTa
 }
 
 /**
+ * Reordena columnas reales sin mover la columna sintetica ni modificar el tablero anterior.
+ *
+ * @param grupos tablero actual
+ * @param origen id positivo de la columna arrastrada
+ * @param destino id positivo de la columna cuya posicion original ocupara
+ * @returns copia con orden consecutivo desde 1, o `null` si el movimiento no es valido
+ */
+export function moverColumna<T> (
+  grupos: Array<GrupoTablero<T>>,
+  origen: number,
+  destino: number
+): Array<GrupoTablero<T>> | null {
+  if (!Number.isSafeInteger(origen) || !Number.isSafeInteger(destino) || origen <= 0 || destino <= 0 || origen === destino) return null
+
+  const columnas = grupos.filter((grupo) => grupo.columna.id > 0)
+  const desde = columnas.findIndex((grupo) => grupo.columna.id === origen)
+  const hasta = columnas.findIndex((grupo) => grupo.columna.id === destino)
+  if (desde === -1 || hasta === -1) return null
+
+  const [movida] = columnas.splice(desde, 1)
+  columnas.splice(hasta, 0, movida!)
+  let indice = 0
+  return grupos.map((grupo) => {
+    if (grupo.columna.id <= 0) return grupo
+    const siguiente = columnas[indice++]!
+    return { ...siguiente, columna: { ...siguiente.columna, order: indice } }
+  })
+}
+
+/**
  * Indica si la columna tiene paginas sin cargar.
  *
  * Importa porque `columna_completa` viaja con los ids que tiene el cliente: si le faltan tarjetas,
@@ -176,6 +206,47 @@ export function moverTarjeta<T extends FilaConId> (
       // prefijo de ese mismo orden.
       columna_completa: destino !== undefined && columnaIncompleta(destino) ? [] : columnaCompleta
     }
+  }
+}
+
+/**
+ * Saca una tarjeta del tablero para mandarla a una columna que el tablero no pinta.
+ *
+ * Es el caso de "Completado" en el tablero de Procesos: el estado existe y se puede mover ahi, pero
+ * no tiene columna —el tablero muestra el trabajo abierto, no el archivo—. Sin esto no habia forma
+ * de completar una tarea desde el tablero: `moverTarjeta()` devuelve `null` cuando el destino no es
+ * una de las columnas cargadas, que para el arrastre es lo correcto.
+ *
+ * La tarjeta desaparece de la pantalla, que es lo que la persona espera al completarla.
+ *
+ * `columna_completa` viaja vacia siempre: la columna destino no esta cargada, asi que no hay orden
+ * que mandar y la API lo arma desde la base (`Tablero::reordenar()`). Con `posicion: 1` la tarjeta
+ * queda arriba de su nueva columna.
+ *
+ * @param grupos tablero actual
+ * @param idTarjeta id de la tarjeta que se mueve
+ * @param idColumna id de la columna destino, que NO esta en `grupos`
+ * @returns el tablero sin la tarjeta y el cuerpo a enviar, o `null` si la tarjeta no esta cargada
+ */
+export function sacarTarjeta<T extends FilaConId> (
+  grupos: Array<GrupoTablero<T>>,
+  idTarjeta: number,
+  idColumna: number
+): Movimiento<T> | null {
+  const origen = ubicar(grupos, idTarjeta)
+  if (origen === null) return null
+
+  const movidos = grupos.map((grupo, indice) => indice !== origen.indiceGrupo
+    ? grupo
+    : {
+        ...grupo,
+        tarjetas: grupo.tarjetas.filter((t) => t.id !== idTarjeta),
+        pagination: { ...grupo.pagination, total: grupo.pagination.total - 1 }
+      })
+
+  return {
+    grupos: movidos,
+    cuerpo: { columna: idColumna, posicion: 1, columna_completa: [] }
   }
 }
 

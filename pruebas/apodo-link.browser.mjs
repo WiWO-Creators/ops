@@ -18,7 +18,11 @@ try {
   const campo = { id: 9901, slug: 'tasks_drive', name: 'Link de Drive', type: 'link', options: null, required: false, order: 1, default_value: null, only_admin: false, show_on_table: true }
   const urlInicial = 'https://drive.google.com/drive/folders/prueba?usp=sharing'
   const urlNueva = 'https://drive.google.com/drive/folders/otra'
-  const tarea = { ...PROCESOS[0], custom_fields: [{ ...campo, value: `<a href="${urlInicial}" target="_blank">Carpeta</a>` }] }
+  const tarea = {
+    ...PROCESOS[0],
+    description: 'Descripción de la fixture. Obligatoria desde la tanda del 11/09: sin ella el formulario no guarda, y rellenarla acá dispararía el PATCH de la Tarea que esta prueba aborta para aislar el de campos personalizados.',
+    custom_fields: [{ ...campo, value: `<a href="${urlInicial}" target="_blank">Carpeta</a>` }]
+  }
   const insegura = { ...PROCESOS[1], name: 'Enlace inseguro de prueba', custom_fields: [{ ...campo, value: '<a href="javascript:alert(1)">Inseguro</a>' }] }
   const parches = []
   await contexto.route('**/api/bff/**', async (ruta) => {

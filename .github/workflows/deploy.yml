@@ -12,13 +12,100 @@ jobs:
     steps:
       - name: Deploy en servidor
         uses: appleboy/ssh-action@v1.2.0
+        env:
+          OPS_CRON_SECRET: ${{ secrets.OPS_CRON_SECRET }}
+          OPS_TIMER_CUTOFF_HOUR: ${{ vars.OPS_TIMER_CUTOFF_HOUR }}
+          OPS_CRON_BASE_URL: ${{ vars.OPS_CRON_BASE_URL }}
+          OPS_CRON_REQUEST_TIMEOUT_MS: ${{ vars.OPS_CRON_REQUEST_TIMEOUT_MS }}
+          OPS_CRON_POLL_SCHEDULE: ${{ vars.OPS_CRON_POLL_SCHEDULE }}
+          OPS_CRON_LIVE_SCHEDULE: ${{ vars.OPS_CRON_LIVE_SCHEDULE }}
+          OPS_CRON_TRASH_SCHEDULE: ${{ vars.OPS_CRON_TRASH_SCHEDULE }}
         with:
           host: ${{ secrets.DEPLOY_HOST }}
           username: ${{ secrets.DEPLOY_USER }}
           key: ${{ secrets.DEPLOY_SSH_KEY }}
           port: 22
+          envs: OPS_CRON_SECRET,OPS_TIMER_CUTOFF_HOUR,OPS_CRON_BASE_URL,OPS_CRON_REQUEST_TIMEOUT_MS,OPS_CRON_POLL_SCHEDULE,OPS_CRON_LIVE_SCHEDULE,OPS_CRON_TRASH_SCHEDULE
           script: |
             set -e
+            : "${OPS_CRON_SECRET:?Falta secret OPS_CRON_SECRET}"
+            : "${OPS_TIMER_CUTOFF_HOUR:?Falta variable OPS_TIMER_CUTOFF_HOUR (HH:MM)}"
+            : "${OPS_CRON_BASE_URL:?Falta variable OPS_CRON_BASE_URL}"
+            test -d /run/systemd/system || { echo "Cron requiere systemd para reiniciar tras reboot" >&2; exit 1; }
+            node --input-type=module <<'NODE'
+            const env = process.env;
+            if (env.OPS_CRON_SECRET.length < 32 || !/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(env.OPS_TIMER_CUTOFF_HOUR)) {
+              throw new Error('Cron: secret requiere 32 caracteres y hora HH:MM.');
+            }
+            const url = new URL(env.OPS_CRON_BASE_URL);
+            if (url.protocol !== 'https:' || url.username || url.password || url.search || url.hash) {
+              throw new Error('OPS_CRON_BASE_URL requiere HTTPS sin credenciales, query ni fragmento.');
+            }
+            for (const key of ['OPS_CRON_SECRET', 'OPS_TIMER_CUTOFF_HOUR', 'OPS_CRON_BASE_URL', 'OPS_CRON_REQUEST_TIMEOUT_MS', 'OPS_CRON_POLL_SCHEDULE', 'OPS_CRON_LIVE_SCHEDULE', 'OPS_CRON_TRASH_SCHEDULE']) {
+              if (/[\r\n']/.test(env[key] ?? '')) throw new Error(`Formato no admitido: ${key}`);
+            }
+            if (env.OPS_CRON_REQUEST_TIMEOUT_MS && !/^[1-9]\d*$/.test(env.OPS_CRON_REQUEST_TIMEOUT_MS)) {
+              throw new Error('OPS_CRON_REQUEST_TIMEOUT_MS requiere milisegundos enteros positivos.');
+            }
+            NODE
+            # Solo metadatos: los comandos originales pueden contener tokens legacy.
+            node --input-type=module <<'NODE'
+            import { spawnSync } from 'node:child_process';
+            import { readFileSync, readdirSync } from 'node:fs';
+            import { createHash } from 'node:crypto';
+            const emit = value => console.log(JSON.stringify({ auditoria_cron: true, ...value }));
+            const run = (command, args) => spawnSync(command, args, { encoding: 'utf8', timeout: 15000, maxBuffer: 4 * 1024 * 1024 });
+            const classify = command => /api[\/\s]+v1[\/\s]+live[\/\s]+cron/i.test(command) ? 'live'
+              : /api[\/\s]+v1[\/\s]+trash[\/\s]+cron/i.test(command) ? 'trash'
+              : /index\.php\s+cron|(?:index\.php\/)?cron\/index/i.test(command) ? 'perfex'
+              : /board\.wiwo\.me/i.test(command) ? 'board_revisar' : null;
+            const inspect = (source, content) => {
+              let matches = 0;
+              content.split('\n').forEach((line, index) => {
+                const entry = line.trim();
+                if (!entry || entry.startsWith('#') || /^[A-Za-z_]\w*\s*=/.test(entry)) return;
+                const type = classify(entry);
+                if (!type) return;
+                const fields = entry.split(/\s+/);
+                const schedule = /^@(reboot|yearly|annually|monthly|weekly|daily|midnight|hourly)$/.test(fields[0]) ? fields[0]
+                  : fields.length >= 6 && fields.slice(0, 5).every(field => /^[\d*\/,\-]+$/.test(field)) ? fields.slice(0, 5).join(' ') : 'requiere_revision';
+                emit({ origen: source, linea: index + 1, horario: schedule, tipo: type, sha256: createHash('sha256').update(line).digest('hex') });
+                matches++;
+              });
+              emit({ origen: source, coincidencias: matches });
+            };
+            for (const user of ['root', 'wiwoadmin']) {
+              if (run('id', ['-u', user]).status !== 0) { emit({ origen: `crontab:${user}`, estado: 'usuario_no_existe' }); continue; }
+              const result = run('crontab', ['-u', user, '-l']);
+              if (result.status === 0) inspect(`crontab:${user}`, result.stdout);
+              else emit({ origen: `crontab:${user}`, estado: /no crontab for/.test(result.stderr ?? '') ? 'sin_crontab' : 'no_auditado' });
+            }
+            const files = ['/etc/crontab'];
+            try { files.push(...readdirSync('/etc/cron.d', { withFileTypes: true }).filter(entry => entry.isFile()).map(entry => `/etc/cron.d/${entry.name}`)); }
+            catch { emit({ origen: '/etc/cron.d', estado: 'no_auditado' }); }
+            for (const file of files) {
+              try { inspect(file, readFileSync(file, 'utf8')); }
+              catch { emit({ origen: file, estado: 'no_auditado' }); }
+            }
+            const timers = run('systemctl', ['list-unit-files', '--type=timer', '--no-legend', '--no-pager']);
+            if (timers.status !== 0) emit({ origen: 'systemd', estado: 'no_auditado' });
+            else {
+              let matches = 0;
+              for (const line of timers.stdout.trim().split('\n')) {
+                const unit = line.trim().split(/\s+/)[0];
+                if (!/^[A-Za-z0-9_.@:-]+\.timer$/.test(unit)) continue;
+                const service = run('systemctl', ['show', unit, '--property=Unit', '--value']).stdout?.trim() || unit.replace(/\.timer$/, '.service');
+                const execution = run('systemctl', ['show', service, '--property=ExecStart', '--value']);
+                if (execution.status !== 0) { emit({ origen: `systemd:${unit}`, estado: 'no_auditado' }); continue; }
+                const type = classify(execution.stdout);
+                if (!type) continue;
+                const next = run('systemctl', ['show', unit, '--property=NextElapseUSecRealtime', '--value']).stdout?.trim();
+                emit({ origen: `systemd:${unit}`, tipo: type, proxima_ejecucion: next || 'sin_fecha', sha256: createHash('sha256').update(execution.stdout).digest('hex') });
+                matches++;
+              }
+              emit({ origen: 'systemd', coincidencias: matches });
+            }
+            NODE
             cd /root/ops-v2
             # `reset --hard` y no `pull`: `pnpm build` reescribe `next-env.d.ts` en cada despliegue,
             # asi que el arbol del servidor queda sucio y el `pull` aborta con "your local changes
@@ -28,5 +115,54 @@ jobs:
             git reset --hard origin/main
             pnpm install --frozen-lockfile
             pnpm build
+            # Solo Node lee este archivo privado; no se incorpora al bundle de Next.
+            node --input-type=module <<'NODE'
+            import { writeFileSync, renameSync } from 'node:fs';
+            const keys = ['OPS_CRON_SECRET', 'OPS_TIMER_CUTOFF_HOUR', 'OPS_CRON_BASE_URL', 'OPS_CRON_REQUEST_TIMEOUT_MS', 'OPS_CRON_POLL_SCHEDULE', 'OPS_CRON_LIVE_SCHEDULE', 'OPS_CRON_TRASH_SCHEDULE'];
+            const content = keys.filter(key => process.env[key]).map(key => `${key}='${process.env[key]}'`).join('\n') + '\n';
+            writeFileSync('.env.cron.tmp', content, { mode: 0o600 });
+            renameSync('.env.cron.tmp', '.env.cron');
+            NODE
+            node scripts/cron.mjs --check
+            pm2 startup systemd -u root --hp /root
+            systemctl is-enabled pm2-root
+            pm2 startOrRestart ecosystem.config.cjs --update-env
             pm2 restart ops-v2
+            pm2 save
+            chmod 600 /root/.pm2/dump.pm2
+            if [ -f /root/.pm2/dump.pm2.bak ]; then chmod 600 /root/.pm2/dump.pm2.bak; fi
+            systemctl start pm2-root
+            systemctl is-active pm2-root
+            # No publicar pm2 env ni mensajes de error con cuerpos HTTP.
+            node --input-type=module <<'NODE'
+            import { spawnSync } from 'node:child_process';
+            import { openSync, readSync, fstatSync, closeSync } from 'node:fs';
+            const result = spawnSync('pm2', ['jlist'], { encoding: 'utf8', timeout: 15000, maxBuffer: 8 * 1024 * 1024 });
+            if (result.status !== 0) throw new Error('No se pudo verificar PM2.');
+            const workers = JSON.parse(result.stdout).filter(worker => worker.name === 'ops-cron');
+            if (workers.length !== 1 || workers[0].pm2_env.status !== 'online') throw new Error('ops-cron no tiene exactamente una instancia online.');
+            console.log(JSON.stringify({ proceso: 'ops-cron', estado: 'online', instancias: workers.length }));
+            const states = new Set(['iniciado', 'completed', 'skipped', 'failed', 'fallido', 'pendiente', 'horario_perdido', 'listo', 'configuracion_verificada', 'inicio_fallido']);
+            const jobs = new Set(['rutinas', 'jornadas', 'papelera', 'cortar_cronometros']);
+            const logfile = workers[0].pm2_env.pm_out_log_path;
+            let descriptor;
+            try {
+              descriptor = openSync(logfile, 'r');
+              const size = fstatSync(descriptor).size;
+              const buffer = Buffer.alloc(Math.min(size, 65536));
+              readSync(descriptor, buffer, 0, buffer.length, size - buffer.length);
+              for (const line of buffer.toString('utf8').split('\n').slice(-51)) {
+                let record;
+                try { record = JSON.parse(line.slice(line.indexOf('{'))); } catch { continue; }
+                if (!record || !states.has(record.estado)) continue;
+                const safe = { estado: record.estado };
+                if (typeof record.fecha === 'string' && /^\d{4}-\d{2}-\d{2}T[\d:.]+Z$/.test(record.fecha)) safe.fecha = record.fecha;
+                if (jobs.has(record.trabajo)) safe.trabajo = record.trabajo;
+                if (Number.isFinite(record.duracion_ms)) safe.duracion_ms = record.duracion_ms;
+                if (Number.isInteger(record.http)) safe.http = record.http;
+                console.log(JSON.stringify({ log_cron: safe }));
+              }
+            } catch { console.log(JSON.stringify({ log_cron: { estado: 'log_no_disponible' } })); }
+            finally { if (descriptor !== undefined) closeSync(descriptor); }
+            NODE
             echo "✅ Deploy completado"

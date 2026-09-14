@@ -5,7 +5,7 @@ import { useEffect } from 'react'
 /**
  * Qué está haciendo esta persona ahora mismo, para el latido de presencia.
  *
- * La ruta ya dice dónde está parada ("viendo el espacio DELCO"); esto dice qué está haciendo ahí
+ * La ruta ya dice dónde está parada ("viendo el proyecto DELCO"); esto dice qué está haciendo ahí
  * ("creando una tarea"), que es lo que se pidió ver en `/auditoria`.
  *
  * === POR QUÉ UN CATÁLOGO CERRADO ===

@@ -4,6 +4,7 @@ import { Logo } from '@/componentes/estructura/Logo'
 import { Fecha } from '@/componentes/presentadores/Fecha'
 import { Insignia } from '@/componentes/presentadores/Insignia'
 import { BarraProgreso } from '@/componentes/proyecto/CabeceraProyecto'
+import { CabeceraFichaTarea } from '@/componentes/proyecto/CabeceraFichaTarea'
 import { llamarApiTipado } from '@/datos/api'
 import { ErrorApi } from '@/datos/errores'
 import { GLOSARIO } from '@/dominio/glosario'
@@ -57,7 +58,11 @@ export default async function FichaPublicaDeTarea (props: PageProps<'/tarea/[tok
   return (
     <main className="bg-superficie mx-auto flex min-h-dvh max-w-2xl flex-col gap-5 p-6">
       <header className="flex flex-col gap-3">
-        <h1 className="font-titular text-texto text-xl leading-snug font-extrabold">{tarea.name}</h1>
+        {/* `nivel={1}`: esto es una pagina y su titulo es el H1. La misma cabecera que el modal, que
+            monta la suya un nivel mas abajo porque el dialogo ya aporta el encabezado que lo nombra.
+            La marca y el codigo no viajan en `/public/tasks/{token}` —la lista blanca del backend no
+            los incluye— y la cabecera simplemente no los pinta. */}
+        <CabeceraFichaTarea titulo={tarea.name} nivel={1} />
         <div className="flex flex-wrap items-center gap-1.5">
           {tarea.status !== null && (
             <Insignia tamano="chico" color={tarea.status.color}>{tarea.status.name}</Insignia>

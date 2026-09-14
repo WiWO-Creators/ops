@@ -11,10 +11,12 @@ import { pedirSobre } from '@/datos/cliente'
 import type { StaffReferencia } from '@/datos/tipos'
 
 /** Muestra el equipo y permite editarlo a quienes tienen `projects.edit`. */
-export function EquipoProyecto ({ proyectoId, miembros, puedeEditar }: {
+export function EquipoProyecto ({ proyectoId, miembros, puedeEditar, yoId }: {
   proyectoId: number
   miembros: StaffReferencia[]
   puedeEditar: boolean
+  /** Quien mira. Sin esto no se puede distinguir sacar a otro de sacarse uno mismo. */
+  yoId?: number
 }) {
   const router = useRouter()
   const [editando, setEditando] = useState(false)
@@ -36,8 +38,10 @@ export function EquipoProyecto ({ proyectoId, miembros, puedeEditar }: {
       {puedeEditar && editando && (
         <EditorEquipo
           proyectoId={proyectoId}
+          yoId={yoId}
           onCancelar={() => setEditando(false)}
           onGuardado={() => { setEditando(false); setGuardado(true); router.refresh() }}
+          onSalidaPropia={() => { router.push('/espacios') }}
         />
       )}
     </div>
@@ -45,10 +49,12 @@ export function EquipoProyecto ({ proyectoId, miembros, puedeEditar }: {
 }
 
 /** Carga el equipo actual al abrir y reemplaza sus miembros al guardar; conserva errores y cambios. */
-function EditorEquipo ({ proyectoId, onCancelar, onGuardado }: {
+function EditorEquipo ({ proyectoId, yoId, onCancelar, onGuardado, onSalidaPropia }: {
   proyectoId: number
+  yoId?: number
   onCancelar: () => void
   onGuardado: () => void
+  onSalidaPropia: () => void
 }) {
   const [personas, setPersonas] = useState<StaffReferencia[]>([])
   const [elegidas, setElegidas] = useState<number[]>([])
@@ -88,6 +94,15 @@ function EditorEquipo ({ proyectoId, onCancelar, onGuardado }: {
       setError(resultado.mensaje)
       return
     }
+
+    // Sacarse uno mismo no se refresca, se sale: sin `projects.view` global el proyecto deja de ser
+    // visible en el mismo instante en que se guarda, y quedarse aca daria un 404 sobre una pantalla
+    // que ya no corresponde ver. Mismo destino que "Salir del proyecto".
+    if (yoId !== undefined && !elegidas.includes(yoId)) {
+      onSalidaPropia()
+      return
+    }
+
     onGuardado()
   }
 

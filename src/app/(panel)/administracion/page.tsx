@@ -5,6 +5,7 @@ import { FormularioDeAjustes } from '@/componentes/administracion/FormularioDeAj
 import { PanelAvisosPorCorreo } from '@/componentes/administracion/PanelAvisosPorCorreo'
 import { Cargando, ErrorEstado, SinPermiso } from '@/componentes/estado/Estados'
 import { Pestanas, type Panel } from '@/componentes/proyecto/Pestanas'
+import { TituloModulo } from '@/componentes/estructura/TituloModulo'
 import { leerAjustes } from '@/datos/ajustes'
 import { ErrorApi } from '@/datos/errores'
 import { cargarLookups } from '@/datos/lookups'
@@ -114,11 +115,10 @@ export default async function AdministracionPage () {
   return (
     <section className="flex flex-col gap-4">
       <div>
-        <h1 className="text-texto text-xl font-semibold">Administración</h1>
-        <p className="text-texto-tenue mt-1 text-sm">
-          Todo lo que cambia el comportamiento de Ops para el equipo entero. Solo lo ve —y solo lo puede
-          guardar— un superadministrador.
-        </p>
+        <TituloModulo
+          titulo="Administración"
+          descripcion="Todo lo que cambia el comportamiento de Ops para el equipo entero. Solo lo ve —y solo lo puede guardar— un superadministrador."
+        />
         {/* La casilla entrante es una pantalla aparte y no una pestaña mas: tiene su propio listado
             paginado de fichas, y meterlo en una pestaña obligaria a bajarlo en cada visita a
             Administracion aunque nadie lo mire. El enlace vive aca porque si no, a la pantalla solo
@@ -128,6 +128,26 @@ export default async function AdministracionPage () {
           className="text-acento mt-3 inline-block text-sm font-semibold underline underline-offset-4"
         >
           Casilla entrante: briefs y puntajes de los correos que llegan
+        </Link>
+
+        {/* Los incidentes viven aparte por lo mismo que la casilla: es un listado paginado propio, y
+            traerlo en cada visita a Administracion para que casi nunca se mire seria pagarlo de
+            gusto. El enlace vive aca porque es la unica puerta que tiene. */}
+        <Link
+          href="/administracion/incidentes"
+          className="text-acento mt-2 block text-sm font-semibold underline underline-offset-4"
+        >
+          Incidentes: los errores 500 que guardó la API
+        </Link>
+
+        {/* Accesos vive aparte por lo mismo que las otras dos: tiene su propio catalogo y su listado
+            paginado de personas, y traerlos en cada visita a Administracion para que casi nunca se
+            miren seria pagarlo de gusto. El enlace vive aca porque es la unica puerta que tiene. */}
+        <Link
+          href="/administracion/accesos"
+          className="text-acento mt-2 block text-sm font-semibold underline underline-offset-4"
+        >
+          Accesos: escalones, roles, personas, áreas y los interruptores de permisos
         </Link>
       </div>
 

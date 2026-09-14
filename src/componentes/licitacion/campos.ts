@@ -1,108 +1,104 @@
 import type { CampoFormulario, OpcionCampo } from '@/componentes/proyecto/formulario'
-import { camposDeCliente } from '@/componentes/cliente/campos'
-import { TIPOS_DE_FACTURACION } from '@/definiciones/espacios'
-import { GLOSARIO } from '@/dominio/glosario'
+import { MODELOS_DE_SERVICIO } from '../../definiciones/licitaciones.ts'
+import { GLOSARIO } from '../../dominio/glosario.ts'
+import { EMPRESAS_DEL_HOLDING } from '../../dominio/holding.ts'
 
 /**
- * Campos del formulario de Licitacion.
+ * Campos del formulario de alta de una Licitacion.
  *
  * Vive en un `.ts` por la misma razon que `cliente/campos.ts`: sin JSX se puede probar, y una `clave`
- * mal escrita no rompe nada visible pero manda a la API un cuerpo que ella contesta con un 422.
+ * mal escrita no rompe nada visible pero manda a la API un cuerpo que ella contesta con un 422. Las
+ * importaciones son relativas y no por alias para que `node --test` pueda cargarlo sin resolver
+ * `@/`: el alias solo sobrevive en los `import type`, que el intérprete borra.
  *
- * Las claves son las del contrato y van **anidadas por puntos** (`cliente.company`,
- * `contacto.email`, `espacio.name`): `cuerpoDelFormulario` las convierte en los tres objetos que
- * espera el backend, asi que un solo arreglo produce el cuerpo mixto.
+ * **Ya no hay formulario de edicion.** Desde `0320`, `PATCH /licitaciones/{id}` no acepta nada: la
+ * empresa y sus contactos se editan en el prospecto y los campos del Espacio con
+ * `PATCH /projects/{id}`. Ofrecer un formulario acá escribiria campos que la ruta rechaza.
  */
 
-/** Largos maximos de las columnas del contacto, tomados de `tblcontacts`. */
-const LARGOS = {
-  nombre: 50,
-  email: 100,
-  telefono: 30,
-  cargo: 40,
-  nombreEspacio: 191
-}
+/** Largo maximo del nombre del Espacio, tomado de `tblprojects`. */
+const LARGO_NOMBRE_ESPACIO = 191
 
 /**
- * Las columnas de empresa que una Licitacion comparte con un Cliente.
+ * Campos del alta: de quien sale, de que prospecto cuelga y el Espacio que se crea con ella.
  *
- * No estan moneda, idioma ni las direcciones de facturacion y envio: la candidata todavia no factura
- * nada, y pedir esos datos antes de ganar es pedir lo que nadie sabe.
+ * `prospecto_id` es un `seleccion` y no un texto: es una clave foranea, y escribir un numero a mano
+ * es la forma de crear una licitacion colgada de la empresa equivocada. El valor viaja como cadena
+ * porque un `<select>` no conoce otro tipo, y `cuerpoDelFormulario` lo vuelve numero al armar el
+ * cuerpo. Lo mismo vale para el area y para las dos personas.
+ *
+ * **`owner_id` y `focal_id` son dos campos y no uno.** El owner es el dueño comercial —quien
+ * persigue la venta— y el focal es quien responde por esta licitacion en el dia a dia. Suelen ser la
+ * misma persona y a veces no, y unificarlos haria imposible distinguir "nadie la esta empujando" de
+ * "nadie la esta atendiendo". Son personas del staff, igual que los Focals de un Cliente
+ * (`PUT /clients/{id}/focales`); la diferencia es que aquello es una lista con ruta propia y esto son
+ * dos casillas del alta, asi que no hay nada que importar de alli: lo que se comparte es el catalogo
+ * de personas, que llega como parametro.
+ *
+ * Los catalogos son opcionales y caen en la lista vacia porque el formulario se monta desde mas de
+ * un lado y no todos los tienen a mano; un selector vacio se ve vacio, que es preferible a que la
+ * pantalla no compile.
+ *
+ * @param prospectos Los prospectos entre los que elegir, ya en forma de opciones.
+ * @param areas Catalogo `areas` de `GET /lookups` (las areas del equipo), ya en forma de opciones.
+ * @param staff Catalogo `staff` de `GET /lookups`, para el owner y el focal.
+ * @returns Los campos de las dos secciones, en el orden en que se llenan.
  */
-const CLAVES_DE_EMPRESA = [
-  'company', 'vat', 'phonenumber', 'website', 'address', 'city', 'state', 'zip', 'country_id'
-]
-
-/**
- * Los campos de la empresa candidata, reusando los del formulario de Cliente.
- *
- * Se reusan y no se copian porque son literalmente los mismos controles con los mismos largos: una
- * copia se desincroniza al primer cambio de esquema. Solo cambian dos cosas: el prefijo `cliente.`
- * —el contrato de Licitacion los anida— y la seccion, porque en el formulario de Cliente `address`
- * abre un bloque "Ubicacion" que aca partiria los nueve campos en dos.
- *
- * @param paises Catalogo `countries` de `GET /lookups`.
- * @returns Los nueve campos, en el mismo orden que en el formulario de Cliente.
- */
-function camposDeEmpresa (paises: OpcionCampo[]): CampoFormulario[] {
-  return camposDeCliente(paises, [])
-    .filter((campo) => CLAVES_DE_EMPRESA.includes(campo.clave))
-    .map((campo, indice) => {
-      const propio: CampoFormulario = { ...campo, clave: `cliente.${campo.clave}` }
-
-      if (indice === 0) propio.seccion = 'Empresa candidata'
-      else delete propio.seccion
-
-      return propio
-    })
-}
-
-/** Los campos del contacto de la candidata. Al ganar se vuelve el contacto principal del Cliente. */
-const CAMPOS_DE_CONTACTO: CampoFormulario[] = [
-  { clave: 'contacto.firstname', etiqueta: 'Nombre', tipo: 'texto', requerido: true, maximo: LARGOS.nombre, seccion: 'Contacto' },
-  { clave: 'contacto.lastname', etiqueta: 'Apellido', tipo: 'texto', requerido: true, maximo: LARGOS.nombre },
-  { clave: 'contacto.email', etiqueta: 'Correo', tipo: 'texto', requerido: true, maximo: LARGOS.email },
-  { clave: 'contacto.phonenumber', etiqueta: 'Teléfono del contacto', tipo: 'texto', maximo: LARGOS.telefono },
-  { clave: 'contacto.title', etiqueta: 'Cargo', tipo: 'texto', maximo: LARGOS.cargo }
-]
-
-/**
- * Campos de la **edicion** de una Licitacion: empresa candidata y contacto, nada mas.
- *
- * `PATCH /licitaciones/{id}` acepta solo esos dos objetos. Lo del Espacio —nombre, fechas, estado,
- * descripcion— se edita donde siempre, con `PATCH /projects/{id}`, y ofrecerlo aca escribiria campos
- * que la ruta rechaza.
- *
- * @param paises Catalogo `countries` de `GET /lookups`.
- * @returns Los campos de las dos primeras secciones.
- */
-export function camposDeCandidata (paises: OpcionCampo[]): CampoFormulario[] {
-  return [...camposDeEmpresa(paises), ...CAMPOS_DE_CONTACTO]
-}
-
-/**
- * Campos del **alta** de una Licitacion: la candidata, su contacto y el Espacio que se crea con ella.
- *
- * `POST /licitaciones` crea las tres cosas de una vez; por eso el alta es el unico momento en que el
- * Espacio se describe desde esta pantalla.
- *
- * @param paises Catalogo `countries` de `GET /lookups`.
- * @returns Los campos de las tres secciones, en el orden en que se llenan.
- */
-export function camposDeLicitacion (paises: OpcionCampo[]): CampoFormulario[] {
+export function camposDeLicitacion (
+  prospectos: OpcionCampo[],
+  areas: OpcionCampo[] = [],
+  staff: OpcionCampo[] = []
+): CampoFormulario[] {
   return [
-    ...camposDeCandidata(paises),
+    {
+      clave: 'prospecto_id',
+      etiqueta: 'Prospecto',
+      tipo: 'seleccion',
+      requerido: true,
+      opciones: prospectos,
+      ayuda: 'La empresa a la que se le licita. Si no está en la lista, se carga en Prospectos.',
+      seccion: 'Empresa candidata'
+    },
+    {
+      clave: 'empresa_holding',
+      etiqueta: 'Empresa del holding',
+      tipo: 'seleccion',
+      opciones: EMPRESAS_DEL_HOLDING,
+      ayuda: 'Cuál de las sociedades del grupo presenta esta licitación.'
+    },
+    {
+      clave: 'area_id',
+      etiqueta: 'Área',
+      tipo: 'seleccion',
+      opciones: areas,
+      ayuda: 'El área del equipo que va a llevar el trabajo.'
+    },
+    {
+      clave: 'owner_id',
+      etiqueta: 'Owner',
+      tipo: 'seleccion',
+      opciones: staff,
+      ayuda: 'El dueño comercial: quien persigue la venta.',
+      seccion: 'Responsables'
+    },
+    {
+      clave: 'focal_id',
+      etiqueta: `${GLOSARIO.focal.singular} de la ${GLOSARIO.licitacion.singular.toLowerCase()}`,
+      tipo: 'seleccion',
+      opciones: staff,
+      ayuda: 'Quien responde por esta licitación en el día a día. Puede ser la misma persona que el owner.'
+    },
     {
       clave: 'espacio.name',
       etiqueta: `Nombre del ${GLOSARIO.espacio.singular.toLowerCase()}`,
       tipo: 'texto',
       requerido: true,
-      maximo: LARGOS.nombreEspacio,
+      maximo: LARGO_NOMBRE_ESPACIO,
       seccion: GLOSARIO.espacio.singular
     },
     { clave: 'espacio.start_date', etiqueta: 'Fecha de inicio', tipo: 'fecha', requerido: true },
     { clave: 'espacio.deadline', etiqueta: 'Fecha de entrega', tipo: 'fecha' },
-    { clave: 'espacio.billing_type', etiqueta: 'Facturación', tipo: 'seleccion', opciones: TIPOS_DE_FACTURACION },
+    { clave: 'modelo_servicio', etiqueta: 'Modelo de servicio', tipo: 'seleccion', opciones: MODELOS_DE_SERVICIO },
     { clave: 'espacio.description', etiqueta: 'Descripción', tipo: 'area' }
   ]
 }

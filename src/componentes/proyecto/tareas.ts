@@ -64,7 +64,7 @@ export function valorDeCampo (proceso: ProcesoAmpliado, slug: string): string {
 }
 
 /** Como se pide el valor de una accion masiva. Decide que control dibuja el dialogo. */
-export type ControlAccionMasiva = 'estado' | 'prioridad' | 'personas' | 'hito' | 'booleano' | 'etiquetas' | 'ninguno'
+export type ControlAccionMasiva = 'estado' | 'prioridad' | 'personas' | 'proyecto' | 'hito' | 'booleano' | 'etiquetas' | 'ninguno'
 
 export interface AccionMasivaDescrita {
   clave: AccionMasiva
@@ -86,6 +86,7 @@ export const ACCIONES_MASIVAS: AccionMasivaDescrita[] = [
   { clave: 'status', etiqueta: 'Cambiar estado', control: 'estado', requiere: 'edit' },
   { clave: 'priority', etiqueta: 'Cambiar prioridad', control: 'prioridad', requiere: 'edit' },
   { clave: 'assignees', etiqueta: 'Agregar asignados', control: 'personas', requiere: 'edit' },
+  { clave: 'project', etiqueta: 'Agregar a proyecto', control: 'proyecto', requiere: 'edit' },
   { clave: 'milestone', etiqueta: 'Mover a un hito', control: 'hito', requiere: 'edit' },
   { clave: 'billable', etiqueta: 'Marcar facturable', control: 'booleano', requiere: 'edit' },
   { clave: 'tags', etiqueta: 'Agregar etiquetas', control: 'etiquetas', requiere: 'edit' },
