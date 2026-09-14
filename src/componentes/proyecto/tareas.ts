@@ -172,8 +172,13 @@ export interface ProcesoDeFicha {
   start_date: string | null
   due_date: string | null
   date_finished: string | null
-  /** HTML del editor viejo. Nunca se inyecta: se muestra como texto plano. */
-  description?: string
+  /**
+   * HTML del editor viejo. Nunca se inyecta: se muestra como texto plano.
+   *
+   * `null` es una Tarea sin describir, que es distinto de la clave ausente: el contrato del panel la
+   * manda solo con `include=description` o en la ficha, y el del portal siempre.
+   */
+  description?: string | null
   project?: Referencia | null
   milestone?: Referencia | null
   assignees?: StaffReferencia[]

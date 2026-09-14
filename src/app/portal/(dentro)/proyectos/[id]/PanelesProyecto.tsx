@@ -9,18 +9,14 @@ import { DatoDeFicha } from '@/componentes/proyecto/DatoDeFicha'
 import { Fecha } from '@/componentes/presentadores/Fecha'
 import type { EmpresaPortal } from '@/datos/tipos'
 import { pedirPortal } from '@/datos/servidor'
-import { cargarLookupsDelPortal, opcionesDeFiltros } from '@/datos/lookups'
-import { PORTAL_TAREAS } from '@/definiciones/portal-proyectos'
 import { GLOSARIO } from '@/dominio/glosario'
 import type {
   ArchivoPortal,
   EspacioPortal,
   HitoPortal,
-  TareaPortal,
   TicketPortal
 } from '@/datos/portal'
 import { EstadoDelPortal, NombreDeArchivo } from '../../detalle'
-import { TablaDeTareas } from './TablaDeTareas'
 
 /**
  * El contenido de cada pestaña del proyecto.
@@ -115,25 +111,16 @@ export async function PanelResumen ({ proyecto }: { proyecto: EspacioPortal }) {
   )
 }
 
-export async function PanelTareas ({ proyectoId }: { proyectoId: number }) {
-  const { data, meta } = await pedirPortal<TareaPortal[]>(`/portal/projects/${proyectoId}/tasks?per_page=100`)
-
-  if (data.length === 0) {
-    return <Vacio titulo={`Sin ${GLOSARIO.proceso.plural.toLowerCase()}`} descripcion="Todavía no hay nada que mostrar acá." />
-  }
-
-  // Sin el catalogo de estados la columna Estado muestra el numero crudo que devuelve la API, y el
-  // filtro se queda sin opciones que ofrecer.
-  const lookups = await cargarLookupsDelPortal()
-
-  return (
-    <TablaDeTareas
-      proyectoId={proyectoId}
-      inicial={{ filas: data, paginacion: meta?.pagination }}
-      opcionesDeFiltro={opcionesDeFiltros(PORTAL_TAREAS, lookups)}
-    />
-  )
-}
+/*
+ * La pestaña Tareas ya no vive acá: la dibuja `componentes/proyecto/PanelTareas`, el mismo panel que
+ * abre un colaborador, con la fuente del contacto y `capacidades={[]}`. Con eso el cliente gano la
+ * tabla completa, el tablero, el calendario y el detalle de una Tarea, que esta copia no tenia.
+ *
+ * Se perdio a cambio la primera pagina resuelta en el servidor: el panel compartido recibe un id y
+ * pide lo suyo al montarse, asi que la tabla del cliente ahora muestra su bloque de carga como la
+ * del equipo. Es el precio de tener un solo dibujo, y esta anotado para que no se lea como un
+ * descuido.
+ */
 
 /**
  * Hitos, como lista con su avance.

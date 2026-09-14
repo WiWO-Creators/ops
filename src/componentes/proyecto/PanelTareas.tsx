@@ -28,7 +28,7 @@ import { CalendarioTareas } from './CalendarioTareas'
 import { ModalTarea } from './ModalTarea'
 import { FormularioTarea } from './FormularioTarea'
 import { ResumenEstadosTareas } from './ResumenEstadosTareas'
-import { TarjetaTarea } from './TarjetaTarea'
+import { TarjetaTarea, type ProcesoDeTarjeta } from './TarjetaTarea'
 import { definicionDeTareas } from './columnas-tareas'
 import { opcionesDeFiltroDeHito, TOPE_DE_HITOS } from './hitos'
 import { BotonCompletados } from './BotonCompletados'
@@ -57,6 +57,24 @@ const VISTAS: readonly OpcionSegmentada[] = [
   { valor: 'tablero', etiqueta: 'Tablero', icono: 'tablero' },
   { valor: 'calendario', etiqueta: 'Calendario', icono: 'calendario' }
 ]
+
+/**
+ * `true` si la definicion puede acotar por rango de fechas.
+ *
+ * El calendario pide un mes con `filter[due_date__gte]` y `filter[due_date__lte]`, asi que existe
+ * solo donde ese filtro esta declarado: donde no —el contrato del contacto solo acepta `status`— cada
+ * cambio de periodo devolvia 422 y la grilla quedaba con el error encima.
+ *
+ * No es una pregunta sobre el sujeto sino sobre la definicion, y por eso no hace falta saber quien
+ * mira. El cliente igual tiene calendario: es una pestaña propia del Proyecto (`PanelCalendario`),
+ * que la API habilita aparte y que baja el mes entero de una vez sin filtrar por rango.
+ *
+ * @param definicion La definicion vigente.
+ * @returns Si se puede ofrecer la lectura de calendario.
+ */
+function admiteCalendario (definicion: DefinicionRecurso<ProcesoAmpliado>): boolean {
+  return definicion.filtros.some((filtro) => filtro.clave === 'due_date' && filtro.tipo === 'campo')
+}
 
 interface PropsPanelTareas {
   proyectoId: number
@@ -114,7 +132,6 @@ function TareasDelProyecto ({ proyectoId, fuente, capacidades, conIa }: PropsPan
 
   const presentacion = params.get('vista')
   const enTablero = presentacion === 'tablero'
-  const enCalendario = presentacion === 'calendario'
 
   const [carga, setCarga] = useState<Carga>({ fase: 'cargando' })
   const [intento, setIntento] = useState(0)
@@ -143,6 +160,15 @@ function TareasDelProyecto ({ proyectoId, fuente, capacidades, conIa }: PropsPan
       onCambiado: recargar
     }),
     [proyectoId, fuente, campos, capacidades, estados, recargar]
+  )
+
+  // Se decide contra la definicion y no contra la URL sola: con `?vista=calendario` en una
+  // definicion que no acota por fechas, la lectura cae a la tabla en vez de pedir un 422 por mes.
+  const conCalendario = admiteCalendario(definicion)
+  const enCalendario = presentacion === 'calendario' && conCalendario
+  const vistas = useMemo(
+    () => conCalendario ? VISTAS : VISTAS.filter((vista) => vista.valor !== 'calendario'),
+    [conCalendario]
   )
 
   // Se pide con la consulta vigente al montar y cada vez que algo escribio, pero NO cuando la
@@ -222,7 +248,7 @@ function TareasDelProyecto ({ proyectoId, fuente, capacidades, conIa }: PropsPan
         <BotonCompletados />
         <Segmentado
           etiqueta="Presentación"
-          opciones={VISTAS}
+          opciones={vistas}
           activo={enTablero ? 'tablero' : enCalendario ? 'calendario' : 'tabla'}
           onElegir={(valor) => {
             irA((siguientes) => {
@@ -348,8 +374,10 @@ function definicionDeTablero (
       // Las columnas llegan ordenadas por `order`, NO por `id`: el orden real es 1, 4, 3, 2, 5.
       columnasDesde: 'task_statuses',
       rutaMover: 'tasks/:id/mover',
+      // `ProcesoDeTarjeta` y no `ProcesoAmpliado`: la tarjeta declara lo minimo que dibuja, y el
+      // contrato del cliente manda menos que el del equipo.
       presentarTarjeta: (fila) => (
-        <TarjetaTarea proceso={fila as ProcesoAmpliado} estados={estados} />
+        <TarjetaTarea proceso={fila as ProcesoDeTarjeta} estados={estados} />
       )
     }
   }
@@ -428,6 +456,7 @@ async function cargarPestana (
       esTablero: enTablero,
       inicial: { filas: lista.data, paginacion: lista.meta?.pagination },
       opciones: {
+        ...catalogosDeInsignias(definicion, { ...lookups.data, staff: personas }),
         ...opcionesDeFiltros(definicion, { ...lookups.data, staff: personas }),
         milestones: opcionesDeFiltroDeHito(hitos ?? [])
       },
@@ -444,6 +473,36 @@ async function cargarPestana (
       mensaje: fallo instanceof Error ? fallo.message : 'No se pudieron cargar las tareas.'
     }
   }
+}
+
+/**
+ * Los catalogos que piden las columnas que se pintan como insignia.
+ *
+ * `opcionesDeFiltros` resuelve los de los **filtros**, y en el panel eso alcanza por casualidad:
+ * Estado y Prioridad son columna y filtro a la vez. El contrato del contacto no acepta filtrar por
+ * prioridad, asi que sin esto su columna Prioridad mostraba `#4` en vez del nombre.
+ *
+ * Se reusa `opcionesDeFiltros` con las columnas disfrazadas de filtro en vez de repetir el mapeo:
+ * el color y el nombre de cada opcion se resuelven en un solo lugar.
+ *
+ * @param definicion La definicion vigente, con sus columnas.
+ * @param lookups Los catalogos ya cargados.
+ * @returns Un mapa indexado por el catalogo que pide cada columna.
+ */
+function catalogosDeInsignias (
+  definicion: DefinicionRecurso<ProcesoAmpliado>,
+  lookups: Lookups
+): Record<string, OpcionFiltro[]> {
+  const comoFiltros = definicion.columnas
+    .filter((columna) => columna.comoInsignia !== undefined)
+    .map((columna) => ({
+      clave: columna.clave,
+      etiqueta: columna.encabezado,
+      tipo: 'multiple' as const,
+      desdeLookup: columna.comoInsignia
+    }))
+
+  return opcionesDeFiltros({ ...definicion, filtros: comoFiltros }, lookups)
 }
 
 /**

@@ -760,7 +760,7 @@ function Contador ({ etiqueta, valor }: { etiqueta: string, valor: string }): Re
  * —un `<script>`, un `onerror=` en una imagen rota—, o sea un XSS con la cookie de sesion adentro.
  * Se muestra el texto plano, que React escapa solo, y los saltos de linea se conservan con CSS.
  */
-function Descripcion ({ html }: { html: string | undefined }): ReactElement {
+function Descripcion ({ html }: { html: string | null | undefined }): ReactElement {
   const texto = typeof html === 'string' ? aTextoPlano(html) : ''
 
   if (texto === '') {

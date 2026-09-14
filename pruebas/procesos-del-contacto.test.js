@@ -98,6 +98,14 @@ test('solo sobreviven los filtros que el endpoint del portal declara', () => {
   assert.equal(claves.includes('project_id'), false)
 })
 
+test('el contacto no ejecuta ninguna accion sobre un Proceso', () => {
+  // Dos acciones del equipo —arrancar y detener el cronometro— no piden capacidad, asi que
+  // `capacidades={[]}` no alcanzaba para podarlas: el cliente veia un menu por fila que solo podia
+  // devolver 404. La accion no existe para este sujeto, y con la lista vacia la columna desaparece.
+  assert.deepEqual(definicion.acciones, [])
+  assert.equal(procesosDelEspacio(8).acciones.length > 0, true, 'el panel perdio sus acciones')
+})
+
 test('no se piden campos personalizados: el contacto no los tiene', () => {
   assert.deepEqual(definicion.incluirSiempre, [])
   assert.deepEqual(definicion.includes, [])

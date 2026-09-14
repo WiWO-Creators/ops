@@ -107,8 +107,9 @@ const COLUMNAS_DEL_CONTACTO = ['patente', 'name', 'status', 'priority', 'due_dat
  *
  * El tipo sigue siendo `DefinicionRecurso<Proceso>` porque es el que consumen la tabla, el tablero y
  * el calendario compartidos. Las filas que llegan son `TareaPortal`, un **subconjunto** de `Proceso`:
- * por eso la lista de columnas de arriba es la garantia, y `pruebas/portal.test.js` verifica que
- * ninguna columna lea una clave que el contacto no recibe.
+ * por eso la lista de columnas de arriba es la garantia, y `pruebas/procesos-del-contacto.test.js`
+ * pinta cada columna contra una fila del portal para que una columna colada se note ahi y no en
+ * pantalla.
  *
  * @param proyectoId El Proyecto que el cliente esta mirando.
  * @returns La definicion lista para la tabla, el tablero y el calendario de Procesos.
@@ -130,6 +131,11 @@ export function procesosDelContacto (proyectoId: number): DefinicionRecurso<Proc
           : columna
       )),
     filtros: base.filtros.filter((filtro) => PORTAL_TAREAS.filtros.some((suyo) => suyo.clave === filtro.clave)),
+    // Ninguna. Dos de las del equipo —arrancar y detener el cronometro— no piden capacidad, asi que
+    // con `capacidades={[]}` sobrevivian a la poda por permisos y el cliente veia un menu de acciones
+    // por fila que solo podia devolver 404. La accion no existe para este sujeto, no es que no se
+    // pueda: declararlo aca es lo que hace desaparecer la columna entera.
+    acciones: [],
     ordenables,
     ordenPorDefecto: PORTAL_TAREAS.ordenPorDefecto,
     // El equipo pide siempre `custom_fields` porque son columnas; el contacto no los tiene.

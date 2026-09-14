@@ -5,11 +5,14 @@ import { ErrorApi } from '@/datos/errores'
 import type { EspacioPortal, TareaPortal } from '@/datos/portal'
 import { pestaniasDelProyecto } from '@/definiciones/portal-proyectos'
 import { CabeceraProyecto } from '@/componentes/proyecto/CabeceraProyecto'
+import { PanelCalendario } from '@/componentes/proyecto/PanelCalendario'
+import { PanelTareas } from '@/componentes/proyecto/PanelTareas'
 import { aTextoPlano } from '@/componentes/proyecto/formatos'
 import { cargarLookupsDelPortal, listaDe } from '@/datos/lookups'
 import { pedirPortal } from '@/datos/servidor'
 import type { EmpresaPortal } from '@/datos/tipos'
 import { GLOSARIO } from '@/dominio/glosario'
+import { fuenteDelPortal, type FuenteDeProyecto } from '@/dominio/fuente-proyecto'
 import { proyectoDelPortal } from '@/dominio/proyecto'
 import { cargarDetalle, EstadoDeError, estadoDelPortal } from '../../detalle'
 import { AprobacionesPendientes } from './AprobacionesPendientes'
@@ -17,7 +20,6 @@ import {
   PanelArchivos,
   PanelHitos,
   PanelResumen,
-  PanelTareas,
   PanelTicketsDelProyecto
 } from './PanelesProyecto'
 import {
@@ -66,11 +68,14 @@ export default async function ProyectoPagina (props: PageProps<'/portal/proyecto
   // que se trata, y ahi es el unico lugar donde cabe.
   const descripcionSuelta = !pestanias.some((p) => p.clave === 'overview')
   const pendientes = await cargarPendientes(proyecto)
+  // De donde bajan los datos de cada pestaña. Es lo unico que distingue esta pantalla de la del
+  // colaborador, que monta los mismos paneles con `fuenteDelPanel`. Ver `dominio/fuente-proyecto.ts`.
+  const fuente = fuenteDelPortal(proyecto.id)
 
   const paneles: Panel[] = pestanias.map(({ clave, etiqueta }) => ({
     clave,
     etiqueta,
-    contenido: contenidoDePestania(clave, proyecto)
+    contenido: contenidoDePestania(clave, proyecto, fuente)
   }))
 
   return (
@@ -106,11 +111,28 @@ export default async function ProyectoPagina (props: PageProps<'/portal/proyecto
   )
 }
 
-/** Que dibuja cada pestaña. */
-function contenidoDePestania (clave: string, proyecto: EspacioPortal): React.ReactNode {
+/**
+ * Que dibuja cada pestaña.
+ *
+ * Las que son **el mismo panel que abre un colaborador** reciben la fuente del contacto y
+ * `capacidades={[]}`: con eso pierden el alta, las acciones masivas, la edicion en linea y los
+ * botones de la ficha, y no pierden ninguna lectura. Las que todavia son propias del portal
+ * —archivos, tickets— se quedan como estaban: alli el contrato del cliente es otra cosa, no una
+ * version podada de la del equipo.
+ *
+ * @param clave La pestaña, tal como la nombra la API.
+ * @param proyecto El proyecto ya cargado.
+ * @param fuente Las rutas del contacto para este proyecto.
+ * @returns El contenido de esa pestaña.
+ */
+function contenidoDePestania (clave: string, proyecto: EspacioPortal, fuente: FuenteDeProyecto): React.ReactNode {
   switch (clave) {
     case 'tasks':
-      return <PanelTareas proyectoId={proyecto.id} />
+      // `conIa={false}`: la capa de IA es del panel, y el alta por texto que habilita ni se ofrece
+      // con `capacidades={[]}`.
+      return <PanelTareas proyectoId={proyecto.id} fuente={fuente} capacidades={[]} conIa={false} />
+    case 'calendar':
+      return <PanelCalendario proyectoId={proyecto.id} fuente={fuente} capacidades={[]} />
     case 'milestones':
       return <PanelHitos proyectoId={proyecto.id} />
     case 'files':
