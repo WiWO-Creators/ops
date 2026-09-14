@@ -32,7 +32,7 @@ un token, y salir. Es el módulo del que dependen todos los demás.
 // 201 — sin segundo factor
 {"data": {
   "access_token": "…", "expires_in": 3600,
-  "refresh_token": "…", "refresh_expires_in": 2592000,
+  "refresh_token": "…", "refresh_expires_in": 7776000,
   "staff": { /* la misma forma que /me */ }
 }}
 

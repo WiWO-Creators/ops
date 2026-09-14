@@ -87,8 +87,8 @@ export function opcionesCookie (): {
     sameSite: 'lax',
     secure: process.env.NODE_ENV === 'production',
     path: '/',
-    // 30 dias, que es lo que vive el token de refresco segun el contrato.
-    maxAge: 60 * 60 * 24 * 30
+    // 90 dias, que es lo que vive el token de refresco segun el contrato.
+    maxAge: 60 * 60 * 24 * 90
   }
 }
 

@@ -107,7 +107,7 @@ cuál llegó.
 ```json
 { "data": {
   "access_token": "…", "expires_in": 3600,
-  "refresh_token": "…", "refresh_expires_in": 2592000,
+  "refresh_token": "…", "refresh_expires_in": 7776000,
   "staff": { "…": "ver recurso staff" }
 } }
 ```
@@ -159,7 +159,7 @@ que nada en el servidor parezca fallar.
 
 ```json
 { "data": { "access_token": "…", "expires_in": 3600,
-            "refresh_token": "…", "refresh_expires_in": 2592000 } }
+            "refresh_token": "…", "refresh_expires_in": 7776000 } }
 ```
 
 ### `POST /auth/logout`
