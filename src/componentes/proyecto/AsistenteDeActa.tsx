@@ -7,7 +7,7 @@ import { Orbe } from '@/componentes/estado/Orbe'
 import { pedirSobre } from '@/datos/cliente'
 import { leerSSE } from '@/datos/sse'
 import { leerEventoIA } from '@/dominio/ia'
-import { validarArchivos } from '@/dominio/actas'
+import { formatoPeso, validarArchivos } from '@/dominio/actas'
 import { cn } from '@/lib/clases'
 import { aTextoPlano } from './formatos'
 import { DatosDelActa, resumenDeDatos, type DatosDeActa } from './acta/DatosDelActa'
@@ -103,6 +103,11 @@ export function AsistenteDeActa ({ proyectoId, onCreada, onCancelar }: PropsAsis
   // hora son varios minutos sin un solo `delta`, y sin esto la pantalla no dice nada en todo ese
   // rato: la persona no puede distinguir "está escuchando" de "se colgó".
   const [paso, setPaso] = useState<PasoIA | null>(null)
+  // Si el servidor ya dijo algo. Mientras sea `false` y haya archivo, lo que está pasando es la
+  // subida: `fetch` no informa progreso de subida, así que sin esto la pantalla dice "Escribiendo el
+  // Meeting Paper…" mientras en realidad todavía se está mandando un archivo de decenas de MB, que
+  // es justo el rato en que la persona se pregunta si se colgó.
+  const [contestoElServidor, setContestoElServidor] = useState(false)
   const [avance, setAvance] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [segundos, setSegundos] = useState(0)
@@ -174,6 +179,7 @@ export function AsistenteDeActa ({ proyectoId, onCreada, onCancelar }: PropsAsis
 
     setFase('generando')
     setPaso(null)
+    setContestoElServidor(false)
     setAvance('')
     setError(null)
     setSegundos(0)
@@ -195,6 +201,8 @@ export function AsistenteDeActa ({ proyectoId, onCreada, onCancelar }: PropsAsis
 
     try {
       for await (const crudo of leerSSE(`ia/proyectos/${proyectoId}/acta`, { cuerpo, senal: control.signal })) {
+        setContestoElServidor(true)
+
         const evento = leerEventoIA(crudo)
         if (evento === null) continue
 
@@ -242,16 +250,23 @@ export function AsistenteDeActa ({ proyectoId, onCreada, onCancelar }: PropsAsis
     }
   }
 
+  // La subida termina cuando llega el primer byte del servidor, no cuando el archivo sale del
+  // navegador: lo que importa es que del otro lado alguien lo recibió.
+  const subiendo = archivos.length > 0 && !contestoElServidor
+  const pesoSubido = archivos.reduce((total, uno) => total + uno.size, 0)
+
   if (fase === 'generando') {
     return (
       <div className={cn(TARJETA, 'flex flex-col gap-4')}>
         <div className="flex items-start gap-3">
-          <Orbe medida="2.5rem" estado={paso?.orbe ?? 'generating'} />
+          <Orbe medida="2.5rem" estado={subiendo ? 'routing' : (paso?.orbe ?? 'generating')} />
           <div className="flex min-w-0 flex-col gap-0.5">
             <p className="text-texto text-sm font-semibold">
-              {paso?.etiqueta ?? (modo === 'documento'
-                ? 'Leyendo el Meeting Paper y dejándolo en el formato del sistema…'
-                : 'Escribiendo el Meeting Paper…')}
+              {subiendo
+                ? `${archivos.length === 1 ? 'Subiendo el archivo' : 'Subiendo los archivos'}… (${formatoPeso(pesoSubido)})`
+                : paso?.etiqueta ?? (modo === 'documento'
+                  ? 'Leyendo el Meeting Paper y dejándolo en el formato del sistema…'
+                  : 'Escribiendo el Meeting Paper…')}
             </p>
             <p className="text-texto-sutil text-xs">
               {archivos.length === 0 || modo === 'documento'

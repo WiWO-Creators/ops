@@ -29,6 +29,34 @@ export class ErrorApi extends Error {
   get exigeEntrar (): boolean {
     return this.codigo === 'unauthenticated' || this.codigo === 'token_revoked'
   }
+
+  /**
+   * El codigo del incidente, cuando la API guardo el error.
+   *
+   * Es el numero de ocho hexadecimales que la persona ve en el aviso y reporta en wiwo.center, y con
+   * el que Administración → Incidentes encuentra la excepcion, la traza y quien la sufrio.
+   */
+  get incidente (): string | undefined {
+    return incidenteDe(this.detalles)
+  }
+}
+
+/**
+ * Lee el codigo de incidente de los `details` de un error del contrato.
+ *
+ * El cast no es descuido: `details` tiene dos formas en el contrato. En los `422` es
+ * `{ campo: [motivo] }` —la que describe el tipo, porque es la que consume media aplicacion— y en
+ * los errores registrados es `{ incidente: 'ab12cd34' }`, un valor suelto. Tipar la union obligaria
+ * a estrechar en los seis lugares que hoy recorren los motivos de un 422 sin ganar nada: aca se
+ * comprueba que sea una cadena antes de devolverla, que es la unica garantia que hace falta.
+ *
+ * @param detalles el bloque `details` del error, si vino
+ * @returns el codigo de ocho hexadecimales, o `undefined` si el error no quedo registrado
+ */
+export function incidenteDe (detalles: Record<string, string[]> | undefined): string | undefined {
+  const valor: unknown = detalles?.incidente
+
+  return typeof valor === 'string' && valor !== '' ? valor : undefined
 }
 
 /**
