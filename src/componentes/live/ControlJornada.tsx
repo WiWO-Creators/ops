@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useId, useRef, useState, useSyncExternalStore } from 'react'
 import { Clock, Play, Square, Timer } from 'lucide-react'
 import { Boton } from '@/componentes/formularios/Boton'
 import {
@@ -13,8 +13,8 @@ import type { ClienteDeJornada, EstadoDeJornada } from '@/datos/live'
 import { GLOSARIO } from '@/dominio/glosario'
 import {
   clienteDeJornada,
-  cuerpoDeApertura,
   faltaAbrirJornada,
+  fijarRecordatorioDeDestino,
   fraseDeJornadaSinDestino,
   jornadaPospuestaHoy,
   jornadaSinDestino,
@@ -23,12 +23,13 @@ import {
   mensajeDeFalloDeMedidor,
   olvidarJornadaPospuesta,
   posponerJornadaPorHoy,
-  type DestinoDeApertura
+  recordatorioDeDestinoActivo
 } from '@/dominio/live'
 import { cn } from '@/lib/clases'
 import { hoyLocal } from '@/lib/fechas'
 import { CierreJornada } from './CierreJornada'
 import { DestinoDeJornada } from './DestinoDeJornada'
+import { RecordatorioDeDestino } from './RecordatorioDeDestino'
 import { SelectorCliente } from './SelectorCliente'
 import { avisarCambioDeMedidor, escucharMedidor } from './medidor'
 
@@ -61,26 +62,31 @@ import { avisarCambioDeMedidor, escucharMedidor } from './medidor'
  * Y arranca en cero: el primer pintado del cliente tiene que dar el mismo texto que el del servidor,
  * o React reporta un error de hidratacion. El contador empieza a correr despues del montaje.
  *
- * === EL PROYECTO BLOQUEA; LA TAREA SE PIDE ===
+ * === ABRIR EL DIA Y ELEGIR DESTINO SON DOS GESTOS, NO UNO ===
  *
- * La reunion del 2026-09-11 hizo obligatorias a las dos y el cliente lo revirtio el mismo dia: quiere
- * poder abrir la jornada eligiendo solo un Proyecto, para demostrar que esta trabajando en el. La API
- * quedo igual: `POST /me/jornada` exige `project_id`, acepta `task_id` opcional y comprueba que la
- * Tarea, cuando viene, sea de ese Proyecto.
+ * Lo fueron por un tiempo: `POST /me/jornada` recibia el destino y abria el dia y el cronometro en
+ * una sola peticion. Se separaron a pedido, y el motivo es el atasco de las nueve de la mañana — la
+ * ventana con la que se topa toda la empresa al entrar no puede ser un formulario, porque a esa hora
+ * casi nadie sabe todavia en que va a caer el dia y el campo obligatorio se contesta con el primer
+ * Proyecto de la lista. Un destino inventado ensucia los reportes de horas para siempre.
  *
- * De ahi los dos arranques de este control. Con Tarea se arranca su cronometro; sin ella, el medidor
+ * Ahora la apertura manda un cuerpo vacio: abre el dia y no arranca ningun cronometro. El destino se
+ * elige despues, aca —`DestinoDeJornada` en modo `medidor`, y la fila del Cliente de este mismo
+ * desplegable—, y justo despues de abrir aparece un recordatorio que lo dice (`RecordatorioDeDestino`).
+ *
+ * Los dos arranques del medidor siguen igual. Con Tarea se arranca su cronometro; sin ella, el medidor
  * de Espacio de la migracion `0260` (`POST /projects/{id}/timer`, la fila con `task_id = 0` y
  * `project_id` lleno). Es un `if` y no dos flujos: la eleccion la hace el modal y aca solo se
  * traduce a la ruta que corresponde.
  *
- * === POR QUE LA ELECCION VIVE EN UN MODAL Y NO ACA DENTRO ===
+ * === EL RECORDATORIO SE PUEDE APAGAR, Y POR ESO SE PUEDE VOLVER A ENCENDER ===
  *
- * Porque un desplegable no interrumpe: se cierra clicando en cualquier parte y quien no queria elegir
- * simplemente no elige. `DestinoDeJornada` es la ventana que se abre **sola** al entrar sin jornada,
- * porque lo que no se elige al empezar ya no se puede elegir despues.
- *
- * Ese modal es tambien el unico sitio donde se elige destino: el control tenia dos copias del
- * selector de Espacio —una para abrir y otra para arrancar— y las dos se fueron con el.
+ * La casilla "No volver a mostrarme esto" del aviso no dura un dia: dura para siempre. Una decision
+ * asi necesita marcha atras, y el sitio de la marcha atras es este desplegable —la misma casilla, al
+ * pie— porque es donde ya vive todo lo de la jornada y porque es a donde el propio aviso apunta. No
+ * va en `/perfil`: esa pantalla guarda contra la API lo que escribe, y esta preferencia vive en el
+ * `localStorage` de este navegador. Una casilla que promete seguirte a otro equipo y no lo hace es
+ * peor que una casilla en el sitio menos obvio. Ver `claveDeRecordatorioDeDestino()`.
  *
  * === PEDIR NO ES ENCERRAR ===
  *
@@ -101,6 +107,23 @@ import { avisarCambioDeMedidor, escucharMedidor } from './medidor'
  * El resto de las salidas —cerrar sesion, o entrar sin jornada por esta vez— vive dentro del modal.
  * Ver `DestinoDeJornada`.
  */
+
+/**
+ * Las tres piezas de `useSyncExternalStore` que responden "¿ya estoy en el navegador?".
+ *
+ * Copia deliberada de `teletrabajo/[sala]/Sala.tsx`, y por el mismo motivo: no hay nada que
+ * escuchar, el valor del servidor es `false`, el del cliente `true`, y el cambio ocurre una sola vez
+ * al hidratar. Van fuera del componente para que su identidad no cambie entre renders, que es lo que
+ * haria a React resuscribirse en cada uno.
+ *
+ * Aca sirven para una sola cosa: la casilla del recordatorio sale de `localStorage`, que en el
+ * servidor no existe. La variante `panel` de este control si se renderiza en el servidor, asi que sin
+ * esta compuerta el HTML del servidor diria "marcada" y el del cliente "desmarcada" para quien haya
+ * apagado el aviso — una discrepancia de hidratacion por una casilla.
+ */
+const NO_ESCUCHAR = () => () => {}
+const EN_EL_CLIENTE = () => true
+const EN_EL_SERVIDOR = () => false
 
 interface PropsControlJornada {
   variante: 'compacta' | 'panel'
@@ -155,6 +178,23 @@ export function ControlJornada ({
   const [pospuestaHoy, setPospuestaHoy] = useState(
     () => typeof window !== 'undefined' && jornadaPospuestaHoy(window.localStorage, staffId, hoyLocal())
   )
+  /** `true` mientras el recordatorio de asignar destino esta a la vista. Se apaga solo. */
+  const [recordando, setRecordando] = useState(false)
+  /**
+   * Si esta persona quiere seguir viendo el recordatorio de asignar destino.
+   *
+   * Se lee en el inicializador, igual que `pospuestaHoy` y por el mismo motivo: un efecto llega
+   * tarde, y aca llegar tarde significa que quien apago el aviso lo vuelve a ver una vez por cada
+   * jornada que abra mientras el efecto no haya corrido. En el servidor no hay `localStorage` y el
+   * valor de fabrica es "se muestra", que es tambien a lo que degrada un almacenamiento bloqueado.
+   *
+   * Lo que si espera al montaje es **dibujar** la casilla: eso lo decide `montado`, porque el HTML
+   * del servidor no puede saber lo que guardo este navegador.
+   */
+  const [recordatorioActivo, setRecordatorioActivo] = useState(
+    () => typeof window === 'undefined' || recordatorioDeDestinoActivo(window.localStorage, staffId)
+  )
+  const montado = useSyncExternalStore(NO_ESCUCHAR, EN_EL_CLIENTE, EN_EL_SERVIDOR)
   const [intento, setIntento] = useState(0)
 
   /** Cuando se leyo `estado`. El contador cuenta desde aca, no desde `started_at`. */
@@ -286,31 +326,25 @@ export function ControlJornada ({
   }
 
   /**
-   * Abre la jornada por cualquiera de los tres caminos, en **una sola peticion**.
+   * Abre el dia. Sin destino, y por eso sin cronometro.
    *
-   * Con Proyecto abre el dia **y** arranca el medidor a la vez. Antes eran dos peticiones
-   * —`POST /me/jornada` y despues el arranque— y entre una y otra cabia un corte de red: la jornada
-   * quedaba abierta y sin nada que medir. Lo resuelve la API: con el destino en el cuerpo abre las
-   * dos cosas o ninguna, y si el medidor falla descarta la jornada que acababa de abrir.
+   * El cuerpo va **vacio** a proposito: es el contrato de la apertura desde que la ventana dejo de
+   * pedir Proyecto. La jornada corre y el cronometro se arranca despues, desde el modo `medidor` de
+   * esa misma ventana. No hay imputacion retroactiva — inventarle hacia atras un destino a un rato
+   * que nadie declaro es justamente el dato falso que esto evita.
    *
-   * Sin Proyecto —con Cliente, o en blanco— abre el dia y **no arranca ningun cronometro**. Eso no
-   * es un fallo a medias sino el contrato: la jornada corre y el cronometro se arranca despues,
-   * desde el modo `medidor` de esta misma ventana. No hay imputacion retroactiva.
-   *
-   * El cuerpo lo arma `cuerpoDeApertura()` y no este metodo: es la regla de que ids viajan por cada
-   * camino, se prueba sin montar nada, y ademas es lo que impide el cuerpo incoherente —un
-   * `task_id` sin su `project_id`, o un `client_id` junto a un `project_id`— que la API rechazaria
-   * con un 422 que nadie sabria leer.
+   * Que ese rato quede sin cubrir no es un descuido del codigo: la API lo cuenta y lo devuelve en
+   * `uncovered_seconds`, el control lo delata (`jornadaSinDestino`) y el recordatorio que sale
+   * inmediatamente despues de esta llamada existe para que no se olvide.
    *
    * Aca no hay compensacion ni reintento. Un fallo deja el estado como estaba y el aviso dice por
-   * que: 403 si el destino no es suyo, 404 si ya no esta, 422 si el par no se corresponde o si el
-   * Cliente ya no existe, 409 si otra pestaña abrio la jornada primero.
+   * que; el unico alcanzable con un cuerpo vacio es el 409 de otra pestaña que abrio primero.
    */
-  async function abrirJornada (destino: DestinoDeApertura): Promise<void> {
+  async function abrirJornada (): Promise<void> {
     setEnCurso(true)
     setAviso(null)
 
-    const respuesta = await llamar('me/jornada', 'POST', cuerpoDeApertura(destino))
+    const respuesta = await llamar('me/jornada', 'POST', {})
 
     setEnCurso(false)
 
@@ -320,23 +354,49 @@ export function ControlJornada ({
       // la exigencia del rato en que el dia se cierre y haya que volver a abrirlo.
       setPospuestaHoy(false)
       olvidarJornadaPospuesta(window.localStorage, staffId, hoyLocal())
+      // El recordatorio sale **solo aca**, y no en cada carga de pagina con la jornada sin destino:
+      // es la consecuencia inmediata de este clic, y repetirlo en cada navegacion lo convertiria en
+      // el decorado que nadie lee. Lo que si se repite en cada pantalla es la linea sutil del propio
+      // control, que informa sin interrumpir.
+      if (recordatorioActivo) setRecordando(true)
       avisarCambioDeMedidor()
       recargar()
       return
     }
 
-    // El 422 del camino con Cliente no habla de Tareas ni de Proyectos: dice que ese Cliente ya no
-    // existe o esta en la papelera. Mandarlo por el traductor de la jornada dejaria a la persona
-    // buscando el problema en un combo que ni siquiera llego a tocar.
-    setAviso(destino.tipo === 'cliente' && respuesta === 422
-      ? mensajeDeFalloDeCliente(422)
-      : mensajeDeFalloDeJornada(respuesta, true))
+    setAviso(mensajeDeFalloDeJornada(respuesta, true))
 
     // El 409 al abrir significa que ya hay una jornada abierta y esta pantalla quedo vieja: otra
     // pestaña la abrio. Se vuelve a leer para que el control lo muestre ahora y no en el proximo
     // intervalo, con la persona mirando un boton que ya no corresponde.
     if (respuesta === 409) recargar()
   }
+
+  /**
+   * Guarda si esta persona quiere seguir viendo el recordatorio.
+   *
+   * La escriben dos casillas —la del propio aviso y la del pie de este control— y por eso el estado
+   * vive aca: con una copia en cada una, marcar en un sitio dejaria la otra mintiendo hasta la
+   * proxima recarga.
+   *
+   * El resultado de la escritura no se mira, igual que en `posponerApertura()`: si el navegador no
+   * deja guardar, la preferencia vale en esta pestaña y lo unico que se pierde es que sobreviva a la
+   * recarga. Romper la cabecera por una casilla seria un precio desproporcionado.
+   */
+  function cambiarRecordatorio (activo: boolean): void {
+    setRecordatorioActivo(activo)
+    fijarRecordatorioDeDestino(window.localStorage, staffId, activo)
+  }
+
+  /**
+   * Retira el recordatorio: se descarto a mano, o se le acabo el plazo.
+   *
+   * Va en `useCallback` y no en una funcion suelta porque del otro lado es la dependencia del
+   * temporizador que descarta el aviso. Este control se vuelve a pintar cada segundo —el contador
+   * corre— y con una funcion nueva en cada render ese temporizador se reiniciaria antes de llegar a
+   * cumplirse: el aviso no se iria nunca solo.
+   */
+  const cerrarRecordatorio = useCallback((): void => { setRecordando(false) }, [])
 
   /**
    * Fija, cambia o quita el Cliente de la jornada que ya esta abierta.
@@ -483,6 +543,9 @@ export function ControlJornada ({
       errorDeRed={errorDeRed}
       onElegirDestino={() => { setAviso(null); setPidiendoDestino(true) }}
       onFijarCliente={(id) => { void fijarCliente(id) }}
+      recordatorioActivo={recordatorioActivo}
+      montado={montado}
+      onCambiarRecordatorio={cambiarRecordatorio}
       onCerrar={() => { setConfirmandoCierre(true) }}
       onDetener={() => { void detenerMedidor() }}
     />
@@ -494,7 +557,7 @@ export function ControlJornada ({
    * desmontaria el dialogo entero a mitad de la operacion. Como hermanos sobreviven a que el
    * desplegable se cierre.
    */
-  const dialogos = (
+  const superpuestos = (
     <>
       <CierreJornada
         abierto={confirmandoCierre}
@@ -512,16 +575,8 @@ export function ControlJornada ({
         staffId={staffId}
         enCurso={enCurso}
         aviso={destinoAbierto && !confirmandoCierre ? aviso : null}
-        onElegir={(espacioId, tareaId) => {
-          if (jornadaAbierta) {
-            void arrancar(espacioId, tareaId)
-            return
-          }
-
-          void abrirJornada({ tipo: 'espacio', espacioId, procesoId: tareaId })
-        }}
-        onAbrirConCliente={(clienteId) => { void abrirJornada({ tipo: 'cliente', clienteId }) }}
-        onAbrirEnBlanco={() => { void abrirJornada({ tipo: 'en-blanco' }) }}
+        onAbrir={() => { void abrirJornada() }}
+        onElegir={(espacioId, tareaId) => { void arrancar(espacioId, tareaId) }}
         onCancelar={() => { setPidiendoDestino(false); setAviso(null) }}
         onPosponer={posponerApertura}
         onEntrarSinJornada={() => {
@@ -530,6 +585,18 @@ export function ControlJornada ({
           setAviso(null)
         }}
       />
+
+      {/* Fuera de los dialogos y no dentro: no es modal, y lo de atras se sigue usando. Se monta
+          solo mientras dura, asi que su temporizador nace y muere con el — sin efectos que limpiar
+          en un componente que vive en las ocho pantallas. */}
+      {recordando && (
+        <RecordatorioDeDestino
+          activo={recordatorioActivo}
+          onCambiarActivo={cambiarRecordatorio}
+          onAsignar={() => { setRecordando(false); setAviso(null); setPidiendoDestino(true) }}
+          onCerrar={cerrarRecordatorio}
+        />
+      )}
     </>  )
 
   if (variante === 'panel') {
@@ -537,7 +604,7 @@ export function ControlJornada ({
       <section className={cn('border-linea bg-superficie-elevada rounded-tarjeta border p-4', className)}>
         <h2 className="text-texto text-titulo mb-3 font-semibold">Mi jornada</h2>
         {cuerpo}
-        {dialogos}
+        {superpuestos}
       </section>
     )
   }
@@ -580,7 +647,7 @@ export function ControlJornada ({
         {cuerpo}
       </ContenidoMenu>
     </MenuContextual>
-    {dialogos}
+    {superpuestos}
     </>
   )
 }
@@ -616,6 +683,11 @@ interface PropsCuerpo {
   onFijarCliente: (clienteId: number | null) => void
   onCerrar: () => void
   onDetener: () => void
+  /** `true` si el recordatorio de asignar destino sigue encendido para esta persona. */
+  recordatorioActivo: boolean
+  /** `false` hasta que hidrata. La casilla no se dibuja antes: su valor sale de `localStorage`. */
+  montado: boolean
+  onCambiarRecordatorio: (activo: boolean) => void
 }
 
 /**
@@ -642,7 +714,10 @@ function CuerpoControl ({
   onElegirDestino,
   onFijarCliente,
   onCerrar,
-  onDetener
+  onDetener,
+  recordatorioActivo,
+  montado,
+  onCambiarRecordatorio
 }: PropsCuerpo) {
   /**
    * `true` mientras el combo de Clientes esta a la vista.
@@ -653,6 +728,7 @@ function CuerpoControl ({
    * tanto el nombre se lee igual, porque viene dentro de la jornada.
    */
   const [eligiendoCliente, setEligiendoCliente] = useState(false)
+  const idRecordatorio = useId()
 
   return (
     <div className="flex flex-col gap-3">
@@ -839,6 +915,30 @@ function CuerpoControl ({
                 )}
           </section>
         </>
+      )}
+
+      {/* La marcha atras de la casilla del aviso flotante.
+          Va al pie y en tono sutil porque no es una accion del dia: es una preferencia que casi
+          nadie va a tocar dos veces. Pero tiene que estar en algun sitio visible, porque
+          "no volver a mostrarme esto" no dura un dia sino para siempre, y una decision sin marcha
+          atras convierte un recordatorio en algo que se perdio sin querer.
+
+          Y esta aca —donde ya vive la fila del Cliente— y no en `/perfil`: esa pantalla guarda
+          contra la API todo lo que muestra, y esta preferencia vive en el `localStorage` de este
+          navegador. Ver `claveDeRecordatorioDeDestino()`. */}
+      {montado && (
+      <div className="border-linea flex items-center gap-2 border-t pt-3">
+        <input
+          id={idRecordatorio}
+          type="checkbox"
+          className="accent-acento size-4 shrink-0"
+          checked={recordatorioActivo}
+          onChange={(evento) => { onCambiarRecordatorio(evento.target.checked) }}
+        />
+        <label htmlFor={idRecordatorio} className="text-texto-sutil text-xs text-pretty">
+          Recordarme asignar {GLOSARIO.espacio.singular.toLowerCase()} al abrir la jornada
+        </label>
+      </div>
       )}
 
       {aviso !== null && <p role="alert" className="text-texto-peligro text-pretty text-xs">{aviso}</p>}

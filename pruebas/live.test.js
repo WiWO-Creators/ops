@@ -11,6 +11,10 @@
  * Y la cuarta cosa que se rompe en silencio es la marca de "hoy no": si caduca mal, o se pierde, la
  * ventana de apertura vuelve a interrumpir en cada recarga —que es el bucle que la hizo intrusiva— y
  * si no caduca nunca, deja de pedir la jornada para siempre.
+ *
+ * La quinta es su pariente y se rompe al reves: la preferencia de "no volver a mostrarme el
+ * recordatorio" tiene que durar para siempre —caducar seria devolverle a la persona un aviso que
+ * apago a proposito— y tiene que poder deshacerse, o la casilla es una puerta de un solo sentido.
  */
 
 import { test } from 'node:test'
@@ -19,9 +23,10 @@ import { cargoYArea, ordenarPorActividad, repartirTablero, trabajoDeLaFila } fro
 import {
   alcanceDeLive,
   claveDeJornadaPospuesta,
+  claveDeRecordatorioDeDestino,
   clienteDeJornada,
-  cuerpoDeApertura,
   esJefatura,
+  fijarRecordatorioDeDestino,
   filtrarPorNombre,
   fraseDeJornadaSinDestino,
   jornadaPospuestaHoy,
@@ -31,7 +36,7 @@ import {
   mensajeDeFalloDeMedidor,
   olvidarJornadaPospuesta,
   posponerJornadaPorHoy,
-  salidasDeApertura
+  recordatorioDeDestinoActivo
 } from '../src/dominio/live.ts'
 import { GLOSARIO } from '../src/dominio/glosario.ts'
 
@@ -308,25 +313,22 @@ test('esJefatura deja fuera a lider, focal y usuario', () => {
 })
 
 /**
- * Abrir con destino puede fallar por el destino, no por la jornada.
+ * La apertura ya no manda destino, asi que su fallo ya no puede hablar de uno.
  *
- * Desde que `POST /me/jornada` recibe el destino, la misma peticion arranca el medidor, asi que
- * devuelve su 403/404. Un mensaje que hable de la jornada mandaria a la persona a buscar donde no
- * es: la jornada no quedo abierta —la API la descarta— y lo que tiene que cambiar es el destino.
- *
- * El 403 y el 404 nombran los DOS niveles desde que la Tarea es opcional: sin ella se abre contra el
- * Proyecto entero, y ahi el que no existe o no es suyo es el Proyecto.
+ * La ventana de apertura perdio los campos: el `POST /me/jornada` sale con el cuerpo vacio. Un texto
+ * que siguiera diciendo "elige otro Proyecto o Tarea" mandaria a revisar un combo que la ventana no
+ * tiene, que es la peor forma de fallar — la que hace perder el tiempo buscando.
  */
-test('el fallo al abrir con destino nombra el destino, no la jornada', () => {
-  for (const codigo of [403, 404]) {
-    assert.match(mensajeDeFalloDeJornada(codigo, true), /Proyecto/)
-    assert.match(mensajeDeFalloDeJornada(codigo, true), /Tarea/)
+test('el fallo al abrir no manda a revisar ningun destino', () => {
+  for (const codigo of [403, 404, 422]) {
+    assert.doesNotMatch(mensajeDeFalloDeJornada(codigo, true), /Proyecto|Tarea/)
+    assert.ok(mensajeDeFalloDeJornada(codigo, true).length > 0)
   }
+})
 
-  assert.match(mensajeDeFalloDeJornada(422, true), /Tarea/)
-
-  // Al cerrar no hay destino en juego: ahi 403 sigue siendo un fallo generico.
-  assert.doesNotMatch(mensajeDeFalloDeJornada(403, false), /Tarea/)
+/** Al cerrar, el 422 sigue siendo el comentario del dia pasado de largo. */
+test('el 422 al cerrar habla del comentario', () => {
+  assert.match(mensajeDeFalloDeJornada(422, false), /comentario/i)
 })
 
 /** El 409 sigue siendo el de la jornada: otra pestaña la abrio primero. */
@@ -419,6 +421,68 @@ test('con el almacenamiento bloqueado se degrada a "no se acuerda", sin romper n
 })
 
 /**
+ * La preferencia del recordatorio: apagarlo es para siempre, y encenderlo tiene que poder deshacerlo.
+ *
+ * Lo que se guarda es el **silencio** y no el consentimiento, asi que el valor de fabrica —sin nada
+ * guardado— es que el aviso se muestra. Al reves, quien entrara por primera vez no veria nunca el
+ * recordatorio que este codigo existe para dar.
+ */
+test('sin nada guardado el recordatorio se muestra', () => {
+  assert.equal(recordatorioDeDestinoActivo(almacenamiento(), STAFF), true)
+})
+
+test('apagarlo lo silencia, y encenderlo lo devuelve', () => {
+  const alm = almacenamiento()
+
+  fijarRecordatorioDeDestino(alm, STAFF, false)
+  assert.equal(recordatorioDeDestinoActivo(alm, STAFF), false)
+
+  fijarRecordatorioDeDestino(alm, STAFF, true)
+  assert.equal(recordatorioDeDestinoActivo(alm, STAFF), true)
+  assert.equal(alm.datos.size, 0, 'encenderlo borra la marca, no guarda una segunda')
+})
+
+/**
+ * Al reves que la marca de posponer, esta no lleva el dia: apagar el recordatorio es una decision
+ * sobre el aviso entero y no sobre el martes. Si caducara a medianoche, la casilla estaria mintiendo.
+ */
+test('el silencio no caduca con el dia', () => {
+  const alm = almacenamiento()
+
+  fijarRecordatorioDeDestino(alm, STAFF, false)
+
+  assert.equal(alm.datos.size, 1)
+  assert.doesNotMatch(claveDeRecordatorioDeDestino(STAFF), /\d{4}-\d{2}-\d{2}/)
+})
+
+test('la preferencia es de una persona y no del navegador', () => {
+  // Mismo motivo que la marca de posponer: en el equipo compartido, dos cuentas no heredan una
+  // decision que no tomaron.
+  const alm = almacenamiento()
+
+  fijarRecordatorioDeDestino(alm, STAFF, false)
+
+  assert.equal(recordatorioDeDestinoActivo(alm, STAFF), false)
+  assert.equal(recordatorioDeDestinoActivo(alm, 999), true)
+})
+
+/**
+ * Con el almacenamiento bloqueado se degrada a "se muestra" y no a "se calla". De las dos
+ * degradaciones posibles, la que muestra de mas se corrige en un clic; la que calla esconde el aviso
+ * sin que nadie lo haya pedido y no deja rastro de por que.
+ */
+test('el recordatorio bloqueado degrada a mostrarse, sin romper nada', () => {
+  const alm = almacenamientoBloqueado()
+
+  assert.doesNotThrow(() => recordatorioDeDestinoActivo(alm, STAFF))
+  assert.equal(recordatorioDeDestinoActivo(alm, STAFF), true)
+
+  assert.doesNotThrow(() => fijarRecordatorioDeDestino(alm, STAFF, false))
+  assert.equal(fijarRecordatorioDeDestino(alm, STAFF, false), false)
+  assert.equal(fijarRecordatorioDeDestino(alm, STAFF, true), false)
+})
+
+/**
  * El combo de Espacios pasa del centenar de opciones y se busca escribiendo. Quien filtra no escribe
  * los acentos ni respeta las mayusculas, asi que comparar el texto crudo esconde justo lo que se
  * esta buscando.
@@ -442,101 +506,6 @@ test('una busqueda vacia devuelve la lista entera, en su orden', () => {
 
   assert.deepEqual(filtrarPorNombre(opciones, ''), opciones)
   assert.deepEqual(filtrarPorNombre(opciones, '   '), opciones)
-})
-
-/**
- * Las tres formas de abrir el dia.
- *
- * Se prueba el cuerpo que sale hacia la API y no lo que se dibuja, porque el cuerpo es lo unico que
- * la API ve y cada campo de mas cambia lo que hace: un `client_id` junto a un `project_id` no es
- * "las dos cosas", y un `task_id` sin su `project_id` es un 422. Lo que hay que fijar es que cada
- * camino mande **exactamente** sus ids y ninguno mas.
- */
-test('con Espacio y sin Proceso viaja solo el project_id', () => {
-  assert.deepEqual(
-    cuerpoDeApertura({ tipo: 'espacio', espacioId: 7, procesoId: null }),
-    { project_id: 7 }
-  )
-})
-
-test('con Espacio y Proceso viajan los dos ids', () => {
-  assert.deepEqual(
-    cuerpoDeApertura({ tipo: 'espacio', espacioId: 7, procesoId: 42 }),
-    { project_id: 7, task_id: 42 }
-  )
-})
-
-/**
- * El `task_id` ausente se **omite**, no viaja en `0` ni en `null`. La API entiende los tres como
- * "sin Proceso", pero omitirlo es lo unico que no depende de esa equivalencia — y `PATCH` ya
- * demuestra que puede dejar de valer: alli `null` significa *quitar*, no *no elegi*.
- */
-test('el Proceso ausente no viaja en 0 ni en null: no viaja', () => {
-  const cuerpo = cuerpoDeApertura({ tipo: 'espacio', espacioId: 7, procesoId: null })
-
-  assert.equal('task_id' in cuerpo, false)
-})
-
-test('sin Espacio y con Cliente viaja solo el client_id', () => {
-  assert.deepEqual(cuerpoDeApertura({ tipo: 'cliente', clienteId: 3 }), { client_id: 3 })
-})
-
-/**
- * El camino con Cliente NO manda `project_id`, ni siquiera vacio. Si lo mandara, la API tomaria ese
- * campo como el destino y arrancaria un cronometro que nadie pidio — que es justo lo contrario del
- * acuerdo: la jornada corre, el cronometro no.
- */
-test('abrir con Cliente no manda ningun destino contra el que medir', () => {
-  const cuerpo = cuerpoDeApertura({ tipo: 'cliente', clienteId: 3 })
-
-  assert.equal('project_id' in cuerpo, false)
-  assert.equal('task_id' in cuerpo, false)
-})
-
-test('en blanco viaja un cuerpo vacio', () => {
-  assert.deepEqual(cuerpoDeApertura({ tipo: 'en-blanco' }), {})
-})
-
-/**
- * Que boton se puede apretar.
- *
- * Es la guarda que impide el fallo silencioso: sin Cliente elegido, el boton de la salida con
- * Cliente mandaria un cuerpo sin `client_id`, y ese cuerpo **no falla** — abre una jornada en blanco
- * mientras la persona cree que la abrio para alguien.
- */
-test('sin elegir nada solo esta disponible la salida en blanco', () => {
-  assert.deepEqual(salidasDeApertura({ espacio: null, cliente: null }), {
-    conEspacio: false,
-    soloCliente: false,
-    enBlanco: true
-  })
-})
-
-test('con Cliente y sin Espacio se habilita la salida con Cliente', () => {
-  assert.deepEqual(salidasDeApertura({ espacio: null, cliente: 3 }), {
-    conEspacio: false,
-    soloCliente: true,
-    enBlanco: true
-  })
-})
-
-test('con Espacio se habilita el camino principal', () => {
-  assert.equal(salidasDeApertura({ espacio: 7, cliente: null }).conEspacio, true)
-})
-
-/**
- * Con Espacio elegido, el boton de "sin Espacio" se apaga aunque haya Cliente. Apretarlo abriria el
- * dia **descartando** el Espacio que la persona ya eligio, porque el cuerpo con `client_id` no lleva
- * `project_id`. En la ventana esa combinacion ni se ofrece —el combo de Cliente se esconde en cuanto
- * hay Espacio— pero la regla se afirma igual: esconder no valida.
- */
-test('con Espacio elegido la salida con Cliente se apaga aunque haya Cliente', () => {
-  assert.equal(salidasDeApertura({ espacio: 7, cliente: 3 }).soloCliente, false)
-})
-
-test('la salida en blanco nunca se apaga', () => {
-  assert.equal(salidasDeApertura({ espacio: 7, cliente: 3 }).enBlanco, true)
-  assert.equal(salidasDeApertura({ espacio: null, cliente: null }).enBlanco, true)
 })
 
 /** Un `GET /me/jornada` minimo: solo lo que las reglas del destino miran. */
