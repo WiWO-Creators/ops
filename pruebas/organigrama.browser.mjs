@@ -63,20 +63,28 @@ try {
     }
   })
 
-  await pagina.goto(destino.href)
-
-  // Al entrar, el panel abre solo el diálogo de la jornada. Es un modal de verdad: mientras esté
-  // abierto marca el resto de la página con `aria-hidden`, así que sin cerrarlo ninguna consulta por
-  // rol encuentra nada — y eso es correcto, no un fallo del organigrama.
-  //
-  // Se ESPERA a que aparezca en vez de mirar si ya está: monta después de la primera pintura, y
-  // preguntar de inmediato daba siempre cero y dejaba el modal abierto encima de todo lo que sigue.
-  const jornada = pagina.getByRole('dialog').filter({ hasText: 'jornada' })
-  await jornada.first().waitFor({ timeout: 15000 }).catch(() => {})
-  if (await jornada.count()) {
-    await pagina.keyboard.press('Escape')
-    await jornada.first().waitFor({ state: 'detached', timeout: 15000 })
+  /**
+   * Cierra el diálogo de la jornada, que el panel abre solo al entrar.
+   *
+   * Es un modal de verdad: mientras esté abierto marca el resto de la página con `aria-hidden`, así
+   * que sin cerrarlo ninguna consulta por rol encuentra nada — y eso es correcto, no un fallo del
+   * organigrama. Se ESPERA a que aparezca en vez de mirar si ya está: monta después de la primera
+   * pintura, y preguntar de inmediato daba siempre cero y lo dejaba encima de todo lo que sigue.
+   *
+   * Es una función y no un bloque suelto porque hace falta las dos veces que se carga la página: al
+   * entrar y al recargar para comprobar que la vista elegida se recuerda.
+   */
+  async function cerrarJornada () {
+    const jornada = pagina.getByRole('dialog').filter({ hasText: 'jornada' })
+    await jornada.first().waitFor({ timeout: 15000 }).catch(() => {})
+    if (await jornada.count()) {
+      await pagina.keyboard.press('Escape')
+      await jornada.first().waitFor({ state: 'detached', timeout: 15000 })
+    }
   }
+
+  await pagina.goto(destino.href)
+  await cerrarJornada()
 
   // --- 1. El mapa pinta ---------------------------------------------------
   const tarjetaSinArea = pagina.getByRole('button').filter({ hasText: 'Sin área' })
@@ -165,7 +173,110 @@ try {
   await panel.waitFor({ state: 'detached', timeout: 20000 })
   assert.deepEqual(escritas, [200], `La reasignación tenía que escribir un PUT con 200; fue ${escritas.join(', ') || 'ninguno'}.`)
 
-  // --- 5. En pantalla angosta el layout no se rompe -----------------------
+  // --- 5. La lista: el conmutador, el buscador, el orden y la MISMA edición -
+  //
+  // La lista no es otra pantalla ni —sobre todo— otra forma de editar: es la otra lectura de lo
+  // mismo. Lo que se comprueba acá es justamente eso, que una fila abre el MISMO panel y escribe el
+  // MISMO `PUT /accesos/personas/{id}` que una caja del árbol. Dos idiomas de edición para el mismo
+  // dato es lo que esta pantalla vino a evitar.
+  const conmutador = pagina.getByRole('group', { name: 'Vista' })
+  assert.ok(await conmutador.count(), 'El conmutador tiene que estar dentro de un área.')
+
+  await clicar(volver)
+  await tarjetaSinArea.first().waitFor({ timeout: 15000 })
+  assert.ok(await conmutador.count(), 'El conmutador tiene que estar también en el mapa.')
+
+  await clicar(conmutador.getByRole('button', { name: 'Lista' }))
+
+  const tabla = pagina.getByRole('table')
+  await tabla.waitFor({ timeout: 15000 })
+
+  const encabezados = (await tabla.locator('thead th').allInnerTexts()).map((uno) => uno.trim())
+  assert.deepEqual(encabezados, ['Persona', 'Escalón', 'Depende de', 'Área'])
+
+  const filas = tabla.locator('tbody tr')
+  const totalFilas = await filas.count()
+  assert.ok(totalFilas > 1, 'La lista del mapa tiene que traer a toda la gente visible.')
+
+  /** El nombre que pinta una fila, que es lo primero de su celda de persona. */
+  const nombreDeFila = async (indice) => (await filas.nth(indice).innerText()).split('\n')[0].trim()
+
+  // El buscador: con 184 personas una lista sin él no sirve.
+  const buscador = pagina.getByRole('searchbox')
+  const buscado = await nombreDeFila(0)
+  await buscador.fill(buscado)
+  await pagina.waitForFunction(
+    (cuantas) => document.querySelectorAll('tbody tr').length < cuantas, totalFilas, { timeout: 15000 }
+  )
+  assert.ok(await filas.count() >= 1, 'El buscador dejó la lista en cero buscando a alguien que está.')
+  assert.ok(
+    (await filas.first().innerText()).includes(buscado),
+    `Buscando "${buscado}" tiene que quedar su fila.`
+  )
+
+  await buscador.fill('')
+  await pagina.waitForFunction(
+    (cuantas) => document.querySelectorAll('tbody tr').length === cuantas, totalFilas, { timeout: 15000 }
+  )
+
+  // El orden: la lista abre por nombre, y pulsar la columna lo da vuelta.
+  const primeroAscendente = await nombreDeFila(0)
+  assert.equal(await tabla.locator('th').first().getAttribute('aria-sort'), 'ascending')
+  await clicar(tabla.getByRole('button', { name: /^Persona/ }))
+  await pagina.waitForFunction(
+    (nombre) => !(document.querySelector('tbody tr')?.innerText ?? '').startsWith(nombre),
+    primeroAscendente, { timeout: 15000 }
+  )
+  assert.equal(await tabla.locator('th').first().getAttribute('aria-sort'), 'descending')
+  assert.notEqual(await nombreDeFila(0), primeroAscendente, 'Pulsar la columna tiene que dar vuelta el orden.')
+
+  await clicar(tabla.getByRole('button', { name: /^Área/ }))
+  assert.equal(await tabla.locator('th').nth(3).getAttribute('aria-sort'), 'ascending',
+    'La columna de área también tiene que ordenar.')
+
+  // Una fila abre el mismo panel y guarda por el mismo camino.
+  await clicar(filas.first())
+  const panelDeFila = pagina.getByRole('dialog')
+  await panelDeFila.waitFor({ timeout: 15000 })
+  assert.ok(await panelDeFila.getByText('Depende de').count(), 'La fila tiene que abrir el mismo panel que la caja.')
+
+  const jefeDeFila = panelDeFila.getByRole('combobox').nth(1)
+  const puestoDeFila = (await jefeDeFila.innerText()).trim()
+  await jefeDeFila.focus()
+  await pagina.keyboard.press('Enter')
+  await opciones.first().waitFor({ timeout: 15000 })
+  const textosDeFila = await opciones.allInnerTexts()
+  const otraDeFila = textosDeFila.findIndex((texto) => texto.trim() !== puestoDeFila)
+  assert.ok(otraDeFila >= 0, 'El selector de jefe de la fila sólo ofrece lo que ya está puesto.')
+  await clicar(opciones.nth(otraDeFila))
+
+  const guardarDeFila = panelDeFila.getByRole('button', { name: 'Guardar' })
+  await guardarDeFila.focus()
+  await pagina.keyboard.press('Enter')
+  await panelDeFila.waitFor({ state: 'detached', timeout: 20000 })
+  assert.deepEqual(escritas, [200, 200],
+    `La fila tenía que escribir su propio PUT al mismo sitio; fue ${escritas.join(', ') || 'ninguno'}.`)
+
+  // La vista elegida se recuerda: quien prefiere la lista no la vuelve a elegir en cada visita.
+  await pagina.reload()
+  await cerrarJornada()
+  await tabla.waitFor({ timeout: 20000 })
+
+  // En pantalla angosta la tabla desplaza DENTRO de su caja, sin empujar el ancho de la página.
+  await pagina.setViewportSize({ width: 390, height: 844 })
+  await tabla.waitFor({ timeout: 15000 })
+  const desbordeLista = await pagina.evaluate(
+    () => document.documentElement.scrollWidth - document.documentElement.clientWidth
+  )
+  assert.ok(desbordeLista <= 1, `La lista desborda ${desbordeLista}px a lo ancho en 390px.`)
+
+  await pagina.setViewportSize({ width: 1440, height: 1000 })
+  await clicar(conmutador.getByRole('button', { name: 'Organigrama' }))
+  await tarjetaSinArea.first().waitFor({ timeout: 15000 })
+  await clicar(analytics)
+  await volver.waitFor({ timeout: 15000 })
+
+  // --- 6. En pantalla angosta el layout no se rompe -----------------------
   await pagina.setViewportSize({ width: 390, height: 844 })
   await clicar(volver)
   await tarjetaSinArea.first().waitFor({ timeout: 15000 })
@@ -175,7 +286,7 @@ try {
   assert.ok(desborde <= 1, `El mapa desborda ${desborde}px a lo ancho en 390px.`)
 
   assert.deepEqual(errores, [], `Errores en el navegador:\n${errores.join('\n')}`)
-  console.log(`Organigrama verificado: ${cuantas} cajas, ${bordes.size} colores de borde, 1 reasignación escrita.`)
+  console.log(`Organigrama verificado: ${cuantas} cajas, ${bordes.size} colores de borde, ${totalFilas} filas en la lista, 2 reasignaciones escritas.`)
 } finally {
   await navegador.close()
 }
