@@ -60,7 +60,7 @@ export function PanelArbol () {
       {error === null && nodos !== null && ramas.length === 0 && (
         <Vacio
           titulo="Todavía no hay árbol"
-          descripcion="Ninguna persona tiene jefe puesto. Hasta que lo tengan, cada una ve solo lo suyo."
+          descripcion="Ninguna persona tiene a alguien a cargo. Hasta que lo tengan, cada una ve solo lo suyo."
         />
       )}
 

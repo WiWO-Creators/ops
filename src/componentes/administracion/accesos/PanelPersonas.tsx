@@ -162,7 +162,7 @@ export function PanelPersonas ({ catalogo, recargar, actorId }: PropsPanelPerson
     <div className="flex flex-col gap-4">
       <CabeceraDePanel
         titulo="Personas"
-        descripcion="El escalón, el jefe, el área y el cargo de cada persona. El jefe es lo que decide el alcance; el escalón solo nombra el puesto. Cada cambio se guarda al elegirlo."
+        descripcion="El escalón, quién está a cargo, el área y el cargo de cada persona. Quien está a cargo es lo que decide el alcance; el escalón solo nombra el puesto. Cada cambio se guarda al elegirlo."
       />
 
       <BarraDeFiltros
@@ -198,7 +198,7 @@ export function PanelPersonas ({ catalogo, recargar, actorId }: PropsPanelPerson
                 <tr>
                   <CeldaEncabezado>Persona</CeldaEncabezado>
                   <CeldaEncabezado>Escalón</CeldaEncabezado>
-                  <CeldaEncabezado>Jefe</CeldaEncabezado>
+                  <CeldaEncabezado>A cargo de</CeldaEncabezado>
                   <CeldaEncabezado>Área</CeldaEncabezado>
                   <CeldaEncabezado>Cargo</CeldaEncabezado>
                 </tr>
@@ -423,17 +423,17 @@ function SelectorDeJefe ({
   return (
     <Dialogo open={abierto} onOpenChange={setAbierto}>
       <div className="flex flex-col items-start gap-1">
-        <span className="text-texto text-sm">{persona.jefe_nombre ?? 'Sin jefe'}</span>
+        <span className="text-texto text-sm">{persona.jefe_nombre ?? 'Sin asignar'}</span>
         <DisparadorDialogo asChild>
           <Boton variante="sutil" tamano="chico" disabled={ocupada}>
-            {persona.jefe_staffid === null ? 'Poner jefe' : 'Cambiar jefe'}
+            {persona.jefe_staffid === null ? 'Poner a cargo' : 'Cambiar'}
           </Boton>
         </DisparadorDialogo>
       </div>
 
       <ContenidoDialogo
-        titulo={`Jefe de ${persona.nombre}`}
-        descripcion="De quién cuelga en el árbol. Es lo que decide qué ve quien está por encima: su jefe pasa a ver todo lo de esta persona y lo de quienes cuelgan de ella."
+        titulo={`Quién está a cargo de ${persona.nombre}`}
+        descripcion="De quién cuelga en el árbol. Es lo que decide qué ve quien está por encima: quien queda a cargo pasa a ver todo lo de esta persona y lo de quienes cuelgan de ella."
         ancho="chico"
       >
         <div className="flex flex-col gap-3">
@@ -441,7 +441,7 @@ function SelectorDeJefe ({
             type="search"
             value={buscado}
             placeholder="Buscar por nombre"
-            aria-label="Buscar a quién ponerle de jefe"
+            aria-label="Buscar a quién poner a cargo"
             onChange={(evento) => { setBuscado(evento.target.value) }}
           />
 
