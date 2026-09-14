@@ -6,7 +6,6 @@ import { GrupoAvatares } from '@/componentes/presentadores/Avatar'
 import { Fecha } from '@/componentes/presentadores/Fecha'
 import { Vacio } from '@/componentes/estado/Estados'
 import { nombreDeDia, numeroDeDia } from '@/dominio/calendario'
-import { GLOSARIO } from '@/dominio/glosario'
 import { cn } from '@/lib/clases'
 import { estadoVencimiento } from '@/lib/fechas'
 import { EstadoDeTarea } from './EstadoDeTarea'
@@ -322,7 +321,9 @@ export function AgendaEntregas ({
         ? (
           <Vacio
             titulo="Sin entregas en este período"
-            descripcion={`Ningún ${GLOSARIO.proceso.singular.toLowerCase()} vence en estas fechas. Cambia de mes o revisa el bloque de abajo.`}
+            // Sin el término del glosario: "Proceso" y "Tarea" no tienen el mismo género, y un
+            // "ningún" fijo se lee mal en cuanto el glosario cambia de palabra.
+            descripcion="Nada vence en estas fechas. Cambia de período o revisa el bloque de abajo."
             className="border-linea rounded-tarjeta border border-dashed"
           />
           )

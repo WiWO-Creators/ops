@@ -13,8 +13,10 @@ import { GLOSARIO } from '@/dominio/glosario'
 import { hoyLocal } from '@/lib/fechas'
 import { ModalTarea } from './ModalTarea'
 import { AgendaEntregas, ColumnasDeDias, RejillaMes } from './RejillaEntregas'
+import { ESTADO_COMPLETO } from './tareas'
 import {
   diaDeVencimiento,
+  estaCompleta,
   diasDelPeriodo,
   leerDiaAncla,
   leerVistaEntregas,
@@ -33,11 +35,18 @@ import type { Capacidad } from '@/datos/tipos'
  * cuando**. El Gantt dibuja duraciones y dependencias; esto dibuja el dia de entrega, que es la fecha
  * de vencimiento de cada Proceso.
  *
- * **Las cuatro vistas son el mismo dato, no cuatro consultas.** Los Procesos del Espacio se bajan una
- * sola vez al montar y todo lo demas —repartir por dia, cambiar de mes, pasar a lista— ocurre en el
- * navegador. Pedir el rango de cada periodo costaria una peticion por clic en "siguiente", que en un
- * calendario es el gesto mas repetido; y ademas dejaria el bloque "sin fecha" en una aproximacion,
- * porque una entrega sin plazo no pertenece a ningun mes que se pueda pedir.
+ * **Las cuatro vistas son el mismo dato, no cuatro consultas.** Los Procesos del Espacio se bajan al
+ * montar y todo lo demas —repartir por dia, cambiar de mes, pasar a lista, esconder lo completado—
+ * ocurre en el navegador. Pedir el rango de cada periodo costaria una peticion por clic en
+ * "siguiente", que en un calendario es el gesto mas repetido; y ademas dejaria el bloque "sin fecha"
+ * en una aproximacion, porque una entrega sin plazo no pertenece a ningun mes que se pueda pedir.
+ *
+ * **Se piden dos listados y se unen.** `GET /projects/{id}/tasks` **esconde lo completado** cuando no
+ * viaja `filter[status]`, y en un calendario de ENTREGAS eso seria mentir: el mes de un Espacio que ya
+ * entrego se veria vacio, y la distincion entre lo vencido y lo entregado a tiempo —que es media
+ * pantalla— no tendria nada que pintar. La segunda consulta pide justamente el estado "Completo" y
+ * las dos se funden por id. La tabla de la pestaña Tareas no lo necesita porque alli lo completado se
+ * mira aparte, con el boton "Completados"; aca no es otra lista, es la misma entrega ya hecha.
  *
  * **La vista y la fecha viven en la URL** (`vistaEntregas` y `diaEntregas`), como el resto del panel:
  * asi un mes concreto se comparte por enlace, recargar no lo pierde y "atras" hace lo que la persona
@@ -69,6 +78,16 @@ const CLAVE_VISTA = 'vistaEntregas'
 
 /** Clave de la URL con el dia ancla del periodo. Lleva sufijo por lo mismo que `CLAVE_VISTA`. */
 const CLAVE_DIA = 'diaEntregas'
+
+/**
+ * Clave de la URL del interruptor de completados.
+ *
+ * Arranca **apagado**: la primera pantalla muestra el mes entero, entregado y pendiente, y esconder es
+ * una decision explicita. Es el mismo criterio que la pestaña Hitos tomo para su casilla, y por el
+ * mismo motivo: un Espacio terminado que se abre vacio no dice que esta terminado, dice que algo
+ * fallo.
+ */
+const CLAVE_OCULTAR = 'ocultarCompletados'
 
 /** Lo que hay que tener en mano para dibujar el calendario. */
 interface Carga {
@@ -107,26 +126,28 @@ function CalendarioDelEspacio ({ proyectoId, capacidades }: PropsPanelCalendario
   const hoy = hoyLocal()
   const vista = leerVistaEntregas(params.get(CLAVE_VISTA))
   const dia = leerDiaAncla(params.get(CLAVE_DIA), hoy)
+  // Sin parametro se muestra todo: hay que pedir `si` para esconder lo entregado.
+  const ocultarCompletados = params.get(CLAVE_OCULTAR) === 'si'
 
   useEffect(() => {
     const control = new AbortController()
 
+    const listado = `projects/${encodeURIComponent(String(proyectoId))}/tasks?per_page=${TOPE_DE_PROCESOS}&sort=due_date`
+
     void Promise.all([
-      pedirSobre<Proceso[]>(
-        `projects/${encodeURIComponent(String(proyectoId))}/tasks?per_page=${TOPE_DE_PROCESOS}&sort=due_date`,
-        control.signal
-      ),
+      pedirSobre<Proceso[]>(listado, control.signal),
+      pedirSobre<Proceso[]>(`${listado}&filter[status]=${ESTADO_COMPLETO}`, control.signal),
       pedirSobre<Lookups>('lookups', control.signal)
-    ]).then(([procesos, lookups]) => {
+    ]).then(([abiertos, completos, lookups]) => {
       if (control.signal.aborted) return
 
       setCarga({
         para: proyectoId,
         error: null,
         datos: {
-          tareas: procesos.data,
+          tareas: unir(abiertos.data, completos.data),
           estados: lookups.data.task_statuses,
-          truncado: procesos.data.length >= TOPE_DE_PROCESOS
+          truncado: abiertos.data.length >= TOPE_DE_PROCESOS || completos.data.length >= TOPE_DE_PROCESOS
         }
       })
     }).catch((fallo: unknown) => {
@@ -147,18 +168,23 @@ function CalendarioDelEspacio ({ proyectoId, capacidades }: PropsPanelCalendario
   // Se acota al periodo una sola vez y no dentro de cada vista: las tres presentaciones con celdas
   // reparten sobre la misma lista, y filtrar tres veces la misma condicion es como se llega a que una
   // vista muestre una entrega que otra esconde.
+  const visibles = useMemo(
+    () => (carga?.datos?.tareas ?? []).filter((tarea) => !ocultarCompletados || !estaCompleta(tarea)),
+    [carga, ocultarCompletados]
+  )
+
   const delPeriodo = useMemo(() => {
     if (dias.length === 0) return []
 
     const desde = dias[0] ?? ''
     const hasta = dias[dias.length - 1] ?? ''
 
-    return (carga?.datos?.tareas ?? []).filter((tarea) => {
+    return visibles.filter((tarea) => {
       const vence = diaDeVencimiento(tarea)
 
       return vence !== null && vence >= desde && vence <= hasta
     })
-  }, [carga, dias])
+  }, [visibles, dias])
 
   /**
    * Reescribe la URL cambiando solo las claves indicadas.
@@ -241,12 +267,23 @@ function CalendarioDelEspacio ({ proyectoId, capacidades }: PropsPanelCalendario
         onChange={(evento) => { if (evento.target.value !== '') irA(evento.target.value) }}
       />
 
+      <label className="text-texto-tenue ml-auto flex items-center gap-2 text-xs">
+        <input
+          type="checkbox"
+          checked={ocultarCompletados}
+          onChange={(evento) => {
+            router.replace(urlCon({ [CLAVE_OCULTAR]: evento.target.checked ? 'si' : null }), { scroll: false })
+          }}
+          className="accent-acento size-4"
+        />
+        Ocultar entregados
+      </label>
+
       <Segmentado
         etiqueta="Vista del calendario"
         opciones={VISTAS}
         activo={vista}
         onElegir={(valor) => { router.replace(urlCon({ [CLAVE_VISTA]: valor }), { scroll: false }) }}
-        className="ml-auto"
       />
     </div>
   )
@@ -258,7 +295,7 @@ function CalendarioDelEspacio ({ proyectoId, capacidades }: PropsPanelCalendario
   if (carga.datos === null) return <Cargando mensaje="Cargando el calendario…" />
 
   const { tareas, estados, truncado } = carga.datos
-  const hayAlgoQueMostrar = delPeriodo.length > 0 || (vista === 'lista' && tareas.length > 0)
+  const hayAlgoQueMostrar = delPeriodo.length > 0 || (vista === 'lista' && visibles.length > 0)
 
   return (
     <section className="flex flex-col gap-3">
@@ -275,7 +312,9 @@ function CalendarioDelEspacio ({ proyectoId, capacidades }: PropsPanelCalendario
         ? (
           <Vacio
             titulo="Todavía no hay entregas"
-            descripcion={`Este ${GLOSARIO.espacio.singular.toLowerCase()} no tiene ningún ${GLOSARIO.proceso.singular.toLowerCase()}. En cuanto haya alguno con fecha de vencimiento, aparecerá en el día en que se entrega.`}
+            // El texto no lleva articulo delante del termino del glosario: "Proceso" y "Tarea" no tienen
+            // el mismo genero, y un "ningún" fijo se lee mal en cuanto el glosario cambia de palabra.
+            descripcion={`Este ${GLOSARIO.espacio.singular.toLowerCase()} todavía no tiene ${GLOSARIO.proceso.plural.toLowerCase()}. Todo lo que tenga fecha de vencimiento aparecerá acá, en el día en que se entrega.`}
             className="border-linea rounded-tarjeta border border-dashed"
           />
           )
@@ -284,7 +323,7 @@ function CalendarioDelEspacio ({ proyectoId, capacidades }: PropsPanelCalendario
             <AgendaEntregas
               dias={dias}
               tareas={delPeriodo}
-              todas={tareas}
+              todas={visibles}
               estados={estados}
               hoy={hoy}
               urlDeTarea={urlDeTarea}
@@ -362,4 +401,22 @@ function etiquetaDePeriodo (vista: VistaEntregas): string {
   if (vista === 'dia') return 'Día'
 
   return 'Mes'
+}
+
+/**
+ * Funde los dos listados en uno, sin repetidos.
+ *
+ * Los dos vienen de la misma tabla y podrian solaparse si el backend cambiara su valor por defecto:
+ * unir por id deja el calendario a salvo de eso en vez de mostrar la misma entrega dos veces.
+ *
+ * @param abiertos Lo que devuelve el listado sin filtro de estado.
+ * @param completos Lo que devuelve el listado pidiendo el estado "Completo".
+ * @returns Los Procesos de las dos consultas, cada uno una sola vez.
+ */
+function unir (abiertos: Proceso[], completos: Proceso[]): Proceso[] {
+  const porId = new Map<number, Proceso>()
+
+  for (const tarea of [...abiertos, ...completos]) porId.set(tarea.id, tarea)
+
+  return [...porId.values()]
 }
