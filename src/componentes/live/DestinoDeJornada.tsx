@@ -45,19 +45,22 @@ import { SelectorTarea } from './SelectorTarea'
  * Lo que el botón sí refleja es lo que la API rechaza: `POST /me/jornada` exige `project_id` y
  * comprueba que la Tarea, **cuando viene**, pertenezca a ese Proyecto.
  *
- * === POR QUE ESTA VENTANA NO ES UNA TRAMPA ===
+ * === POR QUE YA NO ES UNA TRAMPA ===
  *
- * En modo `apertura` no se va con `Escape` ni clicando fuera, igual que el cierre. Pero hay gente que
- * **no puede** abrir jornada: quien no tiene Proyectos asignados, quien no tiene Tareas en el que
- * eligió, y cualquiera el día que la API falle. Dejarlos frente a un botón inerte sería sacarlos del
- * sistema entero por un dato que no depende de ellos.
+ * La ventana nació sin salida: en `apertura` se comía el `Escape`, el clic fuera y el cierre, y el
+ * único camino era elegir. Recordar la decisión era lo que faltaba —el estado vivía en React y se
+ * perdía en cada recarga— así que la misma persona que ya había dicho "ahora no" se topaba con el velo
+ * otra vez a cada navegación. Obligar una vez es una regla; obligar en bucle es una avería.
  *
- * Por eso "No puedo abrir mi jornada" abre siempre una salida con dos puertas reales: cerrar sesión,
- * o entrar sin jornada. Está a un clic de distancia y no en la fila principal a propósito: obligar es
- * poner la excepción un paso más lejos que la regla, no tapiarla.
+ * Ahora se cierra con la X, con `Escape` y clicando fuera, y posponerla se anota por el día
+ * (`posponerJornadaPorHoy`): mañana se vuelve a exigir, hoy no se vuelve a preguntar. La exigencia no
+ * desaparece —el aviso del Inicio y el control de la cabecera siguen diciendo que falta, y el botón
+ * "Abrir jornada" de la cabecera la trae de vuelta en cuanto se quiera—, deja de ser un bloqueo.
  *
- * Que la Tarea sea opcional achica ese grupo —quien tiene Proyecto y ninguna Tarea asignada ya puede
- * abrir— pero no lo vacía: sigue habiendo quien no tiene ningún Proyecto y días en que la API falla.
+ * "No puedo abrir mi jornada" es otra cosa y se queda: quien **no puede** abrirla —sin Proyectos
+ * asignados, o el día que la API falla— no necesita posponer sino cerrar sesión o entrar sin jornada,
+ * y eso lo resuelve `SalidaDeEmergencia`. Está a un clic y no en la fila principal a propósito: la
+ * excepción va un paso más lejos que la regla.
  */
 
 interface PropsDestinoDeJornada {
@@ -80,6 +83,11 @@ interface PropsDestinoDeJornada {
   onElegir: (espacioId: number, tareaId: number | null) => void
   /** Sólo en `medidor`: salir sin arrancar nada. */
   onCancelar?: () => void
+  /**
+   * Sólo en `apertura`: se cerró sin abrir la jornada. Quien lo reciba anota la decisión por el día,
+   * o la ventana volvería a abrirse sola en la siguiente pantalla.
+   */
+  onPosponer?: () => void
   /** Sólo en `apertura`: la salida de emergencia, cuando abrir la jornada no es posible. */
   onEntrarSinJornada?: () => void
 }
@@ -93,33 +101,40 @@ export function DestinoDeJornada ({
   aviso,
   onElegir,
   onCancelar,
+  onPosponer,
   onEntrarSinJornada
 }: PropsDestinoDeJornada) {
-  const obligatorio = modo === 'apertura'
+  /**
+   * `apertura` sigue pidiendo más que `medidor` —abre el día, no sólo el cronómetro— y por eso cambia
+   * los textos y la fila de botones. Lo que ya no cambia es el cierre: las dos se descartan igual.
+   */
+  const esApertura = modo === 'apertura'
 
   return (
     <Dialogo
       open={abierto}
-      onOpenChange={(nuevo) => { if (!nuevo && !obligatorio) onCancelar?.() }}
+      onOpenChange={(nuevo) => {
+        if (nuevo) return
+
+        // Por aquí pasan los tres gestos de cierre —la X, `Escape` y el clic fuera— y los dos modos
+        // no cierran en lo mismo: en `apertura` queda una decisión que recordar por el día, y en
+        // `medidor` sólo se descarta una ventana que no obligaba a nada.
+        if (esApertura) onPosponer?.()
+        else onCancelar?.()
+      }}
     >
       <ContenidoDialogo
         ancho="chico"
-        titulo={obligatorio
-          ? 'Antes de empezar, di en qué vas a trabajar'
-          : 'Elige dónde medir'}
-        descripcion={obligatorio
-          ? `Elige el ${GLOSARIO.espacio.singular.toLowerCase()}: sin eso las horas de hoy no se pueden imputar a nada. La ${GLOSARIO.proceso.singular.toLowerCase()} es opcional.`
+        cerrable
+        titulo={esApertura ? 'Abre tu jornada' : 'Elige dónde medir'}
+        descripcion={esApertura
+          ? `Elige el ${GLOSARIO.espacio.singular.toLowerCase()} al que se le imputan las horas de hoy; la ${GLOSARIO.proceso.singular.toLowerCase()} es opcional. Si ahora no puedes, cierra esta ventana: hoy no se vuelve a preguntar, y la abres desde la cabecera cuando quieras.`
           : `El cronómetro mide contra el ${GLOSARIO.espacio.singular.toLowerCase()}, y contra una ${GLOSARIO.proceso.singular.toLowerCase()} suya si eliges una.`}
-        // Los dos gestos con los que se descarta una ventana sin leerla. Sólo en `apertura`: ahí la
-        // salida son los botones, incluida la de emergencia. Ver el docblock de arriba.
-        onEscapeKeyDown={(evento) => { if (obligatorio) evento.preventDefault() }}
-        onPointerDownOutside={(evento) => { if (obligatorio) evento.preventDefault() }}
-        onInteractOutside={(evento) => { if (obligatorio) evento.preventDefault() }}
       >
         {/* Radix sólo monta esto mientras el diálogo está abierto: las listas se piden al abrir —ese
             montaje ES la petición— y la elección a medias no sobrevive a cerrar y volver a abrir. */}
         <CuerpoDestino
-          obligatorio={obligatorio}
+          esApertura={esApertura}
           nombre={nombre}
           staffId={staffId}
           enCurso={enCurso}
@@ -134,7 +149,7 @@ export function DestinoDeJornada ({
 }
 
 interface PropsCuerpo {
-  obligatorio: boolean
+  esApertura: boolean
   nombre: string
   staffId: number
   enCurso: boolean
@@ -145,7 +160,7 @@ interface PropsCuerpo {
 }
 
 function CuerpoDestino ({
-  obligatorio,
+  esApertura,
   nombre,
   staffId,
   enCurso,
@@ -236,7 +251,7 @@ function CuerpoDestino ({
       )}
 
       <div className="border-linea flex flex-wrap items-center justify-end gap-2 border-t pt-4">
-        {obligatorio
+        {esApertura
           ? (
             <button
               type="button"
@@ -259,7 +274,7 @@ function CuerpoDestino ({
           onClick={() => { if (espacio !== null) onElegir(espacio, tarea) }}
         >
           <Play size={14} strokeWidth={2} aria-hidden="true" />
-          {obligatorio ? 'Abrir jornada y empezar' : 'Arrancar'}
+          {esApertura ? 'Abrir jornada y empezar' : 'Arrancar'}
         </Boton>
       </div>
     </div>

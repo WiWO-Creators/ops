@@ -1,15 +1,21 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { ChevronSelector, CLASES_DISPARADOR } from '@/componentes/formularios/Selector'
 import {
-  ContenidoSelector,
-  DisparadorSelector,
-  Opcion,
-  Selector
-} from '@/componentes/formularios/Selector'
+  BuscadorMenu,
+  ContenidoMenu,
+  DisparadorMenu,
+  GrupoRadioMenu,
+  ItemMenuRadio,
+  MenuContextual,
+  SinResultadosMenu,
+  UMBRAL_BUSCADOR
+} from '@/componentes/superposiciones/MenuContextual'
 import { pedirSobre } from '@/datos/cliente'
 import type { Espacio } from '@/datos/recursos'
 import { GLOSARIO } from '@/dominio/glosario'
+import { filtrarPorNombre } from '@/dominio/live'
 import { cn } from '@/lib/clases'
 
 /**
@@ -40,6 +46,20 @@ interface PropsSelectorEspacio {
  *
  * Un fallo aca no puede tumbar el control: se dice que la lista no cargo y la jornada se sigue
  * abriendo y cerrando igual, que es lo principal que el control hace.
+ *
+ * === POR QUE UN MENU Y NO UN `Select` ===
+ *
+ * Porque la lista se busca. El catalogo pasa del centenar y el `Select` de Radix no admite nada que
+ * no sea una opcion dentro del panel: con cien filas y sin campo de texto, encontrar el propio es
+ * recorrerlas a ojo. El menu es la unica primitiva donde cabe el buscador, y es el mismo camino que
+ * ya tomaron los filtros de las tablas y el selector de personas — de ahi salen `BuscadorMenu` y
+ * `SinResultadosMenu`, que no se reescriben aca.
+ *
+ * La semantica no se pierde: `ItemMenuRadio` es `menuitemradio`, que es lo que un lector de pantalla
+ * necesita para decir cual opcion esta elegida y que elegir una apaga la anterior.
+ *
+ * El filtro es en cliente sobre la lista que ya se trajo: pedirsela a la API en cada tecla seria una
+ * peticion por letra para recortar cien filas que ya estan en memoria.
  */
 export function SelectorEspacio ({
   valor,
@@ -50,6 +70,8 @@ export function SelectorEspacio ({
 }: PropsSelectorEspacio) {
   const [espacios, setEspacios] = useState<Espacio[] | null>(null)
   const [error, setError] = useState<string | null>(null)
+  /** Lo tipeado en el buscador. Se vacia al cerrar el menu: al reabrirlo la lista esta entera. */
+  const [busqueda, setBusqueda] = useState('')
 
   useEffect(() => {
     const control = new AbortController()
@@ -80,24 +102,62 @@ export function SelectorEspacio ({
     )
   }
 
+  const todos = espacios ?? []
+  const elegido = todos.find((espacio) => espacio.id === valor) ?? null
+  const visibles = filtrarPorNombre(todos, busqueda)
+  const conBuscador = todos.length >= UMBRAL_BUSCADOR
+  const nombre = GLOSARIO.espacio.singular.toLowerCase()
+
   return (
-    <Selector
-      value={valor === null ? undefined : String(valor)}
-      onValueChange={(elegido) => { onElegir(Number(elegido)) }}
-      disabled={deshabilitado || cargando}
-    >
-      <DisparadorSelector
+    <MenuContextual onOpenChange={(abierto) => { if (!abierto) setBusqueda('') }}>
+      <DisparadorMenu
         id={id}
-        marcador={cargando ? 'Cargando…' : `Elige un ${GLOSARIO.espacio.singular.toLowerCase()}`}
-        className={cn('w-full', className)}
-      />
-      <ContenidoSelector>
-        {(espacios ?? []).map((espacio) => (
-          <Opcion key={espacio.id} value={String(espacio.id)}>
-            {espacio.name}
-          </Opcion>
-        ))}
-      </ContenidoSelector>
-    </Selector>
+        disabled={deshabilitado || cargando}
+        className={cn(CLASES_DISPARADOR, 'w-full', elegido === null && 'text-texto-sutil', className)}
+      >
+        <span className="truncate">
+          {cargando ? 'Cargando…' : elegido?.name ?? `Elige un ${nombre}`}
+        </span>
+        <ChevronSelector />
+      </DisparadorMenu>
+
+      <ContenidoMenu
+        align="start"
+        // Al ancho del disparador, con tope: los nombres largos se leen enteros y el panel no se sale
+        // de la pantalla en un telefono.
+        className="w-[var(--radix-dropdown-menu-trigger-width)] max-w-[calc(100vw-2rem)]"
+      >
+        {conBuscador && (
+          <BuscadorMenu valor={busqueda} onCambiar={setBusqueda} placeholder={`Buscar ${nombre}…`} />
+        )}
+
+        <GrupoRadioMenu
+          value={elegido === null ? '' : String(elegido.id)}
+          onValueChange={(nuevo) => { onElegir(Number(nuevo)) }}
+        >
+          {visibles.map((espacio) => (
+            <ItemMenuRadio key={espacio.id} value={String(espacio.id)}>
+              <span className="truncate">{espacio.name}</span>
+            </ItemMenuRadio>
+          ))}
+        </GrupoRadioMenu>
+
+        {/* Este vacio no es el de "no tienes Proyectos" ni el de "la lista no cargo": los tres dicen
+            cosas distintas y el unico que se arregla escribiendo otra cosa es este. */}
+        {visibles.length === 0 && (
+          <SinResultadosMenu>Ningún {GLOSARIO.espacio.singular} coincide.</SinResultadosMenu>
+        )}
+
+        {/* Filtrar no mueve el foco, asi que sin esto quien usa un lector de pantalla escribe y no se
+            entera de nada: la lista cambia en silencio debajo del campo. */}
+        {conBuscador && (
+          <p role="status" aria-live="polite" className="sr-only">
+            {visibles.length === 1
+              ? `1 ${nombre} en la lista`
+              : `${visibles.length} ${GLOSARIO.espacio.plural.toLowerCase()} en la lista`}
+          </p>
+        )}
+      </ContenidoMenu>
+    </MenuContextual>
   )
 }

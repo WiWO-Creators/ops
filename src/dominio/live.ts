@@ -1,10 +1,13 @@
 /**
  * Reglas de LIVE que no dependen de React ni de la red.
  *
- * Dos preguntas: **hasta donde ve** quien mira, y **que se le dice** cuando el medidor no arranca.
- * Las dos se prueban sin montar nada (`pruebas/live.test.js`).
+ * Cuatro preguntas: **hasta donde ve** quien mira, **que se le dice** cuando el medidor no arranca,
+ * **si hoy ya dijo que no** a abrir la jornada, y **que opciones quedan** cuando busca en un combo. Las tres se prueban sin montar nada
+ * (`pruebas/live.test.js`): a la de la jornada pospuesta se le pasan el almacenamiento y el dia, asi
+ * que tampoco necesita un navegador ni depende del reloj de quien corre las pruebas.
  */
 import { puedeVerSeccion } from './permisos.ts'
+import { normalizar } from './salas.ts'
 import type { EstadoDeJornada } from '@/datos/live'
 import type { NivelPermiso, Yo } from '@/datos/tipos'
 
@@ -25,6 +28,127 @@ import type { NivelPermiso, Yo } from '@/datos/tipos'
  */
 export function faltaAbrirJornada (estado: EstadoDeJornada | null): boolean {
   return estado !== null && estado.open === null
+}
+
+/**
+ * Lo que hace falta de `localStorage` para anotar la decision. Un objeto asi se finge en las pruebas
+ * sin montar un navegador, que es la unica forma de probar tambien el caso en que lanza.
+ */
+type Almacenamiento = Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>
+
+/** Lo que se guarda: la clave ya dice todo, el valor solo tiene que existir. */
+const MARCA_PUESTA = '1'
+
+/**
+ * Donde queda anotado que hoy se pospuso la apertura de la jornada.
+ *
+ * La clave lleva el dia y el `staffId`, y cada uno arregla un problema distinto. El dia hace que la
+ * marca caduque sola a la medianoche: manana la jornada se vuelve a exigir sin que nadie tenga que
+ * acordarse de borrar nada, que es justo lo que un booleano suelto no daria. El `staffId` impide que
+ * dos cuentas en el mismo navegador —el equipo compartido, o quien entra con otra sesion para revisar
+ * algo— hereden una decision que no tomaron.
+ *
+ * @param staffId de quien es la decision
+ * @param dia el dia en curso en `YYYY-MM-DD`, en la hora local del negocio (`hoyLocal()`)
+ * @returns la clave con la que leer, escribir y borrar la marca
+ */
+export function claveDeJornadaPospuesta (staffId: number, dia: string): string {
+  return `wiwo:jornada-pospuesta:v1:${staffId}:${dia}`
+}
+
+/**
+ * Si hoy ya se pospuso la apertura y no hay que volver a exigirla.
+ *
+ * === POR QUE UN FALLO DEVUELVE `false` Y NO PROPAGA ===
+ *
+ * En una ventana privada —o con el almacenamiento del sitio bloqueado— el solo hecho de tocar
+ * `localStorage` lanza. Lo unico que se pierde ahi es la memoria de la decision, asi que el fallo
+ * degrada a "no se acuerda": la ventana vuelve a aparecer, y quien no quiera abrir la jornada la
+ * vuelve a cerrar. Dejar escapar la excepcion, en cambio, se lleva por delante la cabecera entera,
+ * que es un precio desproporcionado para un recordatorio.
+ *
+ * @param almacenamiento normalmente `window.localStorage`
+ * @param staffId de quien es la decision
+ * @param dia el dia en curso en `YYYY-MM-DD`
+ * @returns `true` solo si consta la marca de HOY para esta persona
+ */
+export function jornadaPospuestaHoy (
+  almacenamiento: Almacenamiento,
+  staffId: number,
+  dia: string
+): boolean {
+  try {
+    return almacenamiento.getItem(claveDeJornadaPospuesta(staffId, dia)) !== null
+  } catch {
+    return false
+  }
+}
+
+/**
+ * Anota que por hoy no se vuelve a exigir la apertura.
+ *
+ * @param almacenamiento normalmente `window.localStorage`
+ * @param staffId de quien es la decision
+ * @param dia el dia en curso en `YYYY-MM-DD`
+ * @returns `false` si el navegador no dejo guardarla; la decision vale igual en esta pestana
+ */
+export function posponerJornadaPorHoy (
+  almacenamiento: Almacenamiento,
+  staffId: number,
+  dia: string
+): boolean {
+  try {
+    almacenamiento.setItem(claveDeJornadaPospuesta(staffId, dia), MARCA_PUESTA)
+    return true
+  } catch {
+    return false
+  }
+}
+
+/**
+ * Borra la marca del dia. Se llama cuando la jornada se abre de verdad: posponer era "todavia no", y
+ * una marca que sobreviva a la apertura silenciaria la exigencia del dia en que la jornada se cierre
+ * y haya que volver a abrirla.
+ *
+ * @param almacenamiento normalmente `window.localStorage`
+ * @param staffId de quien era la decision
+ * @param dia el dia en curso en `YYYY-MM-DD`
+ * @returns `false` si el navegador no dejo borrarla
+ */
+export function olvidarJornadaPospuesta (
+  almacenamiento: Almacenamiento,
+  staffId: number,
+  dia: string
+): boolean {
+  try {
+    almacenamiento.removeItem(claveDeJornadaPospuesta(staffId, dia))
+    return true
+  } catch {
+    return false
+  }
+}
+
+/**
+ * Las opciones cuyo nombre coincide con lo que se escribio en el buscador de un combo.
+ *
+ * `normalizar` —el mismo de la agenda de salas— saca acentos y mayusculas antes de comparar: sin eso
+ * "nunez" no encuentra "Núñez" ni "logistica" encuentra "Logística", y quien busca concluye que su
+ * Proyecto no esta en la lista. Nadie escribe los acentos al filtrar; es el caso normal, no el borde.
+ *
+ * Busca por subcadena y no por prefijo porque los nombres del catalogo empiezan casi todos igual
+ * ("Proyecto ACME", "Proyecto DELCO"): con prefijo habria que escribir el nombre entero para llegar
+ * a lo que lo distingue. Una busqueda vacia —o de solo espacios— devuelve todo.
+ *
+ * @param opciones la lista completa, tal como llego de la API
+ * @param busqueda lo tipeado
+ * @returns las que coinciden, en el mismo orden en que llegaron
+ */
+export function filtrarPorNombre <T extends { name: string }> (opciones: T[], busqueda: string): T[] {
+  const buscado = normalizar(busqueda)
+
+  if (buscado === '') return opciones
+
+  return opciones.filter((opcion) => normalizar(opcion.name).includes(buscado))
 }
 
 /** Hasta donde llega el tablero de quien mira. Es la traduccion de `meta.scope` de `GET /live`. */

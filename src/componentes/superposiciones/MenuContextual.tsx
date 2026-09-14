@@ -137,6 +137,20 @@ export function ItemMenuRadio ({ className, children, ...resto }: PropsItemRadio
   )
 }
 
+/**
+ * Cantidad de opciones a partir de la cual el desplegable trae buscador.
+ *
+ * Seis deja fuera a los catalogos cortos y fijos —los cinco estados, las cuatro prioridades, los
+ * tres estados de SLA—, donde un campo de texto seria un control mas entre el clic y la unica opcion
+ * que hay. De ahi para arriba empieza a haber que recorrer: el equipo pasa de ciento ochenta
+ * personas y el catalogo de Espacios de doscientos.
+ *
+ * Vive aca y no en quien la usa porque ya son dos los desplegables que deciden con ella —los filtros
+ * de las tablas y el combo de Espacios de la jornada— y el umbral tiene que ser el mismo en los dos:
+ * dos numeros distintos harian que el buscador apareciera en un control y no en el de al lado.
+ */
+export const UMBRAL_BUSCADOR = 6
+
 /** Teclas que el menu necesita recibir aunque el foco este dentro del buscador. */
 const TECLAS_DEL_MENU = ['ArrowUp', 'Home', 'End', 'Escape', 'Tab']
 

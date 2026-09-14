@@ -1,6 +1,7 @@
 'use client'
 
 import * as Radix from '@radix-ui/react-dialog'
+import { X } from 'lucide-react'
 import { cn } from '@/lib/clases'
 
 /**
@@ -28,6 +29,15 @@ interface PropsContenido extends React.ComponentPropsWithoutRef<typeof Radix.Con
   descripcion?: string
   /** Oculta el titulo visualmente pero lo deja para lectores de pantalla. */
   tituloOculto?: boolean
+  /**
+   * Dibuja la X de la esquina.
+   *
+   * Apagada por defecto a proposito: no todos los dialogos se descartan —los que confirman algo se
+   * contestan con sus botones— y una X de mas es una salida que el flujo no previo. Se enciende donde
+   * cerrar sin hacer nada es una respuesta valida, y ahi hace falta: `Escape` y el clic fuera ya
+   * cierran, pero ninguno de los dos se ve, y quien mira con el dedo en una pantalla no tiene teclado.
+   */
+  cerrable?: boolean
   ancho?: keyof typeof ANCHOS
 }
 
@@ -41,6 +51,7 @@ export function ContenidoDialogo ({
   titulo,
   descripcion,
   tituloOculto = false,
+  cerrable = false,
   ancho = 'medio',
   className,
   children,
@@ -73,7 +84,21 @@ export function ContenidoDialogo ({
         )}
         {...resto}
       >
-        <Radix.Title className={cn('font-titular text-lg font-extrabold', tituloOculto && 'sr-only')}>
+        {cerrable && (
+          <Radix.Close
+            aria-label="Cerrar"
+            className={cn(
+              'text-texto-sutil hover:text-texto hover:bg-hover absolute right-4 top-4',
+              'rounded-control inline-flex size-7 items-center justify-center transition-colors duration-150'
+            )}
+          >
+            <X size={16} strokeWidth={2} aria-hidden="true" />
+          </Radix.Close>
+        )}
+        {/* El titulo se aparta de la X: sin el hueco, uno largo se le mete debajo. */}
+        <Radix.Title
+          className={cn('font-titular text-lg font-extrabold', cerrable && 'pr-8', tituloOculto && 'sr-only')}
+        >
           {titulo}
         </Radix.Title>
         {descripcion !== undefined && (
