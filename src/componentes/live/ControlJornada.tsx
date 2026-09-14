@@ -9,20 +9,27 @@ import {
   MenuContextual
 } from '@/componentes/superposiciones/MenuContextual'
 import { formatearDuracion } from '@/componentes/proyecto/cronometro'
-import type { EstadoDeJornada } from '@/datos/live'
+import type { ClienteDeJornada, EstadoDeJornada } from '@/datos/live'
 import { GLOSARIO } from '@/dominio/glosario'
 import {
+  clienteDeJornada,
+  cuerpoDeApertura,
   faltaAbrirJornada,
+  fraseDeJornadaSinDestino,
   jornadaPospuestaHoy,
+  jornadaSinDestino,
+  mensajeDeFalloDeCliente,
   mensajeDeFalloDeJornada,
   mensajeDeFalloDeMedidor,
   olvidarJornadaPospuesta,
-  posponerJornadaPorHoy
+  posponerJornadaPorHoy,
+  type DestinoDeApertura
 } from '@/dominio/live'
 import { cn } from '@/lib/clases'
 import { hoyLocal } from '@/lib/fechas'
 import { CierreJornada } from './CierreJornada'
 import { DestinoDeJornada } from './DestinoDeJornada'
+import { SelectorCliente } from './SelectorCliente'
 import { avisarCambioDeMedidor, escucharMedidor } from './medidor'
 
 /**
@@ -253,14 +260,18 @@ export function ControlJornada ({
    */
   async function llamar (
     ruta: string,
-    metodo: 'POST' | 'DELETE',
+    metodo: 'POST' | 'PATCH' | 'DELETE',
     cuerpo: Record<string, unknown> = {}
   ): Promise<number> {
+    // El `DELETE` queda sin cuerpo a proposito: las dos rutas que lo usan detienen algo por su id en
+    // la URL, y mandarles un `{}` con `content-type` solo le daria al proxy un cuerpo que reenviar.
+    const conCuerpo = metodo !== 'DELETE'
+
     try {
       const respuesta = await fetch(`/api/bff/${ruta}`, {
         method: metodo,
-        headers: metodo === 'POST' ? { 'content-type': 'application/json' } : undefined,
-        body: metodo === 'POST' ? JSON.stringify(cuerpo) : undefined
+        headers: conCuerpo ? { 'content-type': 'application/json' } : undefined,
+        body: conCuerpo ? JSON.stringify(cuerpo) : undefined
       })
 
       return respuesta.status
@@ -275,27 +286,31 @@ export function ControlJornada ({
   }
 
   /**
-   * Abre la jornada con su Proyecto y —si se eligio— su Tarea, en **una sola peticion**.
+   * Abre la jornada por cualquiera de los tres caminos, en **una sola peticion**.
    *
-   * Antes eran dos —`POST /me/jornada` y despues el arranque del medidor— y entre una y otra cabia
-   * un corte de red: la jornada quedaba abierta y sin nada que medir, que es justo lo que la regla
-   * quiere impedir. Lo resuelve la API: con el destino en el cuerpo abre las dos cosas o ninguna, y
-   * si el medidor falla descarta la jornada que acababa de abrir.
+   * Con Proyecto abre el dia **y** arranca el medidor a la vez. Antes eran dos peticiones
+   * —`POST /me/jornada` y despues el arranque— y entre una y otra cabia un corte de red: la jornada
+   * quedaba abierta y sin nada que medir. Lo resuelve la API: con el destino en el cuerpo abre las
+   * dos cosas o ninguna, y si el medidor falla descarta la jornada que acababa de abrir.
    *
-   * `task_id` no viaja cuando no hay Tarea, en vez de viajar en `0` o en `null`: la API entiende los
-   * tres como "sin Proceso", pero omitirlo es lo unico que no depende de esa equivalencia.
+   * Sin Proyecto —con Cliente, o en blanco— abre el dia y **no arranca ningun cronometro**. Eso no
+   * es un fallo a medias sino el contrato: la jornada corre y el cronometro se arranca despues,
+   * desde el modo `medidor` de esta misma ventana. No hay imputacion retroactiva.
    *
-   * Por eso aca no hay compensacion ni reintento. Un fallo deja el estado como estaba y el aviso
-   * dice por que: 403 si el destino no es suyo, 404 si ya no esta, 422 si el par no se corresponde,
-   * 409 si otra pestaña abrio la jornada primero.
+   * El cuerpo lo arma `cuerpoDeApertura()` y no este metodo: es la regla de que ids viajan por cada
+   * camino, se prueba sin montar nada, y ademas es lo que impide el cuerpo incoherente —un
+   * `task_id` sin su `project_id`, o un `client_id` junto a un `project_id`— que la API rechazaria
+   * con un 422 que nadie sabria leer.
+   *
+   * Aca no hay compensacion ni reintento. Un fallo deja el estado como estaba y el aviso dice por
+   * que: 403 si el destino no es suyo, 404 si ya no esta, 422 si el par no se corresponde o si el
+   * Cliente ya no existe, 409 si otra pestaña abrio la jornada primero.
    */
-  async function abrirYArrancar (espacioId: number, tareaId: number | null): Promise<void> {
+  async function abrirJornada (destino: DestinoDeApertura): Promise<void> {
     setEnCurso(true)
     setAviso(null)
 
-    const respuesta = await llamar('me/jornada', 'POST', tareaId === null
-      ? { project_id: espacioId }
-      : { project_id: espacioId, task_id: tareaId })
+    const respuesta = await llamar('me/jornada', 'POST', cuerpoDeApertura(destino))
 
     setEnCurso(false)
 
@@ -310,11 +325,52 @@ export function ControlJornada ({
       return
     }
 
-    setAviso(mensajeDeFalloDeJornada(respuesta, true))
+    // El 422 del camino con Cliente no habla de Tareas ni de Proyectos: dice que ese Cliente ya no
+    // existe o esta en la papelera. Mandarlo por el traductor de la jornada dejaria a la persona
+    // buscando el problema en un combo que ni siquiera llego a tocar.
+    setAviso(destino.tipo === 'cliente' && respuesta === 422
+      ? mensajeDeFalloDeCliente(422)
+      : mensajeDeFalloDeJornada(respuesta, true))
+
     // El 409 al abrir significa que ya hay una jornada abierta y esta pantalla quedo vieja: otra
     // pestaña la abrio. Se vuelve a leer para que el control lo muestre ahora y no en el proximo
     // intervalo, con la persona mirando un boton que ya no corresponde.
     if (respuesta === 409) recargar()
+  }
+
+  /**
+   * Fija, cambia o quita el Cliente de la jornada que ya esta abierta.
+   *
+   * Es la otra mitad de "configurarlo despues": arrancar el medidor le pone destino al rato que
+   * viene, y esto le pone nombre al dia entero. Son campos distintos —contra un Cliente no se mide
+   * tiempo— asi que no se pisan: se puede tener Cliente sin cronometro, cronometro sin Cliente, o
+   * las dos cosas.
+   *
+   * La clave viaja **siempre**, incluso para quitarlo: un `PATCH` sin `client_id` es un 422
+   * `requerido` y no un borrado silencioso, asi que quitar el Cliente se escribe `client_id: null`
+   * explicito. Por eso el parametro es `number | null` y no opcional.
+   *
+   * No toca ningun cronometro, ni del lado de la API ni de este: por eso no avisa un cambio de
+   * medidor, solo vuelve a leer el estado del dia.
+   */
+  async function fijarCliente (clienteId: number | null): Promise<void> {
+    setEnCurso(true)
+    setAviso(null)
+
+    const respuesta = await llamar('me/jornada', 'PATCH', { client_id: clienteId })
+
+    setEnCurso(false)
+
+    if (!acepto(respuesta)) {
+      setAviso(mensajeDeFalloDeCliente(respuesta))
+      // El 409 aca es "no tienes ninguna jornada abierta": el dia se cerro solo a la hora de corte,
+      // o desde otra pestaña. Volver a leer hace que el control pase a pedir la apertura en vez de
+      // dejar a la vista un selector sobre una jornada que ya no existe.
+      if (respuesta === 409) recargar()
+      return
+    }
+
+    recargar()
   }
 
   /**
@@ -408,6 +464,11 @@ export function ControlJornada ({
     faltaAbrirJornada(estado)
   const destinoAbierto = exigeJornada || pidiendoDestino
 
+  // Para quien es el dia y si ese dia tiene destino. Los dos salen del estado ya leido: la jornada
+  // trae `client` con el nombre puesto, asi que la cabecera no pide `/clients/{id}` por una palabra.
+  const cliente = clienteDeJornada(estado)
+  const sinDestino = jornadaSinDestino(estado)
+
   const cuerpo = (
     <CuerpoControl
       estado={estado}
@@ -416,9 +477,12 @@ export function ControlJornada ({
       segundosJornada={segundosJornada}
       segundosMedidor={segundosMedidor}
       enCurso={enCurso}
+      cliente={cliente}
+      sinDestino={sinDestino}
       aviso={confirmandoCierre || destinoAbierto ? null : aviso}
       errorDeRed={errorDeRed}
       onElegirDestino={() => { setAviso(null); setPidiendoDestino(true) }}
+      onFijarCliente={(id) => { void fijarCliente(id) }}
       onCerrar={() => { setConfirmandoCierre(true) }}
       onDetener={() => { void detenerMedidor() }}
     />
@@ -454,8 +518,10 @@ export function ControlJornada ({
             return
           }
 
-          void abrirYArrancar(espacioId, tareaId)
+          void abrirJornada({ tipo: 'espacio', espacioId, procesoId: tareaId })
         }}
+        onAbrirConCliente={(clienteId) => { void abrirJornada({ tipo: 'cliente', clienteId }) }}
+        onAbrirEnBlanco={() => { void abrirJornada({ tipo: 'en-blanco' }) }}
         onCancelar={() => { setPidiendoDestino(false); setAviso(null) }}
         onPosponer={posponerApertura}
         onEntrarSinJornada={() => {
@@ -539,9 +605,15 @@ interface PropsCuerpo {
   segundosJornada: number
   segundosMedidor: number
   enCurso: boolean
+  /** Para quien es el dia, o `null` si no tiene Cliente —o si la API no manda el campo—. */
+  cliente: ClienteDeJornada | null
+  /** `true` con la jornada abierta y ningun cronometro corriendo. */
+  sinDestino: boolean
   aviso: string | null
   errorDeRed: string | null
   onElegirDestino: () => void
+  /** `null` es quitar el Cliente, no "no hacer nada". Ver `fijarCliente()`. */
+  onFijarCliente: (clienteId: number | null) => void
   onCerrar: () => void
   onDetener: () => void
 }
@@ -563,12 +635,25 @@ function CuerpoControl ({
   segundosJornada,
   segundosMedidor,
   enCurso,
+  cliente,
+  sinDestino,
   aviso,
   errorDeRed,
   onElegirDestino,
+  onFijarCliente,
   onCerrar,
   onDetener
 }: PropsCuerpo) {
+  /**
+   * `true` mientras el combo de Clientes esta a la vista.
+   *
+   * El combo no se monta hasta que alguien lo pide, y eso es el punto: montarlo trae la lista entera
+   * de `/clients`, y la variante `panel` vive montada en `/live`. Una peticion mas por cada carga de
+   * esa pantalla, para un dato que casi nadie va a tocar, es trafico que no compra nada. Mientras
+   * tanto el nombre se lee igual, porque viene dentro de la jornada.
+   */
+  const [eligiendoCliente, setEligiendoCliente] = useState(false)
+
   return (
     <div className="flex flex-col gap-3">
       <section className="flex flex-col gap-2">
@@ -611,6 +696,60 @@ function CuerpoControl ({
           </p>
         )}
 
+        {/* Que el día corre sin nada que lo cubra tiene que verse, o alguien descubre al cerrar que
+            ocho horas no se imputaron a nada. Dice el mismo hecho que decía el medidor —el reloj
+            corre y ningún cronómetro lo alcanza— sin el reproche que tenía ("las horas se están
+            yendo sin cubrir"): abrir el día sin destino es una salida que la interfaz ahora ofrece a
+            propósito, y regañar por usarla sería contradecirse. Va como `status` para que un lector
+            de pantalla lo anuncie sin interrumpir lo que la persona esté haciendo. */}
+        {sinDestino && (
+          <p role="status" className="text-texto-sutil text-xs text-pretty">
+            {fraseDeJornadaSinDestino(cliente)}
+          </p>
+        )}
+
+        {/* Para quién es el día. Se muestra siempre que haya jornada abierta y no sólo cuando falta
+            destino: el Cliente es un campo del día entero y sigue siendo cambiable con el cronómetro
+            corriendo — no son lo mismo, contra un Cliente no se mide tiempo.
+
+            El nombre se lee del estado ya traído y el combo sólo se monta al pedirlo, así que la
+            pantalla no gasta una petición de `/clients` en dibujar una palabra que ya tenía. */}
+        {jornadaAbierta && (
+          <div className="flex flex-col gap-1.5">
+            <span className="text-texto-tenue text-xs font-semibold">
+              {GLOSARIO.cliente.singular}
+            </span>
+
+            {eligiendoCliente
+              ? (
+                <SelectorCliente
+                  valor={cliente?.id ?? null}
+                  nombreActual={cliente?.name ?? null}
+                  // Quitarlo sólo se ofrece donde hay algo que quitar. En la apertura el combo nace
+                  // vacío y una opción "Sin Cliente" ahí sería elegir lo que ya está elegido.
+                  vaciable={cliente !== null}
+                  deshabilitado={enCurso}
+                  onElegir={(id) => { setEligiendoCliente(false); onFijarCliente(id) }}
+                />
+                )
+              : (
+                <div className="flex items-center justify-between gap-2">
+                  <span className={cn('truncate text-sm', cliente === null ? 'text-texto-sutil' : 'text-texto')}>
+                    {cliente?.name ?? `Sin ${GLOSARIO.cliente.singular.toLowerCase()}`}
+                  </span>
+                  <button
+                    type="button"
+                    disabled={enCurso}
+                    className="text-texto-sutil hover:text-texto disabled:hover:text-texto-sutil shrink-0 text-xs underline underline-offset-2"
+                    onClick={() => { setEligiendoCliente(true) }}
+                  >
+                    {cliente === null ? 'Elegir' : 'Cambiar'}
+                  </button>
+                </div>
+                )}
+          </div>
+        )}
+
         {/* Sin jornada: el boton no abre nada por si mismo, abre la ventana donde se elige el
             Proyecto y la Tarea. Es el mismo gesto que hace la compuerta al entrar, para que quien
             uso la salida de emergencia tenga por donde volver. */}
@@ -641,9 +780,9 @@ function CuerpoControl ({
             {medidor === null
               ? (
                 <>
-                  <p className="text-texto-sutil text-xs">
-                    No estás midiendo nada: las horas de tu jornada se están yendo sin cubrir.
-                  </p>
+                  {/* Sin párrafo: lo que pasa ya está dicho arriba, en la jornada, que es de quien
+                      se dice. Repetirlo acá bajo el rótulo "Medidor" sería decir dos veces lo mismo
+                      en ocho centímetros de desplegable. */}
                   <Boton
                     variante="primario"
                     tamano="chico"

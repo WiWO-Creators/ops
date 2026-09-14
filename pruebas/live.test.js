@@ -19,13 +19,19 @@ import { cargoYArea, ordenarPorActividad, repartirTablero, trabajoDeLaFila } fro
 import {
   alcanceDeLive,
   claveDeJornadaPospuesta,
+  clienteDeJornada,
+  cuerpoDeApertura,
   esJefatura,
   filtrarPorNombre,
+  fraseDeJornadaSinDestino,
   jornadaPospuestaHoy,
+  jornadaSinDestino,
+  mensajeDeFalloDeCliente,
   mensajeDeFalloDeJornada,
   mensajeDeFalloDeMedidor,
   olvidarJornadaPospuesta,
-  posponerJornadaPorHoy
+  posponerJornadaPorHoy,
+  salidasDeApertura
 } from '../src/dominio/live.ts'
 import { GLOSARIO } from '../src/dominio/glosario.ts'
 
@@ -436,4 +442,213 @@ test('una busqueda vacia devuelve la lista entera, en su orden', () => {
 
   assert.deepEqual(filtrarPorNombre(opciones, ''), opciones)
   assert.deepEqual(filtrarPorNombre(opciones, '   '), opciones)
+})
+
+/**
+ * Las tres formas de abrir el dia.
+ *
+ * Se prueba el cuerpo que sale hacia la API y no lo que se dibuja, porque el cuerpo es lo unico que
+ * la API ve y cada campo de mas cambia lo que hace: un `client_id` junto a un `project_id` no es
+ * "las dos cosas", y un `task_id` sin su `project_id` es un 422. Lo que hay que fijar es que cada
+ * camino mande **exactamente** sus ids y ninguno mas.
+ */
+test('con Espacio y sin Proceso viaja solo el project_id', () => {
+  assert.deepEqual(
+    cuerpoDeApertura({ tipo: 'espacio', espacioId: 7, procesoId: null }),
+    { project_id: 7 }
+  )
+})
+
+test('con Espacio y Proceso viajan los dos ids', () => {
+  assert.deepEqual(
+    cuerpoDeApertura({ tipo: 'espacio', espacioId: 7, procesoId: 42 }),
+    { project_id: 7, task_id: 42 }
+  )
+})
+
+/**
+ * El `task_id` ausente se **omite**, no viaja en `0` ni en `null`. La API entiende los tres como
+ * "sin Proceso", pero omitirlo es lo unico que no depende de esa equivalencia — y `PATCH` ya
+ * demuestra que puede dejar de valer: alli `null` significa *quitar*, no *no elegi*.
+ */
+test('el Proceso ausente no viaja en 0 ni en null: no viaja', () => {
+  const cuerpo = cuerpoDeApertura({ tipo: 'espacio', espacioId: 7, procesoId: null })
+
+  assert.equal('task_id' in cuerpo, false)
+})
+
+test('sin Espacio y con Cliente viaja solo el client_id', () => {
+  assert.deepEqual(cuerpoDeApertura({ tipo: 'cliente', clienteId: 3 }), { client_id: 3 })
+})
+
+/**
+ * El camino con Cliente NO manda `project_id`, ni siquiera vacio. Si lo mandara, la API tomaria ese
+ * campo como el destino y arrancaria un cronometro que nadie pidio — que es justo lo contrario del
+ * acuerdo: la jornada corre, el cronometro no.
+ */
+test('abrir con Cliente no manda ningun destino contra el que medir', () => {
+  const cuerpo = cuerpoDeApertura({ tipo: 'cliente', clienteId: 3 })
+
+  assert.equal('project_id' in cuerpo, false)
+  assert.equal('task_id' in cuerpo, false)
+})
+
+test('en blanco viaja un cuerpo vacio', () => {
+  assert.deepEqual(cuerpoDeApertura({ tipo: 'en-blanco' }), {})
+})
+
+/**
+ * Que boton se puede apretar.
+ *
+ * Es la guarda que impide el fallo silencioso: sin Cliente elegido, el boton de la salida con
+ * Cliente mandaria un cuerpo sin `client_id`, y ese cuerpo **no falla** — abre una jornada en blanco
+ * mientras la persona cree que la abrio para alguien.
+ */
+test('sin elegir nada solo esta disponible la salida en blanco', () => {
+  assert.deepEqual(salidasDeApertura({ espacio: null, cliente: null }), {
+    conEspacio: false,
+    soloCliente: false,
+    enBlanco: true
+  })
+})
+
+test('con Cliente y sin Espacio se habilita la salida con Cliente', () => {
+  assert.deepEqual(salidasDeApertura({ espacio: null, cliente: 3 }), {
+    conEspacio: false,
+    soloCliente: true,
+    enBlanco: true
+  })
+})
+
+test('con Espacio se habilita el camino principal', () => {
+  assert.equal(salidasDeApertura({ espacio: 7, cliente: null }).conEspacio, true)
+})
+
+/**
+ * Con Espacio elegido, el boton de "sin Espacio" se apaga aunque haya Cliente. Apretarlo abriria el
+ * dia **descartando** el Espacio que la persona ya eligio, porque el cuerpo con `client_id` no lleva
+ * `project_id`. En la ventana esa combinacion ni se ofrece —el combo de Cliente se esconde en cuanto
+ * hay Espacio— pero la regla se afirma igual: esconder no valida.
+ */
+test('con Espacio elegido la salida con Cliente se apaga aunque haya Cliente', () => {
+  assert.equal(salidasDeApertura({ espacio: 7, cliente: 3 }).soloCliente, false)
+})
+
+test('la salida en blanco nunca se apaga', () => {
+  assert.equal(salidasDeApertura({ espacio: 7, cliente: 3 }).enBlanco, true)
+  assert.equal(salidasDeApertura({ espacio: null, cliente: null }).enBlanco, true)
+})
+
+/** Un `GET /me/jornada` minimo: solo lo que las reglas del destino miran. */
+const dia = ({ abierta = true, cliente = undefined, medidor = null } = {}) => ({
+  open: abierta
+    ? { id: 1, started_at: '2026-09-14T12:00:00Z', seconds: 3600, ...(cliente === undefined ? {} : { client: cliente }) }
+    : null,
+  seconds: 3600,
+  measured_seconds: 0,
+  uncovered_seconds: 3600,
+  over_journey: false,
+  timer: medidor
+})
+
+/**
+ * La jornada sin destino es la que las dos salidas nuevas crean, y la cabecera tiene que delatarla:
+ * el reloj del dia corre y ningun cronometro lo cubre.
+ */
+test('una jornada abierta sin medidor es una jornada sin destino', () => {
+  assert.equal(jornadaSinDestino(dia()), true)
+})
+
+test('con el medidor corriendo la jornada ya tiene destino', () => {
+  assert.equal(jornadaSinDestino(dia({ medidor: { id: 9, project: DELCO, task: null, start_time: '', seconds: 60 } })), false)
+})
+
+/**
+ * Sin jornada abierta no hay nada que delatar, y con el estado sin leer tampoco: `null` es "no se
+ * pudo preguntar", y afirmar desde ahi que a alguien le falta destino es inventar.
+ */
+test('sin jornada abierta, o sin estado leido, no hay jornada sin destino', () => {
+  assert.equal(jornadaSinDestino(dia({ abierta: false })), false)
+  assert.equal(jornadaSinDestino(null), false)
+})
+
+/**
+ * Un Cliente no es un destino: contra el no se mide tiempo. Una jornada con Cliente y sin cronometro
+ * sigue siendo tiempo sin imputar, y decir lo contrario esconderia justo el caso que hay que ver.
+ */
+test('tener Cliente no le da destino a la jornada', () => {
+  assert.equal(jornadaSinDestino(dia({ cliente: { id: 3, name: 'DELCO' } })), true)
+})
+
+/**
+ * El Cliente se lee sin confiar en que venga. Una API sin la migracion `0520` no manda el campo, y
+ * `client.name` a pelo ahi tumba la cabecera entera por una palabra.
+ */
+test('el Cliente se lee igual venga, falte o sea null', () => {
+  assert.deepEqual(clienteDeJornada(dia({ cliente: { id: 3, name: 'DELCO' } })), { id: 3, name: 'DELCO' })
+  assert.equal(clienteDeJornada(dia({ cliente: null })), null)
+  // Una API vieja: la clave no existe.
+  assert.equal(clienteDeJornada(dia()), null)
+  assert.equal(clienteDeJornada(dia({ abierta: false })), null)
+  assert.equal(clienteDeJornada(null), null)
+})
+
+/**
+ * Como se cuenta. El tono importa tanto como el hecho: el pedido fue que la ventana dejara de ser
+ * intrusiva, asi que la frase nombra lo que queda por hacer y no lo que se hizo mal.
+ */
+test('la frase sin Cliente nombra las dos cosas que faltan', () => {
+  const frase = fraseDeJornadaSinDestino(null)
+
+  assert.ok(frase.includes(GLOSARIO.espacio.singular.toLowerCase()))
+  assert.ok(frase.includes(GLOSARIO.cliente.singular.toLowerCase()))
+})
+
+/**
+ * Con Cliente se nombra al Cliente: es la mitad que la persona SI resolvio, y darle el mismo aviso
+ * que a la jornada abierta en blanco seria ignorar lo que eligio.
+ */
+test('la frase con Cliente lo nombra y ya no pide Cliente', () => {
+  const frase = fraseDeJornadaSinDestino({ id: 3, name: 'DELCO' })
+
+  assert.ok(frase.includes('DELCO'))
+  assert.ok(frase.includes(GLOSARIO.espacio.singular.toLowerCase()))
+  assert.equal(frase.includes(`ni ${GLOSARIO.cliente.singular.toLowerCase()}`), false)
+})
+
+/**
+ * Las dos frases se arman con el glosario y no con las palabras escritas a mano, que es lo que hace
+ * que un renombre futuro sea un archivo y no una caceria. La prueba compara contra el texto
+ * reconstruido desde `GLOSARIO`: si alguien escribe "Proyecto" a mano, esto sigue pasando hoy y
+ * falla el dia del renombre — que es exactamente cuando tiene que avisar.
+ */
+test('las frases se arman con los nombres del glosario', () => {
+  const espacio = GLOSARIO.espacio.singular.toLowerCase()
+  const cliente = GLOSARIO.cliente.singular.toLowerCase()
+
+  assert.equal(fraseDeJornadaSinDestino(null), `Tu jornada corre sin ${espacio} ni ${cliente} todavía.`)
+  assert.equal(
+    fraseDeJornadaSinDestino({ id: 3, name: 'DELCO' }),
+    `Tu jornada corre para DELCO, sin ${espacio} todavía.`
+  )
+})
+
+/**
+ * Los fallos del Cliente hablan de otra cosa que los de la jornada, y por eso tienen su traductor: su
+ * `409` es "no tienes ninguna jornada", al reves que el de abrir, y su `422` es un Cliente que ya no
+ * esta y no una Tarea que no encaja.
+ */
+test('el fallo del Cliente no se confunde con el de abrir la jornada', () => {
+  assert.notEqual(mensajeDeFalloDeCliente(409), mensajeDeFalloDeJornada(409, true))
+  assert.notEqual(mensajeDeFalloDeCliente(422), mensajeDeFalloDeJornada(422, true))
+  assert.ok(mensajeDeFalloDeCliente(422).includes('Cliente'))
+})
+
+test('un fallo de red del Cliente se dice como fallo de red', () => {
+  assert.equal(mensajeDeFalloDeCliente(0), 'No se pudo contactar al servidor. Revisa la conexión.')
+})
+
+test('cualquier otro codigo del Cliente da un mensaje, nunca vacio', () => {
+  assert.ok(mensajeDeFalloDeCliente(500).includes('500'))
+  assert.notEqual(mensajeDeFalloDeCliente(503), '')
 })

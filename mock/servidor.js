@@ -2753,6 +2753,282 @@ async function cargosDeAccesos (metodo, id, cuerpo) {
   return { estado: 204, cuerpo: null }
 }
 
+/**
+ * La jornada propia, con sus tres formas de abrirse.
+ *
+ * El mock no la servia, y por eso el modal de apertura no se podia probar sin levantar el board: sin
+ * `GET /me/jornada` el control de la cabecera no llega a saber si falta abrirla y la ventana nunca
+ * se asoma. Con esto el camino nuevo —abrir con Cliente, abrir en blanco, y ponerle el Cliente
+ * despues— se recorre entero contra el mock.
+ *
+ * El estado vive en memoria y muere con el proceso, igual que el resto del mock: es un contrato
+ * ejecutable, no una base de datos.
+ */
+
+/** La jornada abierta de cada persona, por `staff_id`. Como mucho una por cabeza. */
+const JORNADAS = new Map()
+
+/** De donde salen los ids de jornada y de cronometro. Basta con que no se repitan. */
+let SIGUIENTE_JORNADA = 7000
+
+/** Cuantos segundos pasaron desde un instante ISO. Nunca negativo. */
+function segundosDesde (iso) {
+  return Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 1000))
+}
+
+/** El instante de ahora con la misma forma que usa el resto del mock. */
+function ahoraIso () {
+  return new Date().toISOString().replace(/\.\d{3}Z$/, 'Z')
+}
+
+/**
+ * Lee un id opcional del cuerpo, con la misma regla que la API real.
+ *
+ * Ausente, `null`, `''` y `0` son "no elegi"; cualquier otra cosa que no sea un entero positivo es
+ * 422. Tragarse la basura seria peor que rechazarla: dejaria la jornada sin destino mientras quien
+ * la mando cree que eligio uno.
+ */
+function idOpcional (valor, campo) {
+  if (valor === undefined || valor === null || valor === '' || valor === 0) return null
+
+  if (!Number.isInteger(valor) || valor <= 0) {
+    throw new ErrorApi(422, 'validation_failed', 'Hay campos que no se pueden guardar.', { [campo]: ['invalido'] })
+  }
+
+  return valor
+}
+
+/** El Cliente existe y no esta en la papelera, o 422. Devuelve su id. */
+function exigirCliente (id) {
+  const cliente = CLIENTES.find((c) => c.id === id)
+
+  if (!cliente) {
+    throw new ErrorApi(422, 'validation_failed', 'Hay campos que no se pueden guardar.', { client_id: ['no_encontrado'] })
+  }
+
+  return cliente.id
+}
+
+/** El Cliente de una jornada, ya con su nombre. Degrada a `null` si lo borraron despues. */
+function clienteDeJornada (jornada) {
+  if (jornada.client_id === null) return null
+
+  const cliente = CLIENTES.find((c) => c.id === jornada.client_id)
+
+  return cliente ? { id: cliente.id, name: cliente.company } : null
+}
+
+/** La jornada como viaja: con el Cliente resuelto y los segundos calculados por el servidor. */
+function presentarJornada (jornada) {
+  return {
+    id: jornada.id,
+    started_at: jornada.started_at,
+    seconds: segundosDesde(jornada.started_at),
+    client: clienteDeJornada(jornada)
+  }
+}
+
+/** El cronometro corriendo, en la forma anidada que usan las dos rutas que lo devuelven. */
+function presentarMedidor (medidor) {
+  if (!medidor) return null
+
+  const espacio = ESPACIOS.find((e) => e.id === medidor.project_id) ?? null
+  const proceso = medidor.task_id === null ? null : PROCESOS.find((p) => p.id === medidor.task_id) ?? null
+
+  return {
+    id: medidor.id,
+    project: espacio ? { id: espacio.id, name: espacio.name } : null,
+    task: proceso ? { id: proceso.id, name: proceso.name, status: proceso.status } : null,
+    start_time: medidor.start_time,
+    seconds: segundosDesde(medidor.start_time)
+  }
+}
+
+/** El cuerpo de `GET /me/jornada`, que es tambien lo que devuelven el POST y el PATCH. */
+function estadoDelDia (staffId) {
+  const jornada = JORNADAS.get(staffId) ?? null
+
+  if (jornada === null) {
+    return { open: null, seconds: 0, measured_seconds: 0, uncovered_seconds: 0, over_journey: false, timer: null }
+  }
+
+  const segundos = segundosDesde(jornada.started_at)
+  const medidos = jornada.medidos + (jornada.timer ? segundosDesde(jornada.timer.start_time) : 0)
+
+  return {
+    open: presentarJornada(jornada),
+    seconds: segundos,
+    measured_seconds: medidos,
+    uncovered_seconds: Math.max(0, segundos - medidos),
+    // Ocho horas. El mock no las va a alcanzar en una sesion de prueba, pero la bandera existe igual.
+    over_journey: segundos > 8 * 3600,
+    timer: presentarMedidor(jornada.timer)
+  }
+}
+
+/** Arranca el cronometro de la jornada abierta. 409 sin jornada, o con uno ya corriendo. */
+function arrancarMedidor (staffId, { espacioId, procesoId }) {
+  const jornada = JORNADAS.get(staffId)
+
+  if (!jornada) throw new ErrorApi(409, 'conflict', 'No tienes ninguna jornada abierta.')
+  if (jornada.timer) throw new ErrorApi(409, 'conflict', 'Ya tienes un cronómetro corriendo.')
+
+  jornada.timer = {
+    id: ++SIGUIENTE_JORNADA,
+    project_id: espacioId,
+    task_id: procesoId,
+    start_time: ahoraIso()
+  }
+
+  return jornada.timer
+}
+
+/** Detiene el cronometro y acumula lo medido. 409 si no hay ninguno corriendo. */
+function detenerMedidor (staffId) {
+  const jornada = JORNADAS.get(staffId)
+
+  if (!jornada || !jornada.timer) throw new ErrorApi(409, 'conflict', 'No tienes ningún cronómetro corriendo.')
+
+  jornada.medidos += segundosDesde(jornada.timer.start_time)
+  jornada.timer = null
+}
+
+/**
+ * El Espacio y el Proceso del destino, comprobados igual que en la API real.
+ *
+ * El orden de las comprobaciones importa: el `task_id` huerfano se rechaza ANTES de mirar si el
+ * Espacio existe, porque sin `project_id` no hay Espacio contra el que mirar nada.
+ */
+function resolverDestino (cuerpo) {
+  const espacioId = idOpcional(cuerpo.project_id, 'project_id')
+  const procesoId = idOpcional(cuerpo.task_id, 'task_id')
+
+  if (procesoId !== null && espacioId === null) {
+    throw new ErrorApi(422, 'validation_failed', 'Hay campos que no se pueden guardar.', {
+      project_id: ['requerido_con_proceso']
+    })
+  }
+
+  if (espacioId === null) return { espacioId: null, procesoId: null }
+
+  const espacio = ESPACIOS.find((e) => e.id === espacioId)
+  if (!espacio) throw new ErrorApi(404, 'not_found', 'Ese Espacio no existe o no lo puedes ver.')
+
+  if (procesoId !== null) {
+    const proceso = PROCESOS.find((p) => p.id === procesoId)
+    if (!proceso) throw new ErrorApi(404, 'not_found', 'Ese Proceso no existe o no lo puedes ver.')
+
+    if (proceso.rel_type !== 'project' || proceso.rel_id !== espacioId) {
+      throw new ErrorApi(422, 'validation_failed', 'Hay campos que no se pueden guardar.', {
+        task_id: ['no_pertenece_al_espacio']
+      })
+    }
+  }
+
+  return { espacioId, procesoId }
+}
+
+/** `/me/jornada`, `/me/jornada/resumen` y `/me/jornada/cierre`. */
+async function jornadaRuta (metodo, resto, actual, cuerpo) {
+  const sub = resto[1] ?? null
+
+  if (sub === 'resumen') {
+    if (metodo !== 'GET') throw new ErrorApi(404, 'not_found', 'Ruta de jornada desconocida.')
+
+    const jornada = JORNADAS.get(actual.id)
+    if (!jornada) throw new ErrorApi(404, 'not_found', 'No tienes ninguna jornada abierta.')
+
+    const estado = estadoDelDia(actual.id)
+    const medidor = presentarMedidor(jornada.timer)
+
+    return {
+      estado: 200,
+      cuerpo: conDatos({
+        jornada: presentarJornada(jornada),
+        measured_seconds: estado.measured_seconds,
+        uncovered_seconds: estado.uncovered_seconds,
+        // Un item por cronometro corriendo. El mock no guarda el historico de cronometros
+        // detenidos: lo que esta pantalla tiene que poder dibujar es el resumen vacio y el resumen
+        // con una linea, y las dos formas salen de aca.
+        items: medidor === null
+          ? []
+          : [{ project: medidor.project, task: medidor.task, seconds: medidor.seconds, corriendo: true }]
+      })
+    }
+  }
+
+  if (sub === 'cierre') {
+    if (metodo !== 'POST') throw new ErrorApi(404, 'not_found', 'Ruta de jornada desconocida.')
+
+    const jornada = JORNADAS.get(actual.id)
+    if (!jornada) throw new ErrorApi(409, 'conflict', 'No tienes ninguna jornada abierta.')
+
+    const detenidos = jornada.timer ? 1 : 0
+    const segundos = segundosDesde(jornada.started_at)
+
+    JORNADAS.delete(actual.id)
+
+    return {
+      estado: 200,
+      cuerpo: conDatos({
+        id: jornada.id,
+        started_at: jornada.started_at,
+        ended_at: ahoraIso(),
+        seconds: segundos,
+        auto_closed: false,
+        timers_stopped: detenidos
+      })
+    }
+  }
+
+  if (sub !== null) throw new ErrorApi(404, 'not_found', 'Ruta de jornada desconocida.')
+
+  if (metodo === 'GET') return { estado: 200, cuerpo: conDatos(estadoDelDia(actual.id)) }
+
+  if (metodo === 'POST') {
+    if (JORNADAS.has(actual.id)) throw new ErrorApi(409, 'conflict', 'Ya tienes una jornada abierta.')
+
+    const entrada = (await cuerpo()) ?? {}
+    // Todo se valida ANTES de crear nada: un Cliente invalido no abre la jornada.
+    const { espacioId, procesoId } = resolverDestino(entrada)
+    const clienteId = idOpcional(entrada.client_id, 'client_id')
+    const cliente = clienteId === null ? null : exigirCliente(clienteId)
+
+    JORNADAS.set(actual.id, {
+      id: ++SIGUIENTE_JORNADA,
+      started_at: ahoraIso(),
+      client_id: cliente,
+      medidos: 0,
+      timer: null
+    })
+
+    // La jornada corre; el cronometro no. Solo el camino con Espacio arranca algo.
+    if (espacioId !== null) arrancarMedidor(actual.id, { espacioId, procesoId })
+
+    return { estado: 201, cuerpo: conDatos(estadoDelDia(actual.id)) }
+  }
+
+  if (metodo === 'PATCH') {
+    const jornada = JORNADAS.get(actual.id)
+    if (!jornada) throw new ErrorApi(409, 'conflict', 'No tienes ninguna jornada abierta.')
+
+    const entrada = (await cuerpo()) ?? {}
+
+    // La clave tiene que venir: un PATCH sin `client_id` es un error de quien lo manda, no un
+    // borrado silencioso. Para quitarlo se manda `client_id: null` explicito.
+    if (!('client_id' in entrada)) {
+      throw new ErrorApi(422, 'validation_failed', 'Hay campos que no se pueden guardar.', { client_id: ['requerido'] })
+    }
+
+    const clienteId = idOpcional(entrada.client_id, 'client_id')
+    jornada.client_id = clienteId === null ? null : exigirCliente(clienteId)
+
+    return { estado: 200, cuerpo: conDatos(estadoDelDia(actual.id)) }
+  }
+
+  throw new ErrorApi(404, 'not_found', 'Ruta de jornada desconocida.')
+}
+
 async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, peticion) {
   const [recurso, ...resto] = segmentos
 
@@ -3092,6 +3368,72 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
       estado: 201,
       cuerpo: conDatos({ ...sesion.emitirSesion(objetivo.id), staff: presentarStaff(objetivo) })
     }
+  }
+
+  // La jornada propia y sus tres formas de abrirse. Va ANTES del bloque de `me` por el mismo motivo
+  // que "Mi Área": ese bloque contesta la ficha de la persona a cualquier resto, asi que sin esta
+  // rama `GET /me/jornada` devolveria un staff y el control de la cabecera leeria `open` de un objeto
+  // que no lo tiene — o sea "no hay jornada abierta" para siempre, y el modal de apertura en bucle.
+  if (recurso === 'me' && resto[0] === 'jornada') {
+    return await jornadaRuta(metodo, resto, actual, cuerpo)
+  }
+
+  // Los cronometros. Arrancar uno sobre una jornada ya abierta es como se le pone destino al dia que
+  // se abrio sin el, asi que sin estas rutas la segunda mitad del camino nuevo no se puede recorrer.
+  //
+  // `tasks/{id}/timer` se resuelve aca y no en el bloque de procesos porque el cronometro es uno solo
+  // por persona y vive en la jornada: dos almacenes del mismo hecho es como el mock deja de ser un
+  // contrato ejecutable. `timer_activo` del proceso se mantiene al dia igual, que es lo que lee su
+  // ficha.
+  if ((recurso === 'projects' || recurso === 'tasks') && resto[1] === 'timer') {
+    const id = Number(resto[0])
+    if (!Number.isInteger(id) || id <= 0) throw new ErrorApi(404, 'not_found', 'Recurso desconocido.')
+
+    if (recurso === 'projects') {
+      const espacio = buscarO404(ESPACIOS, id, 'Espacio')
+
+      if (metodo === 'POST') {
+        return { estado: 201, cuerpo: conDatos(presentarMedidor(arrancarMedidor(actual.id, { espacioId: espacio.id, procesoId: null }))) }
+      }
+      if (metodo === 'DELETE') {
+        detenerMedidor(actual.id)
+        return { estado: 204, cuerpo: null }
+      }
+
+      throw new ErrorApi(404, 'not_found', 'Recurso desconocido.')
+    }
+
+    const proceso = buscarO404(PROCESOS, id, 'Proceso')
+    // Un Proceso que cuelga de un cliente y no de un Espacio deja el medidor sin Espacio: es el caso
+    // polimorfico que los fixtures ya traen, y la interfaz tiene que sobrevivirlo.
+    const espacioId = proceso.rel_type === 'project' ? proceso.rel_id : null
+
+    if (metodo === 'POST') {
+      const medidor = arrancarMedidor(actual.id, { espacioId, procesoId: proceso.id })
+      proceso.timer_activo = { id: medidor.id, staff_id: actual.id, start_time: medidor.start_time }
+
+      return { estado: 201, cuerpo: conDatos(presentarMedidor(medidor)) }
+    }
+    if (metodo === 'DELETE') {
+      detenerMedidor(actual.id)
+      proceso.timer_activo = null
+
+      return { estado: 204, cuerpo: null }
+    }
+
+    throw new ErrorApi(404, 'not_found', 'Recurso desconocido.')
+  }
+
+  // `DELETE /live/timers/{id}`: detener desde la cabecera, sin saber sobre que se estaba midiendo.
+  // El id no se compara porque el mock tiene un cronometro por persona; lo que importa es de quien.
+  if (recurso === 'live' && resto[0] === 'timers' && metodo === 'DELETE') {
+    const jornada = JORNADAS.get(actual.id)
+    const proceso = jornada?.timer?.task_id == null ? null : PROCESOS.find((p) => p.id === jornada.timer.task_id)
+
+    detenerMedidor(actual.id)
+    if (proceso) proceso.timer_activo = null
+
+    return { estado: 204, cuerpo: null }
   }
 
   // `GET /me/mi-area`. Va ANTES del bloque de `me`, que responde la propia ficha a cualquier resto:
@@ -3676,28 +4018,6 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
       proceso.status = columna
       proceso.kanban_order = Number(posicion ?? 1)
       return { estado: 200, cuerpo: conDatos(proceso) }
-    }
-
-    if (subrecurso === 'timer') {
-      exigirPermiso(actual, 'tasks', 'edit')
-      if (metodo === 'POST') {
-        if (proceso.timer_activo) {
-          throw new ErrorApi(409, 'conflict', 'Ya hay un cronómetro activo en este proceso.')
-        }
-        proceso.timer_activo = {
-          id: 900 + proceso.id,
-          staff_id: actual.id,
-          start_time: new Date().toISOString().replace(/\.\d{3}Z$/, 'Z')
-        }
-        return { estado: 201, cuerpo: conDatos(proceso.timer_activo) }
-      }
-      if (metodo === 'DELETE') {
-        if (!proceso.timer_activo) {
-          throw new ErrorApi(409, 'conflict', 'No hay ningún cronómetro activo.')
-        }
-        proceso.timer_activo = null
-        return { estado: 204, cuerpo: null }
-      }
     }
 
     throw new ErrorApi(404, 'not_found', 'Ruta de proceso desconocida.')

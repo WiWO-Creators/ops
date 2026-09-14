@@ -16,11 +16,40 @@ export interface StaffEnVivo {
   area: string | null
 }
 
-/** Jornada abierta, tal como viaja en el tablero. `seconds` lo calcula el servidor. */
+/**
+ * El Cliente para quien es el dia, cuando la jornada se abrio sin Espacio.
+ *
+ * **No es un destino**: contra un Cliente no se mide tiempo —`tbltaskstimers` solo sabe de Procesos y
+ * Espacios— asi que esto no aparece nunca en `MedidorEnVivo`. Es para quien es la jornada, no contra
+ * que corre el cronometro.
+ *
+ * Viene con el nombre puesto (`Escritura\Jornada` lo resuelve contra `tblclients`), y por eso la
+ * cabecera no pide `/clients/{id}` para escribir una palabra.
+ */
+export interface ClienteDeJornada {
+  id: number
+  name: string
+}
+
+/**
+ * Jornada abierta, tal como viaja en el tablero. `seconds` lo calcula el servidor.
+ *
+ * `client` es **opcional y anulable**, y las dos cosas significan algo distinto. Ausente
+ * (`undefined`) es una API sin la migracion `0520` aplicada: no sabe del campo y no lo manda, y esta
+ * pantalla no puede quedarse en blanco por eso. `null` es una API que si sabe y dice que no hay
+ * Cliente —o que el que habia se borro o se fue a la papelera, caso en que degrada a `null` en vez de
+ * romper la lectura del dia—. Ninguno de los dos se lee con `client.name` a pelo; ver
+ * `clienteDeJornada()`.
+ *
+ * Solo lo mandan las rutas propias (`open` de `GET /me/jornada` y `jornada` del resumen). El tablero
+ * `GET /live` no lo trae, y por eso el campo es opcional en vez de vivir en un tipo aparte: es la
+ * misma jornada vista por dos rutas, y partirla en dos tipos obligaria a convertir de una a otra.
+ */
 export interface JornadaEnVivo {
   id: number
   started_at: string
   seconds: number
+  client?: ClienteDeJornada | null
 }
 
 /** Lo que se abre al arrancar la jornada. */
