@@ -1,7 +1,8 @@
 /**
- * Verificacion en pantalla de la paridad del portal: las nueve pestañas que el cliente abre con el
+ * Verificacion en pantalla de la paridad del portal: las diez pestañas que el cliente abre con el
  * MISMO panel que ve el colaborador —Descripcion, Tareas (tabla y tablero), Hitos, Tiempos,
- * Discusiones, Gantt, Calendario y Actividad—, la ficha de una Tarea, y que el panel no regreso.
+ * Discusiones, Gantt, Calendario, Meeting Paper y Actividad—, la ficha de una Tarea, el interruptor
+ * con el que el equipo enciende el Meeting Paper del cliente, y que el panel no regreso.
  *
  * El clic va por `evaluate`: en ops-v2 `locator.click()` se cuelga. La sesion se consigue pidiendo
  * la cookie a `/api/sesion` e inyectandola con `secure: false`.
@@ -23,28 +24,56 @@ const SALIDA = process.env.PARIDAD_CAPTURAS ?? 'capturas-portal-paridad'
 
 await mkdir(SALIDA, { recursive: true })
 
-const respuesta = await fetch(`${BASE}/api/sesion`, {
-  method: 'POST',
-  headers: { 'content-type': 'application/json' },
-  body: JSON.stringify({ portal: true, email: 'clienta@acme.com', password: 'portal1234' })
-})
-assert.equal(respuesta.status, 200)
+/** Las cookies de una respuesta de `/api/sesion`, listas para inyectar. `secure: false` es la clave. */
+function galletas (respuesta) {
+  return respuesta.headers.getSetCookie()
+    .map((c) => c.split(';')[0])
+    .map((c) => {
+      const [nombre, ...valor] = c.split('=')
+      return { name: nombre, value: valor.join('='), domain: 'localhost', path: '/', httpOnly: true, secure: false, sameSite: 'Lax' }
+    })
+}
 
-const cookie = respuesta.headers.getSetCookie()
-  .map((c) => c.split(';')[0])
-  .map((c) => {
-    const [nombre, ...valor] = c.split('=')
-    return { name: nombre, value: valor.join('='), domain: 'localhost', path: '/', httpOnly: true, secure: false, sameSite: 'Lax' }
-  })
+const CLIENTA = { portal: true, email: 'clienta@acme.com', password: 'portal1234' }
+const ANA = { email: 'ana@wiwo.me', password: 'mock1234' }
 
 const navegador = await chromium.launch()
 const contexto = await navegador.newContext({ viewport: { width: 1280, height: 900 } })
-await contexto.addCookies(cookie)
+
+/**
+ * Cambia la sesion del navegador.
+ *
+ * El portal y el panel usan la MISMA cookie, asi que entrar como una persona pisa a la otra. Se
+ * alterna a proposito: el interruptor del Meeting Paper se prende del lado del equipo y se mira del
+ * lado del cliente, y sin ir y volver no se comprueba que la pestaña aparezca de verdad.
+ */
+async function entrarComo (credenciales) {
+  const respuesta = await fetch(`${BASE}/api/sesion`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(credenciales)
+  })
+  assert.equal(respuesta.status, 200, `no pude entrar como ${credenciales.email}`)
+  await contexto.addCookies(galletas(respuesta))
+}
+
+await entrarComo(CLIENTA)
 const pagina = await contexto.newPage()
 
 const errores = []
 pagina.on('pageerror', (e) => errores.push(`pageerror: ${e.message}`))
 pagina.on('console', (m) => { if (m.type() === 'error') errores.push(`console: ${m.text()}`) })
+
+/**
+ * Peticiones que fallaron, con la pantalla desde la que salieron.
+ *
+ * Un panel podado que ademas pide lo que no puede leer se ve bien y deja al cliente con un 401 en la
+ * consola: el conteo es la unica forma de notarlo, porque en pantalla no se ve nada.
+ */
+const fallidas = []
+pagina.on('response', (r) => {
+  if (r.status() >= 400) fallidas.push(`${r.status()} ${r.url()} @ ${pagina.url()}`)
+})
 
 /** Va a una ruta y espera que la red se calme. */
 async function ir (ruta) {
@@ -77,7 +106,7 @@ await ir('/portal/proyectos/1')
 visto.pestanias = await pestanias()
 assert.deepEqual(visto.pestanias, [
   'Descripción', 'Tareas', 'Tiempos', 'Hitos', 'Archivos', 'Discusiones', 'Diagrama de Gantt',
-  'Calendario', 'Actividad'
+  'Calendario', 'Meeting Paper', 'Actividad'
 ])
 
 // ---- Pestaña Tareas: la tabla del colaborador, sin escritura ----------------------------------
@@ -300,12 +329,64 @@ assert.equal(visto.entradasDeActividad > 0, true, 'la actividad no trajo entrada
 // La clave `visible_to_customer` no viaja al portal, y sin ella la fila no lleva control.
 assert.equal(visto.interruptoresDeActividad, 0, 'el portal dibujó el interruptor de visibilidad')
 
+// ---- Pestaña Meeting Paper: el acta se lee, no se escribe -------------------------------------
+await ir('/portal/proyectos/1?tab=actas')
+await pagina.waitForSelector('table')
+visto.encabezadosDeActas = await pagina.$$eval('table thead th', (ns) => ns.map((n) => n.textContent.trim()))
+visto.filasDeActas = await pagina.$$eval('table tbody tr', (ns) => ns.length)
+visto.botonesDeActas = await pagina.$$eval('button', (ns) => ns.map((n) => n.textContent.trim()).filter(Boolean))
+visto.textoActas = await pagina.textContent('body')
+await pagina.screenshot({ path: `${SALIDA}/portal-actas-lista.png`, fullPage: true })
+
+assert.equal(visto.filasDeActas, 2, 'el listado de Meeting Papers no trajo las dos actas')
+assert.deepEqual(visto.encabezadosDeActas, ['Título', 'Cliente', 'Fecha de la reunión', 'Escrito por', 'Creado'])
+assert.equal(visto.botonesDeActas.some((b) => b.includes('Nuevo Meeting Paper')), false, 'el portal ofrece crear un acta')
+// `source` no viaja al contacto: como se escribio el acta es asunto del equipo.
+assert.equal(visto.textoActas.includes('Escrito con IA'), false, 'el portal delata que el acta la escribio un modelo')
+assert.equal(visto.textoActas.includes('No se pudo cargar'), false, 'el Meeting Paper del portal falló')
+
+// El acta abierta: el documento, sus datos y sus archivos. Ni Corregir, ni Eliminar, ni el estilo.
+await ir('/portal/proyectos/1?tab=actas&acta=901')
+await pagina.waitForSelector('iframe')
+visto.botonesDelActa = await pagina.$$eval('button', (ns) => ns.map((n) => n.textContent.trim()).filter(Boolean))
+visto.textoDelActa = await pagina.textContent('body')
+visto.adjuntosDelActa = await pagina.$$eval('figure figcaption span', (ns) => ns.map((n) => n.textContent.trim()))
+await pagina.screenshot({ path: `${SALIDA}/portal-acta-abierta.png`, fullPage: true })
+
+assert.equal(visto.textoDelActa.includes('Kickoff del rediseño'), true, 'no se abrió el acta')
+assert.equal(visto.textoDelActa.includes('Asistentes: Ana Pérez, Renata Ferreyra'), true, 'el acta perdió sus asistentes')
+assert.equal(visto.textoDelActa.includes('Archivos de la reunión'), true, 'el acta perdió sus adjuntos')
+assert.equal(visto.adjuntosDelActa.some((s) => s === 'reunion-kickoff.m4a'), true, 'falta el audio de la reunión')
+for (const prohibido of ['Corregir', 'Guardar', 'Eliminar', 'Descartar cambios']) {
+  assert.equal(visto.botonesDelActa.includes(prohibido), false, `boton de escritura en el acta: ${prohibido}`)
+}
+assert.equal(visto.botonesDelActa.some((b) => b.startsWith('Estilo:')), false, 'el portal ofrece cambiar la marca')
+// Exportar e imprimir no escriben nada: arman el archivo con el HTML que ya se descargo.
+assert.equal(visto.botonesDelActa.includes('Exportar'), true, 'el cliente no puede bajarse el acta')
+
+// Un acta sin adjuntos: el bloque no se dibuja vacio.
+await ir('/portal/proyectos/1?tab=actas&acta=902')
+await pagina.waitForSelector('iframe')
+visto.textoActaSinAdjuntos = await pagina.textContent('body')
+await pagina.screenshot({ path: `${SALIDA}/portal-acta-sin-adjuntos.png`, fullPage: true })
+assert.equal(visto.textoActaSinAdjuntos.includes('Revisión semanal'), true, 'no se abrió el acta sin adjuntos')
+assert.equal(visto.textoActaSinAdjuntos.includes('Archivos de la reunión'), false, 'dibujó el bloque de archivos vacío')
+
+// `?acta=nuevo` lo escribe cualquiera en la URL: sin capacidad de alta no abre el asistente.
+await ir('/portal/proyectos/1?tab=actas&acta=nuevo')
+await pagina.waitForSelector('table')
+visto.filasConActaNueva = await pagina.$$eval('table tbody tr', (ns) => ns.length)
+visto.textoActaNueva = await pagina.textContent('body')
+await pagina.screenshot({ path: `${SALIDA}/portal-actas-alta-por-url.png`, fullPage: true })
+assert.equal(visto.filasConActaNueva, 2, '`?acta=nuevo` no cayó al listado')
+assert.equal(visto.textoActaNueva.includes('Subir'), false, 'el asistente de creación se abrió en el portal')
+
 // ---- Proyecto 8: pestañas apagadas y pestañas encendidas pero vacias --------------------------
 await ir('/portal/proyectos/8')
 visto.pestaniasDelOcho = await pestanias()
 await pagina.screenshot({ path: `${SALIDA}/portal-proyecto-sin-tareas.png`, fullPage: true })
 assert.deepEqual(visto.pestaniasDelOcho, ['Descripción', 'Hitos', 'Archivos', 'Discusiones', 'Actividad'])
-for (const apagada of ['Tareas', 'Calendario', 'Tiempos', 'Diagrama de Gantt']) {
+for (const apagada of ['Tareas', 'Calendario', 'Tiempos', 'Diagrama de Gantt', 'Meeting Paper']) {
   assert.equal(visto.pestaniasDelOcho.includes(apagada), false, `pestaña apagada visible: ${apagada}`)
 }
 
@@ -334,16 +415,7 @@ await pagina.screenshot({ path: `${SALIDA}/portal-discusiones-vacio.png`, fullPa
 assert.equal(/Sin discusiones|No hay|Todav/i.test(visto.textoDiscusionesDelOcho), true, 'el proyecto sin discusiones no dijo nada')
 
 // ---- El panel del colaborador sigue igual ------------------------------------------------------
-const respuestaStaff = await fetch(`${BASE}/api/sesion`, {
-  method: 'POST',
-  headers: { 'content-type': 'application/json' },
-  body: JSON.stringify({ email: 'ana@wiwo.me', password: 'mock1234' })
-})
-assert.equal(respuestaStaff.status, 200)
-await contexto.addCookies(respuestaStaff.headers.getSetCookie().map((c) => c.split(';')[0]).map((c) => {
-  const [nombre, ...valor] = c.split('=')
-  return { name: nombre, value: valor.join('='), domain: 'localhost', path: '/', httpOnly: true, secure: false, sameSite: 'Lax' }
-}))
+await entrarComo(ANA)
 
 await ir('/espacios/1?tab=tareas')
 await pagina.waitForSelector('table')
@@ -426,7 +498,97 @@ visto.panelInterruptoresDeActividad = await pagina.$$eval('input[type="checkbox"
 await pagina.screenshot({ path: `${SALIDA}/panel-actividad.png`, fullPage: true })
 assert.equal(visto.panelInterruptoresDeActividad > 0, true, 'el panel perdió el interruptor de visibilidad')
 
+// ---- El Meeting Paper del colaborador conserva todo ------------------------------------------
+await ir('/espacios/1?tab=actas')
+await pagina.waitForSelector('table')
+visto.panelFilasDeActas = await pagina.$$eval('table tbody tr', (ns) => ns.length)
+visto.panelBotonesDeActas = await pagina.$$eval('button', (ns) => ns.map((n) => n.textContent.trim()).filter(Boolean))
+await pagina.screenshot({ path: `${SALIDA}/panel-actas-lista.png`, fullPage: true })
+assert.equal(visto.panelFilasDeActas, 2, 'el panel perdió las actas')
+assert.equal(
+  visto.panelBotonesDeActas.some((b) => b.includes('Nuevo Meeting Paper')),
+  true,
+  'el panel perdió el alta de Meeting Paper'
+)
+
+await ir('/espacios/1?tab=actas&acta=901')
+await pagina.waitForSelector('iframe')
+visto.panelBotonesDelActa = await pagina.$$eval('button', (ns) => ns.map((n) => n.textContent.trim()).filter(Boolean))
+visto.panelTextoDelActa = await pagina.textContent('body')
+await pagina.screenshot({ path: `${SALIDA}/panel-acta-abierta.png`, fullPage: true })
+// Las cuatro escrituras siguen ahi: corregir, cambiar la marca, exportar y el menu con Eliminar.
+assert.equal(visto.panelBotonesDelActa.includes('Corregir'), true, 'el panel perdió Corregir')
+assert.equal(visto.panelBotonesDelActa.some((b) => b.startsWith('Estilo:')), true, 'el panel perdió el selector de marca')
+assert.equal(visto.panelBotonesDelActa.includes('⋯'), true, 'el panel perdió el menú con Eliminar')
+// `source` si viaja del lado del equipo: la insignia esta.
+assert.equal(visto.panelTextoDelActa.includes('Escrito con IA'), true, 'el panel perdió la insignia de IA')
+
+// ---- El interruptor: apagado → encendido → apagado, mirando el portal en cada paso ------------
+await ir('/espacios/8?tab=configuracion')
+await pagina.waitForSelector('#portal-actas')
+visto.interruptorAlEntrar = await pagina.$eval('#portal-actas', (n) => n.checked)
+visto.textoConfiguracion = await pagina.textContent('body')
+await pagina.screenshot({ path: `${SALIDA}/panel-configuracion-portal.png`, fullPage: true })
+assert.equal(visto.interruptorAlEntrar, false, 'el flag del Meeting Paper no nació apagado')
+assert.equal(visto.textoConfiguracion.includes('Qué ve el cliente'), true, 'falta el bloque del portal')
+
+/** Lo que la API tiene guardado, leido con la cookie del navegador. */
+async function flagDelOcho () {
+  return await pagina.evaluate(async () => {
+    const respuesta = await fetch('/api/bff/projects/8/portal-settings')
+    return (await respuesta.json()).data.wiwo_portal_actas
+  })
+}
+
+await clicar('#portal-actas')
+await pagina.waitForFunction(() => document.querySelector('#portal-actas').disabled === false)
+visto.flagEncendido = await flagDelOcho()
+await pagina.screenshot({ path: `${SALIDA}/panel-configuracion-portal-encendido.png`, fullPage: true })
+assert.equal(visto.flagEncendido, true, 'el interruptor no guardó el encendido')
+
+// Del lado del cliente: la pestaña aparece, y aparece vacia porque el 8 no tiene ninguna acta.
+await entrarComo(CLIENTA)
+await ir('/portal/proyectos/8')
+visto.pestaniasDelOchoEncendido = await pestanias()
+assert.equal(visto.pestaniasDelOchoEncendido.includes('Meeting Paper'), true, 'la pestaña no apareció')
+
+await ir('/portal/proyectos/8?tab=actas')
+await pagina.waitForLoadState('networkidle')
+visto.textoActasDelOcho = await pagina.textContent('body')
+await pagina.screenshot({ path: `${SALIDA}/portal-actas-vacio.png`, fullPage: true })
+assert.equal(/Sin Meeting|No hay|Todav/i.test(visto.textoActasDelOcho), true, 'el proyecto sin actas no dijo nada')
+assert.equal(visto.textoActasDelOcho.includes('No se pudo cargar'), false, 'el proyecto sin actas dio error')
+
+// Y se apaga igual de verdad.
+await entrarComo(ANA)
+await ir('/espacios/8?tab=configuracion')
+await pagina.waitForSelector('#portal-actas')
+assert.equal(await pagina.$eval('#portal-actas', (n) => n.checked), true, 'el interruptor no leyó lo guardado')
+await clicar('#portal-actas')
+await pagina.waitForFunction(() => document.querySelector('#portal-actas').disabled === false)
+visto.flagApagado = await flagDelOcho()
+assert.equal(visto.flagApagado, false, 'el interruptor no guardó el apagado')
+
+await entrarComo(CLIENTA)
+await ir('/portal/proyectos/8')
+visto.pestaniasDelOchoApagado = await pestanias()
+await pagina.screenshot({ path: `${SALIDA}/portal-proyecto-actas-apagado.png`, fullPage: true })
+assert.equal(visto.pestaniasDelOchoApagado.includes('Meeting Paper'), false, 'la pestaña no desapareció')
+
+await ir('/portal/proyectos/8?tab=actas')
+await pagina.waitForLoadState('networkidle')
+visto.textoActasApagado = await pagina.textContent('body')
+// Con el flag apagado la pestaña no existe: pedirla por URL cae a la primera, no a un 403 en pantalla.
+assert.equal(visto.textoActasApagado.includes('No se pudo cargar'), false, 'la pestaña apagada dejó un error a la vista')
+
 await navegador.close()
 
 console.log(JSON.stringify(visto, null, 2))
 console.log('\nerrores de consola:', errores.length === 0 ? 'ninguno' : errores.slice(0, 10))
+console.log('peticiones fallidas:', fallidas.length === 0 ? 'ninguna' : fallidas)
+
+// Los 404 de `/api/bff/presence` y `/api/bff/filter-presets` son huecos preexistentes del mock y solo
+// los pide el PANEL. Del lado del cliente no se admite ninguna: una peticion que falla ahi es una
+// pestaña que pide lo que su contrato no le da.
+const fallidasDelPortal = fallidas.filter((f) => f.includes('@ http://localhost') && f.split('@ ')[1].includes('/portal/'))
+assert.deepEqual(fallidasDelPortal, [], 'el portal disparó peticiones que fallaron')

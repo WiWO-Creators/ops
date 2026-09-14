@@ -1852,6 +1852,94 @@ function guardarActa (espacio, actual, campos, html, origen, adjuntos = []) {
 }
 
 /**
+ * Un acta tal como la ve el cliente.
+ *
+ * Es la del equipo menos lo que `FormasDelPortal::ACTAS` no publica. Se deriva de `presentarActa` y
+ * quita claves en vez de volver a armar el objeto: asi un campo nuevo del acta llega a los dos lados
+ * y la unica decision que se toma aca es cual se le esconde al cliente.
+ *
+ * `file_name` del adjunto tampoco sale: es el nombre en disco, y al cliente lo nombra `name`.
+ */
+function presentarActaPortal (acta, opciones) {
+  const completa = presentarActa(acta, opciones)
+  const publica = {}
+
+  for (const [clave, valor] of Object.entries(completa)) {
+    if (!FUERA_DEL_PORTAL_ACTA.includes(clave)) publica[clave] = valor
+  }
+
+  if (Array.isArray(publica.attachments)) {
+    publica.attachments = publica.attachments.map((adjunto) => ({
+      id: adjunto.id,
+      acta_id: adjunto.acta_id,
+      name: adjunto.name,
+      filetype: adjunto.filetype,
+      size: adjunto.size,
+      url: adjunto.url,
+      date_added: adjunto.date_added
+    }))
+  }
+
+  return publica
+}
+
+/** Como se escribio el acta y quien la toco es vocabulario interno: no viaja al portal. */
+const FUERA_DEL_PORTAL_ACTA = ['source', 'staff_id', 'updated_by']
+
+/**
+ * Dos Meeting Papers ya escritos en el Espacio 1.
+ *
+ * El resto de las actas nace durante la sesion —ese es el ciclo que interesa probar del lado del
+ * equipo—, pero el portal es de SOLO lectura: sin una escrita de antemano, la pestaña del cliente
+ * solo se puede mirar vacia. Son dos y no una porque el caso "acta sin adjuntos" se lee distinto y
+ * hay que poder verlo al lado del que si los tiene.
+ */
+function sembrarActas () {
+  const espacio = ESPACIOS.find((e) => e.id === 1)
+  const autora = STAFF.find((s) => s.id === 1) ?? STAFF[0]
+
+  if (espacio === undefined || autora === undefined) return
+
+  guardarActa(
+    espacio,
+    autora,
+    {
+      title: 'Kickoff del rediseño',
+      client: 'Acme SpA',
+      meeting_date: '2026-08-20',
+      place: 'Oficina de Acme',
+      modality: 'presencial',
+      attendees: ['Ana Pérez', 'Renata Ferreyra'],
+      brand: 'wiwo'
+    },
+    actaGenerada(espacio),
+    'ia',
+    [
+      { name: 'reunion-kickoff.m4a', size: 8_412_000, type: 'audio/mp4' },
+      { name: 'pizarra.png', size: 412_000, type: 'image/png' }
+    ]
+  )
+
+  guardarActa(
+    espacio,
+    autora,
+    {
+      title: 'Revisión semanal',
+      client: 'Acme SpA',
+      meeting_date: '2026-09-03',
+      place: '',
+      modality: 'online',
+      attendees: ['Ana Pérez'],
+      brand: 'mgc'
+    },
+    actaGenerada(espacio),
+    'manual'
+  )
+}
+
+sembrarActas()
+
+/**
  * Corta un texto en trozos de `TAMANO_DELTA` caracteres.
  *
  * Se recorre con el spread y no con `slice` sobre el string: `slice` parte los pares subrogados y un
@@ -3408,6 +3496,22 @@ function estadoDeEspacioIaRuta (id) {
   return { estado: 200, cuerpo: conDatos({ ...redactado, reutilizado: false }) }
 }
 
+/**
+ * El contacto de un token, o `null` si ese token no es de un contacto.
+ *
+ * Existe para la unica ruta que los dos sujetos piden con la MISMA url —la descarga de un adjunto del
+ * Meeting Paper—: hay que poder preguntar de quien es el token sin que preguntarlo se convierta en un
+ * 401 para el otro sujeto. No traga el error: lo traduce a "este token no es de un contacto", que es
+ * justo lo que se esta preguntando.
+ */
+function contactoDelToken (token) {
+  try {
+    return sesion.resolverContacto(token, 'acceso')
+  } catch {
+    return null
+  }
+}
+
 async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, peticion) {
   const [recurso, ...resto] = segmentos
 
@@ -3617,7 +3721,7 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
                   estimated_hours: espacio.estimated_hours ?? null
                 }
               : {}),
-            tabs: suyo.tabs,
+            tabs: pestaniasDelContacto(espacio.id, suyo),
             members: STAFF.filter((persona) => espacio.miembros.includes(persona.id))
               .map(({ id, full_name, profile_image_url }) => ({ id, full_name, profile_image_url }))
           })
@@ -3631,9 +3735,11 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
       // flag en 0 no se distinguen de un bug.
       const compartido = COMPARTIDO_CON_EL_CLIENTE[espacio.id] ?? COMPARTIDO_CON_EL_CLIENTE.defecto
 
+      const pestanias = pestaniasDelContacto(espacio.id, compartido)
+
       /** 403 cuando el Proyecto no comparte esa pestaña, igual que `exigirPestania` de la API. */
       const exigirPestania = (pestania) => {
-        if (!compartido.tabs.includes(pestania)) {
+        if (!pestanias.includes(pestania)) {
           throw new ErrorApi(403, 'forbidden', `Este proyecto no comparte "${pestania}".`)
         }
       }
@@ -3786,6 +3892,29 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
         }
       }
 
+      // El Meeting Paper del cliente. Mismo listado que el del equipo —la API usa la misma consulta,
+      // asi que conserva orden, busqueda y paginacion— con la forma podada, y la ficha con su
+      // contenido y sus adjuntos. Solo GET: las cuatro escrituras del acta son del panel.
+      if (resto[2] === 'actas' && (resto.length === 3 || resto.length === 4)) {
+        exigirPestania('actas')
+
+        const suyas = ACTAS.filter((a) => a.project_id === espacio.id)
+
+        if (resto.length === 3) {
+          const { filas, paginacion } = aplicarConsulta(suyas, parametros, CONSULTA_ACTAS)
+
+          return {
+            estado: 200,
+            cuerpo: conDatos(filas.map((a) => presentarActaPortal(a, { conContenido: false })), { pagination: paginacion })
+          }
+        }
+
+        const acta = suyas.find((a) => a.id === Number(resto[3]))
+        if (!acta) throw new ErrorApi(404, 'not_found', 'No existe ese Meeting Paper.')
+
+        return { estado: 200, cuerpo: conDatos(presentarActaPortal(acta, { conContenido: true })) }
+      }
+
       // Solo lo que el equipo marco visible, y sin la marca: al portal no llega la clave que la
       // decide, que es lo que hace que la fila del cliente no lleve interruptor.
       if (resto[2] === 'activity' && resto.length === 3) {
@@ -3801,6 +3930,49 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
     }
 
     throw new ErrorApi(404, 'not_found', `Recurso desconocido: "${seccion ?? ''}".`)
+  }
+
+  // `GET /files/acta/{id}/download`: el binario de un adjunto del Meeting Paper, para los DOS
+  // sujetos.
+  //
+  // Va antes de la puerta del panel porque la API emite la misma url para el equipo y para el
+  // cliente —no existe `/portal/files/...`—, asi que un adjunto abierto desde el portal llegaria acá
+  // con un token de contacto y moriria en el 401 del panel. La guarda del contacto es la de
+  // `Descargas`: el acta tiene que ser de un Espacio de su cliente y con la pestaña `actas`
+  // encendida. Sin eso, la ficha publicaba una url que el propio cliente no podia abrir.
+  //
+  // Es el unico binario que el mock sirve de verdad, y es a proposito: la ficha del acta pinta las
+  // fotos como miniatura, asi que con metadata en JSON no hay forma de ver si el titulo y el boton
+  // quedaron bien puestos respecto de la imagen.
+  if (recurso === 'files' && metodo === 'GET' && resto[0] === 'acta' && resto[2] === 'download') {
+    const contacto = contactoDelToken(token)
+    const acta = ACTAS.find((a) => (a.attachments ?? []).some((adj) => adj.id === Number(resto[1])))
+    const adjunto = (acta?.attachments ?? []).find((a) => a.id === Number(resto[1]))
+
+    // Sin sesion de contacto tiene que haberla de staff, y un token invalido muere acá igual.
+    if (contacto === null) sesion.resolver(token, 'acceso')
+
+    if (adjunto === undefined) throw new ErrorApi(404, 'not_found', 'No existe ese adjunto.')
+
+    if (contacto !== null) {
+      const espacio = ESPACIOS.find((e) => e.id === acta.project_id)
+      const suyo = espacio !== undefined && espacio.clientid === contacto.client_id
+      // 404 y no 403: para este contacto ese adjunto no existe.
+      if (!suyo || !ajustesDelPortal(acta.project_id).wiwo_portal_actas) {
+        throw new ErrorApi(404, 'not_found', 'No existe ese adjunto.')
+      }
+    }
+
+    return {
+      transmitir: (respuesta) => {
+        respuesta.writeHead(200, {
+          'Content-Type': adjunto.filetype === '' ? 'application/octet-stream' : adjunto.filetype,
+          'Content-Disposition': `attachment; filename="${adjunto.name.replace(/"/g, '')}"`,
+          'X-Content-Type-Options': 'nosniff'
+        })
+        respuesta.end(PLACEHOLDER_PNG)
+      }
+    }
   }
 
   // --- A partir de acá, todo exige token ----------------------------------
@@ -4172,6 +4344,50 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
     return { estado: 200, cuerpo: conDatos(conContactos(conCamposPersonalizados(cliente, 'clients', includes), includes)) }
   }
 
+  // Que ve el cliente de un Espacio. Va antes del bloque de `projects` por lo mismo que las actas:
+  // ese bloque solo atiende GET, y este endpoint tambien acepta PUT.
+  if (recurso === 'projects' && resto[1] === 'portal-settings') {
+    if (resto.length !== 2) throw new ErrorApi(404, 'not_found', 'Recurso desconocido.')
+
+    const espacio = buscarO404(ESPACIOS, Number(resto[0]), 'espacio')
+
+    if (metodo === 'GET') {
+      exigirPermiso(actual, 'projects', 'view')
+
+      return { estado: 200, cuerpo: conDatos(ajustesDelPortal(espacio.id)) }
+    }
+
+    // Ni PATCH ni POST ni DELETE: el bloque se reemplaza entero o no se toca.
+    if (metodo !== 'PUT') throw new ErrorApi(404, 'not_found', 'Recurso desconocido.')
+
+    // Ser miembro no alcanza para escribir: la membresia abre ver.
+    exigirPermiso(actual, 'projects', 'edit')
+
+    const datos = await cuerpo()
+    const errores = {}
+
+    // Una clave de mas es 422 y no se ignora: `tblproject_settings` guarda tambien las 18 `view_*`
+    // del panel clasico, y aceptar nombres libres seria escribir cualquiera de ellas desde acá.
+    for (const clave of Object.keys(datos)) {
+      if (clave !== 'wiwo_portal_actas') errores[clave] = ['desconocida']
+    }
+
+    const encendido = booleanoDelPortal(datos.wiwo_portal_actas)
+
+    // Es un PUT: la clave que falta es 422, no "dejala como estaba". Un formulario al que se le cae
+    // un campo en el camino no puede guardar a medias.
+    if (!Object.hasOwn(datos, 'wiwo_portal_actas')) errores.wiwo_portal_actas = ['required']
+    else if (encendido === null) errores.wiwo_portal_actas = ['boolean']
+
+    if (Object.keys(errores).length > 0) {
+      throw new ErrorApi(422, 'validation_failed', 'Revisá los interruptores del portal.', errores)
+    }
+
+    AJUSTES_DEL_PORTAL.set(espacio.id, encendido)
+
+    return { estado: 200, cuerpo: conDatos(ajustesDelPortal(espacio.id)) }
+  }
+
   // Meeting Paper. Va antes del bloque de `projects`, que solo atiende GET: las actas se crean,
   // editan y borran, asi que necesitan su propia rama con los cuatro verbos.
   if (recurso === 'projects' && resto[1] === 'actas') {
@@ -4495,30 +4711,6 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
     }
 
     throw new ErrorApi(404, 'not_found', 'Ruta de proceso desconocida.')
-  }
-
-  // `GET /files/acta/{id}/download`: el binario de un adjunto del Meeting Paper.
-  //
-  // Es el unico binario que el mock sirve de verdad, y es a proposito: la ficha del acta pinta las
-  // fotos como miniatura, asi que con metadata en JSON no hay forma de ver si el titulo y el boton
-  // quedaron bien puestos respecto de la imagen. Un PNG de 1x1 alcanza para que el `<img>` cargue.
-  if (recurso === 'files' && metodo === 'GET' && resto[0] === 'acta' && resto[2] === 'download') {
-    const adjunto = ACTAS
-      .flatMap((acta) => acta.attachments ?? [])
-      .find((a) => a.id === Number(resto[1]))
-
-    if (adjunto === undefined) throw new ErrorApi(404, 'not_found', 'No existe ese adjunto.')
-
-    return {
-      transmitir: (respuesta) => {
-        respuesta.writeHead(200, {
-          'Content-Type': adjunto.filetype === '' ? 'application/octet-stream' : adjunto.filetype,
-          'Content-Disposition': `attachment; filename="${adjunto.name.replace(/"/g, '')}"`,
-          'X-Content-Type-Options': 'nosniff'
-        })
-        respuesta.end(PLACEHOLDER_PNG)
-      }
-    }
   }
 
   if (recurso === 'files' && metodo === 'GET' && resto[1] === 'download') {
@@ -5201,8 +5393,9 @@ const HITOS_OCULTOS_AL_CLIENTE = [15, 16]
  *    dos hitos estan ocultos al cliente y no tiene ninguna discusion, asi que es tambien el caso de
  *    "pestaña encendida y vacia", que se lee distinto y hay que poder ver.
  *
- * `actas` no esta en ninguna lista: su flag por proyecto nace apagado y se enciende a mano.
- * `tickets` tampoco: es del modulo de soporte y no del Proyecto.
+ * `actas` no esta en ninguna de las dos listas y no es un olvido: no vive en `available_features`
+ * sino en su propio interruptor por proyecto (`AJUSTES_DEL_PORTAL`), que se enciende y se apaga
+ * desde el panel. `tickets` tampoco esta: es del modulo de soporte y no del Proyecto.
  */
 const COMPARTIDO_CON_EL_CLIENTE = {
   1: {
@@ -5232,6 +5425,52 @@ const COMPARTIDO_CON_EL_CLIENTE = {
     tiempo: false,
     finanzas: false
   }
+}
+
+/**
+ * Los interruptores del portal por Espacio, **mutables**: es lo que escribe
+ * `PUT /projects/{id}/portal-settings`.
+ *
+ * En la API real son filas de `tblproject_settings` y la migracion `0570` los dejo en '0' para los
+ * 279 proyectos. Aca el 1 arranca encendido para poder mirar el Meeting Paper del cliente sin tener
+ * que prenderlo primero, y el 8 apagado, que es el caso "la pestaña no aparece". Los dos lados del
+ * interruptor a mano, igual que el resto del fixture del portal.
+ */
+const AJUSTES_DEL_PORTAL = new Map([[1, true]])
+
+/**
+ * El bloque de interruptores de un Espacio.
+ *
+ * La fila ausente vale `false`, igual que la lee `VisibilidadContacto::ajustes()`: asi un Espacio que
+ * nunca paso por la migracion se comporta como uno apagado y no como uno roto.
+ */
+function ajustesDelPortal (espacioId) {
+  return { wiwo_portal_actas: AJUSTES_DEL_PORTAL.get(espacioId) === true }
+}
+
+/**
+ * Las pestañas que un Espacio comparte hoy con su cliente.
+ *
+ * `actas` no sale de la lista fija: cuelga del interruptor, asi que aparece y desaparece de verdad
+ * cuando el panel lo toca. Es la misma regla de `VisibilidadContacto::PESTANIAS`, donde la pestaña
+ * exige la feature `project_notes` **y** el flag propio `wiwo_portal_actas`.
+ */
+function pestaniasDelContacto (espacioId, compartido) {
+  return ajustesDelPortal(espacioId).wiwo_portal_actas ? [...compartido.tabs, 'actas'] : compartido.tabs
+}
+
+/**
+ * Lee un booleano tolerando lo que manda un formulario, igual que `AjustesDelPortal::comoBooleano()`.
+ *
+ * `null` es "esto no es un booleano" y el llamador responde 422: `(Boolean) "no"` seria `true`, y una
+ * casilla que se enciende cuando le mandan "no" es peor que un error.
+ */
+function booleanoDelPortal (valor) {
+  if (typeof valor === 'boolean') return valor
+  if (valor === 0 || valor === 1) return valor === 1
+  if (['0', '1', 'true', 'false'].includes(valor)) return valor === '1' || valor === 'true'
+
+  return null
 }
 
 /**
