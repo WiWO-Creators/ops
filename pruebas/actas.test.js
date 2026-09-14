@@ -118,6 +118,12 @@ test('el fallo del micrófono dice qué hacer, no solo que falló', () => {
 test('el selector de archivos ofrece las extensiones que la API acepta', () => {
   assert.ok(ACEPTA.audio.includes('.m4a'))
   assert.ok(ACEPTA.audio.includes('.opus'))
+  // Una reunión grabada en Meet o en Zoom sale como contenedor de video y lo que interesa es la
+  // pista de sonido. Si estas líneas se caen, el selector deja de ofrecer la grabación de la
+  // reunión y la persona no tiene cómo subirla.
+  assert.ok(ACEPTA.audio.includes('.mp4'))
+  assert.ok(ACEPTA.audio.includes('.mov'))
+  assert.ok(ACEPTA.audio.includes('.mkv'))
   assert.ok(ACEPTA.imagen.includes('.heic'))
   assert.ok(!ACEPTA.imagen.includes('.m4a'))
 })

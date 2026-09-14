@@ -68,6 +68,11 @@ export function AsistenteDeActa ({ proyectoId, onCreada, onCancelar }: PropsAsis
   // hora son varios minutos sin un solo `delta`, y sin esto la pantalla no dice nada en todo ese
   // rato: la persona no puede distinguir "está escuchando" de "se colgó".
   const [paso, setPaso] = useState<PasoIA | null>(null)
+  // Si el servidor ya dijo algo. Mientras sea `false` y haya archivo, lo que está pasando es la
+  // subida: `fetch` no informa progreso de subida, así que sin esto la pantalla dice "Escribiendo el
+  // Meeting Paper…" mientras en realidad todavía se está mandando un archivo de decenas de MB, que
+  // es justo el rato en que la persona se pregunta si se colgó.
+  const [contestoElServidor, setContestoElServidor] = useState(false)
   const [avance, setAvance] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [segundos, setSegundos] = useState(0)
@@ -134,6 +139,7 @@ export function AsistenteDeActa ({ proyectoId, onCreada, onCancelar }: PropsAsis
 
     setFase('generando')
     setPaso(null)
+    setContestoElServidor(false)
     setAvance('')
     setError(null)
     setSegundos(0)
@@ -152,6 +158,8 @@ export function AsistenteDeActa ({ proyectoId, onCreada, onCancelar }: PropsAsis
 
     try {
       for await (const crudo of leerSSE(`ia/proyectos/${proyectoId}/acta`, { cuerpo, senal: control.signal })) {
+        setContestoElServidor(true)
+
         const evento = leerEventoIA(crudo)
         if (evento === null) continue
 
@@ -199,16 +207,22 @@ export function AsistenteDeActa ({ proyectoId, onCreada, onCancelar }: PropsAsis
     }
   }
 
+  // La subida termina cuando llega el primer byte del servidor, no cuando el archivo sale del
+  // navegador: lo que importa es que del otro lado alguien lo recibió.
+  const subiendo = archivo !== null && !contestoElServidor
+
   if (fase === 'generando') {
     return (
       <div className="border-linea bg-superficie-hundida rounded-tarjeta flex flex-col gap-3 border p-6">
         <div className="flex items-center gap-3">
-          <Orbe medida="2.5rem" estado={paso?.orbe ?? 'generating'} />
+          <Orbe medida="2.5rem" estado={subiendo ? 'routing' : (paso?.orbe ?? 'generating')} />
           <div className="flex flex-col">
             <p className="text-texto text-sm font-medium">
-              {paso?.etiqueta ?? (modo === 'documento'
-                ? 'Leyendo el Meeting Paper y dejándolo en el formato del sistema…'
-                : 'Escribiendo el Meeting Paper…')}
+              {subiendo
+                ? `Subiendo el archivo… (${formatoPeso(archivo?.size ?? 0)})`
+                : paso?.etiqueta ?? (modo === 'documento'
+                  ? 'Leyendo el Meeting Paper y dejándolo en el formato del sistema…'
+                  : 'Escribiendo el Meeting Paper…')}
             </p>
             <p className="text-texto-sutil text-xs">
               {archivo === null || modo === 'documento'
