@@ -224,14 +224,12 @@ export interface DiscusionPortal {
   contact: { id: number, full_name: string } | null
 }
 
-export interface ComentarioPortal {
-  id: number
-  content: string
-  created: string | null
-  parent: number | null
-  author: { id: number, full_name: string, es_cliente: boolean } | null
-  file: { name: string, mime: string, url: string } | null
-}
+/*
+ * Los comentarios de una discusion NO estan aca: llegan en la misma forma que al panel
+ * (`ComentarioDiscusion` de `recursos.ts`), y el mismo panel los dibuja para los dos sujetos. Una
+ * segunda declaracion de la misma forma solo para el portal es lo que hacia que las dos pantallas
+ * se pudieran separar sin que nadie se enterara.
+ */
 
 /** Entrada del registro de actividad, sin la marca de visibilidad. */
 export interface ActividadPortal {
@@ -255,26 +253,10 @@ export interface TiempoPortal {
   duration_hm: string
 }
 
-/**
- * Columna del gantt: un hito con sus barras.
- *
- * Las claves mezclan español e ingles porque asi las devuelve el contrato del panel, que este
- * endpoint reusa: `nombre` y `tareas` de la columna, `name` y `start` de la barra.
+/*
+ * Los grupos del gantt tampoco estan aca, y por lo mismo: `RecursoGantt::paraContacto()` arma las
+ * columnas con el mismo presentador que el del equipo, asi que lo que llega es un `GrupoGantt` de
+ * `recursos.ts` y lo dibuja el mismo `PanelGantt`. La declaracion que vivia aca decia `grupo:
+ * string` y `dependencies: number[]`, que no es lo que la API manda: dos formas del mismo dato se
+ * separan, y la que nadie ejecuta se separa primero.
  */
-export interface ColumnaGanttPortal {
-  id: string
-  nombre: string
-  grupo: string
-  start: string | null
-  end: string | null
-  tareas: Array<{
-    id: number
-    name: string
-    start: string | null
-    end: string | null
-    status: number
-    progress: number
-    color: string | null
-    dependencies: number[]
-  }>
-}

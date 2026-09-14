@@ -15,6 +15,11 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { PORTAL_TAREAS, procesosDelContacto } from '../src/definiciones/portal-proyectos.ts'
 import { procesosDelEspacio } from '../src/definiciones/procesos.ts'
+import { DISCUSIONES, definicionDeDiscusiones } from '../src/definiciones/discusiones.ts'
+import { definicionDeHitos } from '../src/definiciones/hitos.ts'
+import { definicionDeTiempos } from '../src/definiciones/tiempos.ts'
+import { lecturasDelGantt } from '../src/componentes/proyecto/gantt.ts'
+import { fuenteDelPanel, fuenteDelPortal } from '../src/dominio/fuente-proyecto.ts'
 
 const definicion = procesosDelContacto(8)
 
@@ -116,4 +121,75 @@ test('ninguna columna ofrece ordenar por algo que el portal no ordena', () => {
 
     assert.equal(definicion.ordenables.includes(columna.ordenPor), true, columna.clave)
   }
+})
+
+/*
+ * Las otras cuatro pestañas compartidas eligen lo suyo por el mismo camino: una funcion de la capa
+ * de definiciones que mira el sujeto de la fuente. Es el UNICO lugar del front que lo mira, asi que
+ * es el unico donde se puede colar una columna, un filtro o una lectura que el contacto no tiene.
+ */
+
+const FUENTE_DEL_PANEL = fuenteDelPanel(7)
+const FUENTE_DEL_PORTAL = fuenteDelPortal(7)
+
+test('la tabla de Hitos del contacto se deriva de la del equipo y pierde lo que su endpoint no atiende', () => {
+  const { definicion: equipo, conTablero: tableroDelEquipo } = definicionDeHitos(FUENTE_DEL_PANEL, 7)
+  const { definicion: contacto, conTablero: tableroDelContacto } = definicionDeHitos(FUENTE_DEL_PORTAL, 7)
+
+  assert.equal(equipo.ruta, 'projects/7/milestones')
+  assert.equal(contacto.ruta, 'portal/projects/7/milestones')
+  // Mismos encabezados y en el mismo orden: la lista del cliente y la del equipo se leen igual.
+  assert.deepEqual(
+    contacto.columnas.map((c) => c.encabezado),
+    equipo.columnas.map((c) => c.encabezado)
+  )
+  // `paraContacto()` no recibe los parametros de la consulta: ofrecer filtros u orden seria ofrecer
+  // controles que se pueden pulsar y no cambian nada.
+  assert.deepEqual(contacto.filtros, [])
+  assert.deepEqual(contacto.ordenables, [])
+  assert.equal(contacto.busqueda, false)
+  assert.equal(contacto.columnas.every((c) => c.ordenPor === undefined), true)
+  // El kanban no existe para el contacto; el equipo lo conserva.
+  assert.equal(tableroDelEquipo, true)
+  assert.equal(tableroDelContacto, false)
+})
+
+test('la tabla de Discusiones del contacto no publica la visibilidad al cliente', () => {
+  const contacto = definicionDeDiscusiones(FUENTE_DEL_PORTAL, 7)
+
+  assert.equal(definicionDeDiscusiones(FUENTE_DEL_PANEL, 7).ruta, 'projects/7/discussions')
+  assert.equal(contacto.ruta, 'portal/projects/7/discussions')
+  // Al portal solo llegan las compartidas: la columna diria siempre "Sí" y delataria la distincion.
+  assert.equal(contacto.columnas.some((c) => c.clave === 'show_to_customer'), false)
+  assert.equal(contacto.filtros.some((f) => f.clave === 'show_to_customer'), false)
+  // El resto de la consulta si viaja: `paraContacto()` usa la misma whitelist que el equipo.
+  assert.deepEqual(contacto.ordenables, DISCUSIONES.ordenables)
+  assert.equal(contacto.busqueda, true)
+})
+
+test('la tabla de Tiempos del contacto pierde las columnas y los filtros que su contrato no tiene', () => {
+  const equipo = definicionDeTiempos(FUENTE_DEL_PANEL, 7)
+  const contacto = definicionDeTiempos(FUENTE_DEL_PORTAL, 7)
+
+  assert.equal(equipo.definicion.ruta, 'projects/7/timesheets')
+  assert.equal(contacto.definicion.ruta, 'portal/projects/7/timesheets')
+  // Etiquetas, duracion decimal y acciones por fila no llegan en el contrato del contacto.
+  for (const columna of ['tags', 'decimal', 'acciones']) {
+    assert.equal(equipo.columnas.includes(columna), true, `el equipo perdio la columna ${columna}`)
+    assert.equal(contacto.columnas.includes(columna), false, `columna colada: ${columna}`)
+  }
+  // Las columnas del contacto son un subconjunto del equipo y conservan su orden.
+  assert.deepEqual(contacto.columnas, equipo.columnas.filter((c) => contacto.columnas.includes(c)))
+  // El filtro por persona sin su catalogo es un desplegable vacio; facturable y facturada son del equipo.
+  for (const filtro of ['staff_id', 'billable', 'billed']) {
+    assert.equal(contacto.definicion.filtros.some((f) => f.clave === filtro), false, `filtro colado: ${filtro}`)
+  }
+  assert.equal(equipo.conFiltroDePersonas, true)
+  assert.equal(contacto.conFiltroDePersonas, false)
+})
+
+test('el Gantt del contacto solo agrupa por Hitos', () => {
+  assert.deepEqual(lecturasDelGantt(FUENTE_DEL_PANEL).agrupaciones, ['milestones', 'members', 'status'])
+  // `RecursoGantt::paraContacto()` responde 422 a cualquier otra: ofrecerlas seria mandarlo a un error.
+  assert.deepEqual(lecturasDelGantt(FUENTE_DEL_PORTAL).agrupaciones, ['milestones'])
 })

@@ -3600,11 +3600,24 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
       if (!espacio) throw new ErrorApi(404, 'not_found', 'Proyecto inexistente.')
 
       if (resto.length === 2) {
+        const suyo = COMPARTIDO_CON_EL_CLIENTE[espacio.id] ?? COMPARTIDO_CON_EL_CLIENTE.defecto
+
         return {
           estado: 200,
           cuerpo: conDatos({
             ...presentarEspacioPortal(espacio),
-            tabs: (COMPARTIDO_CON_EL_CLIENTE[espacio.id] ?? COMPARTIDO_CON_EL_CLIENTE.defecto).tabs,
+            image_url: espacio.image_url ?? null,
+            project_created: espacio.project_created ?? espacio.datecreated ?? null,
+            // Los importes y las horas estimadas solo con `view_finance_overview`: la clave **no
+            // viaja** cuando no corresponde, que es distinto de viajar en cero.
+            ...(suyo.finanzas
+              ? {
+                  project_cost: espacio.project_cost ?? null,
+                  project_rate_per_hour: espacio.project_rate_per_hour ?? null,
+                  estimated_hours: espacio.estimated_hours ?? null
+                }
+              : {}),
+            tabs: suyo.tabs,
             members: STAFF.filter((persona) => espacio.miembros.includes(persona.id))
               .map(({ id, full_name, profile_image_url }) => ({ id, full_name, profile_image_url }))
           })

@@ -18,6 +18,7 @@ import {
   montosDeLaFicha,
   simboloDelResumen,
   textoDeDias,
+  textoDelPlazo,
   type ProyectoDeFicha,
   type ResumenDeProyecto,
   type TiempoRegistradoDeResumen
@@ -280,7 +281,7 @@ function Indicadores ({ resumen }: { resumen: ResumenDeProyecto }): ReactElement
             <h3 className="text-texto text-sm font-semibold">Plazo</h3>
             <BarraProgreso porcentaje={resumen.days.left_percent} />
             <p className="text-texto-tenue text-xs">
-              {textoDeDias(resumen.days)} días · {Math.round(resumen.days.left_percent)}%
+              {textoDelPlazo(resumen.days)} · {Math.round(resumen.days.left_percent)}%
             </p>
           </section>
         )}

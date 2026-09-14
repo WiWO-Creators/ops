@@ -153,6 +153,21 @@ export function textoDeDias (days: ResumenDeProyecto['days']): string {
 }
 
 /**
+ * El mismo plazo, en la frase del bloque que lo acompaña con su barra.
+ *
+ * La unidad va aca y no pegada a `textoDeDias` en la plantilla: un proyecto vencido se leia
+ * "Vencido días", que no es castellano, y la tarjeta de arriba necesita el texto sin unidad.
+ *
+ * @param days el bloque `days` del resumen
+ * @returns `"12 / 27 días"`, `"Vencido"`, o el guion largo cuando no hay plazo que contar
+ */
+export function textoDelPlazo (days: ResumenDeProyecto['days']): string {
+  const texto = textoDeDias(days)
+
+  return days === null || days.left <= 0 ? texto : `${texto} días`
+}
+
+/**
  * Lo minimo del Proyecto que pinta la ficha de la pestaña Descripcion.
  *
  * Se declara lo que se usa y no `Espacio`: la misma ficha la abren el equipo, con

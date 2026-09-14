@@ -17,7 +17,16 @@ import {
 import { aTextoPlano, formatearImporte, segundosAHoraMinuto, textoPlano } from '../src/componentes/proyecto/formatos.ts'
 import { dependenciaPendiente, filtrosTrasCambiar } from '../src/componentes/datos/tabla.ts'
 import { PROCESOS } from '../src/definiciones/procesos.ts'
-import { altoDeTramo, maximoDelGrafico, textoDeDias } from '../src/componentes/proyecto/overview.ts'
+import {
+  altoDeTramo,
+  horasEstimadasDelResumen,
+  maximoDelGrafico,
+  montosDeLaFicha,
+  muestraFinanzas,
+  simboloDelResumen,
+  textoDeDias,
+  textoDelPlazo
+} from '../src/componentes/proyecto/overview.ts'
 import { barraDeGantt, diaDeFecha, rangoDeGantt } from '../src/componentes/proyecto/gantt.ts'
 import {
   cuerpoDelFormulario,
@@ -306,4 +315,45 @@ test('marcado sin texto es descripcion vacia', () => {
   // Importa porque el portal decide con esto si dibuja el parrafo: `<p></p>` no es una descripcion.
   assert.equal(aTextoPlano('<p></p>'), '')
   assert.equal(aTextoPlano('<p>&nbsp;</p>'), '')
+})
+
+test('textoDelPlazo pone la unidad solo cuando hay dias que contar', () => {
+  assert.equal(textoDelPlazo(null), '—')
+  assert.equal(textoDelPlazo({ total: 27, left: -3, left_percent: 0 }), 'Vencido')
+  assert.equal(textoDelPlazo({ total: 27, left: 12, left_percent: 44 }), '12 / 27 días')
+})
+
+test('montosDeLaFicha respeta el permiso, y el tipo de facturacion solo cuando el contrato lo manda', () => {
+  const delEquipo = { id: 1, description: null, start_date: null, deadline: null, date_finished: null, billing_type: 2, project_cost: 1000, project_rate_per_hour: 25 }
+
+  assert.deepEqual(montosDeLaFicha(delEquipo, false), { costo: null, tarifa: null })
+  // Con `billing_type` manda la regla del panel: por hora se muestra la tarifa y no el costo.
+  assert.deepEqual(montosDeLaFicha(delEquipo, true), { costo: null, tarifa: 25 })
+
+  // El contrato del contacto no publica `billing_type`: manda lo que la API decidio emitir.
+  const delContacto = { id: 1, description: null, start_date: null, deadline: null, date_finished: null, project_cost: 1000 }
+  assert.deepEqual(montosDeLaFicha(delContacto, true), { costo: 1000, tarifa: null })
+  // Y sin los importes, ninguna de las dos filas se dibuja.
+  const sinImportes = { id: 1, description: null, start_date: null, deadline: null, date_finished: null }
+  assert.deepEqual(montosDeLaFicha(sinImportes, true), { costo: null, tarifa: null })
+})
+
+test('las horas estimadas y la moneda se leen de los dos contratos', () => {
+  const base = { progress: 0, tasks: { total: 0, open: 0, completed: 0, completed_percent: 0 }, days: null }
+
+  assert.equal(horasEstimadasDelResumen({ ...base, estimated_hours: 120 }), 120)
+  assert.equal(horasEstimadasDelResumen({ ...base, finance: { estimated_hours: 80 } }), 80)
+  assert.equal(horasEstimadasDelResumen(base), null)
+
+  assert.equal(simboloDelResumen({ ...base, currency: { symbol: '$' } }), '$')
+  assert.equal(simboloDelResumen({ ...base, finance: { currency: { symbol: 'U$' } } }), 'U$')
+  assert.equal(simboloDelResumen(base), null)
+})
+
+test('muestraFinanzas es falso cuando el contrato no manda el tiempo registrado', () => {
+  const base = { progress: 0, tasks: { total: 0, open: 0, completed: 0, completed_percent: 0 }, days: null }
+
+  assert.equal(muestraFinanzas(base), false)
+  assert.equal(muestraFinanzas({ ...base, logged_time: { total_seconds: 60 } }), false)
+  assert.equal(muestraFinanzas({ ...base, logged_time: { total_seconds: 60, muestra_finanzas: true } }), true)
 })
