@@ -1,8 +1,8 @@
 'use client'
 
 import { Suspense, useCallback, useMemo, useState, type ReactElement } from 'react'
-import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
+import { Plus } from 'lucide-react'
 import { Boton } from '@/componentes/formularios/Boton'
 import { Insignia } from '@/componentes/presentadores/Insignia'
 import { Cargando, ErrorEstado } from '@/componentes/estado/Estados'
@@ -13,6 +13,7 @@ import { useRecurso } from './carga'
 import { AsistenteDeActa } from './AsistenteDeActa'
 import { DetalleActa } from './DetalleActa'
 import { PanelRecurso } from './PanelRecurso'
+import { EnlaceActa, TarjetaActa } from './TarjetaActa'
 import type { Acta } from '@/datos/recursos'
 import type { EstadoIa } from '@/dominio/ajustes'
 import type { Yo } from '@/datos/tipos'
@@ -175,6 +176,10 @@ function ActasDelProyecto ({ proyectoId, ia, yo }: PropsPanelActas): ReactElemen
           else setMotivoALaVista(true)
         }}
       >
+        {/* El icono va `aria-hidden`: el nombre del boton ya lo dice la etiqueta de al lado, y un
+            `+` anunciado por el lector de pantalla solo agrega ruido. El tamaño y el grosor son los
+            del resto del panel (`BarraLateral`), a escala de boton chico. */}
+        <Plus size={16} strokeWidth={2} aria-hidden="true" className="shrink-0" />
         Nuevo Meeting Paper
       </Boton>
     </div>
@@ -198,6 +203,7 @@ function ActasDelProyecto ({ proyectoId, ia, yo }: PropsPanelActas): ReactElemen
         claveFila={(acta) => acta.id}
         barra={barra}
         revision={revision}
+        tarjeta={(acta) => <TarjetaActa acta={acta} className="w-full" />}
       />
     </div>
   )
@@ -287,21 +293,4 @@ function idPositivo (crudo: string | null): number | null {
   const id = Number(crudo)
 
   return Number.isInteger(id) && id > 0 ? id : null
-}
-
-/** El título del acta como enlace a su detalle, conservando el resto de la vista. */
-function EnlaceActa ({ acta }: { acta: Acta }): ReactElement {
-  const params = useSearchParams()
-  const siguientes = new URLSearchParams(params.toString())
-  siguientes.set('acta', String(acta.id))
-
-  return (
-    <Link
-      href={`?${siguientes.toString()}`}
-      scroll={false}
-      className="text-texto hover:text-acento font-medium underline-offset-4 hover:underline"
-    >
-      {acta.title}
-    </Link>
-  )
 }

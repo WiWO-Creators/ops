@@ -21,6 +21,12 @@ const navegador = await chromium.launch({
   args: ['--use-fake-device-for-media-stream', '--use-fake-ui-for-media-stream']
 })
 
+/** PNG de 1x1: lo mínimo que un navegador pinta, para probar las miniaturas de los adjuntos. */
+const PNG_MINIMO = Buffer.from(
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
+  'base64'
+)
+
 /** Clic por `evaluate`: `locator.click()` se cuelga en este entorno. */
 async function clicPorTexto (pagina, texto) {
   const encontrado = await pagina.evaluate((buscado) => {
@@ -187,7 +193,136 @@ try {
   const despues = await pagina.evaluate(() => window.__pistas.map((p) => p.readyState))
   assert.deepEqual(despues, ['ended'], 'El micrófono quedó tomado después de cambiar de pestaña')
 
+  // === VARIOS ARCHIVOS, Y QUE QUEDEN GUARDADOS ===
+  //
+  // Antes el `<input>` no tenía `multiple` y el archivo elegido no se guardaba en ninguna parte: era
+  // la fuente de entrada del modelo y moría con la petición. Lo que se recorre acá es lo que cambió:
+  // que se puedan elegir varios, que el error de uno malo se entienda y no rompa nada, y que los
+  // buenos aparezcan listados en la ficha del acta con su nombre, su Proyecto y su descarga.
+  await pagina.goto(new URL(`/espacios/${espacio.id}?tab=actas&acta=nuevo`, destino).href, { waitUntil: 'networkidle' })
+  await clicPorTexto(pagina, 'Foto')
+  // `[multiple]` acota al campo del asistente: la pantalla monta otro `input[type=file]` oculto.
+  await pagina.waitForFunction(() => document.querySelector('input[type=file][multiple]') !== null, { timeout: 10000 })
+
+  const campoArchivos = pagina.locator('input[type=file][multiple]')
+  assert.equal(
+    await campoArchivos.evaluate((nodo) => nodo.multiple),
+    true,
+    'El selector tiene que aceptar varios archivos'
+  )
+
+  // Un MIME que no se acepta: error claro, y la pantalla sigue en pie.
+  await campoArchivos.setInputFiles([
+    { name: 'presupuesto.exe', mimeType: 'application/octet-stream', buffer: Buffer.from('MZ') }
+  ])
+  await pagina.waitForFunction(
+    () => document.body.textContent?.includes('Solo se aceptan archivos de audio o de imagen'),
+    { timeout: 10000 }
+  )
+  assert.ok(
+    await pagina.evaluate(() => document.body.textContent?.includes('Escribir el Meeting Paper')),
+    'Un archivo rechazado no puede dejar el formulario inutilizable'
+  )
+
+  // Uno bueno y uno pasado de tamaño: se rechaza la selección entera y el mensaje dice CUÁL sobra.
+  await campoArchivos.setInputFiles([
+    { name: 'pizarra.png', mimeType: 'image/png', buffer: PNG_MINIMO },
+    { name: 'enorme.png', mimeType: 'image/png', buffer: Buffer.alloc(26 * 1024 * 1024) }
+  ])
+  await pagina.waitForFunction(
+    () => document.body.textContent?.includes('enorme.png') && document.body.textContent?.includes('25,0 MB'),
+    { timeout: 15000 }
+  )
+
+  // Ahora tres buenos. El primero es el que lee el asistente y la pantalla lo dice.
+  await campoArchivos.setInputFiles([
+    { name: 'pizarra.png', mimeType: 'image/png', buffer: PNG_MINIMO },
+    { name: 'cuaderno.jpg', mimeType: 'image/jpeg', buffer: PNG_MINIMO },
+    { name: 'iphone.heic', mimeType: 'image/heic', buffer: Buffer.from('ftypheic') }
+  ])
+  await pagina.waitForFunction(
+    () => document.body.textContent?.includes('3 archivos') && document.body.textContent?.includes('Este es el que se lee'),
+    { timeout: 10000 }
+  )
+
+  await clicPorTexto(pagina, 'Escribir el Meeting Paper')
+  await pagina.waitForFunction(() => document.body.textContent?.includes('Archivos de la reunión'), { timeout: 30000 })
+
+  const tarjetas = await pagina.evaluate(() => {
+    const seccion = [...document.querySelectorAll('section')]
+      .find((s) => s.querySelector('h3')?.textContent?.includes('Archivos de la reunión'))
+
+    return [...(seccion?.querySelectorAll('figure') ?? [])].map((figura) => {
+      const imagen = figura.querySelector('img')
+      const enlace = figura.querySelector('a[download]')
+      const caja = figura.getBoundingClientRect()
+
+      return {
+        texto: (figura.textContent ?? '').trim(),
+        conMiniatura: imagen !== null,
+        // Lo que el reclamo pedía: el título y el botón DEBAJO de la imagen, no encima ni al lado.
+        tituloBajoLaImagen: imagen === null
+          ? null
+          : figura.querySelector('figcaption').getBoundingClientRect().top >= imagen.getBoundingClientRect().bottom,
+        descarga: enlace?.getAttribute('href') ?? null,
+        // Nada puede desbordar su tarjeta: un nombre de archivo sin espacios es el caso que lo hacía.
+        desborda: [...figura.querySelectorAll('*')].some((n) => n.getBoundingClientRect().right > caja.right + 1)
+      }
+    })
+  })
+
+  assert.equal(tarjetas.length, 3, `La ficha tiene que listar los tres archivos, listó ${tarjetas.length}`)
+  assert.ok(tarjetas.every((t) => t.descarga?.startsWith('/api/bff/files/acta/')), 'La descarga tiene que ir por el BFF, no por /api/v1')
+  assert.ok(tarjetas.every((t) => !t.desborda), 'Un adjunto desborda su tarjeta')
+  assert.ok(tarjetas.every((t) => t.texto.includes(espacio.name)), 'Falta el nombre del Proyecto junto a la foto')
+  assert.ok(tarjetas.every((t) => t.tituloBajoLaImagen !== false), 'El título quedó por encima o al lado de la imagen')
+
+  assert.ok(tarjetas[0].conMiniatura && tarjetas[1].conMiniatura, 'El .png y el .jpg tienen que verse como miniatura')
+  // El `.heic` es el caso que obliga a distinguir "es una imagen" de "el navegador la pinta": se
+  // acepta al subir porque es lo que sale de un iPhone, y una miniatura rota se lee como corrupto.
+  assert.equal(tarjetas[2].conMiniatura, false, 'El .heic no se puede pintar: ningún navegador lo dibuja')
+  assert.ok(tarjetas[2].texto.includes('iphone.heic'), 'El .heic tiene que listarse igual, con su nombre y su descarga')
+
+  // La miniatura carga de verdad: un `<img>` con `naturalWidth` 0 es un icono roto.
+  const cargaron = await pagina.evaluate(async () => {
+    const imagenes = [...document.querySelectorAll('figure img')]
+    await Promise.all(imagenes.map((i) => i.complete ? null : new Promise((listo) => { i.onload = listo; i.onerror = listo })))
+
+    return imagenes.map((i) => i.naturalWidth > 0)
+  })
+  assert.ok(cargaron.length > 0 && cargaron.every(Boolean), 'Alguna miniatura no cargó')
+
+  // A 400 px las tarjetas se apilan en una columna. Lo que se mira acá es que nada se salga: un
+  // nombre de archivo largo y sin espacios es exactamente lo que empuja una tarjeta fuera de la
+  // pantalla y deja la página con desplazamiento horizontal.
+  await pagina.setViewportSize({ width: 400, height: 900 })
+  await pagina.waitForTimeout(400)
+
+  const enMovil = await pagina.evaluate(() => {
+    const seccion = [...document.querySelectorAll('section')]
+      .find((s) => s.querySelector('h3')?.textContent?.includes('Archivos de la reunión'))
+    const figuras = [...(seccion?.querySelectorAll('figure') ?? [])]
+
+    return {
+      documentoDesborda: document.documentElement.scrollWidth > window.innerWidth,
+      // Una sola columna: todas empiezan en la misma x.
+      unaColumna: new Set(figuras.map((f) => Math.round(f.getBoundingClientRect().left))).size === 1,
+      tarjetaDesborda: figuras.some((f) => {
+        const caja = f.getBoundingClientRect()
+
+        return [...f.querySelectorAll('*')].some((n) => n.getBoundingClientRect().right > caja.right + 1)
+      })
+    }
+  })
+  assert.equal(enMovil.documentoDesborda, false, 'La ficha del acta desplaza horizontalmente a 400 px')
+  assert.equal(enMovil.unaColumna, true, 'A 400 px los adjuntos tienen que apilarse en una columna')
+  assert.equal(enMovil.tarjetaDesborda, false, 'Un nombre largo se sale de su tarjeta a 400 px')
+
+  await pagina.setViewportSize({ width: 1440, height: 1100 })
+
   console.log('Meeting Paper: pestaña, generación en streaming, visor aislado, editor diferido y listado OK')
+  console.log(`  ${tarjetas.length} adjuntos listados, con su título y su descarga bajo la imagen`)
+  console.log('  la ficha no desplaza horizontalmente a 400 px')
   console.log('  el visor deja imprimir sin dejar correr scripts')
   console.log('  el micrófono se suelta al cambiar de pestaña')
   console.log(`  ${filas.length} acta(s) en la lista`)

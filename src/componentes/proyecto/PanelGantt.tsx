@@ -4,6 +4,7 @@ import { useEffect, useId, useRef, useState, type ReactElement, type RefObject }
 import { useRouter, useSearchParams } from 'next/navigation'
 import { TriangleAlert } from 'lucide-react'
 import { Segmentado } from '@/componentes/formularios/Segmentado'
+import { Boton } from '@/componentes/formularios/Boton'
 import { Cargando, ErrorEstado, Vacio } from '@/componentes/estado/Estados'
 import { GLOSARIO } from '@/dominio/glosario'
 import { cn } from '@/lib/clases'
@@ -12,15 +13,18 @@ import { useRecurso } from './carga'
 import {
   ALTO_FILA,
   ANCHO_NOMBRES,
+  ESTADO_COMPLETA,
   PASO_FILA,
   ZOOMS,
   altoDeGantt,
   anchoDeGantt,
+  contarCompletadasDeGantt,
   describirDependencias,
   esZoomGantt,
   filasDeGantt,
   flechasDeGantt,
   marcasDeGantt,
+  ocultarCompletadasDeGantt,
   posicionDeHoy,
   rangoDeGantt,
   zoomSugerido,
@@ -52,6 +56,15 @@ import type { AgrupacionGantt, GrupoGantt, Lookups } from '@/datos/recursos'
  * trazo, que es justo lo que hace legible una flecha.
  *
  * Los grupos sin tareas no llegan: los omite la API, igual que el panel.
+ *
+ * **Ocultar completadas** se resuelve en el cliente: los datos ya traen el estado de cada tarea, asi
+ * que esconderlas no necesita otra vuelta a la API. Arranca apagado por el mismo motivo que el
+ * checkbox de la pestaña Hitos (ver el docblock de `PanelHitos.tsx`): al entrar a la pestaña se ve
+ * todo, y esconder es una decision explicita que ademas se anuncia al pie del diagrama.
+ *
+ * El interruptor y la ficha "Completa" del filtro por estado se apagan entre si. Son dos formas de
+ * hablar del mismo estado y, encendidas a la vez, se piden dos cosas incompatibles —solo completadas
+ * y ninguna completada— que dejarian el diagrama vacio sin nada que lo explique.
  */
 
 /**
@@ -66,7 +79,20 @@ const AGRUPACIONES = (['milestones', 'members', 'status'] as const).map((valor) 
 }))
 
 /** Parametros con los que el diagrama guarda su estado en la URL. */
-const PARAMETRO = { agrupar: 'gantt-agrupar', zoom: 'gantt-zoom', estado: 'gantt-estado' } as const
+const PARAMETRO = {
+  agrupar: 'gantt-agrupar',
+  zoom: 'gantt-zoom',
+  estado: 'gantt-estado',
+  completadas: 'gantt-completadas'
+} as const
+
+/**
+ * Valor con el que la URL pide esconder las completadas.
+ *
+ * Es un valor con nombre y no un `1` porque el enlace del diagrama se comparte: `gantt-completadas=
+ * ocultas` se entiende leyendo la barra de direcciones. Sin el parametro se ve todo.
+ */
+const COMPLETADAS_OCULTAS = 'ocultas'
 
 /**
  * Alto de cada una de las dos filas de la escala, en pixeles.
@@ -91,6 +117,7 @@ export function PanelGantt ({ proyectoId }: { proyectoId: number }): ReactElemen
     : 'milestones'
 
   const estados = leerEstados(params.get(PARAMETRO.estado))
+  const ocultarCompletadas = params.get(PARAMETRO.completadas) === COMPLETADAS_OCULTAS
   const { estado, recargar } = useRecurso<GrupoGantt[]>(
     rutaDelGantt(proyectoId, agrupar, estados),
     'No se pudo cargar el diagrama de Gantt.'
@@ -100,7 +127,12 @@ export function PanelGantt ({ proyectoId }: { proyectoId: number }): ReactElemen
   // El dia se congela al montar: recalcularlo en cada render movería el marcador de hoy y la marca
   // de vencida en medio de una sesion abierta desde ayer, sin que nada mas cambie en pantalla.
   const [hoy] = useState(() => hoyLocal())
-  const grupos = estado.fase === 'listo' ? estado.datos : []
+  const recibidos = estado.fase === 'listo' ? estado.datos : []
+  const completadas = contarCompletadasDeGantt(recibidos)
+  // Todo lo que sigue —rango, escala sugerida, filas, contadores y exportacion— trabaja sobre los
+  // grupos ya filtrados: si la linea de tiempo siguiera cubriendo tareas escondidas, el diagrama
+  // abriria meses vacios que nadie puede explicar mirando la pantalla.
+  const grupos = ocultarCompletadas ? ocultarCompletadasDeGantt(recibidos) : recibidos
   const rango = rangoDeGantt(grupos)
   const zoomPedido = params.get(PARAMETRO.zoom)
   // El zoom se resuelve acá y no dentro del diagrama porque el archivo exportado tiene que salir en
@@ -109,12 +141,22 @@ export function PanelGantt ({ proyectoId }: { proyectoId: number }): ReactElemen
     ? zoomPedido
     : rango === null ? 'mes' : zoomSugerido(rango)
 
-  /** Escribe un parametro del diagrama en la URL conservando el resto de la vista. */
-  function elegir (clave: string, valor: string | null): void {
+  /**
+   * Escribe parametros del diagrama en la URL conservando el resto de la vista.
+   *
+   * Acepta varios de una vez porque los controles que se apagan entre si tienen que viajar en la
+   * misma navegacion: en dos `router.replace` seguidos el segundo lee los parametros de antes del
+   * primero y lo pisa.
+   *
+   * @param cambios pares clave-valor; `null` borra el parametro
+   */
+  function elegir (cambios: Record<string, string | null>): void {
     const siguientes = new URLSearchParams(params.toString())
 
-    if (valor === null) siguientes.delete(clave)
-    else siguientes.set(clave, valor)
+    for (const [clave, valor] of Object.entries(cambios)) {
+      if (valor === null) siguientes.delete(clave)
+      else siguientes.set(clave, valor)
+    }
 
     router.replace(`?${siguientes.toString()}`, { scroll: false })
   }
@@ -122,8 +164,30 @@ export function PanelGantt ({ proyectoId }: { proyectoId: number }): ReactElemen
   /** Suma o quita un estado del filtro. Sin ninguno, la API devuelve todos. */
   function alternarEstado (id: number): void {
     const siguientes = estados.includes(id) ? estados.filter((n) => n !== id) : [...estados, id]
+    const enciendeCompleta = id === ESTADO_COMPLETA && !estados.includes(id)
 
-    elegir(PARAMETRO.estado, siguientes.length === 0 ? null : siguientes.join(','))
+    elegir({
+      [PARAMETRO.estado]: siguientes.length === 0 ? null : siguientes.join(','),
+      // Pedir la ficha "Completa" es pedir ver completadas: el interruptor que las esconde se apaga.
+      ...(enciendeCompleta ? { [PARAMETRO.completadas]: null } : {})
+    })
+  }
+
+  /** Enciende o apaga el ocultamiento de completadas, dejando el filtro por estado de acuerdo. */
+  function alternarCompletadas (): void {
+    if (ocultarCompletadas) {
+      elegir({ [PARAMETRO.completadas]: null })
+      return
+    }
+
+    // Esconder las completadas mientras la ficha "Completa" esta encendida no dejaria nada que ver:
+    // se apaga la ficha, que es la que se acaba de contradecir.
+    const sinCompleta = estados.filter((id) => id !== ESTADO_COMPLETA)
+
+    elegir({
+      [PARAMETRO.completadas]: COMPLETADAS_OCULTAS,
+      [PARAMETRO.estado]: sinCompleta.length === 0 ? null : sinCompleta.join(',')
+    })
   }
 
   return (
@@ -134,7 +198,7 @@ export function PanelGantt ({ proyectoId }: { proyectoId: number }): ReactElemen
           etiquetaVisible
           opciones={AGRUPACIONES.map((o) => ({ valor: o.valor, etiqueta: o.etiqueta }))}
           activo={agrupar}
-          onElegir={(valor) => { elegir(PARAMETRO.agrupar, valor) }}
+          onElegir={(valor) => { elegir({ [PARAMETRO.agrupar]: valor }) }}
         />
 
         <Segmentado
@@ -142,7 +206,7 @@ export function PanelGantt ({ proyectoId }: { proyectoId: number }): ReactElemen
           etiquetaVisible
           opciones={ZOOMS.map((z) => ({ valor: z, etiqueta: NOMBRE_DE_ZOOM[z] }))}
           activo={zoomPedido}
-          onElegir={(valor) => { elegir(PARAMETRO.zoom, valor) }}
+          onElegir={(valor) => { elegir({ [PARAMETRO.zoom]: valor }) }}
         />
 
         {lookups.estado.fase === 'listo' && (
@@ -151,6 +215,10 @@ export function PanelGantt ({ proyectoId }: { proyectoId: number }): ReactElemen
             elegidos={estados}
             onAlternar={alternarEstado}
           />
+        )}
+
+        {estado.fase === 'listo' && (
+          <InterruptorCompletadas activo={ocultarCompletadas} onAlternar={alternarCompletadas} />
         )}
 
         {estado.fase === 'listo' && (
@@ -168,7 +236,14 @@ export function PanelGantt ({ proyectoId }: { proyectoId: number }): ReactElemen
       {estado.fase === 'cargando' && <Cargando mensaje="Cargando el Gantt…" />}
       {estado.fase === 'error' && <ErrorEstado detalle={estado.mensaje} onReintentar={recargar} />}
       {estado.fase === 'listo' && (
-        <Diagrama grupos={grupos} rango={rango} zoom={zoom} hoy={hoy} />
+        <Diagrama
+          grupos={grupos}
+          rango={rango}
+          zoom={zoom}
+          hoy={hoy}
+          ocultas={ocultarCompletadas ? completadas : 0}
+          onMostrarCompletadas={alternarCompletadas}
+        />
       )}
     </div>
   )
@@ -255,6 +330,44 @@ function FiltroEstados ({
 }
 
 /**
+ * Interruptor que esconde las tareas ya terminadas.
+ *
+ * Se dibuja como una ficha igual a las del filtro por estado porque hace lo mismo —decide que se ve—,
+ * y con `aria-pressed` en vez de un checkbox porque no forma parte de ningun formulario: es el mismo
+ * patron del boton "Completados" del listado de tareas.
+ *
+ * Esta siempre a la vista mientras el diagrama este cargado, aunque el proyecto no tenga ninguna
+ * tarea completada. Esconderlo en ese caso lo haria aparecer y desaparecer al cambiar el filtro por
+ * estado, y un control que se mueve cuesta mas de encontrar que uno que a veces no hace nada.
+ *
+ * @param activo si las completadas estan escondidas ahora mismo
+ * @param onAlternar que hacer al tocarlo
+ */
+function InterruptorCompletadas ({
+  activo,
+  onAlternar
+}: {
+  activo: boolean
+  onAlternar: () => void
+}): ReactElement {
+  return (
+    <button
+      type="button"
+      aria-pressed={activo}
+      onClick={onAlternar}
+      className={cn(
+        'rounded-control border px-2.5 py-1 text-xs font-medium transition-colors',
+        activo
+          ? 'border-acento bg-acento-suave text-texto'
+          : 'border-linea text-texto-tenue hover:bg-hover hover:text-texto'
+      )}
+    >
+      Ocultar {GLOSARIO.proceso.plural.toLowerCase()} completadas
+    </button>
+  )
+}
+
+/**
  * Mide el ancho de un elemento y lo mantiene al dia.
  *
  * @returns la referencia que hay que colgar del elemento y su ancho en pixeles, 0 hasta la primera
@@ -288,27 +401,51 @@ function useAnchoMedido (): [RefObject<HTMLDivElement | null>, number] {
  * @param rango la linea de tiempo, o `null` si nada tiene fechas
  * @param zoom la escala ya resuelta por el panel
  * @param hoy fecha `YYYY-MM-DD` congelada por el panel
+ * @param ocultas cuantas tareas completadas se estan escondiendo; `0` si el interruptor esta apagado
+ * @param onMostrarCompletadas apaga el interruptor desde el estado vacio
  * @returns la grilla de pistas, o el estado vacio si nada tiene fechas que dibujar
  */
 function Diagrama ({
   grupos,
   rango,
   zoom,
-  hoy
+  hoy,
+  ocultas,
+  onMostrarCompletadas
 }: {
   grupos: GrupoGantt[]
   rango: RangoGantt | null
   zoom: ZoomGantt
   hoy: string
+  ocultas: number
+  onMostrarCompletadas: () => void
 }): ReactElement {
   const [caja, anchoCaja] = useAnchoMedido()
   const idResumen = useId()
 
   if (rango === null) {
+    // Con el interruptor encendido el diagrama puede quedarse sin nada que dibujar porque todo esta
+    // terminado, no porque falten fechas. Decir "sin fechas" ahi seria mentir, y dejar la pantalla en
+    // blanco sin una salida obligaria a adivinar que el filtro propio la vacio.
+    const mostrar = (
+      <Boton variante="secundario" tamano="chico" onClick={onMostrarCompletadas}>
+        Mostrar completadas
+      </Boton>
+    )
+
+    if (ocultas > 0 && !grupos.some((grupo) => grupo.tareas.length > 0)) {
+      return <Vacio titulo="Todo está completado" descripcion={frasePendiente(ocultas)} accion={mostrar} />
+    }
+
+    // Puede haber tareas pendientes sin fechas y completadas escondidas al mismo tiempo: entonces el
+    // motivo del vacio es el de siempre, pero el aviso de lo escondido tiene que seguir estando.
+    const sinFechas = `Ninguna ${GLOSARIO.proceso.singular.toLowerCase()} visible de este proyecto tiene fecha de inicio o de entrega.`
+
     return (
       <Vacio
         titulo="Sin fechas que mostrar"
-        descripcion={`Ninguna ${GLOSARIO.proceso.singular.toLowerCase()} de este proyecto tiene fecha de inicio o de entrega.`}
+        descripcion={ocultas > 0 ? `${sinFechas} ${fraseOcultas(ocultas)}.` : sinFechas}
+        accion={ocultas > 0 ? mostrar : undefined}
       />
     )
   }
@@ -323,6 +460,8 @@ function Diagrama ({
   // Se cuentan tareas y no filas: con `agrupar=members` la misma tarea aparece en la fila de cada
   // persona asignada, y contarla dos veces diria que hay mas trabajo del que hay.
   const tareas = new Set(filas.filter((fila) => fila.tareaId !== null).map((fila) => fila.tareaId))
+  // El interruptor no altera este numero: una tarea completa nunca cuenta como vencida (`estaVencida`
+  // en `gantt.ts`), asi que lo que se esconde no estaba sumando aca.
   const vencidas = new Set(
     filas.filter((fila) => fila.vencida).map((fila) => fila.tareaId)
   ).size
@@ -416,6 +555,7 @@ function Diagrama ({
             Hoy
           </span>
         )}
+        {ocultas > 0 && <span>{fraseOcultas(ocultas)}</span>}
         {vencidas > 0 && (
           <span className="text-texto-peligro flex items-center gap-1.5">
             <TriangleAlert aria-hidden="true" className="size-3.5" />
@@ -432,6 +572,7 @@ function Diagrama ({
           {GLOSARIO.proceso.plural.toLowerCase()} entre {formatearFecha(fechaDeDia(rango.inicio))} y{' '}
           {formatearFecha(fechaDeDia(rango.fin))}, en escala de {NOMBRE_DE_ZOOM[zoom].toLowerCase()}.
         </p>
+        {ocultas > 0 && <p>{fraseOcultas(ocultas)}</p>}
         {vencidas > 0 && (
           <p>
             {vencidas === 1
@@ -616,4 +757,31 @@ function Pista ({ fila }: { fila: FilaGantt }): ReactElement {
  */
 function fechaDeDia (dia: number): string {
   return new Date(dia * 86400000).toISOString().slice(0, 10)
+}
+
+/**
+ * Frase que anuncia cuantas tareas completadas se estan escondiendo.
+ *
+ * Vive en una funcion porque la dicen dos lugares —el pie visible y el resumen para lectores de
+ * pantalla— y dos copias del mismo texto se separan en el primer retoque.
+ *
+ * @param ocultas cuantas tareas completadas se esconden; siempre mayor que cero cuando se llama
+ * @returns el texto ya conjugado en singular o en plural
+ */
+function fraseOcultas (ocultas: number): string {
+  return ocultas === 1
+    ? `1 ${GLOSARIO.proceso.singular.toLowerCase()} completada oculta`
+    : `${String(ocultas)} ${GLOSARIO.proceso.plural.toLowerCase()} completadas ocultas`
+}
+
+/**
+ * Descripcion del estado vacio cuando lo unico que habia estaba completado.
+ *
+ * @param ocultas cuantas tareas completadas se esconden; siempre mayor que cero cuando se llama
+ * @returns el texto ya conjugado en singular o en plural
+ */
+function frasePendiente (ocultas: number): string {
+  return ocultas === 1
+    ? `La única ${GLOSARIO.proceso.singular.toLowerCase()} de este proyecto está completada y el diagrama la está ocultando.`
+    : `Las ${String(ocultas)} ${GLOSARIO.proceso.plural.toLowerCase()} de este proyecto están completadas y el diagrama las está ocultando.`
 }

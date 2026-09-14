@@ -1,10 +1,11 @@
-import Link from 'next/link'
 import { Suspense } from 'react'
+import { Inbox, KeyRound, Siren, type LucideIcon } from 'lucide-react'
 import { AccesoGoogle } from '@/componentes/administracion/AccesoGoogle'
 import { FormularioDeAjustes } from '@/componentes/administracion/FormularioDeAjustes'
 import { PanelAvisosPorCorreo } from '@/componentes/administracion/PanelAvisosPorCorreo'
 import { Cargando, ErrorEstado, SinPermiso } from '@/componentes/estado/Estados'
 import { Pestanas, type Panel } from '@/componentes/proyecto/Pestanas'
+import { Tarjeta, type TonoTarjeta } from '@/componentes/estructura/Tarjeta'
 import { TituloModulo } from '@/componentes/estructura/TituloModulo'
 import { leerAjustes } from '@/datos/ajustes'
 import { ErrorApi } from '@/datos/errores'
@@ -18,6 +19,39 @@ export const metadata = { title: 'Administración · WiWO Ops' }
 
 /** Los grupos de `GET /settings` que se dibujan solos con el formulario generico, en orden. */
 const GRUPOS_GENERICOS = ['procesos', 'cronometro', 'listados']
+
+interface PantallaAparte {
+  href: string
+  titulo: string
+  descripcion: string
+  icono: LucideIcon
+  tono: TonoTarjeta
+}
+
+/** Las pantallas de Administración que no son pestañas: cada una tiene su propio listado paginado. */
+const PANTALLAS_APARTE: PantallaAparte[] = [
+  {
+    href: '/administracion/correos-entrantes',
+    titulo: 'Casilla entrante',
+    descripcion: 'Los briefs y los puntajes de los correos que llegan a la casilla de Ops.',
+    icono: Inbox,
+    tono: 'acento'
+  },
+  {
+    href: '/administracion/incidentes',
+    titulo: 'Incidentes',
+    descripcion: 'Los errores que la API guardó, con el código que reporta quien los sufrió.',
+    icono: Siren,
+    tono: 'peligro'
+  },
+  {
+    href: '/administracion/accesos',
+    titulo: 'Accesos',
+    descripcion: 'Escalones, roles, personas, áreas y los interruptores de permisos.',
+    icono: KeyRound,
+    tono: 'violeta'
+  }
+]
 
 /**
  * Trae los ajustes de la instalacion y los catalogos, o el error de la API como valor.
@@ -113,32 +147,27 @@ export default async function AdministracionPage () {
   ]
 
   return (
-    <section className="flex flex-col gap-4">
-      <div>
-        <TituloModulo
-          titulo="Administración"
-          descripcion="Todo lo que cambia el comportamiento de Ops para el equipo entero. Solo lo ve —y solo lo puede guardar— un superadministrador."
-        />
-        {/* La casilla entrante es una pantalla aparte y no una pestaña mas: tiene su propio listado
-            paginado de fichas, y meterlo en una pestaña obligaria a bajarlo en cada visita a
-            Administracion aunque nadie lo mire. El enlace vive aca porque si no, a la pantalla solo
-            se llega escribiendo la URL. */}
-        <Link
-          href="/administracion/correos-entrantes"
-          className="text-acento mt-3 inline-block text-sm font-semibold underline underline-offset-4"
-        >
-          Casilla entrante: briefs y puntajes de los correos que llegan
-        </Link>
+    <section className="flex flex-col gap-6">
+      <TituloModulo
+        titulo="Administración"
+        descripcion="Todo lo que cambia el comportamiento de Ops para el equipo entero. Solo lo ve —y solo lo puede guardar— un superadministrador."
+      />
 
-        {/* Los incidentes viven aparte por lo mismo que la casilla: es un listado paginado propio, y
-            traerlo en cada visita a Administracion para que casi nunca se mire seria pagarlo de
-            gusto. El enlace vive aca porque es la unica puerta que tiene. */}
-        <Link
-          href="/administracion/incidentes"
-          className="text-acento mt-2 block text-sm font-semibold underline underline-offset-4"
-        >
-          Incidentes: los errores 500 que guardó la API
-        </Link>
+      {/* Las tres pantallas viven aparte y no como pestañas: cada una es un listado paginado propio,
+          y traerlo en cada visita a Administracion para que casi nunca se mire seria pagarlo de
+          gusto. La grilla vive aca porque es la unica puerta que tienen. Son tarjetas y no enlaces
+          subrayados porque tres URL crudas una debajo de la otra se leian como una nota al pie. */}
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {PANTALLAS_APARTE.map((pantalla) => (
+          <Tarjeta
+            key={pantalla.href}
+            href={pantalla.href}
+            titulo={pantalla.titulo}
+            descripcion={pantalla.descripcion}
+            icono={pantalla.icono}
+            tono={pantalla.tono}
+          />
+        ))}
       </div>
 
       {/* El `Suspense` no es decorativo: `Pestanas` usa `useSearchParams`, y sin ese límite el build

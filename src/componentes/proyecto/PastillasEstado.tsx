@@ -53,11 +53,13 @@ export function PastillasEstado ({ estadisticas, error = null, seleccion, onCamb
               aria-pressed={activa}
               onClick={() => { alternar(estadistica.status) }}
               className={cn(
-                'rounded-tarjeta ease-neo flex items-center gap-2 border px-3 py-2 text-left',
-                'transition-[background-color,border-color] duration-150',
+                // Radio de control y no de tarjeta: es un boton, y en este sistema los controles son
+                // pildoras. Con el radio de tarjeta se confundia con las tarjetas de abajo.
+                'rounded-control ease-neo flex items-center gap-2 border px-3 py-1.5 text-left',
+                'transition-[background-color,border-color,color] duration-150',
                 activa
                   ? 'border-control-borde bg-seleccionado text-texto'
-                  : 'border-linea bg-superficie-elevada text-texto-tenue hover:bg-hover'
+                  : 'border-linea bg-superficie-elevada text-texto-tenue hover:bg-hover hover:text-texto'
               )}
             >
               {/* El color lo administra Perfex: es dato de la fila, no un token del sistema. */}

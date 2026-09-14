@@ -1,15 +1,21 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { ChevronSelector, CLASES_DISPARADOR } from '@/componentes/formularios/Selector'
 import {
-  ContenidoSelector,
-  DisparadorSelector,
-  Opcion,
-  Selector
-} from '@/componentes/formularios/Selector'
+  BuscadorMenu,
+  ContenidoMenu,
+  DisparadorMenu,
+  GrupoRadioMenu,
+  ItemMenuRadio,
+  MenuContextual,
+  SinResultadosMenu,
+  UMBRAL_BUSCADOR
+} from '@/componentes/superposiciones/MenuContextual'
 import { pedirSobre } from '@/datos/cliente'
 import type { Proceso } from '@/datos/recursos'
 import { GLOSARIO } from '@/dominio/glosario'
+import { filtrarPorNombre } from '@/dominio/live'
 import { cn } from '@/lib/clases'
 
 /**
@@ -39,6 +45,8 @@ interface PropsSelectorTarea {
   deshabilitado?: boolean
   /** Para asociarlo con la etiqueta que lo nombra desde afuera. */
   id?: string
+  /** Id del texto que lo explica. Lo lee el lector de pantalla junto con la etiqueta. */
+  describedBy?: string
   className?: string
 }
 
@@ -61,6 +69,14 @@ interface PropsSelectorTarea {
  * control: LIVE tiene exactamente dos sitios que repreguntan solos y este no es ninguno. Un fallo
  * aca tampoco puede tumbar el control — se dice que la lista no cargo y la jornada se sigue cerrando
  * igual, que es lo principal que el control hace.
+ *
+ * === POR QUE UN MENU Y NO UN `Select` ===
+ *
+ * El mismo motivo que en `SelectorEspacio`, y se construye con las mismas piezas: el `Select` de
+ * Radix no admite un campo de texto dentro del panel, y una persona con las cien Tareas del tope
+ * abiertas en un Espacio grande no encuentra la suya a ojo. El buscador solo aparece a partir de
+ * `UMBRAL_BUSCADOR` opciones, asi que la lista corta —el caso normal aca— se ve exactamente igual
+ * que antes.
  */
 export function SelectorTarea ({
   espacioId,
@@ -69,6 +85,7 @@ export function SelectorTarea ({
   onElegir,
   deshabilitado = false,
   id,
+  describedBy,
   className
 }: PropsSelectorTarea) {
   // La respuesta se guarda JUNTO al Espacio del que salio, y no en un estado aparte que haya que
@@ -78,6 +95,8 @@ export function SelectorTarea ({
   // sencillamente no coincide y se ignora.
   const [traido, setTraido] = useState<{ espacioId: number, tareas: Proceso[] } | null>(null)
   const [fallo, setFallo] = useState<{ espacioId: number, mensaje: string } | null>(null)
+  /** Lo tipeado en el buscador. Se vacia al cerrar el menu: al reabrirlo la lista esta entera. */
+  const [busqueda, setBusqueda] = useState('')
 
   useEffect(() => {
     const control = new AbortController()
@@ -118,25 +137,60 @@ export function SelectorTarea ({
   }
 
   const cargando = tareas === null
+  const todas = tareas ?? []
+  const elegida = todas.find((tarea) => tarea.id === valor) ?? null
+  const visibles = filtrarPorNombre(todas, busqueda)
+  const conBuscador = todas.length >= UMBRAL_BUSCADOR
+  const nombre = GLOSARIO.proceso.singular.toLowerCase()
 
   return (
-    <Selector
-      value={valor === null ? undefined : String(valor)}
-      onValueChange={(elegido) => { onElegir(Number(elegido)) }}
-      disabled={deshabilitado || cargando}
-    >
-      <DisparadorSelector
+    <MenuContextual onOpenChange={(abierto) => { if (!abierto) setBusqueda('') }}>
+      <DisparadorMenu
         id={id}
-        marcador={cargando ? 'Cargando…' : `Elige una ${GLOSARIO.proceso.singular.toLowerCase()}`}
-        className={cn('w-full', className)}
-      />
-      <ContenidoSelector>
-        {(tareas ?? []).map((tarea) => (
-          <Opcion key={tarea.id} value={String(tarea.id)}>
-            {tarea.name}
-          </Opcion>
-        ))}
-      </ContenidoSelector>
-    </Selector>
+        aria-describedby={describedBy}
+        disabled={deshabilitado || cargando}
+        className={cn(CLASES_DISPARADOR, 'w-full', elegida === null && 'text-texto-sutil', className)}
+      >
+        <span className="truncate">
+          {cargando ? 'Cargando…' : elegida?.name ?? `Elige una ${nombre}`}
+        </span>
+        <ChevronSelector />
+      </DisparadorMenu>
+
+      <ContenidoMenu
+        align="start"
+        className="w-[var(--radix-dropdown-menu-trigger-width)] max-w-[calc(100vw-2rem)]"
+      >
+        {conBuscador && (
+          <BuscadorMenu valor={busqueda} onCambiar={setBusqueda} placeholder={`Buscar ${nombre}…`} />
+        )}
+
+        <GrupoRadioMenu
+          value={elegida === null ? '' : String(elegida.id)}
+          onValueChange={(nueva) => { onElegir(Number(nueva)) }}
+        >
+          {visibles.map((tarea) => (
+            <ItemMenuRadio key={tarea.id} value={String(tarea.id)}>
+              <span className="truncate">{tarea.name}</span>
+            </ItemMenuRadio>
+          ))}
+        </GrupoRadioMenu>
+
+        {/* No es el vacio de "no tienes Tareas asignadas" —ese se resuelve arriba, sin desplegable—:
+            este se arregla escribiendo otra cosa. */}
+        {visibles.length === 0 && (
+          <SinResultadosMenu>Ninguna {GLOSARIO.proceso.singular} coincide.</SinResultadosMenu>
+        )}
+
+        {/* Filtrar no mueve el foco: sin esto la lista cambia en silencio debajo del campo. */}
+        {conBuscador && (
+          <p role="status" aria-live="polite" className="sr-only">
+            {visibles.length === 1
+              ? `1 ${nombre} en la lista`
+              : `${visibles.length} ${GLOSARIO.proceso.plural.toLowerCase()} en la lista`}
+          </p>
+        )}
+      </ContenidoMenu>
+    </MenuContextual>
   )
 }

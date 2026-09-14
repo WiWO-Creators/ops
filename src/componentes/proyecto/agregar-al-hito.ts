@@ -69,59 +69,14 @@ function normalizar (texto: string): string {
   return texto.trim().toLowerCase().normalize('NFD').replace(/\p{Diacritic}/gu, '')
 }
 
-/** Lo que la persona escribio en la pestaña "Nueva" del dialogo. */
-export interface AltaEnHito {
-  nombre: string
-  /** Id de prioridad como cadena, tal como lo devuelve el selector. */
-  prioridad: string
-  /** `YYYY-MM-DD`, o cadena vacia si no se puso. */
-  vencimiento: string
-}
-
-/**
- * Valida el alta antes de gastar un viaje a la API.
- *
- * @param alta lo escrito en el formulario
- * @returns el mensaje de error, o `null` si esta todo bien
+/*
+ * Aca vivian `AltaEnHito`, `validarAltaEnHito` y `cuerpoDeAltaEnHito`: un segundo camino de alta que
+ * armaba el `POST /tasks` con `name`, `priority` y `due_date` y **sin `description`**. Se borraron y
+ * no se arreglaron porque el camino bueno ya existe: la pestaña "Crear nueva" de `AgregarAlHito`
+ * monta `AltaRapidaProceso`, que exige la descripcion antes de viajar (`errorDeDescripcion`) igual
+ * que la exige `POST /tasks` con su 422. Dejar las dos formas de crear una Tarea era garantizar que
+ * la proxima pantalla que necesitara un alta rapida tomara la que se saltea la regla.
  */
-export function validarAltaEnHito (alta: AltaEnHito): string | null {
-  if (alta.nombre.trim() === '') return 'La tarea necesita un nombre.'
-
-  if (alta.vencimiento !== '' && !/^\d{4}-\d{2}-\d{2}$/.test(alta.vencimiento)) {
-    return 'Usa el formato AAAA-MM-DD en el vencimiento.'
-  }
-
-  return null
-}
-
-/**
- * Cuerpo del `POST /tasks` que crea la tarea ya colgada del hito.
- *
- * `milestone` esta en la whitelist del alta, asi que no hacen falta dos viajes —crear y despues
- * mover—: la tarea nace en la columna. El Espacio viaja como `rel_type`/`rel_id` porque el dialogo
- * se abre desde el tablero de ese Espacio y no se elige.
- *
- * @param alta lo escrito en el formulario, ya validado
- * @param proyectoId el Espacio del tablero
- * @param hitoId la columna donde se apreto el "+"
- * @returns el objeto listo para serializar
- */
-export function cuerpoDeAltaEnHito (
-  alta: AltaEnHito,
-  proyectoId: number,
-  hitoId: number
-): Record<string, unknown> {
-  const prioridad = Number(alta.prioridad)
-
-  return {
-    name: alta.nombre.trim(),
-    rel_type: 'project',
-    rel_id: proyectoId,
-    milestone: hitoId,
-    ...(Number.isFinite(prioridad) && prioridad > 0 ? { priority: prioridad } : {}),
-    ...(alta.vencimiento === '' ? {} : { due_date: alta.vencimiento })
-  }
-}
 
 /**
  * Cuerpo de `POST /tasks/{id}/mover-hito` para sumar una tarea suelta al hito.

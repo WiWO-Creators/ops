@@ -15,7 +15,7 @@ export function Latido ({ segundos }: { segundos: number }) {
   const ruta = usePathname()
 
   useEffect(() => {
-    // La misma normalización que manda WiBot como `pantalla`: si las dos divergen, el servidor
+    // La misma normalización que manda Thinking Orb como `pantalla`: si las dos divergen, el servidor
     // resuelve mal de qué está hablando la persona.
     const normalizada = pantallaDeRuta(ruta)
     if (normalizada === null) return

@@ -44,6 +44,11 @@ interface PropsPanelRecurso<T> {
    * y aplicarlo devuelve 422.
    */
   board?: TableroDePreset
+  /**
+   * Como se dibuja una fila en tarjetas. Se pasa tal cual al motor de tabla, que es quien ofrece el
+   * alternador y recuerda la eleccion en la URL. Ausente = la pestaña solo se ve como tabla.
+   */
+  tarjeta?: (fila: T) => ReactNode
 }
 
 export function PanelRecurso<T> (props: PropsPanelRecurso<T>): ReactElement {
@@ -68,7 +73,8 @@ function ListaDelProyecto<T> ({
   capacidades = [],
   barra,
   revision = 0,
-  board
+  board,
+  tarjeta
 }: PropsPanelRecurso<T>): ReactElement {
   const params = useSearchParams()
 
@@ -138,6 +144,7 @@ function ListaDelProyecto<T> ({
         capacidades={capacidades}
         opcionesDeFiltro={carga.opciones}
         board={board}
+        tarjeta={tarjeta}
       />
     </div>
   )

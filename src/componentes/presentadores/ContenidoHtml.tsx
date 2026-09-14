@@ -51,6 +51,8 @@
  * exportado no se parece a lo que se vio en pantalla.
  */
 
+import { cabeceraDeMarca, claseDeMarca, cssDeMarcas, pieDeMarca, temaDeMarca } from '@/dominio/marcas-acta'
+
 /**
  * Hoja del documento.
  *
@@ -120,9 +122,6 @@ const ESTILO_DOCUMENTO = `
   td, th { border: 1px solid #e5e7eb; padding: 0.4rem 0.6rem; text-align: left }
   th { background: #f9fafb; font-weight: 600; color: #111827 }
 
-  /* La firma de marca cierra el documento; no es parte del cuerpo del acta. */
-  .firma-marca { margin-top: 2.5rem; }
-  .firma-marca img { max-width: 18rem }
 
   /* Impresion: el PDF sale de acá, asi que lo que se ve es lo que se guarda. */
   @page { margin: 2cm }
@@ -131,7 +130,7 @@ const ESTILO_DOCUMENTO = `
     body { padding: 0; max-width: none; font-size: 11pt }
     /* Un titulo solo al pie de una hoja, con su contenido en la siguiente, se lee como un error. */
     h1, h2, h3, h4 { break-after: avoid-page; page-break-after: avoid }
-    li, blockquote, .firma-marca { break-inside: avoid-page; page-break-inside: avoid }
+    li, blockquote { break-inside: avoid-page; page-break-inside: avoid }
     a { color: #111827; text-decoration: none }
   }
 `
@@ -140,7 +139,7 @@ export function ContenidoHtml ({
   html,
   alto = 'h-[32rem]',
   titulo = 'Contenido del documento',
-  firma = null,
+  marca = null,
   imprimible = false,
   ref
 }: {
@@ -148,14 +147,17 @@ export function ContenidoHtml ({
   alto?: string
   titulo?: string
   /**
-   * Firma de marca que se agrega al final del documento.
+   * Codigo de marca del documento (`wiwo`, `mgc`, `palta`), o `null` si no lo tiene.
    *
-   * Va acá y no dentro del HTML guardado a proposito. MeetingMatico congela la URL de la firma
-   * dentro del cuerpo de cada minuta, asi que el dia que esa ruta cambie todas las actas viejas
-   * muestran una imagen rota. Guardando solo el codigo de marca y pintando la firma al mostrar, ese
-   * dia se arregla en un lugar.
+   * Con marca, el documento se pinta con la identidad de esa empresa: cabecera con su logotipo,
+   * colores y tipografia propios, y el pie firmado. Va acá y no dentro del HTML guardado a
+   * proposito. MeetingMatico congela la URL de la firma dentro del cuerpo de cada minuta, asi que
+   * el dia que esa ruta cambie todas las actas viejas muestran una imagen rota. Guardando solo el
+   * codigo y pintando la marca al mostrar, ese dia se arregla en un lugar.
+   *
+   * Un contrato o un anuncio del portal no tienen marca: pasan `null` y salen como siempre.
    */
-  firma?: string | null
+  marca?: string | null
   /**
    * Permite que quien lo monta llame a `print()` sobre este iframe.
    *
@@ -166,16 +168,20 @@ export function ContenidoHtml ({
   /** Para poder llamar a `print()` del propio documento: sale con su formato, no como texto plano. */
   ref?: React.Ref<HTMLIFrameElement>
 }) {
-  const pieDeFirma = firma === null || firma === ''
-    ? ''
-    : `<p class="firma-marca"><img src="${firma}" alt=""></p>`
+  // El iframe tiene origen opaco: adentro, `/marca/actas/wiwo.png` no resuelve contra nada. En el
+  // servidor todavia no hay `window`, y no pasa nada: el `srcDoc` se evalua en el cliente, donde
+  // este componente ya se volvio a renderizar con el origen puesto.
+  const origen = typeof window === 'undefined' ? '' : window.location.origin
+  const tema = marca === null || marca === '' ? null : temaDeMarca(marca)
 
   const documento = `<!doctype html>
 <html lang="es"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${titulo}</title>
-<style>${ESTILO_DOCUMENTO}</style></head>
-<body>${html}${pieDeFirma}</body></html>`
+<style>${ESTILO_DOCUMENTO}${tema === null ? '' : cssDeMarcas(origen)}</style></head>
+<body${tema === null ? '' : ` class="acta-marca ${claseDeMarca(tema.codigo)}"`}>${
+  tema === null ? '' : cabeceraDeMarca(tema, origen)
+}${html}${tema === null ? '' : pieDeMarca(tema)}</body></html>`
 
   return (
     <iframe

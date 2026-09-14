@@ -60,7 +60,10 @@ function queFalta (estado: EstadoDeJornada | null): Falta | null {
 
 const TITULOS: Record<Falta, string> = {
   jornada: 'Aún no has iniciado tu jornada',
-  medidor: 'Tu jornada está abierta, pero no estás midiendo nada',
+  // Sin el "pero": desde que la jornada se puede abrir sin destino, este es el estado normal de
+  // quien todavía no decidió en qué trabajar, no el descuido de quien se olvidó de arrancar. La
+  // misma frase que dice la cabecera, por el mismo motivo — ver `fraseDeJornadaSinDestino()`.
+  medidor: `Tu jornada corre sin ${GLOSARIO.espacio.singular} todavía`,
   tarea: `Elige la ${GLOSARIO.proceso.singular} en la que estás trabajando`
 }
 
@@ -84,7 +87,9 @@ function detalle (falta: Falta, proyecto: string | null): string {
   }
 
   if (falta === 'medidor') {
-    return `Elige el ${GLOSARIO.espacio.singular} y la ${GLOSARIO.proceso.singular} en los que vas a trabajar ahora, o las horas de la jornada quedan sin cubrir.`
+    // Informa en vez de advertir: dice qué pasa con el rato que va corriendo y qué lo cambia, sin
+    // convertir una elección legítima en un reproche.
+    return `El reloj del día corre, pero todavía no hay cronómetro: hasta que elijas ${GLOSARIO.espacio.singular} este rato queda sin cubrir.`
   }
 
   const sobre = proyecto === null ? `un ${GLOSARIO.espacio.singular}` : `«${proyecto}»`
@@ -164,21 +169,21 @@ export function AvisoJornada ({ inicial }: { inicial: EstadoDeJornada | null }) 
   return (
     <section
       role="status"
-      className="border-linea-fuerte bg-superficie-aviso rounded-tarjeta flex flex-wrap items-center justify-between gap-x-6 gap-y-3 border-l-4 p-4"
+      className="border-texto-aviso/35 bg-superficie-aviso rounded-tarjeta shadow-1 flex flex-wrap items-center justify-between gap-x-6 gap-y-4 border border-l-4 border-l-relleno-aviso p-5 sm:p-6"
     >
       <div className="min-w-56 flex-1">
-        <h2 className="text-texto-aviso text-sm font-semibold">{TITULOS[falta]}</h2>
-        <p className="text-texto-tenue mt-1 text-pretty text-sm">
+        <h2 className="text-texto-aviso text-titulo font-bold">{TITULOS[falta]}</h2>
+        <p className="text-texto-tenue mt-1.5 max-w-prose text-pretty text-base">
           {detalle(falta, destino?.proyectoNombre ?? null)}
         </p>
       </div>
 
       <Link
         href={enlaceDe(falta, destino)}
-        className="text-acento flex items-center gap-1 text-sm font-semibold hover:underline"
+        className="border-texto-aviso/40 text-texto-aviso rounded-control ease-neo flex items-center gap-1.5 border px-4 py-2.5 text-base font-bold transition-colors duration-150 hover:bg-hover"
       >
         {ACCIONES[falta]}
-        <ArrowRight size={16} strokeWidth={2.5} aria-hidden="true" />
+        <ArrowRight size={18} strokeWidth={2.5} aria-hidden="true" />
       </Link>
     </section>
   )

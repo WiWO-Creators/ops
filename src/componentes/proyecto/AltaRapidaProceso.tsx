@@ -37,11 +37,13 @@ import {
   type CatalogosTarea,
   type TareaFusionada
 } from '@/dominio/ia-tarea'
-import { errorDeDescripcion } from '@/dominio/descripcion-tarea'
+import { errorDeDescripcion, errorDeDetalle } from '@/dominio/descripcion-tarea'
 import { GLOSARIO } from '@/dominio/glosario'
 import { errorDeHorasEstimadas, horasDeTexto } from '@/dominio/tiempo-estimado'
 import { formatearFecha } from '@/lib/fechas'
+import { enFormatoTitulo } from '@/lib/titulo'
 import { AsistenteDescripcion } from './AsistenteDescripcion'
+import { SelectorEspacios } from './SelectorEspacios'
 import { VistaPreviaAlta, type MarcaPrevia } from './VistaPreviaAlta'
 import type {
   DefinicionCampoPersonalizado,
@@ -95,13 +97,50 @@ const MODOS = [
 
 type Modo = typeof MODOS[number]['valor']
 
+/** Ruta del alta en varios Espacios a la vez. Ver `POST /tasks/multi-espacio` en la API. */
+const RUTA_MULTI = 'tasks/multi-espacio'
+
+/**
+ * Cuántos Espacios acepta un alta múltiple.
+ *
+ * Copia del tope del servidor (`CrearProceso::MAXIMO_ESPACIOS`). Se repite acá solo para avisar
+ * antes del viaje; quien decide sigue siendo la API, que responde 422 `espacios: ["demasiados"]`.
+ */
+const MAXIMO_ESPACIOS = 20
+
+/** Lo que devuelve `POST /tasks/multi-espacio` por cada destino que se creó. */
+interface AltaEnEspacio {
+  espacio_id: number
+  task_id: number
+}
+
+/** Lo que devuelve `POST /tasks/multi-espacio` por cada destino que no se pudo crear. */
+interface FalloEnEspacio {
+  espacio_id: number
+  motivo: string
+}
+
+/** El parte del alta múltiple, tal como llega en `data`. */
+interface ParteMulti {
+  creados: AltaEnEspacio[]
+  fallidos: FalloEnEspacio[]
+}
+
+/** Lo que el diálogo tiene que seguir mostrando cuando un alta múltiple sale a medias. */
+interface ResumenParcial {
+  /** Nombre del Espacio y qué pasó ahí, ya en texto para la persona. */
+  hechos: Array<{ espacioId: number, nombre: string, detalle: string, ok: boolean }>
+  /** Espacios que hay que reintentar; los que ya tienen su tarea no vuelven a viajar. */
+  pendientes: number[]
+}
+
 /** Los campos manuales, para poder devolverlos tal como estaban antes de que la IA los pisara. */
 interface CamposManuales {
   nombre: string
   hito: string
   relacion: string
   relacionId: string
-  espacio: string
+  espacios: number[]
   asignados: number[]
   seguidores: number[]
   tipo: string
@@ -150,11 +189,40 @@ export function AltaRapidaProceso ({
   const [texto, setTexto] = useState('')
   const [enCurso, setEnCurso] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  /**
+   * El parte del último alta múltiple que salió a medias.
+   *
+   * Va aparte de `error` y no se borra al reintentar hasta tener uno nuevo: cuando se crean tres de
+   * cinco, lo que la persona necesita saber es cuáles tres —para no volver a crearlas— y por qué
+   * fallaron las otras dos. Un cartel genérico que además vacíe el formulario obliga a reescribir
+   * todo y adivinar dónde quedó la tarea.
+   */
+  const [parcial, setParcial] = useState<ResumenParcial | null>(null)
 
   // Campos del modo "por campos". Viven aparte de la linea a proposito: cambiar de modo no debe
   // borrar lo que se escribio en el otro, porque se alterna justo cuando un `@` no resolvio.
   const [nombre, setNombre] = useState('')
-  const [espacio, setEspacio] = useState(proyectoId === undefined ? NINGUNO : String(proyectoId))
+  /**
+   * Los Espacios destino, en el orden en que se eligieron. **Es la fuente de verdad.**
+   *
+   * Antes era un solo id en un `Selector`. Ahora es una lista porque la misma tarea se pide muchas
+   * veces en varios Espacios a la vez, y repetir el formulario entero una vez por Espacio es lo que
+   * hace que esas tareas terminen en un chat.
+   *
+   * Con cero o un elemento el alta es EXACTAMENTE la de siempre: mismo `POST /tasks`, mismo cuerpo.
+   * La ruta múltiple aparece recién con dos.
+   */
+  const [espacios, setEspacios] = useState<number[]>(proyectoId === undefined ? [] : [proyectoId])
+  /**
+   * El primer Espacio elegido, en la forma de cadena que ya usaban los campos que dependen de él.
+   *
+   * Derivado y no un estado propio: dos estados para el mismo dato es el que se desincroniza. De
+   * este salen los hitos, los tipos y el contexto del asistente de descripción, y por eso el orden
+   * de elección importa.
+   */
+  const espacio = espacios.length === 0 ? NINGUNO : String(espacios[0])
+  /** Hay más de un destino: el hito y el tipo dejan de tener sentido (son por Espacio). */
+  const multiple = espacios.length > 1
   const [asignados, setAsignados] = useState<number[]>([])
   const [seguidores, setSeguidores] = useState<number[]>([])
   const [prioridad, setPrioridad] = useState(NINGUNO)
@@ -236,7 +304,9 @@ export function AltaRapidaProceso ({
    * tipo posible: el selector queda deshabilitado hasta que se elija uno.
    */
   useEffect(() => {
-    if (!abierto || espacio === NINGUNO) return
+    // Con varios destinos no se piden: cada Espacio ofrece los suyos y la API rechaza un tipo o un
+    // hito que no sea del Espacio de la tarea, así que no hay una lista común que mostrar.
+    if (!abierto || espacio === NINGUNO || multiple) return
 
     const control = new AbortController()
 
@@ -255,10 +325,20 @@ export function AltaRapidaProceso ({
       })
 
     return () => { control.abort() }
-  }, [espacio, abierto])
+  }, [espacio, abierto, multiple])
+
+  /** Deja el hito y el tipo sin elegir, con su catálogo vacío. */
+  function olvidarHitoYTipo (): void {
+    setHito(NINGUNO)
+    setHitos([])
+    setTipo(NINGUNO)
+    setTipos([])
+    setAvisoTipos(null)
+  }
 
   /**
-   * Elige el Espacio y descarta el tipo que hubiera.
+   * Elige UN Espacio y descarta el tipo que hubiera. La usan la línea y la interpretación de IA,
+   * que resuelven un solo destino.
    *
    * El descarte va aca y no en el efecto: un tipo del Espacio anterior es justo lo que la API
    * rechaza con `422 no_pertenece_al_espacio`, y dejarlo puesto convertiria un cambio de Espacio en
@@ -266,13 +346,23 @@ export function AltaRapidaProceso ({
    */
   function elegirEspacio (valor: string): void {
     setRelacion('project')
-    if (valor === espacio) return
-    setEspacio(valor)
-    setHito(NINGUNO)
-    setHitos([])
-    setTipo(NINGUNO)
-    setTipos([])
-    setAvisoTipos(null)
+    if (valor === espacio && espacios.length <= 1) return
+    setEspacios(valor === NINGUNO ? [] : [Number(valor)])
+    olvidarHitoYTipo()
+  }
+
+  /**
+   * Elige la lista completa de Espacios destino.
+   *
+   * El hito y el tipo se descartan cuando cambia el primer Espacio —de él salen sus catálogos— y
+   * también al pasar a varios destinos, porque ahí dejan de existir: son por Espacio y la API los
+   * rechaza en el alta múltiple.
+   */
+  function elegirEspacios (ids: number[]): void {
+    setRelacion('project')
+    setEspacios(ids)
+    setParcial(null)
+    if (ids[0] !== espacios[0] || ids.length > 1) olvidarHitoYTipo()
   }
 
   // `SelectorPersonas` pinta el avatar de cada persona y los catalogos del alta pueden venir sin la
@@ -321,8 +411,9 @@ export function AltaRapidaProceso ({
     setTexto('')
     setError(null)
     setErrorDescripcion(null)
+    setParcial(null)
     setNombre('')
-    setEspacio(proyectoId === undefined ? NINGUNO : String(proyectoId))
+    setEspacios(proyectoId === undefined ? [] : [proyectoId])
     setAsignados([])
     setSeguidores([])
     setPrioridad(NINGUNO)
@@ -398,8 +489,12 @@ export function AltaRapidaProceso ({
   async function completar (): Promise<void> {
     const limpio = textoLibre.trim()
 
-    if (limpio === '') {
-      setAvisoIa('Escribe primero qué hay que hacer.')
+    // Requisito previo: sin un pedido con detalle el modelo no interpreta, supone. El aviso dice
+    // que le falta —cuantas palabras, cuantos caracteres— y no solo que no alcanza.
+    const flojo = errorDeDetalle(limpio)
+
+    if (flojo !== null) {
+      setAvisoIa(flojo)
       return
     }
 
@@ -416,7 +511,7 @@ export function AltaRapidaProceso ({
     if (elegido.descartado !== null) resultado.noResuelto.push(elegido.descartado)
 
     setPrevio({
-      nombre, hito, relacion, relacionId, espacio, asignados, seguidores, tipo, prioridad, inicio, vencimiento,
+      nombre, hito, relacion, relacionId, espacios, asignados, seguidores, tipo, prioridad, inicio, vencimiento,
       etiquetasEscritas, descripcion
     })
     volcar(resultado, elegido.id)
@@ -434,7 +529,7 @@ export function AltaRapidaProceso ({
     if (previo === null) return
 
     setNombre(previo.nombre)
-    setEspacio(previo.espacio)
+    setEspacios(previo.espacios)
     setAsignados(previo.asignados)
     setSeguidores(previo.seguidores)
     setTipo(previo.tipo)
@@ -468,20 +563,67 @@ export function AltaRapidaProceso ({
     for (const etiqueta of fusion.tags) marcasDeLaFusion.push({ texto: etiqueta, origen: origen('tags') })
   }
 
+  /** El nombre del Espacio para mostrar, o su id cuando el catálogo no lo tiene. */
+  function nombreDeEspacio (id: number): string {
+    return catalogos.espacios.find((fila) => fila.id === id)?.name ?? `${GLOSARIO.espacio.singular} #${id}`
+  }
+
   /**
-   * Manda el alta con el cuerpo que armo el modo activo.
+   * Lo que las dos rutas de alta comprueban antes de escribir nada.
    *
-   * @param cuerpo el cuerpo de `POST /tasks`, ya sin campos vacios
+   * @returns `true` si se puede enviar; si no, ya dejó el motivo a la vista.
    */
-  async function enviar (cuerpo: Record<string, unknown>): Promise<void> {
-    if (enviando.current || cargando || errorCarga !== null) return
+  function puedeEnviar (): boolean {
+    if (enviando.current || cargando || errorCarga !== null) return false
+
     const fallos = esquemaDeCamposPersonalizados(definiciones).validar(personalizados, valoresPorDefecto(definiciones))
+
     setErroresCampos(fallos)
     if (Object.keys(fallos).length > 0) {
       setError('Revisa los campos personalizados marcados.')
       setModo('campos')
-      return
+
+      return false
     }
+
+    return true
+  }
+
+  /**
+   * Guarda los campos personalizados de una tarea recién creada.
+   *
+   * Van en un PATCH aparte porque `POST /tasks` no los acepta: necesitan el id de la tarea. Con
+   * varios destinos se repite el mismo PATCH con los mismos valores, uno por tarea.
+   *
+   * @param id id de la tarea creada
+   * @returns `null` si se guardaron o si no había nada que guardar; el mensaje del fallo si no.
+   */
+  async function guardarPersonalizados (id: number): Promise<string | null> {
+    const parche = cuerpoDeCamposPersonalizados('tasks', id, definiciones, valoresPorDefecto(definiciones), personalizados)
+
+    if (parche === null) return null
+
+    const guardados = await escribirEnBff('custom-fields/values', 'PATCH', parche)
+
+    return guardados.ok ? null : guardados.mensaje
+  }
+
+  /** Cierra el diálogo como en un alta que salió bien. */
+  function cerrarTrasCrear (): void {
+    limpiar()
+    setAbierto(false)
+    onCerrar?.()
+    onCreada?.()
+    router.refresh()
+  }
+
+  /**
+   * Manda el alta de UNA tarea. Es el camino de todos los días y no cambió.
+   *
+   * @param cuerpo el cuerpo de `POST /tasks`, ya sin campos vacios
+   */
+  async function enviar (cuerpo: Record<string, unknown>): Promise<void> {
+    if (!puedeEnviar()) return
     enviando.current = true
     onOcupado?.(true)
     setEnCurso(true)
@@ -498,19 +640,97 @@ export function AltaRapidaProceso ({
         id = resultado.datos.id
         setCreadaId(id)
       }
-      const parche = cuerpoDeCamposPersonalizados('tasks', id, definiciones, valoresPorDefecto(definiciones), personalizados)
-      if (parche !== null) {
-        const guardados = await escribirEnBff('custom-fields/values', 'PATCH', parche)
-        if (!guardados.ok) {
-          setError(`La tarea #${id} ya está creada. Reintenta guardar sus campos personalizados: ${guardados.mensaje}`)
-          return
-        }
+      const falloDeCampos = await guardarPersonalizados(id)
+      if (falloDeCampos !== null) {
+        setError(`La tarea #${id} ya está creada. Reintenta guardar sus campos personalizados: ${falloDeCampos}`)
+        return
       }
-      limpiar()
-      setAbierto(false)
-      onCerrar?.()
-      onCreada?.()
-      router.refresh()
+      cerrarTrasCrear()
+    } finally {
+      enviando.current = false
+      onOcupado?.(false)
+      setEnCurso(false)
+    }
+  }
+
+  /**
+   * Manda el alta de la MISMA tarea en varios Espacios, en una sola petición.
+   *
+   * Una petición y no una por Espacio: `POST /tasks/multi-espacio` valida el cuerpo compartido antes
+   * de crear la primera tarea, así que un error de tipeo no deja tres tareas creadas y dos sin
+   * crear. Lo que puede salir a medias de ahí para adelante —un Espacio que alguien eliminó, un
+   * choque de la base— vuelve en el parte, destino por destino.
+   *
+   * Si algo falla NO se toca el formulario: se muestra qué pasó en cada Espacio y la selección queda
+   * reducida a los que faltan, para que el siguiente clic no duplique los que ya se crearon.
+   *
+   * @param cuerpo el cuerpo compartido, sin `rel_type`, `rel_id`, `milestone` ni `task_type`
+   * @param destinos ids de los Espacios donde crear la tarea
+   */
+  async function enviarEnVariosEspacios (cuerpo: Record<string, unknown>, destinos: number[]): Promise<void> {
+    if (!puedeEnviar()) return
+    enviando.current = true
+    onOcupado?.(true)
+    setEnCurso(true)
+    setError(null)
+    try {
+      const respuesta = await escribirEnBff<ParteMulti>(RUTA_MULTI, 'POST', { ...cuerpo, espacios: destinos })
+
+      if (!respuesta.ok) {
+        // Incluye la caída de red: `escribirEnBff` no lanza. No se creó nada o no se sabe, y por eso
+        // el formulario queda intacto con su selección completa.
+        setError(respuesta.mensaje)
+
+        return
+      }
+
+      const parte = respuesta.datos
+
+      if (!Array.isArray(parte?.creados) || !Array.isArray(parte.fallidos)) {
+        setError(`El servidor no devolvió en qué ${GLOSARIO.espacio.plural.toLowerCase()} quedó la tarea. Revísalos antes de volver a crearla.`)
+
+        return
+      }
+
+      const hechos: ResumenParcial['hechos'] = []
+      const pendientes: number[] = []
+
+      for (const creado of parte.creados) {
+        const falloDeCampos = await guardarPersonalizados(creado.task_id)
+
+        hechos.push({
+          espacioId: creado.espacio_id,
+          nombre: nombreDeEspacio(creado.espacio_id),
+          detalle: falloDeCampos === null
+            ? `Tarea #${creado.task_id} creada.`
+            : `Tarea #${creado.task_id} creada, pero sus campos personalizados no se guardaron: ${falloDeCampos}`,
+          ok: falloDeCampos === null
+        })
+      }
+
+      for (const fallido of parte.fallidos) {
+        hechos.push({
+          espacioId: fallido.espacio_id,
+          nombre: nombreDeEspacio(fallido.espacio_id),
+          detalle: fallido.motivo,
+          ok: false
+        })
+        pendientes.push(fallido.espacio_id)
+      }
+
+      if (hechos.length > 0 && hechos.every((hecho) => hecho.ok)) {
+        cerrarTrasCrear()
+
+        return
+      }
+
+      setParcial({ hechos, pendientes })
+      // Solo se recorta la selección cuando queda algo que reintentar. Dejarla vacía convertiría el
+      // siguiente clic en una tarea sin Espacio.
+      if (pendientes.length > 0) setEspacios(pendientes)
+      // Las que sí se crearon ya existen: la lista de atrás tiene que mostrarlas aunque el diálogo
+      // siga abierto.
+      if (parte.creados.length > 0) router.refresh()
     } finally {
       enviando.current = false
       onOcupado?.(false)
@@ -573,26 +793,31 @@ export function AltaRapidaProceso ({
       setError('La frecuencia debe ser un entero positivo y los ciclos un entero mayor o igual a cero.')
       return
     }
+    if (relacion === 'project' && espacios.length > MAXIMO_ESPACIOS) {
+      setError(`Como máximo ${MAXIMO_ESPACIOS} ${GLOSARIO.espacio.plural.toLowerCase()} por vez. Saca algunos y repite el alta con el resto.`)
+      return
+    }
 
     // La colacion de `tbltags` es `_ci`: "urgente" y "Urgente" son la misma fila para la API, asi
     // que no hace falta normalizar nada aca.
     const pedidas = etiquetasEscritas.split(',').map((t) => t.trim()).filter((t) => t !== '')
     const horas = horasDeTexto(horasEstimadas)
 
-    await enviar({
-      name: nombre.trim(),
+    // Lo que es igual en todos los destinos. El hito, el tipo y la relacion quedan fuera: son de UN
+    // Espacio, y son justo lo que el alta multiple no acepta.
+    const comun = {
+      // En formato de titulo al guardar y no mientras se escribe: corregir el campo bajo el
+      // cursor pelea con quien esta tecleando. Solo convierte lo que viene todo en mayusculas.
+      name: enFormatoTitulo(nombre),
       billable: facturable,
       is_public: publica,
       visible_to_client: visibleCliente,
       ...(estado === NINGUNO ? {} : { status: Number(estado) }),
-      ...(relacion !== 'project' || hito === NINGUNO ? {} : { milestone: Number(hito) }),
       ...(tarifa === '' ? {} : { hourly_rate: Number(tarifa) }),
       ...(recurrente ? { recurring: true, repeat_every: Number(cada), recurring_type: unidad, cycles: Number(ciclos) } : {}),
       ...(estado === '5' && cierre !== '' ? { completed_at: new Date(cierre).toISOString() } : {}),
-      ...(relacion !== 'project' ? { rel_type: relacion, rel_id: Number(relacionId) } : espacio === NINGUNO ? {} : { rel_type: 'project', rel_id: Number(espacio) }),
       ...(asignados.length === 0 ? {} : { assignees: asignados }),
       ...(seguidores.length === 0 ? {} : { followers: seguidores }),
-      ...(relacion !== 'project' || tipo === NINGUNO ? {} : { task_type: Number(tipo) }),
       ...(prioridad === NINGUNO ? {} : { priority: Number(prioridad) }),
       ...(inicio === '' ? {} : { start_date: inicio }),
       ...(vencimiento === '' ? {} : { due_date: vencimiento }),
@@ -601,6 +826,21 @@ export function AltaRapidaProceso ({
       description: descripcion.trim(),
       ...(horas === null ? {} : { estimated_hours: horas }),
       ...(pedidas.length === 0 ? {} : { tags: pedidas })
+    }
+
+    // Dos o mas Espacios: la ruta multiple. Con cero o uno se manda el mismo `POST /tasks` de
+    // siempre, con el mismo cuerpo, para que el alta de todos los dias no dependa de esto.
+    if (relacion === 'project' && multiple) {
+      await enviarEnVariosEspacios(comun, espacios)
+
+      return
+    }
+
+    await enviar({
+      ...comun,
+      ...(relacion !== 'project' || hito === NINGUNO ? {} : { milestone: Number(hito) }),
+      ...(relacion !== 'project' ? { rel_type: relacion, rel_id: Number(relacionId) } : espacio === NINGUNO ? {} : { rel_type: 'project', rel_id: Number(espacio) }),
+      ...(relacion !== 'project' || tipo === NINGUNO ? {} : { task_type: Number(tipo) })
     })
   }
 
@@ -728,17 +968,20 @@ export function AltaRapidaProceso ({
                   {(props) => <Entrada {...props} type="number" min="1" step="1" value={relacionId} onChange={(evento) => setRelacionId(evento.target.value)} />}
                 </Campo>}
                 <div className="grid gap-4 sm:grid-cols-2">
-                  {relacion === 'project' && <Campo etiqueta={GLOSARIO.espacio.singular}>
+                  {relacion === 'project' && <Campo
+                    etiqueta={GLOSARIO.espacio.plural}
+                    ayuda={multiple
+                      ? `La misma tarea se crea ${espacios.length} veces, una en cada ${GLOSARIO.espacio.singular.toLowerCase()}.`
+                      : `Puedes elegir varios: la misma tarea se crea en todos.`}
+                  >
                     {({ id }) => (
-                      <Selector value={espacio} onValueChange={elegirEspacio}>
-                        <DisparadorSelector id={id} />
-                        <ContenidoSelector>
-                          <Opcion value={NINGUNO}>Sin {GLOSARIO.espacio.singular.toLowerCase()}</Opcion>
-                          {catalogos.espacios.map((fila) => (
-                            <Opcion key={fila.id} value={String(fila.id)}>{fila.name}</Opcion>
-                          ))}
-                        </ContenidoSelector>
-                      </Selector>
+                      <SelectorEspacios
+                        id={id}
+                        espacios={catalogos.espacios}
+                        elegidos={espacios}
+                        onCambiar={elegirEspacios}
+                        conFallo={parcial?.pendientes ?? []}
+                      />
                     )}
                   </Campo>}
 
@@ -767,8 +1010,13 @@ export function AltaRapidaProceso ({
                       </ContenidoSelector>
                     </Selector>}
                   </Campo>
-                  <Campo etiqueta={GLOSARIO.hito.singular} ayuda={avisoTipos ?? (espacio === NINGUNO ? 'Elige un espacio para ver sus hitos.' : undefined)}>
-                    {({ id }) => <Selector value={hito} onValueChange={setHito} disabled={relacion !== 'project' || hitos.length === 0}>
+                  <Campo
+                    etiqueta={GLOSARIO.hito.singular}
+                    ayuda={multiple
+                      ? `Cada ${GLOSARIO.espacio.singular.toLowerCase()} tiene sus propios hitos: la tarea nace sin hito y se mueve después.`
+                      : avisoTipos ?? (espacio === NINGUNO ? 'Elige un espacio para ver sus hitos.' : undefined)}
+                  >
+                    {({ id }) => <Selector value={hito} onValueChange={setHito} disabled={relacion !== 'project' || multiple || hitos.length === 0}>
                       <DisparadorSelector id={id} />
                       <ContenidoSelector>
                         <Opcion value={NINGUNO}>Sin hito</Opcion>
@@ -839,16 +1087,18 @@ export function AltaRapidaProceso ({
 
                 <Campo
                   etiqueta="Tipo"
-                  ayuda={avisoTipos ?? (
-                    espacio === NINGUNO
-                      ? `Cada ${GLOSARIO.espacio.singular.toLowerCase()} define sus tipos: elige uno primero.`
-                      : tipos.length === 0
-                        ? `Este ${GLOSARIO.espacio.singular.toLowerCase()} no ofrece tipos.`
-                        : undefined
-                  )}
+                  ayuda={multiple
+                    ? `Cada ${GLOSARIO.espacio.singular.toLowerCase()} ofrece sus propios tipos: la tarea nace sin tipo y se define después en cada una.`
+                    : avisoTipos ?? (
+                      espacio === NINGUNO
+                        ? `Cada ${GLOSARIO.espacio.singular.toLowerCase()} define sus tipos: elige uno primero.`
+                        : tipos.length === 0
+                          ? `Este ${GLOSARIO.espacio.singular.toLowerCase()} no ofrece tipos.`
+                          : undefined
+                    )}
                 >
                   {({ id }) => (
-                    <Selector value={tipo} onValueChange={setTipo} disabled={relacion !== 'project' || tipos.length === 0}>
+                    <Selector value={tipo} onValueChange={setTipo} disabled={relacion !== 'project' || multiple || tipos.length === 0}>
                       <DisparadorSelector id={id} />
                       <ContenidoSelector>
                         <Opcion value={NINGUNO}>Sin tipo</Opcion>
@@ -961,6 +1211,29 @@ export function AltaRapidaProceso ({
           <CamposPersonalizados definiciones={definiciones} valores={personalizados} errores={erroresCampos}
             onCambiar={(valores) => { setPersonalizados(valores); setErroresCampos({}) }} deshabilitado={enCurso || cargando || errorCarga !== null} />
 
+          {/* El parte del alta multiple: que paso en cada Espacio, con nombre. Sin esto, "se
+              crearon 3 de 5" obliga a abrir los cinco para saber cuales faltan. */}
+          {parcial !== null && (
+            <div role="alert" className="border-linea rounded-medio flex flex-col gap-1.5 border p-3">
+              <p className="text-texto text-sm font-medium">
+                La tarea se creó en {parcial.hechos.filter((hecho) => hecho.ok).length} de {parcial.hechos.length} {GLOSARIO.espacio.plural.toLowerCase()}.
+              </p>
+              <ul className="flex flex-col gap-1">
+                {parcial.hechos.map((hecho) => (
+                  <li key={hecho.espacioId} className={hecho.ok ? 'text-texto-sutil text-xs' : 'text-texto-peligro text-xs'}>
+                    <span className="font-medium">{hecho.nombre}:</span> {hecho.detalle}
+                  </li>
+                ))}
+              </ul>
+              {parcial.pendientes.length > 0 && (
+                <p className="text-texto-sutil text-xs">
+                  Los que fallaron quedaron seleccionados: corrige lo que haga falta y vuelve a crear.
+                  Los que ya se crearon no se repiten.
+                </p>
+              )}
+            </div>
+          )}
+
           {error !== null && (
             <p role="alert" className="text-texto-peligro text-sm">{error}</p>
           )}
@@ -969,9 +1242,21 @@ export function AltaRapidaProceso ({
             <CerrarDialogo asChild>
               <Boton variante="sutil" type="button">Cancelar</Boton>
             </CerrarDialogo>
-            <Boton type="submit" variante="primario" cargando={enCurso} disabled={enCurso || interpretando || cargando || errorCarga !== null}>
-              {creadaId === null ? 'Crear' : 'Reintentar campos personalizados'}
-            </Boton>
+            {/* Nada que reintentar y todas las tareas ya creadas: el boton no puede seguir diciendo
+                "Crear", porque otro clic las duplicaria. */}
+            {parcial !== null && parcial.pendientes.length === 0
+              ? (
+                <Boton variante="primario" type="button" onClick={cerrarTrasCrear}>Entendido, cerrar</Boton>
+                )
+              : (
+                <Boton type="submit" variante="primario" cargando={enCurso} disabled={enCurso || interpretando || cargando || errorCarga !== null}>
+                  {creadaId !== null
+                    ? 'Reintentar campos personalizados'
+                    : parcial === null
+                      ? 'Crear'
+                      : `Reintentar en ${parcial.pendientes.length} ${parcial.pendientes.length === 1 ? GLOSARIO.espacio.singular.toLowerCase() : GLOSARIO.espacio.plural.toLowerCase()}`}
+                </Boton>
+                )}
           </div>
         </form>
   )

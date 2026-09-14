@@ -3,7 +3,7 @@ import { pedir, pedirOpcional } from '@/datos/servidor'
 import { leerSuplantador } from '@/datos/sesion'
 import type { Yo } from '@/datos/tipos'
 import { GLOSARIO } from '@/dominio/glosario'
-import { puedeVerSeccion } from '@/dominio/permisos'
+import { puedeVerFocals, puedeVerMiArea, puedeVerSeccion } from '@/dominio/permisos'
 import { intervaloDeLatido } from '@/datos/auditoria'
 import { iaHabilitada } from '@/datos/ajustes'
 import { intervaloDeLive, type EstadoDeJornada } from '@/datos/live'
@@ -101,7 +101,12 @@ export default async function PanelLayout ({ children }: { children: React.React
             {/* Uno solo en toda la aplicacion, y aca y no en la barra lateral: la barra se abate a un
                 riel y en movil se esconde dentro de un cajon, justo donde mas falta hace saber que hay
                 un medidor corriendo. Colapsado no crece mas que un boton porque la cabecera mide
-                `h-14` fijos. */}
+                `h-14` fijos.
+
+                Esta instancia —y solo esta— es ademas la compuerta de entrada: si consta que no hay
+                jornada abierta, monta el modal que obliga a elegir Proyecto y Tarea antes de seguir.
+                Va aca porque el armazon esta en las ocho pantallas y no se desmonta al navegar, asi
+                que no hay ruta del panel que se salte el bloqueo. Ver `ControlJornada`. */}
             <ControlJornada
               variante="compacta"
               segundos={segundosDeLive}
@@ -109,6 +114,9 @@ export default async function PanelLayout ({ children }: { children: React.React
               // Para listar SUS Tareas al elegir sobre cual se esta midiendo: solo se puede arrancar
               // un cronometro sobre una Tarea asignada a uno, y la sesion ya esta resuelta acá.
               staffId={yo.id}
+              // Primer escalon de la jerarquia del modal. No se elige: la API saca el `staff_id` del
+              // token, asi que un combo de personas prometeria algo que el backend rechaza.
+              nombre={yo.full_name}
               errorInicial={jornada.error}
               className="ml-auto"
             />
@@ -142,6 +150,12 @@ function seccionesDe (yo: Yo): Seccion[] {
   // jornada y ver su medidor—. Lo que cambia con el rol es cuanta gente mas se ve, y eso lo decide
   // `alcanceDeLive()` dentro de la pantalla, no la barra.
   secciones.push({ href: '/live', etiqueta: 'En vivo', icono: 'live' })
+
+  // Tampoco lleva condicion, y por el mismo motivo que `/live`: es el trabajo PROPIO. La pantalla no
+  // lista nada que no este asignado a quien mira, asi que no hay permiso que preguntar — un perfil
+  // sin `tasks.view` ve sus asignaciones igual, que es justamente la regla de `puedeVerSeccion`.
+  // Va antes que Tareas: primero lo de uno, despues el listado de toda la casa.
+  secciones.push({ href: '/mis-tareas', etiqueta: `Mis ${GLOSARIO.proceso.plural}`, icono: 'mis_tareas' })
 
   if (puedeVerSeccion(yo.permissions.tasks, 'tasks')) {
     secciones.push({ href: '/procesos', etiqueta: GLOSARIO.proceso.plural, icono: 'procesos' })
@@ -181,21 +195,46 @@ function seccionesDe (yo: Yo): Seccion[] {
     secciones.push({ href: '/clientes', etiqueta: 'Clientes', icono: 'clientes' })
   }
 
-  // Focals va sin condicion, como `/live` y por el mismo motivo: la compuerta real es la API, que
-  // responde 403 a quien no es jefatura ni focal, y la pantalla lo dice con `SinPermiso`. Esconder
-  // la entrada con un `nivel` calculado aca seria una segunda opinion sobre el permiso, que se
-  // desincroniza sola el dia que el backend cambie la suya.
-  secciones.push({ href: '/focals', etiqueta: GLOSARIO.focal.plural, icono: 'focals' })
+  // Focals se muestra SOLO a quien es focal de al menos un Cliente, sin excepciones hacia arriba: no
+  // es una pantalla de supervision sino la cartera propia, y a quien no tiene cartera le quedaba una
+  // lista vacia. La llave es `yo.es_focal` y **no** `yo.nivel`: el escalon y el hecho de responder
+  // por una cuenta son dos cosas distintas, y decidir por el escalon se equivocaba en las dos
+  // direcciones —focales con nivel `usuario` sin su propia pantalla, jefaturas sin cuentas a cargo
+  // que si la veian—. Sigue siendo COSMETICA: la autorizacion del servidor no se toca y esconder no
+  // autoriza; el dato sale de la misma API que responde el 403. Ver `puedeVerFocals` para el caso de
+  // una API vieja que todavia no manda el campo.
+  if (puedeVerFocals(yo)) {
+    secciones.push({ href: '/focals', etiqueta: GLOSARIO.focal.plural, icono: 'focals' })
+  }
 
   if (puedeVerSeccion(yo.permissions.staff, 'staff')) {
     secciones.push({ href: '/equipo', etiqueta: 'Equipo', icono: 'equipo' })
   }
 
   // "Mi Área" no tiene permiso de Perfex propio: el cargo Director (`wiwo_core/cargos_areas.php`) no
-  // otorga capabilities, asi que la llave es `is_director` y no `permissions.staff`. Un director sin
-  // `staff.view` igual puede ver a su gente por esta puerta.
-  if (yo.is_director) {
+  // otorga capabilities, asi que nunca dependio de `permissions.staff` y un director sin `staff.view`
+  // igual ve a su gente por esta puerta.
+  //
+  // La llave ya no es `is_director` sino la PERTENENCIA a un area: la pantalla muestra el area propia
+  // y quien la integra, asi que sin area no hay nada que mostrar, y con area la hay aunque no se
+  // dirija nada. Con `is_director` la entrada estaba practicamente muerta: las 184 cuentas de
+  // produccion llevan cargo "Staff". Se miran los dos campos del area —la columna vieja y la tabla
+  // multiarea— por lo que explica `puedeVerMiArea`.
+  if (puedeVerMiArea(yo)) {
     secciones.push({ href: '/equipo/mi-area', etiqueta: 'Mi Área', icono: 'mi_area' })
+  }
+
+  // Jerarquias tiene entrada propia y no solo los dos enlaces desde Equipo y Mi Área: quien tiene que
+  // cargar el organigrama entra muchas veces, y una pantalla a la que solo se llega desde otra es
+  // facil de no encontrar.
+  //
+  // La llave es `dirige_areas` y **no** `is_director`: aquel es el cargo de `tblcargos` —la regla
+  // vieja— y hoy las 184 cuentas llevan cargo "Staff", asi que con esa llave la entrada no le
+  // aparecia a ninguna jefatura. `dirige_areas` sale del `jefe_staffid` del arbol, que es
+  // exactamente el criterio con el que la API decide el 403. Esconderla es cosmetica: la compuerta
+  // esta en el back, y la pantalla muestra su mensaje tal cual.
+  if (yo.dirige_areas || yo.is_admin || yo.is_superadmin) {
+    secciones.push({ href: '/equipo/jerarquia', etiqueta: 'Jerarquías', icono: 'organigrama' })
   }
 
   // Administracion no tiene permiso de Perfex propio, y `is_admin` es demasiado ancha: en la base

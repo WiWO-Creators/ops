@@ -4,7 +4,7 @@ import { useEffect, useId, useState } from 'react'
 import { Plus } from 'lucide-react'
 import { Boton } from '@/componentes/formularios/Boton'
 import { Campo } from '@/componentes/formularios/Campo'
-import { Entrada } from '@/componentes/formularios/Entrada'
+import { AreaTexto, Entrada } from '@/componentes/formularios/Entrada'
 import { formatearDuracion } from '@/componentes/proyecto/cronometro'
 import { AYUDA_DURACION, validarTimesheet } from '@/componentes/proyecto/timesheet'
 import { ContenidoDialogo, Dialogo } from '@/componentes/superposiciones/Dialogo'
@@ -42,6 +42,19 @@ import { SelectorTarea } from './SelectorTarea'
  * `GET /me/jornada/resumen` puede fallar. Cuando falla se dice y **se deja cerrar igual**: un resumen
  * que no carga no puede dejar a nadie con la jornada abierta para siempre. El tiempo ya medido esta
  * en la base con o sin esta pantalla.
+ *
+ * === EL COMENTARIO ES OPCIONAL; PASAR POR AQUI NO ===
+ *
+ * La caja de comentarios (`<ComentarioDeCierre>`) recoge lo que no cabe en ninguna ficha de tiempo:
+ * un bloqueo, una reunion que se comio la tarde, algo que retomar mañana. Se escribe **una vez por
+ * dia**, no por Proceso, y por eso es un campo del dialogo y no del formulario de agregar tiempo.
+ *
+ * Vacia se puede cerrar igual, y es a proposito: el acuerdo pide "comentarios adicionales", no un
+ * peaje. Exigir texto a las ocho de la noche produce "ok" y "nada" — ruido que despues hay que leer.
+ *
+ * Ojo con el otro campo "Nota" de esta misma pantalla: ese pertenece a `<AgregarTiempo>` y viaja a
+ * `POST /projects/{id}/timesheets` como la nota de UNA ficha de tiempo. No son el mismo dato ni van
+ * al mismo lado; este viaja en el cuerpo del `POST /me/jornada/cierre`.
  */
 
 interface PropsCierreJornada {
@@ -54,7 +67,8 @@ interface PropsCierreJornada {
   cerrando: boolean
   /** Por que no se pudo cerrar. Se pinta **dentro** del dialogo: encima no se ve nada mas. */
   aviso: string | null
-  onConfirmar: () => void
+  /** Recibe el comentario del dia ya recortado, o `null` si no se escribio nada. */
+  onConfirmar: (comentario: string | null) => void
 }
 
 export function CierreJornada ({
@@ -90,12 +104,24 @@ export function CierreJornada ({
   )
 }
 
+/**
+ * Tope del comentario, en caracteres.
+ *
+ * El mismo numero que `Escritura\\Jornada::COMENTARIO_CIERRE_MAXIMO` en la API, que responde 422 al
+ * pasarse. Aca es `maxLength`: la validacion de verdad es la del servidor, esta solo evita que
+ * alguien escriba un parrafo de mas para que se lo rechacen despues.
+ */
+const COMENTARIO_MAXIMO = 2000
+
+/** A partir de cuanto escrito aparece el contador. Antes seria ruido en un campo opcional. */
+const AVISAR_DESDE = COMENTARIO_MAXIMO - 200
+
 interface PropsCuerpo {
   staffId: number
   cerrando: boolean
   aviso: string | null
   onSeguir: () => void
-  onConfirmar: () => void
+  onConfirmar: (comentario: string | null) => void
 }
 
 function CuerpoCierre ({ staffId, cerrando, aviso, onSeguir, onConfirmar }: PropsCuerpo) {
@@ -103,6 +129,13 @@ function CuerpoCierre ({ staffId, cerrando, aviso, onSeguir, onConfirmar }: Prop
   const [errorResumen, setErrorResumen] = useState<string | null>(null)
   /** Se incrementa tras agregar tiempo: el resumen se vuelve a pedir en vez de parchearse a mano. */
   const [recarga, setRecarga] = useState(0)
+  /**
+   * El comentario del dia. Vive aca y no en `ControlJornada` porque muere con el dialogo, igual que
+   * el resumen: lo que se escribio y se descarto con "Seguir trabajando" no es un borrador que
+   * alguien espere encontrar mañana. Un cierre que FALLA no desmonta nada, asi que el texto sigue
+   * escrito para el reintento, que es cuando de verdad importa no perderlo.
+   */
+  const [comentario, setComentario] = useState('')
 
   useEffect(() => {
     const control = new AbortController()
@@ -186,6 +219,12 @@ function CuerpoCierre ({ staffId, cerrando, aviso, onSeguir, onConfirmar }: Prop
         onAgregado={() => { setRecarga((previo) => previo + 1) }}
       />
 
+      <ComentarioDeCierre
+        valor={comentario}
+        onCambiar={setComentario}
+        deshabilitado={cerrando}
+      />
+
       {aviso !== null && (
         <p role="alert" className="text-texto-peligro text-sm text-pretty">{aviso}</p>
       )}
@@ -194,7 +233,16 @@ function CuerpoCierre ({ staffId, cerrando, aviso, onSeguir, onConfirmar }: Prop
         <Boton variante="secundario" disabled={cerrando} onClick={onSeguir}>
           Seguir trabajando
         </Boton>
-        <Boton variante="primario" cargando={cerrando} onClick={onConfirmar}>
+        <Boton
+          variante="primario"
+          cargando={cerrando}
+          onClick={() => {
+            // Se recorta aca y no en el servidor nada mas: " " no es un comentario, y mandarlo
+            // haria que la API guardara una fila con texto en blanco en vez de NULL.
+            const limpio = comentario.trim()
+            onConfirmar(limpio === '' ? null : limpio)
+          }}
+        >
           Confirmar cierre
         </Boton>
       </div>
@@ -237,6 +285,69 @@ function Total ({
         {formatearDuracion(segundos)}
       </dd>
     </div>
+  )
+}
+
+interface PropsComentario {
+  valor: string
+  onCambiar: (valor: string) => void
+  deshabilitado: boolean
+}
+
+/**
+ * La caja de comentarios del cierre (RQ-JOR-8).
+ *
+ * === POR QUE AQUI Y NO DENTRO DE `<AgregarTiempo>` ===
+ *
+ * Porque no es la nota de una ficha de tiempo. `<AgregarTiempo>` tiene su propio campo "Nota", que
+ * describe UN tramo imputado a UN Proceso y se va con el a `POST /projects/{id}/timesheets`. Esto
+ * es el comentario del DIA: uno solo, del cierre entero, y viaja en el cuerpo del cierre. Juntarlos
+ * haria que escribir el resumen del dia dependiera de estar agregando tiempo que falto.
+ *
+ * Por eso tambien va despues del formulario y pegado a los botones: es lo ultimo que se escribe,
+ * justo antes de confirmar.
+ *
+ * === POR QUE NO ES OBLIGATORIO ===
+ *
+ * El dialogo si lo es —no se sale sin decidir—, pero el texto no. Ver el docblock de arriba.
+ *
+ * El contador aparece solo cerca del tope: un campo opcional con "0 / 2000" desde el primer render
+ * se lee como una cuota que hay que llenar, que es exactamente lo contrario de lo que es.
+ */
+function ComentarioDeCierre ({ valor, onCambiar, deshabilitado }: PropsComentario) {
+  const restantes = COMENTARIO_MAXIMO - valor.length
+
+  return (
+    <section className="border-linea flex flex-col gap-1.5 border-t pt-4">
+      <Campo
+        etiqueta="Comentario del día (opcional)"
+        ayuda="Lo que no queda en ninguna ficha de tiempo: un bloqueo, una reunión que se alargó, algo que retomar mañana."
+      >
+        {(props) => (
+          <AreaTexto
+            {...props}
+            value={valor}
+            rows={3}
+            maxLength={COMENTARIO_MAXIMO}
+            placeholder="Cómo estuvo el día"
+            disabled={deshabilitado}
+            onChange={(evento) => { onCambiar(evento.target.value) }}
+          />
+        )}
+      </Campo>
+
+      {valor.length >= AVISAR_DESDE && (
+        <p
+          role="status"
+          data-numerico
+          className={restantes === 0 ? 'text-texto-aviso text-xs' : 'text-texto-sutil text-xs'}
+        >
+          {restantes === 0
+            ? `Llegaste al máximo de ${COMENTARIO_MAXIMO} caracteres.`
+            : `Te quedan ${restantes} caracteres.`}
+        </p>
+      )}
+    </section>
   )
 }
 

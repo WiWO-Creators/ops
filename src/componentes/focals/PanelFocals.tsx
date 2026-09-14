@@ -30,13 +30,13 @@ import { cn } from '@/lib/clases'
  * los {@link GLOSARIO.espacio} ordenados por score contesta la segunda y hace imposible la primera:
  * una cuenta con cuatro proyectos regulares se lee peor que otra con uno pésimo, y no lo está.
  *
- * === Por qué el párrafo de WiBot es un botón y no aparece solo ===
+ * === Por qué el párrafo de Thinking Orb es un botón y no aparece solo ===
  *
  * Porque cuesta plata. Redactarlo al abrir la pantalla serían decenas de llamadas al modelo de las
  * que casi ninguna se lee. El semáforo, el desglose y los contadores están completos sin él: el
  * párrafo es lo que se pide cuando el número no alcanza para entender.
  *
- * Con WiBot apagado el botón sigue ahí y contesta en una línea qué pasa, en vez de desaparecer sin
+ * Con Thinking Orb apagado el botón sigue ahí y contesta en una línea qué pasa, en vez de desaparecer sin
  * explicación. Lo que no cambia nunca es el semáforo, que no depende del modelo.
  *
  * @param cuentas los clientes de esta persona, ya ordenados por el servidor del peor al mejor
@@ -281,7 +281,7 @@ function EstadoEnPalabras (
  * Pide el párrafo al BFF y devuelve el estado, o el motivo por el que no hay.
  *
  * No usa `escribirEnBff` porque acá hace falta el **código** de la respuesta y no solo su mensaje:
- * un 404 significa "WiBot está apagado" y un 409, "todavía no corrió el cálculo del día". Los dos
+ * un 404 significa "Thinking Orb está apagado" y un 409, "todavía no corrió el cálculo del día". Los dos
  * son estados normales del sistema y se cuentan con otras palabras (ver `mensajeDeFalloDeEstado`);
  * el mensaje crudo del servidor los haría parecer una falla de la aplicación.
  *

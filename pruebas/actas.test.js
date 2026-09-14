@@ -5,6 +5,8 @@ import {
   LIMITE_AUDIO_BYTES,
   LIMITE_BYTES,
   LIMITE_DOCUMENTO_BYTES,
+  LIMITE_TOTAL_BYTES,
+  MAXIMO_ARCHIVOS,
   MIME_DOCUMENTO,
   extensionDe,
   formatoPeso,
@@ -13,8 +15,10 @@ import {
   mimeDeGrabacion,
   nombreDeGrabacion,
   reloj,
+  seVeComoImagen,
   tituloDeActa,
-  validarArchivo
+  validarArchivo,
+  validarArchivos
 } from '../src/dominio/actas.ts'
 import { ACTAS, vistaPrevia } from '../src/definiciones/actas.ts'
 
@@ -199,4 +203,106 @@ test('el selector de documento ofrece exactamente lo que la API extrae', () => {
   }
   assert.ok(!ACEPTA.documento.includes('.m4a'))
   assert.ok(!ACEPTA.audio.includes('.pdf'))
+})
+
+
+/**
+ * La subida de VARIOS archivos.
+ *
+ * Es lo que cambia el contrato de punta a punta —`File[]` en vez de `File | null`— y lo que decide
+ * si una selección sale del navegador entera o a medias. Perder uno en silencio es el fallo caro: la
+ * persona eligió cinco fotos de una pizarra, se subieron cuatro y nadie se entera hasta que falta un
+ * acuerdo en el acta.
+ */
+test('sin archivos no hay nada que validar', () => {
+  assert.equal(validarArchivos([]), null)
+})
+
+test('la selección entera se acepta o se rechaza entera, y el mensaje dice cuál falla', () => {
+  const buenos = [
+    { name: 'pizarra.jpg', size: 1024 },
+    { name: 'cuaderno.png', size: 2048 }
+  ]
+  assert.equal(validarArchivos(buenos, 'imagen'), null)
+
+  const conUnMalo = [...buenos, { name: 'presupuesto.exe', size: 512 }]
+  const problema = validarArchivos(conUnMalo, 'imagen') ?? ''
+  assert.match(problema, /presupuesto\.exe/, 'con varios, el mensaje nombra el archivo que falla')
+  assert.match(problema, /audio o de imagen/)
+})
+
+test('con un solo archivo el mensaje no repite el nombre', () => {
+  const problema = validarArchivos([{ name: 'acta.pdf', size: 1024 }]) ?? ''
+  assert.match(problema, /audio o de imagen/)
+  assert.ok(!problema.startsWith('acta.pdf:'), 'con uno solo el nombre ya está a la vista')
+})
+
+test('el tope por archivo sigue mandando dentro de la lista', () => {
+  const problema = validarArchivos([
+    { name: 'pizarra.jpg', size: 1024 },
+    { name: 'reunion.m4a', size: LIMITE_AUDIO_BYTES + 1 }
+  ]) ?? ''
+  assert.match(problema, /reunion\.m4a/)
+  assert.match(problema, /100,0 MB/)
+})
+
+// El tope de la suma no es la suma de los topes: lo fija el `post_max_size` de PHP, que descarta el
+// cuerpo ENTERO cuando se pasa. Con un archivo nunca se alcanzaba; con diez, sí.
+test('la suma tiene su propio tope, y el mensaje dice qué hacer', () => {
+  const cuatroAudios = Array.from({ length: 4 }, (_, i) => ({
+    name: `reunion-${i}.m4a`,
+    size: 40 * 1024 * 1024
+  }))
+  assert.ok(cuatroAudios.every((a) => validarArchivo(a) === null), 'cada uno entra por separado')
+
+  const problema = validarArchivos(cuatroAudios) ?? ''
+  assert.match(problema, /160,0 MB/, 'dice cuánto suman')
+  assert.match(problema, /120,0 MB/, 'y cuánto se acepta')
+  assert.match(problema, /Saca alguno/)
+})
+
+test('el borde exacto de la suma entra, y un byte más no', () => {
+  // 100 MB de audio (su tope exacto) + 20 MB de foto son justo los 120 del tope de la suma.
+  const justo = [
+    { name: 'reunion.m4a', size: LIMITE_AUDIO_BYTES },
+    { name: 'pizarra.jpg', size: LIMITE_TOTAL_BYTES - LIMITE_AUDIO_BYTES }
+  ]
+  assert.ok(justo[1].size < LIMITE_BYTES, 'la foto tiene que seguir entrando por su propio tope')
+  assert.equal(validarArchivos(justo), null, 'justo en el tope todavía se manda')
+
+  const unoMas = [justo[0], { name: 'pizarra.jpg', size: justo[1].size + 1 }]
+  assert.match(validarArchivos(unoMas) ?? '', /120,0 MB/)
+})
+
+test('hay un tope de cantidad, igual al de la API', () => {
+  assert.equal(MAXIMO_ARCHIVOS, 10)
+  const once = Array.from({ length: 11 }, (_, i) => ({ name: `foto-${i}.jpg`, size: 1024 }))
+  assert.match(validarArchivos(once, 'imagen') ?? '', /hasta 10 archivos/)
+})
+
+/**
+ * Qué se puede pintar como miniatura.
+ *
+ * No es "qué es una imagen": un `.heic` lo es y ningún navegador de escritorio lo dibuja. Si esto se
+ * rompe, la ficha del acta muestra iconos rotos donde deberían estar las fotos de la pizarra, que se
+ * lee como "los archivos se corrompieron".
+ */
+test('el .heic se acepta al subir pero no se pinta: ningún navegador lo dibuja', () => {
+  assert.equal(inferirMime('pizarra.heic'), 'image/heic', 'sigue siendo una imagen que se acepta')
+  assert.equal(seVeComoImagen('image/heic', 'pizarra.heic'), false)
+  assert.equal(seVeComoImagen('', 'pizarra.heic'), false, 'tampoco por extensión')
+})
+
+test('manda el tipo real que guardó la API, y la extensión es la reserva', () => {
+  assert.equal(seVeComoImagen('image/jpeg', 'pizarra.jpg'), true)
+  assert.equal(seVeComoImagen('image/png; charset=binary', 'x.png'), true, 'el parámetro no estorba')
+  assert.equal(seVeComoImagen('IMAGE/PNG', 'x.png'), true)
+
+  // Un `.jpg` que en realidad es un audio: manda lo que dijo `finfo`, no la extensión.
+  assert.equal(seVeComoImagen('audio/mpeg', 'trampa.jpg'), false)
+
+  // Sin tipo guardado —`finfo` no estaba en el servidor— se cae a la extensión.
+  assert.equal(seVeComoImagen(null, 'pizarra.jpeg'), true)
+  assert.equal(seVeComoImagen(undefined, 'reunion.m4a'), false)
+  assert.equal(seVeComoImagen('', 'sinextension'), false)
 })

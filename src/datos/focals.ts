@@ -11,6 +11,7 @@
  * un Server Component. Así este archivo se puede probar con `node --test` sin montar Next.
  */
 
+import { ASISTENTE } from '../dominio/glosario.ts'
 import type { PuntoScoreCliente, ScoreCliente, SemaforoCliente } from './recursos'
 
 /** El parrafo con que la IA explica un semáforo. `null` mientras nadie lo haya pedido. */
@@ -165,9 +166,9 @@ export function nombreDe (espacio: ScoreEspacio): string {
  * @returns una línea para mostrar debajo del semáforo, que sigue pintado
  */
 export function mensajeDeFalloDeEstado (estadoHttp: number, mensajeApi: string): string {
-  if (estadoHttp === 404) return 'WiBot está apagado: el semáforo se ve igual, pero nadie puede redactar el estado.'
+  if (estadoHttp === 404) return `${ASISTENTE} está apagado: el semáforo se ve igual, pero nadie puede redactar el estado.`
   if (estadoHttp === 409) return 'Todavía no hay foto de hoy de este Proyecto. El cálculo corre una vez al día.'
-  if (estadoHttp === 429) return 'Se acabó la cuota de WiBot por ahora. El semáforo no depende de ella.'
+  if (estadoHttp === 429) return `Se acabó la cuota de ${ASISTENTE} por ahora. El semáforo no depende de ella.`
 
   return mensajeApi
 }

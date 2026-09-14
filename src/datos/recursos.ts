@@ -463,6 +463,7 @@ export interface MiembroEquipo {
   /** Organizacion propia del staff (`modules/wiwo_core/cargos_areas.php`), separada de `role_id`. */
   cargo_id: number | null
   area_id: number | null
+  area_ids?: number[]
   /**
    * A cual de las seis organizaciones del grupo pertenece (`tblapi_empresas`, migracion 0170).
    *
@@ -507,8 +508,12 @@ export interface TiempoDePersona {
   esta_semana_segundos: number
   corriendo: {
     id: number
+    /** `0` es el medidor de Espacio puro de la `0260`: se mide el Proyecto entero, sin Tarea. */
     task_id: number
     task_name: string | null
+    /** El Espacio del cronómetro, venga de su `project_id` o del `rel_id` de la Tarea. */
+    project_id: number | null
+    project_name: string | null
     start_time: string | null
     segundos: number
   } | null
@@ -525,6 +530,7 @@ export interface FichaPersona extends MiembroEquipo {
   role: Referencia | null
   cargo: Referencia | null
   area: Referencia | null
+  areas?: Referencia[]
   empresa: Referencia | null
   departments: Referencia[]
   permissions: Record<string, string[]>
@@ -1115,12 +1121,48 @@ export interface NotaEspacio {
  * su propio esquema. La vista de listado no lo trae: la API lo omite a proposito porque son ~20.000
  * caracteres por fila.
  */
+/**
+ * Un archivo con el que se escribio un Meeting Paper: el audio de la reunion, la foto de la pizarra
+ * o el documento que alguien ya habia redactado.
+ *
+ * Antes no existia: los tres eran solo la fuente de entrada del modelo y morian con la peticion. Lo
+ * que quedaba del audio de una reunion de dos horas era el texto que el modelo escribio a partir de
+ * el, y nada mas.
+ *
+ * `url` la emite la API contra `/api/v1/...` y **no se usa tal cual**: `origenDeArchivo()` la
+ * traduce al proxy, porque el token vive en una cookie que solo lee el BFF. Sirve tambien de `src`
+ * de la miniatura, que es una peticion del navegador como cualquier otra.
+ */
+export interface AdjuntoActa {
+  id: number
+  acta_id: number
+  /** El nombre con el que se subio, que es el unico que la persona reconoce. */
+  name: string
+  /** El nombre en disco, desambiguado por la API. Dos `IMG_0001.jpg` no pueden llamarse igual. */
+  file_name: string
+  /** Tipo real del contenido, leido por la API con `finfo`. Puede venir vacio. */
+  filetype: string
+  size: number
+  staff_id: number
+  url: string | null
+  date_added: string | null
+}
+
 export interface Acta {
   id: number
   project_id: number
   title: string
   /** Solo en el detalle. HTML saneado por la API; ver el docblock de arriba antes de pintarlo. */
   content?: string
+  /**
+   * El mismo acta en datos. Viaja siempre que viaje `content`, y nunca sin el.
+   *
+   * No es una segunda copia guardada: la API la deriva del HTML en cada lectura, asi que no puede
+   * quedar desfasada de lo que se ve en pantalla ni obliga a migrar las actas ya escritas. Tampoco
+   * es IA —se deriva de la columna, sin llamar a ningun proveedor—, asi que sigue llegando con el
+   * kill-switch apagado.
+   */
+  structure?: EstructuraActa
   client: string
   meeting_date: string | null
   place: string
@@ -1128,7 +1170,14 @@ export interface Acta {
   attendees: string[]
   /** Codigo de la marca del holding: `mgc`, `wiwo`, `palta` o vacio. */
   brand: string
-  /** URL de la firma que corresponde a `brand`. La resuelve la API; no viaja dentro del HTML. */
+  /**
+   * URL de la firma que corresponde a `brand`, resuelta por la API contra un dominio externo.
+   *
+   * El visor ya no la usa: la marca entera —logotipo, colores y pie— la pinta
+   * `dominio/marcas-acta.ts` con archivos de este mismo dominio, porque una imagen remota en
+   * un documento que se imprime deja un hueco en el PDF y nadie se entera. Se mantiene en el
+   * tipo porque la API la sigue mandando.
+   */
   brand_sign_url: string | null
   /** `ia` si la dicto un modelo, `manual` si la escribio una persona. */
   source: string
@@ -1137,6 +1186,32 @@ export interface Acta {
   date_added: string | null
   date_updated: string | null
   updated_by: number | null
+  /**
+   * Solo en el detalle. Los archivos de la reunion, en el orden en que se subieron: el primero es el
+   * que leyo el modelo. El listado no los trae, por lo mismo que no trae `content`.
+   */
+  attachments?: AdjuntoActa[]
+  /**
+   * Solo en el detalle. Nombre del Proyecto del que cuelga, que va junto a cada foto: una imagen de
+   * una pizarra no dice sola de que proyecto es, y `project_id` no es algo que nadie lea.
+   */
+  project_name?: string
+}
+
+/**
+ * El Meeting Paper partido en datos, para quien no puede leer el HTML: un bot, una integracion, otro
+ * panel. La forma la arma `RecursoActas::comoEstructura()`.
+ *
+ * Un acta escrita a mano sin titulos trae una sola seccion sin titulo y las otras dos listas vacias:
+ * la estructura se degrada, nunca falla. El HTML de `content` sigue siendo la version completa.
+ */
+export interface EstructuraActa {
+  /** Una por titulo del acta, en el orden del documento. `content` viene en markdown. */
+  sections: Array<{ title: string, level: number, content: string }>
+  /** Un tema tratado con lo que se resolvio. `action` y `owner` son `null` si el acta no los dice. */
+  agreements: Array<{ topic: string, detail: string, action: string | null, owner: string | null }>
+  /** Los proximos pasos, con el responsable separado del texto para poder filtrarlo. */
+  commitments: Array<{ text: string, owner: string | null }>
 }
 
 /** Lo que ya se sabe del Proyecto al abrir el formulario (`GET /ia/proyectos/{id}/acta/prefill`). */

@@ -92,6 +92,7 @@ export default async function LivePage () {
       <ControlJornada
         variante="panel"
         staffId={yo.id}
+        nombre={yo.full_name}
         segundos={segundos}
         inicial={jornada instanceof ErrorApi ? null : jornada.data}
         errorInicial={mensaje(jornada)}

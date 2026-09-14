@@ -59,6 +59,71 @@ export const DEPARTAMENTOS = [
   { id: 2, name: 'Ventas' }
 ]
 
+/**
+ * Los nombres que hoy figuran entre las opciones del campo "Área de la compañía" de los Procesos.
+ *
+ * El cruce entre un area del equipo y los Procesos se hace **por texto**, no por id: de ahi sale el
+ * `en_tareas` de cada area, de ahi sale que renombrar este bloqueado, y de ahi sale la tercera
+ * cuenta del 409 al borrar.
+ *
+ * Es mutable: el alta de un area sincroniza el nombre, asi que las areas nuevas nacen alineadas.
+ */
+export const OPCIONES_AREA_EN_TAREAS = [
+  'PR', 'TechLab', 'Influencer', 'CX SAC', 'Content Studio', 'Digital Creators', 'Creatividad',
+  'Storytelling', 'Analytics', 'Wiwo', 'Palta', 'HL', 'iLuk', 'Aima', 'Foundaxis', 'Inteligencia'
+]
+
+/**
+ * Cuantos Procesos tienen escrito cada nombre de area.
+ *
+ * No es lo mismo que estar entre las opciones: una opcion puede existir sin que ningun Proceso la
+ * use, y es justamente esa diferencia la que hace que un area **vacia en la pantalla** —sin gente y
+ * sin hijas— igual no se pueda borrar. En produccion son unos 2.900 Procesos repartidos; aca alcanza
+ * con que unas pocas tengan y el resto no.
+ */
+export const PROCESOS_POR_AREA = { Analytics: 412, Creatividad: 268, Wiwo: 91, PR: 24 }
+
+/**
+ * Organigrama de areas del equipo (`tblareas`), lo que sirve `GET /jerarquia`.
+ *
+ * Son **las mismas** areas de la compañia que ya usan las Tareas: la migracion las siembra con esos
+ * 16 nombres, todas sueltas, sin jefe y sin colgar de nadie. Ese es el estado inicial real, y el
+ * trabajo de quien administra es ordenarlas en arbol, ponerles jefe y meterles gente.
+ *
+ * El fixture se aparta del estado recien sembrado en una sola cosa, a proposito: deja ya armada una
+ * rama de tres niveles (Wiwo › Creatividad › Analytics y Content Studio). Sin al menos un arbol
+ * hecho, el mock no ejercita ni el anidado, ni el alcance, ni el `ciclo` de un PUT — y todo eso
+ * habria que armarlo a mano antes de poder mirarlo una sola vez.
+ *
+ * Es mutable: las escrituras de `/jerarquia` empujan a este mismo array.
+ */
+export const AREAS = [
+  { id: 1, name: 'Wiwo', area_superior_id: null, jefe_staffid: 1 },
+  { id: 2, name: 'Creatividad', area_superior_id: 1, jefe_staffid: 2 },
+  { id: 3, name: 'Analytics', area_superior_id: 2, jefe_staffid: 3 },
+  { id: 4, name: 'Content Studio', area_superior_id: 2, jefe_staffid: 4 },
+  // Las doce restantes, tal como las deja la migracion: sueltas, sin jefe y sin superior.
+  ...['PR', 'TechLab', 'Influencer', 'CX SAC', 'Digital Creators', 'Storytelling',
+    'Palta', 'HL', 'iLuk', 'Aima', 'Foundaxis', 'Inteligencia']
+    .map((name, i) => ({ id: i + 5, name, area_superior_id: null, jefe_staffid: null })),
+  // Una area desalineada: su nombre NO esta entre las opciones de los Procesos, asi que no cruza con
+  // ninguno y nadie se entera —no hay error, simplemente no trae nada—. Es el caso que la insignia
+  // de la pantalla existe para hacer visible, y sin una en el fixture no se puede mirar nunca.
+  { id: 17, name: 'Retail', area_superior_id: null, jefe_staffid: null }
+]
+
+/**
+ * A que area pertenece cada persona del fixture, por indice de `NOMBRES`.
+ *
+ * Gina (indice 6) queda sin area: es el estado inicial de las 184 cuentas reales, y sin al menos una
+ * asi la pantalla no ejercita el panel de "Sin área".
+ *
+ * Hugo (indice 7) esta dado de baja **y sigue colgado de un area**, que es exactamente para lo que
+ * el contrato emite `active` en cada persona. Sin este caso, nadie nota que un area puede decir
+ * "3 personas" donde solo trabajan 2.
+ */
+const AREA_POR_INDICE = [1, 2, 3, 4, 3, 4, null, 4]
+
 const NOMBRES = [
   ['Ana', 'Ríos'], ['Bruno', 'Cabral'], ['Carla', 'Méndez'], ['Diego', 'Sosa'],
   ['Elena', 'Paz'], ['Facundo', 'Lugo'], ['Gina', 'Ferrer'], ['Hugo', 'Márquez']
@@ -107,7 +172,7 @@ export const STAFF = NOMBRES.map(([firstname, lastname], i) => ({
   // Cargo y area: el fixture no los tenia y la columna Área escribia "#undefined" en todas las
   // filas. Van con la misma forma que la API real —id o null—, no ausentes.
   cargo_id: null,
-  area_id: null,
+  area_id: AREA_POR_INDICE[i] ?? null,
   role_id: ciclo(ROLES, i).id,
   active: i !== NOMBRES.length - 1,
   is_not_staff: false,

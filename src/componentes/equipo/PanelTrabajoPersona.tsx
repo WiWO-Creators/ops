@@ -1,26 +1,23 @@
 'use client'
 
 import Link from 'next/link'
-import { useCallback, useEffect, useState } from 'react'
+import { useState } from 'react'
 import { CeldaEncabezado, CeldaTabla, CuerpoTabla, EncabezadoTabla, FilaTabla, Tabla } from '@/componentes/datos/Tabla'
 import { Cargando, ErrorEstado, Vacio } from '@/componentes/estado/Estados'
-import { Fecha } from '@/componentes/presentadores/Fecha'
 import { Insignia } from '@/componentes/presentadores/Insignia'
-import { PARAMETRO_TAREA } from '@/componentes/datos/tabla'
-import { pedirSobre } from '@/datos/cliente'
+import { Paginador, TareasAsignadas, useListaPaginada } from '@/componentes/mis-tareas/TareasAsignadas'
 import { GLOSARIO } from '@/dominio/glosario'
 import { resolverEstado } from '@/dominio/estados-tarea'
-import { EstadoDeTarea } from '@/componentes/proyecto/EstadoDeTarea'
 import { ESTADO_COMPLETO } from '@/componentes/proyecto/tareas'
-import type { EstadoLookup, Espacio, Proceso } from '@/datos/recursos'
+import type { EstadoLookup, Espacio } from '@/datos/recursos'
 
 /**
- * Cuanto se trae de cada lista.
+ * Cuanto se trae de cada pagina de Proyectos.
  *
- * Es un tope de pantalla, no de paginacion: quien tenga mas trabajo abierto que esto se mira en
- * Tareas o en Proyectos, que si paginan y estan enlazados abajo de cada tabla.
+ * El mismo tamaño que usa la lista de Tareas (`TareasAsignadas`), para que las dos tablas de la
+ * pestaña se lean con el mismo ritmo.
  */
-const POR_PAGINA = 50
+const POR_PAGINA = 25
 
 /**
  * Los estados que cuentan como trabajo abierto: todos los del catalogo menos "Completo".
@@ -30,17 +27,14 @@ const POR_PAGINA = 50
  * asi que un estado nuevo tiene que entrar solo.
  *
  * @param estados `task_statuses` de `GET /lookups`
- * @returns los ids separados por coma, o vacio si el catalogo no llego — ahi no se filtra por estado
+ * @returns el fragmento de consulta, o vacio si el catalogo no llego — ahi no se filtra por estado
  *          en vez de mandar un `filter[status]=` vacio, que el backend rechaza
  */
-function estadosAbiertos (estados: EstadoLookup[]): string {
-  return estados.filter((estado) => estado.id !== ESTADO_COMPLETO).map((estado) => estado.id).join(',')
-}
+function filtroDeAbiertos (estados: EstadoLookup[]): string | undefined {
+  const abiertos = estados.filter((estado) => estado.id !== ESTADO_COMPLETO).map((estado) => estado.id).join(',')
 
-type Carga<T> =
-  | { fase: 'cargando' }
-  | { fase: 'error', mensaje: string }
-  | { fase: 'listo', filas: T[] }
+  return abiertos === '' ? undefined : `filter[status]=${abiertos}`
+}
 
 interface Props {
   personaId: number
@@ -58,9 +52,9 @@ interface Props {
  * persona y no de la pantalla, y bajarlos en el render inicial sumaria dos viajes a la API a cada
  * visita de la ficha, incluida la que solo venia a mirar el correo.
  *
- * No usa `TablaRecurso`: ese motor toma la consulta de la URL y no admite un filtro fijo, asi que el
- * filtro por persona se podria cambiar desde la ficha de otra y mostrar trabajo ajeno bajo el nombre
- * equivocado. Lo que hace falta aca es una lista acotada; la vista con filtros y orden ya existe.
+ * La tabla de Tareas es la MISMA que usa "Mis Tareas" (`componentes/mis-tareas/TareasAsignadas`):
+ * una sola implementacion de "las Tareas de una persona, paginadas y con su origen". Lo unico que
+ * cambia entre las dos pantallas es el filtro que se le pasa y a donde lleva el detalle.
  *
  * @param personaId De quien es el trabajo.
  * @param nombre Su nombre, para los estados vacios.
@@ -69,143 +63,32 @@ interface Props {
  * @returns Las dos tablas del trabajo abierto de la persona.
  */
 export function PanelTrabajoPersona ({ personaId, nombre, estadosDeTarea, estadosDeProyecto }: Props) {
+  const plural = GLOSARIO.proceso.plural.toLowerCase()
+
   return (
     <div className="flex flex-col gap-8">
-      <TareasAsignadas personaId={personaId} nombre={nombre} estados={estadosDeTarea} />
+      <TareasAsignadas
+        personaId={personaId}
+        titulo={`${GLOSARIO.proceso.plural} abiertas`}
+        estados={estadosDeTarea}
+        consultaExtra={filtroDeAbiertos(estadosDeTarea)}
+        vacio={{
+          titulo: `${nombre} no tiene ${plural} abiertas`,
+          descripcion: 'Cuando se le asigne la primera va a aparecer acá, con su estado y su fecha de entrega.'
+        }}
+      />
+
       <ProyectosDeLaPersona personaId={personaId} nombre={nombre} estados={estadosDeProyecto} />
     </div>
   )
 }
 
-/**
- * Trae una lista acotada de la API y la mantiene cancelable.
- *
- * @param ruta Ruta relativa ya armada, con su filtro por persona.
- * @param queSon Como nombrar a lo que fallo, para el mensaje de error.
- * @returns El estado de carga y la funcion para reintentar.
- */
-function useLista<T> (ruta: string, queSon: string): [Carga<T>, () => void] {
-  const [carga, setCarga] = useState<Carga<T>>({ fase: 'cargando' })
-  const [intento, setIntento] = useState(0)
-
-  const reintentar = useCallback(() => {
-    setCarga({ fase: 'cargando' })
-    setIntento((n) => n + 1)
-  }, [])
-
-  useEffect(() => {
-    const control = new AbortController()
-
-    void pedirSobre<T[]>(ruta, control.signal)
-      .then((sobre) => {
-        if (control.signal.aborted) return
-
-        setCarga({ fase: 'listo', filas: sobre.data })
-      })
-      .catch((fallo: unknown) => {
-        if (control.signal.aborted) return
-
-        setCarga({
-          fase: 'error',
-          mensaje: fallo instanceof Error ? fallo.message : `No se pudieron cargar ${queSon}.`
-        })
-      })
-
-    return () => { control.abort() }
-  }, [ruta, queSon, intento])
-
-  return [carga, reintentar]
-}
-
-/** Las Tareas sin terminar que tiene asignadas. */
-function TareasAsignadas ({ personaId, nombre, estados }: { personaId: number, nombre: string, estados: EstadoLookup[] }) {
-  const plural = GLOSARIO.proceso.plural.toLowerCase()
-  const abiertos = estadosAbiertos(estados)
-  const [carga, reintentar] = useLista<Proceso>(
-    `tasks?assignee=${personaId}${abiertos === '' ? '' : `&filter[status]=${abiertos}`}&per_page=${POR_PAGINA}&sort=due_date`,
-    plural
-  )
-
-  if (carga.fase === 'cargando') return <Cargando alto="min-h-40" mensaje={`Cargando sus ${plural}…`} />
-  if (carga.fase === 'error') return <ErrorEstado detalle={carga.mensaje} onReintentar={reintentar} />
-
-  if (carga.filas.length === 0) {
-    return (
-      <Vacio
-        titulo={`${nombre} no tiene ${plural} abiertas`}
-        descripcion={`Cuando se le asigne la primera va a aparecer acá, con su estado y su fecha de entrega.`}
-      />
-    )
-  }
-
-  return (
-    <section className="flex flex-col gap-3">
-      <h2 className="text-texto text-sm font-semibold">{GLOSARIO.proceso.plural} abiertas</h2>
-
-      <Tabla>
-        <EncabezadoTabla>
-          <tr>
-            <CeldaEncabezado>Nombre</CeldaEncabezado>
-            <CeldaEncabezado>Estado</CeldaEncabezado>
-            <CeldaEncabezado>{GLOSARIO.espacio.singular}</CeldaEncabezado>
-            <CeldaEncabezado>Vence</CeldaEncabezado>
-          </tr>
-        </EncabezadoTabla>
-
-        <CuerpoTabla>
-          {carga.filas.map((tarea) => (
-            <FilaTabla key={tarea.id}>
-              <CeldaTabla>
-                <Link
-                  href={`/procesos?${PARAMETRO_TAREA}=${tarea.id}`}
-                  className="text-texto hover:text-acento font-medium underline-offset-4 hover:underline"
-                >
-                  {tarea.name}
-                </Link>
-              </CeldaTabla>
-
-              <CeldaTabla>
-                <EstadoDeTarea status={tarea.status} catalogo={estados} tamano="medio" />
-              </CeldaTabla>
-
-              <CeldaTabla className="text-texto-tenue">
-                {tarea.project === null
-                  ? '—'
-                  : (
-                    <Link
-                      href={`/espacios/${tarea.project.id}`}
-                      className="hover:text-acento underline-offset-4 hover:underline"
-                    >
-                      {tarea.project.name}
-                    </Link>
-                    )}
-              </CeldaTabla>
-
-              <CeldaTabla>
-                <Fecha valor={tarea.due_date} comoVencimiento />
-              </CeldaTabla>
-            </FilaTabla>
-          ))}
-        </CuerpoTabla>
-      </Tabla>
-
-      {/* Sin enlace a la vista completa: `assignee` es un parametro suelto de la API y NO un filtro
-          declarado de Procesos, asi que `/procesos?assignee=N` mostraria las de todo el mundo bajo
-          el nombre de esta persona. */}
-      <p className="text-texto-tenue text-xs">
-        {carga.filas.length === POR_PAGINA
-          ? `Se muestran las primeras ${POR_PAGINA}.`
-          : `${carga.filas.length} en total.`}
-      </p>
-    </section>
-  )
-}
-
 /** Los Proyectos donde es miembro. */
 function ProyectosDeLaPersona ({ personaId, nombre, estados }: { personaId: number, nombre: string, estados: EstadoLookup[] }) {
+  const [pagina, setPagina] = useState(1)
   const plural = GLOSARIO.espacio.plural.toLowerCase()
-  const [carga, reintentar] = useLista<Espacio>(
-    `projects?filter[member]=${personaId}&per_page=${POR_PAGINA}&sort=name`,
+  const [carga, reintentar] = useListaPaginada<Espacio>(
+    `projects?filter[member]=${personaId}&per_page=${POR_PAGINA}&page=${pagina}&sort=name`,
     plural
   )
 
@@ -262,6 +145,8 @@ function ProyectosDeLaPersona ({ personaId, nombre, estados }: { personaId: numb
           })}
         </CuerpoTabla>
       </Tabla>
+
+      <Paginador paginacion={carga.paginacion} cuantas={carga.filas.length} onPagina={setPagina} />
 
       <p className="text-texto-tenue text-xs">
         <Link

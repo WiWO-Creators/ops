@@ -39,12 +39,21 @@ export interface PersonaDelResumen {
   procesos: ItemDelResumen[]
 }
 
+/** Alguien que no marcó el inicio de su jornada ese día. */
+export interface AusenteDelResumen {
+  staff_id: number
+  nombre: string
+}
+
 /**
  * El desglose completo del día.
  *
  * `personas_activas` es quién midió tiempo y `jornadas_abiertas` cuánta gente abrió jornada: los dos
  * números juntos son el dato, porque "seis personas midieron" se lee muy distinto si ese día
  * abrieron jornada seis o veinte.
+ *
+ * `ausentes` es la otra mitad y llega opcional a propósito: los resúmenes guardados antes de que
+ * existiera la lista no la traen, y un día viejo tiene que seguir abriéndose sin romper la pantalla.
  */
 export interface DetalleDelResumen {
   total_segundos: number
@@ -52,6 +61,7 @@ export interface DetalleDelResumen {
   jornadas_abiertas: number
   personas: PersonaDelResumen[]
   espacios: ItemDelResumen[]
+  ausentes?: AusenteDelResumen[]
 }
 
 /** El resumen guardado de un día. */

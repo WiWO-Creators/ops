@@ -29,6 +29,29 @@ export const ESTADOS_DE_LICITACION: OpcionFiltro[] = [
 ]
 
 /**
+ * Que contempla el trabajo que se licita.
+ *
+ * Reemplaza a "Facturación" (`TIPOS_DE_FACTURACION`) **solo en el formulario de Licitación**: aquello
+ * describe como se le cobra a un Espacio ya vendido —costo fijo, horas—, y acá la pregunta es otra,
+ * que se ofrece. En Espacios `billing_type` sigue igual: son dos preguntas, no dos nombres de la
+ * misma.
+ *
+ * **Es un selector simple con tres opciones y no uno multiple** aunque una licitación pueda
+ * contemplar las dos cosas. Un campo multiple obliga a un `tipo` nuevo en `CampoFormulario`, a un
+ * control nuevo en `ControlDeCampo` y a que `cuerpoDelFormulario` sepa serializar arreglos: tres
+ * piezas de maquinaria para representar un caso que, con dos valores posibles, tiene exactamente
+ * tres combinaciones utiles. La opcion combinada las cubre sin agregar nada.
+ *
+ * Van fijas y no por `desdeLookup` por el mismo motivo que `ESTADOS_DE_LICITACION`: no son un
+ * catalogo que alguien administre en Perfex.
+ */
+export const MODELOS_DE_SERVICIO: OpcionFiltro[] = [
+  { valor: 'implementacion', etiqueta: 'Implementación' },
+  { valor: 'mantencion', etiqueta: 'Mantención' },
+  { valor: 'implementacion_mantencion', etiqueta: 'Implementación y mantención' }
+]
+
+/**
  * Nombre visible de un estado.
  *
  * @param estado Valor tal como lo devuelve la API.

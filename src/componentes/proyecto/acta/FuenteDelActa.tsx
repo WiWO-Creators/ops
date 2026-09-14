@@ -8,6 +8,7 @@ import {
   LIMITE_AUDIO_BYTES,
   LIMITE_BYTES,
   LIMITE_DOCUMENTO_BYTES,
+  MAXIMO_ARCHIVOS,
   formatoPeso
 } from '@/dominio/actas'
 import { GrabadoraDeAudio } from '../GrabadoraDeAudio'
@@ -34,23 +35,29 @@ const MODOS: ReadonlyArray<{ valor: ModoEntrada, etiqueta: string }> = [
   { valor: 'documento', etiqueta: 'Documento' }
 ]
 
-/** Etiqueta del campo de archivo, por modo. */
+/** Etiqueta del campo de archivo, por modo. Plural: desde ahora se puede elegir más de uno. */
 const ETIQUETA_ARCHIVO: Record<'audio' | 'imagen' | 'documento', string> = {
-  audio: 'Archivo de audio',
-  imagen: 'Foto de la pizarra o del cuaderno',
+  audio: 'Archivos de audio',
+  imagen: 'Fotos de la pizarra o del cuaderno',
   documento: 'Meeting Paper ya redactado'
 }
 
 /**
  * Qué se acepta en cada modo de archivo. Se dice en el campo, no en un aviso aparte: el peso máximo
  * solo importa mientras se elige el archivo.
+ *
+ * Ya no dice "el archivo no se guarda": ahora se guarda. Es la frase que la auditoría encontró y que
+ * describía el comportamiento viejo, donde los tres modos de archivo eran la fuente de entrada del
+ * modelo y nada más.
  */
 function ayudaDeArchivo (modo: 'audio' | 'imagen' | 'documento'): string {
   if (modo === 'documento') {
-    return `PDF, DOCX, TXT, MD o HTML, hasta ${formatoPeso(LIMITE_DOCUMENTO_BYTES)}. El archivo no se guarda: lo que queda es el Meeting Paper que se escriba a partir de él.`
+    return `PDF, DOCX, TXT, MD o HTML, hasta ${formatoPeso(LIMITE_DOCUMENTO_BYTES)} cada uno. Quedan adjuntos al Meeting Paper.`
   }
 
-  return `Hasta ${formatoPeso(modo === 'audio' ? LIMITE_AUDIO_BYTES : LIMITE_BYTES)}.`
+  const tope = formatoPeso(modo === 'audio' ? LIMITE_AUDIO_BYTES : LIMITE_BYTES)
+
+  return `Hasta ${tope} cada uno, ${MAXIMO_ARCHIVOS} como máximo. Quedan adjuntos al Meeting Paper.`
 }
 
 interface PropsFuente {
@@ -58,9 +65,9 @@ interface PropsFuente {
   onModo: (modo: ModoEntrada) => void
   texto: string
   onTexto: (texto: string) => void
-  archivo: File | null
+  archivos: File[]
   errorArchivo: string | null
-  onArchivo: (archivo: File | null) => void
+  onArchivos: (archivos: File[]) => void
 }
 
 export function FuenteDelActa ({
@@ -68,9 +75,9 @@ export function FuenteDelActa ({
   onModo,
   texto,
   onTexto,
-  archivo,
+  archivos,
   errorArchivo,
-  onArchivo
+  onArchivos
 }: PropsFuente): ReactElement {
   const deArchivo = modo === 'audio' || modo === 'imagen' || modo === 'documento'
 
@@ -104,8 +111,8 @@ export function FuenteDelActa ({
 
         {modo === 'grabar' && (
           <GrabadoraDeAudio
-            onGrabado={(grabado) => { onArchivo(grabado) }}
-            onDescartado={() => { onArchivo(null) }}
+            onGrabado={(grabado) => { onArchivos([grabado]) }}
+            onDescartado={() => { onArchivos([]) }}
           />
         )}
 
@@ -119,22 +126,61 @@ export function FuenteDelActa ({
               <input
                 {...props}
                 type="file"
+                multiple
                 accept={ACEPTA[modo]}
-                onChange={(evento) => { onArchivo(evento.target.files?.[0] ?? null) }}
+                // El `<input type="file">` no acumula: cada elección reemplaza a la anterior, que es
+                // lo que el control nativo ya le muestra a la persona. Acumular obligaría a inventar
+                // un botón de quitar por fila para deshacer un clic de más.
+                onChange={(evento) => { onArchivos(Array.from(evento.target.files ?? [])) }}
                 className="text-texto-tenue file:rounded-control file:border-control-borde file:bg-control file:text-texto hover:file:bg-hover w-full cursor-pointer text-sm file:mr-3 file:cursor-pointer file:border file:px-3 file:py-1.5 file:text-sm file:font-semibold"
               />
             )}
           </Campo>
         )}
 
-        {archivo !== null && modo !== 'grabar' && (
-          <p className="text-texto-tenue flex flex-wrap items-baseline gap-x-2 gap-y-0.5 text-xs">
+        {archivos.length > 0 && modo !== 'grabar' && (
+          <Elegidos archivos={archivos} />
+        )}
+      </div>
+    </div>
+  )
+}
+
+/**
+ * Lo que se eligió, con el peso de cada archivo y cuál de ellos lee el asistente.
+ *
+ * Decir cuál se lee no es un detalle de implementación que se pueda callar: el modelo trabaja con
+ * UNA fuente, y quien sube tres fotos de una pizarra tiene que saber que la segunda y la tercera
+ * quedan guardadas pero no se leen. Callarlo produce un acta incompleta que nadie sabe por qué lo
+ * está.
+ */
+function Elegidos ({ archivos }: { archivos: File[] }): ReactElement {
+  const total = archivos.reduce((suma, archivo) => suma + archivo.size, 0)
+
+  return (
+    <div className="flex flex-col gap-1">
+      <ul className="flex flex-col gap-0.5">
+        {archivos.map((archivo, posicion) => (
+          <li
+            key={`${archivo.name}-${archivo.lastModified}-${posicion}`}
+            className="text-texto-tenue flex flex-wrap items-baseline gap-x-2 gap-y-0.5 text-xs"
+          >
             {/* `break-all`: un nombre de archivo sin espacios desborda la tarjeta a 400 px. */}
             <span className="text-texto font-medium break-all">{archivo.name}</span>
             <span>{formatoPeso(archivo.size)}</span>
-          </p>
-        )}
-      </div>
+            {posicion === 0 && archivos.length > 1 && (
+              <span className="text-acento font-semibold">Este es el que se lee</span>
+            )}
+          </li>
+        ))}
+      </ul>
+
+      {archivos.length > 1 && (
+        <p className="text-texto-sutil text-xs">
+          {archivos.length} archivos, {formatoPeso(total)} en total. Los demás quedan adjuntos al
+          Meeting Paper sin pasar por el asistente.
+        </p>
+      )}
     </div>
   )
 }
