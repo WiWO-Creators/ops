@@ -1,4 +1,5 @@
 import { Suspense } from 'react'
+import { redirect } from 'next/navigation'
 import { VistaEspacios } from '@/componentes/proyecto/TarjetasProyectos'
 import { Cargando } from '@/componentes/estado/Estados'
 import { TituloModulo } from '@/componentes/estructura/TituloModulo'
@@ -16,7 +17,7 @@ import type {
 } from '@/datos/recursos'
 import type { OpcionFiltro } from '@/definiciones/tipos'
 import type { Yo } from '@/datos/tipos'
-import { ESPACIOS, espaciosConCampos } from '@/definiciones/espacios'
+import { ESPACIOS, espaciosConCampos, filtrosDeEntradaDeEspacios } from '@/definiciones/espacios'
 
 export const metadata = { title: 'Proyectos · WiWO Ops' }
 
@@ -52,6 +53,19 @@ export default async function EspaciosPage (props: PageProps<'/espacios'>) {
   const estado = leerConsulta(params, definicion)
   const consulta = construirConsulta(estado, definicion)
   const vista = params.get('vista') === 'tabla' ? 'tabla' : 'tarjetas'
+
+  // La regla del filtro de entrada vive en `filtrosDeEntradaDeEspacios`; este `if` solo evita pedir el
+  // catalogo en serie delante del listado en las visitas que ya traen consulta, que son la mayoria.
+  // `cargarLookups` esta memoizado por peticion, asi que el `Promise.all` de abajo no lo repite.
+  if (params.toString() === '') {
+    const { project_statuses: estadosDeEspacio } = await cargarLookups()
+    const filtros = filtrosDeEntradaDeEspacios(params, estadosDeEspacio.map((opcion) => String(opcion.id)))
+
+    // Se redirige en vez de filtrar por dentro: asi las pastillas, los controles y la tabla leen el
+    // mismo estado desde la URL —una sola fuente— y al quitar el estado queda una URL con parametros,
+    // que ya no vuelve a disparar el defecto.
+    if (filtros !== null) redirect(`/espacios?${construirConsulta({ ...estado, filtros }, definicion)}`)
+  }
 
   const [lista, lookups, yo, estadisticas, clientes, equipo, plantillas] = await Promise.all([
     pedir<Espacio[]>(`/projects${consulta === '' ? '' : `?${consulta}`}`),
