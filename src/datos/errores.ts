@@ -60,6 +60,38 @@ export function incidenteDe (detalles: Record<string, string[]> | undefined): st
 }
 
 /**
+ * Las marcas de que una frase del mensaje es diagnostico y no informacion.
+ *
+ * La API antepone su parte legible —"Error interno. Incidente 45d2c10e."— y despues adjunta la
+ * excepcion tal cual: `mysqli_sql_exception: Unknown column 'i.origen' in 'SELECT'
+ * (mysqli_driver.php:307)`. Esa cola no le dice nada a quien usa el panel, le tapa el codigo que si
+ * necesita y nombra tablas y archivos del servidor en una pantalla que ve cualquiera.
+ */
+const JERGA = /(Exception|SQLSTATE|mysqli|Fatal error|\.php:\d+|\bat [A-Z]\w+\.)/
+
+/**
+ * El mensaje de un error tal como se muestra en pantalla: sin la cola tecnica.
+ *
+ * Corta por frases y se queda con las que una persona puede leer. El diagnostico **no** se pierde:
+ * la API ya lo guardo entero en el incidente, que es donde un superadministrador lo lee con su
+ * traza al lado.
+ *
+ * Si todas las frases son tecnicas —una excepcion pelada, sin parte legible adelante— devuelve la
+ * frase generica antes que un volcado: en ese caso el mensaje crudo no informa, solo asusta.
+ *
+ * @param mensaje el `message` del error, tal como llego
+ * @returns el texto para pantalla, siempre no vacio
+ */
+export function mensajeParaPantalla (mensaje: string): string {
+  const frases = mensaje.split(/(?<=\.)\s+/).map((frase) => frase.trim()).filter((frase) => frase !== '')
+  const legibles = frases.filter((frase) => !JERGA.test(frase))
+
+  if (legibles.length === 0) return 'Algo falló de nuestro lado.'
+
+  return legibles.join(' ')
+}
+
+/**
  * Construye un `ErrorApi` a partir de una respuesta que no fue exitosa.
  *
  * Una respuesta sin JSON valido (un 502 del proxy, un HTML de Apache) tambien tiene que producir un

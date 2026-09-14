@@ -197,32 +197,30 @@ function Aviso ({ aviso, onCerrar }: { aviso: AvisoEnPila, onCerrar: (id: number
       <AlertTriangle size={18} strokeWidth={2.5} aria-hidden="true" className="text-texto-peligro mt-0.5 shrink-0" />
 
       <div className="flex min-w-0 flex-col gap-1">
-        <p className="text-texto text-sm font-semibold">{aviso.mensaje}</p>
+        <p className="text-texto text-sm font-semibold text-pretty">{aviso.mensaje}</p>
 
-        {aviso.incidente !== null && (
-          <p className="text-texto-tenue flex flex-wrap items-center gap-1 text-xs">
-            Código del error:
-            <CodigoCopiable valor={aviso.incidente} className="bg-superficie-hundida" />
-          </p>
-        )}
+        {/* Una sola línea de pie, no tres. El código y a dónde mandarlo son el mismo gesto —copiar
+            y reportar— y partidos en dos frases hacían que el aviso ocupara media pantalla para
+            decir algo que se lee de un vistazo. Mientras el código se pide, el hueco se anuncia en
+            vez de quedar en blanco: si apareciera después, parecería que se agregó solo. */}
+        <p className="text-texto-tenue flex flex-wrap items-center gap-1 text-xs">
+          {aviso.pidiendo && <span className="text-texto-sutil">Guardando el código…</span>}
 
-        {/* Mientras el codigo se pide, el hueco se anuncia en vez de quedar en blanco: si el aviso
-            apareciera sin el numero y el numero llegara despues, parece que se agrego solo. */}
-        {aviso.pidiendo && <p className="text-texto-sutil text-xs">Guardando el código del error…</p>}
+          {aviso.incidente !== null && (
+            <>
+              <CodigoCopiable valor={aviso.incidente} className="bg-superficie-hundida" />
+              <span aria-hidden="true">·</span>
+            </>
+          )}
 
-        <p className="text-texto-tenue text-xs">
-          {aviso.incidente === null && !aviso.pidiendo
-            ? `Si vuelve a pasar, cuéntanoslo en `
-            : `Repórtalo con ese código en `}
           <a
             href={URL_SOPORTE}
             target="_blank"
             rel="noopener noreferrer"
             className="text-acento font-semibold underline underline-offset-2"
           >
-            {NOMBRE_SOPORTE}
+            {aviso.incidente === null ? `Avisar a ${NOMBRE_SOPORTE}` : `Reportar a ${NOMBRE_SOPORTE}`}
           </a>
-          .
         </p>
       </div>
 

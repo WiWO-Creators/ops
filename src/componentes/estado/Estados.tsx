@@ -1,5 +1,17 @@
 import { Orbe } from '@/componentes/estado/Orbe'
+import { CodigoCopiable } from '@/componentes/presentadores/CodigoCopiable'
+import { mensajeParaPantalla } from '@/datos/errores'
 import { cn } from '@/lib/clases'
+import { NOMBRE_SOPORTE, URL_SOPORTE } from '@/lib/soporte'
+
+/**
+ * El codigo de incidente dentro del mensaje de la API (`Error interno. Incidente 4f75456f.`).
+ *
+ * Se lo saca de la frase para darle la misma forma que tiene en el aviso flotante: un boton que se
+ * copia de un clic, al lado de a donde mandarlo. Suelto en medio de una oracion hay que
+ * seleccionarlo a mano, que es justo donde se transcriben mal dos digitos.
+ */
+const INCIDENTE_EN_MENSAJE = /\s*Incidente ([0-9a-f]{8})\.?/
 
 interface PropsVacio {
   titulo: string
@@ -34,30 +46,72 @@ interface PropsError {
 /**
  * Estado de error recuperable.
  *
+ * El rojo pinta el titulo, no la caja entera: un panel rojo de borde a borde grita lo mismo que un
+ * titulo en rojo, pero ademas vuelve ilegible el detalle y hace parecer irreversible algo que casi
+ * siempre se arregla reintentando. La superficie es la hundida del resto del producto.
+ *
  * `detalle` muestra el `message` que normaliza el cliente de datos, nunca un stack: el stack no le
  * dice nada a quien usa la aplicacion y puede filtrar rutas del servidor.
  */
-export function ErrorEstado ({ titulo = 'Algo salió mal', detalle, onReintentar, className }: PropsError) {
+export function ErrorEstado ({ titulo = 'Esto no se pudo cargar', detalle, onReintentar, className }: PropsError) {
   return (
     <div
       role="alert"
       className={cn(
-        'border-linea bg-superficie-peligro rounded-tarjeta flex flex-col items-center gap-3 border px-6 py-10 text-center',
+        'border-linea bg-superficie-hundida rounded-tarjeta flex flex-col items-center gap-2 border px-6 py-10 text-center',
         className
       )}
     >
       <p className="text-texto-peligro font-semibold">{titulo}</p>
-      {detalle && <p className="text-texto-tenue max-w-prose text-sm">{detalle}</p>}
+      {/* El detalle pasa por `mensajeParaPantalla()` y no se pinta crudo: el `message` de un 500
+          trae la excepcion pegada atras —clase, consulta y archivo del servidor— y eso convierte un
+          aviso en un volcado que ademas nombra por dentro a la API. */}
+      {detalle && <Detalle detalle={detalle} />}
       {onReintentar && (
         <button
           type="button"
           onClick={onReintentar}
-          className="text-acento text-sm font-semibold underline underline-offset-4"
+          className="border-linea text-texto hover:bg-hover rounded-control mt-2 border px-3 py-1.5 text-sm font-semibold transition-colors"
         >
           Reintentar
         </button>
       )}
     </div>
+  )
+}
+
+/**
+ * El detalle de un error: la frase legible y, si la API lo registro, su codigo a mano.
+ *
+ * El codigo sale de la frase y se pinta aparte porque es lo unico de este bloque que la persona
+ * tiene que hacer algo con el —copiarlo y mandarlo—, y dentro de la oracion no se distingue de un
+ * numero cualquiera.
+ */
+function Detalle ({ detalle }: { detalle: string }) {
+  const limpio = mensajeParaPantalla(detalle)
+  const encontrado = INCIDENTE_EN_MENSAJE.exec(limpio)
+  const incidente = encontrado?.[1]
+  const frase = incidente === undefined ? limpio : limpio.replace(INCIDENTE_EN_MENSAJE, '')
+
+  return (
+    <>
+      <p className="text-texto-tenue max-w-prose text-sm text-pretty">{frase}</p>
+
+      {incidente !== undefined && (
+        <p className="text-texto-tenue flex flex-wrap items-center justify-center gap-1 text-xs">
+          <CodigoCopiable valor={incidente} className="bg-superficie" />
+          <span aria-hidden="true">·</span>
+          <a
+            href={URL_SOPORTE}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-acento font-semibold underline underline-offset-2"
+          >
+            Reportar a {NOMBRE_SOPORTE}
+          </a>
+        </p>
+      )}
+    </>
   )
 }
 

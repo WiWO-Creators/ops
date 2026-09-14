@@ -6,7 +6,7 @@ import { Insignia } from '@/componentes/presentadores/Insignia'
 import { TituloModulo } from '@/componentes/estructura/TituloModulo'
 import { ErrorApi } from '@/datos/errores'
 import { pedir } from '@/datos/servidor'
-import { describirOrigen, describirSujeto } from '@/dominio/incidentes'
+import { describirFalla, describirOrigen, describirPeticion, describirSujeto } from '@/dominio/incidentes'
 import type { Incidente } from '@/datos/recursos'
 import type { Paginacion, Yo } from '@/datos/tipos'
 
@@ -92,7 +92,7 @@ export default async function IncidentesPage (props: PageProps<'/administracion/
     <section className="flex flex-col gap-6">
       <TituloModulo
         titulo="Incidentes"
-        descripcion="Cada error que corta lo que alguien estaba haciendo queda registrado acá, con el código que se le mostró. Vienen de tres lados: los 500 de la API, las pantallas del panel que no se pudieron dibujar y las del portal del cliente. Es solo lectura: nada de lo que se ve en esta pantalla se puede cambiar."
+        descripcion="Cada error que le cortó el trabajo a alguien, con el código que esa persona vio en pantalla. Abrí uno para ver el detalle técnico y la traza."
       />
 
       {incidentes.length === 0
@@ -112,59 +112,53 @@ export default async function IncidentesPage (props: PageProps<'/administracion/
   )
 }
 
+/**
+ * El listado, en tres columnas.
+ *
+ * Eran seis —código, origen, error, petición, quién y cuándo— y la fila se leía como un volcado: la
+ * clase de la excepción y `archivo:línea` competían en tamaño con lo único que se escanea, que es
+ * qué pasó. El diagnóstico no se perdió; vive en el detalle, que es donde se lo va a buscar.
+ *
+ * Queda: qué pasó (con el origen al lado), a quién y cuándo. El código es el enlace, así que sigue
+ * visible y sigue siendo lo que se copia cuando alguien lo trae escrito.
+ */
 function TablaDeIncidentes ({ incidentes }: { incidentes: Incidente[] }) {
   return (
     <Tabla>
       <EncabezadoTabla>
         <tr>
-          <CeldaEncabezado angosta>Código</CeldaEncabezado>
-          <CeldaEncabezado angosta>Origen</CeldaEncabezado>
-          <CeldaEncabezado>Error</CeldaEncabezado>
-          <CeldaEncabezado>Petición</CeldaEncabezado>
+          <CeldaEncabezado>Qué pasó</CeldaEncabezado>
           <CeldaEncabezado>Quién</CeldaEncabezado>
-          <CeldaEncabezado>Cuándo</CeldaEncabezado>
+          <CeldaEncabezado angosta>Cuándo</CeldaEncabezado>
         </tr>
       </EncabezadoTabla>
       <CuerpoTabla>
         {incidentes.map((incidente) => {
           const sujeto = describirSujeto(incidente)
           const origen = describirOrigen(incidente.origen)
+          const falla = describirFalla(incidente)
 
           return (
             <FilaTabla key={incidente.incidente} interactiva>
-              <CeldaTabla angosta>
-                {/* El enlace va en el código y no en la fila entera: la pantalla es un Server
-                    Component, así que no hay `onClick` que abrir, y el código es justamente lo que
-                    la persona trae escrito cuando viene a buscar un incidente. */}
-                <Link
-                  href={`/administracion/incidentes/${incidente.incidente}`}
-                  className="text-acento font-mono text-xs font-semibold underline underline-offset-4"
-                >
-                  {incidente.incidente}
-                </Link>
-              </CeldaTabla>
-
-              <CeldaTabla angosta>
-                <Insignia tono={origen.tono} tamano="chico">{origen.etiqueta}</Insignia>
-              </CeldaTabla>
-
               <CeldaTabla>
-                <span className="text-texto block">{incidente.mensaje}</span>
-                <span className="text-texto-tenue block font-mono text-xs">{incidente.tipo}</span>
-              </CeldaTabla>
-
-              <CeldaTabla>
-                <span className="text-texto flex items-center gap-2 text-xs">
-                  <Insignia tono="contorno" tamano="chico">{incidente.metodo}</Insignia>
-                  {incidente.uri}
+                <span className="flex flex-wrap items-center gap-2">
+                  {/* El enlace va en el titular y no en la fila entera: la pantalla es un Server
+                      Component, así que no hay `onClick` que abrir. El código lo acompaña en tono
+                      tenue porque es lo que la persona trae escrito cuando viene a buscar. */}
+                  <Link
+                    href={`/administracion/incidentes/${incidente.incidente}`}
+                    className="text-texto font-medium underline-offset-4 hover:underline"
+                  >
+                    {falla.titular}
+                  </Link>
+                  <Insignia tono={origen.tono} tamano="chico">{origen.etiqueta}</Insignia>
                 </span>
-                {/* Un incidente del navegador no tiene archivo del servidor: la API guarda la
-                    cadena vacía, y pintar ":0" seria mostrar un dato inventado. */}
-                {incidente.archivo !== '' && (
-                  <span className="text-texto-tenue block font-mono text-xs">
-                    {incidente.archivo}:{incidente.linea}
-                  </span>
-                )}
+
+                <span className="text-texto-tenue block text-xs">
+                  <span className="font-mono" data-numerico>{incidente.incidente}</span>
+                  {' · '}
+                  {describirPeticion(incidente.uri)}
+                </span>
               </CeldaTabla>
 
               <CeldaTabla>
@@ -175,7 +169,7 @@ function TablaDeIncidentes ({ incidentes }: { incidentes: Incidente[] }) {
                   : sujeto}
               </CeldaTabla>
 
-              <CeldaTabla><Fecha valor={incidente.creado_en} conHora /></CeldaTabla>
+              <CeldaTabla angosta><Fecha valor={incidente.creado_en} conHora /></CeldaTabla>
             </FilaTabla>
           )
         })}
