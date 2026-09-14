@@ -6,7 +6,7 @@ import { Insignia } from '@/componentes/presentadores/Insignia'
 import { TituloModulo } from '@/componentes/estructura/TituloModulo'
 import { ErrorApi } from '@/datos/errores'
 import { pedir } from '@/datos/servidor'
-import { describirSujeto } from '@/dominio/incidentes'
+import { describirOrigen, describirSujeto } from '@/dominio/incidentes'
 import type { Incidente } from '@/datos/recursos'
 import type { Paginacion, Yo } from '@/datos/tipos'
 
@@ -92,14 +92,14 @@ export default async function IncidentesPage (props: PageProps<'/administracion/
     <section className="flex flex-col gap-6">
       <TituloModulo
         titulo="Incidentes"
-        descripcion="Cada vez que la API se cae con un error 500 queda registrado acá, con el código que se le mostró a quien lo sufrió. Es solo lectura: nada de lo que se ve en esta pantalla se puede cambiar."
+        descripcion="Cada error que corta lo que alguien estaba haciendo queda registrado acá, con el código que se le mostró. Vienen de tres lados: los 500 de la API, las pantallas del panel que no se pudieron dibujar y las del portal del cliente. Es solo lectura: nada de lo que se ve en esta pantalla se puede cambiar."
       />
 
       {incidentes.length === 0
         ? (
           <Vacio
             titulo="Ningún incidente"
-            descripcion="No hay errores 500 registrados. Acá aparece uno por cada petición que la API no pudo terminar."
+            descripcion="No hay errores registrados. Acá aparece uno por cada vez que la API, el panel o el portal no pudieron terminar lo que alguien pidió."
           />
           )
         : (
@@ -118,6 +118,7 @@ function TablaDeIncidentes ({ incidentes }: { incidentes: Incidente[] }) {
       <EncabezadoTabla>
         <tr>
           <CeldaEncabezado angosta>Código</CeldaEncabezado>
+          <CeldaEncabezado angosta>Origen</CeldaEncabezado>
           <CeldaEncabezado>Error</CeldaEncabezado>
           <CeldaEncabezado>Petición</CeldaEncabezado>
           <CeldaEncabezado>Quién</CeldaEncabezado>
@@ -127,6 +128,7 @@ function TablaDeIncidentes ({ incidentes }: { incidentes: Incidente[] }) {
       <CuerpoTabla>
         {incidentes.map((incidente) => {
           const sujeto = describirSujeto(incidente)
+          const origen = describirOrigen(incidente.origen)
 
           return (
             <FilaTabla key={incidente.incidente} interactiva>
@@ -142,6 +144,10 @@ function TablaDeIncidentes ({ incidentes }: { incidentes: Incidente[] }) {
                 </Link>
               </CeldaTabla>
 
+              <CeldaTabla angosta>
+                <Insignia tono={origen.tono} tamano="chico">{origen.etiqueta}</Insignia>
+              </CeldaTabla>
+
               <CeldaTabla>
                 <span className="text-texto block">{incidente.mensaje}</span>
                 <span className="text-texto-tenue block font-mono text-xs">{incidente.tipo}</span>
@@ -152,9 +158,13 @@ function TablaDeIncidentes ({ incidentes }: { incidentes: Incidente[] }) {
                   <Insignia tono="contorno" tamano="chico">{incidente.metodo}</Insignia>
                   {incidente.uri}
                 </span>
-                <span className="text-texto-tenue block font-mono text-xs">
-                  {incidente.archivo}:{incidente.linea}
-                </span>
+                {/* Un incidente del navegador no tiene archivo del servidor: la API guarda la
+                    cadena vacía, y pintar ":0" seria mostrar un dato inventado. */}
+                {incidente.archivo !== '' && (
+                  <span className="text-texto-tenue block font-mono text-xs">
+                    {incidente.archivo}:{incidente.linea}
+                  </span>
+                )}
               </CeldaTabla>
 
               <CeldaTabla>

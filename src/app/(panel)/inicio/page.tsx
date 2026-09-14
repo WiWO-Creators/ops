@@ -28,6 +28,7 @@ import { Fecha } from '@/componentes/presentadores/Fecha'
 import { PARAMETRO_TAREA } from '@/componentes/datos/tabla'
 import { EstadoDeTarea } from '@/componentes/proyecto/EstadoDeTarea'
 import { ModalTarea } from '@/componentes/proyecto/ModalTarea'
+import { URL_SOPORTE } from '@/lib/soporte'
 import { AvisoJornada } from './AvisoJornada'
 import { ResumenDelDia } from './ResumenDelDia'
 
@@ -39,14 +40,6 @@ import { ResumenDelDia } from './ResumenDelDia'
  * siempre.
  */
 const PROCESOS_A_TRAER = 60
-
-/**
- * Donde vive el soporte de wiwo.
- *
- * Es un sitio aparte, no una pantalla del panel: va como constante y no suelta en el JSX para que
- * mudarlo sea cambiar una linea y no salir a buscar la URL por el arbol.
- */
-const URL_SOPORTE = 'https://wiwo.center'
 
 /**
  * Inicio del panel.

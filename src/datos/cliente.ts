@@ -1,4 +1,5 @@
-import { mensajeConDetalles } from './errores.ts'
+import { avisarError } from '../lib/aviso-de-error.ts'
+import { incidenteDe, mensajeConDetalles } from './errores.ts'
 import type { Sobre } from './tipos'
 
 /** Forma del envelope de error del contrato, tal como llega al navegador. */
@@ -17,7 +18,27 @@ interface SobreError {
  * @returns La respuesta, con `ok` sin revisar.
  */
 export async function pedirRespuesta (ruta: string, senal: AbortSignal): Promise<Response> {
-  return await fetch(`/api/bff/${ruta}`, { signal: senal })
+  try {
+    return await fetch(`/api/bff/${ruta}`, { signal: senal })
+  } catch (fallo) {
+    // Un `fetch` que lanza es la red, no la API: el servidor no contesto, asi que no hay incidente
+    // que registrar —el reporte viajaria por la misma red que acaba de fallar— y el aviso sale sin
+    // codigo. Se avisa igual porque quien pierde la conexion a mitad de una accion necesita saber
+    // que la accion no ocurrio.
+    //
+    // El aborto no es un error: lo dispara el propio componente al desmontarse, y avisar de eso
+    // llenaria la pantalla de avisos cada vez que alguien cambia de pestaña.
+    if (!esAborto(fallo)) {
+      avisarError({ mensaje: 'Se perdió la conexión con el servidor. La acción no se completó.' })
+    }
+
+    throw fallo
+  }
+}
+
+/** `true` si el fallo lo causo un `AbortController` y no un problema de red. */
+function esAborto (fallo: unknown): boolean {
+  return fallo instanceof DOMException && fallo.name === 'AbortError'
 }
 
 /**
@@ -32,9 +53,19 @@ export async function pedirRespuesta (ruta: string, senal: AbortSignal): Promise
 export async function mensajeDeRespuesta (respuesta: Response): Promise<string> {
   try {
     const cuerpo = await respuesta.json() as SobreError
+    const incidente = incidenteDe(cuerpo.error?.details)
 
     if (cuerpo.error?.message !== undefined) {
-      return mensajeConDetalles({ message: cuerpo.error.message, details: cuerpo.error.details })
+      const mensaje = mensajeConDetalles({ message: cuerpo.error.message, details: cuerpo.error.details })
+
+      // El aviso flotante sale ademas del mensaje que muestre la pantalla, y no en su lugar: el
+      // mensaje explica que paso ahi mismo, donde la persona estaba mirando, y el aviso es el unico
+      // lugar donde aparece el codigo del incidente para poder reportarlo. Solo sale cuando hay
+      // codigo, y el codigo lo pone el BFF unicamente en los errores que valia la pena registrar:
+      // un 422 de formulario o un 401 de sesion no llegan aca con uno.
+      if (incidente !== undefined) avisarError({ mensaje, incidente })
+
+      return mensaje
     }
   } catch {
     // Se cae al mensaje generico de abajo.

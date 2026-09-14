@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from 'next'
+import { AvisosDeError } from '@/componentes/estado/AvisosDeError'
 import { SCRIPT_BARRA_INICIAL } from '@/lib/barra-lateral'
 import { SCRIPT_BIENVENIDA_INICIAL } from '@/lib/bienvenida'
 import { SCRIPT_TEMA_INICIAL } from '@/lib/tema'
@@ -36,7 +37,17 @@ export default function RaizLayout ({ children }: { children: React.ReactNode })
         */}
         <script dangerouslySetInnerHTML={{ __html: SCRIPT_BIENVENIDA_INICIAL }} />
       </head>
-      <body>{children}</body>
+      <body>
+        {children}
+        {/*
+          La pila de avisos de error vive en el layout raiz y no en el del panel porque los errores
+          ocurren en los cuatro armazones —el panel, el portal del cliente, la ficha publica de una
+          Tarea y las pantallas de acceso— y cada uno los sufria en silencio. Es lo ultimo del
+          `body`: si abriera el arbol, cualquier error suyo se llevaria la pagina entera, y es el
+          componente que existe justamente para cuando algo ya se rompio.
+        */}
+        <AvisosDeError />
+      </body>
     </html>
   )
 }
