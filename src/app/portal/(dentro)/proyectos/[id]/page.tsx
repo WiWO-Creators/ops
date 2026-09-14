@@ -5,6 +5,7 @@ import { ErrorApi } from '@/datos/errores'
 import type { EspacioPortal, TareaPortal } from '@/datos/portal'
 import { pestaniasDelProyecto } from '@/definiciones/portal-proyectos'
 import { CabeceraProyecto } from '@/componentes/proyecto/CabeceraProyecto'
+import { PanelActas } from '@/componentes/proyecto/PanelActas'
 import { PanelActividad } from '@/componentes/proyecto/PanelActividad'
 import { PanelCalendario } from '@/componentes/proyecto/PanelCalendario'
 import { PanelDescripcion } from '@/componentes/proyecto/PanelDescripcion'
@@ -176,6 +177,14 @@ function contenidoDePestania (
       return <PanelDiscusiones proyectoId={proyecto.id} fuente={fuente} capacidades={[]} />
     case 'gantt':
       return <PanelGantt proyectoId={proyecto.id} fuente={fuente} />
+    case 'actas':
+      // El Meeting Paper del cliente. `capacidades={[]}` se lleva el alta, el asistente, Corregir,
+      // Eliminar y el selector de estilo; queda el documento con sus datos y sus adjuntos.
+      //
+      // Sin `ia` y sin `yo`: los dos solo gobiernan escrituras que acá no existen, y salen de
+      // `GET /settings` y `GET /me`, que son rutas del equipo. Pasarles un valor inventado seria
+      // escribir dos veces una decision que `capacidades` ya tomo.
+      return <PanelActas proyectoId={proyecto.id} fuente={fuente} capacidades={[]} />
     case 'activity':
       return <PanelActividad fuente={fuente} capacidades={[]} />
     case 'files':
@@ -183,8 +192,10 @@ function contenidoDePestania (
     case 'tickets':
       return <PanelTicketsDelProyecto proyectoId={proyecto.id} />
     default:
-      // `pestaniasDelProyecto` ya filtro contra `PESTANIAS_PROYECTO`: acá solo cae una pestaña que
-      // esa lista declara y esta pagina todavia no construyo. Nada, antes que un panel equivocado.
+      // `pestaniasDelProyecto` ya filtro contra `PESTANIAS_PROYECTO`, y hoy las once que esa lista
+      // declara tienen su caso: acá no cae ninguna. Queda como red para la pestaña que se declare
+      // mañana y todavia no se construya — nada, antes que el panel equivocado, que es lo que
+      // pasaba con `actas` antes de tener su caso: caia acá y la persona veia otra cosa.
       return null
   }
 }

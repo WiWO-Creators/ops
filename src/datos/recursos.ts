@@ -1131,12 +1131,18 @@ export interface AdjuntoActa {
   acta_id: number
   /** El nombre con el que se subio, que es el unico que la persona reconoce. */
   name: string
-  /** El nombre en disco, desambiguado por la API. Dos `IMG_0001.jpg` no pueden llamarse igual. */
-  file_name: string
+  /**
+   * El nombre en disco, desambiguado por la API. Dos `IMG_0001.jpg` no pueden llamarse igual.
+   *
+   * **Ausente en el portal**: `FormasDelPortal::ACTAS` no lo publica, y el cliente nombra el archivo
+   * con `name`, que es el unico que reconoce.
+   */
+  file_name?: string
   /** Tipo real del contenido, leido por la API con `finfo`. Puede venir vacio. */
   filetype: string
   size: number
-  staff_id: number
+  /** Quien lo subio. Ausente en el portal: es vocabulario interno. */
+  staff_id?: number
   url: string | null
   date_added: string | null
 }
@@ -1172,13 +1178,20 @@ export interface Acta {
    * tipo porque la API la sigue mandando.
    */
   brand_sign_url: string | null
-  /** `ia` si la dicto un modelo, `manual` si la escribio una persona. */
-  source: string
-  staff_id: number
+  /**
+   * `ia` si la dicto un modelo, `manual` si la escribio una persona.
+   *
+   * **Ausente en el portal**: como se escribio el acta es asunto del equipo, asi que la insignia
+   * "Escrito con IA" no se dibuja del lado del cliente. Clave ausente = bloque no dibujado.
+   */
+  source?: string
+  /** Quien la escribio. Ausente en el portal, donde ademas no hay nada que decidir con ella. */
+  staff_id?: number
   author: { id: number, full_name: string, profile_image_url: string | null } | null
   date_added: string | null
   date_updated: string | null
-  updated_by: number | null
+  /** Quien la corrigio por ultima vez. Ausente en el portal: alli nadie corrige. */
+  updated_by?: number | null
   /**
    * Solo en el detalle. Los archivos de la reunion, en el orden en que se subieron: el primero es el
    * que leyo el modelo. El listado no los trae, por lo mismo que no trae `content`.
