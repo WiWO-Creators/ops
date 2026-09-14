@@ -6,7 +6,7 @@ import { Insignia } from '@/componentes/presentadores/Insignia'
 import { TituloModulo } from '@/componentes/estructura/TituloModulo'
 import { ErrorApi } from '@/datos/errores'
 import { pedir } from '@/datos/servidor'
-import { describirSujeto } from '@/dominio/incidentes'
+import { describirOrigen, describirSujeto } from '@/dominio/incidentes'
 import type { IncidenteConTraza } from '@/datos/recursos'
 import type { Yo } from '@/datos/tipos'
 
@@ -85,6 +85,7 @@ export default async function IncidentePage (props: PageProps<'/administracion/i
   }
 
   const sujeto = describirSujeto(incidente)
+  const origen = describirOrigen(incidente.origen)
 
   return (
     <section className="flex flex-col gap-6">
@@ -94,6 +95,10 @@ export default async function IncidentePage (props: PageProps<'/administracion/i
       </div>
 
       <dl className="border-linea bg-superficie-hundida rounded-tarjeta grid grid-cols-1 gap-x-6 gap-y-3 border p-4 text-sm sm:grid-cols-2">
+        <Dato
+          etiqueta="Origen"
+          valor={<Insignia tono={origen.tono} tamano="chico">{origen.etiqueta}</Insignia>}
+        />
         <Dato etiqueta="Excepción" valor={<span className="font-mono text-xs">{incidente.tipo}</span>} />
         <Dato etiqueta="Cuándo" valor={<Fecha valor={incidente.creado_en} conHora />} />
         <Dato
@@ -109,10 +114,14 @@ export default async function IncidentePage (props: PageProps<'/administracion/i
           etiqueta="Quién"
           valor={sujeto === null ? <span className="text-texto-sutil">Sin atribuir</span> : sujeto}
         />
-        <Dato
-          etiqueta="Dónde"
-          valor={<span className="font-mono text-xs break-all">{incidente.archivo}:{incidente.linea}</span>}
-        />
+        {/* Solo los incidentes de la API tienen archivo y línea: los que reporta el navegador
+            guardan la cadena vacía, y un "Dónde: :0" diría menos que no mostrar el dato. */}
+        {incidente.archivo !== '' && (
+          <Dato
+            etiqueta="Dónde"
+            valor={<span className="font-mono text-xs break-all">{incidente.archivo}:{incidente.linea}</span>}
+          />
+        )}
       </dl>
 
       {incidente.traza === null
