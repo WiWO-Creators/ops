@@ -4,10 +4,13 @@ import { Etiquetas } from '@/componentes/presentadores/Etiqueta'
 import { Fecha } from '@/componentes/presentadores/Fecha'
 import { EquipoProyecto } from './EquipoProyecto'
 import { ImagenEntidad } from '@/componentes/presentadores/ImagenEntidad'
-import { Insignia, type TonoInsignia } from '@/componentes/presentadores/Insignia'
+import { Insignia } from '@/componentes/presentadores/Insignia'
+import { MenuEstadoProyecto } from './MenuEstadoProyecto'
+import { ESTADOS_DESTACADOS, pildoraDeEstado } from './estado-proyecto'
 import { cn } from '@/lib/clases'
 import { GLOSARIO } from '@/dominio/glosario'
 import type { ProyectoVista } from '@/dominio/proyecto'
+import type { EstadoLookup } from '@/datos/recursos'
 import type { Capacidad } from '@/datos/tipos'
 
 interface PropsBarraProgreso {
@@ -41,42 +44,6 @@ export function BarraProgreso ({ porcentaje, className }: PropsBarraProgreso) {
   )
 }
 
-/**
- * Los dos estados de `project_statuses` que la cabecera pinta con la paleta del sistema.
- *
- * El resto conserva el color que traiga el catalogo: son estados que el panel puede crear y
- * renombrar, y ninguna paleta fija podria seguirles el ritmo. Estos dos si, porque son los que hay
- * que leer sin leer: si el espacio ya esta cerrado o si todavia pide trabajo.
- */
-export const ESTADO_EN_DESARROLLO = 2
-export const ESTADO_FINALIZADO = 4
-
-/** Los dos estados que la cabecera pinta con la paleta del sistema y anima. */
-export const ESTADOS_DESTACADOS = [ESTADO_FINALIZADO, ESTADO_EN_DESARROLLO]
-
-/**
- * Resuelve como se pinta la pildora de estado de la cabecera.
- *
- * Solo dos estados se pintan con la paleta del sistema, y el criterio es "que pide algo de alguien":
- * **finalizado va en verde** porque es el unico que ya no pide nada, y **en desarrollo va en rojo**
- * porque es el que si. Los demas —no iniciado, en espera, cancelado— caen al color del catalogo, que
- * la `Insignia` dibuja como punto y no como fondo: son estados que el panel puede crear y renombrar,
- * y ademas repartir el rojo entre tres estados lo dejaria sin significar nada.
- *
- * @param status id de `project_statuses` que trae el proyecto
- * @param color color del catalogo para ese estado, o `null` si no lo tiene
- * @returns las props de `Insignia` que corresponden a ese estado
- */
-export function pildoraDeEstado (status: number, color: string | null): {
-  tono?: TonoInsignia
-  color?: string | null
-} {
-  if (status === ESTADO_FINALIZADO) return { tono: 'exito' }
-  if (status === ESTADO_EN_DESARROLLO) return { tono: 'peligro' }
-
-  return { color }
-}
-
 interface PropsCabecera {
   /** El proyecto como vista. El panel y el portal la arman con `dominio/proyecto`. */
   proyecto: ProyectoVista
@@ -96,6 +63,15 @@ interface PropsCabecera {
   volverA?: { href: string, etiqueta: string }
   /** Linea bajo el titulo. Por defecto, el cliente del proyecto. */
   subtitulo?: string
+  /**
+   * `project_statuses` de `lookups`. Con el catalogo y `edit`, la pildora deja de ser una etiqueta y
+   * pasa a ser el control que cambia el estado: es el cambio mas repetido de la ficha y no tiene por
+   * que costar un formulario.
+   *
+   * Vacio —el portal, o un Espacio archivado, al que la API le rechaza cualquier `PATCH`— dibuja la
+   * misma pildora de solo lectura de siempre.
+   */
+  estados?: EstadoLookup[]
   /**
    * Botonera de la seccion. Nada en el portal, que no escribe.
    *
@@ -126,6 +102,7 @@ export function CabeceraProyecto ({
   capacidades = [],
   volverA = { href: '/espacios', etiqueta: GLOSARIO.espacio.plural },
   subtitulo,
+  estados = [],
   acciones,
   yoId
 }: PropsCabecera) {
@@ -151,21 +128,33 @@ export function CabeceraProyecto ({
             tamano="grande"
           />
           <div className="flex min-w-0 flex-col gap-1">
-          <h1 className="text-texto text-titulo font-semibold">{proyecto.name}</h1>
-          <div className="flex flex-wrap items-center gap-2">
-            <p className="text-texto-tenue text-sm">{subtitulo ?? proyecto.cliente?.company ?? 'Sin cliente'}</p>
-            {/* Sin patente no se pinta nada: el portal no publica el codigo interno, y un `#12`
-                ahi seria un dato de la base puesto delante del cliente. */}
-            {proyecto.patente !== null && <CodigoCopiable valor={proyecto.patente} />}
-          </div>
+            <h1 className="text-texto text-titulo font-semibold">{proyecto.name}</h1>
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="text-texto-tenue text-sm">{subtitulo ?? proyecto.cliente?.company ?? 'Sin cliente'}</p>
+              {/* Sin patente no se pinta nada: el portal no publica el codigo interno, y un `#12`
+                  ahi seria un dato de la base puesto delante del cliente. */}
+              {proyecto.patente !== null && <CodigoCopiable valor={proyecto.patente} />}
+            </div>
           </div>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <Insignia
-            {...pildoraDeEstado(proyecto.status, estado.color)}
-            className={ESTADOS_DESTACADOS.includes(proyecto.status) ? 'motion-safe:animate-pulse' : undefined}
-          >{estado.nombre}</Insignia>
+          {puedeEditar && estados.length > 0
+            ? (
+              <MenuEstadoProyecto
+                proyectoId={proyecto.id}
+                nombreProyecto={proyecto.name}
+                estado={proyecto.status}
+                respaldo={{ nombre: estado.nombre, color: estado.color }}
+                catalogo={estados}
+              />
+              )
+            : (
+              <Insignia
+                {...pildoraDeEstado(proyecto.status, estado.color)}
+                className={ESTADOS_DESTACADOS.includes(proyecto.status) ? 'motion-safe:animate-pulse' : undefined}
+              >{estado.nombre}</Insignia>
+              )}
           {acciones}
         </div>
       </div>
