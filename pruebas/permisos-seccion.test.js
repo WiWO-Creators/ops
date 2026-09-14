@@ -6,14 +6,21 @@
  * Espacios igual. Y al reves: Equipo sin `view` no se dibuja, porque la API contesta 403.
  *
  * Focals y "Mi Area" no se deciden con la matriz de Perfex sino con la PERTENENCIA —de quien se es
- * focal, a que area se pertenece—, y por eso tienen sus propias funciones. Los casos que importan
+ * focal, a que area se pertenece—, y por eso tienen sus propias funciones. Focals suma una segunda
+ * lectura: para la superadministracion y la gerencia la pantalla no es la cartera propia sino la de
+ * todos, y ahi la llave es el puesto y no la pertenencia. Los casos que importan
  * son los del dato ausente: ninguna de las dos puede quedarse escondiendo una seccion porque la API
  * todavia no manda un campo. Esconder no autoriza: el 403 del servidor sigue siendo la compuerta.
  */
 
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { puedeVerFocals, puedeVerMiArea, puedeVerSeccion } from '../src/dominio/permisos.ts'
+import {
+  puedeVerFocals,
+  puedeVerMiArea,
+  puedeVerSeccion,
+  puedeVerTodosLosFocals
+} from '../src/dominio/permisos.ts'
 
 test('procesos y espacios se ven sin view global: la API filtra las filas', () => {
   for (const capacidades of [[], ['view_own'], ['create', 'edit', 'delete', 'edit_timesheet']]) {
@@ -34,14 +41,28 @@ test('equipo exige view: sin el la API contesta 403', () => {
   assert.equal(puedeVerSeccion([], 'staff'), false)
 })
 
-test('Focals se ve solo si se es focal de alguien, sin importar el escalon', () => {
+test('Focals se ve si se es focal de alguien, sin importar el escalon', () => {
   assert.equal(puedeVerFocals({ es_focal: true }), true)
+  assert.equal(puedeVerFocals({ es_focal: true, escalon: 'staff' }), true)
   assert.equal(puedeVerFocals({ es_focal: false }), false)
 })
 
-test('la direccion y la superadministracion tampoco ven Focals sin cuentas a cargo', () => {
-  assert.equal(puedeVerFocals({ es_focal: false, is_admin: true, is_superadmin: true }), false)
-  assert.equal(puedeVerFocals({ es_focal: false, nivel: 'gerente' }), false)
+test('la superadministracion y la gerencia la ven sin cuentas a cargo: para ellas es la cartera entera', () => {
+  assert.equal(puedeVerFocals({ es_focal: false, is_superadmin: true }), true)
+  assert.equal(puedeVerFocals({ es_focal: false, escalon: 'gerencia' }), true)
+})
+
+test('un admin o un director sin cuentas a cargo sigue sin ver Focals', () => {
+  assert.equal(puedeVerFocals({ es_focal: false, is_admin: true, escalon: 'director' }), false)
+  assert.equal(puedeVerFocals({ es_focal: false, escalon: 'lead' }), false)
+})
+
+test('la cartera entera es de superadministracion y gerencia, y de nadie mas', () => {
+  assert.equal(puedeVerTodosLosFocals({ is_superadmin: true, escalon: 'staff' }), true)
+  assert.equal(puedeVerTodosLosFocals({ is_superadmin: false, escalon: 'gerencia' }), true)
+  assert.equal(puedeVerTodosLosFocals({ is_superadmin: false, escalon: 'director' }), false)
+  assert.equal(puedeVerTodosLosFocals({ is_superadmin: false, escalon: 'lead' }), false)
+  assert.equal(puedeVerTodosLosFocals({}), false)
 })
 
 test('sin es_focal en la sesion la entrada se muestra: falla abierta como antes', () => {

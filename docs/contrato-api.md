@@ -4394,6 +4394,7 @@ del cliente.
                                      "atraso_promedio": 22.5 },
                          "carga": { "score": 62, "abiertos": 37, "estancados": 14 },
                          "vencimientos": { "score": 52, "vencidos": 15, "criticos": 1 } },
+            "focales": [ { "id": 53, "full_name": "Ana Perez" } ],
             "historia": [ { "fecha": "2026-09-08", "score": 52, "semaforo": "amarillo" } ] } }
 ```
 
@@ -4408,6 +4409,8 @@ un boton para desempatar una discusion recalculando.
 | `score` | 1 a 100, o `null`. **El 0 no existe**: si algo vale 0 es un error |
 | `semaforo` | `verde` >= 75, `amarillo` >= 50, `rojo` < 50, y `sin_datos` cuando `score` es `null` |
 | `sin_datos` | **No es un cuarto nivel malo**: es ausencia de universo (cliente sin Espacios o sin Procesos) |
+| `focales` | Quien responde por la cuenta, en orden de alta. Viaja siempre; **vacio** si nadie esta nombrado o si falta la tabla |
+| La cartera entera | `superadmin` y el escalon `gerencia` ven **todas** las filas, sin pasar por `Visibilidad::clientes()`. `admin` y `director` **no** |
 | `historia` | Solo en `/scores/{clientId}`. Hasta 30 fotos, de la mas vieja a la mas nueva |
 
 Los pesos son plazos 45, carga 30, vencimientos 25, y el promedio se hace **solo sobre las señales

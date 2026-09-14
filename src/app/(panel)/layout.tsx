@@ -195,12 +195,14 @@ function seccionesDe (yo: Yo): Seccion[] {
     secciones.push({ href: '/clientes', etiqueta: 'Clientes', icono: 'clientes' })
   }
 
-  // Focals se muestra SOLO a quien es focal de al menos un Cliente, sin excepciones hacia arriba: no
-  // es una pantalla de supervision sino la cartera propia, y a quien no tiene cartera le quedaba una
-  // lista vacia. La llave es `yo.es_focal` y **no** `yo.escalon`: el escalon y el hecho de responder
-  // por una cuenta son dos cosas distintas, y decidir por el escalon se equivocaba en las dos
-  // direcciones —focales de escalon `staff` sin su propia pantalla, jefaturas sin cuentas a cargo
-  // que si la veian—. Sigue siendo COSMETICA: la autorizacion del servidor no se toca y esconder no
+  // Focals se muestra a quien es focal de al menos un Cliente —es su cartera— y ademas a la
+  // superadministracion y a la gerencia, para quienes la MISMA pantalla es la cartera entera con el
+  // focal de cada cuenta al lado. Fuera de esos dos casos no se ofrece: a quien no tiene cartera le
+  // quedaba una lista vacia. Para el caso normal la llave es `yo.es_focal` y **no** el escalon: el
+  // escalon y el hecho de responder por una cuenta son dos cosas distintas, y decidir solo por el
+  // escalon se equivocaba en las dos direcciones —focales de escalon `staff` sin su propia pantalla,
+  // jefaturas sin cuentas a cargo que si la veian—. Sigue siendo COSMETICA: la autorizacion del
+  // servidor no se toca y esconder no
   // autoriza; el dato sale de la misma API que responde el 403. Ver `puedeVerFocals` para el caso de
   // una API vieja que todavia no manda el campo.
   if (puedeVerFocals(yo)) {

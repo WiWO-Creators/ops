@@ -11,12 +11,14 @@ import {
   contarPorTramo,
   mensajeDeFalloDeEstado,
   nombreDe,
+  nombresDeFocales,
   rutaDeEstado,
   type CuentaFocal,
   type EstadoDeSalud,
   type EstadoRedactado,
   type ScoreEspacio
 } from '@/datos/focals'
+import type { ScoreCliente } from '@/datos/recursos'
 import { ASISTENTE, GLOSARIO } from '@/dominio/glosario'
 import { cn } from '@/lib/clases'
 
@@ -40,13 +42,21 @@ import { cn } from '@/lib/clases'
  * explicación. Lo que no cambia nunca es el semáforo, que no depende del modelo.
  *
  * @param cuentas los clientes de esta persona, ya ordenados por el servidor del peor al mejor
+ * @param mostrarFocal si cada cuenta lleva el nombre de quien responde por ella. Se enciende para
+ *   quien mira la cartera entera: sobre la cartera propia sería el mismo nombre en todas las filas
  */
-export function PanelFocals ({ cuentas }: { cuentas: CuentaFocal[] }) {
+export function PanelFocals ({
+  cuentas,
+  mostrarFocal = false
+}: {
+  cuentas: CuentaFocal[]
+  mostrarFocal?: boolean
+}) {
   return (
     <ul className="flex flex-col gap-3">
       {cuentas.map((cuenta) => (
         <li key={cuenta.cliente.client_id}>
-          <TarjetaCuenta cuenta={cuenta} />
+          <TarjetaCuenta cuenta={cuenta} mostrarFocal={mostrarFocal} />
         </li>
       ))}
     </ul>
@@ -59,7 +69,7 @@ export function PanelFocals ({ cuentas }: { cuentas: CuentaFocal[] }) {
  * El detalle arranca cerrado a propósito. Un Focal con doce cuentas necesita ver las doce de un
  * vistazo para elegir en cuál entrar; abiertas, la primera ya ocupa la pantalla entera.
  */
-function TarjetaCuenta ({ cuenta }: { cuenta: CuentaFocal }) {
+function TarjetaCuenta ({ cuenta, mostrarFocal }: { cuenta: CuentaFocal, mostrarFocal: boolean }) {
   const [abierta, setAbierta] = useState(false)
   const { cliente, espacios } = cuenta
 
@@ -74,6 +84,7 @@ function TarjetaCuenta ({ cuenta }: { cuenta: CuentaFocal }) {
             {cliente.cliente ?? `Cliente #${cliente.client_id}`}
           </Link>
           <RecuentoDeTramos espacios={espacios} />
+          {mostrarFocal && <QuienResponde cliente={cliente} />}
         </div>
 
         <div className="flex items-center gap-3">
@@ -136,6 +147,37 @@ function RecuentoDeTramos ({ espacios }: { espacios: ScoreEspacio[] }) {
   if (cuenta.sin_datos > 0) partes.push(`${cuenta.sin_datos} sin datos`)
 
   return <span className="text-texto-tenue text-xs">{partes.join(' · ')}</span>
+}
+
+/**
+ * "Focal: Ana Pérez", o la falta de focal dicha con todas las letras.
+ *
+ * Solo aparece en la cartera entera. Sin este renglón la pantalla de una gerencia es una lista de
+ * clientes ordenada por puntaje y nada más: sirve para ver qué está mal, no para saber con quién
+ * hablarlo, que es la mitad de la pregunta.
+ *
+ * Una cuenta sin focal se dibuja como tal —y no se omite el renglón— porque es justamente el caso
+ * que hay que ver: un cliente del que nadie responde no tiene a quién reclamarle el rojo.
+ */
+function QuienResponde ({ cliente }: { cliente: ScoreCliente }) {
+  const nombres = nombresDeFocales(cliente)
+  const focal = GLOSARIO.focal.singular
+
+  if (nombres.length === 0) {
+    return (
+      <Insignia tono="contorno" tamano="chico" className="self-start">
+        Sin {focal.toLowerCase()}
+      </Insignia>
+    )
+  }
+
+  return (
+    <Insignia tono="neutro" tamano="chico" className="max-w-full self-start">
+      <span className="truncate">
+        {focal}: {nombres.join(', ')}
+      </span>
+    </Insignia>
+  )
 }
 
 /** Los {@link GLOSARIO.espacio} de una cuenta, del peor al mejor. */

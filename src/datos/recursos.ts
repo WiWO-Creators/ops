@@ -1941,8 +1941,25 @@ export interface ScoreCliente {
     carga: SenalCarga
     vencimientos: SenalVencimientos
   }
+  /**
+   * Quien responde por esta cuenta (`tblwiwo_focales`), en orden de alta.
+   *
+   * Viaja siempre y puede llegar vacio: un cliente sin focal nombrado es un estado normal, no un
+   * error. Para quien mira su propia cartera es redundante —es el, en todas las filas—; para una
+   * gerencia que mira la cartera entera es lo unico que convierte una lista de clientes en una
+   * lista de focales.
+   *
+   * Opcional a proposito: una API vieja que todavia no lo manda lo deja en `undefined`.
+   */
+  focales?: FocalDeCuenta[]
   /** Solo en `GET /scores/{clientId}`: las ultimas fotos, de la mas vieja a la mas nueva. */
   historia?: PuntoScoreCliente[]
+}
+
+/** Una persona que responde por una cuenta, tal como viaja dentro de `ScoreCliente.focales`. */
+export interface FocalDeCuenta {
+  id: number
+  full_name: string
 }
 
 // --- Casilla entrante ----------------------------------------------------------------------------
