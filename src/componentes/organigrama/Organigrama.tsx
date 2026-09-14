@@ -13,7 +13,8 @@
  * y, al entrar en una tarjeta, su árbol. Volver al mapa no recarga nada: los datos ya están acá.
  */
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
-import { ArrowLeft } from 'lucide-react'
+import { ArrowLeft, UserRoundPlus } from 'lucide-react'
+import { AgregarAlArea } from './AgregarAlArea'
 import { ArbolDelArea } from './ArbolDelArea'
 import { ListaDePersonas } from './ListaDePersonas'
 import { MapaDeAreas } from './MapaDeAreas'
@@ -29,6 +30,7 @@ import {
   filasDeLista, personasDelArbol, resumirMapa
 } from '@/dominio/organigrama'
 import { guardarVista, leerVista, suscribirVista, vistaDelServidor } from '@/lib/vista-organigrama'
+import { cn } from '@/lib/clases'
 import type { OpcionSegmentada } from '@/componentes/formularios/Segmentado'
 import type { VistaDeOrganigrama } from '@/lib/vista-organigrama'
 import type { CambioDeJefatura, Organigrama as DatosDeOrganigrama } from '@/datos/organigrama'
@@ -67,6 +69,8 @@ export function Organigrama ({ inicial }: { inicial: DatosDeOrganigrama }) {
   const [guardando, setGuardando] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [aviso, setAviso] = useState('')
+  // `undefined` es el diálogo cerrado; un número o `null`, el área que se está poblando.
+  const [poblando, setPoblando] = useState<Vista>(undefined)
 
   // El servidor vuelve a resolver la página en cada navegación y React conserva el estado del
   // componente: sin esto se quedaría con el árbol del primer montaje. Se ajusta DURANTE el render y
@@ -182,6 +186,63 @@ export function Organigrama ({ inicial }: { inicial: DatosDeOrganigrama }) {
     setAviso(`${persona.nombre}: cambio guardado.`)
   }, [datos])
 
+  /**
+   * Mueve varias personas a un área de una sola vez.
+   *
+   * Las peticiones van **en serie y no en paralelo**: la API escribe una persona por petición, y
+   * diez llamadas simultáneas sobre la misma tabla es la forma de que dos se pisen y una se pierda
+   * sin error. Si una falla se corta ahí y se devuelve cuántas alcanzaron a entrar: las anteriores
+   * ya están guardadas, y decir "no se pudo" haría creer que no se guardó ninguna.
+   *
+   * El organigrama se vuelve a pedir una sola vez al final, y no una por persona: son las mismas
+   * cuentas recalculadas diez veces.
+   *
+   * @param staffids la gente elegida
+   * @param areaId el área de destino, o `null` para dejarlas sin área
+   * @returns cuántas entraron y el motivo del primer fallo, si lo hubo
+   */
+  const agregarAlArea = useCallback(async (
+    staffids: number[],
+    areaId: number | null
+  ): Promise<{ guardadas: number, error: string | null }> => {
+    setGuardando(true)
+    setError(null)
+
+    let guardadas = 0
+    let fallo: string | null = null
+
+    for (const staffid of staffids) {
+      const resultado = await escribirEnBff(`accesos/personas/${staffid}`, 'PUT', { area_id: areaId })
+
+      if (!vigente.current) return { guardadas, error: null }
+
+      if (!resultado.ok) {
+        fallo = resultado.mensaje
+        break
+      }
+
+      guardadas += 1
+    }
+
+    try {
+      const sobre = await pedirSobre<DatosDeOrganigrama>('organigrama', AbortSignal.timeout(15000))
+
+      if (vigente.current) setDatos(sobre.data)
+    } catch {
+      // Lo que entró, entró. Un fallo al releer no se cuenta como un fallo al guardar.
+    }
+
+    if (!vigente.current) return { guardadas, error: fallo }
+
+    setGuardando(false)
+    if (fallo !== null) setError(fallo)
+    setAviso(guardadas === 0
+      ? 'No se agregó a nadie.'
+      : `${guardadas} ${guardadas === 1 ? 'persona agregada' : 'personas agregadas'}.`)
+
+    return { guardadas, error: fallo }
+  }, [])
+
   const puedeEditar = datos.yo.puede_editar
   const persona = elegida === null ? undefined : personasPorId.get(elegida)
 
@@ -218,7 +279,9 @@ export function Organigrama ({ inicial }: { inicial: DatosDeOrganigrama }) {
         resumen={resumen}
         personas={datos.personas}
         personasPorId={personasPorId}
+        puedeEditar={puedeEditar}
         onEntrar={(areaId) => { setVista(areaId); setError(null) }}
+        onPoblar={(areaId) => { setPoblando(areaId) }}
       />
     )
   } else {
@@ -254,6 +317,7 @@ export function Organigrama ({ inicial }: { inicial: DatosDeOrganigrama }) {
             }}
         modo={modo}
         ayudaDeArrastre={vista !== undefined && modo === 'organigrama' && puedeEditar}
+        onPoblar={vista === undefined || !puedeEditar ? undefined : () => { setPoblando(vista) }}
         onModo={elegirModo}
       />
 
@@ -262,6 +326,18 @@ export function Organigrama ({ inicial }: { inicial: DatosDeOrganigrama }) {
       {error !== null && <p role="alert" className="text-texto-peligro text-sm">{error}</p>}
 
       {contenido}
+
+      {poblando !== undefined && (
+        <AgregarAlArea
+          areaId={poblando}
+          areas={areas}
+          personas={datos.personas}
+          abierto
+          guardando={guardando}
+          onCerrar={() => { setPoblando(undefined) }}
+          onAgregar={(staffids) => agregarAlArea(staffids, poblando)}
+        />
+      )}
 
       {persona !== undefined && (
         <PanelDePersona
@@ -302,10 +378,12 @@ interface ContextoDeArea {
  * la otra vía —el clic— que es la que funciona con teclado y en un teléfono.
  */
 function Cabecera (
-  { area, modo, ayudaDeArrastre, onModo }: {
+  { area, modo, ayudaDeArrastre, onPoblar, onModo }: {
     area?: ContextoDeArea
     modo: VistaDeOrganigrama
     ayudaDeArrastre: boolean
+    /** Abre el diálogo para sumar gente a esta área. Ausente si quien mira no puede editar. */
+    onPoblar?: () => void
     onModo: (valor: string) => void
   }
 ) {
@@ -333,12 +411,19 @@ function Cabecera (
         </>
       )}
 
+      {onPoblar !== undefined && (
+        <Boton variante="secundario" tamano="chico" className="ms-auto" onClick={onPoblar}>
+          <UserRoundPlus aria-hidden="true" className="size-4" />
+          Agregar gente
+        </Boton>
+      )}
+
       <Segmentado
         etiqueta="Vista"
         opciones={VISTAS}
         activo={modo}
         onElegir={onModo}
-        className="ms-auto"
+        className={cn(onPoblar === undefined && 'ms-auto')}
       />
 
       {ayudaDeArrastre && (

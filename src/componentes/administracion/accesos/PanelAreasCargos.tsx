@@ -13,6 +13,7 @@ import {
   ContenidoSelector, DisparadorSelector, Opcion, Selector
 } from '@/componentes/formularios/Selector'
 import { CerrarDialogo, ContenidoDialogo, Dialogo } from '@/componentes/superposiciones/Dialogo'
+import { AgregarAlArea } from '@/componentes/organigrama/AgregarAlArea'
 import { cargarAsignables } from '@/datos/asignables'
 import { descendenciaDe } from '@/dominio/jerarquia'
 import { motivoParaRechazarNombre } from '@/dominio/accesos'
@@ -79,8 +80,51 @@ function SeccionAreas ({
 }) {
   const [editando, setEditando] = useState<{ area: AreaDeAccesos | null } | null>(null)
   const [borrando, setBorrando] = useState<AreaDeAccesos | null>(null)
+  const [poblando, setPoblando] = useState<AreaDeAccesos | null>(null)
+  const [moviendo, setMoviendo] = useState(false)
   const [enCurso, setEnCurso] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  /**
+   * Mueve varias personas al área que se está poblando.
+   *
+   * En serie y no en paralelo: la API escribe una persona por petición, y varias llamadas a la vez
+   * sobre la misma tabla es la forma de que dos se pisen. Se corta en el primer fallo y se dice
+   * cuántas alcanzaron a entrar, porque esas ya están guardadas.
+   *
+   * @param staffids la gente elegida en el diálogo
+   * @returns cuántas entraron y el motivo del primer fallo, si lo hubo
+   */
+  async function moverAlArea (staffids: number[]): Promise<{ guardadas: number, error: string | null }> {
+    if (poblando === null) return { guardadas: 0, error: 'No hay ningún área elegida.' }
+
+    setMoviendo(true)
+    setError(null)
+
+    let guardadas = 0
+    let fallo: string | null = null
+
+    for (const staffid of staffids) {
+      const resultado = await escribirEnBff(
+        `accesos/personas/${staffid}`, 'PUT', { area_id: poblando.id }
+      )
+
+      if (!resultado.ok) {
+        fallo = resultado.mensaje
+        break
+      }
+
+      guardadas += 1
+    }
+
+    setMoviendo(false)
+    if (fallo !== null) setError(fallo)
+    // El catálogo cuenta las personas de cada área: sin recargar, la columna seguiría diciendo el
+    // número viejo al lado de gente que ya se movió.
+    if (guardadas > 0) recargar()
+
+    return { guardadas, error: fallo }
+  }
 
   /** Borra el área elegida. La API responde 409 si tiene personas dentro. */
   async function borrar (): Promise<void> {
@@ -168,6 +212,14 @@ function SeccionAreas ({
                     <CeldaTabla numerica>{area.personas}</CeldaTabla>
                     <CeldaTabla angosta>
                       <span className="flex gap-1">
+                        <Boton
+                          variante="sutil"
+                          tamano="chico"
+                          disabled={personas === null}
+                          onClick={() => { setError(null); setPoblando(area) }}
+                        >
+                          Agregar gente
+                        </Boton>
                         <Boton variante="sutil" tamano="chico" onClick={() => { setEditando({ area }) }}>
                           Editar
                         </Boton>
@@ -186,6 +238,23 @@ function SeccionAreas ({
             </Tabla>
           </div>
           )}
+
+      {poblando !== null && personas !== null && (
+        <AgregarAlArea
+          areaId={poblando.id}
+          areas={catalogo.areas.map((una) => ({ ...una, leads: 0 }))}
+          personas={personas.map((una) => ({
+            staffid: una.id,
+            nombre: una.full_name,
+            area_id: una.area_id,
+            avatar: una.profile_image_url
+          }))}
+          abierto
+          guardando={moviendo}
+          onCerrar={() => { setPoblando(null) }}
+          onAgregar={moverAlArea}
+        />
+      )}
 
       {editando !== null && (
         <DialogoDeArea

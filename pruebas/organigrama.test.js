@@ -10,8 +10,8 @@ import { readFileSync } from 'node:fs'
 import test from 'node:test'
 import {
   arbolDelArea, areasDelMapa, colorDeArea, cuantasCajas, cuantosSinArea, descendenciaDe,
-  filasDeLista, filtrarFilas, jefesElegibles, nombreDeArea, ordenarFilas, partirAreasPorPoblacion,
-  personasDelArbol, personasDelArea, resumirMapa
+  candidatasParaArea, filasDeLista, filtrarFilas, jefesElegibles, nombreDeArea, ordenarFilas,
+  partirAreasPorPoblacion, personasDelArbol, personasDelArea, resumirMapa
 } from '../src/dominio/organigrama.ts'
 
 /** Una persona del organigrama con lo mínimo, para no repetir seis campos en cada caso. */
@@ -282,4 +282,33 @@ test('las caras de un área salen con la jefatura primero', () => {
   assert.deepEqual(personasDelArea(PERSONAS, 1).map((una) => una.nombre), ['Ana', 'Bruno'])
   assert.deepEqual(personasDelArea(PERSONAS, null).map((una) => una.nombre), ['Elena'])
   assert.deepEqual(personasDelArea(PERSONAS, 3), [])
+})
+
+test('las candidatas a un área son todas menos las que ya están, y las sin área van primero', () => {
+  const candidatas = candidatasParaArea(PERSONAS, 1, '')
+
+  // Ana y Bruno ya son del área 1: agregarlos sería un cambio que no cambia nada.
+  assert.deepEqual(candidatas.map((una) => una.nombre), ['Elena', 'Carla', 'Diego'])
+})
+
+test('el buscador de candidatas encuentra por correo y sin acentos', () => {
+  assert.deepEqual(candidatasParaArea(PERSONAS, 1, 'ELENA@').map((una) => una.nombre), ['Elena'])
+  assert.deepEqual(candidatasParaArea(PERSONAS, 2, 'bruno').map((una) => una.nombre), ['Bruno'])
+  assert.deepEqual(candidatasParaArea(PERSONAS, 1, 'nadie').map((una) => una.nombre), [])
+})
+
+test('poblar "Sin área" ofrece a quien tiene área y no a quien ya está suelto', () => {
+  // Elena no aparece: ya no tiene área, y mandarla ahí no la movería a ningún lado.
+  const candidatas = candidatasParaArea(PERSONAS, null, '')
+
+  assert.equal(candidatas.some((una) => una.nombre === 'Elena'), false)
+  assert.equal(candidatas.length, 4)
+})
+
+test('candidatasParaArea no toca el arreglo de entrada', () => {
+  const antes = PERSONAS.map((una) => una.nombre)
+
+  candidatasParaArea(PERSONAS, 1, '')
+
+  assert.deepEqual(PERSONAS.map((una) => una.nombre), antes)
 })
