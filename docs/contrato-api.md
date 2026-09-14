@@ -5114,7 +5114,35 @@ obligatorio). Lo demás se asume y va en `supuestos`.
 
 **La pregunta cierra el turno.** No llega ningún `propuesta` para esa acción y no hay nada que
 confirmar. **La respuesta viaja como el mensaje siguiente de la persona**, por el mismo camino que
-una pregunta escrita a mano: no hay endpoint de respuesta ni estado pendiente que guardar.
+una pregunta escrita a mano: no hay endpoint de respuesta, nada caduca, y el mensaje siguiente no
+está obligado a ser la respuesta —si la persona cambia de tema, se sigue el tema nuevo—.
+
+**Lo que sí se guarda es la pregunta, en el hilo** (columna `pregunta` de `tblapi_ia_mensajes`,
+migración `0550`, nula en casi todas las filas): el campo que faltó, la herramienta que quedó a
+medio armar y los argumentos que el modelo ya había elegido. El turno siguiente los lee y arma un
+bloque de contexto con ellos.
+
+Hizo falta porque sin eso el chat se rompía de una forma que nadie veía venir. Medido: se pide crear
+una tarea, el servidor pregunta por el área de la compañía, la persona contesta **«WiWO»**, y el
+turno siguiente lo trata como una búsqueda nueva —*«no encontré ninguna tarea, hito o discusión con
+el nombre WiWO»*—. El contexto se armaba con `rol` y `texto`, así que de ese turno sólo sobrevivía la
+prosa del asistente: ni el campo preguntado ni el `espacio_id`, que además era **irrecuperable**
+porque nunca se escribe en la prosa. Con «WiWO» suelto y nada más, buscar era la lectura más
+plausible.
+
+Sigue sin haber máquina de estados: la columna vive y muere con la fila del mensaje, así que la poda
+de 30 días / 200 mensajes se la lleva sin nada que limpiar aparte. Sólo se mira la **última** fila
+del hilo — una pregunta de hace cinco mensajes ya fue contestada, ignorada o abandonada.
+
+Los argumentos guardados los escribió el modelo y vuelven a su propio contexto, así que pasan por el
+mismo `Contexto::limpiar()` y rompe-marcadores que el resto del hilo: un `[T#512]` metido en el
+título de una tarea no puede volver convertido en una cita que la validación daría por buena. Se
+recortan al guardarlos —12 claves, 120 caracteres por valor, las listas se cuentan en vez de
+escribirse— porque esa fila se lee en **cada** pregunta siguiente mientras siga entre las ocho
+últimas del hilo.
+
+El `event: pregunta` **no cambia**: su payload sigue siendo `campo`, `pregunta`, `opciones` y
+`admite_texto`. Lo nuevo no sale por ningún evento ni por `GET /ia/chat`.
 
 **Las opciones las escribe el servidor**, con `valor` del tipo real del argumento —`false` es un
 valor legítimo, cuidado con los `if (!valor)`— y `descripcion` diciendo la **consecuencia**, no
