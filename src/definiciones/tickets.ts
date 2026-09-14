@@ -6,11 +6,16 @@ import { formatearFecha } from '../lib/fechas.ts'
 /**
  * Definicion del recurso Tickets acotado a un Proyecto.
  *
- * **Fuera de alcance: hoy no la monta ninguna pantalla.** El soporte de wiwo se atiende en
- * wiwo.center, asi que el panel dejo de mostrar la pestaña Tickets del Proyecto y del Cliente, y
- * `tickets` salio de la lista blanca del BFF (`src/datos/rutas.ts`). La definicion queda porque
- * describe un contrato que no cambio y porque `pruebas/definiciones.test.js` la verifica: si el
- * modulo vuelve, vuelve desde aca y no desde cero.
+ * **Todavia no la monta ninguna pantalla del panel.** El contrato esta completo y al dia —la API ya
+ * emite `solicitante` y `task`, y ya expone `PUT`/`DELETE /tickets/{id}/tarea`— pero la pestaña
+ * Tickets del detalle del Espacio, que es donde esto se va a ver, esta sin construir. Lo que si
+ * existe hoy es el lado del cliente: `/portal/soporte`, con su propia definicion en
+ * `portal-soporte.ts`. Mientras tanto esta definicion la ejercita `pruebas/definiciones.test.js`.
+ *
+ * Cuando esa pestaña se construya, `ruta` queda neutra —`tickets`— y se acota con `consultaFija` en
+ * vez de reemplazarla: la
+ * API lista los tickets de un Proyecto por `filter[project_id]`, no por un subrecurso. Acotar por
+ * `consultaFija` deja el proyecto fuera de la URL, donde seria editable por quien mira.
  *
  * El panel preselecciona los estados 1, 2 y 4, pero eso es decision de la vista y no del contrato:
  * aca se listan todos y el filtro queda a mano.
@@ -22,8 +27,14 @@ export const TICKETS: DefinicionRecurso<TicketEspacio> = {
   titulo: GLOSARIO.ticket,
 
   columnas: [
-    { clave: 'ticketid', encabezado: '#', numerica: true, presentar: (t) => String(t.ticketid) },
+    // El numero con el que el equipo nombra un ticket ("el 412") es `id`. **No es `ticketkey`**: pese
+    // al nombre, esa clave es el hash aleatorio con el que Perfex arma el enlace publico.
+    { clave: 'id', encabezado: '#', numerica: true, sinCortar: true, presentar: (t) => String(t.id) },
     { clave: 'subject', encabezado: 'Asunto', ordenPor: 'subject', presentar: (t) => t.subject },
+    // La Tarea enganchada se ve desde la bandeja y no solo al abrir el ticket: lo primero que se
+    // mira al recorrerla es cual todavia no tiene a nadie trabajandolo. Sin nombre no se escribe un
+    // guion sino la ausencia completa, que es una decision pendiente y no un dato que falta.
+    { clave: 'task', encabezado: GLOSARIO.proceso.singular, presentar: (t) => t.task?.name ?? `Sin ${GLOSARIO.proceso.singular.toLowerCase()}` },
     { clave: 'status', encabezado: 'Estado', ordenPor: 'status', comoInsignia: 'ticket_statuses', presentar: (t) => t.status },
     { clave: 'priority', encabezado: 'Prioridad', ordenPor: 'priority', comoInsignia: 'ticket_priorities', presentar: (t) => t.priority },
     { clave: 'department', encabezado: 'Departamento', presentar: (t) => t.department?.name ?? '' },
@@ -32,6 +43,10 @@ export const TICKETS: DefinicionRecurso<TicketEspacio> = {
     { clave: 'lastreply', encabezado: 'Última respuesta', ordenPor: 'lastreply', ocultaPorDefecto: true, presentar: (t) => formatearFecha(t.lastreply) }
   ],
 
+  // `department` y `assigned` los acepta la API **solo para quien administra**: el panel viejo los
+  // declara con `isVisible(fn () => is_admin())`, asi que para el resto no estan en la whitelist y
+  // usarlos devuelve 422 `unknown` en vez de ignorarse. La pantalla que monte esto va a tener que
+  // quitarlos cuando no corresponda; aca se declaran porque el contrato los tiene.
   filtros: [
     { clave: 'ticketid', etiqueta: 'ID', tipo: 'campo', tipoDato: 'numero' },
     { clave: 'subject', etiqueta: 'Asunto', tipo: 'campo', tipoDato: 'texto' },

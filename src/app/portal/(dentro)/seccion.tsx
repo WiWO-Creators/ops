@@ -24,11 +24,18 @@ import { TablaPortal, type SeccionPortalListado } from './TablaPortal'
 export async function SeccionDePortal<T extends { id: number }> ({
   seccion,
   definicion,
-  parametrosDeUrl
+  parametrosDeUrl,
+  acciones
 }: {
   seccion: SeccionPortalListado
   definicion: DefinicionRecurso<T>
   parametrosDeUrl: Record<string, string | string[] | undefined>
+  /**
+   * Lo que se puede hacer en esta seccion, al lado del titulo. Solo Soporte tiene: Proyectos no se
+   * crean desde el portal. Va acá y no en cada `page.tsx` porque el titulo lo dibuja este componente,
+   * y un boton afuera quedaria en una fila propia, leyendose como si no fuera del listado.
+   */
+  acciones?: React.ReactNode
 }) {
   const estado = leerConsulta(paramsDeUrl(parametrosDeUrl), definicion)
   const consulta = construirConsulta(estado, definicion)
@@ -49,7 +56,10 @@ export async function SeccionDePortal<T extends { id: number }> ({
 
   return (
     <section className="flex flex-col gap-4">
-      <h1 className="text-texto text-xl font-semibold">{definicion.titulo.plural}</h1>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h1 className="text-texto text-xl font-semibold">{definicion.titulo.plural}</h1>
+        {acciones}
+      </div>
       <Suspense
         fallback={<Cargando alto="min-h-36" mensaje={`Cargando ${definicion.titulo.plural.toLowerCase()}…`} />}
       >

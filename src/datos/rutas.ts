@@ -53,8 +53,12 @@ const PREFIJOS_PERMITIDOS = [
   'timesheets',
   'discussions',
   'notes',
-  // `tickets` no esta: el soporte se atiende en wiwo.center y el panel ya no monta ninguna
-  // pantalla que lo pida. Si algun dia vuelve, vuelve aca.
+  // Tickets: el soporte vuelve a atenderse desde el panel, en la pestaña del Espacio. La lista es
+  // por PREFIJO, asi que esta entrada cubre tambien los dos subrecursos del detalle —`respuestas`,
+  // el hilo, y `tarea`, la Tarea enganchada— sin una entrada por cada uno. **No esta en la lista
+  // del portal y no debe estarlo**: el contacto ve sus tickets por `portal/tickets`, que la API
+  // recorta a los suyos; este prefijo abre los de toda la instalacion.
+  'tickets',
   // Salas de reunion y sus reservas: la API las cuelga todas de `rooms`, asi que una sola entrada
   // cubre el listado de salas, la agenda, el alta y la cancelacion.
   'rooms',

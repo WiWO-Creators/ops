@@ -1246,18 +1246,76 @@ export interface ComentarioDiscusion {
   file: { name: string, mime: string, url: string } | null
 }
 
-/** Ticket asociado al proyecto. */
+/**
+ * La Tarea que atiende un ticket.
+ *
+ * Es la union de los dos mundos: el ticket lo abre quien tiene el problema y la Tarea es el trabajo
+ * con el que el equipo lo resuelve. `visible_to_client` decide si ademas el cliente la ve avanzar
+ * desde el portal, y por eso se muestra junto al nombre: una Tarea enganchada pero invisible es una
+ * decision deliberada, no un olvido.
+ */
+export interface TareaDeTicket {
+  id: number
+  name: string
+  status: number
+  visible_to_client: boolean
+}
+
+/**
+ * Quien abrio el ticket.
+ *
+ * La API lo resuelve en cascada y lo emite con `tipo` explicito en vez de dejar que el frontend
+ * combine `contactid`, `userid`, `name` y `email` como hace el panel viejo. `correo` es el ticket que
+ * entro por la casilla de soporte sin contacto detras: ahi solo hay `name` y `email`.
+ */
+export interface SolicitanteTicket {
+  tipo: 'contacto' | 'correo'
+  contact: { id: number, full_name: string, email: string } | null
+  client: Referencia | null
+  name: string | null
+  email: string | null
+}
+
+/**
+ * Ticket asociado al proyecto, tal como llega en la bandeja.
+ *
+ * `id` es el numero con el que el equipo lo nombra ("el 412"). **No se muestra `ticketkey`**: pese al
+ * nombre, es el hash aleatorio con el que Perfex arma el enlace publico, no un correlativo legible.
+ */
 export interface TicketEspacio {
   id: number
-  ticketid: number
   subject: string
   status: number
   priority: number
   department: Referencia | null
   assigned: StaffReferencia | null
-  client: { id: number, company: string } | null
+  solicitante: SolicitanteTicket
+  task: TareaDeTicket | null
   date: string | null
   lastreply: string | null
+}
+
+/** La ficha de un ticket: lo mismo que la bandeja mas el mensaje con el que se abrio. */
+export interface TicketDetalle extends TicketEspacio {
+  message: string | null
+}
+
+/**
+ * Una respuesta del hilo de un ticket.
+ *
+ * `autor` viene resuelto por la API con su `tipo`: el panel viejo lo deducia mirando si la columna
+ * `admin` estaba vacia, y esa convencion no tiene por que cruzar la red.
+ */
+export interface RespuestaTicket {
+  id: number
+  message: string | null
+  date: string | null
+  autor: {
+    tipo: 'staff' | 'contacto' | 'correo'
+    id: number | null
+    full_name: string | null
+    email: string | null
+  }
 }
 
 /** Barra de una tarea dentro del Gantt. */

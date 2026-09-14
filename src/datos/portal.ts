@@ -15,7 +15,24 @@ export interface TicketPortal {
   status: number
   priority: number
   project_id: number | null
+  /** `null` cuando el equipo todavia no engancho ninguna {proceso} al ticket. */
+  task: TareaDeTicketPortal | null
 }
+
+/**
+ * La {proceso} que atiende el ticket, en las dos formas que la API distingue.
+ *
+ * La forma corta —solo `progress`— es una tarea **interna**: el equipo la abrio para trabajar el
+ * ticket pero no la compartio con el cliente, y lo unico que le corresponde ver es cuanto avanzo.
+ * Llega sin nombre a proposito, asi que la pantalla tampoco puede inventarle uno: un titulo
+ * fabricado seria filtrar el tablero interno con palabras nuestras.
+ *
+ * Se distinguen por la presencia de `id` (`'id' in tarea`) y no por una bandera aparte, porque asi
+ * el tipo impide leer `name` donde la API no lo mando.
+ */
+export type TareaDeTicketPortal =
+  | { progress: number }
+  | { id: number, name: string, status: number, progress: number }
 
 export interface TicketPortalDetalle extends TicketPortal {
   message: string
