@@ -27,7 +27,8 @@ import {
   ItemMenuMarcable,
   ItemMenuRadio,
   MenuContextual,
-  SinResultadosMenu
+  SinResultadosMenu,
+  UMBRAL_BUSCADOR
 } from '@/componentes/superposiciones/MenuContextual'
 import { cn } from '@/lib/clases'
 import { dependenciaPendiente, filtrosTrasCambiar, opcionesPorPagina, resumenDeFiltro } from './tabla'
@@ -320,16 +321,6 @@ function FiltroEnEspera ({ filtro, esperaA }: { filtro: Filtro, esperaA: Filtro 
 interface PropsFiltroConOpciones extends PropsControlFiltro {
   opciones: OpcionFiltro[]
 }
-
-/**
- * Cantidad de opciones a partir de la cual el desplegable trae buscador.
- *
- * Seis deja fuera a los catalogos cortos y fijos —los cinco estados, las cuatro prioridades, los
- * tres estados de SLA—, donde un campo de texto seria un control mas entre el clic y la unica opcion
- * que hay. De ahi para arriba empieza a haber que recorrer: el equipo pasa de ciento ochenta
- * personas y el catalogo de Espacios de doscientos.
- */
-const UMBRAL_BUSCADOR = 6
 
 interface PropsMenuBuscable {
   /** Nombre del control, para el lector de pantalla y para el texto del buscador. */

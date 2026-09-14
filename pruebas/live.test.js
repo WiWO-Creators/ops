@@ -7,12 +7,26 @@
  * Tarea deja "midiendo el Proyecto entero" indistinguible de "midiendo una Tarea", que es el unico
  * caso que esta pantalla existe para delatar; y un mensaje que no distingue el `409` de la jornada
  * del `409` del medidor deja a la persona sin saber que apretar.
+ *
+ * Y la cuarta cosa que se rompe en silencio es la marca de "hoy no": si caduca mal, o se pierde, la
+ * ventana de apertura vuelve a interrumpir en cada recarga —que es el bucle que la hizo intrusiva— y
+ * si no caduca nunca, deja de pedir la jornada para siempre.
  */
 
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { cargoYArea, ordenarPorActividad, repartirTablero, trabajoDeLaFila } from '../src/componentes/live/presentacion.ts'
-import { alcanceDeLive, esJefatura, mensajeDeFalloDeJornada, mensajeDeFalloDeMedidor } from '../src/dominio/live.ts'
+import {
+  alcanceDeLive,
+  claveDeJornadaPospuesta,
+  esJefatura,
+  filtrarPorNombre,
+  jornadaPospuestaHoy,
+  mensajeDeFalloDeJornada,
+  mensajeDeFalloDeMedidor,
+  olvidarJornadaPospuesta,
+  posponerJornadaPorHoy
+} from '../src/dominio/live.ts'
 import { GLOSARIO } from '../src/dominio/glosario.ts'
 
 /** Un `/me` minimo: solo lo que `alcanceDeLive` mira. */
@@ -312,4 +326,114 @@ test('el fallo al abrir con destino nombra el destino, no la jornada', () => {
 /** El 409 sigue siendo el de la jornada: otra pestaña la abrio primero. */
 test('el 409 al abrir sigue hablando de la jornada', () => {
   assert.equal(mensajeDeFalloDeJornada(409, true), 'Ya tienes una jornada abierta.')
+})
+
+/**
+ * Un `localStorage` de mentira, con lo justo que miran las funciones de la marca.
+ *
+ * @param inicial pares clave/valor ya guardados
+ * @returns el almacenamiento fingido, con su mapa a la vista para comprobar lo que se escribio
+ */
+function almacenamiento (inicial = {}) {
+  const datos = new Map(Object.entries(inicial))
+
+  return {
+    datos,
+    getItem: (clave) => datos.get(clave) ?? null,
+    setItem: (clave, valor) => { datos.set(clave, valor) },
+    removeItem: (clave) => { datos.delete(clave) }
+  }
+}
+
+/** Uno que lanza en las tres operaciones, como en una ventana privada. */
+function almacenamientoBloqueado () {
+  const negar = () => { throw new DOMException('El almacenamiento está bloqueado.', 'SecurityError') }
+
+  return { getItem: negar, setItem: negar, removeItem: negar }
+}
+
+const HOY = '2026-09-14'
+const AYER = '2026-09-13'
+const STAFF = 183
+
+test('con la marca de hoy puesta, la jornada no se vuelve a exigir', () => {
+  const alm = almacenamiento({ [claveDeJornadaPospuesta(STAFF, HOY)]: '1' })
+
+  assert.equal(jornadaPospuestaHoy(alm, STAFF, HOY), true)
+})
+
+test('la marca de ayer no vale hoy: la jornada se exige de nuevo por la mañana', () => {
+  // Es el punto entero de meter el dia en la clave. Sin esto, "ahora no" duraria para siempre.
+  const alm = almacenamiento({ [claveDeJornadaPospuesta(STAFF, AYER)]: '1' })
+
+  assert.equal(jornadaPospuestaHoy(alm, STAFF, HOY), false)
+})
+
+test('sin marca, la jornada se exige', () => {
+  assert.equal(jornadaPospuestaHoy(almacenamiento(), STAFF, HOY), false)
+})
+
+test('la marca es de una persona y no del navegador', () => {
+  // Dos cuentas en el mismo equipo —el de recepcion, o quien entra con otra sesion a revisar algo—
+  // no heredan una decision que no tomaron.
+  const alm = almacenamiento()
+
+  posponerJornadaPorHoy(alm, STAFF, HOY)
+
+  assert.equal(jornadaPospuestaHoy(alm, STAFF, HOY), true)
+  assert.equal(jornadaPospuestaHoy(alm, 999, HOY), false)
+})
+
+test('abrir la jornada borra la marca del dia', () => {
+  const alm = almacenamiento()
+
+  posponerJornadaPorHoy(alm, STAFF, HOY)
+  olvidarJornadaPospuesta(alm, STAFF, HOY)
+
+  assert.equal(jornadaPospuestaHoy(alm, STAFF, HOY), false)
+  assert.equal(alm.datos.size, 0)
+})
+
+/**
+ * En una ventana privada, tocar `localStorage` lanza. Lo unico que se puede perder ahi es la memoria
+ * de la decision: la cabecera tiene que seguir en pie, y la ventana vuelve a aparecer, que es el
+ * comportamiento de siempre y no una pantalla rota.
+ */
+test('con el almacenamiento bloqueado se degrada a "no se acuerda", sin romper nada', () => {
+  const alm = almacenamientoBloqueado()
+
+  assert.doesNotThrow(() => jornadaPospuestaHoy(alm, STAFF, HOY))
+  assert.equal(jornadaPospuestaHoy(alm, STAFF, HOY), false)
+
+  assert.doesNotThrow(() => posponerJornadaPorHoy(alm, STAFF, HOY))
+  assert.equal(posponerJornadaPorHoy(alm, STAFF, HOY), false)
+
+  assert.doesNotThrow(() => olvidarJornadaPospuesta(alm, STAFF, HOY))
+  assert.equal(olvidarJornadaPospuesta(alm, STAFF, HOY), false)
+})
+
+/**
+ * El combo de Espacios pasa del centenar de opciones y se busca escribiendo. Quien filtra no escribe
+ * los acentos ni respeta las mayusculas, asi que comparar el texto crudo esconde justo lo que se
+ * esta buscando.
+ */
+test('buscar en el combo ignora acentos y mayusculas', () => {
+  const opciones = [
+    { id: 1, name: 'Logística Andina' },
+    { id: 2, name: 'MUÑOZ y Compañía' },
+    { id: 3, name: 'Delco' }
+  ]
+
+  assert.deepEqual(filtrarPorNombre(opciones, 'logistica').map((o) => o.id), [1])
+  assert.deepEqual(filtrarPorNombre(opciones, 'MUNOZ').map((o) => o.id), [2])
+  // Por subcadena y no por prefijo: los nombres del catalogo empiezan casi todos igual.
+  assert.deepEqual(filtrarPorNombre(opciones, 'andina').map((o) => o.id), [1])
+  assert.deepEqual(filtrarPorNombre(opciones, 'zzz'), [])
+})
+
+test('una busqueda vacia devuelve la lista entera, en su orden', () => {
+  const opciones = [{ id: 1, name: 'Uno' }, { id: 2, name: 'Dos' }]
+
+  assert.deepEqual(filtrarPorNombre(opciones, ''), opciones)
+  assert.deepEqual(filtrarPorNombre(opciones, '   '), opciones)
 })

@@ -11,8 +11,16 @@ import {
 import { formatearDuracion } from '@/componentes/proyecto/cronometro'
 import type { EstadoDeJornada } from '@/datos/live'
 import { GLOSARIO } from '@/dominio/glosario'
-import { faltaAbrirJornada, mensajeDeFalloDeJornada, mensajeDeFalloDeMedidor } from '@/dominio/live'
+import {
+  faltaAbrirJornada,
+  jornadaPospuestaHoy,
+  mensajeDeFalloDeJornada,
+  mensajeDeFalloDeMedidor,
+  olvidarJornadaPospuesta,
+  posponerJornadaPorHoy
+} from '@/dominio/live'
 import { cn } from '@/lib/clases'
+import { hoyLocal } from '@/lib/fechas'
 import { CierreJornada } from './CierreJornada'
 import { DestinoDeJornada } from './DestinoDeJornada'
 import { avisarCambioDeMedidor, escucharMedidor } from './medidor'
@@ -60,19 +68,28 @@ import { avisarCambioDeMedidor, escucharMedidor } from './medidor'
  *
  * === POR QUE LA ELECCION VIVE EN UN MODAL Y NO ACA DENTRO ===
  *
- * Porque un desplegable no obliga: se cierra clicando en cualquier parte y quien no queria elegir
- * simplemente no elige. `DestinoDeJornada` es la ventana que se abre **sola** al entrar sin jornada
- * y no se va con `Escape` — el mismo trato que ya tenia el cierre, aplicado al lado que mas importa,
+ * Porque un desplegable no interrumpe: se cierra clicando en cualquier parte y quien no queria elegir
+ * simplemente no elige. `DestinoDeJornada` es la ventana que se abre **sola** al entrar sin jornada,
  * porque lo que no se elige al empezar ya no se puede elegir despues.
  *
  * Ese modal es tambien el unico sitio donde se elige destino: el control tenia dos copias del
  * selector de Espacio —una para abrir y otra para arrancar— y las dos se fueron con el.
  *
- * === EL BLOQUEO NO PUEDE DEJAR A NADIE ENCERRADO ===
+ * === PEDIR NO ES ENCERRAR ===
  *
- * La ventana se exige solo con `estado` leido de verdad: si la API no contesto, `estado` es `null` y
- * no se bloquea nada. Un backend caido no puede dejar a media empresa mirando un velo — y ademas no
- * hay forma de saber si esa persona ya tiene la jornada abierta, asi que bloquear seria adivinar.
+ * La ventana se abre sola, pero se cierra: con la X, con `Escape` y clicando fuera. Antes no, y el
+ * resultado era el contrario del buscado — el estado de "ya dije que ahora no" vivia en React, se
+ * perdia en cada recarga, y la misma persona volvia a chocar con el velo en cada navegacion. Una
+ * compuerta que no se acuerda de nada deja de leerse como una regla y pasa a leerse como una averia.
+ *
+ * Por eso posponerla se anota por el dia (`posponerJornadaPorHoy`, en `localStorage`): manana se
+ * vuelve a exigir y hoy no se vuelve a preguntar. Lo que no desaparece es la exigencia: el boton de
+ * la cabecera sigue diciendo "Abrir jornada" y la trae de vuelta en un clic, y el aviso del Inicio
+ * sigue diciendo que falta.
+ *
+ * Y ni siquiera se pregunta sin saber: la ventana se exige solo con `estado` leido de verdad, porque
+ * si la API no contesto `estado` es `null` y no hay forma de saber si esa persona ya abrio su
+ * jornada. Un backend caido no puede dejar a media empresa mirando un velo.
  *
  * El resto de las salidas —cerrar sesion, o entrar sin jornada por esta vez— vive dentro del modal.
  * Ver `DestinoDeJornada`.
@@ -116,6 +133,21 @@ export function ControlJornada ({
   const [pidiendoDestino, setPidiendoDestino] = useState(false)
   /** `true` cuando se uso la salida de emergencia. Dura lo que dure esta pestaña; ver el docblock. */
   const [entroSinJornada, setEntroSinJornada] = useState(false)
+  /**
+   * `true` si hoy ya se cerro la ventana sin abrir la jornada.
+   *
+   * Se apoya en `localStorage` y no solo en React porque el estado de React es justo lo que no
+   * sobrevive a una recarga: ahi nacio el bucle que esto arregla. La marca lleva el dia y el
+   * `staffId`, asi que caduca sola a la medianoche y no se hereda entre cuentas del mismo navegador.
+   *
+   * Se lee en el inicializador y no en un efecto porque un efecto llega tarde: el primer pintado ya
+   * traeria la ventana abierta y el segundo la cerraria, o sea un parpadeo del velo justo al entrar.
+   * En el servidor no hay `localStorage`, y tampoco hace falta: el dialogo vive en un portal que no
+   * existe hasta despues del montaje, asi que esto no entra en el HTML que se hidrata.
+   */
+  const [pospuestaHoy, setPospuestaHoy] = useState(
+    () => typeof window !== 'undefined' && jornadaPospuestaHoy(window.localStorage, staffId, hoyLocal())
+  )
   const [intento, setIntento] = useState(0)
 
   /** Cuando se leyo `estado`. El contador cuenta desde aca, no desde `started_at`. */
@@ -196,6 +228,20 @@ export function ControlJornada ({
     setIntento((previo) => previo + 1)
   }
 
+  /**
+   * Se cerro la ventana de apertura sin abrir la jornada. Queda anotado por el dia para no volver a
+   * interrumpir, y el boton de la cabecera sigue estando para cuando se quiera.
+   */
+  function posponerApertura (): void {
+    setPospuestaHoy(true)
+    setPidiendoDestino(false)
+    setAviso(null)
+    // El resultado no se mira a proposito: si el navegador no deja guardar —una ventana privada— la
+    // decision vale igual en esta pestaña, que es donde se acaba de tomar. Lo unico que se pierde es
+    // que la proxima recarga vuelva a preguntar.
+    posponerJornadaPorHoy(window.localStorage, staffId, hoyLocal())
+  }
+
   const segundosJornada = (estado?.seconds ?? 0) + transcurrido
   const segundosMedidor = medidor === null ? 0 : medidor.seconds + transcurrido
 
@@ -255,6 +301,10 @@ export function ControlJornada ({
 
     if (acepto(respuesta)) {
       setPidiendoDestino(false)
+      // La jornada quedo abierta: "ahora no" ya no describe nada. Dejar la marca puesta silenciaria
+      // la exigencia del rato en que el dia se cierre y haya que volver a abrirlo.
+      setPospuestaHoy(false)
+      olvidarJornadaPospuesta(window.localStorage, staffId, hoyLocal())
       avisarCambioDeMedidor()
       recargar()
       return
@@ -354,7 +404,8 @@ export function ControlJornada ({
 
   // La compuerta de entrada. Solo la monta la variante de la cabecera: es la unica que existe una
   // sola vez en toda la aplicacion, y dos modales con el mismo trabajo se pisarian en `/live`.
-  const exigeJornada = variante === 'compacta' && !entroSinJornada && faltaAbrirJornada(estado)
+  const exigeJornada = variante === 'compacta' && !entroSinJornada && !pospuestaHoy &&
+    faltaAbrirJornada(estado)
   const destinoAbierto = exigeJornada || pidiendoDestino
 
   const cuerpo = (
@@ -406,6 +457,7 @@ export function ControlJornada ({
           void abrirYArrancar(espacioId, tareaId)
         }}
         onCancelar={() => { setPidiendoDestino(false); setAviso(null) }}
+        onPosponer={posponerApertura}
         onEntrarSinJornada={() => {
           setEntroSinJornada(true)
           setPidiendoDestino(false)
@@ -443,7 +495,7 @@ export function ControlJornada ({
               {formatearDuracion(medidor === null ? segundosJornada : segundosMedidor)}
             </span>
             )
-          : <span className="truncate">Iniciar jornada</span>}
+          : <span className="truncate">Abrir jornada</span>}
       </DisparadorMenu>
 
       <ContenidoMenu
