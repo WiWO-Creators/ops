@@ -5,8 +5,10 @@
  * mas frente a un estado que no se pudo leer deja a toda la empresa mirando un velo el dia que la
  * API se caiga; un `false` de mas convierte el bloqueo en el aviso que ya habia y que nadie miraba.
  *
- * El mensaje del 422 va aparte porque la causa cambio: antes era "falta el Espacio" y ahora es "esa
- * Tarea no es de ese Proyecto", que es el unico 422 que esta interfaz puede provocar.
+ * Los mensajes van aparte porque la causa cambio dos veces. Al principio el 422 era "falta el
+ * Espacio"; despues "esa Tarea no es de ese Proyecto"; y ahora no es nada, porque la ventana de
+ * apertura perdio los campos y el `POST /me/jornada` sale con el cuerpo vacio. Lo que hay que fijar
+ * es justamente eso: que al abrir no se le hable a nadie de un combo que ya no existe.
  */
 
 import { test } from 'node:test'
@@ -35,14 +37,19 @@ test('un estado que no se pudo leer no bloquea: adivinar encerraria a quien ya l
   assert.equal(faltaAbrirJornada(null), false)
 })
 
-test('el 422 al abrir nombra el par incoherente, que es el unico que esta pantalla puede mandar', () => {
-  const mensaje = mensajeDeFalloDeJornada(422, true)
+test('al abrir no se nombra ningun destino: la apertura ya no manda ninguno', () => {
+  // La ventana no tiene combos, asi que "elige otro Proyecto o Tarea" mandaria a buscar donde no hay
+  // nada que buscar. El texto generico al menos dice el codigo con el que preguntar.
+  for (const codigo of [403, 404, 422]) {
+    const mensaje = mensajeDeFalloDeJornada(codigo, true)
 
-  assert.match(mensaje, /Tarea/)
-  assert.match(mensaje, /Proyecto/)
+    assert.doesNotMatch(mensaje, /Tarea/)
+    assert.doesNotMatch(mensaje, /Proyecto/)
+    assert.ok(mensaje.length > 0)
+  }
 })
 
-test('el 409 al abrir sigue diciendo que ya hay una, y no habla de Tareas', () => {
+test('el 409 al abrir sigue diciendo que ya hay una', () => {
   assert.equal(mensajeDeFalloDeJornada(409, true), 'Ya tienes una jornada abierta.')
 })
 
