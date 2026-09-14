@@ -20,9 +20,13 @@ import type { Referencia } from '@/datos/recursos'
  * Hasta ahora el portal solo leia tickets y el cliente tenia que escribir por correo o volver al
  * portal viejo; el hilo quedaba partido en dos lugares. Acá se abre donde despues se lee.
  *
- * Va en un dialogo y no en una pantalla propia porque son cinco campos: una ruta `/portal/soporte/nuevo`
- * costaria una navegacion de ida y otra de vuelta para lo mismo, y el listado detras del velo recuerda
- * que esto se suma a lo que ya hay abierto.
+ * Va en un dialogo y no en una pantalla propia porque son cuatro campos: una ruta
+ * `/portal/soporte/nuevo` costaria una navegacion de ida y otra de vuelta para lo mismo, y el listado
+ * detras del velo recuerda que esto se suma a lo que ya hay abierto.
+ *
+ * **No se pregunta el motivo ni el departamento.** Esto es para que el cliente reporte lo que se le
+ * rompio, y elegir a que equipo va es trabajo nuestro: repartir se hace despues, desde el panel.
+ * Pedirselo era pedirle que adivinara un organigrama que no conoce.
  *
  * Las listas bajan resueltas desde el servidor —los catalogos ya se piden ahi para los filtros de la
  * tabla— en vez de pedirse al montar: un selector que aparece vacio y se puebla medio segundo despues
@@ -48,15 +52,13 @@ function unicaOpcion (opciones: Referencia[]): string {
 }
 
 interface PropsNuevaSolicitud {
-  /** Motivos de `lookups.departments`: a que equipo va la consulta. */
-  departamentos: Referencia[]
   /** `lookups.ticket_priorities`. Opcional en el contrato, asi que puede quedar sin elegir. */
   prioridades: Referencia[]
   /** Los espacios del contacto. Con uno solo no hay nada que elegir: se preselecciona. */
   espacios: Referencia[]
 }
 
-export function NuevaSolicitud ({ departamentos, prioridades, espacios }: PropsNuevaSolicitud) {
+export function NuevaSolicitud ({ prioridades, espacios }: PropsNuevaSolicitud) {
   const router = useRouter()
   const [abierto, setAbierto] = useState(false)
   const [enviando, setEnviando] = useState(false)
@@ -64,7 +66,6 @@ export function NuevaSolicitud ({ departamentos, prioridades, espacios }: PropsN
 
   const [asunto, setAsunto] = useState('')
   const [mensaje, setMensaje] = useState('')
-  const [departamento, setDepartamento] = useState(unicaOpcion(departamentos))
   const [espacio, setEspacio] = useState(unicaOpcion(espacios))
   const [prioridad, setPrioridad] = useState(SIN_PRIORIDAD)
 
@@ -72,7 +73,7 @@ export function NuevaSolicitud ({ departamentos, prioridades, espacios }: PropsN
   // en vez de ofrecer un formulario que la API va a rechazar siempre.
   if (espacios.length === 0) return null
 
-  const completo = asunto.trim() !== '' && mensaje.trim() !== '' && departamento !== '' && espacio !== ''
+  const completo = asunto.trim() !== '' && mensaje.trim() !== '' && espacio !== ''
 
   /**
    * Crea la solicitud y lleva al hilo recien abierto.
@@ -89,7 +90,6 @@ export function NuevaSolicitud ({ departamentos, prioridades, espacios }: PropsN
       subject: asunto.trim(),
       message: mensaje.trim(),
       project_id: Number(espacio),
-      department: Number(departamento),
       ...(prioridad === SIN_PRIORIDAD ? {} : { priority: Number(prioridad) })
     })
 
@@ -131,19 +131,6 @@ export function NuevaSolicitud ({ departamentos, prioridades, espacios }: PropsN
                 placeholder="En una línea, qué necesitas"
                 onChange={(evento) => { setAsunto(evento.target.value) }}
               />
-            )}
-          </Campo>
-
-          <Campo etiqueta="Motivo" requerido>
-            {(props) => (
-              <Selector value={departamento} onValueChange={setDepartamento}>
-                <DisparadorSelector id={props.id} marcador="Elige un motivo" />
-                <ContenidoSelector>
-                  {departamentos.map((opcion) => (
-                    <Opcion key={opcion.id} value={String(opcion.id)}>{opcion.name}</Opcion>
-                  ))}
-                </ContenidoSelector>
-              </Selector>
             )}
           </Campo>
 
