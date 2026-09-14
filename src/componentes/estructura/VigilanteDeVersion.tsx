@@ -5,7 +5,7 @@ import { X } from 'lucide-react'
 import { Boton } from '@/componentes/formularios/Boton'
 import { ATRIBUTO_BIENVENIDA, CLAVE_BIENVENIDA } from '@/lib/bienvenida'
 import { cn } from '@/lib/clases'
-import { MonitoConstructor } from './MonitoConstructor'
+import { elegirEscena } from './bienvenida/escenas'
 
 /** Cuanto dura la obra antes de empezar a irse. */
 const OBRA = 2200
@@ -47,7 +47,8 @@ interface PropsVigilante {
  * === LA BIENVENIDA ===
  *
  * Aceptar deja una marca en `sessionStorage` y recarga. La carga siguiente encuentra la marca, tapa
- * la pantalla con la obra del monito y funde hacia el panel ya nuevo. El telon que evita el destello
+ * la pantalla con una de las escenas de obra (`bienvenida/escenas.ts`, al azar) y funde hacia
+ * el panel ya nuevo. El telon que evita el destello
  * lo pone un script anterior al primer pintado (`lib/bienvenida.ts`); aca solo se levanta, en el
  * momento exacto en que esta capa —opaca y por encima— pasa a taparlo.
  *
@@ -60,6 +61,10 @@ export function VigilanteDeVersion ({ version, segundos }: PropsVigilante) {
   const [disponible, setDisponible] = useState<string | null>(null)
   const [descartada, setDescartada] = useState<string | null>(null)
   const [bienvenida, setBienvenida] = useState<'obra' | 'saliendo' | null>(null)
+  // Se elige una vez por carga y no en cada render: sortearla dentro del cuerpo cambiaria el dibujo
+  // a mitad de la obra si algo mas obliga a repintar. El sorteo en el servidor no importa —esta capa
+  // solo se muestra despues de montar, cuando el efecto de abajo encuentra la marca—.
+  const [escena] = useState(elegirEscena)
 
   useEffect(() => {
     const marca = leerMarca()
@@ -192,10 +197,10 @@ export function VigilanteDeVersion ({ version, segundos }: PropsVigilante) {
             bienvenida === 'saliendo' && 'opacity-0'
           )}
         >
-          <MonitoConstructor />
+          <escena.Dibujo />
           <div className="space-y-1 px-6 text-center">
             <p className="text-texto text-base font-semibold">Ops se actualizó</p>
-            <p className="text-texto-tenue text-sm">Dejando todo en su lugar…</p>
+            <p className="text-texto-tenue text-sm">{escena.frase}</p>
           </div>
         </div>
       )}

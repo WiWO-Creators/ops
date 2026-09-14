@@ -8,6 +8,7 @@
 
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
+import { readdir, readFile } from 'node:fs/promises'
 import { ATRIBUTO_BIENVENIDA, CLAVE_BIENVENIDA, SCRIPT_BIENVENIDA_INICIAL } from '../src/lib/bienvenida.ts'
 
 // Se fija ANTES del import: `datos/version.ts` resuelve la version una sola vez, al cargarse.
@@ -67,4 +68,33 @@ test('el script usa la misma clave y el mismo atributo que el componente', () =>
 test('el script levanta el telon solo aunque React no monte', () => {
   // La red de seguridad. Sin ella, un fallo del bundle deja la pantalla en blanco sin salida.
   assert.match(SCRIPT_BIENVENIDA_INICIAL, /setTimeout\(.*removeAttribute/s)
+})
+
+/**
+ * Las escenas de bienvenida no se pueden importar desde aca —son `.tsx` y el intérprete de pruebas
+ * solo quita tipos, no compila JSX—, asi que se revisan como texto. Alcanza: lo que se rompe en
+ * silencio no es el dibujo sino el contrato entre los cuatro, que vive en atributos literales.
+ */
+const carpetaEscenas = new URL('../src/componentes/estructura/bienvenida/', import.meta.url)
+const archivosDeEscena = (await readdir(carpetaEscenas)).filter((nombre) => nombre.startsWith('Escena'))
+const registro = await readFile(new URL('escenas.ts', carpetaEscenas), 'utf8')
+
+test('las cuatro escenas comparten encuadre y suelo', async () => {
+  // Con encuadres distintos, la que salga sorteada cambia de tamaño y la bienvenida da un salto.
+  assert.equal(archivosDeEscena.length, 4)
+
+  for (const nombre of archivosDeEscena) {
+    const fuente = await readFile(new URL(nombre, carpetaEscenas), 'utf8')
+
+    assert.ok(fuente.includes('viewBox="34 8 116 102"'), `${nombre} cambia el encuadre`)
+    assert.ok(fuente.includes('y1="102"'), `${nombre} no apoya en el mismo suelo`)
+    assert.ok(fuente.includes('aria-hidden="true"'), `${nombre} no es decorativa`)
+  }
+})
+
+test('todas las escenas estan registradas', () => {
+  // Una escena sin entrada en `ESCENAS` no se sortea nunca: queda como codigo muerto que compila.
+  for (const nombre of archivosDeEscena) {
+    assert.ok(registro.includes(nombre.replace('.tsx', '')), `${nombre} no esta en ESCENAS`)
+  }
 })

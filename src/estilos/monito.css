@@ -114,3 +114,191 @@ html[data-bienvenida] body::before {
   .monito-bloque { opacity: 1; }
   .monito-chispas { opacity: 0; }
 }
+
+/* ===========================================================================================
+ * Las otras tres escenas de bienvenida.
+ *
+ * Cada una tiene su propio reloj (`--ciclo`) porque el gesto es distinto: el martillo neumatico
+ * vibra decenas de veces por segundo, la grua tarda casi dos en levantar el pallet. Lo que comparten
+ * es la regla de siempre: una sola animacion por gesto, y las piezas que se mueven juntas dentro del
+ * mismo grupo. Todas se apagan bajo `prefers-reduced-motion` al final del archivo.
+ * =========================================================================================== */
+
+/* --- Martillo neumatico --------------------------------------------------------------------- */
+
+.escena-neumatico {
+  --ciclo-vibracion: 96ms;
+  --ciclo-obra: 1440ms;
+}
+
+/* Tres pixeles de recorrido y nada de rotacion: mas amplitud deja de leerse como vibracion y pasa a
+   leerse como que la maquina se cae. */
+@keyframes escena-vibrar {
+  0%, 100% { transform: translate(0, 0); }
+  50% { transform: translate(0.6px, 2px); }
+}
+
+/* Acotado a la escena: `.escena-maquina` tambien es la grua, y ahi el gesto es el contrario. */
+.escena-neumatico .escena-maquina {
+  animation: escena-vibrar var(--ciclo-vibracion) linear infinite;
+}
+
+/* El cuerpo recibe la mitad del temblor: quien sostiene la maquina la amortigua, no la copia. */
+@keyframes escena-vibrar-suave {
+  0%, 100% { transform: translate(0, 0); }
+  50% { transform: translate(0, 1px); }
+}
+
+.escena-operario {
+  animation: escena-vibrar-suave var(--ciclo-vibracion) linear infinite;
+}
+
+@keyframes escena-grieta-abre {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.escena-grietas > * {
+  opacity: 0;
+  animation: escena-grieta-abre 240ms var(--retraso, 0ms) ease-out forwards;
+}
+
+/* El polvo sube y se abre. Nace del suelo, asi que empieza chico y termina transparente. */
+@keyframes escena-polvo-sube {
+  0% { opacity: 0; transform: translateY(0) scale(0.4); }
+  25% { opacity: 0.55; }
+  100% { opacity: 0; transform: translateY(-14px) scale(1.5); }
+}
+
+.escena-polvo > * {
+  fill: currentColor;
+  stroke: none;
+  opacity: 0;
+  transform-box: fill-box;
+  transform-origin: 50% 100%;
+  animation: escena-polvo-sube var(--ciclo-obra) var(--retraso, 0ms) ease-out infinite;
+}
+
+/* --- Grua horquilla ------------------------------------------------------------------------- */
+
+.escena-grua {
+  --ciclo-grua: 2600ms;
+}
+
+/* Sube rapido, se pasa un poco y se asienta; despues aguanta arriba y baja sin drama. El reposo
+   largo al final es lo que evita que el pallet parezca un yo-yo. */
+@keyframes escena-horquilla-sube {
+  0%, 8% { transform: translateY(0); }
+  38% { transform: translateY(-36px); animation-timing-function: ease-out; }
+  44% { transform: translateY(-33px); }
+  50%, 76% { transform: translateY(-34px); }
+  94%, 100% { transform: translateY(0); }
+}
+
+.escena-horquilla {
+  transform-box: fill-box;
+  transform-origin: 50% 100%;
+  animation: escena-horquilla-sube var(--ciclo-grua) cubic-bezier(0.33, 0, 0.2, 1) infinite;
+}
+
+/* La maquina se hunde mientras la carga despega y se recupera cuando baja. Un pixel alcanza. */
+@keyframes escena-maquina-carga {
+  0%, 8% { transform: translateY(0); }
+  38%, 76% { transform: translateY(1.2px); }
+  94%, 100% { transform: translateY(0); }
+}
+
+.escena-grua .escena-maquina {
+  animation: escena-maquina-carga var(--ciclo-grua) ease-in-out infinite;
+}
+
+/* Las ruedas giran solo mientras la carga esta abajo: una grua que rueda con el pallet en alto es
+   justo lo que ninguna obra deja hacer. */
+@keyframes escena-rueda-gira {
+  0%, 8% { transform: rotate(0deg); }
+  94%, 100% { transform: rotate(150deg); }
+}
+
+.escena-rueda {
+  transform-origin: var(--centro);
+  animation: escena-rueda-gira var(--ciclo-grua) ease-in-out infinite;
+}
+
+/* --- Soldador ------------------------------------------------------------------------------- */
+
+.escena-soldador {
+  --ciclo-arco: 1200ms;
+}
+
+/* El arco no se enciende y apaga: titila irregular. Los saltos de opacidad son a proposito
+   desparejos —es lo unico que separa una soldadura de una ampolleta con animacion. */
+@keyframes escena-arco-titila {
+  0%, 100% { opacity: 0.25; }
+  6% { opacity: 1; }
+  11% { opacity: 0.4; }
+  18% { opacity: 0.95; }
+  26% { opacity: 0.55; }
+  34% { opacity: 1; }
+  47% { opacity: 0.35; }
+  58% { opacity: 0.9; }
+  72% { opacity: 0.45; }
+  85% { opacity: 0.8; }
+}
+
+.escena-arco {
+  transform-box: fill-box;
+  transform-origin: 50% 50%;
+  animation: escena-arco-titila var(--ciclo-arco) steps(1, end) infinite;
+}
+
+/* Cada chispa sale del punto de union y se apaga en el aire. Se estiran desde el origen: el
+   `scale` sobre la linea entera es lo que da el chorro sin dibujar cuadro por cuadro. */
+@keyframes escena-chispa-salta {
+  0% { opacity: 0; transform: scale(0.2); }
+  12% { opacity: 1; transform: scale(0.7); }
+  55% { opacity: 0.7; transform: scale(1); }
+  100% { opacity: 0; transform: scale(1.15); }
+}
+
+.escena-chispas > * {
+  opacity: 0;
+  /* El origen es el extremo que toca la union, y cae en una esquina distinta de la caja segun hacia
+     donde salga cada chispa: por eso lo trae el propio elemento. */
+  transform-box: fill-box;
+  transform-origin: var(--origen);
+  animation: escena-chispa-salta var(--ciclo-arco) var(--retraso, 0ms) ease-out infinite;
+}
+
+/* El soplete respira sobre la union en vez de quedarse clavado: la mano de alguien nunca esta
+   perfectamente quieta, y el arco no se mueve con el porque vive en otro grupo. */
+@keyframes escena-soplete-avanza {
+  0%, 100% { transform: translate(0, 0); }
+  50% { transform: translate(-1.5px, 0.8px); }
+}
+
+.escena-soplete {
+  animation: escena-soplete-avanza var(--ciclo-arco) ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .escena-neumatico .escena-maquina,
+  .escena-grua .escena-maquina,
+  .escena-operario,
+  .escena-polvo > *,
+  .escena-horquilla,
+  .escena-rueda,
+  .escena-arco,
+  .escena-chispas > *,
+  .escena-soplete {
+    animation: none;
+  }
+
+  .escena-grietas > * { animation: none; opacity: 1; }
+  .escena-polvo > * { opacity: 0; }
+  .escena-chispas > * { opacity: 0; }
+  .escena-arco { opacity: 1; }
+
+  /* Sin animacion, la horquilla se queda donde la dejo el SVG: en el suelo. Levantarla a mano deja
+     la escena contando lo mismo que las otras —trabajo hecho— en vez de una grua a punto de empezar. */
+  .escena-horquilla { transform: translateY(-34px); }
+}
