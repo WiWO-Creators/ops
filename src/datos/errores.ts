@@ -173,7 +173,21 @@ const CAMPOS: Record<string, string> = {
   area_superior_id: 'Área superior',
   jefe_staffid: 'Quien dirige',
   area_ids: 'Áreas',
-  area_id: 'Área'
+  area_id: 'Área',
+  // Duplicar un Proceso. `nombre`, `project_id` y el bloque `copiar` son las claves de
+  // `POST /tasks/{id}/duplicar`, que nombra en castellano lo que el resto de la API nombra en
+  // ingles; sin estas entradas el 422 hablaria de `copiar.campos_personalizados`.
+  nombre: 'Nombre',
+  project_id: GLOSARIO.espacio.singular,
+  copiar: 'Qué se copia',
+  'copiar.descripcion': 'Descripción',
+  'copiar.asignados': 'Asignados',
+  'copiar.seguidores': 'Seguidores',
+  'copiar.checklist': 'Checklist',
+  'copiar.adjuntos': 'Adjuntos',
+  'copiar.campos_personalizados': 'Campos personalizados',
+  'copiar.etiquetas': 'Etiquetas',
+  'copiar.recordatorios': 'Recordatorios'
 }
 
 /**
@@ -207,6 +221,10 @@ const MOTIVOS: Record<string, string> = {
   recurrencia_apagada: 'no se puede usar: la recurrencia está desactivada en esta instalación',
   sobra_sin_recurrencia: 'sobra si la tarea no es recurrente',
   duplicado: 'ya está usado por otra',
+  desconocido: 'no existe',
+  no_es_objeto: 'tiene que ser un bloque de opciones',
+  demasiado_largo: 'es demasiado largo',
+  sin_espacio: `no se puede fijar en una ${GLOSARIO.proceso.singular.toLowerCase()} sin ${GLOSARIO.espacio.singular.toLowerCase()}`,
   // El motivo dice la consecuencia y no la palabra "ciclo": quien completa el formulario no piensa
   // en grafos, piensa en que acaba de colgar un área de una que ya colgaba de ella.
   ciclo: 'no puede ser un área que ya cuelga de esta'

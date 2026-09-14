@@ -280,6 +280,7 @@ function TareasDelProyecto ({ proyectoId, capacidades, conIa }: PropsPanelTareas
       <ModalTarea
         puedeEditar={capacidades.includes('edit')}
         puedeBorrar={capacidades.includes('delete')}
+        puedeCrear={capacidades.includes('create')}
       />
     </div>
   )

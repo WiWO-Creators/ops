@@ -41,6 +41,8 @@ interface PropsTableroFiltrable<T extends FilaConId> {
   ordenarColumnas?: (grupos: Array<GrupoTablero<T>>) => Array<GrupoTablero<T>>
   /** Accion propia en la cabecera de cada columna. Ver `Tablero`. */
   accionDeColumna?: (columna: ColumnaTablero, recargar: () => Promise<void>) => ReactNode
+  /** Accion propia al pie de cada tarjeta, junto a "Mover a…". Ver `Tablero`. */
+  accionDeTarjeta?: (tarjeta: T, recargar: () => Promise<void>) => ReactNode
   /** Ruta que habilita guardar el orden de columnas con id positivo. */
   rutaOrdenColumnas?: string
   /** Todos los destinos del menu "Mover a…", tengan columna en el tablero o no. Ver `Tablero`. */
@@ -58,6 +60,7 @@ export function TableroFiltrable<T extends FilaConId> ({
   adaptarCuerpo,
   ordenarColumnas,
   accionDeColumna,
+  accionDeTarjeta,
   rutaOrdenColumnas,
   destinos
 }: PropsTableroFiltrable<T>) {
@@ -117,6 +120,7 @@ export function TableroFiltrable<T extends FilaConId> ({
               adaptarCuerpo={adaptarCuerpo}
               ordenarColumnas={ordenarColumnas}
               accionDeColumna={accionDeColumna}
+              accionDeTarjeta={accionDeTarjeta}
               rutaOrdenColumnas={rutaOrdenColumnas}
               destinos={destinos}
             />

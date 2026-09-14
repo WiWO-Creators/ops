@@ -60,6 +60,18 @@ interface PropsTablero<T extends FilaConId> {
    * Devolver `null` deja la columna sin accion, que es lo que hace la sintetica "Sin categorizar".
    */
   accionDeColumna?: (columna: ColumnaTablero, recargar: () => Promise<void>) => ReactNode
+  /**
+   * Accion propia al pie de cada tarjeta, en la misma fila que "Mover a…".
+   *
+   * El kanban de Hitos pinta ahi el "Duplicar…" de una tarea. Va como gancho y no dentro del motor
+   * porque duplicar es propio de las Tareas: el tablero de Espacios usa el mismo motor y no tiene
+   * nada que duplicar.
+   *
+   * Recibe `recargar` por lo mismo que `accionDeColumna`: despues de crear la copia el tablero tiene
+   * que refrescarse **por el mismo camino que usa el arrastre**, o la tarjeta nueva aparece recien
+   * cuando algo mas lo obligue a recargar.
+   */
+  accionDeTarjeta?: (tarjeta: T, recargar: () => Promise<void>) => ReactNode
   /** Ruta que habilita guardar el orden de columnas con id positivo. */
   rutaOrdenColumnas?: string
   /**
@@ -90,6 +102,7 @@ export function Tablero<T extends FilaConId> ({
   adaptarCuerpo = (cuerpo) => cuerpo,
   ordenarColumnas = ordenarGrupos,
   accionDeColumna,
+  accionDeTarjeta,
   rutaOrdenColumnas,
   destinos
 }: PropsTablero<T>) {
@@ -408,26 +421,33 @@ export function Tablero<T extends FilaConId> ({
               >
                 {tablero.presentarTarjeta(tarjeta)}
 
-                <MenuContextual>
-                  <DisparadorMenu asChild>
-                    <Boton variante="sutil" tamano="chico" disabled={ocupado} className="self-start">
-                      Mover a…
-                    </Boton>
-                  </DisparadorMenu>
-                  <ContenidoMenu align="start">
-                    {destinosDelMenu.map((destino) => (
-                      <ItemMenu
-                        key={destino.columna.id}
-                        disabled={destino.columna.id === grupo.columna.id}
-                        onSelect={() => {
-                          void mover(tarjeta.id, destino.columna.id, destino.cuantas)
-                        }}
-                      >
-                        {destino.columna.name}
-                      </ItemMenu>
-                    ))}
-                  </ContenidoMenu>
-                </MenuContextual>
+                {/* Las acciones de la tarjeta en una sola fila: "Mover a…" y lo que monte quien use
+                    el motor. Envuelve en vez de apilarse para que dos botones cortos no se coman dos
+                    renglones de una tarjeta que ya es angosta. */}
+                <div className="flex flex-wrap items-center gap-1">
+                  <MenuContextual>
+                    <DisparadorMenu asChild>
+                      <Boton variante="sutil" tamano="chico" disabled={ocupado}>
+                        Mover a…
+                      </Boton>
+                    </DisparadorMenu>
+                    <ContenidoMenu align="start">
+                      {destinosDelMenu.map((destino) => (
+                        <ItemMenu
+                          key={destino.columna.id}
+                          disabled={destino.columna.id === grupo.columna.id}
+                          onSelect={() => {
+                            void mover(tarjeta.id, destino.columna.id, destino.cuantas)
+                          }}
+                        >
+                          {destino.columna.name}
+                        </ItemMenu>
+                      ))}
+                    </ContenidoMenu>
+                  </MenuContextual>
+
+                  {accionDeTarjeta?.(tarjeta, recargar)}
+                </div>
               </article>
             ))}
 
