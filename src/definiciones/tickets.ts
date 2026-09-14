@@ -6,10 +6,14 @@ import { formatearFecha } from '../lib/fechas.ts'
 /**
  * Definicion del recurso Tickets acotado a un Proyecto.
  *
- * La monta `PanelTickets`, la pestaña Tickets del detalle del Espacio: el soporte volvio al panel y
- * se atiende desde el Espacio al que pertenece, que es donde ya esta la Tarea que lo resuelve.
+ * **Todavia no la monta ninguna pantalla del panel.** El contrato esta completo y al dia —la API ya
+ * emite `solicitante` y `task`, y ya expone `PUT`/`DELETE /tickets/{id}/tarea`— pero la pestaña
+ * Tickets del detalle del Espacio, que es donde esto se va a ver, esta sin construir. Lo que si
+ * existe hoy es el lado del cliente: `/portal/soporte`, con su propia definicion en
+ * `portal-soporte.ts`. Mientras tanto esta definicion la ejercita `pruebas/definiciones.test.js`.
  *
- * `ruta` queda neutra —`tickets`— y la pestaña la acota con `consultaFija` y no reemplazandola: la
+ * Cuando esa pestaña se construya, `ruta` queda neutra —`tickets`— y se acota con `consultaFija` en
+ * vez de reemplazarla: la
  * API lista los tickets de un Proyecto por `filter[project_id]`, no por un subrecurso. Acotar por
  * `consultaFija` deja el proyecto fuera de la URL, donde seria editable por quien mira.
  *
@@ -41,8 +45,8 @@ export const TICKETS: DefinicionRecurso<TicketEspacio> = {
 
   // `department` y `assigned` los acepta la API **solo para quien administra**: el panel viejo los
   // declara con `isVisible(fn () => is_admin())`, asi que para el resto no estan en la whitelist y
-  // usarlos devuelve 422 `unknown` en vez de ignorarse. `PanelTickets` los quita cuando no
-  // corresponde; aca se declaran porque el contrato los tiene.
+  // usarlos devuelve 422 `unknown` en vez de ignorarse. La pantalla que monte esto va a tener que
+  // quitarlos cuando no corresponda; aca se declaran porque el contrato los tiene.
   filtros: [
     { clave: 'ticketid', etiqueta: 'ID', tipo: 'campo', tipoDato: 'numero' },
     { clave: 'subject', etiqueta: 'Asunto', tipo: 'campo', tipoDato: 'texto' },
