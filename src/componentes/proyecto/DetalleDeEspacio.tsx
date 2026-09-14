@@ -124,6 +124,9 @@ export function DetalleDeEspacio ({
         proyecto={proyectoDelPanel(espacio)}
         estado={estado}
         capacidades={capacidadesProyecto}
+        // Archivado no viaja el catalogo: el backend responde 422 a cualquier `PATCH` sobre un
+        // Espacio archivado, y una pildora que abre un menu para fallar es peor que una etiqueta.
+        estados={espacio.archived ? [] : listaDe(lookups, 'project_statuses')}
         volverA={volverA}
         subtitulo={subtitulo}
         acciones={acciones}

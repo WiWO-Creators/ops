@@ -233,13 +233,15 @@ export default async function ProyectoPage (props: PageProps<'/espacios/[id]'>) 
         proyecto={proyectoDelPanel(proyecto)}
         estado={estadoDelProyecto(lookups, proyecto.status)}
         capacidades={capacidadesProyecto}
+        // Archivado no viaja el catalogo: el backend responde 422 a cualquier `PATCH` sobre un
+        // Espacio archivado, y una pildora que abre un menu para fallar es peor que una etiqueta.
+        estados={proyecto.archived ? [] : estados}
         yoId={yo.id}
         acciones={
           <>
             <BotonNuevaTarea capacidades={capacidadesTareas} />
             <MenuProyecto
               proyecto={proyecto}
-              estados={estados}
               capacidades={capacidadesProyecto}
               capacidadesTareas={capacidadesTareas}
               esMiembro={(proyecto.members ?? []).some((persona) => persona.id === yo.id)}
