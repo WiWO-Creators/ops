@@ -118,6 +118,14 @@ test('una tarea sin offsets no se marca: el null es valido', () => {
   assert.deepEqual(errores, {})
 })
 
+test('un offset que no es un numero se marca en vez de guardarse como cero', () => {
+  const fila = { clave: 'a', name: 'Reporte', description: '', start_offset_days: 'abc', due_offset_days: '', priority: '2', task_type_id: '' }
+
+  assert.deepEqual(validarFilas([fila]), { 0: { start_offset_days: 'Escribe un número de días.' } })
+  // Y si alguien se saltara la validacion, cae en el null del contrato y nunca en el dia del arranque.
+  assert.equal(tareasParaGuardar([fila])[0].start_offset_days, null)
+})
+
 test('los details del 422 se reparten por posicion y salen ya traducidos', () => {
   const porFila = erroresDeTareas({
     'tasks.0.name': ['required'],

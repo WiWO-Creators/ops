@@ -82,17 +82,24 @@ export interface TareaParaGuardar {
  *
  * El vacio NO se aplana a `0`: el contrato distingue "a cero dias del inicio" de "la fecha del
  * hito", y confundirlos cambia el vencimiento de una tarea sin que nadie lo haya pedido. Lo que no
- * sea un entero viaja tal cual convertido para que el `422` del backend lo señale en su fila.
+ * es un numero devuelve `NaN` y no `0` por la misma razon: aplanarlo guardaria "el dia del arranque"
+ * para quien escribio cualquier cosa, en silencio. `validarFilas()` lo convierte en un error visible
+ * y el guardado no llega a ocurrir.
  *
  * @param texto Lo escrito en el campo.
- * @returns El entero, o `null` para el campo vacio.
+ * @returns El entero, `null` para el campo vacio, o `NaN` para lo que no es un numero.
  */
 function offset (texto: string): number | null {
   if (texto.trim() === '') return null
 
   const valor = Number(texto)
 
-  return Number.isFinite(valor) ? Math.trunc(valor) : 0
+  return Number.isFinite(valor) ? Math.trunc(valor) : Number.NaN
+}
+
+/** `null` para el vacio y para lo que no es un numero; el entero en el resto. */
+function enteroONulo (valor: number | null): number | null {
+  return valor === null || Number.isNaN(valor) ? null : valor
 }
 
 /**
@@ -105,8 +112,11 @@ export function tareasParaGuardar (filas: FilaTarea[]): TareaParaGuardar[] {
   return filas.map((fila) => ({
     name: fila.name.trim(),
     description: fila.description.trim() === '' ? null : fila.description.trim(),
-    start_offset_days: offset(fila.start_offset_days),
-    due_offset_days: offset(fila.due_offset_days),
+    // `validarFilas()` corta antes de llegar aca si hay un `NaN`; el aplanado a `null` es el cierre
+    // por si alguien llama a esta funcion sin validar: "la fecha del hito" es el default del
+    // contrato, y es preferible a mandar un `NaN` que `JSON.stringify` convertiria igual.
+    start_offset_days: enteroONulo(offset(fila.start_offset_days)),
+    due_offset_days: enteroONulo(offset(fila.due_offset_days)),
     priority: Number.isFinite(Number(fila.priority)) && fila.priority !== ''
       ? Number(fila.priority)
       : PRIORIDAD_POR_DEFECTO,
@@ -152,10 +162,14 @@ export function validarFilas (filas: FilaTarea[]): Record<number, Record<string,
     const desde = offset(fila.start_offset_days)
     const hasta = offset(fila.due_offset_days)
 
-    if (desde !== null && (desde < 0 || desde > OFFSET_MAXIMO)) {
+    if (desde !== null && Number.isNaN(desde)) {
+      errores.start_offset_days = 'Escribe un número de días.'
+    } else if (desde !== null && (desde < 0 || desde > OFFSET_MAXIMO)) {
       errores.start_offset_days = `Entre 0 y ${OFFSET_MAXIMO} días.`
     }
-    if (hasta !== null && (hasta < 0 || hasta > OFFSET_MAXIMO)) {
+    if (hasta !== null && Number.isNaN(hasta)) {
+      errores.due_offset_days = 'Escribe un número de días.'
+    } else if (hasta !== null && (hasta < 0 || hasta > OFFSET_MAXIMO)) {
       errores.due_offset_days = `Entre 0 y ${OFFSET_MAXIMO} días.`
     }
     if (desde !== null && hasta !== null && hasta < desde && errores.due_offset_days === undefined) {
