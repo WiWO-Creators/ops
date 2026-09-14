@@ -149,10 +149,12 @@ personas. La pantalla existe justamente para que esa carga no sea un `UPDATE`.
 | Recorrido del árbol (único) | `board: modules/api/Acceso/Organigrama.php` |
 | Lectura y escritura | `board: modules/api/Escritura/Jerarquia.php` |
 | Recorte de En Vivo | `board: modules/api/Recursos/RecursoJornadas.php::visibilidad()` |
-| Tipos | `src/datos/jerarquia.ts` |
-| Armado del árbol, alcance y descendencia | `src/dominio/jerarquia.ts` |
-| Pantalla | `src/app/(panel)/equipo/jerarquia/page.tsx`, `src/componentes/equipo/Jerarquia.tsx` |
-| Pruebas | `pruebas/jerarquia.test.js` (el árbol), `mock/jerarquia.test.js` (el contrato), `pruebas/jerarquia.browser.mjs` (el recorrido), `board: modules/api/pruebas/jerarquia_equipos.php` y `organigrama_live.php` |
+| Tipos del árbol de áreas | `src/datos/jerarquia.ts` |
+| Armado del árbol de áreas, alcance y descendencia | `src/dominio/jerarquia.ts` |
+| Tipos del organigrama visual | `src/datos/organigrama.ts`, lectura en `src/datos/organigrama-servidor.ts` |
+| Armado del árbol de personas, jefes elegibles y color de área | `src/dominio/organigrama.ts` |
+| Pantalla | **Un solo componente en dos rutas**: `src/componentes/organigrama/`, montado por `src/app/(panel)/equipo/mi-area/page.tsx` y `src/app/(panel)/equipo/jerarquia/page.tsx` |
+| Pruebas | `pruebas/organigrama.test.js` (el árbol de personas), `mock/organigrama.test.js` (el recorte de `GET /organigrama`), `pruebas/organigrama.browser.mjs` (el recorrido y una reasignación real), `pruebas/jerarquia.test.js` (el árbol de áreas), `mock/jerarquia.test.js` (el contrato), `board: modules/api/pruebas/jerarquia_equipos.php` y `organigrama_live.php` |
 
 ## Dos trampas que ya se pisaron
 

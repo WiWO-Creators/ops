@@ -1334,6 +1334,160 @@ async function jerarquiaRuta (metodo, resto, cuerpo, actual) {
   throw new ErrorApi(404, 'not_found', 'Subrecurso de jerarquía desconocido.')
 }
 
+// ---------------------------------------------------------------------------
+// Organigrama: el mapa de areas y el arbol de personas (`GET /organigrama`)
+// ---------------------------------------------------------------------------
+//
+// Contesta lo que describe `contrato-organigrama.md`, y se apoya en el MISMO `STAFF`/`AREAS` que
+// administran `/jerarquia` y `/accesos`: el organigrama no es un dato aparte, es otra lectura del
+// arbol de personas. Una semilla propia seria una segunda verdad sobre `jefe_staffid`, y mover a
+// alguien desde esta pantalla dejaria de verse en las otras dos.
+//
+// Ver el organigrama NO da acceso a los datos de nadie: eso lo sigue decidiendo el alcance. Esta
+// pregunta es a proposito la mas permisiva de las dos, porque un organigrama que esconde media casa
+// no sirve para orientarse.
+//
+// La pertenencia se lee por el area PRINCIPAL (`area_id`) y no por las membresias multiples, porque
+// el contrato emite un solo `area_id` por persona: contar por una cosa y emitir la otra haria que la
+// cuenta de la tarjeta y lo que aparece al entrar se contradigan, que es justo lo que el contrato
+// pide evitar.
+
+/** El area principal de una persona, que es la unica que el contrato del organigrama emite. */
+function areaPrincipalDe (persona) {
+  const areas = areasDePersona(persona)
+
+  return areas.includes(persona.area_id) ? persona.area_id : areas[0] ?? null
+}
+
+/** Los ids de quienes cuelgan de `staffId`, a cualquier profundidad. Sin el propio. */
+function descendenciaDePersona (staffId) {
+  const dentro = new Set()
+  let crecio = true
+
+  // Barridos sucesivos sobre la lista plana en vez de recursion: un `jefe_staffid` ya ciclado
+  // termina igual en vez de desbordar la pila.
+  while (crecio) {
+    crecio = false
+
+    for (const persona of STAFF) {
+      if (persona.jefe_staffid === null || persona.jefe_staffid === undefined) continue
+      if ((persona.jefe_staffid === staffId || dentro.has(persona.jefe_staffid)) && !dentro.has(persona.id)) {
+        dentro.add(persona.id)
+        crecio = true
+      }
+    }
+  }
+
+  return dentro
+}
+
+/** Los ids de la cadena de jefes de `staffId` hacia arriba, hasta la raiz. Sin el propio. */
+function cadenaHaciaArriba (staffId) {
+  const arriba = new Set()
+  let actual = STAFF.find((persona) => persona.id === staffId)?.jefe_staffid ?? null
+
+  while (actual !== null && actual !== undefined && !arriba.has(actual)) {
+    arriba.add(actual)
+    actual = STAFF.find((persona) => persona.id === actual)?.jefe_staffid ?? null
+  }
+
+  return arriba
+}
+
+/**
+ * Que gente ve quien pregunta, segun la regla del contrato.
+ *
+ * Administracion ve la casa entera. El resto ve la union de cinco cosas: ella misma, su cadena
+ * hacia arriba, su rama hacia abajo, las areas que dirige alguien de su rama —con las que cuelgan
+ * de esas— y su propia area con todas sus ramas.
+ *
+ * @param {object} actual quien pregunta
+ * @returns {{personas: Set<number>, areas: Set<number>}} ids de gente y de areas visibles
+ */
+function alcanceDeOrganigrama (actual) {
+  if (actual.is_superadmin === true || actual.is_admin === true) {
+    return { personas: new Set(STAFF.map((persona) => persona.id)), areas: new Set(AREAS.map((area) => area.id)) }
+  }
+
+  const suRama = descendenciaDePersona(actual.id)
+  const personas = new Set([actual.id, ...cadenaHaciaArriba(actual.id), ...suRama])
+
+  // (4) las areas que dirige ella o alguien que cuelga de ella, y todo lo que cuelga de esas.
+  // (5) las areas que lleva puesta, tambien con sus ramas.
+  const jefaturas = new Set([actual.id, ...suRama])
+  const areas = new Set()
+
+  for (const area of AREAS) {
+    const dirigida = area.jefe_staffid !== null && jefaturas.has(area.jefe_staffid)
+    const propia = areasDePersona(actual).includes(area.id)
+
+    if (dirigida || propia) descendenciaDeArea(area.id).forEach((id) => areas.add(id))
+  }
+
+  for (const persona of STAFF) {
+    const suArea = areaPrincipalDe(persona)
+
+    if (suArea !== null && areas.has(suArea)) personas.add(persona.id)
+  }
+
+  // Las areas de la gente que ya se ve por el arbol: sin esto, una tarjeta del mapa podria faltar
+  // aunque su gente aparezca al entrar en otra.
+  for (const id of personas) {
+    const suArea = areaPrincipalDe(STAFF.find((persona) => persona.id === id) ?? {})
+
+    if (suArea !== null) areas.add(suArea)
+  }
+
+  return { personas, areas }
+}
+
+/** Una persona con la forma que emite `GET /organigrama`. */
+function personaDeOrganigrama (persona) {
+  return {
+    staffid: persona.id,
+    nombre: persona.full_name,
+    correo: persona.email,
+    avatar: persona.profile_image_url,
+    escalon: persona.escalon,
+    jefe_staffid: persona.jefe_staffid ?? null,
+    area_id: areaPrincipalDe(persona),
+    activo: persona.active
+  }
+}
+
+/**
+ * `GET /organigrama`: el mapa de areas y la gente, recortado a lo que quien pregunta puede ver.
+ *
+ * `personas` y `leads` de cada area cuentan **solo lo visible**, para que la cuenta de la tarjeta y
+ * lo que aparece al entrar digan lo mismo.
+ */
+function organigramaDe (actual) {
+  const { personas: visibles, areas: areasVisibles } = alcanceDeOrganigrama(actual)
+  const gente = STAFF.filter((persona) => !persona.is_not_staff && visibles.has(persona.id))
+
+  return {
+    yo: {
+      staffid: actual.id,
+      // Editar el arbol es cosa de superadministracion, igual que el resto de `/accesos`.
+      puede_editar: actual.is_superadmin === true,
+      areas: areasDePersona(actual)
+    },
+    areas: AREAS.filter((area) => areasVisibles.has(area.id)).map((area) => {
+      const suya = gente.filter((persona) => areaPrincipalDe(persona) === area.id)
+
+      return {
+        id: area.id,
+        nombre: area.name,
+        area_superior_id: area.area_superior_id,
+        jefe_staffid: area.jefe_staffid,
+        personas: suya.length,
+        leads: suya.filter((persona) => persona.escalon === 'lead').length
+      }
+    }),
+    personas: gente.map(personaDeOrganigrama)
+  }
+}
+
 /** `/rooms/bookings` y `/rooms/bookings/{id}`. */
 async function reservasRuta (metodo, id, parametros, actual, cuerpo) {
   if (id === undefined) {
@@ -3482,6 +3636,14 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
   }
 
   if (recurso === 'jerarquia') return jerarquiaRuta(metodo, resto, cuerpo, actual)
+
+  // El organigrama visual: una sola lectura para las dos pantallas que lo montan. La API ya recorta
+  // por quien pregunta, asi que el frontend no repite la regla de visibilidad.
+  if (recurso === 'organigrama') {
+    if (metodo !== 'GET') throw new ErrorApi(404, 'not_found', 'Verbo no soportado en /organigrama.')
+
+    return { estado: 200, cuerpo: conDatos(organigramaDe(actual)) }
+  }
 
   if (recurso === 'custom-fields' && metodo === 'GET') {
     const para = parametros.get('para') ?? ''

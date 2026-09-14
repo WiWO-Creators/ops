@@ -1,90 +1,43 @@
-import Link from 'next/link'
-import { Avatar } from '@/componentes/presentadores/Avatar'
-import { Insignia } from '@/componentes/presentadores/Insignia'
-import { ErrorEstado, SinPermiso, Vacio } from '@/componentes/estado/Estados'
+import { Organigrama } from '@/componentes/organigrama/Organigrama'
+import { ErrorEstado, SinPermiso } from '@/componentes/estado/Estados'
 import { TituloModulo } from '@/componentes/estructura/TituloModulo'
 import { ErrorApi } from '@/datos/errores'
-import { pedir } from '@/datos/servidor'
-import type { MiArea } from '@/datos/recursos'
+import { cargarOrganigrama } from '@/datos/organigrama-servidor'
 
 export const metadata = { title: 'Mi Área · WiWO Ops' }
 
 /**
- * "Mi Área": a quién dirige un Director, agrupado bajo su propia área.
+ * "Mi Área": el organigrama, recortado a lo que esta persona puede ver.
  *
- * Espejo de `modules/wiwo_core/controllers/Mi_area.php` en ops-v2. `GET /me/mi-area` no exige
- * `staff.view` —el cargo Director no otorga capabilities (`wiwo_core/cargos_areas.php`)—, asi que
- * esta pantalla no depende de `permissions.staff` para mostrarse: la barra lateral ya la esconde de
- * quien no tiene el cargo (`(panel)/layout.tsx`), y el `403` de la API es la misma red por si alguien
- * entra por la URL directa despues de perder el cargo.
+ * **Es el mismo componente que `/equipo/jerarquia`**, y a propósito: dos copias del mismo dibujo es
+ * la clase de duplicación que termina mostrando dos organigramas distintos. Lo único que cambia
+ * entre las dos pantallas es lo que `GET /organigrama` manda, porque es la API la que recorta.
  *
- * Solo lectura: reasignar el área de alguien se hace desde `/equipo/jerarquia`, que ya replica lo que
- * el panel viejo dejaba hacer a un Director sin `staff.edit` (`Mi_area.php::add_staff()`) y además
- * deja acomodar el árbol de dependencias entero. El enlace está arriba.
+ * El recorte de acá es la unión de cinco cosas —ella misma, su cadena hacia arriba, su rama hacia
+ * abajo, las áreas que dirige alguien de su rama y su propia área con todas sus ramas—, y está
+ * descrito en `contrato-organigrama.md`. Es deliberadamente más permisivo que el alcance de datos:
+ * **ver el organigrama no otorga acceso a los datos de nadie**, y un organigrama que esconde media
+ * casa no sirve para orientarse.
+ *
+ * Sin compuerta por rol acá: la pantalla es para todo el mundo, porque todo el mundo tiene al menos
+ * su propia caja y la de sus jefes. Reasignar, en cambio, exige `yo.puede_editar`, que lo resuelve
+ * la API y el componente respeta.
  */
 export default async function MiAreaPage () {
-  let miArea: MiArea
-
-  try {
-    const { data } = await pedir<MiArea>('/me/mi-area')
-    miArea = data
-  } catch (error) {
-    if (!(error instanceof ErrorApi)) throw error
-    if (error.codigo === 'forbidden') return <SinPermiso />
-
-    return <ErrorEstado detalle={error.message} />
-  }
+  const cargado = await cargarOrganigrama()
 
   return (
     <section className="flex flex-col gap-4">
       <TituloModulo
         titulo="Mi Área"
-        acciones={
-          <div className="flex items-center gap-3">
-            {/* Desde acá se arregla lo que esta pantalla sólo muestra: quién está en el área y de
-                quién depende. Antes eso era un `UPDATE` a mano o el catálogo del panel viejo. */}
-            <Link href="/equipo/jerarquia" className="text-acento text-sm font-semibold hover:underline">
-              Configurar jerarquías
-            </Link>
-            {miArea.area !== null && <Insignia tono="acento">{miArea.area.name}</Insignia>}
-          </div>
-        }
+        descripcion="Tu organigrama: las áreas que alcanzas, quién las dirige y de quién cuelga cada persona. Entra en un área para ver su árbol."
       />
 
-      {miArea.area === null && (
-        <Vacio
-          titulo="No tienes un área asignada"
-          descripcion="Pídele a quien administre el sistema que te asigne una desde Cargos y Áreas."
-        />
-      )}
-
-      {miArea.area !== null && miArea.area_staff.length === 0 && (
-        <Vacio
-          titulo="Todavía no hay nadie en tu área"
-          descripcion={`Nadie tiene "${miArea.area.name}" como área asignada.`}
-        />
-      )}
-
-      {miArea.area !== null && miArea.area_staff.length > 0 && (
-        <ul className="border-linea-suave divide-linea-suave rounded-tarjeta flex flex-col divide-y border">
-          {miArea.area_staff.map((persona) => (
-            <li key={persona.id} className="flex items-center gap-3 px-4 py-3">
-              <Avatar nombre={persona.full_name} imagen={persona.profile_image_url} />
-              <div className="min-w-0 flex-1">
-                <Link
-                  href={`/equipo/${persona.id}`}
-                  className="text-texto hover:text-acento font-medium underline-offset-4 hover:underline"
-                >
-                  {persona.full_name}
-                </Link>
-                <p className="text-texto-tenue truncate text-xs">{persona.email}</p>
-              </div>
-              {persona.is_director && <Insignia tono="acento">Director</Insignia>}
-              {!persona.active && <Insignia tono="neutro">Dada de baja</Insignia>}
-            </li>
-          ))}
-        </ul>
-      )}
+      {cargado instanceof ErrorApi
+        ? cargado.codigo === 'forbidden'
+          ? <SinPermiso />
+          : <ErrorEstado detalle={cargado.message} />
+        : <Organigrama inicial={cargado} />}
     </section>
   )
 }

@@ -68,24 +68,24 @@ export function puedeVerFocals (yo: Pick<Yo, 'es_focal'>): boolean {
 /**
  * True si hay que dibujar la entrada de "Mi Área" para quien mira.
  *
- * La regla es tener area asignada, y punto: la pantalla muestra el area propia y quien la integra
- * (`GET /me/mi-area`), asi que sin area no hay nada que mostrar mas que un vacio. Antes la llave era
- * `is_director`, que es el cargo de `tblcargos`: hoy las 184 cuentas de produccion llevan cargo
- * "Staff", de modo que esa puerta no se le abria practicamente a nadie.
+ * **Siempre.** La pantalla dejo de ser la lista de la propia area y paso a ser el organigrama
+ * (`GET /organigrama`), que le responde algo a todo el mundo: quien no tiene area ni gente se ve a
+ * si mismo y a sus jefes, y quien no tiene jefes se ve a si mismo. Justamente las 31 cuentas sin
+ * area son las que mas necesitan mirarlo, y la llave anterior —tener area puesta— era la unica que
+ * se la escondia.
  *
- * Se miran DOS campos y no uno porque la pertenencia vive en dos lugares: `area_id` es la columna de
- * `tblstaff` —el area principal, la de siempre— y `area_ids` es la tabla `staff_areas`, que es la
- * que admite varias. Quien fue asignado por la via nueva puede no tener la columna vieja escrita, y
- * preguntar por una sola dejaba a esa gente sin su pantalla.
+ * Se conserva la funcion en vez de borrar la llamada para que el motivo quede escrito y el dia que
+ * alguien quiera volver a condicionarla sepa que hubo dos reglas antes que esta: `is_director`
+ * —el cargo de `tblcargos`, que hoy es "Staff" en las 184 cuentas y no le abria la puerta a nadie— y
+ * la pertenencia a un area.
  *
- * Como con Focals: esconder no autoriza. La API decide, y la pantalla ya muestra `SinPermiso` ante
- * su 403 y un vacio explicado cuando el area es `null`.
+ * Como con Focals: esconder no autoriza. La API decide, y la pantalla muestra `SinPermiso` ante su
+ * 403.
  *
- * @param yo Quien mira, tal como lo devolvio `GET /me`.
- * @returns Si la seccion se dibuja.
+ * @returns Si la seccion se dibuja. Siempre `true`.
  */
-export function puedeVerMiArea (yo: Pick<Yo, 'area_id' | 'area_ids'>): boolean {
-  return yo.area_id !== null || (yo.area_ids ?? []).length > 0
+export function puedeVerMiArea (): boolean {
+  return true
 }
 
 /**

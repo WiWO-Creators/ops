@@ -49,16 +49,9 @@ test('sin es_focal en la sesion la entrada se muestra: falla abierta como antes'
   assert.equal(puedeVerFocals({ es_focal: undefined }), true)
 })
 
-test('Mi Area se ve con el area principal de siempre', () => {
-  assert.equal(puedeVerMiArea({ area_id: 3, area_ids: [3] }), true)
-  assert.equal(puedeVerMiArea({ area_id: 3 }), true)
-})
-
-test('Mi Area se ve con la tabla multiarea aunque el area principal sea nula', () => {
-  assert.equal(puedeVerMiArea({ area_id: null, area_ids: [7] }), true)
-})
-
-test('sin area por ninguna de las dos vias, Mi Area no se dibuja', () => {
-  assert.equal(puedeVerMiArea({ area_id: null, area_ids: [] }), false)
-  assert.equal(puedeVerMiArea({ area_id: null }), false)
+test('Mi Area se dibuja siempre: el organigrama le responde algo a todo el mundo', () => {
+  // Quien no tiene area ni gente se ve a si mismo y a sus jefes, asi que la pantalla nunca queda
+  // vacia. Las 31 cuentas sin area son justamente las que mas necesitan mirarla, y la llave vieja
+  // —tener area puesta— era la unica que se la escondia.
+  assert.equal(puedeVerMiArea(), true)
 })
