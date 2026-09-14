@@ -653,6 +653,142 @@ function exigirPermiso (staff, recurso, accion) {
   }
 }
 
+/**
+ * Los incidentes que este mock lleva en memoria.
+ *
+ * Dos filas de semilla con los dos origenes que se ven distinto en la pantalla: uno de la API, con
+ * archivo, linea y traza de PHP, y uno del panel, sin nada de eso. Un listado con un solo origen no
+ * distingue "muestra el origen" de "siempre dice lo mismo".
+ */
+const INCIDENTES = [
+  {
+    incidente: 'a1b2c3d4',
+    origen: 'api',
+    tipo: 'PDOException',
+    mensaje: 'SQLSTATE[42S22]: Column not found: 1054 Unknown column x',
+    archivo: 'Recursos/RecursoTareas.php',
+    linea: 412,
+    metodo: 'GET',
+    uri: '/api/v1/tasks?page=1',
+    sujeto_tipo: 'staff',
+    sujeto_id: 1,
+    sujeto_nombre: 'Dev Prueba',
+    traza: '#0 Nucleo/Bd.php(88): PDO->prepare()\n#1 Recursos/RecursoTareas.php(412)',
+    creado_en: '2026-09-13T10:12:00-04:00'
+  },
+  {
+    incidente: 'b2c3d4e5',
+    origen: 'panel',
+    tipo: 'TypeError',
+    mensaje: "Cannot read properties of undefined (reading 'nombre')",
+    archivo: '',
+    linea: 0,
+    metodo: 'VISTA',
+    uri: '/procesos/tablero',
+    sujeto_tipo: 'staff',
+    sujeto_id: 1,
+    sujeto_nombre: 'Dev Prueba',
+    traza: 'TypeError: Cannot read properties of undefined\n    at Tablero (page-abc.js:1:2)',
+    creado_en: '2026-09-13T11:40:00-04:00'
+  }
+]
+
+/** Tope de reportes por sujeto y hora, igual que `RecursoIncidentes::exigirMargen()`. */
+const TOPE_REPORTES = 30
+
+/** Origenes que el alta acepta: la API no se reporta a si misma desde afuera. */
+const ORIGENES_REPORTABLES = ['panel', 'portal']
+
+/**
+ * `GET /incidentes`, `GET /incidentes/{codigo}` y `POST /incidentes`.
+ *
+ * La lectura exige superadministrador —trae el mensaje crudo y la traza— y el alta solo sesion:
+ * quien sufre el error es cualquiera, y pedirle permisos para poder reportarlo seria dejar sin
+ * codigo justo a quien mas lo necesita.
+ */
+async function incidentesRuta (metodo, resto, parametros, actual, cuerpo) {
+  if (metodo === 'POST') {
+    if (resto.length > 0) throw new ErrorApi(404, 'not_found', 'Subrecurso desconocido.')
+
+    // `cuerpo` es perezoso en este mock: se lee cuando la ruta lo pide, no antes.
+    return { estado: 201, cuerpo: conDatos({ incidente: registrarReporte(await cuerpo(), actual) }) }
+  }
+
+  if (metodo !== 'GET') throw new ErrorApi(404, 'not_found', 'Subrecurso desconocido.')
+
+  exigirSuperadmin(actual, 'puede ver los incidentes de la API')
+
+  if (resto.length === 0) {
+    const { filas, paginacion } = aplicarConsulta(
+      INCIDENTES.map(({ traza, ...fila }) => fila),
+      parametros,
+      { orden: ['creado_en'], busqueda: ['mensaje', 'tipo', 'uri'] }
+    )
+
+    return { estado: 200, cuerpo: conDatos(filas, { pagination: paginacion }) }
+  }
+
+  const fila = INCIDENTES.find((incidente) => incidente.incidente === resto[0])
+
+  if (fila === undefined) {
+    throw new ErrorApi(404, 'not_found', 'No existe ese incidente. Los de más de 30 días ya se borraron.')
+  }
+
+  return { estado: 200, cuerpo: conDatos(fila) }
+}
+
+/**
+ * Guarda un reporte del navegador y devuelve su codigo.
+ *
+ * Valida lo mismo que la API y con los mismos codigos, porque el panel muestra esos `details` tal
+ * cual: un mock mas permisivo dejaria pasar un cuerpo que en produccion vuelve 422.
+ */
+function registrarReporte (cuerpo, actual) {
+  const errores = {}
+  const texto = (valor) => (typeof valor === 'string' ? valor.trim() : '')
+
+  if (texto(cuerpo.origen) === '') errores.origen = ['required']
+  else if (!ORIGENES_REPORTABLES.includes(cuerpo.origen)) errores.origen = ['invalid']
+
+  if (texto(cuerpo.mensaje) === '') errores.mensaje = ['required']
+
+  for (const [campo, tope] of [['tipo', 190], ['uri', 255], ['metodo', 10], ['traza', 8000]]) {
+    if (texto(cuerpo[campo]).length > tope) errores[campo] = ['too_long']
+  }
+
+  if (Object.keys(errores).length > 0) {
+    throw new ErrorApi(422, 'validation_failed', 'Hay campos que no se pueden guardar.', errores)
+  }
+
+  const mios = INCIDENTES.filter((fila) => fila.origen !== 'api' && fila.sujeto_id === actual.id)
+
+  if (mios.length >= TOPE_REPORTES) {
+    throw new ErrorApi(429, 'rate_limited', 'Ya se reportaron demasiados errores desde esta sesión. Probá de nuevo en un rato.')
+  }
+
+  const incidente = [...crypto.getRandomValues(new Uint8Array(4))]
+    .map((byte) => byte.toString(16).padStart(2, '0'))
+    .join('')
+
+  INCIDENTES.unshift({
+    incidente,
+    origen: cuerpo.origen,
+    tipo: texto(cuerpo.tipo) === '' ? 'ErrorDelPanel' : cuerpo.tipo,
+    mensaje: texto(cuerpo.mensaje).slice(0, 2000),
+    archivo: '',
+    linea: 0,
+    metodo: texto(cuerpo.metodo) === '' ? 'VISTA' : cuerpo.metodo,
+    uri: texto(cuerpo.uri),
+    sujeto_tipo: 'staff',
+    sujeto_id: actual.id,
+    sujeto_nombre: `${actual.firstname} ${actual.lastname}`.trim(),
+    traza: texto(cuerpo.traza) === '' ? null : cuerpo.traza,
+    creado_en: new Date().toISOString()
+  })
+
+  return incidente
+}
+
 /** Exige superadministrador, o lanza 403. Mismo texto que `Acceso\\Permisos::exigirSuperadmin()`. */
 function exigirSuperadmin (staff, queProtege) {
   if (staff.is_superadmin !== true) {
@@ -1728,18 +1864,19 @@ function textoDeResumenIa (actual) {
   const hoy = new Date().toISOString().slice(0, 10)
   const suyos = PROCESOS.filter((p) => p.assignees.some((a) => a.id === actual.id) && p.status !== 5)
   const vencidos = suyos.filter((p) => p.due_date !== null && p.due_date < hoy)
-  const espacios = [...new Set(suyos.map((p) => p.project?.name).filter(Boolean))]
+  return `Tienes ${suyos.length} tareas abiertas asignadas, ${vencidos.length} vencidas. Revisa las tareas seleccionadas a continuación.`
+}
 
-  if (suyos.length === 0) return 'No tenés tareas abiertas asignadas. Nada pendiente de tu lado hoy.'
-
-  const primeras = suyos.slice(0, 2).map((p) => `${p.name} (vence el ${p.due_date})`).join(' y ')
-  const atrasadas = vencidos.length === 0
-    ? 'Ninguna quedó atrasada.'
-    : `Quedaron ${vencidos.length} atrasadas, la más vieja es ${vencidos[0].name}.`
-
-  return `Tenés ${suyos.length} tareas abiertas repartidas en ${espacios.length} proyectos. `
-    + `Las dos más próximas son ${primeras}. ${atrasadas}\n\n`
-    + `El proyecto con más movimiento es ${espacios[0] ?? 'ninguno'}.`
+/** Referencias actuales de tareas asignadas para probar los enlaces del resumen. */
+function tareasDeResumenIa (actual) {
+  return PROCESOS.filter((p) => p.assignees.some((a) => a.id === actual.id) && p.status !== 5)
+    .slice(0, 6).map((p) => ({
+      id: p.id,
+      name: p.name,
+      project_name: p.project?.name ?? null,
+      due_date: p.due_date,
+      recomendacion: 'Revisa si sigue pendiente. Si ya está resuelta, márcala como completada; si sigue vigente, acuerda una fecha realista.'
+    }))
 }
 
 /**
@@ -1789,7 +1926,8 @@ async function resumenInicioIaRuta (metodo, parametros, actual, peticion) {
     return {
       estado: 200,
       cuerpo: conDatos({
-        texto: guardado?.texto ?? null,
+        texto: guardado ? textoDeResumenIa(actual) : null,
+        tareas: guardado ? tareasDeResumenIa(actual) : [],
         generado_en: guardado?.generado_en ?? null,
         regeneracion: regeneracionIa(actual.id, bloqueado)
       })
@@ -1818,13 +1956,14 @@ async function resumenInicioIaRuta (metodo, parametros, actual, peticion) {
   }
 
   const fin = {
+    tareas: tareasDeResumenIa(actual),
     generado_en: generadoEn,
     regeneracion: regeneracionIa(actual.id, false),
     uso: { entrada: 3120, salida: [...texto].length }
   }
 
   if (!aceptaStream(peticion)) {
-    return { estado: 200, cuerpo: conDatos({ texto, generado_en: generadoEn, regeneracion: fin.regeneracion }) }
+    return { estado: 200, cuerpo: conDatos({ texto, tareas: fin.tareas, generado_en: generadoEn, regeneracion: fin.regeneracion }) }
   }
 
   return { transmitir: (respuesta) => transmitirSSE(respuesta, texto, { fin, falla }) }
@@ -3490,6 +3629,14 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
         }
       })
     }
+  }
+
+  // Incidentes: los errores registrados, y la via de alta que usa el panel para reportar los que la
+  // API no vio. Se mockea porque es el unico circuito del producto en el que el frontend ESCRIBE
+  // cuando algo ya se rompio: sin esto no hay forma de probar que el codigo que muestra el aviso
+  // flotante es el que devolvio el alta.
+  if (recurso === 'incidentes') {
+    return await incidentesRuta(metodo, resto, parametros, actual, cuerpo)
   }
 
   // Panel de accesos: escalones, roles, personas, areas, cargos e interruptores.

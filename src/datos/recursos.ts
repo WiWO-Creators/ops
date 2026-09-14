@@ -2050,8 +2050,19 @@ export type SujetoIncidente = 'staff' | 'contacto' | 'proceso'
  * `incidente` —ocho hexadecimales— es el identificador que ve la persona y el que se dicta por
  * telefono cuando alguien reporta que "se cayo": con el se pide el detalle y se busca en el log.
  */
+/**
+ * De donde salio el incidente.
+ *
+ * `api` son los 500 que la API se contesto a si misma, con la traza de PHP. Los otros dos los
+ * reporta el navegador por `POST /incidentes`: `panel` cuando lo sufrio alguien del equipo y
+ * `portal` cuando lo sufrio un contacto del cliente. La distincion importa al investigar: un error
+ * con traza del servidor y uno con la ruta de una vista se buscan en lugares distintos.
+ */
+export type OrigenIncidente = 'api' | 'panel' | 'portal'
+
 export interface Incidente {
   incidente: string
+  origen: OrigenIncidente
   /** Clase de la excepcion, tal cual (`RuntimeException`, `PDOException`). */
   tipo: string
   mensaje: string

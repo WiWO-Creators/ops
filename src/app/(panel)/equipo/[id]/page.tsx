@@ -3,6 +3,7 @@ import { Suspense, cache } from 'react'
 import { AccionesPersona } from '@/componentes/equipo/AccionesPersona'
 import { BotonSuplantar } from '@/componentes/equipo/BotonSuplantar'
 import { CabeceraPersona } from '@/componentes/equipo/CabeceraPersona'
+import { ClientesDeFocal } from '@/componentes/equipo/ClientesDeFocal'
 import { DialogoPermisos } from '@/componentes/equipo/DialogoPermisos'
 import { DialogoNivel } from '@/componentes/equipo/DialogoNivel'
 import { DialogoNivelBase } from '@/componentes/equipo/DialogoNivelBase'
@@ -19,6 +20,7 @@ import { listaDe } from '@/datos/catalogos'
 import { ErrorApi } from '@/datos/errores'
 import { cargarLookups } from '@/datos/lookups'
 import { pedir } from '@/datos/servidor'
+import { GLOSARIO } from '@/dominio/glosario'
 import type { AreaDeCatalogo, FichaPersona as Persona, Lookups } from '@/datos/recursos'
 import type { Yo } from '@/datos/tipos'
 
@@ -151,6 +153,9 @@ export default async function PersonaPage (props: PageProps<'/equipo/[id]'>) {
 
   const { persona, lookups, yo } = detalle
   const capacidades = yo.permissions.staff
+  // Las de `customers`, no las de `staff`: la pestaña Clientes reparte acceso a cuentas, y el permiso
+  // tiene que ser el mismo que pide la misma edición desde la ficha del Cliente.
+  const capacidadesDeClientes = yo.permissions.customers ?? []
   const catalogoDePermisos = await cargarCatalogoDePermisos(capacidades.includes('edit'))
   const roles: OpcionCampo[] = listaDe(lookups, 'roles').map((rol) => ({
     valor: String(rol.id),
@@ -191,6 +196,17 @@ export default async function PersonaPage (props: PageProps<'/equipo/[id]'>) {
       clave: 'horas',
       etiqueta: 'Horas',
       contenido: <PanelHorasPersona personaId={persona.id} tiempo={persona.tiempo} />
+    },
+    {
+      clave: 'clientes',
+      etiqueta: GLOSARIO.cliente.plural,
+      contenido: (
+        <ClientesDeFocal
+          personaId={persona.id}
+          nombre={persona.firstname}
+          capacidades={capacidadesDeClientes}
+        />
+      )
     },
     { clave: 'archivos', etiqueta: 'Archivos', contenido: <PanelArchivosPersona personaId={persona.id} /> },
     {

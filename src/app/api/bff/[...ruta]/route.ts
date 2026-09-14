@@ -1,11 +1,13 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { llamarApi } from '@/datos/api'
-import { ErrorApi } from '@/datos/errores'
+import { ErrorApi, incidenteDe } from '@/datos/errores'
+import { registrarIncidente } from '@/datos/incidentes'
 import { cabecerasDeOrigen } from '@/datos/origen'
 import { rutaCompartida, rutaPermitida } from '@/datos/rutas'
 import { borrarSesion, guardarSesion, leerSesion } from '@/datos/sesion'
 import { refrescar } from '@/datos/refresco'
 import type { Sesion, Sujeto } from '@/datos/sobre-sesion'
+import type { SobreError } from '@/datos/tipos'
 
 /**
  * Proxy unico entre el navegador y la API v1.
@@ -122,10 +124,105 @@ async function reenviar (peticion: NextRequest, ctx: RouteContext<'/api/bff/[...
     })
   }
 
+  if (!respuesta.ok) {
+    return await conIncidente(respuesta, destino, peticion.method, sujeto)
+  }
+
   return new NextResponse(respuesta.body, {
     status: respuesta.status,
     headers: cabecerasDeSalida(respuesta)
   })
+}
+
+/**
+ * Estados que NO se registran como incidente.
+ *
+ * Ninguno de estos es una falla del sistema: el `401` es la sesion, el `409` es un choque que la
+ * pantalla explica —«ya existe una tarea con ese nombre»—, el `422` es el formulario incompleto y el
+ * `429` es el freno pisado a proposito. Registrarlos llenaria la pantalla de Incidentes de cosas que
+ * funcionaron como tenian que funcionar, y con eso dejaria de servir para encontrar las que no.
+ */
+const ESTADOS_ESPERADOS = new Set([401, 409, 422, 429])
+
+/**
+ * Reenvia un error de la API asegurandose de que lleve numero de incidente.
+ *
+ * Es la unica excepcion al «reenvia tal cual» del resto del proxy, y tiene un motivo: hasta ahora
+ * un `403` inesperado o un `502` del proxy de la API no dejaban rastro en ninguna parte, y quien lo
+ * sufria solo podia reportar «me dio error». La API ya registra sus propios `500` y devuelve el
+ * codigo en `details.incidente`; esos pasan intactos y no se registran de nuevo. Los demas se
+ * registran aca —contra la misma API, con la sesion de quien sufrio el error— y el codigo se agrega
+ * al cuerpo, que es de donde lo lee el aviso flotante del navegador.
+ *
+ * Si el registro falla, el error original se devuelve igual: un incidente que no se pudo guardar no
+ * puede convertir un `403` en una pantalla en blanco.
+ *
+ * @param respuesta la respuesta con error de la API
+ * @param destino la ruta de la API que se llamo, con su consulta
+ * @param metodo el metodo de la peticion que fallo
+ * @param sujeto de quien era la sesion, para que el incidente diga a quien le paso
+ */
+async function conIncidente (
+  respuesta: Response,
+  destino: string,
+  metodo: string,
+  sujeto: Sujeto
+): Promise<NextResponse> {
+  const cabeceras = cabecerasDeSalida(respuesta)
+
+  if (ESTADOS_ESPERADOS.has(respuesta.status)) {
+    return new NextResponse(respuesta.body, { status: respuesta.status, headers: cabeceras })
+  }
+
+  const crudo = await respuesta.text()
+  const sobre = sobreDeError(crudo)
+
+  // La API ya lo guardo: su `details.incidente` es el del incidente con la traza real del servidor,
+  // que vale mas que uno nuevo hecho desde aca.
+  if (incidenteDe(sobre?.error?.details) !== undefined) {
+    return new NextResponse(crudo, { status: respuesta.status, headers: cabeceras })
+  }
+
+  const incidente = await registrarIncidente(
+    {
+      tipo: 'RespuestaDeApi',
+      mensaje: `${respuesta.status} ${sobre?.error?.code ?? 'sin_codigo'}: ${sobre?.error?.message ?? recorteDelCuerpo(crudo)}`,
+      uri: destino,
+      metodo
+    },
+    sujeto
+  )
+
+  if (incidente === null) {
+    return new NextResponse(crudo, { status: respuesta.status, headers: cabeceras })
+  }
+
+  // Un cuerpo que no era el envelope —el HTML de un 502 de Apache, una respuesta vacia— se
+  // reemplaza por uno que si lo es. El navegador ya no podia sacar nada de ese HTML, y asi al menos
+  // se lleva el codigo del incidente.
+  const cuerpo = sobre === null
+    ? { error: { code: 'server_error', message: `El servidor respondió ${respuesta.status}`, details: { incidente } } }
+    : { ...sobre, error: { ...sobre.error, details: { ...sobre.error.details, incidente } } }
+
+  return NextResponse.json(cuerpo, { status: respuesta.status })
+}
+
+/** El cuerpo como envelope de error del contrato, o `null` si no lo era. */
+function sobreDeError (crudo: string): SobreError | null {
+  try {
+    const cuerpo = JSON.parse(crudo) as SobreError
+
+    return cuerpo.error?.code === undefined ? null : cuerpo
+  } catch {
+    return null
+  }
+}
+
+/** Un trozo del cuerpo que no era JSON, para que el incidente diga algo del HTML que llego. */
+function recorteDelCuerpo (crudo: string): string {
+  const limpio = crudo.replace(/\s+/g, ' ').trim()
+
+  return limpio === '' ? 'cuerpo vacío' : limpio.slice(0, 300)
 }
 
 /**
