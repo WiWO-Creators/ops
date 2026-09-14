@@ -23,7 +23,7 @@ import {
 } from '@/componentes/formularios/Selector'
 import { Avatar } from '@/componentes/presentadores/Avatar'
 import { ESCALONES, esEscalon } from '@/dominio/escalon'
-import { colorDeArea, jefesElegibles } from '@/dominio/organigrama'
+import { colorDeArea, jefesElegibles, nombreDeArea } from '@/dominio/organigrama'
 import type { Escalon } from '@/dominio/escalon'
 import type {
   AreaDelOrganigrama, CambioDeJefatura, PersonaDelOrganigrama
@@ -172,13 +172,6 @@ function claveDe (id: number | null): string {
 /** El id que representa una clave de selector. */
 function idDe (clave: string): number | null {
   return clave === NINGUNO ? null : Number(clave)
-}
-
-/** El nombre de un área, o la palabra que ocupa su lugar cuando no hay ninguna. */
-function nombreDeArea (areas: AreaDelOrganigrama[], id: number | null): string {
-  if (id === null) return 'Sin área'
-
-  return areas.find((una) => una.id === id)?.nombre ?? `Área #${id}`
 }
 
 /**
