@@ -124,6 +124,7 @@ export default async function InicioPage () {
         <ModalTarea
           puedeEditar={yo.permissions.tasks.includes('edit')}
           puedeBorrar={yo.permissions.tasks.includes('delete')}
+          puedeCrear={yo.permissions.tasks.includes('create')}
         />
       </Suspense>
     </div>

@@ -27,6 +27,7 @@ import { BloqueSla } from './BloqueSla'
 import { CabeceraFichaTarea } from './CabeceraFichaTarea'
 import { ESTADO_COMPLETO } from './tareas'
 import { CompartirTarea } from './CompartirTarea'
+import { BotonDuplicarTarea } from './DuplicarTarea'
 import { EstadoDeTarea } from './EstadoDeTarea'
 import { MenuEstadoTarea } from './MenuEstadoTarea'
 import { MenuHitoTarea } from './MenuHitoTarea'
@@ -60,8 +61,15 @@ interface PropsDetalleTarea {
   puedeEditar?: boolean
   /** `true` si quien mira tiene `delete` sobre tareas. La API lo vuelve a exigir igual. */
   puedeBorrar?: boolean
+  /**
+   * `true` si quien mira tiene `create` sobre tareas. Solo decide si se ofrece duplicar: la copia
+   * es un alta, y la API vuelve a exigir la capacidad.
+   */
+  puedeCrear?: boolean
   /** Se llama con la tarea ya borrada, para que quien monte el detalle lo cierre y recargue. */
   onBorrada?: () => void
+  /** Se llama con la copia ya creada, para que el listado de atras vuelva a pedir sus datos. */
+  onDuplicada?: () => void
   className?: string
 }
 
@@ -73,7 +81,15 @@ type Carga =
   | { fase: 'error', mensaje: string }
 
 export function DetalleTarea (
-  { procesoId, puedeEditar = false, puedeBorrar = false, onBorrada, className }: PropsDetalleTarea
+  {
+    procesoId,
+    puedeEditar = false,
+    puedeBorrar = false,
+    puedeCrear = false,
+    onBorrada,
+    onDuplicada,
+    className
+  }: PropsDetalleTarea
 ): ReactElement {
   useUbicacionTarea(procesoId)
   const [carga, setCarga] = useState<Carga>({ fase: 'cargando' })
@@ -186,6 +202,18 @@ export function DetalleTarea (
             {/* Al final de la fila de insignias y no arriba del titulo: compartir es una salida
                 lateral, no lo que la persona vino a hacer al detalle. */}
             <CompartirTarea procesoId={procesoId} />
+
+            {/* Duplicar vive al lado de compartir y no entre "Editar" y "Eliminar": las dos son
+                salidas laterales sobre la tarea que se esta mirando, y las de la derecha son las que
+                la cambian. La copia arranca del nombre del original, que es justo lo que se lee
+                arriba. */}
+            {puedeCrear && (
+              <BotonDuplicarTarea
+                tareaId={tarea.id}
+                nombreTarea={tarea.name}
+                onDuplicada={() => onDuplicada?.()}
+              />
+            )}
 
             {/* El alta pide solo lo indispensable, asi que este boton es la unica via para completar
                 el resto: sin el, una tarea creada al vuelo se queda sin asignados para siempre. */}

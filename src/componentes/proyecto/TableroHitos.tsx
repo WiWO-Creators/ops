@@ -15,6 +15,7 @@ import { Cargando, ErrorEstado } from '@/componentes/estado/Estados'
 import { procesosDelEspacio } from '@/definiciones/procesos'
 import { GLOSARIO } from '@/dominio/glosario'
 import { AgregarAlHito } from './AgregarAlHito'
+import { BotonDuplicarTarea } from './DuplicarTarea'
 import { MenuEstadoTarea } from './MenuEstadoTarea'
 import { COLUMNA_SIN_CATEGORIZAR, cuerpoMoverHito, ordenarColumnasHitos } from './hitos'
 import { segundosAHoraMinuto } from './formatos'
@@ -184,6 +185,28 @@ export function TableroHitos ({
     [puedeCrear, proyectoId, proyectoNombre, prioridades]
   )
 
+  /**
+   * El "Duplicar…" de cada tarjeta, al lado de "Mover a…".
+   *
+   * Pide la capacidad `create` sobre tareas y no `edit`: duplicar es un alta, y la API la exige. Sin
+   * ella el boton no se pinta, porque ofrecerlo seria ofrecer un 403.
+   *
+   * El `recargar` que entrega el motor es el mismo del arrastre: la copia entra por el hito del
+   * original, asi que la columna donde acaba de aparecer tiene que volver a pedirse.
+   */
+  const accionDeTarjeta = useCallback(
+    (tarjeta: TarjetaHito, recargar: () => Promise<void>) => puedeCrear
+      ? (
+        <BotonDuplicarTarea
+          tareaId={tarjeta.id}
+          nombreTarea={tarjeta.name}
+          onDuplicada={() => { void recargar() }}
+        />
+        )
+      : null,
+    [puedeCrear]
+  )
+
   if (error) return <ErrorEstado detalle={error} />
   if (catalogos === null) return <Cargando mensaje="Cargando filtros…" />
 
@@ -199,6 +222,7 @@ export function TableroHitos ({
       adaptarCuerpo={adaptar}
       ordenarColumnas={ordenar}
       accionDeColumna={accionDeColumna}
+      accionDeTarjeta={accionDeTarjeta}
       rutaOrdenColumnas={puedeEditar ? `${definicion.ruta}/orden` : undefined}
     />
   )

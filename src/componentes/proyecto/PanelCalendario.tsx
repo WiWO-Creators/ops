@@ -363,6 +363,7 @@ function CalendarioDelEspacio ({ proyectoId, capacidades }: PropsPanelCalendario
       <ModalTarea
         puedeEditar={capacidades.includes('edit')}
         puedeBorrar={capacidades.includes('delete')}
+        puedeCrear={capacidades.includes('create')}
       />
     </section>
   )

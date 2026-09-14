@@ -65,6 +65,7 @@ export default async function MisTareasPage () {
         <ModalTarea
           puedeEditar={yo.permissions.tasks.includes('edit')}
           puedeBorrar={yo.permissions.tasks.includes('delete')}
+          puedeCrear={yo.permissions.tasks.includes('create')}
         />
       </Suspense>
     </section>

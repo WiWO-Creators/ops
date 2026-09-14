@@ -78,6 +78,7 @@ export function TablaProcesos (props: PropsVistaLista<Proceso>) {
       <ModalTarea
         puedeEditar={props.capacidades?.includes('edit') ?? false}
         puedeBorrar={props.capacidades?.includes('delete') ?? false}
+        puedeCrear={props.capacidades?.includes('create') ?? false}
       />
     </>
   )
@@ -123,6 +124,7 @@ export function TableroProcesos (
       <ModalTarea
         puedeEditar={capacidades.includes('edit')}
         puedeBorrar={capacidades.includes('delete')}
+        puedeCrear={capacidades.includes('create')}
       />
     </>
   )

@@ -25,7 +25,12 @@ import { DetalleTarea } from './DetalleTarea'
  */
 
 export function ModalTarea (
-  { puedeEditar = false, puedeBorrar = false }: { puedeEditar?: boolean, puedeBorrar?: boolean } = {}
+  { puedeEditar = false, puedeBorrar = false, puedeCrear = false }: {
+    puedeEditar?: boolean
+    puedeBorrar?: boolean
+    /** Habilita "Duplicar…" en la ficha. Viene de la capacidad `create` sobre tareas. */
+    puedeCrear?: boolean
+  } = {}
 ): ReactElement {
   const router = useRouter()
   const params = useSearchParams()
@@ -54,6 +59,17 @@ export function ModalTarea (
    */
   function alBorrar (): void {
     cerrar()
+    router.refresh()
+  }
+
+  /**
+   * Vuelve a pedir el listado de atras despues de duplicar.
+   *
+   * El modal NO se cierra: el detalle deja a la vista el resultado con el codigo de la copia y su
+   * enlace, y cerrarlo desde aca se lo llevaria puesto. `refresh()` es lo que hace aparecer la fila
+   * nueva en la tabla o el calendario que quedo debajo.
+   */
+  function alDuplicar (): void {
     router.refresh()
   }
 
@@ -88,7 +104,9 @@ export function ModalTarea (
             procesoId={tareaAbierta}
             puedeEditar={puedeEditar}
             puedeBorrar={puedeBorrar}
+            puedeCrear={puedeCrear}
             onBorrada={alBorrar}
+            onDuplicada={alDuplicar}
           />
         )}
       </ContenidoDialogo>

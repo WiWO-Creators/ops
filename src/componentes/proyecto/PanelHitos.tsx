@@ -162,6 +162,7 @@ function HitosDelProyecto ({ proyecto, capacidades, capacidadesTareas = [] }: Pr
       <ModalTarea
         puedeEditar={capacidadesTareas.includes('edit')}
         puedeBorrar={capacidadesTareas.includes('delete')}
+        puedeCrear={capacidadesTareas.includes('create')}
       />
 
       <FormularioRecurso
