@@ -780,6 +780,52 @@ Lo que evita errores:
 
 Requiere `create` sobre `tasks`; sin él, `403`.
 
+### `POST /tasks/multi-espacio` — el mismo Proceso en varios Espacios
+
+Mismo cuerpo que `POST /tasks`, más `espacios` (la lista de destinos) y sin `rel_type`, `rel_id`,
+`milestone` ni `task_type`. Devuelve `201` con el parte de cada destino.
+
+```json
+{ "name": "Grilla de septiembre",
+  "due_date": "2026-09-30", "priority": 3,
+  "assignees": [12], "tags": ["campaña"],
+  "espacios": [8, 67, 148] }
+```
+
+```json
+{ "data": { "creados":  [{ "espacio_id": 8, "task_id": 3301 }, { "espacio_id": 67, "task_id": 3302 }],
+            "fallidos": [{ "espacio_id": 148, "estado": 422, "motivo": "…", "errores": {} }] } }
+```
+
+Por qué es una ruta propia y no un campo más de `POST /tasks`: la respuesta de un alta múltiple es
+un parte por destino, no la ficha del Proceso creado, y meterla en `POST /tasks` obligaría al mismo
+endpoint a devolver dos formas según el cuerpo. El alta de un solo Espacio —la de todos los días—
+sigue yendo por `POST /tasks`, intacta. Mismo criterio y mismo vecindario que `POST /tasks/bulk`.
+
+Lo que evita errores:
+
+- **`201` aunque haya fallidos.** Lo previsible ya se rechazó con `422` sin crear nada, así que
+  llegar acá significa que la petición era válida y el servidor intentó las N escrituras. El estado
+  describe la petición; el parte, cada destino. El cliente necesita los `task_id` de `creados` para
+  guardarles después los campos personalizados, y por eso el parte va en `data` y no en `meta`.
+- **No hay transacción única entre destinos.** Son N Procesos independientes: un fallo en el quinto
+  no borra los cuatro buenos. Cada destino sí es atómico puertas adentro.
+- **El cuerpo compartido se valida antes del primer INSERT.** Un `due_date` anterior al inicio o un
+  asignado inactivo responden `422` sin haber creado nada, para que el reintento no duplique lo ya
+  guardado.
+- **`milestone` y `task_type` se rechazan con `no_en_multi`, no se ignoran.** Son por Espacio: el
+  hito 40 del Espacio A no existe en el B. Forzarlos a vacío en silencio guardaría veinte tareas sin
+  el ETA que alguien creyó haber puesto.
+- **Los asignados y seguidores sí viajan** a todos los destinos —el id de staff es global— y quedan
+  como miembros de cada Espacio, que es lo que necesitan para abrir su tarea.
+- **Máximo 20 destinos** (`demasiados`). El abanico accidental sobre los quinientos Espacios del
+  catálogo no terminaría dentro del tiempo de la petición.
+- **Cada destino se comprueba contra los Espacios que la persona ve**, la misma regla con la que
+  `GET /projects` arma el catálogo del que salió la lista. `POST /tasks` con un `rel_id` suelto
+  sigue sin esa comprobación: es la conducta de siempre y la comparten los creadores internos.
+
+Requiere `create` sobre `tasks`; sin él, `403`.
+
 ### Acciones
 
 | Endpoint | Efecto |
