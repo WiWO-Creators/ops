@@ -2,8 +2,15 @@
 
 import { useRef, useState, type ChangeEvent } from 'react'
 import { useRouter } from 'next/navigation'
+import { Camera, LoaderCircle } from 'lucide-react'
 import { escribirEnBff, subirArchivoEnBff } from '@/componentes/datos/mutaciones'
-import { Boton } from '@/componentes/formularios/Boton'
+import {
+  ContenidoMenu,
+  DisparadorMenu,
+  ItemMenu,
+  MenuContextual,
+  SeparadorMenu
+} from '@/componentes/superposiciones/MenuContextual'
 import { cn } from '@/lib/clases'
 import { coloresAvatar, iniciales } from '@/lib/personas'
 
@@ -23,6 +30,11 @@ interface PropsImagenEntidad {
 
 /**
  * Muestra la marca de un cliente o proyecto y, cuando corresponde, permite reemplazarla o quitarla.
+ *
+ * **Las acciones viven en la propia imagen**, no al lado: antes la cabecera arrastraba dos botones y
+ * un enlace entre el avatar y el titulo, que es el lugar mas caro de la pantalla ocupado por lo que
+ * se usa una vez en la vida de un proyecto. Ahora la imagen es el control: al pasar por encima —o al
+ * llegar con el teclado— aparece la camara, y el menu ofrece subir, quitar y la guia de formato.
  *
  * @param imagenPropia archivo de la entidad; un proyecto sin este valor puede recibir `imagenEfectiva`
  *   desde su cliente.
@@ -90,48 +102,97 @@ export function ImagenEntidad ({
   }
 
   const tamanos = tamano === 'grande' ? 'size-12 text-base' : 'size-8 text-xs'
+  const marco = cn(
+    'border-linea bg-superficie-hundida relative block overflow-hidden rounded-control border',
+    tamanos
+  )
+
+  /** La imagen, o las iniciales sobre su color. Es lo unico que ve quien no puede editar. */
+  const retrato = (
+    <>
+      {muestraImagen
+        ? (
+          // Las imágenes llegan desde `uploads/`, sin tamaño fijo para optimizar con `next/image`.
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={imagen} alt={nombre} className="size-full object-cover" onError={() => setImagenFallida(imagen)} />
+          )
+        : (
+          <span
+            className="flex size-full items-center justify-center font-semibold"
+            style={{ backgroundColor: coloresAvatar(nombre).fondo, color: coloresAvatar(nombre).texto }}
+          >
+            {iniciales(nombre, 2)}
+          </span>
+          )}
+    </>
+  )
+
+  if (!puedeEditar || ruta === undefined) {
+    return (
+      <span className={cn('flex shrink-0 items-center', className)}>
+        <span className={marco} title={nombre}>{retrato}</span>
+      </span>
+    )
+  }
 
   return (
     <div className={cn('flex shrink-0 items-center gap-2', className)}>
-      <span
-        className={cn('border-linea bg-superficie-hundida inline-flex overflow-hidden rounded-control border', tamanos)}
-        style={muestraImagen ? undefined : { backgroundColor: coloresAvatar(nombre).fondo, color: coloresAvatar(nombre).texto }}
-        title={nombre}
-      >
-        {muestraImagen
-          ? (
-            // Las imágenes llegan desde `uploads/`, sin tamaño fijo para optimizar con `next/image`.
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={imagen} alt={nombre} className="size-full object-cover" onError={() => setImagenFallida(imagen)} />
-            )
-          : <span className="m-auto font-semibold">{iniciales(nombre, 2)}</span>}
-      </span>
+      <input
+        ref={entrada}
+        type="file"
+        accept="image/jpeg,image/png,image/webp"
+        className="sr-only"
+        onChange={cambiarImagen}
+      />
 
-      {puedeEditar && ruta && (
-        <div className="flex flex-wrap items-center gap-2">
-          <input
-            ref={entrada}
-            type="file"
-            accept="image/jpeg,image/png,image/webp"
-            className="sr-only"
-            onChange={cambiarImagen}
-          />
-          <Boton tamano="chico" cargando={cargando} onClick={() => { entrada.current?.click() }}>
-            {imagenPropia === null ? 'Subir imagen' : 'Cambiar imagen'}
-          </Boton>
-          {imagenPropia !== null && (
-            <Boton variante="sutil" tamano="chico" disabled={cargando} onClick={quitarImagen}>Quitar</Boton>
-          )}
-          <a
-            href="/plantillas/guia-imagen-entidad.png"
-            download="guia-imagen-wiwo.png"
-            className="text-texto-tenue hover:text-texto text-xs underline underline-offset-2"
+      <MenuContextual>
+        <DisparadorMenu asChild>
+          <button
+            type="button"
+            disabled={cargando}
+            aria-label={`Imagen de ${nombre}. Cambiar imagen.`}
+            className={cn(marco, 'group cursor-pointer disabled:cursor-progress')}
           >
-            Descargar guía
-          </a>
-          {error !== null && <span role="alert" className="text-relleno-peligro text-xs">{error}</span>}
-        </div>
-      )}
+            {retrato}
+
+            {/* La capa oscura solo aparece cuando hay intencion: puntero encima, foco de teclado o
+                menu abierto. Mientras sube se queda fija, porque ahi si esta pasando algo. */}
+            <span
+              aria-hidden="true"
+              className={cn(
+                'absolute inset-0 flex items-center justify-center bg-black/45 text-white',
+                'transition-opacity duration-150',
+                cargando
+                  ? 'opacity-100'
+                  : 'opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100 group-data-[state=open]:opacity-100'
+              )}
+            >
+              {cargando
+                ? <LoaderCircle className="size-4 animate-spin" strokeWidth={2} />
+                : <Camera className="size-4" strokeWidth={2} />}
+            </span>
+          </button>
+        </DisparadorMenu>
+
+        <ContenidoMenu align="start">
+          <ItemMenu onSelect={() => { entrada.current?.click() }}>
+            {imagenPropia === null ? 'Subir imagen' : 'Cambiar imagen'}
+          </ItemMenu>
+          {imagenPropia !== null && (
+            <ItemMenu peligroso onSelect={() => { void quitarImagen() }}>Quitar imagen</ItemMenu>
+          )}
+          <SeparadorMenu />
+          {/* La guia es una descarga, no una accion sobre la entidad: va como enlace de verdad para
+              conservar el menu contextual del navegador y el "abrir en pestaña nueva". */}
+          <ItemMenu asChild>
+            <a href="/plantillas/guia-imagen-entidad.png" download="guia-imagen-wiwo.png">
+              Descargar guía de formato
+            </a>
+          </ItemMenu>
+        </ContenidoMenu>
+      </MenuContextual>
+
+      {error !== null && <span role="alert" className="text-texto-peligro text-xs">{error}</span>}
     </div>
   )
 }

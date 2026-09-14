@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { Pencil } from 'lucide-react'
 import { Boton } from '@/componentes/formularios/Boton'
 import { SelectorPersonas } from '@/componentes/formularios/SelectorPersonas'
 import { GrupoAvatares } from '@/componentes/presentadores/Avatar'
@@ -10,7 +11,13 @@ import { cargarAsignables } from '@/datos/asignables'
 import { pedirSobre } from '@/datos/cliente'
 import type { StaffReferencia } from '@/datos/tipos'
 
-/** Muestra el equipo y permite editarlo a quienes tienen `projects.edit`. */
+/**
+ * Muestra el equipo y permite editarlo a quienes tienen `projects.edit`.
+ *
+ * El equipo **es** el boton: se toca a la gente para cambiar la gente. Antes al lado de los avatares
+ * colgaba un "Editar equipo" que competia por atencion con las acciones reales de la cabecera —crear
+ * un proceso, mover el estado— siendo mucho menos frecuente que cualquiera de las dos.
+ */
 export function EquipoProyecto ({ proyectoId, miembros, puedeEditar, yoId }: {
   proyectoId: number
   miembros: StaffReferencia[]
@@ -22,17 +29,28 @@ export function EquipoProyecto ({ proyectoId, miembros, puedeEditar, yoId }: {
   const [editando, setEditando] = useState(false)
   const [guardado, setGuardado] = useState(false)
 
+  const equipo = miembros.length > 0
+    ? <GrupoAvatares personas={miembros} maximo={5} />
+    : <span className="text-texto-sutil">{puedeEditar ? 'Añadir personas' : 'Sin personas'}</span>
+
   return (
     <div className="flex min-w-0 flex-col gap-3">
       <div className="flex flex-wrap items-center gap-2">
-        {miembros.length > 0
-          ? <GrupoAvatares personas={miembros} maximo={5} />
-          : <span className="text-texto-sutil">Sin personas</span>}
-        {puedeEditar && !editando && (
-          <Boton tamano="chico" onClick={() => { setGuardado(false); setEditando(true) }}>
-            Editar equipo
-          </Boton>
-        )}
+        {puedeEditar && !editando
+          ? (
+            <button
+              type="button"
+              onClick={() => { setGuardado(false); setEditando(true) }}
+              aria-label="Editar el equipo del proyecto"
+              className="rounded-control hover:bg-hover duration-rapida -m-1 flex cursor-pointer items-center gap-2 p-1 transition-colors"
+            >
+              {equipo}
+              {/* El lapiz se queda siempre, tenue: en tactil no hay hover que revele nada, y sin el
+                  los avatares no se leen como algo que se pueda tocar. */}
+              <Pencil aria-hidden="true" className="text-texto-sutil size-3.5 shrink-0" strokeWidth={1.5} />
+            </button>
+            )
+          : equipo}
         {guardado && <span role="status" className="text-texto-tenue text-xs">Equipo actualizado.</span>}
       </div>
       {puedeEditar && editando && (

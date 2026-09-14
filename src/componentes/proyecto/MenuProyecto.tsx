@@ -17,7 +17,7 @@ import { GLOSARIO } from '@/dominio/glosario'
 import { FormularioRecurso } from './FormularioRecurso'
 import { ImportarTareas } from './ImportarTareas'
 import type { CampoFormulario } from './formulario'
-import type { EstadoLookup, Espacio } from '@/datos/recursos'
+import type { Espacio } from '@/datos/recursos'
 import type { Capacidad } from '@/datos/tipos'
 
 /**
@@ -32,8 +32,6 @@ import type { Capacidad } from '@/datos/tipos'
 
 interface PropsMenuProyecto {
   proyecto: Espacio
-  /** Estados de proyecto, de `lookups.project_statuses`, para las opciones "Marcar como". */
-  estados: EstadoLookup[]
   /** Capacidades sobre `projects`, de `permissions` de `/me`. */
   capacidades: Capacidad[]
   /**
@@ -81,7 +79,6 @@ function camposDeCopia (): CampoFormulario[] {
 
 export function MenuProyecto ({
   proyecto,
-  estados,
   capacidades,
   capacidadesTareas,
   esMiembro = false
@@ -101,36 +98,6 @@ export function MenuProyecto ({
   const puedeBorrar = capacidades.includes('delete')
   const puedeImportar = capacidadesTareas.includes('create')
   const archivado = proyecto.archived
-
-  /**
-   * Cambia el estado del proyecto.
-   *
-   * `status` de un Espacio si es editable por `PATCH` y arrastra `date_finished` del lado del
-   * servidor: no se toca esa fecha desde aca.
-   */
-  async function marcarComo (status: number): Promise<void> {
-    setEnCurso(true)
-    setFallo(null)
-
-    try {
-      const respuesta = await fetch(`/api/bff/projects/${proyecto.id}`, {
-        method: 'PATCH',
-        headers: { 'content-type': 'application/json', accept: 'application/json' },
-        body: JSON.stringify({ status })
-      })
-
-      if (!respuesta.ok) {
-        setFallo(await mensajeDeRespuesta(respuesta))
-        return
-      }
-
-      router.refresh()
-    } catch {
-      setFallo('No se pudo cambiar el estado: revisa la conexión.')
-    } finally {
-      setEnCurso(false)
-    }
-  }
 
   /**
    * Archiva o desarchiva el proyecto.
@@ -260,16 +227,6 @@ export function MenuProyecto ({
               Importar {GLOSARIO.proceso.plural.toLowerCase()} de otro {GLOSARIO.espacio.singular.toLowerCase()}
             </ItemMenu>
           )}
-
-          {(puedeCrear || puedeEditar) && !archivado && estados.length > 0 && <SeparadorMenu />}
-
-          {(puedeCrear || puedeEditar) && !archivado && estados
-            .filter((estado) => estado.id !== proyecto.status)
-            .map((estado) => (
-              <ItemMenu key={estado.id} onSelect={() => { void marcarComo(estado.id) }}>
-                Marcar como {estado.name.toLowerCase()}
-              </ItemMenu>
-            ))}
 
           {puedeCrear && (
             <>
