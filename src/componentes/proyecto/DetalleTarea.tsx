@@ -27,7 +27,7 @@ import { hoyLocal } from '@/lib/fechas'
 import { BloqueSla } from './BloqueSla'
 import { CabeceraFichaTarea } from './CabeceraFichaTarea'
 import { ComentarioDeDiscusion } from './ComentarioDeDiscusion'
-import { ESTADO_COMPLETO, type ProcesoDeFicha } from './tareas'
+import { ESTADO_COMPLETO, comentarioParaMostrar, type ProcesoDeFicha } from './tareas'
 import { CompartirTarea } from './CompartirTarea'
 import { BotonDuplicarTarea } from './DuplicarTarea'
 import { EstadoDeTarea } from './EstadoDeTarea'
@@ -579,7 +579,10 @@ function Comentarios (
         : (
           <ul className="flex flex-col gap-2">
             {comentarios.map((comentario) => (
-              <ComentarioDeDiscusion key={comentario.id} comentario={comentario} />
+              <ComentarioDeDiscusion
+                key={comentario.id}
+                comentario={comentarioParaMostrar(comentario)}
+              />
             ))}
           </ul>
           )}
