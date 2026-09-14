@@ -9,6 +9,8 @@
  *
  * **Acá no se decide quién ve qué.** Eso ya lo resolvió la API antes de mandar los datos.
  */
+import { ESCALONES } from './escalon.ts'
+import { normalizar } from './salas.ts'
 import type { AreaDelOrganigrama, Organigrama, PersonaDelOrganigrama } from '../datos/organigrama.ts'
 
 /** Un nodo del árbol de personas: quién es, quién cuelga de ella y si es del área que se mira. */
@@ -251,4 +253,161 @@ export function areasDelMapa (organigrama: Organigrama): AreaDelOrganigrama[] {
  */
 export function cuantosSinArea (organigrama: Organigrama): number {
   return organigrama.personas.filter((persona) => persona.area_id === null).length
+}
+
+/**
+ * El nombre de un área, o la palabra que ocupa su lugar cuando no hay ninguna.
+ *
+ * Cae a `Área #id` y no a una celda en blanco: un área que la API nombra en una persona pero no
+ * manda en el catálogo dejaría filas vacías sin explicación, y ver el id crudo dice qué pasó.
+ *
+ * @param areas el catálogo que mandó la API
+ * @param id el área de la persona, o `null`
+ * @returns el nombre para pintar
+ */
+export function nombreDeArea (areas: AreaDelOrganigrama[], id: number | null): string {
+  if (id === null) return 'Sin área'
+
+  return areas.find((una) => una.id === id)?.nombre ?? `Área #${id}`
+}
+
+/** Por qué columna se ordena la lista. */
+export type ColumnaDeLista = 'persona' | 'escalon' | 'jefe' | 'area'
+
+/** Hacia dónde ordena una columna. */
+export type SentidoDeOrden = 'asc' | 'desc'
+
+/**
+ * Una fila de la vista de lista.
+ *
+ * Trae el jefe y el área **ya resueltos a texto** porque en la lista son datos que se leen, se
+ * ordenan y se comparan entre filas; en el árbol los dice el dibujo —la línea y el color— y no hay
+ * nada que escribir. Resolverlos acá y no en la celda evita recorrer el catálogo una vez por fila y
+ * por repintado, que con 184 personas es la diferencia entre ordenar al instante y ordenar a saltos.
+ */
+export interface FilaDeLista {
+  persona: PersonaDelOrganigrama
+  /** Quién la conduce, o `—` si no cuelga de nadie. */
+  jefe: string
+  /** Su área, o `Sin área`. */
+  area: string
+}
+
+/**
+ * Las personas que dibuja un árbol ya armado, aplanadas y sin repetir.
+ *
+ * Es lo que hace que la lista sea **la otra lectura de lo mismo**: dentro de un área muestra
+ * exactamente las cajas que muestra el árbol —incluidos los enganches de otra área y las ramas que
+ * salen de ella—, en vez de una selección propia por `area_id` que diría otro número de gente que el
+ * que se acaba de ver.
+ *
+ * @param raices las raíces que devolvió `arbolDelArea`
+ * @returns las personas, en el orden en que el árbol las dibuja
+ */
+export function personasDelArbol (raices: NodoPersona[]): PersonaDelOrganigrama[] {
+  const planas: PersonaDelOrganigrama[] = []
+
+  for (const nodo of raices) planas.push(nodo.persona, ...personasDelArbol(nodo.hijos))
+
+  return planas
+}
+
+/**
+ * Arma las filas de la lista a partir de las personas que toca mostrar.
+ *
+ * @param personas las que se listan
+ * @param personasPorId todas las visibles, para poder nombrar al jefe aunque no esté en la lista
+ * @param areas el catálogo de áreas
+ * @returns una fila por persona, en el mismo orden en que llegaron
+ */
+export function filasDeLista (
+  personas: PersonaDelOrganigrama[],
+  personasPorId: Map<number, PersonaDelOrganigrama>,
+  areas: AreaDelOrganigrama[]
+): FilaDeLista[] {
+  return personas.map((persona) => ({
+    persona,
+    jefe: persona.jefe_staffid === null
+      ? '—'
+      // El jefe puede caer fuera de lo que la API mandó: se nombra por id en vez de dejar la celda
+      // vacía, que se leería como "no tiene jefe" y es justo lo contrario.
+      : personasPorId.get(persona.jefe_staffid)?.nombre ?? `Persona #${persona.jefe_staffid}`,
+    area: nombreDeArea(areas, persona.area_id)
+  }))
+}
+
+/**
+ * Filtra la lista por nombre o correo.
+ *
+ * Busca por partes sueltas y sin acentos —"ana rios" encuentra a "Ana Ríos", y "rios ana" también—
+ * porque quien busca no siempre recuerda el orden ni escribe las tildes. Reusa el `normalizar` de la
+ * agenda de salas, que es el mismo que ya usa el resto del panel.
+ *
+ * El correo entra en la búsqueda a propósito: con homónimos en una casa de 184 personas, el correo
+ * es lo único que distingue sin lugar a dudas.
+ *
+ * @param filas las filas a filtrar
+ * @param consulta lo que se escribió; vacío devuelve todo
+ * @returns las que coinciden, en el mismo orden
+ */
+export function filtrarFilas (filas: FilaDeLista[], consulta: string): FilaDeLista[] {
+  const partes = normalizar(consulta).split(/\s+/).filter((parte) => parte !== '')
+
+  if (partes.length === 0) return filas
+
+  return filas.filter((fila) => {
+    const donde = normalizar(`${fila.persona.nombre} ${fila.persona.correo}`)
+
+    return partes.every((parte) => donde.includes(parte))
+  })
+}
+
+/**
+ * Ordena las filas por una columna.
+ *
+ * El escalón se ordena por la **escalera** y no por el alfabeto: alfabéticamente "Director" iría
+ * antes que "Lead" y que "Staff", y una columna de jerarquía ordenada al azar no informa nada.
+ *
+ * Devuelve un array nuevo: las filas de entrada las tiene el componente y reordenárselas por debajo
+ * dejaría a React sin forma de notar el cambio.
+ *
+ * @param filas las filas a ordenar
+ * @param columna por cuál se ordena
+ * @param sentido `asc` de menor a mayor, `desc` al revés
+ * @returns las filas ordenadas
+ */
+export function ordenarFilas (
+  filas: FilaDeLista[], columna: ColumnaDeLista, sentido: SentidoDeOrden
+): FilaDeLista[] {
+  const signo = sentido === 'asc' ? 1 : -1
+
+  return [...filas].sort((una, otra) => {
+    if (columna === 'escalon') {
+      const diferencia = escalaDe(una.persona.escalon) - escalaDe(otra.persona.escalon)
+
+      // Empatados en escalón se ordenan por nombre, para que dos repintados seguidos no barajen las
+      // filas: `sort` es estable, pero la entrada no siempre llega en el mismo orden.
+      if (diferencia !== 0) return diferencia * signo
+
+      return una.persona.nombre.localeCompare(otra.persona.nombre, 'es')
+    }
+
+    const izquierda = columna === 'persona' ? una.persona.nombre : una[columna]
+    const derecha = columna === 'persona' ? otra.persona.nombre : otra[columna]
+    const diferencia = izquierda.localeCompare(derecha, 'es')
+
+    if (diferencia !== 0) return diferencia * signo
+
+    return una.persona.nombre.localeCompare(otra.persona.nombre, 'es')
+  })
+}
+
+/**
+ * El peldaño de un escalón dentro de la escalera.
+ *
+ * @param escalon la clave del escalón
+ * @returns su posición, o `0` para una clave que la escalera no conoce
+ */
+function escalaDe (escalon: string): number {
+  return ESCALONES.find((uno) => uno.clave === escalon)?.orden ?? 0
 }

@@ -10,7 +10,7 @@ import { readFileSync } from 'node:fs'
 import test from 'node:test'
 import {
   arbolDelArea, areasDelMapa, colorDeArea, cuantasCajas, cuantosSinArea, descendenciaDe,
-  jefesElegibles
+  filasDeLista, filtrarFilas, jefesElegibles, nombreDeArea, ordenarFilas, personasDelArbol
 } from '../src/dominio/organigrama.ts'
 
 /** Una persona del organigrama con lo mínimo, para no repetir seis campos en cada caso. */
@@ -147,4 +147,91 @@ test('los colores son los tokens CRUDOS, que son los únicos que existen en :roo
 
     assert.ok(css.includes(`${token}:`), `${token} tiene que estar definido en los estilos`)
   }
+})
+
+// --- La vista de lista ------------------------------------------------------
+//
+// Es la otra lectura de los MISMOS datos, así que lo que se prueba acá es que no invente un
+// conjunto propio: una lista que muestra más o menos gente que el árbol del que salió convierte el
+// conmutador en dos pantallas que se contradicen.
+
+/** Las personas indexadas como las pasa el componente. */
+const POR_ID = new Map(PERSONAS.map((una) => [una.staffid, una]))
+
+test('la lista de un área trae exactamente las cajas que dibuja su árbol', () => {
+  const raices = arbolDelArea(PERSONAS, 1)
+
+  assert.equal(personasDelArbol(raices).length, cuantasCajas(raices))
+  assert.deepEqual(
+    personasDelArbol(raices).map((una) => una.nombre).sort(),
+    ['Ana', 'Bruno', 'Carla', 'Diego']
+  )
+})
+
+test('cada fila resuelve el jefe y el área a texto', () => {
+  const filas = filasDeLista(PERSONAS, POR_ID, ORGANIGRAMA.areas)
+
+  assert.deepEqual(filas.map((fila) => `${fila.persona.nombre}: ${fila.jefe} / ${fila.area}`), [
+    'Ana: — / Wiwo',
+    'Bruno: Ana / Wiwo',
+    'Carla: Ana / Analytics',
+    'Diego: Bruno / Analytics',
+    'Elena: — / Sin área'
+  ])
+})
+
+test('un jefe o un área que la API no mandó se nombran por id y no dejan la celda en blanco', () => {
+  // Una celda vacía se leería como "no tiene jefe", que es justo lo contrario de lo que pasa.
+  const suelta = [persona(9, 'Nuria', 77, 88)]
+  const [fila] = filasDeLista(suelta, new Map(), ORGANIGRAMA.areas)
+
+  assert.equal(fila.jefe, 'Persona #77')
+  assert.equal(fila.area, 'Área #88')
+  assert.equal(nombreDeArea(ORGANIGRAMA.areas, null), 'Sin área')
+  assert.equal(nombreDeArea(ORGANIGRAMA.areas, 2), 'Analytics')
+})
+
+test('el buscador encuentra por nombre, por correo y sin acentos', () => {
+  const gente = [persona(1, 'Ana Ríos', null, 1), persona(2, 'Bruno Paz', null, 1)]
+  const filas = filasDeLista(gente, new Map(gente.map((u) => [u.staffid, u])), ORGANIGRAMA.areas)
+  const nombres = (consulta) => filtrarFilas(filas, consulta).map((fila) => fila.persona.nombre)
+
+  assert.deepEqual(nombres('rios'), ['Ana Ríos'], 'sin tildes tiene que encontrar igual')
+  assert.deepEqual(nombres('rios ana'), ['Ana Ríos'], 'el orden de las partes no puede importar')
+  assert.deepEqual(nombres('bruno paz@wiwo.me'), ['Bruno Paz'], 'el correo también busca')
+  assert.deepEqual(nombres('   '), nombres(''), 'sólo espacios es una búsqueda vacía')
+  assert.equal(filtrarFilas(filas, '').length, 2)
+  assert.deepEqual(nombres('zeta'), [])
+})
+
+test('el orden por escalón sigue la escalera y no el alfabeto', () => {
+  const filas = filasDeLista(PERSONAS, POR_ID, ORGANIGRAMA.areas)
+
+  // Alfabéticamente "Director" iría antes que "Lead" y que "Staff": una columna de jerarquía
+  // ordenada al azar no informa nada.
+  assert.deepEqual(
+    ordenarFilas(filas, 'escalon', 'asc').map((fila) => fila.persona.escalon),
+    ['staff', 'staff', 'lead', 'lead', 'gerencia']
+  )
+  assert.equal(ordenarFilas(filas, 'escalon', 'desc')[0].persona.escalon, 'gerencia')
+})
+
+test('el orden por nombre y por área se da vuelta, y no toca las filas que recibió', () => {
+  const filas = filasDeLista(PERSONAS, POR_ID, ORGANIGRAMA.areas)
+  const antes = filas.map((fila) => fila.persona.nombre)
+
+  assert.deepEqual(
+    ordenarFilas(filas, 'persona', 'asc').map((fila) => fila.persona.nombre),
+    ['Ana', 'Bruno', 'Carla', 'Diego', 'Elena']
+  )
+  assert.deepEqual(
+    ordenarFilas(filas, 'persona', 'desc').map((fila) => fila.persona.nombre),
+    ['Elena', 'Diego', 'Carla', 'Bruno', 'Ana']
+  )
+  // Empatados en área se ordenan por nombre: sin eso, dos repintados seguidos barajan las filas.
+  assert.deepEqual(
+    ordenarFilas(filas, 'area', 'asc').map((fila) => `${fila.area}/${fila.persona.nombre}`),
+    ['Analytics/Carla', 'Analytics/Diego', 'Sin área/Elena', 'Wiwo/Ana', 'Wiwo/Bruno']
+  )
+  assert.deepEqual(filas.map((fila) => fila.persona.nombre), antes, 'ordenar no muta la entrada')
 })
