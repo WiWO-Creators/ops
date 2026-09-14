@@ -8,6 +8,8 @@
  * la traducción ocurre una sola vez, al presentar.
  */
 
+import { ASISTENTE } from '../dominio/glosario.ts'
+
 /** Persona, en la forma reducida que devuelven los tres endpoints. */
 export interface PersonaAuditoria {
   id: number
@@ -162,10 +164,15 @@ export const TIPOS_AUDITORIA: Record<TipoAuditoria, { etiqueta: string, tono: 'n
   login_fallido: { etiqueta: 'Acceso fallido', tono: 'peligro' },
   denegado: { etiqueta: 'Acceso denegado', tono: 'peligro' },
   login: { etiqueta: 'Ingreso', tono: 'acento' },
-  // Escrituras que WiBot propuso y una persona confirmó. Van en `aviso` y no en `neutro`: son
-  // acciones que ejecutó el sistema por sugerencia de un modelo, y quien abre esta pantalla las
+  // Escrituras que Thinking Orb propuso y una persona confirmó. Van en `aviso` y no en `neutro`:
+  // son acciones que ejecutó el sistema por sugerencia de un modelo, y quien abre esta pantalla las
   // busca. El actor de la fila es quien confirmó, que es lo que hay que poder leer de un vistazo.
-  wibot: { etiqueta: 'Acción de WiBot', tono: 'aviso' },
+  //
+  // La clave sigue siendo `wibot` con el asistente ya renombrado porque NO es texto: es el valor
+  // que viaja en `GET /audit?filter[type]=wibot` y el que el backend deriva en `RecursoAuditoria`.
+  // Cambiarla rompería los filtros guardados y dejaría de encontrar las filas históricas, que
+  // siguen anotadas con el prefijo viejo. Lo que se lee en pantalla es la etiqueta, y esa sí cambia.
+  wibot: { etiqueta: `Acción de ${ASISTENTE}`, tono: 'aviso' },
   portal: { etiqueta: 'Portal del cliente', tono: 'aviso' },
   api: { etiqueta: 'Acción en Ops', tono: 'neutro' },
   email: { etiqueta: 'Correo enviado', tono: 'contorno' },

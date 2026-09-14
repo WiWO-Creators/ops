@@ -4,7 +4,6 @@ import { useCallback, useMemo, useState, useTransition } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { ControlesTabla, PaginacionTabla } from '@/componentes/datos/ControlesTabla'
-import { PresetsFiltro } from '@/componentes/datos/PresetsFiltro'
 import { clavesVisiblesPorDefecto, columnasVisibles, resolverInsignia } from '@/componentes/datos/tabla'
 import { retrasoDeAparicion } from '@/componentes/datos/TablaRecurso'
 import { armarCsv, nombreDeExportacion } from '@/componentes/datos/csv'
@@ -116,20 +115,21 @@ export function VistaEspacios ({
   const [generacion, setGeneracion] = useState(0)
   const [refrescando, iniciarRefresco] = useTransition()
 
+  const definicion = useMemo(() => espaciosConCampos(campos), [campos])
   const estado = useMemo(
-    () => leerConsulta(new URLSearchParams(params.toString()), ESPACIOS),
-    [params]
+    () => leerConsulta(new URLSearchParams(params.toString()), definicion),
+    [params, definicion]
   )
 
   /** Reescribe la consulta en la URL conservando la presentacion elegida. */
   const cambiarConsulta = useCallback(
     (parcial: Partial<EstadoConsulta>) => {
-      const query = new URLSearchParams(construirConsulta({ ...estado, ...parcial }, ESPACIOS))
+      const query = new URLSearchParams(construirConsulta({ ...estado, ...parcial }, definicion))
       query.set('vista', params.get('vista') === 'tabla' ? 'tabla' : 'tarjetas')
 
       router.replace(`?${query.toString()}`, { scroll: false })
     },
-    [estado, params, router]
+    [estado, params, router, definicion]
   )
 
   /** Vuelve a pedir la pagina al servidor y remonta la tabla con lo que llegue. */
@@ -154,53 +154,64 @@ export function VistaEspacios ({
   }
 
   return (
-    <div className="flex flex-col gap-3">
-      <PastillasEstado
-        estadisticas={estadisticas}
-        error={errorEstadisticas}
-        seleccion={estado.filtros.status ?? []}
-        onCambiar={(estados) => { cambiarConsulta({ filtros: { ...estado.filtros, status: estados }, pagina: 1 }) }}
-      />
-
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <Segmentado
-          etiqueta="Presentación del listado"
-          opciones={VISTAS}
-          activo={vista}
-          onElegir={(valor) => { cambiarVista(valor as Vista) }}
+    // `gap-4` entre la cabecera y el listado, `gap-3` dentro de la cabecera: el salto de separacion es
+    // lo que agrupa las pastillas con la barra de acciones sin necesidad de una caja ni de una linea.
+    <div className="flex flex-col gap-4">
+      <header className="flex flex-col gap-3">
+        <PastillasEstado
+          estadisticas={estadisticas}
+          error={errorEstadisticas}
+          seleccion={estado.filtros.status ?? []}
+          onCambiar={(estados) => { cambiarConsulta({ filtros: { ...estado.filtros, status: estados }, pagina: 1 }) }}
         />
 
-        <div className="flex flex-wrap items-center gap-2">
-          <Boton tamano="chico" variante="sutil" cargando={refrescando} onClick={refrescar}>
-            Refrescar
-          </Boton>
-          <Boton
-            tamano="chico"
-            onClick={() => { descargarCsv(campos, inicial.filas, opcionesDeFiltro) }}
-            disabled={inicial.filas.length === 0}
-          >
-            Exportar CSV
-          </Boton>
-          {/* La pantalla de plantillas es donde se arman; desde aca solo se entra a verla. Es un
-              enlace y no un boton porque va a otra ruta. */}
-          <Link
-            href="/espacios/plantillas"
-            className="text-texto-tenue hover:text-texto text-xs underline-offset-4 hover:underline"
-          >
-            Plantillas
-          </Link>
-          {capacidades.includes('create') && (
-            <>
-              <Boton tamano="chico" onClick={() => { setDesdePlantilla(true) }}>
-                Desde plantilla
-              </Boton>
-              <Boton tamano="chico" variante="primario" onClick={() => { setAEditar('nuevo') }}>
-                Nuevo {GLOSARIO.espacio.singular.toLowerCase()}
-              </Boton>
-            </>
-          )}
+        {/* Navegacion a la izquierda, acciones a la derecha y la primaria al final. Antes las cinco
+            piezas iban en un mismo monton a la derecha, con un enlace subrayado entre dos botones. */}
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <Segmentado
+              etiqueta="Presentación del listado"
+              opciones={VISTAS}
+              activo={vista}
+              onElegir={(valor) => { cambiarVista(valor as Vista) }}
+            />
+
+            <span aria-hidden="true" className="bg-linea hidden h-5 w-px sm:block" />
+
+            {/* La pantalla de plantillas es donde se arman; desde aca solo se entra a verla. Es un
+                enlace y no un boton porque va a otra ruta. */}
+            <Link
+              href="/espacios/plantillas"
+              className="text-texto-tenue hover:text-texto text-xs underline-offset-4 hover:underline"
+            >
+              Plantillas
+            </Link>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <Boton tamano="chico" variante="sutil" cargando={refrescando} onClick={refrescar}>
+              Refrescar
+            </Boton>
+            <Boton
+              tamano="chico"
+              onClick={() => { descargarCsv(campos, inicial.filas, opcionesDeFiltro) }}
+              disabled={inicial.filas.length === 0}
+            >
+              Exportar CSV
+            </Boton>
+            {capacidades.includes('create') && (
+              <>
+                <Boton tamano="chico" onClick={() => { setDesdePlantilla(true) }}>
+                  Desde plantilla
+                </Boton>
+                <Boton tamano="chico" variante="primario" onClick={() => { setAEditar('nuevo') }}>
+                  Nuevo {GLOSARIO.espacio.singular.toLowerCase()}
+                </Boton>
+              </>
+            )}
+          </div>
         </div>
-      </div>
+      </header>
 
       {vista === 'tabla'
         ? (
@@ -213,7 +224,7 @@ export function VistaEspacios ({
             acciones={acciones}
           />
           )
-        : <TarjetasProyectos resultado={inicial} opcionesDeFiltro={opcionesDeFiltro} />}
+        : <TarjetasProyectos campos={campos} resultado={inicial} opcionesDeFiltro={opcionesDeFiltro} />}
 
       <DialogoCopiarProyecto
         espacio={aCopiar}
@@ -293,6 +304,7 @@ function descargarCsv (
 }
 
 interface PropsTarjetasProyectos {
+  campos: CampoPersonalizadoMeta[]
   /** Pagina vigente, resuelta en el servidor para la consulta que dice la URL. */
   resultado: ResultadoLista<Espacio>
   opcionesDeFiltro?: Record<string, OpcionFiltro[]>
@@ -304,7 +316,7 @@ interface PropsTarjetasProyectos {
  * @param resultado filas y paginacion de la pagina vigente
  * @param opcionesDeFiltro catalogos de `/lookups`, para los filtros y para el color del estado
  */
-export function TarjetasProyectos ({ resultado, opcionesDeFiltro }: PropsTarjetasProyectos) {
+export function TarjetasProyectos ({ resultado, opcionesDeFiltro, campos }: PropsTarjetasProyectos) {
   const router = useRouter()
   const params = useSearchParams()
   const [pendiente, iniciarTransicion] = useTransition()
@@ -313,9 +325,10 @@ export function TarjetasProyectos ({ resultado, opcionesDeFiltro }: PropsTarjeta
   // estado igual porque el control es del motor y no se toca desde aca.
   const [visibles, setVisibles] = useState(() => clavesVisiblesPorDefecto(ESPACIOS.columnas))
 
+  const definicion = useMemo(() => espaciosConCampos(campos), [campos])
   const estado = useMemo(
-    () => leerConsulta(new URLSearchParams(params.toString()), ESPACIOS),
-    [params]
+    () => leerConsulta(new URLSearchParams(params.toString()), definicion),
+    [params, definicion]
   )
 
   /**
@@ -325,7 +338,7 @@ export function TarjetasProyectos ({ resultado, opcionesDeFiltro }: PropsTarjeta
    * grilla anterior en pantalla mientras el servidor resuelve la nueva pagina, en vez de vaciarla.
    */
   function cambiar (parcial: Partial<EstadoConsulta>) {
-    const query = new URLSearchParams(construirConsulta({ ...estado, ...parcial }, ESPACIOS))
+    const query = new URLSearchParams(construirConsulta({ ...estado, ...parcial }, definicion))
     query.set('vista', 'tarjetas')
 
     iniciarTransicion(() => { router.replace(`?${query.toString()}`, { scroll: false }) })
@@ -338,18 +351,13 @@ export function TarjetasProyectos ({ resultado, opcionesDeFiltro }: PropsTarjeta
           aca —y no en `VistaEspacios`— porque en la rama de tabla los pinta `TablaRecurso`. */}
       <div className="flex flex-wrap items-start justify-between gap-2">
         <ControlesTabla
-          definicion={ESPACIOS}
+          definicion={definicion}
           estado={estado}
           visibles={visibles}
           opcionesDeFiltro={opcionesDeFiltro}
           onCambiar={cambiar}
           onVisibles={setVisibles}
           sinColumnas
-        />
-        <PresetsFiltro
-          board="projects"
-          filtrosActuales={estado.filtros}
-          onAplicar={(filtros) => { cambiar({ filtros, pagina: 1 }) }}
         />
       </div>
 
@@ -365,9 +373,11 @@ export function TarjetasProyectos ({ resultado, opcionesDeFiltro }: PropsTarjeta
             {/* Igual que en la tabla: refrescar atenua las tarjetas viejas en vez de taparlas, y el
                 aviso va en un chip sobre la esquina. Sin indicador, la atenuacion se lee como un fallo. */}
             {pendiente && <CargandoConOrbe mensaje="Actualizando…" className="absolute right-2 top-2 z-10" />}
+            {/* Tres columnas desde `lg` y no desde `xl`: entre 1024 y 1207px sobraba ancho para una
+                tercera tarjeta y se pintaban dos, enormes y con el texto perdido en el medio. */}
             <ul
               className={cn(
-                'grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3',
+                'grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3',
                 pendiente && 'opacity-60 transition-opacity'
               )}
             >

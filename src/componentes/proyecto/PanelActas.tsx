@@ -1,9 +1,10 @@
 'use client'
 
 import { Suspense, useCallback, useMemo, useState, type ReactElement } from 'react'
-import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
+import { Plus } from 'lucide-react'
 import { Boton } from '@/componentes/formularios/Boton'
+import { Insignia } from '@/componentes/presentadores/Insignia'
 import { Cargando, ErrorEstado } from '@/componentes/estado/Estados'
 import { LimiteDeError } from '@/componentes/estado/LimiteDeError'
 import { BloqueCopiable } from '@/componentes/presentadores/BloqueCopiable'
@@ -12,6 +13,7 @@ import { useRecurso } from './carga'
 import { AsistenteDeActa } from './AsistenteDeActa'
 import { DetalleActa } from './DetalleActa'
 import { PanelRecurso } from './PanelRecurso'
+import { EnlaceActa, TarjetaActa } from './TarjetaActa'
 import type { Acta } from '@/datos/recursos'
 import type { EstadoIa } from '@/dominio/ajustes'
 import type { Yo } from '@/datos/tipos'
@@ -57,18 +59,25 @@ interface PropsPanelActas {
  * uno es un interruptor del panel, otro una instalacion a la que nunca se le escribio el ajuste, y
  * el tercero la API que no contesta. Decir cual es no es un lujo de depuracion: es la diferencia
  * entre que la persona sepa a quien pedirselo y que abra un ticket que dice "no funciona".
+ *
+ * `chip` es la version corta que vive en la barra. La frase entera al lado del boton competia con el
+ * boton y empujaba la barra a dos lineas en pantallas angostas; el motivo completo sigue estando, a
+ * un clic, donde ademas viene con el detalle copiable.
  */
-const MOTIVO_IA: Record<EstadoIa['motivo'], { titulo: string, ayuda: string }> = {
-  encendida: { titulo: '', ayuda: '' },
+const MOTIVO_IA: Record<EstadoIa['motivo'], { chip: string, titulo: string, ayuda: string }> = {
+  encendida: { chip: '', titulo: '', ayuda: '' },
   apagada: {
+    chip: 'IA apagada',
     titulo: 'La escritura con IA está apagada en esta instalación.',
     ayuda: 'Se enciende en Administración → Ajustes → Funciones con IA. Los Meeting Papers ya escritos se siguen leyendo y corrigiendo igual.'
   },
   ausente: {
+    chip: 'IA sin configurar',
     titulo: 'Esta instalación nunca configuró las funciones con IA.',
     ayuda: 'El ajuste "Funciones con IA" no tiene valor guardado. Hay que entrar a Administración → Ajustes, encenderlo y guardar una vez.'
   },
   no_se_pudo_leer: {
+    chip: 'Estado de la IA desconocido',
     titulo: 'No se pudo leer si la IA está disponible.',
     ayuda: 'Falló la lectura de los ajustes contra la API. No es el Meeting Paper: mientras esto falle, media aplicación va a comportarse raro.'
   }
@@ -158,7 +167,7 @@ function ActasDelProyecto ({ proyectoId, ia, yo }: PropsPanelActas): ReactElemen
   // clic abre el motivo, que es lo unico que esa persona puede reportar o arreglar.
   const barra = (
     <div className="flex items-center justify-end gap-3">
-      {!ia.activa && <span className="text-texto-sutil text-xs">{motivo.titulo}</span>}
+      {!ia.activa && <Insignia tono="aviso" tamano="chico">{motivo.chip}</Insignia>}
       <Boton
         variante="primario"
         tamano="chico"
@@ -167,6 +176,10 @@ function ActasDelProyecto ({ proyectoId, ia, yo }: PropsPanelActas): ReactElemen
           else setMotivoALaVista(true)
         }}
       >
+        {/* El icono va `aria-hidden`: el nombre del boton ya lo dice la etiqueta de al lado, y un
+            `+` anunciado por el lector de pantalla solo agrega ruido. El tamaño y el grosor son los
+            del resto del panel (`BarraLateral`), a escala de boton chico. */}
+        <Plus size={16} strokeWidth={2} aria-hidden="true" className="shrink-0" />
         Nuevo Meeting Paper
       </Boton>
     </div>
@@ -190,6 +203,7 @@ function ActasDelProyecto ({ proyectoId, ia, yo }: PropsPanelActas): ReactElemen
         claveFila={(acta) => acta.id}
         barra={barra}
         revision={revision}
+        tarjeta={(acta) => <TarjetaActa acta={acta} className="w-full" />}
       />
     </div>
   )
@@ -279,21 +293,4 @@ function idPositivo (crudo: string | null): number | null {
   const id = Number(crudo)
 
   return Number.isInteger(id) && id > 0 ? id : null
-}
-
-/** El título del acta como enlace a su detalle, conservando el resto de la vista. */
-function EnlaceActa ({ acta }: { acta: Acta }): ReactElement {
-  const params = useSearchParams()
-  const siguientes = new URLSearchParams(params.toString())
-  siguientes.set('acta', String(acta.id))
-
-  return (
-    <Link
-      href={`?${siguientes.toString()}`}
-      scroll={false}
-      className="text-texto hover:text-acento font-medium underline-offset-4 hover:underline"
-    >
-      {acta.title}
-    </Link>
-  )
 }

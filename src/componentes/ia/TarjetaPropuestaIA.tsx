@@ -7,7 +7,7 @@ import { leerAccion, type AccionIA } from '@/dominio/ia'
 import { esResoluble, estadoDeAccion, segundosParaExpirar } from '@/dominio/ia-chat'
 
 /**
- * La tarjeta de una escritura que WiBot dejo preparada.
+ * La tarjeta de una escritura que Thinking Orb dejo preparada.
  *
  * === POR QUE ESTE COMPONENTE NO SABE QUE VA A ESCRIBIR ===
  *
@@ -22,7 +22,7 @@ import { esResoluble, estadoDeAccion, segundosParaExpirar } from '@/dominio/ia-c
  *
  * === EL RESUMEN SE MUESTRA ENTERO ===
  *
- * Desde que WiBot vive en todo el panel, la propuesta puede ser sobre un Espacio que **no** es el
+ * Desde que Thinking Orb vive en todo el panel, la propuesta puede ser sobre un Espacio que **no** es el
  * que la persona esta mirando, y el ambito viene dentro del `resumen`. Recortarlo con un `truncate`
  * o un `line-clamp` esconderia justo la parte que avisa que la accion es en otro lado: es la unica
  * señal de eso que hay en la tarjeta. Por eso el parrafo envuelve, parte las palabras largas y no

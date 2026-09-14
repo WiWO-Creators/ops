@@ -190,7 +190,7 @@ export default async function ClientePage (props: PageProps<'/clientes/[id]'>) {
     // cual es cual dentro de un mismo selector, que es justo lo que se lee mal.
     {
       clave: 'focales',
-      etiqueta: 'Focales',
+      etiqueta: GLOSARIO.focal.plural,
       contenido: <PanelFocalesCliente clienteId={cliente.id} capacidades={yo.permissions.customers} />
     },
     {

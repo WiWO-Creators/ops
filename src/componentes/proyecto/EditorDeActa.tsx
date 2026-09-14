@@ -5,9 +5,12 @@ import { EditorContent, useEditor, type Editor } from '@tiptap/react'
 import { BubbleMenu } from '@tiptap/react/menus'
 import StarterKit from '@tiptap/starter-kit'
 import Placeholder from '@tiptap/extension-placeholder'
+import { Bold, Expand, GraduationCap, Heading2, Heading3, Italic, List, Quote, Shrink, Sparkles } from 'lucide-react'
 import { Boton } from '@/componentes/formularios/Boton'
 import { escribirEnBff } from '@/componentes/datos/mutaciones'
 import { cn } from '@/lib/clases'
+import type { LucideIcon } from 'lucide-react'
+import { claseDeMarca, cssDeMarcas } from '@/dominio/marcas-acta'
 
 /**
  * Editor del Meeting Paper, con reescritura por IA del fragmento seleccionado.
@@ -42,12 +45,19 @@ import { cn } from '@/lib/clases'
  * herramientas de desarrollo abiertas manda otra cosa. Lo de acá es defensa en profundidad.
  */
 
-/** Las cuatro acciones de reescritura, con el verbo que ve la persona. */
-const ACCIONES: Array<{ clave: string, etiqueta: string }> = [
-  { clave: 'acortar', etiqueta: 'Acortar' },
-  { clave: 'alargar', etiqueta: 'Alargar' },
-  { clave: 'simplificar', etiqueta: 'Simplificar' },
-  { clave: 'complejizar', etiqueta: 'Formalizar' }
+/**
+ * Las cuatro acciones de reescritura, con el verbo que ve la persona y su icono.
+ *
+ * El icono acompaña al verbo, no lo reemplaza: "Acortar" y "Simplificar" no tienen un dibujo que
+ * signifique eso sin ayuda, y un menú de cuatro pictogramas sueltos obligaría a probarlos uno por uno
+ * para saber qué hace cada cual. Lo que aporta el icono acá es reconocer la fila de un vistazo cuando
+ * ya se sabe cuál es cuál.
+ */
+const ACCIONES: Array<{ clave: string, etiqueta: string, Icono: LucideIcon }> = [
+  { clave: 'acortar', etiqueta: 'Acortar', Icono: Shrink },
+  { clave: 'alargar', etiqueta: 'Alargar', Icono: Expand },
+  { clave: 'simplificar', etiqueta: 'Simplificar', Icono: Sparkles },
+  { clave: 'complejizar', etiqueta: 'Formalizar', Icono: GraduationCap }
 ]
 
 interface PropsEditor {
@@ -59,9 +69,16 @@ interface PropsEditor {
   proyectoId: number
   /** Apaga la reescritura por IA cuando la capa está desactivada. */
   conIa?: boolean
+  /**
+   * Marca que firma el acta, para corregirla con la misma cara con la que se va a ver.
+   *
+   * Sin esto el editor mostraría el documento con los colores y la tipografía genéricos y el visor
+   * con los de la marca: quien corrige estaría trabajando sobre algo que no es lo que se manda.
+   */
+  marca?: string | null
 }
 
-export function EditorDeActa ({ htmlInicial, onCambio, proyectoId, conIa = true }: PropsEditor): ReactElement {
+export function EditorDeActa ({ htmlInicial, onCambio, proyectoId, conIa = true, marca = null }: PropsEditor): ReactElement {
   const [reescribiendo, setReescribiendo] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -80,7 +97,8 @@ export function EditorDeActa ({ htmlInicial, onCambio, proyectoId, conIa = true 
     content: htmlInicial,
     editorProps: {
       attributes: {
-        class: 'acta-editor rounded-chico border-linea min-h-[24rem] border px-8 py-10 focus:outline-none'
+        class: `acta-editor acta-marca ${claseDeMarca(marca)} rounded-chico border-linea min-h-[24rem]`
+          + ' border px-8 py-10 focus:outline-none'
       }
     },
     onUpdate: ({ editor: actual }) => { onCambio(actual.getHTML()) }
@@ -133,6 +151,11 @@ export function EditorDeActa ({ htmlInicial, onCambio, proyectoId, conIa = true 
 
   return (
     <div className="flex flex-col gap-2">
+      {/* Las mismas reglas que inyecta el visor en su iframe, servidas acá desde el mismo módulo:
+          es lo único que mantiene a los dos lados mostrando el mismo documento. El origen va vacío
+          porque acá sí resuelven las rutas relativas; el iframe es el que necesita el absoluto. */}
+      <style>{cssDeMarcas('')}</style>
+
       <BarraDeFormato editor={editor} />
 
       {conIa && (
@@ -150,6 +173,7 @@ export function EditorDeActa ({ htmlInicial, onCambio, proyectoId, conIa = true 
                 cargando={reescribiendo}
                 onClick={() => { void reescribir(accion.clave, editor) }}
               >
+                <accion.Icono size={14} strokeWidth={2} aria-hidden="true" className="shrink-0" />
                 {accion.etiqueta}
               </Boton>
             ))}
@@ -164,15 +188,51 @@ export function EditorDeActa ({ htmlInicial, onCambio, proyectoId, conIa = true 
   )
 }
 
-/** Los formatos que el esquema entiende. Lo que no está acá tampoco se guarda. */
+/**
+ * Los formatos que el esquema entiende. Lo que no está acá tampoco se guarda.
+ *
+ * Cada formato dice si está puesto con su propia consulta y no con un nombre de nodo suelto: los dos
+ * niveles de título son el mismo nodo `heading`, así que con el nombre a secas se encendían los dos
+ * botones a la vez y la barra mentía sobre lo que estaba aplicado.
+ */
 function BarraDeFormato ({ editor }: { editor: Editor }): ReactElement {
-  const botones: Array<{ etiqueta: string, activo: string, aplicar: () => void }> = [
-    { etiqueta: 'Título', activo: 'heading', aplicar: () => editor.chain().focus().toggleHeading({ level: 2 }).run() },
-    { etiqueta: 'Subtítulo', activo: 'heading', aplicar: () => editor.chain().focus().toggleHeading({ level: 3 }).run() },
-    { etiqueta: 'Negrita', activo: 'bold', aplicar: () => editor.chain().focus().toggleBold().run() },
-    { etiqueta: 'Cursiva', activo: 'italic', aplicar: () => editor.chain().focus().toggleItalic().run() },
-    { etiqueta: 'Lista', activo: 'bulletList', aplicar: () => editor.chain().focus().toggleBulletList().run() },
-    { etiqueta: 'Cita', activo: 'blockquote', aplicar: () => editor.chain().focus().toggleBlockquote().run() }
+  const botones: Array<{ etiqueta: string, Icono: LucideIcon, puesto: boolean, aplicar: () => void }> = [
+    {
+      etiqueta: 'Título',
+      Icono: Heading2,
+      puesto: editor.isActive('heading', { level: 2 }),
+      aplicar: () => editor.chain().focus().toggleHeading({ level: 2 }).run()
+    },
+    {
+      etiqueta: 'Subtítulo',
+      Icono: Heading3,
+      puesto: editor.isActive('heading', { level: 3 }),
+      aplicar: () => editor.chain().focus().toggleHeading({ level: 3 }).run()
+    },
+    {
+      etiqueta: 'Negrita',
+      Icono: Bold,
+      puesto: editor.isActive('bold'),
+      aplicar: () => editor.chain().focus().toggleBold().run()
+    },
+    {
+      etiqueta: 'Cursiva',
+      Icono: Italic,
+      puesto: editor.isActive('italic'),
+      aplicar: () => editor.chain().focus().toggleItalic().run()
+    },
+    {
+      etiqueta: 'Lista',
+      Icono: List,
+      puesto: editor.isActive('bulletList'),
+      aplicar: () => editor.chain().focus().toggleBulletList().run()
+    },
+    {
+      etiqueta: 'Cita',
+      Icono: Quote,
+      puesto: editor.isActive('blockquote'),
+      aplicar: () => editor.chain().focus().toggleBlockquote().run()
+    }
   ]
 
   return (
@@ -182,13 +242,22 @@ function BarraDeFormato ({ editor }: { editor: Editor }): ReactElement {
           key={boton.etiqueta}
           type="button"
           onClick={boton.aplicar}
-          aria-pressed={editor.isActive(boton.activo)}
+          aria-pressed={boton.puesto}
+          /* El nombre va en `aria-label` y no en el texto de adentro porque el texto se esconde a
+             menos de 640px: sin esto, en teléfono el boton se anunciaria vacio. `title` da el mismo
+             nombre con el puntero encima, que es lo que se espera de una barra de formato. */
+          aria-label={boton.etiqueta}
+          title={boton.etiqueta}
           className={cn(
-            'rounded-control px-2 py-1 text-xs font-medium transition-colors',
-            editor.isActive(boton.activo) ? 'bg-acento text-acento-contenido' : 'text-texto-tenue hover:bg-hover'
+            'rounded-control ease-neo inline-flex h-8 items-center gap-1.5 px-2 text-xs font-semibold transition-colors duration-rapida sm:px-2.5',
+            boton.puesto ? 'bg-acento text-acento-contenido' : 'text-texto-tenue hover:bg-hover hover:text-texto'
           )}
         >
-          {boton.etiqueta}
+          <boton.Icono size={16} strokeWidth={2} aria-hidden="true" className="shrink-0" />
+          {/* A 400px los seis nombres empujaban la barra a tres renglones antes de que el acta
+              empezara. Escondidos, los seis iconos entran en uno solo; desde `sm` vuelve el nombre,
+              que es donde hay ancho de sobra para no hacer adivinar cuál es "Cita" y cuál "Lista". */}
+          <span className="hidden sm:inline">{boton.etiqueta}</span>
         </button>
       ))}
     </div>

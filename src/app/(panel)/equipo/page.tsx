@@ -1,7 +1,9 @@
 import { Suspense } from 'react'
+import Link from 'next/link'
 import { VistaEquipo } from '@/componentes/equipo/VistaEquipo'
 import { Cargando } from '@/componentes/estado/Estados'
 import { TotalDelListado } from '@/componentes/datos/TotalDelListado'
+import { TituloModulo } from '@/componentes/estructura/TituloModulo'
 import { construirConsulta, leerConsulta, paramsDeUrl } from '@/datos/consulta'
 import { cargarLookups, opcionesDeFiltros } from '@/datos/lookups'
 import { pedir } from '@/datos/servidor'
@@ -32,10 +34,24 @@ export default async function EquipoPage (props: PageProps<'/equipo'>) {
 
   return (
     <section className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-        <h1 className="text-xl font-semibold text-texto">{EQUIPO.titulo.plural}</h1>
-        <TotalDelListado paginacion={lista.meta?.pagination} />
-      </div>
+      <TituloModulo
+        titulo={EQUIPO.titulo.plural}
+        acciones={
+          <div className="flex items-center gap-3">
+            {/* Atajo desde el listado del equipo. La entrada de la barra lateral existe además,
+                para quien administra o dirige un área; este enlace es para quien llega mirando al
+                equipo y quiere acomodarlo. Quien no dirige nada recibe 403 de la API al entrar, así
+                que el enlace no revela nada que la pantalla no cuide. */}
+            <Link
+              href="/equipo/jerarquia"
+              className="text-acento text-sm font-semibold hover:underline"
+            >
+              Jerarquías
+            </Link>
+            <TotalDelListado paginacion={lista.meta?.pagination} />
+          </div>
+        }
+      />
 
       <Suspense fallback={<Cargando alto="min-h-36" mensaje={`Cargando ${EQUIPO.titulo.plural.toLowerCase()}…`} />}>
         <VistaEquipo

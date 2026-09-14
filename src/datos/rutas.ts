@@ -104,11 +104,32 @@ const PREFIJOS_PERMITIDOS = [
   'presence',
   'sessions',
   'audit',
-  // LIVE: la jornada propia (`/me/jornada` ya entra por `me`), el tablero del equipo y el medidor de
-  // un Espacio (`/projects/{id}/timer`, que entra por `projects`). Solo falta `live`, que la API
+  // LIVE: la jornada propia (`/me/jornada` ya entra por `me`), el tablero del equipo y la detencion
+  // de un medidor de Espacio historico (`DELETE /projects/{id}/timer`, que entra por `projects`; su
+  // `POST` responde 422 desde que no hay registros sin Tarea). Solo falta `live`, que la API
   // cuelga de su propia raiz. Sin esta entrada el BFF contesta 404 al tablero y el panel del equipo
   // se queda con la unica pagina que resolvio el servidor, sin refrescarse nunca.
-  'live'
+  // Salud de un Cliente y de un Espacio: el semaforo de 0 a 100 con su historico. Prefijo propio
+  // porque la API los cuelga de su raiz (`/scores`, `/scores/{id}`) y no del recurso puntuado.
+  'scores',
+  'live',
+  // El organigrama de areas (`/jerarquia`): leerlo y reacomodarlo desde la pantalla de jefaturas.
+  // Raiz propia porque asi lo expone la API, y por el mismo motivo que `/me/mi-area` no cuelga de
+  // `/staff`: dirigir un area no otorga `staff.view`, y un jefe sin ese permiso tiene que poder
+  // ordenar a su gente igual. Quien manda sobre que area lo decide la API, no esta lista.
+  //
+  // Un solo prefijo cubre las cuatro rutas, porque la lista es por PREFIJO: la lectura entera, el
+  // alta y la edicion de un area, el borrado, y el movimiento de una persona
+  // (`/jerarquia/personas/{id}`) — que tambien cuelga de aca y no de `staff`.
+    'jerarquia',
+  // El panel de accesos (`/accesos`): el catalogo, los escalones, los roles, las personas, las areas,
+  // los cargos y los interruptores del modelo de permisos. Raiz propia porque asi lo expone la API.
+  // Sin esta entrada el BFF contesta 404 a TODAS las escrituras de la pantalla y solo se ve el
+  // catalogo que resolvio el servidor. La API exige superadministrador en cada una de sus rutas; el
+  // BFF solo decide si la ruta existe, no quien puede pisarla. El portal no la lleva ni la puede
+  // llevar: un contacto no reparte permisos.
+  'accesos'
+
 ] as const
 
 /**

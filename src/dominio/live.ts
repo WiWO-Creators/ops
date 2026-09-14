@@ -1,14 +1,245 @@
 /**
  * Reglas de LIVE que no dependen de React ni de la red.
  *
- * Dos preguntas: **hasta donde ve** quien mira, y **que se le dice** cuando el medidor no arranca.
- * Las dos se prueban sin montar nada (`pruebas/live.test.js`).
+ * Seis preguntas: **hasta donde ve** quien mira, **que se le dice** cuando el medidor no arranca,
+ * **si hoy ya dijo que no** a abrir la jornada, **si quiere que se le recuerde** asignar el destino
+ * despues de abrirla, **que opciones quedan** cuando busca en un combo, y **como se cuenta** una
+ * jornada que corre sin destino. Todas se prueban sin montar nada (`pruebas/live.test.js`): a las dos
+ * que se apoyan en `localStorage` se les pasa el almacenamiento —y el dia, la que lo lleva— asi que
+ * tampoco necesitan un navegador ni dependen del reloj de quien corre las pruebas.
  */
+import { GLOSARIO } from './glosario.ts'
 import { puedeVerSeccion } from './permisos.ts'
-import type { Yo } from '@/datos/tipos'
+import { normalizar } from './salas.ts'
+import type { ClienteDeJornada, EstadoDeJornada } from '@/datos/live'
+import type { NivelPermiso, Yo } from '@/datos/tipos'
+
+/**
+ * Si hay que exigirle a esta persona que abra su jornada antes de dejarla usar el panel.
+ *
+ * === POR QUE `null` NO BLOQUEA ===
+ *
+ * `null` es "no se pudo leer", no "no hay jornada". Bloquear ahi seria adivinar: quien ya tiene la
+ * jornada abierta se quedaria frente a un velo por un fallo de la API, sin poder abrir nada porque
+ * el 409 le diria que ya la tiene. Un backend caido no puede sacar a media empresa del sistema.
+ *
+ * Lo contrario —dejar pasar a alguien que no la abrio porque la API tardo— se corrige solo: el
+ * control repregunta cada `intervaloDeLive()` segundos y la compuerta aparece en cuanto hay dato.
+ *
+ * @param estado el estado de la jornada tal como llega de `GET /me/jornada`, o `null` si no se pudo leer
+ * @returns `true` solo cuando consta que no hay jornada abierta
+ */
+export function faltaAbrirJornada (estado: EstadoDeJornada | null): boolean {
+  return estado !== null && estado.open === null
+}
+
+/**
+ * Lo que hace falta de `localStorage` para anotar la decision. Un objeto asi se finge en las pruebas
+ * sin montar un navegador, que es la unica forma de probar tambien el caso en que lanza.
+ */
+type Almacenamiento = Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>
+
+/** Lo que se guarda: la clave ya dice todo, el valor solo tiene que existir. */
+const MARCA_PUESTA = '1'
+
+/**
+ * Donde queda anotado que hoy se pospuso la apertura de la jornada.
+ *
+ * La clave lleva el dia y el `staffId`, y cada uno arregla un problema distinto. El dia hace que la
+ * marca caduque sola a la medianoche: manana la jornada se vuelve a exigir sin que nadie tenga que
+ * acordarse de borrar nada, que es justo lo que un booleano suelto no daria. El `staffId` impide que
+ * dos cuentas en el mismo navegador —el equipo compartido, o quien entra con otra sesion para revisar
+ * algo— hereden una decision que no tomaron.
+ *
+ * @param staffId de quien es la decision
+ * @param dia el dia en curso en `YYYY-MM-DD`, en la hora local del negocio (`hoyLocal()`)
+ * @returns la clave con la que leer, escribir y borrar la marca
+ */
+export function claveDeJornadaPospuesta (staffId: number, dia: string): string {
+  return `wiwo:jornada-pospuesta:v1:${staffId}:${dia}`
+}
+
+/**
+ * Si hoy ya se pospuso la apertura y no hay que volver a exigirla.
+ *
+ * === POR QUE UN FALLO DEVUELVE `false` Y NO PROPAGA ===
+ *
+ * En una ventana privada —o con el almacenamiento del sitio bloqueado— el solo hecho de tocar
+ * `localStorage` lanza. Lo unico que se pierde ahi es la memoria de la decision, asi que el fallo
+ * degrada a "no se acuerda": la ventana vuelve a aparecer, y quien no quiera abrir la jornada la
+ * vuelve a cerrar. Dejar escapar la excepcion, en cambio, se lleva por delante la cabecera entera,
+ * que es un precio desproporcionado para un recordatorio.
+ *
+ * @param almacenamiento normalmente `window.localStorage`
+ * @param staffId de quien es la decision
+ * @param dia el dia en curso en `YYYY-MM-DD`
+ * @returns `true` solo si consta la marca de HOY para esta persona
+ */
+export function jornadaPospuestaHoy (
+  almacenamiento: Almacenamiento,
+  staffId: number,
+  dia: string
+): boolean {
+  try {
+    return almacenamiento.getItem(claveDeJornadaPospuesta(staffId, dia)) !== null
+  } catch {
+    return false
+  }
+}
+
+/**
+ * Anota que por hoy no se vuelve a exigir la apertura.
+ *
+ * @param almacenamiento normalmente `window.localStorage`
+ * @param staffId de quien es la decision
+ * @param dia el dia en curso en `YYYY-MM-DD`
+ * @returns `false` si el navegador no dejo guardarla; la decision vale igual en esta pestana
+ */
+export function posponerJornadaPorHoy (
+  almacenamiento: Almacenamiento,
+  staffId: number,
+  dia: string
+): boolean {
+  try {
+    almacenamiento.setItem(claveDeJornadaPospuesta(staffId, dia), MARCA_PUESTA)
+    return true
+  } catch {
+    return false
+  }
+}
+
+/**
+ * Borra la marca del dia. Se llama cuando la jornada se abre de verdad: posponer era "todavia no", y
+ * una marca que sobreviva a la apertura silenciaria la exigencia del dia en que la jornada se cierre
+ * y haya que volver a abrirla.
+ *
+ * @param almacenamiento normalmente `window.localStorage`
+ * @param staffId de quien era la decision
+ * @param dia el dia en curso en `YYYY-MM-DD`
+ * @returns `false` si el navegador no dejo borrarla
+ */
+export function olvidarJornadaPospuesta (
+  almacenamiento: Almacenamiento,
+  staffId: number,
+  dia: string
+): boolean {
+  try {
+    almacenamiento.removeItem(claveDeJornadaPospuesta(staffId, dia))
+    return true
+  } catch {
+    return false
+  }
+}
+
+/**
+ * Donde queda anotado que esta persona no quiere volver a ver el recordatorio de asignar destino.
+ *
+ * === POR QUE NO LLEVA EL DIA, Y POR QUE SI LLEVA EL `staffId` ===
+ *
+ * Al reves que la marca de posponer, esta decision es para siempre: quien marca "no volver a
+ * mostrarme esto" lo dice del aviso entero y no del martes. Por eso la clave no lleva fecha —una que
+ * caducara a medianoche convertiria la casilla en una mentira, y a la semana siguiente la persona
+ * estaria desmarcandola otra vez sin entender por que volvio— y por eso hace falta un sitio donde
+ * volver a encenderla: la casilla del control de la cabecera.
+ *
+ * El `staffId` esta por el mismo motivo que en la marca de posponer: en un equipo compartido, dos
+ * cuentas en el mismo navegador no pueden heredar una decision que no tomaron.
+ *
+ * === LA PREFERENCIA ES DEL NAVEGADOR, NO DE LA CUENTA ===
+ *
+ * Vive en `localStorage` y no en la API porque no hay donde ponerla del lado del servidor: `/settings`
+ * son los ajustes de la instalacion y `/me/perfil` guarda identidad y firma, no gustos. La
+ * consecuencia esta asumida y es deliberada: quien silencie el recordatorio en su computador lo
+ * volvera a ver desde otro equipo, desde otro navegador, o despues de limpiar los datos del sitio.
+ * Es un recordatorio y no un permiso, asi que el precio de que reaparezca alguna vez sale mas barato
+ * que el de un endpoint de preferencias personales que hoy no existe.
+ *
+ * @param staffId de quien es la decision
+ * @returns la clave con la que leer, escribir y borrar la marca
+ */
+export function claveDeRecordatorioDeDestino (staffId: number): string {
+  return `wiwo:recordatorio-destino:v1:${staffId}`
+}
+
+/**
+ * Si hay que mostrarle el recordatorio de asignar destino a esta persona.
+ *
+ * Lo guardado es el **silencio** y no el consentimiento, asi que la ausencia de marca significa "se
+ * muestra". Al reves —guardar "quiero verlo"— el estado de fabrica seria el silencio, y quien entrara
+ * por primera vez no veria nunca el aviso que esto existe para dar.
+ *
+ * Un fallo degrada a `true` por el mismo criterio que `jornadaPospuestaHoy()`: con el almacenamiento
+ * bloqueado lo unico que se pierde es la memoria de la preferencia, y de las dos degradaciones
+ * posibles la que muestra de mas se corrige en un clic, mientras que la que calla para siempre
+ * esconde el aviso sin que nadie lo haya pedido.
+ *
+ * @param almacenamiento normalmente `window.localStorage`
+ * @param staffId de quien es la decision
+ * @returns `true` salvo que conste la marca de silencio de esta persona
+ */
+export function recordatorioDeDestinoActivo (
+  almacenamiento: Almacenamiento,
+  staffId: number
+): boolean {
+  try {
+    return almacenamiento.getItem(claveDeRecordatorioDeDestino(staffId)) === null
+  } catch {
+    return true
+  }
+}
+
+/**
+ * Enciende o apaga el recordatorio para esta persona.
+ *
+ * Una sola funcion para los dos sentidos y no dos: la casilla del aviso y la del control de la
+ * cabecera escriben la MISMA preferencia, y con una funcion por sentido el dia que la clave cambie
+ * una de las dos se queda escribiendo en la vieja.
+ *
+ * @param almacenamiento normalmente `window.localStorage`
+ * @param staffId de quien es la decision
+ * @param activo `true` para volver a mostrarlo, `false` para no mostrarlo mas
+ * @returns `false` si el navegador no dejo guardar la preferencia; la decision vale igual en esta pestana
+ */
+export function fijarRecordatorioDeDestino (
+  almacenamiento: Almacenamiento,
+  staffId: number,
+  activo: boolean
+): boolean {
+  try {
+    if (activo) almacenamiento.removeItem(claveDeRecordatorioDeDestino(staffId))
+    else almacenamiento.setItem(claveDeRecordatorioDeDestino(staffId), MARCA_PUESTA)
+
+    return true
+  } catch {
+    return false
+  }
+}
+
+/**
+ * Las opciones cuyo nombre coincide con lo que se escribio en el buscador de un combo.
+ *
+ * `normalizar` —el mismo de la agenda de salas— saca acentos y mayusculas antes de comparar: sin eso
+ * "nunez" no encuentra "Núñez" ni "logistica" encuentra "Logística", y quien busca concluye que su
+ * Proyecto no esta en la lista. Nadie escribe los acentos al filtrar; es el caso normal, no el borde.
+ *
+ * Busca por subcadena y no por prefijo porque los nombres del catalogo empiezan casi todos igual
+ * ("Proyecto ACME", "Proyecto DELCO"): con prefijo habria que escribir el nombre entero para llegar
+ * a lo que lo distingue. Una busqueda vacia —o de solo espacios— devuelve todo.
+ *
+ * @param opciones la lista completa, tal como llego de la API
+ * @param busqueda lo tipeado
+ * @returns las que coinciden, en el mismo orden en que llegaron
+ */
+export function filtrarPorNombre <T extends { name: string }> (opciones: T[], busqueda: string): T[] {
+  const buscado = normalizar(busqueda)
+
+  if (buscado === '') return opciones
+
+  return opciones.filter((opcion) => normalizar(opcion.name).includes(buscado))
+}
 
 /** Hasta donde llega el tablero de quien mira. Es la traduccion de `meta.scope` de `GET /live`. */
-export type AlcanceDeLive = 'todo' | 'area' | 'propio'
+export type AlcanceDeLive = 'todo' | 'subordinados' | 'area' | 'propio'
 
 /**
  * Que parte del equipo puede ver esta persona en el tablero.
@@ -19,17 +250,28 @@ export type AlcanceDeLive = 'todo' | 'area' | 'propio'
  *
  * La llave del alcance total es la misma que la de la seccion Equipo (`staff.view`), mas
  * `is_superadmin`, que la tiene aunque Perfex no le haya dado la capacidad. La del alcance por area
- * es `is_director`, igual que "Mi Área": el cargo Director no otorga capabilities de Perfex, asi que
- * `permissions` nunca lo delata.
+ * es `is_director`: el cargo Director no otorga capabilities de Perfex, asi que `permissions` nunca
+ * lo delata. Ya no es la misma llave que la de "Mi Área" —esa pasó a ser la pertenencia a un area,
+ * ver `puedeVerMiArea()`—: aca se pregunta por quien MANDA en un area, no por quien pertenece a
+ * ella, y pertenecer no da derecho al tablero de los demas.
+ *
+ * `dirige_areas` va ANTES que `is_director` y es lo que arregla el caso que faltaba: quien dirige un
+ * area del organigrama (`tblareas.jefe_staffid`) pero no tiene el cargo Director ni `staff.view` caia
+ * en `propio`, y esta pantalla ni le pedia el tablero — aunque la API se lo hubiera dado entero. Las
+ * dos llaves conviven porque son dos cosas distintas: el arbol de areas y el cargo de antes.
  *
  * Esconder no autoriza: quien fuerce `/live` recibe de la API el alcance que le corresponde, no el
- * que diga esta funcion. `meta.scope` es la verdad; esto solo decide que se dibuja.
+ * que diga esta funcion. `meta.scope` es la verdad; esto solo decide que se dibuja. Y al reves
+ * tampoco quita nada: esta funcion solo puede AMPLIAR lo que se pide, nunca recortar el piso que el
+ * nivel de la persona ya le da.
  *
  * @param yo la sesion de quien mira (`GET /me`)
- * @returns `todo` para el equipo entero, `area` para su area, `propio` para nadie mas que uno mismo
+ * @returns `todo` para el equipo entero, `subordinados` para su rama del organigrama, `area` para su
+ *          area, `propio` para nadie mas que uno mismo
  */
 export function alcanceDeLive (yo: Yo): AlcanceDeLive {
   if (yo.is_superadmin || puedeVerSeccion(yo.permissions.staff, 'staff')) return 'todo'
+  if (yo.dirige_areas) return 'subordinados'
   if (yo.is_director) return 'area'
 
   return 'propio'
@@ -76,6 +318,13 @@ export function mensajeDeFalloDeMedidor (estado: number, arrancando: boolean): s
  * que la pantalla quedo vieja: otra pestaña ya hizo el cambio. Por eso el texto invita a mirar de
  * nuevo en vez de a reintentar.
  *
+ * **Al abrir ya no queda nada mas que traducir.** Hubo un tiempo en que esta ventana mandaba el
+ * destino dentro del cuerpo, y entonces la misma peticion podia fallar por el destino y no por la
+ * jornada: el 403, el 404 y el 422 hablaban del Proyecto o de la Tarea. La apertura dejo de pedir
+ * destino —el cuerpo sale vacio— asi que lo unico que la API puede objetar ahora es que el dia ya
+ * este abierto. Aquellos textos se fueron con el camino que los producia: conservarlos mandaria a
+ * revisar un combo que la ventana ya no tiene.
+ *
  * @param estado codigo HTTP de la respuesta; `0` si la peticion no llego a salir
  * @param abriendo `true` si el fallo fue al abrir, `false` al cerrar
  * @returns el mensaje a mostrar; nunca vacio
@@ -89,5 +338,117 @@ export function mensajeDeFalloDeJornada (estado: number, abriendo: boolean): str
       : 'No tienes ninguna jornada abierta.'
   }
 
+  // Al cerrar, el unico 422 que la API puede devolver a esta pantalla es el comentario pasado de
+  // largo: el instante de cierre lo sella el servidor y nunca se manda desde aca. El `maxLength`
+  // del campo lo hace practicamente inalcanzable, pero un mensaje que dice "respondio 422" no le
+  // deja nada que hacer a quien igual llegue.
+  if (!abriendo && estado === 422) {
+    return 'El comentario del día es demasiado largo. Acórtalo y vuelve a intentar.'
+  }
+
   return `No se pudo ${abriendo ? 'abrir' : 'cerrar'} la jornada (el servidor respondió ${estado}).`
+}
+
+/**
+ * Los escalones que reciben el resumen del equipo de las 20:00.
+ *
+ * Espeja la regla de la API (`Escritura\ResumenDelEquipo`), que responde **403** a quien no está en
+ * la lista. Existe para no ofrecer un enlace que lleva a una pantalla sin permiso: esconder no
+ * autoriza —la compuerta es la API— pero enseñarle una puerta cerrada a media empresa tampoco
+ * informa a nadie.
+ *
+ * `lider` queda fuera a propósito: conduce un equipo, no la casa, y el resumen es de toda ella.
+ * `focal` tampoco, que además ya no es un escalón sino una relación con clientes.
+ */
+const JEFATURAS: readonly NivelPermiso[] = ['head', 'gerente', 'admin', 'superadmin']
+
+/**
+ * Si a esta persona le corresponde ver el resumen del equipo.
+ *
+ * @param nivel el escalón que resolvió la API en `GET /me`
+ * @returns `true` para jefaturas
+ */
+export function esJefatura (nivel: NivelPermiso): boolean {
+  return JEFATURAS.includes(nivel)
+}
+
+/**
+ * El Cliente de la jornada abierta, leido sin confiar en que venga.
+ *
+ * Tres cosas distintas llegan a `null` por este camino y a proposito se tratan igual: que no haya
+ * jornada abierta, que la API sea vieja y no mande el campo, y que la jornada no tenga Cliente. Para
+ * quien pinta la cabecera las tres son lo mismo —no hay nombre que mostrar— y distinguirlas ahi
+ * significaria tres ramas para el mismo pixel.
+ *
+ * @param estado el estado del dia tal como llega de `GET /me/jornada`, o `null` si no se pudo leer
+ * @returns el Cliente con su nombre, o `null`
+ */
+export function clienteDeJornada (estado: EstadoDeJornada | null): ClienteDeJornada | null {
+  return estado?.open?.client ?? null
+}
+
+/**
+ * Si la jornada esta abierta y no hay nada midiendose contra ella.
+ *
+ * Es el estado que las dos salidas nuevas crean, y el que la cabecera tiene que delatar: el reloj del
+ * dia corre y ningun cronometro lo cubre, asi que ese rato no se le esta imputando a nada. No es un
+ * error —abrir asi es una eleccion valida— pero tiene que verse, porque la alternativa es que alguien
+ * descubra al cerrar el dia que ocho horas no tienen destino.
+ *
+ * No mira el Cliente: un Cliente no es un destino. Contra el no se mide tiempo, asi que una jornada
+ * con Cliente y sin cronometro sigue siendo tiempo sin imputar.
+ *
+ * @param estado el estado del dia, o `null` si no se pudo leer
+ * @returns `true` solo cuando consta que hay jornada abierta y ningun medidor corriendo
+ */
+export function jornadaSinDestino (estado: EstadoDeJornada | null): boolean {
+  return estado?.open != null && estado.timer === null
+}
+
+/**
+ * Como se le cuenta a la persona que su jornada corre sin destino.
+ *
+ * El tono es deliberado. La frase anterior —"las horas de tu jornada se estan yendo sin cubrir"— es
+ * exacta y es un reproche, y el pedido fue justamente que la ventana dejara de ser intrusiva. Esta
+ * dice el mismo hecho en presente y sin culpa: el dia corre, el cronometro todavia no. Lo que falta
+ * se nombra como algo que queda por hacer, no como algo que se hizo mal.
+ *
+ * Nombra al Cliente cuando lo hay porque es la mitad que la persona SI resolvio, y esconderlo le
+ * daria a la jornada con Cliente el mismo aviso que a la que se abrio en blanco.
+ *
+ * @param cliente el Cliente de la jornada, o `null` si no tiene o si no se pudo leer
+ * @returns la frase lista para mostrar; nunca vacia
+ */
+export function fraseDeJornadaSinDestino (cliente: ClienteDeJornada | null): string {
+  const espacio = GLOSARIO.espacio.singular.toLowerCase()
+
+  if (cliente === null) {
+    return `Tu jornada corre sin ${espacio} ni ${GLOSARIO.cliente.singular.toLowerCase()} todavía.`
+  }
+
+  return `Tu jornada corre para ${cliente.name}, sin ${espacio} todavía.`
+}
+
+/**
+ * Traduce el fallo de fijar, cambiar o quitar el Cliente de la jornada.
+ *
+ * Aparte de `mensajeDeFalloDeJornada()` porque contesta otra pregunta. Ese habla de abrir y cerrar el
+ * dia; este habla de un campo de un dia que ya esta abierto, y sus codigos significan otra cosa: el
+ * `409` no es "ya tienes una jornada" sino "no tienes ninguna", y el `422` no es un comentario de
+ * cierre demasiado largo sino un Cliente que ya no esta.
+ *
+ * Ese `422` es el unico que esta interfaz puede provocar: el `client_id` sale de un combo, asi que no
+ * puede ir con basura, y el `PATCH` siempre manda la clave —un `PATCH` sin `client_id` es 422
+ * `requerido`, no un borrado silencioso, y por eso quitar el Cliente se escribe `client_id: null`
+ * explicito—.
+ *
+ * @param estado codigo HTTP de la respuesta; `0` si la peticion no llego a salir
+ * @returns el mensaje a mostrar; nunca vacio
+ */
+export function mensajeDeFalloDeCliente (estado: number): string {
+  if (estado === 0) return 'No se pudo contactar al servidor. Revisa la conexión.'
+  if (estado === 409) return 'No tienes ninguna jornada abierta a la que ponerle un Cliente.'
+  if (estado === 422) return 'Ese Cliente ya no existe o está en la papelera. Elige otro.'
+
+  return `No se pudo guardar el Cliente de la jornada (el servidor respondió ${estado}).`
 }

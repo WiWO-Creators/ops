@@ -103,7 +103,17 @@ const CAMPOS: Record<string, string> = {
   milestone: GLOSARIO.hito.singular,
   rel_id: GLOSARIO.espacio.singular,
   rel_type: 'Tipo de vínculo',
-  completed_at: 'Fecha de cierre'
+  completed_at: 'Fecha de cierre',
+  recurring: 'Recurrente',
+  repeat_every: 'Repetir cada',
+  recurring_type: 'Unidad',
+  cycles: 'Ciclos',
+  // Organigrama de areas. `area_superior_id` y `jefe_staffid` son los nombres de la tabla; en la
+  // pantalla son "De qué área cuelga" y "Quién la dirige", que es como los lee quien los completa.
+  area_superior_id: 'Área superior',
+  jefe_staffid: 'Quien dirige',
+  area_ids: 'Áreas',
+  area_id: 'Área'
 }
 
 /**
@@ -133,7 +143,13 @@ const MOTIVOS: Record<string, string> = {
   anterior_al_inicio: 'es anterior a la fecha de inicio',
   futura: 'no puede ser posterior a ahora',
   no_completado: 'solo se puede corregir en una tarea completada',
-  no_pertenece_al_espacio: `no pertenece a este ${GLOSARIO.espacio.singular.toLowerCase()}`
+  no_pertenece_al_espacio: `no pertenece a este ${GLOSARIO.espacio.singular.toLowerCase()}`,
+  recurrencia_apagada: 'no se puede usar: la recurrencia está desactivada en esta instalación',
+  sobra_sin_recurrencia: 'sobra si la tarea no es recurrente',
+  duplicado: 'ya está usado por otra',
+  // El motivo dice la consecuencia y no la palabra "ciclo": quien completa el formulario no piensa
+  // en grafos, piensa en que acaba de colgar un área de una que ya colgaba de ella.
+  ciclo: 'no puede ser un área que ya cuelga de esta'
 }
 
 /**

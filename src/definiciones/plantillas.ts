@@ -38,7 +38,13 @@ export const PLANTILLAS: DefinicionRecurso<PlantillaEspacio> = {
     }
   ],
 
-  filtros: [],
+  filtros: [
+    { clave: 'name', etiqueta: 'Nombre', tipo: 'campo', tipoDato: 'texto' },
+    { clave: 'description', etiqueta: 'Descripción', tipo: 'campo', tipoDato: 'texto' },
+    { clave: 'duration_days', etiqueta: 'Duración (días)', tipo: 'campo', tipoDato: 'numero' },
+    { clave: 'is_public', etiqueta: 'Compartida', tipo: 'campo', tipoDato: 'booleano' },
+    { clave: 'date_created', etiqueta: 'Creada', tipo: 'campo', tipoDato: 'fecha' },
+  ],
   ordenables: [],
   // Lista vacia y no una cadena: `estadoInicial` la usa tal cual, y cualquier campo suelto acabaria
   // en un `sort` que el endpoint no declara.

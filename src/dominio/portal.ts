@@ -1,4 +1,5 @@
 import { GLOSARIO } from './glosario.ts'
+import type { YoPortal } from '@/datos/tipos'
 
 /**
  * Navegacion del portal del cliente.
@@ -44,3 +45,18 @@ export function seccionesDelPortal (habilitadas: readonly string[]): SeccionPort
 }
 
 export { CATALOGO as CATALOGO_PORTAL }
+
+/**
+ * Con que nombre saludar al contacto en el inicio.
+ *
+ * El nombre de pila es lo natural, pero la API lo devuelve vacio cuando el contacto se cargo con el
+ * nombre completo en un solo campo, y ahi el saludo quedaba en "Hola, ".
+ *
+ * @param yo el contacto tal como lo devuelve `/portal/me`
+ * @returns el nombre de pila, o el nombre completo si no hay
+ */
+export function saludar (yo: Pick<YoPortal, 'firstname' | 'full_name'>): string {
+  const pila = yo.firstname.trim()
+
+  return pila === '' ? yo.full_name.trim() : pila
+}

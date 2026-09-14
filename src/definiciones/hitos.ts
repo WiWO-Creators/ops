@@ -38,6 +38,11 @@ export const HITOS: DefinicionRecurso<HitoDetallado> = {
    * seguido —"que hitos ve el cliente"— y es una columna real de `tblmilestones`, no un calculo.
    */
   filtros: [
+    { clave: 'name', etiqueta: 'Nombre', tipo: 'campo', tipoDato: 'texto' },
+    { clave: 'start_date', etiqueta: 'Inicio', tipo: 'campo', tipoDato: 'fecha' },
+    { clave: 'due_date', etiqueta: 'Vencimiento', tipo: 'campo', tipoDato: 'fecha' },
+    { clave: 'description', etiqueta: 'Descripción', tipo: 'campo', tipoDato: 'texto' },
+    { clave: 'avance', etiqueta: 'Avance (%)', tipo: 'campo', tipoDato: 'numero' },
     { clave: 'vence', etiqueta: 'Vence', tipo: 'rangoFechas', clavesRango: ['date_from', 'date_to'] },
     { clave: 'hide_from_customer', etiqueta: 'Oculto al cliente', tipo: 'booleano' }
   ],

@@ -1,5 +1,6 @@
+import { GLOSARIO } from '../dominio/glosario.ts'
 import type { EstadoLookup, Lookups } from './recursos.ts'
-import type { DefinicionRecurso, OpcionFiltro } from '../definiciones/tipos.ts'
+import type { DefinicionRecurso, Filtro, OpcionFiltro } from '../definiciones/tipos.ts'
 
 /**
  * Lectura de los catalogos configurables de Perfex.
@@ -55,6 +56,22 @@ export function nombreDe (lista: EstadoLookup[], id: number): string {
  * @param lookups Los catalogos ya cargados.
  * @returns Un mapa indexado por `Filtro.desdeLookup`, listo para pasar a `TablaRecurso`.
  */
+/**
+ * Clave con la que un filtro busca su catalogo ya resuelto.
+ *
+ * No alcanza con `desdeLookup`: un mismo catalogo se usa de dos maneras —el Asignado va por id de
+ * persona y el Seguidor por su nombre— y con una sola clave el segundo pisaria las opciones del
+ * primero.
+ *
+ * @param filtro El filtro, con su origen declarado.
+ * @returns La clave del mapa de opciones, o cadena vacia si el filtro no saca opciones de un catalogo.
+ */
+export function claveDeCatalogo (filtro: Filtro): string {
+  if (filtro.desdeLookup === undefined) return ''
+
+  return filtro.valorPorNombre === true ? `${filtro.desdeLookup}:nombre` : filtro.desdeLookup
+}
+
 export function opcionesDeFiltros<T> (
   definicion: DefinicionRecurso<T>,
   lookups: Lookups
@@ -62,14 +79,68 @@ export function opcionesDeFiltros<T> (
   const mapa: Record<string, OpcionFiltro[]> = {}
 
   for (const filtro of definicion.filtros) {
-    if (filtro.desdeLookup === undefined || mapa[filtro.desdeLookup] !== undefined) continue
+    const clave = claveDeCatalogo(filtro)
 
-    mapa[filtro.desdeLookup] = listaDe(lookups, filtro.desdeLookup).map((item) => ({
-      valor: String(item.id),
+    if (clave === '' || mapa[clave] !== undefined) continue
+
+    const lista = listaDe(lookups, filtro.desdeLookup as string).map((item) => ({
+      valor: filtro.valorPorNombre === true ? item.name : String(item.id),
       etiqueta: item.name,
       ...(item.color === undefined ? {} : { color: item.color })
     }))
+
+    // Por nombre, el catalogo casi siempre repite: `task_types` trae una fila por Espacio y el
+    // equipo tiene homonimos. Dos opciones con el mismo valor son la misma pregunta escrita dos
+    // veces, y ademas rompen la clave de React.
+    mapa[clave] = filtro.valorPorNombre === true ? sinRepetidos(lista) : lista
   }
 
   return mapa
+}
+
+/**
+ * Valor del filtro de Espacio que pide los Procesos que no cuelgan de ninguno.
+ *
+ * Es el valor sintetico que entiende la API (`filter[project_id]=ninguno`), no un id: un Espacio con
+ * id `0` no existe, y mandar `0` o vacio devolvia cero filas sin decir por que. Los demas valores del
+ * filtro son ids numericos, asi que no colisiona con ninguno.
+ */
+export const SIN_ESPACIO = 'ninguno'
+
+/**
+ * Opciones del filtro por Espacio de un listado de Procesos.
+ *
+ * "Sin proyecto" va primera porque es la unica opcion que no se puede alcanzar de otra forma: las
+ * tareas sin Espacio estan en la lista pero repartidas entre las ultimas paginas, y hasta que este
+ * filtro existio no habia manera de pedirlas para asignarles uno con "Agregar a proyecto".
+ *
+ * Vive aca y no en cada pagina porque las tres vistas de Procesos —tabla, tablero y calendario—
+ * arman este mismo catalogo, y una copia que se desincronice deja una vista filtrando distinto que
+ * las otras.
+ *
+ * A diferencia de `opcionesDeFiltroDeHito`, un catalogo vacio NO deja el desplegable vacio: "Sin
+ * proyecto" sigue siendo una pregunta que se puede contestar aunque no haya ningun Espacio a la
+ * vista.
+ *
+ * @param espacios Los Espacios visibles, tal como los devuelve `GET /projects`.
+ * @returns Las opciones para `ControlesTabla`, con "Sin proyecto" al frente.
+ */
+export function opcionesDeFiltroDeEspacio (espacios: Array<{ id: number, name: string }>): OpcionFiltro[] {
+  return [
+    { valor: SIN_ESPACIO, etiqueta: `Sin ${GLOSARIO.espacio.singular.toLowerCase()}` },
+    ...espacios.map((espacio) => ({ valor: String(espacio.id), etiqueta: espacio.name }))
+  ]
+}
+
+/** Deja una sola opcion por valor, conservando el orden en que llegaron. */
+function sinRepetidos (opciones: OpcionFiltro[]): OpcionFiltro[] {
+  const vistos = new Set<string>()
+
+  return opciones.filter((opcion) => {
+    if (opcion.valor === '' || vistos.has(opcion.valor)) return false
+
+    vistos.add(opcion.valor)
+
+    return true
+  })
 }

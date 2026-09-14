@@ -18,31 +18,39 @@
 
 .acta-editor {
   background: #fff;
-  color: #374151;
-  font-family: 'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-serif;
+  /*
+   * Los colores y la tipografía salen de las variables de marca (`dominio/marcas-acta.ts`), con el
+   * aspecto neutro de siempre como reserva. Escritos así y no fijos, da igual qué hoja gane la
+   * cascada: las dos piden el mismo valor, y un acta corregida se ve como el acta que se manda.
+   */
+  color: var(--marca-texto, #374151);
+  font-family: var(--marca-fuente, 'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-serif);
   font-size: 16px;
   line-height: 1.75;
   overflow-wrap: anywhere;
 }
 
 .acta-editor :is(h1, h2, h3, h4) {
-  color: #111827;
-  font-weight: 700;
+  color: var(--marca-tinta, #111827);
+  font-weight: var(--marca-titulo-peso, 700);
 }
 
 .acta-editor h1 {
   margin: 0 0 1.25rem;
   font-size: 2rem;
-  font-weight: 800;
+  font-weight: var(--marca-titulo-peso, 800);
   line-height: 1.2;
-  letter-spacing: -0.02em;
+  letter-spacing: var(--marca-titulo-tracking, -0.02em);
 }
 
 .acta-editor h2 {
   margin: 2.25rem 0 0.9rem;
+  padding-bottom: 0.3rem;
+  /* Sin marca no hay filete: `transparent` deja el título como estaba. */
+  border-bottom: 2px solid var(--marca-filete, transparent);
   font-size: 1.4rem;
   line-height: 1.35;
-  letter-spacing: -0.01em;
+  letter-spacing: var(--marca-titulo-tracking, -0.01em);
 }
 
 .acta-editor h3 {
@@ -56,7 +64,7 @@
 }
 
 .acta-editor :is(strong, b) {
-  color: #111827;
+  color: var(--marca-tinta, #111827);
   font-weight: 600;
 }
 
@@ -79,20 +87,21 @@
 }
 
 .acta-editor li::marker {
-  color: #9ca3af;
+  color: var(--marca-acento, #9ca3af);
 }
 
 .acta-editor hr {
   margin: 2rem 0;
   border: 0;
-  border-top: 1px solid #e5e7eb;
+  border-top: 1px solid var(--marca-filete, #e5e7eb);
 }
 
 .acta-editor blockquote {
   margin: 1.5rem 0;
-  padding-left: 1rem;
-  border-left: 3px solid #e5e7eb;
-  color: #4b5563;
+  padding: 0.75rem 1rem;
+  border-left: 3px solid var(--marca-acento, #e5e7eb);
+  background: var(--marca-cita-fondo, transparent);
+  color: var(--marca-texto, #4b5563);
   font-style: italic;
 }
 

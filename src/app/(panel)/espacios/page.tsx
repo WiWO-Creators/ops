@@ -1,6 +1,8 @@
 import { Suspense } from 'react'
+import { redirect } from 'next/navigation'
 import { VistaEspacios } from '@/componentes/proyecto/TarjetasProyectos'
 import { Cargando } from '@/componentes/estado/Estados'
+import { TituloModulo } from '@/componentes/estructura/TituloModulo'
 import { RUTA_DE_ASIGNABLES } from '@/datos/asignables'
 import { construirConsulta, leerConsulta, paramsDeUrl } from '@/datos/consulta'
 import { cargarLookups, opcionesDeFiltros } from '@/datos/lookups'
@@ -15,7 +17,7 @@ import type {
 } from '@/datos/recursos'
 import type { OpcionFiltro } from '@/definiciones/tipos'
 import type { Yo } from '@/datos/tipos'
-import { ESPACIOS } from '@/definiciones/espacios'
+import { ESPACIOS, espaciosConCampos, filtrosDeEntradaDeEspacios } from '@/definiciones/espacios'
 
 export const metadata = { title: 'Proyectos · WiWO Ops' }
 
@@ -46,16 +48,30 @@ function opcionesDe<T> (lista: T[] | null, valor: (item: T) => string, etiqueta:
  */
 export default async function EspaciosPage (props: PageProps<'/espacios'>) {
   const params = paramsDeUrl(await props.searchParams)
-  const estado = leerConsulta(params, ESPACIOS)
-  const consulta = construirConsulta(estado, ESPACIOS)
+  const campos = await pedir<CampoPersonalizadoMeta[]>('/custom-fields?para=projects')
+  const definicion = espaciosConCampos(campos.data)
+  const estado = leerConsulta(params, definicion)
+  const consulta = construirConsulta(estado, definicion)
   const vista = params.get('vista') === 'tabla' ? 'tabla' : 'tarjetas'
 
-  const [lista, lookups, yo, estadisticas, campos, clientes, equipo, plantillas] = await Promise.all([
+  // La regla del filtro de entrada vive en `filtrosDeEntradaDeEspacios`; este `if` solo evita pedir el
+  // catalogo en serie delante del listado en las visitas que ya traen consulta, que son la mayoria.
+  // `cargarLookups` esta memoizado por peticion, asi que el `Promise.all` de abajo no lo repite.
+  if (params.toString() === '') {
+    const { project_statuses: estadosDeEspacio } = await cargarLookups()
+    const filtros = filtrosDeEntradaDeEspacios(params, estadosDeEspacio.map((opcion) => String(opcion.id)))
+
+    // Se redirige en vez de filtrar por dentro: asi las pastillas, los controles y la tabla leen el
+    // mismo estado desde la URL —una sola fuente— y al quitar el estado queda una URL con parametros,
+    // que ya no vuelve a disparar el defecto.
+    if (filtros !== null) redirect(`/espacios?${construirConsulta({ ...estado, filtros }, definicion)}`)
+  }
+
+  const [lista, lookups, yo, estadisticas, clientes, equipo, plantillas] = await Promise.all([
     pedir<Espacio[]>(`/projects${consulta === '' ? '' : `?${consulta}`}`),
     cargarLookups(),
     pedir<Yo>('/me'),
     pedirOpcional<EstadisticaEstado[]>('/projects/stats'),
-    pedirOpcional<CampoPersonalizadoMeta[]>('/custom-fields?para=projects'),
     pedirOpcional<Cliente[]>(`/clients?per_page=${TOPE_DE_OPCIONES}`),
     // Misma fuente que el selector de asignados de la tarea. `/staff` exige `staff.view` —lo tienen
     // 19 de 184 personas— y ademas cortaba en 100: dos motivos para que el filtro por persona
@@ -77,7 +93,7 @@ export default async function EspaciosPage (props: PageProps<'/espacios'>) {
 
   return (
     <section className="flex flex-col gap-4">
-      <h1 className="text-xl font-semibold text-texto">{ESPACIOS.titulo.plural}</h1>
+      <TituloModulo titulo={ESPACIOS.titulo.plural} />
 
       <Suspense fallback={<Cargando alto="min-h-36" mensaje={`Cargando ${ESPACIOS.titulo.plural.toLowerCase()}…`} />}>
         <VistaEspacios
@@ -87,7 +103,7 @@ export default async function EspaciosPage (props: PageProps<'/espacios'>) {
           vistaInicial={vista}
           estadisticas={estadisticas.datos}
           errorEstadisticas={estadisticas.error}
-          campos={campos.datos ?? []}
+          campos={campos.data}
           plantillas={plantillas.datos ?? []}
         />
       </Suspense>

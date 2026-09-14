@@ -12,6 +12,7 @@ import { ErrorEstado, Vacio } from '@/componentes/estado/Estados'
 import { CargandoConOrbe } from '@/componentes/estado/Orbe'
 import { CLASES_CASILLA } from '@/componentes/formularios/Entrada'
 import { Boton } from '@/componentes/formularios/Boton'
+import { Segmentado, type OpcionSegmentada } from '@/componentes/formularios/Segmentado'
 import {
   ContenidoMenu,
   DisparadorMenu,
@@ -21,7 +22,6 @@ import {
 import { cn } from '@/lib/clases'
 import { CeldaEncabezado, CeldaTabla, CuerpoTabla, EncabezadoTabla, FilaTabla, Tabla } from './Tabla'
 import { ControlesTabla, PaginacionTabla } from './ControlesTabla'
-import { PresetsFiltro } from './PresetsFiltro'
 import {
   clavesVisiblesPorDefecto,
   columnasVisibles,
@@ -29,12 +29,12 @@ import {
   hayFiltrosPuestos,
   mensajeDeError,
   podarPorPermisos,
-  resolverInsignia,
   rutaDeAccion,
   unirConsultas,
   urlConParametro,
   type CuerpoError
 } from './tabla'
+import { resolverEstado } from '@/dominio/estados-tarea'
 
 /**
  * Motor de tabla declarativo.
@@ -97,8 +97,38 @@ interface PropsTablaRecurso<T> {
   board?: TableroDePreset
   /** Casillas laterales y acciones sobre las filas seleccionadas de la página actual. */
   seleccionMasiva?: (filas: T[], limpiar: () => void, recargar: () => void) => ReactNode
+  /**
+   * Accion principal del listado —"Nueva licitación", "Nuevo cliente"—, al extremo derecho de la
+   * barra de herramientas.
+   *
+   * Existe como ranura y no como fila propia arriba de la tabla porque un boton solo, alineado a la
+   * derecha en una linea vacia, abre una banda muerta entre el titulo y la tabla y se lee como si
+   * fuera de otra pantalla. En la barra queda a la altura del buscador, que es donde se lo busca.
+   */
+  accion?: ReactNode
+  /**
+   * Como se dibuja una fila cuando el listado se mira en tarjetas. Ausente = la tabla es la unica
+   * presentacion y no se ofrece el alternador, que es como se comporta cada listado que no lo pide.
+   *
+   * Es una funcion y no una definicion declarativa a proposito: una tarjeta no es una fila con otro
+   * borde —elige que campos muestra y cuales no— y describirla por configuracion habria terminado
+   * siendo un segundo motor.
+   */
+  tarjeta?: (fila: T) => ReactNode
   className?: string
 }
+
+/**
+ * Las dos presentaciones del listado, para el alternador.
+ *
+ * `tabla` primero aunque en otras pantallas la de por defecto sean las tarjetas: el control arranca
+ * por la misma opcion en todo el producto, asi la persona no tiene que releerlo al cambiar de
+ * pantalla.
+ */
+const VISTAS: readonly OpcionSegmentada[] = [
+  { valor: 'tabla', etiqueta: 'Tabla', icono: 'tabla' },
+  { valor: 'tarjetas', etiqueta: 'Tarjetas', icono: 'tarjetas' }
+]
 
 /** Cuantos elementos escalonan antes de que el retraso deje de crecer. */
 const TOPE_ESCALONADO = 12
@@ -131,6 +161,8 @@ export function TablaRecurso<T> ({
   opcionesDeFiltro,
   board,
   seleccionMasiva,
+  accion,
+  tarjeta,
   className
 }: PropsTablaRecurso<T>) {
   const router = useRouter()
@@ -190,6 +222,16 @@ export function TablaRecurso<T> ({
     if (consulta === consultaInicial.current) setResultado(inicial)
   }, [inicial, consulta])
 
+  // La presentacion vive en la URL (`?vista=`) y en ningun otro lado, igual que el filtro y el
+  // orden: asi un enlace la conserva y recargar no la pierde. La tabla es lo que se ve sin pedir
+  // nada, de modo que cualquier valor que no sea `tarjetas` deja el listado como estaba.
+  const enTarjetas = tarjeta !== undefined && params.get('vista') === 'tarjetas'
+
+  /** Escribe la presentacion elegida en la URL, conservando filtros, orden y pagina. */
+  function cambiarVista (elegida: string): void {
+    router.replace(urlConParametro(new URLSearchParams(params.toString()), 'vista', elegida), { scroll: false })
+  }
+
   /** Aplica un cambio parcial del estado escribiendolo en la URL, que es su unica fuente. */
   function cambiar (parcial: Partial<EstadoConsulta>) {
     const siguiente = { ...estado, ...parcial }
@@ -248,20 +290,28 @@ export function TablaRecurso<T> ({
     <div className={cn('flex flex-col gap-3', className)}>
       <div className="flex flex-wrap items-start justify-between gap-2">
         <ControlesTabla
+          board={board}
           definicion={definicion}
           estado={estado}
           visibles={visibles}
           opcionesDeFiltro={opcionesDeFiltro}
           onCambiar={cambiar}
           onVisibles={setVisibles}
+          // En tarjetas el selector de columnas no cambia nada: la tarjeta elige sus campos. Un
+          // control que no hace nada se lee como un control roto.
+          sinColumnas={enTarjetas}
         />
-        {board !== undefined && (
-          <PresetsFiltro
-            board={board}
-            filtrosActuales={estado.filtros}
-            onAplicar={(filtros) => { cambiar({ filtros, pagina: 1 }) }}
-          />
-        )}
+        <div className="flex items-center gap-2">
+          {tarjeta !== undefined && (
+            <Segmentado
+              etiqueta="Presentación del listado"
+              opciones={VISTAS}
+              activo={enTarjetas ? 'tarjetas' : 'tabla'}
+              onElegir={cambiarVista}
+            />
+          )}
+          {accion}
+        </div>
       </div>
 
       {seleccionMasiva?.(seleccionadas, () => seleccionar([]), () => setRevision((n) => n + 1))}
@@ -291,117 +341,137 @@ export function TablaRecurso<T> ({
                   esquina. Antes esto era solo la atenuacion, que sin indicador se lee como un fallo. */}
               {cargando && <CargandoConOrbe mensaje="Actualizando…" className="absolute right-2 top-2 z-10" />}
               <div className={cn(cargando && 'opacity-60 transition-opacity')}>
-              <Tabla>
-                <EncabezadoTabla>
-                  <tr>
-                    {seleccionMasiva !== undefined && (
-                      <CeldaEncabezado>
-                        <input type="checkbox" className={CLASES_CASILLA}
-                          aria-label="Seleccionar toda esta página"
-                          disabled={cargando}
-                          checked={seleccionadas.length > 0 && seleccionadas.length === resultado.filas.length}
-                          ref={(elemento) => { if (elemento) elemento.indeterminate = seleccionadas.length > 0 && seleccionadas.length < resultado.filas.length }}
-                          onChange={(evento) => seleccionar(evento.target.checked ? resultado.filas.map(claveFila) : [])}
-                        />
-                      </CeldaEncabezado>
-                    )}
-                    {columnas.map((columna) => {
-                      const direccion = columna.ordenPor === undefined
-                        ? null
-                        : direccionDe(estado.orden, columna.ordenPor)
-
-                      return (
-                        <CeldaEncabezado
-                          key={columna.clave}
-                          numerica={columna.numerica}
-                          aria-sort={columna.ordenPor === undefined
-                            ? undefined
-                            : direccion === 'asc' ? 'ascending' : direccion === 'desc' ? 'descending' : 'none'}
-                        >
-                          {columna.ordenPor === undefined
-                            ? columna.encabezado
-                            : (
-                              <button
-                                type="button"
-                                className="hover:text-texto inline-flex items-center gap-1"
-                                onClick={() => { cambiar({ orden: alternarOrden(estado.orden, columna.ordenPor ?? ''), pagina: 1 }) }}
-                              >
-                                {columna.encabezado}
-                                <Flecha direccion={direccion} />
-                              </button>
-                              )}
-                        </CeldaEncabezado>
-                      )
-                    })}
-                    {(acciones.length > 0 || filaExtra !== undefined) && (
-                      <CeldaEncabezado className="w-10">
-                        <span className="sr-only">Acciones</span>
-                      </CeldaEncabezado>
-                    )}
-                  </tr>
-                </EncabezadoTabla>
-
-                <CuerpoTabla>
-                  {/* La entrada escalonada es solo del montaje, y lo garantiza el `key`: una animacion
-                      de CSS corre cuando nace el nodo, y un refresco que devuelve las mismas filas
-                      reutiliza los mismos `<tr>`. Volver a animarlas encima del chip de "Actualizando…"
-                      seria justo el parpadeo que ese chip vino a evitar. */}
-                  {resultado.filas.map((fila, indice) => {
-                    const href = urlDeFila(fila)
-
-                    return (
-                    <FilaTabla
-                      key={claveFila(fila)}
-                      className={cn('animate-entrar-abajo', claseFila?.(fila), idsSeleccionados.includes(claveFila(fila)) && 'bg-seleccionado')}
-                      aria-selected={seleccionMasiva === undefined ? undefined : idsSeleccionados.includes(claveFila(fila))}
-                      style={{ animationDelay: retrasoDeAparicion(indice) }}
-                      interactiva={href !== null}
-                      onClick={href === null ? undefined : (evento) => { abrirFila(evento, href) }}
-                    >
-                      {seleccionMasiva !== undefined && (
-                        <CeldaTabla>
-                          <label className="flex min-h-8 cursor-pointer items-center justify-center px-2">
+              {enTarjetas && tarjeta !== undefined
+                ? (
+                  <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                    {/* Mismo escalonado que las filas, y por el mismo motivo: la animacion corre al
+                        nacer el nodo, asi que el `key` por fila hace que un refresco reutilice los
+                        `<li>` ya pintados en vez de volver a hacerlos entrar. */}
+                    {resultado.filas.map((fila, indice) => (
+                      <li
+                        key={claveFila(fila)}
+                        className="animate-entrar-abajo flex"
+                        style={{ animationDelay: retrasoDeAparicion(indice) }}
+                      >
+                        {tarjeta(fila)}
+                      </li>
+                    ))}
+                  </ul>
+                  )
+                : (
+                  <Tabla>
+                    <EncabezadoTabla>
+                      <tr>
+                        {seleccionMasiva !== undefined && (
+                          <CeldaEncabezado>
                             <input type="checkbox" className={CLASES_CASILLA}
-                              aria-label={`Seleccionar fila ${claveFila(fila)}`}
+                              aria-label="Seleccionar toda esta página"
                               disabled={cargando}
-                              checked={idsSeleccionados.includes(claveFila(fila))}
-                              onChange={(evento) => seleccionar(evento.target.checked
-                                ? [...idsSeleccionados, claveFila(fila)]
-                                : idsSeleccionados.filter((id) => id !== claveFila(fila)))}
+                              checked={seleccionadas.length > 0 && seleccionadas.length === resultado.filas.length}
+                              ref={(elemento) => { if (elemento) elemento.indeterminate = seleccionadas.length > 0 && seleccionadas.length < resultado.filas.length }}
+                              onChange={(evento) => seleccionar(evento.target.checked ? resultado.filas.map(claveFila) : [])}
                             />
-                          </label>
-                        </CeldaTabla>
-                      )}
-                      {columnas.map((columna) => (
-                        <CeldaTabla key={columna.clave} numerica={columna.numerica} sinCortar={columna.sinCortar}>
-                          <Celda columna={columna} fila={fila} catalogos={opcionesDeFiltro} />
-                        </CeldaTabla>
-                      ))}
-                      {(acciones.length > 0 || filaExtra !== undefined) && (
-                        <CeldaTabla>
-                          {/* `stopPropagation`: la fila entera es un enlace cuando `urlDeFila`
-                              devuelve algo, y un clic en "Editar" no tiene que navegar ademas. */}
-                          <span
-                            className="flex items-center justify-end gap-1"
-                            onClick={(evento) => { evento.stopPropagation() }}
-                          >
-                            {filaExtra?.(fila, () => { router.refresh() })}
-                            {acciones.length > 0 && (
-                              <MenuAcciones
-                                acciones={acciones}
-                                id={claveFila(fila)}
-                                onError={setError}
-                                onListo={() => { router.refresh() }}
-                              />
-                            )}
-                          </span>
-                        </CeldaTabla>
-                      )}
-                    </FilaTabla>
-                    )
-                  })}
-                </CuerpoTabla>
-              </Tabla>
+                          </CeldaEncabezado>
+                        )}
+                        {columnas.map((columna) => {
+                          const direccion = columna.ordenPor === undefined
+                            ? null
+                            : direccionDe(estado.orden, columna.ordenPor)
+
+                          return (
+                            <CeldaEncabezado
+                              key={columna.clave}
+                              numerica={columna.numerica}
+                              angosta={columna.angosta}
+                              aria-sort={columna.ordenPor === undefined
+                                ? undefined
+                                : direccion === 'asc' ? 'ascending' : direccion === 'desc' ? 'descending' : 'none'}
+                            >
+                              {columna.ordenPor === undefined
+                                ? columna.encabezado
+                                : (
+                                  <button
+                                    type="button"
+                                    className="hover:text-texto inline-flex items-center gap-1"
+                                    onClick={() => { cambiar({ orden: alternarOrden(estado.orden, columna.ordenPor ?? ''), pagina: 1 }) }}
+                                  >
+                                    {columna.encabezado}
+                                    <Flecha direccion={direccion} />
+                                  </button>
+                                  )}
+                            </CeldaEncabezado>
+                          )
+                        })}
+                        {(acciones.length > 0 || filaExtra !== undefined) && (
+                          <CeldaEncabezado className="w-10">
+                            <span className="sr-only">Acciones</span>
+                          </CeldaEncabezado>
+                        )}
+                      </tr>
+                    </EncabezadoTabla>
+
+                    <CuerpoTabla>
+                      {/* La entrada escalonada es solo del montaje, y lo garantiza el `key`: una animacion
+                          de CSS corre cuando nace el nodo, y un refresco que devuelve las mismas filas
+                          reutiliza los mismos `<tr>`. Volver a animarlas encima del chip de "Actualizando…"
+                          seria justo el parpadeo que ese chip vino a evitar. */}
+                      {resultado.filas.map((fila, indice) => {
+                        const href = urlDeFila(fila)
+
+                        return (
+                        <FilaTabla
+                          key={claveFila(fila)}
+                          className={cn('animate-entrar-abajo', claseFila?.(fila), idsSeleccionados.includes(claveFila(fila)) && 'bg-seleccionado')}
+                          aria-selected={seleccionMasiva === undefined ? undefined : idsSeleccionados.includes(claveFila(fila))}
+                          style={{ animationDelay: retrasoDeAparicion(indice) }}
+                          interactiva={href !== null}
+                          onClick={href === null ? undefined : (evento) => { abrirFila(evento, href) }}
+                        >
+                          {seleccionMasiva !== undefined && (
+                            <CeldaTabla>
+                              <label className="flex min-h-8 cursor-pointer items-center justify-center px-2">
+                                <input type="checkbox" className={CLASES_CASILLA}
+                                  aria-label={`Seleccionar fila ${claveFila(fila)}`}
+                                  disabled={cargando}
+                                  checked={idsSeleccionados.includes(claveFila(fila))}
+                                  onChange={(evento) => seleccionar(evento.target.checked
+                                    ? [...idsSeleccionados, claveFila(fila)]
+                                    : idsSeleccionados.filter((id) => id !== claveFila(fila)))}
+                                />
+                              </label>
+                            </CeldaTabla>
+                          )}
+                          {columnas.map((columna) => (
+                            <CeldaTabla key={columna.clave} numerica={columna.numerica} angosta={columna.angosta} sinCortar={columna.sinCortar}>
+                              <Celda columna={columna} fila={fila} catalogos={opcionesDeFiltro} />
+                            </CeldaTabla>
+                          ))}
+                          {(acciones.length > 0 || filaExtra !== undefined) && (
+                            <CeldaTabla>
+                              {/* `stopPropagation`: la fila entera es un enlace cuando `urlDeFila`
+                                  devuelve algo, y un clic en "Editar" no tiene que navegar ademas. */}
+                              <span
+                                className="flex items-center justify-end gap-1"
+                                onClick={(evento) => { evento.stopPropagation() }}
+                              >
+                                {filaExtra?.(fila, () => { router.refresh() })}
+                                {acciones.length > 0 && (
+                                  <MenuAcciones
+                                    acciones={acciones}
+                                    id={claveFila(fila)}
+                                    onError={setError}
+                                    onListo={() => { router.refresh() }}
+                                  />
+                                )}
+                              </span>
+                            </CeldaTabla>
+                          )}
+                        </FilaTabla>
+                        )
+                      })}
+                    </CuerpoTabla>
+                  </Tabla>
+                  )}
               </div>
             </div>
             )}
@@ -513,9 +583,13 @@ async function pedirLista<T> (ruta: string, consulta: string, senal: AbortSignal
  * Contenido de una celda.
  *
  * Cuando la columna declara `comoInsignia`, el valor se resuelve contra el catalogo y se pinta con su
- * nombre y su color. Un valor que el catalogo no conoce cae al valor crudo: eso pasa cuando alguien
- * agrega un estado en Perfex y la pantalla todavia no lo recargo, y un id visible es mas util que una
- * celda vacia.
+ * nombre y su color. Un valor que el catalogo no conoce cae a su id en una insignia de contorno: eso
+ * pasa cuando alguien agrega un estado en Perfex y la pantalla todavia no lo recargo, y un id visible
+ * es mas util que una celda vacia. La fila no cambia de forma por eso —insignia sigue siendo
+ * insignia—, que es lo que hacia que una Tarea con estado nuevo se leyera distinto del resto.
+ *
+ * La resolucion es la misma que usa `<EstadoDeTarea>` fuera de la tabla: un solo `resolverEstado`
+ * para todas las pantallas donde aparece una Tarea.
  */
 function Celda<T> ({
   columna,
@@ -530,11 +604,21 @@ function Celda<T> ({
 
   if (columna.comoInsignia === undefined) return <>{contenido}</>
 
-  const insignia = resolverInsignia(contenido, catalogos?.[columna.comoInsignia])
+  // Un presentador que ya devuelve su propio elemento —el estado editable de la pestaña Tareas—
+  // pinta lo suyo: resolverlo contra el catalogo daria un id inventado en vez de un control.
+  if (typeof contenido !== 'string' && typeof contenido !== 'number') return <>{contenido}</>
 
-  if (insignia === null) return <>{contenido}</>
+  const insignia = resolverEstado(contenido, catalogos?.[columna.comoInsignia])
 
-  return <Insignia color={insignia.color} tamano="chico">{insignia.etiqueta}</Insignia>
+  return (
+    <Insignia
+      tono={insignia.desconocido ? 'contorno' : 'neutro'}
+      color={insignia.color}
+      tamano="chico"
+    >
+      {insignia.etiqueta}
+    </Insignia>
+  )
 }
 
 /**

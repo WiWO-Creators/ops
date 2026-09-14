@@ -107,7 +107,7 @@ cuál llegó.
 ```json
 { "data": {
   "access_token": "…", "expires_in": 3600,
-  "refresh_token": "…", "refresh_expires_in": 2592000,
+  "refresh_token": "…", "refresh_expires_in": 7776000,
   "staff": { "…": "ver recurso staff" }
 } }
 ```
@@ -159,7 +159,7 @@ que nada en el servidor parezca fallar.
 
 ```json
 { "data": { "access_token": "…", "expires_in": 3600,
-            "refresh_token": "…", "refresh_expires_in": 2592000 } }
+            "refresh_token": "…", "refresh_expires_in": 7776000 } }
 ```
 
 ### `POST /auth/logout`
@@ -192,7 +192,8 @@ Tampoco va bajo `/auth`: esa rama se atiende sin token, y ésta necesita saber q
   "firstname": "…", "lastname": "…", "full_name": "…",
   "profile_image_url": "…", "is_admin": false, "role_id": 3,
   "modelo_permisos": "viejo",
-  "area_id": null, "empresa_id": 3,
+  "is_director": false, "dirige_areas": false, "es_focal": false,
+  "area_id": null, "area_ids": [], "empresa_id": 3,
   "permissions": { "tasks": ["view","create","edit"], "projects": ["view_own"] },
   "secciones_habilitadas": ["procesos","espacios"],
   "locale": "es", "hourly_rate": 0
@@ -206,6 +207,23 @@ revoca sin desplegar.
 **Hoy `secciones_habilitadas` es la lista fija `["procesos","espacios"]`** (`controllers/V1.php:1415`).
 Los ocho recursos de ventas, comercial y soporte responden igual, pero la interfaz **no los ofrece**:
 es decisión del usuario, no un pendiente técnico. Habilitar una sección es editar esa lista.
+
+`is_director` y `dirige_areas` son dos cosas distintas y conviven. La primera es el cargo "Director"
+(`modules/wiwo_core/cargos_areas.php`), la regla vieja: "ve a los de su área". La segunda es el árbol
+de `tblareas`: dirige al menos un área, y ve además todo lo que cuelga de ella. Ninguna de las dos es
+un permiso ni aparece en `permissions` — el cargo y la jefatura no otorgan capabilities de Perfex, que
+es justamente por lo que hay que mirarlas aparte. El árbol se configura en `/jerarquia`.
+
+`es_focal` dice si quien mira figura como focal de al menos un Cliente (`tblwiwo_focales`, resuelto
+con `Salud\ScoreCliente::esFocalDeAlgunCliente()`). Tampoco es un permiso: la autorización de la
+pantalla de Focals es el 403 de `GET /scores`, que se resuelve en cada pedido. Viaja acá para que el
+panel sepa si **ofrecer** la sección, que antes adivinaba con `nivel` — y el escalón y el hecho de
+responder por una cuenta son cosas distintas: hay focales con nivel `usuario` y gerencias sin ninguna
+cuenta a cargo. Una instalación sin esa tabla devuelve `false`.
+
+`area_ids` son todas las áreas de la persona (`staff_areas`, multiárea) y convive con `area_id`, que
+es la columna de `tblstaff` y sigue siendo la principal. Es pertenencia, no permiso, y es lo que el
+panel mira para ofrecer "Mi Área": preguntar por uno solo de los dos campos deja gente afuera.
 
 `permissions` **no trae una clave `tickets`**: Perfex no tiene una feature de permisos con ese nombre
 (ver el recurso `tickets` más abajo).
@@ -688,6 +706,19 @@ Espacios (`rel_type = "project"`). Acepta además un valor sintético, `filter[c
 las tareas **sueltas de quien pide** —sin cliente y asignadas a uno—. "Suelta" es todo `rel_type` que
 no resuelva a un cliente: `NULL` y también `lead`. Vale igual en la lista y en el tablero.
 
+**`filter[project_id]=ninguno`: los Procesos que no cuelgan de ningún Espacio.** Segundo valor
+sintético, montado sobre el filtro que ya existe por el mismo motivo que `clientid=personales`: en la
+pantalla el selector de Espacio es **un** control, y "Espacio X" y "Sin proyecto" son opciones
+excluyentes de la misma pregunta. "Sin Espacio" es la negación exacta de la expresión que resuelve
+`filter[project_id]=8`, así que cubre de una vez las formas en que la base escribe lo mismo:
+`rel_type` `NULL`, vacío o de otra entidad (`customer`, `lead`), y también el `rel_id` nulo o `0` de
+una fila que dice `project` y no apunta a ninguno. Vale igual en la lista y en `?vista=tablero`.
+
+Pedirlo **junto a un Espacio concreto** es `422 {"project_id":["exclusive"]}`, no una lista vacía:
+tanto `filter[project_id]=ninguno,8` como un `filter[project_id__eq]=8` al lado. "Sin Espacio y del
+Espacio 8" es una condición imposible, y sus cero filas no se distinguen de un filtro que simplemente
+no encontró nada. En `GET /projects/{id}/tasks` no aplica: ese endpoint fija el Espacio él mismo.
+
 **Tres van sueltos, no dentro de `filter[]`**: `assignee`, `follower` y `tag`. Se escriben
 `?assignee=12`, y `filter[assignee]=12` responde `422` porque no están en la whitelist de filtros
 (`RecursoProcesos::idDeFiltro()` los lee de los parámetros de primer nivel). La distinción no es
@@ -746,6 +777,52 @@ Lo que evita errores:
 { "error": { "code": "validation_failed", "message": "Hay campos que no se pueden guardar.",
              "details": { "name": ["requerido"], "rel_id": ["no_existe"] } } }
 ```
+
+Requiere `create` sobre `tasks`; sin él, `403`.
+
+### `POST /tasks/multi-espacio` — el mismo Proceso en varios Espacios
+
+Mismo cuerpo que `POST /tasks`, más `espacios` (la lista de destinos) y sin `rel_type`, `rel_id`,
+`milestone` ni `task_type`. Devuelve `201` con el parte de cada destino.
+
+```json
+{ "name": "Grilla de septiembre",
+  "due_date": "2026-09-30", "priority": 3,
+  "assignees": [12], "tags": ["campaña"],
+  "espacios": [8, 67, 148] }
+```
+
+```json
+{ "data": { "creados":  [{ "espacio_id": 8, "task_id": 3301 }, { "espacio_id": 67, "task_id": 3302 }],
+            "fallidos": [{ "espacio_id": 148, "estado": 422, "motivo": "…", "errores": {} }] } }
+```
+
+Por qué es una ruta propia y no un campo más de `POST /tasks`: la respuesta de un alta múltiple es
+un parte por destino, no la ficha del Proceso creado, y meterla en `POST /tasks` obligaría al mismo
+endpoint a devolver dos formas según el cuerpo. El alta de un solo Espacio —la de todos los días—
+sigue yendo por `POST /tasks`, intacta. Mismo criterio y mismo vecindario que `POST /tasks/bulk`.
+
+Lo que evita errores:
+
+- **`201` aunque haya fallidos.** Lo previsible ya se rechazó con `422` sin crear nada, así que
+  llegar acá significa que la petición era válida y el servidor intentó las N escrituras. El estado
+  describe la petición; el parte, cada destino. El cliente necesita los `task_id` de `creados` para
+  guardarles después los campos personalizados, y por eso el parte va en `data` y no en `meta`.
+- **No hay transacción única entre destinos.** Son N Procesos independientes: un fallo en el quinto
+  no borra los cuatro buenos. Cada destino sí es atómico puertas adentro.
+- **El cuerpo compartido se valida antes del primer INSERT.** Un `due_date` anterior al inicio o un
+  asignado inactivo responden `422` sin haber creado nada, para que el reintento no duplique lo ya
+  guardado.
+- **`milestone` y `task_type` se rechazan con `no_en_multi`, no se ignoran.** Son por Espacio: el
+  hito 40 del Espacio A no existe en el B. Forzarlos a vacío en silencio guardaría veinte tareas sin
+  el ETA que alguien creyó haber puesto.
+- **Los asignados y seguidores sí viajan** a todos los destinos —el id de staff es global— y quedan
+  como miembros de cada Espacio, que es lo que necesitan para abrir su tarea.
+- **Máximo 20 destinos** (`demasiados`). El abanico accidental sobre los quinientos Espacios del
+  catálogo no terminaría dentro del tiempo de la petición.
+- **Cada destino se comprueba contra los Espacios que la persona ve**, la misma regla con la que
+  `GET /projects` arma el catálogo del que salió la lista. `POST /tasks` con un `rel_id` suelto
+  sigue sin esa comprobación: es la conducta de siempre y la comparten los creadores internos.
 
 Requiere `create` sobre `tasks`; sin él, `403`.
 
@@ -4219,7 +4296,7 @@ Permiso: el mismo `tasks.edit` del resto del parche.
 ## Recursos de la ola 3 (tanda del 09/09/2026)
 
 Siete frentes construidos en paralelo: la escalera de permisos, el focal de cliente, el semaforo, la
-cola de correo editable, el consumidor y el digest, la casilla entrante, y las actas para WiBot. Lo
+cola de correo editable, el consumidor y el digest, la casilla entrante, y las actas para Thinking Orb. Lo
 que sigue son **solo los endpoints nuevos**; los interruptores que gobiernan cada motor estan en la
 ficha de cada rama, y todos nacen apagados.
 
@@ -4404,13 +4481,107 @@ enmascarada. `imap_available` dice si la extension existe en el servidor: sin el
 
 ### Rama `feat/actas-wibot`
 
-Sin endpoints nuevos. WiBot gana la herramienta `actas_del_espacio` (listar las actas del Espacio, o
+Sin endpoints nuevos. Thinking Orb gana la herramienta `actas_del_espacio` (listar las actas del Espacio, o
 traer una por `acta_id`), y el contenido llega en **markdown derivado del HTML al leer** — no hay
 columna nueva, porque una copia guardada se desincroniza el dia que alguien edite el acta desde el
-editor y entonces WiBot citaria una version que ya nadie ve.
+editor y entonces Thinking Orb citaria una version que ya nadie ve.
 
 Respeta el borrado blando y los permisos de ver el Espacio: la herramienta no tiene SQL propio, pasa
 por `RecursoActas`.
+
+## Jerarquías del equipo
+
+El árbol de dependencias: `tblareas` (`area_superior_id`, `jefe_staffid`) más `tblstaff.area_id`. No
+hay tabla nueva y no hace falta: el jefe de alguien es quien dirige el área que lleva puesta, y sus
+subordinados directos son la gente de las áreas que dirige. Ver `docs/modulos/09-jerarquias.md`.
+
+Raíz propia y no bajo `/staff` por lo mismo que `/me/mi-area`: `/staff` exige `staff.view` y dirigir
+un área no otorga capabilities de Perfex.
+
+### `GET /jerarquia`
+
+```json
+{ "data": {
+  "hay_organigrama": true, "es_admin": false,
+  "areas": [
+    { "id": 3, "name": "PR", "area_superior_id": 1, "jefe_staffid": 42, "editable": true,
+      "en_tareas": true, "personas": [ { "id": 42, "full_name": "…", "active": true } ] }
+  ],
+  "sin_area":   [ { "id": 88, "full_name": "…", "active": true } ],
+  "asignables": [ { "id": 42, "full_name": "…", "active": true } ]
+} }
+```
+
+Un administrador recibe el organigrama entero; una jefatura, sólo su rama. `editable` viene resuelto:
+la pantalla no vuelve a decidir quién manda sobre qué. `hay_organigrama` es `false` en una instalación
+sin las columnas del árbol, y ahí no hay nada que configurar.
+
+`areas[].personas` **no filtra las bajas** —la consulta es por `area_id` y nada más—, mientras que
+`sin_area` y `asignables` traen sólo activos. De ahí el `active` de cada persona: una baja que quedó
+colgada de un área hay que poder verla para sacarla, y no hay que contarla.
+
+`en_tareas` dice si el nombre del área figura entre las opciones del campo "Área de la compañía" de
+los Procesos. Son la misma lista —la migración siembra `tblareas` con esos 16 nombres— y se cruzan
+**por texto**. En `false`, esa área no cruza con ningún Proceso y nadie se entera: no hay error,
+simplemente no trae nada.
+
+**403** a quien no dirige ningún área y no administra.
+
+### `POST /jerarquia/areas` y `PUT /jerarquia/areas/{id}`
+
+Cuerpo: `{"name": "PR", "area_superior_id": 1, "jefe_staffid": 42}`. Los dos últimos admiten `null`.
+Responden el árbol completo, con la misma forma que `GET /jerarquia`.
+
+El `PUT` exige **las tres claves presentes**, aunque dos vengan en `null`: un cuerpo parcial
+desenganchaba el área del árbol en silencio.
+
+El alta es sólo para quien administra (**403** si no): un área nueva nace fuera de la rama de quien la
+creó y nadie la vería. El alta además **sincroniza el nombre** con las opciones de los Procesos, así
+que un área recién creada nace con `en_tareas: true`.
+
+**Renombrar está bloqueado**: un `name` distinto del que tiene responde **409**. Los Procesos guardan
+el nombre del área y no su id, así que cambiarlo dejaría huérfanos a los ~2.900 que lo tienen escrito.
+Reenviar el nombre actual no cuenta como renombre —la comparación ignora mayúsculas y espacios de los
+bordes—, así que el formulario puede mandar el cuerpo entero.
+
+| Caso | Estado |
+|---|---|
+| Área colgada de sí misma o de su descendencia | **422** `area_superior_id: ciclo` |
+| Nombre vacío, de más de 191 caracteres o repetido | **422** |
+| Falta alguna de las tres claves en un `PUT` | **422** `required` |
+| Área superior o jefatura inexistente, o jefatura inactiva | **422** |
+| Área fuera de la rama propia | **403** |
+| Renombrar un área | **409** |
+| La instalación no tiene las columnas del árbol | **409** |
+
+### `DELETE /jerarquia/areas/{id}`
+
+Sólo para quien administra (**403** si no), por lo mismo que el alta: la guarda que impide dejar gente
+colgando de la nada es de toda la instalación, no de una rama. Responde el árbol completo — borrar
+puede dejar huérfanas a las áreas que colgaban, así que la pantalla necesita el estado entero y no
+sólo la confirmación.
+
+**409** si el área está en uso, con las tres cuentas ya redactadas para mostrarse tal cual:
+
+> El área "Analytics" está en uso: 0 persona(s) asignada(s), 0 área(s) que dependen de ella y 24
+> Proceso(s) marcado(s) con ese nombre. Movelos antes de borrarla.
+
+La tercera cuenta es la que sorprende: un área puede verse **vacía en la pantalla** —sin gente y sin
+áreas debajo— y aun así no poder borrarse, porque hay Procesos marcados con ese nombre y eso no se ve
+desde el organigrama.
+
+### `PUT /jerarquia/personas/{id}`
+
+Cuerpo: `{"area_id": 3}`. `null`, `""`, `0` y la clave ausente significan lo mismo: sacarla del área
+que tenga. Responde el árbol completo.
+
+Quien no administra necesita mando sobre **los dos extremos**: sumar gente que hoy es de otro es
+sacársela a ese otro. La excepción es la gente sin área, que no es de nadie y cualquier jefatura puede
+recoger — es lo mismo que ya dejaba hacer el panel viejo en `Mi_area.php::add_staff()`.
+
+**Lo que no se valida, a propósito**: dejar un área sin jefatura o una persona sin área. Las dos son
+estados legítimos, y son *el* estado hoy: **0 áreas y 184 personas sin `area_id`**. La pantalla las
+cuenta; la API no las prohíbe.
 
 ## Capa de IA
 
@@ -4843,7 +5014,7 @@ el stream. Una vez abierto el stream el HTTP ya es `200` y el fallo llega como `
 
 ### Rama `feat/wibot-escrituras`
 
-WiBot pasa de leer a **proponer**. El modelo no ejecuta nada: deja una propuesta en
+Thinking Orb pasa de leer a **proponer**. El modelo no ejecuta nada: deja una propuesta en
 `tblapi_ia_acciones` y una persona la confirma o la rechaza en el chat. Se mergea **apagado**
 (`ia_escritura_habilitada` = `'0'`), y apagado el comportamiento es exactamente el de antes.
 
@@ -4893,7 +5064,7 @@ transacción y su auditoría: cero reglas de negocio reimplementadas. Cuatro reg
    armada con una lectura de hace dos minutos expulsaría gente en silencio. El conjunto final se
    calcula **al ejecutar**, leyendo los miembros de ese momento, y el resumen dice el diff.
 4. **Ningún borrado pasa la palabra de purga.** `Papelera::eliminar()` sin `confirmacion` manda a la
-   papelera: 30 días reversibles. WiBot no tiene forma de purgar, y eso es **estructural**: el
+   papelera: 30 días reversibles. Thinking Orb no tiene forma de purgar, y eso es **estructural**: el
    argumento no existe en el catálogo.
 
 **Topes**: 3 propuestas por turno, 10 vivas por `(Espacio, persona)`. Sin tope, un texto inyectado
@@ -4955,9 +5126,9 @@ al cliente» como si fuera una opción legítima, que es el mismo motivo por el 
 turno. No se persisten: viven lo que vive el turno, y en el JSON no-stream viajan en `preguntas`, al
 lado de `acciones`.
 
-#### `supuestos` — lo que WiBot completó por su cuenta
+#### `supuestos` — lo que Thinking Orb completó por su cuenta
 
-Cuando al pedido le falta un dato, WiBot **asume lo más razonable y lo deja escrito acá** en vez de
+Cuando al pedido le falta un dato, Thinking Orb **asume lo más razonable y lo deja escrito acá** en vez de
 repreguntar. Es una lista de strings, igual que `detalle`, y va aparte por un motivo: mezclada con el
 detalle, una suposición es indistinguible de algo que la persona pidió.
 
@@ -5044,7 +5215,7 @@ propone un borrado. `orbe` es uno de los siete estados que `Orbe.tsx` ya tiene �
 `thinking` para preparar una escritura—; no hay estados nuevos.
 
 **No hace falta versionar el stream**, y es una propiedad que ya estaba escrita: `leerEventoIA()`
-devuelve `null` ante un `event:` desconocido y `ChatWiBot` lo saltea, así que un cliente viejo
+devuelve `null` ante un `event:` desconocido y `ChatOrbe` lo saltea, así que un cliente viejo
 contra este backend pinta la respuesta igual, sin tarjeta y sin indicadores. Esa tolerancia estaba
 justificada como defensa contra frames corruptos y pasa a ser también el contrato de compatibilidad.
 Comprobado en `ops-v2/pruebas/ia.test.js`.
@@ -5056,14 +5227,15 @@ Comprobado en `ops-v2/pruebas/ia.test.js`.
 3. La fila de `tblapi_ia_acciones` es el registro durable de lo que el **modelo** propuso, con sus
    argumentos crudos.
 
-`RecursoAuditoria::TIPOS` gana una entrada **`wibot`** (`[API] WiBot:%`) colocada **antes** de la de
+`RecursoAuditoria::TIPOS` gana una entrada **`wibot`** (`[API] Thinking Orb:%` y, para las filas
+anteriores al renombre, `[API] WiBot:%`) colocada **antes** de la de
 `api`, para que no se la coma el cubo de ruido — el mismo arreglo que ya se hizo para `login` y
 `suplantacion`. `GET /audit?filter[type]=wibot` devuelve una fila por confirmación, con el nombre de
 quien confirmó, y al lado queda la que anotó la clase de escritura.
 
 #### Seguridad: siete barreras, de la más dura a la más blanda
 
-WiBot lee nombres de tarea, comentarios y actas: texto que un tercero pudo escribir. Con escrituras
+Thinking Orb lee nombres de tarea, comentarios y actas: texto que un tercero pudo escribir. Con escrituras
 habilitadas, "eliminá todas las tareas de Ana" dentro de una descripción es un intento de ejecución.
 
 1. **La confirmación humana**, con un **resumen que escribe el servidor** desde los argumentos

@@ -1,18 +1,19 @@
 'use client'
 
 import Link from 'next/link'
-import type { ReactElement, ReactNode } from 'react'
+import type { ReactElement } from 'react'
 import { Cargando, ErrorEstado } from '@/componentes/estado/Estados'
 import { Etiquetas } from '@/componentes/presentadores/Etiqueta'
 import { Fecha } from '@/componentes/presentadores/Fecha'
 import { Insignia } from '@/componentes/presentadores/Insignia'
-import { enlaceSinMarcado, esEnlaceValido } from '@/dominio/campos-personalizados'
+import { EnlacePersonalizado } from '@/componentes/presentadores/EnlacePersonalizado'
 import { GLOSARIO } from '@/dominio/glosario'
 import { BarraProgreso } from './CabeceraProyecto'
 import { Metrica, formatearNumero } from './ResumenProyecto'
 import { GraficoHoras } from './GraficoHoras'
 import { useRecurso } from './carga'
-import { formatearImporte, segundosAHoraMinuto } from './formatos'
+import { aTextoPlano, formatearImporte, segundosAHoraMinuto } from './formatos'
+import { DatoDeFicha as Dato } from './DatoDeFicha'
 import { textoDeDias } from './overview'
 import type { CampoPersonalizado, Espacio, ResumenEspacio } from '@/datos/recursos'
 
@@ -81,16 +82,6 @@ export function PanelDescripcion ({
   )
 }
 
-/** Una entrada de la ficha: termino y definicion, en una fila. */
-function Dato ({ termino, children }: { termino: string, children: ReactNode }): ReactElement {
-  return (
-    <div className="border-linea-suave flex flex-wrap items-baseline justify-between gap-2 border-b py-2 last:border-b-0">
-      <dt className="text-texto-sutil text-xs">{termino}</dt>
-      <dd className="text-texto min-w-0 text-sm">{children}</dd>
-    </div>
-  )
-}
-
 /**
  * Ficha del proyecto: la lista de campos del resumen del panel.
  *
@@ -103,6 +94,10 @@ function FichaProyecto ({
   tipoFacturacion,
   puedeVerMontos
 }: PropsPanelDescripcion): ReactElement {
+  // El panel viejo guarda la descripcion como HTML. Sin despojarla se leen los `<p>` en pantalla,
+  // igual que pasaba con la descripcion de una tarea antes de `aTextoPlano`.
+  const descripcion = aTextoPlano(proyecto.description ?? '')
+
   return (
     <section className="border-linea bg-superficie-elevada rounded-tarjeta shadow-1 flex flex-col gap-3 border p-5">
       <h2 className="text-texto text-sm font-semibold">Resumen del {GLOSARIO.espacio.singular.toLowerCase()}</h2>
@@ -159,7 +154,7 @@ function FichaProyecto ({
       <div className="flex flex-col gap-1">
         <h3 className="text-texto-sutil text-xs">Descripción</h3>
         <p className="text-texto text-sm whitespace-pre-line">
-          {proyecto.description ?? 'Sin descripción'}
+          {descripcion === '' ? 'Sin descripción' : descripcion}
         </p>
       </div>
     </section>
@@ -178,25 +173,8 @@ function FichaProyecto ({
  * panel y, en navegadores viejos, un `window.opener` que puede navegar esta.
  */
 function ValorDeCampo ({ campo }: { campo: CampoPersonalizado }): ReactElement {
-  // El panel viejo guarda estos campos como marcado; `enlaceSinMarcado()` explica por que.
-  const texto = campo.type === 'link' ? enlaceSinMarcado(campo.value ?? '') : campo.value ?? ''
-
-  if (texto === '') return <>—</>
-
-  if (campo.type === 'link' && esEnlaceValido(texto)) {
-    return (
-      <a
-        href={texto}
-        target="_blank"
-        rel="noreferrer"
-        className="text-acento break-all underline underline-offset-4"
-      >
-        {texto}
-      </a>
-    )
-  }
-
-  return <>{texto}</>
+  if (campo.type === 'link') return <EnlacePersonalizado valor={campo.value} />
+  return <>{campo.value || '—'}</>
 }
 
 /**

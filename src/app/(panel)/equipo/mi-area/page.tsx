@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { Avatar } from '@/componentes/presentadores/Avatar'
 import { Insignia } from '@/componentes/presentadores/Insignia'
 import { ErrorEstado, SinPermiso, Vacio } from '@/componentes/estado/Estados'
+import { TituloModulo } from '@/componentes/estructura/TituloModulo'
 import { ErrorApi } from '@/datos/errores'
 import { pedir } from '@/datos/servidor'
 import type { MiArea } from '@/datos/recursos'
@@ -17,10 +18,9 @@ export const metadata = { title: 'Mi Área · WiWO Ops' }
  * quien no tiene el cargo (`(panel)/layout.tsx`), y el `403` de la API es la misma red por si alguien
  * entra por la URL directa despues de perder el cargo.
  *
- * Solo lectura: reasignar el área de alguien se hace desde su ficha en `/equipo/{id}`, con el mismo
- * formulario que usa cualquiera con `staff.edit`. El panel viejo deja que un Director sume gente a su
- * área sin ese permiso (`Mi_area.php::add_staff()`); esta pantalla no lo replica todavía porque la
- * API no tiene ese endpoint.
+ * Solo lectura: reasignar el área de alguien se hace desde `/equipo/jerarquia`, que ya replica lo que
+ * el panel viejo dejaba hacer a un Director sin `staff.edit` (`Mi_area.php::add_staff()`) y además
+ * deja acomodar el árbol de dependencias entero. El enlace está arriba.
  */
 export default async function MiAreaPage () {
   let miArea: MiArea
@@ -37,10 +37,19 @@ export default async function MiAreaPage () {
 
   return (
     <section className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-        <h1 className="text-xl font-semibold text-texto">Mi Área</h1>
-        {miArea.area !== null && <Insignia tono="acento">{miArea.area.name}</Insignia>}
-      </div>
+      <TituloModulo
+        titulo="Mi Área"
+        acciones={
+          <div className="flex items-center gap-3">
+            {/* Desde acá se arregla lo que esta pantalla sólo muestra: quién está en el área y de
+                quién depende. Antes eso era un `UPDATE` a mano o el catálogo del panel viejo. */}
+            <Link href="/equipo/jerarquia" className="text-acento text-sm font-semibold hover:underline">
+              Configurar jerarquías
+            </Link>
+            {miArea.area !== null && <Insignia tono="acento">{miArea.area.name}</Insignia>}
+          </div>
+        }
+      />
 
       {miArea.area === null && (
         <Vacio

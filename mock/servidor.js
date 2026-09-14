@@ -14,12 +14,13 @@
 import { createServer } from 'node:http'
 import { resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { ErrorApi, aplicarConsulta, coincideEnLista, leerIncludes } from './consulta.js'
+import { ErrorApi, aplicarConsulta, campoFiltrable, coincideEnLista, leerIncludes } from './consulta.js'
 import * as sesion from './sesion.js'
 import {
-  ADMINS_DE_CLIENTE, ARCHIVOS, CAMPOS_PERSONALIZADOS, CHECKLIST, CLIENTES, COMENTARIOS, CRONOMETROS,
+  ADMINS_DE_CLIENTE, AREAS, ARCHIVOS, CAMPOS_PERSONALIZADOS, CHECKLIST, CLIENTES, COMENTARIOS, CRONOMETROS,
   DEPARTAMENTOS, EMPRESAS_DEL_GRUPO, ESPACIOS, ESTADOS_ESPACIO, ESTADOS_PROCESO, ETIQUETAS, HITOS,
-  AVISOS_CONTACTO, CONTACTOS, PRIORIDADES, PROCESOS, RESERVAS, ROLES, SALAS, STAFF, VALORES_CAMPOS
+  AVISOS_CONTACTO, CONTACTOS, OPCIONES_AREA_EN_TAREAS, PRIORIDADES, PROCESOS, PROCESOS_POR_AREA,
+  RESERVAS, ROLES, SALAS, STAFF, VALORES_CAMPOS
 } from './datos.js'
 
 const PUERTO = Number(process.env.PORT ?? 3001)
@@ -114,7 +115,7 @@ async function leerCuerpo (peticion) {
 /** Quita del staff los campos que la API nunca expone. */
 function presentarStaff (staff) {
   const { password, two_factor: dosFactores, ...publico } = staff
-  return publico
+  return { ...publico, area_ids: areasDePersona(staff) }
 }
 
 /**
@@ -228,17 +229,63 @@ function conCamposPersonalizados (fila, entidad, includes) {
 const ESTADO_COMPLETADO = 5
 
 const CONSULTA_PROCESOS = {
+  // La whitelist de `RecursoProcesos::consulta()`, campo por campo: la interfaz ofrece filtrar por
+  // todo lo que la Tarea tiene, y si el mock conoce la mitad, la mitad de los filtros falla aca y
+  // funciona en produccion —o al reves—.
   filtros: {
     status: coincideEnLista((p) => p.status),
     priority: coincideEnLista((p) => p.priority),
     project_id: coincideEnLista((p) => p.project?.id ?? null),
     milestone_id: coincideEnLista((p) => p.milestone?.id ?? null),
-    assignee: coincideEnLista((p) => p.assignees.map((a) => a.id)),
+    clientid: coincideEnLista((p) => (
+      p.rel_type === 'customer' ? p.rel_id : ESPACIOS.find((e) => e.id === p.project?.id)?.clientid ?? null
+    )),
+    // Los dos sueltos, por id, que la API conserva de la interfaz vieja.
     follower: coincideEnLista((p) => p.followers.map((f) => f.id)),
     tag: coincideEnLista((p) => p.tags.map((t) => t.id)),
-    billable: (p, v) => String(p.billable) === v,
+    // Los cuatro rangos: dos sobre el vencimiento y dos sobre el inicio.
     date_from: (p, v) => p.due_date >= v,
-    date_to: (p, v) => p.due_date <= v
+    date_to: (p, v) => p.due_date <= v,
+    start_from: (p, v) => p.start_date >= v,
+    start_to: (p, v) => p.start_date <= v,
+
+    id: campoFiltrable((p) => p.id, 'numero'),
+    name: campoFiltrable((p) => p.name),
+    patente: campoFiltrable((p) => p.patente),
+    description: campoFiltrable((p) => p.description),
+    // Por id acepta varios; por nombre es texto y va de a uno, igual que en la API.
+    assignee: campoFiltrable((p) => p.assignees.map((a) => a.id), 'numero'),
+    assignees: campoFiltrable((p) => p.assignees.map((a) => a.full_name)),
+    followers: campoFiltrable((p) => p.followers.map((f) => f.full_name)),
+    tags: campoFiltrable((p) => p.tags.map((t) => t.name)),
+    task_type: campoFiltrable((p) => p.task_type?.id ?? null, 'numero'),
+    task_type_name: campoFiltrable((p) => p.task_type?.name ?? null),
+    added_from: campoFiltrable((p) => p.added_from, 'numero'),
+    // `completed` no es una columna ni aca ni alla: sale del estado.
+    completed: campoFiltrable((p) => (p.status === ESTADO_COMPLETADO ? 1 : 0), 'numero'),
+    billable: campoFiltrable((p) => Number(p.billable), 'numero'),
+    billed: campoFiltrable((p) => Number(p.billed), 'numero'),
+    is_public: campoFiltrable((p) => Number(p.is_public), 'numero'),
+    visible_to_client: campoFiltrable((p) => Number(p.visible_to_client), 'numero'),
+    recurring: campoFiltrable((p) => Number(p.recurring), 'numero'),
+    hourly_rate: campoFiltrable((p) => p.hourly_rate, 'numero'),
+    estimated_hours: campoFiltrable((p) => p.estimated_hours, 'numero'),
+    comments: campoFiltrable((p) => p.counts.comments, 'numero'),
+    checklist: campoFiltrable((p) => p.counts.checklist, 'numero'),
+    checklist_done: campoFiltrable((p) => p.counts.checklist_done, 'numero'),
+    attachments: campoFiltrable((p) => p.counts.attachments, 'numero'),
+    // Los cinco de `wiwo_core`: el fixture no los trae, asi que responden como lo que son —vacios—
+    // en vez de con un 422 que haria creer que el filtro no existe.
+    iterations: campoFiltrable((p) => p.counts.iterations ?? null, 'numero'),
+    n_iteraciones: campoFiltrable((p) => p.counts.iterations ?? null, 'numero'),
+    eta: campoFiltrable((p) => p.eta ?? null, 'fecha'),
+    desviacion: campoFiltrable((p) => p.desviacion_dias ?? null, 'numero'),
+    estado_sla: campoFiltrable((p) => p.estado_sla ?? null),
+    aprobacion: campoFiltrable((p) => p.aprobacion?.estado ?? null),
+    start_date: campoFiltrable((p) => p.start_date, 'fecha'),
+    due_date: campoFiltrable((p) => p.due_date, 'fecha'),
+    date_added: campoFiltrable((p) => p.date_added, 'fecha'),
+    date_finished: campoFiltrable((p) => p.date_finished, 'fecha')
   },
   orden: ['name', 'due_date', 'start_date', 'date_added', 'priority', 'status', 'completed'],
   // `completed` no es un campo: la API lo resuelve con un CASE sobre `status`
@@ -806,6 +853,407 @@ async function salasRuta (metodo, resto, parametros, actual, cuerpo) {
   return { estado: 200, cuerpo: conDatos(actual.is_admin ? sala : sinToken(sala)) }
 }
 
+/** Largo maximo del nombre de un area, tomado de `tblareas.name`. */
+const LARGO_NOMBRE_AREA = 191
+
+/** Mensaje del 409 al intentar renombrar, redactado para mostrarse tal cual en la pantalla. */
+const RENOMBRE_BLOQUEADO = 'El nombre de un área no se puede cambiar acá: los Procesos guardan el nombre, no el id, y renombrarla los desconectaría en silencio. Pedilo si hace falta.'
+
+/** Mensaje del 403 de `/jerarquia`, redactado para mostrarse tal cual en la pantalla. */
+const SIN_JERARQUIA = 'No diriges ningún área, así que no hay organigrama que mostrarte. Si deberías dirigir una, pídeselo a quien administre el sistema.'
+
+/**
+ * Devuelve las membresías, incluyendo fixtures anteriores con solo área principal.
+ * @param {object} persona la fila de staff
+ * @returns {number[]} identificadores de sus áreas
+ */
+function areasDePersona (persona) {
+  return persona.area_ids ?? (persona.area_id == null ? [] : [persona.area_id])
+}
+
+/**
+ * Guarda membresías únicas y conserva la principal mientras siga asignada.
+ * @param {object} persona la fila que se actualiza
+ * @param {number[]} areas membresías validadas
+ * @returns {void}
+ */
+function guardarAreasDePersona (persona, areas) {
+  persona.area_ids = [...new Set(areas)]
+  if (!persona.area_ids.includes(persona.area_id)) persona.area_id = persona.area_ids[0] ?? null
+}
+
+/**
+ * Valida la edición de membresías antes de cualquier escritura de la persona.
+ * @param {object} datos campos recibidos por ficha o administración
+ * @returns {number[]|undefined} pertenencias propuestas, o undefined si no se editan
+ * @throws {ErrorApi} 422 para campos inválidos o principal fuera de la lista
+ */
+function validarAreasDePersona (datos) {
+  if (datos === null || typeof datos !== 'object' || Array.isArray(datos)) {
+    throw new ErrorApi(422, 'validation_failed', 'Revisá los campos de la persona.')
+  }
+  let areasNuevas
+  if (datos.area_ids !== undefined || datos.area_id !== undefined) {
+    const entrada = datos.area_ids !== undefined ? datos.area_ids : datos.area_id === null ? [] : [datos.area_id]
+    const campo = datos.area_ids !== undefined ? 'area_ids' : 'area_id'
+    if (!Array.isArray(entrada) || entrada.some((id) =>
+      !((typeof id === 'number' || (typeof id === 'string' && /^\d+$/.test(id))) &&
+        Number.isInteger(Number(id)) && AREAS.some((area) => area.id === Number(id))))) {
+      throw new ErrorApi(422, 'validation_failed', 'Revisá los campos de la persona.', {
+        [campo]: ['no_existe']
+      })
+    }
+    areasNuevas = entrada.map(Number)
+    if (datos.area_ids !== undefined && datos.area_id !== undefined) {
+      const principalValida = datos.area_id === null ? areasNuevas.length === 0
+        : (typeof datos.area_id === 'number' || (typeof datos.area_id === 'string' && /^\d+$/.test(datos.area_id))) &&
+          areasNuevas.includes(Number(datos.area_id))
+      if (!principalValida) {
+        throw new ErrorApi(422, 'validation_failed', 'Revisá los campos de la persona.', {
+          area_id: ['no_pertenece']
+        })
+      }
+    }
+  }
+  return areasNuevas
+}
+
+/**
+ * Una persona, con lo unico que la jerarquia necesita de ella.
+ *
+ * `active` viaja porque una baja puede seguir colgada de un area: la pantalla la marca en vez de
+ * esconderla, que es lo que deja un area "con 3 personas" donde solo trabajan 2.
+ */
+function personaDeJerarquia (staff) {
+  return { id: staff.id, full_name: staff.full_name, active: staff.active }
+}
+
+/**
+ * Un area con la forma que sirve `/jerarquia`.
+ *
+ * @param {object} area la fila cruda de `AREAS`
+ * @param {object} actual quien pide, para resolver `editable`
+ */
+function areaDeJerarquia (area, actual) {
+  return {
+    id: area.id,
+    name: area.name,
+    area_superior_id: area.area_superior_id,
+    jefe_staffid: area.jefe_staffid,
+    editable: puedeEditarArea(actual, area),
+    // `false` = ese nombre no figura entre las opciones de los Procesos, asi que el area no cruza con
+    // ninguno. No es un error: simplemente no trae nada, y por eso hay que hacerlo visible.
+    en_tareas: OPCIONES_AREA_EN_TAREAS.some((opcion) => mismoNombre(opcion, area.name)),
+    // Todo el mundo, no solo quien esta activo: una baja puede seguir colgada del area y el contrato
+    // la emite con `active: false` para que la pantalla la marque en vez de esconderla.
+    personas: STAFF.filter((persona) => !persona.is_not_staff && areasDePersona(persona).includes(area.id))
+      .map(personaDeJerarquia)
+  }
+}
+
+/** Compara dos nombres de area como los compara la API: sin mayusculas ni espacios de los bordes. */
+function mismoNombre (uno, otro) {
+  return String(uno).trim().toLowerCase() === String(otro).trim().toLowerCase()
+}
+
+/** El staff activo que se reparte entre las areas. */
+function staffActivo () {
+  return STAFF.filter((persona) => persona.active && !persona.is_not_staff)
+}
+
+/**
+ * Los ids del area dada y de todo lo que cuelga de ella, a cualquier profundidad.
+ *
+ * @param {number} id el area de la que se parte
+ * @returns {Set<number>} el id propio incluido
+ */
+function descendenciaDeArea (id) {
+  const dentro = new Set([id])
+  let crecio = true
+
+  // Barridos sucesivos en vez de recursion: el arbol viene plano y asi un dato con un ciclo ya
+  // guardado termina igual en vez de desbordar la pila.
+  while (crecio) {
+    crecio = false
+
+    for (const area of AREAS) {
+      if (area.area_superior_id !== null && dentro.has(area.area_superior_id) && !dentro.has(area.id)) {
+        dentro.add(area.id)
+        crecio = true
+      }
+    }
+  }
+
+  return dentro
+}
+
+/**
+ * Que areas ve esta persona, y cuales puede editar.
+ *
+ * Quien administra ve el organigrama entero y lo edita entero. Quien no, ve **su rama** —las areas
+ * que dirige y todo lo que cuelga de ellas— pero solo edita las que dirige: puede reorganizar lo
+ * suyo sin poder tocar el area de al lado.
+ *
+ * @param {object} actual la persona que pide
+ * @returns {{visibles: object[], esAdmin: boolean}}
+ */
+function alcanceDeJerarquia (actual) {
+  const esAdmin = actual.is_superadmin === true || actual.is_admin === true
+
+  if (esAdmin) return { visibles: AREAS, esAdmin }
+
+  const propias = AREAS.filter((area) => area.jefe_staffid === actual.id)
+  const suRama = new Set(propias.flatMap((area) => [...descendenciaDeArea(area.id)]))
+
+  return { visibles: AREAS.filter((area) => suRama.has(area.id)), esAdmin }
+}
+
+/**
+ * Todo lo que sirve `GET /jerarquia`, para quien pide.
+ *
+ * Vive aparte porque el `DELETE` devuelve exactamente esto: borrar un area puede dejar huerfanas a
+ * las que colgaban de ella, y la pantalla necesita el estado completo para repintarse bien.
+ */
+function arbolCompleto (actual) {
+  const { visibles, esAdmin } = alcanceDeJerarquia(actual)
+  const activos = staffActivo()
+
+  return {
+    hay_organigrama: AREAS.length > 0,
+    es_admin: esAdmin,
+    areas: visibles.map((area) => areaDeJerarquia(area, actual)),
+    sin_area: activos.filter((persona) => areasDePersona(persona).length === 0).map(personaDeJerarquia),
+    asignables: activos.map(personaDeJerarquia)
+  }
+}
+
+/**
+ * Lanza el 409 si el area esta en uso, con las tres cuentas ya redactadas.
+ *
+ * La tercera es la que sorprende: un area puede verse vacia en la pantalla —sin gente y sin hijas— y
+ * aun asi no poder borrarse, porque hay Procesos marcados con ese nombre. Por eso el mensaje las dice
+ * las tres aunque dos esten en cero: quien lo lee tiene que entender cual de las tres lo frena.
+ *
+ * @param {object} area el area que se quiere borrar
+ * @throws {ErrorApi} 409 si algo la retiene
+ */
+function exigirAreaLibre (area) {
+  const gente = staffActivo().filter((persona) => areasDePersona(persona).includes(area.id)).length
+  const hijas = AREAS.filter((otra) => otra.area_superior_id === area.id).length
+  const procesos = PROCESOS_POR_AREA[area.name] ?? 0
+
+  if (gente === 0 && hijas === 0 && procesos === 0) return
+
+  throw new ErrorApi(409, 'conflict',
+    `El área "${area.name}" está en uso: ${gente} persona(s) asignada(s), ${hijas} área(s) que ` +
+    `dependen de ella y ${procesos} Proceso(s) marcado(s) con ese nombre. Movelos antes de borrarla.`)
+}
+
+/** `true` si esta persona puede escribir sobre esa area. */
+function puedeEditarArea (actual, area) {
+  return actual.is_superadmin === true || actual.is_admin === true || area.jefe_staffid === actual.id
+}
+
+/**
+ * Valida el cuerpo de un alta o una edicion de area y devuelve los campos ya normalizados.
+ *
+ * Junta TODOS los motivos antes de lanzar: un formulario con dos campos mal completados tiene que
+ * enterarse de los dos de una vez, no de a uno por viaje.
+ *
+ * `area_superior_id` y `jefe_staffid` distinguen "no vino" de "vino en null": lo primero es no
+ * tocar el campo y lo segundo es soltarlo. Por eso el retorno usa la ausencia de la clave para la
+ * ausencia del campo, y el llamador solo escribe lo que esta presente.
+ *
+ * @param {object} datos cuerpo crudo de la peticion
+ * @param {object|null} areaEditada el area que se esta editando, o `null` en un alta
+ * @returns {{name?:string, area_superior_id?:number|null, jefe_staffid?:number|null}}
+ * @throws {ErrorApi} 422 con un motivo por campo
+ */
+function validarArea (datos, areaEditada) {
+  const detalles = {}
+  const salida = {}
+
+  if (datos.name !== undefined || areaEditada === null) {
+    const nombre = String(datos.name ?? '').trim()
+
+    // Renombrar esta bloqueado: los Procesos guardan el NOMBRE del area y no su id, asi que
+    // cambiarlo los desconectaria en silencio. Reenviar el mismo nombre no es renombrar —la
+    // comparacion ignora mayusculas y bordes—, asi que el formulario puede mandar el cuerpo entero.
+    if (areaEditada !== null && nombre !== '' && !mismoNombre(nombre, areaEditada.name)) {
+      throw new ErrorApi(409, 'conflict', RENOMBRE_BLOQUEADO)
+    }
+
+    if (nombre === '') detalles.name = ['requerido']
+    else if (nombre.length > LARGO_NOMBRE_AREA) detalles.name = ['length']
+    else if (AREAS.some((otra) => otra.id !== areaEditada?.id && mismoNombre(otra.name, nombre))) {
+      detalles.name = ['duplicado']
+    } else if (areaEditada === null) {
+      // Solo el alta escribe el nombre. En una edicion ya se comprobo que es el mismo, y volver a
+      // escribirlo cambiaria la caja o los espacios de un texto que las Tareas tienen guardado.
+      salida.name = nombre
+    }
+  }
+
+  if (datos.area_superior_id !== undefined) {
+    const superior = datos.area_superior_id === null ? null : Number(datos.area_superior_id)
+
+    if (superior !== null && !AREAS.some((otra) => otra.id === superior)) {
+      detalles.area_superior_id = ['no_existe']
+    } else if (areaEditada !== null && superior !== null && descendenciaDeArea(areaEditada.id).has(superior)) {
+      // Colgarla de si misma o de una que ya cuelga de ella dejaria un ciclo, y el arbol entero se
+      // volveria irrecorrible: la comprobacion es del backend justamente porque es el que sabe.
+      detalles.area_superior_id = ['ciclo']
+    } else salida.area_superior_id = superior
+  }
+
+  if (datos.jefe_staffid !== undefined) {
+    const jefe = datos.jefe_staffid === null ? null : Number(datos.jefe_staffid)
+
+    if (jefe !== null && !STAFF.some((persona) => persona.id === jefe && persona.active)) {
+      detalles.jefe_staffid = ['no_existe']
+    } else salida.jefe_staffid = jefe
+  }
+
+  if (Object.keys(detalles).length > 0) {
+    throw new ErrorApi(422, 'validation_failed', 'Revisá los campos del área.', detalles)
+  }
+
+  return salida
+}
+
+/**
+ * `/jerarquia`, `/jerarquia/areas` y `/jerarquia/personas/{id}`.
+ *
+ * Una sola lectura sirve la pantalla entera —el arbol, la gente de cada area, quien no tiene area y
+ * el catalogo de asignables— porque las cuatro cosas cambian juntas: mover a alguien saca una fila
+ * de una lista y la pone en otra, y pedirlas por separado deja la pantalla mostrando dos momentos
+ * distintos del mismo dato.
+ */
+async function jerarquiaRuta (metodo, resto, cuerpo, actual) {
+  const [seccion, id] = resto
+
+  if (seccion === undefined) {
+    if (metodo !== 'GET') throw new ErrorApi(404, 'not_found', 'Verbo no soportado en /jerarquia.')
+
+    const { visibles, esAdmin } = alcanceDeJerarquia(actual)
+
+    // Quien no dirige nada y no administra no tiene organigrama que mirar. Es 403 y no una respuesta
+    // vacia: vacia se lee como "todavia no hay areas", que es otra cosa y llevaria a crearlas.
+    if (!esAdmin && visibles.length === 0) throw new ErrorApi(403, 'forbidden', SIN_JERARQUIA)
+
+    return { estado: 200, cuerpo: conDatos(arbolCompleto(actual)) }
+  }
+
+  if (seccion === 'areas') {
+    if (id === undefined) {
+      if (metodo !== 'POST') throw new ErrorApi(404, 'not_found', 'Verbo no soportado en /jerarquia/areas.')
+
+      const { esAdmin } = alcanceDeJerarquia(actual)
+
+      if (!esAdmin) throw new ErrorApi(403, 'forbidden', 'Solo quien administra puede crear un área.')
+
+      const campos = validarArea(await cuerpo(), null)
+      const area = {
+        id: Math.max(0, ...AREAS.map((otra) => otra.id)) + 1,
+        name: campos.name,
+        area_superior_id: campos.area_superior_id ?? null,
+        jefe_staffid: campos.jefe_staffid ?? null
+      }
+
+      AREAS.push(area)
+
+      // El alta sincroniza el nombre con las opciones de los Procesos: por eso un area recien creada
+      // nace alineada y no con la insignia de desalineada puesta desde el minuto cero.
+      if (!OPCIONES_AREA_EN_TAREAS.some((opcion) => mismoNombre(opcion, area.name))) {
+        OPCIONES_AREA_EN_TAREAS.push(area.name)
+      }
+
+      return { estado: 201, cuerpo: conDatos(arbolCompleto(actual)) }
+    }
+
+    const area = buscarO404(AREAS, Number(id), 'área')
+
+    if (metodo === 'DELETE') {
+      const { esAdmin } = alcanceDeJerarquia(actual)
+
+      if (!esAdmin) throw new ErrorApi(403, 'forbidden', 'Solo quien administra puede borrar un área.')
+
+      exigirAreaLibre(area)
+
+      for (const persona of STAFF) {
+        guardarAreasDePersona(persona, areasDePersona(persona).filter((areaId) => areaId !== area.id))
+      }
+      AREAS.splice(AREAS.indexOf(area), 1)
+
+      // Devuelve el arbol entero y no un 204: borrar un area puede dejar huerfanas a las que
+      // colgaban de ella, asi que la pantalla necesita el estado completo y no solo la confirmacion.
+      return { estado: 200, cuerpo: conDatos(arbolCompleto(actual)) }
+    }
+
+    // `PUT` y no `PATCH`: asi lo expone la API, y exige las tres claves presentes aunque dos vengan
+    // en `null`. Un cuerpo parcial desenganchaba el area del arbol en silencio.
+    if (metodo !== 'PUT') throw new ErrorApi(404, 'not_found', 'Verbo no soportado en /jerarquia/areas/{id}.')
+
+    if (!puedeEditarArea(actual, area)) {
+      throw new ErrorApi(403, 'forbidden', 'Solo se puede editar un área que diriges.')
+    }
+
+    const datos = await cuerpo()
+    const faltantes = {}
+
+    for (const clave of ['name', 'area_superior_id', 'jefe_staffid']) {
+      if (datos[clave] === undefined) faltantes[clave] = ['required']
+    }
+
+    if (Object.keys(faltantes).length > 0) {
+      throw new ErrorApi(422, 'validation_failed', 'Faltan campos del área.', faltantes)
+    }
+
+    Object.assign(area, validarArea(datos, area))
+
+    return { estado: 200, cuerpo: conDatos(arbolCompleto(actual)) }
+  }
+
+  if (seccion === 'personas') {
+    if (metodo !== 'PUT') throw new ErrorApi(404, 'not_found', 'Verbo no soportado en /jerarquia/personas/{id}.')
+
+    const persona = buscarO404(STAFF, Number(id), 'persona')
+    const datos = await cuerpo()
+    if (datos === null || typeof datos !== 'object' || Array.isArray(datos)) {
+      throw new ErrorApi(422, 'validation_failed', 'Revisá los campos.', { area_id: ['required'] })
+    }
+    const accion = datos.accion ?? 'mover'
+    if (!['agregar', 'quitar'].includes(accion) && datos.accion !== undefined) {
+      throw new ErrorApi(422, 'validation_failed', 'Revisá los campos.', { accion: ['invalid'] })
+    }
+    const destino = datos.area_id === null ? null : Number(datos.area_id)
+    const valido = typeof datos.area_id === 'number' || (typeof datos.area_id === 'string' && /^\d+$/.test(datos.area_id))
+    if ((destino === null && accion !== 'mover') ||
+        (destino !== null && (!valido || !Number.isInteger(destino) || !AREAS.some((area) => area.id === destino)))) {
+      throw new ErrorApi(422, 'validation_failed', 'Revisá los campos.', { area_id: ['no_existe'] })
+    }
+
+    const actuales = areasDePersona(persona)
+    const afectadas = accion === 'mover' ? [...actuales, destino] : [destino]
+    for (const areaId of afectadas) {
+      const area = AREAS.find((otra) => otra.id === areaId)
+      if (area !== undefined && !puedeEditarArea(actual, area)) {
+        throw new ErrorApi(403, 'forbidden', `No puedes modificar integrantes de «${area.name}».`)
+      }
+    }
+    const nuevas = accion === 'agregar' ? [...actuales, destino]
+      : accion === 'quitar' ? actuales.filter((areaId) => areaId !== destino)
+        : destino === null ? [] : [destino]
+    guardarAreasDePersona(persona, nuevas)
+
+    // El arbol entero y no la persona: moverla cambia quien cuelga de quien y que se puede editar, y
+    // recalcularlo en el navegador seria una segunda copia de las reglas de la API.
+    return { estado: 200, cuerpo: conDatos(arbolCompleto(actual)) }
+  }
+
+  throw new ErrorApi(404, 'not_found', 'Subrecurso de jerarquía desconocido.')
+}
+
 /** `/rooms/bookings` y `/rooms/bookings/{id}`. */
 async function reservasRuta (metodo, id, parametros, actual, cuerpo) {
   if (id === undefined) {
@@ -1036,6 +1484,22 @@ const ACTAS = []
 /** Autoincremental de actas. Arranca alto para que un id de acta no se confunda con uno de tarea. */
 let PROXIMA_ACTA = 900
 
+/** Autoincremental de adjuntos del acta. */
+let PROXIMO_ADJUNTO = 7000
+
+/**
+ * El unico binario que el mock sirve: un PNG liso de 640x360.
+ *
+ * Es lo que devuelve la descarga de CUALQUIER adjunto de acta, sin importar que se haya subido: el
+ * mock no guarda los bytes, solo los nombres. Mide 640x360 y no 1x1 a proposito — con un pixel la
+ * miniatura carga pero no se ve, y entonces no hay forma de mirar si el titulo y el boton quedaron
+ * bien puestos respecto de la imagen, que es justo lo que esta pantalla hay que revisar a ojo.
+ */
+const PLACEHOLDER_PNG = Buffer.from(
+  'iVBORw0KGgoAAAANSUhEUgAAAoAAAAFoCAIAAABIUN0GAAAEg0lEQVR42u3VMQ0AAAgEsdeCLNQhlWCCqUkV3HKpHgDgWSQAAAMGAAMGAAwYAAwYADBgADBgAMCAAcCAAQADBgADBgADBgAMGAAMGAAwYAAwYADAgAHAgAEAAwYAAwYAAwYADBgADBgAMGAAMGAAwIABwIABAAMGAAMGAAMGAAwYAAwYADBgADBgAMCAAcCAAQADBgADBgADBgAMGAAMGAAwYAAwYADAgAHAgAEAAwYAAwYAAwYADBgADBgAMGAAMGAAwIABwIABAAMGAAMGAAMGAAwYAAwYADBgADBgAMCAAcCAAQADBgADBgADBgAMGAAMGAAwYAAwYADAgAHAgAEAAwYAAwYAAwYADBgADBgAMGAAMGAAwIABwIABAAMGAAMGAANWAQAMGAAMGAAwYAAwYADAgAHAgAEAAwYAAwYADBgADBgADBgAMGAAMGAAwIABwIABAAMGAAMGAAwYAAwYAAwYADBgADBgAMCAAcCAAQADBgADBgAMGAAMGAAMGAAwYAAwYADAgAHAgAEAAwYAAwYADBgADBgADBgAMGAAMGAAwIABwIABAAMGAAMGAAwYAAwYAAwYADBgADBgAMCAAcCAAQADBgADBgAMGAAMGAAMGAAwYAAwYADAgAHAgAEAAwYAAwYADBgADBgADBgAMGAAMGAAwIABwIABAAMGAAMGAAwYAAwYAAwYADBgADBgAMCAAcCAAQADBgADBgAMGAAMGAAMWAUAMGAAMGAAwIABwIABAAMGAAMGAAwYAAwYADBgADBgADBgAMCAAcCAAQADBgADBgAMGAAMGAAwYAAwYAAwYADAgAHAgAEAAwYAAwYADBgADBgAMGAAMGAAMGAAwIABwIABAAMGAAMGAAwYAAwYADBgADBgADBgAMCAAcCAAQADBgADBgAMGAAMGAAwYAAwYAAwYADAgAHAgAEAAwYAAwYADBgADBgAMGAAMGAAMGAAwIABwIABAAMGAAMGAAwYAAwYADBgADBgADBgAMCAAcCAAQADBgADBgAMGAAMGAAwYAAwYAAwYADAgAHAgAEAAwYAAwYADBgADBgAMGAAMGAAMGAAwIABwIABAAMGAAMGAAwYAAwYADBgADBgADBgCQDAgAHAgAEAAwYAAwYADBgADBgAMGAAMGAAwIABwIABwIABAAMGAAMGAAwYAAwYADBgADBgAMCAAcCAAcCAAQADBgADBgAMGAAMGAAwYAAwYADAgAHAgAHAgAEAAwYAAwYADBgADBgAMGAAMGAAwIABwIABwIABAAMGAAMGAAwYAAwYADBgADBgAMCAAcCAAcCAAQADBgADBgAMGAAMGAAwYAAwYADAgAHAgAHAgAEAAwYAAwYADBgADBgAMGAAMGAAwIABwIABwIABAAMGAAMGAAwYAAwYADBgADBgAMCAAcCAAcCAAQADBgADBgAMGAAMGAAwYAAwYADAgAHAgAHAgFUAAAMGAAMGAAwYAAwYADBgADBgAMCAAcCAAQADBgADBgADBgAMGAAMGAAwYAAwYADAgAHAgAGAs2zlqnsqBR5hAAAAAElFTkSuQmCC',
+  'base64'
+)
+
 /** Firma de correo por marca, igual que la constante del backend. */
 const FIRMAS_MARCA = {
   mgc: 'https://www.meetwiwo.com/assets/logos/Materiales/firmamgc.jpg',
@@ -1043,7 +1507,12 @@ const FIRMAS_MARCA = {
   palta: 'https://www.meetwiwo.com/assets/logos/Materiales/firmapalta.jpg'
 }
 
-/** Un acta como la devuelve la API. El listado omite `content`, igual que el backend. */
+/**
+ * Un acta como la devuelve la API. El listado omite `content`, igual que el backend.
+ *
+ * `attachments` y `project_name` viajan SOLO en el detalle, por lo mismo que `content`: el listado
+ * pinta una tabla de titulos y no necesita ni los archivos ni el nombre del Espacio repetido.
+ */
 function presentarActa (acta, { conContenido }) {
   const autor = STAFF.find((s) => s.id === acta.staff_id) ?? null
   const publica = {
@@ -1065,7 +1534,16 @@ function presentarActa (acta, { conContenido }) {
     updated_by: acta.updated_by
   }
 
-  return conContenido ? { ...publica, content: acta.content } : publica
+  if (!conContenido) return publica
+
+  const espacio = ESPACIOS.find((e) => e.id === acta.project_id) ?? null
+
+  return {
+    ...publica,
+    content: acta.content,
+    project_name: espacio?.name ?? '',
+    attachments: acta.attachments ?? []
+  }
 }
 
 /** El HTML que "genera" el modelo, con la estructura real del Meeting Paper. */
@@ -1097,8 +1575,12 @@ function tituloDeHtml (html) {
   return encontrado[1].replace(/<[^>]+>/g, '').replace(/^Meeting Paper\s*-\s*/i, '').trim() || 'Meeting Paper'
 }
 
-/** Crea el acta y la deja al frente de la lista. */
-function guardarActa (espacio, actual, campos, html, origen) {
+/**
+ * Crea el acta y la deja al frente de la lista.
+ *
+ * @param {Array<{name: string, size: number, type: string}>} adjuntos los archivos que se subieron
+ */
+function guardarActa (espacio, actual, campos, html, origen, adjuntos = []) {
   const ahora = new Date().toISOString().replace(/\.\d{3}Z$/, 'Z')
   const acta = {
     id: (PROXIMA_ACTA += 1),
@@ -1115,7 +1597,20 @@ function guardarActa (espacio, actual, campos, html, origen) {
     staff_id: actual.id,
     date_added: ahora,
     date_updated: ahora,
-    updated_by: null
+    updated_by: null,
+    attachments: adjuntos.map((adjunto) => ({
+      id: (PROXIMO_ADJUNTO += 1),
+      acta_id: PROXIMA_ACTA,
+      name: adjunto.name,
+      // El de disco lo desambigua el backend; el mock imita el sufijo para que el frontend no se
+      // acostumbre a que los dos nombres sean iguales.
+      file_name: `${PROXIMA_ACTA}-${adjunto.name}`,
+      filetype: adjunto.type,
+      size: adjunto.size,
+      staff_id: actual.id,
+      url: `/api/v1/files/acta/${PROXIMO_ADJUNTO}/download`,
+      date_added: ahora
+    }))
   }
   ACTAS.unshift(acta)
 
@@ -1426,24 +1921,90 @@ async function generarActaIaRuta (id, parametros, actual, peticion) {
   const espacio = buscarO404(ESPACIOS, Number(id), 'espacio')
 
   // Drenar el cuerpo antes de responder: sin esto el socket queda con bytes sin leer y el navegador
-  // ve la conexion cortada en vez de la respuesta.
-  for await (const _trozo of peticion) { /* se descarta */ }
+  // ve la conexion cortada en vez de la respuesta. De paso se anotan los archivos que venian, que es
+  // lo que el frontend espera ver listado en la ficha del acta.
+  const adjuntos = await adjuntosDelMultipart(peticion)
 
   const falla = parametros.get('falla') === '1'
   const html = actaGenerada(espacio)
+  const campos = { client: 'Acme SpA', brand: 'wiwo' }
 
   if (!aceptaStream(peticion)) {
     if (falla) throw new ErrorApi(502, 'provider_error', 'El proveedor cortó la respuesta.')
-    const acta = guardarActa(espacio, actual, { client: 'Acme SpA', brand: 'wiwo' }, html, 'ia')
+    const acta = guardarActa(espacio, actual, campos, html, 'ia', adjuntos)
 
     return { estado: 201, cuerpo: conDatos(presentarActa(acta, { conContenido: true })) }
   }
 
   const fin = falla
     ? null
-    : { acta: presentarActa(guardarActa(espacio, actual, { client: 'Acme SpA', brand: 'wiwo' }, html, 'ia'), { conContenido: true }) }
+    : { acta: presentarActa(guardarActa(espacio, actual, campos, html, 'ia', adjuntos), { conContenido: true }) }
 
   return { transmitir: (respuesta) => transmitirSSE(respuesta, html, { fin, falla }) }
+}
+
+/** Extension a MIME, lo justo para que la ficha del acta sepa cual adjunto es una imagen. */
+const MIME_DE_ADJUNTO = {
+  png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', webp: 'image/webp', gif: 'image/gif',
+  heic: 'image/heic', heif: 'image/heif',
+  m4a: 'audio/aac', mp3: 'audio/mpeg', wav: 'audio/wav', ogg: 'audio/ogg', webm: 'audio/webm',
+  mp4: 'audio/aac', mov: 'audio/quicktime',
+  pdf: 'application/pdf', txt: 'text/plain', md: 'text/markdown', html: 'text/html',
+  docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+}
+
+/**
+ * Los archivos que venian en el multipart, sacados del propio flujo mientras se drena.
+ *
+ * El mock NO parsea multipart, y no deberia: eso seria reimplementar PHP para probar el frontend.
+ * Lo que hace es leer los `filename="..."` de las cabeceras de cada parte, que son ASCII y viajan
+ * antes de los bytes del archivo. Alcanza para lo unico que esta pantalla necesita del mock: que el
+ * acta quede con tantos adjuntos como archivos se eligieron, con sus nombres reales.
+ *
+ * El tamaño es un REPARTO del cuerpo entre los archivos, no el de cada uno: medirlo de verdad es
+ * parsear los limites. Sirve para que la ficha muestre un peso creible y nada mas.
+ *
+ * La memoria no crece con el archivo: se mira trozo a trozo y solo se arrastran los ultimos bytes,
+ * por si una cabecera quedo partida entre dos. El desplazamiento absoluto evita contar dos veces el
+ * `filename` que cae justo en ese arrastre.
+ */
+async function adjuntosDelMultipart (peticion) {
+  const ARRASTRE = 512
+  const patron = /filename="([^"\r\n]*)"/g
+  const nombres = []
+  let cola = ''
+  let base = 0
+  let ultimo = -1
+  let bytes = 0
+
+  for await (const trozo of peticion) {
+    bytes += trozo.length
+    const texto = cola + trozo.toString('latin1')
+
+    patron.lastIndex = 0
+    let encontrado = patron.exec(texto)
+    while (encontrado !== null) {
+      const absoluto = base + encontrado.index
+      if (absoluto > ultimo && encontrado[1] !== '') {
+        nombres.push(encontrado[1])
+        ultimo = absoluto
+      }
+      encontrado = patron.exec(texto)
+    }
+
+    cola = texto.slice(-ARRASTRE)
+    base += texto.length - cola.length
+  }
+
+  if (nombres.length === 0) return []
+
+  const reparto = Math.max(1, Math.round(bytes / nombres.length))
+
+  return nombres.map((name) => ({
+    name,
+    size: reparto,
+    type: MIME_DE_ADJUNTO[name.split('.').pop()?.toLowerCase() ?? ''] ?? 'application/octet-stream'
+  }))
 }
 
 /** `POST /ia/proyectos/{id}/acta-transformar`. Reescribe un fragmento con una de las cuatro acciones. */
@@ -1625,6 +2186,849 @@ function editarContacto (contacto, datos) {
   return presentarContactoCompleto(contacto)
 }
 
+// ---------------------------------------------------------------------------
+// Accesos: escalones, roles, personas, areas, cargos e interruptores
+// ---------------------------------------------------------------------------
+//
+// Sirve `/accesos` tal como lo describe el contrato del modulo, para que la pantalla
+// `/administracion/accesos` se pueda ver y ejercitar antes de que el modulo exista en Perfex.
+//
+// El estado vive en memoria del proceso: crear un escalon y recargar la pagina lo sigue mostrando,
+// y reiniciar el mock devuelve la semilla. Es lo que hace falta para probar el ida y vuelta de la
+// pantalla sin montar una base.
+//
+// El mapa de rol a escalon NO es una copia: es el mismo `NIVELES_POR_ROL` que usa `nivelDe()`, asi
+// que cambiar el escalon de un rol aca se ve en `GET /me` y en `GET /staff/{id}/nivel`. Dos
+// verdades sobre el mismo dato es como el mock deja de ser un contrato ejecutable.
+
+/** La semilla de escalones, con el piso y el alcance de `Reglas::PISO` y `Alcance::POR_NIVEL`. */
+const ESCALONES = [
+  { clave: 'usuario', nombre: 'Usuario', orden: 1, piso: { tasks: ['view', 'create', 'edit'], projects: ['view'] }, alcance: 'propio', jefatura: false, asignable: true, sistema: true },
+  { clave: 'focal', nombre: 'Focal', orden: 2, piso: { customers: ['view'] }, alcance: 'propio', jefatura: false, asignable: true, sistema: false },
+  { clave: 'lider', nombre: 'Líder', orden: 3, piso: { staff: ['view'] }, alcance: 'area', jefatura: true, asignable: true, sistema: false },
+  { clave: 'head', nombre: 'Head', orden: 4, piso: { projects: ['view', 'create', 'edit'], customers: ['view'] }, alcance: 'todo', jefatura: true, asignable: true, sistema: false },
+  { clave: 'gerente', nombre: 'Gerencia', orden: 5, piso: { customers: ['view', 'edit'] }, alcance: 'todo', jefatura: true, asignable: true, sistema: false },
+  { clave: 'admin', nombre: 'Administrador', orden: 6, piso: {}, alcance: 'todo', jefatura: false, asignable: false, sistema: true },
+  { clave: 'superadmin', nombre: 'Superadministrador', orden: 7, piso: {}, alcance: 'todo', jefatura: false, asignable: false, sistema: true }
+]
+
+/** Los cargos. Los dos primeros son los por defecto de la instalacion: la API los protege del borrado. */
+const CARGOS_ACCESOS = [
+  { id: 1, nombre: 'Director', porDefecto: true },
+  { id: 2, nombre: 'Colaborador', porDefecto: true },
+  { id: 3, nombre: 'Practicante', porDefecto: false }
+]
+
+/** Los interruptores del modelo de permisos, con su valor actual. Es tambien la lista blanca del PUT. */
+const INTERRUPTORES = [
+  {
+    clave: 'wiwo_permisos_reglas',
+    valor: '1',
+    tipo: 'booleano',
+    nombre: 'Reglas de permiso por escalón',
+    descripcion: 'Apagarlo deja a cada persona solo con sus casillas de Perfex: el piso del escalón deja de sumar.'
+  },
+  {
+    clave: 'wiwo_permisos_alcance',
+    valor: '0',
+    tipo: 'booleano',
+    nombre: 'Alcance por escalón',
+    descripcion: 'Encenderlo recorta cuántas filas ve cada persona según el alcance de su escalón. Hoy ven todo 33 personas; con esto, 12.'
+  },
+  {
+    clave: 'wiwo_permisos_roles_admin',
+    valor: '0',
+    tipo: 'booleano',
+    nombre: 'Los roles de administración abren el panel',
+    descripcion: 'Encenderlo hace que ciertos roles den acceso de administrador sin tocar la bandera de Perfex.'
+  },
+  {
+    clave: 'wiwo_campo_area_id',
+    valor: '1',
+    tipo: 'booleano',
+    nombre: 'Área como campo de la persona',
+    descripcion: 'Apagarlo deja de resolver el área de cada persona, y el alcance «su área» pasa a no recortar nada.'
+  }
+]
+
+/** Cargos iniciales y editados desde administración. */
+const CARGOS_POR_PERSONA = new Map([[1, 1], [2, 2]])
+
+/** Siguiente id de una lista con ids numericos. */
+function siguienteId (filas) {
+  return filas.reduce((mayor, fila) => Math.max(mayor, fila.id), 0) + 1
+}
+
+/** El escalon con el que se presenta: sin el `porDefecto` interno de los cargos. */
+function presentarEscalon (escalon) {
+  const personas = STAFF.filter((s) => nivelDe(s).nivel === escalon.clave).length
+
+  return { ...escalon, personas }
+}
+
+/** Cuantas personas usan un rol, un area o un cargo. */
+function contarPersonas (predicado) {
+  return STAFF.filter(predicado).length
+}
+
+/** La pertenencia de una persona, con el default del fixture. */
+function pertenenciaDe (staff) {
+  return { area_id: staff.area_id, area_ids: areasDePersona(staff), cargo_id: CARGOS_POR_PERSONA.has(staff.id) ? CARGOS_POR_PERSONA.get(staff.id) : staff.cargo_id }
+}
+
+/** El catalogo entero: lo que la pantalla necesita en una sola llamada. */
+function catalogoDeAccesos () {
+  return {
+    escalones: ESCALONES.map(presentarEscalon),
+    roles: ROLES.map((rol) => ({
+      id: rol.id,
+      nombre: rol.name,
+      escalon: NIVELES_POR_ROL[rol.id] ?? null,
+      personas: contarPersonas((s) => s.role_id === rol.id)
+    })),
+    areas: AREAS.map(presentarAreaDeAccesos),
+    cargos: CARGOS_ACCESOS.map(({ porDefecto: _porDefecto, ...cargo }) => ({
+      ...cargo,
+      personas: contarPersonas((s) => pertenenciaDe(s).cargo_id === cargo.id)
+    })),
+    features: Object.fromEntries(
+      RECURSOS_CON_PERMISO.map((recurso) => [
+        recurso,
+        recurso === 'projects' ? [...ACCIONES, 'edit_milestones'] : [...ACCIONES]
+      ])
+    ),
+    alcances: ['propio', 'area', 'todo'],
+    interruptores: INTERRUPTORES.map((uno) => ({ ...uno }))
+  }
+}
+
+/** Valida el cuerpo de un escalon. Lanza 422 con el detalle por campo, como la API real. */
+function exigirEscalonValido (datos, claveOriginal) {
+  const nombre = String(datos.nombre ?? '').trim()
+
+  if (nombre === '') {
+    throw new ErrorApi(422, 'validation_failed', 'El nombre es obligatorio.', { nombre: ['required'] })
+  }
+
+  if (claveOriginal === null) {
+    const clave = String(datos.clave ?? '')
+
+    if (!/^[a-z_]{2,30}$/.test(clave)) {
+      throw new ErrorApi(422, 'validation_failed', 'La clave no tiene el formato pedido.', { clave: ['invalid'] })
+    }
+    if (ESCALONES.some((uno) => uno.clave === clave)) {
+      throw new ErrorApi(422, 'validation_failed', 'Ya existe un escalón con esa clave.', { clave: ['duplicado'] })
+    }
+  }
+
+  const orden = Number(datos.orden)
+
+  if (!Number.isInteger(orden) || orden < 1) {
+    throw new ErrorApi(422, 'validation_failed', 'El orden tiene que ser un entero.', { orden: ['invalid'] })
+  }
+  if (ESCALONES.some((uno) => uno.orden === orden && uno.clave !== claveOriginal)) {
+    throw new ErrorApi(422, 'validation_failed', 'Ese orden ya está ocupado.', { orden: ['duplicado'] })
+  }
+  if (!['propio', 'area', 'todo'].includes(datos.alcance)) {
+    throw new ErrorApi(422, 'validation_failed', 'Ese alcance no existe.', { alcance: ['invalid'] })
+  }
+
+  const features = new Set(RECURSOS_CON_PERMISO)
+
+  for (const [feature, capacidades] of Object.entries(datos.piso ?? {})) {
+    if (!features.has(feature) || !Array.isArray(capacidades)) {
+      throw new ErrorApi(422, 'validation_failed', `La feature "${feature}" no existe.`, { piso: ['invalid'] })
+    }
+  }
+}
+
+/** Rutas de `/accesos`. Todas exigen superadministrador, igual que la API real. */
+async function accesosRuta (metodo, resto, parametros, actual, cuerpo) {
+  if (actual.is_superadmin !== true) {
+    throw new ErrorApi(403, 'forbidden', 'Solo un superadministrador administra los accesos.')
+  }
+
+  const [seccion, id] = resto
+
+  if (seccion === 'catalogo' && metodo === 'GET') {
+    return { estado: 200, cuerpo: conDatos(catalogoDeAccesos()) }
+  }
+
+  if (seccion === 'personas') return await personasDeAccesos(metodo, id, parametros, actual, cuerpo)
+  if (seccion === 'escalones') return await escalonesDeAccesos(metodo, id, cuerpo)
+  if (seccion === 'roles') return await rolesDeAccesos(metodo, id, cuerpo)
+  if (seccion === 'areas') return await areasDeAccesos(metodo, id, cuerpo)
+  if (seccion === 'cargos') return await cargosDeAccesos(metodo, id, cuerpo)
+
+  if (seccion === 'interruptores' && metodo === 'PUT') {
+    const datos = await cuerpo()
+
+    for (const [clave, valor] of Object.entries(datos)) {
+      const interruptor = INTERRUPTORES.find((uno) => uno.clave === clave)
+
+      if (!interruptor) {
+        throw new ErrorApi(422, 'validation_failed', `"${clave}" no es un interruptor.`, { [clave]: ['desconocido'] })
+      }
+
+      interruptor.valor = valor === '1' || valor === true ? '1' : '0'
+    }
+
+    return { estado: 200, cuerpo: conDatos(catalogoDeAccesos().interruptores) }
+  }
+
+  throw new ErrorApi(404, 'not_found', 'Recurso desconocido.')
+}
+
+/** El listado paginado de personas y la escritura de su rol, escalon, area y cargo. */
+async function personasDeAccesos (metodo, id, parametros, actual, cuerpo) {
+  if (metodo === 'GET' && id === undefined) {
+    const buscar = (parametros.get('buscar') ?? '').toLowerCase()
+    const escalon = parametros.get('escalon')
+    const rol = parametros.get('rol')
+    const area = parametros.get('area')
+    const pagina = Math.max(1, Number(parametros.get('page') ?? 1) || 1)
+    const porPagina = 25
+
+    const filas = STAFF
+      .filter((s) => buscar === '' || s.full_name.toLowerCase().includes(buscar) || s.email.toLowerCase().includes(buscar))
+      .filter((s) => escalon === null || nivelDe(s).nivel === escalon)
+      .filter((s) => rol === null || s.role_id === Number(rol))
+      .filter((s) => area === null || areasDePersona(s).includes(Number(area)))
+      .map((s) => {
+        const { area_id: areaId, cargo_id: cargoId } = pertenenciaDe(s)
+        const { nivel, nivel_asignado: asignado } = nivelDe(s)
+
+        return {
+          staffid: s.id,
+          nombre: s.full_name,
+          correo: s.email,
+          rol_id: s.role_id,
+          escalon_efectivo: nivel,
+          escalon_override: asignado,
+          area_id: areaId,
+          area_ids: areasDePersona(s),
+          cargo_id: cargoId,
+          activo: s.active
+        }
+      })
+
+    const desde = (pagina - 1) * porPagina
+
+    return {
+      estado: 200,
+      cuerpo: conDatos(filas.slice(desde, desde + porPagina), {
+        pagination: {
+          page: pagina,
+          per_page: porPagina,
+          total: filas.length,
+          total_pages: Math.max(1, Math.ceil(filas.length / porPagina))
+        }
+      })
+    }
+  }
+
+  if (metodo !== 'PUT' || id === undefined) throw new ErrorApi(404, 'not_found', 'Recurso desconocido.')
+
+  const persona = STAFF.find((s) => s.id === Number(id))
+
+  if (!persona) throw new ErrorApi(404, 'not_found', 'No existe esa persona.')
+
+  const datos = await cuerpo()
+  const areasNuevas = validarAreasDePersona(datos)
+
+  if (datos.escalon !== undefined) {
+    if (persona.id === actual.id) {
+      throw new ErrorApi(409, 'conflict', 'No puedes cambiarte el escalón a ti mismo.')
+    }
+
+    if (datos.escalon === null) {
+      NIVELES_ASIGNADOS.delete(persona.id)
+    } else {
+      const escalon = ESCALONES.find((uno) => uno.clave === datos.escalon)
+
+      if (!escalon || !escalon.asignable) {
+        throw new ErrorApi(422, 'validation_failed', 'Ese escalón no se puede asignar.', { escalon: ['invalid'] })
+      }
+
+      NIVELES_ASIGNADOS.set(persona.id, datos.escalon)
+    }
+  }
+
+  if (datos.rol_id !== undefined) persona.role_id = datos.rol_id
+
+  if (areasNuevas !== undefined) {
+    guardarAreasDePersona(persona, areasNuevas)
+    if (datos.area_id !== undefined) persona.area_id = datos.area_id === null ? null : Number(datos.area_id)
+  }
+  if (datos.cargo_id !== undefined) CARGOS_POR_PERSONA.set(persona.id, datos.cargo_id)
+
+  return { estado: 200, cuerpo: conDatos({ staffid: persona.id }) }
+}
+
+/** Alta, edicion y borrado de escalones. */
+async function escalonesDeAccesos (metodo, clave, cuerpo) {
+  if (metodo === 'POST' && clave === undefined) {
+    const datos = await cuerpo()
+    exigirEscalonValido(datos, null)
+
+    const nuevo = {
+      clave: String(datos.clave),
+      nombre: String(datos.nombre).trim(),
+      orden: Number(datos.orden),
+      piso: datos.piso ?? {},
+      alcance: datos.alcance,
+      jefatura: datos.jefatura === true,
+      asignable: datos.asignable === true,
+      sistema: false
+    }
+
+    ESCALONES.push(nuevo)
+
+    return { estado: 201, cuerpo: conDatos(presentarEscalon(nuevo)) }
+  }
+
+  const escalon = ESCALONES.find((uno) => uno.clave === clave)
+
+  if (!escalon) throw new ErrorApi(404, 'not_found', 'No existe ese escalón.')
+
+  if (metodo === 'PUT') {
+    const datos = await cuerpo()
+
+    if (escalon.sistema) {
+      const nombre = String(datos.nombre ?? '').trim()
+
+      if (nombre === '') {
+        throw new ErrorApi(422, 'validation_failed', 'El nombre es obligatorio.', { nombre: ['required'] })
+      }
+
+      escalon.nombre = nombre
+
+      return { estado: 200, cuerpo: conDatos(presentarEscalon(escalon)) }
+    }
+
+    exigirEscalonValido(datos, escalon.clave)
+
+    escalon.nombre = String(datos.nombre).trim()
+    escalon.orden = Number(datos.orden)
+    escalon.piso = datos.piso ?? {}
+    escalon.alcance = datos.alcance
+    escalon.jefatura = datos.jefatura === true
+    escalon.asignable = datos.asignable === true
+
+    return { estado: 200, cuerpo: conDatos(presentarEscalon(escalon)) }
+  }
+
+  if (metodo !== 'DELETE') throw new ErrorApi(404, 'not_found', 'Recurso desconocido.')
+
+  if (escalon.sistema) {
+    throw new ErrorApi(409, 'conflict', 'Los escalones de sistema no se borran.')
+  }
+
+  const roles = ROLES.filter((rol) => NIVELES_POR_ROL[rol.id] === escalon.clave).map((rol) => rol.name)
+  const personas = [...NIVELES_ASIGNADOS.values()].filter((valor) => valor === escalon.clave).length
+
+  if (roles.length > 0 || personas > 0) {
+    throw new ErrorApi(
+      409,
+      'conflict',
+      `Ese escalón está en uso: ${personas} persona(s)${roles.length > 0 ? ` y los roles ${roles.join(', ')}` : ''}.`
+    )
+  }
+
+  ESCALONES.splice(ESCALONES.indexOf(escalon), 1)
+
+  return { estado: 204, cuerpo: null }
+}
+
+/** Alta, renombre, mapeo y borrado de roles. */
+async function rolesDeAccesos (metodo, id, cuerpo) {
+  if (metodo === 'POST' && id === undefined) {
+    const datos = await cuerpo()
+    const nombre = String(datos.nombre ?? '').trim()
+
+    if (nombre === '') {
+      throw new ErrorApi(422, 'validation_failed', 'El nombre es obligatorio.', { nombre: ['required'] })
+    }
+
+    const rol = { id: siguienteId(ROLES), name: nombre }
+    ROLES.push(rol)
+
+    if (datos.escalon) NIVELES_POR_ROL[rol.id] = datos.escalon
+
+    return { estado: 201, cuerpo: conDatos({ id: rol.id, nombre: rol.name, escalon: datos.escalon ?? null, personas: 0 }) }
+  }
+
+  const rol = ROLES.find((uno) => uno.id === Number(id))
+
+  if (!rol) throw new ErrorApi(404, 'not_found', 'No existe ese rol.')
+
+  if (metodo === 'PUT') {
+    const datos = await cuerpo()
+
+    if (datos.nombre !== undefined) {
+      const nombre = String(datos.nombre).trim()
+
+      if (nombre === '') {
+        throw new ErrorApi(422, 'validation_failed', 'El nombre es obligatorio.', { nombre: ['required'] })
+      }
+
+      rol.name = nombre
+    }
+
+    if (datos.escalon !== undefined) {
+      if (datos.escalon === null) delete NIVELES_POR_ROL[rol.id]
+      else if (!ESCALONES.some((uno) => uno.clave === datos.escalon)) {
+        throw new ErrorApi(422, 'validation_failed', 'Ese escalón no existe.', { escalon: ['invalid'] })
+      } else NIVELES_POR_ROL[rol.id] = datos.escalon
+    }
+
+    return {
+      estado: 200,
+      cuerpo: conDatos({
+        id: rol.id,
+        nombre: rol.name,
+        escalon: NIVELES_POR_ROL[rol.id] ?? null,
+        personas: contarPersonas((s) => s.role_id === rol.id)
+      })
+    }
+  }
+
+  if (metodo !== 'DELETE') throw new ErrorApi(404, 'not_found', 'Recurso desconocido.')
+
+  const personas = contarPersonas((s) => s.role_id === rol.id)
+
+  if (personas > 0) {
+    throw new ErrorApi(409, 'conflict', `Ese rol tiene ${personas} persona(s). Muévelas antes de borrarlo.`)
+  }
+
+  ROLES.splice(ROLES.indexOf(rol), 1)
+  delete NIVELES_POR_ROL[rol.id]
+
+  return { estado: 204, cuerpo: null }
+}
+
+/**
+ * Presenta el catálogo compartido con el nombre y conteo esperados por administración.
+ * @param {object} area fila del catálogo de jerarquía
+ * @returns {object} área con sus integrantes de todas las membresías
+ */
+function presentarAreaDeAccesos (area) {
+  const { name, ...datos } = area
+  return { ...datos, nombre: name, personas: contarPersonas((persona) => areasDePersona(persona).includes(area.id)) }
+}
+
+/** Alta, edicion y borrado de areas, con el rechazo de ciclos. */
+async function areasDeAccesos (metodo, id, cuerpo) {
+  if (metodo === 'POST' && id === undefined) {
+    const datos = await cuerpo()
+    const nombre = String(datos.nombre ?? '').trim()
+
+    if (nombre === '') {
+      throw new ErrorApi(422, 'validation_failed', 'El nombre es obligatorio.', { nombre: ['required'] })
+    }
+
+    const area = {
+      id: siguienteId(AREAS),
+      name: nombre,
+      area_superior_id: datos.area_superior_id ?? null,
+      jefe_staffid: datos.jefe_staffid ?? null
+    }
+
+    AREAS.push(area)
+
+    return { estado: 201, cuerpo: conDatos(presentarAreaDeAccesos(area)) }
+  }
+
+  const area = AREAS.find((una) => una.id === Number(id))
+
+  if (!area) throw new ErrorApi(404, 'not_found', 'No existe esa área.')
+
+  if (metodo === 'PUT') {
+    const datos = await cuerpo()
+    const nombre = String(datos.nombre ?? '').trim()
+
+    if (nombre === '') {
+      throw new ErrorApi(422, 'validation_failed', 'El nombre es obligatorio.', { nombre: ['required'] })
+    }
+
+    const superior = datos.area_superior_id ?? null
+
+    if (superior !== null && haceCiclo(area.id, superior)) {
+      throw new ErrorApi(422, 'validation_failed', 'Esa área superior haría un ciclo.', { area_superior_id: ['ciclo'] })
+    }
+
+    area.name = nombre
+    area.area_superior_id = superior
+    area.jefe_staffid = datos.jefe_staffid ?? null
+
+    return {
+      estado: 200,
+      cuerpo: conDatos(presentarAreaDeAccesos(area))
+    }
+  }
+
+  if (metodo !== 'DELETE') throw new ErrorApi(404, 'not_found', 'Recurso desconocido.')
+
+  const personas = contarPersonas((s) => areasDePersona(s).includes(area.id))
+
+  if (personas > 0) {
+    throw new ErrorApi(409, 'conflict', `Esa área tiene ${personas} persona(s) dentro. Muévelas antes de borrarla.`)
+  }
+
+  AREAS.splice(AREAS.indexOf(area), 1)
+
+  return { estado: 204, cuerpo: null }
+}
+
+/** Si poner `superiorId` encima de `areaId` cerraria el arbol sobre si mismo. */
+function haceCiclo (areaId, superiorId) {
+  const vistas = new Set()
+  let actual = superiorId
+
+  while (actual !== null && actual !== undefined) {
+    if (actual === areaId) return true
+    if (vistas.has(actual)) return false
+
+    vistas.add(actual)
+    actual = AREAS.find((una) => una.id === actual)?.area_superior_id ?? null
+  }
+
+  return false
+}
+
+/** Alta, renombre y borrado de cargos. Los dos por defecto no se borran. */
+async function cargosDeAccesos (metodo, id, cuerpo) {
+  if (metodo === 'POST' && id === undefined) {
+    const datos = await cuerpo()
+    const nombre = String(datos.nombre ?? '').trim()
+
+    if (nombre === '') {
+      throw new ErrorApi(422, 'validation_failed', 'El nombre es obligatorio.', { nombre: ['required'] })
+    }
+
+    const cargo = { id: siguienteId(CARGOS_ACCESOS), nombre, porDefecto: false }
+    CARGOS_ACCESOS.push(cargo)
+
+    return { estado: 201, cuerpo: conDatos({ id: cargo.id, nombre: cargo.nombre, personas: 0 }) }
+  }
+
+  const cargo = CARGOS_ACCESOS.find((uno) => uno.id === Number(id))
+
+  if (!cargo) throw new ErrorApi(404, 'not_found', 'No existe ese cargo.')
+
+  if (metodo === 'PUT') {
+    const datos = await cuerpo()
+    const nombre = String(datos.nombre ?? '').trim()
+
+    if (nombre === '') {
+      throw new ErrorApi(422, 'validation_failed', 'El nombre es obligatorio.', { nombre: ['required'] })
+    }
+
+    cargo.nombre = nombre
+
+    return {
+      estado: 200,
+      cuerpo: conDatos({
+        id: cargo.id,
+        nombre: cargo.nombre,
+        personas: contarPersonas((s) => pertenenciaDe(s).cargo_id === cargo.id)
+      })
+    }
+  }
+
+  if (metodo !== 'DELETE') throw new ErrorApi(404, 'not_found', 'Recurso desconocido.')
+
+  if (cargo.porDefecto) {
+    throw new ErrorApi(409, 'conflict', 'Ese cargo es uno de los por defecto de la instalación: no se borra.')
+  }
+
+  const personas = contarPersonas((s) => pertenenciaDe(s).cargo_id === cargo.id)
+
+  if (personas > 0) {
+    throw new ErrorApi(409, 'conflict', `Ese cargo lo tienen ${personas} persona(s).`)
+  }
+
+  CARGOS_ACCESOS.splice(CARGOS_ACCESOS.indexOf(cargo), 1)
+
+  return { estado: 204, cuerpo: null }
+}
+
+/**
+ * La jornada propia, con sus tres formas de abrirse.
+ *
+ * El mock no la servia, y por eso el modal de apertura no se podia probar sin levantar el board: sin
+ * `GET /me/jornada` el control de la cabecera no llega a saber si falta abrirla y la ventana nunca
+ * se asoma. Con esto el camino nuevo —abrir con Cliente, abrir en blanco, y ponerle el Cliente
+ * despues— se recorre entero contra el mock.
+ *
+ * El estado vive en memoria y muere con el proceso, igual que el resto del mock: es un contrato
+ * ejecutable, no una base de datos.
+ */
+
+/** La jornada abierta de cada persona, por `staff_id`. Como mucho una por cabeza. */
+const JORNADAS = new Map()
+
+/** De donde salen los ids de jornada y de cronometro. Basta con que no se repitan. */
+let SIGUIENTE_JORNADA = 7000
+
+/** Cuantos segundos pasaron desde un instante ISO. Nunca negativo. */
+function segundosDesde (iso) {
+  return Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 1000))
+}
+
+/** El instante de ahora con la misma forma que usa el resto del mock. */
+function ahoraIso () {
+  return new Date().toISOString().replace(/\.\d{3}Z$/, 'Z')
+}
+
+/**
+ * Lee un id opcional del cuerpo, con la misma regla que la API real.
+ *
+ * Ausente, `null`, `''` y `0` son "no elegi"; cualquier otra cosa que no sea un entero positivo es
+ * 422. Tragarse la basura seria peor que rechazarla: dejaria la jornada sin destino mientras quien
+ * la mando cree que eligio uno.
+ */
+function idOpcional (valor, campo) {
+  if (valor === undefined || valor === null || valor === '' || valor === 0) return null
+
+  if (!Number.isInteger(valor) || valor <= 0) {
+    throw new ErrorApi(422, 'validation_failed', 'Hay campos que no se pueden guardar.', { [campo]: ['invalido'] })
+  }
+
+  return valor
+}
+
+/** El Cliente existe y no esta en la papelera, o 422. Devuelve su id. */
+function exigirCliente (id) {
+  const cliente = CLIENTES.find((c) => c.id === id)
+
+  if (!cliente) {
+    throw new ErrorApi(422, 'validation_failed', 'Hay campos que no se pueden guardar.', { client_id: ['no_encontrado'] })
+  }
+
+  return cliente.id
+}
+
+/** El Cliente de una jornada, ya con su nombre. Degrada a `null` si lo borraron despues. */
+function clienteDeJornada (jornada) {
+  if (jornada.client_id === null) return null
+
+  const cliente = CLIENTES.find((c) => c.id === jornada.client_id)
+
+  return cliente ? { id: cliente.id, name: cliente.company } : null
+}
+
+/** La jornada como viaja: con el Cliente resuelto y los segundos calculados por el servidor. */
+function presentarJornada (jornada) {
+  return {
+    id: jornada.id,
+    started_at: jornada.started_at,
+    seconds: segundosDesde(jornada.started_at),
+    client: clienteDeJornada(jornada)
+  }
+}
+
+/** El cronometro corriendo, en la forma anidada que usan las dos rutas que lo devuelven. */
+function presentarMedidor (medidor) {
+  if (!medidor) return null
+
+  const espacio = ESPACIOS.find((e) => e.id === medidor.project_id) ?? null
+  const proceso = medidor.task_id === null ? null : PROCESOS.find((p) => p.id === medidor.task_id) ?? null
+
+  return {
+    id: medidor.id,
+    project: espacio ? { id: espacio.id, name: espacio.name } : null,
+    task: proceso ? { id: proceso.id, name: proceso.name, status: proceso.status } : null,
+    start_time: medidor.start_time,
+    seconds: segundosDesde(medidor.start_time)
+  }
+}
+
+/** El cuerpo de `GET /me/jornada`, que es tambien lo que devuelven el POST y el PATCH. */
+function estadoDelDia (staffId) {
+  const jornada = JORNADAS.get(staffId) ?? null
+
+  if (jornada === null) {
+    return { open: null, seconds: 0, measured_seconds: 0, uncovered_seconds: 0, over_journey: false, timer: null }
+  }
+
+  const segundos = segundosDesde(jornada.started_at)
+  const medidos = jornada.medidos + (jornada.timer ? segundosDesde(jornada.timer.start_time) : 0)
+
+  return {
+    open: presentarJornada(jornada),
+    seconds: segundos,
+    measured_seconds: medidos,
+    uncovered_seconds: Math.max(0, segundos - medidos),
+    // Ocho horas. El mock no las va a alcanzar en una sesion de prueba, pero la bandera existe igual.
+    over_journey: segundos > 8 * 3600,
+    timer: presentarMedidor(jornada.timer)
+  }
+}
+
+/** Arranca el cronometro de la jornada abierta. 409 sin jornada, o con uno ya corriendo. */
+function arrancarMedidor (staffId, { espacioId, procesoId }) {
+  const jornada = JORNADAS.get(staffId)
+
+  if (!jornada) throw new ErrorApi(409, 'conflict', 'No tienes ninguna jornada abierta.')
+  if (jornada.timer) throw new ErrorApi(409, 'conflict', 'Ya tienes un cronómetro corriendo.')
+
+  jornada.timer = {
+    id: ++SIGUIENTE_JORNADA,
+    project_id: espacioId,
+    task_id: procesoId,
+    start_time: ahoraIso()
+  }
+
+  return jornada.timer
+}
+
+/** Detiene el cronometro y acumula lo medido. 409 si no hay ninguno corriendo. */
+function detenerMedidor (staffId) {
+  const jornada = JORNADAS.get(staffId)
+
+  if (!jornada || !jornada.timer) throw new ErrorApi(409, 'conflict', 'No tienes ningún cronómetro corriendo.')
+
+  jornada.medidos += segundosDesde(jornada.timer.start_time)
+  jornada.timer = null
+}
+
+/**
+ * El Espacio y el Proceso del destino, comprobados igual que en la API real.
+ *
+ * El orden de las comprobaciones importa: el `task_id` huerfano se rechaza ANTES de mirar si el
+ * Espacio existe, porque sin `project_id` no hay Espacio contra el que mirar nada.
+ */
+function resolverDestino (cuerpo) {
+  const espacioId = idOpcional(cuerpo.project_id, 'project_id')
+  const procesoId = idOpcional(cuerpo.task_id, 'task_id')
+
+  if (procesoId !== null && espacioId === null) {
+    throw new ErrorApi(422, 'validation_failed', 'Hay campos que no se pueden guardar.', {
+      project_id: ['requerido_con_proceso']
+    })
+  }
+
+  if (espacioId === null) return { espacioId: null, procesoId: null }
+
+  const espacio = ESPACIOS.find((e) => e.id === espacioId)
+  if (!espacio) throw new ErrorApi(404, 'not_found', 'Ese Espacio no existe o no lo puedes ver.')
+
+  if (procesoId !== null) {
+    const proceso = PROCESOS.find((p) => p.id === procesoId)
+    if (!proceso) throw new ErrorApi(404, 'not_found', 'Ese Proceso no existe o no lo puedes ver.')
+
+    if (proceso.rel_type !== 'project' || proceso.rel_id !== espacioId) {
+      throw new ErrorApi(422, 'validation_failed', 'Hay campos que no se pueden guardar.', {
+        task_id: ['no_pertenece_al_espacio']
+      })
+    }
+  }
+
+  return { espacioId, procesoId }
+}
+
+/** `/me/jornada`, `/me/jornada/resumen` y `/me/jornada/cierre`. */
+async function jornadaRuta (metodo, resto, actual, cuerpo) {
+  const sub = resto[1] ?? null
+
+  if (sub === 'resumen') {
+    if (metodo !== 'GET') throw new ErrorApi(404, 'not_found', 'Ruta de jornada desconocida.')
+
+    const jornada = JORNADAS.get(actual.id)
+    if (!jornada) throw new ErrorApi(404, 'not_found', 'No tienes ninguna jornada abierta.')
+
+    const estado = estadoDelDia(actual.id)
+    const medidor = presentarMedidor(jornada.timer)
+
+    return {
+      estado: 200,
+      cuerpo: conDatos({
+        jornada: presentarJornada(jornada),
+        measured_seconds: estado.measured_seconds,
+        uncovered_seconds: estado.uncovered_seconds,
+        // Un item por cronometro corriendo. El mock no guarda el historico de cronometros
+        // detenidos: lo que esta pantalla tiene que poder dibujar es el resumen vacio y el resumen
+        // con una linea, y las dos formas salen de aca.
+        items: medidor === null
+          ? []
+          : [{ project: medidor.project, task: medidor.task, seconds: medidor.seconds, corriendo: true }]
+      })
+    }
+  }
+
+  if (sub === 'cierre') {
+    if (metodo !== 'POST') throw new ErrorApi(404, 'not_found', 'Ruta de jornada desconocida.')
+
+    const jornada = JORNADAS.get(actual.id)
+    if (!jornada) throw new ErrorApi(409, 'conflict', 'No tienes ninguna jornada abierta.')
+
+    const detenidos = jornada.timer ? 1 : 0
+    const segundos = segundosDesde(jornada.started_at)
+
+    JORNADAS.delete(actual.id)
+
+    return {
+      estado: 200,
+      cuerpo: conDatos({
+        id: jornada.id,
+        started_at: jornada.started_at,
+        ended_at: ahoraIso(),
+        seconds: segundos,
+        auto_closed: false,
+        timers_stopped: detenidos
+      })
+    }
+  }
+
+  if (sub !== null) throw new ErrorApi(404, 'not_found', 'Ruta de jornada desconocida.')
+
+  if (metodo === 'GET') return { estado: 200, cuerpo: conDatos(estadoDelDia(actual.id)) }
+
+  if (metodo === 'POST') {
+    if (JORNADAS.has(actual.id)) throw new ErrorApi(409, 'conflict', 'Ya tienes una jornada abierta.')
+
+    const entrada = (await cuerpo()) ?? {}
+    // Todo se valida ANTES de crear nada: un Cliente invalido no abre la jornada.
+    const { espacioId, procesoId } = resolverDestino(entrada)
+    const clienteId = idOpcional(entrada.client_id, 'client_id')
+    const cliente = clienteId === null ? null : exigirCliente(clienteId)
+
+    JORNADAS.set(actual.id, {
+      id: ++SIGUIENTE_JORNADA,
+      started_at: ahoraIso(),
+      client_id: cliente,
+      medidos: 0,
+      timer: null
+    })
+
+    // La jornada corre; el cronometro no. Solo el camino con Espacio arranca algo.
+    if (espacioId !== null) arrancarMedidor(actual.id, { espacioId, procesoId })
+
+    return { estado: 201, cuerpo: conDatos(estadoDelDia(actual.id)) }
+  }
+
+  if (metodo === 'PATCH') {
+    const jornada = JORNADAS.get(actual.id)
+    if (!jornada) throw new ErrorApi(409, 'conflict', 'No tienes ninguna jornada abierta.')
+
+    const entrada = (await cuerpo()) ?? {}
+
+    // La clave tiene que venir: un PATCH sin `client_id` es un error de quien lo manda, no un
+    // borrado silencioso. Para quitarlo se manda `client_id: null` explicito.
+    if (!('client_id' in entrada)) {
+      throw new ErrorApi(422, 'validation_failed', 'Hay campos que no se pueden guardar.', { client_id: ['requerido'] })
+    }
+
+    const clienteId = idOpcional(entrada.client_id, 'client_id')
+    jornada.client_id = clienteId === null ? null : exigirCliente(clienteId)
+
+    return { estado: 200, cuerpo: conDatos(estadoDelDia(actual.id)) }
+  }
+
+  throw new ErrorApi(404, 'not_found', 'Ruta de jornada desconocida.')
+}
+
 async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, peticion) {
   const [recurso, ...resto] = segmentos
 
@@ -1784,6 +3188,149 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
       }
     }
 
+    // Catalogos que el portal necesita para pintar estados y ofrecer filtros. Es un subconjunto del
+    // `/lookups` del panel: el cliente no tiene por que recibir roles ni departamentos.
+    if (seccion === 'lookups') {
+      return {
+        estado: 200,
+        cuerpo: conDatos({
+          project_statuses: ESTADOS_ESPACIO,
+          task_statuses: ESTADOS_PROCESO,
+          task_priorities: PRIORIDADES
+        })
+      }
+    }
+
+    // Proyectos del cliente. Solo los de su empresa: el portal jamas lista los de otra, y una
+    // prueba que no lo ejercite no distingue "filtra bien" de "no filtra".
+    if (seccion === 'projects') {
+      if (!contacto.permissions.includes('projects')) {
+        throw new ErrorApi(403, 'forbidden', 'Este contacto no tiene acceso a proyectos.')
+      }
+
+      const mios = ESPACIOS.filter((espacio) => espacio.clientid === contacto.client_id)
+
+      if (resto.length === 1) {
+        const { filas, paginacion } = aplicarConsulta(mios.map(presentarEspacioPortal), parametros, {
+          filtros: { status: 'status' }, orden: ['name', 'deadline', 'progress'], busqueda: ['name']
+        })
+        return { estado: 200, cuerpo: conDatos(filas, { pagination: paginacion }) }
+      }
+
+      const espacio = mios.find((e) => e.id === Number(resto[1]))
+      if (!espacio) throw new ErrorApi(404, 'not_found', 'Proyecto inexistente.')
+
+      if (resto.length === 2) {
+        return {
+          estado: 200,
+          cuerpo: conDatos({
+            ...presentarEspacioPortal(espacio),
+            tabs: ['overview', 'tasks', 'milestones', 'files', 'activity'],
+            members: STAFF.filter((persona) => espacio.miembros.includes(persona.id))
+              .map(({ id, full_name, profile_image_url }) => ({ id, full_name, profile_image_url }))
+          })
+        }
+      }
+
+      const tareasDelEspacio = PROCESOS.filter((p) => p.rel_type === 'project' && p.rel_id === espacio.id)
+
+      if (resto[2] === 'tasks' && resto.length === 3) {
+        const { filas, paginacion } = aplicarConsulta(
+          tareasDelEspacio.map(presentarTareaPortal), parametros,
+          {
+            filtros: {
+              status: 'status',
+              // `aprobacion` lo pide la pagina del proyecto para el bloque de visto bueno. Sin el,
+              // el mock respondia 422 y el bloque no se dibujaba nunca: quedaba sin ejercitar.
+              // Lee del bloque ya presentado (`approval`), que es la forma que viaja al portal.
+              aprobacion: (fila, valor) => (fila.approval?.estado ?? null) === valor
+            },
+            orden: ['due_date', 'name'],
+            busqueda: ['name']
+          }
+        )
+        return { estado: 200, cuerpo: conDatos(filas, { pagination: paginacion }) }
+      }
+
+      if (resto[2] === 'milestones' && resto.length === 3) {
+        const hitos = HITOS.filter((h) => h.project_id === espacio.id).map((hito) => {
+          const suyas = tareasDelEspacio.filter((t) => t.milestone === hito.id)
+
+          return {
+            id: hito.id,
+            name: hito.name,
+            description: hito.description,
+            start_date: hito.start_date,
+            due_date: hito.due_date,
+            project_id: hito.project_id,
+            color: hito.color,
+            order: hito.milestone_order,
+            date_created: hito.datecreated,
+            counts: { tasks: suyas.length, tasks_done: suyas.filter((t) => t.status === 5).length },
+            vencido: hito.due_date !== null && hito.due_date < '2026-09-11'
+          }
+        })
+        return { estado: 200, cuerpo: conDatos(hitos) }
+      }
+
+      if (resto[2] === 'files' && resto.length === 3) {
+        // Uno externo a proposito: es el caso que el portal no sabia distinguir antes de compartir
+        // `origenDeArchivo`, y sin una fila asi ninguna prueba lo nota.
+        return {
+          estado: 200,
+          cuerpo: conDatos([
+            {
+              id: 900 + espacio.id,
+              file_name: `acta_${espacio.id}_5f3a.pdf`,
+              original_file_name: 'acta.pdf',
+              subject: 'Acta de la reunión inicial',
+              filetype: 'application/pdf',
+              date_added: '2026-08-02T11:00:00Z',
+              url: `/api/v1/files/${900 + espacio.id}/download`,
+              thumbnail_url: null
+            },
+            {
+              id: 950 + espacio.id,
+              file_name: 'plano.dwg',
+              original_file_name: null,
+              subject: null,
+              filetype: 'application/acad',
+              date_added: '2026-08-05T09:30:00Z',
+              url: 'https://drive.ejemplo.cl/plano',
+              thumbnail_url: null,
+              external: 'gdrive'
+            }
+          ])
+        }
+      }
+
+      if (resto[2] === 'activity' && resto.length === 3) {
+        return {
+          estado: 200,
+          cuerpo: conDatos([
+            {
+              id: 1,
+              description: 'creó el proyecto',
+              additional_data: null,
+              date_added: '2026-08-02T11:00:00Z',
+              staff: { id: 1, full_name: STAFF[0].full_name },
+              contact: null
+            },
+            {
+              id: 2,
+              description: 'aprobó una tarea',
+              additional_data: 'Con comentario del cliente.',
+              date_added: '2026-08-05T16:20:00Z',
+              staff: null,
+              contact: { id: 1, full_name: 'Renata Ferreyra' }
+            }
+          ])
+        }
+      }
+
+      throw new ErrorApi(404, 'not_found', `Recurso desconocido: "${resto[2] ?? ''}".`)
+    }
+
     throw new ErrorApi(404, 'not_found', `Recurso desconocido: "${seccion ?? ''}".`)
   }
 
@@ -1823,12 +3370,100 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
     }
   }
 
+  // La jornada propia y sus tres formas de abrirse. Va ANTES del bloque de `me` por el mismo motivo
+  // que "Mi Área": ese bloque contesta la ficha de la persona a cualquier resto, asi que sin esta
+  // rama `GET /me/jornada` devolveria un staff y el control de la cabecera leeria `open` de un objeto
+  // que no lo tiene — o sea "no hay jornada abierta" para siempre, y el modal de apertura en bucle.
+  if (recurso === 'me' && resto[0] === 'jornada') {
+    return await jornadaRuta(metodo, resto, actual, cuerpo)
+  }
+
+  // Los cronometros. Arrancar uno sobre una jornada ya abierta es como se le pone destino al dia que
+  // se abrio sin el, asi que sin estas rutas la segunda mitad del camino nuevo no se puede recorrer.
+  //
+  // `tasks/{id}/timer` se resuelve aca y no en el bloque de procesos porque el cronometro es uno solo
+  // por persona y vive en la jornada: dos almacenes del mismo hecho es como el mock deja de ser un
+  // contrato ejecutable. `timer_activo` del proceso se mantiene al dia igual, que es lo que lee su
+  // ficha.
+  if ((recurso === 'projects' || recurso === 'tasks') && resto[1] === 'timer') {
+    const id = Number(resto[0])
+    if (!Number.isInteger(id) || id <= 0) throw new ErrorApi(404, 'not_found', 'Recurso desconocido.')
+
+    if (recurso === 'projects') {
+      const espacio = buscarO404(ESPACIOS, id, 'Espacio')
+
+      if (metodo === 'POST') {
+        return { estado: 201, cuerpo: conDatos(presentarMedidor(arrancarMedidor(actual.id, { espacioId: espacio.id, procesoId: null }))) }
+      }
+      if (metodo === 'DELETE') {
+        detenerMedidor(actual.id)
+        return { estado: 204, cuerpo: null }
+      }
+
+      throw new ErrorApi(404, 'not_found', 'Recurso desconocido.')
+    }
+
+    const proceso = buscarO404(PROCESOS, id, 'Proceso')
+    // Un Proceso que cuelga de un cliente y no de un Espacio deja el medidor sin Espacio: es el caso
+    // polimorfico que los fixtures ya traen, y la interfaz tiene que sobrevivirlo.
+    const espacioId = proceso.rel_type === 'project' ? proceso.rel_id : null
+
+    if (metodo === 'POST') {
+      const medidor = arrancarMedidor(actual.id, { espacioId, procesoId: proceso.id })
+      proceso.timer_activo = { id: medidor.id, staff_id: actual.id, start_time: medidor.start_time }
+
+      return { estado: 201, cuerpo: conDatos(presentarMedidor(medidor)) }
+    }
+    if (metodo === 'DELETE') {
+      detenerMedidor(actual.id)
+      proceso.timer_activo = null
+
+      return { estado: 204, cuerpo: null }
+    }
+
+    throw new ErrorApi(404, 'not_found', 'Recurso desconocido.')
+  }
+
+  // `DELETE /live/timers/{id}`: detener desde la cabecera, sin saber sobre que se estaba midiendo.
+  // El id no se compara porque el mock tiene un cronometro por persona; lo que importa es de quien.
+  if (recurso === 'live' && resto[0] === 'timers' && metodo === 'DELETE') {
+    const jornada = JORNADAS.get(actual.id)
+    const proceso = jornada?.timer?.task_id == null ? null : PROCESOS.find((p) => p.id === jornada.timer.task_id)
+
+    detenerMedidor(actual.id)
+    if (proceso) proceso.timer_activo = null
+
+    return { estado: 204, cuerpo: null }
+  }
+
+  // `GET /me/mi-area`. Va ANTES del bloque de `me`, que responde la propia ficha a cualquier resto:
+  // sin esta rama, "Mi Área" recibia el staff en vez de `{area, area_staff}` y la pantalla reventaba
+  // al leer `area_staff.length`. El mock no la tenia y por eso nadie lo habia notado.
+  if (recurso === 'me' && resto[0] === 'mi-area' && metodo === 'GET') {
+    const area = AREAS.find((otra) => otra.id === actual.area_id) ?? null
+
+    return {
+      estado: 200,
+      cuerpo: conDatos({
+        area: area === null ? null : { id: area.id, name: area.name },
+        // Todo el mundo del area, bajas incluidas: la pantalla las marca como "Dada de baja".
+        area_staff: area === null
+          ? []
+          : STAFF.filter((persona) => areasDePersona(persona).includes(area.id)).map(presentarStaff)
+      })
+    }
+  }
+
   if (recurso === 'me' && metodo === 'GET') {
     return {
       estado: 200,
       cuerpo: conDatos({
         ...presentarStaff(actual),
         permissions: permisosDe(actual),
+        // Dirigir un area sale del `jefe_staffid` del arbol, no de un cargo: asi el mock no puede
+        // decir que alguien dirige algo mientras `/jerarquia` le contesta 403 por no tener ninguna.
+        // `is_director` es otra cosa —el cargo de `tblcargos`— y se deja como estaba.
+        dirige_areas: AREAS.some((area) => area.jefe_staffid === actual.id),
         // El escalon de la escalera, por el mismo resolutor que `GET /staff/{id}/nivel`: dos
         // verdades sobre el mismo dato es como el mock deja de ser un contrato ejecutable.
         nivel: nivelDe(actual).nivel,
@@ -1857,6 +3492,11 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
     }
   }
 
+  // Panel de accesos: escalones, roles, personas, areas, cargos e interruptores.
+  if (recurso === 'accesos') {
+    return await accesosRuta(metodo, resto, parametros, actual, cuerpo)
+  }
+
   if (recurso === 'ia') {
     return await iaRuta(metodo, resto, parametros, actual, cuerpo, peticion)
   }
@@ -1878,10 +3518,15 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
         tags: ETIQUETAS,
         roles: ROLES,
         departments: DEPARTAMENTOS,
+        // El catalogo de areas sale del mismo array que administra `/jerarquia`: dos listas separadas
+        // divergen apenas alguien crea un area desde el organigrama.
+        areas: AREAS.map(({ id, name }) => ({ id, name })),
         empresas: EMPRESAS_DEL_GRUPO
       })
     }
   }
+
+  if (recurso === 'jerarquia') return jerarquiaRuta(metodo, resto, cuerpo, actual)
 
   if (recurso === 'custom-fields' && metodo === 'GET') {
     const para = parametros.get('para') ?? ''
@@ -1950,6 +3595,8 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
     const persona = buscarO404(STAFF, Number(resto[0]), 'staff')
     const datos = await cuerpo()
 
+    const areasNuevas = validarAreasDePersona(datos)
+
     if (datos.permissions !== undefined) {
       // Mismo contrato que la API real: solo se reescriben las areas nombradas; las demas quedan.
       const previos = { ...permisosDe(persona) }
@@ -1975,6 +3622,11 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
       persona.modelo_permisos = datos.modelo_permisos
     }
 
+    if (areasNuevas !== undefined) {
+      guardarAreasDePersona(persona, areasNuevas)
+      if (datos.area_id !== undefined) persona.area_id = datos.area_id === null ? null : Number(datos.area_id)
+    }
+
     for (const bandera of ['is_admin', 'is_superadmin']) {
       if (datos[bandera] !== undefined) persona[bandera] = datos[bandera] === true
     }
@@ -1988,8 +3640,9 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
       if (resto.length !== 1) throw new ErrorApi(404, 'not_found', 'Ruta de asignables desconocida.')
       const personas = STAFF.filter((persona) => persona.active && !persona.is_not_staff)
         .sort((a, b) => a.firstname.localeCompare(b.firstname))
-        .map(({ id, full_name, profile_image_url, area_id, cargo_id }) => ({
-          id, full_name, profile_image_url, area_id: area_id ?? null, cargo_id: cargo_id ?? null
+        .map((persona) => ({
+          id: persona.id, full_name: persona.full_name, profile_image_url: persona.profile_image_url,
+          area_id: persona.area_id ?? null, area_ids: areasDePersona(persona), cargo_id: persona.cargo_id ?? null
         }))
       const { filas, paginacion } = aplicarConsulta(personas, parametros, {
         filtros: {}, orden: ['full_name'], busqueda: ['full_name']
@@ -2367,29 +4020,31 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
       return { estado: 200, cuerpo: conDatos(proceso) }
     }
 
-    if (subrecurso === 'timer') {
-      exigirPermiso(actual, 'tasks', 'edit')
-      if (metodo === 'POST') {
-        if (proceso.timer_activo) {
-          throw new ErrorApi(409, 'conflict', 'Ya hay un cronómetro activo en este proceso.')
-        }
-        proceso.timer_activo = {
-          id: 900 + proceso.id,
-          staff_id: actual.id,
-          start_time: new Date().toISOString().replace(/\.\d{3}Z$/, 'Z')
-        }
-        return { estado: 201, cuerpo: conDatos(proceso.timer_activo) }
-      }
-      if (metodo === 'DELETE') {
-        if (!proceso.timer_activo) {
-          throw new ErrorApi(409, 'conflict', 'No hay ningún cronómetro activo.')
-        }
-        proceso.timer_activo = null
-        return { estado: 204, cuerpo: null }
+    throw new ErrorApi(404, 'not_found', 'Ruta de proceso desconocida.')
+  }
+
+  // `GET /files/acta/{id}/download`: el binario de un adjunto del Meeting Paper.
+  //
+  // Es el unico binario que el mock sirve de verdad, y es a proposito: la ficha del acta pinta las
+  // fotos como miniatura, asi que con metadata en JSON no hay forma de ver si el titulo y el boton
+  // quedaron bien puestos respecto de la imagen. Un PNG de 1x1 alcanza para que el `<img>` cargue.
+  if (recurso === 'files' && metodo === 'GET' && resto[0] === 'acta' && resto[2] === 'download') {
+    const adjunto = ACTAS
+      .flatMap((acta) => acta.attachments ?? [])
+      .find((a) => a.id === Number(resto[1]))
+
+    if (adjunto === undefined) throw new ErrorApi(404, 'not_found', 'No existe ese adjunto.')
+
+    return {
+      transmitir: (respuesta) => {
+        respuesta.writeHead(200, {
+          'Content-Type': adjunto.filetype === '' ? 'application/octet-stream' : adjunto.filetype,
+          'Content-Disposition': `attachment; filename="${adjunto.name.replace(/"/g, '')}"`,
+          'X-Content-Type-Options': 'nosniff'
+        })
+        respuesta.end(PLACEHOLDER_PNG)
       }
     }
-
-    throw new ErrorApi(404, 'not_found', 'Ruta de proceso desconocida.')
   }
 
   if (recurso === 'files' && metodo === 'GET' && resto[1] === 'download') {
@@ -2490,6 +4145,61 @@ function presentarContacto (contacto) {
  * Mismo criterio que la API real: las que dependen de un permiso salen de `permissions`, y archivos,
  * anuncios, ayuda y perfil los ve cualquier contacto logueado.
  */
+/**
+ * Un Espacio como lo devuelve el portal del cliente.
+ *
+ * La descripcion sale **con marcado**, que es lo que guarda el panel viejo y lo que manda la API
+ * real. Sin eso, el mock nunca reproduce el `<p>` que el cliente terminaba leyendo en pantalla.
+ */
+function presentarEspacioPortal (espacio) {
+  const tareas = PROCESOS.filter((p) => p.rel_type === 'project' && p.rel_id === espacio.id)
+
+  return {
+    id: espacio.id,
+    name: espacio.name,
+    description: `<p>${espacio.description}</p>`,
+    status: espacio.status,
+    start_date: espacio.start_date,
+    deadline: espacio.deadline,
+    date_finished: espacio.date_finished,
+    progress: espacio.progress,
+    counts: {
+      tasks: tareas.length,
+      tasks_open: tareas.filter((t) => t.status !== 5).length,
+      milestones: HITOS.filter((h) => h.project_id === espacio.id).length
+    }
+  }
+}
+
+/** Un Proceso como lo devuelve el portal: sin horas, sin asignados y sin comentarios internos. */
+function presentarTareaPortal (proceso) {
+  return {
+    id: proceso.id,
+    patente: proceso.patente,
+    name: proceso.name,
+    description: proceso.description ?? null,
+    status: proceso.status,
+    priority: proceso.priority,
+    start_date: proceso.start_date ?? null,
+    due_date: proceso.due_date ?? null,
+    date_finished: proceso.date_finished ?? null,
+    milestone: proceso.milestone ?? 0,
+    milestone_order: proceso.milestone_order ?? 0,
+    task_type: proceso.task_type ?? 0,
+    tags: proceso.tags ?? [],
+    // Podado como en la API real: sin quien la pidio ni el id del contacto que respondio.
+    ...(proceso.aprobacion === undefined ? {} : {
+      approval: {
+        requerida: proceso.aprobacion.requerida,
+        estado: proceso.aprobacion.estado,
+        solicitada_en: proceso.aprobacion.solicitada_en ?? null,
+        resuelta_en: proceso.aprobacion.resuelta_en ?? null,
+        comentario: proceso.aprobacion.comentario ?? null
+      }
+    })
+  }
+}
+
 function seccionesDelPortal (contacto) {
   const conPermiso = ['projects', 'invoices', 'estimates', 'proposals', 'contracts', 'support']
     .filter((f) => contacto.permissions.includes(f))

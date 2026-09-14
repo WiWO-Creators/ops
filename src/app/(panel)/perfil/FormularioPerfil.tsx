@@ -8,6 +8,7 @@ import { Campo } from '@/componentes/formularios/Campo'
 import { AreaTexto, Entrada } from '@/componentes/formularios/Entrada'
 import { Avatar } from '@/componentes/presentadores/Avatar'
 import { Seccion } from '@/componentes/presentadores/Ficha'
+import { TituloModulo } from '@/componentes/estructura/TituloModulo'
 import type { Yo } from '@/datos/tipos'
 
 /** Respuesta de `GET|PATCH /me/perfil` y de `POST /me/foto` (`controllers/V1.php:4132`). */
@@ -329,7 +330,7 @@ export function FormularioPerfil ({ yo, perfil }: PropsFormularioPerfil) {
 
   return (
     <div className="mx-auto flex w-full max-w-2xl flex-col gap-8">
-      <h1 className="text-texto font-titular text-xl font-extrabold">Mi perfil</h1>
+      <TituloModulo titulo="Mi perfil" />
 
       <Seccion titulo="Foto">
         <div className="flex flex-wrap items-center gap-4">

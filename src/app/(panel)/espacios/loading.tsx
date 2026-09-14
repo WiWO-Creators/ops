@@ -1,3 +1,4 @@
+import { TituloModulo } from '@/componentes/estructura/TituloModulo'
 import { Cargando } from '@/componentes/estado/Estados'
 import { ESPACIOS } from '@/definiciones/espacios'
 
@@ -16,7 +17,7 @@ import { ESPACIOS } from '@/definiciones/espacios'
 export default function CargandoEspacios () {
   return (
     <section className="flex flex-col gap-4">
-      <h1 className="text-xl font-semibold text-texto">{ESPACIOS.titulo.plural}</h1>
+      <TituloModulo titulo={ESPACIOS.titulo.plural} />
       <Cargando mensaje={`Cargando ${ESPACIOS.titulo.plural.toLowerCase()}…`} />
     </section>
   )

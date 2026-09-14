@@ -6,14 +6,15 @@ import type { Sobre } from '@/datos/tipos'
 import type { ArchivoPortal } from '@/datos/portal'
 import { listaDe } from '@/datos/catalogos'
 import { cargarLookupsDelPortal } from '@/datos/lookups'
+import { nombreDeArchivo, origenDeArchivo } from '@/definiciones/archivos'
 import Link from 'next/link'
 
 /**
  * Piezas compartidas por las pantallas de detalle del portal.
  *
- * Los cinco detalles —factura, presupuesto, propuesta, contrato y ticket— tienen la misma forma:
- * migaja de vuelta, titulo con su estado, una lista de datos y el cuerpo propio de cada uno. Lo que
- * cambia es el cuerpo, y eso es lo que cada pagina escribe.
+ * Los tres detalles —proyecto, ticket y articulo de ayuda— tienen la misma forma: migaja de vuelta,
+ * titulo con su estado, una lista de datos y el cuerpo propio de cada uno. Lo que cambia es el
+ * cuerpo, y eso es lo que cada pagina escribe.
  */
 
 /**
@@ -73,27 +74,75 @@ function Enlace ({ href, children }: { href: string, children: React.ReactNode }
  *
  * Se resuelve en el servidor porque el catalogo ya se pide ahi: mandarlo entero al navegador para
  * pintar una insignia seria cargar seis listas para usar una fila.
+ *
+ * La pildora del estado de un proyecto ya no se resuelve acá: la dibuja `CabeceraProyecto`, que es
+ * la misma que ve el equipo. Acá quedan los catalogos que el portal pinta por su cuenta —tickets,
+ * prioridades— y que conservan el color que traigan.
  */
 export async function EstadoDelPortal ({ catalogo, valor }: { catalogo: string, valor: number }) {
-  const lookups = await cargarLookupsDelPortal()
-  const opcion = listaDe(lookups, catalogo).find((e) => e.id === valor)
+  const opcion = await opcionDelPortal(catalogo, valor)
 
-  if (opcion === undefined) return null
+  if (opcion === null) return null
 
   return <Insignia color={opcion.color ?? undefined}>{opcion.name}</Insignia>
 }
 
 /**
- * A donde apunta la descarga de un archivo del portal.
+ * Nombre y color de un valor de catalogo del portal.
  *
- * La API devuelve rutas propias (`/api/v1/files/...`) para lo que vive en el servidor y URLs enteras
- * para los adjuntos externos. Las primeras pasan por el BFF, que es el unico que tiene el token; las
- * segundas van tal cual, porque no hay nada nuestro que autorizar.
+ * Devuelve la misma forma que el panel arma con `listaDe(lookups, ...)`, para poder pasarsela a
+ * `CabeceraProyecto` sin traducir nada en el medio.
+ *
+ * @param catalogo clave del catalogo, por ejemplo `project_statuses`
+ * @param valor el id que trae el recurso
+ * @returns nombre y color; un id que el catalogo no conoce se muestra como `#id` sin color
  */
-export function enlaceDeDescarga (archivo: ArchivoPortal): string {
-  const url = archivo.url ?? ''
+export async function estadoDelPortal (
+  catalogo: string,
+  valor: number
+): Promise<{ nombre: string, color: string | null }> {
+  const opcion = await opcionDelPortal(catalogo, valor)
 
-  return url.startsWith('/api/v1/') ? `/api/bff${url.slice('/api/v1'.length)}` : url
+  return { nombre: opcion?.name ?? `#${valor}`, color: opcion?.color ?? null }
+}
+
+/** La opcion del catalogo, o `null` si el catalogo no la tiene. */
+async function opcionDelPortal (catalogo: string, valor: number) {
+  const lookups = await cargarLookupsDelPortal()
+
+  return listaDe(lookups, catalogo).find((e) => e.id === valor) ?? null
+}
+
+/**
+ * El nombre de un archivo, como enlace de descarga cuando hay algo que descargar.
+ *
+ * El nombre y el origen los decide `definiciones/archivos`, que es de donde los saca la pestaña del
+ * equipo: si el portal los resolviera por su cuenta, el mismo archivo se llamaria distinto segun
+ * quien lo mire —el nombre en disco que ensucia Perfex contra el que la persona escribio— y un
+ * adjunto externo quedaria sin enlace.
+ *
+ * Sin binario ni enlace el nombre queda como texto: un `<a href="">` recarga la pantalla en vez de
+ * bajar nada.
+ *
+ * @param archivo el archivo tal como lo devuelve la API del portal
+ * @returns el nombre enlazado, o el nombre a secas si no hay de donde bajarlo
+ */
+export function NombreDeArchivo ({ archivo }: { archivo: ArchivoPortal }) {
+  const origen = origenDeArchivo(archivo)
+  const nombre = nombreDeArchivo(archivo)
+  const clase = 'text-texto hover:text-acento text-sm font-medium underline-offset-4 hover:underline'
+
+  if (origen.tipo === 'sinEnlace') {
+    return <span className="text-texto text-sm font-medium">{nombre}</span>
+  }
+
+  if (origen.tipo === 'externo') {
+    return (
+      <a href={origen.enlace} target="_blank" rel="noreferrer" className={clase}>{nombre}</a>
+    )
+  }
+
+  return <a href={origen.ruta} className={clase}>{nombre}</a>
 }
 
 /** Lista de datos en dos columnas, con los vacios omitidos. */

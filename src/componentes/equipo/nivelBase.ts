@@ -20,6 +20,14 @@
  * preguntan por la columna, y sería una segunda puerta al nivel administrador que se saltea el guard
  * del último superadministrador activo. Por eso este selector ofrece cinco opciones y no siete.
  *
+ * === Esta lista es una copia a mano; la fuente de verdad es el catálogo ===
+ *
+ * Los cinco escalones están escritos acá porque este archivo es más viejo que el módulo de accesos.
+ * Desde que existe `GET /accesos/catalogo` (`src/datos/accesos.ts`), la lista real —con su piso, su
+ * alcance y cuáles son asignables— la publica la API y se administra en `/administracion/accesos`.
+ * Un escalón nuevo aparece allá solo y acá **no**: hay que agregarlo a mano hasta que este diálogo
+ * pida el catálogo. No se borra porque lo monta la ficha de una persona en `/equipo`.
+ *
  * === Heredar no es ser `usuario` ===
  *
  * Sin fila en la tabla, el escalón lo decide el ROL de la persona (`wiwo_permisos_niveles_por_rol`).

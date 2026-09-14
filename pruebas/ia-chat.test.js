@@ -1,5 +1,5 @@
 /**
- * Pruebas del chat de WiBot.
+ * Pruebas del chat de Thinking Orb.
  *
  * Lo que se protege aca es **a donde apunta una cita**. Que el chat conteste de mas o de menos se ve
  * leyendo; que `[2]` enlace al Hito de otro Proyecto no se ve: se ve un enlace prolijo que lleva al
@@ -77,6 +77,16 @@ test('la cita es una ruta absoluta: el chat ya no esta dentro de la ficha de un 
   // llevar igual a esa, no a lo que esa pantalla entienda por `?tarea=`.
   assert.equal(hrefDeCita(TAREA), '/procesos?tarea=512')
   assert.equal(hrefDeCita({ tipo: 'espacio', id: 44, titulo: 'Colbun' }), '/espacios/44')
+})
+
+test('el Meeting Paper citado abre la pestaña de actas de SU Espacio', () => {
+  // El acta no tiene pantalla propia: vive en una pestaña de la ficha. Por eso el enlace se arma con
+  // el `espacio_id` que trae la cita y nunca con la URL vigente, que seria la ficha equivocada.
+  assert.equal(
+    hrefDeCita({ tipo: 'acta', id: 9, titulo: 'Kickoff', espacio_id: 44 }),
+    '/espacios/44?tab=actas'
+  )
+  assert.equal(hrefDeCita({ tipo: 'acta', id: 9, titulo: 'Kickoff' }), null, 'sin Espacio no hay a donde ir')
 })
 
 test('la cita que no se puede resolver no se enlaza a ningun lado', () => {
