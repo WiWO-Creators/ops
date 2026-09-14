@@ -3,7 +3,7 @@ import { pedir, pedirOpcional } from '@/datos/servidor'
 import { leerSuplantador } from '@/datos/sesion'
 import type { Yo } from '@/datos/tipos'
 import { GLOSARIO } from '@/dominio/glosario'
-import { puedeVerFocals, puedeVerSeccion } from '@/dominio/permisos'
+import { puedeVerFocals, puedeVerMiArea, puedeVerSeccion } from '@/dominio/permisos'
 import { intervaloDeLatido } from '@/datos/auditoria'
 import { iaHabilitada } from '@/datos/ajustes'
 import { intervaloDeLive, type EstadoDeJornada } from '@/datos/live'
@@ -195,13 +195,15 @@ function seccionesDe (yo: Yo): Seccion[] {
     secciones.push({ href: '/clientes', etiqueta: 'Clientes', icono: 'clientes' })
   }
 
-  // Focals se muestra de focal hacia arriba. Iba sin condicion —la compuerta real es la API, que
-  // responde 403 a quien no es focal ni jefatura, y la pantalla lo dice con `SinPermiso`—, pero el
-  // cliente pidio lo contrario: que la entrada exista solo para quien la puede usar. Sigue siendo
-  // COSMETICA: la autorizacion del servidor no se toca, y esconder no autoriza. El escalon lo
-  // resuelve la API en `GET /me` (`yo.nivel`), asi que esto no es una segunda opinion sobre el
-  // permiso sino la lectura del mismo dato. Ver `puedeVerFocals` para el caso del `nivel` ausente.
-  if (puedeVerFocals(yo.nivel)) {
+  // Focals se muestra SOLO a quien es focal de al menos un Cliente, sin excepciones hacia arriba: no
+  // es una pantalla de supervision sino la cartera propia, y a quien no tiene cartera le quedaba una
+  // lista vacia. La llave es `yo.es_focal` y **no** `yo.nivel`: el escalon y el hecho de responder
+  // por una cuenta son dos cosas distintas, y decidir por el escalon se equivocaba en las dos
+  // direcciones —focales con nivel `usuario` sin su propia pantalla, jefaturas sin cuentas a cargo
+  // que si la veian—. Sigue siendo COSMETICA: la autorizacion del servidor no se toca y esconder no
+  // autoriza; el dato sale de la misma API que responde el 403. Ver `puedeVerFocals` para el caso de
+  // una API vieja que todavia no manda el campo.
+  if (puedeVerFocals(yo)) {
     secciones.push({ href: '/focals', etiqueta: GLOSARIO.focal.plural, icono: 'focals' })
   }
 
@@ -210,9 +212,15 @@ function seccionesDe (yo: Yo): Seccion[] {
   }
 
   // "Mi Área" no tiene permiso de Perfex propio: el cargo Director (`wiwo_core/cargos_areas.php`) no
-  // otorga capabilities, asi que la llave es `is_director` y no `permissions.staff`. Un director sin
-  // `staff.view` igual puede ver a su gente por esta puerta.
-  if (yo.is_director) {
+  // otorga capabilities, asi que nunca dependio de `permissions.staff` y un director sin `staff.view`
+  // igual ve a su gente por esta puerta.
+  //
+  // La llave ya no es `is_director` sino la PERTENENCIA a un area: la pantalla muestra el area propia
+  // y quien la integra, asi que sin area no hay nada que mostrar, y con area la hay aunque no se
+  // dirija nada. Con `is_director` la entrada estaba practicamente muerta: las 184 cuentas de
+  // produccion llevan cargo "Staff". Se miran los dos campos del area —la columna vieja y la tabla
+  // multiarea— por lo que explica `puedeVerMiArea`.
+  if (puedeVerMiArea(yo)) {
     secciones.push({ href: '/equipo/mi-area', etiqueta: 'Mi Área', icono: 'mi_area' })
   }
 
