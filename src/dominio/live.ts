@@ -39,8 +39,10 @@ export type AlcanceDeLive = 'todo' | 'subordinados' | 'area' | 'propio'
  *
  * La llave del alcance total es la misma que la de la seccion Equipo (`staff.view`), mas
  * `is_superadmin`, que la tiene aunque Perfex no le haya dado la capacidad. La del alcance por area
- * es `is_director`, igual que "Mi Área": el cargo Director no otorga capabilities de Perfex, asi que
- * `permissions` nunca lo delata.
+ * es `is_director`: el cargo Director no otorga capabilities de Perfex, asi que `permissions` nunca
+ * lo delata. Ya no es la misma llave que la de "Mi Área" —esa pasó a ser la pertenencia a un area,
+ * ver `puedeVerMiArea()`—: aca se pregunta por quien MANDA en un area, no por quien pertenece a
+ * ella, y pertenecer no da derecho al tablero de los demas.
  *
  * `dirige_areas` va ANTES que `is_director` y es lo que arregla el caso que faltaba: quien dirige un
  * area del organigrama (`tblareas.jefe_staffid`) pero no tiene el cargo Director ni `staff.view` caia

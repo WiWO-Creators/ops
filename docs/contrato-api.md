@@ -192,8 +192,8 @@ Tampoco va bajo `/auth`: esa rama se atiende sin token, y ésta necesita saber q
   "firstname": "…", "lastname": "…", "full_name": "…",
   "profile_image_url": "…", "is_admin": false, "role_id": 3,
   "modelo_permisos": "viejo",
-  "is_director": false, "dirige_areas": false,
-  "area_id": null, "empresa_id": 3,
+  "is_director": false, "dirige_areas": false, "es_focal": false,
+  "area_id": null, "area_ids": [], "empresa_id": 3,
   "permissions": { "tasks": ["view","create","edit"], "projects": ["view_own"] },
   "secciones_habilitadas": ["procesos","espacios"],
   "locale": "es", "hourly_rate": 0
@@ -213,6 +213,17 @@ es decisión del usuario, no un pendiente técnico. Habilitar una sección es ed
 de `tblareas`: dirige al menos un área, y ve además todo lo que cuelga de ella. Ninguna de las dos es
 un permiso ni aparece en `permissions` — el cargo y la jefatura no otorgan capabilities de Perfex, que
 es justamente por lo que hay que mirarlas aparte. El árbol se configura en `/jerarquia`.
+
+`es_focal` dice si quien mira figura como focal de al menos un Cliente (`tblwiwo_focales`, resuelto
+con `Salud\ScoreCliente::esFocalDeAlgunCliente()`). Tampoco es un permiso: la autorización de la
+pantalla de Focals es el 403 de `GET /scores`, que se resuelve en cada pedido. Viaja acá para que el
+panel sepa si **ofrecer** la sección, que antes adivinaba con `nivel` — y el escalón y el hecho de
+responder por una cuenta son cosas distintas: hay focales con nivel `usuario` y gerencias sin ninguna
+cuenta a cargo. Una instalación sin esa tabla devuelve `false`.
+
+`area_ids` son todas las áreas de la persona (`staff_areas`, multiárea) y convive con `area_id`, que
+es la columna de `tblstaff` y sigue siendo la principal. Es pertenencia, no permiso, y es lo que el
+panel mira para ofrecer "Mi Área": preguntar por uno solo de los dos campos deja gente afuera.
 
 `permissions` **no trae una clave `tickets`**: Perfex no tiene una feature de permisos con ese nombre
 (ver el recurso `tickets` más abajo).

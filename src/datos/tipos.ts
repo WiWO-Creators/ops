@@ -125,6 +125,16 @@ export interface Staff {
    * mismo, que es lo que hace falta para acotar cosas por pertenencia — las salas, por ejemplo.
    */
   area_id: number | null
+  /**
+   * Todas las áreas a las que pertenece, no sólo la principal (`staff_areas`, multiárea).
+   *
+   * Conviven con `area_id` porque la columna de `tblstaff` es una sola y sigue siendo la principal:
+   * la tabla nueva es la que admite varias. Quien tiene área puede tenerla en cualquiera de las dos,
+   * así que preguntar por una sola deja gente afuera — ver `puedeVerMiArea()`.
+   *
+   * Opcional: una API vieja que todavía no la manda deja el campo en `undefined`, no en `[]`.
+   */
+  area_ids?: number[]
   empresa_id: number | null
   /**
    * Que catalogo de permisos le toca a esta persona (`Acceso\Permisos::usaModeloNuevo()`).
@@ -177,6 +187,19 @@ export interface Yo extends Staff {
   permissions: Record<AreaPermiso, Capacidad[]>
   /** El escalón de quien mira, ya resuelto por la API (banderas, override y rol). */
   nivel: NivelPermiso
+  /**
+   * Si quien mira figura como focal de al menos un Cliente (`tblwiwo_focales`).
+   *
+   * **Pertenencia, no permiso**: no abre nada por sí solo. La autorización de la pantalla de Focals
+   * es y sigue siendo el `403` de la API (`V1::scoresRuta()`), que la resuelve en cada pedido. Esto
+   * existe sólo para decidir si se OFRECE la sección, que antes se adivinaba con `nivel` — y el
+   * escalón y el hecho de ser focal son dos cosas distintas: hay focales de tres cuentas con nivel
+   * `usuario`, y gerencias que no responden por ninguna.
+   *
+   * Opcional a propósito: una API vieja que todavía no lo manda lo deja en `undefined`, y
+   * `puedeVerFocals()` trata ese caso como "no sé" y muestra la entrada, que es como estaba antes.
+   */
+  es_focal?: boolean
   secciones_habilitadas: string[]
   locale: string
 }

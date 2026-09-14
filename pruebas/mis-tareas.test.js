@@ -1,20 +1,17 @@
 /**
- * Pruebas de "Mis Tareas" y de la entrada de Focals.
+ * Pruebas de "Mis Tareas": de donde viene cada Tarea de la lista.
  *
- * Dos reglas, las dos de pintura y las dos con un caso raro que es el que importa:
+ * Una Licitacion ES un Espacio, asi que sus Tareas llegan indistinguibles de las de un Proyecto: lo
+ * unico que las separa es el conjunto de ids que manda `GET /licitaciones`. Sin ese conjunto todo
+ * tiene que leerse como Proyecto, nunca como "no se".
  *
- *  - **De donde viene una Tarea.** Una Licitacion ES un Espacio, asi que sus Tareas llegan
- *    indistinguibles de las de un Proyecto: lo unico que las separa es el conjunto de ids que manda
- *    `GET /licitaciones`. Sin ese conjunto todo tiene que leerse como Proyecto, nunca como "no se".
- *  - **Quien ve la entrada de Focals.** De focal hacia arriba. El caso que no puede romper el menu
- *    entero es el `nivel` ausente: una API vieja que todavia no lo manda, o un escalon nuevo que este
- *    panel no conoce.
+ * Quien ve la entrada de Focals se prueba en `permisos-seccion.test.js`, con el resto de las reglas
+ * que deciden que secciones se dibujan.
  */
 
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { origenDeTarea } from '../src/dominio/mis-tareas.ts'
-import { puedeVerFocals } from '../src/dominio/permisos.ts'
 
 /** Los ids de Espacio que son Licitaciones, como los arma la pantalla. */
 const LICITACIONES = new Set([900073, 900075])
@@ -61,20 +58,4 @@ test('una Tarea colgada de otra cosa que no es un Espacio no se llama privada', 
 
   assert.equal(origen.clase, 'otro')
   assert.notEqual(origen.tipo, 'Privada')
-})
-
-test('la entrada de Focals se muestra de focal hacia arriba', () => {
-  for (const nivel of ['focal', 'lider', 'head', 'gerente', 'admin', 'superadmin']) {
-    assert.equal(puedeVerFocals(nivel), true, nivel)
-  }
-})
-
-test('un usuario raso no ve la entrada de Focals', () => {
-  assert.equal(puedeVerFocals('usuario'), false)
-})
-
-test('sin nivel en la sesion la entrada se muestra, que es como estaba antes', () => {
-  assert.equal(puedeVerFocals(undefined), true)
-  assert.equal(puedeVerFocals(null), true)
-  assert.equal(puedeVerFocals('escalon_que_no_existe_todavia'), true)
 })

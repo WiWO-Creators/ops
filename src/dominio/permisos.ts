@@ -23,7 +23,7 @@
  *
  * Filtrar filas es trabajo de la API: esto solo decide que se dibuja. Esconder no autoriza.
  */
-import type { AreaPermiso, NivelPermiso } from '@/datos/tipos'
+import type { AreaPermiso, Yo } from '@/datos/tipos'
 
 /**
  * True si hay que dibujar la seccion de un area para quien tiene esas capacidades.
@@ -40,36 +40,49 @@ export function puedeVerSeccion (capacidades: readonly string[], area: AreaPermi
 }
 
 /**
- * La escalera de permisos completa, de menor a mayor.
- *
- * Es la misma de `datos/tipos.ts` y la del backend (`modules/api/Acceso/Reglas.php`). Vive aca como
- * ARREGLO —y no como el catalogo de `componentes/equipo/nivelBase.ts`, que solo lista los cinco
- * escalones que ese dialogo puede escribir— porque lo unico que se le pregunta es el ORDEN: quien
- * esta de tal escalon hacia arriba.
- */
-const ESCALERA: readonly NivelPermiso[] = [
-  'usuario', 'focal', 'lider', 'head', 'gerente', 'admin', 'superadmin'
-]
-
-/**
  * True si hay que dibujar la entrada de Focals para quien mira.
  *
- * El cliente la pidio visible "de focal hacia arriba" y por eso deja de mostrarse a todo el mundo.
- * **Esconderla no autoriza nada**: la compuerta sigue siendo la API, que responde 403 a quien no es
- * focal ni jefatura, y la pantalla lo dice con `SinPermiso`. Esto solo evita ofrecer una puerta que
- * para la mayoria del equipo estaba cerrada.
+ * La regla es la PERTENENCIA y nada mas: la seccion existe para quien responde por al menos un
+ * Cliente. Quien no es focal de nadie no la ve, sea quien sea —direccion y superadministracion
+ * incluidas—, porque no es una pantalla de supervision sino la cartera propia, y a quien no tiene
+ * cartera le mostraba una lista vacia. Antes se decidia por el escalon ("de focal hacia arriba"),
+ * que era una aproximacion equivocada en las dos direcciones: hay focales de tres cuentas con nivel
+ * `usuario` —que se quedaban sin su propia pantalla— y jefaturas sin ninguna cuenta a cargo que si
+ * la veian.
  *
- * Ante un escalon que no se reconoce —`/me` de una API vieja que todavia no manda `nivel`, o un
- * escalon nuevo que este panel no conoce— la entrada SE MUESTRA: es el comportamiento de siempre, y
- * esconderla por no saber le sacaria la pantalla a quien si la tiene.
+ * **Esconderla no autoriza nada**: la compuerta sigue siendo la API, que responde 403 a quien no
+ * corresponde, y la pantalla lo dice con `SinPermiso`. Esto solo evita ofrecer una puerta cerrada.
  *
- * @param nivel El escalon que resolvio la API en `GET /me`.
+ * Si `/me` no manda `es_focal` —una API vieja contra un panel nuevo— la entrada SE MUESTRA: falla
+ * abierta, igual que fallaba antes ante un escalon desconocido. Esconder una seccion por no saber le
+ * sacaria la pantalla a quien si la tiene, y el 403 de la API sigue puesto por si no la tiene.
+ *
+ * @param yo Quien mira, tal como lo devolvio `GET /me`.
  * @returns Si la seccion se dibuja.
  */
-export function puedeVerFocals (nivel: NivelPermiso | null | undefined): boolean {
-  const posicion = nivel === null || nivel === undefined ? -1 : ESCALERA.indexOf(nivel)
+export function puedeVerFocals (yo: Pick<Yo, 'es_focal'>): boolean {
+  return yo.es_focal ?? true
+}
 
-  if (posicion === -1) return true
-
-  return posicion >= ESCALERA.indexOf('focal')
+/**
+ * True si hay que dibujar la entrada de "Mi Área" para quien mira.
+ *
+ * La regla es tener area asignada, y punto: la pantalla muestra el area propia y quien la integra
+ * (`GET /me/mi-area`), asi que sin area no hay nada que mostrar mas que un vacio. Antes la llave era
+ * `is_director`, que es el cargo de `tblcargos`: hoy las 184 cuentas de produccion llevan cargo
+ * "Staff", de modo que esa puerta no se le abria practicamente a nadie.
+ *
+ * Se miran DOS campos y no uno porque la pertenencia vive en dos lugares: `area_id` es la columna de
+ * `tblstaff` —el area principal, la de siempre— y `area_ids` es la tabla `staff_areas`, que es la
+ * que admite varias. Quien fue asignado por la via nueva puede no tener la columna vieja escrita, y
+ * preguntar por una sola dejaba a esa gente sin su pantalla.
+ *
+ * Como con Focals: esconder no autoriza. La API decide, y la pantalla ya muestra `SinPermiso` ante
+ * su 403 y un vacio explicado cuando el area es `null`.
+ *
+ * @param yo Quien mira, tal como lo devolvio `GET /me`.
+ * @returns Si la seccion se dibuja.
+ */
+export function puedeVerMiArea (yo: Pick<Yo, 'area_id' | 'area_ids'>): boolean {
+  return yo.area_id !== null || (yo.area_ids ?? []).length > 0
 }
