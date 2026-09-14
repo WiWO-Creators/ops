@@ -12,20 +12,37 @@
  * Dos niveles, porque con 184 personas un solo árbol se estira hasta lo inservible: el mapa de áreas
  * y, al entrar en una tarjeta, su árbol. Volver al mapa no recarga nada: los datos ya están acá.
  */
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { ArrowLeft } from 'lucide-react'
 import { ArbolDelArea } from './ArbolDelArea'
+import { ListaDePersonas } from './ListaDePersonas'
 import { MapaDeAreas } from './MapaDeAreas'
 import { PanelDePersona } from './PanelDePersona'
 import { Boton } from '@/componentes/formularios/Boton'
+import { Segmentado } from '@/componentes/formularios/Segmentado'
 import { Insignia } from '@/componentes/presentadores/Insignia'
 import { Vacio } from '@/componentes/estado/Estados'
 import { escribirEnBff } from '@/componentes/datos/mutaciones'
 import { pedirSobre } from '@/datos/cliente'
 import {
-  arbolDelArea, areasDelMapa, colorDeArea, cuantasCajas, cuantosSinArea, descendenciaDe
+  arbolDelArea, areasDelMapa, colorDeArea, cuantasCajas, cuantosSinArea, descendenciaDe,
+  filasDeLista, personasDelArbol
 } from '@/dominio/organigrama'
+import { guardarVista, leerVista, suscribirVista, vistaDelServidor } from '@/lib/vista-organigrama'
+import type { OpcionSegmentada } from '@/componentes/formularios/Segmentado'
+import type { VistaDeOrganigrama } from '@/lib/vista-organigrama'
 import type { CambioDeJefatura, Organigrama as DatosDeOrganigrama } from '@/datos/organigrama'
+
+/**
+ * Las dos caras de los mismos datos.
+ *
+ * Un control de dos opciones siempre a la vista y no un menú: son dos, se nombran en una palabra y
+ * hay que poder ver cuál está puesta sin abrir nada.
+ */
+const VISTAS: readonly OpcionSegmentada[] = [
+  { valor: 'organigrama', etiqueta: 'Organigrama', icono: 'organigrama' },
+  { valor: 'lista', etiqueta: 'Lista', icono: 'tabla' }
+]
 
 /**
  * Qué se está mirando.
@@ -72,6 +89,16 @@ export function Organigrama ({ inicial }: { inicial: DatosDeOrganigrama }) {
     [datos.personas, vista]
   )
 
+  // La lista es la otra lectura de LO MISMO: en el mapa, toda la gente visible; dentro de un área,
+  // exactamente las personas que el árbol dibuja —enganches de otra área incluidos—, y no una
+  // selección propia por `area_id`, que daría otra cuenta que la que se acaba de ver.
+  const filas = useMemo(
+    () => filasDeLista(
+      vista === undefined ? datos.personas : personasDelArbol(raices), personasPorId, areas
+    ),
+    [datos.personas, raices, vista, personasPorId, areas]
+  )
+
   // Quién no puede recibir a la que se arrastra: ella misma y toda su descendencia. Es lo mismo que
   // el panel saca del selector de jefes, por el mismo motivo: sería el ciclo que la API rechaza.
   const prohibidos = useMemo(() => {
@@ -83,6 +110,22 @@ export function Organigrama ({ inicial }: { inicial: DatosDeOrganigrama }) {
   const vigente = useRef(true)
 
   useEffect(() => () => { vigente.current = false }, [])
+
+  // La preferencia no es estado de React sino de `localStorage`, así que se lee como lo que es: una
+  // fuente externa. `useSyncExternalStore` es lo que deja hacerlo sin un efecto que llame a
+  // `setState` —cascada de renders— y sin romper la hidratación: el servidor y el primer render del
+  // cliente usan la vista por defecto, y recién después aparece la guardada.
+  const modo = useSyncExternalStore(suscribirVista, leerVista, vistaDelServidor)
+
+  /**
+   * Cambia de vista y lo recuerda.
+   *
+   * Sólo escribe: el valor vuelve por la suscripción, que es lo que hace que dos pestañas abiertas
+   * en el organigrama no terminen mostrando cosas distintas.
+   */
+  const elegirModo = useCallback((valor: string): void => {
+    guardarVista(valor === 'lista' ? 'lista' : 'organigrama')
+  }, [])
 
   /**
    * Escribe un cambio de una persona y deja el árbol como lo dejó la API.
@@ -141,56 +184,81 @@ export function Organigrama ({ inicial }: { inicial: DatosDeOrganigrama }) {
   const puedeEditar = datos.yo.puede_editar
   const persona = elegida === null ? undefined : personasPorId.get(elegida)
 
+  /** Lo que se dibuja debajo de la cabecera, según dónde se está y con qué cara se mira. */
+  let contenido
+
+  if (vista !== undefined && raices.length === 0) {
+    contenido = (
+      <Vacio
+        titulo="Todavía no hay nadie acá"
+        descripcion={vista === null
+          ? 'Toda la gente que ves tiene un área puesta.'
+          : 'Nadie lleva esta área puesta. Asígnasela a alguien desde su panel.'}
+      />
+    )
+  } else if (modo === 'lista') {
+    contenido = (
+      <ListaDePersonas
+        // Cambiar de vista la remonta: sin esto, entrar en un área arrastraría el filtro escrito en
+        // el mapa y la tabla aparecería vacía sin que nada explique por qué.
+        key={String(vista)}
+        filas={filas}
+        elegida={elegida}
+        editable={puedeEditar}
+        onElegir={setElegida}
+      />
+    )
+  } else if (vista === undefined) {
+    contenido = (
+      <MapaDeAreas
+        areas={areas}
+        mias={mias}
+        sinArea={cuantosSinArea(datos)}
+        personasPorId={personasPorId}
+        onEntrar={(areaId) => { setVista(areaId); setError(null) }}
+      />
+    )
+  } else {
+    contenido = (
+      <ArbolDelArea
+        raices={raices}
+        elegida={elegida}
+        editable={puedeEditar && !guardando}
+        prohibidos={prohibidos}
+        onElegir={setElegida}
+        onSoltar={(quien, jefeId) => { void cambiar(quien, { jefe_staffid: jefeId }) }}
+        onArrastrar={setArrastrada}
+      />
+    )
+  }
+
   return (
     <div className="flex flex-col gap-4">
       {/* Una sola región para los dos avisos: los lectores de pantalla necesitan que exista vacía
           antes de tener texto, o el primer cambio no se anuncia. */}
       <p role="status" aria-live="polite" className="sr-only">{aviso}</p>
 
-      {vista === undefined
-        ? (
-          <MapaDeAreas
-            areas={areas}
-            mias={mias}
-            sinArea={cuantosSinArea(datos)}
-            personasPorId={personasPorId}
-            onEntrar={(areaId) => { setVista(areaId); setError(null) }}
-          />
-          )
-        : (
-          <>
-            <BarraDelArea
-              titulo={vista === null ? 'Sin área' : areas.find((una) => una.id === vista)?.nombre ?? 'Área'}
-              color={colorDeArea(vista)}
-              cajas={cuantasCajas(raices)}
-              puedeEditar={puedeEditar}
-              onVolver={() => { setVista(undefined); setElegida(null); setError(null) }}
-            />
+      <Cabecera
+        area={vista === undefined
+          ? undefined
+          : {
+              titulo: vista === null
+                ? 'Sin área'
+                : areas.find((una) => una.id === vista)?.nombre ?? 'Área',
+              color: colorDeArea(vista),
+              cajas: cuantasCajas(raices),
+              onVolver: () => { setVista(undefined); setElegida(null); setError(null) }
+            }}
+        modo={modo}
+        ayudaDeArrastre={vista !== undefined && modo === 'organigrama' && puedeEditar}
+        onModo={elegirModo}
+      />
 
-            {error !== null && <p role="alert" className="text-texto-peligro text-sm">{error}</p>}
+      {/* El error vive acá arriba y no dentro del árbol: una reasignación se puede lanzar desde la
+          lista del mapa, donde no hay árbol en pantalla que lo muestre. */}
+      {error !== null && <p role="alert" className="text-texto-peligro text-sm">{error}</p>}
 
-            {raices.length === 0
-              ? (
-                <Vacio
-                  titulo="Todavía no hay nadie acá"
-                  descripcion={vista === null
-                    ? 'Toda la gente que ves tiene un área puesta.'
-                    : 'Nadie lleva esta área puesta. Asignásela a alguien desde su panel.'}
-                />
-                )
-              : (
-                <ArbolDelArea
-                  raices={raices}
-                  elegida={elegida}
-                  editable={puedeEditar && !guardando}
-                  prohibidos={prohibidos}
-                  onElegir={setElegida}
-                  onSoltar={(quien, jefeId) => { void cambiar(quien, { jefe_staffid: jefeId }) }}
-                  onArrastrar={setArrastrada}
-                />
-                )}
-          </>
-          )}
+      {contenido}
 
       {persona !== undefined && (
         <PanelDePersona
@@ -211,40 +279,69 @@ export function Organigrama ({ inicial }: { inicial: DatosDeOrganigrama }) {
   )
 }
 
+/** Dónde se está parado, cuando no es el mapa. */
+interface ContextoDeArea {
+  titulo: string
+  color: string
+  cajas: number
+  onVolver: () => void
+}
+
 /**
- * La cabecera del árbol: de dónde se vino, qué área es y cómo se mueve la gente.
+ * La cabecera del organigrama: de dónde se vino, qué se está mirando y con qué cara.
  *
- * La instrucción de arrastre va acá y no en un tooltip porque es lo que se lee antes de intentar
- * nada, y porque nombra en el mismo renglón la otra vía: el clic, que es la que funciona con teclado
- * y en un teléfono.
+ * **El conmutador va acá y en los dos niveles**, en el mismo sitio: quien prefiere la lista la
+ * prefiere también dentro de un área, y un control que aparece y desaparece según la pantalla
+ * obliga a buscarlo cada vez.
+ *
+ * La instrucción de arrastre sólo tiene sentido con el árbol delante, así que se muestra con él. Va
+ * en el renglón y no en un tooltip porque es lo que se lee antes de intentar nada, y porque nombra
+ * la otra vía —el clic— que es la que funciona con teclado y en un teléfono.
  */
-function BarraDelArea (
-  { titulo, color, cajas, puedeEditar, onVolver }: {
-    titulo: string
-    color: string
-    cajas: number
-    puedeEditar: boolean
-    onVolver: () => void
+function Cabecera (
+  { area, modo, ayudaDeArrastre, onModo }: {
+    area?: ContextoDeArea
+    modo: VistaDeOrganigrama
+    ayudaDeArrastre: boolean
+    onModo: (valor: string) => void
   }
 ) {
   return (
     <header className="flex flex-wrap items-center gap-x-3 gap-y-2">
-      <Boton variante="sutil" tamano="chico" onClick={onVolver}>
-        <ArrowLeft aria-hidden="true" className="size-4" />
-        Todas las áreas
-      </Boton>
+      {area !== undefined && (
+        <>
+          <Boton variante="sutil" tamano="chico" onClick={area.onVolver}>
+            <ArrowLeft aria-hidden="true" className="size-4" />
+            Todas las áreas
+          </Boton>
 
-      <h2 className="font-titular text-texto flex min-w-0 items-center gap-2 text-[20px] font-semibold">
-        <span aria-hidden="true" className="size-2.5 shrink-0 rounded-full" style={{ backgroundColor: color }} />
-        <span className="truncate">{titulo}</span>
-      </h2>
+          <h2 className="font-titular text-texto flex min-w-0 items-center gap-2 text-[20px] font-semibold">
+            <span aria-hidden="true" className="size-2.5 shrink-0 rounded-full" style={{ backgroundColor: area.color }} />
+            <span className="truncate">{area.titulo}</span>
+          </h2>
 
-      <Insignia tono="contorno" tamano="chico">{cajas} {cajas === 1 ? 'caja' : 'cajas'}</Insignia>
+          {/* Sólo con el árbol: la lista ya lleva su propia cuenta al lado del buscador, y dos
+              números distintos de lo mismo en la misma barra es una pregunta que nadie quiere. */}
+          {modo === 'organigrama' && (
+            <Insignia tono="contorno" tamano="chico">
+              {area.cajas} {area.cajas === 1 ? 'caja' : 'cajas'}
+            </Insignia>
+          )}
+        </>
+      )}
 
-      {puedeEditar && (
-        <p className="text-texto-sutil basis-full text-xs sm:basis-auto sm:ms-auto sm:text-end">
+      <Segmentado
+        etiqueta="Vista"
+        opciones={VISTAS}
+        activo={modo}
+        onElegir={onModo}
+        className="ms-auto"
+      />
+
+      {ayudaDeArrastre && (
+        <p className="text-texto-sutil basis-full text-xs">
           Arrastra una caja sobre su nuevo jefe, o suéltala en el fondo para desengancharla.
-          Hacé clic en cualquiera para elegir jefe, escalón y área de una lista.
+          Haz clic en cualquiera para elegir jefe, escalón y área de una lista.
         </p>
       )}
     </header>
