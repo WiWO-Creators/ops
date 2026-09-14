@@ -1,8 +1,8 @@
 /**
- * Muestra el constructor de bienvenida con golpes sincronizados y un muro que se arma.
+ * Un albañil levanta un muro a martillazos: golpes sincronizados y bloques que entran de a uno.
  * @returns Escena SVG decorativa; el mensaje accesible pertenece a la bienvenida.
  */
-export function MonitoConstructor () {
+export function EscenaMartillo () {
   return (
     <svg
       viewBox="34 8 116 102"

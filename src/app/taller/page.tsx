@@ -26,6 +26,7 @@ import {
   CeldaEncabezado, CeldaTabla, CuerpoTabla, EncabezadoTabla, FilaTabla, Tabla
 } from '@/componentes/datos/Tabla'
 import { nombrar } from '@/dominio/glosario'
+import { ESCENAS } from '@/componentes/estructura/bienvenida/escenas'
 
 /** Estados de Proceso tal como los devuelve `lookups`, ordenados por `order` y no por `id`. */
 const ESTADOS = [
@@ -65,6 +66,20 @@ export default function TallerPage () {
 
   return (
     <>
+      <SeccionTaller
+        titulo="Escenas de bienvenida"
+        nota="Las cuatro obras que pueden tapar la pantalla después de actualizar. Se sortea una por carga, así que acá están todas juntas: es el único lugar donde se pueden mirar sin esperar un despliegue."
+      >
+        {ESCENAS.map((escena) => (
+          <Muestra key={escena.clave} etiqueta={escena.clave}>
+            <div className="flex flex-col items-center gap-2">
+              <escena.Dibujo />
+              <p className="text-texto-tenue text-sm">{escena.frase}</p>
+            </div>
+          </Muestra>
+        ))}
+      </SeccionTaller>
+
       <SeccionTaller
         titulo="Insignia"
         nota="Estado, prioridad o categoría. Cuando el color viene de la base se pinta como punto y el fondo queda neutro: los colores de estado de Perfex fueron elegidos para puntos de 8 px en Bootstrap 3, no para contrastar contra texto."
