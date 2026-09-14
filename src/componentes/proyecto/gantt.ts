@@ -18,8 +18,13 @@ const DIA = 86400000
  * Es una constante de Perfex, no una preferencia: la API la usa para el mismo calculo
  * (`RecursoGantt.php`, `progress`). Una tarea completa nunca esta vencida por mas que su fecha de
  * entrega haya pasado.
+ *
+ * Se exporta porque el panel la necesita para que el interruptor de "ocultar completadas" y la ficha
+ * del estado "Completa" del filtro no se contradigan. Es la misma constante que `tareas.ts`, repetida
+ * a proposito: este archivo no importa valores para poder correr en el runner de Node, que no
+ * resuelve el alias `@/`.
  */
-const ESTADO_COMPLETA = 5
+export const ESTADO_COMPLETA = 5
 
 /** Linea de tiempo del diagrama, en dias UTC desde la epoca. */
 export interface RangoGantt {
@@ -85,6 +90,53 @@ export function rangoDeGantt (grupos: GrupoGantt[]): RangoGantt | null {
   if (!Number.isFinite(inicio) || !Number.isFinite(fin)) return null
 
   return { inicio, fin, dias: Math.max(1, fin - inicio + 1) }
+}
+
+/**
+ * Quita del diagrama las tareas completadas y los grupos que se quedan sin ninguna.
+ *
+ * El filtrado es del cliente y no de la API a proposito: el endpoint ya devolvio los datos con el
+ * filtro por estado que eligio la persona, y volver a pedirlos para esconder un estado agregaria una
+ * vuelta de red para tirar filas que ya estan en memoria.
+ *
+ * Un grupo que se queda sin tareas visibles desaparece entero. Es lo mismo que hace la API, que no
+ * emite grupos vacios: dejar el hito con su riel y ninguna barra debajo diria que el hito tiene
+ * trabajo pendiente cuando no le queda nada.
+ *
+ * @param grupos los grupos tal como los devolvio `GET /projects/{id}/gantt`
+ * @returns copias de los grupos que conservan al menos una tarea sin completar; nunca muta la entrada
+ */
+export function ocultarCompletadasDeGantt (grupos: GrupoGantt[]): GrupoGantt[] {
+  const visibles: GrupoGantt[] = []
+
+  for (const grupo of grupos) {
+    const tareas = grupo.tareas.filter((tarea) => tarea.status !== ESTADO_COMPLETA)
+
+    if (tareas.length > 0) visibles.push({ ...grupo, tareas })
+  }
+
+  return visibles
+}
+
+/**
+ * Cuenta las tareas completadas que hay en los grupos.
+ *
+ * Cuenta tareas distintas y no filas: con `agrupar=members` la misma tarea aparece en la fila de cada
+ * persona asignada, y sumarla dos veces diria que se esconde mas trabajo del que se esconde.
+ *
+ * @param grupos los grupos tal como los devolvio `GET /projects/{id}/gantt`
+ * @returns cuantas tareas completadas distintas contienen; `0` si no hay ninguna
+ */
+export function contarCompletadasDeGantt (grupos: GrupoGantt[]): number {
+  const ids = new Set<number>()
+
+  for (const grupo of grupos) {
+    for (const tarea of grupo.tareas) {
+      if (tarea.status === ESTADO_COMPLETA) ids.add(tarea.id)
+    }
+  }
+
+  return ids.size
 }
 
 /** Posicion de una barra dentro de la linea de tiempo, en porcentaje del ancho total. */
