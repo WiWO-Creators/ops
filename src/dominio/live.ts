@@ -1,14 +1,17 @@
 /**
  * Reglas de LIVE que no dependen de React ni de la red.
  *
- * Cuatro preguntas: **hasta donde ve** quien mira, **que se le dice** cuando el medidor no arranca,
- * **si hoy ya dijo que no** a abrir la jornada, y **que opciones quedan** cuando busca en un combo. Las tres se prueban sin montar nada
- * (`pruebas/live.test.js`): a la de la jornada pospuesta se le pasan el almacenamiento y el dia, asi
- * que tampoco necesita un navegador ni depende del reloj de quien corre las pruebas.
+ * Seis preguntas: **hasta donde ve** quien mira, **que se le dice** cuando el medidor no arranca,
+ * **si hoy ya dijo que no** a abrir la jornada, **que opciones quedan** cuando busca en un combo,
+ * **con que cuerpo se abre el dia** por cada uno de los tres caminos, y **como se cuenta** una jornada
+ * que corre sin destino. Todas se prueban sin montar nada (`pruebas/live.test.js`): a la de la
+ * jornada pospuesta se le pasan el almacenamiento y el dia, asi que tampoco necesita un navegador ni
+ * depende del reloj de quien corre las pruebas.
  */
+import { GLOSARIO } from './glosario.ts'
 import { puedeVerSeccion } from './permisos.ts'
 import { normalizar } from './salas.ts'
-import type { EstadoDeJornada } from '@/datos/live'
+import type { ClienteDeJornada, EstadoDeJornada } from '@/datos/live'
 import type { NivelPermiso, Yo } from '@/datos/tipos'
 
 /**
@@ -240,9 +243,12 @@ export function mensajeDeFalloDeMedidor (estado: number, arrancando: boolean): s
  * El `403` y el `404` nombran los dos niveles y no solo la Tarea: desde que la Tarea es opcional se
  * puede abrir contra el Proyecto entero, y ahi el que no existe o no es suyo es el Proyecto.
  *
- * El `422` tiene tres causas —falta el Proyecto, el `task_id` vino con basura, o la Tarea no es de
- * ese Proyecto— y el texto nombra la tercera: las otras dos no pueden llegar desde esta interfaz,
- * que no deja apretar el boton sin Proyecto y manda el `task_id` solo cuando se eligio uno.
+ * El `422` ya no tiene una sola causa. Desde que el Proyecto dejo de ser obligatorio, la API lo
+ * devuelve tambien por un `client_id` que no existe o esta en la papelera — y ese caso NO pasa por
+ * aca: lo traduce `mensajeDeFalloDeCliente()`, que es quien sabe que se mando un Cliente. Lo que
+ * queda para este texto es el 422 del camino con Proyecto, y ahi la unica causa alcanzable desde
+ * esta interfaz es la Tarea que no pertenece al Proyecto: el `task_id` nunca viaja sin su
+ * `project_id`, y ninguno de los dos sale del combo con basura adentro.
  *
  * @param estado codigo HTTP de la respuesta; `0` si la peticion no llego a salir
  * @param abriendo `true` si el fallo fue al abrir, `false` al cerrar
@@ -295,4 +301,164 @@ const JEFATURAS: readonly NivelPermiso[] = ['head', 'gerente', 'admin', 'superad
  */
 export function esJefatura (nivel: NivelPermiso): boolean {
   return JEFATURAS.includes(nivel)
+}
+
+/**
+ * Con que se abre el dia. Los tres caminos que la API acepta, nombrados.
+ *
+ * Es un tipo discriminado y no un objeto con tres campos opcionales porque los tres son
+ * **excluyentes** y un objeto los dejaria combinarse: `{espacioId, clienteId}` no significa nada —el
+ * Cliente de una jornada con Espacio sale del Espacio— y el compilador no tendria como impedirlo.
+ * Asi, cada camino se nombra una vez y el `switch` de `cuerpoDeApertura()` no puede olvidarse de uno.
+ */
+export type DestinoDeApertura =
+  /** El camino de siempre: se mide contra el Espacio, y contra un Proceso suyo si se eligio. */
+  | { tipo: 'espacio', espacioId: number, procesoId: number | null }
+  /** Se sabe para quien es el dia pero todavia no en que se va a trabajar. No arranca cronometro. */
+  | { tipo: 'cliente', clienteId: number }
+  /** No se sabe ninguna de las dos cosas. Tampoco arranca cronometro. */
+  | { tipo: 'en-blanco' }
+
+/**
+ * El cuerpo de `POST /me/jornada` para cada camino.
+ *
+ * Los ids ausentes se **omiten** en vez de viajar en `null` o en `0`. La API entiende los tres como
+ * "no elegi", pero omitirlos es lo unico que no depende de esa equivalencia: el dia que un campo
+ * pase a distinguir `null` de ausente —que es exactamente lo que ya hace `PATCH`, donde `null`
+ * significa *quitar*— este cuerpo sigue diciendo lo mismo.
+ *
+ * `task_id` no puede salir de aca sin su `project_id`: la API responde 422
+ * `project_id: ["requerido_con_proceso"]` y el tipo `DestinoDeApertura` ya lo hace imposible, porque
+ * el Proceso solo existe dentro de la rama que trae el Espacio.
+ *
+ * @param destino cual de los tres caminos se eligio
+ * @returns el objeto a serializar como cuerpo; `{}` para el camino en blanco
+ */
+export function cuerpoDeApertura (destino: DestinoDeApertura): Record<string, number> {
+  if (destino.tipo === 'cliente') return { client_id: destino.clienteId }
+  if (destino.tipo === 'en-blanco') return {}
+
+  return destino.procesoId === null
+    ? { project_id: destino.espacioId }
+    : { project_id: destino.espacioId, task_id: destino.procesoId }
+}
+
+/** Que se eligio en la ventana de apertura. `null` en los dos es "todavia nada". */
+export interface EleccionDeApertura {
+  espacio: number | null
+  cliente: number | null
+}
+
+/** Cuales de las tres salidas de la ventana de apertura estan disponibles ahora mismo. */
+export interface SalidasDeApertura {
+  /** El camino principal. Pide Espacio; el Proceso sigue siendo opcional. */
+  conEspacio: boolean
+  /** La salida con Cliente. Pide Cliente y **exige que no haya Espacio**. */
+  soloCliente: boolean
+  /** La salida en blanco. No pide nada, y por eso nunca se apaga. */
+  enBlanco: boolean
+}
+
+/**
+ * Que botones de la ventana de apertura se pueden apretar.
+ *
+ * Vive aca y no dentro del componente porque es la regla que impide mandarle a la API una peticion
+ * que ya se sabe invalida: sin Cliente elegido, el `POST` del segundo camino saldria con `{}` y
+ * abriria una jornada en blanco que nadie pidio — un fallo silencioso, que es el peor de todos.
+ *
+ * `soloCliente` se apaga con un Espacio elegido y no solo sin Cliente. Con Espacio ese boton seria
+ * una trampa: abriria el dia **descartando** la eleccion que la persona ya hizo, porque el cuerpo con
+ * `client_id` no lleva `project_id`. En la interfaz esa combinacion ni se ofrece —el selector de
+ * Cliente se esconde en cuanto hay Espacio— pero la regla se afirma aca igual: esconder no valida.
+ *
+ * @param eleccion lo elegido hasta ahora en la ventana
+ * @returns que puede apretarse; `enBlanco` siempre en `true`
+ */
+export function salidasDeApertura (eleccion: EleccionDeApertura): SalidasDeApertura {
+  return {
+    conEspacio: eleccion.espacio !== null,
+    soloCliente: eleccion.espacio === null && eleccion.cliente !== null,
+    enBlanco: true
+  }
+}
+
+/**
+ * El Cliente de la jornada abierta, leido sin confiar en que venga.
+ *
+ * Tres cosas distintas llegan a `null` por este camino y a proposito se tratan igual: que no haya
+ * jornada abierta, que la API sea vieja y no mande el campo, y que la jornada no tenga Cliente. Para
+ * quien pinta la cabecera las tres son lo mismo —no hay nombre que mostrar— y distinguirlas ahi
+ * significaria tres ramas para el mismo pixel.
+ *
+ * @param estado el estado del dia tal como llega de `GET /me/jornada`, o `null` si no se pudo leer
+ * @returns el Cliente con su nombre, o `null`
+ */
+export function clienteDeJornada (estado: EstadoDeJornada | null): ClienteDeJornada | null {
+  return estado?.open?.client ?? null
+}
+
+/**
+ * Si la jornada esta abierta y no hay nada midiendose contra ella.
+ *
+ * Es el estado que las dos salidas nuevas crean, y el que la cabecera tiene que delatar: el reloj del
+ * dia corre y ningun cronometro lo cubre, asi que ese rato no se le esta imputando a nada. No es un
+ * error —abrir asi es una eleccion valida— pero tiene que verse, porque la alternativa es que alguien
+ * descubra al cerrar el dia que ocho horas no tienen destino.
+ *
+ * No mira el Cliente: un Cliente no es un destino. Contra el no se mide tiempo, asi que una jornada
+ * con Cliente y sin cronometro sigue siendo tiempo sin imputar.
+ *
+ * @param estado el estado del dia, o `null` si no se pudo leer
+ * @returns `true` solo cuando consta que hay jornada abierta y ningun medidor corriendo
+ */
+export function jornadaSinDestino (estado: EstadoDeJornada | null): boolean {
+  return estado?.open != null && estado.timer === null
+}
+
+/**
+ * Como se le cuenta a la persona que su jornada corre sin destino.
+ *
+ * El tono es deliberado. La frase anterior —"las horas de tu jornada se estan yendo sin cubrir"— es
+ * exacta y es un reproche, y el pedido fue justamente que la ventana dejara de ser intrusiva. Esta
+ * dice el mismo hecho en presente y sin culpa: el dia corre, el cronometro todavia no. Lo que falta
+ * se nombra como algo que queda por hacer, no como algo que se hizo mal.
+ *
+ * Nombra al Cliente cuando lo hay porque es la mitad que la persona SI resolvio, y esconderlo le
+ * daria a la jornada con Cliente el mismo aviso que a la que se abrio en blanco.
+ *
+ * @param cliente el Cliente de la jornada, o `null` si no tiene o si no se pudo leer
+ * @returns la frase lista para mostrar; nunca vacia
+ */
+export function fraseDeJornadaSinDestino (cliente: ClienteDeJornada | null): string {
+  const espacio = GLOSARIO.espacio.singular.toLowerCase()
+
+  if (cliente === null) {
+    return `Tu jornada corre sin ${espacio} ni ${GLOSARIO.cliente.singular.toLowerCase()} todavía.`
+  }
+
+  return `Tu jornada corre para ${cliente.name}, sin ${espacio} todavía.`
+}
+
+/**
+ * Traduce el fallo de fijar, cambiar o quitar el Cliente de la jornada.
+ *
+ * Aparte de `mensajeDeFalloDeJornada()` porque contesta otra pregunta. Ese habla de abrir y cerrar el
+ * dia; este habla de un campo de un dia que ya esta abierto, y sus codigos significan otra cosa: el
+ * `409` no es "ya tienes una jornada" sino "no tienes ninguna", y el `422` no es una Tarea que no
+ * encaja sino un Cliente que ya no esta.
+ *
+ * Ese `422` es el unico que esta interfaz puede provocar: el `client_id` sale de un combo, asi que no
+ * puede ir con basura, y el `PATCH` siempre manda la clave —un `PATCH` sin `client_id` es 422
+ * `requerido`, no un borrado silencioso, y por eso quitar el Cliente se escribe `client_id: null`
+ * explicito—.
+ *
+ * @param estado codigo HTTP de la respuesta; `0` si la peticion no llego a salir
+ * @returns el mensaje a mostrar; nunca vacio
+ */
+export function mensajeDeFalloDeCliente (estado: number): string {
+  if (estado === 0) return 'No se pudo contactar al servidor. Revisa la conexión.'
+  if (estado === 409) return 'No tienes ninguna jornada abierta a la que ponerle un Cliente.'
+  if (estado === 422) return 'Ese Cliente ya no existe o está en la papelera. Elige otro.'
+
+  return `No se pudo guardar el Cliente de la jornada (el servidor respondió ${estado}).`
 }

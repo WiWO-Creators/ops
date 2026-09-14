@@ -60,7 +60,10 @@ function queFalta (estado: EstadoDeJornada | null): Falta | null {
 
 const TITULOS: Record<Falta, string> = {
   jornada: 'Aún no has iniciado tu jornada',
-  medidor: 'Tu jornada está abierta, pero no estás midiendo nada',
+  // Sin el "pero": desde que la jornada se puede abrir sin destino, este es el estado normal de
+  // quien todavía no decidió en qué trabajar, no el descuido de quien se olvidó de arrancar. La
+  // misma frase que dice la cabecera, por el mismo motivo — ver `fraseDeJornadaSinDestino()`.
+  medidor: `Tu jornada corre sin ${GLOSARIO.espacio.singular} todavía`,
   tarea: `Elige la ${GLOSARIO.proceso.singular} en la que estás trabajando`
 }
 
@@ -84,7 +87,9 @@ function detalle (falta: Falta, proyecto: string | null): string {
   }
 
   if (falta === 'medidor') {
-    return `Elige el ${GLOSARIO.espacio.singular} y la ${GLOSARIO.proceso.singular} en los que vas a trabajar ahora, o las horas de la jornada quedan sin cubrir.`
+    // Informa en vez de advertir: dice qué pasa con el rato que va corriendo y qué lo cambia, sin
+    // convertir una elección legítima en un reproche.
+    return `El reloj del día corre, pero todavía no hay cronómetro: hasta que elijas ${GLOSARIO.espacio.singular} este rato queda sin cubrir.`
   }
 
   const sobre = proyecto === null ? `un ${GLOSARIO.espacio.singular}` : `«${proyecto}»`
