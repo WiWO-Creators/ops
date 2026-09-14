@@ -1,5 +1,7 @@
-import type { DefinicionRecurso } from './tipos.ts'
+import type { Columna, DefinicionRecurso } from './tipos.ts'
 import type { EspacioPortal, PestaniaPortal, TareaPortal } from '../datos/portal.ts'
+import type { Proceso } from '../datos/recursos.ts'
+import { procesosDelEspacio } from './procesos.ts'
 import { formatearFecha, formatearVencimiento } from '../lib/fechas.ts'
 import { SIN_DATO } from '../lib/sla.ts'
 import { GLOSARIO } from '../dominio/glosario.ts'
@@ -82,6 +84,61 @@ export const PORTAL_TAREAS: DefinicionRecurso<TareaPortal> = {
 }
 
 /**
+ * Las columnas de Procesos que el contrato del contacto **si** emite.
+ *
+ * Es la lista corta a proposito, y no la del equipo menos algunas: lo que no esta acá es porque
+ * `GET /portal/projects/{id}/tasks` no manda la clave (asignados, tipo, ETA, desviacion, SLA,
+ * iteraciones, hito) o porque es vocabulario interno que no se publica (las etiquetas, igual que en
+ * `proyectoDelPortal`). Agregar una clave acá sin que la API la emita no deja la celda vacia:
+ * rompe la fila, porque la celda rica del panel lee el objeto adentro.
+ */
+const COLUMNAS_DEL_CONTACTO = ['patente', 'name', 'status', 'priority', 'due_date', 'start_date']
+
+/**
+ * La definicion de Procesos de un Proyecto, acotada a lo que ve un contacto.
+ *
+ * **Se deriva de la del equipo, no se escribe de nuevo.** `procesosDelEspacio` es la unica lista de
+ * columnas de Procesos del producto: encabezados, orden y visibilidad por defecto salen de alli, asi
+ * que la tabla del cliente y la del equipo se leen igual —misma columna, mismo rotulo, misma
+ * posicion— y un renombre futuro llega a las dos. Lo unico propio es **cuanto** se muestra.
+ *
+ * Las tres listas blancas —filtros, orden y includes— son las del endpoint del portal, que es otro:
+ * un filtro que aquel no declara devuelve 422, y `include=custom_fields` no existe para un contacto.
+ *
+ * El tipo sigue siendo `DefinicionRecurso<Proceso>` porque es el que consumen la tabla, el tablero y
+ * el calendario compartidos. Las filas que llegan son `TareaPortal`, un **subconjunto** de `Proceso`:
+ * por eso la lista de columnas de arriba es la garantia, y `pruebas/portal.test.js` verifica que
+ * ninguna columna lea una clave que el contacto no recibe.
+ *
+ * @param proyectoId El Proyecto que el cliente esta mirando.
+ * @returns La definicion lista para la tabla, el tablero y el calendario de Procesos.
+ */
+export function procesosDelContacto (proyectoId: number): DefinicionRecurso<Proceso> {
+  const base = procesosDelEspacio(proyectoId)
+  const ordenables = PORTAL_TAREAS.ordenables
+
+  return {
+    ...base,
+    ruta: `portal/projects/${encodeURIComponent(String(proyectoId))}/tasks`,
+    columnas: base.columnas
+      .filter((columna) => COLUMNAS_DEL_CONTACTO.includes(columna.clave))
+      // Una flecha de orden sobre un campo que el endpoint del portal no ordena se dibujaria, se
+      // podria pulsar y no haria nada: `construirConsulta` poda el `sort` contra `ordenables`.
+      .map((columna): Columna<Proceso> => (
+        columna.ordenPor !== undefined && !ordenables.includes(columna.ordenPor)
+          ? { ...columna, ordenPor: undefined }
+          : columna
+      )),
+    filtros: base.filtros.filter((filtro) => PORTAL_TAREAS.filtros.some((suyo) => suyo.clave === filtro.clave)),
+    ordenables,
+    ordenPorDefecto: PORTAL_TAREAS.ordenPorDefecto,
+    // El equipo pide siempre `custom_fields` porque son columnas; el contacto no los tiene.
+    incluirSiempre: [],
+    includes: []
+  }
+}
+
+/**
  * Rotulo de cada pestaña del proyecto, en el orden en que se muestran.
  *
  * El orden lo fija esta lista y no el arreglo `tabs` que manda la API: el backend enumera lo que se
@@ -106,6 +163,12 @@ export const PESTANIAS_PROYECTO: Array<{ clave: PestaniaPortal, etiqueta: string
   { clave: 'files', etiqueta: 'Archivos' },
   { clave: 'discussions', etiqueta: 'Discusiones' },
   { clave: 'gantt', etiqueta: 'Diagrama de Gantt' },
+  // Pegada al Gantt y en ese orden porque es el del panel: las dos leen las mismas fechas y
+  // contestan preguntas distintas —el Gantt dibuja duraciones, el calendario el dia de entrega—.
+  { clave: 'calendar', etiqueta: 'Calendario' },
+  // El Meeting Paper puede contener conversacion interna, asi que su flag por proyecto nace en '0' y
+  // se enciende a mano: la pestaña existe acá, pero la API no la habilita por defecto en ninguno.
+  { clave: 'actas', etiqueta: GLOSARIO.acta.singular },
   { clave: 'tickets', etiqueta: GLOSARIO.ticket.plural },
   { clave: 'activity', etiqueta: 'Actividad' }
 ]

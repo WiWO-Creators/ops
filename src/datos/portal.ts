@@ -96,6 +96,10 @@ export type PestaniaPortal =
   | 'files'
   | 'discussions'
   | 'gantt'
+  /** Calendario de entregas. Exige las mismas dos condiciones que `tasks`, pero se exige aparte. */
+  | 'calendar'
+  /** Meeting Paper. Su flag por proyecto (`wiwo_portal_actas`) nace apagado y se enciende a mano. */
+  | 'actas'
   | 'activity'
   | 'tickets'
   | 'contracts'
