@@ -3604,7 +3604,7 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
           estado: 200,
           cuerpo: conDatos({
             ...presentarEspacioPortal(espacio),
-            tabs: ['overview', 'tasks', 'milestones', 'files', 'activity'],
+            tabs: (COMPARTIDO_CON_EL_CLIENTE[espacio.id] ?? COMPARTIDO_CON_EL_CLIENTE.defecto).tabs,
             members: STAFF.filter((persona) => espacio.miembros.includes(persona.id))
               .map(({ id, full_name, profile_image_url }) => ({ id, full_name, profile_image_url }))
           })
@@ -3612,23 +3612,52 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
       }
 
       const tareasDelEspacio = PROCESOS.filter((p) => p.rel_type === 'project' && p.rel_id === espacio.id)
+      // Que comparte este Proyecto con su cliente. En la API real son las 18 claves de
+      // `available_features` y los `view_*` de `tblproject_settings`; aca se declaran por proyecto
+      // para poder ejercitar los DOS lados de cada interruptor. Sin eso, una pestaña apagada y un
+      // flag en 0 no se distinguen de un bug.
+      const compartido = COMPARTIDO_CON_EL_CLIENTE[espacio.id] ?? COMPARTIDO_CON_EL_CLIENTE.defecto
+
+      /** 403 cuando el Proyecto no comparte esa pestaña, igual que `exigirPestania` de la API. */
+      const exigirPestania = (pestania) => {
+        if (!compartido.tabs.includes(pestania)) {
+          throw new ErrorApi(403, 'forbidden', `Este proyecto no comparte "${pestania}".`)
+        }
+      }
 
       if (resto[2] === 'tasks' && resto.length === 3) {
-        const { filas, paginacion } = aplicarConsulta(
-          tareasDelEspacio.map(presentarTareaPortal), parametros,
-          {
-            filtros: {
-              status: 'status',
-              // `aprobacion` lo pide la pagina del proyecto para el bloque de visto bueno. Sin el,
-              // el mock respondia 422 y el bloque no se dibujaba nunca: quedaba sin ejercitar.
-              // Lee del bloque ya presentado (`approval`), que es la forma que viaja al portal.
-              aprobacion: (fila, valor) => (fila.approval?.estado ?? null) === valor
-            },
-            orden: ['due_date', 'name'],
-            busqueda: ['name']
-          }
-        )
-        return { estado: 200, cuerpo: conDatos(filas, { pagination: paginacion }) }
+        exigirPestania('tasks')
+
+        // El tablero devuelve una columna por estado con sus tarjetas, igual que el del panel: es la
+        // misma lectura del mismo listado, y el cliente la abre igual que el equipo.
+        if (parametros.get('vista') === 'tablero') {
+          return { estado: 200, cuerpo: conDatos(tableroDeTareasPortal(tareasDelEspacio, parametros)) }
+        }
+
+        const { filas, paginacion } = aplicarConsulta(tareasDelEspacio, parametros, CONSULTA_TAREAS_PORTAL)
+        return { estado: 200, cuerpo: conDatos(filas.map(presentarTareaPortal), { pagination: paginacion }) }
+      }
+
+      // Detalle de una Tarea. Cuelga del Proyecto y no de `/portal/tasks/{id}`: la pertenencia es lo
+      // que deja decidir si esa Tarea le corresponde a este contacto, y una de otro Proyecto es 404
+      // —nunca 403—, porque para el no existe.
+      if (resto[2] === 'tasks' && resto.length === 4) {
+        exigirPestania('tasks')
+
+        const tarea = tareasDelEspacio.find((t) => t.id === Number(resto[3]))
+        if (!tarea) throw new ErrorApi(404, 'not_found', 'Tarea inexistente.')
+
+        return { estado: 200, cuerpo: conDatos(presentarFichaPortal(tarea, compartido)) }
+      }
+
+      // Calendario de entregas. Misma forma que el listado —el calendario lee `due_date`— y ruta
+      // propia porque la pestaña se habilita aparte, aunque reuse las condiciones de las Tareas.
+      if (resto[2] === 'calendar' && resto.length === 3) {
+        exigirPestania('calendar')
+
+        const conFecha = tareasDelEspacio.filter((t) => (t.due_date ?? null) !== null)
+        const { filas, paginacion } = aplicarConsulta(conFecha, parametros, CONSULTA_TAREAS_PORTAL)
+        return { estado: 200, cuerpo: conDatos(filas.map(presentarTareaPortal), { pagination: paginacion }) }
       }
 
       if (resto[2] === 'milestones' && resto.length === 3) {
@@ -4530,6 +4559,189 @@ function presentarTareaPortal (proceso) {
       }
     })
   }
+}
+
+/**
+ * Que comparte cada Proyecto con su cliente.
+ *
+ * En la API real esto son dos cosas distintas de `tblproject_settings`: las claves de
+ * `available_features`, que deciden que pestaña existe, y los `view_*`, que deciden que bloques del
+ * detalle de una Tarea viajan. Aca se declaran juntas y **por proyecto**, porque lo que hace falta
+ * para verificar es tener los dos lados de cada interruptor a mano:
+ *
+ *  - el **1** comparte todo lo que el portal ya sabe dibujar: es donde se mira la paridad completa
+ *    con la pestaña del colaborador —tabla, tablero, calendario y la ficha de una Tarea—;
+ *  - el **8** tiene las Tareas y el Calendario **apagados** y todos los flags en 0: es el caso de
+ *    "pestaña sin habilitar", que sin una fila asi nunca se distingue de un panel roto.
+ *
+ * `discussions`, `timesheets`, `gantt`, `actas` y `tickets` todavia no estan en ninguna lista: el
+ * mock no sirve esas rutas del portal, y ofrecer la pestaña seria mandar al cliente a un error.
+ */
+const COMPARTIDO_CON_EL_CLIENTE = {
+  1: {
+    tabs: ['overview', 'tasks', 'milestones', 'files', 'calendar', 'activity'],
+    comentarios: true,
+    checklist: true,
+    adjuntos: true,
+    tiempo: true
+  },
+  8: {
+    tabs: ['overview', 'milestones', 'files', 'activity'],
+    comentarios: false,
+    checklist: false,
+    adjuntos: false,
+    tiempo: false
+  },
+  defecto: {
+    tabs: ['overview', 'tasks', 'milestones', 'files', 'calendar', 'activity'],
+    comentarios: true,
+    checklist: false,
+    adjuntos: true,
+    tiempo: false
+  }
+}
+
+/**
+ * La whitelist del listado de Procesos del portal.
+ *
+ * Se aplica sobre las filas **en crudo** y no sobre las ya presentadas: el orden por defecto de la
+ * tabla es `completed,-date_added`, y `date_added` no viaja al cliente. Ordenar por una columna que
+ * no se publica es justamente lo que hace la API, y filtrar primero es la unica forma de
+ * reproducirlo.
+ */
+const CONSULTA_TAREAS_PORTAL = {
+  filtros: {
+    status: coincideEnLista((p) => p.status),
+    // `aprobacion` lo pide la pagina del proyecto para el bloque de visto bueno. Sin el, el mock
+    // respondia 422 y el bloque no se dibujaba nunca: quedaba sin ejercitar.
+    aprobacion: (p, v) => (p.aprobacion?.estado ?? null) === v
+  },
+  orden: ['name', 'due_date', 'status', 'completed', 'date_added'],
+  // `completed` no es una columna de `tbltasks`: en la API es un CASE sobre `status`.
+  derivadas: { completed: (p) => (p.status === 5 ? 1 : 0) },
+  busqueda: ['name']
+}
+
+/**
+ * El tablero de Procesos del portal: una columna por estado, con sus tarjetas.
+ *
+ * Misma forma que el del panel, que es lo que permite que el cliente abra el mismo tablero. La
+ * columna "Completo" solo aparece cuando se filtro por estado, igual que alla: un tablero que
+ * arranca mostrando lo terminado empuja lo pendiente fuera de la pantalla.
+ *
+ * @param {object[]} tareas Los Procesos del Proyecto, en crudo.
+ * @param {URLSearchParams} parametros Query de la peticion.
+ * @returns {object[]} Un grupo por estado.
+ */
+function tableroDeTareasPortal (tareas, parametros) {
+  const filtradoPorEstado = parametros.get('filter[status]')?.trim()
+  const columnas = ESTADOS_PROCESO
+    .filter((estado) => filtradoPorEstado || estado.id !== 5)
+    .sort((a, b) => a.order - b.order)
+
+  return columnas.map((columna) => {
+    const parametrosColumna = new URLSearchParams(parametros)
+    parametrosColumna.set('filter[status]', String(columna.id))
+
+    const { filas, paginacion } = aplicarConsulta(tareas, parametrosColumna, CONSULTA_TAREAS_PORTAL)
+
+    return {
+      columna: { id: columna.id, name: columna.name, color: columna.color, order: columna.order },
+      tarjetas: filas.map(presentarTareaPortal),
+      pagination: paginacion
+    }
+  })
+}
+
+/**
+ * La ficha de un Proceso tal como la ve un contacto.
+ *
+ * Cada bloque viaja **solo si el Proyecto lo comparte**, y cuando no, la clave **no existe**: el
+ * frontend distingue por `undefined`, que significa "no corresponde" y no "esta vacio". Mandarlos en
+ * `null` o en `[]` haria que la ficha dibujara una seccion vacia por cada cosa que el equipo
+ * decidio no compartir.
+ *
+ * Nunca viajan: asignados, seguidores, tarifa, horas estimadas, etiquetas, campos personalizados ni
+ * el ETA y la desviacion, que miden al equipo contra su propio compromiso interno.
+ *
+ * @param {object} proceso El Proceso en crudo.
+ * @param {{comentarios: boolean, checklist: boolean, adjuntos: boolean, tiempo: boolean}} compartido
+ *        Los flags del Proyecto.
+ * @returns {object} La ficha, en la forma del contrato.
+ */
+function presentarFichaPortal (proceso, compartido) {
+  const segundos = CRONOMETROS
+    .filter((t) => t.task_id === proceso.id)
+    .reduce((total, t) => total + Math.max(0, (Date.parse(t.end_time ?? new Date().toISOString()) - Date.parse(t.start_time)) / 1000), 0)
+
+  return {
+    id: proceso.id,
+    patente: proceso.patente,
+    name: proceso.name,
+    description: proceso.description ?? null,
+    status: proceso.status,
+    priority: proceso.priority,
+    start_date: proceso.start_date ?? null,
+    due_date: proceso.due_date ?? null,
+    date_finished: proceso.date_finished ?? null,
+    // Como objeto y no como el id que manda el listado: la ficha muestra el nombre del Hito, y un
+    // numero suelto no se puede resolver del lado del cliente.
+    milestone: proceso.milestone ?? null,
+    ...(proceso.aprobacion === undefined ? {} : {
+      approval: {
+        requerida: proceso.aprobacion.requerida,
+        estado: proceso.aprobacion.estado,
+        solicitada_en: proceso.aprobacion.solicitada_en ?? null,
+        resuelta_en: proceso.aprobacion.resuelta_en ?? null,
+        comentario: proceso.aprobacion.comentario ?? null
+      }
+    }),
+    ...(compartido.comentarios
+      ? {
+          comments: COMENTARIOS.filter((c) => c.task_id === proceso.id).map((c) => ({
+            id: c.id,
+            content: c.content,
+            created: c.date_added,
+            // Ya resuelto: el panel distingue staff de contacto mirando si `admin` esta vacio, y esa
+            // convencion no tiene por que cruzar la red.
+            author: c.staff === null || c.staff === undefined
+              ? null
+              : { full_name: c.staff.full_name, es_cliente: false, profile_image_url: null },
+            file: null
+          }))
+        }
+      : {}),
+    ...(compartido.checklist
+      ? {
+          checklist: CHECKLIST
+            .filter((item) => item.task_id === proceso.id)
+            .map((item) => ({ id: item.id, description: item.description, finished: item.finished }))
+        }
+      : {}),
+    ...(compartido.adjuntos
+      ? {
+          attachments: ARCHIVOS
+            .filter((a) => a.rel_type === 'task' && a.rel_id === proceso.id)
+            .map((a) => ({ id: a.id, file_name: a.file_name, subject: a.subject ?? null, url: a.url }))
+        }
+      : {}),
+    ...(compartido.tiempo
+      ? { total_logged_seconds: Math.round(segundos), duration_hm: formatearHm(segundos) }
+      : {})
+  }
+}
+
+/**
+ * Segundos como `h:mm`, que es lo que el backend ya manda formateado.
+ *
+ * @param {number} segundos
+ * @returns {string}
+ */
+function formatearHm (segundos) {
+  const horas = Math.floor(segundos / 3600)
+  const minutos = Math.round((segundos % 3600) / 60)
+
+  return `${horas}:${String(minutos).padStart(2, '0')}`
 }
 
 function seccionesDelPortal (contacto) {
