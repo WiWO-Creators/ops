@@ -8,15 +8,13 @@ import {
 } from '@/dominio/pantalla-area'
 import type { Escena, Orientacion, ParametrosDePantalla } from '@/dominio/pantalla-area'
 import type { MetaDePantalla, PaqueteDePantalla } from '@/datos/pantalla-area'
+import { useLatido, useNoApagarPantalla } from './proyeccion'
 import { MarcoDePantalla } from './MarcoDePantalla'
 import { EscenaPortada } from './escenas/EscenaPortada'
 import { EscenaTrabajando } from './escenas/EscenaTrabajando'
 import { EscenaCronometros } from './escenas/EscenaCronometros'
 import { EscenaProcesos } from './escenas/EscenaProcesos'
 import { EscenaEspacios } from './escenas/EscenaEspacios'
-
-/** Cada cuanto se comprueba si la escena actual ya vencio. */
-const TIC_DE_ROTACION_MS = 250
 
 interface Props {
   codigo: string
@@ -95,29 +93,42 @@ export function Escenario ({ codigo, inicial, metaInicial, parametros }: Props):
    */
   const intervaloMs = (meta?.poll_after_seconds ?? parametros.segundosDeRefresco) * 1000
 
-  useSondeo({ codigo, intervaloMs, fallos, setFallos, setDatos, setMeta, setLeidoEn })
+  const sondearSiToca = useSondeo({ codigo, intervaloMs, fallos, setFallos, setDatos, setMeta, setLeidoEn })
 
-  // -- El reloj de la rotacion. Se crea al montar y no se recrea nunca. -------------------------
-  useEffect(() => {
-    const tic = (): void => {
-      const actual = guionRef.current
+  // -- El unico reloj de la pantalla, fuera del hilo principal. --------------------------------
+  //
+  // De este tic salen las tres cosas que necesitan tiempo: la rotacion de escenas, el contador de
+  // segundos y —dentro de `useSondeo`— cuando toca volver a preguntar. Un solo temporizador, y en un
+  // worker, porque el de una pestaña oculta se estrangula a uno por minuto y una pestaña casteada a
+  // un televisor esta oculta en cuanto quien la lanzo cambia de pestaña. Ver `proyeccion.ts`.
+  // Que el aparato no apague la pantalla mientras se esta proyectando.
+  useNoApagarPantalla()
 
-      if (actual.length <= 1 || performance.now() < vence.current) return
+  useLatido((cuando) => {
+    sondearSiToca(cuando)
 
-      const siguiente = (indiceDe(actual, escenaActual.current) + 1) % actual.length
-      const escena = actual[siguiente]
+    // El reloj de pared: solo cuando cambia el segundo, para no repintar cuatro veces por segundo.
+    setAhora((previo) => previo !== null && Math.floor(previo / 1000) === Math.floor(cuando / 1000)
+      ? previo
+      : cuando)
 
-      if (escena === undefined) return
+    // La primera lectura buena es la que trajo el servidor; su antigüedad se cuenta desde que la
+    // pantalla se monto, que es lo unico que este reloj puede medir con honestidad.
+    setLeidoEn((previo) => previo ?? (inicial === null ? null : cuando))
 
-      escenaActual.current = escena.id
-      vence.current = performance.now() + escena.duracionMs
-      setIndice(siguiente)
-    }
+    const actual = guionRef.current
 
-    const latido = globalThis.setInterval(tic, TIC_DE_ROTACION_MS)
+    if (actual.length <= 1 || performance.now() < vence.current) return
 
-    return () => { globalThis.clearInterval(latido) }
-  }, [])
+    const siguiente = (indiceDe(actual, escenaActual.current) + 1) % actual.length
+    const escena = actual[siguiente]
+
+    if (escena === undefined) return
+
+    escenaActual.current = escena.id
+    vence.current = performance.now() + escena.duracionMs
+    setIndice(siguiente)
+  })
 
   // -- El guion cambio: se conserva la posicion por ID, nunca por indice. -----------------------
   //
@@ -150,29 +161,6 @@ export function Escenario ({ codigo, inicial, metaInicial, parametros }: Props):
     setIndice(siguiente)
   }, [firma])
 
-  // -- El reloj de pared. No se renderiza en el servidor: el mismatch seria seguro. -------------
-  //
-  // El primer tic va por `setTimeout` y no llamando a `tic()` en el cuerpo del efecto: ahi seria un
-  // `setState` sincrono, que encadena renders y que el linter de React rechaza con razon.
-  useEffect(() => {
-    const tic = (): void => {
-      const cuando = Date.now()
-
-      setAhora(cuando)
-      // La primera lectura buena es la que trajo el servidor; su antigüedad se cuenta desde que la
-      // pantalla se monto, que es lo unico que este reloj puede medir con honestidad.
-      setLeidoEn((previo) => previo ?? (inicial === null ? null : cuando))
-    }
-
-    const arranque = globalThis.setTimeout(tic, 0)
-    const latido = globalThis.setInterval(tic, 1000)
-
-    return () => {
-      globalThis.clearTimeout(arranque)
-      globalThis.clearInterval(latido)
-    }
-  }, [inicial])
-
   // -- Recargado duro de madrugada. -------------------------------------------------------------
   //
   // Lo que ningun `clearInterval` limpia: la memoria que el motor de JS acumula en meses, la cache de
@@ -201,6 +189,7 @@ export function Escenario ({ codigo, inicial, metaInicial, parametros }: Props):
       zona={meta?.timezone ?? null}
       orientacion={orientacion}
       zoom={parametros.zoom}
+      margen={parametros.margen}
       tema={parametros.tema}
       transicion={parametros.transicion}
     >
@@ -285,7 +274,7 @@ interface OpcionesDeSondeo {
  * nada. Es lo que hace que un televisor que pregunta cada treinta segundos durante meses no mueva
  * datos mientras el area esta quieta.
  */
-function useSondeo (opciones: OpcionesDeSondeo): void {
+function useSondeo (opciones: OpcionesDeSondeo): (ahora: number) => void {
   const { codigo, intervaloMs, fallos, setFallos, setDatos, setMeta, setLeidoEn } = opciones
 
   const enVuelo = useRef(false)
@@ -340,11 +329,18 @@ function useSondeo (opciones: OpcionesDeSondeo): void {
   }, [codigo, setDatos, setMeta, setFallos, setLeidoEn])
 
   const conBackoff = intervaloConBackoff(intervaloMs, fallos)
+  const proximo = useRef(0)
 
-  useEffect(() => {
-    const latido = globalThis.setInterval(() => { void pedir() }, conBackoff)
+  // Cuando toca volver a preguntar, en tiempo de pared.
+  //
+  // El sondeo NO tiene temporizador propio: lo dispara el mismo latido que mueve las escenas, por el
+  // mismo motivo —un `setInterval` en una pestaña casteada se estrangula a uno por minuto, y una
+  // pantalla que consulta una vez por minuto no es una pantalla en vivo—.
+  const sondearSiToca = useCallback((ahora: number): void => {
+    if (ahora < proximo.current) return
 
-    return () => { globalThis.clearInterval(latido) }
+    proximo.current = ahora + conBackoff
+    void pedir()
   }, [pedir, conBackoff])
 
   // Una peticion al montar, sin esperar al primer tic.
@@ -377,6 +373,8 @@ function useSondeo (opciones: OpcionesDeSondeo): void {
   useEffect(() => {
     return () => { aborto.current?.abort() }
   }, [])
+
+  return sondearSiToca
 }
 
 /**

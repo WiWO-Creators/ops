@@ -95,6 +95,15 @@ export interface ParametrosDePantalla {
   tema: 'oscuro' | 'claro'
   transicion: 'fundido' | 'vista' | 'ninguna'
   zoom: number
+  /**
+   * Margen extra en los bordes, en `vmin`.
+   *
+   * Existe por el **overscan**: muchos televisores recortan un 3% de la imagen que les llega por
+   * HDMI, y en una pantalla casteada eso se come el reloj de la esquina y el pie. No hay forma de
+   * detectarlo desde el navegador —el aparato miente sobre su resolucion— asi que se ajusta a ojo,
+   * una vez, mirando la pared.
+   */
+  margen: number
 }
 
 const POR_DEFECTO: ParametrosDePantalla = {
@@ -104,7 +113,8 @@ const POR_DEFECTO: ParametrosDePantalla = {
   solo: null,
   tema: 'oscuro',
   transicion: 'fundido',
-  zoom: 1
+  zoom: 1,
+  margen: 0
 }
 
 const LIMITES = {
@@ -112,7 +122,10 @@ const LIMITES = {
   // El piso es mas alto que el `LIVE_MINIMO` de 10 s del tablero a proposito: estas pantallas no las
   // mira nadie y pueden ser muchas a la vez, asi que el coste se multiplica sin que nadie lo note.
   refresco: { minimo: 15, maximo: 300 },
-  zoom: { minimo: 0.8, maximo: 1.4 }
+  zoom: { minimo: 0.8, maximo: 1.4 },
+  // Ocho `vmin` son ~86 px a 1080p: mas que el 3% que recorta el overscan tipico, y el techo a partir
+  // del cual la pantalla empieza a desperdiciar mas de lo que salva.
+  margen: { minimo: 0, maximo: 8 }
 }
 
 /** La portada dura menos que las demas: es un titulo, no una lista que haya que leer. */
@@ -149,7 +162,8 @@ export function leerParametrosDePantalla (
     solo,
     tema: primero(crudos.tema) === 'claro' ? 'claro' : 'oscuro',
     transicion: transicionValida(primero(crudos.transicion)),
-    zoom: acotar(primero(crudos.zoom), POR_DEFECTO.zoom, LIMITES.zoom, false)
+    zoom: acotar(primero(crudos.zoom), POR_DEFECTO.zoom, LIMITES.zoom, false),
+    margen: acotar(primero(crudos.margen), POR_DEFECTO.margen, LIMITES.margen, false)
   }
 }
 

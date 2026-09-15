@@ -294,3 +294,10 @@ test('una escena apagada en el panel simplemente no llega, y el guion la respeta
   assert.deepEqual(guion.map((e) => e.id), ['portada'], 'procesos viene vacia y sale; queda la portada')
   assert.equal(guion[0].duracionMs, 8_000, 'con su duracion configurada')
 })
+
+test('el margen para el overscan se acota, y por defecto no hay', () => {
+  assert.equal(leerParametrosDePantalla({}).margen, 0, 'sin pedirlo no se recorta nada')
+  assert.equal(leerParametrosDePantalla({ margen: '3' }).margen, 3)
+  assert.equal(leerParametrosDePantalla({ margen: '99' }).margen, 8, 'mas de ocho vmin es desperdiciar pantalla')
+  assert.equal(leerParametrosDePantalla({ margen: 'ya' }).margen, 0)
+})
