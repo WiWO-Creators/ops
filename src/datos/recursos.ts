@@ -926,6 +926,27 @@ export interface EnlaceProcesoGenerado {
 }
 
 /**
+ * Una fila del inventario de pantallas de area (`GET /accesos/pantallas`).
+ *
+ * Llegan TODAS las areas, tengan enlace o no: la pantalla es una lista donde cada fila ofrece generar
+ * el suyo, y una lista que solo trajera las que ya lo tienen no dejaria crear el primero.
+ *
+ * **No hay `expires_at`**, a diferencia del enlace de una Tarea: el de una pantalla no caduca — vive
+ * en un televisor colgado a tres metros de altura y renovarlo cada treinta dias costaria una escalera.
+ * Lo que si viaja es `last_seen_at`, que es la unica forma de saber desde Ops si el aparato sigue
+ * encendido.
+ */
+export interface PantallaDeAreaEnPanel {
+  area_id: number
+  area_name: string
+  shared: boolean
+  /** ISO-8601, o `null` si no hay enlace. */
+  created_at: string | null
+  /** ISO-8601 de la ultima vez que el televisor pidio el paquete, con cinco minutos de resolucion. */
+  last_seen_at: string | null
+}
+
+/**
  * La ficha que ve cualquiera con el enlace (`GET /public/tasks/{token}`).
  *
  * Son **nueve claves y ninguna mas**: la API construye la proyeccion a mano en su propio `SELECT`, no

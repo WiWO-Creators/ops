@@ -1,0 +1,90 @@
+/*
+ * Lo que la pantalla de area necesita y ninguna otra ruta del proyecto quiere.
+ *
+ * Todo lo que hay acá existe porque el destino es un televisor colgado en una pared, encendido
+ * durante meses, que nadie toca. No hay ni un estilo de gusto.
+ */
+
+.pantalla-raiz {
+  /* `--escala` la fija el `?zoom=` de la URL: multiplica toda la tipografia de una vez. */
+  --escala: 1;
+
+  /*
+   * Un raton olvidado sobre el escritorio deja una flecha quemada en el centro de la pantalla
+   * durante meses. Y nada acá se selecciona ni se enfoca: no hay nada que clicar.
+   */
+  cursor: none;
+  user-select: none;
+
+  /* Exactamente el viewport. Ver el comentario de `h-dvh` en `MarcoDePantalla`. */
+  height: 100dvh;
+  overflow: hidden;
+}
+
+/*
+ * Deriva anti-burn-in.
+ *
+ * Un panel OLED o un plasma que muestra el mismo encabezado en el mismo pixel durante meses se lo
+ * queda grabado. La rotacion de escenas ya es la mitigacion principal —nada permanece mas de veinte
+ * segundos—, pero la cabecera y el pie no rotan.
+ *
+ * Quince minutos por ciclo y ocho pixeles de recorrido: imperceptible mirando, suficiente para que
+ * ningun borde de texto caiga siempre en el mismo subpixel. Es `transform`, asi que lo resuelve el
+ * compositor y no cuesta un repintado.
+ */
+@media (prefers-reduced-motion: no-preference) {
+  .pantalla-deriva {
+    animation: pantalla-deriva 900s linear infinite;
+  }
+}
+
+@keyframes pantalla-deriva {
+  0%   { transform: translate(0, 0); }
+  25%  { transform: translate(8px, 4px); }
+  50%  { transform: translate(0, 8px); }
+  75%  { transform: translate(-8px, 4px); }
+  100% { transform: translate(0, 0); }
+}
+
+/*
+ * Entrada de cada escena.
+ *
+ * Un fundido y no un desplazamiento: a tres metros, un texto que viaja de un lado a otro de una
+ * pantalla de 55 pulgadas obliga a seguirlo con la cabeza, y a la tercera vuelta cansa.
+ */
+@media (prefers-reduced-motion: no-preference) {
+  .pantalla-escena {
+    animation: pantalla-aparece 700ms ease-out;
+  }
+}
+
+@keyframes pantalla-aparece {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+/*
+ * La barra que se vacia en el borde inferior durante la escena.
+ *
+ * No es decoracion: es la unica señal de que la pantalla esta viva. Sin ella, quien pasa por delante
+ * durante los quince segundos en que nada cambia asume que se colgo.
+ *
+ * Arranca al montar y la escena solo se remonta cuando cambia su `key`, asi que un sondeo a mitad de
+ * escena no la reinicia ni da un salto visible.
+ */
+.pantalla-progreso {
+  animation: pantalla-progreso linear forwards;
+  transform-origin: left center;
+}
+
+@keyframes pantalla-progreso {
+  from { transform: scaleX(1); }
+  to   { transform: scaleX(0); }
+}
+
+/* Con movimiento reducido la barra no se anima: se queda llena y no molesta. */
+@media (prefers-reduced-motion: reduce) {
+  .pantalla-progreso {
+    animation: none;
+  }
+}

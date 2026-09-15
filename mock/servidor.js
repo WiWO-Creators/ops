@@ -3735,6 +3735,111 @@ function calidadRuta (metodo, resto, parametros, actual) {
  * 401 para el otro sujeto. No traga el error: lo traduce a "este token no es de un contacto", que es
  * justo lo que se esta preguntando.
  */
+/**
+ * El paquete de la pantalla de un area (`GET /public/display/{token}`).
+ *
+ * Arma las cinco escenas con los fixtures que ya existen, igual que haria `Recursos\PantallaDeArea`
+ * contra la base: gente del area, sus cronometros, las Tareas abiertas y los Espacios donde caen.
+ *
+ * Todo lo que corre viaja como INSTANTE y nunca como duracion, igual que la API real: es lo que
+ * permite que dos lecturas seguidas sin novedades sean identicas y la segunda pueda ser un 304.
+ */
+function pantallaDeArea (areaId) {
+  const area = AREAS.find((a) => a.id === areaId) ?? AREAS[0]
+  const gente = STAFF.filter((s) => s.area_id === area.id || s.id === area.jefe_staffid)
+  const hoy = new Date().toISOString().slice(0, 10)
+
+  const abiertas = PROCESOS.filter((p) => p.status !== 5).slice(0, 18)
+
+  const corriendo = CRONOMETROS.filter((c) => c.end_time === null).map((c) => {
+    const quien = STAFF.find((s) => s.id === c.staff_id) ?? STAFF[0]
+    const tarea = PROCESOS.find((p) => p.id === c.task_id) ?? null
+
+    return {
+      staff_id: quien.id,
+      name: quien.full_name,
+      avatar: quien.profile_image_url,
+      started_at: c.start_time,
+      task: tarea === null ? null : { id: tarea.id, name: tarea.name },
+      project: tarea?.project ?? null
+    }
+  })
+
+  const espacios = ESPACIOS.filter((e) => e.status !== 4).slice(0, 6).map((e) => ({
+    id: e.id,
+    name: e.name,
+    deadline: e.deadline,
+    progress: e.progress,
+    procesos_abiertos: abiertas.filter((p) => p.rel_type === 'project' && p.rel_id === e.id).length,
+    procesos_atrasados: abiertas.filter((p) => p.rel_type === 'project' && p.rel_id === e.id && p.due_date < hoy).length
+  }))
+
+  const trabajando = gente.slice(0, 6).map((s, i) => ({
+    staff_id: s.id,
+    name: s.full_name,
+    avatar: s.profile_image_url,
+    cargo: null,
+    jornada_started_at: new Date(Date.now() - (i + 1) * 1800_000).toISOString(),
+    last_seen_at: new Date(Date.now() - i * 60_000).toISOString()
+  }))
+
+  return conDatos(
+    {
+      area: { id: area.id, name: area.name },
+      scenes: [
+        {
+          kind: 'portada',
+          counts: {
+            personas: gente.length,
+            jornadas_abiertas: trabajando.length,
+            cronometros_corriendo: corriendo.length,
+            procesos_abiertos: abiertas.length,
+            procesos_atrasados: abiertas.filter((p) => p.due_date < hoy).length,
+            espacios_activos: espacios.length
+          }
+        },
+        { kind: 'trabajando', items: trabajando },
+        { kind: 'cronometros', items: corriendo },
+        {
+          kind: 'procesos',
+          total: abiertas.length,
+          items: abiertas.map((p) => ({
+            id: p.id,
+            name: p.name,
+            status: deCatalogo(ESTADOS_PROCESO, p.status),
+            priority: deCatalogo(PRIORIDADES, p.priority),
+            due_date: p.due_date,
+            overdue: p.due_date < hoy,
+            progress: { checklist_total: 0, checklist_done: 0, percent: null },
+            project: p.project,
+            assignees: p.assignees.map((a) => ({
+              staff_id: a.id,
+              name: a.full_name,
+              avatar: a.profile_image_url
+            }))
+          }))
+        },
+        { kind: 'espacios', items: espacios }
+      ]
+    },
+    {
+      server_time: new Date().toISOString(),
+      timezone: 'America/Santiago',
+      poll_after_seconds: 30,
+      scene_seconds: 20
+    }
+  )
+}
+
+/** Un valor de catalogo con su color, o `null`. Lo mismo que `PantallaDeArea::delCatalogo()`. */
+function deCatalogo (catalogo, id) {
+  const encontrado = catalogo.find((item) => item.id === id)
+
+  return encontrado === undefined
+    ? null
+    : { id: encontrado.id, name: encontrado.name, color: encontrado.color ?? null }
+}
+
 function contactoDelToken (token) {
   try {
     return sesion.resolverContacto(token, 'acceso')
@@ -3759,6 +3864,23 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
         api_key_visible: peticion.headers['x-api-key'] !== undefined
       })
     }
+  }
+
+  // --- Pantalla de un area: la otra ruta sin sesion ------------------------
+  //
+  // Igual que `rooms/panel`, va ANTES de resolver el token: un televisor colgado en una pared no
+  // manda `Authorization`, y si cayera despues moriria en el 401 sin llegar aca.
+  //
+  // El mock acepta CUALQUIER token con forma de enlace y contesta el area 4 ("Content Studio"). No
+  // emula la emision ni la revocacion —eso es de `/accesos/pantallas`, que si necesita sesion—: lo
+  // que esta ruta tiene que dar es el PAQUETE, que es lo unico que la pantalla sabe leer.
+  if (recurso === 'public' && resto[0] === 'display') {
+    if (metodo !== 'GET') throw new ErrorApi(404, 'not_found', 'No existe ese enlace.')
+    if (!/^[A-Za-z0-9_-]{16,128}$/.test(resto[1] ?? '')) {
+      throw new ErrorApi(404, 'not_found', 'No existe ese enlace.')
+    }
+
+    return { estado: 200, cuerpo: pantallaDeArea(4) }
   }
 
   // --- Pantalla de puerta: la unica ruta de salas sin sesion ---------------
