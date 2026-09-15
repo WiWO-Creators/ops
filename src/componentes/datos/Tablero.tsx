@@ -11,6 +11,7 @@ import {
   MenuContextual
 } from '@/componentes/superposiciones/MenuContextual'
 import { cn } from '@/lib/clases'
+import { MENSAJE_SESION_CERRADA } from '@/componentes/proyecto/carga'
 import {
   agregarPagina,
   columnaIncompleta,
@@ -131,12 +132,29 @@ export function Tablero<T extends FilaConId> ({
    * Mover son dos operaciones del lado del servidor —el cambio de estado con su cascada y despues
    * el reordenamiento de la columna completa—, asi que despues de mover hay que refrescar mas que
    * la tarjeta tocada: un cronometro cerrado o una fecha de fin sellada aparecen en otras tarjetas.
+   *
+   * Una recarga que falla **se dice**. Antes hacia `if (!respuesta.ok) return` y dejaba el tablero
+   * congelado en la version anterior sin una sola señal: si la que fallaba era la recarga de despues
+   * de mover, la tarjeta se veia en su columna nueva mientras el resto del tablero seguia siendo el
+   * de antes, y eso es exactamente lo que el equipo reporta como "se desincronizan". El `401` lleva
+   * su propia frase porque no es un fallo del tablero sino de la sesion, y no hay reintento que lo
+   * arregle.
    */
   const recargar = useCallback(async () => {
-    const respuesta = await fetch(urlTablero(1), { headers: { accept: 'application/json' } })
-    if (!respuesta.ok) return
-    const sobre = await respuesta.json() as Sobre<Array<GrupoTablero<T>>>
-    setGrupos(ordenarColumnas(sobre.data))
+    try {
+      const respuesta = await fetch(urlTablero(1), { headers: { accept: 'application/json' } })
+
+      if (!respuesta.ok) {
+        setAviso(await mensajeDeError(respuesta))
+        return
+      }
+
+      const sobre = await respuesta.json() as Sobre<Array<GrupoTablero<T>>>
+      setGrupos(ordenarColumnas(sobre.data))
+      setAviso(null)
+    } catch {
+      setAviso('No se pudo actualizar el tablero: revisa la conexión. Lo que ves puede estar desactualizado.')
+    }
   }, [urlTablero, ordenarColumnas])
 
   if (tablero === undefined) {
@@ -477,8 +495,15 @@ export function Tablero<T extends FilaConId> ({
  *
  * Prefiere el `message` del contrato; ante un cuerpo que no es JSON (un 502 del proxy) devuelve un
  * texto propio en vez de dejar que reviente el `json()`.
+ *
+ * El `401` se atiende antes que nada y con la frase del sistema: el BFF lo devuelve tanto cuando la
+ * cookie ya no esta como cuando la API cerro todas las sesiones, y su `message` —«La sesion se
+ * cerro»— no dice lo unico que hay que hacer, que es volver a entrar. Se decide aca y no en cada
+ * llamada para que mover, reordenar, paginar y recargar digan todos lo mismo.
  */
 async function mensajeDeError (respuesta: Response): Promise<string> {
+  if (respuesta.status === 401) return MENSAJE_SESION_CERRADA
+
   try {
     const cuerpo = await respuesta.json() as { error?: { message?: string } }
     if (typeof cuerpo.error?.message === 'string') return cuerpo.error.message

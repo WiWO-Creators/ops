@@ -22,8 +22,11 @@ import {
   HORA_APERTURA, HORA_CIERRE, PASO_MINUTOS
 } from '../src/dominio/salas.ts'
 
-// La zona del negocio es America/Argentina/Buenos_Aires, UTC-3 todo el año.
-const DESFASE_HORAS = 3
+// La zona del negocio es America/Santiago. A diferencia de Argentina, Chile SI cambia la hora:
+// UTC-4 en invierno y UTC-3 en verano, y el salto de 2026 cae el 6 de septiembre. Los instantes
+// de estas pruebas son del 2 y el 3 de septiembre, o sea del lado de UTC-4; la unica que cruza el
+// salto es `ventanaDelMes`, que por eso abre con cuatro horas y cierra con tres.
+const DESFASE_HORAS = 4
 
 test('instanteDe convierte la hora de pared al instante UTC de la zona del negocio', () => {
   const instante = instanteDe('2026-09-02', 9 * 60)
@@ -39,26 +42,29 @@ test('instanteDe rechaza un dia mal formado', () => {
 test('ventanaDelDia va de medianoche local a medianoche local', () => {
   const ventana = ventanaDelDia('2026-09-02')
 
-  assert.equal(ventana?.desde, '2026-09-02T03:00:00.000Z')
-  assert.equal(ventana?.hasta, '2026-09-03T03:00:00.000Z')
+  assert.equal(ventana?.desde, '2026-09-02T04:00:00.000Z')
+  assert.equal(ventana?.hasta, '2026-09-03T04:00:00.000Z')
 })
 
 test('ventanaDelMes abarca el mes completo en hora local', () => {
   const ventana = ventanaDelMes('2026-09-18')
 
-  assert.equal(ventana?.desde, '2026-09-01T03:00:00.000Z')
+  // El mes arranca en UTC-4 y termina en UTC-3: el 6 de septiembre Chile adelanta la hora. Que los
+  // dos extremos NO tengan el mismo desfase es justamente lo que un huso sin cambio de hora no podia
+  // probar.
+  assert.equal(ventana?.desde, '2026-09-01T04:00:00.000Z')
   assert.equal(ventana?.hasta, '2026-10-01T03:00:00.000Z')
 })
 
 test('minutosLocales y diaLocal leen el instante en la zona del negocio, no en la del proceso', () => {
-  // 02:00 UTC del dia 3 son las 23:00 del dia 2 en Buenos Aires: si se leyera en UTC, la reserva
+  // 03:00 UTC del dia 3 son las 23:00 del dia 2 en Santiago: si se leyera en UTC, la reserva
   // saldria dibujada en el dia equivocado.
-  assert.equal(minutosLocales('2026-09-03T02:00:00Z'), 23 * 60)
-  assert.equal(diaLocal('2026-09-03T02:00:00Z'), '2026-09-02')
+  assert.equal(minutosLocales('2026-09-03T03:00:00Z'), 23 * 60)
+  assert.equal(diaLocal('2026-09-03T03:00:00Z'), '2026-09-02')
 })
 
 test('horaLocal devuelve la hora de pared y avisa cuando el instante no sirve', () => {
-  assert.equal(horaLocal('2026-09-02T12:00:00Z'), '09:00')
+  assert.equal(horaLocal('2026-09-02T13:00:00Z'), '09:00')
   assert.equal(horaLocal('mañana'), '--:--')
 })
 
@@ -102,7 +108,7 @@ test('seSuperpone ignora la reserva que se esta editando', () => {
 test('bloqueDeReserva ubica la reserva en porcentaje de la grilla', () => {
   const total = (HORA_CIERRE - HORA_APERTURA) * 60
   // 09:00 a 10:00 hora local.
-  const caja = bloqueDeReserva('2026-09-02T12:00:00Z', '2026-09-02T13:00:00Z', '2026-09-02')
+  const caja = bloqueDeReserva('2026-09-02T13:00:00Z', '2026-09-02T14:00:00Z', '2026-09-02')
 
   assert.equal(caja?.arriba, ((9 * 60 - HORA_APERTURA * 60) / total) * 100)
   assert.equal(caja?.alto, (60 / total) * 100)
@@ -111,7 +117,7 @@ test('bloqueDeReserva ubica la reserva en porcentaje de la grilla', () => {
 
 test('bloqueDeReserva recorta lo que empieza antes de la apertura en vez de descartarlo', () => {
   // 06:00 a 08:00 local: ocupa la sala a las 07:00 y tiene que verse.
-  const caja = bloqueDeReserva('2026-09-02T09:00:00Z', '2026-09-02T11:00:00Z', '2026-09-02')
+  const caja = bloqueDeReserva('2026-09-02T10:00:00Z', '2026-09-02T12:00:00Z', '2026-09-02')
 
   assert.equal(caja?.arriba, 0)
   assert.equal(caja?.recortado, true)
@@ -176,11 +182,11 @@ test('diasDeCalendarioMes completa semanas de lunes a domingo', () => {
 })
 
 test('reservaTocaDia cuenta rangos que cruzan medianoche y no extremos contiguos', () => {
-  const reserva = { start: '2026-09-03T02:00:00Z', end: '2026-09-03T04:00:00Z' }
+  const reserva = { start: '2026-09-03T03:00:00Z', end: '2026-09-03T05:00:00Z' }
 
   assert.equal(reservaTocaDia(reserva, '2026-09-02'), true)
   assert.equal(reservaTocaDia(reserva, '2026-09-03'), true)
-  assert.equal(reservaTocaDia({ start: '2026-09-03T03:00:00Z', end: '2026-09-03T04:00:00Z' }, '2026-09-02'), false)
+  assert.equal(reservaTocaDia({ start: '2026-09-03T04:00:00Z', end: '2026-09-03T05:00:00Z' }, '2026-09-02'), false)
 })
 
 const PERSONAS = [

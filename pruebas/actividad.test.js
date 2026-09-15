@@ -2,8 +2,8 @@
  * Agrupacion del feed de actividad por dia.
  *
  * Lo que se prueba es lo que se rompe en silencio: que el dia se decida en la zona del panel y no en
- * UTC —una entrada de las 23:00 de Buenos Aires es 02:00 UTC del dia siguiente, y agruparla mal
- * mueve media jornada al dia equivocado— y que la agrupacion no reordene lo que el backend ordeno.
+ * UTC —una entrada de las 23:00 de Santiago es 03:00 UTC del dia siguiente, y agruparla mal mueve
+ * media jornada al dia equivocado— y que la agrupacion no reordene lo que el backend ordeno.
  */
 
 import { test } from 'node:test'
@@ -81,11 +81,12 @@ test('las entradas sin fecha se agrupan bajo el guion largo', () => {
 })
 
 test('la hora sale sin la fecha', () => {
-  // El texto exacto lo pone `Intl` segun el locale ("11:03 a. m." en es-AR, con el espacio que el
-  // CLDR decida): lo que se comprueba es que quede la hora y no quede nada de la fecha.
+  // El texto exacto lo pone `Intl` segun el locale, con el espacio que el CLDR decida: lo que se
+  // comprueba es que quede la hora y no quede nada de la fecha. Las 14:03 UTC del 24 de agosto son
+  // las 10:03 en Santiago —invierno chileno, UTC-4—, que es la zona del negocio.
   const hora = horaDeEntrada('2026-08-24T14:03:00Z')
 
-  assert.ok(hora.startsWith('11:03'), `esperaba que empezara con la hora, llego "${hora}"`)
+  assert.ok(hora.startsWith('10:03'), `esperaba que empezara con la hora, llego "${hora}"`)
   assert.ok(!hora.includes('2026'), `esperaba que no quedara la fecha, llego "${hora}"`)
 })
 

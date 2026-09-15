@@ -16,8 +16,15 @@
  * Se exporta porque la agenda de salas la necesita para lo contrario que hace este modulo: convertir
  * una hora de pared elegida en pantalla al instante UTC que viaja a la API. Con dos copias de la
  * constante, un cambio de zona corregiria lo que se muestra y no lo que se guarda.
+ *
+ * Es `America/Santiago` porque es la zona en la que trabaja el negocio y la que usa el backend:
+ * `App_Controller` fija `date_default_timezone_set(get_option('default_timezone'))` y ese ajuste
+ * dice Santiago. Estuvo en `America/Argentina/Buenos_Aires` y no era lo mismo: Chile tiene horario
+ * de verano y Argentina no, asi que la mitad del año son husos distintos (UTC-4 contra UTC-3) y con
+ * tres horas de diferencia todo lo que se agrupa por dia —los tramos "Vencido / Hoy / Próximo" del
+ * Inicio, la agenda de salas— se corria un dia entero de madrugada.
  */
-export const ZONA_NEGOCIO = 'America/Argentina/Buenos_Aires'
+export const ZONA_NEGOCIO = 'America/Santiago'
 
 const ZONA = ZONA_NEGOCIO
 const LOCALE = 'es-AR'
