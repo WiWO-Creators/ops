@@ -8,6 +8,7 @@ import {
   LIMITE_TOTAL_BYTES,
   MAXIMO_ARCHIVOS,
   MIME_DOCUMENTO,
+  cuerpoDelActa,
   extensionDe,
   formatoPeso,
   inferirMime,
@@ -311,4 +312,20 @@ test('manda el tipo real que guardó la API, y la extensión es la reserva', () 
   assert.equal(seVeComoImagen(null, 'pizarra.jpeg'), true)
   assert.equal(seVeComoImagen(undefined, 'reunion.m4a'), false)
   assert.equal(seVeComoImagen('', 'sinextension'), false)
+})
+
+test('el cuerpo del acta pierde el encabezado de identificador cuando el modelo no lo supo', () => {
+  const con = '<h1>Meeting Paper - Avance</h1><p><strong>#No especificado</strong></p><hr /><p>Cliente</p>'
+  const sin = '<h1>Meeting Paper - Avance</h1><hr /><p>Cliente</p>'
+
+  assert.equal(cuerpoDelActa(con), sin)
+  // El "#" a secas es el mismo hueco escrito de otra forma.
+  assert.equal(cuerpoDelActa('<h1>A</h1><p><strong>#</strong></p><p>B</p>'), '<h1>A</h1><p>B</p>')
+  // Un identificador de verdad se conserva, y tambien un parrafo que empieza con "#" y sigue.
+  const real = '<h1>A</h1><p><strong>#PROC-204</strong></p><p>B</p>'
+  assert.equal(cuerpoDelActa(real), real)
+  const frase = '<h1>A</h1><p># de horas acordadas</p>'
+  assert.equal(cuerpoDelActa(frase), frase)
+  // Sin encabezado, el cuerpo sale tal cual.
+  assert.equal(cuerpoDelActa(sin), sin)
 })

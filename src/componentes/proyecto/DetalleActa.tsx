@@ -20,7 +20,7 @@ import { conId, type FuenteDeProyecto } from '@/dominio/fuente-proyecto'
 import { TEMAS, temaDeMarca, type CodigoDeMarca } from '@/dominio/marcas-acta'
 import type { MetaDelActa } from '@/dominio/exportar-acta'
 import { origenDeArchivo } from '@/definiciones/archivos'
-import { formatoPeso, seVeComoImagen } from '@/dominio/actas'
+import { cuerpoDelActa, formatoPeso, seVeComoImagen } from '@/dominio/actas'
 import { nombrar } from '@/dominio/glosario'
 import type { Acta, AdjuntoActa } from '@/datos/recursos'
 
@@ -175,7 +175,7 @@ export function DetalleActa ({
     setError(null)
 
     try {
-      const bloques = bloquesDeHtml(acta.content ?? '')
+      const bloques = bloquesDeHtml(cuerpoDelActa(acta.content ?? ''))
       const tema = temaDeMarca(acta.brand)
       const meta: MetaDelActa = {
         titulo: acta.title,
@@ -354,7 +354,10 @@ export function DetalleActa ({
         : (
           <ContenidoHtml
             ref={marco}
-            html={acta.content ?? ''}
+            // `cuerpoDelActa` y no `acta.content` a secas: el documento arranca con el identificador
+            // del proyecto y, cuando la reunion no lo dijo, el modelo escribe "#No especificado". Es
+            // un hueco de su formulario, no un dato, y el cliente lo lee como encabezado del acta.
+            html={cuerpoDelActa(acta.content ?? '')}
             titulo={`Meeting Paper: ${acta.title}`}
             marca={acta.brand}
             // Sin esto "Imprimir" lanza `SecurityError` y no imprime: con el origen opaco del
