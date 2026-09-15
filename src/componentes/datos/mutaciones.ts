@@ -1,4 +1,5 @@
 import { mensajeDeRespuesta } from '@/datos/cliente'
+import { avisarCambioDeTareas } from '@/datos/refresco-lista'
 
 /**
  * Escrituras desde el navegador, siempre por el BFF.
@@ -37,6 +38,8 @@ export async function escribirEnBff<T> (
   }
 
   if (!respuesta.ok) return { ok: false, mensaje: await mensajeDeRespuesta(respuesta) }
+
+  avisarCambioDeTareas(ruta)
 
   // 204 no trae cuerpo: un `json()` sobre una respuesta vacia lanza.
   if (respuesta.status === 204) return { ok: true, datos: undefined as T }

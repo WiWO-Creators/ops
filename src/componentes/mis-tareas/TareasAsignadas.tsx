@@ -10,6 +10,7 @@ import { Fecha } from '@/componentes/presentadores/Fecha'
 import { Insignia, type TonoInsignia } from '@/componentes/presentadores/Insignia'
 import { EstadoDeTarea } from '@/componentes/proyecto/EstadoDeTarea'
 import { pedirSobre } from '@/datos/cliente'
+import { observarLista } from '@/datos/refresco-lista'
 import { GLOSARIO } from '@/dominio/glosario'
 import { origenDeTarea, type ClaseDeOrigen } from '@/dominio/mis-tareas'
 import type { EstadoLookup, Proceso } from '@/datos/recursos'
@@ -38,7 +39,8 @@ export type Carga<T> =
   | { fase: 'listo', filas: T[], paginacion: Paginacion | undefined }
 
 /**
- * Trae una pagina de la API y la mantiene cancelable.
+ * Mantiene una página actualizada mientras está visible y tras las escrituras locales.
+ * Conserva el último listado durante refrescos y errores transitorios; una ruta nueva carga aparte.
  *
  * Pide desde el navegador y no desde el servidor por la misma razon de siempre: la lista depende de
  * la persona y de la pagina que esta mirando, no de la ruta, y resolverla en el render inicial
@@ -63,27 +65,21 @@ export function useListaPaginada<T> (ruta: string, queSon: string, version = 0):
   const reintentar = useCallback(() => { setIntento((n) => n + 1) }, [])
 
   useEffect(() => {
-    const control = new AbortController()
-
-    void pedirSobre<T[]>(ruta, control.signal)
-      .then((sobre) => {
-        if (control.signal.aborted) return
-
+    return observarLista(
+      (senal) => pedirSobre<T[]>(ruta, senal),
+      (sobre) => {
         setGuardado({ clave, carga: { fase: 'listo', filas: sobre.data, paginacion: sobre.meta?.pagination } })
-      })
-      .catch((fallo: unknown) => {
-        if (control.signal.aborted) return
-
-        setGuardado({
+      },
+      (fallo: unknown) => {
+        setGuardado((previo) => previo?.clave === clave && previo.carga.fase === 'listo' ? previo : {
           clave,
           carga: {
             fase: 'error',
             mensaje: fallo instanceof Error ? fallo.message : `No se pudieron cargar ${queSon}.`
           }
         })
-      })
-
-    return () => { control.abort() }
+      }
+    )
   }, [clave, ruta, queSon])
 
   const carga: Carga<T> = guardado?.clave === clave ? guardado.carga : { fase: 'cargando' }
