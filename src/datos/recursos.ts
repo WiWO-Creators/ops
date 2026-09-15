@@ -97,6 +97,11 @@ export interface Proceso {
   desviacion_dias?: number | null
   estado_sla?: EstadoSla | null
   approval?: AprobacionProceso
+  /**
+   * Por que este Proceso no avanza. Opcional por la misma razon que `approval`: una base sin la
+   * migracion 0620 no manda la clave.
+   */
+  bloqueo?: BloqueoProceso
   /** Solo en el detalle o con `include=description`. */
   description?: string
   /** Solo con `include=custom_fields`, tanto en el listado como en la ficha. */
@@ -105,6 +110,24 @@ export interface Proceso {
 
 /** Estado del compromiso de plazo. `null` cuando no hay con que compararlo. */
 export type EstadoSla = 'en_plazo' | 'en_riesgo' | 'incumplido'
+
+/**
+ * Bloqueo de un Proceso: por que no avanza, quien lo detuvo y cuando.
+ *
+ * Las claves nunca faltan; lo que falta es su valor. **`activo: false` con `motivo` escrito no es lo
+ * mismo que un Proceso que nunca estuvo bloqueado**: es uno que estuvo detenido y ya se destrabo, y
+ * eso es lo que explica un atraso pasado.
+ *
+ * No llega al portal del cliente: el motivo es interno.
+ */
+export interface BloqueoProceso {
+  activo: boolean
+  motivo: string | null
+  bloqueado_en: string | null
+  bloqueado_por: number | null
+  desbloqueado_en: string | null
+  desbloqueado_por: number | null
+}
 
 /**
  * Un Proceso propio por vencer o ya vencido (`GET /me/vencimientos`).
@@ -1002,7 +1025,7 @@ export interface ResumenEstadoTareas {
 }
 
 /** Acciones que acepta `POST /tasks/bulk`. */
-export type AccionMasiva = 'status' | 'priority' | 'assignees' | 'project' | 'milestone' | 'billable' | 'tags' | 'delete'
+export type AccionMasiva = 'status' | 'priority' | 'assignees' | 'due_date' | 'project' | 'milestone' | 'billable' | 'tags' | 'delete'
 
 /** Respuesta de `POST /tasks/bulk`: cuantas se aplicaron y cuales se saltearon por permisos. */
 export interface ResultadoAccionMasiva {

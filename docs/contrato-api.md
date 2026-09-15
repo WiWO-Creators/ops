@@ -4060,6 +4060,7 @@ contra su propio compromiso interno.
 |---|---|---|
 | `filter[estado_sla]` | `en_plazo`, `en_riesgo`, `incumplido` (lista separada por comas) | panel |
 | `filter[aprobacion]` | `no_requiere`, `pendiente`, `aprobada`, `rechazada` | panel y portal |
+| `filter[bloqueada]` | `1`, `0` (migración 0620, ver más abajo) | panel |
 | `sort=eta` / `sort=-eta` | — | panel |
 | `sort=desviacion` / `sort=-desviacion` | — | panel |
 
@@ -4069,6 +4070,79 @@ con `requerida = 0`. Se devuelve como valor filtrable y no como `null` porque un
 
 Como en el resto de la API, un **valor** desconocido no es 422: devuelve la lista vacía. Lo que da
 422 es una **clave** de filtro fuera de la whitelist.
+
+---
+
+### Rama `feat/bloqueo-de-procesos`
+
+El bloqueo de un Proceso: por qué no avanza, quién lo detuvo y cuándo. Migración **0620**
+(`tblapi_bloqueo_tarea`).
+
+**No es un estado más.** El catálogo de estados es un enum fijo de Perfex y agregarle un valor sería
+un parche al core —deuda de merge con upstream en cada actualización—, además de un estado
+mentiroso: una Tarea bloqueada no dejó de estar en progreso, está en progreso **y** detenida. Son
+dos hechos distintos y viven en dos lugares.
+
+#### El bloque `bloqueo`
+
+Lo devuelve todo endpoint del **panel** que presente un Proceso. **No sale al portal del cliente**:
+el motivo es interno ("esperando que el cliente pague" no se le muestra al cliente).
+
+| Clave | Tipo | Qué es |
+|---|---|---|
+| `activo` | `bool` | Si está bloqueado **ahora**. `false` con `motivo` escrito es un bloqueo ya resuelto |
+| `motivo` | `string \| null` | Qué lo detiene. `null` solo si nunca estuvo bloqueado |
+| `bloqueado_en` | `string \| null` | Instante ISO-8601 UTC |
+| `bloqueado_por` | `int \| null` | `staffid` |
+| `desbloqueado_en` | `string \| null` | Instante ISO-8601 UTC, o `null` si sigue bloqueado |
+| `desbloqueado_por` | `int \| null` | `staffid` |
+
+Una base sin la migración 0620 **no manda la clave**. `undefined` es "no aplica"; `activo: false` es
+"no está bloqueada". No son lo mismo y la pantalla los dibuja distinto.
+
+#### `POST /tasks/{id}/bloqueo` → 200
+
+`{"motivo": "Esperando la aprobación de arte del cliente"}`. Devuelve el bloque `bloqueo`.
+
+Es **idempotente**: volver a bloquear con otro motivo corrige el texto y vuelve a fechar el inicio.
+Un bloqueo que cambió de causa es un bloqueo nuevo.
+
+| Situación | Código |
+|---|---|
+| Sin `edit` sobre `tasks` | `403` |
+| El Proceso no existe o no es visible para quien pide | `404` |
+| `motivo` ausente, vacío, no-texto o de más de 500 caracteres | `422` |
+| La migración 0620 no corrió en esa base | `409` |
+
+#### `DELETE /tasks/{id}/bloqueo` → 200
+
+Destraba. **La fila se conserva** con `desbloqueado_en`: "estuvo seis días detenida esperando al
+cliente" es lo que explica un `estado_sla` incumplido, y borrar la fila dejaría el atraso sin causa.
+
+`409` si el Proceso no estaba bloqueado. `GET` y `PATCH` sobre el subrecurso son `404`.
+
+#### `filter[bloqueada]` en el listado de Procesos
+
+`1` o `0`, **solo en el panel**. Un bloqueo resuelto cuenta como no bloqueado: la pregunta es si
+está detenido ahora. La expresión que filtra es la misma que selecciona la columna, así que filtrar
+no puede devolver un conjunto distinto del que la tabla pinta.
+
+---
+
+### Acción masiva `due_date`
+
+`POST /tasks/bulk` acepta `{"accion": "due_date", "ids": [...], "valor": "YYYY-MM-DD"}`.
+
+**`valor: null` (o la clave con cadena vacía) borra la fecha**, y es una corrección legítima: una
+Tarea mal fechada sin fecha nueva es mejor que una con la fecha equivocada. Omitir la clave `valor`
+no es lo mismo: eso es "no toques la fecha".
+
+El valor se valida **una sola vez, antes del bucle**, porque es el mismo para todos los ids: una
+fecha inválida es `422` con **cero** Procesos tocados. Escribe por el mismo camino que
+`PATCH /tasks/{id}`, así que arrastra el ETA y el `estado_sla` igual que la edición individual, y un
+`due_date` anterior al inicio se rechaza con las mismas reglas.
+
+Los ids que quien pide no ve se omiten y vuelven en `meta.omitidos`, como en el resto de `bulk`.
 
 ---
 

@@ -1,6 +1,7 @@
 import type {
   AccionMasiva,
   AprobacionProceso,
+  BloqueoProceso,
   DefinicionCampoPersonalizado,
   EstadoSla,
   Etiqueta,
@@ -74,7 +75,7 @@ export function valorDeCampo (proceso: ProcesoAmpliado, slug: string): string {
 }
 
 /** Como se pide el valor de una accion masiva. Decide que control dibuja el dialogo. */
-export type ControlAccionMasiva = 'estado' | 'prioridad' | 'personas' | 'proyecto' | 'hito' | 'booleano' | 'etiquetas' | 'ninguno'
+export type ControlAccionMasiva = 'estado' | 'prioridad' | 'personas' | 'proyecto' | 'hito' | 'fecha' | 'booleano' | 'etiquetas' | 'ninguno'
 
 export interface AccionMasivaDescrita {
   clave: AccionMasiva
@@ -96,6 +97,7 @@ export const ACCIONES_MASIVAS: AccionMasivaDescrita[] = [
   { clave: 'status', etiqueta: 'Cambiar estado', control: 'estado', requiere: 'edit' },
   { clave: 'priority', etiqueta: 'Cambiar prioridad', control: 'prioridad', requiere: 'edit' },
   { clave: 'assignees', etiqueta: 'Agregar asignados', control: 'personas', requiere: 'edit' },
+  { clave: 'due_date', etiqueta: 'Cambiar fecha de entrega', control: 'fecha', requiere: 'edit' },
   { clave: 'project', etiqueta: 'Agregar a proyecto', control: 'proyecto', requiere: 'edit' },
   { clave: 'milestone', etiqueta: 'Mover a un hito', control: 'hito', requiere: 'edit' },
   { clave: 'billable', etiqueta: 'Marcar facturable', control: 'booleano', requiere: 'edit' },
@@ -114,6 +116,16 @@ export function accionesMasivasPermitidas (capacidades: Capacidad[]): AccionMasi
 }
 
 /**
+ * Lo que el control de fecha guarda para decir "sacale la fecha de entrega".
+ *
+ * Hace falta un valor propio porque el dialogo tiene TRES estados y no dos: nada elegido todavia
+ * (`''`), una fecha, y borrar la que haya. Sin este centinela los dos ultimos se escribirian igual
+ * —cadena vacia— y "sacar la fecha" quedaria indistinguible de "no elegi nada", que es justo el
+ * caso que el dialogo frena.
+ */
+export const SIN_FECHA = 'sin-fecha'
+
+/**
  * Convierte lo elegido en el dialogo al `valor` que espera `POST /tasks/bulk`.
  *
  * @param control el tipo de control que se uso
@@ -123,7 +135,7 @@ export function accionesMasivasPermitidas (capacidades: Capacidad[]): AccionMasi
 export function valorDeAccionMasiva (
   control: ControlAccionMasiva,
   crudo: string
-): number | boolean | string[] | number[] | null {
+): number | boolean | string | string[] | number[] | null {
   if (control === 'ninguno') return null
 
   if (control === 'etiquetas') {
@@ -138,11 +150,65 @@ export function valorDeAccionMasiva (
     return ids.length > 0 ? ids : null
   }
 
+  if (control === 'fecha') {
+    if (crudo === SIN_FECHA) return SIN_FECHA
+
+    // `YYYY-MM-DD` y nada mas: es lo unico que el backend acepta, y mandarle lo que escriba el
+    // navegador con otro locale es como se guardan fechas con el mes y el dia cambiados.
+    return /^\d{4}-\d{2}-\d{2}$/.test(crudo) ? crudo : null
+  }
+
   if (control === 'booleano') return crudo === 'si'
 
   const numero = Number(crudo)
 
   return Number.isInteger(numero) && numero > 0 ? numero : null
+}
+
+/** El cuerpo de `POST /tasks/bulk`. `valor` ausente = la accion no lleva valor (`delete`). */
+export interface CuerpoAccionMasiva {
+  ids: number[]
+  accion: AccionMasiva
+  valor?: number | boolean | string | string[] | number[] | null
+}
+
+/**
+ * El cuerpo de `POST /tasks/bulk`, o `null` si todavia falta elegir el valor.
+ *
+ * Vive aca y no dentro del dialogo porque es la unica parte de la accion masiva que se puede
+ * equivocar en silencio: mandar `{}` donde iba `valor: null` no falla, simplemente no borra la
+ * fecha, y eso desde el JSX no se ve.
+ *
+ * **`valor: null` se manda explicito.** Es la diferencia entre "sacale la fecha" y "no toques la
+ * fecha", y la clave omitida dice la segunda.
+ *
+ * @param accion   la accion elegida en el menu
+ * @param valor    lo que quedo en el control, en la cadena que usa el dialogo
+ * @param destinos los Espacios elegidos, solo para la accion `project`
+ * @param ids      las tareas seleccionadas
+ * @returns el cuerpo listo para `JSON.stringify`, o `null` si falta elegir
+ */
+export function cuerpoDeAccionMasiva (
+  accion: AccionMasivaDescrita,
+  valor: string,
+  destinos: number[],
+  ids: number[]
+): CuerpoAccionMasiva | null {
+  if (accion.control === 'ninguno') return { ids, accion: accion.clave }
+
+  if (accion.control === 'proyecto') {
+    return destinos.length === 0 ? null : { ids, accion: accion.clave, valor: destinos }
+  }
+
+  const tipado = valorDeAccionMasiva(accion.control, valor)
+
+  if (tipado === null) return null
+
+  return {
+    ids,
+    accion: accion.clave,
+    valor: tipado === SIN_FECHA ? null : tipado
+  }
 }
 
 /**
@@ -187,6 +253,8 @@ export interface ProcesoDeFicha {
   counts?: ProcesoAmpliado['counts']
   custom_fields?: ValorCampoPersonalizado[]
   approval?: AprobacionProceso
+  /** Por que no avanza. No llega al portal: el motivo es interno. */
+  bloqueo?: BloqueoProceso
   eta?: string | null
   desviacion_dias?: number | null
   estado_sla?: EstadoSla | null

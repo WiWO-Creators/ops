@@ -14,6 +14,9 @@ import {
   comentarioParaMostrar,
   estaVencida,
   valorDeAccionMasiva,
+  cuerpoDeAccionMasiva,
+  ACCIONES_MASIVAS,
+  SIN_FECHA,
   valorDeCampo
 } from '../src/componentes/proyecto/tareas.ts'
 
@@ -63,7 +66,7 @@ test('un multiselect se muestra unido y un campo ausente no rompe la celda', () 
 test('eliminar en masa solo se ofrece con delete, el resto con edit', () => {
   assert.deepEqual(accionesMasivasPermitidas(['view']).map((a) => a.clave), [])
   assert.deepEqual(accionesMasivasPermitidas(['edit']).map((a) => a.clave),
-    ['status', 'priority', 'assignees', 'project', 'milestone', 'billable', 'tags'])
+    ['status', 'priority', 'assignees', 'due_date', 'project', 'milestone', 'billable', 'tags'])
   assert.deepEqual(accionesMasivasPermitidas(['delete']).map((a) => a.clave), ['delete'])
 })
 
@@ -75,6 +78,38 @@ test('el valor de la accion masiva llega tipado como lo espera el contrato', () 
   assert.deepEqual(valorDeAccionMasiva('etiquetas', ' urgente , '), ['urgente'])
   assert.equal(valorDeAccionMasiva('ninguno', ''), null)
   assert.equal(valorDeAccionMasiva('estado', ''), null, 'sin elegir nada no hay nada que mandar')
+})
+
+test('la fecha masiva distingue entre no elegir nada y sacar la fecha', () => {
+  assert.equal(valorDeAccionMasiva('fecha', '2026-11-05'), '2026-11-05')
+  assert.equal(valorDeAccionMasiva('fecha', SIN_FECHA), SIN_FECHA)
+  assert.equal(valorDeAccionMasiva('fecha', ''), null, 'sin elegir nada no hay nada que mandar')
+  for (const invalida of ['05-11-2026', '2026/11/05', 'hoy', '2026-11']) {
+    assert.equal(valorDeAccionMasiva('fecha', invalida), null, `${invalida} no es YYYY-MM-DD`)
+  }
+})
+
+test('el cuerpo de la accion masiva manda valor:null solo para sacar la fecha', () => {
+  const fecha = ACCIONES_MASIVAS.find((accion) => accion.clave === 'due_date')
+  const borrar = ACCIONES_MASIVAS.find((accion) => accion.clave === 'delete')
+  const proyecto = ACCIONES_MASIVAS.find((accion) => accion.clave === 'project')
+
+  assert.deepEqual(cuerpoDeAccionMasiva(fecha, '2026-11-05', [], [1, 2]),
+    { ids: [1, 2], accion: 'due_date', valor: '2026-11-05' })
+
+  // `valor: null` explicito: la clave omitida significaria "no toques la fecha".
+  const sinFecha = cuerpoDeAccionMasiva(fecha, SIN_FECHA, [], [1])
+  assert.deepEqual(sinFecha, { ids: [1], accion: 'due_date', valor: null })
+  assert.ok('valor' in sinFecha, 'la clave tiene que viajar aunque valga null')
+
+  assert.equal(cuerpoDeAccionMasiva(fecha, '', [], [1]), null, 'sin fecha elegida no se manda nada')
+
+  // `delete` no lleva valor, y eso no es lo mismo que faltarle uno.
+  assert.deepEqual(cuerpoDeAccionMasiva(borrar, '', [], [3]), { ids: [3], accion: 'delete' })
+
+  assert.deepEqual(cuerpoDeAccionMasiva(proyecto, '', [8, 67], [3]),
+    { ids: [3], accion: 'project', valor: [8, 67] })
+  assert.equal(cuerpoDeAccionMasiva(proyecto, '', [], [3]), null, 'sin destinos no se manda nada')
 })
 
 

@@ -25,6 +25,7 @@ import { escribirEnBff } from '@/componentes/datos/mutaciones'
 import { instanteDeCierre } from '@/dominio/cierre-tarea'
 import { hoyLocal } from '@/lib/fechas'
 import { BloqueSla } from './BloqueSla'
+import { BloqueoDeProceso } from './BloqueoDeProceso'
 import { CabeceraFichaTarea } from './CabeceraFichaTarea'
 import { ComentarioDeDiscusion } from './ComentarioDeDiscusion'
 import { ESTADO_COMPLETO, comentarioParaMostrar, type ProcesoDeFicha } from './tareas'
@@ -407,6 +408,7 @@ export function DetalleTarea (
         )}
 
         <BloqueSla tarea={tarea} puedeEditar={puedeEditar} onCambiado={reintentar} />
+        <BloqueoDeProceso tarea={tarea} puedeEditar={puedeEditar} onCambiado={reintentar} />
 
         <Contadores counts={tarea.counts} />
 

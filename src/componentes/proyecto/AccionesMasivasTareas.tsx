@@ -31,7 +31,8 @@ import type { Capacidad } from '@/datos/tipos'
 import type { OpcionFiltro } from '@/definiciones/tipos'
 import {
   accionesMasivasPermitidas,
-  valorDeAccionMasiva,
+  cuerpoDeAccionMasiva,
+  SIN_FECHA,
   type AccionMasivaDescrita
 } from './tareas'
 
@@ -212,9 +213,9 @@ export function AccionesMasivasTareas ({
   async function aplicar (): Promise<void> {
     if (accion === null || enCurso) return
 
-    const valorTipado = accion.control === 'proyecto' ? destinos : valorDeAccionMasiva(accion.control, valor)
+    const cuerpo = cuerpoDeAccionMasiva(accion, valor, destinos, ids)
 
-    if (accion.control !== 'ninguno' && valorTipado === null) {
+    if (cuerpo === null) {
       setError('Elige un valor antes de aplicar.')
       return
     }
@@ -231,11 +232,7 @@ export function AccionesMasivasTareas ({
       const respuesta = await fetch('/api/bff/tasks/bulk', {
         method: 'POST',
         headers: { 'content-type': 'application/json', accept: 'application/json' },
-        body: JSON.stringify({
-          ids,
-          accion: accion.clave,
-          ...(valorTipado === null ? {} : { valor: valorTipado })
-        })
+        body: JSON.stringify(cuerpo)
       })
 
       if (!respuesta.ok) {
@@ -501,6 +498,42 @@ function ControlDeAccion ({
 
         <p className="text-texto-sutil text-xs">Se agregan a quienes ya estén asignados.</p>
       </fieldset>
+    )
+  }
+
+  if (accion.control === 'fecha') {
+    const sinFecha = valor === SIN_FECHA
+
+    return (
+      <div className="flex flex-col gap-3">
+        <Campo
+          etiqueta="Nueva fecha de entrega"
+          ayuda="Se aplica a todas las tareas seleccionadas."
+        >
+          {(props) => (
+            <Entrada
+              type="date"
+              value={sinFecha ? '' : valor}
+              disabled={sinFecha}
+              onChange={(evento) => onValor(evento.target.value)}
+              {...props}
+            />
+          )}
+        </Campo>
+
+        {/* Sacar la fecha es una correccion legitima —una tarea mal fechada sin fecha nueva es mejor
+            que una con la fecha equivocada—, pero no puede quedar a un clic de distancia del caso
+            normal: por eso es una casilla aparte y no el campo vacio. */}
+        <label className="text-texto flex cursor-pointer items-center gap-2 text-sm">
+          <input
+            type="checkbox"
+            className={CLASES_CASILLA}
+            checked={sinFecha}
+            onChange={(evento) => onValor(evento.target.checked ? SIN_FECHA : '')}
+          />
+          Dejarlas sin fecha de entrega
+        </label>
+      </div>
     )
   }
 

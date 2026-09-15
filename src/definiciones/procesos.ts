@@ -163,6 +163,10 @@ export const PROCESOS: DefinicionRecurso<Proceso> = {
       ]
     },
 
+    // 1/0 y no una etiqueta: la pregunta es si el Proceso esta detenido AHORA. Un bloqueo ya
+    // resuelto conserva su motivo en la ficha, pero no cuenta como bloqueado.
+    { clave: 'bloqueada', etiqueta: 'Bloqueada', tipo: 'booleano' },
+
     // Los dos rangos son la misma pregunta sobre dos fechas distintas —que vence en la semana, que
     // arranca en la semana—, y se combinan con AND como cualquier otro par.
     { clave: 'vence', etiqueta: 'Vence entre', tipo: 'rangoFechas', clavesRango: ['date_from', 'date_to'] },
