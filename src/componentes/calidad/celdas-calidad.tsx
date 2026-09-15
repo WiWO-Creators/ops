@@ -96,7 +96,12 @@ function CeldaNota ({ fila }: { fila: TareaCalidad }): ReactElement {
   const motivo = sinRevisar ? null : motivoDeLaNota(fila)
 
   return (
-    <div className="flex flex-col items-end gap-1">
+    // Dos correcciones sobre lo que impone una columna `numerica`, y las dos hacen falta:
+    // `whitespace-normal` repone el corte de linea —la celda entera va `nowrap` para que un numero
+    // no se parta, y aca abajo del numero hay dos frases que se cortaban a mitad de palabra—, y el
+    // ancho fijo vence al `w-px` que encoge la columna a su contenido, que sin esto dejaba las
+    // frases en una columna de dos palabras de ancho.
+    <div className="flex w-72 flex-col items-end gap-1 whitespace-normal">
       <span className="flex items-center gap-1.5">
         {vieja && (
           <History
@@ -129,7 +134,7 @@ function CeldaNota ({ fila }: { fila: TareaCalidad }): ReactElement {
       )}
 
       {motivo !== null && (
-        <span className="text-texto-tenue line-clamp-2 max-w-72 text-right text-xs" title={motivo}>
+        <span className="text-texto-tenue line-clamp-2 text-right text-xs" title={motivo}>
           {motivo}
         </span>
       )}
