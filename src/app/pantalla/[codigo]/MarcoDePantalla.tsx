@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
 import { cn } from '@/lib/clases'
-import type { Escena, Frescura, ParametrosDePantalla } from '@/dominio/pantalla-area'
+import type { Escena, Frescura, Orientacion, ParametrosDePantalla } from '@/dominio/pantalla-area'
 
 interface Props {
   area: string | null
@@ -14,6 +14,7 @@ interface Props {
   /** El reloj del navegador, o `null` antes de hidratar. */
   ahora: number | null
   zona: string | null
+  orientacion: Orientacion
   zoom: number
   tema: ParametrosDePantalla['tema']
   transicion: ParametrosDePantalla['transicion']
@@ -39,7 +40,7 @@ interface Props {
  * lampara. Se puede volver a claro con `?tema=claro` para una sala muy iluminada.
  */
 export function MarcoDePantalla (props: Props): ReactNode {
-  const { area, guion, escenaId, frescura, esperando, ahora, zona, zoom, tema, transicion, children } = props
+  const { area, guion, escenaId, frescura, esperando, ahora, zona, orientacion, zoom, tema, transicion, children } = props
 
   // El tema se fuerza desde el cliente y no con una clase: el script de arranque escribe
   // `data-theme` en el `<html>`, y lo que gana es el ultimo que escribe.
@@ -79,8 +80,9 @@ export function MarcoDePantalla (props: Props): ReactNode {
       data-escena={escenaId ?? ''}
       data-escena-desde={desde}
       data-frescura={frescura}
+      data-orientacion={orientacion}
     >
-      <header className="pantalla-deriva flex items-baseline justify-between px-[4vmin] pt-[3vmin]">
+      <header className="pantalla-deriva flex items-baseline justify-between px-[4vmin] pt-[3vmin] portrait:pt-[5vmin]">
         <h1 className="text-texto-tenue truncate text-[3vmin] font-semibold tracking-[0.2em] uppercase">
           {area ?? 'WiWO Ops'}
         </h1>
@@ -103,7 +105,7 @@ export function MarcoDePantalla (props: Props): ReactNode {
         {esperando ? <Esperando /> : children}
       </section>
 
-      <footer className="pantalla-deriva flex flex-col gap-[1.2vmin] px-[4vmin] pb-[3vmin]">
+      <footer className="pantalla-deriva flex flex-col gap-[1.2vmin] px-[4vmin] pb-[3vmin] portrait:pb-[5vmin]">
         <div className="flex items-center justify-between">
           <Puntos guion={guion} escenaId={escenaId} />
           <Estado frescura={frescura} esperando={esperando} />

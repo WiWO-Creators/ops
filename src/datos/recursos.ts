@@ -925,22 +925,39 @@ export interface EnlaceProcesoGenerado {
   expires_at: string
 }
 
+/** Una escena de la pantalla de un area, con lo que dura. */
+export interface EscenaConfigurada {
+  clase: 'portada' | 'trabajando' | 'cronometros' | 'procesos' | 'espacios'
+  segundos: number
+}
+
 /**
  * Una fila del inventario de pantallas de area (`GET /accesos/pantallas`).
  *
- * Llegan TODAS las areas, tengan enlace o no: la pantalla es una lista donde cada fila ofrece generar
- * el suyo, y una lista que solo trajera las que ya lo tienen no dejaria crear el primero.
+ * Llegan TODAS las areas, tengan pantalla o no: la de administracion es una lista donde cada fila
+ * ofrece crear la suya, y una que solo trajera las existentes no dejaria crear la primera. Un area sin
+ * pantalla llega con `code: null` y las escenas por defecto, para poder dibujar los interruptores
+ * antes de que exista el codigo.
  *
- * **No hay `expires_at`**, a diferencia del enlace de una Tarea: el de una pantalla no caduca — vive
- * en un televisor colgado a tres metros de altura y renovarlo cada treinta dias costaria una escalera.
- * Lo que si viaja es `last_seen_at`, que es la unica forma de saber desde Ops si el aparato sigue
- * encendido.
+ * **`code` viaja en claro, y es deliberado.** Con cinco caracteres de un alfabeto de treinta, un hash
+ * no defenderia nada —se revierte con una tabla precomputada— y solo impediria volver a mostrarle el
+ * codigo a quien lo pregunta. Lo que defiende es el freno por IP, `last_seen_at` y regenerarlo en un
+ * clic. El razonamiento largo esta en la migracion 0610 de la API.
+ *
+ * **No hay `expires_at`**: el codigo no caduca. Vive en un televisor colgado a tres metros de altura
+ * y renovarlo cada treinta dias costaria una escalera.
  */
 export interface PantallaDeAreaEnPanel {
   area_id: number
   area_name: string
   shared: boolean
-  /** ISO-8601, o `null` si no hay enlace. */
+  /** Cinco caracteres, o `null` si el area todavia no tiene pantalla. */
+  code: string | null
+  /** El nombre propio de la pantalla, o `null` para usar el del area. */
+  title: string | null
+  /** Las escenas encendidas, en el orden en que se muestran. */
+  scenes: EscenaConfigurada[]
+  /** ISO-8601, o `null` si no hay pantalla. */
   created_at: string | null
   /** ISO-8601 de la ultima vez que el televisor pidio el paquete, con cinco minutos de resolucion. */
   last_seen_at: string | null

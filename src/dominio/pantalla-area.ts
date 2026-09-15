@@ -18,25 +18,48 @@ export const CLASES_DE_ESCENA = ['portada', 'trabajando', 'cronometros', 'proces
 
 export type ClaseDeEscena = typeof CLASES_DE_ESCENA[number]
 
+/** Como esta puesto el televisor. Lo decide su proporcion, no una configuracion. */
+export type Orientacion = 'horizontal' | 'vertical'
+
 /**
- * Cuantas fichas entran en una pantalla de televisor por clase de escena.
+ * Cuantas fichas entran por escena, segun como este puesto el televisor.
  *
- * No son numeros elegidos por gusto: salen de la escala tipografica. A 4 metros la altura de
- * mayuscula tiene que rondar los 2 cm, que a 1080p son ~45 px de cuerpo para un nombre; con eso y los
- * margenes, en la zona util entran estas cantidades. Cambiarlos sin cambiar la escala es achicar la
- * letra para que entre, que es exactamente lo que no hay que hacer: si no entra, se pagina.
+ * No son numeros elegidos por gusto ni por estetica: salen de medir. A cuatro metros la altura de
+ * mayuscula tiene que rondar los 2 cm —~45 px de cuerpo para un nombre a 1080p—, y con esa escala y
+ * los margenes, en la banda util entran exactamente estas cantidades. Cambiarlas sin cambiar la
+ * escala es achicar la letra para que entre, que es lo que no hay que hacer: si no entra, se pagina.
+ *
+ * La banda util es lo que queda del alto tras la cabecera, el titulo de escena y el pie. En
+ * horizontal (1920x1080) son ~840 px; en vertical (1080x1920), ~1670. Por eso la columna vertical
+ * lleva mas del doble de filas, y a la vez menos columnas: `vmin` es el mismo en las dos
+ * orientaciones —el lado corto siempre mide 1080— asi que las fichas miden igual y lo unico que
+ * cambia es cuantas caben.
+ *
+ * `pruebas/pantalla-area.browser.mjs` mide cada ficha contra su marco en las dos orientaciones: si
+ * alguno de estos numeros se pasa, la prueba lo dice. No hay forma de que un desborde pase
+ * inadvertido — `overflow: hidden` no produce barra de scroll, solo corta.
  */
-export const REJILLAS: Record<ClaseDeEscena, number> = {
-  portada: 1,
-  // Cuatro columnas por tres filas de fichas de ~150 px a 1080p.
-  trabajando: 12,
-  // Filas anchas de ~140 px: entran cinco en la banda util, que mide ~840 px una vez descontados
-  // cabecera, titulo y pie. Con ocho —el numero que habia antes— la sexta y la septima quedaban
-  // cortadas por el `overflow: hidden`, sin barra de scroll y sin que nada avisara.
-  cronometros: 5,
-  procesos: 5,
-  // Dos columnas por tres filas de ~218 px.
-  espacios: 6
+export const REJILLAS: Record<Orientacion, Record<ClaseDeEscena, number>> = {
+  horizontal: {
+    portada: 1,
+    // Cuatro columnas por tres filas de fichas de ~150 px.
+    trabajando: 12,
+    // Filas anchas de ~140 px. Con ocho —el numero con el que nacio— la sexta y la septima quedaban
+    // cortadas sin que nada avisara.
+    cronometros: 5,
+    procesos: 5,
+    // Dos columnas por tres filas de ~218 px.
+    espacios: 6
+  },
+  vertical: {
+    portada: 1,
+    // Dos columnas, muchas mas filas: es donde el formato vertical se paga solo.
+    trabajando: 14,
+    cronometros: 9,
+    procesos: 10,
+    // Una sola columna: dos de ~500 px de ancho dejan los nombres de Proyecto en dos lineas.
+    espacios: 6
+  }
 }
 
 /** Nunca mas de estas paginas por escena: mas alla, la vuelta entera se vuelve demasiado larga. */
@@ -58,7 +81,14 @@ export interface Escena {
 
 /** Lo que la URL puede elegir. Nada de esto viaja a la API. */
 export interface ParametrosDePantalla {
-  segundosPorEscena: number
+  /**
+   * Segundos por escena, o `null` para respetar lo configurado por area.
+   *
+   * `null` es el caso normal. Un numero solo llega cuando la URL trae `?escena=`, y entonces pisa la
+   * configuracion entera: existe para probar una vuelta rapida y para un televisor que necesite otro
+   * ritmo, no para configurar la pantalla — eso se hace en el panel.
+   */
+  segundosPorEscena: number | null
   segundosDeRefresco: number
   saltar: ClaseDeEscena[]
   solo: ClaseDeEscena | null
@@ -68,7 +98,7 @@ export interface ParametrosDePantalla {
 }
 
 const POR_DEFECTO: ParametrosDePantalla = {
-  segundosPorEscena: 20,
+  segundosPorEscena: null,
   segundosDeRefresco: 30,
   saltar: [],
   solo: null,
@@ -89,6 +119,14 @@ const LIMITES = {
 const PROPORCION_PORTADA = 0.6
 
 /**
+ * Cuanto dura una escena cuando ni la configuracion ni la URL lo dicen.
+ *
+ * Solo se usa si el backend mando una escena sin `seconds`, que no deberia pasar: es el respaldo para
+ * que una respuesta incompleta no deje una escena de cero segundos, o sea un parpadeo.
+ */
+const SEGUNDOS_DE_RESPALDO = 20
+
+/**
  * Lee los parametros de la URL, acotando en vez de fallar.
  *
  * Un valor mal escrito no puede dejar la pared congelada ni convertirla en un estrobo, asi que todo
@@ -105,7 +143,7 @@ export function leerParametrosDePantalla (
   const solo = unaClase(primero(crudos.solo))
 
   return {
-    segundosPorEscena: acotar(primero(crudos.escena), POR_DEFECTO.segundosPorEscena, LIMITES.escena),
+    segundosPorEscena: acotarOpcional(primero(crudos.escena), LIMITES.escena),
     segundosDeRefresco: acotar(primero(crudos.refresco), POR_DEFECTO.segundosDeRefresco, LIMITES.refresco),
     saltar,
     solo,
@@ -141,11 +179,11 @@ export function leerParametrosDePantalla (
  */
 export function construirGuion (
   paquete: PaqueteDePantalla | null,
-  parametros: ParametrosDePantalla
+  parametros: ParametrosDePantalla,
+  orientacion: Orientacion = 'horizontal'
 ): Escena[] {
   if (paquete === null) return []
 
-  const duracion = parametros.segundosPorEscena * 1000
   const guion: Escena[] = []
 
   for (const escena of paquete.scenes) {
@@ -153,11 +191,13 @@ export function construirGuion (
     if (parametros.solo !== null && escena.kind !== parametros.solo) continue
     if (parametros.solo === null && parametros.saltar.includes(escena.kind)) continue
 
+    const duracion = duracionDe(escena, parametros)
+
     if (escena.kind === 'portada') {
       guion.push({
         id: 'portada',
         clase: 'portada',
-        duracionMs: Math.round(duracion * PROPORCION_PORTADA),
+        duracionMs: duracion,
         items: [],
         ocultos: 0,
         origen: escena
@@ -165,14 +205,40 @@ export function construirGuion (
       continue
     }
 
-    guion.push(...paginar(escena, duracion))
+    guion.push(...paginar(escena, duracion, orientacion))
   }
 
   if (guion.length > 0) return guion
 
-  // Ni una escena con contenido, o un `?solo=` que no dejo nada en pie. La portada de la API siempre
-  // viaja; si tampoco estuviera, se arma una con los contadores en cero antes que devolver nada.
-  return [portadaDeRespaldo(paquete, duracion)]
+  // Ni una escena encendida con contenido, o un `?solo=` que no dejo nada en pie. La portada suele
+  // viajar; si tampoco estuviera, se arma una con los contadores en cero antes que devolver nada.
+  return [portadaDeRespaldo(paquete, parametros)]
+}
+
+/**
+ * Cuanto dura una escena, en milisegundos.
+ *
+ * **Manda la configuracion del area**, que llega en `seconds`: es la que se edita desde el panel, sin
+ * subir a ninguna escalera. El `?escena=` de la URL la pisa, y existe para probar —una vuelta entera
+ * a cinco segundos por escena— y para el televisor raro que necesita otro ritmo.
+ *
+ * Sin ninguno de los dos, la portada dura menos que las demas: es un titulo, no una lista que haya
+ * que leer.
+ */
+function duracionDe (escena: EscenaDeApi, parametros: ParametrosDePantalla): number {
+  if (parametros.segundosPorEscena !== null) {
+    const base = parametros.segundosPorEscena * 1000
+
+    return escena.kind === 'portada' ? Math.round(base * PROPORCION_PORTADA) : base
+  }
+
+  if (typeof escena.seconds === 'number' && escena.seconds > 0) {
+    return escena.seconds * 1000
+  }
+
+  const base = SEGUNDOS_DE_RESPALDO * 1000
+
+  return escena.kind === 'portada' ? Math.round(base * PROPORCION_PORTADA) : base
 }
 
 /**
@@ -291,12 +357,12 @@ export function proximoRecargado (ahora: number, token: string, hora = 4): numbe
  *
  * Una escena sin items no devuelve ninguna pagina: es lo que la saca del guion.
  */
-function paginar (escena: EscenaDeApi, duracionMs: number): Escena[] {
+function paginar (escena: EscenaDeApi, duracionMs: number, orientacion: Orientacion): Escena[] {
   const items = 'items' in escena ? escena.items : []
 
   if (items.length === 0) return []
 
-  const porPagina = REJILLAS[escena.kind as ClaseDeEscena]
+  const porPagina = REJILLAS[orientacion][escena.kind as ClaseDeEscena]
   const paginas = Math.min(Math.ceil(items.length / porPagina), TOPE_DE_PAGINAS)
   const mostrados = Math.min(items.length, paginas * porPagina)
 
@@ -322,13 +388,14 @@ function paginar (escena: EscenaDeApi, duracionMs: number): Escena[] {
 }
 
 /** Una portada armada a mano, para el caso en que el guion se quedaria vacio. */
-function portadaDeRespaldo (paquete: PaqueteDePantalla, duracionMs: number): Escena {
+function portadaDeRespaldo (paquete: PaqueteDePantalla, parametros: ParametrosDePantalla): Escena {
   const dePaquete = paquete.scenes.find((escena) => escena.kind === 'portada')
+  const base = (parametros.segundosPorEscena ?? SEGUNDOS_DE_RESPALDO) * 1000
 
   return {
     id: 'portada',
     clase: 'portada',
-    duracionMs: Math.round(duracionMs * PROPORCION_PORTADA),
+    duracionMs: Math.round(base * PROPORCION_PORTADA),
     items: [],
     ocultos: 0,
     origen: dePaquete ?? {
@@ -351,6 +418,23 @@ function esClaseConocida (clase: string): clase is ClaseDeEscena {
 
 function primero (valor: string | string[] | undefined): string | undefined {
   return Array.isArray(valor) ? valor[0] : valor
+}
+
+/**
+ * Como `acotar`, pero devuelve `null` cuando la URL no dijo nada.
+ *
+ * La diferencia importa: `null` significa "respeta lo configurado", y un numero por defecto en su
+ * lugar pisaria la configuracion del area sin que nadie lo haya pedido.
+ */
+function acotarOpcional (
+  crudo: string | undefined,
+  limites: { minimo: number, maximo: number }
+): number | null {
+  const numero = Number(crudo)
+
+  if (crudo === undefined || !Number.isFinite(numero) || numero <= 0) return null
+
+  return Math.round(Math.min(Math.max(numero, limites.minimo), limites.maximo))
 }
 
 function acotar (

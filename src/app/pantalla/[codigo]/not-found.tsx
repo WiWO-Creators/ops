@@ -10,7 +10,7 @@ const MINUTOS_DE_REINTENTO = 10
  * Lo que muestra un televisor cuyo enlace ya no sirve.
  *
  * **El texto no distingue por que fallo.** Inventado, revocado, o el area borrada son el mismo
- * mensaje, igual que en la API: decirle a quien prueba tokens cual de los tres le toco seria
+ * mensaje, igual que en la API: decirle a quien prueba codigos cual de los tres le toco seria
  * confirmarle cuales existen.
  *
  * **Reintenta solo, y es la unica ruta publica donde eso tiene sentido.** Si alguien regenera el

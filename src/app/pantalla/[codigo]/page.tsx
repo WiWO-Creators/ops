@@ -24,7 +24,8 @@ export const dynamic = 'force-dynamic'
 /**
  * La pantalla de un area, para el televisor colgado en su pared.
  *
- * Cuarta ruta sin sesion del proyecto, junto a `/sala/<token>`, `/clave/<token>` y `/tarea/<token>`:
+ * Cuarta ruta sin sesion del proyecto, junto a `/sala/<token>`, `/clave/<token>` y `/tarea/<token>`, y la unica cuyo identificador se
+ * teclea a mano:
  * queda fuera del armazon del panel —sin barra lateral y sin scroll suave— porque quien la abre es un
  * aparato, no una persona logueada.
  *
@@ -44,9 +45,9 @@ export const dynamic = 'force-dynamic'
  * estar en la lista blanca de `Recursos\PantallaDeArea` seria una fuga hacia internet abierto.
  */
 export default async function PantallaDeArea (
-  props: PageProps<'/pantalla/[token]'>
+  props: PageProps<'/pantalla/[codigo]'>
 ): Promise<ReactElement> {
-  const { token } = await props.params
+  const { codigo } = await props.params
   const parametros = leerParametrosDePantalla(await props.searchParams)
 
   let inicial: PaqueteDePantalla | null = null
@@ -54,7 +55,7 @@ export default async function PantallaDeArea (
 
   try {
     const sobre = await llamarApiTipado<PaqueteDePantalla>(
-      `/public/display/${encodeURIComponent(token)}`
+      `/public/display/${encodeURIComponent(codigo)}`
     )
 
     inicial = sobre.data
@@ -69,7 +70,7 @@ export default async function PantallaDeArea (
 
   return (
     <Escenario
-      token={token}
+      codigo={codigo}
       inicial={inicial}
       metaInicial={meta}
       parametros={parametros}

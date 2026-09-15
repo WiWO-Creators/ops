@@ -91,17 +91,23 @@ export interface ContadoresDePortada {
 }
 
 /**
- * Las cinco escenas del contrato, discriminadas por `kind`.
+ * Una escena del paquete, discriminada por `kind`.
  *
- * Llegan SIEMPRE las cinco y en este orden, aunque `items` venga vacio: es lo que deja distinguir
- * "nadie esta midiendo" de "no cargo la lista".
+ * **Solo llegan las que el area dejo encendidas**, en el orden configurado desde el panel, y cada una
+ * con su propia duracion en `seconds`. Una escena apagada no viaja: lo que no se muestra tampoco se
+ * publica.
+ *
+ * Dentro de una encendida, en cambio, `items` viaja aunque venga vacio. La distincion es la que hace
+ * util a la pantalla: "nadie esta midiendo" se dice en pantalla, "esta escena no se muestra" se
+ * saltea, y las dos cosas serian iguales si la API filtrara por contenido.
  */
-export type EscenaDeApi =
+export type EscenaDeApi = { seconds?: number } & (
   | { kind: 'portada', counts: ContadoresDePortada }
   | { kind: 'trabajando', items: PersonaTrabajando[] }
   | { kind: 'cronometros', items: CronometroEnPantalla[] }
   | { kind: 'procesos', items: TareaEnPantalla[], total: number }
   | { kind: 'espacios', items: ProyectoEnPantalla[] }
+)
 
 /** El bloque `data` de la respuesta. */
 export interface PaqueteDePantalla {
@@ -123,7 +129,12 @@ export interface MetaDePantalla {
   timezone: string
   /** Cada cuantos segundos volver a preguntar. Lo decide el backend: ver `PantallaDeArea::meta()`. */
   poll_after_seconds: number
-  /** Cuanto dura cada escena, por defecto. Un `?escena=` en la URL manda sobre esto. */
+  /**
+   * Duracion de respaldo, en segundos.
+   *
+   * Cada escena trae la suya en `seconds`, configurada por area. Esto solo cubre el caso de una
+   * respuesta incompleta, y un `?escena=` en la URL manda sobre las dos.
+   */
   scene_seconds: number
 }
 
