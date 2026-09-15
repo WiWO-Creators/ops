@@ -10,6 +10,8 @@ import { pedirSobre } from '@/datos/cliente'
 import { actualizarEjecucion, estaTrabajando, ESTADOS_EJECUCION, leerEjecucion, type Ejecucion } from '@/dominio/ia-ejecucion'
 import { leerMensajesGuardados, type Mensaje } from '@/dominio/ia-chat'
 import { pantallaDeRuta } from '@/dominio/pantalla'
+import { TextoChat } from './TextoChat'
+import { PlanEjecucion } from './PlanEjecucion'
 
 interface Props { desplazable?: boolean, proyecto?: { id: number, name: string }, intervalo: number, nuevasHabilitadas: boolean, maximoPregunta: number }
 
@@ -117,19 +119,23 @@ export function ChatAgente ({ desplazable, proyecto, intervalo, nuevasHabilitada
       <div ref={desplazador} className={desplazable ? 'min-h-0 flex-1 overflow-y-auto pr-1' : ''}>
         <HistorialAnterior proyectoId={proyectoId} />
         {historial.length === 0 && <p className="text-texto-tenue py-6">Pregunta por Ops o describe una tarea. Revisarás el plan completo antes de aplicar cambios.</p>}
-        <ol aria-label="Conversación" className="flex flex-col gap-6">
+        <ol aria-label="Conversación" className="flex flex-col gap-8">
           {historial.map(e => (
             <li key={e.id} className="flex min-w-0 flex-col gap-3">
-              <p className="bg-relleno-neutro ml-8 rounded-xl px-4 py-3 whitespace-pre-wrap wrap-anywhere">{e.pregunta}</p>
-              {e.aclaraciones?.map((aclaracion, i) => <p key={i} className="bg-relleno-neutro ml-8 rounded-xl px-4 py-3 whitespace-pre-wrap wrap-anywhere">{aclaracion}</p>)}
-              <section aria-label={ESTADOS_EJECUCION[e.estado]} className="border-linea rounded-xl border p-4">
-                <p role={e.id === ultima?.id ? 'status' : undefined} className="text-texto font-semibold">{e.progreso || ESTADOS_EJECUCION[e.estado]}</p>
-                {e.mensaje && <p className="mt-2 whitespace-pre-wrap wrap-anywhere">{e.mensaje}</p>}
-                {e.plan && <><p className="mt-3 whitespace-pre-wrap wrap-anywhere">{e.plan.resumen}</p><ol aria-label="Pasos del plan" className="mt-3 list-decimal space-y-3 pl-5">{e.plan.pasos.map(p => <li key={p.id} className="whitespace-pre-wrap wrap-anywhere">{p.descripcion}{p.detalle?.map((linea, i) => <p key={i} className="mt-1">{linea}</p>)}{p.supuestos && p.supuestos.length > 0 && <div className="text-texto-sutil mt-2 text-sm"><p>Supuestos para revisar:</p><ul className="list-disc pl-5">{p.supuestos.map((linea, i) => <li key={i}>{linea}</li>)}</ul></div>}<span className="text-texto-sutil block text-sm">{p.estado === 'completada' || p.estado === 'ejecutada' ? 'Hecho' : p.estado === 'pendiente' ? 'Pendiente' : p.estado === 'ejecutando' ? 'En curso' : p.estado}</span>{p.resultado?.resumen && <p>{p.resultado.resumen}</p>}{p.error?.mensaje && <p className="text-texto-peligro">{p.error.mensaje}</p>}</li>)}</ol></>}
-                {e.resultado?.resumen && <p className="mt-3 whitespace-pre-wrap wrap-anywhere">{e.resultado.resumen}</p>}
-                {e.error?.mensaje && <p className="text-texto-peligro mt-3">{e.error.mensaje}</p>}
-                {e.preguntas?.map((p, indice) => <div key={indice} className="mt-3"><p>{p.pregunta}</p>{p.opciones && <ul className="text-texto-tenue list-disc pl-5">{p.opciones.map(o => <li key={o}>{o}</li>)}</ul>}</div>)}
-                {e.id === ultima?.id && <div className="mt-3 flex flex-wrap gap-2">
+              <p className="bg-relleno-neutro text-texto ml-8 self-end rounded-xl px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap wrap-anywhere">{e.pregunta}</p>
+              {e.aclaraciones?.map((aclaracion, i) => <p key={i} className="bg-relleno-neutro text-texto ml-8 self-end rounded-xl px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap wrap-anywhere">{aclaracion}</p>)}
+              <section aria-label={ESTADOS_EJECUCION[e.estado]} className="min-w-0 space-y-4">
+                <p role={e.id === ultima?.id ? 'status' : undefined} className="text-texto text-sm font-semibold">{e.progreso || ESTADOS_EJECUCION[e.estado]}</p>
+                {e.mensaje && !e.plan && <TextoChat texto={e.mensaje} />}
+                {e.plan && <PlanEjecucion plan={e.plan} />}
+                {e.plan && e.mensaje && <details className="text-sm">
+                  <summary className="text-texto-tenue hover:text-texto cursor-pointer py-2 font-medium">Ver explicación del plan</summary>
+                  <TextoChat texto={e.mensaje} className="mt-2" />
+                </details>}
+                {e.resultado?.resumen && e.resultado.resumen.trim() !== e.mensaje?.trim() && <TextoChat texto={e.resultado.resumen} />}
+                {e.error?.mensaje && <TextoChat texto={e.error.mensaje} className="text-texto-peligro" />}
+                {e.preguntas?.map((p, indice) => <div key={indice} className="space-y-2"><TextoChat texto={p.pregunta} className="font-medium" />{p.opciones && <ul className="text-texto-tenue list-disc pl-5">{p.opciones.map(o => <li key={o}><TextoChat texto={o} /></li>)}</ul>}</div>)}
+                {e.id === ultima?.id && <div className="flex flex-wrap gap-2 [&>button]:min-h-11 [&>button]:whitespace-normal">
                   {e.estado === 'esperando_confirmacion' && e.plan && <Boton variante="primario" disabled={enviando || error !== '' || texto.trim() !== ''} onClick={() => { void operar('confirmar') }}>Confirmar plan completo</Boton>}
                   {(e.estado === 'incompleta' || (e.estado === 'error' && e.error?.reintentable)) && <Boton disabled={enviando || error !== ''} onClick={() => { void operar('reanudar') }}>Continuar ejecución</Boton>}
                   {!['completada', 'cancelada'].includes(e.estado) && <Boton variante="sutil" disabled={enviando || error !== ''} onClick={() => { void operar('cancelar') }}>Cancelar ejecución</Boton>}
@@ -141,11 +147,13 @@ export function ChatAgente ({ desplazable, proyecto, intervalo, nuevasHabilitada
       </div>
       {error && <div role="alert" className="text-texto-peligro flex flex-col items-start gap-2"><p>{error}</p><Boton onClick={() => { setRecuperar(n => n + 1) }}>Recuperar estado</Boton></div>}
       {!nuevasHabilitadas && <p className="text-texto-sutil text-sm">Las nuevas solicitudes están pausadas. Puedes continuar las ejecuciones pendientes.</p>}
-      <form className="flex flex-col gap-2" onSubmit={e => { e.preventDefault(); if (!bloqueado && texto.trim()) void operar(respondeEjecucion ? 'reanudar' : 'crear', texto.trim()) }}>
-        <AreaTexto className="text-base" aria-label="Tu pregunta" value={texto} onChange={e => setTexto(e.target.value)} maxLength={maximoPregunta} disabled={bloqueado} placeholder={editando ? 'Describe los cambios que quieres hacer al plan…' : ultima?.estado === 'esperando_datos' ? 'Completa los datos solicitados…' : 'Pregunta lo que necesites…'} />
+      <form className="border-linea flex flex-col gap-3 border-t pt-4" onSubmit={e => { e.preventDefault(); if (!bloqueado && texto.trim()) void operar(respondeEjecucion ? 'reanudar' : 'crear', texto.trim()) }}>
+        <AreaTexto className="min-h-16 text-base" aria-label="Tu pregunta" value={texto} onChange={e => setTexto(e.target.value)} maxLength={maximoPregunta} disabled={bloqueado} placeholder={editando ? 'Describe los cambios que quieres hacer al plan…' : ultima?.estado === 'esperando_datos' ? 'Completa los datos solicitados…' : 'Pregunta lo que necesites…'} />
         {editando && texto.trim() !== '' && <p role="status" className="text-texto-sutil text-sm">Envía los cambios o borra el texto para confirmar este plan.</p>}
-        <p className="text-texto-sutil text-sm">No cambia nada sin que confirmes el plan. Puedes cerrar el chat y volver para ver el resultado.</p>
-        <Boton type="submit" variante="primario" className="self-start" disabled={bloqueado || texto.trim() === ''}>{enviando ? 'Enviando…' : editando ? 'Actualizar plan' : ultima?.estado === 'esperando_datos' ? 'Responder y continuar' : 'Preguntar'}</Boton>
+        <div className="flex items-center justify-between gap-3">
+          <p className="text-texto-tenue text-xs leading-relaxed">Los cambios se aplican al confirmar.</p>
+        <Boton type="submit" variante="primario" className="min-h-11 self-end" disabled={bloqueado || texto.trim() === ''}>{enviando ? 'Enviando…' : editando ? 'Actualizar plan' : ultima?.estado === 'esperando_datos' ? 'Responder y continuar' : 'Preguntar'}</Boton>
+        </div>
       </form>
     </div>
   )
@@ -183,6 +191,6 @@ function HistorialAnterior ({ proyectoId }: { proyectoId: number }): ReactElemen
     {cargando && <p role="status" className="mt-2 text-sm">Cargando mensajes anteriores…</p>}
     {error && <div role="alert" className="mt-2"><p>{error}</p><Boton onClick={() => { void cargar() }}>Reintentar historial</Boton></div>}
     {mensajes?.length === 0 && <p className="text-texto-sutil mt-2 text-sm">No hay mensajes anteriores.</p>}
-    {mensajes && mensajes.length > 0 && <><p className="text-texto-sutil my-2 text-sm">Solo lectura. Para continuar una solicitud, escríbela en esta conversación.</p><ol aria-label="Conversación anterior" className="flex flex-col gap-3">{mensajes.map((m, i) => <li key={i} className="whitespace-pre-wrap wrap-anywhere"><p className="text-texto-sutil text-sm">{m.rol === 'persona' ? 'Tú' : 'Thinking Orb'}</p><p>{m.texto}</p>{m.acciones.map(a => <p key={a.id}>{a.resumen}</p>)}</li>)}</ol></>}
+    {mensajes && mensajes.length > 0 && <><p className="text-texto-sutil my-2 text-sm">Solo lectura. Para continuar una solicitud, escríbela en esta conversación.</p><ol aria-label="Conversación anterior" className="flex flex-col gap-3">{mensajes.map((m, i) => <li key={i} className="space-y-2"><p className="text-texto-sutil text-sm">{m.rol === 'persona' ? 'Tú' : 'Thinking Orb'}</p><TextoChat texto={m.texto} />{m.acciones.map(a => <TextoChat key={a.id} texto={a.resumen} />)}</li>)}</ol></>}
   </details>
 }

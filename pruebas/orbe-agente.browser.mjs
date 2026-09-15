@@ -173,6 +173,41 @@ try {
   assert.ok(await global.getByRole('textbox', { name: 'Tu pregunta' }).isDisabled())
   await global.getByRole('button', { name: 'Cancelar ejecución' }).click()
   await global.getByRole('button', { name: 'Cancelar ejecución' }).waitFor({ state: 'hidden' })
+  // El caso visual reproduce la propuesta extensa de la captura, con datos sintéticos.
+  historial.set(0, [{
+    id: '900', estado: 'esperando_confirmacion', pregunta: 'Crea Proyecto Skydive para Skydiveandes, con hitos semanales y las tareas de diseño, programación y puesta a producción.',
+    mensaje: 'He preparado la propuesta para **Proyecto Skydive**, del cliente **Skydiveandes**.\n\nEl proyecto comienza el **21 de septiembre de 2026** y termina el **19 de octubre**.\n\n- **Hitos semanales:** Semana 1, Semana 2, Semana 3 y Semana 4.\n- **Tareas distribuidas:**\n  - Diseño web en Semana 1.\n  - Programación web en Semana 2.\n  - Puesta a producción en Semana 4.',
+    plan: { id: '900', version: 'skydive-v1', resumen: 'Crear el proyecto y organizar sus entregables.', pasos: [
+      { id: 'proyecto', descripcion: 'Crear **Proyecto Skydive**', detalle: ['**Cliente:** Skydiveandes', '**Duración:** 21 de septiembre al 19 de octubre de 2026'], supuestos: ['Las fechas se confirman antes de iniciar el proyecto.'], estado: 'pendiente' },
+      { id: 'hitos', descripcion: 'Agregar los cuatro hitos semanales', detalle: ['Semana 1 · Semana 2 · Semana 3 · Semana 4'], estado: 'pendiente' },
+      { id: 'tareas', descripcion: 'Distribuir las tareas entre los hitos', detalle: ['- **Semana 1:** Diseño web\n- **Semana 2:** Programación web\n- **Semana 4:** Puesta a producción'], estado: 'pendiente' }
+    ] }
+  }])
+  await global.getByRole('button', { name: 'Cerrar Thinking Orb', exact: true }).click()
+  await pagina.setViewportSize({ width: 1440, height: 1100 })
+  await pagina.getByRole('button', { name: 'Preguntarle a Thinking Orb', exact: true }).click()
+  await global.getByRole('heading', { name: 'Plan de trabajo' }).waitFor()
+  await global.getByText('Ver explicación del plan', { exact: true }).click()
+  assert.ok(await global.locator('strong').filter({ hasText: 'Proyecto Skydive' }).count() >= 1, 'Markdown interpreta negritas')
+  assert.ok(await global.locator('ul ul').count() >= 1, 'Listas anidadas conservan estructura')
+  assert.ok(!(await global.innerText()).includes('**'), 'Sin marcadores Markdown visibles')
+  assert.equal(await global.getByRole('list', { name: 'Pasos del plan' }).locator(':scope > li').count(), 3)
+  assert.equal(await global.getByRole('button', { name: 'Confirmar plan completo' }).count(), 1)
+  for (const [nombre, width, height] of [['desktop', 1440, 1100], ['mobile', 390, 844]]) {
+    await pagina.setViewportSize({ width, height })
+    await global.getByText('Ver explicación del plan', { exact: true }).evaluate(el => { el.parentElement.open = true })
+    await global.getByText('He preparado la propuesta para', { exact: false }).evaluate(el => el.scrollIntoView({ block: 'start' }))
+    await pagina.evaluate(() => { if (document.activeElement instanceof HTMLElement) document.activeElement.blur() })
+    assert.equal(await global.evaluate(el => el.scrollWidth > el.clientWidth + 1), false, `Sin desborde ${nombre}`)
+    await global.screenshot({ path: `output/playwright/orbe-ui-${nombre}.png` })
+    await global.getByRole('heading', { name: 'Plan de trabajo' }).evaluate(el => el.closest('section')?.scrollIntoView({ block: 'start' }))
+    await global.screenshot({ path: `output/playwright/orbe-plan-${nombre}.png` })
+  }
+  await pagina.evaluate(() => { document.documentElement.dataset.theme = 'dark' })
+  await global.getByRole('heading', { name: 'Plan de trabajo' }).scrollIntoViewIfNeeded()
+  assert.equal(await global.evaluate(el => el.scrollWidth > el.clientWidth + 1), false, 'Sin desborde en oscuro')
+  await global.screenshot({ path: 'output/playwright/orbe-plan-dark.png' })
+  await pagina.evaluate(() => { document.documentElement.dataset.theme = 'light' })
   agenteHabilitado = false
   await global.getByRole('button', { name: 'Cerrar Thinking Orb', exact: true }).click()
   await pagina.getByRole('button', { name: 'Preguntarle a Thinking Orb', exact: true }).click()
