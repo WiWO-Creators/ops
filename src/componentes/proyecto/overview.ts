@@ -85,7 +85,15 @@ export interface TiempoRegistradoDeResumen {
  */
 export interface ResumenDeProyecto {
   progress: number
-  tasks: { total: number, open: number, completed: number, completed_percent: number }
+  /**
+   * Contadores de Tareas.
+   *
+   * **Ausente cuando el sujeto no tiene la pestaña de Tareas** (`view_tasks` en 0): sin ella el
+   * cliente no puede abrir ninguna de esas filas, y un "9 / 9 abiertas" sobre una lista que no
+   * existe le cuenta en forma de numero algo que la pantalla le niega. Es la misma regla que
+   * `logged_time` y `finance`: la clave no viaja en cero, no viaja.
+   */
+  tasks?: { total: number, open: number, completed: number, completed_percent: number }
   /** `null` cuando el proyecto no tiene fecha de entrega: no hay plazo que contar. */
   days: { total: number, left: number, left_percent: number } | null
   /** Ausente cuando el sujeto no puede ver el tiempo registrado (`view_task_total_logged_time`). */

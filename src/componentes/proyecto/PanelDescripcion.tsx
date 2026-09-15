@@ -94,7 +94,11 @@ export function PanelDescripcion ({
 
   return (
     <div className="flex flex-col gap-4">
-      {carga.fase === 'listo' && (
+      {/* El avance se dibuja solo si el contrato mando los contadores de Tareas: es su proyeccion
+          (`progress_from_tasks`), y sin la pestaña de Tareas el cliente tendria en pantalla un
+          porcentaje que no puede explicarse contra ninguna lista. La cabecera del Proyecto publica
+          igual el avance del Espacio, asi que no se pierde el dato. */}
+      {carga.fase === 'listo' && carga.datos.tasks !== undefined && (
         <div className="flex items-center gap-3">
           <BarraProgreso porcentaje={carga.datos.progress} className="min-w-0 flex-1" />
           <span data-numerico className="text-texto text-sm font-semibold">
@@ -233,20 +237,24 @@ function ValorDeCampo ({ campo }: { campo: CampoPersonalizado }): ReactElement {
  *
  * Cada tarjeta y cada bloque dependen de que su clave haya llegado. No es defensa contra un backend
  * roto: es el contrato. `logged_time` solo viaja con `view_task_total_logged_time`, `expenses` solo
- * en el contrato del equipo —produccion no usa el modulo de ventas— y `milestones` solo en el del
- * contacto. Pintar un "00:00" o un "$0" donde la clave no llego seria inventar una cifra.
+ * en el contrato del equipo —produccion no usa el modulo de ventas—, `milestones` solo en el del
+ * contacto y `tasks` solo cuando el sujeto tiene la pestaña de Tareas. Pintar un "00:00", un "$0" o
+ * un "0 completadas de 9" donde la clave no llego seria inventar una cifra.
  */
 function Indicadores ({ resumen }: { resumen: ResumenDeProyecto }): ReactElement {
   const simbolo = simboloDelResumen(resumen)
   const tiempo = resumen.logged_time
+  const tareas = resumen.tasks
 
   return (
     <div className="flex flex-col gap-4">
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <Metrica
-          etiqueta={`${GLOSARIO.proceso.plural} abiertas`}
-          valor={`${resumen.tasks.open} / ${resumen.tasks.total}`}
-        />
+        {tareas !== undefined && (
+          <Metrica
+            etiqueta={`${GLOSARIO.proceso.plural} abiertas`}
+            valor={`${tareas.open} / ${tareas.total}`}
+          />
+        )}
         <Metrica etiqueta="Días restantes" valor={textoDeDias(resumen.days)} />
 
         {resumen.milestones !== undefined && (
@@ -268,13 +276,15 @@ function Indicadores ({ resumen }: { resumen: ResumenDeProyecto }): ReactElement
       </div>
 
       <div className="grid gap-3 md:grid-cols-2">
-        <section className="border-linea bg-superficie-elevada rounded-tarjeta shadow-1 flex flex-col gap-2 border p-4">
-          <h3 className="text-texto text-sm font-semibold">{GLOSARIO.proceso.plural}</h3>
-          <BarraProgreso porcentaje={resumen.tasks.completed_percent} />
-          <p className="text-texto-tenue text-xs">
-            {resumen.tasks.completed} completadas de {resumen.tasks.total} ({Math.round(resumen.tasks.completed_percent)}%)
-          </p>
-        </section>
+        {tareas !== undefined && (
+          <section className="border-linea bg-superficie-elevada rounded-tarjeta shadow-1 flex flex-col gap-2 border p-4">
+            <h3 className="text-texto text-sm font-semibold">{GLOSARIO.proceso.plural}</h3>
+            <BarraProgreso porcentaje={tareas.completed_percent} />
+            <p className="text-texto-tenue text-xs">
+              {tareas.completed} completadas de {tareas.total} ({Math.round(tareas.completed_percent)}%)
+            </p>
+          </section>
+        )}
 
         {resumen.days !== null && (
           <section className="border-linea bg-superficie-elevada rounded-tarjeta shadow-1 flex flex-col gap-2 border p-4">

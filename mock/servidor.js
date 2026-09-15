@@ -3788,7 +3788,7 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
       // clave ausente es lo que deja al frontend distinguir "no corresponde" de "no hay".
       if (resto[2] === 'overview' && resto.length === 3) {
         exigirPestania('overview')
-        return { estado: 200, cuerpo: conDatos(overviewParaContacto(espacio, compartido)) }
+        return { estado: 200, cuerpo: conDatos(overviewParaContacto(espacio, compartido, pestanias)) }
       }
 
       if (resto[2] === 'discussions' && resto.length === 3) {
@@ -5303,16 +5303,26 @@ function overviewDeEspacio (espacio) {
 /**
  * `GET /portal/projects/{id}/overview`: el mismo resumen, podado.
  *
- * `logged_time` solo con `view_task_total_logged_time` y `finance` solo con `view_finance_overview`:
- * **la clave no viaja**, no viaja en cero. Es lo que deja al frontend distinguir "no corresponde" de
- * "no hay".
+ * `logged_time` solo con `view_task_total_logged_time`, `finance` solo con `view_finance_overview` y
+ * `tasks` solo con la pestaña Tareas encendida: **la clave no viaja**, no viaja en cero. Es lo que
+ * deja al frontend distinguir "no corresponde" de "no hay".
  */
-function overviewParaContacto (espacio, compartido) {
+function overviewParaContacto (espacio, compartido, pestanias) {
   const m = metricasDeEspacio(espacio)
 
   const resumen = {
     progress: m.progress,
-    tasks: {
+    milestones: {
+      total: m.hitos.length,
+      overdue: m.hitos.filter((h) => h.due_date !== null && h.due_date < '2026-09-14').length
+    },
+    days: m.dias
+  }
+
+  // Los contadores de Tareas solo con la pestaña encendida, como `RecursoResumen::paraContacto()`:
+  // sin ella el cliente no puede abrir ninguna de esas filas.
+  if (pestanias.includes('tasks')) {
+    resumen.tasks = {
       ...m.tasks,
       by_status: ESTADOS_PROCESO.map((estado) => ({
         status: estado.id,
@@ -5321,12 +5331,7 @@ function overviewParaContacto (espacio, compartido) {
         order: estado.order,
         total: PROCESOS.filter((p) => p.rel_type === 'project' && p.rel_id === espacio.id && p.status === estado.id).length
       }))
-    },
-    milestones: {
-      total: m.hitos.length,
-      overdue: m.hitos.filter((h) => h.due_date !== null && h.due_date < '2026-09-14').length
-    },
-    days: m.dias
+    }
   }
 
   if (compartido.tiempo) {
