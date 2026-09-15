@@ -1,4 +1,17 @@
-import type { RegistroTiempo } from '@/datos/recursos'
+/**
+ * Lo minimo de una fila del Registro de horas para contar su duracion.
+ *
+ * Se declara lo que se usa y no `RegistroTiempo`: la misma tabla la abren el equipo y el cliente, y
+ * el contrato del contacto no manda `duration_decimal` —esa columna no se le muestra— ni `corriendo`
+ * —un cronometro abierto es del equipo—. Clave ausente = esa lectura no existe para ese sujeto.
+ */
+export interface RegistroDeDuracion {
+  start_time: string
+  duration_seconds: number
+  duration_hm: string
+  duration_decimal?: number
+  corriendo?: boolean
+}
 
 /**
  * Logica del Registro de horas que no necesita React.
@@ -58,8 +71,8 @@ export function parsearDuracion (texto: string): number | null {
  * @param ahora momento de referencia; entra por parametro para que el conteo se pueda probar
  * @returns segundos, nunca negativo y nunca `NaN`
  */
-export function segundosEnVivo (registro: RegistroTiempo, ahora: Date = new Date()): number {
-  if (!registro.corriendo) return Math.max(0, registro.duration_seconds)
+export function segundosEnVivo (registro: RegistroDeDuracion, ahora: Date = new Date()): number {
+  if (registro.corriendo !== true) return Math.max(0, registro.duration_seconds)
 
   const inicio = new Date(registro.start_time).getTime()
 
@@ -100,7 +113,8 @@ export function formatearDecimal (segundos: number): number {
 /** Lo que la tabla muestra en las dos columnas de duracion de un registro. */
 export interface DuracionMostrada {
   hm: string
-  decimal: number
+  /** `null` cuando el contrato del sujeto no publica la duracion decimal: esa columna no se dibuja. */
+  decimal: number | null
 }
 
 /**
@@ -112,8 +126,8 @@ export interface DuracionMostrada {
  * @param registro la fila
  * @param ahora momento de referencia para los que corren
  */
-export function duracionMostrada (registro: RegistroTiempo, ahora: Date = new Date()): DuracionMostrada {
-  if (!registro.corriendo) return { hm: registro.duration_hm, decimal: registro.duration_decimal }
+export function duracionMostrada (registro: RegistroDeDuracion, ahora: Date = new Date()): DuracionMostrada {
+  if (registro.corriendo !== true) return { hm: registro.duration_hm, decimal: registro.duration_decimal ?? null }
 
   const segundos = segundosEnVivo(registro, ahora)
 
@@ -121,8 +135,8 @@ export function duracionMostrada (registro: RegistroTiempo, ahora: Date = new Da
 }
 
 /** `true` si alguna fila esta corriendo, o sea si vale la pena mantener un intervalo vivo. */
-export function hayRegistroCorriendo (registros: RegistroTiempo[]): boolean {
-  return registros.some((registro) => registro.corriendo)
+export function hayRegistroCorriendo (registros: RegistroDeDuracion[]): boolean {
+  return registros.some((registro) => registro.corriendo === true)
 }
 
 /** Lo que el formulario junta antes de mandarlo. Todo cadena: sale de campos de texto. */

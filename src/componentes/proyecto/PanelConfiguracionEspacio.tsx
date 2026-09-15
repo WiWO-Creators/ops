@@ -18,10 +18,12 @@ import { EnlacePanelClasico } from '@/componentes/presentadores/EnlacePanelClasi
 import { GLOSARIO } from '@/dominio/glosario'
 import { SIN_DATO } from '@/lib/sla'
 import type { ConfiguracionTiposEspacio, TipoDeProcesoDelEspacio } from '@/datos/recursos'
+import type { Capacidad } from '@/datos/tipos'
 import { useRecurso } from './carga'
 
 /**
- * Configuracion del Espacio: los tipos de Proceso que ofrece, su ETA y la aprobacion por defecto.
+ * Configuracion del Espacio: que ve el cliente, los tipos de Proceso que ofrece, su ETA y la
+ * aprobacion por defecto.
  *
  * Es la pantalla del head del Espacio. Lo que se edita aca alimenta todo el mecanismo de plazo: el
  * ETA de una Tarea sale del tipo que tenga, con los dias que este panel le fija, y el reloj arranca
@@ -33,10 +35,25 @@ import { useRecurso } from './carga'
  *
  * El permiso ya se resolvio en el server component; aca no se vuelve a decidir. La compuerta real es
  * la API, que responde 403 igual: esconder el panel es cosmetica.
+ *
+ * El bloque "Que ve el cliente" no comparte ni el endpoint ni el boton de guardar con el resto: son
+ * interruptores del portal y viven en `tblproject_settings`, no en las columnas del Espacio. Por eso
+ * se carga aparte —que falle no puede dejar en blanco la pantalla entera— y se guarda al tocarlo,
+ * que es lo que hace un interruptor. Va arriba de todo y no debajo del boton "Guardar configuracion",
+ * que no es suyo.
  */
 
 interface PropsPanel {
   proyectoId: number
+  /**
+   * Capacidades sobre `projects`, de `permissions` de `/me`.
+   *
+   * Solo gobiernan los interruptores del portal, que es lo unico de esta pantalla cuya escritura
+   * cuelga de una capability: `PUT /projects/{id}/portal-settings` exige `projects.edit`, mientras
+   * que la tabla de tipos se rige por `puedeConfigurar`. Sin `edit` los interruptores se ven —hay que
+   * poder leer que esta encendido— y no se pueden tocar.
+   */
+  capacidades?: Capacidad[]
   /**
    * Segunda capa del permiso: la resuelve el server component y viaja como booleano.
    *
@@ -54,7 +71,11 @@ interface FilaTipo {
   eta_dias: number | null
 }
 
-export function PanelConfiguracionEspacio ({ proyectoId, puedeConfigurar }: PropsPanel): ReactElement {
+export function PanelConfiguracionEspacio ({
+  proyectoId,
+  puedeConfigurar,
+  capacidades = []
+}: PropsPanel): ReactElement {
   const ruta = `projects/${encodeURIComponent(String(proyectoId))}/task-types`
   const { estado, recargar } = useRecurso<ConfiguracionTiposEspacio>(
     ruta,
@@ -63,24 +84,161 @@ export function PanelConfiguracionEspacio ({ proyectoId, puedeConfigurar }: Prop
 
   if (!puedeConfigurar) return <SinPermiso className="mt-10" />
 
-  if (estado.fase === 'cargando') {
-    return <Cargando alto="min-h-40" mensaje="Cargando la configuración…" />
-  }
-
-  if (estado.fase === 'error') {
-    return <ErrorEstado detalle={estado.mensaje} onReintentar={recargar} />
-  }
-
-  // La clave remonta el editor cuando la carga trae datos nuevos: el estado local es una copia de
-  // trabajo, y conservarla despues de un guardado mostraria lo que se mando y no lo que quedo.
   return (
-    <Editor
-      key={JSON.stringify(estado.datos)}
-      proyectoId={proyectoId}
-      ruta={ruta}
-      inicial={estado.datos}
-      onGuardado={recargar}
-    />
+    <div className="flex flex-col gap-4">
+      <VisibilidadDelPortal proyectoId={proyectoId} puedeEscribir={capacidades.includes('edit')} />
+
+      {estado.fase === 'cargando' && <Cargando alto="min-h-40" mensaje="Cargando la configuración…" />}
+      {estado.fase === 'error' && <ErrorEstado detalle={estado.mensaje} onReintentar={recargar} />}
+      {/* La clave remonta el editor cuando la carga trae datos nuevos: el estado local es una copia
+          de trabajo, y conservarla despues de un guardado mostraria lo que se mando y no lo que
+          quedo. */}
+      {estado.fase === 'listo' && (
+        <Editor
+          key={JSON.stringify(estado.datos)}
+          proyectoId={proyectoId}
+          ruta={ruta}
+          inicial={estado.datos}
+          onGuardado={recargar}
+        />
+      )}
+    </div>
+  )
+}
+
+/**
+ * Lo que devuelve `GET /projects/{id}/portal-settings`.
+ *
+ * Se declara acá y no en `datos/recursos.ts` por lo mismo que `PanelActividad` declara su fila: es
+ * una forma de una sola pantalla. Hoy trae una clave; el dia que traiga dos, es una linea mas.
+ */
+interface AjustesDelPortal {
+  /** Si el cliente ve la pestaña Meeting Paper de este Espacio en su portal. */
+  wiwo_portal_actas: boolean
+}
+
+/**
+ * Que ve el cliente de este Espacio en su portal.
+ *
+ * === POR QUE NACE APAGADO Y SE ENCIENDE A MANO ===
+ *
+ * Un Meeting Paper puede tener conversacion interna adentro —lo escribe un modelo a partir de lo que
+ * se dijo en la reunion, y ahi se dice de todo—. Por eso la migracion `0570` dejo el flag en '0' para
+ * los 279 Espacios y nadie lo enciende por nosotros: es la misma regla que los efectos externos, que
+ * se mergean apagados. Encenderlo queda anotado en la actividad con nombre y fecha, porque es una
+ * decision de mostrarle a un tercero algo que hasta ese momento era interno.
+ *
+ * === POR QUE GUARDA AL TOCARLO Y CON UN PUT ===
+ *
+ * Es un interruptor: esperar un boton "Guardar" para una casilla sola deja la pantalla diciendo algo
+ * que todavia no es cierto. El verbo es `PUT` porque el endpoint reemplaza el bloque entero —una
+ * clave que falta es 422, no "dejala como estaba"—, asi que se manda el estado de todas.
+ *
+ * El cambio es optimista y se revierte si la API lo rechaza, igual que el interruptor de visibilidad
+ * de la Actividad.
+ */
+function VisibilidadDelPortal ({
+  proyectoId,
+  puedeEscribir
+}: {
+  proyectoId: number
+  puedeEscribir: boolean
+}): ReactElement {
+  const ruta = `projects/${encodeURIComponent(String(proyectoId))}/portal-settings`
+  const { estado, recargar } = useRecurso<AjustesDelPortal>(ruta, 'No se pudo leer qué ve el cliente.')
+
+  return (
+    <section className="rounded-tarjeta border-linea bg-superficie-elevada shadow-1 border p-5">
+      <h2 className="font-titular text-texto border-linea-suave mb-4 border-b pb-2 text-sm font-semibold">
+        Qué ve el cliente
+      </h2>
+
+      {estado.fase === 'cargando' && <Cargando alto="min-h-20" mensaje="Cargando los interruptores…" />}
+      {estado.fase === 'error' && <ErrorEstado detalle={estado.mensaje} onReintentar={recargar} />}
+      {estado.fase === 'listo' && (
+        <InterruptorDelPortal
+          // Remonta el interruptor cuando la carga trae otro valor: su estado local es una copia.
+          key={String(estado.datos.wiwo_portal_actas)}
+          ruta={ruta}
+          inicial={estado.datos.wiwo_portal_actas}
+          puedeEscribir={puedeEscribir}
+        />
+      )}
+    </section>
+  )
+}
+
+/**
+ * El interruptor de la pestaña Meeting Paper del portal.
+ *
+ * Nunca lanza: el 403 y el 422 del contrato son valores que quien configura tiene que poder leer, no
+ * excepciones que tumben el panel.
+ */
+function InterruptorDelPortal ({
+  ruta,
+  inicial,
+  puedeEscribir
+}: {
+  ruta: string
+  inicial: boolean
+  puedeEscribir: boolean
+}): ReactElement {
+  const [encendido, setEncendido] = useState(inicial)
+  const [guardando, setGuardando] = useState(false)
+  const [fallo, setFallo] = useState<string | null>(null)
+
+  /** Escribe el bloque entero. El fallo devuelve la casilla a su valor anterior. */
+  async function cambiar (siguiente: boolean): Promise<void> {
+    const previo = encendido
+
+    setEncendido(siguiente)
+    setGuardando(true)
+    setFallo(null)
+
+    const resultado = await escribirEnBff<AjustesDelPortal>(ruta, 'PUT', { wiwo_portal_actas: siguiente })
+
+    setGuardando(false)
+
+    if (!resultado.ok) {
+      setEncendido(previo)
+      setFallo(resultado.mensaje)
+
+      return
+    }
+
+    // Lo que quedo guardado, no lo que se mando: si la API normalizo el valor, manda el suyo.
+    setEncendido(resultado.datos.wiwo_portal_actas)
+  }
+
+  const espacio = GLOSARIO.espacio.singular.toLowerCase()
+
+  return (
+    <div className="flex flex-col gap-2" aria-busy={guardando}>
+      <label htmlFor="portal-actas" className="text-texto flex items-center gap-2 text-sm">
+        <input
+          id="portal-actas"
+          type="checkbox"
+          checked={encendido}
+          disabled={!puedeEscribir || guardando}
+          onChange={(evento) => { void cambiar(evento.target.checked) }}
+          className={CLASES_CASILLA}
+        />
+        El cliente ve los {GLOSARIO.acta.plural} de este {espacio} en su portal
+      </label>
+
+      <p className="text-texto-tenue text-sm">
+        Nace apagado a propósito: un {GLOSARIO.acta.singular} puede tener conversación interna. Se lee
+        entero y no se puede corregir, comentar ni borrar desde el portal.
+      </p>
+
+      {!puedeEscribir && (
+        <p className="text-texto-sutil text-sm">
+          Solo se puede leer: cambiarlo pide permiso de edición sobre {GLOSARIO.espacio.plural.toLowerCase()}.
+        </p>
+      )}
+
+      {fallo !== null && <p role="alert" className="text-texto-peligro text-sm">{fallo}</p>}
+    </div>
   )
 }
 

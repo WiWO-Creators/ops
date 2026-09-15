@@ -16,10 +16,11 @@ import {
 } from '@/componentes/superposiciones/MenuContextual'
 import { escribirEnBff } from '@/componentes/datos/mutaciones'
 import { bloquesDeHtml } from '@/dominio/acta-bloques'
+import { conId, type FuenteDeProyecto } from '@/dominio/fuente-proyecto'
 import { TEMAS, temaDeMarca, type CodigoDeMarca } from '@/dominio/marcas-acta'
 import type { MetaDelActa } from '@/dominio/exportar-acta'
 import { origenDeArchivo } from '@/definiciones/archivos'
-import { formatoPeso, seVeComoImagen } from '@/dominio/actas'
+import { cuerpoDelActa, formatoPeso, seVeComoImagen } from '@/dominio/actas'
 import { nombrar } from '@/dominio/glosario'
 import type { Acta, AdjuntoActa } from '@/datos/recursos'
 
@@ -46,6 +47,18 @@ import type { Acta, AdjuntoActa } from '@/datos/recursos'
  * modelo a partir de lo que se dijo en una reunión, así que es contenido que no controlamos aunque
  * la API ya lo haya saneado: las dos capas son a propósito.
  *
+ * === EL CLIENTE LEE LA MISMA PANTALLA ===
+ *
+ * Montado con `puedeEditar={false}` y `puedeBorrar={false}` —que es como lo monta el portal— quedan
+ * el documento, sus datos y sus adjuntos, y se van Corregir, Eliminar y el selector de estilo. No hay
+ * ninguna rama por sujeto: las tres son escrituras y las tres cuelgan de una capacidad. Las rutas de
+ * esas escrituras tampoco se escriben acá, salen de `fuente`, asi que el mismo componente vale para
+ * los dos contratos.
+ *
+ * Exportar e Imprimir se quedan en los dos. No escriben nada: arman el archivo en el navegador con
+ * el HTML que la API ya mando, y quitarselos al cliente seria esconderle una copia de lo que esta
+ * leyendo.
+ *
  * Imprimir usa el `print()` del propio iframe, que sale con el formato real del documento. Es un PDF
  * decente y cero dependencias, contra el `jsPDF` de MeetingMatico, que vuelca texto plano y pierde
  * todo el formato. Para que el padre pueda llamarlo, el visor va con `imprimible`: ver
@@ -59,10 +72,21 @@ const EditorDeActa = dynamic(
 
 interface PropsDetalle {
   acta: Acta
+  /**
+   * El Proyecto del que cuelga, para el editor.
+   *
+   * No se usa para armar rutas —de eso se ocupa `fuente`—: lo pide `EditorDeActa` para reescribir un
+   * fragmento con IA, que es una ruta de `/ia/*` y no del Proyecto.
+   */
   proyectoId: number
-  /** Editar lo puede cualquier miembro; borrar, solo el autor o quien administra. */
-  puedeBorrar: boolean
-  conIa: boolean
+  /** De donde baja y a donde se escribe este acta. Ver `dominio/fuente-proyecto.ts`. */
+  fuente: FuenteDeProyecto
+  /** Corregir el texto y cambiar la marca. Cualquier miembro del equipo; el cliente, nunca. */
+  puedeEditar?: boolean
+  /** Eliminar. Solo el autor o quien administra, y la API lo vuelve a exigir igual. */
+  puedeBorrar?: boolean
+  /** Si la capa de IA responde. Solo decide lo que ofrece el editor, que ya exige `puedeEditar`. */
+  conIa?: boolean
   onCambiada: (acta: Acta) => void
   onBorrada: () => void
   onVolver: () => void
@@ -71,8 +95,10 @@ interface PropsDetalle {
 export function DetalleActa ({
   acta,
   proyectoId,
-  puedeBorrar,
-  conIa,
+  fuente,
+  puedeEditar = false,
+  puedeBorrar = false,
+  conIa = false,
   onCambiada,
   onBorrada,
   onVolver
@@ -87,16 +113,15 @@ export function DetalleActa ({
   const [exportando, setExportando] = useState<'pdf' | 'docx' | null>(null)
   const [cambiandoMarca, setCambiandoMarca] = useState(false)
   const marco = useRef<HTMLIFrameElement>(null)
+  // Las tres escrituras del acta van a la misma ruta: se arma una vez para que no se puedan
+  // desalinear, y sale de la fuente para que el sujeto no se escriba dentro del dibujo.
+  const ruta = conId(fuente.acta, acta.id)
 
   async function guardar (): Promise<void> {
     setGuardando(true)
     setError(null)
 
-    const resultado = await escribirEnBff<Acta>(
-      `projects/${proyectoId}/actas/${acta.id}`,
-      'PATCH',
-      { content: html }
-    )
+    const resultado = await escribirEnBff<Acta>(ruta, 'PATCH', { content: html })
 
     setGuardando(false)
 
@@ -125,11 +150,7 @@ export function DetalleActa ({
     setCambiandoMarca(true)
     setError(null)
 
-    const resultado = await escribirEnBff<Acta>(
-      `projects/${proyectoId}/actas/${acta.id}`,
-      'PATCH',
-      { brand: codigo }
-    )
+    const resultado = await escribirEnBff<Acta>(ruta, 'PATCH', { brand: codigo })
 
     setCambiandoMarca(false)
 
@@ -154,7 +175,7 @@ export function DetalleActa ({
     setError(null)
 
     try {
-      const bloques = bloquesDeHtml(acta.content ?? '')
+      const bloques = bloquesDeHtml(cuerpoDelActa(acta.content ?? ''))
       const tema = temaDeMarca(acta.brand)
       const meta: MetaDelActa = {
         titulo: acta.title,
@@ -183,7 +204,7 @@ export function DetalleActa ({
   async function borrar (): Promise<void> {
     setBorrando(true)
 
-    const resultado = await escribirEnBff(`projects/${proyectoId}/actas/${acta.id}`, 'DELETE')
+    const resultado = await escribirEnBff(ruta, 'DELETE')
 
     setBorrando(false)
 
@@ -231,7 +252,7 @@ export function DetalleActa ({
           {/* El estilo se cambia desde acá y no desde el formulario de creación porque el acta se
               escribe antes de saber quién la firma: una reunión que arrancó siendo de WiWO puede
               terminar facturándose por MGC, y rehacer el documento por eso no tiene sentido. */}
-          {!editando && (
+          {puedeEditar && !editando && (
             <MenuContextual>
               <DisparadorMenu asChild>
                 <Boton variante="sutil" tamano="chico" cargando={cambiandoMarca} className="-ml-3 self-start">
@@ -288,9 +309,11 @@ export function DetalleActa ({
                     <ItemMenu onSelect={() => { marco.current?.contentWindow?.print() }}>Imprimir</ItemMenu>
                   </ContenidoMenu>
                 </MenuContextual>
-                <Boton variante="primario" tamano="chico" onClick={() => { setEditando(true) }}>
-                  Corregir
-                </Boton>
+                {puedeEditar && (
+                  <Boton variante="primario" tamano="chico" onClick={() => { setEditando(true) }}>
+                    Corregir
+                  </Boton>
+                )}
               </>
               )}
 
@@ -331,7 +354,10 @@ export function DetalleActa ({
         : (
           <ContenidoHtml
             ref={marco}
-            html={acta.content ?? ''}
+            // `cuerpoDelActa` y no `acta.content` a secas: el documento arranca con el identificador
+            // del proyecto y, cuando la reunion no lo dijo, el modelo escribe "#No especificado". Es
+            // un hueco de su formulario, no un dato, y el cliente lo lee como encabezado del acta.
+            html={cuerpoDelActa(acta.content ?? '')}
             titulo={`Meeting Paper: ${acta.title}`}
             marca={acta.brand}
             // Sin esto "Imprimir" lanza `SecurityError` y no imprime: con el origen opaco del
@@ -429,7 +455,9 @@ function AdjuntosDelActa ({ acta }: { acta: Acta }): ReactElement | null {
  */
 function TarjetaDeAdjunto ({ adjunto, proyecto }: { adjunto: AdjuntoActa, proyecto: string }): ReactElement {
   const origen = origenDeArchivo({
-    file_name: adjunto.file_name,
+    // El contrato del contacto no publica el nombre en disco, y este de acá no lo usa para nada
+    // más que satisfacer la forma: quien nombra el archivo es `name`, que viaja en los dos.
+    file_name: adjunto.file_name ?? adjunto.name,
     original_file_name: adjunto.name,
     subject: null,
     url: adjunto.url

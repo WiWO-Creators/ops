@@ -11,6 +11,7 @@ import assert from 'node:assert/strict'
 import {
   accionesMasivasPermitidas,
   camposDeTabla,
+  comentarioParaMostrar,
   estaVencida,
   valorDeAccionMasiva,
   valorDeCampo
@@ -85,4 +86,51 @@ test('agregar a proyecto requiere un destino con id positivo y permiso de ediciÃ
   for (const invalido of ['', ' ', '0', '-1', '1.5', 'abc']) {
     assert.equal(valorDeAccionMasiva('proyecto', invalido), null)
   }
+})
+
+/**
+ * El autor de un comentario.
+ *
+ * La API firma con `staff` o con `contact`, nunca con los dos. Si la traduccion se equivoca, el hilo
+ * del cliente se lee mal en el peor lugar posible: un comentario propio firmado como si lo hubiera
+ * escrito el equipo, o al reves. Es la clase de error que nadie reporta porque no rompe nada.
+ */
+const COMENTARIO = {
+  id: 9,
+  task_id: 512,
+  parent_id: null,
+  content: 'Lo revisamos el lunes',
+  date_added: '2026-09-10T14:00:00Z',
+  staff: null,
+  contact: null
+}
+
+test('un comentario del equipo se firma con el nombre del colaborador y sin insignia', () => {
+  const mostrable = comentarioParaMostrar({
+    ...COMENTARIO,
+    staff: { id: 183, full_name: 'Dev Prueba' }
+  })
+
+  assert.equal(mostrable.author.full_name, 'Dev Prueba')
+  assert.equal(mostrable.author.es_cliente, false)
+  assert.equal(mostrable.created, '2026-09-10T14:00:00Z', 'la fecha viene en date_added, no en created')
+  assert.equal(mostrable.content, 'Lo revisamos el lunes')
+})
+
+test('un comentario del cliente viene con contact y sin staff, y eso es lo que lo distingue', () => {
+  const mostrable = comentarioParaMostrar({
+    ...COMENTARIO,
+    contact: { id: 900013, full_name: 'Paridad Prueba' }
+  })
+
+  assert.equal(mostrable.author.full_name, 'Paridad Prueba')
+  assert.equal(mostrable.author.es_cliente, true)
+})
+
+test('con los dos firmantes en null el autor se perdio, y no se inventa', () => {
+  assert.equal(comentarioParaMostrar(COMENTARIO).author, null)
+})
+
+test('el adjunto del comentario no viaja: ningun contrato lo emite', () => {
+  assert.equal(comentarioParaMostrar({ ...COMENTARIO, staff: { id: 1, full_name: 'X' } }).file, null)
 })

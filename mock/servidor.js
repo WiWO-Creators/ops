@@ -1852,6 +1852,94 @@ function guardarActa (espacio, actual, campos, html, origen, adjuntos = []) {
 }
 
 /**
+ * Un acta tal como la ve el cliente.
+ *
+ * Es la del equipo menos lo que `FormasDelPortal::ACTAS` no publica. Se deriva de `presentarActa` y
+ * quita claves en vez de volver a armar el objeto: asi un campo nuevo del acta llega a los dos lados
+ * y la unica decision que se toma aca es cual se le esconde al cliente.
+ *
+ * `file_name` del adjunto tampoco sale: es el nombre en disco, y al cliente lo nombra `name`.
+ */
+function presentarActaPortal (acta, opciones) {
+  const completa = presentarActa(acta, opciones)
+  const publica = {}
+
+  for (const [clave, valor] of Object.entries(completa)) {
+    if (!FUERA_DEL_PORTAL_ACTA.includes(clave)) publica[clave] = valor
+  }
+
+  if (Array.isArray(publica.attachments)) {
+    publica.attachments = publica.attachments.map((adjunto) => ({
+      id: adjunto.id,
+      acta_id: adjunto.acta_id,
+      name: adjunto.name,
+      filetype: adjunto.filetype,
+      size: adjunto.size,
+      url: adjunto.url,
+      date_added: adjunto.date_added
+    }))
+  }
+
+  return publica
+}
+
+/** Como se escribio el acta y quien la toco es vocabulario interno: no viaja al portal. */
+const FUERA_DEL_PORTAL_ACTA = ['source', 'staff_id', 'updated_by']
+
+/**
+ * Dos Meeting Papers ya escritos en el Espacio 1.
+ *
+ * El resto de las actas nace durante la sesion —ese es el ciclo que interesa probar del lado del
+ * equipo—, pero el portal es de SOLO lectura: sin una escrita de antemano, la pestaña del cliente
+ * solo se puede mirar vacia. Son dos y no una porque el caso "acta sin adjuntos" se lee distinto y
+ * hay que poder verlo al lado del que si los tiene.
+ */
+function sembrarActas () {
+  const espacio = ESPACIOS.find((e) => e.id === 1)
+  const autora = STAFF.find((s) => s.id === 1) ?? STAFF[0]
+
+  if (espacio === undefined || autora === undefined) return
+
+  guardarActa(
+    espacio,
+    autora,
+    {
+      title: 'Kickoff del rediseño',
+      client: 'Acme SpA',
+      meeting_date: '2026-08-20',
+      place: 'Oficina de Acme',
+      modality: 'presencial',
+      attendees: ['Ana Pérez', 'Renata Ferreyra'],
+      brand: 'wiwo'
+    },
+    actaGenerada(espacio),
+    'ia',
+    [
+      { name: 'reunion-kickoff.m4a', size: 8_412_000, type: 'audio/mp4' },
+      { name: 'pizarra.png', size: 412_000, type: 'image/png' }
+    ]
+  )
+
+  guardarActa(
+    espacio,
+    autora,
+    {
+      title: 'Revisión semanal',
+      client: 'Acme SpA',
+      meeting_date: '2026-09-03',
+      place: '',
+      modality: 'online',
+      attendees: ['Ana Pérez'],
+      brand: 'mgc'
+    },
+    actaGenerada(espacio),
+    'manual'
+  )
+}
+
+sembrarActas()
+
+/**
  * Corta un texto en trozos de `TAMANO_DELTA` caracteres.
  *
  * Se recorre con el spread y no con `slice` sobre el string: `slice` parte los pares subrogados y un
@@ -3408,6 +3496,22 @@ function estadoDeEspacioIaRuta (id) {
   return { estado: 200, cuerpo: conDatos({ ...redactado, reutilizado: false }) }
 }
 
+/**
+ * El contacto de un token, o `null` si ese token no es de un contacto.
+ *
+ * Existe para la unica ruta que los dos sujetos piden con la MISMA url —la descarga de un adjunto del
+ * Meeting Paper—: hay que poder preguntar de quien es el token sin que preguntarlo se convierta en un
+ * 401 para el otro sujeto. No traga el error: lo traduce a "este token no es de un contacto", que es
+ * justo lo que se esta preguntando.
+ */
+function contactoDelToken (token) {
+  try {
+    return sesion.resolverContacto(token, 'acceso')
+  } catch {
+    return null
+  }
+}
+
 async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, peticion) {
   const [recurso, ...resto] = segmentos
 
@@ -3600,11 +3704,24 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
       if (!espacio) throw new ErrorApi(404, 'not_found', 'Proyecto inexistente.')
 
       if (resto.length === 2) {
+        const suyo = COMPARTIDO_CON_EL_CLIENTE[espacio.id] ?? COMPARTIDO_CON_EL_CLIENTE.defecto
+
         return {
           estado: 200,
           cuerpo: conDatos({
             ...presentarEspacioPortal(espacio),
-            tabs: ['overview', 'tasks', 'milestones', 'files', 'activity'],
+            image_url: espacio.image_url ?? null,
+            project_created: espacio.project_created ?? espacio.datecreated ?? null,
+            // Los importes y las horas estimadas solo con `view_finance_overview`: la clave **no
+            // viaja** cuando no corresponde, que es distinto de viajar en cero.
+            ...(suyo.finanzas
+              ? {
+                  project_cost: espacio.project_cost ?? null,
+                  project_rate_per_hour: espacio.project_rate_per_hour ?? null,
+                  estimated_hours: espacio.estimated_hours ?? null
+                }
+              : {}),
+            tabs: pestaniasDelContacto(espacio.id, suyo),
             members: STAFF.filter((persona) => espacio.miembros.includes(persona.id))
               .map(({ id, full_name, profile_image_url }) => ({ id, full_name, profile_image_url }))
           })
@@ -3612,44 +3729,137 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
       }
 
       const tareasDelEspacio = PROCESOS.filter((p) => p.rel_type === 'project' && p.rel_id === espacio.id)
+      // Que comparte este Proyecto con su cliente. En la API real son las 18 claves de
+      // `available_features` y los `view_*` de `tblproject_settings`; aca se declaran por proyecto
+      // para poder ejercitar los DOS lados de cada interruptor. Sin eso, una pestaña apagada y un
+      // flag en 0 no se distinguen de un bug.
+      const compartido = COMPARTIDO_CON_EL_CLIENTE[espacio.id] ?? COMPARTIDO_CON_EL_CLIENTE.defecto
+
+      const pestanias = pestaniasDelContacto(espacio.id, compartido)
+
+      /** 403 cuando el Proyecto no comparte esa pestaña, igual que `exigirPestania` de la API. */
+      const exigirPestania = (pestania) => {
+        if (!pestanias.includes(pestania)) {
+          throw new ErrorApi(403, 'forbidden', `Este proyecto no comparte "${pestania}".`)
+        }
+      }
 
       if (resto[2] === 'tasks' && resto.length === 3) {
-        const { filas, paginacion } = aplicarConsulta(
-          tareasDelEspacio.map(presentarTareaPortal), parametros,
-          {
-            filtros: {
-              status: 'status',
-              // `aprobacion` lo pide la pagina del proyecto para el bloque de visto bueno. Sin el,
-              // el mock respondia 422 y el bloque no se dibujaba nunca: quedaba sin ejercitar.
-              // Lee del bloque ya presentado (`approval`), que es la forma que viaja al portal.
-              aprobacion: (fila, valor) => (fila.approval?.estado ?? null) === valor
-            },
-            orden: ['due_date', 'name'],
-            busqueda: ['name']
+        exigirPestania('tasks')
+
+        // El tablero devuelve una columna por estado con sus tarjetas, igual que el del panel: es la
+        // misma lectura del mismo listado, y el cliente la abre igual que el equipo.
+        if (parametros.get('vista') === 'tablero') {
+          return {
+            estado: 200,
+            cuerpo: conDatos(tableroDeProcesos(
+              tareasDelEspacio, parametros, presentarTareaPortal, CONSULTA_TAREAS_PORTAL
+            ))
           }
-        )
-        return { estado: 200, cuerpo: conDatos(filas, { pagination: paginacion }) }
+        }
+
+        const { filas, paginacion } = aplicarConsulta(tareasDelEspacio, parametros, CONSULTA_TAREAS_PORTAL)
+        return { estado: 200, cuerpo: conDatos(filas.map(presentarTareaPortal), { pagination: paginacion }) }
+      }
+
+      // Detalle de una Tarea. Cuelga del Proyecto y no de `/portal/tasks/{id}`: la pertenencia es lo
+      // que deja decidir si esa Tarea le corresponde a este contacto, y una de otro Proyecto es 404
+      // —nunca 403—, porque para el no existe.
+      if (resto[2] === 'tasks' && resto.length === 4) {
+        exigirPestania('tasks')
+
+        const tarea = tareasDelEspacio.find((t) => t.id === Number(resto[3]))
+        if (!tarea) throw new ErrorApi(404, 'not_found', 'Tarea inexistente.')
+
+        return { estado: 200, cuerpo: conDatos(presentarFichaPortal(tarea, compartido)) }
+      }
+
+      // Calendario de entregas. Misma forma que el listado —el calendario lee `due_date`— y ruta
+      // propia porque la pestaña se habilita aparte, aunque reuse las condiciones de las Tareas.
+      if (resto[2] === 'calendar' && resto.length === 3) {
+        exigirPestania('calendar')
+
+        const conFecha = tareasDelEspacio.filter((t) => (t.due_date ?? null) !== null)
+        const { filas, paginacion } = aplicarConsulta(conFecha, parametros, CONSULTA_TAREAS_PORTAL)
+        return { estado: 200, cuerpo: conDatos(filas.map(presentarTareaPortal), { pagination: paginacion }) }
+      }
+
+      // El resumen del Proyecto, podado: `logged_time` y `finance` viajan solo con su flag, y la
+      // clave ausente es lo que deja al frontend distinguir "no corresponde" de "no hay".
+      if (resto[2] === 'overview' && resto.length === 3) {
+        exigirPestania('overview')
+        return { estado: 200, cuerpo: conDatos(overviewParaContacto(espacio, compartido, pestanias)) }
+      }
+
+      if (resto[2] === 'discussions' && resto.length === 3) {
+        exigirPestania('discussions')
+
+        const compartidas = discusionesDeEspacio(espacio.id).filter((d) => d.show_to_customer)
+        const { filas, paginacion } = aplicarConsulta(compartidas, parametros, CONSULTA_DISCUSIONES)
+
+        return { estado: 200, cuerpo: conDatos(filas.map(presentarDiscusionPortal), { pagination: paginacion }) }
+      }
+
+      // Los comentarios cuelgan del hilo y el hilo del Proyecto: una discusion interna es 404 y no
+      // 403, porque para este contacto no existe.
+      if (resto[2] === 'discussions' && resto[4] === 'comments' && resto.length === 5) {
+        exigirPestania('discussions')
+
+        const hilo = discusionesDeEspacio(espacio.id)
+          .find((d) => d.id === Number(resto[3]) && d.show_to_customer)
+        if (!hilo) throw new ErrorApi(404, 'not_found', 'Discusión inexistente.')
+
+        return { estado: 200, cuerpo: conDatos(comentariosDeDiscusion(hilo.id)) }
+      }
+
+      if (resto[2] === 'timesheets' && resto.length === 3) {
+        exigirPestania('timesheets')
+
+        const { filas, paginacion } = aplicarConsulta(horasDeEspacio(espacio.id), parametros, CONSULTA_HORAS)
+
+        return { estado: 200, cuerpo: conDatos(filas.map(presentarHoraPortal), { pagination: paginacion }) }
+      }
+
+      if (resto[2] === 'gantt' && resto.length === 3) {
+        exigirPestania('gantt')
+
+        // Agrupar por miembro o por estado se **rechaza**, no se ignora: devolver otra cosa dejaria
+        // al cliente creyendo que vio un gantt por miembros cuando vio uno por hitos.
+        const agrupar = parametros.get('agrupar')
+        if (agrupar !== null && agrupar !== 'milestones') {
+          throw new ErrorApi(422, 'validation_failed', `Agrupación no disponible en el portal: "${agrupar}".`, {
+            agrupar: ['unavailable']
+          })
+        }
+
+        return {
+          estado: 200,
+          cuerpo: conDatos(ganttDeEspacio(espacio.id, idsDeEstado(parametros), HITOS_OCULTOS_AL_CLIENTE))
+        }
       }
 
       if (resto[2] === 'milestones' && resto.length === 3) {
-        const hitos = HITOS.filter((h) => h.project_id === espacio.id).map((hito) => {
-          const suyas = tareasDelEspacio.filter((t) => t.milestone === hito.id)
+        exigirPestania('milestones')
 
-          return {
-            id: hito.id,
-            name: hito.name,
-            description: hito.description,
-            start_date: hito.start_date,
-            due_date: hito.due_date,
-            project_id: hito.project_id,
-            color: hito.color,
-            order: hito.milestone_order,
-            date_created: hito.datecreated,
-            counts: { tasks: suyas.length, tasks_done: suyas.filter((t) => t.status === 5).length },
-            vencido: hito.due_date !== null && hito.due_date < '2026-09-11'
-          }
-        })
-        return { estado: 200, cuerpo: conDatos(hitos) }
+        // La misma presentacion que el listado del equipo, recortada: al contacto no le viajan
+        // `description_visible_to_customer`, `hide_from_customer` ni las horas registradas, y la
+        // descripcion llega en null salvo que el equipo la haya marcado compartible.
+        const hitos = HITOS
+          .filter((h) => h.project_id === espacio.id && !HITOS_OCULTOS_AL_CLIENTE.includes(h.id))
+          .map((hito) => {
+            const { description_visible_to_customer: _flag, hide_from_customer: _oculto, total_logged_seconds: _horas, ...publico } = presentarHito(hito, true)
+
+            return publico
+          })
+
+        // Filtros, busqueda y orden, como `paraContacto()`; **sin paginar**, que ese endpoint no
+        // pagina para ninguno de los dos sujetos: un Proyecto tiene decenas de hitos, no miles.
+        const consultaDeHitos = new URLSearchParams(parametros)
+        consultaDeHitos.delete('page')
+        consultaDeHitos.set('per_page', '100')
+        const { filas } = aplicarConsulta(hitos, consultaDeHitos, CONSULTA_HITOS_PORTAL)
+
+        return { estado: 200, cuerpo: conDatos(filas) }
       }
 
       if (resto[2] === 'files' && resto.length === 3) {
@@ -3683,34 +3893,87 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
         }
       }
 
-      if (resto[2] === 'activity' && resto.length === 3) {
-        return {
-          estado: 200,
-          cuerpo: conDatos([
-            {
-              id: 1,
-              description: 'creó el proyecto',
-              additional_data: null,
-              date_added: '2026-08-02T11:00:00Z',
-              staff: { id: 1, full_name: STAFF[0].full_name },
-              contact: null
-            },
-            {
-              id: 2,
-              description: 'aprobó una tarea',
-              additional_data: 'Con comentario del cliente.',
-              date_added: '2026-08-05T16:20:00Z',
-              staff: null,
-              contact: { id: 1, full_name: 'Renata Ferreyra' }
-            }
-          ])
+      // El Meeting Paper del cliente. Mismo listado que el del equipo —la API usa la misma consulta,
+      // asi que conserva orden, busqueda y paginacion— con la forma podada, y la ficha con su
+      // contenido y sus adjuntos. Solo GET: las cuatro escrituras del acta son del panel.
+      if (resto[2] === 'actas' && (resto.length === 3 || resto.length === 4)) {
+        exigirPestania('actas')
+
+        const suyas = ACTAS.filter((a) => a.project_id === espacio.id)
+
+        if (resto.length === 3) {
+          const { filas, paginacion } = aplicarConsulta(suyas, parametros, CONSULTA_ACTAS)
+
+          return {
+            estado: 200,
+            cuerpo: conDatos(filas.map((a) => presentarActaPortal(a, { conContenido: false })), { pagination: paginacion })
+          }
         }
+
+        const acta = suyas.find((a) => a.id === Number(resto[3]))
+        if (!acta) throw new ErrorApi(404, 'not_found', 'No existe ese Meeting Paper.')
+
+        return { estado: 200, cuerpo: conDatos(presentarActaPortal(acta, { conContenido: true })) }
+      }
+
+      // Solo lo que el equipo marco visible, y sin la marca: al portal no llega la clave que la
+      // decide, que es lo que hace que la fila del cliente no lleve interruptor.
+      if (resto[2] === 'activity' && resto.length === 3) {
+        exigirPestania('activity')
+
+        const visibles = actividadDeEspacio(espacio.id).filter((e) => e.visible_to_customer)
+        const { filas, paginacion } = aplicarConsulta(visibles, parametros, CONSULTA_ACTIVIDAD)
+
+        return { estado: 200, cuerpo: conDatos(filas.map(presentarActividadPortal), { pagination: paginacion }) }
       }
 
       throw new ErrorApi(404, 'not_found', `Recurso desconocido: "${resto[2] ?? ''}".`)
     }
 
     throw new ErrorApi(404, 'not_found', `Recurso desconocido: "${seccion ?? ''}".`)
+  }
+
+  // `GET /files/acta/{id}/download`: el binario de un adjunto del Meeting Paper, para los DOS
+  // sujetos.
+  //
+  // Va antes de la puerta del panel porque la API emite la misma url para el equipo y para el
+  // cliente —no existe `/portal/files/...`—, asi que un adjunto abierto desde el portal llegaria acá
+  // con un token de contacto y moriria en el 401 del panel. La guarda del contacto es la de
+  // `Descargas`: el acta tiene que ser de un Espacio de su cliente y con la pestaña `actas`
+  // encendida. Sin eso, la ficha publicaba una url que el propio cliente no podia abrir.
+  //
+  // Es el unico binario que el mock sirve de verdad, y es a proposito: la ficha del acta pinta las
+  // fotos como miniatura, asi que con metadata en JSON no hay forma de ver si el titulo y el boton
+  // quedaron bien puestos respecto de la imagen.
+  if (recurso === 'files' && metodo === 'GET' && resto[0] === 'acta' && resto[2] === 'download') {
+    const contacto = contactoDelToken(token)
+    const acta = ACTAS.find((a) => (a.attachments ?? []).some((adj) => adj.id === Number(resto[1])))
+    const adjunto = (acta?.attachments ?? []).find((a) => a.id === Number(resto[1]))
+
+    // Sin sesion de contacto tiene que haberla de staff, y un token invalido muere acá igual.
+    if (contacto === null) sesion.resolver(token, 'acceso')
+
+    if (adjunto === undefined) throw new ErrorApi(404, 'not_found', 'No existe ese adjunto.')
+
+    if (contacto !== null) {
+      const espacio = ESPACIOS.find((e) => e.id === acta.project_id)
+      const suyo = espacio !== undefined && espacio.clientid === contacto.client_id
+      // 404 y no 403: para este contacto ese adjunto no existe.
+      if (!suyo || !ajustesDelPortal(acta.project_id).wiwo_portal_actas) {
+        throw new ErrorApi(404, 'not_found', 'No existe ese adjunto.')
+      }
+    }
+
+    return {
+      transmitir: (respuesta) => {
+        respuesta.writeHead(200, {
+          'Content-Type': adjunto.filetype === '' ? 'application/octet-stream' : adjunto.filetype,
+          'Content-Disposition': `attachment; filename="${adjunto.name.replace(/"/g, '')}"`,
+          'X-Content-Type-Options': 'nosniff'
+        })
+        respuesta.end(PLACEHOLDER_PNG)
+      }
+    }
   }
 
   // --- A partir de acá, todo exige token ----------------------------------
@@ -4082,6 +4345,50 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
     return { estado: 200, cuerpo: conDatos(conContactos(conCamposPersonalizados(cliente, 'clients', includes), includes)) }
   }
 
+  // Que ve el cliente de un Espacio. Va antes del bloque de `projects` por lo mismo que las actas:
+  // ese bloque solo atiende GET, y este endpoint tambien acepta PUT.
+  if (recurso === 'projects' && resto[1] === 'portal-settings') {
+    if (resto.length !== 2) throw new ErrorApi(404, 'not_found', 'Recurso desconocido.')
+
+    const espacio = buscarO404(ESPACIOS, Number(resto[0]), 'espacio')
+
+    if (metodo === 'GET') {
+      exigirPermiso(actual, 'projects', 'view')
+
+      return { estado: 200, cuerpo: conDatos(ajustesDelPortal(espacio.id)) }
+    }
+
+    // Ni PATCH ni POST ni DELETE: el bloque se reemplaza entero o no se toca.
+    if (metodo !== 'PUT') throw new ErrorApi(404, 'not_found', 'Recurso desconocido.')
+
+    // Ser miembro no alcanza para escribir: la membresia abre ver.
+    exigirPermiso(actual, 'projects', 'edit')
+
+    const datos = await cuerpo()
+    const errores = {}
+
+    // Una clave de mas es 422 y no se ignora: `tblproject_settings` guarda tambien las 18 `view_*`
+    // del panel clasico, y aceptar nombres libres seria escribir cualquiera de ellas desde acá.
+    for (const clave of Object.keys(datos)) {
+      if (clave !== 'wiwo_portal_actas') errores[clave] = ['desconocida']
+    }
+
+    const encendido = booleanoDelPortal(datos.wiwo_portal_actas)
+
+    // Es un PUT: la clave que falta es 422, no "dejala como estaba". Un formulario al que se le cae
+    // un campo en el camino no puede guardar a medias.
+    if (!Object.hasOwn(datos, 'wiwo_portal_actas')) errores.wiwo_portal_actas = ['required']
+    else if (encendido === null) errores.wiwo_portal_actas = ['boolean']
+
+    if (Object.keys(errores).length > 0) {
+      throw new ErrorApi(422, 'validation_failed', 'Revisá los interruptores del portal.', errores)
+    }
+
+    AJUSTES_DEL_PORTAL.set(espacio.id, encendido)
+
+    return { estado: 200, cuerpo: conDatos(ajustesDelPortal(espacio.id)) }
+  }
+
   // Meeting Paper. Va antes del bloque de `projects`, que solo atiende GET: las actas se crean,
   // editan y borran, asi que necesitan su propia rama con los cuatro verbos.
   if (recurso === 'projects' && resto[1] === 'actas') {
@@ -4160,6 +4467,20 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
     }
     if (subrecurso === 'tasks') {
       const suyos = PROCESOS.filter((p) => p.project?.id === espacio.id && (parametros.get('filter[status]')?.trim() || p.status !== 5))
+
+      // El tablero de la pestaña Tareas de un Espacio. Faltaba: el mock devolvia la lista plana y el
+      // motor de tablero se quedaba sin columnas, asi que esa vista nunca se pudo ver contra el mock.
+      if (parametros.get('vista') === 'tablero') {
+        return {
+          estado: 200,
+          cuerpo: conDatos(tableroDeProcesos(
+            PROCESOS.filter((p) => p.project?.id === espacio.id),
+            parametros,
+            presentarProcesoEnLista
+          ))
+        }
+      }
+
       const { filas, paginacion } = aplicarConsulta(suyos, parametros, CONSULTA_PROCESOS)
       return { estado: 200, cuerpo: conDatos(filas.map(presentarProcesoEnLista), { pagination: paginacion }) }
     }
@@ -4183,7 +4504,9 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
         orden.forEach((id, posicion) => { hitos.find((hito) => hito.id === id).milestone_order = posicion + 1 })
         return { estado: 200, cuerpo: conDatos(hitos.sort((a, b) => a.milestone_order - b.milestone_order)) }
       }
-      if (parametros.get('vista') !== 'tablero') return { estado: 200, cuerpo: conDatos(hitos) }
+      if (parametros.get('vista') !== 'tablero') {
+        return { estado: 200, cuerpo: conDatos(hitos.map((hito) => presentarHito(hito, false))) }
+      }
 
       const columnas = [
         { id: 0, name: 'Sin categorizar', color: null, order: -1 },
@@ -4219,6 +4542,44 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
     if (subrecurso === 'files') {
       const suyos = PROCESOS.filter((p) => p.project?.id === espacio.id).map((p) => p.id)
       return { estado: 200, cuerpo: conDatos(ARCHIVOS.filter((a) => suyos.includes(a.rel_id))) }
+    }
+    if (subrecurso === 'overview') {
+      if (resto[2] === 'chart') {
+        return { estado: 200, cuerpo: conDatos(graficoDeEspacio(espacio.id, parametros.get('periodo') ?? 'esta_semana')) }
+      }
+      if (resto.length > 2) throw new ErrorApi(404, 'not_found', `Subrecurso desconocido: "${resto[2]}".`)
+
+      return { estado: 200, cuerpo: conDatos(overviewDeEspacio(espacio)) }
+    }
+    if (subrecurso === 'discussions') {
+      const { filas, paginacion } = aplicarConsulta(discusionesDeEspacio(espacio.id), parametros, CONSULTA_DISCUSIONES)
+      return { estado: 200, cuerpo: conDatos(filas, { pagination: paginacion }) }
+    }
+    if (subrecurso === 'activity') {
+      const { filas, paginacion } = aplicarConsulta(actividadDeEspacio(espacio.id), parametros, CONSULTA_ACTIVIDAD)
+      return { estado: 200, cuerpo: conDatos(filas, { pagination: paginacion }) }
+    }
+    if (subrecurso === 'timesheets') {
+      const horas = horasDeEspacio(espacio.id)
+
+      // Quienes cargaron horas en ESTE proyecto, que es de donde sale el filtro por persona. No es
+      // `/lookups`: un desplegable con todo el equipo ofreceria personas sin un solo registro.
+      if (resto[2] === 'staff') {
+        const vistos = new Map(horas.map((r) => [r.staff.id, r.staff]))
+        return {
+          estado: 200,
+          cuerpo: conDatos([...vistos.values()].map(({ id, full_name: nombre, profile_image_url: foto }) => ({
+            id, full_name: nombre, profile_image_url: foto
+          })))
+        }
+      }
+      if (resto.length > 2) throw new ErrorApi(404, 'not_found', `Subrecurso desconocido: "${resto[2]}".`)
+
+      const { filas, paginacion } = aplicarConsulta(horas, parametros, CONSULTA_HORAS)
+      return { estado: 200, cuerpo: conDatos(filas, { pagination: paginacion }) }
+    }
+    if (subrecurso === 'gantt') {
+      return { estado: 200, cuerpo: conDatos(ganttDeEspacio(espacio.id, idsDeEstado(parametros))) }
     }
     throw new ErrorApi(404, 'not_found', `Subrecurso desconocido: "${subrecurso}".`)
   }
@@ -4268,7 +4629,7 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
       return { estado: 200, cuerpo: conDatos(conCamposPersonalizados(proceso, 'tasks', includes)) }
     }
     if (metodo === 'GET' && subrecurso === 'comments') {
-      return { estado: 200, cuerpo: conDatos(COMENTARIOS.filter((c) => c.task_id === proceso.id)) }
+      return { estado: 200, cuerpo: conDatos(comentariosDeTarea(proceso.id)) }
     }
     if (metodo === 'GET' && subrecurso === 'checklist') {
       return { estado: 200, cuerpo: conDatos(CHECKLIST.filter((c) => c.task_id === proceso.id)) }
@@ -4353,30 +4714,6 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
     }
 
     throw new ErrorApi(404, 'not_found', 'Ruta de proceso desconocida.')
-  }
-
-  // `GET /files/acta/{id}/download`: el binario de un adjunto del Meeting Paper.
-  //
-  // Es el unico binario que el mock sirve de verdad, y es a proposito: la ficha del acta pinta las
-  // fotos como miniatura, asi que con metadata en JSON no hay forma de ver si el titulo y el boton
-  // quedaron bien puestos respecto de la imagen. Un PNG de 1x1 alcanza para que el `<img>` cargue.
-  if (recurso === 'files' && metodo === 'GET' && resto[0] === 'acta' && resto[2] === 'download') {
-    const adjunto = ACTAS
-      .flatMap((acta) => acta.attachments ?? [])
-      .find((a) => a.id === Number(resto[1]))
-
-    if (adjunto === undefined) throw new ErrorApi(404, 'not_found', 'No existe ese adjunto.')
-
-    return {
-      transmitir: (respuesta) => {
-        respuesta.writeHead(200, {
-          'Content-Type': adjunto.filetype === '' ? 'application/octet-stream' : adjunto.filetype,
-          'Content-Disposition': `attachment; filename="${adjunto.name.replace(/"/g, '')}"`,
-          'X-Content-Type-Options': 'nosniff'
-        })
-        respuesta.end(PLACEHOLDER_PNG)
-      }
-    }
   }
 
   if (recurso === 'files' && metodo === 'GET' && resto[1] === 'download') {
@@ -4530,6 +4867,827 @@ function presentarTareaPortal (proceso) {
       }
     })
   }
+}
+
+
+// --- Las pestañas del Proyecto que el mock no servia -------------------------
+//
+// Resumen, discusiones, actividad, horas y Gantt existen en la API desde siempre, pero el mock no
+// los tenia: las cinco pestañas del panel se veian con su bloque de error, y el portal las dibujaba
+// con copias propias que no pedian nada. Sin estas rutas la paridad no se puede mirar en pantalla,
+// que es la unica forma de verificarla.
+
+/**
+ * Discusiones por Proyecto.
+ *
+ * El 8 se queda **sin ninguna** a proposito: es el caso "proyecto sin discusiones", que sin una fila
+ * asi no se distingue de un panel roto.
+ */
+const DISCUSIONES = ESPACIOS.flatMap((espacio) => (
+  espacio.id === 8
+    ? []
+    : [
+        {
+          id: espacio.id * 10 + 1,
+          project_id: espacio.id,
+          subject: `Definiciones de ${espacio.name.toLowerCase()}`,
+          description: 'Todo lo que quede acordado acá se pasa al plan.',
+          show_to_customer: true,
+          date_created: '2026-08-02T11:00:00Z',
+          last_activity: '2026-08-21T09:40:00Z',
+          staff: presentarStaff(STAFF[0]),
+          contact: null
+        },
+        {
+          // Interna: no viaja al portal. Es el otro lado del interruptor.
+          id: espacio.id * 10 + 2,
+          project_id: espacio.id,
+          subject: 'Coordinación del equipo',
+          description: null,
+          show_to_customer: false,
+          date_created: '2026-08-05T15:00:00Z',
+          last_activity: '2026-08-05T15:00:00Z',
+          staff: presentarStaff(STAFF[1 % STAFF.length]),
+          contact: null
+        }
+      ]
+))
+
+/**
+ * Comentarios de las discusiones.
+ *
+ * La primera del proyecto 1 tiene hilo; la del proyecto 2 queda vacia para ejercitar "sin
+ * comentarios", que es el estado que el detalle dibuja distinto.
+ */
+const COMENTARIOS_DE_DISCUSION = [
+  {
+    id: 1,
+    discussion_id: 11,
+    content: 'Adjuntamos la paleta revisada. Cualquier cosa nos dicen.',
+    created: '2026-08-20T14:05:00Z',
+    modified: null,
+    parent: null,
+    author: { id: STAFF[0].id, full_name: STAFF[0].full_name, profile_image_url: null, es_cliente: false },
+    file: null
+  },
+  {
+    id: 2,
+    discussion_id: 11,
+    content: 'Nos gusta la segunda. ¿La podemos ver aplicada al sitio?',
+    created: '2026-08-21T09:40:00Z',
+    modified: null,
+    parent: null,
+    author: { id: 1, full_name: 'Renata Ferreyra', profile_image_url: null, es_cliente: true },
+    file: null
+  },
+  {
+    id: 3,
+    discussion_id: 12,
+    content: 'Recordar que la entrega se corre una semana.',
+    created: '2026-08-06T10:00:00Z',
+    modified: null,
+    parent: null,
+    author: { id: STAFF[1 % STAFF.length].id, full_name: STAFF[1 % STAFF.length].full_name, profile_image_url: null, es_cliente: false },
+    file: null
+  }
+]
+
+/** La discusion tal como la ve un contacto: sin `show_to_customer`, que alli seria siempre "Sí". */
+function presentarDiscusionPortal (discusion) {
+  const { show_to_customer: visible, project_id: proyecto, staff, ...resto } = discusion
+
+  return { ...resto, staff: staff === null ? null : { id: staff.id, full_name: staff.full_name }, contact: discusion.contact }
+}
+
+/** Los comentarios de una discusion, con su contador ya resuelto. */
+function comentariosDeDiscusion (discusionId) {
+  return COMENTARIOS_DE_DISCUSION.filter((c) => c.discussion_id === discusionId)
+}
+
+/** Discusiones de un Proyecto, con el contador de comentarios que el listado publica. */
+function discusionesDeEspacio (espacioId) {
+  return DISCUSIONES
+    .filter((d) => d.project_id === espacioId)
+    .map((d) => ({ ...d, counts: { comments: comentariosDeDiscusion(d.id).length } }))
+}
+
+/** La whitelist de la consulta de discusiones, que el portal y el panel comparten. */
+const CONSULTA_DISCUSIONES = {
+  filtros: {
+    subject: campoFiltrable((d) => d.subject),
+    show_to_customer: campoFiltrable((d) => (d.show_to_customer ? 1 : 0), 'numero')
+  },
+  orden: ['subject', 'last_activity', 'date_created'],
+  busqueda: ['subject', 'description']
+}
+
+/**
+ * Registros de horas de un Proyecto.
+ *
+ * Se derivan de sus Procesos en vez de escribirse a mano: si alguien agrega Procesos, hay horas
+ * sobre ellos y el mock sigue siendo un contrato ejecutable en vez de una postal. El primero de
+ * cada Proyecto queda **corriendo**, que es la fila que la tabla cuenta en vivo.
+ */
+function horasDeEspacio (espacioId) {
+  const tareas = PROCESOS.filter((p) => p.rel_type === 'project' && p.rel_id === espacioId)
+
+  return tareas.map((tarea, indice) => {
+    const corriendo = indice === 0
+    const segundos = corriendo ? 0 : (indice % 5 + 1) * 1800
+    const persona = STAFF[indice % STAFF.length]
+
+    return {
+      id: espacioId * 1000 + indice,
+      staff: {
+        id: persona.id,
+        full_name: persona.full_name,
+        profile_image_url: persona.profile_image_url ?? null,
+        sigue_asignado: indice % 4 !== 3
+      },
+      task: { id: tarea.id, name: tarea.name, status: tarea.status, billable: tarea.billable, billed: tarea.billed },
+      tags: tarea.tags,
+      start_time: `2026-08-${String(10 + indice % 15).padStart(2, '0')}T13:00:00Z`,
+      end_time: corriendo ? null : `2026-08-${String(10 + indice % 15).padStart(2, '0')}T${String(13 + Math.ceil(segundos / 3600)).padStart(2, '0')}:00:00Z`,
+      note: indice % 3 === 0 ? null : 'Avance del día.',
+      duration_seconds: segundos,
+      duration_hm: comoHm(segundos),
+      duration_decimal: Math.round(segundos / 36) / 100,
+      corriendo,
+      puede_editar: true,
+      puede_borrar: true,
+      puede_detener: corriendo
+    }
+  })
+}
+
+/** El registro tal como lo ve un contacto: sin tarifas, sin facturacion y sin permisos por fila. */
+function presentarHoraPortal (registro) {
+  return {
+    id: registro.id,
+    staff: { id: registro.staff.id, full_name: registro.staff.full_name },
+    task: { id: registro.task.id, name: registro.task.name },
+    start_time: registro.start_time,
+    end_time: registro.end_time,
+    note: registro.note,
+    duration_seconds: registro.duration_seconds,
+    duration_hm: registro.duration_hm
+  }
+}
+
+/** La whitelist de la consulta de horas, que el portal y el panel comparten. */
+const CONSULTA_HORAS = {
+  filtros: {
+    task_id: campoFiltrable((r) => r.task.id, 'numero'),
+    note: campoFiltrable((r) => r.note)
+  },
+  orden: ['start_time', 'end_time', 'duration'],
+  derivadas: { duration: (r) => r.duration_seconds },
+  busqueda: ['note']
+}
+
+/** Segundos como `HH:MM`, sin dias: es la regla del panel viejo (`Format::secondsToTime`). */
+function comoHm (segundos) {
+  const horas = Math.floor(segundos / 3600)
+  const minutos = Math.floor((segundos % 3600) / 60)
+
+  return `${String(horas).padStart(2, '0')}:${String(minutos).padStart(2, '0')}`
+}
+
+/**
+ * Grupos del diagrama de Gantt, agrupados por Hito.
+ *
+ * Los grupos sin tareas no se emiten, igual que la API: un hito vacio abriria meses de linea de
+ * tiempo que nadie puede explicar mirando la pantalla.
+ *
+ * @param {number} espacioId Proyecto
+ * @param {number[]} estados ids de `task_statuses`; vacio significa todos
+ * @param {number[]} hitosOcultos hitos que no viajan (el portal esconde los `hide_from_customer`)
+ */
+function ganttDeEspacio (espacioId, estados, hitosOcultos = []) {
+  const tareas = PROCESOS
+    .filter((p) => p.rel_type === 'project' && p.rel_id === espacioId)
+    .filter((p) => estados.length === 0 || estados.includes(p.status))
+
+  const columnas = [
+    ...HITOS
+      .filter((h) => h.project_id === espacioId && !hitosOcultos.includes(h.id))
+      .map((h) => ({ id: `milestone-${h.id}`, nombre: h.name, start: h.start_date, end: h.due_date, hito: h.id })),
+    { id: 'milestone-0', nombre: 'Sin hito', start: null, end: null, hito: 0 }
+  ]
+
+  return columnas
+    .map((columna) => ({
+      id: columna.id,
+      nombre: columna.nombre,
+      grupo: true,
+      start: columna.start,
+      end: columna.end,
+      tareas: tareas
+        .filter((p) => (p.milestone?.id ?? 0) === columna.hito)
+        .map((p) => ({
+          id: p.id,
+          name: p.name,
+          start: p.start_date,
+          end: p.due_date,
+          progress: p.status === 5 ? 100 : 40,
+          status: p.status,
+          color: null,
+          dependencies: []
+        }))
+    }))
+    .filter((columna) => columna.tareas.length > 0)
+}
+
+/**
+ * Comentarios que escribio el propio cliente sobre una Tarea.
+ *
+ * El fixture de `COMENTARIOS` los tiene todos firmados por staff, y con eso la insignia "Cliente" de
+ * la ficha nunca se podia ver: quien firma —`staff` o `contact`— **es** el dato que la produce. Van
+ * sobre Tareas del proyecto 1, que es donde se mira la paridad.
+ */
+const COMENTARIOS_DE_CONTACTO = [
+  {
+    id: 90001,
+    task_id: 509,
+    content: '¿Podemos ver esto aplicado al sitio antes del viernes?',
+    contact: { id: 1, full_name: 'Renata Ferreyra' },
+    date_added: '2026-08-21T09:40:00Z'
+  },
+  {
+    id: 90002,
+    task_id: 518,
+    content: 'Aprobado de nuestro lado. Gracias.',
+    contact: { id: 1, full_name: 'Renata Ferreyra' },
+    date_added: '2026-08-22T11:10:00Z'
+  }
+]
+
+// El contador de la Tarea tiene que incluirlos: la ficha publica `counts.comments`, y un hilo con
+// tres comentarios bajo un contador que dice dos es justo el tipo de incoherencia que un fixture no
+// puede tener si sirve para verificar.
+for (const comentario of COMENTARIOS_DE_CONTACTO) {
+  const tarea = PROCESOS.find((p) => p.id === comentario.task_id)
+  if (tarea !== undefined) tarea.counts.comments += 1
+}
+
+/**
+ * Un comentario de una Tarea, en la forma del contrato.
+ *
+ * `staff` y `contact` en vez de un `author` resuelto: es exactamente uno de los dos, y **cual de los
+ * dos es el dato** —sin `staff`, lo escribio el cliente—. La misma forma para el panel y para el
+ * portal, que es lo que deja que la ficha sea un solo dibujo.
+ *
+ * @param {object} comentario fila del fixture
+ * @returns {object} el comentario tal como lo emite la API
+ */
+function presentarComentarioDeTarea (comentario) {
+  const staff = comentario.staff ?? null
+  const contacto = comentario.contact ?? null
+
+  return {
+    id: comentario.id,
+    task_id: comentario.task_id,
+    parent_id: comentario.parent_id ?? null,
+    content: comentario.content,
+    date_added: comentario.date_added ?? null,
+    staff: staff === null ? null : { id: staff.id, full_name: staff.full_name, profile_image_url: null },
+    contact: contacto === null ? null : { id: contacto.id, full_name: contacto.full_name }
+  }
+}
+
+/** Los comentarios de una Tarea: los del fixture mas los que firmo el cliente. */
+function comentariosDeTarea (tareaId) {
+  return [...COMENTARIOS, ...COMENTARIOS_DE_CONTACTO]
+    .filter((c) => c.task_id === tareaId)
+    .map(presentarComentarioDeTarea)
+}
+
+/**
+ * Los ids de `filter[status]`, que el Gantt manda separados por coma.
+ *
+ * @param {URLSearchParams} parametros
+ * @returns {number[]} los ids validos; vacio significa "todos"
+ */
+function idsDeEstado (parametros) {
+  const crudo = (parametros.get('filter[status]') ?? '').trim()
+
+  if (crudo === '') return []
+
+  return crudo.split(',').map((parte) => Number.parseInt(parte, 10)).filter((id) => Number.isInteger(id))
+}
+
+/**
+ * Feed de actividad de un Proyecto.
+ *
+ * `visible_to_customer` es la clave que decide si la entrada viaja al portal **y** si el panel
+ * dibuja el interruptor: una entrada sin ella no lleva control, que es lo que pasa del lado del
+ * cliente.
+ */
+function actividadDeEspacio (espacioId) {
+  const tareas = PROCESOS.filter((p) => p.rel_type === 'project' && p.rel_id === espacioId)
+
+  return [
+    {
+      id: espacioId * 100 + 1,
+      description: 'creó el proyecto',
+      additional_data: null,
+      date_added: '2026-08-02T11:00:00Z',
+      visible_to_customer: true,
+      staff: { id: STAFF[0].id, full_name: STAFF[0].full_name, profile_image_url: null },
+      contact: null
+    },
+    ...tareas.slice(0, 6).map((tarea, indice) => ({
+      id: espacioId * 100 + 10 + indice,
+      description: 'creó la tarea',
+      additional_data: tarea.name,
+      date_added: `2026-08-${String(5 + indice).padStart(2, '0')}T16:20:00Z`,
+      // Una de cada tres queda interna: sin las dos caras, "visible para el cliente" no se puede ver.
+      visible_to_customer: indice % 3 !== 2,
+      staff: { id: STAFF[indice % STAFF.length].id, full_name: STAFF[indice % STAFF.length].full_name, profile_image_url: null },
+      contact: null
+    })),
+    {
+      id: espacioId * 100 + 90,
+      description: 'aprobó una tarea',
+      additional_data: 'Con comentario del cliente.',
+      date_added: '2026-08-21T09:40:00Z',
+      visible_to_customer: true,
+      staff: null,
+      contact: { id: 1, full_name: 'Renata Ferreyra' }
+    }
+  ]
+}
+
+/** La entrada tal como la ve un contacto: sin la marca de visibilidad, que alli seria siempre "Sí". */
+function presentarActividadPortal (entrada) {
+  const { visible_to_customer: visible, ...resto } = entrada
+
+  return resto
+}
+
+/** La whitelist de la consulta de actividad, que el portal y el panel comparten. */
+const CONSULTA_ACTIVIDAD = {
+  filtros: { description: campoFiltrable((a) => a.description) },
+  orden: ['date_added'],
+  busqueda: ['description', 'additional_data']
+}
+
+/**
+ * Conteos y plazos del Proyecto, la base de los dos `overview`.
+ *
+ * Los dos contratos salen de acá y no de dos calculos distintos: que el equipo y el cliente lean
+ * cifras distintas del mismo proyecto es exactamente lo que esta feature vino a arreglar.
+ */
+function metricasDeEspacio (espacio) {
+  const tareas = PROCESOS.filter((p) => p.rel_type === 'project' && p.rel_id === espacio.id)
+  const completas = tareas.filter((p) => p.status === 5).length
+  const total = tareas.length
+  const hitos = HITOS.filter((h) => h.project_id === espacio.id)
+  const hoy = '2026-09-14'
+  const segundos = horasDeEspacio(espacio.id).reduce((suma, r) => suma + r.duration_seconds, 0)
+
+  const dias = espacio.deadline === null
+    ? null
+    : (() => {
+        const dia = 86400000
+        const inicio = Date.parse(`${espacio.start_date ?? hoy}T00:00:00Z`)
+        const fin = Date.parse(`${espacio.deadline}T00:00:00Z`)
+        const totalDias = Math.max(1, Math.round((fin - inicio) / dia))
+        const restantes = Math.round((fin - Date.parse(`${hoy}T00:00:00Z`)) / dia)
+
+        return {
+          total: totalDias,
+          left: restantes,
+          left_percent: Math.max(0, Math.min(100, Math.round((restantes / totalDias) * 100)))
+        }
+      })()
+
+  return {
+    progress: total === 0 ? 0 : Math.round((completas / total) * 100),
+    tasks: {
+      total,
+      open: total - completas,
+      completed: completas,
+      completed_percent: total === 0 ? 0 : Math.round((completas / total) * 100)
+    },
+    hitos,
+    dias,
+    segundos
+  }
+}
+
+/** `GET /projects/{id}/overview`: lo que pinta la pestaña Descripcion del equipo. */
+function overviewDeEspacio (espacio) {
+  const m = metricasDeEspacio(espacio)
+  const facturable = Math.round(m.segundos * 0.6)
+  const facturado = Math.round(m.segundos * 0.2)
+
+  return {
+    progress: m.progress,
+    tasks: m.tasks,
+    days: m.dias,
+    logged_time: {
+      total_seconds: m.segundos,
+      billable_seconds: facturable,
+      billed_seconds: facturado,
+      unbilled_seconds: facturable - facturado,
+      billable_amount: Math.round(facturable / 36) / 100 * 25,
+      billed_amount: Math.round(facturado / 36) / 100 * 25,
+      unbilled_amount: Math.round((facturable - facturado) / 36) / 100 * 25,
+      muestra_finanzas: espacio.billing_type !== 1
+    },
+    expenses: { total: 0, billable: 0, billed: 0, unbilled: 0 },
+    estimated_hours: espacio.estimated_hours,
+    estimated_hours_excedidas: m.segundos / 3600 > (espacio.estimated_hours ?? 0),
+    currency: { id: 1, symbol: '$', name: 'CLP' }
+  }
+}
+
+/**
+ * `GET /portal/projects/{id}/overview`: el mismo resumen, podado.
+ *
+ * `logged_time` solo con `view_task_total_logged_time`, `finance` solo con `view_finance_overview` y
+ * `tasks` solo con la pestaña Tareas encendida: **la clave no viaja**, no viaja en cero. Es lo que
+ * deja al frontend distinguir "no corresponde" de "no hay".
+ */
+function overviewParaContacto (espacio, compartido, pestanias) {
+  const m = metricasDeEspacio(espacio)
+
+  const resumen = {
+    progress: m.progress,
+    milestones: {
+      total: m.hitos.length,
+      overdue: m.hitos.filter((h) => h.due_date !== null && h.due_date < '2026-09-14').length
+    },
+    days: m.dias
+  }
+
+  // Los contadores de Tareas solo con la pestaña encendida, como `RecursoResumen::paraContacto()`:
+  // sin ella el cliente no puede abrir ninguna de esas filas.
+  if (pestanias.includes('tasks')) {
+    resumen.tasks = {
+      ...m.tasks,
+      by_status: ESTADOS_PROCESO.map((estado) => ({
+        status: estado.id,
+        name: estado.name,
+        color: estado.color,
+        order: estado.order,
+        total: PROCESOS.filter((p) => p.rel_type === 'project' && p.rel_id === espacio.id && p.status === estado.id).length
+      }))
+    }
+  }
+
+  if (compartido.tiempo) {
+    resumen.logged_time = {
+      total_seconds: m.segundos,
+      duration_hm: comoHm(m.segundos),
+      estimated_hours_excedidas: m.segundos / 3600 > (espacio.estimated_hours ?? 0)
+    }
+  }
+
+  if (compartido.finanzas) {
+    resumen.finance = {
+      project_cost: espacio.project_cost,
+      estimated_hours: espacio.estimated_hours,
+      currency: { id: 1, symbol: '$', name: 'CLP' }
+    }
+  }
+
+  return resumen
+}
+
+/** `GET /projects/{id}/overview/chart`: horas por dia, apiladas por persona. */
+function graficoDeEspacio (espacioId, periodo) {
+  const etiquetas = ['lun', 'mar', 'mié', 'jue', 'vie', 'sáb', 'dom']
+  const horas = horasDeEspacio(espacioId)
+
+  return {
+    periodo,
+    etiquetas,
+    series: STAFF.slice(0, 2).map((persona, indice) => ({
+      clave: `staff-${persona.id}`,
+      nombre: persona.full_name,
+      valores: etiquetas.map((_, dia) => Math.round(
+        horas
+          .filter((r) => r.staff.id === persona.id && (dia + indice) % 3 !== 2)
+          .reduce((suma, r) => suma + r.duration_seconds, 0) / 3600 / etiquetas.length * 100
+      ) / 100)
+    }))
+  }
+}
+
+/**
+ * Hitos que el equipo escondio al cliente (`hide_from_customer` de `tblmilestones`).
+ *
+ * Los dos del proyecto 8, para tener el caso "proyecto sin hitos" del lado del cliente sin sacarle
+ * los hitos al panel: es la misma fila vista desde los dos lados, que es justo lo que hay que poder
+ * mirar.
+ */
+const HITOS_OCULTOS_AL_CLIENTE = [15, 16]
+
+/**
+ * Un hito con la forma del contrato (`RecursoHitos::presentarHitos()`).
+ *
+ * **Una sola presentacion para los dos sujetos**, como en la API: el panel y el portal leen la misma
+ * tarjeta, y lo unico que cambia es que al contacto la descripcion le llega en `null` mientras el
+ * equipo no la haya marcado compartible. Sin esto el listado del equipo devolvia la fila cruda
+ * —`milestone_order`, `datecreated`, sin `counts`— y la tabla de Hitos del panel no se podia dibujar.
+ *
+ * @param {object} hito la fila cruda de `HITOS`
+ * @param {boolean} paraContacto si la descripcion se recorta por `description_visible_to_customer`
+ */
+function presentarHito (hito, paraContacto) {
+  const suyas = PROCESOS.filter((p) => p.rel_type === 'project' && p.rel_id === hito.project_id && (p.milestone?.id ?? null) === hito.id)
+  const compartida = hito.description_visible_to_customer === true
+
+  return {
+    id: hito.id,
+    name: hito.name,
+    description: paraContacto && !compartida ? null : hito.description,
+    description_visible_to_customer: compartida,
+    hide_from_customer: HITOS_OCULTOS_AL_CLIENTE.includes(hito.id),
+    start_date: hito.start_date,
+    due_date: hito.due_date,
+    project_id: hito.project_id,
+    color: hito.color,
+    order: hito.milestone_order,
+    date_created: hito.datecreated,
+    counts: { tasks: suyas.length, tasks_done: suyas.filter((t) => t.status === 5).length },
+    total_logged_seconds: 0,
+    vencido: hito.due_date !== null && hito.due_date < '2026-09-11'
+  }
+}
+
+/**
+ * Que comparte cada Proyecto con su cliente.
+ *
+ * En la API real esto son dos cosas distintas de `tblproject_settings`: las claves de
+ * `available_features`, que deciden que pestaña existe, y los `view_*`, que deciden que bloques del
+ * detalle de una Tarea viajan. Aca se declaran juntas y **por proyecto**, porque lo que hace falta
+ * para verificar es tener los dos lados de cada interruptor a mano:
+ *
+ *  - el **1** comparte todo lo que el portal sabe dibujar: es donde se mira la paridad completa con
+ *    las pestañas del colaborador —tabla, tablero, calendario, ficha de una Tarea, resumen, hitos,
+ *    horas, discusiones, Gantt y actividad—;
+ *  - el **8** tiene Tareas, Calendario, Horas y Gantt **apagados** y todos los flags en 0: es el
+ *    caso de "pestaña sin habilitar", que sin una fila asi nunca se distingue de un panel roto. Sus
+ *    dos hitos estan ocultos al cliente y no tiene ninguna discusion, asi que es tambien el caso de
+ *    "pestaña encendida y vacia", que se lee distinto y hay que poder ver.
+ *
+ * `actas` no esta en ninguna de las dos listas y no es un olvido: no vive en `available_features`
+ * sino en su propio interruptor por proyecto (`AJUSTES_DEL_PORTAL`), que se enciende y se apaga
+ * desde el panel. `tickets` tampoco esta: es del modulo de soporte y no del Proyecto.
+ */
+const COMPARTIDO_CON_EL_CLIENTE = {
+  1: {
+    tabs: [
+      'overview', 'tasks', 'timesheets', 'milestones', 'files', 'discussions', 'gantt', 'calendar',
+      'activity'
+    ],
+    comentarios: true,
+    checklist: true,
+    adjuntos: true,
+    tiempo: true,
+    finanzas: true
+  },
+  8: {
+    tabs: ['overview', 'milestones', 'files', 'discussions', 'activity'],
+    comentarios: false,
+    checklist: false,
+    adjuntos: false,
+    tiempo: false,
+    finanzas: false
+  },
+  defecto: {
+    tabs: ['overview', 'tasks', 'milestones', 'files', 'calendar', 'activity'],
+    comentarios: true,
+    checklist: false,
+    adjuntos: true,
+    tiempo: false,
+    finanzas: false
+  }
+}
+
+/**
+ * Los interruptores del portal por Espacio, **mutables**: es lo que escribe
+ * `PUT /projects/{id}/portal-settings`.
+ *
+ * En la API real son filas de `tblproject_settings` y la migracion `0570` los dejo en '0' para los
+ * 279 proyectos. Aca el 1 arranca encendido para poder mirar el Meeting Paper del cliente sin tener
+ * que prenderlo primero, y el 8 apagado, que es el caso "la pestaña no aparece". Los dos lados del
+ * interruptor a mano, igual que el resto del fixture del portal.
+ */
+const AJUSTES_DEL_PORTAL = new Map([[1, true]])
+
+/**
+ * El bloque de interruptores de un Espacio.
+ *
+ * La fila ausente vale `false`, igual que la lee `VisibilidadContacto::ajustes()`: asi un Espacio que
+ * nunca paso por la migracion se comporta como uno apagado y no como uno roto.
+ */
+function ajustesDelPortal (espacioId) {
+  return { wiwo_portal_actas: AJUSTES_DEL_PORTAL.get(espacioId) === true }
+}
+
+/**
+ * Las pestañas que un Espacio comparte hoy con su cliente.
+ *
+ * `actas` no sale de la lista fija: cuelga del interruptor, asi que aparece y desaparece de verdad
+ * cuando el panel lo toca. Es la misma regla de `VisibilidadContacto::PESTANIAS`, donde la pestaña
+ * exige la feature `project_notes` **y** el flag propio `wiwo_portal_actas`.
+ */
+function pestaniasDelContacto (espacioId, compartido) {
+  return ajustesDelPortal(espacioId).wiwo_portal_actas ? [...compartido.tabs, 'actas'] : compartido.tabs
+}
+
+/**
+ * Lee un booleano tolerando lo que manda un formulario, igual que `AjustesDelPortal::comoBooleano()`.
+ *
+ * `null` es "esto no es un booleano" y el llamador responde 422: `(Boolean) "no"` seria `true`, y una
+ * casilla que se enciende cuando le mandan "no" es peor que un error.
+ */
+function booleanoDelPortal (valor) {
+  if (typeof valor === 'boolean') return valor
+  if (valor === 0 || valor === 1) return valor === 1
+  if (['0', '1', 'true', 'false'].includes(valor)) return valor === '1' || valor === 'true'
+
+  return null
+}
+
+/**
+ * La whitelist de los Hitos del portal: `RecursoHitos::consultaDeContacto()`.
+ *
+ * Se aplica sobre la fila **ya presentada**, que es la que el contacto recibe: el contrato del hito
+ * no esconde ninguna columna ordenable detras de otro nombre.
+ *
+ * Sin `description` ni `hide_from_customer`, como la whitelist de la API: el primero cae sobre la
+ * columna cruda y serviria para reconstruir por respuestas las descripciones que el equipo decidio
+ * no compartir; el segundo vale siempre 0 para el contacto.
+ */
+const CONSULTA_HITOS_PORTAL = {
+  filtros: {
+    id: campoFiltrable((h) => h.id, 'numero'),
+    name: campoFiltrable((h) => h.name),
+    start_date: campoFiltrable((h) => h.start_date, 'fecha'),
+    due_date: campoFiltrable((h) => h.due_date, 'fecha'),
+    date_created: campoFiltrable((h) => h.date_created, 'fecha'),
+    order: campoFiltrable((h) => h.order, 'numero'),
+    color: campoFiltrable((h) => h.color),
+    avance: campoFiltrable(
+      (h) => (h.counts.tasks === 0 ? 0 : Math.round((100 * h.counts.tasks_done) / h.counts.tasks)),
+      'numero'
+    ),
+    date_from: (h, v) => h.due_date >= v,
+    date_to: (h, v) => h.due_date <= v
+  },
+  orden: ['name', 'start_date', 'due_date', 'order'],
+  busqueda: ['name']
+}
+
+/**
+ * La whitelist del listado de Procesos del portal.
+ *
+ * Se aplica sobre las filas **en crudo** y no sobre las ya presentadas: el orden por defecto de la
+ * tabla es `completed,-date_added`, y `date_added` no viaja al cliente. Ordenar por una columna que
+ * no se publica es justamente lo que hace la API, y filtrar primero es la unica forma de
+ * reproducirlo.
+ */
+const CONSULTA_TAREAS_PORTAL = {
+  filtros: {
+    status: coincideEnLista((p) => p.status),
+    // `aprobacion` lo pide la pagina del proyecto para el bloque de visto bueno. Sin el, el mock
+    // respondia 422 y el bloque no se dibujaba nunca: quedaba sin ejercitar.
+    aprobacion: (p, v) => (p.aprobacion?.estado ?? null) === v
+  },
+  orden: ['name', 'due_date', 'status', 'completed', 'date_added'],
+  // `completed` no es una columna de `tbltasks`: en la API es un CASE sobre `status`.
+  derivadas: { completed: (p) => (p.status === 5 ? 1 : 0) },
+  busqueda: ['name']
+}
+
+/**
+ * El tablero de Procesos de un Proyecto: una columna por estado, con sus tarjetas.
+ *
+ * **Uno solo para los dos sujetos**, que es lo que permite que el cliente abra el mismo tablero que
+ * el equipo: lo que cambia es la whitelist de la consulta y como se presenta cada tarjeta. La columna
+ * "Completo" solo aparece cuando se filtro por estado, en los dos: un tablero que arranca mostrando
+ * lo terminado empuja lo pendiente fuera de la pantalla.
+ *
+ * @param {object[]} tareas Los Procesos del Proyecto, en crudo.
+ * @param {URLSearchParams} parametros Query de la peticion.
+ * @param {(proceso: object) => object} presentar Como sale cada tarjeta para ese sujeto.
+ * @param {object} consulta Whitelist de filtros, orden y busqueda de ese sujeto.
+ * @returns {object[]} Un grupo por estado.
+ */
+function tableroDeProcesos (tareas, parametros, presentar, consulta = CONSULTA_PROCESOS) {
+  const filtradoPorEstado = parametros.get('filter[status]')?.trim()
+  const columnas = ESTADOS_PROCESO
+    .filter((estado) => filtradoPorEstado || estado.id !== 5)
+    .sort((a, b) => a.order - b.order)
+
+  return columnas.map((columna) => {
+    const parametrosColumna = new URLSearchParams(parametros)
+    parametrosColumna.set('filter[status]', String(columna.id))
+
+    const { filas, paginacion } = aplicarConsulta(tareas, parametrosColumna, consulta)
+
+    return {
+      columna: { id: columna.id, name: columna.name, color: columna.color, order: columna.order },
+      tarjetas: filas.map(presentar),
+      pagination: paginacion
+    }
+  })
+}
+
+/**
+ * La ficha de un Proceso tal como la ve un contacto.
+ *
+ * Cada bloque viaja **solo si el Proyecto lo comparte**, y cuando no, la clave **no existe**: el
+ * frontend distingue por `undefined`, que significa "no corresponde" y no "esta vacio". Mandarlos en
+ * `null` o en `[]` haria que la ficha dibujara una seccion vacia por cada cosa que el equipo
+ * decidio no compartir.
+ *
+ * Nunca viajan: asignados, seguidores, tarifa, horas estimadas, etiquetas, campos personalizados ni
+ * el ETA y la desviacion, que miden al equipo contra su propio compromiso interno.
+ *
+ * @param {object} proceso El Proceso en crudo.
+ * @param {{comentarios: boolean, checklist: boolean, adjuntos: boolean, tiempo: boolean}} compartido
+ *        Los flags del Proyecto.
+ * @returns {object} La ficha, en la forma del contrato.
+ */
+function presentarFichaPortal (proceso, compartido) {
+  const segundos = CRONOMETROS
+    .filter((t) => t.task_id === proceso.id)
+    .reduce((total, t) => total + Math.max(0, (Date.parse(t.end_time ?? new Date().toISOString()) - Date.parse(t.start_time)) / 1000), 0)
+
+  return {
+    id: proceso.id,
+    patente: proceso.patente,
+    name: proceso.name,
+    description: proceso.description ?? null,
+    status: proceso.status,
+    priority: proceso.priority,
+    start_date: proceso.start_date ?? null,
+    due_date: proceso.due_date ?? null,
+    date_finished: proceso.date_finished ?? null,
+    date_added: proceso.date_added ?? null,
+    // Como objeto y no como el id que manda el listado: la ficha muestra el nombre del Hito, y un
+    // numero suelto no se puede resolver del lado del cliente.
+    milestone: proceso.milestone ?? null,
+    project: proceso.project ?? null,
+    task_type: proceso.task_type ?? null,
+    // Los contadores viajan SIEMPRE, aunque el bloque que cuentan no: el contrato los declara asi, y
+    // es lo que deja al cliente saber que hay tres adjuntos aunque este proyecto no se los comparta.
+    counts: {
+      comments: comentariosDeTarea(proceso.id).length,
+      attachments: ARCHIVOS.filter((a) => a.rel_type === 'task' && a.rel_id === proceso.id).length,
+      checklist: CHECKLIST.filter((i) => i.task_id === proceso.id).length,
+      checklist_done: CHECKLIST.filter((i) => i.task_id === proceso.id && i.finished).length
+    },
+    ...(proceso.aprobacion === undefined ? {} : {
+      approval: {
+        requerida: proceso.aprobacion.requerida,
+        estado: proceso.aprobacion.estado,
+        solicitada_en: proceso.aprobacion.solicitada_en ?? null,
+        resuelta_en: proceso.aprobacion.resuelta_en ?? null,
+        comentario: proceso.aprobacion.comentario ?? null
+      }
+    }),
+    // La MISMA forma que emite `GET /tasks/{id}/comments` al panel: `staff` o `contact`, nunca un
+    // `author` ya resuelto. Una segunda forma solo para el portal seria el `if (esPortal)` que la
+    // ficha compartida evita, y es lo que hacia que el cliente leyera "Sin autor" y sin fecha.
+    ...(compartido.comentarios ? { comments: comentariosDeTarea(proceso.id) } : {}),
+    ...(compartido.checklist
+      ? {
+          checklist: CHECKLIST
+            .filter((item) => item.task_id === proceso.id)
+            .map((item) => ({ id: item.id, description: item.description, finished: item.finished }))
+        }
+      : {}),
+    ...(compartido.adjuntos
+      ? {
+          attachments: ARCHIVOS
+            .filter((a) => a.rel_type === 'task' && a.rel_id === proceso.id)
+            .map((a) => ({ id: a.id, file_name: a.file_name, subject: a.subject ?? null, url: a.url }))
+        }
+      : {}),
+    ...(compartido.tiempo
+      ? { total_logged_seconds: Math.round(segundos), duration_hm: formatearHm(segundos) }
+      : {})
+  }
+}
+
+/**
+ * Segundos como `h:mm`, que es lo que el backend ya manda formateado.
+ *
+ * @param {number} segundos
+ * @returns {string}
+ */
+function formatearHm (segundos) {
+  const horas = Math.floor(segundos / 3600)
+  const minutos = Math.round((segundos % 3600) / 60)
+
+  return `${horas}:${String(minutos).padStart(2, '0')}`
 }
 
 function seccionesDelPortal (contacto) {

@@ -4492,6 +4492,185 @@ editor y entonces Thinking Orb citaria una version que ya nadie ve.
 Respeta el borrado blando y los permisos de ver el Espacio: la herramienta no tiene SQL propio, pasa
 por `RecursoActas`.
 
+### Rama `feat/portal-paridad`
+
+Cinco rutas nuevas bajo `/portal/projects/{id}` y un endpoint de **staff** para el interruptor que
+decide qué ve el cliente. El objetivo: que el portal sirva las mismas lecturas que el panel para que
+las dos pantallas puedan montar **el mismo componente**, en vez de dos copias que se desincronizan.
+
+Todo lo de `/portal/*` sigue siendo **sólo `GET`**, sin subrecursos y sin `?include=` (`422`): las
+presentaciones del portal son fijas. Un `POST|PUT|PATCH|DELETE` sobre cualquiera de estas cinco rutas
+es `404`, no `405`. Sin token, `401`.
+
+#### `GET /portal/projects/{id}` — campos nuevos
+
+Suma `image_url` y `project_created`. `tabs` ahora puede traer `calendar` y `actas`.
+
+Cada pestaña sale de `tblproject_settings` y no de una lista fija: `calendar` exige lo mismo que
+`tasks` —un cliente que ve el calendario de tareas que no puede listar es un estado absurdo— y
+`actas` exige la feature `project_notes` **más** el flag propio `wiwo_portal_actas`.
+
+#### `GET /portal/projects/{id}/overview`
+
+```json
+{ "progress": 62,
+  "tasks": { "total": 71, "open": 4, "completed": 67, "completed_percent": 94,
+             "by_status": [ { "status": 1, "name": "Por iniciar", "color": "#64748b", "order": 1, "total": 0 } ] },
+  "milestones": { "total": 6, "overdue": 1 },
+  "days": { "total": 196, "left": 12, "left_percent": 6 },
+  "logged_time": { "total_seconds": 154800, "duration_hm": "43:00", "estimated_hours_excedidas": false },
+  "finance": { "project_cost": 4200000, "estimated_hours": 120, "currency": "CLP" } }
+```
+
+| Clave | Cuándo viaja |
+|---|---|
+| `tasks` | sólo con la pestaña `tasks` compartida (`view_tasks` + la feature) |
+| `logged_time` | sólo con `view_task_total_logged_time` |
+| `finance` | sólo con `view_finance_overview` |
+| `estimated_hours_excedidas` | exige **las dos** |
+| `days` | `null` cuando el proyecto no tiene las dos fechas |
+
+Sin la pestaña `tasks` el cliente no puede abrir ninguna de esas filas: contarle "9 / 9 abiertas"
+sería describirle en números una lista que la pantalla le niega, y el porcentaje completado de esas
+tareas contradice al avance del Espacio que el mismo resumen publica en `progress`.
+
+`by_status` trae **siempre los 6 estados**, incluidos los que están en cero: una columna que
+desaparece por no tener tareas hace que el gráfico cambie de forma entre dos proyectos.
+
+**`overview.tasks.total` cuenta sólo las tareas visibles al cliente**, y por eso puede diferir de
+`counts.tasks` del detalle del proyecto, que es preexistente y las cuenta todas (71 contra 72 en el
+proyecto 4). Un total que incluya las escondidas le dice al cliente, en forma de número, cuántas se
+le están escondiendo. **Para el cliente manda el de `overview`**, y el total de horas va filtrado por
+el mismo criterio.
+
+#### `GET /portal/projects/{id}/tasks/{tareaId}`
+
+Exige la pestaña `tasks`. Siempre trae:
+
+```json
+{ "id": 509, "patente": "PR-509", "name": "Diseño de la home", "description": "…",
+  "status": 2, "priority": 3, "start_date": "2026-08-01", "due_date": "2026-09-30",
+  "date_added": "2026-07-28 10:00:00", "date_finished": null,
+  "milestone": { "id": 4, "name": "Etapa 1" }, "project": { "id": 1, "name": "Rediseño de marca" },
+  "task_type": "Diseño",
+  "counts": { "comments": 2, "attachments": 1, "checklist": 4, "checklist_done": 3 },
+  "approval": { "requerida": true, "estado": "pendiente", "solicitada_en": "2026-09-01 09:00:00",
+                "resuelta_en": null, "comentario": "" } }
+```
+
+Y **ausentes —no `null`—** cuando su flag está en 0:
+
+| Clave | Flag |
+|---|---|
+| `comments` | `view_task_comments` |
+| `checklist` | `view_task_checklist_items` |
+| `attachments` | `view_task_attachments`, y sólo los `visible_to_customer = 1` |
+| `total_logged_seconds` + `duration_hm` | `view_task_total_logged_time` |
+
+Las horas van **en la raíz** y no dentro de un objeto, para que la ficha lea la misma clave que la
+fila del listado. La pestaña se exige **antes** que el id: un `404` no puede confirmar que la tarea
+existe.
+
+Los comentarios emiten `staff` y `contact` —`{ "id": 306, "task_id": 509, "parent_id": null,
+"content": "…", "date_added": "…", "staff": { … } | null, "contact": { … } | null }`—, y el cambio es
+**aditivo también en el endpoint del panel**: quién firma es el dato, y con los dos en `null` el autor
+no se inventa.
+
+`GET /portal/projects/{id}/tasks?vista=tablero` devuelve el listado agrupado por estado
+(`{ columna, tarjetas, pagination }`), la misma forma que el tablero del panel. El listado del portal
+**no publica `tags`**: las etiquetas son vocabulario interno.
+
+#### `GET /portal/projects/{id}/calendar`
+
+Exige la pestaña `calendar`. **Misma forma de fila, paginación y filtros que `/tasks`**, descartando
+las tareas que no tienen ni `duedate` ni `startdate`. Es ruta propia porque la pestaña se habilita
+aparte, aunque reúse las condiciones de visibilidad de las tareas. No acepta `?vista=tablero`: su
+vista es una cuadrícula de días.
+
+#### `GET /portal/projects/{id}/milestones`
+
+Exige la pestaña `milestones`. **Colección entera, sin paginar** —igual que la del equipo: un
+proyecto tiene decenas de hitos, no miles— y acepta **búsqueda, orden y filtros** contra la misma
+whitelist que `GET /projects/{id}/milestones`, menos dos:
+
+| Filtro | Por qué no lo acepta el contacto |
+|---|---|
+| `description` | cae sobre la columna cruda: con él, un cliente puede reconstruir por respuestas las descripciones que el equipo decidió no compartirle |
+| `hide_from_customer` | para el contacto vale siempre `0`; los hitos escondidos no llegan a la colección |
+
+`description` viaja **siempre como clave** y en `null` cuando el hito no tiene
+`description_visible_to_customer`: es una decisión por hito y no por proyecto.
+
+#### `GET /portal/projects/{id}/actas` — el Meeting Paper del cliente
+
+Exige la pestaña `actas`. Colección, con el mismo orden, búsqueda y paginación que la del equipo
+—es la misma consulta—, y sin el HTML:
+
+```json
+{ "data": [ { "id": 901, "project_id": 1, "title": "Kickoff del rediseño", "client": "Acme SpA",
+              "meeting_date": "2026-08-20", "place": "Oficina de Acme", "modality": "presencial",
+              "attendees": ["Ana Pérez", "Renata Ferreyra"], "brand": "wiwo",
+              "brand_sign_url": "https://…/firmawiwo.jpg",
+              "author": { "id": 1, "full_name": "Ana Ríos", "profile_image_url": null },
+              "date_added": "2026-08-20 18:04:00", "date_updated": "2026-08-20 18:04:00" } ],
+  "meta": { "pagination": { "page": 1, "per_page": 25, "total": 2, "total_pages": 1 } } }
+```
+
+**No viajan `source`, `staff_id` ni `updated_by`**: cómo se escribió el acta y quién la tocó es
+asunto del equipo. Ordenables: `title`, `meeting_date`, `date_added` (por defecto `-date_added`); la
+búsqueda pega contra el título y el cliente.
+
+#### `GET /portal/projects/{id}/actas/{actaId}`
+
+Lo anterior más `project_name`, `content` (el HTML ya saneado), `structure`
+(`{ sections, agreements, commitments }`) y `attachments`:
+
+```json
+{ "attachments": [ { "id": 7001, "acta_id": 901, "name": "reunion-kickoff.m4a",
+                     "filetype": "audio/mp4", "size": 8412000,
+                     "url": "/api/v1/files/acta/7001/download",
+                     "date_added": "2026-08-20 18:04:00" } ] }
+```
+
+El adjunto del portal **no trae `file_name`** —el nombre en disco— ni `staff_id`. Un acta de otro
+proyecto, o inexistente, es `404`.
+
+**La `url` de descarga es la misma para los dos sujetos**: no existe `/portal/files/…`. Hasta esta
+rama `Descargas` devolvía `false` fijo para el tipo `acta`, así que la ficha publicaba una `url` que
+el propio cliente no podía abrir. La regla nueva para un contacto es: pestaña `actas` encendida y
+acta viva de un Espacio de su cliente.
+
+#### `GET|PUT /projects/{id}/portal-settings` — **staff**
+
+El interruptor con el que el equipo decide qué ve el cliente. Cuelga de `/projects/{id}` y no del
+portal a propósito: si el cliente pudiera encender su propia pestaña, el interruptor no sería un
+interruptor. Un token de contacto es `401`.
+
+```json
+{ "data": { "wiwo_portal_actas": false } }
+```
+
+Es un `PUT` y no un `PATCH` porque el bloque es una lista cerrada de casillas y se guarda entero.
+
+| Caso | Respuesta |
+|---|---|
+| `true/false`, `1/0`, `"1"/"0"`, `"true"/"false"` | `200` con el estado ya guardado |
+| Clave ausente | `422` `{ "wiwo_portal_actas": ["required"] }` |
+| Clave desconocida | `422` `{ "<clave>": ["desconocida"] }` |
+| Valor que no es booleano | `422` `{ "wiwo_portal_actas": ["boolean"] }` |
+| Cualquier otro verbo | `404` |
+
+Leer pide `projects.view`; escribir pide `projects.edit` —ser miembro abre ver, nunca escribir— y el
+Espacio no puede estar archivado. El valor se guarda como `'0'`/`'1'`, como el resto de las claves de
+`tblproject_settings`: `'true'` se leería como 0 y la pestaña quedaría apagada sin error visible.
+Encender o apagar **queda anotado en la actividad** con nombre y fecha; guardar el mismo valor que ya
+estaba no se anota, porque no es una decisión.
+
+**El flag nace en `'0'` para los 279 proyectos** (migración `0570_portal_actas_por_proyecto.sql`,
+idempotente) y no se enciende solo: un Meeting Paper puede tener conversación interna del equipo, y
+la feature `project_notes` está en 1 en casi todos los proyectos, así que colgar la pestaña sólo de
+ella habría publicado todas las actas de golpe.
+
 ## Jerarquías del equipo
 
 El árbol de dependencias: `tblareas` (`area_superior_id`, `jefe_staffid`) más `tblstaff.area_id`. No
@@ -5587,6 +5766,13 @@ sí aporta es rechazar un código con forma inválida, porque es el error que la
 - **Un solo cronómetro activo** (`tasks/504`): el caso que pinta la barra superior.
 - **Procesos sin fecha** y orden con nulos: van al final en las dos direcciones.
 - **Un campo personalizado `only_admin`** en `projects`: visible para `ana`, invisible para `carla`.
+- **Los dos lados de cada interruptor del portal**: el proyecto 1 comparte todo lo que el portal sabe
+  dibujar y el 8 tiene Tareas, Calendario, Horas y Gantt apagados, sin hitos visibles y sin
+  discusiones — o sea "pestaña sin habilitar" y "pestaña encendida y vacía", que se leen distinto.
+- **Dos Meeting Papers en el proyecto 1**, uno con adjuntos y otro sin: el portal es de sólo lectura,
+  así que sin actas escritas de antemano la pestaña sólo se puede mirar vacía. El flag
+  `wiwo_portal_actas` arranca encendido en el 1 y apagado en el 8, y `PUT /projects/{id}/portal-settings`
+  lo mueve de verdad: la pestaña del cliente aparece y desaparece.
 
 ### Lo que el mock no hace
 

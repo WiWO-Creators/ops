@@ -1,4 +1,4 @@
-import type { AccionRecurso, Columna, EstadoConsulta, Filtro, OpcionFiltro } from '@/definiciones/tipos'
+import type { AccionRecurso, Columna, DefinicionRecurso, EstadoConsulta, Filtro, OpcionFiltro } from '@/definiciones/tipos'
 import type { Capacidad, SobreError } from '@/datos/tipos'
 
 /**
@@ -356,4 +356,35 @@ export function dependenciaPendiente (
   if (requerido === undefined) return null
 
   return (filtros[requerido.clave] ?? []).some((valor) => valor !== '') ? null : requerido
+}
+
+/**
+ * La definicion sin las columnas `omitirSiVacia` que no tienen contenido en ninguna fila.
+ *
+ * Un encabezado sobre una columna de celdas en blanco dice que hay un dato y no lo hay. Es la misma
+ * regla que gobierna el resto de la pantalla —clave ausente, bloque no dibujado—, aplicada donde la
+ * clave llega igual pero vacia: la descripcion de un Hito viaja en `null` mientras el equipo no la
+ * comparta, asi que la columna solo existe si alguien compartio alguna.
+ *
+ * Se mira el valor crudo de la fila y no lo que devuelve `presentar`, que es JSX y no se puede medir.
+ * Por eso solo se marca en columnas cuya `clave` es la del campo de la API.
+ *
+ * @param definicion la definicion del recurso
+ * @param filas las filas que se cargaron
+ * @returns la definicion sin esas columnas, o la misma si ninguna sobra
+ */
+export function sinColumnasVacias<T> (definicion: DefinicionRecurso<T>, filas: T[]): DefinicionRecurso<T> {
+  if (!definicion.columnas.some((columna) => columna.omitirSiVacia === true)) return definicion
+
+  const columnas = definicion.columnas.filter((columna) => {
+    if (columna.omitirSiVacia !== true) return true
+
+    return filas.some((fila) => {
+      const valor = (fila as Record<string, unknown>)[columna.clave]
+
+      return valor !== null && valor !== undefined && valor !== ''
+    })
+  })
+
+  return { ...definicion, columnas }
 }

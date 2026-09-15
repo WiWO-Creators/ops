@@ -9,6 +9,7 @@ import { Cargando, ErrorEstado } from '@/componentes/estado/Estados'
 import { LimiteDeError } from '@/componentes/estado/LimiteDeError'
 import { BloqueCopiable } from '@/componentes/presentadores/BloqueCopiable'
 import { ACTAS } from '@/definiciones/actas'
+import { conId, type FuenteDeProyecto } from '@/dominio/fuente-proyecto'
 import { useRecurso } from './carga'
 import { AsistenteDeActa } from './AsistenteDeActa'
 import { DetalleActa } from './DetalleActa'
@@ -16,7 +17,7 @@ import { PanelRecurso } from './PanelRecurso'
 import { EnlaceActa, TarjetaActa } from './TarjetaActa'
 import type { Acta } from '@/datos/recursos'
 import type { EstadoIa } from '@/dominio/ajustes'
-import type { Yo } from '@/datos/tipos'
+import type { Capacidad, Yo } from '@/datos/tipos'
 import type { DefinicionRecurso } from '@/definiciones/tipos'
 
 /**
@@ -33,6 +34,19 @@ import type { DefinicionRecurso } from '@/definiciones/tipos'
  * abre el asistente. Así se comparte por enlace, "atrás" hace lo que la persona espera, y el título
  * de la lista puede ser un enlace de verdad en vez de un `onClick`.
  *
+ * === LA MISMA PESTAÑA LA ABRE EL CLIENTE ===
+ *
+ * Con `fuente={fuenteDelPortal(id)}` y `capacidades={[]}` este panel es el Meeting Paper del portal,
+ * en solo lectura: sin alta, sin asistente, sin corregir, sin borrar y sin cambiar la marca. No hay
+ * ninguna rama por sujeto acá adentro —lo que cambia son las rutas y las capacidades—, y la lista y
+ * el documento son los mismos que ve el equipo. Ver `dominio/fuente-proyecto.ts`.
+ *
+ * `ia` y `yo` son **opcionales por eso**: los dos solo gobiernan escrituras —`ia` decide si el alta
+ * genera o explica por qué no puede, `yo` decide si se ofrece borrar—, así que sin capacidades no se
+ * leen. El portal no puede pasarlos aunque quisiera: `GET /settings` y `GET /me` son rutas del
+ * equipo, y un contacto no las tiene. Inventar un valor para cumplir con la firma habría sido
+ * escribir dos veces la misma decisión.
+ *
  * **La pestaña se muestra aunque la capa de IA esté apagada.** Diverge del criterio de la pestaña del
  * asistente, y a propósito: el CRUD de actas no cuelga de `/ia/*`, así que sigue respondiendo con el
  * interruptor en cero. Esconder la pestaña dejaría inalcanzables las actas ya escritas por mover un
@@ -41,15 +55,22 @@ import type { DefinicionRecurso } from '@/definiciones/tipos'
 
 interface PropsPanelActas {
   proyectoId: number
+  /** De donde bajan los Meeting Papers de este Proyecto. Ver `dominio/fuente-proyecto.ts`. */
+  fuente: FuenteDeProyecto
+  /**
+   * Qué se puede escribir en esta pestaña: `create` el alta, `edit` corregir y cambiar la marca,
+   * `delete` eliminar. Con `[]` el panel queda en solo lectura, que es como lo monta el portal.
+   */
+  capacidades: Capacidad[]
   /**
    * Estado de la capa de IA. Sin ella se puede leer y corregir, pero no generar ni reescribir.
    *
-   * Llega con el motivo y no como booleano porque la pantalla lo dice en voz alta: ver
-   * `MOTIVO_IA`.
+   * Llega con el motivo y no como booleano porque la pantalla lo dice en voz alta: ver `MOTIVO_IA`.
+   * Solo se lee con capacidad de escritura; ausente vale "no hay IA".
    */
-  ia: EstadoIa
-  /** Para saber si esta persona puede borrar un acta ajena. */
-  yo: Yo
+  ia?: EstadoIa
+  /** Para saber si esta persona puede borrar un acta ajena. Solo se lee con capacidad `delete`. */
+  yo?: Yo
 }
 
 /**
@@ -83,6 +104,9 @@ const MOTIVO_IA: Record<EstadoIa['motivo'], { chip: string, titulo: string, ayud
   }
 }
 
+/** Lo que dice el estado de la IA cuando nadie lo pasó: sin capacidad de escritura no se consulta. */
+const SIN_IA: EstadoIa = { activa: false, motivo: 'apagada' }
+
 export function PanelActas (props: PropsPanelActas): ReactElement {
   // Lee `useSearchParams`: sin este límite de Suspense falla el build de la página que lo monta.
   return (
@@ -92,7 +116,7 @@ export function PanelActas (props: PropsPanelActas): ReactElement {
   )
 }
 
-function ActasDelProyecto ({ proyectoId, ia, yo }: PropsPanelActas): ReactElement {
+function ActasDelProyecto ({ proyectoId, fuente, capacidades, ia = SIN_IA, yo }: PropsPanelActas): ReactElement {
   const router = useRouter()
   const params = useSearchParams()
   const [revision, setRevision] = useState(0)
@@ -100,6 +124,8 @@ function ActasDelProyecto ({ proyectoId, ia, yo }: PropsPanelActas): ReactElemen
 
   const recargar = useCallback(() => { setRevision((n) => n + 1) }, [])
   const pedida = params.get('acta')
+  const puedeCrear = capacidades.includes('create')
+  const puedeEditar = capacidades.includes('edit')
 
   /** Escribe `?acta` conservando el resto de la vista; `null` la saca. */
   const ir = useCallback((valor: string | null) => {
@@ -114,18 +140,22 @@ function ActasDelProyecto ({ proyectoId, ia, yo }: PropsPanelActas): ReactElemen
     () => ({
       ...ACTAS,
       // Se acota por ruta y no por filtro, igual que el resto de las pestañas: así el id del
-      // Proyecto no queda editable en la URL de quien mira.
-      ruta: `projects/${encodeURIComponent(String(proyectoId))}/actas`,
+      // Proyecto no queda editable en la URL de quien mira. La ruta la pone la fuente, que es lo
+      // único que separa la lista del equipo de la del cliente: las dos columnas, el orden y la
+      // búsqueda son las mismas porque `listarParaContacto()` usa la misma consulta.
+      ruta: fuente.actas,
       columnas: ACTAS.columnas.map((columna) => (
         columna.clave === 'title'
           ? { ...columna, presentar: (a: Acta) => <EnlaceActa acta={a} /> }
           : columna
       ))
     }),
-    [proyectoId]
+    [fuente.actas]
   )
 
-  if (pedida === 'nuevo') {
+  // La URL la escribe cualquiera: sin esta guarda, un cliente que escribiera `?acta=nuevo` abriría
+  // el asistente de un alta que su API contesta con 404.
+  if (puedeCrear && pedida === 'nuevo') {
     return (
       <LimiteDeError zona="Meeting Paper — asistente de creación">
         <AsistenteDeActa
@@ -147,8 +177,12 @@ function ActasDelProyecto ({ proyectoId, ia, yo }: PropsPanelActas): ReactElemen
         <ActaAbierta
           actaId={abierta}
           proyectoId={proyectoId}
+          fuente={fuente}
+          puedeEditar={puedeEditar}
+          // Borrar exige la capacidad Y ser el autor o quien administra, que es la misma regla que
+          // aplica la API. Sin `yo` no hay a quién comparar: no se ofrece.
+          puedeBorrar={capacidades.includes('delete') && yo !== undefined ? { yo } : null}
           conIa={ia.activa}
-          yo={yo}
           onCambiada={recargar}
           onBorrada={() => {
             recargar()
@@ -165,25 +199,27 @@ function ActasDelProyecto ({ proyectoId, ia, yo }: PropsPanelActas): ReactElemen
   // El boton no se deshabilita aunque no haya IA. Un boton gris no dice por que lo esta, y quien lo
   // aprieta se queda sin saber si falta un ajuste, si la API se cayo o si el sistema se rompio: el
   // clic abre el motivo, que es lo unico que esa persona puede reportar o arreglar.
-  const barra = (
-    <div className="flex items-center justify-end gap-3">
-      {!ia.activa && <Insignia tono="aviso" tamano="chico">{motivo.chip}</Insignia>}
-      <Boton
-        variante="primario"
-        tamano="chico"
-        onClick={() => {
-          if (ia.activa) ir('nuevo')
-          else setMotivoALaVista(true)
-        }}
-      >
-        {/* El icono va `aria-hidden`: el nombre del boton ya lo dice la etiqueta de al lado, y un
-            `+` anunciado por el lector de pantalla solo agrega ruido. El tamaño y el grosor son los
-            del resto del panel (`BarraLateral`), a escala de boton chico. */}
-        <Plus size={16} strokeWidth={2} aria-hidden="true" className="shrink-0" />
-        Nuevo Meeting Paper
-      </Boton>
-    </div>
-  )
+  const barra = !puedeCrear
+    ? undefined
+    : (
+      <div className="flex items-center justify-end gap-3">
+        {!ia.activa && <Insignia tono="aviso" tamano="chico">{motivo.chip}</Insignia>}
+        <Boton
+          variante="primario"
+          tamano="chico"
+          onClick={() => {
+            if (ia.activa) ir('nuevo')
+            else setMotivoALaVista(true)
+          }}
+        >
+          {/* El icono va `aria-hidden`: el nombre del boton ya lo dice la etiqueta de al lado, y un
+              `+` anunciado por el lector de pantalla solo agrega ruido. El tamaño y el grosor son los
+              del resto del panel (`BarraLateral`), a escala de boton chico. */}
+          <Plus size={16} strokeWidth={2} aria-hidden="true" className="shrink-0" />
+          Nuevo Meeting Paper
+        </Boton>
+      </div>
+      )
 
   return (
     <div className="flex flex-col gap-4">
@@ -203,6 +239,9 @@ function ActasDelProyecto ({ proyectoId, ia, yo }: PropsPanelActas): ReactElemen
         claveFila={(acta) => acta.id}
         barra={barra}
         revision={revision}
+        // El catálogo del equipo con una sesión de contacto devuelve 401: la ruta entra por la
+        // fuente, igual que la del listado.
+        rutaLookups={fuente.lookups}
         tarjeta={(acta) => <TarjetaActa acta={acta} className="w-full" />}
       />
     </div>
@@ -240,22 +279,27 @@ function detalleDelMotivo (proyectoId: number, ia: EstadoIa): string {
 function ActaAbierta ({
   actaId,
   proyectoId,
+  fuente,
+  puedeEditar,
+  puedeBorrar,
   conIa,
-  yo,
   onCambiada,
   onBorrada,
   onVolver
 }: {
   actaId: number
   proyectoId: number
+  fuente: FuenteDeProyecto
+  puedeEditar: boolean
+  /** Quien mira, solo si tiene la capacidad de borrar. `null` = no se ofrece eliminar. */
+  puedeBorrar: { yo: Yo } | null
   conIa: boolean
-  yo: Yo
   onCambiada: () => void
   onBorrada: () => void
   onVolver: () => void
 }): ReactElement {
   const { estado, recargar } = useRecurso<Acta>(
-    `projects/${proyectoId}/actas/${actaId}`,
+    conId(fuente.acta, actaId),
     'No se pudo cargar el Meeting Paper.'
   )
 
@@ -268,9 +312,11 @@ function ActaAbierta ({
     <DetalleActa
       acta={acta}
       proyectoId={proyectoId}
+      fuente={fuente}
+      puedeEditar={puedeEditar}
       // La misma regla que aplica la API: el autor o quien administra. Comprobarlo acá solo evita
       // ofrecer un botón que va a devolver 403; la decisión real la toma el backend.
-      puedeBorrar={acta.staff_id === yo.id || yo.is_admin}
+      puedeBorrar={puedeBorrar !== null && (acta.staff_id === puedeBorrar.yo.id || puedeBorrar.yo.is_admin)}
       conIa={conIa}
       onCambiada={() => {
         recargar()

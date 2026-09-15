@@ -50,6 +50,21 @@ export interface Columna<T> {
   /** La columna arranca oculta y se activa desde el selector de columnas. */
   ocultaPorDefecto?: boolean
   /**
+   * La columna **no se dibuja** si ninguna fila trae contenido en `clave`.
+   *
+   * Para un campo que el contrato manda siempre pero que llega vacio salvo que alguien lo haya
+   * compartido —la descripcion de un Hito viaja en `null` mientras el equipo no marque
+   * `description_visible_to_customer`—. Sin esto la tabla queda con un encabezado y una columna de
+   * celdas en blanco en todas las filas, que es justo lo que "clave ausente = bloque no dibujado"
+   * evita en el resto de la pantalla.
+   *
+   * Se decide con las filas que se cargaron: en las colecciones que viajan enteras —Hitos— eso es
+   * todo el recurso. Donde hay paginacion, una pagina entera en blanco esconde la columna, asi que
+   * se marca solo donde el campo es una decision del recurso y no un dato que unas filas tienen y
+   * otras no.
+   */
+  omitirSiVacia?: boolean
+  /**
    * Impide que el valor se parta en dos lineas. Para codigos cortos que se leen de una: partir
    * `COD-001-01` en `COD-001-` y `01` lo vuelve ilegible y hace que la fila mida el doble.
    */
@@ -129,8 +144,14 @@ export interface Filtro {
 export interface DefinicionTablero {
   /** Clave de `GET /lookups` con las columnas del tablero. Ej: `task_statuses`. */
   columnasDesde: string
-  /** Ruta de la accion de mover, con `:id`. Ej: `tasks/:id/mover`. */
-  rutaMover: string
+  /**
+   * Ruta de la accion de mover, con `:id`. Ej: `tasks/:id/mover`.
+   *
+   * Ausente deja el tablero de **solo lectura**: sin arrastre y sin el menu "Mover a…". Mover cambia
+   * el estado de la fila, asi que es una escritura, y un tablero que la ofrece cuando quien mira no
+   * puede escribir solo puede terminar en un 403 o en un 404.
+   */
+  rutaMover?: string
   /** Presenta una tarjeta. Recibe la misma fila que la tabla. */
   presentarTarjeta: Presentador<unknown>
 }

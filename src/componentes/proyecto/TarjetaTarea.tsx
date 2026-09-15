@@ -6,7 +6,8 @@ import { useSearchParams } from 'next/navigation'
 import { GrupoAvatares } from '@/componentes/presentadores/Avatar'
 import { Etiquetas } from '@/componentes/presentadores/Etiqueta'
 import { Fecha } from '@/componentes/presentadores/Fecha'
-import type { ProcesoAmpliado } from '@/datos/recursos'
+import type { Etiqueta, ProcesoAmpliado } from '@/datos/recursos'
+import type { StaffReferencia } from '@/datos/tipos'
 import type { OpcionFiltro } from '@/definiciones/tipos'
 import { resolverEstado } from '@/dominio/estados-tarea'
 
@@ -21,10 +22,25 @@ import { resolverEstado } from '@/dominio/estados-tarea'
  * columna que la contiene ya lleva el nombre del estado en su encabezado. Repetirlo en cada tarjeta
  * seria decir treinta veces lo que la columna dice una. El color del borde sale del mismo
  * `resolverEstado` que usan la tabla y `<EstadoDeTarea>`: el dato es uno solo, cambia como se pinta.
+ *
+ * **Declara el tipo minimo que dibuja**, no `Proceso`: el mismo tablero lo abre el cliente desde el
+ * portal, y su contrato no manda asignados, contadores ni etiquetas. Con `Proceso` esos tres eran
+ * `undefined` que el tipo juraba que existian, y la tarjeta se caia leyendo `.length`.
  */
 
+/** Lo minimo que una tarjeta necesita. Lo opcional es lo que el contrato del cliente no manda. */
+export interface ProcesoDeTarjeta {
+  id: number
+  name: string
+  status: number
+  due_date: string | null
+  assignees?: StaffReferencia[]
+  counts?: ProcesoAmpliado['counts']
+  tags?: Etiqueta[]
+}
+
 interface PropsTarjeta {
-  proceso: ProcesoAmpliado
+  proceso: ProcesoDeTarjeta
   /** Catalogo de estados, para sacar el color del borde. */
   estados: OpcionFiltro[]
 }
@@ -53,27 +69,29 @@ export function TarjetaTarea ({ proceso, estados }: PropsTarjeta): ReactElement 
         {proceso.name}
       </Link>
 
-      {proceso.assignees.length > 0 && <GrupoAvatares personas={proceso.assignees} />}
+      {proceso.assignees !== undefined && proceso.assignees.length > 0 && (
+        <GrupoAvatares personas={proceso.assignees} />
+      )}
 
       <div className="text-texto-sutil flex flex-wrap items-center gap-3 text-xs tabular-nums">
-        {proceso.counts.checklist > 0 && (
+        {(proceso.counts?.checklist ?? 0) > 0 && (
           <span>
             <span aria-hidden="true">☑ </span>
-            {proceso.counts.checklist_done}/{proceso.counts.checklist}
+            {proceso.counts?.checklist_done}/{proceso.counts?.checklist}
             <span className="sr-only"> ítems de la lista de control terminados</span>
           </span>
         )}
-        {proceso.counts.comments > 0 && (
+        {(proceso.counts?.comments ?? 0) > 0 && (
           <span>
             <span aria-hidden="true">💬 </span>
-            {proceso.counts.comments}
+            {proceso.counts?.comments}
             <span className="sr-only"> comentarios</span>
           </span>
         )}
-        {proceso.counts.attachments > 0 && (
+        {(proceso.counts?.attachments ?? 0) > 0 && (
           <span>
             <span aria-hidden="true">📎 </span>
-            {proceso.counts.attachments}
+            {proceso.counts?.attachments}
             <span className="sr-only"> adjuntos</span>
           </span>
         )}
@@ -82,7 +100,7 @@ export function TarjetaTarea ({ proceso, estados }: PropsTarjeta): ReactElement 
         <Fecha valor={proceso.due_date} comoVencimiento />
       </div>
 
-      {proceso.tags.length > 0 && <Etiquetas etiquetas={proceso.tags} />}
+      {proceso.tags !== undefined && proceso.tags.length > 0 && <Etiquetas etiquetas={proceso.tags} />}
     </div>
   )
 }

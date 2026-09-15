@@ -5,27 +5,26 @@ import { ErrorApi } from '@/datos/errores'
 import type { EspacioPortal, TareaPortal } from '@/datos/portal'
 import { pestaniasDelProyecto } from '@/definiciones/portal-proyectos'
 import { CabeceraProyecto } from '@/componentes/proyecto/CabeceraProyecto'
+import { PanelActas } from '@/componentes/proyecto/PanelActas'
+import { PanelActividad } from '@/componentes/proyecto/PanelActividad'
+import { PanelCalendario } from '@/componentes/proyecto/PanelCalendario'
+import { PanelDescripcion } from '@/componentes/proyecto/PanelDescripcion'
+import { PanelDiscusiones } from '@/componentes/proyecto/PanelDiscusiones'
+import { PanelGantt } from '@/componentes/proyecto/PanelGantt'
+import { PanelHitos } from '@/componentes/proyecto/PanelHitos'
+import { PanelTareas } from '@/componentes/proyecto/PanelTareas'
+import { PanelTiempos } from '@/componentes/proyecto/PanelTiempos'
+import { Vacio } from '@/componentes/estado/Estados'
 import { aTextoPlano } from '@/componentes/proyecto/formatos'
 import { cargarLookupsDelPortal, listaDe } from '@/datos/lookups'
 import { pedirPortal } from '@/datos/servidor'
 import type { EmpresaPortal } from '@/datos/tipos'
 import { GLOSARIO } from '@/dominio/glosario'
+import { fuenteDelPortal, type FuenteDeProyecto } from '@/dominio/fuente-proyecto'
 import { proyectoDelPortal } from '@/dominio/proyecto'
 import { cargarDetalle, EstadoDeError, estadoDelPortal } from '../../detalle'
 import { AprobacionesPendientes } from './AprobacionesPendientes'
-import {
-  PanelArchivos,
-  PanelHitos,
-  PanelResumen,
-  PanelTareas,
-  PanelTicketsDelProyecto
-} from './PanelesProyecto'
-import {
-  PanelActividadPortal,
-  PanelDiscusiones,
-  PanelGantt,
-  PanelTiempos
-} from './PanelesExtra'
+import { PanelArchivos, PanelTicketsDelProyecto } from './PanelesProyecto'
 
 /**
  * Detalle de un proyecto, con las pestañas que el equipo compartio.
@@ -66,11 +65,37 @@ export default async function ProyectoPagina (props: PageProps<'/portal/proyecto
   // que se trata, y ahi es el unico lugar donde cabe.
   const descripcionSuelta = !pestanias.some((p) => p.clave === 'overview')
   const pendientes = await cargarPendientes(proyecto)
+  // Las aprobaciones viven DENTRO de la pestaña Descripcion, que es la primera y la que se abre al
+  // entrar. Sueltas sobre las pestañas se repetian encima de las diez y se llevaban ~190 px del
+  // primer viewport en todas, incluidas las que no tienen nada que ver con una Tarea. Cuando el
+  // Proyecto no comparte esa pestaña se dibujan sueltas, como antes: es lo unico que el cliente
+  // puede escribir en todo el portal y no se esconde, se resitua.
+  const aprobaciones = pendientes.length === 0
+    ? null
+    : (
+      <AprobacionesPendientes
+        proyectoId={proyecto.id}
+        tareas={pendientes}
+        // El catalogo se pide aca y no dentro del panel: `cargarLookupsDelPortal` es `server-only`
+        // y el panel es cliente. `cache()` lo comparte con la pestaña de Tareas, asi que la pagina
+        // no pide `/portal/lookups` dos veces por pintar la insignia.
+        estados={listaDe(await cargarLookupsDelPortal(), 'task_statuses')}
+      />
+      )
+  // El estado, resuelto una vez: lo pinta la cabecera y lo repite la ficha de la pestaña Descripcion.
+  const estado = await estadoDelPortal('project_statuses', proyecto.status)
+  // De donde bajan los datos de cada pestaña. Es lo unico que distingue esta pantalla de la del
+  // colaborador, que monta los mismos paneles con `fuenteDelPanel`. Ver `dominio/fuente-proyecto.ts`.
+  const fuente = fuenteDelPortal(proyecto.id)
 
   const paneles: Panel[] = pestanias.map(({ clave, etiqueta }) => ({
     clave,
     etiqueta,
-    contenido: contenidoDePestania(clave, proyecto)
+    contenido: contenidoDePestania(clave, proyecto, fuente, {
+      empresa: empresa.company,
+      estado,
+      aprobaciones
+    })
   }))
 
   return (
@@ -80,7 +105,7 @@ export default async function ProyectoPagina (props: PageProps<'/portal/proyecto
           del portal, sin capacidades y sin botonera—, no el dibujo. */}
       <CabeceraProyecto
         proyecto={proyectoDelPortal(proyecto, empresa)}
-        estado={await estadoDelPortal('project_statuses', proyecto.status)}
+        estado={estado}
         volverA={{ href: '/portal/proyectos', etiqueta: GLOSARIO.espacio.plural }}
       />
 
@@ -90,43 +115,113 @@ export default async function ProyectoPagina (props: PageProps<'/portal/proyecto
         <p className="text-texto-tenue max-w-prose text-sm whitespace-pre-line">{descripcion}</p>
       )}
 
-      {pendientes.length > 0 && (
-        <AprobacionesPendientes
-          proyectoId={proyecto.id}
-          tareas={pendientes}
-          // El catalogo se pide aca y no dentro del panel: `cargarLookupsDelPortal` es `server-only`
-          // y el panel es cliente. `cache()` lo comparte con la pestaña de Tareas, asi que la pagina
-          // no pide `/portal/lookups` dos veces por pintar la insignia.
-          estados={listaDe(await cargarLookupsDelPortal(), 'task_statuses')}
-        />
-      )}
+      {/* Sueltas solo cuando no hay pestaña Descripcion donde ponerlas: sin ella no habria ningun
+          sitio en la pantalla desde donde el cliente pueda dar el visto bueno. */}
+      {descripcionSuelta && aprobaciones}
 
-      {paneles.length > 0 ? <Pestanas paneles={paneles} /> : <PanelResumen proyecto={proyecto} />}
+      {paneles.length > 0
+        ? <Pestanas paneles={paneles} />
+        : (
+          <Vacio
+            titulo="Todavía no hay nada compartido"
+            descripcion="Cuando el equipo comparta algo de este proyecto, aparece acá."
+          />
+          )}
     </div>
   )
 }
 
-/** Que dibuja cada pestaña. */
-function contenidoDePestania (clave: string, proyecto: EspacioPortal): React.ReactNode {
+/** Lo que la pagina ya resolvio y alguna pestaña necesita: no se vuelve a pedir dentro del panel. */
+interface DatosDeLaPagina {
+  /** Nombre de la empresa del contacto, de `GET /portal/company`. */
+  empresa: string
+  /** Estado del proyecto, ya resuelto contra `project_statuses` del portal. */
+  estado: { nombre: string, color: string | null }
+  /**
+   * Las {procesos} que esperan el visto bueno del contacto, o `null` si no hay ninguna.
+   *
+   * Las monta la pestaña Descripcion, arriba del resumen. Llegan armadas desde la pagina porque el
+   * catalogo de estados sale de `cargarLookupsDelPortal`, que es `server-only`.
+   */
+  aprobaciones: React.ReactNode
+}
+
+/**
+ * Que dibuja cada pestaña.
+ *
+ * Las que son **el mismo panel que abre un colaborador** reciben la fuente del contacto y
+ * `capacidades={[]}`: con eso pierden el alta, las acciones masivas, la edicion en linea y los
+ * botones de la ficha, y no pierden ninguna lectura. Las que todavia son propias del portal
+ * —archivos, tickets— se quedan como estaban: alli el contrato del cliente es otra cosa, no una
+ * version podada de la del equipo.
+ *
+ * @param clave La pestaña, tal como la nombra la API.
+ * @param proyecto El proyecto ya cargado.
+ * @param fuente Las rutas del contacto para este proyecto.
+ * @param pagina Lo que la pagina ya resolvio y algun panel necesita.
+ * @returns El contenido de esa pestaña.
+ */
+function contenidoDePestania (
+  clave: string,
+  proyecto: EspacioPortal,
+  fuente: FuenteDeProyecto,
+  pagina: DatosDeLaPagina
+): React.ReactNode {
   switch (clave) {
+    case 'overview':
+      return (
+        <div className="flex flex-col gap-4">
+          {pagina.aprobaciones}
+          <PanelDescripcion
+            proyecto={proyecto}
+            estado={pagina.estado}
+            // `href` en `null`: el cliente no tiene pantalla de clientes a donde ir, y el nombre es
+            // el de su propia empresa —la API del contacto no publica el cliente del proyecto—.
+            cliente={{ nombre: pagina.empresa, href: null }}
+            // Sin tipo de facturacion: el contrato del contacto no lo publica, asi que la fila no
+            // va. Los importes si, cuando la API los mando: `view_finance_overview` ya decidio del
+            // otro lado.
+            puedeVerMontos
+            fuente={fuente}
+            // El grafico de horas por dia es un subrecurso del resumen que el contacto no tiene.
+            rutaDelGrafico={null}
+          />
+        </div>
+      )
     case 'tasks':
-      return <PanelTareas proyectoId={proyecto.id} />
+      // `conIa={false}`: la capa de IA es del panel, y el alta por texto que habilita ni se ofrece
+      // con `capacidades={[]}`.
+      return <PanelTareas proyectoId={proyecto.id} fuente={fuente} capacidades={[]} conIa={false} />
+    case 'calendar':
+      return <PanelCalendario proyectoId={proyecto.id} fuente={fuente} capacidades={[]} />
     case 'milestones':
-      return <PanelHitos proyectoId={proyecto.id} />
+      return <PanelHitos proyecto={proyecto} fuente={fuente} capacidades={[]} />
+    case 'timesheets':
+      return <PanelTiempos proyectoId={proyecto.id} fuente={fuente} capacidades={[]} />
+    case 'discussions':
+      return <PanelDiscusiones proyectoId={proyecto.id} fuente={fuente} capacidades={[]} />
+    case 'gantt':
+      return <PanelGantt proyectoId={proyecto.id} fuente={fuente} />
+    case 'actas':
+      // El Meeting Paper del cliente. `capacidades={[]}` se lleva el alta, el asistente, Corregir,
+      // Eliminar y el selector de estilo; queda el documento con sus datos y sus adjuntos.
+      //
+      // Sin `ia` y sin `yo`: los dos solo gobiernan escrituras que acá no existen, y salen de
+      // `GET /settings` y `GET /me`, que son rutas del equipo. Pasarles un valor inventado seria
+      // escribir dos veces una decision que `capacidades` ya tomo.
+      return <PanelActas proyectoId={proyecto.id} fuente={fuente} capacidades={[]} />
+    case 'activity':
+      return <PanelActividad fuente={fuente} capacidades={[]} />
     case 'files':
       return <PanelArchivos proyectoId={proyecto.id} />
     case 'tickets':
       return <PanelTicketsDelProyecto proyectoId={proyecto.id} />
-    case 'discussions':
-      return <PanelDiscusiones proyectoId={proyecto.id} />
-    case 'timesheets':
-      return <PanelTiempos proyectoId={proyecto.id} />
-    case 'gantt':
-      return <PanelGantt proyectoId={proyecto.id} />
-    case 'activity':
-      return <PanelActividadPortal proyectoId={proyecto.id} />
     default:
-      return <PanelResumen proyecto={proyecto} />
+      // `pestaniasDelProyecto` ya filtro contra `PESTANIAS_PROYECTO`, y hoy las once que esa lista
+      // declara tienen su caso: acá no cae ninguna. Queda como red para la pestaña que se declare
+      // mañana y todavia no se construya — nada, antes que el panel equivocado, que es lo que
+      // pasaba con `actas` antes de tener su caso: caia acá y la persona veia otra cosa.
+      return null
   }
 }
 

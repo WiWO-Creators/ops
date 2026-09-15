@@ -197,7 +197,11 @@ export function VistaCalendario ({
 
   return (
     <section className="flex flex-col gap-4">
-      <ControlesTabla definicion={definicion} estado={estado} visibles={[]} onVisibles={() => {}} onCambiar={cambiarFiltros} opcionesDeFiltro={opcionesDeFiltro} board="tasks" sinColumnas />
+      {/* Sin `board` fijo: `ControlesTabla` lo deduce de `definicion.ruta` —que da `tasks` igual que
+          antes— y devuelve `null` cuando la ruta es del portal, que no tiene presets de filtro.
+          Escrito a mano, el calendario del cliente pediria `filter-presets` con la sesion de un
+          contacto: 404 del BFF y un aviso de error encima del mes. */}
+      <ControlesTabla definicion={definicion} estado={estado} visibles={[]} onVisibles={() => {}} onCambiar={cambiarFiltros} opcionesDeFiltro={opcionesDeFiltro} sinColumnas />
       <AvisoDeVencimientos avisos={avisos} error={errorAvisos} estados={estados} />
 
       <div className="flex flex-wrap items-center gap-2">

@@ -27,6 +27,7 @@ import {
 } from './calendario-entregas'
 import type { EstadoLookup, Lookups, Proceso } from '@/datos/recursos'
 import type { Capacidad } from '@/datos/tipos'
+import { conConsulta, type FuenteDeProyecto } from '@/dominio/fuente-proyecto'
 
 /**
  * Pestaña Calendario de un Espacio: el mes de entregas, en cuatro lecturas.
@@ -99,6 +100,14 @@ interface Carga {
 
 interface PropsPanelCalendario {
   proyectoId: number
+  /**
+   * De donde bajan las entregas: del panel del colaborador o del portal del cliente.
+   *
+   * En el panel el calendario es una lectura mas del listado de Procesos; en el portal la API lo
+   * expone como ruta propia, porque la pestaña se habilita aparte. Las dos llegan en
+   * `fuente.calendario` y acá no se distinguen.
+   */
+  fuente: FuenteDeProyecto
   /** Capacidades sobre `tasks`, de `permissions` de `/me`. Mandan sobre los botones del detalle. */
   capacidades: Capacidad[]
 }
@@ -112,7 +121,7 @@ export function PanelCalendario (props: PropsPanelCalendario): ReactElement {
   )
 }
 
-function CalendarioDelEspacio ({ proyectoId, capacidades }: PropsPanelCalendario): ReactElement {
+function CalendarioDelEspacio ({ proyectoId, fuente, capacidades }: PropsPanelCalendario): ReactElement {
   const router = useRouter()
   const params = useSearchParams()
 
@@ -132,12 +141,12 @@ function CalendarioDelEspacio ({ proyectoId, capacidades }: PropsPanelCalendario
   useEffect(() => {
     const control = new AbortController()
 
-    const listado = `projects/${encodeURIComponent(String(proyectoId))}/tasks?per_page=${TOPE_DE_PROCESOS}&sort=due_date`
+    const listado = conConsulta(fuente.calendario, `per_page=${TOPE_DE_PROCESOS}&sort=due_date`)
 
     void Promise.all([
       pedirSobre<Proceso[]>(listado, control.signal),
-      pedirSobre<Proceso[]>(`${listado}&filter[status]=${ESTADO_COMPLETO}`, control.signal),
-      pedirSobre<Lookups>('lookups', control.signal)
+      pedirSobre<Proceso[]>(conConsulta(listado, `filter[status]=${ESTADO_COMPLETO}`), control.signal),
+      pedirSobre<Lookups>(fuente.lookups, control.signal)
     ]).then(([abiertos, completos, lookups]) => {
       if (control.signal.aborted) return
 
@@ -161,7 +170,7 @@ function CalendarioDelEspacio ({ proyectoId, capacidades }: PropsPanelCalendario
     })
 
     return () => { control.abort() }
-  }, [proyectoId])
+  }, [proyectoId, fuente])
 
   const dias = useMemo(() => diasDelPeriodo(dia, vista), [dia, vista])
 
@@ -361,6 +370,7 @@ function CalendarioDelEspacio ({ proyectoId, capacidades }: PropsPanelCalendario
               )}
 
       <ModalTarea
+        fuente={fuente}
         puedeEditar={capacidades.includes('edit')}
         puedeBorrar={capacidades.includes('delete')}
         puedeCrear={capacidades.includes('create')}

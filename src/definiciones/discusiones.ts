@@ -2,6 +2,7 @@ import type { DefinicionRecurso } from './tipos.ts'
 import type { ActividadEspacio, Discusion, NotaEspacio } from '../datos/recursos.ts'
 import { formatearFecha } from '../lib/fechas.ts'
 import { textoPlano } from '../componentes/proyecto/formatos.ts'
+import type { FuenteDeProyecto } from '../dominio/fuente-proyecto.ts'
 
 /**
  * Definiciones de las tres pestañas de texto del Proyecto: Discusiones, Notas y Actividad.
@@ -94,4 +95,58 @@ export const ACTIVIDAD: DefinicionRecurso<ActividadEspacio> = {
   ordenPorDefecto: '-date_added',
   busqueda: false,
   includes: []
+}
+
+/**
+ * Las columnas de Discusiones que el contrato del contacto **si** emite.
+ *
+ * Falta `show_to_customer`: al portal solo llegan las que la tienen, asi que la columna diria
+ * siempre "Sí" y delataria que existe la distincion (ver `DiscusionPortal`).
+ */
+const COLUMNAS_DE_DISCUSION_DEL_CONTACTO = ['subject', 'last_activity', 'comments', 'staff']
+
+/**
+ * Las Discusiones de un Proyecto para el equipo.
+ *
+ * @param proyectoId El Proyecto que se esta mirando.
+ * @returns La definicion con la ruta ya acotada al Proyecto.
+ */
+export function discusionesDelEspacio (proyectoId: number): DefinicionRecurso<Discusion> {
+  return { ...DISCUSIONES, ruta: `projects/${encodeURIComponent(String(proyectoId))}/discussions` }
+}
+
+/**
+ * Las Discusiones de un Proyecto tal como las ve un contacto.
+ *
+ * **Se deriva de la del equipo**, como `procesosDelContacto`: encabezados, orden de columnas y
+ * rotulos salen de un solo lugar. Lo unico propio es cuanto se muestra.
+ *
+ * Los filtros, el orden y la busqueda **si** viajan: `RecursoDiscusiones::paraContacto()` usa la
+ * misma whitelist que el endpoint del equipo. El unico que se cae es el de visibilidad al cliente,
+ * por lo mismo que la columna.
+ *
+ * @param proyectoId El Proyecto que el cliente esta mirando.
+ * @returns La definicion lista para la tabla del portal.
+ */
+export function discusionesDelContacto (proyectoId: number): DefinicionRecurso<Discusion> {
+  return {
+    ...DISCUSIONES,
+    ruta: `portal/projects/${encodeURIComponent(String(proyectoId))}/discussions`,
+    columnas: DISCUSIONES.columnas.filter((c) => COLUMNAS_DE_DISCUSION_DEL_CONTACTO.includes(c.clave)),
+    filtros: DISCUSIONES.filtros.filter((f) => f.clave !== 'show_to_customer')
+  }
+}
+
+/**
+ * Elige la definicion de Discusiones que corresponde al sujeto.
+ *
+ * **Es la unica lectura de `sujeto`** de esta pestaña, y vive aca y no en el panel: que columnas y
+ * que filtros existen es propiedad del contrato, no del dibujo.
+ *
+ * @param fuente De donde bajan los datos del Proyecto.
+ * @param proyectoId El Proyecto que se esta mirando.
+ * @returns La definicion del sujeto que corresponda.
+ */
+export function definicionDeDiscusiones (fuente: FuenteDeProyecto, proyectoId: number): DefinicionRecurso<Discusion> {
+  return fuente.sujeto === 'portal' ? discusionesDelContacto(proyectoId) : discusionesDelEspacio(proyectoId)
 }

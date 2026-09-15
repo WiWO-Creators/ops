@@ -460,11 +460,19 @@ export const PROCESOS = Array.from({ length: 84 }, (_, i) => {
   }
 })
 
+/**
+ * Dos hitos por Espacio.
+ *
+ * El primero de cada uno lleva descripcion y solo el del Espacio 1 la comparte con el cliente: es la
+ * pareja que hace falta para mirar los dos lados de `description_visible_to_customer` —la columna
+ * Descripcion del portal, que existe cuando alguien compartio alguna y no existe cuando no—.
+ */
 export const HITOS = ESPACIOS.flatMap((espacio, i) =>
   Array.from({ length: 2 }, (_, j) => ({
     id: i * 2 + j + 1,
     name: j === 0 ? 'Entrega inicial' : 'Cierre',
-    description: null,
+    description: j === 0 ? `Lo que entra en la primera entrega de ${espacio.name}.` : null,
+    description_visible_to_customer: j === 0 && espacio.id === 1,
     start_date: espacio.start_date,
     due_date: espacio.deadline,
     project_id: espacio.id,

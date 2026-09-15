@@ -14,6 +14,7 @@ import type { Espacio, Lookups } from '@/datos/recursos'
 import type { Capacidad } from '@/datos/tipos'
 import { GLOSARIO } from '@/dominio/glosario'
 import { proyectoDelPanel } from '@/dominio/proyecto'
+import { fuenteDelPanel } from '@/dominio/fuente-proyecto'
 
 /**
  * Cabecera y pestañas de trabajo de un Espacio que se mira desde otra seccion.
@@ -66,6 +67,9 @@ export function DetalleDeEspacio ({
   etiquetaPestanas
 }: PropsDetalleDeEspacio) {
   const estado = estadoDelEspacio(lookups, espacio.status)
+  // De donde bajan los datos de cada pestaña: son las mismas rutas del panel, porque una Licitacion
+  // y un Upsell son Espacios vistos desde otro angulo. Ver `dominio/fuente-proyecto.ts`.
+  const fuente = fuenteDelPanel(espacio.id)
 
   const paneles: Panel[] = [
     {
@@ -77,8 +81,13 @@ export function DetalleDeEspacio ({
           <PanelDescripcion
             proyecto={espacio}
             estado={estado}
+            cliente={espacio.client === null
+              ? null
+              : { nombre: espacio.client.company, href: `/clientes?filter[id]=${espacio.client.id}` }}
             tipoFacturacion={nombreDe(listaDe(lookups, 'billing_types'), espacio.billing_type)}
             puedeVerMontos={capacidadesProyecto.includes('edit')}
+            fuente={fuente}
+            rutaDelGrafico={`${fuente.resumen}/chart`}
           />
         </div>
       )
@@ -87,7 +96,7 @@ export function DetalleDeEspacio ({
       clave: 'tareas',
       etiqueta: GLOSARIO.proceso.plural,
       // Sin IA: el chat de proyecto es del detalle de Espacio, y aca todavia no hay proyecto cerrado.
-      contenido: <PanelTareas proyectoId={espacio.id} capacidades={capacidadesTareas} conIa={false} />
+      contenido: <PanelTareas proyectoId={espacio.id} fuente={fuente} capacidades={capacidadesTareas} conIa={false} />
     },
     {
       clave: 'hitos',
@@ -95,6 +104,7 @@ export function DetalleDeEspacio ({
       contenido: (
         <PanelHitos
           proyecto={espacio}
+          fuente={fuente}
           capacidades={capacidadesProyecto}
           capacidadesTareas={capacidadesTareas}
         />
@@ -103,18 +113,18 @@ export function DetalleDeEspacio ({
     {
       clave: 'tiempos',
       etiqueta: 'Tiempos',
-      contenido: <PanelTiempos proyectoId={espacio.id} capacidades={capacidadesTareas} />
+      contenido: <PanelTiempos proyectoId={espacio.id} fuente={fuente} capacidades={capacidadesTareas} />
     },
     { clave: 'archivos', etiqueta: 'Archivos', contenido: <PanelArchivos proyectoId={espacio.id} /> },
     {
       clave: 'discusiones',
       etiqueta: 'Discusiones',
-      contenido: <PanelDiscusiones proyectoId={espacio.id} capacidades={capacidadesProyecto} />
+      contenido: <PanelDiscusiones proyectoId={espacio.id} fuente={fuente} capacidades={capacidadesProyecto} />
     },
     {
       clave: 'actividad',
       etiqueta: 'Actividad',
-      contenido: <PanelActividad proyectoId={espacio.id} capacidades={capacidadesProyecto} />
+      contenido: <PanelActividad fuente={fuente} capacidades={capacidadesProyecto} />
     }
   ]
 

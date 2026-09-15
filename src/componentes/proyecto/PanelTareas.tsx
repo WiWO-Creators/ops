@@ -22,12 +22,13 @@ import type {
   ResumenEstadoTareas
 } from '@/datos/recursos'
 import type { Capacidad } from '@/datos/tipos'
+import { conConsulta, type FuenteDeProyecto } from '@/dominio/fuente-proyecto'
 import { AccionesMasivasTareas } from './AccionesMasivasTareas'
 import { CalendarioTareas } from './CalendarioTareas'
 import { ModalTarea } from './ModalTarea'
 import { FormularioTarea } from './FormularioTarea'
 import { ResumenEstadosTareas } from './ResumenEstadosTareas'
-import { TarjetaTarea } from './TarjetaTarea'
+import { TarjetaTarea, type ProcesoDeTarjeta } from './TarjetaTarea'
 import { definicionDeTareas } from './columnas-tareas'
 import { opcionesDeFiltroDeHito, TOPE_DE_HITOS } from './hitos'
 import { BotonCompletados } from './BotonCompletados'
@@ -57,8 +58,38 @@ const VISTAS: readonly OpcionSegmentada[] = [
   { valor: 'calendario', etiqueta: 'Calendario', icono: 'calendario' }
 ]
 
+/**
+ * `true` si la definicion puede acotar por rango de fechas.
+ *
+ * El calendario pide un mes con `filter[due_date__gte]` y `filter[due_date__lte]`, asi que existe
+ * solo donde ese filtro esta declarado: donde no —el contrato del contacto solo acepta `status`— cada
+ * cambio de periodo devolvia 422 y la grilla quedaba con el error encima.
+ *
+ * No es una pregunta sobre el sujeto sino sobre la definicion, y por eso no hace falta saber quien
+ * mira. El cliente igual tiene calendario: es una pestaña propia del Proyecto (`PanelCalendario`),
+ * que la API habilita aparte y que baja el mes entero de una vez sin filtrar por rango.
+ *
+ * @param definicion La definicion vigente.
+ * @returns Si se puede ofrecer la lectura de calendario.
+ */
+function admiteCalendario (definicion: DefinicionRecurso<ProcesoAmpliado>): boolean {
+  return definicion.filtros.some((filtro) => filtro.clave === 'due_date' && filtro.tipo === 'campo')
+}
+
 interface PropsPanelTareas {
   proyectoId: number
+  /**
+   * De donde bajan los datos: del panel del colaborador o del portal del cliente.
+   *
+   * Es lo unico que cambia entre los dos sujetos. Adentro de esta pestaña **no hay ninguna rama por
+   * sujeto**: las rutas llegan resueltas y los recursos que un contacto no tiene llegan en `null`,
+   * asi que el resumen por estado y las columnas personalizadas simplemente no se piden.
+   */
+  fuente: FuenteDeProyecto
+  /**
+   * Lo que se puede escribir sobre Procesos. `[]` apaga el alta, las acciones masivas y la edicion
+   * en linea: es como el portal deja la pestaña en solo lectura, sin quitarle ninguna lectura.
+   */
   capacidades: Capacidad[]
   /**
    * Si la capa de IA esta encendida. Viaja desde el servidor y no se consulta aca: `GET /settings`
@@ -67,12 +98,12 @@ interface PropsPanelTareas {
   conIa: boolean
 }
 
-export function PanelTareas ({ proyectoId, capacidades, conIa }: PropsPanelTareas): ReactElement {
+export function PanelTareas (props: PropsPanelTareas): ReactElement {
   // `TablaRecurso` y el propio panel leen `useSearchParams`. Sin este limite de Suspense el build de
   // cualquier pagina que los monte falla, y esa pagina la escribe otra persona.
   return (
     <Suspense fallback={<Cargando mensaje="Cargando las tareas…" />}>
-      <TareasDelProyecto proyectoId={proyectoId} capacidades={capacidades} conIa={conIa} />
+      <TareasDelProyecto {...props} />
     </Suspense>
   )
 }
@@ -95,13 +126,12 @@ type Carga =
       avisos: string[]
     }
 
-function TareasDelProyecto ({ proyectoId, capacidades, conIa }: PropsPanelTareas): ReactElement {
+function TareasDelProyecto ({ proyectoId, fuente, capacidades, conIa }: PropsPanelTareas): ReactElement {
   const router = useRouter()
   const params = useSearchParams()
 
   const presentacion = params.get('vista')
   const enTablero = presentacion === 'tablero'
-  const enCalendario = presentacion === 'calendario'
 
   const [carga, setCarga] = useState<Carga>({ fase: 'cargando' })
   const [intento, setIntento] = useState(0)
@@ -123,12 +153,22 @@ function TareasDelProyecto ({ proyectoId, capacidades, conIa }: PropsPanelTareas
   const definicion = useMemo(
     () => definicionDeTareas({
       proyectoId,
+      fuente,
       camposPersonalizados: campos,
       capacidades,
       estados,
       onCambiado: recargar
     }),
-    [proyectoId, campos, capacidades, estados, recargar]
+    [proyectoId, fuente, campos, capacidades, estados, recargar]
+  )
+
+  // Se decide contra la definicion y no contra la URL sola: con `?vista=calendario` en una
+  // definicion que no acota por fechas, la lectura cae a la tabla en vez de pedir un 422 por mes.
+  const conCalendario = admiteCalendario(definicion)
+  const enCalendario = presentacion === 'calendario' && conCalendario
+  const vistas = useMemo(
+    () => conCalendario ? VISTAS : VISTAS.filter((vista) => vista.valor !== 'calendario'),
+    [conCalendario]
   )
 
   // Se pide con la consulta vigente al montar y cada vez que algo escribio, pero NO cuando la
@@ -137,7 +177,7 @@ function TareasDelProyecto ({ proyectoId, capacidades, conIa }: PropsPanelTareas
   useEffect(() => {
     const control = new AbortController()
 
-    void cargarPestana(proyectoId, definicion, params.toString(), enTablero, control.signal)
+    void cargarPestana(fuente, definicion, params.toString(), enTablero, control.signal)
       .then((resultado) => { if (!control.signal.aborted) setCarga(resultado) })
 
     return () => { control.abort() }
@@ -180,6 +220,9 @@ function TareasDelProyecto ({ proyectoId, capacidades, conIa }: PropsPanelTareas
   }
 
   const estadoFiltrado = unicoEstadoFiltrado(params.get('filter[status]'))
+  // Las acciones masivas cambian estado, prioridad, asignados y borran: sin ninguna de esas
+  // capacidades la barra quedaria vacia y las casillas de seleccion no llevarian a ningun lado.
+  const puedeAccionarEnMasa = capacidades.includes('edit') || capacidades.includes('delete')
 
   return (
     <div className="flex flex-col gap-4">
@@ -205,7 +248,7 @@ function TareasDelProyecto ({ proyectoId, capacidades, conIa }: PropsPanelTareas
         <BotonCompletados />
         <Segmentado
           etiqueta="Presentación"
-          opciones={VISTAS}
+          opciones={vistas}
           activo={enTablero ? 'tablero' : enCalendario ? 'calendario' : 'tabla'}
           onElegir={(valor) => {
             irA((siguientes) => {
@@ -235,13 +278,16 @@ function TareasDelProyecto ({ proyectoId, capacidades, conIa }: PropsPanelTareas
       </div>
 
       {enCalendario
+        // Sin `fuente`: este calendario arma sus rutas desde `definicion.ruta`, que ya es la suya.
         ? <CalendarioTareas definicion={definicion} capacidades={capacidades} opcionesDeFiltro={carga.opciones} />
         : enTablero
           ? (
           <TableroFiltrable<ProcesoAmpliado>
-            definicion={definicionDeTablero(definicion, estados)}
+            definicion={definicionDeTablero(definicion, estados, capacidades.includes('edit'))}
             ruta={definicion.ruta}
-            board="tasks"
+            // Sin `board` fijo: `ControlesTabla` lo deduce de la ruta y devuelve `null` para el
+            // portal, que no tiene presets de filtro. Escribirlo a mano pediria `filter-presets` con
+            // la sesion de un contacto, que es un 404 del BFF y un aviso de error en pantalla.
             opcionesDeFiltro={carga.opciones}
           />
             )
@@ -260,24 +306,32 @@ function TareasDelProyecto ({ proyectoId, capacidades, conIa }: PropsPanelTareas
             abrirEn={{ clave: PARAMETRO_TAREA, valor: (proceso) => proceso.id }}
             capacidades={capacidades}
             opcionesDeFiltro={carga.opciones}
-            board="tasks"
+            // Ver el comentario del tablero: el `board` sale de la ruta, no escrito a mano.
+            //
             // La seleccion la dibuja el motor. `recargar` es el del panel y no el del motor a
             // proposito: una accion masiva tambien cambia el resumen por estado de arriba.
-            seleccionMasiva={(filas, limpiar) => (
-              <AccionesMasivasTareas
-                proyectoId={proyectoId}
-                filas={filas}
-                capacidades={capacidades}
-                estados={estados}
-                prioridades={prioridades}
-                limpiar={limpiar}
-                recargar={recargar}
-              />
-            )}
+            //
+            // Sin capacidad de escritura no se pasa: las casillas de seleccion por fila existen para
+            // llegar a estas acciones, y ofrecerlas para despues no poder hacer nada con ellas es
+            // como el portal terminaria con una barra de acciones vacia encima de la tabla.
+            seleccionMasiva={puedeAccionarEnMasa
+              ? (filas, limpiar) => (
+                <AccionesMasivasTareas
+                  proyectoId={proyectoId}
+                  filas={filas}
+                  capacidades={capacidades}
+                  estados={estados}
+                  prioridades={prioridades}
+                  limpiar={limpiar}
+                  recargar={recargar}
+                />
+                )
+              : undefined}
           />
             )}
 
       <ModalTarea
+        fuente={fuente}
         puedeEditar={capacidades.includes('edit')}
         puedeBorrar={capacidades.includes('delete')}
         puedeCrear={capacidades.includes('create')}
@@ -309,20 +363,50 @@ function unicoEstadoFiltrado (crudo: string | null): number | null {
  *
  * `presentarTarjeta` recibe `unknown` porque el motor no conoce el recurso: la conversion ocurre en
  * un solo punto, aca, y no en cada campo de la tarjeta.
+ *
+ * Dos cosas no son decoracion:
+ *
+ *  - **`rutaMover` solo con `edit`.** Mover una tarjeta cambia el estado de la Tarea: es una
+ *    escritura, y sin la capacidad el tablero queda de solo lectura —sin arrastre y sin el menu
+ *    "Mover a…"— en vez de ofrecer un gesto que solo puede terminar en 403.
+ *  - **La tarjeta muestra lo que la tabla muestra.** Asignados y Etiquetas son columna en el panel y
+ *    no en el contrato del contacto; una tarjeta que las pinta igual le filtraria al cliente el
+ *    vocabulario interno que la tabla de al lado ya no le muestra.
+ *
+ * @param definicion La definicion vigente, con sus columnas.
+ * @param estados El catalogo de estados, para el color del borde de cada tarjeta.
+ * @param puedeMover Si quien mira tiene `edit` sobre Procesos.
+ * @returns La definicion con su bloque de tablero.
  */
 function definicionDeTablero (
   definicion: DefinicionRecurso<ProcesoAmpliado>,
-  estados: OpcionFiltro[]
+  estados: OpcionFiltro[],
+  puedeMover: boolean
 ): DefinicionRecurso<ProcesoAmpliado> {
+  const columnas = new Set(definicion.columnas.map((columna) => columna.clave))
+
   return {
     ...definicion,
     tablero: {
       // Las columnas llegan ordenadas por `order`, NO por `id`: el orden real es 1, 4, 3, 2, 5.
       columnasDesde: 'task_statuses',
-      rutaMover: 'tasks/:id/mover',
-      presentarTarjeta: (fila) => (
-        <TarjetaTarea proceso={fila as ProcesoAmpliado} estados={estados} />
-      )
+      ...(puedeMover ? { rutaMover: 'tasks/:id/mover' } : {}),
+      // `ProcesoDeTarjeta` y no `ProcesoAmpliado`: la tarjeta declara lo minimo que dibuja, y el
+      // contrato del cliente manda menos que el del equipo.
+      presentarTarjeta: (fila) => {
+        const proceso = fila as ProcesoDeTarjeta
+
+        return (
+          <TarjetaTarea
+            proceso={{
+              ...proceso,
+              assignees: columnas.has('assignees') ? proceso.assignees : undefined,
+              tags: columnas.has('tags') ? proceso.tags : undefined
+            }}
+            estados={estados}
+          />
+        )
+      }
     }
   }
 }
@@ -341,7 +425,11 @@ function definicionDeTablero (
  *
  * Nunca lanza: el error del contrato es un valor mas.
  *
- * @param proyectoId el proyecto que se esta mirando
+ * **Ninguna ruta se escribe aca.** Todas salen de `fuente`, y las que llegan en `null` son los
+ * recursos que ese sujeto no tiene: no se piden y la pestaña se dibuja igual. Eso es lo que deja
+ * esta funcion sin una sola rama por sujeto.
+ *
+ * @param fuente de donde bajan los datos: panel del colaborador o portal del cliente
  * @param definicion la definicion ya acotada al proyecto
  * @param consulta query string sin `?`
  * @param enTablero la presentacion a la vista, que queda anotada en el resultado
@@ -349,38 +437,46 @@ function definicionDeTablero (
  * @returns el estado de carga resuelto
  */
 async function cargarPestana (
-  proyectoId: number,
+  fuente: FuenteDeProyecto,
   definicion: DefinicionRecurso<ProcesoAmpliado>,
   consulta: string,
   enTablero: boolean,
   senal: AbortSignal
 ): Promise<Carga> {
   try {
-    const campos = (await pedirSobre<DefinicionCampoPersonalizado[]>('custom-fields?para=tasks', senal)).data
+    // Sin campos personalizados no hay columnas ni filtros `cf_`, y la tabla es la misma sin ellos.
+    const campos = fuente.camposDeTareas === null
+      ? []
+      : (await pedirSobre<DefinicionCampoPersonalizado[]>(fuente.camposDeTareas, senal)).data
     const completa = { ...definicion, filtros: [...definicion.filtros.filter((filtro) => !filtro.clave.startsWith('cf_')), ...filtrosDeCamposPersonalizados(campos)] }
     const query = construirConsulta(leerConsulta(new URLSearchParams(consulta), completa), completa)
-    const ruta = `${definicion.ruta}?${query}`
+    const ruta = conConsulta(fuente.tareas, query)
     // El equipo no viene en `/lookups` y es lo que llena los filtros por persona (Asignado, Creado
     // por, Seguidor). Se pide junto con lo demas y ya esta cacheado por pestaña; si falla, esos
-    // filtros quedan sin opciones y el resto de la tabla no se entera.
+    // filtros quedan sin opciones y el resto de la tabla no se entera. En el portal la definicion no
+    // declara ningun filtro por persona, asi que `staffParaFiltros` no pide nada.
     const [lista, lookups, personas] = await Promise.all([
       pedirSobre<ProcesoAmpliado[]>(ruta, senal),
-      pedirSobre<Lookups>('lookups', senal),
+      pedirSobre<Lookups>(fuente.lookups, senal),
       staffParaFiltros(definicion)
     ])
 
     const avisos: string[] = []
 
-    const resumen = await opcional(
-      pedirSobre<ResumenEstadoTareas[]>(`projects/${proyectoId}/tasks/summary`, senal)
-    )
-    if (resumen === null) avisos.push('El resumen por estado todavía no está disponible en la API.')
+    const resumen = fuente.resumenDeTareas === null
+      ? null
+      : await opcional(pedirSobre<ResumenEstadoTareas[]>(fuente.resumenDeTareas, senal))
+    // El aviso es para el backend que todavia no lo expone, no para el sujeto que no lo tiene: con
+    // la ruta en `null` las tarjetas de arriba simplemente no van, y no hay nada que avisar.
+    if (fuente.resumenDeTareas !== null && resumen === null) {
+      avisos.push('El resumen por estado todavía no está disponible en la API.')
+    }
 
     // Los hitos no salen de `/lookups`: cuelgan de un Espacio, asi que hay que pedirlos por su ruta.
     // Accesorio como los dos de arriba, pero sin aviso: si no llegan, el motor simplemente no dibuja
     // el filtro por hito, y una tabla sin ese desplegable sigue sirviendo entera.
     const hitos = await opcional(
-      pedirSobre<Hito[]>(`projects/${proyectoId}/milestones?per_page=${TOPE_DE_HITOS}`, senal)
+      pedirSobre<Hito[]>(conConsulta(fuente.hitos, `per_page=${TOPE_DE_HITOS}`), senal)
     )
 
     return {
@@ -388,6 +484,7 @@ async function cargarPestana (
       esTablero: enTablero,
       inicial: { filas: lista.data, paginacion: lista.meta?.pagination },
       opciones: {
+        ...catalogosDeInsignias(definicion, { ...lookups.data, staff: personas }),
         ...opcionesDeFiltros(definicion, { ...lookups.data, staff: personas }),
         milestones: opcionesDeFiltroDeHito(hitos ?? [])
       },
@@ -404,6 +501,36 @@ async function cargarPestana (
       mensaje: fallo instanceof Error ? fallo.message : 'No se pudieron cargar las tareas.'
     }
   }
+}
+
+/**
+ * Los catalogos que piden las columnas que se pintan como insignia.
+ *
+ * `opcionesDeFiltros` resuelve los de los **filtros**, y en el panel eso alcanza por casualidad:
+ * Estado y Prioridad son columna y filtro a la vez. El contrato del contacto no acepta filtrar por
+ * prioridad, asi que sin esto su columna Prioridad mostraba `#4` en vez del nombre.
+ *
+ * Se reusa `opcionesDeFiltros` con las columnas disfrazadas de filtro en vez de repetir el mapeo:
+ * el color y el nombre de cada opcion se resuelven en un solo lugar.
+ *
+ * @param definicion La definicion vigente, con sus columnas.
+ * @param lookups Los catalogos ya cargados.
+ * @returns Un mapa indexado por el catalogo que pide cada columna.
+ */
+function catalogosDeInsignias (
+  definicion: DefinicionRecurso<ProcesoAmpliado>,
+  lookups: Lookups
+): Record<string, OpcionFiltro[]> {
+  const comoFiltros = definicion.columnas
+    .filter((columna) => columna.comoInsignia !== undefined)
+    .map((columna) => ({
+      clave: columna.clave,
+      etiqueta: columna.encabezado,
+      tipo: 'multiple' as const,
+      desdeLookup: columna.comoInsignia
+    }))
+
+  return opcionesDeFiltros({ ...definicion, filtros: comoFiltros }, lookups)
 }
 
 /**

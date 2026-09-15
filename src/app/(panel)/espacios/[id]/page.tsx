@@ -4,6 +4,7 @@ import { Suspense, cache } from 'react'
 import { CabeceraProyecto } from '@/componentes/proyecto/CabeceraProyecto'
 import { BotonNuevaTarea, MenuProyecto } from '@/componentes/proyecto/MenuProyecto'
 import { proyectoDelPanel } from '@/dominio/proyecto'
+import { fuenteDelPanel } from '@/dominio/fuente-proyecto'
 import { PanelActividad } from '@/componentes/proyecto/PanelActividad'
 import { PanelConfiguracionEspacio } from '@/componentes/proyecto/PanelConfiguracionEspacio'
 import { PanelArchivos } from '@/componentes/proyecto/PanelArchivos'
@@ -25,8 +26,19 @@ import type { EstadoIa } from '@/dominio/ajustes'
 import { cargarLookups } from '@/datos/lookups'
 import { pedir } from '@/datos/servidor'
 import type { Espacio, Lookups } from '@/datos/recursos'
-import type { Yo } from '@/datos/tipos'
+import type { Capacidad, Yo } from '@/datos/tipos'
 import { ASISTENTE, GLOSARIO } from '@/dominio/glosario'
+
+/**
+ * Lo que el equipo puede hacer con un Meeting Paper de este Proyecto.
+ *
+ * Se declara literal y no sale de `permissions.projects` a proposito: la API no pide ninguna
+ * capability sobre Espacios para escribir un acta —le alcanza con que la persona vea el Proyecto, y
+ * para borrar exige ser el autor o administrador, que lo resuelve `yo`—. Derivarlo de
+ * `permissions.projects` le sacaria el alta a quien hoy la tiene, que es una regresion vestida de
+ * permiso.
+ */
+const ACTAS_DEL_EQUIPO: Capacidad[] = ['create', 'edit', 'delete']
 
 /**
  * Pide el Proyecto una sola vez por peticion.
@@ -154,6 +166,10 @@ export default async function ProyectoPage (props: PageProps<'/espacios/[id]'>) 
   // La primera de las tres capas del patron de `administracion/acceso`: si no corresponde, la pestaña
   // ni se agrega. La segunda es el propio panel, que devuelve `SinPermiso`; la tercera —la unica que
   // de verdad protege— es el 403 de `GET|PUT /projects/{id}/task-types`.
+  // De donde bajan los datos de cada pestaña. La arma la pagina y no el panel: es lo unico que
+  // distingue esta pantalla de la del portal, que monta los mismos paneles con la fuente del
+  // contacto. Ver `dominio/fuente-proyecto.ts`.
+  const fuente = fuenteDelPanel(proyecto.id)
   const puedeConfigurar =
     yo.id === proyecto.added_from || yo.is_admin || yo.is_superadmin || yo.is_director
 
@@ -165,20 +181,25 @@ export default async function ProyectoPage (props: PageProps<'/espacios/[id]'>) 
         <PanelDescripcion
           proyecto={proyecto}
           estado={estadoDelProyecto(lookups, proyecto.status)}
+          cliente={proyecto.client === null
+            ? null
+            : { nombre: proyecto.client.company, href: `/clientes?filter[id]=${proyecto.client.id}` }}
           tipoFacturacion={nombreDe(listaDe(lookups, 'billing_types'), proyecto.billing_type)}
           puedeVerMontos={capacidadesProyecto.includes('edit')}
+          fuente={fuente}
+          rutaDelGrafico={`${fuente.resumen}/chart`}
         />
       )
     },
     {
       clave: 'tareas',
       etiqueta: GLOSARIO.proceso.plural,
-      contenido: <PanelTareas proyectoId={proyecto.id} capacidades={capacidadesTareas} conIa={conIa} />
+      contenido: <PanelTareas proyectoId={proyecto.id} fuente={fuente} capacidades={capacidadesTareas} conIa={conIa} />
     },
     {
       clave: 'tiempos',
       etiqueta: 'Tiempos',
-      contenido: <PanelTiempos proyectoId={proyecto.id} capacidades={capacidadesTareas} />
+      contenido: <PanelTiempos proyectoId={proyecto.id} fuente={fuente} capacidades={capacidadesTareas} />
     },
     {
       clave: 'hitos',
@@ -186,6 +207,7 @@ export default async function ProyectoPage (props: PageProps<'/espacios/[id]'>) 
       contenido: (
         <PanelHitos
           proyecto={proyecto}
+          fuente={fuente}
           capacidades={capacidadesProyecto}
           capacidadesTareas={capacidadesTareas}
         />
@@ -195,18 +217,18 @@ export default async function ProyectoPage (props: PageProps<'/espacios/[id]'>) 
     {
       clave: 'discusiones',
       etiqueta: 'Discusiones',
-      contenido: <PanelDiscusiones proyectoId={proyecto.id} capacidades={capacidadesProyecto} />
+      contenido: <PanelDiscusiones proyectoId={proyecto.id} fuente={fuente} capacidades={capacidadesProyecto} />
     },
-    { clave: 'gantt', etiqueta: 'Diagrama de Gantt', contenido: <PanelGantt proyectoId={proyecto.id} /> },
+    { clave: 'gantt', etiqueta: 'Diagrama de Gantt', contenido: <PanelGantt proyectoId={proyecto.id} fuente={fuente} /> },
     // Va pegada al Gantt porque las dos leen las mismas fechas, y despues porque son dos preguntas
     // distintas: el Gantt muestra duraciones y dependencias, el calendario muestra el dia de
     // entrega. Sus capacidades son las de `tasks` y no las del Espacio: lo que abre es el detalle de
     // un Proceso.
-    { clave: 'calendario', etiqueta: 'Calendario', contenido: <PanelCalendario proyectoId={proyecto.id} capacidades={capacidadesTareas} /> },
+    { clave: 'calendario', etiqueta: 'Calendario', contenido: <PanelCalendario proyectoId={proyecto.id} fuente={fuente} capacidades={capacidadesTareas} /> },
     // El Meeting Paper conserva el lugar donde el equipo ya lo busca. Va aparte de las Notas y no
     // adentro porque son dos cosas distintas: la nota es privada de quien la escribio y el acta la ve
     // todo el Proyecto, asi que sus acciones dependen de permisos en vez de ofrecerse siempre.
-    { clave: 'actas', etiqueta: GLOSARIO.acta.singular, contenido: <PanelActas proyectoId={proyecto.id} ia={ia} yo={yo} /> },
+    { clave: 'actas', etiqueta: GLOSARIO.acta.singular, contenido: <PanelActas proyectoId={proyecto.id} fuente={fuente} capacidades={ACTAS_DEL_EQUIPO} ia={ia} yo={yo} /> },
     // La clave se queda en `wibot` aunque el asistente ahora se llame Thinking Orb: no es texto, es
     // el valor que viaja en `?tab=` de esta ficha. Cambiarla dejaría muerto cualquier enlace que
     // alguien haya guardado o pegado en una discusión, y el nombre del asistente no se lee de ahí
@@ -216,13 +238,19 @@ export default async function ProyectoPage (props: PageProps<'/espacios/[id]'>) 
     {
       clave: 'actividad',
       etiqueta: 'Actividad',
-      contenido: <PanelActividad proyectoId={proyecto.id} capacidades={capacidadesProyecto} />
+      contenido: <PanelActividad fuente={fuente} capacidades={capacidadesProyecto} />
     },
     ...(puedeConfigurar
       ? [{
           clave: 'configuracion',
           etiqueta: 'Configuración',
-          contenido: <PanelConfiguracionEspacio proyectoId={proyecto.id} puedeConfigurar />
+          contenido: (
+            <PanelConfiguracionEspacio
+              proyectoId={proyecto.id}
+              puedeConfigurar
+              capacidades={capacidadesProyecto}
+            />
+          )
         }]
       : [])
   ]

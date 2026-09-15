@@ -1,5 +1,15 @@
-import type { AccionMasiva, DefinicionCampoPersonalizado, ProcesoAmpliado, ValorCampoPersonalizado } from '@/datos/recursos'
-import type { Capacidad } from '@/datos/tipos'
+import type {
+  AccionMasiva,
+  AprobacionProceso,
+  DefinicionCampoPersonalizado,
+  EstadoSla,
+  Etiqueta,
+  ProcesoAmpliado,
+  Referencia,
+  ValorCampoPersonalizado
+} from '@/datos/recursos'
+import type { Capacidad, StaffReferencia } from '@/datos/tipos'
+import type { ComentarioParaMostrar } from './ComentarioDeDiscusion.tsx'
 import { estadoVencimiento } from '../../lib/fechas.ts'
 
 /**
@@ -133,4 +143,113 @@ export function valorDeAccionMasiva (
   const numero = Number(crudo)
 
   return Number.isInteger(numero) && numero > 0 ? numero : null
+}
+
+/**
+ * Un Proceso **como lo dibuja su ficha**, no como lo devuelve un contrato.
+ *
+ * La ficha de una Tarea es una sola y la abren los dos sujetos: el equipo por `GET /tasks/{id}` y el
+ * cliente por `GET /portal/projects/{id}/tasks/{tareaId}`, que manda bastante menos. Si la ficha
+ * declarara `Proceso` —el tipo del panel— cada campo que el cliente no recibe seria un `undefined`
+ * que el tipo jura que existe, y la unica forma de dibujarla sin romperse volveria a ser una rama
+ * por sujeto adentro.
+ *
+ * Asi que se declara **lo minimo**: requerido lo que los dos contratos mandan siempre, opcional todo
+ * lo demas. Y la regla de dibujo es una sola: **la clave ausente no se dibuja**. `undefined` no es
+ * "vacio" sino "no corresponde" —el equipo decidio no compartir los comentarios de este proyecto, o
+ * el sujeto no tiene asignados—, y una seccion vacia con su titulo diria algo que no es.
+ *
+ * Los cuatro bloques del final solo llegan en el portal, y cada uno segun su flag por proyecto
+ * (`view_task_comments`, `view_task_checklist_items`, `view_task_attachments`,
+ * `view_task_total_logged_time`). En el panel esos mismos datos se piden aparte, porque alli se
+ * escriben y cada lista se recarga sola.
+ */
+export interface ProcesoDeFicha {
+  id: number
+  patente: string | null
+  name: string
+  status: number
+  priority: number
+  start_date: string | null
+  due_date: string | null
+  date_finished: string | null
+  /**
+   * HTML del editor viejo. Nunca se inyecta: se muestra como texto plano.
+   *
+   * `null` es una Tarea sin describir, que es distinto de la clave ausente: el contrato del panel la
+   * manda solo con `include=description` o en la ficha, y el del portal siempre.
+   */
+  description?: string | null
+  project?: Referencia | null
+  milestone?: Referencia | null
+  assignees?: StaffReferencia[]
+  tags?: Etiqueta[]
+  counts?: ProcesoAmpliado['counts']
+  custom_fields?: ValorCampoPersonalizado[]
+  approval?: AprobacionProceso
+  eta?: string | null
+  desviacion_dias?: number | null
+  estado_sla?: EstadoSla | null
+  /** Solo en el portal, y solo con `view_task_comments`. */
+  comments?: ComentarioDeFicha[]
+  /** Solo en el portal, y solo con `view_task_checklist_items`. */
+  checklist?: Array<{ id: number, description: string, finished: boolean }>
+  /** Solo en el portal, y solo con `view_task_attachments`. */
+  attachments?: Array<{ id: number, file_name: string, subject?: string | null, url: string | null }>
+  /** Solo en el portal, y solo con `view_task_total_logged_time`. Mismas claves que el listado. */
+  total_logged_seconds?: number
+  duration_hm?: string
+}
+
+/**
+ * Un comentario de la ficha, **tal como lo emite la API** en los dos contratos.
+ *
+ * `staff` y `contact` en vez de un unico `author`: asi lo manda `GET /tasks/{id}/comments` desde
+ * siempre y asi lo manda tambien la ficha del portal. Es la misma forma para los dos sujetos, que es
+ * lo que permite que la ficha sea UN dibujo: inventar un `author` resuelto solo para el cliente
+ * seria la rama por sujeto que el modulo evita en todos lados.
+ *
+ * Quien firma es exactamente uno de los dos, y cual de los dos es el dato: un comentario con
+ * `contact` y sin `staff` lo escribio el propio cliente. `DetalleTarea` lo traduce a la forma que
+ * pinta `ComentarioDeDiscusion`, que es donde ese `es_cliente` se vuelve una insignia.
+ *
+ * El adjunto del comentario no viaja: la API no lo sirve por ninguna ruta todavia.
+ */
+export interface ComentarioDeFicha {
+  id: number
+  content: string
+  date_added: string | null
+  staff: { id: number, full_name: string } | null
+  contact: { id: number, full_name: string } | null
+}
+
+/**
+ * Un comentario de la API, en la forma que pinta `ComentarioDeDiscusion`.
+ *
+ * La API firma cada comentario con `staff` **o** con `contact`, nunca con los dos, y cual de los dos
+ * viene ES el dato: sin `staff`, lo escribio el propio cliente, y eso es lo que la tarjeta convierte
+ * en la insignia "Cliente". Con los dos en `null` el autor se perdio —un colaborador dado de baja,
+ * por ejemplo— y la tarjeta ya sabe dibujar eso.
+ *
+ * La traduccion vive aca y no en la tarjeta porque la tarjeta la comparten las discusiones, que
+ * emiten otra forma. Y no vive en la API porque `staff`/`contact` es la forma que el panel recibe
+ * desde siempre: cambiarla solo para el portal seria una segunda forma del mismo comentario, que es
+ * el `if (esPortal)` que este modulo evita en todos lados.
+ *
+ * @param comentario el comentario tal como llega del contrato, en cualquiera de los dos sujetos
+ * @returns lo que la tarjeta necesita para pintarse
+ */
+export function comentarioParaMostrar (comentario: ComentarioDeFicha): ComentarioParaMostrar {
+  const autor = comentario.staff ?? comentario.contact
+
+  return {
+    content: comentario.content,
+    created: comentario.date_added,
+    author: autor === null
+      ? null
+      : { full_name: autor.full_name, es_cliente: comentario.staff === null },
+    // El adjunto del comentario no viaja en ninguno de los dos contratos: la API no lo sirve por
+    // ninguna ruta todavia.
+    file: null
+  }
 }

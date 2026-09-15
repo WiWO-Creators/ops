@@ -24,18 +24,26 @@ import { avisarCambioDeMedidor } from '@/componentes/live/medidor'
 import { pedirSobre } from '@/datos/cliente'
 import { construirConsulta, leerConsulta } from '@/datos/consulta'
 import { leerError } from '@/datos/errores'
-import type { PersonaConTiempo, RegistroTiempo, ResumenEspacio } from '@/datos/recursos'
+import type { Etiqueta, PersonaConTiempo } from '@/datos/recursos'
 import type { Capacidad, Paginacion } from '@/datos/tipos'
-import { LOOKUP_PERSONAS_CON_TIEMPO, TIEMPOS } from '@/definiciones/tiempos'
+import { LOOKUP_PERSONAS_CON_TIEMPO, definicionDeTiempos } from '@/definiciones/tiempos'
 import type { EstadoConsulta, OpcionFiltro } from '@/definiciones/tipos'
+import { conConsulta, type FuenteDeProyecto } from '@/dominio/fuente-proyecto'
 import { useRecurso } from './carga'
 import { segundosAHoraMinuto } from './formatos'
 import { FormularioTimesheet } from './FormularioTimesheet'
+import { horasEstimadasDelResumen, type ResumenDeProyecto } from './overview'
 import { Metrica, formatearNumero } from './ResumenProyecto'
 import { duracionMostrada, hayRegistroCorriendo } from './timesheet'
 
 /**
  * Registro de horas de un proyecto.
+ *
+ * **El mismo lo abren el equipo y el cliente.** Lo unico que cambia es de donde bajan los datos
+ * —`fuente`— y que columnas, filtros y lecturas declara cada contrato, que resuelve
+ * `definicionDeTiempos` en la capa de definiciones: acá no hay ninguna rama por sujeto. Las acciones
+ * por fila ya dependian del backend (`puede_editar`, `puede_borrar`, `puede_detener`), asi que el
+ * contrato que no las manda no las ofrece.
  *
  * **Los permisos por fila los decide el backend** y llegan en `puede_editar`, `puede_borrar` y
  * `puede_detener`. El frontend no los recalcula: las reglas del panel mezclan cuatro permisos, el
@@ -57,15 +65,42 @@ import { duracionMostrada, hayRegistroCorriendo } from './timesheet'
  * guardado se aplica escribiendo la URL en vez de sincronizar dos copias del mismo estado.
  */
 
+/**
+ * Lo minimo que la tabla pinta de un registro.
+ *
+ * Se declara lo que se usa y no `RegistroTiempo`: el contrato del contacto no manda etiquetas,
+ * facturacion, duracion decimal, cronometro abierto ni permisos por fila. Clave ausente = celda o
+ * boton que no se dibuja; que columnas existen para cada sujeto lo dice `definicionDeTiempos`.
+ */
+interface RegistroDeHoras {
+  id: number
+  /** `null` cuando el registro quedo sin persona; el contrato del contacto lo admite. */
+  staff: { id: number, full_name: string, profile_image_url?: string | null, sigue_asignado?: boolean } | null
+  task: { id: number, name: string, billable?: boolean, billed?: boolean }
+  tags?: Etiqueta[]
+  start_time: string
+  end_time: string | null
+  note: string | null
+  duration_seconds: number
+  duration_hm: string
+  duration_decimal?: number
+  corriendo?: boolean
+  puede_editar?: boolean
+  puede_borrar?: boolean
+  puede_detener?: boolean
+}
+
 interface PropsPanelTiempos {
   proyectoId: number
+  /** De donde bajan las horas de este Proyecto. Ver `dominio/fuente-proyecto.ts`. */
+  fuente: FuenteDeProyecto
   capacidades: Capacidad[]
 }
 
 type Carga =
   | { fase: 'cargando' }
   | { fase: 'error', mensaje: string }
-  | { fase: 'listo', registros: RegistroTiempo[], paginacion: Paginacion | undefined }
+  | { fase: 'listo', registros: RegistroDeHoras[], paginacion: Paginacion | undefined }
 
 /** El menu de columnas esta oculto, pero `ControlesTabla` exige el callback. Estable entre renders. */
 function noOp (): void {}
@@ -99,17 +134,17 @@ function urlConservandoAjenos (
   return combinada === '' ? '?' : `?${combinada}`
 }
 
-export function PanelTiempos ({ proyectoId, capacidades }: PropsPanelTiempos): ReactElement {
+export function PanelTiempos (props: PropsPanelTiempos): ReactElement {
   // Leer `useSearchParams` exige un limite de Suspense: sin el, el build de cualquier pagina que
   // monte este panel falla, y esas paginas las escribe otra persona.
   return (
     <Suspense fallback={<Cargando alto="min-h-60" mensaje="Cargando las horas…" />}>
-      <TiemposDelProyecto proyectoId={proyectoId} capacidades={capacidades} />
+      <TiemposDelProyecto {...props} />
     </Suspense>
   )
 }
 
-function TiemposDelProyecto ({ proyectoId, capacidades }: PropsPanelTiempos): ReactElement {
+function TiemposDelProyecto ({ proyectoId, fuente, capacidades }: PropsPanelTiempos): ReactElement {
   const router = useRouter()
   const params = useSearchParams()
 
@@ -117,7 +152,7 @@ function TiemposDelProyecto ({ proyectoId, capacidades }: PropsPanelTiempos): Re
   const [personas, setPersonas] = useState<PersonaConTiempo[]>([])
   const [intento, setIntento] = useState(0)
   const [ahora, setAhora] = useState(() => new Date())
-  const [formulario, setFormulario] = useState<{ abierto: boolean, registro: RegistroTiempo | null }>(
+  const [formulario, setFormulario] = useState<{ abierto: boolean, registro: RegistroDeHoras | null }>(
     { abierto: false, registro: null }
   )
   const [aviso, setAviso] = useState<string | null>(null)
@@ -130,14 +165,19 @@ function TiemposDelProyecto ({ proyectoId, capacidades }: PropsPanelTiempos): Re
    */
   const [clavePintada, setClavePintada] = useState<string | null>(null)
 
+  const { definicion, columnas, conFiltroDePersonas } = useMemo(
+    () => definicionDeTiempos(fuente, proyectoId),
+    [fuente, proyectoId]
+  )
+
   /** Lo que la persona eligio, leido de la URL. Lo desconocido se descarta: un `?page=abc` no viaja. */
   const estado = useMemo(
-    () => leerConsulta(new URLSearchParams(params.toString()), TIEMPOS),
-    [params]
+    () => leerConsulta(new URLSearchParams(params.toString()), definicion),
+    [params, definicion]
   )
 
   /** La misma consulta, ya podada contra la whitelist del backend. Sin `?` inicial. */
-  const consulta = useMemo(() => construirConsulta(estado, TIEMPOS), [estado])
+  const consulta = useMemo(() => construirConsulta(estado, definicion), [estado, definicion])
 
   /**
    * Opciones del filtro por persona.
@@ -156,8 +196,8 @@ function TiemposDelProyecto ({ proyectoId, capacidades }: PropsPanelTiempos): Re
 
   // Accesorio, como el filtro por persona: si falla, la tabla se ve igual y no se muestra ningun
   // error. Lo que no se hace es pintar ceros donde no llego el dato.
-  const { estado: resumen, recargar: recargarResumen } = useRecurso<ResumenEspacio>(
-    `projects/${proyectoId}/overview`,
+  const { estado: resumen, recargar: recargarResumen } = useRecurso<ResumenDeProyecto>(
+    fuente.resumen,
     'No se pudo cargar el total de horas.'
   )
 
@@ -175,10 +215,10 @@ function TiemposDelProyecto ({ proyectoId, capacidades }: PropsPanelTiempos): Re
    * quince clics.
    */
   const cambiar = useCallback((parcial: Partial<EstadoConsulta>): void => {
-    const siguiente = construirConsulta({ ...estado, ...parcial }, TIEMPOS)
+    const siguiente = construirConsulta({ ...estado, ...parcial }, definicion)
 
     router.replace(urlConservandoAjenos(params, consulta, siguiente), { scroll: false })
-  }, [estado, consulta, params, router])
+  }, [estado, consulta, definicion, params, router])
 
   /** Identifica la consulta vigente. Cambia con la URL y con cada recarga manual. */
   const clave = `${consulta}|${intento}`
@@ -186,13 +226,13 @@ function TiemposDelProyecto ({ proyectoId, capacidades }: PropsPanelTiempos): Re
 
   useEffect(() => {
     const control = new AbortController()
-    const ruta = `projects/${proyectoId}/timesheets${consulta === '' ? '' : `?${consulta}`}`
+    const ruta = conConsulta(fuente.tiempos, consulta)
 
     // Sin volver a 'cargando' al refrescar: la tabla se queda con las filas anteriores hasta que
     // llegan las nuevas, en vez de parpadear a un bloque de carga cada vez que se cambia de pagina.
     // Que no parpadee no quiere decir que no avise: mientras la clave pintada no sea la vigente,
     // el chip dice que hay algo en curso.
-    void pedirSobre<RegistroTiempo[]>(ruta, control.signal)
+    void pedirSobre<RegistroDeHoras[]>(ruta, control.signal)
       .then((sobre) => {
         if (control.signal.aborted) return
 
@@ -210,19 +250,22 @@ function TiemposDelProyecto ({ proyectoId, capacidades }: PropsPanelTiempos): Re
       })
 
     return () => { control.abort() }
-  }, [proyectoId, consulta, clave])
+  }, [fuente, consulta, clave])
 
   useEffect(() => {
+    // El contrato del contacto no tiene ese subrecurso: pedirlo seria un 404 garantizado por pantalla.
+    if (!conFiltroDePersonas) return
+
     const control = new AbortController()
 
-    void pedirSobre<PersonaConTiempo[]>(`projects/${proyectoId}/timesheets/staff`, control.signal)
+    void pedirSobre<PersonaConTiempo[]>(`${fuente.tiempos}/staff`, control.signal)
       .then((sobre) => setPersonas(sobre.data))
       .catch(() => {
         // El filtro por persona es accesorio: sin el, la tabla se ve igual. No se convierte en error.
       })
 
     return () => { control.abort() }
-  }, [proyectoId, intento])
+  }, [fuente, conFiltroDePersonas, intento])
 
   const registros = carga.fase === 'listo' ? carga.registros : []
   const corriendo = hayRegistroCorriendo(registros)
@@ -238,7 +281,7 @@ function TiemposDelProyecto ({ proyectoId, capacidades }: PropsPanelTiempos): Re
   }, [corriendo])
 
   /** Detiene el cronometro abierto de una fila. Es el cronometro de la tarea, no un recurso aparte. */
-  async function detener (registro: RegistroTiempo): Promise<void> {
+  async function detener (registro: RegistroDeHoras): Promise<void> {
     setAviso(null)
 
     try {
@@ -258,13 +301,15 @@ function TiemposDelProyecto ({ proyectoId, capacidades }: PropsPanelTiempos): Re
   }
 
   /** Borra un registro. Pregunta antes: no hay deshacer del otro lado. */
-  async function borrar (registro: RegistroTiempo): Promise<void> {
-    if (!window.confirm(`¿Eliminar el registro de ${registro.staff.full_name} (${registro.duration_hm})?`)) return
+  async function borrar (registro: RegistroDeHoras): Promise<void> {
+    const quien = registro.staff?.full_name ?? 'sin persona'
+
+    if (!window.confirm(`¿Eliminar el registro de ${quien} (${registro.duration_hm})?`)) return
 
     setAviso(null)
 
     try {
-      const respuesta = await fetch(`/api/bff/projects/${proyectoId}/timesheets/${registro.id}`, {
+      const respuesta = await fetch(`/api/bff/${fuente.tiempos}/${registro.id}`, {
         method: 'DELETE'
       })
 
@@ -285,7 +330,7 @@ function TiemposDelProyecto ({ proyectoId, capacidades }: PropsPanelTiempos): Re
 
       <div className="flex flex-wrap items-start justify-between gap-2">
         <ControlesTabla
-          definicion={TIEMPOS}
+          definicion={definicion}
           estado={estado}
           // La tabla de abajo es a medida y no se arma desde la definicion: no hay columnas que
           // encender ni apagar, asi que el menu se oculta y estas dos props quedan inertes.
@@ -347,15 +392,17 @@ function TiemposDelProyecto ({ proyectoId, capacidades }: PropsPanelTiempos): Re
             <tr>
               <CeldaEncabezado>Miembro</CeldaEncabezado>
               <CeldaEncabezado>Tarea</CeldaEncabezado>
-              <CeldaEncabezado>Etiquetas</CeldaEncabezado>
+              {columnas.includes('tags') && <CeldaEncabezado>Etiquetas</CeldaEncabezado>}
               <CeldaEncabezado>Hora de inicio</CeldaEncabezado>
               <CeldaEncabezado>Hora de finalización</CeldaEncabezado>
               <CeldaEncabezado>Nota</CeldaEncabezado>
               <CeldaEncabezado numerica>Hora (h)</CeldaEncabezado>
-              <CeldaEncabezado numerica>Hora (decimal)</CeldaEncabezado>
-              <CeldaEncabezado>
-                <span className="sr-only">Opciones</span>
-              </CeldaEncabezado>
+              {columnas.includes('decimal') && <CeldaEncabezado numerica>Hora (decimal)</CeldaEncabezado>}
+              {columnas.includes('acciones') && (
+                <CeldaEncabezado>
+                  <span className="sr-only">Opciones</span>
+                </CeldaEncabezado>
+              )}
             </tr>
           </EncabezadoTabla>
 
@@ -368,12 +415,12 @@ function TiemposDelProyecto ({ proyectoId, capacidades }: PropsPanelTiempos): Re
                   <CeldaTabla>
                     <span className="flex items-center gap-2">
                       <Avatar
-                        nombre={registro.staff.full_name}
-                        imagen={registro.staff.profile_image_url}
+                        nombre={registro.staff?.full_name ?? ''}
+                        imagen={registro.staff?.profile_image_url ?? null}
                         tamano="chico"
                       />
-                      <span className="text-texto">{registro.staff.full_name}</span>
-                      {!registro.staff.sigue_asignado && (
+                      <span className="text-texto">{registro.staff?.full_name ?? ''}</span>
+                      {registro.staff?.sigue_asignado === false && (
                         <span
                           className="text-texto-aviso"
                           title="Ya no está asignado a esta tarea"
@@ -396,13 +443,16 @@ function TiemposDelProyecto ({ proyectoId, capacidades }: PropsPanelTiempos): Re
                       >
                         {registro.task.name}
                       </Link>
-                      {registro.task.billed
+                      {registro.task.billed === true
                         ? <Insignia tono="exito" tamano="chico">Facturada</Insignia>
-                        : registro.task.billable && <Insignia tono="aviso" tamano="chico">No facturada</Insignia>}
+                        : registro.task.billable === true && <Insignia tono="aviso" tamano="chico">No facturada</Insignia>}
                     </span>
                   </CeldaTabla>
 
-                  <CeldaTabla><Etiquetas etiquetas={registro.tags} /></CeldaTabla>
+                  {columnas.includes('tags') && (
+                    <CeldaTabla><Etiquetas etiquetas={registro.tags ?? []} /></CeldaTabla>
+                  )}
+
                   <CeldaTabla><Fecha valor={registro.start_time} conHora /></CeldaTabla>
                   <CeldaTabla>
                     {registro.end_time === null
@@ -411,31 +461,36 @@ function TiemposDelProyecto ({ proyectoId, capacidades }: PropsPanelTiempos): Re
                   </CeldaTabla>
                   <CeldaTabla className="max-w-64 truncate">{registro.note ?? ''}</CeldaTabla>
                   <CeldaTabla numerica>{duracion.hm}</CeldaTabla>
-                  <CeldaTabla numerica>{duracion.decimal.toFixed(2)}</CeldaTabla>
 
-                  <CeldaTabla>
-                    <span className="flex items-center gap-1">
-                      {registro.puede_editar && (
-                        <Boton
-                          variante="sutil"
-                          tamano="chico"
-                          onClick={() => setFormulario({ abierto: true, registro })}
-                        >
-                          Editar
-                        </Boton>
-                      )}
-                      {registro.puede_detener && (
-                        <Boton variante="secundario" tamano="chico" onClick={() => { void detener(registro) }}>
-                          Detener
-                        </Boton>
-                      )}
-                      {registro.puede_borrar && (
-                        <Boton variante="peligro" tamano="chico" onClick={() => { void borrar(registro) }}>
-                          Eliminar
-                        </Boton>
-                      )}
-                    </span>
-                  </CeldaTabla>
+                  {columnas.includes('decimal') && (
+                    <CeldaTabla numerica>{duracion.decimal?.toFixed(2) ?? ''}</CeldaTabla>
+                  )}
+
+                  {columnas.includes('acciones') && (
+                    <CeldaTabla>
+                      <span className="flex items-center gap-1">
+                        {registro.puede_editar === true && (
+                          <Boton
+                            variante="sutil"
+                            tamano="chico"
+                            onClick={() => setFormulario({ abierto: true, registro })}
+                          >
+                            Editar
+                          </Boton>
+                        )}
+                        {registro.puede_detener === true && (
+                          <Boton variante="secundario" tamano="chico" onClick={() => { void detener(registro) }}>
+                            Detener
+                          </Boton>
+                        )}
+                        {registro.puede_borrar === true && (
+                          <Boton variante="peligro" tamano="chico" onClick={() => { void borrar(registro) }}>
+                            Eliminar
+                          </Boton>
+                        )}
+                      </span>
+                    </CeldaTabla>
+                  )}
                 </FilaTabla>
               )
             })}
@@ -465,19 +520,23 @@ function TiemposDelProyecto ({ proyectoId, capacidades }: PropsPanelTiempos): Re
 /**
  * Totales del proyecto, arriba del listado.
  *
- * Los cinco numeros salen de `logged_time` de `GET /projects/{id}/overview`, ya calculados por el
- * backend. **Son del proyecto entero**, no de la pagina ni del filtro por persona: por eso las
- * etiquetas dicen "en total" y no "registrado", que se leeria como el total de lo que se ve.
+ * Los numeros salen de `logged_time` de `{fuente.resumen}`, ya calculados por el backend. **Son del
+ * proyecto entero**, no de la pagina ni del filtro por persona: por eso las etiquetas dicen "en
+ * total" y no "registrado", que se leeria como el total de lo que se ve.
  *
- * Los tres de facturacion solo aparecen con `muestra_finanzas`. Cuando el backend lo apaga —sin
- * `create projects`, o con un proyecto que no factura por horas— esos campos vienen en cero, y un
- * "00:00" que nadie conto es peor que la ausencia del numero.
+ * Cada tarjeta depende de que su clave haya llegado, y eso vale para los dos contratos: el del
+ * equipo no manda `logged_time` a quien no puede verlo, el del contacto tampoco, y los tres de
+ * facturacion viajan solo con `muestra_finanzas`. Un "00:00" que nadie conto es peor que la
+ * ausencia del numero, y por eso sin ninguna cifra la fila entera no se dibuja.
  *
  * @param resumen la respuesta de `/overview`, tal como llego
- * @returns la fila de metricas
+ * @returns la fila de metricas, o `null` si ese contrato no mando ninguna
  */
-function TotalesDelProyecto ({ resumen }: { resumen: ResumenEspacio }): ReactElement {
+function TotalesDelProyecto ({ resumen }: { resumen: ResumenDeProyecto }): ReactElement | null {
   const tiempo = resumen.logged_time
+  const estimadas = horasEstimadasDelResumen(resumen)
+
+  if (tiempo === undefined && estimadas === null) return null
 
   return (
     // Cinco columnas SIEMPRE, se pinten dos tarjetas o cinco: con `grid-cols-2` a dos tarjetas, cada
@@ -485,14 +544,18 @@ function TotalesDelProyecto ({ resumen }: { resumen: ResumenEspacio }): ReactEle
     // ningun otro lado. Dejar columnas vacias a la derecha mantiene el ancho de tarjeta del resto del
     // producto.
     <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
-      <Metrica etiqueta="Registrado en total" valor={segundosAHoraMinuto(tiempo.total_seconds)} />
-      <Metrica etiqueta="Horas estimadas" valor={formatearNumero(resumen.estimated_hours, ' h')} />
+      {tiempo !== undefined && (
+        <Metrica etiqueta="Registrado en total" valor={segundosAHoraMinuto(tiempo.total_seconds)} />
+      )}
+      {estimadas !== null && (
+        <Metrica etiqueta="Horas estimadas" valor={formatearNumero(estimadas, ' h')} />
+      )}
 
-      {tiempo.muestra_finanzas && (
+      {tiempo?.muestra_finanzas === true && (
         <>
-          <Metrica etiqueta="Facturable" valor={segundosAHoraMinuto(tiempo.billable_seconds)} />
-          <Metrica etiqueta="Facturado" valor={segundosAHoraMinuto(tiempo.billed_seconds)} />
-          <Metrica etiqueta="Sin facturar" valor={segundosAHoraMinuto(tiempo.unbilled_seconds)} />
+          <Metrica etiqueta="Facturable" valor={segundosAHoraMinuto(tiempo.billable_seconds ?? 0)} />
+          <Metrica etiqueta="Facturado" valor={segundosAHoraMinuto(tiempo.billed_seconds ?? 0)} />
+          <Metrica etiqueta="Sin facturar" valor={segundosAHoraMinuto(tiempo.unbilled_seconds ?? 0)} />
         </>
       )}
     </div>

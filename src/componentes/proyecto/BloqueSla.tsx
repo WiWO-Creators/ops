@@ -13,7 +13,7 @@ import { formatearDesviacion, SIN_DATO } from '@/lib/sla'
 import { hoyLocal } from '@/lib/fechas'
 import { cn } from '@/lib/clases'
 import { GLOSARIO } from '@/dominio/glosario'
-import { ESTADO_COMPLETO } from './tareas'
+import { ESTADO_COMPLETO, type ProcesoDeFicha } from './tareas'
 import type { AprobacionProceso, Proceso } from '@/datos/recursos'
 
 /**
@@ -32,7 +32,7 @@ import type { AprobacionProceso, Proceso } from '@/datos/recursos'
  */
 
 interface PropsBloqueSla {
-  tarea: Proceso
+  tarea: ProcesoDeFicha
   /** `true` si quien mira tiene `edit` sobre tareas: sin eso el boton no se ofrece. */
   puedeEditar: boolean
   /** Se llama cuando se pidio la aprobacion, para que el detalle vuelva a pedir la tarea. */
@@ -53,7 +53,7 @@ const APROBACION: Record<string, { etiqueta: string, tono: TonoInsignia }> = {
  * bloque **no se renderiza**: es la diferencia entre "no aplica" y "vacio", y ahorra tres guiones en
  * produccion.
  */
-export function hayDatosDeSla (tarea: Proceso): boolean {
+export function hayDatosDeSla (tarea: ProcesoDeFicha): boolean {
   return (
     tarea.approval !== undefined ||
     tarea.eta !== undefined ||
@@ -68,7 +68,7 @@ export function hayDatosDeSla (tarea: Proceso): boolean {
  * Se mira el estado y no solo `date_finished`: una tarea completada sin fecha sellada —importada, o
  * cerrada por una via que no la puso— es justamente la que hay que poder corregir.
  */
-function hayCierre (tarea: Proceso): boolean {
+function hayCierre (tarea: ProcesoDeFicha): boolean {
   return tarea.status === ESTADO_COMPLETO || tarea.date_finished !== null
 }
 
@@ -248,7 +248,7 @@ function Aprobacion ({ aprobacion }: { aprobacion: AprobacionProceso | undefined
  * `details` del `422` y `escribirEnBff` ya los devuelve traducidos: aca solo se pintan.
  */
 function CorreccionDeCierre (
-  { tarea, onCerrar, onGuardada }: { tarea: Proceso, onCerrar: () => void, onGuardada: () => void }
+  { tarea, onCerrar, onGuardada }: { tarea: ProcesoDeFicha, onCerrar: () => void, onGuardada: () => void }
 ): ReactElement {
   const [fecha, setFecha] = useState(() => fechaDeCierre(tarea.date_finished) || hoyLocal())
   const [guardando, setGuardando] = useState(false)

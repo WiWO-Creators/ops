@@ -1,4 +1,5 @@
-import type { GrupoGantt } from '@/datos/recursos'
+import type { AgrupacionGantt, GrupoGantt } from '@/datos/recursos'
+import type { FuenteDeProyecto } from '@/dominio/fuente-proyecto'
 
 /**
  * Logica pura del diagrama de Gantt: convertir fechas en posiciones de barra.
@@ -879,4 +880,31 @@ function tramosDeZoom (rango: RangoGantt, zoom: ZoomGantt): Array<[number, numbe
   }
 
   return tramos
+}
+
+/** Que lecturas del diagrama ofrece el contrato del sujeto. */
+export interface LecturasDelGantt {
+  /**
+   * Agrupaciones que el endpoint acepta, en el orden en que se ofrecen.
+   *
+   * Una sola quiere decir que no hay nada que elegir y el alternador no se dibuja: el del contacto
+   * solo agrupa por Hitos, y `RecursoGantt::paraContacto()` responde 422 —no un gantt distinto— ante
+   * cualquier otra, justamente para que nadie crea que vio un gantt por miembros.
+   */
+  agrupaciones: readonly AgrupacionGantt[]
+}
+
+/**
+ * Que ofrece el diagrama segun de que contrato bajen los datos.
+ *
+ * **Es la unica lectura de `sujeto`** de esta pestaña, y vive en el modulo de logica del Gantt y no
+ * en el panel: que lecturas existen es propiedad del contrato, no del dibujo.
+ *
+ * @param fuente De donde bajan los datos del Proyecto.
+ * @returns Las lecturas disponibles para ese sujeto.
+ */
+export function lecturasDelGantt (fuente: FuenteDeProyecto): LecturasDelGantt {
+  return {
+    agrupaciones: fuente.sujeto === 'portal' ? ['milestones'] : ['milestones', 'members', 'status']
+  }
 }

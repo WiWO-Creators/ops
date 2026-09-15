@@ -3,7 +3,7 @@
 import { Suspense, useEffect, useMemo, useRef, useState, type ReactElement, type ReactNode } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { TablaRecurso } from '@/componentes/datos/TablaRecurso'
-import { unirConsultas } from '@/componentes/datos/tabla'
+import { sinColumnasVacias, unirConsultas } from '@/componentes/datos/tabla'
 import { Cargando, ErrorEstado } from '@/componentes/estado/Estados'
 import { staffParaFiltros } from '@/datos/asignables'
 import { opcionesDeFiltros } from '@/datos/catalogos'
@@ -45,6 +45,14 @@ interface PropsPanelRecurso<T> {
    */
   board?: TableroDePreset
   /**
+   * De donde salen los catalogos con los que se pintan estados y se ofrecen filtros.
+   *
+   * Por defecto el `/lookups` del equipo. El portal del cliente tiene el suyo —un subconjunto— y
+   * pedir el del equipo con una sesion de contacto devuelve 401: la ruta entra por aca, igual que
+   * la del listado entra por `definicion.ruta`.
+   */
+  rutaLookups?: string
+  /**
    * Como se dibuja una fila en tarjetas. Se pasa tal cual al motor de tabla, que es quien ofrece el
    * alternador y recuerda la eleccion en la URL. Ausente = la pestaña solo se ve como tabla.
    */
@@ -74,6 +82,7 @@ function ListaDelProyecto<T> ({
   barra,
   revision = 0,
   board,
+  rutaLookups = 'lookups',
   tarjeta
 }: PropsPanelRecurso<T>): ReactElement {
   const params = useSearchParams()
@@ -108,12 +117,12 @@ function ListaDelProyecto<T> ({
   useEffect(() => {
     const control = new AbortController()
 
-    void primeraPagina(definicion, consultaDeMontaje.current, control.signal).then((resultado) => {
+    void primeraPagina(definicion, consultaDeMontaje.current, rutaLookups, control.signal).then((resultado) => {
       if (!control.signal.aborted) setCarga(resultado)
     })
 
     return () => { control.abort() }
-  }, [definicion, intento, revision])
+  }, [definicion, intento, revision, rutaLookups])
 
   if (carga.fase === 'cargando') {
     return (
@@ -138,7 +147,7 @@ function ListaDelProyecto<T> ({
       {barra}
       <TablaRecurso
         key={revision}
-        definicion={definicion}
+        definicion={sinColumnasVacias(definicion, carga.inicial.filas)}
         inicial={carga.inicial}
         claveFila={claveFila}
         capacidades={capacidades}
@@ -173,18 +182,20 @@ function rutaConConsulta<T> (definicion: DefinicionRecurso<T>, consulta: string)
  *
  * @param definicion la definicion ya acotada al proyecto
  * @param consulta query string sin `?`
+ * @param rutaLookups de donde bajan los catalogos de este sujeto
  * @param senal aborta las dos peticiones si el componente se desmonta
  * @returns el estado de carga resuelto, `listo` o `error`
  */
 async function primeraPagina<T> (
   definicion: DefinicionRecurso<T>,
   consulta: string,
+  rutaLookups: string,
   senal: AbortSignal
 ): Promise<Carga<T>> {
   try {
     const [lista, lookups, staff] = await Promise.all([
       pedirSobre<T[]>(rutaConConsulta(definicion, consulta), senal),
-      pedirSobre<Lookups>('lookups', senal),
+      pedirSobre<Lookups>(rutaLookups, senal),
       staffParaFiltros(definicion)
     ])
 

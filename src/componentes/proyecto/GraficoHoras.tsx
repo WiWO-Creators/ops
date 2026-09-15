@@ -6,6 +6,7 @@ import { Segmentado } from '@/componentes/formularios/Segmentado'
 import { cn } from '@/lib/clases'
 import { useRecurso } from './carga'
 import { altoDeTramo, maximoDelGrafico, PERIODOS_GRAFICO } from './overview'
+import { conConsulta } from '@/dominio/fuente-proyecto'
 import type { GraficoHoras as DatosGrafico, PeriodoGrafico } from '@/datos/recursos'
 
 /**
@@ -22,10 +23,15 @@ import type { GraficoHoras as DatosGrafico, PeriodoGrafico } from '@/datos/recur
 /** Clases de relleno de cada serie, en el orden en que llegan. */
 const RELLENOS = ['bg-grafico-1', 'bg-grafico-2', 'bg-grafico-3']
 
-export function GraficoHoras ({ proyectoId }: { proyectoId: number }): ReactElement {
+/**
+ * @param ruta Ruta del recurso del grafico, sin el periodo. La arma quien monta el panel a partir de
+ *   la fuente del Proyecto: solo el contrato del equipo tiene este subrecurso.
+ * @returns el grafico con su selector de periodo
+ */
+export function GraficoHoras ({ ruta }: { ruta: string }): ReactElement {
   const [periodo, setPeriodo] = useState<PeriodoGrafico>('esta_semana')
   const { estado, recargar } = useRecurso<DatosGrafico>(
-    `projects/${proyectoId}/overview/chart?periodo=${periodo}`,
+    conConsulta(ruta, `periodo=${periodo}`),
     'No se pudo cargar el gráfico de horas.'
   )
 

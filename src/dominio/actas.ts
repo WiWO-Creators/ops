@@ -355,3 +355,32 @@ export function mensajeDeMicrofono (nombre: string): string {
 
   return 'No se pudo iniciar la grabación en este dispositivo.'
 }
+
+/**
+ * Un encabezado de identificador vacío, tal como lo deja el modelo.
+ *
+ * La estructura del Meeting Paper pone, debajo del `<h1>`, un párrafo con el identificador del
+ * proyecto o del proceso. Cuando la reunión no lo dice, el prompt manda escribir "No especificado",
+ * así que el documento arranca con un `#No especificado` en negrita: un hueco del formulario del
+ * modelo puesto a la vista de quien lee, cliente incluido.
+ *
+ * Se mira solo el párrafo: un `#` sin nada detrás, o seguido de "No especificado". Cualquier otro
+ * identificador —el de verdad— no coincide y se conserva.
+ */
+const ENCABEZADO_SIN_IDENTIFICADOR =
+  /<p\b[^>]*>\s*(?:<(?:strong|b)\b[^>]*>\s*)?#(?:\s*no\s+especificado)?\s*(?:<\/(?:strong|b)>\s*)?<\/p>\s*/i
+
+/**
+ * El cuerpo del acta listo para leerse: sin el encabezado de identificador vacío.
+ *
+ * Se aplica al mostrar y al exportar, y no al guardar: lo que la API tiene es lo que el modelo
+ * escribió, y reescribirlo desde el navegador dejaría dos versiones del mismo documento. Vale para
+ * los dos sujetos —el mismo `DetalleActa` lo abren el equipo y el cliente—, que es donde vive el
+ * defecto.
+ *
+ * @param html el cuerpo del acta tal como lo guarda la API
+ * @returns el mismo cuerpo, sin el párrafo del identificador cuando venía vacío
+ */
+export function cuerpoDelActa (html: string): string {
+  return html.replace(ENCABEZADO_SIN_IDENTIFICADOR, '')
+}
