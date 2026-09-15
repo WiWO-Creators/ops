@@ -3847,7 +3847,9 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
           return {
             id: hito.id,
             name: hito.name,
-            description: hito.description,
+            // La descripcion se comparte hito por hito, no por proyecto: `RecursoHitos::paraContacto()`
+            // manda la clave siempre y la pone en null donde el equipo no la marco compartible.
+            description: hito.description_visible_to_customer === true ? hito.description : null,
             start_date: hito.start_date,
             due_date: hito.due_date,
             project_id: hito.project_id,

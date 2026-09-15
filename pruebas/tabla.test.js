@@ -12,6 +12,7 @@ import { POR_PAGINA_MAXIMO } from '../src/datos/consulta.ts'
 import {
   clavesVisiblesPorDefecto,
   columnasVisibles,
+  sinColumnasVacias,
   esControlDeFila,
   idDeParametro,
   mensajeDeError,
@@ -41,6 +42,29 @@ const FILTROS = [
 
 test('las columnas ocultas por defecto no arrancan visibles', () => {
   assert.deepEqual(clavesVisiblesPorDefecto(COLUMNAS), ['name', 'status'])
+})
+
+test('una columna omitirSiVacia desaparece cuando ninguna fila trae el dato', () => {
+  const definicion = {
+    ruta: 'milestones',
+    columnas: [
+      { clave: 'name', encabezado: 'Nombre', presentar },
+      { clave: 'description', encabezado: 'Descripción', presentar, omitirSiVacia: true }
+    ]
+  }
+
+  const vacias = [{ name: 'Entrega', description: null }, { name: 'Cierre', description: '' }]
+  const conUna = [{ name: 'Entrega', description: null }, { name: 'Cierre', description: 'Lo acordado' }]
+
+  assert.deepEqual(sinColumnasVacias(definicion, vacias).columnas.map((c) => c.clave), ['name'])
+  assert.deepEqual(
+    sinColumnasVacias(definicion, conUna).columnas.map((c) => c.clave),
+    ['name', 'description']
+  )
+  // Sin ninguna columna marcada devuelve la MISMA definicion: la tabla no se vuelve a montar por un
+  // objeto nuevo con el mismo contenido.
+  const sinMarcar = { ruta: 'milestones', columnas: [{ clave: 'name', encabezado: 'Nombre', presentar }] }
+  assert.equal(sinColumnasVacias(sinMarcar, vacias), sinMarcar)
 })
 
 test('columnasVisibles respeta el orden de la definicion, no el del selector', () => {

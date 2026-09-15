@@ -3,7 +3,7 @@
 import { Suspense, useEffect, useMemo, useRef, useState, type ReactElement, type ReactNode } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { TablaRecurso } from '@/componentes/datos/TablaRecurso'
-import { unirConsultas } from '@/componentes/datos/tabla'
+import { sinColumnasVacias, unirConsultas } from '@/componentes/datos/tabla'
 import { Cargando, ErrorEstado } from '@/componentes/estado/Estados'
 import { staffParaFiltros } from '@/datos/asignables'
 import { opcionesDeFiltros } from '@/datos/catalogos'
@@ -147,7 +147,7 @@ function ListaDelProyecto<T> ({
       {barra}
       <TablaRecurso
         key={revision}
-        definicion={definicion}
+        definicion={sinColumnasVacias(definicion, carga.inicial.filas)}
         inicial={carga.inicial}
         claveFila={claveFila}
         capacidades={capacidades}

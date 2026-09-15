@@ -94,9 +94,18 @@ export function hitosDelContacto (proyectoId: number): DefinicionRecurso<HitoDet
     ruta: `portal/projects/${encodeURIComponent(String(proyectoId))}/milestones`,
     columnas: HITOS.columnas
       .filter((columna) => COLUMNAS_DEL_CONTACTO.includes(columna.clave))
+      // La descripcion del Hito se comparte **hito por hito**: `RecursoHitos::paraContacto()` manda
+      // la clave siempre y la pone en `null` donde `description_visible_to_customer` esta apagado,
+      // que es lo normal. Sin `omitirSiVacia` el cliente ve un encabezado "Descripcion" sobre una
+      // columna en blanco en todas las filas. Con el, la columna existe solo si el equipo compartio
+      // alguna — y entonces tiene algo que decir.
       // Una flecha de orden que el endpoint no atiende se dibujaria, se podria pulsar y no haria
       // nada: la lista del contacto llega ya ordenada por el backend.
-      .map((columna) => ({ ...columna, ordenPor: undefined })),
+      .map((columna) => ({
+        ...columna,
+        ordenPor: undefined,
+        ...(columna.clave === 'description' ? { omitirSiVacia: true } : {})
+      })),
     filtros: [],
     ordenables: [],
     busqueda: false

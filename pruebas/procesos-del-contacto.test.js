@@ -149,6 +149,11 @@ test('la tabla de Hitos del contacto se deriva de la del equipo y pierde lo que 
   assert.deepEqual(contacto.ordenables, [])
   assert.equal(contacto.busqueda, false)
   assert.equal(contacto.columnas.every((c) => c.ordenPor === undefined), true)
+  // La descripcion del Hito se comparte hito por hito (`description_visible_to_customer`) y llega
+  // en `null` mientras nadie la comparta: la columna del cliente solo existe si alguna fila la
+  // trae. En el panel el campo es del equipo y la columna va siempre.
+  assert.equal(contacto.columnas.find((c) => c.clave === 'description')?.omitirSiVacia, true)
+  assert.equal(equipo.columnas.find((c) => c.clave === 'description')?.omitirSiVacia, undefined)
   // El kanban no existe para el contacto; el equipo lo conserva.
   assert.equal(tableroDelEquipo, true)
   assert.equal(tableroDelContacto, false)
