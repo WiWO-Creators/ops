@@ -39,3 +39,9 @@ Las listas de tareas y proyectos personales se actualizan cuando la ventana vuel
 La migración de permisos `0540` está aplicada y `wiwo_permisos_jerarquia=1`. El interruptor de correo está en `real`. El evento `proceso_asignado` estaba declarado, pero los caminos de escritura de la API no lo emitían.
 
 Sigue pendiente identificar la tarea y el destinatario concretos del reporte para comprobar cualquier ausencia que persista tras recargar. El código del reporte no basta para identificar esa tarea.
+
+## Verificación automatizada
+
+- Frontend: 1456 pruebas aprobadas, TypeScript y ESLint sin errores.
+- Backend: regresión de asignaciones y suites relacionadas aprobadas; sintaxis PHP y revisión de espacios correctas.
+- La integración de agente durable con MySQL no se ejecutó: este entorno no tiene `ORB_TEST_DSN`. Las pruebas de avisos usan dobles de base y correo, sin entregas reales.
