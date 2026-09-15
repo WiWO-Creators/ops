@@ -20,6 +20,7 @@ import { Logo } from '@/componentes/estructura/Logo'
 import { MenuUsuario } from '@/componentes/estructura/MenuUsuario'
 import { ScrollSuave } from '@/componentes/estructura/ScrollSuave'
 import { VigilanteDeVersion } from '@/componentes/estructura/VigilanteDeVersion'
+import { vistasPermitidas } from '@/dominio/vistas-de-auditoria'
 
 /**
  * Armazon del panel.
@@ -246,10 +247,12 @@ function seccionesDe (yo: Yo): Seccion[] {
     secciones.push({ href: '/administracion', etiqueta: 'Administración', icono: 'administracion' })
   }
 
-  // Auditoria comparte llave con Administracion y no tiene una propia: la API exige `is_superadmin`
-  // en `/audit`, `/presence` y `/sessions`, asi que la barra usa la misma. Va en su propia seccion y
-  // no como una pestaña de Administracion porque no configura nada: mira.
-  if (yo.is_superadmin) {
+  // Auditoria ya no comparte llave con Administracion: desde que tiene la pestaña de calidad de las
+  // Tareas, tambien le corresponde a gerencia. La llave sale de `vistasPermitidas`, la misma que usa
+  // la pantalla para repartir las pestañas, para que la barra no pueda ofrecer lo que la pantalla
+  // niega ni al reves. Va en su propia seccion y no como pestaña de Administracion porque no
+  // configura nada: mira.
+  if (vistasPermitidas(yo).length > 0) {
     secciones.push({ href: '/auditoria', etiqueta: 'Auditoría', icono: 'auditoria' })
   }
 
