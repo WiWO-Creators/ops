@@ -1,5 +1,6 @@
 import { Suspense } from 'react'
 import Link from 'next/link'
+import { unstable_rethrow } from 'next/navigation'
 import {
   ArrowRight,
   Building2,
@@ -12,6 +13,7 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/clases'
 import { pedir, pedirOpcional } from '@/datos/servidor'
+import { ErrorApi, mensajeParaPantalla } from '@/datos/errores'
 import type { Yo } from '@/datos/tipos'
 import type { Espacio, Proceso } from '@/datos/recursos'
 import type { EstadoDeJornada } from '@/datos/live'
@@ -65,7 +67,7 @@ export default async function InicioPage () {
   // Los dos viajes salen juntos: el recordatorio de jornada no tiene por que esperar a los procesos
   // ni al reves. Va por `pedirOpcional` porque un fallo leyendo la jornada no puede tumbar la
   // portada entera — el aviso simplemente no se pinta.
-  const [{ procesos, total }, jornada, estados] = await Promise.all([
+  const [{ procesos, total, error: errorDeProcesos }, jornada, estados] = await Promise.all([
     misProcesos(yo),
     pedirOpcional<EstadoDeJornada>('/me/jornada'),
     estadosDeTarea()
@@ -94,7 +96,7 @@ export default async function InicioPage () {
       <ResumenDelDia />
 
       {puedeVerSeccion(yo.permissions.tasks, 'tasks') && (
-        <MiTrabajo grupos={grupos} restantes={restantes} estados={estados} />
+        <MiTrabajo grupos={grupos} restantes={restantes} estados={estados} error={errorDeProcesos} />
       )}
 
       {/*
@@ -132,25 +134,64 @@ export default async function InicioPage () {
 }
 
 /**
+ * La primera fecha que cuenta como fecha de verdad.
+ *
+ * En esta base `duedate` no admite nulos y una Tarea sin plazo guarda `0000-00-00`. Con
+ * `sort=due_date` ascendente esas filas encabezan el resultado, asi que alguien con sesenta Tareas
+ * sin fecha se llevaba las sesenta filas de la pagina en ceros y los tres tramos —Vencido, Hoy,
+ * Próximos días— salian vacios: el segundo camino, independiente de la sesion, hacia "no aparecen
+ * tareas".
+ *
+ * `filter[date_from]` compara `duedate >= ` este valor, asi que la fecha cero queda fuera y las
+ * sesenta filas se gastan en trabajo con plazo, que es lo que la pantalla agrupa. Lo que no tiene
+ * plazo no desaparece: vive en el listado completo, al que lleva el enlace del encabezado.
+ */
+const PRIMERA_FECHA_REAL = '0001-01-01'
+
+/** Lo que hace falta para pintar "Mi trabajo", con el motivo si no se pudo traer. */
+interface TrabajoPropio {
+  procesos: Proceso[]
+  total: number
+  /** Texto del fallo, o `null` si la peticion salio bien (o si no habia permiso para hacerla). */
+  error: string | null
+}
+
+/**
  * Trae los procesos asignados a quien mira, del vencimiento mas cercano al mas lejano.
  *
- * Un fallo aca no puede tumbar la pantalla: si el listado no viene, el inicio sigue sirviendo para
- * navegar, que es la mitad de su trabajo. Por eso devuelve una lista vacia en vez de propagar.
+ * Un fallo aca no tumba la pantalla —el inicio sigue sirviendo para navegar, que es la mitad de su
+ * trabajo— pero **si se dice**. Antes el `catch` devolvia la lista vacia y la pantalla pintaba "No
+ * tienes Procesos por vencer": el sintoma mentia sobre su causa, y una sesion caida de madrugada se
+ * reportaba como "de mañana no aparecen tareas".
+ *
+ * `unstable_rethrow` es lo primero del `catch` y no es un detalle: `pedir()` resuelve el `401`
+ * llamando a `redirect()`, que en Next **funciona lanzando**. Un `catch` pelado se tragaba esa señal
+ * y convertia el "andá a entrar de nuevo" en una lista vacia. Con el rethrow, la sesion caida manda
+ * a `/colab` como corresponde y solo los fallos de verdad llegan al mensaje de abajo.
  *
  * @param yo la sesion, para el filtro de asignacion y para el permiso
- * @returns los procesos propios, o una lista vacia si no hay permiso o la API fallo
+ * @returns los procesos propios, o el motivo por el que no se pudieron traer
  */
-async function misProcesos (yo: Yo): Promise<{ procesos: Proceso[], total: number }> {
-  if (!puedeVerSeccion(yo.permissions.tasks, 'tasks')) return { procesos: [], total: 0 }
+async function misProcesos (yo: Yo): Promise<TrabajoPropio> {
+  if (!puedeVerSeccion(yo.permissions.tasks, 'tasks')) return { procesos: [], total: 0, error: null }
 
   try {
     const { data, meta } = await pedir<Proceso[]>(
-      `/tasks?assignee=${yo.id}&sort=due_date&per_page=${PROCESOS_A_TRAER}`
+      `/tasks?assignee=${yo.id}&sort=due_date&per_page=${PROCESOS_A_TRAER}` +
+      `&filter[date_from]=${PRIMERA_FECHA_REAL}`
     )
 
-    return { procesos: data, total: meta?.pagination?.total ?? data.length }
-  } catch {
-    return { procesos: [], total: 0 }
+    return { procesos: data, total: meta?.pagination?.total ?? data.length, error: null }
+  } catch (fallo: unknown) {
+    unstable_rethrow(fallo)
+
+    return {
+      procesos: [],
+      total: 0,
+      error: fallo instanceof ErrorApi
+        ? mensajeParaPantalla(fallo.message)
+        : 'No se pudo cargar tu trabajo. Recarga la página.'
+    }
   }
 }
 
@@ -167,7 +208,9 @@ async function misProcesos (yo: Yo): Promise<{ procesos: Proceso[], total: numbe
 async function estadosDeTarea (): Promise<OpcionFiltro[]> {
   try {
     return opcionesDeEstados(listaDe(await cargarLookups(), 'task_statuses'))
-  } catch {
+  } catch (fallo: unknown) {
+    unstable_rethrow(fallo)
+
     return []
   }
 }
@@ -266,7 +309,12 @@ async function listar<T> (ruta: string): Promise<T[]> {
     const { data } = await pedir<T[]>(ruta)
 
     return data
-  } catch {
+  } catch (fallo: unknown) {
+    // La sesion caida no es "el listado vino vacio": `pedir()` la resuelve con `redirect()`, que
+    // lanza, y tragarlo dejaria a quien perdio la sesion mirando una portada a medias en vez de
+    // mandarlo a entrar. Lo demas si se traga: estos dos bloques son un vistazo, no la pantalla.
+    unstable_rethrow(fallo)
+
     return []
   }
 }
@@ -357,6 +405,8 @@ interface PropsMiTrabajo {
   restantes: number
   /** `task_statuses` de `GET /lookups`. Vacio no pinta insignias. */
   estados: OpcionFiltro[]
+  /** Por que no se pudo traer el listado, o `null` si vino bien. */
+  error: string | null
 }
 
 /**
@@ -367,8 +417,12 @@ interface PropsMiTrabajo {
  *
  * Cada fila abre el detalle sin salir del Inicio: escribe `?tarea={id}`, que es el mismo parametro
  * que leen los listados. Ver la tarea desde aca no obliga a ir a buscarla al listado completo.
+ *
+ * Un fallo del listado NO se pinta como "no tienes nada": son dos hechos distintos y confundirlos es
+ * lo que hacia que el equipo reportara el bug equivocado durante meses. Cuando hay error se dice el
+ * error, con el marco de alerta que ya usan los tramos vencidos.
  */
-function MiTrabajo ({ grupos, restantes, estados }: PropsMiTrabajo) {
+function MiTrabajo ({ grupos, restantes, estados, error }: PropsMiTrabajo) {
   return (
     <section className="flex flex-col gap-6">
       <TituloModulo
@@ -377,7 +431,16 @@ function MiTrabajo ({ grupos, restantes, estados }: PropsMiTrabajo) {
         acciones={<VerTodo href="/procesos" etiqueta={`Ver ${GLOSARIO.proceso.plural.toLowerCase()}`} />}
       />
 
-      {grupos.length === 0
+      {error !== null
+        ? (
+          <p
+            role="alert"
+            className="rounded-tarjeta border border-texto-peligro/25 bg-superficie-peligro px-5 py-4 text-base text-texto-peligro"
+          >
+            {error}
+          </p>
+          )
+        : grupos.length === 0
         ? (
           <p className="text-base text-texto-tenue">
             No tienes {GLOSARIO.proceso.plural.toLowerCase()} por vencer.

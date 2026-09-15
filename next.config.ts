@@ -1,5 +1,24 @@
 import type { NextConfig } from 'next'
 
+/**
+ * Zona horaria del proceso de Next, fijada antes de que arranque la aplicacion.
+ *
+ * Next carga este archivo en el proceso del servidor antes de montar nada, y Node relee `TZ` en la
+ * siguiente operacion de fecha, asi que basta con escribirla aca para que valga en `next build` y en
+ * `next start`.
+ *
+ * No es cosmetico. Todo lo que agrupa por dia calendario —`diasHasta()` y `estadoVencimiento()` en
+ * `lib/fechas.ts`, y con ellos los tramos "Vencido / Hoy / Próximo" del Inicio— lee el dia de HOY con
+ * `getFullYear/getMonth/getDate`, que son la zona del proceso. Sin `TZ`, un servidor en UTC clasifica
+ * contra el dia equivocado durante las ultimas horas de cada tarde chilena: lo que vence hoy se
+ * pinta como vencido, y la pantalla que tenia que decir que hacer hoy dice otra cosa.
+ *
+ * Se fija aca y no solo en el entorno del despliegue porque el entorno se olvida: una maquina nueva,
+ * un contenedor sin `TZ`, un `pnpm build` en el portatil de alguien, y el corrimiento vuelve sin que
+ * nada falle. `process.env.TZ` ya puesto en el entorno gana igual: esto es el piso, no la orden.
+ */
+if ((process.env.TZ ?? '').trim() === '') process.env.TZ = 'America/Santiago'
+
 const nextConfig: NextConfig = {
   /** Conserva enlaces guardados de proyectos y sus filtros al cambiar el slug público. */
   async redirects () {
