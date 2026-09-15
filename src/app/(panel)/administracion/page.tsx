@@ -1,5 +1,5 @@
 import { Suspense } from 'react'
-import { Inbox, KeyRound, Siren, type LucideIcon } from 'lucide-react'
+import { Inbox, KeyRound, MonitorPlay, Siren, type LucideIcon } from 'lucide-react'
 import { AccesoGoogle } from '@/componentes/administracion/AccesoGoogle'
 import { FormularioDeAjustes } from '@/componentes/administracion/FormularioDeAjustes'
 import { PanelAvisosPorCorreo } from '@/componentes/administracion/PanelAvisosPorCorreo'
@@ -43,6 +43,13 @@ const PANTALLAS_APARTE: PantallaAparte[] = [
     descripcion: 'Los errores que la API guardó, con el código que reporta quien los sufrió.',
     icono: Siren,
     tono: 'peligro'
+  },
+  {
+    href: '/administracion/pantallas',
+    titulo: 'Pantallas',
+    descripcion: 'El enlace público del televisor de cada área, con la última vez que se abrió.',
+    icono: MonitorPlay,
+    tono: 'acento'
   },
   {
     href: '/administracion/accesos',
