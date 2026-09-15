@@ -3,8 +3,8 @@
  *
  * La misma cadena viaja por dos caminos distintos —el latido de presencia y cada pregunta a Thinking Orb—
  * y **tiene que ser la misma**: el servidor resuelve con ella el ambito de lo que se le pregunta,
- * asi que un `/Espacios/2` por un lado y un `/espacios/2` por el otro serian dos pantallas para el.
- * Por eso vive aca y no duplicada en cada uno.
+ * Por eso vive aca y no duplicada en cada uno. Los enlaces antiguos `/espacios` se normalizan al
+ * slug público `/proyectos` para que una pestaña anterior conserve el mismo contexto.
  */
 
 /** Una ruta del panel: la arma Next con `usePathname()`, no la escribe nadie. */
@@ -22,5 +22,6 @@ const RUTA_DE_PANEL = /^\/[a-z0-9/_-]*$/
 export function pantallaDeRuta (ruta: string): string | null {
   const normalizada = ruta.toLowerCase()
 
-  return RUTA_DE_PANEL.test(normalizada) ? normalizada : null
+  if (!RUTA_DE_PANEL.test(normalizada)) return null
+  return normalizada.replace(/^\/espacios(?=\/|$)/, '/proyectos')
 }

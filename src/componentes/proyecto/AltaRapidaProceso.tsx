@@ -1014,7 +1014,7 @@ export function AltaRapidaProceso ({
                     etiqueta={GLOSARIO.hito.singular}
                     ayuda={multiple
                       ? `Cada ${GLOSARIO.espacio.singular.toLowerCase()} tiene sus propios hitos: la tarea nace sin hito y se mueve después.`
-                      : avisoTipos ?? (espacio === NINGUNO ? 'Elige un espacio para ver sus hitos.' : undefined)}
+                      : avisoTipos ?? (espacio === NINGUNO ? 'Elige un proyecto para ver sus hitos.' : undefined)}
                   >
                     {({ id }) => <Selector value={hito} onValueChange={setHito} disabled={relacion !== 'project' || multiple || hitos.length === 0}>
                       <DisparadorSelector id={id} />

@@ -201,14 +201,14 @@ async function MisProyectos ({ staffId }: { staffId: number }) {
       <TituloModulo
         nivel="h2"
         titulo={`Mis ${GLOSARIO.espacio.plural.toLowerCase()}`}
-        acciones={<VerTodo href="/espacios" etiqueta={`Ver ${GLOSARIO.espacio.plural.toLowerCase()}`} />}
+        acciones={<VerTodo href="/proyectos" etiqueta={`Ver ${GLOSARIO.espacio.plural.toLowerCase()}`} />}
       />
 
       <ul className="flex flex-col divide-y divide-linea overflow-hidden rounded-tarjeta border border-linea bg-superficie-elevada shadow-1">
         {espacios.map((espacio) => (
           <li key={espacio.id}>
             <Link
-              href={`/espacios/${espacio.id}`}
+              href={`/proyectos/${espacio.id}`}
               className="flex flex-wrap items-center gap-x-4 gap-y-1 px-5 py-4 transition-colors duration-150 ease-neo hover:bg-hover focus-visible:bg-hover"
             >
               <span className="min-w-0 flex-1 basis-full truncate text-base text-texto sm:basis-auto">{espacio.name}</span>
@@ -572,7 +572,7 @@ function accesosDe (yo: Yo): Acceso[] {
 
   if (puedeVerSeccion(yo.permissions.projects, 'projects')) {
     accesos.push({
-      href: '/espacios',
+      href: '/proyectos',
       titulo: GLOSARIO.espacio.plural,
       descripcion: 'Dónde vive cada trabajo y cómo viene.',
       icono: FolderKanban,

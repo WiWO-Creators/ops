@@ -500,7 +500,7 @@ assert.equal(/Sin discusiones|No hay|Todav/i.test(visto.textoDiscusionesDelOcho)
 // ---- El panel del colaborador sigue igual ------------------------------------------------------
 await entrarComo(ANA)
 
-await ir('/espacios/1?tab=tareas')
+await ir('/proyectos/1?tab=tareas')
 await pagina.waitForSelector('table')
 visto.panelFilas = await pagina.$$eval('table tbody tr', (ns) => ns.length)
 visto.panelCasillas = await pagina.$$eval('table input[type="checkbox"]', (ns) => ns.length)
@@ -512,7 +512,7 @@ assert.equal(visto.panelCasillas > 0, true, 'el panel perdio la seleccion masiva
 visto.presentacionesDelPanel = await pagina.$$eval('[aria-label="Presentación"] button', (ns) => ns.map((n) => n.textContent.trim()))
 assert.deepEqual(visto.presentacionesDelPanel, ['Tabla', 'Tablero', 'Calendario'], 'el panel perdio una lectura')
 
-await ir('/espacios/1?tab=tareas&vista=tablero')
+await ir('/proyectos/1?tab=tareas&vista=tablero')
 await pagina.waitForSelector('article')
 visto.panelArrastrables = await pagina.$$eval('article[draggable="true"]', (ns) => ns.length)
 visto.panelBotonesDelTablero = await pagina.$$eval('article button', (ns) => ns.map((n) => n.textContent.trim()))
@@ -520,16 +520,16 @@ await pagina.screenshot({ path: `${SALIDA}/panel-tareas-tablero.png`, fullPage: 
 assert.equal(visto.panelArrastrables > 0, true, 'el panel perdio el arrastre del tablero')
 assert.equal(visto.panelBotonesDelTablero.includes('Mover a…'), true, 'el panel perdio "Mover a…"')
 
-await ir('/espacios/1?tab=tareas&vista=calendario')
+await ir('/proyectos/1?tab=tareas&vista=calendario')
 await pagina.waitForSelector('[aria-label="Vista"], [aria-label="Presentación"]')
 await pagina.screenshot({ path: `${SALIDA}/panel-tareas-calendario.png`, fullPage: true })
 
-await ir('/espacios/1?tab=calendario')
+await ir('/proyectos/1?tab=calendario')
 await pagina.waitForSelector('[aria-label="Vista del calendario"]')
 await pagina.screenshot({ path: `${SALIDA}/panel-calendario.png`, fullPage: true })
 
 // ---- Y las seis pestañas que ahora comparte conservan lo suyo ---------------------------------
-await ir('/espacios/1?tab=descripcion')
+await ir('/proyectos/1?tab=descripcion')
 await pagina.waitForFunction(() => !document.body.textContent.includes('Cargando los indicadores'))
 visto.panelDatosDescripcion = await pagina.$$eval('dl dt', (ns) => ns.map((n) => n.textContent.trim()))
 visto.panelTextoDescripcion = await pagina.textContent('body')
@@ -545,14 +545,14 @@ assert.equal(/\d+ completadas de \d+/.test(visto.panelTextoDescripcion), true, '
 
 // La ficha de una Tarea del panel conserva su lista de control escribible: las casillas son el
 // control de verdad, y lo que se cambió es la variante de solo lectura del cliente.
-await ir('/espacios/1?tab=tareas&tarea=509')
+await ir('/proyectos/1?tab=tareas&tarea=509')
 await pagina.waitForSelector('[role="dialog"]')
 await pagina.waitForFunction(() => !document.body.textContent.includes('Cargando la tarea'))
 visto.panelCasillasDeLaFicha = await pagina.$$eval('[role="dialog"] input[type="checkbox"]', (ns) => ns.length)
 await pagina.screenshot({ path: `${SALIDA}/panel-ficha-tarea.png`, fullPage: true })
 assert.equal(visto.panelCasillasDeLaFicha > 0, true, 'el panel perdió las casillas de su lista de control')
 
-await ir('/espacios/1?tab=hitos')
+await ir('/proyectos/1?tab=hitos')
 await pagina.waitForSelector('[aria-label="Vista de hitos"]')
 visto.panelVistaDeHitos = await pagina.$$eval('[aria-label="Vista de hitos"] button', (ns) => ns.map((n) => n.textContent.trim()))
 visto.panelBotonesDeHitos = await pagina.$$eval('button', (ns) => ns.map((n) => n.textContent.trim()).filter(Boolean))
@@ -562,13 +562,13 @@ assert.equal(visto.panelBotonesDeHitos.some((b) => b.startsWith('Nuevo hito')), 
 
 // La tabla de Hitos del panel conserva su columna Descripción: el campo es del equipo, no lleva
 // `omitirSiVacia`, y el hito de "Cierre" la tiene vacía sin que la columna desaparezca.
-await ir('/espacios/1?tab=hitos&vistaHitos=tabla')
+await ir('/proyectos/1?tab=hitos&vistaHitos=tabla')
 await pagina.waitForSelector('table')
 visto.panelEncabezadosDeHitos = await pagina.$$eval('table thead th', (ns) => ns.map((n) => n.textContent.trim()))
 await pagina.screenshot({ path: `${SALIDA}/panel-hitos-tabla.png`, fullPage: true })
 assert.equal(visto.panelEncabezadosDeHitos.includes('Descripción'), true, 'el panel perdió la columna Descripción')
 
-await ir('/espacios/1?tab=tiempos')
+await ir('/proyectos/1?tab=tiempos')
 await pagina.waitForSelector('table')
 visto.panelEncabezadosDeTiempos = await pagina.$$eval('table thead th', (ns) => ns.map((n) => n.textContent.trim()).filter(Boolean))
 visto.panelBotonesDeTiempos = await pagina.$$eval('table button', (ns) => ns.map((n) => n.textContent.trim()))
@@ -578,7 +578,7 @@ for (const columna of ['Etiquetas', 'Hora (decimal)']) {
 }
 assert.equal(visto.panelBotonesDeTiempos.includes('Editar'), true, 'el panel perdió las acciones por fila de horas')
 
-await ir('/espacios/1?tab=discusiones')
+await ir('/proyectos/1?tab=discusiones')
 await pagina.waitForSelector('table')
 visto.panelEncabezadosDeDiscusiones = await pagina.$$eval('table thead th', (ns) => ns.map((n) => n.textContent.trim()))
 visto.panelFilasDeDiscusiones = await pagina.$$eval('table tbody tr', (ns) => ns.length)
@@ -589,20 +589,20 @@ assert.equal(visto.panelEncabezadosDeDiscusiones.includes('Mostrar al cliente'),
 assert.equal(visto.panelFilasDeDiscusiones, 2, 'el panel dejó de ver las discusiones internas')
 assert.equal(visto.panelBotonesDeDiscusiones.includes('Nueva discusión'), true, 'el panel perdió el alta de discusión')
 
-await ir('/espacios/1?tab=gantt')
+await ir('/proyectos/1?tab=gantt')
 await pagina.waitForFunction(() => !document.body.textContent.includes('Cargando el Gantt'))
 visto.panelAgrupacionesDelGantt = await pagina.$$eval('[aria-label="Agrupar por"] button', (ns) => ns.map((n) => n.textContent.trim()))
 await pagina.screenshot({ path: `${SALIDA}/panel-gantt.png`, fullPage: true })
 assert.deepEqual(visto.panelAgrupacionesDelGantt, ['Hitos', 'Miembros', 'Estado'], 'el panel perdió las agrupaciones del Gantt')
 
-await ir('/espacios/1?tab=actividad')
+await ir('/proyectos/1?tab=actividad')
 await pagina.waitForFunction(() => !document.body.textContent.includes('Cargando la actividad'))
 visto.panelInterruptoresDeActividad = await pagina.$$eval('input[type="checkbox"]', (ns) => ns.length)
 await pagina.screenshot({ path: `${SALIDA}/panel-actividad.png`, fullPage: true })
 assert.equal(visto.panelInterruptoresDeActividad > 0, true, 'el panel perdió el interruptor de visibilidad')
 
 // ---- El Meeting Paper del colaborador conserva todo ------------------------------------------
-await ir('/espacios/1?tab=actas')
+await ir('/proyectos/1?tab=actas')
 await pagina.waitForSelector('table')
 visto.panelFilasDeActas = await pagina.$$eval('table tbody tr', (ns) => ns.length)
 visto.panelBotonesDeActas = await pagina.$$eval('button', (ns) => ns.map((n) => n.textContent.trim()).filter(Boolean))
@@ -614,7 +614,7 @@ assert.equal(
   'el panel perdió el alta de Meeting Paper'
 )
 
-await ir('/espacios/1?tab=actas&acta=901')
+await ir('/proyectos/1?tab=actas&acta=901')
 await pagina.waitForSelector('iframe')
 visto.panelBotonesDelActa = await pagina.$$eval('button', (ns) => ns.map((n) => n.textContent.trim()).filter(Boolean))
 visto.panelTextoDelActa = await pagina.textContent('body')
@@ -627,7 +627,7 @@ assert.equal(visto.panelBotonesDelActa.includes('⋯'), true, 'el panel perdió 
 assert.equal(visto.panelTextoDelActa.includes('Escrito con IA'), true, 'el panel perdió la insignia de IA')
 
 // ---- El interruptor: apagado → encendido → apagado, mirando el portal en cada paso ------------
-await ir('/espacios/8?tab=configuracion')
+await ir('/proyectos/8?tab=configuracion')
 await pagina.waitForSelector('#portal-actas')
 visto.interruptorAlEntrar = await pagina.$eval('#portal-actas', (n) => n.checked)
 visto.textoConfiguracion = await pagina.textContent('body')
@@ -664,7 +664,7 @@ assert.equal(visto.textoActasDelOcho.includes('No se pudo cargar'), false, 'el p
 
 // Y se apaga igual de verdad.
 await entrarComo(ANA)
-await ir('/espacios/8?tab=configuracion')
+await ir('/proyectos/8?tab=configuracion')
 await pagina.waitForSelector('#portal-actas')
 assert.equal(await pagina.$eval('#portal-actas', (n) => n.checked), true, 'el interruptor no leyó lo guardado')
 await clicar('#portal-actas')

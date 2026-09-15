@@ -126,7 +126,7 @@ function ProyectosDeLaPersona ({ personaId, nombre, estados }: { personaId: numb
               <FilaTabla key={proyecto.id}>
                 <CeldaTabla>
                   <Link
-                    href={`/espacios/${proyecto.id}`}
+                    href={`/proyectos/${proyecto.id}`}
                     className="text-texto hover:text-acento font-medium underline-offset-4 hover:underline"
                   >
                     {proyecto.name}
@@ -150,7 +150,7 @@ function ProyectosDeLaPersona ({ personaId, nombre, estados }: { personaId: numb
 
       <p className="text-texto-tenue text-xs">
         <Link
-          href={`/espacios?filter[member]=${personaId}`}
+          href={`/proyectos?filter[member]=${personaId}`}
           className="text-acento underline underline-offset-4"
         >
           Ver todos sus {plural} con filtros y orden

@@ -69,7 +69,7 @@ export function origenDeTarea (tarea: Proceso, licitaciones: ReadonlySet<number>
       clase: esLicitacion ? 'licitacion' : 'espacio',
       tipo: esLicitacion ? GLOSARIO.licitacion.singular : GLOSARIO.espacio.singular,
       nombre: espacio.name,
-      href: esLicitacion ? `/licitaciones/${espacio.id}` : `/espacios/${espacio.id}`
+      href: esLicitacion ? `/licitaciones/${espacio.id}` : `/proyectos/${espacio.id}`
     }
   }
 

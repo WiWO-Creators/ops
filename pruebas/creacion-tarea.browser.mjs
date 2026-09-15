@@ -143,7 +143,7 @@ try {
     assignees: [STAFF[0].id], followers: [STAFF[0].id], priority: 3, start_date: '2026-09-01',
     due_date: '2026-09-10', tags: ['etiqueta-prueba'], description: 'Descripción completa', estimated_hours: 2.25, task_type: 991
   })
-  await pagina.goto(new URL('/espacios/1?tab=hitos', destino).href, { waitUntil: 'domcontentloaded', timeout: 90000 })
+  await pagina.goto(new URL('/proyectos/1?tab=hitos', destino).href, { waitUntil: 'domcontentloaded', timeout: 90000 })
   await pagina.waitForLoadState('networkidle')
   await pagina.getByRole('button', { name: 'Agregar una tarea a Entrega inicial', exact: true }).click()
   await dialogo.getByLabel(/^Referencia de prueba/).waitFor()
@@ -161,7 +161,7 @@ try {
   assert.equal(creadas.length, 2)
   assert.equal(creadas[1].rel_id, 1)
   assert.equal(creadas[1].milestone, 1, 'La creación desde hito conserva su hito inicial.')
-  await pagina.goto(new URL('/espacios/1?tab=tareas&nuevaTarea=1', destino).href, { waitUntil: 'domcontentloaded', timeout: 90000 })
+  await pagina.goto(new URL('/proyectos/1?tab=tareas&nuevaTarea=1', destino).href, { waitUntil: 'domcontentloaded', timeout: 90000 })
   await dialogo.waitFor({ timeout: 15000 })
   await dialogo.getByLabel(/^Referencia de prueba/).waitFor()
   assert.equal(await dialogo.getByLabel('Proyecto', { exact: true }).innerText(), ESPACIOS[0].name)

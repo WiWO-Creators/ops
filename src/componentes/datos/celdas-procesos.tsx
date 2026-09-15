@@ -118,7 +118,7 @@ function EnlaceEspacio ({ proceso }: { proceso: Proceso }): ReactElement {
 
   return (
     <Link
-      href={`/espacios/${proceso.project.id}`}
+      href={`/proyectos/${proceso.project.id}`}
       className="text-texto-tenue hover:text-acento underline-offset-4 hover:underline"
     >
       {proceso.project.name}

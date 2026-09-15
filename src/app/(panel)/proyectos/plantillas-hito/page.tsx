@@ -16,7 +16,7 @@ export const metadata = { title: `${TITULO_PLANTILLAS_HITO} · WiWO Ops` }
 /**
  * Plantillas de {hito}: armarlas, editarlas y borrarlas.
  *
- * Vive al lado de las plantillas de {espacio} (`/espacios/plantillas`) porque son la misma idea a
+ * Vive al lado de las plantillas de {espacio} (`/proyectos/plantillas`) porque son la misma idea a
  * dos escalas y la persona que arma una arma la otra. La diferencia es cuando se aplican: la de
  * {espacio} al crear el {espacio}, esta al crear un {hito} dentro de uno que ya existe.
  *

@@ -78,7 +78,7 @@ try {
   await pagina.screenshot({ path: 'output/playwright/apodo-link-movil.png', fullPage: true })
   await dialogo.getByRole('button', { name: 'Cancelar', exact: true }).click()
   await pagina.setViewportSize({ width: 1440, height: 1100 })
-  await pagina.goto(new URL('/espacios/1?tab=tareas', destino).href, { waitUntil: 'networkidle', timeout: 90000 })
+  await pagina.goto(new URL('/proyectos/1?tab=tareas', destino).href, { waitUntil: 'networkidle', timeout: 90000 })
   const tabla = pagina.getByRole('table')
   const enlace = tabla.getByRole('link', { name: 'Archivos del evento', exact: true })
   await enlace.waitFor()

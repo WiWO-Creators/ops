@@ -40,7 +40,7 @@ import type { Acta, AdjuntoActa } from '@/datos/recursos'
  * para decir que no se puede usar ocupa el mismo lugar que uno que sí.
  *
  * El editor se carga con `next/dynamic` y `ssr: false`. Son ~100 KB de TipTap, y sin esto entran en
- * el chunk de `/espacios/[id]` —la pantalla más usada del panel— aunque nadie abra un acta. Con la
+ * el chunk de `/proyectos/[id]` —la pantalla más usada del panel— aunque nadie abra un acta. Con la
  * carga diferida, el peso lo paga quien pulsa "Corregir".
  *
  * En lectura el HTML se pinta dentro de `ContenidoHtml`, el iframe sin `allow-scripts`. Lo escribió un

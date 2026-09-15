@@ -23,7 +23,7 @@ export const metadata = { title: 'Clientes · WiWO Ops' }
  * el limite el build de esta ruta falla.
  *
  * `vista` no pasa por `leerConsulta`: no es parte de la consulta a la API —el motor descarta lo que la
- * definicion no declara— sino de como se presenta el resultado. Misma clave que en `/espacios`.
+ * definicion no declara— sino de como se presenta el resultado. Misma clave que en `/proyectos`.
  */
 export default async function ClientesPage (props: PageProps<'/clientes'>) {
   const params = paramsDeUrl(await props.searchParams)

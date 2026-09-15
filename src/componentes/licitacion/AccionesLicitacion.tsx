@@ -44,7 +44,7 @@ export function AccionesLicitacion ({ licitacion, capacidades }: PropsAcciones):
       {licitacion.estado === 'ganada' && licitacion.client_id !== null && (
         <>
           <Enlace href={`/clientes/${licitacion.client_id}`}>Ver cliente</Enlace>
-          <Enlace href={`/espacios/${licitacion.espacio.id}`}>Ver {licitacion.espacio.name}</Enlace>
+          <Enlace href={`/proyectos/${licitacion.espacio.id}`}>Ver {licitacion.espacio.name}</Enlace>
         </>
       )}
 

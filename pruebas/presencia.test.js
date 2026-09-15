@@ -50,7 +50,7 @@ test('latido detecta interacciones globales, limita envíos y no renueva una pes
     fetch: async (_, opciones) => { envios.push(JSON.parse(opciones.body)); return { ok: true } },
     setInterval: funcion => { intervalo = funcion; return 1 }, clearInterval: () => {},
     require: nombre => ({
-      'next/navigation': { usePathname: () => '/espacios/2' },
+      'next/navigation': { usePathname: () => '/proyectos/2' },
       '@/dominio/pantalla': { pantallaDeRuta },
       react: { useEffect: funcion => { cerrar = funcion() } },
       './accion': {
@@ -75,7 +75,7 @@ test('latido detecta interacciones globales, limita envíos y no renueva una pes
   reloj += 45_000
   intervalo()
   assert.equal(envios.length, 12)
-  assert.deepEqual(envios[11], { route: '/espacios/2', action: null })
+  assert.deepEqual(envios[11], { route: '/proyectos/2', action: null })
   intervalo()
   assert.equal(envios.length, 12)
   tarea = '/procesos/3'
@@ -94,10 +94,10 @@ test('latido detecta interacciones globales, limita envíos y no renueva una pes
 test('la pantalla que se manda es la misma para la presencia y para Thinking Orb', () => {
   // Las dos salen de la misma función a propósito: si divergen, el servidor cree que la persona
   // pregunta desde una pantalla y está parada en otra.
-  assert.equal(pantallaDeRuta('/Espacios/2'), '/espacios/2')
+  assert.equal(pantallaDeRuta('/Espacios/2'), '/proyectos/2')
   assert.equal(pantallaDeRuta('/procesos'), '/procesos')
   assert.equal(pantallaDeRuta('/equipo/mi-area'), '/equipo/mi-area')
   // Lo que no tiene forma de ruta del panel no se manda a medias.
-  assert.equal(pantallaDeRuta('/espacios/2?tarea=7'), null)
-  assert.equal(pantallaDeRuta('/espacios/dos%20mil'), null)
+  assert.equal(pantallaDeRuta('/proyectos/2?tarea=7'), null)
+  assert.equal(pantallaDeRuta('/proyectos/dos%20mil'), null)
 })

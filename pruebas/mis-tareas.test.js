@@ -35,7 +35,7 @@ test('una Tarea de cualquier otro Espacio se nombra Proyecto', () => {
 
   assert.equal(origen.clase, 'espacio')
   assert.equal(origen.tipo, 'Proyecto')
-  assert.equal(origen.href, '/espacios/12')
+  assert.equal(origen.href, '/proyectos/12')
 })
 
 test('sin el catalogo de Licitaciones todo Espacio se lee como Proyecto', () => {

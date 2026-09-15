@@ -42,7 +42,7 @@ interface Props {
  * No usa `TablaRecurso`: ese motor toma la consulta entera de la URL y no admite un filtro fijo, asi
  * que la persona podria cambiar `filter[clientid]` desde el detalle de otro cliente y ver Proyectos
  * ajenos bajo el encabezado equivocado. Lo que se necesita aca es una lista acotada; la vista con
- * filtros, orden y paginacion completa ya existe en `/espacios` y esta enlazada.
+ * filtros, orden y paginacion completa ya existe en `/proyectos` y esta enlazada.
  *
  * @param clienteId Cliente que se esta mirando.
  * @param estados Catalogo de estados de Proyecto, para resolver nombre y color.
@@ -85,7 +85,7 @@ export function PanelProyectosCliente ({ clienteId, estados }: Props) {
   if (carga.fase === 'error') return <ErrorEstado detalle={carga.mensaje} onReintentar={reintentar} />
 
   const { proyectos, paginacion } = carga
-  const enLaLista = `/espacios?filter[clientid]=${clienteId}`
+  const enLaLista = `/proyectos?filter[clientid]=${clienteId}`
 
   if (proyectos.length === 0) {
     return (
@@ -93,7 +93,7 @@ export function PanelProyectosCliente ({ clienteId, estados }: Props) {
         titulo={`Este cliente no tiene ${GLOSARIO.espacio.plural.toLowerCase()}`}
         descripcion={`Cuando se le abra el primero va a aparecer acá, con su avance y su fecha de entrega.`}
         accion={
-          <Link href="/espacios" className="text-acento text-sm font-semibold underline underline-offset-4">
+          <Link href="/proyectos" className="text-acento text-sm font-semibold underline underline-offset-4">
             Ir a {GLOSARIO.espacio.plural}
           </Link>
         }
@@ -143,7 +143,7 @@ export function PanelProyectosCliente ({ clienteId, estados }: Props) {
               <FilaTabla key={proyecto.id}>
                 <CeldaTabla>
                   <Link
-                    href={`/espacios/${proyecto.id}`}
+                    href={`/proyectos/${proyecto.id}`}
                     className="text-texto hover:text-acento font-medium underline-offset-4 hover:underline"
                   >
                     {proyecto.name}

@@ -59,7 +59,7 @@ try {
   const espacio = ESPACIOS[0]
 
   // --- La pestaña existe, se llama Meeting Paper, y las Notas volvieron a su nombre.
-  await pagina.goto(new URL(`/espacios/${espacio.id}?tab=actas`, destino).href, { waitUntil: 'networkidle' })
+  await pagina.goto(new URL(`/proyectos/${espacio.id}?tab=actas`, destino).href, { waitUntil: 'networkidle' })
 
   const pestanas = await pagina.evaluate(() =>
     [...document.querySelectorAll('[role="tab"]')].map((t) => (t.textContent ?? '').trim())
@@ -158,7 +158,7 @@ try {
   // Es el bug portado de MeetingMatico: allá las pistas solo se detienen en `onstop`, así que
   // desmontar el componente grabando deja la luz del micrófono encendida hasta cerrar el navegador.
   // Acá desmontar es cambiar de pestaña, o sea que pasa todo el tiempo.
-  await pagina.goto(new URL(`/espacios/${espacio.id}?tab=actas&acta=nuevo`, destino).href, { waitUntil: 'networkidle' })
+  await pagina.goto(new URL(`/proyectos/${espacio.id}?tab=actas&acta=nuevo`, destino).href, { waitUntil: 'networkidle' })
 
   // Se envuelve `getUserMedia` para quedarse con las pistas y poder mirar su estado después.
   await pagina.evaluate(() => {
@@ -199,7 +199,7 @@ try {
   // la fuente de entrada del modelo y moría con la petición. Lo que se recorre acá es lo que cambió:
   // que se puedan elegir varios, que el error de uno malo se entienda y no rompa nada, y que los
   // buenos aparezcan listados en la ficha del acta con su nombre, su Proyecto y su descarga.
-  await pagina.goto(new URL(`/espacios/${espacio.id}?tab=actas&acta=nuevo`, destino).href, { waitUntil: 'networkidle' })
+  await pagina.goto(new URL(`/proyectos/${espacio.id}?tab=actas&acta=nuevo`, destino).href, { waitUntil: 'networkidle' })
   await clicPorTexto(pagina, 'Foto')
   // `[multiple]` acota al campo del asistente: la pantalla monta otro `input[type=file]` oculto.
   await pagina.waitForFunction(() => document.querySelector('input[type=file][multiple]') !== null, { timeout: 10000 })

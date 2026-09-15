@@ -74,7 +74,7 @@ try {
   const pagina = await contexto.newPage()
   // `domcontentloaded` y no `networkidle`: el latido de presencia mantiene la red ocupada para
   // siempre, así que esperar a que se calme no termina nunca.
-  await pagina.goto(new URL(`/espacios/${espacioDestino}`, destino).href, { waitUntil: 'domcontentloaded' })
+  await pagina.goto(new URL(`/proyectos/${espacioDestino}`, destino).href, { waitUntil: 'domcontentloaded' })
   await pagina.waitForFunction(() => document.querySelector('h1') !== null, { timeout: 30000 })
 
   // --- El item vive en el menú "Más" de la cabecera.
@@ -142,7 +142,7 @@ try {
 
   // --- La segunda puerta: el "+" de una columna del kanban de Hitos, con el hito ya decidido.
   await pagina.goto(
-    new URL(`/espacios/${espacioDestino}?tab=hitos`, destino).href,
+    new URL(`/proyectos/${espacioDestino}?tab=hitos`, destino).href,
     { waitUntil: 'domcontentloaded' }
   )
   await pagina.waitForFunction(() => document.body.textContent?.includes('Tablero'), { timeout: 30000 })

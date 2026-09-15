@@ -73,7 +73,7 @@ try {
   const errores = []
   pagina.on('pageerror', error => errores.push(error.message))
   pagina.setDefaultTimeout(20000)
-  await pagina.goto(new URL('/espacios/1?tab=wibot', destino).href, { waitUntil: 'networkidle', timeout: 90000 })
+  await pagina.goto(new URL('/proyectos/1?tab=wibot', destino).href, { waitUntil: 'networkidle', timeout: 90000 })
   const jornada = pagina.getByRole('dialog', { name: 'Abre tu jornada', exact: true })
   await jornada.waitFor()
   await jornada.getByRole('button', { name: 'Cerrar', exact: true }).click()

@@ -57,7 +57,7 @@ const traerProyecto = cache(async (id: string) => {
  * demas se relanza — `pedir` señaliza la sesion vencida con el `redirect` de Next, que viaja como
  * excepcion y tragarlo dejaria a la persona mirando una pantalla en blanco.
  */
-export async function generateMetadata (props: PageProps<'/espacios/[id]'>) {
+export async function generateMetadata (props: PageProps<'/proyectos/[id]'>) {
   const { id } = await props.params
 
   try {
@@ -133,7 +133,7 @@ function NoEncontrado () {
       titulo={`Ese ${GLOSARIO.espacio.singular.toLowerCase()} no existe`}
       descripcion="Puede que lo hayan borrado, o que el enlace esté mal escrito."
       accion={
-        <Link href="/espacios" className="text-acento text-sm font-semibold underline underline-offset-4">
+        <Link href="/proyectos" className="text-acento text-sm font-semibold underline underline-offset-4">
           Volver a {GLOSARIO.espacio.plural}
         </Link>
       }
@@ -147,7 +147,7 @@ function NoEncontrado () {
  * El `Suspense` no es decorativo: `Pestanas` usa `useSearchParams`, y sin ese limite el build de la
  * ruta falla.
  */
-export default async function ProyectoPage (props: PageProps<'/espacios/[id]'>) {
+export default async function ProyectoPage (props: PageProps<'/proyectos/[id]'>) {
   const { id } = await props.params
   const detalle = await cargarDetalle(id)
 

@@ -124,7 +124,7 @@ export function MenuProyecto ({
       setArchivando(false)
 
       if (archivar) {
-        router.push('/espacios')
+        router.push('/proyectos')
         return
       }
 
@@ -152,7 +152,7 @@ export function MenuProyecto ({
         return
       }
 
-      router.push('/espacios')
+      router.push('/proyectos')
     } catch {
       setFallo('No se pudo eliminar: revisa la conexión.')
     } finally {
@@ -184,7 +184,7 @@ export function MenuProyecto ({
     }
 
     setSaliendo(false)
-    router.push('/espacios')
+    router.push('/proyectos')
   }
 
   return (
@@ -305,7 +305,7 @@ export function MenuProyecto ({
           milestones: true,
           members: true
         }}
-        onGuardado={() => { router.push('/espacios') }}
+        onGuardado={() => { router.push('/proyectos') }}
       />
 
       <ImportarTareas

@@ -46,7 +46,7 @@ function opcionesDe<T> (lista: T[] | null, valor: (item: T) => string, etiqueta:
  * `vista` no pasa por `leerConsulta`: no es parte de la consulta a la API —el motor descarta lo que
  * la definicion no declara— sino de como se presenta el resultado.
  */
-export default async function EspaciosPage (props: PageProps<'/espacios'>) {
+export default async function EspaciosPage (props: PageProps<'/proyectos'>) {
   const params = paramsDeUrl(await props.searchParams)
   const campos = await pedir<CampoPersonalizadoMeta[]>('/custom-fields?para=projects')
   const definicion = espaciosConCampos(campos.data)
@@ -64,7 +64,7 @@ export default async function EspaciosPage (props: PageProps<'/espacios'>) {
     // Se redirige en vez de filtrar por dentro: asi las pastillas, los controles y la tabla leen el
     // mismo estado desde la URL —una sola fuente— y al quitar el estado queda una URL con parametros,
     // que ya no vuelve a disparar el defecto.
-    if (filtros !== null) redirect(`/espacios?${construirConsulta({ ...estado, filtros }, definicion)}`)
+    if (filtros !== null) redirect(`/proyectos?${construirConsulta({ ...estado, filtros }, definicion)}`)
   }
 
   const [lista, lookups, yo, estadisticas, clientes, equipo, plantillas] = await Promise.all([

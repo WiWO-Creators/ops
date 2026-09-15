@@ -210,5 +210,5 @@ export function AvisoJornada ({ inicial }: { inicial: EstadoDeJornada | null }) 
 function enlaceDe (falta: Falta, destino: DestinoDelMedidor | null): string {
   if (falta === 'jornada' || falta === 'medidor') return '/live'
 
-  return destino?.proyectoId == null ? '/procesos' : `/espacios/${destino.proyectoId}`
+  return destino?.proyectoId == null ? '/procesos' : `/proyectos/${destino.proyectoId}`
 }

@@ -163,7 +163,7 @@ function seccionesDe (yo: Yo): Seccion[] {
   }
 
   if (puedeVerSeccion(yo.permissions.projects, 'projects')) {
-    secciones.push({ href: '/espacios', etiqueta: GLOSARIO.espacio.plural, icono: 'espacios' })
+    secciones.push({ href: '/proyectos', etiqueta: GLOSARIO.espacio.plural, icono: 'espacios' })
   }
 
   // Prospectos contiene el acceso a sus licitaciones. La bandera de instalación habilita el módulo.

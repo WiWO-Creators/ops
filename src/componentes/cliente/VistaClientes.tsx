@@ -26,13 +26,13 @@ import { TarjetaCliente } from './TarjetaCliente'
 /**
  * Listado de Clientes en tabla o en tarjetas.
  *
- * Es el mismo patron que `/espacios` (`TarjetasProyectos.tsx`), a proposito: el control de vista, la
+ * Es el mismo patron que `/proyectos` (`TarjetasProyectos.tsx`), a proposito: el control de vista, la
  * clave de la URL (`?vista=`) y el orden de las opciones son identicos, asi que cambiar de pantalla no
  * obliga a releer el control. Nada de esto reimplementa el motor: la consulta se lee y se arma con
  * `leerConsulta` / `construirConsulta`, los controles son `ControlesTabla` y el paginador
  * `PaginacionTabla`. Lo unico propio es como se pinta cada fila.
  *
- * **No hay pastillas de estado.** `/espacios` las tiene porque el backend expone `GET /projects/stats`
+ * **No hay pastillas de estado.** `/proyectos` las tiene porque el backend expone `GET /projects/stats`
  * con el conteo por estado; para clientes no existe un equivalente (ver `V1.php`,
  * `recursoClientesRuta`), y contar los `active` de la pagina visible seria dar por total lo que es una
  * pagina de veinticinco.

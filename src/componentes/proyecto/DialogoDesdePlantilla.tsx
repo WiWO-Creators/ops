@@ -136,7 +136,7 @@ function Formulario ({ plantillas, clientes, onCerrar }: PropsFormulario) {
     onCerrar()
     // Al {espacio} recien creado y no de vuelta al listado: lo que sigue es mirar los hitos que
     // acaban de nacer, y volver a una lista obliga a buscarlo entre los demas.
-    router.push(`/espacios/${resultado.datos.id}`)
+    router.push(`/proyectos/${resultado.datos.id}`)
   }
 
   return (
