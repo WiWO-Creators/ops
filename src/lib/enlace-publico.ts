@@ -9,6 +9,9 @@
 /** Prefijo de la ruta publica. Un solo lugar que lo sepa: la pagina y el dialogo leen de aca. */
 const PREFIJO = '/tarea/'
 
+/** Prefijo de la pantalla de area, por el mismo motivo. */
+const PREFIJO_PANTALLA = '/pantalla/'
+
 /** El avance de la ficha publica, ya resuelto para pintar. */
 export interface AvancePublico {
   /** 0-100, o `null` cuando no hay nada que medir. `null` no se dibuja como barra en cero. */
@@ -67,4 +70,23 @@ export function avancePublico (progreso: ProgresoDeApi): AvancePublico {
     porcentaje: percent,
     detalle: percent === null ? 'Sin lista de control' : 'Sin lista de control · marcada como terminada'
   }
+}
+
+/**
+ * Arma la URL de la pantalla de un area, la que se pega en el televisor.
+ *
+ * Misma logica que `urlDeEnlacePublico()` y otro prefijo. Esta se escribe a mano mas a menudo de lo
+ * que se copia: quien la pone esta parado frente a un televisor con un control remoto, asi que la
+ * pantalla que la genera tiene que mostrarla entera y legible, no solo ofrecer un boton de copiar.
+ *
+ * @param origen origen del sitio (`window.location.origin`), con o sin barra final
+ * @param token el token en claro, tal como lo devolvio el `POST`
+ * @returns la URL absoluta, o `null` si falta el origen o el token
+ */
+export function urlDePantallaDeArea (origen: string, token: string): string | null {
+  const base = origen.trim().replace(/\/+$/, '')
+
+  if (base === '' || token.trim() === '') return null
+
+  return `${base}${PREFIJO_PANTALLA}${encodeURIComponent(token.trim())}`
 }
