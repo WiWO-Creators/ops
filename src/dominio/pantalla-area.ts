@@ -28,9 +28,14 @@ export type ClaseDeEscena = typeof CLASES_DE_ESCENA[number]
  */
 export const REJILLAS: Record<ClaseDeEscena, number> = {
   portada: 1,
+  // Cuatro columnas por tres filas de fichas de ~150 px a 1080p.
   trabajando: 12,
-  cronometros: 8,
-  procesos: 8,
+  // Filas anchas de ~140 px: entran cinco en la banda util, que mide ~840 px una vez descontados
+  // cabecera, titulo y pie. Con ocho —el numero que habia antes— la sexta y la septima quedaban
+  // cortadas por el `overflow: hidden`, sin barra de scroll y sin que nada avisara.
+  cronometros: 5,
+  procesos: 5,
+  // Dos columnas por tres filas de ~218 px.
   espacios: 6
 }
 

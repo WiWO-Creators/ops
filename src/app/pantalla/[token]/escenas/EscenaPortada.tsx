@@ -17,7 +17,7 @@ export function EscenaPortada ({ area, contadores }: {
   contadores: ContadoresDePortada
 }): ReactNode {
   return (
-    <div className="flex flex-col items-center gap-[5vmin] text-center">
+    <div className="flex flex-1 flex-col items-center justify-center gap-[5vmin] text-center">
       <p className="text-texto text-[9vmin] leading-none font-bold">{area}</p>
 
       <dl className="flex flex-wrap items-start justify-center gap-[8vmin]">

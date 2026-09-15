@@ -78,7 +78,20 @@ export function Escenario ({ token, inicial, metaInicial, parametros }: Props): 
     guionRef.current = guion
   })
 
-  useSondeo({ token, parametros, fallos, setFallos, setDatos, setMeta, setLeidoEn })
+  /**
+   * El ritmo, en milisegundos. UNO solo para el sondeo y para la frescura.
+   *
+   * Manda `meta.poll_after_seconds`, que decide el backend: los televisores estan colgados a tres
+   * metros de altura y cambiarles la URL cuesta una escalera, asi que frenar todas las pantallas
+   * fuera del horario de oficina tiene que poder hacerse desde el servidor. El `?refresco=` de la URL
+   * es el valor mientras no haya llegado ningun `meta` — es decir, el arranque.
+   *
+   * Que sea uno solo no es prolijidad: la frescura se mide en multiplos del intervalo, asi que dos
+   * valores distintos harian que la pantalla se declare vieja antes o despues de lo que corresponde.
+   */
+  const intervaloMs = (meta?.poll_after_seconds ?? parametros.segundosDeRefresco) * 1000
+
+  useSondeo({ token, intervaloMs, fallos, setFallos, setDatos, setMeta, setLeidoEn })
 
   // -- El reloj de la rotacion. Se crea al montar y no se recrea nunca. -------------------------
   useEffect(() => {
@@ -167,7 +180,6 @@ export function Escenario ({ token, inicial, metaInicial, parametros }: Props): 
     return () => { globalThis.clearTimeout(alarma) }
   }, [token])
 
-  const intervaloMs = (meta?.poll_after_seconds ?? parametros.segundosDeRefresco) * 1000
   const frescura = leidoEn === null || ahora === null
     ? 'sin-conexion'
     : frescuraDe(ahora - leidoEn, intervaloMs)
@@ -193,7 +205,10 @@ export function Escenario ({ token, inicial, metaInicial, parametros }: Props): 
           <Dibujo
             escena={escena}
             area={datos?.area.name ?? ''}
-            ahora={ahora}
+            // Con los datos viejos los contadores cuentan contra la ULTIMA LECTURA BUENA y no contra
+            // el reloj: se quedan clavados en el valor que era cierto. Un cronometro que sigue
+            // trepando con la conexion caida es una mentira, y esta pared la leen jefaturas de area.
+            ahora={frescura === 'fresco' ? ahora : leidoEn}
             congelado={frescura !== 'fresco'}
           />
           )}
@@ -238,7 +253,8 @@ function indiceDe (guion: Escena[], id: string): number {
 
 interface OpcionesDeSondeo {
   token: string
-  parametros: ParametrosDePantalla
+  /** El ritmo base, antes del backoff. Lo decide `meta.poll_after_seconds`; ver `Escenario`. */
+  intervaloMs: number
   fallos: number
   setFallos: (actualizar: (previos: number) => number) => void
   setDatos: (paquete: PaqueteDePantalla) => void
@@ -265,7 +281,7 @@ interface OpcionesDeSondeo {
  * datos mientras el area esta quieta.
  */
 function useSondeo (opciones: OpcionesDeSondeo): void {
-  const { token, parametros, fallos, setFallos, setDatos, setMeta, setLeidoEn } = opciones
+  const { token, intervaloMs, fallos, setFallos, setDatos, setMeta, setLeidoEn } = opciones
 
   const enVuelo = useRef(false)
   const etag = useRef<string | null>(null)
@@ -318,13 +334,25 @@ function useSondeo (opciones: OpcionesDeSondeo): void {
     }
   }, [token, setDatos, setMeta, setFallos, setLeidoEn])
 
-  const intervaloMs = intervaloConBackoff(parametros.segundosDeRefresco * 1000, fallos)
+  const conBackoff = intervaloConBackoff(intervaloMs, fallos)
 
   useEffect(() => {
-    const latido = globalThis.setInterval(() => { void pedir() }, intervaloMs)
+    const latido = globalThis.setInterval(() => { void pedir() }, conBackoff)
 
     return () => { globalThis.clearInterval(latido) }
-  }, [pedir, intervaloMs])
+  }, [pedir, conBackoff])
+
+  // Una peticion al montar, sin esperar al primer tic.
+  //
+  // Importa cuando el servidor no pudo traer el paquete —la API estaba caida al cargar la pagina—:
+  // sin esto, la pared se queda diciendo "Esperando a Ops" durante un intervalo entero aunque el
+  // servicio ya haya vuelto. Va por `setTimeout` para no disparar un `setState` sincrono en el cuerpo
+  // del efecto.
+  useEffect(() => {
+    const arranque = globalThis.setTimeout(() => { void pedir() }, 0)
+
+    return () => { globalThis.clearTimeout(arranque) }
+  }, [pedir])
 
   // Volver de una suspension o recuperar la red no espera al proximo tic: la pared tiene que decir la
   // verdad lo antes posible. La pausa por `document.hidden` del tablero del panel NO se aplica acá —

@@ -41,10 +41,10 @@ export function EscenaEspacios ({ items, ocultos }: {
             </div>
 
             <p className="text-texto-tenue text-[2.6vmin]">
-              {proyecto.procesos_abiertos} {etiqueta(proyecto.procesos_abiertos)} abiertas
+              {abiertas(proyecto.procesos_abiertos)}
               {proyecto.procesos_atrasados > 0 && (
                 <span className="text-texto-peligro font-semibold">
-                  {' · '}{proyecto.procesos_atrasados} atrasadas
+                  {' · '}{proyecto.procesos_atrasados} {proyecto.procesos_atrasados === 1 ? 'atrasada' : 'atrasadas'}
                 </span>
               )}
             </p>
@@ -57,8 +57,15 @@ export function EscenaEspacios ({ items, ocultos }: {
   )
 }
 
-function etiqueta (cuantas: number): string {
-  const nombre = cuantas === 1 ? GLOSARIO.proceso.singular : GLOSARIO.proceso.plural
+/**
+ * "1 tarea abierta" / "3 tareas abiertas".
+ *
+ * El adjetivo concuerda con el sustantivo, no solo el sustantivo con el numero: escribir
+ * `{n} {etiqueta(n)} abiertas` daba "1 tarea abiertas", que es el tipo de detalle que en una pared de
+ * dos metros lee todo el mundo.
+ */
+function abiertas (cuantas: number): string {
+  const nombre = (cuantas === 1 ? GLOSARIO.proceso.singular : GLOSARIO.proceso.plural).toLowerCase()
 
-  return nombre.toLowerCase()
+  return `${cuantas} ${nombre} ${cuantas === 1 ? 'abierta' : 'abiertas'}`
 }

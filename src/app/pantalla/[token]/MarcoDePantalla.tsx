@@ -92,7 +92,10 @@ export function MarcoDePantalla (props: Props): ReactNode {
         // cuando la escena cambia de verdad, y nunca porque llegaron datos nuevos.
         key={escenaId ?? 'vacio'}
         className={cn(
-          'flex min-h-0 flex-col justify-center px-[4vmin] py-[2vmin]',
+          // `justify-start` y no `justify-center`: con el contenido centrado, el titulo de la escena
+          // cambia de altura segun cuantas fichas haya, y en una pared eso se lee como que la pantalla
+          // salta. Cada escena decide por su cuenta si se centra —la portada lo hace—.
+          'flex min-h-0 flex-col justify-start px-[4vmin] py-[2vmin]',
           transicion !== 'ninguna' && 'pantalla-escena'
         )}
         style={transicion === 'vista' ? { viewTransitionName: 'escena' } : undefined}
