@@ -8,7 +8,7 @@ import { Boton } from '@/componentes/formularios/Boton'
 import { Cargando, ErrorEstado, Vacio } from '@/componentes/estado/Estados'
 import { CargandoConOrbe, Orbe } from '@/componentes/estado/Orbe'
 import { escribirEnBff } from '@/componentes/datos/mutaciones'
-import { pedirSobre } from '@/datos/cliente'
+import { mensajeDeRespuesta, pedirRespuesta, pedirSobre } from '@/datos/cliente'
 import { leerSSE } from '@/datos/sse'
 import { leerEventoIA, type AccionIA, type Cita, type PasoIA, type PreguntaIA } from '@/dominio/ia'
 import {
@@ -26,6 +26,8 @@ import {
 import { pantallaDeRuta } from '@/dominio/pantalla'
 import { TarjetaPreguntaIA } from './TarjetaPreguntaIA'
 import { TarjetaPropuestaIA } from './TarjetaPropuestaIA'
+import { MAXIMO_PREGUNTA_AGENTE } from '@/dominio/ia-ejecucion'
+import { ChatAgente } from './ChatAgente'
 import { ASISTENTE, GLOSARIO } from '@/dominio/glosario'
 
 /**
@@ -91,7 +93,34 @@ interface PropsChatOrbe {
 
 /** Monta un hilo independiente al cambiar entre proyectos o el chat global. */
 export function ChatOrbe (props: PropsChatOrbe = {}): ReactElement {
-  return <ConversacionOrbe key={props.proyecto?.id ?? 'global'} {...props} />
+  return <SelectorChatOrbe key={props.proyecto?.id ?? 'global'} {...props} />
+}
+
+/** El servidor decide la activación por usuario; no se cambia de motor durante una ejecución. */
+function SelectorChatOrbe (props: PropsChatOrbe): ReactElement {
+  const [agente, setAgente] = useState<{ habilitado: boolean, intervalo_consulta_ms: number, nuevas_habilitadas: boolean, maximo_pregunta: number } | null>(null)
+  const [error, setError] = useState('')
+  const [intento, setIntento] = useState(0)
+  useEffect(() => {
+    const abortador = new AbortController()
+    void pedirRespuesta('ia/capacidades', abortador.signal)
+      .then(async respuesta => {
+        if (respuesta.status === 404) return { data: {} }
+        if (!respuesta.ok) throw new Error(await mensajeDeRespuesta(respuesta))
+        return await respuesta.json() as { data: { agente?: { habilitado: boolean, intervalo_consulta_ms?: number, nuevas_habilitadas?: boolean, maximo_pregunta?: number } } }
+      }).then(sobre => {
+        if (abortador.signal.aborted) return
+        const intervalo = sobre.data?.agente?.intervalo_consulta_ms
+        const maximo = sobre.data?.agente?.maximo_pregunta
+        setAgente({ maximo_pregunta: typeof maximo === 'number' && Number.isInteger(maximo) && maximo > 0 ? maximo : MAXIMO_PREGUNTA_AGENTE, nuevas_habilitadas: sobre.data?.agente?.nuevas_habilitadas !== false, habilitado: sobre.data?.agente?.habilitado === true, intervalo_consulta_ms: typeof intervalo === 'number' && intervalo >= 500 ? intervalo : 1500 })
+      }).catch((fallo: unknown) => {
+        if (!abortador.signal.aborted) setError(fallo instanceof Error ? fallo.message : 'No se pudo cargar Thinking Orb.')
+      })
+    return () => { abortador.abort() }
+  }, [intento])
+  if (error) return <ErrorEstado detalle={error} onReintentar={() => { setError(''); setIntento(n => n + 1) }} />
+  if (!agente) return <Cargando mensaje="Cargando Thinking Orb…" />
+  return agente.habilitado ? <ChatAgente {...props} intervalo={agente.intervalo_consulta_ms} nuevasHabilitadas={agente.nuevas_habilitadas} maximoPregunta={agente.maximo_pregunta} /> : <ConversacionOrbe {...props} />
 }
 
 /** Conversación con historial y rutas de acciones limitadas al alcance indicado. */
