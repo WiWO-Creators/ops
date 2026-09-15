@@ -154,6 +154,11 @@ export function useRecurso<T> (
       if (ultimaRespuesta.current === 0) return
       if (Date.now() - ultimaRespuesta.current < ANTIGUEDAD_PARA_REVALIDAR_MS) return
 
+      // Se marca ANTES de pedir, no solo al contestar. Volver a una pestaña dispara los dos eventos
+      // —`visibilitychange` y `focus`— en el mismo instante, y sin esta marca el segundo entraba con
+      // la antiguedad todavia vieja y mandaba una peticion identica a la que acababa de salir.
+      ultimaRespuesta.current = Date.now()
+
       enVuelo?.abort()
       const control = new AbortController()
       enVuelo = control
