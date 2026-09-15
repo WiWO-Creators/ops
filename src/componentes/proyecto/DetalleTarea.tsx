@@ -191,6 +191,9 @@ export function DetalleTarea (
   // cuelgan de rutas que solo el equipo tiene. Con la raiz en `null` no se montan: es lo que deja la
   // ficha del cliente sin una sola peticion que vaya a devolver 404.
   const subrecursos = fuente.subrecursosDeTarea
+  // Si la fila del Hito ofrece el menu para cambiarlo. Sin Espacio no hay catalogo de hitos que
+  // ofrecer, y sin `puedeEditar` —el portal— no hay nada que elegir.
+  const menuDeHito = puedeEditar && tarea.project !== undefined && tarea.project !== null
   const camposPersonalizados = tarea.custom_fields
   const enlaces = camposLegibles((camposPersonalizados ?? []).filter((campo) => campo.type === 'link'))
 
@@ -336,10 +339,14 @@ export function DetalleTarea (
           )}
           {/* El Hito se cambia desde acá y no solo arrastrando la tarjeta en el kanban: la ficha
               es donde se mira la tarea para decidir a que semana pertenece. Sin Espacio no hay
-              catalogo de hitos que ofrecer, asi que ahi queda el nombre suelto. */}
-          {tarea.milestone !== undefined && (
+              catalogo de hitos que ofrecer, asi que ahi queda el nombre suelto.
+
+              Sin hito y sin menu que ofrecer, la fila **no se dibuja**: es la misma regla que ya
+              gobierna "Asignados" tres lineas mas arriba, y un "Hito —" es una declaracion de
+              ausencia que no le sirve a quien no puede ponerle uno. */}
+          {tarea.milestone !== undefined && (menuDeHito || tarea.milestone !== null) && (
             <Dato etiqueta={GLOSARIO.hito.singular}>
-              {puedeEditar && tarea.project !== undefined && tarea.project !== null
+              {menuDeHito && tarea.project !== undefined && tarea.project !== null
                 ? (
                     <MenuHitoTarea
                       tareaId={tarea.id}
@@ -401,7 +408,7 @@ export function DetalleTarea (
 
         <BloqueSla tarea={tarea} puedeEditar={puedeEditar} onCambiado={reintentar} />
 
-        {tarea.counts !== undefined && <Contadores counts={tarea.counts} />}
+        <Contadores counts={tarea.counts} />
 
         {/* La lista de control se escribe desde su propio panel, que se recarga solo al tildar. Donde
             no hay esa ruta, lo que llego adentro de la ficha se lee y no se toca. */}
@@ -463,9 +470,10 @@ function TiempoRegistrado (
 /**
  * La lista de control, de solo lectura.
  *
- * Las casillas van deshabilitadas y no escondidas: lo que se comunica es el avance, y una lista de
- * frases sin casilla no se lee como una lista de control. El conteo va en el titulo, igual que en el
- * panel que si escribe.
+ * El avance de cada punto se dice con una **marca tipografica** y con el texto tachado, no con un
+ * `<input type="checkbox" disabled>`: en una pantalla sin escritura una casilla apagada se lee como
+ * un control roto —algo que deberia poder pulsarse y no responde— en vez de como un dato. El conteo
+ * va en el titulo, igual que en el panel que si escribe.
  *
  * @param items Los items, o `undefined` si el contrato no los manda.
  * @returns La lista, o nada.
@@ -489,16 +497,18 @@ function ChecklistDeLectura (
           <ul className="flex flex-col gap-1">
             {items.map((item) => (
               <li key={item.id} className="flex items-baseline gap-2 text-sm">
-                <input
-                  type="checkbox"
-                  checked={item.finished}
-                  disabled
-                  aria-label={item.description}
-                  className="accent-acento size-4 shrink-0"
-                />
+                {/* `aria-hidden` en la marca y el estado en texto al final: un lector de pantalla
+                    que anuncia "✓" no dice nada, y sin la casilla hace falta decirlo con palabras. */}
+                <span
+                  aria-hidden
+                  className={`w-3 shrink-0 text-center ${item.finished ? 'text-texto-exito' : 'text-texto-sutil'}`}
+                >
+                  {item.finished ? '✓' : '·'}
+                </span>
                 <span className={item.finished ? 'text-texto-tenue line-through' : 'text-texto'}>
                   {aTextoPlano(item.description)}
                 </span>
+                <span className="sr-only">{item.finished ? '(hecho)' : '(pendiente)'}</span>
               </li>
             ))}
           </ul>
@@ -734,7 +744,13 @@ function Dato ({ etiqueta, children }: { etiqueta: string, children: ReactNode }
  * vez serian el viejo y el nuevo discutiendo sobre trabajo dado por hecho, asi que el conteo vive
  * en el encabezado de `ListaChecklist`, que es el que siempre esta al dia.
  */
-function Contadores ({ counts }: { counts: NonNullable<ProcesoDeFicha['counts']> }): ReactElement {
+function Contadores ({ counts }: { counts: ProcesoDeFicha['counts'] }): ReactElement | null {
+  if (counts === undefined) return null
+  // Los dos en cero no informan nada: las secciones de Archivos y Comentarios, unas lineas mas
+  // abajo, ya dicen "Sin archivos adjuntos" y "Todavia no hay comentarios". Dos ceros arriba de esas
+  // dos frases son la misma ausencia contada dos veces en la misma pantalla.
+  if (counts.comments === 0 && counts.attachments === 0) return null
+
   return (
     <ul className="border-linea bg-superficie-elevada rounded-tarjeta grid grid-cols-2 gap-2 border p-3">
       <Contador etiqueta="Comentarios" valor={String(counts.comments)} />
