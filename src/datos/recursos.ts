@@ -2166,3 +2166,98 @@ export interface PlantillaHito {
 export interface PlantillaHitoDetallada extends PlantillaHito {
   tasks: TareaDePlantillaHito[]
 }
+
+/**
+ * Los tres tramos en que cae la nota de calidad de una Tarea.
+ *
+ * Los cortes los pone el backend y no esta interfaz: `completa` de 70 para arriba, `floja` entre 40
+ * y 69, `insuficiente` por debajo de 40. Viajan resueltos para que la pantalla no vuelva a decidir
+ * donde esta el limite: dos lugares que recortan el mismo numero terminan pintando distinto el mismo
+ * caso.
+ */
+export type TramoCalidad = 'completa' | 'floja' | 'insuficiente'
+
+/**
+ * Los tres ejes que mira la nota. Los que no cumplen viajan en `falta`.
+ *
+ * `descripcion` es el unico que evalua la IA; los otros dos son la presencia de un dato: si la Tarea
+ * tiene a alguien asignado y si tiene fecha de vencimiento.
+ */
+export type EjeDeCalidad = 'descripcion' | 'asignado' | 'fecha'
+
+/**
+ * Lo que la IA opina de la descripcion de una Tarea.
+ *
+ * `puntaje` y `motivo` son `null` mientras la IA todavia no la miro: eso **no** es un cero. Una
+ * descripcion sin puntuar es trabajo pendiente de la cola, y pintarla como mala acusaria al equipo
+ * de algo que no hizo.
+ *
+ * `vigente` en `false` dice que la descripcion cambio DESPUES de puntuarla, asi que la nota que se
+ * ve es la de un texto que ya no existe. Se muestra igual, avisando: esconderla dejaria la fila sin
+ * nota sin explicar por que.
+ */
+export interface DescripcionEvaluada {
+  /** 0-100, o `null` si la IA todavia no la evaluo. */
+  puntaje: number | null
+  /** Una linea de la IA con lo que le falta al texto, o `null` si no la evaluo. */
+  motivo: string | null
+  /** Largo del texto en caracteres. Cero es una descripcion vacia, no un dato ausente. */
+  largo: number
+  /** Cuando se puntuo, ISO-8601 UTC. `null` si no se puntuo. */
+  evaluado_en: string | null
+  /** `false` = la descripcion cambio despues de puntuarla y la nota quedo vieja. */
+  vigente: boolean
+}
+
+/**
+ * Una Tarea vista por el detector de tareas insuficientes (`GET /quality/tasks`).
+ *
+ * Los nombres de campo son los del contrato, sin traducir: la traduccion ocurre una sola vez, al
+ * presentar. No es un `Proceso` recortado — comparte `id` y `name` y nada mas—, asi que tiene su
+ * propio tipo en vez de extender aquel: la mitad de `Proceso` no viaja aca y fingir que si obligaria
+ * a marcarla opcional campo por campo.
+ *
+ * Las tres claves del Proyecto llegan en `null` cuando la Tarea no cuelga de ninguno, que es un caso
+ * normal y no un dato que falta.
+ */
+export interface TareaCalidad {
+  id: number
+  name: string
+  project_id: number | null
+  project_name: string | null
+  client_name: string | null
+  /** `YYYY-MM-DD` crudo, o `null` si nadie le puso plazo. */
+  due_date: string | null
+  /** Solo id y nombre: el detector no trae la foto de perfil. */
+  assignees: Array<{ id: number, full_name: string }>
+  /** 0-100 entero. Es la nota de la Tarea, no la de su descripcion. */
+  nota: number
+  tramo: TramoCalidad
+  /** Los ejes que no cumplen. Vacio = la Tarea esta completa en los tres. */
+  falta: EjeDeCalidad[]
+  descripcion: DescripcionEvaluada
+}
+
+/**
+ * Los contadores del detector (`GET /quality/tasks/summary`), sobre TODAS las Tareas visibles.
+ *
+ * No se calculan sobre la pagina de la tabla a proposito: sumar veinticinco filas diria "8 sin
+ * descripcion" cuando hay doscientas diez. Por eso es una lectura aparte y no un `meta` del listado.
+ *
+ * `nota_promedio` es `null` cuando no hay ninguna Tarea evaluada: un cero ahi se leeria como "todas
+ * malas", que es lo contrario de "todavia no hay nada medido".
+ */
+export interface ResumenCalidadTareas {
+  total: number
+  /** Cuantas ya tienen nota. El resto esta en `pendientes_de_ia`. */
+  evaluadas: number
+  nota_promedio: number | null
+  sin_descripcion: number
+  sin_asignado: number
+  sin_fecha: number
+  por_tramo: Record<TramoCalidad, number>
+  /** Descripciones que la IA todavia no miro. */
+  pendientes_de_ia: number
+  /** Cuando se calculo la foto, ISO-8601 UTC. */
+  calculado_en: string
+}
