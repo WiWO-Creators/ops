@@ -33,11 +33,14 @@ function gente (cuantos, desde = 1) {
  * `trabajando`, `cronometros`, `procesos` y `espacios` se llenan con lo que pida cada prueba.
  */
 function paquete (relleno = {}) {
+  const dura = (clase, porDefecto) => (relleno.segundos?.[clase] ?? porDefecto)
+
   return {
     area: { id: 7, name: 'Content' },
     scenes: [
       {
         kind: 'portada',
+        seconds: dura('portada', 12),
         counts: {
           personas: 14,
           jornadas_abiertas: (relleno.trabajando ?? []).length,
@@ -47,10 +50,10 @@ function paquete (relleno = {}) {
           espacios_activos: (relleno.espacios ?? []).length
         }
       },
-      { kind: 'trabajando', items: relleno.trabajando ?? [] },
-      { kind: 'cronometros', items: relleno.cronometros ?? [] },
-      { kind: 'procesos', items: relleno.procesos ?? [], total: (relleno.procesos ?? []).length },
-      { kind: 'espacios', items: relleno.espacios ?? [] }
+      { kind: 'trabajando', seconds: dura('trabajando', 20), items: relleno.trabajando ?? [] },
+      { kind: 'cronometros', seconds: dura('cronometros', 20), items: relleno.cronometros ?? [] },
+      { kind: 'procesos', seconds: dura('procesos', 20), items: relleno.procesos ?? [], total: (relleno.procesos ?? []).length },
+      { kind: 'espacios', seconds: dura('espacios', 20), items: relleno.espacios ?? [] }
     ]
   }
 }
@@ -81,21 +84,21 @@ test('sin datos no hay guion: la pantalla esta en modo espera, no dibujando vaci
 })
 
 test('una escena que entra en una pagina conserva su id sin numero', () => {
-  const guion = construirGuion(paquete({ trabajando: gente(REJILLAS.trabajando) }), PARAMETROS)
+  const guion = construirGuion(paquete({ trabajando: gente(REJILLAS.horizontal.trabajando) }), PARAMETROS)
 
   assert.deepEqual(guion.map((e) => e.id), ['portada', 'trabajando'])
 })
 
 test('cada pagina es una entrada propia del guion', () => {
-  const guion = construirGuion(paquete({ trabajando: gente(REJILLAS.trabajando + 1) }), PARAMETROS)
+  const guion = construirGuion(paquete({ trabajando: gente(REJILLAS.horizontal.trabajando + 1) }), PARAMETROS)
 
   assert.deepEqual(guion.map((e) => e.id), ['portada', 'trabajando#1', 'trabajando#2'])
-  assert.equal(guion[1].items.length, REJILLAS.trabajando)
+  assert.equal(guion[1].items.length, REJILLAS.horizontal.trabajando)
   assert.equal(guion[2].items.length, 1)
 })
 
 test('pasado el tope de paginas se corta, y lo cortado se cuenta en vez de desaparecer', () => {
-  const cuantos = REJILLAS.trabajando * TOPE_DE_PAGINAS + 7
+  const cuantos = REJILLAS.horizontal.trabajando * TOPE_DE_PAGINAS + 7
   const guion = construirGuion(paquete({ trabajando: gente(cuantos) }), PARAMETROS)
   const paginas = guion.filter((e) => e.clase === 'trabajando')
 
@@ -116,7 +119,7 @@ test('la firma no cambia cuando cambian los datos pero no las escenas', () => {
 
 test('la firma SI cambia cuando una escena aparece o se parte en dos', () => {
   const una = firmaDelGuion(construirGuion(paquete({ trabajando: gente(3) }), PARAMETROS))
-  const dos = firmaDelGuion(construirGuion(paquete({ trabajando: gente(REJILLAS.trabajando + 1) }), PARAMETROS))
+  const dos = firmaDelGuion(construirGuion(paquete({ trabajando: gente(REJILLAS.horizontal.trabajando + 1) }), PARAMETROS))
   const otra = firmaDelGuion(construirGuion(
     paquete({ trabajando: gente(3), espacios: [{ id: 1, name: 'X', deadline: null, progress: 0, procesos_abiertos: 1, procesos_atrasados: 0 }] }),
     PARAMETROS
@@ -149,8 +152,8 @@ test('la posicion se busca por clase aunque la escena estuviera paginada', () =>
 test('los parametros se acotan en vez de fallar', () => {
   assert.equal(leerParametrosDePantalla({ escena: '9999' }).segundosPorEscena, 120)
   assert.equal(leerParametrosDePantalla({ escena: '1' }).segundosPorEscena, 5)
-  assert.equal(leerParametrosDePantalla({ escena: 'ya' }).segundosPorEscena, 20)
-  assert.equal(leerParametrosDePantalla({ escena: '-3' }).segundosPorEscena, 20)
+  // Lo que no se entiende ya no cae a un numero: cae a `null`, que significa "respeta la
+  // configuracion del area". Ver la prueba dedicada mas abajo.
   assert.equal(leerParametrosDePantalla({ refresco: '1' }).segundosDeRefresco, 15)
   assert.equal(leerParametrosDePantalla({ refresco: '99999' }).segundosDeRefresco, 300)
   assert.equal(leerParametrosDePantalla({ zoom: '99' }).zoom, 1.4)
@@ -200,4 +203,94 @@ test('el recargado nocturno cae de madrugada y dispersa por token', () => {
   assert.ok(new Date(uno).getHours() === 4, 'a las cuatro de la maniana')
   assert.notEqual(uno, otro, 'dos televisores no recargan en el mismo segundo')
   assert.equal(proximoRecargado(mediodia, 'aaaa'), uno, 'y cada uno siempre en el mismo momento')
+})
+
+test('la duracion de cada escena la manda la configuracion del area', () => {
+  const guion = construirGuion(
+    paquete({ trabajando: gente(2), segundos: { portada: 8, trabajando: 45 } }),
+    PARAMETROS
+  )
+
+  assert.equal(guion[0].duracionMs, 8_000, 'la portada dura lo que diga su configuracion')
+  assert.equal(guion[1].duracionMs, 45_000, 'y cada escena la suya')
+})
+
+test('un `?escena=` en la URL pisa la configuracion entera', () => {
+  const forzado = leerParametrosDePantalla({ escena: '7' })
+  const guion = construirGuion(
+    paquete({ trabajando: gente(2), segundos: { portada: 8, trabajando: 45 } }),
+    forzado
+  )
+
+  assert.equal(guion[1].duracionMs, 7_000, 'la URL manda para probar una vuelta rapida')
+  // La portada sigue durando menos: es un titulo, no una lista.
+  assert.ok(guion[0].duracionMs < guion[1].duracionMs, 'y la portada conserva su proporcion')
+})
+
+test('sin `?escena=` no se inventa una duracion que pise la configuracion', () => {
+  assert.equal(leerParametrosDePantalla({}).segundosPorEscena, null)
+  assert.equal(leerParametrosDePantalla({ escena: 'ya' }).segundosPorEscena, null)
+  assert.equal(leerParametrosDePantalla({ escena: '-3' }).segundosPorEscena, null)
+})
+
+test('una escena sin duracion no se queda en cero', () => {
+  const sinSegundos = {
+    area: { id: 7, name: 'Content' },
+    scenes: [{ kind: 'trabajando', items: gente(2) }]
+  }
+
+  const guion = construirGuion(sinSegundos, PARAMETROS)
+
+  assert.ok(guion[0].duracionMs >= 5_000, 'una escena de cero segundos seria un parpadeo')
+})
+
+test('de pie entran mas filas y menos columnas que tumbado', () => {
+  const cuantos = REJILLAS.horizontal.trabajando + 1
+  const tumbado = construirGuion(paquete({ trabajando: gente(cuantos) }), PARAMETROS, 'horizontal')
+  const dePie = construirGuion(paquete({ trabajando: gente(cuantos) }), PARAMETROS, 'vertical')
+
+  assert.equal(tumbado.filter((e) => e.clase === 'trabajando').length, 2, 'tumbado no entran y se pagina')
+  assert.equal(dePie.filter((e) => e.clase === 'trabajando').length, 1, 'de pie entran de una')
+  assert.ok(
+    REJILLAS.vertical.procesos > REJILLAS.horizontal.procesos,
+    'la banda util vertical mide el doble: tiene que caber mas'
+  )
+})
+
+test('cada orientacion pagina con su propia rejilla', () => {
+  const cuantos = REJILLAS.vertical.procesos + 1
+  const tareas = Array.from({ length: cuantos }, (_, i) => ({
+    id: i + 1,
+    name: `Tarea ${i + 1}`,
+    status: null,
+    priority: null,
+    due_date: null,
+    overdue: false,
+    progress: { checklist_total: 0, checklist_done: 0, percent: null },
+    project: null,
+    assignees: []
+  }))
+
+  const dePie = construirGuion(paquete({ procesos: tareas }), PARAMETROS, 'vertical')
+  const paginas = dePie.filter((e) => e.clase === 'procesos')
+
+  assert.equal(paginas.length, 2)
+  assert.equal(paginas[0].items.length, REJILLAS.vertical.procesos)
+  assert.equal(paginas[1].items.length, 1)
+})
+
+test('una escena apagada en el panel simplemente no llega, y el guion la respeta', () => {
+  // El backend no manda las escenas apagadas: el guion es lo que llegue, en el orden en que llegue.
+  const soloDos = {
+    area: { id: 7, name: 'Content' },
+    scenes: [
+      { kind: 'procesos', seconds: 30, items: [], total: 0 },
+      { kind: 'portada', seconds: 8, counts: { personas: 3, jornadas_abiertas: 0, cronometros_corriendo: 0, procesos_abiertos: 0, procesos_atrasados: 0, espacios_activos: 0 } }
+    ]
+  }
+
+  const guion = construirGuion(soloDos, PARAMETROS)
+
+  assert.deepEqual(guion.map((e) => e.id), ['portada'], 'procesos viene vacia y sale; queda la portada')
+  assert.equal(guion[0].duracionMs, 8_000, 'con su duracion configurada')
 })

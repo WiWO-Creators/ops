@@ -26,30 +26,34 @@ import { llamarApi } from '@/datos/api'
 export const dynamic = 'force-dynamic'
 
 /**
- * La forma de un token de enlace: 64 caracteres hexadecimales (`bin2hex(random_bytes(32))`).
+ * La forma de un codigo de pantalla: cinco caracteres del alfabeto sin ambiguedades.
  *
- * Se valida antes de reenviar para que la ruta no sirva de tunel hacia otras rutas de la API. El
- * rango es mas ancho que 64 a proposito —por si el formato cambia— pero la clase de caracteres no:
- * nada que pueda salirse del segmento de URL.
+ * Se valida antes de reenviar para que la ruta no sirva de tunel hacia otras rutas de la API. La caja
+ * no importa —nadie controla las mayusculas escribiendo con un control remoto, y la API normaliza—
+ * pero la clase de caracteres si: nada que pueda salirse del segmento de URL.
+ *
+ * Tiene que seguir a `Escritura\Pantallas::ALFABETO`. Si alla se agrega un simbolo y aca no, esta
+ * ruta contesta 404 a codigos que la API considera validos, y el fallo se ve como "esa pantalla no
+ * existe" en vez de como lo que es.
  */
-const FORMA_DE_TOKEN = /^[A-Za-z0-9_-]{16,128}$/
+const FORMA_DE_CODIGO = /^[23456789ABCDEFGHJKMNPQRSTVWXYZ]{5}$/i
 
 /**
- * Reenvia `GET /public/display/{token}`, incluida la revalidacion por `ETag`.
+ * Reenvia `GET /public/display/{codigo}`, incluida la revalidacion por `ETag`.
  *
  * El `if-none-match` que manda el navegador viaja tal cual, y un `304` de la API vuelve como `304`
  * sin cuerpo: es lo que hace que un televisor que pregunta cada treinta segundos durante meses no
  * mueva un solo byte de datos mientras no pase nada.
  *
- * No se reenvia ninguna otra cabecera del cliente ni la query, y el token no se escribe en ningun log.
+ * No se reenvia ninguna otra cabecera del cliente ni la query, y el codigo no se escribe en ningun log.
  */
 export async function GET (
   peticion: NextRequest,
-  ctx: RouteContext<'/api/pantalla/[token]'>
+  ctx: RouteContext<'/api/pantalla/[codigo]'>
 ): Promise<Response> {
-  const { token } = await ctx.params
+  const { codigo } = await ctx.params
 
-  if (!FORMA_DE_TOKEN.test(token)) {
+  if (!FORMA_DE_CODIGO.test(codigo)) {
     return NextResponse.json({ error: { code: 'not_found' } }, { status: 404 })
   }
 
@@ -63,7 +67,7 @@ export async function GET (
   let respuesta: Response
 
   try {
-    respuesta = await llamarApi(`/public/display/${encodeURIComponent(token)}`, { cabeceras })
+    respuesta = await llamarApi(`/public/display/${encodeURIComponent(codigo)}`, { cabeceras })
   } catch {
     // La API no contesto: se dice con un 503, y la pantalla lo cuenta como un fallo mas de su
     // backoff. Sin cuerpo con detalle — esta ruta esta abierta a internet.

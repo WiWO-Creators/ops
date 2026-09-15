@@ -26,7 +26,7 @@ export default async function PantallasPage (): Promise<ReactElement> {
     <section className="flex flex-col gap-4">
       <TituloModulo
         titulo="Pantallas"
-        descripcion="El enlace público de cada área, para el televisor de su pared. La dirección se ve una sola vez: si se pierde, se genera otra y la anterior deja de servir."
+        descripcion="El código de cada área, para el televisor de su pared. Se teclea con el control remoto, no caduca, y en 'Qué se ve' se elige qué escenas muestra, en qué orden y cuánto dura cada una."
       />
 
       {cargado instanceof ErrorApi
@@ -47,7 +47,7 @@ export default async function PantallasPage (): Promise<ReactElement> {
  */
 async function cargar (): Promise<PantallaDeAreaEnPanel[] | ErrorApi> {
   try {
-    const sobre = await pedir<PantallaDeAreaEnPanel[]>('accesos/pantallas')
+    const sobre = await pedir<PantallaDeAreaEnPanel[]>('/accesos/pantallas')
 
     return sobre.data
   } catch (error) {

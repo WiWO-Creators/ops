@@ -23,7 +23,7 @@ export function EscenaTrabajando ({ items, ocultos, ahora, congelado }: {
     <div className="flex min-h-0 flex-col">
       <TituloDeEscena>Trabajando ahora</TituloDeEscena>
 
-      <ul className="grid grid-cols-2 gap-[2.5vmin] sm:grid-cols-3 lg:grid-cols-4">
+      <ul className="grid grid-cols-4 gap-[2.5vmin] portrait:grid-cols-2">
         {items.map((persona) => (
           <li
             key={persona.staff_id}

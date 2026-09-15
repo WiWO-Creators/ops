@@ -6,7 +6,7 @@ import {
   construirGuion, firmaDelGuion, frescuraDe, intervaloConBackoff, proximaEscenaViva,
   proximoRecargado
 } from '@/dominio/pantalla-area'
-import type { Escena, ParametrosDePantalla } from '@/dominio/pantalla-area'
+import type { Escena, Orientacion, ParametrosDePantalla } from '@/dominio/pantalla-area'
 import type { MetaDePantalla, PaqueteDePantalla } from '@/datos/pantalla-area'
 import { MarcoDePantalla } from './MarcoDePantalla'
 import { EscenaPortada } from './escenas/EscenaPortada'
@@ -19,7 +19,7 @@ import { EscenaEspacios } from './escenas/EscenaEspacios'
 const TIC_DE_ROTACION_MS = 250
 
 interface Props {
-  token: string
+  codigo: string
   inicial: PaqueteDePantalla | null
   metaInicial: MetaDePantalla | null
   parametros: ParametrosDePantalla
@@ -55,7 +55,7 @@ interface Props {
  * pantalla se queda ahi hasta que alguien la recargue a mano. Un `fetch` del cliente se puede atrapar
  * e ignorar, que es lo unico aceptable en una pared.
  */
-export function Escenario ({ token, inicial, metaInicial, parametros }: Props): ReactElement {
+export function Escenario ({ codigo, inicial, metaInicial, parametros }: Props): ReactElement {
   const [datos, setDatos] = useState<PaqueteDePantalla | null>(inicial)
   const [meta, setMeta] = useState<MetaDePantalla | null>(metaInicial)
   const [fallos, setFallos] = useState(0)
@@ -65,7 +65,11 @@ export function Escenario ({ token, inicial, metaInicial, parametros }: Props): 
   const [indice, setIndice] = useState(0)
   const [ahora, setAhora] = useState<number | null>(null)
 
-  const guion = useMemo(() => construirGuion(datos, parametros), [datos, parametros])
+  const orientacion = useOrientacion()
+  const guion = useMemo(
+    () => construirGuion(datos, parametros, orientacion),
+    [datos, parametros, orientacion]
+  )
   const firma = firmaDelGuion(guion)
 
   // "Latest ref": el reloj de la rotacion lee de acá en vez de depender del guion, que cambia de
@@ -91,7 +95,7 @@ export function Escenario ({ token, inicial, metaInicial, parametros }: Props): 
    */
   const intervaloMs = (meta?.poll_after_seconds ?? parametros.segundosDeRefresco) * 1000
 
-  useSondeo({ token, intervaloMs, fallos, setFallos, setDatos, setMeta, setLeidoEn })
+  useSondeo({ codigo, intervaloMs, fallos, setFallos, setDatos, setMeta, setLeidoEn })
 
   // -- El reloj de la rotacion. Se crea al montar y no se recrea nunca. -------------------------
   useEffect(() => {
@@ -174,11 +178,11 @@ export function Escenario ({ token, inicial, metaInicial, parametros }: Props): 
   // Lo que ningun `clearInterval` limpia: la memoria que el motor de JS acumula en meses, la cache de
   // imagenes, y el despliegue nuevo que esta pantalla nunca veria porque nadie la recarga.
   useEffect(() => {
-    const espera = proximoRecargado(Date.now(), token) - Date.now()
+    const espera = proximoRecargado(Date.now(), codigo) - Date.now()
     const alarma = globalThis.setTimeout(() => { globalThis.location.reload() }, Math.max(espera, 60_000))
 
     return () => { globalThis.clearTimeout(alarma) }
-  }, [token])
+  }, [codigo])
 
   const frescura = leidoEn === null || ahora === null
     ? 'sin-conexion'
@@ -195,6 +199,7 @@ export function Escenario ({ token, inicial, metaInicial, parametros }: Props): 
       esperando={datos === null}
       ahora={ahora}
       zona={meta?.timezone ?? null}
+      orientacion={orientacion}
       zoom={parametros.zoom}
       tema={parametros.tema}
       transicion={parametros.transicion}
@@ -252,7 +257,7 @@ function indiceDe (guion: Escena[], id: string): number {
 }
 
 interface OpcionesDeSondeo {
-  token: string
+  codigo: string
   /** El ritmo base, antes del backoff. Lo decide `meta.poll_after_seconds`; ver `Escenario`. */
   intervaloMs: number
   fallos: number
@@ -281,7 +286,7 @@ interface OpcionesDeSondeo {
  * datos mientras el area esta quieta.
  */
 function useSondeo (opciones: OpcionesDeSondeo): void {
-  const { token, intervaloMs, fallos, setFallos, setDatos, setMeta, setLeidoEn } = opciones
+  const { codigo, intervaloMs, fallos, setFallos, setDatos, setMeta, setLeidoEn } = opciones
 
   const enVuelo = useRef(false)
   const etag = useRef<string | null>(null)
@@ -299,7 +304,7 @@ function useSondeo (opciones: OpcionesDeSondeo): void {
 
       if (etag.current !== null) cabeceras['if-none-match'] = etag.current
 
-      const respuesta = await fetch(`/api/pantalla/${encodeURIComponent(token)}`, {
+      const respuesta = await fetch(`/api/pantalla/${encodeURIComponent(codigo)}`, {
         cache: 'no-store',
         headers: cabeceras,
         signal: aborto.current.signal
@@ -332,7 +337,7 @@ function useSondeo (opciones: OpcionesDeSondeo): void {
     } finally {
       enVuelo.current = false
     }
-  }, [token, setDatos, setMeta, setFallos, setLeidoEn])
+  }, [codigo, setDatos, setMeta, setFallos, setLeidoEn])
 
   const conBackoff = intervaloConBackoff(intervaloMs, fallos)
 
@@ -372,4 +377,39 @@ function useSondeo (opciones: OpcionesDeSondeo): void {
   useEffect(() => {
     return () => { aborto.current?.abort() }
   }, [])
+}
+
+/**
+ * Como esta puesto el televisor, mirando su proporcion.
+ *
+ * Lo decide la pantalla y no una configuracion: un aparato girado se ve bien sin que nadie tenga que
+ * acordarse de declararlo en el panel, y si alguien lo gira despues, la pagina se acomoda sola.
+ *
+ * En el servidor no hay proporcion que mirar, asi que la primera pintada sale en horizontal y se
+ * corrige al hidratar. Eso es visible solo si el televisor esta en vertical, dura un instante, y la
+ * alternativa —adivinar en el servidor por el `user-agent`— acierta menos.
+ *
+ * `matchMedia` y no `window.innerHeight > innerWidth`: la consulta la reevalua el navegador sola y no
+ * hace falta escuchar `resize`, que en un televisor dispara tambien al aparecer el teclado en
+ * pantalla.
+ */
+function useOrientacion (): Orientacion {
+  const [orientacion, setOrientacion] = useState<Orientacion>('horizontal')
+
+  useEffect(() => {
+    const consulta = globalThis.matchMedia('(orientation: portrait)')
+    const mirar = (): void => { setOrientacion(consulta.matches ? 'vertical' : 'horizontal') }
+
+    // Por `setTimeout` y no llamando a `mirar()` acá: en el cuerpo del efecto seria un `setState`
+    // sincrono, que encadena renders.
+    const arranque = globalThis.setTimeout(mirar, 0)
+    consulta.addEventListener('change', mirar)
+
+    return () => {
+      globalThis.clearTimeout(arranque)
+      consulta.removeEventListener('change', mirar)
+    }
+  }, [])
+
+  return orientacion
 }

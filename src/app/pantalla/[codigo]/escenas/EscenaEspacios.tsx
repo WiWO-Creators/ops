@@ -23,7 +23,7 @@ export function EscenaEspacios ({ items, ocultos }: {
     <div className="flex min-h-0 flex-col">
       <TituloDeEscena>{GLOSARIO.espacio.plural} en curso</TituloDeEscena>
 
-      <ul className="grid grid-cols-1 gap-[2vmin] sm:grid-cols-2">
+      <ul className="grid grid-cols-2 gap-[2vmin] portrait:grid-cols-1">
         {items.map((proyecto) => (
           <li
             key={proyecto.id}

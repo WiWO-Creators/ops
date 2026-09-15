@@ -2628,6 +2628,57 @@ async function accesosRuta (metodo, resto, parametros, actual, cuerpo) {
     return { estado: 200, cuerpo: conDatos(catalogoDeAccesos()) }
   }
 
+  // El inventario de pantallas de area, y el CRUD de una.
+  //
+  // El estado vive en memoria (`PANTALLAS_DE_AREA`) para que la pantalla de Administracion se pueda
+  // usar entera contra el mock: generar, configurar y dar de baja, y ver el efecto.
+  if (seccion === 'pantallas' && metodo === 'GET') {
+    return { estado: 200, cuerpo: conDatos(AREAS.map((area) => pantallaEnPanel(area))) }
+  }
+
+  if (seccion === 'areas' && resto[2] === 'pantalla') {
+    const area = AREAS.find((a) => a.id === Number(id))
+    if (!area) throw new ErrorApi(404, 'not_found', 'No existe esa área.')
+
+    if (metodo === 'GET') return { estado: 200, cuerpo: conDatos(pantallaEnPanel(area)) }
+
+    if (metodo === 'POST') {
+      const previa = PANTALLAS_DE_AREA.get(area.id)
+      PANTALLAS_DE_AREA.set(area.id, {
+        codigo: area.id === 4 ? CODIGO_DE_PANTALLA : acuñarCodigo(),
+        titulo: previa?.titulo ?? null,
+        escenas: previa?.escenas ?? escenasPorDefecto(),
+        creado_en: new Date().toISOString(),
+        usado_en: null
+      })
+
+      return { estado: 201, cuerpo: conDatos(pantallaEnPanel(area)) }
+    }
+
+    if (metodo === 'PUT') {
+      const previa = PANTALLAS_DE_AREA.get(area.id)
+      if (!previa) throw new ErrorApi(404, 'not_found', 'Esa área todavía no tiene pantalla.')
+
+      // `cuerpo` es una función que lee el stream, no un objeto: igual que en el resto del mock.
+      const datos = await cuerpo()
+      const escenas = Array.isArray(datos?.escenas) ? datos.escenas : []
+      if (escenas.length === 0) {
+        throw new ErrorApi(422, 'validation_error', 'Hay que dejar al menos una escena encendida.')
+      }
+
+      previa.titulo = typeof datos?.titulo === 'string' && datos.titulo.trim() !== '' ? datos.titulo.trim() : null
+      previa.escenas = escenas.map((e) => ({ clase: e.clase, segundos: e.segundos ?? 20 }))
+
+      return { estado: 200, cuerpo: conDatos(pantallaEnPanel(area)) }
+    }
+
+    if (metodo === 'DELETE') {
+      PANTALLAS_DE_AREA.delete(area.id)
+
+      return { estado: 204, cuerpo: null }
+    }
+  }
+
   // El arbol entero y plano: la pantalla lo arma sola con `jefe_staffid`. Solo gente activa, porque
   // una baja no manda a nadie.
   if (seccion === 'arbol' && metodo === 'GET') {
@@ -3744,6 +3795,57 @@ function calidadRuta (metodo, resto, parametros, actual) {
  * Todo lo que corre viaja como INSTANTE y nunca como duracion, igual que la API real: es lo que
  * permite que dos lecturas seguidas sin novedades sean identicas y la segunda pueda ser un 304.
  */
+/** El código de la pantalla del área 4, fijo para que las pruebas puedan escribirlo. */
+const CODIGO_DE_PANTALLA = 'AB3K9'
+
+/** El alfabeto de la API: treinta símbolos, sin los que se confunden con un control remoto. */
+const ALFABETO_DE_CODIGO = '23456789ABCDEFGHJKMNPQRSTVWXYZ'
+
+/** Las pantallas vivas, en memoria. `area_id => {codigo, titulo, escenas, creado_en, usado_en}`. */
+const PANTALLAS_DE_AREA = new Map()
+
+function acuñarCodigo () {
+  let codigo = ''
+  for (let i = 0; i < 5; i++) codigo += ALFABETO_DE_CODIGO[Math.floor(Math.random() * ALFABETO_DE_CODIGO.length)]
+
+  return codigo
+}
+
+function escenasPorDefecto () {
+  return [
+    { clase: 'portada', segundos: 12 },
+    { clase: 'trabajando', segundos: 20 },
+    { clase: 'cronometros', segundos: 20 },
+    { clase: 'procesos', segundos: 20 },
+    { clase: 'espacios', segundos: 20 }
+  ]
+}
+
+// El área 4 nace con pantalla: es la que sirve `/pantalla/AB3K9` sin tener que generarla antes.
+PANTALLAS_DE_AREA.set(4, {
+  codigo: CODIGO_DE_PANTALLA,
+  titulo: null,
+  escenas: escenasPorDefecto(),
+  creado_en: new Date().toISOString(),
+  usado_en: null
+})
+
+/** Una fila del inventario, con la forma que espera el panel. */
+function pantallaEnPanel (area) {
+  const viva = PANTALLAS_DE_AREA.get(area.id) ?? null
+
+  return {
+    area_id: area.id,
+    area_name: area.name,
+    shared: viva !== null,
+    code: viva?.codigo ?? null,
+    title: viva?.titulo ?? null,
+    scenes: viva?.escenas ?? escenasPorDefecto(),
+    created_at: viva?.creado_en ?? null,
+    last_seen_at: viva?.usado_en ?? null
+  }
+}
+
 function pantallaDeArea (areaId) {
   const area = AREAS.find((a) => a.id === areaId) ?? AREAS[0]
   const gente = STAFF.filter((s) => s.area_id === area.id || s.id === area.jefe_staffid)
@@ -3783,11 +3885,13 @@ function pantallaDeArea (areaId) {
     last_seen_at: new Date(Date.now() - i * 60_000).toISOString()
   }))
 
-  return conDatos(
-    {
-      area: { id: area.id, name: area.name },
-      scenes: [
-        {
+  // Solo las escenas encendidas, en el orden configurado y con su duración: igual que la API real,
+  // que ni siquiera calcula las apagadas.
+  const viva = PANTALLAS_DE_AREA.get(area.id) ?? null
+  const puestas = viva?.escenas ?? escenasPorDefecto()
+
+  const armadas = {
+    portada: {
           kind: 'portada',
           counts: {
             personas: gente.length,
@@ -3798,9 +3902,9 @@ function pantallaDeArea (areaId) {
             espacios_activos: espacios.length
           }
         },
-        { kind: 'trabajando', items: trabajando },
-        { kind: 'cronometros', items: corriendo },
-        {
+    trabajando: { kind: 'trabajando', items: trabajando },
+    cronometros: { kind: 'cronometros', items: corriendo },
+    procesos: {
           kind: 'procesos',
           total: abiertas.length,
           items: abiertas.map((p) => ({
@@ -3819,8 +3923,15 @@ function pantallaDeArea (areaId) {
             }))
           }))
         },
-        { kind: 'espacios', items: espacios }
-      ]
+    espacios: { kind: 'espacios', items: espacios }
+  }
+
+  return conDatos(
+    {
+      area: { id: area.id, name: viva?.titulo ?? area.name },
+      scenes: puestas
+        .filter((e) => armadas[e.clase] !== undefined)
+        .map((e) => ({ ...armadas[e.clase], seconds: e.segundos }))
     },
     {
       server_time: new Date().toISOString(),
@@ -3875,9 +3986,13 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
   // emula la emision ni la revocacion —eso es de `/accesos/pantallas`, que si necesita sesion—: lo
   // que esta ruta tiene que dar es el PAQUETE, que es lo unico que la pantalla sabe leer.
   if (recurso === 'public' && resto[0] === 'display') {
-    if (metodo !== 'GET') throw new ErrorApi(404, 'not_found', 'No existe ese enlace.')
-    if (!/^[A-Za-z0-9_-]{16,128}$/.test(resto[1] ?? '')) {
-      throw new ErrorApi(404, 'not_found', 'No existe ese enlace.')
+    if (metodo !== 'GET') throw new ErrorApi(404, 'not_found', 'No existe esa pantalla.')
+
+    // Un solo código válido, y el resto es 404 aunque tenga la forma correcta: es lo que permite
+    // ejercitar la pantalla de "esto ya no está enlazado" sin tocar la base. La caja no importa —
+    // nadie controla las mayúsculas escribiendo con un control remoto— pero nada más.
+    if ((resto[1] ?? '').toUpperCase() !== CODIGO_DE_PANTALLA) {
+      throw new ErrorApi(404, 'not_found', 'No existe esa pantalla.')
     }
 
     return { estado: 200, cuerpo: pantallaDeArea(4) }
