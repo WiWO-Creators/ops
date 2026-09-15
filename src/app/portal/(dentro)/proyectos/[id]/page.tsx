@@ -65,6 +65,23 @@ export default async function ProyectoPagina (props: PageProps<'/portal/proyecto
   // que se trata, y ahi es el unico lugar donde cabe.
   const descripcionSuelta = !pestanias.some((p) => p.clave === 'overview')
   const pendientes = await cargarPendientes(proyecto)
+  // Las aprobaciones viven DENTRO de la pestaña Descripcion, que es la primera y la que se abre al
+  // entrar. Sueltas sobre las pestañas se repetian encima de las diez y se llevaban ~190 px del
+  // primer viewport en todas, incluidas las que no tienen nada que ver con una Tarea. Cuando el
+  // Proyecto no comparte esa pestaña se dibujan sueltas, como antes: es lo unico que el cliente
+  // puede escribir en todo el portal y no se esconde, se resitua.
+  const aprobaciones = pendientes.length === 0
+    ? null
+    : (
+      <AprobacionesPendientes
+        proyectoId={proyecto.id}
+        tareas={pendientes}
+        // El catalogo se pide aca y no dentro del panel: `cargarLookupsDelPortal` es `server-only`
+        // y el panel es cliente. `cache()` lo comparte con la pestaña de Tareas, asi que la pagina
+        // no pide `/portal/lookups` dos veces por pintar la insignia.
+        estados={listaDe(await cargarLookupsDelPortal(), 'task_statuses')}
+      />
+      )
   // El estado, resuelto una vez: lo pinta la cabecera y lo repite la ficha de la pestaña Descripcion.
   const estado = await estadoDelPortal('project_statuses', proyecto.status)
   // De donde bajan los datos de cada pestaña. Es lo unico que distingue esta pantalla de la del
@@ -74,7 +91,11 @@ export default async function ProyectoPagina (props: PageProps<'/portal/proyecto
   const paneles: Panel[] = pestanias.map(({ clave, etiqueta }) => ({
     clave,
     etiqueta,
-    contenido: contenidoDePestania(clave, proyecto, fuente, { empresa: empresa.company, estado })
+    contenido: contenidoDePestania(clave, proyecto, fuente, {
+      empresa: empresa.company,
+      estado,
+      aprobaciones
+    })
   }))
 
   return (
@@ -94,16 +115,9 @@ export default async function ProyectoPagina (props: PageProps<'/portal/proyecto
         <p className="text-texto-tenue max-w-prose text-sm whitespace-pre-line">{descripcion}</p>
       )}
 
-      {pendientes.length > 0 && (
-        <AprobacionesPendientes
-          proyectoId={proyecto.id}
-          tareas={pendientes}
-          // El catalogo se pide aca y no dentro del panel: `cargarLookupsDelPortal` es `server-only`
-          // y el panel es cliente. `cache()` lo comparte con la pestaña de Tareas, asi que la pagina
-          // no pide `/portal/lookups` dos veces por pintar la insignia.
-          estados={listaDe(await cargarLookupsDelPortal(), 'task_statuses')}
-        />
-      )}
+      {/* Sueltas solo cuando no hay pestaña Descripcion donde ponerlas: sin ella no habria ningun
+          sitio en la pantalla desde donde el cliente pueda dar el visto bueno. */}
+      {descripcionSuelta && aprobaciones}
 
       {paneles.length > 0
         ? <Pestanas paneles={paneles} />
@@ -123,6 +137,13 @@ interface DatosDeLaPagina {
   empresa: string
   /** Estado del proyecto, ya resuelto contra `project_statuses` del portal. */
   estado: { nombre: string, color: string | null }
+  /**
+   * Las {procesos} que esperan el visto bueno del contacto, o `null` si no hay ninguna.
+   *
+   * Las monta la pestaña Descripcion, arriba del resumen. Llegan armadas desde la pagina porque el
+   * catalogo de estados sale de `cargarLookupsDelPortal`, que es `server-only`.
+   */
+  aprobaciones: React.ReactNode
 }
 
 /**
@@ -149,19 +170,23 @@ function contenidoDePestania (
   switch (clave) {
     case 'overview':
       return (
-        <PanelDescripcion
-          proyecto={proyecto}
-          estado={pagina.estado}
-          // `href` en `null`: el cliente no tiene pantalla de clientes a donde ir, y el nombre es el
-          // de su propia empresa —la API del contacto no publica el cliente del proyecto—.
-          cliente={{ nombre: pagina.empresa, href: null }}
-          // Sin tipo de facturacion: el contrato del contacto no lo publica, asi que la fila no va.
-          // Los importes si, cuando la API los mando: `view_finance_overview` ya decidio del otro lado.
-          puedeVerMontos
-          fuente={fuente}
-          // El grafico de horas por dia es un subrecurso del resumen que el contacto no tiene.
-          rutaDelGrafico={null}
-        />
+        <div className="flex flex-col gap-4">
+          {pagina.aprobaciones}
+          <PanelDescripcion
+            proyecto={proyecto}
+            estado={pagina.estado}
+            // `href` en `null`: el cliente no tiene pantalla de clientes a donde ir, y el nombre es
+            // el de su propia empresa —la API del contacto no publica el cliente del proyecto—.
+            cliente={{ nombre: pagina.empresa, href: null }}
+            // Sin tipo de facturacion: el contrato del contacto no lo publica, asi que la fila no
+            // va. Los importes si, cuando la API los mando: `view_finance_overview` ya decidio del
+            // otro lado.
+            puedeVerMontos
+            fuente={fuente}
+            // El grafico de horas por dia es un subrecurso del resumen que el contacto no tiene.
+            rutaDelGrafico={null}
+          />
+        </div>
       )
     case 'tasks':
       // `conIa={false}`: la capa de IA es del panel, y el alta por texto que habilita ni se ofrece

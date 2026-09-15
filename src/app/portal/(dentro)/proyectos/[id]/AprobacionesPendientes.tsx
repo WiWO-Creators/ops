@@ -14,11 +14,14 @@ import type { AprobacionPortal, TareaPortal } from '@/datos/portal'
 import type { CatalogoDeEstados } from '@/dominio/estados-tarea'
 
 /**
- * Las {procesos} que esperan el visto bueno del cliente, arriba de todo en el detalle del proyecto.
+ * Las {procesos} que esperan el visto bueno del cliente, arriba de la pestaña Descripcion.
  *
- * Es lo unico de esa pantalla que pide una accion, y por eso va **antes de las pestañas**: abajo,
- * compitiendo con ocho pestañas, no se ve. Si no hay pendientes el bloque no existe — un cartel que
- * dice "no hay nada para aprobar" es ruido en la pantalla de alguien que entra a mirar su proyecto.
+ * Es lo unico de esa pantalla que pide una accion, asi que va en **la primera pestaña, la que se
+ * abre al entrar**, y no suelto sobre el juego de pestañas: ahi se repetia encima de las diez y se
+ * llevaba ~190 px del primer viewport en todas, incluidas las que no tienen nada que ver con una
+ * Tarea. Cuando el Proyecto no comparte la pestaña Descripcion, la pagina lo dibuja suelto: no hay
+ * otro sitio. Si no hay pendientes el bloque no existe — un cartel que dice "no hay nada para
+ * aprobar" es ruido en la pantalla de alguien que entra a mirar su proyecto.
  *
  * **Ni ETA ni desviacion ni SLA aparecen aca.** Son metricas internas: miden al equipo contra su
  * propio compromiso, y el backend ni siquiera las manda al portal.
