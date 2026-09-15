@@ -543,6 +543,14 @@ Include: `custom_fields`, `members`.
 requieren `projects.edit`. Un `image_url: null` significa que el panel usa el logo del cliente; ese
 archivo no se copia al proyecto.
 
+**`POST /projects` mete a quien lo crea en el equipo.** El alta inserta su fila en
+`tblproject_members` antes de cualquier otra cosa, y si el cuerpo trae `members` se lo agrega a esa
+lista en vez de dejarse pisar por ella. No es una cortesía: la visibilidad de quien no tiene
+`projects.view` global se apoya en esa tabla, así que un Espacio sin equipo es invisible hasta para
+su propio autor — y como la ruta cierra devolviendo la ficha, el alta contestaba `404` sobre un
+Espacio que sí había quedado creado. Para sacarse de encima el Espacio propio está `leave`, que es
+explícito y avisa lo que cuesta.
+
 #### `POST /projects/{id}/actions/leave` → `204` — salir del equipo
 
 Saca **sólo la fila de quien pide** del equipo. No devuelve la ficha: quien no tiene `projects.view`
