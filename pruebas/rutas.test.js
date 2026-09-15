@@ -79,7 +79,7 @@ function matcherDelProxy () {
 test('el proxy protege el panel', () => {
   const matcher = matcherDelProxy()
 
-  for (const ruta of ['/inicio', '/procesos', '/espacios/44', '/clientes']) {
+  for (const ruta of ['/inicio', '/procesos', '/proyectos/44', '/clientes']) {
     assert.equal(matcher.test(ruta), true, `${ruta} tiene que pedir sesion`)
   }
 

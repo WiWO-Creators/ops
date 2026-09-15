@@ -71,7 +71,7 @@ function CeldaNombre ({ espacio, acciones }: { espacio: Espacio, acciones: Accio
     <span className="group/fila flex min-w-0 items-center gap-2">
       {puedeVerSeccion(capacidades, 'projects')
         ? (
-          <Link href={`/espacios/${espacio.id}`} className="hover:text-acento truncate font-medium">
+          <Link href={`/proyectos/${espacio.id}`} className="hover:text-acento truncate font-medium">
             {espacio.name}
           </Link>
           )
@@ -84,7 +84,7 @@ function CeldaNombre ({ espacio, acciones }: { espacio: Espacio, acciones: Accio
         )}
       >
         {puedeVerSeccion(capacidades, 'projects') && (
-          <EnlaceAccion href={`/espacios/${espacio.id}`}>Ver</EnlaceAccion>
+          <EnlaceAccion href={`/proyectos/${espacio.id}`}>Ver</EnlaceAccion>
         )}
         {capacidades.includes('create') && (
           <BotonAccion onClick={() => { onCopiar(espacio) }}>Copiar</BotonAccion>

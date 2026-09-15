@@ -47,7 +47,7 @@ export function AccionesUpsell ({ upsell, monedas, capacidades }: PropsAcciones)
       {upsell.client_id !== null && <Enlace href={`/clientes/${upsell.client_id}`}>Ver cliente</Enlace>}
 
       {upsell.estado === 'ganada' && (
-        <Enlace href={`/espacios/${upsell.espacio.id}`}>Ver {upsell.espacio.name}</Enlace>
+        <Enlace href={`/proyectos/${upsell.espacio.id}`}>Ver {upsell.espacio.name}</Enlace>
       )}
 
       {abierta && puedeEditar && (

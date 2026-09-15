@@ -393,7 +393,7 @@ function FilaEspacio ({ espacio }: { espacio: ScoreEspacio }) {
             {espacio.score ?? '—'}
           </span>
           <Link
-            href={`/espacios/${espacio.project_id}`}
+            href={`/proyectos/${espacio.project_id}`}
             className="text-texto hover:text-acento max-w-64 truncate text-sm underline-offset-4 hover:underline"
           >
             {nombreDe(espacio)}

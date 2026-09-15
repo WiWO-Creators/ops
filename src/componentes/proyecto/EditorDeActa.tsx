@@ -18,7 +18,7 @@ import { claseDeMarca, cssDeMarcas } from '@/dominio/marcas-acta'
  * === POR QUE ESTE ARCHIVO SE CARGA CON `next/dynamic` ===
  *
  * Son ~100 KB de JavaScript. `Pestanas` monta la pestaña de forma perezosa, pero **el bundle no**: un
- * `import` estático desde `PanelActas` mete ese peso en el chunk de `/espacios/[id]`, que es la
+ * `import` estático desde `PanelActas` mete ese peso en el chunk de `/proyectos/[id]`, que es la
  * pantalla más usada del panel, y lo paga también quien nunca abre un acta. Quien lo importe tiene
  * que hacerlo con `dynamic(..., { ssr: false })`.
  *

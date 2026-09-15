@@ -89,7 +89,7 @@ export const LARGO_MAXIMO_PREGUNTA = 1000
  * Como se pide una pestaña de la ficha de un Espacio por URL.
  *
  * El nombre del parametro lo lee `componentes/proyecto/Pestanas.tsx` y la clave la declara
- * `app/(panel)/espacios/[id]/page.tsx`. Se repiten acá —y no se importan— porque los dos son
+ * `app/(panel)/proyectos/[id]/page.tsx`. Se repiten acá —y no se importan— porque los dos son
  * componentes de cliente y este modulo lo cargan tambien las pruebas, que no compilan JSX.
  */
 const PARAMETRO_PESTANA = 'tab'
@@ -217,9 +217,9 @@ function citaDeMarcador (parte: string, citas: Cita[]): Cita | null {
  */
 export function hrefDeCita (cita: Cita): string | null {
   if (cita.tipo === 'tarea') return `/procesos?${PARAMETRO_TAREA}=${cita.id}`
-  if (cita.tipo === 'espacio') return `/espacios/${cita.id}`
+  if (cita.tipo === 'espacio') return `/proyectos/${cita.id}`
   if (cita.tipo === 'acta' && cita.espacio_id !== undefined) {
-    return `/espacios/${cita.espacio_id}?${PARAMETRO_PESTANA}=${PESTANA_ACTAS}`
+    return `/proyectos/${cita.espacio_id}?${PARAMETRO_PESTANA}=${PESTANA_ACTAS}`
   }
 
   return null

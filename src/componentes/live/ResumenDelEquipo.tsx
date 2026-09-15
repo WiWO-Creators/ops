@@ -96,7 +96,7 @@ function Totales ({ resumen }: { resumen: ResumenDeEquipo }) {
           {detalle.personas_activas} de {detalle.jornadas_abiertas} {detalle.jornadas_abiertas === 1 ? 'jornada' : 'jornadas'} con tiempo medido
         </span>
         <span className="text-texto-tenue text-sm">
-          {detalle.espacios.length} {detalle.espacios.length === 1 ? 'Espacio' : 'Espacios'}
+          {detalle.espacios.length} {detalle.espacios.length === 1 ? 'Proyecto' : 'Proyectos'}
         </span>
       </div>
 
@@ -161,7 +161,7 @@ function Persona ({ persona, total }: { persona: PersonaDelResumen, total: numbe
       </div>
 
       <div className="border-linea-suave flex flex-col gap-3 border-l-2 pl-3">
-        <Listado rotulo="Espacios" items={persona.espacios} total={persona.segundos} />
+        <Listado rotulo="Proyectos" items={persona.espacios} total={persona.segundos} />
         <Listado rotulo="Procesos" items={persona.procesos} total={persona.segundos} />
       </div>
 

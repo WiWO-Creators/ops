@@ -113,7 +113,7 @@ function Entrada ({ entrada }: { entrada: ActividadEspacio }): ReactElement {
 
           {entrada.project !== undefined && (
             <Link
-              href={`/espacios/${entrada.project.id}`}
+              href={`/proyectos/${entrada.project.id}`}
               className="text-texto-tenue hover:text-acento text-sm underline-offset-4 hover:underline"
             >
               {entrada.project.name}

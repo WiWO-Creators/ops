@@ -23,7 +23,7 @@ try {
     const pagina = await contexto.newPage()
     const errores = []
     pagina.on('pageerror', error => errores.push(error.message))
-    await pagina.goto(new URL('/espacios', destino).href)
+    await pagina.goto(new URL('/proyectos', destino).href)
     await pagina.locator('h1').waitFor()
     await pagina.evaluate(version => sessionStorage.setItem('wiwo-version-recien', version), version)
     await pagina.reload()
@@ -48,7 +48,7 @@ try {
     // Un refresco de datos no vuelve a montar el titulo ni reinicia su entrada.
     await titulo.evaluate(el => { el.dataset.verificacionEntrada = 'conservada' })
     await Promise.all([
-      pagina.waitForResponse(respuesta => new URL(respuesta.url()).pathname === '/espacios' && respuesta.ok()),
+      pagina.waitForResponse(respuesta => new URL(respuesta.url()).pathname === '/proyectos' && respuesta.ok()),
       pagina.getByRole('button', { name: 'Refrescar', exact: true }).click()
     ])
     await pagina.getByRole('button', { name: 'Refrescar', exact: true }).waitFor()

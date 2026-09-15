@@ -1,6 +1,10 @@
 import type { NextConfig } from 'next'
 
 const nextConfig: NextConfig = {
+  /** Conserva enlaces guardados de proyectos y sus filtros al cambiar el slug público. */
+  async redirects () {
+    return [{ source: '/espacios/:ruta*', destination: '/proyectos/:ruta*', permanent: true }]
+  },
   /**
    * Las fuentes se sirven con CORS abierto.
    *

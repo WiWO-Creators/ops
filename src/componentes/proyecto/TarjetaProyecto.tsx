@@ -64,7 +64,7 @@ export function TarjetaProyecto ({ espacio, estados, className }: PropsTarjetaPr
               tambien, y el clic dejaria de alcanzar toda la superficie. */}
           <h3 className="min-w-0 text-base leading-tight font-semibold">
             <Link
-              href={`/espacios/${espacio.id}`}
+              href={`/proyectos/${espacio.id}`}
               className="hover:text-acento block after:absolute after:inset-0 after:content-['']"
             >
               <span className="block truncate">{espacio.name}</span>

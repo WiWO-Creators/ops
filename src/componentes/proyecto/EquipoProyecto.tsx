@@ -59,7 +59,7 @@ export function EquipoProyecto ({ proyectoId, miembros, puedeEditar, yoId }: {
           yoId={yoId}
           onCancelar={() => setEditando(false)}
           onGuardado={() => { setEditando(false); setGuardado(true); router.refresh() }}
-          onSalidaPropia={() => { router.push('/espacios') }}
+          onSalidaPropia={() => { router.push('/proyectos') }}
         />
       )}
     </div>

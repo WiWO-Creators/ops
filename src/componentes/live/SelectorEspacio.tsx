@@ -22,7 +22,7 @@ import { cn } from '@/lib/clases'
  * Cuantos Espacios se traen para el combo.
  *
  * No pagina a proposito: es un desplegable dentro de un control de cabecera, no un listado. Quien
- * tenga mas Espacios que esto va igual a `/espacios` y arranca el medidor desde la ficha, que es el
+ * tenga mas Espacios que esto va igual a `/proyectos` y arranca el medidor desde la ficha, que es el
  * camino que ya existia.
  */
 const ESPACIOS_A_TRAER = 100

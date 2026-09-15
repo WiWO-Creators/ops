@@ -154,7 +154,7 @@ export function procesosDelContacto (proyectoId: number): DefinicionRecurso<Proc
  * Las pestañas que el portal sabe dibujar, **en el orden y con los rotulos del panel**.
  *
  * Cada clave es la del contrato de la API; el rotulo es el que ve el cliente, y es palabra por
- * palabra el de `(panel)/espacios/[id]`: la misma pestaña no puede llamarse "Horas" para el cliente
+ * palabra el de `(panel)/proyectos/[id]`: la misma pestaña no puede llamarse "Horas" para el cliente
  * y "Tiempos" para quien lo atiende, porque despues los dos hablan por telefono. Cuando el panel
  * renombre una, se renombra acá.
  *

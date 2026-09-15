@@ -12,7 +12,7 @@ import type { OpcionFiltro, ResultadoLista } from '@/definiciones/tipos'
  * Listado de Licitaciones.
  *
  * Solo tabla: una licitacion se compara por empresa, estado y fecha de inicio, y esas tres
- * comparaciones se hacen en columnas. La vista de tarjetas de `/clientes` y `/espacios` existe porque
+ * comparaciones se hacen en columnas. La vista de tarjetas de `/clientes` y `/proyectos` existe porque
  * ahi hay imagen y avatares que mirar; aca no.
  *
  * Vive del lado cliente de la frontera por la misma restriccion que `TablaClientes`: una

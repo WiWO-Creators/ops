@@ -58,7 +58,7 @@ interface PropsCabecera {
    * A donde vuelve el enlace de arriba. Por defecto, al listado de Espacios.
    *
    * Existe porque el mismo Espacio se mira desde varias secciones: mientras es una Licitacion no
-   * vive en `/espacios`, y el cliente lo mira desde `/portal/proyectos`.
+   * vive en `/proyectos`, y el cliente lo mira desde `/portal/proyectos`.
    */
   volverA?: { href: string, etiqueta: string }
   /** Linea bajo el titulo. Por defecto, el cliente del proyecto. */
@@ -100,7 +100,7 @@ export function CabeceraProyecto ({
   proyecto,
   estado,
   capacidades = [],
-  volverA = { href: '/espacios', etiqueta: GLOSARIO.espacio.plural },
+  volverA = { href: '/proyectos', etiqueta: GLOSARIO.espacio.plural },
   subtitulo,
   estados = [],
   acciones,

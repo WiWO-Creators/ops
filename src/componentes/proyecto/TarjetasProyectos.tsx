@@ -181,7 +181,7 @@ export function VistaEspacios ({
             {/* La pantalla de plantillas es donde se arman; desde aca solo se entra a verla. Es un
                 enlace y no un boton porque va a otra ruta. */}
             <Link
-              href="/espacios/plantillas"
+              href="/proyectos/plantillas"
               className="text-texto-tenue hover:text-texto text-xs underline-offset-4 hover:underline"
             >
               Plantillas
@@ -190,7 +190,7 @@ export function VistaEspacios ({
             {/* Las de {hito} son otra pantalla porque son otra escala: estas se aplican al crear un
                 {hito} dentro de un {espacio} que ya existe, no al crear el {espacio}. */}
             <Link
-              href="/espacios/plantillas-hito"
+              href="/proyectos/plantillas-hito"
               className="text-texto-tenue hover:text-texto text-xs underline-offset-4 hover:underline"
             >
               Plantillas de {GLOSARIO.hito.plural.toLowerCase()}
