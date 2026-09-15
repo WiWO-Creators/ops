@@ -356,8 +356,62 @@ try {
     assert.ok(texto.includes('Content Studio'), 'Un área dormida muestra al menos su nombre.')
   })
 
+  await conPagina(contexto, async (pagina, errores) => {
+    // === 5b. Proyectada desde otro aparato =====================================================
+    //
+    // Castear una pestaña la deja oculta para el navegador en cuanto quien la lanzó cambia de
+    // pestaña, aunque el receptor la siga mostrando. Ahí el navegador estrangula los temporizadores
+    // a uno por minuto y la pared se congela — pero en el computador se ve perfecta, que es lo que
+    // hace al fallo tan difícil de creer.
+    //
+    // Por eso el reloj vive en un worker dedicado, que no sufre ese freno.
+    const workers = []
+    pagina.on('worker', (w) => workers.push(w.url()))
+
+    await sondeoFijo(pagina, paquete({ personas: 6, cronometros: 4, tareas: 12 }))
+    await abrir(pagina, '?escena=3')
+
+    assert.ok(workers.length > 0, 'El latido tiene que correr en un worker, no en el hilo principal.')
+
+    // Y la página tiene que seguir viva cuando se declara oculta: lo que se comprueba acá es que
+    // ningún `visibilitychange` apague la rotación. El estrangulamiento de verdad lo aplica el
+    // navegador en un escritorio real, y no se puede reproducir en modo headless — la garantía de
+    // eso es estructural, y es el worker.
+    await pagina.evaluate(() => {
+      Object.defineProperty(document, 'hidden', { get: () => true, configurable: true })
+      Object.defineProperty(document, 'visibilityState', { get: () => 'hidden', configurable: true })
+      document.dispatchEvent(new Event('visibilitychange'))
+    })
+
+    const vistas = new Set()
+
+    for (let i = 0; i < 8; i++) {
+      vistas.add(await pagina.evaluate(() => document.querySelector('main')?.dataset.escena ?? ''))
+      await pagina.waitForTimeout(1600)
+    }
+
+    assert.ok(
+      vistas.size >= 3,
+      `Declarada oculta, la pantalla dejó de rotar: solo vio ${[...vistas].join(', ')}.`
+    )
+    assert.deepEqual(errores, [], `Errores de React o de página: ${errores.join(' | ')}`)
+  })
+
   await conPagina(contexto, async (pagina) => {
-    // === 6. Un token que no sirve, sin filtrar nada ===========================================
+    // === 5c. El margen para el overscan se aplica ==============================================
+    //
+    // Muchos televisores recortan un 3% de la imagen que les llega por HDMI y se comen el reloj de
+    // la esquina. No se puede detectar, así que se ajusta a ojo con `?margen=`.
+    await sondeoFijo(pagina, paquete({ personas: 6 }))
+    await abrir(pagina, '?margen=5')
+
+    const relleno = await pagina.evaluate(() => getComputedStyle(document.querySelector('main')).padding)
+
+    assert.ok(Number.parseFloat(relleno) > 40, `El margen no llegó al contenedor: padding = ${relleno}`)
+  })
+
+  await conPagina(contexto, async (pagina) => {
+    // === 6. Un código que no sirve, sin filtrar nada ===========================================
     await pagina.goto(new URL('/pantalla/22222', destino).href)
 
     const texto = await pagina.locator('body').innerText()

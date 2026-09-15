@@ -16,6 +16,7 @@ interface Props {
   zona: string | null
   orientacion: Orientacion
   zoom: number
+  margen: number
   tema: ParametrosDePantalla['tema']
   transicion: ParametrosDePantalla['transicion']
   children: ReactNode
@@ -40,7 +41,7 @@ interface Props {
  * lampara. Se puede volver a claro con `?tema=claro` para una sala muy iluminada.
  */
 export function MarcoDePantalla (props: Props): ReactNode {
-  const { area, guion, escenaId, frescura, esperando, ahora, zona, orientacion, zoom, tema, transicion, children } = props
+  const { area, guion, escenaId, frescura, esperando, ahora, zona, orientacion, zoom, margen, tema, transicion, children } = props
 
   // El tema se fuerza desde el cliente y no con una clase: el script de arranque escribe
   // `data-theme` en el `<html>`, y lo que gana es el ultimo que escribe.
@@ -76,7 +77,9 @@ export function MarcoDePantalla (props: Props): ReactNode {
   return (
     <main
       className="pantalla-raiz bg-superficie text-texto grid h-dvh grid-rows-[auto_1fr_auto] overflow-hidden"
-      style={{ '--escala': zoom } as React.CSSProperties}
+      // El margen se aplica al contenedor entero y no a cada bloque: lo que compensa es el recorte
+      // del televisor, que se come los cuatro bordes por igual.
+      style={{ '--escala': zoom, padding: `${margen}vmin` } as React.CSSProperties}
       data-escena={escenaId ?? ''}
       data-escena-desde={desde}
       data-frescura={frescura}
