@@ -16,7 +16,7 @@ import assert from 'node:assert/strict'
 import { PORTAL_TAREAS, procesosDelContacto } from '../src/definiciones/portal-proyectos.ts'
 import { procesosDelEspacio } from '../src/definiciones/procesos.ts'
 import { DISCUSIONES, definicionDeDiscusiones } from '../src/definiciones/discusiones.ts'
-import { definicionDeHitos } from '../src/definiciones/hitos.ts'
+import { HITOS, definicionDeHitos } from '../src/definiciones/hitos.ts'
 import { definicionDeTiempos } from '../src/definiciones/tiempos.ts'
 import { lecturasDelGantt } from '../src/componentes/proyecto/gantt.ts'
 import { fuenteDelPanel, fuenteDelPortal } from '../src/dominio/fuente-proyecto.ts'
@@ -143,12 +143,20 @@ test('la tabla de Hitos del contacto se deriva de la del equipo y pierde lo que 
     contacto.columnas.map((c) => c.encabezado),
     equipo.columnas.map((c) => c.encabezado)
   )
-  // `paraContacto()` no recibe los parametros de la consulta: ofrecer filtros u orden seria ofrecer
-  // controles que se pueden pulsar y no cambian nada.
-  assert.deepEqual(contacto.filtros, [])
-  assert.deepEqual(contacto.ordenables, [])
-  assert.equal(contacto.busqueda, false)
-  assert.equal(contacto.columnas.every((c) => c.ordenPor === undefined), true)
+  // `paraContacto()` lee los mismos parametros que el listado del equipo: buscar y ordenar son
+  // lecturas, y la tabla del cliente las conserva.
+  assert.equal(contacto.busqueda, true)
+  assert.deepEqual(contacto.ordenables, HITOS.ordenables)
+  assert.deepEqual(
+    contacto.columnas.map((c) => c.ordenPor),
+    equipo.columnas.map((c) => c.ordenPor)
+  )
+  // Dos filtros no se ofrecen, y la API los rechaza igual: `hide_from_customer` vale siempre 0 para
+  // el contacto, y `description` cae sobre la columna cruda —serviria para reconstruir por
+  // respuestas las descripciones que el equipo decidio no compartir—.
+  assert.equal(contacto.filtros.some((f) => f.clave === 'hide_from_customer'), false)
+  assert.equal(contacto.filtros.some((f) => f.clave === 'description'), false)
+  assert.equal(contacto.filtros.length, HITOS.filtros.length - 2)
   // La descripcion del Hito se comparte hito por hito (`description_visible_to_customer`) y llega
   // en `null` mientras nadie la comparta: la columna del cliente solo existe si alguna fila la
   // trae. En el panel el campo es del equipo y la columna va siempre.

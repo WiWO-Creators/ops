@@ -3860,7 +3860,15 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
             vencido: hito.due_date !== null && hito.due_date < '2026-09-11'
           }
         })
-        return { estado: 200, cuerpo: conDatos(hitos) }
+
+        // Filtros, busqueda y orden, como `paraContacto()`; **sin paginar**, que ese endpoint no
+        // pagina para ninguno de los dos sujetos: un Proyecto tiene decenas de hitos, no miles.
+        const consultaDeHitos = new URLSearchParams(parametros)
+        consultaDeHitos.delete('page')
+        consultaDeHitos.set('per_page', '100')
+        const { filas } = aplicarConsulta(hitos, consultaDeHitos, CONSULTA_HITOS_PORTAL)
+
+        return { estado: 200, cuerpo: conDatos(filas) }
       }
 
       if (resto[2] === 'files' && resto.length === 3) {
@@ -5478,6 +5486,36 @@ function booleanoDelPortal (valor) {
   if (['0', '1', 'true', 'false'].includes(valor)) return valor === '1' || valor === 'true'
 
   return null
+}
+
+/**
+ * La whitelist de los Hitos del portal: `RecursoHitos::consultaDeContacto()`.
+ *
+ * Se aplica sobre la fila **ya presentada**, que es la que el contacto recibe: el contrato del hito
+ * no esconde ninguna columna ordenable detras de otro nombre.
+ *
+ * Sin `description` ni `hide_from_customer`, como la whitelist de la API: el primero cae sobre la
+ * columna cruda y serviria para reconstruir por respuestas las descripciones que el equipo decidio
+ * no compartir; el segundo vale siempre 0 para el contacto.
+ */
+const CONSULTA_HITOS_PORTAL = {
+  filtros: {
+    id: campoFiltrable((h) => h.id, 'numero'),
+    name: campoFiltrable((h) => h.name),
+    start_date: campoFiltrable((h) => h.start_date, 'fecha'),
+    due_date: campoFiltrable((h) => h.due_date, 'fecha'),
+    date_created: campoFiltrable((h) => h.date_created, 'fecha'),
+    order: campoFiltrable((h) => h.order, 'numero'),
+    color: campoFiltrable((h) => h.color),
+    avance: campoFiltrable(
+      (h) => (h.counts.tasks === 0 ? 0 : Math.round((100 * h.counts.tasks_done) / h.counts.tasks)),
+      'numero'
+    ),
+    date_from: (h, v) => h.due_date >= v,
+    date_to: (h, v) => h.due_date <= v
+  },
+  orden: ['name', 'start_date', 'due_date', 'order'],
+  busqueda: ['name']
 }
 
 /**

@@ -4524,10 +4524,15 @@ Cada pestaña sale de `tblproject_settings` y no de una lista fija: `calendar` e
 
 | Clave | Cuándo viaja |
 |---|---|
+| `tasks` | sólo con la pestaña `tasks` compartida (`view_tasks` + la feature) |
 | `logged_time` | sólo con `view_task_total_logged_time` |
 | `finance` | sólo con `view_finance_overview` |
 | `estimated_hours_excedidas` | exige **las dos** |
 | `days` | `null` cuando el proyecto no tiene las dos fechas |
+
+Sin la pestaña `tasks` el cliente no puede abrir ninguna de esas filas: contarle "9 / 9 abiertas"
+sería describirle en números una lista que la pantalla le niega, y el porcentaje completado de esas
+tareas contradice al avance del Espacio que el mismo resumen publica en `progress`.
 
 `by_status` trae **siempre los 6 estados**, incluidos los que están en cero: una columna que
 desaparece por no tener tareas hace que el gráfico cambie de forma entre dos proyectos.
@@ -4581,6 +4586,20 @@ Exige la pestaña `calendar`. **Misma forma de fila, paginación y filtros que `
 las tareas que no tienen ni `duedate` ni `startdate`. Es ruta propia porque la pestaña se habilita
 aparte, aunque reúse las condiciones de visibilidad de las tareas. No acepta `?vista=tablero`: su
 vista es una cuadrícula de días.
+
+#### `GET /portal/projects/{id}/milestones`
+
+Exige la pestaña `milestones`. **Colección entera, sin paginar** —igual que la del equipo: un
+proyecto tiene decenas de hitos, no miles— y acepta **búsqueda, orden y filtros** contra la misma
+whitelist que `GET /projects/{id}/milestones`, menos dos:
+
+| Filtro | Por qué no lo acepta el contacto |
+|---|---|
+| `description` | cae sobre la columna cruda: con él, un cliente puede reconstruir por respuestas las descripciones que el equipo decidió no compartirle |
+| `hide_from_customer` | para el contacto vale siempre `0`; los hitos escondidos no llegan a la colección |
+
+`description` viaja **siempre como clave** y en `null` cuando el hito no tiene
+`description_visible_to_customer`: es una decisión por hito y no por proyecto.
 
 #### `GET /portal/projects/{id}/actas` — el Meeting Paper del cliente
 

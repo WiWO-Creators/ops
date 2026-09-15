@@ -81,9 +81,14 @@ export function hitosDelEspacio (proyectoId: number): DefinicionRecurso<HitoDeta
  * **Se deriva de la del equipo**: encabezados, orden de columnas y rotulos salen de un solo lugar,
  * asi que la lista del cliente y la del equipo se leen igual y un renombre futuro llega a las dos.
  *
- * Sin filtros, sin orden, sin busqueda y sin paginacion: `RecursoHitos::paraContacto()` no recibe
- * los parametros de la consulta —devuelve la coleccion entera del Proyecto—, asi que cualquier
- * control que se ofreciera se podria pulsar y no cambiaria nada.
+ * Conserva busqueda, orden y filtros: `RecursoHitos::paraContacto()` lee los mismos parametros que
+ * el listado del equipo, contra la misma whitelist. Lo que no conserva es la paginacion, que ese
+ * endpoint no tiene para ninguno de los dos sujetos —un Proyecto tiene decenas de hitos, no miles—.
+ *
+ * Fuera quedan dos filtros, y la API los rechaza igual (`consultaDeContacto()`): `hide_from_customer`
+ * —para el contacto vale siempre 0, los escondidos ni llegan— y `description`, que cae sobre la
+ * columna cruda: con el, un cliente podria reconstruir por respuestas las descripciones que el
+ * equipo decidio no compartirle.
  *
  * @param proyectoId El Proyecto que el cliente esta mirando.
  * @returns La definicion lista para la tabla del portal.
@@ -99,16 +104,10 @@ export function hitosDelContacto (proyectoId: number): DefinicionRecurso<HitoDet
       // que es lo normal. Sin `omitirSiVacia` el cliente ve un encabezado "Descripcion" sobre una
       // columna en blanco en todas las filas. Con el, la columna existe solo si el equipo compartio
       // alguna — y entonces tiene algo que decir.
-      // Una flecha de orden que el endpoint no atiende se dibujaria, se podria pulsar y no haria
-      // nada: la lista del contacto llega ya ordenada por el backend.
-      .map((columna) => ({
-        ...columna,
-        ordenPor: undefined,
-        ...(columna.clave === 'description' ? { omitirSiVacia: true } : {})
-      })),
-    filtros: [],
-    ordenables: [],
-    busqueda: false
+      .map((columna) => (
+        columna.clave === 'description' ? { ...columna, omitirSiVacia: true } : columna
+      )),
+    filtros: HITOS.filtros.filter((f) => f.clave !== 'hide_from_customer' && f.clave !== 'description')
   }
 }
 
