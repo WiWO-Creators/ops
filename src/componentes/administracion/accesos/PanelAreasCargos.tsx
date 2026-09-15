@@ -15,10 +15,11 @@ import {
 import { CerrarDialogo, ContenidoDialogo, Dialogo } from '@/componentes/superposiciones/Dialogo'
 import { AgregarAlArea } from '@/componentes/organigrama/AgregarAlArea'
 import { cargarAsignables } from '@/datos/asignables'
+import { pedirSobre } from '@/datos/cliente'
 import { descendenciaDe } from '@/dominio/jerarquia'
 import { motivoParaRechazarNombre } from '@/dominio/accesos'
 import { CabeceraDePanel, DialogoConfirmar, MensajeDeError, SIN_VALOR } from './piezas'
-import type { AreaDeAccesos, CargoDeAccesos, CatalogoDeAccesos } from '@/datos/accesos'
+import type { AreaDeAccesos, CargoDeAccesos, CatalogoDeAccesos, UsoDeArea } from '@/datos/accesos'
 import type { PersonaAsignable } from '@/datos/recursos'
 
 interface PropsPanelAreasCargos {
@@ -82,7 +83,6 @@ function SeccionAreas ({
   const [borrando, setBorrando] = useState<AreaDeAccesos | null>(null)
   const [poblando, setPoblando] = useState<AreaDeAccesos | null>(null)
   const [moviendo, setMoviendo] = useState(false)
-  const [enCurso, setEnCurso] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   /**
@@ -124,27 +124,6 @@ function SeccionAreas ({
     if (guardadas > 0) recargar()
 
     return { guardadas, error: fallo }
-  }
-
-  /** Borra el área elegida. La API responde 409 si tiene personas dentro. */
-  async function borrar (): Promise<void> {
-    if (borrando === null) return
-
-    setEnCurso(true)
-    setError(null)
-
-    const resultado = await escribirEnBff(`accesos/areas/${borrando.id}`, 'DELETE')
-
-    setEnCurso(false)
-
-    if (!resultado.ok) {
-      setError(resultado.mensaje)
-
-      return
-    }
-
-    setBorrando(null)
-    recargar()
   }
 
   /** Nombre del área superior, o el guion de una raíz del organigrama. */
@@ -266,17 +245,14 @@ function SeccionAreas ({
         />
       )}
 
-      <DialogoConfirmar
-        abierto={borrando !== null}
-        titulo={`Borrar el área «${borrando?.nombre ?? ''}»`}
-        descripcion="Solo se puede borrar un área vacía. Si tiene personas dentro, la API lo rechaza y hay que moverlas primero."
-        etiquetaConfirmar="Borrar el área"
-        peligroso
-        enCurso={enCurso}
-        error={error}
-        onConfirmar={() => { void borrar() }}
-        onCerrar={() => { setBorrando(null) }}
-      />
+      {borrando !== null && (
+        <DialogoDeBorradoDeArea
+          area={borrando}
+          areas={catalogo.areas}
+          cerrar={() => { setBorrando(null) }}
+          alBorrar={() => { setBorrando(null); recargar() }}
+        />
+      )}
     </div>
   )
 }
@@ -410,6 +386,178 @@ function DialogoDeArea ({
       </ContenidoDialogo>
     </Dialogo>
   )
+}
+
+/**
+ * Borrado de un área, con destino para lo que tenía dentro.
+ *
+ * Ya no hace falta vaciarla a mano: la API se lleva la gente, las áreas que colgaban y la etiqueta de
+ * los Procesos al destino elegido. El diálogo pregunta primero qué hay dentro porque sin ese número
+ * «dejar sin área» parece inofensivo cuando en realidad desetiqueta cientos de Procesos, y por eso
+ * mismo exige elegir destino salvo que el área esté vacía.
+ */
+function DialogoDeBorradoDeArea ({
+  area, areas, cerrar, alBorrar
+}: {
+  area: AreaDeAccesos
+  areas: AreaDeAccesos[]
+  cerrar: () => void
+  alBorrar: () => void
+}) {
+  const [uso, setUso] = useState<UsoDeArea | null>(null)
+  const [destino, setDestino] = useState<string | null>(null)
+  const [enCurso, setEnCurso] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    const control = new AbortController()
+
+    pedirSobre<UsoDeArea>(`accesos/areas/${area.id}/uso`, control.signal)
+      .then((sobre) => {
+        setUso(sobre.data)
+        // Un área vacía no tiene nada que mudar: se preelige la opción sin consecuencias para que el
+        // borrado sea un solo clic. Con gente adentro no se preelige nada, a propósito.
+        if (estaVacia(sobre.data)) setDestino(SIN_VALOR)
+      })
+      .catch((fallo: unknown) => {
+        if (control.signal.aborted) return
+
+        setError(fallo instanceof Error ? fallo.message : 'No se pudo leer qué hay dentro del área.')
+      })
+
+    return () => { control.abort() }
+  }, [area.id])
+
+  const prohibidas = descendenciaDe(areas, area.id)
+  const posiblesDestinos = areas.filter((otra) => !prohibidas.has(otra.id))
+  const superior = areas.find((otra) => otra.id === area.area_superior_id) ?? null
+  const elegida = destino === null || destino === SIN_VALOR
+    ? null
+    : (posiblesDestinos.find((otra) => String(otra.id) === destino) ?? null)
+
+  /**
+   * Manda el borrado con el destino elegido.
+   *
+   * El destino viaja siempre, incluso cuando es `null`: para la API «dejar sin área» es una decisión
+   * tomada y no un campo que se olvidó mandar.
+   */
+  async function borrar (): Promise<void> {
+    if (destino === null) return
+
+    setEnCurso(true)
+    setError(null)
+
+    const resultado = await escribirEnBff(`accesos/areas/${area.id}`, 'DELETE', {
+      destino_area_id: destino === SIN_VALOR ? null : Number(destino)
+    })
+
+    setEnCurso(false)
+
+    if (!resultado.ok) {
+      setError(resultado.mensaje)
+
+      return
+    }
+
+    alBorrar()
+  }
+
+  return (
+    <Dialogo open onOpenChange={(abierto) => { if (!abierto) cerrar() }}>
+      <ContenidoDialogo
+        titulo={`Borrar el área «${area.nombre}»`}
+        descripcion="El área desaparece, pero lo que tenía dentro no: se muda a donde elijas. Ningún Proceso se borra."
+        ancho="chico"
+      >
+        <div className="flex flex-col gap-5">
+          <p className="text-texto-tenue text-sm">
+            {uso === null
+              ? 'Revisando qué hay dentro del área…'
+              : `Dentro hay ${resumenDeUso(uso)}`}
+          </p>
+
+          <Campo etiqueta="Mover todo a" requerido={uso !== null && !estaVacia(uso)}>
+            {(props) => (
+              <Selector
+                value={destino ?? ''}
+                disabled={uso === null || enCurso}
+                onValueChange={(valor) => { setDestino(valor); setError(null) }}
+              >
+                <DisparadorSelector marcador="Elige un destino" id={props.id} />
+                <ContenidoSelector>
+                  <Opcion value={SIN_VALOR}>Dejar sin área</Opcion>
+                  {posiblesDestinos.map((otra) => (
+                    <Opcion key={otra.id} value={String(otra.id)}>{otra.nombre}</Opcion>
+                  ))}
+                </ContenidoSelector>
+              </Selector>
+            )}
+          </Campo>
+
+          {destino !== null && (
+            <p className="text-texto-tenue text-sm">
+              {consecuenciaDeBorrar(area, elegida, superior)}
+            </p>
+          )}
+
+          {error !== null && <MensajeDeError>{error}</MensajeDeError>}
+
+          <div className="flex justify-end gap-2">
+            <CerrarDialogo asChild>
+              <Boton variante="sutil" type="button">Cancelar</Boton>
+            </CerrarDialogo>
+            <Boton
+              variante="peligro"
+              cargando={enCurso}
+              disabled={uso === null || destino === null || enCurso}
+              onClick={() => { void borrar() }}
+            >
+              Borrar el área
+            </Boton>
+          </div>
+        </div>
+      </ContenidoDialogo>
+    </Dialogo>
+  )
+}
+
+/** `true` si no hay nada que mudar, que es cuando el borrado no necesita que se elija destino. */
+function estaVacia (uso: UsoDeArea): boolean {
+  return uso.personas === 0 && uso.hijas === 0 && uso.procesos === 0
+}
+
+/** Las tres cuentas del área en una frase: tres números sueltos no dicen si borrar duele. */
+function resumenDeUso (uso: UsoDeArea): string {
+  const personas = contar(uso.personas, 'persona', 'personas')
+  const hijas = contar(uso.hijas, 'área que depende de ella', 'áreas que dependen de ella')
+  const procesos = contar(uso.procesos, 'Proceso etiquetado', 'Procesos etiquetados')
+
+  return `${personas}, ${hijas} y ${procesos}.`
+}
+
+/** Un número con separador de miles y su sustantivo en singular o plural. */
+function contar (cantidad: number, singular: string, plural: string): string {
+  return `${cantidad.toLocaleString('es-CL')} ${cantidad === 1 ? singular : plural}`
+}
+
+/**
+ * Qué se lleva el borrado según el destino elegido, dicho con los nombres propios de cada lugar.
+ *
+ * «Las personas se mueven» no responde la única pregunta que importa antes de apretar, que es adónde
+ * van a parar la gente y las etiquetas de los Procesos.
+ */
+function consecuenciaDeBorrar (
+  area: AreaDeAccesos, elegida: AreaDeAccesos | null, superior: AreaDeAccesos | null
+): string {
+  if (elegida !== null) {
+    return `Las personas y las áreas que dependen de «${area.nombre}» pasan a «${elegida.nombre}», y sus Procesos quedan etiquetados como «${elegida.nombre}».`
+  }
+
+  const hijas = superior === null
+    ? 'las áreas que dependían de ella quedan como raíces del organigrama'
+    : `las áreas que dependían de ella pasan a colgar de «${superior.nombre}»`
+
+  return `Las personas quedan sin área, ${hijas}, y los Procesos pierden la etiqueta «${area.nombre}» sin que se borre ninguno.`
 }
 
 /** El CRUD de cargos: nombre y nada más. */

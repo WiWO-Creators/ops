@@ -107,6 +107,23 @@ export interface NodoDeArbol {
   jefe_staffid: number | null
 }
 
+/**
+ * Lo que hay dentro de un área (`GET /accesos/areas/{id}/uso`).
+ *
+ * No viene en el catálogo y se pide recién al abrir el borrado: contar los Procesos etiquetados
+ * recorre el campo personalizado de todas las tareas, y eso no se paga para pintar una tabla.
+ */
+export interface UsoDeArea {
+  id: number
+  nombre: string
+  /** Personas asignadas al área, activas o no. */
+  personas: number
+  /** Áreas que cuelgan de ella. */
+  hijas: number
+  /** Procesos marcados con el nombre del área en su campo personalizado. */
+  procesos: number
+}
+
 /** Cuerpo de `POST|PUT /accesos/areas`. */
 export interface CuerpoDeArea {
   nombre: string
