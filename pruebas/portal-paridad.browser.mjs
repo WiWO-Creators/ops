@@ -109,6 +109,19 @@ assert.deepEqual(visto.pestanias, [
   'Calendario', 'Meeting Paper', 'Actividad'
 ])
 
+// Las aprobaciones viven DENTRO de la pestaña Descripcion, no sobre el juego de pestañas: sueltas se
+// repetian encima de las diez y se llevaban ~190 px del primer viewport en todas.
+visto.aprobacionesEnDescripcion = (await pagina.textContent('body')).includes('Esperan tu visto bueno')
+visto.aprobacionesSobreLasPestanias = await pagina.evaluate(() => {
+  const titulo = [...document.querySelectorAll('h2')].find((n) => n.textContent.trim() === 'Esperan tu visto bueno')
+  const pestania = document.querySelector('[role="tab"]')
+  if (titulo === null || titulo === undefined || pestania === null) return null
+  // `compareDocumentPosition`: 4 = el titulo esta ANTES de la primera pestaña en el documento.
+  return (pestania.compareDocumentPosition(titulo) & 2) !== 0
+})
+assert.equal(visto.aprobacionesEnDescripcion, true, 'las aprobaciones desaparecieron de la pantalla')
+assert.equal(visto.aprobacionesSobreLasPestanias, false, 'las aprobaciones siguen sobre el juego de pestañas')
+
 // ---- Pestaña Tareas: la tabla del colaborador, sin escritura ----------------------------------
 await ir('/portal/proyectos/1?tab=tasks')
 await pagina.waitForSelector('table')
@@ -198,6 +211,12 @@ assert.equal(visto.secciones.includes('Tiempo registrado'), true)
 // El titulo lleva el conteo pegado ("Lista de control 3/4"), igual que en el panel que si escribe.
 assert.equal(visto.secciones.some((s) => s.startsWith('Lista de control')), true)
 assert.equal(visto.secciones.includes('Enlaces'), false, 'dibujo Enlaces sin campos personalizados')
+// La lista de control se lee: ni una casilla de formulario apagada, que se leeria como un control
+// roto. El avance lo dice una marca y el texto tachado.
+visto.casillasDeLaFicha = await pagina.$$eval('[role="dialog"] input[type="checkbox"]', (ns) => ns.length)
+visto.tachadosDeLaFicha = await pagina.$$eval('[role="dialog"] .line-through', (ns) => ns.length)
+assert.equal(visto.casillasDeLaFicha, 0, 'la lista de control del portal dibuja casillas deshabilitadas')
+assert.equal(visto.tachadosDeLaFicha > 0, true, 'la lista de control perdió la marca de lo hecho')
 for (const prohibido of ['Editar', 'Eliminar', 'Duplicar…', 'Compartir', 'Marcar completada']) {
   assert.equal(visto.botonesDeLaFicha.includes(prohibido), false, `boton de escritura en la ficha: ${prohibido}`)
 }
@@ -209,9 +228,21 @@ for (const prohibido of ['ASIGNADOS', 'ETIQUETAS', 'PROYECTO']) {
 await ir('/portal/proyectos/1?tab=tasks&tarea=500')
 await pagina.waitForSelector('[role="dialog"]')
 await pagina.waitForFunction(() => !document.body.textContent.includes('Cargando la tarea'))
-visto.sinComentarios = (await pagina.textContent('[role="dialog"]')).includes('Todavía no hay comentarios')
+const fichaVacia = await pagina.textContent('[role="dialog"]')
+visto.sinComentarios = fichaVacia.includes('Todavía no hay comentarios')
+visto.datosDeLaFichaVacia = await pagina.$$eval('[role="dialog"] dt', (ns) => ns.map((n) => n.textContent.trim()))
+visto.contadoresDeLaFichaVacia = await pagina.$$eval(
+  '[role="dialog"] ul.grid-cols-2 span',
+  (ns) => ns.map((n) => n.textContent.trim())
+)
 await pagina.screenshot({ path: `${SALIDA}/portal-ficha-sin-comentarios.png`, fullPage: true })
 assert.equal(visto.sinComentarios, true)
+// Sin hito y sin menu que ofrecer, la fila no se dibuja: un "Hito —" es una declaracion de ausencia
+// que no le sirve a quien no puede ponerle uno.
+assert.equal(visto.datosDeLaFichaVacia.includes('HITO'), false, 'la ficha dibujó "Hito —"')
+// Con Comentarios y Adjuntos en cero, la tarjeta de contadores se colapsa: las dos secciones de
+// abajo ya dicen que no hay ninguno.
+assert.deepEqual(visto.contadoresDeLaFichaVacia, [], 'la ficha repitió los ceros de Comentarios y Adjuntos')
 
 // ---- Listado vacio -----------------------------------------------------------------------------
 await ir('/portal/proyectos/1?tab=tasks&filter%5Bstatus%5D=5')
@@ -258,6 +289,33 @@ assert.deepEqual(visto.encabezadosDeHitos, ['Nombre del hito', 'Fecha de inicio'
 assert.deepEqual(visto.vistaDeHitos, [], 'el portal ofrece el kanban de Hitos')
 assert.equal(visto.botonesDeHitos.some((b) => b.startsWith('Nuevo hito')), false, 'el portal ofrece crear un Hito')
 assert.equal(visto.botonesDeHitos.includes('Editar'), false, 'el portal ofrece editar un Hito')
+// Buscar no es escribir: era la unica tabla del portal sin buscador.
+visto.buscadorDeHitos = await pagina.$$eval('input[type="search"]', (ns) => ns.length)
+assert.equal(visto.buscadorDeHitos > 0, true, 'la tabla de Hitos del portal no tiene buscador')
+// La columna Descripcion existe porque el equipo compartio la del primer hito: la fila la trae.
+visto.descripcionDelPrimerHito = await pagina.$$eval(
+  'table tbody tr:first-child td',
+  (ns) => ns.map((n) => n.textContent.trim())
+)
+assert.equal(
+  visto.descripcionDelPrimerHito.some((celda) => celda.startsWith('Lo que entra en la primera entrega')),
+  true,
+  'el hito que comparte su descripción no la muestra'
+)
+
+// Buscando el otro hito —el que no comparte descripción— la columna entera desaparece: un encabezado
+// sobre celdas en blanco dice que hay un dato y no lo hay.
+await ir('/portal/proyectos/1?tab=milestones&q=Cierre')
+await pagina.waitForSelector('table')
+visto.filasDeHitosBuscadas = await pagina.$$eval('table tbody tr', (ns) => ns.length)
+visto.encabezadosDeHitosBuscados = await pagina.$$eval('table thead th', (ns) => ns.map((n) => n.textContent.trim()))
+await pagina.screenshot({ path: `${SALIDA}/portal-hitos-buscados.png`, fullPage: true })
+assert.equal(visto.filasDeHitosBuscadas, 1, 'el buscador de Hitos no acotó la lista')
+assert.deepEqual(
+  visto.encabezadosDeHitosBuscados,
+  ['Nombre del hito', 'Fecha de inicio', 'Fecha de vencimiento', 'Avance'],
+  'la columna Descripción se dibujó sin una sola fila que la traiga'
+)
 
 // ---- Pestaña Tiempos: sin columnas que el contrato no manda y sin acciones por fila -----------
 await ir('/portal/proyectos/1?tab=timesheets')
@@ -353,7 +411,19 @@ visto.textoDelActa = await pagina.textContent('body')
 visto.adjuntosDelActa = await pagina.$$eval('figure figcaption span', (ns) => ns.map((n) => n.textContent.trim()))
 await pagina.screenshot({ path: `${SALIDA}/portal-acta-abierta.png`, fullPage: true })
 
+visto.encabezadoDelCuerpo = await pagina.evaluate(() => {
+  const marco = document.querySelector('iframe')
+  const cuerpo = marco?.contentDocument?.body
+  return cuerpo === null || cuerpo === undefined ? null : cuerpo.textContent
+})
 assert.equal(visto.textoDelActa.includes('Kickoff del rediseño'), true, 'no se abrió el acta')
+// El identificador del proyecto que el modelo no supo escribir no es un dato: es un hueco de su
+// formulario, y no se le muestra al cliente como encabezado del documento.
+assert.equal(
+  visto.encabezadoDelCuerpo === null || !visto.encabezadoDelCuerpo.includes('#No especificado'),
+  true,
+  'el cuerpo del acta imprimió "#No especificado"'
+)
 assert.equal(visto.textoDelActa.includes('Asistentes: Ana Pérez, Renata Ferreyra'), true, 'el acta perdió sus asistentes')
 assert.equal(visto.textoDelActa.includes('Archivos de la reunión'), true, 'el acta perdió sus adjuntos')
 assert.equal(visto.adjuntosDelActa.some((s) => s === 'reunion-kickoff.m4a'), true, 'falta el audio de la reunión')
@@ -399,6 +469,19 @@ assert.equal(visto.textoDescripcionDelOcho.includes('Registro total de horas'), 
 assert.equal(visto.textoDescripcionDelOcho.includes('00:00'), false, 'pintó un 00:00 que nadie contó')
 // `finance` tampoco viaja: sin costo ni horas estimadas.
 assert.equal(visto.textoDescripcionDelOcho.includes('Horas estimadas'), false, 'inventó horas estimadas')
+// Sin la pestaña Tareas el resumen no cuenta Tareas: ni el KPI, ni la tarjeta, ni la barra de avance
+// —que decia 0% debajo del 91% de la cabecera, en la misma pantalla—.
+visto.barrasDelOcho = await pagina.$$eval('[role="progressbar"]', (ns) => ns.length)
+visto.avanceEnLaCabeceraDelOcho = await pagina.evaluate(() => {
+  const nodo = [...document.querySelectorAll('span')].find((n) => /^\d+%$/.test(n.textContent.trim()))
+  return nodo === undefined ? null : nodo.textContent.trim()
+})
+assert.equal(visto.textoDescripcionDelOcho.includes('abiertas'), false, 'contó tareas de una pestaña que el cliente no tiene')
+assert.equal(/\d+ completadas de \d+/.test(visto.textoDescripcionDelOcho), false, 'dibujó la tarjeta de Tareas')
+// Quedan DOS barras: la de la cabecera del Proyecto y la de la tarjeta Plazo. Antes eran cuatro —la
+// suelta del resumen y la de la tarjeta Tareas, las dos al 0% bajo un 91%—.
+assert.equal(visto.barrasDelOcho, 2, `quedaron ${visto.barrasDelOcho} barras de avance en el proyecto 8`)
+assert.equal(visto.avanceEnLaCabeceraDelOcho, '91%', 'la cabecera perdió el avance del Espacio')
 
 // Proyecto sin hitos: la tabla dice que no hay, no se rompe.
 await ir('/portal/proyectos/8?tab=milestones')
@@ -456,6 +539,18 @@ for (const fila of ['Tipo de facturación', 'Fecha de creación', 'Costo total']
 }
 assert.equal(visto.panelTextoDescripcion.includes('Gastos'), true, 'el panel perdió el bloque de Gastos')
 assert.equal(visto.panelTextoDescripcion.includes('Horas registradas'), true, 'el panel perdió el gráfico de horas')
+// El contrato del equipo SI manda `tasks`: el KPI, la tarjeta y la barra siguen donde estaban.
+assert.equal(visto.panelTextoDescripcion.includes('abiertas'), true, 'el panel perdió el KPI de Procesos abiertas')
+assert.equal(/\d+ completadas de \d+/.test(visto.panelTextoDescripcion), true, 'el panel perdió la tarjeta de Procesos')
+
+// La ficha de una Tarea del panel conserva su lista de control escribible: las casillas son el
+// control de verdad, y lo que se cambió es la variante de solo lectura del cliente.
+await ir('/espacios/1?tab=tareas&tarea=509')
+await pagina.waitForSelector('[role="dialog"]')
+await pagina.waitForFunction(() => !document.body.textContent.includes('Cargando la tarea'))
+visto.panelCasillasDeLaFicha = await pagina.$$eval('[role="dialog"] input[type="checkbox"]', (ns) => ns.length)
+await pagina.screenshot({ path: `${SALIDA}/panel-ficha-tarea.png`, fullPage: true })
+assert.equal(visto.panelCasillasDeLaFicha > 0, true, 'el panel perdió las casillas de su lista de control')
 
 await ir('/espacios/1?tab=hitos')
 await pagina.waitForSelector('[aria-label="Vista de hitos"]')
@@ -464,6 +559,14 @@ visto.panelBotonesDeHitos = await pagina.$$eval('button', (ns) => ns.map((n) => 
 await pagina.screenshot({ path: `${SALIDA}/panel-hitos.png`, fullPage: true })
 assert.deepEqual(visto.panelVistaDeHitos, ['Tabla', 'Tablero'], 'el panel perdió el kanban de Hitos')
 assert.equal(visto.panelBotonesDeHitos.some((b) => b.startsWith('Nuevo hito')), true, 'el panel perdió el alta de Hito')
+
+// La tabla de Hitos del panel conserva su columna Descripción: el campo es del equipo, no lleva
+// `omitirSiVacia`, y el hito de "Cierre" la tiene vacía sin que la columna desaparezca.
+await ir('/espacios/1?tab=hitos&vistaHitos=tabla')
+await pagina.waitForSelector('table')
+visto.panelEncabezadosDeHitos = await pagina.$$eval('table thead th', (ns) => ns.map((n) => n.textContent.trim()))
+await pagina.screenshot({ path: `${SALIDA}/panel-hitos-tabla.png`, fullPage: true })
+assert.equal(visto.panelEncabezadosDeHitos.includes('Descripción'), true, 'el panel perdió la columna Descripción')
 
 await ir('/espacios/1?tab=tiempos')
 await pagina.waitForSelector('table')

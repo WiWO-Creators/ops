@@ -3841,25 +3841,16 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
       if (resto[2] === 'milestones' && resto.length === 3) {
         exigirPestania('milestones')
 
-        const hitos = HITOS.filter((h) => h.project_id === espacio.id && !HITOS_OCULTOS_AL_CLIENTE.includes(h.id)).map((hito) => {
-          const suyas = tareasDelEspacio.filter((t) => t.milestone === hito.id)
+        // La misma presentacion que el listado del equipo, recortada: al contacto no le viajan
+        // `description_visible_to_customer`, `hide_from_customer` ni las horas registradas, y la
+        // descripcion llega en null salvo que el equipo la haya marcado compartible.
+        const hitos = HITOS
+          .filter((h) => h.project_id === espacio.id && !HITOS_OCULTOS_AL_CLIENTE.includes(h.id))
+          .map((hito) => {
+            const { description_visible_to_customer: _flag, hide_from_customer: _oculto, total_logged_seconds: _horas, ...publico } = presentarHito(hito, true)
 
-          return {
-            id: hito.id,
-            name: hito.name,
-            // La descripcion se comparte hito por hito, no por proyecto: `RecursoHitos::paraContacto()`
-            // manda la clave siempre y la pone en null donde el equipo no la marco compartible.
-            description: hito.description_visible_to_customer === true ? hito.description : null,
-            start_date: hito.start_date,
-            due_date: hito.due_date,
-            project_id: hito.project_id,
-            color: hito.color,
-            order: hito.milestone_order,
-            date_created: hito.datecreated,
-            counts: { tasks: suyas.length, tasks_done: suyas.filter((t) => t.status === 5).length },
-            vencido: hito.due_date !== null && hito.due_date < '2026-09-11'
-          }
-        })
+            return publico
+          })
 
         // Filtros, busqueda y orden, como `paraContacto()`; **sin paginar**, que ese endpoint no
         // pagina para ninguno de los dos sujetos: un Proyecto tiene decenas de hitos, no miles.
@@ -4513,7 +4504,9 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
         orden.forEach((id, posicion) => { hitos.find((hito) => hito.id === id).milestone_order = posicion + 1 })
         return { estado: 200, cuerpo: conDatos(hitos.sort((a, b) => a.milestone_order - b.milestone_order)) }
       }
-      if (parametros.get('vista') !== 'tablero') return { estado: 200, cuerpo: conDatos(hitos) }
+      if (parametros.get('vista') !== 'tablero') {
+        return { estado: 200, cuerpo: conDatos(hitos.map((hito) => presentarHito(hito, false))) }
+      }
 
       const columnas = [
         { id: 0, name: 'Sin categorizar', color: null, order: -1 },
@@ -5391,6 +5384,39 @@ function graficoDeEspacio (espacioId, periodo) {
  * mirar.
  */
 const HITOS_OCULTOS_AL_CLIENTE = [15, 16]
+
+/**
+ * Un hito con la forma del contrato (`RecursoHitos::presentarHitos()`).
+ *
+ * **Una sola presentacion para los dos sujetos**, como en la API: el panel y el portal leen la misma
+ * tarjeta, y lo unico que cambia es que al contacto la descripcion le llega en `null` mientras el
+ * equipo no la haya marcado compartible. Sin esto el listado del equipo devolvia la fila cruda
+ * —`milestone_order`, `datecreated`, sin `counts`— y la tabla de Hitos del panel no se podia dibujar.
+ *
+ * @param {object} hito la fila cruda de `HITOS`
+ * @param {boolean} paraContacto si la descripcion se recorta por `description_visible_to_customer`
+ */
+function presentarHito (hito, paraContacto) {
+  const suyas = PROCESOS.filter((p) => p.rel_type === 'project' && p.rel_id === hito.project_id && (p.milestone?.id ?? null) === hito.id)
+  const compartida = hito.description_visible_to_customer === true
+
+  return {
+    id: hito.id,
+    name: hito.name,
+    description: paraContacto && !compartida ? null : hito.description,
+    description_visible_to_customer: compartida,
+    hide_from_customer: HITOS_OCULTOS_AL_CLIENTE.includes(hito.id),
+    start_date: hito.start_date,
+    due_date: hito.due_date,
+    project_id: hito.project_id,
+    color: hito.color,
+    order: hito.milestone_order,
+    date_created: hito.datecreated,
+    counts: { tasks: suyas.length, tasks_done: suyas.filter((t) => t.status === 5).length },
+    total_logged_seconds: 0,
+    vencido: hito.due_date !== null && hito.due_date < '2026-09-11'
+  }
+}
 
 /**
  * Que comparte cada Proyecto con su cliente.
