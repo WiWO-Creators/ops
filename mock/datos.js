@@ -131,7 +131,10 @@ const AREA_POR_INDICE = [1, 2, 3, 4, 3, 4, null, 4]
  * area). Estan los cuatro representados porque la pantalla de accesos los filtra de a uno y un
  * escalon sin nadie no distingue "no hay" de "no filtra".
  */
-const ESCALON_POR_INDICE = ['gerencia', 'director', 'director', 'lead', 'lead', 'staff', 'staff', 'staff']
+// Carla es gerencia y NO es superadministradora (solo Ana lo es): es la unica combinacion que
+// distingue "ve las dos pestañas de /auditoria" de "ve solo la de calidad", y sin alguien asi en
+// el fixture ese reparto no se puede mirar ni una vez contra el mock.
+const ESCALON_POR_INDICE = ['gerencia', 'director', 'gerencia', 'lead', 'lead', 'staff', 'staff', 'staff']
 
 /**
  * El jefe directo de cada persona (`jefe_staffid`), por indice de `NOMBRES`.

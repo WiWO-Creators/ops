@@ -3499,6 +3499,234 @@ function estadoDeEspacioIaRuta (id) {
   return { estado: 200, cuerpo: conDatos({ ...redactado, reutilizado: false }) }
 }
 
+// ---------------------------------------------------------------------------
+// Calidad de Tareas: el detector de tareas insuficientes de `/auditoria`.
+//
+// Se mockea porque la pantalla nace antes que la API: el backend la construye en paralelo contra el
+// mismo contrato, y sin estas dos rutas la pestaña no se puede mirar ni una vez antes de integrar.
+//
+// Los datos NO son aleatorios: salen de `PROCESOS` con reglas por indice, para que dos lecturas
+// seguidas devuelvan lo mismo y una prueba pueda afirmar sobre una fila concreta.
+// ---------------------------------------------------------------------------
+
+/**
+ * Vacia el detector a proposito, para mirar la pantalla sin ninguna Tarea.
+ *
+ * La lista vacia y `nota_promedio: null` son dos estados que el fixture normal no puede producir
+ * —siempre hay 84 Tareas y siempre hay evaluadas—, y son justo los dos que se escriben mal: un cero
+ * en el promedio diria "todas malas" cuando lo que pasa es que no hay nada medido. Con
+ * `CALIDAD_SIN_DATOS=1 node mock/servidor.js` los dos se ven de verdad.
+ */
+const CALIDAD_SIN_DATOS = process.env.CALIDAD_SIN_DATOS === '1'
+
+/** Lo que la IA contesta cuando la descripcion no alcanza. Uno por caso, no una frase para todos. */
+const MOTIVOS_DE_IA = [
+  'Dice qué hacer pero no cuándo se da por terminada.',
+  'Describe el problema y no el trabajo: no hay nada que ejecutar.',
+  'Le falta el contexto: no se entiende sin haber estado en la reunión.',
+  'Es una sola línea y remite a un adjunto que no está.',
+  'Enumera tres cosas distintas: no se puede dar por cerrada de una vez.'
+]
+
+/** Los cortes del tramo. Los mismos que documenta el contrato: 70 y 40. */
+const CORTE_COMPLETA = 70
+const CORTE_FLOJA = 40
+
+/** Cuanto pesa cada eje en la nota. La descripcion pesa la mitad porque es la mitad del problema. */
+const PESO_DESCRIPCION = 50
+const PESO_ASIGNADO = 25
+const PESO_FECHA = 25
+
+/** Puntaje que se le supone a una descripcion que existe pero la IA todavia no miro. */
+const PUNTAJE_SUPUESTO = 50
+
+/** Debajo de esto la descripcion cuenta como un eje que no cumple. */
+const PUNTAJE_SUFICIENTE = 50
+
+/**
+ * El tramo que le toca a una nota.
+ *
+ * @param {number} nota 0-100
+ * @returns {'completa'|'floja'|'insuficiente'}
+ */
+function tramoDeNota (nota) {
+  if (nota >= CORTE_COMPLETA) return 'completa'
+
+  return nota >= CORTE_FLOJA ? 'floja' : 'insuficiente'
+}
+
+/**
+ * El cliente del Espacio de una Tarea, o `null` si la Tarea no cuelga de ninguno.
+ *
+ * @param {object} proceso una fila de `PROCESOS`
+ * @returns {string|null}
+ */
+function clienteDelProceso (proceso) {
+  if (proceso.project === null) return null
+
+  const espacio = ESPACIOS.find((otro) => otro.id === proceso.project.id)
+  if (espacio === undefined) return null
+
+  return CLIENTES.find((cliente) => cliente.id === espacio.clientid)?.company ?? null
+}
+
+/**
+ * Una Tarea vista por el detector, derivada de la del fixture.
+ *
+ * Las cinco reglas por indice cubren los casos que la pantalla tiene que saber pintar y que el
+ * fixture de Procesos no trae: sin descripcion, descripcion sin evaluar, sin responsable, sin fecha
+ * y nota vieja porque el texto cambio despues de puntuarla.
+ *
+ * @param {object} proceso la fila de `PROCESOS`
+ * @param {number} i su indice, que es lo que hace el fixture reproducible
+ * @returns {object} la fila tal como la define el contrato
+ */
+function calidadDeProceso (proceso, i) {
+  const sinDescripcion = i % 3 === 0
+  const sinEvaluar = !sinDescripcion && i % 7 === 5
+  const sinAsignado = i % 5 === 4
+  const sinFecha = i % 4 === 2
+  const largo = sinDescripcion ? 0 : 40 + ((i * 17) % 220)
+
+  const puntaje = sinDescripcion ? 0 : sinEvaluar ? null : 20 + ((i * 13) % 76)
+  const conFecha = sinFecha ? null : proceso.due_date
+  const asignados = sinAsignado
+    ? []
+    : proceso.assignees.map((persona) => ({ id: persona.id, full_name: persona.full_name }))
+
+  const ejeDescripcion = sinDescripcion ? 0 : puntaje ?? PUNTAJE_SUPUESTO
+  const nota = Math.round(
+    (ejeDescripcion * PESO_DESCRIPCION) / 100 +
+    (asignados.length > 0 ? PESO_ASIGNADO : 0) +
+    (conFecha === null ? 0 : PESO_FECHA)
+  )
+
+  const falta = []
+  if (sinDescripcion || (puntaje !== null && puntaje < PUNTAJE_SUFICIENTE)) falta.push('descripcion')
+  if (asignados.length === 0) falta.push('asignado')
+  if (conFecha === null) falta.push('fecha')
+
+  return {
+    id: proceso.id,
+    name: proceso.name,
+    project_id: proceso.project?.id ?? null,
+    project_name: proceso.project?.name ?? null,
+    client_name: clienteDelProceso(proceso),
+    due_date: conFecha,
+    assignees: asignados,
+    nota,
+    tramo: tramoDeNota(nota),
+    falta,
+    descripcion: {
+      puntaje,
+      // Sin descripcion no hay motivo: la IA no puede opinar de un texto que no existe, y ponerle
+      // una critica de contenido a una Tarea vacia es la clase de dato inventado que despues se
+      // copia a la pantalla como si fuera real.
+      motivo: largo === 0 || puntaje === null || puntaje >= PUNTAJE_SUFICIENTE
+        ? null
+        : MOTIVOS_DE_IA[i % MOTIVOS_DE_IA.length],
+      largo,
+      evaluado_en: puntaje === null ? null : '2026-09-15T03:00:00Z',
+      // `vigente` es false en DOS casos y la API los distingue por `puntaje`: nunca se puntuo, o la
+      // descripcion cambio despues de puntuarla. Una de cada once cae en el segundo.
+      vigente: puntaje === null ? false : i % 11 !== 3
+    }
+  }
+}
+
+/** Las 84 Tareas del fixture vistas por el detector, o ninguna con `CALIDAD_SIN_DATOS=1`. */
+const CALIDAD_TAREAS = CALIDAD_SIN_DATOS ? [] : PROCESOS.map(calidadDeProceso)
+
+/**
+ * La whitelist de `GET /quality/tasks`, campo por campo.
+ *
+ * Es deliberadamente igual de estricta que la del backend: un `filter[]` o un `sort` que el contrato
+ * no declara responde 422 aca tambien. Si el mock fuera permisivo, la definicion del frontend podria
+ * declarar un filtro inventado y nadie se enteraria hasta produccion.
+ */
+const CONSULTA_CALIDAD = {
+  filtros: {
+    nota: campoFiltrable((fila) => fila.nota, 'numero'),
+    project_id: coincideEnLista((fila) => fila.project_id),
+    assignee: coincideEnLista((fila) => fila.assignees.map((persona) => persona.id)),
+    // Varios valores separados por coma combinan con OR: "le falta alguna de estas". Con AND la
+    // respuesta serian solo las Tareas que fallan en los tres ejes a la vez, que es otra pregunta.
+    falta: (fila, valor) => String(valor).split(',').some((eje) => fila.falta.includes(eje.trim())),
+    tramo: coincideEnLista((fila) => fila.tramo),
+    // Los dos extremos del rango van sobre el vencimiento. Una Tarea sin fecha no entra en ningun
+    // rango, que es lo correcto: no hay fecha que comparar.
+    date_from: (fila, valor) => fila.due_date !== null && fila.due_date >= valor,
+    date_to: (fila, valor) => fila.due_date !== null && fila.due_date <= valor
+  },
+  orden: ['nota', 'due_date', 'id'],
+  busqueda: ['name']
+}
+
+/**
+ * Los contadores de `GET /quality/tasks/summary`.
+ *
+ * Cuenta sobre TODAS las filas y no sobre la pagina ni sobre el filtro vigente, igual que la API:
+ * un resumen que se mueve con el filtro deja de ser comparable de un dia para otro.
+ *
+ * @returns {object} la foto, con `nota_promedio` en `null` si no hay nada evaluado
+ */
+function resumenDeCalidad () {
+  const evaluadas = CALIDAD_TAREAS.filter((fila) => fila.descripcion.puntaje !== null)
+  const porTramo = { completa: 0, floja: 0, insuficiente: 0 }
+
+  for (const fila of CALIDAD_TAREAS) porTramo[fila.tramo] += 1
+
+  return {
+    total: CALIDAD_TAREAS.length,
+    evaluadas: evaluadas.length,
+    // `null` y no cero: cero se lee como "todas malas" y lo que pasa es que no hay nada medido.
+    nota_promedio: evaluadas.length === 0
+      ? null
+      : Math.round((evaluadas.reduce((suma, fila) => suma + fila.nota, 0) / evaluadas.length) * 10) / 10,
+    sin_descripcion: CALIDAD_TAREAS.filter((fila) => fila.descripcion.largo === 0).length,
+    sin_asignado: CALIDAD_TAREAS.filter((fila) => fila.assignees.length === 0).length,
+    sin_fecha: CALIDAD_TAREAS.filter((fila) => fila.due_date === null).length,
+    por_tramo: porTramo,
+    pendientes_de_ia: CALIDAD_TAREAS.length - evaluadas.length,
+    calculado_en: '2026-09-15T03:00:00Z'
+  }
+}
+
+/**
+ * `GET /quality/tasks` y `GET /quality/tasks/summary`.
+ *
+ * La compuerta es la misma que la pestaña: superadministrador o gerencia. No es la de Actividad —esa
+ * es solo superadministrador—, y tenerlas distintas en el mock es lo unico que deja comprobar que la
+ * pantalla ofrece una pestaña sola a quien le corresponde una sola.
+ *
+ * @param {string} metodo
+ * @param {string[]} resto segmentos despues de `quality`
+ * @param {URLSearchParams} parametros
+ * @param {object} actual quien pide
+ * @returns {{estado: number, cuerpo: object}}
+ * @throws {ErrorApi} 403 a quien no corresponde, 404 ante un subrecurso desconocido
+ */
+function calidadRuta (metodo, resto, parametros, actual) {
+  if (metodo !== 'GET') throw new ErrorApi(404, 'not_found', 'Recurso desconocido.')
+  if (resto[0] !== 'tasks') throw new ErrorApi(404, 'not_found', `Recurso de calidad desconocido: "${resto.join('/')}".`)
+
+  if (actual.is_superadmin !== true && actual.escalon !== 'gerencia') {
+    throw new ErrorApi(403, 'forbidden', 'Solo la gerencia y los superadministradores ven la calidad de las tareas.')
+  }
+
+  if (resto.length === 1) {
+    const { filas, paginacion } = aplicarConsulta(CALIDAD_TAREAS, parametros, CONSULTA_CALIDAD)
+
+    return { estado: 200, cuerpo: conDatos(filas, { pagination: paginacion }) }
+  }
+
+  if (resto.length === 2 && resto[1] === 'summary') {
+    return { estado: 200, cuerpo: conDatos(resumenDeCalidad()) }
+  }
+
+  throw new ErrorApi(404, 'not_found', `Recurso de calidad desconocido: "${resto.join('/')}".`)
+}
+
 /**
  * El contacto de un token, o `null` si ese token no es de un contacto.
  *
@@ -4163,6 +4391,12 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
   // abrir contra el mock, que es justo donde se mira antes de que exista el cron.
   if (recurso === 'scores' && metodo === 'GET') {
     return scoresRuta(resto, parametros, actual)
+  }
+
+  // Calidad de Tareas: la segunda pestaña de `/auditoria`. La compuerta no es la misma que la de
+  // Actividad —aca tambien entra gerencia—, y por eso la resuelve la ruta y no `exigirSuperadmin`.
+  if (recurso === 'quality') {
+    return calidadRuta(metodo, resto, parametros, actual)
   }
 
   if (recurso === 'config' && resto[0] === 'realtime') {
