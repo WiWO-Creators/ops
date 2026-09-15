@@ -1,6 +1,6 @@
 import type { DefinicionRecurso } from './tipos.ts'
 import type { TareaCalidad } from '../datos/recursos.ts'
-import { describirFalta, etiquetaDeTramo } from '../dominio/calidad-tareas.ts'
+import { describirFalta, describirIncoherencias, etiquetaDeTramo } from '../dominio/calidad-tareas.ts'
 import { GLOSARIO } from '../dominio/glosario.ts'
 import { formatearVencimiento } from '../lib/fechas.ts'
 import { SIN_DATO } from '../lib/sla.ts'
@@ -70,7 +70,15 @@ export const CALIDAD_TAREAS: DefinicionRecurso<TareaCalidad> = {
       // lleva la palabra: un "55" solo en una planilla no dice de que lado del corte cayo.
       presentar: (fila) => `${fila.nota} · ${etiquetaDeTramo(fila.tramo)}`
     },
-    { clave: 'falta', encabezado: 'Qué falta', presentar: (fila) => describirFalta(fila.falta) }
+    { clave: 'falta', encabezado: 'Qué falta', presentar: (fila) => describirFalta(fila.falta) },
+    // Columna aparte de "Qué falta" y no fundida con ella: son dos arreglos distintos. Lo que falta
+    // se escribe (una descripción, una fecha); lo que no concuerda se mueve (el estado, la
+    // prioridad). Juntarlas daría una sola lista que mezcla dos tandas de trabajo.
+    {
+      clave: 'incoherencias',
+      encabezado: 'No concuerda',
+      presentar: (fila) => describirIncoherencias(fila.incoherencias)
+    }
   ],
 
   filtros: [
@@ -102,6 +110,16 @@ export const CALIDAD_TAREAS: DefinicionRecurso<TareaCalidad> = {
         { valor: 'descripcion', etiqueta: 'Sin descripción' },
         { valor: 'asignado', etiqueta: 'Sin responsable' },
         { valor: 'fecha', etiqueta: 'Sin fecha' }
+      ]
+    },
+    {
+      clave: 'incoherencia',
+      etiqueta: 'No concuerda',
+      // `multiple` por el mismo motivo que `falta`: el backend combina los valores con OR.
+      tipo: 'multiple',
+      opciones: [
+        { valor: 'estado', etiqueta: 'Estado' },
+        { valor: 'prioridad', etiqueta: 'Prioridad' }
       ]
     },
     // `seleccion` y no `multiple` en los dos: el contrato declara un id, no una lista. Un desplegable

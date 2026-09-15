@@ -2296,8 +2296,21 @@ export interface TareaCalidad {
   tramo: TramoCalidad
   /** Los ejes que no cumplen. Vacio = la Tarea esta completa en los tres. */
   falta: EjeDeCalidad[]
+  /**
+   * Estado y prioridad que no concuerdan con las fechas. **No entran en `nota`.**
+   *
+   * Son otra pregunta: la nota mide como esta PLANTEADA la Tarea y no cambia sola, mientras que una
+   * prioridad "Bajo" se vuelve incoherente por si misma cuando se acerca el vencimiento. Sumarlas a
+   * la nota haria bajar el promedio de la casa sin que nadie trabaje.
+   *
+   * Lista vacia = ninguna. El motivo viene ya escrito por el backend.
+   */
+  incoherencias: Array<{ eje: EjeDeIncoherencia, motivo: string }>
   descripcion: DescripcionEvaluada
 }
+
+/** Los dos ejes de incoherencia. Son los valores que acepta `filter[incoherencia]`. */
+export type EjeDeIncoherencia = 'estado' | 'prioridad'
 
 /**
  * Los contadores del detector (`GET /quality/tasks/summary`), sobre TODAS las Tareas visibles.
@@ -2319,6 +2332,54 @@ export interface ResumenCalidadTareas {
   por_tramo: Record<TramoCalidad, number>
   /** Descripciones que la IA todavia no miro. */
   pendientes_de_ia: number
+  /**
+   * Cuantas Tareas tienen cada incoherencia.
+   *
+   * No suman al total ni a los tramos: una Tarea puede estar impecablemente planteada y seguir en
+   * "Por iniciar" un mes despues de vencer.
+   */
+  incoherencias: Record<EjeDeIncoherencia, number>
   /** Cuando se calculo la foto, ISO-8601 UTC. */
   calculado_en: string
+}
+
+/**
+ * Una foto diaria de indicadores (`GET /indicadores`, `GET /indicadores/serie`).
+ *
+ * Sale de `tblapi_score_espacio`, que el cron escribe todas las noches. **No se recalcula al leer**:
+ * la foto del 1 de septiembre son los numeros de ese dia, no los de hoy filtrados por fecha.
+ *
+ * `calidad_promedio` es `null` cuando ese dia no habia ninguna Tarea evaluada: un cero se leeria
+ * como "todas pesimas".
+ */
+export interface FotoDeIndicadores {
+  fecha: string
+  espacios: number
+  procesos: number
+  abiertos: number
+  vencidos: number
+  por_vencer: number
+  criticos: number
+  en_riesgo: number
+  incumplidos: number
+  estancados: number
+  aprobacion_pendiente: number
+  calidad_promedio: number | null
+  /** Cuantas Tareas componen el promedio. Es lo que lo hace ponderable entre Espacios. */
+  calidad_tareas: number
+}
+
+/**
+ * Corte, linea base y la diferencia (`GET /indicadores`).
+ *
+ * `delta` es corte menos base. Su `calidad_promedio` es `null` si a cualquiera de las dos fotos le
+ * falta: restarle a un numero la ausencia de otro daria el numero entero y se leeria como una mejora
+ * enorme.
+ */
+export interface ComparacionDeIndicadores {
+  base: FotoDeIndicadores
+  corte: FotoDeIndicadores
+  delta: Omit<FotoDeIndicadores, 'fecha' | 'calidad_tareas'>
+  /** Todas las fechas con foto, de la mas nueva a la mas vieja. Alimenta los dos desplegables. */
+  fechas: string[]
 }

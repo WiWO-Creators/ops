@@ -256,5 +256,12 @@ function seccionesDe (yo: Yo): Seccion[] {
     secciones.push({ href: '/auditoria', etiqueta: 'Auditoría', icono: 'auditoria' })
   }
 
+  // Indicadores usa la misma llave que la pestaña de Calidad —gerencia o superadministracion— y no
+  // la de Auditoria entera: son numeros de estructura, no material para investigar a una persona.
+  // Va en su propia seccion porque no se mira junto con nada: se abre antes de una reunion.
+  if (yo.is_superadmin || yo.escalon === 'gerencia') {
+    secciones.push({ href: '/indicadores', etiqueta: 'Indicadores', icono: 'auditoria' })
+  }
+
   return secciones
 }

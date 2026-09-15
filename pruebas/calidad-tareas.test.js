@@ -58,7 +58,7 @@ function descripcion (extra = {}) {
 test('la definicion declara EXACTAMENTE los filtros del contrato', () => {
   assert.deepEqual(
     CALIDAD_TAREAS.filtros.map((filtro) => filtro.clave).sort(),
-    ['assignee', 'falta', 'nota', 'project_id', 'tramo', 'vence']
+    ['assignee', 'falta', 'incoherencia', 'nota', 'project_id', 'tramo', 'vence']
   )
 
   // `vence` no es un filtro del backend: es UN control que manda los dos extremos del rango.
