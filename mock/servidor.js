@@ -2078,6 +2078,9 @@ function tareasDeResumenIa (actual) {
 async function iaRuta (metodo, resto, parametros, actual, cuerpo, peticion) {
   const [seccion, ...sub] = resto
 
+  if (seccion === 'capacidades' && sub.length === 0 && metodo === 'GET') {
+    return { estado: 200, cuerpo: conDatos({ agente: { habilitado: false } }) }
+  }
   if (seccion === 'inicio') return await resumenInicioIaRuta(metodo, parametros, actual, peticion)
   if (seccion === 'proyectos' && sub[1] === 'estado' && metodo === 'POST') {
     return estadoDeEspacioIaRuta(sub[0])
