@@ -27,6 +27,18 @@ separados y muestran qué quedó completado cuando ocurre un error.
 6. Confirmar una sola vez. Comprobar que aparece una tarea, con ambos responsables y los campos
    aprobados. Hacer doble clic o recargar no debe crear otra copia.
 
+## Ajustar el plan antes de aprobar
+
+1. Con un plan pendiente de confirmación, escribir «Asigna solo a Andrés Morales» o un cambio
+   equivalente con datos de prueba. El botón «Confirmar plan completo» debe quedar deshabilitado
+   mientras haya texto sin enviar; «Actualizar plan» no debe aceptar texto vacío ni solo espacios.
+2. Enviar «Actualizar plan». Debe conservarse el pedido original y mostrarse el plan revisado,
+   con el nuevo responsable y los demás datos conservados. Todavía no debe haber escrituras.
+3. Confirmar el plan revisado. Solo deben aplicarse los cambios de la nueva versión. Una ventana
+   que conserve la versión anterior no debe poder aprobarla.
+4. Antes de enviar una edición, borrar el texto: debe volver a habilitarse la confirmación del
+   plan mostrado. Una vez aprobado, el plan ya no admite esta edición.
+
 ## Secuencia con dependencias
 
 1. Pedir una tarea nueva con dos elementos de checklist y un comentario. Indicar proyecto,

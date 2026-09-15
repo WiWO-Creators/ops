@@ -22,7 +22,7 @@ export function ChatAgente ({ desplazable, proyecto, intervalo, nuevasHabilitada
   const [enviando, setEnviando] = useState(false)
   const [recuperar, setRecuperar] = useState(0)
   const ocupado = useRef(false)
-  const solicitudPendiente = useRef<{ accion: string, texto?: string, clave: string } | null>(null)
+  const solicitudPendiente = useRef<{ accion: string, texto?: string, version?: string, clave: string } | null>(null)
   const montado = useRef(true)
   const desplazador = useRef<HTMLDivElement>(null)
   const ruta = usePathname()
@@ -30,7 +30,9 @@ export function ChatAgente ({ desplazable, proyecto, intervalo, nuevasHabilitada
   const proyectoId = proyecto?.id ?? 0
   const ultima = historial.at(-1)
   const trabajando = ultima !== undefined && estaTrabajando(ultima)
-  const pendiente = ultima !== undefined && ['esperando_confirmacion', 'incompleta', 'error'].includes(ultima.estado)
+  const editando = ultima?.estado === 'esperando_confirmacion' && ultima.plan != null
+  const respondeEjecucion = editando || ultima?.estado === 'esperando_datos'
+  const pendiente = ultima !== undefined && (['incompleta', 'error'].includes(ultima.estado) || (ultima.estado === 'esperando_confirmacion' && !editando))
 
   useEffect(() => {
     montado.current = true
@@ -77,17 +79,18 @@ export function ChatAgente ({ desplazable, proyecto, intervalo, nuevasHabilitada
 
   /** Envía una operación una sola vez y recupera su snapshot. @param accion Acción sobre la ejecución o creación. @param respuesta Aclaración escrita. @returns Finalización de la petición. */
   async function operar (accion: 'crear' | 'confirmar' | 'reanudar' | 'cancelar', respuesta?: string): Promise<void> {
-    if (ocupado.current || (accion !== 'crear' && !ultima)) return
+    if (ocupado.current || (accion !== 'crear' && !ultima) || (accion === 'confirmar' && texto.trim() !== '')) return
     ocupado.current = true
     setEnviando(true)
     setError('')
     const pantalla = pantallaDeRuta(ruta)
     const previa = solicitudPendiente.current
-    const clave = previa?.accion === accion && previa.texto === respuesta ? previa.clave : crypto.randomUUID()
-    solicitudPendiente.current = { accion, texto: respuesta, clave }
+    const version = editando ? ultima?.plan?.version : undefined
+    const clave = previa?.accion === accion && previa.texto === respuesta && previa.version === version ? previa.clave : crypto.randomUUID()
+    solicitudPendiente.current = { accion, texto: respuesta, version, clave }
     const cuerpo = accion === 'crear'
       ? { pregunta: respuesta, clave_idempotencia: clave, proyecto_id: proyectoId, ...(proyectoId === 0 && pantalla ? { pantalla } : {}) }
-      : { proyecto_id: proyectoId, ...(accion === 'confirmar' ? { plan_id: ultima?.plan?.id, version: ultima?.plan?.version } : {}), ...(respuesta ? { respuesta, clave_idempotencia: clave } : {}) }
+      : { proyecto_id: proyectoId, ...((accion === 'confirmar' || (accion === 'reanudar' && editando && respuesta)) ? { plan_id: ultima?.plan?.id, version: ultima?.plan?.version } : {}), ...(respuesta ? { respuesta, clave_idempotencia: clave } : {}) }
     const endpoint = accion === 'crear' ? 'ia/ejecuciones' : `ia/ejecuciones/${ultima?.id}/${accion}`
     try {
       const resultado = await escribirEnBff<unknown>(endpoint, 'POST', cuerpo)
@@ -107,7 +110,7 @@ export function ChatAgente ({ desplazable, proyecto, intervalo, nuevasHabilitada
   }
 
   if (cargando) return <Cargando mensaje="Recuperando conversación…" />
-  const bloqueado = enviando || trabajando || pendiente || error !== '' || (!nuevasHabilitadas && ultima?.estado !== 'esperando_datos')
+  const bloqueado = enviando || trabajando || pendiente || error !== '' || (!nuevasHabilitadas && !respondeEjecucion)
   return (
     <div className={desplazable ? 'flex min-h-0 flex-1 flex-col gap-4' : 'flex flex-col gap-4'}>
       {proyecto && <p className="text-texto-sutil text-sm">Esta conversación solo consulta y modifica {proyecto.name}.</p>}
@@ -127,7 +130,7 @@ export function ChatAgente ({ desplazable, proyecto, intervalo, nuevasHabilitada
                 {e.error?.mensaje && <p className="text-texto-peligro mt-3">{e.error.mensaje}</p>}
                 {e.preguntas?.map((p, indice) => <div key={indice} className="mt-3"><p>{p.pregunta}</p>{p.opciones && <ul className="text-texto-tenue list-disc pl-5">{p.opciones.map(o => <li key={o}>{o}</li>)}</ul>}</div>)}
                 {e.id === ultima?.id && <div className="mt-3 flex flex-wrap gap-2">
-                  {e.estado === 'esperando_confirmacion' && e.plan && <Boton variante="primario" disabled={enviando || error !== ''} onClick={() => { void operar('confirmar') }}>Confirmar plan completo</Boton>}
+                  {e.estado === 'esperando_confirmacion' && e.plan && <Boton variante="primario" disabled={enviando || error !== '' || texto.trim() !== ''} onClick={() => { void operar('confirmar') }}>Confirmar plan completo</Boton>}
                   {(e.estado === 'incompleta' || (e.estado === 'error' && e.error?.reintentable)) && <Boton disabled={enviando || error !== ''} onClick={() => { void operar('reanudar') }}>Continuar ejecución</Boton>}
                   {!['completada', 'cancelada'].includes(e.estado) && <Boton variante="sutil" disabled={enviando || error !== ''} onClick={() => { void operar('cancelar') }}>Cancelar ejecución</Boton>}
                 </div>}
@@ -138,10 +141,11 @@ export function ChatAgente ({ desplazable, proyecto, intervalo, nuevasHabilitada
       </div>
       {error && <div role="alert" className="text-texto-peligro flex flex-col items-start gap-2"><p>{error}</p><Boton onClick={() => { setRecuperar(n => n + 1) }}>Recuperar estado</Boton></div>}
       {!nuevasHabilitadas && <p className="text-texto-sutil text-sm">Las nuevas solicitudes están pausadas. Puedes continuar las ejecuciones pendientes.</p>}
-      <form className="flex flex-col gap-2" onSubmit={e => { e.preventDefault(); if (!bloqueado && texto.trim()) void operar(ultima?.estado === 'esperando_datos' ? 'reanudar' : 'crear', texto.trim()) }}>
-        <AreaTexto className="text-base" aria-label="Tu pregunta" value={texto} onChange={e => setTexto(e.target.value)} maxLength={maximoPregunta} disabled={bloqueado} placeholder={ultima?.estado === 'esperando_datos' ? 'Completa los datos solicitados…' : 'Pregunta lo que necesites…'} />
+      <form className="flex flex-col gap-2" onSubmit={e => { e.preventDefault(); if (!bloqueado && texto.trim()) void operar(respondeEjecucion ? 'reanudar' : 'crear', texto.trim()) }}>
+        <AreaTexto className="text-base" aria-label="Tu pregunta" value={texto} onChange={e => setTexto(e.target.value)} maxLength={maximoPregunta} disabled={bloqueado} placeholder={editando ? 'Describe los cambios que quieres hacer al plan…' : ultima?.estado === 'esperando_datos' ? 'Completa los datos solicitados…' : 'Pregunta lo que necesites…'} />
+        {editando && texto.trim() !== '' && <p role="status" className="text-texto-sutil text-sm">Envía los cambios o borra el texto para confirmar este plan.</p>}
         <p className="text-texto-sutil text-sm">No cambia nada sin que confirmes el plan. Puedes cerrar el chat y volver para ver el resultado.</p>
-        <Boton type="submit" variante="primario" className="self-start" disabled={bloqueado || texto.trim() === ''}>{enviando ? 'Enviando…' : ultima?.estado === 'esperando_datos' ? 'Responder y continuar' : 'Preguntar'}</Boton>
+        <Boton type="submit" variante="primario" className="self-start" disabled={bloqueado || texto.trim() === ''}>{enviando ? 'Enviando…' : editando ? 'Actualizar plan' : ultima?.estado === 'esperando_datos' ? 'Responder y continuar' : 'Preguntar'}</Boton>
       </form>
     </div>
   )

@@ -49,13 +49,22 @@ try {
       if (perderConfirmacion) { perderConfirmacion = false; return ruta.abort() }
     } else if (path.endsWith('/cancelar')) e.estado = 'cancelada'
     else if (path.endsWith('/reanudar')) {
-      assert.equal(cuerpo.respuesta, 'Andrés Morales y Javier Auspunt')
       assert.match(cuerpo.clave_idempotencia, /^[\da-f-]{36}$/)
+      if (e.estado === 'esperando_confirmacion') {
+        assert.equal(cuerpo.respuesta, 'Asigna solo a Andrés Morales')
+        assert.equal(cuerpo.plan_id, e.plan.id)
+        assert.equal(cuerpo.version, e.plan.version)
+        e.plan = { ...e.plan, version: 'version-revisada', resumen: 'Crear tarea y asignar solo a Andrés Morales', pasos: [e.plan.pasos[0], { ...e.plan.pasos[1], descripcion: 'Asignar solo a Andrés Morales' }] }
+        e.aclaraciones = [...(e.aclaraciones ?? []), cuerpo.respuesta]
+      } else {
+        assert.equal(cuerpo.respuesta, 'Andrés Morales y Javier Auspunt')
+        assert.equal(cuerpo.version, undefined, 'Una aclaración no requiere versión de plan')
+      }
       e.estado = 'esperando_confirmacion'
       e.preguntas = []
     } else if (p.method() === 'GET' && e.estado === 'ejecutando') {
       e.estado = 'completada'
-      e.plan.pasos = e.plan.pasos.map(paso => ({ ...paso, estado: 'completada', resultado: { resumen: paso.id === 'crear' ? 'Tarea 782 creada' : 'Ambos responsables asignados' } }))
+      e.plan.pasos = e.plan.pasos.map(paso => ({ ...paso, estado: 'completada', resultado: { resumen: paso.id === 'crear' ? 'Tarea 782 creada' : e.plan.version === 'version-revisada' ? 'Andrés Morales asignado' : 'Ambos responsables asignados' } }))
       e.resultado = { resumen: 'Tarea creada y asignada correctamente.' }
     }
     return ruta.fulfill({ json: { data: e } })
@@ -78,10 +87,29 @@ try {
   await pagina.getByText('Proyecto: MG Motors (ID 9).', { exact: true }).waitFor()
   await pagina.getByText('Sin fecha de entrega.', { exact: true }).waitFor()
   assert.equal(solicitudes.filter(s => s.path.endsWith('/confirmar')).length, 0)
-  await pagina.getByRole('button', { name: 'Confirmar plan completo' }).dblclick()
+  const idOriginal = historial.get(1)[0].id
+  const campoPlan = pagina.getByRole('textbox', { name: 'Tu pregunta' })
+  const confirmarPlan = pagina.getByRole('button', { name: 'Confirmar plan completo' })
+  const actualizarPlan = pagina.getByRole('button', { name: 'Actualizar plan', exact: true })
+  assert.ok(await actualizarPlan.isDisabled(), 'Edición vacía deshabilitada')
+  await campoPlan.fill('   ')
+  assert.ok(await actualizarPlan.isDisabled(), 'Solo espacios no actualiza el plan')
+  await campoPlan.fill('Asigna solo a Andrés Morales')
+  assert.ok(await confirmarPlan.isDisabled(), 'No aprueba mientras hay cambios sin enviar')
+  await campoPlan.fill('')
+  assert.ok(await confirmarPlan.isEnabled(), 'Borrar borrador permite confirmar el plan actual')
+  await campoPlan.fill('Asigna solo a Andrés Morales')
+  await actualizarPlan.click()
+  await pagina.getByText('Crear tarea y asignar solo a Andrés Morales', { exact: true }).waitFor()
+  assert.equal(historial.get(1).length, 1, 'Editar no crea otro pedido')
+  assert.equal(historial.get(1)[0].id, idOriginal, 'Editar conserva ejecución')
+  assert.equal(historial.get(1)[0].plan.version, 'version-revisada')
+  assert.equal(solicitudes.filter(s => s.path.endsWith('/confirmar')).length, 0, 'Editar no ejecuta')
+  await confirmarPlan.dblclick()
   await pagina.getByText('Tarea creada y asignada correctamente.', { exact: true }).waitFor()
   assert.equal(solicitudes.filter(s => s.path.endsWith('/confirmar')).length, 1)
-  assert.ok(await pagina.getByText('Ambos responsables asignados', { exact: true }).isVisible())
+  assert.equal(solicitudes.find(s => s.path.endsWith('/confirmar')).cuerpo.version, 'version-revisada', 'Confirma la nueva versión')
+  assert.ok(await pagina.getByText('Andrés Morales asignado', { exact: true }).isVisible())
   await pagina.reload({ waitUntil: 'networkidle' })
   await pagina.getByText('Tarea creada y asignada correctamente.', { exact: true }).waitFor()
   await pagina.getByRole('button', { name: 'Preguntarle a Thinking Orb', exact: true }).click()
@@ -136,6 +164,15 @@ try {
   await global.getByRole('button', { name: 'Cancelar ejecución' }).click()
   await global.getByRole('button', { name: 'Cancelar ejecución' }).waitFor({ state: 'hidden' })
   assert.ok(await global.getByRole('textbox', { name: 'Tu pregunta' }).isEnabled(), 'Cancelar libera la conversación')
+  permanente.estado = 'esperando_confirmacion'
+  permanente.plan = null
+  await global.getByRole('button', { name: 'Cerrar Thinking Orb', exact: true }).click()
+  await pagina.getByRole('button', { name: 'Preguntarle a Thinking Orb', exact: true }).click()
+  await global.getByText('Revisa el plan completo', { exact: true }).waitFor()
+  assert.equal(await global.getByRole('button', { name: 'Actualizar plan', exact: true }).count(), 0, 'Plan null no permite edición sin versión')
+  assert.ok(await global.getByRole('textbox', { name: 'Tu pregunta' }).isDisabled())
+  await global.getByRole('button', { name: 'Cancelar ejecución' }).click()
+  await global.getByRole('button', { name: 'Cancelar ejecución' }).waitFor({ state: 'hidden' })
   agenteHabilitado = false
   await global.getByRole('button', { name: 'Cerrar Thinking Orb', exact: true }).click()
   await pagina.getByRole('button', { name: 'Preguntarle a Thinking Orb', exact: true }).click()
