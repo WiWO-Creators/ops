@@ -10,7 +10,9 @@ import { PARAMETRO_TAREA, urlConParametro } from '@/componentes/datos/tabla'
 import { CALIDAD_TAREAS } from '@/definiciones/calidad-tareas'
 import {
   EJES_DE_CALIDAD,
+  EJES_DE_INCOHERENCIA,
   ORDEN_DE_EJES,
+  ORDEN_DE_INCOHERENCIAS,
   TRAMOS_DE_CALIDAD,
   motivoDeLaNota,
   notaQuedoVieja,
@@ -33,7 +35,8 @@ const CELDAS: Record<string, (fila: TareaCalidad) => ReactElement> = {
   name: (fila) => <EnlaceTarea fila={fila} />,
   due_date: (fila) => <Fecha valor={fila.due_date} comoVencimiento />,
   nota: (fila) => <CeldaNota fila={fila} />,
-  falta: (fila) => <CeldaFalta fila={fila} />
+  falta: (fila) => <CeldaFalta fila={fila} />,
+  incoherencias: (fila) => <CeldaIncoherencias fila={fila} />
 }
 
 /**
@@ -148,6 +151,30 @@ function CeldaNota ({ fila }: { fila: TareaCalidad }): ReactElement {
  * Una Tarea completa no deja la celda vacia: dice que esta completa. La celda vacia en una tabla de
  * hallazgos se lee como un dato que no cargo, que es justo lo contrario.
  */
+function CeldaIncoherencias ({ fila }: { fila: TareaCalidad }): ReactElement {
+  if (fila.incoherencias.length === 0) {
+    // Raya y no "Concuerda": esta columna se recorre buscando lo que hay que mover, y una palabra en
+    // cada fila sana tapa las pocas que importan. La de al lado si dice "Completa" porque alli el
+    // caso sano es el objetivo de la pantalla; aca es el silencio.
+    return <span className="text-texto-sutil">—</span>
+  }
+
+  return (
+    <span className="flex flex-wrap gap-1">
+      {ORDEN_DE_INCOHERENCIAS
+        .map((eje) => fila.incoherencias.find((una) => una.eje === eje))
+        .filter((una) => una !== undefined)
+        .map((una) => (
+          // El motivo va en el `title` y no en la celda: es una frase entera y en una tabla de
+          // catorce columnas no entra. La insignia dice QUE campo, el motivo dice por que.
+          <Insignia key={una.eje} tono="aviso" tamano="chico" title={una.motivo}>
+            {EJES_DE_INCOHERENCIA[una.eje]}
+          </Insignia>
+        ))}
+    </span>
+  )
+}
+
 function CeldaFalta ({ fila }: { fila: TareaCalidad }): ReactElement {
   if (fila.falta.length === 0) {
     return <Insignia tono="exito" tamano="chico">Completa</Insignia>

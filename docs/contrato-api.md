@@ -4129,6 +4129,100 @@ no puede devolver un conjunto distinto del que la tabla pinta.
 
 ---
 
+### Rama `feat/calidad-prioridad-estado`
+
+**La nota 0-100 no cambia**: sigue siendo 50 descripción / 25 responsable / 25 fecha, así que la serie
+histórica se puede seguir comparando. El estado y la prioridad entran como **señales aparte**.
+
+Van aparte y no como ejes porque no miden lo mismo. La nota mide cómo está **planteada** una Tarea, y
+eso no cambia con el calendario: una Tarea bien escrita sigue bien escrita el mes que viene. Una
+incoherencia sí cambia sola —la prioridad "Bajo" de algo que vence en dos semanas no molesta hoy y sí
+el jueves que viene, sin que nadie la toque—, así que meterla en la nota haría bajar el promedio de la
+casa solo con el paso del tiempo.
+
+#### `incoherencias` en cada fila de `GET /quality/tasks`
+
+Lista de `{eje, motivo}`, vacía cuando no hay ninguna. El `motivo` viene **ya escrito** por el
+servidor ("Venció hace 20 días y sigue en 'Por iniciar'."): la pantalla no lo reconstruye, porque dos
+textos de la misma regla terminan diciendo cosas distintas.
+
+| Eje | Cuándo salta |
+|---|---|
+| `estado` | Venció y sigue en "Por iniciar" (id 1), **o** está en "Testear" (id 3), el estado que la reunión del 11/09 mandó retirar (RQ-TAR-2) |
+| `prioridad` | Sigue en "Bajo" (id 1) y vence dentro de 3 días, o ya venció |
+
+No se mira "completada sin fecha de cierre": la tabla de calidad sólo tiene Tareas abiertas, así que
+esa regla nunca encontraría una fila.
+
+#### `filter[incoherencia]=estado,prioridad`
+
+Lista separada por comas, combinada con **OR** —"tiene alguna de las dos"—, igual que `filter[falta]`.
+Un eje desconocido es `422`.
+
+#### `incoherencias` en `GET /quality/tasks/summary`
+
+`{"estado": 217, "prioridad": 1}`. **No suman al total ni a los tramos**: una Tarea puede estar
+impecablemente planteada y seguir en "Por iniciar" un mes después de vencer.
+
+**Sin migración.** Las dos reglas dependen de la fecha de hoy, así que guardarlas las dejaría viejas
+entre lotes. Se calculan al leer, con la misma expresión que arma el filtro — como `estado_sla`.
+
+---
+
+### `GET /indicadores` y `GET /indicadores/serie`
+
+La línea base operativa: las mismas cuentas en dos fechas y la diferencia.
+
+**Gerencia o superadministración**, el mismo corte que `/quality/tasks`. Sin visibilidad por
+descendencia: un agregado recortado por rama no se puede comparar con el del mes pasado si entretanto
+cambió el organigrama.
+
+**Sólo lectura, sin excepción.** Los números salen de `tblapi_score_espacio`, la foto diaria que el
+cron ya escribe todas las noches. No se recalcula nada al leer: si se recalculara contra `tbltasks`,
+la "foto del 1 de septiembre" se armaría con las Tareas de hoy —las creadas después incluidas— y la
+comparación no compararía nada. Por eso tampoco hay `POST`: un indicador que se puede recalcular a
+pedido es un indicador que se puede acomodar antes de una reunión.
+
+La migración **0630** le agrega tres columnas a esa foto: `aprobacion_pendiente`, `calidad_promedio`
+y `calidad_tareas`. Las tres son aditivas — no mueven el `score` ni el `semaforo`.
+
+#### Parámetros
+
+| Parámetro | Valores | Por defecto |
+|---|---|---|
+| `corte` | `YYYY-MM-DD` | la foto más nueva |
+| `base` | `YYYY-MM-DD` | la foto más vieja |
+| `filter[client_id]` | id | toda la casa |
+| `filter[project_id]` | id | toda la casa |
+| `desde` / `hasta` | `YYYY-MM-DD`, sólo en `/serie` | sin recorte |
+
+Una fecha mal escrita o inexistente es `422`. Una fecha **sin foto** no es error: devuelve la forma
+completa en cero, para que la pantalla pueda restar las dos sin decidir qué significa restar de la
+nada. `404` sólo si el cron no corrió nunca.
+
+#### `GET /indicadores` → 200
+
+```jsonc
+{"data": {
+  "base":  {"fecha": "2026-09-11", "espacios": 279, "procesos": 2478, "abiertos": 877,
+            "vencidos": 434, "por_vencer": 0, "criticos": 3, "en_riesgo": 0,
+            "incumplidos": 1464, "estancados": 867, "aprobacion_pendiente": 1,
+            "calidad_promedio": 48.0, "calidad_tareas": 876},
+  "corte": { /* la misma forma */ },
+  "delta": { /* corte menos base, sin `fecha` ni `calidad_tareas` */ },
+  "fechas": ["2026-09-15", "2026-09-11"]}}
+```
+
+`calidad_promedio` es **ponderado** por `calidad_tareas`: el promedio de los promedios haría pesar
+igual a un Espacio de 3 Tareas y a uno de 300. Es `null` cuando ese día no había ninguna Tarea
+evaluada — un cero se leería como "todas pésimas"—, y el `delta` de ese campo es `null` si a
+cualquiera de las dos fotos le falta: restarle a un número la ausencia de otro daría el número entero
+y se leería como una mejora enorme.
+
+`GET /indicadores/serie` devuelve un array de esas mismas fotos, una por día, en orden ascendente.
+
+---
+
 ### Acción masiva `due_date`
 
 `POST /tasks/bulk` acepta `{"accion": "due_date", "ids": [...], "valor": "YYYY-MM-DD"}`.

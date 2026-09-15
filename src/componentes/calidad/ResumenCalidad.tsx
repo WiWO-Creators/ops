@@ -77,6 +77,24 @@ export function ResumenCalidad ({
         />
       </ul>
 
+      {/* Segunda fila, y separada de la primera a proposito: los cuatro contadores de arriba son
+          ejes de la NOTA y estos dos no entran en ella. Mezclarlos en una sola tira haria pensar que
+          el promedio ya los castiga. */}
+      <ul className="grid grid-cols-2 gap-2 md:grid-cols-4">
+        <Contador
+          etiqueta="Estado que no concuerda"
+          valor={resumen.incoherencias.estado}
+          detalle="Vencidas sin arrancar, o en un estado retirado"
+          alarmante={resumen.incoherencias.estado > 0}
+        />
+        <Contador
+          etiqueta="Prioridad que no concuerda"
+          valor={resumen.incoherencias.prioridad}
+          detalle="Siguen en Bajo y ya vencen"
+          alarmante={resumen.incoherencias.prioridad > 0}
+        />
+      </ul>
+
       {/* La letra chica contesta las dos preguntas que el numero grande deja abiertas: cuanto falta
           por evaluar —o el promedio esta hecho sobre menos de lo que parece— y de cuando es la foto. */}
       <p className="text-texto-sutil text-xs">

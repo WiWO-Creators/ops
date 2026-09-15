@@ -1,6 +1,6 @@
 import { GLOSARIO } from './glosario.ts'
 import type { TonoInsignia } from '@/componentes/presentadores/Insignia'
-import type { DescripcionEvaluada, EjeDeCalidad, TareaCalidad, TramoCalidad } from '@/datos/recursos'
+import type { DescripcionEvaluada, EjeDeCalidad, EjeDeIncoherencia, TareaCalidad, TramoCalidad } from '@/datos/recursos'
 
 /**
  * Lo que el detector de tareas insuficientes dice en palabras.
@@ -42,6 +42,43 @@ export const EJES_DE_CALIDAD: Record<EjeDeCalidad, string> = {
 
 /** Orden de lectura de los ejes, de lo mas caro de arreglar a lo mas barato. */
 export const ORDEN_DE_EJES: readonly EjeDeCalidad[] = ['descripcion', 'asignado', 'fecha']
+
+/**
+ * Como se nombra cada incoherencia.
+ *
+ * Nombran el CAMPO y no la ausencia, al reves que `EJES_DE_CALIDAD`: aca el campo esta lleno, lo que
+ * pasa es que dice algo que las fechas contradicen. "Sin estado" seria mentira.
+ */
+export const EJES_DE_INCOHERENCIA: Record<EjeDeIncoherencia, string> = {
+  estado: 'Estado',
+  prioridad: 'Prioridad'
+}
+
+/** Orden de lectura: el estado primero, que es el que mas se mira. */
+export const ORDEN_DE_INCOHERENCIAS: readonly EjeDeIncoherencia[] = ['estado', 'prioridad']
+
+/**
+ * Las incoherencias de una Tarea, en una sola linea.
+ *
+ * Es el texto que baja al CSV, asi que devuelve cadena y no nodos. El motivo lo escribe el backend
+ * —"Venció hace 20 días y sigue en 'Por iniciar'"— y no se reescribe aca: repetir la regla en el
+ * navegador daria dos textos que pueden decir cosas distintas sobre la misma fila.
+ *
+ * Una Tarea sin incoherencias devuelve cadena vacia y no "ninguna": la columna se lee buscando lo
+ * que hay que arreglar, y una palabra en cada fila sana tapa las que importan.
+ *
+ * @param incoherencias Lo que manda la API.
+ * @returns Los motivos separados por punto y espacio, o cadena vacia.
+ */
+export function describirIncoherencias (incoherencias: TareaCalidad['incoherencias']): string {
+  if (incoherencias.length === 0) return ''
+
+  return ORDEN_DE_INCOHERENCIAS
+    .map((eje) => incoherencias.find((una) => una.eje === eje))
+    .filter((una) => una !== undefined)
+    .map((una) => una.motivo)
+    .join(' ')
+}
 
 /**
  * Nombre visible de un tramo, cayendo a la clave cuando no lo conoce.
