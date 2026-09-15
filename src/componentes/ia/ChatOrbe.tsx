@@ -28,6 +28,7 @@ import { TarjetaPreguntaIA } from './TarjetaPreguntaIA'
 import { TarjetaPropuestaIA } from './TarjetaPropuestaIA'
 import { MAXIMO_PREGUNTA_AGENTE } from '@/dominio/ia-ejecucion'
 import { ChatAgente } from './ChatAgente'
+import { TextoChat } from './TextoChat'
 import { ASISTENTE, GLOSARIO } from '@/dominio/glosario'
 
 /**
@@ -531,19 +532,22 @@ function BurbujaIA ({
       {esperando
         ? <CargandoConOrbe mensaje={indicador.mensaje} estado={indicador.estado} retardoMs={0} />
         : (
-          <p className="text-texto whitespace-pre-wrap text-sm">
-            {partirConCitas(mensaje.texto, mensaje.citas).map((tramo, indice) => (
-              'cita' in tramo
-                ? <Marcador key={indice} cita={tramo.cita} numero={mensaje.citas.indexOf(tramo.cita) + 1} />
-                : <span key={indice}>{tramo.texto}</span>
-            ))}
+          <div className="text-texto min-w-0">
+            <TextoChat
+              texto={partirConCitas(mensaje.texto, mensaje.citas).map((tramo) => 'cita' in tramo
+                ? `[${mensaje.citas.indexOf(tramo.cita) + 1}](#fuente-${mensaje.citas.indexOf(tramo.cita) + 1})`
+                : tramo.texto).join('')}
+              marcadores={Object.fromEntries(mensaje.citas.map((cita, indice) => [
+                `#fuente-${indice + 1}`, <Marcador key={indice} cita={cita} numero={indice + 1} />
+              ]))}
+            />
             {mensaje.fase === 'generando' && (
               // El cursor es el orbe en `generating`, que es el estado que el sistema de diseño creo
               // para "sale contenido hacia la interfaz". Evita el caret parpadeante, que seria una
               // animacion infinita fuera de `estado/`.
               <Orbe medida="1rem" estado="generating" className="ml-1 inline-block align-text-bottom" />
             )}
-          </p>
+          </div>
           )}
 
       {mensaje.fase === 'generando' && (

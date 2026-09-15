@@ -70,6 +70,26 @@ separados y muestran qué quedó completado cuando ocurre un error.
 
 ## Presentación y alcance
 
+### Formato de mensajes y planes
+
+1. Desde `/inicio`, abrir Thinking Orb y pedir una propuesta con proyecto, fechas, hitos y tareas.
+2. Comprobar que el plan aparece primero. Abrir «Ver explicación del plan» y revisar que las
+   negritas, párrafos y listas se ven formateados, sin asteriscos literales.
+3. Revisar «Plan de trabajo»: cada paso debe mostrar su orden, estado, datos y supuestos completos.
+4. Escribir una corrección. «Confirmar plan completo» debe quedar deshabilitado hasta enviar el
+   cambio mediante «Actualizar plan» o borrar el texto. La versión nueva debe seguir siendo legible.
+5. Abrir la conversación anterior y comprobar que también interpreta el formato y conserva citas.
+6. Repetir en móvil y en tema oscuro. Los enlaces largos, tablas y bloques de código no deben
+   ensanchar el chat; las tablas y el código pueden desplazarse dentro de su propio bloque.
+7. Comprobar una respuesta sin texto, un plan sin detalles y un resultado con error: el estado y las
+   acciones correspondientes deben permanecer visibles. No deben aparecer imágenes externas ni
+   ejecutarse contenido HTML incluido en las respuestas.
+
+El caso visual automatizado de `pruebas/orbe-agente.browser.mjs` utiliza datos sintéticos del
+Proyecto Skydive y guarda capturas en `output/playwright/orbe-ui-*.png` y `orbe-plan-*.png`.
+
+### Alcance operativo
+
 - En móvil, verificar que mensajes, listas y botones no generan desplazamiento horizontal.
 - Una propuesta debe seguir visible aunque no se haya podido redactar una respuesta final.
 - Probar el mismo pedido desde dos proyectos: no deben mezclarse conversaciones ni confirmaciones.
