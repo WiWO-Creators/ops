@@ -47,6 +47,11 @@ const PREFIJOS_PERMITIDOS = [
   // en `POST /projects/{id}/milestones` con `plantilla_id` —lo que devuelve son los hitos del
   // Espacio—, pero el CRUD de la plantilla cuelga de su propia raiz.
   'hito-plantillas',
+  // Catalogo de motivos de iteracion. Prefijo propio y no bajo `tasks` porque es un catalogo global,
+  // no un subrecurso de una Tarea: lo LEE el formulario de iteraciones de cualquier Tarea y lo EDITA
+  // la pantalla de Administracion. Sin esta entrada el selector de motivos recibe 404 y el
+  // formulario cae al motivo escrito a mano sin que nada avise.
+  'motivos-iteracion',
   // Cubre tambien `tasks/{id}/share`, los tres verbos del enlace publico. La lista es por PREFIJO:
   // un subrecurso nuevo de `tasks` no necesita entrada propia. Lo que NO esta —ni debe estar— es
   // `public`: `GET /public/tasks/{token}` es anonimo, y el BFF solo existe para adosar el token de
