@@ -2,7 +2,7 @@
 
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Boton } from '@/componentes/formularios/Boton'
-import { ESTADO_COMPLETO } from './tareas'
+import { alternarCompletados, ESTADO_COMPLETO } from './tareas'
 
 /** Alterna las tareas completadas conservando los demás filtros y reiniciando la página. */
 export function BotonCompletados () {
@@ -15,10 +15,7 @@ export function BotonCompletados () {
       aria-pressed={activo}
       variante={activo ? 'marca' : 'secundario'}
       onClick={() => {
-        const siguientes = new URLSearchParams(params.toString())
-        if (activo) siguientes.delete('filter[status]')
-        else siguientes.set('filter[status]', String(ESTADO_COMPLETO))
-        siguientes.delete('page')
+        const siguientes = alternarCompletados(new URLSearchParams(params.toString()))
         router.replace(`?${siguientes.toString()}`, { scroll: false })
       }}
     >
