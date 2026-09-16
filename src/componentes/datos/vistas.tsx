@@ -2,7 +2,7 @@
 
 import { AccionesMasivasTareas } from '@/componentes/proyecto/AccionesMasivasTareas'
 import { ModalTarea } from '@/componentes/proyecto/ModalTarea'
-import { PARAMETRO_TAREA } from '@/componentes/datos/tabla'
+import { PARAMETRO_TAREA, clavesVisiblesPorDefecto } from '@/componentes/datos/tabla'
 import { PROCESOS_NAVEGABLES } from './celdas-procesos'
 import { TablaRecurso } from './TablaRecurso'
 import { TableroFiltrable } from './TableroFiltrable'
@@ -13,9 +13,10 @@ import { filtrosDeCamposPersonalizados } from '@/definiciones/filtros'
 import type { DefinicionCampoPersonalizado } from '@/datos/recursos'
 import { PROCESOS } from '@/definiciones/procesos'
 import { TarjetaTarea } from '@/componentes/proyecto/TarjetaTarea'
+import { podarParaTarjeta, type ProcesoDeTarjeta } from '@/componentes/proyecto/tarjeta-tarea'
 import type { DefinicionRecurso, OpcionFiltro, ResultadoLista } from '@/definiciones/tipos'
 import type { Capacidad } from '@/datos/tipos'
-import type { Cliente, Espacio, Proceso, ProcesoAmpliado } from '@/datos/recursos'
+import type { Cliente, Espacio, Proceso } from '@/datos/recursos'
 
 /**
  * Vistas ya atadas a su definicion.
@@ -160,6 +161,11 @@ function destinosDeProcesos (estados: OpcionFiltro[]): ColumnaTablero[] {
 }
 
 function definicionDeTableroProcesos (estados: OpcionFiltro[]): DefinicionRecurso<Proceso> {
+  // Los mismos campos que la tabla global muestra al abrirla. La tarjeta del tablero global y la de
+  // la pestaña de un Espacio se podan con la misma regla: una sola definicion decide, y no hay dos
+  // listas de campos que se separen con el tiempo.
+  const visibles = clavesVisiblesPorDefecto(PROCESOS.columnas)
+
   return {
     ...PROCESOS,
     tablero: {
@@ -169,7 +175,7 @@ function definicionDeTableroProcesos (estados: OpcionFiltro[]): DefinicionRecurs
       // `presentarTarjeta` recibe `unknown` porque el motor no conoce el recurso: la conversion
       // ocurre en un solo punto, aca, y no en cada campo de la tarjeta.
       presentarTarjeta: (fila) => (
-        <TarjetaTarea proceso={fila as ProcesoAmpliado} estados={estados} />
+        <TarjetaTarea proceso={podarParaTarjeta(fila as ProcesoDeTarjeta, visibles)} estados={estados} />
       )
     }
   }

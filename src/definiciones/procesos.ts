@@ -1,5 +1,6 @@
 import type { DefinicionRecurso } from './tipos.ts'
 import type { Proceso } from '../datos/recursos.ts'
+import type { StaffReferencia } from '../datos/tipos.ts'
 import { GLOSARIO } from '../dominio/glosario.ts'
 import { formatearFecha, formatearVencimiento } from '../lib/fechas.ts'
 import { formatearDesviacion, SIN_DATO, SLA } from '../lib/sla.ts'
@@ -46,6 +47,15 @@ export const PROCESOS: DefinicionRecurso<Proceso> = {
     // planilla la raya se lee mejor que una celda vacia.
     { clave: 'milestone', encabezado: GLOSARIO.hito.singular, presentar: (p) => p.milestone?.name ?? SIN_DATO },
     { clave: 'assignees', encabezado: 'Asignados', presentar: (p) => nombresAsignados(p) },
+    // Pegada a Asignados porque se leen juntas —quien la hace y quien la mira—, pero arranca
+    // oculta: los seguidores son la minoria de las Tareas y una columna casi siempre vacia paga
+    // ancho por nada. Encenderla es tambien lo que los hace aparecer en la tarjeta del tablero.
+    {
+      clave: 'followers',
+      encabezado: 'Seguidores',
+      ocultaPorDefecto: true,
+      presentar: (p) => nombresDePersonas(p.followers)
+    },
     // `formatearVencimiento` y no `formatearFecha`: una tarea puede no tener fecha de entrega a
     // proposito, y el guion la hace pasar por un dato que falta. En pantalla lo dice el presentador
     // `Fecha`; este texto es el que baja al CSV.
@@ -241,8 +251,23 @@ export const PROCESOS: DefinicionRecurso<Proceso> = {
 function nombresAsignados (proceso: Proceso): string {
   if (proceso.assignees.length === 0) return 'Sin asignar'
 
-  const visibles = proceso.assignees.slice(0, 2).map((persona) => persona.full_name)
-  const restantes = proceso.assignees.length - visibles.length
+  return nombresDePersonas(proceso.assignees)
+}
+
+/**
+ * Los primeros dos nombres de una lista de personas, con el resto resumido en un contador.
+ *
+ * Misma forma que la celda de Asignados: la columna no puede crecer con la cantidad de gente, y dos
+ * nombres alcanzan para reconocer al grupo. Los nombres completos quedan en el detalle.
+ *
+ * @param personas Las personas, tal como bajan del contrato.
+ * @returns Los nombres separados por coma, o el guion cuando no hay nadie.
+ */
+function nombresDePersonas (personas: StaffReferencia[]): string {
+  if (personas.length === 0) return SIN_DATO
+
+  const visibles = personas.slice(0, 2).map((persona) => persona.full_name)
+  const restantes = personas.length - visibles.length
 
   return restantes > 0 ? `${visibles.join(', ')} +${restantes}` : visibles.join(', ')
 }

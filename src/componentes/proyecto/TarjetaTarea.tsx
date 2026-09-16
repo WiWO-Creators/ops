@@ -6,10 +6,12 @@ import { useSearchParams } from 'next/navigation'
 import { GrupoAvatares } from '@/componentes/presentadores/Avatar'
 import { Etiquetas } from '@/componentes/presentadores/Etiqueta'
 import { Fecha } from '@/componentes/presentadores/Fecha'
-import type { Etiqueta, ProcesoAmpliado } from '@/datos/recursos'
-import type { StaffReferencia } from '@/datos/tipos'
+import { GLOSARIO } from '@/dominio/glosario'
 import type { OpcionFiltro } from '@/definiciones/tipos'
 import { resolverEstado } from '@/dominio/estados-tarea'
+import type { ProcesoDeTarjeta } from './tarjeta-tarea'
+
+export type { ProcesoDeTarjeta } from './tarjeta-tarea'
 
 /**
  * Tarjeta de una tarea en el tablero.
@@ -26,18 +28,15 @@ import { resolverEstado } from '@/dominio/estados-tarea'
  * **Declara el tipo minimo que dibuja**, no `Proceso`: el mismo tablero lo abre el cliente desde el
  * portal, y su contrato no manda asignados, contadores ni etiquetas. Con `Proceso` esos tres eran
  * `undefined` que el tipo juraba que existian, y la tarjeta se caia leyendo `.length`.
+ *
+ * **Quien decide que campos se pintan no es la tarjeta sino la definicion del sujeto**, a traves de
+ * `podarParaTarjeta`. La tarjeta solo sabe que un campo `undefined` no se menciona. Por eso una
+ * tarjeta sin hito, sin seguidores y sin fechas no deja huecos: cada bloque desaparece entero.
+ *
+ * El identificador va **antes** del nombre y no debajo, por el mismo motivo por el que es la primera
+ * columna de la tabla: es lo que se dicta por telefono, y se busca con la vista recorriendo un borde
+ * recto, no el final de un renglon de largo variable.
  */
-
-/** Lo minimo que una tarjeta necesita. Lo opcional es lo que el contrato del cliente no manda. */
-export interface ProcesoDeTarjeta {
-  id: number
-  name: string
-  status: number
-  due_date: string | null
-  assignees?: StaffReferencia[]
-  counts?: ProcesoAmpliado['counts']
-  tags?: Etiqueta[]
-}
 
 interface PropsTarjeta {
   proceso: ProcesoDeTarjeta
@@ -51,6 +50,10 @@ export function TarjetaTarea ({ proceso, estados }: PropsTarjeta): ReactElement 
   siguientes.set('tarea', String(proceso.id))
 
   const estado = resolverEstado(proceso.status, estados)
+  const seguidores = proceso.followers ?? []
+  // Solo una fecha de inicio real acompaña al vencimiento. Con `null` se dibujaria un "—" delante de
+  // la flecha, que en un tablero se lee como un dato que falta y no como una tarea sin inicio.
+  const inicio = typeof proceso.start_date === 'string' && proceso.start_date !== '' ? proceso.start_date : null
 
   return (
     <div className="flex flex-col gap-2">
@@ -61,16 +64,35 @@ export function TarjetaTarea ({ proceso, estados }: PropsTarjeta): ReactElement 
         style={{ backgroundColor: estado.color ?? 'transparent' }}
       />
 
-      <Link
-        href={`?${siguientes.toString()}`}
-        scroll={false}
-        className="text-texto hover:text-acento text-sm font-medium underline-offset-4 hover:underline"
-      >
-        {proceso.name}
-      </Link>
+      <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+        {proceso.patente !== undefined && (
+          <span className="text-texto-sutil shrink-0 text-xs tabular-nums">
+            <span className="sr-only">Identificador: </span>
+            {proceso.patente ?? `#${proceso.id}`}
+          </span>
+        )}
+        <Link
+          href={`?${siguientes.toString()}`}
+          scroll={false}
+          className="text-texto hover:text-acento text-sm font-medium underline-offset-4 hover:underline"
+        >
+          {proceso.name}
+        </Link>
+      </div>
 
       {proceso.assignees !== undefined && proceso.assignees.length > 0 && (
         <GrupoAvatares personas={proceso.assignees} />
+      )}
+
+      {proceso.milestone !== undefined && proceso.milestone !== null && (
+        <span
+          className="bg-relleno-neutro text-texto-tenue rounded-chico inline-flex max-w-full items-center gap-1 self-start px-1.5 py-0.5 text-xs leading-none"
+          title={`${GLOSARIO.hito.singular}: ${proceso.milestone.name}`}
+        >
+          <span aria-hidden="true">◆</span>
+          <span className="sr-only">{GLOSARIO.hito.singular}: </span>
+          <span className="truncate">{proceso.milestone.name}</span>
+        </span>
       )}
 
       <div className="text-texto-sutil flex flex-wrap items-center gap-3 text-xs tabular-nums">
@@ -95,9 +117,29 @@ export function TarjetaTarea ({ proceso, estados }: PropsTarjeta): ReactElement 
             <span className="sr-only"> adjuntos</span>
           </span>
         )}
+        {/* Un contador y no avatares: los seguidores al lado de los asignados se leen como mas
+            asignados, y la pregunta que contesta la tarjeta es "¿esto lo esta mirando alguien?". Los
+            nombres viven en el `title` y en el detalle. */}
+        {seguidores.length > 0 && (
+          <span title={seguidores.map((persona) => persona.full_name).join(', ')}>
+            <span aria-hidden="true">👁 </span>
+            {seguidores.length}
+            <span className="sr-only"> seguidores</span>
+          </span>
+        )}
         {/* Siempre visible, tambien sin plazo: la tarjeta dice "Sin fecha" en vez de callarse, que
             en un tablero se confunde con "no se cargo todavia". */}
-        <Fecha valor={proceso.due_date} comoVencimiento />
+        <span className="inline-flex items-center gap-1">
+          {inicio !== null && (
+            <>
+              <span className="sr-only">Empieza: </span>
+              <Fecha valor={inicio} />
+              <span aria-hidden="true">→</span>
+              <span className="sr-only">Vence: </span>
+            </>
+          )}
+          <Fecha valor={proceso.due_date} comoVencimiento />
+        </span>
       </div>
 
       {proceso.tags !== undefined && proceso.tags.length > 0 && <Etiquetas etiquetas={proceso.tags} />}
