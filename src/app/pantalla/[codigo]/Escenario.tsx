@@ -7,6 +7,8 @@ import {
   proximoRecargado
 } from '@/dominio/pantalla-area'
 import type { Escena, Orientacion, ParametrosDePantalla } from '@/dominio/pantalla-area'
+import { franjaDelMomento } from '@/dominio/momento-del-dia'
+import type { FranjaDelDia } from '@/dominio/momento-del-dia'
 import type { MetaDePantalla, PaqueteDePantalla } from '@/datos/pantalla-area'
 import { useLatido, useNoApagarPantalla } from './proyeccion'
 import { MarcoDePantalla } from './MarcoDePantalla'
@@ -15,6 +17,8 @@ import { EscenaTrabajando } from './escenas/EscenaTrabajando'
 import { EscenaCronometros } from './escenas/EscenaCronometros'
 import { EscenaProcesos } from './escenas/EscenaProcesos'
 import { EscenaEspacios } from './escenas/EscenaEspacios'
+import { EscenaMomento } from './escenas/EscenaMomento'
+import { EscenaAnuncios } from './escenas/EscenaAnuncios'
 
 interface Props {
   codigo: string
@@ -64,9 +68,29 @@ export function Escenario ({ codigo, inicial, metaInicial, parametros }: Props):
   const [ahora, setAhora] = useState<number | null>(null)
 
   const orientacion = useOrientacion()
+
+  /**
+   * La zona horaria del negocio, que manda la API.
+   *
+   * No es la del televisor y no se puede sustituir por ella: un aparato barato arrastra la zona que le
+   * dejo puesta quien lo configuro, a menudo UTC. El instante si sale del navegador, que lo sincroniza
+   * solo. Ver el docblock de `src/dominio/momento-del-dia.ts`.
+   */
+  const zona = meta?.timezone ?? null
+
+  /**
+   * La franja horaria vigente, o `null` fuera de todas.
+   *
+   * Se recalcula en cada tic —`ahora` cambia una vez por segundo— pero **devuelve la misma referencia**
+   * mientras no se cruce un borde, porque `franjaDelMomento()` entrega un elemento del arreglo
+   * constante. Eso es lo que mantiene estable el `useMemo` del guion de abajo: sin esa garantia, el
+   * guion se reconstruiria una vez por segundo.
+   */
+  const franja = useMemo(() => franjaDelMomento(ahora, zona), [ahora, zona])
+
   const guion = useMemo(
-    () => construirGuion(datos, parametros, orientacion),
-    [datos, parametros, orientacion]
+    () => construirGuion(datos, parametros, orientacion, franja),
+    [datos, parametros, orientacion, franja]
   )
   const firma = firmaDelGuion(guion)
 
@@ -186,7 +210,7 @@ export function Escenario ({ codigo, inicial, metaInicial, parametros }: Props):
       frescura={frescura}
       esperando={datos === null}
       ahora={ahora}
-      zona={meta?.timezone ?? null}
+      zona={zona}
       orientacion={orientacion}
       zoom={parametros.zoom}
       margen={parametros.margen}
@@ -199,6 +223,13 @@ export function Escenario ({ codigo, inicial, metaInicial, parametros }: Props):
           <Dibujo
             escena={escena}
             area={datos?.area.name ?? ''}
+            // `area.id` en `null` es la pantalla global: la de toda la compañia. No es un area sin id,
+            // asi que los rotulos que dicen "del área" tienen que decir otra cosa. Se pregunta por
+            // `=== null` y no por un booleano suelto para que el dia que llegue un paquete sin `area`
+            // la pantalla se comporte como una de area, que es la caida conservadora.
+            esGlobal={datos?.area.id === null}
+            franja={franja}
+            zona={zona}
             // Con los datos viejos los contadores cuentan contra la ULTIMA LECTURA BUENA y no contra
             // el reloj: se quedan clavados en el valor que era cierto. Un cronometro que sigue
             // trepando con la conexion caida es una mentira, y esta pared la leen jefaturas de area.
@@ -210,10 +241,22 @@ export function Escenario ({ codigo, inicial, metaInicial, parametros }: Props):
   )
 }
 
+interface Dibujable {
+  escena: Escena
+  area: string
+  /** `true` en la pantalla de toda la compañia, donde no hay area que nombrar. */
+  esGlobal: boolean
+  /** La franja horaria vigente. Solo la usa `momento`, que no existe fuera de una. */
+  franja: FranjaDelDia | null
+  /** La zona del negocio, para el reloj grande de `momento`. */
+  zona: string | null
+  ahora: number | null
+  congelado: boolean
+}
+
 /** Elige el componente de la escena. Un `switch` y no un mapa: el tipo se estrecha solo. */
 function Dibujo (
-  { escena, area, ahora, congelado }:
-  { escena: Escena, area: string, ahora: number | null, congelado: boolean }
+  { escena, area, esGlobal, franja, zona, ahora, congelado }: Dibujable
 ): ReactElement | null {
   const origen = escena.origen
 
@@ -228,10 +271,16 @@ function Dibujo (
       return <EscenaCronometros items={escena.items as never} ocultos={escena.ocultos} ahora={ahora} congelado={congelado} />
 
     case 'procesos':
-      return <EscenaProcesos items={escena.items as never} ocultos={escena.ocultos} total={origen.total} />
+      return <EscenaProcesos items={escena.items as never} ocultos={escena.ocultos} total={origen.total} esGlobal={esGlobal} />
 
     case 'espacios':
       return <EscenaEspacios items={escena.items as never} ocultos={escena.ocultos} />
+
+    case 'momento':
+      return <EscenaMomento franja={franja} ahora={ahora} zona={zona} />
+
+    case 'anuncios':
+      return <EscenaAnuncios items={escena.items as never} ocultos={escena.ocultos} />
 
     default:
       return null

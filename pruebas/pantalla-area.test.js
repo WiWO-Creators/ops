@@ -9,9 +9,33 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
-  CLASES_DE_ESCENA, REJILLAS, TOPE_DE_PAGINAS, construirGuion, firmaDelGuion, frescuraDe,
-  intervaloConBackoff, leerParametrosDePantalla, proximaEscenaViva, proximoRecargado
+  CLASES_DE_ESCENA, REJILLAS, TOPE_DE_ANUNCIOS, TOPE_DE_PAGINAS, construirGuion, firmaDelGuion,
+  frescuraDe, intervaloConBackoff, leerParametrosDePantalla, proximaEscenaViva, proximoRecargado
 } from '../src/dominio/pantalla-area.ts'
+import { FRANJAS_DEL_DIA, franjaDelMomento } from '../src/dominio/momento-del-dia.ts'
+
+/** La zona del negocio, la misma que manda la API en `meta.timezone`. */
+const ZONA = 'America/Santiago'
+
+/** Un instante a partir de una hora local de Santiago en septiembre (UTC-3). */
+function enSantiago (hora, minuto = 0) {
+  return Date.parse(`2026-09-15T${String(hora).padStart(2, '0')}:${String(minuto).padStart(2, '0')}:00-03:00`)
+}
+
+/** La franja vigente a esa hora local, para pasarsela a `construirGuion`. */
+function franjaA (hora, minuto = 0) {
+  return franjaDelMomento(enSantiago(hora, minuto), ZONA)
+}
+
+function anuncio (id) {
+  return {
+    id,
+    tipo: 'imagen_con_texto',
+    titulo: `Anuncio ${id}`,
+    texto: 'Un aviso de prueba.',
+    image_url: `https://ejemplo.test/anuncio/${id}`
+  }
+}
 
 /** Los parametros por defecto, sin nada en la URL. */
 const PARAMETROS = leerParametrosDePantalla({})
@@ -53,7 +77,9 @@ function paquete (relleno = {}) {
       { kind: 'trabajando', seconds: dura('trabajando', 20), items: relleno.trabajando ?? [] },
       { kind: 'cronometros', seconds: dura('cronometros', 20), items: relleno.cronometros ?? [] },
       { kind: 'procesos', seconds: dura('procesos', 20), items: relleno.procesos ?? [], total: (relleno.procesos ?? []).length },
-      { kind: 'espacios', seconds: dura('espacios', 20), items: relleno.espacios ?? [] }
+      { kind: 'espacios', seconds: dura('espacios', 20), items: relleno.espacios ?? [] },
+      { kind: 'momento', seconds: dura('momento', 10) },
+      { kind: 'anuncios', seconds: dura('anuncios', 20), items: relleno.anuncios ?? [] }
     ]
   }
 }
@@ -300,4 +326,147 @@ test('el margen para el overscan se acota, y por defecto no hay', () => {
   assert.equal(leerParametrosDePantalla({ margen: '3' }).margen, 3)
   assert.equal(leerParametrosDePantalla({ margen: '99' }).margen, 8, 'mas de ocho vmin es desperdiciar pantalla')
   assert.equal(leerParametrosDePantalla({ margen: 'ya' }).margen, 0)
+})
+
+// -- La escena `momento`: la tercera forma de entrar al guion ------------------------------------
+//
+// Ni "siempre" como la portada ni "si tiene items" como las listas: entra si el reloj lo dice. Lo que
+// se cuida acá es que salga cuando toca, porque una pared que gasta una escena de cada vuelta en un
+// reloj mudo, todo el dia, es una pared que la gente aprende a no mirar.
+
+test('dentro de una franja, `momento` entra al guion con su mensaje en el id', () => {
+  const guion = construirGuion(paquete(), PARAMETROS, 'horizontal', franjaA(9, 10))
+
+  assert.deepEqual(guion.map((e) => e.id), ['portada', 'momento#apertura'])
+})
+
+test('fuera de toda franja, `momento` no se muestra', () => {
+  const guion = construirGuion(paquete(), PARAMETROS, 'horizontal', franjaA(16, 0))
+
+  assert.deepEqual(guion.map((e) => e.id), ['portada'], 'sale igual que una escena vacia')
+})
+
+test('sin franja resuelta —todavia no llego `meta`— tampoco se muestra', () => {
+  // `construirGuion` sin cuarto argumento es exactamente ese caso: la zona no se sabe.
+  assert.deepEqual(construirGuion(paquete(), PARAMETROS).map((e) => e.id), ['portada'])
+})
+
+test('cambiar de franja cambia la firma, y por eso la rotacion se entera', () => {
+  const manana = construirGuion(paquete(), PARAMETROS, 'horizontal', franjaA(9, 10))
+  const mediodia = construirGuion(paquete(), PARAMETROS, 'horizontal', franjaA(13, 30))
+  const tarde = construirGuion(paquete(), PARAMETROS, 'horizontal', franjaA(16, 0))
+
+  assert.notEqual(firmaDelGuion(manana), firmaDelGuion(mediodia), 'otro mensaje es otra escena')
+  assert.notEqual(firmaDelGuion(manana), firmaDelGuion(tarde), 'y salir del guion, tambien')
+})
+
+test('dentro de la MISMA franja la firma no se mueve, aunque pasen los minutos', () => {
+  // Si se moviera, cada tic reiniciaria el temporizador y la pantalla se quedaria clavada.
+  const antes = construirGuion(paquete(), PARAMETROS, 'horizontal', franjaA(9, 1))
+  const despues = construirGuion(paquete(), PARAMETROS, 'horizontal', franjaA(9, 29))
+
+  assert.equal(firmaDelGuion(antes), firmaDelGuion(despues))
+})
+
+test('`momento` dura lo que dice la configuracion del area', () => {
+  const guion = construirGuion(paquete({ segundos: { momento: 8 } }), PARAMETROS, 'horizontal', franjaA(13, 5))
+
+  assert.equal(guion.find((e) => e.clase === 'momento').duracionMs, 8_000)
+})
+
+test('con `?escena=` en la URL, `momento` dura menos: es un titulo, no una lista', () => {
+  const rapido = leerParametrosDePantalla({ escena: '10' })
+  const guion = construirGuion(paquete({ trabajando: gente(2) }), rapido, 'horizontal', franjaA(18, 10))
+  const momento = guion.find((e) => e.clase === 'momento')
+  const lista = guion.find((e) => e.clase === 'trabajando')
+
+  assert.equal(momento.duracionMs, 6_000, 'la misma proporcion que la portada')
+  assert.equal(lista.duracionMs, 10_000)
+})
+
+test('`momento` se puede saltar desde la URL, y la portada no', () => {
+  const sinMomento = leerParametrosDePantalla({ saltar: 'momento,portada' })
+  const guion = construirGuion(paquete(), sinMomento, 'horizontal', franjaA(9, 10))
+
+  assert.deepEqual(guion.map((e) => e.id), ['portada'], 'momento sale; la portada no se deja saltar')
+})
+
+test('con `?solo=momento` fuera de franja el guion NO queda vacio', () => {
+  // Es el caso que dejaria un televisor en negro: la unica escena pedida no se puede mostrar.
+  const solo = leerParametrosDePantalla({ solo: 'momento' })
+  const guion = construirGuion(paquete(), solo, 'horizontal', franjaA(16, 0))
+
+  assert.equal(guion.length, 1)
+  assert.equal(guion[0].clase, 'portada', 'la portada de respaldo sostiene el guion')
+})
+
+test('la recuperacion por id entiende el `#` de la franja', () => {
+  // `proximaEscenaViva` parte el id por `#` para sacar la clase: `momento#almuerzo` es `momento`, y no
+  // una clase desconocida que mandaria la pantalla al principio.
+  const guion = construirGuion(paquete({ espacios: [{ id: 1, name: 'Uno', deadline: null, progress: 0, procesos_abiertos: 1, procesos_atrasados: 0 }] }), PARAMETROS, 'horizontal', franjaA(13, 5))
+
+  assert.deepEqual(guion.map((e) => e.id), ['portada', 'espacios', 'momento#almuerzo'])
+  assert.equal(proximaEscenaViva(guion, 'espacios'), 2, 'despues de espacios viene momento')
+  assert.equal(proximaEscenaViva(guion, 'momento#almuerzo'), 0, 'y despues de momento se vuelve al principio')
+})
+
+test('las tres franjas del negocio producen tres ids distintos', () => {
+  const ids = FRANJAS_DEL_DIA.map((franja) => `momento#${franja.clave}`)
+
+  assert.equal(new Set(ids).size, FRANJAS_DEL_DIA.length, 'ninguna clave repetida')
+})
+
+// -- La escena `anuncios`: un aviso por pantalla ------------------------------------------------
+
+test('cada anuncio es una entrada propia del guion', () => {
+  const guion = construirGuion(paquete({ anuncios: [anuncio(1), anuncio(2), anuncio(3)] }), PARAMETROS)
+  const slides = guion.filter((e) => e.clase === 'anuncios')
+
+  assert.deepEqual(slides.map((e) => e.id), ['anuncios#1', 'anuncios#2', 'anuncios#3'])
+  assert.ok(slides.every((e) => e.items.length === 1), 'uno por pantalla, nunca una lista')
+})
+
+test('sin anuncios vigentes la escena sale del guion aunque este encendida', () => {
+  // Es el caso que dejaria slides en blanco: la API manda `anuncios` con `items: []` igual.
+  const guion = construirGuion(paquete(), PARAMETROS)
+
+  assert.ok(!guion.some((e) => e.clase === 'anuncios'))
+})
+
+test('un anuncio solo conserva el id sin numero, como cualquier escena de una pagina', () => {
+  const guion = construirGuion(paquete({ anuncios: [anuncio(1)] }), PARAMETROS)
+
+  assert.deepEqual(guion.map((e) => e.id), ['portada', 'anuncios'])
+})
+
+test('los anuncios tienen su propio tope, mas alto que el de las listas', () => {
+  const muchos = Array.from({ length: TOPE_DE_ANUNCIOS + 3 }, (_, i) => anuncio(i + 1))
+  const guion = construirGuion(paquete({ anuncios: muchos }), PARAMETROS)
+  const slides = guion.filter((e) => e.clase === 'anuncios')
+
+  assert.equal(slides.length, TOPE_DE_ANUNCIOS)
+  assert.ok(TOPE_DE_ANUNCIOS > TOPE_DE_PAGINAS, 'cuatro avisos serian pocos para algo que alguien publico a mano')
+  assert.equal(slides[slides.length - 1].ocultos, 3, 'lo que no entro se dice, no se esconde')
+})
+
+test('un anuncio dura lo configurado, sin la rebaja de las escenas breves', () => {
+  const guion = construirGuion(paquete({ anuncios: [anuncio(1)], segundos: { anuncios: 15 } }), PARAMETROS)
+
+  assert.equal(guion.find((e) => e.clase === 'anuncios').duracionMs, 15_000)
+})
+
+test('una vuelta con las siete escenas encendidas mantiene el orden del paquete', () => {
+  const lleno = paquete({
+    trabajando: gente(2),
+    anuncios: [anuncio(1)],
+    espacios: [{ id: 1, name: 'Uno', deadline: null, progress: 0, procesos_abiertos: 1, procesos_atrasados: 0 }]
+  })
+
+  const guion = construirGuion(lleno, PARAMETROS, 'horizontal', franjaA(9, 10))
+
+  assert.deepEqual(
+    guion.map((e) => e.id),
+    ['portada', 'trabajando', 'espacios', 'momento#apertura', 'anuncios'],
+    'el orden lo manda la API, y las vacias no aparecen'
+  )
 })

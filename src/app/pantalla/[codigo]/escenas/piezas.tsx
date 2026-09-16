@@ -38,6 +38,23 @@ export const CUERPO_COLUMNA = 'text-[2.7vmin]'
 export const CUERPO_ETIQUETA = 'text-[2.7vmin] tracking-[0.16em] uppercase'
 
 /**
+ * De quien es lo que la escena esta mostrando: "del área" o "de la compañía".
+ *
+ * Existe porque la pantalla global —la de toda la empresa, que convive con las de area y llega con
+ * `data.area.id` en `null`— usa exactamente los mismos componentes, y un titulo que dijera "Tareas del
+ * área" en una pared donde no hay ningun area seria mentira. Es la unica diferencia visible entre las
+ * dos pantallas: todo lo demas se dibuja igual porque son los mismos datos con otro alcance.
+ *
+ * Va acá y no escrito en cada escena para que la proxima que necesite nombrarse no lo resuelva a mano.
+ *
+ * @param esGlobal si la pantalla es la de toda la compañia
+ * @returns el complemento, ya con la preposicion, listo para pegar detras de un sustantivo
+ */
+export function rotuloDeAlcance (esGlobal: boolean): string {
+  return esGlobal ? 'de la compañía' : 'del área'
+}
+
+/**
  * El relleno lateral de una fila del tablero, rotulos incluidos.
  *
  * Es una constante y no una clase escrita en cada escena porque las columnas se alinean SOLAS: el

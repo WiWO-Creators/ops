@@ -3,7 +3,8 @@ import { cn } from '@/lib/clases'
 import { GLOSARIO } from '@/dominio/glosario'
 import type { TareaEnPantalla } from '@/datos/pantalla-area'
 import {
-  CabeceraDeEscena, CUERPO_COLUMNA, CUERPO_PRINCIPAL, Nada, RELLENO_DE_FILA, RotulosDeColumna, nombreCorto
+  CabeceraDeEscena, CUERPO_COLUMNA, CUERPO_PRINCIPAL, Nada, RELLENO_DE_FILA, RotulosDeColumna,
+  nombreCorto, rotuloDeAlcance
 } from './piezas'
 
 /** La rejilla de columnas de esta escena. Su reparto vive en `pantalla.css`. */
@@ -38,16 +39,18 @@ const COLUMNAS = 'pantalla-columnas-procesos'
  * Tarea en veinte caracteres, y una Tarea que no se puede nombrar no se muestra. Lo dice la plantilla
  * `portrait` de `.pantalla-columnas-procesos` en `pantalla.css`, y los `portrait:hidden` de acá.
  */
-export function EscenaProcesos ({ items, ocultos, total }: {
+export function EscenaProcesos ({ items, ocultos, total, esGlobal = false }: {
   items: TareaEnPantalla[]
   ocultos: number
   total: number
+  /** La pantalla de toda la compañia no tiene area que nombrar: ver `rotuloDeAlcance`. */
+  esGlobal?: boolean
 }): ReactNode {
   if (items.length === 0) return <Nada texto={`Sin ${GLOSARIO.proceso.plural.toLowerCase()} abiertas`} />
 
   return (
     <div className="flex min-h-0 flex-col">
-      <CabeceraDeEscena titulo={`${GLOSARIO.proceso.plural} del área`} total={total} ocultos={ocultos} />
+      <CabeceraDeEscena titulo={`${GLOSARIO.proceso.plural} ${rotuloDeAlcance(esGlobal)}`} total={total} ocultos={ocultos} />
 
       <RotulosDeColumna columnas={COLUMNAS}>
         <span />

@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
 import { cn } from '@/lib/clases'
+import { horaDeReloj } from '@/dominio/momento-del-dia'
 import type { Escena, Frescura, Orientacion, ParametrosDePantalla } from '@/dominio/pantalla-area'
 
 interface Props {
@@ -136,19 +137,19 @@ export function MarcoDePantalla (props: Props): ReactNode {
  *
  * La zona sale del backend y no del aparato: un televisor barato tiene el reloj mal a menudo, y a
  * veces en UTC.
+ *
+ * El formateo lo hace `horaDeReloj()` y no un `Intl` propio: la escena `momento` muestra la misma hora
+ * en 22vmin en mitad de la pared, y los dos relojes visibles a la vez no pueden discrepar ni en el
+ * minuto ni en el formato.
  */
 function Reloj ({ ahora, zona }: { ahora: number | null, zona: string | null }): ReactNode {
   if (ahora === null) {
     return <p className="text-texto-tenue text-[3vmin] tabular-nums">--:--</p>
   }
 
-  const opciones: Intl.DateTimeFormatOptions = { hour: '2-digit', minute: '2-digit' }
-
-  if (zona !== null) opciones.timeZone = zona
-
   return (
     <p className="text-texto text-[3.2vmin] font-semibold tabular-nums">
-      {new Intl.DateTimeFormat('es-CL', opciones).format(new Date(ahora))}
+      {horaDeReloj(ahora, zona)}
     </p>
   )
 }

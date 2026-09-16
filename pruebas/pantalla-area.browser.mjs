@@ -520,9 +520,276 @@ try {
     assert.ok(!/localhost:\d+\/api\/v1|API_BASE/.test(texto), 'No puede filtrarse la URL de la API.')
   })
 
+  // === 7. La escena `momento`: entra con el reloj y sale con el reloj ========================
+  //
+  // Es la unica escena que no depende de que haya datos sino de que hora es. Lo que se comprueba acá
+  // es lo que no se puede ver en `node --test`: que el reloj de 22vmin y su frase caben en las dos
+  // orientaciones sin desbordar, y que la escena desaparece del guion cuando la zona del negocio dice
+  // que no es hora — que es lo que impide que la pared gaste una escena de cada vuelta en un reloj
+  // mudo, todo el dia.
+  for (const [nombre, medidas] of [['tumbado', TUMBADO], ['de pie', DE_PIE]]) {
+    await conPagina(contexto, async (pagina, errores) => {
+      await pagina.setViewportSize(medidas)
+      await sondeoFijo(pagina, paqueteConEscenasNuevas(zonaDondeSonLas(13), [], { personas: 4 }))
+      // `?escena=2` fija el ritmo desde el primer render, tambien para el paquete que trajo el
+      // servidor: sin el, la vuelta empieza con las duraciones reales y llegar a `momento` tarda mas
+      // de lo que ninguna espera razonable aguanta.
+      await abrir(pagina, '?escena=2')
+      await llegarA(pagina, 'momento')
+
+      const m = await medirEscena(pagina)
+
+      assert.equal(m.escena, 'momento#almuerzo', `${nombre}: a las 13 locales toca el mensaje de almuerzo.`)
+      assert.equal(m.recortada, 0, `${nombre}: la escena "momento" corta ${m.recortada} pieza(s).`)
+      assert.ok(m.altoDeMas <= 1, `${nombre}: "momento" desborda a lo alto en ${m.altoDeMas}px.`)
+      assert.ok(m.anchoDeMas <= 1, `${nombre}: "momento" desborda a lo ancho en ${m.anchoDeMas}px.`)
+      assert.ok(m.menor >= PISO_TIPOGRAFICO, `${nombre}: "momento" tiene texto de ${m.menor}px.`)
+      assert.match(m.texto, /almuerzo/i, `${nombre}: tiene que verse el mensaje de la franja.`)
+      assert.match(m.texto, /\d{2}:\d{2}/, `${nombre}: tiene que verse el reloj grande.`)
+      // El reloj de la cabecera y el de la escena son el mismo minuto: los dos se ven a la vez.
+      const cabecera = await pagina.locator('header p').last().innerText()
+      assert.ok(m.texto.includes(cabecera.trim()), `${nombre}: los dos relojes de la pared no coinciden.`)
+      assert.deepEqual(errores, [], `${nombre}: errores de React: ${errores.join(' | ')}`)
+    })
+  }
+
+  await conPagina(contexto, async (pagina) => {
+    // Fuera de franja la escena no existe: se recorre el guion entero y `momento` no aparece.
+    await sondeoFijo(pagina, paqueteConEscenasNuevas(zonaDondeSonLas(16), [], { personas: 4, cronometros: 3 }))
+    await abrir(pagina, '?escena=2')
+
+    // El paquete que trajo el SERVIDOR viene del mock y con la zona del negocio, no con la de esta
+    // prueba. Hay que esperar a que el primer sondeo del cliente la reemplace: si no, durante unos
+    // milisegundos la pantalla decide la franja con la zona equivocada, y esta comprobación se
+    // volvería intermitente según la hora a la que alguien la corra.
+    await pagina.waitForFunction(
+      () => /(^|[^\d])16:\d{2}/.test(document.querySelector('header')?.innerText ?? ''),
+      null,
+      { timeout: 15_000 }
+    )
+
+    const vistas = new Set()
+
+    for (let vuelta = 0; vuelta < 10; vuelta++) {
+      const actual = await pagina.locator('main').getAttribute('data-escena')
+      vistas.add((actual ?? '').split('#')[0])
+
+      await pagina.waitForFunction(
+        (previa) => (document.querySelector('main')?.dataset.escena ?? '') !== previa,
+        actual,
+        { timeout: 10_000 }
+      )
+    }
+
+    assert.ok(!vistas.has('momento'), `A las 16 locales "momento" no puede estar en el guion; vio ${[...vistas].join(', ')}.`)
+    assert.ok(vistas.has('portada'), 'La vuelta tiene que seguir corriendo con el resto de escenas.')
+  })
+
+  // === 8. La escena `anuncios`: un aviso por pantalla ========================================
+  //
+  // Cada anuncio es un slide propio y lo escribio una persona, asi que el texto llega con el largo que
+  // llegue y la imagen con la proporcion que tenga. Lo que se mide es que ninguno de los tres formatos
+  // desborde en ninguna de las dos orientaciones, y que la letra no se haya achicado por debajo del
+  // piso para conseguirlo.
+  for (const [nombre, medidas] of [['tumbado', TUMBADO], ['de pie', DE_PIE]]) {
+    await conPagina(contexto, async (pagina, errores) => {
+      await pagina.setViewportSize(medidas)
+      await sondeoFijo(pagina, paqueteConEscenasNuevas(
+        zonaDondeSonLas(16),
+        [
+          anuncio(1, 'imagen_con_texto'),
+          anuncio(2, 'texto', { texto: 'El lunes no se trabaja: es feriado. ' .repeat(30) }),
+          anuncio(3, 'imagen')
+        ],
+      ))
+      await abrir(pagina, '?solo=anuncios&escena=2')
+
+      const vistos = new Set()
+
+      for (let vuelta = 0; vuelta < 8 && vistos.size < 3; vuelta++) {
+        const m = await medirEscena(pagina)
+
+        vistos.add(m.escena)
+        assert.equal(m.recortada, 0, `${nombre}: el anuncio "${m.escena}" corta ${m.recortada} pieza(s).`)
+        assert.ok(m.altoDeMas <= 1, `${nombre}: "${m.escena}" desborda a lo alto en ${m.altoDeMas}px.`)
+        assert.ok(m.anchoDeMas <= 1, `${nombre}: "${m.escena}" desborda a lo ancho en ${m.anchoDeMas}px.`)
+        assert.ok(m.menor >= PISO_TIPOGRAFICO, `${nombre}: "${m.escena}" tiene texto de ${m.menor}px: no se lee a cuatro metros.`)
+
+        await pagina.waitForFunction(
+          (previa) => (document.querySelector('main')?.dataset.escena ?? '') !== previa,
+          m.escena,
+          { timeout: 10_000 }
+        )
+      }
+
+      assert.deepEqual(
+        [...vistos].sort(),
+        ['anuncios#1', 'anuncios#2', 'anuncios#3'],
+        `${nombre}: cada anuncio tiene que ser un slide propio; vio ${[...vistos].join(', ')}.`
+      )
+      assert.deepEqual(errores, [], `${nombre}: errores de React: ${errores.join(' | ')}`)
+    })
+  }
+
+  await conPagina(contexto, async (pagina) => {
+    // La imagen no carga —el televisor se quedo sin red a mitad de ciclo— y el slide NO puede quedarse
+    // en blanco veinte segundos. Debajo hay siempre una capa con lo que se pueda decir sin ella.
+    await sondeoFijo(pagina, paqueteConEscenasNuevas(
+      zonaDondeSonLas(16),
+      [
+        anuncio(1, 'imagen_con_texto', { imagen: '/esta-imagen-no-existe-nunca.png' }),
+        anuncio(2, 'imagen', { imagen: '/esta-imagen-tampoco.png' })
+      ]
+    ))
+    await abrir(pagina, '?solo=anuncios&escena=2')
+
+    for (const esperado of [/Anuncio 1/, /No pudimos cargar la imagen/]) {
+      const visto = await pagina.waitForFunction(
+        (patron) => {
+          const texto = document.querySelector('main section')?.innerText ?? ''
+
+          return new RegExp(patron).test(texto) ? texto : false
+        },
+        esperado.source,
+        { timeout: 20_000 }
+      )
+
+      assert.ok(await visto.jsonValue(), `Con la imagen caída tiene que verse el respaldo (${esperado}).`)
+    }
+  })
+
+  await conPagina(contexto, async (pagina) => {
+    // === 9. La pantalla global: la misma pared sin area que nombrar =============================
+    //
+    // Llega con `data.area.id` en `null` y el nombre de la compañia. Todo se dibuja igual; lo unico
+    // que cambia es que ningun rotulo puede decir "del área", porque ahi no hay ninguna.
+    const global = paqueteConEscenasNuevas(zonaDondeSonLas(16), [], { tareas: 8 })
+    global.data.area = { id: null, name: 'WiWO' }
+
+    await sondeoFijo(pagina, global)
+    await abrir(pagina, '?solo=procesos&escena=2')
+
+    const texto = await pagina.locator('main').innerText()
+
+    assert.match(texto, /de la compañía/i, 'La pantalla global tiene que nombrarse como la compañía.')
+    assert.ok(!/del área/i.test(texto), 'La pantalla global no puede decir "del área": no hay ninguna.')
+    assert.match(await pagina.locator('header h1').innerText(), /WiWO/i, 'La cabecera lleva el nombre de la compañía.')
+  })
+
   console.log('pantalla-area.browser: OK')
 } finally {
   await navegador.close()
+}
+
+
+/**
+ * Una zona IANA en la que AHORA MISMO es esa hora en punto.
+ *
+ * === POR QUE ESTO Y NO UN RELOJ FALSO ===
+ *
+ * La escena `momento` solo existe tres veces al dia. Para verla en el navegador hay dos caminos:
+ * falsear el reloj, o mover la zona. Falsearlo no sirve: el instante que usa la pantalla lo emite el
+ * worker del latido con su propio `Date.now()`, y ni `page.clock` ni un `addInitScript` llegan a un
+ * worker dedicado. La zona, en cambio, viaja en `meta.timezone` del paquete — que esta prueba ya
+ * controla— y es exactamente la pieza que decide el mensaje.
+ *
+ * Se eligen zonas `Etc/GMT±N`, que son desfases fijos y enteros respecto de UTC: cualquiera que sea la
+ * hora real, hay una en la que son las 13 en punto, y como el desfase no lleva minutos, el minuto
+ * local es el mismo minuto real. Por eso las comprobaciones de navegador usan la franja de almuerzo,
+ * que dura una hora entera: las de las 09:00 y las 18:00 duran media y solo valdrian la mitad de las
+ * veces que se corra esta prueba. Sus bordes se prueban en `pruebas/momento-del-dia.test.js`, que es
+ * donde corresponde — la funcion es pura y ahi la hora se pasa como argumento.
+ */
+function zonaDondeSonLas (hora) {
+  for (let desfase = -12; desfase <= 14; desfase++) {
+    // `Etc/GMT+5` es UTC-5: el signo va al reves, es asi en la base de datos de husos desde siempre.
+    const zona = `Etc/GMT${desfase <= 0 ? '+' : '-'}${Math.abs(desfase)}`
+    const local = Number(
+      new Intl.DateTimeFormat('en-GB', { timeZone: zona, hour: '2-digit', hourCycle: 'h23' }).format(new Date())
+    )
+
+    if (local === hora) return zona
+  }
+
+  throw new Error(`No hay ninguna zona Etc/GMT en la que sean las ${hora}.`)
+}
+
+/** Un anuncio del formato que se pida. La imagen la sirve el propio servidor de prueba. */
+function anuncio (id, tipo, { imagen = '/plantillas/guia-imagen-entidad.png', texto } = {}) {
+  const largo = texto ?? 'Viernes 26 a las 18:00 en la terraza. Avisa si vas con acompañante, que hay que contar las sillas.'
+
+  return {
+    id,
+    tipo,
+    titulo: tipo === 'imagen' ? null : `Anuncio ${id} con un título razonablemente largo`,
+    texto: tipo === 'imagen' ? null : largo,
+    image_url: tipo === 'texto' ? null : imagen
+  }
+}
+
+/**
+ * El mismo paquete, con las dos escenas que se resuelven en el televisor.
+ *
+ * @param zona     la zona que viaja en `meta`: decide si `momento` entra al guion y con que mensaje
+ * @param anuncios los anuncios vigentes; `[]` deja la escena fuera del guion
+ */
+function paqueteConEscenasNuevas (zona, anuncios, opciones = {}) {
+  const base = paquete(opciones)
+
+  base.data.scenes.push({ kind: 'momento', seconds: opciones.dura ?? 20 })
+  base.data.scenes.push({ kind: 'anuncios', seconds: opciones.dura ?? 20, items: anuncios })
+  base.meta.timezone = zona
+
+  return base
+}
+
+/** Mide lo que se sale del marco de la escena y cual es el texto mas chico que hay en pantalla. */
+async function medirEscena (pagina) {
+  return await pagina.evaluate(() => {
+    const main = document.querySelector('main')
+    const cuerpo = main?.querySelector('section')
+    const marco = cuerpo?.getBoundingClientRect()
+
+    let recortada = 0
+
+    for (const hijo of cuerpo?.querySelectorAll('p, img, h2') ?? []) {
+      const caja = hijo.getBoundingClientRect()
+
+      if (caja.width === 0 && caja.height === 0) continue
+
+      if (marco !== undefined && (caja.bottom > marco.bottom + 1 || caja.top < marco.top - 1 ||
+        caja.right > marco.right + 1 || caja.left < marco.left - 1)) {
+        recortada++
+      }
+    }
+
+    let menor = Infinity
+    for (const nodo of document.querySelectorAll('main *')) {
+      if (nodo.textContent?.trim() === '' || nodo.children.length > 0) continue
+
+      const tamano = Number.parseFloat(getComputedStyle(nodo).fontSize)
+
+      if (Number.isFinite(tamano) && tamano < menor) menor = tamano
+    }
+
+    return {
+      escena: main?.dataset.escena ?? '',
+      recortada,
+      menor,
+      texto: cuerpo?.innerText ?? '',
+      altoDeMas: document.documentElement.scrollHeight - window.innerHeight,
+      anchoDeMas: document.body.scrollWidth - window.innerWidth
+    }
+  })
+}
+
+/** Lleva la rotacion hasta la escena cuyo id empiece por `clase`, o falla diciendo que no llego. */
+async function llegarA (pagina, clase) {
+  await pagina.waitForFunction(
+    (buscada) => (document.querySelector('main')?.dataset.escena ?? '').split('#')[0] === buscada,
+    clase,
+    { timeout: 30_000 }
+  )
 }
 
 /** Abre la pantalla con los parametros que se le pasen y espera a que hidrate. */

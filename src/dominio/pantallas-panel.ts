@@ -10,13 +10,25 @@ import type { EscenaConfigurada } from '@/datos/recursos'
 
 export type ClaseConfigurable = EscenaConfigurada['clase']
 
-/** Las cinco escenas, en el orden en que se ofrecen cuando no hay nada configurado. */
+/**
+ * Las siete escenas, en el orden en que se ofrecen cuando no hay nada configurado.
+ *
+ * **Es el mismo orden que `Escritura\Pantallas::ESCENAS` en la API**, y tiene que seguir siendolo: es
+ * el que reciben las pantallas nuevas, que nacen con las siete encendidas. Si las dos listas se
+ * separan, una pantalla recien creada se veria en un orden en el panel y en otro en la pared.
+ *
+ * `momento` y `anuncios` van al final porque son las dos que **pueden no mostrarse**: la primera solo
+ * en sus franjas horarias, la segunda solo si hay avisos vigentes. Al final de la vuelta, su ausencia
+ * no abre un hueco en medio de una secuencia que la gente ya aprendio.
+ */
 export const CLASES_CONFIGURABLES: ClaseConfigurable[] = [
   'portada',
   'trabajando',
   'cronometros',
   'procesos',
-  'espacios'
+  'espacios',
+  'momento',
+  'anuncios'
 ]
 
 /**
@@ -45,7 +57,47 @@ export const ESCENAS: Record<ClaseConfigurable, { nombre: string, descripcion: s
   espacios: {
     nombre: `${GLOSARIO.espacio.plural} en curso`,
     descripcion: `Dónde está trabajando el área, con el avance de cada ${GLOSARIO.espacio.singular.toLowerCase()}.`
+  },
+  momento: {
+    nombre: 'Momento del día',
+    descripcion: 'El reloj en grande con un mensaje a la entrada, al almuerzo y al cierre. Fuera de esas horas no se muestra.'
+  },
+  anuncios: {
+    nombre: 'Anuncios',
+    descripcion: 'Los avisos que se publican para el televisor, uno por pantalla. Sin avisos vigentes no se muestra.'
   }
+}
+
+/**
+ * El mismo texto, dicho para la pantalla de toda la compañia.
+ *
+ * === POR QUE UNA REESCRITURA Y NO DOS TABLAS ===
+ *
+ * `ESCENAS` esta escrito para una pantalla de area, que es el caso normal y el unico que existia
+ * cuando se escribio. La pantalla global muestra exactamente las mismas siete escenas con los mismos
+ * datos y otro alcance: lo unico que cambia en el texto es el complemento — "del área" pasa a ser "de
+ * la compañía".
+ *
+ * Duplicar la tabla entera para cambiar esa palabra dejaria catorce descripciones que mantener en
+ * lugar de siete, y la copia se quedaria atras la primera vez que alguien mejore una frase. Reescribir
+ * el complemento mantiene una sola fuente y hace que un texto nuevo herede la traduccion sin que nadie
+ * se acuerde de hacerlo.
+ *
+ * Es un reemplazo acotado y no una traduccion general: solo las dos formas en que este archivo nombra
+ * al area. Si algun dia hiciera falta una frase que se diga de otra manera en la global, la respuesta
+ * es partir esa entrada en dos, no ampliar esta funcion hasta que sea imposible saber que produce.
+ *
+ * @param texto    el texto escrito para un area
+ * @param esGlobal si la pantalla es la de toda la compañia; `false` devuelve el texto intacto
+ * @returns el texto listo para mostrar
+ */
+export function textoParaAlcance (texto: string, esGlobal: boolean): string {
+  if (!esGlobal) return texto
+
+  return texto
+    .replaceAll('del área', 'de la compañía')
+    .replaceAll('el área', 'la compañía')
+    .replaceAll('El área', 'La compañía')
 }
 
 /**
@@ -76,13 +128,25 @@ export const ESCENAS: Record<ClaseConfigurable, { nombre: string, descripcion: s
  * **Esto es un valor por defecto, no una migracion.** Las pantallas que ya estan colgadas conservan
  * los segundos que tengan guardados: para que hereden este ritmo hay que editarlas en el panel, que
  * es donde se decide cuanto dura cada escena de cada area.
+ *
+ * === LAS DOS QUE NO SON UNA LISTA ===
+ *
+ * `momento` es un reloj y una frase: se lee de un vistazo y ocupar diez segundos con eso deja la
+ * pared quieta, asi que hereda los seis de la portada por la misma razon.
+ *
+ * `anuncios`, al reves, es lo unico de la pantalla que escribio una persona para que alguien lo lea:
+ * una foto a pantalla completa con un titulo y una bajada. Doce segundos es lo que tarda en leerse de
+ * pie y de paso, y ademas es **por anuncio** —cada uno es una pantalla propia—, asi que tres avisos
+ * son treinta y seis segundos de vuelta. Subirlo mas hace que la gente no vuelva a ver el resto.
  */
 export const SEGUNDOS_POR_DEFECTO: Record<ClaseConfigurable, number> = {
   portada: 6,
   trabajando: 10,
   cronometros: 10,
   procesos: 10,
-  espacios: 10
+  espacios: 10,
+  momento: 6,
+  anuncios: 12
 }
 
 /** Los limites que acepta la API. Repetirlos acá evita un viaje para que conteste 422. */

@@ -1,4 +1,5 @@
 import type { ReactElement } from 'react'
+import Link from 'next/link'
 import { PantallasDeArea } from '@/componentes/administracion/PantallasDeArea'
 import { ErrorEstado, SinPermiso } from '@/componentes/estado/Estados'
 import { TituloModulo } from '@/componentes/estructura/TituloModulo'
@@ -26,8 +27,16 @@ export default async function PantallasPage (): Promise<ReactElement> {
     <section className="flex flex-col gap-4">
       <TituloModulo
         titulo="Pantallas"
-        descripcion="El código de cada área, para el televisor de su pared. Se teclea con el control remoto, no caduca, y en 'Qué se ve' se elige qué escenas muestra, en qué orden y cuánto dura cada una."
+        descripcion="El código de cada área —y el de toda la compañía— para el televisor de su pared. Se teclea con el control remoto, no caduca, y en 'Qué se ve' se elige qué escenas muestra, en qué orden y cuánto dura cada una."
       />
+
+      <p className="text-texto-tenue text-sm">
+        Los avisos que salen en estos televisores se publican en{' '}
+        <Link href="/administracion/pantallas/anuncios" className="text-acento underline">
+          Anuncios de pantalla
+        </Link>
+        .
+      </p>
 
       <ComoProyectar />
 
@@ -35,7 +44,7 @@ export default async function PantallasPage (): Promise<ReactElement> {
         ? cargado.codigo === 'forbidden'
           ? <SinPermiso />
           : <ErrorEstado detalle={cargado.message} />
-        : <PantallasDeArea inicial={cargado} />}
+        : <PantallasDeArea inicial={cargado.areas} global={cargado.global} />}
     </section>
   )
 }
@@ -76,18 +85,40 @@ function ComoProyectar (): ReactElement {
   )
 }
 
+/** Lo que la página necesita: el inventario de áreas y la pantalla de toda la compañía. */
+interface Inventario {
+  areas: PantallaDeAreaEnPanel[]
+  /** `null` solo si la API no supo contestar por ella; ver `cargar()`. */
+  global: PantallaDeAreaEnPanel | null
+}
+
 /**
- * Trae el inventario, o el error de la API como valor.
+ * Trae el inventario y la pantalla global, o el error de la API como valor.
  *
  * Separada de la página para no construir JSX dentro del `try`, igual que en el resto de
  * Administración: React no renderiza el JSX en el momento en que se lee, así que un error de render
  * ahí no lo atraparía el `catch` — y el lint del proyecto lo rechaza.
+ *
+ * === DOS PETICIONES Y NO UNA, Y POR QUÉ UNA DE ELLAS PUEDE FALLAR SOLA ===
+ *
+ * `GET /accesos/pantallas` devuelve **solo las áreas**: la global está deliberadamente fuera, porque
+ * su `area_id` es `null` y colarla en ese arreglo la dejaría caer en cualquier código que dé por hecho
+ * que ahí hay un área. Vive en `/accesos/pantallas/global`, que nunca da 404 — si nadie generó su
+ * código todavía, contesta la fila con `shared: false`.
+ *
+ * Se piden en paralelo, pero **el fallo de la global no tumba la página**: el inventario de áreas es
+ * lo que casi todo el mundo viene a buscar, y dejarlo sin dibujar porque falló una segunda petición
+ * sería castigar el caso frecuente por el raro. Si falla, la fila de la global no aparece y las de
+ * área siguen funcionando. Al revés no: sin inventario no hay pantalla que mostrar.
  */
-async function cargar (): Promise<PantallaDeAreaEnPanel[] | ErrorApi> {
+async function cargar (): Promise<Inventario | ErrorApi> {
   try {
-    const sobre = await pedir<PantallaDeAreaEnPanel[]>('/accesos/pantallas')
+    const [areas, global] = await Promise.all([
+      pedir<PantallaDeAreaEnPanel[]>('/accesos/pantallas'),
+      pedir<PantallaDeAreaEnPanel>('/accesos/pantallas/global').catch(() => null)
+    ])
 
-    return sobre.data
+    return { areas: areas.data, global: global?.data ?? null }
   } catch (error) {
     if (error instanceof ErrorApi) return error
 

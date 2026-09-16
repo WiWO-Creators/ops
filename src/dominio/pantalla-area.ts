@@ -11,10 +11,25 @@
  * Se llama `pantalla-area` y no `pantalla` porque `src/dominio/pantalla.ts` ya existe y es otra cosa:
  * normaliza el pathname para el latido de presencia.
  */
+import type { FranjaDelDia } from './momento-del-dia.ts'
 import type { EscenaDeApi, PaqueteDePantalla } from '@/datos/pantalla-area'
 
-/** Los tipos de escena que la pantalla sabe dibujar, en el orden en que se muestran. */
-export const CLASES_DE_ESCENA = ['portada', 'trabajando', 'cronometros', 'procesos', 'espacios'] as const
+/**
+ * Los tipos de escena que la pantalla sabe dibujar, en el orden en que se muestran.
+ *
+ * **Es el mismo orden que `Escritura\Pantallas::ESCENAS` de la API**, que es el que reciben las
+ * pantallas nuevas. No gobierna la vuelta —el orden real lo manda el paquete, que es lo que se
+ * configura en el panel— pero si gobierna `proximaEscenaViva()`: a donde salta la pantalla cuando la
+ * escena que estaba viendo desaparece. Con las dos listas desalineadas, esa recuperacion saltaria
+ * hacia atras.
+ *
+ * Una clase que llegue y no este aca se ignora en silencio (`esClaseConocida`). Es lo que permite que
+ * la API estrene una escena antes que el televisor sin romper ninguna pared: la pantalla vieja la
+ * saltea y sigue rotando.
+ */
+export const CLASES_DE_ESCENA = [
+  'portada', 'trabajando', 'cronometros', 'procesos', 'espacios', 'momento', 'anuncios'
+] as const
 
 export type ClaseDeEscena = typeof CLASES_DE_ESCENA[number]
 
@@ -61,6 +76,20 @@ export type Orientacion = 'horizontal' | 'vertical'
  *
  * `trabajando` es la unica escena a dos columnas en horizontal —28 son 14 filas por columna—, porque
  * un nombre de persona cabe en media pared y el de una Tarea no.
+ *
+ * === LAS DOS QUE NO SON UNA REJILLA ===
+ *
+ * `momento` y `anuncios` valen 1 en las dos orientaciones, por razones distintas:
+ *
+ * - **`momento`** no tiene items: su "1" nunca se usa para paginar, porque la escena la arma
+ *   `construirGuion` a mano a partir de la franja horaria. Esta aca para que el tipo siga siendo un
+ *   `Record` completo y nadie tenga que acordarse de un caso especial.
+ * - **`anuncios`** vale 1 de verdad: **un anuncio por pantalla**. Es lo unico que escribio una
+ *   persona para que alguien lo lea, muchas veces una foto a sangre, y meter tres en una rejilla seria
+ *   convertir tres avisos en tres miniaturas. Con `porPagina` en 1, el paginado que ya existe hace
+ *   solo el trabajo: N anuncios son N entradas del guion (`anuncios#1`, `anuncios#2`, …), cada una con
+ *   su duracion, y cero anuncios son cero entradas — o sea que la escena sale del guion sin ninguna
+ *   regla nueva.
  */
 export const REJILLAS: Record<Orientacion, Record<ClaseDeEscena, number>> = {
   horizontal: {
@@ -70,7 +99,9 @@ export const REJILLAS: Record<Orientacion, Record<ClaseDeEscena, number>> = {
     // Fila de 52 px: el avatar de quien mide es lo mas alto que lleva.
     cronometros: 15,
     procesos: 15,
-    espacios: 15
+    espacios: 15,
+    momento: 1,
+    anuncios: 1
   },
   vertical: {
     portada: 1,
@@ -78,7 +109,9 @@ export const REJILLAS: Record<Orientacion, Record<ClaseDeEscena, number>> = {
     trabajando: 30,
     cronometros: 30,
     procesos: 30,
-    espacios: 30
+    espacios: 30,
+    momento: 1,
+    anuncios: 1
   }
 }
 
@@ -109,6 +142,29 @@ export const REJILLAS: Record<Orientacion, Record<ClaseDeEscena, number>> = {
  * tiene con que llenarlas.
  */
 export const TOPE_DE_PAGINAS = 4
+
+/**
+ * El tope propio de la escena `anuncios`.
+ *
+ * Con `porPagina` en 1, una pagina es un anuncio, asi que el tope general de cuatro seria "solo se ven
+ * cuatro avisos" — y los avisos los publico alguien a mano, para hoy, esperando que se vean. Cuatro es
+ * poco; sin tope, en cambio, veinte anuncios de doce segundos son cuatro minutos en los que la pared
+ * no enseña una sola Tarea y deja de ser un tablero.
+ *
+ * Ocho es el punto donde las dos cosas siguen siendo ciertas: 8 x 12 s = 1 min 36 s de anuncios, que
+ * en una vuelta con las otras escenas sigue siendo una pared que rota. Lo que pase de ocho se cuenta
+ * en `ocultos` y la escena lo dice, igual que las listas: nunca se miente por omision.
+ */
+export const TOPE_DE_ANUNCIOS = 8
+
+/**
+ * Las escenas que son un titulo y no una lista.
+ *
+ * Duran una fraccion (`PROPORCION_PORTADA`) de lo que dura una escena de lista cuando la duracion no
+ * viene de la configuracion: son tres cifras o una frase, se leen de un vistazo, y ocupar veinte
+ * segundos con ellas deja la pared quieta. La configuracion del panel, cuando existe, manda igual.
+ */
+const ESCENAS_BREVES: ReadonlySet<string> = new Set(['portada', 'momento'])
 
 /** Una escena ya resuelta, lista para dibujar. */
 export interface Escena {
@@ -235,11 +291,37 @@ export function leerParametrosDePantalla (
  *
  * Pasado el tope de paginas se corta, y lo que se corto viaja en `ocultos` para que el pie pueda
  * decir "+7 mas". Nunca se miente por omision.
+ *
+ * === LAS TRES FORMAS DE ENTRAR AL GUION ===
+ *
+ * Con `momento` la regla de lo vacio dejo de tener dos casos y paso a tener tres. Vale la pena
+ * nombrarlos, porque es donde alguien se va a equivocar:
+ *
+ * 1. **La portada entra siempre.** No tiene items ni puede quedarse sin ellos, y es lo que impide que
+ *    el guion vuelva vacio. No se puede saltar ni con `?saltar=`.
+ * 2. **Las escenas de lista entran si tienen items** —`trabajando`, `cronometros`, `procesos`,
+ *    `espacios` y `anuncios`—. Lo decide `paginar()`, que con cero items devuelve cero paginas.
+ *    `anuncios` cae aca sin ninguna regla nueva porque su rejilla es 1: sin avisos vigentes no hay
+ *    paginas, y la escena sale sola.
+ * 3. **`momento` entra si el reloj lo dice.** No tiene items que contar: lo que decide es la franja
+ *    horaria, que llega ya resuelta en el parametro `franja` (ver `franjaDelMomento()` en
+ *    `src/dominio/momento-del-dia.ts`). Fuera de sus franjas —o mientras no haya llegado `meta` con la
+ *    zona— la escena **no se muestra**, exactamente igual que una lista vacia. Si no fuera asi, la
+ *    pantalla gastaria una escena de cada vuelta, todo el dia, en un reloj mudo que ya esta en la
+ *    cabecera.
+ *
+ * La firma se entera de las tres cosas sin ayuda, porque las tres son la presencia o la ausencia de un
+ * id. Y el id de `momento` **lleva dentro la clave de la franja** (`momento#apertura`), asi que pasar
+ * de "buenos dias" a "hora de almuerzo" tambien cambia la firma: la rotacion reinicia la escena y
+ * nadie ve el mensaje anterior congelado en la pared.
+ *
+ * @param franja la franja horaria vigente, o `null` si no hay ninguna o todavia no se sabe la zona
  */
 export function construirGuion (
   paquete: PaqueteDePantalla | null,
   parametros: ParametrosDePantalla,
-  orientacion: Orientacion = 'horizontal'
+  orientacion: Orientacion = 'horizontal',
+  franja: FranjaDelDia | null = null
 ): Escena[] {
   if (paquete === null) return []
 
@@ -256,6 +338,20 @@ export function construirGuion (
       guion.push({
         id: 'portada',
         clase: 'portada',
+        duracionMs: duracion,
+        items: [],
+        ocultos: 0,
+        origen: escena
+      })
+      continue
+    }
+
+    if (escena.kind === 'momento') {
+      if (franja === null) continue
+
+      guion.push({
+        id: `momento#${franja.clave}`,
+        clase: 'momento',
         duracionMs: duracion,
         items: [],
         ocultos: 0,
@@ -285,10 +381,12 @@ export function construirGuion (
  * que leer.
  */
 function duracionDe (escena: EscenaDeApi, parametros: ParametrosDePantalla): number {
+  const breve = ESCENAS_BREVES.has(escena.kind)
+
   if (parametros.segundosPorEscena !== null) {
     const base = parametros.segundosPorEscena * 1000
 
-    return escena.kind === 'portada' ? Math.round(base * PROPORCION_PORTADA) : base
+    return breve ? Math.round(base * PROPORCION_PORTADA) : base
   }
 
   if (typeof escena.seconds === 'number' && escena.seconds > 0) {
@@ -297,7 +395,7 @@ function duracionDe (escena: EscenaDeApi, parametros: ParametrosDePantalla): num
 
   const base = SEGUNDOS_DE_RESPALDO * 1000
 
-  return escena.kind === 'portada' ? Math.round(base * PROPORCION_PORTADA) : base
+  return breve ? Math.round(base * PROPORCION_PORTADA) : base
 }
 
 /**
@@ -422,7 +520,10 @@ function paginar (escena: EscenaDeApi, duracionMs: number, orientacion: Orientac
   if (items.length === 0) return []
 
   const porPagina = REJILLAS[orientacion][escena.kind as ClaseDeEscena]
-  const paginas = Math.min(Math.ceil(items.length / porPagina), TOPE_DE_PAGINAS)
+  // `anuncios` lleva su propio techo: una pagina es un anuncio, y cuatro serian pocos. Ver
+  // `TOPE_DE_ANUNCIOS`.
+  const tope = escena.kind === 'anuncios' ? TOPE_DE_ANUNCIOS : TOPE_DE_PAGINAS
+  const paginas = Math.min(Math.ceil(items.length / porPagina), tope)
   const mostrados = Math.min(items.length, paginas * porPagina)
 
   const escenas: Escena[] = []
