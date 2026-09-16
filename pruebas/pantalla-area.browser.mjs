@@ -224,6 +224,105 @@ try {
     })
   }
 
+  // === 1b. El tablero esta alineado y en vertical se le caen columnas ========================
+  //
+  // Las escenas de lista dejaron de ser fichas y son una tabla de columnas fijas. Lo que la hace
+  // legible desde el pasillo es que la fila de rotulos y las quince filas de debajo caigan en el
+  // MISMO reparto de columnas; si alguien toca una de las dos plantillas de `pantalla.css` y no la
+  // otra, la pantalla sigue viendose bien de lejos y deja de decir la verdad: la fecha queda bajo el
+  // rotulo del estado.
+  //
+  // Y en vertical hay 92vmin de ancho contra 170, asi que algunas columnas se caen a proposito
+  // (`portrait:hidden`). Que se caigan es correcto; que no se caiga ninguna significaria que la
+  // plantilla vertical no se esta aplicando y que los nombres se estan recortando en silencio.
+  for (const clase of ['procesos', 'cronometros', 'espacios']) {
+    const celdas = {}
+
+    for (const [nombre, medidas] of [['tumbado', TUMBADO], ['de pie', DE_PIE]]) {
+      await conPagina(contexto, async (pagina) => {
+        await pagina.setViewportSize(medidas)
+        await sondeoFijo(pagina, paquete({ cronometros: 20, tareas: 20, proyectos: 20, dura: 120 }))
+        await abrir(pagina, `?solo=${clase}&escena=120`)
+
+        const m = await pagina.evaluate(() => {
+          const cuerpo = document.querySelector('main section')
+          const rotulos = cuerpo.querySelector('.pantalla-fila')
+          const fila = cuerpo.querySelector('ul > li')
+          const visibles = (elemento) => [...elemento.children]
+            .filter((celda) => getComputedStyle(celda).display !== 'none').length
+
+          return {
+            rotulos: getComputedStyle(rotulos).gridTemplateColumns,
+            fila: getComputedStyle(fila).gridTemplateColumns,
+            celdas: visibles(fila),
+            celdasDeRotulos: visibles(rotulos)
+          }
+        })
+
+        assert.equal(
+          m.fila,
+          m.rotulos,
+          `${nombre}: en "${clase}" los rotulos y las filas no comparten reparto de columnas; el tablero miente.`
+        )
+        assert.equal(
+          m.celdasDeRotulos,
+          m.celdas,
+          `${nombre}: en "${clase}" hay ${m.celdasDeRotulos} rotulos para ${m.celdas} columnas de datos.`
+        )
+
+        celdas[nombre] = m.celdas
+      })
+    }
+
+    assert.ok(
+      celdas['de pie'] < celdas.tumbado,
+      `En "${clase}" de pie se ven ${celdas['de pie']} columnas y tumbado ${celdas.tumbado}: la plantilla vertical no se esta aplicando.`
+    )
+  }
+
+  // === 1c. Lo que no entra se cuenta, y lo dice arriba =======================================
+  //
+  // Con 200 Tareas abiertas y cuatro paginas de quince, la pared enseña sesenta y esconde el resto.
+  // Que las esconda esta bien —es una pared, no un panel—; lo que no puede pasar es que no lo diga.
+  // El "+N más" se mudo del pie al titulo cuando las escenas se volvieron tabla: ahi no cuesta una
+  // fila de banda util, pero tiene que seguir apareciendo y tiene que seguir siendo cierto.
+  await conPagina(contexto, async (pagina, errores) => {
+    await pagina.setViewportSize(TUMBADO)
+    await sondeoFijo(pagina, paquete({ tareas: 200, dura: 120 }))
+    await abrir(pagina, '?solo=procesos&escena=5')
+
+    // El "+N más" lo lleva la ULTIMA pagina, que es donde el corte ocurre de verdad: en la primera
+    // no hay nada escondido todavia, y anunciarlo ahi seria mentir al reves. Asi que hay que esperar
+    // a que la rotacion llegue a `procesos#4`, la cuarta y ultima que `TOPE_DE_PAGINAS` permite.
+    await pagina.waitForFunction(
+      () => document.querySelector('main')?.dataset.escena === 'procesos#4',
+      null,
+      { timeout: 40_000 }
+    )
+
+    const m = await pagina.evaluate(() => {
+      const cuerpo = document.querySelector('main section')
+      const marco = cuerpo.getBoundingClientRect()
+      const filas = [...cuerpo.querySelector('ul').children]
+
+      return {
+        texto: cuerpo.innerText,
+        filas: filas.length,
+        recortada: filas.some((fila) => fila.getBoundingClientRect().bottom > marco.bottom + 1)
+      }
+    })
+
+    // Las paginas del guion son `TOPE_DE_PAGINAS`, y cada una lleva la rejilla horizontal entera.
+    const mostradas = 4 * m.filas
+    assert.ok(m.filas > 10, `Una pagina de Tareas tiene que traer mas de diez filas; trajo ${m.filas}.`)
+    assert.ok(!m.recortada, 'Con la lista llena, la ultima fila se sale del marco.')
+    assert.ok(
+      m.texto.includes(`+${200 - mostradas} más`),
+      `La escena esconde ${200 - mostradas} Tareas y no lo dice; el titulo decia: ${m.texto.split('\n')[0]}`
+    )
+    assert.deepEqual(errores, [], `Errores de React o de pagina: ${errores.join(' | ')}`)
+  })
+
   await conPagina(contexto, async (pagina) => {
     // === 2b. Girar el televisor reacomoda la pantalla sola =====================================
     //

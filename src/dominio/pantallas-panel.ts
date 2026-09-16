@@ -48,13 +48,41 @@ export const ESCENAS: Record<ClaseConfigurable, { nombre: string, descripcion: s
   }
 }
 
-/** Duracion por defecto de una escena que se acaba de encender. */
+/**
+ * Duracion por defecto de una escena que se acaba de encender.
+ *
+ * === POR QUE BAJARON DE 20 A 10 SEGUNDOS ===
+ *
+ * Los veinte venian de cuando una escena eran cinco fichas grandes: con tan poco en pantalla, la
+ * unica forma de que la vuelta enseñara algo era que cada escena durara. Desde que las escenas son un
+ * tablero denso —quince Tareas por pagina en horizontal, treinta en vertical; ver `REJILLAS` en
+ * `src/dominio/pantalla-area.ts`— el problema se dio vuelta: hay cuatro veces mas que mostrar y el
+ * cuello de botella es cuanto tarda la pared en volver a la escena que a uno le interesa.
+ *
+ * Diez segundos es lo que tarda en recorrerse una tabla de quince filas buscando la propia, que es lo
+ * que la gente hace con un tablero de aeropuerto: no lo lee entero, busca su fila. Nadie se queda
+ * parado leyendo una pared; quien necesite el detalle lo tiene en el panel.
+ *
+ * La portada dura un 40% menos —seis segundos— por lo mismo de siempre: es un titulo y tres cifras,
+ * no una lista que haya que leer. Es la misma proporcion que `duracionDe()` usa cuando la escena
+ * llega sin `seconds`, y se mantiene a mano acá porque lo que el panel guarda es un numero por
+ * escena, no una proporcion.
+ *
+ * === LA VUELTA COMPLETA ===
+ *
+ * Con estos valores, un area grande da 1 min 46 s en horizontal y 1 min 06 s en vertical; un area
+ * normal, con todo en una pagina, da 46 s. La cuenta entera esta en el docblock de `TOPE_DE_PAGINAS`.
+ *
+ * **Esto es un valor por defecto, no una migracion.** Las pantallas que ya estan colgadas conservan
+ * los segundos que tengan guardados: para que hereden este ritmo hay que editarlas en el panel, que
+ * es donde se decide cuanto dura cada escena de cada area.
+ */
 export const SEGUNDOS_POR_DEFECTO: Record<ClaseConfigurable, number> = {
-  portada: 12,
-  trabajando: 20,
-  cronometros: 20,
-  procesos: 20,
-  espacios: 20
+  portada: 6,
+  trabajando: 10,
+  cronometros: 10,
+  procesos: 10,
+  espacios: 10
 }
 
 /** Los limites que acepta la API. Repetirlos acá evita un viaje para que conteste 422. */

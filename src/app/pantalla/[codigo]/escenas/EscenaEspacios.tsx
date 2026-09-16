@@ -1,7 +1,13 @@
 import type { ReactNode } from 'react'
+import { cn } from '@/lib/clases'
 import { GLOSARIO } from '@/dominio/glosario'
 import type { ProyectoEnPantalla } from '@/datos/pantalla-area'
-import { Nada, Ocultos, TituloDeEscena } from './piezas'
+import {
+  CabeceraDeEscena, CUERPO_COLUMNA, CUERPO_PRINCIPAL, Nada, RELLENO_DE_FILA, RotulosDeColumna
+} from './piezas'
+
+/** La rejilla de columnas de esta escena. Su reparto vive en `pantalla.css`. */
+const COLUMNAS = 'pantalla-columnas-espacios'
 
 /**
  * Los Proyectos donde el area tiene trabajo abierto.
@@ -12,6 +18,17 @@ import { Nada, Ocultos, TituloDeEscena } from './piezas'
  *
  * El avance es un porcentaje y **nunca un importe**: acá no hay ni presupuesto ni facturacion, por
  * decision del producto y por construccion del backend, que no consulta ninguna tabla de dinero.
+ *
+ * === LO QUE GANO AL VOLVERSE TABLA ===
+ *
+ * Era una rejilla de tarjetas de ~218 px: entraban seis. Ahora es una fila por Proyecto y entran mas
+ * del doble, con una columna nueva que antes viajaba en el paquete y no se dibujaba en ningun sitio:
+ * la fecha de entrega. Las atrasadas tienen columna propia en vez de ser un fragmento de frase al
+ * final de un parrafo, que es lo que permite recorrerlas de arriba abajo sin leer.
+ *
+ * La barra de avance sobrevivio acá —y no en la escena de Tareas— porque hay una sola por fila y
+ * sobra ancho: una columna de barras de 22vmin junto al numero se lee como un grafico, que es
+ * exactamente lo que se quiere de "cómo va cada Proyecto".
  */
 export function EscenaEspacios ({ items, ocultos }: {
   items: ProyectoEnPantalla[]
@@ -21,51 +38,80 @@ export function EscenaEspacios ({ items, ocultos }: {
 
   return (
     <div className="flex min-h-0 flex-col">
-      <TituloDeEscena>{GLOSARIO.espacio.plural} en curso</TituloDeEscena>
+      <CabeceraDeEscena titulo={`${GLOSARIO.espacio.plural} en curso`} ocultos={ocultos} />
 
-      <ul className="grid grid-cols-2 gap-[2vmin] portrait:grid-cols-1">
+      <RotulosDeColumna columnas={COLUMNAS}>
+        <span className="truncate">{GLOSARIO.espacio.singular}</span>
+        <span className="portrait:hidden">Avance</span>
+        <span className="text-right">%</span>
+        <span className="truncate text-right">Abiertas</span>
+        <span className="truncate text-right">Atrasadas</span>
+        <span className="truncate text-right portrait:hidden">Entrega</span>
+      </RotulosDeColumna>
+
+      <ul className="pantalla-tablero min-h-0">
         {items.map((proyecto) => (
-          <li
-            key={proyecto.id}
-            className="border-linea bg-superficie-elevada flex flex-col gap-[1.2vmin] rounded-[2vmin] border p-[2.2vmin]"
-          >
-            <p className="text-texto truncate text-[3.4vmin] font-semibold">{proyecto.name}</p>
+          <li key={proyecto.id} className={cn('pantalla-fila py-[0.55vmin] leading-[1.15]', RELLENO_DE_FILA, COLUMNAS)}>
+            <span className={cn('text-texto truncate font-semibold', CUERPO_PRINCIPAL)}>
+              {proyecto.name}
+            </span>
 
-            <div className="flex items-center gap-[1.5vmin]">
-              <div className="bg-linea-suave h-[1vmin] flex-1 overflow-hidden rounded-full">
-                <div className="bg-acento h-full rounded-full" style={{ width: `${proyecto.progress}%` }} />
-              </div>
-              <span className="text-texto w-[7vmin] text-[2.8vmin] font-semibold tabular-nums">
-                {proyecto.progress}%
-              </span>
-            </div>
+            <span className="bg-linea-suave h-[1vmin] overflow-hidden rounded-full portrait:hidden">
+              <span
+                className="bg-acento block h-full rounded-full"
+                style={{ width: `${proyecto.progress}%` }}
+              />
+            </span>
 
-            <p className="text-texto-tenue text-[2.6vmin]">
-              {abiertas(proyecto.procesos_abiertos)}
-              {proyecto.procesos_atrasados > 0 && (
-                <span className="text-texto-peligro font-semibold">
-                  {' · '}{proyecto.procesos_atrasados} {proyecto.procesos_atrasados === 1 ? 'atrasada' : 'atrasadas'}
-                </span>
-              )}
-            </p>
+            <span className={cn('text-texto text-right font-semibold tabular-nums', CUERPO_COLUMNA)}>
+              {proyecto.progress}%
+            </span>
+
+            <span className={cn('text-texto-tenue text-right tabular-nums', CUERPO_COLUMNA)}>
+              {proyecto.procesos_abiertos}
+            </span>
+
+            <Atrasadas cuantas={proyecto.procesos_atrasados} />
+
+            <span className={cn('text-texto-tenue text-right tabular-nums portrait:hidden', CUERPO_COLUMNA)}>
+              {formatoCorto(proyecto.deadline)}
+            </span>
           </li>
         ))}
       </ul>
-
-      <Ocultos cuantos={ocultos} />
     </div>
   )
 }
 
 /**
- * "1 tarea abierta" / "3 tareas abiertas".
+ * Las Tareas atrasadas del Proyecto.
  *
- * El adjetivo concuerda con el sustantivo, no solo el sustantivo con el numero: escribir
- * `{n} {etiqueta(n)} abiertas` daba "1 tarea abiertas", que es el tipo de detalle que en una pared de
- * dos metros lee todo el mundo.
+ * El cero se dibuja en gris y no se esconde: una columna con huecos obliga a comprobar si falta el
+ * dato o si el dato es cero, y esa duda cuesta mas que el cero.
  */
-function abiertas (cuantas: number): string {
-  const nombre = (cuantas === 1 ? GLOSARIO.proceso.singular : GLOSARIO.proceso.plural).toLowerCase()
+function Atrasadas ({ cuantas }: { cuantas: number }): ReactNode {
+  if (cuantas === 0) {
+    return <span className={cn('text-texto-sutil text-right tabular-nums', CUERPO_COLUMNA)}>0</span>
+  }
 
-  return `${cuantas} ${nombre} ${cuantas === 1 ? 'abierta' : 'abiertas'}`
+  return (
+    <span className={cn('text-texto-peligro text-right font-bold tabular-nums', CUERPO_COLUMNA)}>
+      {cuantas}
+    </span>
+  )
+}
+
+/**
+ * `YYYY-MM-DD` a `DD/MM`, y una raya cuando no hay fecha.
+ *
+ * A mano y no con `Intl`, por lo mismo que en `EscenaProcesos`: la fecha llega como dia calendario,
+ * sin hora ni zona, y pasarla por `Date` la interpreta en UTC y la corre un dia en cuanto el
+ * televisor esta al oeste de Greenwich.
+ */
+function formatoCorto (fecha: string | null): string {
+  if (fecha === null) return '—'
+
+  const [, mes, dia] = fecha.split('-')
+
+  return dia === undefined || mes === undefined ? fecha : `${dia}/${mes}`
 }

@@ -9,24 +9,82 @@ import { coloresAvatar, iniciales } from '@/lib/personas'
  * este directorio: aquellos componentes miden en pixeles fijos (`size-8`, `text-xs`), que es lo
  * correcto para un monitor a medio metro y lo incorrecto para un televisor a cuatro metros que ademas
  * puede reportar cualquier resolucion CSS. Acá todo mide en `vmin`.
+ *
+ * === LA ESCALA DEL TABLERO ===
+ *
+ * Desde que las escenas de lista son un tablero de salidas y no una pared de fichas, los cuerpos de
+ * letra son tres y solo tres, y estan acá para que las cuatro escenas no se vayan cada una por su
+ * lado:
+ *
+ * - **`CUERPO_PRINCIPAL` (3vmin ≈ 32 px a 1080p).** El nombre de la Tarea, de la persona o del
+ *   Proyecto: lo unico que alguien lee de verdad desde el pasillo. La referencia de la que sale
+ *   —2 cm de altura de mayuscula a cuatro metros, ~45 px— corresponde a un televisor de 55"; en los
+ *   de 65", que son los que cuelgan en la oficina, 32 px dan esos mismos 2 cm largos.
+ * - **`CUERPO_COLUMNA` (2.7vmin ≈ 29 px).** Todo lo demas: el Proyecto, el estado, la fecha, el
+ *   cargo. Son campos de apoyo, se leen sabiendo de antemano que dicen, y por eso aguantan bajar.
+ *   Es tambien el piso duro: `pruebas/pantalla-area.browser.mjs` falla si aparece texto por debajo
+ *   de 28 px, para que nadie resuelva un desborde achicando la letra.
+ * - **`CUERPO_ETIQUETA` (2.7vmin, en versalitas y muy espaciado).** Los rotulos de columna, que se
+ *   leen una vez y despues se reconocen por la posicion.
  */
 
+/** El nombre: lo unico que se lee desde el pasillo. */
+export const CUERPO_PRINCIPAL = 'text-[3vmin]'
+
+/** Los campos de apoyo del tablero, y el piso tipografico de toda la pantalla. */
+export const CUERPO_COLUMNA = 'text-[2.7vmin]'
+
+/** Los rotulos de columna. */
+export const CUERPO_ETIQUETA = 'text-[2.7vmin] tracking-[0.16em] uppercase'
+
 /**
- * Avatar grande, para leerse de lejos.
+ * El relleno lateral de una fila del tablero, rotulos incluidos.
+ *
+ * Es una constante y no una clase escrita en cada escena porque las columnas se alinean SOLAS: el
+ * ancho de la columna flexible es lo que sobra despues del relleno, asi que si la fila de rotulos
+ * lleva un relleno distinto al de las filas de datos, el rotulo "Proyecto" queda tres centimetros a
+ * la izquierda de los Proyectos y la tabla deja de ser una tabla. Lo vigila la prueba de navegador,
+ * que compara el `grid-template-columns` resuelto de las dos.
+ */
+export const RELLENO_DE_FILA = 'px-[1.5vmin]'
+
+/**
+ * El diametro por debajo del cual las iniciales dejan de dibujarse.
+ *
+ * `iniciales()` ocupa el 42% del circulo, asi que un avatar de 6.6vmin deja letras de 2.8vmin —justo
+ * el piso de la pantalla— y uno de 3.8vmin las deja de 1.6vmin, que a cuatro metros no son letras
+ * sino suciedad en el cristal. Ver `Cara`.
+ */
+const DIAMETRO_CON_INICIALES = 6.6
+
+/**
+ * Avatar, para reconocer a alguien de lejos sin leer.
  *
  * Reusa `iniciales()` y `coloresAvatar()` de `@/lib/personas`, que son las mismas funciones que usa el
  * panel: dos personas tienen el mismo color en las dos pantallas, y el color no se reinventa acá.
  *
+ * === POR QUE UN AVATAR CHICO NO LLEVA INICIALES ===
+ *
+ * En el tablero denso el avatar mide 3.8vmin: lo que cabe en una fila sin hacerla mas alta. A ese
+ * diametro las iniciales saldrian a 1.6vmin —17 px a 1080p—, que no se leen a cuatro metros y ademas
+ * romperian el piso tipografico que la prueba de navegador vigila. Asi que por debajo de
+ * `DIAMETRO_CON_INICIALES` el avatar sin foto queda como un disco de color, y punto.
+ *
+ * No es una perdida: el color sale del nombre y es estable entre pantallas, asi que sirve de ancla
+ * para recorrer una columna, y el nombre completo esta al lado en 3vmin. Lo que se pierde es una
+ * etiqueta ilegible.
+ *
  * No usa `next/image`: las fotos salen de `uploads/` de Perfex, en otro dominio, y una pantalla que
- * las carga cada tantos minutos no gana nada con la optimizacion. Si la imagen falla, queda el fondo
- * con las iniciales debajo, que es la caida correcta sin necesidad de estado.
+ * las carga cada tantos minutos no gana nada con la optimizacion. Si la imagen falla, queda el disco
+ * de color debajo, que es la caida correcta sin necesidad de estado.
  */
-export function Cara ({ nombre, imagen, tamano = '9vmin' }: {
+export function Cara ({ nombre, imagen, tamano = '3.8vmin' }: {
   nombre: string
   imagen: string | null
   tamano?: string
 }): ReactNode {
   const colores = coloresAvatar(nombre)
+  const conIniciales = Number.parseFloat(tamano) >= DIAMETRO_CON_INICIALES
 
   return (
     <span
@@ -34,12 +92,12 @@ export function Cara ({ nombre, imagen, tamano = '9vmin' }: {
       style={{
         width: tamano,
         height: tamano,
-        fontSize: `calc(${tamano} * 0.38)`,
+        fontSize: `calc(${tamano} * 0.42)`,
         backgroundColor: colores.fondo,
         color: colores.texto
       }}
     >
-      {iniciales(nombre)}
+      {conIniciales && iniciales(nombre)}
       {imagen !== null && imagen !== '' && (
         // eslint-disable-next-line @next/next/no-img-element
         <img
@@ -53,11 +111,36 @@ export function Cara ({ nombre, imagen, tamano = '9vmin' }: {
 }
 
 /**
+ * "Bernardita Undurraga Soto" a "Bernardita U.". El nombre que cabe en una columna angosta.
+ *
+ * En el tablero, quien tiene asignada una Tarea es una columna de texto y no una pila de caras: a
+ * cuatro metros una cara de 3.4vmin no se reconoce, y tres superpuestas menos. Un nombre abreviado si
+ * se lee, y ademas se puede recorrer la columna de arriba abajo buscando a alguien.
+ *
+ * Se queda con el nombre de pila entero y con la inicial de la palabra siguiente, que en la
+ * convencion chilena es el primer apellido: es por ahi por donde se identifica a alguien, y el segundo
+ * apellido no distingue nada que el primero no distinga ya. Con un nombre compuesto —"José Luis
+ * Pérez"— sale "José L.", que no es el apellido; se acepta a cambio de que la columna quepa en 20vmin
+ * y no haya que recortar el nombre de la Tarea para hacerle sitio.
+ *
+ * No usa `iniciales()`: esa devuelve dos letras para meterlas en un circulo, y acá hace falta algo
+ * que se pueda leer en voz alta.
+ */
+export function nombreCorto (nombre: string): string {
+  const [pila, siguiente] = nombre.trim().split(/\s+/).filter((parte) => parte !== '')
+
+  if (pila === undefined) return ''
+  if (siguiente === undefined) return pila
+
+  return `${pila} ${siguiente.slice(0, 1)}.`
+}
+
+/**
  * Un contador que corre en pantalla, formateado `H:MM:SS`.
  *
- * `ahora` llega de arriba y no de un `Date.now()` propio: un tic por escena y no uno por ficha. Con
- * doce caras en pantalla, doce temporizadores propios serian doce repintados por segundo para mostrar
- * lo mismo.
+ * `ahora` llega de arriba y no de un `Date.now()` propio: un tic por escena y no uno por fila. Con
+ * treinta filas en pantalla, treinta temporizadores propios serian treinta repintados por segundo
+ * para mostrar lo mismo.
  *
  * **Congelado dice la verdad.** Cuando los datos estan viejos el contador deja de sumar y se queda en
  * el ultimo valor bueno: un numero que sigue trepando con la conexion caida es una mentira, y esta
@@ -92,21 +175,6 @@ export function Corriendo ({ desde, ahora, congelado, className }: {
 }
 
 /**
- * El pie de una escena paginada: cuantos quedaron fuera.
- *
- * Nunca se miente por omision. Si la lista se corto, la pantalla lo dice.
- */
-export function Ocultos ({ cuantos }: { cuantos: number }): ReactNode {
-  if (cuantos <= 0) return null
-
-  return (
-    <p className="text-texto-tenue mt-[1.5vmin] text-[2.8vmin]">
-      +{cuantos} más
-    </p>
-  )
-}
-
-/**
  * Lo que se muestra cuando una escena queda vacia y todavia asi se quiere mostrar.
  *
  * Casi nunca se usa: `construirGuion()` saca del guion las escenas vacias. Queda para el unico caso
@@ -118,11 +186,73 @@ export function Nada ({ texto }: { texto: string }): ReactNode {
   )
 }
 
-/** Titulo de escena. Uno por escena, siempre en el mismo lugar. */
-export function TituloDeEscena ({ children }: { children: ReactNode }): ReactNode {
+/**
+ * La cabecera de una escena de lista: el titulo, el total y lo que no entro.
+ *
+ * === LOS "+N MÁS" VIVEN ACÁ, Y NO AL PIE ===
+ *
+ * Antes eran una linea propia debajo de la lista. Costaban ~4.3vmin de banda util, que es casi una
+ * fila entera del tablero, y para decir algo que nadie lee al pie de una pared. Puestos junto al
+ * titulo no cuestan ni un pixel de alto y se leen en el mismo golpe de vista que el nombre de la
+ * escena — que es como los rotula un tablero de aeropuerto de verdad.
+ *
+ * Lo que no cambia es que se digan. Nunca se miente por omision: si la lista se corto, la pantalla
+ * lo dice.
+ *
+ * @param titulo   el nombre de la escena
+ * @param total    cuantos hay en total, si la API lo sabe; se omite cuando no
+ * @param ocultos  cuantos quedaron fuera del corte, 0 si no se corto nada
+ */
+export function CabeceraDeEscena ({ titulo, total, ocultos }: {
+  titulo: string
+  total?: number
+  ocultos: number
+}): ReactNode {
   return (
-    <h2 className="text-texto-tenue mb-[2.5vmin] text-[3.4vmin] font-semibold tracking-[0.18em] uppercase">
+    <div className="mb-[0.8vmin] flex shrink-0 items-baseline justify-between gap-[3vmin]">
+      <h2 className={cn('text-texto-tenue truncate font-semibold', CUERPO_ETIQUETA)}>
+        {titulo}
+        {total !== undefined && (
+          <span className="text-texto-sutil ml-[1.5vmin] font-normal tracking-normal tabular-nums">
+            {total}
+          </span>
+        )}
+      </h2>
+
+      {ocultos > 0 && (
+        <span className={cn('text-texto-sutil shrink-0 tabular-nums', CUERPO_COLUMNA)}>
+          +{ocultos} más
+        </span>
+      )}
+    </div>
+  )
+}
+
+/**
+ * La fila de rotulos de columna del tablero.
+ *
+ * Es un `div` y no la primera fila del `<ul>` a proposito: la prueba de navegador mide cada hijo
+ * directo de la lista contra el marco para cazar desbordes, y una fila que no es un item falsearia
+ * esa cuenta. Comparte la clase de rejilla con las filas, que es lo que hace que las columnas caigan
+ * en el mismo sitio.
+ *
+ * @param columnas  la clase `.pantalla-columnas-*` de la escena
+ * @param children  un elemento por columna, en el mismo orden que las filas
+ */
+export function RotulosDeColumna ({ columnas, children }: {
+  columnas: string
+  children: ReactNode
+}): ReactNode {
+  return (
+    <div
+      className={cn(
+        'pantalla-fila border-linea-fuerte text-texto-sutil shrink-0 border-b pb-[0.6vmin] font-semibold',
+        RELLENO_DE_FILA,
+        CUERPO_ETIQUETA,
+        columnas
+      )}
+    >
       {children}
-    </h2>
+    </div>
   )
 }

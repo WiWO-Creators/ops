@@ -22,48 +22,93 @@ export type ClaseDeEscena = typeof CLASES_DE_ESCENA[number]
 export type Orientacion = 'horizontal' | 'vertical'
 
 /**
- * Cuantas fichas entran por escena, segun como este puesto el televisor.
+ * Cuantas filas entran por escena, segun como este puesto el televisor.
  *
- * No son numeros elegidos por gusto ni por estetica: salen de medir. A cuatro metros la altura de
- * mayuscula tiene que rondar los 2 cm —~45 px de cuerpo para un nombre a 1080p—, y con esa escala y
- * los margenes, en la banda util entran exactamente estas cantidades. Cambiarlas sin cambiar la
- * escala es achicar la letra para que entre, que es lo que no hay que hacer: si no entra, se pagina.
+ * === DE DONDE SALEN ESTOS NUMEROS ===
  *
- * La banda util es lo que queda del alto tras la cabecera, el titulo de escena y el pie. En
- * horizontal (1920x1080) son ~840 px; en vertical (1080x1920), ~1670. Por eso la columna vertical
- * lleva mas del doble de filas, y a la vez menos columnas: `vmin` es el mismo en las dos
- * orientaciones —el lado corto siempre mide 1080— asi que las fichas miden igual y lo unico que
- * cambia es cuantas caben.
+ * No son elegidos por gusto: salen de medir contra el navegador, escena por escena y orientacion por
+ * orientacion. La banda util —lo que queda del alto tras la cabecera de escena, el rotulo de columnas
+ * y el pie— mide **819 px en horizontal** (1920x1080) y **1616 px en vertical** (1080x1920). La fila
+ * del tablero mide **50 px** en Tareas y Proyectos y **52 px** en las dos escenas de personas, que
+ * llevan avatar.
  *
- * `pruebas/pantalla-area.browser.mjs` mide cada ficha contra su marco en las dos orientaciones: si
- * alguno de estos numeros se pasa, la prueba lo dice. No hay forma de que un desborde pase
- * inadvertido — `overflow: hidden` no produce barra de scroll, solo corta.
+ * De ahi salen los techos: 16 filas de Tareas o de Proyectos y 15 de personas en horizontal, 32 y 31
+ * en vertical. Lo escrito abajo se queda por debajo de esos techos —una fila menos donde la division
+ * daba justo, y en `trabajando` una fila menos por columna— para que la pared no dependa de que la
+ * ultima fila entre por dos pixeles.
+ *
+ * === POR QUE ENTRAN TRES VECES MAS QUE ANTES ===
+ *
+ * La version anterior de estas escenas eran fichas: borde, redondeo, dos lineas de texto y 2vmin de
+ * aire entre una y la siguiente. Entraban cinco Tareas. Lo que se recupero al convertirlas en filas
+ * de tablero NO es cuerpo de letra —el nombre de la Tarea bajo de 3.2 a 3vmin, un 6%— sino todo lo
+ * demas: la segunda linea paso a ser dos columnas, el aire entre fichas paso a ser una raya de un
+ * pixel, y el "+N más" del pie se mudo al titulo. Ver `EscenaProcesos` y `pantalla.css`.
+ *
+ * El piso de legibilidad no se movio y no se puede mover: el nombre va en 3vmin —32 px a 1080p, que
+ * en un televisor de 65" son los 2 cm de altura de mayuscula que se leen a cuatro metros— y ningun
+ * texto de la pantalla baja de 2.7vmin. `pruebas/pantalla-area.browser.mjs` mide las dos cosas: que
+ * ninguna fila se salga del marco y que no aparezca texto por debajo de 28 px. No hay forma de que un
+ * desborde pase inadvertido —`overflow: hidden` no produce barra de scroll, solo corta— ni de
+ * resolverlo achicando la letra.
+ *
+ * === POR QUE VERTICAL LLEVA EL DOBLE, Y NO MAS ===
+ *
+ * `vmin` es el mismo en las dos orientaciones —el lado corto siempre mide 1080— asi que la fila mide
+ * igual y lo unico que cambia es cuantas caben: el doble de alto, el doble de filas. A cambio, en
+ * vertical sobran 78vmin de ancho que no existen, y por eso algunas columnas se caen alli: lo dicen
+ * las plantillas `@media (orientation: portrait)` de `pantalla.css`.
+ *
+ * `trabajando` es la unica escena a dos columnas en horizontal —28 son 14 filas por columna—, porque
+ * un nombre de persona cabe en media pared y el de una Tarea no.
  */
 export const REJILLAS: Record<Orientacion, Record<ClaseDeEscena, number>> = {
   horizontal: {
     portada: 1,
-    // Cuatro columnas por tres filas de fichas de ~150 px.
-    trabajando: 12,
-    // Filas anchas de ~140 px. Con ocho —el numero con el que nacio— la sexta y la septima quedaban
-    // cortadas sin que nada avisara.
-    cronometros: 5,
-    procesos: 5,
-    // Dos columnas por tres filas de ~218 px.
-    espacios: 6
+    // Dos columnas de 14 filas. Con el tope de 40 jornadas del backend, dos paginas.
+    trabajando: 28,
+    // Fila de 52 px: el avatar de quien mide es lo mas alto que lleva.
+    cronometros: 15,
+    procesos: 15,
+    espacios: 15
   },
   vertical: {
     portada: 1,
-    // Dos columnas, muchas mas filas: es donde el formato vertical se paga solo.
-    trabajando: 14,
-    cronometros: 9,
-    procesos: 10,
-    // Una sola columna: dos de ~500 px de ancho dejan los nombres de Proyecto en dos lineas.
-    espacios: 6
+    // Una sola columna: en vertical no hay ancho que partir, y sobra alto.
+    trabajando: 30,
+    cronometros: 30,
+    procesos: 30,
+    espacios: 30
   }
 }
 
-/** Nunca mas de estas paginas por escena: mas alla, la vuelta entera se vuelve demasiado larga. */
-export const TOPE_DE_PAGINAS = 3
+/**
+ * Nunca mas de estas paginas por escena.
+ *
+ * Cuatro y no tres porque cuatro es exactamente lo que hace falta para que la pared no esconda NADA
+ * de lo que la API le manda. Con los topes del backend —40 jornadas, 30 cronometros, 60 Tareas y 24
+ * Proyectos— y las rejillas de arriba, las paginas salen 2, 2, 4 y 2 en horizontal y 2, 1, 2 y 1 en
+ * vertical. El `ocultos` que alimenta el "+N más" del titulo sigue existiendo y sigue siendo cierto:
+ * es lo que el area tiene de mas alla de lo que el backend manda, no lo que la pantalla decidio no
+ * mostrar.
+ *
+ * === LA VUELTA COMPLETA ===
+ *
+ * A 10 segundos por escena de lista y 6 la portada (`SEGUNDOS_POR_DEFECTO` en `pantallas-panel.ts`):
+ *
+ * - Un area grande en horizontal: 1 + 2 + 2 + 4 + 2 = 11 escenas -> **1 min 46 s**, y en esa vuelta
+ *   se ven las 40 personas, los 30 cronometros, las 60 Tareas y los 24 Proyectos.
+ * - La misma area en vertical: 7 escenas -> **1 min 06 s**.
+ * - Un area normal, con todo en una pagina: 5 escenas -> **46 s**.
+ *
+ * Antes de este rediseño la misma area grande daba 12 escenas de 20 segundos: **3 min 52 s** para
+ * enseñar 36 personas, 15 cronometros, 15 Tareas y 12 Proyectos. Menos de la mitad de tiempo y cuatro
+ * veces el contenido.
+ *
+ * El numero de arriba es el techo, no lo normal: una escena solo llega a cuatro paginas si el area
+ * tiene con que llenarlas.
+ */
+export const TOPE_DE_PAGINAS = 4
 
 /** Una escena ya resuelta, lista para dibujar. */
 export interface Escena {
