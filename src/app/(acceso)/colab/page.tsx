@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation'
 import { llamarApiTipado } from '@/datos/api'
 import { leerSesion } from '@/datos/sesion'
 import type { AccesoGoogle } from '@/datos/tipos'
+import { avisoDeSesion, PARAMETRO_SESION, vieneDeSesionRechazada } from '@/dominio/entrada'
 import { FormularioEntrar } from './FormularioEntrar'
 
 export const metadata: Metadata = { title: 'Entrar · WiWO Ops' }
@@ -16,11 +17,21 @@ const SIN_GOOGLE: AccesoGoogle = { enabled: false, client_id: null }
  * Vive en `/colab` y no en la raiz porque la raiz es del cliente. Igual que la del portal, la ruta
  * queda fuera del guardia y mira la cookie por su cuenta para no mostrarle el formulario a quien ya
  * tiene sesion.
+ *
+ * El rebote a `/inicio` tiene una excepcion, y es la que corta el bucle: quien llega con
+ * `?sesion=caducada` viene de que la API rechazo su token, asi que ve el formulario aunque la cookie
+ * siga en su navegador. Sin esa excepcion, una cookie que se abre bien pero que la API ya no acepta
+ * rebota de aca a `/inicio` y de `/inicio` para aca, sin fin y sin forma de entrar. Ver
+ * `dominio/entrada.ts`.
  */
-export default async function EntrarPage () {
-  if (await leerSesion('staff') !== null) redirect('/inicio')
+export default async function EntrarPage (
+  { searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }
+) {
+  const motivo = (await searchParams)[PARAMETRO_SESION]
 
-  return <FormularioEntrar google={await accesoGoogle()} />
+  if (!vieneDeSesionRechazada(motivo) && await leerSesion('staff') !== null) redirect('/inicio')
+
+  return <FormularioEntrar google={await accesoGoogle()} aviso={avisoDeSesion(motivo)} />
 }
 
 /**

@@ -1,17 +1,12 @@
 import 'server-only'
 
 import { redirect } from 'next/navigation'
+import { entradaDe, salidaPorSesionRechazada } from '@/dominio/entrada'
 import { llamarApiTipado } from './api'
 import { ErrorApi } from './errores'
 import { leerSesion } from './sesion'
 import type { Sujeto } from './sobre-sesion'
 import type { Sobre } from './tipos'
-
-/** A donde mandar a quien no tenga sesion. Cada sujeto tiene su pantalla de acceso. */
-const ENTRADA: Record<Sujeto, string> = {
-  staff: '/colab',
-  contacto: '/'
-}
 
 /**
  * Pide un recurso a la API desde el servidor, con el token de quien mira.
@@ -27,15 +22,19 @@ const ENTRADA: Record<Sujeto, string> = {
  */
 export async function pedir<T> (ruta: string, sujeto: Sujeto = 'staff'): Promise<Sobre<T>> {
   const sesion = await leerSesion(sujeto)
-  const entrada = ENTRADA[sujeto]
 
-  if (sesion === null) redirect(entrada)
+  // Sin cookie no hay nada que cerrar: derecho a la pantalla de acceso.
+  if (sesion === null) redirect(entradaDe(sujeto))
 
   try {
     return await llamarApiTipado<T>(ruta, { token: sesion.acceso })
   } catch (error) {
     if (error instanceof ErrorApi && (error.esRefrescable || error.exigeEntrar)) {
-      redirect(entrada)
+      // Con cookie, en cambio, se sale por la puerta que la BORRA. Mandar a la pantalla de acceso
+      // directamente es lo que hacia rebotar entre `/colab` e `/inicio` sin fin: alla la cookie se
+      // abre perfecto —el cifrado no sabe que la API la rechazo— y esa pantalla vuelve a mandar al
+      // panel. Ver `dominio/entrada.ts`.
+      redirect(salidaPorSesionRechazada(sujeto))
     }
 
     throw error
