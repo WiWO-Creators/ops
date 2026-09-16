@@ -120,14 +120,14 @@ function TablaDeTrabajando ({ titulo, tabla, zona, ahora, congelado, fase }: {
         <RotulosDeColumna columnas={COLUMNAS}>
           <span />
           <span className="truncate">Persona</span>
-          <CeldaQueAlterna fase={fase} principal="Cargo" alterno="Entró" />
+          <CeldaQueAlterna solari fase={fase} principal="Cargo" alterno="Entró" />
           <span className="truncate text-right">Jornada</span>
         </RotulosDeColumna>
         <div className="portrait:hidden">
           <RotulosDeColumna columnas={COLUMNAS}>
             <span />
             <span className="truncate">Persona</span>
-            <CeldaQueAlterna fase={fase} principal="Cargo" alterno="Entró" />
+            <CeldaQueAlterna solari fase={fase} principal="Cargo" alterno="Entró" />
             <span className="truncate text-right">Jornada</span>
           </RotulosDeColumna>
         </div>

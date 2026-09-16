@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import { horaDeReloj } from '@/dominio/momento-del-dia'
 import type { FranjaDelDia } from '@/dominio/momento-del-dia'
+import { TextoSolari } from './Solari'
 
 /**
  * El momento del día: la hora en grande y una frase.
@@ -37,10 +38,16 @@ export function EscenaMomento ({ franja, ahora, zona }: {
     <div className="flex flex-1 flex-col items-center justify-center gap-[3vmin] text-center">
       {/*
         * `tabular-nums` no es cosmetico: sin el, el ancho del reloj cambia al pasar de las 09:19 a las
-        * 09:20 y el numero entero da un salto lateral en una pared de dos metros.
+        * 09:20 y el numero entero da un salto lateral en una pared de dos metros. Con el volteo Solari
+        * ademas es estructural: el hueco de cada caracter mide `1ch`.
+        *
+        * Cinco caracteres a 22vmin es el sitio donde el volteo se ve como lo que imita y no cuesta
+        * nada: un digito por minuto. `leading-none` se cae —el rodillo fija su propio renglon, que es
+        * la altura del hueco y el paso de la animacion a la vez— y por eso el bloque se centra con el
+        * `justify-center` del padre y no dependiendo del interlineado.
         */}
-      <p className="text-texto text-[22vmin] leading-none font-bold tabular-nums">
-        {horaDeReloj(ahora, zona)}
+      <p className="text-texto text-[22vmin] font-bold tabular-nums">
+        <TextoSolari texto={horaDeReloj(ahora, zona)} />
       </p>
 
       <div className="flex flex-col items-center gap-[1.5vmin]">

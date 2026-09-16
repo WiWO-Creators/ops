@@ -5,6 +5,7 @@ import type { ReactNode } from 'react'
 import { cn } from '@/lib/clases'
 import { horaDeReloj } from '@/dominio/momento-del-dia'
 import type { Escena, Frescura, Orientacion, ParametrosDePantalla } from '@/dominio/pantalla-area'
+import { TextoSolari } from './escenas/Solari'
 
 interface Props {
   area: string | null
@@ -169,6 +170,17 @@ export function MarcoDePantalla (props: Props): ReactNode {
  * El formateo lo hace `horaDeReloj()` y no un `Intl` propio: la escena `momento` muestra la misma hora
  * en 22vmin en mitad de la pared, y los dos relojes visibles a la vez no pueden discrepar ni en el
  * minuto ni en el formato.
+ *
+ * === POR QUE ESTE ES EL CASO CANONICO DEL VOLTEO SOLARI ===
+ *
+ * Un reloj de panel de aeropuerto es cinco posiciones de ancho fijo de las que cambia UNA por minuto.
+ * `TextoSolari` da una `key` por posicion y caracter, asi que al pasar de `14:32` a `14:33` solo se
+ * remonta —y solo voltea— el ultimo digito: el efecto sale gratis y ademas es fiel al aparato que
+ * imita. Los dos puntos y los guiones de `--:--` no estan en el alfabeto del rodillo, asi que se
+ * quedan quietos, que es exactamente lo que hacen las aletas fijas de un panel.
+ *
+ * El `tabular-nums` que ya tenia no era cosmetico y ahora ademas es estructural: el hueco de cada
+ * caracter mide `1ch`, y sin ancho de digito estable ese hueco no coincidiria con la letra.
  */
 function Reloj ({ ahora, zona }: { ahora: number | null, zona: string | null }): ReactNode {
   if (ahora === null) {
@@ -177,7 +189,7 @@ function Reloj ({ ahora, zona }: { ahora: number | null, zona: string | null }):
 
   return (
     <p className="text-texto text-[3.2vmin] font-semibold tabular-nums">
-      {horaDeReloj(ahora, zona)}
+      <TextoSolari texto={horaDeReloj(ahora, zona)} />
     </p>
   )
 }

@@ -58,7 +58,7 @@ export function EscenaEspacios ({ items, ocultos, ahora, zona, fase }: {
       <RotulosDeColumna columnas={COLUMNAS}>
         <span className="truncate">{GLOSARIO.espacio.singular}</span>
         <span className="portrait:hidden">Avance</span>
-        <CeldaQueAlterna fase={fase} className="text-right" principal="%" alterno="Entrega" />
+        <CeldaQueAlterna solari fase={fase} className="text-right" principal="%" alterno="Entrega" />
         <span className="truncate text-right">Abiertas</span>
         <span className="truncate text-right">Atrasadas</span>
         <span className="truncate text-right portrait:hidden">Entrega</span>
