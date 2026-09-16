@@ -1,6 +1,6 @@
 'use client'
 
-import { Check, ChevronDown, ChevronUp, Copy, MonitorPlay, RefreshCw, Trash2 } from 'lucide-react'
+import { Building2, Check, ChevronDown, ChevronUp, Copy, MonitorPlay, RefreshCw, Trash2 } from 'lucide-react'
 import { useCallback, useState, type ReactElement } from 'react'
 import { escribirEnBff } from '@/componentes/datos/mutaciones'
 import { Boton } from '@/componentes/formularios/Boton'
@@ -11,12 +11,45 @@ import { cn } from '@/lib/clases'
 import { urlDePantallaDeArea } from '@/lib/enlace-publico'
 import {
   CLASES_CONFIGURABLES, ESCENAS, SEGUNDOS_MAXIMO, SEGUNDOS_MINIMO, alternar, durar,
-  duracionDeLaVuelta, iguales, mover
+  duracionDeLaVuelta, iguales, mover, textoParaAlcance
 } from '@/dominio/pantallas-panel'
 import type { EscenaConfigurada, PantallaDeAreaEnPanel } from '@/datos/recursos'
 
 interface Props {
   inicial: PantallaDeAreaEnPanel[]
+  /**
+   * La pantalla de toda la compañía, que llega por su propia ruta y no en el inventario.
+   *
+   * `null` solo si la API falló al pedirla: la global **siempre existe como fila**, aunque nadie haya
+   * generado su código todavía, igual que un área sin pantalla. Viaja aparte y no mezclada en
+   * `inicial` porque su `area_id` es `null` y se gestiona en otra ruta, y meterla en el mismo arreglo
+   * obligaría a preguntar por el tipo en cada operación.
+   */
+  global: PantallaDeAreaEnPanel | null
+}
+
+/**
+ * La ruta de la API que gestiona una pantalla.
+ *
+ * Las dos son el mismo recurso con los mismos cuatro verbos —`GET`, `POST`, `PUT`, `DELETE`— y el
+ * mismo cuerpo; lo único que cambia es de quién es la pantalla. Se resuelve en una función para que el
+ * resto del componente no tenga que saber que existen dos.
+ *
+ * @param fila la fila del inventario, de un área o la global
+ * @returns la ruta sin la base del BFF ni barra inicial, como la espera `escribirEnBff`
+ */
+function rutaDePantalla (fila: PantallaDeAreaEnPanel): string {
+  return fila.global ? 'accesos/pantallas/global' : `accesos/areas/${fila.area_id}/pantalla`
+}
+
+/**
+ * La identidad de una fila, para React y para reemplazarla tras una escritura.
+ *
+ * No sirve `area_id`: la global lo tiene en `null`, y `null` como clave de lista es un error que React
+ * no siempre denuncia. `'global'` no puede chocar con ningún id de área.
+ */
+function claveDePantalla (fila: PantallaDeAreaEnPanel): string {
+  return fila.global ? 'global' : String(fila.area_id)
 }
 
 /**
@@ -32,15 +65,22 @@ interface Props {
  * con un mando a distancia mientras otro le dicta el código por teléfono. Un botón de copiar no sirve
  * ahí; un código grande y legible, sí.
  */
-export function PantallasDeArea ({ inicial }: Props): ReactElement {
+export function PantallasDeArea ({ inicial, global: globalInicial }: Props): ReactElement {
   const [filas, setFilas] = useState(inicial)
+  const [global, setGlobal] = useState(globalInicial)
   const [error, setError] = useState<string | null>(null)
 
   const reemplazar = useCallback((pantalla: PantallaDeAreaEnPanel): void => {
+    if (pantalla.global) {
+      setGlobal(pantalla)
+
+      return
+    }
+
     setFilas((previas) => previas.map((fila) => fila.area_id === pantalla.area_id ? pantalla : fila))
   }, [])
 
-  if (filas.length === 0) {
+  if (filas.length === 0 && global === null) {
     return (
       <Vacio
         titulo="No hay áreas"
@@ -57,10 +97,23 @@ export function PantallasDeArea ({ inicial }: Props): ReactElement {
         </p>
       )}
 
+      {/*
+        * La global va primero y en una lista aparte, no como una fila más del inventario.
+        *
+        * Es de otra cosa: las de abajo son de un área y esta es de la empresa entera, convive con
+        * ellas y no las reemplaza. Mezclada en la misma lista, alfabéticamente perdida entre
+        * "Contenido" y "Diseño", nadie entendería que abarca a las dos.
+        */}
+      {global !== null && (
+        <ul className="flex flex-col gap-2">
+          <FilaDePantalla fila={global} onCambio={reemplazar} onError={setError} />
+        </ul>
+      )}
+
       <ul className="flex flex-col gap-2">
         {filas.map((fila) => (
           <FilaDePantalla
-            key={fila.area_id}
+            key={claveDePantalla(fila)}
             fila={fila}
             onCambio={reemplazar}
             onError={setError}
@@ -93,11 +146,7 @@ function FilaDePantalla ({ fila, onCambio, onError }: {
     setTrabajando(true)
     onError(null)
 
-    const resultado = await escribirEnBff<PantallaDeAreaEnPanel>(
-      `accesos/areas/${fila.area_id}/pantalla`,
-      metodo,
-      cuerpo
-    )
+    const resultado = await escribirEnBff<PantallaDeAreaEnPanel>(rutaDePantalla(fila), metodo, cuerpo)
 
     setTrabajando(false)
 
@@ -108,7 +157,7 @@ function FilaDePantalla ({ fila, onCambio, onError }: {
     }
 
     return { ok: true, pantalla: resultado.datos ?? null }
-  }, [fila.area_id, onError])
+  }, [fila, onError])
 
   const generar = useCallback(async (): Promise<void> => {
     const { pantalla } = await escribir('POST')
@@ -127,6 +176,8 @@ function FilaDePantalla ({ fila, onCambio, onError }: {
     // El 204 no trae cuerpo, así que la fila se reconstruye acá con lo que devolvería la API si se
     // volviera a preguntar: sin código y sin título, pero con las escenas, que es lo que la pantalla
     // de configuración necesita para poder dibujar los interruptores de la próxima.
+    // `global` se conserva: es lo que decide la ruta de la próxima escritura, y una fila dada de baja
+    // que perdiera esa marca dejaría de poder volver a crearse.
     onCambio({ ...fila, shared: false, code: null, title: null, created_at: null, last_seen_at: null })
     setAbierta(false)
   }, [escribir, fila, onCambio])
@@ -148,9 +199,17 @@ function FilaDePantalla ({ fila, onCambio, onError }: {
     <li className="border-linea bg-superficie-elevada flex flex-col gap-3 rounded-lg border p-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex min-w-0 items-center gap-3">
-          <MonitorPlay className="text-texto-tenue size-5 shrink-0" aria-hidden />
+          {/* La global lleva otro icono: es lo único que se ve de lejos al recorrer la lista. */}
+          {fila.global
+            ? <Building2 className="text-acento size-5 shrink-0" aria-hidden />
+            : <MonitorPlay className="text-texto-tenue size-5 shrink-0" aria-hidden />}
           <div className="flex min-w-0 flex-col">
-            <p className="text-texto truncate font-medium">{fila.area_name}</p>
+            <p className="text-texto truncate font-medium">
+              {fila.area_name}
+              {fila.global && (
+                <span className="text-texto-tenue ml-2 text-sm font-normal">Toda la compañía</span>
+              )}
+            </p>
             <Estado fila={fila} />
           </div>
         </div>
@@ -264,7 +323,7 @@ function Configuracion ({ fila, guardar }: {
           maxLength={191}
         />
         <span className="text-texto-sutil text-xs">
-          En blanco se muestra el nombre del área.
+          En blanco se muestra el nombre {fila.global ? 'de la compañía' : 'del área'}.
         </span>
       </label>
 
@@ -292,8 +351,12 @@ function Configuracion ({ fila, guardar }: {
                   onChange={() => { setEscenas(alternar(escenas, clase)); setGuardado(false) }}
                 />
                 <span className="flex min-w-0 flex-col">
-                  <span className="text-texto text-sm font-medium">{ESCENAS[clase].nombre}</span>
-                  <span className="text-texto-tenue text-xs">{ESCENAS[clase].descripcion}</span>
+                  <span className="text-texto text-sm font-medium">
+                    {textoParaAlcance(ESCENAS[clase].nombre, fila.global)}
+                  </span>
+                  <span className="text-texto-tenue text-xs">
+                    {textoParaAlcance(ESCENAS[clase].descripcion, fila.global)}
+                  </span>
                 </span>
               </label>
 
@@ -318,7 +381,7 @@ function Configuracion ({ fila, guardar }: {
                     variante="sutil"
                     tamano="chico"
                     soloIcono
-                    aria-label={`Subir ${ESCENAS[clase].nombre}`}
+                    aria-label={`Subir ${textoParaAlcance(ESCENAS[clase].nombre, fila.global)}`}
                     disabled={posicion <= 0}
                     onClick={() => { setEscenas(mover(escenas, clase, -1)); setGuardado(false) }}
                   >
@@ -328,7 +391,7 @@ function Configuracion ({ fila, guardar }: {
                     variante="sutil"
                     tamano="chico"
                     soloIcono
-                    aria-label={`Bajar ${ESCENAS[clase].nombre}`}
+                    aria-label={`Bajar ${textoParaAlcance(ESCENAS[clase].nombre, fila.global)}`}
                     disabled={posicion >= escenas.length - 1}
                     onClick={() => { setEscenas(mover(escenas, clase, 1)); setGuardado(false) }}
                   >
@@ -379,6 +442,7 @@ function Estado ({ fila }: { fila: PantallaDeAreaEnPanel }): ReactElement {
   if (!fila.shared) {
     return <p className="text-texto-sutil text-sm">Sin pantalla</p>
   }
+
 
   return (
     <p className="text-texto-tenue flex flex-wrap gap-x-2 text-sm">

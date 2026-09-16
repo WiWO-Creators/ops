@@ -948,9 +948,16 @@ export interface EnlaceProcesoGenerado {
   expires_at: string
 }
 
-/** Una escena de la pantalla de un area, con lo que dura. */
+/**
+ * Una escena de la pantalla de un area, con lo que dura.
+ *
+ * Las siete clases son la lista blanca de la API (`Escritura\Pantallas::ESCENAS`): mandar una que no
+ * este aca devuelve 422. `momento` y `anuncios` son las dos ultimas en entrar y las dos que pueden
+ * estar encendidas sin mostrarse — la primera fuera de sus franjas horarias, la segunda sin avisos
+ * vigentes—, pero eso lo decide el televisor, no el panel: aca solo se enciende y se ordena.
+ */
 export interface EscenaConfigurada {
-  clase: 'portada' | 'trabajando' | 'cronometros' | 'procesos' | 'espacios'
+  clase: 'portada' | 'trabajando' | 'cronometros' | 'procesos' | 'espacios' | 'momento' | 'anuncios'
   segundos: number
 }
 
@@ -971,8 +978,18 @@ export interface EscenaConfigurada {
  * y renovarlo cada treinta dias costaria una escalera.
  */
 export interface PantallaDeAreaEnPanel {
-  area_id: number
+  /**
+   * El area de la pantalla, o `null` en la pantalla global.
+   *
+   * `null` no es un area sin nombre: es la pantalla de **toda la compañia**, que convive con las de
+   * area y no las reemplaza. La API la garantiza unica con un indice (migracion 0650) y la sirve por
+   * una ruta propia, `/accesos/pantallas/global`, que NO aparece en `GET /accesos/pantallas`.
+   */
+  area_id: number | null
+  /** El nombre del area, o el de la compañia cuando la pantalla es global. */
   area_name: string
+  /** `true` solo en la pantalla global. Es lo que decide la ruta que se escribe al gestionarla. */
+  global: boolean
   shared: boolean
   /** Cinco caracteres, o `null` si el area todavia no tiene pantalla. */
   code: string | null
@@ -984,6 +1001,47 @@ export interface PantallaDeAreaEnPanel {
   created_at: string | null
   /** ISO-8601 de la ultima vez que el televisor pidio el paquete, con cinco minutos de resolucion. */
   last_seen_at: string | null
+}
+
+/** Los tres formatos de un anuncio de pantalla. La API los valida con la misma lista. */
+export type TipoDeAnuncio = 'imagen' | 'imagen_con_texto' | 'texto'
+
+/**
+ * Un anuncio de pantalla en el panel (`GET /accesos/areas/{id}/pantalla/anuncios`).
+ *
+ * Es lo unico de la pantalla que escribe una persona: el resto sale solo de la actividad del area.
+ * Llegan **todos** los del alcance, vigentes o no, porque esta es la pantalla donde se programan — una
+ * lista que solo trajera los de hoy no dejaria preparar el aviso del viernes.
+ *
+ * === `image_url` PUEDE SER `null` AUNQUE HAYA IMAGEN ===
+ *
+ * La imagen se sirve por la ruta publica del televisor (`/public/display/{codigo}/anuncio/{id}`), y
+ * esa ruta necesita el **codigo de la pantalla**. Un area puede tener anuncios cargados antes de que
+ * nadie cuelgue el televisor, y en ese caso no hay codigo y no hay URL: la imagen esta guardada y se
+ * vera en cuanto se genere el codigo, pero el panel no tiene por donde previsualizarla. No existe una
+ * ruta autenticada que sirva ese binario, y no se inventa: se avisa en la fila.
+ */
+export interface AnuncioDePantallaEnPanel {
+  id: number
+  /** El area a la que pertenece, o `null` si es un anuncio de la pantalla global. */
+  area_id: number | null
+  tipo: TipoDeAnuncio
+  /** Siempre `null` en el formato `imagen`. */
+  titulo: string | null
+  /** Siempre `null` en el formato `imagen`. */
+  texto: string | null
+  orden: number
+  /** `YYYY-MM-DD`, o `null` para "desde siempre". */
+  vigente_desde: string | null
+  /** `YYYY-MM-DD`, o `null` para "hasta que se borre". */
+  vigente_hasta: string | null
+  /** Si hoy entra en la rotacion del televisor. Lo calcula la API con el reloj del negocio. */
+  vigente_hoy: boolean
+  /** La URL publica de la imagen, o `null` si no tiene imagen o la pantalla no tiene codigo. */
+  image_url: string | null
+  image_name: string | null
+  image_bytes: number
+  created_at: string | null
 }
 
 /**

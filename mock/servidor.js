@@ -2617,7 +2617,7 @@ function catalogoDeAccesos () {
 }
 
 /** Rutas de `/accesos`. Todas exigen superadministrador, igual que la API real. */
-async function accesosRuta (metodo, resto, parametros, actual, cuerpo) {
+async function accesosRuta (metodo, resto, parametros, actual, cuerpo, peticion) {
   if (actual.is_superadmin !== true) {
     throw new ErrorApi(403, 'forbidden', 'Solo un superadministrador administra los accesos.')
   }
@@ -2632,51 +2632,33 @@ async function accesosRuta (metodo, resto, parametros, actual, cuerpo) {
   //
   // El estado vive en memoria (`PANTALLAS_DE_AREA`) para que la pantalla de Administracion se pueda
   // usar entera contra el mock: generar, configurar y dar de baja, y ver el efecto.
-  if (seccion === 'pantallas' && metodo === 'GET') {
+  // El inventario trae SOLO las áreas. La global vive en `/accesos/pantallas/global` y no acá: su
+  // `area_id` es `null`, y colarla en este arreglo la dejaría caer en cualquier código que dé por
+  // sentado que aquí hay un área. Es la misma decisión que toma la API.
+  if (seccion === 'pantallas' && id === undefined && metodo === 'GET') {
     return { estado: 200, cuerpo: conDatos(AREAS.map((area) => pantallaEnPanel(area))) }
+  }
+
+  // La pantalla global: los mismos cuatro verbos que la de un área, sobre `area_id = null`.
+  if (seccion === 'pantallas' && id === 'global') {
+    if (resto[2] === 'anuncios') {
+      return await anunciosDePantallaRuta(metodo, resto.slice(3), null, cuerpo, peticion)
+    }
+
+    if (resto[2] !== undefined) throw new ErrorApi(404, 'not_found', 'Subrecurso desconocido.')
+
+    return await pantallaRuta(metodo, null, NOMBRE_DE_LA_COMPANIA, cuerpo)
   }
 
   if (seccion === 'areas' && resto[2] === 'pantalla') {
     const area = AREAS.find((a) => a.id === Number(id))
     if (!area) throw new ErrorApi(404, 'not_found', 'No existe esa área.')
 
-    if (metodo === 'GET') return { estado: 200, cuerpo: conDatos(pantallaEnPanel(area)) }
-
-    if (metodo === 'POST') {
-      const previa = PANTALLAS_DE_AREA.get(area.id)
-      PANTALLAS_DE_AREA.set(area.id, {
-        codigo: area.id === 4 ? CODIGO_DE_PANTALLA : acuñarCodigo(),
-        titulo: previa?.titulo ?? null,
-        escenas: previa?.escenas ?? escenasPorDefecto(),
-        creado_en: new Date().toISOString(),
-        usado_en: null
-      })
-
-      return { estado: 201, cuerpo: conDatos(pantallaEnPanel(area)) }
+    if (resto[3] === 'anuncios') {
+      return await anunciosDePantallaRuta(metodo, resto.slice(4), area.id, cuerpo, peticion)
     }
 
-    if (metodo === 'PUT') {
-      const previa = PANTALLAS_DE_AREA.get(area.id)
-      if (!previa) throw new ErrorApi(404, 'not_found', 'Esa área todavía no tiene pantalla.')
-
-      // `cuerpo` es una función que lee el stream, no un objeto: igual que en el resto del mock.
-      const datos = await cuerpo()
-      const escenas = Array.isArray(datos?.escenas) ? datos.escenas : []
-      if (escenas.length === 0) {
-        throw new ErrorApi(422, 'validation_error', 'Hay que dejar al menos una escena encendida.')
-      }
-
-      previa.titulo = typeof datos?.titulo === 'string' && datos.titulo.trim() !== '' ? datos.titulo.trim() : null
-      previa.escenas = escenas.map((e) => ({ clase: e.clase, segundos: e.segundos ?? 20 }))
-
-      return { estado: 200, cuerpo: conDatos(pantallaEnPanel(area)) }
-    }
-
-    if (metodo === 'DELETE') {
-      PANTALLAS_DE_AREA.delete(area.id)
-
-      return { estado: 204, cuerpo: null }
-    }
+    return await pantallaRuta(metodo, area.id, area.name, cuerpo)
   }
 
   // El arbol entero y plano: la pantalla lo arma sola con `jefe_staffid`. Solo gente activa, porque
@@ -3798,10 +3780,27 @@ function calidadRuta (metodo, resto, parametros, actual) {
 /** El código de la pantalla del área 4, fijo para que las pruebas puedan escribirlo. */
 const CODIGO_DE_PANTALLA = 'AB3K9'
 
+/**
+ * El código de la pantalla GLOBAL, la de toda la compañía. Fijo por el mismo motivo que el de arriba.
+ *
+ * La global convive con las de área y no las reemplaza: la API la guarda con `area_id` en NULL y un
+ * índice se encarga de que no haya dos (migración 0650).
+ */
+const CODIGO_DE_PANTALLA_GLOBAL = 'W7QD2'
+
+/** Lo que devolvería `get_option('companyname')`. Es el nombre que usa la pantalla global. */
+const NOMBRE_DE_LA_COMPANIA = 'WiWO'
+
 /** El alfabeto de la API: treinta símbolos, sin los que se confunden con un control remoto. */
 const ALFABETO_DE_CODIGO = '23456789ABCDEFGHJKMNPQRSTVWXYZ'
 
-/** Las pantallas vivas, en memoria. `area_id => {codigo, titulo, escenas, creado_en, usado_en}`. */
+/**
+ * Las pantallas vivas, en memoria. `area_id => {codigo, titulo, escenas, creado_en, usado_en}`.
+ *
+ * **La clave `null` es la pantalla global**, igual que en la base: `area_id IS NULL`. Un `Map` admite
+ * `null` como clave, así que las dos pantallas se leen y se escriben con el mismo código y no hace
+ * falta una segunda variable que alguien olvide actualizar.
+ */
 const PANTALLAS_DE_AREA = new Map()
 
 function acuñarCodigo () {
@@ -3811,13 +3810,19 @@ function acuñarCodigo () {
   return codigo
 }
 
+/**
+ * Las siete escenas encendidas, en el mismo orden y con los mismos segundos que
+ * `Escritura\\Pantallas::escenasIniciales()` de la API. Una pantalla nueva nace así.
+ */
 function escenasPorDefecto () {
   return [
     { clase: 'portada', segundos: 12 },
     { clase: 'trabajando', segundos: 20 },
     { clase: 'cronometros', segundos: 20 },
     { clase: 'procesos', segundos: 20 },
-    { clase: 'espacios', segundos: 20 }
+    { clase: 'espacios', segundos: 20 },
+    { clase: 'momento', segundos: 10 },
+    { clase: 'anuncios', segundos: 20 }
   ]
 }
 
@@ -3830,13 +3835,33 @@ PANTALLAS_DE_AREA.set(4, {
   usado_en: null
 })
 
-/** Una fila del inventario, con la forma que espera el panel. */
-function pantallaEnPanel (area) {
-  const viva = PANTALLAS_DE_AREA.get(area.id) ?? null
+// Y la global nace con la suya, que sirve `/pantalla/W7QD2`: sin ella no habría forma de mirar la
+// pantalla de toda la compañía sin generarla primero desde Administración.
+PANTALLAS_DE_AREA.set(null, {
+  codigo: CODIGO_DE_PANTALLA_GLOBAL,
+  titulo: null,
+  escenas: escenasPorDefecto(),
+  creado_en: new Date().toISOString(),
+  usado_en: null
+})
+
+/**
+ * Una fila del inventario, con la forma que espera el panel.
+ *
+ * Una sola función para las dos pantallas —la de un área y la global— porque la API también las
+ * presenta con una sola (`Escritura\\Pantallas::presentar()`): el shape es idéntico y lo único que
+ * cambia es que `area_id` viene en `null` y `global` en `true`.
+ *
+ * @param areaId el id del área, o `null` en la pantalla global
+ * @param nombre el nombre que se muestra: el del área, o el de la compañía
+ */
+function presentarPantalla (areaId, nombre) {
+  const viva = PANTALLAS_DE_AREA.get(areaId) ?? null
 
   return {
-    area_id: area.id,
-    area_name: area.name,
+    area_id: areaId,
+    area_name: nombre,
+    global: areaId === null,
     shared: viva !== null,
     code: viva?.codigo ?? null,
     title: viva?.titulo ?? null,
@@ -3846,9 +3871,22 @@ function pantallaEnPanel (area) {
   }
 }
 
+function pantallaEnPanel (area) {
+  return presentarPantalla(area.id, area.name)
+}
+
+
+/**
+ * El paquete que lee el televisor.
+ *
+ * @param areaId el id del área, o `null` para la pantalla GLOBAL: la de toda la compañía, que no
+ *               filtra por área y cuyo `data.area.id` viaja en `null` — que es como la reconoce el
+ *               televisor para dejar de decir "del área" donde no hay área.
+ */
 function pantallaDeArea (areaId) {
-  const area = AREAS.find((a) => a.id === areaId) ?? AREAS[0]
-  const gente = STAFF.filter((s) => s.area_id === area.id || s.id === area.jefe_staffid)
+  const esGlobal = areaId === null
+  const area = esGlobal ? null : (AREAS.find((a) => a.id === areaId) ?? AREAS[0])
+  const gente = esGlobal ? STAFF : STAFF.filter((s) => s.area_id === area.id || s.id === area.jefe_staffid)
   const hoy = new Date().toISOString().slice(0, 10)
 
   const abiertas = PROCESOS.filter((p) => p.status !== 5).slice(0, 18)
@@ -3887,7 +3925,7 @@ function pantallaDeArea (areaId) {
 
   // Solo las escenas encendidas, en el orden configurado y con su duración: igual que la API real,
   // que ni siquiera calcula las apagadas.
-  const viva = PANTALLAS_DE_AREA.get(area.id) ?? null
+  const viva = PANTALLAS_DE_AREA.get(esGlobal ? null : area.id) ?? null
   const puestas = viva?.escenas ?? escenasPorDefecto()
 
   const armadas = {
@@ -3923,12 +3961,20 @@ function pantallaDeArea (areaId) {
             }))
           }))
         },
-    espacios: { kind: 'espacios', items: espacios }
+    espacios: { kind: 'espacios', items: espacios },
+    // `momento` viaja VACÍA a propósito: el saludo según la hora lo decide el televisor con
+    // `meta.timezone`, porque calcularlo acá haría que el paquete cambiara al cruzar cada franja y que
+    // el ETag fallara justo a las nueve, cuando toda la oficina está mirando.
+    momento: { kind: 'momento' },
+    anuncios: { kind: 'anuncios', items: anunciosVigentes(esGlobal ? null : area.id) }
   }
 
   return conDatos(
     {
-      area: { id: area.id, name: viva?.titulo ?? area.name },
+      area: {
+        id: esGlobal ? null : area.id,
+        name: viva?.titulo ?? (esGlobal ? NOMBRE_DE_LA_COMPANIA : area.name)
+      },
       scenes: puestas
         .filter((e) => armadas[e.clase] !== undefined)
         .map((e) => ({ ...armadas[e.clase], seconds: e.segundos }))
@@ -3940,6 +3986,437 @@ function pantallaDeArea (areaId) {
       scene_seconds: 20
     }
   )
+}
+
+
+// --- Anuncios de pantalla ----------------------------------------------------------------
+//
+// Lo único de la pantalla que escribe una persona. Viven en memoria para que la pantalla de
+// Administración se pueda usar entera contra el mock: crear, editar, reordenar, dar de baja y ver el
+// efecto en el televisor.
+
+/**
+ * La imagen que devuelve el mock para cualquier anuncio con archivo.
+ *
+ * Es un PNG que ya está en `public/`, servido por el propio Next. El mock NO guarda los bytes que
+ * suben: lo que la pantalla necesita verificar es que la `<img>` carga, que la proporción se resuelve
+ * sin deformar y que el respaldo aparece cuando la URL falla — no que el mock sepa almacenar binarios.
+ */
+const IMAGEN_DE_ANUNCIO = '/plantillas/guia-imagen-entidad.png'
+
+/** Los tres formatos que valida la API. */
+const TIPOS_DE_ANUNCIO = ['imagen', 'imagen_con_texto', 'texto']
+
+/** Los topes de la API, repetidos acá para que el mock conteste el mismo 422. */
+const MAX_TITULO_ANUNCIO = 191
+const MAX_TEXTO_ANUNCIO = 1200
+
+let PROXIMO_ANUNCIO = 4
+
+/**
+ * Los anuncios vivos. `area_id` en `null` es un anuncio de la pantalla global.
+ *
+ * Las tres semillas son los tres formatos, para poder mirar los tres slides sin cargar nada: uno con
+ * foto y texto en el área 4, uno solo de texto en la global, y uno solo de foto en la global.
+ */
+const ANUNCIOS_DE_PANTALLA = [
+  {
+    id: 1,
+    area_id: 4,
+    tipo: 'imagen_con_texto',
+    titulo: 'Salida de fin de mes',
+    texto: 'Viernes 26, 18:00, en la terraza. Avisa si vas con acompañante.',
+    orden: 0,
+    vigente_desde: null,
+    vigente_hasta: null,
+    archivo: 'terraza.png',
+    archivo_bytes: 184320,
+    creado_en: new Date().toISOString()
+  },
+  {
+    id: 2,
+    area_id: null,
+    tipo: 'texto',
+    titulo: 'Feriado',
+    texto: 'El lunes no se trabaja.',
+    orden: 0,
+    vigente_desde: null,
+    vigente_hasta: null,
+    archivo: null,
+    archivo_bytes: 0,
+    creado_en: new Date().toISOString()
+  },
+  {
+    id: 3,
+    area_id: null,
+    tipo: 'imagen',
+    titulo: null,
+    texto: null,
+    orden: 1,
+    // Vencido a propósito: es lo que deja ejercitar `vigente_hoy: false` en el panel y comprobar que
+    // el televisor NO lo muestra.
+    vigente_desde: '2020-01-01',
+    vigente_hasta: '2020-01-02',
+    archivo: 'afiche.png',
+    archivo_bytes: 512000,
+    creado_en: new Date().toISOString()
+  }
+]
+
+/** Hoy, `YYYY-MM-DD`, como lo calcularía la API con el reloj del negocio. */
+function hoyEnDia () {
+  return new Date().toISOString().slice(0, 10)
+}
+
+function vigenteHoy (anuncio) {
+  const hoy = hoyEnDia()
+
+  return (anuncio.vigente_desde === null || anuncio.vigente_desde <= hoy) &&
+    (anuncio.vigente_hasta === null || anuncio.vigente_hasta >= hoy)
+}
+
+/**
+ * Una fila de anuncio con la forma que espera el panel.
+ *
+ * `image_url` sale `null` si el anuncio no tiene archivo **o si la pantalla de su alcance todavía no
+ * tiene código**: la imagen se sirve por la ruta pública del televisor, que necesita ese código. Es el
+ * caso que el panel tiene que saber explicar en vez de dibujar una imagen rota.
+ */
+function anuncioEnPanel (anuncio) {
+  const codigo = PANTALLAS_DE_AREA.get(anuncio.area_id)?.codigo ?? null
+
+  return {
+    id: anuncio.id,
+    area_id: anuncio.area_id,
+    tipo: anuncio.tipo,
+    titulo: anuncio.titulo,
+    texto: anuncio.texto,
+    orden: anuncio.orden,
+    vigente_desde: anuncio.vigente_desde,
+    vigente_hasta: anuncio.vigente_hasta,
+    vigente_hoy: vigenteHoy(anuncio),
+    image_url: anuncio.archivo === null || codigo === null ? null : IMAGEN_DE_ANUNCIO,
+    image_name: anuncio.archivo,
+    image_bytes: anuncio.archivo_bytes,
+    created_at: anuncio.creado_en
+  }
+}
+
+/**
+ * Los anuncios de un alcance, ordenados.
+ *
+ * Un área ve los suyos Y los globales —un aviso de la compañía sale en todas las paredes—; la pantalla
+ * global ve solo los globales. Es la misma regla que `AnunciosPublicos::alcanceSql()`.
+ */
+function anunciosDelAlcance (areaId) {
+  return ANUNCIOS_DE_PANTALLA
+    .filter((a) => areaId === null ? a.area_id === null : (a.area_id === areaId || a.area_id === null))
+    .sort((uno, otro) => uno.orden - otro.orden || uno.id - otro.id)
+}
+
+/** Lo que viaja al televisor: los de hoy, en orden, con cinco campos y ni uno más. */
+function anunciosVigentes (areaId) {
+  return anunciosDelAlcance(areaId).filter(vigenteHoy).map((a) => ({
+    id: a.id,
+    tipo: a.tipo,
+    titulo: a.titulo,
+    texto: a.texto,
+    image_url: a.archivo === null ? null : IMAGEN_DE_ANUNCIO
+  }))
+}
+
+/**
+ * Los campos de un `multipart/form-data`, sin dependencias.
+ *
+ * El mock evita parsear multipart siempre que puede —ver `adjuntosDelMultipart()`— pero acá no se
+ * puede: sin `tipo`, `titulo` y `texto` la fila que devuelve no se parece a la que devolvería la API, y
+ * entonces el panel no se puede probar contra ella. El cuerpo de un anuncio es pequeño y el parseo es
+ * el mínimo: partir por el separador y leer el `name=` de cada parte.
+ *
+ * Lo que NO hace es guardar los bytes del archivo: se queda con su nombre y su tamaño, que es lo único
+ * que la fila muestra.
+ *
+ * @returns `{campos, archivo}` donde `archivo` es `{nombre, bytes}` o `null`
+ */
+async function camposDelMultipart (peticion) {
+  const tipo = peticion.headers['content-type'] ?? ''
+  const separador = /boundary=(?:"([^"]+)"|([^;]+))/i.exec(tipo)
+
+  if (separador === null) return { campos: {}, archivo: null }
+
+  const marca = '--' + (separador[1] ?? separador[2]).trim()
+  const trozos = []
+  for await (const trozo of peticion) trozos.push(trozo)
+
+  const partes = Buffer.concat(trozos).toString('latin1').split(marca)
+  const campos = {}
+  let archivo = null
+
+  for (const parte of partes) {
+    const corte = parte.indexOf('\r\n\r\n')
+    if (corte < 0) continue
+
+    const cabeceras = parte.slice(0, corte)
+    const nombre = /name="([^"]*)"/.exec(cabeceras)
+    if (nombre === null) continue
+
+    const valor = parte.slice(corte + 4).replace(/\r\n$/, '')
+    const archivoEn = /filename="([^"]*)"/.exec(cabeceras)
+
+    if (archivoEn !== null) {
+      if (archivoEn[1] !== '') archivo = { nombre: archivoEn[1], bytes: Buffer.byteLength(valor, 'latin1') }
+      continue
+    }
+
+    campos[nombre[1]] = Buffer.from(valor, 'latin1').toString('utf8')
+  }
+
+  return { campos, archivo }
+}
+
+
+/**
+ * El CRUD de UNA pantalla, la de un área o la global.
+ *
+ * Una sola función para las dos porque la API también tiene una sola: los mismos cuatro verbos, el
+ * mismo cuerpo y el mismo shape de respuesta. Lo único que cambia es la clave con que se guarda —el id
+ * del área, o `null` para la global— y el nombre que se muestra.
+ *
+ * @param areaId id del área, o `null` en la global
+ * @param nombre el nombre del área, o el de la compañía
+ */
+async function pantallaRuta (metodo, areaId, nombre, cuerpo) {
+  if (metodo === 'GET') {
+    return { estado: 200, cuerpo: conDatos(presentarPantalla(areaId, nombre)) }
+  }
+
+  // Crea o REGENERA: conserva el título y las escenas, y estrena código. El anterior deja de servir.
+  if (metodo === 'POST') {
+    const previa = PANTALLAS_DE_AREA.get(areaId)
+
+    PANTALLAS_DE_AREA.set(areaId, {
+      codigo: codigoFijoDe(areaId) ?? acuñarCodigo(),
+      titulo: previa?.titulo ?? null,
+      escenas: previa?.escenas ?? escenasPorDefecto(),
+      creado_en: new Date().toISOString(),
+      usado_en: null
+    })
+
+    return { estado: 201, cuerpo: conDatos(presentarPantalla(areaId, nombre)) }
+  }
+
+  if (metodo === 'PUT') {
+    const previa = PANTALLAS_DE_AREA.get(areaId)
+    if (!previa) {
+      throw new ErrorApi(404, 'not_found', areaId === null
+        ? 'Todavía no hay pantalla global. Generá el código primero.'
+        : 'Esa área todavía no tiene pantalla.')
+    }
+
+    // `cuerpo` es una función que lee el stream, no un objeto: igual que en el resto del mock.
+    const datos = await cuerpo()
+    const escenas = Array.isArray(datos?.escenas) ? datos.escenas : []
+    if (escenas.length === 0) {
+      throw new ErrorApi(422, 'validation_error', 'Hay que dejar al menos una escena encendida.')
+    }
+
+    for (const escena of escenas) {
+      if (!CLASES_DE_ESCENA_VALIDAS.includes(escena.clase)) {
+        throw new ErrorApi(422, 'validation_error', 'Esa escena no existe: ' + escena.clase)
+      }
+    }
+
+    previa.titulo = typeof datos?.titulo === 'string' && datos.titulo.trim() !== '' ? datos.titulo.trim() : null
+    previa.escenas = escenas.map((e) => ({ clase: e.clase, segundos: e.segundos ?? 20 }))
+
+    return { estado: 200, cuerpo: conDatos(presentarPantalla(areaId, nombre)) }
+  }
+
+  if (metodo === 'DELETE') {
+    PANTALLAS_DE_AREA.delete(areaId)
+
+    return { estado: 204, cuerpo: null }
+  }
+
+  throw new ErrorApi(404, 'not_found', 'Usá GET, POST, PUT o DELETE sobre la pantalla.')
+}
+
+/** La lista blanca de la API (`Escritura\Pantallas::ESCENAS`). Mandar otra cosa es un 422. */
+const CLASES_DE_ESCENA_VALIDAS = [
+  'portada', 'trabajando', 'cronometros', 'procesos', 'espacios', 'momento', 'anuncios'
+]
+
+/**
+ * El código fijo de las dos pantallas que las pruebas abren por URL, o `null` para acuñar uno.
+ *
+ * Sin esto, regenerar el código del área 4 desde el panel rompería `/pantalla/AB3K9` y con él la prueba
+ * de navegador, que no tiene forma de enterarse del código nuevo.
+ */
+function codigoFijoDe (areaId) {
+  if (areaId === null) return CODIGO_DE_PANTALLA_GLOBAL
+
+  return areaId === 4 ? CODIGO_DE_PANTALLA : null
+}
+
+/**
+ * El CRUD de los anuncios de un alcance.
+ *
+ * @param resto  lo que sigue a `…/anuncios`: `[]`, `['orden']` o `['<id>']`
+ * @param areaId id del área, o `null` para los anuncios globales
+ */
+async function anunciosDePantallaRuta (metodo, resto, areaId, cuerpo, peticion) {
+  const [pieza] = resto
+
+  if (pieza === undefined && metodo === 'GET') {
+    return { estado: 200, cuerpo: conDatos(anunciosDelAlcance(areaId).map(anuncioEnPanel)) }
+  }
+
+  if (pieza === undefined && metodo === 'POST') {
+    const { campos, archivo } = await leerAnuncio(cuerpo, peticion)
+    const nuevo = {
+      id: PROXIMO_ANUNCIO++,
+      area_id: areaId,
+      ...validarAnuncio(campos, archivo !== null),
+      orden: campos.orden === undefined ? anunciosDelAlcance(areaId).length : Number(campos.orden),
+      archivo: archivo?.nombre ?? null,
+      archivo_bytes: archivo?.bytes ?? 0,
+      creado_en: new Date().toISOString()
+    }
+
+    ANUNCIOS_DE_PANTALLA.push(nuevo)
+
+    return { estado: 201, cuerpo: conDatos(anuncioEnPanel(nuevo)) }
+  }
+
+  // El reordenado manda la lista COMPLETA del alcance: así no hay forma de perder uno por el camino.
+  if (pieza === 'orden' && metodo === 'PUT') {
+    const datos = await cuerpo()
+    const ids = Array.isArray(datos?.ids) ? datos.ids.map(Number) : []
+    const propios = anunciosDelAlcance(areaId)
+
+    if (ids.length !== propios.length || propios.some((a) => !ids.includes(a.id))) {
+      throw new ErrorApi(422, 'validation_error', 'La lista tiene que traer todos los anuncios del alcance y ninguno ajeno.')
+    }
+
+    ids.forEach((identidad, posicion) => {
+      const anuncio = ANUNCIOS_DE_PANTALLA.find((a) => a.id === identidad)
+      if (anuncio) anuncio.orden = posicion
+    })
+
+    return { estado: 200, cuerpo: conDatos(anunciosDelAlcance(areaId).map(anuncioEnPanel)) }
+  }
+
+  const anuncio = ANUNCIOS_DE_PANTALLA.find((a) => a.id === Number(pieza))
+  if (!anuncio) throw new ErrorApi(404, 'not_found', 'No existe ese anuncio.')
+
+  if (metodo === 'DELETE') {
+    ANUNCIOS_DE_PANTALLA.splice(ANUNCIOS_DE_PANTALLA.indexOf(anuncio), 1)
+
+    return { estado: 204, cuerpo: null }
+  }
+
+  // `POST` sobre un anuncio que ya existe no es un duplicado: es la única forma de mandar multipart,
+  // porque PHP solo parsea `multipart/form-data` en POST. La API acepta los dos verbos acá.
+  if (metodo === 'PUT' || metodo === 'POST') {
+    const { campos, archivo } = await leerAnuncio(cuerpo, peticion)
+    const quitar = campos.quitar_imagen === '1' || campos.quitar_imagen === true
+    const tendraImagen = archivo !== null || (anuncio.archivo !== null && !quitar)
+
+    Object.assign(anuncio, validarAnuncio(campos, tendraImagen, anuncio))
+
+    if (campos.orden !== undefined) anuncio.orden = Number(campos.orden)
+    if (archivo !== null) {
+      anuncio.archivo = archivo.nombre
+      anuncio.archivo_bytes = archivo.bytes
+    } else if (quitar) {
+      anuncio.archivo = null
+      anuncio.archivo_bytes = 0
+    }
+
+    return { estado: 200, cuerpo: conDatos(anuncioEnPanel(anuncio)) }
+  }
+
+  throw new ErrorApi(404, 'not_found', 'Usá GET, POST, PUT o DELETE sobre los anuncios.')
+}
+
+/**
+ * Lee el cuerpo de un anuncio, venga como JSON o como multipart.
+ *
+ * Los dos caminos existen en la API: un anuncio de solo texto se puede mandar en JSON, y uno con
+ * imagen tiene que ir en multipart. El panel elige según lo que esté publicando.
+ */
+async function leerAnuncio (cuerpo, peticion) {
+  const tipo = peticion?.headers?.['content-type'] ?? ''
+
+  if (tipo.includes('multipart/form-data')) return await camposDelMultipart(peticion)
+
+  return { campos: (await cuerpo()) ?? {}, archivo: null }
+}
+
+/**
+ * Las mismas reglas que la API contesta con 422, para que el panel no pueda armar algo que allá va a
+ * rebotar sin que acá se note.
+ *
+ * @param actual el anuncio que se está editando, o `undefined` si es nuevo
+ */
+function validarAnuncio (campos, tendraImagen, actual = undefined) {
+  const tipo = campos.tipo ?? actual?.tipo ?? null
+
+  if (!TIPOS_DE_ANUNCIO.includes(tipo)) {
+    throw new ErrorApi(422, 'validation_error', 'El formato del anuncio tiene que ser uno de: ' + TIPOS_DE_ANUNCIO.join(', ') + '.')
+  }
+
+  const exigeImagen = tipo !== 'texto'
+
+  if (exigeImagen && !tendraImagen) {
+    throw new ErrorApi(422, 'validation_error', 'El formato "' + tipo + '" lleva una imagen: mandala en el campo `image`.')
+  }
+
+  if (!exigeImagen && tendraImagen) {
+    throw new ErrorApi(422, 'validation_error', 'El formato "texto" no lleva imagen.')
+  }
+
+  // En el formato `imagen` el título y el texto no existen: la API los guarda en `null` y el televisor
+  // dibuja la foto sola.
+  const titulo = tipo === 'imagen' ? null : textoDeAnuncio(campos.titulo, actual?.titulo, MAX_TITULO_ANUNCIO, 'título')
+  const texto = tipo === 'imagen' ? null : textoDeAnuncio(campos.texto, actual?.texto, MAX_TEXTO_ANUNCIO, 'texto')
+
+  const desde = diaDeAnuncio(campos.vigente_desde, actual?.vigente_desde)
+  const hasta = diaDeAnuncio(campos.vigente_hasta, actual?.vigente_hasta)
+
+  if (desde !== null && hasta !== null && hasta < desde) {
+    throw new ErrorApi(422, 'validation_error', 'La fecha de fin no puede ser anterior a la de inicio.')
+  }
+
+  return { tipo, titulo, texto, vigente_desde: desde, vigente_hasta: hasta }
+}
+
+function textoDeAnuncio (crudo, previo, tope, nombre) {
+  if (crudo === undefined) return previo ?? null
+
+  const limpio = String(crudo).trim()
+
+  if (limpio === '') return null
+
+  if (limpio.length > tope) {
+    throw new ErrorApi(422, 'validation_error', 'El ' + nombre + ' no puede pasar de ' + tope + ' caracteres.')
+  }
+
+  return limpio
+}
+
+function diaDeAnuncio (crudo, previo) {
+  if (crudo === undefined) return previo ?? null
+
+  const limpio = String(crudo).trim()
+
+  if (limpio === '') return null
+
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(limpio)) {
+    throw new ErrorApi(422, 'validation_error', 'Las fechas de vigencia van en formato YYYY-MM-DD.')
+  }
+
+  return limpio
 }
 
 /** Un valor de catalogo con su color, o `null`. Lo mismo que `PantallaDeArea::delCatalogo()`. */
@@ -3991,11 +4468,15 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
     // Un solo código válido, y el resto es 404 aunque tenga la forma correcta: es lo que permite
     // ejercitar la pantalla de "esto ya no está enlazado" sin tocar la base. La caja no importa —
     // nadie controla las mayúsculas escribiendo con un control remoto— pero nada más.
-    if ((resto[1] ?? '').toUpperCase() !== CODIGO_DE_PANTALLA) {
+    // Dos códigos válidos: el del área 4 y el de la pantalla global. Todo lo demás es 404 aunque tenga
+    // la forma correcta, que es lo que permite ejercitar "esto ya no está enlazado".
+    const codigo = (resto[1] ?? '').toUpperCase()
+
+    if (codigo !== CODIGO_DE_PANTALLA && codigo !== CODIGO_DE_PANTALLA_GLOBAL) {
       throw new ErrorApi(404, 'not_found', 'No existe esa pantalla.')
     }
 
-    return { estado: 200, cuerpo: pantallaDeArea(4) }
+    return { estado: 200, cuerpo: pantallaDeArea(codigo === CODIGO_DE_PANTALLA_GLOBAL ? null : 4) }
   }
 
   // --- Pantalla de puerta: la unica ruta de salas sin sesion ---------------
@@ -4617,7 +5098,7 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
 
   // Panel de accesos: escalones, roles, personas, areas, cargos e interruptores.
   if (recurso === 'accesos') {
-    return await accesosRuta(metodo, resto, parametros, actual, cuerpo)
+    return await accesosRuta(metodo, resto, parametros, actual, cuerpo, peticion)
   }
 
   if (recurso === 'ia') {

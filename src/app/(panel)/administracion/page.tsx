@@ -1,5 +1,5 @@
 import { Suspense } from 'react'
-import { Inbox, KeyRound, MonitorPlay, Siren, type LucideIcon } from 'lucide-react'
+import { Inbox, KeyRound, Megaphone, MonitorPlay, Siren, type LucideIcon } from 'lucide-react'
 import { AccesoGoogle } from '@/componentes/administracion/AccesoGoogle'
 import { FormularioDeAjustes } from '@/componentes/administracion/FormularioDeAjustes'
 import { PanelAvisosPorCorreo } from '@/componentes/administracion/PanelAvisosPorCorreo'
@@ -49,6 +49,13 @@ const PANTALLAS_APARTE: PantallaAparte[] = [
     titulo: 'Pantallas',
     descripcion: 'El enlace público del televisor de cada área, con la última vez que se abrió.',
     icono: MonitorPlay,
+    tono: 'acento'
+  },
+  {
+    href: '/administracion/pantallas/anuncios',
+    titulo: 'Anuncios de pantalla',
+    descripcion: 'Los avisos que una persona publica para el televisor de un área o el de toda la compañía.',
+    icono: Megaphone,
     tono: 'acento'
   },
   {

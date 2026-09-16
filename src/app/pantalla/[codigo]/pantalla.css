@@ -88,3 +88,137 @@
     animation: none;
   }
 }
+
+/*
+ * === EL TABLERO ===
+ *
+ * La rejilla de columnas que comparten las cuatro escenas de lista. Es lo que convierte la pantalla
+ * en un tablero de salidas de aeropuerto y no en una pared de fichas.
+ *
+ * **Por que las columnas viven acá y no en el componente.** Un tablero se lee porque las columnas
+ * caen siempre en el mismo sitio: la fila de etiquetas y las veinte filas de debajo comparten el
+ * mismo `grid-template-columns`, y la unica forma de garantizar eso sin repetir el reparto en cada
+ * fila es tenerlo escrito una vez. Ademas el reparto tiene que cambiar con la orientacion —en
+ * vertical sobran 78vmin de ancho que no existen— y eso no se puede hacer con un `style` en linea.
+ *
+ * **Como se esconde una columna.** En vertical algunas columnas desaparecen con `portrait:hidden`,
+ * que es `display: none`: la celda sale del flujo de la rejilla y las que quedan se reparten segun
+ * la plantilla de `@media (orientation: portrait)`. Por eso las dos plantillas tienen que listar las
+ * columnas en el MISMO orden en que estan en el DOM, y la vertical solo las que sobreviven. Si se
+ * agrega una columna hay que tocar las dos, o el tablero se descuadra en una de las dos paredes.
+ *
+ * Todo en `vmin` y ni un `px`: ver el docblock de `MarcoDePantalla`.
+ */
+.pantalla-fila {
+  display: grid;
+  align-items: center;
+  column-gap: 2vmin;
+}
+
+@media (orientation: portrait) {
+  .pantalla-fila {
+    column-gap: 1.5vmin;
+  }
+}
+
+/*
+ * Las filas se tocan: ni un `gap` entre ellas.
+ *
+ * Es la diferencia de densidad mas grande de todo el rediseño. Una lista de fichas separadas gasta
+ * un tercio de la banda util en aire entre tarjetas; un tablero gasta un pelo de linea. Lo que
+ * separa una fila de la siguiente es el cebrado y una raya de subpixel, que es justo lo que hace
+ * falta para no perder el renglon a cuatro metros y a dos metros de ancho de pantalla.
+ */
+.pantalla-tablero > * {
+  border-bottom: 1px solid var(--color-linea);
+}
+
+.pantalla-tablero > *:nth-child(odd) {
+  background-color: var(--color-superficie-elevada);
+}
+
+/*
+ * A dos columnas, el renglon visual son DOS items, asi que el cebrado va de dos en dos: con el
+ * `nth-child(odd)` de arriba, la columna izquierda entera saldria con fondo y la derecha sin el, que
+ * se lee como un bloque de color y no como una tabla.
+ */
+@media (orientation: landscape) {
+  .pantalla-tablero-doble > *:nth-child(odd) {
+    background-color: transparent;
+  }
+
+  .pantalla-tablero-doble > *:nth-child(4n + 1),
+  .pantalla-tablero-doble > *:nth-child(4n + 2) {
+    background-color: var(--color-superficie-elevada);
+  }
+}
+
+/*
+ * Las escenas que caben en dos columnas: personas y Proyectos.
+ *
+ * Solo las dos cuyos nombres son cortos. Las Tareas y los cronometros van a una sola columna a lo
+ * ancho de la pared: su nombre es una frase, y partido en dos columnas se recorta en la mitad de las
+ * filas — que es esconder informacion, no mostrar mas.
+ */
+.pantalla-tablero-doble {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  column-gap: 4vmin;
+}
+
+@media (orientation: portrait) {
+  .pantalla-tablero-doble {
+    grid-template-columns: 1fr;
+    column-gap: 0;
+  }
+}
+
+/* marca de estado | Tarea | Proyecto | estado | avance | vence | quien */
+.pantalla-columnas-procesos {
+  grid-template-columns: 0.8vmin minmax(0, 1fr) 33vmin 18vmin 9vmin 20vmin 23vmin;
+}
+
+/*
+ * En vertical sobreviven el nombre, la fecha y quien la tiene: se caen el Proyecto, el estado en
+ * palabras —que ya lo dice la barra de color— y el avance. Son 92vmin de ancho contra 170, y con las
+ * siete columnas de la pared el nombre de la Tarea quedaba en veinte caracteres, que es no mostrarlo.
+ */
+@media (orientation: portrait) {
+  .pantalla-columnas-procesos {
+    grid-template-columns: 0.8vmin minmax(0, 1fr) 20vmin 23vmin;
+  }
+}
+
+/* cara | Tarea | quien mide | Proyecto | contador */
+.pantalla-columnas-cronometros {
+  grid-template-columns: 4.2vmin minmax(0, 1fr) 34vmin 30vmin 16vmin;
+}
+
+@media (orientation: portrait) {
+  .pantalla-columnas-cronometros {
+    grid-template-columns: 4.2vmin minmax(0, 1fr) 26vmin 15vmin;
+  }
+}
+
+/* cara | nombre | cargo | jornada */
+.pantalla-columnas-trabajando {
+  grid-template-columns: 4.2vmin minmax(0, 1fr) 22vmin 16vmin;
+}
+
+@media (orientation: portrait) {
+  .pantalla-columnas-trabajando {
+    grid-template-columns: 4.2vmin minmax(0, 1fr) 26vmin 16vmin;
+  }
+}
+
+/* Proyecto | barra | % | abiertas | atrasadas | entrega */
+.pantalla-columnas-espacios {
+  grid-template-columns: minmax(0, 1fr) 22vmin 8vmin 17vmin 21vmin 16vmin;
+}
+
+/* En vertical se caen la barra —el numero ya esta al lado— y la entrega. */
+@media (orientation: portrait) {
+  .pantalla-columnas-espacios {
+    grid-template-columns: minmax(0, 1fr) 8vmin 17vmin 21vmin;
+  }
+}

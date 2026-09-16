@@ -80,6 +80,39 @@ export interface ProyectoEnPantalla {
   procesos_atrasados: number
 }
 
+/** Los tres formatos de un anuncio. Los mismos que valida la API. */
+export type TipoDeAnuncioEnPantalla = 'imagen' | 'imagen_con_texto' | 'texto'
+
+/**
+ * Un anuncio, ya filtrado por vigencia y ordenado por la API.
+ *
+ * Es lo unico de toda la pantalla que escribio una persona: el resto se calcula solo a partir de la
+ * actividad del area. Por eso cada anuncio es una **pantalla propia** y no una fila de una lista — un
+ * aviso con una foto de la terraza no se lee en la quinta linea de una tabla.
+ *
+ * Los tres formatos tienen su coherencia garantizada por la API, que contesta 422 al cargarlos:
+ *
+ * - `imagen`: `titulo` y `texto` son **siempre** `null`, y `image_url` nunca.
+ * - `imagen_con_texto`: los tres vienen.
+ * - `texto`: `image_url` es **siempre** `null`.
+ *
+ * La pantalla no vuelve a comprobarlo, pero tampoco lo asume al dibujar: cada campo se pinta si esta,
+ * asi que un contrato que cambie deja la escena fea y nunca rota.
+ */
+export interface AnuncioEnPantalla {
+  id: number
+  tipo: TipoDeAnuncioEnPantalla
+  titulo: string | null
+  texto: string | null
+  /**
+   * URL absoluta de la imagen, servida por la ruta publica del televisor.
+   *
+   * Depende solo del codigo de la pantalla y del id del anuncio, o sea que es estable: cambiar la
+   * imagen de un anuncio NO cambia la URL, asi que el `ETag` del paquete sigue contestando 304.
+   */
+  image_url: string | null
+}
+
 /** Los contadores de la portada. */
 export interface ContadoresDePortada {
   personas: number
@@ -100,6 +133,13 @@ export interface ContadoresDePortada {
  * Dentro de una encendida, en cambio, `items` viaja aunque venga vacio. La distincion es la que hace
  * util a la pantalla: "nadie esta midiendo" se dice en pantalla, "esta escena no se muestra" se
  * saltea, y las dos cosas serian iguales si la API filtrara por contenido.
+ *
+ * === `momento` NO TRAE NADA, Y ES A PROPOSITO ===
+ *
+ * Viaja con su `kind` y su `seconds` y ni un campo mas. El saludo segun la hora lo resuelve el
+ * televisor con `meta.timezone`, porque calcularlo en el servidor haria que el paquete cambiara al
+ * cruzar cada franja y que el `ETag` fallara justo a las nueve de la maniana, cuando toda la oficina
+ * esta mirando. Ver `src/dominio/momento-del-dia.ts`.
  */
 export type EscenaDeApi = { seconds?: number } & (
   | { kind: 'portada', counts: ContadoresDePortada }
@@ -107,11 +147,21 @@ export type EscenaDeApi = { seconds?: number } & (
   | { kind: 'cronometros', items: CronometroEnPantalla[] }
   | { kind: 'procesos', items: TareaEnPantalla[], total: number }
   | { kind: 'espacios', items: ProyectoEnPantalla[] }
+  | { kind: 'momento' }
+  | { kind: 'anuncios', items: AnuncioEnPantalla[] }
 )
 
 /** El bloque `data` de la respuesta. */
 export interface PaqueteDePantalla {
-  area: { id: number, name: string }
+  /**
+   * De quien es la pantalla.
+   *
+   * **`id` en `null` significa que la pantalla es global**: la de toda la compañia, que convive con
+   * las de area y no las reemplaza. En ese caso `name` trae el titulo configurado o, si no hay, el
+   * nombre de la compañia — asi que se dibuja igual y lo unico que cambia son los rotulos que dicen
+   * "del área", que ahi no significarian nada.
+   */
+  area: { id: number | null, name: string }
   scenes: EscenaDeApi[]
 }
 

@@ -1,10 +1,31 @@
 import type { ReactNode } from 'react'
+import { cn } from '@/lib/clases'
 import { GLOSARIO } from '@/dominio/glosario'
 import type { TareaEnPantalla } from '@/datos/pantalla-area'
-import { Cara, Nada, Ocultos, TituloDeEscena } from './piezas'
+import {
+  CabeceraDeEscena, CUERPO_COLUMNA, CUERPO_PRINCIPAL, Nada, RELLENO_DE_FILA, RotulosDeColumna,
+  nombreCorto, rotuloDeAlcance
+} from './piezas'
+
+/** La rejilla de columnas de esta escena. Su reparto vive en `pantalla.css`. */
+const COLUMNAS = 'pantalla-columnas-procesos'
 
 /**
- * Las Tareas abiertas del area, por urgencia.
+ * Las Tareas abiertas del area, por urgencia. El tablero de salidas de la pared.
+ *
+ * === POR QUE UNA TABLA Y NO FICHAS ===
+ *
+ * Nacio como una lista de fichas con dos lineas cada una. Entraban cinco. El area de prueba tiene
+ * casi doscientas Tareas abiertas, asi que la pared enseñaba el 2,5% de lo que pasa y lo hacia con
+ * una tipografia de cartel.
+ *
+ * Una tabla de columnas fijas entrega el triple de filas sin bajar el nombre de la Tarea de los
+ * ~32 px que se leen desde el pasillo, porque lo que se recupera no es cuerpo de letra: es el aire
+ * entre tarjetas, el borde, el redondeo y la segunda linea. La jerarquia la hacen ahora el peso y el
+ * color, no el tamaño — igual que en un tablero de aeropuerto, donde el destino y la puerta miden lo
+ * mismo y no se confunden nunca.
+ *
+ * === LO QUE NO CAMBIO ===
  *
  * El orden lo decide la API —vencidas, despues por fecha, y las sin fecha al final— y la pantalla no
  * lo toca: reordenar acá haria que la lista se reacomode sola en cada sondeo mientras alguien la esta
@@ -12,93 +33,143 @@ import { Cara, Nada, Ocultos, TituloDeEscena } from './piezas'
  *
  * Lo vencido se marca con color y con la palabra, no solo con color: a cuatro metros y con el reflejo
  * de una ventana, un rojo y un naranja son el mismo color.
+ *
+ * En vertical la fila se queda en cuatro columnas —nombre, vence, quien y la barra de color— porque
+ * hay 92vmin de ancho contra los 170 de la pared tumbada: meter las siete dejaba el nombre de la
+ * Tarea en veinte caracteres, y una Tarea que no se puede nombrar no se muestra. Lo dice la plantilla
+ * `portrait` de `.pantalla-columnas-procesos` en `pantalla.css`, y los `portrait:hidden` de acá.
  */
-export function EscenaProcesos ({ items, ocultos, total }: {
+export function EscenaProcesos ({ items, ocultos, total, esGlobal = false }: {
   items: TareaEnPantalla[]
   ocultos: number
   total: number
+  /** La pantalla de toda la compañia no tiene area que nombrar: ver `rotuloDeAlcance`. */
+  esGlobal?: boolean
 }): ReactNode {
   if (items.length === 0) return <Nada texto={`Sin ${GLOSARIO.proceso.plural.toLowerCase()} abiertas`} />
 
   return (
     <div className="flex min-h-0 flex-col">
-      <TituloDeEscena>
-        {GLOSARIO.proceso.plural} del área
-        <span className="text-texto-sutil ml-[1.5vmin] font-normal tabular-nums">{total}</span>
-      </TituloDeEscena>
+      <CabeceraDeEscena titulo={`${GLOSARIO.proceso.plural} ${rotuloDeAlcance(esGlobal)}`} total={total} ocultos={ocultos} />
 
-      <ul className="flex flex-col gap-[1.4vmin]">
+      <RotulosDeColumna columnas={COLUMNAS}>
+        <span />
+        <span className="truncate">{GLOSARIO.proceso.singular}</span>
+        <span className="truncate portrait:hidden">{GLOSARIO.espacio.singular}</span>
+        <span className="truncate portrait:hidden">Estado</span>
+        <span className="text-right portrait:hidden">%</span>
+        <span className="truncate">Vence</span>
+        <span className="truncate">Quién</span>
+      </RotulosDeColumna>
+
+      <ul className="pantalla-tablero min-h-0">
         {items.map((tarea) => (
-          <li
-            key={tarea.id}
-            className="border-linea bg-superficie-elevada flex items-center gap-[2vmin] rounded-[1.6vmin] border px-[2.5vmin] py-[1.4vmin]"
-          >
+          <li key={tarea.id} className={cn('pantalla-fila py-[0.55vmin] leading-[1.15]', RELLENO_DE_FILA, COLUMNAS)}>
+            {/*
+              * La barra de color del estado. Es la unica columna que no es texto, y en vertical es
+              * lo unico que queda del estado: ahi la columna en palabras se cae por falta de ancho.
+              */}
             <span
-              className="h-[5vmin] w-[0.8vmin] shrink-0 rounded-full"
+              className="h-[2.8vmin] w-full rounded-full"
               style={{ backgroundColor: tarea.status?.color ?? 'var(--color-linea-fuerte)' }}
             />
 
-            <div className="flex min-w-0 flex-1 flex-col gap-[0.3vmin]">
-              <p className="text-texto truncate text-[3.2vmin] font-semibold">{tarea.name}</p>
-              <p className="text-texto-tenue truncate text-[2.6vmin]">
-                {tarea.project?.name ?? `Sin ${GLOSARIO.espacio.singular.toLowerCase()}`}
-                {tarea.status !== null && ` · ${tarea.status.name}`}
-              </p>
-            </div>
+            <span className={cn('text-texto truncate font-semibold', CUERPO_PRINCIPAL)}>
+              {tarea.name}
+            </span>
+
+            <span className={cn('text-texto-tenue truncate portrait:hidden', CUERPO_COLUMNA)}>
+              {tarea.project?.name ?? '—'}
+            </span>
+
+            <span className={cn('text-texto-tenue truncate portrait:hidden', CUERPO_COLUMNA)}>
+              {tarea.status?.name ?? '—'}
+            </span>
 
             <Avance progreso={tarea.progress} />
 
             <Vencimiento fecha={tarea.due_date} vencida={tarea.overdue} />
 
-            <ul className="flex shrink-0 -space-x-[1.2vmin]">
-              {tarea.assignees.slice(0, 3).map((persona) => (
-                <li key={persona.staff_id}>
-                  <Cara nombre={persona.name} imagen={persona.avatar} tamano="5vmin" />
-                </li>
-              ))}
-            </ul>
+            <Quien personas={tarea.assignees} />
           </li>
         ))}
       </ul>
-
-      <Ocultos cuantos={ocultos} />
     </div>
   )
 }
 
 /**
- * El avance en checklist, cuando lo hay.
+ * El avance en checklist, como numero y no como barra.
  *
- * `percent` es `null` cuando la Tarea no tiene checklist, y entonces no se muestra nada: un cero
+ * La barra se quedo en la escena de Proyectos, donde hay una por fila y sobra ancho. Acá son quince
+ * filas y una columna de barras de 10vmin se lee como una textura, no como quince datos; un
+ * porcentaje tabular alineado a la derecha se compara de un vistazo, que es lo que una columna sirve
+ * para hacer.
+ *
+ * `percent` es `null` cuando la Tarea no tiene checklist, y entonces se pone una raya: un cero
  * inventado se lee como "no empezó", que es una afirmacion que la API no hizo.
  */
 function Avance ({ progreso }: { progreso: TareaEnPantalla['progress'] }): ReactNode {
-  if (progreso.percent === null) return null
+  if (progreso.percent === null) {
+    return <span className={cn('text-texto-sutil text-right portrait:hidden', CUERPO_COLUMNA)}>—</span>
+  }
 
   return (
-    <div className="hidden shrink-0 items-center gap-[1vmin] sm:flex">
-      <div className="bg-linea-suave h-[0.8vmin] w-[10vmin] overflow-hidden rounded-full">
-        <div className="bg-acento h-full rounded-full" style={{ width: `${progreso.percent}%` }} />
-      </div>
-      <span className="text-texto-tenue w-[6vmin] text-[2.4vmin] tabular-nums">
-        {progreso.percent}%
-      </span>
-    </div>
+    <span className={cn('text-texto-tenue text-right tabular-nums portrait:hidden', CUERPO_COLUMNA)}>
+      {progreso.percent}%
+    </span>
   )
 }
 
-/** La fecha de vencimiento, con la palabra y no solo el color. */
+/**
+ * La fecha de vencimiento, con la palabra y no solo el color.
+ *
+ * En una tabla el fondo rojo de la celda tiene ademas una segunda virtud que no tenia en una ficha:
+ * marca el renglon entero a lo largo de dos metros de pared, que es como se encuentra una fila
+ * urgente sin leerlas todas.
+ */
 function Vencimiento ({ fecha, vencida }: { fecha: string | null, vencida: boolean }): ReactNode {
-  if (fecha === null) return null
+  if (fecha === null) {
+    return <span className={cn('text-texto-sutil', CUERPO_COLUMNA)}>Sin fecha</span>
+  }
 
   return (
     <span
-      className={[
-        'shrink-0 rounded-[1vmin] px-[1.5vmin] py-[0.6vmin] text-[2.6vmin] font-semibold tabular-nums',
-        vencida ? 'bg-superficie-peligro text-texto-peligro' : 'text-texto-tenue'
-      ].join(' ')}
+      className={cn(
+        'truncate rounded-[0.8vmin] font-semibold tabular-nums',
+        CUERPO_COLUMNA,
+        vencida ? 'bg-superficie-peligro text-texto-peligro px-[1vmin]' : 'text-texto-tenue'
+      )}
     >
-      {vencida && 'Vencida · '}{formatoCorto(fecha)}
+      {vencida && 'Venció '}{formatoCorto(fecha)}
+    </span>
+  )
+}
+
+/**
+ * Quien la tiene asignada, en letra y no en caras.
+ *
+ * La version de fichas apilaba hasta tres avatares de 5vmin. En una fila de tablero esos avatares
+ * tendrian que medir 3.4vmin para no engordar el renglon, y a cuatro metros una cara de 3.4vmin no es
+ * una cara: es una mancha de color, y tres superpuestas son tres manchas. Un nombre abreviado se lee,
+ * se busca recorriendo la columna con la vista, y ocupa lo mismo.
+ *
+ * Se nombra a la primera y el resto se cuenta. Quien necesite la lista completa la tiene en el panel,
+ * no en una pared.
+ */
+function Quien ({ personas }: { personas: TareaEnPantalla['assignees'] }): ReactNode {
+  const primera = personas[0]
+
+  if (primera === undefined) {
+    return <span className={cn('text-texto-sutil truncate', CUERPO_COLUMNA)}>Sin asignar</span>
+  }
+
+  return (
+    <span className={cn('text-texto-tenue truncate', CUERPO_COLUMNA)}>
+      {nombreCorto(primera.name)}
+      {personas.length > 1 && (
+        <span className="text-texto-sutil tabular-nums"> +{personas.length - 1}</span>
+      )}
     </span>
   )
 }
