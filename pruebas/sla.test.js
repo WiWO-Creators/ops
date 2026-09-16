@@ -11,6 +11,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { esEstadoSla, formatearDesviacion, SLA } from '../src/lib/sla.ts'
+import { textoDeAprobacion } from '../src/definiciones/procesos.ts'
 import { urlClasica } from '../src/lib/panel-clasico.ts'
 
 test('sin desviacion no hay texto, y el cero es un texto y no un vacio', () => {
@@ -75,4 +76,42 @@ test('un id invalido no arma un enlace roto', () => {
   assert.equal(urlClasica('proceso', Number.NaN), null)
 
   delete process.env.NEXT_PUBLIC_BOARD_URL
+})
+
+/**
+ * Lectura de la aprobacion en el listado.
+ *
+ * Lo que se prueba es que las tres situaciones que antes se veian iguales queden distintas: "nadie
+ * se lo pidio al cliente", "el cliente lo tiene y no contesto" y "el cliente contesto". Las dos
+ * primeras comparten `estado: 'pendiente'` y significan cosas opuestas para quien tiene que actuar.
+ *
+ * Y que el numero de rondas aparezca solo cuando hubo mas de una: hasta la migracion 0690 cada
+ * pedido nuevo pisaba al anterior y ese dato no existia.
+ */
+
+test('sin bloque de aprobacion se lee "No requiere", no un vacio', () => {
+  assert.equal(textoDeAprobacion({ approval: undefined }), 'No requiere')
+  assert.equal(textoDeAprobacion({ approval: { requerida: false, estado: null, solicitada_en: null, resuelta_en: null, comentario: null } }), 'No requiere')
+})
+
+test('pendiente sin pedir no se lee igual que pendiente ya pedida', () => {
+  const sinPedir = { requerida: true, estado: 'pendiente', solicitada_en: null, resuelta_en: null, comentario: null }
+  const pedida = { requerida: true, estado: 'pendiente', solicitada_en: '2026-09-10 10:00:00', resuelta_en: null, comentario: null }
+
+  assert.equal(textoDeAprobacion({ approval: sinPedir }), 'Sin pedir')
+  assert.equal(textoDeAprobacion({ approval: pedida }), 'Pendiente')
+})
+
+test('la segunda ronda en adelante se anota; la primera no', () => {
+  const base = { requerida: true, estado: 'aprobada', solicitada_en: '2026-09-10 10:00:00', resuelta_en: '2026-09-11 10:00:00', comentario: null }
+
+  assert.equal(textoDeAprobacion({ approval: { ...base, ronda: 1, rondas: 1 } }), 'Aprobada')
+  assert.equal(textoDeAprobacion({ approval: { ...base, ronda: 3, rondas: 3 } }), 'Aprobada ×3')
+  assert.equal(textoDeAprobacion({ approval: { ...base, estado: 'rechazada', ronda: 2, rondas: 2 } }), 'Rechazada ×2')
+})
+
+test('una base sin la migracion 0690 no manda rondas y no se inventa un numero', () => {
+  const sinRondas = { requerida: true, estado: 'aprobada', solicitada_en: '2026-09-10 10:00:00', resuelta_en: '2026-09-11 10:00:00', comentario: null }
+
+  assert.equal(textoDeAprobacion({ approval: sinRondas }), 'Aprobada')
 })

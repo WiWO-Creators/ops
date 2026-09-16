@@ -5,6 +5,7 @@ import type {
   DefinicionCampoPersonalizado,
   EstadoSla,
   Etiqueta,
+  JustificacionDesviacion,
   ProcesoAmpliado,
   Referencia,
   ValorCampoPersonalizado
@@ -271,6 +272,8 @@ export interface ProcesoDeFicha {
   approval?: AprobacionProceso
   /** Por que no avanza. No llega al portal: el motivo es interno. */
   bloqueo?: BloqueoProceso
+  /** Lo que alega el EQUIPO sobre la desviacion. No llega al portal: es registro interno. */
+  justificacion?: JustificacionDesviacion
   eta?: string | null
   desviacion_dias?: number | null
   estado_sla?: EstadoSla | null
