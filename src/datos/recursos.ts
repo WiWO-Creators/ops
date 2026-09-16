@@ -102,6 +102,17 @@ export interface Proceso {
    * migracion 0620 no manda la clave.
    */
   bloqueo?: BloqueoProceso
+  /**
+   * Lo que alega el EQUIPO sobre la desviacion, cuando se perdona sin aprobacion del cliente.
+   *
+   * **No es `approval.comentario`.** Ese lo escribio el cliente desde su portal; este lo escribio
+   * alguien del equipo. Pintarlos juntos, o en el mismo lugar sin decir de quien es cada uno, deja
+   * las dos cosas sin valor: "el cliente aceptó el atraso" y "nosotros dijimos que estaba bien" no
+   * pesan igual en una reunion.
+   *
+   * Opcional por la misma razon que `approval`: una base sin la migracion 0691 no manda la clave.
+   */
+  justificacion?: JustificacionDesviacion
   /** Solo en el detalle o con `include=description`. */
   description?: string
   /** Solo con `include=custom_fields`, tanto en el listado como en la ficha. */
@@ -164,6 +175,50 @@ export interface AprobacionProceso {
   resuelta_en: string | null
   resuelta_por_contacto?: number | null
   comentario: string | null
+  /**
+   * Numero de la ronda VIGENTE, empezando en 1.
+   *
+   * Cada vez que el cliente rechaza y el equipo vuelve a pedir la aprobacion, se abre una ronda
+   * nueva y la anterior se conserva. Volver a pedir sobre una ronda que el cliente todavia no
+   * respondio NO abre ronda: es insistir, no corregir.
+   *
+   * Opcional: una base sin la migracion 0690 no manda ni `ronda` ni `rondas`.
+   */
+  ronda?: number | null
+  /** Cuantas rondas lleva el Proceso. `1` es "aprobado (o rechazado) en primera revision". */
+  rondas?: number
+  /**
+   * Todas las rondas, de la primera a la ultima. **Viene vacio en el listado a proposito**: son N
+   * filas por Proceso y la tabla muestra decenas. La ficha lo pide aparte a
+   * `GET /tasks/{id}/approvals`.
+   */
+  historial?: RondaDeAprobacion[]
+}
+
+/** Una ronda del historial de aprobaciones: lo mismo que la vigente, sin historial anidado. */
+export interface RondaDeAprobacion {
+  ronda: number
+  requerida: boolean
+  estado: 'pendiente' | 'aprobada' | 'rechazada' | null
+  solicitada_en: string | null
+  solicitada_por?: number | null
+  resuelta_en: string | null
+  resuelta_por_contacto?: number | null
+  comentario: string | null
+}
+
+/**
+ * Justificacion del EQUIPO sobre una desviacion de plazo.
+ *
+ * Las claves nunca faltan; lo que falta es su valor. Es append-only del lado del backend: escribir
+ * una nueva no borra la anterior, y `GET /tasks/{id}/justificacion` las lista todas.
+ *
+ * No llega al portal del cliente: es registro interno, igual que el motivo de un bloqueo.
+ */
+export interface JustificacionDesviacion {
+  texto: string | null
+  creada_en: string | null
+  creada_por: number | null
 }
 
 /** Espacio. `project` en Perfex. Ojo con el glosario: "Proyecto" en la interfaz es otra cosa. */

@@ -9,6 +9,8 @@ import { EstadoSla } from '@/componentes/presentadores/EstadoSla'
 import { Fecha } from '@/componentes/presentadores/Fecha'
 import { Insignia, type TonoInsignia } from '@/componentes/presentadores/Insignia'
 import { fechaDeCierre, instanteDeCierre } from '@/dominio/cierre-tarea'
+import { HistorialDeAprobaciones } from './HistorialDeAprobaciones'
+import { JustificacionDelEquipo } from './JustificacionDelEquipo'
 import { formatearDesviacion, SIN_DATO } from '@/lib/sla'
 import { hoyLocal } from '@/lib/fechas'
 import { cn } from '@/lib/clases'
@@ -23,9 +25,16 @@ import type { AprobacionProceso, Proceso } from '@/datos/recursos'
  * sale del tipo de Proceso configurado por Espacio, y la desviacion compara el cierre real contra la
  * fecha comprometida.
  *
- * **No pide nada por su cuenta**: los cuatro campos ya vienen dentro de la tarea que el detalle
- * cargo. Lo unico que escribe es el pedido de aprobacion, y despues le avisa al detalle que recargue
- * —el backend es quien sabe como quedo la fila—.
+ * **Casi no pide nada por su cuenta**: los campos ya vienen dentro de la tarea que el detalle cargo.
+ * La unica excepcion es el historial de rondas, que se pide solo al desplegarlo
+ * (`HistorialDeAprobaciones`) porque son N filas por Proceso. Lo que escribe es el pedido de
+ * aprobacion y la justificacion del equipo, y despues le avisa al detalle que recargue —el backend
+ * es quien sabe como quedo la fila—.
+ *
+ * **Las dos justificaciones no se mezclan.** `approval.comentario` lo escribio el CLIENTE desde su
+ * portal; `justificacion.texto` lo escribio el EQUIPO. Estan en dos bloques distintos, con dos
+ * rotulos que dicen de quien es cada uno, y tienen que seguir asi: si compartieran lugar, nadie
+ * podria distinguir "el cliente acepto el atraso" de "nosotros dijimos que estaba bien".
  *
  * El foco de la vista es la **desviacion**: es el numero que la persona vino a mirar, y gana por
  * tamano, peso y color, con la misma escala que `Contador` tres bloques mas abajo.
@@ -56,6 +65,7 @@ const APROBACION: Record<string, { etiqueta: string, tono: TonoInsignia }> = {
 export function hayDatosDeSla (tarea: ProcesoDeFicha): boolean {
   return (
     tarea.approval !== undefined ||
+    tarea.justificacion !== undefined ||
     tarea.eta !== undefined ||
     tarea.estado_sla !== undefined ||
     hayCierre(tarea)
@@ -169,6 +179,15 @@ export function BloqueSla ({ tarea, puedeEditar, onCambiado }: PropsBloqueSla): 
         />
       )}
 
+      <HistorialDeAprobaciones tareaId={tarea.id} rondas={aprobacion?.rondas} />
+
+      <JustificacionDelEquipo
+        tareaId={tarea.id}
+        justificacion={tarea.justificacion}
+        puedeEditar={puedeEditar}
+        onCambiado={onCambiado}
+      />
+
       {puedePedir && (
         <div className="col-span-full flex flex-col items-start gap-2">
           <Boton
@@ -222,10 +241,22 @@ function Aprobacion ({ aprobacion }: { aprobacion: AprobacionProceso | undefined
         </span>
       )}
 
-      {aprobacion.estado === 'rechazada' && aprobacion.comentario !== null && (
+      {/* En TODAS las decisiones, no solo en los rechazos. Un "aprobado, pero la próxima vez
+          avisen antes" es exactamente el dato que se venía guardando sin que nadie lo viera. Y el
+          rótulo dice de quién es: sin eso se confunde con la justificación del equipo. */}
+      {aprobacion.comentario !== null && aprobacion.comentario !== '' && (
         <p className="text-texto-tenue line-clamp-3 text-sm" title={aprobacion.comentario}>
+          <span className="text-texto-sutil">Dijo el cliente: </span>
           {aprobacion.comentario}
         </p>
+      )}
+
+      {/* Más de una ronda significa que hubo que corregir y volver a pedir. Es el número que
+          contesta "¿por qué esto lleva tres semanas?" antes de abrir el historial. */}
+      {typeof aprobacion.rondas === 'number' && aprobacion.rondas > 1 && (
+        <span className="text-texto-sutil text-xs">
+          {aprobacion.rondas} rondas de aprobación
+        </span>
       )}
 
       {aprobacion.estado === 'aprobada' && (

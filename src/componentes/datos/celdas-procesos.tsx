@@ -9,7 +9,8 @@ import { Desviacion, EstadoSla } from '@/componentes/presentadores/EstadoSla'
 import { Fecha } from '@/componentes/presentadores/Fecha'
 import { InsigniaHito } from '@/componentes/presentadores/Hito'
 import { PARAMETRO_TAREA, urlConParametro } from '@/componentes/datos/tabla'
-import { PROCESOS } from '@/definiciones/procesos'
+import { PROCESOS, textoDeAprobacion } from '@/definiciones/procesos'
+import { SIN_DATO } from '@/lib/sla'
 import type { Proceso } from '@/datos/recursos'
 import type { Columna, DefinicionRecurso } from '@/definiciones/tipos'
 
@@ -48,7 +49,54 @@ const CELDAS: Record<string, (proceso: Proceso) => ReactElement> = {
   // del presentador unico. Una celda con `null` no dibuja nada y el motor deja la raya.
   desviacion: (proceso) => <Desviacion dias={proceso.desviacion_dias} />,
   estado_sla: (proceso) => <EstadoSla estado={proceso.estado_sla} />,
+  // La aprobacion va al lado del SLA porque lo explica: el texto lo arma `textoDeAprobacion` en la
+  // definicion —es el mismo que baja al CSV— y acá se le suma la fecha y el comentario del cliente
+  // en el `title`, que es lo que hacía falta para no tener que abrir la ficha.
+  aprobacion: (proceso) => <CeldaAprobacion proceso={proceso} />,
+  aprobacion_comentario: (proceso) => (
+    <TextoLargo valor={proceso.approval?.comentario ?? null} />
+  ),
+  justificacion: (proceso) => <TextoLargo valor={proceso.justificacion?.texto ?? null} />,
   tags: (proceso) => <Etiquetas etiquetas={proceso.tags} />
+}
+
+/**
+ * Estado de la aprobacion con su fecha: la de respuesta si el cliente contesto, y si no la del
+ * pedido.
+ *
+ * La fecha es la mitad del dato. "Pendiente" sin fecha no dice nada; "Pendiente desde el 3 de
+ * septiembre" es una deuda de aprobacion que alguien tiene que ir a golpear.
+ */
+function CeldaAprobacion ({ proceso }: { proceso: Proceso }): ReactElement {
+  const aprobacion = proceso.approval
+  const instante = aprobacion?.resuelta_en ?? aprobacion?.solicitada_en ?? null
+  const comentario = aprobacion?.comentario ?? null
+
+  return (
+    <div
+      className="flex min-w-0 flex-col gap-0.5"
+      title={comentario === null || comentario === '' ? undefined : `Dijo el cliente: ${comentario}`}
+    >
+      <span className="truncate text-sm">{textoDeAprobacion(proceso)}</span>
+      {instante !== null && (
+        <span className="text-texto-sutil text-xs">
+          <Fecha valor={instante} />
+        </span>
+      )}
+    </div>
+  )
+}
+
+/**
+ * Texto de varias lineas recortado a una, con el contenido entero en el `title`.
+ *
+ * Las dos columnas que lo usan —el comentario del cliente y la justificacion del equipo— guardan
+ * hasta 2000 caracteres, y una celda que crece hasta ahi rompe la tabla.
+ */
+function TextoLargo ({ valor }: { valor: string | null }): ReactElement {
+  if (valor === null || valor === '') return <span className="text-texto-sutil">{SIN_DATO}</span>
+
+  return <span className="line-clamp-2 text-sm" title={valor}>{valor}</span>
 }
 
 /**

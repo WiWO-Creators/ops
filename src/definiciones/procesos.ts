@@ -76,6 +76,30 @@ export const PROCESOS: DefinicionRecurso<Proceso> = {
       encabezado: 'SLA',
       presentar: (p) => (p.estado_sla == null ? SIN_DATO : SLA[p.estado_sla].etiqueta)
     },
+    // Las tres de la aprobacion van pegadas al SLA porque explican la desviacion que el SLA marca.
+    // Un Proceso incumplido cuyo cliente escribio "va bien, sigan" no es el mismo problema que uno
+    // incumplido en silencio, y hasta ahora los dos se veian identicos: el comentario se guardaba
+    // desde la migracion 0100 y no se mostraba en ninguna parte.
+    {
+      clave: 'aprobacion',
+      encabezado: 'Aprobación',
+      presentar: (p) => textoDeAprobacion(p)
+    },
+    {
+      clave: 'aprobacion_comentario',
+      encabezado: 'Dijo el cliente',
+      // Oculta por defecto, igual que Iteraciones: es texto largo y ensancha la tabla. El encabezado
+      // dice de quien es el texto a proposito — confundirlo con la justificacion del equipo es
+      // exactamente lo que estas dos columnas separadas vienen a impedir.
+      ocultaPorDefecto: true,
+      presentar: (p) => p.approval?.comentario ?? SIN_DATO
+    },
+    {
+      clave: 'justificacion',
+      encabezado: 'Justificación del equipo',
+      ocultaPorDefecto: true,
+      presentar: (p) => p.justificacion?.texto ?? SIN_DATO
+    },
     { clave: 'tags', encabezado: 'Etiquetas', presentar: (p) => p.tags.map((etiqueta) => etiqueta.name).join(', ') },
     {
       clave: 'iterations',
@@ -248,6 +272,36 @@ export const PROCESOS: DefinicionRecurso<Proceso> = {
  * @param proceso La tarea.
  * @returns Los nombres separados por coma, o "Sin asignar" si no hay nadie.
  */
+/**
+ * Estado de la aprobacion como texto de una linea, para la celda y para el CSV.
+ *
+ * Tres lecturas distintas que antes se veian todas igual:
+ *   - sin bloque: la base no tiene `wiwo_core`, o el Proceso no pide aprobacion;
+ *   - `pendiente` SIN `solicitada_en`: la requiere y nadie se la pidio al cliente todavia;
+ *   - `pendiente` CON `solicitada_en`: el cliente la tiene y no contesto.
+ *
+ * La segunda y la tercera son el mismo `estado` y significan cosas opuestas para quien tiene que
+ * actuar: en una hay que mandar el pedido, en la otra hay que esperar (o insistir).
+ *
+ * `×N` es el numero de rondas, y solo aparece a partir de la segunda: que un Proceso haya necesitado
+ * tres vueltas es lo que explica su plazo, y hasta la migracion 0690 ese dato no existia — cada
+ * pedido nuevo pisaba el anterior.
+ */
+export function textoDeAprobacion (proceso: Proceso): string {
+  const aprobacion = proceso.approval
+
+  if (aprobacion === undefined || !aprobacion.requerida) return 'No requiere'
+
+  const rondas = typeof aprobacion.rondas === 'number' && aprobacion.rondas > 1
+    ? ` ×${aprobacion.rondas}`
+    : ''
+
+  if (aprobacion.estado === 'aprobada') return `Aprobada${rondas}`
+  if (aprobacion.estado === 'rechazada') return `Rechazada${rondas}`
+
+  return aprobacion.solicitada_en === null ? 'Sin pedir' : `Pendiente${rondas}`
+}
+
 function nombresAsignados (proceso: Proceso): string {
   if (proceso.assignees.length === 0) return 'Sin asignar'
 
