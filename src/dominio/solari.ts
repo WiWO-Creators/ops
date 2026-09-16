@@ -49,8 +49,34 @@ export const ALFABETO_SOLARI = 'ABCDEFGHIJKLMNÑOPQRSTUVWXYZ0123456789'
  * Seis es el minimo que todavia se lee como un rodillo girando y no como un parpadeo; por encima de
  * diez el caracter pasa mas tiempo ilegible que legible, y esta pared se lee de pie y de pasada. Cada
  * paso suma una linea de texto al DOM, asi que el numero es tambien el coste.
+ *
+ * Es el promedio: el recorrido real de cada posicion lo decide `pasosDeGlifo()`, que lo hace desigual
+ * a proposito.
  */
 export const PASOS_POR_GLIFO = 6
+
+/**
+ * El recorrido mas corto y el mas largo que puede tocarle a una posicion.
+ *
+ * === POR QUE NO TODAS LAS FICHAS RECORREN LO MISMO ===
+ *
+ * Con un recorrido igual para todas, y como el escalonado es tambien regular, las fichas se asientan
+ * en fila india a intervalos identicos: se lee como un contador digital haciendo la ola, no como un
+ * panel. Un panel de verdad es desigual porque cada aleta venia de donde venia.
+ *
+ * Con recorridos distintos y **la misma velocidad de giro** —la duracion sale de los pasos, no al
+ * reves—, las que tienen mas camino tardan mas y el conjunto se asienta desordenado, que es el gesto
+ * que hace que el efecto se lea como mecanico.
+ *
+ * Cuatro y nueve, y no las 3 a 7 vueltas al tambor completo que usa el panel del que viene esta idea:
+ * una vuelta entera son decenas de glifos, y acá cada glifo es una linea de texto mas en el DOM de
+ * una pared que corre en un stick HDMI. El desorden se consigue igual con la diferencia relativa, que
+ * es lo que el ojo lee, y no con el largo absoluto.
+ */
+export const PASOS_MINIMOS = 4
+
+/** Ver `PASOS_MINIMOS`. */
+export const PASOS_MAXIMOS = 9
 
 /**
  * Nunca mas de estos rodillos por texto.
@@ -83,6 +109,97 @@ export interface GlifoSolari {
   rodillo: string[] | null
   /** Cuantos pasos de escalon lleva esta posicion; ya viene acotado por `TOPE_DE_ESCALON_GLIFO`. */
   escalon: number
+  /**
+   * El ancho que esta posicion reserva, en `em`.
+   *
+   * Es lo que permite que el texto NO salga monoespaciado sin renunciar a reservar el hueco antes de
+   * que empiece a girar. Ver `anchoDeGlifo()`.
+   */
+  ancho: number
+}
+
+/**
+ * El ancho que reserva cada clase de caracter, en `em`.
+ *
+ * === POR QUE UNA TABLA Y NO EL ANCHO REAL DEL GLIFO ===
+ *
+ * El hueco tiene que medir lo mismo durante todo el volteo: dentro pasan siete glifos distintos, y si
+ * el hueco midiera lo que mide el que esta encima, la celda cambiaria de ancho siete veces y empujaria
+ * a sus vecinas. El marco de la pantalla es `overflow: hidden` sin barra de scroll, asi que eso no se
+ * ve fallar: se lleva por delante la columna de al lado y nadie se entera.
+ *
+ * Asi que el ancho se fija de antemano, por clase de caracter. No es el ancho exacto de la fuente
+ * —seria imposible sin medirlo en el navegador— pero es mucho mas fiel que un ancho unico: una `i` y
+ * una `m` dejan de ocupar lo mismo, y el texto deja de leerse como una maquina de escribir.
+ *
+ * Los valores vienen calibrados de un panel Solari ya en produccion en otro proyecto; el resto de
+ * clases se completo por continuidad con esas.
+ */
+const ANCHOS_EN_EM = {
+  /** Digitos: van con `tabular-nums`, asi que todos miden igual por definicion. */
+  digito: 0.66,
+  /** Las letras anchas de verdad. */
+  ancha: 0.9,
+  /** Las letras finas, que con un ancho medio dejan un agujero a cada lado. */
+  fina: 0.42,
+  /** Puntos, comas, dos puntos: casi todo aire. */
+  puntuacion: 0.3,
+  /** Mayusculas, que en cualquier fuente son mas anchas que su minuscula. */
+  mayuscula: 0.72,
+  /** Todo lo demas. */
+  normal: 0.58
+} as const
+
+/** Las letras que miden claramente mas que la media. */
+const LETRAS_ANCHAS = 'MWmw%@'
+
+/** Las letras que miden claramente menos que la media. */
+const LETRAS_FINAS = 'IiltfjJ'
+
+/** Lo que es casi todo aire y no merece un hueco de letra. */
+const PUNTUACION = ' .,:;!¡?¿\'"`|()[]{}-–—/\\*+·°º'
+
+/**
+ * El ancho que reserva un caracter, en `em`.
+ *
+ * @param glifo el caracter que va a quedar en el hueco
+ * @returns el ancho en `em`; ver `ANCHOS_EN_EM`
+ */
+export function anchoDeGlifo (glifo: string): number {
+  if (glifo === '') return ANCHOS_EN_EM.puntuacion
+  if (LETRAS_ANCHAS.includes(glifo)) return ANCHOS_EN_EM.ancha
+  if (LETRAS_FINAS.includes(glifo)) return ANCHOS_EN_EM.fina
+  if (PUNTUACION.includes(glifo)) return ANCHOS_EN_EM.puntuacion
+  if (glifo >= '0' && glifo <= '9') return ANCHOS_EN_EM.digito
+  // Una mayuscula es un caracter que cambia al pasarlo a minuscula: vale para acentos y para la eñe
+  // sin escribir el alfabeto dos veces.
+  if (glifo !== glifo.toLowerCase()) return ANCHOS_EN_EM.mayuscula
+
+  return ANCHOS_EN_EM.normal
+}
+
+/**
+ * Cuantos glifos recorre la posicion `indice` antes de asentarse.
+ *
+ * Es desigual a proposito —ver `PASOS_MINIMOS`— pero **no es al azar**: sale del caracter y de su
+ * posicion. Tiene que ser asi por dos motivos, y el segundo no es negociable:
+ *
+ * 1. El componente que lo dibuja es puro y no guarda estado. Con `Math.random()` cada render daria un
+ *    recorrido distinto, y React remontaria fichas que no cambiaron.
+ * 2. **La pagina se pinta en el servidor y se hidrata en el cliente.** Un numero al azar sale distinto
+ *    en los dos lados, React lo detecta como un desajuste de hidratacion y descarta el arbol entero.
+ *    En esta pantalla eso no se ve en desarrollo —`pnpm dev` no hidrata— y arruina la pared en
+ *    produccion, que es el peor sitio donde puede aparecer un fallo.
+ *
+ * @param glifo  el caracter de destino
+ * @param indice su posicion dentro del texto
+ * @returns un entero entre `PASOS_MINIMOS` y `PASOS_MAXIMOS`
+ */
+export function pasosDeGlifo (glifo: string, indice: number): number {
+  const rango = PASOS_MAXIMOS - PASOS_MINIMOS + 1
+  const semilla = (glifo.codePointAt(0) ?? 0) * 31 + (Number.isFinite(indice) ? Math.abs(Math.trunc(indice)) : 0) * 17
+
+  return PASOS_MINIMOS + (semilla % rango)
 }
 
 /**
@@ -132,27 +249,25 @@ export function rodilloDeGlifo (destino: string, pasos: number = PASOS_POR_GLIFO
  * presupuesto, asi que "Persona 12 Apellido" no se queda sin volteo antes de tiempo por sus dos
  * espacios.
  *
+ * El recorrido de cada posicion NO es el mismo: lo decide `pasosDeGlifo()`, para que las fichas no se
+ * asienten todas en fila. El ancho tampoco: lo decide `anchoDeGlifo()`.
+ *
  * @param texto  lo que se quiere mostrar; `''` devuelve una lista vacia
- * @param pasos  glifos intermedios por caracter; ver `PASOS_POR_GLIFO`
  * @param tope   cuantos caracteres como mucho voltean; ver `TOPE_DE_GLIFOS`
  * @returns una posicion por caracter, en el orden del texto
  */
-export function rodilloDeTexto (
-  texto: string,
-  pasos: number = PASOS_POR_GLIFO,
-  tope: number = TOPE_DE_GLIFOS
-): GlifoSolari[] {
+export function rodilloDeTexto (texto: string, tope: number = TOPE_DE_GLIFOS): GlifoSolari[] {
   if (typeof texto !== 'string' || texto === '') return []
 
   const limite = Math.max(Math.floor(tope), 0)
   let animados = 0
 
   return Array.from(texto).map((glifo, indice) => {
-    const rodillo = animados < limite ? rodilloDeGlifo(glifo, pasos) : null
+    const rodillo = animados < limite ? rodilloDeGlifo(glifo, pasosDeGlifo(glifo, indice)) : null
 
     if (rodillo !== null) animados += 1
 
-    return { glifo, rodillo, escalon: escalonDeGlifo(indice) }
+    return { glifo, rodillo, escalon: escalonDeGlifo(indice), ancho: anchoDeGlifo(glifo) }
   })
 }
 

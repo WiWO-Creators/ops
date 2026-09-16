@@ -316,11 +316,12 @@
  * siempre en una pared que lleva meses encendida, que es justo lo que no se puede pedirle a un stick
  * HDMI.
  *
- * **Donde NO se usa.** En los nombres de personas, Tareas y Proyectos. El ancho fijo por caracter es
- * obligatorio —el hueco reserva su sitio antes de girar, porque el marco es `overflow: hidden` y lo
- * que no entra desaparece sin barra que lo delate— y eso monoespacia el texto: en las columnas del
- * tablero, medidas al milimetro acá abajo, ensancharia lo unico que la pared existe para leer. Ver el
- * docblock de `Solari.tsx`.
+ * **Donde NO se usa.** En las filas del tablero. No es por el ancho —el hueco reserva su sitio por
+ * clase de caracter y el texto no sale monoespaciado— sino por el coste medido: las quince filas de la
+ * escena mas densa son ciento cincuenta fichas girando en el mismo fotograma, que bajan la pared de 54
+ * a 18 fotogramas por segundo y dejan un salto de 204 ms. Con lo que si lleva Solari —el reloj, el
+ * reloj grande y los rotulos que alternan— el coste no se distingue del reposo. Ver el docblock de
+ * `Solari.tsx` y el de `piezas.tsx`.
  */
 .solari {
   /*
@@ -334,32 +335,61 @@
    */
   --solari-paso: 1.2em;
 
+  /*
+   * El ancho de una ficha uniforme: la de las columnas del tablero, donde lo que importa es que dos
+   * celdas de la misma columna caigan alineadas y no que cada letra respire.
+   *
+   * `1ch` y no una constante en `em` porque `1ch` es el ancho REAL del digito de la fuente heredada,
+   * medido por el navegador; una constante seria una apuesta sobre una fuente que puede cambiar. Es
+   * exacto porque todo lo que lleva Solari lleva tambien `tabular-nums`, un par de lineas mas abajo.
+   */
+  --ancho-columna: 1ch;
+
+  /*
+   * Cuanto tarda la ficha en pasar UN glifo, y cuanto se retrasa cada posicion respecto a la anterior.
+   *
+   * Son los dos numeros que gobiernan el efecto entero y por eso estan juntos y arriba. La velocidad
+   * es por glifo y no por ficha: ver el comentario de `animation` mas abajo. El peor caso son los
+   * nueve pasos de `PASOS_MAXIMOS` mas los diez escalones de `TOPE_DE_ESCALON_GLIFO`, o sea
+   * 9*50 + 10*35 = 800 ms — un octavo de los seis segundos que dura una fase de dato. El 87% del
+   * tiempo la pared esta quieta, que es la condicion para poder leerla de pie y de pasada.
+   */
+  --velocidad: 50ms;
+  --escalon: 35ms;
+
   display: inline-block;
   line-height: 1.2;
-  /* Un ancho de caracter estable es lo que hace que `1ch` reserve el hueco correcto. */
+  /* Un ancho de caracter estable es lo que hace que `--ancho-columna` reserve el hueco correcto. */
   font-variant-numeric: tabular-nums;
 }
 
 /*
  * El hueco de una posicion: ancho y alto reservados ANTES de que empiece a girar.
  *
- * `1ch` es el ancho de un digito de la fuente heredada, y es la razon por la que todo lo que lleva
- * Solari lleva tambien `tabular-nums`. El precio es que el texto sale monoespaciado, y se paga a
- * sabiendas: el marco de la pantalla es `overflow: hidden` sin barra de scroll, asi que un caracter
- * que ensanchara su celda a mitad de volteo se llevaria por delante la columna de al lado sin dejar
- * rastro. Ancho fijo es la unica alternativa a ese fallo mudo. Por eso el efecto no se usa en los
- * nombres, que son proporcionales y estan medidos al milimetro mas arriba en este archivo.
+ * === EL ANCHO ES LA RESTRICCION DURA DE TODO ESTE EFECTO ===
+ *
+ * Dentro de un hueco pasan siete glifos distintos. Si el hueco midiera lo que mide el que tiene
+ * encima, la celda cambiaria de ancho siete veces por volteo y empujaria a sus vecinas; y el marco de
+ * la pantalla es `overflow: hidden` SIN barra de scroll, asi que eso no se ve fallar: se lleva por
+ * delante la columna de al lado y nadie se entera. El hueco reserva su sitio de antemano y punto.
+ *
+ * Lo que decide cuanto reserva es `anchoDeGlifo()` en el dominio, que da un ancho por CLASE de
+ * caracter —una `i` no ocupa lo que una `m`— en vez de un ancho unico para todos. No es el ancho real
+ * de la fuente, que no se puede saber sin medirlo en el navegador, pero es lo bastante fiel como para
+ * que el texto no se lea como una maquina de escribir. El default `--ancho-columna` es la ficha
+ * uniforme: la que se usa en las columnas del tablero, donde lo que importa no es que cada letra
+ * respire sino que dos celdas de la misma columna caigan alineadas.
  *
  * **El `letter-spacing` del padre no llega acá, y se deja asi.** Un `inline-block` atomico no recibe
  * espaciado entre letras, asi que el rotulo de columna que voltea sale algo mas apretado que sus
- * hermanos en versalitas. Compensarlo ensanchando el hueco gastaria el margen que le queda a la
- * columna mas estrecha del tablero —y ese margen es lo unico que separa la pared de un recorte
- * invisible— para corregir una diferencia de densidad que a cuatro metros no se ve. Ademas, un
- * rodillo apretado se lee como lo que imita: un panel mecanico.
+ * hermanos en versalitas. Compensarlo gastaria el margen que le queda a la columna mas estrecha del
+ * tablero —y ese margen es lo unico que separa la pared de un recorte invisible— para corregir una
+ * diferencia de densidad que a cuatro metros no se ve. Ademas, un rodillo apretado se lee como lo que
+ * imita: un panel mecanico.
  */
 .solari-hueco {
   display: inline-block;
-  width: 1ch;
+  width: var(--ancho, var(--ancho-columna));
   height: var(--solari-paso);
   overflow: hidden;
   text-align: center;
@@ -382,11 +412,36 @@
      * cambia de golpe. Con una curva se veria media letra sobre media letra, que a cuatro metros es
      * una mancha.
      *
-     * `backwards` para que la cinta espere en su primer fotograma durante el retardo; sin el, el
-     * caracter se dibujaria ya en su sitio y daria un salto al empezar a girar.
+     * **La duracion sale de los pasos y no al reves.** Cada posicion recorre un numero distinto de
+     * glifos —lo decide `pasosDeGlifo()`— y todas giran a la MISMA velocidad, asi que las que traen
+     * mas camino tardan mas y el conjunto se asienta desordenado. Con una duracion fija, las fichas
+     * largas girarian mas rapido que las cortas, llegarian todas a la vez y el efecto se leeria como
+     * un contador digital haciendo la ola.
+     *
+     * `backwards` y no `both`: `forwards` retendria el `transform` del ultimo fotograma para siempre,
+     * que anula cualquier transformacion posterior sobre el mismo elemento y ademas deja la capa de
+     * composicion viva. Acá la animacion termina en el reposo natural, asi que no hace falta.
      */
-    animation: solari-rodillo 300ms steps(var(--pasos, 6)) backwards;
-    animation-delay: calc(var(--glifo, 0) * 45ms);
+    animation: solari-rodillo calc(var(--pasos, 6) * var(--velocidad)) steps(var(--pasos, 6)) backwards;
+    animation-delay: calc(var(--glifo, 0) * var(--escalon));
+  }
+
+  /*
+   * El rebote de asentamiento.
+   *
+   * Es lo unico que se conserva del gesto de las cuatro medias fichas de un split-flap de verdad: la
+   * aleta cae, sobrepasa un pelo y vuelve. Sin el, el rodillo se para en seco y se lee como digital.
+   *
+   * Va en el hueco y no en la cinta porque la cinta ya tiene su `transform` ocupado por el giro, y dos
+   * animaciones de `transform` sobre el mismo elemento no se suman: gana la ultima. El hueco existia
+   * de todos modos, asi que el gesto no cuesta ni un elemento. Arranca justo cuando el giro termina.
+   *
+   * Es `transform`, asi que mueve el pixel y no el layout: un hueco desplazado 0.06em no empuja a
+   * nadie ni puede sacar nada del marco.
+   */
+  .solari-hueco {
+    animation: solari-rebote 90ms ease-out backwards;
+    animation-delay: calc(var(--glifo, 0) * var(--escalon) + var(--pasos, 6) * var(--velocidad));
   }
 }
 
@@ -400,6 +455,12 @@
     /* El reposo natural: la primera linea, que es el destino. Ver arriba por que no hay `forwards`. */
     transform: none;
   }
+}
+
+@keyframes solari-rebote {
+  0%   { transform: translateY(-0.06em); }
+  55%  { transform: translateY(0.03em); }
+  100% { transform: none; }
 }
 
 /*
@@ -416,7 +477,8 @@
  */
 .pantalla-raiz[data-transicion='ninguna'] .pantalla-voltea,
 .pantalla-raiz[data-transicion='ninguna'] .pantalla-alterna,
-.pantalla-raiz[data-transicion='ninguna'] .solari-rodillo {
+.pantalla-raiz[data-transicion='ninguna'] .solari-rodillo,
+.pantalla-raiz[data-transicion='ninguna'] .solari-hueco {
   animation: none;
 }
 

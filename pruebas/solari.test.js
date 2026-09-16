@@ -9,8 +9,9 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
-  ALFABETO_SOLARI, PASOS_POR_GLIFO, TOPE_DE_ESCALON_GLIFO, TOPE_DE_GLIFOS, cintaDeRodillo,
-  escalonDeGlifo, rodilloDeGlifo, rodilloDeTexto
+  ALFABETO_SOLARI, PASOS_MAXIMOS, PASOS_MINIMOS, PASOS_POR_GLIFO, TOPE_DE_ESCALON_GLIFO,
+  TOPE_DE_GLIFOS, anchoDeGlifo, cintaDeRodillo, escalonDeGlifo, pasosDeGlifo, rodilloDeGlifo,
+  rodilloDeTexto
 } from '../src/dominio/solari.ts'
 
 /** Cuantas posiciones de un texto ya resuelto llevan rodillo. */
@@ -109,13 +110,13 @@ test('el tope de glifos animados es duro', () => {
 })
 
 test('el tope se puede bajar por llamada', () => {
-  assert.equal(cuantasVoltean(rodilloDeTexto('ABCDEFGH', PASOS_POR_GLIFO, 3)), 3)
-  assert.equal(cuantasVoltean(rodilloDeTexto('ABCDEFGH', PASOS_POR_GLIFO, 0)), 0)
+  assert.equal(cuantasVoltean(rodilloDeTexto('ABCDEFGH', 3)), 3)
+  assert.equal(cuantasVoltean(rodilloDeTexto('ABCDEFGH', 0)), 0)
 })
 
 test('los espacios no gastan presupuesto del tope', () => {
   // Cinco palabras de tres letras: quince caracteres que voltean y cuatro espacios que no.
-  const glifos = rodilloDeTexto('ABC DEF GHI JKL MNO', PASOS_POR_GLIFO, 15)
+  const glifos = rodilloDeTexto('ABC DEF GHI JKL MNO', 15)
 
   assert.equal(cuantasVoltean(glifos), 15)
   assert.equal(glifos.at(-1).rodillo.at(-1), 'O')
@@ -172,6 +173,93 @@ test('un reloj que avanza un minuto solo cambia un caracter', () => {
   const cambiadas = despues.filter((clave, indice) => clave !== antes[indice])
 
   assert.deepEqual(cambiadas, ['4:3'])
+})
+
+// === El ancho reservado ======================================================================
+//
+// Es la restriccion dura del efecto: el hueco reserva su sitio ANTES de girar, porque el marco de la
+// pantalla es `overflow: hidden` sin barra de scroll y una celda que se ensancha a mitad de volteo se
+// lleva por delante la de al lado sin que nadie lo vea.
+
+test('cada clase de caracter reserva un ancho distinto', () => {
+  assert.ok(anchoDeGlifo('m') > anchoDeGlifo('a'), 'una eme tiene que ocupar mas que una a')
+  assert.ok(anchoDeGlifo('a') > anchoDeGlifo('i'), 'una i tiene que ocupar menos que una a')
+  assert.ok(anchoDeGlifo('i') > anchoDeGlifo('.'), 'un punto tiene que ocupar menos que una i')
+  assert.ok(anchoDeGlifo('A') > anchoDeGlifo('a'), 'una mayuscula ocupa mas que su minuscula')
+})
+
+test('todos los digitos reservan lo mismo: van con tabular-nums', () => {
+  const anchos = new Set('0123456789'.split('').map(anchoDeGlifo))
+
+  assert.equal(anchos.size, 1)
+})
+
+test('ningun caracter reserva cero ni un ancho absurdo', () => {
+  for (const caracter of Array.from('Persona 1 Apellido — 14:32 (87%) ¿Ñandú?')) {
+    const ancho = anchoDeGlifo(caracter)
+
+    assert.ok(ancho > 0 && ancho <= 1, `${caracter} reserva ${ancho}`)
+  }
+})
+
+test('un caracter vacio o raro sigue reservando algo', () => {
+  assert.ok(anchoDeGlifo('') > 0)
+  assert.ok(anchoDeGlifo('🙂') > 0)
+})
+
+test('el texto resuelto trae el ancho de cada posicion', () => {
+  const glifos = rodilloDeTexto('mi')
+
+  assert.equal(glifos[0].ancho, anchoDeGlifo('m'))
+  assert.equal(glifos[1].ancho, anchoDeGlifo('i'))
+})
+
+// === El recorrido desigual ===================================================================
+//
+// Con un recorrido igual para todas, las fichas se asientan en fila india y el efecto se lee como un
+// contador digital haciendo la ola en vez de como un panel mecanico.
+
+test('los pasos caen siempre dentro del rango', () => {
+  for (const caracter of Array.from('ABCDEFGHIJKLMNÑOPQRSTUVWXYZ0123456789')) {
+    for (let indice = 0; indice < 20; indice += 1) {
+      const pasos = pasosDeGlifo(caracter, indice)
+
+      assert.ok(
+        Number.isInteger(pasos) && pasos >= PASOS_MINIMOS && pasos <= PASOS_MAXIMOS,
+        `${caracter}@${indice} dio ${pasos}`
+      )
+    }
+  }
+})
+
+test('las fichas de un texto no recorren todas lo mismo', () => {
+  const recorridos = new Set(rodilloDeTexto('Prioridad').map((posicion) => posicion.rodillo.length))
+
+  assert.ok(recorridos.size > 1, 'todas las fichas recorren lo mismo: se asentarian juntas')
+})
+
+test('el recorrido es determinista, que es lo que salva la hidratacion', () => {
+  // Si esto fuera al azar, el servidor y el cliente pintarian arboles distintos, React descartaria el
+  // arbol entero al hidratar, y en esta pantalla eso no se ve en desarrollo: `pnpm dev` no hidrata.
+  const uno = rodilloDeTexto('Quién mide').map((posicion) => posicion.rodillo?.length ?? 0)
+  const otro = rodilloDeTexto('Quién mide').map((posicion) => posicion.rodillo?.length ?? 0)
+
+  assert.deepEqual(uno, otro)
+})
+
+test('un indice absurdo no deja los pasos en NaN', () => {
+  assert.ok(Number.isInteger(pasosDeGlifo('A', Number.NaN)))
+  assert.ok(Number.isInteger(pasosDeGlifo('A', -7)))
+  assert.ok(Number.isInteger(pasosDeGlifo('A', Number.POSITIVE_INFINITY)))
+})
+
+test('el tope de glifos sigue siendo duro con recorridos desiguales', () => {
+  const glifos = rodilloDeTexto('ABCDEFGHIJKLMNOPQRSTUVWXYZABCDEF')
+  const lineas = glifos.reduce((suma, posicion) => suma + (posicion.rodillo?.length ?? 0), 0)
+
+  assert.equal(cuantasVoltean(glifos), TOPE_DE_GLIFOS)
+  // El techo de lineas de texto que una sola celda puede meter en el DOM.
+  assert.ok(lineas <= TOPE_DE_GLIFOS * (PASOS_MAXIMOS + 1), `${lineas} lineas es demasiado`)
 })
 
 test('un texto que se acorta pierde posiciones y no deja rastro del anterior', () => {

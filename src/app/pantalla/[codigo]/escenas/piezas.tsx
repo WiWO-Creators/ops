@@ -358,7 +358,13 @@ export function CeldaQueAlterna (props: PropsDeCeldaQueAlterna): ReactNode {
   if (props.solari === true) {
     return (
       <span className={cn('block overflow-hidden whitespace-nowrap', className)}>
-        <TextoSolari texto={fase === 0 ? props.principal : props.alterno} />
+        {/*
+          * Ficha uniforme: todas del mismo ancho. Es una celda de una columna del tablero, y lo que
+          * importa ahi no es que cada letra respire sino que el rotulo caiga a plomo sobre los datos
+          * de debajo — que es lo que convierte una lista en una tabla. El ancho por clase de caracter
+          * queda para el texto suelto, como los dos relojes.
+          */}
+        <TextoSolari uniforme texto={fase === 0 ? props.principal : props.alterno} />
       </span>
     )
   }
