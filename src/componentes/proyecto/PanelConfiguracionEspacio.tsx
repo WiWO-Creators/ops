@@ -37,10 +37,10 @@ import { useRecurso } from './carga'
  * la API, que responde 403 igual: esconder el panel es cosmetica.
  *
  * El bloque "Que ve el cliente" no comparte ni el endpoint ni el boton de guardar con el resto: son
- * interruptores del portal y viven en `tblproject_settings`, no en las columnas del Espacio. Por eso
- * se carga aparte —que falle no puede dejar en blanco la pantalla entera— y se guarda al tocarlo,
- * que es lo que hace un interruptor. Va arriba de todo y no debajo del boton "Guardar configuracion",
- * que no es suyo.
+ * los trece interruptores del portal, que se guardan enteros con un PUT propio al tocar cualquiera de
+ * ellos. Por eso se carga aparte —que falle no puede dejar en blanco la pantalla entera— y se guarda
+ * al tocarlo, que es lo que hace un interruptor. Va arriba de todo y no debajo del boton "Guardar
+ * configuracion", que no es suyo.
  */
 
 interface PropsPanel {
@@ -107,35 +107,122 @@ export function PanelConfiguracionEspacio ({
 }
 
 /**
- * Lo que devuelve `GET /projects/{id}/portal-settings`.
+ * Lo que devuelve `GET|PUT /projects/{id}/portal-settings`: los trece interruptores.
  *
  * Se declara acá y no en `datos/recursos.ts` por lo mismo que `PanelActividad` declara su fila: es
- * una forma de una sola pantalla. Hoy trae una clave; el dia que traiga dos, es una linea mas.
+ * una forma de una sola pantalla. El orden de las claves es el orden en que la API las devuelve y el
+ * que el panel dibuja — el maestro primero, después el detalle.
+ *
+ * El backend acepta exactamente estas trece y ninguna más (`Escritura\AjustesDelPortal::CLAVES` y
+ * `::COLUMNAS`). Los otros `view_*` de Perfex —crear, editar, comentar, subir archivos desde el
+ * portal— no se ofrecen porque esta API no los honra: el portal es de solo lectura, y una casilla
+ * que no hace nada es peor que no tenerla.
  */
 interface AjustesDelPortal {
+  /** El interruptor maestro: si el cliente ve este Espacio en su portal. */
+  visible_para_cliente: boolean
+  view_tasks: boolean
+  view_milestones: boolean
+  view_gantt: boolean
+  view_timesheets: boolean
+  view_activity_log: boolean
   /** Si el cliente ve la pestaña Meeting Paper de este Espacio en su portal. */
   wiwo_portal_actas: boolean
+  view_finance_overview: boolean
+  view_team_members: boolean
+  view_task_total_logged_time: boolean
+  view_task_comments: boolean
+  view_task_checklist_items: boolean
+  view_task_attachments: boolean
+}
+
+/** Las claves del bloque, para recorrerlas sin perder el tipado. */
+type ClavePortal = keyof AjustesDelPortal
+
+/** Un interruptor del bloque: su clave, su etiqueta y la letra chica que explica qué destapa. */
+interface DefinicionInterruptor {
+  clave: ClavePortal
+  etiqueta: string
+  ayuda?: string
+}
+
+/** Un grupo de interruptores con su título. */
+interface GrupoDeInterruptores {
+  titulo: string
+  descripcion: string
+  interruptores: DefinicionInterruptor[]
+}
+
+/**
+ * Los tres grupos del detalle, en el orden en que los devuelve la API.
+ *
+ * Es una función y no una constante porque las etiquetas salen del `GLOSARIO`, que renombra
+ * Proyecto/Tarea/Meeting Paper: congelarlas en un módulo dejaría el panel diciendo "Proceso" el día
+ * que el glosario cambie.
+ */
+function gruposDelPortal (): GrupoDeInterruptores[] {
+  const espacio = GLOSARIO.espacio.singular.toLowerCase()
+  const proceso = GLOSARIO.proceso.singular.toLowerCase()
+  const procesos = GLOSARIO.proceso.plural.toLowerCase()
+
+  return [
+    {
+      titulo: 'Pestañas del portal',
+      descripcion: `Qué secciones de este ${espacio} puede abrir el cliente.`,
+      interruptores: [
+        { clave: 'view_tasks', etiqueta: `${GLOSARIO.proceso.plural} y su calendario`, ayuda: `El calendario es la misma tabla de ${procesos} dibujada de otra forma: se encienden y se apagan juntos.` },
+        { clave: 'view_milestones', etiqueta: GLOSARIO.hito.plural },
+        { clave: 'view_gantt', etiqueta: 'Gantt' },
+        { clave: 'view_timesheets', etiqueta: 'Horas registradas' },
+        { clave: 'view_activity_log', etiqueta: 'Actividad' },
+        { clave: 'wiwo_portal_actas', etiqueta: GLOSARIO.acta.plural, ayuda: `Nace apagado a propósito: un ${GLOSARIO.acta.singular} puede tener conversación interna. Se lee entero y no se puede corregir, comentar ni borrar desde el portal.` }
+      ]
+    },
+    {
+      titulo: `Datos del ${espacio}`,
+      descripcion: 'Bloques de la ficha. Apagados no viajan al portal: no van en blanco, no van.',
+      interruptores: [
+        { clave: 'view_finance_overview', etiqueta: 'Importes (costo, tarifa por hora y horas estimadas)' },
+        { clave: 'view_team_members', etiqueta: 'Equipo asignado' }
+      ]
+    },
+    {
+      titulo: `Datos de cada ${proceso}`,
+      descripcion: `Bloques de la ficha de un ${proceso} dentro del portal.`,
+      interruptores: [
+        { clave: 'view_task_total_logged_time', etiqueta: 'Horas registradas' },
+        { clave: 'view_task_comments', etiqueta: 'Comentarios' },
+        { clave: 'view_task_checklist_items', etiqueta: 'Checklist' },
+        { clave: 'view_task_attachments', etiqueta: 'Adjuntos' }
+      ]
+    }
+  ]
 }
 
 /**
  * Que ve el cliente de este Espacio en su portal.
  *
- * === POR QUE NACE APAGADO Y SE ENCIENDE A MANO ===
+ * === EL INTERRUPTOR MAESTRO ===
  *
- * Un Meeting Paper puede tener conversacion interna adentro —lo escribe un modelo a partir de lo que
- * se dijo en la reunion, y ahi se dice de todo—. Por eso la migracion `0570` dejo el flag en '0' para
- * los 279 Espacios y nadie lo enciende por nosotros: es la misma regla que los efectos externos, que
- * se mergean apagados. Encenderlo queda anotado en la actividad con nombre y fecha, porque es una
- * decision de mostrarle a un tercero algo que hasta ese momento era interno.
+ * `visible_para_cliente` está por encima de los otros doce: apagado, el Espacio no existe para el
+ * portal —no aparece en el listado, su id escrito a mano da 404 y ninguna subsección se abre—. Por
+ * eso va arriba y separado, y por eso el resto del bloque se muestra atenuado cuando está apagado:
+ * siguen editándose, para poder dejar la configuración lista, pero mientras el maestro esté en cero
+ * no hay nada que mostrar.
+ *
+ * Nace ENCENDIDO (`DEFAULT 1` en la migración `0640`) para no cambiar lo que ve ningún cliente el
+ * día del despliegue. Si el negocio decide que un Espacio nuevo nazca oculto, se invierte en una
+ * migración y esta pantalla no cambia.
  *
  * === POR QUE GUARDA AL TOCARLO Y CON UN PUT ===
  *
- * Es un interruptor: esperar un boton "Guardar" para una casilla sola deja la pantalla diciendo algo
- * que todavia no es cierto. El verbo es `PUT` porque el endpoint reemplaza el bloque entero —una
- * clave que falta es 422, no "dejala como estaba"—, asi que se manda el estado de todas.
+ * Son interruptores: esperar un botón "Guardar" para una casilla sola deja la pantalla diciendo algo
+ * que todavía no es cierto. El verbo es `PUT` porque el endpoint reemplaza el bloque entero —una
+ * clave que falta es 422, no "dejala como estaba"—, así que cada cambio manda el estado de las
+ * trece. El cambio es optimista y se revierte si la API lo rechaza.
  *
- * El cambio es optimista y se revierte si la API lo rechaza, igual que el interruptor de visibilidad
- * de la Actividad.
+ * Encender o apagar cualquiera de las trece queda anotado en la actividad con nombre y fecha: es una
+ * decisión de mostrarle a un tercero algo que hasta ese momento era interno.
  */
 function VisibilidadDelPortal ({
   proyectoId,
@@ -156,11 +243,11 @@ function VisibilidadDelPortal ({
       {estado.fase === 'cargando' && <Cargando alto="min-h-20" mensaje="Cargando los interruptores…" />}
       {estado.fase === 'error' && <ErrorEstado detalle={estado.mensaje} onReintentar={recargar} />}
       {estado.fase === 'listo' && (
-        <InterruptorDelPortal
-          // Remonta el interruptor cuando la carga trae otro valor: su estado local es una copia.
-          key={String(estado.datos.wiwo_portal_actas)}
+        <InterruptoresDelPortal
+          // Remonta el bloque cuando la carga trae otros valores: su estado local es una copia.
+          key={JSON.stringify(estado.datos)}
           ruta={ruta}
-          inicial={estado.datos.wiwo_portal_actas}
+          inicial={estado.datos}
           puedeEscribir={puedeEscribir}
         />
       )}
@@ -169,67 +256,103 @@ function VisibilidadDelPortal ({
 }
 
 /**
- * El interruptor de la pestaña Meeting Paper del portal.
+ * Los trece interruptores del portal.
  *
  * Nunca lanza: el 403 y el 422 del contrato son valores que quien configura tiene que poder leer, no
  * excepciones que tumben el panel.
  */
-function InterruptorDelPortal ({
+function InterruptoresDelPortal ({
   ruta,
   inicial,
   puedeEscribir
 }: {
   ruta: string
-  inicial: boolean
+  inicial: AjustesDelPortal
   puedeEscribir: boolean
 }): ReactElement {
-  const [encendido, setEncendido] = useState(inicial)
-  const [guardando, setGuardando] = useState(false)
+  const [ajustes, setAjustes] = useState<AjustesDelPortal>(inicial)
+  const [guardando, setGuardando] = useState<ClavePortal | null>(null)
   const [fallo, setFallo] = useState<string | null>(null)
 
-  /** Escribe el bloque entero. El fallo devuelve la casilla a su valor anterior. */
-  async function cambiar (siguiente: boolean): Promise<void> {
-    const previo = encendido
+  /**
+   * Escribe el bloque entero con una casilla cambiada.
+   *
+   * El fallo devuelve el bloque a su valor anterior: mostrar la casilla encendida después de un 403
+   * diría que el cliente ya ve algo que no ve.
+   */
+  async function cambiar (clave: ClavePortal, siguiente: boolean): Promise<void> {
+    const previo = ajustes
+    const enviado = { ...ajustes, [clave]: siguiente }
 
-    setEncendido(siguiente)
-    setGuardando(true)
+    setAjustes(enviado)
+    setGuardando(clave)
     setFallo(null)
 
-    const resultado = await escribirEnBff<AjustesDelPortal>(ruta, 'PUT', { wiwo_portal_actas: siguiente })
+    const resultado = await escribirEnBff<AjustesDelPortal>(ruta, 'PUT', enviado)
 
-    setGuardando(false)
+    setGuardando(null)
 
     if (!resultado.ok) {
-      setEncendido(previo)
+      setAjustes(previo)
       setFallo(resultado.mensaje)
 
       return
     }
 
-    // Lo que quedo guardado, no lo que se mando: si la API normalizo el valor, manda el suyo.
-    setEncendido(resultado.datos.wiwo_portal_actas)
+    // Lo que quedó guardado, no lo que se mandó: si la API normalizó algún valor, manda el suyo.
+    setAjustes(resultado.datos)
   }
 
   const espacio = GLOSARIO.espacio.singular.toLowerCase()
+  const oculto = !ajustes.visible_para_cliente
 
   return (
-    <div className="flex flex-col gap-2" aria-busy={guardando}>
-      <label htmlFor="portal-actas" className="text-texto flex items-center gap-2 text-sm">
-        <input
-          id="portal-actas"
-          type="checkbox"
-          checked={encendido}
-          disabled={!puedeEscribir || guardando}
-          onChange={(evento) => { void cambiar(evento.target.checked) }}
-          className={CLASES_CASILLA}
+    <div className="flex flex-col gap-5" aria-busy={guardando !== null}>
+      <div className="flex flex-col gap-2">
+        <Interruptor
+          clave="visible_para_cliente"
+          etiqueta={`El cliente ve este ${espacio} en su portal`}
+          valor={ajustes.visible_para_cliente}
+          puedeEscribir={puedeEscribir}
+          guardando={guardando === 'visible_para_cliente'}
+          onCambiar={cambiar}
         />
-        El cliente ve los {GLOSARIO.acta.plural} de este {espacio} en su portal
-      </label>
 
-      <p className="text-texto-tenue text-sm">
-        Nace apagado a propósito: un {GLOSARIO.acta.singular} puede tener conversación interna. Se lee
-        entero y no se puede corregir, comentar ni borrar desde el portal.
-      </p>
+        <p className="text-texto-tenue text-sm">
+          Apagado, el {espacio} no existe para el portal: no aparece en el listado del cliente, ni se
+          abre escribiendo su dirección, ni se descarga ninguno de sus archivos.
+        </p>
+
+        {oculto && (
+          <p role="status" className="text-texto-sutil text-sm">
+            Mientras esté apagado, los interruptores de abajo no cambian nada de lo que ve el cliente:
+            quedan listos para cuando se abra el {espacio}.
+          </p>
+        )}
+      </div>
+
+      {gruposDelPortal().map((grupo) => (
+        <fieldset key={grupo.titulo} className={`flex flex-col gap-2 ${oculto ? 'opacity-60' : ''}`}>
+          <legend className="font-titular text-texto text-sm font-semibold">{grupo.titulo}</legend>
+          <p className="text-texto-tenue text-sm">{grupo.descripcion}</p>
+
+          {grupo.interruptores.map((definicion) => (
+            <div key={definicion.clave} className="flex flex-col gap-1">
+              <Interruptor
+                clave={definicion.clave}
+                etiqueta={definicion.etiqueta}
+                valor={ajustes[definicion.clave]}
+                puedeEscribir={puedeEscribir}
+                guardando={guardando === definicion.clave}
+                onCambiar={cambiar}
+              />
+              {definicion.ayuda !== undefined && (
+                <p className="text-texto-sutil ml-6 text-sm">{definicion.ayuda}</p>
+              )}
+            </div>
+          ))}
+        </fieldset>
+      ))}
 
       {!puedeEscribir && (
         <p className="text-texto-sutil text-sm">
@@ -239,6 +362,37 @@ function InterruptorDelPortal ({
 
       {fallo !== null && <p role="alert" className="text-texto-peligro text-sm">{fallo}</p>}
     </div>
+  )
+}
+
+/** Una casilla del bloque. El `id` sale de la clave, que es única en la pantalla. */
+function Interruptor ({
+  clave,
+  etiqueta,
+  valor,
+  puedeEscribir,
+  guardando,
+  onCambiar
+}: {
+  clave: ClavePortal
+  etiqueta: string
+  valor: boolean
+  puedeEscribir: boolean
+  guardando: boolean
+  onCambiar: (clave: ClavePortal, siguiente: boolean) => Promise<void>
+}): ReactElement {
+  return (
+    <label htmlFor={`portal-${clave}`} className="text-texto flex items-center gap-2 text-sm">
+      <input
+        id={`portal-${clave}`}
+        type="checkbox"
+        checked={valor}
+        disabled={!puedeEscribir || guardando}
+        onChange={(evento) => { void onCambiar(clave, evento.target.checked) }}
+        className={CLASES_CASILLA}
+      />
+      {etiqueta}
+    </label>
   )
 }
 
