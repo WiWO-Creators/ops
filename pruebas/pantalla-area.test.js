@@ -9,8 +9,9 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
-  CLASES_DE_ESCENA, REJILLAS, TOPE_DE_ANUNCIOS, TOPE_DE_PAGINAS, construirGuion, firmaDelGuion,
-  frescuraDe, intervaloConBackoff, leerParametrosDePantalla, proximaEscenaViva, proximoRecargado
+  CLASES_DE_ESCENA, PERIODO_DE_DATO_MS, REJILLAS, REPARTO_DE_TRABAJANDO, TABLA_AREA, TABLA_EMPRESA,
+  TOPE_DE_ANUNCIOS, TOPE_DE_PAGINAS, construirGuion, faseDeDato, firmaDelGuion, frescuraDe,
+  intervaloConBackoff, leerParametrosDePantalla, proximaEscenaViva, proximoRecargado, tablaDeEscena
 } from '../src/dominio/pantalla-area.ts'
 import { FRANJAS_DEL_DIA, franjaDelMomento } from '../src/dominio/momento-del-dia.ts'
 
@@ -39,6 +40,11 @@ function anuncio (id) {
 
 /** Los parametros por defecto, sin nada en la URL. */
 const PARAMETROS = leerParametrosDePantalla({})
+
+/** La tabla de una escena que solo tiene una. Existe para no escribir `tablas[0]` treinta veces. */
+function unica (escena) {
+  return escena.tablas[0]
+}
 
 function gente (cuantos, desde = 1) {
   return Array.from({ length: cuantos }, (_, i) => ({
@@ -74,7 +80,16 @@ function paquete (relleno = {}) {
           espacios_activos: (relleno.espacios ?? []).length
         }
       },
-      { kind: 'trabajando', seconds: dura('trabajando', 20), items: relleno.trabajando ?? [] },
+      {
+        kind: 'trabajando',
+        seconds: dura('trabajando', 20),
+        items: relleno.trabajando ?? [],
+        total: relleno.totalDelArea ?? (relleno.trabajando ?? []).length,
+        empresa: {
+          items: relleno.empresa ?? [],
+          total: relleno.totalDeLaEmpresa ?? (relleno.empresa ?? []).length
+        }
+      },
       { kind: 'cronometros', seconds: dura('cronometros', 20), items: relleno.cronometros ?? [] },
       { kind: 'procesos', seconds: dura('procesos', 20), items: relleno.procesos ?? [], total: (relleno.procesos ?? []).length },
       { kind: 'espacios', seconds: dura('espacios', 20), items: relleno.espacios ?? [] },
@@ -94,7 +109,7 @@ test('un area dormida muestra la portada y no una pantalla en blanco', () => {
 test('las escenas vacias salen del guion, las llenas se quedan', () => {
   const guion = construirGuion(paquete({ trabajando: gente(3) }), PARAMETROS)
 
-  assert.deepEqual(guion.map((e) => e.id), ['portada', 'trabajando'])
+  assert.deepEqual(guion.map((e) => e.id), ['portada', 'trabajando#e0a1'])
 })
 
 test('el guion nunca vuelve vacio, ni con todo salteado', () => {
@@ -110,27 +125,27 @@ test('sin datos no hay guion: la pantalla esta en modo espera, no dibujando vaci
 })
 
 test('una escena que entra en una pagina conserva su id sin numero', () => {
-  const guion = construirGuion(paquete({ trabajando: gente(REJILLAS.horizontal.trabajando) }), PARAMETROS)
+  const guion = construirGuion(paquete({ cronometros: gente(REJILLAS.horizontal.cronometros) }), PARAMETROS)
 
-  assert.deepEqual(guion.map((e) => e.id), ['portada', 'trabajando'])
+  assert.deepEqual(guion.map((e) => e.id), ['portada', 'cronometros'])
 })
 
 test('cada pagina es una entrada propia del guion', () => {
-  const guion = construirGuion(paquete({ trabajando: gente(REJILLAS.horizontal.trabajando + 1) }), PARAMETROS)
+  const guion = construirGuion(paquete({ cronometros: gente(REJILLAS.horizontal.cronometros + 1) }), PARAMETROS)
 
-  assert.deepEqual(guion.map((e) => e.id), ['portada', 'trabajando#1', 'trabajando#2'])
-  assert.equal(guion[1].items.length, REJILLAS.horizontal.trabajando)
-  assert.equal(guion[2].items.length, 1)
+  assert.deepEqual(guion.map((e) => e.id), ['portada', 'cronometros#1', 'cronometros#2'])
+  assert.equal(unica(guion[1]).items.length, REJILLAS.horizontal.cronometros)
+  assert.equal(unica(guion[2]).items.length, 1)
 })
 
 test('pasado el tope de paginas se corta, y lo cortado se cuenta en vez de desaparecer', () => {
-  const cuantos = REJILLAS.horizontal.trabajando * TOPE_DE_PAGINAS + 7
-  const guion = construirGuion(paquete({ trabajando: gente(cuantos) }), PARAMETROS)
-  const paginas = guion.filter((e) => e.clase === 'trabajando')
+  const cuantos = REJILLAS.horizontal.cronometros * TOPE_DE_PAGINAS + 7
+  const guion = construirGuion(paquete({ cronometros: gente(cuantos) }), PARAMETROS)
+  const paginas = guion.filter((e) => e.clase === 'cronometros')
 
   assert.equal(paginas.length, TOPE_DE_PAGINAS)
-  assert.equal(paginas[paginas.length - 1].ocultos, 7, 'los que no entraron se nombran en el pie')
-  assert.equal(paginas[0].ocultos, 0, 'y solo en la ultima pagina')
+  assert.equal(unica(paginas[paginas.length - 1]).ocultos, 7, 'los que no entraron se nombran en el pie')
+  assert.equal(unica(paginas[0]).ocultos, 0, 'y solo en la ultima pagina')
 })
 
 test('la firma no cambia cuando cambian los datos pero no las escenas', () => {
@@ -301,8 +316,8 @@ test('cada orientacion pagina con su propia rejilla', () => {
   const paginas = dePie.filter((e) => e.clase === 'procesos')
 
   assert.equal(paginas.length, 2)
-  assert.equal(paginas[0].items.length, REJILLAS.vertical.procesos)
-  assert.equal(paginas[1].items.length, 1)
+  assert.equal(unica(paginas[0]).items.length, REJILLAS.vertical.procesos)
+  assert.equal(unica(paginas[1]).items.length, 1)
 })
 
 test('una escena apagada en el panel simplemente no llega, y el guion la respeta', () => {
@@ -423,7 +438,7 @@ test('cada anuncio es una entrada propia del guion', () => {
   const slides = guion.filter((e) => e.clase === 'anuncios')
 
   assert.deepEqual(slides.map((e) => e.id), ['anuncios#1', 'anuncios#2', 'anuncios#3'])
-  assert.ok(slides.every((e) => e.items.length === 1), 'uno por pantalla, nunca una lista')
+  assert.ok(slides.every((e) => unica(e).items.length === 1), 'uno por pantalla, nunca una lista')
 })
 
 test('sin anuncios vigentes la escena sale del guion aunque este encendida', () => {
@@ -446,7 +461,7 @@ test('los anuncios tienen su propio tope, mas alto que el de las listas', () => 
 
   assert.equal(slides.length, TOPE_DE_ANUNCIOS)
   assert.ok(TOPE_DE_ANUNCIOS > TOPE_DE_PAGINAS, 'cuatro avisos serian pocos para algo que alguien publico a mano')
-  assert.equal(slides[slides.length - 1].ocultos, 3, 'lo que no entro se dice, no se esconde')
+  assert.equal(unica(slides[slides.length - 1]).ocultos, 3, 'lo que no entro se dice, no se esconde')
 })
 
 test('un anuncio dura lo configurado, sin la rebaja de las escenas breves', () => {
@@ -466,7 +481,296 @@ test('una vuelta con las siete escenas encendidas mantiene el orden del paquete'
 
   assert.deepEqual(
     guion.map((e) => e.id),
-    ['portada', 'trabajando', 'espacios', 'momento#apertura', 'anuncios'],
+    ['portada', 'trabajando#e0a1', 'espacios', 'momento#apertura', 'anuncios'],
     'el orden lo manda la API, y las vacias no aparecen'
   )
+})
+
+// === Las DOS tablas de `trabajando` ===========================================================
+//
+// La escena dejo de ser una lista y paso a ser dos: la compañia arriba y el area abajo. Lo que se
+// cuida aca es lo que no se ve fallar mirando la pared — un reparto de filas que deja a alguien fuera
+// del marco sin decirlo, una tabla que desaparece sin que la rotacion se entere, y un "+N mas" que
+// cuenta mal cuando las listas se recortan por los dos lados.
+
+/** Las dos tablas de una escena `trabajando`, por su clave. */
+function dosTablas (escena) {
+  return {
+    empresa: tablaDeEscena(escena, TABLA_EMPRESA),
+    area: tablaDeEscena(escena, TABLA_AREA)
+  }
+}
+
+/** Las paginas de `trabajando` de un guion. */
+function paginasDeTrabajando (guion) {
+  return guion.filter((escena) => escena.clase === 'trabajando')
+}
+
+test('con las dos listas llenas se dibujan las dos tablas, cada una con su reparto', () => {
+  const guion = construirGuion(
+    paquete({ empresa: gente(30, 100), trabajando: gente(5) }),
+    PARAMETROS
+  )
+  const paginas = paginasDeTrabajando(guion)
+  const { empresa, area } = dosTablas(paginas[0])
+
+  assert.equal(empresa.items.length, REPARTO_DE_TRABAJANDO.horizontal.empresa)
+  assert.equal(area.items.length, 5)
+  assert.equal(empresa.total, 30, 'cada tabla lleva su total real')
+  assert.equal(area.total, 5)
+})
+
+test('las dos listas se solapan a proposito: nadie se deduplica', () => {
+  // Las cinco del area son cinco de las treinta de la compañia, con los mismos ids.
+  const delArea = gente(5)
+  const guion = construirGuion(
+    paquete({ empresa: [...delArea, ...gente(25, 50)], trabajando: delArea }),
+    PARAMETROS
+  )
+  const { empresa, area } = dosTablas(paginasDeTrabajando(guion)[0])
+
+  const repetidos = area.items.filter(
+    (persona) => empresa.items.some((otra) => otra.staff_id === persona.staff_id)
+  )
+
+  assert.equal(repetidos.length, 5, 'quien es del area sale arriba y abajo, y es correcto')
+})
+
+test('en la pantalla global se dibuja UNA tabla, y se lleva la banda entera', () => {
+  // `area.id` en null: el backend manda `items` vacio, `total` en cero y la compañia completa.
+  const global = paquete({ empresa: gente(40, 100), trabajando: [] })
+  global.area = { id: null, name: 'WiWO' }
+
+  const paginas = paginasDeTrabajando(construirGuion(global, PARAMETROS))
+  const { empresa, area } = dosTablas(paginas[0])
+
+  assert.equal(area, null, 'sin area no hay bloque del area, ni vacio ni en hueco')
+  assert.equal(
+    empresa.items.length,
+    REJILLAS.horizontal.trabajando,
+    'sin el segundo bloque vuelven su cabecera y sus rotulos: la banda entera es de la compañia'
+  )
+  assert.deepEqual(paginas.map((e) => e.id), ['trabajando#e1a0', 'trabajando#e2a0'])
+})
+
+test('un area sin nadie trabajando deja solo la tabla de la compañia', () => {
+  const guion = construirGuion(paquete({ empresa: gente(10, 100), trabajando: [] }), PARAMETROS)
+  const { empresa, area } = dosTablas(paginasDeTrabajando(guion)[0])
+
+  assert.equal(area, null)
+  assert.equal(empresa.items.length, 10)
+})
+
+test('un paquete SIN bloque `empresa` sigue dibujando el area: la pared no se queda en blanco', () => {
+  // Es el backend que todavia no desplego. La pantalla no puede caerse por un campo que falta.
+  const viejo = {
+    area: { id: 7, name: 'Content' },
+    scenes: [{ kind: 'trabajando', seconds: 20, items: gente(4) }]
+  }
+
+  const paginas = paginasDeTrabajando(construirGuion(viejo, PARAMETROS))
+  const { empresa, area } = dosTablas(paginas[0])
+
+  assert.equal(empresa, null)
+  assert.equal(area.items.length, 4)
+  assert.deepEqual(paginas.map((e) => e.id), ['trabajando#e0a1'])
+})
+
+test('con las dos listas vacias la escena sale del guion', () => {
+  const guion = construirGuion(paquete({ empresa: [], trabajando: [] }), PARAMETROS)
+
+  assert.deepEqual(paginasDeTrabajando(guion), [])
+})
+
+test('la tabla corta se queda clavada en su ultima pagina en vez de desaparecer', () => {
+  // 40 en la compañia son tres paginas de 16; 6 en el area, una sola.
+  const guion = construirGuion(
+    paquete({ empresa: gente(40, 100), trabajando: gente(6) }),
+    PARAMETROS
+  )
+  const paginas = paginasDeTrabajando(guion)
+
+  assert.deepEqual(
+    paginas.map((e) => e.id),
+    ['trabajando#e1a1', 'trabajando#e2a1', 'trabajando#e3a1'],
+    'la escena tiene tantas paginas como la tabla que mas necesita'
+  )
+
+  for (const pagina of paginas) {
+    const { empresa, area } = dosTablas(pagina)
+
+    assert.equal(area.items.length, 6, 'el area sigue en pantalla toda la escena')
+    assert.ok(empresa.items.length > 0, 'y la compañia va avanzando')
+  }
+
+  const primera = dosTablas(paginas[0]).empresa.items[0].staff_id
+  const ultima = dosTablas(paginas[2]).empresa.items[0].staff_id
+
+  assert.notEqual(primera, ultima, 'la tabla larga si cambia de gente en cada pagina')
+})
+
+test('cada tabla lleva su propio tope de paginas', () => {
+  const cuantos = REPARTO_DE_TRABAJANDO.horizontal.empresa * TOPE_DE_PAGINAS + 5
+  const guion = construirGuion(
+    paquete({ empresa: gente(cuantos, 100), trabajando: gente(3) }),
+    PARAMETROS
+  )
+  const paginas = paginasDeTrabajando(guion)
+
+  assert.equal(paginas.length, TOPE_DE_PAGINAS)
+  assert.equal(
+    dosTablas(paginas[TOPE_DE_PAGINAS - 1]).empresa.ocultos,
+    5,
+    'lo que no entro se dice, y solo en la ultima pagina de esa tabla'
+  )
+  assert.equal(dosTablas(paginas[0]).empresa.ocultos, 0)
+})
+
+test('el "+N mas" cuenta el recorte del backend y el del paginado, tabla por tabla', () => {
+  // La API dice que hay 42 trabajando en la compañia y manda 30: 12 los recorto ella.
+  const guion = construirGuion(
+    paquete({
+      empresa: gente(30, 100), totalDeLaEmpresa: 42,
+      trabajando: gente(5), totalDelArea: 5
+    }),
+    PARAMETROS
+  )
+  const paginas = paginasDeTrabajando(guion)
+  const ultima = dosTablas(paginas[paginas.length - 1])
+
+  // 42 declarados, 30 recibidos y 30 mostrados en dos paginas de 16: los 12 del backend.
+  assert.equal(ultima.empresa.ocultos, 12, 'nunca se miente por omision')
+  assert.equal(ultima.area.ocultos, 0, 'y la otra tabla cuenta lo suyo, no lo ajeno')
+})
+
+test('la firma cambia cuando aparece o desaparece una tabla', () => {
+  const soloArea = firmaDelGuion(construirGuion(paquete({ trabajando: gente(5) }), PARAMETROS))
+  const lasDos = firmaDelGuion(construirGuion(
+    paquete({ empresa: gente(10, 100), trabajando: gente(5) }), PARAMETROS
+  ))
+  const soloEmpresa = firmaDelGuion(construirGuion(
+    paquete({ empresa: gente(10, 100), trabajando: [] }), PARAMETROS
+  ))
+
+  assert.notEqual(soloArea, lasDos, 'si no cambiara, la pantalla se quedaria clavada')
+  assert.notEqual(soloEmpresa, lasDos)
+  assert.notEqual(soloArea, soloEmpresa)
+})
+
+test('la firma NO cambia porque entre o salga una persona que cabe en la pagina que ya habia', () => {
+  const antes = firmaDelGuion(construirGuion(
+    paquete({ empresa: gente(10, 100), trabajando: gente(5) }), PARAMETROS
+  ))
+  const despues = firmaDelGuion(construirGuion(
+    paquete({ empresa: gente(11, 100), trabajando: gente(6) }), PARAMETROS
+  ))
+
+  assert.equal(antes, despues, 'si cambiara, la pantalla saltaria a mitad de escena')
+})
+
+test('la firma SI cambia cuando una tabla gana una pagina', () => {
+  const cabe = REPARTO_DE_TRABAJANDO.horizontal.empresa
+  const antes = firmaDelGuion(construirGuion(
+    paquete({ empresa: gente(cabe, 100), trabajando: gente(4) }), PARAMETROS
+  ))
+  const despues = firmaDelGuion(construirGuion(
+    paquete({ empresa: gente(cabe + 1, 100), trabajando: gente(4) }), PARAMETROS
+  ))
+
+  assert.notEqual(antes, despues)
+})
+
+test('el reparto deja sitio para la cabecera y los rotulos del segundo bloque', () => {
+  for (const orientacion of ['horizontal', 'vertical']) {
+    const { empresa, area } = REPARTO_DE_TRABAJANDO[orientacion]
+    const banda = REJILLAS[orientacion].trabajando
+    // Tumbada la escena va a dos columnas, asi que cada renglon visual son DOS personas.
+    const porRenglon = orientacion === 'horizontal' ? 2 : 1
+    const renglonesDeMas = (banda - (empresa + area)) / porRenglon
+
+    assert.ok(
+      renglonesDeMas >= 2,
+      `${orientacion}: el segundo bloque cuesta ~2 renglones y el reparto solo deja ${renglonesDeMas}`
+    )
+    assert.ok(empresa > area, `${orientacion}: la lista larga es la de la compañia`)
+  }
+})
+
+test('cada orientacion reparte las dos tablas con su propia rejilla', () => {
+  const relleno = { empresa: gente(40, 100), trabajando: gente(20) }
+  const tumbado = construirGuion(paquete(relleno), PARAMETROS, 'horizontal')
+  const dePie = construirGuion(paquete(relleno), PARAMETROS, 'vertical')
+
+  assert.equal(
+    dosTablas(paginasDeTrabajando(tumbado)[0]).empresa.items.length,
+    REPARTO_DE_TRABAJANDO.horizontal.empresa
+  )
+  assert.equal(
+    dosTablas(paginasDeTrabajando(dePie)[0]).empresa.items.length,
+    REPARTO_DE_TRABAJANDO.vertical.empresa
+  )
+})
+
+// === La continuidad: que se remonta y que no ==================================================
+
+test('dos paginas del mismo tablero comparten continuidad: el marco no se remonta', () => {
+  const guion = construirGuion(
+    paquete({ empresa: gente(40, 100), trabajando: gente(6) }),
+    PARAMETROS
+  )
+  const paginas = paginasDeTrabajando(guion)
+
+  assert.ok(paginas.length > 1)
+  assert.equal(
+    new Set(paginas.map((e) => e.continuidad)).size,
+    1,
+    'si se remontara, el cambio de pagina se veria como un cambio de vista'
+  )
+  assert.ok(
+    new Set(paginas.map((e) => e.id)).size > 1,
+    'y aun asi cada pagina es una entrada propia del guion'
+  )
+})
+
+test('dos anuncios NO comparten continuidad: son dos laminas y se funden', () => {
+  const guion = construirGuion(paquete({ anuncios: [anuncio(1), anuncio(2)] }), PARAMETROS)
+  const slides = guion.filter((e) => e.clase === 'anuncios')
+
+  assert.equal(slides.length, 2)
+  assert.notEqual(slides[0].continuidad, slides[1].continuidad)
+})
+
+test('cada clase de tablero tiene su propia continuidad', () => {
+  const guion = construirGuion(
+    paquete({ trabajando: gente(3), cronometros: gente(3) }),
+    PARAMETROS
+  )
+  const tableros = guion.filter((e) => e.clase === 'trabajando' || e.clase === 'cronometros')
+
+  assert.equal(new Set(tableros.map((e) => e.continuidad)).size, 2)
+})
+
+// === La fase: el juego de campos que se alterna ================================================
+
+test('la fase alterna con el reloj y siempre vale 0 o 1', () => {
+  assert.equal(faseDeDato(0), 0)
+  assert.equal(faseDeDato(PERIODO_DE_DATO_MS - 1), 0)
+  assert.equal(faseDeDato(PERIODO_DE_DATO_MS), 1)
+  assert.equal(faseDeDato(PERIODO_DE_DATO_MS * 2), 0)
+  assert.equal(faseDeDato(PERIODO_DE_DATO_MS * 3 + 10), 1)
+})
+
+test('sin reloj —antes de hidratar— se muestra el juego principal', () => {
+  assert.equal(faseDeDato(null), 0)
+  assert.equal(faseDeDato(Number.NaN), 0)
+  assert.equal(faseDeDato(-5000), 0, 'un reloj imposible no puede dejar la fase en negativo')
+  assert.equal(faseDeDato(1234, 0), 0, 'ni un periodo en cero puede dividir por cero')
+})
+
+test('la fase es la MISMA para toda la pared: no la decide cada escena', () => {
+  // Sale del reloj de pared y no de cuanto lleva la escena, asi que dos escenas distintas miradas en
+  // el mismo instante alternan a la vez, como un panel de aeropuerto de verdad.
+  const instante = Date.parse('2026-09-15T09:00:03-03:00')
+
+  assert.equal(faseDeDato(instante), faseDeDato(instante))
 })

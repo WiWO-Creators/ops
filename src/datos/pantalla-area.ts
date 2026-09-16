@@ -28,6 +28,42 @@ export interface PersonaTrabajando {
   last_seen_at: string | null
 }
 
+/**
+ * La gente con jornada abierta en TODA la compañia, que viaja dentro de la escena `trabajando`.
+ *
+ * === POR QUE SE SOLAPA CON `items` A PROPOSITO ===
+ *
+ * Quien pertenece al area sale en las dos listas: arriba entre los 42 de la empresa y abajo entre los
+ * 8 del area. No es un descuido del backend ni algo que la pantalla tenga que deduplicar. Son dos
+ * preguntas distintas —"cuanta gente hay trabajando en WiWO" y "cuanta hay en Content Studio"— y cada
+ * tabla lleva su total real, asi que restarle el area a la empresa daria un numero que no contesta
+ * ninguna de las dos.
+ *
+ * En la **pantalla global** (`area.id === null`) la de arriba es la unica que trae gente: `items`
+ * llega vacio y `total` en cero, porque ahi no hay area de la que hablar.
+ */
+export interface TrabajandoEnLaCompania {
+  items: PersonaTrabajando[]
+  /** El conteo real. Es mayor que `items.length` cuando el backend recorta la lista. */
+  total: number
+}
+
+/**
+ * La escena `trabajando`, que es la unica con DOS listas.
+ *
+ * Tiene nombre propio —y no vive suelta dentro de la union— porque el dominio la pagina aparte y
+ * necesita poder nombrar su tipo: ver `paginarTrabajando()` en `src/dominio/pantalla-area.ts`.
+ */
+export interface EscenaTrabajandoDeApi {
+  kind: 'trabajando'
+  /** La gente del AREA de esta pantalla. Vacia en la pantalla global. */
+  items: PersonaTrabajando[]
+  /** El conteo real del area. Mayor que `items.length` cuando el backend recorta. */
+  total: number
+  /** La gente de TODA la compañia. Ver `TrabajandoEnLaCompania`. */
+  empresa: TrabajandoEnLaCompania
+}
+
 /** Un cronometro corriendo, con lo que esta midiendo. */
 export interface CronometroEnPantalla {
   staff_id: number
@@ -134,6 +170,13 @@ export interface ContadoresDePortada {
  * util a la pantalla: "nadie esta midiendo" se dice en pantalla, "esta escena no se muestra" se
  * saltea, y las dos cosas serian iguales si la API filtrara por contenido.
  *
+ * === `trabajando` TRAE DOS LISTAS ===
+ *
+ * Es la unica escena con dos tablas: la compañia entera arriba y el area de la pantalla abajo. Las dos
+ * viajan en la misma escena y no en dos, porque se leen juntas —"la empresa esta a medio gas y lo mio
+ * esta lleno" es una sola frase— y porque partirlas en dos escenas duplicaria la vuelta entera para
+ * decir lo mismo. Ver `TrabajandoEnLaCompania`.
+ *
  * === `momento` NO TRAE NADA, Y ES A PROPOSITO ===
  *
  * Viaja con su `kind` y su `seconds` y ni un campo mas. El saludo segun la hora lo resuelve el
@@ -143,7 +186,7 @@ export interface ContadoresDePortada {
  */
 export type EscenaDeApi = { seconds?: number } & (
   | { kind: 'portada', counts: ContadoresDePortada }
-  | { kind: 'trabajando', items: PersonaTrabajando[] }
+  | EscenaTrabajandoDeApi
   | { kind: 'cronometros', items: CronometroEnPantalla[] }
   | { kind: 'procesos', items: TareaEnPantalla[], total: number }
   | { kind: 'espacios', items: ProyectoEnPantalla[] }

@@ -3914,14 +3914,25 @@ function pantallaDeArea (areaId) {
     procesos_atrasados: abiertas.filter((p) => p.rel_type === 'project' && p.rel_id === e.id && p.due_date < hoy).length
   }))
 
-  const trabajando = gente.slice(0, 6).map((s, i) => ({
-    staff_id: s.id,
-    name: s.full_name,
-    avatar: s.profile_image_url,
-    cargo: null,
+  // === Las DOS listas de `trabajando` ===
+  //
+  // La escena trae la compañía entera arriba y el área abajo, y **se solapan a propósito**: quien es
+  // del área sale en las dos, y cada lista lleva su total real. No hay nada que deduplicar — son dos
+  // conteos de dos poblaciones distintas. En la pantalla GLOBAL no hay área que enseñar, así que
+  // `items` va vacío y `total` en cero, igual que hará la API.
+  const conJornadaAbierta = (persona, i) => ({
+    staff_id: persona.id,
+    name: persona.full_name,
+    avatar: persona.profile_image_url,
+    // Rota entre tres y un hueco para que la columna que alterna —cargo y hora de entrada— tenga
+    // algo que enseñar y también el caso sin cargo, que es el que se dibuja con una raya.
+    cargo: [null, 'Diseño', 'Desarrollo', 'Cuentas'][i % 4],
     jornada_started_at: new Date(Date.now() - (i + 1) * 1800_000).toISOString(),
     last_seen_at: new Date(Date.now() - i * 60_000).toISOString()
-  }))
+  })
+
+  const enLaCompania = STAFF.filter((s) => s.active !== false).map(conJornadaAbierta)
+  const trabajando = esGlobal ? [] : gente.slice(0, 6).map(conJornadaAbierta)
 
   // Solo las escenas encendidas, en el orden configurado y con su duración: igual que la API real,
   // que ni siquiera calcula las apagadas.
@@ -3933,14 +3944,19 @@ function pantallaDeArea (areaId) {
           kind: 'portada',
           counts: {
             personas: gente.length,
-            jornadas_abiertas: trabajando.length,
+            jornadas_abiertas: esGlobal ? enLaCompania.length : trabajando.length,
             cronometros_corriendo: corriendo.length,
             procesos_abiertos: abiertas.length,
             procesos_atrasados: abiertas.filter((p) => p.due_date < hoy).length,
             espacios_activos: espacios.length
           }
         },
-    trabajando: { kind: 'trabajando', items: trabajando },
+    trabajando: {
+      kind: 'trabajando',
+      items: trabajando,
+      total: trabajando.length,
+      empresa: { items: enLaCompania, total: enLaCompania.length }
+    },
     cronometros: { kind: 'cronometros', items: corriendo },
     procesos: {
           kind: 'procesos',
