@@ -5475,8 +5475,11 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
             total + Math.max(0, (Date.parse(t.end_time ?? new Date().toISOString()) - Date.parse(t.start_time)) / 1000), 0)
         }))
         const visibles = suyas.filter((p) => parametros.get('excluir_completadas') === 'false' || p.status !== 5)
-        const { filas, paginacion } = aplicarConsulta(visibles, parametros, {
-          ...CONSULTA_PROCESOS, orden: ['order'], derivadas: { order: (p) => p.kanban_order }
+        const ordenHito = new URLSearchParams(parametros)
+        ordenHito.set('sort', 'completed,order,id')
+        const { filas, paginacion } = aplicarConsulta(visibles, ordenHito, {
+          ...CONSULTA_PROCESOS, orden: ['completed', 'order', 'id'],
+          derivadas: { ...CONSULTA_PROCESOS.derivadas, order: (p) => p.milestone_order ?? 0 }
         })
         const tarjetas = filas.map((p) => ({
           ...presentarProcesoEnLista(p),
@@ -5546,22 +5549,7 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
       exigirPermiso(actual, 'tasks', 'view')
 
       if (parametros.get('vista') === 'tablero') {
-        // Las columnas salen de `lookups`, ordenadas por `order` y no por `id`: los ids de estado de
-        // Perfex no siguen el orden de visualizacion.
-        const columnas = ESTADOS_PROCESO.filter((e) => parametros.get('filter[status]')?.trim() || e.id !== 5).sort((a, b) => a.order - b.order)
-        return {
-          estado: 200,
-          cuerpo: conDatos(columnas.map((columna) => {
-            const parametrosColumna = new URLSearchParams(parametros)
-            parametrosColumna.set('filter[status]', String(columna.id))
-            const { filas, paginacion } = aplicarConsulta(PROCESOS.filter((p) => !parametros.get('filter[status]')?.trim() || parametros.get('filter[status]').split(',').includes(String(p.status))), parametrosColumna, CONSULTA_PROCESOS)
-            return {
-              columna: { id: columna.id, name: columna.name, color: columna.color, order: columna.order },
-              tarjetas: filas.map(presentarProcesoEnLista),
-              pagination: paginacion
-            }
-          }))
-        }
+        return { estado: 200, cuerpo: conDatos(tableroDeProcesos(PROCESOS, parametros, presentarProcesoEnLista)) }
       }
 
       const { filas, paginacion } = aplicarConsulta(PROCESOS.filter((p) => parametros.get('filter[status]')?.trim() || p.status !== 5), parametros, CONSULTA_PROCESOS)
@@ -6535,9 +6523,14 @@ const CONSULTA_TAREAS_PORTAL = {
  * @returns {object[]} Un grupo por estado.
  */
 function tableroDeProcesos (tareas, parametros, presentar, consulta = CONSULTA_PROCESOS) {
-  const filtradoPorEstado = parametros.get('filter[status]')?.trim()
+  // Valida aun cuando el filtro no deje ninguna columna del catálogo.
+  aplicarConsulta([], parametros, consulta)
+  const filtrosEstado = ['status', 'status__eq', 'completed', 'completed__eq']
+    .map((clave) => [clave, parametros.get(`filter[${clave}]`)?.trim()])
+    .filter(([, valor]) => valor)
   const columnas = ESTADOS_PROCESO
-    .filter((estado) => filtradoPorEstado || estado.id !== 5)
+    .filter((estado) => filtrosEstado.length === 0 ? estado.id !== 5 : filtrosEstado.every(([clave, valor]) =>
+      valor.split(',').map(Number).includes(clave.startsWith('completed') ? Number(estado.id === 5) : estado.id)))
     .sort((a, b) => a.order - b.order)
 
   return columnas.map((columna) => {

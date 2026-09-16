@@ -1,6 +1,6 @@
 'use client'
 
-import { GripVertical, MoreHorizontal } from 'lucide-react'
+import { ArrowLeft, ArrowRight, GripVertical, MoreHorizontal } from 'lucide-react'
 import { useCallback, useRef, useState, type ReactNode } from 'react'
 import { Boton } from '@/componentes/formularios/Boton'
 import { Vacio } from '@/componentes/estado/Estados'
@@ -10,6 +10,7 @@ import {
   ItemMenu,
   MenuContextual
 } from '@/componentes/superposiciones/MenuContextual'
+import { useDesplazamientoTablero } from './useDesplazamientoTablero'
 import { cn } from '@/lib/clases'
 import { MENSAJE_SESION_CERRADA } from '@/componentes/proyecto/carga'
 import {
@@ -115,6 +116,7 @@ export function Tablero<T extends FilaConId> ({
   const [aviso, setAviso] = useState<string | null>(null)
   const [ocupado, setOcupado] = useState(false)
   const [arrastrada, setArrastrada] = useState<number | null>(null)
+  const { contenedor, limites, desplazar } = useDesplazamientoTablero(arrastrada !== null || columnaArrastrada !== null, grupos.length)
 
   /** Arma la URL del tablero en el BFF para una pagina dada. La pagina aplica a cada columna. */
   const urlTablero = useCallback(
@@ -316,7 +318,7 @@ export function Tablero<T extends FilaConId> ({
   }
 
   return (
-    <div className="flex flex-col gap-3" aria-busy={ocupado}>
+    <div className="flex min-w-0 max-w-full flex-col gap-3" aria-busy={ocupado}>
       {aviso !== null && (
         <p
           role="alert"
@@ -327,13 +329,37 @@ export function Tablero<T extends FilaConId> ({
       )}
 
       <p role="status" className="sr-only">{ocupado ? 'Guardando cambios…' : ''}</p>
-      <div className="flex items-start gap-3 overflow-x-auto pb-2">
+      {(limites.izquierda || limites.derecha) && (
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <p className="text-texto-sutil text-xs">{puedeMover ? 'Arrastra hacia los bordes o usa «Mover a…» para elegir cualquier columna.' : 'Desplázate para ver las demás columnas.'}</p>
+          <div className="flex shrink-0 gap-1">
+            <Boton variante="secundario" tamano="chico" soloIcono className="min-h-11 min-w-11" aria-label="Ver columnas a la izquierda" disabled={!limites.izquierda} onClick={() => desplazar(-1)}>
+              <ArrowLeft className="size-4" aria-hidden="true" />
+            </Boton>
+            <Boton variante="secundario" tamano="chico" soloIcono className="min-h-11 min-w-11" aria-label="Ver columnas a la derecha" disabled={!limites.derecha} onClick={() => desplazar(1)}>
+              <ArrowRight className="size-4" aria-hidden="true" />
+            </Boton>
+          </div>
+        </div>
+      )}
+      <div
+        ref={contenedor}
+        role="region"
+        aria-label="Columnas del tablero"
+        tabIndex={0}
+        onKeyDown={(evento) => {
+          if (evento.target !== evento.currentTarget || !['ArrowLeft', 'ArrowRight'].includes(evento.key)) return
+          evento.preventDefault()
+          desplazar(evento.key === 'ArrowLeft' ? -1 : 1)
+        }}
+        className="focus-visible:outline-acento flex min-w-0 max-w-full items-start gap-3 overflow-x-auto overscroll-x-contain pb-2 focus-visible:outline-2 focus-visible:outline-offset-2"
+      >
         {grupos.map((grupo, indiceGrupo) => (
           <section
             key={grupo.columna.id}
             aria-label={grupo.columna.name}
             className={cn(
-              'bg-superficie-hundida rounded-tarjeta border-linea flex w-72 shrink-0 flex-col gap-2 border p-2',
+              'bg-superficie-hundida rounded-tarjeta border-linea flex w-72 max-w-full shrink-0 flex-col gap-2 border p-2',
               columnaArrastrada === grupo.columna.id && 'opacity-50',
               destinoColumna === grupo.columna.id && 'outline-acento outline-2'
             )}
@@ -448,14 +474,15 @@ export function Tablero<T extends FilaConId> ({
                   {puedeMover && (
                   <MenuContextual>
                     <DisparadorMenu asChild>
-                      <Boton variante="sutil" tamano="chico" disabled={ocupado}>
+                      <Boton variante="sutil" tamano="chico" className="pointer-coarse:min-h-11" disabled={ocupado}>
                         Mover a…
                       </Boton>
                     </DisparadorMenu>
-                    <ContenidoMenu align="start">
+                    <ContenidoMenu align="start" className="max-w-[calc(100vw-1rem)]">
                       {destinosDelMenu.map((destino) => (
                         <ItemMenu
                           key={destino.columna.id}
+                          className="pointer-coarse:min-h-11 break-words"
                           disabled={destino.columna.id === grupo.columna.id}
                           onSelect={() => {
                             void mover(tarjeta.id, destino.columna.id, destino.cuantas)
