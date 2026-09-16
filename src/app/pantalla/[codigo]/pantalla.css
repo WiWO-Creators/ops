@@ -222,3 +222,104 @@
     grid-template-columns: minmax(0, 1fr) 8vmin 17vmin 21vmin;
   }
 }
+
+/*
+ * === EL TABLERO QUE SE MUEVE ===
+ *
+ * Un panel de salidas de verdad no cambia de vista: voltean sus filas. La pantalla hace lo mismo, y
+ * son dos movimientos que hay que leer junto a `piezas.tsx`, que pone las clases.
+ *
+ * **Lo que NO hacen.** Ninguno se repite solo. La fila voltea una vez, al llegar; la celda alterna
+ * cuando el dominio dice que toca. Esta pared lleva meses encendida: un pixel en movimiento
+ * permanente es un pixel quemado, y un televisor barato con la pantalla entera animandose se calienta
+ * y tironea. Por eso los dos animan solo `transform` y `opacity`, que las compone la GPU sin tocar el
+ * layout — y por eso ninguna fila cambia de alto mientras se mueve, que es lo unico que podria
+ * empujar a las de abajo fuera del marco.
+ */
+
+/*
+ * La fila que acaba de llegar voltea como una lamina de split-flap.
+ *
+ * `rotateX` alrededor del centro y con perspectiva: la fila se ve mas BAJA mientras gira, nunca mas
+ * alta, asi que no hay forma de que a mitad de volteo desborde el marco.
+ *
+ * `backwards` es la mitad que se olvida: sin el, la fila se dibuja entera y visible durante su
+ * retardo y aparece de golpe antes de animarse. Con el, espera en el primer fotograma —invisible— y
+ * entra cuando le toca.
+ *
+ * El escalonado sale de `--fila`, que pone `escalonDeFila()`. 35 ms por fila y tope de 12: la cascada
+ * dura como mucho 420 + 320 = 740 ms de una escena de diez segundos. El 93% del tiempo la pared esta
+ * quieta, que es la condicion para poder leerla de pie y de pasada.
+ */
+@media (prefers-reduced-motion: no-preference) {
+  .pantalla-voltea {
+    animation: pantalla-voltea 320ms cubic-bezier(0.2, 0.7, 0.3, 1) backwards;
+    animation-delay: calc(var(--fila, 0) * 35ms);
+  }
+}
+
+@keyframes pantalla-voltea {
+  from {
+    opacity: 0;
+    transform: perspective(60vmin) rotateX(-70deg);
+  }
+
+  to {
+    opacity: 1;
+    transform: perspective(60vmin) rotateX(0);
+  }
+}
+
+/*
+ * La celda que cambia de campo.
+ *
+ * Mucho mas corta y mucho mas chica que el volteo de la fila: lo que se mueve es una sola columna, y
+ * si se moviera tanto como la fila entera la pared pareceria nerviosa. El mismo `--fila` escalona el
+ * cambio de arriba abajo, a la mitad de paso, para que se lea como una ola y no como un parpadeo
+ * simultaneo de treinta celdas.
+ */
+@media (prefers-reduced-motion: no-preference) {
+  .pantalla-alterna {
+    animation: pantalla-alterna 260ms ease-out backwards;
+    animation-delay: calc(var(--fila, 0) * 18ms);
+  }
+}
+
+@keyframes pantalla-alterna {
+  from {
+    opacity: 0;
+    transform: translateY(-0.8vmin);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/*
+ * `?transicion=ninguna` apaga los dos movimientos.
+ *
+ * Existe para el televisor que no da abasto: un aparato de gama baja con la pantalla llena de
+ * transformaciones deja de dibujar los contadores a tiempo, y una pared que miente la hora es peor
+ * que una pared quieta. Lo que NO se apaga es el cambio de dato: la celda sigue alternando, sin
+ * animarse. Ver `faseDeDato()`.
+ */
+.pantalla-raiz[data-transicion='ninguna'] .pantalla-voltea,
+.pantalla-raiz[data-transicion='ninguna'] .pantalla-alterna {
+  animation: none;
+}
+
+/*
+ * El aire entre las dos tablas de `trabajando`.
+ *
+ * Cuenta en el reparto de filas: son los ~1.6vmin que `REPARTO_DE_TRABAJANDO` descuenta junto a la
+ * cabecera y los rotulos del segundo bloque. Si crece hay que volver a bajar el reparto, o la ultima
+ * fila del area se cae del marco sin dejar rastro.
+ */
+.pantalla-dos-tablas {
+  display: flex;
+  flex-direction: column;
+  gap: 1.6vmin;
+  min-height: 0;
+}

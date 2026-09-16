@@ -3,8 +3,8 @@ import { cn } from '@/lib/clases'
 import { GLOSARIO } from '@/dominio/glosario'
 import type { TareaEnPantalla } from '@/datos/pantalla-area'
 import {
-  CabeceraDeEscena, CUERPO_COLUMNA, CUERPO_PRINCIPAL, Nada, RELLENO_DE_FILA, RotulosDeColumna,
-  nombreCorto, rotuloDeAlcance
+  CabeceraDeEscena, CeldaQueAlterna, CUERPO_COLUMNA, CUERPO_PRINCIPAL, FILA_VIVA, Nada,
+  RELLENO_DE_FILA, RotulosDeColumna, escalonDeFila, nombreCorto, rotuloDeAlcance
 } from './piezas'
 
 /** La rejilla de columnas de esta escena. Su reparto vive en `pantalla.css`. */
@@ -34,15 +34,24 @@ const COLUMNAS = 'pantalla-columnas-procesos'
  * Lo vencido se marca con color y con la palabra, no solo con color: a cuatro metros y con el reflejo
  * de una ventana, un rojo y un naranja son el mismo color.
  *
+ * === QUE ALTERNA ===
+ *
+ * La ultima columna dice quien la tiene y, cada `PERIODO_DE_DATO_MS`, la prioridad. La prioridad
+ * viajaba en el paquete desde el primer dia y no se dibujaba en ningun sitio: no habia ancho para una
+ * septima columna sin recortar el nombre de la Tarea, que es lo unico que de verdad se lee. Compartir
+ * la columna de "quien" es lo que la saca del paquete a la pared. No alternan ni el nombre ni "vence",
+ * que son la identidad y la urgencia de la fila.
+ *
  * En vertical la fila se queda en cuatro columnas —nombre, vence, quien y la barra de color— porque
  * hay 92vmin de ancho contra los 170 de la pared tumbada: meter las siete dejaba el nombre de la
  * Tarea en veinte caracteres, y una Tarea que no se puede nombrar no se muestra. Lo dice la plantilla
  * `portrait` de `.pantalla-columnas-procesos` en `pantalla.css`, y los `portrait:hidden` de acá.
  */
-export function EscenaProcesos ({ items, ocultos, total, esGlobal = false }: {
+export function EscenaProcesos ({ items, ocultos, total, fase, esGlobal = false }: {
   items: TareaEnPantalla[]
   ocultos: number
   total: number
+  fase: 0 | 1
   /** La pantalla de toda la compañia no tiene area que nombrar: ver `rotuloDeAlcance`. */
   esGlobal?: boolean
 }): ReactNode {
@@ -59,12 +68,16 @@ export function EscenaProcesos ({ items, ocultos, total, esGlobal = false }: {
         <span className="truncate portrait:hidden">Estado</span>
         <span className="text-right portrait:hidden">%</span>
         <span className="truncate">Vence</span>
-        <span className="truncate">Quién</span>
+        <CeldaQueAlterna fase={fase} principal="Quién" alterno="Prioridad" />
       </RotulosDeColumna>
 
       <ul className="pantalla-tablero min-h-0">
-        {items.map((tarea) => (
-          <li key={tarea.id} className={cn('pantalla-fila py-[0.55vmin] leading-[1.15]', RELLENO_DE_FILA, COLUMNAS)}>
+        {items.map((tarea, indice) => (
+          <li
+            key={tarea.id}
+            className={cn('pantalla-fila py-[0.55vmin] leading-[1.15]', FILA_VIVA, RELLENO_DE_FILA, COLUMNAS)}
+            style={escalonDeFila(indice)}
+          >
             {/*
               * La barra de color del estado. Es la unica columna que no es texto, y en vertical es
               * lo unico que queda del estado: ahi la columna en palabras se cae por falta de ancho.
@@ -90,7 +103,12 @@ export function EscenaProcesos ({ items, ocultos, total, esGlobal = false }: {
 
             <Vencimiento fecha={tarea.due_date} vencida={tarea.overdue} />
 
-            <Quien personas={tarea.assignees} />
+            <CeldaQueAlterna
+              fase={fase}
+              className={cn('text-texto-tenue', CUERPO_COLUMNA)}
+              principal={<Quien personas={tarea.assignees} />}
+              alterno={tarea.priority?.name ?? 'Sin prioridad'}
+            />
           </li>
         ))}
       </ul>
@@ -160,17 +178,15 @@ function Vencimiento ({ fecha, vencida }: { fecha: string | null, vencida: boole
 function Quien ({ personas }: { personas: TareaEnPantalla['assignees'] }): ReactNode {
   const primera = personas[0]
 
-  if (primera === undefined) {
-    return <span className={cn('text-texto-sutil truncate', CUERPO_COLUMNA)}>Sin asignar</span>
-  }
+  if (primera === undefined) return <span className="text-texto-sutil">Sin asignar</span>
 
   return (
-    <span className={cn('text-texto-tenue truncate', CUERPO_COLUMNA)}>
+    <>
       {nombreCorto(primera.name)}
       {personas.length > 1 && (
         <span className="text-texto-sutil tabular-nums"> +{personas.length - 1}</span>
       )}
-    </span>
+    </>
   )
 }
 

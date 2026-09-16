@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import type { CSSProperties, ReactNode } from 'react'
 import { cn } from '@/lib/clases'
 import { coloresAvatar, iniciales } from '@/lib/personas'
 
@@ -242,6 +242,80 @@ export function CabeceraDeEscena ({ titulo, total, ocultos }: {
         </span>
       )}
     </div>
+  )
+}
+
+/**
+ * === EL TABLERO QUE SE MUEVE ===
+ *
+ * Lo que sigue es la mitad en React de la animacion de panel de aeropuerto. La otra mitad son los
+ * `@keyframes` de `pantalla.css`, y las dos tienen que leerse juntas.
+ *
+ * Son dos movimientos y ninguno de los dos corre solo:
+ *
+ * 1. **La fila voltea al llegar.** Al pasar de pagina el marco de la escena NO se remonta —eso lo
+ *    decide `Escena.continuidad` en el dominio—, asi que la cabecera y los rotulos se quedan quietos y
+ *    lo unico que cambia son los `<li>`. Cada uno estrena su animacion al montarse, escalonado por su
+ *    posicion: sale la cascada de un split-flap sin un solo temporizador.
+ * 2. **La celda alterna.** Cada `PERIODO_DE_DATO_MS` la fila cambia un campo por otro, para caber mas
+ *    dato sin achicar la letra ni sumar columnas. Quien decide cuando es `faseDeDato()` en el dominio,
+ *    contra el UNICO reloj de la pantalla; aca solo se dibuja.
+ *
+ * Las dos animan `transform` y `opacity` y nada mas: las resuelve el compositor, no cuestan un
+ * reflow, y ninguna se queda corriendo sola —esta pared lleva meses encendida y un pixel en
+ * movimiento permanente es un pixel quemado—. `?transicion=ninguna` las apaga las dos desde el CSS,
+ * para el televisor que no da abasto.
+ */
+
+/**
+ * A partir de que fila el escalonado deja de crecer.
+ *
+ * Sin tope, una tabla de 18 filas a 35 ms tarda 950 ms en terminar de caer, y la ultima fila aparece
+ * cuando quien mira ya la dio por perdida. Con el tope, la cascada dura siempre lo mismo y las filas
+ * del final llegan juntas, que es exactamente lo que hace un panel de verdad.
+ */
+const TOPE_DE_ESCALON = 12
+
+/** La clase que hace voltear una fila recien llegada. Su animacion vive en `pantalla.css`. */
+export const FILA_VIVA = 'pantalla-voltea'
+
+/**
+ * El retardo de la fila numero `indice`, como variable CSS.
+ *
+ * Va en un `style` y no en una clase porque son N valores distintos y no un puñado: una clase por
+ * posicion serian veinte reglas muertas en la hoja.
+ *
+ * @param indice la posicion de la fila dentro de SU tabla, empezando en 0
+ */
+export function escalonDeFila (indice: number): CSSProperties {
+  return { '--fila': Math.min(Math.max(indice, 0), TOPE_DE_ESCALON) } as CSSProperties
+}
+
+/**
+ * Una celda que alterna entre dos contenidos al ritmo de `fase`.
+ *
+ * Es como la pantalla enseña mas de lo que cabe: en vez de apretar dos columnas donde hay sitio para
+ * una, la misma columna dice una cosa y luego la otra. **Nunca alterna lo que identifica la fila** —el
+ * nombre de la persona, el de la Tarea, el del Proyecto—: si el ancla parpadeara, recorrer la columna
+ * buscando a alguien seria imposible.
+ *
+ * El `key` es lo que rearranca la animacion: un elemento con otra clave se remonta, y al montarse el
+ * CSS vuelve a correr. Sin el, el texto cambiaria de golpe y sin decir nada.
+ *
+ * @param fase      `0` el juego principal, `1` el alterno; lo decide `faseDeDato()`
+ * @param principal lo que se ve casi siempre
+ * @param alterno   lo que se ve en la fase alterna
+ */
+export function CeldaQueAlterna ({ fase, className, principal, alterno }: {
+  fase: 0 | 1
+  className?: string
+  principal: ReactNode
+  alterno: ReactNode
+}): ReactNode {
+  return (
+    <span key={fase} className={cn('pantalla-alterna truncate', className)}>
+      {fase === 0 ? principal : alterno}
+    </span>
   )
 }
 

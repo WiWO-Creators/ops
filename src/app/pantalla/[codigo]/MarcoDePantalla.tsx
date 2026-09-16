@@ -10,6 +10,13 @@ interface Props {
   area: string | null
   guion: Escena[]
   escenaId: string | null
+  /**
+   * La clave de continuidad de la escena: ver `Escena.continuidad` en el dominio.
+   *
+   * Es el `key` del cuerpo. Entre dos paginas del mismo tablero no cambia, y por eso la cabecera de
+   * la escena y los rotulos de columna NO se remontan: lo unico que se mueve son las filas.
+   */
+  continuidad: string | null
   frescura: Frescura
   esperando: boolean
   /** El reloj del navegador, o `null` antes de hidratar. */
@@ -42,7 +49,10 @@ interface Props {
  * lampara. Se puede volver a claro con `?tema=claro` para una sala muy iluminada.
  */
 export function MarcoDePantalla (props: Props): ReactNode {
-  const { area, guion, escenaId, frescura, esperando, ahora, zona, orientacion, zoom, margen, tema, transicion, children } = props
+  const {
+    area, guion, escenaId, continuidad, frescura, esperando, ahora, zona, orientacion, zoom, margen,
+    tema, transicion, children
+  } = props
 
   // El tema se fuerza desde el cliente y no con una clase: el script de arranque escribe
   // `data-theme` en el `<html>`, y lo que gana es el ultimo que escribe.
@@ -82,6 +92,9 @@ export function MarcoDePantalla (props: Props): ReactNode {
       // del televisor, que se come los cuatro bordes por igual.
       style={{ '--escala': zoom, padding: `${margen}vmin` } as React.CSSProperties}
       data-escena={escenaId ?? ''}
+      // Lo lee el CSS para apagar las animaciones de fila con `?transicion=ninguna`, que existe para
+      // el televisor que no da abasto. Ver `pantalla.css`.
+      data-transicion={transicion}
       data-escena-desde={desde}
       data-frescura={frescura}
       data-orientacion={orientacion}
@@ -94,9 +107,19 @@ export function MarcoDePantalla (props: Props): ReactNode {
       </header>
 
       <section
-        // `key` por id de escena: es lo que remonta el bloque —y reinicia su fundido y su barra— solo
-        // cuando la escena cambia de verdad, y nunca porque llegaron datos nuevos.
-        key={escenaId ?? 'vacio'}
+        /*
+         * `key` por CONTINUIDAD y no por id de escena.
+         *
+         * Remonta el bloque —y con el reinicia su fundido— cuando se cambia de vista de verdad, y
+         * nunca porque llegaron datos nuevos. La diferencia con el id es el paginado: dos paginas de
+         * `trabajando` son la misma vista con otras filas, asi que comparten continuidad, el marco se
+         * queda montado y lo unico que se mueve son los `<li>`, que voltean uno a uno. Dos anuncios,
+         * en cambio, son dos laminas distintas y ahi si se funde entero.
+         *
+         * Quien decide cual es cual es el dominio (`Escena.continuidad`), no este componente: es una
+         * afirmacion sobre el guion y se prueba sin navegador.
+         */
+        key={continuidad ?? escenaId ?? 'vacio'}
         className={cn(
           // `justify-start` y no `justify-center`: con el contenido centrado, el titulo de la escena
           // cambia de altura segun cuantas fichas haya, y en una pared eso se lee como que la pantalla
@@ -118,6 +141,11 @@ export function MarcoDePantalla (props: Props): ReactNode {
         <div className="bg-linea-suave h-[0.5vmin] w-full overflow-hidden rounded-full">
           {escena !== null && (
             <div
+              // `key` por ID de escena y no por continuidad: la barra mide UNA pagina, asi que tiene
+              // que rearrancar en cada una. Sin `key` el `<div>` se reutiliza, la animacion no vuelve
+              // a empezar y la barra se queda vacia el resto de la vuelta — que es justo lo contrario
+              // de lo que esta ahi para decir.
+              key={escenaId ?? 'vacio'}
               className="bg-acento pantalla-progreso h-full w-full"
               style={{ animationDuration: `${escena.duracionMs}ms` }}
             />

@@ -12,7 +12,7 @@
  * normaliza el pathname para el latido de presencia.
  */
 import type { FranjaDelDia } from './momento-del-dia.ts'
-import type { EscenaDeApi, PaqueteDePantalla } from '@/datos/pantalla-area'
+import type { EscenaDeApi, EscenaTrabajandoDeApi, PaqueteDePantalla } from '@/datos/pantalla-area'
 
 /**
  * Los tipos de escena que la pantalla sabe dibujar, en el orden en que se muestran.
@@ -144,6 +144,75 @@ export const REJILLAS: Record<Orientacion, Record<ClaseDeEscena, number>> = {
 export const TOPE_DE_PAGINAS = 4
 
 /**
+ * Como se reparte la banda util de `trabajando` entre sus DOS tablas.
+ *
+ * === EL PROBLEMA ===
+ *
+ * `REJILLAS[orientacion].trabajando` dice cuantas filas entran en la escena cuando la escena es UNA
+ * tabla: 28 tumbada (dos columnas de 14) y 30 de pie. Con dos tablas apiladas aparecen una cabecera y
+ * una fila de rotulos mas, y un aire entre bloques: son ~4vmin + ~4vmin + ~1.6vmin, unos 100 px a
+ * 1080p, o sea **dos renglones de tablero**. De los 819 px de banda tumbada quedan ~718, que a 52 px
+ * por renglon son 13,8 renglones visuales; de los 1616 de pie quedan ~1515, o sea 29 filas.
+ *
+ * === EL REPARTO, Y POR QUE 2 A 1 ===
+ *
+ * Tumbada cada renglon visual son DOS personas, porque la escena va a dos columnas: 8 renglones para
+ * la empresa (16 personas) y 4 para el area (8) son 12 de los 13,8 que caben. De pie son 18 y 9 de las
+ * 29 que caben. En las dos orientaciones sobran casi dos renglones, que es el mismo margen de
+ * seguridad con el que se eligieron las rejillas de una tabla: la pared no puede depender de que la
+ * ultima fila entre por dos pixeles, porque `overflow: hidden` no avisa, corta.
+ *
+ * Dos tercios para la compañia y uno para el area no es simetria mal hecha, son las dos listas: la de
+ * la compañia es la que puede tener 42 personas y la que el usuario puso arriba, y la del area es un
+ * equipo de ocho o diez que casi siempre entra entero en una pagina. Al reves —14 y 10— la compañia
+ * necesitaria el doble de paginas para enseñar lo mismo y el area desperdiciaria filas vacias.
+ *
+ * === CUANDO HAY UNA SOLA TABLA ===
+ *
+ * Esto NO se usa: la tabla que queda se lleva la banda entera (`REJILLAS[orientacion].trabajando`),
+ * porque sin el segundo bloque los ~100 px vuelven. Es el caso de la pantalla global, que no tiene
+ * area, y el del area donde no hay nadie con jornada abierta. Ver `repartoDeTrabajando`.
+ */
+export const REPARTO_DE_TRABAJANDO: Record<Orientacion, { empresa: number, area: number }> = {
+  horizontal: { empresa: 16, area: 8 },
+  vertical: { empresa: 18, area: 9 }
+}
+
+/**
+ * Las claves de las dos tablas de `trabajando`, en orden de dibujo.
+ *
+ * Son datos y no literales sueltos porque entran en tres sitios que tienen que coincidir: el id de la
+ * escena (y por tanto la firma del guion), el `key` de React y la busqueda de `tablaDeEscena()`.
+ */
+export const TABLA_EMPRESA = 'empresa'
+export const TABLA_AREA = 'area'
+
+/** La clave de la tabla de las escenas que tienen una sola. */
+export const TABLA_UNICA = 'unica'
+
+/**
+ * Las escenas que son un tablero de filas, y no una lamina.
+ *
+ * Lo que las separa de la portada, de `momento` y de `anuncios` es que sus paginas son **la misma
+ * vista con otras filas**, no vistas distintas. De ahi sale `continuidad`: entre dos paginas de un
+ * tablero el marco no se remonta y solo voltean las filas, mientras que pasar de un anuncio al
+ * siguiente si es cambiar de lamina y se funde entero.
+ */
+const ESCENAS_DE_TABLERO: ReadonlySet<string> = new Set([
+  'trabajando', 'cronometros', 'procesos', 'espacios'
+])
+
+/**
+ * Cada cuantos milisegundos las filas cambian de juego de campos.
+ *
+ * Seis segundos: lo bastante largo para leer una fila entera de pie y de paso —el ojo tarda un par de
+ * segundos en encontrar el renglon que busca—, y lo bastante corto para que quien se para a mirar vea
+ * el segundo juego antes de irse. El movimiento en si dura 260 ms, asi que la pantalla esta quieta el
+ * 96% del tiempo, que es la condicion para que esto sea legible y no un cartel de neon.
+ */
+export const PERIODO_DE_DATO_MS = 6000
+
+/**
  * El tope propio de la escena `anuncios`.
  *
  * Con `porPagina` en 1, una pagina es un anuncio, asi que el tope general de cuatro seria "solo se ven
@@ -166,16 +235,45 @@ export const TOPE_DE_ANUNCIOS = 8
  */
 const ESCENAS_BREVES: ReadonlySet<string> = new Set(['portada', 'momento'])
 
+/**
+ * Una tabla dentro de una escena, ya paginada.
+ *
+ * Es un arreglo y no dos campos sueltos porque `trabajando` tiene dos —la compañia y el area— y el
+ * resto tiene una. Con el dia que otra escena necesite un segundo bloque no hay nada que inventar, y
+ * mientras tanto las escenas de una tabla leen `tablas[0]` y no se enteran de nada.
+ */
+export interface TablaDePantalla {
+  /** Que tabla es dentro de la escena. Entra en el id, y con el en la firma del guion. */
+  clave: string
+  /** Los items de ESTA pagina de ESTA tabla. */
+  items: unknown[]
+  /** Cuantos de esta tabla no se estan viendo, para el "+N mas" de su cabecera. */
+  ocultos: number
+  /** El conteo real que declara la API, o `null` cuando la escena no lo manda. */
+  total: number | null
+}
+
 /** Una escena ya resuelta, lista para dibujar. */
 export interface Escena {
   /** Identidad estable. Es lo unico de lo que depende la rotacion; ver `firmaDelGuion`. */
   id: string
   clase: ClaseDeEscena
+  /**
+   * Que tiene que seguir montado al pasar a la escena siguiente.
+   *
+   * El marco de la escena se dibuja con esto de `key`, no con el `id`. Entre dos paginas de un mismo
+   * tablero vale lo mismo —`'trabajando'`— asi que la cabecera, los rotulos de columna y el bloque
+   * entero **no se remontan**: no hay fundido de vista, y lo unico que cambia son las filas, que
+   * voltean una a una como un panel de aeropuerto. Entre dos anuncios, en cambio, vale el `id`: son
+   * dos laminas distintas y ahi el fundido es lo correcto.
+   *
+   * Sale del dominio y no del componente porque es una decision sobre el guion —que es una pagina y
+   * que es una escena nueva— y se prueba sin navegador.
+   */
+  continuidad: string
   duracionMs: number
-  /** Los items de ESTA pagina. La portada no tiene. */
-  items: unknown[]
-  /** Cuantos quedaron fuera del corte, para el "+N mas" del pie. */
-  ocultos: number
+  /** Las tablas de ESTA pagina, en orden de dibujo. La portada y `momento` no tienen ninguna. */
+  tablas: TablaDePantalla[]
   /** La escena de la API, tal cual, para que el componente lea sus campos propios. */
   origen: EscenaDeApi
 }
@@ -338,9 +436,9 @@ export function construirGuion (
       guion.push({
         id: 'portada',
         clase: 'portada',
+        continuidad: 'portada',
         duracionMs: duracion,
-        items: [],
-        ocultos: 0,
+        tablas: [],
         origen: escena
       })
       continue
@@ -352,9 +450,9 @@ export function construirGuion (
       guion.push({
         id: `momento#${franja.clave}`,
         clase: 'momento',
+        continuidad: `momento#${franja.clave}`,
         duracionMs: duracion,
-        items: [],
-        ocultos: 0,
+        tablas: [],
         origen: escena
       })
       continue
@@ -513,8 +611,12 @@ export function proximoRecargado (ahora: number, token: string, hora = 4): numbe
  * Parte una escena con items en tantas paginas como haga falta, hasta el tope.
  *
  * Una escena sin items no devuelve ninguna pagina: es lo que la saca del guion.
+ *
+ * `trabajando` tiene su propio reparto porque son dos tablas; ver `paginarTrabajando`.
  */
 function paginar (escena: EscenaDeApi, duracionMs: number, orientacion: Orientacion): Escena[] {
+  if (escena.kind === 'trabajando') return paginarTrabajando(escena, duracionMs, orientacion)
+
   const items = 'items' in escena ? escena.items : []
 
   if (items.length === 0) return []
@@ -524,27 +626,233 @@ function paginar (escena: EscenaDeApi, duracionMs: number, orientacion: Orientac
   // `TOPE_DE_ANUNCIOS`.
   const tope = escena.kind === 'anuncios' ? TOPE_DE_ANUNCIOS : TOPE_DE_PAGINAS
   const paginas = Math.min(Math.ceil(items.length / porPagina), tope)
-  const mostrados = Math.min(items.length, paginas * porPagina)
+  const total = 'total' in escena ? escena.total : null
 
   const escenas: Escena[] = []
 
-  for (let pagina = 0; pagina < paginas; pagina++) {
-    const desde = pagina * porPagina
-
+  for (let pagina = 1; pagina <= paginas; pagina++) {
     escenas.push({
       // El `#n` solo aparece cuando hay mas de una pagina: asi un area chica conserva la misma firma
       // aunque le entre o le salga una persona, y la rotacion no se entera de un cambio que no es.
-      id: paginas === 1 ? escena.kind : `${escena.kind}#${pagina + 1}`,
+      id: paginas === 1 ? escena.kind : `${escena.kind}#${pagina}`,
       clase: escena.kind as ClaseDeEscena,
+      continuidad: continuidadDe(escena.kind as ClaseDeEscena, `${escena.kind}#${pagina}`),
       duracionMs,
-      items: items.slice(desde, desde + porPagina),
-      // Los que no entraron se cuentan en la ULTIMA pagina, que es donde el pie los va a nombrar.
-      ocultos: pagina === paginas - 1 ? items.length - mostrados : 0,
+      tablas: [rebanada(TABLA_UNICA, items, pagina, porPagina, paginas, total)],
       origen: escena
     })
   }
 
   return escenas
+}
+
+/**
+ * Parte `trabajando`, que son DOS tablas en la misma escena: la compañia arriba y el area abajo.
+ *
+ * === EL REPARTO ===
+ *
+ * Las dos tablas comparten la banda util de la escena, y el reparto no es mitad y mitad: ver
+ * `REPARTO_DE_TRABAJANDO`, que explica de donde salen los numeros y por que la compañia se lleva dos
+ * tercios. Si solo hay una tabla con gente —la pantalla global, que no tiene area, o un area donde
+ * nadie abrio jornada— la que queda se lleva la banda ENTERA, porque sin el segundo bloque vuelven
+ * los ~100 px de su cabecera y sus rotulos.
+ *
+ * === COMO SE PAGINAN DOS LISTAS A LA VEZ ===
+ *
+ * Cada tabla se pagina por su cuenta con su propia rejilla, y la escena tiene tantas paginas como la
+ * que mas necesite. Lo interesante es que pasa cuando una es larga y la otra corta: 40 personas en la
+ * compañia son 3 paginas, y 8 en el area son 1.
+ *
+ * **La tabla corta se queda clavada en su ULTIMA pagina** en vez de desaparecer. Dos razones:
+ *
+ * 1. Un bloque que se esfuma en la pagina 2 mueve el otro de sitio, y a cuatro metros eso se lee como
+ *    que la pantalla se rompio. El marco tiene que quedarse quieto: lo que se mueve son las filas.
+ * 2. La tabla del area es la identidad de esta pantalla —es el area cuyo televisor es— y esconderla
+ *    dos tercios de la escena para hacerle sitio a la compañia seria justo al reves de lo que la
+ *    pared es.
+ *
+ * Y tiene un efecto util con la animacion: como la tabla corta dibuja las mismas filas con las mismas
+ * claves de React, sus filas NO se remontan y no voltean. Solo cascadea la tabla que de verdad cambio.
+ *
+ * === EL ID, QUE ES DE LO QUE DEPENDE LA ROTACION ===
+ *
+ * `trabajando#e<paginaEmpresa>a<paginaArea>`, con un `0` donde esa tabla no esta. Tiene que nombrar
+ * las dos cosas porque la firma del guion es lo unico que hace rotar la pantalla (`firmaDelGuion`):
+ * si el id no cambiara al aparecer o desaparecer una tabla o una pagina, la pared se quedaria clavada;
+ * si cambiara porque a alguien le empezo la jornada, saltaria a mitad de escena. El numero de pagina
+ * cumple las dos: no se mueve cuando entra o sale una persona que cabe en la pagina que ya habia.
+ */
+function paginarTrabajando (
+  escena: EscenaTrabajandoDeApi & { seconds?: number },
+  duracionMs: number,
+  orientacion: Orientacion
+): Escena[] {
+  const delArea = escena.items
+  const compania = escena.empresa
+
+  // Lecturas defensivas a proposito: el bloque `empresa` lo estrena el backend, y una pared que se
+  // queda en blanco porque la API todavia no desplego es peor que una pared con una sola tabla.
+  const deLaCompania: unknown[] = compania?.items ?? []
+  const totalCompania: number = compania?.total ?? deLaCompania.length
+  const totalArea: number = escena.total ?? delArea.length
+
+  if (delArea.length === 0 && deLaCompania.length === 0) return []
+
+  const reparto = repartoDeTrabajando(orientacion, deLaCompania.length > 0, delArea.length > 0)
+
+  const paginasCompania = cuantasPaginas(deLaCompania.length, reparto.empresa)
+  const paginasArea = cuantasPaginas(delArea.length, reparto.area)
+  const paginas = Math.max(paginasCompania, paginasArea)
+
+  const escenas: Escena[] = []
+
+  for (let pagina = 1; pagina <= paginas; pagina++) {
+    // `min` es lo que clava la tabla corta en su ultima pagina en vez de dejarla caer.
+    const enCompania = paginasCompania === 0 ? 0 : Math.min(pagina, paginasCompania)
+    const enArea = paginasArea === 0 ? 0 : Math.min(pagina, paginasArea)
+
+    const tablas: TablaDePantalla[] = []
+
+    if (enCompania > 0) {
+      tablas.push(rebanada(
+        TABLA_EMPRESA, deLaCompania, enCompania, reparto.empresa, paginasCompania, totalCompania
+      ))
+    }
+
+    if (enArea > 0) {
+      tablas.push(rebanada(TABLA_AREA, delArea, enArea, reparto.area, paginasArea, totalArea))
+    }
+
+    escenas.push({
+      id: idDeTrabajando(enCompania, enArea),
+      clase: 'trabajando',
+      continuidad: continuidadDe('trabajando', idDeTrabajando(enCompania, enArea)),
+      duracionMs,
+      tablas,
+      origen: escena
+    })
+  }
+
+  return escenas
+}
+
+/**
+ * El id de una pagina de `trabajando`: `trabajando#e1a1`, `trabajando#e2a1`, `trabajando#e1a0`…
+ *
+ * A diferencia del resto de las escenas, esta **nunca** tiene un id pelado. Un `trabajando` a secas no
+ * podria decir cual de las dos tablas esta en pantalla, y esa es justo la diferencia de la que la
+ * rotacion tiene que enterarse: si el area se queda sin nadie y la escena pasa a ser solo la compañia,
+ * la firma tiene que cambiar para que la pantalla vuelva a montar la escena con una tabla menos.
+ *
+ * @param compania pagina de la tabla de la compañia, o `0` si no esta
+ * @param area     pagina de la tabla del area, o `0` si no esta
+ */
+function idDeTrabajando (compania: number, area: number): string {
+  return `trabajando#e${compania}a${area}`
+}
+
+/**
+ * Cuantas filas le tocan a cada tabla de `trabajando` en esta orientacion.
+ *
+ * Con las dos tablas manda `REPARTO_DE_TRABAJANDO`. Con una sola, esa se lleva la banda entera: el
+ * reparto existe para pagar la cabecera y los rotulos del segundo bloque, y sin segundo bloque no hay
+ * nada que pagar.
+ */
+function repartoDeTrabajando (
+  orientacion: Orientacion,
+  hayCompania: boolean,
+  hayArea: boolean
+): { empresa: number, area: number } {
+  const banda = REJILLAS[orientacion].trabajando
+
+  if (!hayArea) return { empresa: banda, area: 0 }
+  if (!hayCompania) return { empresa: 0, area: banda }
+
+  return REPARTO_DE_TRABAJANDO[orientacion]
+}
+
+/** Cuantas paginas hacen falta para `largo` items, sin pasar del tope. Cero items, cero paginas. */
+function cuantasPaginas (largo: number, porPagina: number): number {
+  if (largo === 0 || porPagina <= 0) return 0
+
+  return Math.min(Math.ceil(largo / porPagina), TOPE_DE_PAGINAS)
+}
+
+/**
+ * Una pagina de una tabla, con lo que no se esta viendo ya contado.
+ *
+ * `ocultos` cuenta TODO lo que falta: lo que el backend recorto antes de mandar la lista y lo que el
+ * tope de paginas dejo fuera. Por eso mira el `total` declarado y no solo el largo de lo que llego —
+ * si la API dice que hay 42 y manda 40, la pantalla tiene que decir "+N" contando esos dos. Nunca se
+ * miente por omision, y se dice una sola vez: en la ULTIMA pagina, que es donde el corte ocurre.
+ *
+ * @param pagina  numero de pagina, empezando en 1
+ * @param paginas cuantas paginas tiene esta tabla en total
+ * @param total   el conteo real que declara la API, o `null` si esta escena no lo manda
+ */
+function rebanada (
+  clave: string,
+  items: unknown[],
+  pagina: number,
+  porPagina: number,
+  paginas: number,
+  total: number | null
+): TablaDePantalla {
+  const mostrados = Math.min(items.length, paginas * porPagina)
+  const hay = Math.max(total ?? 0, items.length)
+  const desde = (pagina - 1) * porPagina
+
+  return {
+    clave,
+    items: items.slice(desde, desde + porPagina),
+    ocultos: pagina === paginas ? hay - mostrados : 0,
+    total
+  }
+}
+
+/**
+ * Que `key` lleva el marco de la escena: ver `Escena.continuidad`.
+ *
+ * Un tablero conserva el marco entre sus paginas —solo cambian las filas— y una lamina no.
+ */
+function continuidadDe (clase: ClaseDeEscena, id: string): string {
+  return ESCENAS_DE_TABLERO.has(clase) ? clase : id
+}
+
+/**
+ * La tabla `clave` de una escena, o `null` si esta pagina no la trae.
+ *
+ * Existe para que el componente no busque por indice: en `trabajando`, `tablas[0]` es la compañia
+ * salvo en el area donde la compañia no viene, y ahi `tablas[0]` seria el area. Un indice que
+ * significa dos cosas distintas es exactamente el bug que nadie ve mirando la pared.
+ */
+export function tablaDeEscena (escena: Escena, clave: string): TablaDePantalla | null {
+  return escena.tablas.find((tabla) => tabla.clave === clave) ?? null
+}
+
+/**
+ * Cual de los dos juegos de campos toca mostrar ahora mismo.
+ *
+ * === POR QUE SALE DEL RELOJ Y NO DE UN TEMPORIZADOR ===
+ *
+ * La pantalla tiene UN solo reloj —el latido de 250 ms del worker de `proyeccion.ts`— porque el
+ * `setInterval` de una pestaña casteada a un televisor se estrangula a uno por minuto. Un temporizador
+ * propio para alternar las filas se estrangularia, y la pared se quedaria con la mitad de los datos
+ * congelados sin que nadie se entere. Derivarlo del instante que ya llega no puede fallar: es una
+ * division.
+ *
+ * Y sale del reloj de pared y no de cuanto lleva la escena a proposito: asi **todas las filas de la
+ * pared alternan a la vez**, que es como se comporta un panel de aeropuerto de verdad, en vez de que
+ * cada bloque lleve su compas.
+ *
+ * @param ahora    instante en milisegundos, o `null` antes de hidratar
+ * @param periodoMs cada cuanto se cambia de juego; ver `PERIODO_DE_DATO_MS`
+ * @returns `0` para el juego principal, `1` para el alterno
+ */
+export function faseDeDato (ahora: number | null, periodoMs: number = PERIODO_DE_DATO_MS): 0 | 1 {
+  if (ahora === null || !Number.isFinite(ahora) || periodoMs <= 0) return 0
+
+  return Math.floor(Math.max(ahora, 0) / periodoMs) % 2 === 0 ? 0 : 1
 }
 
 /** Una portada armada a mano, para el caso en que el guion se quedaria vacio. */
@@ -555,9 +863,9 @@ function portadaDeRespaldo (paquete: PaqueteDePantalla, parametros: ParametrosDe
   return {
     id: 'portada',
     clase: 'portada',
+    continuidad: 'portada',
     duracionMs: Math.round(base * PROPORCION_PORTADA),
-    items: [],
-    ocultos: 0,
+    tablas: [],
     origen: dePaquete ?? {
       kind: 'portada',
       counts: {

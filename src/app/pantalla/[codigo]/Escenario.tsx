@@ -3,17 +3,18 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactElement } from 'react'
 import {
-  construirGuion, firmaDelGuion, frescuraDe, intervaloConBackoff, proximaEscenaViva,
-  proximoRecargado
+  TABLA_AREA, TABLA_EMPRESA, construirGuion, faseDeDato, firmaDelGuion, frescuraDe,
+  intervaloConBackoff, proximaEscenaViva, proximoRecargado, tablaDeEscena
 } from '@/dominio/pantalla-area'
-import type { Escena, Orientacion, ParametrosDePantalla } from '@/dominio/pantalla-area'
+import type { Escena, Orientacion, ParametrosDePantalla, TablaDePantalla } from '@/dominio/pantalla-area'
 import { franjaDelMomento } from '@/dominio/momento-del-dia'
 import type { FranjaDelDia } from '@/dominio/momento-del-dia'
-import type { MetaDePantalla, PaqueteDePantalla } from '@/datos/pantalla-area'
+import type { MetaDePantalla, PaqueteDePantalla, PersonaTrabajando } from '@/datos/pantalla-area'
 import { useLatido, useNoApagarPantalla } from './proyeccion'
 import { MarcoDePantalla } from './MarcoDePantalla'
 import { EscenaPortada } from './escenas/EscenaPortada'
 import { EscenaTrabajando } from './escenas/EscenaTrabajando'
+import type { TablaDeGente } from './escenas/EscenaTrabajando'
 import { EscenaCronometros } from './escenas/EscenaCronometros'
 import { EscenaProcesos } from './escenas/EscenaProcesos'
 import { EscenaEspacios } from './escenas/EscenaEspacios'
@@ -207,6 +208,7 @@ export function Escenario ({ codigo, inicial, metaInicial, parametros }: Props):
       area={datos?.area.name ?? null}
       guion={guion}
       escenaId={escena?.id ?? null}
+      continuidad={escena?.continuidad ?? null}
       frescura={frescura}
       esperando={datos === null}
       ahora={ahora}
@@ -230,6 +232,10 @@ export function Escenario ({ codigo, inicial, metaInicial, parametros }: Props):
             esGlobal={datos?.area.id === null}
             franja={franja}
             zona={zona}
+            // El juego de campos que toca. Sale del reloj que ya esta en pantalla y no de un
+            // temporizador propio —que se estrangularia con la pestaña oculta—, y `?transicion=ninguna`
+            // lo clava en el principal: el televisor que no da abasto no tiene por que alternar nada.
+            fase={parametros.transicion === 'ninguna' ? 0 : faseDeDato(ahora)}
             // Con los datos viejos los contadores cuentan contra la ULTIMA LECTURA BUENA y no contra
             // el reloj: se quedan clavados en el valor que era cierto. Un cronometro que sigue
             // trepando con la conexion caida es una mentira, y esta pared la leen jefaturas de area.
@@ -248,43 +254,101 @@ interface Dibujable {
   esGlobal: boolean
   /** La franja horaria vigente. Solo la usa `momento`, que no existe fuera de una. */
   franja: FranjaDelDia | null
-  /** La zona del negocio, para el reloj grande de `momento`. */
+  /** La zona del negocio: el reloj grande de `momento` y toda hora que se dibuje en una fila. */
   zona: string | null
   ahora: number | null
   congelado: boolean
+  /** Cual de los dos juegos de campos toca; ver `faseDeDato()`. */
+  fase: 0 | 1
 }
 
 /** Elige el componente de la escena. Un `switch` y no un mapa: el tipo se estrecha solo. */
 function Dibujo (
-  { escena, area, esGlobal, franja, zona, ahora, congelado }: Dibujable
+  { escena, area, esGlobal, franja, zona, ahora, congelado, fase }: Dibujable
 ): ReactElement | null {
   const origen = escena.origen
+  // Las escenas de una sola tabla leen la primera y no se enteran de que `tablas` es un arreglo.
+  const unica = escena.tablas[0] ?? TABLA_VACIA
 
   switch (origen.kind) {
     case 'portada':
       return <EscenaPortada area={area} contadores={origen.counts} />
 
     case 'trabajando':
-      return <EscenaTrabajando items={escena.items as never} ocultos={escena.ocultos} ahora={ahora} congelado={congelado} />
+      // La unica escena con dos tablas. Se buscan por clave y nunca por indice: en un area sin gente
+      // la primera tabla es la de la compañia, y en la pantalla global tambien — pero en un paquete
+      // sin compañia seria la del area, y `tablas[0]` estaria diciendo dos cosas distintas.
+      return (
+        <EscenaTrabajando
+          compania={comoTablaDeGente(tablaDeEscena(escena, TABLA_EMPRESA))}
+          area={comoTablaDeGente(tablaDeEscena(escena, TABLA_AREA))}
+          nombreDelArea={area}
+          zona={zona}
+          ahora={ahora}
+          congelado={congelado}
+          fase={fase}
+        />
+      )
 
     case 'cronometros':
-      return <EscenaCronometros items={escena.items as never} ocultos={escena.ocultos} ahora={ahora} congelado={congelado} />
+      return (
+        <EscenaCronometros
+          items={unica.items as never}
+          ocultos={unica.ocultos}
+          ahora={ahora}
+          congelado={congelado}
+          zona={zona}
+          fase={fase}
+        />
+      )
 
     case 'procesos':
-      return <EscenaProcesos items={escena.items as never} ocultos={escena.ocultos} total={origen.total} esGlobal={esGlobal} />
+      return (
+        <EscenaProcesos
+          items={unica.items as never}
+          ocultos={unica.ocultos}
+          total={origen.total}
+          fase={fase}
+          esGlobal={esGlobal}
+        />
+      )
 
     case 'espacios':
-      return <EscenaEspacios items={escena.items as never} ocultos={escena.ocultos} />
+      return (
+        <EscenaEspacios
+          items={unica.items as never}
+          ocultos={unica.ocultos}
+          ahora={ahora}
+          zona={zona}
+          fase={fase}
+        />
+      )
 
     case 'momento':
       return <EscenaMomento franja={franja} ahora={ahora} zona={zona} />
 
     case 'anuncios':
-      return <EscenaAnuncios items={escena.items as never} ocultos={escena.ocultos} />
+      return <EscenaAnuncios items={unica.items as never} ocultos={unica.ocultos} />
 
     default:
       return null
   }
+}
+
+/**
+ * La tabla vacia con la que se dibuja una escena sin tablas.
+ *
+ * No deberia llegar nunca —`paginar()` saca del guion lo que no tiene items— salvo en la ventana de
+ * un render entre que la lista se vacia y llega el sondeo siguiente. Una constante y no un objeto
+ * nuevo por render: asi no se rompe la memoizacion de nadie.
+ */
+const TABLA_VACIA: TablaDePantalla = { clave: '', items: [], ocultos: 0, total: null }
+
+/** Una tabla del guion con la forma que espera `EscenaTrabajando`, o `null` si no esta en la pagina. */
+function comoTablaDeGente (tabla: TablaDePantalla | null): TablaDeGente | null {
+  if (tabla === null) return null
+
+  return { items: tabla.items as PersonaTrabajando[], ocultos: tabla.ocultos, total: tabla.total }
 }
 
 /** Donde esta ahora mismo una escena por su id, o 0 si ya no esta. */
