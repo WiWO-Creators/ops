@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Boton } from '@/componentes/formularios/Boton'
 import { Campo } from '@/componentes/formularios/Campo'
 import { AreaTexto } from '@/componentes/formularios/Entrada'
@@ -11,22 +11,22 @@ import {
   Dialogo,
   DisparadorDialogo
 } from '@/componentes/superposiciones/Dialogo'
-import { escribirEnBff } from '@/componentes/datos/mutaciones'
-import { pedirSobre } from '@/datos/cliente'
+import { consultarDisponibilidad, redactarDescripcion } from '@/datos/descripcion-ia'
 import {
+  type ModoDeBorrador,
   PREGUNTAS_DESCRIPCION,
   TOPE_RESPUESTA,
+  combinarDescripcion,
   cuerpoDeRedaccion,
   descripcionVacia,
   errorDeDetalle
 } from '@/dominio/descripcion-tarea'
 
-/** La ruta del asistente en la API. Se usa dos veces —la sonda y la redaccion— y es la misma. */
-const RUTA = 'ia/tareas/describir'
-
 interface PropsAsistente {
   /** El titulo que hay escrito en el formulario. Va como contexto; puede estar vacio. */
   titulo: string
+  /** Lo que ya hay escrito en el campo Descripcion. Decide si aceptar el borrador pregunta antes. */
+  descripcionActual?: string
   /** El Espacio elegido, si el formulario ya tiene uno. Solo suma contexto. */
   proyectoId?: number | null
   /** Se llama con el texto que la persona acepto, para que el formulario lo ponga en el campo. */
@@ -51,6 +51,11 @@ interface PropsAsistente {
  * guarda el formulario como siempre. Un asistente que escribiera directo en la base convertiria
  * cualquier error del modelo en un dato que nadie reviso.
  *
+ * **No pisa lo que ya estaba escrito sin preguntar.** Con el campo vacio, aceptar el borrador lo
+ * pega y listo. Con el campo escrito, hay que elegir entre sumarlo al final o reemplazar: el campo
+ * es controlado y el Ctrl+Z del navegador no devuelve lo perdido, asi que la pregunta es la unica
+ * marcha atras que existe. Cerrar o cancelar deja el campo exactamente como estaba.
+ *
  * === POR QUE SE PREGUNTA ANTES DE LLAMAR AL MODELO, Y UNA SOLA VEZ ===
  *
  * Las tres preguntas son fijas y viven en `dominio/descripcion-tarea.ts`; el modelo se llama recien
@@ -65,9 +70,15 @@ interface PropsAsistente {
  * "esto se rompio". El `GET` de la ruta contesta si esta persona puede usar el asistente —y no
  * contesta nada si la capa esta apagada—, asi que mientras no diga que si, este componente no pinta
  * nada. Es la misma decision que toma `ResumenDelDia` con su fase `apagada`.
+ *
+ * === LOS TRES FINALES DE LA LLAMADA, Y NINGUNO ES ESPERAR PARA SIEMPRE ===
+ *
+ * Pidiendo, llego, fallo. El "pidiendo" tiene siempre dos salidas: el boton de cancelar, que aborta
+ * en el acto, y el techo de espera de `datos/descripcion-ia.ts`, que corta solo si la API no vuelve.
+ * Un "Redactando…" del que no se pueda salir seria peor que un error.
  */
 export function AsistenteDescripcion (
-  { titulo, proyectoId, onRedactada, deshabilitado = false }: PropsAsistente
+  { titulo, descripcionActual = '', proyectoId, onRedactada, deshabilitado = false }: PropsAsistente
 ) {
   /** `null` mientras la sonda no contesto. Solo `true` pinta el boton. */
   const [disponible, setDisponible] = useState<boolean | null>(null)
@@ -77,22 +88,22 @@ export function AsistenteDescripcion (
   const [borrador, setBorrador] = useState<string | null>(null)
   const [redactando, setRedactando] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  /** La llamada en vuelo, para poder soltarla al cancelar, al cerrar o al desmontar. */
+  const enVuelo = useRef<AbortController | null>(null)
 
   useEffect(() => {
     const control = new AbortController()
 
-    pedirSobre<{ disponible: boolean }>(RUTA, control.signal)
-      .then((sobre) => {
-        if (!control.signal.aborted) setDisponible(sobre.data.disponible)
-      })
-      .catch(() => {
-        // Un 404 es la capa de IA apagada y un 403 es la persona sin permiso. Los dos terminan
-        // igual: no se ofrece. Que se haya caido la red tambien, y por el mismo motivo.
-        if (!control.signal.aborted) setDisponible(false)
-      })
+    void consultarDisponibilidad(control.signal).then((puede) => {
+      if (!control.signal.aborted) setDisponible(puede)
+    })
 
     return () => { control.abort() }
   }, [])
+
+  // El desmontaje tiene que soltar la redaccion en vuelo: sin esto, cerrar el formulario mientras el
+  // modelo escribe deja el `fetch` colgado y su `setState` cae sobre un componente que ya no esta.
+  useEffect(() => () => { enVuelo.current?.abort() }, [])
 
   // `indice` no puede salirse del arreglo —solo lo mueven "Siguiente" y "Atrás"—, pero con
   // `noUncheckedIndexedAccess` el compilador exige que se diga, y decirlo cuesta una linea.
@@ -101,6 +112,7 @@ export function AsistenteDescripcion (
   if (disponible !== true || pregunta === undefined) return null
 
   const esUltima = indice === PREGUNTAS_DESCRIPCION.length - 1
+  const hayTextoEscrito = !descripcionVacia(descripcionActual)
   const contestadas = PREGUNTAS_DESCRIPCION
     .slice(0, indice)
     .filter((una) => !descripcionVacia(respuestas[una.clave]))
@@ -113,11 +125,19 @@ export function AsistenteDescripcion (
     setError(null)
   }
 
+  /** Suelta la llamada en vuelo, si hay una. Cancelar y cerrar terminan los dos acá. */
+  function soltarLlamada (): void {
+    enVuelo.current?.abort()
+    enVuelo.current = null
+    setRedactando(false)
+  }
+
   /**
    * Pide la redaccion con lo contestado hasta acá.
    *
-   * Es el unico viaje a la red de todo el asistente. Un fallo deja el cuestionario intacto y muestra
-   * el motivo con un boton de reintento: lo que la persona escribio no se pierde nunca por esto.
+   * Es el unico viaje a la red de todo el asistente. Cualquier final —texto, error, espera agotada o
+   * cancelacion— deja el cuestionario intacto: lo que la persona escribio no se pierde nunca por
+   * esto, y reintentar es apretar el boton de nuevo.
    */
   async function redactar (): Promise<void> {
     const cuerpo = cuerpoDeRedaccion(titulo, respuestas, proyectoId)
@@ -140,20 +160,28 @@ export function AsistenteDescripcion (
       return
     }
 
+    const control = new AbortController()
+
+    enVuelo.current = control
     setRedactando(true)
     setError(null)
 
-    const resultado = await escribirEnBff<{ descripcion: string }>(RUTA, 'POST', cuerpo)
+    const resultado = await redactarDescripcion(cuerpo, control.signal)
 
+    // Una respuesta de una llamada que ya se cancelo no entra: la persona ya decidio que no la
+    // queria, y pintarla despues seria el dialogo moviendose solo.
+    if (control.signal.aborted) return
+
+    enVuelo.current = null
     setRedactando(false)
 
-    if (!resultado.ok) {
-      setError(resultado.mensaje)
+    if (resultado.ok) {
+      setBorrador(resultado.descripcion)
 
       return
     }
 
-    setBorrador(resultado.datos.descripcion)
+    if (resultado.motivo !== 'cancelada') setError(resultado.mensaje)
   }
 
   /** Avanza a la pregunta siguiente, o dispara la redaccion si esta era la ultima. */
@@ -169,13 +197,26 @@ export function AsistenteDescripcion (
     setIndice(indice + 1)
   }
 
+  /** Pega el borrador en el campo del formulario del modo elegido y cierra. */
+  function aceptar (modo: ModoDeBorrador): void {
+    if (borrador === null) return
+
+    onRedactada(combinarDescripcion(descripcionActual, borrador, modo))
+    setAbierto(false)
+    limpiar()
+  }
+
   return (
     <Dialogo
       open={abierto}
       onOpenChange={(valor) => {
-        if (redactando) return
+        // Cerrar mientras redacta es descartar: se suelta la llamada y el campo queda como estaba.
+        if (!valor) {
+          soltarLlamada()
+          limpiar()
+        }
+
         setAbierto(valor)
-        if (!valor) limpiar()
       }}
     >
       <DisparadorDialogo asChild>
@@ -226,7 +267,9 @@ export function AsistenteDescripcion (
             : (
               <Campo
                 etiqueta="Borrador"
-                ayuda="Corrígelo acá si quieres. Al usarlo queda en el campo Descripción y todavía lo puedes editar."
+                ayuda={hayTextoEscrito
+                  ? 'Corrígelo acá si quieres. Elige abajo si se suma a lo que ya escribiste o lo reemplaza.'
+                  : 'Corrígelo acá si quieres. Al usarlo queda en el campo Descripción y todavía lo puedes editar.'}
               >
                 {(props) => (
                   <AreaTexto
@@ -240,6 +283,12 @@ export function AsistenteDescripcion (
               </Campo>
               )}
 
+          {borrador !== null && hayTextoEscrito && (
+            <p className="text-texto-tenue text-sm">
+              El campo Descripción ya tiene texto escrito. Si cierras esta ventana no se toca nada.
+            </p>
+          )}
+
           {redactando && (
             <p role="status" className="text-texto-tenue flex items-center gap-2 text-sm">
               <Orbe estado="generating" tamano="chico" />
@@ -252,9 +301,23 @@ export function AsistenteDescripcion (
           )}
 
           <div className="flex flex-wrap justify-end gap-2">
-            <CerrarDialogo asChild>
-              <Boton variante="sutil" disabled={redactando}>Cancelar</Boton>
-            </CerrarDialogo>
+            {redactando
+              ? (
+                <Boton
+                  variante="sutil"
+                  onClick={() => {
+                    soltarLlamada()
+                    setError(null)
+                  }}
+                >
+                  Cancelar la redacción
+                </Boton>
+                )
+              : (
+                <CerrarDialogo asChild>
+                  <Boton variante="sutil">Cancelar</Boton>
+                </CerrarDialogo>
+                )}
 
             {borrador === null
               ? (
@@ -278,17 +341,35 @@ export function AsistenteDescripcion (
                   <Boton variante="secundario" onClick={() => { setBorrador(null); setIndice(0) }}>
                     Volver a las preguntas
                   </Boton>
-                  <Boton
-                    variante="primario"
-                    disabled={descripcionVacia(borrador)}
-                    onClick={() => {
-                      onRedactada(borrador.trim())
-                      setAbierto(false)
-                      limpiar()
-                    }}
-                  >
-                    Usar esta descripción
-                  </Boton>
+
+                  {hayTextoEscrito
+                    ? (
+                      <>
+                        <Boton
+                          variante="secundario"
+                          disabled={descripcionVacia(borrador)}
+                          onClick={() => { aceptar('reemplazar') }}
+                        >
+                          Reemplazar lo escrito
+                        </Boton>
+                        <Boton
+                          variante="primario"
+                          disabled={descripcionVacia(borrador)}
+                          onClick={() => { aceptar('agregar') }}
+                        >
+                          Agregar al final
+                        </Boton>
+                      </>
+                      )
+                    : (
+                      <Boton
+                        variante="primario"
+                        disabled={descripcionVacia(borrador)}
+                        onClick={() => { aceptar('reemplazar') }}
+                      >
+                        Usar esta descripción
+                      </Boton>
+                      )}
                 </>
                 )}
           </div>

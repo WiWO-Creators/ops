@@ -362,6 +362,7 @@ export function ControlDeCampo (
           <div className="flex justify-end">
             <AsistenteDescripcion
               titulo={titulo}
+              descripcionActual={texto}
               proyectoId={proyectoId}
               onRedactada={(redactado) => { alCambiar(redactado) }}
             />

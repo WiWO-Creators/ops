@@ -2091,6 +2091,9 @@ async function iaRuta (metodo, resto, parametros, actual, cuerpo, peticion) {
   if (seccion === 'tareas' && sub[0] === 'interpretar' && metodo === 'POST') {
     return await interpretarTareaIaRuta(actual, cuerpo)
   }
+  if (seccion === 'tareas' && sub[0] === 'describir' && sub.length === 1) {
+    return await describirTareaIaRuta(metodo, actual, cuerpo)
+  }
   if (seccion === 'proyectos' && sub[1] === 'acta' && sub[2] === 'prefill' && metodo === 'GET') {
     return prefillActaIaRuta(sub[0])
   }
@@ -2412,6 +2415,92 @@ async function interpretarTareaIaRuta (actual, cuerpo) {
       faltantes: ['description']
     })
   }
+}
+
+/**
+ * Que hace el asistente de la descripcion en esta corrida del mock.
+ *
+ * Los cuatro caminos existen porque los cuatro se ven distinto en pantalla y ninguno se puede
+ * provocar desde la interfaz:
+ *
+ *   - `normal`    — disponible y redacta (por defecto).
+ *   - `apagada`   — 404 en toda la ruta, igual que la puerta comun de `/ia/*` con `ia_habilitada`
+ *                   en `0`. Sirve para comprobar que el boton NO se dibuja.
+ *   - `falla`     — 502 en el POST, con la sonda diciendo que si. Es el caso feo: el boton esta y
+ *                   la llamada se rompe.
+ *   - `cuelga`    — el POST nunca contesta. Es la unica forma de ver si el "Redactando…" tiene
+ *                   salida o se queda para siempre.
+ */
+const IA_DESCRIBIR = process.env.MOCK_IA_DESCRIBIR ?? 'normal'
+
+/**
+ * `GET|POST /ia/tareas/describir`. El asistente que redacta la descripcion de una Tarea.
+ *
+ * El GET dice si esta persona puede usarlo —y es un 200 con `false`, no un 403: quien no puede
+ * escribir Tareas no hace nada malo al abrir el formulario—. El POST redacta con las respuestas del
+ * cuestionario y **no guarda nada**: devuelve texto para que la persona lo pegue, lo corrija o lo
+ * tire.
+ *
+ * El texto no sale de ningun modelo: se arma con lo contestado. Un mock que devolviera siempre el
+ * mismo parrafo no distinguiria "el cuerpo viajo bien" de "el front manda cualquier cosa".
+ */
+async function describirTareaIaRuta (metodo, actual, cuerpo) {
+  if (IA_DESCRIBIR === 'apagada') {
+    throw new ErrorApi(404, 'not_found', 'Recurso desconocido: "ia".')
+  }
+
+  if (metodo === 'GET') {
+    const permisos = permisosDe(actual)
+    const puede = (permisos.tasks ?? []).includes('create') || (permisos.tasks ?? []).includes('edit')
+
+    return { estado: 200, cuerpo: conDatos({ disponible: puede }) }
+  }
+
+  if (metodo !== 'POST') {
+    throw new ErrorApi(404, 'not_found', 'Método no disponible en /ia/tareas/describir.')
+  }
+
+  const permisos = permisosDe(actual)
+  if (!(permisos.tasks ?? []).some((accion) => accion === 'create' || accion === 'edit')) {
+    throw new ErrorApi(403, 'forbidden', 'Sin permiso para escribir Procesos.')
+  }
+
+  const datos = await cuerpo()
+  const desconocidas = Object.keys(datos).filter((clave) => !['titulo', 'project_id', 'respuestas'].includes(clave))
+
+  if (desconocidas.length > 0) {
+    throw new ErrorApi(422, 'validation_failed', 'Campos desconocidos.', {
+      [desconocidas[0]]: ['desconocido']
+    })
+  }
+
+  const respuestas = Array.isArray(datos.respuestas) ? datos.respuestas : []
+  const utiles = respuestas
+    .filter((par) => par !== null && typeof par === 'object' && String(par.respuesta ?? '').trim() !== '')
+    .map((par) => String(par.respuesta).trim())
+
+  if (utiles.length === 0) {
+    throw new ErrorApi(422, 'validation_failed', 'Hace falta al menos una respuesta.', {
+      respuestas: ['requerido']
+    })
+  }
+
+  if (IA_DESCRIBIR === 'cuelga') return await new Promise(() => {})
+
+  if (IA_DESCRIBIR === 'falla') {
+    throw new ErrorApi(502, 'provider_error', 'El proveedor de IA no devolvió una respuesta utilizable.')
+  }
+
+  const titulo = String(datos.titulo ?? '').trim()
+  const encabezado = titulo === '' ? 'Esta tarea' : titulo
+  const descripcion = `${encabezado}: ${utiles[0]}`
+    + (utiles.length > 1 ? ` Se hace para ${utiles[1]}.` : '')
+    + '\n\n'
+    + (utiles.length > 2
+      ? `Se da por terminada cuando ${utiles[2]}.`
+      : 'Se da por terminada cuando el encargado la revisa y no quedan observaciones abiertas.')
+
+  return { estado: 200, cuerpo: conDatos({ descripcion }) }
 }
 
 /** `YYYY-MM-DD` del proximo lunes, para que el mock nunca devuelva una fecha ya pasada. */
