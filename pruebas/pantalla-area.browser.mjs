@@ -404,7 +404,10 @@ try {
       })
     })
 
-    await abrir(pagina, '?solo=cronometros&refresco=15')
+    // `transicion=ninguna` clava la fase de `CeldaQueAlterna` en su dato principal. Sin eso, la
+    // asercion de mas abajo busca "Persona 1" en una celda que la mitad del tiempo muestra la hora de
+    // arranque, y el resultado de la prueba pasa a depender de en que segundo del ciclo se mire.
+    await abrir(pagina, '?solo=cronometros&refresco=15&transicion=ninguna')
 
     // El ritmo lo manda el `meta`, no el `?refresco=`: ver el comentario de `intervaloMs`.
 
