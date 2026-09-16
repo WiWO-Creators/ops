@@ -26,7 +26,7 @@ interface RespuestaEntrar {
  * El orbe es el indicador de progreso, igual que en el acceso del panel: quieto hasta que se envia,
  * en movimiento mientras la API responde.
  */
-export function FormularioEntrarPortal () {
+export function FormularioEntrarPortal ({ aviso = null }: { aviso?: string | null }) {
   const router = useRouter()
   const [error, establecerError] = useState<string | null>(null)
   const [enviando, establecerEnviando] = useState(false)
@@ -135,6 +135,17 @@ export function FormularioEntrarPortal () {
                 />
               )}
             </Campo>
+
+            {/* Cede ante el error, igual que en `/colab`: dos mensajes a la vez compiten, y el que
+                importa cuando algo acaba de fallar es el error. */}
+            {aviso !== null && error === null && (
+              <p
+                role="status"
+                className="rounded-chico border-texto-aviso/35 bg-superficie-aviso text-texto-aviso border px-3 py-2 text-sm"
+              >
+                {aviso}
+              </p>
+            )}
 
             {error !== null && (
               <p

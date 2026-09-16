@@ -36,8 +36,11 @@ interface RespuestaEntrar {
  *
  * @param google lo que respondio `GET /auth/google`. Si viene apagado la pantalla es exactamente la
  *               de siempre: ni el script de Google se descarga.
+ * @param aviso por que se esta viendo esta pantalla, cuando no se llego por voluntad propia. Hoy el
+ *              unico caso es la sesion que la API rechazo; sin el, quien venia trabajando aparece de
+ *              golpe en el formulario de acceso sin ninguna explicacion.
  */
-export function FormularioEntrar ({ google }: { google: AccesoGoogle }) {
+export function FormularioEntrar ({ google, aviso = null }: { google: AccesoGoogle, aviso?: string | null }) {
   const router = useRouter()
   const [paso, establecerPaso] = useState<Paso>('clave')
   const [metodo, establecerMetodo] = useState<'email' | 'app'>('email')
@@ -279,6 +282,18 @@ export function FormularioEntrar ({ google }: { google: AccesoGoogle }) {
           <p role="status" aria-live="polite" className="sr-only">
             {enviando ? 'Verificando tus datos' : ''}
           </p>
+
+          {/* Cede ante el error: el aviso cuenta de donde viene la persona, el error cuenta que
+              acaba de fallar. Los dos a la vez son dos mensajes rojos que compiten por la misma
+              mirada, y el que importa en ese momento es el segundo. */}
+          {aviso !== null && error === null && (
+            <p
+              role="status"
+              className="border-texto-aviso/35 bg-superficie-aviso text-texto-aviso rounded-chico mb-5 border px-3 py-2 text-sm"
+            >
+              {aviso}
+            </p>
+          )}
 
           {error !== null && (
             <p
