@@ -9,6 +9,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
+  alternarCompletados,
   accionesMasivasPermitidas,
   camposDeTabla,
   comentarioParaMostrar,
@@ -168,4 +169,25 @@ test('con los dos firmantes en null el autor se perdio, y no se inventa', () => 
 
 test('el adjunto del comentario no viaja: ningun contrato lo emite', () => {
   assert.equal(comentarioParaMostrar({ ...COMENTARIO, staff: { id: 1, full_name: 'X' } }).file, null)
+})
+
+
+test('completados reemplaza estados incompatibles sin perder búsqueda ni responsables', () => {
+  const params = new URLSearchParams('filter[status__ne]=5&filter[completed]=0&filter[assignee]=42&q=entrega&page=4')
+  const original = params.toString()
+  const resultado = alternarCompletados(params)
+  assert.equal(resultado.get('filter[status]'), '5')
+  assert.equal(resultado.has('filter[status__ne]'), false)
+  assert.equal(resultado.has('filter[completed]'), false)
+  assert.equal(resultado.get('filter[assignee]'), '42')
+  assert.equal(resultado.get('q'), 'entrega')
+  assert.equal(resultado.has('page'), false)
+  assert.equal(params.toString(), original)
+  assert.equal(alternarCompletados(resultado).has('filter[status]'), false)
+})
+
+test('completados parte de consulta vacía y reemplaza un estado inválido', () => {
+  for (const query of ['', 'filter[status]=invalido']) {
+    assert.equal(alternarCompletados(new URLSearchParams(query)).toString(), 'filter%5Bstatus%5D=5')
+  }
 })

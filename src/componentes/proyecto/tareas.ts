@@ -25,6 +25,22 @@ import { estadoVencimiento } from '../../lib/fechas.ts'
 export const ESTADO_COMPLETO = 5
 
 /**
+ * Alterna completados y elimina condiciones de estado incompatibles.
+ * @param params Consulta vigente; no se modifica.
+ * @returns Consulta nueva, conservando búsqueda y filtros ajenos al estado, sin paginación.
+ */
+export function alternarCompletados (params: URLSearchParams): URLSearchParams {
+  const activo = params.get('filter[status]') === String(ESTADO_COMPLETO)
+  const siguientes = new URLSearchParams(params)
+  for (const clave of [...siguientes.keys()]) {
+    if (/^filter\[(?:status|completed)(?:__[^\]]+)?\]$/.test(clave)) siguientes.delete(clave)
+  }
+  if (!activo) siguientes.set('filter[status]', String(ESTADO_COMPLETO))
+  siguientes.delete('page')
+  return siguientes
+}
+
+/**
  * Una tarea vencida que todavia no esta completa.
  *
  * Es lo que el panel viejo pinta con `row-border-danger`. La comparacion por dia calendario ya vive
