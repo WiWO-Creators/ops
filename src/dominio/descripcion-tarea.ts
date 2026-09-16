@@ -128,6 +128,48 @@ export function errorDeDescripcion (texto: string, queEs = 'La tarea'): string |
 }
 
 /**
+ * Que hacer con el borrador del asistente cuando el campo ya tiene texto.
+ *
+ * `reemplazar` pisa lo que hay; `agregar` lo deja y suma el borrador debajo. No hay un tercer modo
+ * silencioso: cual de los dos se aplica lo elige la persona, y por eso esto es un parametro y no una
+ * heuristica.
+ */
+export type ModoDeBorrador = 'reemplazar' | 'agregar'
+
+/**
+ * El texto final del campo despues de aceptar un borrador.
+ *
+ * === POR QUE EXISTE ESTA FUNCION ===
+ *
+ * Porque el peor final posible de este asistente es que el texto generado pise sin aviso lo que
+ * alguien tipeo. Antes, aceptar el borrador escribia el campo entero: quien habia redactado dos
+ * parrafos, abrio el asistente para comparar y apreto "Usar esta descripcion" perdia los dos, sin
+ * deshacer posible —el campo es controlado y el Ctrl+Z del navegador no lo alcanza—.
+ *
+ * Con el campo vacio los dos modos dan lo mismo y la pantalla no pregunta nada: preguntar cuando no
+ * hay nada que perder es ruido.
+ *
+ * @param actual lo que hay escrito en el campo, tal cual
+ * @param borrador el texto que devolvio el asistente, ya editable por la persona
+ * @param modo que hacer con lo que ya estaba
+ * @returns el valor que va al campo, sin espacios sobrantes y con un renglon en blanco entre ambos
+ */
+export function combinarDescripcion (
+  actual: string | null | undefined,
+  borrador: string,
+  modo: ModoDeBorrador
+): string {
+  const nuevo = borrador.trim()
+
+  if (modo === 'reemplazar' || descripcionVacia(actual)) return nuevo
+  if (nuevo === '') return (actual as string).trimEnd()
+
+  // `trimEnd` y no `trim`: la sangria o el renglon con que empieza lo que la persona escribio es
+  // suyo, y el asistente no tiene por que corregirselo al sumar un parrafo al final.
+  return `${(actual as string).trimEnd()}\n\n${nuevo}`
+}
+
+/**
  * Minimo de palabras que tiene que traer un pedido antes de dejarlo llegar al modelo.
  *
  * Cuatro y no dos: con "arreglar esto" el modelo no interpreta, inventa —y lo que inventa entra al

@@ -1145,6 +1145,7 @@ export function AltaRapidaProceso ({
                     <div className="flex justify-end">
                       <AsistenteDescripcion
                         titulo={nombre}
+                        descripcionActual={descripcion}
                         proyectoId={relacion === 'project' && espacio !== NINGUNO ? Number(espacio) : null}
                         deshabilitado={enCurso}
                         onRedactada={(texto) => { setDescripcion(texto); setErrorDescripcion(null) }}

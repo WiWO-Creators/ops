@@ -18,6 +18,7 @@ import {
   TOPE_RESPUESTA,
   MINIMO_CARACTERES_DETALLE,
   MINIMO_PALABRAS_DETALLE,
+  combinarDescripcion,
   cuerpoDeRedaccion,
   descripcionVacia,
   errorDeDescripcion,
@@ -184,4 +185,36 @@ test('errorDeDetalle: los invisibles no cuentan como palabra ni como largo', () 
 
   assert.ok(mensaje !== null)
   assert.match(mensaje, /llevas 18/)
+})
+
+test('combinarDescripcion: con el campo vacio los dos modos dejan el borrador solo', () => {
+  const borrador = '  Armar la grilla de septiembre.  '
+
+  assert.equal(combinarDescripcion('', borrador, 'agregar'), 'Armar la grilla de septiembre.')
+  assert.equal(combinarDescripcion('', borrador, 'reemplazar'), 'Armar la grilla de septiembre.')
+  // El vacio que `trim()` no ve tampoco cuenta como texto escrito: no hay nada que conservar.
+  assert.equal(combinarDescripcion('\u00a0\u200b', borrador, 'agregar'), 'Armar la grilla de septiembre.')
+  assert.equal(combinarDescripcion(null, borrador, 'agregar'), 'Armar la grilla de septiembre.')
+  assert.equal(combinarDescripcion(undefined, borrador, 'agregar'), 'Armar la grilla de septiembre.')
+})
+
+test('combinarDescripcion: agregar conserva entero lo que la persona escribio', () => {
+  const escrito = 'Lo que venia escrito a mano.\n'
+  const resultado = combinarDescripcion(escrito, 'Lo que redacto el asistente.', 'agregar')
+
+  assert.equal(resultado, 'Lo que venia escrito a mano.\n\nLo que redacto el asistente.')
+  // Lo de la persona sigue ahi, byte a byte: esa es la unica garantia que importa de esta funcion.
+  assert.ok(resultado.startsWith('Lo que venia escrito a mano.'))
+})
+
+test('combinarDescripcion: reemplazar pisa, y es lo unico que pisa', () => {
+  assert.equal(
+    combinarDescripcion('Lo que venia escrito.', 'Lo del asistente.', 'reemplazar'),
+    'Lo del asistente.'
+  )
+})
+
+test('combinarDescripcion: un borrador vaciado a mano no borra lo escrito', () => {
+  // La persona puede vaciar el area del borrador antes de decidir. Agregar nada tiene que ser nada.
+  assert.equal(combinarDescripcion('Lo que venia escrito.  ', '   ', 'agregar'), 'Lo que venia escrito.')
 })

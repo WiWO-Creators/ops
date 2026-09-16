@@ -695,6 +695,7 @@ export function EdicionTarea (
             <div className="flex justify-end">
               <AsistenteDescripcion
                 titulo={campos.nombre}
+                descripcionActual={campos.descripcion}
                 proyectoId={espacioId}
                 deshabilitado={enCurso}
                 onRedactada={(texto) => {
