@@ -68,7 +68,7 @@ export function EscenaProcesos ({ items, ocultos, total, fase, esGlobal = false 
         <span className="truncate portrait:hidden">Estado</span>
         <span className="text-right portrait:hidden">%</span>
         <span className="truncate">Vence</span>
-        <CeldaQueAlterna fase={fase} principal="Quién" alterno="Prioridad" />
+        <CeldaQueAlterna solari fase={fase} principal="Quién" alterno="Prioridad" />
       </RotulosDeColumna>
 
       <ul className="pantalla-tablero min-h-0">

@@ -298,15 +298,125 @@
 }
 
 /*
- * `?transicion=ninguna` apaga los dos movimientos.
+ * === EL VOLTEO SOLARI, CARACTER A CARACTER ===
+ *
+ * El tercer movimiento, y el unico que es un panel de aeropuerto de verdad: cada caracter gira por su
+ * cuenta pasando por glifos intermedios hasta el suyo, escalonado por posicion. La logica —por que
+ * glifos pasa cada uno— vive en `src/dominio/solari.ts` y se prueba sin navegador; quien lo dibuja es
+ * `escenas/Solari.tsx`. Los tres hay que leerlos juntos.
+ *
+ * **Como gira sin cambiar el DOM.** Cada posicion es un hueco de alto y ancho fijos con
+ * `overflow: hidden`, y dentro una cinta de texto de `--pasos + 1` lineas con el destino ARRIBA. La
+ * animacion arrastra la cinta con `translateY` y `steps()`: salta de glifo a glifo, sin medias tintas
+ * y sin tocar el contenido. Una sola propiedad, `transform`, que compone la GPU.
+ *
+ * **Termina en `transform: none`, y eso es deliberado.** La animacion va del desplazamiento al reposo
+ * natural del elemento, no al reves, asi que no hace falta `forwards` y al acabar deja de existir: el
+ * navegador puede soltar la capa de composicion. Con un `forwards` habria cientos de capas vivas para
+ * siempre en una pared que lleva meses encendida, que es justo lo que no se puede pedirle a un stick
+ * HDMI.
+ *
+ * **Donde NO se usa.** En los nombres de personas, Tareas y Proyectos. El ancho fijo por caracter es
+ * obligatorio —el hueco reserva su sitio antes de girar, porque el marco es `overflow: hidden` y lo
+ * que no entra desaparece sin barra que lo delate— y eso monoespacia el texto: en las columnas del
+ * tablero, medidas al milimetro acá abajo, ensancharia lo unico que la pared existe para leer. Ver el
+ * docblock de `Solari.tsx`.
+ */
+.solari {
+  /*
+   * El renglon del rodillo se fija acá y no se hereda: la altura del hueco y el paso de la animacion
+   * son la MISMA medida, y si una saliera del `line-height` del padre —que cambia entre los rotulos
+   * y las filas— la cinta se pararia entre dos glifos.
+   *
+   * Es la unica medida de la pantalla que no va en `vmin`, y no puede ir: `em` la ata al cuerpo de
+   * letra heredado, que es lo que tiene que seguir. En `vmin` se despegaria del texto al cambiar el
+   * `?zoom=`.
+   */
+  --solari-paso: 1.2em;
+
+  display: inline-block;
+  line-height: 1.2;
+  /* Un ancho de caracter estable es lo que hace que `1ch` reserve el hueco correcto. */
+  font-variant-numeric: tabular-nums;
+}
+
+/*
+ * El hueco de una posicion: ancho y alto reservados ANTES de que empiece a girar.
+ *
+ * `1ch` es el ancho de un digito de la fuente heredada, y es la razon por la que todo lo que lleva
+ * Solari lleva tambien `tabular-nums`. El precio es que el texto sale monoespaciado, y se paga a
+ * sabiendas: el marco de la pantalla es `overflow: hidden` sin barra de scroll, asi que un caracter
+ * que ensanchara su celda a mitad de volteo se llevaria por delante la columna de al lado sin dejar
+ * rastro. Ancho fijo es la unica alternativa a ese fallo mudo. Por eso el efecto no se usa en los
+ * nombres, que son proporcionales y estan medidos al milimetro mas arriba en este archivo.
+ *
+ * **El `letter-spacing` del padre no llega acá, y se deja asi.** Un `inline-block` atomico no recibe
+ * espaciado entre letras, asi que el rotulo de columna que voltea sale algo mas apretado que sus
+ * hermanos en versalitas. Compensarlo ensanchando el hueco gastaria el margen que le queda a la
+ * columna mas estrecha del tablero —y ese margen es lo unico que separa la pared de un recorte
+ * invisible— para corregir una diferencia de densidad que a cuatro metros no se ve. Ademas, un
+ * rodillo apretado se lee como lo que imita: un panel mecanico.
+ */
+.solari-hueco {
+  display: inline-block;
+  width: 1ch;
+  height: var(--solari-paso);
+  overflow: hidden;
+  text-align: center;
+  vertical-align: bottom;
+  /* Lo que se copia y lo que lee un lector de pantalla es el `sr-only` de al lado, nunca esto. */
+  user-select: none;
+}
+
+.solari-rodillo {
+  display: block;
+  line-height: 1.2;
+  /* Los saltos de linea de la cinta son el rodillo: sin `pre` el navegador los colapsa en espacios. */
+  white-space: pre;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .solari-rodillo {
+    /*
+     * `steps(--pasos)` y no una curva continua: un panel mecanico no interpola entre dos aletas, las
+     * cambia de golpe. Con una curva se veria media letra sobre media letra, que a cuatro metros es
+     * una mancha.
+     *
+     * `backwards` para que la cinta espere en su primer fotograma durante el retardo; sin el, el
+     * caracter se dibujaria ya en su sitio y daria un salto al empezar a girar.
+     */
+    animation: solari-rodillo 300ms steps(var(--pasos, 6)) backwards;
+    animation-delay: calc(var(--glifo, 0) * 45ms);
+  }
+}
+
+@keyframes solari-rodillo {
+  from {
+    /* Arriba del todo: la ultima linea de la cinta, el glifo mas lejano del destino. */
+    transform: translateY(calc(var(--pasos, 6) * var(--solari-paso) * -1));
+  }
+
+  to {
+    /* El reposo natural: la primera linea, que es el destino. Ver arriba por que no hay `forwards`. */
+    transform: none;
+  }
+}
+
+/*
+ * `?transicion=ninguna` apaga los tres movimientos.
  *
  * Existe para el televisor que no da abasto: un aparato de gama baja con la pantalla llena de
  * transformaciones deja de dibujar los contadores a tiempo, y una pared que miente la hora es peor
  * que una pared quieta. Lo que NO se apaga es el cambio de dato: la celda sigue alternando, sin
  * animarse. Ver `faseDeDato()`.
+ *
+ * El Solari cae sin ayuda de nadie: sin animacion la cinta se queda en `transform: none`, que es la
+ * linea del destino. El texto correcto y quieto es el estado por defecto, no un caso especial — que es
+ * la unica forma de que la degradacion no se pueda romper por descuido.
  */
 .pantalla-raiz[data-transicion='ninguna'] .pantalla-voltea,
-.pantalla-raiz[data-transicion='ninguna'] .pantalla-alterna {
+.pantalla-raiz[data-transicion='ninguna'] .pantalla-alterna,
+.pantalla-raiz[data-transicion='ninguna'] .solari-rodillo {
   animation: none;
 }
 

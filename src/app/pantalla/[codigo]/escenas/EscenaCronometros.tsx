@@ -53,7 +53,7 @@ export function EscenaCronometros ({ items, ocultos, ahora, congelado, zona, fas
       <RotulosDeColumna columnas={COLUMNAS}>
         <span />
         <span className="truncate">{GLOSARIO.proceso.singular}</span>
-        <CeldaQueAlterna fase={fase} principal="Quién mide" alterno="Arrancó" />
+        <CeldaQueAlterna solari fase={fase} principal="Quién mide" alterno="Arrancó" />
         <span className="truncate portrait:hidden">{GLOSARIO.espacio.singular}</span>
         <span className="truncate text-right">Lleva</span>
       </RotulosDeColumna>

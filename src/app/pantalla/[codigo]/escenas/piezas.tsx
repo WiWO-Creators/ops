@@ -1,6 +1,7 @@
 import type { CSSProperties, ReactNode } from 'react'
 import { cn } from '@/lib/clases'
 import { coloresAvatar, iniciales } from '@/lib/personas'
+import { TextoSolari } from './Solari'
 
 /**
  * Las piezas que comparten las escenas de la pantalla de area.
@@ -251,7 +252,7 @@ export function CabeceraDeEscena ({ titulo, total, ocultos }: {
  * Lo que sigue es la mitad en React de la animacion de panel de aeropuerto. La otra mitad son los
  * `@keyframes` de `pantalla.css`, y las dos tienen que leerse juntas.
  *
- * Son dos movimientos y ninguno de los dos corre solo:
+ * Son tres movimientos y ninguno de los tres corre solo:
  *
  * 1. **La fila voltea al llegar.** Al pasar de pagina el marco de la escena NO se remonta —eso lo
  *    decide `Escena.continuidad` en el dominio—, asi que la cabecera y los rotulos se quedan quietos y
@@ -260,10 +261,23 @@ export function CabeceraDeEscena ({ titulo, total, ocultos }: {
  * 2. **La celda alterna.** Cada `PERIODO_DE_DATO_MS` la fila cambia un campo por otro, para caber mas
  *    dato sin achicar la letra ni sumar columnas. Quien decide cuando es `faseDeDato()` en el dominio,
  *    contra el UNICO reloj de la pantalla; aca solo se dibuja.
+ * 3. **El caracter voltea.** El Solari de verdad, en `Solari.tsx`: cada posicion gira por su cuenta
+ *    pasando por glifos intermedios hasta el suyo. Cuesta un puñado de elementos por caracter, asi que
+ *    **no se usa en el tablero**, solo donde el texto es corto y de ancho previsible —el reloj, las
+ *    cifras, los rotulos que alternan—. El reparto completo esta en el docblock de `Solari.tsx`.
  *
- * Las dos animan `transform` y `opacity` y nada mas: las resuelve el compositor, no cuestan un
- * reflow, y ninguna se queda corriendo sola —esta pared lleva meses encendida y un pixel en
- * movimiento permanente es un pixel quemado—. `?transicion=ninguna` las apaga las dos desde el CSS,
+ * === POR QUE EL VOLTEO DE FILA NO DESAPARECIO ===
+ *
+ * El 1 y el 3 son el mismo gesto a dos escalas, y podria parecer que el segundo sobra. No sobra, y
+ * ademas no pelean: **cuentan cosas distintas y nunca ocurren por el mismo motivo**. La fila voltea
+ * cuando llega contenido nuevo al cambiar de pagina; el caracter voltea cuando un dato que ya estaba
+ * en pantalla cambia de valor. Sustituir el 1 por el 3 costaria quince filas por siete columnas por
+ * cuarenta caracteres de rodillos en el mismo fotograma —miles de elementos animandose a la vez en un
+ * stick HDMI— para contar algo que una lamina entera girando ya cuenta con quince.
+ *
+ * Los tres animan `transform` y `opacity` y nada mas: los resuelve el compositor, no cuestan un
+ * reflow, y ninguno se queda corriendo solo —esta pared lleva meses encendida y un pixel en
+ * movimiento permanente es un pixel quemado—. `?transicion=ninguna` los apaga los tres desde el CSS,
  * para el televisor que no da abasto.
  */
 
@@ -291,6 +305,25 @@ export function escalonDeFila (indice: number): CSSProperties {
   return { '--fila': Math.min(Math.max(indice, 0), TOPE_DE_ESCALON) } as CSSProperties
 }
 
+/** Lo que toda celda que alterna necesita, con o sin volteo Solari. */
+interface CeldaAlterna {
+  /** `0` el juego principal, `1` el alterno; lo decide `faseDeDato()`. */
+  fase: 0 | 1
+  className?: string
+}
+
+/**
+ * Las dos formas de una celda que alterna, y por que el tipo las separa.
+ *
+ * Con `solari` los dos contenidos tienen que ser **texto plano**: el volteo se dibuja caracter a
+ * caracter y un `ReactNode` no tiene caracteres que voltear. Que lo vigile el tipo y no un comentario
+ * es lo unico que evita que alguien le pase `<Quien personas={...} />` a una celda Solari y se
+ * encuentre con una celda vacia en la pared, que nadie ve fallar desde el pasillo.
+ */
+type PropsDeCeldaQueAlterna =
+  | (CeldaAlterna & { solari?: false, principal: ReactNode, alterno: ReactNode })
+  | (CeldaAlterna & { solari: true, principal: string, alterno: string })
+
 /**
  * Una celda que alterna entre dos contenidos al ritmo de `fase`.
  *
@@ -299,22 +332,40 @@ export function escalonDeFila (indice: number): CSSProperties {
  * nombre de la persona, el de la Tarea, el del Proyecto—: si el ancla parpadeara, recorrer la columna
  * buscando a alguien seria imposible.
  *
- * El `key` es lo que rearranca la animacion: un elemento con otra clave se remonta, y al montarse el
- * CSS vuelve a correr. Sin el, el texto cambiaria de golpe y sin decir nada.
+ * === LOS DOS MODOS, Y POR QUE NO SE SUMAN ===
  *
- * @param fase      `0` el juego principal, `1` el alterno; lo decide `faseDeDato()`
+ * **Sin `solari`** el contenido entra con un fundido corto: el `key` por fase remonta el `<span>`, y al
+ * montarse el CSS de `.pantalla-alterna` vuelve a correr. Sin ese `key` el texto cambiaria de golpe y
+ * sin decir nada.
+ *
+ * **Con `solari`** el cambio lo cuenta el volteo caracter a caracter, y entonces el fundido sobra: dos
+ * movimientos sobre la misma celda se estorban y se leen peor que uno bien hecho. Por eso el modo
+ * Solari no lleva ni `key` ni `.pantalla-alterna`. Que NO lleve `key` es lo importante: sin el, React
+ * reconcilia posicion por posicion y solo voltean los caracteres que de verdad cambiaron — que es lo
+ * que hace un panel mecanico, donde la aleta que ya tiene su letra no gira.
+ *
+ * El envoltorio de bloque no es decoracion. El texto Solari es una tira de huecos `inline-block`, y un
+ * `inline-block` no lo recorta el `truncate` de su celda: se saldria de su columna del tablero, y en un
+ * marco con `overflow: hidden` eso se lleva por delante lo que tenga al lado sin dejar rastro.
+ *
  * @param principal lo que se ve casi siempre
  * @param alterno   lo que se ve en la fase alterna
+ * @param solari    si el cambio se cuenta volteando caracter a caracter; ver `Solari.tsx`
  */
-export function CeldaQueAlterna ({ fase, className, principal, alterno }: {
-  fase: 0 | 1
-  className?: string
-  principal: ReactNode
-  alterno: ReactNode
-}): ReactNode {
+export function CeldaQueAlterna (props: PropsDeCeldaQueAlterna): ReactNode {
+  const { fase, className } = props
+
+  if (props.solari === true) {
+    return (
+      <span className={cn('block overflow-hidden whitespace-nowrap', className)}>
+        <TextoSolari texto={fase === 0 ? props.principal : props.alterno} />
+      </span>
+    )
+  }
+
   return (
     <span key={fase} className={cn('pantalla-alterna truncate', className)}>
-      {fase === 0 ? principal : alterno}
+      {fase === 0 ? props.principal : props.alterno}
     </span>
   )
 }
