@@ -1,5 +1,5 @@
 import { Suspense } from 'react'
-import { Inbox, KeyRound, Megaphone, MonitorPlay, Siren, type LucideIcon } from 'lucide-react'
+import { Inbox, KeyRound, Megaphone, MonitorPlay, RefreshCcwDot, Siren, type LucideIcon } from 'lucide-react'
 import { AccesoGoogle } from '@/componentes/administracion/AccesoGoogle'
 import { FormularioDeAjustes } from '@/componentes/administracion/FormularioDeAjustes'
 import { PanelAvisosPorCorreo } from '@/componentes/administracion/PanelAvisosPorCorreo'
@@ -56,6 +56,13 @@ const PANTALLAS_APARTE: PantallaAparte[] = [
     titulo: 'Anuncios de pantalla',
     descripcion: 'Los avisos que una persona publica para el televisor de un área o el de toda la compañía.',
     icono: Megaphone,
+    tono: 'acento'
+  },
+  {
+    href: '/administracion/motivos-de-iteracion',
+    titulo: 'Motivos de iteración',
+    descripcion: 'La lista cerrada entre la que se elige al registrar una vuelta atrás, con su categoría.',
+    icono: RefreshCcwDot,
     tono: 'acento'
   },
   {

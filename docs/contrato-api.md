@@ -3447,6 +3447,11 @@ bloque ajeno; apenda el tuyo al final de la seccion.
 
 ### Rama `feat/iteraciones-api`
 
+> **Este bloque quedó viejo en tres puntos.** Desde `feat/iteraciones` la iteración tiene número de
+> ronda propio, fecha de solicitud y motivo del catálogo, y sí se puede corregir y borrar. Lo que
+> manda es **"Rama `feat/iteraciones`"**, al final de esta sección; lo de abajo se conserva porque
+> describe el estado de una instalación que todavía no corrió las migraciones `0680`-`0682`.
+
 Iteraciones de un Proceso: las vueltas atrás que hubo que dar, con su motivo y su autor. Viven en
 `tblwiwo_task_iterations`, la tabla que ya crea `modules/wiwo_core/install.php` y que hasta ahora
 sólo escribía el panel de Perfex. La API exponía nada más el contador (`counts.iterations` en la
@@ -4846,6 +4851,129 @@ estaba no se anota, porque no es una decisión.
 idempotente) y no se enciende solo: un Meeting Paper puede tener conversación interna del equipo, y
 la feature `project_notes` está en 1 en casi todos los proyectos, así que colgar la pestaña sólo de
 ella habría publicado todas las actas de golpe.
+
+### Rama `feat/iteraciones`
+
+Tres cosas sobre las iteraciones de un Proceso: **cuándo se pidió** el cambio, **en qué ronda** va, y
+**por qué** según un catálogo cerrado en vez de texto libre. Reemplaza en esos tres puntos al bloque
+`feat/iteraciones-api` de más arriba.
+
+**Qué problema resuelve cada una.** `date_added` es el instante en que se insertó la fila, que no es
+cuándo el cliente pidió el cambio: entre una cosa y la otra pasan días, y midiendo con `date_added`
+se mide cuándo alguien se acordó de anotarlo. El `#N` era la posición en `ORDER BY id`, así que
+borrar una iteración renumeraba las siguientes hacia atrás. Y el motivo en texto libre no se puede
+agrupar: el control de gestión necesita separar **error evitable** de **ajuste de contenido** y de
+**cambio de alcance**, que es la separación que permite discutir retrabajo con datos.
+
+**Degrada sola donde falta el esquema.** Igual que la tabla de iteraciones, las columnas nuevas y el
+catálogo pueden no existir: producción no tiene activado `wiwo_core`, y una base sin migrar no tiene
+`tblapi_motivos_iteracion`. Donde falten, el listado devuelve `round: null`, `reason_id: null` y
+`requested_on` derivado del alta, y el POST vuelve a pedir `reason` obligatorio como antes. Nunca un
+`500`.
+
+#### La forma de una iteración
+
+```json
+{
+  "id": 6,
+  "task_id": 900052,
+  "reason": "El cliente pidió la paleta del manual nuevo",
+  "date_added": "2026-09-16T18:40:32Z",
+  "round": 3,
+  "requested_on": "2026-09-10",
+  "reason_id": 5,
+  "reason_catalog": {
+    "id": 5,
+    "name": "Cambio de preferencia del cliente",
+    "category": "ajuste_de_contenido",
+    "category_label": "Ajuste de contenido",
+    "description": "El alcance es el mismo; al cliente le gusta otra de las opciones.",
+    "active": true,
+    "order": 50,
+    "provisional": true
+  },
+  "staff": { "id": 183, "full_name": "Dev Prueba", "profile_image_url": null }
+}
+```
+
+| Campo | Notas |
+|---|---|
+| `round` | número de ronda **estable**: se asigna al registrar y no se mueve. Borrar una iteración intermedia deja un hueco (3, 5) en vez de correr las demás. **`null`** en filas anteriores a la migración `0682`: ahí se numera por posición, como antes |
+| `requested_on` | `YYYY-MM-DD`: cuándo lo pidió el cliente. Sin valor propio vale el día del alta, así que nunca llega vacío si la Tarea tiene fecha |
+| `reason_id` | motivo del catálogo, o `null` donde el catálogo no existe |
+| `reason_catalog` | el motivo ya resuelto, o `null` si no tiene o si alguien lo borró del catálogo. Viaja entero para que la lista no tenga que pedir el catálogo aparte |
+| `reason` | sigue siendo **texto plano**, y ahora es el DETALLE opcional: puede llegar como `""` |
+
+#### `POST /tasks/{id}/iterations` → `201`
+
+```json
+{ "motivo_id": 5, "solicitada_en": "2026-09-10", "reason": "detalle opcional" }
+```
+
+| Clave | Obligatoria | Reglas |
+|---|---|---|
+| `motivo_id` | sí, **si hay catálogo con motivos activos** | id de `GET /motivos-iteracion`. Inexistente, no numérico o desactivado → `422`. Donde no hay catálogo, mandarlo → `422 {"motivo_id":["no_editable"]}` |
+| `solicitada_en` | no | `YYYY-MM-DD`. Ausente vale hoy. Futura, anterior a la creación de la Tarea, inexistente (30 de febrero) o con otro formato → `422` |
+| `reason` | sólo si NO hay motivo del catálogo | 0..2000 caracteres. Con motivo puede venir vacío o no venir |
+
+`ronda`, `dateadded` y `addedfrom` no se aceptan del cuerpo: los pone el servidor. Cualquier clave
+fuera de las tres → `422 {"<clave>":["no_editable"]}`.
+
+#### `PATCH /tasks/{id}/iterations/{iteracion}` → `200`
+
+Corrige `motivo_id`, `solicitada_en` y `reason`, con las mismas reglas del alta. **`round` no se
+edita**: es el número con el que la iteración se nombra en una conversación, y dejarlo editable
+devolvería el problema que la columna vino a resolver. Cuerpo vacío → `422 {"body":["required"]}`.
+
+#### `DELETE /tasks/{id}/iterations/{iteracion}` → `204`
+
+**No renumera nada.** Las rondas que quedan conservan su número y la serie queda con un hueco, que
+es la verdad de lo que pasó.
+
+#### Permisos de la corrección y del borrado
+
+Ver y crear siguen pidiendo lo mismo que antes (ver el Proceso). Corregir y borrar piden además ser
+**el autor de la iteración, o administrador** → si no, `403`. El resto de los códigos no cambia:
+`404` si el Proceso o la iteración no existen o no son visibles, `409` si falta la tabla.
+
+#### `GET /motivos-iteracion` → `200`
+
+El catálogo. Devuelve **sólo los activos**, que es lo que un formulario puede ofrecer. Con
+`?incluir_inactivos=1` —y siendo administrador— vienen también los desactivados, que es lo que
+necesita la pantalla que lo administra para volver a activarlos. Ordenado por `order`, después por
+nombre. Lo lee **todo el staff**; `[]` donde la tabla no existe.
+
+`category` es una de tres: `error_evitable`, `ajuste_de_contenido`, `cambio_de_alcance`.
+`category_label` es la misma ya traducida, para que ninguna pantalla repita el mapa.
+
+`provisional: true` marca los diez motivos que sembró la migración `0681`: la lista definitiva es una
+decisión de negocio que todavía no está tomada, y la pantalla lo avisa.
+
+#### `POST`, `PATCH` y `DELETE /motivos-iteracion[/{id}]` — sólo administrador
+
+| Clave | Obligatoria en el alta | Reglas |
+|---|---|---|
+| `name` | sí | 1..160 caracteres, único. Repetido → `409` |
+| `category` | sí | una de las tres. Otra → `422` |
+| `description` | no | 0..255 caracteres, `null` la borra |
+| `active` | no | booleano. `false` lo saca del formulario sin perder el histórico |
+| `order` | no | entero. El alta lo pone al final, de diez en diez |
+| `provisional` | no | booleano. Ponerlo en `false` es la señal de que el negocio confirmó ese motivo |
+
+`DELETE` borra **sólo un motivo que nadie usó**. Si alguna iteración lo eligió responde `409` con la
+cuenta: borrarlo dejaría ese historial sin categoría justo en el reporte que se arma para discutirlo.
+Para sacarlo de circulación está `PATCH {"active": false}`, que no pierde nada.
+
+#### Lo que no cambia
+
+`counts.iterations` de la ficha y del listado de Procesos. El `409` por tabla ausente. Y el `404`
+—no `403`— cuando el Proceso no es visible.
+
+#### Lo que no cubre el mock
+
+El mock expone el contador de iteraciones pero no la lista ni el catálogo: estas rutas se prueban
+contra el backend real.
+
 
 ## Jerarquías del equipo
 

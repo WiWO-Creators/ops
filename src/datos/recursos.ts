@@ -838,11 +838,51 @@ export interface ComentarioProceso {
 export interface IteracionProceso {
   id: number
   task_id: number
-  /** **Texto plano**, no HTML: se pinta escapado, nunca con `dangerouslySetInnerHTML`. */
+  /**
+   * Detalle en **texto plano**, no HTML: se pinta escapado, nunca con `dangerouslySetInnerHTML`.
+   *
+   * Desde el catálogo de motivos dejó de ser obligatorio y puede llegar vacío: el motivo dice de qué
+   * se trata y esto queda para el matiz que ningún catálogo cubre.
+   */
   reason: string
   /** Instante ISO-8601 en UTC. Lo pone el servidor. */
   date_added: string | null
+  /**
+   * Número de ronda explícito.
+   *
+   * `null` en las iteraciones anteriores a la migración `0682` y en las instalaciones que todavía no
+   * la corrieron: ahí se numera por posición, igual que antes. Ver `numerarIteraciones()`.
+   */
+  round: number | null
+  /** `YYYY-MM-DD`: cuándo se pidió el cambio. Sin valor propio vale el día del alta. */
+  requested_on: string | null
+  /** Motivo del catálogo, o `null` donde el catálogo todavía no existe. */
+  reason_id: number | null
+  /** El motivo resuelto. `null` si no tiene, o si alguien lo borró del catálogo. */
+  reason_catalog: MotivoIteracion | null
   staff: { id: number, full_name: string, profile_image_url: string | null } | null
+}
+
+/** Las tres categorías del catálogo de motivos. Las fija el negocio y las valida la API. */
+export type CategoriaMotivo = 'error_evitable' | 'ajuste_de_contenido' | 'cambio_de_alcance'
+
+/**
+ * Un motivo del catálogo de iteraciones (`GET /motivos-iteracion`).
+ *
+ * La categoría es lo que hace que el catálogo valga la pena: separa el retrabajo que se pudo evitar
+ * del que pidió el cliente sobre lo mismo y del que es trabajo nuevo.
+ */
+export interface MotivoIteracion {
+  id: number
+  name: string
+  category: CategoriaMotivo
+  /** La categoría ya traducida por el servidor, para no repetir el mapa en cada pantalla. */
+  category_label: string
+  description: string | null
+  active: boolean
+  order: number
+  /** `true` mientras la lista sea la semilla que sembró el equipo y el negocio no la haya confirmado. */
+  provisional: boolean
 }
 
 /** Item de la lista de control de un proceso. */
