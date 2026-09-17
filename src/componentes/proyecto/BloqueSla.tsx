@@ -11,7 +11,7 @@ import { Insignia, type TonoInsignia } from '@/componentes/presentadores/Insigni
 import { fechaDeCierre, instanteDeCierre } from '@/dominio/cierre-tarea'
 import { HistorialDeAprobaciones } from './HistorialDeAprobaciones'
 import { JustificacionDelEquipo } from './JustificacionDelEquipo'
-import { formatearDesviacion, SIN_DATO } from '@/lib/sla'
+import { formatearDesviacion, SIN_DATO, textoDeEntrega } from '@/lib/sla'
 import { hoyLocal } from '@/lib/fechas'
 import { cn } from '@/lib/clases'
 import { GLOSARIO } from '@/dominio/glosario'
@@ -22,8 +22,14 @@ import type { AprobacionProceso, Proceso } from '@/datos/recursos'
  * ETA, desviacion y aprobacion del cliente, en el detalle del Proceso.
  *
  * Los tres son un solo mecanismo: el cliente aprueba desde el portal, ahi arranca el reloj, el ETA
- * sale del tipo de Proceso configurado por Espacio, y la desviacion compara el cierre real contra la
- * fecha comprometida.
+ * sale del tipo de Proceso configurado por Espacio, y la desviacion compara la **entrega efectiva**
+ * contra la fecha comprometida.
+ *
+ * La entrega efectiva —`entregado_en`, la ultima vez que el Proceso paso a "Espera de respuesta"
+ * antes de completarse— reemplazo al cierre como punto de comparacion, y es lo que arregla el caso
+ * que hacia desconfiar del numero: una tarea entregada a tiempo que el cliente tardaba semanas en
+ * aprobar figuraba incumplida, cuando la entrega ya estaba hecha. El reloj se detiene el dia de la
+ * entrega, y eso se dice con todas las letras debajo de la desviacion.
  *
  * **Casi no pide nada por su cuenta**: los campos ya vienen dentro de la tarea que el detalle cargo.
  * La unica excepcion es el historial de rondas, que se pide solo al desplegarlo
@@ -58,7 +64,7 @@ const APROBACION: Record<string, { etiqueta: string, tono: TonoInsignia }> = {
 /**
  * Decide si el bloque tiene algo que decir.
  *
- * Sin `wiwo_core` instalado, el guard de tabla del backend omite las cuatro claves enteras. Ahi el
+ * Sin `wiwo_core` instalado, el guard de tabla del backend omite las claves de plazo enteras. Ahi el
  * bloque **no se renderiza**: es la diferencia entre "no aplica" y "vacio", y ahorra tres guiones en
  * produccion.
  */
@@ -68,6 +74,7 @@ export function hayDatosDeSla (tarea: ProcesoDeFicha): boolean {
     tarea.justificacion !== undefined ||
     tarea.eta !== undefined ||
     tarea.estado_sla !== undefined ||
+    tarea.entregado_en !== undefined ||
     hayCierre(tarea)
   )
 }
@@ -90,6 +97,7 @@ export function BloqueSla ({ tarea, puedeEditar, onCambiado }: PropsBloqueSla): 
   if (!hayDatosDeSla(tarea)) return null
 
   const aprobacion = tarea.approval
+  const entrega = textoDeEntrega(tarea.entregado_en, tarea.estado_sla)
   const desviacion = formatearDesviacion(tarea.desviacion_dias)
   const tarde = typeof tarea.desviacion_dias === 'number' && tarea.desviacion_dias > 0
   const sinDesviacion = desviacion === null
@@ -150,6 +158,14 @@ export function BloqueSla ({ tarea, puedeEditar, onCambiado }: PropsBloqueSla): 
           {desviacion ?? SIN_DATO}
         </span>
         <EstadoSla estado={tarea.estado_sla} />
+
+        {/* La insignia sola no alcanza: "Entregado" sin fecha deja abierta la pregunta que la
+            persona vino a hacer —desde cuando esperamos—, y en un Proceso incumplido es lo unico
+            que explica por que la desviacion dejo de crecer. Va debajo del numero porque es lo que
+            lo justifica, no un dato aparte. */}
+        {entrega !== null && (
+          <span className="text-texto-sutil text-xs">{entrega}</span>
+        )}
       </Celda>
 
       <Celda etiqueta="Aprobación">

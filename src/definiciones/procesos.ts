@@ -3,7 +3,7 @@ import type { Proceso } from '../datos/recursos.ts'
 import type { StaffReferencia } from '../datos/tipos.ts'
 import { GLOSARIO } from '../dominio/glosario.ts'
 import { formatearFecha, formatearVencimiento } from '../lib/fechas.ts'
-import { formatearDesviacion, SIN_DATO, SLA } from '../lib/sla.ts'
+import { esEstadoSla, formatearDesviacion, SIN_DATO, SLA } from '../lib/sla.ts'
 
 /**
  * Definicion del recurso Procesos.
@@ -74,7 +74,11 @@ export const PROCESOS: DefinicionRecurso<Proceso> = {
     {
       clave: 'estado_sla',
       encabezado: 'SLA',
-      presentar: (p) => (p.estado_sla == null ? SIN_DATO : SLA[p.estado_sla].etiqueta)
+      // `esEstadoSla` y no un `== null`: la API puede sumar un estado antes que el frontend —asi
+      // llego `entregado`— y ahi `SLA[valor]` era `undefined`, leerle `.etiqueta` lanzaba y se caia
+      // la fila entera, no la celda. Con el guard, un estado que este front no conoce baja al CSV y
+      // se pinta como guion, que es lo que permite desplegar el board antes que esto.
+      presentar: (p) => (esEstadoSla(p.estado_sla) ? SLA[p.estado_sla].etiqueta : SIN_DATO)
     },
     // Las tres de la aprobacion van pegadas al SLA porque explican la desviacion que el SLA marca.
     // Un Proceso incumplido cuyo cliente escribio "va bien, sigan" no es el mismo problema que uno
@@ -180,6 +184,10 @@ export const PROCESOS: DefinicionRecurso<Proceso> = {
       opciones: [
         { valor: 'en_plazo', etiqueta: SLA.en_plazo.etiqueta },
         { valor: 'en_riesgo', etiqueta: SLA.en_riesgo.etiqueta },
+        // Va entre "En riesgo" e "Incumplido" porque ese es el orden en que se lee el plazo: lo que
+        // corre, lo que aprieta, lo que ya salio y lo que se paso. Es tambien el filtro que contesta
+        // "¿que estamos esperando del cliente?", que antes se confundia con el incumplimiento.
+        { valor: 'entregado', etiqueta: SLA.entregado.etiqueta },
         { valor: 'incumplido', etiqueta: SLA.incumplido.etiqueta }
       ]
     },

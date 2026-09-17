@@ -277,6 +277,11 @@ export interface ProcesoDeFicha {
   eta?: string | null
   desviacion_dias?: number | null
   estado_sla?: EstadoSla | null
+  /**
+   * Dia de la entrega efectiva, contra el que la API mide la desviacion. No llega al portal: es una
+   * medicion interna, igual que las tres de arriba.
+   */
+  entregado_en?: string | null
   /** Solo en el portal, y solo con `view_task_comments`. */
   comments?: ComentarioDeFicha[]
   /** Solo en el portal, y solo con `view_task_checklist_items`. */

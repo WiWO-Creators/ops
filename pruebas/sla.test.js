@@ -10,8 +10,8 @@
 
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { esEstadoSla, formatearDesviacion, SLA } from '../src/lib/sla.ts'
-import { textoDeAprobacion } from '../src/definiciones/procesos.ts'
+import { esEstadoSla, formatearDesviacion, SIN_DATO, SLA, textoDeEntrega } from '../src/lib/sla.ts'
+import { procesosDelEspacio, textoDeAprobacion } from '../src/definiciones/procesos.ts'
 import { urlClasica } from '../src/lib/panel-clasico.ts'
 
 test('sin desviacion no hay texto, y el cero es un texto y no un vacio', () => {
@@ -35,8 +35,8 @@ test('un numero que no es numero no se pinta', () => {
   assert.equal(formatearDesviacion(Number.POSITIVE_INFINITY), null)
 })
 
-test('los tres estados del contrato tienen lectura, y solo esos tres', () => {
-  assert.deepEqual(Object.keys(SLA).sort(), ['en_plazo', 'en_riesgo', 'incumplido'])
+test('los cuatro estados del contrato tienen lectura, y solo esos cuatro', () => {
+  assert.deepEqual(Object.keys(SLA).sort(), ['en_plazo', 'en_riesgo', 'entregado', 'incumplido'])
 
   // "En plazo" no lleva color: lo normal solo confirma. El color queda para lo que pide accion.
   assert.equal(SLA.en_plazo.tono, 'contorno')
@@ -44,13 +44,78 @@ test('los tres estados del contrato tienen lectura, y solo esos tres', () => {
   assert.equal(SLA.incumplido.tono, 'peligro')
 })
 
+test('"entregado" no se lee como un problema ni se confunde con "en plazo"', () => {
+  assert.equal(SLA.entregado.etiqueta, 'Entregado')
+
+  // Ni alerta ni cierre feliz: es "la pelota esta del lado del cliente", el mismo tono que la
+  // aprobacion pendiente.
+  assert.equal(SLA.entregado.tono, 'acento')
+  assert.notEqual(SLA.entregado.tono, 'aviso')
+  assert.notEqual(SLA.entregado.tono, 'peligro')
+  assert.notEqual(SLA.entregado.tono, 'exito')
+
+  // Y no puede compartir tono con `en_plazo`: ahi el reloj sigue corriendo y aca ya se detuvo.
+  assert.notEqual(SLA.entregado.tono, SLA.en_plazo.tono)
+})
+
 test('un estado que el frontend no conoce no se pinta en vez de reventar', () => {
   assert.equal(esEstadoSla('incumplido'), true)
+  // El estado que la API sumo al medir contra la entrega efectiva.
+  assert.equal(esEstadoSla('entregado'), true)
   assert.equal(esEstadoSla('en_pausa'), false)
   assert.equal(esEstadoSla(null), false)
   assert.equal(esEstadoSla(undefined), false)
   // Nada de heredar del prototipo: `toString` no es un estado de SLA.
   assert.equal(esEstadoSla('toString'), false)
+})
+
+test('la columna SLA da el guion ante un estado que este frontend todavia no conoce', () => {
+  // Es lo que permite desplegar el board antes que el front: la fila se pinta igual.
+  const columna = procesosDelEspacio(8).columnas.find((c) => c.clave === 'estado_sla')
+
+  assert.equal(columna.presentar({ estado_sla: 'entregado' }), 'Entregado')
+  assert.equal(columna.presentar({ estado_sla: 'un_estado_del_futuro' }), SIN_DATO)
+  assert.equal(columna.presentar({ estado_sla: null }), SIN_DATO)
+  assert.equal(columna.presentar({}), SIN_DATO)
+})
+
+test('el filtro de SLA ofrece los cuatro estados, en el orden en que se lee el plazo', () => {
+  const filtro = procesosDelEspacio(8).filtros.find((f) => f.clave === 'estado_sla')
+
+  assert.deepEqual(
+    filtro.opciones.map((o) => o.valor),
+    ['en_plazo', 'en_riesgo', 'entregado', 'incumplido']
+  )
+})
+
+/**
+ * La fecha de entrega efectiva en el bloque de SLA de la ficha.
+ *
+ * Es el texto que contesta "¿desde cuando esperamos?" en un Proceso `entregado`, y "¿por que la
+ * desviacion dejo de crecer?" en uno `incumplido`. El sujeto es el equipo: quien lee es quien
+ * entrego, y el que responde es el cliente.
+ */
+
+test('con fecha de entrega, el estado "entregado" dice desde cuando se espera al cliente', () => {
+  assert.equal(
+    textoDeEntrega('2026-09-12', 'entregado'),
+    'Entregado el 12 sept 2026, esperando la respuesta del cliente.'
+  )
+})
+
+test('una entrega tardia cuenta la entrega y no promete una espera que pudo haber terminado', () => {
+  // Entregar tarde sigue siendo `incumplido`; lo que cambio es que la desviacion quedo congelada.
+  assert.equal(textoDeEntrega('2026-09-12', 'incumplido'), 'Entregado el 12 sept 2026.')
+})
+
+test('sin fecha de entrega no hay linea que pintar', () => {
+  // Una base sin el cambio de la API no manda la clave, y `null` es "nunca se entrego".
+  assert.equal(textoDeEntrega(undefined, 'entregado'), null)
+  assert.equal(textoDeEntrega(null, 'en_plazo'), null)
+  assert.equal(textoDeEntrega('', 'entregado'), null)
+
+  // "Entregado el —" es peor que el silencio.
+  assert.equal(textoDeEntrega('no es una fecha', 'entregado'), null)
 })
 
 test('sin la variable de entorno el enlace al panel clasico no existe', () => {
