@@ -1,10 +1,19 @@
 /**
  * Dictado por voz: lo que el navegador transcribe, antes de que lo vea un componente.
  *
- * Reconocer voz lo hace el navegador con `SpeechRecognition` (`webkitSpeechRecognition` en los
- * basados en Chromium). El audio NO pasa por Ops ni por la API del board: sale del navegador al
- * servicio del proveedor del navegador y vuelve como texto. Por eso el dictado no depende del
- * interruptor de IA ni gasta tokens: lo que llega aca ya es texto.
+ * **Hay dos motores y no uno.** El primero es el del navegador (`SpeechRecognition`, o
+ * `webkitSpeechRecognition` en los basados en Chromium): reconoce mientras se habla, el audio no
+ * pasa por Ops y no cuesta nada. El problema es que declarar la API no significa poder usarla: en
+ * Brave y en los Chromium abiertos el servicio de voz de Google viene sin credenciales, la API
+ * existe y cada intento muere con `network`. Firefox y el WebKit de iOS no la traen siquiera.
+ *
+ * Para esos casos esta el segundo motor: grabar con `MediaRecorder` y mandar el audio a
+ * `POST /ia/dictado`, que lo transcribe con Whisper y devuelve el texto. Eso si gasta GPU de
+ * Replicate y vive bajo el interruptor de IA, asi que es el respaldo y no el camino principal.
+ *
+ * Cual se usa no lo elige la persona: {@see MOTIVOS_SIN_MOTOR} nombra los fallos que significan
+ * "este navegador no puede reconocer voz", y ante uno de ellos el hook cambia de motor sin pedir
+ * otro clic y no vuelve a intentar el del navegador en lo que queda de sesion.
  *
  * El motor entrega dos clases de resultado y confundirlas es el error tipico: los `isFinal` son
  * definitivos y se acumulan, los demas son una apuesta que el motor reescribe en el siguiente
@@ -21,6 +30,55 @@
  * la puntuacion que arriesga—, y el equipo de Ops dicta en español de Chile.
  */
 export const IDIOMA_DICTADO = process.env.NEXT_PUBLIC_IDIOMA_DICTADO ?? 'es-CL'
+
+/** La ruta del board que transcribe el audio del respaldo. */
+export const RUTA_DICTADO = 'ia/dictado'
+
+/** El campo del multipart, tal como lo espera `EntradaDeDictado` del board. */
+export const CAMPO_DICTADO = 'audio'
+
+/**
+ * Tope del audio del respaldo: 8 MB.
+ *
+ * El mismo numero que `EntradaDeDictado::MAX_BYTES` en el board. Se comprueba de los dos lados a
+ * proposito: aca para no hacer subir megas que van a terminar en un 413, y alla porque un tope que
+ * solo vive en el navegador no es un tope.
+ */
+export const MAXIMO_BYTES_DICTADO = 8 * 1024 * 1024
+
+/**
+ * Corte automatico del respaldo: 120 segundos.
+ *
+ * El motor del navegador se puede dejar abierto sin costo, pero el respaldo se paga por segundo de
+ * GPU. Dos minutos son mas de lo que se dicta en un campo de pregunta, y el corte evita que un
+ * microfono olvidado abierto se convierta en una factura.
+ */
+export const SEGUNDOS_MAXIMOS_DICTADO = 120
+
+/**
+ * Los fallos del motor del navegador que significan "este navegador no puede reconocer voz".
+ *
+ * No son errores de la persona ni cosas que se arreglen reintentando: son navegadores sin el
+ * servicio de voz detras de la API. Ante uno de ellos se cambia al respaldo.
+ *
+ * `not-allowed` y `audio-capture` NO estan aca: esos son el permiso del microfono y la falta de
+ * microfono, y con el respaldo fallarian igual porque `getUserMedia` necesita lo mismo.
+ */
+export const MOTIVOS_SIN_MOTOR = ['network', 'service-not-allowed', 'language-not-supported', 'bad-grammar']
+
+/**
+ * Si este fallo del motor del navegador justifica cambiarse al respaldo.
+ *
+ * @param codigo el `error` del evento del motor
+ */
+export function pideRespaldo (codigo: string): boolean {
+  return MOTIVOS_SIN_MOTOR.includes(codigo)
+}
+
+/** Nombre del archivo que se manda al board, con la extension que corresponde a su tipo. */
+export function nombreDeDictado (mime: string): string {
+  return `dictado.${mime.startsWith('audio/mp4') ? 'm4a' : 'webm'}`
+}
 
 /** Lo que el motor devuelve en cada evento, ya separado en definitivo y apuesta. */
 export interface TrozosDictados {
@@ -177,7 +235,7 @@ const MENSAJES_DE_ERROR: Record<string, string> = {
   'service-not-allowed': 'El navegador bloqueó el micrófono. Permítelo en el candado de la barra de direcciones.',
   'audio-capture': 'No se encontró ningún micrófono conectado.',
   'no-speech': 'No se escuchó nada. Acércate al micrófono y vuelve a intentarlo.',
-  network: 'El reconocimiento de voz necesita conexión y no la hubo.',
+  network: 'Este navegador no trae el servicio de reconocimiento de voz.',
   aborted: ''
 }
 
