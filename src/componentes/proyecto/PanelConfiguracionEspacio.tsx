@@ -188,7 +188,7 @@ function gruposDelPortal (): GrupoDeInterruptores[] {
     },
     {
       titulo: `Datos de cada ${proceso}`,
-      descripcion: `Bloques de la ficha de un ${proceso} dentro del portal.`,
+      descripcion: `Bloques de la ficha de una ${proceso} dentro del portal.`,
       interruptores: [
         { clave: 'view_task_total_logged_time', etiqueta: 'Horas registradas' },
         { clave: 'view_task_comments', etiqueta: 'Comentarios' },

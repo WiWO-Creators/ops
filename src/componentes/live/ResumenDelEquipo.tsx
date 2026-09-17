@@ -162,7 +162,7 @@ function Persona ({ persona, total }: { persona: PersonaDelResumen, total: numbe
 
       <div className="border-linea-suave flex flex-col gap-3 border-l-2 pl-3">
         <Listado rotulo="Proyectos" items={persona.espacios} total={persona.segundos} />
-        <Listado rotulo="Procesos" items={persona.procesos} total={persona.segundos} />
+        <Listado rotulo="Tareas" items={persona.procesos} total={persona.segundos} />
       </div>
 
       <Barra parte={persona.segundos} total={total} />

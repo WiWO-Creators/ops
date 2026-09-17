@@ -321,7 +321,7 @@ export function AltaRapidaProceso ({
       })
       .catch(() => {
         // Sin tipos el alta sigue funcionando: se dice y se deja crear la tarea sin tipo.
-        if (!control.signal.aborted) setAvisoTipos('No se pudieron traer los tipos y los hitos de este espacio. Vuelve a elegirlo para reintentar.')
+        if (!control.signal.aborted) setAvisoTipos('No se pudieron traer los tipos y los hitos de este proyecto. Vuelve a elegirlo para reintentar.')
       })
 
     return () => { control.abort() }

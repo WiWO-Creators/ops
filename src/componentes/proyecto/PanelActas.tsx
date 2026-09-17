@@ -274,7 +274,7 @@ function ActasDelProyecto ({
 function detalleDelMotivo (proyectoId: number, ia: EstadoIa): string {
   return [
     'Zona: Meeting Paper — botón "Nuevo Meeting Paper"',
-    `Espacio: ${proyectoId}`,
+    `Proyecto: ${proyectoId}`,
     `URL: ${typeof window === 'undefined' ? '(servidor)' : window.location.href}`,
     `IA activa: ${String(ia.activa)}`,
     `Motivo: ${ia.motivo}`,
