@@ -23,6 +23,18 @@
  * abre el acta no las tiene instaladas, Word cae a la suya y el documento se lee igual, con otra
  * letra. Es el mismo trato que hace el visor cuando la `@font-face` no llega, y no hay forma de
  * evitarlo sin incrustar un binario de fuente en cada acta.
+ *
+ * === EL CHINO NO OBLIGA A ELEGIR ENTRE LA MARCA Y LOS GLIFOS ===
+ *
+ * Es la diferencia con el PDF, donde la tipografía de marca se reemplaza entera porque un PDF
+ * declara una sola familia por texto. OOXML tiene `w:rFonts`, que separa la fuente del rango latino
+ * (`ascii`/`hAnsi`) de la del asiático (`eastAsia`), y Word aplica cada una a su rango dentro del
+ * mismo párrafo. Así el acta en chino conserva la letra de la marca en las cifras, los nombres
+ * propios y el identificador del proyecto —que es todo lo que el traductor deja en latín— y pide
+ * Noto Sans SC sólo donde hay hanzi.
+ *
+ * Sin esto Word sustituye por su cuenta, y para un carácter unificado puede elegir la variante
+ * japonesa: el documento se lee, pero un lector chino ve una letra que no es la suya.
  */
 
 import {
@@ -41,6 +53,7 @@ import {
 } from 'docx'
 import type { Bloque, Fragmento } from './acta-bloques.ts'
 import { descargar, fechaLarga, nombreDeArchivo, type MetaDelActa } from './exportar-acta.ts'
+import { IDIOMAS, type IdiomaDelActa } from './idiomas-acta.ts'
 import type { CodigoDeMarca, TemaDeMarca } from './marcas-acta.ts'
 
 /** Cómo se pinta una marca dentro de Word. Los colores van en hexadecimal sin `#`, que es lo que pide OOXML. */
@@ -157,8 +170,37 @@ interface LogoDeMarca {
  * @param bloques el acta ya convertida por `acta-bloques.ts`
  * @param tema la marca que firma el documento
  */
-export function parrafosDeBloques (bloques: Bloque[], tema: TemaDeMarca): Paragraph[] {
+/**
+ * La familia de un texto, en el formato que acepta `w:rFonts`.
+ *
+ * Una cadena mientras el acta no tenga hanzi —que es lo que Word espera y lo que este archivo hacía
+ * antes—, y el objeto de tres rangos cuando sí los tiene. Ver el docblock de arriba.
+ */
+type FuenteDocx = string | { ascii: string, hAnsi: string, eastAsia: string }
+
+/** El estilo de la marca con la fuente ya resuelta para el idioma del documento. */
+type EstiloDelActa = Omit<EstiloDeMarca, 'fuente'> & { fuente: FuenteDocx }
+
+/**
+ * El estilo con el que se escribe el acta: el de su marca, ajustado al idioma.
+ *
+ * Existe para que la decisión de qué fuente pedir se tome UNA vez. Los seis `font: estilo.fuente`
+ * del archivo no saben de idiomas y no tienen por qué: reciben el estilo ya resuelto.
+ */
+function estiloDelActa (tema: TemaDeMarca, idioma: IdiomaDelActa): EstiloDelActa {
   const estilo = ESTILO_DOCX[tema.codigo]
+
+  if (!idioma.necesitaCjk) return estilo
+
+  return { ...estilo, fuente: { ascii: estilo.fuente, hAnsi: estilo.fuente, eastAsia: 'Noto Sans SC' } }
+}
+
+export function parrafosDeBloques (
+  bloques: Bloque[],
+  tema: TemaDeMarca,
+  idioma: IdiomaDelActa = IDIOMAS.es
+): Paragraph[] {
+  const estilo = estiloDelActa(tema, idioma)
   const parrafos: Paragraph[] = []
   let instanciaOrdenada = 0
 
@@ -204,7 +246,7 @@ export function parrafosDeBloques (bloques: Bloque[], tema: TemaDeMarca): Paragr
  * marca recorre el documento entero, y ponerlo en todos los niveles lo convertiría en ruido.
  * `keepNext` evita el caso feo de un título al final de la página y su párrafo en la siguiente.
  */
-function parrafoDeTitulo (nivel: 1 | 2 | 3 | 4, texto: Fragmento[], estilo: EstiloDeMarca): Paragraph {
+function parrafoDeTitulo (nivel: 1 | 2 | 3 | 4, texto: Fragmento[], estilo: EstiloDelActa): Paragraph {
   return new Paragraph({
     heading: NIVEL_DE_TITULO[nivel],
     keepNext: true,
@@ -221,7 +263,7 @@ function parrafoDeItem (
   item: Fragmento[],
   ordenada: boolean,
   instancia: number,
-  estilo: EstiloDeMarca
+  estilo: EstiloDelActa
 ): Paragraph {
   return new Paragraph({
     numbering: ordenada
@@ -233,7 +275,7 @@ function parrafoDeItem (
 }
 
 /** La cita: borde izquierdo del color de la marca y fondo suave, como el `blockquote` del visor. */
-function parrafoDeCita (texto: Fragmento[], estilo: EstiloDeMarca): Paragraph {
+function parrafoDeCita (texto: Fragmento[], estilo: EstiloDelActa): Paragraph {
   return new Paragraph({
     border: { left: { style: BorderStyle.SINGLE, color: estilo.acento, size: FILETE_CITA, space: 12 } },
     shading: { type: ShadingType.CLEAR, fill: estilo.citaFondo },
@@ -249,7 +291,7 @@ function parrafoDeCita (texto: Fragmento[], estilo: EstiloDeMarca): Paragraph {
  * Word no tiene un `<hr>`; lo que se ve como línea horizontal siempre es el borde de un párrafo, y
  * `includeIfEmpty` es lo que hace que ese párrafo sin texto conserve sus propiedades al escribirse.
  */
-function parrafoDeSeparador (estilo: EstiloDeMarca): Paragraph {
+function parrafoDeSeparador (estilo: EstiloDelActa): Paragraph {
   return new Paragraph({
     border: { bottom: { style: BorderStyle.SINGLE, color: estilo.filete, size: FILETE_LINEA, space: 1 } },
     includeIfEmpty: true,
@@ -267,7 +309,7 @@ function parrafoDeSeparador (estilo: EstiloDeMarca): Paragraph {
  */
 function runsDe (
   fragmentos: Fragmento[],
-  estilo: EstiloDeMarca,
+  estilo: EstiloDelActa,
   color: string,
   tamano: number
 ): TextRun[] {
@@ -291,8 +333,8 @@ function runsDe (
  * su nombre y la definición vive una vez en el documento. Quien construya un documento con
  * `parrafosDeBloques()` tiene que declarar también esto, o Word mostrará las listas sin marcador.
  */
-export function numeracionDeMarca (tema: TemaDeMarca): INumberingOptions {
-  const estilo = ESTILO_DOCX[tema.codigo]
+export function numeracionDeMarca (tema: TemaDeMarca, idioma: IdiomaDelActa = IDIOMAS.es): INumberingOptions {
+  const estilo = estiloDelActa(tema, idioma)
 
   return {
     config: [
@@ -336,7 +378,7 @@ export function numeracionDeMarca (tema: TemaDeMarca): INumberingOptions {
  * @param logo el logotipo ya descargado, o `null` si no se pudo traer
  */
 function cabeceraDelActa (tema: TemaDeMarca, meta: MetaDelActa, logo: LogoDeMarca | null): Paragraph[] {
-  const estilo = ESTILO_DOCX[tema.codigo]
+  const estilo = estiloDelActa(tema, meta.idioma ?? IDIOMAS.es)
   const parrafos: Paragraph[] = []
 
   if (logo !== null) {
@@ -363,7 +405,8 @@ function cabeceraDelActa (tema: TemaDeMarca, meta: MetaDelActa, logo: LogoDeMarc
   }))
 
   // Los datos que falten no dejan separadores huérfanos: un acta sin lugar no debe decir "· ·".
-  const datos = [meta.cliente, fechaLarga(meta.fecha), meta.lugar].filter((dato) => dato !== '')
+  const datos = [meta.cliente, fechaLarga(meta.fecha, (meta.idioma ?? IDIOMAS.es).locale), meta.lugar]
+    .filter((dato) => dato !== '')
 
   parrafos.push(new Paragraph({
     border: { bottom: { style: BorderStyle.SINGLE, color: estilo.filete, size: FILETE_LINEA, space: 8 } },
@@ -381,7 +424,7 @@ function cabeceraDelActa (tema: TemaDeMarca, meta: MetaDelActa, logo: LogoDeMarc
 
 /** El pie firmado: quién levantó el acta y quién la escribió. */
 function pieDelActa (tema: TemaDeMarca, meta: MetaDelActa): Paragraph[] {
-  const estilo = ESTILO_DOCX[tema.codigo]
+  const estilo = estiloDelActa(tema, meta.idioma ?? IDIOMAS.es)
   const firma = meta.autor === '' ? tema.pie : `${tema.pie}  ·  ${meta.autor}`
 
   return [new Paragraph({
@@ -453,11 +496,11 @@ export async function descargarDocx (
     title: meta.titulo,
     creator: meta.autor,
     description: `Meeting Paper de ${meta.cliente}`,
-    numbering: numeracionDeMarca(tema),
+    numbering: numeracionDeMarca(tema, meta.idioma ?? IDIOMAS.es),
     sections: [{
       children: [
         ...cabeceraDelActa(tema, meta, logo),
-        ...parrafosDeBloques(bloques, tema),
+        ...parrafosDeBloques(bloques, tema, meta.idioma ?? IDIOMAS.es),
         ...pieDelActa(tema, meta)
       ]
     }]

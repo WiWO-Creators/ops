@@ -2,7 +2,7 @@
 
 import dynamic from 'next/dynamic'
 import { useRef, useState, type ReactElement } from 'react'
-import { Download, FileAudio, FileText } from 'lucide-react'
+import { Download, FileAudio, FileText, Languages } from 'lucide-react'
 import { Boton } from '@/componentes/formularios/Boton'
 import { ContenidoHtml } from '@/componentes/presentadores/ContenidoHtml'
 import { Fecha } from '@/componentes/presentadores/Fecha'
@@ -14,15 +14,16 @@ import {
   ItemMenu,
   MenuContextual
 } from '@/componentes/superposiciones/MenuContextual'
-import { escribirEnBff } from '@/componentes/datos/mutaciones'
+import { escribirEnBff, leerDelBff } from '@/componentes/datos/mutaciones'
 import { bloquesDeHtml } from '@/dominio/acta-bloques'
-import { conId, type FuenteDeProyecto } from '@/dominio/fuente-proyecto'
+import { conId, conIdioma, type FuenteDeProyecto } from '@/dominio/fuente-proyecto'
 import { TEMAS, temaDeMarca, type CodigoDeMarca } from '@/dominio/marcas-acta'
+import { IDIOMAS, IDIOMAS_EN_ORDEN, type CodigoDeIdioma } from '@/dominio/idiomas-acta'
 import type { MetaDelActa } from '@/dominio/exportar-acta'
 import { origenDeArchivo } from '@/definiciones/archivos'
 import { cuerpoDelActa, formatoPeso, seVeComoImagen } from '@/dominio/actas'
 import { nombrar } from '@/dominio/glosario'
-import type { Acta, AdjuntoActa } from '@/datos/recursos'
+import type { Acta, AdjuntoActa, TraduccionActa } from '@/datos/recursos'
 
 /**
  * Un Meeting Paper: se lee, se corrige y se imprime.
@@ -63,12 +64,42 @@ import type { Acta, AdjuntoActa } from '@/datos/recursos'
  * decente y cero dependencias, contra el `jsPDF` de MeetingMatico, que vuelca texto plano y pierde
  * todo el formato. Para que el padre pueda llamarlo, el visor va con `imprimible`: ver
  * `ContenidoHtml`, que explica por que esos dos permisos no dejan correr una linea de codigo ajeno.
+ *
+ * === EL IDIOMA ES UN EJE MAS DEL DOCUMENTO, NO UNA OPCION DE LA DESCARGA ===
+ *
+ * El selector cambia lo que se ve en el visor, no solo lo que baja. Es a proposito y contra la
+ * alternativa obvia —un "descargar en ingles" dentro del menu de Exportar—: si el idioma solo
+ * existiera al exportar, nadie leeria la traduccion antes de mandarsela a un cliente, y lo que un
+ * modelo escribio en chino sin que lo mirara nadie no es un documento que la empresa pueda firmar.
+ * Viendola en pantalla se puede corregir con el mismo boton de siempre.
+ *
+ * Las tres salidas —PDF, Word e Imprimir— toman lo que se esta viendo. No hay forma de estar
+ * leyendo el acta en chino y bajar el PDF en español por accidente.
+ *
+ * === QUIEN TRADUCE Y QUIEN SOLO LEE ===
+ *
+ * Elegir un idioma que YA existe es lectura y lo hace cualquiera, el cliente incluido: la traduccion
+ * viaja por la ruta del Espacio y no por `/ia/*`, asi que sigue ahi con el kill-switch apagado.
+ * PEDIR una traduccion nueva gasta, asi que exige `puedeEditar` y `conIa`, las dos condiciones que
+ * ya gobiernan el resto de la IA en esta pantalla. Al cliente, un idioma que nadie pidio ni le
+ * aparece.
  */
 
 const EditorDeActa = dynamic(
   async () => (await import('./EditorDeActa')).EditorDeActa,
   { ssr: false, loading: () => <p className="text-texto-tenue text-sm">Cargando el editor…</p> }
 )
+
+/** El idioma en el que se esta leyendo el acta, junto a lo que ya se trajo de la API. */
+interface EstadoDeIdioma {
+  /** A que acta pertenece. Cambia el acta, el idioma vuelve al original: ver donde se usa. */
+  actaId: number
+  codigo: CodigoDeIdioma
+  /** Las traducciones ya traidas en esta visita, por codigo. El español nunca esta: es `content`. */
+  traducciones: Partial<Record<CodigoDeIdioma, TraduccionActa>>
+  /** Si hay una lectura o una traduccion en vuelo, para el girador del selector. */
+  cargando: boolean
+}
 
 interface PropsDetalle {
   acta: Acta
@@ -112,14 +143,92 @@ export function DetalleActa ({
   const [error, setError] = useState<string | null>(null)
   const [exportando, setExportando] = useState<'pdf' | 'docx' | null>(null)
   const [cambiandoMarca, setCambiandoMarca] = useState(false)
+  /**
+   * Todo lo del idioma en un estado, junto al id del acta al que pertenece.
+   *
+   * Va atado al `actaId` porque el listado navega por `?acta=` sin desmontar este componente: al
+   * pasar de un acta a otra, el idioma tiene que volver al original. Compararlo durante el render
+   * —y no reponerlo desde un `useEffect`— es lo que evita el ciclo de renders en cascada que ese
+   * efecto provocaba: acá no hay un segundo render, el valor correcto ya sale del primero.
+   *
+   * `traducciones` es memoria de la pantalla y no un cache de verdad: ir del inglés al español y de
+   * vuelta al inglés no vuelve a pegarle a la API, pero recargar la página empieza de cero, que es
+   * lo correcto porque otra persona pudo haberla corregido mientras tanto.
+   */
+  const [estadoIdioma, setEstadoIdioma] = useState<EstadoDeIdioma>(
+    () => ({ actaId: acta.id, codigo: 'es', traducciones: {}, cargando: false })
+  )
+  const vigente: EstadoDeIdioma = estadoIdioma.actaId === acta.id
+    ? estadoIdioma
+    : { actaId: acta.id, codigo: 'es', traducciones: {}, cargando: false }
+  const idioma = vigente.codigo
+  const traducciones = vigente.traducciones
+  const cambiandoIdioma = vigente.cargando
+
+  /** Fija el idioma visible y su traduccion, siempre atados al acta que se esta mirando. */
+  function fijarIdioma (codigo: CodigoDeIdioma, traduccion?: TraduccionActa): void {
+    setEstadoIdioma({
+      actaId: acta.id,
+      codigo,
+      traducciones: traduccion === undefined
+        ? vigente.traducciones
+        : { ...vigente.traducciones, [codigo]: traduccion },
+      cargando: false
+    })
+  }
+
+  /** Enciende o apaga el girador del selector sin tocar el idioma ni lo ya traido. */
+  function marcarCargando (cargando: boolean): void {
+    setEstadoIdioma({ ...vigente, cargando })
+  }
+
   const marco = useRef<HTMLIFrameElement>(null)
   // Las tres escrituras del acta van a la misma ruta: se arma una vez para que no se puedan
   // desalinear, y sale de la fuente para que el sujeto no se escriba dentro del dibujo.
   const ruta = conId(fuente.acta, acta.id)
+  const rutaTraducciones = conId(fuente.actaTraduccion, acta.id)
 
+  const infoIdioma = IDIOMAS[idioma]
+  const traduccionActiva = idioma === 'es' ? null : traducciones[idioma] ?? null
+  /** El documento que se esta viendo: el original en español, o la traduccion elegida. */
+  const htmlActivo = traduccionActiva?.content ?? acta.content ?? ''
+  const tituloActivo = traduccionActiva?.title ?? acta.title
+  /** Pedir una traduccion nueva gasta: mismas dos condiciones que el resto de la IA de la pantalla. */
+  const puedeTraducir = puedeEditar && conIa
+  const yaTraducidos = acta.translations ?? []
+
+  /**
+   * Guarda las correcciones sobre lo que se esta viendo: el acta original o la traduccion activa.
+   *
+   * Son dos rutas y no una con un parametro porque son dos recursos: corregir el acta cambia el
+   * documento del que salen todas las traducciones, y corregir una traduccion cambia solo esa. Si
+   * las dos escribieran en el mismo lugar, arreglar una palabra del ingles pisaria el español.
+   *
+   * La traduccion corregida NO se vuelve a traducir: lo que se guarda es lo que la persona escribio.
+   */
   async function guardar (): Promise<void> {
     setGuardando(true)
     setError(null)
+
+    if (traduccionActiva !== null) {
+      const enIdioma = await escribirEnBff<TraduccionActa>(
+        conIdioma(rutaTraducciones, idioma), 'PATCH', { content: html }
+      )
+
+      setGuardando(false)
+
+      if (!enIdioma.ok) {
+        setError(enIdioma.mensaje)
+
+        return
+      }
+
+      fijarIdioma(idioma, enIdioma.datos)
+      setSucio(false)
+      setEditando(false)
+
+      return
+    }
 
     const resultado = await escribirEnBff<Acta>(ruta, 'PATCH', { content: html })
 
@@ -134,6 +243,105 @@ export function DetalleActa ({
     setSucio(false)
     setEditando(false)
     onCambiada(resultado.datos)
+  }
+
+  /**
+   * Cambia el idioma en el que se lee el acta, pidiendola si hace falta.
+   *
+   * Tres caminos, en este orden: el español no se pide —es `acta.content`—; un idioma ya traducido
+   * se lee de la ruta del Espacio, que responde con la IA apagada; y uno que no existe todavia se le
+   * pide al modelo, lo que exige `puedeTraducir` y tarda.
+   *
+   * Que exista se decide con `acta.translations` y no probando el GET a ver si da 404: el 404 es la
+   * respuesta correcta a "no esta traducida", pero gastarlo para averiguar algo que la ficha ya dijo
+   * deja un error en la consola del navegador cada vez que alguien abre el selector.
+   */
+  async function elegirIdioma (codigo: CodigoDeIdioma): Promise<void> {
+    if (codigo === idioma) return
+
+    setError(null)
+
+    if (codigo === 'es' || traducciones[codigo] !== undefined) {
+      fijarIdioma(codigo)
+
+      return
+    }
+
+    if (!yaTraducidos.includes(codigo)) {
+      if (!puedeTraducir) {
+        setError(`Este Meeting Paper todavía no está traducido al ${IDIOMAS[codigo].nombre.toLowerCase()}.`)
+
+        return
+      }
+
+      await traducir(codigo)
+
+      return
+    }
+
+    marcarCargando(true)
+
+    const resultado = await leerDelBff<TraduccionActa>(conIdioma(rutaTraducciones, codigo))
+
+    if (!resultado.ok) {
+      marcarCargando(false)
+      setError(resultado.mensaje)
+
+      return
+    }
+
+    fijarIdioma(codigo, resultado.datos)
+  }
+
+  /**
+   * Le pide al modelo el acta en otro idioma y la deja a la vista.
+   *
+   * Es la llamada mas cara de esta pantalla despues de generar el acta, y por eso la API guarda el
+   * resultado: la segunda vez que alguien elija ese idioma sale de la base, no del modelo. Vuelve a
+   * pedirla solo quien usa "Volver a traducir", que es el camino para descartar una mala.
+   *
+   * `onCambiada` con la lista de idiomas actualizada: sin eso, el selector seguiria creyendo que el
+   * idioma no existe y la proxima eleccion volveria a pagar una traduccion.
+   */
+  async function traducir (codigo: CodigoDeIdioma): Promise<void> {
+    marcarCargando(true)
+    setError(null)
+
+    const resultado = await escribirEnBff<TraduccionActa>(
+      `ia/proyectos/${proyectoId}/acta-traducir`, 'POST', { acta_id: acta.id, idioma: codigo }
+    )
+
+    if (!resultado.ok) {
+      marcarCargando(false)
+      setError(resultado.mensaje)
+
+      return
+    }
+
+    fijarIdioma(codigo, resultado.datos)
+    onCambiada({
+      ...acta,
+      translations: yaTraducidos.includes(codigo) ? yaTraducidos : [...yaTraducidos, codigo].sort()
+    })
+  }
+
+  /**
+   * Descarta la traduccion que se esta viendo y la pide de nuevo.
+   *
+   * Se pregunta antes solo cuando alguien la corrigio a mano —`updated_by` deja de ser `null`—,
+   * porque eso es lo unico que se pierde de verdad: volver a traducir lo que escribio el modelo no
+   * pierde trabajo de nadie.
+   */
+  async function volverATraducir (): Promise<void> {
+    if (traduccionActiva === null) return
+
+    const corregida = traduccionActiva.updated_by !== null && traduccionActiva.updated_by !== undefined
+
+    if (corregida && !confirm(
+      'Alguien corrigió esta traducción a mano. Si la pides de nuevo, esas correcciones se pierden. ¿Seguir?'
+    )) return
+
+    await traducir(idioma)
   }
 
   /**
@@ -175,14 +383,17 @@ export function DetalleActa ({
     setError(null)
 
     try {
-      const bloques = bloquesDeHtml(cuerpoDelActa(acta.content ?? ''))
+      // Lo que se esta viendo, no el original: estar leyendo el acta en chino y bajar el PDF en
+      // español seria el peor desenlace posible de esta pantalla.
+      const bloques = bloquesDeHtml(cuerpoDelActa(htmlActivo))
       const tema = temaDeMarca(acta.brand)
       const meta: MetaDelActa = {
-        titulo: acta.title,
+        titulo: tituloActivo,
         cliente: acta.client,
         fecha: acta.meeting_date,
         lugar: acta.place,
-        autor: acta.author?.full_name ?? ''
+        autor: acta.author?.full_name ?? '',
+        idioma: infoIdioma
       }
 
       if (formato === 'pdf') {
@@ -195,7 +406,9 @@ export function DetalleActa ({
     } catch {
       // El motivo real —una fuente que no bajó, memoria, un HTML raro— no le dice nada a nadie acá;
       // lo que importa es que el botón no se quede girando y que quede el camino de siempre.
-      setError('No se pudo generar el archivo. Prueba con Imprimir, que usa el motor del navegador.')
+      setError(infoIdioma.necesitaCjk
+        ? 'No se pudo generar el archivo: la tipografía china no cargó. Prueba con Imprimir, que usa las fuentes del navegador.'
+        : 'No se pudo generar el archivo. Prueba con Imprimir, que usa el motor del navegador.')
     } finally {
       setExportando(null)
     }
@@ -235,9 +448,19 @@ export function DetalleActa ({
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <header className="flex min-w-0 flex-col gap-1.5">
           <div className="flex flex-wrap items-center gap-2">
-            <h2 className="text-texto text-lg font-semibold">{acta.title}</h2>
+            <h2 className="text-texto text-lg font-semibold" lang={infoIdioma.etiquetaHtml}>
+              {tituloActivo}
+            </h2>
             {acta.source === 'ia' && (
               <Insignia tono="acento" tamano="chico">Escrito con IA</Insignia>
+            )}
+            {/* Solo cuando NO es el original: una insignia "Español" en todas las actas de siempre
+                seria ruido en la pantalla mas leida del panel. La que se ve dice que lo que hay
+                debajo no es lo que el equipo escribio, que es justo lo que hay que saber. */}
+            {traduccionActiva !== null && (
+              <Insignia tono="neutro" tamano="chico">
+                Traducido · {infoIdioma.propio}
+              </Insignia>
             )}
           </div>
           <p className="text-texto-tenue text-sm">
@@ -252,22 +475,64 @@ export function DetalleActa ({
           {/* El estilo se cambia desde acá y no desde el formulario de creación porque el acta se
               escribe antes de saber quién la firma: una reunión que arrancó siendo de WiWO puede
               terminar facturándose por MGC, y rehacer el documento por eso no tiene sentido. */}
-          {puedeEditar && !editando && (
-            <MenuContextual>
-              <DisparadorMenu asChild>
-                <Boton variante="sutil" tamano="chico" cargando={cambiandoMarca} className="-ml-3 self-start">
-                  Estilo: {temaDeMarca(acta.brand).nombre}
-                </Boton>
-              </DisparadorMenu>
-              <ContenidoMenu align="start">
-                {Object.values(TEMAS).map((tema) => (
-                  <ItemMenu key={tema.codigo} onSelect={() => { void cambiarMarca(tema.codigo) }}>
-                    {tema.nombre}{tema.codigo === acta.brand ? ' ·' : ''}
-                  </ItemMenu>
-                ))}
-              </ContenidoMenu>
-            </MenuContextual>
-          )}
+          <div className="-ml-3 flex flex-wrap items-center gap-1">
+            {puedeEditar && !editando && (
+              <MenuContextual>
+                <DisparadorMenu asChild>
+                  <Boton variante="sutil" tamano="chico" cargando={cambiandoMarca}>
+                    Estilo: {temaDeMarca(acta.brand).nombre}
+                  </Boton>
+                </DisparadorMenu>
+                <ContenidoMenu align="start">
+                  {Object.values(TEMAS).map((tema) => (
+                    <ItemMenu key={tema.codigo} onSelect={() => { void cambiarMarca(tema.codigo) }}>
+                      {tema.nombre}{tema.codigo === acta.brand ? ' ·' : ''}
+                    </ItemMenu>
+                  ))}
+                </ContenidoMenu>
+              </MenuContextual>
+            )}
+
+            {/* El idioma NO cuelga de `puedeEditar`: leer el acta en el idioma del cliente es
+                lectura, y el cliente monta esta misma pantalla. Lo que si cuelga de los permisos es
+                cada opcion —ver `elegirIdioma`—: al cliente solo le aparecen los idiomas que alguien
+                del equipo ya pidio.
+
+                Se esconde mientras se corrige, igual que el estilo: cambiar de idioma con el editor
+                abierto tiraria lo que se esta escribiendo. */}
+            {!editando && (
+              <MenuContextual>
+                <DisparadorMenu asChild>
+                  <Boton variante="sutil" tamano="chico" cargando={cambiandoIdioma}>
+                    <Languages size={14} strokeWidth={2} aria-hidden="true" className="shrink-0" />
+                    {infoIdioma.propio}
+                  </Boton>
+                </DisparadorMenu>
+                <ContenidoMenu align="start">
+                  {IDIOMAS_EN_ORDEN
+                    // Un idioma que no existe y que este sujeto no puede pedir no se dibuja: una
+                    // opcion que solo sirve para mostrar un error no es una opcion.
+                    .filter((opcion) => (
+                      opcion.esOriginal || puedeTraducir || yaTraducidos.includes(opcion.codigo)
+                    ))
+                    .map((opcion) => (
+                      <ItemMenu key={opcion.codigo} onSelect={() => { void elegirIdioma(opcion.codigo) }}>
+                        {opcion.nombre}
+                        {opcion.esOriginal || yaTraducidos.includes(opcion.codigo)
+                          ? ''
+                          : ' — traducir'}
+                        {opcion.codigo === idioma ? ' ·' : ''}
+                      </ItemMenu>
+                    ))}
+                  {traduccionActiva !== null && puedeTraducir && (
+                    <ItemMenu onSelect={() => { void volverATraducir() }}>
+                      Volver a traducir al {infoIdioma.nombre.toLowerCase()}
+                    </ItemMenu>
+                  )}
+                </ContenidoMenu>
+              </MenuContextual>
+            )}
+          </div>
         </header>
 
         {/* Una acción probable con peso de primaria, una de apoyo y lo destructivo guardado. Las seis
@@ -280,7 +545,7 @@ export function DetalleActa ({
                   variante="sutil"
                   tamano="chico"
                   onClick={() => {
-                    setHtml(acta.content ?? '')
+                    setHtml(htmlActivo)
                     setSucio(false)
                     setEditando(false)
                   }}
@@ -310,7 +575,17 @@ export function DetalleActa ({
                   </ContenidoMenu>
                 </MenuContextual>
                 {puedeEditar && (
-                  <Boton variante="primario" tamano="chico" onClick={() => { setEditando(true) }}>
+                  <Boton
+                    variante="primario"
+                    tamano="chico"
+                    onClick={() => {
+                      // El editor arranca con lo que se esta viendo. Sin esto, abrir "Corregir"
+                      // sobre la traduccion al chino cargaria el español y guardarlo lo escribiria
+                      // encima de la traduccion.
+                      setHtml(htmlActivo)
+                      setEditando(true)
+                    }}
+                  >
                     Corregir
                   </Boton>
                 )}
@@ -341,9 +616,13 @@ export function DetalleActa ({
       {editando
         ? (
           <EditorDeActa
-            htmlInicial={acta.content ?? ''}
+            htmlInicial={htmlActivo}
             proyectoId={proyectoId}
-            conIa={conIa}
+            // La reescritura con IA del editor (`acta-transformar`) devuelve español: su prompt lo
+            // fija. Ofrecerla sobre una traduccion terminaria metiendo un parrafo en español dentro
+            // de un acta en chino, asi que sobre una traduccion el editor queda sin IA y con lo que
+            // de verdad se necesita ahi, que es corregir a mano una palabra que el modelo erro.
+            conIa={conIa && traduccionActiva === null}
             marca={acta.brand}
             onCambio={(siguiente) => {
               setHtml(siguiente)
@@ -357,9 +636,12 @@ export function DetalleActa ({
             // `cuerpoDelActa` y no `acta.content` a secas: el documento arranca con el identificador
             // del proyecto y, cuando la reunion no lo dijo, el modelo escribe "#No especificado". Es
             // un hueco de su formulario, no un dato, y el cliente lo lee como encabezado del acta.
-            html={cuerpoDelActa(acta.content ?? '')}
-            titulo={`Meeting Paper: ${acta.title}`}
+            html={cuerpoDelActa(htmlActivo)}
+            titulo={`Meeting Paper: ${tituloActivo}`}
             marca={acta.brand}
+            // Decide el corte de linea, la fuente del sistema para los glifos que la de marca no
+            // tiene y la voz del lector de pantalla. Ver `ContenidoHtml`.
+            idioma={infoIdioma.etiquetaHtml}
             // Sin esto "Imprimir" lanza `SecurityError` y no imprime: con el origen opaco del
             // `sandbox` vacio el padre no puede ni leer `contentWindow.print`.
             imprimible

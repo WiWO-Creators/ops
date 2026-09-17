@@ -1376,6 +1376,14 @@ export interface Acta {
    * kill-switch apagado.
    */
   structure?: EstructuraActa
+  /**
+   * Los idiomas a los que ya esta traducida: `['en']`, `['en', 'zh']` o vacio.
+   *
+   * Solo en el detalle, y son los codigos, no los documentos: cada traduccion es el acta entera
+   * repetida y el visor abre una a la vez. Con esta lista el selector sabe cual ya existe —y cual
+   * hay que pedirle al modelo— sin bajar tres documentos para pintar tres opciones.
+   */
+  translations?: string[]
   client: string
   meeting_date: string | null
   place: string
@@ -1432,6 +1440,34 @@ export interface EstructuraActa {
   agreements: Array<{ topic: string, detail: string, action: string | null, owner: string | null }>
   /** Los proximos pasos, con el responsable separado del texto para poder filtrarlo. */
   commitments: Array<{ text: string, owner: string | null }>
+}
+
+/**
+ * El Meeting Paper en otro idioma.
+ *
+ * NO trae `structure`, al contrario del acta. La API la deriva del HTML buscando los nombres de
+ * campo en español (`Acción:`, `Responsable:`) y sobre un acta en chino no encuentra ninguno:
+ * devolveria una estructura vacia que se lee como un acta sin acuerdos. Los datos se siguen leyendo
+ * del original, que es su fuente de verdad.
+ */
+export interface TraduccionActa {
+  acta_id: number
+  /** `en` o `zh`. El español no vive aca: es `Acta.content`. */
+  language: string
+  /** El titulo ya traducido, sacado del `<h1>` del documento. */
+  title: string
+  content: string
+  date_generated: string | null
+  /** Quien la pidio. Ausente en el portal. */
+  generated_by?: number | null
+  date_updated: string | null
+  /**
+   * Quien la corrigio a mano, o `null` si nadie la toco desde que la escribio el modelo.
+   *
+   * Es lo primero que se pregunta quien va a mandarle el documento a un cliente. Ausente en el
+   * portal, donde ademas nadie corrige.
+   */
+  updated_by?: number | null
 }
 
 /** Lo que ya se sabe del Proyecto al abrir el formulario (`GET /ia/proyectos/{id}/acta/prefill`). */

@@ -34,6 +34,7 @@ import type {
 import type { Bloque, Fragmento } from './acta-bloques.ts'
 import type { CodigoDeMarca, TemaDeMarca } from './marcas-acta.ts'
 import { descargar, fechaLarga, nombreDeArchivo, type MetaDelActa } from './exportar-acta.ts'
+import { IDIOMAS, type IdiomaDelActa } from './idiomas-acta.ts'
 
 /** La paleta de una marca, ya en el formato que entiende pdfmake: hexadecimales sueltos. */
 export interface ColoresDeMarca {
@@ -148,8 +149,44 @@ const FUENTES: Record<CodigoDeMarca, FuenteDeMarca> = {
   palta: { familia: 'Helvetica', archivos: null }
 }
 
+/**
+ * La tipografía del acta traducida al chino.
+ *
+ * === POR QUE NO SIRVE LA DE LA MARCA ===
+ *
+ * Plus Jakarta Sans, DM Sans y Helvetica son latinas: ninguna trae un solo glifo han. Un PDF en
+ * chino hecho con cualquiera de las tres sale con un cuadrito vacío por carácter, y sale así **en
+ * silencio** —pdfmake no avisa, el blob se genera, el botón termina bien— hasta que lo abre el
+ * cliente al que se lo mandaron. Por eso el idioma manda sobre la marca en la elección de fuente, y
+ * es la única cosa del documento en la que lo hace: los colores, el logo y el pie siguen siendo los
+ * de la marca que firma.
+ *
+ * === POR QUE REGULAR Y BOLD HACEN DE LAS CUATRO ===
+ *
+ * pdfmake exige las cuatro variantes y Noto Sans SC no tiene cursiva: la tipografía china no usa
+ * itálica para enfatizar, usa otros recursos. Se apunta `italics` a la redonda y `bolditalics` a la
+ * negrita, que es lo que hace cualquier procesador de texto cuando la familia no trae el corte. La
+ * alternativa —dejarlo sin definir— es que pdfmake lance al encontrar el primer `<em>` del acta.
+ *
+ * Son 10 MB por archivo y por eso se bajan SOLO al exportar en chino: la cubierta completa de Noto
+ * Sans SC son 31.036 glifos, y recortarla a los 6.763 de GB2312 dejaría fuera los hanzi raros de un
+ * nombre propio sin que nadie se entere hasta que aparezca uno.
+ */
+const FUENTE_CJK = {
+  familia: 'NotoSansSC',
+  archivos: {
+    normal: 'NotoSansSC-Regular.ttf',
+    bold: 'NotoSansSC-Bold.ttf',
+    italics: 'NotoSansSC-Regular.ttf',
+    bolditalics: 'NotoSansSC-Bold.ttf'
+  }
+} as const
+
 /** Carpeta pública de la que salen los TTF de marca. */
 const CARPETA_FUENTES = '/fonts/marca/'
+
+/** Carpeta pública de la que sale la tipografía con glifos chinos. */
+const CARPETA_CJK = '/fonts/cjk/'
 
 /** La familia que pdfmake trae de fábrica, y el plan B si la de la marca no llega. */
 const FUENTE_DE_RESERVA = 'Roboto'
@@ -179,7 +216,7 @@ const PUNTOS_POR_REM = 12
  */
 export async function descargarPdf (bloques: Bloque[], tema: TemaDeMarca, meta: MetaDelActa): Promise<void> {
   const pdfMake = await pdfmakeDelNavegador()
-  const fuente = await registrarFuente(pdfMake, tema)
+  const fuente = await registrarFuente(pdfMake, tema, meta.idioma ?? IDIOMAS.es)
   const definicion = await documentoDelActa(bloques, tema, meta, fuente)
   const blob = await pdfMake.createPdf(definicion).getBlob()
 
@@ -214,7 +251,30 @@ const familiasRegistradas = new Set<string>()
  * Si algo falla —un TTF que no está, una red caída— el acta igual se exporta con Roboto: un PDF con
  * otra tipografía sirve; un botón que no hace nada, no.
  */
-async function registrarFuente (pdfMake: ApiPdfmake, tema: TemaDeMarca): Promise<string> {
+async function registrarFuente (
+  pdfMake: ApiPdfmake,
+  tema: TemaDeMarca,
+  idioma: IdiomaDelActa
+): Promise<string> {
+  // El idioma manda sobre la marca y solo en este caso: ver el docblock de `FUENTE_CJK`. Un PDF con
+  // la tipografía de otra marca se lee; uno lleno de cuadritos vacíos, no.
+  if (idioma.necesitaCjk) {
+    if (familiasRegistradas.has(FUENTE_CJK.familia)) return FUENTE_CJK.familia
+
+    try {
+      await registrarFamiliaPropia(pdfMake, FUENTE_CJK.familia, FUENTE_CJK.archivos, CARPETA_CJK)
+      familiasRegistradas.add(FUENTE_CJK.familia)
+
+      return FUENTE_CJK.familia
+    } catch {
+      // Sin la fuente china no hay respaldo que sirva: Roboto tampoco tiene glifos han, así que
+      // caer a ella daría el documento de cuadritos que esta rama existe para evitar. Se hunde la
+      // exportación y `DetalleActa` muestra su aviso, que ofrece Imprimir —el motor del navegador
+      // sí tiene fuentes chinas instaladas—.
+      throw new Error('No se pudo cargar la tipografía china.')
+    }
+  }
+
   const fuente = FUENTES[tema.codigo]
 
   if (familiasRegistradas.has(fuente.familia)) return fuente.familia
@@ -223,7 +283,7 @@ async function registrarFuente (pdfMake: ApiPdfmake, tema: TemaDeMarca): Promise
     if (fuente.archivos === null) {
       await registrarHelvetica(pdfMake)
     } else {
-      await registrarFamiliaPropia(pdfMake, fuente.familia, fuente.archivos)
+      await registrarFamiliaPropia(pdfMake, fuente.familia, fuente.archivos, CARPETA_FUENTES)
     }
 
     familiasRegistradas.add(fuente.familia)
@@ -254,15 +314,18 @@ async function registrarHelvetica (pdfMake: ApiPdfmake): Promise<void> {
   pdfMake.addFontContainer(contenedor.default)
 }
 
-/** Baja los cuatro TTF de la marca y los registra como una familia más. */
+/** Baja los TTF de una familia y la registra. La carpeta la elige quien llama: marca o CJK. */
 async function registrarFamiliaPropia (
   pdfMake: ApiPdfmake,
   familia: string,
-  archivos: ArchivosDeFuente
+  archivos: Readonly<ArchivosDeFuente>,
+  carpeta: string
 ): Promise<void> {
-  const nombres = [archivos.normal, archivos.bold, archivos.italics, archivos.bolditalics]
+  // Sin repetidos: Noto Sans SC apunta dos veces al mismo archivo —no tiene cursiva— y bajarlo dos
+  // veces serían 20 MB en vez de 10.
+  const nombres = [...new Set([archivos.normal, archivos.bold, archivos.italics, archivos.bolditalics])]
   const cargados = await Promise.all(nombres.map(async (nombre) => {
-    return [nombre, await base64DeUrl(`${CARPETA_FUENTES}${nombre}`)] as const
+    return [nombre, await base64DeUrl(`${carpeta}${nombre}`)] as const
   }))
   const vfs: Record<string, string> = {}
 
@@ -341,7 +404,7 @@ async function documentoDelActa (
 
 /** La línea bajo el título: cliente, fecha y lugar, saltándose lo que el acta no registró. */
 function fichaDelActa (meta: MetaDelActa): string {
-  return [meta.cliente, fechaLarga(meta.fecha), meta.lugar]
+  return [meta.cliente, fechaLarga(meta.fecha, (meta.idioma ?? IDIOMAS.es).locale), meta.lugar]
     .map((dato) => dato.trim())
     .filter((dato) => dato !== '')
     .join('  ·  ')
