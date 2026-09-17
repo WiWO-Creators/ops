@@ -19,8 +19,13 @@ import { chromium } from 'playwright'
  * que un fallo del motor se explique. La calidad del reconocimiento no es cosa de esta prueba: la
  * hace el navegador.
  *
- * El caso sin soporte —Firefox, el WebKit de iOS— se fuerza borrando las dos propiedades: no se
- * puede confirmar con este navegador, que si las trae.
+ * El caso sin soporte se fuerza borrando lo que haga falta: este navegador trae las dos cosas.
+ *
+ * La segunda parte prueba el respaldo, que es lo que usan Brave y los Chromium abiertos: el motor
+ * falso falla con `network`, y de ahi el hook tiene que grabar, subir el audio a `POST /ia/dictado`
+ * y escribir en el campo el texto que vuelve. `MediaRecorder` y `getUserMedia` tambien son dobles
+ * —el Chromium de esta maquina ignora `--use-fake-device-for-media-capture`— y la subida se
+ * intercepta con `page.route()`, asi la prueba no gasta GPU de Replicate.
  *
  * Contra el build, no contra `next dev`: en desarrollo la pagina no hidrata a tiempo y el clic en el
  * microfono daria un falso negativo.
@@ -58,6 +63,38 @@ const MOTOR_FALSO = () => {
   window.webkitSpeechRecognition = MotorFalso
 }
 
+/** Dobles de `MediaRecorder` y `getUserMedia`: el respaldo necesita grabar y aca no hay microfono. */
+const GRABACION_FALSA = () => {
+  class GrabadoraFalsa {
+    static isTypeSupported () { return true }
+
+    constructor (flujo, opciones) {
+      this.mimeType = opciones?.mimeType ?? 'audio/webm'
+      this.state = 'inactive'
+      this.ondataavailable = null
+      this.onstop = null
+      window.__grabadoraDictado = this
+    }
+
+    start () {
+      this.state = 'recording'
+      // Un trozo con contenido: el hook descarta la grabacion vacia, y eso ya se prueba aparte.
+      this.ondataavailable?.({ data: new Blob([new Uint8Array(2048)], { type: this.mimeType }) })
+    }
+
+    stop () {
+      this.state = 'inactive'
+      this.onstop?.()
+    }
+  }
+
+  window.MediaRecorder = GrabadoraFalsa
+  Object.defineProperty(navigator, 'mediaDevices', {
+    configurable: true,
+    value: { getUserMedia: async () => ({ getTracks: () => [{ stop () { window.__pistaSoltada = true } }] }) }
+  })
+}
+
 const navegador = await chromium.launch({ executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE })
 
 try {
@@ -67,19 +104,39 @@ try {
   })
   assert.equal(entrada.status(), 200, 'No se pudo entrar con las credenciales de prueba.')
 
-  // === Sin soporte del navegador: el boton no existe ===
+  // === Sin ningun camino: el boton no existe ===
+  // Hay que quitar las dos cosas, no solo el reconocimiento: mientras el navegador pueda grabar,
+  // el respaldo sirve y el boton tiene que estar. Solo sin ambas el dictado es imposible.
   const sinSoporte = await contexto.newPage()
   await sinSoporte.addInitScript(() => {
     delete window.SpeechRecognition
     delete window.webkitSpeechRecognition
+    delete window.MediaRecorder
+    Object.defineProperty(navigator, 'mediaDevices', { configurable: true, value: undefined })
   })
   await sinSoporte.goto(new URL('/inicio', origen).href, { waitUntil: 'domcontentloaded' })
   await sinSoporte.waitForTimeout(2500)
   await abrirChat(sinSoporte)
   assert.equal(
     await sinSoporte.locator('button[aria-label="Dictar la pregunta"]').count(), 0,
-    'Sin SpeechRecognition el microfono no tiene que dibujarse.'
+    'Sin reconocimiento y sin grabacion, el microfono no tiene que dibujarse.'
   )
+
+  // Con grabacion pero sin reconocimiento —Firefox, el WebKit de iOS— el boton si esta: dicta por
+  // el respaldo desde el primer intento.
+  const soloRespaldo = await contexto.newPage()
+  await soloRespaldo.addInitScript(() => {
+    delete window.SpeechRecognition
+    delete window.webkitSpeechRecognition
+  })
+  await soloRespaldo.addInitScript(GRABACION_FALSA)
+  await soloRespaldo.goto(new URL('/inicio', origen).href, { waitUntil: 'domcontentloaded' })
+  await abrirChat(soloRespaldo)
+  assert.equal(
+    await soloRespaldo.locator('button[aria-label="Dictar la pregunta"]').count(), 1,
+    'Sin reconocimiento pero con grabacion, el dictado va por el respaldo.'
+  )
+  await soloRespaldo.close()
   await sinSoporte.close()
 
   // === Con soporte: dicta, corrige el parcial y deja lo confirmado ===
@@ -141,7 +198,78 @@ try {
     'El permiso denegado no se avisa.'
   )
 
-  console.log('OK: el dictado del Thinking Orb escribe, corrige y se detiene como debe.')
+  await pagina.close()
+
+  // === El respaldo: el motor del navegador no puede y el board transcribe ===
+  const conRespaldo = await contexto.newPage()
+  await conRespaldo.addInitScript(MOTOR_FALSO)
+  await conRespaldo.addInitScript(GRABACION_FALSA)
+
+  let subidas = 0
+  await conRespaldo.route('**/api/bff/ia/dictado', async (ruta) => {
+    subidas += 1
+    const peticion = ruta.request()
+    assert.equal(peticion.method(), 'POST', 'El dictado se sube por POST.')
+    assert.match(
+      peticion.headers()['content-type'] ?? '',
+      /multipart\/form-data/,
+      'El audio tiene que viajar como multipart, no como JSON.'
+    )
+    await ruta.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ data: { texto: 'archiva el proyecto de mailings' } })
+    })
+  })
+
+  await conRespaldo.goto(new URL('/inicio', origen).href, { waitUntil: 'domcontentloaded' })
+  await abrirChat(conRespaldo)
+
+  const campoRespaldo = conRespaldo.locator('textarea[aria-label="Tu pregunta"]')
+  await escribir(conRespaldo, 'Nota:')
+
+  await clicar(conRespaldo, 'button[aria-label="Dictar la pregunta"]')
+  await conRespaldo.waitForTimeout(400)
+
+  // El navegador declara la API pero no puede usarla: el mismo gesto tiene que terminar grabando.
+  await conRespaldo.evaluate(() => { window.__motorDictado.onerror?.({ error: 'network' }) })
+  await conRespaldo.locator('button[aria-label="Parar el dictado"]').waitFor({ timeout: 10000 })
+  assert.ok(
+    (await conRespaldo.locator('[role="status"]').allInnerTexts()).some((t) => t.includes('Grabando')),
+    'Tras el fallo del motor, el respaldo tiene que estar grabando.'
+  )
+  // El aviso se cuenta solo dentro de la fila del microfono: el panel tiene otros `role="alert"`
+  // que no son de esto.
+  assert.equal(
+    (await conRespaldo.locator('button[aria-label="Parar el dictado"] ~ [role="alert"]').allInnerTexts()).length, 0,
+    'Un fallo que el respaldo resuelve no se le cuenta a la persona.'
+  )
+
+  await clicar(conRespaldo, 'button[aria-label="Parar el dictado"]')
+  await conRespaldo.waitForFunction(
+    () => document.querySelector('textarea[aria-label="Tu pregunta"]')?.value.includes('mailings'),
+    null,
+    { timeout: 15000 }
+  )
+
+  assert.equal(subidas, 1, 'El audio se sube una sola vez.')
+  assert.equal(await campoRespaldo.inputValue(), 'Nota: archiva el proyecto de mailings',
+    'El texto transcrito se pega despues de lo que ya estaba escrito.')
+  assert.ok(await conRespaldo.evaluate(() => window.__pistaSoltada === true),
+    'Al terminar hay que soltar el microfono, o queda el punto rojo en la pestaña.')
+
+  // Con el motor ya descartado, el siguiente dictado va directo al respaldo y no reintenta.
+  await clicar(conRespaldo, 'button[aria-label="Dictar la pregunta"]')
+  await conRespaldo.locator('button[aria-label="Parar el dictado"]').waitFor({ timeout: 10000 })
+  assert.ok(
+    (await conRespaldo.locator('[role="status"]').allInnerTexts()).some((t) => t.includes('Grabando')),
+    'El segundo dictado tiene que arrancar grabando: el motor del navegador ya se descartó.'
+  )
+  await clicar(conRespaldo, 'button[aria-label="Parar el dictado"]')
+  await conRespaldo.waitForTimeout(1500)
+  assert.equal(subidas, 2, 'El segundo dictado también se sube.')
+
+  console.log('OK: el dictado escribe con el motor del navegador y, cuando no puede, con el respaldo del board.')
 } finally {
   await navegador.close()
 }

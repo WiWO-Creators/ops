@@ -19,7 +19,14 @@ import {
   leerTrozos,
   mensajeDeErrorDeDictado,
   unirDictado,
-  IDIOMA_DICTADO
+  pideRespaldo,
+  nombreDeDictado,
+  IDIOMA_DICTADO,
+  MOTIVOS_SIN_MOTOR,
+  MAXIMO_BYTES_DICTADO,
+  SEGUNDOS_MAXIMOS_DICTADO,
+  RUTA_DICTADO,
+  CAMPO_DICTADO
 } from '../src/dominio/dictado.ts'
 
 const leer = (ruta) => readFileSync(new URL(ruta, import.meta.url), 'utf8')
@@ -92,7 +99,7 @@ test('cada fallo conocido dice como salir de el', () => {
   assert.match(mensajeDeErrorDeDictado('not-allowed'), /micrófono/)
   assert.match(mensajeDeErrorDeDictado('audio-capture'), /micrófono/)
   assert.match(mensajeDeErrorDeDictado('no-speech'), /No se escuchó/)
-  assert.match(mensajeDeErrorDeDictado('network'), /conexión/)
+  assert.match(mensajeDeErrorDeDictado('network'), /servicio de reconocimiento/)
   assert.notEqual(mensajeDeErrorDeDictado('codigo-que-no-existe'), '')
 })
 
@@ -102,13 +109,92 @@ test('el idioma del motor es una etiqueta BCP 47 configurable', () => {
     'el idioma no puede quedar hardcodeado: el motor rinde distinto por variante del español')
 })
 
+test('los fallos que no son de la persona mandan al respaldo', () => {
+  // Navegadores que declaran la API sin tener el servicio detras: Brave, los Chromium abiertos.
+  assert.ok(pideRespaldo('network'))
+  assert.ok(pideRespaldo('service-not-allowed'))
+})
+
+test('el permiso y la falta de microfono NO mandan al respaldo', () => {
+  // Con el respaldo fallarian igual: `getUserMedia` necesita el mismo permiso y el mismo aparato.
+  assert.equal(pideRespaldo('not-allowed'), false)
+  assert.equal(pideRespaldo('audio-capture'), false)
+  assert.equal(pideRespaldo('no-speech'), false)
+  assert.equal(pideRespaldo('aborted'), false)
+})
+
+test('el mensaje de network no culpa a la conexion', () => {
+  // Decia "necesita conexión y no la hubo", y la conexion estaba perfecta: lo que falta es el
+  // servicio de voz del navegador.
+  const mensaje = mensajeDeErrorDeDictado('network')
+  assert.doesNotMatch(mensaje, /conexión/)
+  assert.match(mensaje, /servicio/)
+})
+
+test('el archivo del respaldo se nombra segun lo que grabo el navegador', () => {
+  assert.equal(nombreDeDictado('audio/webm;codecs=opus'), 'dictado.webm')
+  assert.equal(nombreDeDictado('audio/mp4'), 'dictado.m4a')
+  assert.equal(nombreDeDictado(''), 'dictado.webm')
+})
+
+test('los topes del respaldo son los mismos que valida el board', () => {
+  // `EntradaDeDictado::MAX_BYTES` en wiwo-board. Si uno de los dos cambia, esto avisa.
+  assert.equal(MAXIMO_BYTES_DICTADO, 8388608)
+  assert.equal(SEGUNDOS_MAXIMOS_DICTADO, 120)
+  assert.equal(RUTA_DICTADO, 'ia/dictado')
+  assert.equal(CAMPO_DICTADO, 'audio')
+  assert.ok(MOTIVOS_SIN_MOTOR.length > 0)
+})
+
+test('el hook cambia de motor sin pedir otro clic', () => {
+  const hook = leer('../src/componentes/ia/useDictado.ts')
+
+  assert.match(hook, /if \(pideRespaldo\(evento\.error\)\) \{/,
+    'el fallo del motor del navegador tiene que evaluarse contra pideRespaldo')
+  assert.match(hook, /descartarMotor\(\)[\s\S]{0,200}void grabar\(\)/,
+    'ante un fallo sin arreglo hay que anotarlo y arrancar el respaldo en el mismo gesto')
+  assert.match(hook, /sessionStorage/,
+    'el descarte del motor tiene que sobrevivir al proximo dictado de la misma sesion')
+})
+
+test('el respaldo no sube nada si el chat ya se cerro', () => {
+  const hook = leer('../src/componentes/ia/useDictado.ts')
+
+  // Entre pedir el microfono y obtenerlo hay un await: si el chat se cerro ahi, seguir dejaria el
+  // microfono abierto y subiria un audio que no tiene donde escribirse.
+  assert.match(hook, /if \(!vivo\.current\) \{[\s\S]{0,160}pista\.stop\(\)/)
+})
+
+test('el respaldo corta solo', () => {
+  const hook = leer('../src/componentes/ia/useDictado.ts')
+
+  assert.match(hook, /setTimeout\([\s\S]{0,200}SEGUNDOS_MAXIMOS_DICTADO \* 1000\)/,
+    'sin corte automatico un microfono olvidado abierto se paga en GPU')
+  assert.match(hook, /clearTimeout\(corte\.current\)/, 'el temporizador del corte hay que limpiarlo')
+})
+
+test('el boton distingue las dos formas de dictar', () => {
+  const boton = leer('../src/componentes/ia/BotonDictado.tsx')
+
+  // Con el motor del navegador el texto aparece mientras se habla; con el respaldo hay espera.
+  for (const aviso of ['Escuchando…', 'Grabando…', 'Transcribiendo…']) {
+    assert.ok(boton.includes(aviso), `falta el aviso de la fase: ${aviso}`)
+  }
+  assert.match(boton, /disabled=\{deshabilitado \|\| dictado\.fase === 'transcribiendo'\}/,
+    'mientras el board transcribe no se puede volver a apretar')
+})
+
 test('el boton no se dibuja si el navegador no soporta voz', () => {
   assert.match(leer('../src/componentes/ia/BotonDictado.tsx'), /if \(!dictado\.soportado\) return null/)
 })
 
 test('el microfono se cierra al desmontar el chat', () => {
-  assert.match(leer('../src/componentes/ia/useDictado.ts'), /motor\.current\?\.abort\(\)/,
-    'sin abort() el microfono sigue abierto despues de cerrar el chat')
+  const hook = leer('../src/componentes/ia/useDictado.ts')
+
+  assert.match(hook, /motor\.current\?\.abort\(\)/,
+    'sin abort() el reconocimiento sigue abierto despues de cerrar el chat')
+  assert.match(hook, /pista\.stop\(\)/,
+    'sin soltar las pistas, el punto rojo del microfono queda encendido en la pestaña')
 })
 
 test('los dos chats del orbe tienen microfono', () => {
