@@ -154,18 +154,26 @@ export const TOPE_DE_PAGINAS = 4
  * 1080p, o sea **dos renglones de tablero**. De los 819 px de banda tumbada quedan ~718, que a 52 px
  * por renglon son 13,8 renglones visuales; de los 1616 de pie quedan ~1515, o sea 29 filas.
  *
- * === EL REPARTO, Y POR QUE 2 A 1 ===
+ * Tumbada cada renglon visual son DOS personas, porque la escena va a dos columnas: las 24 de la banda
+ * son 12 renglones de los 13,8 que caben. De pie son 27 de las 29. En las dos orientaciones sobran casi
+ * dos renglones, que es el mismo margen de seguridad con el que se eligieron las rejillas de una tabla:
+ * la pared no puede depender de que la ultima fila entre por dos pixeles, porque `overflow: hidden` no
+ * avisa, corta.
  *
- * Tumbada cada renglon visual son DOS personas, porque la escena va a dos columnas: 8 renglones para
- * la empresa (16 personas) y 4 para el area (8) son 12 de los 13,8 que caben. De pie son 18 y 9 de las
- * 29 que caben. En las dos orientaciones sobran casi dos renglones, que es el mismo margen de
- * seguridad con el que se eligieron las rejillas de una tabla: la pared no puede depender de que la
- * ultima fila entre por dos pixeles, porque `overflow: hidden` no avisa, corta.
+ * === POR QUE ESTO ES UN NUMERO Y YA NO UN REPARTO FIJO ===
  *
- * Dos tercios para la compañia y uno para el area no es simetria mal hecha, son las dos listas: la de
- * la compañia es la que puede tener 42 personas y la que el usuario puso arriba, y la del area es un
- * equipo de ocho o diez que casi siempre entra entero en una pagina. Al reves —14 y 10— la compañia
- * necesitaria el doble de paginas para enseñar lo mismo y el area desperdiciaria filas vacias.
+ * Antes eran dos cupos clavados —16 para la compañia y 8 para el area— y el resultado se vio en la
+ * pared: con 13 personas en la compañia y 11 en el area, la compañia llenaba sus dos columnas y el
+ * area, que dice 11, enseñaba 3. Las otras 8 estaban en una segunda pagina que nadie relaciona con la
+ * primera, y el bloque del area quedaba como un hueco enorme debajo. La cabecera decia un numero y la
+ * tabla enseñaba otro: eso no se lee como una pagina 2, se lee como una pantalla rota.
+ *
+ * El cupo fijo no podia no fallar, porque **el reparto correcto depende de lo que cada lista tiene** y
+ * no de una proporcion elegida de antemano. 13 y 11 caben de sobra en la banda; partirlas 16/8 era
+ * paginar una lista que entraba entera al lado de un bloque con tres huecos muertos.
+ *
+ * Asi que lo que se fija es la BANDA —cuantas filas caben con los dos bloques dibujados— y el reparto
+ * lo decide `repartoDeTrabajando()` con los dos largos en la mano.
  *
  * === CUANDO HAY UNA SOLA TABLA ===
  *
@@ -173,9 +181,9 @@ export const TOPE_DE_PAGINAS = 4
  * porque sin el segundo bloque los ~100 px vuelven. Es el caso de la pantalla global, que no tiene
  * area, y el del area donde no hay nadie con jornada abierta. Ver `repartoDeTrabajando`.
  */
-export const REPARTO_DE_TRABAJANDO: Record<Orientacion, { empresa: number, area: number }> = {
-  horizontal: { empresa: 16, area: 8 },
-  vertical: { empresa: 18, area: 9 }
+export const BANDA_DE_TRABAJANDO: Record<Orientacion, number> = {
+  horizontal: 24,
+  vertical: 27
 }
 
 /**
@@ -621,6 +629,10 @@ function paginar (escena: EscenaDeApi, duracionMs: number, orientacion: Orientac
 
   if (items.length === 0) return []
 
+  // A tope y no equilibrado, al reves que en `trabajando`. Una escena de UNA tabla que reparte sus
+  // filas parejo llena la mitad de la pared en todas sus paginas; la de dos tablas no puede, porque
+  // un bloque corto deja un hueco ENTRE dos bloques y eso si se lee como que la pared se rompio. Ver
+  // `filasPorPagina()`.
   const porPagina = REJILLAS[orientacion][escena.kind as ClaseDeEscena]
   // `anuncios` lleva su propio techo: una pagina es un anuncio, y cuatro serian pocos. Ver
   // `TOPE_DE_ANUNCIOS`.
@@ -651,11 +663,10 @@ function paginar (escena: EscenaDeApi, duracionMs: number, orientacion: Orientac
  *
  * === EL REPARTO ===
  *
- * Las dos tablas comparten la banda util de la escena, y el reparto no es mitad y mitad: ver
- * `REPARTO_DE_TRABAJANDO`, que explica de donde salen los numeros y por que la compañia se lleva dos
- * tercios. Si solo hay una tabla con gente —la pantalla global, que no tiene area, o un area donde
- * nadie abrio jornada— la que queda se lleva la banda ENTERA, porque sin el segundo bloque vuelven
- * los ~100 px de su cabecera y sus rotulos.
+ * Las dos tablas comparten la banda util de la escena, y el reparto **sale de lo que cada lista
+ * tiene**: ver `BANDA_DE_TRABAJANDO` y `repartoDeTrabajando()`. Si solo hay una tabla con gente —la
+ * pantalla global, que no tiene area, o un area donde nadie abrio jornada— la que queda se lleva la
+ * banda ENTERA, porque sin el segundo bloque vuelven los ~100 px de su cabecera y sus rotulos.
  *
  * === COMO SE PAGINAN DOS LISTAS A LA VEZ ===
  *
@@ -698,7 +709,7 @@ function paginarTrabajando (
 
   if (delArea.length === 0 && deLaCompania.length === 0) return []
 
-  const reparto = repartoDeTrabajando(orientacion, deLaCompania.length > 0, delArea.length > 0)
+  const reparto = repartoDeTrabajando(orientacion, deLaCompania.length, delArea.length)
 
   const paginasCompania = cuantasPaginas(deLaCompania.length, reparto.empresa)
   const paginasArea = cuantasPaginas(delArea.length, reparto.area)
@@ -752,23 +763,81 @@ function idDeTrabajando (compania: number, area: number): string {
 }
 
 /**
- * Cuantas filas le tocan a cada tabla de `trabajando` en esta orientacion.
+ * Cuantas filas le tocan a cada tabla de `trabajando`, segun lo que cada lista TIENE.
  *
- * Con las dos tablas manda `REPARTO_DE_TRABAJANDO`. Con una sola, esa se lleva la banda entera: el
- * reparto existe para pagar la cabecera y los rotulos del segundo bloque, y sin segundo bloque no hay
- * nada que pagar.
+ * Con una sola tabla, esa se lleva la banda entera (`REJILLAS[orientacion].trabajando`): el descuento
+ * existe para pagar la cabecera y los rotulos del segundo bloque, y sin segundo bloque no hay nada que
+ * pagar.
+ *
+ * === EL REPARTO CUANDO ESTAN LAS DOS ===
+ *
+ * Son tres lineas y cada una responde a algo que se vio fallar en la pared (ver el docblock de
+ * `BANDA_DE_TRABAJANDO`):
+ *
+ * 1. **El area pide primero**, hasta la mitad de la banda. Es la lista corta —un equipo de ocho o
+ *    diez— y es la identidad de esta pantalla: es el area cuyo televisor es. Paginarla para dejarle
+ *    sitio a una compañia que iba a paginar igual es cambiar informacion por nada.
+ * 2. **La compañia se lleva lo que quede**, y nunca mas de lo que tiene: reservar filas para gente que
+ *    no existe es el hueco muerto que el usuario vio.
+ * 3. **Lo que la compañia no necesitaba vuelve al area.** Con 5 en la compañia y 20 en el area, el
+ *    area se queda con 19 en vez de con 12, y la escena pasa de dos paginas a una.
+ *
+ * El caso que lo motivo —13 en la compañia y 11 en el area— cae entero en la primera linea: 13 + 11
+ * son exactamente las 24 de la banda tumbada, cada tabla enseña su lista completa y no queda ni una
+ * fila reservada de mas.
+ *
+ * @param orientacion como cuelga el televisor, que decide el largo de la banda
+ * @param compania    cuantas personas trae la lista de la compañia
+ * @param area        cuantas trae la del area
+ * @returns las filas por pagina de cada tabla; un `0` es una tabla que no se dibuja
  */
 function repartoDeTrabajando (
   orientacion: Orientacion,
-  hayCompania: boolean,
-  hayArea: boolean
+  compania: number,
+  area: number
 ): { empresa: number, area: number } {
   const banda = REJILLAS[orientacion].trabajando
 
-  if (!hayArea) return { empresa: banda, area: 0 }
-  if (!hayCompania) return { empresa: 0, area: banda }
+  if (area <= 0) return { empresa: filasPorPagina(compania, banda), area: 0 }
+  if (compania <= 0) return { empresa: 0, area: filasPorPagina(area, banda) }
 
-  return REPARTO_DE_TRABAJANDO[orientacion]
+  const juntas = BANDA_DE_TRABAJANDO[orientacion]
+  const pedidoDelArea = Math.min(area, Math.max(Math.floor(juntas / 2), 1))
+  const deLaCompania = Math.min(compania, juntas - pedidoDelArea)
+
+  return {
+    empresa: filasPorPagina(compania, deLaCompania),
+    area: filasPorPagina(area, Math.min(area, juntas - deLaCompania))
+  }
+}
+
+/**
+ * Cuantas filas pone una pagina para enseñar `cuantos` items con un cupo de `cupo`.
+ *
+ * === POR QUE NO ES SIMPLEMENTE EL CUPO ===
+ *
+ * Llenar cada pagina hasta el borde deja toda la sobra en la ULTIMA: 11 personas con cupo 8 son una
+ * pagina de 8 y otra de 3, y esa de 3 es la que el usuario leyo como una pantalla rota — un bloque que
+ * de repente mide la mitad. Repartiendo a partes iguales entre las paginas que hacen falta, las mismas
+ * 11 salen 6 y 5: el bloque mide practicamente lo mismo en las dos y el salto deja de verse.
+ *
+ * La sobra queda acotada a `paginas - 1` items, que con el tope de cuatro paginas son tres filas en el
+ * peor caso y una en el normal.
+ *
+ * El cupo sigue siendo el techo: es lo que cabe en la banda, y pasarse seria cortar la ultima fila
+ * contra un `overflow: hidden` que no avisa.
+ *
+ * @param cuantos cuantos items hay que enseñar en total
+ * @param cupo    cuantos caben como mucho en una pagina
+ * @returns las filas por pagina, entre 1 y `cupo`
+ */
+function filasPorPagina (cuantos: number, cupo: number): number {
+  if (cupo <= 0) return 0
+  if (cuantos <= cupo) return Math.max(cuantos, 1)
+
+  const paginas = Math.min(Math.ceil(cuantos / cupo), TOPE_DE_PAGINAS)
+
+  return Math.min(Math.ceil(cuantos / paginas), cupo)
 }
 
 /** Cuantas paginas hacen falta para `largo` items, sin pasar del tope. Cero items, cero paginas. */

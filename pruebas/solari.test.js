@@ -9,10 +9,11 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
-  ALFABETO_SOLARI, ANCHO_DE_FICHA_EM, ANCHO_SOBRIO_EM, PASOS_MAXIMOS, PASOS_MINIMOS, PASOS_POR_GLIFO,
-  PISO_DE_FILA, RANURAS_DE_CONTADOR, RANURAS_DE_OLA, TOPE_DE_CONTADOR, TOPE_DE_ESCALON_GLIFO,
-  TOPE_DE_FILA, TOPE_DE_GLIFOS, anchoDeGlifo, cintaDeRodillo, cupoDeFichas, escalonDeGlifo,
-  ondaDeContador, ondaDeFicha, pasosDeGlifo, planDeOla, rodilloDeGlifo, rodilloDeTexto, textoDeFicha
+  ANCHO_DE_FICHA_EM, ANCHO_SOBRIO_EM, PASOS_MAXIMOS, PASOS_MINIMOS, PASOS_POR_GLIFO, PISO_DE_FILA,
+  RANURAS_DE_CONTADOR, RANURAS_DE_OLA, TAMBOR_DE_DIGITOS, TAMBOR_DE_LETRAS, TOPE_DE_CONTADOR,
+  TOPE_DE_ESCALON_GLIFO, TOPE_DE_FILA, TOPE_DE_GLIFOS, anchoDeGlifo, cintaDeRodillo, cupoDeFichas,
+  escalonDeGlifo, ondaDeContador, ondaDeFicha, pasosDeGlifo, planDeOla, rodilloDeGlifo,
+  rodilloDeTexto, textoDeFicha
 } from '../src/dominio/solari.ts'
 
 /** Cuantas posiciones de un texto ya resuelto llevan rodillo. */
@@ -21,19 +22,113 @@ function cuantasVoltean (glifos) {
 }
 
 test('el rodillo termina siempre en el caracter de destino', () => {
-  for (const glifo of ['A', 'M', 'Z', '0', '9', 'Ñ']) {
+  for (const glifo of ['A', 'M', 'Z', '0', '9']) {
     const rodillo = rodilloDeGlifo(glifo)
 
     assert.equal(rodillo.at(-1), glifo, `el rodillo de ${glifo} no termina en ${glifo}`)
   }
 })
 
-test('el rodillo conserva la caja y el acento del destino, aunque el camino sea en mayusculas', () => {
-  const rodillo = rodilloDeGlifo('á')
+// === EL TAMBOR ES POR CLASE DE CARACTER ======================================================
+//
+// La regla que la pared enseno rota: con un solo tambor de letras y digitos pegados, un contador
+// mostraba `0:09:2W`. Un rodillo de un panel de verdad es una pieza fisica con un juego fijo de
+// aletas, y un rodillo de digitos no lleva ni una letra montada.
 
-  assert.equal(rodillo.at(-1), 'á')
-  // Lo de antes es ruido mecanico, y el ruido de un panel es mayuscula.
-  assert.ok(rodillo.slice(0, -1).every((paso) => ALFABETO_SOLARI.includes(paso)))
+test('un digito jamas pasa por una letra', () => {
+  for (const digito of Array.from(TAMBOR_DE_DIGITOS)) {
+    for (let pasos = 1; pasos <= PASOS_MAXIMOS; pasos += 1) {
+      for (const paso of rodilloDeGlifo(digito, pasos)) {
+        assert.ok(
+          TAMBOR_DE_DIGITOS.includes(paso),
+          `el ${digito} paso por "${paso}": un reloj no puede ensenar una letra`
+        )
+      }
+    }
+  }
+})
+
+test('una letra jamas pasa por un digito, en cualquiera de sus dos cajas', () => {
+  for (const letra of Array.from(`${TAMBOR_DE_LETRAS}${TAMBOR_DE_LETRAS.toLowerCase()}`)) {
+    for (let pasos = 1; pasos <= PASOS_MAXIMOS; pasos += 1) {
+      for (const paso of rodilloDeGlifo(letra, pasos)) {
+        assert.ok(
+          TAMBOR_DE_LETRAS.includes(paso.toUpperCase()),
+          `la ${letra} paso por "${paso}": una palabra no puede ensenar una cifra`
+        )
+      }
+    }
+  }
+})
+
+test('el tambor de digitos es ciclico dentro de si mismo: de 7 a 2 se pasa por 8, 9, 0, 1', () => {
+  assert.deepEqual(rodilloDeGlifo('2', 5), ['7', '8', '9', '0', '1', '2'])
+})
+
+test('el tambor de letras es ciclico dentro de si mismo: la A llega desde la Z', () => {
+  assert.deepEqual(rodilloDeGlifo('A', 2), ['Y', 'Z', 'A'])
+  assert.deepEqual(rodilloDeGlifo('D', 3), ['A', 'B', 'C', 'D'])
+})
+
+test('cada posicion recorre SU tambor: pasar de 9 a 10 no interpola el numero entero', () => {
+  // Lo que el usuario nombro como "pasar de 9 a 10". No es una ficha que sube de nueve a diez: son
+  // dos posiciones distintas, la de las decenas apareciendo con un 1 y la de las unidades yendo de
+  // 9 a 0. Ninguna sabe nada de la otra, y ninguna puede ensenar una letra por el camino.
+  const nueve = rodilloDeTexto('9')
+  const diez = rodilloDeTexto('10')
+
+  assert.equal(nueve.length, 1)
+  assert.equal(diez.length, 2)
+
+  const decenas = diez[0]
+  const unidades = diez[1]
+
+  assert.equal(decenas.glifo, '1')
+  assert.equal(unidades.glifo, '0')
+
+  for (const posicion of [decenas, unidades]) {
+    for (const paso of posicion.rodillo) {
+      assert.ok(TAMBOR_DE_DIGITOS.includes(paso), `una decena o unidad paso por "${paso}"`)
+    }
+  }
+
+  // Y la de las unidades llega a su cero por el nueve, que es la aleta de al lado: el tambor de
+  // digitos da la vuelta sobre si mismo y no salta a otra clase.
+  assert.equal(unidades.rodillo.at(-2), '9')
+})
+
+test('un reloj entero solo recorre digitos: ni una W dentro de 0:09:27', () => {
+  for (const posicion of rodilloDeTexto('0:09:27')) {
+    if (posicion.rodillo === null) continue
+
+    for (const paso of posicion.rodillo) {
+      assert.ok(TAMBOR_DE_DIGITOS.includes(paso), `el reloj enseno "${paso}"`)
+    }
+  }
+})
+
+test('el rodillo entero va en la caja del destino: una minuscula no pasa por mayusculas', () => {
+  // El hueco reserva el ancho del destino y recorta lo que sobra: una `W` de 1.00em dentro del hueco
+  // de 0.56 de una `e` salia partida. Ver el docblock de `rodilloDeGlifo()`.
+  for (const destino of Array.from('aeiousz')) {
+    const rodillo = rodilloDeGlifo(destino)
+
+    assert.equal(rodillo.at(-1), destino)
+    for (const paso of rodillo) {
+      assert.equal(paso, paso.toLowerCase(), `"${destino}" enseno "${paso}" en mayuscula`)
+      assert.ok(TAMBOR_DE_LETRAS.includes(paso.toUpperCase()), `"${paso}" no es una letra del tambor`)
+    }
+  }
+})
+
+test('la caja del camino no descuadra el ancho que el hueco reservo', () => {
+  // La cota es el ancho de respaldo: lo que importa es que el camino se mueva en la banda de su caja
+  // y no que un hueco de minuscula reciba una mayuscula ancha. Ver `ANCHOS_MEDIDOS`.
+  for (const destino of Array.from('aeiou')) {
+    for (const paso of rodilloDeGlifo(destino)) {
+      assert.ok(anchoDeGlifo(paso) <= 0.88, `"${destino}" enseno "${paso}", que mide ${anchoDeGlifo(paso)}em`)
+    }
+  }
 })
 
 test('el rodillo mide exactamente los pasos pedidos mas el destino', () => {
@@ -42,26 +137,20 @@ test('el rodillo mide exactamente los pasos pedidos mas el destino', () => {
   assert.equal(rodilloDeGlifo('M', 1).length, 2)
 })
 
-test('el camino son los glifos que preceden al destino en el alfabeto, en orden', () => {
+test('el camino son los glifos que preceden al destino en su tambor, en orden', () => {
   assert.deepEqual(rodilloDeGlifo('E', 3), ['B', 'C', 'D', 'E'])
 })
 
-test('el alfabeto da la vuelta: el primer glifo llega desde el final', () => {
-  const rodillo = rodilloDeGlifo('A', 2)
-
-  assert.deepEqual(rodillo, ['8', '9', 'A'])
+test('los acentos y la ene con tilde caen en un solo giro y no se rompen', () => {
+  // No tienen aleta propia: se dibujan enteros desde el primer fotograma. Es lo que impide que la
+  // pared ensene una `O` acentuada a medio formar, que es lo que la captura mostraba en "ENTRO".
+  for (const caracter of Array.from('ÁÉÍÓÚÜÑáéíóúüñ')) {
+    assert.equal(rodilloDeGlifo(caracter), null, `${caracter} no deberia girar`)
+  }
 })
 
-test('la eñe no se convierte en ene', () => {
-  const rodillo = rodilloDeGlifo('ñ')
-
-  assert.equal(rodillo.at(-1), 'ñ')
-  // Entra por su propia casilla del alfabeto, asi que llega desde la `N` y no desde la `M`.
-  assert.equal(rodillo.at(-2), 'N')
-})
-
-test('lo que no esta en el alfabeto no voltea', () => {
-  for (const caracter of [' ', ':', '%', '—', '+', ' ']) {
+test('lo que no tiene tambor no voltea', () => {
+  for (const caracter of [' ', ':', '%', '—', '+', ' ', '…', '/']) {
     assert.equal(rodilloDeGlifo(caracter), null, `${caracter} no deberia voltear`)
   }
 })
@@ -70,17 +159,20 @@ test('un destino vacio no voltea', () => {
   assert.equal(rodilloDeGlifo(''), null)
 })
 
-test('los pasos se acotan: ni cero, ni negativos, ni mas largo que el alfabeto', () => {
+test('los pasos se acotan: ni cero, ni negativos, ni mas largo que su tambor', () => {
   assert.equal(rodilloDeGlifo('M', 0).length, 2)
   assert.equal(rodilloDeGlifo('M', -5).length, 2)
-  assert.equal(rodilloDeGlifo('M', 999).length, ALFABETO_SOLARI.length + 1)
+  assert.equal(rodilloDeGlifo('M', 999).length, TAMBOR_DE_LETRAS.length + 1)
+  assert.equal(rodilloDeGlifo('7', 999).length, TAMBOR_DE_DIGITOS.length + 1)
   assert.equal(rodilloDeGlifo('M', 2.7).length, 3)
 })
 
-test('un rodillo de alfabeto entero no repite el destino a mitad de camino', () => {
-  const rodillo = rodilloDeGlifo('M', ALFABETO_SOLARI.length)
+test('un rodillo de tambor entero no repite el destino a mitad de camino', () => {
+  const letras = rodilloDeGlifo('M', TAMBOR_DE_LETRAS.length)
+  const digitos = rodilloDeGlifo('7', TAMBOR_DE_DIGITOS.length)
 
-  assert.equal(new Set(rodillo).size, ALFABETO_SOLARI.length)
+  assert.equal(new Set(letras).size, TAMBOR_DE_LETRAS.length)
+  assert.equal(new Set(digitos).size, TAMBOR_DE_DIGITOS.length)
 })
 
 test('el texto se resuelve caracter a caracter y en orden', () => {
@@ -182,11 +274,40 @@ test('un reloj que avanza un minuto solo cambia un caracter', () => {
 // pantalla es `overflow: hidden` sin barra de scroll y una celda que se ensancha a mitad de volteo se
 // lleva por delante la de al lado sin que nadie lo vea.
 
-test('cada clase de caracter reserva un ancho distinto', () => {
+test('cada caracter reserva lo que mide, y no todos miden lo mismo', () => {
   assert.ok(anchoDeGlifo('m') > anchoDeGlifo('a'), 'una eme tiene que ocupar mas que una a')
   assert.ok(anchoDeGlifo('a') > anchoDeGlifo('i'), 'una i tiene que ocupar menos que una a')
-  assert.ok(anchoDeGlifo('i') > anchoDeGlifo('.'), 'un punto tiene que ocupar menos que una i')
+  assert.ok(anchoDeGlifo(' ') < anchoDeGlifo('i'), 'un espacio tiene que ocupar menos que una i')
   assert.ok(anchoDeGlifo('A') > anchoDeGlifo('a'), 'una mayuscula ocupa mas que su minuscula')
+})
+
+test('los glifos redondos reservan mas que los de asta: es lo que dejo de recortarlos', () => {
+  // La captura del televisor decia "REDISE\u00d1C DE MARCA" y "JCRNADA": la `O` mide 0.80em en esta
+  // fuente y el hueco le reservaba 0.72, asi que el `overflow: hidden` le comia el lado derecho y la
+  // dejaba con forma de `C`. Un hueco NUNCA puede medir menos que su glifo.
+  for (const [redondo, angosto] of [['O', 'E'], ['Q', 'P'], ['G', 'F'], ['W', 'V'], ['M', 'N']]) {
+    assert.ok(
+      anchoDeGlifo(redondo) > anchoDeGlifo(angosto),
+      `la ${redondo} reserva ${anchoDeGlifo(redondo)} y la ${angosto} ${anchoDeGlifo(angosto)}`
+    )
+  }
+})
+
+test('los puntos suspensivos del recorte reservan lo que miden', () => {
+  // Reservaban 0.30em midiendo 0.81, asi que un texto recortado terminaba en un punto suelto en vez
+  // de en `\u2026`. Se veia en todas las columnas recortadas de la captura.
+  assert.ok(anchoDeGlifo('\u2026') > anchoDeGlifo('.'), 'un `\u2026` son tres puntos, no uno')
+  assert.ok(anchoDeGlifo('\u2026') >= 0.8)
+})
+
+test('un caracter acentuado reserva lo mismo que su letra base', () => {
+  // Es lo que partia "COMPANIA" en dos en la captura: la `I` con tilde reservaba ancho de mayuscula
+  // y dejaba un agujero a su derecha. La clase la decide la letra base, nunca el acento.
+  assert.equal(anchoDeGlifo('Í'), anchoDeGlifo('I'))
+  assert.equal(anchoDeGlifo('Ó'), anchoDeGlifo('O'))
+  assert.equal(anchoDeGlifo('Ñ'), anchoDeGlifo('N'))
+  assert.equal(anchoDeGlifo('ñ'), anchoDeGlifo('n'))
+  assert.equal(anchoDeGlifo('ü'), anchoDeGlifo('u'))
 })
 
 test('todos los digitos reservan lo mismo: van con tabular-nums', () => {
@@ -221,7 +342,7 @@ test('el texto resuelto trae el ancho de cada posicion', () => {
 // contador digital haciendo la ola en vez de como un panel mecanico.
 
 test('los pasos caen siempre dentro del rango', () => {
-  for (const caracter of Array.from('ABCDEFGHIJKLMNÑOPQRSTUVWXYZ0123456789')) {
+  for (const caracter of Array.from(`${TAMBOR_DE_LETRAS}${TAMBOR_DE_DIGITOS}`)) {
     for (let indice = 0; indice < 20; indice += 1) {
       const pasos = pasosDeGlifo(caracter, indice)
 

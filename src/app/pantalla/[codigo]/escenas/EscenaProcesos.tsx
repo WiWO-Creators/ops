@@ -19,7 +19,7 @@ const COLUMNAS = 'pantalla-columnas-procesos'
  * cambio y una girando en el porcentaje no la ve nadie. La suma no importa —`planDeOla()` reparte el
  * presupuesto de la pagina por peso—, solo la proporcion.
  */
-const PESOS = [6, 2, 2, 1, 1, 2] as const
+const PESOS = [6, 2, 1, 2] as const
 
 /**
  * Cuantos caracteres caben en cada columna.
@@ -28,24 +28,41 @@ const PESOS = [6, 2, 2, 1, 1, 2] as const
  * una tira de fichas no se recorta con `truncate`, asi que lo que no cabe se dibuja igual y lo tapa el
  * `overflow` — DOM pagado a cambio de nada. Ver `cupoDeFichas()`.
  *
- * El nombre es la columna flexible: lo que sobra despues de las fijas, los seis huecos de 2vmin y el
- * relleno de fila, sobre los ~170vmin de la pared tumbada.
+ * El nombre es la columna flexible: lo que sobra despues de las fijas, los cuatro huecos de 2vmin y el
+ * relleno de fila, sobre los ~167vmin de fila que quedan en la pared tumbada.
  *
- * **Todas las columnas de palabras van sobrias y solo el porcentaje lleva ficha entera.** Se probo al
- * reves y la captura lo dejo claro: con fichas de ancho fijo, "En progreso" entraba como "EN PROGR…",
- * "Bodega Quilicura" como "BODEGA QUILICU…" y "Venció 12/05" perdia la fecha. Una ficha de ancho fijo
- * cuesta 0.79em por caracter contra los 0.56 de una palabra, y en una fila de seis columnas eso es
- * casi un tercio de la informacion de la pared. Ver `ANCHO_DE_FICHA_EM` en el dominio.
+ * **Todas las columnas van sobrias.** Se probo con fichas de ancho fijo y la captura lo dejo claro:
+ * una ficha uniforme cuesta 0.79em por caracter contra los 0.56 de una palabra, y en una fila de
+ * columnas de texto eso es casi un tercio de la informacion de la pared. Ver `ANCHO_DE_FICHA_EM`.
+ *
+ * === DE DONDE SALEN ESTOS NUMEROS, Y POR QUE LA FILA PERDIO DOS COLUMNAS ===
+ *
+ * La pared tumbada da 166.78vmin de fila util: 177.78 de ancho menos los 8 del marco y los 3 del
+ * relleno de la fila. Con siete columnas se iban 12 en huecos y quedaban 154.78 de texto, y el reparto
+ * no daba: el nombre de una Tarea llega a 36 caracteres —60.5vmin a 3vmin en caja mixta— y solo tenia
+ * 51. La captura del televisor lo enseñaba fila por fila: "Revisar las tarjetas del tabl…",
+ * "REDISEÑO DE MAR…", "Esperando …". Subirle dos caracteres al recorte no era un arreglo: faltaban
+ * ~30vmin, o sea una columna entera.
+ *
+ * Asi que se fueron las dos que menos dicen, y en este orden:
+ *
+ * 1. **El `%` de checklist.** Es "—" en la mayoria de las Tareas —solo las que llevan checklist lo
+ *    tienen— y es, por el propio reparto de pesos de esta escena, la columna que nadie mira.
+ * 2. **El estado en palabras.** No se pierde el dato: la barra de color de la izquierda ES el estado,
+ *    con el color que el panel le dio, y es ademas lo unico que queda de el en la pared de pie, donde
+ *    la columna en palabras ya se caia por falta de ancho. La barra crecio a 1.2vmin para poder
+ *    cargarlo sola.
+ *
+ * Con cinco columnas los huecos bajan a 8vmin y el reparto cierra con holgura: 43 para el Proyecto en
+ * caja alta (21 caracteres, que es "PORTAL DE AUTOGESTIÓN" entero), 22 para "Venció dd/mm", 27 para
+ * "Facundo L. +2", y los ~65 que sobran para el nombre de la Tarea. Nada se recorta.
  */
 const CUPO = {
-  nombre: cupoDeFichas(51, 3, ANCHO_SOBRIO_EM),
-  espacio: cupoDeFichas(33, 2.7, ANCHO_MAYUSCULA_EM),
-  /** En caja mixta: "En progreso" son once caracteres y en mayusculas no entra en 18vmin. */
-  estado: cupoDeFichas(18, 2.7, ANCHO_SOBRIO_EM),
-  /** La unica columna de digitos de la fila, y por eso la unica con ficha entera. */
-  avance: cupoDeFichas(9, 2.7),
-  vence: cupoDeFichas(20, 2.7, ANCHO_SOBRIO_EM),
-  quien: cupoDeFichas(23, 2.7, ANCHO_SOBRIO_EM)
+  /** 38 caracteres: la Tarea mas larga del catalogo son 36, asi que sobra y no se dibuja de mas. */
+  nombre: cupoDeFichas(65, 3, ANCHO_SOBRIO_EM),
+  espacio: cupoDeFichas(43, 2.7, ANCHO_MAYUSCULA_EM),
+  vence: cupoDeFichas(22, 2.7, ANCHO_SOBRIO_EM),
+  quien: cupoDeFichas(27, 2.7, ANCHO_SOBRIO_EM)
 }
 
 /**
@@ -93,9 +110,10 @@ const CUPO = {
  * que son la identidad y la urgencia de la fila.
  *
  * En vertical la fila se queda en cuatro columnas —nombre, vence, quien y la barra de color— porque
- * hay 92vmin de ancho contra los 170 de la pared tumbada: meter las siete dejaba el nombre de la
- * Tarea en veinte caracteres, y una Tarea que no se puede nombrar no se muestra. Lo dice la plantilla
- * `portrait` de `.pantalla-columnas-procesos` en `pantalla.css`, y los `portrait:hidden` de acá.
+ * hay 92vmin de ancho contra los 170 de la pared tumbada: el Proyecto no cabe sin dejar el nombre de
+ * la Tarea en veinte caracteres, y una Tarea que no se puede nombrar no se muestra. Lo dice la
+ * plantilla `portrait` de `.pantalla-columnas-procesos` en `pantalla.css`, y el `portrait:hidden` de
+ * acá.
  */
 export function EscenaProcesos ({ items, ocultos, total, fase, esGlobal = false }: {
   items: TareaEnPantalla[]
@@ -117,10 +135,8 @@ export function EscenaProcesos ({ items, ocultos, total, fase, esGlobal = false 
         <span />
         <Rotulo texto={GLOSARIO.proceso.singular} columna={0} maximo={CUPO.nombre} />
         <Rotulo texto={GLOSARIO.espacio.singular} columna={1} maximo={CUPO.espacio} className="portrait:hidden" />
-        <Rotulo texto="Estado" columna={2} maximo={CUPO.estado} className="portrait:hidden" />
-        <Rotulo texto="%" columna={3} maximo={CUPO.avance} className="text-right portrait:hidden" />
-        <Rotulo texto="Vence" columna={4} maximo={CUPO.vence} />
-        <Rotulo texto={fase === 0 ? 'Quién' : 'Prioridad'} columna={5} maximo={CUPO.quien} />
+        <Rotulo texto="Vence" columna={2} maximo={CUPO.vence} />
+        <Rotulo texto={fase === 0 ? 'Quién' : 'Prioridad'} columna={3} maximo={CUPO.quien} />
       </RotulosDeColumna>
 
       <ul className="pantalla-tablero min-h-0">
@@ -132,8 +148,9 @@ export function EscenaProcesos ({ items, ocultos, total, fase, esGlobal = false 
             className={cn('pantalla-fila py-[0.55vmin] leading-[1.15]', RELLENO_DE_FILA, COLUMNAS)}
           >
             {/*
-              * La barra de color del estado. Es la unica columna que no es texto, y en vertical es
-              * lo unico que queda del estado: ahi la columna en palabras se cae por falta de ancho.
+              * La barra de color del estado. Es la unica columna que no es texto y es **el estado**:
+              * la columna en palabras se cayo de la fila para que el nombre de la Tarea y el del
+              * Proyecto entraran enteros, y la barra lleva el color que el panel le dio a cada estado.
               */}
             <span
               className="h-[2.8vmin] w-full rounded-full"
@@ -157,17 +174,6 @@ export function EscenaProcesos ({ items, ocultos, total, fase, esGlobal = false 
               className={cn('text-texto-tenue portrait:hidden', CUERPO_COLUMNA)}
             />
 
-            {/* Sin `mayusculas`: "EN PROGRESO" no cabe en 18vmin y se leeria "EN PROGRES". */}
-            <FichaDeTablero
-              sobria
-              texto={tarea.status?.name ?? '—'}
-              sitio={{ plan, fila: indice, columna: 2 }}
-              maximo={CUPO.estado}
-              className={cn('text-texto-tenue portrait:hidden', CUERPO_COLUMNA)}
-            />
-
-            <Avance progreso={tarea.progress} plan={plan} fila={indice} />
-
             <Vencimiento fecha={tarea.due_date} vencida={tarea.overdue} plan={plan} fila={indice} />
 
             {/* Sin `mayusculas`: es un nombre de persona. Ver la misma celda en `EscenaCronometros`. */}
@@ -176,7 +182,7 @@ export function EscenaProcesos ({ items, ocultos, total, fase, esGlobal = false 
               fase={fase}
               principal={quienLaTiene(tarea.assignees)}
               alterno={tarea.priority?.name ?? 'Sin prioridad'}
-              sitio={{ plan, fila: indice, columna: 5 }}
+              sitio={{ plan, fila: indice, columna: 3 }}
               maximo={CUPO.quien}
               className={cn('text-texto-tenue', CUERPO_COLUMNA)}
             />
@@ -184,38 +190,6 @@ export function EscenaProcesos ({ items, ocultos, total, fase, esGlobal = false 
         ))}
       </ul>
     </div>
-  )
-}
-
-/**
- * El avance en checklist, como numero y no como barra.
- *
- * La barra se quedo en la escena de Proyectos, donde hay una por fila y sobra ancho. Acá son quince
- * filas y una columna de barras de 10vmin se lee como una textura, no como quince datos; un
- * porcentaje tabular alineado a la derecha se compara de un vistazo, que es lo que una columna sirve
- * para hacer.
- *
- * `percent` es `null` cuando la Tarea no tiene checklist, y entonces se pone una raya: un cero
- * inventado se lee como "no empezó", que es una afirmacion que la API no hizo.
- */
-function Avance ({ progreso, plan, fila }: {
-  progreso: TareaEnPantalla['progress']
-  plan: PlanDeOla
-  fila: number
-}): ReactNode {
-  const hay = progreso.percent !== null
-
-  return (
-    <FichaDeTablero
-      texto={hay ? `${progreso.percent}%` : '—'}
-      sitio={{ plan, fila, columna: 3 }}
-      maximo={CUPO.avance}
-      className={cn(
-        'text-right portrait:hidden',
-        CUERPO_COLUMNA,
-        hay ? 'text-texto-tenue' : 'text-texto-sutil'
-      )}
-    />
   )
 }
 
@@ -240,7 +214,7 @@ function Vencimiento ({ fecha, vencida, plan, fila }: {
       <FichaDeTablero
         sobria
         texto="Sin fecha"
-        sitio={{ plan, fila, columna: 4 }}
+        sitio={{ plan, fila, columna: 2 }}
         maximo={CUPO.vence}
         className={cn('text-texto-sutil', CUERPO_COLUMNA)}
       />
@@ -251,7 +225,7 @@ function Vencimiento ({ fecha, vencida, plan, fila }: {
     <FichaDeTablero
       sobria
       texto={vencida ? `Venció ${formatoCorto(fecha)}` : formatoCorto(fecha)}
-      sitio={{ plan, fila, columna: 4 }}
+      sitio={{ plan, fila, columna: 2 }}
       maximo={CUPO.vence}
       className={cn(
         'rounded-[0.8vmin] font-semibold',

@@ -195,19 +195,29 @@
   }
 }
 
-/* marca de estado | Tarea | Proyecto | estado | avance | vence | quien */
+/*
+ * marca de estado | Tarea | Proyecto | vence | quien
+ *
+ * **Cinco columnas y no siete, y es lo que hizo que la pared dejara de recortar.** El reparto entero
+ * y por que se cayeron el `%` y el estado en palabras estan en el docblock de `CUPO` en
+ * `EscenaProcesos.tsx`; el resumen es que a los nombres les faltaban ~30vmin, o sea una columna, y
+ * subir el recorte un par de caracteres no era un arreglo.
+ *
+ * La barra de estado paso de 0.8 a 1.2vmin: ahora es lo unico que dice el estado en las dos paredes,
+ * y a cuatro metros 0.8vmin son ~9 px de color.
+ */
 .pantalla-columnas-procesos {
-  grid-template-columns: 0.8vmin minmax(0, 1fr) 33vmin 18vmin 9vmin 20vmin 23vmin;
+  grid-template-columns: 1.2vmin minmax(0, 1fr) 43vmin 22vmin 27vmin;
 }
 
 /*
- * En vertical sobreviven el nombre, la fecha y quien la tiene: se caen el Proyecto, el estado en
- * palabras —que ya lo dice la barra de color— y el avance. Son 92vmin de ancho contra 170, y con las
- * siete columnas de la pared el nombre de la Tarea quedaba en veinte caracteres, que es no mostrarlo.
+ * En vertical sobreviven el nombre, la fecha y quien la tiene: se cae el Proyecto. Son 92vmin de
+ * ancho contra 170, y con el Proyecto puesto el nombre de la Tarea quedaba en veinte caracteres, que
+ * es no mostrarlo.
  */
 @media (orientation: portrait) {
   .pantalla-columnas-procesos {
-    grid-template-columns: 0.8vmin minmax(0, 1fr) 20vmin 23vmin;
+    grid-template-columns: 1.2vmin minmax(0, 1fr) 22vmin 27vmin;
   }
 }
 
@@ -514,17 +524,33 @@
 /*
  * El Solari de una celda del tablero, que es el de una OLA y no el de un texto suelto.
  *
- * Lo unico que cambia es el escalon, y cambia mucho: 26 ms contra los 35 de un reloj. La cuenta esta
+ * Lo unico que cambia es el escalon, y cambia mucho: 32 ms contra los 35 de un reloj. La cuenta esta
  * en el docblock de `RANURAS_DE_OLA` en el dominio —el pico de fichas girando a la vez es el giro
- * partido por el escalon, unos 234/26 ≈ 9 por ola— y es lo que permite que un tablero entero voltee
+ * partido por el escalon, unos 180/32 ≈ 6 por ola— y es lo que permite que un tablero entero voltee
  * sin que la pared se quede sin fotogramas. Un reloj de cinco caracteres no esta en ninguna ola y se
  * lee mejor con el escalon lento.
  *
- * Las 170 ranuras a 26 ms dan una ola de 4,4 s: es larga a proposito. Lo que hace que un cambio de
+ * **Subio de 26 a 32 ms, y es lo que el encargo pedia:** el pico medido estaba en 17-23 fichas contra
+ * las ~14 que se sabe que rinden. Separar mas los arranques baja el pico sin quitarle ni una ficha al
+ * volteo, y las ranuras bajaron de 170 a 140 para que la ola siga durando lo mismo.
+ *
+ * Las 140 ranuras a 32 ms dan una ola de 4,5 s: es larga a proposito. Lo que hace que un cambio de
  * pagina se lea como un panel de aeropuerto no es que las fichas giren rapido, es que la ola RECORRA
  * el tablero — y una ola que recorre quince filas en medio segundo es un fogonazo, no una ola.
  */
 .solari-tablero {
+  --escalon: 32ms;
+}
+
+/*
+ * El contador de jornada, que esta en una ola propia y de otra naturaleza.
+ *
+ * La ola de un tablero cambia una vez por pagina; la de los contadores se repite **cada segundo**, y
+ * su ventana entera —`RANURAS_DE_CONTADOR`— tiene que cerrarse antes de que llegue el valor
+ * siguiente. Con los 32 ms del tablero las 34 ranuras darian 1,09 s: la ultima fila voltearia un valor
+ * que ya caduco y la pared mentiria la hora. Con 26 ms son 0,88 s y la ventana cierra a tiempo.
+ */
+.solari-contador {
   --escalon: 26ms;
 }
 
@@ -549,8 +575,8 @@
 /*
  * El aire entre las dos tablas de `trabajando`.
  *
- * Cuenta en el reparto de filas: son los ~1.6vmin que `REPARTO_DE_TRABAJANDO` descuenta junto a la
- * cabecera y los rotulos del segundo bloque. Si crece hay que volver a bajar el reparto, o la ultima
+ * Cuenta en el reparto de filas: son los ~1.6vmin que `BANDA_DE_TRABAJANDO` descuenta junto a la
+ * cabecera y los rotulos del segundo bloque. Si crece hay que volver a bajar la banda, o la ultima
  * fila del area se cae del marco sin dejar rastro.
  */
 .pantalla-dos-tablas {

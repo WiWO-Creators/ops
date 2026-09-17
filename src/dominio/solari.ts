@@ -32,28 +32,58 @@
  */
 
 /**
- * Los glifos por los que puede pasar un rodillo.
+ * === UN TAMBOR POR CLASE DE CARACTER, Y ESTO NO ES UN DETALLE ===
  *
- * Son mayusculas y digitos, como en un panel de verdad, aunque el caracter final sea minuscula: lo que
- * se ve mientras gira tiene que leerse como ruido mecanico, no como una palabra a medio escribir.
+ * En un panel de Solari cada posicion es un rodillo FISICO con un juego fijo de aletas, y no puede
+ * enseñar nada que no lleve montado. Un rodillo de digitos tiene diez aletas y ninguna letra: por eso
+ * un reloj de un aeropuerto pasa de `7` a `2` por `8, 9, 0, 1, 2` y jamas por una `W`.
  *
- * El orden importa y es el que se recorre hacia atras para armar los intermedios. La `Ñ` esta en su
- * sitio del alfabeto castellano porque esta pared es de una oficina chilena y un apellido con eñe no
- * puede quedarse sin volteo.
+ * La primera version de este archivo tenia UN solo tambor con las letras y los digitos pegados, y el
+ * resultado se vio en la pared: un contador mostrando `0:09:2W`. Una `W` dentro de un reloj no existe
+ * en ningun panel del mundo, y el efecto entero se leia como texto al azar en vez de como un
+ * mecanismo. De ahi la regla que gobierna todo el modulo:
+ *
+ * - **Digito a digito.** El tambor es `0-9` y nada mas, ciclico.
+ * - **Letra a letra.** El tambor son las 26 letras sin acento, ciclico.
+ * - **Todo lo demas cae en un solo giro**: los dos puntos, el guion, el espacio, la coma, el punto —y
+ *   tambien las vocales acentuadas, la `Ñ` y la `Ü`—. No recorren nada: aparecen puestas.
+ *
+ * Y una consecuencia que hay que nombrar porque es donde el instinto se equivoca: **cada posicion
+ * recorre SU tambor y no sabe nada de sus vecinas**. Pasar de `9` a `10` no es una ficha que sube de
+ * nueve a diez: son dos posiciones distintas, la de las unidades yendo de `9` a `0` y la de las
+ * decenas apareciendo con un `1`. Nadie interpola el numero completo, y por eso la cuenta nunca
+ * enseña un valor que no existio.
  */
-export const ALFABETO_SOLARI = 'ABCDEFGHIJKLMNÑOPQRSTUVWXYZ0123456789'
+export const TAMBOR_DE_DIGITOS = '0123456789'
+
+/**
+ * El tambor de las letras: las 26 sin acento, en orden alfabetico.
+ *
+ * **Sin `Ñ` y sin vocales acentuadas a proposito.** Un rodillo con `Ñ` obligaria a decidir si `Á` gira
+ * por el camino de la `A` —y entonces el glifo que se lee mientras gira no es el que va a quedar— o si
+ * cada acento se monta en su propia aleta, que son siete aletas mas por rodillo para un caracter que
+ * aparece una vez cada doscientas. Cayendo en un solo giro, el acento y la eñe se dibujan enteros
+ * desde el primer fotograma y nunca se rompen; ver `tamborDeGlifo()`.
+ */
+export const TAMBOR_DE_LETRAS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
 
 /**
  * Cuantos glifos intermedios recorre cada caracter antes del suyo.
  *
- * Seis es el minimo que todavia se lee como un rodillo girando y no como un parpadeo; por encima de
+ * Cinco es el minimo que todavia se lee como un rodillo girando y no como un parpadeo; por encima de
  * diez el caracter pasa mas tiempo ilegible que legible, y esta pared se lee de pie y de pasada. Cada
  * paso suma una linea de texto al DOM, asi que el numero es tambien el coste.
+ *
+ * **Bajo de seis a cinco al partir el tambor por clase**, y las dos cosas van juntas: el tambor de
+ * digitos tiene diez aletas, asi que un recorrido largo le daba casi una vuelta entera y el digito
+ * pasaba mas tiempo mintiendo que diciendo su valor. Ademas, lo que gira en el mismo fotograma es la
+ * duracion del giro partida por el escalon, y la duracion sale de los pasos: acortar el recorrido baja
+ * el pico en la misma proporcion sin quitarle ni una ficha al volteo.
  *
  * Es el promedio: el recorrido real de cada posicion lo decide `pasosDeGlifo()`, que lo hace desigual
  * a proposito.
  */
-export const PASOS_POR_GLIFO = 6
+export const PASOS_POR_GLIFO = 5
 
 /**
  * El recorrido mas corto y el mas largo que puede tocarle a una posicion.
@@ -68,15 +98,20 @@ export const PASOS_POR_GLIFO = 6
  * reves—, las que tienen mas camino tardan mas y el conjunto se asienta desordenado, que es el gesto
  * que hace que el efecto se lea como mecanico.
  *
- * Cuatro y nueve, y no las 3 a 7 vueltas al tambor completo que usa el panel del que viene esta idea:
+ * Tres y siete, y no las 3 a 7 vueltas al tambor completo que usa el panel del que viene esta idea:
  * una vuelta entera son decenas de glifos, y acá cada glifo es una linea de texto mas en el DOM de
  * una pared que corre en un stick HDMI. El desorden se consigue igual con la diferencia relativa, que
  * es lo que el ojo lee, y no con el largo absoluto.
+ *
+ * **El techo bajo de nueve a siete cuando el tambor se partio por clase**, y el motivo es el tambor de
+ * digitos: tiene diez aletas, asi que nueve pasos eran casi la vuelta completa y el `7` de un reloj se
+ * pasaba el giro entero enseñando los otros nueve digitos. Con siete el recorrido sigue leyendose como
+ * un rodillo y el valor aparece antes.
  */
-export const PASOS_MINIMOS = 4
+export const PASOS_MINIMOS = 3
 
 /** Ver `PASOS_MINIMOS`. */
-export const PASOS_MAXIMOS = 9
+export const PASOS_MAXIMOS = 7
 
 /**
  * Nunca mas de estos rodillos por texto.
@@ -119,63 +154,95 @@ export interface GlifoSolari {
 }
 
 /**
- * El ancho que reserva cada clase de caracter, en `em`.
+ * El ancho que reserva cada caracter, en `em`, **medido en la fuente de la pared**.
  *
  * === POR QUE UNA TABLA Y NO EL ANCHO REAL DEL GLIFO ===
  *
- * El hueco tiene que medir lo mismo durante todo el volteo: dentro pasan siete glifos distintos, y si
- * el hueco midiera lo que mide el que esta encima, la celda cambiaria de ancho siete veces y empujaria
- * a sus vecinas. El marco de la pantalla es `overflow: hidden` sin barra de scroll, asi que eso no se
- * ve fallar: se lleva por delante la columna de al lado y nadie se entera.
+ * El hueco tiene que medir lo mismo durante todo el volteo: dentro pasan varios glifos distintos, y si
+ * el hueco midiera lo que mide el que esta encima, la celda cambiaria de ancho en cada paso y
+ * empujaria a sus vecinas. El marco de la pantalla es `overflow: hidden` sin barra de scroll, asi que
+ * eso no se ve fallar: se lleva por delante la columna de al lado y nadie se entera.
  *
- * Asi que el ancho se fija de antemano, por clase de caracter. No es el ancho exacto de la fuente
- * —seria imposible sin medirlo en el navegador— pero es mucho mas fiel que un ancho unico: una `i` y
- * una `m` dejan de ocupar lo mismo, y el texto deja de leerse como una maquina de escribir.
+ * === POR QUE ES UNA MEDIDA Y YA NO SEIS CLASES A OJO ===
  *
- * Los valores vienen calibrados de un panel Solari ya en produccion en otro proyecto; el resto de
- * clases se completo por continuidad con esas.
+ * Hasta acá habia seis clases —ancha, fina, puntuacion, digito, mayuscula, normal— con anchos puestos
+ * a ojo, y **el hueco recortaba el glifo por la derecha**. Se veia en la captura del televisor y no era
+ * sutil: la `O` mayuscula mide 0.80em en esta fuente y reservaba 0.72, asi que la pared escribia
+ * "REDISEÑC DE MARCA", "AUTCGESTIÓN" y "JCRNADA". Lo mismo la `W` (0.99 contra 0.90), la `%` y los
+ * puntos suspensivos del recorte, que miden 0.81em y reservaban 0.30 — por eso un texto recortado
+ * terminaba en un punto suelto en vez de en `…`.
+ *
+ * Asi que los anchos se **midieron** con `getComputedStyle` de un hueco de la pared ya dibujada y
+ * `measureText` de cada caracter en la familia de verdad (`Outfit`, con `tabular-nums`, que es como
+ * van todas las tiras). Cada uno se redondea hacia ARRIBA al multiplo de 0.04em: el redondeo tiene que
+ * ser hacia arriba porque un hueco de menos recorta el glifo y uno de mas solo deja aire.
+ *
+ * Al medirlos, ademas, el tablero se aprieta: las mayusculas promedian 0.66em en vez de los 0.72 que
+ * reservaban todas por igual, y una `i` reserva 0.28 en vez de 0.42. Ninguna columna se pasa de ancho
+ * por esto — solo dejan de sobrar huecos.
+ *
+ * Si la pared cambia de fuente hay que volver a medir. Es el precio de no recortar glifos, y es el
+ * correcto: una tabla desactualizada deja aire de mas, y eso se ve mucho menos que una `O` que se lee
+ * como una `C`.
  */
-const ANCHOS_EN_EM = {
-  /** Digitos: van con `tabular-nums`, asi que todos miden igual por definicion. */
-  digito: 0.66,
-  /** Las letras anchas de verdad. */
-  ancha: 0.9,
-  /** Las letras finas, que con un ancho medio dejan un agujero a cada lado. */
-  fina: 0.42,
-  /** Puntos, comas, dos puntos: casi todo aire. */
-  puntuacion: 0.3,
-  /** Mayusculas, que en cualquier fuente son mas anchas que su minuscula. */
-  mayuscula: 0.72,
-  /** Todo lo demas. */
-  normal: 0.58
-} as const
+const ANCHOS_MEDIDOS: ReadonlyArray<readonly [number, string]> = [
+  [0.20, ' ·'],
+  [0.28, 'ijlí\''],
+  [0.32, 'IÍ.,:;()¡!|'],
+  [0.36, 'º'],
+  [0.40, 't/°'],
+  [0.44, 'fr"'],
+  [0.48, 'sz-'],
+  [0.52, 'Jc¿?*'],
+  [0.56, 'ekuvxyéúü'],
+  [0.60, '0123456789EFLSZÉabdghnopqáóñ–+'],
+  [0.64, 'BPRT'],
+  [0.68, 'Y%&'],
+  [0.72, 'ACHKUVXÁÚÜ'],
+  [0.76, 'DNÑ@'],
+  [0.80, 'GOÓw'],
+  [0.84, 'Q…'],
+  [0.88, 'Mm—'],
+  [1.00, 'W']
+]
 
-/** Las letras que miden claramente mas que la media. */
-const LETRAS_ANCHAS = 'MWmw%@'
+/**
+ * Lo que reserva un caracter que no esta en la tabla.
+ *
+ * Generoso a proposito: un emoji, una letra de otro alfabeto o un simbolo raro caen acá, y de los tres
+ * el unico fallo que se ve desde el pasillo es el glifo cortado por la mitad. Un hueco con aire de mas
+ * no lo nota nadie; una `Ж` partida, si.
+ */
+const ANCHO_DESCONOCIDO = 1.0
 
-/** Las letras que miden claramente menos que la media. */
-const LETRAS_FINAS = 'IiltfjJ'
-
-/** Lo que es casi todo aire y no merece un hueco de letra. */
-const PUNTUACION = ' .,:;!¡?¿\'"`|()[]{}-–—/\\*+·°º…'
+/** La tabla de `ANCHOS_MEDIDOS` vuelta un indice por caracter. Se arma una vez por proceso. */
+const ANCHOS_POR_GLIFO: ReadonlyMap<string, number> = new Map(
+  ANCHOS_MEDIDOS.flatMap(([ancho, glifos]) => Array.from(glifos, (glifo) => [glifo, ancho] as const))
+)
 
 /**
  * El ancho que reserva un caracter, en `em`.
  *
+ * Primero por la tabla medida; si no esta, por su letra base sin acento —asi una `à` reserva lo de una
+ * `a` en vez de caer en el ancho de respaldo—; y si tampoco, `ANCHO_DESCONOCIDO`.
+ *
  * @param glifo el caracter que va a quedar en el hueco
- * @returns el ancho en `em`; ver `ANCHOS_EN_EM`
+ * @returns el ancho en `em`; ver `ANCHOS_MEDIDOS`
  */
 export function anchoDeGlifo (glifo: string): number {
-  if (glifo === '') return ANCHOS_EN_EM.puntuacion
-  if (LETRAS_ANCHAS.includes(glifo)) return ANCHOS_EN_EM.ancha
-  if (LETRAS_FINAS.includes(glifo)) return ANCHOS_EN_EM.fina
-  if (PUNTUACION.includes(glifo)) return ANCHOS_EN_EM.puntuacion
-  if (glifo >= '0' && glifo <= '9') return ANCHOS_EN_EM.digito
-  // Una mayuscula es un caracter que cambia al pasarlo a minuscula: vale para acentos y para la eñe
-  // sin escribir el alfabeto dos veces.
-  if (glifo !== glifo.toLowerCase()) return ANCHOS_EN_EM.mayuscula
+  if (glifo === '') return ANCHOS_POR_GLIFO.get(' ') ?? ANCHO_DESCONOCIDO
 
-  return ANCHOS_EN_EM.normal
+  return ANCHOS_POR_GLIFO.get(glifo) ?? ANCHOS_POR_GLIFO.get(sinAcento(glifo)) ?? ANCHO_DESCONOCIDO
+}
+
+/**
+ * La letra base de un caracter: `Í` da `I`, `ñ` da `n`, y lo que no lleva marcas se devuelve tal cual.
+ *
+ * Solo sirve para **clasificar** el ancho de lo que no esta medido. Lo que se dibuja es siempre el
+ * caracter original: acá no se decide ni un glifo de la pared.
+ */
+function sinAcento (glifo: string): string {
+  return glifo.normalize('NFD').replace(/[\u0300-\u036f]/gu, '')
 }
 
 /**
@@ -203,34 +270,78 @@ export function pasosDeGlifo (glifo: string, indice: number): number {
 }
 
 /**
+ * El tambor que le toca a un caracter, o `null` si no gira.
+ *
+ * Es la funcion que hace cumplir la regla de arriba: un caracter solo puede recorrer el juego de
+ * glifos de SU clase. Un digito nunca puede devolver una letra intermedia y una letra nunca puede
+ * devolver un digito, y eso es una propiedad del tipo de dato, no una casualidad del recorrido.
+ *
+ * Lo que devuelve `null` —y por tanto se dibuja quieto desde el primer fotograma— es todo lo que no
+ * tiene rodillo propio: el espacio, la puntuacion, los simbolos, los emojis, las vocales acentuadas,
+ * la `Ñ` y la `Ü`. Un acento que no gira es un acento que no se puede romper a mitad de giro, que es
+ * justo lo que la pared estaba enseñando.
+ *
+ * @param destino el caracter de destino, ya partido por punto de codigo
+ * @returns el tambor por el que gira, o `null` si cae en un solo giro
+ */
+function tamborDeGlifo (destino: string): string | null {
+  if (destino === '' || destino.length > 2) return null
+
+  if (TAMBOR_DE_DIGITOS.includes(destino)) return TAMBOR_DE_DIGITOS
+
+  const mayuscula = destino.toUpperCase()
+
+  // El largo se comprueba porque hay minusculas que crecen al subir de caja —la `ß` da `SS`— y una
+  // busqueda de dos caracteres dentro del tambor daria un indice que no es el de ninguna aleta.
+  if (mayuscula.length === 1 && TAMBOR_DE_LETRAS.includes(mayuscula)) return TAMBOR_DE_LETRAS
+
+  return null
+}
+
+/**
  * Los glifos intermedios de un caracter, en orden de aparicion.
  *
- * Recorre `ALFABETO_SOLARI` hacia atras desde el destino, dando la vuelta cuando se acaba, y devuelve
- * el camino de ida: primero el mas lejano, ultimo el destino. El destino se devuelve **tal cual
- * llego** —con su acento y su caja—, aunque los intermedios se hayan buscado por su mayuscula sin
- * acentuar: lo que queda fijo en la pared tiene que ser el texto de verdad y no una aproximacion.
+ * Recorre el tambor de SU clase hacia atras desde el destino, dando la vuelta cuando se acaba, y
+ * devuelve el camino de ida: primero el mas lejano, ultimo el destino.
+ *
+ * === EL CAMINO VA EN LA CAJA DEL DESTINO ===
+ *
+ * `TAMBOR_DE_LETRAS` esta en mayusculas porque es el ORDEN del rodillo, no su dibujo. Lo que se pinta
+ * se pasa a la caja del destino: una `e` recorre `z a b c d` y no `Z A B C D`.
+ *
+ * No es prolijidad tipografica, es el mismo recorte que ya obligo a medir los anchos. El hueco mide lo
+ * que reserva el destino —`anchoDeGlifo()`— y tiene `overflow: hidden`: una `e` reserva 0.56em y una
+ * `W` mide 1.00, asi que el camino en mayusculas de una palabra en caja mixta se dibujaba cortado por
+ * los dos lados. En la captura del televisor "Desarrollo" giraba como "XYLUNrollo", con cinco
+ * mayusculas apretadas contra las minusculas quietas de la cola. En la caja del destino el camino se
+ * mueve dentro de la misma banda de anchos que el hueco reservo, y ademas es lo que hace un panel de
+ * verdad: un rodillo es UN juego de aletas, no dos.
  *
  * @param destino    el caracter en el que el rodillo se detiene
- * @param pasos      cuantos glifos intermedios recorrer; se acota a [1, largo del alfabeto]
+ * @param pasos      cuantos glifos intermedios recorrer; se acota a [1, largo de su tambor]
  * @returns la secuencia, de `pasos + 1` elementos, o `null` si el caracter no voltea
  */
 export function rodilloDeGlifo (destino: string, pasos: number = PASOS_POR_GLIFO): string[] | null {
-  if (destino === '') return null
+  const tambor = tamborDeGlifo(destino)
 
-  const indice = ALFABETO_SOLARI.indexOf(comoGlifo(destino))
+  // Un espacio, un signo de puntuacion, un emoji, un acento: no hay tambor por el que hacerlo girar, y
+  // un rodillo de un solo glifo es DOM para no mover nada. Se dibuja quieto.
+  if (tambor === null) return null
 
-  // Un espacio, un signo de puntuacion, un emoji: no hay alfabeto por el que hacerlo girar y un
-  // rodillo de un solo glifo es DOM para no mover nada. Se dibuja quieto.
-  if (indice < 0) return null
-
-  const largo = ALFABETO_SOLARI.length
+  const largo = tambor.length
+  const indice = tambor.indexOf(destino.toUpperCase())
   const cuantos = Math.min(Math.max(Math.floor(pasos), 1), largo)
   const secuencia: string[] = []
 
-  // Se recorre hacia atras desde el mas lejano —`cuantos` posiciones antes del destino— hasta el
-  // destino, que entra al final y con su caja original.
+  // Un destino en minuscula pinta su camino en minuscula. Se pregunta por el destino y no por el
+  // tambor porque los digitos no tienen caja: `'7'.toLowerCase()` es `'7'` y la rebaja no los toca.
+  const enMinuscula = destino !== destino.toUpperCase()
+
+  // Se recorre hacia atras desde el mas lejano —`cuantos` aletas antes del destino— hasta el destino,
+  // que entra al final y tal cual llego.
   for (let salto = cuantos; salto > 0; salto -= 1) {
-    secuencia.push(ALFABETO_SOLARI[(indice - salto + largo) % largo] as string)
+    const glifo = tambor[(indice - salto + largo) % largo] as string
+    secuencia.push(enMinuscula ? glifo.toLowerCase() : glifo)
   }
 
   secuencia.push(destino)
@@ -338,23 +449,6 @@ export function cintaDeRodillo (rodillo: string[]): string {
 }
 
 /**
- * La mayuscula sin acento de un caracter, que es como se busca en el alfabeto.
- *
- * Sin esto, ni una minuscula ni una vocal acentuada voltearian, y en castellano eso es casi todo el
- * texto de la pared.
- */
-function comoGlifo (caracter: string): string {
-  const mayuscula = caracter.toUpperCase()
-
-  // La `Ñ` se atiende antes de descomponer: tiene entrada propia en el alfabeto, y quitarle la tilde
-  // la convertiria en una `N` — que es otra letra y no el glifo que la pared tiene que enseñar.
-  if (mayuscula === 'Ñ') return 'Ñ'
-
-  // Para el resto, fuera las marcas diacriticas: `Á` busca por `A`, que si esta en el alfabeto.
-  return mayuscula.normalize('NFD').replace(/[̀-ͯ]/g, '')
-}
-
-/**
  * === LA OLA DEL TABLERO ===
  *
  * Lo de arriba resuelve UN texto. Lo que sigue resuelve una PANTALLA entera de textos, que es un
@@ -387,19 +481,22 @@ function comoGlifo (caracter: string): string {
  * Cuantas fichas pueden girar, como mucho, en un cambio de pagina.
  *
  * Sale de las dos restricciones a la vez. Por arriba: la ola dura `RANURAS_DE_OLA * --escalon`, y con
- * los 26 ms del tablero son ~4,4 s de los 10 a 20 que dura una pagina — la pared se mueve menos de un
+ * los 32 ms del tablero son ~4,5 s de los 10 a 20 que dura una pagina — la pared se mueve menos de un
  * cuarto del tiempo y esta quieta el resto, que es la condicion para leerla de pie y de pasada. Por
  * abajo: menos ranuras dejarian filas enteras sin una sola ficha girando, y entonces el cambio de
  * pagina se leeria como un reemplazo de texto y no como un panel.
  *
  * El numero se afino midiendo, no razonando: ver el bloque de medicion del informe de la rama. Con 190
  * ranuras a 16 ms el pico medido fue de 68 fichas y la pared bajo a 39 fps con saltos de 333 ms; con
- * 170 a 26 ms —y el giro de `--velocidad` acortado— el pico cae al orden de las que se sabe que rinden.
+ * 170 a 26 ms el pico bajo al orden de las veinte, que seguia por encima de las ~14 que se sabe que
+ * rinden. Con **140 a 32 ms** la ola dura lo mismo —lo que se movio es el reparto, no la duracion— y
+ * el pico cae otro tercio: el pico es el giro partido por el escalon, y el giro tambien se acorto al
+ * bajar `PASOS_MAXIMOS`.
  *
  * **No es un tope de fichas en pantalla**: los huecos que no entran en el presupuesto existen igual y
  * muestran su caracter definitivo desde el primer fotograma. Lo que se reparte es el movimiento.
  */
-export const RANURAS_DE_OLA = 170
+export const RANURAS_DE_OLA = 140
 
 /**
  * El minimo y el maximo de fichas que giran en UNA fila.
@@ -644,10 +741,15 @@ export const TOPE_DE_CONTADOR = 2
  * por pagina, pero la de los contadores se repite **cada segundo**. Si la ultima fila arrancara mas
  * de un segundo tarde, su digito voltearia un valor que ya no es el suyo — la pared mentiria.
  *
- * Treinta y cuatro ranuras con el escalon de 26 ms del tablero son 0,88 s: la ola baja por la columna
+ * Treinta y cuatro ranuras con los 26 ms de `.solari-contador` son 0,88 s: la ola baja por la columna
  * entera y se cierra antes de que llegue el valor siguiente, tenga la tabla quince filas o las ~36 de
  * `trabajando`. Y como el reparto es proporcional, cuantas menos filas haya mas separadas arrancan, que
  * es justo lo que baja el pico donde sobra sitio para bajarlo.
+ *
+ * **El contador tiene escalon propio y no el del tablero**, justamente por esto: el escalon del tablero
+ * subio a 32 ms para bajar el pico de un cambio de pagina, y con el la ventana pasaria de un segundo —o
+ * sea, la ultima fila voltearia un valor que ya no es el suyo y la pared mentiria—. Ver
+ * `.solari-contador` en `pantalla.css`.
  */
 export const RANURAS_DE_CONTADOR = 34
 

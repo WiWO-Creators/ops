@@ -9,7 +9,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
-  CLASES_DE_ESCENA, PERIODO_DE_DATO_MS, REJILLAS, REPARTO_DE_TRABAJANDO, TABLA_AREA, TABLA_EMPRESA,
+  BANDA_DE_TRABAJANDO, CLASES_DE_ESCENA, PERIODO_DE_DATO_MS, REJILLAS, TABLA_AREA, TABLA_EMPRESA,
   TOPE_DE_ANUNCIOS, TOPE_DE_PAGINAS, construirGuion, faseDeDato, firmaDelGuion, frescuraDe,
   intervaloConBackoff, leerParametrosDePantalla, proximaEscenaViva, proximoRecargado, tablaDeEscena
 } from '../src/dominio/pantalla-area.ts'
@@ -134,6 +134,8 @@ test('cada pagina es una entrada propia del guion', () => {
   const guion = construirGuion(paquete({ cronometros: gente(REJILLAS.horizontal.cronometros + 1) }), PARAMETROS)
 
   assert.deepEqual(guion.map((e) => e.id), ['portada', 'cronometros#1', 'cronometros#2'])
+  // A tope y no parejo: una escena de UNA tabla llena la banda entera en cada pagina. El reparto
+  // parejo es de `trabajando`, donde un bloque corto deja un hueco entre dos bloques.
   assert.equal(unica(guion[1]).items.length, REJILLAS.horizontal.cronometros)
   assert.equal(unica(guion[2]).items.length, 1)
 })
@@ -514,10 +516,59 @@ test('con las dos listas llenas se dibujan las dos tablas, cada una con su repar
   const paginas = paginasDeTrabajando(guion)
   const { empresa, area } = dosTablas(paginas[0])
 
-  assert.equal(empresa.items.length, REPARTO_DE_TRABAJANDO.horizontal.empresa)
+  // El area pide 5 y se los lleva; la compañia se queda con las 19 que sobran de la banda, y como no
+  // le alcanzan para sus 30 las reparte en dos paginas parejas de 15.
   assert.equal(area.items.length, 5)
+  assert.equal(empresa.items.length, 15)
   assert.equal(empresa.total, 30, 'cada tabla lleva su total real')
   assert.equal(area.total, 5)
+})
+
+test('las dos listas caben enteras cuando suman la banda: nadie pagina de mas', () => {
+  // El caso exacto que el usuario vio roto: 13 en la compañia y 11 en el area. Con el reparto fijo
+  // de antes el area enseñaba 3 de sus 11 en una segunda pagina y dejaba medio televisor vacio.
+  const guion = construirGuion(
+    paquete({ empresa: gente(13, 100), trabajando: gente(11) }),
+    PARAMETROS
+  )
+  const paginas = paginasDeTrabajando(guion)
+  const { empresa, area } = dosTablas(paginas[0])
+
+  assert.equal(paginas.length, 1, 'con 24 personas y una banda de 24 no hay nada que paginar')
+  assert.equal(empresa.items.length, 13)
+  assert.equal(area.items.length, 11, 'la tabla que dice 11 tiene que enseñar 11')
+  assert.equal(area.ocultos, 0)
+  assert.equal(empresa.ocultos, 0)
+})
+
+test('lo que la compañia no necesita se lo queda el area', () => {
+  const guion = construirGuion(
+    paquete({ empresa: gente(5, 100), trabajando: gente(19) }),
+    PARAMETROS
+  )
+  const paginas = paginasDeTrabajando(guion)
+  const { empresa, area } = dosTablas(paginas[0])
+
+  assert.equal(paginas.length, 1)
+  assert.equal(empresa.items.length, 5)
+  assert.equal(area.items.length, 19, 'el area no se queda en la mitad de la banda si hay sitio')
+})
+
+test('una tabla que pagina reparte sus filas parejo y no deja una pagina a medias', () => {
+  // 11 personas con un cupo de 8 daban 8 y 3, y ese bloque de 3 es lo que se lee como una pantalla
+  // rota. Repartidas parejo salen 6 y 5.
+  const guion = construirGuion(
+    paquete({ empresa: gente(20, 100), trabajando: gente(19) }),
+    PARAMETROS
+  )
+  const paginas = paginasDeTrabajando(guion)
+  const largos = paginas.map((pagina) => dosTablas(pagina).area.items.length)
+
+  assert.deepEqual(largos, [10, 9])
+  assert.ok(
+    Math.max(...largos) - Math.min(...largos) <= 1,
+    'un bloque que cambia de alto entre paginas se lee como que la pared se rompio'
+  )
 })
 
 test('las dos listas se solapan a proposito: nadie se deduplica', () => {
@@ -545,11 +596,12 @@ test('en la pantalla global se dibuja UNA tabla, y se lleva la banda entera', ()
   const { empresa, area } = dosTablas(paginas[0])
 
   assert.equal(area, null, 'sin area no hay bloque del area, ni vacio ni en hueco')
-  assert.equal(
-    empresa.items.length,
-    REJILLAS.horizontal.trabajando,
+  assert.ok(
+    empresa.items.length <= REJILLAS.horizontal.trabajando,
     'sin el segundo bloque vuelven su cabecera y sus rotulos: la banda entera es de la compañia'
   )
+  // 40 personas en una banda de 28 son dos paginas, y se reparten parejo: 20 y 20.
+  assert.equal(empresa.items.length, 20)
   assert.deepEqual(paginas.map((e) => e.id), ['trabajando#e1a0', 'trabajando#e2a0'])
 })
 
@@ -610,7 +662,9 @@ test('la tabla corta se queda clavada en su ultima pagina en vez de desaparecer'
 })
 
 test('cada tabla lleva su propio tope de paginas', () => {
-  const cuantos = REPARTO_DE_TRABAJANDO.horizontal.empresa * TOPE_DE_PAGINAS + 5
+  // Con 3 personas en el area, a la compañia le quedan las otras 21 filas de la banda.
+  const cupo = BANDA_DE_TRABAJANDO.horizontal - 3
+  const cuantos = cupo * TOPE_DE_PAGINAS + 5
   const guion = construirGuion(
     paquete({ empresa: gente(cuantos, 100), trabajando: gente(3) }),
     PARAMETROS
@@ -669,7 +723,7 @@ test('la firma NO cambia porque entre o salga una persona que cabe en la pagina 
 })
 
 test('la firma SI cambia cuando una tabla gana una pagina', () => {
-  const cabe = REPARTO_DE_TRABAJANDO.horizontal.empresa
+  const cabe = BANDA_DE_TRABAJANDO.horizontal - 4
   const antes = firmaDelGuion(construirGuion(
     paquete({ empresa: gente(cabe, 100), trabajando: gente(4) }), PARAMETROS
   ))
@@ -680,34 +734,50 @@ test('la firma SI cambia cuando una tabla gana una pagina', () => {
   assert.notEqual(antes, despues)
 })
 
-test('el reparto deja sitio para la cabecera y los rotulos del segundo bloque', () => {
+test('la banda de dos tablas deja sitio para la cabecera y los rotulos del segundo bloque', () => {
   for (const orientacion of ['horizontal', 'vertical']) {
-    const { empresa, area } = REPARTO_DE_TRABAJANDO[orientacion]
+    const juntas = BANDA_DE_TRABAJANDO[orientacion]
     const banda = REJILLAS[orientacion].trabajando
     // Tumbada la escena va a dos columnas, asi que cada renglon visual son DOS personas.
     const porRenglon = orientacion === 'horizontal' ? 2 : 1
-    const renglonesDeMas = (banda - (empresa + area)) / porRenglon
+    const renglonesDeMas = (banda - juntas) / porRenglon
 
     assert.ok(
       renglonesDeMas >= 2,
-      `${orientacion}: el segundo bloque cuesta ~2 renglones y el reparto solo deja ${renglonesDeMas}`
+      `${orientacion}: el segundo bloque cuesta ~2 renglones y la banda solo deja ${renglonesDeMas}`
     )
-    assert.ok(empresa > area, `${orientacion}: la lista larga es la de la compañia`)
   }
 })
 
-test('cada orientacion reparte las dos tablas con su propia rejilla', () => {
+test('las dos tablas juntas nunca reservan mas filas que la banda', () => {
+  for (const orientacion of ['horizontal', 'vertical']) {
+    const juntas = BANDA_DE_TRABAJANDO[orientacion]
+
+    for (const [cuantosEmpresa, cuantosArea] of [[13, 11], [40, 8], [5, 19], [30, 2], [42, 20]]) {
+      const guion = construirGuion(
+        paquete({ empresa: gente(cuantosEmpresa, 100), trabajando: gente(cuantosArea) }),
+        PARAMETROS,
+        orientacion
+      )
+      const { empresa, area } = dosTablas(paginasDeTrabajando(guion)[0])
+
+      assert.ok(
+        empresa.items.length + area.items.length <= juntas,
+        `${orientacion} ${cuantosEmpresa}/${cuantosArea}: se reservaron mas filas que la banda`
+      )
+    }
+  }
+})
+
+test('cada orientacion reparte las dos tablas con su propia banda', () => {
   const relleno = { empresa: gente(40, 100), trabajando: gente(20) }
   const tumbado = construirGuion(paquete(relleno), PARAMETROS, 'horizontal')
   const dePie = construirGuion(paquete(relleno), PARAMETROS, 'vertical')
 
-  assert.equal(
+  assert.ok(
+    dosTablas(paginasDeTrabajando(dePie)[0]).empresa.items.length >
     dosTablas(paginasDeTrabajando(tumbado)[0]).empresa.items.length,
-    REPARTO_DE_TRABAJANDO.horizontal.empresa
-  )
-  assert.equal(
-    dosTablas(paginasDeTrabajando(dePie)[0]).empresa.items.length,
-    REPARTO_DE_TRABAJANDO.vertical.empresa
+    'de pie caben mas filas, asi que la compañia se lleva mas'
   )
 })
 
