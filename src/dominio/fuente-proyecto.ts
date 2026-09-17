@@ -88,6 +88,14 @@ export interface FuenteDeProyecto extends FuenteDeTarea {
   /** Un acta con su contenido. Plantilla con `:id` del acta. */
   acta: string
   /**
+   * Un acta en otro idioma. Plantilla con `:id` del acta; el idioma se pega con `conIdioma()`.
+   *
+   * Es la misma ruta en los dos sujetos y aun asi sale de la fuente, por lo mismo que el resto: el
+   * panel la usa con GET, PATCH y DELETE y el portal solo con GET, y quien decide eso son las
+   * capacidades, no el dibujo.
+   */
+  actaTraduccion: string
+  /**
    * Conteo de Procesos por estado, para las tarjetas de arriba de la tabla.
    *
    * `null` cuando el sujeto no tiene ese recurso: el panel se dibuja igual sin el.
@@ -118,6 +126,17 @@ export interface FuenteDeProyecto extends FuenteDeTarea {
  */
 export function conId (plantilla: string, id: number): string {
   return plantilla.replace(':id', encodeURIComponent(String(id)))
+}
+
+/**
+ * Pega el idioma al final de una ruta de traduccion.
+ *
+ * Existe en vez de un `:idioma` en la plantilla porque el idioma no es parte de la identidad del
+ * recurso del mismo modo que el id: la misma ruta base sirve para pedir ingles y chino, y quien la
+ * usa cambia de idioma sin volver a armar la plantilla.
+ */
+export function conIdioma (ruta: string, idioma: string): string {
+  return `${ruta}/${encodeURIComponent(idioma)}`
 }
 
 /**
@@ -182,6 +201,7 @@ export function fuenteDelPanel (proyectoId: number): FuenteDeProyecto {
     gantt: `${raiz}/gantt`,
     actas: `${raiz}/actas`,
     acta: `${raiz}/actas/:id`,
+    actaTraduccion: `${raiz}/actas/:id/traducciones`,
     resumenDeTareas: `${raiz}/tasks/summary`,
     camposDeTareas: 'custom-fields?para=tasks',
     dependenciasDeTareas: `${raiz}/tasks/dependencies`
@@ -220,6 +240,7 @@ export function fuenteDelPortal (proyectoId: number): FuenteDeProyecto {
     gantt: `${raiz}/gantt`,
     actas: `${raiz}/actas`,
     acta: `${raiz}/actas/:id`,
+    actaTraduccion: `${raiz}/actas/:id/traducciones`,
     resumenDeTareas: null,
     camposDeTareas: null,
     dependenciasDeTareas: null

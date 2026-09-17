@@ -135,11 +135,40 @@ const ESTILO_DOCUMENTO = `
   }
 `
 
+/**
+ * Lo que se le agrega a la hoja cuando el documento esta en chino.
+ *
+ * Son fuentes DEL SISTEMA y no la Noto Sans SC que embebe el PDF: esa pesa 10 MB por corte, y
+ * bajarla para leer en pantalla seria pagar la descarga de un PDF cada vez que alguien abre el acta.
+ * Todos los sistemas operativos traen una tipografia china instalada —PingFang en macOS e iOS,
+ * Microsoft YaHei en Windows, Noto Sans CJK en Linux y Android—, asi que la pila de abajo resuelve
+ * en los cinco. La que se embebe importa en el PDF, que viaja a un computador que no controlamos.
+ *
+ * La tipografia de marca queda PRIMERO igual: el acta en chino sigue teniendo cifras, nombres
+ * propios y el identificador del proyecto en caracteres latinos, y esos se ven con la letra de la
+ * marca. El navegador cae a la pila china solo en los glifos que la primera no tiene, que es
+ * exactamente el comportamiento que se quiere.
+ */
+const ESTILO_CJK = `
+  body {
+    font-family: 'Plus Jakarta Sans', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei',
+      'Noto Sans CJK SC', 'Noto Sans SC', 'Source Han Sans SC', ui-sans-serif, system-ui, sans-serif;
+    /* El chino no separa palabras con espacios: sin esto, un parrafo largo desborda la caja. */
+    line-break: strict;
+    overflow-wrap: break-word;
+  }
+
+  /* Las cursivas sinteticas sobre hanzi los inclinan y los vuelven dificiles de leer; el chino
+     enfatiza con otros recursos, asi que se deja la redonda. */
+  em, i { font-style: normal; font-weight: 600 }
+`
+
 export function ContenidoHtml ({
   html,
   alto = 'h-[32rem]',
   titulo = 'Contenido del documento',
   marca = null,
+  idioma = 'es-CL',
   imprimible = false,
   ref
 }: {
@@ -159,6 +188,18 @@ export function ContenidoHtml ({
    */
   marca?: string | null
   /**
+   * El `lang` del documento: `es-CL`, `en` o `zh-Hans`.
+   *
+   * No es cosmetico. Decide como corta las lineas el navegador —el chino se corta entre caracteres
+   * y el ingles entre silabas—, que fuente del sistema elige para los glifos que la tipografia de
+   * marca no tiene, y que voz usa un lector de pantalla. Con `lang="es"` sobre un acta en chino, el
+   * navegador puede elegir la variante japonesa de un mismo caracter unificado, que un lector chino
+   * reconoce como mal escrito.
+   *
+   * Sale de `dominio/idiomas-acta.ts`, campo `etiquetaHtml`.
+   */
+  idioma?: string
+  /**
    * Permite que quien lo monta llame a `print()` sobre este iframe.
    *
    * Ver el docblock: relaja el `sandbox` a `allow-same-origin allow-modals` y **nunca** a
@@ -175,10 +216,12 @@ export function ContenidoHtml ({
   const tema = marca === null || marca === '' ? null : temaDeMarca(marca)
 
   const documento = `<!doctype html>
-<html lang="es"><head><meta charset="utf-8">
+<html lang="${idioma}"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${titulo}</title>
-<style>${ESTILO_DOCUMENTO}${tema === null ? '' : cssDeMarcas(origen)}</style></head>
+<style>${ESTILO_DOCUMENTO}${idioma.startsWith('zh') ? ESTILO_CJK : ''}${
+  tema === null ? '' : cssDeMarcas(origen)
+}</style></head>
 <body${tema === null ? '' : ` class="acta-marca ${claseDeMarca(tema.codigo)}"`}>${
   tema === null ? '' : cabeceraDeMarca(tema, origen)
 }${html}${tema === null ? '' : pieDeMarca(tema)}</body></html>`

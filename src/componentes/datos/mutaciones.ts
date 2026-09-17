@@ -54,6 +54,37 @@ export async function escribirEnBff<T> (
 }
 
 /**
+ * Lee una ruta del BFF con el mismo contrato de `escribirEnBff`: el error es un valor, no una
+ * excepcion.
+ *
+ * No reemplaza a `useRecurso`, que es lo que usa una pantalla para cargarse: ese revalida al volver
+ * a la pestaña y distingue la sesion cerrada. Esto es para una lectura puntual disparada por un
+ * clic —pedir el acta en otro idioma, por ejemplo— donde no hay ciclo de vida que seguir y lo unico
+ * que se necesita es el dato o el motivo por el que no vino.
+ *
+ * @param ruta Ruta sin la base del BFF ni barra inicial. Ej: `projects/12/actas/5/traducciones/en`.
+ */
+export async function leerDelBff<T> (ruta: string): Promise<Resultado<T>> {
+  let respuesta: Response
+
+  try {
+    respuesta = await fetch(`/api/bff/${ruta}`)
+  } catch {
+    return { ok: false, mensaje: 'No se pudo contactar al servidor. Revisa tu conexión.' }
+  }
+
+  if (!respuesta.ok) return { ok: false, mensaje: await mensajeDeRespuesta(respuesta) }
+
+  try {
+    const sobre = await respuesta.json() as { data: T }
+
+    return { ok: true, datos: sobre.data }
+  } catch {
+    return { ok: false, mensaje: 'El servidor respondió algo que no se pudo leer.' }
+  }
+}
+
+/**
  * Sube un archivo al BFF sin fijar el `content-type`: el navegador agrega el boundary multipart.
  *
  * @param campo Nombre del campo multipart que espera el endpoint (`image`, `file`, etc).

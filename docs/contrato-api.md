@@ -5960,6 +5960,108 @@ diría qué tiene el Espacio de origen a quien no puede verlo.
 - **No lo cubre el mock.** El mock no hace escritura sobre Espacios (ver "Lo que el mock no hace"),
   así que esta operación se prueba contra el backend real.
 
+### Rama `feat/actas-traducidas`
+
+El Meeting Paper en inglés y en chino simplificado. El acta se escribe siempre en español —así lo
+pide el prompt de generación— y de ahí se traduce; el español **no** se guarda como traducción,
+porque duplicar el mismo texto en dos filas es tener dos copias que se desincronizan en cuanto
+alguien corrija una.
+
+**La generación es lo único que vive bajo `/ia/*`.** Leer, corregir y descartar una traducción ya
+hecha cuelgan del Espacio y siguen respondiendo con `ia_habilitada` en `0`. Es la misma decisión que
+ya toma el acta: apagar la IA tiene que dejar de gastar, no hacer desaparecer un documento que
+alguien revisó y le mandó a un cliente.
+
+**Idiomas aceptados: `en` y `zh`.** Cualquier otro código es `404` —no `422`—, porque "no se traduce
+a ese idioma" es lo mismo que "esa ruta no existe". `zh` es siempre simplificado; la variante la fija
+el prompt y no la clave, para que no puedan convivir `zh` y `zh-CN` con el mismo documento.
+
+#### `POST /ia/proyectos/{id}/acta-traducir` — traduce y guarda
+
+Cuerpo: `{ "acta_id": 12, "idioma": "zh" }`. Responde con la traducción ya guardada, misma forma que
+el `GET` de abajo. No hay streaming: traducir un texto que ya existe tarda segundos, y un documento
+traducido a medias no se puede mostrar —lo que hay en pantalla es un acta cortada en mitad de una
+frase—.
+
+Pedirla de nuevo **pisa** la anterior, incluidas las correcciones a mano. Es el camino para descartar
+una traducción mala, y el frontend pregunta antes cuando `updated_by` no es `null`.
+
+| Caso | Respuesta |
+|---|---|
+| `ia_habilitada` en `0` | `404` (la rama entera no existe) |
+| Falta `acta_id` | `422` `{ "acta_id": ["required"] }` |
+| `idioma` que no es `en` ni `zh` | `422` `{ "idioma": ["invalid"] }` |
+| El acta no existe, está borrada o es de otro Espacio | `404` |
+| El acta existe pero está vacía | `422` `{ "acta_id": ["empty"] }` |
+| El proveedor falla o devuelve algo ilegible | `502` `provider_error` |
+
+#### `GET /projects/{id}/actas/{actaId}/traducciones/{idioma}` — leerla
+
+```json
+{ "data": {
+  "acta_id": 12,
+  "language": "zh",
+  "title": "会议纪要 - 启动会",
+  "content": "<h1>…</h1>",
+  "date_generated": "2026-09-17 10:22:04",
+  "generated_by": 183,
+  "date_updated": "2026-09-17 11:05:31",
+  "updated_by": null
+} }
+```
+
+`updated_by` es `null` mientras nadie la haya corregido: distingue "lo que escribió el modelo" de
+"lo que revisó una persona", que es lo primero que se pregunta quien va a mandar el documento.
+
+**No trae `structure`**, al contrario de la ficha del acta. La API la deriva del HTML buscando los
+nombres de campo en español (`Acción:`, `Responsable:`) y sobre un acta en chino no encuentra
+ninguno: devolvería una estructura vacía que se lee como un acta sin acuerdos. Los datos se siguen
+leyendo del original, que es su fuente de verdad.
+
+No hay listado de traducciones: sería el acta entera repetida por idioma. Los códigos que existen
+viajan en **`translations`** dentro de la ficha del acta (`GET /projects/{id}/actas/{actaId}`), como
+`["en", "zh"]` o `[]`. Sólo en la ficha, no en el listado.
+
+#### `PATCH` y `DELETE` sobre la misma ruta
+
+`PATCH` acepta `content`, `title` o los dos, y no llama a ningún modelo: es corregir a mano lo que el
+modelo escribió mal —el nombre de la empresa del cliente es justo lo que se equivoca—. Un cuerpo sin
+ninguna de las dos claves es `422` y no un `UPDATE` vacío que igual toca la fecha.
+
+`DELETE` borra de verdad, sin borrado blando: una traducción es derivada y se vuelve a pedir con una
+llamada al modelo, así que no hay historia que perder. Lo puede hacer cualquiera que vea el Espacio y
+no sólo el autor, al revés que borrar un acta: descartar una traducción mala se deshace con un botón,
+borrar un acta hace desaparecer el registro de una reunión de dos horas.
+
+| Caso | Respuesta |
+|---|---|
+| El acta no existe, está borrada o es de otro Espacio | `404` |
+| El acta existe pero no está traducida a ese idioma | `404` |
+| `PATCH` sin `content` ni `title` | `422` `{ "content": ["required"] }` |
+| `PATCH` con `content` que queda vacío tras sanear | `422` `{ "content": ["required"] }` |
+| `PATCH` con `title` de más de 255 caracteres | `422` `{ "title": ["length"] }` |
+| `DELETE` correcto | `204` |
+
+El HTML se sanea con `HtmlSeguro` en las dos entradas —lo que devuelve el modelo y lo que manda el
+editor—, igual que en el acta.
+
+#### `GET /portal/projects/{id}/actas/{actaId}/traducciones/{idioma}` — el cliente
+
+Exige la pestaña `actas` encendida (flag `wiwo_portal_actas`), igual que la ficha del acta. **Sólo
+`GET`**: traducir gasta y corregir es trabajo del equipo. El recorte quita `generated_by` y
+`updated_by`, que son rastro de cómo trabajamos nosotros.
+
+#### Lo que este frente NO hace
+
+- **No traduce automáticamente.** Ninguna acta se traduce al crearse: cada idioma es una llamada que
+  alguien pide. Traducir las 279 de golpe sería una factura sin nadie que la haya pedido.
+- **No traduce a la inversa.** No se puede escribir el acta en inglés y pedir el español: el original
+  es el español por definición, y `es` no es un idioma de destino válido.
+- **No toca `acta.title` ni `acta.content`.** Traducir no modifica el original en ninguna de sus
+  columnas; la traducción vive en su propia tabla (`tblapi_acta_traducciones`, migración `0700`).
+- **No reescribe fragmentos traducidos.** `acta-transformar` devuelve español —lo fija su prompt—,
+  así que sobre una traducción el editor del frontend queda sin IA y con la corrección a mano.
+
 ## Tiempo real
 
 `GET /config/realtime` → `{ "data": { "enabled": true, "key": "…", "cluster": "…" } }`
