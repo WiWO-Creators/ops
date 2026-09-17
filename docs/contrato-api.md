@@ -6062,6 +6062,143 @@ Exige la pestaña `actas` encendida (flag `wiwo_portal_actas`), igual que la fic
 - **No reescribe fragmentos traducidos.** `acta-transformar` devuelve español —lo fija su prompt—,
   así que sobre una traducción el editor del frontend queda sin IA y con la corrección a mano.
 
+### Rama `feat/tareas-del-acta`
+
+Las tareas que un Meeting Paper dejó comprometidas, antes de ser tareas. Al cerrar la generación del
+acta se calculan y se guardan como propuestas **pendientes** (`tblapi_acta_tareas`, migración
+`0710`). Una propuesta no es una tarea: se corrige, se descarta o se convierte, y recién al
+convertirla pasa por el alta de Procesos con su permiso, su transacción y su auditoría.
+
+**Por qué no se crean solas.** El modelo se equivoca, y una tarea creada a nombre de quien no era ya
+notificó, ya está en el tablero y ya la vio el cliente si el portal está abierto: deshacerla es
+borrar. Una propuesta que nadie confirma no le pasa a nadie. Es la misma línea de
+`POST /ia/tareas/interpretar` —interpretar no es crear—, pero persistida, porque el acta se genera en
+minutos y quien la revisa puede ser otra persona al día siguiente.
+
+**Dos fuentes, y `origen` dice cuál.** `acuerdo` y `compromiso` salen del parseo del HTML del acta,
+que es gratis y acierta en lo explícito porque la plantilla escribe `Acción:` y `Responsable:` en
+lugares fijos. `ia` es lo que agregó la llamada al modelo: el compromiso dicho en medio de un
+párrafo, que la plantilla no marca. **Si la llamada falla, quedan las del parseo**, que son las que
+el acta declara literalmente. `meta.origen_ia` dice si alguna costó una llamada.
+
+**Los ids no los escribe el modelo.** Devuelve nombres, y los resuelve la misma clase que resuelve el
+alta rápida: coincidencia exacta primero, prefijo después, y **dos coincidencias son cero**. Lo que
+no resuelve viaja en `no_resuelto` como texto (`persona "Juan"`, `fecha "la otra semana"`) con el
+campo vacío, para que lo complete una persona. Corregir ese campo por `PATCH` borra su aviso, y solo
+el suyo: arreglar el responsable no arregla la fecha.
+
+**Sólo volver a proponer vive bajo `/ia/*`.** Leer, corregir, descartar y convertir cuelgan del
+Espacio y siguen respondiendo con `ia_habilitada` en `0`, por lo mismo que el acta y sus
+traducciones.
+
+#### `GET /projects/{id}/actas/{actaId}/tareas` — la lista
+
+No pagina: un acta guarda 40 propuestas como máximo y la pantalla las muestra juntas.
+
+```json
+{
+  "data": {
+    "items": [
+      {
+        "id": 1,
+        "acta_id": 9,
+        "estado": "pendiente",
+        "titulo": "Cotizar el hosting anual",
+        "descripcion": null,
+        "vence": "2026-09-30",
+        "prioridad": 3,
+        "origen": "acuerdo",
+        "texto_origen": "Cotizar el hosting anual con dos proveedores",
+        "asignados": [{ "id": 96, "nombre": "Ana Leiva" }],
+        "etiquetas": [],
+        "no_resuelto": ["persona \"Franz Molina\""],
+        "task_id": null,
+        "task_name": null,
+        "generada_en": "2026-09-17 11:44:02"
+      }
+    ],
+    "meta": {
+      "pendientes": 1,
+      "creadas": 2,
+      "descartadas": 1,
+      "generado_en": "2026-09-17 11:44:02",
+      "origen_ia": true
+    }
+  }
+}
+```
+
+`estado` es `pendiente`, `creada` o `descartada`, y vienen en ese orden. Una `creada` trae `task_id`
+y `task_name` con el nombre **actual** de la tarea —que alguien pudo renombrar— o `null` si la
+borraron: la fila sigue diciendo que en su momento se creó. `prioridad` es la escala de Procesos: 1
+baja, 2 media, 3 alta, 4 urgente.
+
+#### `PATCH /projects/{id}/actas/{actaId}/tareas/{propuestaId}` — corregir antes de crear
+
+Cuerpo con cualquiera de `titulo`, `descripcion`, `vence`, `prioridad`, `asignados` (ids de staff
+activo) y `etiquetas` (nombres). Responde la propuesta entera. Exige `tasks.create`.
+
+| Caso | Respuesta |
+|---|---|
+| Clave desconocida | `422` `{ "task_id": ["no_editable"] }` |
+| Un id de staff que no existe o está inactivo | `422` `{ "asignados": ["invalid"] }` |
+| `vence` que no es `YYYY-MM-DD` | `422` `{ "vence": ["date"] }` |
+| `prioridad` fuera de 1–4 | `422` `{ "prioridad": ["range"] }` |
+| Cuerpo vacío | `422` `{ "datos": ["required"] }` |
+| La propuesta ya se creó o se descartó | `409` |
+
+Las etiquetas viajan por **nombre** y una que no existe se acepta igual: el alta de Procesos la crea,
+así que rechazarla acá prohibiría desde el acta algo que el formulario de tareas permite.
+
+#### `DELETE /projects/{id}/actas/{actaId}/tareas/{propuestaId}` — descartar
+
+`204`. La fila queda con `estado` en `descartada`: que alguien haya mirado una propuesta y dicho que
+no es información, y borrarla haría que la próxima regeneración la volviera a proponer. Descartar una
+que ya es tarea es `409` —no la borraría—, y descartar una ya descartada es `204` otra vez.
+
+#### `POST /projects/{id}/actas/{actaId}/tareas/crear` — convertir
+
+Cuerpo: `{ "propuestas": [1, 2, 3] }`, obligatorio y de 40 como máximo.
+
+```json
+{
+  "data": {
+    "creadas": [{ "propuesta_id": 1, "task_id": 900232, "name": "Cotizar el hosting anual" }],
+    "fallidas": [{ "propuesta_id": 3, "error": "Está descartada." }]
+  }
+}
+```
+
+**Una propuesta, una transacción.** Un lote de diez donde la sexta falla deja las otras nueve creadas
+y dice por qué falló esa; una transacción para las diez convertiría un nombre de etiqueta inválido en
+la pérdida de las nueve que estaban bien. Un compromiso con fecha ya vencida crea la tarea empezando
+ese día, en vez de devolver un cuerpo que el alta rechaza.
+
+No hay `POST` sobre la colección: una propuesta se calcula leyendo el acta o no existe.
+
+#### `POST /ia/proyectos/{id}/acta-tareas` — volver a proponer
+
+Cuerpo: `{ "acta_id": 9 }`. Gasta una llamada y responde igual que el `GET`. Descarta las pendientes
+anteriores y **no toca las ya creadas**: volver a proponer sobre un acta corregida no puede deshacer
+ni duplicar tareas que alguien ya confirmó. `422` sin `acta_id`.
+
+#### Lo que esto no hace
+
+- **No crea tareas solo.** Ni al generar el acta, ni al regenerar las propuestas. Siempre hay una
+  confirmación explícita, y es la de una persona o la del plan del agente.
+- **No adivina el responsable.** Sin nombre en el acta, `asignados` queda vacío: no se asigna a quien
+  generó el acta ni a quien habló más.
+- **No inventa plazos.** Sin fecha dicha, `vence` es `null`. El modelo devuelve la *forma* de lo que
+  el acta dice y la cuenta la hace el servidor con su reloj.
+- **No toca el acta.** Ni su HTML ni su título: las propuestas viven en su propia tabla y el acta se
+  puede corregir sin que las propuestas se muevan.
+- **No hay alta manual de propuestas.** Para escribir una tarea a mano ya está el formulario de
+  Procesos.
+
+Para el agente (Thinking Orb): `tareas_propuestas_del_acta` las lee y `crear_tareas_del_acta` las
+convierte proponiendo un plan que elige **ids**, no campos, y que exige `tasks.create`.
+
+
 ## Tiempo real
 
 `GET /config/realtime` → `{ "data": { "enabled": true, "key": "…", "cluster": "…" } }`
