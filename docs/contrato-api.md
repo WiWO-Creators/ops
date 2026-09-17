@@ -190,7 +190,7 @@ Tampoco va bajo `/auth`: esa rama se atiende sin token, y ésta necesita saber q
 { "data": {
   "id": 12, "email": "alguien@wiwo.me",
   "firstname": "…", "lastname": "…", "full_name": "…",
-  "profile_image_url": "…", "is_admin": false, "role_id": 3,
+  "profile_image_url": "…", "is_admin": false, "is_coordinador_multiarea": false, "role_id": 3,
   "modelo_permisos": "viejo",
   "is_director": false, "dirige_areas": false, "es_focal": false,
   "area_id": null, "area_ids": [], "empresa_id": 3,
@@ -224,6 +224,19 @@ cuenta a cargo. Una instalación sin esa tabla devuelve `false`.
 `area_ids` son todas las áreas de la persona (`staff_areas`, multiárea) y convive con `area_id`, que
 es la columna de `tblstaff` y sigue siendo la principal. Es pertenencia, no permiso, y es lo que el
 panel mira para ofrecer "Mi Área": preguntar por uno solo de los dos campos deja gente afuera.
+
+`is_coordinador_multiarea` es el tercer rol del eje 1 (migración `0720`): quien lo tiene **lee**
+todos los Procesos, Espacios, Clientes, prospectos y licitaciones de la casa, y **escribe** lo mismo
+que escribía antes —lo suyo y lo de su descendencia en el árbol—. No abre nada de Administración:
+eso sigue siendo `is_superadmin`. Viaja acá para que el panel pueda explicar por qué una fila que se
+ve no se puede editar; no habilita ninguna pantalla por sí solo y no aparece en `permissions`,
+porque lo que cambia son las FILAS y no las acciones.
+
+Se reparte desde `/administracion/accesos`, pestaña Personas, con
+`PUT /accesos/personas/{staffId}` `{"coordinador_multiarea": true|false}` —**sólo un
+superadministrador**—, y viaja en cada fila de `GET /accesos/personas` como `coordinador_multiarea`.
+Errores: `422` con `coordinador_multiarea: ["booleano"]` si no es un booleano de verdad, `409` si la
+base todavía no corrió la `0720`.
 
 `permissions` **no trae una clave `tickets`**: Perfex no tiene una feature de permisos con ese nombre
 (ver el recurso `tickets` más abajo).

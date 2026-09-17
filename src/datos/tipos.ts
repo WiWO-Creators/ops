@@ -101,6 +101,13 @@ export interface Staff {
    * Administracion. `is_admin` NO sirve para eso: la tiene medio equipo. Se otorga solo por SQL.
    */
   is_superadmin: boolean
+  /**
+   * Coordina varias áreas: **lee** la casa entera y escribe solo lo suyo y lo de su descendencia.
+   *
+   * No habilita ninguna pantalla por sí solo —no es `is_superadmin`— ni entrega escrituras —no es
+   * `is_admin`—. Sirve para explicar por qué una fila que esta persona ve no la puede editar.
+   */
+  is_coordinador_multiarea: boolean
   role_id: number | null
   active: boolean
   /** Cargo "Director" (`modules/wiwo_core/cargos_areas.php`). Gate de la seccion "Mi Área". */

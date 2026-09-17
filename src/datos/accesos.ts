@@ -84,6 +84,14 @@ export interface PersonaDeAccesos {
   area_id: number | null
   cargo_id: number | null
   activo: boolean
+  /**
+   * Si coordina varias áreas: **lee** todos los Procesos, Espacios y Clientes de la casa y sigue
+   * escribiendo solo los suyos y los de su descendencia.
+   *
+   * Es el tercer rol del eje 1, al lado de `is_admin` y `is_superadmin`, y el único que se reparte
+   * desde esta pantalla. No abre nada de Administración.
+   */
+  coordinador_multiarea: boolean
 }
 
 /**
@@ -97,6 +105,7 @@ export interface CambioDePersona {
   jefe_staffid?: number | null
   area_id?: number | null
   cargo_id?: number | null
+  coordinador_multiarea?: boolean
 }
 
 /** Un nodo de `GET /accesos/arbol`: quién es, qué puesto tiene y de quién cuelga. */
