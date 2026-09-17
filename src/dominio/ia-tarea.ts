@@ -265,7 +265,7 @@ export function fusionarEspacio (
 
   return existe
     ? { id: ia.rel_id, deIa: true, descartado: null }
-    : { id: null, deIa: false, descartado: `Espacio #${ia.rel_id}` }
+    : { id: null, deIa: false, descartado: `Proyecto #${ia.rel_id}` }
 }
 
 /**

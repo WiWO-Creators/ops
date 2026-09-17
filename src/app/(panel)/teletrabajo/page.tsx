@@ -146,7 +146,7 @@ function SalasPrivadas (
             key={espacio.id}
             href={`/teletrabajo/${sala}`}
             titulo={espacio.name}
-            descripcion={espacio.client?.company ?? 'Solo para quienes integran el espacio.'}
+            descripcion={espacio.client?.company ?? 'Solo para quienes integran el proyecto.'}
             icono={FolderKanban}
             tono="violeta"
             distintivo={distintivoDeOcupacion(ocupacion?.get(sala))}

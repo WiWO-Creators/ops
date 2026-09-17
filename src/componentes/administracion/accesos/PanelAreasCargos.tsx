@@ -466,7 +466,7 @@ function DialogoDeBorradoDeArea ({
     <Dialogo open onOpenChange={(abierto) => { if (!abierto) cerrar() }}>
       <ContenidoDialogo
         titulo={`Borrar el área «${area.nombre}»`}
-        descripcion="El área desaparece, pero lo que tenía dentro no: se muda a donde elijas. Ningún Proceso se borra."
+        descripcion="El área desaparece, pero lo que tenía dentro no: se muda a donde elijas. Ninguna Tarea se borra."
         ancho="chico"
       >
         <div className="flex flex-col gap-5">
@@ -530,7 +530,7 @@ function estaVacia (uso: UsoDeArea): boolean {
 function resumenDeUso (uso: UsoDeArea): string {
   const personas = contar(uso.personas, 'persona', 'personas')
   const hijas = contar(uso.hijas, 'área que depende de ella', 'áreas que dependen de ella')
-  const procesos = contar(uso.procesos, 'Proceso etiquetado', 'Procesos etiquetados')
+  const procesos = contar(uso.procesos, 'Tarea etiquetada', 'Tareas etiquetadas')
 
   return `${personas}, ${hijas} y ${procesos}.`
 }
@@ -550,14 +550,14 @@ function consecuenciaDeBorrar (
   area: AreaDeAccesos, elegida: AreaDeAccesos | null, superior: AreaDeAccesos | null
 ): string {
   if (elegida !== null) {
-    return `Las personas y las áreas que dependen de «${area.nombre}» pasan a «${elegida.nombre}», y sus Procesos quedan etiquetados como «${elegida.nombre}».`
+    return `Las personas y las áreas que dependen de «${area.nombre}» pasan a «${elegida.nombre}», y sus Tareas quedan etiquetadas como «${elegida.nombre}».`
   }
 
   const hijas = superior === null
     ? 'las áreas que dependían de ella quedan como raíces del organigrama'
     : `las áreas que dependían de ella pasan a colgar de «${superior.nombre}»`
 
-  return `Las personas quedan sin área, ${hijas}, y los Procesos pierden la etiqueta «${area.nombre}» sin que se borre ninguno.`
+  return `Las personas quedan sin área, ${hijas}, y las Tareas pierden la etiqueta «${area.nombre}» sin que se borre ninguna.`
 }
 
 /** El CRUD de cargos: nombre y nada más. */

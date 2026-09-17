@@ -257,7 +257,7 @@ test('un Espacio fuera de catalogo se descarta en vez de mandarse', () => {
     CATALOGOS
   )
 
-  assert.deepEqual(elegido, { id: null, deIa: false, descartado: 'Espacio #999' })
+  assert.deepEqual(elegido, { id: null, deIa: false, descartado: 'Proyecto #999' })
 })
 
 test('sin respuesta del modelo el Espacio queda como lo dejo el parser', () => {
