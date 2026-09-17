@@ -14,11 +14,11 @@ import type { Capacidad } from '@/datos/tipos'
 /**
  * Cuantos Clientes se traen para el selector.
  *
- * El mismo tope que usan los otros combos de Cliente, y por el mismo motivo: es un desplegable con
- * buscador, no un listado paginado. Quien tenga mas Clientes que esto igual encuentra el suyo
- * escribiendo, mientras este entre los primeros que devuelve la API.
+ * El mismo tope que usan los otros combos de Cliente: el maximo que la API acepta en una pagina.
+ * Con cien, la cartera —que pasa de ciento veinte— se cortaba a mitad del alfabeto y los ultimos no
+ * se podian asignar.
  */
-const CLIENTES_A_TRAER = 100
+const CLIENTES_A_TRAER = 500
 
 /** `GET`/`PUT /staff/{id}/focales`, con el id ya escapado. La ruta conserva el nombre de la API. */
 function rutaDeFocales (personaId: number): string {

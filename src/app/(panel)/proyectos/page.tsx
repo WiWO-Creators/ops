@@ -9,7 +9,7 @@ import { cargarLookups, opcionesDeFiltros } from '@/datos/lookups'
 import { pedir, pedirOpcional } from '@/datos/servidor'
 import type {
   CampoPersonalizadoMeta,
-  Cliente,
+  ClienteMinimo,
   EstadisticaEstado,
   Espacio,
   PersonaAsignable,
@@ -24,13 +24,14 @@ export const metadata = { title: 'Proyectos · WiWO Ops' }
 /**
  * Tope de opciones que se traen para el selector de Cliente.
  *
- * Es el maximo que acepta la API en una pagina. Con mas clientes que eso, el selector deja de ser
- * exhaustivo: el reemplazo es un filtro con busqueda contra el servidor, no subir el numero.
+ * Es el maximo que acepta la API en una pagina. Cien no alcanzaba: la cartera pasa de ciento veinte y
+ * el orden es alfabetico, asi que todo lo que venia despues de la "P" —el propio "Wiwo" incluido— no
+ * existia para el alta de un Proyecto.
  *
  * Las personas no pasan por aca: salen de `RUTA_DE_ASIGNABLES`, que trae a las 184 de una y no exige
  * `staff.view`.
  */
-const TOPE_DE_OPCIONES = 100
+const TOPE_DE_OPCIONES = 500
 
 /** Opciones de un selector a partir de una lista de la API. */
 function opcionesDe<T> (lista: T[] | null, valor: (item: T) => string, etiqueta: (item: T) => string): OpcionFiltro[] {
@@ -72,7 +73,10 @@ export default async function EspaciosPage (props: PageProps<'/proyectos'>) {
     cargarLookups(),
     pedir<Yo>('/me'),
     pedirOpcional<EstadisticaEstado[]>('/projects/stats'),
-    pedirOpcional<Cliente[]>(`/clients?per_page=${TOPE_DE_OPCIONES}`),
+    // `/clients/minimos` y no `/clients`: trae la cartera entera con lo unico que el selector usa
+    // —id y razon social— y corre antes de la compuerta de `customers.view`, que le respondia 403 a
+    // parte del equipo y dejaba el alta sin ningun Cliente que elegir.
+    pedirOpcional<ClienteMinimo[]>(`/clients/minimos?sort=company&per_page=${TOPE_DE_OPCIONES}`),
     // Misma fuente que el selector de asignados de la tarea. `/staff` exige `staff.view` —lo tienen
     // 19 de 184 personas— y ademas cortaba en 100: dos motivos para que el filtro por persona
     // mostrara gente distinta segun quien abriera la pantalla.

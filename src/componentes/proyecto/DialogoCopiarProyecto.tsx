@@ -5,7 +5,9 @@ import { CerrarDialogo, ContenidoDialogo, Dialogo } from '@/componentes/superpos
 import { Boton } from '@/componentes/formularios/Boton'
 import { Campo } from '@/componentes/formularios/Campo'
 import { Entrada } from '@/componentes/formularios/Entrada'
-import { ContenidoSelector, DisparadorSelector, Opcion, Selector } from '@/componentes/formularios/Selector'
+import {
+  ContenidoSelector, DisparadorSelector, Opcion, Selector, SelectorBuscable
+} from '@/componentes/formularios/Selector'
 import { escribirEnBff } from '@/componentes/datos/mutaciones'
 import type { Espacio } from '@/datos/recursos'
 import type { OpcionFiltro } from '@/definiciones/tipos'
@@ -159,14 +161,14 @@ function FormularioCopia ({
 
       <Campo etiqueta={GLOSARIO.cliente.singular} requerido>
         {(props) => (
-          <Selector value={cliente} onValueChange={setCliente}>
-            <DisparadorSelector id={props.id} marcador="Elige un cliente" />
-            <ContenidoSelector>
-              {clientes.map((opcion) => (
-                <Opcion key={opcion.valor} value={opcion.valor}>{opcion.etiqueta}</Opcion>
-              ))}
-            </ContenidoSelector>
-          </Selector>
+          <SelectorBuscable
+            id={props.id}
+            valor={cliente}
+            onElegir={setCliente}
+            opciones={clientes}
+            marcador={`Elige un ${GLOSARIO.cliente.singular.toLowerCase()}`}
+            nombre={GLOSARIO.cliente.singular.toLowerCase()}
+          />
         )}
       </Campo>
 
