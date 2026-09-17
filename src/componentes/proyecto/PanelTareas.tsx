@@ -2,7 +2,7 @@
 
 import { Suspense, useCallback, useEffect, useMemo, useState, type ReactElement } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { PARAMETRO_TAREA, clavesVisiblesPorDefecto } from '@/componentes/datos/tabla'
+import { PARAMETRO_TAREA } from '@/componentes/datos/tabla'
 import { TablaRecurso } from '@/componentes/datos/TablaRecurso'
 import { TableroFiltrable } from '@/componentes/datos/TableroFiltrable'
 import { Segmentado, type OpcionSegmentada } from '@/componentes/formularios/Segmentado'
@@ -29,7 +29,7 @@ import { ModalTarea } from './ModalTarea'
 import { FormularioTarea } from './FormularioTarea'
 import { ResumenEstadosTareas } from './ResumenEstadosTareas'
 import { TarjetaTarea } from './TarjetaTarea'
-import { podarParaTarjeta, type ProcesoDeTarjeta } from './tarjeta-tarea'
+import { camposPorDefectoDeTarjeta, podarParaTarjeta, type ProcesoDeTarjeta } from './tarjeta-tarea'
 import { definicionDeTareas } from './columnas-tareas'
 import { opcionesDeFiltroDeHito, TOPE_DE_HITOS } from './hitos'
 import { BotonCompletados } from './BotonCompletados'
@@ -370,12 +370,11 @@ function unicoEstadoFiltrado (crudo: string | null): number | null {
  *  - **`rutaMover` solo con `edit`.** Mover una tarjeta cambia el estado de la Tarea: es una
  *    escritura, y sin la capacidad el tablero queda de solo lectura —sin arrastre y sin el menu
  *    "Mover a…"— en vez de ofrecer un gesto que solo puede terminar en 403.
- *  - **La tarjeta muestra lo que la tabla muestra al abrirla.** Asignados, Etiquetas y el Hito son
- *    columna en el panel y no en el contrato del contacto; una tarjeta que las pinta igual le
- *    filtraria al cliente el vocabulario interno que la tabla de al lado ya no le muestra. Y la
- *    Fecha de inicio y los Seguidores son columna `ocultaPorDefecto`, asi que tampoco saturan la
- *    tarjeta mientras nadie las pida: la decision se toma una sola vez, en la definicion, y vale
- *    para la tabla y para el tablero.
+ *  - **La tarjeta solo pinta lo que la definicion vigente declara como columna.** Asignados,
+ *    Etiquetas y el Hito son columna en el panel y no en el contrato del contacto; una tarjeta que
+ *    las pinta igual le filtraria al cliente el vocabulario interno que la tabla de al lado ya no le
+ *    muestra. De eso se ocupa `camposPorDefectoDeTarjeta`, y por eso el menu del tablero tampoco
+ *    puede encenderlas: no estan en su lista de opciones.
  *
  * @param definicion La definicion vigente, con sus columnas.
  * @param estados El catalogo de estados, para el color del borde de cada tarjeta.
@@ -387,7 +386,8 @@ function definicionDeTablero (
   estados: OpcionFiltro[],
   puedeMover: boolean
 ): DefinicionRecurso<ProcesoAmpliado> {
-  const visibles = clavesVisiblesPorDefecto(definicion.columnas)
+  // El set con el que arranca la tarjeta si nadie toco el menu del tablero.
+  const porDefecto = camposPorDefectoDeTarjeta(definicion.columnas)
 
   return {
     ...definicion,
@@ -397,8 +397,8 @@ function definicionDeTablero (
       ...(puedeMover ? { rutaMover: 'tasks/:id/mover' } : {}),
       // `ProcesoDeTarjeta` y no `ProcesoAmpliado`: la tarjeta declara lo minimo que dibuja, y el
       // contrato del cliente manda menos que el del equipo.
-      presentarTarjeta: (fila) => (
-        <TarjetaTarea proceso={podarParaTarjeta(fila as ProcesoDeTarjeta, visibles)} estados={estados} />
+      presentarTarjeta: (fila, campos) => (
+        <TarjetaTarea proceso={podarParaTarjeta(fila as ProcesoDeTarjeta, campos ?? porDefecto)} estados={estados} />
       )
     }
   }

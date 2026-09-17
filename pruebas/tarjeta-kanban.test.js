@@ -10,14 +10,15 @@
  *
  *  1. Un campo cuya columna no esta en la definicion sale `undefined`, no `null`: la tarjeta no lo
  *     menciona en vez de dibujar un hueco.
- *  2. Una columna `ocultaPorDefecto` deja su campo apagado. Es lo que evita que la tarjeta se sature
- *     con los cinco datos nuevos a la vez.
+ *  2. `camposPorDefectoDeTarjeta` interseca lo que la tarjeta sabe pintar con lo que la definicion
+ *     vigente declara. Es lo que le da al equipo los seis campos y al contacto solo los suyos, sin
+ *     una lista de excepciones escrita a mano al lado de la definicion.
  *  3. Una Tarea sin hito, sin seguidores y sin fechas se poda sin lanzar.
  */
 
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { podarParaTarjeta } from '../src/componentes/proyecto/tarjeta-tarea.ts'
+import { CAMPOS_DE_TARJETA, camposPorDefectoDeTarjeta, podarParaTarjeta } from '../src/componentes/proyecto/tarjeta-tarea.ts'
 import { clavesVisiblesPorDefecto } from '../src/componentes/datos/tabla.ts'
 import { procesosDelEspacio } from '../src/definiciones/procesos.ts'
 import { procesosDelContacto } from '../src/definiciones/portal-proyectos.ts'
@@ -92,14 +93,15 @@ test('un campo con columna pero sin dato queda en null o lista vacia, que si se 
   assert.deepEqual(podado.tags, [])
 })
 
-test('la definicion del equipo enciende patente e hito, y deja inicio y seguidores apagados', () => {
-  const visibles = clavesVisiblesPorDefecto(procesosDelEspacio(80).columnas)
-  const podado = podarParaTarjeta(tareaCompleta(), visibles)
+test('la tarjeta del equipo arranca con los seis campos, inicio y seguidores incluidos', () => {
+  const campos = camposPorDefectoDeTarjeta(procesosDelEspacio(80).columnas)
+  const podado = podarParaTarjeta(tareaCompleta(), campos)
 
+  assert.deepEqual(campos, CAMPOS_DE_TARJETA, 'la definicion del equipo declara los seis como columna')
   assert.equal(podado.patente, 'PAT-001-07')
   assert.deepEqual(podado.milestone, { id: 3, name: 'Cierre de etapa' })
-  assert.equal(podado.start_date, undefined, 'la fecha de inicio es columna ocultaPorDefecto')
-  assert.equal(podado.followers, undefined, 'los seguidores son columna ocultaPorDefecto')
+  assert.equal(podado.start_date, '2026-09-01', 'la fecha de inicio se pinta junto al vencimiento')
+  assert.equal(podado.followers.length, 2, 'los seguidores se cuentan en la fila de contadores')
 })
 
 test('la definicion del contacto apaga todo lo que el contrato del portal no emite', () => {
@@ -124,14 +126,20 @@ test('la definicion del contacto apaga todo lo que el contrato del portal no emi
   assert.equal(podado.due_date, '2026-09-25')
 })
 
-test('encender la columna de seguidores los trae a la tarjeta', () => {
-  const columnas = procesosDelEspacio(80).columnas
-  const seguidores = columnas.find((columna) => columna.clave === 'followers')
+test('apagar seguidores en el menu los saca de la tarjeta sin tocar el resto', () => {
+  const campos = camposPorDefectoDeTarjeta(procesosDelEspacio(80).columnas)
+  const podado = podarParaTarjeta(tareaCompleta(), campos.filter((campo) => campo !== 'followers'))
 
-  assert.ok(seguidores !== undefined, 'Seguidores tiene que ser columna para poder encenderse')
-  assert.equal(seguidores.ocultaPorDefecto, true)
+  assert.equal(podado.followers, undefined, 'apagado es undefined: la tarjeta ni lo menciona')
+  assert.equal(podado.start_date, '2026-09-01')
+  assert.deepEqual(podado.assignees, [{ id: 21, full_name: 'Caro Soto', profile_image_url: null }])
+})
 
-  const podado = podarParaTarjeta(tareaCompleta(), [...clavesVisiblesPorDefecto(columnas), 'followers'])
+test('la definicion del contacto solo ofrece los campos que declara como columna', () => {
+  const campos = camposPorDefectoDeTarjeta(procesosDelContacto(80).columnas)
 
-  assert.equal(podado.followers.length, 2)
+  // De los seis que la tarjeta sabe pintar, el contacto solo tiene columna de identificador e
+  // inicio: hito, asignados, seguidores y etiquetas ni siquiera bajan en su contrato, asi que el
+  // menu del tablero del portal tampoco los puede encender.
+  assert.deepEqual(campos, ['patente', 'start_date'])
 })

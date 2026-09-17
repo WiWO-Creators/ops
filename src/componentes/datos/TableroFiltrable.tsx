@@ -1,11 +1,13 @@
 'use client'
 
-import { useMemo, type ReactNode } from 'react'
+import { useMemo, useState, type ReactNode } from 'react'
 import { useRouter, useSearchParams, type ReadonlyURLSearchParams } from 'next/navigation'
 import { construirConsulta, leerConsulta } from '@/datos/consulta'
 import { useRecurso } from '@/componentes/proyecto/carga'
 import { Cargando, ErrorEstado, Vacio } from '@/componentes/estado/Estados'
+import { camposPorDefectoDeTarjeta } from '@/componentes/proyecto/tarjeta-tarea'
 import { ControlesTabla } from './ControlesTabla'
+import { MenuCamposTarjeta } from './MenuCamposTarjeta'
 import { Tablero } from './Tablero'
 import { unirConsultas } from './tabla'
 import type { ColumnaTablero, CuerpoMover, FilaConId, GrupoTablero } from './tablero'
@@ -73,6 +75,11 @@ export function TableroFiltrable<T extends FilaConId> ({
   const router = useRouter()
   const params = useSearchParams()
 
+  // El dueño del estado de los campos de la tarjeta es este componente, y no la URL como los filtros:
+  // no es parte de la vista que alguien comparte con un enlace, es una preferencia de quien mira.
+  // Tampoco viene de `TablaRecurso`: en la vista de tablero no hay ninguna montada.
+  const [campos, setCampos] = useState(() => camposPorDefectoDeTarjeta(definicion.columnas))
+
   const estado = useMemo(
     () => leerConsulta(new URLSearchParams(params.toString()), definicion),
     [params, definicion]
@@ -108,6 +115,11 @@ export function TableroFiltrable<T extends FilaConId> ({
           onVisibles={() => {}}
           sinColumnas
         />
+
+        {/* Al lado del resto de los controles, pero fuera de `ControlesTabla`: el menu de columnas
+            de la tabla sigue apagado aca —`sinColumnas`— porque en el tablero no hay tabla que
+            configurar. Lo que se elige aca son los campos de la tarjeta, que es otra cosa. */}
+        <MenuCamposTarjeta definicion={definicion} campos={campos} onCampos={setCampos} />
       </div>
 
       {carga.fase === 'cargando' && <Cargando mensaje="Cargando el tablero…" />}
@@ -123,6 +135,7 @@ export function TableroFiltrable<T extends FilaConId> ({
               definicion={definicion}
               inicial={carga.datos}
               consulta={consulta}
+              campos={campos}
               adaptarCuerpo={adaptarCuerpo}
               ordenarColumnas={ordenarColumnas}
               accionDeColumna={accionDeColumna}
