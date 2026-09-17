@@ -1,6 +1,19 @@
 'use client'
 
+import { useState } from 'react'
 import * as Radix from '@radix-ui/react-select'
+import {
+  BuscadorMenu,
+  ContenidoMenu,
+  DisparadorMenu,
+  GrupoRadioMenu,
+  ItemMenuRadio,
+  MenuContextual,
+  SinResultadosMenu,
+  UMBRAL_BUSCADOR
+} from '@/componentes/superposiciones/MenuContextual'
+import type { OpcionFiltro } from '@/definiciones/tipos'
+import { normalizar } from '@/dominio/salas'
 import { cn } from '@/lib/clases'
 import { CLASES_CONTROL } from './Entrada'
 
@@ -113,5 +126,96 @@ export function Opcion ({
         </svg>
       </Radix.ItemIndicator>
     </Radix.Item>
+  )
+}
+
+interface PropsSelectorBuscable {
+  /** Valor elegido; cadena vacia cuando todavia no se eligio ninguno. */
+  valor: string
+  onElegir: (valor: string) => void
+  opciones: OpcionFiltro[]
+  /** Lo que dice el disparador mientras no hay nada elegido. */
+  marcador: string
+  /** Como se nombra lo que se elige, para el buscador y el aviso de "ninguno coincide". */
+  nombre: string
+  id?: string
+  className?: string
+}
+
+/**
+ * Selector de una opcion con buscador, para catalogos que no se recorren a ojo.
+ *
+ * Existe porque el `Select` de Radix no admite un campo de texto dentro del panel: con ciento
+ * veinticinco Clientes, elegir se convierte en bajar una lista alfabetica hasta encontrar el que se
+ * busca, y con la lista recortada por la API ni siquiera esta. Por eso el catalogo entero y un
+ * buscador arriba, que es el mismo par que ya usan los filtros de las tablas.
+ *
+ * Es el gemelo de formulario del menu buscable de `ControlesTabla`: comparten `BuscadorMenu`,
+ * `GrupoRadioMenu` e `ItemMenuRadio`, y se separan en lo unico que de verdad los distingue — aquel
+ * tiene una fila para no filtrar y un ancho fijo de barra; este ocupa el ancho del campo y no ofrece
+ * "ninguno", porque un campo requerido sin valor no es una eleccion.
+ *
+ * El buscador solo aparece a partir de `UMBRAL_BUSCADOR` opciones: debajo de eso la lista se lee de
+ * una y un campo de texto es un paso de mas.
+ *
+ * @param valor valor elegido, o cadena vacia
+ * @param onElegir recibe el valor de la opcion elegida
+ * @param opciones catalogo completo entre el que se elige
+ * @param marcador texto del disparador sin eleccion
+ * @param nombre como se llama lo que se elige, en singular y minuscula
+ * @param id para enlazar la etiqueta del campo con el disparador
+ * @param className clases extra del disparador
+ */
+export function SelectorBuscable ({ valor, onElegir, opciones, marcador, nombre, id, className }: PropsSelectorBuscable) {
+  const [busqueda, setBusqueda] = useState('')
+
+  const partes = normalizar(busqueda).split(/\s+/).filter((parte) => parte !== '')
+  const visibles = partes.length === 0
+    ? opciones
+    : opciones.filter((opcion) => {
+      const etiqueta = normalizar(opcion.etiqueta)
+
+      return partes.every((parte) => etiqueta.includes(parte))
+    })
+
+  const elegida = opciones.find((opcion) => opcion.valor === valor) ?? null
+
+  return (
+    <MenuContextual onOpenChange={(abierto) => { if (!abierto) setBusqueda('') }}>
+      <DisparadorMenu
+        id={id}
+        className={cn(CLASES_DISPARADOR, 'w-full', elegida === null && 'text-texto-sutil', className)}
+      >
+        <span className="truncate">{elegida?.etiqueta ?? marcador}</span>
+        <ChevronSelector />
+      </DisparadorMenu>
+
+      <ContenidoMenu
+        align="start"
+        className="w-[var(--radix-dropdown-menu-trigger-width)] max-w-[calc(100vw-2rem)]"
+      >
+        {opciones.length >= UMBRAL_BUSCADOR && (
+          <BuscadorMenu valor={busqueda} onCambiar={setBusqueda} placeholder={`Buscar ${nombre}…`} />
+        )}
+
+        <GrupoRadioMenu value={valor} onValueChange={onElegir}>
+          {visibles.map((opcion) => (
+            <ItemMenuRadio key={opcion.valor} value={opcion.valor} disabled={opcion.deshabilitada}>
+              <span className="truncate">{opcion.etiqueta}</span>
+            </ItemMenuRadio>
+          ))}
+        </GrupoRadioMenu>
+
+        {visibles.length === 0 && <SinResultadosMenu>Ninguno coincide.</SinResultadosMenu>}
+
+        {/* Filtrar no mueve el foco: sin este aviso, quien usa un lector de pantalla escribe y la
+            lista cambia en silencio debajo del campo. */}
+        {opciones.length >= UMBRAL_BUSCADOR && (
+          <p role="status" aria-live="polite" className="sr-only">
+            {visibles.length === 1 ? `1 ${nombre} en la lista` : `${visibles.length} opciones en la lista`}
+          </p>
+        )}
+      </ContenidoMenu>
+    </MenuContextual>
   )
 }

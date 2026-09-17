@@ -21,12 +21,12 @@ import { cn } from '@/lib/clases'
 /**
  * Cuantos Clientes se traen para el combo.
  *
- * El mismo tope que el listado de Espacios usa para su filtro por Cliente, y por el mismo motivo: es
- * un desplegable dentro de un control de cabecera, no un listado paginado. Quien tenga mas Clientes
- * que esto igual encuentra el suyo escribiendo, mientras este entre los primeros cien que devuelve la
- * API; el caso contrario lo cubre `nombreActual`, que no depende de la lista.
+ * El mismo tope que el listado de Espacios usa para su filtro por Cliente: el maximo que la API
+ * acepta en una pagina. Con cien la cartera se cortaba a mitad del alfabeto y los ultimos Clientes no
+ * aparecian por mas que se los escribiera; el Cliente ya puesto en una jornada lo cubre igual
+ * `nombreActual`, que no depende de la lista.
  */
-const CLIENTES_A_TRAER = 100
+const CLIENTES_A_TRAER = 500
 
 /** El valor con el que viaja "ningun Cliente" dentro del grupo de radios. */
 const NINGUNO = 'ninguno'
