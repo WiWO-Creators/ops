@@ -10,6 +10,28 @@
   --escala: 1;
 
   /*
+   * Los tres valores de la estetica de aleta. Ver `.solari-mecanico`.
+   *
+   * Son tinta translucida y no colores opacos, por lo mismo que las lineas de `neo.css`: asi conservan
+   * el mismo peso sobre las dos bandas del cebrado del tablero en vez de desaparecer sobre una de las
+   * dos. En oscuro —que es como cuelga esta pared— la aleta es un negro por encima del renglon y el
+   * pliegue es el negro mas cerrado que hay en la pantalla, que es lo que le da el relieve.
+   */
+  --solari-ficha: light-dark(rgb(41 41 41 / 0.09), rgb(0 0 0 / 0.36));
+  --solari-pliegue: light-dark(rgb(41 41 41 / 0.22), rgb(0 0 0 / 0.50));
+  --solari-junta: 0.07em;
+  /*
+   * En `em` y no en `px`: el pliegue tiene que engordar con el `?zoom=` igual que la letra, o en una
+   * pantalla escalada se convierte en un pelo invisible.
+   *
+   * **0.03em y no 0.05, y es legibilidad.** A 0.05em —1,5 px a 1080p— y con la opacidad alta que tenia
+   * antes, la ranura se comia el trazo de la `O` y de la `B` y "BLOQUEADA" se leia "BLCQUEADA" en la
+   * captura. Un panel de verdad tiene una junta fina, no una banda: 0.03em son ~0,9 px, que a cuatro
+   * metros se leen como la ranura entre dos aletas y no como una tachadura.
+   */
+  --solari-pliegue-grosor: 0.03em;
+
+  /*
    * Un raton olvidado sobre el escritorio deja una flecha quemada en el centro de la pantalla
    * durante meses. Y nada acá se selecciona ni se enfoca: no hay nada que clicar.
    */
@@ -189,25 +211,38 @@
   }
 }
 
-/* cara | Tarea | quien mide | Proyecto | contador */
+/*
+ * cara | Tarea | quien mide | Proyecto | contador
+ *
+ * El contador paso de 16 a 20vmin cuando se volvio una tira de fichas: `0:12:33` son siete fichas de
+ * ancho fijo a 3.4vmin, o sea 18.8vmin, y en 16 entraban cinco — el numero se cortaba por la derecha y
+ * la pared decia `0:12:` sin que nadie lo viera fallar. Los 4vmin salen del nombre de la Tarea, que es
+ * la columna flexible y la que mas margen tenia.
+ */
 .pantalla-columnas-cronometros {
-  grid-template-columns: 4.2vmin minmax(0, 1fr) 34vmin 30vmin 16vmin;
+  grid-template-columns: 4.2vmin minmax(0, 1fr) 34vmin 30vmin 20vmin;
 }
 
 @media (orientation: portrait) {
   .pantalla-columnas-cronometros {
-    grid-template-columns: 4.2vmin minmax(0, 1fr) 26vmin 15vmin;
+    grid-template-columns: 4.2vmin minmax(0, 1fr) 26vmin 20vmin;
   }
 }
 
-/* cara | nombre | cargo | jornada */
+/*
+ * cara | nombre | cargo | jornada
+ *
+ * La jornada paso de 16 a 19vmin por lo mismo que el contador de los cronometros: siete fichas de
+ * ancho fijo a 3vmin son 16.6vmin y no entraban. Los 3vmin salen del cargo, que va sobrio y con 19
+ * sigue entrando entero.
+ */
 .pantalla-columnas-trabajando {
-  grid-template-columns: 4.2vmin minmax(0, 1fr) 22vmin 16vmin;
+  grid-template-columns: 4.2vmin minmax(0, 1fr) 19vmin 19vmin;
 }
 
 @media (orientation: portrait) {
   .pantalla-columnas-trabajando {
-    grid-template-columns: 4.2vmin minmax(0, 1fr) 26vmin 16vmin;
+    grid-template-columns: 4.2vmin minmax(0, 1fr) 23vmin 19vmin;
   }
 }
 
@@ -220,80 +255,6 @@
 @media (orientation: portrait) {
   .pantalla-columnas-espacios {
     grid-template-columns: minmax(0, 1fr) 8vmin 17vmin 21vmin;
-  }
-}
-
-/*
- * === EL TABLERO QUE SE MUEVE ===
- *
- * Un panel de salidas de verdad no cambia de vista: voltean sus filas. La pantalla hace lo mismo, y
- * son dos movimientos que hay que leer junto a `piezas.tsx`, que pone las clases.
- *
- * **Lo que NO hacen.** Ninguno se repite solo. La fila voltea una vez, al llegar; la celda alterna
- * cuando el dominio dice que toca. Esta pared lleva meses encendida: un pixel en movimiento
- * permanente es un pixel quemado, y un televisor barato con la pantalla entera animandose se calienta
- * y tironea. Por eso los dos animan solo `transform` y `opacity`, que las compone la GPU sin tocar el
- * layout — y por eso ninguna fila cambia de alto mientras se mueve, que es lo unico que podria
- * empujar a las de abajo fuera del marco.
- */
-
-/*
- * La fila que acaba de llegar voltea como una lamina de split-flap.
- *
- * `rotateX` alrededor del centro y con perspectiva: la fila se ve mas BAJA mientras gira, nunca mas
- * alta, asi que no hay forma de que a mitad de volteo desborde el marco.
- *
- * `backwards` es la mitad que se olvida: sin el, la fila se dibuja entera y visible durante su
- * retardo y aparece de golpe antes de animarse. Con el, espera en el primer fotograma —invisible— y
- * entra cuando le toca.
- *
- * El escalonado sale de `--fila`, que pone `escalonDeFila()`. 35 ms por fila y tope de 12: la cascada
- * dura como mucho 420 + 320 = 740 ms de una escena de diez segundos. El 93% del tiempo la pared esta
- * quieta, que es la condicion para poder leerla de pie y de pasada.
- */
-@media (prefers-reduced-motion: no-preference) {
-  .pantalla-voltea {
-    animation: pantalla-voltea 320ms cubic-bezier(0.2, 0.7, 0.3, 1) backwards;
-    animation-delay: calc(var(--fila, 0) * 35ms);
-  }
-}
-
-@keyframes pantalla-voltea {
-  from {
-    opacity: 0;
-    transform: perspective(60vmin) rotateX(-70deg);
-  }
-
-  to {
-    opacity: 1;
-    transform: perspective(60vmin) rotateX(0);
-  }
-}
-
-/*
- * La celda que cambia de campo.
- *
- * Mucho mas corta y mucho mas chica que el volteo de la fila: lo que se mueve es una sola columna, y
- * si se moviera tanto como la fila entera la pared pareceria nerviosa. El mismo `--fila` escalona el
- * cambio de arriba abajo, a la mitad de paso, para que se lea como una ola y no como un parpadeo
- * simultaneo de treinta celdas.
- */
-@media (prefers-reduced-motion: no-preference) {
-  .pantalla-alterna {
-    animation: pantalla-alterna 260ms ease-out backwards;
-    animation-delay: calc(var(--fila, 0) * 18ms);
-  }
-}
-
-@keyframes pantalla-alterna {
-  from {
-    opacity: 0;
-    transform: translateY(-0.8vmin);
-  }
-
-  to {
-    opacity: 1;
-    transform: translateY(0);
   }
 }
 
@@ -316,12 +277,18 @@
  * siempre en una pared que lleva meses encendida, que es justo lo que no se puede pedirle a un stick
  * HDMI.
  *
- * **Donde NO se usa.** En las filas del tablero. No es por el ancho —el hueco reserva su sitio por
- * clase de caracter y el texto no sale monoespaciado— sino por el coste medido: las quince filas de la
- * escena mas densa son ciento cincuenta fichas girando en el mismo fotograma, que bajan la pared de 54
- * a 18 fotogramas por segundo y dejan un salto de 204 ms. Con lo que si lleva Solari —el reloj, el
- * reloj grande y los rotulos que alternan— el coste no se distingue del reposo. Ver el docblock de
- * `Solari.tsx` y el de `piezas.tsx`.
+ * **Donde se usa: en TODO.** No hay un solo texto en esta pared que no sea una tira de fichas — la
+ * cabecera, los rotulos, las quince filas del tablero, los contadores, el pie. Lo que lo hace posible
+ * no es que sea barato sino que **no giran todas a la vez**: cada ficha que va a voltear recibe una
+ * ranura propia y arranca `--escalon` despues que la anterior, asi que lo que gira en el mismo
+ * fotograma es el giro partido por el escalon —del orden de veinte— y no las mil cuatrocientas fichas
+ * que hay en pantalla. La cuenta entera esta en el docblock de `RANURAS_DE_OLA`, en el dominio.
+ *
+ * Esto sustituyo a los dos movimientos que habia antes —la fila entera volteando con `rotateX` al
+ * llegar, y el fundido de la celda que alterna—. No conviven con el Solari y no podrian: un `transform`
+ * sobre la fila se compone con el `translateY` del rodillo y el volteo sale torcido. Ademas contaban lo
+ * mismo peor: la fila que voltea entera dice "llego contenido nuevo", que es justo lo que el volteo
+ * caracter a caracter dice mejor, sin remontar la fila y sin que se lea como que cargo otra pantalla.
  */
 .solari {
   /*
@@ -332,8 +299,15 @@
    * Es la unica medida de la pantalla que no va en `vmin`, y no puede ir: `em` la ata al cuerpo de
    * letra heredado, que es lo que tiene que seguir. En `vmin` se despegaria del texto al cambiar el
    * `?zoom=`.
+   *
+   * **1.08 y no 1.2, y es una medida de densidad, no de gusto.** El hueco es lo que marca el alto de
+   * la fila: con 1.2, el contador de 3.4vmin de los cronometros daba una ficha de 4.08vmin —mas alta
+   * que el avatar de 3.8— y las quince filas de la escena se salian del marco, que es exactamente lo
+   * que caza la prueba de navegador. Con 1.08 la ficha mide menos que el avatar y el tablero vuelve a
+   * entrar sin tocar ni el reparto de filas ni el piso tipografico. Por debajo de ~1.05 se empiezan a
+   * comer las colas de la `p` y la `g` en las columnas que van en caja mixta.
    */
-  --solari-paso: 1.2em;
+  --solari-paso: 1.08em;
 
   /*
    * El ancho de una ficha uniforme: la de las columnas del tablero, donde lo que importa es que dos
@@ -351,14 +325,24 @@
    * Son los dos numeros que gobiernan el efecto entero y por eso estan juntos y arriba. La velocidad
    * es por glifo y no por ficha: ver el comentario de `animation` mas abajo. El peor caso son los
    * nueve pasos de `PASOS_MAXIMOS` mas los diez escalones de `TOPE_DE_ESCALON_GLIFO`, o sea
-   * 9*50 + 10*35 = 800 ms — un octavo de los seis segundos que dura una fase de dato. El 87% del
-   * tiempo la pared esta quieta, que es la condicion para poder leerla de pie y de pasada.
+   * 9*36 + 10*35 = 674 ms.
+   *
+   * **36 ms y no 50, y es una medida de rendimiento.** Lo que gira a la vez es la duracion del giro
+   * partida por el escalon, asi que acortar el giro baja el pico en la misma proporcion sin quitarle
+   * ni una ficha al volteo. Y ademas es mas fiel: una aleta de un panel de verdad se asienta en dos
+   * decimas, no en medio segundo. Por debajo de ~30 ms los glifos intermedios dejan de leerse como
+   * glifos y el rodillo se convierte en un parpadeo.
    */
-  --velocidad: 50ms;
+  --velocidad: 36ms;
   --escalon: 35ms;
 
   display: inline-block;
-  line-height: 1.2;
+  /*
+   * El renglon de la tira ES el alto del hueco, no un valor parecido. Si el strut de la linea fuera
+   * mas alto que la ficha, la tira ocuparia mas que sus fichas y la fila entera crecería sin que se
+   * vea por que.
+   */
+  line-height: var(--solari-paso);
   /* Un ancho de caracter estable es lo que hace que `--ancho-columna` reserve el hueco correcto. */
   font-variant-numeric: tabular-nums;
 }
@@ -400,7 +384,8 @@
 
 .solari-rodillo {
   display: block;
-  line-height: 1.2;
+  /* El mismo paso que el hueco: una linea de la cinta por ficha, ni mas ni menos. */
+  line-height: var(--solari-paso);
   /* Los saltos de linea de la cinta son el rodillo: sin `pre` el navegador los colapsa en espacios. */
   white-space: pre;
 }
@@ -423,7 +408,7 @@
      * composicion viva. Acá la animacion termina en el reposo natural, asi que no hace falta.
      */
     animation: solari-rodillo calc(var(--pasos, 6) * var(--velocidad)) steps(var(--pasos, 6)) backwards;
-    animation-delay: calc(var(--glifo, 0) * var(--escalon));
+    animation-delay: calc((var(--onda, 0) + var(--glifo, 0)) * var(--escalon));
   }
 
   /*
@@ -436,12 +421,17 @@
    * animaciones de `transform` sobre el mismo elemento no se suman: gana la ultima. El hueco existia
    * de todos modos, asi que el gesto no cuesta ni un elemento. Arranca justo cuando el giro termina.
    *
+   * **Cuelga de `.solari-gira` y no de `.solari-hueco`, y eso es rendimiento y no prolijidad.** Una
+   * pantalla de tablero tiene del orden de mil trescientos huecos y solo un centenar gira; con la
+   * regla en `.solari-hueco`, el navegador creaba mil trescientas animaciones al montar la escena para
+   * no mover mil doscientas fichas. Medido: 433 ms de salto en el fotograma del cambio de escena.
+   *
    * Es `transform`, asi que mueve el pixel y no el layout: un hueco desplazado 0.06em no empuja a
    * nadie ni puede sacar nada del marco.
    */
-  .solari-hueco {
+  .solari-gira {
     animation: solari-rebote 90ms ease-out backwards;
-    animation-delay: calc(var(--glifo, 0) * var(--escalon) + var(--pasos, 6) * var(--velocidad));
+    animation-delay: calc((var(--onda, 0) + var(--glifo, 0)) * var(--escalon) + var(--pasos, 6) * var(--velocidad));
   }
 }
 
@@ -464,21 +454,95 @@
 }
 
 /*
+ * === LA ESTETICA DE ALETA ===
+ *
+ * Hasta acá el Solari era movimiento sobre texto normal. Esto es lo que lo hace **parecer** un panel
+ * mecanico estando quieto: cada caracter en su ficha, con fondo propio, una junta que la separa de la
+ * de al lado, y la linea de pliegue horizontal a media altura.
+ *
+ * **El pliegue es la firma, y por eso lo lleva todo.** Es la ranura donde se encuentran la mitad de
+ * arriba y la de abajo de una aleta de verdad; sin ella, un caracter con fondo es un caracter con
+ * fondo y nada mas. Va como `::after` del contenedor y no como un borde de cada hueco: es UNA linea
+ * continua por celda —que ademas es como se ve en un panel, corrida de lado a lado— y asi la estetica
+ * no cuesta ni un elemento de DOM en un tablero que ya tiene del orden de mil trescientos huecos.
+ *
+ * **El fondo y la junta, en cambio, no los lleva todo**, y el motivo es una medida: una ficha de ancho
+ * fijo cuesta 0.79em por caracter contra los 0.56 de un texto en caja mixta, o sea el 29% de los
+ * caracteres de una columna de palabras. Las columnas de digitos ya son de ancho fijo y no pagan nada;
+ * las de palabras pagarian con informacion. El reparto completo esta en el docblock de
+ * `ANCHO_DE_FICHA_EM`, en el dominio.
+ *
+ * Es fondo y una linea: cero `transform`, cero `filter`, cero `perspective`. La ficha quieta sigue
+ * siendo un bloque estatico, que es la condicion para dejar la pared encendida durante meses.
+ */
+/*
+ * El pliegue lo lleva TODA tira, tenga fondo o no.
+ *
+ * Es lo que hace que la pared entera se lea como un panel aunque solo la mitad de sus columnas puedan
+ * permitirse fichas de ancho fijo: la ranura corre de lado a lado del tablero, a la misma altura, por
+ * encima de las palabras y de los numeros. Quitarsela a las columnas sobrias dejaria la pantalla
+ * partida en dos estilos.
+ */
+.solari {
+  position: relative;
+}
+
+.solari::after {
+  content: '';
+  position: absolute;
+  inset-inline: 0;
+  /* A media altura de la tira, y en porcentaje: asi sigue centrado aunque el renglon cambie. */
+  top: calc(50% - var(--solari-pliegue-grosor) / 2);
+  height: var(--solari-pliegue-grosor);
+  background-color: var(--solari-pliegue);
+  /* Nada acá recibe clics —la pared no se toca— pero tampoco puede tapar la seleccion del texto. */
+  pointer-events: none;
+}
+
+.solari-mecanico .solari-hueco {
+  /*
+   * La aleta: un escalon MAS OSCURO que el renglon, no mas claro. Un panel de Solari es plastico negro
+   * sobre una caja negra, y es lo unico que funciona sobre las dos bandas del cebrado a la vez —un
+   * fondo claro se comeria la fila impar y desapareceria en la par.
+   */
+  background-color: var(--solari-ficha);
+  border-radius: 0.08em;
+  /* La junta entre dos aletas. Entra en `ANCHO_DE_FICHA_EM` del dominio: ver `cupoDeFichas()`. */
+  margin-right: var(--solari-junta);
+}
+
+/*
+ * El Solari de una celda del tablero, que es el de una OLA y no el de un texto suelto.
+ *
+ * Lo unico que cambia es el escalon, y cambia mucho: 26 ms contra los 35 de un reloj. La cuenta esta
+ * en el docblock de `RANURAS_DE_OLA` en el dominio —el pico de fichas girando a la vez es el giro
+ * partido por el escalon, unos 234/26 ≈ 9 por ola— y es lo que permite que un tablero entero voltee
+ * sin que la pared se quede sin fotogramas. Un reloj de cinco caracteres no esta en ninguna ola y se
+ * lee mejor con el escalon lento.
+ *
+ * Las 170 ranuras a 26 ms dan una ola de 4,4 s: es larga a proposito. Lo que hace que un cambio de
+ * pagina se lea como un panel de aeropuerto no es que las fichas giren rapido, es que la ola RECORRA
+ * el tablero — y una ola que recorre quince filas en medio segundo es un fogonazo, no una ola.
+ */
+.solari-tablero {
+  --escalon: 26ms;
+}
+
+/*
  * `?transicion=ninguna` apaga los tres movimientos.
  *
  * Existe para el televisor que no da abasto: un aparato de gama baja con la pantalla llena de
  * transformaciones deja de dibujar los contadores a tiempo, y una pared que miente la hora es peor
  * que una pared quieta. Lo que NO se apaga es el cambio de dato: la celda sigue alternando, sin
- * animarse. Ver `faseDeDato()`.
+ * animarse — ni la estetica de aleta, que es fondo y una linea y no cuesta un fotograma. Ver
+ * `faseDeDato()`.
  *
  * El Solari cae sin ayuda de nadie: sin animacion la cinta se queda en `transform: none`, que es la
  * linea del destino. El texto correcto y quieto es el estado por defecto, no un caso especial — que es
  * la unica forma de que la degradacion no se pueda romper por descuido.
  */
-.pantalla-raiz[data-transicion='ninguna'] .pantalla-voltea,
-.pantalla-raiz[data-transicion='ninguna'] .pantalla-alterna,
 .pantalla-raiz[data-transicion='ninguna'] .solari-rodillo,
-.pantalla-raiz[data-transicion='ninguna'] .solari-hueco {
+.pantalla-raiz[data-transicion='ninguna'] .solari-gira {
   animation: none;
 }
 

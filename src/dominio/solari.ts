@@ -157,7 +157,7 @@ const LETRAS_ANCHAS = 'MWmw%@'
 const LETRAS_FINAS = 'IiltfjJ'
 
 /** Lo que es casi todo aire y no merece un hueco de letra. */
-const PUNTUACION = ' .,:;!¡?¿\'"`|()[]{}-–—/\\*+·°º'
+const PUNTUACION = ' .,:;!¡?¿\'"`|()[]{}-–—/\\*+·°º…'
 
 /**
  * El ancho que reserva un caracter, en `em`.
@@ -252,23 +252,54 @@ export function rodilloDeGlifo (destino: string, pasos: number = PASOS_POR_GLIFO
  * El recorrido de cada posicion NO es el mismo: lo decide `pasosDeGlifo()`, para que las fichas no se
  * asienten todas en fila. El ancho tampoco: lo decide `anchoDeGlifo()`.
  *
- * @param texto  lo que se quiere mostrar; `''` devuelve una lista vacia
- * @param tope   cuantos caracteres como mucho voltean; ver `TOPE_DE_GLIFOS`
+ * === POR QUE EL PRESUPUESTO SE PUEDE GASTAR DESDE EL FINAL ===
+ *
+ * Por defecto voltean los primeros caracteres, que es donde esta la vista: en un nombre, lo que
+ * identifica la fila son las primeras letras y la cola ya venia recortada.
+ *
+ * En un CONTADOR es exactamente al reves. `2:14:37` cambia una vez por segundo y lo que cambia es el
+ * ultimo digito; el de las decenas cambia cada diez segundos y el de las horas cada hora. Gastar el
+ * presupuesto por delante dejaria girando justo los digitos que no se mueven y quieto el unico que si.
+ * Con `desdeElFinal` el presupuesto se gasta por la cola, que es donde ocurre el cambio.
+ *
+ * @param texto        lo que se quiere mostrar; `''` devuelve una lista vacia
+ * @param tope         cuantos caracteres como mucho voltean; ver `TOPE_DE_GLIFOS`
+ * @param desdeElFinal si el presupuesto se reparte desde la cola del texto y no desde el principio
  * @returns una posicion por caracter, en el orden del texto
  */
-export function rodilloDeTexto (texto: string, tope: number = TOPE_DE_GLIFOS): GlifoSolari[] {
+export function rodilloDeTexto (
+  texto: string,
+  tope: number = TOPE_DE_GLIFOS,
+  desdeElFinal: boolean = false
+): GlifoSolari[] {
   if (typeof texto !== 'string' || texto === '') return []
 
   const limite = Math.max(Math.floor(tope), 0)
+  const letras = Array.from(texto)
+  const rodillos: Array<string[] | null> = letras.map(() => null)
+  const recorrido = letras.map((_, indice) => indice)
   let animados = 0
 
-  return Array.from(texto).map((glifo, indice) => {
-    const rodillo = animados < limite ? rodilloDeGlifo(glifo, pasosDeGlifo(glifo, indice)) : null
+  if (desdeElFinal) recorrido.reverse()
 
-    if (rodillo !== null) animados += 1
+  for (const indice of recorrido) {
+    if (animados >= limite) break
 
-    return { glifo, rodillo, escalon: escalonDeGlifo(indice), ancho: anchoDeGlifo(glifo) }
-  })
+    const glifo = letras[indice] as string
+    const rodillo = rodilloDeGlifo(glifo, pasosDeGlifo(glifo, indice))
+
+    if (rodillo === null) continue
+
+    rodillos[indice] = rodillo
+    animados += 1
+  }
+
+  return letras.map((glifo, indice) => ({
+    glifo,
+    rodillo: rodillos[indice] ?? null,
+    escalon: escalonDeGlifo(indice),
+    ancho: anchoDeGlifo(glifo)
+  }))
 }
 
 /**
@@ -321,4 +352,317 @@ function comoGlifo (caracter: string): string {
 
   // Para el resto, fuera las marcas diacriticas: `Á` busca por `A`, que si esta en el alfabeto.
   return mayuscula.normalize('NFD').replace(/[̀-ͯ]/g, '')
+}
+
+/**
+ * === LA OLA DEL TABLERO ===
+ *
+ * Lo de arriba resuelve UN texto. Lo que sigue resuelve una PANTALLA entera de textos, que es un
+ * problema distinto y es el que decide si la pared rinde o tironea.
+ *
+ * **El numero que importa no es cuantas fichas hay, sino cuantas giran en el mismo fotograma.** Un
+ * tablero de quince filas por seis columnas tiene del orden de mil cuatrocientos huecos; medido, con
+ * ciento cuarenta y nueve girando a la vez la pared baja a 21 fotogramas por segundo, y con catorce se
+ * queda en 61. Un panel de Solari de verdad no tiene ese problema porque **nunca giran todas**: la ola
+ * recorre el tablero de arriba abajo y de izquierda a derecha, y cuando la fila ocho arranca, la uno
+ * ya se asento.
+ *
+ * Asi que la ola se reparte en RANURAS: cada ficha que va a girar recibe una ranura propia, en orden
+ * de lectura, y arranca `--escalon` milisegundos despues que la anterior. Con eso el pico deja de
+ * depender del tamaño del tablero y pasa a ser una division:
+ *
+ *     fichas girando a la vez ≈ (pasos promedio * velocidad) / escalon
+ *
+ * —unos 325 ms de giro contra los 16 ms del escalon del tablero: del orden de veinte—. Y la ola entera
+ * dura `RANURAS_DE_OLA * escalon`, que es lo que la acota por el otro lado: no puede durar mas que una
+ * fraccion de la pagina, o la pared se pasa la vida moviendose.
+ *
+ * Las dos cosas juntas son el presupuesto: **cuantas fichas pueden girar en un cambio de pagina**. Se
+ * reparte entre las filas que haya —quince en horizontal, treinta en vertical— y dentro de cada fila
+ * entre sus columnas por peso. Lo que no entra en el presupuesto no se pierde: aparece ya quieto, con
+ * su caracter nuevo.
+ */
+
+/**
+ * Cuantas fichas pueden girar, como mucho, en un cambio de pagina.
+ *
+ * Sale de las dos restricciones a la vez. Por arriba: la ola dura `RANURAS_DE_OLA * --escalon`, y con
+ * los 26 ms del tablero son ~4,4 s de los 10 a 20 que dura una pagina — la pared se mueve menos de un
+ * cuarto del tiempo y esta quieta el resto, que es la condicion para leerla de pie y de pasada. Por
+ * abajo: menos ranuras dejarian filas enteras sin una sola ficha girando, y entonces el cambio de
+ * pagina se leeria como un reemplazo de texto y no como un panel.
+ *
+ * El numero se afino midiendo, no razonando: ver el bloque de medicion del informe de la rama. Con 190
+ * ranuras a 16 ms el pico medido fue de 68 fichas y la pared bajo a 39 fps con saltos de 333 ms; con
+ * 170 a 26 ms —y el giro de `--velocidad` acortado— el pico cae al orden de las que se sabe que rinden.
+ *
+ * **No es un tope de fichas en pantalla**: los huecos que no entran en el presupuesto existen igual y
+ * muestran su caracter definitivo desde el primer fotograma. Lo que se reparte es el movimiento.
+ */
+export const RANURAS_DE_OLA = 170
+
+/**
+ * El minimo y el maximo de fichas que giran en UNA fila.
+ *
+ * El piso existe para la pagina con tres filas: repartir 190 ranuras entre tres daria sesenta fichas
+ * girando en una sola fila, que es toda la fila volteandose a la vez y ademas la ola mas lenta de la
+ * pared. El techo, para la de treinta: sin el, una fila se quedaria con una sola ficha girando y el
+ * resto del renglon cambiando de golpe, que se lee peor que no animar nada.
+ */
+export const TOPE_DE_FILA = 16
+
+/** Ver `TOPE_DE_FILA`. */
+export const PISO_DE_FILA = 4
+
+/** Como se reparte la ola de un tablero entre sus columnas. Lo arma `planDeOla()`. */
+export interface PlanDeOla {
+  /**
+   * Cuantas fichas giran en cada columna, en el orden en que se le pasaron los pesos.
+   *
+   * Es el `tope` que recibe `rodilloDeTexto()` para esa celda: lo que se pasa de ahi se dibuja quieto.
+   */
+  topes: number[]
+  /** Cuantas ranuras de la ola consume una fila entera; es la suma de `topes`. */
+  porFila: number
+}
+
+/**
+ * Como se reparte la ola de este tablero.
+ *
+ * El presupuesto de una fila sale de dividir `RANURAS_DE_OLA` entre las filas que hay en la pagina
+ * —quince en horizontal, treinta en vertical— y acotarlo entre `PISO_DE_FILA` y `TOPE_DE_FILA`. Ese
+ * presupuesto se reparte despues entre las columnas por peso, con el metodo del **mayor resto**: la
+ * suma de los topes es exactamente el presupuesto, sin perder ni inventar una ranura por redondeo.
+ *
+ * Los pesos son una decision de lectura, no de calculo: el nombre —lo unico que alguien lee de verdad
+ * desde el pasillo— pesa varias veces lo que una columna de apoyo, porque una ficha girando en el
+ * nombre cuenta el cambio y una girando en el porcentaje no la ve nadie.
+ *
+ * @param filas cuantas filas tiene la pagina; menos de una se trata como una
+ * @param pesos la importancia relativa de cada columna, en el orden del DOM; los negativos son cero
+ * @returns el tope por columna y lo que consume la fila entera
+ */
+export function planDeOla (filas: number, pesos: readonly number[]): PlanDeOla {
+  const cuantas = Number.isFinite(filas) ? Math.max(Math.floor(filas), 1) : 1
+  const limpios = pesos.map((peso) => (Number.isFinite(peso) ? Math.max(peso, 0) : 0))
+  const suma = limpios.reduce((total, peso) => total + peso, 0)
+
+  if (suma <= 0) return { topes: limpios.map(() => 0), porFila: 1 }
+
+  const presupuesto = Math.min(Math.max(Math.floor(RANURAS_DE_OLA / cuantas), PISO_DE_FILA), TOPE_DE_FILA)
+  const topes = repartirPorMayorResto(presupuesto, limpios, suma)
+
+  return { topes, porFila: Math.max(topes.reduce((total, tope) => total + tope, 0), 1) }
+}
+
+/**
+ * En que ranura de la ola arranca la primera ficha de una celda.
+ *
+ * Es el orden de lectura del tablero: todas las columnas de la fila 0, despues las de la fila 1, y
+ * asi. Dentro de la celda, `escalonDeGlifo()` suma la posicion del caracter, de modo que cada ficha
+ * que gira tiene una ranura propia y arranca un `--escalon` despues que la anterior. Eso es lo que
+ * mantiene el pico bajo: ver el docblock de `RANURAS_DE_OLA`.
+ *
+ * Es aritmetica pura de dos enteros, sin reloj y sin azar: el mismo tablero da la misma ola en el
+ * servidor y en el cliente, que es lo que exige la hidratacion.
+ *
+ * @param plan    el reparto de la escena, de `planDeOla()`
+ * @param fila    la posicion de la fila dentro de SU tabla, empezando en 0
+ * @param columna el indice de la columna, en el mismo orden de los pesos
+ * @param desfase ranuras extra, para la segunda tabla de una escena que tiene dos
+ * @returns la ranura de arranque, nunca negativa
+ */
+export function ondaDeFicha (plan: PlanDeOla, fila: number, columna: number, desfase: number = 0): number {
+  const cual = Number.isFinite(fila) ? Math.max(Math.floor(fila), 0) : 0
+  const hasta = Number.isFinite(columna) ? Math.max(Math.floor(columna), 0) : 0
+  const extra = Number.isFinite(desfase) ? Math.max(Math.floor(desfase), 0) : 0
+
+  let antes = 0
+
+  for (let indice = 0; indice < hasta && indice < plan.topes.length; indice += 1) {
+    antes += plan.topes[indice] ?? 0
+  }
+
+  return extra + cual * plan.porFila + antes
+}
+
+/**
+ * El texto tal como entra en una tira de fichas: recortado y, si toca, en mayusculas.
+ *
+ * === POR QUE HAY QUE RECORTARLO ANTES Y NO DEJARSELO AL `overflow` ===
+ *
+ * Una tira de fichas no se recorta con `truncate`: son `inline-block`, y lo unico que los detiene es
+ * el `overflow: hidden` de la celda. Eso tapa lo que sobra pero **lo dibuja igual**: un nombre de
+ * sesenta caracteres en una columna donde caben treinta son treinta huecos de DOM por fila que nadie
+ * va a ver nunca. En quince filas son cuatrocientos cincuenta elementos pagados a cambio de nada.
+ *
+ * Asi que el recorte es del dominio y no del navegador, y termina en puntos suspensivos —que si se
+ * ven— en vez de cortarse a mitad de letra.
+ *
+ * === LAS MAYUSCULAS NO SON PARA TODO ===
+ *
+ * Un panel de verdad es todo mayusculas porque sus aletas solo tienen mayusculas. Acá la caja se
+ * elige por columna: las cortas van en mayuscula, que es el gesto; **el nombre no**. Una frase larga
+ * en mayusculas pierde la silueta de las palabras —lo que el ojo usa para leerla de un golpe a cuatro
+ * metros— y encima crece de ancho, que en la columna que ya es la mas apretada del tablero significa
+ * recortar informacion para ganar estetica.
+ *
+ * @param texto      lo que se quiere mostrar
+ * @param maximo     cuantos caracteres caben en la columna; ver `cupoDeFichas()`
+ * @param mayusculas si la columna va en mayusculas
+ * @returns el texto listo para `rodilloDeTexto()`
+ */
+export function textoDeFicha (texto: string, maximo: number, mayusculas: boolean = false): string {
+  if (typeof texto !== 'string' || texto === '') return ''
+
+  const caja = mayusculas ? texto.toLocaleUpperCase('es') : texto
+  const cabe = Number.isFinite(maximo) ? Math.max(Math.floor(maximo), 1) : 1
+  const letras = Array.from(caja)
+
+  if (letras.length <= cabe) return caja
+
+  return `${letras.slice(0, cabe - 1).join('')}…`
+}
+
+/**
+ * El ancho que ocupa una ficha uniforme, en `em`, junta incluida.
+ *
+ * `1ch` —el ancho del digito de la fuente— mas la junta de `--solari-junta`, que es la separacion
+ * entre aletas. **Es una medida y no una estimacion**: 0.72em de `1ch` mas 0.07em de junta, leidos del
+ * `getComputedStyle` de un hueco de la pared ya dibujada. La primera version tenia 0.66 a ojo y el
+ * resultado se vio en la captura: la mitad de las columnas cortadas a media palabra, porque el cupo
+ * decia que entraban quince caracteres donde entraban doce.
+ *
+ * === LO QUE ESTE NUMERO DECIDE, Y POR QUE NO TODA LA PARED LLEVA FICHA UNIFORME ===
+ *
+ * Una ficha uniforme cuesta 0.79em por caracter. Un texto en caja mixta promedia 0.56 —ver
+ * `ANCHO_SOBRIO_EM`—, asi que **ponerle fichas de ancho fijo a una columna de palabras le quita el 29%
+ * de sus caracteres**: "En progreso" en 18vmin pasa de entrar entero a entrar como "EN PROGR…".
+ *
+ * De ahi sale la regla que reparte la estetica en la pantalla, y es una regla y no un gusto: **la
+ * ficha de ancho fijo es gratis donde el texto ya es de ancho fijo** —los digitos, que van con
+ * `tabular-nums`— y cuesta una palabra de cada tres donde no lo es. Asi que la llevan los contadores,
+ * los relojes, los porcentajes, las fechas y las cifras; y las columnas de palabras van sobrias, que
+ * es la misma tira de fichas con el ancho de cada letra y sin fondo ni junta. La linea de pliegue las
+ * cruza a las dos, que es lo que hace que la pared entera se lea como un panel.
+ */
+export const ANCHO_DE_FICHA_EM = 0.79
+
+/**
+ * Lo que mide un caracter promedio en una tira SOBRIA, en `em`.
+ *
+ * La tira sobria no reserva un ancho de columna por hueco sino el que `anchoDeGlifo()` le da a cada
+ * clase de caracter. En castellano y en caja mixta eso promedia 0.56em contra los 0.79 de una ficha
+ * uniforme, y esa diferencia es la que decide que columnas de la pared llevan ficha y cuales no: ver
+ * el docblock de `ANCHO_DE_FICHA_EM`.
+ */
+export const ANCHO_SOBRIO_EM = 0.56
+
+/**
+ * Lo que mide un caracter promedio en una tira sobria **en mayusculas**, en `em`.
+ *
+ * Una mayuscula reserva 0.72em en `anchoDeGlifo()` contra los ~0.55 de una minuscula, asi que una
+ * columna en caja alta cabe un 30% menos que la misma columna en caja mixta. Medirla con
+ * `ANCHO_SOBRIO_EM` es lo que dejo "EN PROGRESO" entrando como "EN PROGRES" en la primera captura: el
+ * cupo decia once y entraban nueve.
+ *
+ * De aca sale ademas la regla de que columnas van en mayusculas y cuales no. Las mayusculas son el
+ * gesto del panel, pero cuestan caracteres: donde el texto mas largo no entra en caja alta —el estado
+ * de una Tarea, el "Venció 12/05", el cargo de alguien— se queda en caja mixta, porque una pared que
+ * no dice el dato entero no es mas Solari por estar en mayusculas.
+ */
+export const ANCHO_MAYUSCULA_EM = 0.74
+
+/**
+ * Cuantos caracteres caben en una columna del tablero.
+ *
+ * Las dos medidas salen de `pantalla.css` y de `piezas.tsx`, y las dos estan en `vmin`, asi que la
+ * division no depende del tamaño del televisor: una columna de 18vmin con letra de 2.7vmin da los
+ * mismos diez caracteres en un aparato de 43 pulgadas y en uno de 75.
+ *
+ * Cuando una columna mide distinto en horizontal y en vertical se le pasa **la mas angosta de las
+ * dos**: sobrar hueco se ve como aire, y faltar se ve como una palabra cortada. La excepcion es la
+ * columna flexible del nombre, que en vertical se estrecha mucho: ahi manda la medida horizontal,
+ * porque perder ocho caracteres del nombre de una Tarea en la pared tumbada —que es como cuelgan
+ * todas— para ahorrar DOM en la de pie seria pagar informacion con estetica.
+ *
+ * @param anchoVmin  el ancho de la columna, tal como esta en `.pantalla-columnas-*`
+ * @param cuerpoVmin el cuerpo de letra de la celda, de `CUERPO_PRINCIPAL` o `CUERPO_COLUMNA`
+ * @param anchoEm    lo que mide un caracter; `ANCHO_DE_FICHA_EM` o `ANCHO_SOBRIO_EM`
+ * @returns cuantos caracteres pedirle al texto, al menos uno
+ */
+export function cupoDeFichas (anchoVmin: number, cuerpoVmin: number, anchoEm: number = ANCHO_DE_FICHA_EM): number {
+  if (!Number.isFinite(anchoVmin) || !Number.isFinite(cuerpoVmin) || cuerpoVmin <= 0) return 1
+  if (!Number.isFinite(anchoEm) || anchoEm <= 0) return 1
+
+  return Math.max(Math.floor(anchoVmin / (cuerpoVmin * anchoEm)), 1)
+}
+
+/**
+ * Reparte `total` unidades entre `pesos` sin perder ni inventar ninguna.
+ *
+ * Metodo del mayor resto: se reparte la parte entera y lo que sobra va a las columnas con el resto mas
+ * grande. Los empates los rompe el orden de las columnas, que es fijo, asi que el reparto es el mismo
+ * en el servidor y en el cliente.
+ */
+function repartirPorMayorResto (total: number, pesos: number[], suma: number): number[] {
+  const exactos = pesos.map((peso) => (total * peso) / suma)
+  const partes = exactos.map((exacto) => Math.floor(exacto))
+  let sobran = total - partes.reduce((acumulado, parte) => acumulado + parte, 0)
+
+  const orden = exactos
+    .map((exacto, indice) => ({ indice, resto: exacto - Math.floor(exacto) }))
+    .sort((uno, otro) => (otro.resto - uno.resto) || (uno.indice - otro.indice))
+
+  for (const { indice } of orden) {
+    if (sobran <= 0) break
+
+    partes[indice] = (partes[indice] ?? 0) + 1
+    sobran -= 1
+  }
+
+  return partes
+}
+
+/**
+ * Cuantas fichas de un contador pueden girar.
+ *
+ * Dos, y siempre las dos ultimas: ver `rodilloDeTexto()` y su `desdeElFinal`. Un contador de pared
+ * cambia un digito por segundo —el de las unidades— y dos cada diez segundos; volteando dos, la fila
+ * cuenta el cambio entero y el resto del numero se queda quieto porque de verdad no cambio.
+ *
+ * Con quince contadores en pantalla son quince fichas por segundo, que es el orden que ya se sabe que
+ * rinde. Con las ocho posiciones de `0:12:33` serian ciento veinte por segundo, para animar seis
+ * digitos que no se movieron.
+ */
+export const TOPE_DE_CONTADOR = 2
+
+/**
+ * En cuantas ranuras se reparte la ola de una columna de contadores.
+ *
+ * Es una VENTANA y no un paso por fila, y la diferencia importa: la ola de un tablero cambia una vez
+ * por pagina, pero la de los contadores se repite **cada segundo**. Si la ultima fila arrancara mas
+ * de un segundo tarde, su digito voltearia un valor que ya no es el suyo — la pared mentiria.
+ *
+ * Treinta y cuatro ranuras con el escalon de 26 ms del tablero son 0,88 s: la ola baja por la columna
+ * entera y se cierra antes de que llegue el valor siguiente, tenga la tabla quince filas o las ~36 de
+ * `trabajando`. Y como el reparto es proporcional, cuantas menos filas haya mas separadas arrancan, que
+ * es justo lo que baja el pico donde sobra sitio para bajarlo.
+ */
+export const RANURAS_DE_CONTADOR = 34
+
+/**
+ * En que ranura arranca el contador de la fila `fila`.
+ *
+ * @param fila  la posicion de la fila dentro de su tabla, empezando en 0
+ * @param filas cuantas filas tiene la tabla, para repartir la ventana entre todas
+ * @returns la ranura de arranque, entre 0 y `RANURAS_DE_CONTADOR`
+ */
+export function ondaDeContador (fila: number, filas: number): number {
+  if (!Number.isFinite(fila) || !Number.isFinite(filas)) return 0
+
+  const cual = Math.max(Math.floor(fila), 0)
+  const cuantas = Math.max(Math.floor(filas), 1)
+
+  return Math.min(Math.round((cual * RANURAS_DE_CONTADOR) / cuantas), RANURAS_DE_CONTADOR)
 }

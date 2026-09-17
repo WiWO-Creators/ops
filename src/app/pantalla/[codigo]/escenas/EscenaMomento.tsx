@@ -1,7 +1,9 @@
 import type { ReactNode } from 'react'
 import { horaDeReloj } from '@/dominio/momento-del-dia'
 import type { FranjaDelDia } from '@/dominio/momento-del-dia'
+import { ANCHO_SOBRIO_EM, cupoDeFichas } from '@/dominio/solari'
 import { TextoSolari } from './Solari'
+import { Ficha } from './piezas'
 
 /**
  * El momento del día: la hora en grande y una frase.
@@ -47,13 +49,30 @@ export function EscenaMomento ({ franja, ahora, zona }: {
         * `justify-center` del padre y no dependiendo del interlineado.
         */}
       <p className="text-texto text-[22vmin] font-bold tabular-nums">
-        <TextoSolari texto={horaDeReloj(ahora, zona)} />
+        <TextoSolari ficha texto={horaDeReloj(ahora, zona)} />
       </p>
 
       <div className="flex flex-col items-center gap-[1.5vmin]">
-        <p className="text-acento text-[7vmin] leading-tight font-semibold">{franja.titulo}</p>
-        <p className="text-texto-tenue text-[4vmin] leading-tight">{franja.apoyo}</p>
+        <p className="text-acento text-[7vmin] font-semibold">
+          <Ficha sobria texto={franja.titulo} maximo={CUPO_DE_TITULO} />
+        </p>
+        <p className="text-texto-tenue text-[4vmin]">
+          <Ficha sobria texto={franja.apoyo} maximo={CUPO_DE_APOYO} />
+        </p>
       </div>
     </div>
   )
 }
+
+/** Lo que cabe en el titulo de la franja a 7vmin sobre la pared tumbada. */
+const CUPO_DE_TITULO = cupoDeFichas(150, 7, ANCHO_SOBRIO_EM)
+
+/**
+ * Lo que cabe en la linea de apoyo a 4vmin.
+ *
+ * Sale del ancho de la pared tumbada y no del de la de pie a proposito: una tira de fichas no parte
+ * en dos lineas —lo impide el `whitespace-nowrap` de `Ficha`, y menos mal, porque partiria a mitad de
+ * palabra— asi que en vertical la frase mas larga pierde su cola. Recortarla a lo que cabe en vertical
+ * se la quitaria tambien a la pared tumbada, que es donde cuelgan todas.
+ */
+const CUPO_DE_APOYO = cupoDeFichas(150, 4, ANCHO_SOBRIO_EM)

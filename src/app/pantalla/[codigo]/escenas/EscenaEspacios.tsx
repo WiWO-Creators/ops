@@ -2,14 +2,41 @@ import type { ReactNode } from 'react'
 import { cn } from '@/lib/clases'
 import { GLOSARIO } from '@/dominio/glosario'
 import { diasHasta } from '@/lib/fechas'
+import { ANCHO_SOBRIO_EM, cupoDeFichas, planDeOla } from '@/dominio/solari'
+import type { PlanDeOla } from '@/dominio/solari'
 import type { ProyectoEnPantalla } from '@/datos/pantalla-area'
 import {
-  CabeceraDeEscena, CeldaQueAlterna, CUERPO_COLUMNA, CUERPO_PRINCIPAL, FILA_VIVA, Nada,
-  RELLENO_DE_FILA, RotulosDeColumna, escalonDeFila
+  CabeceraDeEscena, CeldaQueAlterna, CUERPO_COLUMNA, CUERPO_PRINCIPAL, FichaDeTablero, Nada,
+  RELLENO_DE_FILA, Rotulo, RotulosDeColumna
 } from './piezas'
 
 /** La rejilla de columnas de esta escena. Su reparto vive en `pantalla.css`. */
 const COLUMNAS = 'pantalla-columnas-espacios'
+
+/**
+ * Cuanto pesa cada columna en la ola, en el orden del DOM.
+ *
+ * La barra de avance no entra: no es texto y no tiene fichas que voltear.
+ */
+const PESOS = [6, 2, 1, 1, 1] as const
+
+/**
+ * Cuantos caracteres caben en cada columna. Los anchos son los de `.pantalla-columnas-espacios`.
+ *
+ * La columna que alterna es la mas apretada de toda la pantalla —8vmin— y el texto mas largo que le
+ * toca es "en 12 días". Va sobria: el porcentaje entra entero y la cuenta de dias se corta como ya se
+ * cortaba antes, que es el precio de tener el dato en vertical, donde la fecha no existe. Las tres
+ * columnas de conteos y la fecha si llevan ficha entera, porque son digitos y el ancho fijo les sale
+ * gratis; ver `ANCHO_DE_FICHA_EM` en el dominio.
+ */
+const CUPO = {
+  nombre: cupoDeFichas(55, 3, ANCHO_SOBRIO_EM),
+  /** Sobria y no ficha: alterna con "en 12 días", que son palabras y no caben en ancho fijo. */
+  avance: cupoDeFichas(8, 2.7, ANCHO_SOBRIO_EM),
+  abiertas: cupoDeFichas(17, 2.7),
+  atrasadas: cupoDeFichas(21, 2.7),
+  entrega: cupoDeFichas(16, 2.7)
+}
 
 /**
  * Los Proyectos donde el area tiene trabajo abierto.
@@ -51,29 +78,35 @@ export function EscenaEspacios ({ items, ocultos, ahora, zona, fase }: {
 }): ReactNode {
   if (items.length === 0) return <Nada texto={`Sin ${GLOSARIO.espacio.plural.toLowerCase()} en curso`} />
 
+  const plan = planDeOla(items.length, PESOS)
+
   return (
     <div className="flex min-h-0 flex-col">
       <CabeceraDeEscena titulo={`${GLOSARIO.espacio.plural} en curso`} ocultos={ocultos} />
 
       <RotulosDeColumna columnas={COLUMNAS}>
-        <span className="truncate">{GLOSARIO.espacio.singular}</span>
-        <span className="portrait:hidden">Avance</span>
-        <CeldaQueAlterna solari fase={fase} className="text-right" principal="%" alterno="Entrega" />
-        <span className="truncate text-right">Abiertas</span>
-        <span className="truncate text-right">Atrasadas</span>
-        <span className="truncate text-right portrait:hidden">Entrega</span>
+        <Rotulo texto={GLOSARIO.espacio.singular} columna={0} maximo={CUPO.nombre} />
+        <Rotulo texto="Avance" columna={1} maximo={8} className="portrait:hidden" />
+        <Rotulo texto={fase === 0 ? '%' : 'Entrega'} columna={2} maximo={CUPO.avance + 2} className="text-right" />
+        <Rotulo texto="Abiertas" columna={3} maximo={CUPO.abiertas} className="text-right" />
+        <Rotulo texto="Atrasadas" columna={4} maximo={CUPO.atrasadas} className="text-right" />
+        <Rotulo texto="Entrega" columna={5} maximo={CUPO.entrega} className="text-right portrait:hidden" />
       </RotulosDeColumna>
 
       <ul className="pantalla-tablero min-h-0">
         {items.map((proyecto, indice) => (
           <li
-            key={proyecto.id}
-            className={cn('pantalla-fila py-[0.55vmin] leading-[1.15]', FILA_VIVA, RELLENO_DE_FILA, COLUMNAS)}
-            style={escalonDeFila(indice)}
+            // Por POSICION y no por `proyecto.id`. Ver el docblock de `EscenaProcesos`.
+            key={indice}
+            className={cn('pantalla-fila py-[0.55vmin] leading-[1.15]', RELLENO_DE_FILA, COLUMNAS)}
           >
-            <span className={cn('text-texto truncate font-semibold', CUERPO_PRINCIPAL)}>
-              {proyecto.name}
-            </span>
+            <FichaDeTablero
+              sobria
+              texto={proyecto.name}
+              sitio={{ plan, fila: indice, columna: 0 }}
+              maximo={CUPO.nombre}
+              className={cn('text-texto font-semibold', CUERPO_PRINCIPAL)}
+            />
 
             <span className="bg-linea-suave h-[1vmin] overflow-hidden rounded-full portrait:hidden">
               <span
@@ -83,21 +116,30 @@ export function EscenaEspacios ({ items, ocultos, ahora, zona, fase }: {
             </span>
 
             <CeldaQueAlterna
+              sobria
               fase={fase}
-              className={cn('text-texto text-right font-semibold tabular-nums', CUERPO_COLUMNA)}
               principal={`${proyecto.progress}%`}
               alterno={cuantoFalta(proyecto.deadline, ahora, zona)}
+              sitio={{ plan, fila: indice, columna: 1 }}
+              maximo={CUPO.avance}
+              className={cn('text-texto text-right font-semibold', CUERPO_COLUMNA)}
             />
 
-            <span className={cn('text-texto-tenue text-right tabular-nums', CUERPO_COLUMNA)}>
-              {proyecto.procesos_abiertos}
-            </span>
+            <FichaDeTablero
+              texto={String(proyecto.procesos_abiertos)}
+              sitio={{ plan, fila: indice, columna: 2 }}
+              maximo={CUPO.abiertas}
+              className={cn('text-texto-tenue text-right', CUERPO_COLUMNA)}
+            />
 
-            <Atrasadas cuantas={proyecto.procesos_atrasados} />
+            <Atrasadas cuantas={proyecto.procesos_atrasados} plan={plan} fila={indice} />
 
-            <span className={cn('text-texto-tenue text-right tabular-nums portrait:hidden', CUERPO_COLUMNA)}>
-              {formatoCorto(proyecto.deadline)}
-            </span>
+            <FichaDeTablero
+              texto={formatoCorto(proyecto.deadline)}
+              sitio={{ plan, fila: indice, columna: 4 }}
+              maximo={CUPO.entrega}
+              className={cn('text-texto-tenue text-right portrait:hidden', CUERPO_COLUMNA)}
+            />
           </li>
         ))}
       </ul>
@@ -111,15 +153,22 @@ export function EscenaEspacios ({ items, ocultos, ahora, zona, fase }: {
  * El cero se dibuja en gris y no se esconde: una columna con huecos obliga a comprobar si falta el
  * dato o si el dato es cero, y esa duda cuesta mas que el cero.
  */
-function Atrasadas ({ cuantas }: { cuantas: number }): ReactNode {
-  if (cuantas === 0) {
-    return <span className={cn('text-texto-sutil text-right tabular-nums', CUERPO_COLUMNA)}>0</span>
-  }
-
+function Atrasadas ({ cuantas, plan, fila }: {
+  cuantas: number
+  plan: PlanDeOla
+  fila: number
+}): ReactNode {
   return (
-    <span className={cn('text-texto-peligro text-right font-bold tabular-nums', CUERPO_COLUMNA)}>
-      {cuantas}
-    </span>
+    <FichaDeTablero
+      texto={String(cuantas)}
+      sitio={{ plan, fila, columna: 3 }}
+      maximo={CUPO.atrasadas}
+      className={cn(
+        'text-right',
+        CUERPO_COLUMNA,
+        cuantas === 0 ? 'text-texto-sutil' : 'text-texto-peligro font-bold'
+      )}
+    />
   )
 }
 

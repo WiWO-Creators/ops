@@ -1,6 +1,6 @@
 import type { CSSProperties, ReactNode } from 'react'
 import { cn } from '@/lib/clases'
-import { cintaDeRodillo, rodilloDeTexto } from '@/dominio/solari'
+import { TOPE_DE_GLIFOS, cintaDeRodillo, rodilloDeTexto } from '@/dominio/solari'
 
 /**
  * Un texto que voltea caracter a caracter, como un panel de Solari di Udine.
@@ -51,8 +51,9 @@ import { cintaDeRodillo, rodilloDeTexto } from '@/dominio/solari'
  * contenido unico de su celda.
  *
  * Y no se anida dentro de otro contenedor que se este animando: dos `transform` encadenados se componen
- * y el volteo sale torcido. Es la razon por la que las filas del tablero, que ya voltean enteras al
- * llegar, no llevan Solari dentro.
+ * y el volteo sale torcido. Es la razon por la que las filas del tablero dejaron de voltear enteras con
+ * `rotateX` cuando pasaron a llevar Solari dentro: los dos gestos contaban lo mismo y no podian
+ * convivir.
  *
  * === LECTORES DE PANTALLA Y SELECCION ===
  *
@@ -61,20 +62,44 @@ import { cintaDeRodillo, rodilloDeTexto } from '@/dominio/solari'
  * que un `role="img"` con `aria-label`, y se paga a gusto: un `aria-label` lo anuncia un lector de
  * pantalla pero no se puede seleccionar ni copiar, y el texto de esta pared tiene que ser texto.
  *
+ * === LA ESTETICA DE ALETA ===
+ *
+ * Con `ficha` cada hueco se dibuja como lo que imita: fondo propio, esquina apenas redondeada, una
+ * junta que lo separa del de al lado y **la linea de pliegue horizontal a media altura**, que es la
+ * firma visual de un Solari — sin ella el efecto se lee como texto animado y no como un panel
+ * mecanico.
+ *
+ * El pliegue es UNA sola linea por celda y no una por ficha: es un `::after` del contenedor, asi que
+ * la estetica completa no cuesta ni un elemento mas de DOM en un tablero que ya tiene mil cuatrocientos
+ * huecos. El fondo y la junta son propiedades del hueco, que existia de todos modos.
+ *
+ * Sin `ficha` el texto queda sobrio: voltea igual, pero sin fondo ni junta. Es lo que lleva la columna
+ * del nombre, que es la larga; ver el docblock de `textoDeFicha()` en el dominio.
+ *
  * @param texto     lo que tiene que quedar en pantalla cuando el rodillo se detenga
  * @param uniforme  si todas las fichas miden lo mismo, para que dos celdas de la misma columna del
  *                  tablero caigan alineadas; ver `ANCHO_DE_COLUMNA` en `pantalla.css`
+ * @param ficha     si se dibuja la estetica de aleta: fondo, junta y linea de pliegue
+ * @param tope      cuantos caracteres voltean como mucho; `0` deja la tira entera quieta
+ * @param desdeElFinal si el presupuesto de volteo se gasta por la cola; es lo que quiere un contador
+ * @param onda      en que ranura de la ola del tablero arranca esta celda; ver `ondaDeFicha()`
  * @param className clases del contenedor; el cuerpo de letra y el color se heredan de ahi
  */
-export function TextoSolari ({ texto, uniforme = false, className }: {
+export function TextoSolari ({
+  texto, uniforme = false, ficha = false, tope = TOPE_DE_GLIFOS, desdeElFinal = false, onda = 0, className
+}: {
   texto: string
   uniforme?: boolean
+  ficha?: boolean
+  tope?: number
+  desdeElFinal?: boolean
+  onda?: number
   className?: string
 }): ReactNode {
-  const glifos = rodilloDeTexto(texto)
+  const glifos = rodilloDeTexto(texto, tope, desdeElFinal)
 
   return (
-    <span className={cn('solari', className)}>
+    <span className={cn('solari', ficha && 'solari-mecanico', className)} style={estiloDeTira(onda)}>
       <span className="sr-only">{texto}</span>
 
       <span aria-hidden="true">
@@ -83,7 +108,11 @@ export function TextoSolari ({ texto, uniforme = false, className }: {
             // `posicion:caracter`, y no el indice a secas: es lo unico que hace que un caracter que no
             // cambio NO se remonte y por lo tanto NO vuelva a animarse. Ver el docblock de arriba.
             key={`${indice}:${posicion.glifo}`}
-            className="solari-hueco"
+            // `solari-gira` SOLO donde hay rodillo. El rebote de asentamiento cuelga de esa clase, y
+            // sin ella el navegador crearia una animacion por hueco: mil trescientas en el tablero
+            // denso, la mayoria para no mover una ficha que no gira. Medido, esa sola diferencia era
+            // un salto de 433 ms al montar la escena.
+            className={cn('solari-hueco', posicion.rodillo !== null && 'solari-gira')}
             style={estiloDeHueco(posicion.escalon, posicion.rodillo?.length ?? 0, uniforme ? 0 : posicion.ancho)}
           >
             {posicion.rodillo === null
@@ -95,6 +124,33 @@ export function TextoSolari ({ texto, uniforme = false, className }: {
     </span>
   )
 }
+
+/**
+ * El estilo del contenedor: en que ranura de la ola arranca esta celda.
+ *
+ * Mismo cache que `estiloDeHueco()` y por el mismo motivo: en un tablero de quince filas por seis
+ * columnas son noventa celdas por render, y las ranuras se repiten entre paginas porque solo dependen
+ * de la posicion. Un objeto nuevo por celda y por fotograma es exactamente lo que no se le puede pedir
+ * a una pared encendida durante meses.
+ *
+ * `0` no emite nada: es el caso de los dos relojes sueltos, que no estan en ninguna ola.
+ */
+function estiloDeTira (onda: number): CSSProperties | undefined {
+  if (onda <= 0) return undefined
+
+  const guardado = TIRAS.get(onda)
+
+  if (guardado !== undefined) return guardado
+
+  const estilo = { '--onda': onda } as CSSProperties
+
+  TIRAS.set(onda, estilo)
+
+  return estilo
+}
+
+/** El cache de `estiloDeTira()`. Ver su docblock. */
+const TIRAS = new Map<number, CSSProperties>()
 
 /**
  * Los estilos en linea de un hueco, compartidos entre todos los que coinciden.

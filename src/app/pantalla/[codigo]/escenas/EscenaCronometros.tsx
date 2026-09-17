@@ -2,14 +2,41 @@ import type { ReactNode } from 'react'
 import { cn } from '@/lib/clases'
 import { GLOSARIO } from '@/dominio/glosario'
 import { horaDeReloj } from '@/dominio/momento-del-dia'
+import { ANCHO_MAYUSCULA_EM, ANCHO_SOBRIO_EM, cupoDeFichas, planDeOla } from '@/dominio/solari'
 import type { CronometroEnPantalla } from '@/datos/pantalla-area'
 import {
-  Cara, CabeceraDeEscena, CeldaQueAlterna, Corriendo, CUERPO_COLUMNA, CUERPO_PRINCIPAL, FILA_VIVA,
-  Nada, RELLENO_DE_FILA, RotulosDeColumna, escalonDeFila
+  Cara, CabeceraDeEscena, CeldaQueAlterna, Corriendo, CUERPO_COLUMNA, CUERPO_PRINCIPAL,
+  FichaDeTablero, Nada, RELLENO_DE_FILA, Rotulo, RotulosDeColumna
 } from './piezas'
 
 /** La rejilla de columnas de esta escena. Su reparto vive en `pantalla.css`. */
 const COLUMNAS = 'pantalla-columnas-cronometros'
+
+/**
+ * Cuanto pesa cada columna en la ola: la Tarea, quien mide y el Proyecto.
+ *
+ * El contador no entra: tiene ola propia porque cambia una vez por segundo. Ver `Corriendo`.
+ */
+const PESOS = [6, 2, 2] as const
+
+/**
+ * Cuantos caracteres caben en cada columna. Los anchos son los de `.pantalla-columnas-cronometros`.
+ *
+ * El nombre de la Tarea dispone de ~71vmin en la pared tumbada, que darian 42 fichas; se corta en las
+ * que da una columna de 60vmin porque un nombre de Tarea de mas de 35 caracteres es una frase entera,
+ * y dibujar siete huecos mas por fila para enseñar el final de una frase que ya se entendio es DOM
+ * pagado a cambio de nada.
+ *
+ * Las tres columnas de palabras van sobrias y solo el contador lleva ficha entera: ver el docblock de
+ * `ANCHO_DE_FICHA_EM` en el dominio.
+ */
+const CUPO = {
+  nombre: cupoDeFichas(60, 3, ANCHO_SOBRIO_EM),
+  quien: cupoDeFichas(26, 2.7, ANCHO_SOBRIO_EM),
+  espacio: cupoDeFichas(30, 2.7, ANCHO_MAYUSCULA_EM),
+  /** El contador: digitos, ancho fijo y ficha entera. Por eso su columna crecio a 20vmin. */
+  lleva: cupoDeFichas(20, 3.4)
+}
 
 /**
  * Los cronometros corriendo: quien mide, contra que, y desde cuando.
@@ -26,6 +53,13 @@ const COLUMNAS = 'pantalla-columnas-cronometros'
  *
  * Los nombres de Tarea y Proyecto salen de `GLOSARIO`, nunca escritos a mano: el producto los ha
  * renombrado antes y lo volvera a hacer.
+ *
+ * === EL CONTADOR TAMBIEN ES SOLARI ===
+ *
+ * Y es el sitio donde mas se nota que lo es: quince contadores en fila voltean su digito de las
+ * unidades una vez por segundo, escalonados de arriba abajo. No es caro porque un contador **no cambia
+ * entero**: gira una ficha por segundo y no ocho. El razonamiento y los numeros estan en el docblock
+ * de `Corriendo`.
  *
  * === QUE ALTERNA ===
  *
@@ -46,46 +80,69 @@ export function EscenaCronometros ({ items, ocultos, ahora, congelado, zona, fas
 }): ReactNode {
   if (items.length === 0) return <Nada texto="Ningún cronómetro corriendo" />
 
+  const plan = planDeOla(items.length, PESOS)
+
   return (
     <div className="flex min-h-0 flex-col">
       <CabeceraDeEscena titulo="Midiendo ahora" ocultos={ocultos} />
 
       <RotulosDeColumna columnas={COLUMNAS}>
         <span />
-        <span className="truncate">{GLOSARIO.proceso.singular}</span>
-        <CeldaQueAlterna solari fase={fase} principal="Quién mide" alterno="Arrancó" />
-        <span className="truncate portrait:hidden">{GLOSARIO.espacio.singular}</span>
-        <span className="truncate text-right">Lleva</span>
+        <Rotulo texto={GLOSARIO.proceso.singular} columna={0} maximo={CUPO.nombre} />
+        <Rotulo texto={fase === 0 ? 'Quién mide' : 'Arrancó'} columna={1} maximo={CUPO.quien} />
+        <Rotulo texto={GLOSARIO.espacio.singular} columna={2} maximo={CUPO.espacio} className="portrait:hidden" />
+        <Rotulo texto="Lleva" columna={3} maximo={CUPO.lleva} className="text-right" />
       </RotulosDeColumna>
 
       <ul className="pantalla-tablero min-h-0">
         {items.map((medidor, indice) => (
           <li
-            key={medidor.staff_id}
-            className={cn('pantalla-fila py-[0.45vmin] leading-[1.1]', FILA_VIVA, RELLENO_DE_FILA, COLUMNAS)}
-            style={escalonDeFila(indice)}
+            // Por POSICION y no por `medidor.staff_id`. Ver el docblock de `EscenaProcesos`.
+            key={indice}
+            className={cn('pantalla-fila py-[0.45vmin] leading-[1.1]', RELLENO_DE_FILA, COLUMNAS)}
           >
             <Cara nombre={medidor.name} imagen={medidor.avatar} tamano="3.8vmin" />
 
-            <span className={cn('text-texto truncate font-semibold', CUERPO_PRINCIPAL)}>
-              {medidor.task?.name ?? `Sin ${GLOSARIO.proceso.singular.toLowerCase()}`}
-            </span>
-
-            <CeldaQueAlterna
-              fase={fase}
-              className={cn('text-texto-tenue', CUERPO_COLUMNA)}
-              principal={medidor.name}
-              alterno={<ArrancoA desde={medidor.started_at} zona={zona} />}
+            <FichaDeTablero
+              sobria
+              texto={medidor.task?.name ?? `Sin ${GLOSARIO.proceso.singular.toLowerCase()}`}
+              sitio={{ plan, fila: indice, columna: 0 }}
+              maximo={CUPO.nombre}
+              className={cn('text-texto font-semibold', CUERPO_PRINCIPAL)}
             />
 
-            <span className={cn('text-texto-tenue truncate portrait:hidden', CUERPO_COLUMNA)}>
-              {medidor.project?.name ?? '—'}
-            </span>
+            {/*
+              * Sin `mayusculas`: es un nombre de persona. Las columnas cortas del tablero van en caja
+              * alta porque es el gesto de un panel de aletas, pero un nombre propio en mayusculas
+              * pierde la silueta por la que se reconoce a alguien recorriendo la columna con la vista
+              * — que es exactamente para lo que esta esta columna.
+              */}
+            <CeldaQueAlterna
+              sobria
+              fase={fase}
+              principal={medidor.name}
+              alterno={arrancoA(medidor.started_at, zona)}
+              sitio={{ plan, fila: indice, columna: 1 }}
+              maximo={CUPO.quien}
+              className={cn('text-texto-tenue', CUERPO_COLUMNA)}
+            />
+
+            <FichaDeTablero
+              mayusculas
+              sobria
+              texto={medidor.project?.name ?? '—'}
+              sitio={{ plan, fila: indice, columna: 2 }}
+              maximo={CUPO.espacio}
+              className={cn('text-texto-tenue portrait:hidden', CUERPO_COLUMNA)}
+            />
 
             <Corriendo
               desde={medidor.started_at}
               ahora={ahora}
               congelado={congelado}
+              fila={indice}
+              filas={items.length}
+              maximo={CUPO.lleva}
               className="text-acento text-right text-[3.4vmin] font-bold"
             />
           </li>
@@ -101,12 +158,12 @@ export function EscenaCronometros ({ items, ocultos, ahora, congelado, zona, fas
  * `horaDeReloj()` y no un `Intl` propio: es la misma funcion del reloj de la cabecera, y dos horas
  * visibles a la vez en la misma pared no pueden discrepar en el formato.
  */
-function ArrancoA ({ desde, zona }: { desde: string | null, zona: string | null }): ReactNode {
-  if (desde === null) return <>—</>
+function arrancoA (desde: string | null, zona: string | null): string {
+  if (desde === null) return '—'
 
   const arranque = Date.parse(desde)
 
-  if (Number.isNaN(arranque)) return <>—</>
+  if (Number.isNaN(arranque)) return '—'
 
-  return <span className="tabular-nums">{horaDeReloj(arranque, zona)}</span>
+  return horaDeReloj(arranque, zona)
 }

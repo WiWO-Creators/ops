@@ -1,6 +1,11 @@
-import type { CSSProperties, ReactNode } from 'react'
+import type { ReactNode } from 'react'
 import { cn } from '@/lib/clases'
 import { coloresAvatar, iniciales } from '@/lib/personas'
+import {
+  ANCHO_MAYUSCULA_EM, ANCHO_SOBRIO_EM, TOPE_DE_CONTADOR, TOPE_DE_GLIFOS, cupoDeFichas, ondaDeContador,
+  ondaDeFicha, textoDeFicha
+} from '@/dominio/solari'
+import type { PlanDeOla } from '@/dominio/solari'
 import { TextoSolari } from './Solari'
 
 /**
@@ -92,6 +97,10 @@ const DIAMETRO_CON_INICIALES = 6.6
  * para recorrer una columna, y el nombre completo esta al lado en 3vmin. Lo que se pierde es una
  * etiqueta ilegible.
  *
+ * **Las iniciales son lo unico de la pantalla que no es Solari**, y no por coste: un avatar es un
+ * disco, no una aleta, y una ficha rectangular dentro de un circulo de 3.8vmin no se lee como un
+ * panel sino como un error de maquetacion. Ademas casi nunca se dibujan, justo por lo de arriba.
+ *
  * No usa `next/image`: las fotos salen de `uploads/` de Perfex, en otro dominio, y una pantalla que
  * las carga cada tantos minutos no gana nada con la optimizacion. Si la imagen falla, queda el disco
  * de color debajo, que es la caida correcta sin necesidad de estado.
@@ -154,42 +163,209 @@ export function nombreCorto (nombre: string): string {
 }
 
 /**
- * Un contador que corre en pantalla, formateado `H:MM:SS`.
+ * === TODO EL TEXTO DE LA PARED ES UNA TIRA DE FICHAS ===
+ *
+ * No hay en esta pantalla un solo texto que no se dibuje como aletas de un Solari. Lo que sigue son
+ * las tres formas de pedirlo, y se diferencian **solo en como entran en la ola** —quien voltea cuando—
+ * porque el coste de esta pantalla no lo decide cuantas fichas hay sino cuantas giran en el mismo
+ * fotograma. El razonamiento completo esta en el docblock de `RANURAS_DE_OLA`, en el dominio.
+ *
+ * - **`Ficha`**: un texto suelto, fuera de cualquier tabla. La cabecera, el pie, el titulo de una
+ *   escena, las cifras de la portada. Cambian pocas veces y son pocos caracteres, asi que llevan la
+ *   ola lenta de 35 ms, que es la que mejor se ve.
+ * - **`FichaDeTablero`**: una celda de una fila. Recibe su `sitio` en la ola —fila y columna— y de ahi
+ *   sale su ranura de arranque y cuantas de sus fichas pueden girar. Es lo que hace que un cambio de
+ *   pagina sea una ola que recorre el tablero y no mil cuatrocientas fichas girando a la vez.
+ * - **`Corriendo`**: un contador. Tiene ola propia y apretada, porque cambia una vez por segundo y no
+ *   una vez por pagina. Ver su docblock.
+ *
+ * Y una regla que no se puede romper: **el volteo lo dispara el cambio de VALOR, nunca el render.** No
+ * hace falta cuidarlo a mano —el `key` de `TextoSolari` es `posicion:caracter`, asi que un render con
+ * el mismo texto no remonta nada y no anima nada— pero si hace falta no romperlo: cualquier `key`
+ * puesta por encima de una ficha la remontaria en cada render y la pared se llenaria de fichas girando
+ * cuatro veces por segundo sin que nada haya cambiado.
+ */
+
+/** Donde cae una celda dentro de la ola de su tablero. Lo arma la escena con `planDeOla()`. */
+export interface SitioEnLaOla {
+  /** El reparto de la escena: cuantas fichas gira cada columna y cuanto consume una fila. */
+  plan: PlanDeOla
+  /** La posicion de la fila dentro de SU tabla, empezando en 0. */
+  fila: number
+  /** El indice de la columna, en el mismo orden que los pesos que se le pasaron al plan. */
+  columna: number
+  /** Ranuras extra, para la segunda tabla de una escena que tiene dos. */
+  desfase?: number
+}
+
+/**
+ * Un texto suelto de la pantalla, dibujado como una tira de fichas.
+ *
+ * `sobria` quita el fondo y la junta y deja solo el volteo con anchos por clase de caracter. Es lo que
+ * lleva todo lo que es una FRASE y no un campo: el nombre de una Tarea, el mensaje de una franja
+ * horaria, el aviso de "sin conexión". Una frase larga en fichas de ancho fijo pierde la silueta de
+ * las palabras —que es lo que el ojo usa para leerla de un golpe a cuatro metros— y ademas crece de
+ * ancho, lo que en la columna mas apretada del tablero significa recortar informacion.
+ *
+ * === EL TOPE DE UN TEXTO SUELTO NO ES DECORACION ===
+ *
+ * Los textos sueltos de la pantalla son pocos, pero **cambian todos a la vez**: al entrar en una escena
+ * se montan el titulo, el conteo, los cuatro o seis rotulos y, en `trabajando`, los cuatro juegos de
+ * rotulos de las dos tablas. Con el tope por defecto de catorce, eso es un centenar de fichas girando
+ * en el mismo fotograma —medido: el pico de la escena, por encima del de la ola del tablero— para
+ * animar unas etiquetas que nadie estaba leyendo.
+ *
+ * Por eso quien los usa les baja el tope a tres o cuatro y les da una ranura distinta a cada uno. El
+ * gesto se mantiene, el pico no.
+ *
+ * @param texto      lo que tiene que decir
+ * @param maximo     cuantos caracteres caben donde va; ver `cupoDeFichas()`
+ * @param mayusculas si va en mayusculas, como las aletas de un panel de verdad
+ * @param sobria     sin fondo ni junta, y con ancho por clase de caracter
+ * @param tope       cuantas de sus fichas pueden girar; ver arriba
+ * @param onda       en que ranura arranca, para no disparar cincuenta fichas en el mismo fotograma
+ */
+export function Ficha ({
+  texto, maximo, mayusculas = false, sobria = false, tope = TOPE_DE_GLIFOS, onda = 0, className
+}: {
+  texto: string
+  maximo: number
+  mayusculas?: boolean
+  sobria?: boolean
+  tope?: number
+  onda?: number
+  className?: string
+}): ReactNode {
+  return (
+    <span className={cn('block overflow-hidden whitespace-nowrap', className)}>
+      <TextoSolari
+        texto={textoDeFicha(texto, maximo, mayusculas)}
+        uniforme={!sobria}
+        ficha={!sobria}
+        tope={tope}
+        onda={onda}
+      />
+    </span>
+  )
+}
+
+/** Cuantas fichas gira un rotulo o un titulo. Ver el docblock de `Ficha`. */
+export const TOPE_SUELTO = 3
+
+/**
+ * Una celda de una fila del tablero.
+ *
+ * Lo unico que agrega sobre `Ficha` es la ola: de `sitio` salen la ranura de arranque —que es el orden
+ * de lectura del tablero, fila por fila y columna por columna— y el tope de fichas que esta columna
+ * puede girar. Sin eso, un cambio de pagina lanzaria todas las fichas del tablero en el mismo
+ * fotograma, que es exactamente la medicion que dejo la pared en 21 fotogramas por segundo.
+ *
+ * **El envoltorio de bloque no es decoracion.** Una tira de fichas es una fila de `inline-block`, y un
+ * `inline-block` no lo recorta el `truncate` de su celda: se saldria de su columna del tablero, y en un
+ * marco con `overflow: hidden` eso se lleva por delante lo que tenga al lado sin dejar rastro.
+ */
+export function FichaDeTablero ({ texto, sitio, maximo, mayusculas = false, sobria = false, className }: {
+  texto: string
+  sitio: SitioEnLaOla
+  maximo: number
+  mayusculas?: boolean
+  sobria?: boolean
+  className?: string
+}): ReactNode {
+  return (
+    <span className={cn('block overflow-hidden whitespace-nowrap', className)}>
+      <TextoSolari
+        className="solari-tablero"
+        texto={textoDeFicha(texto, maximo, mayusculas)}
+        uniforme={!sobria}
+        ficha={!sobria}
+        tope={sitio.plan.topes[sitio.columna] ?? 0}
+        onda={ondaDeFicha(sitio.plan, sitio.fila, sitio.columna, sitio.desfase ?? 0)}
+      />
+    </span>
+  )
+}
+
+/**
+ * Un contador que corre en pantalla, formateado `H:MM:SS`, en fichas.
  *
  * `ahora` llega de arriba y no de un `Date.now()` propio: un tic por escena y no uno por fila. Con
  * treinta filas en pantalla, treinta temporizadores propios serian treinta repintados por segundo
  * para mostrar lo mismo.
  *
+ * === POR QUE UN CONTADOR SI PUEDE SER SOLARI ===
+ *
+ * A primera vista es el caso imposible: quince filas por ocho caracteres volteando una vez por
+ * segundo. No lo es, porque **un contador no cambia entero**. En `2:14:37` cada segundo cambia UN
+ * digito; el de las decenas cambia cada diez segundos y el de los minutos cada sesenta. El `key` por
+ * `posicion:caracter` de `TextoSolari` remonta solo las posiciones cuyo caracter cambio, asi que lo
+ * que gira es una ficha por contador y por segundo, no ocho.
+ *
+ * Encima el presupuesto se gasta **desde la cola** (`TOPE_DE_CONTADOR`, `desdeElFinal`): las dos
+ * ultimas posiciones son las unicas que se mueven a ese ritmo, y son exactamente las que pueden girar.
+ * Lo de delante cambia tan de vez en cuando que aparecer ya puesto es lo correcto.
+ *
+ * Y la ola es propia —`ondaDeContador()`, una ventana de 0,88 s repartida entre todas las filas—
+ * porque esta ola se repite cada segundo: con las once ranuras por fila del tablero, la ultima fila
+ * voltearia cuatro segundos tarde, o sea cuatro valores despues del suyo.
+ *
  * **Congelado dice la verdad.** Cuando los datos estan viejos el contador deja de sumar y se queda en
  * el ultimo valor bueno: un numero que sigue trepando con la conexion caida es una mentira, y esta
- * pared la leen jefaturas de area.
+ * pared la leen jefaturas de area. Congelado no voltea nada, y no hace falta apagarlo: sin cambio de
+ * valor no hay remonte, y sin remonte no hay animacion.
+ *
+ * @param desde     cuando arranco, en ISO, o `null` si no se sabe
+ * @param ahora     el reloj de la pantalla, o `null` antes de hidratar
+ * @param congelado si los datos estan viejos y el contador tiene que quedarse quieto
+ * @param fila      la posicion de la fila, para que la ola baje por la columna
+ * @param filas     cuantas filas tiene la tabla, para repartir la ventana de la ola entre todas
+ * @param maximo    cuantos caracteres caben en su columna
  */
-export function Corriendo ({ desde, ahora, congelado, className }: {
+export function Corriendo ({ desde, ahora, congelado, fila, filas, maximo, className }: {
   desde: string | null
   ahora: number | null
   congelado: boolean
+  fila: number
+  filas: number
+  maximo: number
   className?: string
 }): ReactNode {
-  if (desde === null || ahora === null) {
-    return <span className={cn('tabular-nums', className)}>--:--</span>
-  }
+  return (
+    <span className={cn('block overflow-hidden whitespace-nowrap', congelado && 'opacity-60', className)}>
+      <TextoSolari
+        className="solari-tablero solari-contador"
+        texto={textoDeFicha(relojDeContador(desde, ahora), maximo)}
+        uniforme
+        ficha
+        tope={TOPE_DE_CONTADOR}
+        desdeElFinal
+        onda={ondaDeContador(fila, filas)}
+      />
+    </span>
+  )
+}
+
+/**
+ * `H:MM:SS` desde un instante de arranque, o `--:--` cuando no hay con que contarlo.
+ *
+ * Separado del componente para que lo que decide el TEXTO sea una funcion y no un render: es lo que
+ * permite afirmar que el volteo se dispara por cambio de valor. Dos renders del mismo segundo dan la
+ * misma cadena, `TextoSolari` no remonta ni una posicion y no gira ni una ficha — que es justo lo que
+ * hace falta con un latido de 250 ms detras.
+ */
+function relojDeContador (desde: string | null, ahora: number | null): string {
+  if (desde === null || ahora === null) return '--:--'
 
   const arranque = Date.parse(desde)
 
-  if (Number.isNaN(arranque)) {
-    return <span className={cn('tabular-nums', className)}>--:--</span>
-  }
+  if (Number.isNaN(arranque)) return '--:--'
 
   const segundos = Math.max(Math.floor((ahora - arranque) / 1000), 0)
   const horas = Math.floor(segundos / 3600)
   const minutos = Math.floor((segundos % 3600) / 60)
   const resto = segundos % 60
 
-  return (
-    <span className={cn('tabular-nums', congelado && 'opacity-60', className)}>
-      {horas}:{String(minutos).padStart(2, '0')}:{String(resto).padStart(2, '0')}
-    </span>
-  )
+  return `${horas}:${String(minutos).padStart(2, '0')}:${String(resto).padStart(2, '0')}`
 }
 
 /**
@@ -200,9 +376,14 @@ export function Corriendo ({ desde, ahora, congelado, className }: {
  */
 export function Nada ({ texto }: { texto: string }): ReactNode {
   return (
-    <p className="text-texto-tenue text-center text-[4.5vmin]">{texto}</p>
+    <p className="text-texto-tenue flex justify-center text-[4.5vmin]">
+      <Ficha sobria texto={texto} maximo={CUPO_DE_AVISO} />
+    </p>
   )
 }
+
+/** Lo que cabe en un aviso centrado a 4.5vmin sobre una pared de 170vmin de ancho. */
+const CUPO_DE_AVISO = cupoDeFichas(150, 4.5, ANCHO_SOBRIO_EM)
 
 /**
  * La cabecera de una escena de lista: el titulo, el total y lo que no entro.
@@ -217,6 +398,12 @@ export function Nada ({ texto }: { texto: string }): ReactNode {
  * Lo que no cambia es que se digan. Nunca se miente por omision: si la lista se corto, la pantalla
  * lo dice.
  *
+ * El titulo va sobrio y en mayusculas —ya lo estaba por `CUERPO_ETIQUETA`— y el "+N más" tambien, que
+ * son palabras; el conteo de al lado va en ficha entera, que son digitos y no pagan el ancho fijo. Al
+ * pasar de pagina el "+N más" cambia, y esa es exactamente la clase de cambio que esta pantalla cuenta
+ * volteando. La ola de los tres arranca en las primeras ranuras, antes que la del tablero, porque
+ * estan arriba: la ola baja.
+ *
  * @param titulo   el nombre de la escena
  * @param total    cuantos hay en total, si la API lo sabe; se omite cuando no
  * @param ocultos  cuantos quedaron fuera del corte, 0 si no se corto nada
@@ -228,153 +415,29 @@ export function CabeceraDeEscena ({ titulo, total, ocultos }: {
 }): ReactNode {
   return (
     <div className="mb-[0.8vmin] flex shrink-0 items-baseline justify-between gap-[3vmin]">
-      <h2 className={cn('text-texto-tenue truncate font-semibold', CUERPO_ETIQUETA)}>
-        {titulo}
+      <h2 className={cn('text-texto-tenue flex min-w-0 items-baseline gap-[1.5vmin] font-semibold', CUERPO_ETIQUETA)}>
+        <Ficha mayusculas sobria tope={TOPE_SUELTO} texto={titulo} maximo={CUPO_DE_TITULO} />
         {total !== undefined && (
-          <span className="text-texto-sutil ml-[1.5vmin] font-normal tracking-normal tabular-nums">
-            {total}
+          <span className="text-texto-sutil shrink-0 font-normal tracking-normal">
+            <Ficha tope={TOPE_SUELTO} onda={6} texto={String(total)} maximo={CUPO_DE_CIFRA} />
           </span>
         )}
       </h2>
 
       {ocultos > 0 && (
-        <span className={cn('text-texto-sutil shrink-0 tabular-nums', CUERPO_COLUMNA)}>
-          +{ocultos} más
+        <span className={cn('text-texto-sutil shrink-0', CUERPO_COLUMNA)}>
+          <Ficha sobria tope={TOPE_SUELTO} onda={10} texto={`+${ocultos} más`} maximo={CUPO_DE_CIFRA + 5} />
         </span>
       )}
     </div>
   )
 }
 
-/**
- * === EL TABLERO QUE SE MUEVE ===
- *
- * Lo que sigue es la mitad en React de la animacion de panel de aeropuerto. La otra mitad son los
- * `@keyframes` de `pantalla.css`, y las dos tienen que leerse juntas.
- *
- * Son tres movimientos y ninguno de los tres corre solo:
- *
- * 1. **La fila voltea al llegar.** Al pasar de pagina el marco de la escena NO se remonta —eso lo
- *    decide `Escena.continuidad` en el dominio—, asi que la cabecera y los rotulos se quedan quietos y
- *    lo unico que cambia son los `<li>`. Cada uno estrena su animacion al montarse, escalonado por su
- *    posicion: sale la cascada de un split-flap sin un solo temporizador.
- * 2. **La celda alterna.** Cada `PERIODO_DE_DATO_MS` la fila cambia un campo por otro, para caber mas
- *    dato sin achicar la letra ni sumar columnas. Quien decide cuando es `faseDeDato()` en el dominio,
- *    contra el UNICO reloj de la pantalla; aca solo se dibuja.
- * 3. **El caracter voltea.** El Solari de verdad, en `Solari.tsx`: cada posicion gira por su cuenta
- *    pasando por glifos intermedios hasta el suyo. Cuesta un puñado de elementos por caracter, asi que
- *    **no se usa en el tablero**, solo donde el texto es corto y de ancho previsible —el reloj, las
- *    cifras, los rotulos que alternan—. El reparto completo esta en el docblock de `Solari.tsx`.
- *
- * === POR QUE EL VOLTEO DE FILA NO DESAPARECIO ===
- *
- * El 1 y el 3 son el mismo gesto a dos escalas, y podria parecer que el segundo sobra. No sobra, y
- * ademas no pelean: **cuentan cosas distintas y nunca ocurren por el mismo motivo**. La fila voltea
- * cuando llega contenido nuevo al cambiar de pagina; el caracter voltea cuando un dato que ya estaba
- * en pantalla cambia de valor. Sustituir el 1 por el 3 costaria quince filas por siete columnas por
- * cuarenta caracteres de rodillos en el mismo fotograma —miles de elementos animandose a la vez en un
- * stick HDMI— para contar algo que una lamina entera girando ya cuenta con quince.
- *
- * Los tres animan `transform` y `opacity` y nada mas: los resuelve el compositor, no cuestan un
- * reflow, y ninguno se queda corriendo solo —esta pared lleva meses encendida y un pixel en
- * movimiento permanente es un pixel quemado—. `?transicion=ninguna` los apaga los tres desde el CSS,
- * para el televisor que no da abasto.
- */
+/** Lo que cabe en el titulo de una escena: la mitad del ancho de la pared a 2.7vmin, y va sobrio. */
+const CUPO_DE_TITULO = cupoDeFichas(85, 2.7, ANCHO_MAYUSCULA_EM)
 
-/**
- * A partir de que fila el escalonado deja de crecer.
- *
- * Sin tope, una tabla de 18 filas a 35 ms tarda 950 ms en terminar de caer, y la ultima fila aparece
- * cuando quien mira ya la dio por perdida. Con el tope, la cascada dura siempre lo mismo y las filas
- * del final llegan juntas, que es exactamente lo que hace un panel de verdad.
- */
-const TOPE_DE_ESCALON = 12
-
-/** La clase que hace voltear una fila recien llegada. Su animacion vive en `pantalla.css`. */
-export const FILA_VIVA = 'pantalla-voltea'
-
-/**
- * El retardo de la fila numero `indice`, como variable CSS.
- *
- * Va en un `style` y no en una clase porque son N valores distintos y no un puñado: una clase por
- * posicion serian veinte reglas muertas en la hoja.
- *
- * @param indice la posicion de la fila dentro de SU tabla, empezando en 0
- */
-export function escalonDeFila (indice: number): CSSProperties {
-  return { '--fila': Math.min(Math.max(indice, 0), TOPE_DE_ESCALON) } as CSSProperties
-}
-
-/** Lo que toda celda que alterna necesita, con o sin volteo Solari. */
-interface CeldaAlterna {
-  /** `0` el juego principal, `1` el alterno; lo decide `faseDeDato()`. */
-  fase: 0 | 1
-  className?: string
-}
-
-/**
- * Las dos formas de una celda que alterna, y por que el tipo las separa.
- *
- * Con `solari` los dos contenidos tienen que ser **texto plano**: el volteo se dibuja caracter a
- * caracter y un `ReactNode` no tiene caracteres que voltear. Que lo vigile el tipo y no un comentario
- * es lo unico que evita que alguien le pase `<Quien personas={...} />` a una celda Solari y se
- * encuentre con una celda vacia en la pared, que nadie ve fallar desde el pasillo.
- */
-type PropsDeCeldaQueAlterna =
-  | (CeldaAlterna & { solari?: false, principal: ReactNode, alterno: ReactNode })
-  | (CeldaAlterna & { solari: true, principal: string, alterno: string })
-
-/**
- * Una celda que alterna entre dos contenidos al ritmo de `fase`.
- *
- * Es como la pantalla enseña mas de lo que cabe: en vez de apretar dos columnas donde hay sitio para
- * una, la misma columna dice una cosa y luego la otra. **Nunca alterna lo que identifica la fila** —el
- * nombre de la persona, el de la Tarea, el del Proyecto—: si el ancla parpadeara, recorrer la columna
- * buscando a alguien seria imposible.
- *
- * === LOS DOS MODOS, Y POR QUE NO SE SUMAN ===
- *
- * **Sin `solari`** el contenido entra con un fundido corto: el `key` por fase remonta el `<span>`, y al
- * montarse el CSS de `.pantalla-alterna` vuelve a correr. Sin ese `key` el texto cambiaria de golpe y
- * sin decir nada.
- *
- * **Con `solari`** el cambio lo cuenta el volteo caracter a caracter, y entonces el fundido sobra: dos
- * movimientos sobre la misma celda se estorban y se leen peor que uno bien hecho. Por eso el modo
- * Solari no lleva ni `key` ni `.pantalla-alterna`. Que NO lleve `key` es lo importante: sin el, React
- * reconcilia posicion por posicion y solo voltean los caracteres que de verdad cambiaron — que es lo
- * que hace un panel mecanico, donde la aleta que ya tiene su letra no gira.
- *
- * El envoltorio de bloque no es decoracion. El texto Solari es una tira de huecos `inline-block`, y un
- * `inline-block` no lo recorta el `truncate` de su celda: se saldria de su columna del tablero, y en un
- * marco con `overflow: hidden` eso se lleva por delante lo que tenga al lado sin dejar rastro.
- *
- * @param principal lo que se ve casi siempre
- * @param alterno   lo que se ve en la fase alterna
- * @param solari    si el cambio se cuenta volteando caracter a caracter; ver `Solari.tsx`
- */
-export function CeldaQueAlterna (props: PropsDeCeldaQueAlterna): ReactNode {
-  const { fase, className } = props
-
-  if (props.solari === true) {
-    return (
-      <span className={cn('block overflow-hidden whitespace-nowrap', className)}>
-        {/*
-          * Ficha uniforme: todas del mismo ancho. Es una celda de una columna del tablero, y lo que
-          * importa ahi no es que cada letra respire sino que el rotulo caiga a plomo sobre los datos
-          * de debajo — que es lo que convierte una lista en una tabla. El ancho por clase de caracter
-          * queda para el texto suelto, como los dos relojes.
-          */}
-        <TextoSolari uniforme texto={fase === 0 ? props.principal : props.alterno} />
-      </span>
-    )
-  }
-
-  return (
-    <span key={fase} className={cn('pantalla-alterna truncate', className)}>
-      {fase === 0 ? props.principal : props.alterno}
-    </span>
-  )
-}
+/** Un conteo de la cabecera. Cuatro cifras son 9.999 Tareas abiertas: no hay un area asi. */
+const CUPO_DE_CIFRA = 4
 
 /**
  * La fila de rotulos de columna del tablero.
@@ -385,7 +448,7 @@ export function CeldaQueAlterna (props: PropsDeCeldaQueAlterna): ReactNode {
  * en el mismo sitio.
  *
  * @param columnas  la clase `.pantalla-columnas-*` de la escena
- * @param children  un elemento por columna, en el mismo orden que las filas
+ * @param children  un `Rotulo` por columna, en el mismo orden que las filas
  */
 export function RotulosDeColumna ({ columnas, children }: {
   columnas: string
@@ -402,5 +465,102 @@ export function RotulosDeColumna ({ columnas, children }: {
     >
       {children}
     </div>
+  )
+}
+
+/**
+ * Un rotulo de columna, en fichas.
+ *
+ * Voltea cuando la escena cambia de vista y cuando la columna que alterna cambia de campo, que son las
+ * dos unicas veces que un rotulo cambia. La ola arranca por la izquierda —`columna` da la ranura— para
+ * que la fila de rotulos se lea como una sola pasada y no como seis palabras apareciendo a la vez.
+ *
+ * Va **sobrio**: es una palabra, y una palabra en fichas de ancho fijo pierde el 29% de sus caracteres
+ * — el rotulo tiene que caber en la misma columna que el dato que rotula, que suele ser mas corto. Le
+ * queda la linea de pliegue, que es lo que lo ata visualmente al resto de la pared.
+ *
+ * **El `letter-spacing` de `CUERPO_ETIQUETA` no llega a las fichas**, porque un `inline-block` atomico
+ * no recibe espaciado entre letras. No se compensa: compensarlo gastaria el margen que le queda a la
+ * columna mas estrecha del tablero —que es lo unico que separa la pared de un recorte invisible— para
+ * corregir algo que a cuatro metros no se ve.
+ *
+ * @param texto   lo que dice el rotulo
+ * @param columna su indice, de izquierda a derecha, para la ola
+ * @param maximo  cuantos caracteres caben en su columna
+ * @param desfase ranuras extra, para el segundo juego de rotulos de una escena a dos columnas
+ */
+export function Rotulo ({ texto, columna, maximo, desfase = 0, className }: {
+  texto: string
+  columna: number
+  maximo: number
+  desfase?: number
+  className?: string
+}): ReactNode {
+  return (
+    <Ficha
+      mayusculas
+      sobria
+      tope={TOPE_SUELTO}
+      texto={texto}
+      maximo={maximo}
+      onda={desfase + Math.max(columna, 0) * RANURAS_POR_ROTULO}
+      className={className}
+    />
+  )
+}
+
+/**
+ * Cuantas ranuras separan un rotulo del siguiente.
+ *
+ * Seis con el escalon lento de 35 ms son 210 ms entre columnas: la fila entera de seis rotulos tarda
+ * 1,2 s en recorrerse, que se lee como una pasada. Con el tope de `TOPE_SUELTO` y este escalonado, lo
+ * que gira a la vez en una fila de rotulos no pasa de cuatro fichas.
+ */
+const RANURAS_POR_ROTULO = 6
+
+/** Lo que separa el segundo juego de rotulos del primero en una escena a dos columnas. */
+export const DESFASE_DE_ROTULOS = 30
+
+/**
+ * Una celda del tablero que alterna entre dos textos al ritmo de `fase`.
+ *
+ * Es como la pantalla enseña mas de lo que cabe: en vez de apretar dos columnas donde hay sitio para
+ * una, la misma columna dice una cosa y luego la otra. **Nunca alterna lo que identifica la fila** —el
+ * nombre de la persona, el de la Tarea, el del Proyecto—: si el ancla parpadeara, recorrer la columna
+ * buscando a alguien seria imposible.
+ *
+ * Los dos contenidos son **texto plano** y no `ReactNode`: el volteo se dibuja caracter a caracter y un
+ * nodo de React no tiene caracteres que voltear. Que lo diga el tipo y no un comentario es lo unico que
+ * evita que alguien le pase un componente y se encuentre con una celda vacia en la pared, que nadie ve
+ * fallar desde el pasillo.
+ *
+ * **No lleva `key` por fase, y eso es lo importante.** Sin `key`, React reconcilia posicion por posicion
+ * y solo voltean los caracteres que de verdad cambiaron — que es lo que hace un panel mecanico, donde
+ * la aleta que ya tiene su letra no gira. Con `key` se remontaria la celda entera y voltearia hasta lo
+ * que dice lo mismo en los dos campos.
+ *
+ * @param principal lo que se ve casi siempre
+ * @param alterno   lo que se ve en la fase alterna
+ * @param fase      `0` el juego principal, `1` el alterno; lo decide `faseDeDato()`
+ */
+export function CeldaQueAlterna ({ principal, alterno, fase, sitio, maximo, mayusculas = false, sobria = false, className }: {
+  principal: string
+  alterno: string
+  fase: 0 | 1
+  sitio: SitioEnLaOla
+  maximo: number
+  mayusculas?: boolean
+  sobria?: boolean
+  className?: string
+}): ReactNode {
+  return (
+    <FichaDeTablero
+      texto={fase === 0 ? principal : alterno}
+      sitio={sitio}
+      maximo={maximo}
+      mayusculas={mayusculas}
+      sobria={sobria}
+      className={className}
+    />
   )
 }

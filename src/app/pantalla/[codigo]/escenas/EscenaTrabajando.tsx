@@ -1,14 +1,40 @@
 import type { ReactNode } from 'react'
 import { cn } from '@/lib/clases'
 import { horaDeReloj } from '@/dominio/momento-del-dia'
+import { ANCHO_SOBRIO_EM, cupoDeFichas, planDeOla } from '@/dominio/solari'
+import type { PlanDeOla } from '@/dominio/solari'
 import type { PersonaTrabajando } from '@/datos/pantalla-area'
 import {
-  Cara, CabeceraDeEscena, CeldaQueAlterna, Corriendo, CUERPO_COLUMNA, CUERPO_PRINCIPAL, FILA_VIVA,
-  Nada, RELLENO_DE_FILA, RotulosDeColumna, escalonDeFila
+  Cara, CabeceraDeEscena, CeldaQueAlterna, Corriendo, CUERPO_COLUMNA, CUERPO_PRINCIPAL,
+  DESFASE_DE_ROTULOS, FichaDeTablero, Nada, RELLENO_DE_FILA, Rotulo, RotulosDeColumna
 } from './piezas'
 
 /** La rejilla de columnas de esta escena. Su reparto vive en `pantalla.css`. */
 const COLUMNAS = 'pantalla-columnas-trabajando'
+
+/**
+ * Cuanto pesa cada columna en la ola: el nombre y la columna que alterna.
+ *
+ * La jornada no entra en el reparto porque tiene ola propia: es un contador, cambia una vez por
+ * segundo y no una vez por pagina. Ver `Corriendo` y `ondaDeContador()`.
+ */
+const PESOS = [6, 3] as const
+
+/**
+ * Cuantos caracteres caben en cada columna. Los anchos son los de `.pantalla-columnas-trabajando`.
+ *
+ * Esta escena va a dos columnas de tablero, asi que cada tabla dispone de la mitad de la pared: unos
+ * 83vmin, de los que el nombre se queda con lo que sobra despues de la cara, el cargo, la jornada y
+ * los huecos. En vertical la columna del nombre es mas ancha, asi que manda la medida horizontal.
+ *
+ * El nombre y el cargo van sobrios y la jornada lleva ficha entera: ver `ANCHO_DE_FICHA_EM`.
+ */
+const CUPO = {
+  nombre: cupoDeFichas(31, 3, ANCHO_SOBRIO_EM),
+  cargo: cupoDeFichas(19, 2.7, ANCHO_SOBRIO_EM),
+  /** El contador: digitos, ancho fijo y ficha entera. Por eso su columna crecio a 19vmin. */
+  jornada: cupoDeFichas(19, 3)
+}
 
 /** Una tabla ya paginada, con lo que su cabecera necesita decir. */
 export interface TablaDeGente {
@@ -34,6 +60,13 @@ export interface TablaDeGente {
  * **En la pantalla global se dibuja una sola.** Ahi no hay area, la API manda `items` vacio, y el
  * bloque del area no aparece — ni como tabla vacia ni como hueco. La que queda se lleva la banda
  * entera; lo reparte `repartoDeTrabajando()` en el dominio.
+ *
+ * === UNA SOLA OLA PARA LAS DOS TABLAS ===
+ *
+ * El plan se calcula con las filas de las DOS tablas juntas, y la segunda arranca donde termino la
+ * primera (`desfase`). Es lo que evita el unico fallo que la pared no podria disimular: dos olas
+ * independientes lanzadas en el mismo fotograma son el doble de fichas girando a la vez que lo medido,
+ * y el pico no se nota mirando el codigo de una sola tabla.
  *
  * === LA UNICA LISTA A DOS COLUMNAS ===
  *
@@ -63,12 +96,16 @@ export function EscenaTrabajando ({ compania, area, nombreDelArea, zona, ahora, 
 }): ReactNode {
   if (compania === null && area === null) return <Nada texto="Nadie con jornada abierta" />
 
+  const plan = planDeOla((compania?.items.length ?? 0) + (area?.items.length ?? 0), PESOS)
+
   return (
     <div className="pantalla-dos-tablas">
       {compania !== null && (
         <TablaDeTrabajando
           titulo="Trabajando en la compañía"
           tabla={compania}
+          plan={plan}
+          desfase={0}
           zona={zona}
           ahora={ahora}
           congelado={congelado}
@@ -80,6 +117,8 @@ export function EscenaTrabajando ({ compania, area, nombreDelArea, zona, ahora, 
         <TablaDeTrabajando
           titulo={nombreDelArea === '' ? 'Trabajando en el área' : `Trabajando en ${nombreDelArea}`}
           tabla={area}
+          plan={plan}
+          desfase={(compania?.items.length ?? 0) * plan.porFila}
           zona={zona}
           ahora={ahora}
           congelado={congelado}
@@ -99,9 +138,11 @@ export function EscenaTrabajando ({ compania, area, nombreDelArea, zona, ahora, 
  * debajo del marco, que es justo lo que `pruebas/pantalla-area.browser.mjs` sabe cazar midiendo los
  * `h2`. El fallo se ve; el silencio, no.
  */
-function TablaDeTrabajando ({ titulo, tabla, zona, ahora, congelado, fase }: {
+function TablaDeTrabajando ({ titulo, tabla, plan, desfase, zona, ahora, congelado, fase }: {
   titulo: string
   tabla: TablaDeGente
+  plan: PlanDeOla
+  desfase: number
   zona: string | null
   ahora: number | null
   congelado: boolean
@@ -117,34 +158,30 @@ function TablaDeTrabajando ({ titulo, tabla, zona, ahora, congelado, fase }: {
         * vertical hay una sola columna, asi que el segundo juego se cae entero.
         */}
       <div className="pantalla-tablero-doble shrink-0">
-        <RotulosDeColumna columnas={COLUMNAS}>
-          <span />
-          <span className="truncate">Persona</span>
-          <CeldaQueAlterna solari fase={fase} principal="Cargo" alterno="Entró" />
-          <span className="truncate text-right">Jornada</span>
-        </RotulosDeColumna>
+        <RotulosDeTrabajando fase={fase} desfase={0} />
         <div className="portrait:hidden">
-          <RotulosDeColumna columnas={COLUMNAS}>
-            <span />
-            <span className="truncate">Persona</span>
-            <CeldaQueAlterna solari fase={fase} principal="Cargo" alterno="Entró" />
-            <span className="truncate text-right">Jornada</span>
-          </RotulosDeColumna>
+          {/* Con la misma ranura, los dos juegos girarian en el mismo fotograma y valdrian el doble. */}
+          <RotulosDeTrabajando fase={fase} desfase={DESFASE_DE_ROTULOS} />
         </div>
       </div>
 
       <ul className="pantalla-tablero pantalla-tablero-doble">
         {tabla.items.map((persona, indice) => (
           <li
-            key={persona.staff_id}
-            className={cn('pantalla-fila py-[0.45vmin] leading-[1.1]', FILA_VIVA, RELLENO_DE_FILA, COLUMNAS)}
-            style={escalonDeFila(indice)}
+            // Por POSICION y no por `persona.staff_id`: la fila se queda donde esta y lo que cambia es
+            // su texto, caracter a caracter. Ver el docblock de `EscenaProcesos`.
+            key={indice}
+            className={cn('pantalla-fila py-[0.45vmin] leading-[1.1]', RELLENO_DE_FILA, COLUMNAS)}
           >
             <Cara nombre={persona.name} imagen={persona.avatar} tamano="3.8vmin" />
 
-            <span className={cn('text-texto truncate font-semibold', CUERPO_PRINCIPAL)}>
-              {persona.name}
-            </span>
+            <FichaDeTablero
+              sobria
+              texto={persona.name}
+              sitio={{ plan, fila: indice, columna: 0, desfase }}
+              maximo={CUPO.nombre}
+              className={cn('text-texto font-semibold', CUERPO_PRINCIPAL)}
+            />
 
             {/*
               * El cargo y la hora de entrada comparten columna: las dos son contexto de la misma
@@ -152,23 +189,42 @@ function TablaDeTrabajando ({ titulo, tabla, zona, ahora, congelado, fase }: {
               * una a la vez. Lo que NO alterna es el nombre ni el contador de jornada: uno es el
               * ancla para recorrer la columna con la vista y el otro es la respuesta de la escena.
               */}
+            {/* Sin `mayusculas`: un cargo de quince caracteres no entra en caja alta en 19vmin. */}
             <CeldaQueAlterna
+              sobria
               fase={fase}
-              className={cn('text-texto-tenue', CUERPO_COLUMNA)}
               principal={persona.cargo ?? '—'}
-              alterno={<EntroA desde={persona.jornada_started_at} zona={zona} />}
+              alterno={entroA(persona.jornada_started_at, zona)}
+              sitio={{ plan, fila: indice, columna: 1, desfase }}
+              maximo={CUPO.cargo}
+              className={cn('text-texto-tenue', CUERPO_COLUMNA)}
             />
 
             <Corriendo
               desde={persona.jornada_started_at}
               ahora={ahora}
               congelado={congelado}
+              fila={indice}
+              filas={tabla.items.length}
+              maximo={CUPO.jornada}
               className="text-acento text-right text-[3vmin] font-semibold"
             />
           </li>
         ))}
       </ul>
     </div>
+  )
+}
+
+/** Los cuatro rotulos de la tabla. Se dibujan dos veces en horizontal, una en vertical. */
+function RotulosDeTrabajando ({ fase, desfase }: { fase: 0 | 1, desfase: number }): ReactNode {
+  return (
+    <RotulosDeColumna columnas={COLUMNAS}>
+      <span />
+      <Rotulo texto="Persona" columna={0} desfase={desfase} maximo={CUPO.nombre} />
+      <Rotulo texto={fase === 0 ? 'Cargo' : 'Entró'} columna={1} desfase={desfase} maximo={CUPO.cargo} />
+      <Rotulo texto="Jornada" columna={2} desfase={desfase} maximo={CUPO.jornada} className="text-right" />
+    </RotulosDeColumna>
   )
 }
 
@@ -182,12 +238,12 @@ function TablaDeTrabajando ({ titulo, tabla, zona, ahora, congelado, fase }: {
  * `horaDeReloj()` y no un `Intl` propio: es la misma funcion del reloj de la cabecera, y dos horas
  * visibles a la vez en la misma pared no pueden discrepar en el formato.
  */
-function EntroA ({ desde, zona }: { desde: string | null, zona: string | null }): ReactNode {
-  if (desde === null) return <>—</>
+function entroA (desde: string | null, zona: string | null): string {
+  if (desde === null) return '—'
 
   const arranque = Date.parse(desde)
 
-  if (Number.isNaN(arranque)) return <>—</>
+  if (Number.isNaN(arranque)) return '—'
 
-  return <span className="tabular-nums">{horaDeReloj(arranque, zona)}</span>
+  return horaDeReloj(arranque, zona)
 }
