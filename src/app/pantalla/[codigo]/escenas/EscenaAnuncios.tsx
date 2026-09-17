@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import { cn } from '@/lib/clases'
-import { CUERPO_COLUMNA, Nada } from './piezas'
+import { ANCHO_SOBRIO_EM, cupoDeFichas } from '@/dominio/solari'
+import { CUERPO_COLUMNA, Ficha, Nada } from './piezas'
 import type { AnuncioEnPantalla } from '@/datos/pantalla-area'
 
 /**
@@ -60,8 +61,8 @@ export function EscenaAnuncios ({ items, ocultos }: {
         : <ConImagen anuncio={anuncio} />}
 
       {ocultos > 0 && (
-        <p className={cn('text-texto-sutil absolute right-0 bottom-0 tabular-nums', CUERPO_COLUMNA)}>
-          +{ocultos} más
+        <p className={cn('text-texto-sutil absolute right-0 bottom-0', CUERPO_COLUMNA)}>
+          <Ficha sobria texto={`+${ocultos} más`} maximo={9} />
         </p>
       )}
     </div>
@@ -156,7 +157,9 @@ function Respaldo ({ titulo, texto }: { titulo: string | null, texto: string | n
   if (titulo === null && texto === null) {
     return (
       <div className="absolute inset-0 flex items-center justify-center p-[4vmin] text-center">
-        <p className="text-texto-tenue text-[4vmin]">No pudimos cargar la imagen del anuncio</p>
+        <p className="text-texto-tenue text-[4vmin]">
+          <Ficha sobria texto="No pudimos cargar la imagen del anuncio" maximo={CUPO_DE_FALLO} />
+        </p>
       </div>
     )
   }
@@ -185,6 +188,24 @@ function SoloTexto ({ titulo, texto }: { titulo: string | null, texto: string | 
   )
 }
 
+/** Lo que cabe en el aviso de imagen caida a 4vmin dentro de la lamina. */
+const CUPO_DE_FALLO = cupoDeFichas(110, 4, ANCHO_SOBRIO_EM)
+
+/**
+ * El titulo del anuncio.
+ *
+ * === LO UNICO DE LA PARED QUE NO SE DIBUJA EN FICHAS ===
+ *
+ * El titulo y el cuerpo de un anuncio son los dos unicos textos de esta pantalla que ocupan **mas de
+ * una linea**, y una tira de fichas no sabe partirse en dos: sus huecos son `inline-block` atomicos,
+ * asi que el navegador cortaria donde le cupiera —a mitad de palabra, sin guion— o, con
+ * `white-space: nowrap`, se comeria media frase. Un anuncio es lo unico de esta pared que alguien se
+ * sento a escribir para que otro lo lea entero, y llega con hasta mil doscientos caracteres y un
+ * cuerpo de letra que se calcula segun su largo.
+ *
+ * Asi que se dibuja como texto, que es lo que es. Lo que si va en fichas es todo lo demas de la
+ * escena: el "+N más" y el aviso de imagen caida, que son campos de una linea.
+ */
 function Titulo ({ texto, completo, apretado }: {
   texto: string | null
   completo: string | null

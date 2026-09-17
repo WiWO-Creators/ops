@@ -1,14 +1,52 @@
 import type { ReactNode } from 'react'
 import { cn } from '@/lib/clases'
 import { GLOSARIO } from '@/dominio/glosario'
+import { ANCHO_MAYUSCULA_EM, ANCHO_SOBRIO_EM, cupoDeFichas, planDeOla } from '@/dominio/solari'
+import type { PlanDeOla } from '@/dominio/solari'
 import type { TareaEnPantalla } from '@/datos/pantalla-area'
 import {
-  CabeceraDeEscena, CeldaQueAlterna, CUERPO_COLUMNA, CUERPO_PRINCIPAL, FILA_VIVA, Nada,
-  RELLENO_DE_FILA, RotulosDeColumna, escalonDeFila, nombreCorto, rotuloDeAlcance
+  CabeceraDeEscena, CeldaQueAlterna, CUERPO_COLUMNA, CUERPO_PRINCIPAL, FichaDeTablero, Nada,
+  RELLENO_DE_FILA, Rotulo, RotulosDeColumna, nombreCorto, rotuloDeAlcance
 } from './piezas'
 
 /** La rejilla de columnas de esta escena. Su reparto vive en `pantalla.css`. */
 const COLUMNAS = 'pantalla-columnas-procesos'
+
+/**
+ * Cuanto pesa cada columna en la ola, en el orden del DOM.
+ *
+ * El nombre pesa el triple que una columna de apoyo: una ficha girando en el nombre cuenta que la fila
+ * cambio y una girando en el porcentaje no la ve nadie. La suma no importa —`planDeOla()` reparte el
+ * presupuesto de la pagina por peso—, solo la proporcion.
+ */
+const PESOS = [6, 2, 2, 1, 1, 2] as const
+
+/**
+ * Cuantos caracteres caben en cada columna.
+ *
+ * Los anchos son los de `.pantalla-columnas-procesos` en `pantalla.css` y no se pueden inventar acá:
+ * una tira de fichas no se recorta con `truncate`, asi que lo que no cabe se dibuja igual y lo tapa el
+ * `overflow` — DOM pagado a cambio de nada. Ver `cupoDeFichas()`.
+ *
+ * El nombre es la columna flexible: lo que sobra despues de las fijas, los seis huecos de 2vmin y el
+ * relleno de fila, sobre los ~170vmin de la pared tumbada.
+ *
+ * **Todas las columnas de palabras van sobrias y solo el porcentaje lleva ficha entera.** Se probo al
+ * reves y la captura lo dejo claro: con fichas de ancho fijo, "En progreso" entraba como "EN PROGR…",
+ * "Bodega Quilicura" como "BODEGA QUILICU…" y "Venció 12/05" perdia la fecha. Una ficha de ancho fijo
+ * cuesta 0.79em por caracter contra los 0.56 de una palabra, y en una fila de seis columnas eso es
+ * casi un tercio de la informacion de la pared. Ver `ANCHO_DE_FICHA_EM` en el dominio.
+ */
+const CUPO = {
+  nombre: cupoDeFichas(51, 3, ANCHO_SOBRIO_EM),
+  espacio: cupoDeFichas(33, 2.7, ANCHO_MAYUSCULA_EM),
+  /** En caja mixta: "En progreso" son once caracteres y en mayusculas no entra en 18vmin. */
+  estado: cupoDeFichas(18, 2.7, ANCHO_SOBRIO_EM),
+  /** La unica columna de digitos de la fila, y por eso la unica con ficha entera. */
+  avance: cupoDeFichas(9, 2.7),
+  vence: cupoDeFichas(20, 2.7, ANCHO_SOBRIO_EM),
+  quien: cupoDeFichas(23, 2.7, ANCHO_SOBRIO_EM)
+}
 
 /**
  * Las Tareas abiertas del area, por urgencia. El tablero de salidas de la pared.
@@ -24,6 +62,18 @@ const COLUMNAS = 'pantalla-columnas-procesos'
  * entre tarjetas, el borde, el redondeo y la segunda linea. La jerarquia la hacen ahora el peso y el
  * color, no el tamaño — igual que en un tablero de aeropuerto, donde el destino y la puerta miden lo
  * mismo y no se confunden nunca.
+ *
+ * === LA FILA NO SE REMONTA AL CAMBIAR DE PAGINA ===
+ *
+ * El `key` de cada fila es **su posicion en la tabla y no el id de la Tarea**. Es lo contrario de lo
+ * que pide el instinto y es lo unico que hace que esto sea un Solari: con la identidad por id, al
+ * pasar de pagina React tira las quince filas y monta otras quince, y eso se lee como "cargo otra
+ * pantalla". Con la identidad por posicion, **la fila 1 sigue siendo la fila 1** y lo que cambia es su
+ * texto, caracter a caracter, como las aletas de un panel de verdad.
+ *
+ * La contrapartida conocida —que al reordenarse la lista una fila "se convierte" en otra— no es un
+ * problema acá: esto no es una tabla que se pueda clicar ni ordenar, es un panel de salidas, y en un
+ * panel de salidas la fila de arriba es la fila de arriba.
  *
  * === LO QUE NO CAMBIO ===
  *
@@ -57,26 +107,29 @@ export function EscenaProcesos ({ items, ocultos, total, fase, esGlobal = false 
 }): ReactNode {
   if (items.length === 0) return <Nada texto={`Sin ${GLOSARIO.proceso.plural.toLowerCase()} abiertas`} />
 
+  const plan = planDeOla(items.length, PESOS)
+
   return (
     <div className="flex min-h-0 flex-col">
       <CabeceraDeEscena titulo={`${GLOSARIO.proceso.plural} ${rotuloDeAlcance(esGlobal)}`} total={total} ocultos={ocultos} />
 
       <RotulosDeColumna columnas={COLUMNAS}>
         <span />
-        <span className="truncate">{GLOSARIO.proceso.singular}</span>
-        <span className="truncate portrait:hidden">{GLOSARIO.espacio.singular}</span>
-        <span className="truncate portrait:hidden">Estado</span>
-        <span className="text-right portrait:hidden">%</span>
-        <span className="truncate">Vence</span>
-        <CeldaQueAlterna solari fase={fase} principal="Quién" alterno="Prioridad" />
+        <Rotulo texto={GLOSARIO.proceso.singular} columna={0} maximo={CUPO.nombre} />
+        <Rotulo texto={GLOSARIO.espacio.singular} columna={1} maximo={CUPO.espacio} className="portrait:hidden" />
+        <Rotulo texto="Estado" columna={2} maximo={CUPO.estado} className="portrait:hidden" />
+        <Rotulo texto="%" columna={3} maximo={CUPO.avance} className="text-right portrait:hidden" />
+        <Rotulo texto="Vence" columna={4} maximo={CUPO.vence} />
+        <Rotulo texto={fase === 0 ? 'Quién' : 'Prioridad'} columna={5} maximo={CUPO.quien} />
       </RotulosDeColumna>
 
       <ul className="pantalla-tablero min-h-0">
         {items.map((tarea, indice) => (
           <li
-            key={tarea.id}
-            className={cn('pantalla-fila py-[0.55vmin] leading-[1.15]', FILA_VIVA, RELLENO_DE_FILA, COLUMNAS)}
-            style={escalonDeFila(indice)}
+            // Por POSICION y no por `tarea.id`. Ver el docblock de arriba: es la decision que convierte
+            // el cambio de pagina en un volteo de caracteres en vez de en un remonte de la tabla.
+            key={indice}
+            className={cn('pantalla-fila py-[0.55vmin] leading-[1.15]', RELLENO_DE_FILA, COLUMNAS)}
           >
             {/*
               * La barra de color del estado. Es la unica columna que no es texto, y en vertical es
@@ -87,27 +140,45 @@ export function EscenaProcesos ({ items, ocultos, total, fase, esGlobal = false 
               style={{ backgroundColor: tarea.status?.color ?? 'var(--color-linea-fuerte)' }}
             />
 
-            <span className={cn('text-texto truncate font-semibold', CUERPO_PRINCIPAL)}>
-              {tarea.name}
-            </span>
+            <FichaDeTablero
+              sobria
+              texto={tarea.name}
+              sitio={{ plan, fila: indice, columna: 0 }}
+              maximo={CUPO.nombre}
+              className={cn('text-texto font-semibold', CUERPO_PRINCIPAL)}
+            />
 
-            <span className={cn('text-texto-tenue truncate portrait:hidden', CUERPO_COLUMNA)}>
-              {tarea.project?.name ?? '—'}
-            </span>
+            <FichaDeTablero
+              mayusculas
+              sobria
+              texto={tarea.project?.name ?? '—'}
+              sitio={{ plan, fila: indice, columna: 1 }}
+              maximo={CUPO.espacio}
+              className={cn('text-texto-tenue portrait:hidden', CUERPO_COLUMNA)}
+            />
 
-            <span className={cn('text-texto-tenue truncate portrait:hidden', CUERPO_COLUMNA)}>
-              {tarea.status?.name ?? '—'}
-            </span>
+            {/* Sin `mayusculas`: "EN PROGRESO" no cabe en 18vmin y se leeria "EN PROGRES". */}
+            <FichaDeTablero
+              sobria
+              texto={tarea.status?.name ?? '—'}
+              sitio={{ plan, fila: indice, columna: 2 }}
+              maximo={CUPO.estado}
+              className={cn('text-texto-tenue portrait:hidden', CUERPO_COLUMNA)}
+            />
 
-            <Avance progreso={tarea.progress} />
+            <Avance progreso={tarea.progress} plan={plan} fila={indice} />
 
-            <Vencimiento fecha={tarea.due_date} vencida={tarea.overdue} />
+            <Vencimiento fecha={tarea.due_date} vencida={tarea.overdue} plan={plan} fila={indice} />
 
+            {/* Sin `mayusculas`: es un nombre de persona. Ver la misma celda en `EscenaCronometros`. */}
             <CeldaQueAlterna
+              sobria
               fase={fase}
-              className={cn('text-texto-tenue', CUERPO_COLUMNA)}
-              principal={<Quien personas={tarea.assignees} />}
+              principal={quienLaTiene(tarea.assignees)}
               alterno={tarea.priority?.name ?? 'Sin prioridad'}
+              sitio={{ plan, fila: indice, columna: 5 }}
+              maximo={CUPO.quien}
+              className={cn('text-texto-tenue', CUERPO_COLUMNA)}
             />
           </li>
         ))}
@@ -127,15 +198,24 @@ export function EscenaProcesos ({ items, ocultos, total, fase, esGlobal = false 
  * `percent` es `null` cuando la Tarea no tiene checklist, y entonces se pone una raya: un cero
  * inventado se lee como "no empezó", que es una afirmacion que la API no hizo.
  */
-function Avance ({ progreso }: { progreso: TareaEnPantalla['progress'] }): ReactNode {
-  if (progreso.percent === null) {
-    return <span className={cn('text-texto-sutil text-right portrait:hidden', CUERPO_COLUMNA)}>—</span>
-  }
+function Avance ({ progreso, plan, fila }: {
+  progreso: TareaEnPantalla['progress']
+  plan: PlanDeOla
+  fila: number
+}): ReactNode {
+  const hay = progreso.percent !== null
 
   return (
-    <span className={cn('text-texto-tenue text-right tabular-nums portrait:hidden', CUERPO_COLUMNA)}>
-      {progreso.percent}%
-    </span>
+    <FichaDeTablero
+      texto={hay ? `${progreso.percent}%` : '—'}
+      sitio={{ plan, fila, columna: 3 }}
+      maximo={CUPO.avance}
+      className={cn(
+        'text-right portrait:hidden',
+        CUERPO_COLUMNA,
+        hay ? 'text-texto-tenue' : 'text-texto-sutil'
+      )}
+    />
   )
 }
 
@@ -145,22 +225,40 @@ function Avance ({ progreso }: { progreso: TareaEnPantalla['progress'] }): React
  * En una tabla el fondo rojo de la celda tiene ademas una segunda virtud que no tenia en una ficha:
  * marca el renglon entero a lo largo de dos metros de pared, que es como se encuentra una fila
  * urgente sin leerlas todas.
+ *
+ * El fondo va en el envoltorio y no en las aletas: una ficha roja por caracter con una junta oscura en
+ * medio se lee como una cremallera y no como una alarma.
  */
-function Vencimiento ({ fecha, vencida }: { fecha: string | null, vencida: boolean }): ReactNode {
+function Vencimiento ({ fecha, vencida, plan, fila }: {
+  fecha: string | null
+  vencida: boolean
+  plan: PlanDeOla
+  fila: number
+}): ReactNode {
   if (fecha === null) {
-    return <span className={cn('text-texto-sutil', CUERPO_COLUMNA)}>Sin fecha</span>
+    return (
+      <FichaDeTablero
+        sobria
+        texto="Sin fecha"
+        sitio={{ plan, fila, columna: 4 }}
+        maximo={CUPO.vence}
+        className={cn('text-texto-sutil', CUERPO_COLUMNA)}
+      />
+    )
   }
 
   return (
-    <span
+    <FichaDeTablero
+      sobria
+      texto={vencida ? `Venció ${formatoCorto(fecha)}` : formatoCorto(fecha)}
+      sitio={{ plan, fila, columna: 4 }}
+      maximo={CUPO.vence}
       className={cn(
-        'truncate rounded-[0.8vmin] font-semibold tabular-nums',
+        'rounded-[0.8vmin] font-semibold',
         CUERPO_COLUMNA,
         vencida ? 'bg-superficie-peligro text-texto-peligro px-[1vmin]' : 'text-texto-tenue'
       )}
-    >
-      {vencida && 'Venció '}{formatoCorto(fecha)}
-    </span>
+    />
   )
 }
 
@@ -174,20 +272,17 @@ function Vencimiento ({ fecha, vencida }: { fecha: string | null, vencida: boole
  *
  * Se nombra a la primera y el resto se cuenta. Quien necesite la lista completa la tiene en el panel,
  * no en una pared.
+ *
+ * Devuelve texto y no un nodo porque la celda es una tira de aletas: un `<span>` gris para el "+2" no
+ * tendria donde vivir dentro de un rodillo, y el gris se pierde igual a cuatro metros.
  */
-function Quien ({ personas }: { personas: TareaEnPantalla['assignees'] }): ReactNode {
+function quienLaTiene (personas: TareaEnPantalla['assignees']): string {
   const primera = personas[0]
 
-  if (primera === undefined) return <span className="text-texto-sutil">Sin asignar</span>
+  if (primera === undefined) return 'Sin asignar'
+  if (personas.length === 1) return nombreCorto(primera.name)
 
-  return (
-    <>
-      {nombreCorto(primera.name)}
-      {personas.length > 1 && (
-        <span className="text-texto-sutil tabular-nums"> +{personas.length - 1}</span>
-      )}
-    </>
-  )
+  return `${nombreCorto(primera.name)} +${personas.length - 1}`
 }
 
 /**
