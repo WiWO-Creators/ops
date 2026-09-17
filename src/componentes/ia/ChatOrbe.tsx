@@ -29,6 +29,7 @@ import { TarjetaPropuestaIA } from './TarjetaPropuestaIA'
 import { MAXIMO_PREGUNTA_AGENTE } from '@/dominio/ia-ejecucion'
 import { ChatAgente } from './ChatAgente'
 import { TextoChat } from './TextoChat'
+import { BotonDictado } from './BotonDictado'
 import { ASISTENTE, GLOSARIO } from '@/dominio/glosario'
 
 /**
@@ -466,9 +467,17 @@ function ConversacionOrbe ({ desplazable = false, proyecto }: PropsChatOrbe): Re
           <p className="text-texto-sutil text-xs">
             {proyecto === undefined ? 'Responde con lo que hay cargado en Ops.' : 'Solo trabaja en este proyecto.'} No cambia nada sin que lo confirmes.
           </p>
-          <Boton type="submit" variante="primario" disabled={pregunta.trim() === '' || enviando}>
-            Preguntar
-          </Boton>
+          <div className="flex items-center gap-2">
+            <BotonDictado
+              valor={pregunta}
+              alEscribir={setPregunta}
+              maximo={LARGO_MAXIMO_PREGUNTA}
+              deshabilitado={enviando}
+            />
+            <Boton type="submit" variante="primario" disabled={pregunta.trim() === '' || enviando}>
+              Preguntar
+            </Boton>
+          </div>
         </div>
       </form>
     </div>
