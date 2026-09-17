@@ -210,9 +210,12 @@ function gruposDelPortal (): GrupoDeInterruptores[] {
  * siguen editándose, para poder dejar la configuración lista, pero mientras el maestro esté en cero
  * no hay nada que mostrar.
  *
- * Nace ENCENDIDO (`DEFAULT 1` en la migración `0640`) para no cambiar lo que ve ningún cliente el
- * día del despliegue. Si el negocio decide que un Espacio nuevo nazca oculto, se invierte en una
- * migración y esta pantalla no cambia.
+ * Nace OCULTO (`DEFAULT 0`, migración `0695_visible_para_cliente_por_defecto_oculto.sql`, que
+ * invirtió el `DEFAULT 1` con el que lo creó `0660_visible_para_cliente.sql`). Un Espacio nuevo no
+ * se le muestra al cliente hasta que alguien lo encienda acá: un olvido deja información interna
+ * escondida, no expuesta. Esa migración no tocó los Espacios que ya existían —`ALTER ... SET
+ * DEFAULT` solo rige para los `INSERT` siguientes—; el histórico se apaga por fuera del deploy con
+ * `modules/api/herramientas/apagar-portal-espacios.php`. Esta pantalla no cambia por nada de eso.
  *
  * === POR QUE GUARDA AL TOCARLO Y CON UN PUT ===
  *
