@@ -38,20 +38,52 @@ export interface ProcesoDeTarjeta {
 }
 
 /**
+ * Los campos que la tarjeta sabe pintar, en el orden en que los dibuja.
+ *
+ * Es la lista corta y cerrada de lo que `<TarjetaTarea>` tiene presentacion para mostrar: la tabla
+ * declara diecinueve columnas, y encender en la tarjeta una que no esta aca no cambiaria nada de lo
+ * que se ve. `id`, `name`, `status`, `due_date` y los contadores no estan porque son el esqueleto:
+ * se pintan siempre y no se pueden apagar.
+ */
+export const CAMPOS_DE_TARJETA = ['patente', 'start_date', 'milestone', 'assignees', 'followers', 'tags']
+
+/**
+ * Los campos que una tarjeta enciende al abrirse, para la definicion vigente.
+ *
+ * **Interseca lo que la tarjeta sabe pintar con lo que la definicion declara como columna.** Eso es
+ * lo que protege al portal sin una lista de excepciones escrita a mano: la definicion del contacto
+ * no declara hito, asignados, seguidores ni etiquetas —su contrato tampoco los emite—, asi que esos
+ * campos se caen solos y la tarjeta del cliente nunca los ofrece. Al equipo, en cambio, le llegan
+ * los seis, incluidos Inicio y Seguidores, que en la tabla arrancan `ocultaPorDefecto` porque ahi
+ * pagan una columna de ancho y en la tarjeta no agregan ni un renglon.
+ *
+ * El tipo es estructural a proposito: solo se necesita la clave, y pedir `Columna<T>` ataria esta
+ * funcion —que se prueba sin React— al modulo de definiciones entero.
+ *
+ * @param columnas Las columnas de la definicion vigente.
+ * @returns Las claves encendidas, en el orden de dibujo de la tarjeta.
+ */
+export function camposPorDefectoDeTarjeta (columnas: Array<{ clave: string }>): string[] {
+  const declaradas = new Set(columnas.map((columna) => columna.clave))
+
+  return CAMPOS_DE_TARJETA.filter((campo) => declaradas.has(campo))
+}
+
+/**
  * Deja en el Proceso solo lo que esta vista de tablero puede pintar.
  *
- * **La tarjeta muestra lo que la tabla muestra por defecto.** La lista de claves sale de
- * `clavesVisiblesPorDefecto(definicion.columnas)`, asi que un campo se pinta cuando la definicion
- * del sujeto declara su columna y no la declara `ocultaPorDefecto`. Eso resuelve dos problemas de un
- * saque: el contrato del contacto no emite hito, asignados, seguidores ni etiquetas —y una tarjeta
- * que los pintara leeria objetos que no llegaron—, y los campos que saturan la tarjeta arrancan
- * apagados sin una segunda lista de excepciones que mantener al lado de la definicion.
+ * La lista de claves sale de `camposPorDefectoDeTarjeta(definicion.columnas)`, y despues de quien
+ * mira: el menu "Campos de la tarjeta" del tablero la edita. Un campo se pinta cuando la definicion
+ * del sujeto declara su columna y el menu lo tiene encendido. Eso resuelve el problema de fondo: el
+ * contrato del contacto no emite hito, asignados, seguidores ni etiquetas —y una tarjeta que los
+ * pintara leeria objetos que no llegaron—, asi que esos campos no entran en el set ni se pueden
+ * encender desde el menu.
  *
  * Reconstruye el objeto en vez de tachar campos sobre el original: lo que la tarjeta no declara no
  * viaja, y agregar una clave al contrato obliga a decidir aca si se pinta.
  *
  * @param proceso La fila del tablero, tal como bajo del BFF.
- * @param visibles Claves de las columnas visibles por defecto en la definicion vigente.
+ * @param visibles Claves de los campos encendidos en esta tarjeta.
  * @returns El Proceso podado, listo para `<TarjetaTarea>`.
  */
 export function podarParaTarjeta (proceso: ProcesoDeTarjeta, visibles: string[]): ProcesoDeTarjeta {

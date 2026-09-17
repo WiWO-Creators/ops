@@ -152,8 +152,14 @@ export interface DefinicionTablero {
    * puede escribir solo puede terminar en un 403 o en un 404.
    */
   rutaMover?: string
-  /** Presenta una tarjeta. Recibe la misma fila que la tabla. */
-  presentarTarjeta: Presentador<unknown>
+  /**
+   * Presenta una tarjeta. Recibe la misma fila que la tabla.
+   *
+   * `campos` son las claves que quien mira dejo encendidas en el menu "Campos de la tarjeta". Es
+   * **opcional**: los tableros cuyas tarjetas no se podan —el de Hitos, el de la definicion base de
+   * Procesos— no lo reciben y no tienen por que enterarse de que existe.
+   */
+  presentarTarjeta: (fila: unknown, campos?: string[]) => React.ReactNode
 }
 
 export interface AccionRecurso {

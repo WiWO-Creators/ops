@@ -39,6 +39,14 @@ interface PropsTablero<T extends FilaConId> {
    * tablero.
    */
   consulta?: string
+  /**
+   * Claves de los campos que cada tarjeta enciende, tal como las dejo el menu "Campos de la tarjeta".
+   *
+   * Viajan hasta `presentarTarjeta` sin que el motor las interprete: el tablero no sabe que campos
+   * existen ni cuales sabe pintar la tarjeta del recurso. Omitirlas deja a la tarjeta con su propio
+   * criterio, que es lo que hacen los tableros sin menu.
+   */
+  campos?: string[]
   // frente: detalle — dos ganchos opcionales para el kanban de Hitos. Sin ellos el motor se comporta
   // exactamente igual que antes.
   /**
@@ -100,6 +108,7 @@ export function Tablero<T extends FilaConId> ({
   definicion,
   inicial,
   consulta = '',
+  campos,
   // frente: detalle — por defecto, el comportamiento historico.
   adaptarCuerpo = (cuerpo) => cuerpo,
   ordenarColumnas = ordenarGrupos,
@@ -465,7 +474,7 @@ export function Tablero<T extends FilaConId> ({
                   arrastrada === tarjeta.id && 'opacity-50'
                 )}
               >
-                {tablero.presentarTarjeta(tarjeta)}
+                {tablero.presentarTarjeta(tarjeta, campos)}
 
                 {/* Las acciones de la tarjeta en una sola fila: "Mover a…" y lo que monte quien use
                     el motor. Envuelve en vez de apilarse para que dos botones cortos no se coman dos
