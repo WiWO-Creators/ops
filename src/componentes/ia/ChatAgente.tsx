@@ -10,6 +10,7 @@ import { pedirSobre } from '@/datos/cliente'
 import { actualizarEjecucion, estaTrabajando, ESTADOS_EJECUCION, leerEjecucion, type Ejecucion } from '@/dominio/ia-ejecucion'
 import { leerMensajesGuardados, type Mensaje } from '@/dominio/ia-chat'
 import { pantallaDeRuta } from '@/dominio/pantalla'
+import { BotonDictado } from './BotonDictado'
 import { TextoChat } from './TextoChat'
 import { PlanEjecucion } from './PlanEjecucion'
 
@@ -152,7 +153,10 @@ export function ChatAgente ({ desplazable, proyecto, intervalo, nuevasHabilitada
         {editando && texto.trim() !== '' && <p role="status" className="text-texto-sutil text-sm">Envía los cambios o borra el texto para confirmar este plan.</p>}
         <div className="flex items-center justify-between gap-3">
           <p className="text-texto-tenue text-xs leading-relaxed">Los cambios se aplican al confirmar.</p>
-        <Boton type="submit" variante="primario" className="min-h-11 self-end" disabled={bloqueado || texto.trim() === ''}>{enviando ? 'Enviando…' : editando ? 'Actualizar plan' : ultima?.estado === 'esperando_datos' ? 'Responder y continuar' : 'Preguntar'}</Boton>
+          <div className="flex items-center gap-2">
+            <BotonDictado valor={texto} alEscribir={setTexto} maximo={maximoPregunta} deshabilitado={bloqueado} />
+            <Boton type="submit" variante="primario" className="min-h-11" disabled={bloqueado || texto.trim() === ''}>{enviando ? 'Enviando…' : editando ? 'Actualizar plan' : ultima?.estado === 'esperando_datos' ? 'Responder y continuar' : 'Preguntar'}</Boton>
+          </div>
         </div>
       </form>
     </div>
