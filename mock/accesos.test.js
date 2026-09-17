@@ -10,6 +10,8 @@
  *      a uno mismo, ni colgando a alguien de su propio descendiente—.
  *   4. Que `permissions` sea **el mismo juego para todo el que no es administrador**: en el modelo
  *      nuevo lo que cambia entre dos personas es cuántas filas ven, no qué pueden hacer.
+ *   5. Que el rol de **coordinador multiárea** se reparta desde acá y solo acepte un booleano: es
+ *      el único de los tres roles del eje 1 que se escribe por endpoint.
  */
 
 import { test, before, after } from 'node:test'
@@ -115,7 +117,10 @@ test('el listado de personas trae el escalón, el jefe y su nombre, y filtra por
 
   assert.deepEqual(
     Object.keys(carla).sort(),
-    ['activo', 'area_id', 'area_ids', 'cargo_id', 'correo', 'escalon', 'jefe_nombre', 'jefe_staffid', 'nombre', 'staffid']
+    [
+      'activo', 'area_id', 'area_ids', 'cargo_id', 'coordinador_multiarea', 'correo', 'escalon',
+      'jefe_nombre', 'jefe_staffid', 'nombre', 'staffid'
+    ]
   )
   assert.equal(carla.jefe_staffid, ANA.id)
   assert.equal(carla.jefe_nombre, ANA.full_name)
@@ -125,6 +130,30 @@ test('el listado de personas trae el escalón, el jefe y su nombre, y filtra por
 
   assert.equal(soloStaff.cuerpo.data.every((persona) => persona.escalon === 'staff'), true)
   assert.equal(soloStaff.cuerpo.data.length < STAFF.length, true, 'el filtro recorta de verdad')
+})
+
+test('el rol de coordinador multiárea se da, se quita y no acepta cualquier cosa', async () => {
+  // Carla nace con el rol puesto en el fixture: es la cuenta que ejercita "ve filas que no edita".
+  const antes = (await leer('accesos/personas')).cuerpo.data.find((persona) => persona.staffid === CARLA.id)
+
+  assert.equal(antes.coordinador_multiarea, true)
+
+  const quitado = await editarPersona(CARLA.id, { coordinador_multiarea: false })
+
+  assert.equal(quitado.estado, 200)
+
+  const sinRol = (await leer('accesos/personas')).cuerpo.data.find((persona) => persona.staffid === CARLA.id)
+
+  assert.equal(sinRol.coordinador_multiarea, false)
+
+  const invalido = await editarPersona(CARLA.id, { coordinador_multiarea: 'si' })
+
+  assert.equal(invalido.estado, 422)
+  assert.deepEqual(invalido.cuerpo.error.details.coordinador_multiarea, ['booleano'])
+
+  const devuelto = await editarPersona(CARLA.id, { coordinador_multiarea: true })
+
+  assert.equal(devuelto.estado, 200)
 })
 
 test('un escalón inventado es 422 y el propio es 409', async () => {

@@ -5,8 +5,7 @@ import { escribirEnBff } from '@/componentes/datos/mutaciones'
 import { Vacio } from '@/componentes/estado/Estados'
 import { Insignia } from '@/componentes/presentadores/Insignia'
 import { estaEncendido } from '@/dominio/accesos'
-import { cn } from '@/lib/clases'
-import { CabeceraDePanel, DialogoConfirmar } from './piezas'
+import { CabeceraDePanel, DialogoConfirmar, Interruptor } from './piezas'
 import type { CatalogoDeAccesos, InterruptorDeAccesos } from '@/datos/accesos'
 
 interface PropsPanelInterruptores {
@@ -92,7 +91,7 @@ export function PanelInterruptores ({ catalogo, recargar }: PropsPanelInterrupto
                   encendido={estaEncendido(interruptor.valor)}
                   etiqueta={interruptor.nombre}
                   deshabilitado={enCurso}
-                  onPedirCambio={() => { setError(null); setConfirmando(interruptor) }}
+                  onPulsar={() => { setError(null); setConfirmando(interruptor) }}
                 />
               </li>
             ))}
@@ -111,45 +110,5 @@ export function PanelInterruptores ({ catalogo, recargar }: PropsPanelInterrupto
         onCerrar={() => { setConfirmando(null) }}
       />
     </div>
-  )
-}
-
-/**
- * El control de dos estados.
- *
- * Es un `<button role="switch">` y no una casilla porque no propone un valor a guardar después: lo
- * que hace es pedir el cambio, y la confirmación lo ejecuta. Por eso `aria-checked` sigue mostrando
- * el estado guardado mientras el diálogo está abierto, y no el que se está por elegir.
- */
-function Interruptor ({
-  encendido, etiqueta, deshabilitado, onPedirCambio
-}: {
-  encendido: boolean
-  etiqueta: string
-  deshabilitado: boolean
-  onPedirCambio: () => void
-}) {
-  return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={encendido}
-      aria-label={etiqueta}
-      disabled={deshabilitado}
-      onClick={onPedirCambio}
-      className={cn(
-        'rounded-control relative inline-flex h-6 w-11 shrink-0 items-center border transition-colors duration-150',
-        'disabled:cursor-not-allowed',
-        encendido ? 'bg-acento border-acento' : 'bg-control border-control-borde'
-      )}
-    >
-      <span
-        aria-hidden="true"
-        className={cn(
-          'rounded-control size-4 transition-transform duration-150',
-          encendido ? 'bg-acento-contenido translate-x-6' : 'bg-texto-tenue translate-x-1'
-        )}
-      />
-    </button>
   )
 }

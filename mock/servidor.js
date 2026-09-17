@@ -2787,7 +2787,7 @@ async function accesosRuta (metodo, resto, parametros, actual, cuerpo, peticion)
   throw new ErrorApi(404, 'not_found', 'Recurso desconocido.')
 }
 
-/** El listado paginado de personas y la escritura de su escalon, jefe, area y cargo. */
+/** El listado paginado de personas y la escritura de su escalon, jefe, area, cargo y coordinacion. */
 async function personasDeAccesos (metodo, id, parametros, actual, cuerpo) {
   if (metodo === 'GET' && id === undefined) {
     const buscar = (parametros.get('buscar') ?? '').toLowerCase()
@@ -2814,7 +2814,8 @@ async function personasDeAccesos (metodo, id, parametros, actual, cuerpo) {
           area_id: areaId,
           area_ids: areasDePersona(s),
           cargo_id: cargoId,
-          activo: s.active
+          activo: s.active,
+          coordinador_multiarea: s.is_coordinador_multiarea === true
         }
       })
 
@@ -2864,6 +2865,16 @@ async function personasDeAccesos (metodo, id, parametros, actual, cuerpo) {
     if (datos.area_id !== undefined) persona.area_id = datos.area_id === null ? null : Number(datos.area_id)
   }
   if (datos.cargo_id !== undefined) CARGOS_POR_PERSONA.set(persona.id, datos.cargo_id)
+
+  if (datos.coordinador_multiarea !== undefined) {
+    if (typeof datos.coordinador_multiarea !== 'boolean') {
+      throw new ErrorApi(422, 'validation_failed',
+        'El rol de coordinador multiárea se da o se quita: mandá true o false.',
+        { coordinador_multiarea: ['booleano'] })
+    }
+
+    persona.is_coordinador_multiarea = datos.coordinador_multiarea
+  }
 
   return { estado: 200, cuerpo: conDatos({ staffid: persona.id }) }
 }

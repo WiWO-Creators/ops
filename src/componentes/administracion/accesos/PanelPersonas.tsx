@@ -18,7 +18,7 @@ import {
 import { pedirSobre } from '@/datos/cliente'
 import { consultaDePersonas, jefesPosiblesPara } from '@/dominio/accesos'
 import { ESCALONES, type Escalon } from '@/dominio/escalon'
-import { CabeceraDePanel, MensajeDeError, SIN_VALOR } from './piezas'
+import { CabeceraDePanel, Interruptor, MensajeDeError, SIN_VALOR } from './piezas'
 import type {
   CambioDePersona, CatalogoDeAccesos, NodoDeArbol, PersonaDeAccesos
 } from '@/datos/accesos'
@@ -162,7 +162,7 @@ export function PanelPersonas ({ catalogo, recargar, actorId }: PropsPanelPerson
     <div className="flex flex-col gap-4">
       <CabeceraDePanel
         titulo="Personas"
-        descripcion="El escalón, quién está a cargo, el área y el cargo de cada persona. Quien está a cargo es lo que decide el alcance; el escalón solo nombra el puesto. Cada cambio se guarda al elegirlo."
+        descripcion="El escalón, quién está a cargo, el área y el cargo de cada persona. Quien está a cargo es lo que decide el alcance; el escalón solo nombra el puesto. Coordinar varias áreas abre la lectura de toda la casa sin entregar ni una edición. Cada cambio se guarda al elegirlo."
       />
 
       <BarraDeFiltros
@@ -201,6 +201,7 @@ export function PanelPersonas ({ catalogo, recargar, actorId }: PropsPanelPerson
                   <CeldaEncabezado>A cargo de</CeldaEncabezado>
                   <CeldaEncabezado>Área</CeldaEncabezado>
                   <CeldaEncabezado>Cargo</CeldaEncabezado>
+                  <CeldaEncabezado>Coordina varias áreas</CeldaEncabezado>
                 </tr>
               </EncabezadoTabla>
               <CuerpoTabla>
@@ -381,6 +382,22 @@ function FilaDePersona ({
           opciones={catalogo.cargos.map((cargo) => ({ valor: String(cargo.id), etiqueta: cargo.nombre }))}
           onCambiar={(valor) => { onCambiar({ cargo_id: valor === null ? null : Number(valor) }) }}
         />
+      </CeldaTabla>
+
+      <CeldaTabla>
+        {/* Sin confirmación: darlo y quitarlo cuesta un clic y no destruye nada. Lo que sí se dice
+            es qué hace, porque "ve todo" y "puede todo" se confunden y acá son cosas distintas. */}
+        <div className="flex items-center gap-2">
+          <Interruptor
+            encendido={persona.coordinador_multiarea}
+            etiqueta={`Coordinación multiárea de ${persona.nombre}`}
+            deshabilitado={ocupada}
+            onPulsar={() => { onCambiar({ coordinador_multiarea: !persona.coordinador_multiarea }) }}
+          />
+          <span className="text-texto-tenue text-xs">
+            {persona.coordinador_multiarea ? 'Lee toda la casa; edita solo lo suyo' : 'Solo lo suyo y lo de su gente'}
+          </span>
+        </div>
       </CeldaTabla>
     </FilaTabla>
   )

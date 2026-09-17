@@ -183,6 +183,10 @@ export const STAFF = NOMBRES.map(([firstname, lastname], i) => ({
   // pantallas de Administracion. Solo la primera cuenta lo tiene, para que el mock ejercite tambien
   // el caso del admin que NO puede entrar ahi.
   is_superadmin: i === 0,
+  // Tercer rol del eje 1: LEE toda la casa y escribe solo lo suyo. La tercera cuenta lo tiene y no
+  // es administradora, que es justo el caso que el panel tiene que saber pintar: alguien que ve
+  // filas que no puede editar.
+  is_coordinador_multiarea: i === 2,
   // Los dos ejes del arbol de personas: donde esta parada y de quien cuelga. No otorgan capacidades
   // —eso lo decide `is_admin`/`is_superadmin`—, pero son lo que la pantalla de accesos edita.
   escalon: ESCALON_POR_INDICE[i] ?? 'staff',
