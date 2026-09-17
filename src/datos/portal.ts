@@ -260,3 +260,227 @@ export interface TiempoPortal {
  * string` y `dependencies: number[]`, que no es lo que la API manda: dos formas del mismo dato se
  * separan, y la que nadie ejecuta se separa primero.
  */
+
+/**
+ * El tablero de control de gestión mensual: `GET /portal/gestion?mes=YYYY-MM`.
+ *
+ * Los quince bloques que arma `Recursos\RecursoGestion` y recorta `FormasDelPortal::GESTION`. Se
+ * declara entero acá —y no por pedazos donde se usa— porque es la ruta que más cifras publica de
+ * todo el portal, y la lista de lo que llega tiene que poder leerse de arriba abajo.
+ *
+ * Los `| null` no son descuido ni comodidad: `null` NUNCA es 0. Un mes sin aprobaciones resueltas
+ * devuelve `null` en `porcentaje_primera_ronda`, y un cero ahí se leería «no aprobamos nada a la
+ * primera». El tipo obliga a que la pantalla decida qué escribir en ese caso.
+ */
+export interface TableroGestion {
+  alcance: AlcanceGestion
+  volumen: VolumenGestion
+  abiertas_al_cierre: AbiertasAlCierre
+  plazos: PlazosGestion
+  tiempos: TiemposGestion
+  etapas: EtapasGestion
+  calidad: CalidadGestion
+  cambios: CambiosGestion
+  trabas: TrabaGestion[]
+  vencidas: VencidaGestion[]
+  estancadas: EstancadaGestion[]
+  deuda_de_aprobacion: DeudaDeAprobacion
+  por_hito: HitoGestion[]
+  antiguedad_abiertas: TramoDeAntiguedad[]
+  por_espacio: EspacioDeGestion[]
+}
+
+/**
+ * Si los días por etapa son un dato medido o todavía no se registran.
+ *
+ * `sin_datos` es el valor de hoy en producción: `tblwiwo_task_status_log` está vacía. La pantalla
+ * que reciba esto NO puede dibujar ceros —cuatro ceros se leen «el equipo no tarda nada»—; dice que
+ * todavía no se registra.
+ */
+export type MedicionPorEtapa = 'medida' | 'sin_datos'
+
+/**
+ * De dónde salió el estado que tenía cada {proceso} al cierre del mes.
+ *
+ * Con `estimado` el estado se dedujo del `status` de hoy, y los cuatro cubos PUEDEN NO SUMAR el
+ * total: una {proceso} que hoy dice Completo pero al cierre seguía abierta no se clasifica en
+ * ninguno, porque se sabe que el cubo es falso y no cuál era el verdadero.
+ */
+export type EstadoAlCierre = 'medido' | 'estimado'
+
+/** De quién depende destrabar un {proceso} bloqueado. Enum de la migración 0699, no una persona. */
+export type ResponsableDeTraba = 'cliente' | 'equipo' | 'tercero'
+
+/**
+ * Una mediana con su tamaño de muestra.
+ *
+ * `n` viaja al lado por una sola razón: para que la pantalla pueda decidir NO dibujar la mediana.
+ * Una mediana de dos {procesos} no es una mediana, es una anécdota.
+ */
+export interface ResumenEstadistico {
+  n: number
+  mediana: number | null
+  p90: number | null
+}
+
+export interface AlcanceGestion {
+  /** `YYYY-MM`. */
+  mes: string
+  /** `YYYY-MM-DD`, primer día del mes. */
+  desde: string
+  /** `YYYY-MM-DD`, último día del mes. */
+  hasta: string
+  /** `false` en el mes en curso: lo que se ve todavía se puede mover. */
+  cerrado: boolean
+  /** Instante hasta el que se midió: el fin del mes, o ahora si el mes está en curso. */
+  medido_hasta: string
+  dias_del_mes: number
+  medicion_por_etapa: MedicionPorEtapa
+  espacios: Array<{ id: number, name: string }>
+}
+
+export interface VolumenGestion {
+  recibidas: number
+  cerradas: number
+  abiertas_al_cierre: number
+}
+
+/**
+ * Los cuatro cubos de estado más `bloqueadas`.
+ *
+ * `bloqueadas` es ORTOGONAL a los cubos —una {proceso} bloqueada sigue teniendo su estado y ya se
+ * contó en su cubo—, así que los cinco números no suman el total y no se pueden apilar.
+ */
+export interface AbiertasAlCierre {
+  produccion: number
+  revision_interna: number
+  revision_vp: number
+  terminado: number
+  bloqueadas: number
+  estado_al_cierre: EstadoAlCierre
+}
+
+export interface PlazosGestion {
+  comprometidas: number
+  en_plazo: number
+  /** `null` si no había nada comprometido. No es 0: «cero en plazo» es lo contrario de «nada». */
+  porcentaje_en_plazo: number | null
+  vencidas_al_cierre: number
+  atraso_dias: { n: number, mediana: number | null, suma: number | null }
+}
+
+export interface TiemposGestion {
+  /** Días que el cliente tardó en responder una aprobación. */
+  respuesta_cliente: ResumenEstadistico
+  /** Días hasta la primera solicitud de aprobación. */
+  entrega_equipo: ResumenEstadistico
+  /** Otra población: {procesos} sin aprobación requerida. No se mezcla con la anterior. */
+  entrega_equipo_sin_aprobacion: ResumenEstadistico
+  punta_a_punta: ResumenEstadistico
+}
+
+export interface EtapasGestion {
+  medicion: MedicionPorEtapa
+  /** El «tiempo acordado» del ciclo completo, en días HÁBILES. `null` si nadie acordó ninguno. */
+  compromiso_dias: number | null
+  /** Siempre `true`: recuerda que el compromiso no está en la misma unidad que los cubos. */
+  compromiso_dias_habiles: boolean
+  /** Días CORRIDOS del ciclo completo. Es lo único comparable contra `compromiso_dias`. */
+  ciclo: ResumenEstadistico
+  cubos: CuboDeEtapa[]
+}
+
+export interface CuboDeEtapa extends ResumenEstadistico {
+  cubo: string
+  rotulo: string
+}
+
+export interface CalidadGestion {
+  resueltas: number
+  aprobadas_primera_ronda: number
+  porcentaje_primera_ronda: number | null
+  rondas_promedio: number | null
+}
+
+export interface CambiosGestion {
+  entradas_no_planificadas: number
+  /** Siempre `true`: el número es un proxy y la pantalla tiene que decirlo. */
+  estimado: boolean
+}
+
+/** Los campos que comparten las tres listas de {procesos} del tablero. */
+export interface ProcesoDeGestion {
+  id: number
+  patente: string | null
+  name: string
+  status: number
+  project: { id: number, name: string | null }
+  date_added: string | null
+  due_date: string | null
+  date_finished: string | null
+}
+
+export interface TrabaGestion extends ProcesoDeGestion {
+  /** Escrito para que el cliente lo lea: es el motivo del bloqueo, no una nota interna. */
+  motivo: string
+  accion_necesaria: string | null
+  responsable: ResponsableDeTraba | null
+  bloqueado_en: string | null
+  dias_bloqueada: number | null
+}
+
+export interface VencidaGestion extends ProcesoDeGestion {
+  /** Contra `due_date`, que es la fecha que el cliente ya tiene en pantalla. */
+  dias_de_atraso: number
+}
+
+export interface EstancadaGestion extends ProcesoDeGestion {
+  /** La ventana con la que se preguntó «se movió», no la fecha del último movimiento. */
+  dias_sin_movimiento: number
+  dias_abierta: number | null
+}
+
+/**
+ * Los días que el trabajo pasó esperando al PROPIO cliente.
+ *
+ * `porcentaje_del_mes` es sobre el tiempo disponible de los {procesos} que esperaron (`n` × días
+ * del mes), no sobre los días del mes a secas: con cinco esperando daría 400%.
+ */
+export interface DeudaDeAprobacion {
+  dias: number | null
+  n: number
+  dias_del_mes: number
+  porcentaje_del_mes: number | null
+}
+
+/** `id` y `name` en `null` es la fila de lo que no cuelga de ningún {hito}. */
+export interface HitoGestion {
+  id: number | null
+  name: string | null
+  project_id: number | null
+  comprometidas: number
+  en_plazo: number
+  cerradas: number
+  abiertas_al_cierre: number
+}
+
+export interface TramoDeAntiguedad {
+  rango: string
+  desde_dias: number
+  /** `null` es el tramo abierto de la derecha. */
+  hasta_dias: number | null
+  total: number
+}
+
+/** Sólo conteos: son lo único aditivo. Una mediana por {espacio} no se compone con la de otro. */
+export interface EspacioDeGestion {
+  id: number
+  name: string
+  recibidas: number
+  cerradas: number
+  abiertas_al_cierre: number
+  bloqueadas: number
+  comprometidas: number
+  en_plazo: number
+  vencidas_al_cierre: number
+}

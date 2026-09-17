@@ -4749,6 +4749,24 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
       }
     }
 
+    // El tablero de control de gestion mensual. La fixture esta armada para ejercitar las SEIS
+    // salvedades de presentacion a la vez, porque son lo unico que esta pantalla tiene de dificil:
+    // un `null` que no es 0, una mediana con `n` chico, el histórico vacio, los cubos que no suman,
+    // el proxy de cambios y las dos unidades de tiempo. Un fixture "bonito" —todo medido, todo con
+    // n grande— dejaria las seis sin ejercitar, que es justo donde la pantalla se rompe.
+    if (seccion === 'gestion') {
+      if (!contacto.permissions.includes('projects')) {
+        throw new ErrorApi(403, 'forbidden', 'Este contacto no tiene acceso a proyectos.');
+      }
+
+      // El interruptor `wiwo_portal_gestion` nace apagado: solo el contacto 1 lo tiene encendido.
+      // Los demas reciben 404 y no 403, para que la seccion sea indistinguible de una ruta inventada.
+      if (contacto.id !== 1) throw new ErrorApi(404, 'not_found', 'Recurso desconocido.');
+      if (resto.length > 1) throw new ErrorApi(404, 'not_found', 'Recurso desconocido.');
+
+      return { estado: 200, cuerpo: conDatos(tableroDeGestion(contacto, parametros)) };
+    }
+
     // Proyectos del cliente. Solo los de su empresa: el portal jamas lista los de otra, y una
     // prueba que no lo ejercite no distingue "filtra bien" de "no filtra".
     if (seccion === 'projects') {
@@ -6759,4 +6777,169 @@ function seccionesDelPortal (contacto) {
     .filter((f) => contacto.permissions.includes(f))
 
   return [...conPermiso, 'files', 'announcements', 'kb', 'profile']
+}
+
+/** El unico mes del fixture en el que el historico de estados tiene transiciones. */
+const MES_CON_HISTORICO = '2026-07'
+
+/**
+ * El tablero de control de gestion mensual de un contacto.
+ *
+ * Es un fixture ARMADO CONTRA LAS SALVEDADES, no contra un mes bonito. Las seis reglas de
+ * presentacion que la pantalla tiene que respetar estan todas representadas:
+ *
+ *   1. `null` no es 0            -> `calidad` viene entero en null (el mes no resolvio aprobaciones)
+ *   2. mediana con `n` chico     -> `respuesta_cliente` con n=2 y `entrega_equipo_sin_aprobacion` con n=0
+ *   3. `medicion_por_etapa`      -> `sin_datos`, como hoy en produccion, salvo en `MES_CON_HISTORICO`
+ *   4. cubos que no suman        -> `estado_al_cierre: 'estimado'` y 3 clasificadas de 9 abiertas
+ *   5. `cambios.estimado`        -> siempre true, como en la API real
+ *   6. dos unidades de tiempo    -> `compromiso_dias_habiles: true` contra cubos en dias corridos
+ *
+ * `MES_CON_HISTORICO` es la unica concesion del mock: un mes en el que el backfill "si corrio", para
+ * poder mirar en el navegador la otra cara del bloque de etapas —la que tiene dias y compromiso— sin
+ * tener que tocar el fixture a mano. En la API real la medicion la decide el historico y nada mas.
+ */
+function tableroDeGestion (contacto, parametros) {
+  const mes = parametros.get('mes') ?? new Date().toISOString().slice(0, 7)
+  const medido = mes === MES_CON_HISTORICO
+  const mios = ESPACIOS.filter((espacio) => espacio.clientid === contacto.client_id).slice(0, 2)
+  const espacio = mios[0] ?? { id: 1, name: 'Espacio' }
+  const [anio, numero] = mes.split('-').map(Number)
+  const ultimo = new Date(Date.UTC(anio, numero, 0)).getUTCDate()
+
+  /** Los campos que comparten las tres listas de Procesos. */
+  const proceso = (id, name, status, due, patente) => ({
+    id,
+    patente,
+    name,
+    status,
+    project: { id: espacio.id, name: espacio.name },
+    date_added: `${mes}-02T13:00:00Z`,
+    due_date: due,
+    date_finished: null
+  })
+
+  return {
+    alcance: {
+      mes,
+      desde: `${mes}-01`,
+      hasta: `${mes}-${String(ultimo).padStart(2, '0')}`,
+      cerrado: true,
+      medido_hasta: `${mes}-${String(ultimo).padStart(2, '0')} 23:59:59`,
+      dias_del_mes: ultimo,
+      medicion_por_etapa: medido ? 'medida' : 'sin_datos',
+      espacios: mios.map((e) => ({ id: e.id, name: e.name }))
+    },
+    volumen: { recibidas: 14, cerradas: 11, abiertas_al_cierre: 9 },
+    // Tres clasificadas de nueve abiertas: con el estado estimado los cubos NO suman, y es correcto.
+    abiertas_al_cierre: {
+      produccion: 2,
+      revision_interna: 1,
+      revision_vp: 0,
+      terminado: 0,
+      bloqueadas: 3,
+      estado_al_cierre: medido ? 'medido' : 'estimado'
+    },
+    plazos: {
+      comprometidas: 12,
+      en_plazo: 8,
+      porcentaje_en_plazo: 67,
+      vencidas_al_cierre: 3,
+      atraso_dias: { n: 4, mediana: 6.5, suma: 31 }
+    },
+    tiempos: {
+      respuesta_cliente: { n: 2, mediana: 5, p90: 9 },
+      entrega_equipo: { n: 7, mediana: 3.25, p90: 8.4 },
+      entrega_equipo_sin_aprobacion: { n: 0, mediana: null, p90: null },
+      punta_a_punta: { n: 5, mediana: 11.5, p90: 22 }
+    },
+    etapas: {
+      medicion: medido ? 'medida' : 'sin_datos',
+      compromiso_dias: medido ? 10 : null,
+      compromiso_dias_habiles: true,
+      ciclo: medido ? { n: 6, mediana: 12.5, p90: 21 } : { n: 0, mediana: null, p90: null },
+      cubos: [
+        { cubo: 'produccion', rotulo: 'Producción', n: medido ? 6 : 0, mediana: medido ? 7.5 : null, p90: medido ? 12 : null },
+        { cubo: 'revision_interna', rotulo: 'Revisión interna', n: medido ? 5 : 0, mediana: medido ? 1.75 : null, p90: medido ? 3 : null },
+        { cubo: 'revision_vp', rotulo: 'Revisión VP', n: medido ? 2 : 0, mediana: medido ? 4 : null, p90: medido ? 4 : null },
+        { cubo: 'terminado', rotulo: 'Completo', n: medido ? 6 : 0, mediana: medido ? 0.5 : null, p90: medido ? 1 : null }
+      ]
+    },
+    // Entero en null: el mes no resolvio ninguna aprobacion. Un 0% aca diria "nada salio a la
+    // primera", que es lo contrario de "no hubo nada que aprobar".
+    calidad: {
+      resueltas: 0,
+      aprobadas_primera_ronda: 0,
+      porcentaje_primera_ronda: null,
+      rondas_promedio: null
+    },
+    cambios: { entradas_no_planificadas: 5, estimado: true },
+    trabas: [
+      {
+        ...proceso(4101, 'Rediseño de la ficha de producto', 2, `${mes}-18`, 'ACM-412'),
+        motivo: 'Falta que nos confirmen cuál de las dos paletas queda.',
+        accion_necesaria: 'Elegir entre la paleta A y la B y avisarnos por el ticket.',
+        responsable: 'cliente',
+        bloqueado_en: `${mes}-05T12:00:00Z`,
+        dias_bloqueada: 21
+      },
+      {
+        ...proceso(4102, 'Alta de usuarios del piloto', 1, `${mes}-22`, 'ACM-418'),
+        motivo: 'Esperamos el listado de correos del área de sistemas.',
+        accion_necesaria: 'Mandar el listado de los 40 usuarios del piloto.',
+        responsable: 'cliente',
+        bloqueado_en: `${mes}-14T09:30:00Z`,
+        dias_bloqueada: 9
+      },
+      {
+        ...proceso(4103, 'Migración del catálogo viejo', 3, `${mes}-27`, 'ACM-431'),
+        motivo: 'El proveedor del ERP todavía no habilitó el acceso de lectura.',
+        accion_necesaria: 'Insistir con el proveedor; ya está pedido.',
+        responsable: 'tercero',
+        bloqueado_en: `${mes}-11T16:00:00Z`,
+        dias_bloqueada: 13
+      },
+      {
+        ...proceso(4104, 'Ajustes del informe mensual', 1, null, null),
+        motivo: 'Se cruzó con la salida del piloto y quedó en espera de nuestro lado.',
+        accion_necesaria: null,
+        responsable: null,
+        bloqueado_en: `${mes}-20T11:00:00Z`,
+        dias_bloqueada: 4
+      }
+    ],
+    vencidas: [
+      { ...proceso(4201, 'Carga de precios de temporada', 1, `${mes}-08`, 'ACM-390'), dias_de_atraso: 17 },
+      { ...proceso(4202, 'Guía de estilo para redes', 2, `${mes}-15`, 'ACM-402'), dias_de_atraso: 10 },
+      { ...proceso(4203, 'Video institucional, corte 2', 3, `${mes}-24`, null), dias_de_atraso: 1 }
+    ],
+    estancadas: [
+      { ...proceso(4301, 'Landing de la promo de invierno', 1, `${mes}-28`, 'ACM-455'), dias_sin_movimiento: 14, dias_abierta: 46 },
+      { ...proceso(4302, 'Traducción al portugués', 1, null, null), dias_sin_movimiento: 14, dias_abierta: 22 }
+    ],
+    deuda_de_aprobacion: { dias: 30, n: 2, dias_del_mes: ultimo, porcentaje_del_mes: 50 },
+    por_hito: [
+      { id: 71, name: 'Piloto con 40 usuarios', project_id: espacio.id, comprometidas: 7, en_plazo: 5, cerradas: 6, abiertas_al_cierre: 4 },
+      { id: 72, name: 'Catálogo migrado', project_id: espacio.id, comprometidas: 5, en_plazo: 3, cerradas: 5, abiertas_al_cierre: 2 },
+      { id: null, name: null, project_id: null, comprometidas: 0, en_plazo: 0, cerradas: 0, abiertas_al_cierre: 3 }
+    ],
+    antiguedad_abiertas: [
+      { rango: '0-7', desde_dias: 0, hasta_dias: 7, total: 1 },
+      { rango: '8-15', desde_dias: 8, hasta_dias: 15, total: 3 },
+      { rango: '16-30', desde_dias: 16, hasta_dias: 30, total: 2 },
+      { rango: '31-60', desde_dias: 31, hasta_dias: 60, total: 2 },
+      { rango: '61+', desde_dias: 61, hasta_dias: null, total: 1 }
+    ],
+    por_espacio: mios.map((e, i) => ({
+      id: e.id,
+      name: e.name,
+      recibidas: i === 0 ? 10 : 4,
+      cerradas: i === 0 ? 8 : 3,
+      abiertas_al_cierre: i === 0 ? 7 : 2,
+      bloqueadas: i === 0 ? 3 : 0,
+      comprometidas: i === 0 ? 12 : 0,
+      en_plazo: i === 0 ? 8 : 0,
+      vencidas_al_cierre: i === 0 ? 3 : 0
+    }))
+  }
 }

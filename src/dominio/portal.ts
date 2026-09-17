@@ -24,6 +24,14 @@ export interface SeccionPortal {
  */
 const CATALOGO: SeccionPortal[] = [
   { clave: 'projects', href: '/portal/proyectos', etiqueta: GLOSARIO.espacio.plural },
+  // El tablero mensual de la gerencia. Hoy la API NO devuelve `gestion` en `secciones_habilitadas`
+  // —el interruptor `wiwo_portal_gestion` nace apagado en los 279 {espacios}— asi que esta entrada
+  // todavia no ilumina nada, y eso es a proposito: el dia que la API publique la clave, el menu se
+  // enciende solo y sin tocar el frontend. La alternativa era que el armazon probara
+  // `/portal/gestion` en cada navegacion para decidir si dibujar un enlace, que le cobra el tablero
+  // entero justo al contacto que SI lo tiene. Quien no lo tiene recibe el 404 de la API, que esta
+  // hecho para ser indistinguible de una ruta inventada.
+  { clave: 'gestion', href: '/portal/gestion', etiqueta: 'Control de gestión' },
   { clave: 'support', href: '/portal/soporte', etiqueta: GLOSARIO.ticket.plural },
   { clave: 'files', href: '/portal/archivos', etiqueta: 'Archivos' },
   { clave: 'announcements', href: '/portal/anuncios', etiqueta: 'Anuncios' },

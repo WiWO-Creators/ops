@@ -22,8 +22,8 @@ function campo (campos, clave) {
   return campos.find((uno) => uno.clave === clave)
 }
 
-test('el holding tiene sus tres empresas en un solo lugar', () => {
-  assert.deepEqual(EMPRESAS_DEL_HOLDING.map((una) => una.etiqueta), ['MGC', 'HL', 'Pacífico'])
+test('el holding tiene sus empresas en un solo lugar', () => {
+  assert.deepEqual(EMPRESAS_DEL_HOLDING.map((una) => una.etiqueta), ['MGC', 'HL', 'Pacífico', 'Palta', 'WiWO'])
   // Los codigos son claves, no texto: sin tildes y en minuscula, como los de los estados.
   for (const empresa of EMPRESAS_DEL_HOLDING) {
     assert.match(empresa.valor, /^[a-z]+$/)
