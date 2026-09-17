@@ -88,7 +88,7 @@ export interface Proceso {
   /**
    * Fecha comprometida (`YYYY-MM-DD`), derivada del tipo de Proceso en ese Espacio.
    *
-   * Las cuatro claves de plazo son **opcionales**: si `wiwo_core` no esta instalado, el guard de
+   * Las claves de plazo son **opcionales**: si `wiwo_core` no esta instalado, el guard de
    * tabla del backend las omite enteras y el frontend no dibuja nada. `null` es otra cosa: la clave
    * llego, pero el Proceso no tiene tipo, el tipo no tiene ETA, o el reloj no arranco.
    */
@@ -96,6 +96,14 @@ export interface Proceso {
   /** Dias contra el vencimiento. **Positivo = tarde.** `null` sin `due_date`. */
   desviacion_dias?: number | null
   estado_sla?: EstadoSla | null
+  /**
+   * Dia de la entrega efectiva: la ultima vez que el Proceso paso a "Espera de respuesta" antes de
+   * completarse. Es contra esta fecha, y no contra el cierre, que la API mide la desviacion.
+   *
+   * Solo en el detalle. `null` mientras no se entrego nunca. **No viaja al portal**: es una medicion
+   * interna, del mismo paquete que `eta`, `desviacion_dias` y `estado_sla`.
+   */
+  entregado_en?: string | null
   approval?: AprobacionProceso
   /**
    * Por que este Proceso no avanza. Opcional por la misma razon que `approval`: una base sin la
@@ -119,8 +127,19 @@ export interface Proceso {
   custom_fields?: ValorCampoPersonalizado[]
 }
 
-/** Estado del compromiso de plazo. `null` cuando no hay con que compararlo. */
-export type EstadoSla = 'en_plazo' | 'en_riesgo' | 'incumplido'
+/**
+ * Estado del compromiso de plazo. `null` cuando no hay con que compararlo.
+ *
+ * `entregado` es el cuarto valor, y llego cuando la API paso a medir la desviacion contra la
+ * **entrega efectiva** —la ultima vez que la tarea entro en "Espera de respuesta" antes de
+ * completarse— en vez de contra el cierre. Significa "entregado dentro del plazo, el reloj se
+ * detuvo, falta que el cliente responda": lo que antes figuraba como incumplido por semanas de
+ * espera ajena.
+ *
+ * **Entregar tarde no entra aca**: eso sigue siendo `incumplido`, solo que ahora congelado en el dia
+ * de la entrega.
+ */
+export type EstadoSla = 'en_plazo' | 'en_riesgo' | 'entregado' | 'incumplido'
 
 /**
  * Bloqueo de un Proceso: por que no avanza, quien lo detuvo y cuando.
