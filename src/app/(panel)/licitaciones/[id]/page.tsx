@@ -5,9 +5,10 @@ import { FichaLicitacion } from '@/componentes/licitacion/FichaLicitacion'
 import { DetalleDeEspacio } from '@/componentes/proyecto/DetalleDeEspacio'
 import { ErrorEstado, SinPermiso, Vacio } from '@/componentes/estado/Estados'
 import { ErrorApi } from '@/datos/errores'
-import { cargarLookups } from '@/datos/lookups'
+import type { OpcionCampo } from '@/componentes/proyecto/formulario'
+import { cargarLookups, listaDe } from '@/datos/lookups'
 import { pedir } from '@/datos/servidor'
-import type { LicitacionDetalle, Lookups } from '@/datos/recursos'
+import type { EstadoLookup, LicitacionDetalle, Lookups } from '@/datos/recursos'
 import type { Yo } from '@/datos/tipos'
 import { GLOSARIO } from '@/dominio/glosario'
 
@@ -123,8 +124,27 @@ export default async function LicitacionPage (props: PageProps<'/licitaciones/[i
       acciones={
         <AccionesLicitacion licitacion={licitacion} capacidades={yo.permissions.projects} />
       }
-      ficha={<FichaLicitacion licitacion={licitacion} />}
+      ficha={
+        <FichaLicitacion
+          licitacion={licitacion}
+          staff={comoOpciones(listaDe(lookups, 'staff'))}
+          capacidades={yo.permissions.projects}
+        />
+      }
       etiquetaPestanas={`Secciones de la ${GLOSARIO.licitacion.singular.toLowerCase()}`}
     />
   )
+}
+
+/**
+ * Un catalogo de `GET /lookups` en la forma que espera un campo `seleccion`.
+ *
+ * El id viaja como cadena porque un `<select>` no conoce otro tipo; quien lo guarda lo vuelve numero
+ * antes de mandarlo. Misma conversion que hace el listado de Prospectos con estos mismos catalogos.
+ *
+ * @param lista el catalogo tal como lo devuelve `listaDe`
+ * @returns las opciones del selector, en el mismo orden
+ */
+function comoOpciones (lista: EstadoLookup[]): OpcionCampo[] {
+  return lista.map((item) => ({ valor: String(item.id), etiqueta: item.name }))
 }

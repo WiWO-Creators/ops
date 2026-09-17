@@ -4,6 +4,14 @@ export interface BorradorLicitacion {
   version: 1
   paso: 0 | 1 | 2
   prospectoId: number | null
+  /**
+   * La persona de contacto, si se cargó.
+   *
+   * `null` es un estado válido en cualquier paso, incluida la licitación ya creada: el paso Contacto
+   * se puede omitir, porque el día que se abre una licitación no siempre se sabe a quién llamar y
+   * frenar el alta por eso empujaba a inventar un contacto. Lo que falta lo reclama después la ficha
+   * (`dominio/pendientes-licitacion.ts`).
+   */
   contactoId: number | null
   licitacionId: number | null
   valoresProspecto: ValoresFormulario
@@ -101,9 +109,10 @@ function esBorrador (valor: unknown): valor is BorradorLicitacion {
     (borrador.prospectoId === null || esId(borrador.prospectoId)) &&
     (borrador.contactoId === null || esId(borrador.contactoId)) &&
     (borrador.licitacionId === null || esId(borrador.licitacionId)) &&
-    (borrador.licitacionId === null || (esId(borrador.prospectoId) && esId(borrador.contactoId))) &&
+    // La licitación cuelga del PROSPECTO, no del contacto: ese es el único id que tiene que existir
+    // para que lo guardado signifique algo. El contacto puede faltar en cualquier paso.
+    (borrador.licitacionId === null || esId(borrador.prospectoId)) &&
     (borrador.paso === 0 || esId(borrador.prospectoId)) &&
-    (borrador.paso !== 2 || esId(borrador.contactoId)) &&
     (borrador.contactoId === null || esId(borrador.prospectoId)) &&
     sonValores(borrador.valoresProspecto) && sonValores(borrador.valoresContacto) &&
     sonValores(borrador.valoresLicitacion) &&

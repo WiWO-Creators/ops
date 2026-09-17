@@ -35,6 +35,11 @@ const LARGO_NOMBRE_ESPACIO = 191
  * dos casillas del alta, asi que no hay nada que importar de alli: lo que se comparte es el catalogo
  * de personas, que llega como parametro.
  *
+ * **Los dos pueden quedar vacios.** Ninguno lleva `requerido`, y es a proposito: el dia que se abre
+ * una licitacion no siempre se sabe quien la va a atender, y exigirlo terminaba en una persona puesta
+ * al azar para poder guardar. Lo que quede sin nombrar lo reclama despues la ficha
+ * (`dominio/pendientes-licitacion.ts`), que es donde se puede resolver.
+ *
  * Los catalogos son opcionales y caen en la lista vacia porque el formulario se monta desde mas de
  * un lado y no todos los tienen a mano; un selector vacio se ve vacio, que es preferible a que la
  * pantalla no compile.
@@ -86,7 +91,7 @@ export function camposDeLicitacion (
       etiqueta: `${GLOSARIO.focal.singular} de la ${GLOSARIO.licitacion.singular.toLowerCase()}`,
       tipo: 'seleccion',
       opciones: staff,
-      ayuda: 'Quien responde por esta licitación en el día a día. Puede ser la misma persona que el owner.'
+      ayuda: 'Quien responde por esta licitación en el día a día. Puede ser la misma persona que el owner, o quedar vacío: si se deja sin nombrar, la ficha lo va a reclamar hasta que se complete.'
     },
     {
       clave: 'espacio.name',

@@ -1,6 +1,9 @@
 import Link from 'next/link'
+import { PendientesLicitacion } from '@/componentes/licitacion/PendientesLicitacion'
 import { Filas, Seccion, type Dato } from '@/componentes/presentadores/Ficha'
+import type { OpcionCampo } from '@/componentes/proyecto/formulario'
 import type { Licitacion } from '@/datos/recursos'
+import type { Capacidad } from '@/datos/tipos'
 import { etiquetaDeEstado } from '@/definiciones/licitaciones'
 import { formatearFecha } from '@/lib/fechas'
 
@@ -15,10 +18,18 @@ import { formatearFecha } from '@/lib/fechas'
  * Lo del Espacio —descripcion, plazos, montos— tampoco se repite: lo muestra `PanelDescripcion`, que
  * es el mismo panel del detalle de un Espacio y va debajo de esta ficha.
  *
+ * **Lo que falta va arriba de todo.** Desde que el alta permite crear una licitacion sin persona de
+ * contacto y sin Focal, los dos huecos tienen que verse al entrar: los pinta
+ * `PendientesLicitacion`, que no dibuja nada cuando no falta nada.
+ *
  * @param licitacion La licitacion ya cargada.
- * @returns Las dos secciones de la ficha.
+ * @param staff Catalogo `staff` de `GET /lookups`, para nombrar al focal desde el aviso.
+ * @param capacidades Capacidades sobre `projects`: deciden si el aviso ofrece resolver o solo avisa.
+ * @returns Los pendientes y las dos secciones de la ficha.
  */
-export function FichaLicitacion ({ licitacion }: { licitacion: Licitacion }) {
+export function FichaLicitacion (
+  { licitacion, staff, capacidades }: { licitacion: Licitacion, staff: OpcionCampo[], capacidades: Capacidad[] }
+) {
   const seguimiento = conValor([
     { etiqueta: 'Estado', valor: etiquetaDeEstado(licitacion.estado) },
     { etiqueta: 'Alta', valor: formatearFecha(licitacion.creada_en, true) },
@@ -29,44 +40,48 @@ export function FichaLicitacion ({ licitacion }: { licitacion: Licitacion }) {
   ])
 
   return (
-    <div className="grid max-w-5xl gap-x-8 gap-y-6 sm:grid-cols-2">
-      <Seccion titulo="Empresa candidata">
-        <dl className="flex flex-col gap-2 text-sm">
-          <div className="flex flex-col gap-0.5">
-            <dt className="text-texto-sutil text-xs">Prospecto</dt>
-            <dd>
-              <Link
-                href={`/prospectos/${licitacion.prospecto_id}`}
-                className="text-acento font-medium underline-offset-4 hover:underline"
-              >
-                {licitacion.prospecto.empresa}
-              </Link>
-            </dd>
-          </div>
+    <div className="max-w-5xl">
+      <PendientesLicitacion licitacion={licitacion} staff={staff} capacidades={capacidades} />
 
-          {licitacion.client_id !== null && (
+      <div className="grid gap-x-8 gap-y-6 sm:grid-cols-2">
+        <Seccion titulo="Empresa candidata">
+          <dl className="flex flex-col gap-2 text-sm">
             <div className="flex flex-col gap-0.5">
-              <dt className="text-texto-sutil text-xs">Cliente</dt>
+              <dt className="text-texto-sutil text-xs">Prospecto</dt>
               <dd>
                 <Link
-                  href={`/clientes/${licitacion.client_id}`}
+                  href={`/prospectos/${licitacion.prospecto_id}`}
                   className="text-acento font-medium underline-offset-4 hover:underline"
                 >
-                  {licitacion.client?.company ?? `Cliente #${licitacion.client_id}`}
+                  {licitacion.prospecto.empresa}
                 </Link>
               </dd>
             </div>
-          )}
 
-          <p className="text-texto-tenue text-xs">
-            El RUT, la dirección y las personas de contacto se leen y se editan en el prospecto.
-          </p>
-        </dl>
-      </Seccion>
+            {licitacion.client_id !== null && (
+              <div className="flex flex-col gap-0.5">
+                <dt className="text-texto-sutil text-xs">Cliente</dt>
+                <dd>
+                  <Link
+                    href={`/clientes/${licitacion.client_id}`}
+                    className="text-acento font-medium underline-offset-4 hover:underline"
+                  >
+                    {licitacion.client?.company ?? `Cliente #${licitacion.client_id}`}
+                  </Link>
+                </dd>
+              </div>
+            )}
 
-      <Seccion titulo="Seguimiento">
-        <Filas datos={seguimiento} />
-      </Seccion>
+            <p className="text-texto-tenue text-xs">
+              El RUT, la dirección y las personas de contacto se leen y se editan en el prospecto.
+            </p>
+          </dl>
+        </Seccion>
+
+        <Seccion titulo="Seguimiento">
+          <Filas datos={seguimiento} />
+        </Seccion>
+      </div>
     </div>
   )
 }
