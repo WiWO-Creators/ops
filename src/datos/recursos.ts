@@ -403,6 +403,14 @@ export interface ProspectoDeLicitacion {
   empresa: string
   client_id: number | null
   client: { id: number, company: string, image_url: string | null } | null
+  /**
+   * Cuantas personas de contacto tiene la empresa.
+   *
+   * Es una cuenta y no la lista porque lo unico que la pantalla decide con esto es si hay alguien a
+   * quien llamar: las personas se leen y se editan en el prospecto, que es donde viven. La API la
+   * resuelve en el mismo SELECT del listado, asi que saberlo no cuesta una peticion mas.
+   */
+  contactos_count: number
 }
 
 /**
@@ -428,6 +436,18 @@ export interface Licitacion {
   /** Cuando se gano o se perdio. `null` mientras siga abierta. */
   resultado_en: string | null
   creada_en: string
+  /**
+   * Quien responde por esta licitacion en el dia a dia, si ya se nombro.
+   *
+   * Se pregunta en el alta y **se puede dejar vacio**: el dia que se crea la licitacion no siempre
+   * se sabe quien la va a atender, y frenar el alta por eso empujaba a poner cualquiera. `null`
+   * significa pendiente, no "no aplica", y por eso la ficha lo avisa
+   * ({@link import('../dominio/pendientes-licitacion').pendientesDeLicitacion}).
+   *
+   * **No es el Focal de un Cliente** (`tblwiwo_focales`): una licitacion todavia no tiene cliente.
+   */
+  focal_id: number | null
+  focal: { id: number, full_name: string } | null
   espacio: EspacioDeLicitacion
 }
 

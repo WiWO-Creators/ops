@@ -16,6 +16,10 @@ import { cn } from '@/lib/clases'
 import { CAMPOS_DE_CONTACTO, camposDeProspecto } from './campos'
 
 const PASOS = ['Prospecto', 'Contacto', 'Licitación'] as const
+/* El unico paso que se puede saltar. El dia que se abre una licitacion no siempre se sabe a quien
+   llamar, y exigirlo terminaba en contactos inventados para poder seguir. Lo que quede vacio lo
+   reclama la ficha despues (`dominio/pendientes-licitacion.ts`). */
+const PASO_OMITIBLE = 1
 /* Lo urgente va en caja roja y no en texto rojo suelto: un párrafo del color del error se pierde
    entre los campos, y estos tres avisos —sin permiso, creación sin confirmar y fallo del servidor—
    son justo los que detienen el alta. Mismo aspecto que los avisos de los formularios de acceso. */
@@ -50,6 +54,11 @@ function cargarBorrador (clave: string, inicial: BorradorLicitacion) {
  * Guía el alta comercial en tres formularios y conserva campos e IDs confirmados por usuario.
  * Cada avance guarda su entidad; volver atrás actualiza el mismo registro.
  * Las respuestas ambiguas detienen los reintentos para evitar crear registros duplicados.
+ *
+ * El paso Contacto se puede omitir: la licitación cuelga del prospecto y no del contacto, así que
+ * exigirlo sólo conseguía que se inventara una persona para poder seguir. Lo mismo vale para el Focal
+ * del tercer paso, que nunca fue obligatorio. Lo que quede vacío no se pierde: `PendientesLicitacion`
+ * lo reclama en la ficha hasta que alguien lo complete.
  */
 export function FlujoLicitacion ({ usuarioId, capacidades, paises, areas, staff, prospecto, contactos = [], onCerrar, onGuardado }: PropsFlujo) {
   const router = useRouter()
@@ -75,7 +84,11 @@ export function FlujoLicitacion ({ usuarioId, capacidades, paises, areas, staff,
   const grupo = GRUPOS[paso]
   const campos = paso === 0 ? camposEmpresa : paso === 1 ? CAMPOS_DE_CONTACTO : camposLicitacion
   const soloLectura = paso === 0 && (prospecto !== undefined || (borrador.prospectoId !== null && !puedeEditar)) || paso === 1 && !puedeEditar
-  const sinPermiso = !capacidades.includes('create') || (!puedeEditar && (borrador.prospectoId === null || paso === 1 && borrador.contactoId === null))
+  const sinPermiso = !capacidades.includes('create') || (!puedeEditar && borrador.prospectoId === null)
+  // Escribir un contacto nuevo sigue exigiendo permiso de edicion. Lo que ya no pasa es que eso frene
+  // el alta entera: sin ese permiso el paso se omite, que es la salida que ahora existe.
+  const sinPermisoDeContacto = paso === PASO_OMITIBLE && !puedeEditar && borrador.contactoId === null
+  const sinContacto = borrador.contactoId === null
   const rutaRevision = borrador.prospectoId === null ? '/prospectos' : `/prospectos/${borrador.prospectoId}?tab=${paso === 2 ? 'licitaciones' : 'contactos'}`
   // Mientras hay una escritura en vuelo, o ya se creó la licitación, ni el indicador ni los botones
   // pueden mover de paso: es la misma condición que ya apagaba el `fieldset` y el botón «Atrás».
@@ -129,10 +142,23 @@ export function FlujoLicitacion ({ usuarioId, capacidades, paises, areas, staff,
     actualizar({ ...borrador, contactoId: contacto?.id ?? null, valoresContacto: valoresIniciales(CAMPOS_DE_CONTACTO, contacto?.contacto ? { ...contacto.contacto } : null) })
   }
 
+  /**
+   * Salta el paso Contacto sin crear a nadie.
+   *
+   * Descarta lo tecleado a medias además de avanzar: dejarlo guardado en el borrador haría que
+   * «Atrás» mostrara media persona cargada y que el siguiente «Guardar y continuar» la creara sin
+   * que nadie lo pidiera. Omitir significa que no hay contacto, no que hay uno a medio escribir.
+   */
+  function omitirContacto (): void {
+    setErrores({})
+    setFallo(null)
+    actualizar({ ...borrador, contactoId: null, valoresContacto: {}, paso: 2 })
+  }
+
   /** Valida la etapa, guarda o actualiza su recurso y avanza sólo tras recibir un ID válido. */
   async function continuar (evento: FormEvent): Promise<void> {
     evento.preventDefault()
-    if (enviando.current || borrador.pendiente !== null || borrador.licitacionId !== null || sinPermiso) return
+    if (enviando.current || borrador.pendiente !== null || borrador.licitacionId !== null || sinPermiso || sinPermisoDeContacto) return
     const encontrados = validarFormulario(campos, borrador[grupo])
     if (paso === 1 && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(borrador.valoresContacto.email ?? ''))) encontrados.email = 'Escribe un correo válido.'
     setErrores(encontrados)
@@ -251,6 +277,12 @@ export function FlujoLicitacion ({ usuarioId, capacidades, paises, areas, staff,
             <span aria-hidden="true" className="bg-gradiente-marca h-1 w-16 shrink-0 rounded-full" />
           </div>
           {paso > 0 && <p className="text-texto-tenue text-base">{String(borrador.valoresProspecto['cliente.company'] ?? prospecto?.empresa ?? '')}</p>}
+          {paso === PASO_OMITIBLE && (
+            <p className="text-texto-tenue text-sm">
+              La persona de contacto es opcional: si todavía no sabes a quién llamar, omite este paso y
+              la ficha de la licitación lo recordará hasta que se cargue.
+            </p>
+          )}
           {paso === 1 && opcionesContacto.length > 0 && (
             <fieldset disabled={bloqueado}>
               <ControlDeCampo campo={{ clave: 'contacto_elegido', etiqueta: 'Usar contacto', tipo: 'seleccion', opciones: [...(puedeEditar ? [{ valor: 'nuevo', etiqueta: 'Nuevo contacto' }] : []), ...opcionesContacto] }}
@@ -264,7 +296,14 @@ export function FlujoLicitacion ({ usuarioId, capacidades, paises, areas, staff,
               <div className="mt-4 grid gap-5 sm:grid-cols-2">{campos.slice(1).map(dibujarCampo)}</div>
             </details>}
           </fieldset>
-          {sinPermiso && <p role="alert" className={ALERTA_URGENTE}>Necesitas permiso de creación de proyectos y, para añadir un contacto, permiso de edición.</p>}
+          {sinPermiso && <p role="alert" className={ALERTA_URGENTE}>Necesitas permiso de creación de proyectos para dar de alta esta licitación.</p>}
+          {sinPermisoDeContacto && <p role="status" className="text-texto-tenue text-sm">No tienes permiso de edición para añadir un contacto. Puedes omitir este paso: quedará pendiente en la ficha.</p>}
+          {paso === 2 && sinContacto && (
+            <p role="status" className="text-texto-tenue text-sm">
+              Esta licitación se va a crear sin persona de contacto. Queda pendiente y se avisa en su
+              ficha hasta que se cargue en el prospecto.
+            </p>
+          )}
           {borrador.licitacionId !== null && <p role="status" className="text-base">La licitación ya está creada. <Link href={`/licitaciones/${borrador.licitacionId}`} className="text-acento underline">Abrir licitación</Link></p>}
           {borrador.pendiente !== null && !guardando && <div role="alert" className={cn(ALERTA_URGENTE, 'flex flex-col items-start gap-3')}>
             <p>No se pudo confirmar la última creación. Revisa si se guardó antes de reintentar para evitar duplicados.</p>
@@ -280,10 +319,11 @@ export function FlujoLicitacion ({ usuarioId, capacidades, paises, areas, staff,
               if (window.confirm('¿Cerrar sin guardar los últimos cambios del borrador?')) onCerrar()
             }}>Cerrar sin guardar</Boton>}
             {paso > 0 && <Boton type="button" variante="sutil" disabled={bloqueado} onClick={() => { cambiarPaso(paso === 2 ? 1 : 0) }}>Atrás</Boton>}
+            {paso === PASO_OMITIBLE && sinContacto && <Boton type="button" variante="sutil" disabled={bloqueado} onClick={omitirContacto}>Omitir por ahora</Boton>}
             <Boton type="button" variante="secundario" disabled={guardando} onClick={guardarYSalir}>Guardar y salir</Boton>
             {/* La accion que cierra el paso es la unica del pie con relleno: con cuatro botones
                 todos iguales, «Guardar y salir» pesaba lo mismo que «Crear licitacion». */}
-            <Boton type="submit" variante="primario" cargando={guardando} disabled={sinPermiso || borrador.pendiente !== null || borrador.licitacionId !== null}>
+            <Boton type="submit" variante="primario" cargando={guardando} disabled={sinPermiso || sinPermisoDeContacto || borrador.pendiente !== null || borrador.licitacionId !== null}>
               {paso === 2 ? 'Crear licitación' : soloLectura ? 'Continuar' : 'Guardar y continuar'}
             </Boton>
           </div>

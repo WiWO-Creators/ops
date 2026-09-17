@@ -54,10 +54,10 @@ test('rechaza borradores corruptos sin borrarlos ni confundirlos con ausencia', 
   const local = almacenamiento()
   const nuevo = crearBorrador()
   for (const valor of [null, [], {}, { ...nuevo, version: 2 }, { ...nuevo, paso: 3 },
-    { ...nuevo, paso: 1 }, { ...nuevo, paso: 2, prospectoId: 2 },
+    { ...nuevo, paso: 1 },
     { ...nuevo, prospectoId: -1 }, { ...nuevo, contactoId: 1.5 },
     { ...nuevo, licitacionId: 0 }, { ...nuevo, licitacionId: 5 },
-    { ...nuevo, prospectoId: 2, licitacionId: 5 },
+    { ...nuevo, contactoId: 3 },
     { ...nuevo, valoresContacto: [] }, { ...nuevo, valoresProspecto: { empresa: 42 } },
     { ...nuevo, pendiente: 'otro' }]) {
     const texto = JSON.stringify(valor)
@@ -68,6 +68,19 @@ test('rechaza borradores corruptos sin borrarlos ni confundirlos con ausencia', 
   local.setItem('prueba', '{')
   assert.throws(() => leerBorrador(local, 'prueba'), /no es válido/)
   assert.throws(() => guardarBorrador(local, 'prueba', {}), /inválido/)
+})
+
+test('un borrador sin contacto es válido en cualquier paso, incluso con la licitación ya creada', () => {
+  // El paso Contacto se puede omitir: la licitacion cuelga del PROSPECTO, y ese es el unico id que
+  // tiene que existir para que lo guardado signifique algo. Si esto vuelve a rechazarse, omitir deja
+  // un borrador que el navegador ya no puede releer y el avance se pierde al recargar.
+  const local = almacenamiento()
+  const sinContacto = { ...crearBorrador(), paso: 2, prospectoId: 2 }
+
+  for (const borrador of [sinContacto, { ...sinContacto, licitacionId: 5 }]) {
+    guardarBorrador(local, 'prueba', borrador)
+    assert.deepEqual(leerBorrador(local, 'prueba'), borrador)
+  }
 })
 
 test('informa cuota agotada o almacenamiento bloqueado sin aparentar éxito', () => {
