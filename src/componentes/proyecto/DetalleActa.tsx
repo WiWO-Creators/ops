@@ -23,6 +23,7 @@ import type { MetaDelActa } from '@/dominio/exportar-acta'
 import { origenDeArchivo } from '@/definiciones/archivos'
 import { cuerpoDelActa, formatoPeso, seVeComoImagen } from '@/dominio/actas'
 import { nombrar } from '@/dominio/glosario'
+import { TareasPropuestas } from './acta/TareasPropuestas'
 import type { Acta, AdjuntoActa, TraduccionActa } from '@/datos/recursos'
 
 /**
@@ -83,6 +84,16 @@ import type { Acta, AdjuntoActa, TraduccionActa } from '@/datos/recursos'
  * PEDIR una traduccion nueva gasta, asi que exige `puedeEditar` y `conIa`, las dos condiciones que
  * ya gobiernan el resto de la IA en esta pantalla. Al cliente, un idioma que nadie pidio ni le
  * aparece.
+ *
+ * === LO QUE LA REUNION ACORDO VA DEBAJO DEL DOCUMENTO ===
+ *
+ * `TareasPropuestas` es lo que el modelo leyo como compromisos dentro del acta, todavia sin crear.
+ * Va despues del visor y antes de los adjuntos, por el mismo motivo que los adjuntos van abajo: el
+ * acta es lo que se viene a leer, y las tareas son lo que se hace DESPUES de haberla leido.
+ *
+ * Su permiso no es ninguno de los dos de esta pantalla: lo que produce son Procesos, asi que cuelga
+ * de `puedeCrearTareas`, y su ruta sale de `fuente` como todo lo demas. Con la ruta en `null` —el
+ * portal— la seccion ni se monta.
  */
 
 const EditorDeActa = dynamic(
@@ -116,8 +127,13 @@ interface PropsDetalle {
   puedeEditar?: boolean
   /** Eliminar. Solo el autor o quien administra, y la API lo vuelve a exigir igual. */
   puedeBorrar?: boolean
-  /** Si la capa de IA responde. Solo decide lo que ofrece el editor, que ya exige `puedeEditar`. */
+  /** Si la capa de IA responde. Decide lo que ofrece el editor y si se puede volver a proponer tareas. */
   conIa?: boolean
+  /**
+   * Crear Procesos desde las tareas propuestas. Es la capacidad `create` sobre Tareas, que no es la
+   * misma que `puedeEditar`: se puede corregir un acta sin poder crear trabajo en el Espacio.
+   */
+  puedeCrearTareas?: boolean
   onCambiada: (acta: Acta) => void
   onBorrada: () => void
   onVolver: () => void
@@ -130,6 +146,7 @@ export function DetalleActa ({
   puedeEditar = false,
   puedeBorrar = false,
   conIa = false,
+  puedeCrearTareas = false,
   onCambiada,
   onBorrada,
   onVolver
@@ -650,6 +667,17 @@ export function DetalleActa ({
             alto="h-[46rem]"
           />
           )}
+
+      {fuente.actaTareas !== null && (
+        <TareasPropuestas
+          ruta={conId(fuente.actaTareas, acta.id)}
+          rutaLookups={fuente.lookups}
+          proyectoId={proyectoId}
+          actaId={acta.id}
+          puedeCrear={puedeCrearTareas}
+          conIa={conIa}
+        />
+      )}
 
       <AdjuntosDelActa acta={acta} />
 

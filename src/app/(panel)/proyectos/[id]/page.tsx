@@ -228,7 +228,7 @@ export default async function ProyectoPage (props: PageProps<'/proyectos/[id]'>)
     // El Meeting Paper conserva el lugar donde el equipo ya lo busca. Va aparte de las Notas y no
     // adentro porque son dos cosas distintas: la nota es privada de quien la escribio y el acta la ve
     // todo el Proyecto, asi que sus acciones dependen de permisos en vez de ofrecerse siempre.
-    { clave: 'actas', etiqueta: GLOSARIO.acta.singular, contenido: <PanelActas proyectoId={proyecto.id} fuente={fuente} capacidades={ACTAS_DEL_EQUIPO} ia={ia} yo={yo} /> },
+    { clave: 'actas', etiqueta: GLOSARIO.acta.singular, contenido: <PanelActas proyectoId={proyecto.id} fuente={fuente} capacidades={ACTAS_DEL_EQUIPO} capacidadesTareas={capacidadesTareas} ia={ia} yo={yo} /> },
     // La clave se queda en `wibot` aunque el asistente ahora se llame Thinking Orb: no es texto, es
     // el valor que viaja en `?tab=` de esta ficha. Cambiarla dejaría muerto cualquier enlace que
     // alguien haya guardado o pegado en una discusión, y el nombre del asistente no se lee de ahí

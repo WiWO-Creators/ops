@@ -96,6 +96,13 @@ export interface FuenteDeProyecto extends FuenteDeTarea {
    */
   actaTraduccion: string
   /**
+   * Las tareas que el modelo propuso a partir de un acta. Plantilla con `:id` del acta.
+   *
+   * `null` en el portal: proponer y crear Procesos es trabajo del equipo, y la API del contacto no
+   * expone el recurso. Con `null` la seccion ni se dibuja, sin una rama por sujeto adentro.
+   */
+  actaTareas: string | null
+  /**
    * Conteo de Procesos por estado, para las tarjetas de arriba de la tabla.
    *
    * `null` cuando el sujeto no tiene ese recurso: el panel se dibuja igual sin el.
@@ -202,6 +209,7 @@ export function fuenteDelPanel (proyectoId: number): FuenteDeProyecto {
     actas: `${raiz}/actas`,
     acta: `${raiz}/actas/:id`,
     actaTraduccion: `${raiz}/actas/:id/traducciones`,
+    actaTareas: `${raiz}/actas/:id/tareas`,
     resumenDeTareas: `${raiz}/tasks/summary`,
     camposDeTareas: 'custom-fields?para=tasks',
     dependenciasDeTareas: `${raiz}/tasks/dependencies`
@@ -211,9 +219,9 @@ export function fuenteDelPanel (proyectoId: number): FuenteDeProyecto {
 /**
  * Las rutas del Proyecto para el cliente (`/portal/projects/{id}/...`).
  *
- * Los tres `null` no son huecos que haya que tapar: son los recursos que un contacto no tiene, y son
- * lo que deja cada panel en solo lectura sin una sola rama por sujeto. `subrecursosDeTarea` es el
- * cuarto, y viene de `FuenteDeTarea`.
+ * Los cuatro `null` no son huecos que haya que tapar: son los recursos que un contacto no tiene, y
+ * son lo que deja cada panel en solo lectura sin una sola rama por sujeto. `subrecursosDeTarea` es
+ * el quinto, y viene de `FuenteDeTarea`.
  *
  * @param proyectoId El Proyecto que el cliente esta mirando.
  * @returns La fuente lista para pasarle a cualquier panel del Proyecto.
@@ -241,6 +249,7 @@ export function fuenteDelPortal (proyectoId: number): FuenteDeProyecto {
     actas: `${raiz}/actas`,
     acta: `${raiz}/actas/:id`,
     actaTraduccion: `${raiz}/actas/:id/traducciones`,
+    actaTareas: null,
     resumenDeTareas: null,
     camposDeTareas: null,
     dependenciasDeTareas: null

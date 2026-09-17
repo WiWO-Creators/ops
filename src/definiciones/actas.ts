@@ -69,3 +69,94 @@ export function vistaPrevia (html: string | null | undefined, maximo = 120): str
 
   return plano.length <= maximo ? plano : `${plano.slice(0, maximo - 1).trimEnd()}…`
 }
+
+/**
+ * === TAREAS PROPUESTAS A PARTIR DE UN MEETING PAPER ===
+ *
+ * Lo que el modelo leyó como un acuerdo o un compromiso dentro del acta y todavía no es una Tarea.
+ * Son propuestas, no Procesos: viven aparte hasta que alguien del equipo las revisa y las crea, y
+ * por eso tienen estado propio (`pendiente`, `creada`, `descartada`) en vez de nacer en el tablero.
+ *
+ * Las claves van en el idioma del contrato de la API, que las emite en español.
+ */
+
+/** En qué punto de la revisión está una propuesta. */
+export type EstadoDePropuesta = 'pendiente' | 'creada' | 'descartada'
+
+/** Qué parte del acta la originó. `ia` es lo que el modelo dedujo sin que el acta lo rotulara. */
+export type OrigenDePropuesta = 'acuerdo' | 'compromiso' | 'ia'
+
+/** Una persona ya resuelta contra el equipo. Las que el modelo no pudo resolver van en `no_resuelto`. */
+export interface PersonaDePropuesta {
+  id: number
+  nombre: string
+}
+
+/** Una etiqueta ya resuelta contra el catálogo. */
+export interface EtiquetaDePropuesta {
+  id: number
+  nombre: string
+}
+
+/** Una tarea propuesta, tal como la emite `GET projects/{id}/actas/{actaId}/tareas`. */
+export interface PropuestaDeTarea {
+  id: number
+  acta_id: number
+  estado: EstadoDePropuesta
+  titulo: string
+  descripcion: string | null
+  /** `YYYY-MM-DD`, o `null` cuando en la reunión no se dijo para cuándo. */
+  vence: string | null
+  /** Id de `task_priorities` (1..4). */
+  prioridad: number
+  origen: OrigenDePropuesta
+  /** El fragmento del acta del que salió. Es lo que deja verificar la propuesta sin releer el acta. */
+  texto_origen: string
+  asignados: PersonaDePropuesta[]
+  etiquetas: EtiquetaDePropuesta[]
+  /**
+   * Lo que el modelo no pudo resolver contra los catálogos, ya redactado por la API
+   * (`persona "Juan"`). Cada entrada es un campo que quedó vacío y hay que completar a mano.
+   */
+  no_resuelto: string[]
+  /** El Proceso que se creó desde esta propuesta. `null` mientras siga pendiente. */
+  task_id: number | null
+  task_name: string | null
+}
+
+/** Los contadores de la sección, para no recorrer la lista en cada render. */
+export interface MetaDePropuestas {
+  pendientes: number
+  creadas: number
+  descartadas: number
+  /** Cuándo corrió el modelo. `null` cuando de esta acta nunca se propuso nada. */
+  generado_en: string | null
+  origen_ia: boolean
+}
+
+/** Respuesta del listado y de "Volver a proponer": las dos tienen la misma forma. */
+export interface PropuestasDelActa {
+  items: PropuestaDeTarea[]
+  meta: MetaDePropuestas
+}
+
+/**
+ * Cuerpo del `PATCH` de una propuesta. Todo opcional: se manda solo lo que se tocó.
+ *
+ * `etiquetas` son nombres y no ids a propósito —así lo acepta la API—: el modelo propone etiquetas
+ * que todavía no existen, y exigir un id obligaría a crearlas antes de poder guardar la propuesta.
+ */
+export interface ParcheDePropuesta {
+  titulo?: string
+  descripcion?: string | null
+  vence?: string | null
+  prioridad?: number
+  asignados?: number[]
+  etiquetas?: string[]
+}
+
+/** Respuesta de `POST .../tareas/crear`: qué se creó y qué no, propuesta por propuesta. */
+export interface ResultadoDeCreacion {
+  creadas: Array<{ propuesta_id: number, task_id: number, name: string }>
+  fallidas: Array<{ propuesta_id: number, error: string }>
+}

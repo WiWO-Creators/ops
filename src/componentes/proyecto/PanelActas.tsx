@@ -41,9 +41,10 @@ import type { DefinicionRecurso } from '@/definiciones/tipos'
  * ninguna rama por sujeto acá adentro —lo que cambia son las rutas y las capacidades—, y la lista y
  * el documento son los mismos que ve el equipo. Ver `dominio/fuente-proyecto.ts`.
  *
- * `ia` y `yo` son **opcionales por eso**: los dos solo gobiernan escrituras —`ia` decide si el alta
- * genera o explica por qué no puede, `yo` decide si se ofrece borrar—, así que sin capacidades no se
- * leen. El portal no puede pasarlos aunque quisiera: `GET /settings` y `GET /me` son rutas del
+ * `ia`, `yo` y `capacidadesTareas` son **opcionales por eso**: los tres solo gobiernan escrituras
+ * —`ia` decide si el alta genera o explica por qué no puede, `yo` decide si se ofrece borrar, y
+ * `capacidadesTareas` decide si las tareas propuestas del acta se pueden crear—, así que sin
+ * capacidades no se leen. El portal no puede pasarlos aunque quisiera: `GET /settings` y `GET /me` son rutas del
  * equipo, y un contacto no las tiene. Inventar un valor para cumplir con la firma habría sido
  * escribir dos veces la misma decisión.
  *
@@ -71,6 +72,14 @@ interface PropsPanelActas {
   ia?: EstadoIa
   /** Para saber si esta persona puede borrar un acta ajena. Solo se lee con capacidad `delete`. */
   yo?: Yo
+  /**
+   * Capacidades sobre **Tareas**, no sobre el acta: las gobierna `yo.permissions.tasks`.
+   *
+   * Sirven solo a las tareas propuestas del acta abierta, que es lo unico de esta pestaña que crea
+   * Procesos. Ausentes —el portal— la seccion queda en solo lectura. Van aparte de `capacidades`
+   * porque son otro permiso: quien corrige actas no necesariamente reparte trabajo en el Espacio.
+   */
+  capacidadesTareas?: Capacidad[]
 }
 
 /**
@@ -116,7 +125,9 @@ export function PanelActas (props: PropsPanelActas): ReactElement {
   )
 }
 
-function ActasDelProyecto ({ proyectoId, fuente, capacidades, ia = SIN_IA, yo }: PropsPanelActas): ReactElement {
+function ActasDelProyecto ({
+  proyectoId, fuente, capacidades, ia = SIN_IA, yo, capacidadesTareas = []
+}: PropsPanelActas): ReactElement {
   const router = useRouter()
   const params = useSearchParams()
   const [revision, setRevision] = useState(0)
@@ -183,6 +194,7 @@ function ActasDelProyecto ({ proyectoId, fuente, capacidades, ia = SIN_IA, yo }:
           // aplica la API. Sin `yo` no hay a quién comparar: no se ofrece.
           puedeBorrar={capacidades.includes('delete') && yo !== undefined ? { yo } : null}
           conIa={ia.activa}
+          puedeCrearTareas={capacidadesTareas.includes('create')}
           onCambiada={recargar}
           onBorrada={() => {
             recargar()
@@ -283,6 +295,7 @@ function ActaAbierta ({
   puedeEditar,
   puedeBorrar,
   conIa,
+  puedeCrearTareas,
   onCambiada,
   onBorrada,
   onVolver
@@ -294,6 +307,7 @@ function ActaAbierta ({
   /** Quien mira, solo si tiene la capacidad de borrar. `null` = no se ofrece eliminar. */
   puedeBorrar: { yo: Yo } | null
   conIa: boolean
+  puedeCrearTareas: boolean
   onCambiada: () => void
   onBorrada: () => void
   onVolver: () => void
@@ -318,6 +332,7 @@ function ActaAbierta ({
       // ofrecer un botón que va a devolver 403; la decisión real la toma el backend.
       puedeBorrar={puedeBorrar !== null && (acta.staff_id === puedeBorrar.yo.id || puedeBorrar.yo.is_admin)}
       conIa={conIa}
+      puedeCrearTareas={puedeCrearTareas}
       onCambiada={() => {
         recargar()
         onCambiada()
