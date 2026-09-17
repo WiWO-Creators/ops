@@ -31,7 +31,9 @@ const panel = fuenteDelPanel(7)
 const portal = fuenteDelPortal(7)
 
 /** Los recursos que el contacto no tiene. Son los unicos `null` permitidos. */
-const SIN_RECURSO = ['subrecursosDeTarea', 'resumenDeTareas', 'camposDeTareas', 'dependenciasDeTareas']
+const SIN_RECURSO = [
+  'subrecursosDeTarea', 'resumenDeTareas', 'camposDeTareas', 'dependenciasDeTareas', 'actaTareas'
+]
 
 test('las dos fuentes declaran las mismas claves', () => {
   assert.deepEqual(Object.keys(panel).sort(), Object.keys(portal).sort())
