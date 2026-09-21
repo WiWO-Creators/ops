@@ -37,7 +37,7 @@ import { useRecurso } from './carga'
  * la API, que responde 403 igual: esconder el panel es cosmetica.
  *
  * El bloque "Que ve el cliente" no comparte ni el endpoint ni el boton de guardar con el resto: son
- * los trece interruptores del portal, que se guardan enteros con un PUT propio al tocar cualquiera de
+ * los catorce interruptores del portal, que se guardan enteros con un PUT propio al tocar cualquiera de
  * ellos. Por eso se carga aparte —que falle no puede dejar en blanco la pantalla entera— y se guarda
  * al tocarlo, que es lo que hace un interruptor. Va arriba de todo y no debajo del boton "Guardar
  * configuracion", que no es suyo.
@@ -107,14 +107,14 @@ export function PanelConfiguracionEspacio ({
 }
 
 /**
- * Lo que devuelve `GET|PUT /projects/{id}/portal-settings`: los trece interruptores.
+ * Lo que devuelve `GET|PUT /projects/{id}/portal-settings`: los catorce interruptores.
  *
  * Se declara acá y no en `datos/recursos.ts` por lo mismo que `PanelActividad` declara su fila: es
  * una forma de una sola pantalla. El orden de las claves es el orden en que la API las devuelve y el
  * que el panel dibuja — el maestro primero, después el detalle.
  *
- * El backend acepta exactamente estas trece y ninguna más (`Escritura\AjustesDelPortal::CLAVES` y
- * `::COLUMNAS`). Los otros `view_*` de Perfex —crear, editar, comentar, subir archivos desde el
+ * El backend acepta exactamente estas catorce y ninguna más (`Escritura\AjustesDelPortal::CLAVES`
+ * y `::COLUMNAS`). Los otros `view_*` de Perfex —crear, editar, comentar, subir archivos desde el
  * portal— no se ofrecen porque esta API no los honra: el portal es de solo lectura, y una casilla
  * que no hace nada es peor que no tenerla.
  */
@@ -134,6 +134,15 @@ interface AjustesDelPortal {
   view_task_comments: boolean
   view_task_checklist_items: boolean
   view_task_attachments: boolean
+  /**
+   * Si este Espacio aporta sus cifras al tablero de control de gestión del portal.
+   *
+   * No es una pestaña de la ficha: es una pantalla transversal del portal que suma varios Espacios.
+   * Se administra igual que las otras trece porque contesta la misma pregunta —«¿el cliente ve esto
+   * de este Espacio?»— y porque repartirla en otro formulario dejaría encender un tablero de un
+   * Espacio que el cliente no ve, sin ninguna señal de que no sirve para nada.
+   */
+  wiwo_portal_gestion: boolean
 }
 
 /** Las claves del bloque, para recorrerlas sin perder el tipado. */
@@ -194,6 +203,17 @@ function gruposDelPortal (): GrupoDeInterruptores[] {
         { clave: 'view_task_comments', etiqueta: 'Comentarios' },
         { clave: 'view_task_checklist_items', etiqueta: 'Checklist' },
         { clave: 'view_task_attachments', etiqueta: 'Adjuntos' }
+      ]
+    },
+    {
+      titulo: 'Pantallas transversales',
+      descripcion: `Pantallas del portal que suman varios ${GLOSARIO.espacio.plural.toLowerCase()} en una sola vista.`,
+      interruptores: [
+        {
+          clave: 'wiwo_portal_gestion',
+          etiqueta: 'Tablero de control de gestión',
+          ayuda: `Nace apagado. Necesita además el interruptor maestro y la pestaña de ${procesos} encendidos en este ${espacio}: el tablero cuenta ${procesos}, y publicar una cifra sobre una lista que el cliente no puede abrir es contarle en forma de número lo que se decidió no mostrarle. El enlace aparece en el menú del cliente en cuanto al menos un ${espacio} lo tenga encendido.`
+        }
       ]
     }
   ]

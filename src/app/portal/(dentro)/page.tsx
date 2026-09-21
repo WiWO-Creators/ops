@@ -1,11 +1,11 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
-import { Metrica } from '@/componentes/proyecto/ResumenProyecto'
+import { ResumenDelPortal } from '@/componentes/portal/ResumenDelPortal'
 import { BarraProgreso } from '@/componentes/proyecto/CabeceraProyecto'
 import { formatearFecha } from '@/lib/fechas'
 import { ErrorApi } from '@/datos/errores'
 import { pedirPortal } from '@/datos/servidor'
-import type { AnuncioPortal, EspacioPortal } from '@/datos/portal'
+import type { AnuncioPortal, EspacioPortal, ResumenPortal } from '@/datos/portal'
 import type { YoPortal } from '@/datos/tipos'
 import { saludar, seccionesDelPortal } from '@/dominio/portal'
 import { GLOSARIO } from '@/dominio/glosario'
@@ -13,31 +13,40 @@ import { Bloque } from './detalle'
 
 export const metadata: Metadata = { title: 'Inicio · Portal de clientes' }
 
+/** Cuantos {espacios} entran en la lista de abajo. Una lista corta no miente; un total sí. */
+const ULTIMOS = 5
+
 /**
- * Inicio del portal.
+ * Inicio del portal, que es tambien el dashboard del cliente.
  *
- * Resume lo que el cliente vino a ver —como van sus proyectos y si hay algo nuevo que contarle— y
- * ademas deja los accesos a las secciones habilitadas.
+ * Resume lo que el cliente vino a ver —que espera su respuesta, como van sus proyectos y si hay algo
+ * nuevo que contarle— y ademas deja los accesos a las secciones habilitadas.
  *
  * Cada bloque se pide con `sinFallar`: una seccion que este apagada para este contacto responde 403
  * o 404, y eso no puede tumbar la portada entera. Un inicio a medias es mejor que una pantalla de
  * error.
  *
- * Los proyectos se piden enteros aunque la lista muestre cinco: las tres metricas de arriba cuentan
- * sobre lo que llego, asi que pedir una pagina corta no acorta la pantalla, la hace mentir. El tope
- * de 100 es el maximo de la API; un cliente con mas proyectos que eso veria las metricas cortadas y
- * necesitaria que la API devuelva los totales ya sumados.
+ * === LOS NUMEROS Y LA LISTA SON DOS PEDIDOS DISTINTOS, Y A PROPOSITO ===
+ *
+ * Los NUMEROS salen de `/portal/resumen`, que los suma en el servidor sobre TODOS los {espacios} del
+ * cliente. Antes los sumaba esta pagina sobre `/portal/projects?per_page=100`, asi que un cliente
+ * con mas de cien {espacios} veia un total menor que el real y sin ninguna señal de que faltaba
+ * algo. Un agregado no se pagina: o se calcula sobre el conjunto entero o no es el agregado.
+ *
+ * La LISTA sigue viniendo paginada y corta, y eso esta bien: se presenta como "los ultimos", no como
+ * "todos". El pedido baja de cien filas a cinco —las unicas que se dibujan—, que es lo que se podia
+ * hacer recien cuando los totales dejaron de depender de ella.
  */
 export default async function PortalInicio () {
   const { data: yo } = await pedirPortal<YoPortal>('/portal/me')
   const secciones = seccionesDelPortal(yo.secciones_habilitadas)
 
-  const [proyectos, anuncios] = await Promise.all([
-    sinFallar<EspacioPortal[]>('/portal/projects?per_page=100'),
+  const [resumen, proyectos, anuncios] = await Promise.all([
+    sinFallar<ResumenPortal>('/portal/resumen'),
+    sinFallar<EspacioPortal[]>(`/portal/projects?per_page=${ULTIMOS}`),
     sinFallar<AnuncioPortal[]>('/portal/announcements')
   ])
 
-  const activos = (proyectos ?? []).filter((p) => p.counts.tasks_open > 0)
   const nuevos = (anuncios ?? []).filter((a) => !a.dismissed)
 
   return (
@@ -49,16 +58,7 @@ export default async function PortalInicio () {
         </p>
       </div>
 
-      {proyectos !== null && (
-        <div className="grid gap-3 sm:grid-cols-3">
-          <Metrica etiqueta={GLOSARIO.espacio.plural} valor={String(proyectos.length)} />
-          <Metrica etiqueta="En curso" valor={String(activos.length)} />
-          <Metrica
-            etiqueta={`${GLOSARIO.proceso.plural} pendientes`}
-            valor={String(proyectos.reduce((suma, p) => suma + p.counts.tasks_open, 0))}
-          />
-        </div>
-      )}
+      {resumen !== null && <ResumenDelPortal resumen={resumen} />}
 
       {nuevos.length > 0 && (
         <Bloque titulo="Novedades">
@@ -78,7 +78,7 @@ export default async function PortalInicio () {
       {proyectos !== null && proyectos.length > 0 && (
         <Bloque titulo={GLOSARIO.espacio.plural}>
           <ul className="flex flex-col gap-4">
-            {proyectos.slice(0, 5).map((proyecto) => (
+            {proyectos.map((proyecto) => (
               <li key={proyecto.id}>
                 <div className="flex flex-wrap items-baseline justify-between gap-2">
                   <Link
@@ -93,6 +93,18 @@ export default async function PortalInicio () {
               </li>
             ))}
           </ul>
+
+          {/* Solo cuando la pagina vino llena, que es cuando puede haber mas: sin el enlace, un
+              cliente con doce {espacios} se queda creyendo que tiene cinco. A quien los ve todos no
+              se le ofrece "ver todos", que ya los esta viendo. */}
+          {proyectos.length === ULTIMOS && (
+            <Link
+              href="/portal/proyectos"
+              className="text-acento mt-4 inline-block text-sm font-medium underline-offset-4 hover:underline"
+            >
+              Ver todos mis {GLOSARIO.espacio.plural.toLowerCase()}
+            </Link>
+          )}
         </Bloque>
       )}
 
