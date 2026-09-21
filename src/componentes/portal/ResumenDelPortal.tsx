@@ -6,7 +6,7 @@ import { formatearPorcentaje } from '@/dominio/gestion'
 import { GLOSARIO } from '@/dominio/glosario'
 import { cn } from '@/lib/clases'
 import type { ResumenPortal } from '@/datos/portal'
-import { Aclaracion, LoQueEstaTrabado, ProximosHitos, Tarjeta } from './piezas'
+import { Aclaracion, LoQueEstaTrabado, Tarjeta } from './piezas'
 import {
   MOTIVO_SIN_ESPERA,
   MOTIVO_SIN_PROCESOS,
@@ -14,7 +14,6 @@ import {
   leerBloqueos,
   leerEspera,
   leerHitos,
-  leerProximosHitos,
   ordenarEstados,
   type LecturaDeHitos
 } from './resumen'
@@ -78,8 +77,6 @@ export function ResumenDelPortal ({ resumen }: { resumen: ResumenPortal }) {
       {procesos === undefined && <Aclaracion>{MOTIVO_SIN_PROCESOS}</Aclaracion>}
 
       <EstadoDeLosEspacios estados={resumen.espacios.by_status} />
-
-      <ProximosHitos lectura={leerProximosHitos(resumen.proximos_hitos, resumen.hitos)} />
 
       <LoQueEstaTrabado lectura={leerBloqueos(resumen.bloqueados)} />
     </section>
@@ -155,11 +152,11 @@ function EsperaTuRespuesta ({ cantidad }: { cantidad: number | null }) {
  * acompañamiento: «4 {hitos}» y «4 {hitos}, 2 vencidos» no se leen igual, y el segundo tiene que
  * verse distinto sin que el cliente lea la letra chica.
  *
- * El detalle de cada {hito} lo dibuja `ProximosHitos`, y ahi tampoco se repiten estos dos numeros:
- * esta tarjeta dice CUANTOS hay y cuantos pasaron de fecha, y la lista dice cuales y cuando. La
- * lista la arma el servidor sobre TODOS los {espacios} del cliente —igual que estos contadores— y
- * no el navegador sobre los que entren en la portada, que seria el mismo error que este resumen
- * vino a arreglar, esta vez con fechas.
+ * La LISTA de {hitos} que vienen ya no cuelga de esta pieza: la portada la reemplazo por el resumen
+ * semanal con IA, que dice lo mismo en prosa y ademas lo explica. El contador se queda porque es un
+ * numero de un vistazo y el resumen es un parrafo: no compiten. El detalle fila por fila sigue
+ * existiendo, dentro de «Estado de {espacios}» (`EstadoDeMisProyectos`), que es donde el cliente va
+ * a ver fechas.
  *
  * @param lectura lo que decidio `leerHitos()`
  */
