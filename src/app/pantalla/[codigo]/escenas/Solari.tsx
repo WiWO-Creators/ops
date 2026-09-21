@@ -73,24 +73,23 @@ import { TOPE_DE_GLIFOS, cintaDeRodillo, rodilloDeTexto } from '@/dominio/solari
  * la estetica completa no cuesta ni un elemento mas de DOM en un tablero que ya tiene mil cuatrocientos
  * huecos. El fondo y la junta son propiedades del hueco, que existia de todos modos.
  *
- * Sin `ficha` el texto queda sobrio: voltea igual, pero sin fondo ni junta. Es lo que lleva la columna
- * del nombre, que es la larga; ver el docblock de `textoDeFicha()` en el dominio.
+ * La estetica la lleva TODA tira, porque ya no hay tiras de palabras: desde que solo las cifras se
+ * dibujan asi, el fondo de ancho fijo no le cuesta informacion a nadie. Quien decide que llega hasta
+ * aca es `esNumerico()` en el dominio; ver su docblock y el de `Ficha` en `piezas.tsx`.
  *
  * @param texto     lo que tiene que quedar en pantalla cuando el rodillo se detenga
  * @param uniforme  si todas las fichas miden lo mismo, para que dos celdas de la misma columna del
  *                  tablero caigan alineadas; ver `ANCHO_DE_COLUMNA` en `pantalla.css`
- * @param ficha     si se dibuja la estetica de aleta: fondo, junta y linea de pliegue
  * @param tope      cuantos caracteres voltean como mucho; `0` deja la tira entera quieta
  * @param desdeElFinal si el presupuesto de volteo se gasta por la cola; es lo que quiere un contador
  * @param onda      en que ranura de la ola del tablero arranca esta celda; ver `ondaDeFicha()`
  * @param className clases del contenedor; el cuerpo de letra y el color se heredan de ahi
  */
 export function TextoSolari ({
-  texto, uniforme = false, ficha = false, tope = TOPE_DE_GLIFOS, desdeElFinal = false, onda = 0, className
+  texto, uniforme = false, tope = TOPE_DE_GLIFOS, desdeElFinal = false, onda = 0, className
 }: {
   texto: string
   uniforme?: boolean
-  ficha?: boolean
   tope?: number
   desdeElFinal?: boolean
   onda?: number
@@ -99,7 +98,7 @@ export function TextoSolari ({
   const glifos = rodilloDeTexto(texto, tope, desdeElFinal)
 
   return (
-    <span className={cn('solari', ficha && 'solari-mecanico', className)} style={estiloDeTira(onda)}>
+    <span className={cn('solari', className)} style={estiloDeTira(onda)}>
       <span className="sr-only">{texto}</span>
 
       <span aria-hidden="true">

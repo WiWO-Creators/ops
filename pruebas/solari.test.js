@@ -11,7 +11,7 @@ import assert from 'node:assert/strict'
 import {
   ALFABETO_SOLARI, ANCHO_DE_FICHA_EM, ANCHO_SOBRIO_EM, PASOS_MAXIMOS, PASOS_MINIMOS, PASOS_POR_GLIFO,
   PISO_DE_FILA, RANURAS_DE_CONTADOR, RANURAS_DE_OLA, TOPE_DE_CONTADOR, TOPE_DE_ESCALON_GLIFO,
-  TOPE_DE_FILA, TOPE_DE_GLIFOS, anchoDeGlifo, cintaDeRodillo, cupoDeFichas, escalonDeGlifo,
+  TOPE_DE_FILA, TOPE_DE_GLIFOS, anchoDeGlifo, cintaDeRodillo, cupoDeFichas, escalonDeGlifo, esNumerico,
   ondaDeContador, ondaDeFicha, pasosDeGlifo, planDeOla, rodilloDeGlifo, rodilloDeTexto, textoDeFicha
 } from '../src/dominio/solari.ts'
 
@@ -482,4 +482,33 @@ test('un cupo con medidas imposibles sigue dejando una ficha', () => {
   for (const cupo of [cupoDeFichas(0, 3), cupoDeFichas(30, 0), cupoDeFichas(Number.NaN, 3), cupoDeFichas(30, 3, 0)]) {
     assert.ok(cupo >= 1, `cupo invalido: ${cupo}`)
   }
+})
+
+/*
+ * `esNumerico()` decide sola que se dibuja como panel mecanico y que se dibuja como texto plano, y no
+ * hay un parametro que la desmienta: un falso positivo pone un nombre en fichas de ancho fijo y le come
+ * caracteres a la columna mas apretada del tablero; un falso negativo deja un reloj de pared quieto.
+ */
+
+test('las cifras de la pared se dibujan como panel, con sus separadores', () => {
+  for (const cifra of ['14:32', '2:14:37', '85%', '12/09', '0', '9.999', '-3', '1,5']) {
+    assert.equal(esNumerico(cifra), true, cifra)
+  }
+})
+
+test('una frase con un numero adentro sigue siendo una frase', () => {
+  for (const frase of ['+3 más', 'Venció 12/05', 'en 12 días', 'Bodega 2', 'A1']) {
+    assert.equal(esNumerico(frase), false, frase)
+  }
+})
+
+test('las palabras y los huecos nunca voltean', () => {
+  for (const texto of ['Camila Rojas', 'EN PROGRESO', '—', '', 'Sin fecha', '…']) {
+    assert.equal(esNumerico(texto), false, JSON.stringify(texto))
+  }
+})
+
+test('una letra acentuada o una ñ cuentan como letra', () => {
+  assert.equal(esNumerico('Año 2'), false)
+  assert.equal(esNumerico('3 días'), false)
 })

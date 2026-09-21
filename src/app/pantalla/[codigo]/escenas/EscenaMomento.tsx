@@ -49,15 +49,15 @@ export function EscenaMomento ({ franja, ahora, zona }: {
         * `justify-center` del padre y no dependiendo del interlineado.
         */}
       <p className="text-texto text-[22vmin] font-bold tabular-nums">
-        <TextoSolari ficha texto={horaDeReloj(ahora, zona)} />
+        <TextoSolari texto={horaDeReloj(ahora, zona)} />
       </p>
 
       <div className="flex flex-col items-center gap-[1.5vmin]">
         <p className="text-acento text-[7vmin] font-semibold">
-          <Ficha sobria texto={franja.titulo} maximo={CUPO_DE_TITULO} />
+          <Ficha texto={franja.titulo} maximo={CUPO_DE_TITULO} />
         </p>
         <p className="text-texto-tenue text-[4vmin]">
-          <Ficha sobria texto={franja.apoyo} maximo={CUPO_DE_APOYO} />
+          <Ficha texto={franja.apoyo} maximo={CUPO_DE_APOYO} />
         </p>
       </div>
     </div>

@@ -14,10 +14,10 @@ import { Ficha, TOPE_SUELTO } from './piezas'
  * Tres cifras y no seis: a cuatro metros, una fila de numeros grandes se lee de un vistazo y una
  * grilla de seis obliga a acercarse, que es justo lo que una pantalla de pared no puede pedir.
  *
- * Todo va en fichas, como el resto de la pared. Las cifras son el caso mas agradecido del volteo: son
- * una o dos posiciones, cambian de tanto en tanto, y una aleta de 12vmin girando en mitad de la pantalla
- * es exactamente lo que hace un panel cuando cambia un vuelo. El nombre del area va sobrio: es una
- * frase y en fichas de ancho fijo perderia la silueta de las palabras.
+ * Las cifras son el caso mas agradecido del volteo: son una o dos posiciones, cambian de tanto en
+ * tanto, y una aleta de 12vmin girando en mitad de la pantalla es exactamente lo que hace un panel
+ * cuando cambia un vuelo. El nombre del area y las etiquetas de las cifras son texto plano y quieto:
+ * son palabras, y en fichas de ancho fijo perderian la silueta.
  */
 export function EscenaPortada ({ area, contadores }: {
   area: string
@@ -26,7 +26,7 @@ export function EscenaPortada ({ area, contadores }: {
   return (
     <div className="flex flex-1 flex-col items-center justify-center gap-[5vmin] text-center">
       <p className="text-texto flex justify-center text-[9vmin] font-bold">
-        <Ficha sobria tope={6} texto={area} maximo={CUPO_DE_AREA} />
+        <Ficha tope={6} texto={area} maximo={CUPO_DE_AREA} />
       </p>
 
       <dl className="flex flex-wrap items-start justify-center gap-[8vmin]">
@@ -69,7 +69,7 @@ function Cifra ({ valor, etiqueta, onda, alarma = false }: {
         <Ficha onda={onda} texto={String(valor)} maximo={4} />
       </dd>
       <dt className="text-texto-tenue text-[3vmin]">
-        <Ficha mayusculas sobria tope={TOPE_SUELTO} onda={onda + 4} texto={etiqueta} maximo={CUPO_DE_ETIQUETA} />
+        <Ficha mayusculas tope={TOPE_SUELTO} onda={onda + 4} texto={etiqueta} maximo={CUPO_DE_ETIQUETA} />
       </dt>
     </div>
   )

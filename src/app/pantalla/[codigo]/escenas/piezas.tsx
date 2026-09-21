@@ -2,8 +2,8 @@ import type { ReactNode } from 'react'
 import { cn } from '@/lib/clases'
 import { coloresAvatar, iniciales } from '@/lib/personas'
 import {
-  ANCHO_MAYUSCULA_EM, ANCHO_SOBRIO_EM, TOPE_DE_CONTADOR, TOPE_DE_GLIFOS, cupoDeFichas, ondaDeContador,
-  ondaDeFicha, textoDeFicha
+  ANCHO_MAYUSCULA_EM, ANCHO_SOBRIO_EM, TOPE_DE_CONTADOR, TOPE_DE_GLIFOS, cupoDeFichas, esNumerico,
+  ondaDeContador, ondaDeFicha, textoDeFicha
 } from '@/dominio/solari'
 import type { PlanDeOla } from '@/dominio/solari'
 import { TextoSolari } from './Solari'
@@ -97,9 +97,9 @@ const DIAMETRO_CON_INICIALES = 6.6
  * para recorrer una columna, y el nombre completo esta al lado en 3vmin. Lo que se pierde es una
  * etiqueta ilegible.
  *
- * **Las iniciales son lo unico de la pantalla que no es Solari**, y no por coste: un avatar es un
- * disco, no una aleta, y una ficha rectangular dentro de un circulo de 3.8vmin no se lee como un
- * panel sino como un error de maquetacion. Ademas casi nunca se dibujan, justo por lo de arriba.
+ * Las iniciales no son Solari, y no por coste: un avatar es un disco, no una aleta, y una ficha
+ * rectangular dentro de un circulo de 3.8vmin no se lee como un panel sino como un error de
+ * maquetacion. Ademas casi nunca se dibujan, justo por lo de arriba.
  *
  * No usa `next/image`: las fotos salen de `uploads/` de Perfex, en otro dominio, y una pantalla que
  * las carga cada tantos minutos no gana nada con la optimizacion. Si la imagen falla, queda el disco
@@ -163,19 +163,25 @@ export function nombreCorto (nombre: string): string {
 }
 
 /**
- * === TODO EL TEXTO DE LA PARED ES UNA TIRA DE FICHAS ===
+ * === SOLO LAS CIFRAS DE LA PARED SON UNA TIRA DE FICHAS ===
  *
- * No hay en esta pantalla un solo texto que no se dibuje como aletas de un Solari. Lo que sigue son
- * las tres formas de pedirlo, y se diferencian **solo en como entran en la ola** —quien voltea cuando—
- * porque el coste de esta pantalla no lo decide cuantas fichas hay sino cuantas giran en el mismo
- * fotograma. El razonamiento completo esta en el docblock de `RANURAS_DE_OLA`, en el dominio.
+ * El panel mecanico —fondo de aleta, junta, linea de pliegue y volteo caracter a caracter— esta
+ * reservado a lo que es una CIFRA: relojes, contadores, porcentajes, conteos y fechas cortas. Los
+ * nombres, los titulos, los rotulos y los avisos son texto plano y quieto. Quien lo decide es
+ * `esNumerico()` en el dominio, sobre el texto ya recortado, y no un parametro de cada llamada: asi
+ * una celda que alterna entre un porcentaje y una palabra cambia de dibujo sola.
+ *
+ * Lo que sigue son las tres formas de pedir un texto, y se diferencian **solo en como entran en la
+ * ola** —quien voltea cuando, cuando toca voltear— porque el coste de esta pantalla no lo decide
+ * cuantas fichas hay sino cuantas giran en el mismo fotograma. El razonamiento completo esta en el
+ * docblock de `RANURAS_DE_OLA`, en el dominio.
  *
  * - **`Ficha`**: un texto suelto, fuera de cualquier tabla. La cabecera, el pie, el titulo de una
  *   escena, las cifras de la portada. Cambian pocas veces y son pocos caracteres, asi que llevan la
  *   ola lenta de 35 ms, que es la que mejor se ve.
  * - **`FichaDeTablero`**: una celda de una fila. Recibe su `sitio` en la ola —fila y columna— y de ahi
  *   sale su ranura de arranque y cuantas de sus fichas pueden girar. Es lo que hace que un cambio de
- *   pagina sea una ola que recorre el tablero y no mil cuatrocientas fichas girando a la vez.
+ *   pagina sea una ola que recorre el tablero y no cientos de fichas girando a la vez.
  * - **`Corriendo`**: un contador. Tiene ola propia y apretada, porque cambia una vez por segundo y no
  *   una vez por pagina. Ver su docblock.
  *
@@ -199,52 +205,47 @@ export interface SitioEnLaOla {
 }
 
 /**
- * Un texto suelto de la pantalla, dibujado como una tira de fichas.
+ * Un texto suelto de la pantalla.
  *
- * `sobria` quita el fondo y la junta y deja solo el volteo con anchos por clase de caracter. Es lo que
- * lleva todo lo que es una FRASE y no un campo: el nombre de una Tarea, el mensaje de una franja
- * horaria, el aviso de "sin conexión". Una frase larga en fichas de ancho fijo pierde la silueta de
- * las palabras —que es lo que el ojo usa para leerla de un golpe a cuatro metros— y ademas crece de
- * ancho, lo que en la columna mas apretada del tablero significa recortar informacion.
+ * === SOLO LAS CIFRAS SE DIBUJAN COMO UN PANEL MECANICO ===
  *
- * === EL TOPE DE UN TEXTO SUELTO NO ES DECORACION ===
+ * Lo decide `esNumerico()` sobre el texto ya recortado, y no un parametro: quien coloca la pieza no
+ * tiene que acordarse de nada y una celda que alterna entre un porcentaje y una palabra cambia de
+ * dibujo sola. Un reloj, un contador, un porcentaje o un conteo voltean con su estetica de aleta —que
+ * es lo que cuenta un cambio de valor de un golpe a cuatro metros—; un nombre, un titulo, un rotulo o
+ * un aviso son texto plano y quieto, sin fondo, sin junta, sin pliegue y sin giro.
  *
- * Los textos sueltos de la pantalla son pocos, pero **cambian todos a la vez**: al entrar en una escena
- * se montan el titulo, el conteo, los cuatro o seis rotulos y, en `trabajando`, los cuatro juegos de
- * rotulos de las dos tablas. Con el tope por defecto de catorce, eso es un centenar de fichas girando
- * en el mismo fotograma —medido: el pico de la escena, por encima del de la ola del tablero— para
- * animar unas etiquetas que nadie estaba leyendo.
+ * Una frase en fichas de ancho fijo pierde la silueta de las palabras —que es lo que el ojo usa para
+ * leerla— y ademas crece de ancho, lo que en la columna mas apretada del tablero significa recortar
+ * informacion. El reparto completo esta en el docblock de `esNumerico()`, en el dominio.
  *
- * Por eso quien los usa les baja el tope a tres o cuatro y les da una ranura distinta a cada uno. El
- * gesto se mantiene, el pico no.
+ * Y sale barato: el texto plano es UN nodo, no un hueco por caracter con su animacion. La escena que
+ * antes montaba un centenar de fichas girando en el mismo fotograma —medido: el pico de la escena, por
+ * encima del de la ola del tablero— para animar unas etiquetas que nadie leia, ahora no monta ninguna.
  *
  * @param texto      lo que tiene que decir
  * @param maximo     cuantos caracteres caben donde va; ver `cupoDeFichas()`
  * @param mayusculas si va en mayusculas, como las aletas de un panel de verdad
- * @param sobria     sin fondo ni junta, y con ancho por clase de caracter
- * @param tope       cuantas de sus fichas pueden girar; ver arriba
+ * @param tope       cuantas de sus fichas pueden girar, si es una cifra
  * @param onda       en que ranura arranca, para no disparar cincuenta fichas en el mismo fotograma
  */
 export function Ficha ({
-  texto, maximo, mayusculas = false, sobria = false, tope = TOPE_DE_GLIFOS, onda = 0, className
+  texto, maximo, mayusculas = false, tope = TOPE_DE_GLIFOS, onda = 0, className
 }: {
   texto: string
   maximo: number
   mayusculas?: boolean
-  sobria?: boolean
   tope?: number
   onda?: number
   className?: string
 }): ReactNode {
+  const contenido = textoDeFicha(texto, maximo, mayusculas)
+
   return (
     <span className={cn('block overflow-hidden whitespace-nowrap', className)}>
-      <TextoSolari
-        texto={textoDeFicha(texto, maximo, mayusculas)}
-        uniforme={!sobria}
-        ficha={!sobria}
-        tope={tope}
-        onda={onda}
-      />
+      {esNumerico(contenido)
+        ? <TextoSolari uniforme texto={contenido} tope={tope} onda={onda} />
+        : contenido}
     </span>
   )
 }
@@ -264,21 +265,25 @@ export const TOPE_SUELTO = 3
  * `inline-block` no lo recorta el `truncate` de su celda: se saldria de su columna del tablero, y en un
  * marco con `overflow: hidden` eso se lleva por delante lo que tenga al lado sin dejar rastro.
  */
-export function FichaDeTablero ({ texto, sitio, maximo, mayusculas = false, sobria = false, className }: {
+export function FichaDeTablero ({ texto, sitio, maximo, mayusculas = false, className }: {
   texto: string
   sitio: SitioEnLaOla
   maximo: number
   mayusculas?: boolean
-  sobria?: boolean
   className?: string
 }): ReactNode {
+  const contenido = textoDeFicha(texto, maximo, mayusculas)
+
+  if (!esNumerico(contenido)) {
+    return <span className={cn('block overflow-hidden whitespace-nowrap', className)}>{contenido}</span>
+  }
+
   return (
     <span className={cn('block overflow-hidden whitespace-nowrap', className)}>
       <TextoSolari
+        uniforme
         className="solari-tablero"
-        texto={textoDeFicha(texto, maximo, mayusculas)}
-        uniforme={!sobria}
-        ficha={!sobria}
+        texto={contenido}
         tope={sitio.plan.topes[sitio.columna] ?? 0}
         onda={ondaDeFicha(sitio.plan, sitio.fila, sitio.columna, sitio.desfase ?? 0)}
       />
@@ -336,7 +341,6 @@ export function Corriendo ({ desde, ahora, congelado, fila, filas, maximo, class
         className="solari-tablero solari-contador"
         texto={textoDeFicha(relojDeContador(desde, ahora), maximo)}
         uniforme
-        ficha
         tope={TOPE_DE_CONTADOR}
         desdeElFinal
         onda={ondaDeContador(fila, filas)}
@@ -377,7 +381,7 @@ function relojDeContador (desde: string | null, ahora: number | null): string {
 export function Nada ({ texto }: { texto: string }): ReactNode {
   return (
     <p className="text-texto-tenue flex justify-center text-[4.5vmin]">
-      <Ficha sobria texto={texto} maximo={CUPO_DE_AVISO} />
+      <Ficha texto={texto} maximo={CUPO_DE_AVISO} />
     </p>
   )
 }
@@ -398,11 +402,10 @@ const CUPO_DE_AVISO = cupoDeFichas(150, 4.5, ANCHO_SOBRIO_EM)
  * Lo que no cambia es que se digan. Nunca se miente por omision: si la lista se corto, la pantalla
  * lo dice.
  *
- * El titulo va sobrio y en mayusculas —ya lo estaba por `CUERPO_ETIQUETA`— y el "+N más" tambien, que
- * son palabras; el conteo de al lado va en ficha entera, que son digitos y no pagan el ancho fijo. Al
- * pasar de pagina el "+N más" cambia, y esa es exactamente la clase de cambio que esta pantalla cuenta
- * volteando. La ola de los tres arranca en las primeras ranuras, antes que la del tablero, porque
- * estan arriba: la ola baja.
+ * El titulo va en mayusculas —ya lo estaba por `CUERPO_ETIQUETA`— y es texto plano, igual que el
+ * "+N más": son palabras. El conteo de al lado son digitos, asi que es lo unico de la cabecera que se
+ * dibuja como panel y lo unico que voltea. Su ola arranca en las primeras ranuras, antes que la del
+ * tablero, porque esta arriba: la ola baja.
  *
  * @param titulo   el nombre de la escena
  * @param total    cuantos hay en total, si la API lo sabe; se omite cuando no
@@ -416,7 +419,7 @@ export function CabeceraDeEscena ({ titulo, total, ocultos }: {
   return (
     <div className="mb-[0.8vmin] flex shrink-0 items-baseline justify-between gap-[3vmin]">
       <h2 className={cn('text-texto-tenue flex min-w-0 items-baseline gap-[1.5vmin] font-semibold', CUERPO_ETIQUETA)}>
-        <Ficha mayusculas sobria tope={TOPE_SUELTO} texto={titulo} maximo={CUPO_DE_TITULO} />
+        <Ficha mayusculas tope={TOPE_SUELTO} texto={titulo} maximo={CUPO_DE_TITULO} />
         {total !== undefined && (
           <span className="text-texto-sutil shrink-0 font-normal tracking-normal">
             <Ficha tope={TOPE_SUELTO} onda={6} texto={String(total)} maximo={CUPO_DE_CIFRA} />
@@ -426,14 +429,14 @@ export function CabeceraDeEscena ({ titulo, total, ocultos }: {
 
       {ocultos > 0 && (
         <span className={cn('text-texto-sutil shrink-0', CUERPO_COLUMNA)}>
-          <Ficha sobria tope={TOPE_SUELTO} onda={10} texto={`+${ocultos} más`} maximo={CUPO_DE_CIFRA + 5} />
+          <Ficha tope={TOPE_SUELTO} onda={10} texto={`+${ocultos} más`} maximo={CUPO_DE_CIFRA + 5} />
         </span>
       )}
     </div>
   )
 }
 
-/** Lo que cabe en el titulo de una escena: la mitad del ancho de la pared a 2.7vmin, y va sobrio. */
+/** Lo que cabe en el titulo de una escena: la mitad del ancho de la pared a 2.7vmin, en texto plano. */
 const CUPO_DE_TITULO = cupoDeFichas(85, 2.7, ANCHO_MAYUSCULA_EM)
 
 /** Un conteo de la cabecera. Cuatro cifras son 9.999 Tareas abiertas: no hay un area asi. */
@@ -469,20 +472,14 @@ export function RotulosDeColumna ({ columnas, children }: {
 }
 
 /**
- * Un rotulo de columna, en fichas.
+ * Un rotulo de columna.
  *
- * Voltea cuando la escena cambia de vista y cuando la columna que alterna cambia de campo, que son las
- * dos unicas veces que un rotulo cambia. La ola arranca por la izquierda —`columna` da la ranura— para
- * que la fila de rotulos se lea como una sola pasada y no como seis palabras apareciendo a la vez.
+ * Es una palabra, asi que es **texto plano**: una palabra en fichas de ancho fijo pierde el 29% de sus
+ * caracteres, y el rotulo tiene que caber en la misma columna que el dato que rotula, que suele ser
+ * mas corto. No voltea aunque la columna que alterna cambie de campo.
  *
- * Va **sobrio**: es una palabra, y una palabra en fichas de ancho fijo pierde el 29% de sus caracteres
- * — el rotulo tiene que caber en la misma columna que el dato que rotula, que suele ser mas corto. Le
- * queda la linea de pliegue, que es lo que lo ata visualmente al resto de la pared.
- *
- * **El `letter-spacing` de `CUERPO_ETIQUETA` no llega a las fichas**, porque un `inline-block` atomico
- * no recibe espaciado entre letras. No se compensa: compensarlo gastaria el margen que le queda a la
- * columna mas estrecha del tablero —que es lo unico que separa la pared de un recorte invisible— para
- * corregir algo que a cuatro metros no se ve.
+ * Conserva `onda` porque la pieza es la misma que dibuja las cifras, y la ranura no cuesta nada cuando
+ * no hay nada que animar.
  *
  * @param texto   lo que dice el rotulo
  * @param columna su indice, de izquierda a derecha, para la ola
@@ -499,7 +496,6 @@ export function Rotulo ({ texto, columna, maximo, desfase = 0, className }: {
   return (
     <Ficha
       mayusculas
-      sobria
       tope={TOPE_SUELTO}
       texto={texto}
       maximo={maximo}
@@ -543,14 +539,13 @@ export const DESFASE_DE_ROTULOS = 30
  * @param alterno   lo que se ve en la fase alterna
  * @param fase      `0` el juego principal, `1` el alterno; lo decide `faseDeDato()`
  */
-export function CeldaQueAlterna ({ principal, alterno, fase, sitio, maximo, mayusculas = false, sobria = false, className }: {
+export function CeldaQueAlterna ({ principal, alterno, fase, sitio, maximo, mayusculas = false, className }: {
   principal: string
   alterno: string
   fase: 0 | 1
   sitio: SitioEnLaOla
   maximo: number
   mayusculas?: boolean
-  sobria?: boolean
   className?: string
 }): ReactNode {
   return (
@@ -559,7 +554,6 @@ export function CeldaQueAlterna ({ principal, alterno, fase, sitio, maximo, mayu
       sitio={sitio}
       maximo={maximo}
       mayusculas={mayusculas}
-      sobria={sobria}
       className={className}
     />
   )

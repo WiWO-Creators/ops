@@ -27,8 +27,9 @@ const PESOS = [6, 2, 2] as const
  * y dibujar siete huecos mas por fila para enseñar el final de una frase que ya se entendio es DOM
  * pagado a cambio de nada.
  *
- * Las tres columnas de palabras van sobrias y solo el contador lleva ficha entera: ver el docblock de
- * `ANCHO_DE_FICHA_EM` en el dominio.
+ * Las tres columnas de palabras son texto plano y solo el contador se dibuja como panel mecanico: ver
+ * `esNumerico()` en el dominio. Los cupos de palabras siguen calculados con el ancho sobrio porque es
+ * el de un texto en caja mixta, que es justo lo que ahora dibujan.
  */
 const CUPO = {
   nombre: cupoDeFichas(60, 3, ANCHO_SOBRIO_EM),
@@ -104,7 +105,6 @@ export function EscenaCronometros ({ items, ocultos, ahora, congelado, zona, fas
             <Cara nombre={medidor.name} imagen={medidor.avatar} tamano="3.8vmin" />
 
             <FichaDeTablero
-              sobria
               texto={medidor.task?.name ?? `Sin ${GLOSARIO.proceso.singular.toLowerCase()}`}
               sitio={{ plan, fila: indice, columna: 0 }}
               maximo={CUPO.nombre}
@@ -118,7 +118,6 @@ export function EscenaCronometros ({ items, ocultos, ahora, congelado, zona, fas
               * — que es exactamente para lo que esta esta columna.
               */}
             <CeldaQueAlterna
-              sobria
               fase={fase}
               principal={medidor.name}
               alterno={arrancoA(medidor.started_at, zona)}
@@ -129,7 +128,6 @@ export function EscenaCronometros ({ items, ocultos, ahora, congelado, zona, fas
 
             <FichaDeTablero
               mayusculas
-              sobria
               texto={medidor.project?.name ?? '—'}
               sitio={{ plan, fila: indice, columna: 2 }}
               maximo={CUPO.espacio}

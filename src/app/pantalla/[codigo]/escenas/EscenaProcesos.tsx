@@ -31,11 +31,12 @@ const PESOS = [6, 2, 2, 1, 1, 2] as const
  * El nombre es la columna flexible: lo que sobra despues de las fijas, los seis huecos de 2vmin y el
  * relleno de fila, sobre los ~170vmin de la pared tumbada.
  *
- * **Todas las columnas de palabras van sobrias y solo el porcentaje lleva ficha entera.** Se probo al
- * reves y la captura lo dejo claro: con fichas de ancho fijo, "En progreso" entraba como "EN PROGR…",
+ * **Todas las columnas de palabras son texto plano y solo el porcentaje se dibuja como panel.** Se
+ * probo al reves y la captura lo dejo claro: con fichas de ancho fijo, "En progreso" entraba como "EN PROGR…",
  * "Bodega Quilicura" como "BODEGA QUILICU…" y "Venció 12/05" perdia la fecha. Una ficha de ancho fijo
  * cuesta 0.79em por caracter contra los 0.56 de una palabra, y en una fila de seis columnas eso es
- * casi un tercio de la informacion de la pared. Ver `ANCHO_DE_FICHA_EM` en el dominio.
+ * casi un tercio de la informacion de la pared. Ver `ANCHO_DE_FICHA_EM` y `esNumerico()` en el
+ * dominio. La columna de vencimiento cae de los dos lados: "12/05" es ficha y "Venció 12/05" no.
  */
 const CUPO = {
   nombre: cupoDeFichas(51, 3, ANCHO_SOBRIO_EM),
@@ -141,7 +142,6 @@ export function EscenaProcesos ({ items, ocultos, total, fase, esGlobal = false 
             />
 
             <FichaDeTablero
-              sobria
               texto={tarea.name}
               sitio={{ plan, fila: indice, columna: 0 }}
               maximo={CUPO.nombre}
@@ -150,7 +150,6 @@ export function EscenaProcesos ({ items, ocultos, total, fase, esGlobal = false 
 
             <FichaDeTablero
               mayusculas
-              sobria
               texto={tarea.project?.name ?? '—'}
               sitio={{ plan, fila: indice, columna: 1 }}
               maximo={CUPO.espacio}
@@ -159,7 +158,6 @@ export function EscenaProcesos ({ items, ocultos, total, fase, esGlobal = false 
 
             {/* Sin `mayusculas`: "EN PROGRESO" no cabe en 18vmin y se leeria "EN PROGRES". */}
             <FichaDeTablero
-              sobria
               texto={tarea.status?.name ?? '—'}
               sitio={{ plan, fila: indice, columna: 2 }}
               maximo={CUPO.estado}
@@ -172,7 +170,6 @@ export function EscenaProcesos ({ items, ocultos, total, fase, esGlobal = false 
 
             {/* Sin `mayusculas`: es un nombre de persona. Ver la misma celda en `EscenaCronometros`. */}
             <CeldaQueAlterna
-              sobria
               fase={fase}
               principal={quienLaTiene(tarea.assignees)}
               alterno={tarea.priority?.name ?? 'Sin prioridad'}
@@ -238,7 +235,6 @@ function Vencimiento ({ fecha, vencida, plan, fila }: {
   if (fecha === null) {
     return (
       <FichaDeTablero
-        sobria
         texto="Sin fecha"
         sitio={{ plan, fila, columna: 4 }}
         maximo={CUPO.vence}
@@ -249,7 +245,6 @@ function Vencimiento ({ fecha, vencida, plan, fila }: {
 
   return (
     <FichaDeTablero
-      sobria
       texto={vencida ? `Venció ${formatoCorto(fecha)}` : formatoCorto(fecha)}
       sitio={{ plan, fila, columna: 4 }}
       maximo={CUPO.vence}

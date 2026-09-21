@@ -110,7 +110,7 @@ export function MarcoDePantalla (props: Props): ReactNode {
           * hace su trabajo.
           */}
         <h1 className="text-texto-tenue min-w-0 text-[3vmin] font-semibold">
-          <Ficha mayusculas sobria texto={area ?? 'WiWO Ops'} maximo={CUPO_DE_AREA} />
+          <Ficha mayusculas texto={area ?? 'WiWO Ops'} maximo={CUPO_DE_AREA} />
         </h1>
         <Reloj ahora={ahora} zona={zona} />
       </header>
@@ -197,7 +197,7 @@ function Reloj ({ ahora, zona }: { ahora: number | null, zona: string | null }):
 
   return (
     <p className="text-texto text-[3.2vmin] font-semibold tabular-nums">
-      <TextoSolari ficha texto={horaDeReloj(ahora, zona)} />
+      <TextoSolari texto={horaDeReloj(ahora, zona)} />
     </p>
   )
 }
@@ -235,7 +235,7 @@ function Estado ({ frescura, esperando }: { frescura: Frescura, esperando: boole
   return (
     <p className="text-texto-aviso flex items-center gap-[1vmin] text-[2.6vmin]">
       <span className="bg-relleno-aviso inline-block size-[1.4vmin] rounded-full" />
-      <Ficha mayusculas sobria texto={texto} maximo={CUPO_DE_AVISO} />
+      <Ficha mayusculas texto={texto} maximo={CUPO_DE_AVISO} />
     </p>
   )
 }
@@ -246,7 +246,7 @@ const CUPO_DE_AREA = cupoDeFichas(90, 3, ANCHO_MAYUSCULA_EM)
 /** Lo que cabe en el aviso de frescura a 2.6vmin. "Sin conexión con Ops" es el mas largo. */
 const CUPO_DE_AVISO = cupoDeFichas(45, 2.6, ANCHO_MAYUSCULA_EM)
 
-/** La segunda linea de "Esperando a Ops", a 3vmin y sobria: es una frase, no un campo. */
+/** La segunda linea de "Esperando a Ops", a 3vmin: es una frase, asi que va en texto plano. */
 const CUPO_DE_ESPERA = cupoDeFichas(120, 3, ANCHO_SOBRIO_EM)
 
 /** Lo que se ve mientras la API no contesta y todavia no hay ni un paquete. */
@@ -254,10 +254,10 @@ function Esperando (): ReactNode {
   return (
     <div className="flex flex-col items-center gap-[2vmin] text-center">
       <p className="text-texto-tenue text-[5vmin]">
-        <Ficha sobria texto="Esperando a Ops…" maximo={20} />
+        <Ficha texto="Esperando a Ops…" maximo={20} />
       </p>
       <p className="text-texto-sutil text-[3vmin]">
-        <Ficha sobria texto="La pantalla se actualiza sola en cuanto vuelva." maximo={CUPO_DE_ESPERA} />
+        <Ficha texto="La pantalla se actualiza sola en cuanto vuelva." maximo={CUPO_DE_ESPERA} />
       </p>
     </div>
   )

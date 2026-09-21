@@ -24,10 +24,11 @@ const PESOS = [6, 2, 1, 1, 1] as const
  * Cuantos caracteres caben en cada columna. Los anchos son los de `.pantalla-columnas-espacios`.
  *
  * La columna que alterna es la mas apretada de toda la pantalla —8vmin— y el texto mas largo que le
- * toca es "en 12 días". Va sobria: el porcentaje entra entero y la cuenta de dias se corta como ya se
- * cortaba antes, que es el precio de tener el dato en vertical, donde la fecha no existe. Las tres
- * columnas de conteos y la fecha si llevan ficha entera, porque son digitos y el ancho fijo les sale
- * gratis; ver `ANCHO_DE_FICHA_EM` en el dominio.
+ * toca es "en 12 días". El porcentaje entra entero y la cuenta de dias se corta como ya se cortaba
+ * antes, que es el precio de tener el dato en vertical, donde la fecha no existe. En esa misma celda
+ * el porcentaje se dibuja como ficha y la cuenta de dias como texto plano, sin que nadie lo declare:
+ * lo decide `esNumerico()` sobre lo que toque mostrar. Las tres columnas de conteos y la fecha son
+ * digitos y van siempre en ficha; ver `ANCHO_DE_FICHA_EM` en el dominio.
  */
 const CUPO = {
   nombre: cupoDeFichas(55, 3, ANCHO_SOBRIO_EM),
@@ -101,7 +102,6 @@ export function EscenaEspacios ({ items, ocultos, ahora, zona, fase }: {
             className={cn('pantalla-fila py-[0.55vmin] leading-[1.15]', RELLENO_DE_FILA, COLUMNAS)}
           >
             <FichaDeTablero
-              sobria
               texto={proyecto.name}
               sitio={{ plan, fila: indice, columna: 0 }}
               maximo={CUPO.nombre}
@@ -116,7 +116,6 @@ export function EscenaEspacios ({ items, ocultos, ahora, zona, fase }: {
             </span>
 
             <CeldaQueAlterna
-              sobria
               fase={fase}
               principal={`${proyecto.progress}%`}
               alterno={cuantoFalta(proyecto.deadline, ahora, zona)}

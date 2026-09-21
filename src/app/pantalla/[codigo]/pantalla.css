@@ -10,7 +10,7 @@
   --escala: 1;
 
   /*
-   * Los tres valores de la estetica de aleta. Ver `.solari-mecanico`.
+   * Los tres valores de la estetica de aleta. Ver `.solari` y `.solari .solari-hueco`.
    *
    * Son tinta translucida y no colores opacos, por lo mismo que las lineas de `neo.css`: asi conservan
    * el mismo peso sobre las dos bandas del cebrado del tablero en vez de desaparecer sobre una de las
@@ -466,22 +466,20 @@
  * continua por celda —que ademas es como se ve en un panel, corrida de lado a lado— y asi la estetica
  * no cuesta ni un elemento de DOM en un tablero que ya tiene del orden de mil trescientos huecos.
  *
- * **El fondo y la junta, en cambio, no los lleva todo**, y el motivo es una medida: una ficha de ancho
- * fijo cuesta 0.79em por caracter contra los 0.56 de un texto en caja mixta, o sea el 29% de los
- * caracteres de una columna de palabras. Las columnas de digitos ya son de ancho fijo y no pagan nada;
- * las de palabras pagarian con informacion. El reparto completo esta en el docblock de
- * `ANCHO_DE_FICHA_EM`, en el dominio.
+ * **Y lo lleva solo lo que es una cifra**, por una medida: una ficha de ancho fijo cuesta 0.79em por
+ * caracter contra los 0.56 de un texto en caja mixta, o sea el 29% de los caracteres de una columna de
+ * palabras. Las columnas de digitos ya son de ancho fijo y no pagan nada; las de palabras pagarian con
+ * informacion, asi que son texto plano. El reparto completo esta en el docblock de `ANCHO_DE_FICHA_EM`
+ * y el criterio en el de `esNumerico()`, los dos en el dominio.
  *
  * Es fondo y una linea: cero `transform`, cero `filter`, cero `perspective`. La ficha quieta sigue
  * siendo un bloque estatico, que es la condicion para dejar la pared encendida durante meses.
  */
 /*
- * El pliegue lo lleva TODA tira, tenga fondo o no.
+ * El pliegue lo lleva toda tira, que desde el cambio son solo las cifras.
  *
- * Es lo que hace que la pared entera se lea como un panel aunque solo la mitad de sus columnas puedan
- * permitirse fichas de ancho fijo: la ranura corre de lado a lado del tablero, a la misma altura, por
- * encima de las palabras y de los numeros. Quitarsela a las columnas sobrias dejaria la pantalla
- * partida en dos estilos.
+ * Las columnas de palabras ya no pasan por aca: son texto plano, sin fondo, sin junta, sin pliegue y
+ * sin giro. Lo decide `esNumerico()` en el dominio; ver el docblock de `Ficha` en `piezas.tsx`.
  */
 .solari {
   position: relative;
@@ -499,7 +497,7 @@
   pointer-events: none;
 }
 
-.solari-mecanico .solari-hueco {
+.solari .solari-hueco {
   /*
    * La aleta: un escalon MAS OSCURO que el renglon, no mas claro. Un panel de Solari es plastico negro
    * sobre una caja negra, y es lo unico que funciona sobre las dos bandas del cebrado a la vez —un

@@ -666,3 +666,28 @@ export function ondaDeContador (fila: number, filas: number): number {
 
   return Math.min(Math.round((cual * RANURAS_DE_CONTADOR) / cuantas), RANURAS_DE_CONTADOR)
 }
+
+/**
+ * Si una cadena es una CIFRA y no una palabra.
+ *
+ * Es el unico criterio que decide que se dibuja como panel mecanico y que se dibuja como texto plano.
+ * El volteo y la estetica de aleta quedan reservados a lo que cambia de valor —relojes, contadores,
+ * porcentajes, conteos, fechas cortas— y no alcanzan a los nombres, titulos ni rotulos.
+ *
+ * El motivo es de lectura y esta medido en el docblock de `ANCHO_DE_FICHA_EM`: una ficha de ancho fijo
+ * cuesta 0.79em por caracter contra los 0.56 de un texto en caja mixta. Una columna de digitos ya es
+ * de ancho fijo y no paga nada; una de palabras paga el 29% de sus caracteres, o sea informacion. Y a
+ * cuatro metros lo que el ojo usa para leer una palabra de un golpe es su silueta, que una tira de
+ * huecos iguales destruye.
+ *
+ * La regla es: **hay al menos un digito y no hay ni una letra**. Los separadores —`:`, `/`, `%`, el
+ * punto, la coma, el signo— no cuentan como letra, asi que `14:32`, `2:14:37`, `85%` y `12/09` pasan.
+ * No pasan ni `+3 más` ni `Venció 12/09`, que son frases con un numero adentro, ni `—`, que es el
+ * hueco de un dato que no existe: un guion volteando no cuenta nada.
+ *
+ * @param texto lo que se va a dibujar, ya recortado por `textoDeFicha()`
+ * @returns `true` si se dibuja como ficha mecanica
+ */
+export function esNumerico (texto: string): boolean {
+  return /\d/.test(texto) && !/\p{L}/u.test(texto)
+}

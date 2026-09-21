@@ -27,7 +27,8 @@ const PESOS = [6, 3] as const
  * 83vmin, de los que el nombre se queda con lo que sobra despues de la cara, el cargo, la jornada y
  * los huecos. En vertical la columna del nombre es mas ancha, asi que manda la medida horizontal.
  *
- * El nombre y el cargo van sobrios y la jornada lleva ficha entera: ver `ANCHO_DE_FICHA_EM`.
+ * El nombre y el cargo son texto plano y solo la jornada se dibuja como panel: ver `ANCHO_DE_FICHA_EM`
+ * y `esNumerico()` en el dominio.
  */
 const CUPO = {
   nombre: cupoDeFichas(31, 3, ANCHO_SOBRIO_EM),
@@ -176,7 +177,6 @@ function TablaDeTrabajando ({ titulo, tabla, plan, desfase, zona, ahora, congela
             <Cara nombre={persona.name} imagen={persona.avatar} tamano="3.8vmin" />
 
             <FichaDeTablero
-              sobria
               texto={persona.name}
               sitio={{ plan, fila: indice, columna: 0, desfase }}
               maximo={CUPO.nombre}
@@ -191,7 +191,6 @@ function TablaDeTrabajando ({ titulo, tabla, plan, desfase, zona, ahora, congela
               */}
             {/* Sin `mayusculas`: un cargo de quince caracteres no entra en caja alta en 19vmin. */}
             <CeldaQueAlterna
-              sobria
               fase={fase}
               principal={persona.cargo ?? '—'}
               alterno={entroA(persona.jornada_started_at, zona)}

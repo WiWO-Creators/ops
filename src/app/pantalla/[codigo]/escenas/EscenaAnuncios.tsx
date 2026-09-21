@@ -62,7 +62,7 @@ export function EscenaAnuncios ({ items, ocultos }: {
 
       {ocultos > 0 && (
         <p className={cn('text-texto-sutil absolute right-0 bottom-0', CUERPO_COLUMNA)}>
-          <Ficha sobria texto={`+${ocultos} más`} maximo={9} />
+          <Ficha texto={`+${ocultos} más`} maximo={9} />
         </p>
       )}
     </div>
@@ -158,7 +158,7 @@ function Respaldo ({ titulo, texto }: { titulo: string | null, texto: string | n
     return (
       <div className="absolute inset-0 flex items-center justify-center p-[4vmin] text-center">
         <p className="text-texto-tenue text-[4vmin]">
-          <Ficha sobria texto="No pudimos cargar la imagen del anuncio" maximo={CUPO_DE_FALLO} />
+          <Ficha texto="No pudimos cargar la imagen del anuncio" maximo={CUPO_DE_FALLO} />
         </p>
       </div>
     )
