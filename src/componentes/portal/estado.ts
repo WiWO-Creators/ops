@@ -1,7 +1,9 @@
 import { GLOSARIO } from '../../dominio/glosario.ts'
+import { diasHasta } from '../../lib/fechas.ts'
 import {
   leerBloqueos, leerEspera, type BloqueoLeido, type LecturaDeEspera
 } from './resumen.ts'
+import type { ResumenDeProyecto } from '../proyecto/overview.ts'
 import type {
   BloqueoDelResumen,
   EspacioPortal,
@@ -37,6 +39,19 @@ import type {
  * en vez de contar sobre lo que llego.
  */
 export const TOPE_DE_ESPACIOS = 100
+
+/**
+ * Cuantos {espacios} reciben ademas su pedido de detalle (`/portal/projects/{id}/overview`).
+ *
+ * El detalle es UN viaje por {espacio} —no hay endpoint que lo traiga para varios— y es lo que
+ * aporta las dos cosas que la lista no sabe: cuantos {hitos} del {espacio} estan vencidos de verdad,
+ * y cuanto queda del plazo. Vale la pena porque un cliente real tiene unos pocos {espacios}, pero
+ * cien viajes en paralelo para pintar una pantalla no los vale.
+ *
+ * Pasado el tope, las tarjetas de mas abajo se dibujan con lo que trae la lista. No se rompe nada ni
+ * se miente: es exactamente la misma tarjeta que le toca a un {espacio} que no comparte esa pestaña.
+ */
+export const TOPE_DE_DETALLES = 24
 
 /**
  * Lo trabado que depende del cliente, en sus tres lecturas.
@@ -132,15 +147,36 @@ export type LecturaDeEnCurso =
   | { clase: 'incompleto', total: number }
 
 /**
- * Si un {espacio} sigue abierto.
+ * El `status` de un {espacio} terminado en Perfex (`tblprojects.status`).
  *
- * Se mira `date_finished` y no `status` a proposito: los estados de {espacios} son un catalogo que
- * se edita desde el panel —se renombran, se agregan, se reordenan— asi que deducir «en curso» de un
- * id seria una regla que se rompe el dia que alguien toca una fila de configuracion, en silencio y
- * sin que nada falle. La fecha de cierre, en cambio, es un hecho.
+ * Es una constante del core y NO una fila de catalogo editable: los estados de {espacio} son un enum
+ * fijo —1 no iniciado, 2 en progreso, 3 en espera, 4 terminado— y lo unico que el panel deja cambiar
+ * de ellos son el nombre y el color. Por eso acá se puede razonar sobre el id, cosa que con los
+ * estados de {proceso} —esos si son filas de una tabla— seria un error.
+ *
+ * Existe porque `date_finished` NO alcanza, y eso se vio en pantalla: llega en `null` tambien en los
+ * {espacios} marcados como terminados, porque el panel viejo no siempre la escribe. Sin esta
+ * constante, un {espacio} entregado con la fecha de compromiso ya pasada salia con «Entrega
+ * vencida» en rojo, que es acusar de atraso a un trabajo que ya se entrego.
  */
-function estaEnCurso (espacio: EspacioPortal): boolean {
-  return espacio.date_finished === null || espacio.date_finished.trim() === ''
+const ESTADO_TERMINADO = 4
+
+/** La fecha de cierre, o `null` si la fila no la trae. Perfex guarda cadenas vacias. */
+function fechaDeCierre (espacio: EspacioPortal): string | null {
+  const cierre = espacio.date_finished
+
+  return typeof cierre === 'string' && cierre.trim() !== '' ? cierre : null
+}
+
+/**
+ * Si un {espacio} ya esta cerrado.
+ *
+ * Dos señales y no una, porque ninguna de las dos sola alcanza: la fecha de cierre PRUEBA que se
+ * cerro pero falta en filas viejas, y el estado terminado esta siempre pero no dice cuando. Con
+ * cualquiera de las dos, el {espacio} deja de estar en curso y sus fechas dejan de acusar atraso.
+ */
+function estaCerrado (espacio: EspacioPortal): boolean {
+  return fechaDeCierre(espacio) !== null || espacio.status === ESTADO_TERMINADO
 }
 
 /**
@@ -156,7 +192,7 @@ export function contarEnCurso (
 ): LecturaDeEnCurso {
   if (espacios.length < total) return { clase: 'incompleto', total }
 
-  return { clase: 'contados', enCurso: espacios.filter(estaEnCurso).length, total }
+  return { clase: 'contados', enCurso: espacios.filter((uno) => !estaCerrado(uno)).length, total }
 }
 
 /** Por que la pantalla no dice cuantos {espacios} estan en curso. */
@@ -192,53 +228,158 @@ export function leerProcesos (procesos: ProcesosDelResumen | undefined): Lectura
 }
 
 /**
- * Que {hito} viene en un {espacio}, en las tres lecturas posibles.
+ * Que {hitos} vienen en un {espacio}, en las tres lecturas posibles.
  *
  * `fuera_de_lista` existe porque `proximos_hitos` llega RECORTADA por el servidor: un {espacio} que
  * no aparece ahi puede tener {hitos} igual, solo que mas lejos que los que entraron en la lista.
- * Dibujar esa fila como «sin {hitos}» seria afirmar algo que la respuesta no dice, y encima
- * contradecir a `counts.milestones`, que esta en la misma fila.
+ * Dibujarlo como «sin {hitos}» seria afirmar algo que la respuesta no dice, y encima contradecir a
+ * `counts.milestones`, que esta en la misma tarjeta.
+ *
+ * `proximos` lleva `total` al lado de `filas` por lo mismo: `filas` son los que entraron en la
+ * lista y `total` los que el {espacio} tiene. Cuando no coinciden, la tarjeta dice «3 de 7» en vez
+ * de dejar creer que son todos.
  */
-export type LecturaDelProximoHito =
+export type LecturaDeHitosDelEspacio =
   | { clase: 'sin_hitos' }
-  | { clase: 'fuera_de_lista' }
-  | { clase: 'proximo', hito: HitoProximoDelResumen }
+  | { clase: 'fuera_de_lista', total: number }
+  | {
+      clase: 'proximos'
+      /** Los que entraron en la lista del servidor, en su orden (por fecha ascendente). */
+      filas: HitoProximoDelResumen[]
+      /** Cuantos tiene el {espacio} en total, segun `counts.milestones`. */
+      total: number
+      /** Cuantos de los que se dibujan ya pasaron de fecha. */
+      vencidos: number
+    }
 
-/** Lo que ocupa el lugar del {hito} cuando el {espacio} tiene pero ninguno entro en la lista. */
+/** Lo que ocupa el lugar de los {hitos} cuando el {espacio} tiene pero ninguno entro en la lista. */
 export const TEXTO_HITO_FUERA_DE_LISTA = 'Ninguno entre los más próximos'
 
-/** Lo que ocupa el lugar del {hito} cuando el {espacio} no tiene ninguno comprometido. */
+/** Lo que ocupa el lugar de los {hitos} cuando el {espacio} no tiene ninguno comprometido. */
 export const TEXTO_SIN_HITOS = `Sin ${GLOSARIO.hito.plural.toLowerCase()} comprometidos`
 
 /**
- * Una fila del bloque de avance: un {espacio} con todo lo que hace falta para no abrirlo.
+ * Las dos lecturas de los contadores de {procesos} de un {espacio}.
  *
- * `trabados` en `null` es «no se puede saber» y `[]` es «no hay nada trabado acá». La fila NO
- * escribe la diferencia —seria repetir la misma salvedad en cada renglon—: la escribe una sola vez
- * el bloque «Qué está trabado». Acá la distincion sirve para no poner la señal de trabado sobre un
+ * El caso que justifica el tipo es `tasks: 0`. Ahi «0 de 0 abiertas» no es un avance perfecto: es un
+ * {espacio} que no comparte su lista de {procesos}, o que todavia no tiene ninguna. Un cero sobre
+ * cero se lee como «no queda nada por hacer», que es lo contrario de lo que pasa.
+ */
+export type LecturaDeTareas =
+  | { clase: 'sin_tareas' }
+  | { clase: 'contadas', abiertas: number, completas: number, total: number }
+
+/**
+ * Las tres cuentas de {procesos} de un {espacio}, a partir de las dos que manda la API.
+ *
+ * `completas` se deriva y no llega: la API manda `tasks` y `tasks_open`, y la resta es lo que el
+ * cliente quiere leer —«6 de 10 listas»—. Se acota en cero porque la resta puede dar negativa si las
+ * dos cuentas se calcularon en momentos distintos, y «-2 completas» es peor que redondear a cero.
+ *
+ * @param counts el bloque `counts` del {espacio}
+ * @returns la lectura que le toca
+ */
+export function leerTareas (counts: EspacioPortal['counts']): LecturaDeTareas {
+  if (counts.tasks <= 0) return { clase: 'sin_tareas' }
+
+  const abiertas = Math.max(0, Math.min(counts.tasks, counts.tasks_open))
+
+  return { clase: 'contadas', abiertas, completas: counts.tasks - abiertas, total: counts.tasks }
+}
+
+/**
+ * Como va el plazo de entrega de un {espacio}.
+ *
+ * `cerrado` va PRIMERO y gana sobre cualquier fecha: un {espacio} terminado el mes pasado con una
+ * entrega comprometida para la semana pasada no esta «vencido», esta entregado. Pintarlo en rojo
+ * seria acusar de atraso a un trabajo que ya se cerro. Su `fecha` puede ser `null` —el {espacio}
+ * esta marcado como terminado pero nadie guardo cuando—, y ahi se dice que esta cerrado sin
+ * inventarle un dia.
+ *
+ * `hoy` se separa de `en_plazo` porque no se leen igual: «vence hoy» pide una mirada y «faltan 12
+ * días» no. Y `vencido` trae los dias para que la tarjeta pueda decir cuanto, que es la diferencia
+ * entre un aviso y un dato.
+ */
+export type LecturaDePlazo =
+  | { clase: 'cerrado', fecha: string | null }
+  | { clase: 'sin_fecha' }
+  | { clase: 'vencido', dias: number, fecha: string }
+  | { clase: 'hoy', fecha: string }
+  | { clase: 'en_plazo', dias: number, fecha: string }
+
+/**
+ * Decide como se lee la fecha de entrega de un {espacio}.
+ *
+ * @param espacio el {espacio}, por su `deadline` y su `date_finished`
+ * @param hoy dia de referencia, inyectable para poder probarlo sin depender del reloj
+ * @returns la lectura que le toca
+ */
+export function leerPlazo (espacio: EspacioPortal, hoy: Date = new Date()): LecturaDePlazo {
+  if (estaCerrado(espacio)) return { clase: 'cerrado', fecha: fechaDeCierre(espacio) }
+
+  const fecha = espacio.deadline
+
+  if (typeof fecha !== 'string' || fecha.trim() === '') return { clase: 'sin_fecha' }
+
+  const dias = diasHasta(fecha, hoy)
+
+  if (dias === null) return { clase: 'sin_fecha' }
+  if (dias < 0) return { clase: 'vencido', dias: -dias, fecha }
+  if (dias === 0) return { clase: 'hoy', fecha }
+
+  return { clase: 'en_plazo', dias, fecha }
+}
+
+/**
+ * Una tarjeta del bloque de avance: un {espacio} con TODO lo que se sabe de el sin abrirlo.
+ *
+ * Es lo que convierte la pantalla en un dashboard y no en un indice: el cliente ve el estado, las
+ * tres fechas, las tres cuentas de {procesos}, los {hitos} que vienen y lo que esta detenido, del
+ * {espacio} entero, sin tener que entrar.
+ *
+ * `trabados` en `null` es «no se puede saber» y `[]` es «no hay nada trabado acá». La tarjeta NO
+ * escribe la diferencia —seria repetir la misma salvedad en cada una—: la escribe una sola vez el
+ * bloque «Qué está trabado». Acá la distincion sirve para no poner la señal de trabado sobre un
  * {espacio} que nadie miro.
  */
 export interface FilaDeAvance {
   espacio: EspacioPortal
-  hito: LecturaDelProximoHito
+  /**
+   * Lo que devolvio `/portal/projects/{id}/overview`, o `null` si este {espacio} no lo comparte.
+   *
+   * `null` NO es un {espacio} sin datos: es uno que no comparte esa pestaña, y su tarjeta se dibuja
+   * igual con lo que trae la lista. Es la misma regla que el resto del portal —la clave ausente no
+   * se dibuja— aplicada a una respuesta entera.
+   */
+  detalle: ResumenDeProyecto | null
+  /** Los {hitos} que vienen de este {espacio}, con cuantos tiene en total. */
+  hitos: LecturaDeHitosDelEspacio
   /** Lo trabado de este {espacio}. `null` es «no se puede saber»; `[]` es «no hay nada». */
   trabados: BloqueoLeido[] | null
   /** Si algo de lo trabado de este {espacio} depende del cliente. */
   esperaAlCliente: boolean
+  /** Como va la fecha de entrega. */
+  plazo: LecturaDePlazo
+  /** Las tres cuentas de {procesos}. */
+  tareas: LecturaDeTareas
 }
 
 /**
  * En que orden se miran los {espacios}: primero los que necesitan atencion.
  *
- * Tres escalones y no una puntuacion: trabado, {hito} vencido, el resto. Un {espacio} trabado va
- * antes que uno con el {hito} vencido porque el trabado esta detenido HOY y el vencido ya paso; y
- * los dos van antes que los que andan bien, que es lo que el cliente puede mirar despues.
+ * Cuatro escalones y no una puntuacion: trabado, {hito} vencido, entrega vencida, el resto. Un
+ * {espacio} trabado va primero porque esta detenido HOY; los dos vencimientos van despues porque ya
+ * pasaron; y los tres van antes que los que andan bien, que es lo que el cliente mira al final.
+ *
+ * La entrega vencida es un escalon propio y no se mezcla con el {hito}: un {espacio} puede tener
+ * todos sus {hitos} al dia y aun asi haber pasado su fecha de cierre, y al reves.
  */
 function rangoDeAtencion (fila: FilaDeAvance): number {
   if (fila.trabados !== null && fila.trabados.length > 0) return 0
-  if (fila.hito.clase === 'proximo' && fila.hito.hito.vencido) return 1
+  if (fila.hitos.clase === 'proximos' && fila.hitos.vencidos > 0) return 1
+  if (fila.plazo.clase === 'vencido') return 2
 
-  return 2
+  return 3
 }
 
 /**
@@ -260,17 +401,25 @@ function rangoDeAtencion (fila: FilaDeAvance): number {
  * @param espacios las filas de `GET /portal/projects`
  * @param proximosHitos `proximos_hitos` del resumen, ya ordenados por fecha
  * @param bloqueados `bloqueados` del resumen; `undefined` es la clave que no vino
- * @returns una fila por {espacio}, con los que necesitan atencion primero
+ * @param detalles lo que devolvio `/portal/projects/{id}/overview` por {espacio}; un {espacio} que
+ *   no comparte esa pestaña no esta en el mapa, y su tarjeta se dibuja con lo que trae la lista
+ * @param hoy dia de referencia, inyectable para poder probarlo sin depender del reloj
+ * @returns una tarjeta por {espacio}, con los que necesitan atencion primero
  */
 export function filasDeAvance (
   espacios: readonly EspacioPortal[],
   proximosHitos: readonly HitoProximoDelResumen[],
-  bloqueados: readonly BloqueoDelResumen[] | null | undefined
+  bloqueados: readonly BloqueoDelResumen[] | null | undefined,
+  detalles: ReadonlyMap<number, ResumenDeProyecto> = new Map(),
+  hoy: Date = new Date()
 ): FilaDeAvance[] {
-  const porEspacio = new Map<number, HitoProximoDelResumen>()
+  const hitosPorEspacio = new Map<number, HitoProximoDelResumen[]>()
 
   for (const hito of proximosHitos) {
-    if (!porEspacio.has(hito.project.id)) porEspacio.set(hito.project.id, hito)
+    const grupo = hitosPorEspacio.get(hito.project.id)
+
+    if (grupo === undefined) hitosPorEspacio.set(hito.project.id, [hito])
+    else grupo.push(hito)
   }
 
   const lectura = leerBloqueos(bloqueados)
@@ -285,9 +434,12 @@ export function filasDeAvance (
 
     return {
       espacio,
-      hito: leerProximoHito(espacio, porEspacio.get(espacio.id)),
+      detalle: detalles.get(espacio.id) ?? null,
+      hitos: leerHitosDelEspacio(espacio, hitosPorEspacio.get(espacio.id), detalles.get(espacio.id)),
       trabados,
-      esperaAlCliente: (trabados ?? []).some((bloqueo) => bloqueo.deTuLado)
+      esperaAlCliente: (trabados ?? []).some((bloqueo) => bloqueo.deTuLado),
+      plazo: leerPlazo(espacio, hoy),
+      tareas: leerTareas(espacio.counts)
     }
   })
 
@@ -295,37 +447,36 @@ export function filasDeAvance (
 }
 
 /**
- * Decide que {hito} se dibuja en la fila de un {espacio}.
+ * Decide que se dice de los {hitos} de un {espacio}.
  *
- * @param espacio el {espacio} de la fila, por su contador de {hitos}
- * @param hito el {hito} que le toco del cruce, si alguno
+ * `total` y `vencidos` prefieren el detalle sobre la lista transversal, y esa preferencia es el
+ * motivo de que el detalle se pida: `proximos_hitos` viene RECORTADA a las primeras filas de TODOS
+ * los {espacios} juntos, asi que contar los vencidos ahi da un numero que puede ser menor que el
+ * real y no lo parece. `milestones.overdue` del detalle, en cambio, esta calculado sobre el
+ * {espacio} entero. Sin detalle se cae a lo que hay, que es honesto pero mas pobre.
+ *
+ * @param espacio el {espacio}, por su contador de {hitos}
+ * @param filas los {hitos} de este {espacio} que entraron en la lista del servidor
+ * @param detalle lo que devolvio `/overview` para este {espacio}, si lo comparte
  * @returns la lectura que le toca
  */
-function leerProximoHito (
+export function leerHitosDelEspacio (
   espacio: EspacioPortal,
-  hito: HitoProximoDelResumen | undefined
-): LecturaDelProximoHito {
-  if (hito !== undefined) return { clase: 'proximo', hito }
+  filas: readonly HitoProximoDelResumen[] | undefined,
+  detalle: ResumenDeProyecto | undefined
+): LecturaDeHitosDelEspacio {
+  const total = detalle?.milestones?.total ?? espacio.counts.milestones
 
-  return espacio.counts.milestones > 0 ? { clase: 'fuera_de_lista' } : { clase: 'sin_hitos' }
-}
+  if (filas === undefined || filas.length === 0) {
+    return total > 0 ? { clase: 'fuera_de_lista', total } : { clase: 'sin_hitos' }
+  }
 
-/**
- * Como se dice cuantas {procesos} quedan abiertas en un {espacio}.
- *
- * El caso que justifica la funcion es `tasks: 0`. Ahi «0 de 0 abiertas» no es un avance perfecto:
- * es un {espacio} que no comparte su lista de {procesos}, o que todavia no tiene ninguna. Un cero
- * sobre cero se lee como «no queda nada por hacer», que es lo contrario de lo que pasa.
- *
- * @param counts el bloque `counts` del {espacio}
- * @returns la frase lista para mostrar
- */
-export function textoDeTareasAbiertas (counts: EspacioPortal['counts']): string {
-  const procesos = GLOSARIO.proceso.plural.toLowerCase()
-
-  if (counts.tasks <= 0) return `Sin ${procesos} compartidas`
-
-  return `${counts.tasks_open} de ${counts.tasks} ${procesos} abiertas`
+  return {
+    clase: 'proximos',
+    filas: [...filas],
+    total: Math.max(total, filas.length),
+    vencidos: detalle?.milestones?.overdue ?? filas.filter((hito) => hito.vencido).length
+  }
 }
 
 /** Agrupa lo trabado por {espacio}, conservando el orden en que lo dejo `leerBloqueos()`. */
