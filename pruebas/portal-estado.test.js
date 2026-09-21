@@ -17,10 +17,12 @@ import {
   TEXTO_SIN_HITOS,
   contarEnCurso,
   filasDeAvance,
+  leerHitosDelEspacio,
   leerLoQueNecesitaAlCliente,
+  leerPlazo,
   leerProcesos,
-  leerTrabasPropias,
-  textoDeTareasAbiertas
+  leerTareas,
+  leerTrabasPropias
 } from '../src/componentes/portal/estado.ts'
 
 /** Un Proyecto del portal con lo minimo que la pantalla le mira. */
@@ -175,6 +177,14 @@ test('la fecha de cierre vacia se trata como sin cerrar', () => {
   assert.deepEqual(lectura, { clase: 'contados', enCurso: 1, total: 1 })
 })
 
+test('un Proyecto marcado Terminado no sigue en curso aunque nadie guardo la fecha', () => {
+  // Es el caso real: `date_finished` llega en null tambien en los Proyectos terminados, porque el
+  // panel viejo no siempre la escribe. Sin mirar el estado, esta pantalla los contaba como abiertos.
+  const lectura = contarEnCurso([espacio({ status: 4, date_finished: null })], 1)
+
+  assert.deepEqual(lectura, { clase: 'contados', enCurso: 0, total: 1 })
+})
+
 test('con la lista cortada no se cuenta: se dice que no se puede', () => {
   // Es el mismo error que `/portal/resumen` vino a matar. Sobre tres filas de doce Proyectos, "3 en
   // curso" es un numero mas chico que el real y no lo parece.
@@ -193,22 +203,116 @@ test('un cero legitimo de procesos si es un cero', () => {
   assert.deepEqual(lectura, { clase: 'sabido', abiertas: 0, avance: 100 })
 })
 
-test('sin Tareas compartidas no se dice "0 de 0 abiertas"', () => {
+test('sin Tareas compartidas no se cuenta nada', () => {
   // Un cero sobre cero se lee como un avance perfecto, y es lo contrario: es un Proyecto que no
   // comparte su lista.
-  assert.equal(textoDeTareasAbiertas({ tasks: 0, tasks_open: 0, milestones: 0 }), 'Sin tareas compartidas')
+  assert.deepEqual(leerTareas({ tasks: 0, tasks_open: 0, milestones: 0 }), { clase: 'sin_tareas' })
 })
 
-test('con Tareas se dicen las abiertas sobre el total', () => {
-  assert.equal(
-    textoDeTareasAbiertas({ tasks: 10, tasks_open: 4, milestones: 1 }),
-    '4 de 10 tareas abiertas'
+test('las completas se derivan: la API manda el total y las abiertas', () => {
+  assert.deepEqual(
+    leerTareas({ tasks: 10, tasks_open: 4, milestones: 1 }),
+    { clase: 'contadas', abiertas: 4, completas: 6, total: 10 }
   )
+})
+
+test('mas abiertas que el total no produce completas negativas', () => {
+  // Las dos cuentas pueden venir calculadas en momentos distintos. "-2 listas" es peor que acotar.
+  assert.deepEqual(
+    leerTareas({ tasks: 10, tasks_open: 12, milestones: 0 }),
+    { clase: 'contadas', abiertas: 10, completas: 0, total: 10 }
+  )
+})
+
+// --- El plazo de entrega ------------------------------------------------
+
+test('un Proyecto cerrado no esta vencido aunque su fecha haya pasado', () => {
+  // Es la lectura que evita acusar de atraso a un trabajo ya entregado.
+  const lectura = leerPlazo(
+    espacio({ deadline: '2026-01-10', date_finished: '2026-01-08' }),
+    new Date('2026-09-21T12:00:00Z')
+  )
+
+  assert.deepEqual(lectura, { clase: 'cerrado', fecha: '2026-01-08' })
+})
+
+test('el estado Terminado cierra el plazo aunque falte la fecha, y no se inventa un dia', () => {
+  // El fallo que se vio en pantalla: "Terminado" con "Entrega vencida" en rojo al lado.
+  const lectura = leerPlazo(
+    espacio({ status: 4, deadline: '2026-01-10', date_finished: null }),
+    new Date('2026-09-21T12:00:00Z')
+  )
+
+  assert.deepEqual(lectura, { clase: 'cerrado', fecha: null })
+})
+
+test('sin fecha de entrega no hay plazo que contar', () => {
+  const lectura = leerPlazo(espacio({ deadline: null }), new Date('2026-09-21T12:00:00Z'))
+
+  assert.deepEqual(lectura, { clase: 'sin_fecha' })
+})
+
+test('el vencimiento trae los dias, no solo la marca', () => {
+  const lectura = leerPlazo(espacio({ deadline: '2026-09-11' }), new Date('2026-09-21T12:00:00Z'))
+
+  assert.deepEqual(lectura, { clase: 'vencido', dias: 10, fecha: '2026-09-11' })
+})
+
+test('lo que vence hoy se lee distinto de lo que vence en doce dias', () => {
+  const hoy = leerPlazo(espacio({ deadline: '2026-09-21' }), new Date('2026-09-21T23:00:00Z'))
+  const lejos = leerPlazo(espacio({ deadline: '2026-10-03' }), new Date('2026-09-21T12:00:00Z'))
+
+  assert.deepEqual(hoy, { clase: 'hoy', fecha: '2026-09-21' })
+  assert.deepEqual(lejos, { clase: 'en_plazo', dias: 12, fecha: '2026-10-03' })
+})
+
+// --- Los Hitos de un Proyecto -------------------------------------------
+
+test('los vencidos salen del detalle del Proyecto, no de contar la lista recortada', () => {
+  // `proximos_hitos` viene recortada sobre TODOS los Proyectos juntos: contar ahi puede dar menos
+  // vencidos de los que son. El detalle los cuenta sobre el Proyecto entero.
+  const lectura = leerHitosDelEspacio(
+    espacio({ counts: { tasks: 1, tasks_open: 1, milestones: 7 } }),
+    [hito({ vencido: true })],
+    { progress: 10, days: null, milestones: { total: 7, overdue: 4 } }
+  )
+
+  assert.equal(lectura.clase, 'proximos')
+  assert.equal(lectura.vencidos, 4)
+  assert.equal(lectura.total, 7)
+})
+
+test('sin detalle se cuenta lo que hay, que es honesto pero mas pobre', () => {
+  const lectura = leerHitosDelEspacio(
+    espacio({ counts: { tasks: 1, tasks_open: 1, milestones: 2 } }),
+    [hito({ id: 1, vencido: true }), hito({ id: 2, vencido: false })],
+    undefined
+  )
+
+  assert.equal(lectura.vencidos, 1)
+  assert.equal(lectura.total, 2)
+})
+
+test('el total nunca queda por debajo de las filas que se dibujan', () => {
+  // Un contador desactualizado no puede producir "2 Hitos" encima de una lista de tres.
+  const lectura = leerHitosDelEspacio(
+    espacio({ counts: { tasks: 1, tasks_open: 1, milestones: 0 } }),
+    [hito({ id: 1 }), hito({ id: 2 }), hito({ id: 3 })],
+    undefined
+  )
+
+  assert.equal(lectura.total, 3)
+})
+
+test('leer los Hitos de un Proyecto no toca el arreglo de la respuesta', () => {
+  const filas = [hito({})]
+
+  assert.notEqual(leerHitosDelEspacio(espacio({}), filas, undefined).filas, filas)
 })
 
 // --- Avance por Proyecto ---------------------------------------------------
 
-test('cada Proyecto se queda con su propio Hito', () => {
+test('cada Proyecto se queda con sus propios Hitos', () => {
   const filas = filasDeAvance(
     [espacio({ id: 1 }), espacio({ id: 2, name: 'App' })],
     [
@@ -220,35 +324,52 @@ test('cada Proyecto se queda con su propio Hito', () => {
 
   const porId = new Map(filas.map((fila) => [fila.espacio.id, fila]))
 
-  assert.equal(porId.get(1).hito.hito.id, 11)
-  assert.equal(porId.get(2).hito.hito.id, 10)
+  assert.deepEqual(porId.get(1).hitos.filas.map((uno) => uno.id), [11])
+  assert.deepEqual(porId.get(2).hitos.filas.map((uno) => uno.id), [10])
 })
 
-test('de dos Hitos del mismo Proyecto se toma el primero que mando el servidor', () => {
-  // La lista llega por fecha ascendente. Recalcular el minimo aca daria otro resultado el dia que
-  // la API cambie el criterio, y el portal mostraria dos proximas entregas distintas segun la
-  // pantalla.
+test('se dibujan TODOS los Hitos del Proyecto, en el orden que mando el servidor', () => {
+  // La lista llega por fecha ascendente. Reordenar aca daria otro resultado el dia que la API
+  // cambie el criterio, y el portal mostraria dos ordenes distintos segun la pantalla. Y la
+  // siguiente entrega sola no es un plan: el cliente quiere ver las que se le vienen.
   const filas = filasDeAvance(
     [espacio({ id: 1 })],
     [hito({ id: 10, due_date: '2026-08-01' }), hito({ id: 11, due_date: '2026-09-01' })],
     []
   )
 
-  assert.equal(filas[0].hito.hito.id, 10)
+  assert.deepEqual(filas[0].hitos.filas.map((uno) => uno.id), [10, 11])
 })
 
 test('un Proyecto con Hitos pero fuera de la lista no se dibuja como si no tuviera', () => {
   // `proximos_hitos` llega recortada: decir "sin Hitos" contradiria a `counts.milestones`, que esta
-  // en la misma fila.
+  // en la misma tarjeta.
   const filas = filasDeAvance([espacio({ counts: { tasks: 1, tasks_open: 1, milestones: 3 } })], [], [])
 
-  assert.deepEqual(filas[0].hito, { clase: 'fuera_de_lista' })
+  assert.deepEqual(filas[0].hitos, { clase: 'fuera_de_lista', total: 3 })
 })
 
 test('un Proyecto sin ningun Hito si se dibuja como sin Hitos', () => {
   const filas = filasDeAvance([espacio({ counts: { tasks: 1, tasks_open: 1, milestones: 0 } })], [], [])
 
-  assert.deepEqual(filas[0].hito, { clase: 'sin_hitos' })
+  assert.deepEqual(filas[0].hitos, { clase: 'sin_hitos' })
+})
+
+test('el detalle de un Proyecto viaja en su tarjeta, y su ausencia es null y no un hueco', () => {
+  // `null` no es un Proyecto sin datos: es uno que no comparte esa pestaña, y su tarjeta se dibuja
+  // igual con lo que trae la lista.
+  const detalle = { progress: 40, days: { total: 30, left: 12, left_percent: 40 }, milestones: { total: 2, overdue: 0 } }
+  const filas = filasDeAvance(
+    [espacio({ id: 1 }), espacio({ id: 2 })],
+    [],
+    [],
+    new Map([[1, detalle]])
+  )
+
+  const porId = new Map(filas.map((fila) => [fila.espacio.id, fila]))
+
+  assert.equal(porId.get(1).detalle, detalle)
+  assert.equal(porId.get(2).detalle, null)
 })
 
 test('la clave de bloqueos ausente deja las filas en "no se sabe", no en "nada trabado"', () => {
@@ -282,23 +403,52 @@ test('lo trabado cae en el Proyecto del que salio y marca si depende del cliente
   assert.equal(porId.get(2).esperaAlCliente, true)
 })
 
-test('primero lo detenido, despues lo vencido, despues el resto', () => {
+test('primero lo trabado, despues el Hito vencido, despues la entrega vencida, despues el resto', () => {
+  const hoy = new Date('2026-09-21T12:00:00Z')
   const filas = filasDeAvance(
     [
-      espacio({ id: 1, name: 'Tranquilo' }),
-      espacio({ id: 2, name: 'Vencido' }),
-      espacio({ id: 3, name: 'Detenido' })
+      espacio({ id: 1, name: 'Tranquilo', deadline: '2026-12-01' }),
+      espacio({ id: 2, name: 'HitoVencido', deadline: '2026-12-01' }),
+      espacio({ id: 3, name: 'Trabado', deadline: '2026-12-01' }),
+      espacio({ id: 4, name: 'EntregaVencida', deadline: '2026-01-05' })
     ],
-    [hito({ id: 20, project: { id: 2, name: 'Vencido' }, vencido: true })],
-    [bloqueo({ id: 30, project: { id: 3, name: 'Detenido' }, responsable: 'equipo' })]
+    [hito({ id: 20, project: { id: 2, name: 'HitoVencido' }, vencido: true })],
+    [bloqueo({ id: 30, project: { id: 3, name: 'Trabado' }, responsable: 'equipo' })],
+    new Map(),
+    hoy
   )
 
-  assert.deepEqual(filas.map((fila) => fila.espacio.name), ['Detenido', 'Vencido', 'Tranquilo'])
+  assert.deepEqual(
+    filas.map((fila) => fila.espacio.name),
+    ['Trabado', 'HitoVencido', 'EntregaVencida', 'Tranquilo']
+  )
+})
+
+test('un Proyecto cerrado con la fecha pasada no sube por atencion', () => {
+  // Es la misma regla de `leerPlazo`: cerrado gana sobre vencido. Sin esto, todo Proyecto
+  // entregado hace meses viviria arriba de la pantalla pidiendo atencion que nadie le debe.
+  const hoy = new Date('2026-09-21T12:00:00Z')
+  const filas = filasDeAvance(
+    [
+      espacio({ id: 1, name: 'Cerrado', deadline: '2026-01-05', date_finished: '2026-01-04' }),
+      espacio({ id: 2, name: 'Abierto', deadline: '2026-12-01' })
+    ],
+    [],
+    [],
+    new Map(),
+    hoy
+  )
+
+  assert.deepEqual(filas.map((fila) => fila.espacio.name), ['Cerrado', 'Abierto'])
 })
 
 test('dentro de un mismo escalon se conserva el orden de la API', () => {
   const filas = filasDeAvance(
-    [espacio({ id: 3, name: 'C' }), espacio({ id: 1, name: 'A' }), espacio({ id: 2, name: 'B' })],
+    [
+      espacio({ id: 3, name: 'C', deadline: null }),
+      espacio({ id: 1, name: 'A', deadline: null }),
+      espacio({ id: 2, name: 'B', deadline: null })
+    ],
     [],
     []
   )

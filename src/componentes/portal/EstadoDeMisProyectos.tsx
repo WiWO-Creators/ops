@@ -1,17 +1,20 @@
 import Link from 'next/link'
 import {
-  AlertTriangle, ArrowRight, CircleCheck, CircleHelp, Flag, ListChecks, OctagonAlert
+  AlertTriangle, ArrowRight, CalendarClock, CircleCheck, CircleHelp, Flag, ListChecks, OctagonAlert
 } from 'lucide-react'
+import { EstadoDelPortal } from '@/app/portal/(dentro)/detalle'
 import { Cifra } from '@/componentes/gestion/piezas'
 import { Insignia } from '@/componentes/presentadores/Insignia'
 import { BarraProgreso } from '@/componentes/proyecto/CabeceraProyecto'
+import { textoDelPlazo, type ResumenDeProyecto } from '@/componentes/proyecto/overview'
 import { Vacio } from '@/componentes/estado/Estados'
 import { SIN_DATO, formatearPorcentaje } from '@/dominio/gestion'
 import { GLOSARIO } from '@/dominio/glosario'
 import { cn } from '@/lib/clases'
 import { formatearVencimiento } from '@/lib/fechas'
 import type { EspacioPortal, ResumenPortal } from '@/datos/portal'
-import { Aclaracion, BloqueDeLista, LoQueEstaTrabado, ProximosHitos, Tarjeta } from './piezas'
+import { Aclaracion, FilaTrabada, LoQueEstaTrabado, ProximosHitos, Tarjeta } from './piezas'
+import type { BloqueoLeido } from './resumen'
 import {
   MOTIVO_SIN_BLOQUEOS,
   MOTIVO_SIN_ESPERA,
@@ -29,10 +32,11 @@ import {
   filasDeAvance,
   leerLoQueNecesitaAlCliente,
   leerProcesos,
-  textoDeTareasAbiertas,
   type FilaDeAvance,
   type LecturaDeEnCurso,
-  type LecturaDelProximoHito,
+  type LecturaDeHitosDelEspacio,
+  type LecturaDePlazo,
+  type LecturaDeTareas,
   type LoQueNecesitaAlCliente
 } from './estado'
 
@@ -70,9 +74,15 @@ import {
  * @param resumen lo que devolvio `GET /portal/resumen`, el unico agregado que no se pagina
  * @param espacios las filas de `GET /portal/projects`, o `null` si la seccion no es para este
  *   contacto
+ * @param detalles lo que devolvio `/overview` por {espacio}; los que no lo comparten no estan
  */
 export function EstadoDeMisProyectos (
-  { resumen, espacios }: { resumen: ResumenPortal, espacios: EspacioPortal[] | null }
+  { resumen, espacios, detalles }:
+  {
+    resumen: ResumenPortal
+    espacios: EspacioPortal[] | null
+    detalles: ReadonlyMap<number, ResumenDeProyecto>
+  }
 ) {
   if (resumen.espacios.total === 0) {
     return (
@@ -100,7 +110,7 @@ export function EstadoDeMisProyectos (
 
       <Panorama resumen={resumen} enCurso={enCurso} />
 
-      <AvancePorEspacio resumen={resumen} espacios={espacios} />
+      <AvancePorEspacio resumen={resumen} espacios={espacios} detalles={detalles} />
 
       <ProximosHitos lectura={leerProximosHitos(resumen.proximos_hitos, resumen.hitos)} />
 
@@ -305,19 +315,26 @@ function Dato (props: React.ComponentProps<typeof Cifra>) {
 }
 
 /**
- * El corazon de la pantalla: un {espacio} por fila, con lo que hace falta para no abrirlo.
+ * El corazon de la pantalla: una tarjeta por {espacio}, con todo lo que se sabe de el.
  *
- * Lo que la fila cruza —el proximo {hito} y lo detenido— llega en dos listas transversales del
- * resumen, no dentro de cada {espacio}: ese cruce es `filasDeAvance()`, que ademas sube al principio
- * los que necesitan atencion. El orden importa mas que el contenido: una lista alfabetica obliga a
- * leerla entera para encontrar el {espacio} con problemas, que es exactamente lo que esta pantalla
- * vino a evitar.
+ * Es lo que separa un dashboard de un indice. Cada tarjeta cruza TRES respuestas distintas —la
+ * lista, el resumen transversal y el detalle del propio {espacio}— y las presenta juntas: estado,
+ * las tres fechas, el avance contra el plazo, las tres cuentas de {procesos}, los {hitos} que vienen
+ * y lo que esta detenido. Ese cruce es `filasDeAvance()`, que ademas sube al principio los que
+ * necesitan atencion: una lista alfabetica obliga a leerla entera para encontrar el {espacio} con
+ * problemas, que es justo lo que esta pantalla vino a evitar.
  *
  * @param resumen lo que devolvio `GET /portal/resumen`
  * @param espacios las filas de `GET /portal/projects`, o `null` si no se pudieron pedir
+ * @param detalles lo que devolvio `/overview` por {espacio}; los que no lo comparten no estan
  */
 function AvancePorEspacio (
-  { resumen, espacios }: { resumen: ResumenPortal, espacios: EspacioPortal[] | null }
+  { resumen, espacios, detalles }:
+  {
+    resumen: ResumenPortal
+    espacios: EspacioPortal[] | null
+    detalles: ReadonlyMap<number, ResumenDeProyecto>
+  }
 ) {
   if (espacios === null || espacios.length === 0) {
     return (
@@ -333,99 +350,342 @@ function AvancePorEspacio (
     )
   }
 
-  const filas = filasDeAvance(espacios, resumen.proximos_hitos, resumen.bloqueados)
+  const filas = filasDeAvance(espacios, resumen.proximos_hitos, resumen.bloqueados, detalles)
 
   return (
-    <BloqueDeLista
-      titulo={`Avance por ${GLOSARIO.espacio.singular.toLowerCase()}`}
-      icono={<ListChecks size={14} aria-hidden="true" className="shrink-0" />}
-    >
-      {filas.map((fila) => <FilaDeEspacio key={fila.espacio.id} fila={fila} />)}
-    </BloqueDeLista>
+    <section aria-label={`Avance por ${GLOSARIO.espacio.singular.toLowerCase()}`} className="flex flex-col gap-3">
+      <h2 className="font-titular text-texto flex items-center gap-1.5 text-sm font-semibold">
+        <ListChecks size={14} aria-hidden="true" className="shrink-0" />
+        Avance por {GLOSARIO.espacio.singular.toLowerCase()}
+      </h2>
+
+      {filas.map((fila) => <TarjetaDeEspacio key={fila.espacio.id} fila={fila} />)}
+    </section>
   )
 }
 
 /**
- * Un {espacio} con su avance, sus {procesos} abiertas, su proxima entrega y sus señales.
+ * Un {espacio} entero: estado, fechas, avance contra plazo, {procesos}, {hitos} y lo detenido.
  *
- * La barra lleva su porcentaje al lado y no encima: el numero es el dato exacto y la barra es la
- * comparacion de un vistazo entre filas, y las dos hacen falta. El resto de la fila es texto —no hay
- * un segundo grafico— porque una fila con dos dibujos deja de compararse con la de arriba.
+ * Deja de ser una fila y pasa a ser una tarjeta porque lo que se muestra dejo de caber en un
+ * renglon, y apretarlo en uno lo volvia ilegible. Cada tarjeta se lee sola y responde «¿cómo va este
+ * {espacio}?» sin abrirlo, que es lo que el cliente vino a preguntar.
  *
  * Las señales son insignia CON palabra y nunca un color solo: quien no distingue el rojo del gris
- * tiene que poder leer «Trabado» y «{Hito} vencido».
+ * tiene que poder leer «Trabado», «{Hito} vencido» y «Entrega vencida».
  *
- * @param fila la fila ya cruzada y ordenada por `filasDeAvance()`
+ * @param fila la tarjeta ya cruzada y ordenada por `filasDeAvance()`
  */
-function FilaDeEspacio ({ fila }: { fila: FilaDeAvance }) {
-  const { espacio } = fila
+function TarjetaDeEspacio ({ fila }: { fila: FilaDeAvance }) {
+  const { espacio, plazo } = fila
   const trabado = fila.trabados !== null && fila.trabados.length > 0
-  const vencido = fila.hito.clase === 'proximo' && fila.hito.hito.vencido
+  const hitosVencidos = fila.hitos.clase === 'proximos' && fila.hitos.vencidos > 0
+  const atencion = trabado || hitosVencidos || plazo.clase === 'vencido'
 
   return (
-    <li
+    <article
       className={cn(
-        'rounded-tarjeta border p-3',
-        trabado || vencido
-          ? 'border-linea-fuerte bg-superficie-hundida border-l-4'
-          : 'border-linea-suave'
+        'rounded-tarjeta bg-superficie-elevada shadow-1 border p-4',
+        atencion ? 'border-linea-fuerte border-l-4' : 'border-linea'
       )}
     >
-      <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-        <Link
-          href={`/portal/proyectos/${espacio.id}`}
-          className="text-texto hover:text-acento min-w-0 text-sm font-medium underline-offset-4 hover:underline"
-        >
-          {espacio.name}
-        </Link>
+      <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-2">
+        <h3 className="min-w-0 text-base font-semibold">
+          <Link
+            href={`/portal/proyectos/${espacio.id}`}
+            className="text-texto hover:text-acento underline-offset-4 hover:underline"
+          >
+            {espacio.name}
+          </Link>
+        </h3>
 
         <span className="flex flex-wrap items-center gap-1.5">
+          <EstadoDelPortal catalogo="project_statuses" valor={espacio.status} />
           {trabado && (
             <Insignia tono={fila.esperaAlCliente ? 'acento' : 'aviso'} tamano="chico">
               <OctagonAlert size={12} aria-hidden="true" className="shrink-0" />
               {fila.esperaAlCliente ? 'Trabado · depende de vos' : 'Trabado'}
             </Insignia>
           )}
-          {vencido && (
+          {hitosVencidos && (
             <Insignia tono="peligro" tamano="chico">
               <Flag size={12} aria-hidden="true" className="shrink-0" />
               {GLOSARIO.hito.singular} vencido
             </Insignia>
           )}
+          {plazo.clase === 'vencido' && (
+            <Insignia tono="peligro" tamano="chico">
+              <CalendarClock size={12} aria-hidden="true" className="shrink-0" />
+              Entrega vencida
+            </Insignia>
+          )}
         </span>
       </div>
 
-      <div className="mt-2 flex items-center gap-3">
-        <BarraProgreso porcentaje={espacio.progress} className="min-w-0 flex-1" />
-        <span data-numerico className="text-texto w-12 text-right text-sm font-semibold tabular-nums">
-          {formatearPorcentaje(espacio.progress)}
-        </span>
-      </div>
+      <Medidores fila={fila} />
 
-      <p className="text-texto-tenue mt-2 flex flex-wrap items-baseline gap-x-3 gap-y-1 text-xs">
-        <span>{textoDeTareasAbiertas(espacio.counts)}</span>
-        <ProximaEntrega lectura={fila.hito} />
-      </p>
-    </li>
+      <dl className="border-linea-suave mt-4 grid gap-x-6 gap-y-3 border-t pt-3 sm:grid-cols-2 lg:grid-cols-4">
+        <Dupla rotulo="Inicio" valor={formatearVencimiento(espacio.start_date)} />
+        <Dupla rotulo="Entrega" valor={<TextoDePlazo plazo={plazo} />} />
+        <Dupla rotulo={GLOSARIO.proceso.plural} valor={<TextoDeTareas lectura={fila.tareas} />} />
+        <Dupla rotulo={GLOSARIO.hito.plural} valor={<TextoDeHitos lectura={fila.hitos} />} />
+      </dl>
+
+      <ProximosDelEspacio lectura={fila.hitos} />
+      <TrabadoDelEspacio trabados={fila.trabados} />
+
+      <Link
+        href={`/portal/proyectos/${espacio.id}`}
+        className="text-acento mt-3 inline-flex items-center gap-1 text-sm font-medium underline-offset-4 hover:underline"
+      >
+        Ver el {GLOSARIO.espacio.singular.toLowerCase()}
+        <ArrowRight size={14} aria-hidden="true" />
+      </Link>
+    </article>
   )
 }
 
 /**
- * Que entrega viene en este {espacio}, o por que no se puede nombrar ninguna.
+ * Las dos barras del {espacio}: cuanto se avanzo y cuanto queda del plazo.
  *
- * Los tres casos se escriben distinto porque significan cosas distintas: hay uno y es este; hay
- * {hitos} pero ninguno entro en la lista que manda el servidor; y no hay ninguno comprometido.
- * Juntar los dos ultimos en «sin {hitos}» contradiria al contador que esta en la misma fila.
+ * Van juntas porque **la comparacion ES el dato**: «40% hecho» no dice nada hasta que al lado está
+ * «queda el 15% del plazo». Separarlas obliga al cliente a hacer esa cuenta de cabeza, y es la única
+ * cuenta que de verdad importa en un {espacio}.
  *
- * @param lectura lo que decidio `filasDeAvance()` para este {espacio}
+ * La del plazo solo aparece con detalle —`days` sale de `/overview`— y con fecha de entrega. Sin
+ * eso no se dibuja media barra ni una barra en cero: no hay plazo que medir, y una barra vacía se
+ * leería como «no queda tiempo».
+ *
+ * Y tampoco aparece en un {espacio} cerrado, aunque el detalle la mande: `days` se calcula contra
+ * hoy, así que en un {espacio} entregado hace meses dice «Vencido» y quedaba contradiciendo al
+ * «Cerrado» de dos renglones más abajo. Un plazo es el tiempo que queda de un compromiso abierto;
+ * cerrado el {espacio}, no queda ninguno.
+ *
+ * @param fila la tarjeta ya cruzada
  */
-function ProximaEntrega ({ lectura }: { lectura: LecturaDelProximoHito }) {
-  if (lectura.clase === 'sin_hitos') return <span>{TEXTO_SIN_HITOS}</span>
-  if (lectura.clase === 'fuera_de_lista') return <span>{TEXTO_HITO_FUERA_DE_LISTA}</span>
+function Medidores ({ fila }: { fila: FilaDeAvance }) {
+  const dias = fila.plazo.clase === 'cerrado' ? null : fila.detalle?.days ?? null
 
   return (
-    <span className={cn(lectura.hito.vencido && 'text-texto-peligro font-medium')}>
-      {GLOSARIO.hito.singular}: {lectura.hito.name} · {formatearVencimiento(lectura.hito.due_date)}
+    <div className="mt-3 flex flex-col gap-2">
+      <Medidor
+        rotulo="Avance"
+        porcentaje={fila.espacio.progress}
+        valor={formatearPorcentaje(fila.espacio.progress)}
+      />
+      {dias !== null && (
+        <Medidor
+          rotulo="Plazo"
+          porcentaje={dias.left_percent}
+          valor={textoDelPlazo(dias)}
+          tenue
+        />
+      )}
+    </div>
+  )
+}
+
+/**
+ * Una barra con su rotulo a la izquierda y su cifra a la derecha.
+ *
+ * El rotulo va afuera de la barra y no encima: dos barras sin rotulo, una debajo de la otra, se
+ * leen como una sola cosa partida en dos, y son dos medidas distintas.
+ *
+ * @param rotulo que mide esta barra
+ * @param porcentaje 0-100; `BarraProgreso` ya lo acota
+ * @param valor el texto de la derecha, ya formateado
+ * @param tenue la del plazo, que acompaña y no compite con la del avance
+ */
+function Medidor (
+  { rotulo, porcentaje, valor, tenue = false }:
+  { rotulo: string, porcentaje: number, valor: string, tenue?: boolean }
+) {
+  return (
+    <div className="flex items-center gap-3">
+      <span className="text-texto-sutil w-14 shrink-0 text-xs font-medium tracking-[0.06em] uppercase">
+        {rotulo}
+      </span>
+      <BarraProgreso porcentaje={porcentaje} className={cn('min-w-0 flex-1', tenue && 'opacity-60')} />
+      <span
+        data-numerico
+        className={cn(
+          'w-20 shrink-0 text-right text-sm tabular-nums',
+          tenue ? 'text-texto-tenue' : 'text-texto font-semibold'
+        )}
+      >
+        {valor}
+      </span>
+    </div>
+  )
+}
+
+/** Un rotulo con su dato, para la grilla de datos de la tarjeta. */
+function Dupla ({ rotulo, valor }: { rotulo: string, valor: React.ReactNode }) {
+  return (
+    <div>
+      <dt className="text-texto-sutil text-xs font-medium tracking-[0.06em] uppercase">{rotulo}</dt>
+      <dd className="text-texto mt-0.5 text-sm">{valor}</dd>
+    </div>
+  )
+}
+
+/**
+ * La fecha de entrega, dicha segun lo que le pasa.
+ *
+ * Un {espacio} cerrado NO dice «vencido» aunque su fecha haya pasado: dice cuando se cerro. Quien
+ * decide eso es `leerPlazo()`, y es la diferencia entre informar y acusar de atraso a un trabajo
+ * que ya se entrego.
+ *
+ * @param plazo lo que decidio `leerPlazo()`
+ */
+function TextoDePlazo ({ plazo }: { plazo: LecturaDePlazo }) {
+  if (plazo.clase === 'sin_fecha') return <span className="text-texto-tenue">{SIN_DATO}</span>
+
+  if (plazo.clase === 'cerrado') {
+    return (
+      <span className="text-texto-exito">
+        {plazo.fecha === null ? 'Cerrado' : `Cerrado el ${formatearVencimiento(plazo.fecha)}`}
+      </span>
+    )
+  }
+
+  if (plazo.clase === 'vencido') {
+    return (
+      <span className="text-texto-peligro font-medium">
+        {formatearVencimiento(plazo.fecha)} · {plazo.dias === 1 ? 'hace 1 día' : `hace ${plazo.dias} días`}
+      </span>
+    )
+  }
+
+  if (plazo.clase === 'hoy') {
+    return <span className="text-texto-aviso font-medium">{formatearVencimiento(plazo.fecha)} · es hoy</span>
+  }
+
+  return (
+    <span>
+      {formatearVencimiento(plazo.fecha)}
+      <span className="text-texto-tenue">
+        {' · '}{plazo.dias === 1 ? 'falta 1 día' : `faltan ${plazo.dias} días`}
+      </span>
     </span>
+  )
+}
+
+/**
+ * Las tres cuentas de {procesos} del {espacio}.
+ *
+ * «0 de 0» no se escribe nunca: un {espacio} sin {procesos} compartidas no esta terminado, es uno
+ * que no comparte esa lista. Quien lo decide es `leerTareas()`.
+ *
+ * @param lectura lo que decidio `leerTareas()`
+ */
+function TextoDeTareas ({ lectura }: { lectura: LecturaDeTareas }) {
+  if (lectura.clase === 'sin_tareas') {
+    return <span className="text-texto-tenue">Sin {GLOSARIO.proceso.plural.toLowerCase()} compartidas</span>
+  }
+
+  return (
+    <span>
+      <span data-numerico className="tabular-nums font-medium">{lectura.completas}</span>
+      {' de '}
+      <span data-numerico className="tabular-nums">{lectura.total}</span>
+      {' listas'}
+      <span className="text-texto-tenue">{' · '}{lectura.abiertas} abiertas</span>
+    </span>
+  )
+}
+
+/**
+ * Cuantos {hitos} tiene el {espacio} y cuantos pasaron de fecha.
+ *
+ * El numero de vencidos sale del detalle del propio {espacio} cuando lo hay, no de contar la lista
+ * transversal: esa viene recortada y contar ahi puede dar menos de los que son. Quien lo decide es
+ * `leerHitosDelEspacio()`.
+ *
+ * @param lectura lo que decidio `leerHitosDelEspacio()`
+ */
+function TextoDeHitos ({ lectura }: { lectura: LecturaDeHitosDelEspacio }) {
+  if (lectura.clase === 'sin_hitos') return <span className="text-texto-tenue">{TEXTO_SIN_HITOS}</span>
+
+  if (lectura.clase === 'fuera_de_lista') {
+    return (
+      <span>
+        <span data-numerico className="tabular-nums font-medium">{lectura.total}</span>
+        <span className="text-texto-tenue">{' · '}{TEXTO_HITO_FUERA_DE_LISTA}</span>
+      </span>
+    )
+  }
+
+  return (
+    <span>
+      <span data-numerico className="tabular-nums font-medium">{lectura.total}</span>
+      {lectura.vencidos > 0
+        ? (
+            <span className="text-texto-peligro">
+              {' · '}{lectura.vencidos} {lectura.vencidos === 1 ? 'vencido' : 'vencidos'}
+            </span>
+          )
+        : <span className="text-texto-tenue">{' · '}ninguno vencido</span>}
+    </span>
+  )
+}
+
+/**
+ * Los {hitos} que vienen en este {espacio}, con nombre y fecha.
+ *
+ * Son TODOS los que entraron en la lista del servidor para este {espacio}, no solo el primero: el
+ * cliente que mira su {espacio} quiere ver las entregas que se le vienen, y la siguiente sola no es
+ * un plan. Cuando la lista trae menos de los que el {espacio} tiene, la grilla de arriba ya dijo
+ * cuantos son en total.
+ *
+ * @param lectura lo que decidio `leerHitosDelEspacio()`
+ */
+function ProximosDelEspacio ({ lectura }: { lectura: LecturaDeHitosDelEspacio }) {
+  if (lectura.clase !== 'proximos') return null
+
+  return (
+    <ul className="border-linea-suave mt-3 flex flex-col gap-1.5 border-t pt-3">
+      {lectura.filas.map((hito) => (
+        <li key={hito.id} className="flex flex-wrap items-baseline justify-between gap-x-3 text-sm">
+          <span className="text-texto min-w-0">
+            {hito.name}
+            {hito.vencido && (
+              <span className="text-texto-peligro ml-2 text-xs font-semibold uppercase">Vencido</span>
+            )}
+          </span>
+          <span
+            data-numerico
+            className={cn(
+              'tabular-nums',
+              hito.vencido ? 'text-texto-peligro font-medium' : 'text-texto-tenue'
+            )}
+          >
+            {formatearVencimiento(hito.due_date)}
+          </span>
+        </li>
+      ))}
+    </ul>
+  )
+}
+
+/**
+ * Lo que esta detenido en este {espacio}, con su motivo y lo que hace falta para destrabarlo.
+ *
+ * Se dibuja solo cuando hay algo: la tarjeta de un {espacio} sano no lleva un cartel que diga «nada
+ * trabado», porque son varias tarjetas y ese cartel repetido es ruido. Que no se pueda saber
+ * tampoco se escribe acá —seria la misma salvedad en cada tarjeta—: la escribe una sola vez el
+ * bloque «Qué está trabado» del final.
+ *
+ * @param trabados lo trabado de este {espacio}; `null` es «no se puede saber»
+ */
+function TrabadoDelEspacio ({ trabados }: { trabados: BloqueoLeido[] | null }) {
+  if (trabados === null || trabados.length === 0) return null
+
+  return (
+    <ul className="mt-3 flex flex-col gap-2">
+      {trabados.map((bloqueo) => (
+        <FilaTrabada key={bloqueo.id} bloqueo={bloqueo} conEspacio={false} />
+      ))}
+    </ul>
   )
 }
