@@ -269,6 +269,39 @@ export function seVeComoImagen (mime: string | null | undefined, nombre: string)
 }
 
 /**
+ * Tope del título del acta, los mismos 255 caracteres que la API rechaza con
+ * `422 {"title":["length"]}` (ver `docs/contrato-api.md`).
+ *
+ * No es un número más bajo "por las dudas": un tope propio dejaría escribir títulos que la API
+ * acepta y esta pantalla no, que es una diferencia que nadie puede explicar desde el navegador.
+ */
+export const LARGO_MAXIMO_TITULO = 255
+
+/**
+ * Comprueba que el título nuevo del acta se pueda mandar.
+ *
+ * Los dos casos son los que la API contesta con un `422`, y atajarlos acá no es desconfianza del
+ * servidor: un renombre que vuelve con error después del viaje deja a la persona mirando un mensaje
+ * de validación donde esperaba ver el nombre cambiado.
+ *
+ * El vacío se mide sobre el texto recortado porque un título de puros espacios se guarda como un
+ * acta sin nombre en el listado, que es peor que no haberla renombrado.
+ *
+ * @param titulo lo que hay escrito en el campo, tal cual
+ * @returns el mensaje de error para la persona, o `null` si está bien
+ */
+export function motivoParaRechazarTitulo (titulo: string): string | null {
+  const limpio = titulo.trim()
+
+  if (limpio === '') return 'El título no puede quedar vacío.'
+  if (limpio.length > LARGO_MAXIMO_TITULO) {
+    return `El título no puede pasar de ${LARGO_MAXIMO_TITULO} caracteres.`
+  }
+
+  return null
+}
+
+/**
  * Título del acta, sacado del primer `<h1>` que escribió el modelo.
  *
  * El prompt le pide `<h1>Meeting Paper - Kickoff</h1>` y en la lista queremos "Kickoff": el prefijo
