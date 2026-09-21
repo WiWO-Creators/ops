@@ -9,7 +9,8 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
-  ALFABETO_SOLARI, ANCHO_DE_FICHA_EM, ANCHO_SOBRIO_EM, PASOS_MAXIMOS, PASOS_MINIMOS, PASOS_POR_GLIFO,
+  ALFABETO_SOLARI, ANCHO_DE_FICHA_EM, ANCHO_SOBRIO_EM, PASOS_DE_CIFRA, PASOS_DE_VUELTA, PASOS_MAXIMOS,
+  PASOS_MINIMOS, PASOS_POR_GLIFO, TAMBOR_DE_CIFRAS, TAMBOR_DE_LETRAS,
   PISO_DE_FILA, RANURAS_DE_CONTADOR, RANURAS_DE_OLA, TOPE_DE_CONTADOR, TOPE_DE_ESCALON_GLIFO,
   TOPE_DE_FILA, TOPE_DE_GLIFOS, anchoDeGlifo, cintaDeRodillo, cupoDeFichas, escalonDeGlifo, esNumerico,
   ondaDeContador, ondaDeFicha, pasosDeGlifo, planDeOla, rodilloDeGlifo, rodilloDeTexto, textoDeFicha
@@ -46,10 +47,41 @@ test('el camino son los glifos que preceden al destino en el alfabeto, en orden'
   assert.deepEqual(rodilloDeGlifo('E', 3), ['B', 'C', 'D', 'E'])
 })
 
-test('el alfabeto da la vuelta: el primer glifo llega desde el final', () => {
+test('el tambor da la vuelta: el primer glifo llega desde el final', () => {
   const rodillo = rodilloDeGlifo('A', 2)
 
-  assert.deepEqual(rodillo, ['8', '9', 'A'])
+  // Desde el final de SU tambor, el de las letras: una `A` no llega nunca desde un `9`.
+  assert.deepEqual(rodillo, ['Y', 'Z', 'A'])
+})
+
+test('una cifra solo pasa por cifras, y una letra solo por letras', () => {
+  const cifra = rodilloDeGlifo('2', 5)
+  const letra = rodilloDeGlifo('B', 5)
+
+  assert.ok(cifra.every((paso) => TAMBOR_DE_CIFRAS.includes(paso)), cifra.join(''))
+  assert.ok(letra.every((paso) => TAMBOR_DE_LETRAS.includes(paso)), letra.join(''))
+})
+
+test('una cifra que cambia mueve una sola aleta', () => {
+  // Es la diferencia entre un contador y una ruleta: de 3 a 4 se pasa por nada.
+  assert.equal(pasosDeGlifo('4', 0), PASOS_DE_CIFRA)
+  assert.deepEqual(rodilloDeGlifo('4', pasosDeGlifo('4', 0)), ['3', '4'])
+})
+
+test('solo el cero da la vuelta entera al tambor', () => {
+  assert.equal(pasosDeGlifo('0', 0), PASOS_DE_VUELTA)
+
+  const rodillo = rodilloDeGlifo('0', pasosDeGlifo('0', 0))
+
+  assert.equal(rodillo.length, TAMBOR_DE_CIFRAS.length)
+  assert.deepEqual(rodillo, ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0'])
+})
+
+test('el recorrido de una cifra no depende de su posicion en el texto', () => {
+  // Si dependiera, el mismo segundo de un contador giraria distinto en cada celda de la pared.
+  const recorridos = new Set([0, 1, 2, 7, 13].map((indice) => pasosDeGlifo('5', indice)))
+
+  assert.equal(recorridos.size, 1)
 })
 
 test('la eñe no se convierte en ene', () => {
@@ -73,14 +105,14 @@ test('un destino vacio no voltea', () => {
 test('los pasos se acotan: ni cero, ni negativos, ni mas largo que el alfabeto', () => {
   assert.equal(rodilloDeGlifo('M', 0).length, 2)
   assert.equal(rodilloDeGlifo('M', -5).length, 2)
-  assert.equal(rodilloDeGlifo('M', 999).length, ALFABETO_SOLARI.length + 1)
+  assert.equal(rodilloDeGlifo('M', 999).length, TAMBOR_DE_LETRAS.length + 1)
   assert.equal(rodilloDeGlifo('M', 2.7).length, 3)
 })
 
-test('un rodillo de alfabeto entero no repite el destino a mitad de camino', () => {
-  const rodillo = rodilloDeGlifo('M', ALFABETO_SOLARI.length)
+test('un rodillo de tambor entero no repite el destino a mitad de camino', () => {
+  const rodillo = rodilloDeGlifo('M', TAMBOR_DE_LETRAS.length)
 
-  assert.equal(new Set(rodillo).size, ALFABETO_SOLARI.length)
+  assert.equal(new Set(rodillo).size, TAMBOR_DE_LETRAS.length)
 })
 
 test('el texto se resuelve caracter a caracter y en orden', () => {
@@ -220,8 +252,9 @@ test('el texto resuelto trae el ancho de cada posicion', () => {
 // Con un recorrido igual para todas, las fichas se asientan en fila india y el efecto se lee como un
 // contador digital haciendo la ola en vez de como un panel mecanico.
 
-test('los pasos caen siempre dentro del rango', () => {
-  for (const caracter of Array.from('ABCDEFGHIJKLMNÑOPQRSTUVWXYZ0123456789')) {
+test('los pasos de las letras caen siempre dentro del rango', () => {
+  // Las cifras no: su recorrido lo manda el tambor de diez aletas y se prueba aparte.
+  for (const caracter of Array.from(TAMBOR_DE_LETRAS)) {
     for (let indice = 0; indice < 20; indice += 1) {
       const pasos = pasosDeGlifo(caracter, indice)
 

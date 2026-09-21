@@ -32,16 +32,50 @@
  */
 
 /**
- * Los glifos por los que puede pasar un rodillo.
+ * El tambor de las letras: por donde pasa un caracter que no es una cifra.
  *
- * Son mayusculas y digitos, como en un panel de verdad, aunque el caracter final sea minuscula: lo que
- * se ve mientras gira tiene que leerse como ruido mecanico, no como una palabra a medio escribir.
+ * Son mayusculas, como en un panel de verdad, aunque el caracter final sea minuscula: lo que se ve
+ * mientras gira tiene que leerse como ruido mecanico, no como una palabra a medio escribir.
  *
  * El orden importa y es el que se recorre hacia atras para armar los intermedios. La `Ñ` esta en su
  * sitio del alfabeto castellano porque esta pared es de una oficina chilena y un apellido con eñe no
  * puede quedarse sin volteo.
+ *
+ * **Las cifras tienen tambor propio y los dos no se mezclan.** Con un tambor unico, una `A` llegaba
+ * desde un `9` y un contador ensenaba letras camino a su cifra. Ver `TAMBOR_DE_CIFRAS`.
  */
-export const ALFABETO_SOLARI = 'ABCDEFGHIJKLMNÑOPQRSTUVWXYZ0123456789'
+export const TAMBOR_DE_LETRAS = 'ABCDEFGHIJKLMNÑOPQRSTUVWXYZ'
+
+/**
+ * El tambor de las cifras: diez aletas, ciclico y aparte del de las letras.
+ *
+ * Es el que hace que un contador se lea como un contador: lo unico que puede aparecer camino a un `7`
+ * son cifras. Cuanto recorre cada una lo decide `pasosDeGlifo()`, y ahi esta la otra mitad del gesto:
+ * una cifra sube UNA aleta desde la anterior y solo el `0` da la vuelta entera.
+ */
+export const TAMBOR_DE_CIFRAS = '0123456789'
+
+/** Todo lo que voltea, los dos tambores juntos. Util para preguntar si un glifo tiene aleta. */
+export const ALFABETO_SOLARI = TAMBOR_DE_LETRAS + TAMBOR_DE_CIFRAS
+
+/**
+ * Cuantas aletas mueve una cifra que cambia.
+ *
+ * Un contador que pasa de `3` a `4` mueve UNA aleta, no seis: la cifra de la que viene es siempre la
+ * anterior del tambor, asi que la pieza no necesita recordarla para caer desde donde corresponde. Con
+ * el recorrido desigual de las letras, en cambio, un reloj daba media vuelta al tambor por segundo y
+ * se leia como una ruleta.
+ */
+export const PASOS_DE_CIFRA = 1
+
+/**
+ * El recorrido del `0`, que es la unica cifra que da la vuelta entera.
+ *
+ * A un `0` se llega desde un `9`, y en un tambor mecanico eso es el rodillo recorriendo las diez
+ * aletas hasta volver al principio. Es el gesto que hace visible el acarreo —`09` pasando a `10`— y el
+ * unico sitio donde la vuelta larga cuenta algo en vez de ser adorno.
+ */
+export const PASOS_DE_VUELTA = TAMBOR_DE_CIFRAS.length - 1
 
 /**
  * Cuantos glifos intermedios recorre cada caracter antes del suyo.
@@ -191,11 +225,20 @@ export function anchoDeGlifo (glifo: string): number {
  *    En esta pantalla eso no se ve en desarrollo —`pnpm dev` no hidrata— y arruina la pared en
  *    produccion, que es el peor sitio donde puede aparecer un fallo.
  *
+ * Las cifras quedan fuera de este desorden: ver `PASOS_DE_CIFRA`.
+ *
  * @param glifo  el caracter de destino
  * @param indice su posicion dentro del texto
- * @returns un entero entre `PASOS_MINIMOS` y `PASOS_MAXIMOS`
+ * @returns `PASOS_DE_CIFRA` o `PASOS_DE_VUELTA` si es una cifra; si no, un entero entre
+ *          `PASOS_MINIMOS` y `PASOS_MAXIMOS`
  */
 export function pasosDeGlifo (glifo: string, indice: number): number {
+  // Las cifras no entran en el sorteo: su recorrido lo dicta el tambor de diez aletas y no el gusto.
+  // Ver `PASOS_DE_CIFRA` y `PASOS_DE_VUELTA`.
+  if (TAMBOR_DE_CIFRAS.includes(glifo)) {
+    return glifo === '0' ? PASOS_DE_VUELTA : PASOS_DE_CIFRA
+  }
+
   const rango = PASOS_MAXIMOS - PASOS_MINIMOS + 1
   const semilla = (glifo.codePointAt(0) ?? 0) * 31 + (Number.isFinite(indice) ? Math.abs(Math.trunc(indice)) : 0) * 17
 
@@ -205,32 +248,35 @@ export function pasosDeGlifo (glifo: string, indice: number): number {
 /**
  * Los glifos intermedios de un caracter, en orden de aparicion.
  *
- * Recorre `ALFABETO_SOLARI` hacia atras desde el destino, dando la vuelta cuando se acaba, y devuelve
+ * Recorre el tambor de SU clase hacia atras desde el destino, dando la vuelta cuando se acaba, y devuelve
  * el camino de ida: primero el mas lejano, ultimo el destino. El destino se devuelve **tal cual
  * llego** —con su acento y su caja—, aunque los intermedios se hayan buscado por su mayuscula sin
  * acentuar: lo que queda fijo en la pared tiene que ser el texto de verdad y no una aproximacion.
  *
  * @param destino    el caracter en el que el rodillo se detiene
- * @param pasos      cuantos glifos intermedios recorrer; se acota a [1, largo del alfabeto]
+ * @param pasos      cuantos glifos intermedios recorrer; se acota a [1, largo de su tambor]
  * @returns la secuencia, de `pasos + 1` elementos, o `null` si el caracter no voltea
  */
 export function rodilloDeGlifo (destino: string, pasos: number = PASOS_POR_GLIFO): string[] | null {
   if (destino === '') return null
 
-  const indice = ALFABETO_SOLARI.indexOf(comoGlifo(destino))
+  const glifo = comoGlifo(destino)
+  // Cada clase gira en SU tambor: una cifra solo pasa por cifras y una letra solo por letras.
+  const tambor = TAMBOR_DE_CIFRAS.includes(glifo) ? TAMBOR_DE_CIFRAS : TAMBOR_DE_LETRAS
+  const indice = tambor.indexOf(glifo)
 
-  // Un espacio, un signo de puntuacion, un emoji: no hay alfabeto por el que hacerlo girar y un
+  // Un espacio, un signo de puntuacion, un emoji: no hay tambor por el que hacerlo girar y un
   // rodillo de un solo glifo es DOM para no mover nada. Se dibuja quieto.
   if (indice < 0) return null
 
-  const largo = ALFABETO_SOLARI.length
+  const largo = tambor.length
   const cuantos = Math.min(Math.max(Math.floor(pasos), 1), largo)
   const secuencia: string[] = []
 
   // Se recorre hacia atras desde el mas lejano —`cuantos` posiciones antes del destino— hasta el
   // destino, que entra al final y con su caja original.
   for (let salto = cuantos; salto > 0; salto -= 1) {
-    secuencia.push(ALFABETO_SOLARI[(indice - salto + largo) % largo] as string)
+    secuencia.push(tambor[(indice - salto + largo) % largo] as string)
   }
 
   secuencia.push(destino)
