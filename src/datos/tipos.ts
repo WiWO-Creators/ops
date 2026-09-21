@@ -209,6 +209,18 @@ export interface Yo extends Staff {
    * `puedeVerFocals()` trata ese caso como "no sé" y muestra la entrada, que es como estaba antes.
    */
   es_focal?: boolean
+  /**
+   * Si quien mira entra al Refugio (`/refugio`).
+   *
+   * **La API la manda sólo cuando es `true`, nunca como `false`**, y esa asimetría es deliberada: el
+   * payload de `/me` se lee abriendo las herramientas del navegador, así que un `es_refugiado: false`
+   * en la respuesta de las otras 183 personas sería el anuncio de que existe algo llamado Refugio.
+   * Ausente no significa nada; presente es la única forma de enterarse.
+   *
+   * No es la seguridad: la puerta real es el 404 de la API. Esto sólo decide si se monta el oyente
+   * del código Konami.
+   */
+  es_refugiado?: boolean
   secciones_habilitadas: string[]
   locale: string
 }

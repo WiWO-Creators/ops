@@ -762,6 +762,52 @@ function registrarReporte (cuerpo, actual) {
   return incidente
 }
 
+/** Los interruptores booleanos, con el mismo reparto de grupos que `Escritura\\Ajuste::EDITABLES`. */
+const REFUGIO_INTERRUPTORES = [
+  { clave: 'wiwo_google_login_enabled', grupo: 'acceso', etiqueta: 'Entrar con Google', valor: true },
+  { clave: 'wiwo_google_autoalta_enabled', grupo: 'acceso', etiqueta: 'Alta automática por dominio', valor: false },
+  { clave: 'wiwo_live_cierre_automatico', grupo: 'jornada', etiqueta: 'Cierre automático de la jornada', valor: false },
+  { clave: 'wiwo_resumen_equipo_envio', grupo: 'correo', etiqueta: 'Resumen del equipo por correo', valor: false },
+  { clave: 'wiwo_recordatorio_jornada_envio', grupo: 'correo', etiqueta: 'Recordatorio de jornada por correo', valor: true },
+  { clave: 'wiwo_avisos_licitaciones', grupo: 'correo', etiqueta: 'Avisos de licitaciones por correo', valor: false },
+  { clave: 'ia_habilitada', grupo: 'ia', etiqueta: 'Inteligencia artificial', valor: true },
+  { clave: 'save_last_order_for_tables', grupo: 'listados', etiqueta: 'Recordar el orden de los listados', valor: true },
+  { clave: 'auto_stop_tasks_timers_on_new_timer', grupo: 'cronometro', etiqueta: 'Un cronómetro nuevo detiene el anterior', valor: true }
+]
+
+/** Grupos cuyo cambio se nota fuera de la instalacion. Mismo criterio que `RecursoRefugio`. */
+const REFUGIO_PELIGROSOS = ['correo', 'acceso', 'ia']
+
+/** El tablero del Refugio, con un desfase de reloj fijo para que la pantalla tenga algo que decir. */
+function estadoDelRefugio (actual) {
+  const php = new Date()
+  const base = new Date(php.getTime() - 4 * 3600 * 1000)
+  const comoTexto = (fecha) => fecha.toISOString().slice(0, 19).replace('T', ' ')
+
+  return {
+    operador: { staffid: actual.id, nombre: actual.full_name },
+    migraciones: {
+      en_disco: 100,
+      aplicadas: 98,
+      pendientes: ['0760_integraciones.sql', '0770_cambios_de_compromiso.sql'],
+      ultima: { archivo: '0750_logo_del_correo_en_webp.sql', aplicada_en: '2026-09-18 11:04:22' }
+    },
+    interruptores: REFUGIO_INTERRUPTORES.map((int) => ({
+      ...int,
+      peligro: REFUGIO_PELIGROSOS.includes(int.grupo)
+    })),
+    reloj: {
+      php: comoTexto(php),
+      zona_php: 'America/Santiago',
+      base: comoTexto(base),
+      desfase_segundos: 14400,
+      alineados: false
+    },
+    base: { version: '10.11.6-MariaDB', prefijo: 'tbl' },
+    ocupantes: 2
+  }
+}
+
 /** Exige superadministrador, o lanza 403. Mismo texto que `Acceso\\Permisos::exigirSuperadmin()`. */
 function exigirSuperadmin (staff, queProtege) {
   if (staff.is_superadmin !== true) {
@@ -5210,10 +5256,44 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
         // Tener gente a cargo: alguien cuelga de ella, o dirige un area. Se resuelve por el mismo
         // `esJefatura()` que usa `/accesos`, para que el mock no diga dos cosas del mismo dato.
         es_jefatura: esJefatura(actual),
+        // La API real lo manda SOLO cuando es true, nunca como false. Aca se imita con el mismo
+        // criterio: en la instalacion real hace falta ademas estar en la lista del .env, que el mock
+        // no tiene, asi que alcanza con ser superadministradora.
+        ...(actual.is_superadmin === true ? { es_refugiado: true } : {}),
         secciones_habilitadas: ['procesos', 'espacios', 'salas'],
         locale: 'es'
       })
     }
+  }
+
+  // Contesta 404 a quien no entra, igual que la API: el 403 confesaria que la ruta existe.
+  if (recurso === 'refugio') {
+    if (actual.is_superadmin !== true) {
+      throw new ErrorApi(404, 'not_found', 'Recurso desconocido: "refugio".')
+    }
+
+    if (metodo === 'GET' && resto[0] === 'estado') {
+      return { estado: 200, cuerpo: conDatos(estadoDelRefugio(actual)) }
+    }
+
+    if (metodo === 'PATCH' && resto[0] === 'interruptores') {
+      // `cuerpo` es un thunk: el servidor no lee el stream hasta que alguien lo pide.
+      const entrada = await cuerpo()
+      const escritos = []
+
+      for (const [clave, valor] of Object.entries(entrada)) {
+        const int = REFUGIO_INTERRUPTORES.find((i) => i.clave === clave)
+        if (int === undefined) {
+          throw new ErrorApi(422, 'validation_error', 'Hay ajustes que no se pueden escribir.')
+        }
+        int.valor = valor === true || valor === 1 || valor === '1'
+        escritos.push(clave)
+      }
+
+      return { estado: 200, cuerpo: conDatos({ escritos }) }
+    }
+
+    throw new ErrorApi(404, 'not_found', 'Subrecurso desconocido.')
   }
 
   if (recurso === 'rooms') {
