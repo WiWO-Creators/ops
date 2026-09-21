@@ -9,7 +9,16 @@ import type { YoPortal } from '@/datos/tipos'
  */
 
 export interface SeccionPortal {
-  /** Clave que devuelve `/portal/me` en `secciones_habilitadas`. */
+  /**
+   * Clave que devuelve `/portal/me` en `secciones_habilitadas`.
+   *
+   * Es la PUERTA de la entrada, no su identidad: varias entradas pueden compartirla cuando son
+   * varias pantallas sobre el mismo recurso, y de hecho la comparten. La identidad es `href`, que
+   * es lo unico que distingue dos destinos, y por eso es lo que se usa como clave de React.
+   *
+   * Nunca se inventa una clave que la API no emita: una entrada con una clave desconocida no se
+   * enciende jamas —`seccionesDelPortal` la filtra— y se veria como un menu que le falta algo.
+   */
   clave: string
   href: string
   etiqueta: string
@@ -23,6 +32,12 @@ export interface SeccionPortal {
  * nombres para la misma cosa segun la pantalla.
  */
 const CATALOGO: SeccionPortal[] = [
+  // El estado de los {espacios}: como van y que necesita algo del cliente. Cuelga de la MISMA clave
+  // que el listado —`projects`— y eso es deliberado: no es una seccion nueva del backend sino otra
+  // lectura del mismo recurso, asi que la ve exactamente quien ya ve sus {espacios}. Inventarle una
+  // clave propia habria dejado la entrada apagada para siempre, porque la API no la emitiria nunca.
+  // Va primero porque es la pantalla que contesta "como vamos" sin abrir nada.
+  { clave: 'projects', href: '/portal/estado', etiqueta: `Estado de ${GLOSARIO.espacio.plural}` },
   { clave: 'projects', href: '/portal/proyectos', etiqueta: GLOSARIO.espacio.plural },
   // El tablero mensual de la gerencia. Hoy la API NO devuelve `gestion` en `secciones_habilitadas`
   // —el interruptor `wiwo_portal_gestion` nace apagado en los 279 {espacios}— asi que esta entrada

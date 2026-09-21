@@ -11,10 +11,16 @@ import assert from 'node:assert/strict'
 import { CATALOGO_PORTAL, saludar, seccionesDelPortal } from '../src/dominio/portal.ts'
 import { nombreDeArchivo, origenDeArchivo } from '../src/definiciones/archivos.ts'
 
+// Se comprueban las RUTAS y no las claves: desde que el estado de los Proyectos existe, dos entradas
+// del catalogo comparten la clave `projects` —son dos pantallas del mismo recurso— y lo que
+// distingue un destino de otro es su href.
 test('solo muestra las secciones que la API habilito', () => {
   const secciones = seccionesDelPortal(['projects', 'files', 'kb'])
 
-  assert.deepEqual(secciones.map((s) => s.clave), ['projects', 'files', 'kb'])
+  assert.deepEqual(
+    secciones.map((s) => s.href),
+    ['/portal/estado', '/portal/proyectos', '/portal/archivos', '/portal/ayuda']
+  )
 })
 
 test('un contacto sin ninguna seccion no ve navegacion', () => {
@@ -25,14 +31,28 @@ test('ignora claves que el frontend todavia no conoce', () => {
   // Si la API suma una seccion antes que el frontend, la navegacion no puede romperse.
   const secciones = seccionesDelPortal(['projects', 'seccion-del-futuro'])
 
-  assert.deepEqual(secciones.map((s) => s.clave), ['projects'])
+  assert.deepEqual(secciones.map((s) => s.href), ['/portal/estado', '/portal/proyectos'])
 })
 
 test('respeta el orden del catalogo y no el del argumento', () => {
   // El orden lo fija el producto, no en que orden vino el arreglo de la API.
   const secciones = seccionesDelPortal(['kb', 'projects', 'files'])
 
-  assert.deepEqual(secciones.map((s) => s.clave), ['projects', 'files', 'kb'])
+  assert.deepEqual(
+    secciones.map((s) => s.href),
+    ['/portal/estado', '/portal/proyectos', '/portal/archivos', '/portal/ayuda']
+  )
+})
+
+test('el estado de los Proyectos entra y sale con el listado, no con una clave propia', () => {
+  // La API no emite ninguna clave para esta pantalla: es otra lectura del mismo recurso. Si alguien
+  // le inventara una, la entrada quedaria apagada para siempre y nadie se enteraria, porque
+  // `seccionesDelPortal` filtra en silencio lo que no reconoce.
+  const con = seccionesDelPortal(['projects']).map((s) => s.href)
+  const sin = seccionesDelPortal(['files']).map((s) => s.href)
+
+  assert.deepEqual(con, ['/portal/estado', '/portal/proyectos'])
+  assert.equal(sin.includes('/portal/estado'), false)
 })
 
 test('todas las rutas del catalogo cuelgan de /portal', () => {
@@ -43,12 +63,17 @@ test('todas las rutas del catalogo cuelgan de /portal', () => {
   }
 })
 
-test('no hay claves ni rutas repetidas', () => {
-  const claves = CATALOGO_PORTAL.map((s) => s.clave)
+test('no hay rutas repetidas, y toda entrada tiene su puerta', () => {
+  // La ruta es la identidad —dos entradas al mismo destino serian dos enlaces iguales en el menu, y
+  // ademas la misma clave de React—. La clave, en cambio, SI se puede repetir: es la puerta que la
+  // API abre, y dos pantallas del mismo recurso pasan por la misma. Lo que no se admite es una
+  // entrada sin puerta, que no se encenderia nunca.
   const rutas = CATALOGO_PORTAL.map((s) => s.href)
 
-  assert.equal(new Set(claves).size, claves.length)
   assert.equal(new Set(rutas).size, rutas.length)
+  for (const seccion of CATALOGO_PORTAL) {
+    assert.equal(seccion.clave.length > 0, true, seccion.href)
+  }
 })
 
 import { PESTANIAS_PROYECTO, PORTAL_PROYECTOS, PORTAL_TAREAS, pestaniasDelProyecto } from '../src/definiciones/portal-proyectos.ts'

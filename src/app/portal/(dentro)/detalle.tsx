@@ -35,6 +35,33 @@ export async function cargarDetalle<T> (ruta: string): Promise<Sobre<T> | ErrorA
   }
 }
 
+/**
+ * Pide un bloque de una pantalla del portal y devuelve `null` si el contacto no tiene acceso.
+ *
+ * Un 403 o un 404 acá significan "esta seccion no es para vos", que en una pantalla armada por
+ * bloques es un bloque que no se dibuja y no un error. Cualquier otro fallo si se propaga: si la API
+ * esta caida, hay que verlo.
+ *
+ * Vive junto a `cargarDetalle` porque son la misma decision mirada de dos maneras: aquella devuelve
+ * el error como valor para que un detalle pueda explicarlo, y esta lo traduce a "no dibujes este
+ * bloque". La comparten la portada y el estado de los {espacios}, que son las dos pantallas del
+ * portal armadas con secciones que pueden faltar de a una.
+ *
+ * @param ruta ruta del portal, relativa a la base de la API
+ * @returns los datos, o `null` si esa seccion no es para este contacto
+ */
+export async function sinFallar<T> (ruta: string): Promise<T | null> {
+  try {
+    const { data } = await pedirPortal<T>(ruta)
+
+    return data
+  } catch (error) {
+    if (error instanceof ErrorApi && (error.estado === 403 || error.estado === 404)) return null
+
+    throw error
+  }
+}
+
 /** Traduce el error de la API a la pantalla que corresponde. */
 export function EstadoDeError ({ error, volverA, etiqueta }: { error: ErrorApi, volverA: string, etiqueta: string }) {
   if (error.estado === 404) {

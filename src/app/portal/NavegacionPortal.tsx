@@ -24,7 +24,7 @@ export function NavegacionPortal (
 
         return (
           <Link
-            key={seccion.clave}
+            key={seccion.href}
             href={seccion.href}
             aria-current={activa ? 'page' : undefined}
             className={cn(
