@@ -64,6 +64,22 @@ export interface EscenaTrabajandoDeApi {
   empresa: TrabajandoEnLaCompania
 }
 
+/**
+ * El cliente de una fila de la pared: id, nombre visible y logo.
+ *
+ * Es lo que las escenas de Tareas dibujan en vez del Espacio, porque los Espacios de un area se
+ * llaman casi todos igual entre si y el cliente es lo que distingue una fila a cuatro metros. Ver
+ * "el cliente en la pared" en `PantallaDeArea.php`.
+ *
+ * `image_url` sale de `uploads/` del panel y es `null` cuando el cliente no tiene logo cargado:
+ * entonces se escribe el `name`, que la API garantiza no vacio.
+ */
+export interface ClienteEnPantalla {
+  id: number
+  name: string
+  image_url: string | null
+}
+
 /** Un cronometro corriendo, con lo que esta midiendo. */
 export interface CronometroEnPantalla {
   staff_id: number
@@ -74,6 +90,8 @@ export interface CronometroEnPantalla {
   /** `null` cuando se mide contra un Proyecto sin Tarea, o cuando la Tarea esta en la papelera. */
   task: { id: number, name: string | null } | null
   project: { id: number, name: string } | null
+  /** El cliente del Espacio medido. `null` si no hay Espacio, o si no tiene cliente. */
+  client: ClienteEnPantalla | null
 }
 
 /** Un valor de catalogo: estado o prioridad, con el color que ya usa el panel. */
@@ -101,6 +119,8 @@ export interface TareaEnPantalla {
   overdue: boolean
   progress: AvanceEnPantalla
   project: { id: number, name: string } | null
+  /** El cliente del Espacio. `null` si la Tarea no cuelga de uno, o si el Espacio no tiene cliente. */
+  client: ClienteEnPantalla | null
   assignees: Array<{ staff_id: number, name: string, avatar: string | null }>
 }
 

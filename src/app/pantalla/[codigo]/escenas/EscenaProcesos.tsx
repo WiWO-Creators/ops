@@ -5,8 +5,8 @@ import { ANCHO_MAYUSCULA_EM, ANCHO_SOBRIO_EM, cupoDeFichas, planDeOla } from '@/
 import type { PlanDeOla } from '@/dominio/solari'
 import type { TareaEnPantalla } from '@/datos/pantalla-area'
 import {
-  CabeceraDeEscena, CeldaQueAlterna, CUERPO_COLUMNA, CUERPO_PRINCIPAL, FichaDeTablero, Nada,
-  RELLENO_DE_FILA, Rotulo, RotulosDeColumna, nombreCorto, rotuloDeAlcance
+  CabeceraDeEscena, CeldaQueAlterna, CUERPO_COLUMNA, CUERPO_PRINCIPAL, FichaDeTablero,
+  MarcaDeCliente, Nada, RELLENO_DE_FILA, Rotulo, RotulosDeColumna, nombreCorto, rotuloDeAlcance
 } from './piezas'
 
 /** La rejilla de columnas de esta escena. Su reparto vive en `pantalla.css`. */
@@ -40,7 +40,7 @@ const PESOS = [6, 2, 2, 1, 1, 2] as const
  */
 const CUPO = {
   nombre: cupoDeFichas(51, 3, ANCHO_SOBRIO_EM),
-  espacio: cupoDeFichas(33, 2.7, ANCHO_MAYUSCULA_EM),
+  cliente: cupoDeFichas(33, 2.7, ANCHO_MAYUSCULA_EM),
   /** En caja mixta: "En progreso" son once caracteres y en mayusculas no entra en 18vmin. */
   estado: cupoDeFichas(18, 2.7, ANCHO_SOBRIO_EM),
   /** La unica columna de digitos de la fila, y por eso la unica con ficha entera. */
@@ -117,7 +117,7 @@ export function EscenaProcesos ({ items, ocultos, total, fase, esGlobal = false 
       <RotulosDeColumna columnas={COLUMNAS}>
         <span />
         <Rotulo texto={GLOSARIO.proceso.singular} columna={0} maximo={CUPO.nombre} />
-        <Rotulo texto={GLOSARIO.espacio.singular} columna={1} maximo={CUPO.espacio} className="portrait:hidden" />
+        <Rotulo texto={GLOSARIO.cliente.singular} columna={1} maximo={CUPO.cliente} className="portrait:hidden" />
         <Rotulo texto="Estado" columna={2} maximo={CUPO.estado} className="portrait:hidden" />
         <Rotulo texto="%" columna={3} maximo={CUPO.avance} className="text-right portrait:hidden" />
         <Rotulo texto="Vence" columna={4} maximo={CUPO.vence} />
@@ -148,11 +148,11 @@ export function EscenaProcesos ({ items, ocultos, total, fase, esGlobal = false 
               className={cn('text-texto font-semibold', CUERPO_PRINCIPAL)}
             />
 
-            <FichaDeTablero
-              mayusculas
-              texto={tarea.project?.name ?? '—'}
+            {/* El cliente y no el Espacio: ver el docblock de `MarcaDeCliente`. */}
+            <MarcaDeCliente
+              cliente={tarea.client}
               sitio={{ plan, fila: indice, columna: 1 }}
-              maximo={CUPO.espacio}
+              maximo={CUPO.cliente}
               className={cn('text-texto-tenue portrait:hidden', CUERPO_COLUMNA)}
             />
 

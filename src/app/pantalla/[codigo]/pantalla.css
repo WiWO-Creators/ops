@@ -201,7 +201,7 @@
 }
 
 /*
- * En vertical sobreviven el nombre, la fecha y quien la tiene: se caen el Proyecto, el estado en
+ * En vertical sobreviven el nombre, la fecha y quien la tiene: se caen el cliente, el estado en
  * palabras —que ya lo dice la barra de color— y el avance. Son 92vmin de ancho contra 170, y con las
  * siete columnas de la pared el nombre de la Tarea quedaba en veinte caracteres, que es no mostrarlo.
  */
@@ -212,7 +212,7 @@
 }
 
 /*
- * cara | Tarea | quien mide | Proyecto | contador
+ * cara | Tarea | quien mide | cliente | contador
  *
  * El contador paso de 16 a 20vmin cuando se volvio una tira de fichas: `0:12:33` son siete fichas de
  * ancho fijo a 3.4vmin, o sea 18.8vmin, y en 16 entraban cinco — el numero se cortaba por la derecha y
