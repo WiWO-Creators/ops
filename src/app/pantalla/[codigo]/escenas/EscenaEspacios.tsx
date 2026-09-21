@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import type { CSSProperties, ReactNode } from 'react'
 import { cn } from '@/lib/clases'
 import { GLOSARIO } from '@/dominio/glosario'
 import { diasHasta } from '@/lib/fechas'
@@ -7,7 +7,7 @@ import type { PlanDeOla } from '@/dominio/solari'
 import type { ProyectoEnPantalla } from '@/datos/pantalla-area'
 import {
   CabeceraDeEscena, CeldaQueAlterna, CUERPO_COLUMNA, CUERPO_PRINCIPAL, FichaDeTablero, Nada,
-  RELLENO_DE_FILA, Rotulo, RotulosDeColumna
+  RELLENO_DE_FILA, Rotulo, RotulosDeColumna, cupoDeRotulo
 } from './piezas'
 
 /** La rejilla de columnas de esta escena. Su reparto vive en `pantalla.css`. */
@@ -21,22 +21,48 @@ const COLUMNAS = 'pantalla-columnas-espacios'
 const PESOS = [6, 2, 1, 1, 1] as const
 
 /**
- * Cuantos caracteres caben en cada columna. Los anchos son los de `.pantalla-columnas-espacios`.
+ * Lo que mide cada columna, en `vmin`: el mismo numero que esta en `.pantalla-columnas-espacios`.
  *
- * La columna que alterna es la mas apretada de toda la pantalla —8vmin— y el texto mas largo que le
- * toca es "en 12 días". El porcentaje entra entero y la cuenta de dias se corta como ya se cortaba
- * antes, que es el precio de tener el dato en vertical, donde la fecha no existe. En esa misma celda
- * el porcentaje se dibuja como ficha y la cuenta de dias como texto plano, sin que nadie lo declare:
- * lo decide `esNumerico()` sobre lo que toque mostrar. Las tres columnas de conteos y la fecha son
- * digitos y van siempre en ficha; ver `ANCHO_DE_FICHA_EM` en el dominio.
+ * Ver el docblock de `ANCHO` en `EscenaProcesos`. En esta escena el reparto unico no es prolijidad
+ * sino el arreglo de un fallo: los rotulos de las tres columnas de conteo se median con el cupo de su
+ * DATO —digitos, ancho de ficha— y por eso "ABIERTAS" llegaba a la pared como "ABIERT…" en una columna
+ * donde entraba entero. Con `cupoDeRotulo()` cada rotulo se mide con lo que de verdad ocupa.
+ */
+const ANCHO = {
+  /** Lo que sobra despues de las fijas: no es un ancho, es un resto. */
+  nombre: 69,
+  barra: 18,
+  /** La columna que alterna entre el porcentaje y lo que falta para la entrega. */
+  falta: 16,
+  /**
+   * Las tres de la derecha estan medidas contra su ROTULO y no contra su dato: los datos son conteos
+   * de una o dos cifras y caben en cualquier sitio, y "ATRASADAS" en versalitas pide 20vmin.
+   */
+  abiertas: 19,
+  atrasadas: 21,
+  entrega: 16
+} as const
+
+/**
+ * Cuantos caracteres caben en cada columna.
+ *
+ * **La columna que alterna subio de 8 a 16vmin, y es el arreglo mas visible de la escena.** Con 8
+ * entraban cinco caracteres: el porcentaje pasaba justo, pero su alterno —"en 12 días"— llegaba a la
+ * pared como "en 1…", y esa columna era la unica forma de saber cuando entrega un Proyecto en la
+ * pared de pie, donde la fecha no existe. Ahora el alterno dice "12 días" bajo el rotulo "Faltan", que
+ * cabe entero y ademas se lee mejor: el rotulo pone la preposicion y la celda pone el dato.
+ *
+ * En esa misma celda el porcentaje se dibuja como ficha y la cuenta de dias como texto plano, sin que
+ * nadie lo declare: lo decide `esNumerico()` sobre lo que toque mostrar. Las dos columnas de conteos
+ * y la fecha son digitos y van siempre en ficha; ver `ANCHO_DE_FICHA_EM` en el dominio.
  */
 const CUPO = {
-  nombre: cupoDeFichas(55, 3, ANCHO_SOBRIO_EM),
-  /** Sobria y no ficha: alterna con "en 12 días", que son palabras y no caben en ancho fijo. */
-  avance: cupoDeFichas(8, 2.7, ANCHO_SOBRIO_EM),
-  abiertas: cupoDeFichas(17, 2.7),
-  atrasadas: cupoDeFichas(21, 2.7),
-  entrega: cupoDeFichas(16, 2.7)
+  nombre: cupoDeFichas(ANCHO.nombre, 3, ANCHO_SOBRIO_EM),
+  /** Sobria y no ficha: alterna con "12 días", que son palabras y no caben en ancho fijo. */
+  falta: cupoDeFichas(ANCHO.falta, 2.7, ANCHO_SOBRIO_EM),
+  abiertas: cupoDeFichas(ANCHO.abiertas, 2.7),
+  atrasadas: cupoDeFichas(ANCHO.atrasadas, 2.7),
+  entrega: cupoDeFichas(ANCHO.entrega, 2.7)
 }
 
 /**
@@ -57,12 +83,14 @@ const CUPO = {
  * final de un parrafo, que es lo que permite recorrerlas de arriba abajo sin leer.
  *
  * La barra de avance sobrevivio acá —y no en la escena de Tareas— porque hay una sola por fila y
- * sobra ancho: una columna de barras de 22vmin junto al numero se lee como un grafico, que es
- * exactamente lo que se quiere de "cómo va cada Proyecto".
+ * sobra ancho: una columna de barras junto al numero se lee como un grafico, que es exactamente lo
+ * que se quiere de "cómo va cada Proyecto". Va partida en doce casillas y no en una tira continua:
+ * ver `.pantalla-barra`.
  *
  * === QUE ALTERNA ===
  *
- * La columna del porcentaje dice el avance y, cada `PERIODO_DE_DATO_MS`, cuanto falta para la entrega.
+ * La columna del porcentaje dice el avance y, cada `PERIODO_DE_DATO_MS`, cuanto falta para la entrega
+ * —bajo el rotulo "Faltan", que es el que pone la preposicion—.
  * Se eligio esa columna y no la de la fecha porque **la fecha no existe en vertical** —se cae con la
  * barra por falta de ancho—, y ahi el "faltan 3 días" es la unica forma de que la pared diga cuando
  * vence algo. Ademas el porcentaje ya esta dibujado al lado en la barra, asi que es la columna que
@@ -82,23 +110,33 @@ export function EscenaEspacios ({ items, ocultos, ahora, zona, fase }: {
   const plan = planDeOla(items.length, PESOS)
 
   return (
-    <div className="flex min-h-0 flex-col">
+    // `flex-1`: la escena ocupa la banda entera, que es lo que permite a las filas del tablero
+    // repartirse lo que sobra en vez de dejarlo muerto al pie. Ver `.pantalla-tablero`.
+    <div className="flex min-h-0 flex-1 flex-col">
       <CabeceraDeEscena titulo={`${GLOSARIO.espacio.plural} en curso`} ocultos={ocultos} />
 
       <RotulosDeColumna columnas={COLUMNAS}>
-        <Rotulo texto={GLOSARIO.espacio.singular} columna={0} maximo={CUPO.nombre} />
-        <Rotulo texto="Avance" columna={1} maximo={8} className="portrait:hidden" />
-        <Rotulo texto={fase === 0 ? '%' : 'Entrega'} columna={2} maximo={CUPO.avance + 2} className="text-right" />
-        <Rotulo texto="Abiertas" columna={3} maximo={CUPO.abiertas} className="text-right" />
-        <Rotulo texto="Atrasadas" columna={4} maximo={CUPO.atrasadas} className="text-right" />
-        <Rotulo texto="Entrega" columna={5} maximo={CUPO.entrega} className="text-right portrait:hidden" />
+        <Rotulo texto={GLOSARIO.espacio.singular} columna={0} maximo={cupoDeRotulo(ANCHO.nombre)} />
+        <Rotulo texto="Avance" columna={1} maximo={cupoDeRotulo(ANCHO.barra)} className="portrait:hidden" />
+        {/* "Faltan" y no "Entrega": la columna de al lado ya se llama Entrega, y el rotulo repetido
+            hacia leer dos veces para entender que una dice la fecha y la otra cuanto queda. */}
+        <Rotulo texto={fase === 0 ? '%' : 'Faltan'} columna={2} maximo={cupoDeRotulo(ANCHO.falta)} className="text-right" />
+        <Rotulo texto="Abiertas" columna={3} maximo={cupoDeRotulo(ANCHO.abiertas)} className="text-right" />
+        <Rotulo texto="Atrasadas" columna={4} maximo={cupoDeRotulo(ANCHO.atrasadas)} className="text-right" />
+        <Rotulo texto="Entrega" columna={5} maximo={cupoDeRotulo(ANCHO.entrega)} className="text-right portrait:hidden" />
       </RotulosDeColumna>
 
-      <ul className="pantalla-tablero min-h-0">
+      <ul
+        className="pantalla-tablero min-h-0"
+        // `--filas` es el techo de cuanto puede estirarse cada fila. Ver `.pantalla-tablero`.
+        style={{ '--filas': items.length } as CSSProperties}
+      >
         {items.map((proyecto, indice) => (
           <li
             // Por POSICION y no por `proyecto.id`. Ver el docblock de `EscenaProcesos`.
             key={indice}
+            // Su ranura en la pasada que descubre el tablero. Ver `pantalla.css`.
+            style={{ '--fila': indice } as CSSProperties}
             className={cn('pantalla-fila py-[0.55vmin] leading-[1.15]', RELLENO_DE_FILA, COLUMNAS)}
           >
             <FichaDeTablero
@@ -108,9 +146,10 @@ export function EscenaEspacios ({ items, ocultos, ahora, zona, fase }: {
               className={cn('text-texto font-semibold', CUERPO_PRINCIPAL)}
             />
 
-            <span className="bg-linea-suave h-[1vmin] overflow-hidden rounded-full portrait:hidden">
+            {/* Doce casillas, no una tira: ver `.pantalla-barra` en `pantalla.css`. */}
+            <span className="pantalla-barra bg-linea-suave block w-full portrait:hidden">
               <span
-                className="bg-acento block h-full rounded-full"
+                className="bg-acento block h-full"
                 style={{ width: `${proyecto.progress}%` }}
               />
             </span>
@@ -120,7 +159,7 @@ export function EscenaEspacios ({ items, ocultos, ahora, zona, fase }: {
               principal={`${proyecto.progress}%`}
               alterno={cuantoFalta(proyecto.deadline, ahora, zona)}
               sitio={{ plan, fila: indice, columna: 1 }}
-              maximo={CUPO.avance}
+              maximo={CUPO.falta}
               className={cn('text-texto text-right font-semibold', CUERPO_COLUMNA)}
             />
 
@@ -197,7 +236,7 @@ function formatoCorto (fecha: string | null): string {
  * @param fecha `YYYY-MM-DD`, o `null` si el Proyecto no tiene entrega
  * @param ahora instante en milisegundos, o `null` antes de hidratar
  * @param zona  zona IANA del negocio, o `null` para caer en la del aparato
- * @returns "hoy", "en 3 días", "hace 5 días" o una raya cuando no hay con que contestar
+ * @returns "hoy", "3 días", "−5 días" o una raya cuando no hay con que contestar
  */
 function cuantoFalta (fecha: string | null, ahora: number | null, zona: string | null): string {
   const hoy = diaCalendario(ahora, zona)
@@ -208,9 +247,11 @@ function cuantoFalta (fecha: string | null, ahora: number | null, zona: string |
 
   if (dias === null) return '—'
   if (dias === 0) return 'hoy'
-  if (dias > 0) return `en ${dias} ${dias === 1 ? 'día' : 'días'}`
+  // Sin la preposicion: el rotulo de la columna ya dice "Faltan", y "en 12 días" en una celda de
+  // dieciseis vmin se cortaba justo por donde estaba el numero.
+  if (dias > 0) return `${dias} ${dias === 1 ? 'día' : 'días'}`
 
-  return `hace ${-dias} ${dias === -1 ? 'día' : 'días'}`
+  return `−${-dias} ${dias === -1 ? 'día' : 'días'}`
 }
 
 /**

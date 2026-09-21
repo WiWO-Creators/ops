@@ -1,6 +1,6 @@
 import type { CSSProperties, ReactNode } from 'react'
 import { cn } from '@/lib/clases'
-import { TOPE_DE_GLIFOS, cintaDeRodillo, rodilloDeTexto } from '@/dominio/solari'
+import { TOPE_DE_GLIFOS, cintaDeRodillo, excedeElHuecoUniforme, rodilloDeTexto } from '@/dominio/solari'
 
 /**
  * Un texto que voltea caracter a caracter, como un panel de Solari di Udine.
@@ -112,7 +112,13 @@ export function TextoSolari ({
             // denso, la mayoria para no mover una ficha que no gira. Medido, esa sola diferencia era
             // un salto de 433 ms al montar la escena.
             className={cn('solari-hueco', posicion.rodillo !== null && 'solari-gira')}
-            style={estiloDeHueco(posicion.escalon, posicion.rodillo?.length ?? 0, uniforme ? 0 : posicion.ancho)}
+            // Uniforme quiere decir "el mismo ancho para todos", con una excepcion: el glifo que no
+            // cabe en ese ancho se lleva el suyo. Ver `excedeElHuecoUniforme()` en el dominio.
+            style={estiloDeHueco(
+              posicion.escalon,
+              posicion.rodillo?.length ?? 0,
+              uniforme && !excedeElHuecoUniforme(posicion.ancho) ? 0 : posicion.ancho
+            )}
           >
             {posicion.rodillo === null
               ? posicion.glifo

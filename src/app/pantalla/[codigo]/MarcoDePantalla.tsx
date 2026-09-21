@@ -102,14 +102,23 @@ export function MarcoDePantalla (props: Props): ReactNode {
       data-frescura={frescura}
       data-orientacion={orientacion}
     >
-      <header className="pantalla-deriva flex items-baseline justify-between px-[4vmin] pt-[3vmin] portrait:pt-[5vmin]">
+      {/*
+        * La banda de chasis: el nombre del area a la izquierda, el reloj a la derecha, y una linea
+        * que la separa del cuerpo.
+        *
+        * La linea no es adorno. Sin ella el nombre del area y el titulo de la escena eran dos
+        * renglones de texto sueltos, uno encima del otro, y la pared empezaba en ninguna parte; con
+        * ella hay un borde de chasis y el cuerpo es lo que cuelga debajo, que es como esta construido
+        * el aparato que esto imita.
+        */}
+      <header className="border-linea pantalla-deriva flex items-center justify-between border-b px-[3vmin] pt-[2.4vmin] pb-[1.6vmin] portrait:pt-[4vmin]">
         {/*
           * El nombre del area, en fichas como todo lo demas. Cambia una sola vez —al cargar— asi que
           * su volteo es lo primero que se ve al encender la pared, y despues se queda quieto para
           * siempre. El `letter-spacing` no llega a un `inline-block` atomico; la junta entre aletas
           * hace su trabajo.
           */}
-        <h1 className="text-texto-tenue min-w-0 text-[3vmin] font-semibold">
+        <h1 className="text-texto min-w-0 text-[3.2vmin] font-bold tracking-[0.1em]">
           <Ficha mayusculas texto={area ?? 'WiWO Ops'} maximo={CUPO_DE_AREA} />
         </h1>
         <Reloj ahora={ahora} zona={zona} />
@@ -133,7 +142,7 @@ export function MarcoDePantalla (props: Props): ReactNode {
           // `justify-start` y no `justify-center`: con el contenido centrado, el titulo de la escena
           // cambia de altura segun cuantas fichas haya, y en una pared eso se lee como que la pantalla
           // salta. Cada escena decide por su cuenta si se centra —la portada lo hace—.
-          'flex min-h-0 flex-col justify-start px-[4vmin] py-[2vmin]',
+          'flex min-h-0 flex-col justify-start px-[3vmin] py-[1.8vmin]',
           transicion !== 'ninguna' && 'pantalla-escena'
         )}
         style={transicion === 'vista' ? { viewTransitionName: 'escena' } : undefined}
@@ -141,13 +150,18 @@ export function MarcoDePantalla (props: Props): ReactNode {
         {esperando ? <Esperando /> : children}
       </section>
 
-      <footer className="pantalla-deriva flex flex-col gap-[1.2vmin] px-[4vmin] pb-[3vmin] portrait:pb-[5vmin]">
+      <footer className="pantalla-deriva flex flex-col gap-[1.1vmin] px-[3vmin] pb-[2.4vmin] portrait:pb-[4vmin]">
         <div className="flex items-center justify-between">
           <Puntos guion={guion} escenaId={escenaId} />
           <Estado frescura={frescura} esperando={esperando} />
         </div>
 
-        <div className="bg-linea-suave h-[0.5vmin] w-full overflow-hidden rounded-full">
+        {/*
+          * La barra vive en un riel visible y no sobre el fondo: vaciandose sobre la nada, lo unico
+          * que se veia era una linea de color acortandose, sin decir contra que. Con el riel dibujado
+          * se lee lo que es —cuanto queda de esta escena— de un golpe y desde el pasillo.
+          */}
+        <div className="bg-linea h-[0.6vmin] w-full overflow-hidden rounded-full">
           {escena !== null && (
             <div
               // `key` por ID de escena y no por continuidad: la barra mide UNA pagina, asi que tiene
@@ -192,12 +206,23 @@ export function MarcoDePantalla (props: Props): ReactNode {
  */
 function Reloj ({ ahora, zona }: { ahora: number | null, zona: string | null }): ReactNode {
   if (ahora === null) {
-    return <p className="text-texto-tenue text-[3vmin] tabular-nums">--:--</p>
+    return <p className="text-texto-tenue text-[4vmin] tabular-nums">--:--</p>
   }
 
   return (
-    <p className="text-texto text-[3.2vmin] font-semibold tabular-nums">
-      <TextoSolari texto={horaDeReloj(ahora, zona)} />
+    // 4vmin y no 3.2: es la unica tira de aletas que esta en las SIETE escenas, o sea la firma del
+    // aparato, y era mas chica que el nombre de una Tarea. A este cuerpo la pieza se lee como pieza
+    // —con su canto, su ranura y sus dos mitades— en vez de como un recuadro detras de un digito.
+    <p className="text-texto text-[4vmin] font-bold tabular-nums">
+      {/*
+        * `uniforme`: las cinco piezas del reloj miden lo mismo, los dos puntos incluidos.
+        *
+        * Sin el, cada glifo reserva el ancho de su clase y los dos puntos salen en una pieza un
+        * tercio mas angosta que las cifras. En un reloj de aletas de verdad todas las piezas son la
+        * misma pieza —es un tambor identico repetido cinco veces— y la de los dos puntos esta fija.
+        * La tira con un hueco estrecho en medio se lee como texto maquetado, no como un aparato.
+        */}
+      <TextoSolari uniforme texto={horaDeReloj(ahora, zona)} />
     </p>
   )
 }
@@ -240,8 +265,8 @@ function Estado ({ frescura, esperando }: { frescura: Frescura, esperando: boole
   )
 }
 
-/** Lo que cabe en el nombre del area a 3vmin sin llegar al reloj de la otra esquina. */
-const CUPO_DE_AREA = cupoDeFichas(90, 3, ANCHO_MAYUSCULA_EM)
+/** Lo que cabe en el nombre del area a 3.2vmin sin llegar al reloj de la otra esquina. */
+const CUPO_DE_AREA = cupoDeFichas(90, 3.2, ANCHO_MAYUSCULA_EM)
 
 /** Lo que cabe en el aviso de frescura a 2.6vmin. "Sin conexión con Ops" es el mas largo. */
 const CUPO_DE_AVISO = cupoDeFichas(45, 2.6, ANCHO_MAYUSCULA_EM)

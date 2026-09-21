@@ -272,7 +272,7 @@ function Dibujo (
 
   switch (origen.kind) {
     case 'portada':
-      return <EscenaPortada area={area} contadores={origen.counts} />
+      return <EscenaPortada area={area} contadores={origen.counts} ahora={ahora} zona={zona} />
 
     case 'trabajando':
       // La unica escena con dos tablas. Se buscan por clave y nunca por indice: en un area sin gente

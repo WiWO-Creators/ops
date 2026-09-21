@@ -49,7 +49,8 @@ export function EscenaMomento ({ franja, ahora, zona }: {
         * `justify-center` del padre y no dependiendo del interlineado.
         */}
       <p className="text-texto text-[22vmin] font-bold tabular-nums">
-        <TextoSolari texto={horaDeReloj(ahora, zona)} />
+        {/* `uniforme`: las cinco piezas miden lo mismo, como en el reloj de la cabecera. */}
+        <TextoSolari uniforme texto={horaDeReloj(ahora, zona)} />
       </p>
 
       <div className="flex flex-col items-center gap-[1.5vmin]">

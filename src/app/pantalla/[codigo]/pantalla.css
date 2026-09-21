@@ -9,27 +9,47 @@
   /* `--escala` la fija el `?zoom=` de la URL: multiplica toda la tipografia de una vez. */
   --escala: 1;
 
+  /* La banda del cebrado del tablero. Ver `.pantalla-tablero > *:nth-child(odd)`. */
+  --pantalla-cebra: light-dark(rgb(41 41 41 / 0.035), rgb(255 255 255 / 0.025));
+
   /*
-   * Los tres valores de la estetica de aleta. Ver `.solari` y `.solari .solari-hueco`.
+   * === LA ALETA, EN CINCO VALORES ===
    *
-   * Son tinta translucida y no colores opacos, por lo mismo que las lineas de `neo.css`: asi conservan
-   * el mismo peso sobre las dos bandas del cebrado del tablero en vez de desaparecer sobre una de las
-   * dos. En oscuro —que es como cuelga esta pared— la aleta es un negro por encima del renglon y el
-   * pliegue es el negro mas cerrado que hay en la pantalla, que es lo que le da el relieve.
+   * Una aleta de un panel de Solari no es un rectangulo de un solo tono: es una pieza de plastico
+   * partida por la mitad, con la mitad de ARRIBA mirando hacia la luz de la sala y la de ABAJO
+   * cayendo en sombra, y una ranura entre las dos por la que se ve la carcasa. Esos tres tonos son
+   * todo el relieve; sin ellos, lo que queda es texto sobre un recuadro oscuro.
+   *
+   * Todo es tinta translucida y no color opaco, igual que las lineas de `neo.css`: asi la aleta pesa
+   * lo mismo sobre cualquier fondo en vez de desaparecer sobre uno de ellos.
+   *
+   * **La ranura se pinta DETRAS del glifo y no encima.** Antes era un `::after` del contenedor, o sea
+   * una linea por encima de la letra, y se comia el trazo: "BLOQUEADA" se leia "BLCQUEADA" en la
+   * captura y el `1` de la portada quedaba partido. Adelgazarla lo disimulaba a medias. Pintarla en el
+   * fondo del hueco lo resuelve entero —la cifra nunca se corta— y ademas es mas fiel: la ranura es
+   * una sola por aleta, no una linea continua que cruza de lado a lado el aire entre fichas.
+   *
+   * De paso ahorra el `::after`, que es un pseudoelemento por tira en una pantalla que dibuja
+   * centenares.
    */
-  --solari-ficha: light-dark(rgb(41 41 41 / 0.09), rgb(0 0 0 / 0.36));
-  --solari-pliegue: light-dark(rgb(41 41 41 / 0.22), rgb(0 0 0 / 0.50));
+  --solari-aleta-alta: light-dark(rgb(41 41 41 / 0.05), rgb(255 255 255 / 0.065));
+  --solari-aleta-baja: light-dark(rgb(41 41 41 / 0.14), rgb(0 0 0 / 0.42));
+  --solari-ranura: light-dark(rgb(41 41 41 / 0.30), rgb(0 0 0 / 0.72));
+  /*
+   * El canto iluminado del borde de arriba: un pelo de luz que separa una aleta de la de atras.
+   * Es lo que hace que la pieza se lea como plastico y no como un hueco recortado.
+   */
+  --solari-canto: light-dark(rgb(255 255 255 / 0.55), rgb(255 255 255 / 0.11));
   --solari-junta: 0.07em;
   /*
-   * En `em` y no en `px`: el pliegue tiene que engordar con el `?zoom=` igual que la letra, o en una
+   * En `em` y no en `px`: la ranura tiene que engordar con el `?zoom=` igual que la letra, o en una
    * pantalla escalada se convierte en un pelo invisible.
    *
-   * **0.03em y no 0.05, y es legibilidad.** A 0.05em —1,5 px a 1080p— y con la opacidad alta que tenia
-   * antes, la ranura se comia el trazo de la `O` y de la `B` y "BLOQUEADA" se leia "BLCQUEADA" en la
-   * captura. Un panel de verdad tiene una junta fina, no una banda: 0.03em son ~0,9 px, que a cuatro
-   * metros se leen como la ranura entre dos aletas y no como una tachadura.
+   * Ahora que va por detras del glifo puede volver a ser una ranura de verdad —0.05em, ~1,5 px a
+   * 1080p— sin costarle un trazo a nadie: lo que se ve es la carcasa entre las dos mitades de la
+   * pieza, que es lo que se ve en el aparato que imita.
    */
-  --solari-pliegue-grosor: 0.03em;
+  --solari-ranura-grosor: 0.05em;
 
   /*
    * Un raton olvidado sobre el escritorio deja una flecha quemada en el centro de la pantalla
@@ -131,32 +151,125 @@
  *
  * Todo en `vmin` y ni un `px`: ver el docblock de `MarcoDePantalla`.
  */
+/*
+ * El canal entre columnas: 1.6vmin y no 2.
+ *
+ * Seis canales por fila son casi 2,5vmin de ancho util recuperados, y ese ancho no se reparte por
+ * gusto: va entero a la columna del nombre, que es la unica que estaba recortando informacion. A
+ * cuatro metros la diferencia entre 1.6 y 2vmin de separacion no se ve; la diferencia entre 39 y 41
+ * caracteres de un nombre de Tarea, si.
+ *
+ * El reparto de cada escena y de donde sale cada numero estan en el `ANCHO` de su componente, que es
+ * la otra mitad de estas plantillas: los mismos vmin, escritos donde `cupoDeFichas()` puede leerlos.
+ */
 .pantalla-fila {
   display: grid;
   align-items: center;
-  column-gap: 2vmin;
+  column-gap: 1.6vmin;
 }
 
 @media (orientation: portrait) {
   .pantalla-fila {
-    column-gap: 1.5vmin;
+    column-gap: 1.3vmin;
   }
 }
 
 /*
- * Las filas se tocan: ni un `gap` entre ellas.
+ * === LAS FILAS SE REPARTEN LA BANDA, NO LA DEJAN MUERTA AL PIE ===
  *
- * Es la diferencia de densidad mas grande de todo el rediseño. Una lista de fichas separadas gasta
- * un tercio de la banda util en aire entre tarjetas; un tablero gasta un pelo de linea. Lo que
- * separa una fila de la siguiente es el cebrado y una raya de subpixel, que es justo lo que hace
- * falta para no perder el renglon a cuatro metros y a dos metros de ancho de pantalla.
+ * El tablero es una rejilla de una columna cuyas filas valen `minmax(min-content, 1fr)`, y esas dos
+ * mitades hacen dos trabajos distintos:
+ *
+ * - **`1fr` reparte lo que sobra.** La rejilla de filas por escena es fija y el alto de la banda no:
+ *   quince filas de 50 px en una banda de 819 dejaban 70 px muertos al pie de CADA escena de lista,
+ *   que en una pared de dos metros se lee como que la pantalla se quedo a medio cargar. Con `1fr` esos
+ *   70 px se reparten entre las filas y se convierten en aire entre renglones, que es lo que un
+ *   tablero de verdad tiene.
+ * - **`min-content` es el piso que hace visible un error de reparto.** Sin el, una rejilla mal medida
+ *   encogeria las filas en silencio hasta recortar el texto por dentro, y eso no lo caza nadie mirando
+ *   la pared. Con el, las filas conservan su alto natural, lo que no entra desborda, y la prueba de
+ *   navegador —que mide cada `li` contra el marco— lo caza igual que antes.
+ *
+ * Lo que separa una fila de la siguiente sigue siendo un pelo de linea y no un `gap`: la densidad no
+ * se negocia, el aire se reparte DENTRO de la fila.
  */
+.pantalla-tablero {
+  display: grid;
+  grid-template-columns: 1fr;
+  grid-auto-rows: minmax(min-content, 1fr);
+  flex: 1 1 auto;
+  min-height: 0;
+  /*
+   * El techo de cuanto puede estirarse una fila: `--filas` lo pone la escena con cuantas trae.
+   *
+   * Sin techo, `1fr` reparte la banda ENTERA entre las filas que haya, y una escena con tres
+   * cronometros corriendo daria tres filas de 270 px con el texto flotando en medio de cada una. Eso
+   * no es un tablero: es una lista de tres cosas ocupando una pared. Con el techo, las filas se
+   * estiran hasta 7.4vmin —un 60% sobre su alto natural, que es lo que hace falta para absorber los
+   * 70 px sobrantes de una escena llena— y lo que sobre a partir de ahi se queda abajo como negro,
+   * que es lo correcto cuando de verdad hay poco que mostrar.
+   *
+   * El `99` del respaldo es "sin techo": si una escena se olvida de poner `--filas`, la regla no
+   * puede recortar nada.
+   */
+  max-height: calc(var(--filas, 99) * 7.4vmin);
+}
+
 .pantalla-tablero > * {
   border-bottom: 1px solid var(--color-linea);
 }
 
+/*
+ * === LA PASADA QUE LLENA EL TABLERO ===
+ *
+ * Al entrar una escena, las filas se descubren de izquierda a derecha, una despues de otra de arriba
+ * abajo. Es el gesto de un tablero que se rellena, y ademas es lo unico que cuenta a cuatro metros que
+ * lo que hay en la pared es OTRA cosa y no la misma lista con los numeros cambiados — que es como se
+ * leia con solo el fundido del bloque.
+ *
+ * **Se descubre con `clip-path` y no con un `translate`, y eso no es una preferencia.** Dentro de cada
+ * fila hay tiras de Solari cuyo rodillo ya esta animando su propio `translateY`; un segundo
+ * `transform` en la fila se compondria con el suyo y el volteo saldria torcido —es el mismo motivo por
+ * el que las filas dejaron de voltear enteras con `rotateX`—. Un recorte no se compone con nada: es
+ * una mascara del pintado, la cinta de dentro sigue cayendo recta, y lo resuelve el compositor igual.
+ *
+ * El escalon es de 16 ms: quince filas se descubren en 240 ms, o sea dentro del mismo golpe de vista.
+ * Arranca antes que la ola de fichas —que empieza en cuanto el dato esta— asi que los dos gestos se
+ * encadenan en vez de pisarse: primero aparece el renglon, despues se asientan sus cifras.
+ */
+@media (prefers-reduced-motion: no-preference) {
+  .pantalla-escena .pantalla-tablero > * {
+    animation: pantalla-fila-entra 460ms cubic-bezier(0.16, 1, 0.3, 1) backwards;
+    animation-delay: calc(var(--fila, 0) * 16ms);
+  }
+}
+
+@keyframes pantalla-fila-entra {
+  from {
+    opacity: 0;
+    clip-path: inset(0 100% 0 0);
+  }
+
+  to {
+    opacity: 1;
+    clip-path: inset(0 0 0 0);
+  }
+}
+
+/*
+ * El cebrado, en voz baja.
+ *
+ * Existe para no perder el renglon recorriendo dos metros de pared de izquierda a derecha, y esa es
+ * toda su funcion. El tono que tenia —`--color-superficie-elevada`, el mismo de una tarjeta del
+ * panel— convertia la tabla en un bloque de bandas grises que competia con el dato; a cuatro metros lo
+ * que se veia era la textura, no las Tareas.
+ *
+ * Con una tinta al 2,5% la banda se percibe solo cuando la vista la SIGUE, que es exactamente cuando
+ * hace falta, y desaparece cuando se mira la pared entera. Es la misma idea que la ranura de la aleta:
+ * lo que sostiene la lectura no tiene que pedir turno.
+ */
 .pantalla-tablero > *:nth-child(odd) {
-  background-color: var(--color-superficie-elevada);
+  background-color: var(--pantalla-cebra);
 }
 
 /*
@@ -171,7 +284,7 @@
 
   .pantalla-tablero-doble > *:nth-child(4n + 1),
   .pantalla-tablero-doble > *:nth-child(4n + 2) {
-    background-color: var(--color-superficie-elevada);
+    background-color: var(--pantalla-cebra);
   }
 }
 
@@ -188,6 +301,24 @@
   column-gap: 4vmin;
 }
 
+/*
+ * El canal que separa las dos mitades del tablero doble.
+ *
+ * Con 4vmin de aire y nada mas, las dos tablas se leian como una sola de ocho columnas y la vista
+ * saltaba de la jornada de la izquierda al nombre de la derecha. Una linea vertical —la misma tinta
+ * que las de fila— dice que son dos tablas sin gastar ni un pixel de ancho util.
+ *
+ * Va en los items impares y no como un `border` del contenedor porque el contenedor no tiene una
+ * columna donde ponerla: el canal es el `column-gap`, que no es un elemento.
+ */
+@media (orientation: landscape) {
+  .pantalla-tablero-doble > *:nth-child(odd) {
+    border-right: 1px solid var(--color-linea);
+    padding-right: 2vmin;
+    margin-right: -2vmin;
+  }
+}
+
 @media (orientation: portrait) {
   .pantalla-tablero-doble {
     grid-template-columns: 1fr;
@@ -195,9 +326,26 @@
   }
 }
 
-/* marca de estado | Tarea | Proyecto | estado | avance | vence | quien */
+/*
+ * marca de estado | Tarea | cliente | estado | avance | vence | quien
+ *
+ * === DE DONDE SALE ESTE REPARTO ===
+ *
+ * La pared tumbada deja 169.4vmin de fila util —177.8 de ancho menos el relleno del cuerpo y el de la
+ * fila— y seis canales de 1.6 se llevan 9.6. Lo que queda, 159.8, se reparte entre seis columnas fijas
+ * y la del nombre, que es la que se lleva el resto.
+ *
+ * **El cliente bajo de 33 a 25vmin SIN perder un caracter**, y es el cambio que financia todo lo demas:
+ * paso de caja alta a caja mixta, y una minuscula reserva 0.56em contra los 0.74 de una mayuscula. A
+ * 2.7vmin de cuerpo, 33vmin en caja alta daban 16 caracteres y 25vmin en caja mixta dan 16 tambien.
+ * Ocho vmin gratis. El estado hizo el mismo viaje de 18 a 16.
+ *
+ * Los ocho vmin liberados, mas los 2.4 de los canales, van enteros al nombre de la Tarea: de 51 a
+ * 69vmin, o sea de 30 a 41 caracteres. Era la columna que recortaba el unico dato que alguien lee
+ * desde el pasillo mientras el cliente —"ABASTIBLE" en una columna de dieciseis— sobraba ancho.
+ */
 .pantalla-columnas-procesos {
-  grid-template-columns: 0.8vmin minmax(0, 1fr) 33vmin 18vmin 9vmin 20vmin 23vmin;
+  grid-template-columns: 0.8vmin minmax(0, 1fr) 25vmin 18vmin 9vmin 21vmin 20vmin;
 }
 
 /*
@@ -207,55 +355,112 @@
  */
 @media (orientation: portrait) {
   .pantalla-columnas-procesos {
-    grid-template-columns: 0.8vmin minmax(0, 1fr) 20vmin 23vmin;
+    grid-template-columns: 0.8vmin minmax(0, 1fr) 21vmin 20vmin;
   }
 }
 
 /*
  * cara | Tarea | quien mide | cliente | contador
  *
- * El contador paso de 16 a 20vmin cuando se volvio una tira de fichas: `0:12:33` son siete fichas de
- * ancho fijo a 3.4vmin, o sea 18.8vmin, y en 16 entraban cinco — el numero se cortaba por la derecha y
- * la pared decia `0:12:` sin que nadie lo viera fallar. Los 4vmin salen del nombre de la Tarea, que es
- * la columna flexible y la que mas margen tenia.
+ * El contador se queda en 20vmin y no se toca: `0:12:33` son siete fichas de ancho fijo a 3.4vmin, o
+ * sea 18.8vmin, y con 16 entraban cinco — la pared decia `0:12:` sin que nadie lo viera fallar.
+ *
+ * Las otras dos columnas de apoyo se estrecharon 18vmin entre las dos: quien mide pasa a nombre
+ * abreviado —"Bernardita U.", como en la escena de Tareas— y el cliente pasa a caja mixta. Ese ancho
+ * va entero al nombre de la Tarea, que sube de 60 a 92vmin: de 35 a 54 caracteres, o sea de una frase
+ * cortada a la frase entera en casi todas las filas.
  */
 .pantalla-columnas-cronometros {
-  grid-template-columns: 4.2vmin minmax(0, 1fr) 34vmin 30vmin 20vmin;
+  grid-template-columns: 4.2vmin minmax(0, 1fr) 21vmin 25vmin 20vmin;
 }
 
 @media (orientation: portrait) {
   .pantalla-columnas-cronometros {
-    grid-template-columns: 4.2vmin minmax(0, 1fr) 26vmin 20vmin;
+    grid-template-columns: 4.2vmin minmax(0, 1fr) 21vmin 20vmin;
   }
 }
 
 /*
  * cara | nombre | cargo | jornada
  *
- * La jornada paso de 16 a 19vmin por lo mismo que el contador de los cronometros: siete fichas de
- * ancho fijo a 3vmin son 16.6vmin y no entraban. Los 3vmin salen del cargo, que va sobrio y con 19
- * sigue entrando entero.
+ * Es la unica escena a dos columnas, asi que cada tabla dispone de la MITAD de la pared: ~82vmin. Con
+ * tan poco ancho, cada vmin de una columna de apoyo sale del nombre, y el nombre es lo que la escena
+ * contesta.
+ *
+ * La jornada baja a 17vmin —siete fichas de ancho fijo a 3vmin son 16.6— y el cargo a 18, que es lo
+ * que mide "Operaciones", el mas largo de los que hay. El avatar baja a 3.8vmin, que es su diametro
+ * real. Lo que sobra va al nombre: 39vmin, o sea 23 caracteres, que es lo que mide "Bernardita
+ * Undurraga" — nombre de pila y primer apellido, que es como se identifica a alguien en Chile.
  */
 .pantalla-columnas-trabajando {
-  grid-template-columns: 4.2vmin minmax(0, 1fr) 19vmin 19vmin;
+  grid-template-columns: 3.8vmin minmax(0, 1fr) 20vmin 17vmin;
 }
 
 @media (orientation: portrait) {
   .pantalla-columnas-trabajando {
-    grid-template-columns: 4.2vmin minmax(0, 1fr) 23vmin 19vmin;
+    grid-template-columns: 3.8vmin minmax(0, 1fr) 24vmin 17vmin;
   }
 }
 
-/* Proyecto | barra | % | abiertas | atrasadas | entrega */
+/*
+ * Proyecto | barra | % o cuanto falta | abiertas | atrasadas | entrega
+ *
+ * Las cuatro columnas de la derecha estaban medidas contra su DATO y no contra su ROTULO, y el rotulo
+ * es lo que las cortaba: "ATRASADAS" en caja alta mide 18vmin a 2.7 de cuerpo y la columna tenia 21
+ * —pero el cupo que se le pasaba estaba calculado con el ancho de ficha, asi que pedia siete
+ * caracteres y la pared decia "ABIERT…"—. Ahora cada rotulo se mide con `ANCHO_MAYUSCULA_EM`, que es
+ * lo que de verdad ocupa.
+ *
+ * La columna que alterna subio de 8 a 16vmin, que es el arreglo mas visible de la escena: con 8
+ * entraban cinco caracteres y "en 12 días" salia como "en 1…". Los 8vmin salen de la barra de avance,
+ * que con 20 sigue siendo un grafico legible, y del recorte de las otras tres.
+ */
 .pantalla-columnas-espacios {
-  grid-template-columns: minmax(0, 1fr) 22vmin 8vmin 17vmin 21vmin 16vmin;
+  grid-template-columns: minmax(0, 1fr) 18vmin 16vmin 19vmin 21vmin 16vmin;
 }
 
 /* En vertical se caen la barra —el numero ya esta al lado— y la entrega. */
 @media (orientation: portrait) {
   .pantalla-columnas-espacios {
-    grid-template-columns: minmax(0, 1fr) 8vmin 17vmin 21vmin;
+    grid-template-columns: minmax(0, 1fr) 16vmin 19vmin 21vmin;
   }
+}
+
+/*
+ * === LA BARRA DE AVANCE, EN SEGMENTOS Y NO EN UNA TIRA CONTINUA ===
+ *
+ * Es la unica columna de la pared que no es texto, y hasta ahora era una pildora de 1vmin que se
+ * vaciaba: a cuatro metros, quince pildoras en columna se leen como una textura y no como quince
+ * datos, y para saber cuanto marca cada una hay que compararla con las de arriba y abajo.
+ *
+ * Partida en doce segmentos se lee **contando**, que es como se lee un indicador mecanico: no hace
+ * falta estimar una longitud, se ve que hay siete casillas encendidas de doce. Y encaja con el resto
+ * de la pared sin inventar un idioma nuevo — una fila de casillas y una tira de aletas son el mismo
+ * gesto: piezas discretas separadas por una junta.
+ *
+ * Los huecos entre segmentos los pinta un `::after` del color de la carcasa POR ENCIMA del relleno,
+ * y no un degradado dentro de cada capa: asi el segmento cae en el mismo sitio en la parte llena y en
+ * la vacia. Un `repeating-linear-gradient` dentro del relleno mediria sus porcentajes contra el ancho
+ * del relleno —que cambia con el dato— y las casillas se desalinearian con las del riel.
+ */
+.pantalla-barra {
+  --segmentos: 12;
+
+  position: relative;
+  overflow: hidden;
+  height: 1.3vmin;
+}
+
+.pantalla-barra::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: repeating-linear-gradient(
+    to right,
+    transparent 0 calc(100% / var(--segmentos) - 0.4vmin),
+    var(--color-superficie) calc(100% / var(--segmentos) - 0.4vmin) calc(100% / var(--segmentos))
+  );
+  pointer-events: none;
 }
 
 /*
@@ -300,14 +505,21 @@
    * letra heredado, que es lo que tiene que seguir. En `vmin` se despegaria del texto al cambiar el
    * `?zoom=`.
    *
-   * **1.08 y no 1.2, y es una medida de densidad, no de gusto.** El hueco es lo que marca el alto de
-   * la fila: con 1.2, el contador de 3.4vmin de los cronometros daba una ficha de 4.08vmin —mas alta
-   * que el avatar de 3.8— y las quince filas de la escena se salian del marco, que es exactamente lo
-   * que caza la prueba de navegador. Con 1.08 la ficha mide menos que el avatar y el tablero vuelve a
-   * entrar sin tocar ni el reparto de filas ni el piso tipografico. Por debajo de ~1.05 se empiezan a
-   * comer las colas de la `p` y la `g` en las columnas que van en caja mixta.
+   * **1.34 suelta y 1.08 en el tablero, y las dos son medidas y no gustos.**
+   *
+   * El paso es tambien el ALTO de la pieza, asi que decide cuanto aire queda entre la cifra y el
+   * borde. Una aleta de verdad tiene margen: la cifra ocupa algo mas de la mitad de la pieza, no su
+   * altura entera. Con 1.08 y el `13` de la portada —peso 800— el digito llegaba a rozar los dos
+   * bordes y la pieza dejaba de leerse como pieza. 1.34 le devuelve el canto por arriba y por abajo,
+   * que es donde vive el relieve, y deja sitio para que la ranura caiga a media altura del glifo y
+   * no sobre su trazo.
+   *
+   * En el tablero manda la otra restriccion y por eso baja a 1.08 (ver `.solari-tablero`): ahi el
+   * hueco marca el alto de la fila, con 1.2 el contador de 3.4vmin daba una pieza mas alta que el
+   * avatar y las quince filas se salian del marco —que es exactamente lo que caza la prueba de
+   * navegador—. Por debajo de ~1.05 se empiezan a comer las colas de la `p` y la `g`.
    */
-  --solari-paso: 1.08em;
+  --solari-paso: 1.34em;
 
   /*
    * El ancho de una ficha uniforme: la de las columnas del tablero, donde lo que importa es que dos
@@ -457,14 +669,14 @@
  * === LA ESTETICA DE ALETA ===
  *
  * Hasta acá el Solari era movimiento sobre texto normal. Esto es lo que lo hace **parecer** un panel
- * mecanico estando quieto: cada caracter en su ficha, con fondo propio, una junta que la separa de la
- * de al lado, y la linea de pliegue horizontal a media altura.
+ * mecanico estando quieto: cada caracter en su pieza, partida en dos mitades de distinta luz, con la
+ * ranura por la que se ve la carcasa y un canto iluminado arriba.
  *
- * **El pliegue es la firma, y por eso lo lleva todo.** Es la ranura donde se encuentran la mitad de
- * arriba y la de abajo de una aleta de verdad; sin ella, un caracter con fondo es un caracter con
- * fondo y nada mas. Va como `::after` del contenedor y no como un borde de cada hueco: es UNA linea
- * continua por celda —que ademas es como se ve en un panel, corrida de lado a lado— y asi la estetica
- * no cuesta ni un elemento de DOM en un tablero que ya tiene del orden de mil trescientos huecos.
+ * **La ranura es la firma, y por eso la lleva toda aleta.** Es donde se encuentran la mitad de arriba
+ * y la de abajo de una pieza de verdad; sin ella, un caracter con fondo es un caracter con fondo y
+ * nada mas. Va en el FONDO del hueco —una parada mas del mismo degradado— y no como una linea por
+ * encima: asi no corta el trazo de la cifra, no cuesta un pseudoelemento por tira, y se detiene en el
+ * borde de la pieza en vez de cruzar el aire entre dos.
  *
  * **Y lo lleva solo lo que es una cifra**, por una medida: una ficha de ancho fijo cuesta 0.79em por
  * caracter contra los 0.56 de un texto en caja mixta, o sea el 29% de los caracteres de una columna de
@@ -472,39 +684,33 @@
  * informacion, asi que son texto plano. El reparto completo esta en el docblock de `ANCHO_DE_FICHA_EM`
  * y el criterio en el de `esNumerico()`, los dos en el dominio.
  *
- * Es fondo y una linea: cero `transform`, cero `filter`, cero `perspective`. La ficha quieta sigue
- * siendo un bloque estatico, que es la condicion para dejar la pared encendida durante meses.
+ * Es un fondo y nada mas: cero `transform`, cero `filter`, cero `perspective`, cero elementos extra.
+ * La ficha quieta sigue siendo un bloque estatico, que es la condicion para dejar la pared encendida
+ * durante meses.
  */
 /*
- * El pliegue lo lleva toda tira, que desde el cambio son solo las cifras.
+ * La pieza entera en UNA propiedad: un degradado de bandas duras sobre el fondo del hueco.
  *
- * Las columnas de palabras ya no pasan por aca: son texto plano, sin fondo, sin junta, sin pliegue y
- * sin giro. Lo decide `esNumerico()` en el dominio; ver el docblock de `Ficha` en `piezas.tsx`.
+ * De arriba abajo: el canto iluminado, la mitad alta, la ranura por la que se ve la carcasa, y la
+ * mitad baja en sombra. Son paradas dobles —`color a b`— asi que no hay interpolacion: son bandas de
+ * color plano y el degradado es solo la forma de escribir cuatro rectangulos en una sola capa, sin un
+ * elemento extra y sin un repintado por fotograma.
+ *
+ * Va en el FONDO, asi que la ranura pasa por detras de la cifra y no la corta nunca. Ver el docblock
+ * de los tokens, arriba.
+ *
+ * Solo lo llevan las cifras: las columnas de palabras son texto plano, sin fondo, sin junta, sin
+ * ranura y sin giro. Lo decide `esNumerico()` en el dominio; ver `Ficha` en `piezas.tsx`.
  */
-.solari {
-  position: relative;
-}
-
-.solari::after {
-  content: '';
-  position: absolute;
-  inset-inline: 0;
-  /* A media altura de la tira, y en porcentaje: asi sigue centrado aunque el renglon cambie. */
-  top: calc(50% - var(--solari-pliegue-grosor) / 2);
-  height: var(--solari-pliegue-grosor);
-  background-color: var(--solari-pliegue);
-  /* Nada acá recibe clics —la pared no se toca— pero tampoco puede tapar la seleccion del texto. */
-  pointer-events: none;
-}
-
 .solari .solari-hueco {
-  /*
-   * La aleta: un escalon MAS OSCURO que el renglon, no mas claro. Un panel de Solari es plastico negro
-   * sobre una caja negra, y es lo unico que funciona sobre las dos bandas del cebrado a la vez —un
-   * fondo claro se comeria la fila impar y desapareceria en la par.
-   */
-  background-color: var(--solari-ficha);
-  border-radius: 0.08em;
+  background-image: linear-gradient(
+    to bottom,
+    var(--solari-canto) 0 0.025em,
+    var(--solari-aleta-alta) 0.025em calc(50% - var(--solari-ranura-grosor) / 2),
+    var(--solari-ranura) calc(50% - var(--solari-ranura-grosor) / 2) calc(50% + var(--solari-ranura-grosor) / 2),
+    var(--solari-aleta-baja) calc(50% + var(--solari-ranura-grosor) / 2) 100%
+  );
+  border-radius: 0.09em;
   /* La junta entre dos aletas. Entra en `ANCHO_DE_FICHA_EM` del dominio: ver `cupoDeFichas()`. */
   margin-right: var(--solari-junta);
 }
@@ -527,6 +733,8 @@
  */
 .solari-tablero {
   --escalon: 6ms;
+  /* El paso corto: en una fila de tablero el alto de la pieza ES el alto de la fila. Ver `.solari`. */
+  --solari-paso: 1.08em;
 }
 
 /*
@@ -566,7 +774,8 @@
  * la unica forma de que la degradacion no se pueda romper por descuido.
  */
 .pantalla-raiz[data-transicion='ninguna'] .solari-rodillo,
-.pantalla-raiz[data-transicion='ninguna'] .solari-gira {
+.pantalla-raiz[data-transicion='ninguna'] .solari-gira,
+.pantalla-raiz[data-transicion='ninguna'] .pantalla-tablero > * {
   animation: none;
 }
 
@@ -579,6 +788,7 @@
  */
 .pantalla-dos-tablas {
   display: flex;
+  flex: 1 1 auto;
   flex-direction: column;
   gap: 1.6vmin;
   min-height: 0;

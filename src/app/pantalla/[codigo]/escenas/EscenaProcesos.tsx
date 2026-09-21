@@ -1,12 +1,13 @@
-import type { ReactNode } from 'react'
+import type { CSSProperties, ReactNode } from 'react'
 import { cn } from '@/lib/clases'
 import { GLOSARIO } from '@/dominio/glosario'
-import { ANCHO_MAYUSCULA_EM, ANCHO_SOBRIO_EM, cupoDeFichas, planDeOla } from '@/dominio/solari'
+import { ANCHO_SOBRIO_EM, cupoDeFichas, planDeOla } from '@/dominio/solari'
 import type { PlanDeOla } from '@/dominio/solari'
 import type { TareaEnPantalla } from '@/datos/pantalla-area'
 import {
   CabeceraDeEscena, CeldaQueAlterna, CUERPO_COLUMNA, CUERPO_PRINCIPAL, FichaDeTablero,
-  MarcaDeCliente, Nada, RELLENO_DE_FILA, Rotulo, RotulosDeColumna, nombreCorto, rotuloDeAlcance
+  MarcaDeCliente, Nada, RELLENO_DE_FILA, Rotulo, RotulosDeColumna, cupoDeRotulo, nombreCorto,
+  rotuloDeAlcance
 } from './piezas'
 
 /** La rejilla de columnas de esta escena. Su reparto vive en `pantalla.css`. */
@@ -22,14 +23,35 @@ const COLUMNAS = 'pantalla-columnas-procesos'
 const PESOS = [6, 2, 2, 1, 1, 2] as const
 
 /**
+ * Lo que mide cada columna, en `vmin`, y **es el mismo numero que esta en `pantalla.css`**.
+ *
+ * Esta escrito dos veces porque no hay forma de que no lo este: el ancho tiene que ser una longitud
+ * CSS para que la rejilla lo reparta, y tiene que ser un numero de JavaScript para que `cupoDeFichas()`
+ * pueda decidir cuantos caracteres pedirle al texto. Lo que si se puede es que el numero de acá sea la
+ * UNICA fuente del cupo de la columna y del cupo de su rotulo, que es lo que evita el fallo que tenia
+ * la escena de Proyectos: dos cupos calculados a mano para la misma columna, uno de los dos mal.
+ *
+ * El nombre no esta en la lista porque no es un ancho fijo sino lo que sobra: ver `CUPO.nombre`.
+ */
+const ANCHO = {
+  /** Lo que sobra despues de las fijas, los canales y el relleno: no es un ancho, es un resto. */
+  nombre: 66,
+  cliente: 25,
+  estado: 18,
+  avance: 9,
+  vence: 21,
+  quien: 20
+} as const
+
+/**
  * Cuantos caracteres caben en cada columna.
  *
- * Los anchos son los de `.pantalla-columnas-procesos` en `pantalla.css` y no se pueden inventar acá:
- * una tira de fichas no se recorta con `truncate`, asi que lo que no cabe se dibuja igual y lo tapa el
+ * Los anchos son los de `ANCHO`, que son los de `.pantalla-columnas-procesos` en `pantalla.css`: una
+ * tira de fichas no se recorta con `truncate`, asi que lo que no cabe se dibuja igual y lo tapa el
  * `overflow` — DOM pagado a cambio de nada. Ver `cupoDeFichas()`.
  *
- * El nombre es la columna flexible: lo que sobra despues de las fijas, los seis huecos de 2vmin y el
- * relleno de fila, sobre los ~170vmin de la pared tumbada.
+ * El nombre es la columna flexible: lo que sobra despues de las fijas, los seis canales de 1.6vmin y
+ * el relleno de fila, sobre los 177.8vmin de la pared tumbada. Son 66vmin, o sea 39 caracteres.
  *
  * **Todas las columnas de palabras son texto plano y solo el porcentaje se dibuja como panel.** Se
  * probo al reves y la captura lo dejo claro: con fichas de ancho fijo, "En progreso" entraba como "EN PROGR…",
@@ -37,16 +59,21 @@ const PESOS = [6, 2, 2, 1, 1, 2] as const
  * cuesta 0.79em por caracter contra los 0.56 de una palabra, y en una fila de seis columnas eso es
  * casi un tercio de la informacion de la pared. Ver `ANCHO_DE_FICHA_EM` y `esNumerico()` en el
  * dominio. La columna de vencimiento cae de los dos lados: "12/05" es ficha y "Venció 12/05" no.
+ *
+ * **El cliente va en caja mixta y no en versalitas**, y ese es el cambio que financio el nombre de la
+ * Tarea: una mayuscula reserva 0.74em contra los 0.56 de una minuscula, asi que los 25vmin de ahora en
+ * caja mixta entregan los mismos dieciseis caracteres que los 33vmin de antes en caja alta. Ocho vmin
+ * que pasaron de dibujar aire a dibujar el nombre de la Tarea.
  */
 const CUPO = {
-  nombre: cupoDeFichas(51, 3, ANCHO_SOBRIO_EM),
-  cliente: cupoDeFichas(33, 2.7, ANCHO_MAYUSCULA_EM),
-  /** En caja mixta: "En progreso" son once caracteres y en mayusculas no entra en 18vmin. */
-  estado: cupoDeFichas(18, 2.7, ANCHO_SOBRIO_EM),
+  nombre: cupoDeFichas(ANCHO.nombre, 3, ANCHO_SOBRIO_EM),
+  cliente: cupoDeFichas(ANCHO.cliente, 2.7, ANCHO_SOBRIO_EM),
+  /** En caja mixta: "En progreso" son once caracteres y en mayusculas no entra en 16vmin. */
+  estado: cupoDeFichas(ANCHO.estado, 2.7, ANCHO_SOBRIO_EM),
   /** La unica columna de digitos de la fila, y por eso la unica con ficha entera. */
-  avance: cupoDeFichas(9, 2.7),
-  vence: cupoDeFichas(20, 2.7, ANCHO_SOBRIO_EM),
-  quien: cupoDeFichas(23, 2.7, ANCHO_SOBRIO_EM)
+  avance: cupoDeFichas(ANCHO.avance, 2.7),
+  vence: cupoDeFichas(ANCHO.vence, 2.7, ANCHO_SOBRIO_EM),
+  quien: cupoDeFichas(ANCHO.quien, 2.7, ANCHO_SOBRIO_EM)
 }
 
 /**
@@ -111,25 +138,34 @@ export function EscenaProcesos ({ items, ocultos, total, fase, esGlobal = false 
   const plan = planDeOla(items.length, PESOS)
 
   return (
-    <div className="flex min-h-0 flex-col">
+    // `flex-1`: la escena ocupa la banda entera, que es lo que permite a las filas del tablero
+    // repartirse lo que sobra en vez de dejarlo muerto al pie. Ver `.pantalla-tablero`.
+    <div className="flex min-h-0 flex-1 flex-col">
       <CabeceraDeEscena titulo={`${GLOSARIO.proceso.plural} ${rotuloDeAlcance(esGlobal)}`} total={total} ocultos={ocultos} />
 
       <RotulosDeColumna columnas={COLUMNAS}>
         <span />
-        <Rotulo texto={GLOSARIO.proceso.singular} columna={0} maximo={CUPO.nombre} />
-        <Rotulo texto={GLOSARIO.cliente.singular} columna={1} maximo={CUPO.cliente} className="portrait:hidden" />
-        <Rotulo texto="Estado" columna={2} maximo={CUPO.estado} className="portrait:hidden" />
-        <Rotulo texto="%" columna={3} maximo={CUPO.avance} className="text-right portrait:hidden" />
-        <Rotulo texto="Vence" columna={4} maximo={CUPO.vence} />
-        <Rotulo texto={fase === 0 ? 'Quién' : 'Prioridad'} columna={5} maximo={CUPO.quien} />
+        <Rotulo texto={GLOSARIO.proceso.singular} columna={0} maximo={cupoDeRotulo(ANCHO.nombre)} />
+        <Rotulo texto={GLOSARIO.cliente.singular} columna={1} maximo={cupoDeRotulo(ANCHO.cliente)} className="portrait:hidden" />
+        <Rotulo texto="Estado" columna={2} maximo={cupoDeRotulo(ANCHO.estado)} className="portrait:hidden" />
+        <Rotulo texto="%" columna={3} maximo={cupoDeRotulo(ANCHO.avance)} className="text-right portrait:hidden" />
+        <Rotulo texto="Vence" columna={4} maximo={cupoDeRotulo(ANCHO.vence)} />
+        <Rotulo texto={fase === 0 ? 'Quién' : 'Prioridad'} columna={5} maximo={cupoDeRotulo(ANCHO.quien)} />
       </RotulosDeColumna>
 
-      <ul className="pantalla-tablero min-h-0">
+      <ul
+        className="pantalla-tablero min-h-0"
+        // `--filas` es el techo de cuanto puede estirarse cada fila. Ver `.pantalla-tablero`.
+        style={{ '--filas': items.length } as CSSProperties}
+      >
         {items.map((tarea, indice) => (
           <li
             // Por POSICION y no por `tarea.id`. Ver el docblock de arriba: es la decision que convierte
             // el cambio de pagina en un volteo de caracteres en vez de en un remonte de la tabla.
             key={indice}
+            // `--fila` es la ranura de esta fila en la pasada que descubre el tablero al entrar la
+            // escena. Ver `.pantalla-fila-entra` en `pantalla.css`.
+            style={{ '--fila': indice } as CSSProperties}
             className={cn('pantalla-fila py-[0.55vmin] leading-[1.15]', RELLENO_DE_FILA, COLUMNAS)}
           >
             {/*
@@ -251,7 +287,10 @@ function Vencimiento ({ fecha, vencida, plan, fila }: {
       className={cn(
         'rounded-[0.8vmin] font-semibold',
         CUERPO_COLUMNA,
-        vencida ? 'bg-superficie-peligro text-texto-peligro px-[1vmin]' : 'text-texto-tenue'
+        // 0.7vmin de relleno y no 1: la pildora vive dentro de la columna, asi que su relleno sale
+        // del ancho que le queda al texto — y el texto es "Venció 12/05", que es justo lo que no se
+        // puede perder. Con 1vmin a cada lado la fecha se cerraba en puntos suspensivos.
+        vencida ? 'bg-superficie-peligro text-texto-peligro px-[0.7vmin]' : 'text-texto-tenue'
       )}
     />
   )

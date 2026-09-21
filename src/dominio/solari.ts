@@ -180,12 +180,21 @@ const ANCHOS_EN_EM = {
   puntuacion: 0.3,
   /** Mayusculas, que en cualquier fuente son mas anchas que su minuscula. */
   mayuscula: 0.72,
+  /**
+   * El signo de porcentaje, que tiene clase propia y no va con las letras anchas.
+   *
+   * Es el unico glifo no alfabetico que aparece dentro de una tira uniforme —"85%"— y el ancho que
+   * le tocaba con las `M` y las `W` (0.9em) abria un hueco visible entre la cifra y el signo: la
+   * columna de avance decia "0 %", que se lee como dos datos. Con 0.8em el signo no se aprieta
+   * contra sus bordes y la ficha sigue pareciendose a las de al lado.
+   */
+  porcentaje: 0.8,
   /** Todo lo demas. */
   normal: 0.58
 } as const
 
 /** Las letras que miden claramente mas que la media. */
-const LETRAS_ANCHAS = 'MWmw%@'
+const LETRAS_ANCHAS = 'MWmw@'
 
 /** Las letras que miden claramente menos que la media. */
 const LETRAS_FINAS = 'IiltfjJ'
@@ -201,6 +210,7 @@ const PUNTUACION = ' .,:;!¡?¿\'"`|()[]{}-–—/\\*+·°º…'
  */
 export function anchoDeGlifo (glifo: string): number {
   if (glifo === '') return ANCHOS_EN_EM.puntuacion
+  if (glifo === '%') return ANCHOS_EN_EM.porcentaje
   if (LETRAS_ANCHAS.includes(glifo)) return ANCHOS_EN_EM.ancha
   if (LETRAS_FINAS.includes(glifo)) return ANCHOS_EN_EM.fina
   if (PUNTUACION.includes(glifo)) return ANCHOS_EN_EM.puntuacion
@@ -210,6 +220,35 @@ export function anchoDeGlifo (glifo: string): number {
   if (glifo !== glifo.toLowerCase()) return ANCHOS_EN_EM.mayuscula
 
   return ANCHOS_EN_EM.normal
+}
+
+/**
+ * Lo que mide el hueco de una ficha uniforme, en `em`.
+ *
+ * Es el valor de `--ancho-columna` de `pantalla.css` —`1ch`, el ancho del digito de la fuente— escrito
+ * acá para poder razonar sobre el sin un navegador. No es exacto y no hace falta que lo sea: solo se
+ * usa para contestar una pregunta de si o no, la de `excedeElHuecoUniforme()`.
+ */
+export const ANCHO_UNIFORME_EM = 0.72
+
+/**
+ * Si un glifo no cabe en un hueco uniforme y necesita el suyo.
+ *
+ * La tira uniforme le da a toda posicion el mismo ancho, que es lo que alinea dos celdas de la misma
+ * columna del tablero. Funciona para los digitos —van con `tabular-nums` y miden todos igual— y para
+ * los separadores, que sobra aire. **No funciona para el `%`**, que mide 0.9em: metido en un hueco de
+ * 0.72 se dibuja apretado contra sus dos bordes y el `0%` de la columna de avance se leia `0 %`, como
+ * si fueran dos datos.
+ *
+ * Los pocos glifos anchos reciben su ancho propio aunque la tira sea uniforme. Rompe la alineacion de
+ * esa posicion —a cambio de que el dato se lea— y no rompe la de las columnas: el `%` va siempre al
+ * final de la celda y la celda va alineada a la derecha, asi que lo que se compara de fila a fila
+ * sigue cayendo en el mismo sitio.
+ *
+ * @param ancho lo que `anchoDeGlifo()` reserva para el glifo, en `em`
+ */
+export function excedeElHuecoUniforme (ancho: number): boolean {
+  return ancho > ANCHO_UNIFORME_EM
 }
 
 /**

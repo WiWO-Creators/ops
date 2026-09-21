@@ -1,12 +1,13 @@
-import type { ReactNode } from 'react'
+import type { CSSProperties, ReactNode } from 'react'
 import { cn } from '@/lib/clases'
 import { GLOSARIO } from '@/dominio/glosario'
 import { horaDeReloj } from '@/dominio/momento-del-dia'
-import { ANCHO_MAYUSCULA_EM, ANCHO_SOBRIO_EM, cupoDeFichas, planDeOla } from '@/dominio/solari'
+import { ANCHO_SOBRIO_EM, cupoDeFichas, planDeOla } from '@/dominio/solari'
 import type { CronometroEnPantalla } from '@/datos/pantalla-area'
 import {
   Cara, CabeceraDeEscena, CeldaQueAlterna, Corriendo, CUERPO_COLUMNA, CUERPO_PRINCIPAL,
-  FichaDeTablero, MarcaDeCliente, Nada, RELLENO_DE_FILA, Rotulo, RotulosDeColumna
+  FichaDeTablero, MarcaDeCliente, Nada, RELLENO_DE_FILA, Rotulo, RotulosDeColumna, cupoDeRotulo,
+  nombreCorto
 } from './piezas'
 
 /** La rejilla de columnas de esta escena. Su reparto vive en `pantalla.css`. */
@@ -20,23 +21,38 @@ const COLUMNAS = 'pantalla-columnas-cronometros'
 const PESOS = [6, 2, 2] as const
 
 /**
- * Cuantos caracteres caben en cada columna. Los anchos son los de `.pantalla-columnas-cronometros`.
+ * Lo que mide cada columna, en `vmin`: el mismo numero que esta en `.pantalla-columnas-cronometros`.
  *
- * El nombre de la Tarea dispone de ~71vmin en la pared tumbada, que darian 42 fichas; se corta en las
- * que da una columna de 60vmin porque un nombre de Tarea de mas de 35 caracteres es una frase entera,
- * y dibujar siete huecos mas por fila para enseñar el final de una frase que ya se entendio es DOM
- * pagado a cambio de nada.
+ * Ver el docblock de `ANCHO` en `EscenaProcesos`: de acá salen el cupo de la columna y el de su
+ * rotulo, para que no puedan discrepar.
+ */
+const ANCHO = {
+  /** Lo que sobra despues de las fijas: no es un ancho, es un resto. */
+  nombre: 92,
+  quien: 21,
+  cliente: 25,
+  lleva: 20
+} as const
+
+/**
+ * Cuantos caracteres caben en cada columna.
+ *
+ * El nombre de la Tarea dispone de 92vmin en la pared tumbada —54 caracteres— y ese es el cambio de
+ * la escena: antes eran 60vmin y 35 caracteres, y "Certificación de soldaduras de la línea 3" llegaba
+ * a la pared como "Certificación de soldaduras de la …". Los 32vmin salen de las dos columnas de
+ * apoyo: quien mide pasa a nombre abreviado y el cliente a caja mixta, y las dos entregan lo mismo en
+ * bastante menos sitio.
  *
  * Las tres columnas de palabras son texto plano y solo el contador se dibuja como panel mecanico: ver
- * `esNumerico()` en el dominio. Los cupos de palabras siguen calculados con el ancho sobrio porque es
- * el de un texto en caja mixta, que es justo lo que ahora dibujan.
+ * `esNumerico()` en el dominio. Los cupos de palabras van calculados con el ancho sobrio porque es el
+ * de un texto en caja mixta, que es justo lo que ahora dibujan las tres.
  */
 const CUPO = {
-  nombre: cupoDeFichas(60, 3, ANCHO_SOBRIO_EM),
-  quien: cupoDeFichas(26, 2.7, ANCHO_SOBRIO_EM),
-  cliente: cupoDeFichas(30, 2.7, ANCHO_MAYUSCULA_EM),
+  nombre: cupoDeFichas(ANCHO.nombre, 3, ANCHO_SOBRIO_EM),
+  quien: cupoDeFichas(ANCHO.quien, 2.7, ANCHO_SOBRIO_EM),
+  cliente: cupoDeFichas(ANCHO.cliente, 2.7, ANCHO_SOBRIO_EM),
   /** El contador: digitos, ancho fijo y ficha entera. Por eso su columna crecio a 20vmin. */
-  lleva: cupoDeFichas(20, 3.4)
+  lleva: cupoDeFichas(ANCHO.lleva, 3.4)
 }
 
 /**
@@ -87,22 +103,30 @@ export function EscenaCronometros ({ items, ocultos, ahora, congelado, zona, fas
   const plan = planDeOla(items.length, PESOS)
 
   return (
-    <div className="flex min-h-0 flex-col">
+    // `flex-1`: la escena ocupa la banda entera, que es lo que permite a las filas del tablero
+    // repartirse lo que sobra en vez de dejarlo muerto al pie. Ver `.pantalla-tablero`.
+    <div className="flex min-h-0 flex-1 flex-col">
       <CabeceraDeEscena titulo="Midiendo ahora" ocultos={ocultos} />
 
       <RotulosDeColumna columnas={COLUMNAS}>
         <span />
-        <Rotulo texto={GLOSARIO.proceso.singular} columna={0} maximo={CUPO.nombre} />
-        <Rotulo texto={fase === 0 ? 'Quién mide' : 'Arrancó'} columna={1} maximo={CUPO.quien} />
-        <Rotulo texto={GLOSARIO.cliente.singular} columna={2} maximo={CUPO.cliente} className="portrait:hidden" />
-        <Rotulo texto="Lleva" columna={3} maximo={CUPO.lleva} className="text-right" />
+        <Rotulo texto={GLOSARIO.proceso.singular} columna={0} maximo={cupoDeRotulo(ANCHO.nombre)} />
+        <Rotulo texto={fase === 0 ? 'Quién' : 'Arrancó'} columna={1} maximo={cupoDeRotulo(ANCHO.quien)} />
+        <Rotulo texto={GLOSARIO.cliente.singular} columna={2} maximo={cupoDeRotulo(ANCHO.cliente)} className="portrait:hidden" />
+        <Rotulo texto="Lleva" columna={3} maximo={cupoDeRotulo(ANCHO.lleva)} className="text-right" />
       </RotulosDeColumna>
 
-      <ul className="pantalla-tablero min-h-0">
+      <ul
+        className="pantalla-tablero min-h-0"
+        // `--filas` es el techo de cuanto puede estirarse cada fila. Ver `.pantalla-tablero`.
+        style={{ '--filas': items.length } as CSSProperties}
+      >
         {items.map((medidor, indice) => (
           <li
             // Por POSICION y no por `medidor.staff_id`. Ver el docblock de `EscenaProcesos`.
             key={indice}
+            // Su ranura en la pasada que descubre el tablero. Ver `pantalla.css`.
+            style={{ '--fila': indice } as CSSProperties}
             className={cn('pantalla-fila py-[0.45vmin] leading-[1.1]', RELLENO_DE_FILA, COLUMNAS)}
           >
             <Cara nombre={medidor.name} imagen={medidor.avatar} tamano="3.8vmin" />
@@ -119,10 +143,14 @@ export function EscenaCronometros ({ items, ocultos, ahora, congelado, zona, fas
               * alta porque es el gesto de un panel de aletas, pero un nombre propio en mayusculas
               * pierde la silueta por la que se reconoce a alguien recorriendo la columna con la vista
               * — que es exactamente para lo que esta esta columna.
+              *
+              * Y abreviado con `nombreCorto()`, igual que en la escena de Tareas: el nombre entero
+              * pedia 34vmin de columna y los sacaba del nombre de la Tarea, que es lo que la fila
+              * identifica. "Bernardita U." se lee y se busca recorriendo la columna con la vista.
               */}
             <CeldaQueAlterna
               fase={fase}
-              principal={medidor.name}
+              principal={nombreCorto(medidor.name)}
               alterno={arrancoA(medidor.started_at, zona)}
               sitio={{ plan, fila: indice, columna: 1 }}
               maximo={CUPO.quien}

@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import type { CSSProperties, ReactNode } from 'react'
 import { cn } from '@/lib/clases'
 import { horaDeReloj } from '@/dominio/momento-del-dia'
 import { ANCHO_SOBRIO_EM, cupoDeFichas, planDeOla } from '@/dominio/solari'
@@ -6,7 +6,8 @@ import type { PlanDeOla } from '@/dominio/solari'
 import type { PersonaTrabajando } from '@/datos/pantalla-area'
 import {
   Cara, CabeceraDeEscena, CeldaQueAlterna, Corriendo, CUERPO_COLUMNA, CUERPO_PRINCIPAL,
-  DESFASE_DE_ROTULOS, FichaDeTablero, Nada, RELLENO_DE_FILA, Rotulo, RotulosDeColumna
+  DESFASE_DE_ROTULOS, FichaDeTablero, Nada, RELLENO_DE_FILA, Rotulo, RotulosDeColumna, cupoDeRotulo,
+  nombreCompacto
 } from './piezas'
 
 /** La rejilla de columnas de esta escena. Su reparto vive en `pantalla.css`. */
@@ -21,20 +22,37 @@ const COLUMNAS = 'pantalla-columnas-trabajando'
 const PESOS = [6, 3] as const
 
 /**
- * Cuantos caracteres caben en cada columna. Los anchos son los de `.pantalla-columnas-trabajando`.
+ * Lo que mide cada columna, en `vmin`: el mismo numero que esta en `.pantalla-columnas-trabajando`.
+ *
+ * Ver el docblock de `ANCHO` en `EscenaProcesos`.
+ */
+const ANCHO = {
+  /** Lo que sobra en media pared despues de la cara, el cargo, la jornada y los canales. */
+  nombre: 37,
+  cargo: 20,
+  jornada: 17
+} as const
+
+/**
+ * Cuantos caracteres caben en cada columna.
  *
  * Esta escena va a dos columnas de tablero, asi que cada tabla dispone de la mitad de la pared: unos
- * 83vmin, de los que el nombre se queda con lo que sobra despues de la cara, el cargo, la jornada y
- * los huecos. En vertical la columna del nombre es mas ancha, asi que manda la medida horizontal.
+ * 82vmin, de los que el nombre se queda con lo que sobra despues de la cara, el cargo, la jornada y
+ * los canales. El cargo se lleva 20 porque "Dirección de arte" existe y en 18 salia "Dirección …". En vertical la columna del nombre es mas ancha, asi que manda la medida horizontal.
+ *
+ * **Son 37vmin —22 caracteres—, y esa cifra decidio como se escribe un nombre acá.** Un nombre chileno
+ * entero, "Bernardita Undurraga Soto", son veinticinco: recortado a secas salia "Bernardita Undurr…",
+ * que no es ni el nombre ni una abreviatura sino una palabra partida, y era lo que se veia en TODAS
+ * las filas de la captura. Con `nombreCompacto()` —pila y primer apellido— entra entero y sobra sitio.
  *
  * El nombre y el cargo son texto plano y solo la jornada se dibuja como panel: ver `ANCHO_DE_FICHA_EM`
  * y `esNumerico()` en el dominio.
  */
 const CUPO = {
-  nombre: cupoDeFichas(31, 3, ANCHO_SOBRIO_EM),
-  cargo: cupoDeFichas(19, 2.7, ANCHO_SOBRIO_EM),
-  /** El contador: digitos, ancho fijo y ficha entera. Por eso su columna crecio a 19vmin. */
-  jornada: cupoDeFichas(19, 3)
+  nombre: cupoDeFichas(ANCHO.nombre, 3, ANCHO_SOBRIO_EM),
+  cargo: cupoDeFichas(ANCHO.cargo, 2.7, ANCHO_SOBRIO_EM),
+  /** El contador: digitos, ancho fijo y ficha entera. Siete fichas a 3vmin son 16.6. */
+  jornada: cupoDeFichas(ANCHO.jornada, 3)
 }
 
 /** Una tabla ya paginada, con lo que su cabecera necesita decir. */
@@ -133,11 +151,13 @@ export function EscenaTrabajando ({ compania, area, nombreDelArea, zona, ahora, 
 /**
  * Una de las dos tablas: cabecera, rotulos y filas.
  *
- * `shrink-0` y no `min-h-0` a proposito. Con las tablas encogiendose, un reparto de filas mal medido
- * dejaria filas fuera del marco sin mover nada mas y nadie se enteraria —`overflow: hidden` no produce
- * barra de scroll, corta—. Sin encoger, lo que no cabe empuja la cabecera de la tabla de abajo por
- * debajo del marco, que es justo lo que `pruebas/pantalla-area.browser.mjs` sabe cazar midiendo los
- * `h2`. El fallo se ve; el silencio, no.
+ * `flex-1 min-h-0` y no `shrink-0`, y el cambio es seguro por una razon que antes no existia: las
+ * filas del tablero valen `minmax(min-content, 1fr)`, asi que **no pueden encogerse por debajo de su
+ * alto natural**. La tabla crece para llenar la banda que le toca —era donde se veia peor el hueco
+ * muerto, porque acá hay dos tablas y dos huecos— y lo que no entre sigue desbordando por abajo y
+ * empujando la cabecera de la de abajo fuera del marco, que es justo lo que
+ * `pruebas/pantalla-area.browser.mjs` sabe cazar midiendo los `h2`. El fallo se sigue viendo; el
+ * silencio sigue sin existir.
  */
 function TablaDeTrabajando ({ titulo, tabla, plan, desfase, zona, ahora, congelado, fase }: {
   titulo: string
@@ -150,7 +170,7 @@ function TablaDeTrabajando ({ titulo, tabla, plan, desfase, zona, ahora, congela
   fase: 0 | 1
 }): ReactNode {
   return (
-    <div className="flex shrink-0 flex-col">
+    <div className="flex min-h-0 flex-1 flex-col">
       <CabeceraDeEscena titulo={titulo} total={tabla.total ?? undefined} ocultos={tabla.ocultos} />
 
       {/*
@@ -166,18 +186,26 @@ function TablaDeTrabajando ({ titulo, tabla, plan, desfase, zona, ahora, congela
         </div>
       </div>
 
-      <ul className="pantalla-tablero pantalla-tablero-doble">
+      <ul
+        className="pantalla-tablero pantalla-tablero-doble"
+        // El techo va sobre los ITEMS y no sobre los renglones, aunque acá un renglon sean dos items:
+        // en vertical la tabla vuelve a una sola columna y el CSS no puede saberlo. Contar de mas
+        // nunca recorta —el techo solo tiene que ser mayor que el alto natural— y contar de menos si.
+        style={{ '--filas': tabla.items.length } as CSSProperties}
+      >
         {tabla.items.map((persona, indice) => (
           <li
             // Por POSICION y no por `persona.staff_id`: la fila se queda donde esta y lo que cambia es
             // su texto, caracter a caracter. Ver el docblock de `EscenaProcesos`.
             key={indice}
+            // Su ranura en la pasada que descubre el tablero. Ver `pantalla.css`.
+            style={{ '--fila': indice } as CSSProperties}
             className={cn('pantalla-fila py-[0.45vmin] leading-[1.1]', RELLENO_DE_FILA, COLUMNAS)}
           >
             <Cara nombre={persona.name} imagen={persona.avatar} tamano="3.8vmin" />
 
             <FichaDeTablero
-              texto={persona.name}
+              texto={nombreCompacto(persona.name)}
               sitio={{ plan, fila: indice, columna: 0, desfase }}
               maximo={CUPO.nombre}
               className={cn('text-texto font-semibold', CUERPO_PRINCIPAL)}
@@ -220,9 +248,9 @@ function RotulosDeTrabajando ({ fase, desfase }: { fase: 0 | 1, desfase: number 
   return (
     <RotulosDeColumna columnas={COLUMNAS}>
       <span />
-      <Rotulo texto="Persona" columna={0} desfase={desfase} maximo={CUPO.nombre} />
-      <Rotulo texto={fase === 0 ? 'Cargo' : 'Entró'} columna={1} desfase={desfase} maximo={CUPO.cargo} />
-      <Rotulo texto="Jornada" columna={2} desfase={desfase} maximo={CUPO.jornada} className="text-right" />
+      <Rotulo texto="Persona" columna={0} desfase={desfase} maximo={cupoDeRotulo(ANCHO.nombre)} />
+      <Rotulo texto={fase === 0 ? 'Cargo' : 'Entró'} columna={1} desfase={desfase} maximo={cupoDeRotulo(ANCHO.cargo)} />
+      <Rotulo texto="Jornada" columna={2} desfase={desfase} maximo={cupoDeRotulo(ANCHO.jornada)} className="text-right" />
     </RotulosDeColumna>
   )
 }

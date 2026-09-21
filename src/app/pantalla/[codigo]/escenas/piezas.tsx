@@ -41,8 +41,33 @@ export const CUERPO_PRINCIPAL = 'text-[3vmin]'
 /** Los campos de apoyo del tablero, y el piso tipografico de toda la pantalla. */
 export const CUERPO_COLUMNA = 'text-[2.7vmin]'
 
-/** Los rotulos de columna. */
-export const CUERPO_ETIQUETA = 'text-[2.7vmin] tracking-[0.16em] uppercase'
+/**
+ * Los rotulos de columna.
+ *
+ * **El `tracking` bajo de 0.16 a 0.08em, y no es un ajuste de gusto: es lo que los estaba cortando.**
+ * Un rotulo en versalitas con 0.16em de espaciado ocupa 0.90em por letra —0.74 de la mayuscula mas el
+ * espacio— o sea un 22% mas de lo que cualquier cuenta de cupo le reservaba, porque el espaciado no
+ * entra en `anchoDeGlifo()`. "ATRASADAS" pedia 20vmin en una columna de 17 y la pared decia
+ * "ATRASADA:" pisando la columna de al lado. Con 0.08em el rotulo sigue leyendose como un rotulo —el
+ * espaciado es lo que lo separa del dato— y cabe. Quien lo mide es `cupoDeRotulo()`, que ahora si
+ * cuenta el espaciado.
+ */
+export const CUERPO_ETIQUETA = 'text-[2.7vmin] tracking-[0.08em] uppercase'
+
+/**
+ * El titulo de una escena de lista.
+ *
+ * Es el cuarto cuerpo y el unico que se agrego al rediseño, porque faltaba una jerarquia entera: el
+ * titulo se dibujaba con `CUERPO_ETIQUETA`, o sea exactamente igual que los rotulos de columna que
+ * van justo debajo. Dos renglones seguidos en versalitas del mismo cuerpo y del mismo peso no son una
+ * jerarquia: a cuatro metros la pared empezaba con dos lineas de letra chica y el ojo no sabia cual
+ * de las dos era el nombre de lo que esta mirando.
+ *
+ * 3.4vmin —36 px a 1080p— lo pone por encima del nombre de la Tarea sin competir con el, y el
+ * `tracking` baja de 0.16 a 0.08em: un titulo largo como "Trabajando en la compañía" con el espaciado
+ * de un rotulo ocupaba media pared para decir tres palabras.
+ */
+export const CUERPO_TITULO = 'text-[3.4vmin] tracking-[0.08em] uppercase'
 
 /**
  * De quien es lo que la escena esta mostrando: "del área" o "de la compañía".
@@ -70,7 +95,34 @@ export function rotuloDeAlcance (esGlobal: boolean): string {
  * la izquierda de los Proyectos y la tabla deja de ser una tabla. Lo vigila la prueba de navegador,
  * que compara el `grid-template-columns` resuelto de las dos.
  */
-export const RELLENO_DE_FILA = 'px-[1.5vmin]'
+export const RELLENO_DE_FILA = 'px-[1.2vmin]'
+
+/**
+ * Cuantos caracteres entran en un ROTULO de columna de `anchoVmin` de ancho.
+ *
+ * Existe porque el bug era justamente este: las escenas le pasaban al rotulo el mismo cupo que al
+ * dato, y el dato de esas columnas eran digitos. Un cupo de digitos se calcula con el ancho de una
+ * ficha —0.79em, que es lo que ocupa un hueco de ancho fijo con su junta—, y un rotulo no es una
+ * ficha: es texto plano en caja alta, donde cada letra reserva 0.74em. Los numeros se parecen lo
+ * bastante como para que nadie sospechara, y lo bastante poco como para que la pared dijera
+ * "ABIERT…" en una columna donde "ABIERTAS" entra de sobra.
+ *
+ * Todos los rotulos van a `CUERPO_ETIQUETA`, asi que el cuerpo no es un parametro: es 2.7vmin.
+ *
+ * @param anchoVmin lo que mide su columna en `pantalla.css`
+ */
+export function cupoDeRotulo (anchoVmin: number): number {
+  return cupoDeFichas(anchoVmin, 2.7, ANCHO_DE_ROTULO_EM)
+}
+
+/**
+ * Lo que ocupa una letra de rotulo, en `em`: la mayuscula mas el espaciado entre letras.
+ *
+ * El espaciado no es parte del glifo y por eso `anchoDeGlifo()` no lo conoce, pero si es parte de lo
+ * que el rotulo ocupa en su columna. Sumarlo acá es la unica forma de que el cupo diga la verdad; el
+ * valor es el `tracking` de `CUERPO_ETIQUETA` y los dos se mueven juntos.
+ */
+const ANCHO_DE_ROTULO_EM = ANCHO_MAYUSCULA_EM + 0.08
 
 /**
  * El diametro por debajo del cual las iniciales dejan de dibujarse.
@@ -147,8 +199,15 @@ export function Cara ({ nombre, imagen, tamano = '3.8vmin' }: {
  * columna tampoco. Va como imagen `contain`, con la altura de la fila como techo, asi que un logo
  * apaisado y uno cuadrado ocupan lo mismo de alto y la fila no cambia de altura segun el cliente.
  *
- * El nombre, en cambio, es texto de tablero y se comporta como la columna que reemplaza: mismas
- * mayusculas, mismo cupo, misma ola. Un cliente sin logo no degrada la fila, solo la escribe.
+ * El nombre, en cambio, es texto de tablero y se comporta como la columna que reemplaza: mismo cupo,
+ * misma ola. Un cliente sin logo no degrada la fila, solo la escribe.
+ *
+ * **Va en caja mixta y no en versalitas.** Las columnas cortas del tablero van en caja alta porque es
+ * el gesto de un panel de aletas, pero una mayuscula reserva 0.74em contra los 0.56 de una minuscula:
+ * en versalitas, "ANDES LOGÍSTICA REGIONAL" y "MUNICIPALIDAD DE MAIPÚ" se cortaban las dos y la pared
+ * decia "MUNICIPALIDAD D…", que no nombra a nadie. En caja mixta entran completos en una columna ocho
+ * vmin mas estrecha, y esos ocho vmin son los que le devolvieron al nombre de la Tarea los caracteres
+ * que le faltaban. Un nombre propio ademas se reconoce por su silueta, que la caja alta destruye.
  *
  * === EL LOGO QUE NO CARGA ===
  *
@@ -168,11 +227,11 @@ export function MarcaDeCliente ({ cliente, sitio, maximo, className }: {
   const logo = cliente?.image_url ?? null
 
   if (cliente === null) {
-    return <FichaDeTablero mayusculas texto="—" sitio={sitio} maximo={maximo} className={className} />
+    return <FichaDeTablero texto="—" sitio={sitio} maximo={maximo} className={className} />
   }
 
   if (logo === null || logo === '' || logoRoto) {
-    return <FichaDeTablero mayusculas texto={cliente.name} sitio={sitio} maximo={maximo} className={className} />
+    return <FichaDeTablero texto={cliente.name} sitio={sitio} maximo={maximo} className={className} />
   }
 
   return (
@@ -211,6 +270,33 @@ export function nombreCorto (nombre: string): string {
   if (siguiente === undefined) return pila
 
   return `${pila} ${siguiente.slice(0, 1)}.`
+}
+
+/**
+ * "Bernardita Undurraga Soto" a "Bernardita Undurraga". El nombre que identifica sin gastar la fila.
+ *
+ * Es el escalon intermedio entre el nombre entero y el `nombreCorto()` de una columna de apoyo, y
+ * existe para la escena de gente, que es la unica a dos columnas: ahi el nombre dispone de media
+ * pared —39vmin, o sea 23 caracteres— y un nombre chileno completo son casi treinta. Recortado a
+ * secas quedaba "Bernardita Undurr…", que es la peor de las tres opciones: ni el nombre entero, ni
+ * una abreviatura que se lea en voz alta, sino una palabra partida.
+ *
+ * Se queda con el nombre de pila y el primer apellido, que es por donde se identifica a alguien en la
+ * convencion chilena. El segundo apellido no distingue nada que el primero no distinga ya, y en una
+ * pared de trabajo nunca hace falta.
+ */
+export function nombreCompacto (nombre: string): string {
+  const partes = nombre.trim().split(/\s+/).filter((parte) => parte !== '')
+
+  // Con dos palabras no hay nada que quitar, y quitar una dejaria solo el nombre de pila.
+  if (partes.length <= 2) return partes.join(' ')
+
+  // Con tres o mas, la ULTIMA es el segundo apellido y es la que sobra: no distingue nada que el
+  // primero no distinga ya. Quitar la segunda en su lugar romperia los nombres compuestos —"José
+  // Luis Pérez" quedaria en "José Pérez", que es otra persona— y son un tercio de los nombres
+  // chilenos. Lo que queda se corta en tres palabras: "María José Pérez Soto" cabe como "María José
+  // Pérez".
+  return partes.slice(0, -1).slice(0, 3).join(' ')
 }
 
 /**
@@ -274,6 +360,18 @@ export interface SitioEnLaOla {
  * antes montaba un centenar de fichas girando en el mismo fotograma —medido: el pico de la escena, por
  * encima del de la ola del tablero— para animar unas etiquetas que nadie leia, ahora no monta ninguna.
  *
+ * === EL CUPO ES LA MEDIDA HORIZONTAL, Y EL `text-ellipsis` ES LA RED ===
+ *
+ * `maximo` esta calculado contra la pared TUMBADA, que es como cuelgan todas. En la de pie la columna
+ * flexible es la mitad de ancha y el mismo texto no entra: sin nada mas, `overflow: hidden` lo cortaba
+ * a mitad de palabra contra la columna de al lado, sin una señal de que faltaba algo —se leia
+ * "Revisión estructural del galpón nc" pegado a la fecha—. Con `text-ellipsis` lo que sobra se cierra
+ * con puntos suspensivos, que es la diferencia entre una frase recortada y una frase rota.
+ *
+ * No sustituye al cupo y no puede: el puntito solo funciona sobre texto plano, y una tira de fichas es
+ * una fila de `inline-block` que el navegador no sabe recortar. Es la red de abajo, para el caso que
+ * el cupo no puede prever porque depende de la orientacion.
+ *
  * @param texto      lo que tiene que decir
  * @param maximo     cuantos caracteres caben donde va; ver `cupoDeFichas()`
  * @param mayusculas si va en mayusculas, como las aletas de un panel de verdad
@@ -293,7 +391,7 @@ export function Ficha ({
   const contenido = textoDeFicha(texto, maximo, mayusculas)
 
   return (
-    <span className={cn('block overflow-hidden whitespace-nowrap', className)}>
+    <span className={cn('block overflow-hidden text-ellipsis whitespace-nowrap', className)}>
       {esNumerico(contenido)
         ? <TextoSolari uniforme texto={contenido} tope={tope} onda={onda} />
         : contenido}
@@ -326,11 +424,11 @@ export function FichaDeTablero ({ texto, sitio, maximo, mayusculas = false, clas
   const contenido = textoDeFicha(texto, maximo, mayusculas)
 
   if (!esNumerico(contenido)) {
-    return <span className={cn('block overflow-hidden whitespace-nowrap', className)}>{contenido}</span>
+    return <span className={cn('block overflow-hidden text-ellipsis whitespace-nowrap', className)}>{contenido}</span>
   }
 
   return (
-    <span className={cn('block overflow-hidden whitespace-nowrap', className)}>
+    <span className={cn('block overflow-hidden text-ellipsis whitespace-nowrap', className)}>
       <TextoSolari
         uniforme
         className="solari-tablero"
@@ -388,7 +486,7 @@ export function Corriendo ({ desde, ahora, congelado, fila, filas, maximo, class
   className?: string
 }): ReactNode {
   return (
-    <span className={cn('block overflow-hidden whitespace-nowrap', congelado && 'opacity-60', className)}>
+    <span className={cn('block overflow-hidden text-ellipsis whitespace-nowrap', congelado && 'opacity-60', className)}>
       <TextoSolari
         className="solari-tablero solari-contador"
         texto={textoDeFicha(relojDeContador(desde, ahora), maximo)}
@@ -469,11 +567,25 @@ export function CabeceraDeEscena ({ titulo, total, ocultos }: {
   ocultos: number
 }): ReactNode {
   return (
-    <div className="mb-[0.8vmin] flex shrink-0 items-baseline justify-between gap-[3vmin]">
-      <h2 className={cn('text-texto-tenue flex min-w-0 items-baseline gap-[1.5vmin] font-semibold', CUERPO_ETIQUETA)}>
+    <div className="mb-[1.1vmin] flex shrink-0 items-center justify-between gap-[3vmin]">
+      <h2 className={cn('text-texto flex min-w-0 items-center gap-[1.6vmin] font-bold', CUERPO_TITULO)}>
+        {/*
+          * El galon: una marca de color a la altura del titulo, del mismo alto que la mayuscula.
+          *
+          * Es lo unico que ancla la esquina superior izquierda de la banda. Sin el, las cuatro escenas
+          * de lista empiezan con un renglon de texto suelto flotando sobre la tabla, y la pared no
+          * tiene ni un punto de entrada para la vista — que en un tablero de verdad es el borde del
+          * chasis.
+          */}
+        <span className="bg-acento h-[2.6vmin] w-[0.5vmin] shrink-0 rounded-full" />
+
         <Ficha mayusculas tope={TOPE_SUELTO} texto={titulo} maximo={CUPO_DE_TITULO} />
+
         {total !== undefined && (
-          <span className="text-texto-sutil shrink-0 font-normal tracking-normal">
+          // El conteo es lo unico de la cabecera que es una cifra, asi que es lo unico que se dibuja
+          // como panel y lo unico que voltea. Va en el color del acento porque es el dato, no el
+          // rotulo.
+          <span className="text-acento shrink-0 tracking-normal">
             <Ficha tope={TOPE_SUELTO} onda={6} texto={String(total)} maximo={CUPO_DE_CIFRA} />
           </span>
         )}
@@ -488,8 +600,8 @@ export function CabeceraDeEscena ({ titulo, total, ocultos }: {
   )
 }
 
-/** Lo que cabe en el titulo de una escena: la mitad del ancho de la pared a 2.7vmin, en texto plano. */
-const CUPO_DE_TITULO = cupoDeFichas(85, 2.7, ANCHO_MAYUSCULA_EM)
+/** Lo que cabe en el titulo de una escena: la mitad del ancho de la pared a 3.4vmin, en texto plano. */
+const CUPO_DE_TITULO = cupoDeFichas(85, 3.4, ANCHO_MAYUSCULA_EM)
 
 /** Un conteo de la cabecera. Cuatro cifras son 9.999 Tareas abiertas: no hay un area asi. */
 const CUPO_DE_CIFRA = 4
@@ -512,7 +624,10 @@ export function RotulosDeColumna ({ columnas, children }: {
   return (
     <div
       className={cn(
-        'pantalla-fila border-linea-fuerte text-texto-sutil shrink-0 border-b pb-[0.6vmin] font-semibold',
+        // Peso 500 y no 600, y el tono mas apagado de los tres: un rotulo se lee UNA vez y despues se
+        // reconoce por la posicion. Con el peso del dato competia con el dato en las quince filas de
+        // debajo, que es donde de verdad hay que mirar.
+        'pantalla-fila border-linea-fuerte text-texto-sutil shrink-0 border-b pb-[0.7vmin] font-medium',
         RELLENO_DE_FILA,
         CUERPO_ETIQUETA,
         columnas

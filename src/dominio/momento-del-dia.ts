@@ -210,6 +210,38 @@ export function horaDeReloj (ahora: number | null, zona: string | null): string 
 }
 
 /**
+ * El dia de hoy escrito largo: "lunes 21 de septiembre".
+ *
+ * Lo usa la portada, que es la escena que nombra el area y no cuenta nada mas. Una pared que dice el
+ * dia sirve para algo que suena tonto hasta que falta: confirmar de un vistazo que lo que se esta
+ * mirando es de HOY. Un televisor colgado que se quedo pegado hace dos dias se ve exactamente igual
+ * que uno al dia, y esta es la unica linea de la pantalla que delata la diferencia sin esperar a que
+ * cambie un contador.
+ *
+ * Va en la zona del negocio y no en la del aparato, por lo mismo que el reloj: un televisor barato
+ * tiene el reloj mal a menudo y a veces en UTC, y a las nueve de la noche eso ya es otro dia.
+ *
+ * @param ahora instante en milisegundos, o `null` antes de hidratar
+ * @param zona  zona IANA de la API, o `null` para dejar que formatee en la del aparato
+ * @returns el dia ya formateado, o una cadena vacia mientras no haya instante
+ */
+export function diaDeCalendario (ahora: number | null, zona: string | null): string {
+  if (ahora === null || !Number.isFinite(ahora)) return ''
+
+  const opciones: Intl.DateTimeFormatOptions = { weekday: 'long', day: 'numeric', month: 'long' }
+
+  if (zona !== null && zona !== '') opciones.timeZone = zona
+
+  try {
+    return new Intl.DateTimeFormat('es-CL', opciones).format(new Date(ahora))
+  } catch {
+    // Misma razon que en `horaDeReloj()`: una zona que no se entiende no puede apagar la portada.
+    return new Intl.DateTimeFormat('es-CL', { weekday: 'long', day: 'numeric', month: 'long' })
+      .format(new Date(ahora))
+  }
+}
+
+/**
  * `HH:MM` a minutos del dia.
  *
  * @param hora la hora local escrita en la constante
