@@ -34,6 +34,62 @@ export const SOLO_CON_ESPACIO = 'filter[project_id__not_empty]=1'
 /** Deja solo las que no cuelgan de ninguno: las privadas. */
 export const SOLO_SIN_ESPACIO = 'filter[project_id__empty]=1'
 
+/** Como se anota en la URL de la hoja que tambien se quieren ver las completadas. */
+export const PARAMETRO_COMPLETADAS = 'completadas'
+
+/**
+ * El fragmento que suma las completadas a una lista, sin quitarle las abiertas.
+ *
+ * `GET /tasks` esconde las completadas salvo que viaje un filtro de `status` o de `completed`
+ * (`RecursoProcesos::listar()`), y `completed` es un filtro declarado del recurso: la expresion
+ * `CASE WHEN status = 5 THEN 1 ELSE 0 END`. Por eso la lista de dos valores —`0,1`, que el nucleo
+ * traduce a `IN (0, 1)`— es la unica forma de decir "todas": `filter[completed]=1` traeria SOLO las
+ * completadas, y `filter[status]` con el catalogo entero se desactualizaria cada vez que el panel
+ * agregue un estado.
+ *
+ * Que las completadas aparezcan JUNTO a las abiertas, y no en una lista aparte, es lo que resuelve
+ * el caso que pidio el interruptor: una Tarea cerrada por error se corrige donde estaba, sin tener
+ * que adivinar en que lista quedo.
+ */
+export const CON_COMPLETADAS = 'filter[completed]=0,1'
+
+/**
+ * Si la consulta de la URL pide ver tambien las completadas.
+ *
+ * @param params la consulta vigente de la hoja
+ * @returns `true` solo con el valor exacto que escribe el interruptor; cualquier otro se ignora en
+ *          vez de encenderlo, para que un `?completadas=0` pegado a mano no muestre lo contrario de
+ *          lo que dice
+ */
+export function seVenCompletadas (params: URLSearchParams): boolean {
+  return params.get(PARAMETRO_COMPLETADAS) === '1'
+}
+
+/**
+ * Enciende o apaga las completadas en la consulta de la URL.
+ *
+ * Es el mismo gesto que `alternarCompletados` en `/procesos` —el estado vive en la URL y se conserva
+ * lo demas—, pero no puede ser la misma funcion: alla el parametro ES el filtro que viaja a la API
+ * (`filter[status]=5`, que muestra SOLO las completadas) porque la consulta de la tabla se arma
+ * desde la URL. Aca la URL es de la pantalla, las dos listas arman su propia consulta, y lo que hace
+ * falta es lo contrario: no acotar a las completadas sino sumarlas. La pagina no se toca aca porque
+ * no viaja en la URL: la reinicia `TareasAsignadas` al ver que su consulta cambio.
+ *
+ * @param params la consulta vigente; no se modifica
+ * @returns una consulta nueva, con el interruptor al reves
+ */
+export function alternarCompletadas (params: URLSearchParams): URLSearchParams {
+  const siguientes = new URLSearchParams(params)
+
+  if (seVenCompletadas(params)) {
+    siguientes.delete(PARAMETRO_COMPLETADAS)
+  } else {
+    siguientes.set(PARAMETRO_COMPLETADAS, '1')
+  }
+
+  return siguientes
+}
+
 /**
  * De donde viene una Tarea.
  *

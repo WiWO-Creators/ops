@@ -20,6 +20,8 @@ interface PropsTareasPrivadas {
   estados: EstadoLookup[]
   /** Pantalla donde se abre el detalle. Ver `TareasAsignadas`. */
   rutaDetalle: string
+  /** Si la lista suma las ya completadas. Lo decide el interruptor de la hoja. Ver `TareasAsignadas`. */
+  verCompletadas: boolean
 }
 
 /**
@@ -35,7 +37,7 @@ interface PropsTareasPrivadas {
  *
  * @returns La seccion de privadas: boton de alta, tabla y paginador.
  */
-export function TareasPrivadas ({ personaId, estados, rutaDetalle }: PropsTareasPrivadas) {
+export function TareasPrivadas ({ personaId, estados, rutaDetalle, verCompletadas }: PropsTareasPrivadas) {
   const [version, setVersion] = useState(0)
   const singular = GLOSARIO.proceso.singular.toLowerCase()
 
@@ -47,6 +49,7 @@ export function TareasPrivadas ({ personaId, estados, rutaDetalle }: PropsTareas
       consultaExtra={SOLO_SIN_ESPACIO}
       rutaDetalle={rutaDetalle}
       version={version}
+      verCompletadas={verCompletadas}
       // Una privada es de quien mira —asignada y creada por ella—, asi que el estado se corrige
       // desde la lista sin pasar por el detalle. Ver `estadoEditable` en `TareasAsignadas`.
       estadoEditable

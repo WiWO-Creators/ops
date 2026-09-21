@@ -13,7 +13,7 @@ import { MenuEstadoTarea } from '@/componentes/proyecto/MenuEstadoTarea'
 import { pedirSobre } from '@/datos/cliente'
 import { observarLista } from '@/datos/refresco-lista'
 import { GLOSARIO } from '@/dominio/glosario'
-import { origenDeTarea, type ClaseDeOrigen } from '@/dominio/mis-tareas'
+import { CON_COMPLETADAS, origenDeTarea, type ClaseDeOrigen } from '@/dominio/mis-tareas'
 import type { EstadoLookup, Proceso } from '@/datos/recursos'
 import type { Paginacion } from '@/datos/tipos'
 
@@ -167,6 +167,17 @@ interface PropsTareasAsignadas {
    * camino—. Exigirlo aca dejaria a quien no lo tiene sin poder corregir su propio trabajo.
    */
   estadoEditable?: boolean
+  /**
+   * Si la lista incluye ademas las Tareas ya completadas.
+   *
+   * Apagada, `GET /tasks` las esconde por su cuenta y la lista es la hoja de trabajo pendiente.
+   * Encendida suma `CON_COMPLETADAS`, que es lo que deja corregir una Tarea cerrada por error.
+   *
+   * No se combina con un `consultaExtra` que ya traiga `filter[status]`: los dos filtros viajarian
+   * y la API los cruzaria con AND. Quien pasa un estado fijo —la ficha de equipo, que lista el
+   * trabajo abierto— no enciende esto, y por eso no hay un caso donde se contradigan.
+   */
+  verCompletadas?: boolean
   /** Ver `useListaPaginada`: cambiarlo vuelve a pedir la pagina. */
   version?: number
 }
@@ -183,14 +194,28 @@ interface PropsTareasAsignadas {
  */
 export function TareasAsignadas ({
   personaId, titulo, estados, consultaExtra, vacio, licitaciones,
-  rutaDetalle = '/procesos', accion, version = 0, estadoEditable = false
+  rutaDetalle = '/procesos', accion, version = 0, estadoEditable = false, verCompletadas = false
 }: PropsTareasAsignadas) {
   const [pagina, setPagina] = useState(1)
   const plural = GLOSARIO.proceso.plural.toLowerCase()
   const deLicitacion = useMemo(() => new Set(licitaciones ?? []), [licitaciones])
 
-  const ruta = `tasks?assignee=${personaId}&per_page=${POR_PAGINA}&page=${pagina}&sort=due_date`
-    + (consultaExtra === undefined ? '' : `&${consultaExtra}`)
+  const filtro = (consultaExtra === undefined ? '' : `&${consultaExtra}`)
+    + (verCompletadas ? `&${CON_COMPLETADAS}` : '')
+
+  // Cambiar de filtro vuelve a la primera pagina. Sin esto, quien esta en la pagina 3 y enciende las
+  // completadas se queda mirando una pagina 3 que ya no existe —o que ahora muestra otra cosa—, y la
+  // unica pista de lo que paso seria el paginador. Es el `setState` durante el render que admite
+  // React: reinicia el render antes de pintar, y es lo que la regla de hooks pide en vez de un
+  // efecto que encadena un render de mas.
+  const [filtroPrevio, setFiltroPrevio] = useState(filtro)
+
+  if (filtroPrevio !== filtro) {
+    setFiltroPrevio(filtro)
+    setPagina(1)
+  }
+
+  const ruta = `tasks?assignee=${personaId}&per_page=${POR_PAGINA}&page=${pagina}&sort=due_date` + filtro
 
   const [carga, reintentar] = useListaPaginada<Proceso>(ruta, plural, version)
 
