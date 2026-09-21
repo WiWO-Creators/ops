@@ -18,8 +18,9 @@ export interface Aviso {
   read: boolean
   date: string
   /**
-   * Ruta **del panel clasico** (`#taskid=512`), no de Ops. No se convierte en enlace: llevaria a la
-   * gente fuera de este panel, a una pantalla que quizas ni exista alla.
+   * Ruta **del panel clasico** (`#taskid=512`), no de Ops: pegada tal cual en un `href` no lleva a
+   * ninguna parte. `dominio/enlace-de-aviso.ts` la traduce a una pantalla de Ops cuando reconoce el
+   * formato, y devuelve `null` cuando no, que es cuando la fila se pinta sin enlace.
    */
   link: string | null
   /** `null` cuando el aviso lo escribio el sistema y no una persona. */
