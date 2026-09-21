@@ -262,9 +262,152 @@ export interface TiempoPortal {
  */
 
 /**
+ * El inicio del portal en un solo viaje: `GET /portal/resumen`.
+ *
+ * Es el agregado de TODOS los {espacios} del cliente, sumado en el servidor. Existe porque antes lo
+ * sumaba el navegador sobre `/portal/projects?per_page=100`: con más de cien {espacios} la portada
+ * mentía hacia abajo y en silencio. Un agregado no se pagina.
+ *
+ * Las dos ausencias del tipo son el contrato, no comodidad:
+ *
+ *   - `procesos` es **opcional de verdad**: la API no manda la clave cuando ningún {espacio}
+ *     comparte la pestaña de {procesos}. No llega en `null` ni en cero, no llega. Un contador sobre
+ *     una lista que la pantalla le niega al cliente le cuenta en forma de número justo lo que se
+ *     decidió no mostrarle.
+ *   - `esperando_tu_respuesta` es `number | null` y el `null` NUNCA es 0. Vale `null` cuando no se
+ *     puede saber —ningún {espacio} con la pestaña de {procesos}, o la tabla de aprobaciones sin
+ *     migrar—, y un 0 ahí se leería «no te falta nada», que es lo contrario de «no sé».
+ *   - `bloqueados` es la tercera, y es **la misma ausencia que `procesos`**: la clave no llega si
+ *     ningún {espacio} comparte la pestaña de {procesos}, ni en una instalación sin la tabla de
+ *     bloqueos (migración `0620`). Ahí `[]` se leería «no tenés nada trabado» y la verdad es «no
+ *     sé»: son dos pantallas distintas y las dos existen.
+ *
+ * `proximos_hitos`, en cambio, viaja SIEMPRE, también en `[]`: es el detalle del contador `hitos` y
+ * comparte su puerta —ninguna—, así que la lista vacía significa «no hay ninguno comprometido».
+ */
+export interface ResumenPortal {
+  espacios: EspaciosDelResumen
+  /** Ver arriba: la clave **falta** si ningún {espacio} comparte la pestaña de {procesos}. */
+  procesos?: ProcesosDelResumen
+  /** {Procesos} que esperan una decisión del cliente. `null` es «no se puede saber», jamás 0. */
+  esperando_tu_respuesta: number | null
+  hitos: HitosDelResumen
+  /** Los {hitos} que vienen, ya ordenados por fecha. Viaja siempre; `[]` es «no hay ninguno». */
+  proximos_hitos: HitoProximoDelResumen[]
+  /** Ver arriba: la clave **falta** cuando no se puede saber. Ausente no es `[]`. */
+  bloqueados?: BloqueoDelResumen[]
+}
+
+/**
+ * Un {hito} de los que vienen, con el {espacio} al que pertenece.
+ *
+ * Existe porque el contador `hitos` dice CUÁNTOS hay y cuántos están vencidos, y con eso el cliente
+ * no sabe qué viene ni cuándo: para averiguarlo tenía que abrir sus {espacios} de a uno.
+ *
+ * `vencido` lo calcula el servidor con la misma expresión que el contador —fecha pasada **y**
+ * {procesos} sin terminar— y no es una resta de fechas del navegador: dos relojes distintos en la
+ * misma pantalla es justo el error que el contador ya evita.
+ *
+ * `due_date` es `YYYY-MM-DD` sin hora y puede llegar en `null` si la fila trae la fecha cero de
+ * MySQL. El servidor no lista {hitos} sin fecha, así que el `null` es la excepción, no el caso.
+ */
+export interface HitoProximoDelResumen {
+  id: number
+  name: string
+  due_date: string | null
+  project: ReferenciaDeEspacio
+  vencido: boolean
+}
+
+/**
+ * De quién depende destrabar un {proceso} detenido (enum de la migración `0699`).
+ *
+ * No es una persona: es el lado que tiene la pelota. `cliente` es el único que quien mira el portal
+ * puede resolver solo, y por eso la pantalla lo destaca.
+ */
+export type ResponsableDelBloqueo = 'cliente' | 'equipo' | 'tercero'
+
+/**
+ * Un {proceso} detenido: qué está trabado, por qué, desde cuándo y de quién depende destrabarlo.
+ *
+ * `accion_necesaria` y `responsable` son las dos columnas de la migración `0699` y por eso son
+ * opcionales **y** anulables: una instalación atrasada pierde el dato nuevo, no la fila —el motivo
+ * y la fecha llegan igual—, y ahí el servidor tampoco puede ordenar por responsable.
+ *
+ * `dias_bloqueada` es `number | null` y el `null` NUNCA es 0: significa que la fecha de bloqueo no
+ * se pudo leer. «Se trabó hoy» es una afirmación, y una fila sin fecha no la sostiene.
+ */
+export interface BloqueoDelResumen {
+  id: number
+  name: string
+  project: ReferenciaDeEspacio
+  motivo: string
+  accion_necesaria?: string | null
+  responsable?: ResponsableDelBloqueo | null
+  bloqueado_en: string | null
+  dias_bloqueada: number | null
+}
+
+/**
+ * El {espacio} al que pertenece una fila del resumen.
+ *
+ * Viaja como `{id, name}` y no como `rel_id`: el id polimórfico de la API no sale del portal por
+ * ninguna ruta, y el nombre es lo único que la portada necesita para decir de dónde salió la fila.
+ */
+export interface ReferenciaDeEspacio {
+  id: number
+  name: string
+}
+
+/**
+ * Cuántos {espacios} ve el cliente, y en qué estado están.
+ *
+ * `total` es el conteo real de filas y no la suma del desglose: un estado fuera del catálogo no se
+ * pintaría, pero el total seguiría siendo cierto. El desglose lista SIEMPRE todos los estados del
+ * catálogo, también los que están en cero, para que la pantalla no cambie de forma según el cliente.
+ */
+export interface EspaciosDelResumen {
+  total: number
+  by_status: EstadoDelResumen[]
+}
+
+/** Un estado del catálogo de {espacios} con cuántos hay en él. */
+export interface EstadoDelResumen {
+  status: number
+  name: string
+  color: string
+  order: number
+  total: number
+}
+
+/**
+ * Los cuatro contadores de {procesos} del resumen, sobre los {espacios} que comparten la pestaña.
+ *
+ * Sólo cuentan esos {espacios} y no todos: si contaran todos, el número no sería el de ninguna lista
+ * que el cliente pueda abrir.
+ */
+export interface ProcesosDelResumen {
+  total: number
+  open: number
+  completed: number
+  completed_percent: number
+}
+
+/**
+ * {Hitos} del cliente: cuántos hay comprometidos y cuántos ya pasaron de fecha.
+ *
+ * Sin puerta propia, igual que el bloque de {hitos} de la ficha de un {espacio}: este resumen no
+ * publica ni un dato que esa ficha no publique ya.
+ */
+export interface HitosDelResumen {
+  total: number
+  overdue: number
+}
+
+/**
  * El tablero de control de gestión mensual: `GET /portal/gestion?mes=YYYY-MM`.
  *
- * Los quince bloques que arma `Recursos\RecursoGestion` y recorta `FormasDelPortal::GESTION`. Se
+ * Los dieciséis bloques que arma `Recursos\RecursoGestion` y recorta `FormasDelPortal::GESTION`. Se
  * declara entero acá —y no por pedazos donde se usa— porque es la ruta que más cifras publica de
  * todo el portal, y la lista de lo que llega tiene que poder leerse de arriba abajo.
  *
@@ -288,6 +431,38 @@ export interface TableroGestion {
   por_hito: HitoGestion[]
   antiguedad_abiertas: TramoDeAntiguedad[]
   por_espacio: EspacioDeGestion[]
+  /** Los seis meses que terminan en `alcance.mes`, del más viejo al pedido. Ver {@link PuntoDeTendencia}. */
+  tendencia: PuntoDeTendencia[]
+}
+
+/**
+ * Un mes de la serie de seis: las mismas cuentas del tablero, sobre otro rango.
+ *
+ * Existe porque el resto del tablero es una FOTO y una foto no se puede evaluar: «68% en plazo» no
+ * es bueno ni malo hasta que se sabe si el mes pasado fue 55% o 82%.
+ *
+ * Los tres `| null` son los mismos `null` del resto del archivo y por el mismo motivo: llegan así
+ * cuando no hubo denominador —ningún {proceso} comprometido, ninguna aprobación resuelta, nadie
+ * esperando— y jamás valen 0. Una línea que baja a cero en esos meses dibuja una caída que no pasó.
+ */
+export interface PuntoDeTendencia {
+  /** `YYYY-MM`. */
+  mes: string
+  recibidas: number
+  cerradas: number
+  /** `null` si no había nada comprometido ese mes. */
+  porcentaje_en_plazo: number | null
+  /** `null` si el mes no resolvió ninguna aprobación. */
+  rondas_promedio: number | null
+  /** Días esperando al cliente. `null` si no hubo nada esperando, o si todavía no se registraba. */
+  deuda_dias: number | null
+  /**
+   * `true` en el mes en curso: se cortó en AHORA, así que son dieciocho días contra meses de
+   * treinta. No se extrapola —sería inventar trabajo que no ocurrió— y por eso la pantalla tiene
+   * que marcarlo: comparar un mes a medias contra meses completos sin decirlo es la forma más
+   * barata de dibujar una caída que no existe.
+   */
+  parcial: boolean
 }
 
 /**
@@ -400,12 +575,59 @@ export interface CalidadGestion {
   aprobadas_primera_ronda: number
   porcentaje_primera_ronda: number | null
   rondas_promedio: number | null
+  /**
+   * El retrabajo del mes partido por categoría, o `null` si no hay con qué calcularlo.
+   *
+   * `null` es «no lo registramos» —sin la tabla de iteraciones, sin la migración 0682 o sin ninguna
+   * iteración en el mes— y NO «no hubo retrabajo». Cuatro ceros ahí se leen como un mes impecable.
+   */
+  motivos: MotivosDeRetrabajo | null
+}
+
+/**
+ * El desglose del retrabajo: por qué se rehízo el trabajo, no cuánto.
+ *
+ * Es lo que convierte «2,3 rondas» en un argumento: esa cifra no dice si se rehizo porque nos
+ * equivocamos, porque al cliente le gustó otra cosa, o porque apareció alcance que no estaba
+ * pedido. Las tres categorías las fija el negocio en la migración 0680.
+ *
+ * `sin_motivo` NO es una cuarta categoría: son las iteraciones sin clasificar —las anteriores al
+ * catálogo y las que se registraron sin elegirlo—. Viaja aparte, y `total` al lado, para que la
+ * pantalla pueda decir «de 40 iteraciones, 12 sin clasificar» en vez de presentar un desglose que
+ * no suma.
+ */
+export interface MotivosDeRetrabajo {
+  /** Lo que rehicimos por un error nuestro. Es la única categoría que nos acusa. */
+  error_evitable: number
+  ajuste_de_contenido: number
+  cambio_de_alcance: number
+  /** Iteraciones sin categoría asignada. No es una categoría: es lo que falta clasificar. */
+  sin_motivo: number
+  /** Todas las iteraciones del mes. Deja el desglose auditable: las cuatro claves suman esto. */
+  total: number
 }
 
 export interface CambiosGestion {
   entradas_no_planificadas: number
-  /** Siempre `true`: el número es un proxy y la pantalla tiene que decirlo. */
+  /** Siempre `true`. Califica SÓLO a `entradas_no_planificadas`: los tres de abajo son dato medido. */
   estimado: boolean
+  /** Movimientos de la fecha de entrega. `null` si la instalación no tiene la migración 0770. */
+  reprogramaciones: CambioDeCompromiso | null
+  cambios_de_prioridad: CambioDeCompromiso | null
+  cambios_de_hito: CambioDeCompromiso | null
+}
+
+/**
+ * Cuánto se movió lo que ya estaba acordado, en un campo.
+ *
+ * Son DOS números y no uno porque uno solo no se puede leer: treinta reprogramaciones sobre treinta
+ * {procesos} y treinta sobre dos son dos problemas opuestos, y el segundo no se deriva del primero.
+ */
+export interface CambioDeCompromiso {
+  /** Movimientos registrados. */
+  cambios: number
+  /** Cuántos {procesos} distintos se movieron. Nunca es derivable de `cambios`. */
+  procesos: number
 }
 
 /** Los campos que comparten las tres listas de {procesos} del tablero. */

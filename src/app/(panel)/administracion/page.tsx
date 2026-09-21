@@ -1,5 +1,5 @@
 import { Suspense } from 'react'
-import { Inbox, KeyRound, Megaphone, MonitorPlay, RefreshCcwDot, Siren, type LucideIcon } from 'lucide-react'
+import { CalendarSync, Inbox, KeyRound, Megaphone, MonitorPlay, RefreshCcwDot, Siren, type LucideIcon } from 'lucide-react'
 import { AccesoGoogle } from '@/componentes/administracion/AccesoGoogle'
 import { FormularioDeAjustes } from '@/componentes/administracion/FormularioDeAjustes'
 import { PanelAvisosPorCorreo } from '@/componentes/administracion/PanelAvisosPorCorreo'
@@ -12,6 +12,7 @@ import { ErrorApi } from '@/datos/errores'
 import { cargarLookups } from '@/datos/lookups'
 import { pedir } from '@/datos/servidor'
 import { clavesDelGrupo, dominiosDeAjustes } from '@/dominio/ajustes'
+import { GLOSARIO } from '@/dominio/glosario'
 import type { Ajustes, Lookups } from '@/datos/recursos'
 import type { Yo } from '@/datos/tipos'
 
@@ -64,6 +65,13 @@ const PANTALLAS_APARTE: PantallaAparte[] = [
     descripcion: 'La lista cerrada entre la que se elige al registrar una vuelta atrás, con su categoría.',
     icono: RefreshCcwDot,
     tono: 'acento'
+  },
+  {
+    href: '/administracion/recalculo-de-foto-diaria',
+    titulo: 'Recálculo de la foto diaria',
+    descripcion: `Reescribe a mano las fotos diarias de un ${GLOSARIO.espacio.singular.toLowerCase()} en un rango, después de una corrección justificada.`,
+    icono: CalendarSync,
+    tono: 'peligro'
   },
   {
     href: '/administracion/accesos',

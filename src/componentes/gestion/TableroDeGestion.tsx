@@ -7,6 +7,7 @@ import { Etapas } from './Etapas'
 import { Plazos } from './Plazos'
 import { PorEspacio } from './PorEspacio'
 import { SelectorDeMes } from './SelectorDeMes'
+import { Tendencia } from './Tendencia'
 import { Tiempos } from './Tiempos'
 import { Trabas } from './Trabas'
 import { VolumenYEstado } from './VolumenYEstado'
@@ -23,13 +24,19 @@ import type { TableroGestion as Tablero } from '@/datos/portal'
  * pendientes sale de la reunión con tareas asignadas. Por eso:
  *
  *   1. trabas y sin movimiento — lo único sobre lo que se puede actuar hoy;
- *   2. cumplimiento de plazos — «qué se cumple y qué no», la pregunta literal del cliente;
- *   3. volumen y estado — el contexto que hace legibles los dos anteriores;
- *   4. tiempos de respuesta — los dos lados juntos, incluida la espera que corre de su lado;
- *   5. calidad y retrabajo;
- *   6. tiempos por etapa — hoy sin datos, y lo dice;
- *   7. cambios — informativo y estimado;
- *   8. por {espacio} — el cierre, y sólo si hay más de uno.
+ *   2. tendencia — el marco con el que se leen todas las cifras que siguen;
+ *   3. cumplimiento de plazos — «qué se cumple y qué no», la pregunta literal del cliente;
+ *   4. volumen y estado — el contexto que hace legibles los dos anteriores;
+ *   5. tiempos de respuesta — los dos lados juntos, incluida la espera que corre de su lado;
+ *   6. calidad y retrabajo, con el desglose de por qué se rehace el trabajo;
+ *   7. tiempos por etapa — hoy sin datos, y lo dice;
+ *   8. cambios — la estimación de lo no planificado y los movimientos medidos sobre lo acordado;
+ *   9. por {espacio} — el cierre, y sólo si hay más de uno.
+ *
+ * La tendencia va SEGUNDA y no al final: es lo que permite leer el resto. «68% en plazo» no es
+ * bueno ni malo hasta que se sabe si el mes pasado fue 55% o 82%, y una serie puesta abajo del todo
+ * se mira cuando ya se sacaron las conclusiones. Va después de las dos listas accionables porque no
+ * cambia lo que hay que destrabar hoy.
  *
  * === Por qué no comparte tipo con el tablero de indicadores del panel ===
  *
@@ -66,6 +73,7 @@ export function TableroDeGestion (
 
       <Trabas trabas={tablero.trabas} />
       <Estancadas estancadas={tablero.estancadas} />
+      <Tendencia tendencia={tablero.tendencia} />
       <Plazos plazos={tablero.plazos} vencidas={tablero.vencidas} />
       <VolumenYEstado
         volumen={tablero.volumen}

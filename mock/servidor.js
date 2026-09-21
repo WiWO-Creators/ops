@@ -4749,6 +4749,19 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
       }
     }
 
+    // El inicio del portal en un viaje. Los numeros los sumaba el navegador sobre
+    // `/portal/projects?per_page=100`, asi que con mas de cien Espacios mentia hacia abajo y en
+    // silencio. Un agregado no se pagina: o se calcula sobre el conjunto entero o no es el agregado.
+    if (seccion === 'resumen') {
+      if (!contacto.permissions.includes('projects')) {
+        throw new ErrorApi(403, 'forbidden', 'Este contacto no tiene acceso a proyectos.')
+      }
+
+      if (resto.length > 1) throw new ErrorApi(404, 'not_found', 'Recurso desconocido.')
+
+      return { estado: 200, cuerpo: conDatos(resumenDelContacto(contacto)) }
+    }
+
     // El tablero de control de gestion mensual. La fixture esta armada para ejercitar las SEIS
     // salvedades de presentacion a la vez, porque son lo unico que esta pantalla tiene de dificil:
     // un `null` que no es 0, una mediana con `n` chico, el histórico vacio, los cubos que no suman,
@@ -6394,7 +6407,7 @@ function overviewParaContacto (espacio, compartido, pestanias) {
     progress: m.progress,
     milestones: {
       total: m.hitos.length,
-      overdue: m.hitos.filter((h) => h.due_date !== null && h.due_date < '2026-09-14').length
+      overdue: m.hitos.filter((h) => h.due_date !== null && h.due_date < HOY_DEL_PORTAL).length
     },
     days: m.dias
   }
@@ -6433,6 +6446,231 @@ function overviewParaContacto (espacio, compartido, pestanias) {
   return resumen
 }
 
+/**
+ * `GET /portal/resumen`: los cuatro numeros del inicio del portal, sumados del lado del servidor.
+ *
+ * Dos claves de esta respuesta pueden faltar, y faltar NO es venir en cero:
+ *
+ *  1. **`procesos` no viaja** —ni en `null`, ni la clave— si ningun Espacio del cliente comparte la
+ *     pestaña Tareas. Con la clave siempre presente, el frontend dibujaria "0 abiertas" sobre una
+ *     lista que la pantalla le niega al cliente.
+ *  2. **`esperando_tu_respuesta` vale `null`, nunca 0**, en ese mismo caso: sin la pestaña Tareas el
+ *     contacto no podria resolver ninguna aprobacion. Un 0 ahi se lee "no te falta nada", que es lo
+ *     contrario de "no se".
+ *
+ * Los dos contactos del fixture son de los clientes 1 y 2, y los dos tienen al menos un Espacio con
+ * la pestaña encendida —el 8, que la tiene apagada, es del cliente 1 pero no es su unico Espacio—,
+ * asi que por esta ruta las dos ausencias no se alcanzan a ver. La rama existe igual porque la API
+ * real si las devuelve, y quien las ejercita es `pruebas/portal-resumen.test.js` sobre el lector de
+ * la pantalla, que es donde un cero inventado haria daño.
+ *
+ * `by_status` lista todos los estados del catalogo, tambien los que estan en cero, asi la fila de
+ * insignias tiene la misma forma para todos los clientes.
+ *
+ * Solo cuentan los Espacios del cliente del contacto, y los Procesos solo de los Espacios que SI
+ * comparten la pestaña: si contara todos, el numero no seria el de ninguna lista que pueda abrir.
+ */
+function resumenDelContacto (contacto) {
+  const mios = ESPACIOS.filter((espacio) => espacio.clientid === contacto.client_id)
+  const conTareas = mios
+    .filter((espacio) => {
+      const compartido = COMPARTIDO_CON_EL_CLIENTE[espacio.id] ?? COMPARTIDO_CON_EL_CLIENTE.defecto
+
+      return pestaniasDelContacto(espacio.id, compartido).includes('tasks')
+    })
+    .map((espacio) => espacio.id)
+
+  const procesos = PROCESOS.filter((p) => p.rel_type === 'project' && conTareas.includes(p.rel_id))
+  const completos = procesos.filter((p) => p.status === 5).length
+  const hitos = HITOS.filter(
+    (h) => mios.some((e) => e.id === h.project_id) && !HITOS_OCULTOS_AL_CLIENTE.includes(h.id)
+  )
+
+  const resumen = {
+    espacios: {
+      // El total es el conteo real de filas y no la suma del desglose: un estado fuera del catalogo
+      // no se pintaria, pero el total seguiria siendo cierto.
+      total: mios.length,
+      by_status: ESTADOS_ESPACIO.map((estado) => ({
+        status: estado.id,
+        name: estado.name,
+        color: estado.color,
+        order: estado.order,
+        total: mios.filter((espacio) => espacio.status === estado.id).length
+      }))
+    }
+  }
+
+  if (conTareas.length > 0) {
+    resumen.procesos = {
+      total: procesos.length,
+      open: procesos.length - completos,
+      completed: completos,
+      completed_percent: procesos.length === 0 ? 0 : Math.round((completos / procesos.length) * 100)
+    }
+  }
+
+  resumen.esperando_tu_respuesta = conTareas.length === 0
+    ? null
+    : procesos.filter((p) => p.aprobacion?.estado === 'pendiente').length
+
+  // La misma fecha de corte que `overviewParaContacto()`: el fixture no usa el reloj, asi que las
+  // pruebas no cambian de resultado el dia que pase la fecha de entrega de un Espacio.
+  resumen.hitos = {
+    total: hitos.length,
+    overdue: hitos.filter((h) => h.due_date !== null && h.due_date < HOY_DEL_PORTAL).length
+  }
+
+  // `proximos_hitos` VIAJA SIEMPRE, tambien en `[]`: es el detalle del contador de arriba y comparte
+  // su puerta —ninguna—, asi que la lista vacia significa "no hay ninguno comprometido" y no "no se".
+  // Es la asimetria deliberada con `bloqueados`, que si puede faltar.
+  resumen.proximos_hitos = proximosHitosDelContacto(hitos, mios)
+
+  // `bloqueados` puede NO VIAJAR, y la ausencia NO es la lista vacia: sin ningun Espacio que comparta
+  // la pestaña Tareas —o sin la tabla de bloqueos, que es lo que simula `PORTAL_SIN_BLOQUEOS`— la
+  // verdad es "no se", y un `[]` ahi afirmaria "no tenes nada trabado". La clave no se pone en cero:
+  // no se pone.
+  if (conTareas.length > 0 && !PORTAL_SIN_BLOQUEOS) {
+    resumen.bloqueados = bloqueadosDelContacto(conTareas, mios)
+  }
+
+  return resumen
+}
+
+/**
+ * Simula la instalacion donde `bloqueados` no puede calcularse (migracion `0620` sin aplicar).
+ *
+ * Es el unico de los dos lados de esa clave que el fixture no puede producir solo: los dos contactos
+ * tienen Espacios con la pestaña Tareas encendida, asi que por esta ruta la clave siempre viaja. Con
+ * `PORTAL_SIN_BLOQUEOS=1 node mock/servidor.js` se ve la otra cara, que es la que de verdad importa:
+ * "no podemos decirte si hay algo trabado" en lugar de "no hay nada trabado".
+ */
+const PORTAL_SIN_BLOQUEOS = process.env.PORTAL_SIN_BLOQUEOS === '1'
+
+/**
+ * `proximos_hitos`: que se entrega y cuando, de todos los Espacios del cliente a la vez.
+ *
+ * Solo los que tienen fecha —uno sin fecha no se puede ni ordenar ni anunciar— y por fecha
+ * ascendente, asi que los vencidos salen primero: son los que hay que mirar hoy. El desempate por
+ * `id` deja el orden estable entre dos llamadas, que sin el dependeria del motor y haria parpadear
+ * la portada.
+ *
+ * Se ordena sobre una copia: `hitos` es el mismo arreglo que ya conto el bloque de arriba.
+ *
+ * @param {Array<object>} hitos Hitos visibles al cliente, ya filtrados.
+ * @param {Array<object>} mios Espacios del cliente, para el nombre del Proyecto de cada fila.
+ * @returns {Array<object>} Hasta `LISTA_DE_PORTADA` hitos con la forma del contrato.
+ */
+function proximosHitosDelContacto (hitos, mios) {
+  return [...hitos]
+    .filter((hito) => hito.due_date !== null)
+    .sort((uno, otro) => (uno.due_date < otro.due_date ? -1 : uno.due_date > otro.due_date ? 1 : uno.id - otro.id))
+    .slice(0, LISTA_DE_PORTADA)
+    .map((hito) => ({
+      id: hito.id,
+      name: hito.name,
+      due_date: hito.due_date,
+      project: {
+        id: hito.project_id,
+        name: mios.find((espacio) => espacio.id === hito.project_id).name
+      },
+      // "Vencido" es la fecha pasada, igual que el contador de arriba: dos relojes distintos en la
+      // misma pantalla dejarian un hito contado como vencido y dibujado al dia, uno debajo del otro.
+      vencido: hito.due_date < HOY_DEL_PORTAL
+    }))
+}
+
+/**
+ * Los bloqueos del fixture del portal, uno por caso que la pantalla tiene que poder dibujar.
+ *
+ * Los cuatro casos, y ninguno es decorativo:
+ *
+ *  1. **responsable `cliente`**: el unico que quien mira el portal puede destrabar solo. Va primero
+ *     porque asi lo ordena la API real, y es lo que la pantalla destaca.
+ *  2. **`dias_bloqueada: 0`**: se trabo hoy. Es un dato, y tiene que verse distinto del caso 4.
+ *  3. **responsable `tercero`**: informa y no pide nada.
+ *  4. **`accion_necesaria` y `responsable` en `null`, y `dias_bloqueada` en `null`**: la fila de una
+ *     base sin la migracion `0699` y con la fecha ilegible. La fila sale igual, con su motivo, y la
+ *     pantalla NO puede pintar el `null` como "hace 0 dias".
+ *
+ * `bloqueado_en` acompaña a `dias_bloqueada` contra `HOY_DEL_PORTAL`: los dos campos tienen que
+ * contar lo mismo o la pantalla muestra una fecha que contradice a su propia antiguedad.
+ */
+const BLOQUEOS_DEL_PORTAL = [
+  {
+    motivo: 'Falta que nos confirmen cuál de las dos paletas queda.',
+    accion_necesaria: 'Elegir entre la paleta A y la B y avisarnos por el ticket.',
+    responsable: 'cliente',
+    bloqueado_en: '2026-08-24T12:00:00Z',
+    dias_bloqueada: 21
+  },
+  {
+    motivo: 'Esperamos el listado de correos del área de sistemas.',
+    accion_necesaria: 'Mandar el listado de los 40 usuarios del piloto.',
+    responsable: 'cliente',
+    bloqueado_en: '2026-09-14T09:30:00Z',
+    dias_bloqueada: 0
+  },
+  {
+    motivo: 'El proveedor del ERP todavía no habilitó el acceso de lectura.',
+    accion_necesaria: 'Insistir con el proveedor; ya está pedido.',
+    responsable: 'tercero',
+    bloqueado_en: '2026-09-01T16:00:00Z',
+    dias_bloqueada: 13
+  },
+  {
+    motivo: 'Se cruzó con la salida del piloto y quedó en espera de nuestro lado.',
+    accion_necesaria: null,
+    responsable: null,
+    bloqueado_en: null,
+    dias_bloqueada: null
+  }
+]
+
+/**
+ * `bloqueados`: que esta detenido, por que, desde cuando y de quien depende destrabarlo.
+ *
+ * Los Procesos salen del fixture —nombre y Proyecto reales— y el bloqueo de `BLOQUEOS_DEL_PORTAL`,
+ * por indice: asi dos lecturas seguidas devuelven lo mismo y una prueba puede afirmar sobre una fila
+ * concreta.
+ *
+ * Los completados quedan afuera, igual que en la API: un bloqueo sobre algo cerrado es una marca que
+ * nadie apago, no una traba, y con seis lugares desplaza a algo que si esta detenido hoy.
+ *
+ * El orden es el de la API: primero los que dependen del cliente y despues del mas antiguo al mas
+ * nuevo. `BLOQUEOS_DEL_PORTAL` ya esta escrito en ese orden.
+ *
+ * @param {Array<number>} conTareas Ids de los Espacios que comparten la pestaña Tareas.
+ * @param {Array<object>} mios Espacios del cliente, para el nombre del Proyecto de cada fila.
+ * @returns {Array<object>} Hasta `LISTA_DE_PORTADA` Procesos trabados con la forma del contrato.
+ */
+function bloqueadosDelContacto (conTareas, mios) {
+  const trabables = PROCESOS.filter(
+    (proceso) => proceso.rel_type === 'project'
+      && conTareas.includes(proceso.rel_id)
+      && proceso.status !== 5
+  )
+
+  return BLOQUEOS_DEL_PORTAL
+    .slice(0, LISTA_DE_PORTADA)
+    .map((bloqueo, indice) => {
+      const proceso = trabables[indice]
+
+      if (proceso === undefined) return null
+
+      return {
+        id: proceso.id,
+        name: proceso.name,
+        project: {
+          id: proceso.rel_id,
+          name: mios.find((espacio) => espacio.id === proceso.rel_id).name
+        },
+        ...bloqueo
+      }
+    })
+    .filter((fila) => fila !== null)
+}
+
 /** `GET /projects/{id}/overview/chart`: horas por dia, apiladas por persona. */
 function graficoDeEspacio (espacioId, periodo) {
   const etiquetas = ['lun', 'mar', 'mié', 'jue', 'vie', 'sáb', 'dom']
@@ -6452,6 +6690,24 @@ function graficoDeEspacio (espacioId, periodo) {
     }))
   }
 }
+
+/**
+ * El "hoy" del fixture del portal.
+ *
+ * El fixture no usa el reloj a proposito: con `new Date()` las mismas filas cambiarian de vencidas a
+ * en plazo el dia que pase la fecha de entrega de un Espacio, y una prueba que afirma sobre una fila
+ * concreta empezaria a fallar sola un martes cualquiera.
+ */
+const HOY_DEL_PORTAL = '2026-09-14'
+
+/**
+ * Tope de las dos listas del inicio del portal, igual que `RecursoResumen::LISTA_DE_PORTADA`.
+ *
+ * Es un resumen y no un listado: la portada tiene que caber de una mirada. El tope chico es lo que
+ * obliga a que el ORDEN de cada lista sea el correcto, porque lo que queda afuera tiene que ser lo
+ * menos urgente y no lo que el motor devolvio ultimo.
+ */
+const LISTA_DE_PORTADA = 6
 
 /**
  * Hitos que el equipo escondio al cliente (`hide_from_customer` de `tblmilestones`).
@@ -6783,6 +7039,66 @@ function seccionesDelPortal (contacto) {
 const MES_CON_HISTORICO = '2026-07'
 
 /**
+ * El mes del fixture que simula una instalacion SIN las migraciones de auditoria.
+ *
+ * La 0770 (cambios de compromiso) y la 0680/0682 (motivos de iteracion) pueden no existir, y en ese
+ * caso la API manda los bloques enteros en `null` y NO en cero. Es la cara que la pantalla tiene que
+ * saber dibujar —"no lo registramos" en vez de "no paso nada"— y sin un mes asi en el fixture no se
+ * puede mirar en el navegador. Misma concesion, y misma razon, que `MES_CON_HISTORICO`.
+ */
+const MES_SIN_AUDITORIA = '2026-05'
+
+/** Cuantos meses trae la serie de tendencia, incluido el pedido (`RecursoGestion::MESES_TENDENCIA`). */
+const MESES_TENDENCIA = 6
+
+/**
+ * Corre un mes `YYYY-MM` hacia atras, en meses enteros.
+ *
+ * Nunca restando 30 dias: sobre un mes de 31 el resultado aterriza en el mes equivocado.
+ */
+function mesAtras (mes, cuantos) {
+  const [anio, numero] = mes.split('-').map(Number)
+  const total = anio * 12 + (numero - 1) - cuantos
+
+  return `${String(Math.floor(total / 12)).padStart(4, '0')}-${String((total % 12) + 1).padStart(2, '0')}`
+}
+
+/**
+ * La serie de seis meses que termina en el mes pedido, armada CONTRA LAS SALVEDADES.
+ *
+ * No es una curva bonita: es el conjunto de casos que la pantalla tiene que saber dibujar sin
+ * mentir. El mes mas viejo llega sin `rondas_promedio` ni `deuda_dias` —la serie arranca donde
+ * arranca el dato, no en cero— y el anteultimo llega sin `porcentaje_en_plazo`, que es el hueco en
+ * el medio de la linea: el que revienta a cualquier grafico que una los puntos adyacentes sin
+ * mirar. El mes en curso viaja con `parcial: true`, cortado en hoy.
+ *
+ * @param mes el mes pedido, `YYYY-MM`
+ * @returns los seis puntos, del mas viejo al pedido
+ */
+function tendenciaDeGestion (mes) {
+  const enCurso = new Date().toISOString().slice(0, 7)
+  const recibidas = [9, 12, 7, 15, 11, 14]
+  const cerradas = [7, 13, 9, 10, 12, 11]
+  const enPlazo = [72, 64, 81, 58, null, 67]
+  const rondas = [null, 1.8, 2.4, 1.5, 2.1, 1.9]
+  const deuda = [null, 12, 21, 9, 18, 30]
+
+  return Array.from({ length: MESES_TENDENCIA }, (_, indice) => {
+    const suyo = mesAtras(mes, MESES_TENDENCIA - 1 - indice)
+
+    return {
+      mes: suyo,
+      recibidas: recibidas[indice],
+      cerradas: cerradas[indice],
+      porcentaje_en_plazo: enPlazo[indice],
+      rondas_promedio: rondas[indice],
+      deuda_dias: deuda[indice],
+      parcial: suyo === enCurso
+    }
+  })
+}
+
+/**
  * El tablero de control de gestion mensual de un contacto.
  *
  * Es un fixture ARMADO CONTRA LAS SALVEDADES, no contra un mes bonito. Las seis reglas de
@@ -6794,6 +7110,10 @@ const MES_CON_HISTORICO = '2026-07'
  *   4. cubos que no suman        -> `estado_al_cierre: 'estimado'` y 3 clasificadas de 9 abiertas
  *   5. `cambios.estimado`        -> siempre true, como en la API real
  *   6. dos unidades de tiempo    -> `compromiso_dias_habiles: true` contra cubos en dias corridos
+ *   7. huecos en la serie        -> `tendencia` con nulos al principio y en el medio, y el mes en
+ *                                   curso marcado `parcial`
+ *   8. auditoria ausente         -> en `MES_SIN_AUDITORIA`, `cambios` y `calidad.motivos` enteros
+ *                                   en null: "no lo registramos" no es "no paso nada"
  *
  * `MES_CON_HISTORICO` es la unica concesion del mock: un mes en el que el backfill "si corrio", para
  * poder mirar en el navegador la otra cara del bloque de etapas —la que tiene dias y compromiso— sin
@@ -6802,6 +7122,7 @@ const MES_CON_HISTORICO = '2026-07'
 function tableroDeGestion (contacto, parametros) {
   const mes = parametros.get('mes') ?? new Date().toISOString().slice(0, 7)
   const medido = mes === MES_CON_HISTORICO
+  const conAuditoria = mes !== MES_SIN_AUDITORIA
   const mios = ESPACIOS.filter((espacio) => espacio.clientid === contacto.client_id).slice(0, 2)
   const espacio = mios[0] ?? { id: 1, name: 'Espacio' }
   const [anio, numero] = mes.split('-').map(Number)
@@ -6867,13 +7188,34 @@ function tableroDeGestion (contacto, parametros) {
     },
     // Entero en null: el mes no resolvio ninguna aprobacion. Un 0% aca diria "nada salio a la
     // primera", que es lo contrario de "no hubo nada que aprobar".
+    // El desglose SI tiene numeros aunque no haya aprobaciones resueltas, y no es un descuido: una
+    // iteracion es una vuelta de trabajo rehecho y no necesita que la aprobacion se haya cerrado.
+    // Con 12 sin clasificar de 40, los tres porcentajes no suman 100 y la pantalla tiene que
+    // decirlo en vez de repartir el 100% entre tres.
     calidad: {
       resueltas: 0,
       aprobadas_primera_ronda: 0,
       porcentaje_primera_ronda: null,
-      rondas_promedio: null
+      rondas_promedio: null,
+      motivos: conAuditoria
+        ? {
+            error_evitable: 9,
+            ajuste_de_contenido: 14,
+            cambio_de_alcance: 5,
+            sin_motivo: 12,
+            total: 40
+          }
+        : null
     },
-    cambios: { entradas_no_planificadas: 5, estimado: true },
+    // Los tres conteos medidos viajan juntos: o los tres son numeros o los tres son null, porque lo
+    // que falta es la tabla entera.
+    cambios: {
+      entradas_no_planificadas: 5,
+      estimado: true,
+      reprogramaciones: conAuditoria ? { cambios: 17, procesos: 9 } : null,
+      cambios_de_prioridad: conAuditoria ? { cambios: 4, procesos: 4 } : null,
+      cambios_de_hito: conAuditoria ? { cambios: 0, procesos: 0 } : null
+    },
     trabas: [
       {
         ...proceso(4101, 'Rediseño de la ficha de producto', 2, `${mes}-18`, 'ACM-412'),
@@ -6940,6 +7282,7 @@ function tableroDeGestion (contacto, parametros) {
       comprometidas: i === 0 ? 12 : 0,
       en_plazo: i === 0 ? 8 : 0,
       vencidas_al_cierre: i === 0 ? 3 : 0
-    }))
+    })),
+    tendencia: tendenciaDeGestion(mes)
   }
 }

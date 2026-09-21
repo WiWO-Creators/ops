@@ -22,10 +22,12 @@ import type { CategoriaMotivo, MotivoIteracion } from '@/datos/recursos'
  * se puede reemplazar entero: es información que quien administra necesita antes de armar un
  * reporte sobre estos datos.
  *
- * **Desactivar y borrar no son lo mismo, y la diferencia importa.** Un motivo que alguna iteración
- * usó no se puede borrar —la API responde 409— porque el histórico quedaría sin categoría justo en
- * el reporte que se arma para discutir retrabajo con el cliente. Desactivarlo lo saca del formulario
- * y lo deja legible donde ya se eligió, que es lo que casi siempre se quiere.
+ * **Un motivo no se borra nunca: se desactiva.** La API no tiene borrado real —su `DELETE` escribe
+ * `activo = 0` y devuelve el motivo— porque un motivo que alguna iteración usó dejaría el histórico
+ * sin categoría justo en el reporte que se arma para discutir retrabajo con el cliente. Por eso esta
+ * pantalla ofrece un solo botón y no dos: uno que dijera "Borrar" y dejara la fila viva al recargar
+ * sería una mentira sobre lo que acaba de pasar. Desactivar saca el motivo del formulario de
+ * iteraciones y lo deja legible donde ya se eligió, que es lo que casi siempre se quiere.
  */
 
 /** Las tres categorías, en el orden en que se leen: de lo que depende de nosotros a lo que no. */
@@ -119,25 +121,6 @@ export function MotivosDeIteracion ({ inicial }: { inicial: MotivoIteracion[] })
     setMotivos((lista) => lista.map((fila) => fila.id === motivo.id ? resultado.datos : fila))
   }
 
-  /** Borra un motivo que nadie usó. Si alguien lo usó, la API contesta 409 y se muestra tal cual. */
-  async function borrar (motivo: MotivoIteracion): Promise<void> {
-    setFallo(null)
-    setEnCurso(motivo.id)
-
-    const resultado = await escribirEnBff(
-      `motivos-iteracion/${encodeURIComponent(String(motivo.id))}`,
-      'DELETE'
-    )
-
-    setEnCurso(null)
-
-    if (!resultado.ok) {
-      setFallo(resultado.mensaje)
-      return
-    }
-
-    setMotivos((lista) => lista.filter((fila) => fila.id !== motivo.id))
-  }
 
   const hayProvisionales = motivos.some((motivo) => motivo.provisional)
 
@@ -209,14 +192,6 @@ export function MotivosDeIteracion ({ inicial }: { inicial: MotivoIteracion[] })
                           onClick={() => { void alternar(motivo) }}
                         >
                           {motivo.active ? 'Desactivar' : 'Activar'}
-                        </Boton>
-                        <Boton
-                          variante="sutil"
-                          tamano="chico"
-                          cargando={enCurso === motivo.id}
-                          onClick={() => { void borrar(motivo) }}
-                        >
-                          Borrar
                         </Boton>
                       </div>
                     </td>
