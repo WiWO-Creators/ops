@@ -1,12 +1,17 @@
 'use client'
 
+import Link from 'next/link'
 import { useEffect, useState } from 'react'
 import { Avatar } from '@/componentes/presentadores/Avatar'
 import { Cargando, Vacio } from '@/componentes/estado/Estados'
 import { pedirSobre } from '@/datos/cliente'
 import { AVISOS_POR_PAGINA, type Aviso } from '@/datos/avisos'
+import { rutaDeAviso } from '@/dominio/enlace-de-aviso'
 import { formatearFecha } from '@/lib/fechas'
 import { cn } from '@/lib/clases'
+
+/** Lo que mide una fila, con enlace o sin el: cambiarla en un solo lado no descuadra el otro. */
+const CLASES_DE_FILA = 'flex items-start gap-2 px-3 py-2'
 
 /**
  * Los ultimos avisos de quien mira.
@@ -16,10 +21,11 @@ import { cn } from '@/lib/clases'
  * exactamente lo que se quiere — es la unica forma de ver algo escrito hace diez segundos.
  *
  * Una sola pagina y sin scroll infinito: es un desplegable de cabecera, no una bandeja. Quien
- * necesite el historial completo lo tiene en el panel clasico, que es donde `link` apunta.
+ * necesite el historial completo lo tiene en el panel clasico.
  *
- * `link` no se convierte en enlace a proposito: es una ruta del panel viejo (`#taskid=512`), y
- * ofrecerla como enlace sacaria a la persona de Ops hacia una pantalla que quizas ya no existe.
+ * `link` viene en el idioma del panel viejo (`#taskid=512`) y no sirve como `href`. Se enlaza lo que
+ * `rutaDeAviso()` sabe traducir a una pantalla de Ops, y nada mas: el resto se sigue pintando como
+ * texto, porque un enlace prolijo que no lleva a donde dice es peor que no ofrecerlo.
  */
 export function ListaAvisos () {
   const [avisos, setAvisos] = useState<Aviso[] | null>(null)
@@ -61,24 +67,39 @@ export function ListaAvisos () {
 
       {error === null && avisos !== null && avisos.length > 0 && (
         <ul className="divide-linea-suave max-h-96 divide-y overflow-y-auto">
-          {avisos.map((aviso) => (
-            <li key={aviso.id} className="flex items-start gap-2 px-3 py-2">
-              <Avatar
-                nombre={aviso.from?.name ?? 'Sistema'}
-                tamano="chico"
-                className="mt-0.5"
-              />
-              <div className="flex min-w-0 flex-1 flex-col">
-                <span className={cn('text-pretty text-sm', aviso.read ? 'text-texto-tenue' : 'text-texto font-medium')}>
-                  {aviso.text}
-                </span>
-                <span className="text-texto-sutil text-xs">{formatearFecha(aviso.date, true)}</span>
-              </div>
-              {!aviso.read && (
-                <span aria-hidden="true" className="bg-acento mt-2 size-1.5 shrink-0 rounded-full" />
-              )}
-            </li>
-          ))}
+          {avisos.map((aviso) => {
+            const ruta = rutaDeAviso(aviso.link)
+            const contenido = (
+              <>
+                <Avatar
+                  nombre={aviso.from?.name ?? 'Sistema'}
+                  tamano="chico"
+                  className="mt-0.5"
+                />
+                <div className="flex min-w-0 flex-1 flex-col">
+                  <span className={cn('text-pretty text-sm', aviso.read ? 'text-texto-tenue' : 'text-texto font-medium')}>
+                    {aviso.text}
+                  </span>
+                  <span className="text-texto-sutil text-xs">{formatearFecha(aviso.date, true)}</span>
+                </div>
+                {!aviso.read && (
+                  <span aria-hidden="true" className="bg-acento mt-2 size-1.5 shrink-0 rounded-full" />
+                )}
+              </>
+            )
+
+            return (
+              <li key={aviso.id}>
+                {ruta === null
+                  ? <div className={CLASES_DE_FILA}>{contenido}</div>
+                  : (
+                    <Link href={ruta} className={cn(CLASES_DE_FILA, 'hover:bg-hover transition-colors')}>
+                      {contenido}
+                    </Link>
+                    )}
+              </li>
+            )
+          })}
         </ul>
       )}
     </div>
