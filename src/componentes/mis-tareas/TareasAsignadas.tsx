@@ -9,10 +9,11 @@ import { Boton } from '@/componentes/formularios/Boton'
 import { Fecha } from '@/componentes/presentadores/Fecha'
 import { Insignia, type TonoInsignia } from '@/componentes/presentadores/Insignia'
 import { EstadoDeTarea } from '@/componentes/proyecto/EstadoDeTarea'
+import { MenuEstadoTarea } from '@/componentes/proyecto/MenuEstadoTarea'
 import { pedirSobre } from '@/datos/cliente'
 import { observarLista } from '@/datos/refresco-lista'
 import { GLOSARIO } from '@/dominio/glosario'
-import { origenDeTarea, type ClaseDeOrigen } from '@/dominio/mis-tareas'
+import { CON_COMPLETADAS, origenDeTarea, type ClaseDeOrigen } from '@/dominio/mis-tareas'
 import type { EstadoLookup, Proceso } from '@/datos/recursos'
 import type { Paginacion } from '@/datos/tipos'
 
@@ -154,6 +155,29 @@ interface PropsTareasAsignadas {
   rutaDetalle?: string
   /** Controles del encabezado —un alta, por ejemplo—. Se dibujan tambien con la lista vacia. */
   accion?: ReactNode
+  /**
+   * Si la insignia de estado es ademas un menu para cambiarlo.
+   *
+   * Arranca apagada porque esta misma tabla pinta el trabajo de OTRA persona en la ficha de equipo
+   * (`PanelTrabajoPersona`), y ahi un menu que casi siempre responde `403` es peor que no ofrecerlo.
+   *
+   * Encendida no se pregunta por `tasks.edit`: las hojas que la encienden listan las Tareas de quien
+   * mira, y el backend deja cambiar el estado al asignado o al creador aunque no tenga ese permiso
+   * —`EstadoProceso::exigirPermiso()` en el modulo de API: `tasks.edit` es un atajo, no el unico
+   * camino—. Exigirlo aca dejaria a quien no lo tiene sin poder corregir su propio trabajo.
+   */
+  estadoEditable?: boolean
+  /**
+   * Si la lista incluye ademas las Tareas ya completadas.
+   *
+   * Apagada, `GET /tasks` las esconde por su cuenta y la lista es la hoja de trabajo pendiente.
+   * Encendida suma `CON_COMPLETADAS`, que es lo que deja corregir una Tarea cerrada por error.
+   *
+   * No se combina con un `consultaExtra` que ya traiga `filter[status]`: los dos filtros viajarian
+   * y la API los cruzaria con AND. Quien pasa un estado fijo —la ficha de equipo, que lista el
+   * trabajo abierto— no enciende esto, y por eso no hay un caso donde se contradigan.
+   */
+  verCompletadas?: boolean
   /** Ver `useListaPaginada`: cambiarlo vuelve a pedir la pagina. */
   version?: number
 }
@@ -170,14 +194,28 @@ interface PropsTareasAsignadas {
  */
 export function TareasAsignadas ({
   personaId, titulo, estados, consultaExtra, vacio, licitaciones,
-  rutaDetalle = '/procesos', accion, version = 0
+  rutaDetalle = '/procesos', accion, version = 0, estadoEditable = false, verCompletadas = false
 }: PropsTareasAsignadas) {
   const [pagina, setPagina] = useState(1)
   const plural = GLOSARIO.proceso.plural.toLowerCase()
   const deLicitacion = useMemo(() => new Set(licitaciones ?? []), [licitaciones])
 
-  const ruta = `tasks?assignee=${personaId}&per_page=${POR_PAGINA}&page=${pagina}&sort=due_date`
-    + (consultaExtra === undefined ? '' : `&${consultaExtra}`)
+  const filtro = (consultaExtra === undefined ? '' : `&${consultaExtra}`)
+    + (verCompletadas ? `&${CON_COMPLETADAS}` : '')
+
+  // Cambiar de filtro vuelve a la primera pagina. Sin esto, quien esta en la pagina 3 y enciende las
+  // completadas se queda mirando una pagina 3 que ya no existe —o que ahora muestra otra cosa—, y la
+  // unica pista de lo que paso seria el paginador. Es el `setState` durante el render que admite
+  // React: reinicia el render antes de pintar, y es lo que la regla de hooks pide en vez de un
+  // efecto que encadena un render de mas.
+  const [filtroPrevio, setFiltroPrevio] = useState(filtro)
+
+  if (filtroPrevio !== filtro) {
+    setFiltroPrevio(filtro)
+    setPagina(1)
+  }
+
+  const ruta = `tasks?assignee=${personaId}&per_page=${POR_PAGINA}&page=${pagina}&sort=due_date` + filtro
 
   const [carga, reintentar] = useListaPaginada<Proceso>(ruta, plural, version)
 
@@ -228,7 +266,26 @@ export function TareasAsignadas ({
                     </CeldaTabla>
 
                     <CeldaTabla>
-                      <EstadoDeTarea status={tarea.status} catalogo={estados} tamano="medio" />
+                      {/* El mismo control que el kanban de Hitos y la ficha: la insignia que ya se
+                          leia, con un menu detras. Corregir un estado puesto por error no tiene por
+                          que obligar a abrir el detalle.
+
+                          `onCambiado` vacio a proposito: `escribirEnBff` avisa toda escritura sobre
+                          `tasks/…` por el evento `ops:tareas-cambiadas`, y `observarLista` —quien
+                          mantiene viva esta lista— ya lo escucha y vuelve a pedir la pagina en su
+                          sitio. Llamar a `reintentar` aqui cambiaria la clave de la consulta: la
+                          tabla se desmontaria para pintar "Cargando…" y se pediria dos veces. */}
+                      {estadoEditable
+                        ? (
+                            <MenuEstadoTarea
+                              tareaId={tarea.id}
+                              nombreTarea={tarea.name}
+                              estado={tarea.status}
+                              catalogo={estados}
+                              onCambiado={() => {}}
+                            />
+                          )
+                        : <EstadoDeTarea status={tarea.status} catalogo={estados} tamano="medio" />}
                     </CeldaTabla>
 
                     <CeldaTabla>

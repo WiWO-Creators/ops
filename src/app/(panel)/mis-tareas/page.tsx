@@ -1,14 +1,16 @@
 import { Suspense } from 'react'
 import { TituloModulo } from '@/componentes/estructura/TituloModulo'
+import { BotonCompletadas } from '@/componentes/mis-tareas/BotonCompletadas'
 import { ModalTarea } from '@/componentes/proyecto/ModalTarea'
 import { TareasAsignadas } from '@/componentes/mis-tareas/TareasAsignadas'
 import { TareasPrivadas } from '@/componentes/mis-tareas/TareasPrivadas'
+import { paramsDeUrl } from '@/datos/consulta'
 import { cargarLookups, listaDe } from '@/datos/lookups'
 import { pedir, pedirOpcional } from '@/datos/servidor'
 import type { Licitacion } from '@/datos/recursos'
 import type { Yo } from '@/datos/tipos'
 import { GLOSARIO } from '@/dominio/glosario'
-import { SOLO_CON_ESPACIO } from '@/dominio/mis-tareas'
+import { seVenCompletadas, SOLO_CON_ESPACIO } from '@/dominio/mis-tareas'
 
 export const metadata = { title: 'Mis Tareas · WiWO Ops' }
 
@@ -28,20 +30,32 @@ const LICITACIONES_A_TRAER = 500
  * distincion. La hace la columna "Origen", que dice de cada fila si viene de una Licitacion, de un
  * Proyecto o de ningun lado.
  *
- * Completadas fuera: `GET /tasks` las excluye por defecto cuando no viaja un filtro de estado. Una
- * hoja de trabajo que arranca con el archivo de lo ya hecho no sirve para trabajar; lo terminado se
- * consulta en `/procesos`, que si tiene el filtro.
+ * Completadas fuera **por defecto**: `GET /tasks` las excluye cuando no viaja un filtro de estado.
+ * Una hoja de trabajo que arranca con el archivo de lo ya hecho no sirve para trabajar. Pero
+ * esconderlas del todo dejaba sin arreglo el error mas comun —marcar Completo lo que no lo estaba—,
+ * porque la Tarea desaparecia de la unica pantalla donde su dueño la miraba. Por eso el interruptor
+ * "Ver completadas" las SUMA a las dos listas, con el estado en la URL para que sobreviva al
+ * refresco, y la insignia de estado de cada fila es un menu para devolverla a donde iba.
  */
-export default async function MisTareasPage () {
+export default async function MisTareasPage (props: PageProps<'/mis-tareas'>) {
   const { data: yo } = await pedir<Yo>('/me')
   const [lookups, licitaciones] = await Promise.all([cargarLookups(), licitacionesDeLaCasa(yo)])
   const estados = listaDe(lookups, 'task_statuses')
+  const verCompletadas = seVenCompletadas(paramsDeUrl(await props.searchParams))
 
   return (
     <section className="flex flex-col gap-8">
       <TituloModulo
         titulo={`Mis ${GLOSARIO.proceso.plural}`}
         descripcion={`Todo lo que tienes asignado, con el origen de cada ${GLOSARIO.proceso.singular.toLowerCase()} a la vista.`}
+        // El interruptor manda sobre las DOS listas, asi que vive en el encabezado de la pantalla y
+        // no en una de ellas. Va en un limite de Suspense por el mismo motivo que el modal: lee
+        // `useSearchParams`, y sin el limite el build de esta pagina falla.
+        acciones={
+          <Suspense fallback={null}>
+            <BotonCompletadas />
+          </Suspense>
+        }
       />
 
       <TareasAsignadas
@@ -51,13 +65,21 @@ export default async function MisTareasPage () {
         consultaExtra={SOLO_CON_ESPACIO}
         licitaciones={licitaciones}
         rutaDetalle="/mis-tareas"
+        // Son las Tareas de quien mira: el estado se cambia desde la fila. Ver `estadoEditable`.
+        estadoEditable
+        verCompletadas={verCompletadas}
         vacio={{
           titulo: `No tienes ${GLOSARIO.proceso.plural.toLowerCase()} asignadas`,
           descripcion: `Cuando te asignen la primera va a aparecer acá, con su estado, su origen y su fecha de entrega.`
         }}
       />
 
-      <TareasPrivadas personaId={yo.id} estados={estados} rutaDetalle="/mis-tareas" />
+      <TareasPrivadas
+        personaId={yo.id}
+        estados={estados}
+        rutaDetalle="/mis-tareas"
+        verCompletadas={verCompletadas}
+      />
 
       {/* El mismo detalle de los listados, con la misma URL (`?tarea={id}`). Va en un limite de
           Suspense porque lee `useSearchParams`: sin el, el build de esta pagina falla. */}
