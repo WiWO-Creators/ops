@@ -361,9 +361,10 @@ export function FichaDeTablero ({ texto, sitio, maximo, mayusculas = false, clas
  * ultimas posiciones son las unicas que se mueven a ese ritmo, y son exactamente las que pueden girar.
  * Lo de delante cambia tan de vez en cuando que aparecer ya puesto es lo correcto.
  *
- * Y la ola es propia —`ondaDeContador()`, una ventana de 0,88 s repartida entre todas las filas—
- * porque esta ola se repite cada segundo: con las once ranuras por fila del tablero, la ultima fila
- * voltearia cuatro segundos tarde, o sea cuatro valores despues del suyo.
+ * Y la ola es propia —`ondaDeContador()`, una ventana repartida entre todas las filas, y con el escalon
+ * de `.solari-contador` unos 0,10 s de punta a punta— porque esta ola se repite cada segundo: con las
+ * once ranuras por fila del tablero la ultima fila voltearia segundos tarde, o sea varios valores
+ * despues del suyo, y no llegaria a asentarse nunca. La cuenta del margen esta en `pantalla.css`.
  *
  * **Congelado dice la verdad.** Cuando los datos estan viejos el contador deja de sumar y se queda en
  * el ultimo valor bueno: un numero que sigue trepando con la conexion caida es una mentira, y esta

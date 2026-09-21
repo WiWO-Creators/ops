@@ -387,14 +387,19 @@ function comoGlifo (caracter: string): string {
  * Cuantas fichas pueden girar, como mucho, en un cambio de pagina.
  *
  * Sale de las dos restricciones a la vez. Por arriba: la ola dura `RANURAS_DE_OLA * --escalon`, y con
- * los 26 ms del tablero son ~4,4 s de los 10 a 20 que dura una pagina — la pared se mueve menos de un
- * cuarto del tiempo y esta quieta el resto, que es la condicion para leerla de pie y de pasada. Por
- * abajo: menos ranuras dejarian filas enteras sin una sola ficha girando, y entonces el cambio de
- * pagina se leeria como un reemplazo de texto y no como un panel.
+ * los 6 ms del tablero son ~1,0 s de los 10 a 20 que dura una pagina — la pared se mueve una fraccion
+ * del tiempo y esta quieta el resto, que es la condicion para leerla de pie y de pasada. Por abajo:
+ * menos ranuras dejarian filas enteras sin una sola ficha girando, y entonces el cambio de pagina se
+ * leeria como un reemplazo de texto y no como un panel.
+ *
+ * El limite de arriba ya no es el que manda: con el escalon de 6 ms lo que acota la ola no es el
+ * presupuesto de tiempo sino el de fichas. Ver `.solari-tablero` en `pantalla.css`.
  *
  * El numero se afino midiendo, no razonando: ver el bloque de medicion del informe de la rama. Con 190
  * ranuras a 16 ms el pico medido fue de 68 fichas y la pared bajo a 39 fps con saltos de 333 ms; con
- * 170 a 26 ms —y el giro de `--velocidad` acortado— el pico cae al orden de las que se sabe que rinden.
+ * 170 —y el giro de `--velocidad` acortado— el arranque se reparte en menos de tres fichas por
+ * fotograma, que es lo que de verdad cuesta: una animacion de `transform` ya en curso la compone la
+ * GPU y no paga estilo.
  *
  * **No es un tope de fichas en pantalla**: los huecos que no entran en el presupuesto existen igual y
  * muestran su caracter definitivo desde el primer fotograma. Lo que se reparte es el movimiento.
@@ -644,10 +649,15 @@ export const TOPE_DE_CONTADOR = 2
  * por pagina, pero la de los contadores se repite **cada segundo**. Si la ultima fila arrancara mas
  * de un segundo tarde, su digito voltearia un valor que ya no es el suyo — la pared mentiria.
  *
- * Treinta y cuatro ranuras con el escalon de 26 ms del tablero son 0,88 s: la ola baja por la columna
- * entera y se cierra antes de que llegue el valor siguiente, tenga la tabla quince filas o las ~36 de
- * `trabajando`. Y como el reparto es proporcional, cuantas menos filas haya mas separadas arrancan, que
- * es justo lo que baja el pico donde sobra sitio para bajarlo.
+ * Treinta y cuatro ranuras con el escalon de 3 ms de `.solari-contador` son 0,10 s: la columna entera
+ * arranca dentro de un mismo vistazo —el ojo lo lee como simultaneo— y el volteo completo se asienta en
+ * ~0,54 s, con medio segundo de margen antes del tic siguiente, tenga la tabla quince filas o las ~36
+ * de `trabajando`. La ventana no existe para escalonar la lectura sino para que las 36 fichas no
+ * ARRANQUEN en el mismo fotograma; la cuenta entera esta en `.solari-contador` en `pantalla.css`.
+ *
+ * Lo que NO puede volver a pasar: que la espera de la ola pase del segundo. Cuando pasaba —el escalon
+ * de 26 ms daba 1,4 s en la ultima fila— el valor siguiente remontaba la ficha antes de que la anterior
+ * se asentara y el contador se quedaba clavado en un glifo intermedio, sin avanzar y sin decir la hora.
  */
 export const RANURAS_DE_CONTADOR = 34
 

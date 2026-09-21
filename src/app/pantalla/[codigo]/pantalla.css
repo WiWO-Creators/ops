@@ -512,18 +512,44 @@
 /*
  * El Solari de una celda del tablero, que es el de una OLA y no el de un texto suelto.
  *
- * Lo unico que cambia es el escalon, y cambia mucho: 26 ms contra los 35 de un reloj. La cuenta esta
- * en el docblock de `RANURAS_DE_OLA` en el dominio —el pico de fichas girando a la vez es el giro
- * partido por el escalon, unos 234/26 ≈ 9 por ola— y es lo que permite que un tablero entero voltee
- * sin que la pared se quede sin fotogramas. Un reloj de cinco caracteres no esta en ninguna ola y se
- * lee mejor con el escalon lento.
+ * Lo unico que cambia es el escalon, y cambia mucho: 6 ms contra los 35 de un reloj suelto. El pico de
+ * fichas girando a la vez es el giro partido por el escalon —unos 234/6 ≈ 39—, y son animaciones de
+ * `transform` puro que compone la GPU; lo que hay que vigilar no es cuantas corren sino cuantas
+ * ARRANCAN en un mismo fotograma, que a 6 ms son menos de tres. Ver `RANURAS_DE_OLA` en el dominio.
  *
- * Las 170 ranuras a 26 ms dan una ola de 4,4 s: es larga a proposito. Lo que hace que un cambio de
- * pagina se lea como un panel de aeropuerto no es que las fichas giren rapido, es que la ola RECORRA
- * el tablero — y una ola que recorre quince filas en medio segundo es un fogonazo, no una ola.
+ * **6 ms y no los 26 de antes, y es una correccion y no un gusto.** Con 26 ms las 170 ranuras daban una
+ * ola de 4,4 s: las celdas del fondo del tablero arrancaban a girar cuatro segundos despues de que
+ * llegara el dato, y hasta ese momento no mostraban su valor sino el primer fotograma del giro —un
+ * glifo intermedio congelado, por el `backwards` de la animacion—. Una pared que tarda cuatro segundos
+ * en decir la verdad no se lee como una ola, se lee como una pantalla trabada. Con 6 ms la ola entera
+ * recorre el tablero en poco mas de un segundo: sigue RECORRIENDOLO —que es lo que la hace ola y no
+ * fogonazo— pero todas las fichas cuentan el mismo dato dentro del mismo vistazo.
  */
 .solari-tablero {
-  --escalon: 26ms;
+  --escalon: 6ms;
+}
+
+/*
+ * El Solari de un contador, que es el unico que vuelve a girar CADA SEGUNDO.
+ *
+ * === POR QUE ESTE ESCALON NO ES UNA PREFERENCIA SINO UN LIMITE ===
+ *
+ * Todas las demas olas de la pantalla se disparan en un cambio de pagina, cada diez o veinte segundos:
+ * pueden durar lo que quieran. La de los contadores se dispara con el tic del reloj, asi que el volteo
+ * entero —espera de la ola, espera del glifo, giro y rebote— tiene que caber en UN segundo. Si no cabe,
+ * el valor siguiente remonta la ficha antes de que la anterior termine y la ficha no llega a asentarse
+ * nunca: se queda en el glifo intermedio del `backwards`, mostrando un digito que no es el suyo. Eso es
+ * exactamente lo que hacian las filas de abajo con el escalon de 26 ms, donde la cuenta daba
+ * (34 + 7) * 26 + 324 ≈ 1,4 s — mas de un segundo, o sea un contador que ni avanza ni dice la verdad.
+ *
+ * Con 3 ms la cuenta es (34 + 7) * 3 + 324 + 90 ≈ 0,54 s: la columna entera arranca dentro de los
+ * primeros 123 ms —que el ojo lee como simultaneo— y se asienta con casi medio segundo de margen antes
+ * del tic siguiente. El reparto de `ondaDeContador()` se conserva porque es lo que evita que las ~36
+ * filas de `trabajando` arranquen todas en el mismo fotograma: a 3 ms son unas cinco por fotograma,
+ * por debajo del techo medido de catorce.
+ */
+.solari-contador {
+  --escalon: 3ms;
 }
 
 /*
