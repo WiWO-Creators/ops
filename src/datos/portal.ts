@@ -370,7 +370,8 @@ export interface TicketDelResumen {
   id: number
   subject: string
   status: EstadoDeProceso
-  /** `YYYY-MM-DD HH:MM:SS` de la última respuesta, o `null` si todavía no hay ninguna. */
+  /** ISO-8601 de la última respuesta, o `null` si todavía no hay ninguna. Mismo formato que
+   *  `bloqueado_en` en este endpoint: el instante viaja en UTC y lo localiza la pantalla. */
   last_reply: string | null
   /** El {espacio} del que cuelga, o `null`: un ticket puede no pertenecer a ninguno. */
   project: ReferenciaDeEspacio | null
