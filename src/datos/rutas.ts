@@ -20,7 +20,7 @@ const PREFIJOS_PERMITIDOS = [
   // Sin esta entrada el BFF contesta 404 antes de salir a la red, que es el mismo 404 que la API le
   // da a quien no entra: el interruptor no se podria tocar ni teniendo acceso. Estar en la lista no
   // abre nada por si solo, la puerta sigue siendo la de la API.
-  'refugio',
+  'mantenimiento',
   'lookups',
   'custom-fields',
   'staff',

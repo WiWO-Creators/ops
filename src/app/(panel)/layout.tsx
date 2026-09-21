@@ -83,7 +83,7 @@ export default async function PanelLayout ({ children }: { children: React.React
           latido: ver `dominio/pantalla.ts`. */}
       {conIa && <OrbeChatIA />}
 
-      {yo.es_refugiado && <AtajoDirecto destino="/refugio" />}
+      {yo.atajo !== undefined && <AtajoDirecto destino={yo.atajo} />}
 
       {/* `aurora` va aca y no en cada pantalla: es el lienzo del panel, no un adorno de la portada.
           Su capa es un `::before` fijo detras de todo (`globals.css`), asi que no ocupa lugar ni

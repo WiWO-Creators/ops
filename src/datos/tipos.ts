@@ -210,17 +210,16 @@ export interface Yo extends Staff {
    */
   es_focal?: boolean
   /**
-   * Si quien mira entra al Refugio (`/refugio`).
+   * Ruta del panel de mantenimiento, o ausente para casi todo el mundo.
    *
-   * **La API la manda sólo cuando es `true`, nunca como `false`**, y esa asimetría es deliberada: el
-   * payload de `/me` se lee abriendo las herramientas del navegador, así que un `es_refugiado: false`
-   * en la respuesta de las otras 183 personas sería el anuncio de que existe algo llamado Refugio.
-   * Ausente no significa nada; presente es la única forma de enterarse.
+   * **La API la manda sólo a quien entra**, y manda la RUTA en vez de una bandera a propósito: con
+   * un booleano, el camino tendría que estar escrito en el bundle, y un bundle se lee abriendo las
+   * herramientas del navegador. Así el navegador no lo trae, lo recibe.
    *
    * No es la seguridad: la puerta real es el 404 de la API. Esto sólo decide si se monta el oyente
-   * del código Konami.
+   * del atajo y a dónde lleva.
    */
-  es_refugiado?: boolean
+  atajo?: string
   secciones_habilitadas: string[]
   locale: string
 }

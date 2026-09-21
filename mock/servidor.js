@@ -762,8 +762,11 @@ function registrarReporte (cuerpo, actual) {
   return incidente
 }
 
+/** Segmento con el que se publica la pantalla. En la instalacion real sale del `.env`. */
+const RUTA_MANTENIMIENTO = 'k3p9x'
+
 /** Los interruptores booleanos, con el mismo reparto de grupos que `Escritura\\Ajuste::EDITABLES`. */
-const REFUGIO_INTERRUPTORES = [
+const INTERRUPTORES_MANT = [
   { clave: 'wiwo_google_login_enabled', grupo: 'acceso', etiqueta: 'Entrar con Google', valor: true },
   { clave: 'wiwo_google_autoalta_enabled', grupo: 'acceso', etiqueta: 'Alta automática por dominio', valor: false },
   { clave: 'wiwo_live_cierre_automatico', grupo: 'jornada', etiqueta: 'Cierre automático de la jornada', valor: false },
@@ -775,16 +778,17 @@ const REFUGIO_INTERRUPTORES = [
   { clave: 'auto_stop_tasks_timers_on_new_timer', grupo: 'cronometro', etiqueta: 'Un cronómetro nuevo detiene el anterior', valor: true }
 ]
 
-/** Grupos cuyo cambio se nota fuera de la instalacion. Mismo criterio que `RecursoRefugio`. */
-const REFUGIO_PELIGROSOS = ['correo', 'acceso', 'ia']
+/** Grupos cuyo cambio se nota fuera de la instalacion. Mismo criterio que `RecursoMantenimiento`. */
+const PELIGROSOS_MANT = ['correo', 'acceso', 'ia']
 
-/** El tablero del Refugio, con un desfase de reloj fijo para que la pantalla tenga algo que decir. */
-function estadoDelRefugio (actual) {
+/** El tablero de mantenimiento, con un desfase de reloj fijo para que la pantalla tenga algo que decir. */
+function estadoDeMantenimiento (actual) {
   const php = new Date()
   const base = new Date(php.getTime() - 4 * 3600 * 1000)
   const comoTexto = (fecha) => fecha.toISOString().slice(0, 19).replace('T', ' ')
 
   return {
+    titulo: 'Refugio',
     operador: { staffid: actual.id, nombre: actual.full_name },
     migraciones: {
       en_disco: 100,
@@ -792,9 +796,9 @@ function estadoDelRefugio (actual) {
       pendientes: ['0760_integraciones.sql', '0770_cambios_de_compromiso.sql'],
       ultima: { archivo: '0750_logo_del_correo_en_webp.sql', aplicada_en: '2026-09-18 11:04:22' }
     },
-    interruptores: REFUGIO_INTERRUPTORES.map((int) => ({
+    interruptores: INTERRUPTORES_MANT.map((int) => ({
       ...int,
-      peligro: REFUGIO_PELIGROSOS.includes(int.grupo)
+      peligro: PELIGROSOS_MANT.includes(int.grupo)
     })),
     reloj: {
       php: comoTexto(php),
@@ -5256,10 +5260,10 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
         // Tener gente a cargo: alguien cuelga de ella, o dirige un area. Se resuelve por el mismo
         // `esJefatura()` que usa `/accesos`, para que el mock no diga dos cosas del mismo dato.
         es_jefatura: esJefatura(actual),
-        // La API real lo manda SOLO cuando es true, nunca como false. Aca se imita con el mismo
-        // criterio: en la instalacion real hace falta ademas estar en la lista del .env, que el mock
-        // no tiene, asi que alcanza con ser superadministradora.
-        ...(actual.is_superadmin === true ? { es_refugiado: true } : {}),
+        // La API real manda la RUTA y solo a quien entra, para que el camino no quede escrito en el
+        // bundle. Aca se imita con el mismo criterio: en la instalacion real hace falta ademas estar
+        // en la lista del .env, que el mock no tiene, asi que alcanza con ser superadministradora.
+        ...(actual.is_superadmin === true ? { atajo: '/s/' + RUTA_MANTENIMIENTO } : {}),
         secciones_habilitadas: ['procesos', 'espacios', 'salas'],
         locale: 'es'
       })
@@ -5267,13 +5271,13 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
   }
 
   // Contesta 404 a quien no entra, igual que la API: el 403 confesaria que la ruta existe.
-  if (recurso === 'refugio') {
+  if (recurso === 'mantenimiento') {
     if (actual.is_superadmin !== true) {
-      throw new ErrorApi(404, 'not_found', 'Recurso desconocido: "refugio".')
+      throw new ErrorApi(404, 'not_found', 'Recurso desconocido: "mantenimiento".')
     }
 
     if (metodo === 'GET' && resto[0] === 'estado') {
-      return { estado: 200, cuerpo: conDatos(estadoDelRefugio(actual)) }
+      return { estado: 200, cuerpo: conDatos(estadoDeMantenimiento(actual)) }
     }
 
     if (metodo === 'PATCH' && resto[0] === 'interruptores') {
@@ -5282,7 +5286,7 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
       const escritos = []
 
       for (const [clave, valor] of Object.entries(entrada)) {
-        const int = REFUGIO_INTERRUPTORES.find((i) => i.clave === clave)
+        const int = INTERRUPTORES_MANT.find((i) => i.clave === clave)
         if (int === undefined) {
           throw new ErrorApi(422, 'validation_error', 'Hay ajustes que no se pueden escribir.')
         }

@@ -7,6 +7,8 @@ export interface Interruptor {
 }
 
 export interface Estado {
+  /** Lo pone el servidor: una cadena del componente viajaria en el bundle de todo el panel. */
+  titulo: string
   operador: { staffid: number, nombre: string }
   migraciones: {
     en_disco: number
