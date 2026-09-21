@@ -51,6 +51,8 @@ export default async function MisTareasPage () {
         consultaExtra={SOLO_CON_ESPACIO}
         licitaciones={licitaciones}
         rutaDetalle="/mis-tareas"
+        // Son las Tareas de quien mira: el estado se cambia desde la fila. Ver `estadoEditable`.
+        estadoEditable
         vacio={{
           titulo: `No tienes ${GLOSARIO.proceso.plural.toLowerCase()} asignadas`,
           descripcion: `Cuando te asignen la primera va a aparecer acá, con su estado, su origen y su fecha de entrega.`

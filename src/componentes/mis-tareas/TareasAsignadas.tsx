@@ -9,6 +9,7 @@ import { Boton } from '@/componentes/formularios/Boton'
 import { Fecha } from '@/componentes/presentadores/Fecha'
 import { Insignia, type TonoInsignia } from '@/componentes/presentadores/Insignia'
 import { EstadoDeTarea } from '@/componentes/proyecto/EstadoDeTarea'
+import { MenuEstadoTarea } from '@/componentes/proyecto/MenuEstadoTarea'
 import { pedirSobre } from '@/datos/cliente'
 import { observarLista } from '@/datos/refresco-lista'
 import { GLOSARIO } from '@/dominio/glosario'
@@ -154,6 +155,18 @@ interface PropsTareasAsignadas {
   rutaDetalle?: string
   /** Controles del encabezado —un alta, por ejemplo—. Se dibujan tambien con la lista vacia. */
   accion?: ReactNode
+  /**
+   * Si la insignia de estado es ademas un menu para cambiarlo.
+   *
+   * Arranca apagada porque esta misma tabla pinta el trabajo de OTRA persona en la ficha de equipo
+   * (`PanelTrabajoPersona`), y ahi un menu que casi siempre responde `403` es peor que no ofrecerlo.
+   *
+   * Encendida no se pregunta por `tasks.edit`: las hojas que la encienden listan las Tareas de quien
+   * mira, y el backend deja cambiar el estado al asignado o al creador aunque no tenga ese permiso
+   * —`EstadoProceso::exigirPermiso()` en el modulo de API: `tasks.edit` es un atajo, no el unico
+   * camino—. Exigirlo aca dejaria a quien no lo tiene sin poder corregir su propio trabajo.
+   */
+  estadoEditable?: boolean
   /** Ver `useListaPaginada`: cambiarlo vuelve a pedir la pagina. */
   version?: number
 }
@@ -170,7 +183,7 @@ interface PropsTareasAsignadas {
  */
 export function TareasAsignadas ({
   personaId, titulo, estados, consultaExtra, vacio, licitaciones,
-  rutaDetalle = '/procesos', accion, version = 0
+  rutaDetalle = '/procesos', accion, version = 0, estadoEditable = false
 }: PropsTareasAsignadas) {
   const [pagina, setPagina] = useState(1)
   const plural = GLOSARIO.proceso.plural.toLowerCase()
@@ -228,7 +241,26 @@ export function TareasAsignadas ({
                     </CeldaTabla>
 
                     <CeldaTabla>
-                      <EstadoDeTarea status={tarea.status} catalogo={estados} tamano="medio" />
+                      {/* El mismo control que el kanban de Hitos y la ficha: la insignia que ya se
+                          leia, con un menu detras. Corregir un estado puesto por error no tiene por
+                          que obligar a abrir el detalle.
+
+                          `onCambiado` vacio a proposito: `escribirEnBff` avisa toda escritura sobre
+                          `tasks/…` por el evento `ops:tareas-cambiadas`, y `observarLista` —quien
+                          mantiene viva esta lista— ya lo escucha y vuelve a pedir la pagina en su
+                          sitio. Llamar a `reintentar` aqui cambiaria la clave de la consulta: la
+                          tabla se desmontaria para pintar "Cargando…" y se pediria dos veces. */}
+                      {estadoEditable
+                        ? (
+                            <MenuEstadoTarea
+                              tareaId={tarea.id}
+                              nombreTarea={tarea.name}
+                              estado={tarea.status}
+                              catalogo={estados}
+                              onCambiado={() => {}}
+                            />
+                          )
+                        : <EstadoDeTarea status={tarea.status} catalogo={estados} tamano="medio" />}
                     </CeldaTabla>
 
                     <CeldaTabla>

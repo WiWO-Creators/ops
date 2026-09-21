@@ -47,6 +47,9 @@ export function TareasPrivadas ({ personaId, estados, rutaDetalle }: PropsTareas
       consultaExtra={SOLO_SIN_ESPACIO}
       rutaDetalle={rutaDetalle}
       version={version}
+      // Una privada es de quien mira —asignada y creada por ella—, asi que el estado se corrige
+      // desde la lista sin pasar por el detalle. Ver `estadoEditable` en `TareasAsignadas`.
+      estadoEditable
       accion={<DialogoTareaPrivada personaId={personaId} onCreada={() => { setVersion((n) => n + 1) }} />}
       vacio={{
         titulo: `No tienes ${GLOSARIO.proceso.plural.toLowerCase()} privadas`,
