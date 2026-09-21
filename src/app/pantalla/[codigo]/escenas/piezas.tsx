@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import type { ReactNode } from 'react'
 import { cn } from '@/lib/clases'
 import { coloresAvatar, iniciales } from '@/lib/personas'
@@ -133,6 +134,56 @@ export function Cara ({ nombre, imagen, tamano = '3.8vmin' }: {
           className="absolute inset-0 size-full object-cover"
         />
       )}
+    </span>
+  )
+}
+
+/**
+ * El cliente de una fila del tablero: su logo si lo tiene, y si no su nombre en la tira de fichas.
+ *
+ * === POR QUE EL LOGO NO ES UNA FICHA ===
+ *
+ * Una marca no es texto: volteada caracter a caracter no se lee, y recortada a los 33vmin de la
+ * columna tampoco. Va como imagen `contain`, con la altura de la fila como techo, asi que un logo
+ * apaisado y uno cuadrado ocupan lo mismo de alto y la fila no cambia de altura segun el cliente.
+ *
+ * El nombre, en cambio, es texto de tablero y se comporta como la columna que reemplaza: mismas
+ * mayusculas, mismo cupo, misma ola. Un cliente sin logo no degrada la fila, solo la escribe.
+ *
+ * === EL LOGO QUE NO CARGA ===
+ *
+ * `uploads/` del panel tiene rutas muertas —es el caso comun, no el raro— y un `<img>` roto en una
+ * pared es un icono gris que nadie puede arreglar desde ahi. Al primer error se cae al nombre, que
+ * es el mismo destino del cliente sin logo.
+ *
+ * No usa `next/image`: la imagen sale de otro dominio y sin tamano conocido, igual que las caras.
+ */
+export function MarcaDeCliente ({ cliente, sitio, maximo, className }: {
+  cliente: { name: string, image_url: string | null } | null
+  sitio: SitioEnLaOla
+  maximo: number
+  className?: string
+}): ReactNode {
+  const [logoRoto, setLogoRoto] = useState(false)
+  const logo = cliente?.image_url ?? null
+
+  if (cliente === null) {
+    return <FichaDeTablero mayusculas texto="—" sitio={sitio} maximo={maximo} className={className} />
+  }
+
+  if (logo === null || logo === '' || logoRoto) {
+    return <FichaDeTablero mayusculas texto={cliente.name} sitio={sitio} maximo={maximo} className={className} />
+  }
+
+  return (
+    <span className={cn('flex min-w-0 items-center', className)}>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={logo}
+        alt={cliente.name}
+        onError={() => { setLogoRoto(true) }}
+        className="max-h-[3.4vmin] max-w-full object-contain object-left"
+      />
     </span>
   )
 }

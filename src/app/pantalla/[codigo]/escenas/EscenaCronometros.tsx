@@ -6,14 +6,14 @@ import { ANCHO_MAYUSCULA_EM, ANCHO_SOBRIO_EM, cupoDeFichas, planDeOla } from '@/
 import type { CronometroEnPantalla } from '@/datos/pantalla-area'
 import {
   Cara, CabeceraDeEscena, CeldaQueAlterna, Corriendo, CUERPO_COLUMNA, CUERPO_PRINCIPAL,
-  FichaDeTablero, Nada, RELLENO_DE_FILA, Rotulo, RotulosDeColumna
+  FichaDeTablero, MarcaDeCliente, Nada, RELLENO_DE_FILA, Rotulo, RotulosDeColumna
 } from './piezas'
 
 /** La rejilla de columnas de esta escena. Su reparto vive en `pantalla.css`. */
 const COLUMNAS = 'pantalla-columnas-cronometros'
 
 /**
- * Cuanto pesa cada columna en la ola: la Tarea, quien mide y el Proyecto.
+ * Cuanto pesa cada columna en la ola: la Tarea, quien mide y el cliente.
  *
  * El contador no entra: tiene ola propia porque cambia una vez por segundo. Ver `Corriendo`.
  */
@@ -34,7 +34,7 @@ const PESOS = [6, 2, 2] as const
 const CUPO = {
   nombre: cupoDeFichas(60, 3, ANCHO_SOBRIO_EM),
   quien: cupoDeFichas(26, 2.7, ANCHO_SOBRIO_EM),
-  espacio: cupoDeFichas(30, 2.7, ANCHO_MAYUSCULA_EM),
+  cliente: cupoDeFichas(30, 2.7, ANCHO_MAYUSCULA_EM),
   /** El contador: digitos, ancho fijo y ficha entera. Por eso su columna crecio a 20vmin. */
   lleva: cupoDeFichas(20, 3.4)
 }
@@ -49,10 +49,13 @@ const CUPO = {
  *
  * Lo que cambio del diseño anterior es todo lo demas. Antes cada cronometro era una ficha de dos
  * lineas con un avatar de 7vmin y entraban cinco; ahora es una fila de tabla y entran quince, porque
- * el nombre de quien mide y el del Proyecto pasaron de ser una segunda linea gris a ser dos columnas
+ * el nombre de quien mide y el del cliente pasaron de ser una segunda linea gris a ser dos columnas
  * propias. La misma informacion, tres veces mas filas, y ademas comparable de columna a columna.
  *
- * Los nombres de Tarea y Proyecto salen de `GLOSARIO`, nunca escritos a mano: el producto los ha
+ * La tercera columna dice el CLIENTE y no el Proyecto, igual que en la escena de Tareas: con logo si
+ * el cliente lo tiene cargado y con su nombre si no. Ver `MarcaDeCliente`.
+ *
+ * Los nombres de Tarea y Cliente salen de `GLOSARIO`, nunca escritos a mano: el producto los ha
  * renombrado antes y lo volvera a hacer.
  *
  * === EL CONTADOR TAMBIEN ES SOLARI ===
@@ -91,7 +94,7 @@ export function EscenaCronometros ({ items, ocultos, ahora, congelado, zona, fas
         <span />
         <Rotulo texto={GLOSARIO.proceso.singular} columna={0} maximo={CUPO.nombre} />
         <Rotulo texto={fase === 0 ? 'Quién mide' : 'Arrancó'} columna={1} maximo={CUPO.quien} />
-        <Rotulo texto={GLOSARIO.espacio.singular} columna={2} maximo={CUPO.espacio} className="portrait:hidden" />
+        <Rotulo texto={GLOSARIO.cliente.singular} columna={2} maximo={CUPO.cliente} className="portrait:hidden" />
         <Rotulo texto="Lleva" columna={3} maximo={CUPO.lleva} className="text-right" />
       </RotulosDeColumna>
 
@@ -126,11 +129,11 @@ export function EscenaCronometros ({ items, ocultos, ahora, congelado, zona, fas
               className={cn('text-texto-tenue', CUERPO_COLUMNA)}
             />
 
-            <FichaDeTablero
-              mayusculas
-              texto={medidor.project?.name ?? '—'}
+            {/* El cliente del Proyecto medido, no el Proyecto. Ver `MarcaDeCliente`. */}
+            <MarcaDeCliente
+              cliente={medidor.client}
               sitio={{ plan, fila: indice, columna: 2 }}
-              maximo={CUPO.espacio}
+              maximo={CUPO.cliente}
               className={cn('text-texto-tenue portrait:hidden', CUERPO_COLUMNA)}
             />
 

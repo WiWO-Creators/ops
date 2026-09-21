@@ -27,6 +27,22 @@ const DE_PIE = { width: 1080, height: 1920 }
 /** Tamaño de letra minimo aceptable a 1080p: ver la escala de `MarcoDePantalla`. */
 const PISO_TIPOGRAFICO = 28
 
+/**
+ * Un logo de cliente servido como `data:` URI.
+ *
+ * No sale del servidor de prueba a proposito: lo que se verifica es que la celda dibuje la imagen, y
+ * un `src` que puede fallar por red convertiria esa afirmacion en una moneda al aire — la pieza cae
+ * al nombre justamente cuando la imagen no carga.
+ */
+const LOGO = 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22120%22 height=%2240%22%3E%3Crect width=%22120%22 height=%2240%22 fill=%22%23e11d48%22/%3E%3C/svg%3E'
+
+/** El cliente de una fila: los impares con logo, los pares sin el. */
+function cliente (id) {
+  return id % 2 === 1
+    ? { id: 38, name: 'Abastible', image_url: LOGO }
+    : { id: 40, name: 'Andes Logística Regional', image_url: null }
+}
+
 function persona (id) {
   return {
     staff_id: id,
@@ -45,7 +61,8 @@ function cronometro (id) {
     avatar: null,
     started_at: new Date(Date.now() - 900_000).toISOString(),
     task: { id: 100 + id, name: `Tarea larguisima numero ${id} para probar el recorte de una linea` },
-    project: { id: 1, name: 'Proyecto de prueba' }
+    project: { id: 1, name: 'Proyecto de prueba' },
+    client: cliente(id)
   }
 }
 
@@ -59,6 +76,7 @@ function tarea (id) {
     overdue: true,
     progress: { checklist_total: 4, checklist_done: 1, percent: 25 },
     project: { id: 1, name: 'Proyecto de prueba' },
+    client: cliente(id),
     assignees: [{ staff_id: 1, name: 'Persona 1 Apellido', avatar: null }]
   }
 }
@@ -677,6 +695,32 @@ try {
     assert.match(texto, /de la compañía/i, 'La pantalla global tiene que nombrarse como la compañía.')
     assert.ok(!/del área/i.test(texto), 'La pantalla global no puede decir "del área": no hay ninguna.')
     assert.match(await pagina.locator('header h1').innerText(), /WiWO/i, 'La cabecera lleva el nombre de la compañía.')
+  })
+
+  // === 10. Las escenas de Tareas dicen el cliente, con su logo o con su nombre ================
+  //
+  // Es lo unico de la fila que no es texto: un logo que no carga deja la celda vacia en una pared
+  // donde nadie puede arreglarlo, asi que se verifica que la imagen esta Y que el cliente sin logo
+  // sigue escribiendose. El nombre del Proyecto ya no se dibuja en estas dos escenas.
+  await conPagina(contexto, async (pagina) => {
+    for (const escena of ['procesos', 'cronometros']) {
+      await sondeoFijo(pagina, paquete({ tareas: 6, cronometros: 6, dura: 120 }))
+      await abrir(pagina, `?solo=${escena}&escena=120`)
+
+      const texto = await pagina.locator('main').innerText()
+      const logos = pagina.locator('main img[alt="Abastible"]')
+
+      assert.ok(await logos.count() > 0, `${escena}: el cliente con logo tiene que dibujar su imagen.`)
+      assert.ok(
+        await logos.first().evaluate((img) => img.complete && img.naturalWidth > 0),
+        `${escena}: el logo esta en el DOM pero no cargo.`
+      )
+      assert.match(texto, /ANDES LOG/i, `${escena}: el cliente sin logo se escribe con su nombre.`)
+      assert.ok(
+        !/Proyecto de prueba/i.test(texto),
+        `${escena}: la columna dejo de ser el Proyecto y no puede seguir nombrandolo.`
+      )
+    }
   })
 
   console.log('pantalla-area.browser: OK')
