@@ -12,6 +12,7 @@ import type { ConteoDeAvisos } from '@/datos/avisos'
 import { SelectorTema } from '@/componentes/estructura/SelectorTema'
 import { BarraLateral, BarraLateralMovil, type Seccion } from '@/componentes/estructura/BarraLateral'
 import { BarraSuplantacion } from '@/componentes/estructura/BarraSuplantacion'
+import { AtajoDirecto } from '@/componentes/estructura/AtajoDirecto'
 import { Latido } from '@/componentes/auditoria/Latido'
 import { OrbeChatIA } from '@/componentes/ia/OrbeChatIA'
 import { Campana } from '@/componentes/avisos/Campana'
@@ -81,6 +82,8 @@ export default async function PanelLayout ({ children }: { children: React.React
           ruta. Le manda al servidor en que pantalla esta parada la persona, la misma cadena que el
           latido: ver `dominio/pantalla.ts`. */}
       {conIa && <OrbeChatIA />}
+
+      {yo.atajo !== undefined && <AtajoDirecto destino={yo.atajo} />}
 
       {/* `aurora` va aca y no en cada pantalla: es el lienzo del panel, no un adorno de la portada.
           Su capa es un `::before` fijo detras de todo (`globals.css`), asi que no ocupa lugar ni

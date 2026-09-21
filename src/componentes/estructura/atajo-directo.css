@@ -1,0 +1,116 @@
+/* Telon de entrada. Solo `transform` y `opacity`: son las que el compositor resuelve sin remaquetar. */
+
+.ad {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  background: #05070a;
+  animation: ad-entrar 90ms steps(2, end) both;
+}
+
+@keyframes ad-entrar { from { opacity: 0 } to { opacity: 1 } }
+
+.ad__flash {
+  position: absolute;
+  inset: 0;
+  background: #f4f3ee;
+  animation: ad-flash 620ms steps(1, end) both;
+}
+
+@keyframes ad-flash {
+  0% { opacity: .92 } 12% { opacity: 0 } 20% { opacity: .7 } 28% { opacity: 0 }
+  34% { opacity: .45 } 44% { opacity: 0 } 52% { opacity: .18 } 100% { opacity: 0 }
+}
+
+.ad__h {
+  position: absolute;
+  left: 0;
+  width: 100%;
+  height: 50%;
+  background: repeating-linear-gradient(90deg, #1b1f25 0 38px, #23282f 38px 40px);
+  will-change: transform;
+}
+
+.ad__h--a {
+  top: 0;
+  border-bottom: 2px solid #0a0c0f;
+  animation: ad-bajar 520ms cubic-bezier(.22,1,.36,1) 560ms both,
+             ad-abrir-a 760ms cubic-bezier(.7,0,.84,0) 1900ms both;
+}
+
+.ad__h--b {
+  bottom: 0;
+  border-top: 2px solid #0a0c0f;
+  animation: ad-subir 520ms cubic-bezier(.22,1,.36,1) 560ms both,
+             ad-abrir-b 760ms cubic-bezier(.7,0,.84,0) 1900ms both;
+}
+
+@keyframes ad-bajar { from { transform: translate3d(0,-100%,0) } to { transform: translate3d(0,0,0) } }
+@keyframes ad-subir { from { transform: translate3d(0,100%,0) } to { transform: translate3d(0,0,0) } }
+@keyframes ad-abrir-a { from { transform: translate3d(0,0,0) } to { transform: translate3d(0,-101%,0) } }
+@keyframes ad-abrir-b { from { transform: translate3d(0,0,0) } to { transform: translate3d(0,101%,0) } }
+
+.ad__f {
+  position: absolute;
+  left: 0;
+  width: 100%;
+  height: 14px;
+  top: calc(50% - 7px);
+  background: repeating-linear-gradient(-45deg, #f2b705 0 14px, #1b1f25 14px 28px);
+  opacity: 0;
+  animation: ad-f-entrar 240ms ease-out 1000ms both,
+             ad-f-correr 900ms linear 1240ms 1 both;
+}
+
+@keyframes ad-f-entrar { from { opacity: 0; transform: scaleY(0) } to { opacity: 1; transform: scaleY(1) } }
+@keyframes ad-f-correr { from { background-position: 0 0 } to { background-position: 79.2px 0 } }
+
+.ad__c {
+  position: relative;
+  z-index: 2;
+  width: 108px;
+  height: 108px;
+  border: 3px solid #3d444d;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  color: #3bff00;
+  background: #14181d;
+  opacity: 0;
+  animation: ad-c-entrar 300ms ease-out 1080ms both,
+             ad-c-girar 700ms cubic-bezier(.34,1.56,.64,1) 1320ms both,
+             ad-c-salir 260ms ease-in 1900ms both;
+}
+
+@keyframes ad-c-entrar { from { opacity: 0; transform: scale(.6) } to { opacity: 1; transform: scale(1) } }
+@keyframes ad-c-girar { 0% { transform: rotate(0) } 55% { transform: rotate(-24deg) } 100% { transform: rotate(210deg) } }
+@keyframes ad-c-salir { from { opacity: 1; transform: rotate(210deg) scale(1) } to { opacity: 0; transform: rotate(210deg) scale(1.9) } }
+
+.ad__l {
+  position: absolute;
+  left: 0;
+  width: 100%;
+  height: 3px;
+  top: calc(50% - 1.5px);
+  background: #3bff00;
+  opacity: 0;
+  transform: scaleX(0);
+  animation: ad-l 760ms cubic-bezier(.22,1,.36,1) 1900ms both;
+}
+
+@keyframes ad-l {
+  0% { opacity: 0; transform: scaleX(0) scaleY(1) }
+  30% { opacity: 1; transform: scaleX(1) scaleY(1) }
+  100% { opacity: 1; transform: scaleX(1) scaleY(90) }
+}
+
+/* Se cancela la coreografia, no la navegacion. */
+@media (prefers-reduced-motion: reduce) {
+  .ad, .ad__flash, .ad__h, .ad__f, .ad__c, .ad__l { animation: none }
+  .ad__flash { opacity: 0 }
+  .ad__h { transform: none }
+  .ad__f, .ad__c { opacity: 1 }
+}

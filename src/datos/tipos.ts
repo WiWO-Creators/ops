@@ -209,6 +209,17 @@ export interface Yo extends Staff {
    * `puedeVerFocals()` trata ese caso como "no sé" y muestra la entrada, que es como estaba antes.
    */
   es_focal?: boolean
+  /**
+   * Ruta del panel de mantenimiento, o ausente para casi todo el mundo.
+   *
+   * **La API la manda sólo a quien entra**, y manda la RUTA en vez de una bandera a propósito: con
+   * un booleano, el camino tendría que estar escrito en el bundle, y un bundle se lee abriendo las
+   * herramientas del navegador. Así el navegador no lo trae, lo recibe.
+   *
+   * No es la seguridad: la puerta real es el 404 de la API. Esto sólo decide si se monta el oyente
+   * del atajo y a dónde lleva.
+   */
+  atajo?: string
   secciones_habilitadas: string[]
   locale: string
 }
