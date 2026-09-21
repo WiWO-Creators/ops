@@ -48,6 +48,39 @@ export async function leerSesion (sujeto: Sujeto = 'staff'): Promise<Sesion | nu
 }
 
 /**
+ * Lee la sesion sin dejar que un fallo tumbe la pantalla.
+ *
+ * Es para las dos pantallas de acceso y para nadie mas. Ahi la sesion se mira por una sola razon
+ * —no mostrarle el formulario a quien ya entro—, asi que no poder leerla no es motivo para no
+ * dibujar nada: el formulario sigue siendo lo unico que esa persona puede hacer.
+ *
+ * **El fallo no se traga en silencio.** Queda en el log del servidor porque la causa mas probable no
+ * es una cookie rara sino un despliegue con `SESION_CLAVE` mal puesta, que hace lanzar a
+ * `claveSesion()` y deja a todo el mundo sin poder entrar. Sin esa linea, una configuracion rota se
+ * veria igual que un dia normal y nadie sabria donde mirar.
+ *
+ * Por lo mismo no se toca `leerSesion()`: en el panel, en el portal y en el proxy una clave invalida
+ * tiene que seguir siendo un error ruidoso, porque ahi seguir adelante es tratar como desconocido a
+ * quien si tiene sesion. La cookie corrupta ya estaba cubierta —`abrir()` devuelve `null`—; lo que
+ * esto ataja es lo que ocurre antes de abrirla.
+ *
+ * No queda incidente: registrarlo exige una sesion (`datos/incidentes.ts`), que es justo lo que aca
+ * no se pudo leer.
+ *
+ * @param sujeto Que cookie leer. Por defecto la del panel.
+ * @returns La sesion, o `null` si no hay, si la cookie no se puede abrir o si la lectura fallo.
+ */
+export async function leerSesionSiSePuede (sujeto: Sujeto = 'staff'): Promise<Sesion | null> {
+  try {
+    return await leerSesion(sujeto)
+  } catch (fallo) {
+    console.error('[sesion] no se pudo leer la cookie en la pantalla de acceso', fallo)
+
+    return null
+  }
+}
+
+/**
  * Escribe la cookie de sesion.
  *
  * Solo funciona desde un route handler, una server action o el proxy: un Server Component no puede

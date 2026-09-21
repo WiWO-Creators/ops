@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 import { redirect } from 'next/navigation'
 import { llamarApiTipado } from '@/datos/api'
-import { leerSesion } from '@/datos/sesion'
+import { leerSesionSiSePuede } from '@/datos/sesion'
 import type { AccesoGoogle } from '@/datos/tipos'
 import { avisoDeSesion, PARAMETRO_SESION, vieneDeSesionRechazada } from '@/dominio/entrada'
 import { FormularioEntrar } from './FormularioEntrar'
@@ -23,13 +23,18 @@ const SIN_GOOGLE: AccesoGoogle = { enabled: false, client_id: null }
  * siga en su navegador. Sin esa excepcion, una cookie que se abre bien pero que la API ya no acepta
  * rebota de aca a `/inicio` y de `/inicio` para aca, sin fin y sin forma de entrar. Ver
  * `dominio/entrada.ts`.
+ *
+ * La cookie se lee con `leerSesionSiSePuede()` y no con `leerSesion()`: si la lectura falla —una
+ * `SESION_CLAVE` mal puesta hace lanzar a `claveSesion()`— esta pantalla tiene que seguir en pie,
+ * porque es la unica salida que le queda a la persona. El fallo se escribe en el log del servidor,
+ * no se esconde.
  */
 export default async function EntrarPage (
   { searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }
 ) {
   const motivo = (await searchParams)[PARAMETRO_SESION]
 
-  if (!vieneDeSesionRechazada(motivo) && await leerSesion('staff') !== null) redirect('/inicio')
+  if (!vieneDeSesionRechazada(motivo) && await leerSesionSiSePuede('staff') !== null) redirect('/inicio')
 
   return <FormularioEntrar google={await accesoGoogle()} aviso={avisoDeSesion(motivo)} />
 }

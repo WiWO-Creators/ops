@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
 import { redirect } from 'next/navigation'
-import { leerSesion } from '@/datos/sesion'
+import { leerSesionSiSePuede } from '@/datos/sesion'
 import { avisoDeSesion, PARAMETRO_SESION, vieneDeSesionRechazada } from '@/dominio/entrada'
 import { FormularioEntrarPortal } from './FormularioEntrarPortal'
 
@@ -15,13 +15,18 @@ export const metadata: Metadata = { title: 'Entrar · Portal de clientes' }
  *
  * Con `?sesion=caducada` no rebota, por el mismo motivo que `/colab`: es la marca de que la API
  * rechazo el token, y rebotar a `/portal` con una cookie que ya no sirve es un ida y vuelta sin fin.
+ *
+ * La cookie se lee con `leerSesionSiSePuede()` y no con `leerSesion()`: si la lectura falla —una
+ * `SESION_CLAVE` mal puesta hace lanzar a `claveSesion()`— esta pantalla tiene que seguir en pie,
+ * porque es la unica salida que le queda a la persona. El fallo se escribe en el log del servidor,
+ * no se esconde.
  */
 export default async function EntrarPortalPagina (
   { searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }
 ) {
   const motivo = (await searchParams)[PARAMETRO_SESION]
 
-  if (!vieneDeSesionRechazada(motivo) && await leerSesion('contacto') !== null) redirect('/portal')
+  if (!vieneDeSesionRechazada(motivo) && await leerSesionSiSePuede('contacto') !== null) redirect('/portal')
 
   return <FormularioEntrarPortal aviso={avisoDeSesion(motivo)} />
 }
