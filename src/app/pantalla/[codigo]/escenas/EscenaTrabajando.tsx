@@ -151,13 +151,24 @@ export function EscenaTrabajando ({ compania, area, nombreDelArea, zona, ahora, 
 /**
  * Una de las dos tablas: cabecera, rotulos y filas.
  *
- * `flex-1 min-h-0` y no `shrink-0`, y el cambio es seguro por una razon que antes no existia: las
- * filas del tablero valen `minmax(min-content, 1fr)`, asi que **no pueden encogerse por debajo de su
- * alto natural**. La tabla crece para llenar la banda que le toca —era donde se veia peor el hueco
- * muerto, porque acá hay dos tablas y dos huecos— y lo que no entre sigue desbordando por abajo y
- * empujando la cabecera de la de abajo fuera del marco, que es justo lo que
- * `pruebas/pantalla-area.browser.mjs` sabe cazar midiendo los `h2`. El fallo se sigue viendo; el
- * silencio sigue sin existir.
+ * === POR QUE `shrink-0` CON `flex-grow` Y NO `flex-1` ===
+ *
+ * Las dos cosas que la tabla tiene que hacer a la vez parecen contradictorias: **llenar la banda que
+ * le toca** —si no, cada tabla deja su propio hueco muerto al pie y en esta escena hay dos— y **no
+ * encogerse nunca por debajo de su alto natural**, porque el marco es `overflow: hidden` sin barra de
+ * scroll y una tabla encogida no se ve fallar: se derrama sobre la de abajo y la tapa.
+ *
+ * `flex-1` hizo exactamente eso. Reparte la banda mitad y mitad sin mirar cuantas filas trae cada
+ * tabla, asi que con ocho renglones arriba y cuatro abajo la de arriba no cabia en su mitad y se
+ * pintaba encima de la cabecera de la otra. Que las filas valgan `minmax(min-content, 1fr)` no
+ * alcanzaba: eso impide que la FILA se encoja, no que la tabla se quede corta.
+ *
+ * `shrink-0` con `flex-basis: auto` es lo que resuelve las dos: la tabla parte de su alto natural —o
+ * sea lo que miden de verdad sus filas— y lo unico que se reparte es el sobrante. El reparto va por
+ * `flex-grow` en proporcion a sus renglones, que es donde el aire se nota menos. Y si el reparto de
+ * filas se midiera mal, lo que no entra vuelve a empujar la cabecera de abajo fuera del marco, que es
+ * lo que `pruebas/pantalla-area.browser.mjs` caza midiendo los `h2`. El fallo se ve; el silencio no
+ * existe.
  */
 function TablaDeTrabajando ({ titulo, tabla, plan, desfase, zona, ahora, congelado, fase }: {
   titulo: string
@@ -170,7 +181,13 @@ function TablaDeTrabajando ({ titulo, tabla, plan, desfase, zona, ahora, congela
   fase: 0 | 1
 }): ReactNode {
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
+    <div
+      className="flex shrink-0 flex-col"
+      // El sobrante de la banda se reparte en proporcion a los renglones de cada tabla, no mitad y
+      // mitad. Ver el docblock. Uno como piso: una tabla vacia no existe, pero un `flex-grow: 0`
+      // dejaria toda la holgura en la otra y la diferencia de aire se notaria.
+      style={{ flexGrow: Math.max(tabla.items.length, 1) }}
+    >
       <CabeceraDeEscena titulo={titulo} total={tabla.total ?? undefined} ocultos={tabla.ocultos} />
 
       {/*

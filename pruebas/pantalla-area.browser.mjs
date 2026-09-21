@@ -92,8 +92,15 @@ function proyecto (id) {
   }
 }
 
-/** El paquete que devuelve la API, con el relleno que pida cada caso. */
-function paquete ({ personas = 0, cronometros = 0, tareas = 0, proyectos = 0, ritmo = 30, dura = 20 } = {}) {
+/**
+ * El paquete que devuelve la API, con el relleno que pida cada caso.
+ *
+ * `compania` es la OTRA lista de la escena `trabajando`, la de toda la empresa, y por defecto mide lo
+ * mismo que la del área. Se puede pedir distinta a propósito: ver el caso de las dos tablas
+ * desiguales, que es el único que caza que una tabla no se derrame sobre la otra.
+ */
+function paquete ({ personas = 0, compania = null, cronometros = 0, tareas = 0, proyectos = 0, ritmo = 30, dura = 20 } = {}) {
+  const enLaCompania = compania ?? personas
   return {
     data: {
       area: { id: 7, name: 'Content Studio' },
@@ -110,7 +117,16 @@ function paquete ({ personas = 0, cronometros = 0, tareas = 0, proyectos = 0, ri
             espacios_activos: proyectos
           }
         },
-        { kind: 'trabajando', seconds: dura, items: Array.from({ length: personas }, (_, i) => persona(i + 1)) },
+        {
+          kind: 'trabajando',
+          seconds: dura,
+          items: Array.from({ length: personas }, (_, i) => persona(i + 1)),
+          total: personas,
+          empresa: {
+            items: Array.from({ length: enLaCompania }, (_, i) => persona(i + 1)),
+            total: enLaCompania
+          }
+        },
         { kind: 'cronometros', seconds: dura, items: Array.from({ length: cronometros }, (_, i) => cronometro(i + 1)) },
         { kind: 'procesos', seconds: dura, items: Array.from({ length: tareas }, (_, i) => tarea(i + 1)), total: tareas },
         { kind: 'espacios', seconds: dura, items: Array.from({ length: proyectos }, (_, i) => proyecto(i + 1)) }
@@ -241,6 +257,48 @@ try {
       assert.deepEqual(errores, [], `${nombre}: errores de React o de página: ${errores.join(' | ')}`)
     })
   }
+
+  // === 1a. Las dos tablas de `trabajando` no se pisan =======================================
+  //
+  // Es la unica escena con DOS tablas, y la unica donde un error de reparto no se ve como un hueco
+  // sino como una tabla encima de la otra: el marco es `overflow: hidden` sin barra de scroll, asi
+  // que la de arriba se derrama y tapa la cabecera y las primeras filas de la de abajo. En la pared
+  // se lee como dos listas superpuestas, con los nombres uno sobre otro.
+  //
+  // **Las dos listas tienen que medir distinto para que esto caze algo.** Con las dos del mismo
+  // largo cualquier reparto las deja iguales —mitad y mitad acierta por casualidad— y el fallo no
+  // aparece. El caso real es el de siempre: cuarenta personas en la compañia y siete en el area.
+  await conPagina(contexto, async (pagina, errores) => {
+    await pagina.setViewportSize(TUMBADO)
+    await sondeoFijo(pagina, paquete({ personas: 7, compania: 32 }))
+    await abrir(pagina, '?solo=trabajando&escena=600')
+
+    const solape = await pagina.evaluate(() => {
+      const tablas = [...document.querySelectorAll('main section ul')]
+      const cabeceras = [...document.querySelectorAll('main section h2')]
+
+      if (tablas.length < 2 || cabeceras.length < 2) {
+        return { motivo: `la escena tiene ${tablas.length} tabla(s) y ${cabeceras.length} cabecera(s): se esperaban dos de cada.` }
+      }
+
+      const primera = tablas[0].getBoundingClientRect()
+      const segunda = cabeceras[1].getBoundingClientRect()
+
+      return {
+        motivo: null,
+        // Positivo = la primera tabla termina DEBAJO de donde empieza la cabecera de la segunda.
+        invasion: Math.round(primera.bottom - segunda.top),
+        texto: cabeceras[1].textContent?.slice(0, 40) ?? ''
+      }
+    })
+
+    assert.equal(solape.motivo, null, solape.motivo ?? '')
+    assert.ok(
+      solape.invasion <= 1,
+      `la primera tabla de "trabajando" invade ${solape.invasion}px la cabecera de la segunda ("${solape.texto}"): se estan pintando una encima de la otra.`
+    )
+    assert.deepEqual(errores, [], `dos tablas: errores de React o de página: ${errores.join(' | ')}`)
+  })
 
   // === 1b. El tablero esta alineado y en vertical se le caen columnas ========================
   //
