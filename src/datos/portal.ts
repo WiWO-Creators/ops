@@ -296,6 +296,98 @@ export interface ResumenPortal {
   proximos_hitos: HitoProximoDelResumen[]
   /** Ver arriba: la clave **falta** cuando no se puede saber. Ausente no es `[]`. */
   bloqueados?: BloqueoDelResumen[]
+  /** Ver arriba: la clave **falta** si ningún {espacio} comparte la pestaña de {procesos}. */
+  proximos_dias?: ProximosDiasDelResumen
+  /** Ver arriba: la clave **falta** si el contacto no tiene la sección de soporte. */
+  tickets?: TicketsDelResumen
+}
+
+/**
+ * Lo que le viene encima al cliente, repartido en los mismos tres tramos que el Inicio del panel.
+ *
+ * Es el equivalente de «Mi trabajo» del colaborador y comparte su forma a propósito: un cliente y
+ * un colaborador miran la misma pregunta —qué hay que hacer y para cuándo— y no hay razón para que
+ * la respuesta se vea distinta en cada pantalla.
+ *
+ * Los tramos vienen **ya armados y ya ordenados por el servidor**, que es lo que los distingue de
+ * `agruparPorVencimiento()` del panel: ahí el navegador reparte lo que le llegó paginado, y acá no
+ * puede, porque un cliente con más {espacios} que una página vería tramos incompletos sin ninguna
+ * señal. `total` existe para lo mismo: dice cuántos hay de verdad, y con eso la pantalla escribe
+ * «y N más» en vez de mentir por omisión.
+ */
+export interface ProximosDiasDelResumen {
+  /** Pasados de fecha y sin terminar. Encabezan la pantalla porque son los que ya fallaron. */
+  vencido: FilaDeProximosDias[]
+  /** Vencen hoy. */
+  hoy: FilaDeProximosDias[]
+  /** Vencen dentro de los próximos siete días. */
+  proximo: FilaDeProximosDias[]
+  /** Cuántos {procesos} abiertos y visibles hay en total, contados sobre TODOS los {espacios}. */
+  total: number
+}
+
+/**
+ * Un {proceso} en la lista de los próximos días, con lo que hace falta para decidir sin abrirlo.
+ *
+ * `espera_tu_respuesta` y `en_progreso` no son decoración: son la clave del orden. El servidor
+ * ordena cada tramo poniendo primero lo que espera al cliente, después lo que el equipo está
+ * moviendo, y recién ahí por fecha. Una lista ordenada sólo por fecha entierra la aprobación que
+ * desbloquea el trabajo debajo de cinco {procesos} que no dependen de nadie.
+ *
+ * `due_date` es `YYYY-MM-DD` sin hora, o `null` cuando la fila guarda la fecha cero de MySQL.
+ */
+export interface FilaDeProximosDias {
+  id: number
+  name: string
+  due_date: string | null
+  status: EstadoDeProceso
+  project: ReferenciaDeEspacio
+  /** Hay una aprobación pendiente de este contacto. Es lo único de la lista que él puede resolver. */
+  espera_tu_respuesta: boolean
+  /** El equipo ya lo está haciendo. Informa, no pide nada. */
+  en_progreso: boolean
+}
+
+/**
+ * Los tickets del contacto, resumidos para la portada.
+ *
+ * La clave falta —no viaja en ceros— cuando el contacto no tiene la sección de soporte: contarle
+ * sus tickets a quien no puede abrir ninguno es la misma clase de fuga que el resumen ya evita con
+ * `procesos`.
+ *
+ * `esperando_tu_respuesta` cuenta los tickets cuyo último mensaje es del equipo: son los que están
+ * detenidos del lado del cliente, y por eso es el número que la portada destaca.
+ */
+export interface TicketsDelResumen {
+  abiertos: number
+  esperando_tu_respuesta: number
+  /** Hasta cinco, los abiertos primero y por última respuesta descendente. */
+  ultimos: TicketDelResumen[]
+}
+
+/** Un ticket en la portada: lo justo para reconocerlo y abrirlo. */
+export interface TicketDelResumen {
+  id: number
+  subject: string
+  status: EstadoDeProceso
+  /** `YYYY-MM-DD HH:MM:SS` de la última respuesta, o `null` si todavía no hay ninguna. */
+  last_reply: string | null
+  /** El {espacio} del que cuelga, o `null`: un ticket puede no pertenecer a ninguno. */
+  project: ReferenciaDeEspacio | null
+}
+
+/**
+ * Un estado resuelto: el id, su nombre y su color, tal como se pinta.
+ *
+ * Viaja resuelto desde el servidor y no como el `status: number` del resto del portal, que la
+ * pantalla traduce con `/portal/lookups`. La portada es la única pantalla del portal que mezcla
+ * {procesos} y tickets —dos catálogos distintos— y resolverlos en el navegador le costaría dos
+ * viajes más a la pantalla que tiene que pintar primero.
+ */
+export interface EstadoDeProceso {
+  id: number
+  name: string
+  color: string
 }
 
 /**
