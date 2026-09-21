@@ -3,13 +3,12 @@ import Link from 'next/link'
 import { ResumenDelPortal } from '@/componentes/portal/ResumenDelPortal'
 import { BarraProgreso } from '@/componentes/proyecto/CabeceraProyecto'
 import { formatearFecha } from '@/lib/fechas'
-import { ErrorApi } from '@/datos/errores'
 import { pedirPortal } from '@/datos/servidor'
 import type { AnuncioPortal, EspacioPortal, ResumenPortal } from '@/datos/portal'
 import type { YoPortal } from '@/datos/tipos'
 import { saludar, seccionesDelPortal } from '@/dominio/portal'
 import { GLOSARIO } from '@/dominio/glosario'
-import { Bloque } from './detalle'
+import { Bloque, sinFallar } from './detalle'
 
 export const metadata: Metadata = { title: 'Inicio · Portal de clientes' }
 
@@ -110,7 +109,7 @@ export default async function PortalInicio () {
 
       <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {secciones.map((seccion) => (
-          <li key={seccion.clave}>
+          <li key={seccion.href}>
             <Link
               href={seccion.href}
               className="rounded-tarjeta border-linea bg-superficie-elevada shadow-1 hover:border-acento block border p-5 transition-colors"
@@ -122,23 +121,4 @@ export default async function PortalInicio () {
       </ul>
     </section>
   )
-}
-
-/**
- * Pide un bloque del inicio y devuelve `null` si el contacto no tiene acceso.
- *
- * Un 403 o un 404 aca significan "esta seccion no es para vos", que en la portada es un bloque que
- * no se dibuja y no un error. Cualquier otro fallo si se propaga: si la API esta caida, hay que
- * verlo.
- */
-async function sinFallar<T> (ruta: string): Promise<T | null> {
-  try {
-    const { data } = await pedirPortal<T>(ruta)
-
-    return data
-  } catch (error) {
-    if (error instanceof ErrorApi && (error.estado === 403 || error.estado === 404)) return null
-
-    throw error
-  }
 }
