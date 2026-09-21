@@ -4,10 +4,12 @@ import dynamic from 'next/dynamic'
 import { useRef, useState, type ReactElement } from 'react'
 import { Download, FileAudio, FileText, Languages } from 'lucide-react'
 import { Boton } from '@/componentes/formularios/Boton'
+import { Campo } from '@/componentes/formularios/Campo'
+import { Entrada } from '@/componentes/formularios/Entrada'
 import { ContenidoHtml } from '@/componentes/presentadores/ContenidoHtml'
 import { Fecha } from '@/componentes/presentadores/Fecha'
 import { Insignia } from '@/componentes/presentadores/Insignia'
-import { Dialogo, ContenidoDialogo } from '@/componentes/superposiciones/Dialogo'
+import { CerrarDialogo, Dialogo, ContenidoDialogo } from '@/componentes/superposiciones/Dialogo'
 import {
   ContenidoMenu,
   DisparadorMenu,
@@ -21,7 +23,9 @@ import { TEMAS, temaDeMarca, type CodigoDeMarca } from '@/dominio/marcas-acta'
 import { IDIOMAS, IDIOMAS_EN_ORDEN, type CodigoDeIdioma } from '@/dominio/idiomas-acta'
 import type { MetaDelActa } from '@/dominio/exportar-acta'
 import { origenDeArchivo } from '@/definiciones/archivos'
-import { cuerpoDelActa, formatoPeso, seVeComoImagen } from '@/dominio/actas'
+import {
+  LARGO_MAXIMO_TITULO, cuerpoDelActa, formatoPeso, motivoParaRechazarTitulo, seVeComoImagen
+} from '@/dominio/actas'
 import { nombrar } from '@/dominio/glosario'
 import { TareasPropuestas } from './acta/TareasPropuestas'
 import type { Acta, AdjuntoActa, TraduccionActa } from '@/datos/recursos'
@@ -37,6 +41,10 @@ import type { Acta, AdjuntoActa, TraduccionActa } from '@/datos/recursos'
  * como primaria —Corregir leyendo, Guardar editando—, su acompañante como secundaria, y Eliminar
  * vive en el menú de `⋯`: es destructiva y rarísima, y un botón rojo permanente en la cabecera de
  * algo que se abre para leer es ruido con riesgo.
+ *
+ * Renombrar acompaña a Eliminar en ese mismo `⋯` y por el motivo de al lado: el título lo escribe el
+ * modelo y casi siempre queda bien, así que corregirlo es raro, y el `h2` que lo muestra es el
+ * encabezado del documento —también para el cliente, que no puede tocarlo—. Ver `DialogoDeRenombre`.
  *
  * `Imprimir` ya no se dibuja deshabilitada mientras se corrige: un control apagado que aparece solo
  * para decir que no se puede usar ocupa el mismo lugar que uno que sí.
@@ -157,6 +165,7 @@ export function DetalleActa ({
   const [guardando, setGuardando] = useState(false)
   const [borrando, setBorrando] = useState(false)
   const [confirmando, setConfirmando] = useState(false)
+  const [renombrando, setRenombrando] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [exportando, setExportando] = useState<'pdf' | 'docx' | null>(null)
   const [cambiandoMarca, setCambiandoMarca] = useState(false)
@@ -212,6 +221,15 @@ export function DetalleActa ({
   const tituloActivo = traduccionActiva?.title ?? acta.title
   /** Pedir una traduccion nueva gasta: mismas dos condiciones que el resto de la IA de la pantalla. */
   const puedeTraducir = puedeEditar && conIa
+  /**
+   * Renombrar se esconde mientras se corrige, igual que el estilo y el idioma.
+   *
+   * No es que el renombre pise lo que se escribe —son dos campos distintos y dos peticiones
+   * distintas—: es que el editor abierto tiene sus propias dos acciones, Guardar y Descartar, y
+   * meter una tercera escritura del mismo documento entre medio es la forma de guardar una y creer
+   * que se guardaron las dos.
+   */
+  const puedeRenombrar = puedeEditar && !editando
   const yaTraducidos = acta.translations ?? []
 
   /**
@@ -260,6 +278,51 @@ export function DetalleActa ({
     setSucio(false)
     setEditando(false)
     onCambiada(resultado.datos)
+  }
+
+  /**
+   * Le cambia el nombre al documento que se esta viendo: el acta original o la traduccion activa.
+   *
+   * Son las dos rutas de `guardar()` y por el mismo motivo, que aca es todavia mas visible: el `h2`
+   * muestra el titulo de la traduccion cuando hay una, y renombrar desde ahi el acta en español
+   * dejaria a la persona cambiando un nombre que no es el que tiene delante.
+   *
+   * Manda **solo** `title`. Mandar tambien el contenido convertiria un renombre en una reescritura
+   * del documento con lo que esta pantalla tuviera cargado, que no es lo que nadie pidio al abrir
+   * "Renombrar", y sobre una traduccion seria ademas el HTML del idioma equivocado.
+   *
+   * Nada se pinta antes de que la API conteste: sin adelanto optimista no hay nada que revertir
+   * cuando el `422` llega, y el titulo de la cabecera sigue siendo el que ya estaba.
+   *
+   * @param titulo el titulo elegido, ya recortado y validado por el dialogo
+   * @returns el mensaje de error de la API, o `null` si quedo guardado
+   */
+  async function renombrar (titulo: string): Promise<string | null> {
+    setError(null)
+
+    if (traduccionActiva !== null) {
+      const enIdioma = await escribirEnBff<TraduccionActa>(
+        conIdioma(rutaTraducciones, idioma), 'PATCH', { title: titulo }
+      )
+
+      if (!enIdioma.ok) return enIdioma.mensaje
+
+      // La lista del Espacio muestra el titulo del original, que este camino no toco: alcanza con
+      // dejar la traduccion nueva en pantalla.
+      fijarIdioma(idioma, enIdioma.datos)
+
+      return null
+    }
+
+    const resultado = await escribirEnBff<Acta>(ruta, 'PATCH', { title: titulo })
+
+    if (!resultado.ok) return resultado.mensaje
+
+    // Quien monta esta pantalla vuelve a pedir el acta y la lista de Meeting Papers: sin esto, el
+    // listado seguiria nombrando el acta como se llamaba antes hasta que alguien recargue.
+    onCambiada(resultado.datos)
+
+    return null
   }
 
   /**
@@ -609,7 +672,9 @@ export function DetalleActa ({
               </>
               )}
 
-          {puedeBorrar && (
+          {/* El `⋯` se dibuja solo si tiene algo dentro: un menú que se abre vacío promete acciones
+              que este sujeto no tiene. */}
+          {(puedeRenombrar || puedeBorrar) && (
             <MenuContextual>
               <DisparadorMenu asChild>
                 <Boton variante="sutil" tamano="chico" soloIcono aria-label="Más acciones del Meeting Paper">
@@ -617,7 +682,12 @@ export function DetalleActa ({
                 </Boton>
               </DisparadorMenu>
               <ContenidoMenu align="end">
-                <ItemMenu peligroso onSelect={() => { setConfirmando(true) }}>Eliminar</ItemMenu>
+                {puedeRenombrar && (
+                  <ItemMenu onSelect={() => { setRenombrando(true) }}>Renombrar</ItemMenu>
+                )}
+                {puedeBorrar && (
+                  <ItemMenu peligroso onSelect={() => { setConfirmando(true) }}>Eliminar</ItemMenu>
+                )}
               </ContenidoMenu>
             </MenuContextual>
           )}
@@ -681,6 +751,17 @@ export function DetalleActa ({
 
       <AdjuntosDelActa acta={acta} />
 
+      {/* Montado solo mientras está abierto: cerrarlo desmonta el borrador, así que cancelar o
+          pulsar `Escape` descarta lo tecleado sin una línea que lo limpie. */}
+      {renombrando && (
+        <DialogoDeRenombre
+          titulo={tituloActivo}
+          esTraduccion={traduccionActiva !== null}
+          onGuardar={renombrar}
+          onCerrar={() => { setRenombrando(false) }}
+        />
+      )}
+
       <Dialogo open={confirmando} onOpenChange={setConfirmando}>
         <ContenidoDialogo
           titulo="Eliminar Meeting Paper"
@@ -694,6 +775,125 @@ export function DetalleActa ({
         </ContenidoDialogo>
       </Dialogo>
     </div>
+  )
+}
+
+/**
+ * Pide el nombre nuevo del Meeting Paper.
+ *
+ * === POR QUÉ UN DIÁLOGO Y NO UN TÍTULO EDITABLE EN SITIO ===
+ *
+ * El `h2` es el encabezado del documento, no un campo: esta misma pantalla la monta el cliente en
+ * sólo lectura, y en el panel la abre mucha más gente para leer un acta que para renombrarla. Un
+ * campo de texto permanente ahí le cambia el peso visual al título para todos por una acción que
+ * casi nadie va a usar, y deja el renombre a un clic de distraído en la pantalla que más se abre.
+ *
+ * Es además el patrón con el que ya se renombra en el panel —ver `DialogoDeCargo` en
+ * `PanelAreasCargos`— y el que trae de Radix, sin escribirlo, lo que un renombre necesita: `Escape`
+ * que descarta, el foco atrapado dentro del formulario y devuelto al `⋯` al cerrar, y un nombre
+ * accesible que dice qué se abrió.
+ *
+ * === POR QUÉ EL BOTÓN NO SE APAGA CON UN TÍTULO INVÁLIDO ===
+ *
+ * Un "Guardar" deshabilitado no explica por qué: quien borró el título y ve el botón apagado no
+ * tiene de dónde deducir que el problema es el campo vacío, y con un lector de pantalla el control
+ * ni siquiera se anuncia. Se deja pulsable y la validación contesta con el motivo, que se cuelga del
+ * propio campo —`Campo` lo emite con `role="alert"` y `aria-describedby`— y no del banner de la
+ * pantalla, que queda detrás del diálogo y no se ve.
+ */
+function DialogoDeRenombre ({
+  titulo,
+  esTraduccion,
+  onGuardar,
+  onCerrar
+}: {
+  /** El título que se está viendo, que es con el que arranca el campo. */
+  titulo: string
+  /** Si lo que se renombra es una traducción y no el acta original. Solo cambia lo que se explica. */
+  esTraduccion: boolean
+  /** Manda el renombre; devuelve el mensaje de error de la API, o `null` si quedó guardado. */
+  onGuardar: (titulo: string) => Promise<string | null>
+  onCerrar: () => void
+}): ReactElement {
+  const [nombre, setNombre] = useState(titulo)
+  const [guardando, setGuardando] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  /** Valida lo escrito y lo manda, si de verdad hay algo que cambiar. */
+  async function guardar (): Promise<void> {
+    const motivo = motivoParaRechazarTitulo(nombre)
+
+    if (motivo !== null) {
+      setError(motivo)
+
+      return
+    }
+
+    const limpio = nombre.trim()
+
+    // Confirmar sin haber cambiado nada es cerrar el diálogo, no una escritura: un `PATCH` con el
+    // mismo título igual movería `date_updated` y firmaría el acta como corregida por quien no la
+    // corrigió.
+    if (limpio === titulo) {
+      onCerrar()
+
+      return
+    }
+
+    setGuardando(true)
+    setError(null)
+
+    const fallo = await onGuardar(limpio)
+
+    setGuardando(false)
+
+    // El diálogo se queda abierto con lo tecleado: si la API lo rechazó, cerrarlo perdería el único
+    // lugar donde existe ese texto y dejaría el error sin el campo al que corregir.
+    if (fallo !== null) {
+      setError(fallo)
+
+      return
+    }
+
+    onCerrar()
+  }
+
+  return (
+    <Dialogo open onOpenChange={(abierto) => { if (!abierto) onCerrar() }}>
+      <ContenidoDialogo
+        titulo={`Renombrar «${titulo}»`}
+        descripcion={esTraduccion
+          ? 'Cambia el nombre de esta traducción. El Meeting Paper original conserva el suyo.'
+          : 'Es el nombre con el que aparece en la lista de Meeting Papers del Proyecto.'}
+        ancho="chico"
+      >
+        <form
+          onSubmit={(evento) => { evento.preventDefault(); void guardar() }}
+          className="flex flex-col gap-5"
+        >
+          <Campo etiqueta="Título" requerido error={error ?? undefined}>
+            {(props) => (
+              <Entrada
+                {...props}
+                value={nombre}
+                // El tope vive en el control y no sólo en la validación: avisar de que sobran
+                // caracteres después de haber escrito trescientos llega tarde.
+                maxLength={LARGO_MAXIMO_TITULO}
+                disabled={guardando}
+                onChange={(evento) => { setNombre(evento.target.value); setError(null) }}
+              />
+            )}
+          </Campo>
+
+          <div className="flex justify-end gap-2">
+            <CerrarDialogo asChild>
+              <Boton variante="sutil" type="button">Cancelar</Boton>
+            </CerrarDialogo>
+            <Boton variante="primario" type="submit" cargando={guardando}>Guardar</Boton>
+          </div>
+        </form>
+      </ContenidoDialogo>
+    </Dialogo>
   )
 }
 

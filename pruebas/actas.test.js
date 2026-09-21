@@ -2,6 +2,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import {
   ACEPTA,
+  LARGO_MAXIMO_TITULO,
   LIMITE_AUDIO_BYTES,
   LIMITE_BYTES,
   LIMITE_DOCUMENTO_BYTES,
@@ -14,6 +15,7 @@ import {
   inferirMime,
   mensajeDeMicrofono,
   mimeDeGrabacion,
+  motivoParaRechazarTitulo,
   nombreDeGrabacion,
   reloj,
   seVeComoImagen,
@@ -328,4 +330,30 @@ test('el cuerpo del acta pierde el encabezado de identificador cuando el modelo 
   assert.equal(cuerpoDelActa(frase), frase)
   // Sin encabezado, el cuerpo sale tal cual.
   assert.equal(cuerpoDelActa(sin), sin)
+})
+
+/**
+ * Renombrar un Meeting Paper.
+ *
+ * Los dos casos que se prueban son los que la API contesta con un `422`, y lo que se protege es que
+ * el renombre no llegue a salir: un titulo de puros espacios deja el acta sin nombre en el listado,
+ * y uno de mas de 255 vuelve con un error de validacion donde la persona esperaba su nombre nuevo.
+ */
+test('un titulo vacio o de puros espacios no se puede mandar', () => {
+  assert.equal(motivoParaRechazarTitulo(''), 'El título no puede quedar vacío.')
+  assert.equal(motivoParaRechazarTitulo('   '), 'El título no puede quedar vacío.')
+  assert.equal(motivoParaRechazarTitulo('\n\t '), 'El título no puede quedar vacío.')
+})
+
+test('el tope es el mismo 255 de la API y se mide sin los espacios de los extremos', () => {
+  assert.equal(LARGO_MAXIMO_TITULO, 255)
+  assert.equal(motivoParaRechazarTitulo('x'.repeat(LARGO_MAXIMO_TITULO)), null)
+  assert.match(motivoParaRechazarTitulo('x'.repeat(LARGO_MAXIMO_TITULO + 1)), /255 caracteres/)
+  // El recorte va antes de medir: los espacios que se van al guardar no pueden gastar el tope.
+  assert.equal(motivoParaRechazarTitulo(`  ${'x'.repeat(LARGO_MAXIMO_TITULO)}  `), null)
+})
+
+test('un titulo normal pasa, con acentos y con espacios de sobra', () => {
+  assert.equal(motivoParaRechazarTitulo('Kickoff de la campaña'), null)
+  assert.equal(motivoParaRechazarTitulo('  Reunión de avance  '), null)
 })
