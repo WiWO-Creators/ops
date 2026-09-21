@@ -344,10 +344,14 @@ function GrupoDeVencimiento ({ grupo }: { grupo: GrupoDeProximosDias }) {
  * Marca las dos cosas que el cliente necesita separar de un vistazo y que una lista ordenada solo
  * por fecha entierra:
  *
- *   - `espera_tu_respuesta`: le pide algo a EL. Va con el riel de aviso y la insignia en tono de
- *     atencion, porque es lo unico de la lista que puede resolver solo.
+ *   - `espera_tu_respuesta`: le pide algo a EL. Lleva la insignia en tono de atencion, porque es lo
+ *     unico de la lista que puede resolver solo.
  *   - `en_progreso`: el equipo ya lo esta moviendo. Informa, no pide nada, asi que se dice con una
- *     insignia tranquila y sin riel.
+ *     insignia tranquila.
+ *
+ * La marca es la insignia y nada mas. Antes la fila llevaba ademas un riel de aviso de 4px a la
+ * izquierda, y decia dos veces lo mismo: donde el tramo entero ya se pinta de peligro cuando esta
+ * vencido, un segundo borde grueso por fila compite con esa señal en vez de sumarle.
  *
  * La fila enlaza al {espacio} y no al {proceso}: el portal no tiene pantalla de {proceso} suelto, y
  * donde se responde una aprobacion es dentro del {espacio} que la pidio.
@@ -356,7 +360,7 @@ function GrupoDeVencimiento ({ grupo }: { grupo: GrupoDeProximosDias }) {
  */
 function FilaDeProceso ({ fila }: { fila: FilaDeProximosDias }) {
   return (
-    <li className={cn(fila.espera_tu_respuesta && 'border-l-4 border-l-relleno-aviso')}>
+    <li>
       {/*
         Enlace de verdad y no un `div` con `onClick`: asi la fila se abre con el teclado, se copia y
         se abre en otra pestaña.
