@@ -821,3 +821,189 @@ export interface EspacioDeGestion {
   en_plazo: number
   vencidas_al_cierre: number
 }
+
+/**
+ * El tablero de UN Proyecto: `GET /portal/projects/{id}/tablero`.
+ *
+ * Es la pestaña Descripción convertida en tablero. NO es {@link TableroGestion} por proyecto: aquel
+ * razona por mes, mide al equipo para la gerencia y vive detrás de `wiwo_portal_gestion`, que nace
+ * apagado en los 279 {espacios}. Éste sale con la pestaña que el contacto ya tiene abierta, así que
+ * se ve el día uno.
+ *
+ * === CASI TODO ES OPCIONAL, Y ESO ES EL CONTRATO ===
+ *
+ * Cinco de los seis bloques pueden no llegar, y su ausencia NO es un cero: es «este contacto no
+ * tiene esa pestaña». La API no los pone en cero, no los pone —misma regla que `logged_time` y
+ * `finance` en {@link EspacioPortal}—, y el tipo lo dice para que la pantalla tenga que decidir. Un
+ * `tareas` en cero se leería «no hay tareas»; su ausencia significa «no puede ver las tareas».
+ *
+ *   - `tareas`, `cierres` y `proxima_entrega` → pestaña `tasks`.
+ *   - `hitos` → pestaña `milestones`.
+ *   - `actividad` → pestaña `activity`.
+ *   - `equipo` → permiso `view_team_members`.
+ *
+ * `avance` es el único que llega siempre: es la propia pestaña Descripción.
+ *
+ * === LO QUE NO VIENE, Y NO ES UN OLVIDO ===
+ *
+ * Ni horas, ni estimado contra real, ni archivos, ni importes, ni puntaje de calidad de tarea, ni
+ * desvío contra lo comprometido. Los cuatro primeros porque la base no los sostiene —`tblproject_files`
+ * tiene 6 filas en toda la base y `estimated_hours` 3 en 2506 tareas—; los importes y la calidad
+ * porque el usuario decidió el 22/09 que no los ve el cliente; el desvío porque no existe la fecha
+ * comprometida original contra la que medirlo.
+ */
+export interface TableroDelProyecto {
+  avance: AvanceDelProyecto
+  /** Solo con la pestaña de {procesos}. */
+  tareas?: TareasDelTablero
+  /** Solo con la pestaña de {procesos}. Las últimas doce semanas, de la más vieja a la actual. */
+  cierres?: SemanaDeCierres[]
+  /** Solo con la pestaña de {procesos}. `null` si no queda ninguna {proceso} abierta con fecha. */
+  proxima_entrega?: ProximaEntrega | null
+  /** Solo con la pestaña de Hitos. */
+  hitos?: HitosDelTablero
+  /** Solo con `view_team_members`. */
+  equipo?: PersonaDelTablero[]
+  /** Solo con la pestaña de Actividad. */
+  actividad?: LineaDeActividadDelPortal[]
+}
+
+/**
+ * Cuánto se hizo, contado sobre las {procesos} que este contacto ve.
+ *
+ * NO es `EspacioPortal.progress`, que sale de `tblprojects.progress`: en un {espacio} de producción
+ * esa columna marca 100 % con 18 {procesos} sin empezar, y con `progress_from_tasks = 1`. Éste se
+ * cuenta sobre las filas que el cliente puede abrir, que es la única cuenta que su propia lista
+ * confirma.
+ */
+export interface AvanceDelProyecto {
+  tareas: number
+  cerradas: number
+  abiertas: number
+  /**
+   * `null` cuando no hay ni una {proceso} visible que contar, y NUNCA 0.
+   *
+   * Un {espacio} sin {procesos} compartidas no está al 0 % de avance: es un {espacio} del que no
+   * sabemos el avance. Un cero ahí dibuja una barra vacía que se lee «no hicieron nada».
+   */
+  porcentaje: number | null
+}
+
+/** Las {procesos} por prioridad, más los cuatro conteos que el cliente pregunta en voz alta. */
+export interface TareasDelTablero {
+  /** Las cuatro prioridades del catálogo, completas: la que no tiene {procesos} llega en 0. */
+  por_prioridad: PrioridadDelTablero[]
+  /**
+   * Abiertas con `duedate` pasada. Contra la fecha que el cliente YA VE en su propia lista, no
+   * contra la ETA interna: eso es `desviacion_dias` y está proscrito para el contacto.
+   */
+  vencidas: number
+  /** Abiertas sin fecha de entrega. Una cerrada sin fecha no cuenta: ya se entregó. */
+  sin_fecha: number
+  cerradas_7: number
+  cerradas_30: number
+}
+
+export interface PrioridadDelTablero {
+  priority: number
+  name: string
+  total: number
+}
+
+/**
+ * Una semana de la serie de cierres.
+ *
+ * Es lo que convierte el avance de FOTO en PELÍCULA: «39 % completado» no es bueno ni malo hasta que
+ * se ve si la semana pasada fue 35 % o 42 %. Y es la única serie temporal honesta que un {espacio}
+ * tiene hoy: sale de `datefinished`, dato medido en el momento del cierre, y no de
+ * `tblwiwo_task_status_log`, que antes del 2026-09-16 no existía.
+ */
+export interface SemanaDeCierres {
+  /** `YYYY-MM-DD`, el lunes de esa semana. */
+  semana: string
+  /** Las semanas sin cierres llegan en 0 y no se omiten: sin los ceros la línea sería continua. */
+  cerradas: number
+  /**
+   * `true` en la semana en curso: se cortó en HOY.
+   *
+   * Sin esta marca, tres días se comparan contra semanas de siete y la línea cae al final por un
+   * corte de calendario y no porque el trabajo bajara.
+   */
+  parcial: boolean
+}
+
+/**
+ * La {proceso} comprometida más cercana que todavía no se cerró.
+ *
+ * Sale de `duedate` de {PROCESO} y no de la fecha de un hito, a propósito: en los {espacios} reales
+ * los hitos son categorías —«HTML», «REELS», «Guiones»— fechadas al 31 de diciembre, y una «próxima
+ * entrega» sacada de ahí le miente al cliente. `duedate` es la fecha contra la que ya nos reclama.
+ */
+export interface ProximaEntrega {
+  id: number
+  name: string
+  /** `YYYY-MM-DD`. */
+  duedate: string
+  /** Días de hoy a esa fecha. 0 es hoy; nunca negativo, porque una vencida no es una próxima. */
+  dias: number
+}
+
+/** Los hitos del {espacio} con el avance de sus {procesos}. */
+export interface HitosDelTablero {
+  /**
+   * Si las fechas de hito de este {espacio} aguantan un eje de tiempo.
+   *
+   * `false` cuando la mitad o más caen el último día de un mes, que es el patrón de los placeholders:
+   * de los 236 hitos de producción, 130 caen en fin de mes y 20 el 31 de diciembre.
+   *
+   * El usuario decidió el 22/09 dibujar el eje igual, así que esta clave NO esconde el gráfico: le
+   * pone la salvedad al lado. Cuando alguien le ponga fechas de verdad a los hitos de un {espacio},
+   * llega en `true` y la advertencia desaparece sola.
+   */
+  fechas_confiables: boolean
+  lista: HitoDelTablero[]
+}
+
+export interface HitoDelTablero {
+  id: number
+  name: string
+  /** `YYYY-MM-DD`, tal como está guardada. `null` si el hito no tiene fecha. */
+  due_date: string | null
+  tareas: number
+  cerradas: number
+  /** `null` cuando el hito no tiene ni una {proceso} visible, por lo mismo que en `avance`. */
+  porcentaje: number | null
+}
+
+/**
+ * Alguien del equipo del {espacio}, con cuánto lleva hecho.
+ *
+ * Son los MIEMBROS del {espacio}, no los asignados: alguien recién incorporado sin {procesos}
+ * todavía igual es parte del equipo. Los conteos pueden sumar más que el total del {espacio} —una
+ * {proceso} con dos responsables cuenta para los dos—, así que la pantalla no los apila.
+ *
+ * Sin correo, sin cargo y sin tarifa: son datos de la persona, no del {espacio}.
+ */
+export interface PersonaDelTablero {
+  id: number
+  full_name: string
+  abiertas: number
+  cerradas: number
+}
+
+/**
+ * Una línea del feed del {espacio}, ya filtrada dos veces.
+ *
+ * `visible_to_customer = 1` es la decisión que el equipo tomó línea por línea. Encima de eso la API
+ * descarta tres claves que son publicables pero no son asunto del cliente: la asignación interna de
+ * {procesos} —3801 de las 8325 líneas del feed—, los borrados y las reaperturas.
+ *
+ * Viaja la `clave` y no la frase: la pantalla la traduce con el mismo catálogo que usa el panel.
+ * Redactar el texto en el servidor obligaría a mantener dos traducciones de la misma línea.
+ */
+export interface LineaDeActividadDelPortal {
+  /** `YYYY-MM-DD HH:MM:SS`. */
+  fecha: string
+  /** La `description_key` de Perfex. Ej: `project_activity_task_marked_complete`. */
+  clave: string
+}

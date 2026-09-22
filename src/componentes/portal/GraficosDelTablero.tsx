@@ -47,8 +47,15 @@ import {
  * Server Components sin estado: no hay nada que tocar.
  */
 
-/** El envoltorio de cada grafico: titulo con su simbolo, el dibujo, y su salvedad si la tiene. */
-function Panel (
+/**
+ * El envoltorio de cada grafico: titulo con su simbolo, el dibujo, y su salvedad si la tiene.
+ *
+ * Exportado —como `SinDatos`, `Clave` y `anclaDelRotulo`— porque `GraficosDelProyecto.tsx` dibuja
+ * los graficos del tablero de UN proyecto y tiene que salir de este molde y no de una copia con las
+ * mismas clases. Dos envoltorios que empiezan iguales terminan distintos en el primer ajuste de
+ * padding, y el cliente ve dos familias de graficos en el mismo producto.
+ */
+export function Panel (
   { titulo, icono, nota, children }:
   { titulo: string, icono: React.ReactNode, nota?: string, children: React.ReactNode }
 ) {
@@ -67,7 +74,7 @@ function Panel (
 }
 
 /** Lo que ocupa el lugar de un grafico que no tiene ni una fila que dibujar. */
-function SinDatos ({ motivo = SIN_NADA_QUE_GRAFICAR }: { motivo?: string }) {
+export function SinDatos ({ motivo = SIN_NADA_QUE_GRAFICAR }: { motivo?: string }) {
   return (
     <p className="border-linea-suave bg-superficie-hundida rounded-medio border border-dashed p-3 text-xs leading-relaxed text-texto-tenue">
       {motivo}
@@ -81,7 +88,7 @@ function SinDatos ({ motivo = SIN_NADA_QUE_GRAFICAR }: { motivo?: string }) {
  * El texto NUNCA lleva el color de la serie —un relleno claro es ilegible como letra—: la identidad
  * la carga el punto de al lado.
  */
-function Clave ({ children, className }: { children: React.ReactNode, className: string }) {
+export function Clave ({ children, className }: { children: React.ReactNode, className: string }) {
   return (
     <span className="text-texto-tenue flex items-center gap-1.5 text-xs">
       <span aria-hidden="true" className={cn('size-2.5 shrink-0 rounded-full', className)} />
@@ -376,7 +383,7 @@ export function GraficoDeEntregas ({ linea }: { linea: LineaDeEntregas }) {
  * @param fraccion 0-1 sobre el eje
  * @returns el `transform` que le corresponde
  */
-function anclaDelRotulo (fraccion: number): string {
+export function anclaDelRotulo (fraccion: number): string {
   if (fraccion <= 0.06) return 'translateX(0)'
   if (fraccion >= 0.94) return 'translateX(-100%)'
 
