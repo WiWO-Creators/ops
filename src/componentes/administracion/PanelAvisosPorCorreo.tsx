@@ -1,5 +1,6 @@
 import { ColaCorreoAlCliente } from '@/componentes/administracion/ColaCorreoAlCliente'
 import { ConfiguracionCorreo } from '@/componentes/administracion/ConfiguracionCorreo'
+import { CorreosAlCliente } from '@/componentes/administracion/CorreosAlCliente'
 import { FormularioDeAjustes } from '@/componentes/administracion/FormularioDeAjustes'
 import { ModoCorreoAlCliente } from '@/componentes/administracion/ModoCorreoAlCliente'
 import { VisorColaCorreo } from '@/componentes/administracion/VisorColaCorreo'
@@ -119,6 +120,14 @@ export async function PanelAvisosPorCorreo () {
       </p>
 
       <ConfiguracionCorreo inicial={detalle.configuracion} />
+
+      {/*
+        La perilla fina, pegada al interruptor de arriba porque cuelga de el: con el modo en
+        «apagado» o «prueba» ninguna casilla de aca hace salir nada. Nace con todo permitido —la
+        migracion `0850` escribe `*`— para que el deploy no le corte a ningun contacto un correo que
+        venia recibiendo.
+      */}
+      <CorreosAlCliente inicial={detalle.configuracion} />
 
       {/*
         El interruptor de los avisos de plazo de Licitaciones. Va debajo del de efectos externos
