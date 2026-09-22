@@ -28,14 +28,15 @@ export default async function PortalLayout ({ children }: { children: React.Reac
     <div className="flex h-dvh flex-col overflow-hidden">
       <header className="border-linea flex h-14 shrink-0 items-center gap-3 border-b px-4">
         {/* El perfil no esta en la navegacion: no es una seccion que la API habilite, sino los datos
-            del propio contacto. El avatar es el lugar donde se lo busca. */}
+            del propio contacto. El avatar es el lugar donde se lo busca, y lleva la marca de la
+            empresa y no la cara de la persona: el portal es del cliente. */}
         <Link
           href="/portal/perfil"
           title="Mi perfil"
           aria-label="Mi perfil"
           className="shrink-0"
         >
-          <Avatar nombre={yo.full_name} />
+          <Avatar nombre={yo.client?.company ?? yo.full_name} imagen={yo.client?.image_url ?? null} />
         </Link>
         <Link href="/portal" aria-label="Inicio del portal" className="shrink-0">
           <Logo tamano="medio" />

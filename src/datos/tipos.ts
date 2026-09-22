@@ -324,7 +324,18 @@ export interface YoPortal extends ContactoPortal {
    * contacto navega su portal como siempre y la portada vuelve a ser la portada.
    */
   proyecto_de_entrada: ProyectoDeEntrada | null
+  /**
+   * La empresa del contacto: el encabezado del portal muestra su logo, no la foto de la persona.
+   * Opcional solo para tolerar una API anterior a este campo durante el deploy.
+   */
+  client?: MarcaDelClientePortal
   locale: string
+}
+
+export interface MarcaDelClientePortal {
+  id: number
+  company: string
+  image_url: string | null
 }
 
 /** `/portal/company`: los datos de la empresa del contacto. */

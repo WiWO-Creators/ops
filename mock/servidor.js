@@ -4903,6 +4903,7 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
           permissions: contacto.permissions,
           secciones_habilitadas: seccionesDelPortal(contacto),
           proyecto_de_entrada: entradaDelContacto(contacto),
+          client: marcaDelCliente(contacto),
           locale: 'es'
         })
       }
@@ -7601,6 +7602,21 @@ function entradaDelCliente (clienteId) {
     project_name: espacio ? espacio.name : null,
     activo: guardado.activo
   }
+}
+
+/**
+ * Nombre y logo del cliente del contacto, como el `client` de `/portal/me` en la API.
+ *
+ * Los clientes del mock no tienen logo cargado: `image_url` sale en `null` y el Avatar cae a las
+ * iniciales de la empresa, que es lo mismo que pasa en produccion con un cliente sin imagen.
+ *
+ * @param {{ client_id: number }} contacto
+ * @returns {{ id: number, company: string, image_url: string | null }}
+ */
+function marcaDelCliente (contacto) {
+  const empresa = CLIENTES.find((c) => c.id === contacto.client_id)
+  if (!empresa) throw new ErrorApi(404, 'not_found', 'Cliente inexistente.')
+  return { id: empresa.id, company: empresa.company, image_url: empresa.image_url ?? null }
 }
 
 /**
