@@ -119,6 +119,9 @@ export default async function ProyectoPagina (props: PageProps<'/portal/proyecto
         proyecto={proyectoDelPortal(proyecto, empresa)}
         estado={estado}
         volverA={{ href: '/portal/proyectos', etiqueta: GLOSARIO.espacio.plural }}
+        // Sin la barra de avance: el tablero de la pestaña Descripcion ya pinta un porcentaje, y es
+        // otro. Ver `conAvance` en `CabeceraProyecto`.
+        conAvance={false}
       />
 
       {/* La descripcion vive en la pestaña Descripcion, como en el panel. Suelta acá solo cuando esa
