@@ -1921,6 +1921,28 @@ export interface ConfiguracionCorreo {
   queue_enabled: boolean
   sender: string
   warning: string
+  client_emails_allowed: string[]
+  client_emails_all: boolean
+  client_email_catalog: GrupoDeCorreosAlCliente[]
+}
+
+/**
+ * Un correo del catálogo que puede llegarle a un contacto de cliente.
+ *
+ * `slug` es el de `tblemailtemplates` y es la llave que viaja de vuelta al guardar; `nombre` es el
+ * texto en español que escribe el backend, no uno que arme esta pantalla: el catálogo es la fuente
+ * de verdad de qué correos existen y cómo se llaman.
+ */
+export interface CorreoAlCliente {
+  slug: string
+  nombre: string
+  allowed: boolean
+}
+
+/** Los correos del catálogo agrupados por módulo, en el orden en que los manda la API. */
+export interface GrupoDeCorreosAlCliente {
+  grupo: string
+  correos: CorreoAlCliente[]
 }
 
 /** Estados de una fila de `tblmail_queue` (`GET /notifications/mail-queue`). */
