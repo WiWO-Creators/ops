@@ -106,20 +106,22 @@ test('la tarjeta del equipo arranca con los seis campos, inicio y seguidores inc
 
 test('la definicion del contacto apaga todo lo que el contrato del portal no emite', () => {
   const visibles = clavesVisiblesPorDefecto(procesosDelContacto(80).columnas)
-  // Tal como baja del portal: sin hito, sin seguidores, sin asignados y sin etiquetas.
+  // Tal como baja del portal: sin seguidores, sin asignados y sin etiquetas. El hito SI baja, y
+  // como objeto: `FormasDelPortal::PROCESOS` lo declara recortado a `{id, name}`.
   const delPortal = {
     id: 9,
     name: 'Revisión de diseño',
     status: 3,
     patente: 'PAT-001-09',
     start_date: '2026-09-02',
-    due_date: '2026-09-25'
+    due_date: '2026-09-25',
+    milestone: { id: 4, name: 'Diseño aprobado' }
   }
 
   const podado = podarParaTarjeta(delPortal, visibles)
 
   assert.equal(podado.patente, 'PAT-001-09')
-  assert.equal(podado.milestone, undefined)
+  assert.deepEqual(podado.milestone, { id: 4, name: 'Diseño aprobado' })
   assert.equal(podado.followers, undefined)
   assert.equal(podado.assignees, undefined)
   assert.equal(podado.tags, undefined)
@@ -138,8 +140,9 @@ test('apagar seguidores en el menu los saca de la tarjeta sin tocar el resto', (
 test('la definicion del contacto solo ofrece los campos que declara como columna', () => {
   const campos = camposPorDefectoDeTarjeta(procesosDelContacto(80).columnas)
 
-  // De los seis que la tarjeta sabe pintar, el contacto solo tiene columna de identificador e
-  // inicio: hito, asignados, seguidores y etiquetas ni siquiera bajan en su contrato, asi que el
-  // menu del tablero del portal tampoco los puede encender.
-  assert.deepEqual(campos, ['patente', 'start_date'])
+  // De los seis que la tarjeta sabe pintar, el contacto tiene tres: identificador, inicio e hito.
+  // Asignados, seguidores y etiquetas no bajan en su contrato, asi que el menu del tablero del
+  // portal tampoco los puede encender. El hito si baja, y el dia que dejo de estar en la tabla del
+  // cliente tambien desaparecio de su tablero sin que nadie lo decidiera: son la misma lista.
+  assert.deepEqual(campos, ['patente', 'start_date', 'milestone'])
 })

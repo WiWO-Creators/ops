@@ -86,13 +86,49 @@ export const PORTAL_TAREAS: DefinicionRecurso<TareaPortal> = {
 /**
  * Las columnas de Procesos que el contrato del contacto **si** emite.
  *
- * Es la lista corta a proposito, y no la del equipo menos algunas: lo que no esta acá es porque
- * `GET /portal/projects/{id}/tasks` no manda la clave (asignados, tipo, ETA, desviacion, SLA,
- * iteraciones, hito) o porque es vocabulario interno que no se publica (las etiquetas, igual que en
- * `proyectoDelPortal`). Agregar una clave acá sin que la API la emita no deja la celda vacia:
- * rompe la fila, porque la celda rica del panel lee el objeto adentro.
+ * Es la lista corta a proposito, y no la del equipo menos algunas. Lo que no esta acá es porque
+ * `GET /portal/projects/{id}/tasks` no manda la clave o porque no le corresponde al cliente:
+ *
+ *   - **No se publican por diseño**, y la API ni siquiera las declara: `assignees` y `followers`
+ *     (son las personas del equipo), `eta`, `desviacion` y `estado_sla` (miden al equipo contra su
+ *     propio compromiso interno), `justificacion` (la escribe el equipo, no el cliente),
+ *     `iterations` (contador interno de gestion) y `tags` (vocabulario interno, igual que en
+ *     `proyectoDelPortal`).
+ *   - `project` la API si la manda, pero ni siquiera llega hasta acá: `procesosDelEspacio` ya la
+ *     saca, en las dos pantallas, porque dentro de un Proyecto no dice nada. Tampoco habria que
+ *     sumarla: su celda es un enlace a `/proyectos/{id}`, ruta del panel, rota para un contacto.
+ *
+ * `task_type`, `milestone` y las dos de aprobacion SI estan porque la API las emite y con la forma
+ * que la celda del panel sabe leer. Esto no siempre fue cierto y es la parte que hay que verificar
+ * antes de tocar la lista: `FormasDelPortal::PROCESOS`
+ * (`modules/api/Acceso/FormasDelPortal.php:307`) solo **poda** lo que arma
+ * `RecursoProcesos::presentarLote()`, y `Expuesto::solo()` deja pasar entero todo lo declarado como
+ * valor suelto. Por eso `task_type` llega como el objeto completo `{id, name, label_color,
+ * text_color}` —no como el id—, `milestone` llega recortado a `{id, name}` y `approval` recortado a
+ * `{requerida, estado, solicitada_en, resuelta_en, comentario}`, sin los dos ids de persona.
+ *
+ * Las claves de esta lista son las de la COLUMNA, no las de la API: la aprobacion se pinta en dos
+ * columnas —`aprobacion` y `aprobacion_comentario`— y las dos leen el mismo bloque `approval`.
+ * `textoDeAprobacion` lee ademas `approval.rondas`, que el portal no manda, y lo hace con un guard
+ * de tipo: sin rondas el texto sale sin el sufijo `×N`, que es exactamente lo que corresponde.
+ *
+ * Agregar una clave acá sin que la API la emita no deja la celda vacia: rompe la fila, porque la
+ * celda rica del panel lee el objeto adentro. Agregarla con la forma equivocada —el id donde la
+ * celda espera el objeto— es igual de malo al reves: pinta el guion en todas las filas y la columna
+ * miente diciendo que el dato no existe.
  */
-const COLUMNAS_DEL_CONTACTO = ['patente', 'name', 'status', 'priority', 'due_date', 'start_date']
+const COLUMNAS_DEL_CONTACTO = [
+  'patente',
+  'name',
+  'status',
+  'priority',
+  'task_type',
+  'milestone',
+  'due_date',
+  'aprobacion',
+  'aprobacion_comentario',
+  'start_date'
+]
 
 /**
  * La definicion de Procesos de un Proyecto, acotada a lo que ve un contacto.

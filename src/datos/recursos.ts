@@ -1212,8 +1212,14 @@ export interface ResumenEstadoTareas {
   color: string | null
   order: number
   total: number
-  /** Cuantas de ese estado tengo asignadas. */
-  mias: number
+  /**
+   * Cuantas de ese estado tengo asignadas.
+   *
+   * **No viaja para un contacto**, y eso no es un 0: un cliente no tiene Tareas asignadas, asi que
+   * la pregunta no le aplica. La tarjeta omite el renglon en vez de escribir "Mis tareas: 0", que
+   * le contaria al cliente una relacion con la Tarea que no existe.
+   */
+  mias?: number
 }
 
 /** Acciones que acepta `POST /tasks/bulk`. */

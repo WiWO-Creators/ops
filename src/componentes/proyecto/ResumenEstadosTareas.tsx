@@ -57,9 +57,14 @@ export function ResumenEstadosTareas ({ resumen, estadoActivo, onElegir }: Props
               {estado.total}
             </span>
 
-            <span className="text-texto-sutil text-xs tabular-nums">
-              Mis tareas: {estado.mias}
-            </span>
+            {/* Solo cuando la API lo mando. Para un contacto no viaja —no tiene Tareas asignadas—
+                y el renglon desaparece entero: "Mis tareas: 0" le afirmaria al cliente que la
+                pregunta le aplica y que la respuesta es ninguna. */}
+            {estado.mias !== undefined && (
+              <span className="text-texto-sutil text-xs tabular-nums">
+                Mis tareas: {estado.mias}
+              </span>
+            )}
           </button>
         )
       })}

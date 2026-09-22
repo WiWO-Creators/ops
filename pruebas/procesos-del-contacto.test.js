@@ -19,16 +19,25 @@ import { DISCUSIONES, definicionDeDiscusiones } from '../src/definiciones/discus
 import { HITOS, definicionDeHitos } from '../src/definiciones/hitos.ts'
 import { definicionDeTiempos } from '../src/definiciones/tiempos.ts'
 import { lecturasDelGantt } from '../src/componentes/proyecto/gantt.ts'
+import { SIN_DATO } from '../src/lib/sla.ts'
 import { fuenteDelPanel, fuenteDelPortal } from '../src/dominio/fuente-proyecto.ts'
 
 const definicion = procesosDelContacto(8)
 
 /**
- * Un Proceso tal como lo devuelve `GET /portal/projects/{id}/tasks`.
+ * Un Proceso tal como lo devuelve `GET /portal/projects/{id}/tasks`, con todos sus campos puestos.
  *
  * Copiado del contrato y no de `Proceso`: lo que hace valer la prueba es justamente lo que **no**
- * tiene. `milestone` y `task_type` llegan como numero, no como objeto, que es el caso que hace
- * explotar una celda del equipo si se cuela.
+ * tiene —ni asignados, ni ETA, ni etiquetas—.
+ *
+ * `milestone`, `task_type` y `approval` son OBJETOS, no ids. La forma sale de
+ * `RecursoProcesos::presentarLote()` recortada por `FormasDelPortal::PROCESOS`, y `Expuesto::solo()`
+ * deja pasar entero lo declarado como valor suelto: por eso `task_type` trae tambien sus dos
+ * colores. Esta fila decia `milestone: 0` y `task_type: 0`, y esa mentira es la que mantuvo las dos
+ * columnas fuera de la tabla del cliente.
+ *
+ * `approval` no trae `rondas`: el portal no la manda. Es a proposito — `textoDeAprobacion` la lee
+ * con un guard de tipo y sin ella el texto sale sin el sufijo `×N`.
  */
 const FILA = {
   id: 512,
@@ -40,10 +49,37 @@ const FILA = {
   start_date: '2026-08-08',
   due_date: '2026-09-08',
   date_finished: null,
-  milestone: 0,
+  milestone: { id: 3, name: 'Puesta en marcha' },
   milestone_order: 0,
-  task_type: 0,
+  task_type: { id: 7, name: 'Diseño', label_color: '#1e40af', text_color: '#ffffff' },
+  approval: {
+    requerida: true,
+    estado: 'aprobada',
+    solicitada_en: '2026-09-01T12:00:00Z',
+    resuelta_en: '2026-09-02T09:30:00Z',
+    comentario: 'Va bien, sigan'
+  },
   counts: {}
+}
+
+/**
+ * La misma fila con todo lo opcional vacio: sin hito, sin tipo y sin aprobacion.
+ *
+ * Es el caso normal, no el raro: `tbltasks.milestone` y `tbltasks.task_type` valen 0 cuando no hay
+ * nada asignado, y ahi el presentador emite `null`. `approval` directamente no viaja cuando
+ * `wiwo_core` no esta instalado, asi que la clave falta —no llega en `null`—: por eso se omite en
+ * vez de ponerse en `null`.
+ */
+const { approval: _aprobacionQueNoViaja, ...SIN_APROBACION } = FILA
+
+const FILA_VACIA = {
+  ...SIN_APROBACION,
+  id: 513,
+  patente: null,
+  start_date: null,
+  due_date: null,
+  milestone: null,
+  task_type: null
 }
 
 test('la ruta es la del portal: el BFF elige el sujeto por el primer segmento', () => {
@@ -54,25 +90,61 @@ test('la ruta es la del portal: el BFF elige el sujeto por el primer segmento', 
 test('cada columna se pinta sin lanzar contra una fila del portal', () => {
   for (const columna of definicion.columnas) {
     assert.doesNotThrow(() => columna.presentar(FILA), `columna ${columna.clave}`)
+    assert.doesNotThrow(() => columna.presentar(FILA_VACIA), `columna ${columna.clave} vacia`)
   }
 })
+
+/**
+ * De que clave del payload vive cada columna, cuando no se llama igual.
+ *
+ * Las dos de aprobacion se pintan por separado —el estado y el comentario del cliente— y leen el
+ * mismo bloque `approval`. Es el unico lugar donde el nombre de la columna y el de la clave se
+ * separan, y sin este mapa la prueba de abajo pediria una clave `aprobacion` que no existe.
+ */
+const CLAVE_EN_EL_PAYLOAD = {
+  aprobacion: 'approval',
+  aprobacion_comentario: 'approval'
+}
 
 test('ninguna columna lee una clave que el contacto no recibe', () => {
   const recibidas = Object.keys(FILA)
 
   for (const columna of definicion.columnas) {
-    assert.equal(recibidas.includes(columna.clave), true, `columna ${columna.clave}`)
+    const clave = CLAVE_EN_EL_PAYLOAD[columna.clave] ?? columna.clave
+
+    assert.equal(recibidas.includes(clave), true, `columna ${columna.clave}`)
   }
 })
 
 test('no viajan las columnas internas del equipo', () => {
   const claves = definicion.columnas.map((c) => c.clave)
 
-  // Asignados y seguidores son personas del equipo; el tipo, el ETA, la desviacion y el SLA son el
-  // compromiso interno; las etiquetas son vocabulario interno, igual que en `proyectoDelPortal`.
-  for (const prohibida of ['assignees', 'task_type', 'eta', 'desviacion', 'estado_sla', 'tags', 'milestone', 'project', 'date_added', 'iterations']) {
+  // Asignados y seguidores son personas del equipo; el ETA, la desviacion, el SLA y la
+  // justificacion son el compromiso interno del equipo consigo mismo; las iteraciones son un
+  // contador de gestion y las etiquetas vocabulario interno, igual que en `proyectoDelPortal`.
+  // Ninguna de las siete esta declarada en `FormasDelPortal::PROCESOS`.
+  for (const prohibida of ['assignees', 'followers', 'eta', 'desviacion', 'estado_sla', 'justificacion', 'tags', 'project', 'date_added', 'iterations']) {
     assert.equal(claves.includes(prohibida), false, prohibida)
   }
+})
+
+test('el tipo, el hito y la aprobacion si se pintan: la API los manda como objeto', () => {
+  const porClave = new Map(definicion.columnas.map((c) => [c.clave, c]))
+
+  // Las tres estuvieron fuera por un comentario desactualizado que decia que la API no las mandaba.
+  // Lo que se verifica acá no es que esten, sino que pinten el dato y no el guion: una columna que
+  // dice "—" en todas las filas es peor que no tener la columna.
+  assert.equal(porClave.get('task_type').presentar(FILA), 'Diseño')
+  assert.equal(porClave.get('milestone').presentar(FILA), 'Puesta en marcha')
+  // Sin `rondas` el texto no lleva el sufijo `×N`: el portal no manda ese contador.
+  assert.equal(porClave.get('aprobacion').presentar(FILA), 'Aprobada')
+  assert.equal(porClave.get('aprobacion_comentario').presentar(FILA), 'Va bien, sigan')
+
+  // Vacias dicen lo que corresponde, y sin leer una propiedad de `null`.
+  assert.equal(porClave.get('task_type').presentar(FILA_VACIA), SIN_DATO)
+  assert.equal(porClave.get('milestone').presentar(FILA_VACIA), SIN_DATO)
+  assert.equal(porClave.get('aprobacion').presentar(FILA_VACIA), 'No requiere')
+  assert.equal(porClave.get('aprobacion_comentario').presentar(FILA_VACIA), SIN_DATO)
 })
 
 test('los encabezados y el orden son los del panel', () => {

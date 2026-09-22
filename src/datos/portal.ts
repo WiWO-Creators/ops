@@ -5,7 +5,16 @@
  * lo que el portal recibe NO es lo que recibe el panel. El portal nunca ve el `hash` publico del
  * documento, ni quien lo cargo, ni el agente de venta. Compartir el tipo invitaria a pintar en el
  * portal un campo que la API no manda, y a descubrirlo recien en pantalla.
+ *
+ * La excepcion son `Referencia` y `TipoTarea`, que se importan del panel: no son proyecciones
+ * distintas del mismo dato sino la MISMA fila de catalogo. `Expuesto::solo()` deja pasar
+ * `task_type` entero —esta declarado como valor suelto— y recorta `milestone` a exactamente
+ * `{id, name}`, que es lo que ya es `Referencia`. Redeclararlas aca solo abriria la puerta a que
+ * las dos copias se desincronicen, que es justamente como `milestone` y `task_type` terminaron
+ * declarados como numeros mientras la API mandaba objetos.
  */
+
+import type { Referencia, TipoTarea } from './recursos.ts'
 
 export interface TicketPortal {
   id: number
@@ -124,9 +133,22 @@ export interface TareaPortal {
   start_date: string | null
   due_date: string | null
   date_finished: string | null
-  milestone: number
+  /**
+   * Hito de la tarea, o `null` cuando no cuelga de ninguno.
+   *
+   * Es un OBJETO, no el id: `RecursoProcesos::presentarLote()` resuelve el nombre contra
+   * `tblmilestones` y `FormasDelPortal::PROCESOS` lo recorta a `{id, name}`. Estuvo declarado como
+   * `number` y por eso la columna Hito no se ofrecia al cliente.
+   */
+  milestone: Referencia | null
   milestone_order: number
-  task_type: number
+  /**
+   * Tipo de Proceso (`tbltask_types`), o `null` cuando la tarea no tiene tipo.
+   *
+   * Tambien es un OBJETO, y con sus dos colores: la forma del portal lo declara como valor suelto,
+   * asi que pasa entero tal como lo arma el presentador del panel.
+   */
+  task_type: TipoTarea | null
   counts: Record<string, number>
   /**
    * Aprobacion del cliente, **podada**: sin quien la pidio ni el id del contacto que respondio.
