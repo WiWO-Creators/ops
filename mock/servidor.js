@@ -7105,15 +7105,35 @@ const OMITIBLES_DEL_PORTAL = new Set([
 const CAMPOS_DE_TAREA_DEL_PORTAL = CLAVES_DEL_PORTAL.filter((clave) => clave.startsWith('wiwo_portal_campo_'))
 
 /**
+ * Las claves cuya AUSENCIA vale ENCENDIDO. Espejo de `VisibilidadContacto::ENCENDIDO_SI_FALTA`.
+ *
+ * Todas las demas fallan cerrado, que es lo que hace `ajustes()` con la fila ausente: `?? 0`.
+ * `wiwo_portal_tickets` es la excepcion porque se puso DELANTE de algo que el cliente ya veia —la
+ * pestaña colgaba de una feature global de Perfex que esta encendida—, asi que nace encendido y la
+ * fila ausente tambien vale 1. El porque completo esta en el docblock de esa constante en el board y
+ * en la cabecera de la migracion `0800`.
+ *
+ * Va acá y no en un `?? true` dentro de `ajustesDelPortal()` por lo mismo que en el board: una
+ * excepcion escondida en medio de una expresion es la clase de detalle que nadie encuentra cuando el
+ * sintoma aparece meses despues. Y va acá y no solo en el fixture porque no es un valor de arranque
+ * que se pueda cambiar: es la semantica de la clave.
+ */
+const ENCENDIDO_SI_FALTA_DEL_PORTAL = new Set(['wiwo_portal_tickets'])
+
+/**
  * El bloque de interruptores de un Espacio.
  *
- * La fila ausente vale `false`, igual que la lee `VisibilidadContacto::ajustes()`: asi un Espacio que
- * nunca paso por la migracion se comporta como uno apagado y no como uno roto.
+ * La fila ausente vale `false`, igual que la lee `VisibilidadContacto::ajustes()`, salvo para las
+ * claves de `ENCENDIDO_SI_FALTA_DEL_PORTAL`: asi un Espacio que nunca paso por la migracion se
+ * comporta como uno apagado y no como uno roto, y el que nunca paso por la `0800` se comporta como
+ * uno encendido, que es lo que hace la API real.
  */
 function ajustesDelPortal (espacioId) {
-  return Object.fromEntries(
-    CLAVES_DEL_PORTAL.map((clave) => [clave, AJUSTES_DEL_PORTAL.get(`${espacioId}:${clave}`) === true])
-  )
+  return Object.fromEntries(CLAVES_DEL_PORTAL.map((clave) => {
+    const guardado = AJUSTES_DEL_PORTAL.get(`${espacioId}:${clave}`)
+
+    return [clave, guardado === undefined ? ENCENDIDO_SI_FALTA_DEL_PORTAL.has(clave) : guardado === true]
+  }))
 }
 
 /**

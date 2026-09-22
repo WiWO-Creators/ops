@@ -15,11 +15,15 @@
  *  4. **`campos_tareas` refleja los flags, y la tarea del portal no trae lo apagado.** Es el
  *     contrato completo del interruptor por campo: el flag y la forma tienen que decir lo mismo.
  *
- * NOTA sobre los valores por omision. Hoy TODO nace apagado salvo lo que el fixture encienda, que
- * es exactamente lo que hace `VisibilidadContacto::ajustes()` con la fila ausente: `?? 0`. Si el
- * backend llega a sumar una clave que valga 1 cuando la fila falta, `ajustesDelPortal()` del
- * servidor necesita una lista de excepciones y esta prueba, un caso que la fije. Un mock que
- * muestre apagado lo que la API real muestra encendido miente, y mentir es peor que faltar.
+ *  5. **La única clave que nace encendida, nace encendida.** Es el caso que pedía la nota de antes,
+ *     ya resuelto: `wiwo_portal_tickets` vale 1 con la fila ausente y el resto vale 0
+ *     (`VisibilidadContacto::ENCENDIDO_SI_FALTA`, migracion `0800`). Es la excepcion porque se puso
+ *     DELANTE de algo que el cliente ya veia, no detras de algo nuevo. Un mock que la muestre
+ *     apagada miente sobre la API real, y mentir es peor que faltar.
+ *
+ * La lista de excepciones vive en `ENCENDIDO_SI_FALTA_DEL_PORTAL`, en el servidor, y no en un
+ * `?? true` suelto dentro de `ajustesDelPortal()`: una excepcion escondida en medio de una
+ * expresion es la clase de detalle que nadie encuentra cuando el sintoma aparece meses despues.
  */
 
 import { test, before, after } from 'node:test'
@@ -107,6 +111,39 @@ test('los ocho campos de columna nacen apagados', async () => {
   for (const flag of Object.keys(CAMPOS)) {
     assert.equal(ajustes[flag], false, flag)
   }
+})
+
+test('las solicitudes de soporte nacen ENCENDIDAS y el resto apagado', async () => {
+  const ajustes = await leerAjustes()
+
+  // Es la única excepción de las veintidós, y está clavada acá porque es el caso que la nota de la
+  // cabecera pedía: la fila ausente vale 1 para esta clave y 0 para todas las demás
+  // (`VisibilidadContacto::ENCENDIDO_SI_FALTA`, migración `0800`). Se puso delante de algo que el
+  // cliente YA veía, así que un mock que la muestre apagada miente sobre la API real, y mentir es
+  // peor que faltar.
+  assert.equal(ajustes.wiwo_portal_tickets, true)
+
+  // El contraste se hace contra `wiwo_portal_gestion`, que en este Proyecto tampoco tiene fila: las
+  // dos claves están igual de ausentes y una vale 1 y la otra 0, que es justo lo que hay que fijar.
+  // `wiwo_portal_actas` no sirve de contraste acá porque el fixture lo enciende a mano en el
+  // Proyecto 1, para poder mirar el Meeting Paper sin prenderlo primero.
+  assert.equal(ajustes.wiwo_portal_gestion, false, 'el tablero de gestión tiene que seguir naciendo apagado')
+})
+
+test('apagar las solicitudes de soporte se guarda, y se puede volver a encender', async () => {
+  // El interruptor existe para poder APAGAR un Proyecto concreto, así que esa es la escritura que
+  // hay que poder hacer. Y tiene que quedar guardado como un `false` explícito: si el mock tratara
+  // la ausencia y el '0' como lo mismo, apagarlo no se podría distinguir de no haberlo tocado nunca.
+  const apagado = await escribirAjustes({ wiwo_portal_tickets: false })
+
+  assert.equal(apagado.estado, 200)
+  assert.equal(apagado.datos.wiwo_portal_tickets, false)
+  assert.equal((await leerAjustes()).wiwo_portal_tickets, false)
+
+  const encendido = await escribirAjustes({ wiwo_portal_tickets: true })
+
+  assert.equal(encendido.estado, 200)
+  assert.equal((await leerAjustes()).wiwo_portal_tickets, true)
 })
 
 test('el PUT guarda cualquiera de las claves declaradas, no solo las actas', async () => {
