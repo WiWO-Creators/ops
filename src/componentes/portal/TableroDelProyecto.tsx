@@ -1,4 +1,3 @@
-import { GLOSARIO } from '@/dominio/glosario'
 import { cn } from '@/lib/clases'
 import {
   AreaDeRitmo,
@@ -8,7 +7,6 @@ import {
   LineaDeTiempoDeHitos,
   MedidorDeAvance,
   ProximaEntregaDelProyecto,
-  TarjetaDeCifra,
   UltimasNovedades
 } from './GraficosDelProyecto'
 import {
@@ -17,8 +15,7 @@ import {
   leerAvance,
   leerCierres,
   lineaDeHitos,
-  novedades,
-  type ConteoDeTickets
+  novedades
 } from './tablero-proyecto'
 import type { ProximaEntrega, TableroDelProyecto as Tablero } from '@/datos/portal'
 
@@ -50,9 +47,8 @@ const TOPE_DE_NOVEDADES = 12
  *   3. **«¿Hay algo mal?»** — las vencidas, con su icono y su palabra, más las cerradas de la
  *      semana y las abiertas sin fecha.
  *
- * Los tickets entran en esa misma fila, como una cifra más: dos números no son un gráfico. El
- * reparto por prioridad se cuelga al lado del medidor, porque es una sola barra y no justifica una
- * fila. Después viene el tiempo —el ritmo que llevamos y las fechas que vienen— y al final lo
+ * El reparto por prioridad se cuelga al lado del medidor, porque es una sola barra y no justifica
+ * una fila. Después viene el tiempo —el ritmo que llevamos y las fechas que vienen— y al final lo
  * informativo: equipo y novedades. Es el mismo criterio del tablero de gestión —de lo accionable a
  * lo informativo— aplicado a una rejilla en vez de a una pila.
  *
@@ -68,7 +64,7 @@ const TOPE_DE_NOVEDADES = 12
  * `group-hover`, lo que se despliega son `<details>`, y el tema lo resuelve `light-dark()`.
  */
 export function TableroDelProyecto (
-  { tablero, tickets, hoy }: { tablero: Tablero, tickets: ConteoDeTickets | null, hoy: string }
+  { tablero, hoy }: { tablero: Tablero, hoy: string }
 ) {
   const avance = leerAvance(tablero.avance)
   // `undefined` es «no tiene la pestaña» y `null` es «no queda ninguna entrega pendiente». Los dos
@@ -84,7 +80,7 @@ export function TableroDelProyecto (
   // Cuántas tarjetas de cifra va a tener la fila de arriba. Si son cero, esa fila NO se dibuja: un
   // contenedor vacío de ocho columnas ocupa su lugar en la rejilla igual, empuja al bloque siguiente
   // a la fila de abajo y deja el hueco que todo este rediseño vino a sacar.
-  const tarjetas = cifras.length + (hayProximaEntrega ? 1 : 0) + (tickets === null ? 0 : 1)
+  const tarjetas = cifras.length + (hayProximaEntrega ? 1 : 0)
 
   return (
     <div className="grid grid-cols-1 gap-3 lg:grid-cols-12">
@@ -118,22 +114,6 @@ export function TableroDelProyecto (
               <CifrasDeContexto cifras={[cifra]} />
             </div>
           ))}
-          {/* Los tickets son UNA cifra con su nota, no dos tarjetas ni un gráfico: «abiertos» es lo
-              accionable y «cerrados» es el contexto que va debajo, en letra chica. Dos tarjetas
-              gigantes con un número cada una era exactamente el relleno que se rechazó. */}
-          {tickets !== null && (
-            <div className="min-w-36 flex-1">
-              <TarjetaDeCifra
-                etiqueta={`${GLOSARIO.ticket.plural} abiertos`}
-                valor={String(tickets.abiertos)}
-                nota={
-                  tickets.total === 0
-                    ? 'Ninguno todavía'
-                    : `${tickets.cerrados} ${tickets.cerrados === 1 ? 'cerrado' : 'cerrados'}`
-                }
-              />
-            </div>
-          )}
         </div>
       </div>
       )}

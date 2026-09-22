@@ -34,6 +34,104 @@ export const PRIORIDADES = [
   { id: 4, name: 'Urgente', color: '#fc2d42' }
 ]
 
+/**
+ * Estados de un ticket, tal como los devuelve `tbltickets_status`.
+ *
+ * Los cinco de Perfex, con sus ids reales: la lista del portal publica `status` como entero desnudo
+ * y la insignia se pinta cruzandolo con este catalogo. `5` es «Cerrado», que es el unico del que
+ * depende una cuenta.
+ */
+export const ESTADOS_TICKET = [
+  { id: 1, name: 'Abierto', color: '#ff6f00' },
+  { id: 2, name: 'En curso', color: '#03a9f4' },
+  { id: 3, name: 'Respondido', color: '#84cc16' },
+  { id: 4, name: 'En espera', color: '#a855f7' },
+  { id: 5, name: 'Cerrado', color: '#22c55e' }
+]
+
+/** Prioridades de un ticket (`tbltickets_priorities`). Las mismas cuatro de Perfex. */
+export const PRIORIDADES_TICKET = [
+  { id: 1, name: 'Baja', color: '#777' },
+  { id: 2, name: 'Media', color: '#03a9f4' },
+  { id: 3, name: 'Alta', color: '#ff6f00' },
+  { id: 4, name: 'Urgente', color: '#fc2d42' }
+]
+
+/**
+ * Tickets del portal, con sus respuestas.
+ *
+ * Todos son del cliente 1, que es el unico contacto de la fixture con el permiso `support`. Tres
+ * cosas que la pantalla tiene que aguantar estan puestas a proposito:
+ *
+ *   1. **Uno sin Proyecto** (`project_id: null`): son los que se abrieron antes de que el Proyecto
+ *      fuera obligatorio. La bandeja del portal es la unica pantalla donde aparecen.
+ *   2. **Uno cerrado**, para que el filtro por estado tenga dos grupos que separar.
+ *   3. **Uno sin respuestas**, porque el hilo recien abierto es el estado en que queda un ticket
+ *      despues del alta, y es el que mas se mira.
+ *
+ * `last_reply` es la ultima respuesta de cualquiera de los dos lados, no la del equipo: el contrato
+ * de la API es ese y la columna de la tabla lo rotula asi.
+ *
+ * @type {Array<{ id: number, client_id: number, contact_id: number, subject: string, message: string, date: string, last_reply: string | null, status: number, priority: number, project_id: number | null, replies: Array<{ id: number, message: string, date: string, from: 'cliente' | 'equipo', name: string }> }>}
+ */
+export const TICKETS_PORTAL = [
+  {
+    id: 1,
+    client_id: 1,
+    contact_id: 1,
+    subject: 'El logo sale pixelado en el manual',
+    message: 'Bajé el PDF del manual y el logo de la portada se ve borroso al imprimir.',
+    date: '2026-09-15 09:12:00',
+    last_reply: '2026-09-16 11:40:00',
+    status: 2,
+    priority: 3,
+    project_id: 1,
+    replies: [
+      {
+        id: 1,
+        message: 'Lo estamos revisando: parece que el PDF se exportó a 72 dpi.',
+        date: '2026-09-16 11:40:00',
+        from: 'equipo',
+        name: 'Equipo Wiwo'
+      }
+    ]
+  },
+  {
+    id: 2,
+    client_id: 1,
+    contact_id: 1,
+    subject: 'No puedo entrar al panel de indicadores',
+    message: 'Desde ayer me pide la clave otra vez cada vez que abro el panel.',
+    date: '2026-09-18 16:03:00',
+    last_reply: null,
+    status: 1,
+    priority: 4,
+    project_id: 8,
+    replies: []
+  },
+  {
+    id: 3,
+    client_id: 1,
+    contact_id: 1,
+    subject: 'Factura de agosto con el IVA duplicado',
+    message: 'La factura 1042 trae el IVA dos veces. Adjunto el detalle.',
+    date: '2026-08-04 10:22:00',
+    last_reply: '2026-08-05 09:00:00',
+    status: 5,
+    priority: 2,
+    project_id: null,
+    replies: [
+      {
+        id: 2,
+        message: 'Corregido y reemitido. Gracias por avisar.',
+        date: '2026-08-05 09:00:00',
+        from: 'equipo',
+        name: 'Equipo Wiwo'
+      }
+    ]
+  }
+]
+
 export const ESTADOS_ESPACIO = [
   { id: 1, name: 'No iniciado', color: '#64748b', order: 1 },
   { id: 2, name: 'En progreso', color: '#3b82f6', order: 2 },

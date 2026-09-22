@@ -245,8 +245,10 @@ export function procesosDelContacto (
  * y "Tiempos" para quien lo atiende, porque despues los dos hablan por telefono. Cuando el panel
  * renombre una, se renombra acá.
  *
- * Tickets es la unica sin equivalente en el panel —soporte no es una pestaña del proyecto ahi— y por
- * eso va al final, antes de Actividad, que en el panel cierra la fila.
+ * Tickets NO esta, aunque la API la habilite: el soporte volvio a ser una seccion del portal
+ * —`/portal/soporte`—, y con razon, porque un ticket puede no tener {espacio} y ninguna pestaña lo
+ * podria contener. `pestaniasDelProyecto` ignora en silencio lo que la API habilita y esta lista no
+ * declara, asi que la clave `tickets` del contrato se descarta sola.
  */
 export const PESTANIAS_PROYECTO: Array<{ clave: PestaniaPortal, etiqueta: string }> = [
   { clave: 'overview', etiqueta: 'Descripción' },
@@ -262,7 +264,6 @@ export const PESTANIAS_PROYECTO: Array<{ clave: PestaniaPortal, etiqueta: string
   // El Meeting Paper puede contener conversacion interna, asi que su flag por proyecto nace en '0' y
   // se enciende a mano: la pestaña existe acá, pero la API no la habilita por defecto en ninguno.
   { clave: 'actas', etiqueta: GLOSARIO.acta.singular },
-  { clave: 'tickets', etiqueta: GLOSARIO.ticket.plural },
   { clave: 'activity', etiqueta: 'Actividad' }
 ]
 

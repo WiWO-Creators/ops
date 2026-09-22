@@ -15,12 +15,18 @@ import { nombreDeArchivo, origenDeArchivo } from '../src/definiciones/archivos.t
 // del catalogo comparten la clave `projects` —son dos pantallas del mismo recurso— y lo que
 // distingue un destino de otro es su href.
 test('solo muestra las secciones que la API habilito', () => {
-  const secciones = seccionesDelPortal(['projects', 'files', 'kb'])
+  const secciones = seccionesDelPortal(['projects', 'support', 'files'])
 
   assert.deepEqual(
     secciones.map((s) => s.href),
-    ['/portal/estado', '/portal/proyectos', '/portal/archivos', '/portal/ayuda']
+    ['/portal/estado', '/portal/proyectos', '/portal/soporte', '/portal/archivos']
   )
+})
+
+test('Anuncios y Ayuda no se listan aunque la API las habilite', () => {
+  // La API las emite para todo contacto —no dependen de ningun permiso— y el menu igual no las
+  // dibuja: son contenido que hoy nadie publica, y el enlace llevaba a una pantalla vacia.
+  assert.deepEqual(seccionesDelPortal(['announcements', 'kb']), [])
 })
 
 test('un contacto sin ninguna seccion no ve navegacion', () => {
@@ -36,11 +42,11 @@ test('ignora claves que el frontend todavia no conoce', () => {
 
 test('respeta el orden del catalogo y no el del argumento', () => {
   // El orden lo fija el producto, no en que orden vino el arreglo de la API.
-  const secciones = seccionesDelPortal(['kb', 'projects', 'files'])
+  const secciones = seccionesDelPortal(['files', 'projects', 'support'])
 
   assert.deepEqual(
     secciones.map((s) => s.href),
-    ['/portal/estado', '/portal/proyectos', '/portal/archivos', '/portal/ayuda']
+    ['/portal/estado', '/portal/proyectos', '/portal/soporte', '/portal/archivos']
   )
 })
 
@@ -53,28 +59,6 @@ test('el estado de los Proyectos entra y sale con el listado, no con una clave p
 
   assert.deepEqual(con, ['/portal/estado', '/portal/proyectos'])
   assert.equal(sin.includes('/portal/estado'), false)
-})
-
-test('la navegacion no ofrece Soporte, ni aunque la API habilite la clave', () => {
-  // El pedido fue explicito: los tickets se ven y se piden DENTRO del Proyecto. Un contacto con
-  // `support` habilitado no puede volver a encontrarse una entrada general en el menu, porque desde
-  // ahi abriria solicitudes sin Proyecto, que es justamente lo que dejaba tickets sin pestaña.
-  const secciones = seccionesDelPortal(['projects', 'support', 'files'])
-
-  assert.deepEqual(
-    secciones.map((s) => s.href),
-    ['/portal/estado', '/portal/proyectos', '/portal/archivos']
-  )
-  assert.equal(CATALOGO_PORTAL.some((s) => s.clave === 'support'), false)
-})
-
-test('ninguna entrada del catalogo apunta al soporte', () => {
-  // El hilo de un ticket —`/portal/soporte/{id}`— sigue existiendo y tiene que seguir existiendo:
-  // es la unica pantalla de un ticket sin Proyecto. Lo que no puede volver es una entrada de menu
-  // hacia ahi, ni al listado ni al detalle.
-  for (const seccion of CATALOGO_PORTAL) {
-    assert.equal(seccion.href.startsWith('/portal/soporte'), false, seccion.href)
-  }
 })
 
 test('todas las rutas del catalogo cuelgan de /portal', () => {
@@ -115,18 +99,15 @@ test('ignora las pestañas que la API habilita y el portal no construyo', () => 
 })
 
 test('el orden lo fija el producto, no el arreglo de la API', () => {
-  const visibles = pestaniasDelProyecto(['activity', 'tickets', 'overview', 'tasks'])
+  const visibles = pestaniasDelProyecto(['activity', 'overview', 'tasks'])
 
-  assert.deepEqual(visibles.map((p) => p.clave), ['overview', 'tasks', 'tickets', 'activity'])
+  assert.deepEqual(visibles.map((p) => p.clave), ['overview', 'tasks', 'activity'])
 })
 
-test('la pestaña Tickets es la unica puerta al soporte y depende del interruptor del Proyecto', () => {
-  // Desde que el menu no ofrece Soporte, esta pestaña es el unico lugar donde el cliente pide algo.
-  // Sigue atada a lo que la API habilita: un Proyecto que no la comparte no la dibuja, y ahi no hay
-  // atajo que valga. Si alguien la sacara de la lista, el portal se quedaria sin alta de tickets.
-  assert.equal(PESTANIAS_PROYECTO.some((p) => p.clave === 'tickets'), true)
-  assert.deepEqual(pestaniasDelProyecto(['tickets']).map((p) => p.clave), ['tickets'])
-  assert.deepEqual(pestaniasDelProyecto(['overview', 'tasks']).map((p) => p.clave), ['overview', 'tasks'])
+test('la pestaña de tickets se descarta aunque la API la habilite', () => {
+  // El soporte es una seccion del portal, no una pestaña del Proyecto: un ticket puede no tener
+  // Proyecto, y esos no caben en ninguna pestaña.
+  assert.deepEqual(pestaniasDelProyecto(['overview', 'tickets']).map((p) => p.clave), ['overview'])
 })
 
 test('un proyecto sin nada compartido no dibuja pestañas', () => {
