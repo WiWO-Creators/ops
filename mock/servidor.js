@@ -646,6 +646,46 @@ function descripcionDeItem (valor) {
   return texto.replace(/\n/g, '<br />\n')
 }
 
+/**
+ * `PATCH /{tasks|projects}/{id}/files/{fileId}`: publica u oculta un adjunto en el portal.
+ *
+ * Replica `Adjunto::cambiarVisibilidad()` en el mismo orden: `edit` sobre la entidad (403), el
+ * adjunto tiene que estar entre los de la entidad de la URL (404) y el cuerpo es estricto —solo
+ * `visible_to_customer`, booleano o `0`/`1`— (422). Responde la fila con la forma del `GET`, que es
+ * lo que la API devuelve.
+ *
+ * @param {object} actual staff de la sesion
+ * @param {'tasks'|'projects'} recurso la entidad dueña
+ * @param {object[]} suyos los adjuntos que el `GET` de esa entidad lista
+ * @param {string|undefined} crudoId el segmento del id del adjunto
+ * @param {() => Promise<object>} cuerpo thunk del cuerpo JSON
+ */
+async function cambiarVisibilidadDeAdjunto (actual, recurso, suyos, crudoId, cuerpo) {
+  exigirPermiso(actual, recurso, 'edit')
+
+  const archivo = suyos.find((a) => String(a.id) === crudoId)
+  if (!archivo) throw new ErrorApi(404, 'not_found', 'No existe ese adjunto.')
+
+  const datos = await cuerpo()
+  // `Peticion::cuerpo()` corta con 400 todo lo que no decodifica a un objeto: `null`, un numero.
+  if (datos === null || typeof datos !== 'object') {
+    throw new ErrorApi(400, 'bad_request', 'El cuerpo no es un objeto JSON válido.')
+  }
+  const errores = {}
+  for (const clave of Object.keys(datos)) {
+    if (clave !== 'visible_to_customer') errores[clave] = ['no_editable']
+  }
+  const valor = datos.visible_to_customer
+  if (!Object.hasOwn(datos, 'visible_to_customer')) errores.visible_to_customer = ['required']
+  else if (typeof valor !== 'boolean' && valor !== 0 && valor !== 1) errores.visible_to_customer = ['invalid']
+  if (Object.keys(errores).length > 0) {
+    throw new ErrorApi(422, 'validation_failed', 'La visibilidad del adjunto no es válida.', errores)
+  }
+
+  archivo.visible_to_customer = Boolean(valor)
+  return { estado: 200, cuerpo: conDatos(archivo) }
+}
+
 /** Exige que el staff tenga una accion sobre un recurso, o lanza 403. */
 function exigirPermiso (staff, recurso, accion) {
   const permisos = permisosDe(staff)
@@ -5942,6 +5982,13 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
     return { estado: 200, cuerpo: conDatos({ ...licitacion, espacio: presentarEspacio(espacio, []) }) }
   }
 
+  if (recurso === 'projects' && metodo === 'PATCH' && resto[1] === 'files' && resto.length === 3) {
+    const espacio = buscarO404(ESPACIOS_EXISTENTES, Number(resto[0]), 'espacio')
+    const suyos = PROCESOS.filter((p) => p.project?.id === espacio.id).map((p) => p.id)
+
+    return cambiarVisibilidadDeAdjunto(actual, 'projects', ARCHIVOS.filter((a) => suyos.includes(a.rel_id)), resto[2], cuerpo)
+  }
+
   if (recurso === 'projects' && (metodo === 'GET' || (metodo === 'PATCH' && resto[1] === 'milestones' && resto[2] === 'orden'))) {
     exigirPermiso(actual, 'projects', 'view')
     const includes = leerIncludes(parametros, ['custom_fields', 'members'])
@@ -6161,6 +6208,10 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
     }
     if (metodo === 'GET' && subrecurso === 'files') {
       return { estado: 200, cuerpo: conDatos(ARCHIVOS.filter((a) => a.rel_type === 'task' && a.rel_id === proceso.id)) }
+    }
+    if (metodo === 'PATCH' && subrecurso === 'files' && resto.length === 3) {
+      const suyos = ARCHIVOS.filter((a) => a.rel_type === 'task' && a.rel_id === proceso.id)
+      return cambiarVisibilidadDeAdjunto(actual, 'tasks', suyos, extra, cuerpo)
     }
 
     if (metodo === 'PATCH' && !subrecurso) {

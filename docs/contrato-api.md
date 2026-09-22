@@ -2193,7 +2193,7 @@ Ninguno. Ni correo, ni campana, ni webhooks: las cinco escrituras van por SQL di
 (`tblactivity_log`) y, al comentar en un Proceso que cuelga de un Espacio, el feed del Espacio
 (`tblproject_activity`, clave `project_activity_new_task_comment`), que se lee dentro de la app.
 
-### Subida y borrado de adjuntos
+### Subida, borrado y visibilidad de adjuntos
 
 Rama `feat/api-subida-adjuntos`. Item `t1-adjuntos`.
 
@@ -2214,7 +2214,7 @@ Sube uno o varios adjuntos a un Proceso. `{id}` es el id del **Proceso**, no el 
 - `Content-Type: multipart/form-data` (obligatorio; cualquier otro es `400`).
 - Campo `file` (uno) o `file[]` (varios), hasta **10 archivos** por petición y **20 MB** por archivo.
 - No hay más campos. `visible_to_customer` **no se acepta**: toda subida entra en `0` (no visible
-  para el portal). Publicar un archivo al cliente sigue siendo una decisión del panel.
+  para el portal). Publicarlo al cliente es un paso aparte: `PATCH .../files/{fileId}`.
 
 ```bash
 curl -X POST https://.../api/v1/tasks/3205/files \
@@ -2260,6 +2260,62 @@ Borra la fila y el binario (y su miniatura `_thumb`, si el panel la había gener
 El adjunto tiene que pertenecer a la entidad de la URL: `DELETE /tasks/7/files/99` donde el archivo
 99 es de otra tarea es `404`, no un borrado válido.
 
+### `PATCH /tasks/{id}/files/{fileId}` · `PATCH /projects/{id}/files/{fileId}`
+
+Publica u oculta un adjunto en el portal del cliente (`visible_to_customer`). Es lo que el panel
+clásico hace con `Projects::change_file_visibility()` y `Misc::toggle_file_visibility()`, pero con
+permiso y pertenencia: el panel no exige ninguno de los dos.
+
+**Request** — JSON, con una sola clave:
+
+```json
+{ "visible_to_customer": true }
+```
+
+Acepta `true`/`false` o `0`/`1` enteros. El valor va explícito y no como «toggle»: dos clics cruzados
+en la red terminan en lo que pidió el último, no en el contrario.
+
+**Permisos** — los mismos que editar la entidad: `edit` sobre `tasks` o `projects` (`403`) y alcance
+de escritura sobre la fila (`puedeEscribirProceso` / `puedeEscribirEspacio`; fuera de alcance es
+`404`, como en `PATCH /tasks/{id}` y `PATCH /projects/{id}`). El adjunto tiene que ser de la entidad
+de la URL: si es de otra, `404`.
+
+**Response `200`** — la fila del adjunto, con la misma forma que devuelve el `GET` del listado:
+
+```json
+{
+  "data": {
+    "id": 4,
+    "file_name": "ca057b891d43686e54fc62c537150182.png",
+    "original_file_name": "plano.png",
+    "subject": "plano.png",
+    "filetype": "image/png",
+    "rel_type": "project",
+    "rel_id": 303,
+    "staff_id": 59,
+    "date_added": "2026-08-18T15:25:20Z",
+    "visible_to_customer": true,
+    "external": null,
+    "url": "/api/v1/files/project/4/download",
+    "thumbnail_url": null
+  }
+}
+```
+
+Repetir el mismo valor responde `200` igual y no escribe nada. Cuando el valor cambia, queda en la
+bitácora (`tblactivity_log`): `Adjunto #4 de project #303 visible para el cliente`. No escribe en el
+feed del Espacio, igual que el panel.
+
+**`422 validation_failed`**, en `details`:
+
+| Clave | Valor | Cuándo |
+|---|---|---|
+| `visible_to_customer` | `required` | El cuerpo no la trae (o viene vacío) |
+| `visible_to_customer` | `invalid` | No es booleano ni `0`/`1` (`"true"`, `null`, `2`) |
+| cualquier otra | `no_editable` | El cuerpo trae otra clave: no se ignora en silencio |
+
+Un cuerpo que no es un objeto JSON es `400 bad_request`.
+
 ---
 
 ### Códigos de error
@@ -2268,10 +2324,10 @@ El adjunto tiene que pertenecer a la entidad de la URL: `DELETE /tasks/7/files/9
 |---|---|---|
 | `400 bad_request` | El `Content-Type` no es `multipart/form-data`, o el archivo no llegó como subida HTTP | `{"error":{"code":"bad_request",...}}` |
 | `401 unauthenticated` | Sin token o token inválido | el de siempre |
-| `403 forbidden` | Borrado de un adjunto ajeno sin `delete` sobre `tasks`/`projects` | `"Solo quien subio el adjunto puede borrarlo."` |
+| `403 forbidden` | Borrado de un adjunto ajeno sin `delete` sobre `tasks`/`projects`; cambio de visibilidad sin `edit` | `"Solo quien subio el adjunto puede borrarlo."` |
 | `404 not_found` | El Proceso o Espacio no existe **o no es visible** para quien pide; el adjunto no existe o es de otra entidad | mismo 404 para los tres casos |
 | `413 payload_too_large` | Archivo > 20 MB, más de 10 archivos, o cuerpo por encima del `post_max_size` del servidor | `{"error":{"code":"payload_too_large","message":"..."}}` |
-| `422 validation_failed` | Ver la tabla de abajo | `details.file` con la clave |
+| `422 validation_failed` | Subida: ver la tabla de abajo. Visibilidad: ver su sección | `details.file` (subida) o `details.visible_to_customer` |
 | `422 unknown_include` | Cualquier `?include=` (la ruta no declara relaciones) | el de `Consulta` |
 
 **Claves de `details.file` en el 422**

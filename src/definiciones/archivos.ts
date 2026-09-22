@@ -108,8 +108,9 @@ export function columnasDeArchivo (esDelPortal: boolean): DefinicionRecurso<Arch
 /**
  * Ruta del listado de adjuntos de una entidad, tal como la pide el BFF.
  *
- * Las tres operaciones —listar, subir y borrar— cuelgan de la misma ruta, asi que se arma una vez en
- * vez de repetir la interpolacion en cada llamada y arriesgar que una quede desalineada.
+ * Las operaciones —listar, subir, borrar y cambiar la visibilidad— cuelgan de la misma ruta, asi
+ * que se arma una vez en vez de repetir la interpolacion en cada llamada y arriesgar que una quede
+ * desalineada.
  *
  * @param raiz Espacio (`projects`) o Proceso (`tasks`).
  * @param id Id de la entidad dueña de los adjuntos.
@@ -117,6 +118,37 @@ export function columnasDeArchivo (esDelPortal: boolean): DefinicionRecurso<Arch
  */
 export function rutaDeAdjuntos (raiz: RaizDeAdjuntos, id: number): string {
   return `${raiz}/${encodeURIComponent(String(id))}/files`
+}
+
+/**
+ * Ruta de un adjunto concreto: la que borra (`DELETE`) y la que cambia su visibilidad (`PATCH`).
+ *
+ * @param rutaDelListado La de `rutaDeAdjuntos()`. Ej: `tasks/512/files`.
+ * @param archivoId Id del adjunto, no el de la entidad.
+ * @returns La ruta sin la base del BFF. Ej: `tasks/512/files/77`.
+ */
+export function rutaDeUnAdjunto (rutaDelListado: string, archivoId: number): string {
+  return `${rutaDelListado}/${encodeURIComponent(String(archivoId))}`
+}
+
+/**
+ * El listado con la visibilidad de un adjunto cambiada, sin tocar el resto.
+ *
+ * Es lo que pinta el interruptor antes de que la API conteste, y tambien lo que lo revierte si falla:
+ * revertir es volver a aplicarla con el valor anterior. Devuelve un arreglo nuevo para que React
+ * vea el cambio.
+ *
+ * @param archivos El listado actual.
+ * @param archivoId El adjunto que cambia. Si no esta, el listado vuelve igual.
+ * @param visible El valor nuevo de `visible_to_customer`.
+ * @returns El listado nuevo.
+ */
+export function conVisibilidad<T extends { id: number, visible_to_customer: boolean }> (
+  archivos: T[],
+  archivoId: number,
+  visible: boolean
+): T[] {
+  return archivos.map((archivo) => (archivo.id === archivoId ? { ...archivo, visible_to_customer: visible } : archivo))
 }
 
 /**
