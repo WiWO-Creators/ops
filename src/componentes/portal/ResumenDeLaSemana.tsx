@@ -42,12 +42,13 @@ const MENSAJE_ERROR = 'No pudimos armar tu resumen ahora.'
 const MENSAJE_SIN_PROVEEDOR = 'El resumen de la semana no está disponible por ahora.'
 
 /**
- * Lo que se dice cuando ya no quedan generaciones (`429`).
+ * Lo que se dice cuando el resumen anterior todavia no cumplio la hora (`429`).
  *
- * El tope lo fija el backend; acá solo se pone en palabras. Es el respaldo para el `429` crudo: el
- * camino normal es el bloque `regeneracion`, que `motivoDeBloqueo()` traduce con mas detalle.
+ * El tope lo fija el backend —uno por hora— y acá solo se pone en palabras. Es el respaldo para el
+ * `429` crudo: el camino normal es el bloque `regeneracion`, que `motivoDeBloqueo()` traduce con
+ * mas detalle, diciendo a que hora se va a poder.
  */
-const MENSAJE_SIN_CUPO = 'Ya actualizaste tu resumen varias veces hoy. Vuelve mañana.'
+const MENSAJE_SIN_CUPO = 'Tu resumen se actualiza una vez por hora.'
 
 /**
  * En que anda la tarjeta.
@@ -70,7 +71,8 @@ type Cierre = 'fin' | 'error'
  * equipo— pero sin `tareas`. El resumen del cliente no lista {procesos}: eso ya lo dibuja
  * «Próximos días» al lado, y repetirlo seria la misma informacion dos veces con distinta redaccion.
  *
- * `texto: null` significa que todavia no se genero el de esta semana. No es un texto vacio.
+ * `texto: null` significa que no hay resumen fresco: o nunca se genero, o el ultimo ya cumplio la
+ * hora. No es un texto vacio, y los dos casos se resuelven igual —generando—.
  */
 interface ResumenSemanal {
   texto: string | null
@@ -80,7 +82,7 @@ interface ResumenSemanal {
 
 /** Que pedirle a una lectura del resumen guardado. */
 interface OpcionesLectura {
-  /** Generar al entrar si nunca se genero el de esta semana y hay cupo. */
+  /** Generar al entrar si lo guardado ya no esta vigente y la hora de espera se cumplio. */
   generarSiFalta?: boolean
   /** No pisar el texto que ya esta en pantalla. Se usa al releer despues de un fallo del stream. */
   conservarTexto?: boolean
@@ -244,9 +246,10 @@ export function ResumenDeLaSemana () {
    * Es tambien el unico lugar donde se leen los tres desenlaces previstos, porque es el unico que ve
    * el codigo de estado: `404` (capa de IA apagada), `503` (proveedor sin clave) y `429` (sin cupo).
    *
-   * Si nunca se genero el de esta semana y hay cupo, genera al entrar: eso es lo que hace que el
-   * resumen se vea escribirse la primera vez de la semana. Si no hay cupo, se queda con lo que haya
-   * y el boton explica por que no puede.
+   * Si no hay resumen vigente —nunca se genero, o el ultimo ya cumplio la hora— y el cupo lo
+   * permite, genera al entrar: eso es lo que hace que el cliente vea su resumen escribirse cada vez
+   * que vuelve, en vez de leer uno de hace dias. Si todavia corre la hora, se queda con lo que haya
+   * y el boton explica hasta cuando.
    *
    * @param senal señal para abortar cuando el componente se desmonta
    * @param opciones si generar al entrar y si conservar el texto que ya esta en pantalla
