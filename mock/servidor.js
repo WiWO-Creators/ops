@@ -4908,6 +4908,27 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
         return { estado: 200, cuerpo: conDatos(filas.map(presentarTareaPortal), { pagination: paginacion }) }
       }
 
+      // Los contadores por estado de la ficha, las tarjetas de arriba de la tabla. Va ANTES del
+      // detalle porque comparte su largo: sin esto, `summary` se leeria como el id de una Tarea y
+      // la respuesta seria un 404.
+      //
+      // Devuelve el catalogo COMPLETO, tambien los estados en cero, y sin `mias`: un contacto no
+      // tiene Tareas asignadas. Las dos cosas son el contrato de `GET /portal/projects/{id}/tasks/summary`.
+      if (resto[2] === 'tasks' && resto[3] === 'summary' && resto.length === 4) {
+        exigirPestania('tasks')
+
+        return {
+          estado: 200,
+          cuerpo: conDatos(ESTADOS_PROCESO.map((estado) => ({
+            status: estado.id,
+            name: estado.name,
+            color: estado.color,
+            order: estado.order,
+            total: tareasDelEspacio.filter((t) => t.status === estado.id).length
+          })))
+        }
+      }
+
       // Detalle de una Tarea. Cuelga del Proyecto y no de `/portal/tasks/{id}`: la pertenencia es lo
       // que deja decidir si esa Tarea le corresponde a este contacto, y una de otro Proyecto es 404
       // —nunca 403—, porque para el no existe.
