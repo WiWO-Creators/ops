@@ -18,6 +18,7 @@ import {
   mensajeDeError,
   opcionesPorPagina,
   podarPorPermisos,
+  urlDeTareaEnProyecto,
   rutaDeAccion,
   resolverInsignia,
   resumenDeFiltro,
@@ -302,4 +303,12 @@ test('hayFiltrosPuestos distingue una lista filtrada de una vacia de verdad', ()
   assert.equal(hayFiltrosPuestos({ ...base, filtros: { status: ['4'] } }), true)
   assert.equal(hayFiltrosPuestos({ ...base, busqueda: '  ' }), false)
   assert.equal(hayFiltrosPuestos({ ...base, busqueda: 'anker' }), true)
+})
+
+test('la tarea se abre dentro de su Proyecto, y sin Proyecto no hay enlace', () => {
+  assert.equal(urlDeTareaEnProyecto(12, 7), '/proyectos/7?tab=tareas&tarea=12')
+  assert.equal(urlDeTareaEnProyecto(12, null), null)
+  assert.equal(urlDeTareaEnProyecto(12, undefined), null)
+  assert.equal(urlDeTareaEnProyecto(12, 0), null)
+  assert.equal(urlDeTareaEnProyecto(12, 1.5), null)
 })

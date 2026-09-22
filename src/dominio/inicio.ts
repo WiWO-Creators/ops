@@ -1,5 +1,6 @@
 import type { Proceso } from '../datos/recursos.ts'
 import { estadoVencimiento } from '../lib/fechas.ts'
+import { ESTADO_COMPLETO } from '../componentes/proyecto/tareas.ts'
 
 /** Lo que devuelve `estadoVencimiento`. Se deriva en vez de duplicar la union en dos archivos. */
 type EstadoVencimiento = ReturnType<typeof estadoVencimiento>
@@ -42,6 +43,9 @@ const ETIQUETAS: Record<TramoInicio, string> = {
  * Un tramo sin procesos no aparece en el resultado — un encabezado "Vencidos" sobre una lista vacia
  * se lee como un error de carga.
  *
+ * Los completados quedan afuera aunque lleguen: el listado ya los excluye, pero una fila completada
+ * en "Hoy" se lee como trabajo pendiente, y ese error es peor que una fila de menos.
+ *
  * @param procesos los procesos ya filtrados por asignacion
  * @param hoy dia de referencia, inyectable para poder probar sin depender del reloj
  * @returns los grupos no vacios, de mas urgente a menos
@@ -49,7 +53,8 @@ const ETIQUETAS: Record<TramoInicio, string> = {
 export function agruparPorVencimiento (procesos: Proceso[], hoy = new Date()): GrupoInicio[] {
   return TRAMOS_ACTIVOS
     .map((tramo) => {
-      const delTramo = procesos.filter((proceso) => tramoDe(proceso, hoy) === tramo)
+      const delTramo = procesos.filter((proceso) =>
+        proceso.status !== ESTADO_COMPLETO && tramoDe(proceso, hoy) === tramo)
 
       return {
         tramo,

@@ -270,8 +270,12 @@ async function cargarTablero (proyecto: EspacioPortal): Promise<Tablero | null> 
   return await sinFallar<Tablero>(`/portal/projects/${proyecto.id}/tablero`)
 }
 
+/** «Espera de respuesta» de Perfex: el unico estado en que una Tarea espera al cliente. */
+const ESTADO_ESPERA_DE_RESPUESTA = 2
+
 /**
- * Las tareas de este proyecto que esperan el visto bueno del contacto.
+ * Las tareas de este proyecto que esperan el visto bueno del contacto: aprobacion pendiente y en
+ * «Espera de respuesta». Una aprobacion pendiente sobre una Tarea en curso o completada no se pide.
  *
  * Se pide solo si el proyecto comparte la pestaña de tareas: sin ella la API responde 403, y un error
  * por un bloque que probablemente este vacio no puede tumbar la pantalla entera. Cualquier fallo
@@ -285,7 +289,7 @@ async function cargarPendientes (proyecto: EspacioPortal): Promise<TareaPortal[]
   if (!(proyecto.tabs ?? []).includes('tasks')) return []
 
   const sobre = await cargarDetalle<TareaPortal[]>(
-    `/portal/projects/${proyecto.id}/tasks?filter[aprobacion]=pendiente&per_page=50`
+    `/portal/projects/${proyecto.id}/tasks?filter[aprobacion]=pendiente&filter[status]=${ESTADO_ESPERA_DE_RESPUESTA}&per_page=50`
   )
 
   return sobre instanceof ErrorApi ? [] : sobre.data

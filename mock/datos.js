@@ -688,9 +688,10 @@ export const PROCESOS = Array.from({ length: 84 }, (_, i) => {
     })),
     followers: i % 5 === 0 ? [{ id: ciclo(STAFF, i + 1).id, full_name: ciclo(STAFF, i + 1).full_name }] : [],
     tags: i % 4 === 0 ? [ciclo(ETIQUETAS, i)] : [],
-    // Una de cada siete espera el visto bueno del cliente. Sin ninguna pendiente, el bloque
-    // "Esperan tu visto bueno" del portal no se dibuja nunca y queda sin ejercitar.
-    aprobacion: i % 7 === 1
+    // Las que estan en «Esperando respuesta» esperan el visto bueno del cliente: el bloque
+    // "Esperan tu visto bueno" del portal solo muestra ese estado, y sin ninguna pendiente no se
+    // dibuja nunca y queda sin ejercitar.
+    aprobacion: estado.id === 2
       ? {
           requerida: true,
           estado: 'pendiente',

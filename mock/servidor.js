@@ -2177,6 +2177,7 @@ function tareasDeResumenIa (actual) {
     .slice(0, 6).map((p) => ({
       id: p.id,
       name: p.name,
+      project_id: p.project?.id ?? null,
       project_name: p.project?.name ?? null,
       due_date: p.due_date,
       recomendacion: 'Revisa si sigue pendiente. Si ya está resuelta, márcala como completada; si sigue vigente, acuerda una fecha realista.'

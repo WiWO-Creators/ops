@@ -67,24 +67,39 @@ export interface UsoIA {
 export interface TareaResumen {
   id: number
   name: string
+  /** Proyecto de la tarea, para abrirla dentro de el. `null` si no cuelga de ninguno. */
+  project_id: number | null
   project_name: string | null
   due_date: string | null
   recomendacion: string
 }
 
-/** Descarta referencias incompletas y duplicadas antes de construir enlaces a tareas. */
+/**
+ * Descarta referencias incompletas y duplicadas antes de construir enlaces a tareas.
+ *
+ * `project_id` ausente o invalido no descarta la tarea: queda en `null` y el enlace cae al detalle
+ * sin Proyecto. Asi un backend anterior al campo sigue mostrando el resumen.
+ *
+ * @param valor el `tareas` crudo de la respuesta
+ * @returns las tareas validas, sin repetir
+ */
 export function leerTareasResumen (valor: unknown): TareaResumen[] {
   if (!Array.isArray(valor)) return []
   const ids = new Set<number>()
-  return valor.filter((t): t is TareaResumen => {
-    if (t === null || typeof t !== 'object' || !Number.isSafeInteger(t.id) || t.id <= 0 ||
-      typeof t.name !== 'string' || t.name.trim() === '' ||
-      (t.project_name !== null && typeof t.project_name !== 'string') ||
-      (t.due_date !== null && (typeof t.due_date !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(t.due_date))) ||
-      typeof t.recomendacion !== 'string' || ids.has(t.id)) return false
-    ids.add(t.id)
-    return true
-  })
+  return valor
+    .filter((t) => {
+      if (t === null || typeof t !== 'object' || !Number.isSafeInteger(t.id) || t.id <= 0 ||
+        typeof t.name !== 'string' || t.name.trim() === '' ||
+        (t.project_name !== null && typeof t.project_name !== 'string') ||
+        (t.due_date !== null && (typeof t.due_date !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(t.due_date))) ||
+        typeof t.recomendacion !== 'string' || ids.has(t.id)) return false
+      ids.add(t.id)
+      return true
+    })
+    .map((t): TareaResumen => ({
+      ...t,
+      project_id: Number.isSafeInteger(t.project_id) && t.project_id > 0 ? t.project_id : null
+    }))
 }
 
 /** Lo que devuelve `GET /ia/inicio`. `texto: null` significa que nunca se genero. */

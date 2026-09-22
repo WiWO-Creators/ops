@@ -11,7 +11,7 @@ import { agruparPorVencimiento, cuantosNoListados } from '../src/dominio/inicio.
 
 const HOY = new Date(2026, 7, 25) // 25 de agosto de 2026, hora local
 
-const proceso = (id, due_date) => ({ id, name: `Proceso ${id}`, due_date })
+const proceso = (id, due_date, status = 4) => ({ id, name: `Proceso ${id}`, due_date, status })
 
 test('agrupa de mas urgente a menos y saltea los tramos vacios', () => {
   const grupos = agruparPorVencimiento([
@@ -68,4 +68,11 @@ test('sin total explicito se asume que llego todo', () => {
   const procesos = [proceso(1, '2026-08-24'), proceso(2, '2026-12-01')]
 
   assert.equal(cuantosNoListados(procesos, undefined, HOY), 1)
+})
+
+test('un proceso completado no aparece como trabajo de hoy', () => {
+  const grupos = agruparPorVencimiento([proceso(1, '2026-08-25', 5), proceso(2, '2026-08-25')], HOY)
+
+  assert.deepEqual(grupos.map((g) => g.procesos.map((p) => p.id)), [[2]])
+  assert.equal(grupos[0].total, 1)
 })

@@ -27,7 +27,7 @@ import { Tarjeta, type TonoTarjeta } from '@/componentes/estructura/Tarjeta'
 import { TituloModulo } from '@/componentes/estructura/TituloModulo'
 import { Insignia } from '@/componentes/presentadores/Insignia'
 import { Fecha } from '@/componentes/presentadores/Fecha'
-import { PARAMETRO_TAREA } from '@/componentes/datos/tabla'
+import { PARAMETRO_TAREA, urlDeTareaEnProyecto } from '@/componentes/datos/tabla'
 import { EstadoDeTarea } from '@/componentes/proyecto/EstadoDeTarea'
 import { ModalTarea } from '@/componentes/proyecto/ModalTarea'
 import { URL_SOPORTE } from '@/lib/soporte'
@@ -415,8 +415,8 @@ interface PropsMiTrabajo {
  * Sin nada asignado no se muestra una caja vacia: se muestra la frase y el enlace al listado. Un
  * estado vacio con marco se lee como "algo fallo"; sin marco, como "no tenés nada", que es lo cierto.
  *
- * Cada fila abre el detalle sin salir del Inicio: escribe `?tarea={id}`, que es el mismo parametro
- * que leen los listados. Ver la tarea desde aca no obliga a ir a buscarla al listado completo.
+ * Cada fila abre la tarea dentro de su Proyecto (pestaña Tareas con el detalle encima). La que no
+ * cuelga de ningun Proyecto abre el detalle sin salir del Inicio con `?tarea={id}`.
  *
  * Un fallo del listado NO se pinta como "no tienes nada": son dos hechos distintos y confundirlos es
  * lo que hacia que el equipo reportara el bug equivocado durante meses. Cuando hay error se dice el
@@ -548,16 +548,18 @@ function GrupoDeVencimiento ({ grupo, estados }: { grupo: GrupoInicio, estados: 
  * @param estados catalogo de estados; vacio no pinta insignia
  */
 function FilaDeProceso ({ proceso, estados }: { proceso: Proceso, estados: OpcionFiltro[] }) {
+  const enProyecto = urlDeTareaEnProyecto(proceso.id, proceso.project?.id)
+
   return (
     <li>
       {/*
         Enlace de verdad y no un `div` con `onClick`: asi la fila se abre con el teclado, se copia y
-        se abre en otra pestaña. `scroll={false}` porque abrir el detalle no mueve la pantalla de
-        atras.
+        se abre en otra pestaña. Con Proyecto se va a la tarea dentro de el; sin Proyecto se abre el
+        detalle aca, y ahi `scroll={false}` porque abrirlo no mueve la pantalla de atras.
       */}
       <Link
-        href={`?${PARAMETRO_TAREA}=${proceso.id}`}
-        scroll={false}
+        href={enProyecto ?? `?${PARAMETRO_TAREA}=${proceso.id}`}
+        scroll={enProyecto !== null}
         className="flex flex-wrap items-center gap-x-4 gap-y-2 px-5 py-4 transition-colors duration-150 ease-neo hover:bg-hover focus-visible:bg-hover"
       >
         <span className="min-w-0 flex-1 basis-full truncate text-base text-texto sm:basis-auto">

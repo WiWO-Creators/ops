@@ -437,9 +437,20 @@ test('`admite_texto` que no es booleano se lee como false', () => {
 })
 
 test('el resumen acepta tareas verificadas sin proyecto y descarta enlaces inválidos o repetidos', () => {
-  const tarea = { id: 12, name: 'Tarea antigua', project_name: null, due_date: null, recomendacion: 'Revisar si sigue pendiente.' }
+  const tarea = { id: 12, name: 'Tarea antigua', project_id: null, project_name: null, due_date: null, recomendacion: 'Revisar si sigue pendiente.' }
   const entrada = [tarea, null, {}, { ...tarea, id: -1 }, { ...tarea, id: '12' }, { ...tarea, id: 13, name: '' }, { ...tarea, id: 14, due_date: 42 }, tarea]
   assert.deepEqual(leerTareasResumen(entrada), [tarea])
   assert.deepEqual(leerTareasResumen(null), [])
   assert.deepEqual(leerEventoIA(frame('fin', { tareas: entrada })).tareas, [tarea])
+})
+
+test('el resumen conserva el proyecto de la tarea y lo deja en null si falta o no es un id', () => {
+  const base = { name: 'Tarea', project_name: 'Portal', due_date: null, recomendacion: 'Revisar.' }
+  const leidas = leerTareasResumen([
+    { ...base, id: 1, project_id: 7 },
+    { ...base, id: 2 },
+    { ...base, id: 3, project_id: '7' },
+    { ...base, id: 4, project_id: 0 }
+  ])
+  assert.deepEqual(leidas.map((t) => t.project_id), [7, null, null, null])
 })

@@ -86,6 +86,16 @@ export function ModalTarea (
     router.refresh()
   }
 
+  /**
+   * Vuelve a pedir el listado de atras despues de cambiar la tarea.
+   *
+   * El modal sigue abierto con la ficha ya recargada; lo que queda viejo es la fila de atras. Sin
+   * esto, completar una tarea desde el Inicio la dejaba en "Hoy" con la insignia "En curso".
+   */
+  function alCambiar (): void {
+    router.refresh()
+  }
+
   return (
     <Dialogo open={tareaAbierta !== null} onOpenChange={(abierto) => { if (!abierto) cerrar() }}>
       <ContenidoDialogo
@@ -121,6 +131,7 @@ export function ModalTarea (
             puedeCrear={puedeCrear}
             onBorrada={alBorrar}
             onDuplicada={alDuplicar}
+            onCambiada={alCambiar}
           />
         )}
       </ContenidoDialogo>

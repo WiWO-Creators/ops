@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
-import { PARAMETRO_TAREA, urlConParametro } from '@/componentes/datos/tabla'
+import { PARAMETRO_TAREA, urlConParametro, urlDeTareaEnProyecto } from '@/componentes/datos/tabla'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { mensajeDeRespuesta, pedirRespuesta } from '@/datos/cliente'
 import { leerSSE } from '@/datos/sse'
@@ -251,6 +251,27 @@ export function ResumenDelDia () {
     }
   }, [regeneracion, cargarGuardado])
 
+  // Una tarea sin Proyecto se abre en el modal de esta misma pantalla, y ahi se puede completar. Al
+  // cerrarlo se vuelve a leer la seleccion guardada —sin gastar IA—: el backend la cruza con las
+  // tareas abiertas de ahora, y la completada deja de figurar como pendiente.
+  const tareaAbierta = params.get(PARAMETRO_TAREA)
+  const tareaAnterior = useRef(tareaAbierta)
+
+  useEffect(() => {
+    const cerro = tareaAnterior.current !== null && tareaAbierta === null
+
+    tareaAnterior.current = tareaAbierta
+    if (!cerro || fase !== 'reposo') return
+
+    const lectura = new AbortController()
+
+    async function releer () { await cargarGuardado(lectura.signal, false) }
+
+    void releer()
+
+    return () => { lectura.abort() }
+  }, [tareaAbierta, fase, cargarGuardado])
+
   if (fase === 'apagada') return null
 
   const escribiendo = fase === 'pensando' || fase === 'escribiendo'
@@ -296,8 +317,9 @@ export function ResumenDelDia () {
           {tareas.map((tarea) => (
             <li key={tarea.id} className="py-4 first:pt-1 last:pb-0">
               <Link
-                href={urlConParametro(new URLSearchParams(params.toString()), PARAMETRO_TAREA, String(tarea.id))}
-                scroll={false}
+                href={urlDeTareaEnProyecto(tarea.id, tarea.project_id) ??
+                  urlConParametro(new URLSearchParams(params.toString()), PARAMETRO_TAREA, String(tarea.id))}
+                scroll={tarea.project_id !== null}
                 className="font-semibold text-accion underline decoration-accion/30 underline-offset-4 hover:decoration-current focus-visible:outline-2 focus-visible:outline-offset-4"
               >
                 {tarea.name}

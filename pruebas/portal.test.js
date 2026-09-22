@@ -223,6 +223,7 @@ test('el catalogo de estados del portal alcanza para resolver una Tarea pendient
   assert.ok(pendientes.length > 0, 'el fixture tiene que traer alguna esperando visto bueno')
 
   for (const tarea of pendientes) {
+    assert.equal(tarea.status, 2, 'solo espera visto bueno una Tarea en «Esperando respuesta»')
     const estado = resolverEstado(tarea.status, ESTADOS_PROCESO)
     assert.equal(estado.desconocido, false, `el estado ${tarea.status} tiene que estar en el catalogo`)
     assert.ok(estado.etiqueta.length > 0, 'una Tarea que espera visto bueno no puede quedar sin estado')

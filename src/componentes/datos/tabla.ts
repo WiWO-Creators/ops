@@ -251,6 +251,25 @@ export function urlConParametro (params: URLSearchParams, clave: string, valor: 
 }
 
 /**
+ * Enlace a una tarea abierta dentro de su Proyecto: pestaña Tareas con el detalle encima.
+ *
+ * Desde las pantallas que listan tareas de muchos Proyectos —el Inicio— abrir la tarea en su lugar
+ * deja a la vista el contexto que el modal suelto no tiene. Sin Proyecto no hay pestaña a donde ir,
+ * y quien llama conserva su propio enlace.
+ *
+ * @param tareaId id de la tarea
+ * @param proyectoId id del Proyecto, o `null`/`undefined` si la tarea no cuelga de uno
+ * @returns la URL absoluta, o `null` si no hay Proyecto valido
+ */
+export function urlDeTareaEnProyecto (tareaId: number, proyectoId: number | null | undefined): string | null {
+  if (proyectoId === null || proyectoId === undefined || !Number.isSafeInteger(proyectoId) || proyectoId <= 0) {
+    return null
+  }
+
+  return `/proyectos/${proyectoId}?tab=tareas&${PARAMETRO_TAREA}=${tareaId}`
+}
+
+/**
  * Lee un id de un parametro de la URL.
  *
  * La URL la escribe cualquiera: `?tarea=abc` o `?tarea=-3` no pueden terminar en una peticion al BFF.

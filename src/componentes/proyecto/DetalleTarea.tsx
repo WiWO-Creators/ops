@@ -87,6 +87,11 @@ interface PropsDetalleTarea {
   onBorrada?: () => void
   /** Se llama con la copia ya creada, para que el listado de atras vuelva a pedir sus datos. */
   onDuplicada?: () => void
+  /**
+   * Se llama despues de cada escritura sobre la tarea —estado, edicion, hito, SLA, bloqueo—, para
+   * que el listado de atras deje de mostrar los datos viejos.
+   */
+  onCambiada?: () => void
   className?: string
 }
 
@@ -106,6 +111,7 @@ export function DetalleTarea (
     puedeCrear = false,
     onBorrada,
     onDuplicada,
+    onCambiada,
     className
   }: PropsDetalleTarea
 ): ReactElement {
@@ -159,6 +165,13 @@ export function DetalleTarea (
     setCarga({ fase: 'cargando' })
     setIntento((n) => n + 1)
   }, [])
+
+  // Tras escribir, la ficha se vuelve a pedir y quien la monta se entera: sin el aviso, una tarea
+  // recien completada sigue "En curso" en el listado que quedo debajo del modal.
+  const alCambiar = useCallback(() => {
+    reintentar()
+    onCambiada?.()
+  }, [reintentar, onCambiada])
 
   useEffect(() => {
     const control = new AbortController()
@@ -220,7 +233,7 @@ export function DetalleTarea (
                     nombreTarea={tarea.name}
                     estado={tarea.status}
                     catalogo={listaDe(lookups, 'task_statuses')}
-                    onCambiado={reintentar}
+                    onCambiado={alCambiar}
                   />
                 )
               : <EstadoDeTarea status={tarea.status} catalogo={listaDe(lookups, 'task_statuses')} />}
@@ -276,7 +289,7 @@ export function DetalleTarea (
           {/* Completar vive en la ficha porque es donde se mira la tarea para decidir que ya esta.
               El listado ya tiene su propia accion; esta ademas deja elegir con que fecha cierra. */}
           {puedeEditar && tarea.status !== ESTADO_COMPLETO && (
-            <CompletarTarea tarea={tarea} onCompletada={reintentar} />
+            <CompletarTarea tarea={tarea} onCompletada={alCambiar} />
           )}
 
           {/* Confirmacion en la misma ficha y no en otro dialogo: este detalle YA vive dentro de un
@@ -328,7 +341,7 @@ export function DetalleTarea (
             lookups={lookups}
             descripcion={typeof tarea.description === 'string' ? aTextoPlano(tarea.description) : ''}
             onCerrar={() => setEditando(false)}
-            onGuardada={reintentar}
+            onGuardada={alCambiar}
           />
         )}
 
@@ -354,7 +367,7 @@ export function DetalleTarea (
                       nombreTarea={tarea.name}
                       espacioId={tarea.project.id}
                       hito={tarea.milestone}
-                      onCambiado={reintentar}
+                      onCambiado={alCambiar}
                     />
                   )
                 : tarea.milestone?.name ?? SIN_DATO}
@@ -407,8 +420,8 @@ export function DetalleTarea (
           </section>
         )}
 
-        <BloqueSla tarea={tarea} puedeEditar={puedeEditar} onCambiado={reintentar} />
-        <BloqueoDeProceso tarea={tarea} puedeEditar={puedeEditar} onCambiado={reintentar} />
+        <BloqueSla tarea={tarea} puedeEditar={puedeEditar} onCambiado={alCambiar} />
+        <BloqueoDeProceso tarea={tarea} puedeEditar={puedeEditar} onCambiado={alCambiar} />
 
         <Contadores counts={tarea.counts} />
 
