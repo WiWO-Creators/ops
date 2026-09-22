@@ -37,7 +37,7 @@ import { useRecurso } from './carga'
  * la API, que responde 403 igual: esconder el panel es cosmetica.
  *
  * El bloque "Que ve el cliente" no comparte ni el endpoint ni el boton de guardar con el resto: son
- * los veintidós interruptores del portal, que se guardan enteros con un PUT propio al tocar cualquiera de
+ * los veintitrés interruptores del portal, que se guardan enteros con un PUT propio al tocar cualquiera de
  * ellos. Por eso se carga aparte —que falle no puede dejar en blanco la pantalla entera— y se guarda
  * al tocarlo, que es lo que hace un interruptor. Va arriba de todo y no debajo del boton "Guardar
  * configuracion", que no es suyo.
@@ -107,13 +107,13 @@ export function PanelConfiguracionEspacio ({
 }
 
 /**
- * Lo que devuelve `GET|PUT /projects/{id}/portal-settings`: los veintidós interruptores.
+ * Lo que devuelve `GET|PUT /projects/{id}/portal-settings`: los veintitrés interruptores.
  *
  * Se declara acá y no en `datos/recursos.ts` por lo mismo que `PanelActividad` declara su fila: es
  * una forma de una sola pantalla. El orden de las claves es el orden en que la API las devuelve y el
  * que el panel dibuja — el maestro primero, después el detalle.
  *
- * El backend acepta exactamente estas veintidós y ninguna más (`Escritura\AjustesDelPortal::CLAVES`
+ * El backend acepta exactamente estas veintitrés y ninguna más (`Escritura\AjustesDelPortal::CLAVES`
  * y `::COLUMNAS`). Los otros `view_*` de Perfex —crear, editar, comentar, subir archivos desde el
  * portal— no se ofrecen porque esta API no los honra: el portal es de solo lectura, y una casilla
  * que no hace nada es peor que no tenerla.
@@ -128,6 +128,20 @@ interface AjustesDelPortal {
   view_activity_log: boolean
   /** Si el cliente ve la pestaña Meeting Paper de este Espacio en su portal. */
   wiwo_portal_actas: boolean
+  /**
+   * Si el cliente ve la pestaña de solicitudes de soporte de este Espacio en su portal.
+   *
+   * Es el único de los veintitrés que nace ENCENDIDO, y la asimetría es deliberada: los otros abren
+   * datos que el cliente nunca vio, y este se pone delante de algo que ya estaba viendo —la pestaña
+   * colgaba de una feature global de Perfex—. Nacer apagado no habría sido «no cambiar nada», sino
+   * esconderle las solicitudes a todos los clientes que las usan. Existe para poder apagar un
+   * Espacio concreto.
+   *
+   * Por lo mismo, en la API la ausencia de la fila vale ENCENDIDO para esta clave y apagado para las
+   * otras veintiuna (`VisibilidadContacto::porDefecto`). Acá no hay que hacer nada con eso: el GET ya
+   * devuelve el valor efectivo, así que la casilla llega marcada aunque el Espacio no tenga fila.
+   */
+  wiwo_portal_tickets: boolean
   view_finance_overview: boolean
   view_team_members: boolean
   view_task_total_logged_time: boolean
@@ -138,7 +152,7 @@ interface AjustesDelPortal {
    * Si este Espacio aporta sus cifras al tablero de control de gestión del portal.
    *
    * No es una pestaña de la ficha: es una pantalla transversal del portal que suma varios Espacios.
-   * Se administra igual que las otras veintiuna porque contesta la misma pregunta —«¿el cliente ve esto
+   * Se administra igual que las otras veintidós porque contesta la misma pregunta —«¿el cliente ve esto
    * de este Espacio?»— y porque repartirla en otro formulario dejaría encender un tablero de un
    * Espacio que el cliente no ve, sin ninguna señal de que no sirve para nada.
    */
@@ -203,7 +217,8 @@ function gruposDelPortal (): GrupoDeInterruptores[] {
         { clave: 'view_gantt', etiqueta: 'Gantt' },
         { clave: 'view_timesheets', etiqueta: 'Horas registradas' },
         { clave: 'view_activity_log', etiqueta: 'Actividad' },
-        { clave: 'wiwo_portal_actas', etiqueta: GLOSARIO.acta.plural, ayuda: `Nace apagado a propósito: un ${GLOSARIO.acta.singular} puede tener conversación interna. Se lee entero y no se puede corregir, comentar ni borrar desde el portal.` }
+        { clave: 'wiwo_portal_actas', etiqueta: GLOSARIO.acta.plural, ayuda: `Nace apagado a propósito: un ${GLOSARIO.acta.singular} puede tener conversación interna. Se lee entero y no se puede corregir, comentar ni borrar desde el portal.` },
+        { clave: 'wiwo_portal_tickets', etiqueta: 'Solicitudes de soporte', ayuda: `El único que nace encendido, porque el cliente ya las venía viendo: está acá para poder apagarlo en un ${espacio} concreto. Es la única sección del portal donde el cliente además escribe —puede abrir una solicitud y responder el hilo—, así que apagarlo le cierra también esa puerta. Apagado esconde el historial completo, no solo el enlace.` }
       ]
     },
     {
@@ -257,7 +272,7 @@ function gruposDelPortal (): GrupoDeInterruptores[] {
  *
  * === EL INTERRUPTOR MAESTRO ===
  *
- * `visible_para_cliente` está por encima de los otros veinte: apagado, el Espacio no existe para el
+ * `visible_para_cliente` está por encima de los otros veintidós: apagado, el Espacio no existe para el
  * portal —no aparece en el listado, su id escrito a mano da 404 y ninguna subsección se abre—. Por
  * eso va arriba y separado, y por eso el resto del bloque se muestra atenuado cuando está apagado:
  * siguen editándose, para poder dejar la configuración lista, pero mientras el maestro esté en cero
@@ -275,9 +290,9 @@ function gruposDelPortal (): GrupoDeInterruptores[] {
  * Son interruptores: esperar un botón "Guardar" para una casilla sola deja la pantalla diciendo algo
  * que todavía no es cierto. El verbo es `PUT` porque el endpoint reemplaza el bloque entero —una
  * clave que falta es 422, no "dejala como estaba"—, así que cada cambio manda el estado de las
- * veintiuna. El cambio es optimista y se revierte si la API lo rechaza.
+ * veintitrés. El cambio es optimista y se revierte si la API lo rechaza.
  *
- * Encender o apagar cualquiera de las veintiuna queda anotado en la actividad con nombre y fecha: es una
+ * Encender o apagar cualquiera de las veintitrés queda anotado en la actividad con nombre y fecha: es una
  * decisión de mostrarle a un tercero algo que hasta ese momento era interno.
  */
 function VisibilidadDelPortal ({
@@ -312,7 +327,7 @@ function VisibilidadDelPortal ({
 }
 
 /**
- * Los veintiún interruptores del portal.
+ * Los veintitrés interruptores del portal.
  *
  * Nunca lanza: el 403 y el 422 del contrato son valores que quien configura tiene que poder leer, no
  * excepciones que tumben el panel.
