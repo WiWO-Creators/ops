@@ -1,19 +1,22 @@
 'use client'
 
-import { useCallback, useEffect, useState, type ReactElement } from 'react'
+import { useCallback, useEffect, useState, type ReactElement, type ReactNode } from 'react'
 import { Download, Trash2 } from 'lucide-react'
 import { ArbolDrive } from '@/componentes/archivos/ArbolDrive'
 import { escribirEnBff } from '@/componentes/datos/mutaciones'
 import { CeldaEncabezado, CeldaTabla, CuerpoTabla, EncabezadoTabla, FilaTabla, Tabla } from '@/componentes/datos/Tabla'
 import { Cargando, ErrorEstado } from '@/componentes/estado/Estados'
 import { Boton } from '@/componentes/formularios/Boton'
+import { Interruptor } from '@/componentes/formularios/Interruptor'
 import { pedirSobre } from '@/datos/cliente'
 import {
   ARCHIVOS,
   columnasDeArchivo,
+  conVisibilidad,
   nombreDeArchivo,
   origenDeArchivo,
   rutaDeAdjuntos,
+  rutaDeUnAdjunto,
   type RaizDeAdjuntos
 } from '@/definiciones/archivos'
 import type { ArchivoProyecto } from '@/datos/recursos'
@@ -73,10 +76,10 @@ interface PropsPanelAdjuntos {
    */
   ruta?: string
   /**
-   * Si se ofrece eliminar cada adjunto.
+   * Si se ofrece eliminar cada adjunto y publicarlo u ocultarlo al cliente.
    *
    * `false` para el contacto: el portal es de solo lectura por construccion —su guarda rechaza todo
-   * lo que no sea GET antes de mirar la ruta—, asi que el boton solo podria fallar.
+   * lo que no sea GET antes de mirar la ruta—, asi que el boton y el interruptor solo podrian fallar.
    */
   puedeBorrar?: boolean
   /**
@@ -104,7 +107,8 @@ type Carga =
  * busqueda, y el motor lee y escribe la query string de la pagina: dentro del modal de una Tarea eso
  * pelearia con el tablero que quedo abajo. Una tabla propia mantiene el estado donde vive el panel.
  *
- * El borrado saca la fila del listado sin volver a pedir nada.
+ * El borrado saca la fila del listado sin volver a pedir nada, y el interruptor de visibilidad la
+ * cambia en el acto (optimista) y la devuelve a su valor si la API no lo confirma.
  */
 export function PanelAdjuntos (
   { raiz, id, ruta: rutaPropia, puedeBorrar = true, esDelPortal = false }: PropsPanelAdjuntos
@@ -131,6 +135,13 @@ export function PanelAdjuntos (
     return () => { control.abort() }
   }, [ruta, intento])
 
+  /** Cambia en el listado la visibilidad de un adjunto: al pulsar, y otra vez al revertir. */
+  const marcarVisible = useCallback((archivoId: number, visible: boolean) => {
+    setCarga((actual) => (actual.fase === 'listo'
+      ? { fase: 'listo', archivos: conVisibilidad(actual.archivos, archivoId, visible) }
+      : actual))
+  }, [])
+
   /** Saca del listado el adjunto que el backend ya borro. */
   const quitar = useCallback((archivoId: number) => {
     setCarga((actual) => (actual.fase === 'listo'
@@ -145,7 +156,7 @@ export function PanelAdjuntos (
         {/* A quien no puede borrar no se le explica por que: "los archivos nuevos van a Drive" es
             una nota para el equipo sobre donde trabaja, y al cliente no le dice nada de lo suyo. */}
         {puedeBorrar && (
-          <p className="text-texto-sutil text-xs">Solo lectura: los archivos nuevos van a Drive.</p>
+          <p className="text-texto-sutil text-xs">Los archivos nuevos van a Drive.</p>
         )}
       </div>
 
@@ -165,6 +176,7 @@ export function PanelAdjuntos (
               columnas={columnas}
               puedeBorrar={puedeBorrar}
               onEliminado={quitar}
+              onVisibilidad={marcarVisible}
             />
             )
       )}
@@ -172,14 +184,21 @@ export function PanelAdjuntos (
   )
 }
 
-/** La grilla de adjuntos: las columnas de `ARCHIVOS` mas la de acciones. */
+/**
+ * La grilla de adjuntos: las columnas de `ARCHIVOS` mas la de acciones.
+ *
+ * "Visible para el cliente" es un interruptor para el equipo y texto para quien no puede escribir. Al
+ * contacto ni siquiera le llega la columna (`columnasDeArchivo()`), asi que el interruptor no se
+ * dibuja en el portal por dos caminos.
+ */
 function TablaAdjuntos (
-  { ruta, archivos, columnas, puedeBorrar, onEliminado }: {
+  { ruta, archivos, columnas, puedeBorrar, onEliminado, onVisibilidad }: {
     ruta: string
     archivos: ArchivoProyecto[]
     columnas: typeof ARCHIVOS.columnas
     puedeBorrar: boolean
     onEliminado: (archivoId: number) => void
+    onVisibilidad: (archivoId: number, visible: boolean) => void
   }
 ): ReactElement {
   return (
@@ -197,7 +216,14 @@ function TablaAdjuntos (
           <FilaTabla key={archivo.id}>
             {columnas.map((columna) => (
               <CeldaTabla key={columna.clave}>
-                {columna.clave === 'external' ? <Origen archivo={archivo} /> : columna.presentar(archivo)}
+                <Celda
+                  clave={columna.clave}
+                  archivo={archivo}
+                  texto={columna.presentar(archivo)}
+                  ruta={ruta}
+                  puedeEscribir={puedeBorrar}
+                  onVisibilidad={onVisibilidad}
+                />
               </CeldaTabla>
             ))}
             <CeldaTabla>
@@ -207,6 +233,76 @@ function TablaAdjuntos (
         ))}
       </CuerpoTabla>
     </Tabla>
+  )
+}
+
+/** Contenido de una celda: las dos columnas con dibujo propio, y el texto de la definicion para el resto. */
+function Celda (
+  { clave, archivo, texto, ruta, puedeEscribir, onVisibilidad }: {
+    clave: string
+    archivo: ArchivoProyecto
+    texto: ReactNode
+    ruta: string
+    puedeEscribir: boolean
+    onVisibilidad: (archivoId: number, visible: boolean) => void
+  }
+): ReactElement {
+  if (clave === 'external') return <Origen archivo={archivo} />
+
+  if (clave === 'visible_to_customer' && puedeEscribir) {
+    return <VisibleParaElCliente ruta={ruta} archivo={archivo} onVisibilidad={onVisibilidad} />
+  }
+
+  return <>{texto}</>
+}
+
+/**
+ * Interruptor "Visible para el cliente" de un adjunto.
+ *
+ * Optimista: el listado cambia al pulsar y vuelve al valor anterior si el `PATCH` falla, con el
+ * motivo al lado. Mientras la API no contesta queda deshabilitado, para que un segundo clic no mande
+ * un cambio encima de otro que todavia no se sabe si entro.
+ */
+function VisibleParaElCliente (
+  { ruta, archivo, onVisibilidad }: {
+    ruta: string
+    archivo: ArchivoProyecto
+    onVisibilidad: (archivoId: number, visible: boolean) => void
+  }
+): ReactElement {
+  const [guardando, setGuardando] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const nombre = nombreDeArchivo(archivo)
+
+  /** Pide el cambio y, si la API no lo confirma, deja el valor como estaba. */
+  async function cambiar (): Promise<void> {
+    const previo = archivo.visible_to_customer
+    const siguiente = !previo
+
+    onVisibilidad(archivo.id, siguiente)
+    setGuardando(true)
+    setError(null)
+
+    const resultado = await escribirEnBff(rutaDeUnAdjunto(ruta, archivo.id), 'PATCH', { visible_to_customer: siguiente })
+
+    setGuardando(false)
+
+    if (!resultado.ok) {
+      onVisibilidad(archivo.id, previo)
+      setError(resultado.mensaje)
+    }
+  }
+
+  return (
+    <span className="flex flex-wrap items-center gap-2" aria-busy={guardando}>
+      <Interruptor
+        encendido={archivo.visible_to_customer}
+        etiqueta={`Visible para el cliente: ${nombre}`}
+        deshabilitado={guardando}
+        onPulsar={() => { void cambiar() }}
+      />
+      {error !== null && <span role="alert" className="text-texto-peligro text-xs">{error}</span>}
+    </span>
   )
 }
 
@@ -260,7 +356,7 @@ function Acciones (
     setEliminando(true)
     setError(null)
 
-    const resultado = await escribirEnBff(`${ruta}/${encodeURIComponent(String(archivo.id))}`, 'DELETE')
+    const resultado = await escribirEnBff(rutaDeUnAdjunto(ruta, archivo.id), 'DELETE')
 
     setEliminando(false)
 

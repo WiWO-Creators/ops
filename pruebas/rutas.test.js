@@ -169,3 +169,12 @@ test('project-templates pasa para staff y no para el portal', () => {
   // El alta desde plantilla devuelve un Espacio, asi que la API la cuelga de `projects`.
   assert.equal(rutaPermitida(['projects', 'from-template']), true)
 })
+
+test('cambiar la visibilidad de un adjunto pasa por el BFF solo para el equipo', () => {
+  // El PATCH de `{tasks|projects}/{id}/files/{fileId}` lo cubren los prefijos del equipo: sin ellos
+  // el interruptor recibiria el 404 del BFF antes de salir a la red. Al contacto no le sale nunca.
+  for (const ruta of [['tasks', '512', 'files', '77'], ['projects', '8', 'files', '3']]) {
+    assert.equal(rutaPermitida(ruta, 'staff'), true, ruta.join('/'))
+    assert.equal(rutaPermitida(ruta, 'contacto'), false, ruta.join('/'))
+  }
+})

@@ -8,7 +8,7 @@
 
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { nombreDeArchivo, origenDeArchivo, rutaDeAdjuntos } from '../src/definiciones/archivos.ts'
+import { conVisibilidad, nombreDeArchivo, origenDeArchivo, rutaDeAdjuntos, rutaDeUnAdjunto } from '../src/definiciones/archivos.ts'
 
 /** Fila minima de la API, con lo que cada prueba necesita pisar. */
 function archivo (campos) {
@@ -65,4 +65,24 @@ test('sin url no hay nada que ofrecer, ni siquiera con `external`', () => {
 
 test('una url que no es del contrato no se convierte en ruta del BFF', () => {
   assert.equal(origenDeArchivo(archivo({ url: '/uploads/tasks/77/informe.pdf' })).tipo, 'sinEnlace')
+})
+
+test('la ruta de un adjunto cuelga del listado de su entidad', () => {
+  assert.equal(rutaDeUnAdjunto('tasks/512/files', 77), 'tasks/512/files/77')
+  assert.equal(rutaDeUnAdjunto('projects/8/files', 3), 'projects/8/files/3')
+})
+
+test('cambiar la visibilidad toca solo ese adjunto y devuelve un listado nuevo', () => {
+  const lista = [archivo({ id: 1 }), archivo({ id: 2, visible_to_customer: true })]
+  const nueva = conVisibilidad(lista, 1, true)
+
+  assert.notEqual(nueva, lista)
+  assert.equal(nueva[0].visible_to_customer, true)
+  assert.equal(nueva[1], lista[1])
+  assert.equal(lista[0].visible_to_customer, false)
+
+  // Revertir es volver a aplicarla con el valor anterior.
+  assert.deepEqual(conVisibilidad(nueva, 1, false), lista)
+  // Un id que no esta deja el listado igual.
+  assert.deepEqual(conVisibilidad(lista, 99, true), lista)
 })
