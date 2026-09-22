@@ -90,6 +90,7 @@ export function MenuProyecto ({
   const [archivando, setArchivando] = useState(false)
   const [importando, setImportando] = useState(false)
   const [saliendo, setSaliendo] = useState(false)
+  const [cambiandoVisibilidad, setCambiandoVisibilidad] = useState(false)
   const [enCurso, setEnCurso] = useState(false)
   const [fallo, setFallo] = useState<string | null>(null)
 
@@ -134,6 +135,35 @@ export function MenuProyecto ({
     } finally {
       setEnCurso(false)
     }
+  }
+
+  /**
+   * Abre o cierra el Espacio: si dentro se ven todos los Procesos o solo los propios.
+   *
+   * No es una preferencia de quien mira, es una regla del Espacio para todo el equipo
+   * (`Acceso\Visibilidad::procesosDelPanel`), y por eso pasa por un dialogo con el efecto escrito
+   * en vez de ser una casilla que se toca sin querer desde un menu.
+   *
+   * `router.refresh()` y no un estado local: lo que cambia no es el rotulo del item sino la lista
+   * de Procesos de la pestaña, que la pinta el servidor.
+   */
+  async function cambiarVisibilidadDeTareas (abrir: boolean): Promise<void> {
+    setEnCurso(true)
+    setFallo(null)
+
+    const resultado = await escribirEnBff(`projects/${proyecto.id}`, 'PATCH', {
+      ver_todos_los_procesos: abrir
+    })
+
+    setEnCurso(false)
+
+    if (!resultado.ok) {
+      setFallo(resultado.mensaje)
+      return
+    }
+
+    setCambiandoVisibilidad(false)
+    router.refresh()
   }
 
   /** Borra el proyecto y vuelve al listado. El detalle deja de existir: quedarse aca daria un 404. */
@@ -243,6 +273,20 @@ export function MenuProyecto ({
             </>
           )}
 
+          {/* Quien ve los Procesos del Espacio es una regla del Espacio, no del Proceso, y por eso
+              vive aca y pide `edit`. Sobre un archivado no se ofrece, igual que Editar: el backend
+              responde 422 a cualquier `PATCH` sobre uno. */}
+          {puedeEditar && !archivado && (
+            <>
+              <SeparadorMenu />
+              <ItemMenu onSelect={() => { setCambiandoVisibilidad(true) }}>
+                {proyecto.ver_todos_los_procesos
+                  ? `Ver solo mis ${GLOSARIO.proceso.plural.toLowerCase()}`
+                  : `Ver todas las ${GLOSARIO.proceso.plural.toLowerCase()} del ${GLOSARIO.espacio.singular.toLowerCase()}`}
+              </ItemMenu>
+            </>
+          )}
+
           {/* Archivar pide `edit`, no `delete`: saca el proyecto de la vista de todo el equipo pero
               no borra nada, y siempre se puede deshacer desde el mismo menu. */}
           {puedeEditar && (
@@ -332,6 +376,38 @@ export function MenuProyecto ({
               onClick={() => { void cambiarArchivado(!archivado) }}
             >
               {archivado ? 'Desarchivar' : 'Archivar'}
+            </Boton>
+          </div>
+        </ContenidoDialogo>
+      </Dialogo>
+
+      {/* El dialogo dice a quien alcanza el cambio y no solo que hace: abrir el Espacio le muestra a
+          todo el equipo el trabajo de los demas, y eso no se deduce del rotulo del item. */}
+      <Dialogo open={cambiandoVisibilidad} onOpenChange={setCambiandoVisibilidad}>
+        <ContenidoDialogo
+          titulo={proyecto.ver_todos_los_procesos
+            ? `Ver solo las ${GLOSARIO.proceso.plural.toLowerCase()} propias`
+            : `Ver todas las ${GLOSARIO.proceso.plural.toLowerCase()}`}
+          descripcion={proyecto.ver_todos_los_procesos
+            ? `En "${proyecto.name}" cada quien vuelve a ver solo las ${GLOSARIO.proceso.plural.toLowerCase()} `
+              + 'que tiene asignadas, sigue o creó. Se puede deshacer desde este mismo menú.'
+            : `Todo el equipo de "${proyecto.name}" pasa a ver las ${GLOSARIO.proceso.plural.toLowerCase()} `
+              + `del ${GLOSARIO.espacio.singular.toLowerCase()}, incluidas las de otras personas. `
+              + 'Se puede deshacer desde este mismo menú.'}
+          ancho="chico"
+        >
+          {fallo !== null && (
+            <p role="alert" className="text-texto-peligro mb-3 text-sm">{fallo}</p>
+          )}
+
+          <div className="flex justify-end gap-2">
+            <Boton variante="sutil" onClick={() => { setCambiandoVisibilidad(false) }}>Cancelar</Boton>
+            <Boton
+              variante="primario"
+              cargando={enCurso}
+              onClick={() => { void cambiarVisibilidadDeTareas(!proyecto.ver_todos_los_procesos) }}
+            >
+              {proyecto.ver_todos_los_procesos ? 'Ver solo las propias' : 'Ver todas'}
             </Boton>
           </div>
         </ContenidoDialogo>

@@ -277,6 +277,15 @@ export interface Espacio {
   archived: boolean
   /** Cuando se archivo. `null` mientras no lo este. */
   archived_at: string | null
+  /**
+   * "Dentro de este Espacio se ven todos los Procesos, no solo los propios."
+   *
+   * Nace en `false` (migracion `0390`): sin el, quien no tiene `view` global ve unicamente los
+   * Procesos que tiene asignados, sigue o creo, aunque integre el equipo. Se escribe por
+   * `PATCH /projects/{id}` con esta misma clave, y no es una columna de `tblprojects`: la presencia
+   * de la fila en `tblwiwo_espacios_abiertos` ES el valor.
+   */
+  ver_todos_los_procesos: boolean
   custom_fields?: CampoPersonalizado[]
   members?: StaffReferencia[]
 }
