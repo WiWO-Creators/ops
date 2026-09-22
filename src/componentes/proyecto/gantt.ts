@@ -140,6 +140,76 @@ export function contarCompletadasDeGantt (grupos: GrupoGantt[]): number {
   return ids.size
 }
 
+// -- Ventana desde hoy ---------------------------------------------------------------------------
+
+/**
+ * Dias que abarca la vista por defecto del diagrama: hoy y los trece que siguen.
+ *
+ * El Gantt abre mirando lo que viene y no el proyecto entero: en un proyecto de un año, la vista
+ * completa aplasta las dos semanas que importan en unas pocas columnas. Ver todo es una eleccion
+ * explicita del control "Ver".
+ */
+export const DIAS_VENTANA_GANTT = 14
+
+/**
+ * Linea de tiempo de la vista por defecto: desde hoy, `DIAS_VENTANA_GANTT` dias hacia adelante.
+ *
+ * @param hoy fecha `YYYY-MM-DD`; parametro para poder probarlo sin depender del reloj
+ * @returns el rango, o `null` si `hoy` no es una fecha legible
+ */
+export function ventanaDeGantt (hoy: string): RangoGantt | null {
+  const inicio = diaDeFecha(hoy)
+  if (inicio === null) return null
+
+  return { inicio, fin: inicio + DIAS_VENTANA_GANTT - 1, dias: DIAS_VENTANA_GANTT }
+}
+
+/**
+ * Deja solo las tareas que tienen al menos un dia dentro de la ventana, y los grupos que conservan
+ * alguna.
+ *
+ * El corte es el mismo que decide si una barra se dibuja (`barraDeGantt`): una tarea que empezo
+ * antes de hoy y sigue abierta entra recortada; una que no tiene fechas no entra, porque no tendria
+ * barra. Los grupos vacios se van por el mismo motivo que en `ocultarCompletadasDeGantt`.
+ *
+ * @param grupos los grupos tal como los devolvio `GET /projects/{id}/gantt`
+ * @param ventana la linea de tiempo visible
+ * @returns copias de los grupos con sus tareas dentro de la ventana; nunca muta la entrada
+ */
+export function recortarGanttAVentana (grupos: GrupoGantt[], ventana: RangoGantt): GrupoGantt[] {
+  const visibles: GrupoGantt[] = []
+
+  for (const grupo of grupos) {
+    const tareas = grupo.tareas.filter((tarea) => barraDeGantt(tarea.start, tarea.end, ventana) !== null)
+
+    if (tareas.length > 0) visibles.push({ ...grupo, tareas })
+  }
+
+  return visibles
+}
+
+/**
+ * Cuenta las tareas distintas que quedaron fuera de la ventana.
+ *
+ * Cuenta tareas y no filas, por el mismo motivo que `contarCompletadasDeGantt`.
+ *
+ * @param grupos los grupos antes de recortar
+ * @param ventana la linea de tiempo visible
+ * @returns cuantas tareas distintas no tienen ningun dia dentro de la ventana, incluidas las que no
+ *          tienen fechas
+ */
+export function contarFueraDeVentanaDeGantt (grupos: GrupoGantt[], ventana: RangoGantt): number {
+  const ids = new Set<number>()
+
+  for (const grupo of grupos) {
+    for (const tarea of grupo.tareas) {
+      if (barraDeGantt(tarea.start, tarea.end, ventana) === null) ids.add(tarea.id)
+    }
+  }
+
+  return ids.size
+}
+
 /** Posicion de una barra dentro de la linea de tiempo, en porcentaje del ancho total. */
 export interface Barra {
   izquierda: number
