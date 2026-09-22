@@ -50,6 +50,7 @@ export function ResumenDelPortal ({ resumen }: { resumen: ResumenPortal }) {
 
   const hitos = leerHitos(resumen.hitos)
   const procesos = resumen.procesos
+  const bloqueos = leerBloqueos(resumen.bloqueados)
 
   return (
     <section aria-label="Resumen" className="flex flex-col gap-3">
@@ -78,7 +79,14 @@ export function ResumenDelPortal ({ resumen }: { resumen: ResumenPortal }) {
 
       <EstadoDeLosEspacios estados={resumen.espacios.by_status} />
 
-      <LoQueEstaTrabado lectura={leerBloqueos(resumen.bloqueados)} />
+      {/*
+        La portada NO dibuja «No hay nada trabado». El bloque se gano su lugar cuando hay algo
+        detenido, o cuando no se puede saber si lo hay; la tranquilidad en cambio no necesita una
+        tarjeta propia en la pantalla de entrada, donde compite por el mismo aire con «Nada espera
+        tu respuesta», que es la que sí pide algo. La pantalla «Estado de mis {espacios}» la sigue
+        dibujando: ahi el cliente entra justamente a preguntar por eso.
+      */}
+      {bloqueos.clase !== 'sin_bloqueos' && <LoQueEstaTrabado lectura={bloqueos} />}
     </section>
   )
 }
@@ -209,18 +217,24 @@ function MetricaDeHitos ({ lectura }: { lectura: LecturaDeHitos }) {
 /**
  * En que estado estan los {espacios} del cliente.
  *
- * Se dibujan TODOS los estados del catalogo, tambien los que estan en cero, porque asi los manda la
- * API: la fila de insignias tiene la misma forma para todos los clientes, y una que aparece y
- * desaparece segun el mes hace que el cliente crea que perdio un {espacio}.
+ * Solo los estados que tienen {espacios}. La API manda el catalogo entero, tambien los que estan en
+ * cero, y dibujarlos todos llenaba la portada de insignias que no nombran nada —«En proceso 0»,
+ * «Cancelado 0»— y que el cliente tiene que leer una por una para descubrir que no dicen nada. La
+ * forma estable de la fila no vale ese ruido: lo que el cliente lee acá es donde esta su trabajo,
+ * y un estado vacio no es un {espacio} perdido, es un estado que no usa.
+ *
+ * Si ninguno tiene {espacios} no hay fila: el total ya sale arriba, en su metrica.
  *
  * @param estados `espacios.by_status` tal como llego
  */
 function EstadoDeLosEspacios ({ estados }: { estados: ResumenPortal['espacios']['by_status'] }) {
-  if (estados.length === 0) return null
+  const conEspacios = ordenarEstados(estados).filter((estado) => estado.total > 0)
+
+  if (conEspacios.length === 0) return null
 
   return (
     <ul className="flex flex-wrap gap-2">
-      {ordenarEstados(estados).map((estado) => (
+      {conEspacios.map((estado) => (
         <li key={estado.status}>
           <Insignia color={estado.color} tamano="chico">
             {estado.name}
