@@ -175,7 +175,7 @@ function fechaDeCierre (espacio: EspacioPortal): string | null {
  * cerro pero falta en filas viejas, y el estado terminado esta siempre pero no dice cuando. Con
  * cualquiera de las dos, el {espacio} deja de estar en curso y sus fechas dejan de acusar atraso.
  */
-function estaCerrado (espacio: EspacioPortal): boolean {
+export function estaCerrado (espacio: EspacioPortal): boolean {
   return fechaDeCierre(espacio) !== null || espacio.status === ESTADO_TERMINADO
 }
 
