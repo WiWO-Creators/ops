@@ -8,10 +8,11 @@ import { Metrica } from '@/componentes/proyecto/ResumenProyecto'
 import { Cargando, ErrorEstado, Vacio } from '@/componentes/estado/Estados'
 import { Fecha } from '@/componentes/presentadores/Fecha'
 import { Insignia } from '@/componentes/presentadores/Insignia'
+import { ProyectoDeEntradaCliente } from '@/componentes/cliente/ProyectoDeEntradaCliente'
 import { pedirSobre } from '@/datos/cliente'
 import { GLOSARIO } from '@/dominio/glosario'
 import type { EstadoLookup, Espacio } from '@/datos/recursos'
-import type { Paginacion } from '@/datos/tipos'
+import type { Capacidad, Paginacion } from '@/datos/tipos'
 
 /**
  * Cuantos Proyectos se traen de una vez.
@@ -31,6 +32,8 @@ interface Props {
   clienteId: number
   /** `project_statuses` de `GET /lookups`, resueltos en el servidor para no pedirlos de nuevo. */
   estados: EstadoLookup[]
+  /** Capacidades sobre `customers`: deciden si la apertura del portal se edita o se lee. */
+  capacidades: Capacidad[]
 }
 
 /**
@@ -44,11 +47,17 @@ interface Props {
  * ajenos bajo el encabezado equivocado. Lo que se necesita aca es una lista acotada; la vista con
  * filtros, orden y paginacion completa ya existe en `/proyectos` y esta enlazada.
  *
+ * Arriba de la lista va la apertura del portal, que elige cual de estos Proyectos se abre cuando un
+ * contacto del cliente entra. Vive acá y no en una pestaña propia porque la eleccion se hace sobre
+ * la lista que esta justo debajo, y porque esa lista ya esta cargada: en otra pestaña seria la misma
+ * peticion otra vez para llenar un solo selector.
+ *
  * @param clienteId Cliente que se esta mirando.
  * @param estados Catalogo de estados de Proyecto, para resolver nombre y color.
- * @returns Las metricas, la lista y el enlace a la vista completa.
+ * @param capacidades Capacidades sobre `customers`, para la apertura del portal.
+ * @returns La apertura del portal, las metricas, la lista y el enlace a la vista completa.
  */
-export function PanelProyectosCliente ({ clienteId, estados }: Props) {
+export function PanelProyectosCliente ({ clienteId, estados, capacidades }: Props) {
   const [carga, setCarga] = useState<Carga>({ fase: 'cargando' })
   const [intento, setIntento] = useState(0)
 
@@ -106,6 +115,8 @@ export function PanelProyectosCliente ({ clienteId, estados }: Props) {
 
   return (
     <div className="flex flex-col gap-4">
+      <ProyectoDeEntradaCliente clienteId={clienteId} proyectos={proyectos} capacidades={capacidades} />
+
       <div className="grid max-w-2xl gap-3 sm:grid-cols-3">
         <Metrica etiqueta={GLOSARIO.espacio.plural} valor={String(total)} />
         {/* Los conteos suman lo que hay en mano: con mas de una pagina serian un subtotal disfrazado

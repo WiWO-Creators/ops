@@ -8,7 +8,8 @@ import {
   esDesafio,
   type DesafioSegundoFactor,
   type ParDeTokensConContacto,
-  type ParDeTokensConStaff
+  type ParDeTokensConStaff,
+  type YoPortal
 } from '@/datos/tipos'
 
 /**
@@ -152,7 +153,7 @@ async function canjearEnlace (cuerpo: CuerpoEntrar, origen: Cabeceras): Promise<
 
   await guardarSesion(sesionDesdeTokens(data, data.contact.id, 'contacto'))
 
-  return NextResponse.json({ ok: true })
+  return NextResponse.json({ ok: true, destino: await destinoDelContacto(data.access_token) })
 }
 
 /**
@@ -178,7 +179,42 @@ async function entrarAlPortal (cuerpo: CuerpoEntrar, origen: Cabeceras): Promise
 
   await guardarSesion(sesionDesdeTokens(data, data.contact.id, 'contacto'))
 
-  return NextResponse.json({ ok: true })
+  return NextResponse.json({ ok: true, destino: await destinoDelContacto(data.access_token) })
+}
+
+/**
+ * A que pantalla del portal mandar a este contacto recien entrado.
+ *
+ * === POR QUE SE DECIDE ACA Y NO EN LA PORTADA DEL PORTAL ===
+ *
+ * Porque «abrir un Proyecto al entrar» es una cosa que pasa AL ENTRAR, una vez. Resolverlo en
+ * `/portal` —rebotando cada visita a la portada— le sacaria al contacto el Inicio de su portal para
+ * siempre: el enlace «Inicio» de su propia navegacion dejaria de llevarlo a ninguna parte, y
+ * recuperarlo pediria un parametro de escape que nadie sabria que existe. Decidido aca, el
+ * contacto cae adentro de su Proyecto al entrar y despues navega su portal entero como siempre.
+ *
+ * === POR QUE UN VIAJE MAS Y NO UN CAMPO EN LA RESPUESTA DEL LOGIN ===
+ *
+ * Porque `proyecto_de_entrada` ya vive en `/portal/me`, que es donde vive todo lo que el portal
+ * sabe de su contacto, y duplicarlo en la respuesta del login serian dos lugares que se pueden
+ * contradecir. El viaje extra ocurre una vez por sesion, en la pantalla de entrar, que es la unica
+ * del portal donde nadie esta esperando datos.
+ *
+ * Si ese viaje falla, el contacto entra igual: ya tiene su cookie, y la portada es un destino
+ * perfectamente valido. Un login que se cae por no poder resolver un atajo seria mucho peor que el
+ * atajo que no se aplico.
+ *
+ * @param token el token de acceso recien emitido, que todavia no esta en ninguna cookie legible
+ * @returns la ruta a la que ir, o `null` para que el navegador use la que ya usaba
+ */
+async function destinoDelContacto (token: string): Promise<string | null> {
+  try {
+    const { data: yo } = await llamarApiTipado<YoPortal>('/portal/me', { token })
+
+    return yo.proyecto_de_entrada === null ? null : `/portal/proyectos/${yo.proyecto_de_entrada.id}`
+  } catch {
+    return null
+  }
 }
 
 

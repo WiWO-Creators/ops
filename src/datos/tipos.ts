@@ -302,11 +302,28 @@ export interface ParDeTokensConContacto extends ParDeTokens {
   contact: ContactoPortal
 }
 
+/** El Proyecto al que cae el contacto al entrar, cuando su cliente tiene uno elegido. */
+export interface ProyectoDeEntrada {
+  id: number
+  name: string
+}
+
 /** `/portal/me`: el contacto mas lo que puede ver. */
 export interface YoPortal extends ContactoPortal {
   permissions: PermisoPortal[]
   /** Secciones vivas para este contacto. El portal arma su navegacion con esto, no adivinando. */
   secciones_habilitadas: string[]
+  /**
+   * A donde cae este contacto al entrar, o `null` si cae en el Inicio del portal.
+   *
+   * Lo elige el equipo por cliente, desde la ficha del Cliente en el panel. Llega ya resuelto: la
+   * API comprueba en cada llamada que el Proyecto siga vivo, siga siendo de ese cliente y que este
+   * contacto lo vea, asi que un valor no nulo es siempre una pantalla que se puede abrir.
+   *
+   * Lo consume `POST /api/sesion`, que es el unico momento en que se aplica: despues de entrar, el
+   * contacto navega su portal como siempre y la portada vuelve a ser la portada.
+   */
+  proyecto_de_entrada: ProyectoDeEntrada | null
   locale: string
 }
 
