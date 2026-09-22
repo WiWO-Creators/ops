@@ -13,6 +13,9 @@ import { GLOSARIO } from '@/dominio/glosario'
 import { cn } from '@/lib/clases'
 import { formatearVencimiento } from '@/lib/fechas'
 import type { EspacioPortal, ResumenPortal } from '@/datos/portal'
+import {
+  GraficoDeEntregas, GraficoDeSalud, GraficoDeTrabas, GraficoPorEstado
+} from './GraficosDelTablero'
 import { Aclaracion, FilaTrabada, LoQueEstaTrabado, ProximosHitos, Tarjeta } from './piezas'
 import type { BloqueoLeido } from './resumen'
 import {
@@ -39,6 +42,9 @@ import {
   type LecturaDeTareas,
   type LoQueNecesitaAlCliente
 } from './estado'
+import {
+  barrasDeTrabas, filasDeSalud, lineaDeEntregas, tramosPorEstado
+} from './tablero'
 
 /**
  * El estado de los {espacios} del cliente, en una pantalla.
@@ -109,6 +115,22 @@ export function EstadoDeMisProyectos (
       <LoQueTeNecesita lectura={leerLoQueNecesitaAlCliente(resumen)} />
 
       <Panorama resumen={resumen} enCurso={enCurso} />
+
+      {/* Los graficos van ANTES del detalle: contestan de un golpe las tres preguntas de forma
+          —como vamos, que se viene, que esta mas detenido— y el detalle de abajo es para quien ya
+          vio algo que le llamo la atencion y quiere abrirlo. Al reves, el cliente tendria que
+          recorrer todas las tarjetas para descubrir cual mirar. */}
+      <div className="grid gap-3 lg:grid-cols-2">
+        <GraficoDeSalud filas={filasDeSalud(espacios ?? [], detalles)} />
+        <GraficoPorEstado
+          tramos={tramosPorEstado(resumen.espacios.by_status)}
+          estados={resumen.espacios.by_status}
+        />
+      </div>
+
+      <GraficoDeEntregas linea={lineaDeEntregas(resumen.proximos_hitos)} />
+
+      <GraficoDeTrabas barras={barrasDeTrabas(resumen.bloqueados)} />
 
       <AvancePorEspacio resumen={resumen} espacios={espacios} detalles={detalles} />
 
