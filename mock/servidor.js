@@ -4940,6 +4940,9 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
                 }
               : {}),
             tabs: pestaniasDelContacto(espacio.id, suyo),
+            // Al lado de `tabs` y por el mismo motivo: la pestaña de Tareas necesita saber que
+            // columnas existen ANTES de pedir la primera fila.
+            campos_tareas: camposDeTareaDelPortal(espacio.id),
             members: STAFF.filter((persona) => espacio.miembros.includes(persona.id))
               .map(({ id, full_name, profile_image_url }) => ({ id, full_name, profile_image_url }))
           })
@@ -4971,13 +4974,22 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
           return {
             estado: 200,
             cuerpo: conDatos(tableroDeProcesos(
-              tareasDelEspacio, parametros, presentarTareaPortal, CONSULTA_TAREAS_PORTAL
+              tareasDelEspacio,
+              parametros,
+              (proceso) => presentarTareaPortal(proceso, camposDeTareaDelPortal(espacio.id)),
+              CONSULTA_TAREAS_PORTAL
             ))
           }
         }
 
         const { filas, paginacion } = aplicarConsulta(tareasDelEspacio, parametros, CONSULTA_TAREAS_PORTAL)
-        return { estado: 200, cuerpo: conDatos(filas.map(presentarTareaPortal), { pagination: paginacion }) }
+        return {
+          estado: 200,
+          cuerpo: conDatos(
+            filas.map((proceso) => presentarTareaPortal(proceso, camposDeTareaDelPortal(espacio.id))),
+            { pagination: paginacion }
+          )
+        }
       }
 
       // Los contadores por estado de la ficha, las tarjetas de arriba de la tabla. Va ANTES del
@@ -5020,7 +5032,13 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
 
         const conFecha = tareasDelEspacio.filter((t) => (t.due_date ?? null) !== null)
         const { filas, paginacion } = aplicarConsulta(conFecha, parametros, CONSULTA_TAREAS_PORTAL)
-        return { estado: 200, cuerpo: conDatos(filas.map(presentarTareaPortal), { pagination: paginacion }) }
+        return {
+          estado: 200,
+          cuerpo: conDatos(
+            filas.map((proceso) => presentarTareaPortal(proceso, camposDeTareaDelPortal(espacio.id))),
+            { pagination: paginacion }
+          )
+        }
       }
 
       // El resumen del Proyecto, podado: `logged_time` y `finance` viajan solo con su flag, y la
@@ -5649,21 +5667,35 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
     // Una clave de mas es 422 y no se ignora: `tblproject_settings` guarda tambien las 18 `view_*`
     // del panel clasico, y aceptar nombres libres seria escribir cualquiera de ellas desde acá.
     for (const clave of Object.keys(datos)) {
-      if (clave !== 'wiwo_portal_actas') errores[clave] = ['desconocida']
+      if (!CLAVES_DEL_PORTAL.includes(clave)) errores[clave] = ['desconocida']
     }
 
-    const encendido = booleanoDelPortal(datos.wiwo_portal_actas)
+    const nuevos = new Map()
 
-    // Es un PUT: la clave que falta es 422, no "dejala como estaba". Un formulario al que se le cae
-    // un campo en el camino no puede guardar a medias.
-    if (!Object.hasOwn(datos, 'wiwo_portal_actas')) errores.wiwo_portal_actas = ['required']
-    else if (encendido === null) errores.wiwo_portal_actas = ['boolean']
+    for (const clave of CLAVES_DEL_PORTAL) {
+      // Es un PUT: la clave que falta es 422, no "dejala como estaba". Un formulario al que se le
+      // cae un campo en el camino no puede guardar a medias. La excepcion son las claves nuevas,
+      // que un panel todavia sin desplegar no puede mandar.
+      if (!Object.hasOwn(datos, clave)) {
+        if (!OMITIBLES_DEL_PORTAL.has(clave)) errores[clave] = ['required']
+        continue
+      }
+
+      const encendido = booleanoDelPortal(datos[clave])
+
+      if (encendido === null) errores[clave] = ['boolean']
+      else nuevos.set(clave, encendido)
+    }
 
     if (Object.keys(errores).length > 0) {
       throw new ErrorApi(422, 'validation_failed', 'Revisá los interruptores del portal.', errores)
     }
 
-    AJUSTES_DEL_PORTAL.set(espacio.id, encendido)
+    // Se escribe despues de validar todo: un 422 no puede dejar la mitad de los interruptores
+    // movidos, que es justo lo que el reemplazo total pretende evitar.
+    for (const [clave, encendido] of nuevos) {
+      AJUSTES_DEL_PORTAL.set(`${espacio.id}:${clave}`, encendido)
+    }
 
     return { estado: 200, cuerpo: conDatos(ajustesDelPortal(espacio.id)) }
   }
@@ -6107,8 +6139,17 @@ function presentarEspacioPortal (espacio) {
   }
 }
 
-/** Un Proceso como lo devuelve el portal: sin horas, sin asignados y sin comentarios internos. */
-function presentarTareaPortal (proceso) {
+/**
+ * Un Proceso como lo devuelve el portal: sin horas, sin comentarios internos y sin las ocho
+ * columnas opcionales que el Proyecto no haya encendido.
+ *
+ * `campos` son los flags de `campos_tareas`. Lo que no este encendido **no viaja**: no llega en
+ * `null` ni en `[]`, no llega. Es lo que hace que la tabla del cliente se pueda probar de verdad
+ * contra el mock — antes `tags` salia siempre, y la API real no lo publicaba nunca.
+ */
+function presentarTareaPortal (proceso, campos = []) {
+  const encendido = (flag) => campos.includes(flag)
+
   return {
     id: proceso.id,
     patente: proceso.patente,
@@ -6118,11 +6159,26 @@ function presentarTareaPortal (proceso) {
     priority: proceso.priority,
     start_date: proceso.start_date ?? null,
     due_date: proceso.due_date ?? null,
+    date_added: proceso.date_added ?? null,
     date_finished: proceso.date_finished ?? null,
     milestone: proceso.milestone ?? 0,
     milestone_order: proceso.milestone_order ?? 0,
     task_type: proceso.task_type ?? 0,
-    tags: proceso.tags ?? [],
+    ...(encendido('wiwo_portal_campo_responsables') ? { assignees: proceso.assignees ?? [] } : {}),
+    ...(encendido('wiwo_portal_campo_seguidores') ? { followers: proceso.followers ?? [] } : {}),
+    ...(encendido('wiwo_portal_campo_etiquetas') ? { tags: proceso.tags ?? [] } : {}),
+    ...(encendido('wiwo_portal_campo_iteraciones') ? { counts: { iterations: proceso.iterations ?? 0 } } : {}),
+    ...(encendido('wiwo_portal_campo_eta') ? { eta: proceso.eta ?? null } : {}),
+    ...(encendido('wiwo_portal_campo_desviacion') ? { desviacion_dias: proceso.desviacion_dias ?? null } : {}),
+    ...(encendido('wiwo_portal_campo_sla') ? { estado_sla: proceso.estado_sla ?? null } : {}),
+    ...(encendido('wiwo_portal_campo_justificacion')
+      ? {
+          justificacion: {
+            texto: proceso.justificacion?.texto ?? null,
+            creada_en: proceso.justificacion?.creada_en ?? null
+          }
+        }
+      : {}),
     // Podado como en la API real: sin quien la pidio ni el id del contacto que respondio.
     ...(proceso.aprobacion === undefined ? {} : {
       approval: {
@@ -6987,7 +7043,66 @@ const COMPARTIDO_CON_EL_CLIENTE = {
  * que prenderlo primero, y el 8 apagado, que es el caso "la pestaña no aparece". Los dos lados del
  * interruptor a mano, igual que el resto del fixture del portal.
  */
-const AJUSTES_DEL_PORTAL = new Map([[1, true]])
+const AJUSTES_DEL_PORTAL = new Map([['1:wiwo_portal_actas', true]])
+
+/**
+ * Las claves que el bloque administra, **en el orden en que la API las devuelve**.
+ *
+ * Es el espejo de `Escritura\AjustesDelPortal::CLAVES` mas `::COLUMNAS`. Se declara entera y se
+ * recorre: la version anterior atendia `wiwo_portal_actas` y nada mas, asi que el bloque "Que ve el
+ * cliente" del panel —que manda las veintidos— contestaba 422 contra el mock y no se podia probar
+ * en navegador. Una lista completa se queda corta a la siguiente casilla; recorrerla, no.
+ */
+const CLAVES_DEL_PORTAL = [
+  'visible_para_cliente',
+  'view_tasks',
+  'view_milestones',
+  'view_gantt',
+  'view_timesheets',
+  'view_activity_log',
+  'wiwo_portal_actas',
+  'view_finance_overview',
+  'view_team_members',
+  'view_task_total_logged_time',
+  'view_task_comments',
+  'view_task_checklist_items',
+  'view_task_attachments',
+  'wiwo_portal_gestion',
+  'wiwo_portal_tickets',
+  // Las ocho columnas opcionales de la Tarea (migracion `0830`).
+  'wiwo_portal_campo_responsables',
+  'wiwo_portal_campo_seguidores',
+  'wiwo_portal_campo_etiquetas',
+  'wiwo_portal_campo_iteraciones',
+  'wiwo_portal_campo_eta',
+  'wiwo_portal_campo_desviacion',
+  'wiwo_portal_campo_sla',
+  'wiwo_portal_campo_justificacion'
+]
+
+/**
+ * Las claves que el PUT puede NO traer sin que eso sea 422. Ausente = "dejala como esta".
+ *
+ * Espejo de `AjustesDelPortal::OMITIBLES`: son las claves NUEVAS, las que el panel todavia puede no
+ * estar mandando porque `ops-v2` se despliega por su cuenta. Las anteriores siguen siendo
+ * obligatorias, asi que un formulario al que se le cae un campo sigue siendo 422 y no un guardado a
+ * medias.
+ */
+const OMITIBLES_DEL_PORTAL = new Set([
+  'wiwo_portal_gestion',
+  'wiwo_portal_tickets',
+  'wiwo_portal_campo_responsables',
+  'wiwo_portal_campo_seguidores',
+  'wiwo_portal_campo_etiquetas',
+  'wiwo_portal_campo_iteraciones',
+  'wiwo_portal_campo_eta',
+  'wiwo_portal_campo_desviacion',
+  'wiwo_portal_campo_sla',
+  'wiwo_portal_campo_justificacion'
+])
+
+/** Los ocho flags de columna, para armar `campos_tareas` sin repetir la lista. */
+const CAMPOS_DE_TAREA_DEL_PORTAL = CLAVES_DEL_PORTAL.filter((clave) => clave.startsWith('wiwo_portal_campo_'))
 
 /**
  * El bloque de interruptores de un Espacio.
@@ -6996,7 +7111,21 @@ const AJUSTES_DEL_PORTAL = new Map([[1, true]])
  * nunca paso por la migracion se comporta como uno apagado y no como uno roto.
  */
 function ajustesDelPortal (espacioId) {
-  return { wiwo_portal_actas: AJUSTES_DEL_PORTAL.get(espacioId) === true }
+  return Object.fromEntries(
+    CLAVES_DEL_PORTAL.map((clave) => [clave, AJUSTES_DEL_PORTAL.get(`${espacioId}:${clave}`) === true])
+  )
+}
+
+/**
+ * Los flags de columna encendidos, como los manda `GET /portal/projects/{id}` en `campos_tareas`.
+ *
+ * Siempre es un arreglo, aunque sea vacio: la clave ausente se leeria como "esta version de la API
+ * no sabe de esto", que es otra cosa que "ninguno esta encendido".
+ */
+function camposDeTareaDelPortal (espacioId) {
+  const ajustes = ajustesDelPortal(espacioId)
+
+  return CAMPOS_DE_TAREA_DEL_PORTAL.filter((clave) => ajustes[clave])
 }
 
 /**

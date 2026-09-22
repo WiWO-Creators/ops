@@ -97,6 +97,17 @@ interface PropsPanelTareas {
    * desde el navegador seria una peticion mas por cada panel que quiera saberlo.
    */
   conIa: boolean
+  /**
+   * Las columnas opcionales que este Proyecto le publica al contacto (migracion `0830`).
+   *
+   * Llega en `campos_tareas`, dentro de `GET /portal/projects/{id}`, al lado de `tabs`. Es una prop
+   * y **no** parte de `FuenteDeProyecto` porque la fuente son rutas y nada mas: meter un dato ahi
+   * rompe esa regla, y son cuatro pruebas las que la sostienen.
+   *
+   * Vacio —el estado de nacimiento de los 279 Proyectos— deja la tabla como estaba antes de la
+   * migracion. En el panel del colaborador no se pasa: el equipo ve todas las columnas siempre.
+   */
+  camposDeTareas?: readonly string[]
 }
 
 export function PanelTareas (props: PropsPanelTareas): ReactElement {
@@ -127,7 +138,7 @@ type Carga =
       avisos: string[]
     }
 
-function TareasDelProyecto ({ proyectoId, fuente, capacidades, conIa }: PropsPanelTareas): ReactElement {
+function TareasDelProyecto ({ proyectoId, fuente, capacidades, conIa, camposDeTareas }: PropsPanelTareas): ReactElement {
   const router = useRouter()
   const params = useSearchParams()
 
@@ -156,11 +167,12 @@ function TareasDelProyecto ({ proyectoId, fuente, capacidades, conIa }: PropsPan
       proyectoId,
       fuente,
       camposPersonalizados: campos,
+      camposEncendidos: camposDeTareas,
       capacidades,
       estados,
       onCambiado: recargar
     }),
-    [proyectoId, fuente, campos, capacidades, estados, recargar]
+    [proyectoId, fuente, campos, camposDeTareas, capacidades, estados, recargar]
   )
 
   // Se decide contra la definicion y no contra la URL sola: con `?vista=calendario` en una

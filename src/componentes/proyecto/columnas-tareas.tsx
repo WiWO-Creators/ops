@@ -111,6 +111,13 @@ interface OpcionesDefinicion {
   fuente: FuenteDeProyecto
   /** Definiciones de `GET /custom-fields?para=tasks`; solo las de `show_on_table` son columna. */
   camposPersonalizados: DefinicionCampoPersonalizado[]
+  /**
+   * Los flags de columna que este Proyecto le enciende al contacto (`campos_tareas`).
+   *
+   * Solo se mira con `fuente.sujeto === 'portal'`: el equipo ve todas las columnas siempre, no hay
+   * interruptor que consultar.
+   */
+  camposEncendidos?: readonly string[]
   capacidades: Capacidad[]
   estados: OpcionFiltro[]
   /** Se llama cuando una celda escribio algo y la tabla tiene que volver a pedir los datos. */
@@ -133,12 +140,15 @@ export function definicionDeTareas ({
   proyectoId,
   fuente,
   camposPersonalizados,
+  camposEncendidos = [],
   capacidades,
   estados,
   onCambiado
 }: OpcionesDefinicion): DefinicionRecurso<Proceso> {
   const editable = capacidades.includes('edit')
-  const base = fuente.sujeto === 'portal' ? procesosDelContacto(proyectoId) : procesosDelEspacio(proyectoId)
+  const base = fuente.sujeto === 'portal'
+    ? procesosDelContacto(proyectoId, camposEncendidos)
+    : procesosDelEspacio(proyectoId)
 
   return {
     ...base,
