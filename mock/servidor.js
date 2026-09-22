@@ -5125,27 +5125,6 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
         return { estado: 200, cuerpo: conDatos(overviewParaContacto(espacio, compartido, pestanias)) }
       }
 
-      if (resto[2] === 'discussions' && resto.length === 3) {
-        exigirPestania('discussions')
-
-        const compartidas = discusionesDeEspacio(espacio.id).filter((d) => d.show_to_customer)
-        const { filas, paginacion } = aplicarConsulta(compartidas, parametros, CONSULTA_DISCUSIONES)
-
-        return { estado: 200, cuerpo: conDatos(filas.map(presentarDiscusionPortal), { pagination: paginacion }) }
-      }
-
-      // Los comentarios cuelgan del hilo y el hilo del Proyecto: una discusion interna es 404 y no
-      // 403, porque para este contacto no existe.
-      if (resto[2] === 'discussions' && resto[4] === 'comments' && resto.length === 5) {
-        exigirPestania('discussions')
-
-        const hilo = discusionesDeEspacio(espacio.id)
-          .find((d) => d.id === Number(resto[3]) && d.show_to_customer)
-        if (!hilo) throw new ErrorApi(404, 'not_found', 'Discusión inexistente.')
-
-        return { estado: 200, cuerpo: conDatos(comentariosDeDiscusion(hilo.id)) }
-      }
-
       if (resto[2] === 'timesheets' && resto.length === 3) {
         exigirPestania('timesheets')
 
@@ -6074,10 +6053,6 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
 
       return { estado: 200, cuerpo: conDatos(overviewDeEspacio(espacio)) }
     }
-    if (subrecurso === 'discussions') {
-      const { filas, paginacion } = aplicarConsulta(discusionesDeEspacio(espacio.id), parametros, CONSULTA_DISCUSIONES)
-      return { estado: 200, cuerpo: conDatos(filas, { pagination: paginacion }) }
-    }
     if (subrecurso === 'activity') {
       const { filas, paginacion } = aplicarConsulta(actividadDeEspacio(espacio.id), parametros, CONSULTA_ACTIVIDAD)
       return { estado: 200, cuerpo: conDatos(filas, { pagination: paginacion }) }
@@ -6483,114 +6458,10 @@ function presentarTareaPortal (proceso, campos = []) {
 
 // --- Las pestañas del Proyecto que el mock no servia -------------------------
 //
-// Resumen, discusiones, actividad, horas y Gantt existen en la API desde siempre, pero el mock no
-// los tenia: las cinco pestañas del panel se veian con su bloque de error, y el portal las dibujaba
+// Resumen, actividad, horas y Gantt existen en la API desde siempre, pero el mock no los tenia: las
+// cuatro pestañas del panel se veian con su bloque de error, y el portal las dibujaba
 // con copias propias que no pedian nada. Sin estas rutas la paridad no se puede mirar en pantalla,
 // que es la unica forma de verificarla.
-
-/**
- * Discusiones por Proyecto.
- *
- * El 8 se queda **sin ninguna** a proposito: es el caso "proyecto sin discusiones", que sin una fila
- * asi no se distingue de un panel roto.
- */
-const DISCUSIONES = ESPACIOS.flatMap((espacio) => (
-  espacio.id === 8
-    ? []
-    : [
-        {
-          id: espacio.id * 10 + 1,
-          project_id: espacio.id,
-          subject: `Definiciones de ${espacio.name.toLowerCase()}`,
-          description: 'Todo lo que quede acordado acá se pasa al plan.',
-          show_to_customer: true,
-          date_created: '2026-08-02T11:00:00Z',
-          last_activity: '2026-08-21T09:40:00Z',
-          staff: presentarStaff(STAFF[0]),
-          contact: null
-        },
-        {
-          // Interna: no viaja al portal. Es el otro lado del interruptor.
-          id: espacio.id * 10 + 2,
-          project_id: espacio.id,
-          subject: 'Coordinación del equipo',
-          description: null,
-          show_to_customer: false,
-          date_created: '2026-08-05T15:00:00Z',
-          last_activity: '2026-08-05T15:00:00Z',
-          staff: presentarStaff(STAFF[1 % STAFF.length]),
-          contact: null
-        }
-      ]
-))
-
-/**
- * Comentarios de las discusiones.
- *
- * La primera del proyecto 1 tiene hilo; la del proyecto 2 queda vacia para ejercitar "sin
- * comentarios", que es el estado que el detalle dibuja distinto.
- */
-const COMENTARIOS_DE_DISCUSION = [
-  {
-    id: 1,
-    discussion_id: 11,
-    content: 'Adjuntamos la paleta revisada. Cualquier cosa nos dicen.',
-    created: '2026-08-20T14:05:00Z',
-    modified: null,
-    parent: null,
-    author: { id: STAFF[0].id, full_name: STAFF[0].full_name, profile_image_url: null, es_cliente: false },
-    file: null
-  },
-  {
-    id: 2,
-    discussion_id: 11,
-    content: 'Nos gusta la segunda. ¿La podemos ver aplicada al sitio?',
-    created: '2026-08-21T09:40:00Z',
-    modified: null,
-    parent: null,
-    author: { id: 1, full_name: 'Renata Ferreyra', profile_image_url: null, es_cliente: true },
-    file: null
-  },
-  {
-    id: 3,
-    discussion_id: 12,
-    content: 'Recordar que la entrega se corre una semana.',
-    created: '2026-08-06T10:00:00Z',
-    modified: null,
-    parent: null,
-    author: { id: STAFF[1 % STAFF.length].id, full_name: STAFF[1 % STAFF.length].full_name, profile_image_url: null, es_cliente: false },
-    file: null
-  }
-]
-
-/** La discusion tal como la ve un contacto: sin `show_to_customer`, que alli seria siempre "Sí". */
-function presentarDiscusionPortal (discusion) {
-  const { show_to_customer: visible, project_id: proyecto, staff, ...resto } = discusion
-
-  return { ...resto, staff: staff === null ? null : { id: staff.id, full_name: staff.full_name }, contact: discusion.contact }
-}
-
-/** Los comentarios de una discusion, con su contador ya resuelto. */
-function comentariosDeDiscusion (discusionId) {
-  return COMENTARIOS_DE_DISCUSION.filter((c) => c.discussion_id === discusionId)
-}
-
-/** Discusiones de un Proyecto, con el contador de comentarios que el listado publica. */
-function discusionesDeEspacio (espacioId) {
-  return DISCUSIONES
-    .filter((d) => d.project_id === espacioId)
-    .map((d) => ({ ...d, counts: { comments: comentariosDeDiscusion(d.id).length } }))
-}
-
-/** La whitelist de la consulta de discusiones, que el portal y el panel comparten. */
-const CONSULTA_DISCUSIONES = {
-  filtros: {
-    subject: campoFiltrable((d) => d.subject),
-    show_to_customer: campoFiltrable((d) => (d.show_to_customer ? 1 : 0), 'numero')
-  },
-  orden: ['subject', 'last_activity', 'date_created'],
-  busqueda: ['subject', 'description']
-}
 
 /**
  * Registros de horas de un Proyecto.
@@ -7282,11 +7153,11 @@ function presentarHito (hito, paraContacto) {
  *
  *  - el **1** comparte todo lo que el portal sabe dibujar: es donde se mira la paridad completa con
  *    las pestañas del colaborador —tabla, tablero, calendario, ficha de una Tarea, resumen, hitos,
- *    horas, discusiones, Gantt y actividad—;
+ *    horas, Gantt y actividad—;
  *  - el **8** tiene Tareas, Calendario, Horas y Gantt **apagados** y todos los flags en 0: es el
  *    caso de "pestaña sin habilitar", que sin una fila asi nunca se distingue de un panel roto. Sus
- *    dos hitos estan ocultos al cliente y no tiene ninguna discusion, asi que es tambien el caso de
- *    "pestaña encendida y vacia", que se lee distinto y hay que poder ver.
+ *    dos hitos estan ocultos al cliente, asi que es tambien el caso de "pestaña encendida y vacia",
+ *    que se lee distinto y hay que poder ver.
  *
  * `actas` no esta en ninguna de las dos listas y no es un olvido: no vive en `available_features`
  * sino en su propio interruptor por proyecto (`AJUSTES_DEL_PORTAL`), que se enciende y se apaga
@@ -7303,8 +7174,7 @@ function presentarHito (hito, paraContacto) {
 const COMPARTIDO_CON_EL_CLIENTE = {
   1: {
     tabs: [
-      'overview', 'tasks', 'timesheets', 'milestones', 'files', 'discussions', 'gantt', 'calendar',
-      'activity'
+      'overview', 'tasks', 'timesheets', 'milestones', 'files', 'gantt', 'calendar', 'activity'
     ],
     comentarios: true,
     checklist: true,
@@ -7313,7 +7183,7 @@ const COMPARTIDO_CON_EL_CLIENTE = {
     finanzas: true
   },
   8: {
-    tabs: ['overview', 'milestones', 'files', 'discussions', 'activity'],
+    tabs: ['overview', 'milestones', 'files', 'activity'],
     comentarios: false,
     checklist: false,
     adjuntos: false,

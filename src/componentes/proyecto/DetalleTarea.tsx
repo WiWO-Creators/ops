@@ -27,7 +27,7 @@ import { hoyLocal } from '@/lib/fechas'
 import { BloqueSla } from './BloqueSla'
 import { BloqueoDeProceso } from './BloqueoDeProceso'
 import { CabeceraFichaTarea } from './CabeceraFichaTarea'
-import { ComentarioDeDiscusion } from './ComentarioDeDiscusion'
+import { TarjetaDeComentario } from './TarjetaDeComentario'
 import { ESTADO_COMPLETO, comentarioParaMostrar, type ProcesoDeFicha } from './tareas'
 import { CompartirTarea } from './CompartirTarea'
 import { BotonDuplicarTarea } from './DuplicarTarea'
@@ -570,9 +570,9 @@ function AdjuntosDeLectura (
 /**
  * La conversacion de la Tarea, de solo lectura.
  *
- * Usa la **misma tarjeta** que los comentarios de una discusion (`ComentarioDeDiscusion`): son la
- * misma conversacion leida en otro lugar, y dos tarjetas distintas es como la del cliente termino
- * sin avatar y sin la insignia de quien es del cliente.
+ * Usa la **misma tarjeta** (`TarjetaDeComentario`) en la ficha del equipo y en la del cliente: dos
+ * tarjetas distintas es como la del cliente termino sin avatar y sin la insignia de quien es del
+ * cliente.
  *
  * @param comentarios Los comentarios, o `undefined` si el contrato no los manda.
  * @returns El hilo, o nada.
@@ -591,7 +591,7 @@ function Comentarios (
         : (
           <ul className="flex flex-col gap-2">
             {comentarios.map((comentario) => (
-              <ComentarioDeDiscusion
+              <TarjetaDeComentario
                 key={comentario.id}
                 comentario={comentarioParaMostrar(comentario)}
               />

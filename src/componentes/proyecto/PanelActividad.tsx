@@ -15,7 +15,7 @@ import { useRecurso } from './carga'
  *
  * **No es una tabla.** El feed es una sucesion de momentos, no un conjunto de filas comparables: no
  * tiene filtros, no tiene busqueda y su unico orden es el cronologico (ver `ACTIVIDAD` en
- * `definiciones/discusiones.ts`). Puesto en el motor de tabla, el encabezado ofrecia ordenar por lo
+ * `definiciones/notas-y-actividad.ts`). Puesto en el motor de tabla, el encabezado ofrecia ordenar por lo
  * unico por lo que ya venia ordenado y la fecha se repetia entera en cada fila. Agrupado por dia, la
  * fecha se escribe una vez y cada entrada se queda con su hora.
  *

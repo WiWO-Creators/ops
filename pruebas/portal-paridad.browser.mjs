@@ -1,7 +1,7 @@
 /**
- * Verificacion en pantalla de la paridad del portal: las diez pestañas que el cliente abre con el
+ * Verificacion en pantalla de la paridad del portal: las nueve pestañas que el cliente abre con el
  * MISMO panel que ve el colaborador —Descripcion, Tareas (tabla y tablero), Hitos, Tiempos,
- * Discusiones, Gantt, Calendario, Meeting Paper y Actividad—, la ficha de una Tarea, el interruptor
+ * Gantt, Calendario, Meeting Paper y Actividad—, la ficha de una Tarea, el interruptor
  * con el que el equipo enciende el Meeting Paper del cliente, y que el panel no regreso.
  *
  * El clic va por `evaluate`: en ops-v2 `locator.click()` se cuelga. La sesion se consigue pidiendo
@@ -105,8 +105,8 @@ const visto = {}
 await ir('/portal/proyectos/1')
 visto.pestanias = await pestanias()
 assert.deepEqual(visto.pestanias, [
-  'Descripción', 'Tareas', 'Tiempos', 'Hitos', 'Archivos', 'Discusiones', 'Diagrama de Gantt',
-  'Calendario', 'Meeting Paper', 'Actividad'
+  'Descripción', 'Tareas', 'Tiempos', 'Hitos', 'Archivos', 'Diagrama de Gantt', 'Calendario',
+  'Meeting Paper', 'Actividad'
 ])
 
 // Las aprobaciones viven DENTRO de la pestaña Descripcion, no sobre el juego de pestañas: sueltas se
@@ -342,28 +342,6 @@ for (const prohibido of ['Facturable', 'Facturado', 'Sin facturar']) {
 assert.equal(visto.botonesDeTiempos.includes('Registro de horas'), false, 'el portal ofrece cargar horas')
 assert.equal(visto.botonesDeTiempos.includes('Detener'), false, 'el portal ofrece detener un cronómetro')
 
-// ---- Pestaña Discusiones: el hilo se lee, no se escribe ---------------------------------------
-await ir('/portal/proyectos/1?tab=discussions')
-await pagina.waitForSelector('table')
-visto.encabezadosDeDiscusiones = await pagina.$$eval('table thead th', (ns) => ns.map((n) => n.textContent.trim()))
-visto.filasDeDiscusiones = await pagina.$$eval('table tbody tr', (ns) => ns.length)
-visto.botonesDeDiscusiones = await pagina.$$eval('button', (ns) => ns.map((n) => n.textContent.trim()).filter(Boolean))
-await pagina.screenshot({ path: `${SALIDA}/portal-discusiones.png`, fullPage: true })
-
-assert.equal(visto.filasDeDiscusiones, 1, 'al portal llego una discusión interna')
-// "Mostrar al cliente" seria siempre "Sí" del lado del cliente, y delataria que existe la distincion.
-assert.equal(visto.encabezadosDeDiscusiones.includes('Mostrar al cliente'), false)
-assert.equal(visto.botonesDeDiscusiones.includes('Nueva discusión'), false, 'el portal ofrece abrir una discusión')
-
-// El hilo, con su autor y la insignia de quien es del cliente.
-await ir('/portal/proyectos/1?tab=discussions&discusion=11')
-await pagina.waitForFunction(() => !document.body.textContent.includes('Cargando los comentarios'))
-visto.comentariosDelHilo = await pagina.$$eval('li', (ns) => ns.map((n) => n.textContent.trim()).filter((t) => t.includes('paleta') || t.includes('gusta')))
-visto.insigniasDelHilo = await pagina.$$eval('li span', (ns) => ns.map((n) => n.textContent.trim()).filter((t) => t === 'Cliente'))
-await pagina.screenshot({ path: `${SALIDA}/portal-discusion-hilo.png`, fullPage: true })
-assert.equal(visto.comentariosDelHilo.length > 0, true, 'el hilo no trajo comentarios')
-assert.equal(visto.insigniasDelHilo.length > 0, true, 'el comentario del cliente no lleva su insignia')
-
 // ---- Pestaña Gantt: el diagrama del colaborador, con una sola agrupacion ----------------------
 await ir('/portal/proyectos/1?tab=gantt')
 await pagina.waitForFunction(() => !document.body.textContent.includes('Cargando el Gantt'))
@@ -455,7 +433,7 @@ assert.equal(visto.textoActaNueva.includes('Subir'), false, 'el asistente de cre
 await ir('/portal/proyectos/8')
 visto.pestaniasDelOcho = await pestanias()
 await pagina.screenshot({ path: `${SALIDA}/portal-proyecto-sin-tareas.png`, fullPage: true })
-assert.deepEqual(visto.pestaniasDelOcho, ['Descripción', 'Hitos', 'Archivos', 'Discusiones', 'Actividad'])
+assert.deepEqual(visto.pestaniasDelOcho, ['Descripción', 'Hitos', 'Archivos', 'Actividad'])
 for (const apagada of ['Tareas', 'Calendario', 'Tiempos', 'Diagrama de Gantt', 'Meeting Paper']) {
   assert.equal(visto.pestaniasDelOcho.includes(apagada), false, `pestaña apagada visible: ${apagada}`)
 }
@@ -489,13 +467,6 @@ await pagina.waitForLoadState('networkidle')
 visto.textoHitosDelOcho = await pagina.textContent('body')
 await pagina.screenshot({ path: `${SALIDA}/portal-hitos-vacio.png`, fullPage: true })
 assert.equal(/Sin hitos|No hay|Todav/i.test(visto.textoHitosDelOcho), true, 'el proyecto sin hitos no dijo nada')
-
-// Proyecto sin discusiones: lo mismo.
-await ir('/portal/proyectos/8?tab=discussions')
-await pagina.waitForLoadState('networkidle')
-visto.textoDiscusionesDelOcho = await pagina.textContent('body')
-await pagina.screenshot({ path: `${SALIDA}/portal-discusiones-vacio.png`, fullPage: true })
-assert.equal(/Sin discusiones|No hay|Todav/i.test(visto.textoDiscusionesDelOcho), true, 'el proyecto sin discusiones no dijo nada')
 
 // ---- El panel del colaborador sigue igual ------------------------------------------------------
 await entrarComo(ANA)
@@ -577,17 +548,6 @@ for (const columna of ['Etiquetas', 'Hora (decimal)']) {
   assert.equal(visto.panelEncabezadosDeTiempos.includes(columna), true, `el panel perdió la columna "${columna}"`)
 }
 assert.equal(visto.panelBotonesDeTiempos.includes('Editar'), true, 'el panel perdió las acciones por fila de horas')
-
-await ir('/proyectos/1?tab=discusiones')
-await pagina.waitForSelector('table')
-visto.panelEncabezadosDeDiscusiones = await pagina.$$eval('table thead th', (ns) => ns.map((n) => n.textContent.trim()))
-visto.panelFilasDeDiscusiones = await pagina.$$eval('table tbody tr', (ns) => ns.length)
-visto.panelBotonesDeDiscusiones = await pagina.$$eval('button', (ns) => ns.map((n) => n.textContent.trim()).filter(Boolean))
-await pagina.screenshot({ path: `${SALIDA}/panel-discusiones.png`, fullPage: true })
-assert.equal(visto.panelEncabezadosDeDiscusiones.includes('Mostrar al cliente'), true, 'el panel perdió la columna de visibilidad')
-// La interna que al cliente no le llega: el panel ve las dos.
-assert.equal(visto.panelFilasDeDiscusiones, 2, 'el panel dejó de ver las discusiones internas')
-assert.equal(visto.panelBotonesDeDiscusiones.includes('Nueva discusión'), true, 'el panel perdió el alta de discusión')
 
 await ir('/proyectos/1?tab=gantt')
 await pagina.waitForFunction(() => !document.body.textContent.includes('Cargando el Gantt'))

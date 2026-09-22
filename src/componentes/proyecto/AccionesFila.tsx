@@ -10,12 +10,12 @@ import type { CampoFormulario } from './formulario'
 /**
  * Editar y eliminar, desde la fila de una tabla.
  *
- * Hitos, Notas y Discusiones ofrecen exactamente lo mismo: un formulario de edicion en dialogo y un
- * borrado con confirmacion. Escribirlo tres veces seria tres veces la misma manera de olvidarse de
+ * Hitos y Notas ofrecen exactamente lo mismo: un formulario de edicion en dialogo y un
+ * borrado con confirmacion. Escribirlo por pantalla seria multiplicar la misma manera de olvidarse de
  * mostrar el error del servidor.
  *
  * El borrado siempre confirma: no es reversible, y el aviso es donde se explica que arrastra
- * (las tareas de un hito, los comentarios de una discusion).
+ * (las tareas de un hito, por ejemplo).
  */
 
 interface PropsAccionesFila {

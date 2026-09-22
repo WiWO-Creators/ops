@@ -2,7 +2,7 @@
 
 import { useCallback, useMemo, useState, type ReactElement } from 'react'
 import { Boton } from '@/componentes/formularios/Boton'
-import { NOTAS } from '@/definiciones/discusiones'
+import { NOTAS } from '@/definiciones/notas-y-actividad'
 import { AccionesFila } from './AccionesFila'
 import { FormularioRecurso } from './FormularioRecurso'
 import { PanelRecurso } from './PanelRecurso'

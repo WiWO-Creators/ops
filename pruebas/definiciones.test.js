@@ -103,13 +103,12 @@ test('PROCESOS no ofrece cambiar el estado por PATCH: es una accion', () => {
 // no dentro de TODAS para que el merge con los otros frentes sea trivial.
 import { HITOS } from '../src/definiciones/hitos.ts'
 import { TICKETS } from '../src/definiciones/tickets.ts'
-import { ACTIVIDAD, DISCUSIONES, NOTAS } from '../src/definiciones/discusiones.ts'
+import { ACTIVIDAD, NOTAS } from '../src/definiciones/notas-y-actividad.ts'
 import { ARCHIVOS } from '../src/definiciones/archivos.ts'
 
 const DEL_DETALLE = [
   ['HITOS', HITOS],
   ['TICKETS', TICKETS],
-  ['DISCUSIONES', DISCUSIONES],
   ['NOTAS', NOTAS],
   ['ACTIVIDAD', ACTIVIDAD],
   ['ARCHIVOS', ARCHIVOS]

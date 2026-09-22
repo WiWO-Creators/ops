@@ -30,7 +30,7 @@ import type { DefinicionRecurso } from '@/definiciones/tipos'
  * Meeting Paper lo ven **todos los miembros del Proyecto**, que es para lo que sirve un acta: la lee
  * el que no fue a la reunión.
  *
- * Qué se está mirando vive en la URL, igual que en Discusiones: `?acta={id}` abre una, `?acta=nuevo`
+ * Qué se está mirando vive en la URL: `?acta={id}` abre una, `?acta=nuevo`
  * abre el asistente. Así se comparte por enlace, "atrás" hace lo que la persona espera, y el título
  * de la lista puede ser un enlace de verdad en vez de un `onClick`.
  *

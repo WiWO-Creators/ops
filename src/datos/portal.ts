@@ -115,7 +115,6 @@ export type PestaniaPortal =
   | 'timesheets'
   | 'milestones'
   | 'files'
-  | 'discussions'
   | 'gantt'
   /** Calendario de entregas. Exige las mismas dos condiciones que `tasks`, pero se exige aparte. */
   | 'calendar'
@@ -240,30 +239,6 @@ export interface ArticuloAyudaPortal {
   date: string | null
   group: { id: number, name: string, slug: string }
 }
-
-/**
- * Discusion compartida con el cliente.
- *
- * Sin `show_to_customer`: al portal solo llegan las que la tienen, asi que el campo seria siempre
- * `true` y delataria que existe la distincion.
- */
-export interface DiscusionPortal {
-  id: number
-  subject: string
-  description: string | null
-  date_created: string | null
-  last_activity: string | null
-  counts: { comments: number }
-  staff: { id: number, full_name: string } | null
-  contact: { id: number, full_name: string } | null
-}
-
-/*
- * Los comentarios de una discusion NO estan aca: llegan en la misma forma que al panel
- * (`ComentarioDiscusion` de `recursos.ts`), y el mismo panel los dibuja para los dos sujetos. Una
- * segunda declaracion de la misma forma solo para el portal es lo que hacia que las dos pantallas
- * se pudieran separar sin que nadie se enterara.
- */
 
 /** Entrada del registro de actividad, sin la marca de visibilidad. */
 export interface ActividadPortal {

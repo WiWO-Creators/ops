@@ -110,8 +110,6 @@ test('el detalle del panel pide los campos personalizados', () => {
 
 test('conId resuelve el id antes del query, no despues', () => {
   assert.equal(conId('tasks/:id?include=custom_fields', 9), 'tasks/9?include=custom_fields')
-  assert.equal(conId(panel.comentarios, 3), 'discussions/3/comments?tipo=regular')
-  assert.equal(conId(portal.comentarios, 3), 'portal/projects/7/discussions/3/comments')
 })
 
 test('conConsulta respeta la ruta que ya trae query', () => {

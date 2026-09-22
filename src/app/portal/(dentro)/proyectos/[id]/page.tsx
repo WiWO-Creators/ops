@@ -10,7 +10,6 @@ import { PanelActividad } from '@/componentes/proyecto/PanelActividad'
 import { PanelArchivos } from '@/componentes/proyecto/PanelArchivos'
 import { PanelCalendario } from '@/componentes/proyecto/PanelCalendario'
 import { PanelDescripcion } from '@/componentes/proyecto/PanelDescripcion'
-import { PanelDiscusiones } from '@/componentes/proyecto/PanelDiscusiones'
 import { PanelGantt } from '@/componentes/proyecto/PanelGantt'
 import { PanelHitos } from '@/componentes/proyecto/PanelHitos'
 import { PanelTareas } from '@/componentes/proyecto/PanelTareas'
@@ -239,8 +238,6 @@ function contenidoDePestania (
       return <PanelHitos proyecto={proyecto} fuente={fuente} capacidades={[]} />
     case 'timesheets':
       return <PanelTiempos proyectoId={proyecto.id} fuente={fuente} capacidades={[]} />
-    case 'discussions':
-      return <PanelDiscusiones proyectoId={proyecto.id} fuente={fuente} capacidades={[]} />
     case 'gantt':
       return <PanelGantt proyectoId={proyecto.id} fuente={fuente} />
     case 'actas':
@@ -258,7 +255,7 @@ function contenidoDePestania (
       // arbol de Drive: ver el porque en `PanelesProyecto.tsx`.
       return <PanelArchivos proyectoId={proyecto.id} fuente={fuente} />
     default:
-      // `pestaniasDelProyecto` ya filtro contra `PESTANIAS_PROYECTO`, y hoy las once que esa lista
+      // `pestaniasDelProyecto` ya filtro contra `PESTANIAS_PROYECTO`, y hoy todas las que esa lista
       // declara tienen su caso: acá no cae ninguna. Queda como red para la pestaña que se declare
       // mañana y todavia no se construya — nada, antes que el panel equivocado, que es lo que
       // pasaba con `actas` antes de tener su caso: caia acá y la persona veia otra cosa.
