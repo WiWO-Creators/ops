@@ -18,7 +18,8 @@ import { ErrorApi, aplicarConsulta, campoFiltrable, coincideEnLista, leerInclude
 import * as sesion from './sesion.js'
 import {
   ADMINS_DE_CLIENTE, AREAS, ARCHIVOS, CAMPOS_PERSONALIZADOS, CHECKLIST, CLIENTES, COMENTARIOS, CRONOMETROS,
-  DEPARTAMENTOS, EMPRESAS_DEL_GRUPO, ESPACIOS, ESTADOS_ESPACIO, ESTADOS_PROCESO, ETIQUETAS, HITOS,
+  DEPARTAMENTOS, EMPRESAS_DEL_GRUPO, ENTRADA_DE_CLIENTE, ESPACIOS, ESTADOS_ESPACIO, ESTADOS_PROCESO,
+  ETIQUETAS, HITOS,
   AVISOS_CONTACTO, CONTACTOS, OPCIONES_AREA_EN_TAREAS, PRIORIDADES, PROCESOS, PROCESOS_POR_AREA,
   RESERVAS, ROLES, SALAS, STAFF, VALORES_CAMPOS
 } from './datos.js'
@@ -4831,6 +4832,7 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
           ...presentarContacto(contacto),
           permissions: contacto.permissions,
           secciones_habilitadas: seccionesDelPortal(contacto),
+          proyecto_de_entrada: entradaDelContacto(contacto),
           locale: 'es'
         })
       }
@@ -5601,6 +5603,55 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
       return { estado: 200, cuerpo: conDatos(filas, { pagination: paginacion }) }
     }
     return { estado: 200, cuerpo: conDatos(fichaDeStaff(buscarO404(STAFF, Number(resto[0]), 'staff'))) }
+  }
+
+  // --- El Proyecto que se abre al entrar al portal ---------------------------
+  //
+  // Antes del bloque de `clients`, que es solo GET, por el mismo motivo que los contactos: un PUT
+  // caeria al 404 final.
+  //
+  // Reproduce las tres validaciones de la API y no solo el guardado: el Proyecto tiene que ser de
+  // ESTE cliente, encender sin elegir es 422, y apagar conserva la eleccion. Un mock que acepta lo
+  // que la API rechaza deja pasar una pantalla que se cae recien en produccion.
+  if (recurso === 'clients' && resto[1] === 'proyecto-de-entrada') {
+    const cliente = buscarO404(CLIENTES, Number(resto[0]), 'cliente')
+
+    if (metodo === 'PUT') {
+      exigirPermiso(actual, 'customers', 'edit')
+      const datos = await cuerpo()
+
+      if (!('project_id' in datos)) {
+        throw new ErrorApi(422, 'validation_failed', 'Falta el proyecto de entrada.', { project_id: ['required'] })
+      }
+
+      if (!('activo' in datos)) {
+        throw new ErrorApi(422, 'validation_failed', 'Falta decir si la apertura automática queda activa.', { activo: ['required'] })
+      }
+
+      const proyectoId = datos.project_id === null || datos.project_id === '' || Number(datos.project_id) === 0
+        ? null
+        : Number(datos.project_id)
+
+      if (proyectoId !== null && !ESPACIOS.some((e) => e.id === proyectoId && e.clientid === cliente.id)) {
+        throw new ErrorApi(422, 'validation_failed', 'Ese proyecto no es de este cliente.', { project_id: ['invalid'] })
+      }
+
+      const activo = datos.activo === true || datos.activo === 1 || datos.activo === '1' || datos.activo === 'true'
+
+      if (activo && proyectoId === null) {
+        throw new ErrorApi(
+          422, 'validation_failed',
+          'Elegí el proyecto que se va a abrir antes de activar la apertura automática.',
+          { project_id: ['required'] }
+        )
+      }
+
+      ENTRADA_DE_CLIENTE.set(cliente.id, { project_id: proyectoId, activo })
+    }
+
+    exigirPermiso(actual, 'customers', 'view')
+
+    return { estado: 200, cuerpo: conDatos(entradaDelCliente(cliente.id)) }
   }
 
   // --- Personas asignadas a un cliente --------------------------------------
@@ -7421,6 +7472,52 @@ function seccionesDelPortal (contacto) {
     .filter((f) => contacto.permissions.includes(f))
 
   return [...conPermiso, 'files', 'announcements', 'kb', 'profile']
+}
+
+/**
+ * La apertura automatica de un cliente, como la devuelve `GET /clients/{id}/proyecto-de-entrada`.
+ *
+ * Sin fila sale apagada y sin Proyecto: es el estado en que nace cada cliente, y la pantalla no
+ * tiene que distinguirlo de "fila con NULL".
+ *
+ * @param {number} clienteId
+ * @returns {{ project_id: number | null, project_name: string | null, activo: boolean }}
+ */
+function entradaDelCliente (clienteId) {
+  const guardado = ENTRADA_DE_CLIENTE.get(clienteId)
+
+  if (!guardado) return { project_id: null, project_name: null, activo: false }
+
+  const espacio = guardado.project_id === null
+    ? null
+    : ESPACIOS.find((e) => e.id === guardado.project_id && e.clientid === clienteId)
+
+  return {
+    project_id: guardado.project_id,
+    project_name: espacio ? espacio.name : null,
+    activo: guardado.activo
+  }
+}
+
+/**
+ * A donde cae este contacto al entrar, o `null` si cae en el Inicio de su portal.
+ *
+ * Poda igual que la API, y eso es justo lo que tiene que hacer un mock: si publicara el Proyecto
+ * sin mirar el permiso `projects` del contacto, la pantalla pasaria en local y se caeria en
+ * produccion contra el `veEspacio()` de verdad.
+ *
+ * @param {{ client_id: number, permissions: string[] }} contacto
+ * @returns {{ id: number, name: string } | null}
+ */
+function entradaDelContacto (contacto) {
+  const guardado = ENTRADA_DE_CLIENTE.get(contacto.client_id)
+
+  if (!guardado || !guardado.activo || guardado.project_id === null) return null
+  if (!contacto.permissions.includes('projects')) return null
+
+  const espacio = ESPACIOS.find((e) => e.id === guardado.project_id && e.clientid === contacto.client_id)
+
+  return espacio ? { id: espacio.id, name: espacio.name } : null
 }
 
 /** El unico mes del fixture en el que el historico de estados tiene transiciones. */

@@ -8,11 +8,19 @@ import { Boton } from '@/componentes/formularios/Boton'
 import { Campo } from '@/componentes/formularios/Campo'
 import { Entrada } from '@/componentes/formularios/Entrada'
 import { PanelVidrio } from '@/componentes/superposiciones/PanelVidrio'
+import { destinoDeEntrada } from '@/dominio/portal'
 
 interface RespuestaCanje {
   ok?: boolean
   mensaje?: string
   codigo?: string
+  /**
+   * A donde llevar al contacto: el Proyecto de entrada que eligio su cliente, si tiene uno.
+   *
+   * El canje deja la sesion abierta igual que el login, asi que el atajo aplica tambien acá: quien
+   * entra por primera vez con su enlace cae donde caeria en cualquier entrada posterior.
+   */
+  destino?: unknown
 }
 
 /** El minimo que exige la API. Se valida acá porque un envio invalido igual quema el enlace. */
@@ -89,7 +97,7 @@ export function FormularioFijarClave ({ token }: { token: string }) {
       }
 
       establecerEstadoOrbe('success')
-      router.replace('/portal')
+      router.replace(destinoDeEntrada(cuerpo.destino))
       router.refresh()
     } catch {
       señalarError('No se pudo contactar al servidor. Revisa tu conexión.')

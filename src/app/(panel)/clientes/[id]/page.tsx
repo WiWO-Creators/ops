@@ -200,6 +200,7 @@ export default async function ClientePage (props: PageProps<'/clientes/[id]'>) {
         <PanelProyectosCliente
           clienteId={cliente.id}
           estados={listaDe(lookups, 'project_statuses')}
+          capacidades={yo.permissions.customers}
         />
       )
     },

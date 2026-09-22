@@ -329,7 +329,20 @@ export const CLIENTES = EMPRESAS.map((company, i) => ({
     zip: `${1400 + i}`,
     country_id: 11
   },
-  shipping: null,
+  // La API SIEMPRE manda el objeto, con sus cinco campos en `null` cuando el cliente no tiene
+  // direccion de envio: son cinco columnas `shipping_*` de `tblclients`, no una relacion que pueda
+  // faltar (`RecursoClientes::presentarLote()`). Con `shipping: null` acá, la ficha del Cliente se
+  // caia entera en local —`direccionSecundaria()` lee `direccion.street`— por un hueco del mock y
+  // no del panel.
+  shipping: i % 2 === 0
+    ? { street: null, city: null, state: null, zip: null, country_id: 0 }
+    : {
+        street: `Ruta 8 km ${20 + i}`,
+        city: ciclo(['Pilar', 'Villa María', 'Funes'], i),
+        state: ciclo(['Buenos Aires', 'Córdoba', 'Santa Fe'], i),
+        zip: `${1600 + i}`,
+        country_id: 11
+      },
   tags: i % 3 === 0 ? [ETIQUETAS[1]] : []
 }))
 
@@ -345,6 +358,19 @@ export const CLIENTES = EMPRESAS.map((company, i) => ({
 export const ADMINS_DE_CLIENTE = new Map(
   CLIENTES.map((cliente, i) => [cliente.id, [[1, 3], [2], []][i % 3]])
 )
+
+/**
+ * El Proyecto que se abre solo cuando un contacto entra al portal, por cliente.
+ *
+ * Nace VACIO, igual que `tblapi_cliente_portal` despues de la migracion `0840`: ningun cliente tiene
+ * apertura automatica hasta que alguien la elija. Empezarlo con filas sembradas haria que la
+ * pantalla se probara siempre en el caso que en produccion todavia no existe.
+ *
+ * Clave: `client_id`. Valor: `{ project_id, activo }`.
+ *
+ * @type {Map<number, { project_id: number | null, activo: boolean }>}
+ */
+export const ENTRADA_DE_CLIENTE = new Map()
 
 const NOMBRES_ESPACIO = [
   'Rediseño de marca', 'Portal de autogestión', 'Migración de datos',

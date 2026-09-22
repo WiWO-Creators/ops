@@ -89,3 +89,33 @@ export function saludar (yo: Pick<YoPortal, 'firstname' | 'full_name'>): string 
 
   return pila === '' ? yo.full_name.trim() : pila
 }
+
+/** Donde entra un contacto cuando su cliente no tiene Proyecto de entrada elegido. */
+export const INICIO_DEL_PORTAL = '/portal'
+
+/**
+ * La ruta exacta que puede devolver `POST /api/sesion` como destino: un Proyecto del portal.
+ *
+ * Es una lista blanca de UNA forma y no una validacion de "empieza con /portal": ese prefijo deja
+ * pasar `//otro.sitio/portal`, que el navegador lee como otro dominio.
+ */
+const RUTA_DE_PROYECTO = /^\/portal\/proyectos\/\d+$/
+
+/**
+ * A donde mandar al contacto despues de entrar.
+ *
+ * El destino lo calcula el servidor —`/api/sesion` lo saca de `proyecto_de_entrada` de la API— y
+ * aun asi se vuelve a comprobar aca antes de navegar. No es desconfianza del servidor propio: es
+ * que este valor termina en `router.replace()`, y un unico lugar del sistema que mande al navegador
+ * a donde diga una respuesta HTTP es un redirect abierto esperando a que alguien encuentre como
+ * influir en esa respuesta. Comprobarlo cuesta una expresion regular.
+ *
+ * Cualquier cosa que no sea exactamente un Proyecto del portal cae al Inicio, que es un destino
+ * valido: el contacto ya entro, y lo unico que se pierde es el atajo.
+ *
+ * @param destino lo que vino en el cuerpo de la respuesta, sin confiar en su tipo
+ * @returns la ruta a la que navegar
+ */
+export function destinoDeEntrada (destino: unknown): string {
+  return typeof destino === 'string' && RUTA_DE_PROYECTO.test(destino) ? destino : INICIO_DEL_PORTAL
+}

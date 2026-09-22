@@ -9,11 +9,18 @@ import { Boton } from '@/componentes/formularios/Boton'
 import { Campo } from '@/componentes/formularios/Campo'
 import { Entrada } from '@/componentes/formularios/Entrada'
 import { PanelVidrio } from '@/componentes/superposiciones/PanelVidrio'
+import { destinoDeEntrada } from '@/dominio/portal'
 
 interface RespuestaEntrar {
   ok?: boolean
   mensaje?: string
   codigo?: string
+  /**
+   * A donde llevar al contacto: el Proyecto de entrada que eligio su cliente, si tiene uno.
+   *
+   * Viene resuelto del servidor y aun asi pasa por `destinoDeEntrada()` antes de navegar.
+   */
+  destino?: unknown
 }
 
 /**
@@ -70,7 +77,7 @@ export function FormularioEntrarPortal ({ aviso = null }: { aviso?: string | nul
       }
 
       establecerEstadoOrbe('success')
-      router.replace('/portal')
+      router.replace(destinoDeEntrada(cuerpo.destino))
       router.refresh()
     } catch {
       establecerError('No se pudo contactar al servidor. Revisa tu conexión.')
