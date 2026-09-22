@@ -26,6 +26,7 @@ import { Tarjeta, type TonoTarjeta } from '@/componentes/estructura/Tarjeta'
 import { Insignia } from '@/componentes/presentadores/Insignia'
 import { Fecha } from '@/componentes/presentadores/Fecha'
 import { BarraProgreso } from '@/componentes/proyecto/CabeceraProyecto'
+import { PARAMETRO_TAREA } from '@/componentes/datos/tabla'
 import { pedirPortal, proyectoUnicoDelPortal } from '@/datos/servidor'
 import { cn } from '@/lib/clases'
 import { formatearFecha } from '@/lib/fechas'
@@ -327,8 +328,9 @@ function GrupoDeVencimiento ({ grupo }: { grupo: GrupoDeProximosDias }) {
  * izquierda, y decia dos veces lo mismo: donde el tramo entero ya se pinta de peligro cuando esta
  * vencido, un segundo borde grueso por fila compite con esa señal en vez de sumarle.
  *
- * La fila enlaza al {espacio} y no al {proceso}: el portal no tiene pantalla de {proceso} suelto, y
- * donde se responde una aprobacion es dentro del {espacio} que la pidio.
+ * La fila abre el {proceso} dentro de su {espacio}, en la pestaña Tareas y con el modal abierto: el
+ * portal no tiene pantalla de {proceso} suelto, y donde se responde una aprobacion es dentro del
+ * {espacio} que la pidio. Estas filas solo salen de {espacios} que comparten la pestaña Tareas.
  *
  * @param fila el {proceso} tal como llego en su tramo
  */
@@ -339,7 +341,7 @@ function FilaDeProceso ({ fila }: { fila: FilaDeProximosDias }) {
         Enlace de verdad y no un `div` con `onClick`: asi la fila se abre con el teclado, se copia y
         se abre en otra pestaña.
       */}
-      <Link href={`/portal/proyectos/${fila.project.id}`} className={FILA}>
+      <Link href={`/portal/proyectos/${fila.project.id}?tab=tasks&${PARAMETRO_TAREA}=${fila.id}`} className={FILA}>
         <span className="min-w-0 flex-1 basis-full truncate text-base text-texto sm:basis-auto">
           {fila.name}
           <span className="block truncate text-sm text-texto-tenue">{fila.project.name}</span>
