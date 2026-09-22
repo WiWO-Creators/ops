@@ -3,11 +3,12 @@
  *
  * Lo que se prueba aca no es el formato de la insignia, es que **donde haya una Tarea se vea su
  * estado**: el catalogo llega en dos formas distintas segun la pantalla, puede llegar vacio, y el
- * `status` puede ser uno que Perfex agrego despues de que el navegador cargo el catalogo. Los tres
- * casos tienen que terminar en un texto legible y no en un hueco.
+ * `status` puede ser uno que el catalogo no conoce —uno que Perfex agrego despues de que el
+ * navegador cargo el catalogo, o uno retirado que una Tarea vieja todavia arrastra—. Los tres casos
+ * tienen que terminar en un texto legible y no en un hueco.
  *
- * El catalogo de los casos es el real de `GET /lookups` (seis estados, con sus colores y su `order`,
- * que no coincide con el `id`).
+ * El catalogo de los casos es el real de `GET /lookups` (cinco estados, con sus colores y su
+ * `order`, que no coincide con el `id`).
  */
 
 import { test } from 'node:test'
@@ -18,7 +19,6 @@ import { opcionesDeEstados, resolverEstado } from '../src/dominio/estados-tarea.
 const LOOKUP = [
   { id: 1, name: 'Por iniciar', color: '#f97316', order: 1 },
   { id: 4, name: 'En progreso', color: '#eab308', order: 2 },
-  { id: 3, name: 'Testear', color: '#0284c7', order: 3 },
   { id: 2, name: 'Espera de respuesta', color: '#84cc16', order: 4 },
   { id: 6, name: 'Cambios', color: '#a855f7', order: 5 },
   { id: 5, name: 'Completo', color: '#22c55e', order: 100 }
@@ -64,12 +64,16 @@ test('el status que llega como texto —de la URL— resuelve igual que el numer
   assert.deepEqual(resolverEstado('5', LOOKUP), resolverEstado(5, LOOKUP))
 })
 
+// El 3 es el estado "Testear", retirado del catalogo: las Tareas historicas siguen guardandolo en
+// la base, asi que este es el caso que de verdad ocurre y no una hipotesis.
 test('un status que el catalogo no conoce se muestra como id, nunca vacio', () => {
-  const estado = resolverEstado(7, LOOKUP)
+  for (const status of [3, 7]) {
+    const estado = resolverEstado(status, LOOKUP)
 
-  assert.equal(estado.etiqueta, '#7')
-  assert.equal(estado.desconocido, true)
-  assert.equal(estado.color, undefined)
+    assert.equal(estado.etiqueta, `#${status}`)
+    assert.equal(estado.desconocido, true)
+    assert.equal(estado.color, undefined)
+  }
 })
 
 test('un catalogo vacio o ausente no deja la Tarea sin estado visible', () => {
@@ -91,5 +95,5 @@ test('una Tarea sin status se dice con palabras, no con un id', () => {
 test('el orden del catalogo no cambia la resolucion', () => {
   const alreves = [...LOOKUP].reverse()
 
-  assert.deepEqual(resolverEstado(3, alreves), resolverEstado(3, LOOKUP))
+  assert.deepEqual(resolverEstado(4, alreves), resolverEstado(4, LOOKUP))
 })

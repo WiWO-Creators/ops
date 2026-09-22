@@ -2,7 +2,7 @@
  * Pruebas del orden de las columnas del tablero.
  *
  * El backend devuelve `task_statuses` ordenado por su campo `order`, NO por `id`: el orden real en
- * produccion es 1, 4, 3, 2, 5. Ordenar por id da un tablero equivocado, y es el error mas facil de
+ * produccion es 1, 4, 2, 5. Ordenar por id da un tablero equivocado, y es el error mas facil de
  * cometer — por eso tiene prueba propia.
  */
 
@@ -16,7 +16,6 @@ const LOOKUPS = {
   task_statuses: [
     { id: 1, name: 'Por iniciar', order: 1 },
     { id: 4, name: 'En progreso', order: 2 },
-    { id: 3, name: 'Testear', order: 3 },
     { id: 2, name: 'Espera de respuesta', order: 4 },
     { id: 5, name: 'Completo', order: 5 }
   ]
@@ -25,13 +24,13 @@ const LOOKUPS = {
 test('las columnas salen por order, no por id', () => {
   const ids = columnasDelTablero(LOOKUPS, 'task_statuses').map((c) => c.id)
 
-  assert.deepEqual(ids, [1, 4, 3, 2, 5])
+  assert.deepEqual(ids, [1, 4, 2, 5])
 })
 
 test('una lista desordenada se ordena por order', () => {
   const revueltas = { task_statuses: [...LOOKUPS.task_statuses].reverse() }
 
-  assert.deepEqual(columnasDelTablero(revueltas, 'task_statuses').map((c) => c.id), [1, 4, 3, 2, 5])
+  assert.deepEqual(columnasDelTablero(revueltas, 'task_statuses').map((c) => c.id), [1, 4, 2, 5])
 })
 
 test('sin campo order se respeta el orden en que vino', () => {
@@ -62,7 +61,7 @@ test('las opciones de filtro salen de lookups, con el id como valor', () => {
 
   assert.deepEqual(Object.keys(mapa), ['task_statuses'], 'un filtro sin desdeLookup no genera entrada')
   assert.deepEqual(mapa.task_statuses[0], { valor: '1', etiqueta: 'Por iniciar' })
-  assert.equal(mapa.task_statuses.length, 5)
+  assert.equal(mapa.task_statuses.length, 4)
 })
 
 test('un desdeLookup que no existe da lista vacia en vez de romper', () => {

@@ -17,11 +17,15 @@ const ciclo = (lista, i) => lista[i % lista.length]
  * OJO: los `id` NO siguen el orden de visualizacion. `4` (En progreso) va segundo y `2` (Esperando
  * respuesta) va cuarto, mientras que `5` (Completado) tiene `order: 100`. Cualquier consumidor que
  * ordene por `id` arma las columnas del tablero al reves.
+ *
+ * El id `3` ("En pruebas" / "Testear") ya no esta: el estado se retiro y el catalogo real de
+ * `GET /lookups` tampoco lo trae, asi que el mock no puede publicarlo ni como columna del tablero ni
+ * como opcion de un selector. Una Tarea historica todavia puede llegar con `status: 3` desde la base,
+ * y eso lo cubre el camino de estado desconocido de `resolverEstado`, no este catalogo.
  */
 export const ESTADOS_PROCESO = [
   { id: 1, name: 'Por iniciar', color: '#f97316', order: 1, filter_default: true },
   { id: 4, name: 'En proceso', color: '#eab308', order: 2, filter_default: true },
-  { id: 3, name: 'En pruebas', color: '#0284c7', order: 3, filter_default: true },
   { id: 2, name: 'Esperando respuesta', color: '#84cc16', order: 4, filter_default: true },
   { id: 6, name: 'Cambios', color: '#a855f7', order: 5, filter_default: true },
   { id: 5, name: 'Completado', color: '#22c55e', order: 100, filter_default: false }

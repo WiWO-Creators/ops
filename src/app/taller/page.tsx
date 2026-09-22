@@ -32,7 +32,6 @@ import { ESCENAS } from '@/componentes/estructura/bienvenida/escenas'
 const ESTADOS = [
   { id: 1, name: 'No iniciado', color: '#64748b' },
   { id: 4, name: 'En progreso', color: '#3b82f6' },
-  { id: 3, name: 'En pruebas', color: '#0284c7' },
   { id: 2, name: 'Esperando respuesta', color: '#84cc16' },
   { id: 5, name: 'Completado', color: '#22c55e' }
 ]

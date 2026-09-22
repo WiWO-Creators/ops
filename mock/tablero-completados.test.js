@@ -43,11 +43,11 @@ test('status=5 y completed=1 muestran solo Completado con sus tarjetas', async (
   }
 })
 
-test('sin filtro y completed=0 conservan los cinco estados abiertos', async () => {
+test('sin filtro y completed=0 conservan los cuatro estados abiertos', async () => {
   for (const filtros of [{}, { 'filter[completed]': '0' }]) {
     const { estado, cuerpo } = await tablero(filtros)
     assert.equal(estado, 200)
-    assert.deepEqual(cuerpo.data.map((grupo) => grupo.columna.id), [1, 4, 3, 2, 6])
+    assert.deepEqual(cuerpo.data.map((grupo) => grupo.columna.id), [1, 4, 2, 6])
     assert.ok(cuerpo.data.every((grupo) => grupo.tarjetas.every((tarjeta) => tarjeta.status !== 5)))
   }
 })
