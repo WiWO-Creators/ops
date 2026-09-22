@@ -11,10 +11,10 @@ import type { TonoInsignia } from '@/componentes/presentadores/Insignia'
  * Bootstrap 3 de Perfex, no para contrastar contra texto. Eso está escrito en `Insignia` y no se
  * toca acá.
  *
- * La salida es un tono de la paleta semántica, que sí está validado a contraste en los dos temas
- * (`pruebas/marca.test.js`). Una prioridad no es una categoría cualquiera: es una escala con un
- * extremo que pide atención, así que le corresponde la misma familia de colores que a los avisos
- * del sistema y no una rampa decorativa.
+ * La salida es un tono de la paleta semántica, y el par tinta/relleno de cada uno está medido en
+ * los dos temas por `pruebas/contraste.test.js`. Una prioridad no es una categoría cualquiera: es
+ * una escala con un extremo que pide atención, así que le corresponde la misma familia de colores
+ * que a los avisos del sistema y no una rampa decorativa.
  *
  * === Y ADEMÁS RESUELVE LOS TICKETS ===
  *

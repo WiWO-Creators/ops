@@ -99,8 +99,7 @@ const ANILLO = { lado: 120, radio: 48, trazo: 12 } as const
  * parecía a su propio estado: la insignia «Completo» verde al lado de un arco azul que cuenta
  * exactamente esas tareas.
  *
- * Es `--relleno-exito` —el verde de marca, verificado a contraste en los dos temas por
- * `pruebas/marca.test.js`— y NO el hexadecimal del estado «Completo» de Perfex. Dos razones: el
+ * Es `--relleno-exito` —el verde de marca— y NO el hexadecimal del estado «Completo» de Perfex. Dos razones: el
  * frontend no tiene forma fiable de saber qué id es el estado de cierre (`cerradas` lo calcula la
  * API, y `task_statuses` no marca cuál cierra), y un color que alguien puede editar en el panel no
  * puede gobernar el trazo de 12px de la figura protagonista de la pantalla.

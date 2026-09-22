@@ -89,9 +89,14 @@
    * superficie MAS CLARA en la que aparece, no sobre la mas oscura. */
   --acento: light-dark(var(--wiwo-blue), var(--wiwo-blue-200));
   --acento-fuerte: light-dark(var(--wiwo-blue-700), var(--wiwo-blue));
+  /* En oscuro la mezcla es del 10% y no del 18%: `--acento` ENCIMA de este relleno —que es lo que
+   * hace la insignia de tono acento— daba 4.12:1 con 18%, por debajo del 4.5:1 de AA. El par no lo
+   * medía nadie, porque `contraste.test.js` sólo comprobaba `--acento` contra las superficies de
+   * página y de tarjeta, donde pasa holgado. Ahora los tres rellenos de `Insignia` están en
+   * `PARES_DE_TEXTO` y este número está defendido. */
   --acento-suave: light-dark(
     color-mix(in srgb, var(--wiwo-blue) 10%, var(--wiwo-surface-0)),
-    color-mix(in srgb, var(--wiwo-blue-300) 18%, var(--wiwo-ink))
+    color-mix(in srgb, var(--wiwo-blue-300) 10%, var(--wiwo-ink))
   );
   --acento-contenido: light-dark(var(--wiwo-surface-0), var(--wiwo-ink));
 
