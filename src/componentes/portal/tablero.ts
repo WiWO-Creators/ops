@@ -1,6 +1,5 @@
 import { GLOSARIO } from '../../dominio/glosario.ts'
 import { diasHasta } from '../../lib/fechas.ts'
-import { estaCerrado } from './estado.ts'
 import { ordenarEstados } from './resumen.ts'
 import type { ResumenDeProyecto } from '../proyecto/overview.ts'
 import type {
@@ -388,4 +387,37 @@ export function resumenDeTrabas (barras: readonly BarraDeTraba[]): string {
   return `${barras.length} ${barras.length === 1 ? 'cosa detenida' : 'cosas detenidas'}, `
     + `${tuyas} esperando algo de tu parte. La más antigua lleva ${peor?.dias} días: `
     + `${peor?.nombre}, de ${peor?.espacio}.`
+}
+
+/**
+ * El `status` de un {espacio} terminado en Perfex (`tblprojects.status`).
+ *
+ * Es una constante del core y NO una fila de catalogo editable: los estados de {espacio} son un enum
+ * fijo —1 no iniciado, 2 en progreso, 3 en espera, 4 terminado— y lo unico que el panel deja cambiar
+ * de ellos son el nombre y el color. Por eso acá se puede razonar sobre el id, cosa que con los
+ * estados de {proceso} —esos si son filas de una tabla— seria un error.
+ *
+ * Existe porque `date_finished` NO alcanza, y eso se vio en pantalla: llega en `null` tambien en los
+ * {espacios} marcados como terminados, porque el panel viejo no siempre la escribe. Sin esta
+ * constante, un {espacio} entregado con la fecha de compromiso ya pasada salia con «Entrega
+ * vencida» en rojo, que es acusar de atraso a un trabajo que ya se entrego.
+ */
+const ESTADO_TERMINADO = 4
+
+/** La fecha de cierre, o `null` si la fila no la trae. Perfex guarda cadenas vacias. */
+function fechaDeCierre (espacio: EspacioPortal): string | null {
+  const cierre = espacio.date_finished
+
+  return typeof cierre === 'string' && cierre.trim() !== '' ? cierre : null
+}
+
+/**
+ * Si un {espacio} ya esta cerrado.
+ *
+ * Dos señales y no una, porque ninguna de las dos sola alcanza: la fecha de cierre PRUEBA que se
+ * cerro pero falta en filas viejas, y el estado terminado esta siempre pero no dice cuando. Con
+ * cualquiera de las dos, el {espacio} deja de estar en curso y sus fechas dejan de acusar atraso.
+ */
+function estaCerrado (espacio: EspacioPortal): boolean {
+  return fechaDeCierre(espacio) !== null || espacio.status === ESTADO_TERMINADO
 }

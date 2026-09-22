@@ -7,13 +7,10 @@ import {
   ChartNoAxesColumn,
   Compass,
   FolderKanban,
-  FolderOpen,
-  Gauge,
   LifeBuoy,
   type LucideIcon,
   TriangleAlert
 } from 'lucide-react'
-import { ResumenDelPortal } from '@/componentes/portal/ResumenDelPortal'
 import { ResumenDeLaSemana } from '@/componentes/portal/ResumenDeLaSemana'
 import {
   MOTIVO_SIN_PROXIMOS_DIAS,
@@ -74,21 +71,20 @@ const FILAS_SECUNDARIAS = 5
  *
  * === EL ORDEN DE LOS BLOQUES ===
  *
- * Primero lo que le habla al cliente —el resumen de la semana, escrito—, despues los numeros,
- * despues lo que vence, despues sus {espacios}, sus tickets, y al final los accesos y las
+ * Primero lo que le habla al cliente —el resumen de la semana, escrito—, despues lo que vence hoy, despues sus {espacios}, sus tickets, y al final los accesos y las
  * novedades. Quien entra a ver como viene su trabajo lo encuentra arriba; quien entra a navegar
  * baja dos pantallazos.
  *
  * «Próximos {hitos}» ya no esta: lo reemplaza `ResumenDeLaSemana`, que dice lo mismo en prosa y
- * ademas lo explica. El contador de {hitos} se queda dentro de `ResumenDelPortal` —un numero de un
- * vistazo y un parrafo no compiten— y el detalle fila por fila vive en «Estado de {espacios}».
+ * ademas lo explica. Tampoco estan la grilla de numeros ni la pantalla «Estado de {espacios}»: se
+ * retiraron del portal.
  *
  * === CADA BLOQUE SE PIDE SIN QUE PUEDA TUMBAR LA PANTALLA ===
  *
  * `sinFallar` traduce el 403 y el 404 a "esta seccion no es para vos", que en una pantalla armada
  * por bloques es un bloque que no se dibuja y no un error. Los dos bloques que hacen su propio
  * viaje van ademas en SU limite de Suspense: Next hace streaming de cada uno, asi que el saludo y
- * los numeros se pintan con la primera respuesta en vez de esperar al mas lento.
+ * lo que vence hoy se pinta con la primera respuesta en vez de esperar al mas lento.
  */
 export default async function PortalInicio () {
   const { data: yo } = await pedirPortal<YoPortal>('/portal/me')
@@ -102,8 +98,6 @@ export default async function PortalInicio () {
       <Saludo nombre={saludar(yo)} />
 
       <ResumenDeLaSemana />
-
-      {resumen !== null && <ResumenDelPortal resumen={resumen} />}
 
       <ProximosDias lectura={leerProximosDias(resumen?.proximos_dias)} />
 
@@ -207,7 +201,10 @@ const LISTA = 'flex flex-col divide-y divide-linea overflow-hidden rounded-tarje
 const FILA = 'flex flex-wrap items-center gap-x-4 gap-y-2 px-5 py-4 transition-colors duration-150 ease-neo hover:bg-hover focus-visible:bg-hover'
 
 /**
- * Lo que le viene encima al cliente, en los mismos tres tramos que «Mi trabajo» del colaborador.
+ * Lo que el cliente tiene para hoy, con lo vencido arriba en su propia tarjeta.
+ *
+ * Lo que vence en los dias siguientes no se lista: el servidor lo manda en el tramo `proximo`, pero
+ * `leerProximosDias()` lo deja afuera y solo lo cuenta en el pie.
  *
  * === LOS TRAMOS LLEGAN ARMADOS, NO SE ARMAN ACA ===
  *
@@ -228,13 +225,13 @@ function ProximosDias ({ lectura }: { lectura: LecturaDeProximosDias }) {
   if (lectura.clase === 'no_se_sabe') {
     return (
       <section className="flex flex-col gap-6">
-        <TituloModulo nivel="h2" titulo="Próximos días" />
+        <TituloModulo nivel="h2" titulo="Hoy" />
 
         <TarjetaDeAviso
           tono="apagado"
           icono={<Compass size={16} aria-hidden="true" className="shrink-0" />}
         >
-          <p className="text-texto text-sm font-medium">No podemos decirte qué vence estos días</p>
+          <p className="text-texto text-sm font-medium">No podemos decirte qué vence hoy</p>
           <p className="text-texto-tenue mt-1 text-sm">{MOTIVO_SIN_PROXIMOS_DIAS}</p>
         </TarjetaDeAviso>
       </section>
@@ -243,22 +240,13 @@ function ProximosDias ({ lectura }: { lectura: LecturaDeProximosDias }) {
 
   return (
     <section className="flex flex-col gap-6">
-      <TituloModulo
-        nivel="h2"
-        titulo="Próximos días"
-        acciones={
-          <VerTodo
-            href="/portal/estado"
-            etiqueta={`Ver estado de mis ${GLOSARIO.espacio.plural.toLowerCase()}`}
-          />
-        }
-      />
+      <TituloModulo nivel="h2" titulo="Hoy" />
 
       {lectura.clase === 'sin_vencimientos'
         ? (
           <p className="text-base text-texto-tenue">
-            No hay {GLOSARIO.proceso.plural.toLowerCase()} por vencer esta semana.
-            {lectura.restantes > 0 && ` Hay ${lectura.restantes} en marcha sin fecha cercana.`}
+            No hay {GLOSARIO.proceso.plural.toLowerCase()} para hoy.
+            {lectura.restantes > 0 && ` Hay ${lectura.restantes} más en marcha.`}
           </p>
           )
         : (
@@ -271,7 +259,7 @@ function ProximosDias ({ lectura }: { lectura: LecturaDeProximosDias }) {
 
             {lectura.restantes > 0 && (
               <p className="text-sm text-texto-sutil">
-                {lectura.restantes} {GLOSARIO.proceso.plural.toLowerCase()} más sin fecha cercana.
+                {lectura.restantes} {GLOSARIO.proceso.plural.toLowerCase()} más en marcha.
               </p>
             )}
           </>
@@ -283,9 +271,10 @@ function ProximosDias ({ lectura }: { lectura: LecturaDeProximosDias }) {
 /**
  * Un tramo de vencimiento, como tarjeta propia.
  *
- * Lo vencido se pinta de rojo, con el riel a la izquierda y el triangulo, y no solo con una
- * insignia: quien no distingue el rojo tiene que poder ver igual cual de los tres bloques urge. La
- * palabra «Vencidas» es la tercera señal y la unica que lee un lector de pantalla.
+ * Lo vencido se pinta de rojo, con el riel a la izquierda, el triangulo y su encabezado: quien no
+ * distingue el rojo tiene que poder ver igual que ese bloque urge, y la palabra «Vencidas» es la
+ * señal que lee un lector de pantalla. El tramo de hoy va sin encabezado: el titulo de la seccion
+ * ya dice «Hoy», y repetirlo encima de la tabla era decir lo mismo dos veces.
  *
  * Las filas quedan sobre la superficie normal a proposito: el rojo marca el bloque, no el texto de
  * cada {proceso}, que es lo que hay que poder leer.
@@ -297,35 +286,21 @@ function GrupoDeVencimiento ({ grupo }: { grupo: GrupoDeProximosDias }) {
 
   return (
     <div
+      aria-label={urgente ? undefined : grupo.etiqueta}
       className={cn(
         'overflow-hidden rounded-tarjeta border bg-superficie-elevada shadow-1',
         urgente ? 'border-l-4 border-texto-peligro/35 border-l-relleno-peligro' : 'border-linea'
       )}
     >
-      <div
-        className={cn(
-          'flex flex-wrap items-center gap-x-3 gap-y-2 border-b px-5 py-4',
-          urgente ? 'border-texto-peligro/25 bg-superficie-peligro' : 'border-linea bg-superficie-hundida'
-        )}
-      >
-        {urgente && (
+      {urgente && (
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-texto-peligro/25 bg-superficie-peligro px-5 py-4">
           <TriangleAlert size={20} strokeWidth={2.25} aria-hidden="true" className="shrink-0 text-texto-peligro" />
-        )}
-        {/*
-          Plantilla y no `cn()`: para `tailwind-merge` un `text-*` que no es un peldaño conocido
-          —`text-titulo` lo es de este proyecto— es un COLOR, asi que lo daba por pisado por
-          `text-texto-peligro` y lo borraba.
-        */}
-        <h3 className={`font-titular text-titulo font-bold ${urgente ? 'text-texto-peligro' : 'text-texto'}`}>
-          {grupo.etiqueta}
-        </h3>
-        <Insignia
-          tono={urgente ? 'peligro' : 'neutro'}
-          className={cn('h-7 px-3 text-base font-bold tabular-nums', urgente && 'ring-1 ring-inset ring-texto-peligro/30')}
-        >
-          {grupo.filas.length}
-        </Insignia>
-      </div>
+          <h3 className="font-titular text-titulo font-bold text-texto-peligro">{grupo.etiqueta}</h3>
+          <Insignia tono="peligro" className="h-7 px-3 text-base font-bold tabular-nums ring-1 ring-inset ring-texto-peligro/30">
+            {grupo.filas.length}
+          </Insignia>
+        </div>
+      )}
 
       <ul className="flex flex-col divide-y divide-linea">
         {grupo.filas.map((fila) => (
@@ -527,19 +502,10 @@ interface PresentacionDeSeccion {
 /**
  * Con que cara se dibuja cada seccion del portal.
  *
- * La clave es el `href` y no la `clave` de la API porque dos entradas comparten clave —el estado y
- * el listado de {espacios} cuelgan las dos de `projects`— y se presentan distinto: son dos
- * lecturas del mismo recurso y la grilla tiene que decir cual es cual.
- *
  * El catalogo de secciones sigue viviendo en `dominio/portal.ts`: esto es solo como se ven, y por
  * eso vive en la pantalla que las dibuja.
  */
 const PRESENTACION: Record<string, PresentacionDeSeccion> = {
-  '/portal/estado': {
-    descripcion: `Cómo vienen tus ${GLOSARIO.espacio.plural.toLowerCase()} y qué necesita algo tuyo.`,
-    icono: Gauge,
-    tono: 'acento'
-  },
   '/portal/proyectos': {
     descripcion: 'Cada uno con su avance, su equipo y sus entregas.',
     icono: FolderKanban,
@@ -555,14 +521,9 @@ const PRESENTACION: Record<string, PresentacionDeSeccion> = {
     icono: LifeBuoy,
     tono: 'peligro'
   },
-  '/portal/archivos': {
-    descripcion: 'Todo lo que compartimos contigo, en un solo lugar.',
-    icono: FolderOpen,
-    tono: 'aviso'
-  },
-  // Anuncios y Ayuda no figuran: `dominio/portal` retiro sus entradas del menu, asi que la grilla
-  // —que se arma con lo que el menu enciende— no las puede pedir. Describirlas acá seria una cara
-  // para una tarjeta que no se dibuja nunca.
+  // Archivos, Anuncios y Ayuda no figuran: `dominio/portal` retiro sus entradas del menu, asi que
+  // la grilla —que se arma con lo que el menu enciende— no las puede pedir. Describirlas acá seria
+  // una cara para una tarjeta que no se dibuja nunca.
 }
 
 /**

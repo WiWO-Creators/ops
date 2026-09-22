@@ -11,22 +11,21 @@ import assert from 'node:assert/strict'
 import { CATALOGO_PORTAL, saludar, seccionesDelPortal } from '../src/dominio/portal.ts'
 import { nombreDeArchivo, origenDeArchivo } from '../src/definiciones/archivos.ts'
 
-// Se comprueban las RUTAS y no las claves: desde que el estado de los Proyectos existe, dos entradas
-// del catalogo comparten la clave `projects` —son dos pantallas del mismo recurso— y lo que
-// distingue un destino de otro es su href.
+// Se comprueban las RUTAS y no las claves: lo que distingue un destino de otro es su href.
 test('solo muestra las secciones que la API habilito', () => {
-  const secciones = seccionesDelPortal(['projects', 'support', 'files'])
+  const secciones = seccionesDelPortal(['projects', 'support'])
 
   assert.deepEqual(
     secciones.map((s) => s.href),
-    ['/portal/estado', '/portal/proyectos', '/portal/soporte', '/portal/archivos']
+    ['/portal/proyectos', '/portal/soporte']
   )
 })
 
-test('Anuncios y Ayuda no se listan aunque la API las habilite', () => {
-  // La API las emite para todo contacto —no dependen de ningun permiso— y el menu igual no las
-  // dibuja: son contenido que hoy nadie publica, y el enlace llevaba a una pantalla vacia.
-  assert.deepEqual(seccionesDelPortal(['announcements', 'kb']), [])
+test('Archivos, Anuncios y Ayuda no se listan aunque la API las habilite', () => {
+  // Las tres las emite la API para todo contacto —no dependen de ningun permiso— y el menu igual no
+  // las dibuja: Anuncios y Ayuda son contenido que hoy nadie publica, y los archivos se leen dentro
+  // del Proyecto, en su pestaña.
+  assert.deepEqual(seccionesDelPortal(['files', 'announcements', 'kb']), [])
 })
 
 test('un contacto sin ninguna seccion no ve navegacion', () => {
@@ -37,28 +36,17 @@ test('ignora claves que el frontend todavia no conoce', () => {
   // Si la API suma una seccion antes que el frontend, la navegacion no puede romperse.
   const secciones = seccionesDelPortal(['projects', 'seccion-del-futuro'])
 
-  assert.deepEqual(secciones.map((s) => s.href), ['/portal/estado', '/portal/proyectos'])
+  assert.deepEqual(secciones.map((s) => s.href), ['/portal/proyectos'])
 })
 
 test('respeta el orden del catalogo y no el del argumento', () => {
   // El orden lo fija el producto, no en que orden vino el arreglo de la API.
-  const secciones = seccionesDelPortal(['files', 'projects', 'support'])
+  const secciones = seccionesDelPortal(['support', 'projects'])
 
   assert.deepEqual(
     secciones.map((s) => s.href),
-    ['/portal/estado', '/portal/proyectos', '/portal/soporte', '/portal/archivos']
+    ['/portal/proyectos', '/portal/soporte']
   )
-})
-
-test('el estado de los Proyectos entra y sale con el listado, no con una clave propia', () => {
-  // La API no emite ninguna clave para esta pantalla: es otra lectura del mismo recurso. Si alguien
-  // le inventara una, la entrada quedaria apagada para siempre y nadie se enteraria, porque
-  // `seccionesDelPortal` filtra en silencio lo que no reconoce.
-  const con = seccionesDelPortal(['projects']).map((s) => s.href)
-  const sin = seccionesDelPortal(['files']).map((s) => s.href)
-
-  assert.deepEqual(con, ['/portal/estado', '/portal/proyectos'])
-  assert.equal(sin.includes('/portal/estado'), false)
 })
 
 test('todas las rutas del catalogo cuelgan de /portal', () => {

@@ -32,12 +32,6 @@ export interface SeccionPortal {
  * nombres para la misma cosa segun la pantalla.
  */
 const CATALOGO: SeccionPortal[] = [
-  // El estado de los {espacios}: como van y que necesita algo del cliente. Cuelga de la MISMA clave
-  // que el listado —`projects`— y eso es deliberado: no es una seccion nueva del backend sino otra
-  // lectura del mismo recurso, asi que la ve exactamente quien ya ve sus {espacios}. Inventarle una
-  // clave propia habria dejado la entrada apagada para siempre, porque la API no la emitiria nunca.
-  // Va primero porque es la pantalla que contesta "como vamos" sin abrir nada.
-  { clave: 'projects', href: '/portal/estado', etiqueta: `Estado de ${GLOSARIO.espacio.plural}` },
   { clave: 'projects', href: '/portal/proyectos', etiqueta: GLOSARIO.espacio.plural },
   // El tablero mensual de la gerencia. Hoy la API NO devuelve `gestion` en `secciones_habilitadas`
   // —el interruptor `wiwo_portal_gestion` nace apagado en los 279 {espacios}— asi que esta entrada
@@ -47,20 +41,20 @@ const CATALOGO: SeccionPortal[] = [
   // entero justo al contacto que SI lo tiene. Quien no lo tiene recibe el 404 de la API, que esta
   // hecho para ser indistinguible de una ruta inventada.
   { clave: 'gestion', href: '/portal/gestion', etiqueta: 'Control de gestión' },
-  { clave: 'support', href: '/portal/soporte', etiqueta: GLOSARIO.ticket.plural },
-  { clave: 'files', href: '/portal/archivos', etiqueta: 'Archivos' }
-  // **Anuncios y Ayuda no tienen entrada, y es a proposito.** Las dos secciones son contenido que
-  // hoy nadie publica: el portal no las alimenta y el cliente solo encontraba pantallas vacias. Las
-  // paginas siguen en pie —`/portal/anuncios` y `/portal/ayuda`, que la API sigue habilitando para
-  // todo contacto— asi que devolver la entrada es sumar dos lineas acá el dia que haya algo que
-  // leer. Lo que se retira es el enlace, no la seccion.
+  { clave: 'support', href: '/portal/soporte', etiqueta: GLOSARIO.ticket.plural }
+  // **Archivos, Anuncios y Ayuda no tienen entrada, y es a proposito.** Las tres son secciones que
+  // la API habilita para todo contacto —no dependen de ningun permiso— y que el menu igual no
+  // dibuja: Anuncios y Ayuda son contenido que hoy nadie publica, y los archivos del cliente se
+  // leen donde estan, dentro de su {espacio}, en la pestaña Archivos. Las paginas siguen en pie
+  // —`/portal/archivos`, `/portal/anuncios` y `/portal/ayuda`— asi que devolver una entrada es
+  // sumar una linea acá. Lo que se retira es el enlace, no la seccion.
 ]
 
 /**
  * Filtra el catalogo por lo que la API dijo que este contacto puede ver.
  *
  * Se parte de `secciones_habilitadas` y no de `permissions` a proposito: hay secciones que no
- * dependen de ningun permiso —archivos, y el contenido que hoy no se lista— y hay permisos que no
+ * dependen de ningun permiso —archivos y contenido, que hoy no se listan— y hay permisos que no
  * son una seccion del menu. La API ya resolvio esa mezcla; el frontend no la vuelve a resolver.
  *
  * Una clave desconocida se ignora en silencio: si la API suma una seccion antes que el frontend, la
