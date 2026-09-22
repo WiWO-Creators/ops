@@ -27,9 +27,9 @@ export interface SeccionPortal {
 /**
  * Catalogo completo, en el orden en que se muestra.
  *
- * El orden replica el del menu de Perfex (`add_default_theme_menu_items`): proyectos primero,
- * soporte y contenido al final. Los rotulos salen del glosario donde existen, para no tener dos
- * nombres para la misma cosa segun la pantalla.
+ * El orden replica el del menu de Perfex (`add_default_theme_menu_items`): proyectos primero y
+ * contenido al final. Los rotulos salen del glosario donde existen, para no tener dos nombres para
+ * la misma cosa segun la pantalla.
  */
 const CATALOGO: SeccionPortal[] = [
   // El estado de los {espacios}: como van y que necesita algo del cliente. Cuelga de la MISMA clave
@@ -47,7 +47,13 @@ const CATALOGO: SeccionPortal[] = [
   // entero justo al contacto que SI lo tiene. Quien no lo tiene recibe el 404 de la API, que esta
   // hecho para ser indistinguible de una ruta inventada.
   { clave: 'gestion', href: '/portal/gestion', etiqueta: 'Control de gestión' },
-  { clave: 'support', href: '/portal/soporte', etiqueta: GLOSARIO.ticket.plural },
+  // **Soporte no tiene entrada, y es a proposito.** Los tickets se ven y se piden DENTRO del
+  // {espacio}, en su pestaña `tickets`: un cliente no abre "una solicitud" en el aire, la abre sobre
+  // algo que estamos haciendo para el. El listado y el alta generales se retiraron; lo unico que
+  // sobrevive es `/portal/soporte/{id}`, el hilo de un ticket, que **no es una seccion** sino el
+  // destino de los enlaces de la pestaña y de la portada. Tiene que seguir existiendo porque hay
+  // tickets viejos sin `project_id` —no caben en ninguna pestaña— y sin esa ruta quedarian sin
+  // pantalla donde abrirse.
   { clave: 'files', href: '/portal/archivos', etiqueta: 'Archivos' },
   { clave: 'announcements', href: '/portal/anuncios', etiqueta: 'Anuncios' },
   { clave: 'kb', href: '/portal/ayuda', etiqueta: 'Ayuda' }

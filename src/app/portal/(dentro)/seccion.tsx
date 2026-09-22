@@ -10,8 +10,10 @@ import { TablaPortal, type SeccionPortalListado } from './TablaPortal'
 /**
  * Una seccion de listado del portal.
  *
- * Soporte y Proyectos son la misma pagina con otra definicion, asi que se escribe una vez. Cada
- * `page.tsx` queda en tres lineas: su metadata y una llamada aca.
+ * Un listado del portal es esta pagina con otra definicion, asi que se escribe una vez. Cada
+ * `page.tsx` queda en tres lineas: su metadata y una llamada aca. Hoy la usa solo Proyectos —el
+ * listado de Soporte se retiro cuando los tickets pasaron a vivir dentro del {espacio}—, y sigue
+ * generica porque el ahorro es de la proxima seccion, no de la que ya existe.
  *
  * La primera pagina se resuelve en el servidor para que la tabla no parpadee al montar; de ahi en
  * adelante el motor pide al BFF. El `Suspense` no es decorativo: `TablaRecurso` usa
@@ -24,18 +26,11 @@ import { TablaPortal, type SeccionPortalListado } from './TablaPortal'
 export async function SeccionDePortal<T extends { id: number }> ({
   seccion,
   definicion,
-  parametrosDeUrl,
-  acciones
+  parametrosDeUrl
 }: {
   seccion: SeccionPortalListado
   definicion: DefinicionRecurso<T>
   parametrosDeUrl: Record<string, string | string[] | undefined>
-  /**
-   * Lo que se puede hacer en esta seccion, al lado del titulo. Solo Soporte tiene: Proyectos no se
-   * crean desde el portal. Va acá y no en cada `page.tsx` porque el titulo lo dibuja este componente,
-   * y un boton afuera quedaria en una fila propia, leyendose como si no fuera del listado.
-   */
-  acciones?: React.ReactNode
 }) {
   const estado = leerConsulta(paramsDeUrl(parametrosDeUrl), definicion)
   const consulta = construirConsulta(estado, definicion)
@@ -56,10 +51,7 @@ export async function SeccionDePortal<T extends { id: number }> ({
 
   return (
     <section className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-texto text-xl font-semibold">{definicion.titulo.plural}</h1>
-        {acciones}
-      </div>
+      <h1 className="text-texto text-xl font-semibold">{definicion.titulo.plural}</h1>
       <Suspense
         fallback={<Cargando alto="min-h-36" mensaje={`Cargando ${definicion.titulo.plural.toLowerCase()}…`} />}
       >

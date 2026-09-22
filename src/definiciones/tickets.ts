@@ -9,8 +9,9 @@ import { formatearFecha } from '../lib/fechas.ts'
  * **Todavia no la monta ninguna pantalla del panel.** El contrato esta completo y al dia —la API ya
  * emite `solicitante` y `task`, y ya expone `PUT`/`DELETE /tickets/{id}/tarea`— pero la pestaña
  * Tickets del detalle del Espacio, que es donde esto se va a ver, esta sin construir. Lo que si
- * existe hoy es el lado del cliente: `/portal/soporte`, con su propia definicion en
- * `portal-soporte.ts`. Mientras tanto esta definicion la ejercita `pruebas/definiciones.test.js`.
+ * existe hoy es el lado del cliente: la pestaña Tickets del Proyecto en el portal, que dibuja una
+ * lista propia y no una tabla —`portal/(dentro)/proyectos/[id]/PanelesProyecto.tsx`—. Mientras
+ * tanto esta definicion la ejercita `pruebas/definiciones.test.js`.
  *
  * Cuando esa pestaña se construya, `ruta` queda neutra —`tickets`— y se acota con `consultaFija` en
  * vez de reemplazarla: la

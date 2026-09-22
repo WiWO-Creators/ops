@@ -404,8 +404,8 @@ export const MOTIVO_SIN_PROXIMOS_DIAS
  * Las tres lecturas posibles del bloque de tickets.
  *
  * `sin_seccion` es la clave ausente y **no se dibuja nada**: significa que este contacto no tiene
- * la seccion de soporte, y un «no podemos decirte cuantos tickets tenés» sobre una seccion que ni
- * siquiera ve en el menu es ruido puro. Es la diferencia con `proximos_dias`, donde la ausencia si
+ * el permiso de soporte, y un «no podemos decirte cuantos tickets tenés» sobre algo que no puede
+ * pedir en ningun lado es ruido puro. Es la diferencia con `proximos_dias`, donde la ausencia si
  * se dibuja: alla el cliente SI tiene {espacios} y le falta un dato; aca no le falta nada.
  */
 export type LecturaDeTickets =

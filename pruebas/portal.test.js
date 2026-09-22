@@ -55,6 +55,28 @@ test('el estado de los Proyectos entra y sale con el listado, no con una clave p
   assert.equal(sin.includes('/portal/estado'), false)
 })
 
+test('la navegacion no ofrece Soporte, ni aunque la API habilite la clave', () => {
+  // El pedido fue explicito: los tickets se ven y se piden DENTRO del Proyecto. Un contacto con
+  // `support` habilitado no puede volver a encontrarse una entrada general en el menu, porque desde
+  // ahi abriria solicitudes sin Proyecto, que es justamente lo que dejaba tickets sin pestaña.
+  const secciones = seccionesDelPortal(['projects', 'support', 'files'])
+
+  assert.deepEqual(
+    secciones.map((s) => s.href),
+    ['/portal/estado', '/portal/proyectos', '/portal/archivos']
+  )
+  assert.equal(CATALOGO_PORTAL.some((s) => s.clave === 'support'), false)
+})
+
+test('ninguna entrada del catalogo apunta al soporte', () => {
+  // El hilo de un ticket —`/portal/soporte/{id}`— sigue existiendo y tiene que seguir existiendo:
+  // es la unica pantalla de un ticket sin Proyecto. Lo que no puede volver es una entrada de menu
+  // hacia ahi, ni al listado ni al detalle.
+  for (const seccion of CATALOGO_PORTAL) {
+    assert.equal(seccion.href.startsWith('/portal/soporte'), false, seccion.href)
+  }
+})
+
 test('todas las rutas del catalogo cuelgan de /portal', () => {
   // Una ruta fuera de /portal caeria en el guardia del panel y mandaria al cliente al login del
   // equipo.
@@ -96,6 +118,15 @@ test('el orden lo fija el producto, no el arreglo de la API', () => {
   const visibles = pestaniasDelProyecto(['activity', 'tickets', 'overview', 'tasks'])
 
   assert.deepEqual(visibles.map((p) => p.clave), ['overview', 'tasks', 'tickets', 'activity'])
+})
+
+test('la pestaña Tickets es la unica puerta al soporte y depende del interruptor del Proyecto', () => {
+  // Desde que el menu no ofrece Soporte, esta pestaña es el unico lugar donde el cliente pide algo.
+  // Sigue atada a lo que la API habilita: un Proyecto que no la comparte no la dibuja, y ahi no hay
+  // atajo que valga. Si alguien la sacara de la lista, el portal se quedaria sin alta de tickets.
+  assert.equal(PESTANIAS_PROYECTO.some((p) => p.clave === 'tickets'), true)
+  assert.deepEqual(pestaniasDelProyecto(['tickets']).map((p) => p.clave), ['tickets'])
+  assert.deepEqual(pestaniasDelProyecto(['overview', 'tasks']).map((p) => p.clave), ['overview', 'tasks'])
 })
 
 test('un proyecto sin nada compartido no dibuja pestañas', () => {
