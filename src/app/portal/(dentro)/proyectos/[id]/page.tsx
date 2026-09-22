@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import { cache } from 'react'
 import { Pestanas, type Panel } from '@/componentes/proyecto/Pestanas'
 import { ErrorApi } from '@/datos/errores'
-import type { EspacioPortal, TareaPortal } from '@/datos/portal'
+import type { EspacioPortal, TableroDelProyecto as Tablero, TareaPortal } from '@/datos/portal'
 import { pestaniasDelProyecto } from '@/definiciones/portal-proyectos'
 import { CabeceraProyecto } from '@/componentes/proyecto/CabeceraProyecto'
 import { PanelActas } from '@/componentes/proyecto/PanelActas'
@@ -22,7 +22,9 @@ import type { EmpresaPortal } from '@/datos/tipos'
 import { GLOSARIO } from '@/dominio/glosario'
 import { fuenteDelPortal, type FuenteDeProyecto } from '@/dominio/fuente-proyecto'
 import { proyectoDelPortal } from '@/dominio/proyecto'
-import { cargarDetalle, EstadoDeError, estadoDelPortal } from '../../detalle'
+import { TableroDelProyecto } from '@/componentes/portal/TableroDelProyecto'
+import { contarTickets, type ConteoDeTickets } from '@/componentes/portal/tablero-proyecto'
+import { cargarDetalle, EstadoDeError, estadoDelPortal, sinFallar } from '../../detalle'
 import { AprobacionesPendientes } from './AprobacionesPendientes'
 import { PanelArchivos, PanelTicketsDelProyecto } from './PanelesProyecto'
 
@@ -65,6 +67,12 @@ export default async function ProyectoPagina (props: PageProps<'/portal/proyecto
   // que se trata, y ahi es el unico lugar donde cabe.
   const descripcionSuelta = !pestanias.some((p) => p.clave === 'overview')
   const pendientes = await cargarPendientes(proyecto)
+  // El tablero y los tickets, en paralelo: son dos lecturas independientes y esperar una para pedir
+  // la otra le sumaria un viaje entero a la pestaña que se abre primero.
+  const [tablero, tickets] = await Promise.all([
+    cargarTablero(proyecto),
+    cargarTickets(proyecto)
+  ])
   // Las aprobaciones viven DENTRO de la pestaña Descripcion, que es la primera y la que se abre al
   // entrar. Sueltas sobre las pestañas se repetian encima de las diez y se llevaban ~190 px del
   // primer viewport en todas, incluidas las que no tienen nada que ver con una Tarea. Cuando el
@@ -94,7 +102,11 @@ export default async function ProyectoPagina (props: PageProps<'/portal/proyecto
     contenido: contenidoDePestania(clave, proyecto, fuente, {
       empresa: empresa.company,
       estado,
-      aprobaciones
+      aprobaciones,
+      tablero,
+      tickets,
+      // El dia del negocio, no el del navegador. `sv-SE` da `YYYY-MM-DD` sin armarlo a mano.
+      hoy: new Date().toLocaleDateString('sv-SE', { timeZone: 'America/Santiago' })
     })
   }))
 
@@ -144,6 +156,24 @@ interface DatosDeLaPagina {
    * catalogo de estados sale de `cargarLookupsDelPortal`, que es `server-only`.
    */
   aprobaciones: React.ReactNode
+  /**
+   * El tablero de la pestaña Descripcion, o `null` si la API no lo dio.
+   *
+   * `null` es un caso normal y no un fallo: `sinFallar` traduce el 403 y el 404 a «este bloque no es
+   * para este contacto», y sin tablero la pestaña se dibuja como antes, con la ficha sola. Un
+   * tablero caido no puede dejar sin descripcion a un proyecto.
+   */
+  tablero: Tablero | null
+  /** Los tickets del proyecto ya contados, o `null` si no comparte esa pestaña. */
+  tickets: ConteoDeTickets | null
+  /**
+   * HOY en `YYYY-MM-DD`, resuelto UNA vez en el servidor.
+   *
+   * El eje de los hitos se mide contra este valor. Calcularlo dentro del componente lo dejaria a
+   * merced de la zona del navegador: el servidor y el cliente pueden estar en dias distintos, y un
+   * eje que se corre al hidratar es un salto visible en la pantalla.
+   */
+  hoy: string
 }
 
 /**
@@ -172,6 +202,12 @@ function contenidoDePestania (
       return (
         <div className="flex flex-col gap-4">
           {pagina.aprobaciones}
+          {/* El tablero va ARRIBA de la ficha y no abajo: es lo que el cliente viene a mirar, y la
+              descripcion del proyecto la lee una vez. Si la API no lo dio —403 o 404, o sea «esta
+              seccion no es para este contacto»— la pestaña queda como estaba. */}
+          {pagina.tablero !== null && (
+            <TableroDelProyecto tablero={pagina.tablero} tickets={pagina.tickets} hoy={pagina.hoy} />
+          )}
           <PanelDescripcion
             proyecto={proyecto}
             estado={pagina.estado}
@@ -223,6 +259,38 @@ function contenidoDePestania (
       // pasaba con `actas` antes de tener su caso: caia acá y la persona veia otra cosa.
       return null
   }
+}
+
+/**
+ * El tablero de la pestaña Descripcion.
+ *
+ * Sin guarda de pestaña: la puerta del tablero ES la pestaña Descripcion, y si la pagina llego hasta
+ * aca es porque el proyecto se pudo abrir. `sinFallar` cubre el resto — un contacto sin esa pestaña
+ * recibe 403 y el bloque no se dibuja.
+ */
+async function cargarTablero (proyecto: EspacioPortal): Promise<Tablero | null> {
+  return await sinFallar<Tablero>(`/portal/projects/${proyecto.id}/tablero`)
+}
+
+/**
+ * Los tickets del proyecto, ya contados.
+ *
+ * Se pide solo si el proyecto comparte la pestaña: sin ella la API responde 403, y un bloque vacio
+ * no puede tumbar la pantalla. `per_page` alto porque hacen falta TODOS para contar abiertos y
+ * cerrados — contar sobre la primera pagina daria un numero que se contradice con la pestaña de
+ * Tickets del mismo proyecto.
+ *
+ * El interruptor `wiwo_portal_tickets` nace encendido, asi que hoy el bloque se dibuja en todos los
+ * proyectos; existe para poder apagar uno concreto.
+ */
+async function cargarTickets (proyecto: EspacioPortal): Promise<ConteoDeTickets | null> {
+  if (!(proyecto.tabs ?? []).includes('tickets')) return null
+
+  const lista = await sinFallar<Array<{ status: number }>>(
+    `/portal/projects/${proyecto.id}/tickets?per_page=200`
+  )
+
+  return lista === null ? null : contarTickets(lista)
 }
 
 /**
