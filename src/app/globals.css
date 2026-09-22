@@ -167,6 +167,12 @@
   --color-grafico-7: var(--grafico-7);
   --color-grafico-8: var(--grafico-8);
   --color-grafico-rejilla: var(--grafico-rejilla);
+
+  /* La rampa ordinal: cuatro pasos de un tono para escalas con orden. Ver `neo-tokens.css`. */
+  --color-grafico-ordinal-1: var(--grafico-ordinal-1);
+  --color-grafico-ordinal-2: var(--grafico-ordinal-2);
+  --color-grafico-ordinal-3: var(--grafico-ordinal-3);
+  --color-grafico-ordinal-4: var(--grafico-ordinal-4);
 }
 
 /*

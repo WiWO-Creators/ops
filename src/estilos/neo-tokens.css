@@ -81,4 +81,29 @@
   --grafico-7: #8b8b7a;
   --grafico-8: var(--wiwo-danger);
   --grafico-rejilla: light-dark(rgb(41 41 41 / 0.12), rgb(236 236 239 / 0.16));
+
+  /* --- Rampa ordinal de graficos ----------------------------------------- */
+  /* Cuatro pasos de UN SOLO tono, para escalas ORDENADAS: prioridad de Tarea
+   * (Bajo < Medio < Alto < Urgente), tramos de antiguedad, niveles. No sirven para categorias
+   * sueltas —dos equipos, dos clientes— porque una rampa sobre categorias sin orden natural
+   * codifica el largo de la barra dos veces y gasta el unico canal libre.
+   *
+   * POR QUE UN TONO Y NO LA PALETA DE OCHO DE ARRIBA. Porque estos datos SI tienen orden, y una
+   * escala ordenada pide claro-a-oscuro. Ademas la de ocho no pasa contraste sobre fondo claro
+   * —el verde de marca queda en 1.35:1— y por eso sigue muerta.
+   *
+   * POR QUE EL OSCURO VA AL REVES Y NO ES UN FLIP. Sobre fondo oscuro «mas alto» tiene que ser
+   * mas CLARO, o el extremo alto de la escala se hunde en el fondo. Son dos escalas elegidas, no
+   * una invertida sola.
+   *
+   * VALIDADAS, no elegidas a ojo. Con el validador de la skill `dataviz`, los cuatro chequeos en
+   * PASS en los dos temas: monotonia de luminosidad, salto minimo entre pasos (>= 0.06),
+   * contraste del extremo claro contra su superficie y un solo tono (dispersion 11 grados).
+   *   claro, sobre #FFFFFC:  #8C8CFF -> #6E6EFF -> #4242FF -> #2525C8
+   *   oscuro, sobre #292929: #4242FF -> #6E6EFF -> #8C8CFF -> #B0B0FF
+   * Si alguien cambia un paso, vuelve a correr el validador antes de commitear. */
+  --grafico-ordinal-1: light-dark(#8c8cff, var(--wiwo-blue));
+  --grafico-ordinal-2: light-dark(var(--wiwo-blue-300), var(--wiwo-blue-300));
+  --grafico-ordinal-3: light-dark(var(--wiwo-blue), #8c8cff);
+  --grafico-ordinal-4: light-dark(var(--wiwo-blue-700), #b0b0ff);
 }

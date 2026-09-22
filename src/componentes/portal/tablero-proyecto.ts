@@ -32,8 +32,14 @@ export const SIN_NADA_QUE_MOSTRAR = 'Todavía no hay nada que mostrar acá.'
 /** Mínimo de semanas con algún cierre para que la serie valga como serie y no como anécdota. */
 export const SEMANAS_CON_DATO_MINIMAS = 3
 
-/** Tope de personas en el gráfico de carga. Más filas que esto no se comparan, se hojean. */
-export const TOPE_DE_PERSONAS = 12
+/**
+ * Tope de personas que viajan al gráfico de carga.
+ *
+ * Ya no es el techo de lo que se DIBUJA —el componente muestra cinco y pliega el resto en un
+ * `<details>`— sino el techo de lo que se calcula. El Proyecto más poblado de producción tiene 23,
+ * así que con 30 entran todos y el desplegable dice la verdad cuando promete «ver las 23».
+ */
+export const TOPE_DE_PERSONAS = 30
 
 // =================================================================================================
 // AVANCE
@@ -72,48 +78,21 @@ export function leerAvance (avance: AvanceDelProyecto): LecturaDeAvance {
 // PRIORIDADES Y CONTEOS
 // =================================================================================================
 
-/** Una barra del gráfico de prioridades. */
-export interface BarraDePrioridad {
-  priority: number
-  etiqueta: string
-  total: number
-  /** 0-1 sobre la prioridad más poblada, no sobre el total: lo que se compara es entre barras. */
-  fraccion: number
-}
-
 /**
- * Las prioridades como barras de un solo tono.
+ * El resumen accesible de la barra de prioridades: el mismo dato, en una frase.
  *
- * La escala es la prioridad más poblada y no el total de {procesos}: con 74 de 82 en «Medio», medir
- * contra el total dejaría las otras tres barras en un píxel y no se podrían comparar entre ellas,
- * que es la única comparación que el gráfico ofrece.
- *
- * Las cuatro salen siempre, también las que están en cero: una lista que cambia de largo según el
- * {espacio} obliga a releer los rótulos en cada pantalla.
+ * Nombra solo las prioridades que tienen {procesos}. Las que están en cero salen en la leyenda, que
+ * es donde se leen; enumerarlas también acá alargaría la frase con cuatro «0 en» sin agregar nada.
  */
-export function barrasDePrioridad (tareas: TareasDelTablero): BarraDePrioridad[] {
-  const mayor = tareas.por_prioridad.reduce(
-    (alto, prioridad) => Math.max(alto, prioridad.total),
-    0
-  )
-
-  return tareas.por_prioridad.map((prioridad) => ({
-    priority: prioridad.priority,
-    etiqueta: prioridad.name,
-    total: prioridad.total,
-    fraccion: mayor === 0 ? 0 : prioridad.total / mayor
-  }))
-}
-
-/** El resumen accesible del gráfico de prioridades: el mismo dato, en una frase. */
-export function resumenDePrioridades (barras: BarraDePrioridad[]): string {
-  const conFilas = barras.filter((barra) => barra.total > 0)
+export function resumenDePrioridades (tareas: TareasDelTablero): string {
+  const conFilas = tareas.por_prioridad.filter((prioridad) => prioridad.total > 0)
 
   if (conFilas.length === 0) return 'Sin tareas para repartir por prioridad.'
 
-  const total = conFilas.reduce((suma, barra) => suma + barra.total, 0)
+  const total = conFilas.reduce((suma, prioridad) => suma + prioridad.total, 0)
 
-  return `${total} tareas: ` + conFilas.map((b) => `${b.total} en ${b.etiqueta}`).join(', ') + '.'
+  return `${total} tareas: `
+    + conFilas.map((p) => `${p.total} en ${p.name}`).join(', ') + '.'
 }
 
 // =================================================================================================
@@ -334,6 +313,17 @@ export function resumenDeHitos (linea: LineaDeHitos): string {
 // EL EQUIPO
 // =================================================================================================
 
+/**
+ * Si hay algo que medir en el equipo.
+ *
+ * Con todas las personas en 0 abiertas y 0 cerradas no hay carga que comparar: el gráfico dibujaría
+ * dos barras de largo cero, que es medio panel para no decir nada. Es la misma regla que gobierna
+ * `avance.porcentaje`: un cero medido y un dato que no existe se presentan distinto.
+ */
+export function hayCargaQueMostrar (filas: FilaDePersona[]): boolean {
+  return filas.some((fila) => fila.abiertas > 0 || fila.cerradas > 0)
+}
+
 /** Una fila del gráfico de carga del equipo. */
 export interface FilaDePersona {
   id: number
@@ -474,19 +464,257 @@ export interface Cifra {
 /**
  * Las cifras de contexto del tablero.
  *
- * Son cuatro números, y el pedido fue explícitamente «más que 3 números piñuflas». No se contradice:
- * la diferencia es que estos cuatro se pueden ACCIONAR —hay 16 vencidas, cerramos 3 esta semana— y
- * no son el tablero entero, son el pie de los gráficos. Un número sin forma alrededor es lo que se
- * rechazó; un número al lado de la forma que lo explica es otra cosa.
+ * Son TRES, y no las cuatro que había. `cerradas_30` se fue: la serie de doce semanas ya contesta
+ * «cuánto se cierra últimamente» con mucho más detalle, y una cifra que repite lo que el gráfico de
+ * al lado ya dice es exactamente el relleno que se rechazó. La que queda de ese par es
+ * `cerradas_7`, que es la única ventana que la serie NO deja leer de un vistazo: en el gráfico es la
+ * última columna, cortada en HOY.
  *
- * `vencidas` es la única que puede llevar alarma. Las otras tres son hechos: «cerradas esta semana»
+ * El pedido fue «más que 3 números piñuflas» y esto son tres números. No se contradice: la queja no
+ * era la cantidad, era que fueran lo único. Estos tres se pueden accionar —hay 16 vencidas— y viven
+ * al lado de la forma que los explica, no en su lugar.
+ *
+ * `vencidas` es la única que puede llevar alarma. Las otras dos son hechos: «cerradas esta semana»
  * en 0 no es malo en sí —un {espacio} puede estar entre entregas— y pintarlo de rojo mentiría.
  */
 export function cifrasDelTablero (tareas: TareasDelTablero): Cifra[] {
   return [
     { clave: 'vencidas', etiqueta: 'Vencidas', valor: tareas.vencidas, alarma: tareas.vencidas > 0 },
     { clave: 'cerradas_7', etiqueta: 'Cerradas esta semana', valor: tareas.cerradas_7, alarma: false },
-    { clave: 'cerradas_30', etiqueta: 'Cerradas en 30 días', valor: tareas.cerradas_30, alarma: false },
     { clave: 'sin_fecha', etiqueta: 'Abiertas sin fecha', valor: tareas.sin_fecha, alarma: false }
   ]
+}
+
+// =================================================================================================
+// GEOMETRÍA DE LOS GRÁFICOS
+//
+// Todo lo que sigue convierte datos en coordenadas. Vive acá y no en el componente por la misma
+// razón que el resto del archivo: se puede verificar sin navegador, y un error de geometría —una
+// fracción que se sale de 0-1, un área que no cierra— dibuja un gráfico plausible y equivocado.
+// =================================================================================================
+
+/** Alto y ancho del lienzo de la serie de cierres, en unidades de `viewBox`. */
+export const LIENZO_DE_AREA = { ancho: 300, alto: 100 } as const
+
+/**
+ * Cuánto pinta el anillo del medidor de avance.
+ *
+ * Un anillo y no una dona: la dona reparte un total entre categorías, el anillo mide UNA razón
+ * contra su límite. Son formas distintas para preguntas distintas, y acá la pregunta es «cuánto de
+ * lo comprometido está hecho».
+ *
+ * Se devuelve en unidades de `stroke-dasharray` porque es lo único que un SVG necesita para dibujar
+ * un arco sin trigonometría: la circunferencia completa y cuánto de ella se pinta.
+ *
+ * @param porcentaje 0-100, o `null` si no hay avance medido
+ * @param radio radio del círculo en unidades de `viewBox`
+ */
+export function arcoDeAvance (porcentaje: number | null, radio: number): { circunferencia: number, pintado: number } {
+  const circunferencia = 2 * Math.PI * radio
+  // `null` pinta cero arco, pero el componente NO dibuja el anillo en ese caso: escribe el motivo.
+  // El cero de acá es para que la función sea total y no para que se pinte.
+  const fraccion = porcentaje === null ? 0 : Math.min(100, Math.max(0, porcentaje)) / 100
+
+  return { circunferencia, pintado: circunferencia * fraccion }
+}
+
+/** Un punto de la serie, con su lugar en el lienzo. */
+export interface PuntoDeArea extends PuntoDeCierres {
+  /** Coordenada X en unidades de `viewBox`. */
+  x: number
+  /** Coordenada Y en unidades de `viewBox`. El 0 está ARRIBA, como en todo SVG. */
+  y: number
+  /** 0-1 de izquierda a derecha. Para colgar marcas HTML encima del SVG sin repetir la cuenta. */
+  fraccionX: number
+  /** `true` en la semana con más cierres de la serie: es la única que se rotula directo. */
+  extremo: boolean
+}
+
+/** La serie lista para dibujar: la línea, el relleno y los puntos. */
+export interface AreaDeCierres {
+  puntos: PuntoDeArea[]
+  /** `d` de la línea. Cadena vacía si no hay al menos dos puntos. */
+  linea: string
+  /** `d` del relleno, cerrado contra la base. Cadena vacía si no hay al menos dos puntos. */
+  area: string
+}
+
+/**
+ * Convierte la serie de cierres en las dos rutas SVG de un gráfico de área.
+ *
+ * Área y no doce barras: el dato es una tendencia de una sola serie, y la skill de visualización
+ * manda «line; area for a single series» para eso. Doce barras en fila era justamente la queja —una
+ * lista de mucho dato— y encima sugiere que cada semana es una categoría independiente cuando lo
+ * que importa es la forma del conjunto.
+ *
+ * La escala vertical es la mejor semana de la propia serie, igual que antes: la pregunta es si el
+ * ritmo sube o baja, no cuánto es «mucho» en abstracto.
+ *
+ * El relleno se cierra contra la base del lienzo y no contra el mínimo: un área que no arranca en
+ * cero exagera la variación, que es la forma más común de mentir con un gráfico de área.
+ *
+ * Con menos de dos puntos las rutas salen vacías en vez de dibujar un segmento de cero largo.
+ */
+export function areaDeCierres (cierres: LecturaDeCierres): AreaDeCierres {
+  const { ancho, alto } = LIENZO_DE_AREA
+  const total = cierres.puntos.length
+  const mayor = cierres.puntos.reduce((alto2, punto) => Math.max(alto2, punto.cerradas), 0)
+
+  const puntos: PuntoDeArea[] = cierres.puntos.map((punto, i) => {
+    const fraccionX = total <= 1 ? 0 : i / (total - 1)
+
+    return {
+      ...punto,
+      x: fraccionX * ancho,
+      // Se deja un 6 % de aire arriba para que el pico no toque el borde del lienzo y su punto no
+      // quede cortado por la mitad.
+      y: alto - punto.fraccion * alto * 0.94,
+      fraccionX,
+      extremo: mayor > 0 && punto.cerradas === mayor
+    }
+  })
+
+  if (puntos.length < 2) {
+    return { puntos, linea: '', area: '' }
+  }
+
+  const trazo = puntos.map((p) => `${redondear(p.x)},${redondear(p.y)}`).join(' L')
+  const primero = puntos[0] as PuntoDeArea
+  const ultimo = puntos[puntos.length - 1] as PuntoDeArea
+
+  return {
+    puntos,
+    linea: `M${trazo}`,
+    area: `M${redondear(primero.x)},${alto} L${trazo} L${redondear(ultimo.x)},${alto} Z`
+  }
+}
+
+/** Dos decimales: más precisión en un `d` de SVG es peso de descarga sin efecto visible. */
+function redondear (n: number): number {
+  return Math.round(n * 100) / 100
+}
+
+/** Un tramo de la barra apilada de prioridades. */
+export interface TramoDePrioridad {
+  priority: number
+  etiqueta: string
+  total: number
+  /** Porcentaje del total, para el ancho. */
+  porcentaje: number
+  /** 1-4: qué paso de la rampa ordinal le toca. Bajo es el más claro en tema claro. */
+  paso: number
+  /** `true` si la etiqueta cabe DENTRO del tramo. Si no, la lleva la leyenda y el tooltip. */
+  rotuloAdentro: boolean
+}
+
+/**
+ * Las prioridades como una barra apilada horizontal.
+ *
+ * Apilada y no dona, aunque la dona se haya pedido: en los Proyectos reales el reparto es 0/74/6/2
+ * sobre 82, o sea que Alto y Urgente serían dos gajos de 26 y 9 grados. La skill de visualización
+ * lo marca como anti-patrón —«una dona para comparar valores cercanos»— y para part-to-whole manda
+ * barra apilada, en horizontal cuando las categorías tienen nombre largo. Apilados, 6 y 2 se ven.
+ *
+ * Horizontal y no vertical porque los rótulos son palabras («Urgente»), y en vertical habría que
+ * girarlos.
+ *
+ * Las prioridades vacías NO entran a la barra —un tramo de ancho cero no se ve y ensucia el
+ * apilado— pero sí salen en la leyenda con su cero, que es donde el cliente puede leerlas.
+ *
+ * `rotuloAdentro` se decide acá y no en el CSS: un rótulo dentro de un tramo del 2 % se recorta, y
+ * la skill es explícita en que un rótulo que no cabe se mueve o se omite, nunca se recorta. El
+ * umbral del 12 % es el ancho mínimo donde entra «Urgente» con aire a los dos lados.
+ */
+export function tramosDePrioridad (tareas: TareasDelTablero): TramoDePrioridad[] {
+  const total = tareas.por_prioridad.reduce((suma, p) => suma + p.total, 0)
+
+  if (total === 0) return []
+
+  return tareas.por_prioridad
+    .map((prioridad, i) => {
+      const porcentaje = (prioridad.total * 100) / total
+
+      return {
+        priority: prioridad.priority,
+        etiqueta: prioridad.name,
+        total: prioridad.total,
+        porcentaje,
+        paso: i + 1,
+        rotuloAdentro: porcentaje >= 12
+      }
+    })
+    .filter((tramo) => tramo.total > 0)
+}
+
+/** Una marca del eje de {hitos}: una fecha, con todos los {hitos} que caen en ella. */
+export interface MarcaAgrupada {
+  /** `YYYY-MM-DD`. Sirve de clave. */
+  fecha: string
+  etiqueta: string
+  /** 0-1 sobre la ventana de la línea. */
+  posicion: number
+  /** Los {hitos} de esa fecha, en el orden en que llegaron. */
+  hitos: MarcaDeHito[]
+  /** El color del grupo: peligro si alguno está atrasado, éxito si TODOS están cumplidos. */
+  estado: 'atrasado' | 'cumplido' | 'en_curso'
+}
+
+/**
+ * Agrupa las marcas del eje por fecha.
+ *
+ * Existe por un caso que se ve en cuanto se abre un {espacio} real: sus tres {hitos} están fechados
+ * el 31 de diciembre, así que en el eje caen en el MISMO píxel. Dibujados uno por {hito} quedan
+ * perfectamente superpuestos y el cliente cuenta uno donde hay tres — un gráfico que dice menos de
+ * lo que hay.
+ *
+ * Con una marca por fecha, el punto es honesto y su tooltip enumera los {hitos} que comparte.
+ *
+ * El estado del grupo se decide por el peor caso: si alguno está atrasado el punto va en peligro,
+ * porque eso es lo que hay que ver. Cumplido exige que lo estén TODOS.
+ */
+export function marcasAgrupadas (marcas: MarcaDeHito[]): MarcaAgrupada[] {
+  const porFecha = new Map<string, MarcaAgrupada>()
+
+  for (const marca of marcas) {
+    if (marca.fecha === null || marca.posicion === null) continue
+
+    const grupo = porFecha.get(marca.fecha)
+
+    if (grupo === undefined) {
+      porFecha.set(marca.fecha, {
+        fecha: marca.fecha,
+        etiqueta: marca.etiqueta,
+        posicion: marca.posicion,
+        hitos: [marca],
+        estado: marca.atrasado ? 'atrasado' : marca.cumplido ? 'cumplido' : 'en_curso'
+      })
+      continue
+    }
+
+    grupo.hitos.push(marca)
+    // El peor caso manda. Un grupo con uno atrasado se pinta atrasado aunque los otros estén
+    // cumplidos: esconder el atraso detrás de dos entregas es justo lo que no puede pasar.
+    if (marca.atrasado) grupo.estado = 'atrasado'
+    else if (grupo.estado === 'cumplido' && !marca.cumplido) grupo.estado = 'en_curso'
+  }
+
+  return [...porFecha.values()]
+}
+
+/** Una prioridad en la leyenda: sale siempre, también en cero. */
+export interface ClaveDePrioridad {
+  priority: number
+  etiqueta: string
+  total: number
+  paso: number
+}
+
+/** La leyenda de la barra de prioridades: las cuatro, en el orden de la escala. */
+export function clavesDePrioridad (tareas: TareasDelTablero): ClaveDePrioridad[] {
+  return tareas.por_prioridad.map((prioridad, i) => ({
+    priority: prioridad.priority,
+    etiqueta: prioridad.name,
+    total: prioridad.total,
+    paso: i + 1
+  }))
 }
