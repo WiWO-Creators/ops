@@ -227,7 +227,8 @@ panel mira para ofrecer "Mi Área": preguntar por uno solo de los dos campos dej
 
 `is_coordinador_multiarea` es el tercer rol del eje 1 (migración `0720`): quien lo tiene **lee**
 todos los Procesos, Espacios, Clientes, prospectos y licitaciones de la casa, y **escribe** lo mismo
-que escribía antes —lo suyo y lo de su descendencia en el árbol—. No abre nada de Administración:
+que escribía antes —lo suyo y lo de su descendencia en el árbol—. La única excepción es
+`PUT /projects/{id}/members`: el equipo de cualquier Espacio que ve lo puede armar (con `projects.edit`). No abre nada de Administración:
 eso sigue siendo `is_superadmin`. Viaja acá para que el panel pueda explicar por qué una fila que se
 ve no se puede editar; no habilita ninguna pantalla por sí solo y no aparece en `permissions`,
 porque lo que cambia son las FILAS y no las acciones.
