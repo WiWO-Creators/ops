@@ -64,6 +64,22 @@ interface PropsCabecera {
   /** Linea bajo el titulo. Por defecto, el cliente del proyecto. */
   subtitulo?: string
   /**
+   * Si se dibuja la barra de avance del pie.
+   *
+   * El portal la apaga. El numero que pinta sale de `tblprojects.progress`, una columna que Perfex
+   * mantiene por su cuenta y que nadie audita, y en la ficha del cliente convive con el avance del
+   * tablero, que se cuenta sobre las {procesos} que ese contacto puede ver. Los dos no coinciden
+   * —75 % contra 76 % en un Proyecto, 34 % contra "no hay avance que medir" en otro— y el que se
+   * puede explicar es el contado, no el de la columna.
+   *
+   * Dos porcentajes distintos en la misma pantalla no son un detalle visual: el cliente pregunta
+   * cual es el bueno y no hay respuesta.
+   *
+   * En el panel sigue encendida: ahi no hay un segundo numero con el cual contradecirse, y el
+   * equipo conoce de donde sale.
+   */
+  conAvance?: boolean
+  /**
    * `project_statuses` de `lookups`. Con el catalogo y `edit`, la pildora deja de ser una etiqueta y
    * pasa a ser el control que cambia el estado: es el cambio mas repetido de la ficha y no tiene por
    * que costar un formulario.
@@ -104,7 +120,8 @@ export function CabeceraProyecto ({
   subtitulo,
   estados = [],
   acciones,
-  yoId
+  yoId,
+  conAvance = true
 }: PropsCabecera) {
   const puedeEditar = capacidades.includes('edit')
 
@@ -176,12 +193,14 @@ export function CabeceraProyecto ({
 
       <Etiquetas etiquetas={proyecto.tags} maximo={6} />
 
-      <div className="flex items-center gap-3">
-        <BarraProgreso porcentaje={proyecto.progress} className="min-w-0 flex-1" />
-        <span data-numerico className="text-texto text-sm font-semibold">
-          {Math.round(proyecto.progress)}%
-        </span>
-      </div>
+      {conAvance && (
+        <div className="flex items-center gap-3">
+          <BarraProgreso porcentaje={proyecto.progress} className="min-w-0 flex-1" />
+          <span data-numerico className="text-texto text-sm font-semibold">
+            {Math.round(proyecto.progress)}%
+          </span>
+        </div>
+      )}
     </header>
   )
 }
