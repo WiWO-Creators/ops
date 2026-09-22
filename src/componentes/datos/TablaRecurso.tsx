@@ -37,6 +37,7 @@ import {
   type CuerpoError
 } from './tabla'
 import { resolverEstado } from '@/dominio/estados-tarea'
+import { pintarPrioridad } from '@/dominio/prioridades'
 
 /**
  * Motor de tabla declarativo.
@@ -703,6 +704,17 @@ function Celda<T> ({
   // Un presentador que ya devuelve su propio elemento —el estado editable de la pestaña Tareas—
   // pinta lo suyo: resolverlo contra el catalogo daria un id inventado en vez de un control.
   if (typeof contenido !== 'string' && typeof contenido !== 'number') return <>{contenido}</>
+
+  // La prioridad se pinta con la escala semantica y no con el color del catalogo: es una escala de
+  // urgencia y no una categoria, y la de ticket ademas viene sin color y en ingles. Ver
+  // `dominio/prioridades`. Un id fuera de la escala cae al camino de siempre.
+  if (columna.comoInsignia === 'task_priorities' || columna.comoInsignia === 'ticket_priorities') {
+    const prioridad = pintarPrioridad(contenido, columna.comoInsignia)
+
+    if (prioridad !== null) {
+      return <Insignia tono={prioridad.tono} tamano="chico">{prioridad.etiqueta}</Insignia>
+    }
+  }
 
   const insignia = resolverEstado(contenido, catalogos?.[columna.comoInsignia])
 

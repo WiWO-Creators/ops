@@ -8,7 +8,7 @@ import { EnlacePanelClasico } from '@/componentes/presentadores/EnlacePanelClasi
 import { Avatar, GrupoAvatares } from '@/componentes/presentadores/Avatar'
 import { Etiquetas } from '@/componentes/presentadores/Etiqueta'
 import { Fecha } from '@/componentes/presentadores/Fecha'
-import { Insignia } from '@/componentes/presentadores/Insignia'
+import { InsigniaDePrioridad } from '@/componentes/presentadores/InsigniaDePrioridad'
 import { listaDe, nombreDe } from '@/datos/catalogos'
 import { agruparPorQuienAsigno, type GrupoDeAsignacion, type PersonaDeAutoria } from '@/dominio/autoria-tarea'
 import { camposLegibles } from '@/dominio/campos-personalizados'
@@ -240,7 +240,11 @@ export function DetalleTarea (
                   />
                 )
               : <EstadoDeTarea status={tarea.status} catalogo={listaDe(lookups, 'task_statuses')} />}
-            <Insignia tamano="chico" color={prioridad.color}>{prioridad.nombre}</Insignia>
+            <InsigniaDePrioridad
+              valor={tarea.priority}
+              catalogo="task_priorities"
+              respaldo={{ etiqueta: prioridad.nombre, color: prioridad.color }}
+            />
             {/* Al final de la fila de insignias y no arriba del titulo: compartir es una salida
                 lateral, no lo que la persona vino a hacer al detalle.
 

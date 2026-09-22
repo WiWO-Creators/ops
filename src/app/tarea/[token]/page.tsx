@@ -4,6 +4,7 @@ import { Logo } from '@/componentes/estructura/Logo'
 import { Fecha } from '@/componentes/presentadores/Fecha'
 import { Etiquetas } from '@/componentes/presentadores/Etiqueta'
 import { Insignia } from '@/componentes/presentadores/Insignia'
+import { InsigniaDePrioridad } from '@/componentes/presentadores/InsigniaDePrioridad'
 import { BarraProgreso } from '@/componentes/proyecto/CabeceraProyecto'
 import { CabeceraFichaTarea } from '@/componentes/proyecto/CabeceraFichaTarea'
 import { llamarApiTipado } from '@/datos/api'
@@ -77,7 +78,11 @@ export default async function FichaPublicaDeTarea (props: PageProps<'/tarea/[tok
             <Insignia tamano="chico" color={tarea.status.color}>{tarea.status.name}</Insignia>
           )}
           {tarea.priority !== null && (
-            <Insignia tamano="chico" color={tarea.priority.color}>{tarea.priority.name}</Insignia>
+            <InsigniaDePrioridad
+              valor={tarea.priority.id}
+              catalogo="task_priorities"
+              respaldo={{ etiqueta: tarea.priority.name, color: tarea.priority.color }}
+            />
           )}
           {tarea.task_type !== null && (
             <Insignia tamano="chico" tono="contorno">{tarea.task_type.name}</Insignia>
