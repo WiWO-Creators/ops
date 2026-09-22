@@ -402,6 +402,117 @@ export const ESPACIOS = NOMBRES_ESPACIO.map((name, i) => ({
   miembros: STAFF.filter((s) => (s.id + i) % 3 !== 0).map((s) => s.id)
 }))
 
+/**
+ * Los Espacios de una Licitacion, aparte de `ESPACIOS` a proposito.
+ *
+ * Una Licitacion ES un Espacio —misma fila, mismo id— pero la API lo ESCONDE de `GET /projects`
+ * mientras no se gane (`RecursoEspacios::fragmentoOculto`). Tenerlos en su propio arreglo es lo que
+ * hace que el mock pode igual que la API: el listado de Proyectos recorre `ESPACIOS` y no los ve,
+ * y `GET /projects/{id}` si los encuentra, que es justo la asimetria del backend.
+ *
+ * Ids por encima de los de `ESPACIOS` para no correr el reparto de Procesos, que cicla sobre ese
+ * arreglo.
+ */
+export const ESPACIOS_DE_LICITACION = [
+  {
+    id: 101,
+    name: 'Mantención de plataforma 2027',
+    description: 'Propuesta técnica y económica para la mantención anual.',
+    status: 2,
+    clientid: 0,
+    billing_type: 1,
+    start_date: '2026-09-01',
+    deadline: '2026-10-15',
+    date_finished: null,
+    progress: 10,
+    progress_from_tasks: true,
+    project_cost: 0,
+    project_rate_per_hour: null,
+    estimated_hours: 0,
+    added_from: 1,
+    project_created: '2026-09-01',
+    tags: [],
+    miembros: STAFF.map((s) => s.id)
+  },
+  {
+    id: 102,
+    name: 'Licitación pública de señalética',
+    description: 'Postulación que ya se perdió: queda para el histórico.',
+    status: 2,
+    clientid: 0,
+    billing_type: 1,
+    start_date: '2026-06-01',
+    deadline: '2026-07-20',
+    date_finished: null,
+    progress: 100,
+    progress_from_tasks: true,
+    project_cost: 0,
+    project_rate_per_hour: null,
+    estimated_hours: 0,
+    added_from: 1,
+    project_created: '2026-06-01',
+    tags: [],
+    miembros: STAFF.map((s) => s.id)
+  }
+]
+
+/**
+ * Las Licitaciones, como las devuelve `GET /licitaciones`.
+ *
+ * Una abierta y una perdida: el selector del alta pide `filter[estado]=abierta`, y sin una perdida
+ * en el arreglo ese filtro pasaria aunque el mock lo ignorara.
+ *
+ * `id` es el del Espacio, no uno propio: en `tblapi_licitaciones` la PK es `project_id`.
+ */
+export const LICITACIONES = [
+  {
+    id: 101,
+    estado: 'abierta',
+    prospecto_id: 1,
+    prospecto: { id: 1, empresa: 'Colbún', client_id: null, client: null, contactos_count: 2 },
+    company: 'Colbún',
+    client_id: null,
+    client: null,
+    resultado_en: null,
+    creada_en: '2026-09-01 09:00:00',
+    focal_id: null,
+    focal: null,
+    espacio: espacioDeLicitacion(101)
+  },
+  {
+    id: 102,
+    estado: 'perdida',
+    prospecto_id: 2,
+    prospecto: { id: 2, empresa: 'Metro de Santiago', client_id: null, client: null, contactos_count: 1 },
+    company: 'Metro de Santiago',
+    client_id: null,
+    client: null,
+    resultado_en: '2026-07-25 12:00:00',
+    creada_en: '2026-06-01 09:00:00',
+    focal_id: null,
+    focal: null,
+    espacio: espacioDeLicitacion(102)
+  }
+]
+
+/**
+ * El bloque `espacio` de una Licitacion: las cinco claves que viajan en el listado.
+ *
+ * @param {number} id id del Espacio, que es tambien el de la licitacion
+ * @returns {{ id: number, name: string, status: number, start_date: string, deadline: string }}
+ */
+function espacioDeLicitacion (id) {
+  const espacio = ESPACIOS_DE_LICITACION.find((fila) => fila.id === id)
+
+  return {
+    id: espacio.id,
+    name: espacio.name,
+    status: espacio.status,
+    start_date: espacio.start_date,
+    deadline: espacio.deadline
+  }
+}
+
 const VERBOS = ['Revisar', 'Definir', 'Maquetar', 'Migrar', 'Documentar', 'Corregir', 'Publicar']
 const OBJETOS = [
   'la pantalla de acceso', 'el contrato de la API', 'las tarjetas del tablero',

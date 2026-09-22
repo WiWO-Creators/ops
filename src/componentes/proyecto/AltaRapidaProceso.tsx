@@ -8,6 +8,7 @@ import { Campo } from '@/componentes/formularios/Campo'
 import { AreaTexto, Entrada } from '@/componentes/formularios/Entrada'
 import { CamposPersonalizados } from '@/componentes/formularios/CamposPersonalizados'
 import { cargarAsignables } from '@/datos/asignables'
+import { cargarEspaciosDestino } from '@/datos/espacios-destino'
 import {
   camposOrdenados, cuerpoDeCamposPersonalizados, esquemaDeCamposPersonalizados, valoresPorDefecto,
   type ValoresDeCampos, type ErroresDeCampos
@@ -89,6 +90,9 @@ const NINGUNO = 'ninguno'
 const CATALOGOS_VACIOS: CatalogosAlta = { personas: [], espacios: [], prioridades: [] }
 const ETIQUETAS_VACIAS: Referencia[] = []
 
+/** Mientras el catalogo no llega no hay ninguna Licitacion que rotular. */
+const SIN_LICITACIONES: ReadonlySet<number> = new Set<number>()
+
 /** Los dos modos del dialogo. */
 const MODOS = [
   { valor: 'linea', etiqueta: 'En una línea' },
@@ -161,6 +165,13 @@ export function AltaRapidaProceso ({
   const enviando = useRef(false)
   const [catalogosCargados, setCatalogosCargados] = useState<CatalogosAlta>(catalogosRecibidos ?? CATALOGOS_VACIOS)
   const [lookups, setLookups] = useState<Lookups | null>(null)
+  /**
+   * Cuales de los Espacios del catalogo son Licitaciones.
+   *
+   * Solo para rotularlas en el selector: la Tarea se crea igual que en un Proyecto —`rel_type`
+   * `project` y el id del Espacio—, porque una Licitacion **es** un Espacio.
+   */
+  const [licitaciones, setLicitaciones] = useState<ReadonlySet<number>>(SIN_LICITACIONES)
   const catalogos = catalogosCargados
   const etiquetas = etiquetasRecibidas ?? lookups?.tags ?? ETIQUETAS_VACIAS
   const [cargando, setCargando] = useState(true)
@@ -274,18 +285,19 @@ export function AltaRapidaProceso ({
     const control = new AbortController()
     const cargar = async (): Promise<void> => {
       try {
-        const [campos, opciones, personas, espacios] = await Promise.all([
+        const [campos, opciones, personas, destinos] = await Promise.all([
           pedirSobre<DefinicionCampoPersonalizado[]>('custom-fields?para=tasks', control.signal),
           pedirSobre<Lookups>('lookups', control.signal),
           cargarAsignables(),
-          pedirSobre<Referencia[]>('projects?per_page=500', control.signal)
+          cargarEspaciosDestino(control.signal)
         ])
         if (control.signal.aborted) return
         const ordenadas = camposOrdenados(campos.data)
         setDefiniciones(ordenadas)
         setPersonalizados(valoresPorDefecto(ordenadas))
         setLookups(opciones.data)
-        setCatalogosCargados({ personas, espacios: espacios.data, prioridades: opciones.data.task_priorities })
+        setLicitaciones(destinos.licitaciones)
+        setCatalogosCargados({ personas, espacios: destinos.espacios, prioridades: opciones.data.task_priorities })
         setErrorCarga(null)
       } catch (fallo) {
         if (!control.signal.aborted) setErrorCarga(fallo instanceof Error ? fallo.message : 'No se pudieron cargar los campos de la tarea.')
@@ -983,6 +995,7 @@ export function AltaRapidaProceso ({
                         elegidos={espacios}
                         onCambiar={elegirEspacios}
                         conFallo={parcial?.pendientes ?? []}
+                        licitaciones={licitaciones}
                       />
                     )}
                   </Campo>}

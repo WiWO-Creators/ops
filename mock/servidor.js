@@ -19,14 +19,25 @@ import * as sesion from './sesion.js'
 import {
   ADMINS_DE_CLIENTE, AREAS, ARCHIVOS, CAMPOS_PERSONALIZADOS, CHECKLIST, CLIENTES, COMENTARIOS, CRONOMETROS,
   DEPARTAMENTOS, EMPRESAS_DEL_GRUPO, ENTRADA_DE_CLIENTE, ESPACIOS, ESTADOS_ESPACIO, ESTADOS_PROCESO,
-  ETIQUETAS, HITOS,
+  ESPACIOS_DE_LICITACION, ETIQUETAS, HITOS, LICITACIONES,
   AVISOS_CONTACTO, CONTACTOS, OPCIONES_AREA_EN_TAREAS, PRIORIDADES, PROCESOS, PROCESOS_POR_AREA,
   RESERVAS, ROLES, SALAS, STAFF, VALORES_CAMPOS
 } from './datos.js'
 
 const PUERTO = Number(process.env.PORT ?? 3001)
+
+/**
+ * Todos los Espacios que EXISTEN, incluidos los de una Licitacion.
+ *
+ * El listado de Proyectos sigue recorriendo `ESPACIOS` —la licitacion abierta no pertenece a ese
+ * listado, igual que en la API—, pero pedir uno por id, crear una Tarea ahi o leer sus tipos tiene
+ * que funcionar: eso es lo que hace la seccion de Licitaciones, que consume `/projects/{id}` con el
+ * id de la licitacion.
+ */
+const ESPACIOS_EXISTENTES = [...ESPACIOS, ...ESPACIOS_DE_LICITACION]
+
 /** Un tipo por espacio permite comprobar pertenencia sin duplicar catálogos de producción. */
-const TIPOS_PROCESO = ESPACIOS.map((espacio) => ({
+const TIPOS_PROCESO = ESPACIOS_EXISTENTES.map((espacio) => ({
   id: espacio.id, project_id: espacio.id, name: 'General', label_color: '#64748b',
   text_color: '#ffffff', order: 1, eta_dias: null
 }))
@@ -269,6 +280,21 @@ const CONSULTA_PROCESOS = {
   busqueda: ['name']
 }
 
+/**
+ * Los cortes del listado de Licitaciones que usa el panel.
+ *
+ * `estado` es el unico que hace falta hoy: el selector del alta pide `filter[estado]=abierta`. La
+ * busqueda va por empresa y por nombre del Espacio, como en la API.
+ */
+const CONSULTA_LICITACIONES = {
+  filtros: {
+    estado: coincideEnLista((l) => l.estado),
+    prospecto_id: coincideEnLista((l) => l.prospecto_id)
+  },
+  orden: ['creada_en', 'company'],
+  busqueda: ['company']
+}
+
 const CONSULTA_ESPACIOS = {
   filtros: {
     status: coincideEnLista((e) => e.status),
@@ -464,7 +490,7 @@ function crearProceso (entrada, autor) {
       detalles.rel_type = ['no_valido']
     } else {
       relId = Number(entrada.rel_id)
-      const encontrado = (relType === 'project' ? ESPACIOS : CLIENTES).find((f) => f.id === relId)
+      const encontrado = (relType === 'project' ? ESPACIOS_EXISTENTES : CLIENTES).find((f) => f.id === relId)
       if (!encontrado) detalles.rel_id = ['no_existe']
       else if (relType === 'project') espacio = encontrado
     }
@@ -5861,6 +5887,33 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
     return { estado: 200, cuerpo: conDatos(presentarActa(acta, { conContenido: true })) }
   }
 
+  /*
+   * `GET /licitaciones`: el listado de la seccion comercial.
+   *
+   * Existe en el mock porque el selector del alta de Tarea lo pide (`cargarEspaciosDestino`): los
+   * Espacios de una licitacion abierta no salen en `GET /projects` y sin esta ruta no hay forma de
+   * ver el grupo "Licitaciones" contra el mock. Sirve solo el listado —la ficha de la seccion no se
+   * prueba aca— y por eso cualquier subrecurso cae al 404 del final.
+   */
+  if (recurso === 'licitaciones' && metodo === 'GET' && resto.length === 0) {
+    exigirPermiso(actual, 'projects', 'view')
+    const { filas, paginacion } = aplicarConsulta(LICITACIONES, parametros, CONSULTA_LICITACIONES)
+
+    return { estado: 200, cuerpo: conDatos(filas, { pagination: paginacion }) }
+  }
+
+  /*
+   * `GET /licitaciones/{id}`: la ficha. Igual que el listado pero con el Espacio completo, que es lo
+   * que monta las pestañas de trabajo —Tareas entre ellas— con el id de la licitacion.
+   */
+  if (recurso === 'licitaciones' && metodo === 'GET' && resto.length === 1) {
+    exigirPermiso(actual, 'projects', 'view')
+    const licitacion = buscarO404(LICITACIONES, Number(resto[0]), 'licitacion')
+    const espacio = ESPACIOS_DE_LICITACION.find((fila) => fila.id === licitacion.id)
+
+    return { estado: 200, cuerpo: conDatos({ ...licitacion, espacio: presentarEspacio(espacio, []) }) }
+  }
+
   if (recurso === 'projects' && (metodo === 'GET' || (metodo === 'PATCH' && resto[1] === 'milestones' && resto[2] === 'orden'))) {
     exigirPermiso(actual, 'projects', 'view')
     const includes = leerIncludes(parametros, ['custom_fields', 'members'])
@@ -5875,7 +5928,9 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
       }
     }
 
-    const espacio = buscarO404(ESPACIOS, Number(resto[0]), 'espacio')
+    // Por id se busca entre TODOS los Espacios: la ficha de una Licitacion pide `/projects/{id}`
+    // con un id que el listado de arriba no devuelve.
+    const espacio = buscarO404(ESPACIOS_EXISTENTES, Number(resto[0]), 'espacio')
     const [, subrecurso] = resto
 
     if (!subrecurso) {
