@@ -250,7 +250,10 @@ export function fuenteDelPortal (proyectoId: number): FuenteDeProyecto {
     acta: `${raiz}/actas/:id`,
     actaTraduccion: `${raiz}/actas/:id/traducciones`,
     actaTareas: null,
-    resumenDeTareas: null,
+    // Los contadores por estado de la ficha, los mismos que el panel: la pantalla es la misma y la
+    // arma el mismo componente. Cuelga de la pestaña Tareas, asi que un Proyecto que no comparte su
+    // lista tampoco publica los numeros de esa lista.
+    resumenDeTareas: `${raiz}/tasks/summary`,
     camposDeTareas: null,
     dependenciasDeTareas: null
   }
