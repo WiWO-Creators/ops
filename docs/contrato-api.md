@@ -4988,6 +4988,79 @@ El mock expone el contador de iteraciones pero no la lista ni el catálogo: esta
 contra el backend real.
 
 
+## El cierre automático de la jornada
+
+El cron cierra sola la jornada de quien se olvidó de cerrarla, a la hora de corte de su propio día
+(`wiwo_live_hora_cierre`, `20:00` por defecto), y con ella detiene sus cronómetros. Quien todavía
+está trabajando a esa hora pierde el resto de la tarde y tiene que volver a abrir todo. `closing` es
+lo que le da a la interfaz con qué avisar antes de que eso pase, y `POST /me/jornada/prorroga` es la
+salida que el aviso ofrece.
+
+**Por qué la prórroga vive en el servidor y no en el navegador.** Porque el que cierra la jornada es
+el cron, no la pantalla. Un aviso que sólo se pospusiera a sí mismo —un temporizador que vuelve a
+preguntar en media hora— dejaría a la persona tranquila mientras el cron le cierra el día igual tres
+minutos después. La prórroga tiene que quedar escrita del lado de la API, que es donde el cron la
+lee; posponerla en el cliente es exactamente el aviso que miente.
+
+### `closing` — campo nuevo de `GET /me/jornada`
+
+```json
+{ "data": {
+  "open": { "id": 91, "started_at": "…", "note": null, "client": null },
+  "seconds": 27180, "measured_seconds": 21600, "uncovered_seconds": 5580,
+  "over_journey": false, "timer": null,
+  "closing": { "at": "2026-09-21T21:30:00Z", "extension_minutes": 30, "extended": false }
+} }
+```
+
+| Clave | Qué es |
+|---|---|
+| `at` | El instante ISO en que **esta** jornada se cierra sola: la hora de corte de su día de inicio, o la prórroga si quedó más tarde |
+| `extension_minutes` | Cuánto suma cada prórroga, para que el aviso pueda ofrecer "media hora más" sin conocer la opción del servidor |
+| `extended` | `true` si esta jornada ya se prorrogó al menos una vez. Distingue el corte normal del que la propia persona ya movió: la primera vez el aviso pregunta, y de ahí en adelante recuerda |
+
+`closing` es **`null`** con el cierre automático apagado (`wiwo_live_cierre_automatico`) y también
+cuando no hay jornada abierta. Sin interruptor no hay cierre que anunciar: la pantalla que reciba
+`null` **no dibuja ningún aviso**, y no tiene que deducirlo de la hora. Es el mismo interruptor que
+frena al cron, así que lo que la interfaz muestra y lo que el servidor hace no se pueden separar.
+
+Va al **nivel raíz**, hermano de `open`, `seconds` y `timer`, y **no dentro de `open`** a propósito:
+`open` tiene la misma forma que la jornada que sirve el tablero `GET /live`, donde este dato no
+existe. Meterlo adentro obligaría a las dos pantallas a compartir un tipo con un campo que una de
+ellas no recibe nunca.
+
+### `POST /me/jornada/prorroga` → `200`
+
+**Sin cuerpo.** Corre el cierre automático de la jornada abierta de quien llama y devuelve
+exactamente el mismo objeto que `GET /me/jornada`, ya con el corte nuevo: la pantalla se repinta con
+lo que ya sabe leer y no necesita una segunda petición para enterarse de la hora nueva.
+
+| Situación | Respuesta |
+|---|---|
+| No hay jornada abierta | `404` — `No tienes ninguna jornada abierta que prorrogar.` |
+| El cierre automático está apagado | `409` — `El cierre automático está apagado: tu jornada no se va a cerrar sola.` |
+
+El `409` no es una formalidad: con el interruptor en `'0'` no hay nada que prorrogar, y responder
+`200` escribiría una prórroga contra un cierre que no iba a ocurrir. Es el mismo caso en que
+`closing` viaja en `null`, así que la interfaz que respeta el `null` no llega a pedirlo.
+
+**Cuánto corre el corte lo decide el servidor, no el cliente.** Sale de la opción
+`wiwo_live_prorroga_minutos` (entero, 5..240, `30` por defecto), editable desde `PATCH /settings` en
+el grupo `jornada` junto a `wiwo_live_cierre_automatico` y `wiwo_live_hora_cierre`. No se manda en el
+cuerpo porque un minutaje que llega del navegador convierte el cierre automático en algo que cada
+persona se fija a sí misma. El valor vigente viaja en `closing.extension_minutes`, que es de donde el
+aviso saca el texto del botón.
+
+**Los minutos se cuentan desde el corte vigente, o desde ahora si ese corte ya pasó.** Con corte a
+las 20:00 y media hora de prórroga, pulsar a las 19:45 lleva el cierre a las 20:30 y no a las 20:15:
+sumar siempre desde el reloj le recortaría la prórroga a quien contesta antes de que el corte llegue.
+Y cuando el corte quedó atrás, se suma desde ahora, porque si no la prórroga nacería vencida.
+
+**No hay límite de prórrogas**, y es deliberado: el límite lo pone que haya alguien contestando. Cada
+prórroga exige a una persona frente a la pantalla diciendo que sigue trabajando, que es justo lo que
+el cierre automático quiere comprobar. Un tope de N cerraría la jornada de quien de verdad está
+trabajando, que es el único error que este mecanismo existe para no cometer.
+
 ## Jerarquías del equipo
 
 El árbol de dependencias: `tblareas` (`area_superior_id`, `jefe_staffid`) más `tblstaff.area_id`. No

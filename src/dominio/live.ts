@@ -351,6 +351,31 @@ export function mensajeDeFalloDeJornada (estado: number, abriendo: boolean): str
 }
 
 /**
+ * Por qué no se pudo prorrogar el cierre de la jornada.
+ *
+ * Separado de `mensajeDeFalloDeJornada()` porque los mismos códigos dicen otra cosa acá: el 404 no
+ * es "no existe" sino "tu día ya se cerró", y el 409 no es "ya tienes una abierta" sino "el cierre
+ * automático se apagó mientras tenías el aviso a la vista". Meterlos en la misma función obligaría a
+ * un tercer parámetro para distinguir tres caminos, que es como se llega a mensajes cruzados.
+ *
+ * Los dos casos que no son un error de verdad —el día ya cerrado y el interruptor apagado— se
+ * escriben en indicativo y sin culpar a nadie: en los dos el aviso desaparece a continuación, y lo
+ * único que hace falta es que quien lo estaba leyendo entienda por qué.
+ *
+ * @param estado código HTTP de la respuesta; `0` si la petición no llegó a salir
+ * @returns el mensaje a mostrar; nunca vacío
+ */
+export function mensajeDeFalloDeProrroga (estado: number): string {
+  if (estado === 0) return 'No se pudo contactar al servidor. Revisa la conexión.'
+
+  if (estado === 404) return 'Tu jornada ya está cerrada. Ábrela otra vez si sigues trabajando.'
+
+  if (estado === 409) return 'El cierre automático está apagado: tu jornada ya no se cierra sola.'
+
+  return `No se pudo alargar la jornada (el servidor respondió ${estado}).`
+}
+
+/**
  * Si a esta persona le corresponde el resumen del equipo de las 20:00.
  *
  * Espeja la regla de la API (`Escritura\ResumenDelEquipo`), que responde **403** a quien no manda a

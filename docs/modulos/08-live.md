@@ -136,6 +136,119 @@ Ojo con un detalle del backend: el tiempo agregado a mano se guarda como un tram
 entra en `items` ni en `measured_seconds`. El diálogo lo acusa explícitamente —"quedó registrado
 igual"— para que nadie lo agregue dos veces.
 
+## El cierre automático se avisa, y se puede correr
+
+El cron cierra la jornada a la hora de corte sin preguntarle a nadie, y con ella detiene los
+cronómetros. Quien seguía trabajando a esa hora perdía el resto de la tarde y tenía que volver a
+abrir todo: el aviso previo de la campana —media hora antes— avisaba, pero no ofrecía ninguna salida
+que no fuera cerrar y reabrir a mano. `AvisoDeCierre` es esa salida.
+
+`GET /me/jornada` trae `closing` al **nivel raíz** del estado, hermano de `open`, `seconds` y
+`timer`: `{at, extension_minutes, extended}`. `at` es el instante en que **esta** jornada se cierra
+sola —la hora de corte de su día de inicio, o la prórroga si quedó más tarde—, `extension_minutes` es
+cuánto suma cada "sigo trabajando", y `extended` dice si ya se corrió alguna vez, que es lo único que
+cambia el encabezado del aviso ("Se acabó la prórroga: son las 20:30" en vez de "Son las 20:00").
+
+Viene en **`null`** con el cierre automático apagado y cuando no hay jornada abierta, y es la única
+señal que mira la pantalla para decidir si se dibuja: sin cierre que anunciar no hay nada que avisar.
+Deducir la hora del reloj del navegador sería la misma clase de error que los contadores ya evitan.
+
+Va suelto y no dentro de `open` porque `open` es la forma `JornadaEnVivo` que el tablero `GET /live`
+también sirve, y ahí este dato no existe. El tipo es `CierreProgramado`, en `src/datos/live.ts`.
+
+### El aviso, y por qué trae una cuenta regresiva
+
+`AvisoDeCierre` (`src/componentes/live/AvisoDeCierre.tsx`) sale **en el instante del corte**, no
+antes: una tarjeta flotante en la esquina inferior derecha —en móvil, centrada por encima del botón
+del chat, como el resto de los avisos flotantes del panel— con treinta segundos de cuenta regresiva
+(`SEGUNDOS_DE_GRACIA`), dos botones y una barra de progreso decorativa, que queda fuera del árbol de
+accesibilidad porque el número ya dice lo mismo en texto.
+
+Los dos botones son "Sigo trabajando" —primario, `POST /me/jornada/prorroga`— y "Cerrar jornada"
+—sutil, cierra ya—. El primario va último en la fila: es la respuesta que el aviso espera, y la otra
+la toma el silencio de todas formas.
+
+Es **`role="alert"` con `aria-live="assertive"`**, al revés que `RecordatorioDeDestino`, que es
+`status`. Aquél es un recordatorio que se va solo; acá hay una consecuencia inminente y no reversible
+desde la pantalla —el día se cierra y los cronómetros se detienen—, así que interrumpir a quien usa
+un lector de pantalla es exactamente lo correcto.
+
+**La cuenta regresiva no es impaciencia: es lo que hace que el silencio signifique algo.** El caso
+que hay que resolver bien es el de la persona que **no** está. Un diálogo que espera indefinidamente
+deja la jornada abierta hasta mañana justo cuando nadie la mira, o sea que desactiva el cierre
+automático para todo el mundo salvo para quien se acuerda de cerrarlo. Treinta segundos y no tres,
+porque la frase tiene que poder leerse y decidirse; y no cinco minutos, que ya es un aviso de adorno.
+
+Si el plazo se agota sin respuesta, **es el navegador el que cierra la jornada**
+(`POST /me/jornada/cierre`). El cron sigue siendo la red de seguridad para quien tenga el navegador
+cerrado: la pantalla adelanta el cierre, no lo sustituye.
+
+### Qué congela la cuenta, y qué no
+
+| Congela | No congela |
+|---|---|
+| El foco **dentro** del aviso | El puntero encima |
+| Una petición en vuelo | |
+| Un mensaje de error a la vista | |
+
+El foco dentro es prueba de que hay alguien: quien navega con teclado tarda más en llegar al botón y
+no tiene por qué perder el día por eso. El puntero **no prueba nada** —un ratón se queda donde se lo
+dejaron— y congelar por hover convertiría un escritorio con el cursor olvidado encima en una jornada
+que no se cierra nunca. Un fallo congela por el mismo motivo que el foco: acaba de haber alguien, y
+dejar correr el reloj hacia un cierre que probablemente tampoco va a salir sólo suma un segundo error
+encima del primero.
+
+Congelar no le quita el plazo a nadie: "Sigo trabajando" corre el cierre **de verdad**, en el
+servidor, y es la salida que WCAG 2.2.1 pide para un límite de tiempo.
+
+### El reloj que lo dispara
+
+Lo monta `ControlJornada`, y **sólo la instancia `variante="compacta"`** —la del armazón del panel—,
+por lo mismo que la compuerta de apertura: en `/live` hay dos controles montados leyendo la misma
+jornada, y sin esa guarda saldrían dos avisos idénticos con dos cuentas regresivas, y el primero en
+vencer cerraría el día mientras el otro sigue preguntando.
+
+Es un `setInterval` de un segundo que compara `Date.now()` con `closing.at`, y **no** un `setTimeout`
+hasta la hora: el navegador suspende los temporizadores largos con la pestaña de fondo y se
+dispararía tarde, que es justo el caso de quien dejó el equipo encendido. Comparar el reloj una vez
+por segundo se pone al día solo en cuanto la pestaña vuelve, y este control ya se repinta cada
+segundo por el contador de la jornada.
+
+Cada prórroga cambia `closing.at`, y el aviso se remonta con `key={cierre.at}`. Sin eso React
+reutilizaría el mismo componente y la cuenta seguiría donde la dejó: el segundo aviso nacería en cero
+y cerraría el día en el acto.
+
+No sale por encima de `CierreJornada`: ahí la persona ya está cerrando el día, y preguntarle si sigue
+trabajando encima del formulario donde escribe su comentario es interrumpir la respuesta que ya está
+dando. Y no se pospone ni se guarda en `localStorage`, al revés que la ventana de apertura: una marca
+de "no molestar" sería la persona pidiendo que le cierren el día sin avisar. La única forma de que no
+vuelva a salir es cerrar la jornada, que es justo lo que pregunta.
+
+### Los errores dicen otra cosa acá
+
+`mensajeDeFalloDeProrroga()` (`src/dominio/live.ts`) está aparte de `mensajeDeFalloDeJornada()`
+porque los mismos códigos significan lo contrario en este camino: el **404** no es "no existe" sino
+«tu jornada ya está cerrada», y el **409** no es "ya tienes una abierta" sino «el cierre automático
+está apagado». Los dos se escriben en indicativo y sin culpar a nadie, porque en los dos el aviso
+desaparece a continuación —se vuelve a leer el estado y el reloj lo retira solo— y lo único que hace
+falta es que quien lo estaba leyendo entienda por qué.
+
+Con cualquier otro fallo **el aviso se queda a la vista con el motivo encima**, y la cuenta detenida.
+Es la única pantalla donde la persona puede enterarse de que su "sigo trabajando" no llegó; retirarlo
+igual sería exactamente la mentira que este mecanismo existe para no contar. Por eso el mensaje viaja
+hasta el aviso en vez de quedarse en el cuerpo del control: en la variante compacta ese cuerpo vive
+dentro de un desplegable cerrado, y ahí no lo leería nadie.
+
+### El ajuste
+
+`wiwo_live_prorroga_minutos` (entero, 5..240, `30` de fábrica) decide cuánto corre cada prórroga, y
+se edita desde Ajustes junto a `wiwo_live_cierre_automatico` y `wiwo_live_hora_cierre`. Su etiqueta y
+su ayuda están en `ETIQUETAS_DE_AJUSTES` (`src/dominio/ajustes.ts`).
+
+**El minutaje no viaja en el POST**, que va vacío a propósito: un número que llega del navegador
+convierte el cierre automático en algo que cada persona se fija a sí misma. Lo que la pantalla sabe
+es lo que le dice `closing.extension_minutes`, y con eso escribe el texto del aviso.
+
 ## Un solo control, en la cabecera
 
 `ControlJornada` vive en la cabecera del panel (`src/app/(panel)/layout.tsx`) y es **el único** de toda
@@ -220,7 +333,9 @@ propia vista.
 | `GET` | `/me/jornada/resumen` | en **qué** se fue la jornada abierta, por Espacio y Tarea; **404** si no hay ninguna |
 | `POST` | `/me/jornada/cierre` | `{id, started_at, ended_at, seconds, auto_closed, timers_stopped, comment}`; 409 si no hay |
 | | | Cuerpo opcional `{comment}`: el comentario del día del modal de cierre, máx. 2000 caracteres (422 si se pasa). Sin cuerpo también cierra |
-| `GET` | `/me/jornada` | `{open, seconds, measured_seconds, uncovered_seconds, over_journey, timer}` |
+| `POST` | `/me/jornada/prorroga` | **sin cuerpo**; corre el cierre automático de este día y devuelve el mismo `estado()` que el `GET`, ya con el corte nuevo |
+| | | **404** si no hay jornada abierta, **409** si el cierre automático está apagado. Cuánto corre lo decide el servidor, no quien pulsa |
+| `GET` | `/me/jornada` | `{open, seconds, measured_seconds, uncovered_seconds, over_journey, timer, closing}` |
 | `GET` | `/live` | `{data: [...], meta: {scope}}` |
 | `POST` | `/projects/{id}/timer` | `201`: el medidor de Espacio, la fila con `task_id = 0` y `project_id` lleno |
 | `DELETE` | `/projects/{id}/timer` | `204`; lo detiene |
@@ -291,3 +406,12 @@ camino, y de ésos hay en la base desde antes del módulo.
 `trabajoDeLaFila()`, `cargoYArea()` y `mensajeDeFalloDeMedidor()`. `pruebas/cierre-jornada.test.js`
 cubre el resumen del cierre, y `pruebas/inicio-jornada.test.js` la compuerta de entrada —sobre todo
 que un estado que no se pudo leer **no** bloquee—. El resto es JSX.
+
+Del aviso de cierre: `pruebas/cierre-jornada-prorroga.test.js` cubre `mensajeDeFalloDeProrroga()`
+—los tres códigos que acá significan lo contrario que en el resto de la jornada— y
+`mock/prorroga-jornada.test.js` la ruta contra el mock, sobre todo que el corte se cuente desde el
+corte vigente y no desde ahora. `pruebas/cierre-jornada.browser.mjs` recorre el camino entero en
+navegador —el aviso sale, la cuenta baja, se congela con el foco dentro y la prórroga la reinicia—
+y se corre a mano como el resto de los `.browser.mjs`: el mock acepta
+`MOCK_JORNADA_CIERRE_EN=<segundos>` para poner el corte a unos segundos de abrir la jornada, en vez
+de esperar a la hora real.

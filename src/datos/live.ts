@@ -143,6 +143,26 @@ export interface EstadoDeJornada {
   uncovered_seconds: number
   over_journey: boolean
   timer: MedidorEnVivo | null
+  closing: CierreProgramado | null
+}
+
+/**
+ * Cuándo se cierra sola la jornada abierta, y cuánto la corre cada prórroga.
+ *
+ * Viene en `null` con el cierre automático apagado —el mismo interruptor que frena al cron— y
+ * cuando no hay jornada abierta. Es la única señal que mira el aviso de cierre para decidir si se
+ * dibuja: sin cierre que anunciar no hay nada que avisar.
+ *
+ * Es hermano de `open` y no un campo suyo porque `JornadaEnVivo` es la misma forma que sirve el
+ * tablero del equipo (`GET /live`), donde este dato no existe.
+ */
+export interface CierreProgramado {
+  /** Instante ISO del cierre. Ya incluye la prórroga si la hay. */
+  at: string
+  /** Cuánto suma cada "sigo trabajando", en minutos. Lo decide el servidor, no la pantalla. */
+  extension_minutes: number
+  /** `true` si esta jornada ya se corrió al menos una vez. */
+  extended: boolean
 }
 
 /**

@@ -205,6 +205,10 @@ export const ETIQUETAS_DE_AJUSTES: Record<string, { etiqueta: string, ayuda?: st
     etiqueta: 'Cerrar solas las jornadas que quedaron abiertas',
     ayuda: 'Apagado, una jornada que nadie cerró se queda abierta hasta que la persona la cierre a mano.'
   },
+  wiwo_live_prorroga_minutos: {
+    etiqueta: 'Minutos que suma cada "sigo trabajando"',
+    ayuda: 'A la hora del cierre, a quien tenga la jornada abierta le sale un aviso con 30 segundos para contestar. Si dice que sigue trabajando, su jornada —y sólo la suya— se corre estos minutos, y el aviso vuelve a salir al vencer. Entre 5 y 240; de fábrica, 30.'
+  },
   wiwo_live_hora_cierre: {
     etiqueta: 'Hora del cierre automático (HH:MM)',
     ayuda: 'Rige para toda la empresa, sin excepción por cargo ni modalidad. Cada jornada se cierra a esta hora del día en que empezó, no del día de hoy. Ojo: esto mueve el cierre de jornadas, no el corte de cronómetros del programador, que se cambia en el servidor (OPS_TIMER_CUTOFF_HOUR) y tiene que quedar en la misma hora.'
