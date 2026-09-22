@@ -19,6 +19,7 @@ import {
   altoDeGantt,
   anchoDeGantt,
   contarCompletadasDeGantt,
+  contarFueraDeVentanaDeGantt,
   describirDependencias,
   esZoomGantt,
   filasDeGantt,
@@ -28,6 +29,8 @@ import {
   ocultarCompletadasDeGantt,
   posicionDeHoy,
   rangoDeGantt,
+  recortarGanttAVentana,
+  ventanaDeGantt,
   zoomSugerido,
   type FilaGantt,
   type MarcaGantt,
@@ -72,6 +75,10 @@ import { conConsulta, type FuenteDeProyecto } from '@/dominio/fuente-proyecto'
  * El interruptor y la ficha "Completa" del filtro por estado se apagan entre si. Son dos formas de
  * hablar del mismo estado y, encendidas a la vez, se piden dos cosas incompatibles —solo completadas
  * y ninguna completada— que dejarian el diagrama vacio sin nada que lo explique.
+ *
+ * **Abre en las proximas dos semanas**: la linea de tiempo por defecto va de hoy a trece dias
+ * despues (`ventanaDeGantt`), y solo entran las tareas con algun dia dentro. Ver el proyecto entero
+ * es el control "Ver"; lo que queda fuera de la ventana se anuncia al pie, como las completadas.
  */
 
 /** Parametros con los que el diagrama guarda su estado en la URL. */
@@ -79,8 +86,22 @@ const PARAMETRO = {
   agrupar: 'gantt-agrupar',
   zoom: 'gantt-zoom',
   estado: 'gantt-estado',
-  completadas: 'gantt-completadas'
+  completadas: 'gantt-completadas',
+  ventana: 'gantt-ventana'
 } as const
+
+/**
+ * Valor con el que la URL pide ver el proyecto entero en vez de las proximas dos semanas.
+ *
+ * Sin el parametro se ve la ventana desde hoy: es el valor por defecto y no ensucia el enlace.
+ */
+const VENTANA_TODO = 'todo'
+
+/** Opciones del control "Ver". `semanas` nunca viaja a la URL: es la ausencia del parametro. */
+const OPCIONES_VENTANA = [
+  { valor: 'semanas', etiqueta: 'Próximas 2 semanas' },
+  { valor: VENTANA_TODO, etiqueta: 'Todo el proyecto' }
+]
 
 /**
  * Valor con el que la URL pide esconder las completadas.
@@ -143,8 +164,16 @@ export function PanelGantt ({
   // Todo lo que sigue —rango, escala sugerida, filas, contadores y exportacion— trabaja sobre los
   // grupos ya filtrados: si la linea de tiempo siguiera cubriendo tareas escondidas, el diagrama
   // abriria meses vacios que nadie puede explicar mirando la pantalla.
-  const grupos = ocultarCompletadas ? ocultarCompletadasDeGantt(recibidos) : recibidos
-  const rango = rangoDeGantt(grupos)
+  const sinCompletadas = ocultarCompletadas ? ocultarCompletadasDeGantt(recibidos) : recibidos
+  const verTodo = params.get(PARAMETRO.ventana) === VENTANA_TODO
+  const ventana = verTodo ? null : ventanaDeGantt(hoy)
+  const grupos = ventana === null ? sinCompletadas : recortarGanttAVentana(sinCompletadas, ventana)
+  const fueraDeVentana = ventana === null ? 0 : contarFueraDeVentanaDeGantt(sinCompletadas, ventana)
+  // Con ventana la linea de tiempo es fija aunque las tareas no la llenen: hoy siempre queda a la
+  // izquierda y las dos semanas se leen con la misma escala todos los dias.
+  const rango = ventana === null
+    ? rangoDeGantt(grupos)
+    : grupos.length > 0 ? ventana : null
   const zoomPedido = params.get(PARAMETRO.zoom)
   // El zoom se resuelve acá y no dentro del diagrama porque el archivo exportado tiene que salir en
   // la misma escala que se esta viendo.
@@ -216,6 +245,14 @@ export function PanelGantt ({
         )}
 
         <Segmentado
+          etiqueta="Ver"
+          etiquetaVisible
+          opciones={OPCIONES_VENTANA}
+          activo={verTodo ? VENTANA_TODO : 'semanas'}
+          onElegir={(valor) => { elegir({ [PARAMETRO.ventana]: valor === VENTANA_TODO ? VENTANA_TODO : null }) }}
+        />
+
+        <Segmentado
           etiqueta="Escala"
           etiquetaVisible
           opciones={ZOOMS.map((z) => ({ valor: z, etiqueta: NOMBRE_DE_ZOOM[z] }))}
@@ -257,6 +294,8 @@ export function PanelGantt ({
           hoy={hoy}
           ocultas={ocultarCompletadas ? completadas : 0}
           onMostrarCompletadas={alternarCompletadas}
+          fueraDeVentana={fueraDeVentana}
+          onVerTodo={() => { elegir({ [PARAMETRO.ventana]: VENTANA_TODO }) }}
         />
       )}
     </div>
@@ -425,7 +464,9 @@ function Diagrama ({
   zoom,
   hoy,
   ocultas,
-  onMostrarCompletadas
+  onMostrarCompletadas,
+  fueraDeVentana,
+  onVerTodo
 }: {
   grupos: GrupoGantt[]
   rango: RangoGantt | null
@@ -433,9 +474,27 @@ function Diagrama ({
   hoy: string
   ocultas: number
   onMostrarCompletadas: () => void
+  fueraDeVentana: number
+  onVerTodo: () => void
 }): ReactElement {
   const [caja, anchoCaja] = useAnchoMedido()
   const idResumen = useId()
+
+  if (rango === null && fueraDeVentana > 0) {
+    // Hay trabajo, solo que no cae en las proximas dos semanas: decir "sin fechas" seria falso y la
+    // salida es la vista completa.
+    return (
+      <Vacio
+        titulo="Nada en las próximas 2 semanas"
+        descripcion={`${fraseFueraDeVentana(fueraDeVentana)}.`}
+        accion={(
+          <Boton variante="secundario" tamano="chico" onClick={onVerTodo}>
+            Ver todo el proyecto
+          </Boton>
+        )}
+      />
+    )
+  }
 
   if (rango === null) {
     // Con el interruptor encendido el diagrama puede quedarse sin nada que dibujar porque todo esta
@@ -526,7 +585,7 @@ function Diagrama ({
           </div>
 
           <div className="relative shrink-0" style={{ width: ancho }}>
-            <Escala marcas={marcas} hoy={hoyEnDiagrama} />
+            <Escala marcas={marcas} hoy={hoyEnDiagrama} ancho={ancho} />
 
             <div className="relative" style={{ height: alto }}>
               <Fondo marcas={marcas} filas={filas.length} hoy={hoyEnDiagrama} />
@@ -570,6 +629,7 @@ function Diagrama ({
           </span>
         )}
         {ocultas > 0 && <span>{fraseOcultas(ocultas)}</span>}
+        {fueraDeVentana > 0 && <span>{fraseFueraDeVentana(fueraDeVentana)}</span>}
         {vencidas > 0 && (
           <span className="text-texto-peligro flex items-center gap-1.5">
             <TriangleAlert aria-hidden="true" className="size-3.5" />
@@ -587,6 +647,7 @@ function Diagrama ({
           {formatearFecha(fechaDeDia(rango.fin))}, en escala de {NOMBRE_DE_ZOOM[zoom].toLowerCase()}.
         </p>
         {ocultas > 0 && <p>{fraseOcultas(ocultas)}</p>}
+        {fueraDeVentana > 0 && <p>{fraseFueraDeVentana(fueraDeVentana)}</p>}
         {vencidas > 0 && (
           <p>
             {vencidas === 1
@@ -616,10 +677,16 @@ function Diagrama ({
  * vez y no treinta—; la de abajo nombra cada columna. Es lo que faltaba para saber en que mes cae
  * una barra sin contar cuadraditos.
  *
+ * Si "Hoy" cae pegado al nombre de un periodo —siempre pasa en la vista de las proximas dos semanas,
+ * que abre en hoy— las dos etiquetas se pisarian: entonces "Hoy" viaja dentro de la del periodo.
+ *
  * @param marcas las columnas de la escala
  * @param hoy posicion del dia de hoy en porcentaje, o `null` si queda fuera del diagrama
+ * @param ancho ancho del area de pistas en pixeles, para saber si las etiquetas se tocan
  */
-function Escala ({ marcas, hoy }: { marcas: MarcaGantt[], hoy: number | null }): ReactElement {
+function Escala ({ marcas, hoy, ancho }: { marcas: MarcaGantt[], hoy: number | null, ancho: number }): ReactElement {
+  const pegada = hoy === null ? undefined : marcaPegadaAHoy(marcas, hoy, ancho)
+
   return (
     <div className="border-linea relative border-b" style={{ height: ALTO_ESCALA * 2 }}>
       <div className="relative" style={{ height: ALTO_ESCALA }}>
@@ -632,10 +699,11 @@ function Escala ({ marcas, hoy }: { marcas: MarcaGantt[], hoy: number | null }):
               style={{ left: `${marca.izquierda}%` }}
             >
               {marca.periodo}
+              {marca === pegada && <span className="text-acento-2 font-medium"> · Hoy</span>}
             </span>
           ))}
 
-        {hoy !== null && (
+        {hoy !== null && pegada === undefined && (
           <span
             className="text-acento-2 absolute top-0 -translate-x-1/2 text-xs leading-5 font-medium"
             style={{ left: `${hoy}%` }}
@@ -786,6 +854,42 @@ function fraseOcultas (ocultas: number): string {
   return ocultas === 1
     ? `1 ${GLOSARIO.proceso.singular.toLowerCase()} completada oculta`
     : `${String(ocultas)} ${GLOSARIO.proceso.plural.toLowerCase()} completadas ocultas`
+}
+
+/**
+ * Espacio que ocupa el nombre de un periodo en la escala, en pixeles. "sept 2026" en `text-xs`
+ * semibold ronda los 60; el resto es aire para que "Hoy" no quede rozandolo.
+ */
+const ANCHO_ETIQUETA_PERIODO = 80
+
+/**
+ * Busca el nombre de periodo que taparia la etiqueta "Hoy".
+ *
+ * @param marcas las columnas de la escala
+ * @param hoy posicion del dia de hoy en porcentaje
+ * @param ancho ancho del area de pistas en pixeles
+ * @returns la marca cuyo nombre empieza a menos de `ANCHO_ETIQUETA_PERIODO` a la izquierda de hoy, o
+ *          `undefined` si ninguna choca
+ */
+function marcaPegadaAHoy (marcas: MarcaGantt[], hoy: number, ancho: number): MarcaGantt | undefined {
+  return marcas.find((marca) => {
+    if (marca.periodo === null) return false
+    const distancia = ((hoy - marca.izquierda) / 100) * ancho
+
+    return distancia >= 0 && distancia < ANCHO_ETIQUETA_PERIODO
+  })
+}
+
+/**
+ * Aviso de las tareas que no caen en las proximas dos semanas.
+ *
+ * @param fuera cuantas tareas distintas quedan fuera; siempre mayor que cero cuando se llama
+ * @returns el texto ya conjugado en singular o en plural, sin punto final
+ */
+function fraseFueraDeVentana (fuera: number): string {
+  return fuera === 1
+    ? `1 ${GLOSARIO.proceso.singular.toLowerCase()} fuera de las próximas 2 semanas`
+    : `${String(fuera)} ${GLOSARIO.proceso.plural.toLowerCase()} fuera de las próximas 2 semanas`
 }
 
 /**
