@@ -6635,6 +6635,121 @@ ni duplicar tareas que alguien ya confirmó. `422` sin `acta_id`.
 Para el agente (Thinking Orb): `tareas_propuestas_del_acta` las lee y `crear_tareas_del_acta` las
 convierte proponiendo un plan que elige **ids**, no campos, y que exige `tasks.create`.
 
+### Rama `feat/solicitud-de-eliminacion`
+
+Pedir que un Espacio se dé de baja, sin poder darlo de baja. Migración **0850**
+(`tblapi_solicitud_eliminacion_proyecto`). Quien trabaja en un Espacio que ya no va escribe un motivo;
+un administrador aprueba o rechaza, con su texto y su fecha.
+
+**Aprobar archiva, no borra.** La aprobación marca el Espacio como archivado —la misma columna
+`archivado` del listado— y cierra la solicitud. Borrar de verdad sigue siendo `DELETE /projects/{id}`
+con su papelera y sus permisos de siempre: un clic de la bandeja no puede llevarse las tareas, las
+horas y los adjuntos de un Espacio entero.
+
+**Es un historial, con una sola viva.** Un Espacio puede acumular solicitudes a lo largo del tiempo y
+tener **una sola pendiente**; lo garantiza un índice único sobre una columna generada, no el código,
+así que dos clics simultáneos no pueden dejar dos pendientes. Los estados son `pendiente`,
+`aprobada`, `rechazada` y `cancelada`, y ninguna fila resuelta se borra.
+
+#### La forma de una solicitud
+
+```json
+{
+  "id": 12,
+  "project_id": 7,
+  "estado": "pendiente",
+  "pendiente": true,
+  "motivo": "El cliente canceló el contrato",
+  "solicitado_por": { "id": 183, "full_name": "Ana Leiva", "profile_image_url": null },
+  "solicitado_en": "2026-09-22T10:00:00-03:00",
+  "respuesta": null,
+  "resuelto_por": null,
+  "resuelto_en": null
+}
+```
+
+`pendiente` es `estado === "pendiente"` ya resuelto por el servidor: la pantalla pregunta una cosa y
+no tres. `resuelto_por` tiene la misma forma que `solicitado_por` —objeto de persona, no un id— en
+cuanto alguien responde.
+
+**En la bandeja se agrega `project`**: `{"id": 7, "name": "…", "archived": false}`. En el historial de
+un Espacio ese bloque **no viaja**: quien lo pidió está parado en ese Espacio y ya sabe de cuál habla.
+
+#### `deletion_request` en `GET /projects` y `GET /projects/{id}`
+
+Cada Espacio trae la clave `deletion_request`: el objeto de arriba si hay una solicitud **viva**, o
+`null`. **No viaja el historial**, sólo la viva: la lista sólo necesita saber si este Espacio ya está
+pedido.
+
+**No sale al portal del cliente** —usa otro presentador—. Que el equipo esté pidiendo dar de baja un
+Espacio es una conversación interna.
+
+#### `POST /projects/{id}/actions/request-deletion` → `201`
+
+`{"motivo": "El cliente canceló el contrato"}`. Devuelve la lista de solicitudes del Espacio y
+`meta.created_id` con la recién creada.
+
+**El guard es ver el Espacio. No exige `projects.edit`, y ese es el punto de la rama**: quien tiene
+el permiso de edición ya puede archivar por su cuenta y no necesita pedir nada; el canal es para
+quien no lo tiene. Pedir no cambia el Espacio, escribe una fila que otro responde.
+
+| Situación | Código |
+|---|---|
+| El Espacio no existe o no es visible para quien pide | `404` |
+| El Espacio ya está archivado, o ya tiene una pendiente | `409` |
+| `motivo` ausente, vacío o de más de 1000 caracteres | `422` |
+| La migración 0850 no corrió en esa base | `409` |
+
+#### `GET /projects/{id}/deletion-requests` → `200`
+
+El historial del Espacio, de la más reciente a la más vieja. **No pagina**: son unas pocas filas por
+Espacio y la pantalla las muestra juntas. Lo lee cualquiera que vea el Espacio — saber que ya hay una
+pendiente y quién la pidió es lo que evita la segunda.
+
+#### `DELETE /projects/{id}/deletion-requests` → `200`
+
+Retira la pendiente. `{"data": {"id": 12}}`.
+
+**Sólo quien la pidió, o un administrador.** Quien se equivocó de Espacio tiene que poder sacar su
+pedido sin molestar a nadie. `403` si la solicitud es de otra persona, `404` si no hay ninguna
+pendiente.
+
+#### `GET /deletion-requests` → `200`
+
+La bandeja, paginada. **Sólo administradores** — `403`, no `404`: la ruta no es un secreto, la lista
+sí.
+
+Por defecto muestra **sólo las pendientes**; `filter[estado]` cambia el recorte. El orden por defecto
+es `solicitado_en` **ascendente**, al revés que casi todos los listados de esta API: una solicitud sin
+responder no es una novedad, es alguien esperando, y el que más lleva espera va arriba.
+
+`filter[]`: `id`, `project_id`, `estado`, `solicitado_por`, `resuelto_por`, `solicitado_en`, más
+`date_from`/`date_to`. `q` busca en el **motivo** y en el **nombre del Espacio**, que es lo que quien
+abre la bandeja recuerda del pedido.
+
+`GET /deletion-requests/{id}` devuelve una sola, con las mismas puertas.
+
+#### `POST /deletion-requests/{id}/actions/approve` y `.../reject` → `200`
+
+Las dos devuelven la solicitud ya resuelta. `approve` archiva el Espacio y la cierra como `aprobada`;
+`reject` la cierra como `rechazada` y **no toca el Espacio**.
+
+| Clave | Aprobar | Rechazar |
+|---|---|---|
+| `respuesta` | opcional | **obligatoria** (`422` sin ella) |
+
+Aprobar ya es una respuesta: el Espacio desapareció de la lista y quien pidió lo ve. Un "no" sin
+motivo deja a la persona donde empezó, sin saber si insistir.
+
+Las dos son **sólo administradores** (`403`), y una solicitud ya resuelta es `409`: responder dos
+veces reescribiría quién la resolvió y cuándo.
+
+#### Sin la migración 0850
+
+Los siete endpoints responden `409` con un mensaje que **nombra la migración**, y `deletion_request`
+sale `null` en el listado de Espacios, que sigue funcionando entero. Una base atrasada deja la feature
+apagada, no la pantalla rota — como el bloqueo de Procesos.
+
 
 ## Tiempo real
 

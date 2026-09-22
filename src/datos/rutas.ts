@@ -43,6 +43,11 @@ const PREFIJOS_PERMITIDOS = [
   // por el mismo motivo que `licitaciones`. **No esta en la lista del portal y no debe estarlo**:
   // un upsell abierto es justamente lo que el cliente no tiene que ver.
   'upsells',
+  // Bandeja de solicitudes de eliminacion de Proyecto. Prefijo propio y no bajo `projects` porque
+  // la pregunta que contesta es transversal —que Proyectos me estan pidiendo eliminar—: colgada de
+  // un Proyecto habria que saber de antemano cual, que es justo lo que el admin no sabe. Pedir y
+  // retirar SI cuelgan de `projects/{id}`, y esos los cubre la entrada de arriba.
+  'deletion-requests',
   // Plantillas de Espacio. Prefijo propio y no bajo `projects` porque la API las cuelga de su propia
   // raiz: `POST /projects/from-template` devuelve un Espacio y por eso vive alla, pero el CRUD de la
   // plantilla es `/project-templates`.

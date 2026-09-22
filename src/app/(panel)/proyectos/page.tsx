@@ -1,14 +1,17 @@
 import { Suspense } from 'react'
+import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { VistaEspacios } from '@/componentes/proyecto/TarjetasProyectos'
 import { Cargando } from '@/componentes/estado/Estados'
 import { TituloModulo } from '@/componentes/estructura/TituloModulo'
 import { RUTA_DE_ASIGNABLES } from '@/datos/asignables'
 import { construirConsulta, leerConsulta, paramsDeUrl } from '@/datos/consulta'
+import { ErrorApi } from '@/datos/errores'
 import { cargarLookups, opcionesDeFiltros } from '@/datos/lookups'
 import { pedir, pedirOpcional } from '@/datos/servidor'
 import type {
   CampoPersonalizadoMeta,
+  SolicitudDeEliminacion,
   ClienteMinimo,
   EstadisticaEstado,
   Espacio,
@@ -36,6 +39,31 @@ const TOPE_DE_OPCIONES = 500
 /** Opciones de un selector a partir de una lista de la API. */
 function opcionesDe<T> (lista: T[] | null, valor: (item: T) => string, etiqueta: (item: T) => string): OpcionFiltro[] {
   return (lista ?? []).map((item) => ({ valor: valor(item), etiqueta: etiqueta(item) }))
+}
+
+/**
+ * Cuantos pedidos de eliminacion esperan decision, o 0 si no se pudieron contar.
+ *
+ * `per_page=1` porque lo unico que se usa es el total: traer las filas seria pagar una pagina de
+ * datos para pintar un numero. No usa `pedirOpcional` porque ese devuelve `data` y descarta `meta`,
+ * que es justo donde viaja el total.
+ *
+ * El fallo se traga y devuelve 0 a proposito: una base sin la migracion 0850 contesta 409 acá, y un
+ * contador que no se pudo leer no puede dejar el listado de Proyectos en blanco. Con 0 el aviso no
+ * se dibuja, que es exactamente lo que corresponde cuando no se sabe si hay algo.
+ */
+async function contarPendientes (): Promise<number> {
+  try {
+    const lista = await pedir<SolicitudDeEliminacion[]>(
+      '/deletion-requests?filter[estado]=pendiente&per_page=1'
+    )
+
+    return lista.meta?.pagination?.total ?? 0
+  } catch (error) {
+    if (error instanceof ErrorApi) return 0
+
+    throw error
+  }
 }
 
 /**
@@ -95,9 +123,25 @@ export default async function EspaciosPage (props: PageProps<'/proyectos'>) {
     task_statuses: opcionesDe(lookups.task_statuses, (e) => String(e.id), (e) => e.name)
   }
 
+  const cuantasPendientes = yo.data.is_admin ? await contarPendientes() : 0
+
   return (
     <section className="flex flex-col gap-4">
-      <TituloModulo titulo={ESPACIOS.titulo.plural} />
+      <TituloModulo
+        titulo={ESPACIOS.titulo.plural}
+        acciones={yo.data.is_admin && cuantasPendientes > 0
+          ? (
+            <Link
+              href="/proyectos/solicitudes"
+              className="rounded-control border border-relleno-peligro px-3 py-1.5 text-sm text-texto-peligro"
+            >
+              {cuantasPendientes === 1
+                ? '1 eliminación por resolver'
+                : `${cuantasPendientes} eliminaciones por resolver`}
+            </Link>
+            )
+          : undefined}
+      />
 
       <Suspense fallback={<Cargando alto="min-h-36" mensaje={`Cargando ${ESPACIOS.titulo.plural.toLowerCase()}…`} />}>
         <VistaEspacios

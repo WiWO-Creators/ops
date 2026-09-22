@@ -16,6 +16,7 @@ import { mensajeDeRespuesta } from '@/datos/cliente'
 import { GLOSARIO } from '@/dominio/glosario'
 import { FormularioRecurso } from './FormularioRecurso'
 import { ImportarTareas } from './ImportarTareas'
+import { DistintivoSolicitud, SolicitarEliminacion } from './SolicitudDeEliminacion'
 import type { CampoFormulario } from './formulario'
 import type { Espacio } from '@/datos/recursos'
 import type { Capacidad } from '@/datos/tipos'
@@ -46,6 +47,13 @@ interface PropsMenuProyecto {
    * ahi la prop no viaja y el item no se pinta.
    */
   esMiembro?: boolean
+  /**
+   * Quien mira, para decidir si puede retirar la solicitud de eliminacion pendiente. Opcional por
+   * lo mismo que `esMiembro`: `/licitaciones/{id}` monta esta cabecera y ahi la accion no aplica.
+   */
+  miStaffId?: number
+  /** Si quien mira es administrador: un admin puede retirar la solicitud de cualquiera. */
+  esAdmin?: boolean
 }
 
 /** Campos editables de un Espacio, exactamente los que acepta `PATCH /projects/{id}`. */
@@ -81,7 +89,9 @@ export function MenuProyecto ({
   proyecto,
   capacidades,
   capacidadesTareas,
-  esMiembro = false
+  esMiembro = false,
+  miStaffId,
+  esAdmin = false
 }: PropsMenuProyecto): ReactElement {
   const router = useRouter()
   const [editando, setEditando] = useState(false)
@@ -91,6 +101,7 @@ export function MenuProyecto ({
   const [importando, setImportando] = useState(false)
   const [saliendo, setSaliendo] = useState(false)
   const [cambiandoVisibilidad, setCambiandoVisibilidad] = useState(false)
+  const [solicitando, setSolicitando] = useState(false)
   const [enCurso, setEnCurso] = useState(false)
   const [fallo, setFallo] = useState<string | null>(null)
 
@@ -99,6 +110,17 @@ export function MenuProyecto ({
   const puedeBorrar = capacidades.includes('delete')
   const puedeImportar = capacidadesTareas.includes('create')
   const archivado = proyecto.archived
+  const solicitud = proyecto.deletion_request ?? null
+
+  /**
+   * Pedir la eliminacion es para quien NO puede archivar: quien tiene `edit` archiva y no pide
+   * nada. Con el Proyecto ya archivado tampoco se ofrece — el backend contesta 409 y no hay nada
+   * que pedir.
+   *
+   * Si ya hay una solicitud viva el item sigue estando, pero abre el dialogo en modo lectura: es
+   * donde quien la escribio relee su motivo y la retira si se equivoco.
+   */
+  const puedePedirEliminacion = !puedeEditar && !archivado
 
   /**
    * Archiva o desarchiva el proyecto.
@@ -298,6 +320,17 @@ export function MenuProyecto ({
             </>
           )}
 
+          {puedePedirEliminacion && (
+            <>
+              <SeparadorMenu />
+              <ItemMenu onSelect={() => { setSolicitando(true) }}>
+                {solicitud !== null && solicitud.pendiente
+                  ? 'Ver la solicitud de eliminación'
+                  : 'Solicitar eliminación'}
+              </ItemMenu>
+            </>
+          )}
+
           {puedeBorrar && (
             <>
               <SeparadorMenu />
@@ -318,6 +351,10 @@ export function MenuProyecto ({
           Archivado
         </span>
       )}
+
+      {/* El pedido pendiente se anuncia en la cabecera y no solo dentro del menu: quien llega por un
+          enlace directo tiene que enterarse de que este Proyecto esta esperando una decision. */}
+      <DistintivoSolicitud solicitud={solicitud} />
 
       {fallo !== null && <span role="alert" className="text-texto-peligro text-xs">{fallo}</span>}
 
@@ -350,6 +387,16 @@ export function MenuProyecto ({
           members: true
         }}
         onGuardado={() => { router.push('/proyectos') }}
+      />
+
+      <SolicitarEliminacion
+        proyectoId={proyecto.id}
+        proyectoNombre={proyecto.name}
+        solicitud={solicitud}
+        puedeRetirar={esAdmin || (miStaffId !== undefined && solicitud?.solicitado_por?.id === miStaffId)}
+        abierto={solicitando}
+        onAbiertoCambia={setSolicitando}
+        onCambio={() => { router.refresh() }}
       />
 
       <ImportarTareas
