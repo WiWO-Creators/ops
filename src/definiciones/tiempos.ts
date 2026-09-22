@@ -65,8 +65,8 @@ export const TIEMPOS: DefinicionRecurso<RegistroTiempo> = {
  * Las columnas de la tabla de horas, en el orden en que se dibujan.
  *
  * La tabla es a medida —avatar, insignias y botones por fila— asi que no sale de `columnas`, pero
- * **cuales existen sigue siendo propiedad del contrato**: sin esta lista, la tabla del cliente
- * dibujaba una columna "Etiquetas" siempre vacia y una "Hora (decimal)" que no llega.
+ * **cuales existen sigue siendo propiedad del contrato**: una columna que el contrato del sujeto no
+ * emite se dibujaria siempre vacia.
  */
 export const COLUMNAS_DE_TIEMPO = [
   'staff', 'task', 'tags', 'start_time', 'end_time', 'note', 'hm', 'decimal', 'acciones'
@@ -74,9 +74,20 @@ export const COLUMNAS_DE_TIEMPO = [
 
 export type ColumnaDeTiempo = typeof COLUMNAS_DE_TIEMPO[number]
 
-/** Las columnas que el contrato del contacto **si** emite (ver `TiempoPortal`). */
+/**
+ * Las columnas que el contrato del contacto **si** emite.
+ *
+ * Son las del equipo menos `acciones`, que son escrituras y el portal es de solo lectura.
+ *
+ * `tags` y `decimal` estuvieron fuera de esta lista, con un comentario que decia que la columna
+ * Etiquetas salia «siempre vacia» y que la Hora decimal «no llega». Dejo de ser cierto y nadie
+ * reviso el comentario: `RecursoTimesheets::paraContacto()` poda con `FormasDelPortal::TIMESHEETS`,
+ * que declara `tags` y `duration_decimal`. Medido contra la API, no deducido —`GET
+ * /portal/projects/32/timesheets` devuelve las dos claves en cada fila—, asi que las dos columnas
+ * vuelven: el cliente veia dos columnas menos que un colaborador sobre exactamente los mismos datos.
+ */
 const COLUMNAS_DE_TIEMPO_DEL_CONTACTO: readonly ColumnaDeTiempo[] = [
-  'staff', 'task', 'start_time', 'end_time', 'note', 'hm'
+  'staff', 'task', 'tags', 'start_time', 'end_time', 'note', 'hm', 'decimal'
 ]
 
 /** Que ofrece la pestaña Tiempos segun de que contrato bajen los datos. */

@@ -16,17 +16,31 @@ import {
   type RaizDeAdjuntos
 } from '@/definiciones/archivos'
 import type { ArchivoProyecto } from '@/datos/recursos'
+import type { FuenteDeProyecto } from '@/dominio/fuente-proyecto'
 
 /**
  * Pestaña Archivos del Espacio: el arbol de Drive arriba, los adjuntos del panel abajo.
  *
  * Son dos almacenes distintos y por eso se muestran los dos. Drive (`tblwiwo_drive_*`) es el camino
- * nuevo; los adjuntos (`tblfiles`) son los que ya existian, y esconderlos no los borra: solo los
- * vuelve inalcanzables desde la ficha.
+ * nuevo; los adjuntos (`tblproject_files`) son los que ya existian, y esconderlos no los borra: solo
+ * los vuelve inalcanzables desde la ficha.
+ *
+ * **El cliente ve solo la mitad de abajo, y no es un recorte del dibujo.** Los adjuntos ya tienen
+ * `visible_to_customer` por archivo, asi que su ruta del portal sirve exactamente los que el equipo
+ * marco; Drive no tiene ese interruptor —ni una ruta del portal— y montarle el arbol al cliente le
+ * abriria la carpeta entera del Espacio, con lo que nadie decidio compartirle adentro. Publicar
+ * Drive al cliente es una decision de producto con su propio contrato, no una paridad de pantalla.
  *
  * @param proyectoId el proyecto que se esta mirando
+ * @param fuente de donde bajan los datos; sin ella se asume el contrato del equipo
  */
-export function PanelArchivos ({ proyectoId }: { proyectoId: number }): ReactElement {
+export function PanelArchivos (
+  { proyectoId, fuente }: { proyectoId: number, fuente?: FuenteDeProyecto }
+): ReactElement {
+  if (fuente?.sujeto === 'portal') {
+    return <PanelAdjuntos raiz="projects" id={proyectoId} ruta={fuente.archivos} puedeBorrar={false} />
+  }
+
   return (
     <div className="flex flex-col gap-6">
       <ArbolDrive raiz="projects" id={proyectoId} />
@@ -40,6 +54,22 @@ interface PropsPanelAdjuntos {
   raiz: RaizDeAdjuntos
   /** Id de esa entidad, no el del archivo. */
   id: number
+  /**
+   * De donde se listan, si no es la ruta del equipo.
+   *
+   * El portal sirve los MISMOS adjuntos por otra ruta: `RecursoArchivos::deEspacio()` es una sola
+   * funcion y emite una sola forma —`external`, `url` y `thumbnail_url` incluidos—; lo unico que
+   * cambia es un `visible_to_customer = 1` en el `WHERE`. Por eso la tabla se comparte entera en vez
+   * de copiarse.
+   */
+  ruta?: string
+  /**
+   * Si se ofrece eliminar cada adjunto.
+   *
+   * `false` para el contacto: el portal es de solo lectura por construccion —su guarda rechaza todo
+   * lo que no sea GET antes de mirar la ruta—, asi que el boton solo podria fallar.
+   */
+  puedeBorrar?: boolean
 }
 
 /** Estado de la carga. El error es un texto listo para mostrar, no un envelope. */
@@ -60,8 +90,10 @@ type Carga =
  *
  * El borrado saca la fila del listado sin volver a pedir nada.
  */
-export function PanelAdjuntos ({ raiz, id }: PropsPanelAdjuntos): ReactElement {
-  const ruta = rutaDeAdjuntos(raiz, id)
+export function PanelAdjuntos (
+  { raiz, id, ruta: rutaPropia, puedeBorrar = true }: PropsPanelAdjuntos
+): ReactElement {
+  const ruta = rutaPropia ?? rutaDeAdjuntos(raiz, id)
   const [carga, setCarga] = useState<Carga>({ fase: 'cargando' })
   const [intento, setIntento] = useState(0)
 
@@ -93,7 +125,11 @@ export function PanelAdjuntos ({ raiz, id }: PropsPanelAdjuntos): ReactElement {
     <section className="flex flex-col gap-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h4 className="text-texto-tenue text-sm font-semibold">Adjuntos</h4>
-        <p className="text-texto-sutil text-xs">Solo lectura: los archivos nuevos van a Drive.</p>
+        {/* A quien no puede borrar no se le explica por que: "los archivos nuevos van a Drive" es
+            una nota para el equipo sobre donde trabaja, y al cliente no le dice nada de lo suyo. */}
+        {puedeBorrar && (
+          <p className="text-texto-sutil text-xs">Solo lectura: los archivos nuevos van a Drive.</p>
+        )}
       </div>
 
       {carga.fase === 'cargando' && <Cargando mensaje="Cargando adjuntos…" />}
@@ -105,7 +141,14 @@ export function PanelAdjuntos ({ raiz, id }: PropsPanelAdjuntos): ReactElement {
       {carga.fase === 'listo' && (
         carga.archivos.length === 0
           ? <p className="text-texto-tenue text-sm">Todavía no tiene adjuntos.</p>
-          : <TablaAdjuntos ruta={ruta} archivos={carga.archivos} onEliminado={quitar} />
+          : (
+            <TablaAdjuntos
+              ruta={ruta}
+              archivos={carga.archivos}
+              puedeBorrar={puedeBorrar}
+              onEliminado={quitar}
+            />
+            )
       )}
     </section>
   )
@@ -113,9 +156,10 @@ export function PanelAdjuntos ({ raiz, id }: PropsPanelAdjuntos): ReactElement {
 
 /** La grilla de adjuntos: las columnas de `ARCHIVOS` mas la de acciones. */
 function TablaAdjuntos (
-  { ruta, archivos, onEliminado }: {
+  { ruta, archivos, puedeBorrar, onEliminado }: {
     ruta: string
     archivos: ArchivoProyecto[]
+    puedeBorrar: boolean
     onEliminado: (archivoId: number) => void
   }
 ): ReactElement {
@@ -138,7 +182,7 @@ function TablaAdjuntos (
               </CeldaTabla>
             ))}
             <CeldaTabla>
-              <Acciones ruta={ruta} archivo={archivo} onEliminado={onEliminado} />
+              <Acciones ruta={ruta} archivo={archivo} puedeBorrar={puedeBorrar} onEliminado={onEliminado} />
             </CeldaTabla>
           </FilaTabla>
         ))}
@@ -178,9 +222,10 @@ function Origen ({ archivo }: { archivo: ArchivoProyecto }): ReactElement {
  * bajar; su enlace ya esta en la columna de origen.
  */
 function Acciones (
-  { ruta, archivo, onEliminado }: {
+  { ruta, archivo, puedeBorrar, onEliminado }: {
     ruta: string
     archivo: ArchivoProyecto
+    puedeBorrar: boolean
     onEliminado: (archivoId: number) => void
   }
 ): ReactElement {
@@ -221,16 +266,18 @@ function Acciones (
         </a>
       )}
 
-      <Boton
-        variante="sutil"
-        tamano="chico"
-        soloIcono
-        cargando={eliminando}
-        aria-label={`Eliminar ${nombre}`}
-        onClick={() => { void eliminar() }}
-      >
-        <Trash2 className="size-3.5" aria-hidden="true" />
-      </Boton>
+      {puedeBorrar && (
+        <Boton
+          variante="sutil"
+          tamano="chico"
+          soloIcono
+          cargando={eliminando}
+          aria-label={`Eliminar ${nombre}`}
+          onClick={() => { void eliminar() }}
+        >
+          <Trash2 className="size-3.5" aria-hidden="true" />
+        </Boton>
+      )}
 
       {error !== null && <p role="alert" className="text-texto-peligro w-full text-right text-xs">{error}</p>}
     </div>

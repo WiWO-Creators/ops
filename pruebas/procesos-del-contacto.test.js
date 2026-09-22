@@ -252,19 +252,39 @@ test('la tabla de Discusiones del contacto no publica la visibilidad al cliente'
   assert.equal(contacto.busqueda, true)
 })
 
-test('la tabla de Tiempos del contacto pierde las columnas y los filtros que su contrato no tiene', () => {
+test('la tabla de Tiempos del contacto solo pierde las escrituras', () => {
   const equipo = definicionDeTiempos(FUENTE_DEL_PANEL, 7)
   const contacto = definicionDeTiempos(FUENTE_DEL_PORTAL, 7)
 
   assert.equal(equipo.definicion.ruta, 'projects/7/timesheets')
   assert.equal(contacto.definicion.ruta, 'portal/projects/7/timesheets')
-  // Etiquetas, duracion decimal y acciones por fila no llegan en el contrato del contacto.
-  for (const columna of ['tags', 'decimal', 'acciones']) {
-    assert.equal(equipo.columnas.includes(columna), true, `el equipo perdio la columna ${columna}`)
-    assert.equal(contacto.columnas.includes(columna), false, `columna colada: ${columna}`)
+
+  // Esta es la premisa, escrita para que se caiga sola si deja de ser cierta.
+  //
+  // `tags` y `decimal` estuvieron fuera de la tabla del cliente con un comentario que decia que la
+  // columna Etiquetas salia «siempre vacia» y que la Hora decimal «no llega». Dejo de ser cierto
+  // —`RecursoTimesheets::paraContacto()` poda con `FormasDelPortal::TIMESHEETS`, que declara `tags`
+  // y `duration_decimal`— y nadie reviso el comentario, asi que el cliente vio dos columnas menos
+  // que un colaborador sobre exactamente los mismos datos.
+  //
+  // El invariante que reemplaza al comentario: la tabla del contacto es la del equipo MENOS las
+  // escrituras. Si manana el contrato del portal deja de emitir una columna, hay que sacarla de
+  // `COLUMNAS_DE_TIEMPO_DEL_CONTACTO` y esta prueba obliga a explicarlo ahi mismo.
+  const ESCRITURAS = ['acciones']
+
+  assert.deepEqual(
+    contacto.columnas,
+    equipo.columnas.filter((c) => !ESCRITURAS.includes(c)),
+    'la tabla del cliente perdio una columna de LECTURA que el contrato del portal si emite'
+  )
+  for (const columna of ['tags', 'decimal']) {
+    assert.equal(contacto.columnas.includes(columna), true, `el cliente perdio la columna ${columna}`)
   }
-  // Las columnas del contacto son un subconjunto del equipo y conservan su orden.
-  assert.deepEqual(contacto.columnas, equipo.columnas.filter((c) => contacto.columnas.includes(c)))
+  for (const columna of ESCRITURAS) {
+    assert.equal(equipo.columnas.includes(columna), true, `el equipo perdio la columna ${columna}`)
+    assert.equal(contacto.columnas.includes(columna), false, `columna de escritura colada: ${columna}`)
+  }
+
   // El filtro por persona sin su catalogo es un desplegable vacio; facturable y facturada son del equipo.
   for (const filtro of ['staff_id', 'billable', 'billed']) {
     assert.equal(contacto.definicion.filtros.some((f) => f.clave === filtro), false, `filtro colado: ${filtro}`)
