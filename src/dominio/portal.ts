@@ -27,9 +27,9 @@ export interface SeccionPortal {
 /**
  * Catalogo completo, en el orden en que se muestra.
  *
- * El orden replica el del menu de Perfex (`add_default_theme_menu_items`): proyectos primero y
- * contenido al final. Los rotulos salen del glosario donde existen, para no tener dos nombres para
- * la misma cosa segun la pantalla.
+ * El orden replica el del menu de Perfex (`add_default_theme_menu_items`): proyectos primero,
+ * soporte y contenido al final. Los rotulos salen del glosario donde existen, para no tener dos
+ * nombres para la misma cosa segun la pantalla.
  */
 const CATALOGO: SeccionPortal[] = [
   // El estado de los {espacios}: como van y que necesita algo del cliente. Cuelga de la MISMA clave
@@ -47,24 +47,21 @@ const CATALOGO: SeccionPortal[] = [
   // entero justo al contacto que SI lo tiene. Quien no lo tiene recibe el 404 de la API, que esta
   // hecho para ser indistinguible de una ruta inventada.
   { clave: 'gestion', href: '/portal/gestion', etiqueta: 'Control de gestión' },
-  // **Soporte no tiene entrada, y es a proposito.** Los tickets se ven y se piden DENTRO del
-  // {espacio}, en su pestaña `tickets`: un cliente no abre "una solicitud" en el aire, la abre sobre
-  // algo que estamos haciendo para el. El listado y el alta generales se retiraron; lo unico que
-  // sobrevive es `/portal/soporte/{id}`, el hilo de un ticket, que **no es una seccion** sino el
-  // destino de los enlaces de la pestaña y de la portada. Tiene que seguir existiendo porque hay
-  // tickets viejos sin `project_id` —no caben en ninguna pestaña— y sin esa ruta quedarian sin
-  // pantalla donde abrirse.
-  { clave: 'files', href: '/portal/archivos', etiqueta: 'Archivos' },
-  { clave: 'announcements', href: '/portal/anuncios', etiqueta: 'Anuncios' },
-  { clave: 'kb', href: '/portal/ayuda', etiqueta: 'Ayuda' }
+  { clave: 'support', href: '/portal/soporte', etiqueta: GLOSARIO.ticket.plural },
+  { clave: 'files', href: '/portal/archivos', etiqueta: 'Archivos' }
+  // **Anuncios y Ayuda no tienen entrada, y es a proposito.** Las dos secciones son contenido que
+  // hoy nadie publica: el portal no las alimenta y el cliente solo encontraba pantallas vacias. Las
+  // paginas siguen en pie —`/portal/anuncios` y `/portal/ayuda`, que la API sigue habilitando para
+  // todo contacto— asi que devolver la entrada es sumar dos lineas acá el dia que haya algo que
+  // leer. Lo que se retira es el enlace, no la seccion.
 ]
 
 /**
  * Filtra el catalogo por lo que la API dijo que este contacto puede ver.
  *
  * Se parte de `secciones_habilitadas` y no de `permissions` a proposito: hay secciones que no
- * dependen de ningun permiso (archivos, anuncios, ayuda) y hay permisos que no son una seccion del
- * menu. La API ya resolvio esa mezcla; el frontend no la vuelve a resolver.
+ * dependen de ningun permiso —archivos, y el contenido que hoy no se lista— y hay permisos que no
+ * son una seccion del menu. La API ya resolvio esa mezcla; el frontend no la vuelve a resolver.
  *
  * Una clave desconocida se ignora en silencio: si la API suma una seccion antes que el frontend, la
  * navegacion no se rompe.

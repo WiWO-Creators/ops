@@ -4,14 +4,13 @@ import Link from 'next/link'
 import { unstable_rethrow } from 'next/navigation'
 import {
   ArrowRight,
-  BookOpen,
   ChartNoAxesColumn,
   Compass,
   FolderKanban,
   FolderOpen,
   Gauge,
+  LifeBuoy,
   type LucideIcon,
-  Megaphone,
   TriangleAlert
 } from 'lucide-react'
 import { ResumenDelPortal } from '@/componentes/portal/ResumenDelPortal'
@@ -430,12 +429,8 @@ async function MisEspacios () {
  * pidan nada ahora mismo.
  *
  * Cuando la clave no viene no se dibuja NADA, y eso es deliberado: significa que este contacto no
- * tiene el permiso de soporte, y un "no podemos decirte" sobre algo que no puede pedir en ningun
- * lado es ruido. Es la diferencia con `ProximosDias`, donde la ausencia si se cuenta.
- *
- * Es la unica lista del portal que cruza {espacios}, y por eso importa: un ticket **sin**
- * {espacio} —los que se abrieron antes de que fuera obligatorio— no cabe en ninguna pestaña, y
- * esta es la unica pantalla donde aparece.
+ * tiene la seccion de soporte, y un "no podemos decirte" sobre una seccion que ni ve en el menu es
+ * ruido. Es la diferencia con `ProximosDias`, donde la ausencia si se cuenta.
  *
  * @param lectura lo que decidio `leerTickets()`
  */
@@ -444,12 +439,11 @@ function MisTickets ({ lectura }: { lectura: LecturaDeTickets }) {
 
   return (
     <section className="flex flex-col gap-6">
-      {/*
-        Sin «Ver tickets»: el listado general se retiro y el soporte se pide dentro de cada
-        {espacio}. No se reemplaza por un enlace a un {espacio} cualquiera —los tickets de esta
-        lista pueden ser de varios, o de ninguno— y cada fila ya abre su propio hilo.
-      */}
-      <TituloModulo nivel="h2" titulo={`Mis ${GLOSARIO.ticket.plural.toLowerCase()}`} />
+      <TituloModulo
+        nivel="h2"
+        titulo={`Mis ${GLOSARIO.ticket.plural.toLowerCase()}`}
+        acciones={<VerTodo href="/portal/soporte" etiqueta={`Ver ${GLOSARIO.ticket.plural.toLowerCase()}`} />}
+      />
 
       {lectura.esperando > 0 && (
         <p className="rounded-tarjeta border-linea-fuerte bg-superficie-aviso border border-l-4 px-5 py-3 text-base text-texto">
@@ -556,21 +550,19 @@ const PRESENTACION: Record<string, PresentacionDeSeccion> = {
     icono: ChartNoAxesColumn,
     tono: 'violeta'
   },
+  '/portal/soporte': {
+    descripcion: 'Tus solicitudes abiertas, y una nueva cuando haga falta.',
+    icono: LifeBuoy,
+    tono: 'peligro'
+  },
   '/portal/archivos': {
     descripcion: 'Todo lo que compartimos contigo, en un solo lugar.',
     icono: FolderOpen,
     tono: 'aviso'
   },
-  '/portal/anuncios': {
-    descripcion: 'Lo que tenemos para contarte.',
-    icono: Megaphone,
-    tono: 'acento'
-  },
-  '/portal/ayuda': {
-    descripcion: 'Guías y respuestas a lo que se pregunta siempre.',
-    icono: BookOpen,
-    tono: 'violeta'
-  }
+  // Anuncios y Ayuda no figuran: `dominio/portal` retiro sus entradas del menu, asi que la grilla
+  // —que se arma con lo que el menu enciende— no las puede pedir. Describirlas acá seria una cara
+  // para una tarjeta que no se dibuja nunca.
 }
 
 /**

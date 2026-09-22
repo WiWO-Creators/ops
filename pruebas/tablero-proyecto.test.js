@@ -17,13 +17,11 @@ import {
   LIENZO_DE_AREA,
   SALVEDAD_DE_FECHAS,
   SEMANAS_CON_DATO_MINIMAS,
-  TICKET_CERRADO,
   TOPE_DE_PERSONAS,
   arcoDeAvance,
   areaDeCierres,
   cifrasDelTablero,
   clavesDePrioridad,
-  contarTickets,
   filasDePersonas,
   leerAvance,
   leerCierres,
@@ -586,22 +584,6 @@ test('un feed sin ninguna clave conocida da lista vacía', () => {
   const lista = novedades([{ fecha: '2026-09-11 14:50:02', clave: 'lo_que_sea' }], 6)
 
   assert.deepEqual(lista, [])
-})
-
-// =================================================================================================
-// LOS TICKETS
-// =================================================================================================
-
-test('los tickets se parten en abiertos y cerrados', () => {
-  const conteo = contarTickets([
-    { status: 1 }, { status: 2 }, { status: TICKET_CERRADO }, { status: 3 }, { status: TICKET_CERRADO }
-  ])
-
-  assert.deepEqual(conteo, { abiertos: 3, cerrados: 2, total: 5 })
-})
-
-test('sin tickets los tres números son 0 y eso es un dato, no un hueco', () => {
-  assert.deepEqual(contarTickets([]), { abiertos: 0, cerrados: 0, total: 0 })
 })
 
 // =================================================================================================

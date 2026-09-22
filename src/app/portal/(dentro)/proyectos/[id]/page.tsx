@@ -24,10 +24,8 @@ import { GLOSARIO } from '@/dominio/glosario'
 import { fuenteDelPortal, type FuenteDeProyecto } from '@/dominio/fuente-proyecto'
 import { proyectoDelPortal } from '@/dominio/proyecto'
 import { TableroDelProyecto } from '@/componentes/portal/TableroDelProyecto'
-import { contarTickets, type ConteoDeTickets } from '@/componentes/portal/tablero-proyecto'
 import { cargarDetalle, EstadoDeError, estadoDelPortal, sinFallar } from '../../detalle'
 import { AprobacionesPendientes } from './AprobacionesPendientes'
-import { PanelTicketsDelProyecto } from './PanelesProyecto'
 
 /**
  * Detalle de un proyecto, con las pestañas que el equipo compartio.
@@ -68,12 +66,7 @@ export default async function ProyectoPagina (props: PageProps<'/portal/proyecto
   // que se trata, y ahi es el unico lugar donde cabe.
   const descripcionSuelta = !pestanias.some((p) => p.clave === 'overview')
   const pendientes = await cargarPendientes(proyecto)
-  // El tablero y los tickets, en paralelo: son dos lecturas independientes y esperar una para pedir
-  // la otra le sumaria un viaje entero a la pestaña que se abre primero.
-  const [tablero, tickets] = await Promise.all([
-    cargarTablero(proyecto),
-    cargarTickets(proyecto)
-  ])
+  const tablero = await cargarTablero(proyecto)
   // Las aprobaciones viven DENTRO de la pestaña Descripcion, que es la primera y la que se abre al
   // entrar. Sueltas sobre las pestañas se repetian encima de las diez y se llevaban ~190 px del
   // primer viewport en todas, incluidas las que no tienen nada que ver con una Tarea. Cuando el
@@ -105,7 +98,6 @@ export default async function ProyectoPagina (props: PageProps<'/portal/proyecto
       estado,
       aprobaciones,
       tablero,
-      tickets,
       // El dia del negocio, no el del navegador. `sv-SE` da `YYYY-MM-DD` sin armarlo a mano.
       hoy: new Date().toLocaleDateString('sv-SE', { timeZone: 'America/Santiago' })
     })
@@ -168,8 +160,6 @@ interface DatosDeLaPagina {
    * tablero caido no puede dejar sin descripcion a un proyecto.
    */
   tablero: Tablero | null
-  /** Los tickets del proyecto ya contados, o `null` si no comparte esa pestaña. */
-  tickets: ConteoDeTickets | null
   /**
    * HOY en `YYYY-MM-DD`, resuelto UNA vez en el servidor.
    *
@@ -183,11 +173,9 @@ interface DatosDeLaPagina {
 /**
  * Que dibuja cada pestaña.
  *
- * Las que son **el mismo panel que abre un colaborador** reciben la fuente del contacto y
+ * Todas son **el mismo panel que abre un colaborador**, con la fuente del contacto y
  * `capacidades={[]}`: con eso pierden el alta, las acciones masivas, la edicion en linea y los
- * botones de la ficha, y no pierden ninguna lectura. Las que todavia son propias del portal
- * —archivos, tickets— se quedan como estaban: alli el contrato del cliente es otra cosa, no una
- * version podada de la del equipo.
+ * botones de la ficha, y no pierden ninguna lectura.
  *
  * @param clave La pestaña, tal como la nombra la API.
  * @param proyecto El proyecto ya cargado.
@@ -210,7 +198,7 @@ function contenidoDePestania (
               descripcion del proyecto la lee una vez. Si la API no lo dio —403 o 404, o sea «esta
               seccion no es para este contacto»— la pestaña queda como estaba. */}
           {pagina.tablero !== null && (
-            <TableroDelProyecto tablero={pagina.tablero} tickets={pagina.tickets} hoy={pagina.hoy} />
+            <TableroDelProyecto tablero={pagina.tablero} hoy={pagina.hoy} />
           )}
           <PanelDescripcion
             proyecto={proyecto}
@@ -269,8 +257,6 @@ function contenidoDePestania (
       // El MISMO panel del colaborador. Con `fuente` del portal monta solo los adjuntos, sin el
       // arbol de Drive: ver el porque en `PanelesProyecto.tsx`.
       return <PanelArchivos proyectoId={proyecto.id} fuente={fuente} />
-    case 'tickets':
-      return <PanelTicketsDelProyecto proyectoId={proyecto.id} />
     default:
       // `pestaniasDelProyecto` ya filtro contra `PESTANIAS_PROYECTO`, y hoy las once que esa lista
       // declara tienen su caso: acá no cae ninguna. Queda como red para la pestaña que se declare
@@ -289,27 +275,6 @@ function contenidoDePestania (
  */
 async function cargarTablero (proyecto: EspacioPortal): Promise<Tablero | null> {
   return await sinFallar<Tablero>(`/portal/projects/${proyecto.id}/tablero`)
-}
-
-/**
- * Los tickets del proyecto, ya contados.
- *
- * Se pide solo si el proyecto comparte la pestaña: sin ella la API responde 403, y un bloque vacio
- * no puede tumbar la pantalla. `per_page` alto porque hacen falta TODOS para contar abiertos y
- * cerrados — contar sobre la primera pagina daria un numero que se contradice con la pestaña de
- * Tickets del mismo proyecto.
- *
- * El interruptor `wiwo_portal_tickets` nace encendido, asi que hoy el bloque se dibuja en todos los
- * proyectos; existe para poder apagar uno concreto.
- */
-async function cargarTickets (proyecto: EspacioPortal): Promise<ConteoDeTickets | null> {
-  if (!(proyecto.tabs ?? []).includes('tickets')) return null
-
-  const lista = await sinFallar<Array<{ status: number }>>(
-    `/portal/projects/${proyecto.id}/tickets?per_page=200`
-  )
-
-  return lista === null ? null : contarTickets(lista)
 }
 
 /**

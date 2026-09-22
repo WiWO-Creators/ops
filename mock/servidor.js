@@ -19,6 +19,7 @@ import * as sesion from './sesion.js'
 import {
   ADMINS_DE_CLIENTE, AREAS, ARCHIVOS, CAMPOS_PERSONALIZADOS, CHECKLIST, CLIENTES, COMENTARIOS, CRONOMETROS,
   DEPARTAMENTOS, EMPRESAS_DEL_GRUPO, ENTRADA_DE_CLIENTE, ESPACIOS, ESTADOS_ESPACIO, ESTADOS_PROCESO,
+  ESTADOS_TICKET, PRIORIDADES_TICKET, TICKETS_PORTAL,
   ESPACIOS_DE_LICITACION, ETIQUETAS, HITOS, LICITACIONES,
   AVISOS_CONTACTO, CONTACTOS, OPCIONES_AREA_EN_TAREAS, PRIORIDADES, PROCESOS, PROCESOS_POR_AREA,
   RESERVAS, ROLES, SALAS, STAFF, VALORES_CAMPOS
@@ -4841,7 +4842,10 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
   // Va ANTES de resolver la sesion de staff: si cayera despues, un token de contacto moriria en el
   // 401 del panel antes de llegar acá.
   if (recurso === 'portal') {
-    if (metodo !== 'GET') throw new ErrorApi(404, 'not_found', 'Recurso desconocido.')
+    // El alta de una solicitud es lo UNICO que el contacto escribe en todo el portal, asi que el
+    // resto sigue siendo de solo lectura: cualquier otro metodo cae en el 404 de siempre.
+    const escribeTicket = metodo === 'POST' && resto[0] === 'tickets' && resto.length === 1
+    if (metodo !== 'GET' && !escribeTicket) throw new ErrorApi(404, 'not_found', 'Recurso desconocido.')
 
     const contacto = sesion.resolverContacto(token, 'acceso')
     const [seccion] = resto
@@ -4894,7 +4898,12 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
         cuerpo: conDatos({
           project_statuses: ESTADOS_ESPACIO,
           task_statuses: ESTADOS_PROCESO,
-          task_priorities: PRIORIDADES
+          task_priorities: PRIORIDADES,
+          // Los dos del soporte: la bandeja pinta `status` con el primero y el alta ofrece el
+          // segundo. Sin ellos la tabla muestra el entero desnudo y el selector de prioridad
+          // aparece vacio, que es exactamente el sintoma que se confunde con un bug de la pantalla.
+          ticket_statuses: ESTADOS_TICKET,
+          ticket_priorities: PRIORIDADES_TICKET
         })
       }
     }
@@ -4928,6 +4937,46 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
       if (resto.length > 1) throw new ErrorApi(404, 'not_found', 'Recurso desconocido.');
 
       return { estado: 200, cuerpo: conDatos(tableroDeGestion(contacto, parametros)) };
+    }
+
+    // Soporte del cliente: la bandeja, el hilo y el alta. Es una seccion del portal y no una pestaña
+    // del Proyecto, y por eso la bandeja cruza Proyectos — incluido el ticket sin ninguno, que no
+    // cabria en ninguna pestaña.
+    if (seccion === 'tickets') {
+      if (!contacto.permissions.includes('support')) {
+        throw new ErrorApi(403, 'forbidden', 'Este contacto no tiene acceso a soporte.')
+      }
+
+      const mios = TICKETS_PORTAL.filter((t) => t.client_id === contacto.client_id)
+
+      // `cuerpo` es un thunk: tratarlo como objeto da un alta vacia que contesta 201 sobre nada.
+      if (metodo === 'POST') {
+        return { estado: 201, cuerpo: conDatos(crearTicketDelPortal(contacto, await cuerpo())) }
+      }
+
+      if (resto.length === 1) {
+        const { filas, paginacion } = aplicarConsulta(mios.map(presentarTicketPortal), parametros, {
+          filtros: { status: 'status', priority: 'priority' },
+          orden: ['subject', 'date', 'lastreply'],
+          derivadas: { lastreply: (fila) => fila.last_reply },
+          busqueda: ['subject']
+        })
+        return { estado: 200, cuerpo: conDatos(filas, { pagination: paginacion }) }
+      }
+
+      if (resto.length > 2) throw new ErrorApi(404, 'not_found', 'Recurso desconocido.')
+
+      const ticket = mios.find((t) => t.id === Number(resto[1]))
+      if (!ticket) throw new ErrorApi(404, 'not_found', 'Ticket inexistente.')
+
+      return {
+        estado: 200,
+        cuerpo: conDatos({
+          ...presentarTicketPortal(ticket),
+          message: ticket.message,
+          replies: ticket.replies
+        })
+      }
     }
 
     // Proyectos del cliente. Solo los de su empresa: el portal jamas lista los de otra, y una
@@ -6297,6 +6346,85 @@ function presentarEspacioPortal (espacio) {
       milestones: HITOS.filter((h) => h.project_id === espacio.id).length
     }
   }
+}
+
+/**
+ * Un ticket como lo publica `GET /portal/tickets`.
+ *
+ * Poda igual que la API: el cliente NO recibe `message` ni `replies` en el listado —eso es el hilo—
+ * ni `client_id`/`contact_id`, que son de adentro. `task` viaja en null porque la fixture no
+ * engancha Procesos a tickets; el contrato admite las dos formas y la pantalla ya cubre la ausencia.
+ *
+ * @param {{ id: number, subject: string, date: string, last_reply: string | null, status: number, priority: number, project_id: number | null }} ticket
+ */
+function presentarTicketPortal (ticket) {
+  return {
+    id: ticket.id,
+    subject: ticket.subject,
+    date: ticket.date,
+    last_reply: ticket.last_reply,
+    status: ticket.status,
+    priority: ticket.priority,
+    project_id: ticket.project_id,
+    task: null
+  }
+}
+
+/**
+ * Abre un ticket desde el portal (`POST /portal/tickets`).
+ *
+ * Valida lo mismo que `Escritura\\TicketDelPortal::crear()`: `subject` y `message` obligatorios,
+ * `project_id` obligatorio y de un Proyecto del propio cliente, `priority` opcional y del catalogo.
+ * Cualquier campo que el contrato no conozca es un 422 —la API llama a `rechazarCamposAjenos`—, y el
+ * mock lo replica para que el frontend no aprenda a mandar de mas contra una pantalla local.
+ *
+ * El ticket nace abierto, sin respuestas y sin `last_reply`: nadie contesto todavia.
+ *
+ * @param {{ id: number, client_id: number }} contacto quien lo abre
+ * @param {Record<string, unknown>} cuerpo el cuerpo de la peticion
+ */
+function crearTicketDelPortal (contacto, cuerpo) {
+  const campos = cuerpo ?? {}
+  const ajenos = Object.keys(campos).filter((c) => !['subject', 'message', 'project_id', 'priority'].includes(c))
+  if (ajenos.length > 0) {
+    throw new ErrorApi(422, 'validation_failed', 'Campos desconocidos.', Object.fromEntries(ajenos.map((c) => [c, ['desconocido']])))
+  }
+
+  const detalles = {}
+  const asunto = typeof campos.subject === 'string' ? campos.subject.trim() : ''
+  const mensaje = typeof campos.message === 'string' ? campos.message.trim() : ''
+  const proyectoId = Number(campos.project_id)
+
+  if (asunto === '') detalles.subject = ['requerido']
+  if (asunto.length > 191) detalles.subject = ['muy_largo']
+  if (mensaje === '') detalles.message = ['requerido']
+  if (!ESPACIOS.some((e) => e.id === proyectoId && e.clientid === contacto.client_id)) {
+    detalles.project_id = ['no_valido']
+  }
+  if (campos.priority !== undefined && !PRIORIDADES_TICKET.some((p) => p.id === Number(campos.priority))) {
+    detalles.priority = ['no_valido']
+  }
+  if (Object.keys(detalles).length > 0) {
+    throw new ErrorApi(422, 'validation_failed', 'Revisá los campos.', detalles)
+  }
+
+  const ticket = {
+    id: Math.max(0, ...TICKETS_PORTAL.map((t) => t.id)) + 1,
+    client_id: contacto.client_id,
+    contact_id: contacto.id,
+    subject: asunto,
+    message: mensaje,
+    date: new Date().toISOString().slice(0, 19).replace('T', ' '),
+    last_reply: null,
+    status: 1,
+    priority: campos.priority === undefined ? 2 : Number(campos.priority),
+    project_id: proyectoId,
+    replies: []
+  }
+
+  TICKETS_PORTAL.push(ticket)
+
+  return { ...presentarTicketPortal(ticket), message: ticket.message, replies: [] }
 }
 
 /**

@@ -412,43 +412,6 @@ export function novedades (
 }
 
 // =================================================================================================
-// LOS TICKETS
-// =================================================================================================
-
-/**
- * El estado «Closed» del catálogo de tickets de Perfex (`tbltickets_status`).
- *
- * Es un número y no un nombre porque la lista de tickets del portal publica `status` como entero
- * desnudo, sin rótulo ni color. El catálogo completo es 1 Open, 2 In progress, 3 Answered,
- * 4 On Hold, 5 Closed, y de los cinco éste es el único del que depende una cuenta.
- */
-export const TICKET_CERRADO = 5
-
-/** Cuántos tickets del {espacio} están abiertos y cuántos se cerraron. */
-export interface ConteoDeTickets {
-  abiertos: number
-  cerrados: number
-  total: number
-}
-
-/**
- * Cuenta los tickets del {espacio}, partidos en abiertos y cerrados.
- *
- * Solo dos números, y no un tiempo de respuesta: el promedio de respuesta del equipo está excluido
- * a propósito del contrato del portal —hay una prueba de paridad del lado de la API que falla si
- * alguien lo agrega—, y derivarlo acá de `date` y `last_reply` sería reponer por la ventana lo que
- * se decidió no publicar. Además `last_reply` es la ÚLTIMA respuesta de cualquiera de los dos lados,
- * así que ni siquiera serviría para medir la primera respuesta del equipo.
- *
- * @param tickets la lista tal como la sirve `GET /portal/projects/{id}/tickets`
- */
-export function contarTickets (tickets: Array<{ status: number }>): ConteoDeTickets {
-  const cerrados = tickets.filter((ticket) => ticket.status === TICKET_CERRADO).length
-
-  return { abiertos: tickets.length - cerrados, cerrados, total: tickets.length }
-}
-
-// =================================================================================================
 // LAS CIFRAS
 // =================================================================================================
 

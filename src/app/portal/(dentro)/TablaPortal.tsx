@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { useMemo } from 'react'
 import { TablaRecurso } from '@/componentes/datos/TablaRecurso'
 import type { DefinicionRecurso, OpcionFiltro, ResultadoLista } from '@/definiciones/tipos'
+import { PORTAL_TICKETS } from '@/definiciones/portal-soporte'
 import { PORTAL_PROYECTOS } from '@/definiciones/portal-proyectos'
 
 /**
@@ -13,13 +14,12 @@ import { PORTAL_PROYECTOS } from '@/definiciones/portal-proyectos'
  * llena de funciones, y **una funcion no cruza de un Server Component a uno cliente**. La pagina
  * manda una clave y datos serializables; la definicion se resuelve de este lado.
  *
- * Hoy queda una sola seccion con listado —Proyectos—: la de Soporte se retiro cuando los tickets
- * pasaron a pedirse y leerse dentro del {espacio}. El mapa sigue siendo un mapa igual: es lo que
- * permite que una `page.tsx` del portal se resuelva en tres lineas, y agregar la proxima seccion
- * es una entrada acá y otra en `ENLACES`.
+ * Las dos comparten componente porque son la misma tabla con otra definicion. Soporte agrega algo
+ * mas: el asunto enlaza al hilo del ticket.
  */
 
 const DEFINICIONES = {
+  soporte: PORTAL_TICKETS,
   proyectos: PORTAL_PROYECTOS
 } as const
 
@@ -27,6 +27,7 @@ export type SeccionPortalListado = keyof typeof DEFINICIONES
 
 /** Secciones cuyo listado abre un detalle, y por que columna se entra. */
 const ENLACES: Partial<Record<SeccionPortalListado, string>> = {
+  soporte: 'subject',
   proyectos: 'name'
 }
 

@@ -12,47 +12,47 @@ import { ContenidoDialogo, Dialogo, DisparadorDialogo } from '@/componentes/supe
 import { escribirEnBff } from '@/componentes/datos/mutaciones'
 import { GLOSARIO } from '@/dominio/glosario'
 import {
-  LARGO_ASUNTO, SIN_PRIORIDAD, cuerpoDeSolicitud, solicitudCompleta
+  LARGO_ASUNTO, SIN_PRIORIDAD, cuerpoDeSolicitud, espacioPorDefecto, solicitudCompleta
 } from '@/dominio/tickets-del-portal'
 import type { TicketPortalDetalle } from '@/datos/portal'
 import type { Referencia } from '@/datos/recursos'
 
 /**
- * Alta de una solicitud de soporte, **dentro de un {espacio}**.
+ * Alta de una solicitud de soporte desde el portal del cliente.
  *
- * El soporte dejo de ser una seccion aparte del portal: el cliente pide lo que necesita en el
- * {espacio} donde le pasa, que es donde despues lo lee y donde el equipo lo atiende. Por eso este
- * formulario ya **no tiene selector de {espacio}**: el de la pantalla es el unico posible, y
- * ofrecer una lista invitaria a abrir el ticket en otro lado por error.
+ * El soporte es una seccion del portal y no una pestaña del {espacio}: el cliente pide desde un solo
+ * lugar y elige ahi sobre que {espacio} es. Por eso el formulario **tiene selector de {espacio}**, y
+ * por eso llega preseleccionado cuando hay uno obvio —el unico que tiene, o aquel al que entra— para
+ * que la eleccion sea un cambio y no un tramite.
  *
- * Va en un dialogo y no en una pantalla propia porque son tres campos: una ruta `/nuevo` costaria
- * una navegacion de ida y otra de vuelta para lo mismo, y la pestaña detras del velo recuerda que
- * esto se suma a lo que ya hay abierto.
+ * Va en un dialogo y no en una pantalla propia porque son cuatro campos: una ruta
+ * `/portal/soporte/nuevo` costaria una navegacion de ida y otra de vuelta para lo mismo, y el listado
+ * detras del velo recuerda que esto se suma a lo que ya hay abierto.
  *
  * **No se pregunta el motivo ni el departamento.** Esto es para que el cliente reporte lo que se le
  * rompio, y elegir a que equipo va es trabajo nuestro: repartir se hace despues, desde el panel.
  * Pedirselo era pedirle que adivinara un organigrama que no conoce.
  *
- * Las prioridades bajan resueltas desde el servidor —los catalogos del portal ya se piden ahi— en
- * vez de pedirse al montar: un selector que aparece vacio y se puebla medio segundo despues se usa
- * mal.
+ * Las listas bajan resueltas desde el servidor —los catalogos ya se piden ahi para los filtros de la
+ * tabla— en vez de pedirse al montar: un selector que aparece vacio y se puebla medio segundo despues
+ * se usa mal.
  */
 
 interface PropsNuevaSolicitud {
-  /** El {espacio} de la pantalla. Es lo que viaja como `project_id`: no se elige. */
-  proyectoId: number
   /** `lookups.ticket_priorities`. Opcional en el contrato, asi que puede quedar sin elegir. */
   prioridades: Referencia[]
+  /** Los {espacios} del contacto. Con uno solo no hay nada que elegir: se preselecciona. */
+  espacios: Referencia[]
   /**
-   * Como se ve el boton que abre el dialogo.
+   * El `proyecto_de_entrada` del contacto, o `null`.
    *
-   * La pestaña vacia lo ofrece como unica salida —y ahi es la accion principal de la pantalla— y la
-   * pestaña con tickets lo ofrece arriba de la lista, donde competir con el contenido seria ruido.
+   * Es a donde cae al entrar al portal, asi que casi siempre pide sobre ese. Solo decide el valor
+   * inicial del selector: quien tenga otro en mente lo cambia sin resistencia.
    */
-  variante?: 'primario' | 'sutil'
+  entradaId?: number | null
 }
 
-export function NuevaSolicitud ({ proyectoId, prioridades, variante = 'primario' }: PropsNuevaSolicitud) {
+export function NuevaSolicitud ({ prioridades, espacios, entradaId = null }: PropsNuevaSolicitud) {
   const router = useRouter()
   const [abierto, setAbierto] = useState(false)
   const [enviando, setEnviando] = useState(false)
@@ -60,9 +60,14 @@ export function NuevaSolicitud ({ proyectoId, prioridades, variante = 'primario'
 
   const [asunto, setAsunto] = useState('')
   const [mensaje, setMensaje] = useState('')
+  const [espacio, setEspacio] = useState(() => espacioPorDefecto(espacios, entradaId))
   const [prioridad, setPrioridad] = useState(SIN_PRIORIDAD)
 
-  const borrador = { asunto, mensaje, proyectoId, prioridad }
+  // Sin espacios no hay nada que abrir: el contrato exige `project_id`, asi que el boton no se ofrece
+  // en vez de ofrecer un formulario que la API va a rechazar siempre.
+  if (espacios.length === 0) return null
+
+  const borrador = { asunto, mensaje, espacio, prioridad }
 
   /**
    * Crea la solicitud y lleva al hilo recien abierto.
@@ -95,12 +100,12 @@ export function NuevaSolicitud ({ proyectoId, prioridades, variante = 'primario'
   return (
     <Dialogo open={abierto} onOpenChange={setAbierto}>
       <DisparadorDialogo asChild>
-        <Boton variante={variante}>Nueva solicitud</Boton>
+        <Boton variante="primario">Nueva solicitud</Boton>
       </DisparadorDialogo>
 
       <ContenidoDialogo
         titulo="Nueva solicitud"
-        descripcion={`Cuéntanos qué necesitas en este ${GLOSARIO.espacio.singular.toLowerCase()} y abrimos un ${GLOSARIO.ticket.singular.toLowerCase()} con el equipo.`}
+        descripcion={`Cuéntanos qué necesitas y abrimos un ${GLOSARIO.ticket.singular.toLowerCase()} con el equipo.`}
       >
         <form
           className="flex flex-col gap-4"
@@ -122,19 +127,34 @@ export function NuevaSolicitud ({ proyectoId, prioridades, variante = 'primario'
             )}
           </Campo>
 
-          <Campo etiqueta="Prioridad" ayuda="Si no la eliges, la define el equipo.">
-            {(props) => (
-              <Selector value={prioridad} onValueChange={setPrioridad}>
-                <DisparadorSelector id={props.id} />
-                <ContenidoSelector>
-                  <Opcion value={SIN_PRIORIDAD}>Sin elegir</Opcion>
-                  {prioridades.map((opcion) => (
-                    <Opcion key={opcion.id} value={String(opcion.id)}>{opcion.name}</Opcion>
-                  ))}
-                </ContenidoSelector>
-              </Selector>
-            )}
-          </Campo>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Campo etiqueta={GLOSARIO.espacio.singular} requerido>
+              {(props) => (
+                <Selector value={espacio} onValueChange={setEspacio} disabled={espacios.length === 1}>
+                  <DisparadorSelector id={props.id} marcador={`Elige un ${GLOSARIO.espacio.singular.toLowerCase()}`} />
+                  <ContenidoSelector>
+                    {espacios.map((opcion) => (
+                      <Opcion key={opcion.id} value={String(opcion.id)}>{opcion.name}</Opcion>
+                    ))}
+                  </ContenidoSelector>
+                </Selector>
+              )}
+            </Campo>
+
+            <Campo etiqueta="Prioridad" ayuda="Si no la eliges, la define el equipo.">
+              {(props) => (
+                <Selector value={prioridad} onValueChange={setPrioridad}>
+                  <DisparadorSelector id={props.id} />
+                  <ContenidoSelector>
+                    <Opcion value={SIN_PRIORIDAD}>Sin elegir</Opcion>
+                    {prioridades.map((opcion) => (
+                      <Opcion key={opcion.id} value={String(opcion.id)}>{opcion.name}</Opcion>
+                    ))}
+                  </ContenidoSelector>
+                </Selector>
+              )}
+            </Campo>
+          </div>
 
           <Campo etiqueta="Mensaje" requerido>
             {(props) => (
