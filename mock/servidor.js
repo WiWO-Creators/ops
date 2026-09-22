@@ -7002,7 +7002,15 @@ function presentarHito (hito, paraContacto) {
  *
  * `actas` no esta en ninguna de las dos listas y no es un olvido: no vive en `available_features`
  * sino en su propio interruptor por proyecto (`AJUSTES_DEL_PORTAL`), que se enciende y se apaga
- * desde el panel. `tickets` tampoco esta: es del modulo de soporte y no del Proyecto.
+ * desde el panel.
+ *
+ * `tickets` tampoco esta, y el motivo que decia acá —"es del modulo de soporte y no del Proyecto"—
+ * dejo de ser cierto: los tickets se ven y se abren DENTRO del Proyecto, y `tickets` es una pestaña
+ * mas en `VisibilidadContacto::PESTANIAS`. Lo que la API exige para publicarla no es un interruptor
+ * por proyecto sino la feature `project_tickets` mas el permiso `support` del contacto, que es una
+ * puerta que este fixture no modela. Por eso sigue afuera: **no esta simulada**, que es distinto de
+ * "no corresponde". Quien monte la pestaña de Tickets contra el mock tiene que agregarla acá
+ * primero, y decidir entonces si vale la pena modelar las dos puertas o alcanza con la lista.
  */
 const COMPARTIDO_CON_EL_CLIENTE = {
   1: {

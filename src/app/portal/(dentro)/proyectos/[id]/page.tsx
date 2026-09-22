@@ -7,6 +7,7 @@ import { pestaniasDelProyecto } from '@/definiciones/portal-proyectos'
 import { CabeceraProyecto } from '@/componentes/proyecto/CabeceraProyecto'
 import { PanelActas } from '@/componentes/proyecto/PanelActas'
 import { PanelActividad } from '@/componentes/proyecto/PanelActividad'
+import { PanelArchivos } from '@/componentes/proyecto/PanelArchivos'
 import { PanelCalendario } from '@/componentes/proyecto/PanelCalendario'
 import { PanelDescripcion } from '@/componentes/proyecto/PanelDescripcion'
 import { PanelDiscusiones } from '@/componentes/proyecto/PanelDiscusiones'
@@ -26,7 +27,7 @@ import { TableroDelProyecto } from '@/componentes/portal/TableroDelProyecto'
 import { contarTickets, type ConteoDeTickets } from '@/componentes/portal/tablero-proyecto'
 import { cargarDetalle, EstadoDeError, estadoDelPortal, sinFallar } from '../../detalle'
 import { AprobacionesPendientes } from './AprobacionesPendientes'
-import { PanelArchivos, PanelTicketsDelProyecto } from './PanelesProyecto'
+import { PanelTicketsDelProyecto } from './PanelesProyecto'
 
 /**
  * Detalle de un proyecto, con las pestañas que el equipo compartio.
@@ -260,7 +261,9 @@ function contenidoDePestania (
     case 'activity':
       return <PanelActividad fuente={fuente} capacidades={[]} />
     case 'files':
-      return <PanelArchivos proyectoId={proyecto.id} />
+      // El MISMO panel del colaborador. Con `fuente` del portal monta solo los adjuntos, sin el
+      // arbol de Drive: ver el porque en `PanelesProyecto.tsx`.
+      return <PanelArchivos proyectoId={proyecto.id} fuente={fuente} />
     case 'tickets':
       return <PanelTicketsDelProyecto proyectoId={proyecto.id} />
     default:

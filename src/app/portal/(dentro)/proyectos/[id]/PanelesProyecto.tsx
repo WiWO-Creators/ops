@@ -1,11 +1,11 @@
 import Link from 'next/link'
-import { Vacio } from '@/componentes/estado/Estados'
 import { formatearFecha } from '@/lib/fechas'
+import type { TicketPortal } from '@/datos/portal'
+import { Vacio } from '@/componentes/estado/Estados'
 import { cargarLookupsDelPortal, listaDe } from '@/datos/lookups'
 import { pedirPortal } from '@/datos/servidor'
-import type { ArchivoPortal, TicketPortal } from '@/datos/portal'
 import { GLOSARIO } from '@/dominio/glosario'
-import { EstadoDelPortal, NombreDeArchivo } from '../../detalle'
+import { EstadoDelPortal } from '../../detalle'
 import { NuevaSolicitud } from './NuevaSolicitud'
 
 /**
@@ -16,44 +16,28 @@ import { NuevaSolicitud } from './NuevaSolicitud'
  */
 
 /*
- * Acá quedan DOS pestañas, y es a proposito: archivos y tickets son lo unico del proyecto donde el
- * contrato del cliente no es una version podada del contrato del equipo, sino otra cosa.
+ * Acá queda UNA sola pestaña, y es a proposito: los tickets son lo unico del proyecto donde el
+ * contrato del cliente no es una version podada del contrato del equipo, sino otra cosa —el equipo
+ * no tiene una pestaña de soporte dentro del Proyecto—.
  *
- * Las demas —Descripcion, Tareas, Hitos, Tiempos, Discusiones, Gantt, Calendario y Actividad— las
- * dibuja el MISMO panel que abre un colaborador (`componentes/proyecto/Panel*`), con la fuente del
- * contacto y `capacidades={[]}`. Con eso el cliente gano la tabla completa, el tablero, la ficha de
- * una Tarea, los filtros, el orden y la paginacion que estas copias no tenian, y las dos pantallas
- * dejaron de poder desincronizarse.
+ * Las demas —Descripcion, Tareas, Hitos, Tiempos, Discusiones, Gantt, Calendario, Actividad y ahora
+ * tambien Archivos— las dibuja el MISMO panel que abre un colaborador
+ * (`componentes/proyecto/Panel*`), con la fuente del contacto y `capacidades={[]}`. Con eso el
+ * cliente gano la tabla completa, el tablero, la ficha de una Tarea, los filtros, el orden y la
+ * paginacion que estas copias no tenian, y las dos pantallas dejaron de poder desincronizarse.
+ *
+ * Archivos fue la ultima en mudarse. Su copia local era una lista `<ul>` sin filtros, sin orden y
+ * sin paginacion, que pedia `/portal/projects/{id}/files` en el servidor. La reemplaza
+ * `componentes/proyecto/PanelArchivos` con `fuente`, que del lado del contacto monta solo los
+ * adjuntos —el arbol de Drive NO: Drive no tiene `visible_to_customer` por archivo ni ruta de
+ * portal, asi que montarlo abriria la carpeta entera del Espacio con lo que nadie decidio
+ * compartirle adentro—.
  *
  * Se perdio a cambio la primera pagina resuelta en el servidor: los paneles compartidos son de
  * cliente, reciben un id y piden lo suyo al montarse, asi que las tablas del cliente ahora muestran
  * su bloque de carga como las del equipo. Es el precio de tener un solo dibujo, y esta anotado para
  * que no se lea como un descuido.
  */
-
-export async function PanelArchivos ({ proyectoId }: { proyectoId: number }) {
-  const { data } = await pedirPortal<ArchivoPortal[]>(`/portal/projects/${proyectoId}/files`)
-
-  if (data.length === 0) {
-    return <Vacio titulo="Sin archivos" descripcion="Todavía no compartimos archivos en este proyecto." />
-  }
-
-  return (
-    <ul className="flex flex-col gap-2">
-      {/* El rotulo ya no va aparte: `nombreDeArchivo` devuelve el `subject` cuando lo hay, que es
-          lo que la persona escribio. Repetirlo al lado lo mostraba dos veces. */}
-      {data.map((archivo) => (
-        <li
-          key={archivo.id}
-          className="rounded-chico border-linea flex flex-wrap items-baseline gap-x-3 gap-y-1 border p-3"
-        >
-          <NombreDeArchivo archivo={archivo} />
-          <span className="text-texto-tenue ml-auto text-xs">{formatearFecha(archivo.date_added)}</span>
-        </li>
-      ))}
-    </ul>
-  )
-}
 
 /**
  * Tickets de soporte acotados a este proyecto, y el alta de uno nuevo.
