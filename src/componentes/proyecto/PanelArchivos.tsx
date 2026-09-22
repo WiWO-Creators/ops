@@ -10,6 +10,7 @@ import { Boton } from '@/componentes/formularios/Boton'
 import { pedirSobre } from '@/datos/cliente'
 import {
   ARCHIVOS,
+  columnasDeArchivo,
   nombreDeArchivo,
   origenDeArchivo,
   rutaDeAdjuntos,
@@ -38,7 +39,15 @@ export function PanelArchivos (
   { proyectoId, fuente }: { proyectoId: number, fuente?: FuenteDeProyecto }
 ): ReactElement {
   if (fuente?.sujeto === 'portal') {
-    return <PanelAdjuntos raiz="projects" id={proyectoId} ruta={fuente.archivos} puedeBorrar={false} />
+    return (
+      <PanelAdjuntos
+        raiz="projects"
+        id={proyectoId}
+        ruta={fuente.archivos}
+        puedeBorrar={false}
+        esDelPortal
+      />
+    )
   }
 
   return (
@@ -70,6 +79,13 @@ interface PropsPanelAdjuntos {
    * lo que no sea GET antes de mirar la ruta—, asi que el boton solo podria fallar.
    */
   puedeBorrar?: boolean
+  /**
+   * Si quien mira es un contacto del cliente.
+   *
+   * Decide que columnas existen: la forma del portal no publica `visible_to_customer` ni `external`,
+   * y dibujarlas contra una clave ausente pintaria «No» en todas las filas. Ver `columnasDeArchivo()`.
+   */
+  esDelPortal?: boolean
 }
 
 /** Estado de la carga. El error es un texto listo para mostrar, no un envelope. */
@@ -91,9 +107,10 @@ type Carga =
  * El borrado saca la fila del listado sin volver a pedir nada.
  */
 export function PanelAdjuntos (
-  { raiz, id, ruta: rutaPropia, puedeBorrar = true }: PropsPanelAdjuntos
+  { raiz, id, ruta: rutaPropia, puedeBorrar = true, esDelPortal = false }: PropsPanelAdjuntos
 ): ReactElement {
   const ruta = rutaPropia ?? rutaDeAdjuntos(raiz, id)
+  const columnas = columnasDeArchivo(esDelPortal)
   const [carga, setCarga] = useState<Carga>({ fase: 'cargando' })
   const [intento, setIntento] = useState(0)
 
@@ -145,6 +162,7 @@ export function PanelAdjuntos (
             <TablaAdjuntos
               ruta={ruta}
               archivos={carga.archivos}
+              columnas={columnas}
               puedeBorrar={puedeBorrar}
               onEliminado={quitar}
             />
@@ -156,9 +174,10 @@ export function PanelAdjuntos (
 
 /** La grilla de adjuntos: las columnas de `ARCHIVOS` mas la de acciones. */
 function TablaAdjuntos (
-  { ruta, archivos, puedeBorrar, onEliminado }: {
+  { ruta, archivos, columnas, puedeBorrar, onEliminado }: {
     ruta: string
     archivos: ArchivoProyecto[]
+    columnas: typeof ARCHIVOS.columnas
     puedeBorrar: boolean
     onEliminado: (archivoId: number) => void
   }
@@ -167,7 +186,7 @@ function TablaAdjuntos (
     <Tabla>
       <EncabezadoTabla>
         <tr>
-          {ARCHIVOS.columnas.map((columna) => (
+          {columnas.map((columna) => (
             <CeldaEncabezado key={columna.clave}>{columna.encabezado}</CeldaEncabezado>
           ))}
           <CeldaEncabezado><span className="sr-only">Acciones</span></CeldaEncabezado>
@@ -176,7 +195,7 @@ function TablaAdjuntos (
       <CuerpoTabla>
         {archivos.map((archivo) => (
           <FilaTabla key={archivo.id}>
-            {ARCHIVOS.columnas.map((columna) => (
+            {columnas.map((columna) => (
               <CeldaTabla key={columna.clave}>
                 {columna.clave === 'external' ? <Origen archivo={archivo} /> : columna.presentar(archivo)}
               </CeldaTabla>

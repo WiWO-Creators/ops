@@ -18,6 +18,7 @@ import { procesosDelEspacio } from '../src/definiciones/procesos.ts'
 import { DISCUSIONES, definicionDeDiscusiones } from '../src/definiciones/discusiones.ts'
 import { HITOS, definicionDeHitos } from '../src/definiciones/hitos.ts'
 import { definicionDeTiempos } from '../src/definiciones/tiempos.ts'
+import { ARCHIVOS, columnasDeArchivo } from '../src/definiciones/archivos.ts'
 import { lecturasDelGantt } from '../src/componentes/proyecto/gantt.ts'
 import { SIN_DATO } from '../src/lib/sla.ts'
 import { fuenteDelPanel, fuenteDelPortal } from '../src/dominio/fuente-proyecto.ts'
@@ -297,4 +298,25 @@ test('el Gantt del contacto solo agrupa por Hitos', () => {
   assert.deepEqual(lecturasDelGantt(FUENTE_DEL_PANEL).agrupaciones, ['milestones', 'members', 'status'])
   // `RecursoGantt::paraContacto()` responde 422 a cualquier otra: ofrecerlas seria mandarlo a un error.
   assert.deepEqual(lecturasDelGantt(FUENTE_DEL_PORTAL).agrupaciones, ['milestones'])
+})
+
+test('la tabla de Archivos del contacto no dibuja el interruptor de visibilidad ni el origen', () => {
+  const equipo = columnasDeArchivo(false).map((c) => c.clave)
+  const contacto = columnasDeArchivo(true).map((c) => c.clave)
+
+  assert.deepEqual(equipo, ARCHIVOS.columnas.map((c) => c.clave))
+
+  // `visible_to_customer` es el interruptor con el que el equipo decide qué esconderle, y
+  // `RecursoArchivos::deEspacioParaContacto()` dejó de publicarlo. Dibujar la columna contra una
+  // clave ausente no deja la celda vacía: pinta «No» en TODAS las filas, o sea le dice al cliente
+  // que ninguno de los archivos que está viendo es visible para él.
+  assert.equal(contacto.includes('visible_to_customer'), false)
+  // `external` dice en qué nube vive el original: infraestructura del equipo, y tampoco viaja.
+  assert.equal(contacto.includes('external'), false)
+
+  // Lo que sí ve es todo lo demás, y en el mismo orden que el equipo.
+  assert.deepEqual(contacto, equipo.filter((clave) => contacto.includes(clave)))
+  for (const clave of ['file_name', 'filetype', 'date_added']) {
+    assert.equal(contacto.includes(clave), true, `el cliente perdió la columna ${clave}`)
+  }
 })
