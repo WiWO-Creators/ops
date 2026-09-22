@@ -37,7 +37,7 @@ import { useRecurso } from './carga'
  * la API, que responde 403 igual: esconder el panel es cosmetica.
  *
  * El bloque "Que ve el cliente" no comparte ni el endpoint ni el boton de guardar con el resto: son
- * los catorce interruptores del portal, que se guardan enteros con un PUT propio al tocar cualquiera de
+ * los veintidós interruptores del portal, que se guardan enteros con un PUT propio al tocar cualquiera de
  * ellos. Por eso se carga aparte —que falle no puede dejar en blanco la pantalla entera— y se guarda
  * al tocarlo, que es lo que hace un interruptor. Va arriba de todo y no debajo del boton "Guardar
  * configuracion", que no es suyo.
@@ -107,13 +107,13 @@ export function PanelConfiguracionEspacio ({
 }
 
 /**
- * Lo que devuelve `GET|PUT /projects/{id}/portal-settings`: los catorce interruptores.
+ * Lo que devuelve `GET|PUT /projects/{id}/portal-settings`: los veintidós interruptores.
  *
  * Se declara acá y no en `datos/recursos.ts` por lo mismo que `PanelActividad` declara su fila: es
  * una forma de una sola pantalla. El orden de las claves es el orden en que la API las devuelve y el
  * que el panel dibuja — el maestro primero, después el detalle.
  *
- * El backend acepta exactamente estas catorce y ninguna más (`Escritura\AjustesDelPortal::CLAVES`
+ * El backend acepta exactamente estas veintidós y ninguna más (`Escritura\AjustesDelPortal::CLAVES`
  * y `::COLUMNAS`). Los otros `view_*` de Perfex —crear, editar, comentar, subir archivos desde el
  * portal— no se ofrecen porque esta API no los honra: el portal es de solo lectura, y una casilla
  * que no hace nada es peor que no tenerla.
@@ -138,11 +138,30 @@ interface AjustesDelPortal {
    * Si este Espacio aporta sus cifras al tablero de control de gestión del portal.
    *
    * No es una pestaña de la ficha: es una pantalla transversal del portal que suma varios Espacios.
-   * Se administra igual que las otras trece porque contesta la misma pregunta —«¿el cliente ve esto
+   * Se administra igual que las otras veintiuna porque contesta la misma pregunta —«¿el cliente ve esto
    * de este Espacio?»— y porque repartirla en otro formulario dejaría encender un tablero de un
    * Espacio que el cliente no ve, sin ninguna señal de que no sirve para nada.
    */
   wiwo_portal_gestion: boolean
+  /**
+   * Las ocho columnas opcionales de la tabla de Tareas del portal (migración `0830`).
+   *
+   * No son bloques de la ficha como las cuatro de arriba: son COLUMNAS de la tabla, y cada una
+   * decide si esa clave viaja dentro de la Tarea que la API le manda al cliente. Apagadas no
+   * llegan en blanco: no llegan.
+   *
+   * Las ocho nacen apagadas. Las cuatro últimas —ETA, desviación, SLA y justificación— miden al
+   * equipo contra su propio compromiso interno, y las etiquetas son vocabulario de gestión:
+   * encenderlas es una decisión comercial, por eso la toma quien conoce al cliente y no el código.
+   */
+  wiwo_portal_campo_responsables: boolean
+  wiwo_portal_campo_seguidores: boolean
+  wiwo_portal_campo_etiquetas: boolean
+  wiwo_portal_campo_iteraciones: boolean
+  wiwo_portal_campo_eta: boolean
+  wiwo_portal_campo_desviacion: boolean
+  wiwo_portal_campo_sla: boolean
+  wiwo_portal_campo_justificacion: boolean
 }
 
 /** Las claves del bloque, para recorrerlas sin perder el tipado. */
@@ -206,6 +225,20 @@ function gruposDelPortal (): GrupoDeInterruptores[] {
       ]
     },
     {
+      titulo: `Columnas de la tabla de ${procesos}`,
+      descripcion: `Columnas que el cliente ve en su tabla de ${procesos}, además de las que ve siempre. Apagadas no viajan: no van en blanco, no van.`,
+      interruptores: [
+        { clave: 'wiwo_portal_campo_responsables', etiqueta: 'Asignados', ayuda: 'Quién del equipo tiene asignada cada ' + proceso + '. Se llama igual que la columna del panel a propósito: el cliente y quien lo atiende tienen que poder nombrar lo mismo por teléfono.' },
+        { clave: 'wiwo_portal_campo_seguidores', etiqueta: 'Seguidores' },
+        { clave: 'wiwo_portal_campo_etiquetas', etiqueta: 'Etiquetas', ayuda: 'Nace apagado: las etiquetas son vocabulario interno de gestión y suelen decir más de lo que parece («esperando-plata»). Revisá las que usa este ' + espacio + ' antes de encenderlo.' },
+        { clave: 'wiwo_portal_campo_iteraciones', etiqueta: 'Número de iteraciones' },
+        { clave: 'wiwo_portal_campo_eta', etiqueta: 'Fecha comprometida (ETA)', ayuda: `Nace apagado. Las cuatro de acá abajo miden al equipo contra su propio compromiso: mostrarlas es decidir que este cliente ve cuándo nos atrasamos y por qué.` },
+        { clave: 'wiwo_portal_campo_desviacion', etiqueta: 'Días de desviación' },
+        { clave: 'wiwo_portal_campo_sla', etiqueta: 'Estado de cumplimiento (SLA)' },
+        { clave: 'wiwo_portal_campo_justificacion', etiqueta: 'Justificación del equipo', ayuda: 'Lo que alega el equipo cuando se pasa de la fecha comprometida. Se publica el texto y la fecha; nunca quién lo escribió.' }
+      ]
+    },
+    {
       titulo: 'Pantallas transversales',
       descripcion: `Pantallas del portal que suman varios ${GLOSARIO.espacio.plural.toLowerCase()} en una sola vista.`,
       interruptores: [
@@ -224,7 +257,7 @@ function gruposDelPortal (): GrupoDeInterruptores[] {
  *
  * === EL INTERRUPTOR MAESTRO ===
  *
- * `visible_para_cliente` está por encima de los otros doce: apagado, el Espacio no existe para el
+ * `visible_para_cliente` está por encima de los otros veinte: apagado, el Espacio no existe para el
  * portal —no aparece en el listado, su id escrito a mano da 404 y ninguna subsección se abre—. Por
  * eso va arriba y separado, y por eso el resto del bloque se muestra atenuado cuando está apagado:
  * siguen editándose, para poder dejar la configuración lista, pero mientras el maestro esté en cero
@@ -242,9 +275,9 @@ function gruposDelPortal (): GrupoDeInterruptores[] {
  * Son interruptores: esperar un botón "Guardar" para una casilla sola deja la pantalla diciendo algo
  * que todavía no es cierto. El verbo es `PUT` porque el endpoint reemplaza el bloque entero —una
  * clave que falta es 422, no "dejala como estaba"—, así que cada cambio manda el estado de las
- * trece. El cambio es optimista y se revierte si la API lo rechaza.
+ * veintiuna. El cambio es optimista y se revierte si la API lo rechaza.
  *
- * Encender o apagar cualquiera de las trece queda anotado en la actividad con nombre y fecha: es una
+ * Encender o apagar cualquiera de las veintiuna queda anotado en la actividad con nombre y fecha: es una
  * decisión de mostrarle a un tercero algo que hasta ese momento era interno.
  */
 function VisibilidadDelPortal ({
@@ -279,7 +312,7 @@ function VisibilidadDelPortal ({
 }
 
 /**
- * Los trece interruptores del portal.
+ * Los veintiún interruptores del portal.
  *
  * Nunca lanza: el 403 y el 422 del contrato son valores que quien configura tiene que poder leer, no
  * excepciones que tumben el panel.

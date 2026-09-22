@@ -81,6 +81,18 @@ export interface EspacioPortal {
   counts: { tasks: number, tasks_open: number, milestones: number }
   /** Solo en el detalle: las pestañas que este contacto puede abrir en este proyecto. */
   tabs?: PestaniaPortal[]
+  /**
+   * Solo en el detalle: los flags de columna de Tarea que este proyecto tiene encendidos.
+   *
+   * Viaja al lado de `tabs` y por el mismo motivo: es lo que la pestaña de Tareas necesita saber
+   * **antes** de pedir la primera tarea. Deducirlo de las filas se equivoca justo donde importa —con
+   * el listado vacio no se puede distinguir "la columna esta apagada" de "esta encendida y nadie la
+   * lleno"—, y la tabla saldria distinta segun los datos que tocaran caer en esa pagina.
+   *
+   * La API siempre lo manda, aunque sea `[]`, que es el estado de nacimiento de los 279 proyectos.
+   * Opcional acá porque el mismo tipo describe el listado, donde no viaja.
+   */
+  campos_tareas?: string[]
   /** Solo con `view_finance_overview`. */
   project_cost?: number | null
   project_rate_per_hour?: number | null

@@ -89,11 +89,10 @@ export const PORTAL_TAREAS: DefinicionRecurso<TareaPortal> = {
  * Es la lista corta a proposito, y no la del equipo menos algunas. Lo que no esta acá es porque
  * `GET /portal/projects/{id}/tasks` no manda la clave o porque no le corresponde al cliente:
  *
- *   - **No se publican por diseño**, y la API ni siquiera las declara: `assignees` y `followers`
- *     (son las personas del equipo), `eta`, `desviacion` y `estado_sla` (miden al equipo contra su
- *     propio compromiso interno), `justificacion` (la escribe el equipo, no el cliente),
- *     `iterations` (contador interno de gestion) y `tags` (vocabulario interno, igual que en
- *     `proyectoDelPortal`).
+ *   - **Las ocho opcionales no estan acá porque no son de todos**: `assignees`, `followers`,
+ *     `tags`, `iterations`, `eta`, `desviacion`, `estado_sla` y `justificacion` viven en
+ *     `COLUMNAS_POR_FLAG` y solo aparecen si el {espacio} las encendio (migracion `0830`). Esta
+ *     lista es lo que ve un contacto **siempre**, en los 279 {espacios}, sin que nadie decida nada.
  *   - `project` la API si la manda, pero ni siquiera llega hasta acá: `procesosDelEspacio` ya la
  *     saca, en las dos pantallas, porque dentro de un Proyecto no dice nada. Tampoco habria que
  *     sumarla: su celda es un enlace a `/proyectos/{id}`, ruta del panel, rota para un contacto.
@@ -131,6 +130,51 @@ const COLUMNAS_DEL_CONTACTO = [
 ]
 
 /**
+ * Las ocho columnas que el contacto ve **solo si su {espacio} las enciende** (migracion `0830`).
+ *
+ * La clave es el flag de `tblproject_settings` y el valor, la columna de `procesosDelEspacio`. La
+ * lista de flags encendidos llega en `campos_tareas`, dentro de `GET /portal/projects/{id}`, al
+ * lado de `tabs`.
+ *
+ * **El interruptor no es cosmetico.** Apagado, la API no manda la clave: no es que la columna se
+ * esconda, es que el dato no sale del backend. Por eso esto no es un selector de columnas del
+ * navegador —eso ya existe, es `ocultaPorDefecto` y vive en la tabla— sino una decision del
+ * {espacio}: lo que aca no este encendido, el cliente no lo puede ver ni mirando la respuesta.
+ *
+ * El orden de esta lista no importa: la posicion de cada columna sale de `procesosDelEspacio`, como
+ * todas las demas, para que la tabla del cliente y la del equipo se lean igual.
+ */
+const COLUMNAS_POR_FLAG: Record<string, string> = {
+  wiwo_portal_campo_responsables: 'assignees',
+  wiwo_portal_campo_seguidores: 'followers',
+  wiwo_portal_campo_etiquetas: 'tags',
+  wiwo_portal_campo_iteraciones: 'iterations',
+  wiwo_portal_campo_eta: 'eta',
+  wiwo_portal_campo_desviacion: 'desviacion',
+  wiwo_portal_campo_sla: 'estado_sla',
+  wiwo_portal_campo_justificacion: 'justificacion'
+}
+
+/**
+ * Las columnas que este {espacio} le publica al contacto: las de siempre mas las que encendio.
+ *
+ * Un flag que no este en `COLUMNAS_POR_FLAG` se ignora en vez de romper, que es la direccion
+ * segura: una clave nueva del backend que el front todavia no conoce deja la columna sin dibujar,
+ * no rompe la tabla entera. Al reves —confiar en el nombre del flag para armar la clave de la
+ * columna— publicaria una columna que ninguna celda sabe pintar.
+ *
+ * @param camposEncendidos Lo que vino en `campos_tareas`; vacio o ausente deja solo las de siempre.
+ * @returns Las claves de columna visibles para este contacto en este {espacio}.
+ */
+export function columnasDelContacto (camposEncendidos: readonly string[] = []): string[] {
+  const opcionales = camposEncendidos
+    .map((flag) => COLUMNAS_POR_FLAG[flag])
+    .filter((columna): columna is string => columna !== undefined)
+
+  return [...COLUMNAS_DEL_CONTACTO, ...opcionales]
+}
+
+/**
  * La definicion de Procesos de un Proyecto, acotada a lo que ve un contacto.
  *
  * **Se deriva de la del equipo, no se escribe de nuevo.** `procesosDelEspacio` es la unica lista de
@@ -148,17 +192,24 @@ const COLUMNAS_DEL_CONTACTO = [
  * pantalla.
  *
  * @param proyectoId El Proyecto que el cliente esta mirando.
+ * @param camposEncendidos Los flags de `campos_tareas`, que suman columnas opcionales. Sin ellos la
+ *   tabla queda como estaba antes de la migracion `0830`, que es el estado de nacimiento de los
+ *   279 Proyectos.
  * @returns La definicion lista para la tabla, el tablero y el calendario de Procesos.
  */
-export function procesosDelContacto (proyectoId: number): DefinicionRecurso<Proceso> {
+export function procesosDelContacto (
+  proyectoId: number,
+  camposEncendidos: readonly string[] = []
+): DefinicionRecurso<Proceso> {
   const base = procesosDelEspacio(proyectoId)
   const ordenables = PORTAL_TAREAS.ordenables
+  const visibles = columnasDelContacto(camposEncendidos)
 
   return {
     ...base,
     ruta: `portal/projects/${encodeURIComponent(String(proyectoId))}/tasks`,
     columnas: base.columnas
-      .filter((columna) => COLUMNAS_DEL_CONTACTO.includes(columna.clave))
+      .filter((columna) => visibles.includes(columna.clave))
       // Una flecha de orden sobre un campo que el endpoint del portal no ordena se dibujaria, se
       // podria pulsar y no haria nada: `construirConsulta` poda el `sort` contra `ordenables`.
       .map((columna): Columna<Proceso> => (

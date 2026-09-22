@@ -191,7 +191,15 @@ function contenidoDePestania (
     case 'tasks':
       // `conIa={false}`: la capa de IA es del panel, y el alta por texto que habilita ni se ofrece
       // con `capacidades={[]}`.
-      return <PanelTareas proyectoId={proyecto.id} fuente={fuente} capacidades={[]} conIa={false} />
+      return (
+        <PanelTareas
+          proyectoId={proyecto.id}
+          fuente={fuente}
+          capacidades={[]}
+          conIa={false}
+          camposDeTareas={proyecto.campos_tareas ?? []}
+        />
+      )
     case 'calendar':
       return <PanelCalendario proyectoId={proyecto.id} fuente={fuente} capacidades={[]} />
     case 'milestones':
