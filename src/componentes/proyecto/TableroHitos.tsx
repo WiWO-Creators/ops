@@ -13,6 +13,7 @@ import { PARAMETRO_TAREA } from '@/componentes/datos/tabla'
 import { filtrosDeCamposPersonalizados } from '@/definiciones/filtros'
 import { Cargando, ErrorEstado } from '@/componentes/estado/Estados'
 import { procesosDelEspacio } from '@/definiciones/procesos'
+import { procesosDelContacto } from '@/definiciones/portal-proyectos'
 import { GLOSARIO } from '@/dominio/glosario'
 import { AgregarAlHito } from './AgregarAlHito'
 import { BotonDuplicarTarea } from './DuplicarTarea'
@@ -21,6 +22,7 @@ import { COLUMNA_SIN_CATEGORIZAR, cuerpoMoverHito, ordenarColumnasHitos } from '
 import { segundosAHoraMinuto } from './formatos'
 import type { ColumnaTablero, CuerpoMover, GrupoTablero } from '@/componentes/datos/tablero'
 import type { DefinicionRecurso, OpcionFiltro } from '@/definiciones/tipos'
+import type { FuenteDeProyecto } from '@/dominio/fuente-proyecto'
 import type { DefinicionCampoPersonalizado, EstadoLookup, Hito, Lookups, TarjetaHito } from '@/datos/recursos'
 
 /**
@@ -37,6 +39,14 @@ import type { DefinicionCampoPersonalizado, EstadoLookup, Hito, Lookups, Tarjeta
 
 interface PropsTableroHitos {
   proyectoId: number
+  /**
+   * De donde bajan los datos del Proyecto.
+   *
+   * Es lo unico que separa el kanban del equipo del del cliente. Sin ella el tablero pedia a tres
+   * rutas del equipo escritas a mano —los Hitos, el catalogo y los campos personalizados— y montarlo
+   * en el portal daba tres 403 en vez de un tablero.
+   */
+  fuente: FuenteDeProyecto
   /** Nombre del Proyecto. Lo pide el camino "Traer de otro proyecto" del "+", que lo muestra. */
   proyectoNombre: string
   /** Cuando es `true` el backend no manda las tareas completadas. Es el valor por defecto del panel. */
@@ -59,6 +69,7 @@ interface PropsTableroHitos {
  * `/lookups`— pero el tipo lo exige, asi que se declara la clave que mas se le parece.
  */
 function definicionDeHitos (
+  fuente: FuenteDeProyecto,
   proyectoId: number,
   excluirCompletadas: boolean,
   campos: DefinicionCampoPersonalizado[],
@@ -66,11 +77,19 @@ function definicionDeHitos (
   puedeEditarTareas: boolean,
   refrescar: () => void
 ): DefinicionRecurso<TarjetaHito> {
+  const esDelPortal = fuente.sujeto === 'portal'
+
   return {
-    ruta: `projects/${encodeURIComponent(String(proyectoId))}/milestones`,
+    ruta: fuente.hitos,
     titulo: GLOSARIO.hito,
     columnas: [{ clave: 'name', encabezado: 'Nombre', presentar: (t) => t.name }],
-    filtros: [...procesosDelEspacio(proyectoId).filtros, ...filtrosDeCamposPersonalizados(campos)],
+    // Los filtros de la barra son los del sujeto que mira, no siempre los del equipo: la whitelist
+    // del contacto acepta 22 de los ~40, asi que ofrecerle los del panel seria mandarlo a un 422 por
+    // cada control que toque. Y sus campos personalizados no existen — `camposDeTareas` es `null`—,
+    // asi que la lista llega vacia y no agrega nada.
+    filtros: esDelPortal
+      ? procesosDelContacto(proyectoId).filtros
+      : [...procesosDelEspacio(proyectoId).filtros, ...filtrosDeCamposPersonalizados(campos)],
     ordenables: ['order'],
     ordenPorDefecto: 'order',
     busqueda: true,
@@ -78,7 +97,10 @@ function definicionDeHitos (
     consultaFija: `excluir_completadas=${String(excluirCompletadas)}`,
     tablero: {
       columnasDesde: 'milestones',
-      rutaMover: 'tasks/:id/mover-hito',
+      // Sin ruta de mover, el motor no ofrece arrastre ni menu "Mover a…". El portal es de solo
+      // lectura por construccion —su guarda rechaza todo lo que no sea GET antes de mirar la ruta—,
+      // asi que un tablero arrastrable solo podria fallar.
+      rutaMover: esDelPortal ? undefined : 'tasks/:id/mover-hito',
       presentarTarjeta: (fila) => (
         <TarjetaDeHito
           tarea={fila as TarjetaHito}
@@ -93,6 +115,7 @@ function definicionDeHitos (
 
 export function TableroHitos ({
   proyectoId,
+  fuente,
   proyectoNombre,
   excluirCompletadas,
   puedeCrear,
@@ -120,20 +143,29 @@ export function TableroHitos ({
 
   useEffect(() => {
     const control = new AbortController()
+    // Los campos personalizados son del equipo: `camposDeTareas` en `null` significa que este sujeto
+    // no tiene ese recurso, y se resuelve con lista vacia en vez de con una rama por sujeto. Pedirlo
+    // igual seria un 403 que tumbaria las tres llamadas del `Promise.all`.
+    const campos = fuente.camposDeTareas === null
+      ? Promise.resolve({ data: [] as DefinicionCampoPersonalizado[] })
+      : pedirSobre<DefinicionCampoPersonalizado[]>(fuente.camposDeTareas, control.signal)
+
     void Promise.all([
-      pedirSobre<Lookups>('lookups', control.signal),
-      pedirSobre<DefinicionCampoPersonalizado[]>('custom-fields?para=tasks', control.signal),
-      pedirSobre<Hito[]>(`projects/${proyectoId}/milestones?per_page=100`, control.signal)
+      pedirSobre<Lookups>(fuente.lookups, control.signal),
+      campos,
+      pedirSobre<Hito[]>(`${fuente.hitos}?per_page=100`, control.signal)
     ]).then(([lookups, campos, hitos]) => {
       if (!control.signal.aborted) setCatalogos({ lookups: lookups.data, campos: campos.data, hitos: hitos.data })
     }).catch((fallo: unknown) => {
       if (!control.signal.aborted) setError(fallo instanceof Error ? fallo.message : 'No se pudieron cargar los filtros.')
     })
     return () => { control.abort() }
-  }, [proyectoId])
+  }, [fuente, proyectoId])
 
   const estados = catalogos === null ? [] : listaDe(catalogos.lookups, 'task_statuses')
+  const esDelPortal = fuente.sujeto === 'portal'
   const definicion = definicionDeHitos(
+    fuente,
     proyectoId,
     excluirCompletadas,
     catalogos?.campos ?? [],
@@ -214,7 +246,12 @@ export function TableroHitos ({
     <TableroFiltrable<TarjetaHito>
       definicion={definicion}
       ruta={definicion.ruta}
-      board="tasks"
+      // `undefined` para el contacto, y no es un detalle: `board` es lo que hace que
+      // `ControlesTabla` pida `filter-presets`, que es una ruta del equipo. Con `tasks` fijo, el
+      // kanban del cliente la pedia con su sesion y el 401 tumbaba la pantalla entera — el aviso
+      // decia "Esto no se pudo cargar" y no se veia ni una columna. Sin `board`, la deduccion de
+      // `tableroDePresets()` devuelve `null` para cualquier ruta que empiece con `portal/`.
+      board={esDelPortal ? undefined : 'tasks'}
       opcionesDeFiltro={opciones}
       mensajeError={`No se pudo cargar el tablero de ${GLOSARIO.hito.plural.toLowerCase()}.`}
       tituloVacio={`Sin ${GLOSARIO.hito.plural.toLowerCase()}`}
@@ -291,7 +328,8 @@ function TarjetaDeHito ({
         </div>
       )}
 
-      {tarea.assignees.length > 0 && <GrupoAvatares personas={tarea.assignees} maximo={4} />}
+      {/* `?? []`: el contacto no recibe la clave salvo que el Proyecto encienda los responsables. */}
+      {(tarea.assignees ?? []).length > 0 && <GrupoAvatares personas={tarea.assignees ?? []} maximo={4} />}
 
       <Link
         href={`?${siguientes.toString()}`}
@@ -306,8 +344,14 @@ function TarjetaDeHito ({
       </Link>
 
       <div className="text-texto-tenue flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
-        <span data-numerico>{segundosAHoraMinuto(tarea.total_logged_seconds)}</span>
-        <span aria-hidden="true">·</span>
+        {/* Sin la clave no se pinta un `00:00`: el Proyecto no comparte las horas, y un cero diria
+            que nadie trabajo. Ausencia no es cero. */}
+        {tarea.total_logged_seconds !== undefined && (
+          <>
+            <span data-numerico>{segundosAHoraMinuto(tarea.total_logged_seconds)}</span>
+            <span aria-hidden="true">·</span>
+          </>
+        )}
         <Fecha valor={tarea.start_date} />
         <span aria-hidden="true">→</span>
         <Fecha valor={tarea.due_date} comoVencimiento />

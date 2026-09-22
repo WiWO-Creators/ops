@@ -99,13 +99,11 @@ function HitosDelProyecto ({
 
   // Memoizado: `PanelRecurso` vuelve a pedir la pagina cada vez que cambia la identidad de la
   // definicion, y sin esto cada render dispararia una peticion nueva.
-  const { definicion: base, conTablero } = useMemo(
+  const { definicion: base } = useMemo(
     () => definicionDeHitos(fuente, proyecto.id),
     [fuente, proyecto.id]
   )
-  // Sin kanban la unica lectura es la tabla, y el parametro de la URL no puede pedir una vista que
-  // el contrato no tiene.
-  const vista = !conTablero || params.get('vistaHitos') === 'tabla' ? 'tabla' : 'tablero'
+  const vista = params.get('vistaHitos') === 'tabla' ? 'tabla' : 'tablero'
   // Sin parametro se muestra todo: hay que pedir `si` para esconder las completadas.
   const excluirCompletadas = params.get('excluirCompletadas') === 'si'
   const puedeEditar = capacidades.includes('edit')
@@ -130,29 +128,25 @@ function HitosDelProyecto ({
 
   const barra = (
     <div className="flex flex-wrap items-center justify-between gap-3">
-      {conTablero && (
-        <Segmentado
+      <Segmentado
           etiqueta="Vista de hitos"
           opciones={VISTAS}
           activo={vista}
           onElegir={(valor) => { cambiar('vistaHitos', valor) }}
         />
-      )}
 
       <div className="flex flex-wrap items-center gap-3">
         {/* Solo lo lee el kanban: en la tabla el filtro por estado es una columna de la definicion,
             y un control que no cambia nada de lo que se ve es peor que no tenerlo. */}
-        {conTablero && (
-          <label className="text-texto-tenue flex items-center gap-2 text-xs">
+        <label className="text-texto-tenue flex items-center gap-2 text-xs">
             <input
               type="checkbox"
               checked={excluirCompletadas}
               onChange={(evento) => { cambiar('excluirCompletadas', evento.target.checked ? 'si' : 'no') }}
               className="accent-acento size-4"
             />
-            Excluir {GLOSARIO.proceso.plural.toLowerCase()} completadas
-          </label>
-        )}
+          Excluir {GLOSARIO.proceso.plural.toLowerCase()} completadas
+        </label>
 
         {puedeCrear && (
           <Boton variante="primario" tamano="chico" onClick={() => { setCreando(true) }}>
@@ -174,7 +168,10 @@ function HitosDelProyecto ({
             barra={barra}
             revision={revision}
             rutaLookups={fuente.lookups}
-            board={conTablero ? 'milestones-tabla' : undefined}
+            // Sin `board` fijo: `ControlesTabla` lo deduce de `definicion.ruta` —`milestones` da
+            // `milestones-tabla` igual que antes— y devuelve `null` cuando la ruta es del portal,
+            // que no tiene presets de filtro. Escrito a mano, la tabla del cliente pediria
+            // `filter-presets` con la sesion de un contacto y el 401 tumbaria la pestaña.
           />
           )
         : (
@@ -183,6 +180,7 @@ function HitosDelProyecto ({
             <TableroHitos
               key={`${revision}-${String(excluirCompletadas)}`}
               proyectoId={proyecto.id}
+              fuente={fuente}
               proyectoNombre={proyecto.name}
               excluirCompletadas={excluirCompletadas}
               puedeCrear={capacidadesTareas.includes('create')}
