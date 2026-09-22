@@ -177,7 +177,9 @@ export function AltaRapidaProceso ({
   const [hitos, setHitos] = useState<Hito[]>([])
   const [tarifa, setTarifa] = useState('')
   const [publica, setPublica] = useState(false)
-  const [visibleCliente, setVisibleCliente] = useState(false)
+  // Nace marcada: el portal solo muestra lo visible, y una tarea que arranca oculta le deja al
+  // cliente la impresion de que nadie esta trabajando. Lo interno se desmarca a mano.
+  const [visibleCliente, setVisibleCliente] = useState(true)
   const [recurrente, setRecurrente] = useState(false)
   const [cada, setCada] = useState('1')
   const [unidad, setUnidad] = useState('month')
