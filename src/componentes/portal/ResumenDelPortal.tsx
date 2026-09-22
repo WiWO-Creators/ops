@@ -50,7 +50,6 @@ export function ResumenDelPortal ({ resumen }: { resumen: ResumenPortal }) {
 
   const hitos = leerHitos(resumen.hitos)
   const procesos = resumen.procesos
-  const bloqueos = leerBloqueos(resumen.bloqueados)
 
   return (
     <section aria-label="Resumen" className="flex flex-col gap-3">
@@ -79,14 +78,7 @@ export function ResumenDelPortal ({ resumen }: { resumen: ResumenPortal }) {
 
       <EstadoDeLosEspacios estados={resumen.espacios.by_status} />
 
-      {/*
-        La portada NO dibuja «No hay nada trabado». El bloque se gano su lugar cuando hay algo
-        detenido, o cuando no se puede saber si lo hay; la tranquilidad en cambio no necesita una
-        tarjeta propia en la pantalla de entrada, donde compite por el mismo aire con «Nada espera
-        tu respuesta», que es la que sí pide algo. La pantalla «Estado de mis {espacios}» la sigue
-        dibujando: ahi el cliente entra justamente a preguntar por eso.
-      */}
-      {bloqueos.clase !== 'sin_bloqueos' && <LoQueEstaTrabado lectura={bloqueos} />}
+      <LoQueEstaTrabado lectura={leerBloqueos(resumen.bloqueados)} />
     </section>
   )
 }

@@ -1,4 +1,4 @@
-import { CalendarClock, CircleCheck, CircleHelp, OctagonAlert } from 'lucide-react'
+import { CalendarClock, CircleHelp, OctagonAlert } from 'lucide-react'
 import { GLOSARIO } from '@/dominio/glosario'
 import { cn } from '@/lib/clases'
 import { formatearVencimiento } from '@/lib/fechas'
@@ -208,12 +208,13 @@ export function ProximosHitos ({ lectura }: { lectura: LecturaDeProximosHitos })
 /**
  * Que esta detenido, por que y de quien depende destrabarlo.
  *
- * === LAS DOS PANTALLAS QUE NO SE PUEDEN CONFUNDIR ===
+ * === LAS DOS AUSENCIAS QUE NO SE PUEDEN CONFUNDIR ===
  *
  * La clave `bloqueados` puede no venir, y eso NO es una lista vacia: ausente es "no se puede saber"
  * —ningun {espacio} comparte su lista de {procesos}, o la instalacion no tiene la tabla de
- * bloqueos— y `[]` es "no tenes nada trabado". Dibujar la segunda cuando pasa la primera seria
- * tranquilizar al cliente sobre algo que nadie miro. Quien las distingue es `leerBloqueos()`.
+ * bloqueos— y `[]` es "no tenes nada trabado". Quien las distingue es `leerBloqueos()`, y la
+ * distincion importa aunque la lista vacia ya no dibuje nada: la ausencia SI se cuenta, porque
+ * callar sobre algo que nadie miro se lee como calma.
  *
  * === LO QUE DEPENDE DEL CLIENTE VA DESTACADO ===
  *
@@ -236,16 +237,11 @@ export function LoQueEstaTrabado ({ lectura }: { lectura: LecturaDeBloqueos }) {
     )
   }
 
-  if (lectura.clase === 'sin_bloqueos') {
-    return (
-      <Tarjeta tono="tranquilo" icono={<CircleCheck size={16} aria-hidden="true" className="shrink-0" />}>
-        <p className="text-texto text-sm font-medium">No hay nada trabado</p>
-        <p className="text-texto-tenue mt-1 text-sm">
-          Si algo se detiene y necesitamos que hagas algo para seguir, lo vas a ver acá.
-        </p>
-      </Tarjeta>
-    )
-  }
+  // «No hay nada trabado» no se dibuja en ninguna pantalla: la calma no necesita un cartel. El
+  // bloque aparece cuando hay algo detenido —que es lo que el cliente tiene que ver— y cuando no
+  // se puede saber si lo hay, que es una advertencia y no una tranquilizacion. La distincion entre
+  // las dos ausencias sigue viva en `leerBloqueos()`: es la que decide cual de los dos casos es.
+  if (lectura.clase === 'sin_bloqueos') return null
 
   return (
     <BloqueDeLista
