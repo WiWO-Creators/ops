@@ -438,7 +438,6 @@ Sin filtros ni orden: el endpoint devuelve la lista entera y quien la muestre la
   "task_statuses": [
     { "id": 1, "name": "No iniciado",       "color": "#64748b", "order": 1,   "filter_default": true },
     { "id": 4, "name": "En progreso",       "color": "#3b82f6", "order": 2,   "filter_default": true },
-    { "id": 3, "name": "En pruebas",        "color": "#0284c7", "order": 3,   "filter_default": true },
     { "id": 2, "name": "Esperando respuesta","color": "#84cc16","order": 4,   "filter_default": true },
     { "id": 5, "name": "Completado",        "color": "#22c55e", "order": 100, "filter_default": false }
   ],

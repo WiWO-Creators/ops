@@ -8,9 +8,10 @@ import { ESTADO_COMPLETO } from './tareas.ts'
  * por eso vive detras de dos acciones (`modules/api/Escritura/EstadoProceso.php`). Elegir mal la
  * accion no devuelve error: guarda el estado y se saltea la cascada, que es peor que fallar.
  *
- * Las dos cubren el catalogo entero, que en produccion tiene seis estados y no cinco:
- * `mark-complete` para "Completo" y `reopen` con el `status` destino para cualquier otro, venga la
- * tarea de estar completa o no —`reabrir()` limpia `datefinished` aunque ya estuviera vacio—.
+ * Las dos cubren el catalogo entero, sea cual sea su tamaño —los estados se crean y se retiran
+ * desde el panel de Perfex—: `mark-complete` para "Completo" y `reopen` con el `status` destino para
+ * cualquier otro, venga la tarea de estar completa o no —`reabrir()` limpia `datefinished` aunque ya
+ * estuviera vacio—.
  *
  * Vive fuera del `.tsx` por la razon de siempre en este proyecto: Node sabe despojar los tipos de un
  * `.ts` pero no el JSX, asi que una funcion declarada dentro del componente no se puede probar. Aca

@@ -111,7 +111,7 @@ test('la definicion del contacto apaga todo lo que el contrato del portal no emi
   const delPortal = {
     id: 9,
     name: 'Revisión de diseño',
-    status: 3,
+    status: 4,
     patente: 'PAT-001-09',
     start_date: '2026-09-02',
     due_date: '2026-09-25',
