@@ -63,17 +63,21 @@ test('no hay claves repetidas entre los grupos', () => {
   assert.deepEqual(dibujadas, [...new Set(dibujadas)], 'una casilla aparece en dos grupos')
 })
 
-test('están las quince del backend, con las tres propias de este módulo', () => {
+test('están los tres interruptores propios de este módulo', () => {
   const declaradas = clavesDeLaInterfaz()
 
-  // Quince: el maestro (columna de `tblprojects`) más las catorce filas de `tblproject_settings` que
-  // acepta `Escritura\AjustesDelPortal`. Si el backend agrega la dieciséis y el panel no, la casilla
-  // nueva no se puede tocar desde ninguna pantalla.
-  assert.equal(declaradas.length, 15)
-
+  // Los `view_*` son de Perfex; estos tres los inventamos nosotros y son los que tienen migración
+  // propia, así que son los que se pueden perder en un merge sin que nada más se rompa.
   for (const propia of ['wiwo_portal_actas', 'wiwo_portal_gestion', 'wiwo_portal_tickets']) {
     assert.ok(declaradas.includes(propia), `falta el interruptor propio ${propia}`)
   }
+
+  // A PROPÓSITO NO SE AFIRMA CUÁNTAS SON. La cuenta exacta solo sirve si se compara contra
+  // `Escritura\AjustesDelPortal::CLAVES`, que vive en el otro repo y esta prueba no puede leer: acá
+  // sería un número que hay que editar dos veces y que rompe la rama de cualquiera que agregue una
+  // clave. El guardián de la cuenta es `modules/api/pruebas/portal_paridad.php` del board, que sí
+  // tiene la constante delante. Lo que esta prueba protege es otra cosa: que lo declarado y lo
+  // dibujado no se separen, y eso no depende de cuántas haya.
 })
 
 test('las solicitudes de soporte se administran desde el grupo de pestañas', () => {
