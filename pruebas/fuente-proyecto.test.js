@@ -31,8 +31,11 @@ const panel = fuenteDelPanel(7)
 const portal = fuenteDelPortal(7)
 
 /** Los recursos que el contacto no tiene. Son los unicos `null` permitidos. */
+// `resumenDeTareas` salio de esta lista: los contadores por estado de la ficha son los mismos para
+// los dos sujetos, y el portal ya tiene su ruta. Lo que el contacto no tiene sigue siendo lo que
+// no puede pedir, no lo que todavia no le habiamos dado.
 const SIN_RECURSO = [
-  'subrecursosDeTarea', 'resumenDeTareas', 'camposDeTareas', 'dependenciasDeTareas', 'actaTareas'
+  'subrecursosDeTarea', 'camposDeTareas', 'dependenciasDeTareas', 'actaTareas'
 ]
 
 test('las dos fuentes declaran las mismas claves', () => {
