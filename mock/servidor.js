@@ -5098,6 +5098,60 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
       if (resto[2] === 'milestones' && resto.length === 3) {
         exigirPestania('milestones')
 
+        // El kanban de Hitos del contacto. Faltaba: el mock devolvia la lista plana tambien con
+        // `?vista=tablero`, asi que esa pantalla no se podia mirar contra el mock y los tres fallos
+        // que la tumbaban se encontraron recien con un volcado de produccion.
+        //
+        // La tarjeta va PODADA, que es lo que hace util a esta rama: sin `assignees` —la forma del
+        // contacto no los publica salvo que el Proyecto encienda su interruptor—, sin
+        // `current_user_is_assigned` —un contacto no tiene Tareas asignadas— y con
+        // `total_logged_seconds` solo si el Proyecto comparte las horas. Las claves **no viajan en
+        // cero**: no viajan. Un `00:00` le dice al cliente que nadie trabajo.
+        if (parametros.get('vista') === 'tablero') {
+          const compartido = COMPARTIDO_CON_EL_CLIENTE[espacio.id] ?? COMPARTIDO_CON_EL_CLIENTE.defecto
+          const campos = camposDeTareaDelPortal(espacio.id)
+          const visibles = HITOS.filter((h) => h.project_id === espacio.id && !HITOS_OCULTOS_AL_CLIENTE.includes(h.id))
+          const suyas = PROCESOS.filter((p) => p.project?.id === espacio.id)
+
+          const columnas = [
+            { id: 0, name: 'Sin categorizar', color: null, order: -1 },
+            ...visibles.map((h) => ({ id: h.id, name: h.name, color: h.color, order: h.milestone_order }))
+          ]
+
+          const grupos = columnas.map((columna) => {
+            const deLaColumna = suyas.filter((p) => (p.milestone?.id ?? 0) === columna.id)
+            const tarjetas = deLaColumna.map((p) => {
+              const tarjeta = presentarTareaPortal(p, campos)
+
+              // Las horas cuelgan del mismo flag que en la ficha, y con el flag apagado la clave no
+              // existe. Que el frontend distinga "no corresponde" de "cero" es justo lo que se rompio.
+              if (compartido.tiempo) {
+                tarjeta.total_logged_seconds = CRONOMETROS
+                  .filter((t) => t.task_id === p.id)
+                  .reduce((total, t) => total + Math.max(
+                    0,
+                    (Date.parse(t.end_time ?? new Date().toISOString()) - Date.parse(t.start_time)) / 1000
+                  ), 0)
+              }
+
+              return tarjeta
+            })
+
+            return {
+              columna: compartido.tiempo
+                ? {
+                    ...columna,
+                    total_logged_seconds: tarjetas.reduce((total, t) => total + (t.total_logged_seconds ?? 0), 0)
+                  }
+                : columna,
+              tarjetas,
+              pagination: { page: 1, per_page: 100, total: tarjetas.length, total_pages: 1 }
+            }
+          }).filter((grupo) => grupo.columna.id !== 0 || grupo.pagination.total > 0)
+
+          return { estado: 200, cuerpo: conDatos(grupos) }
+        }
+
         // La misma presentacion que el listado del equipo, recortada: al contacto no le viajan
         // `description_visible_to_customer`, `hide_from_customer` ni las horas registradas, y la
         // descripcion llega en null salvo que el equipo la haya marcado compartible.
