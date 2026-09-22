@@ -14,21 +14,26 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
+  LIENZO_DE_AREA,
   SALVEDAD_DE_FECHAS,
   SEMANAS_CON_DATO_MINIMAS,
   TICKET_CERRADO,
   TOPE_DE_PERSONAS,
-  barrasDePrioridad,
+  arcoDeAvance,
+  areaDeCierres,
   cifrasDelTablero,
+  clavesDePrioridad,
   contarTickets,
   filasDePersonas,
   leerAvance,
   leerCierres,
   lineaDeHitos,
+  marcasAgrupadas,
   novedades,
   resumenDeCierres,
   resumenDeHitos,
-  resumenDePrioridades
+  resumenDePrioridades,
+  tramosDePrioridad
 } from '../src/componentes/portal/tablero-proyecto.ts'
 
 const HOY = '2026-09-22'
@@ -102,41 +107,88 @@ test('el avance no recalcula: repite lo que dijo la API', () => {
 })
 
 // =================================================================================================
-// LAS PRIORIDADES
+// EL ANILLO DEL MEDIDOR
 // =================================================================================================
 
-test('las prioridades se miden contra la más poblada, no contra el total', () => {
-  // El caso real del Proyecto 167: 74 de 82 en «Medio». Contra el total, «Alto» con 6 quedaría en
-  // 0,07 y sería un píxel: la comparación entre Alto y Urgente, que es la única que el gráfico
-  // ofrece, se perdería.
-  const barras = barrasDePrioridad(prioridades(0, 74, 6, 2))
+test('el arco pintado es la fracción exacta de la circunferencia', () => {
+  const { circunferencia, pintado } = arcoDeAvance(50, 48)
 
-  assert.equal(barras[1].fraccion, 1, 'la más poblada llena la barra')
-  assert.equal(barras[2].fraccion, 6 / 74)
-  assert.equal(barras[3].fraccion, 2 / 74)
+  assert.equal(circunferencia, 2 * Math.PI * 48)
+  assert.ok(Math.abs(pintado - circunferencia / 2) < 1e-9, 'el 50 % pinta media vuelta')
 })
 
-test('las cuatro prioridades salen siempre, también las que están en cero', () => {
-  const barras = barrasDePrioridad(prioridades(0, 0, 0, 1))
+test('el arco se acota a 0-100 en vez de dar la vuelta', () => {
+  const r = 48
+  const completa = arcoDeAvance(100, r).pintado
 
-  assert.equal(barras.length, 4, 'una lista que cambia de largo obliga a releer los rótulos')
-  assert.equal(barras[0].total, 0)
-  assert.equal(barras[0].fraccion, 0)
+  // Un porcentaje fuera de rango no debería llegar, pero si llega, un arco de 140 % da dos vueltas
+  // y se lee como un 40 %. Se satura en la vuelta completa.
+  assert.equal(arcoDeAvance(140, r).pintado, completa)
+  assert.equal(arcoDeAvance(-10, r).pintado, 0)
 })
 
-test('sin ninguna tarea no se divide por cero', () => {
-  const barras = barrasDePrioridad(prioridades(0, 0, 0, 0))
+test('sin avance medido el arco es cero, y el componente no lo dibuja', () => {
+  assert.equal(arcoDeAvance(null, 48).pintado, 0)
+})
 
-  assert.ok(barras.every((b) => b.fraccion === 0), 'todas en 0, ninguna NaN')
-  assert.match(resumenDePrioridades(barras), /Sin tareas/)
+// =================================================================================================
+// LA BARRA APILADA DE PRIORIDADES
+// =================================================================================================
+
+test('los tramos son porcentajes del total y suman 100', () => {
+  // El reparto real del Proyecto 167.
+  const tramos = tramosDePrioridad(prioridades(0, 74, 6, 2))
+  const suma = tramos.reduce((s, t) => s + t.porcentaje, 0)
+
+  assert.equal(tramos.length, 3, 'la prioridad en cero no entra a la barra')
+  assert.ok(Math.abs(suma - 100) < 1e-9, 'los tramos cubren la barra entera, sin hueco ni desborde')
+})
+
+test('cada tramo se queda con su paso de la rampa ordinal, no con su rango', () => {
+  // El paso sale del ORDEN de la prioridad, no de cuántas tareas tenga. Si saliera del tamaño,
+  // filtrar o cambiar un conteo repintaría los tramos que sobreviven y quien aprendió «Urgente es
+  // el más oscuro» quedaría engañado.
+  const tramos = tramosDePrioridad(prioridades(0, 74, 6, 2))
+  const porPrioridad = Object.fromEntries(tramos.map((t) => [t.priority, t.paso]))
+
+  assert.equal(porPrioridad[2], 2)
+  assert.equal(porPrioridad[3], 3)
+  assert.equal(porPrioridad[4], 4, 'Urgente es el cuarto paso aunque sea el tramo más chico')
+})
+
+test('el rótulo solo va adentro del tramo cuando cabe', () => {
+  const tramos = tramosDePrioridad(prioridades(0, 74, 6, 2))
+  const porPrioridad = Object.fromEntries(tramos.map((t) => [t.priority, t.rotuloAdentro]))
+
+  assert.equal(porPrioridad[2], true, 'el tramo del 90 % lo aguanta')
+  // 6 de 82 es 7,3 % y 2 de 82 es 2,4 %: ahí «Alto» y «Urgente» se recortarían. Un rótulo cortado
+  // por la mitad es peor que ninguno; lo lleva la leyenda.
+  assert.equal(porPrioridad[3], false)
+  assert.equal(porPrioridad[4], false)
+})
+
+test('sin tareas no hay barra que dibujar', () => {
+  assert.deepEqual(tramosDePrioridad(prioridades(0, 0, 0, 0)), [])
+})
+
+test('la leyenda sale con las cuatro prioridades, también las que están en cero', () => {
+  const claves = clavesDePrioridad(prioridades(0, 0, 0, 1))
+
+  assert.equal(claves.length, 4, 'la leyenda es donde el cliente lee el cero')
+  assert.equal(claves[0].total, 0)
+  assert.deepEqual(claves.map((c) => c.paso), [1, 2, 3, 4])
 })
 
 test('el resumen accesible nombra solo las prioridades que tienen tareas', () => {
-  const resumen = resumenDePrioridades(barrasDePrioridad(prioridades(0, 74, 6, 2)))
+  const resumen = resumenDePrioridades(prioridades(0, 74, 6, 2))
 
   assert.match(resumen, /82 tareas/, 'el total sale del dato, no del catálogo')
   assert.match(resumen, /74 en Medio/)
   assert.doesNotMatch(resumen, /Bajo/, 'la prioridad vacía no se lee en voz alta')
+})
+
+test('sin nada que repartir el resumen lo dice en vez de quedar en blanco', () => {
+  assert.match(resumenDePrioridades(prioridades(0, 0, 0, 0)), /Sin tareas/)
 })
 
 // =================================================================================================
@@ -196,6 +248,62 @@ test('el resumen accesible de la serie nombra la mejor semana', () => {
 
   assert.match(resumen, /9 tareas cerradas/)
   assert.match(resumen, /con 7/)
+})
+
+// =================================================================================================
+// LA GEOMETRÍA DEL ÁREA
+// =================================================================================================
+
+test('el área cierra contra la BASE del lienzo, no contra el mínimo de la serie', () => {
+  // Es la mentira clásica del gráfico de área: si el relleno arranca en el valor más bajo en vez de
+  // en cero, una serie que va de 5 a 7 se dibuja como si se hubiera duplicado.
+  const serie = areaDeCierres(leerCierres(serieDe([5, 6, 7, 6, 5, 6, 7, 6, 5, 6, 7, 6])))
+
+  assert.ok(serie.area.startsWith(`M0,${LIENZO_DE_AREA.alto}`), 'empieza en la base, a la izquierda')
+  assert.ok(serie.area.endsWith(`,${LIENZO_DE_AREA.alto} Z`), 'y vuelve a la base antes de cerrar')
+})
+
+test('los puntos se reparten de borde a borde', () => {
+  const serie = areaDeCierres(leerCierres(serieDe([1, 2, 3])))
+
+  assert.equal(serie.puntos[0].x, 0)
+  assert.equal(serie.puntos[0].fraccionX, 0)
+  assert.equal(serie.puntos[serie.puntos.length - 1].x, LIENZO_DE_AREA.ancho)
+  assert.equal(serie.puntos[serie.puntos.length - 1].fraccionX, 1)
+})
+
+test('más alto es más arriba: en SVG el cero está arriba y hay que invertir', () => {
+  const serie = areaDeCierres(leerCierres(serieDe([1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 7])))
+  const mayor = serie.puntos[serie.puntos.length - 1]
+  const cero = serie.puntos[1]
+
+  assert.ok(mayor.y < cero.y, 'la semana de 7 dibuja más arriba que la de 0')
+  assert.equal(cero.y, LIENZO_DE_AREA.alto, 'la semana sin cierres se apoya en la base')
+  assert.ok(mayor.y > 0, 'y el pico deja aire arriba en vez de tocar el borde')
+})
+
+test('solo la mejor semana se marca como extremo', () => {
+  const serie = areaDeCierres(leerCierres(serieDe([2, 9, 3, 0, 0, 0, 0, 0, 0, 0, 0, 1])))
+  const extremos = serie.puntos.filter((p) => p.extremo)
+
+  assert.equal(extremos.length, 1, 'un rótulo directo en cada punto es el caos que nadie lee')
+  assert.equal(extremos[0].cerradas, 9)
+})
+
+test('una serie sin cierres no marca extremo ni inventa un pico', () => {
+  const serie = areaDeCierres(leerCierres(serieDe([])))
+
+  assert.ok(!serie.puntos.some((p) => p.extremo))
+  assert.ok(serie.puntos.every((p) => p.y === LIENZO_DE_AREA.alto), 'todo se apoya en la base')
+})
+
+test('con menos de dos puntos no hay rutas: un segmento de largo cero no es una línea', () => {
+  const unaSemana = { puntos: [{ semana: '2026-09-21', etiqueta: '21 sep', cerradas: 3, fraccion: 1, parcial: true }], valeDibujarla: false, semanasConDato: 1, total: 3 }
+  const serie = areaDeCierres(unaSemana)
+
+  assert.equal(serie.linea, '')
+  assert.equal(serie.area, '')
+  assert.equal(serie.puntos.length, 1, 'el punto igual se devuelve, para que la marca se pueda colgar')
 })
 
 // =================================================================================================
@@ -318,6 +426,69 @@ test('el resumen accesible de los hitos cuenta cumplidos, atrasados y sin fecha'
   assert.match(resumen, /1 sin fecha/)
 })
 
+test('los hitos que caen el mismo día se agrupan en una sola marca del eje', () => {
+  // El caso real del Proyecto 167: sus tres hitos están fechados el 31 de diciembre. Uno por hito
+  // los deja perfectamente superpuestos en el mismo píxel y el cliente cuenta uno donde hay tres.
+  const linea = lineaDeHitos({
+    fechas_confiables: false,
+    lista: [
+      hito(1, 'HTML', '2026-12-31', 3, 3),
+      hito(2, 'REELS', '2026-12-31', 1, 0),
+      hito(3, 'Guiones', '2026-12-31', 2, 1)
+    ]
+  }, HOY)
+
+  const grupos = marcasAgrupadas(linea.marcas)
+
+  assert.equal(grupos.length, 1, 'una marca por fecha, no por hito')
+  assert.equal(grupos[0].hitos.length, 3, 'y se queda con los tres, para poder decir cuántos son')
+})
+
+test('fechas distintas son marcas distintas', () => {
+  const linea = lineaDeHitos({
+    fechas_confiables: true,
+    lista: [hito(1, 'Uno', '2026-10-01', 1, 1), hito(2, 'Dos', '2026-11-01', 1, 0)]
+  }, HOY)
+
+  assert.equal(marcasAgrupadas(linea.marcas).length, 2)
+})
+
+test('en un grupo manda el peor caso: un atrasado pinta la marca entera', () => {
+  const linea = lineaDeHitos({
+    fechas_confiables: true,
+    lista: [
+      hito(1, 'Entregado', '2026-08-01', 2, 2),
+      hito(2, 'Atrasado', '2026-08-01', 2, 0)
+    ]
+  }, HOY)
+
+  const grupo = marcasAgrupadas(linea.marcas)[0]
+
+  assert.equal(grupo.estado, 'atrasado', 'esconder el atraso detrás de una entrega es lo que no puede pasar')
+})
+
+test('cumplido exige que lo estén todos los del grupo', () => {
+  const linea = lineaDeHitos({
+    fechas_confiables: true,
+    lista: [
+      hito(1, 'Hecho', '2026-12-01', 2, 2),
+      hito(2, 'A medias', '2026-12-01', 4, 1)
+    ]
+  }, HOY)
+
+  assert.equal(marcasAgrupadas(linea.marcas)[0].estado, 'en_curso')
+})
+
+test('los hitos sin fecha no entran al eje, pero siguen en la lista', () => {
+  const linea = lineaDeHitos({
+    fechas_confiables: true,
+    lista: [hito(1, 'Con fecha', '2026-10-01', 1, 0), hito(2, 'Sin fecha', null, 1, 1)]
+  }, HOY)
+
+  assert.equal(marcasAgrupadas(linea.marcas).length, 1, 'el que no tiene fecha no tiene dónde ir')
+  assert.equal(linea.marcas.length, 2, 'pero la lista de abajo igual lo nombra')
+})
+
 // =================================================================================================
 // EL EQUIPO
 // =================================================================================================
@@ -352,7 +523,9 @@ test('un equipo sin nada abierto no divide por cero', () => {
 })
 
 test('el equipo se recorta al tope y el desempate es estable', () => {
-  const equipo = Array.from({ length: 20 }, (_, i) => ({
+  // Más que el tope: el recorte tiene que morder. El Proyecto más poblado de producción tiene 23
+  // personas, así que con el tope en 30 entran todas y el «ver las N» del desplegable no miente.
+  const equipo = Array.from({ length: TOPE_DE_PERSONAS + 5 }, (_, i) => ({
     id: i + 1,
     full_name: `Persona ${String(i + 1).padStart(2, '0')}`,
     abiertas: 0,
@@ -362,9 +535,17 @@ test('el equipo se recorta al tope y el desempate es estable', () => {
   const filas = filasDePersonas(equipo)
 
   assert.equal(filas.length, TOPE_DE_PERSONAS)
-  // Con todo empatado manda el nombre: sin ese tercer criterio el recorte elegiría a doce personas
-  // distintas en cada render y la lista bailaría sola.
+  // Con todo empatado manda el nombre: sin ese tercer criterio el recorte elegiría a otras personas
+  // en cada render y la lista bailaría sola.
   assert.equal(filas[0].nombre, 'Persona 01')
+})
+
+test('un equipo de 23 entra completo: el tope no recorta a los proyectos reales', () => {
+  const equipo = Array.from({ length: 23 }, (_, i) => ({
+    id: i + 1, full_name: `Persona ${i}`, abiertas: 0, cerradas: 0
+  }))
+
+  assert.equal(filasDePersonas(equipo).length, 23)
 })
 
 test('el orden no muta la lista que llegó', () => {
@@ -457,15 +638,18 @@ test('sin vencidas no hay alarma', () => {
   assert.ok(cifras.every((c) => c.alarma === false))
 })
 
-test('son cuatro cifras y cada una tiene rótulo', () => {
+test('son tres cifras, y «cerradas en 30 días» no está', () => {
   const cifras = cifrasDelTablero({
     ...prioridades(0, 1, 0, 0),
     vencidas: 1,
     sin_fecha: 1,
     cerradas_7: 1,
-    cerradas_30: 1
+    cerradas_30: 9
   })
 
-  assert.equal(cifras.length, 4)
+  assert.equal(cifras.length, 3)
+  // La serie de doce semanas ya contesta «cuánto se cierra últimamente» con mucho más detalle. Una
+  // cifra que repite lo que el gráfico de al lado dice es el relleno que el usuario rechazó.
+  assert.ok(!cifras.some((c) => c.clave === 'cerradas_30'), 'no se repite lo que el área ya muestra')
   assert.ok(cifras.every((c) => c.etiqueta.length > 0), 'un número sin rótulo es justo lo que se rechazó')
 })

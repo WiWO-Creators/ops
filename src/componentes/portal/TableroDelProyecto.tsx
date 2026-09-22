@@ -1,204 +1,203 @@
-import { LifeBuoy } from 'lucide-react'
 import { GLOSARIO } from '@/dominio/glosario'
 import { cn } from '@/lib/clases'
 import {
-  GraficoDeAvance,
-  GraficoDeCierres,
-  GraficoDeEquipo,
-  GraficoDePrioridades,
+  AreaDeRitmo,
+  BarraDePrioridades,
+  BarrasDeEquipo,
+  CifrasDeContexto,
   LineaDeTiempoDeHitos,
+  MedidorDeAvance,
   ProximaEntregaDelProyecto,
+  TarjetaDeCifra,
   UltimasNovedades
 } from './GraficosDelProyecto'
-import { Panel } from './GraficosDelTablero'
 import {
-  barrasDePrioridad,
   cifrasDelTablero,
   filasDePersonas,
   leerAvance,
   leerCierres,
   lineaDeHitos,
   novedades,
-  type Cifra,
   type ConteoDeTickets
 } from './tablero-proyecto'
 import type { ProximaEntrega, TableroDelProyecto as Tablero } from '@/datos/portal'
 
-/** Cuántas novedades entran en el panel. Es un «qué pasó últimamente», no el feed entero. */
-const TOPE_DE_NOVEDADES = 6
+/** Cuántas novedades se calculan. El componente muestra cinco y pliega el resto. */
+const TOPE_DE_NOVEDADES = 12
 
 /**
  * El tablero de UN {espacio}, dentro de su pestaña Descripción.
  *
- * === QUÉ REEMPLAZA ===
+ * === QUÉ SE ARREGLÓ ACÁ ===
  *
- * La pestaña publicaba cuatro cifras sueltas: avance, {procesos}, días y horas. El pedido fue
- * explícito —«info que le pueda interesar al cliente más allá de 3 números piñuflas»— y el problema
- * de esas cuatro no era que fueran pocas: era que ninguna contestaba una pregunta. «39 %» no dice si
- * vamos bien hasta compararlo contra el tiempo consumido; «82 {procesos}» no dice si son muchas; y
- * las horas venían en cero en todos los {espacios} reales.
+ * La primera versión era un `flex flex-col`: ocho bloques a ancho completo, uno debajo del otro. El
+ * usuario la rechazó con una frase que describe el problema mejor que cualquier diagnóstico: «son
+ * solo datos hacia abajo (…) los gráficos son simplemente filas con mucha data y del ancho de la
+ * pantalla».
  *
- * Así que el tablero no agrega números: agrega la FORMA que los hace legibles. Las cifras siguen
- * estando, pero abajo de la forma que las explica.
+ * Ahora es una **rejilla de doce columnas** donde cada bloque pide el ancho que su dato merece. Lo
+ * que es un número ocupa una tarjeta chica; una serie ocupa siete columnas; una lista ocupa la mitad
+ * y se recorta a cinco filas. **Ningún bloque ocupa las doce**: esa fila a lo ancho de la pantalla
+ * era la queja.
  *
- * === EL ORDEN DE LOS BLOQUES ES LA DECISIÓN DE DISEÑO ===
+ * === EL ORDEN, Y QUÉ ENTRA EN LA PRIMERA PANTALLA ===
  *
- * Va de lo accionable a lo informativo, igual que el tablero de gestión y por el mismo motivo: un
- * tablero que abre con volúmenes se mira una vez y no cambia nada.
+ * La primera fila tiene que contestar sola las tres preguntas con las que un cliente abre esto:
  *
- *   1. próxima entrega y avance — las dos preguntas que el cliente hace primero: «¿cuándo?» y
- *      «¿cuánto falta?». Van arriba y en la misma fila porque se leen juntas;
- *   2. las cuatro cifras — el contexto inmediato, con las vencidas destacadas si hay;
- *   3. ritmo de cierres — lo que convierte el avance de foto en película;
- *   4. {hitos} y fechas — el calendario del trabajo;
- *   5. {procesos} por prioridad — cómo se reparte lo que queda;
- *   6. tickets — el soporte, si este {espacio} lo tiene;
- *   7. el equipo — quién lo está haciendo;
- *   8. últimas novedades — el cierre informativo.
+ *   1. **«¿Cuánto falta?»** — el medidor de avance, con la cifra grande al centro. Es la figura
+ *      protagonista y hay exactamente una en la vista.
+ *   2. **«¿Cuándo es lo próximo?»** — la próxima entrega, en días.
+ *   3. **«¿Hay algo mal?»** — las vencidas, con su icono y su palabra, más las cerradas de la
+ *      semana y las abiertas sin fecha.
+ *
+ * Los tickets entran en esa misma fila, como una cifra más: dos números no son un gráfico. El
+ * reparto por prioridad se cuelga al lado del medidor, porque es una sola barra y no justifica una
+ * fila. Después viene el tiempo —el ritmo que llevamos y las fechas que vienen— y al final lo
+ * informativo: equipo y novedades. Es el mismo criterio del tablero de gestión —de lo accionable a
+ * lo informativo— aplicado a una rejilla en vez de a una pila.
  *
  * === CADA BLOQUE PUEDE FALTAR, Y FALTAR NO ES ESTAR EN CERO ===
  *
  * Cinco de los seis bloques del contrato son opcionales: llegan según las pestañas que este contacto
  * tenga en este {espacio}. Su ausencia significa «no puede ver eso», no «eso vale cero». Por eso acá
- * no hay ni un `?? 0`: cada bloque se dibuja si llegó y desaparece si no, y el tablero sigue teniendo
- * sentido con dos bloques o con ocho.
+ * no hay ni un `?? 0`, y por eso las filas de la rejilla se arman según lo que llegó: un
+ * `col-span-7` al lado de un hueco se lee como algo que no cargó, así que cuando falta el vecino el
+ * bloque que queda se estira, y la fila de cifras envuelve en vez de dejar casilleros vacíos.
  *
- * Server Component: no hay estado que guardar. Lo único que el tablero recuerda es la URL de su
- * pestaña, y eso ya lo hace la página.
+ * Server Component: no hay estado que guardar, ni una línea de JavaScript. Los tooltips son
+ * `group-hover`, lo que se despliega son `<details>`, y el tema lo resuelve `light-dark()`.
  */
 export function TableroDelProyecto (
   { tablero, tickets, hoy }: { tablero: Tablero, tickets: ConteoDeTickets | null, hoy: string }
 ) {
   const avance = leerAvance(tablero.avance)
   // `undefined` es «no tiene la pestaña» y `null` es «no queda ninguna entrega pendiente». Los dos
-  // terminan en «no dibujar el panel», pero se preguntan juntos una sola vez para que la rejilla y
-  // el panel no puedan tomar decisiones distintas sobre el mismo dato.
+  // terminan en «no dibujar la tarjeta», pero se preguntan juntos una sola vez para que la rejilla y
+  // la tarjeta no puedan decidir distinto sobre el mismo dato.
   const hayProximaEntrega = tablero.proxima_entrega !== undefined && tablero.proxima_entrega !== null
   const cifras = tablero.tareas === undefined ? [] : cifrasDelTablero(tablero.tareas)
+  const equipo = tablero.equipo === undefined ? [] : filasDePersonas(tablero.equipo)
+  // La pestaña de {procesos} gobierna TRES bloques a la vez —las cifras, el reparto por prioridad y
+  // el ritmo—, así que decide sola la forma de la primera fila. Sin ella el medidor no tiene con qué
+  // compartir dos filas de alto y se queda en una, con los {hitos} al lado.
+  const hayTareas = tablero.tareas !== undefined
+  // Cuántas tarjetas de cifra va a tener la fila de arriba. Si son cero, esa fila NO se dibuja: un
+  // contenedor vacío de ocho columnas ocupa su lugar en la rejilla igual, empuja al bloque siguiente
+  // a la fila de abajo y deja el hueco que todo este rediseño vino a sacar.
+  const tarjetas = cifras.length + (hayProximaEntrega ? 1 : 0) + (tickets === null ? 0 : 1)
 
   return (
-    <div className="flex flex-col gap-4">
-      {/* 1. Las dos preguntas de entrada. Dos columnas en pantalla ancha y una abajo de la otra en
-             el teléfono: son dos frases cortas, no dos tablas.
+    <div className="grid grid-cols-1 gap-3 lg:grid-cols-12">
+      {/* --- 1. La primera pantalla: cuánto falta, cuándo es lo próximo, qué está mal ----------- */}
 
-             La rejilla se pide SOLO cuando hay dos paneles. Con `proxima_entrega` en `null` —que es
-             lo normal en un proyecto con todo vencido— una rejilla de dos dejaría el avance en media
-             pantalla y un hueco al lado, y el hueco se lee como algo que no cargó. */}
-      <div className={cn('grid gap-4', hayProximaEntrega && 'sm:grid-cols-2')}>
-        <GraficoDeAvance avance={avance} />
-        {hayProximaEntrega && <ProximaEntregaDelProyecto entrega={tablero.proxima_entrega as ProximaEntrega} />}
+      {/* El medidor pide cuatro columnas: es la figura protagonista y un anillo necesita alto para
+          leerse, pero no necesita ancho. */}
+      {/* Dos filas de alto SOLO cuando hay con qué llenarlas. El anillo mide 128 px y al lado tiene
+          dos bloques bajos —las cifras y la barra de prioridad—, así que sin ese `row-span` queda un
+          vacío de 120 px a su derecha. Pero los dos bloques dependen de la pestaña de {procesos}:
+          cuando no está, el `row-span` produce el hueco en vez de taparlo, y por eso se pregunta. */}
+      <div className={cn('lg:col-span-4', hayTareas && tarjetas > 0 && 'lg:row-span-2')}>
+        <MedidorDeAvance avance={avance} />
       </div>
 
-      {/* 2. Las cifras, solo si llegó el bloque de {procesos}. */}
-      {cifras.length > 0 && <FilaDeCifras cifras={cifras} />}
-
-      {/* 3. El ritmo. */}
-      {tablero.cierres !== undefined && <GraficoDeCierres cierres={leerCierres(tablero.cierres)} />}
-
-      {/* 4. Los hitos. `hoy` viene de la página y no de `new Date()` acá: el servidor y el navegador
-             pueden estar en días distintos, y un eje que se mueve al hidratar es un salto visible. */}
-      {tablero.hitos !== undefined && (
-        <LineaDeTiempoDeHitos linea={lineaDeHitos(tablero.hitos, hoy)} />
+      {/* Las cifras van en una fila que ENVUELVE, no en una rejilla de columnas fijas. Es la
+          diferencia entre una fila que siempre queda llena y una con un hueco: la próxima entrega
+          desaparece cuando no hay ninguna pendiente —el caso normal de un {espacio} con todo
+          vencido— y una rejilla de cuatro se quedaría con un casillero vacío, que se lee como un
+          bloque que no cargó. Con `flex-1` y un mínimo, las que hay reparten el ancho entre ellas. */}
+      {tarjetas > 0 && (
+      <div className="lg:col-span-8">
+        <div className="flex h-full flex-wrap content-stretch gap-3">
+          {hayProximaEntrega && (
+            <div className="min-w-36 flex-1">
+              <ProximaEntregaDelProyecto entrega={tablero.proxima_entrega as ProximaEntrega} />
+            </div>
+          )}
+          {cifras.map((cifra) => (
+            <div key={cifra.clave} className="min-w-36 flex-1">
+              <CifrasDeContexto cifras={[cifra]} />
+            </div>
+          ))}
+          {/* Los tickets son UNA cifra con su nota, no dos tarjetas ni un gráfico: «abiertos» es lo
+              accionable y «cerrados» es el contexto que va debajo, en letra chica. Dos tarjetas
+              gigantes con un número cada una era exactamente el relleno que se rechazó. */}
+          {tickets !== null && (
+            <div className="min-w-36 flex-1">
+              <TarjetaDeCifra
+                etiqueta={`${GLOSARIO.ticket.plural} abiertos`}
+                valor={String(tickets.abiertos)}
+                nota={
+                  tickets.total === 0
+                    ? 'Ninguno todavía'
+                    : `${tickets.cerrados} ${tickets.cerrados === 1 ? 'cerrado' : 'cerrados'}`
+                }
+              />
+            </div>
+          )}
+        </div>
+      </div>
       )}
 
-      {/* 5. y 6. La prioridad y el soporte, que son dos lecturas cortas. Misma regla que arriba: la
-             rejilla de dos solo cuando hay dos. */}
-      {(tablero.tareas !== undefined || tickets !== null) && (
-        <div className={cn('grid gap-4', tablero.tareas !== undefined && tickets !== null && 'sm:grid-cols-2')}>
-          {tablero.tareas !== undefined && (
-            <GraficoDePrioridades barras={barrasDePrioridad(tablero.tareas)} />
-          )}
-          {tickets !== null && <PanelDeTickets tickets={tickets} />}
+      {/* El reparto por prioridad es una sola barra: bajo, y por eso va acá, completando el alto del
+          medidor en vez de abrir una fila propia. */}
+      {tablero.tareas !== undefined && (
+        <div className="lg:col-span-8">
+          <BarraDePrioridades tareas={tablero.tareas} />
         </div>
       )}
 
-      {/* 7. Y 8. Quién y qué pasó. */}
-      {tablero.equipo !== undefined && <GraficoDeEquipo filas={filasDePersonas(tablero.equipo)} />}
+      {/* --- 2. El tiempo: el ritmo que llevamos y las fechas que vienen ------------------------- */}
+
+      {tablero.cierres !== undefined && (
+        <div className={anchoDeSerie(tablero.hitos !== undefined)}>
+          <AreaDeRitmo cierres={leerCierres(tablero.cierres)} />
+        </div>
+      )}
+
+      {tablero.hitos !== undefined && (
+        <div className={hayTareas ? anchoDeSerie(tablero.cierres !== undefined, true) : 'lg:col-span-8'}>
+          <LineaDeTiempoDeHitos linea={lineaDeHitos(tablero.hitos, hoy)} />
+        </div>
+      )}
+
+      {/* --- 4. Quién y qué pasó ---------------------------------------------------------------- */}
+
+      {tablero.equipo !== undefined && (
+        <div className={anchoDeMitad(tablero.actividad !== undefined)}>
+          <BarrasDeEquipo filas={equipo} total={tablero.equipo.length} />
+        </div>
+      )}
+
       {tablero.actividad !== undefined && (
-        <UltimasNovedades novedades={novedades(tablero.actividad, TOPE_DE_NOVEDADES)} />
+        <div className={anchoDeMitad(tablero.equipo !== undefined)}>
+          <UltimasNovedades novedades={novedades(tablero.actividad, TOPE_DE_NOVEDADES)} />
+        </div>
       )}
     </div>
   )
 }
 
 /**
- * Las cuatro cifras de contexto.
+ * El ancho de un bloque de serie: siete columnas, cinco si es el secundario, doce si está solo.
  *
- * Una rejilla de cuatro y no una fila: en el teléfono una fila de cuatro números deja cada rótulo en
- * dos líneas y la comparación se pierde. Dos por dos se lee de un golpe en cualquier ancho.
+ * El reparto 7/5 y no 6/6 es deliberado: a la izquierda va el ritmo, cuyo eje de doce semanas
+ * pierde resolución en cuanto se comprime, y a la derecha los {hitos}, cuya lista aguanta mejor el
+ * recorte porque el nombre trunca y la fecha es corta.
  *
- * El número de las vencidas va en tinta de peligro cuando hay alguna, y el rótulo NO cambia: quien
- * no distingue el rojo lee «Vencidas 16» igual, que es la información. El color solo acelera.
+ * Cuando el vecino no llegó, el bloque se estira a las doce. Un `col-span-7` con un hueco de cinco
+ * al lado se lee como un bloque que no cargó, y ese hueco es justo lo que este rediseño vino a
+ * sacar.
+ *
+ * @param tieneVecino si el otro bloque de la fila llegó
+ * @param secundario `true` para el de la derecha, el de cinco columnas
  */
-function FilaDeCifras ({ cifras }: { cifras: Cifra[] }) {
-  return (
-    <ul className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-      {cifras.map((cifra) => (
-        <li
-          key={cifra.clave}
-          className="rounded-tarjeta border-linea bg-superficie-elevada shadow-1 flex flex-col gap-0.5 border p-3"
-        >
-          <span
-            data-numerico
-            className={cn(
-              'text-xl font-semibold tabular-nums',
-              cifra.alarma ? 'text-texto-peligro' : 'text-texto'
-            )}
-          >
-            {cifra.valor}
-          </span>
-          <span className="text-texto-tenue text-xs leading-tight">{cifra.etiqueta}</span>
-        </li>
-      ))}
-    </ul>
-  )
+function anchoDeSerie (tieneVecino: boolean, secundario = false): string {
+  if (!tieneVecino) return 'lg:col-span-12'
+
+  return secundario ? 'lg:col-span-5' : 'lg:col-span-7'
 }
 
-/**
- * Los tickets del {espacio}: abiertos y cerrados, y nada más.
- *
- * Sin tiempo de respuesta, y no por falta de ganas: el promedio de respuesta del equipo está
- * excluido del contrato del portal a propósito, con una prueba del lado de la API que falla si
- * alguien lo agrega. Derivarlo acá de las fechas de la lista sería reponer por la ventana lo que se
- * decidió no publicar, y encima mal: `last_reply` es la última respuesta de cualquiera de los dos
- * lados, no la primera del equipo.
- *
- * Con cero tickets el panel igual se dibuja, y dice que no hay. Es la respuesta a una pregunta que
- * el cliente sí se hace —«¿tengo algo pendiente en soporte?»— y un «no» explícito la contesta.
- */
-function PanelDeTickets ({ tickets }: { tickets: ConteoDeTickets }) {
-  return (
-    <Panel
-      titulo={GLOSARIO.ticket.plural}
-      icono={<LifeBuoy size={14} aria-hidden="true" className="shrink-0" />}
-      nota={
-        tickets.total === 0
-          ? `No hay ${GLOSARIO.ticket.plural.toLowerCase()} en este ${GLOSARIO.espacio.singular.toLowerCase()}.`
-          : undefined
-      }
-    >
-      {tickets.total > 0 && (
-        <dl className="flex gap-6">
-          <div className="flex flex-col gap-0.5">
-            <dt className="text-texto-tenue text-xs">Abiertos</dt>
-            <dd
-              data-numerico
-              className={cn(
-                'text-xl font-semibold tabular-nums',
-                tickets.abiertos > 0 ? 'text-texto' : 'text-texto-tenue'
-              )}
-            >
-              {tickets.abiertos}
-            </dd>
-          </div>
-          <div className="flex flex-col gap-0.5">
-            <dt className="text-texto-tenue text-xs">Cerrados</dt>
-            <dd data-numerico className="text-texto-tenue text-xl font-semibold tabular-nums">
-              {tickets.cerrados}
-            </dd>
-          </div>
-        </dl>
-      )}
-    </Panel>
-  )
+/** Media rejilla, o toda si el vecino no llegó. Para las dos listas del pie. */
+function anchoDeMitad (tieneVecino: boolean): string {
+  return tieneVecino ? 'lg:col-span-6' : 'lg:col-span-12'
 }
