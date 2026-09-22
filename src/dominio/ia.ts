@@ -29,15 +29,14 @@ import { ESTADOS_ORBE, type EstadoOrbe } from './orbe.ts'
 
 /** Una referencia que el modelo cito y el servidor ya verifico contra la base. */
 export interface Cita {
-  tipo: 'tarea' | 'discusion' | 'hito' | 'espacio' | 'acta'
+  tipo: 'tarea' | 'hito' | 'espacio' | 'acta'
   id: number
   /** El titulo que salio del `SELECT`, nunca el que escribio el modelo. */
   titulo: string
   /**
    * El Espacio del que es lo citado, cuando el servidor lo manda.
    *
-   * Un Meeting Paper, un hito y una discusion **solo existen como pestaña dentro de la ficha de un
-   * Espacio**: sin este id no hay ruta que armar y la cita se pinta como texto. Va opcional porque
+   * Un Meeting Paper y un hito **solo existen como pestaña dentro de la ficha de un Espacio**: sin este id no hay ruta que armar y la cita se pinta como texto. Va opcional porque
    * un backend anterior a la Tanda 0 no lo mandaba, y una cita sin el sigue valiendo como texto.
    */
   espacio_id?: number
@@ -209,8 +208,13 @@ export type EventoIA =
   | { tipo: 'fin', tareas?: TareaResumen[], generado_en: string | null, regeneracion: Regeneracion | null, uso: UsoIA | null }
   | { tipo: 'error', codigo: string, mensaje: string }
 
-/** Los cinco tipos de cita que el contrato reconoce. Cada uno tiene su destino en `ia-chat.ts`. */
-const TIPOS_CITA = ['tarea', 'discusion', 'hito', 'espacio', 'acta'] as const
+/**
+ * Los cuatro tipos de cita que el contrato reconoce. Cada uno tiene su destino en `ia-chat.ts`.
+ *
+ * `discusion` salio con las discusiones de proyecto: el backend ya no la emite, y la que traiga un
+ * hilo guardado antes se descarta como cualquier tipo desconocido, sin llevarse a las demas.
+ */
+const TIPOS_CITA = ['tarea', 'hito', 'espacio', 'acta'] as const
 
 /** Los seis estados de una propuesta. Uno que no este acá descarta la tarjeta entera. */
 const ESTADOS_ACCION = ['pendiente', 'ejecutando', 'ejecutada', 'rechazada', 'expirada', 'fallida'] as const

@@ -98,6 +98,12 @@ test('la pestaña de tickets se descarta aunque la API la habilite', () => {
   assert.deepEqual(pestaniasDelProyecto(['overview', 'tickets']).map((p) => p.clave), ['overview'])
 })
 
+test('la pestaña de discusiones se descarta aunque una API vieja la mande', () => {
+  // El board retiro las discusiones de proyecto: sus endpoints dan 404, asi que la clave no puede
+  // abrir una pestaña que se caeria al primer pedido.
+  assert.deepEqual(pestaniasDelProyecto(['overview', 'discussions', 'files']).map((p) => p.clave), ['overview', 'files'])
+})
+
 test('un proyecto sin nada compartido no dibuja pestañas', () => {
   assert.deepEqual(pestaniasDelProyecto([]), [])
 })

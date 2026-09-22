@@ -64,7 +64,6 @@ const PREFIJOS_PERMITIDOS = [
   // frente: detalle — subrecursos del detalle de Proyecto (contrato secciones 2 y 5).
   'milestones',
   'timesheets',
-  'discussions',
   'notes',
   // Tickets: el soporte vuelve a atenderse desde el panel, en la pestaña del Espacio. La lista es
   // por PREFIJO, asi que esta entrada cubre tambien los dos subrecursos del detalle —`respuestas`,

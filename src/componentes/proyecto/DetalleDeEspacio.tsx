@@ -3,7 +3,6 @@ import { CabeceraProyecto } from '@/componentes/proyecto/CabeceraProyecto'
 import { PanelActividad } from '@/componentes/proyecto/PanelActividad'
 import { PanelArchivos } from '@/componentes/proyecto/PanelArchivos'
 import { PanelDescripcion } from '@/componentes/proyecto/PanelDescripcion'
-import { PanelDiscusiones } from '@/componentes/proyecto/PanelDiscusiones'
 import { PanelHitos } from '@/componentes/proyecto/PanelHitos'
 import { PanelTareas } from '@/componentes/proyecto/PanelTareas'
 import { PanelTiempos } from '@/componentes/proyecto/PanelTiempos'
@@ -20,8 +19,8 @@ import { fuenteDelPanel } from '@/dominio/fuente-proyecto'
  * Cabecera y pestañas de trabajo de un Espacio que se mira desde otra seccion.
  *
  * Una Licitacion y un Upsell **son** Espacios vistos desde otro angulo: su id ES el del Espacio, y
- * sus tareas, hitos, tiempos, archivos, discusiones y actividad ya viven en los endpoints de Espacio.
- * Las dos secciones montaban —o iban a montar— exactamente la misma lista de siete pestañas con
+ * sus tareas, hitos, tiempos, archivos y actividad ya viven en los endpoints de Espacio.
+ * Las dos secciones montaban —o iban a montar— exactamente la misma lista de seis pestañas con
  * exactamente los mismos componentes; lo unico propio de cada una es la primera pestaña (la ficha con
  * sus datos comerciales) y la botonera de la cabecera. Eso es lo que se recibe por parametro.
  *
@@ -116,11 +115,6 @@ export function DetalleDeEspacio ({
       contenido: <PanelTiempos proyectoId={espacio.id} fuente={fuente} capacidades={capacidadesTareas} />
     },
     { clave: 'archivos', etiqueta: 'Archivos', contenido: <PanelArchivos proyectoId={espacio.id} /> },
-    {
-      clave: 'discusiones',
-      etiqueta: 'Discusiones',
-      contenido: <PanelDiscusiones proyectoId={espacio.id} fuente={fuente} capacidades={capacidadesProyecto} />
-    },
     {
       clave: 'actividad',
       etiqueta: 'Actividad',

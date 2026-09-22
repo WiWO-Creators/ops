@@ -208,9 +208,9 @@ function citaDeMarcador (parte: string, citas: Cita[]): Cita | null {
  *     y entonces se pinta como texto: pegar `?tab=actas` a la URL vigente abriria las actas del
  *     Espacio equivocado, que es el fallo mudo que esta funcion existe para evitar.
  *
- * `discusion` e `hito` siguen devolviendo `null`. El mismo `espacio_id` les serviria —desde la Tanda
- * 0 el servidor lo manda para las tres— pero enlazarlas es otro cambio y esta funcion no lo hace
- * hoy: se pintan como texto sin enlace, igual que un marcador que no tiene cita.
+ * `hito` sigue devolviendo `null`. El mismo `espacio_id` le serviria —desde la Tanda 0 el servidor lo
+ * manda— pero enlazarlo es otro cambio y esta funcion no lo hace hoy: se pinta como texto sin
+ * enlace, igual que un marcador que no tiene cita.
  *
  * @param cita la cita a enlazar
  * @returns la ruta absoluta, o `null` si el destino no se puede resolver con lo que trae la cita

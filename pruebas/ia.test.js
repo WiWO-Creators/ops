@@ -66,6 +66,8 @@ test('lee las citas y descarta solo las que vienen mal', () => {
     citas: [
       { tipo: 'tarea', id: 512, titulo: 'Corregir el informe' },
       { tipo: 'inventado', id: 9, titulo: 'x' },
+      // Las discusiones de proyecto salieron del board: la de un hilo viejo se cae sola.
+      { tipo: 'discusion', id: 31, titulo: 'Presupuesto de la etapa 2' },
       { tipo: 'hito', id: 'siete', titulo: 'x' },
       { tipo: 'espacio', id: 44, titulo: 'Colbún' }
     ]

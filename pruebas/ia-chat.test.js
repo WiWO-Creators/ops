@@ -90,11 +90,9 @@ test('el Meeting Paper citado abre la pestaña de actas de SU Espacio', () => {
 })
 
 test('la cita que no se puede resolver no se enlaza a ningun lado', () => {
-  // `discusion` e `hito` solo existen como pestaña de la ficha de un Espacio, y la cita no dice de
-  // cual. Enlazarlas a la ficha vigente abriria la pestaña del Espacio equivocado, que es
+  // `hito` solo existe como pestaña de la ficha de un Espacio, y la cita no dice de cual. Enlazarlas a la ficha vigente abriria la pestaña del Espacio equivocado, que es
   // exactamente lo que un enlace prolijo no puede hacer.
   assert.equal(hrefDeCita(HITO), null)
-  assert.equal(hrefDeCita({ tipo: 'discusion', id: 31, titulo: 'Presupuesto de la etapa 2' }), null)
 })
 
 test('el hilo global sobrevive a que el chat se desmonte', () => {

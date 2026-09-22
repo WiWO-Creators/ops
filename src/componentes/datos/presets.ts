@@ -3,7 +3,7 @@ import type { TableroDePreset } from '../../datos/recursos.ts'
 import { operadoresCampo } from '../../definiciones/filtros.ts'
 
 export const TOPE_PRESET = 16384
-const TABLEROS: TableroDePreset[] = ['tasks', 'milestones', 'milestones-tabla', 'projects', 'timesheets', 'clients', 'staff', 'tickets', 'discussions', 'notes', 'activity', 'mail-queue', 'files', 'project-templates', 'audit']
+const TABLEROS: TableroDePreset[] = ['tasks', 'milestones', 'milestones-tabla', 'projects', 'timesheets', 'clients', 'staff', 'tickets', 'notes', 'activity', 'mail-queue', 'files', 'project-templates', 'audit']
 export interface PresetPortable { version: 1, board: TableroDePreset, name: string, filters: Record<string, string[]> }
 export interface ConflictoFiltro { clave: string, etiqueta: string, motivo: string, opciones: OpcionFiltro[] }
 

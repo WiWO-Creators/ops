@@ -78,7 +78,7 @@ export const ARCHIVOS: DefinicionRecurso<ArchivoProyecto> = {
  * Las claves de columna que el contrato del contacto **si** emite.
  *
  * Se declara la lista de lo permitido en vez de restar lo prohibido, por la misma razon que en
- * Hitos y en Discusiones: el dia que el equipo sume una columna, la del cliente no se la lleva sola.
+ * Hitos: el dia que el equipo sume una columna, la del cliente no se la lleva sola.
  *
  * Las dos que faltan no son un recorte cosmetico.
  *
@@ -86,8 +86,7 @@ export const ARCHIVOS: DefinicionRecurso<ArchivoProyecto> = {
  * `RecursoArchivos::deEspacioParaContacto()` dejo de publicarlo. Montada tal cual, la columna leeria
  * una clave ausente y pintaria «No» en TODAS las filas: no una celda vacia, sino una mentira —le
  * diria que ninguno de los archivos que esta viendo es visible para el—. Y aunque dijera «Si»
- * siempre, seguiria delatando que la distincion existe, que es lo mismo que ya se decidio con
- * «Mostrar al cliente» en Discusiones.
+ * siempre, seguiria delatando que la distincion existe.
  *
  * `external` tampoco viaja en la forma del portal. Dice en que nube vive el original, que es
  * infraestructura del equipo; el cliente abre el archivo por su enlace y eso no cambia.

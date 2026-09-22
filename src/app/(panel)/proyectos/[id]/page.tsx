@@ -10,7 +10,6 @@ import { PanelConfiguracionEspacio } from '@/componentes/proyecto/PanelConfigura
 import { PanelArchivos } from '@/componentes/proyecto/PanelArchivos'
 import { PanelCalendario } from '@/componentes/proyecto/PanelCalendario'
 import { PanelDescripcion } from '@/componentes/proyecto/PanelDescripcion'
-import { PanelDiscusiones } from '@/componentes/proyecto/PanelDiscusiones'
 import { PanelGantt } from '@/componentes/proyecto/PanelGantt'
 import { PanelHitos } from '@/componentes/proyecto/PanelHitos'
 import { PanelActas } from '@/componentes/proyecto/PanelActas'
@@ -214,11 +213,6 @@ export default async function ProyectoPage (props: PageProps<'/proyectos/[id]'>)
       )
     },
     { clave: 'archivos', etiqueta: 'Archivos', contenido: <PanelArchivos proyectoId={proyecto.id} /> },
-    {
-      clave: 'discusiones',
-      etiqueta: 'Discusiones',
-      contenido: <PanelDiscusiones proyectoId={proyecto.id} fuente={fuente} capacidades={capacidadesProyecto} />
-    },
     { clave: 'gantt', etiqueta: 'Diagrama de Gantt', contenido: <PanelGantt proyectoId={proyecto.id} fuente={fuente} /> },
     // Va pegada al Gantt porque las dos leen las mismas fechas, y despues porque son dos preguntas
     // distintas: el Gantt muestra duraciones y dependencias, el calendario muestra el dia de
@@ -231,7 +225,7 @@ export default async function ProyectoPage (props: PageProps<'/proyectos/[id]'>)
     { clave: 'actas', etiqueta: GLOSARIO.acta.singular, contenido: <PanelActas proyectoId={proyecto.id} fuente={fuente} capacidades={ACTAS_DEL_EQUIPO} capacidadesTareas={capacidadesTareas} ia={ia} yo={yo} /> },
     // La clave se queda en `wibot` aunque el asistente ahora se llame Thinking Orb: no es texto, es
     // el valor que viaja en `?tab=` de esta ficha. Cambiarla dejaría muerto cualquier enlace que
-    // alguien haya guardado o pegado en una discusión, y el nombre del asistente no se lee de ahí
+    // alguien haya guardado o pegado en otro lado, y el nombre del asistente no se lee de ahí
     // sino de la etiqueta, que sí sale de `ASISTENTE`.
     ...(conIa ? [{ clave: 'wibot', etiqueta: ASISTENTE, contenido: <ChatOrbe proyecto={{ id: proyecto.id, name: proyecto.name }} /> }] : []),
     { clave: 'notas', etiqueta: GLOSARIO.nota.plural, contenido: <PanelNotas proyectoId={proyecto.id} /> },

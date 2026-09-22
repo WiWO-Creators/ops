@@ -15,7 +15,6 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { PORTAL_TAREAS, procesosDelContacto } from '../src/definiciones/portal-proyectos.ts'
 import { procesosDelEspacio } from '../src/definiciones/procesos.ts'
-import { DISCUSIONES, definicionDeDiscusiones } from '../src/definiciones/discusiones.ts'
 import { HITOS, definicionDeHitos } from '../src/definiciones/hitos.ts'
 import { definicionDeTiempos } from '../src/definiciones/tiempos.ts'
 import { ARCHIVOS, columnasDeArchivo } from '../src/definiciones/archivos.ts'
@@ -260,19 +259,6 @@ test('el kanban de Hitos del contacto pide a sus rutas y no ofrece escrituras', 
   // que la lista se resuelve vacia en vez de pedirlos y comerse un 403.
   assert.equal(FUENTE_DEL_PORTAL.camposDeTareas, null)
   assert.equal(FUENTE_DEL_PANEL.camposDeTareas, 'custom-fields?para=tasks')
-})
-
-test('la tabla de Discusiones del contacto no publica la visibilidad al cliente', () => {
-  const contacto = definicionDeDiscusiones(FUENTE_DEL_PORTAL, 7)
-
-  assert.equal(definicionDeDiscusiones(FUENTE_DEL_PANEL, 7).ruta, 'projects/7/discussions')
-  assert.equal(contacto.ruta, 'portal/projects/7/discussions')
-  // Al portal solo llegan las compartidas: la columna diria siempre "Sí" y delataria la distincion.
-  assert.equal(contacto.columnas.some((c) => c.clave === 'show_to_customer'), false)
-  assert.equal(contacto.filtros.some((f) => f.clave === 'show_to_customer'), false)
-  // El resto de la consulta si viaja: `paraContacto()` usa la misma whitelist que el equipo.
-  assert.deepEqual(contacto.ordenables, DISCUSIONES.ordenables)
-  assert.equal(contacto.busqueda, true)
 })
 
 test('la tabla de Tiempos del contacto solo pierde las escrituras', () => {

@@ -1,8 +1,8 @@
 /**
  * Logica pura del formulario generico de las pestañas del detalle.
  *
- * Notas, Discusiones e Hitos son tres altas con la misma forma: un puñado de campos, un `POST` o un
- * `PATCH`, y errores por campo. En vez de tres formularios casi iguales hay una descripcion de campos
+ * Notas e Hitos son altas con la misma forma: un puñado de campos, un `POST` o un
+ * `PATCH`, y errores por campo. En vez de un formulario por alta casi iguales hay una descripcion de campos
  * y este modulo, que valida y arma el cuerpo. La parte visual vive en `FormularioRecurso.tsx`.
  */
 

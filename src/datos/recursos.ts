@@ -1523,30 +1523,6 @@ export interface PrefillActa {
   title: string
 }
 
-/** Discusion del proyecto. */
-export interface Discusion {
-  id: number
-  subject: string
-  description: string | null
-  show_to_customer: boolean
-  date_created: string | null
-  last_activity: string | null
-  counts: { comments: number }
-  staff: StaffReferencia | null
-  contact: { id: number, full_name: string } | null
-}
-
-/** Comentario de una discusion o del hilo de un archivo. */
-export interface ComentarioDiscusion {
-  id: number
-  content: string
-  created: string | null
-  modified: string | null
-  parent: number | null
-  author: { id: number, full_name: string, profile_image_url: string | null, es_cliente: boolean } | null
-  file: { name: string, mime: string, url: string } | null
-}
-
 /**
  * La Tarea que atiende un ticket.
  *
@@ -2008,7 +1984,7 @@ export interface PruebaDeAviso {
  * kanban filtra las TAREAS de cada hito y la tabla filtra los HITOS. Un preset cruzado se aplicaria
  * vacio, porque `construirConsulta` poda lo que la definicion de la otra vista no declara.
  */
-export type TableroDePreset = 'tasks' | 'milestones' | 'milestones-tabla' | 'projects' | 'timesheets' | 'clients' | 'staff' | 'tickets' | 'discussions' | 'notes' | 'activity' | 'mail-queue' | 'files' | 'project-templates' | 'audit'
+export type TableroDePreset = 'tasks' | 'milestones' | 'milestones-tabla' | 'projects' | 'timesheets' | 'clients' | 'staff' | 'tickets' | 'notes' | 'activity' | 'mail-queue' | 'files' | 'project-templates' | 'audit'
 
 /** Un preset de filtros guardado para una vista de lista, privado por staff. */
 export interface PresetFiltro {

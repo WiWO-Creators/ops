@@ -11,7 +11,7 @@ import type {
   ValorCampoPersonalizado
 } from '@/datos/recursos'
 import type { Capacidad, StaffReferencia } from '@/datos/tipos'
-import type { ComentarioParaMostrar } from './ComentarioDeDiscusion.tsx'
+import type { ComentarioParaMostrar } from './TarjetaDeComentario.tsx'
 import { estadoVencimiento } from '../../lib/fechas.ts'
 
 /**
@@ -303,7 +303,7 @@ export interface ProcesoDeFicha {
  *
  * Quien firma es exactamente uno de los dos, y cual de los dos es el dato: un comentario con
  * `contact` y sin `staff` lo escribio el propio cliente. `DetalleTarea` lo traduce a la forma que
- * pinta `ComentarioDeDiscusion`, que es donde ese `es_cliente` se vuelve una insignia.
+ * pinta `TarjetaDeComentario`, que es donde ese `es_cliente` se vuelve una insignia.
  *
  * El adjunto del comentario no viaja: la API no lo sirve por ninguna ruta todavia.
  */
@@ -316,15 +316,15 @@ export interface ComentarioDeFicha {
 }
 
 /**
- * Un comentario de la API, en la forma que pinta `ComentarioDeDiscusion`.
+ * Un comentario de la API, en la forma que pinta `TarjetaDeComentario`.
  *
  * La API firma cada comentario con `staff` **o** con `contact`, nunca con los dos, y cual de los dos
  * viene ES el dato: sin `staff`, lo escribio el propio cliente, y eso es lo que la tarjeta convierte
  * en la insignia "Cliente". Con los dos en `null` el autor se perdio —un colaborador dado de baja,
  * por ejemplo— y la tarjeta ya sabe dibujar eso.
  *
- * La traduccion vive aca y no en la tarjeta porque la tarjeta la comparten las discusiones, que
- * emiten otra forma. Y no vive en la API porque `staff`/`contact` es la forma que el panel recibe
+ * La traduccion vive aca y no en la tarjeta para que la tarjeta no dependa de la forma de un
+ * contrato en particular. Y no vive en la API porque `staff`/`contact` es la forma que el panel recibe
  * desde siempre: cambiarla solo para el portal seria una segunda forma del mismo comentario, que es
  * el `if (esPortal)` que este modulo evita en todos lados.
  *

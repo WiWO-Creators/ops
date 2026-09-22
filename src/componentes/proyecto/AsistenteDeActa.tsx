@@ -39,7 +39,7 @@ import type { ModoEntrada } from '@/dominio/actas'
  * 1. Sus tipos de campo son `texto|area|fecha|color|booleano|numero|seleccion`. No existe `archivo`,
  *    y agregarlo arrastra `ValoresFormulario = Record<string, string | boolean>` a aceptar `File`,
  *    lo que toca `validarFormulario`, `cuerpoDelFormulario` y `valoresIniciales` — los tres usados
- *    por Hitos, Notas, Discusiones y Clientes.
+ *    por Hitos, Notas y Clientes.
  * 2. Hace **una** escritura JSON. Esto manda un multipart y consume un stream.
  * 3. Es un `Dialogo` de Radix, o sea modal con trampa de foco. Una generación de minutos dentro de
  *    un modal secuestra la pantalla justo cuando la persona querría irse a mirar otra cosa.

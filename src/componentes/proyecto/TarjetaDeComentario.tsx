@@ -3,11 +3,10 @@ import { Fecha } from '@/componentes/presentadores/Fecha'
 import { Insignia } from '@/componentes/presentadores/Insignia'
 
 /**
- * Un comentario de una discusión del Proyecto.
+ * Un comentario de una Tarea, con su autor, su fecha y su adjunto.
  *
- * Lo dibujan la pestaña del equipo y la del cliente. Eran dos: la del cliente no tenia avatar, no
- * marcaba quien es del cliente y no ofrecia el adjunto, asi que la misma conversacion se leia
- * distinta segun de que lado se abriera —y en un hilo largo eso es la mitad de la lectura—.
+ * Lo dibujan la ficha del equipo y la del cliente con la misma tarjeta, para que la misma
+ * conversacion se lea igual desde los dos lados: avatar, insignia de cliente y adjunto incluidos.
  *
  * Sin `'use client'`: es marcado. El panel lo monta desde un componente cliente y el portal desde el
  * servidor, sin que ninguno mande JavaScript de mas por usarlo.
@@ -25,7 +24,7 @@ export interface ComentarioParaMostrar {
  * @param comentario el comentario tal como lo devuelve la API, de cualquiera de los dos contratos
  * @returns la tarjeta del comentario
  */
-export function ComentarioDeDiscusion ({ comentario }: { comentario: ComentarioParaMostrar }) {
+export function TarjetaDeComentario ({ comentario }: { comentario: ComentarioParaMostrar }) {
   const autor = comentario.author?.full_name ?? 'Sin autor'
 
   return (

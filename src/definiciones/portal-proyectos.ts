@@ -248,7 +248,8 @@ export function procesosDelContacto (
  * Tickets NO esta, aunque la API la habilite: el soporte volvio a ser una seccion del portal
  * —`/portal/soporte`—, y con razon, porque un ticket puede no tener {espacio} y ninguna pestaña lo
  * podria contener. `pestaniasDelProyecto` ignora en silencio lo que la API habilita y esta lista no
- * declara, asi que la clave `tickets` del contrato se descarta sola.
+ * declara, asi que la clave `tickets` del contrato se descarta sola. Lo mismo `discussions`: el board
+ * retiro las discusiones de proyecto, y una API vieja que todavia la mande no abre ninguna pestaña.
  */
 export const PESTANIAS_PROYECTO: Array<{ clave: PestaniaPortal, etiqueta: string }> = [
   { clave: 'overview', etiqueta: 'Descripción' },
@@ -256,7 +257,6 @@ export const PESTANIAS_PROYECTO: Array<{ clave: PestaniaPortal, etiqueta: string
   { clave: 'timesheets', etiqueta: 'Tiempos' },
   { clave: 'milestones', etiqueta: GLOSARIO.hito.plural },
   { clave: 'files', etiqueta: 'Archivos' },
-  { clave: 'discussions', etiqueta: 'Discusiones' },
   { clave: 'gantt', etiqueta: 'Diagrama de Gantt' },
   // Pegada al Gantt y en ese orden porque es el del panel: las dos leen las mismas fechas y
   // contestan preguntas distintas —el Gantt dibuja duraciones, el calendario el dia de entrega—.

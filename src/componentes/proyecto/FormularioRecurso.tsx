@@ -26,8 +26,8 @@ import {
 /**
  * Formulario de alta y edicion, generico y en dialogo.
  *
- * Hitos, Notas y Discusiones son la misma operacion con distintos campos: un `POST` o un `PATCH` con
- * un puñado de valores y errores por campo. En vez de tres formularios casi iguales hay una
+ * Hitos y Notas son la misma operacion con distintos campos: un `POST` o un `PATCH` con
+ * un puñado de valores y errores por campo. En vez de un formulario por alta casi iguales hay una
  * descripcion de campos (`CampoFormulario[]`) y este componente.
  *
  * El dialogo es Radix: la trampa de foco, el cierre con `Escape` y el `aria-modal` no se
@@ -183,10 +183,10 @@ export function FormularioRecurso ({
 /**
  * El titulo que se esta escribiendo, para darle contexto al asistente de IA.
  *
- * Es el primer campo de texto del formulario: en las siete altas que usan este componente —Fecha
- * Clave, Nota, Discusion, Proyecto, Licitacion, Upsell, Iteracion— ese campo es siempre el nombre o
- * el asunto. Buscarlo asi y no pedirselo a cada pantalla es lo que hace que el boton aparezca en las
- * siete sin tocar siete archivos.
+ * Es el primer campo de texto del formulario: en las seis altas que usan este componente —Fecha
+ * Clave, Nota, Proyecto, Licitacion, Upsell, Iteracion— ese campo es siempre el nombre o el asunto.
+ * Buscarlo asi y no pedirselo a cada pantalla es lo que hace que el boton aparezca en las seis sin
+ * tocar seis archivos.
  *
  * @param campos La descripcion del formulario.
  * @param valores Lo que hay escrito.

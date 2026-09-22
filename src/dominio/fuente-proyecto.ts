@@ -1,7 +1,7 @@
 /**
  * De donde bajan los datos de un Proyecto: del panel del colaborador o del portal del cliente.
  *
- * Los paneles de un Proyecto —Tareas, Calendario, Hitos, Tiempos, Discusiones, Actividad, Gantt,
+ * Los paneles de un Proyecto —Tareas, Calendario, Hitos, Tiempos, Actividad, Gantt,
  * Descripcion y Meeting Paper— pedian sus datos con la ruta **escrita dura adentro**
  * (`pedirSobre('projects/7/tasks')`). Eso los ataba al sujeto: el mismo dibujo no podia montarse en
  * el portal, y la unica salida era copiarlo. Se copiaron, y las dos copias se desincronizaron.
@@ -78,9 +78,6 @@ export interface FuenteDeProyecto extends FuenteDeTarea {
   /** Hitos del Proyecto, sin query: el tope va como `per_page` desde quien pide. */
   hitos: string
   archivos: string
-  discusiones: string
-  /** Comentarios de un hilo de discusion. Plantilla con `:id` del hilo. */
-  comentarios: string
   actividad: string
   tiempos: string
   gantt: string
@@ -200,9 +197,6 @@ export function fuenteDelPanel (proyectoId: number): FuenteDeProyecto {
     resumen: `${raiz}/overview`,
     hitos: `${raiz}/milestones`,
     archivos: `${raiz}/files`,
-    discusiones: `${raiz}/discussions`,
-    // Cuelgan del hilo y no del Proyecto: asi los expone la API.
-    comentarios: 'discussions/:id/comments?tipo=regular',
     actividad: `${raiz}/activity`,
     tiempos: `${raiz}/timesheets`,
     gantt: `${raiz}/gantt`,
@@ -241,8 +235,6 @@ export function fuenteDelPortal (proyectoId: number): FuenteDeProyecto {
     resumen: `${raiz}/overview`,
     hitos: `${raiz}/milestones`,
     archivos: `${raiz}/files`,
-    discusiones: `${raiz}/discussions`,
-    comentarios: `${raiz}/discussions/:id/comments`,
     actividad: `${raiz}/activity`,
     tiempos: `${raiz}/timesheets`,
     gantt: `${raiz}/gantt`,
