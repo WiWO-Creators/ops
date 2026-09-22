@@ -26,7 +26,7 @@ import { Tarjeta, type TonoTarjeta } from '@/componentes/estructura/Tarjeta'
 import { Insignia } from '@/componentes/presentadores/Insignia'
 import { Fecha } from '@/componentes/presentadores/Fecha'
 import { BarraProgreso } from '@/componentes/proyecto/CabeceraProyecto'
-import { pedirPortal } from '@/datos/servidor'
+import { pedirPortal, proyectoUnicoDelPortal } from '@/datos/servidor'
 import { cn } from '@/lib/clases'
 import { formatearFecha } from '@/lib/fechas'
 import type {
@@ -88,7 +88,8 @@ const FILAS_SECUNDARIAS = 5
  */
 export default async function PortalInicio () {
   const { data: yo } = await pedirPortal<YoPortal>('/portal/me')
-  const secciones = seccionesDelPortal(yo.secciones_habilitadas)
+  const unico = yo.secciones_habilitadas.includes('projects') ? await proyectoUnicoDelPortal() : null
+  const secciones = seccionesDelPortal(yo.secciones_habilitadas, unico)
   const resumen = await sinFallar<ResumenPortal>('/portal/resumen')
 
   return (
@@ -367,13 +368,17 @@ async function MisEspacios () {
 
   if (espacios.length === 0) return null
 
+  // Con uno solo se habla en singular, igual que la navegacion: "Mis proyectos" promete una lista.
+  const uno = espacios.length === 1
+  const nombre = (uno ? GLOSARIO.espacio.singular : GLOSARIO.espacio.plural).toLowerCase()
+
   return (
     <section className="flex flex-col gap-6">
       <TituloModulo
         nivel="h2"
-        titulo={`Mis ${GLOSARIO.espacio.plural.toLowerCase()}`}
+        titulo={`${uno ? 'Mi' : 'Mis'} ${nombre}`}
         acciones={
-          <VerTodo href="/portal/proyectos" etiqueta={`Ver ${GLOSARIO.espacio.plural.toLowerCase()}`} />
+          <VerTodo href="/portal/proyectos" etiqueta={`Ver ${nombre}`} />
         }
       />
 

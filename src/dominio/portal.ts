@@ -22,6 +22,11 @@ export interface SeccionPortal {
   clave: string
   href: string
   etiqueta: string
+  /**
+   * Marca la entrada como activa solo en su ruta exacta. Es para el Inicio: su ruta es prefijo de
+   * todas las demas, y por prefijo quedaria encendido en cualquier pantalla del portal.
+   */
+  exacta?: boolean
 }
 
 /**
@@ -59,9 +64,22 @@ const CATALOGO: SeccionPortal[] = [
  *
  * Una clave desconocida se ignora en silencio: si la API suma una seccion antes que el frontend, la
  * navegacion no se rompe.
+ *
+ * Con un solo Proyecto, la entrada se rotula en singular: "Proyectos" le promete una lista a quien
+ * tiene uno. El destino no cambia —la pantalla del listado es la que abre ese Proyecto— para que
+ * la tarjeta del Inicio, que se busca por `href`, siga encontrando su presentacion.
+ *
+ * @param habilitadas `secciones_habilitadas` de `/portal/me`
+ * @param proyectoUnico el id del unico Proyecto del contacto, o `null` si tiene cero o varios
+ * @returns las entradas encendidas, en el orden del catalogo
  */
-export function seccionesDelPortal (habilitadas: readonly string[]): SeccionPortal[] {
-  return CATALOGO.filter((s) => habilitadas.includes(s.clave))
+export function seccionesDelPortal (
+  habilitadas: readonly string[],
+  proyectoUnico: number | null = null
+): SeccionPortal[] {
+  return CATALOGO
+    .filter((s) => habilitadas.includes(s.clave))
+    .map((s) => (s.clave === 'projects' && proyectoUnico !== null ? { ...s, etiqueta: GLOSARIO.espacio.singular } : s))
 }
 
 export { CATALOGO as CATALOGO_PORTAL }
@@ -83,6 +101,39 @@ export function saludar (yo: Pick<YoPortal, 'firstname' | 'full_name'>): string 
 
 /** Donde entra un contacto cuando su cliente no tiene Proyecto de entrada elegido. */
 export const INICIO_DEL_PORTAL = '/portal'
+
+/** La vuelta a la portada. No depende de ninguna seccion de la API: todo contacto tiene Inicio. */
+const ENTRADA_INICIO: SeccionPortal = { clave: 'inicio', href: INICIO_DEL_PORTAL, etiqueta: 'Inicio', exacta: true }
+
+/**
+ * La navegacion del encabezado: el Inicio primero y despues las secciones habilitadas.
+ *
+ * Va separada de `seccionesDelPortal` porque la portada dibuja esas secciones como tarjetas, y una
+ * tarjeta "Inicio" en el propio Inicio no lleva a ningun lado.
+ *
+ * @param habilitadas `secciones_habilitadas` de `/portal/me`
+ * @param proyectoUnico el id del unico Proyecto del contacto, o `null`
+ * @returns las entradas del encabezado
+ */
+export function navegacionDelPortal (
+  habilitadas: readonly string[],
+  proyectoUnico: number | null = null
+): SeccionPortal[] {
+  return [ENTRADA_INICIO, ...seccionesDelPortal(habilitadas, proyectoUnico)]
+}
+
+/**
+ * El id del Proyecto si el contacto ve exactamente uno.
+ *
+ * @param proyectos una pagina del listado pedida con `per_page` de al menos 2, o `null` si no se pudo
+ *   pedir: con una pagina de uno no se distingue "uno" de "el primero de varios"
+ * @returns el id, o `null` con cero, varios o sin datos
+ */
+export function proyectoUnico (proyectos: ReadonlyArray<{ id: number }> | null): number | null {
+  if (proyectos?.length !== 1) return null
+
+  return proyectos[0]?.id ?? null
+}
 
 /**
  * La ruta exacta que puede devolver `POST /api/sesion` como destino: un Proyecto del portal.

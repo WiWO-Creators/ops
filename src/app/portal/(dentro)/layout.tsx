@@ -2,9 +2,9 @@ import Link from 'next/link'
 import { SelectorTema } from '@/componentes/estructura/SelectorTema'
 import { Avatar } from '@/componentes/presentadores/Avatar'
 import { Logo } from '@/componentes/estructura/Logo'
-import { pedirPortal } from '@/datos/servidor'
+import { pedirPortal, proyectoUnicoDelPortal } from '@/datos/servidor'
 import type { YoPortal } from '@/datos/tipos'
-import { seccionesDelPortal } from '@/dominio/portal'
+import { navegacionDelPortal } from '@/dominio/portal'
 import { BotonSalirPortal } from '../BotonSalirPortal'
 import { NavegacionPortal } from '../NavegacionPortal'
 import { ScrollSuave } from '@/componentes/estructura/ScrollSuave'
@@ -22,7 +22,8 @@ import { ScrollSuave } from '@/componentes/estructura/ScrollSuave'
  */
 export default async function PortalLayout ({ children }: { children: React.ReactNode }) {
   const { data: yo } = await pedirPortal<YoPortal>('/portal/me')
-  const secciones = seccionesDelPortal(yo.secciones_habilitadas)
+  const unico = yo.secciones_habilitadas.includes('projects') ? await proyectoUnicoDelPortal() : null
+  const secciones = navegacionDelPortal(yo.secciones_habilitadas, unico)
 
   return (
     <div className="flex h-dvh flex-col overflow-hidden">

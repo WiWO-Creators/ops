@@ -20,7 +20,7 @@ export function NavegacionPortal (
     <nav className={cn('items-center gap-1', className)} aria-label="Secciones">
       {secciones.map((seccion) => {
         // Coincidencia por prefijo para que el detalle de un proyecto siga marcando "Proyectos".
-        const activa = ruta === seccion.href || ruta.startsWith(`${seccion.href}/`)
+        const activa = ruta === seccion.href || (seccion.exacta !== true && ruta.startsWith(`${seccion.href}/`))
 
         return (
           <Link

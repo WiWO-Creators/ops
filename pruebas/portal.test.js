@@ -8,7 +8,7 @@
 
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { CATALOGO_PORTAL, saludar, seccionesDelPortal } from '../src/dominio/portal.ts'
+import { CATALOGO_PORTAL, navegacionDelPortal, proyectoUnico, saludar, seccionesDelPortal } from '../src/dominio/portal.ts'
 import { nombreDeArchivo, origenDeArchivo } from '../src/definiciones/archivos.ts'
 
 // Se comprueban las RUTAS y no las claves: lo que distingue un destino de otro es su href.
@@ -37,6 +37,31 @@ test('ignora claves que el frontend todavia no conoce', () => {
   const secciones = seccionesDelPortal(['projects', 'seccion-del-futuro'])
 
   assert.deepEqual(secciones.map((s) => s.href), ['/portal/proyectos'])
+})
+
+test('con un solo Proyecto la entrada va en singular y apunta al mismo listado', () => {
+  // El listado es el que abre el Proyecto; el href no cambia para que la tarjeta del Inicio se encuentre.
+  const [proyectos] = seccionesDelPortal(['projects'], 42)
+
+  assert.equal(proyectos?.etiqueta, 'Proyecto')
+  assert.equal(proyectos?.href, '/portal/proyectos')
+  assert.equal(seccionesDelPortal(['projects'], null)[0]?.etiqueta, 'Proyectos')
+})
+
+test('el encabezado abre con Inicio, activo solo en su ruta exacta', () => {
+  const navegacion = navegacionDelPortal(['projects', 'support'])
+
+  assert.deepEqual(navegacion.map((s) => s.href), ['/portal', '/portal/proyectos', '/portal/soporte'])
+  assert.equal(navegacion[0]?.exacta, true)
+  // Sin secciones habilitadas, el Inicio sigue estando.
+  assert.deepEqual(navegacionDelPortal([]).map((s) => s.href), ['/portal'])
+})
+
+test('proyectoUnico distingue uno de cero, varios y sin datos', () => {
+  assert.equal(proyectoUnico([{ id: 7 }]), 7)
+  assert.equal(proyectoUnico([{ id: 7 }, { id: 8 }]), null)
+  assert.equal(proyectoUnico([]), null)
+  assert.equal(proyectoUnico(null), null)
 })
 
 test('respeta el orden del catalogo y no el del argumento', () => {

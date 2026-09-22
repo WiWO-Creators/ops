@@ -1,7 +1,9 @@
 import 'server-only'
 
+import { cache } from 'react'
 import { redirect } from 'next/navigation'
 import { entradaDe, salidaPorSesionRechazada } from '@/dominio/entrada'
+import { proyectoUnico } from '@/dominio/portal'
 import { llamarApiTipado } from './api'
 import { ErrorApi } from './errores'
 import { leerSesion } from './sesion'
@@ -82,3 +84,18 @@ export async function pedirOpcional<T> (
     throw fallo
   }
 }
+
+/**
+ * El id del unico Proyecto que ve el contacto del portal, o `null` si ve cero o varios.
+ *
+ * Pide dos filas: con dos ya se sabe que no es uno. Envuelto en `cache` para que el armazon y la
+ * pagina de la misma navegacion hagan un solo viaje. Un fallo de la API vale `null`: el portal
+ * sigue funcionando como con varios Proyectos, que es lo que era antes.
+ *
+ * @returns el id del Proyecto, o `null`
+ */
+export const proyectoUnicoDelPortal = cache(async (): Promise<number | null> => {
+  const { datos } = await pedirOpcional<Array<{ id: number }>>('/portal/projects?per_page=2', 'contacto')
+
+  return proyectoUnico(datos)
+})
