@@ -498,6 +498,10 @@ export const ESPACIOS = NOMBRES_ESPACIO.map((name, i) => ({
   added_from: 1,
   project_created: `2026-0${(i % 6) + 1}-10`,
   tags: i % 4 === 0 ? [ETIQUETAS[3]] : [],
+  // "Dentro de este Espacio se ven todos los Procesos" (migracion `0390`). Cerrado salvo el
+  // primero: con todos en el mismo valor, el item del menu "Mas" tendria un solo rotulo y la
+  // pantalla que lo invierte no se probaria nunca.
+  ver_todos_los_procesos: i === 0,
   // Ids del staff que integra el espacio. Desparejos a proposito: si todos estuvieran en todos,
   // `filter[member]` no se distinguiria de no filtrar y la sala privada de Teletrabajo se abriria
   // para cualquiera sin que ninguna prueba lo notara.
@@ -534,6 +538,7 @@ export const ESPACIOS_DE_LICITACION = [
     added_from: 1,
     project_created: '2026-09-01',
     tags: [],
+    ver_todos_los_procesos: false,
     miembros: STAFF.map((s) => s.id)
   },
   {
@@ -554,6 +559,7 @@ export const ESPACIOS_DE_LICITACION = [
     added_from: 1,
     project_created: '2026-06-01',
     tags: [],
+    ver_todos_los_procesos: false,
     miembros: STAFF.map((s) => s.id)
   }
 ]

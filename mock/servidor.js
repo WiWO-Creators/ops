@@ -5997,6 +5997,34 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
     return cambiarVisibilidadDeAdjunto(actual, 'projects', ARCHIVOS.filter((a) => suyos.includes(a.rel_id)), resto[2], cuerpo)
   }
 
+  // "Dentro de este Espacio se ven todos los Procesos, no solo los propios" (migracion `0390`).
+  // Es lo unico que este `PATCH` acepta: la edicion completa del Espacio no esta en el mock, y
+  // aceptar aca cualquier campo haria pasar en local un cuerpo que la API rechaza.
+  //
+  // Lo que el mock NO replica es el efecto: `GET /projects/{id}/tasks` sigue devolviendo todas las
+  // del Espacio, porque el mock no modela la visibilidad por persona. Lo que si replica es el dato
+  // que la ficha lee para dibujar el interruptor y el estado en que queda al tocarlo.
+  if (recurso === 'projects' && metodo === 'PATCH' && resto.length === 1) {
+    exigirPermiso(actual, 'projects', 'edit')
+    const espacio = buscarO404(ESPACIOS_EXISTENTES, Number(resto[0]), 'espacio')
+    const cuerpoPatch = await cuerpo()
+    const valor = cuerpoPatch?.ver_todos_los_procesos
+
+    if (valor === undefined) {
+      throw new ErrorApi(422, 'validation_failed', 'El mock solo acepta `ver_todos_los_procesos`.', {
+        ver_todos_los_procesos: ['required']
+      })
+    }
+    if (typeof valor !== 'boolean') {
+      throw new ErrorApi(422, 'validation_failed', 'Hay campos que no se pueden escribir.', {
+        ver_todos_los_procesos: ['invalid']
+      })
+    }
+
+    espacio.ver_todos_los_procesos = valor
+    return { estado: 200, cuerpo: conDatos(presentarEspacio(espacio)) }
+  }
+
   if (recurso === 'projects' && (metodo === 'GET' || (metodo === 'PATCH' && resto[1] === 'milestones' && resto[2] === 'orden'))) {
     exigirPermiso(actual, 'projects', 'view')
     const includes = leerIncludes(parametros, ['custom_fields', 'members'])
