@@ -1,8 +1,9 @@
 import Link from 'next/link'
 import { SelectorTema } from '@/componentes/estructura/SelectorTema'
 import { Avatar } from '@/componentes/presentadores/Avatar'
+import { Logo } from '@/componentes/estructura/Logo'
 import { pedirPortal } from '@/datos/servidor'
-import type { EmpresaPortal, YoPortal } from '@/datos/tipos'
+import type { YoPortal } from '@/datos/tipos'
 import { seccionesDelPortal } from '@/dominio/portal'
 import { BotonSalirPortal } from '../BotonSalirPortal'
 import { NavegacionPortal } from '../NavegacionPortal'
@@ -16,28 +17,31 @@ import { ScrollSuave } from '@/componentes/estructura/ScrollSuave'
  * una barra lateral de 220px seria peso muerto en la pantalla de alguien que entra a mirar el avance
  * de su proyecto y se va.
  *
- * Server Component: resuelve `/portal/me` y `/portal/company` una sola vez por navegacion y arma la
- * navegacion con lo que la API dijo que este contacto puede ver.
+ * Server Component: resuelve `/portal/me` una sola vez por navegacion y arma la navegacion con lo
+ * que la API dijo que este contacto puede ver.
  */
 export default async function PortalLayout ({ children }: { children: React.ReactNode }) {
   const { data: yo } = await pedirPortal<YoPortal>('/portal/me')
-
-  const { data: empresa } = await pedirPortal<EmpresaPortal>('/portal/company')
   const secciones = seccionesDelPortal(yo.secciones_habilitadas)
 
   return (
     <div className="flex h-dvh flex-col overflow-hidden">
       <header className="border-linea flex h-14 shrink-0 items-center gap-3 border-b px-4">
-        <Link href="/portal" className="font-titular text-texto truncate font-semibold">
-          {empresa.company}
+        {/* El perfil no esta en la navegacion: no es una seccion que la API habilite, sino los datos
+            del propio contacto. El avatar es el lugar donde se lo busca. */}
+        <Link
+          href="/portal/perfil"
+          title="Mi perfil"
+          aria-label="Mi perfil"
+          className="shrink-0"
+        >
+          <Avatar nombre={yo.full_name} />
+        </Link>
+        <Link href="/portal" aria-label="Inicio del portal" className="shrink-0">
+          <Logo tamano="medio" />
         </Link>
         <NavegacionPortal secciones={secciones} className="hidden md:flex" />
         <SelectorTema className="ml-auto" />
-        {/* El perfil no esta en la navegacion: no es una seccion que la API habilite, sino los datos
-            del propio contacto. El avatar es el lugar donde se lo busca. */}
-        <Link href="/portal/perfil" title="Mi perfil" aria-label="Mi perfil">
-          <Avatar nombre={yo.full_name} />
-        </Link>
         <BotonSalirPortal />
       </header>
 
