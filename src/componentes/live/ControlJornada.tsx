@@ -21,6 +21,7 @@ import {
   mensajeDeFalloDeCliente,
   mensajeDeFalloDeJornada,
   mensajeDeFalloDeMedidor,
+  mensajeDeFalloDeProrroga,
   olvidarJornadaPospuesta,
   posponerJornadaPorHoy,
   recordatorioDeDestinoActivo
@@ -30,6 +31,7 @@ import { hoyLocal } from '@/lib/fechas'
 import { CierreJornada } from './CierreJornada'
 import { DestinoDeJornada } from './DestinoDeJornada'
 import { RecordatorioDeDestino } from './RecordatorioDeDestino'
+import { AvisoDeCierre } from './AvisoDeCierre'
 import { SelectorCliente } from './SelectorCliente'
 import { avisarCambioDeMedidor, escucharMedidor } from './medidor'
 
@@ -181,6 +183,16 @@ export function ControlJornada ({
   /** `true` mientras el recordatorio de asignar destino esta a la vista. Se apaga solo. */
   const [recordando, setRecordando] = useState(false)
   /**
+   * `true` mientras el aviso de cierre esta a la vista.
+   *
+   * No se guarda en `localStorage` ni se pospone por el dia, al reves que la ventana de apertura:
+   * este aviso no interrumpe al azar, sale en el instante exacto en que el cron va a cerrar la
+   * jornada, y una marca de "no molestar" seria la persona pidiendo que le cierren el dia sin
+   * avisar. La unica forma de que no vuelva a salir es cerrar la jornada, que es justo lo que
+   * pregunta.
+   */
+  const [avisandoCierre, setAvisandoCierre] = useState(false)
+  /**
    * Si esta persona quiere seguir viendo el recordatorio de asignar destino.
    *
    * Se lee en el inicializador, igual que `pospuestaHoy` y por el mismo motivo: un efecto llega
@@ -269,6 +281,48 @@ export function ControlJornada ({
 
     return () => { globalThis.clearInterval(id) }
   }, [corriendo])
+
+  const cierre = estado?.closing ?? null
+
+  /**
+   * Cuando se cierra sola esta jornada, en epoch. `null` si no hay cierre que anunciar.
+   *
+   * Se deriva del instante ISO y no del objeto entero para que el efecto de abajo dependa de un
+   * numero: `closing` es un objeto nuevo en cada respuesta del intervalo, asi que usarlo como
+   * dependencia rearmaria el reloj cada pocos segundos.
+   */
+  const cierreEn = cierre === null ? null : Date.parse(cierre.at)
+
+  /**
+   * El reloj que saca el aviso de cierre a la hora de corte.
+   *
+   * SOLO EN LA INSTANCIA COMPACTA. En `/live` hay dos controles montados —el de la cabecera y el
+   * del panel de la pagina— y los dos leen la misma jornada: sin esta guarda saldrian dos avisos
+   * identicos, cada uno con su cuenta regresiva, y el primero en vencer cerraria el dia mientras el
+   * otro sigue preguntando. Es la misma instancia que hace de compuerta de apertura, y por el mismo
+   * motivo: vive en el armazon, que esta en las ocho pantallas y no se desmonta al navegar.
+   *
+   * ES UN INTERVALO Y NO UN `setTimeout` HASTA LA HORA. Un temporizador largo lo suspende el
+   * navegador con la pestaña de fondo y se dispara tarde —justo el caso de quien dejo el equipo
+   * encendido—, mientras que comparar el reloj una vez por segundo se pone al dia solo en cuanto la
+   * pestaña vuelve. El segundo de retraso no se nota frente a los treinta de gracia, y este control
+   * ya se repinta cada segundo por el contador de la jornada.
+   *
+   * ESTE EFECTO SOLO ENCIENDE. Apagar es cosa del render —sin `closing` no se dibuja nada— y de las
+   * dos acciones que responden al aviso. Escribir el `false` aca seria un `setState` sincrono en el
+   * cuerpo de un efecto, o sea un pintado de mas cada vez que la jornada cambie.
+   */
+  useEffect(() => {
+    // Con el aviso ya a la vista no hace falta seguir mirando el reloj: quien lo retira es una de
+    // las dos respuestas, y la siguiente cuenta la arma el `cierreEn` nuevo que traiga la prorroga.
+    if (variante !== 'compacta' || cierreEn === null || Number.isNaN(cierreEn) || avisandoCierre) return
+
+    const id = globalThis.setInterval(() => {
+      if (Date.now() >= cierreEn) setAvisandoCierre(true)
+    }, 1000)
+
+    return () => { globalThis.clearInterval(id) }
+  }, [variante, cierreEn, avisandoCierre])
 
   /** Vuelve a pedirle el estado al servidor: es el unico que sabe como quedo. */
   function recargar (): void {
@@ -458,6 +512,10 @@ export function ControlJornada ({
     }
 
     setConfirmandoCierre(false)
+    // El dia ya esta cerrado: el aviso que preguntaba si seguia habiendo alguien ya no tiene nada
+    // que preguntar. Se retira aca y no en el efecto del reloj porque el estado nuevo tarda una
+    // vuelta en llegar, y ese hueco deja a la vista una cuenta regresiva sobre una jornada muerta.
+    setAvisandoCierre(false)
     // Cerrar la jornada la vuelve a exigir: es el mismo estado que al entrar por la mañana, y la
     // excepcion que se hubiera usado antes no puede sobrevivir al dia que ya se cerro.
     setEntroSinJornada(false)
@@ -465,6 +523,88 @@ export function ControlJornada ({
     // montadas tienen que enterarse igual que si se hubiera detenido a mano.
     avisarCambioDeMedidor()
     recargar()
+  }
+
+  /**
+   * Se acabo el plazo del aviso sin respuesta: cierra el dia, pero comprueba antes.
+   *
+   * === POR QUE NO CIERRA DIRECTO ===
+   *
+   * Porque puede haber otra pestaña abierta, y las dos montan el mismo aviso con su propia cuenta.
+   * Quien conteste "sigo trabajando" en una deja a la otra contando: esa segunda cuenta llega a cero
+   * antes de que su intervalo de refresco le cuente que el corte se movio, y cierra el dia que
+   * acaban de salvar. Es el unico camino por el que esta pantalla cierra una jornada sin que nadie
+   * se lo pida, asi que la ultima palabra la tiene el servidor y no el reloj local.
+   *
+   * Tambien cubre el caso del equipo suspendido: al despertar, el intervalo puede disparar el
+   * vencimiento con un `closing` de hace horas que ya no vale.
+   *
+   * Si la lectura falla, se cierra igual. El plazo se cumplio y la alternativa —dejar la jornada
+   * abierta porque una consulta no respondio— es justo lo que el cierre automatico existe para
+   * evitar; el cron la cerraria despues de todas formas.
+   */
+  async function cerrarPorVencimiento (): Promise<void> {
+    try {
+      const respuesta = await fetch('/api/bff/me/jornada')
+
+      if (respuesta.ok) {
+        const sobre = await respuesta.json() as { data: EstadoDeJornada }
+
+        aplicar(sobre.data)
+
+        const corte = sobre.data.closing
+        // Sin jornada abierta ya no hay nada que cerrar, y un corte que todavia no llego significa
+        // que alguien lo corrio desde otra pestaña.
+        if (sobre.data.open === null || corte === null || Date.parse(corte.at) > Date.now()) {
+          setAvisandoCierre(false)
+          return
+        }
+      }
+    } catch {
+      // Sin respuesta se sigue adelante: ver el docblock.
+    }
+
+    await cerrarJornada(null)
+  }
+
+  /**
+   * "Sigo trabajando": le pide al servidor que corra el cierre automatico de este dia.
+   *
+   * === POR QUE NO BASTA CON CERRAR EL AVISO ===
+   *
+   * Porque quien cierra la jornada es el cron, no esta pantalla. Un aviso que solo se apagara a si
+   * mismo dejaria a la persona tranquila mientras el cron le cierra el dia en la pasada siguiente.
+   * La prorroga tiene que quedar escrita donde el cron la lee, y por eso esto es un POST y no un
+   * `setAvisandoCierre(false)`.
+   *
+   * El aviso se retira **solo si la API acepto**. Si falla, se queda a la vista con el motivo: es la
+   * unica pantalla donde la persona puede enterarse de que su "sigo trabajando" no llego, y
+   * apagarlo igual seria exactamente la mentira que este metodo existe para no contar.
+   *
+   * El 409 es "el cierre automatico esta apagado", o sea que ya no hay nada que prorrogar. Se vuelve
+   * a leer y el efecto del reloj retira el aviso solo, sin dejar un error sobre algo que dejo de ser
+   * un problema.
+   */
+  async function prorrogarJornada (): Promise<void> {
+    setEnCurso(true)
+    setAviso(null)
+
+    const respuesta = await llamar('me/jornada/prorroga', 'POST')
+
+    setEnCurso(false)
+
+    if (acepto(respuesta)) {
+      setAvisandoCierre(false)
+      recargar()
+      return
+    }
+
+    setAviso(mensajeDeFalloDeProrroga(respuesta))
+
+    if (respuesta === 404 || respuesta === 409) {
+      setAvisandoCierre(false)
+      recargar()
+    }
   }
 
   /**
@@ -595,6 +735,27 @@ export function ControlJornada ({
           onCambiarActivo={cambiarRecordatorio}
           onAsignar={() => { setRecordando(false); setAviso(null); setPidiendoDestino(true) }}
           onCerrar={cerrarRecordatorio}
+        />
+      )}
+
+      {/* No sale con el dialogo de cierre abierto: ahi la persona ya esta cerrando el dia, y un
+          aviso que pregunta si sigue trabajando por encima del formulario donde escribe su
+          comentario es una interrupcion sobre la respuesta que ya esta dando.
+
+          `key` con la hora del cierre: cada prorroga es un aviso nuevo, y sin esto React
+          reutilizaria el mismo y la cuenta regresiva seguiria donde la dejo — el segundo aviso
+          nacería en cero y cerraría el día en el acto. */}
+      {avisandoCierre && cierre !== null && !confirmandoCierre && (
+        <AvisoDeCierre
+          key={cierre.at}
+          cierreEn={cierre.at}
+          minutosDeProrroga={cierre.extension_minutes}
+          yaProrrogada={cierre.extended}
+          enCurso={enCurso}
+          aviso={aviso}
+          onProrrogar={() => { void prorrogarJornada() }}
+          onCerrarAhora={() => { void cerrarJornada(null) }}
+          onVencido={() => { void cerrarPorVencimiento() }}
         />
       )}
     </>  )

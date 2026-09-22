@@ -3217,12 +3217,62 @@ function presentarMedidor (medidor) {
   }
 }
 
+/**
+ * Las dos opciones del cierre automatico que NO son booleanas.
+ *
+ * Aparte de `INTERRUPTORES_MANT` porque esa lista es de interruptores: su `PATCH` convierte todo
+ * valor a booleano, y meter aca una hora la dejaria en `true`. El interruptor en si
+ * (`wiwo_live_cierre_automatico`) sigue viviendo alla, que es donde se enciende.
+ */
+const CIERRE_MOCK = { hora: '18:30', minutosDeProrroga: 30 }
+
+/**
+ * Cuando se cierra sola una jornada, en epoch.
+ *
+ * `MOCK_JORNADA_CIERRE_EN` pisa la hora con "N segundos despues de que la jornada se abrio" y existe
+ * solo para las pruebas: esperar hasta las 18:30 reales para ver el aviso de cierre no es una
+ * prueba, es una tarde.
+ */
+function corteDeJornada (jornada) {
+  const enSegundos = Number(process.env.MOCK_JORNADA_CIERRE_EN)
+  const prorroga = jornada.prorroga_hasta ?? 0
+
+  if (Number.isFinite(enSegundos)) {
+    return Math.max(new Date(jornada.started_at).getTime() + enSegundos * 1000, prorroga)
+  }
+
+  const arranque = new Date(jornada.started_at)
+  const corte = new Date(arranque)
+  const [horas, minutos] = CIERRE_MOCK.hora.split(':').map(Number)
+
+  corte.setHours(horas, minutos, 0, 0)
+
+  // Una jornada que empezo despues de su hora de corte se cierra en la del dia siguiente, igual que
+  // en `Jornada::corteDe()`. Sin esto se cerraria sola en el mismo minuto en que se abrio.
+  if (corte <= arranque) corte.setDate(corte.getDate() + 1)
+
+  return Math.max(corte.getTime(), prorroga)
+}
+
+/** `closing` de `GET /me/jornada`: `null` con el cierre automatico apagado. */
+function cierreProgramado (jornada) {
+  const interruptor = INTERRUPTORES_MANT.find((i) => i.clave === 'wiwo_live_cierre_automatico')
+
+  if (interruptor?.valor !== true) return null
+
+  return {
+    at: new Date(corteDeJornada(jornada)).toISOString(),
+    extension_minutes: CIERRE_MOCK.minutosDeProrroga,
+    extended: (jornada.prorroga_hasta ?? null) !== null
+  }
+}
+
 /** El cuerpo de `GET /me/jornada`, que es tambien lo que devuelven el POST y el PATCH. */
 function estadoDelDia (staffId) {
   const jornada = JORNADAS.get(staffId) ?? null
 
   if (jornada === null) {
-    return { open: null, seconds: 0, measured_seconds: 0, uncovered_seconds: 0, over_journey: false, timer: null }
+    return { open: null, seconds: 0, measured_seconds: 0, uncovered_seconds: 0, over_journey: false, timer: null, closing: null }
   }
 
   const segundos = segundosDesde(jornada.started_at)
@@ -3235,7 +3285,8 @@ function estadoDelDia (staffId) {
     uncovered_seconds: Math.max(0, segundos - medidos),
     // Ocho horas. El mock no las va a alcanzar en una sesion de prueba, pero la bandera existe igual.
     over_journey: segundos > 8 * 3600,
-    timer: presentarMedidor(jornada.timer)
+    timer: presentarMedidor(jornada.timer),
+    closing: cierreProgramado(jornada)
   }
 }
 
@@ -3328,6 +3379,27 @@ async function jornadaRuta (metodo, resto, actual, cuerpo) {
           : [{ project: medidor.project, task: medidor.task, seconds: medidor.seconds, corriendo: true }]
       })
     }
+  }
+
+  // El "sigo trabajando" del aviso de cierre. Sin cuerpo: los minutos los decide el servidor.
+  if (sub === 'prorroga') {
+    if (metodo !== 'POST') throw new ErrorApi(404, 'not_found', 'Ruta de jornada desconocida.')
+
+    const jornada = JORNADAS.get(actual.id)
+    if (!jornada) throw new ErrorApi(404, 'not_found', 'No tienes ninguna jornada abierta que prorrogar.')
+
+    if (cierreProgramado(jornada) === null) {
+      throw new ErrorApi(409, 'conflict', 'El cierre automático está apagado: tu jornada no se va a cerrar sola.')
+    }
+
+    // Desde el corte vigente, o desde ahora si ese corte ya paso: contar siempre desde ahora
+    // regalaria minutos a quien conteste antes de tiempo, y contar siempre desde el corte haria
+    // nacer vencida la prorroga de quien conteste despues.
+    const desde = Math.max(corteDeJornada(jornada), Date.now())
+
+    jornada.prorroga_hasta = desde + CIERRE_MOCK.minutosDeProrroga * 60_000
+
+    return { estado: 200, cuerpo: conDatos(estadoDelDia(actual.id)) }
   }
 
   if (sub === 'cierre') {
