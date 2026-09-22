@@ -76,6 +76,16 @@ interface PropsPanelDescripcion {
    * que lo pide es este panel.
    */
   rutaDelGrafico: string | null
+  /**
+   * Si el panel dibuja su fila de indicadores —avance, {procesos}, días y {hitos}—.
+   *
+   * `true` por defecto, que es como lo usa el panel del equipo. El portal del cliente lo pone en
+   * `false` porque arriba de esta ficha ya va el tablero del Proyecto, que publica esos mismos
+   * cuatro números con su forma y mejor explicados. Dibujar los dos deja al cliente comparando dos
+   * lecturas del mismo dato: un «— DÍAS RESTANTES» sin valor al lado de una línea de tiempo, y un
+   * «1 · 1 vencidos» al lado de un {hito} que dice «sin {procesos}».
+   */
+  conIndicadores?: boolean
 }
 
 export function PanelDescripcion ({
@@ -85,7 +95,8 @@ export function PanelDescripcion ({
   tipoFacturacion,
   puedeVerMontos,
   fuente,
-  rutaDelGrafico
+  rutaDelGrafico,
+  conIndicadores = true
 }: PropsPanelDescripcion): ReactElement {
   const { estado: carga, recargar } = useRecurso<ResumenDeProyecto>(
     fuente.resumen,
@@ -117,9 +128,9 @@ export function PanelDescripcion ({
         />
 
         <div className="flex flex-col gap-4">
-          {carga.fase === 'cargando' && <Cargando alto="min-h-52" mensaje="Cargando los indicadores…" />}
-          {carga.fase === 'error' && <ErrorEstado detalle={carga.mensaje} onReintentar={recargar} />}
-          {carga.fase === 'listo' && <Indicadores resumen={carga.datos} />}
+          {conIndicadores && carga.fase === 'cargando' && <Cargando alto="min-h-52" mensaje="Cargando los indicadores…" />}
+          {conIndicadores && carga.fase === 'error' && <ErrorEstado detalle={carga.mensaje} onReintentar={recargar} />}
+          {conIndicadores && carga.fase === 'listo' && <Indicadores resumen={carga.datos} />}
 
           {rutaDelGrafico !== null && <GraficoHoras ruta={rutaDelGrafico} />}
         </div>

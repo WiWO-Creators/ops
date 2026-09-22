@@ -8,6 +8,7 @@ import {
   arcoDeAvance,
   areaDeCierres,
   clavesDePrioridad,
+  hayCargaQueMostrar,
   marcasAgrupadas,
   resumenDeCierres,
   resumenDeHitos,
@@ -322,6 +323,18 @@ export function AreaDeRitmo ({ cierres }: { cierres: LecturaDeCierres }) {
                     className="group absolute top-0 bottom-0 -mx-3 w-6 outline-none"
                     style={{ left: `${punto.fraccionX * 100}%` }}
                   >
+                    {/* El valor del pico, rotulado directo. Es la única referencia vertical que
+                        tiene el área, y sin ella el lector no sabe si el máximo son 3 cierres o 30.
+                        Uno solo y no doce: un número en cada punto es el caos que nadie lee. */}
+                    {punto.extremo && (
+                      <span
+                        data-numerico
+                        className="text-texto absolute left-1/2 -translate-x-1/2 -translate-y-full text-[10px] leading-none font-medium tabular-nums"
+                        style={{ top: `calc(${(punto.y / LIENZO_DE_AREA.alto) * 100}% - 6px)` }}
+                      >
+                        {punto.cerradas}
+                      </span>
+                    )}
                     <span
                       aria-hidden="true"
                       className={cn(
@@ -680,9 +693,27 @@ export function BarrasDeEquipo ({ filas, total }: { filas: FilaDePersona[], tota
     <Panel
       titulo="Quién está trabajando"
       icono={<Users size={14} aria-hidden="true" className="shrink-0" />}
+      nota={
+        filas.length === 0 || !hayCargaQueMostrar(filas)
+          ? undefined
+          : `La barra son las ${GLOSARIO.proceso.plural.toLowerCase()} abiertas de cada uno, y no se`
+            + ` suman entre sí: una ${GLOSARIO.proceso.singular.toLowerCase()} con dos responsables`
+            + ' cuenta para los dos.'
+      }
     >
-      {filas.length === 0
-        ? <SinDatos motivo={`Todavía no hay nadie asignado a este ${GLOSARIO.espacio.singular.toLowerCase()}.`} />
+      {filas.length === 0 || !hayCargaQueMostrar(filas)
+        ? (
+            <SinDatos
+              motivo={
+                filas.length === 0
+                  ? `Todavía no hay nadie asignado a este ${GLOSARIO.espacio.singular.toLowerCase()}.`
+                  // Hay equipo, pero ninguna tarea visible repartida. Dibujar dos barras de largo
+                  // cero sería medio panel para no decir nada.
+                  : `El equipo ya está armado, pero todavía no hay ${GLOSARIO.proceso.plural.toLowerCase()}`
+                    + ' compartidas repartidas entre ellos.'
+              }
+            />
+          )
         : (
             <div className="flex flex-col gap-2">
               <ul
@@ -723,8 +754,10 @@ function FilaDePersonaEnBarra ({ fila }: { fila: FilaDePersona }) {
           style={{ width: `${fila.fraccion * 100}%` }}
         />
       </span>
-      <span data-numerico className="text-texto w-4 shrink-0 text-right text-xs tabular-nums">
-        {fila.abiertas}
+      {/* Las dos cifras llevan su palabra. Con «8» y «32 hechas» al lado de una sola barra, el
+          lector tiene que adivinar cuál de los dos números mide la barra. */}
+      <span data-numerico className="text-texto w-16 shrink-0 text-right text-xs tabular-nums">
+        {fila.abiertas} abiertas
       </span>
       <span data-numerico className="text-texto-sutil w-14 shrink-0 text-right text-xs tabular-nums">
         {fila.cerradas} hechas

@@ -225,6 +225,11 @@ function contenidoDePestania (
             fuente={fuente}
             // El grafico de horas por dia es un subrecurso del resumen que el contacto no tiene.
             rutaDelGrafico={null}
+            // Sin la fila de indicadores: el tablero de arriba ya publica esos cuatro numeros con
+            // su forma. Dibujar los dos dejaba al cliente con dos lecturas del mismo dato y una de
+            // ellas rota — un «— DIAS RESTANTES» sin valor, y un «1 vencido» al lado de un hito que
+            // dice «sin tareas».
+            conIndicadores={pagina.tablero === null}
           />
         </div>
       )

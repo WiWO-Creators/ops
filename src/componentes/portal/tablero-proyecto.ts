@@ -313,6 +313,17 @@ export function resumenDeHitos (linea: LineaDeHitos): string {
 // EL EQUIPO
 // =================================================================================================
 
+/**
+ * Si hay algo que medir en el equipo.
+ *
+ * Con todas las personas en 0 abiertas y 0 cerradas no hay carga que comparar: el gráfico dibujaría
+ * dos barras de largo cero, que es medio panel para no decir nada. Es la misma regla que gobierna
+ * `avance.porcentaje`: un cero medido y un dato que no existe se presentan distinto.
+ */
+export function hayCargaQueMostrar (filas: FilaDePersona[]): boolean {
+  return filas.some((fila) => fila.abiertas > 0 || fila.cerradas > 0)
+}
+
 /** Una fila del gráfico de carga del equipo. */
 export interface FilaDePersona {
   id: number
