@@ -8,6 +8,7 @@ import { Fecha } from '@/componentes/presentadores/Fecha'
 import { Insignia } from '@/componentes/presentadores/Insignia'
 import { EnlacePersonalizado } from '@/componentes/presentadores/EnlacePersonalizado'
 import { GLOSARIO } from '@/dominio/glosario'
+import { cn } from '@/lib/clases'
 import { BarraProgreso } from './CabeceraProyecto'
 import { Metrica, formatearNumero } from './ResumenProyecto'
 import { GraficoHoras } from './GraficoHoras'
@@ -80,10 +81,14 @@ interface PropsPanelDescripcion {
    * Si el panel dibuja su fila de indicadores —avance, {procesos}, días y {hitos}—.
    *
    * `true` por defecto, que es como lo usa el panel del equipo. El portal del cliente lo pone en
-   * `false` porque arriba de esta ficha ya va el tablero del Proyecto, que publica esos mismos
-   * cuatro números con su forma y mejor explicados. Dibujar los dos deja al cliente comparando dos
-   * lecturas del mismo dato: un «— DÍAS RESTANTES» sin valor al lado de una línea de tiempo, y un
-   * «1 · 1 vencidos» al lado de un {hito} que dice «sin {procesos}».
+   * `false` porque debajo de esta ficha va el tablero del Proyecto, que publica esos mismos
+   * números con su forma y mejor explicados. Dibujar los dos deja al cliente comparando dos
+   * lecturas del mismo dato: un «— DÍAS RESTANTES» sin valor, o una barra de avance del 20 % encima
+   * de un medidor que dice 55 % —son dos cuentas distintas, y el cliente no tiene cómo saberlo—.
+   *
+   * En `false`, y sin gráfico de horas, a la derecha de la ficha no queda nada: la ficha se abre a
+   * todo el ancho y reparte sus datos en columnas, en vez de quedar como una tarjeta angosta sola en
+   * su fila.
    */
   conIndicadores?: boolean
 }
@@ -102,14 +107,17 @@ export function PanelDescripcion ({
     fuente.resumen,
     'No se pudo cargar el resumen del proyecto.'
   )
+  // Si a la derecha de la ficha va algo. Sin nada, la columna lateral no se reserva.
+  const conLateral = conIndicadores || rutaDelGrafico !== null
 
   return (
     <div className="flex flex-col gap-4">
       {/* El avance se dibuja solo si el contrato mando los contadores de Tareas: es su proyeccion
           (`progress_from_tasks`), y sin la pestaña de Tareas el cliente tendria en pantalla un
           porcentaje que no puede explicarse contra ninguna lista. La cabecera del Proyecto publica
-          igual el avance del Espacio, asi que no se pierde el dato. */}
-      {carga.fase === 'listo' && carga.datos.tasks !== undefined && (
+          igual el avance del Espacio, asi que no se pierde el dato. Es un indicador mas, y sale
+          con ellos: quien los apaga es porque otro bloque ya publica el avance. */}
+      {conIndicadores && carga.fase === 'listo' && carga.datos.tasks !== undefined && (
         <div className="flex items-center gap-3">
           <BarraProgreso porcentaje={carga.datos.progress} className="min-w-0 flex-1" />
           <span data-numerico className="text-texto text-sm font-semibold">
@@ -118,22 +126,25 @@ export function PanelDescripcion ({
         </div>
       )}
 
-      <div className="grid gap-4 xl:grid-cols-[minmax(0,22rem)_minmax(0,1fr)]">
+      <div className={cn('grid gap-4', conLateral && 'xl:grid-cols-[minmax(0,22rem)_minmax(0,1fr)]')}>
         <FichaProyecto
           proyecto={proyecto}
           estado={estado}
           cliente={cliente}
           tipoFacturacion={tipoFacturacion}
           puedeVerMontos={puedeVerMontos}
+          aTodoElAncho={!conLateral}
         />
 
-        <div className="flex flex-col gap-4">
-          {conIndicadores && carga.fase === 'cargando' && <Cargando alto="min-h-52" mensaje="Cargando los indicadores…" />}
-          {conIndicadores && carga.fase === 'error' && <ErrorEstado detalle={carga.mensaje} onReintentar={recargar} />}
-          {conIndicadores && carga.fase === 'listo' && <Indicadores resumen={carga.datos} />}
+        {conLateral && (
+          <div className="flex flex-col gap-4">
+            {conIndicadores && carga.fase === 'cargando' && <Cargando alto="min-h-52" mensaje="Cargando los indicadores…" />}
+            {conIndicadores && carga.fase === 'error' && <ErrorEstado detalle={carga.mensaje} onReintentar={recargar} />}
+            {conIndicadores && carga.fase === 'listo' && <Indicadores resumen={carga.datos} />}
 
-          {rutaDelGrafico !== null && <GraficoHoras ruta={rutaDelGrafico} />}
-        </div>
+            {rutaDelGrafico !== null && <GraficoHoras ruta={rutaDelGrafico} />}
+          </div>
+        )}
       </div>
     </div>
   )
@@ -145,14 +156,21 @@ export function PanelDescripcion ({
  * El monto de facturacion solo se muestra con `edit projects`, igual que en el panel: el costo del
  * proyecto y la tarifa por hora son informacion comercial y no la ve cualquier miembro.
  */
-type PropsFicha = Pick<PropsPanelDescripcion, 'proyecto' | 'estado' | 'cliente' | 'tipoFacturacion' | 'puedeVerMontos'>
+type PropsFicha = Pick<PropsPanelDescripcion, 'proyecto' | 'estado' | 'cliente' | 'tipoFacturacion' | 'puedeVerMontos'> & {
+  /**
+   * `true` cuando la ficha ocupa todo el ancho: los datos se reparten en columnas. Una lista de una
+   * sola columna estirada a 1400 px deja el rótulo y su valor a un metro de distancia.
+   */
+  aTodoElAncho: boolean
+}
 
 function FichaProyecto ({
   proyecto,
   estado,
   cliente,
   tipoFacturacion,
-  puedeVerMontos
+  puedeVerMontos,
+  aTodoElAncho
 }: PropsFicha): ReactElement {
   // El panel viejo guarda la descripcion como HTML. Sin despojarla se leen los `<p>` en pantalla,
   // igual que pasaba con la descripcion de una tarea antes de `aTextoPlano`.
@@ -163,7 +181,7 @@ function FichaProyecto ({
     <section className="border-linea bg-superficie-elevada rounded-tarjeta shadow-1 flex flex-col gap-3 border p-5">
       <h2 className="text-texto text-sm font-semibold">Resumen del {GLOSARIO.espacio.singular.toLowerCase()}</h2>
 
-      <dl className="flex flex-col">
+      <dl className={aTodoElAncho ? 'grid gap-x-8 md:grid-cols-2 xl:grid-cols-3' : 'flex flex-col'}>
         <Dato termino={`${GLOSARIO.espacio.singular} #`}>{proyecto.id}</Dato>
 
         <Dato termino={GLOSARIO.cliente.singular}>

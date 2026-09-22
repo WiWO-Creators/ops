@@ -245,6 +245,11 @@ export function procesosDelContacto (
  * y "Tiempos" para quien lo atiende, porque despues los dos hablan por telefono. Cuando el panel
  * renombre una, se renombra acá.
  *
+ * **La excepcion es `overview`**, que el cliente ve como «Resumen» y el panel como «Descripción».
+ * La decidio el usuario: para el cliente esa pestaña es la ficha del proyecto mas su tablero, un
+ * resumen, y no el texto de la descripcion, que es una fila de la ficha. Esta lista es solo del
+ * portal, asi que el panel no se entera.
+ *
  * Tickets NO esta, aunque la API la habilite: el soporte volvio a ser una seccion del portal
  * —`/portal/soporte`—, y con razon, porque un ticket puede no tener {espacio} y ninguna pestaña lo
  * podria contener. `pestaniasDelProyecto` ignora en silencio lo que la API habilita y esta lista no
@@ -252,7 +257,7 @@ export function procesosDelContacto (
  * retiro las discusiones de proyecto, y una API vieja que todavia la mande no abre ninguna pestaña.
  */
 export const PESTANIAS_PROYECTO: Array<{ clave: PestaniaPortal, etiqueta: string }> = [
-  { clave: 'overview', etiqueta: 'Descripción' },
+  { clave: 'overview', etiqueta: 'Resumen' },
   { clave: 'tasks', etiqueta: GLOSARIO.proceso.plural },
   { clave: 'timesheets', etiqueta: 'Tiempos' },
   { clave: 'milestones', etiqueta: GLOSARIO.hito.plural },

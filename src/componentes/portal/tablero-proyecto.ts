@@ -1,9 +1,10 @@
 import { formatearFecha } from '../../lib/fechas.ts'
+import { resolverEstado, type CatalogoDeEstados } from '../../dominio/estados-tarea.ts'
 import type {
   AvanceDelProyecto,
+  ConteoPorEstado,
   HitoDelTablero,
-  HitosDelTablero,
-  SemanaDeCierres,
+  TableroDelProyecto,
   TareasDelTablero
 } from '../../datos/portal.ts'
 
@@ -28,18 +29,6 @@ import type {
 
 /** Lo que se escribe cuando un gráfico no tiene ni una fila. Misma frase que la portada. */
 export const SIN_NADA_QUE_MOSTRAR = 'Todavía no hay nada que mostrar acá.'
-
-/** Mínimo de semanas con algún cierre para que la serie valga como serie y no como anécdota. */
-export const SEMANAS_CON_DATO_MINIMAS = 3
-
-/**
- * Tope de personas que viajan al gráfico de carga.
- *
- * Ya no es el techo de lo que se DIBUJA —el componente muestra cinco y pliega el resto en un
- * `<details>`— sino el techo de lo que se calcula. El Proyecto más poblado de producción tiene 23,
- * así que con 30 entran todos y el desplegable dice la verdad cuando promete «ver las 23».
- */
-export const TOPE_DE_PERSONAS = 30
 
 // =================================================================================================
 // AVANCE
@@ -96,268 +85,376 @@ export function resumenDePrioridades (tareas: TareasDelTablero): string {
 }
 
 // =================================================================================================
-// LA SERIE DE CIERRES
+// LOS ESTADOS
 // =================================================================================================
 
-/** Un punto de la serie de cierres, listo para dibujar. */
-export interface PuntoDeCierres {
-  /** `YYYY-MM-DD`, el lunes de la semana. */
-  semana: string
-  /** El día formateado, para el rótulo del eje. */
+/**
+ * Un estado ya resuelto contra el catálogo, listo para pintar una marca.
+ *
+ * El color es el que administra Perfex, tal cual: acá no hay paleta propia, igual que en la
+ * insignia de cada fila (`resolverEstado`). Así la barra de «En proceso» tiene el mismo color que la
+ * insignia «En proceso» de la pestaña de {procesos}, que es la única forma de que el cliente
+ * reconozca el estado sin leer la leyenda dos veces.
+ */
+export interface EstadoPintado {
+  status: number
   etiqueta: string
-  cerradas: number
-  /** 0-1 sobre la mejor semana de la propia serie. */
-  fraccion: number
-  parcial: boolean
+  /** El color del catálogo. `null` cuando el estado no tiene color: se pinta con el tono neutro. */
+  color: string | null
+  /**
+   * `true` cuando el catálogo no conoce el estado. Se dibuja con contorno y sin relleno, como la
+   * insignia: un estado que no sabemos nombrar no puede llevar el color de otro.
+   */
+  desconocido: boolean
 }
 
-/** La serie completa, con la decisión de si vale dibujarla. */
-export interface LecturaDeCierres {
-  puntos: PuntoDeCierres[]
-  /**
-   * `false` cuando hay menos de {@link SEMANAS_CON_DATO_MINIMAS} semanas con algún cierre.
-   *
-   * Dos barras sueltas sobre doce semanas vacías no son una tendencia: son dos hechos, y el gráfico
-   * los presentaría como una caída. En ese caso la pantalla escribe los números y no dibuja.
-   */
-  valeDibujarla: boolean
-  /** Cuántas de las doce semanas tuvieron algún cierre. */
-  semanasConDato: number
+/** Una barra del gráfico de {procesos} por estado. */
+export interface BarraDeEstado extends EstadoPintado {
   total: number
-}
-
-/**
- * Lee la serie de cierres y decide si se puede dibujar.
- *
- * La escala es la mejor semana de la propia serie: lo que el cliente necesita saber es si el ritmo
- * sube o baja, no cuánto es «mucho» en abstracto. Una escala absoluta aplastaría todas las semanas
- * de un {espacio} tranquilo contra el piso.
- *
- * La semana parcial entra a la serie con su valor real y marcada: no se extrapola —sería inventar
- * trabajo que no ocurrió— y tampoco se esconde, porque es la semana que el cliente está viviendo.
- */
-export function leerCierres (cierres: SemanaDeCierres[]): LecturaDeCierres {
-  const mayor = cierres.reduce((alto, semana) => Math.max(alto, semana.cerradas), 0)
-  const semanasConDato = cierres.filter((semana) => semana.cerradas > 0).length
-
-  return {
-    puntos: cierres.map((semana) => ({
-      semana: semana.semana,
-      etiqueta: formatearFecha(semana.semana),
-      cerradas: semana.cerradas,
-      fraccion: mayor === 0 ? 0 : semana.cerradas / mayor,
-      parcial: semana.parcial
-    })),
-    valeDibujarla: semanasConDato >= SEMANAS_CON_DATO_MINIMAS,
-    semanasConDato,
-    total: cierres.reduce((suma, semana) => suma + semana.cerradas, 0)
-  }
-}
-
-/** El resumen accesible de la serie: el mismo dato, en una frase. */
-export function resumenDeCierres (lectura: LecturaDeCierres): string {
-  if (lectura.total === 0) return 'Ninguna tarea cerrada en las últimas doce semanas.'
-
-  const conDato = lectura.puntos.filter((punto) => punto.cerradas > 0)
-  const mejor = conDato.reduce(
-    (alto, punto) => (punto.cerradas > alto.cerradas ? punto : alto),
-    conDato[0] as PuntoDeCierres
-  )
-
-  return `${lectura.total} tareas cerradas en doce semanas, repartidas en ${lectura.semanasConDato}`
-    + ` de ellas. La mejor fue la del ${mejor.etiqueta}, con ${mejor.cerradas}.`
-}
-
-// =================================================================================================
-// LOS HITOS
-// =================================================================================================
-
-/** Un hito en la línea de tiempo. */
-export interface MarcaDeHito {
-  id: number
-  nombre: string
-  /** La fecha tal como está guardada. `null` si el hito no tiene. */
-  fecha: string | null
-  /** El día formateado. Cadena vacía si no hay fecha. */
-  etiqueta: string
-  /** 0-1 sobre la ventana de la línea. `null` cuando el hito no tiene fecha y no va al eje. */
-  posicion: number | null
-  tareas: number
-  cerradas: number
-  /** `null` cuando el hito no tiene ni una {proceso} visible. */
-  porcentaje: number | null
-  /** `true` cuando quedan {procesos} abiertas y la fecha ya pasó. */
-  atrasado: boolean
-  /** `true` cuando todas sus {procesos} están cerradas. Con 0 {procesos} es `false`. */
-  cumplido: boolean
-}
-
-/** La línea de tiempo de hitos, con su ventana y su salvedad. */
-export interface LineaDeHitos {
-  marcas: MarcaDeHito[]
-  /** Días de hoy al extremo izquierdo de la ventana. Negativo cuando hay hitos vencidos. */
-  desde: number
-  /** Días de hoy al extremo derecho. */
-  hasta: number
-  /** 0-1: dónde cae HOY en la ventana. */
-  hoy: number
-  /** Cuántos hitos quedaron fuera del eje por no tener fecha. */
-  sinFecha: number
-  /**
-   * La salvedad de las fechas, cuando `fechas_confiables` llegó en `false`.
-   *
-   * Cadena vacía cuando las fechas aguantan el eje. No esconde el gráfico: el usuario decidió el
-   * 22/09 dibujarlo igual, y esto es lo que evita que el cliente lea una promesa donde hay un
-   * placeholder.
-   */
-  salvedad: string
-}
-
-/** La salvedad que se escribe cuando las fechas de hito son de relleno. */
-export const SALVEDAD_DE_FECHAS =
-  'Varios hitos están fechados al último día del mes, así que esas fechas son de referencia y no '
-  + 'una entrega comprometida.'
-
-/**
- * Arma la línea de tiempo de hitos.
- *
- * La ventana se calcula sobre los datos y SIEMPRE incluye HOY, que es la marca contra la que se lee
- * todo lo demás. Es la misma decisión que `lineaDeEntregas()` en `tablero.ts`, y por el mismo
- * motivo: una lista de fechas obliga a restar de cabeza para saber qué está cerca.
- *
- * Los hitos sin fecha no se descartan: no van al eje —no tienen dónde ir— pero se cuentan en
- * `sinFecha` para que la pantalla los pueda nombrar. Esconderlos le restaría hitos al cliente.
- *
- * @param hitos el bloque tal como llegó de la API
- * @param hoyISO `YYYY-MM-DD`. Se pasa en vez de leerse del reloj para que la prueba sea determinista.
- */
-export function lineaDeHitos (hitos: HitosDelTablero, hoyISO: string): LineaDeHitos {
-  const vacia: LineaDeHitos = {
-    marcas: [],
-    desde: 0,
-    hasta: 0,
-    hoy: 0,
-    sinFecha: 0,
-    salvedad: hitos.fechas_confiables ? '' : SALVEDAD_DE_FECHAS
-  }
-
-  if (hitos.lista.length === 0) return vacia
-
-  const hoy = Date.parse(`${hoyISO}T00:00:00Z`)
-  const dias = (fecha: string): number =>
-    Math.round((Date.parse(`${fecha}T00:00:00Z`) - hoy) / 86400000)
-
-  const conFecha = hitos.lista.filter((hito) => hito.due_date !== null)
-  const sinFecha = hitos.lista.length - conFecha.length
-
-  // La ventana incluye hoy (el 0) y los extremos de los datos. El `+ 1` del tope evita que un hito
-  // que cae exactamente en el extremo quede pegado al borde, donde su punto se recorta a la mitad.
-  const distancias = conFecha.map((hito) => dias(hito.due_date as string))
-  const desde = Math.min(0, ...distancias)
-  const hasta = Math.max(1, ...distancias)
-  const ancho = hasta - desde
-
-  return {
-    marcas: hitos.lista.map((hito) => marcaDeHito(hito, hito.due_date === null ? null : dias(hito.due_date), desde, ancho)),
-    desde,
-    hasta,
-    hoy: (0 - desde) / ancho,
-    sinFecha,
-    salvedad: hitos.fechas_confiables ? '' : SALVEDAD_DE_FECHAS
-  }
-}
-
-/** Una marca de la línea, con su estado ya decidido. */
-function marcaDeHito (
-  hito: HitoDelTablero,
-  distancia: number | null,
-  desde: number,
-  ancho: number
-): MarcaDeHito {
-  const abiertas = hito.tareas - hito.cerradas
-
-  return {
-    id: hito.id,
-    nombre: hito.name,
-    fecha: hito.due_date,
-    etiqueta: hito.due_date === null ? '' : formatearFecha(hito.due_date),
-    posicion: distancia === null ? null : (distancia - desde) / ancho,
-    tareas: hito.tareas,
-    cerradas: hito.cerradas,
-    porcentaje: hito.porcentaje,
-    // Atrasado exige las DOS cosas: que la fecha haya pasado y que quede trabajo. Un hito con
-    // fecha vieja y todo cerrado se entregó, no se atrasó. Es la misma regla que `hitoVencido()`
-    // en el panel.
-    atrasado: distancia !== null && distancia < 0 && abiertas > 0,
-    // Con 0 {procesos} visibles no se puede afirmar que esté cumplido: no hay nada que lo respalde.
-    cumplido: hito.tareas > 0 && abiertas === 0
-  }
-}
-
-/** El resumen accesible de la línea de hitos. */
-export function resumenDeHitos (linea: LineaDeHitos): string {
-  if (linea.marcas.length === 0) return 'Este proyecto todavía no tiene hitos.'
-
-  const cumplidos = linea.marcas.filter((marca) => marca.cumplido).length
-  const atrasados = linea.marcas.filter((marca) => marca.atrasado).length
-
-  const partes = [`${linea.marcas.length} hitos`, `${cumplidos} cumplidos`]
-
-  if (atrasados > 0) partes.push(`${atrasados} atrasados`)
-  if (linea.sinFecha > 0) partes.push(`${linea.sinFecha} sin fecha`)
-
-  return partes.join(', ') + '.'
-}
-
-// =================================================================================================
-// EL EQUIPO
-// =================================================================================================
-
-/**
- * Si hay algo que medir en el equipo.
- *
- * Con todas las personas en 0 abiertas y 0 cerradas no hay carga que comparar: el gráfico dibujaría
- * dos barras de largo cero, que es medio panel para no decir nada. Es la misma regla que gobierna
- * `avance.porcentaje`: un cero medido y un dato que no existe se presentan distinto.
- */
-export function hayCargaQueMostrar (filas: FilaDePersona[]): boolean {
-  return filas.some((fila) => fila.abiertas > 0 || fila.cerradas > 0)
-}
-
-/** Una fila del gráfico de carga del equipo. */
-export interface FilaDePersona {
-  id: number
-  nombre: string
-  abiertas: number
-  cerradas: number
-  /** 0-1 sobre la persona con más {procesos} abiertas. */
+  /** 0-1 sobre el estado con más {procesos}: la barra más larga llena el carril. */
   fraccion: number
+  /** Porcentaje sobre el total de {procesos}, para el tooltip. Redondeado a entero. */
+  porcentaje: number
 }
 
 /**
- * El equipo ordenado por trabajo pendiente, y recortado.
+ * Resuelve un estado contra el catálogo.
  *
- * Ordena por {procesos} ABIERTAS y no por total: la pregunta del cliente es quién tiene trabajo
- * ahora, no quién acumuló más en la historia del {espacio}. Quien no tiene nada abierto va al final
- * pero va: sacarlo dibujaría un equipo más chico que el real.
- *
- * La escala es la persona más cargada de la propia lista, por lo mismo que en el resto del archivo.
+ * @param status el id que mandó la API
+ * @param catalogo `task_statuses` del portal, o nada si todavía no llegó
  */
-export function filasDePersonas (equipo: Array<{ id: number, full_name: string, abiertas: number, cerradas: number }>): FilaDePersona[] {
-  const mayor = equipo.reduce((alto, persona) => Math.max(alto, persona.abiertas), 0)
+export function pintarEstado (status: number, catalogo: CatalogoDeEstados | undefined): EstadoPintado {
+  const resuelto = resolverEstado(status, catalogo)
 
-  return [...equipo]
-    .sort((a, b) => b.abiertas - a.abiertas || b.cerradas - a.cerradas || a.full_name.localeCompare(b.full_name, 'es'))
-    .slice(0, TOPE_DE_PERSONAS)
-    .map((persona) => ({
-      id: persona.id,
-      nombre: persona.full_name,
-      abiertas: persona.abiertas,
-      cerradas: persona.cerradas,
-      fraccion: mayor === 0 ? 0 : persona.abiertas / mayor
-    }))
+  return {
+    status,
+    etiqueta: resuelto.etiqueta,
+    color: resuelto.color === undefined || resuelto.color === '' ? null : resuelto.color,
+    desconocido: resuelto.desconocido
+  }
 }
 
+/**
+ * Las {procesos} por estado como barras, una por estado con alguna.
+ *
+ * La API manda los ceros —el catálogo completo— y acá se descartan: una barra de largo cero no se
+ * ve y ocupa una fila, que es el «mucha data hacia abajo» que se rechazó. El orden es el que llegó,
+ * que es el del catálogo, y NO se reordena por total: el catálogo es el flujo de trabajo —de «Por
+ * iniciar» a «Completado»— y leído en ese orden el gráfico cuenta dónde está parado el trabajo.
+ *
+ * La escala es el estado con más {procesos} de la propia lista, como en el resto del archivo.
+ *
+ * @param porEstado `tareas.por_estado` tal como llegó
+ * @param catalogo `task_statuses` del portal
+ */
+export function barrasPorEstado (
+  porEstado: readonly ConteoPorEstado[],
+  catalogo: CatalogoDeEstados | undefined
+): BarraDeEstado[] {
+  const conFilas = porEstado.filter((conteo) => conteo.total > 0)
+  const mayor = conFilas.reduce((alto, conteo) => Math.max(alto, conteo.total), 0)
+  const total = conFilas.reduce((suma, conteo) => suma + conteo.total, 0)
+
+  return conFilas.map((conteo) => ({
+    ...pintarEstado(conteo.status, catalogo),
+    total: conteo.total,
+    fraccion: mayor === 0 ? 0 : conteo.total / mayor,
+    porcentaje: total === 0 ? 0 : Math.round((conteo.total * 100) / total)
+  }))
+}
+
+/** El resumen accesible de las barras por estado: el mismo dato, en una frase. */
+export function resumenPorEstado (barras: readonly BarraDeEstado[]): string {
+  if (barras.length === 0) return 'Sin tareas para repartir por estado.'
+
+  const total = barras.reduce((suma, barra) => suma + barra.total, 0)
+
+  return `${total} tareas: ` + barras.map((b) => `${b.total} en ${b.etiqueta}`).join(', ') + '.'
+}
+
+// =================================================================================================
+// LAS PENDIENTES POR HITO
+// =================================================================================================
+
+/** Cuántos {hitos} se ven antes del `<details>`. Más que en las otras listas: cada fila es baja. */
+export const HITOS_VISIBLES = 6
+
+/** Un tramo de la barra apilada de un {hito}. */
+export interface TramoDePendientes extends EstadoPintado {
+  total: number
+  /** Porcentaje sobre las pendientes de ESE {hito}: el ancho del tramo dentro de su barra. */
+  porcentaje: number
+}
+
+/** Una fila del gráfico: un {hito} con sus pendientes. */
+export interface FilaDePendientes {
+  id: number
+  nombre: string
+  pendientes: number
+  /**
+   * 0-1 sobre el {hito} con más pendientes: el largo de la barra entera.
+   *
+   * La escala es COMÚN a todas las filas, y es lo que hace comparables a los {hitos}: con cada
+   * barra estirada a su propio 100 % un {hito} con 2 pendientes se vería igual de cargado que uno
+   * con 30.
+   */
+  fraccion: number
+  tramos: TramoDePendientes[]
+}
+
+/** El gráfico entero: las filas y la leyenda que las explica una sola vez. */
+export interface PendientesPorHito {
+  filas: FilaDePendientes[]
+  /** Los estados que aparecen en alguna fila, en el orden del catálogo y los desconocidos al final. */
+  leyenda: EstadoPintado[]
+  /** Suma de las pendientes de todas las filas. */
+  total: number
+  /** Cuántos {hitos} tiene la lista, con y sin pendientes: para decir cuántos no tienen nada. */
+  hitos: number
+}
+
+/**
+ * Arma el gráfico de pendientes por {hito}.
+ *
+ * Entran solo los {hitos} con algo pendiente. Uno con todo cerrado no tiene barra que dibujar, y
+ * una fila vacía entre dos llenas se lee como un dato que no cargó; `hitos` guarda el total para
+ * que la pantalla pueda decir cuántos quedaron fuera por estar al día.
+ *
+ * El orden es el de la API, que es el orden del {espacio} —el mismo de la pestaña de {hitos}—, y no
+ * se reordena por carga: el cliente conoce sus {hitos} en esa secuencia, y encontrar «Guiones»
+ * donde siempre está vale más que un ranking.
+ *
+ * @param lista `hitos.lista` tal como llegó
+ * @param catalogo `task_statuses` del portal
+ */
+export function pendientesPorHito (
+  lista: readonly HitoDelTablero[],
+  catalogo: CatalogoDeEstados | undefined
+): PendientesPorHito {
+  const conPendientes = lista.filter((hito) => hito.pendientes > 0)
+  const mayor = conPendientes.reduce((alto, hito) => Math.max(alto, hito.pendientes), 0)
+
+  const filas = conPendientes.map((hito) => {
+    // El denominador del tramo es la suma de SUS estados y no `pendientes`: si alguna vez no
+    // coinciden, los tramos igual llenan la barra en vez de dejar un hueco sin explicación.
+    const suma = hito.por_estado.reduce((total, conteo) => total + Math.max(0, conteo.total), 0)
+
+    return {
+      id: hito.id,
+      nombre: hito.name,
+      pendientes: hito.pendientes,
+      fraccion: mayor === 0 ? 0 : hito.pendientes / mayor,
+      tramos: hito.por_estado
+        .filter((conteo) => conteo.total > 0)
+        .map((conteo) => ({
+          ...pintarEstado(conteo.status, catalogo),
+          total: conteo.total,
+          porcentaje: suma === 0 ? 0 : (conteo.total * 100) / suma
+        }))
+    }
+  })
+
+  return {
+    filas,
+    leyenda: leyendaDeEstados(filas, catalogo),
+    total: conPendientes.reduce((suma, hito) => suma + hito.pendientes, 0),
+    hitos: lista.length
+  }
+}
+
+/**
+ * Los estados que usa alguna fila, una sola vez y en el orden del catálogo.
+ *
+ * El orden del catálogo, y no el de aparición, porque es el mismo que el de los tramos dentro de
+ * cada barra: la leyenda se lee de izquierda a derecha igual que las barras. Los desconocidos van
+ * al final, donde también los pone la API.
+ */
+function leyendaDeEstados (
+  filas: readonly FilaDePendientes[],
+  catalogo: CatalogoDeEstados | undefined
+): EstadoPintado[] {
+  const vistos = new Map<number, EstadoPintado>()
+
+  for (const fila of filas) {
+    for (const tramo of fila.tramos) {
+      if (!vistos.has(tramo.status)) vistos.set(tramo.status, pintarEstado(tramo.status, catalogo))
+    }
+  }
+
+  const posicion = (status: number): number => {
+    const indice = (catalogo ?? []).findIndex((item) => String('valor' in item ? item.valor : item.id) === String(status))
+
+    return indice === -1 ? Number.MAX_SAFE_INTEGER : indice
+  }
+
+  return [...vistos.values()].sort((a, b) => posicion(a.status) - posicion(b.status) || a.status - b.status)
+}
+
+/** El resumen accesible de una fila: el {hito}, sus pendientes y en qué estado está cada una. */
+export function resumenDeFila (fila: FilaDePendientes): string {
+  return `${fila.nombre}: ${fila.pendientes} pendientes, `
+    + fila.tramos.map((tramo) => `${tramo.total} en ${tramo.etiqueta}`).join(', ') + '.'
+}
+
+// =================================================================================================
+// EL REPARTO EN COLUMNAS
+// =================================================================================================
+
+/** Los bloques del tablero. Cada uno puede faltar según las pestañas del contacto. */
+export type BloqueDelTablero = 'avance' | 'cifras' | 'hitos' | 'estados' | 'prioridades' | 'novedades'
+
+/** Un bloque presente, con cuánto alto se estima que ocupa. */
+export interface BloqueConPeso {
+  bloque: BloqueDelTablero
+  /** Alto estimado, en decenas de píxeles. Sólo se compara contra otros pesos: no es una medida. */
+  peso: number
+}
+
+/** Las dos columnas de la rejilla en escritorio, cada una en orden de lectura. */
+export interface Columnas {
+  /** La de cinco doceavos, a la izquierda. */
+  estrecha: BloqueDelTablero[]
+  /** La de siete doceavos, a la derecha. */
+  ancha: BloqueDelTablero[]
+}
+
+/**
+ * El orden de lectura: de lo que pide una acción a lo que sólo informa.
+ *
+ * Es también el orden en móvil, donde todo va en una columna. El medidor primero porque es la
+ * figura protagonista —«¿cuánto falta?»—; las cifras después porque ahí están las vencidas; las
+ * pendientes por {hito} antes que los estados porque dicen DÓNDE está lo pendiente; lo que pasó al
+ * final.
+ */
+export const ORDEN_DE_LECTURA: readonly BloqueDelTablero[] =
+  ['avance', 'cifras', 'hitos', 'estados', 'prioridades', 'novedades']
+
+/**
+ * A qué columna tira cada bloque cuando nada lo obliga a cambiar.
+ *
+ * El medidor, las cifras y los estados son angostos por naturaleza —un anillo, tarjetas de un
+ * número, barras con rótulo corto— y viven bien en cinco columnas. Los {hitos} tienen nombres
+ * largos y barras que se comparan a lo largo, las novedades son frases: esos quieren las siete.
+ */
+const AFINIDAD: Record<BloqueDelTablero, keyof Columnas> = {
+  avance: 'estrecha',
+  cifras: 'estrecha',
+  estados: 'estrecha',
+  hitos: 'ancha',
+  prioridades: 'ancha',
+  novedades: 'ancha'
+}
+
+/**
+ * Reparte los bloques presentes en dos columnas que terminen a la misma altura.
+ *
+ * === POR QUÉ DOS PILAS Y NO UNA REJILLA DE FILAS ===
+ *
+ * Una rejilla de filas deja huecos en cuanto los bloques son asimétricos: el alto de la fila lo
+ * pone el más alto, y al lado del anillo queda un vacío. O deja un bloque solo en su fila cuando el
+ * vecino no llegó. El usuario pidió lo contrario: «que no quede con cosas solas en una fila, que todo
+ * calce independiente de que sean asimétricos». Dos pilas lo resuelven por construcción: cada
+ * columna apila sus bloques sin mirar a la otra, y el ÚLTIMO de cada una se estira hasta el piso
+ * común. No hay filas, así que no hay fila donde quedarse solo.
+ *
+ * === CÓMO SE REPARTE ===
+ *
+ *   1. Cada bloque va a su columna de {@link AFINIDAD}.
+ *   2. Mientras mover un bloque de la columna más pesada a la otra achique la diferencia, se mueve
+ *      —empezando por el último en orden de lectura, para que lo de arriba no se desplace—. La
+ *      columna que cede nunca queda vacía.
+ *   3. Cada columna se ordena por {@link ORDEN_DE_LECTURA}.
+ *
+ * Balancear importa porque el bloque que se estira es el último: si una columna es mucho más baja,
+ * su último bloque crece hasta ser un panel con aire adentro.
+ *
+ * Con un solo bloque, va a la ancha y la estrecha queda sin dibujar: estirar un bloque a las doce
+ * columnas es justo la «fila del ancho de la pantalla» que se rechazó.
+ *
+ * @param presentes los bloques que llegaron, con su peso; el orden no importa
+ * @returns las dos columnas, cada una en orden de lectura
+ */
+export function repartirEnColumnas (presentes: readonly BloqueConPeso[]): Columnas {
+  const ordenados = [...presentes].sort((a, b) => lugarDeLectura(a.bloque) - lugarDeLectura(b.bloque))
+
+  if (ordenados.length === 0) return { estrecha: [], ancha: [] }
+  if (ordenados.length === 1) return { estrecha: [], ancha: [(ordenados[0] as BloqueConPeso).bloque] }
+
+  const columnas: Record<keyof Columnas, BloqueConPeso[]> = { estrecha: [], ancha: [] }
+  for (const bloque of ordenados) columnas[AFINIDAD[bloque.bloque]].push(bloque)
+
+  // Cada vuelta mueve un bloque y achica la diferencia, así que termina; el tope es por si acaso.
+  for (let vuelta = 0; vuelta < ordenados.length; vuelta++) {
+    if (!moverUnoHaciaLaMasLiviana(columnas)) break
+  }
+
+  const enOrden = (bloques: BloqueConPeso[]): BloqueDelTablero[] =>
+    [...bloques].sort((a, b) => lugarDeLectura(a.bloque) - lugarDeLectura(b.bloque)).map((b) => b.bloque)
+
+  return { estrecha: enOrden(columnas.estrecha), ancha: enOrden(columnas.ancha) }
+}
+
+/**
+ * Mueve de la columna más pesada a la otra el primer bloque —desde el final de la lectura— que
+ * achique la diferencia. Devuelve si movió alguno.
+ */
+function moverUnoHaciaLaMasLiviana (columnas: Record<keyof Columnas, BloqueConPeso[]>): boolean {
+  const carga = (lado: keyof Columnas): number => columnas[lado].reduce((suma, b) => suma + b.peso, 0)
+  const pesada: keyof Columnas = carga('estrecha') > carga('ancha') ? 'estrecha' : 'ancha'
+  const liviana: keyof Columnas = pesada === 'estrecha' ? 'ancha' : 'estrecha'
+  const diferencia = carga(pesada) - carga(liviana)
+
+  if (columnas[pesada].length <= 1) return false
+
+  const candidatos = [...columnas[pesada]].sort((a, b) => lugarDeLectura(b.bloque) - lugarDeLectura(a.bloque))
+  const elegido = candidatos.find((b) => Math.abs(diferencia - 2 * b.peso) < diferencia)
+
+  if (elegido === undefined) return false
+
+  columnas[pesada] = columnas[pesada].filter((b) => b !== elegido)
+  columnas[liviana].push(elegido)
+
+  return true
+}
+
+/** El lugar de un bloque en {@link ORDEN_DE_LECTURA}. */
+function lugarDeLectura (bloque: BloqueDelTablero): number {
+  return ORDEN_DE_LECTURA.indexOf(bloque)
+}
+
+/**
+ * Cuánto alto se estima que ocupa cada bloque, en decenas de píxeles.
+ *
+ * Son estimaciones de lo que dibuja cada componente —la cabecera del panel más sus filas—, y sólo
+ * sirven para comparar columnas. No tienen que ser exactas: el último bloque de cada columna
+ * absorbe la diferencia estirándose, y esto sólo evita que la diferencia sea grande.
+ */
+export const PESO = {
+  /** Cabecera, relleno y separación de un panel. */
+  panel: 6.4,
+  /** El anillo de 128 px con su pie. */
+  avance: 15,
+  /** Una fila de tarjetas de cifra, con su separación. */
+  filaDeCifras: 8,
+  /** La barra apilada de prioridades con su leyenda. */
+  prioridades: 6,
+  /** Una fila de barra con rótulo. */
+  fila: 2.4,
+  /** La leyenda o el desplegable de «ver todos». */
+  extra: 2
+} as const
+
+/**
+ * Cuántas filas de tarjetas hacen las cifras.
+ *
+ * Cuatro tarjetas van en dos filas de dos; tres o menos, en una. Es lo que evita la tarjeta sola en
+ * su fila: con cuatro en una rejilla de tres, la cuarta quedaría huérfana abajo.
+ */
+export function filasDeCifras (tarjetas: number): number {
+  if (tarjetas <= 0) return 0
+
+  return tarjetas === 4 ? 2 : Math.ceil(tarjetas / 3)
+}
 // =================================================================================================
 // LA ACTIVIDAD
 // =================================================================================================
@@ -427,11 +524,10 @@ export interface Cifra {
 /**
  * Las cifras de contexto del tablero.
  *
- * Son TRES, y no las cuatro que había. `cerradas_30` se fue: la serie de doce semanas ya contesta
- * «cuánto se cierra últimamente» con mucho más detalle, y una cifra que repite lo que el gráfico de
- * al lado ya dice es exactamente el relleno que se rechazó. La que queda de ese par es
- * `cerradas_7`, que es la única ventana que la serie NO deja leer de un vistazo: en el gráfico es la
- * última columna, cortada en HOY.
+ * Son TRES, y no las cuatro que manda la API. De las dos ventanas de cierres queda `cerradas_7`,
+ * la que contesta «¿se está moviendo esto?» sin cuentas: treinta días es un mes entero, y en un
+ * {espacio} tranquilo esa cifra dice lo mismo que el medidor de avance de al lado. Una cifra que
+ * repite lo que otro bloque ya dice es exactamente el relleno que se rechazó.
  *
  * El pedido fue «más que 3 números piñuflas» y esto son tres números. No se contradice: la queja no
  * era la cantidad, era que fueran lo único. Estos tres se pueden accionar —hay 16 vencidas— y viven
@@ -456,9 +552,6 @@ export function cifrasDelTablero (tareas: TareasDelTablero): Cifra[] {
 // fracción que se sale de 0-1, un área que no cierra— dibuja un gráfico plausible y equivocado.
 // =================================================================================================
 
-/** Alto y ancho del lienzo de la serie de cierres, en unidades de `viewBox`. */
-export const LIENZO_DE_AREA = { ancho: 300, alto: 100 } as const
-
 /**
  * Cuánto pinta el anillo del medidor de avance.
  *
@@ -479,82 +572,6 @@ export function arcoDeAvance (porcentaje: number | null, radio: number): { circu
   const fraccion = porcentaje === null ? 0 : Math.min(100, Math.max(0, porcentaje)) / 100
 
   return { circunferencia, pintado: circunferencia * fraccion }
-}
-
-/** Un punto de la serie, con su lugar en el lienzo. */
-export interface PuntoDeArea extends PuntoDeCierres {
-  /** Coordenada X en unidades de `viewBox`. */
-  x: number
-  /** Coordenada Y en unidades de `viewBox`. El 0 está ARRIBA, como en todo SVG. */
-  y: number
-  /** 0-1 de izquierda a derecha. Para colgar marcas HTML encima del SVG sin repetir la cuenta. */
-  fraccionX: number
-  /** `true` en la semana con más cierres de la serie: es la única que se rotula directo. */
-  extremo: boolean
-}
-
-/** La serie lista para dibujar: la línea, el relleno y los puntos. */
-export interface AreaDeCierres {
-  puntos: PuntoDeArea[]
-  /** `d` de la línea. Cadena vacía si no hay al menos dos puntos. */
-  linea: string
-  /** `d` del relleno, cerrado contra la base. Cadena vacía si no hay al menos dos puntos. */
-  area: string
-}
-
-/**
- * Convierte la serie de cierres en las dos rutas SVG de un gráfico de área.
- *
- * Área y no doce barras: el dato es una tendencia de una sola serie, y la skill de visualización
- * manda «line; area for a single series» para eso. Doce barras en fila era justamente la queja —una
- * lista de mucho dato— y encima sugiere que cada semana es una categoría independiente cuando lo
- * que importa es la forma del conjunto.
- *
- * La escala vertical es la mejor semana de la propia serie, igual que antes: la pregunta es si el
- * ritmo sube o baja, no cuánto es «mucho» en abstracto.
- *
- * El relleno se cierra contra la base del lienzo y no contra el mínimo: un área que no arranca en
- * cero exagera la variación, que es la forma más común de mentir con un gráfico de área.
- *
- * Con menos de dos puntos las rutas salen vacías en vez de dibujar un segmento de cero largo.
- */
-export function areaDeCierres (cierres: LecturaDeCierres): AreaDeCierres {
-  const { ancho, alto } = LIENZO_DE_AREA
-  const total = cierres.puntos.length
-  const mayor = cierres.puntos.reduce((alto2, punto) => Math.max(alto2, punto.cerradas), 0)
-
-  const puntos: PuntoDeArea[] = cierres.puntos.map((punto, i) => {
-    const fraccionX = total <= 1 ? 0 : i / (total - 1)
-
-    return {
-      ...punto,
-      x: fraccionX * ancho,
-      // Se deja un 6 % de aire arriba para que el pico no toque el borde del lienzo y su punto no
-      // quede cortado por la mitad.
-      y: alto - punto.fraccion * alto * 0.94,
-      fraccionX,
-      extremo: mayor > 0 && punto.cerradas === mayor
-    }
-  })
-
-  if (puntos.length < 2) {
-    return { puntos, linea: '', area: '' }
-  }
-
-  const trazo = puntos.map((p) => `${redondear(p.x)},${redondear(p.y)}`).join(' L')
-  const primero = puntos[0] as PuntoDeArea
-  const ultimo = puntos[puntos.length - 1] as PuntoDeArea
-
-  return {
-    puntos,
-    linea: `M${trazo}`,
-    area: `M${redondear(primero.x)},${alto} L${trazo} L${redondear(ultimo.x)},${alto} Z`
-  }
-}
-
-/** Dos decimales: más precisión en un `d` de SVG es peso de descarga sin efecto visible. */
-function redondear (n: number): number {
-  return Math.round(n * 100) / 100
 }
 
 /** Un tramo de la barra apilada de prioridades. */
@@ -609,61 +626,6 @@ export function tramosDePrioridad (tareas: TareasDelTablero): TramoDePrioridad[]
     .filter((tramo) => tramo.total > 0)
 }
 
-/** Una marca del eje de {hitos}: una fecha, con todos los {hitos} que caen en ella. */
-export interface MarcaAgrupada {
-  /** `YYYY-MM-DD`. Sirve de clave. */
-  fecha: string
-  etiqueta: string
-  /** 0-1 sobre la ventana de la línea. */
-  posicion: number
-  /** Los {hitos} de esa fecha, en el orden en que llegaron. */
-  hitos: MarcaDeHito[]
-  /** El color del grupo: peligro si alguno está atrasado, éxito si TODOS están cumplidos. */
-  estado: 'atrasado' | 'cumplido' | 'en_curso'
-}
-
-/**
- * Agrupa las marcas del eje por fecha.
- *
- * Existe por un caso que se ve en cuanto se abre un {espacio} real: sus tres {hitos} están fechados
- * el 31 de diciembre, así que en el eje caen en el MISMO píxel. Dibujados uno por {hito} quedan
- * perfectamente superpuestos y el cliente cuenta uno donde hay tres — un gráfico que dice menos de
- * lo que hay.
- *
- * Con una marca por fecha, el punto es honesto y su tooltip enumera los {hitos} que comparte.
- *
- * El estado del grupo se decide por el peor caso: si alguno está atrasado el punto va en peligro,
- * porque eso es lo que hay que ver. Cumplido exige que lo estén TODOS.
- */
-export function marcasAgrupadas (marcas: MarcaDeHito[]): MarcaAgrupada[] {
-  const porFecha = new Map<string, MarcaAgrupada>()
-
-  for (const marca of marcas) {
-    if (marca.fecha === null || marca.posicion === null) continue
-
-    const grupo = porFecha.get(marca.fecha)
-
-    if (grupo === undefined) {
-      porFecha.set(marca.fecha, {
-        fecha: marca.fecha,
-        etiqueta: marca.etiqueta,
-        posicion: marca.posicion,
-        hitos: [marca],
-        estado: marca.atrasado ? 'atrasado' : marca.cumplido ? 'cumplido' : 'en_curso'
-      })
-      continue
-    }
-
-    grupo.hitos.push(marca)
-    // El peor caso manda. Un grupo con uno atrasado se pinta atrasado aunque los otros estén
-    // cumplidos: esconder el atraso detrás de dos entregas es justo lo que no puede pasar.
-    if (marca.atrasado) grupo.estado = 'atrasado'
-    else if (grupo.estado === 'cumplido' && !marca.cumplido) grupo.estado = 'en_curso'
-  }
-
-  return [...porFecha.values()]
-}
-
 /** Una prioridad en la leyenda: sale siempre, también en cero. */
 export interface ClaveDePrioridad {
   priority: number
@@ -680,4 +642,76 @@ export function clavesDePrioridad (tareas: TareasDelTablero): ClaveDePrioridad[]
     total: prioridad.total,
     paso: i + 1
   }))
+}
+
+/** Cuántas novedades se calculan. El componente muestra cinco y pliega el resto. */
+export const TOPE_DE_NOVEDADES = 12
+
+/** Cuántas filas muestran las listas cortas —novedades— antes del `<details>`. */
+export const FILAS_VISIBLES = 5
+
+/**
+ * Cuántas tarjetas de cifra lleva el tablero: las tres de contexto más la próxima entrega.
+ *
+ * `undefined` en `proxima_entrega` es «no tiene la pestaña» y `null` es «no queda ninguna entrega
+ * pendiente». Los dos terminan en «sin tarjeta», y se decide acá una sola vez para que la rejilla y
+ * el peso del bloque no puedan decidir distinto sobre el mismo dato.
+ */
+export function tarjetasDeCifras (tablero: TableroDelProyecto): number {
+  if (tablero.tareas === undefined) return 0
+
+  const hayProxima = tablero.proxima_entrega !== undefined && tablero.proxima_entrega !== null
+
+  return cifrasDelTablero(tablero.tareas).length + (hayProxima ? 1 : 0)
+}
+
+/**
+ * Los bloques que este tablero va a dibujar, cada uno con su peso estimado.
+ *
+ * Qué bloque está lo deciden las pestañas del contacto, que la API ya aplicó al omitir claves:
+ * `tareas` trae las cifras, las prioridades y los estados; `hitos`, las pendientes por {hito};
+ * `actividad`, las novedades. El medidor está siempre. El peso sale de las filas que cada bloque va
+ * a dibujar de verdad, para que un {espacio} con dos {hitos} no reserve el alto de seis.
+ *
+ * @param tablero el tablero tal como llegó
+ * @param catalogo `task_statuses` del portal, para saber cuántas barras de estado hay
+ */
+export function bloquesDelTablero (
+  tablero: TableroDelProyecto,
+  catalogo: CatalogoDeEstados | undefined
+): BloqueConPeso[] {
+  const bloques: BloqueConPeso[] = [{ bloque: 'avance', peso: PESO.panel + PESO.avance }]
+
+  if (tablero.tareas !== undefined) {
+    const filas = filasDeCifras(tarjetasDeCifras(tablero))
+    const estados = barrasPorEstado(tablero.tareas.por_estado, catalogo).length
+
+    bloques.push(
+      { bloque: 'cifras', peso: filas * PESO.filaDeCifras },
+      { bloque: 'estados', peso: PESO.panel + PESO.fila * Math.max(1, estados) },
+      { bloque: 'prioridades', peso: PESO.panel + PESO.prioridades }
+    )
+  }
+
+  if (tablero.hitos !== undefined) {
+    const filas = pendientesPorHito(tablero.hitos.lista, catalogo).filas.length
+
+    bloques.push({
+      bloque: 'hitos',
+      peso: PESO.panel + PESO.extra + PESO.fila * Math.max(1, Math.min(filas, HITOS_VISIBLES))
+        + (filas > HITOS_VISIBLES ? PESO.extra : 0)
+    })
+  }
+
+  if (tablero.actividad !== undefined) {
+    const filas = novedades(tablero.actividad, TOPE_DE_NOVEDADES).length
+
+    bloques.push({
+      bloque: 'novedades',
+      peso: PESO.panel + PESO.fila * Math.max(1, Math.min(filas, FILAS_VISIBLES))
+        + (filas > FILAS_VISIBLES ? PESO.extra : 0)
+    })
+  }
+
+  return bloques
 }

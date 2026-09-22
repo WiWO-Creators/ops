@@ -819,15 +819,14 @@ export interface EspacioDeGestion {
  *
  * === CASI TODO ES OPCIONAL, Y ESO ES EL CONTRATO ===
  *
- * Cinco de los seis bloques pueden no llegar, y su ausencia NO es un cero: es «este contacto no
+ * Cuatro de los cinco bloques pueden no llegar, y su ausencia NO es un cero: es «este contacto no
  * tiene esa pestaña». La API no los pone en cero, no los pone —misma regla que `logged_time` y
  * `finance` en {@link EspacioPortal}—, y el tipo lo dice para que la pantalla tenga que decidir. Un
  * `tareas` en cero se leería «no hay tareas»; su ausencia significa «no puede ver las tareas».
  *
- *   - `tareas`, `cierres` y `proxima_entrega` → pestaña `tasks`.
+ *   - `tareas` y `proxima_entrega` → pestaña `tasks`.
  *   - `hitos` → pestaña `milestones`.
  *   - `actividad` → pestaña `activity`.
- *   - `equipo` → permiso `view_team_members`.
  *
  * `avance` es el único que llega siempre: es la propia pestaña Descripción.
  *
@@ -843,14 +842,10 @@ export interface TableroDelProyecto {
   avance: AvanceDelProyecto
   /** Solo con la pestaña de {procesos}. */
   tareas?: TareasDelTablero
-  /** Solo con la pestaña de {procesos}. Las últimas doce semanas, de la más vieja a la actual. */
-  cierres?: SemanaDeCierres[]
   /** Solo con la pestaña de {procesos}. `null` si no queda ninguna {proceso} abierta con fecha. */
   proxima_entrega?: ProximaEntrega | null
   /** Solo con la pestaña de Hitos. */
   hitos?: HitosDelTablero
-  /** Solo con `view_team_members`. */
-  equipo?: PersonaDelTablero[]
   /** Solo con la pestaña de Actividad. */
   actividad?: LineaDeActividadDelPortal[]
 }
@@ -876,10 +871,18 @@ export interface AvanceDelProyecto {
   porcentaje: number | null
 }
 
-/** Las {procesos} por prioridad, más los cuatro conteos que el cliente pregunta en voz alta. */
+/** Las {procesos} por prioridad y por estado, más los conteos que el cliente pregunta en voz alta. */
 export interface TareasDelTablero {
   /** Las cuatro prioridades del catálogo, completas: la que no tiene {procesos} llega en 0. */
   por_prioridad: PrioridadDelTablero[]
+  /**
+   * Todas las {procesos} visibles, abiertas y cerradas, contadas por estado.
+   *
+   * En el orden del catálogo y con los ceros incluidos, para que el gráfico no cambie de forma entre
+   * dos {espacios}. Un estado que el catálogo ya no conoce —una {proceso} histórica en el `3` que se
+   * retiró— llega al final: contarlo es más honesto que perderlo del total.
+   */
+  por_estado: ConteoPorEstado[]
   /**
    * Abiertas con `duedate` pasada. Contra la fecha que el cliente YA VE en su propia lista, no
    * contra la ETA interna: eso es `desviacion_dias` y está proscrito para el contacto.
@@ -898,25 +901,14 @@ export interface PrioridadDelTablero {
 }
 
 /**
- * Una semana de la serie de cierres.
+ * Cuántas {procesos} hay en un estado.
  *
- * Es lo que convierte el avance de FOTO en PELÍCULA: «39 % completado» no es bueno ni malo hasta que
- * se ve si la semana pasada fue 35 % o 42 %. Y es la única serie temporal honesta que un {espacio}
- * tiene hoy: sale de `datefinished`, dato medido en el momento del cierre, y no de
- * `tblwiwo_task_status_log`, que antes del 2026-09-16 no existía.
+ * Viaja el id y no el nombre ni el color: los dos los administra Perfex y la pantalla los lee del
+ * catálogo `task_statuses` de `/portal/lookups`, igual que la insignia de cada fila.
  */
-export interface SemanaDeCierres {
-  /** `YYYY-MM-DD`, el lunes de esa semana. */
-  semana: string
-  /** Las semanas sin cierres llegan en 0 y no se omiten: sin los ceros la línea sería continua. */
-  cerradas: number
-  /**
-   * `true` en la semana en curso: se cortó en HOY.
-   *
-   * Sin esta marca, tres días se comparan contra semanas de siete y la línea cae al final por un
-   * corte de calendario y no porque el trabajo bajara.
-   */
-  parcial: boolean
+export interface ConteoPorEstado {
+  status: number
+  total: number
 }
 
 /**
@@ -937,17 +929,6 @@ export interface ProximaEntrega {
 
 /** Los hitos del {espacio} con el avance de sus {procesos}. */
 export interface HitosDelTablero {
-  /**
-   * Si las fechas de hito de este {espacio} aguantan un eje de tiempo.
-   *
-   * `false` cuando la mitad o más caen el último día de un mes, que es el patrón de los placeholders:
-   * de los 236 hitos de producción, 130 caen en fin de mes y 20 el 31 de diciembre.
-   *
-   * El usuario decidió el 22/09 dibujar el eje igual, así que esta clave NO esconde el gráfico: le
-   * pone la salvedad al lado. Cuando alguien le ponga fechas de verdad a los hitos de un {espacio},
-   * llega en `true` y la advertencia desaparece sola.
-   */
-  fechas_confiables: boolean
   lista: HitoDelTablero[]
 }
 
@@ -960,22 +941,15 @@ export interface HitoDelTablero {
   cerradas: number
   /** `null` cuando el hito no tiene ni una {proceso} visible, por lo mismo que en `avance`. */
   porcentaje: number | null
-}
-
-/**
- * Alguien del equipo del {espacio}, con cuánto lleva hecho.
- *
- * Son los MIEMBROS del {espacio}, no los asignados: alguien recién incorporado sin {procesos}
- * todavía igual es parte del equipo. Los conteos pueden sumar más que el total del {espacio} —una
- * {proceso} con dos responsables cuenta para los dos—, así que la pantalla no los apila.
- *
- * Sin correo, sin cargo y sin tarifa: son datos de la persona, no del {espacio}.
- */
-export interface PersonaDelTablero {
-  id: number
-  full_name: string
-  abiertas: number
-  cerradas: number
+  /** {Procesos} visibles del hito que todavía no se cerraron. Un hito cerrado llega en 0. */
+  pendientes: number
+  /**
+   * Las pendientes, contadas por estado: SOLO los estados con alguna, en el orden del catálogo.
+   *
+   * A diferencia de `tareas.por_estado`, acá no viajan los ceros: esto se dibuja como una barra
+   * apilada por {hito}, y un tramo de ancho cero no se ve. Un hito sin pendientes trae `[]`.
+   */
+  por_estado: ConteoPorEstado[]
 }
 
 /**

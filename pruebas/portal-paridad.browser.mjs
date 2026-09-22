@@ -1,6 +1,6 @@
 /**
  * Verificacion en pantalla de la paridad del portal: las nueve pestañas que el cliente abre con el
- * MISMO panel que ve el colaborador —Descripcion, Tareas (tabla y tablero), Hitos, Tiempos,
+ * MISMO panel que ve el colaborador —Resumen, Tareas (tabla y tablero), Hitos, Tiempos,
  * Gantt, Calendario, Meeting Paper y Actividad—, la ficha de una Tarea, el interruptor
  * con el que el equipo enciende el Meeting Paper del cliente, y que el panel no regreso.
  *
@@ -105,26 +105,29 @@ const visto = {}
 await ir('/portal/proyectos/1')
 visto.pestanias = await pestanias()
 assert.deepEqual(visto.pestanias, [
-  'Descripción', 'Tareas', 'Tiempos', 'Hitos', 'Archivos', 'Diagrama de Gantt', 'Calendario',
+  'Resumen', 'Tareas', 'Tiempos', 'Hitos', 'Archivos', 'Diagrama de Gantt', 'Calendario',
   'Meeting Paper', 'Actividad'
 ])
 
-// Las aprobaciones viven DENTRO de la pestaña Descripcion, no sobre el juego de pestañas: sueltas se
-// repetian encima de las diez y se llevaban ~190 px del primer viewport en todas.
-visto.aprobacionesEnDescripcion = (await pagina.textContent('body')).includes('Esperan tu visto bueno')
-visto.aprobacionesSobreLasPestanias = await pagina.evaluate(() => {
-  const titulo = [...document.querySelectorAll('h2')].find((n) => n.textContent.trim() === 'Esperan tu visto bueno')
-  const pestania = document.querySelector('[role="tab"]')
-  if (titulo === null || titulo === undefined || pestania === null) return null
-  // `compareDocumentPosition`: 4 = el titulo esta ANTES de la primera pestaña en el documento.
-  return (pestania.compareDocumentPosition(titulo) & 2) !== 0
-})
-assert.equal(visto.aprobacionesEnDescripcion, true, 'las aprobaciones desaparecieron de la pantalla')
-assert.equal(visto.aprobacionesSobreLasPestanias, false, 'las aprobaciones siguen sobre el juego de pestañas')
+// Las aprobaciones ya no están en la pestaña Resumen: viven en la de Tareas, arriba de la lista.
+visto.aprobacionesEnResumen = (await pagina.textContent('body')).includes('Esperan tu visto bueno')
+assert.equal(visto.aprobacionesEnResumen, false, 'las aprobaciones siguen en la pestaña Resumen')
 
 // ---- Pestaña Tareas: la tabla del colaborador, sin escritura ----------------------------------
 await ir('/portal/proyectos/1?tab=tasks')
 await pagina.waitForSelector('table')
+// Las aprobaciones viven DENTRO de la pestaña Tareas, no sobre el juego de pestañas: sueltas se
+// repetian encima de las diez y se llevaban ~190 px del primer viewport en todas.
+visto.aprobacionesEnTareas = (await pagina.textContent('body')).includes('Esperan tu visto bueno')
+visto.aprobacionesSobreLasPestanias = await pagina.evaluate(() => {
+  const titulo = [...document.querySelectorAll('h2')].find((n) => n.textContent.trim() === 'Esperan tu visto bueno')
+  const pestania = document.querySelector('[role="tab"]')
+  if (titulo === null || titulo === undefined || pestania === null) return null
+  // `compareDocumentPosition`: 2 = el titulo esta ANTES de la primera pestaña en el documento.
+  return (pestania.compareDocumentPosition(titulo) & 2) !== 0
+})
+assert.equal(visto.aprobacionesEnTareas, true, 'las aprobaciones desaparecieron de la pestaña Tareas')
+assert.equal(visto.aprobacionesSobreLasPestanias, false, 'las aprobaciones siguen sobre el juego de pestañas')
 visto.encabezados = await pagina.$$eval('table thead th', (ns) => ns.map((n) => n.textContent.trim()))
 visto.filas = await pagina.$$eval('table tbody tr', (ns) => ns.length)
 visto.presentaciones = await pagina.$$eval('[aria-label="Presentación"] button', (ns) => ns.map((n) => n.textContent.trim()))
@@ -251,7 +254,7 @@ visto.listadoVacio = await pagina.textContent('body')
 await pagina.screenshot({ path: `${SALIDA}/portal-tareas-vacio.png`, fullPage: true })
 assert.equal(/Sin tareas|No hay|Todav/i.test(visto.listadoVacio), true, 'el listado vacio no dijo nada')
 
-// ---- Pestaña Descripcion: la ficha y los indicadores del colaborador --------------------------
+// ---- Pestaña Resumen: la ficha y los indicadores del colaborador --------------------------
 await ir('/portal/proyectos/1?tab=overview')
 await pagina.waitForSelector('dl')
 visto.datosDeLaDescripcion = await pagina.$$eval('dl dt', (ns) => ns.map((n) => n.textContent.trim()))

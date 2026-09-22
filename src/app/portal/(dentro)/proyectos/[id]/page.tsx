@@ -17,6 +17,7 @@ import { PanelTiempos } from '@/componentes/proyecto/PanelTiempos'
 import { Vacio } from '@/componentes/estado/Estados'
 import { aTextoPlano } from '@/componentes/proyecto/formatos'
 import { cargarLookupsDelPortal, listaDe } from '@/datos/lookups'
+import type { CatalogoDeEstados } from '@/dominio/estados-tarea'
 import { pedirPortal } from '@/datos/servidor'
 import type { EmpresaPortal } from '@/datos/tipos'
 import { GLOSARIO } from '@/dominio/glosario'
@@ -60,30 +61,26 @@ export default async function ProyectoPagina (props: PageProps<'/portal/proyecto
   // Las pestañas salen de lo que dijo la API, nunca de una lista fija: cada proyecto comparte cosas
   // distintas, y adivinar significaria dibujar pestañas que responden 403 al abrirlas.
   const pestanias = pestaniasDelProyecto(proyecto.tabs ?? [])
-  // La descripcion la lleva la pestaña Descripcion, como en el panel. Se dibuja suelta solo cuando
+  // La descripcion la lleva la pestaña Resumen, como en el panel. Se dibuja suelta solo cuando
   // esa pestaña no esta compartida: un proyecto que no la comparte igual tiene derecho a contar de
   // que se trata, y ahi es el unico lugar donde cabe.
   const descripcionSuelta = !pestanias.some((p) => p.clave === 'overview')
   const pendientes = await cargarPendientes(proyecto)
   const tablero = await cargarTablero(proyecto)
-  // Las aprobaciones viven DENTRO de la pestaña Descripcion, que es la primera y la que se abre al
-  // entrar. Sueltas sobre las pestañas se repetian encima de las diez y se llevaban ~190 px del
-  // primer viewport en todas, incluidas las que no tienen nada que ver con una Tarea. Cuando el
-  // Proyecto no comparte esa pestaña se dibujan sueltas, como antes: es lo unico que el cliente
-  // puede escribir en todo el portal y no se esconde, se resitua.
+  // El catalogo de estados se pide aca y no dentro de los paneles: `cargarLookupsDelPortal` es
+  // `server-only` y las aprobaciones son un componente cliente. Lo usan dos: la insignia de cada
+  // aprobacion y los colores de los graficos por estado del tablero. `cache()` lo comparte con la
+  // pestaña de Tareas, asi que la pagina no pide `/portal/lookups` dos veces.
+  const estadosDeTarea = listaDe(await cargarLookupsDelPortal(), 'task_statuses')
+  // Las aprobaciones viven DENTRO de la pestaña Tareas, arriba de la lista: es donde el cliente va a
+  // mirar sus tareas, y lo que aprueba son tareas. Antes estaban en la pestaña Descripcion, que se
+  // abre al entrar, pero ahi competian con el resumen del proyecto y su tablero por el primer
+  // viewport. `cargarPendientes` ya devuelve vacio sin la pestaña de Tareas, asi que no hay caso en
+  // que haya aprobaciones y ningun lugar donde dibujarlas.
   const aprobaciones = pendientes.length === 0
     ? null
-    : (
-      <AprobacionesPendientes
-        proyectoId={proyecto.id}
-        tareas={pendientes}
-        // El catalogo se pide aca y no dentro del panel: `cargarLookupsDelPortal` es `server-only`
-        // y el panel es cliente. `cache()` lo comparte con la pestaña de Tareas, asi que la pagina
-        // no pide `/portal/lookups` dos veces por pintar la insignia.
-        estados={listaDe(await cargarLookupsDelPortal(), 'task_statuses')}
-      />
-      )
-  // El estado, resuelto una vez: lo pinta la cabecera y lo repite la ficha de la pestaña Descripcion.
+    : <AprobacionesPendientes proyectoId={proyecto.id} tareas={pendientes} estados={estadosDeTarea} />
+  // El estado, resuelto una vez: lo pinta la cabecera y lo repite la ficha de la pestaña Resumen.
   const estado = await estadoDelPortal('project_statuses', proyecto.status)
   // De donde bajan los datos de cada pestaña. Es lo unico que distingue esta pantalla de la del
   // colaborador, que monta los mismos paneles con `fuenteDelPanel`. Ver `dominio/fuente-proyecto.ts`.
@@ -97,8 +94,7 @@ export default async function ProyectoPagina (props: PageProps<'/portal/proyecto
       estado,
       aprobaciones,
       tablero,
-      // El dia del negocio, no el del navegador. `sv-SE` da `YYYY-MM-DD` sin armarlo a mano.
-      hoy: new Date().toLocaleDateString('sv-SE', { timeZone: 'America/Santiago' })
+      estadosDeTarea
     })
   }))
 
@@ -111,20 +107,16 @@ export default async function ProyectoPagina (props: PageProps<'/portal/proyecto
         proyecto={proyectoDelPortal(proyecto, empresa)}
         estado={estado}
         volverA={{ href: '/portal/proyectos', etiqueta: GLOSARIO.espacio.plural }}
-        // Sin la barra de avance: el tablero de la pestaña Descripcion ya pinta un porcentaje, y es
+        // Sin la barra de avance: el tablero de la pestaña Resumen ya pinta un porcentaje, y es
         // otro. Ver `conAvance` en `CabeceraProyecto`.
         conAvance={false}
       />
 
-      {/* La descripcion vive en la pestaña Descripcion, como en el panel. Suelta acá solo cuando esa
+      {/* La descripcion vive en la pestaña Resumen, como en el panel. Suelta acá solo cuando esa
           pestaña no esta compartida: es el unico caso en que si no, no se leeria en ningun lado. */}
       {descripcionSuelta && descripcion !== '' && (
         <p className="text-texto-tenue max-w-prose text-sm whitespace-pre-line">{descripcion}</p>
       )}
-
-      {/* Sueltas solo cuando no hay pestaña Descripcion donde ponerlas: sin ella no habria ningun
-          sitio en la pantalla desde donde el cliente pueda dar el visto bueno. */}
-      {descripcionSuelta && aprobaciones}
 
       {paneles.length > 0
         ? <Pestanas paneles={paneles} />
@@ -147,12 +139,12 @@ interface DatosDeLaPagina {
   /**
    * Las {procesos} que esperan el visto bueno del contacto, o `null` si no hay ninguna.
    *
-   * Las monta la pestaña Descripcion, arriba del resumen. Llegan armadas desde la pagina porque el
+   * Las monta la pestaña Tareas, arriba de la lista. Llegan armadas desde la pagina porque el
    * catalogo de estados sale de `cargarLookupsDelPortal`, que es `server-only`.
    */
   aprobaciones: React.ReactNode
   /**
-   * El tablero de la pestaña Descripcion, o `null` si la API no lo dio.
+   * El tablero de la pestaña Resumen, o `null` si la API no lo dio.
    *
    * `null` es un caso normal y no un fallo: `sinFallar` traduce el 403 y el 404 a «este bloque no es
    * para este contacto», y sin tablero la pestaña se dibuja como antes, con la ficha sola. Un
@@ -160,13 +152,12 @@ interface DatosDeLaPagina {
    */
   tablero: Tablero | null
   /**
-   * HOY en `YYYY-MM-DD`, resuelto UNA vez en el servidor.
+   * `task_statuses` del portal: el nombre y el color de cada estado, los que administra Perfex.
    *
-   * El eje de los hitos se mide contra este valor. Calcularlo dentro del componente lo dejaria a
-   * merced de la zona del navegador: el servidor y el cliente pueden estar en dias distintos, y un
-   * eje que se corre al hidratar es un salto visible en la pantalla.
+   * Lo usan los graficos por estado del tablero, para que cada barra tenga el color de la insignia
+   * que el cliente ve en su lista.
    */
-  hoy: string
+  estadosDeTarea: CatalogoDeEstados
 }
 
 /**
@@ -192,13 +183,11 @@ function contenidoDePestania (
     case 'overview':
       return (
         <div className="flex flex-col gap-4">
-          {pagina.aprobaciones}
-          {/* El tablero va ARRIBA de la ficha y no abajo: es lo que el cliente viene a mirar, y la
-              descripcion del proyecto la lee una vez. Si la API no lo dio —403 o 404, o sea «esta
-              seccion no es para este contacto»— la pestaña queda como estaba. */}
-          {pagina.tablero !== null && (
-            <TableroDelProyecto tablero={pagina.tablero} hoy={pagina.hoy} />
-          )}
+          {/* La ficha va ARRIBA y el tablero abajo. La ficha es el «de qué se trata» —estado,
+              fechas, descripcion—, y es lo primero que alguien necesita para leer los graficos:
+              un 40 % de avance no dice nada sin saber que el proyecto empezo hace dos semanas. Si la
+              API no dio el tablero —403 o 404, o sea «esta seccion no es para este contacto»— la
+              pestaña queda con la ficha sola. */}
           <PanelDescripcion
             proyecto={proyecto}
             estado={pagina.estado}
@@ -212,25 +201,32 @@ function contenidoDePestania (
             fuente={fuente}
             // El grafico de horas por dia es un subrecurso del resumen que el contacto no tiene.
             rutaDelGrafico={null}
-            // Sin la fila de indicadores: el tablero de arriba ya publica esos cuatro numeros con
+            // Sin la fila de indicadores: el tablero de abajo ya publica esos cuatro numeros con
             // su forma. Dibujar los dos dejaba al cliente con dos lecturas del mismo dato y una de
             // ellas rota — un «— DIAS RESTANTES» sin valor, y un «1 vencido» al lado de un hito que
             // dice «sin tareas».
             conIndicadores={pagina.tablero === null}
           />
+          {pagina.tablero !== null && (
+            <TableroDelProyecto tablero={pagina.tablero} estados={pagina.estadosDeTarea} />
+          )}
         </div>
       )
     case 'tasks':
       // `conIa={false}`: la capa de IA es del panel, y el alta por texto que habilita ni se ofrece
-      // con `capacidades={[]}`.
+      // con `capacidades={[]}`. Las aprobaciones van arriba de la lista: es lo unico que el cliente
+      // puede escribir en todo el portal, y lo que aprueba son estas mismas tareas.
       return (
-        <PanelTareas
-          proyectoId={proyecto.id}
-          fuente={fuente}
-          capacidades={[]}
-          conIa={false}
-          camposDeTareas={proyecto.campos_tareas ?? []}
-        />
+        <div className="flex flex-col gap-4">
+          {pagina.aprobaciones}
+          <PanelTareas
+            proyectoId={proyecto.id}
+            fuente={fuente}
+            capacidades={[]}
+            conIa={false}
+            camposDeTareas={proyecto.campos_tareas ?? []}
+          />
+        </div>
       )
     case 'calendar':
       return <PanelCalendario proyectoId={proyecto.id} fuente={fuente} capacidades={[]} />
@@ -264,9 +260,9 @@ function contenidoDePestania (
 }
 
 /**
- * El tablero de la pestaña Descripcion.
+ * El tablero de la pestaña Resumen.
  *
- * Sin guarda de pestaña: la puerta del tablero ES la pestaña Descripcion, y si la pagina llego hasta
+ * Sin guarda de pestaña: la puerta del tablero ES la pestaña Resumen, y si la pagina llego hasta
  * aca es porque el proyecto se pudo abrir. `sinFallar` cubre el resto — un contacto sin esa pestaña
  * recibe 403 y el bloque no se dibuja.
  */

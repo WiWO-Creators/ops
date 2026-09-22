@@ -4793,6 +4793,43 @@ proyecto 4). Un total que incluya las escondidas le dice al cliente, en forma de
 le están escondiendo. **Para el cliente manda el de `overview`**, y el total de horas va filtrado por
 el mismo criterio.
 
+#### `GET /portal/projects/{id}/tablero`
+
+El tablero de la pestaña Resumen (`overview`) del portal. Su puerta es esa pestaña; cada bloque de
+adentro viaja sólo con la suya y, cuando no corresponde, **la clave no viaja** (ni en cero ni en
+`null`).
+
+```json
+{ "avance": { "tareas": 64, "cerradas": 35, "abiertas": 29, "porcentaje": 55 },
+  "tareas": {
+    "por_prioridad": [ { "priority": 1, "name": "Baja", "total": 3 } ],
+    "por_estado": [ { "status": 1, "total": 13 }, { "status": 4, "total": 6 }, { "status": 3, "total": 1 } ],
+    "vencidas": 7, "sin_fecha": 4, "cerradas_7": 5, "cerradas_30": 19 },
+  "proxima_entrega": { "id": 518, "name": "Guion del reel", "duedate": "2026-09-25", "dias": 3 },
+  "hitos": { "lista": [
+    { "id": 103, "name": "Piezas de lanzamiento", "due_date": "2026-10-31", "tareas": 18, "cerradas": 6,
+      "porcentaje": 33, "pendientes": 12,
+      "por_estado": [ { "status": 1, "total": 5 }, { "status": 4, "total": 2 }, { "status": 3, "total": 1 } ] } ] },
+  "actividad": [ { "fecha": "2026-09-21 17:40:00", "clave": "project_activity_task_marked_complete" } ] }
+```
+
+| Clave | Cuándo viaja |
+|---|---|
+| `avance` | siempre |
+| `tareas`, `proxima_entrega` | sólo con la pestaña `tasks`; `proxima_entrega` es `null` si no queda ninguna abierta con fecha |
+| `hitos` | sólo con la pestaña `milestones` |
+| `actividad` | sólo con la pestaña `activity` |
+
+- **`tareas.por_estado`** cuenta todas las tareas visibles, abiertas y cerradas: `{status, total}` en
+  el **orden del catálogo**, con los ceros incluidos, y los estados fuera de catálogo (una tarea
+  histórica en el `3`) **al final**. No viajan nombre ni color: salen de `task_statuses` de
+  `/portal/lookups`.
+- Cada hito suma **`pendientes`** (sus tareas visibles sin cerrar) y **`por_estado`**, que cuenta
+  **sólo las pendientes** y **sin ceros**, en orden de catálogo. Un hito cerrado trae
+  `pendientes: 0, por_estado: []`.
+- **Retirados:** `cierres` (la serie de doce semanas), `equipo` y `hitos.fechas_confiables`. `hitos`
+  es sólo `{ "lista": [...] }`.
+
 #### `GET /portal/projects/{id}/tasks/{tareaId}`
 
 Exige la pestaña `tasks`. Siempre trae:

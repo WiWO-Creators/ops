@@ -154,3 +154,35 @@ test('un proyecto de otro cliente no se abre por ninguna de sus rutas', async ()
 test('una seccion inventada del proyecto es 404', async () => {
   assert.equal((await pedir(`/portal/projects/${COMPLETO}/tarifas`)).estado, 404)
 })
+
+test('el tablero sirve el contrato nuevo: por estado, pendientes por hito, sin cierres ni equipo', async () => {
+  const { estado, datos } = await pedir(`/portal/projects/${COMPLETO}/tablero`)
+
+  assert.equal(estado, 200)
+  assert.equal('cierres' in datos, false)
+  assert.equal('equipo' in datos, false)
+  assert.equal('fechas_confiables' in datos.hitos, false)
+
+  // Por estado: el catálogo completo, y la suma es el total del avance.
+  const suma = datos.tareas.por_estado.reduce((total, conteo) => total + conteo.total, 0)
+  assert.equal(suma, datos.avance.tareas)
+
+  for (const hito of datos.hitos.lista) {
+    assert.equal(hito.pendientes, hito.por_estado.reduce((total, conteo) => total + conteo.total, 0), hito.name)
+    assert.ok(hito.por_estado.every((conteo) => conteo.total > 0), `${hito.name} trae un estado en cero`)
+    assert.equal(hito.pendientes, hito.tareas - hito.cerradas, hito.name)
+  }
+
+  assert.ok(datos.hitos.lista.some((hito) => hito.pendientes === 0 && hito.por_estado.length === 0))
+})
+
+test('el tablero poda por pestaña: sin tareas compartidas, tareas y próxima entrega no viajan', async () => {
+  const { estado, datos } = await pedir(`/portal/projects/${SIN_TAREAS_COMPARTIDAS}/tablero`)
+
+  assert.equal(estado, 200)
+  assert.equal('tareas' in datos, false)
+  assert.equal('proxima_entrega' in datos, false)
+  assert.equal(Array.isArray(datos.hitos.lista), true)
+  assert.equal(Array.isArray(datos.actividad), true)
+  assert.equal(typeof datos.avance.tareas, 'number')
+})

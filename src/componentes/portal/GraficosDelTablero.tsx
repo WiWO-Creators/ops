@@ -87,11 +87,17 @@ export function SinDatos ({ motivo = SIN_NADA_QUE_GRAFICAR }: { motivo?: string 
  *
  * El texto NUNCA lleva el color de la serie —un relleno claro es ilegible como letra—: la identidad
  * la carga el punto de al lado.
+ *
+ * `estilo` existe para los colores que no son tokens —los de estado, que administra Perfex y llegan
+ * como hexadecimal—: una clase de Tailwind armada en tiempo de ejecución no existe en el CSS final.
  */
-export function Clave ({ children, className }: { children: React.ReactNode, className: string }) {
+export function Clave (
+  { children, className, estilo }:
+  { children: React.ReactNode, className: string, estilo?: React.CSSProperties }
+) {
   return (
     <span className="text-texto-tenue flex items-center gap-1.5 text-xs">
-      <span aria-hidden="true" className={cn('size-2.5 shrink-0 rounded-full', className)} />
+      <span aria-hidden="true" className={cn('size-2.5 shrink-0 rounded-full', className)} style={estilo} />
       {children}
     </span>
   )

@@ -1,27 +1,25 @@
-import { Activity, CalendarClock, ChartColumn, Flag, SignalHigh, TriangleAlert, Users } from 'lucide-react'
+import { Activity, CalendarClock, ChartBarBig, Flag, SignalHigh, TriangleAlert } from 'lucide-react'
+import type { CSSProperties } from 'react'
 import { GLOSARIO } from '@/dominio/glosario'
 import { cn } from '@/lib/clases'
-import { Panel, SinDatos } from './GraficosDelTablero'
+import { Clave, Panel, SinDatos } from './GraficosDelTablero'
 import {
-  LIENZO_DE_AREA,
+  FILAS_VISIBLES,
+  HITOS_VISIBLES,
   SIN_NADA_QUE_MOSTRAR,
   arcoDeAvance,
-  areaDeCierres,
   clavesDePrioridad,
-  hayCargaQueMostrar,
-  marcasAgrupadas,
-  resumenDeCierres,
-  resumenDeHitos,
+  resumenDeFila,
   resumenDePrioridades,
+  resumenPorEstado,
   tramosDePrioridad,
+  type BarraDeEstado,
   type Cifra,
-  type FilaDePersona,
+  type EstadoPintado,
+  type FilaDePendientes,
   type LecturaDeAvance,
-  type LecturaDeCierres,
-  type LineaDeHitos,
-  type MarcaAgrupada,
-  type MarcaDeHito,
-  type Novedad
+  type Novedad,
+  type PendientesPorHito
 } from './tablero-proyecto'
 import type { TareasDelTablero } from '@/datos/portal'
 
@@ -41,9 +39,10 @@ import type { TareasDelTablero } from '@/datos/portal'
  *   - **Avance** era una barra horizontal. Es una razón contra un límite, o sea un **medidor**, y un
  *     medidor se puede dibujar en redondo: anillo con la cifra al centro.
  *   - **Prioridades** eran cuatro filas. Es part-to-whole: **una** barra apilada horizontal.
- *   - **Ritmo de cierres** eran doce columnas. Es una tendencia de una sola serie: **área**.
- *   - **Hitos** eran una lista larga con un eje arriba. Es una **línea de tiempo** con su lista
- *     recortada a cinco.
+ *   - **Estados** son magnitudes que se comparan: **barras**, una por estado, con el color que el
+ *     estado ya tiene en Perfex.
+ *   - **Hitos** son dos preguntas a la vez —cuánto queda en cada uno y en qué estado—: **barras
+ *     apiladas** en una escala común, para que los {hitos} se comparen entre sí.
  *   - **Tickets** tenía dos números en un panel con título de gráfico. Son dos **cifras**: la
  *     skill marca como anti-patrón tanto el pastel de dos porciones como la barra de una sola barra.
  *
@@ -53,6 +52,14 @@ import type { TareasDelTablero } from '@/datos/portal'
  *      orden (Bajo < Medio < Alto < Urgente), así que les toca rampa secuencial de un tono:
  *      `--grafico-ordinal-1..4`, validadas con el script de la skill en los dos temas. La paleta
  *      categórica de ocho sigue muerta y con motivo: no pasa contraste sobre fondo claro.
+ *
+ *      **La excepción son los estados**, que llevan el color de Perfex. No es una paleta que se
+ *      eligió acá: es el color con el que el cliente ya reconoce cada estado en la insignia de su
+ *      lista, y lo administra el panel. Pasado por el validador de la skill, ese juego FALLA —el
+ *      amarillo y el verde lima casi no se separan con daltonismo, y cuatro de cinco quedan bajo 3:1
+ *      contra la superficie—, y por eso ninguno de los dos gráficos depende sólo del color: las barras
+ *      por estado llevan el nombre al lado, y las apiladas llevan leyenda, tooltip por tramo, el
+ *      hueco de 2 px entre tramos y su tabla en un `<details>`.
  *   2. **El texto nunca lleva el color del dato.** Valores, rótulos y leyendas van en tinta de
  *      texto; la identidad la carga la marca de color al lado. La única excepción es el rótulo
  *      DENTRO de un tramo apilado, que se pinta por luminancia del relleno.
@@ -68,9 +75,6 @@ import type { TareasDelTablero } from '@/datos/portal'
 
 /** Alto del anillo y grosor de su trazo, en unidades de `viewBox`. */
 const ANILLO = { lado: 120, radio: 48, trazo: 12 } as const
-
-/** Cuántas filas se ven antes del `<details>`, en las tres listas que lo llevan. */
-const FILAS_VISIBLES = 5
 
 /**
  * El medidor de avance: un anillo con la cifra al centro.
@@ -237,153 +241,6 @@ export function ProximaEntregaDelProyecto (
 }
 
 /**
- * El ritmo de cierres de las últimas doce semanas, como área.
- *
- * === POR QUÉ ÁREA ===
- *
- * Porque es una tendencia de UNA serie, y para eso la skill manda línea, con relleno cuando la serie
- * es única. Doce columnas en fila —que es lo que había— presentan cada semana como una categoría
- * independiente cuando lo que importa es la forma del conjunto, y ocupan doce veces el espacio.
- *
- * El relleno cierra contra la BASE del lienzo y no contra el mínimo de la serie: un área que no
- * arranca en cero exagera la variación, que es la forma más común de mentir con un área.
- *
- * Se rotula sólo el extremo y el final. Un número en cada punto es lo que la skill llama caos que
- * nadie lee; el resto de los valores vive en la tabla del `<details>`, así que ninguno queda
- * encerrado detrás del mouse.
- *
- * La última semana va con su punto hueco y dicha con palabras: se cortó en HOY, y compararla contra
- * semanas de siete días sin avisar dibuja una caída que no pasó.
- */
-export function AreaDeRitmo ({ cierres }: { cierres: LecturaDeCierres }) {
-  const serie = areaDeCierres(cierres)
-  const primero = serie.puntos[0]
-  const ultimo = serie.puntos[serie.puntos.length - 1]
-
-  return (
-    <Panel
-      titulo="Ritmo de cierres"
-      icono={<ChartColumn size={14} aria-hidden="true" className="shrink-0" />}
-    >
-      {!cierres.valeDibujarla || serie.linea === ''
-        ? (
-            <SinDatos
-              motivo={
-                cierres.total === 0
-                  ? `No se cerró ninguna ${GLOSARIO.proceso.singular.toLowerCase()} en las últimas doce semanas.`
-                  : `Solo ${cierres.semanasConDato} de las últimas doce semanas tuvieron cierres`
-                    + ` (${cierres.total} en total): todavía es poco para dibujar un ritmo.`
-              }
-            />
-          )
-        : (
-            <div className="flex flex-col gap-2">
-              <div className="relative">
-                <svg
-                  viewBox={`0 0 ${LIENZO_DE_AREA.ancho} ${LIENZO_DE_AREA.alto}`}
-                  preserveAspectRatio="none"
-                  className="h-24 w-full"
-                  role="img"
-                  aria-label={resumenDeCierres(cierres)}
-                >
-                  {/* La base, en el gris de rejilla del sistema: un eje más oscuro que los datos
-                      compite con ellos. Hairline y sólida, nunca punteada. */}
-                  <line
-                    x1="0"
-                    y1={LIENZO_DE_AREA.alto}
-                    x2={LIENZO_DE_AREA.ancho}
-                    y2={LIENZO_DE_AREA.alto}
-                    className="stroke-grafico-rejilla"
-                    strokeWidth="1"
-                    vectorEffect="non-scaling-stroke"
-                  />
-                  {/* El relleno es un lavado al 10 %, no un bloque saturado. */}
-                  <path d={serie.area} className="fill-acento opacity-10" />
-                  {/* `non-scaling-stroke` mantiene el trazo en 2 px reales: sin eso el
-                      `preserveAspectRatio="none"` lo estira con el lienzo y la línea engorda. */}
-                  <path
-                    d={serie.linea}
-                    fill="none"
-                    className="stroke-acento"
-                    strokeWidth="2"
-                    strokeLinejoin="round"
-                    strokeLinecap="round"
-                    vectorEffect="non-scaling-stroke"
-                  />
-                </svg>
-
-                {/* Los puntos y las zonas sensibles van en HTML encima del SVG y no dentro: con
-                    `preserveAspectRatio="none"` un `<circle>` se estiraría a elipse. Cada zona mide
-                    un doceavo del ancho y todo el alto, así que el objetivo es mucho mayor que la
-                    marca — un punto de 8 px es un alfiler que nadie acierta. */}
-                {serie.puntos.map((punto) => (
-                  <span
-                    key={punto.semana}
-                    tabIndex={0}
-                    className="group absolute top-0 bottom-0 -mx-3 w-6 outline-none"
-                    style={{ left: `${punto.fraccionX * 100}%` }}
-                  >
-                    {/* El valor del pico, rotulado directo. Es la única referencia vertical que
-                        tiene el área, y sin ella el lector no sabe si el máximo son 3 cierres o 30.
-                        Uno solo y no doce: un número en cada punto es el caos que nadie lee. */}
-                    {punto.extremo && (
-                      <span
-                        data-numerico
-                        className="text-texto absolute left-1/2 -translate-x-1/2 -translate-y-full text-[10px] leading-none font-medium tabular-nums"
-                        style={{ top: `calc(${(punto.y / LIENZO_DE_AREA.alto) * 100}% - 6px)` }}
-                      >
-                        {punto.cerradas}
-                      </span>
-                    )}
-                    <span
-                      aria-hidden="true"
-                      className={cn(
-                        'border-superficie-elevada absolute left-1/2 size-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2',
-                        // El anillo de 2 px en el color de la superficie es lo que deja el punto
-                        // legible donde cruza la línea. El hueco marca la semana en curso.
-                        punto.parcial ? 'bg-superficie-elevada border-acento' : 'bg-acento',
-                        // Sólo se ven el extremo y el final; el resto aparece al apuntar o al
-                        // tabular. Doce puntos siempre visibles sobre un área de 96 px es ruido.
-                        punto.extremo || punto.parcial
-                          ? 'opacity-100'
-                          : 'opacity-0 group-hover:opacity-100 group-focus-within:opacity-100'
-                      )}
-                      style={{ top: `${(punto.y / LIENZO_DE_AREA.alto) * 100}%` }}
-                    />
-
-                    {/* El tooltip: valor primero y en tinta fuerte, fecha después. Es al revés que
-                        la leyenda a propósito — acá el lector ya sabe qué semana mira y quiere el
-                        número. Aparece igual con el foco del teclado que con el mouse. */}
-                    <span className="bg-superficie-flotante border-linea text-texto shadow-2 pointer-events-none absolute bottom-full left-1/2 z-10 mb-1 -translate-x-1/2 rounded-medio border px-2 py-1 text-xs whitespace-nowrap opacity-0 group-hover:opacity-100 group-focus-within:opacity-100">
-                      <span data-numerico className="font-semibold tabular-nums">{punto.cerradas}</span>
-                      <span className="text-texto-tenue"> · {punto.etiqueta}</span>
-                    </span>
-                  </span>
-                ))}
-              </div>
-
-              {/* El eje, con sólo sus dos extremos rotulados: doce fechas no caben y no hacen falta
-                  para leer una forma. */}
-              <div className="text-texto-sutil flex justify-between text-[10px]">
-                <span>{primero?.etiqueta}</span>
-                <span>esta semana{ultimo?.cerradas === 0 ? ', sin cierres todavía' : ''}</span>
-              </div>
-
-              <TablaDesplegable
-                resumen="Ver las doce semanas"
-                columnas={['Semana', 'Cerradas']}
-                filas={serie.puntos.map((punto) => [
-                  punto.parcial ? `${punto.etiqueta} (en curso)` : punto.etiqueta,
-                  String(punto.cerradas)
-                ])}
-              />
-            </div>
-          )}
-    </Panel>
-  )
-}
-
-/**
  * Las {procesos} por prioridad, como UNA barra apilada.
  *
  * === POR QUÉ APILADA Y NO DONA ===
@@ -483,284 +340,225 @@ function relleno (paso: number): string {
 }
 
 /**
- * Los {hitos} sobre una línea de tiempo, con las cinco primeras filas a la vista.
+ * La clase de la marca de un estado: relleno neutro sin color, contorno si el catálogo no lo conoce.
  *
- * === LO QUE HAY QUE SABER DE ESTAS FECHAS ===
- *
- * En los {espacios} reales los {hitos} no son fechas: son categorías de trabajo —«HTML», «REELS»,
- * «Guiones»— con una fecha de relleno. De los 236 de producción, 130 caen el último día de un mes.
- * El usuario decidió dibujar el eje igual, con ese hecho sobre la mesa; `linea.salvedad` es lo que
- * evita que el cliente lea una promesa donde hay un placeholder, y la fecha se escribe tal como está
- * guardada, sin redondeos ni «faltan N días».
- *
- * «Atrasado» exige las dos cosas: fecha pasada Y trabajo abierto. Un {hito} con fecha vieja y todo
- * cerrado se entregó, y marcarlo en rojo sería llamar atraso a una entrega.
+ * Es la misma regla que la insignia de estado (`EstadoDeTarea`): el desconocido va con contorno y
+ * sin relleno, porque pintarlo del color de otro estado sería afirmar algo que no sabemos. El que
+ * no tiene color en Perfex va en el gris de la tinta sutil, que es el neutro que se lee como marca
+ * —`--relleno-neutro` es un fondo y sobre la superficie casi desaparece—.
  */
-export function LineaDeTiempoDeHitos ({ linea }: { linea: LineaDeHitos }) {
-  // Una marca por FECHA y no por hito: en un {espacio} real los tres hitos caen el 31 de diciembre
-  // y dibujados por separado quedan superpuestos en el mismo píxel, así que el cliente cuenta uno
-  // donde hay tres.
-  const grupos = marcasAgrupadas(linea.marcas)
-  const visibles = linea.marcas.slice(0, FILAS_VISIBLES)
-  const resto = linea.marcas.slice(FILAS_VISIBLES)
+function claseDeMarca (estado: EstadoPintado): string {
+  if (estado.desconocido) return 'border border-linea'
+  if (estado.color === null) return 'bg-texto-sutil'
 
+  return ''
+}
+
+/** El color de la marca de un estado, cuando lo tiene. Va en `style`: es un hexadecimal de Perfex. */
+function estiloDeMarca (estado: EstadoPintado): CSSProperties | undefined {
+  if (estado.desconocido || estado.color === null) return undefined
+
+  return { backgroundColor: estado.color }
+}
+
+/** El globo de un tooltip, igual en los dos gráficos de estado. Aparece al pasar o al enfocar. */
+function Globo ({ children }: { children: React.ReactNode }) {
+  return (
+    <span className="bg-superficie-flotante border-linea text-texto shadow-2 pointer-events-none absolute bottom-full left-1/2 z-20 mb-1 -translate-x-1/2 rounded-medio border px-2 py-1 text-xs whitespace-nowrap opacity-0 group-hover:opacity-100 group-focus-within:opacity-100">
+      {children}
+    </span>
+  )
+}
+
+/**
+ * Las {procesos} por estado, como barras: una por estado con alguna.
+ *
+ * === POR QUÉ BARRAS Y NO UNA DONA ===
+ *
+ * Porque lo que se compara son magnitudes entre estados —«hay más esperando respuesta que en
+ * proceso»— y el largo es el canal exacto para eso; el ángulo no. Además los repartos reales son
+ * desparejos, con un «Completado» que se come el 80 %: en una dona los otros cuatro serían gajos
+ * de pocos grados, incomparables entre sí.
+ *
+ * El color es el del estado en Perfex, el mismo de la insignia de cada fila, pero la identidad NO
+ * depende de él: el nombre va escrito al lado de cada barra y la cifra al final. Con eso no hace
+ * falta leyenda —la leyenda sería el rótulo repetido— y el daltonismo no le quita nada al gráfico.
+ *
+ * Las barras crecen desde una misma base y sin carril de fondo: un carril gris detrás haría que el
+ * neutro de un estado sin color se confundiera con él.
+ */
+export function BarrasPorEstado ({ barras }: { barras: BarraDeEstado[] }) {
   return (
     <Panel
-      titulo={`${GLOSARIO.hito.plural} y fechas`}
-      icono={<Flag size={14} aria-hidden="true" className="shrink-0" />}
-      nota={linea.salvedad === '' ? undefined : linea.salvedad}
+      titulo={`${GLOSARIO.proceso.plural} por estado`}
+      icono={<ChartBarBig size={14} aria-hidden="true" className="shrink-0" />}
     >
-      {linea.marcas.length === 0
-        ? <SinDatos motivo={`Este ${GLOSARIO.espacio.singular.toLowerCase()} todavía no tiene ${GLOSARIO.hito.plural.toLowerCase()}.`} />
+      {barras.length === 0
+        ? <SinDatos motivo={SIN_NADA_QUE_MOSTRAR} />
         : (
-            <div className="flex flex-col gap-3">
-              {grupos.length > 0 && (
-                <div role="img" aria-label={resumenDeHitos(linea)} className="relative h-8">
-                  <span
-                    aria-hidden="true"
-                    className="border-grafico-rejilla absolute inset-x-0 bottom-2 border-t"
-                  />
-                  <span
-                    aria-hidden="true"
-                    className="bg-texto-sutil absolute bottom-0.5 h-3 w-px"
-                    style={{ left: `${linea.hoy * 100}%` }}
-                  />
-                  <span
-                    className="text-texto-sutil absolute top-0 text-[10px] leading-none tracking-wide uppercase"
-                    style={{ left: `${linea.hoy * 100}%`, transform: anclaDeHoy(linea.hoy) }}
-                  >
-                    hoy
-                  </span>
-
-                  {grupos.map((grupo) => (
+            <ul role="img" aria-label={resumenPorEstado(barras)} className="flex flex-col gap-2">
+              {barras.map((barra) => (
+                <li
+                  key={barra.status}
+                  tabIndex={0}
+                  className="group relative flex items-center gap-3 outline-none"
+                >
+                  <span className="text-texto-tenue w-28 shrink-0 truncate text-xs">{barra.etiqueta}</span>
+                  <span aria-hidden="true" className="relative h-3 min-w-0 flex-1">
+                    {/* Punta redonda de 4 px del lado del dato y recta contra la base, como manda la
+                        skill para toda barra. El mínimo de 4 px es para que un estado con una sola
+                        {proceso} no desaparezca al lado de uno con cien. */}
                     <span
-                      key={grupo.fecha}
-                      tabIndex={0}
-                      className="group absolute bottom-0 -mx-3 h-6 w-6 outline-none"
-                      style={{ left: `${grupo.posicion * 100}%` }}
-                    >
-                      <span
-                        aria-hidden="true"
-                        className={cn(
-                          'border-superficie-elevada absolute bottom-2 left-1/2 size-2.5 translate-x-[-50%] translate-y-1/2 rounded-full border-2',
-                          colorDeGrupo(grupo)
-                        )}
-                      />
-                      {/* Cuántos comparten la fecha. Va como número al lado del punto y no como un
-                          punto más grande: un radio distinto se lee como «más importante». */}
-                      {grupo.hitos.length > 1 && (
-                        <span
-                          aria-hidden="true"
-                          className="text-texto-tenue absolute bottom-3.5 left-1/2 ml-2 text-[10px] leading-none tabular-nums"
-                        >
-                          {grupo.hitos.length}
-                        </span>
-                      )}
-                      <span className="bg-superficie-flotante border-linea text-texto shadow-2 pointer-events-none absolute bottom-full left-1/2 z-10 mb-1 -translate-x-1/2 rounded-medio border px-2 py-1 text-xs opacity-0 group-hover:opacity-100 group-focus-within:opacity-100">
-                        <span className="text-texto-tenue block whitespace-nowrap">{grupo.etiqueta}</span>
-                        {grupo.hitos.map((hito) => (
-                          <span key={hito.id} className="block max-w-56 truncate font-semibold">
-                            {hito.nombre}
-                          </span>
-                        ))}
-                      </span>
-                    </span>
-                  ))}
-                </div>
-              )}
-
-              <ul className="flex flex-wrap gap-x-4 gap-y-1">
-                <Clave clase="bg-relleno-exito">Cumplido</Clave>
-                <Clave clase="bg-acento">En curso</Clave>
-                <Clave clase="bg-relleno-peligro">Atrasado</Clave>
-              </ul>
-
-              <ul className="flex flex-col gap-1.5">
-                {visibles.map((marca) => <FilaDeHito key={marca.id} marca={marca} />)}
-              </ul>
-
-              {resto.length > 0 && (
-                <details className="group">
-                  <summary className="text-texto-tenue hover:text-texto marker:content-none cursor-pointer list-none text-xs underline decoration-dotted underline-offset-2">
-                    Ver los {linea.marcas.length} {GLOSARIO.hito.plural.toLowerCase()}
-                  </summary>
-                  <ul className="mt-1.5 flex flex-col gap-1.5">
-                    {resto.map((marca) => <FilaDeHito key={marca.id} marca={marca} />)}
-                  </ul>
-                </details>
-              )}
-            </div>
+                      className={cn('absolute inset-y-0 left-0 min-w-1 rounded-r-[4px]', claseDeMarca(barra))}
+                      style={{ width: `${barra.fraccion * 100}%`, ...estiloDeMarca(barra) }}
+                    />
+                  </span>
+                  <span data-numerico className="text-texto w-8 shrink-0 text-right text-sm font-medium tabular-nums">
+                    {barra.total}
+                  </span>
+                  <Globo>
+                    <span data-numerico className="font-semibold tabular-nums">{barra.total}</span>
+                    <span className="text-texto-tenue"> · {barra.etiqueta} · {barra.porcentaje} %</span>
+                  </Globo>
+                </li>
+              ))}
+            </ul>
           )}
     </Panel>
   )
 }
 
-/** Una fila de {hito}: nombre, su marca de estado, la fecha y el avance de sus {procesos}. */
-function FilaDeHito ({ marca }: { marca: MarcaDeHito }) {
-  return (
-    <li className="flex items-center gap-2 text-sm">
-      <span aria-hidden="true" className={cn('size-2 shrink-0 rounded-full', colorDeHito(marca))} />
-      <span className="text-texto min-w-0 flex-1 truncate">{marca.nombre}</span>
-
-      {marca.porcentaje === null
-        ? (
-            <span className="text-texto-tenue shrink-0 text-xs">
-              sin {GLOSARIO.proceso.plural.toLowerCase()}
-            </span>
-          )
-        : (
-            <>
-              <span aria-hidden="true" className="bg-relleno-neutro relative hidden h-1.5 w-16 shrink-0 overflow-hidden rounded-full sm:block">
-                <span
-                  className="bg-acento absolute inset-y-0 left-0 rounded-full"
-                  style={{ width: `${marca.porcentaje}%` }}
-                />
-              </span>
-              <span data-numerico className="text-texto-tenue w-9 shrink-0 text-right text-xs tabular-nums">
-                {marca.cerradas}/{marca.tareas}
-              </span>
-            </>
-          )}
-
-      <span
-        data-numerico
-        className={cn(
-          'w-20 shrink-0 text-right text-xs tabular-nums',
-          marca.atrasado ? 'text-texto-peligro font-medium' : 'text-texto-tenue'
-        )}
-      >
-        {marca.etiqueta === '' ? 'sin fecha' : marca.etiqueta}
-      </span>
-    </li>
-  )
-}
-
-/** El color de estado de un {hito}. Siempre acompañado de su entrada en la leyenda. */
-function colorDeHito (marca: MarcaDeHito): string {
-  if (marca.atrasado) return 'bg-relleno-peligro'
-  if (marca.cumplido) return 'bg-relleno-exito'
-
-  return 'bg-acento'
-}
-
-/** El color de un grupo del eje. El peor caso manda: ver `marcasAgrupadas()`. */
-function colorDeGrupo (grupo: MarcaAgrupada): string {
-  if (grupo.estado === 'atrasado') return 'bg-relleno-peligro'
-  if (grupo.estado === 'cumplido') return 'bg-relleno-exito'
-
-  return 'bg-acento'
-}
-
 /**
- * Cómo se ancla el rótulo de HOY según dónde cae en el eje.
+ * Cuántas {procesos} le quedan a cada {hito}, y en qué estado están.
  *
- * Centrado en el medio, pegado al borde en los extremos. Sin esto, en la posición 0 o 100 el
- * navegador lo recorta — y la posición 0 es exactamente el caso de un {espacio} sin nada vencido.
+ * === LA FORMA ===
+ *
+ * Una barra apilada horizontal por {hito}: el largo total es cuántas le quedan y cada tramo es un
+ * estado. Contesta las dos preguntas del pedido —«cuántas tareas hay actualmente pendientes» y «que
+ * se diferencien por colores basándose en el estado»— en una sola marca por fila.
+ *
+ * El largo va en una **escala común** a todas las filas: el {hito} más cargado llena el carril y el
+ * resto se mide contra él. Estirar cada barra a su propio 100 % las haría iguales, y el gráfico
+ * dejaría de decir cuál {hito} es el que tiene más trabajo encima.
+ *
+ * Los tramos se separan con el hueco de 2 px de la superficie y NO llevan rótulo adentro: en una
+ * barra de 12 px de alto no cabe una palabra, y un rótulo recortado es peor que ninguno. La
+ * identidad la carga la leyenda —una sola vez, arriba—, el tooltip de cada tramo y la tabla del
+ * pie, que tiene todos los números sin depender del color ni del mouse.
+ *
+ * Seis filas a la vista y el resto en un `<details>`, como las otras listas del tablero.
  */
-function anclaDeHoy (fraccion: number): string {
-  if (fraccion <= 0.06) return 'translateX(0)'
-  if (fraccion >= 0.94) return 'translateX(-100%)'
-
-  return 'translateX(-50%)'
-}
-
-/** Una entrada de leyenda: la marca de color y su nombre en tinta de texto. */
-function Clave ({ children, clase }: { children: React.ReactNode, clase: string }) {
-  return (
-    <li className="text-texto-tenue flex items-center gap-1.5 text-xs">
-      <span aria-hidden="true" className={cn('size-2.5 shrink-0 rounded-full', clase)} />
-      {children}
-    </li>
-  )
-}
-
-/**
- * Quién tiene trabajo abierto, en barras, con las cinco primeras a la vista.
- *
- * Comparar magnitudes es para lo que existe la barra, así que acá la fila SÍ es la forma correcta —lo
- * que estaba mal antes era usarla para part-to-whole y para una tendencia—. Lo que cambia es el
- * techo: cinco filas y el resto en un `<details>`, en vez de veintitrés comiéndose la pantalla.
- *
- * Ordenado por {procesos} abiertas: la pregunta del cliente es quién está con esto ahora. Las barras
- * no se apilan y no suman el total del {espacio}: una {proceso} con dos responsables cuenta para los
- * dos.
- */
-export function BarrasDeEquipo ({ filas, total }: { filas: FilaDePersona[], total: number }) {
-  const visibles = filas.slice(0, FILAS_VISIBLES)
-  const resto = filas.slice(FILAS_VISIBLES)
+export function PendientesPorHitoDelProyecto ({ lectura }: { lectura: PendientesPorHito }) {
+  const visibles = lectura.filas.slice(0, HITOS_VISIBLES)
+  const resto = lectura.filas.slice(HITOS_VISIBLES)
+  const hito = GLOSARIO.hito
+  const tareas = GLOSARIO.proceso.plural.toLowerCase()
 
   return (
     <Panel
-      titulo="Quién está trabajando"
-      icono={<Users size={14} aria-hidden="true" className="shrink-0" />}
-      nota={
-        filas.length === 0 || !hayCargaQueMostrar(filas)
-          ? undefined
-          : `La barra son las ${GLOSARIO.proceso.plural.toLowerCase()} abiertas de cada uno, y no se`
-            + ` suman entre sí: una ${GLOSARIO.proceso.singular.toLowerCase()} con dos responsables`
-            + ' cuenta para los dos.'
-      }
+      titulo={`Pendientes por ${hito.singular.toLowerCase()}`}
+      icono={<Flag size={14} aria-hidden="true" className="shrink-0" />}
     >
-      {filas.length === 0 || !hayCargaQueMostrar(filas)
+      {lectura.filas.length === 0
         ? (
             <SinDatos
               motivo={
-                filas.length === 0
-                  ? `Todavía no hay nadie asignado a este ${GLOSARIO.espacio.singular.toLowerCase()}.`
-                  // Hay equipo, pero ninguna tarea visible repartida. Dibujar dos barras de largo
-                  // cero sería medio panel para no decir nada.
-                  : `El equipo ya está armado, pero todavía no hay ${GLOSARIO.proceso.plural.toLowerCase()}`
-                    + ' compartidas repartidas entre ellos.'
+                lectura.hitos === 0
+                  ? `Este ${GLOSARIO.espacio.singular.toLowerCase()} todavía no tiene ${hito.plural.toLowerCase()}.`
+                  // Hay {hitos}, pero todos al día: es una buena noticia y se dice como tal, no con un
+                  // gráfico de barras en cero.
+                  : `Ningún ${hito.singular.toLowerCase()} tiene ${tareas} pendientes: todo lo de sus`
+                    + ` ${lectura.hitos} ${hito.plural.toLowerCase()} está cerrado.`
               }
             />
           )
         : (
-            <div className="flex flex-col gap-2">
-              <ul
-                role="img"
-                aria-label={
-                  `${total} personas en el equipo. `
-                  + filas.map((f) => `${f.nombre}, ${f.abiertas} abiertas`).join('; ') + '.'
-                }
-                className="flex flex-col gap-2"
-              >
-                {visibles.map((fila) => <FilaDePersonaEnBarra key={fila.id} fila={fila} />)}
+            <div className="flex flex-col gap-3">
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+                {lectura.leyenda.map((estado) => (
+                  <Clave key={estado.status} className={claseDeMarca(estado)} estilo={estiloDeMarca(estado)}>
+                    {estado.etiqueta}
+                  </Clave>
+                ))}
+              </div>
+
+              <ul className="flex flex-col gap-2">
+                {visibles.map((fila) => <FilaDePendientesPorHito key={fila.id} fila={fila} />)}
               </ul>
 
               {resto.length > 0 && (
                 <details>
                   <summary className="text-texto-tenue hover:text-texto marker:content-none cursor-pointer list-none text-xs underline decoration-dotted underline-offset-2">
-                    Ver las {total} personas
+                    Ver los {lectura.filas.length} {hito.plural.toLowerCase()} con pendientes
                   </summary>
                   <ul className="mt-2 flex flex-col gap-2">
-                    {resto.map((fila) => <FilaDePersonaEnBarra key={fila.id} fila={fila} />)}
+                    {resto.map((fila) => <FilaDePendientesPorHito key={fila.id} fila={fila} />)}
                   </ul>
                 </details>
               )}
+
+              <TablaDesplegable
+                resumen="Ver los números"
+                columnas={[hito.singular, ...lectura.leyenda.map((estado) => estado.etiqueta), 'Pendientes']}
+                filas={lectura.filas.map((fila) => [
+                  fila.nombre,
+                  ...lectura.leyenda.map((estado) =>
+                    String(fila.tramos.find((tramo) => tramo.status === estado.status)?.total ?? 0)
+                  ),
+                  String(fila.pendientes)
+                ])}
+              />
             </div>
           )}
     </Panel>
   )
 }
 
-/** Una persona: su nombre, su barra de abiertas y cuántas lleva cerradas. */
-function FilaDePersonaEnBarra ({ fila }: { fila: FilaDePersona }) {
+/**
+ * Un {hito}: su nombre, su barra apilada y cuántas le quedan.
+ *
+ * Los tramos reparten el ancho con `flex-grow` proporcional a su total, así que el hueco de 2 px
+ * entre ellos sale del `gap` y no se descuenta a mano. La punta redonda la lleva sólo el último
+ * tramo, que es el extremo del dato; el contenedor no recorta con `overflow-hidden` porque se
+ * llevaría también los tooltips.
+ */
+function FilaDePendientesPorHito ({ fila }: { fila: FilaDePendientes }) {
   return (
-    <li className="flex items-center gap-2">
-      <span className="text-texto w-24 shrink-0 truncate text-xs">{fila.nombre}</span>
-      <span aria-hidden="true" className="bg-relleno-neutro relative h-2 min-w-0 flex-1 overflow-hidden rounded-full">
+    <li className="flex items-center gap-3">
+      <span className="text-texto w-32 shrink-0 truncate text-xs" title={fila.nombre}>{fila.nombre}</span>
+      <span className="relative flex h-3 min-w-0 flex-1 items-stretch">
         <span
-          className="bg-acento absolute inset-y-0 left-0 rounded-full"
+          role="img"
+          aria-label={resumenDeFila(fila)}
+          className="flex min-w-2 gap-0.5"
           style={{ width: `${fila.fraccion * 100}%` }}
-        />
+        >
+          {fila.tramos.map((tramo, i) => (
+            <span
+              key={tramo.status}
+              tabIndex={0}
+              className="group relative min-w-0.5 basis-0 outline-none"
+              style={{ flexGrow: tramo.total }}
+            >
+              <span
+                aria-hidden="true"
+                className={cn(
+                  'absolute inset-0',
+                  i === fila.tramos.length - 1 && 'rounded-r-[4px]',
+                  claseDeMarca(tramo)
+                )}
+                style={estiloDeMarca(tramo)}
+              />
+              <Globo>
+                <span data-numerico className="font-semibold tabular-nums">{tramo.total}</span>
+                <span className="text-texto-tenue"> · {tramo.etiqueta}</span>
+              </Globo>
+            </span>
+          ))}
+        </span>
       </span>
-      {/* Las dos cifras llevan su palabra. Con «8» y «32 hechas» al lado de una sola barra, el
-          lector tiene que adivinar cuál de los dos números mide la barra. */}
-      <span data-numerico className="text-texto w-16 shrink-0 text-right text-xs tabular-nums">
-        {fila.abiertas} abiertas
-      </span>
-      <span data-numerico className="text-texto-sutil w-14 shrink-0 text-right text-xs tabular-nums">
-        {fila.cerradas} hechas
+      <span data-numerico className="text-texto w-8 shrink-0 text-right text-sm font-medium tabular-nums">
+        {fila.pendientes}
       </span>
     </li>
   )

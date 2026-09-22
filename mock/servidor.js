@@ -5166,6 +5166,13 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
         return { estado: 200, cuerpo: conDatos(overviewParaContacto(espacio, compartido, pestanias)) }
       }
 
+      // El tablero de la pestaña Resumen. Su puerta es esa pestaña; cada bloque de adentro se poda
+      // con la suya, igual que en la API.
+      if (resto[2] === 'tablero' && resto.length === 3) {
+        exigirPestania('overview')
+        return { estado: 200, cuerpo: conDatos(tableroParaContacto(pestanias)) }
+      }
+
       if (resto[2] === 'timesheets' && resto.length === 3) {
         exigirPestania('timesheets')
 
@@ -6835,6 +6842,119 @@ function overviewDeEspacio (espacio) {
     estimated_hours_excedidas: m.segundos / 3600 > (espacio.estimated_hours ?? 0),
     currency: { id: 1, symbol: '$', name: 'CLP' }
   }
+}
+
+/**
+ * Los {hitos} del tablero de un Proyecto, con sus pendientes por estado.
+ *
+ * Es una fixture y no una cuenta sobre `PROCESOS`, a propósito: las Tareas del mock no cuelgan de
+ * ningún hito y son diez por Proyecto, así que la cuenta daría un gráfico vacío y la pantalla nunca
+ * se podría mirar con datos. Los números están armados para ejercitar lo que el gráfico decide: un
+ * hito al día que no lleva barra, uno con un solo estado, uno bastante más cargado que el resto y
+ * una Tarea histórica en el estado `3`, que ya no está en el catálogo.
+ *
+ * Cada fila cumple lo que cumple la API: `pendientes` es la suma de `por_estado`, `por_estado` no
+ * trae ceros ni `Completado`, y un hito cerrado llega con `pendientes: 0` y `por_estado: []`.
+ */
+const HITOS_DEL_TABLERO = [
+  { id: 101, name: 'Estrategia y brief', due_date: '2026-08-31', tareas: 6, por_estado: [] },
+  { id: 102, name: 'Identidad visual', due_date: '2026-09-30', tareas: 14, por_estado: [[1, 2], [4, 3], [6, 1]] },
+  { id: 103, name: 'Piezas de lanzamiento', due_date: '2026-10-31', tareas: 18, por_estado: [[1, 5], [4, 2], [2, 3], [6, 1], [3, 1]] },
+  { id: 104, name: 'Sitio web', due_date: '2026-11-30', tareas: 9, por_estado: [[1, 4]] },
+  { id: 105, name: 'Redes sociales', due_date: '2026-12-31', tareas: 8, por_estado: [[4, 1], [2, 2]] },
+  { id: 106, name: 'Guiones', due_date: null, tareas: 5, por_estado: [[2, 1], [6, 1]] },
+  { id: 107, name: 'Reels', due_date: '2026-12-31', tareas: 4, por_estado: [[1, 2]] }
+]
+
+/** Las claves del feed del tablero, de la más nueva a la más vieja. Incluye una que se descarta. */
+const ACTIVIDAD_DEL_TABLERO = [
+  ['2026-09-21 17:40:00', 'project_activity_task_marked_complete'],
+  ['2026-09-21 11:05:00', 'project_activity_new_task_comment'],
+  ['2026-09-19 16:20:00', 'not_project_activity_task_status_changed'],
+  ['2026-09-18 10:00:00', 'project_activity_task_marked_complete'],
+  ['2026-09-17 09:30:00', 'project_activity_created_milestone'],
+  ['2026-09-16 15:00:00', 'project_activity_clave_que_la_pantalla_no_sabe_decir'],
+  ['2026-09-15 12:10:00', 'project_activity_added_team_member'],
+  ['2026-09-12 08:45:00', 'project_activity_updated']
+]
+
+/**
+ * `GET /portal/projects/{id}/tablero`: el tablero de la pestaña Resumen, podado como lo poda la API.
+ *
+ * Cada bloque viaja sólo con su pestaña, y cuando no corresponde **la clave no viaja** —no viaja en
+ * cero ni en `null`—: `tareas` y `proxima_entrega` con `tasks`, `hitos` con `milestones`,
+ * `actividad` con `activity`. `avance` va siempre. Sin `cierres` ni `equipo`, que salieron del
+ * contrato, y sin `hitos.fechas_confiables`.
+ *
+ * Los totales salen de la fixture de {@link HITOS_DEL_TABLERO} para que el tablero sea coherente
+ * consigo mismo: las pendientes de los hitos no pueden sumar más que las abiertas del avance.
+ *
+ * @param {Array<string>} pestanias las pestañas que este contacto tiene en este Proyecto
+ */
+function tableroParaContacto (pestanias) {
+  const hitos = HITOS_DEL_TABLERO.map(({ por_estado: porEstado, ...hito }) => {
+    const pendientes = porEstado.reduce((suma, [, total]) => suma + total, 0)
+    const cerradas = hito.tareas - pendientes
+
+    return {
+      ...hito,
+      cerradas,
+      porcentaje: hito.tareas === 0 ? null : Math.round((cerradas * 100) / hito.tareas),
+      pendientes,
+      por_estado: porEstado.map(([status, total]) => ({ status, total }))
+    }
+  })
+
+  const tareas = hitos.reduce((suma, hito) => suma + hito.tareas, 0)
+  const cerradas = hitos.reduce((suma, hito) => suma + hito.cerradas, 0)
+
+  // Por estado, sumando los hitos: el catálogo completo y en su orden, ceros incluidos, con las
+  // cerradas en «Completado» y el estado `3` —fuera de catálogo— al final, como lo manda la API.
+  const conteo = new Map()
+  for (const hito of hitos) {
+    for (const { status, total } of hito.por_estado) conteo.set(status, (conteo.get(status) ?? 0) + total)
+  }
+  const completado = ESTADOS_PROCESO.find((estado) => estado.order === 100)
+  conteo.set(completado.id, cerradas)
+
+  const delCatalogo = [...ESTADOS_PROCESO].sort((a, b) => a.order - b.order)
+    .map((estado) => ({ status: estado.id, total: conteo.get(estado.id) ?? 0 }))
+  const fuera = [...conteo.keys()]
+    .filter((status) => !ESTADOS_PROCESO.some((estado) => estado.id === status))
+    .map((status) => ({ status, total: conteo.get(status) }))
+
+  const tablero = {
+    avance: {
+      tareas,
+      cerradas,
+      abiertas: tareas - cerradas,
+      porcentaje: tareas === 0 ? null : Math.round((cerradas * 100) / tareas)
+    }
+  }
+
+  if (pestanias.includes('tasks')) {
+    tablero.tareas = {
+      por_prioridad: PRIORIDADES.map((prioridad, i) => ({
+        priority: prioridad.id,
+        name: prioridad.name,
+        total: [3, 38, 17, 6][i] ?? 0
+      })),
+      por_estado: [...delCatalogo, ...fuera],
+      vencidas: 7,
+      sin_fecha: 4,
+      cerradas_7: 5,
+      cerradas_30: 19
+    }
+    tablero.proxima_entrega = { id: 518, name: 'Guion del reel de lanzamiento', duedate: '2026-09-25', dias: 3 }
+  }
+
+  if (pestanias.includes('milestones')) tablero.hitos = { lista: hitos }
+
+  if (pestanias.includes('activity')) {
+    tablero.actividad = ACTIVIDAD_DEL_TABLERO.map(([fecha, clave]) => ({ fecha, clave }))
+  }
+
+  return tablero
 }
 
 /**

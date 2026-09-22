@@ -81,7 +81,7 @@ assert.ok(
 for (const columna of ['Tipo', 'Hito', 'Aprobación']) {
   assert.ok(encabezados.includes(columna), `Falta la columna ${columna}: ${JSON.stringify(encabezados)}`)
 }
-// La cabecera del cliente NO lleva barra de avance: el tablero de la pestaña Descripcion ya pinta
+// La cabecera del cliente NO lleva barra de avance: el tablero de la pestaña Resumen ya pinta
 // un porcentaje, contado sobre las tareas que ese contacto ve, y el de la cabecera sale de
 // `tblprojects.progress`, que dice otra cosa. Dos numeros distintos en la misma pantalla dejan al
 // cliente sin saber cual es el bueno. Se mira dentro del <header> para no confundirla con las

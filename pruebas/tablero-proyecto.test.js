@@ -6,35 +6,31 @@
  * convierte en cero el cliente lee «no hicieron nada» donde la verdad es «no hay nada compartido
  * para medirlo». Hay una prueba por cada lugar donde eso puede pasar.
  *
- * Lo otro que se prueba son las decisiones de «no dibujar»: la serie de cierres que se niega a
- * fingir una tendencia con dos barras, el hito que no se marca atrasado porque ya se entregó, y la
- * clave de actividad que se omite antes que mostrarse cruda.
+ * Lo otro que se prueba son las decisiones de «no dibujar» —el estado en cero que no ocupa una
+ * fila, el hito al día que no lleva barra, la clave de actividad que se omite antes que mostrarse
+ * cruda— y el reparto en dos columnas, que es lo que evita que un bloque quede solo en su fila.
  */
 
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
-  LIENZO_DE_AREA,
-  SALVEDAD_DE_FECHAS,
-  SEMANAS_CON_DATO_MINIMAS,
-  TOPE_DE_PERSONAS,
+  HITOS_VISIBLES,
   arcoDeAvance,
-  areaDeCierres,
+  barrasPorEstado,
+  bloquesDelTablero,
   cifrasDelTablero,
   clavesDePrioridad,
-  filasDePersonas,
+  filasDeCifras,
   leerAvance,
-  leerCierres,
-  lineaDeHitos,
-  marcasAgrupadas,
   novedades,
-  resumenDeCierres,
-  resumenDeHitos,
+  pendientesPorHito,
+  repartirEnColumnas,
+  resumenDeFila,
   resumenDePrioridades,
+  resumenPorEstado,
+  tarjetasDeCifras,
   tramosDePrioridad
 } from '../src/componentes/portal/tablero-proyecto.ts'
-
-const HOY = '2026-09-22'
 
 /** Un bloque de prioridades con las cuatro del catálogo, como lo manda la API. */
 function prioridades (bajo, medio, alto, urgente) {
@@ -52,29 +48,59 @@ function prioridades (bajo, medio, alto, urgente) {
   }
 }
 
-/** Una semana de la serie. */
-function semana (lunes, cerradas, parcial = false) {
-  return { semana: lunes, cerradas, parcial }
-}
+/** El catálogo `task_statuses` del portal, con los colores de Perfex. */
+const CATALOGO = [
+  { id: 1, name: 'Por iniciar', color: '#f97316' },
+  { id: 4, name: 'En proceso', color: '#eab308' },
+  { id: 2, name: 'Esperando respuesta', color: '#84cc16' },
+  { id: 6, name: 'Cambios', color: '#a855f7' },
+  { id: 5, name: 'Completado', color: '#22c55e' }
+]
 
-/** Doce semanas consecutivas terminando en el lunes de HOY, con los cierres que se le pasen. */
-function serieDe (cerradasPorSemana) {
-  const lunes = ['2026-07-06', '2026-07-13', '2026-07-20', '2026-07-27', '2026-08-03', '2026-08-10',
-    '2026-08-17', '2026-08-24', '2026-08-31', '2026-09-07', '2026-09-14', '2026-09-21']
-
-  return lunes.map((dia, i) => semana(dia, cerradasPorSemana[i] ?? 0, i === lunes.length - 1))
-}
-
-/** Un hito como lo manda la API. */
-function hito (id, nombre, fecha, tareas, cerradas) {
+/** Un hito como lo manda la API, con sus pendientes por estado. */
+function hito (id, nombre, tareas, cerradas, porEstado = []) {
   return {
     id,
     name: nombre,
-    due_date: fecha,
+    due_date: '2026-12-31',
     tareas,
     cerradas,
-    porcentaje: tareas === 0 ? null : Math.round((cerradas * 100) / tareas)
+    porcentaje: tareas === 0 ? null : Math.round((cerradas * 100) / tareas),
+    pendientes: porEstado.reduce((suma, conteo) => suma + conteo.total, 0),
+    por_estado: porEstado
   }
+}
+
+/** Un tablero con todos los bloques; `sin` quita los que se nombren, como lo haría la API. */
+function tablero (sin = []) {
+  const completo = {
+    avance: { tareas: 40, cerradas: 22, abiertas: 18, porcentaje: 55 },
+    tareas: {
+      ...prioridades(2, 30, 6, 2),
+      por_estado: [
+        { status: 1, total: 5 }, { status: 4, total: 6 }, { status: 2, total: 4 },
+        { status: 6, total: 3 }, { status: 5, total: 22 }
+      ]
+    },
+    proxima_entrega: { id: 9, name: 'Guion del reel', duedate: '2026-09-25', dias: 3 },
+    hitos: {
+      lista: [
+        hito(1, 'Estrategia', 6, 6),
+        hito(2, 'Identidad', 10, 4, [{ status: 1, total: 2 }, { status: 4, total: 4 }]),
+        hito(3, 'Piezas', 12, 5, [{ status: 4, total: 2 }, { status: 2, total: 3 }, { status: 6, total: 2 }]),
+        hito(4, 'Sitio', 8, 5, [{ status: 1, total: 3 }]),
+        hito(5, 'Redes', 4, 2, [{ status: 2, total: 1 }, { status: 6, total: 1 }])
+      ]
+    },
+    actividad: Array.from({ length: 7 }, (_, i) => ({
+      fecha: `2026-09-${String(20 - i).padStart(2, '0')} 10:00:00`,
+      clave: 'project_activity_task_marked_complete'
+    }))
+  }
+
+  for (const clave of sin) delete completo[clave]
+
+  return completo
 }
 
 // =================================================================================================
@@ -190,371 +216,211 @@ test('sin nada que repartir el resumen lo dice en vez de quedar en blanco', () =
 })
 
 // =================================================================================================
-// LA SERIE DE CIERRES
+// LAS TAREAS POR ESTADO
 // =================================================================================================
 
-test('con menos de tres semanas con cierres la serie no se dibuja', () => {
-  const lectura = leerCierres(serieDe([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 1]))
+test('los estados en cero no ocupan una fila, y el orden es el del catálogo', () => {
+  const barras = barrasPorEstado([
+    { status: 1, total: 0 }, { status: 4, total: 6 }, { status: 2, total: 0 }, { status: 5, total: 12 }
+  ], CATALOGO)
 
-  assert.equal(lectura.semanasConDato, 2)
-  assert.equal(lectura.valeDibujarla, false, 'dos barras sobre diez semanas vacías no son una tendencia')
-  assert.equal(lectura.total, 3, 'pero los números siguen disponibles para escribirlos')
+  assert.deepEqual(barras.map((b) => b.status), [4, 5])
 })
 
-test('con tres semanas con cierres ya vale dibujarla', () => {
-  const lectura = leerCierres(serieDe([1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1]))
+test('cada barra lleva el nombre y el color del catálogo, no uno inventado', () => {
+  const [barra] = barrasPorEstado([{ status: 6, total: 3 }], CATALOGO)
 
-  assert.equal(lectura.semanasConDato, SEMANAS_CON_DATO_MINIMAS)
-  assert.equal(lectura.valeDibujarla, true)
+  assert.equal(barra.etiqueta, 'Cambios')
+  assert.equal(barra.color, '#a855f7')
+  assert.equal(barra.desconocido, false)
 })
 
-test('la escala es la mejor semana de la propia serie', () => {
-  const lectura = leerCierres(serieDe([6, 1, 3, 0, 0, 2, 0, 0, 1, 0, 0, 2]))
+test('un estado fuera del catálogo se cuenta igual, sin color y marcado como desconocido', () => {
+  const barras = barrasPorEstado([{ status: 1, total: 2 }, { status: 3, total: 1 }], CATALOGO)
+  const retirado = barras.find((b) => b.status === 3)
 
-  assert.equal(lectura.puntos[0].fraccion, 1, 'la semana de 6 llena la barra')
-  assert.equal(lectura.puntos[1].fraccion, 1 / 6)
+  assert.equal(retirado.desconocido, true, 'se pinta con contorno, como la insignia')
+  assert.equal(retirado.color, null, 'no puede llevar el color de otro estado')
+  assert.equal(retirado.etiqueta, '#3')
 })
 
-test('las semanas sin cierres van en 0 y no se omiten', () => {
-  const lectura = leerCierres(serieDe([2, 0, 0, 3, 0, 0, 1, 0, 0, 0, 0, 0]))
+test('un estado del catálogo sin color queda en null, para el tono neutro', () => {
+  const [barra] = barrasPorEstado([{ status: 7, total: 1 }], [{ id: 7, name: 'Pausado' }])
 
-  assert.equal(lectura.puntos.length, 12, 'sin los ceros la línea sería continua sobre semanas quietas')
-  assert.equal(lectura.puntos[1].cerradas, 0)
-  assert.equal(lectura.puntos[1].fraccion, 0)
+  assert.equal(barra.color, null)
+  assert.equal(barra.desconocido, false)
 })
 
-test('la semana en curso llega marcada y con su valor real, sin extrapolar', () => {
-  const lectura = leerCierres(serieDe([3, 3, 3, 0, 0, 0, 0, 0, 0, 0, 0, 1]))
-  const ultima = lectura.puntos[lectura.puntos.length - 1]
+test('la barra más larga es la del estado con más tareas', () => {
+  const barras = barrasPorEstado([{ status: 1, total: 5 }, { status: 5, total: 20 }], CATALOGO)
 
-  assert.equal(ultima.parcial, true)
-  assert.equal(ultima.cerradas, 1, 'un 1 de tres días no se proyecta a la semana entera')
-  assert.ok(lectura.puntos.slice(0, -1).every((p) => p.parcial === false))
+  assert.deepEqual(barras.map((b) => b.fraccion), [0.25, 1])
+  assert.deepEqual(barras.map((b) => b.porcentaje), [20, 80])
 })
 
-test('una serie vacía no divide por cero y lo dice', () => {
-  const lectura = leerCierres(serieDe([]))
+test('sin catálogo los estados igual se cuentan, como desconocidos', () => {
+  const barras = barrasPorEstado([{ status: 1, total: 2 }], undefined)
 
-  assert.equal(lectura.total, 0)
-  assert.equal(lectura.valeDibujarla, false)
-  assert.ok(lectura.puntos.every((p) => p.fraccion === 0))
-  assert.match(resumenDeCierres(lectura), /Ninguna tarea cerrada/)
+  assert.equal(barras.length, 1)
+  assert.equal(barras[0].desconocido, true)
 })
 
-test('el resumen accesible de la serie nombra la mejor semana', () => {
-  const resumen = resumenDeCierres(leerCierres(serieDe([1, 0, 7, 0, 1, 0, 0, 0, 0, 0, 0, 0])))
+test('el resumen accesible por estado dice los números, y el vacío lo dice también', () => {
+  const barras = barrasPorEstado([{ status: 1, total: 2 }, { status: 5, total: 8 }], CATALOGO)
 
-  assert.match(resumen, /9 tareas cerradas/)
-  assert.match(resumen, /con 7/)
+  assert.equal(resumenPorEstado(barras), '10 tareas: 2 en Por iniciar, 8 en Completado.')
+  assert.match(resumenPorEstado([]), /Sin tareas/)
 })
 
 // =================================================================================================
-// LA GEOMETRÍA DEL ÁREA
+// LAS PENDIENTES POR HITO
 // =================================================================================================
 
-test('el área cierra contra la BASE del lienzo, no contra el mínimo de la serie', () => {
-  // Es la mentira clásica del gráfico de área: si el relleno arranca en el valor más bajo en vez de
-  // en cero, una serie que va de 5 a 7 se dibuja como si se hubiera duplicado.
-  const serie = areaDeCierres(leerCierres(serieDe([5, 6, 7, 6, 5, 6, 7, 6, 5, 6, 7, 6])))
+test('un hito al día no lleva barra, pero se cuenta en el total de hitos', () => {
+  const lectura = pendientesPorHito(tablero().hitos.lista, CATALOGO)
 
-  assert.ok(serie.area.startsWith(`M0,${LIENZO_DE_AREA.alto}`), 'empieza en la base, a la izquierda')
-  assert.ok(serie.area.endsWith(`,${LIENZO_DE_AREA.alto} Z`), 'y vuelve a la base antes de cerrar')
+  assert.deepEqual(lectura.filas.map((f) => f.nombre), ['Identidad', 'Piezas', 'Sitio', 'Redes'])
+  assert.equal(lectura.hitos, 5)
+  assert.equal(lectura.total, 6 + 7 + 3 + 2)
 })
 
-test('los puntos se reparten de borde a borde', () => {
-  const serie = areaDeCierres(leerCierres(serieDe([1, 2, 3])))
+test('el largo va en escala común: el hito más cargado llena el carril', () => {
+  const lectura = pendientesPorHito(tablero().hitos.lista, CATALOGO)
+  const porNombre = Object.fromEntries(lectura.filas.map((f) => [f.nombre, f]))
 
-  assert.equal(serie.puntos[0].x, 0)
-  assert.equal(serie.puntos[0].fraccionX, 0)
-  assert.equal(serie.puntos[serie.puntos.length - 1].x, LIENZO_DE_AREA.ancho)
-  assert.equal(serie.puntos[serie.puntos.length - 1].fraccionX, 1)
+  assert.equal(porNombre.Piezas.fraccion, 1)
+  assert.equal(porNombre.Redes.fraccion, 2 / 7, 'estirada a su propio 100 % se vería igual que Piezas')
 })
 
-test('más alto es más arriba: en SVG el cero está arriba y hay que invertir', () => {
-  const serie = areaDeCierres(leerCierres(serieDe([1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 7])))
-  const mayor = serie.puntos[serie.puntos.length - 1]
-  const cero = serie.puntos[1]
+test('los tramos de un hito suman el 100 % de su barra y llevan el color del estado', () => {
+  const [, piezas] = pendientesPorHito(tablero().hitos.lista, CATALOGO).filas
+  const suma = piezas.tramos.reduce((total, tramo) => total + tramo.porcentaje, 0)
 
-  assert.ok(mayor.y < cero.y, 'la semana de 7 dibuja más arriba que la de 0')
-  assert.equal(cero.y, LIENZO_DE_AREA.alto, 'la semana sin cierres se apoya en la base')
-  assert.ok(mayor.y > 0, 'y el pico deja aire arriba en vez de tocar el borde')
+  assert.ok(Math.abs(suma - 100) < 1e-9)
+  assert.deepEqual(piezas.tramos.map((t) => t.color), ['#eab308', '#84cc16', '#a855f7'])
 })
 
-test('solo la mejor semana se marca como extremo', () => {
-  const serie = areaDeCierres(leerCierres(serieDe([2, 9, 3, 0, 0, 0, 0, 0, 0, 0, 0, 1])))
-  const extremos = serie.puntos.filter((p) => p.extremo)
+test('la leyenda nombra cada estado una sola vez, en el orden del catálogo', () => {
+  const lectura = pendientesPorHito([
+    hito(1, 'A', 3, 0, [{ status: 6, total: 1 }, { status: 3, total: 1 }]),
+    hito(2, 'B', 3, 0, [{ status: 1, total: 2 }, { status: 6, total: 1 }])
+  ], CATALOGO)
 
-  assert.equal(extremos.length, 1, 'un rótulo directo en cada punto es el caos que nadie lee')
-  assert.equal(extremos[0].cerradas, 9)
+  // El desconocido va al final, donde también lo pone la API.
+  assert.deepEqual(lectura.leyenda.map((e) => e.status), [1, 6, 3])
 })
 
-test('una serie sin cierres no marca extremo ni inventa un pico', () => {
-  const serie = areaDeCierres(leerCierres(serieDe([])))
+test('sin hitos, o con todos al día, no hay filas', () => {
+  assert.deepEqual(pendientesPorHito([], CATALOGO).filas, [])
 
-  assert.ok(!serie.puntos.some((p) => p.extremo))
-  assert.ok(serie.puntos.every((p) => p.y === LIENZO_DE_AREA.alto), 'todo se apoya en la base')
+  const alDia = pendientesPorHito([hito(1, 'A', 4, 4), hito(2, 'B', 0, 0)], CATALOGO)
+
+  assert.deepEqual(alDia.filas, [])
+  assert.equal(alDia.hitos, 2, 'la pantalla tiene que poder decir «todo al día» y no «no hay hitos»')
 })
 
-test('con menos de dos puntos no hay rutas: un segmento de largo cero no es una línea', () => {
-  const unaSemana = { puntos: [{ semana: '2026-09-21', etiqueta: '21 sep', cerradas: 3, fraccion: 1, parcial: true }], valeDibujarla: false, semanasConDato: 1, total: 3 }
-  const serie = areaDeCierres(unaSemana)
+test('el resumen accesible de una fila nombra sus pendientes por estado', () => {
+  const [identidad] = pendientesPorHito(tablero().hitos.lista, CATALOGO).filas
 
-  assert.equal(serie.linea, '')
-  assert.equal(serie.area, '')
-  assert.equal(serie.puntos.length, 1, 'el punto igual se devuelve, para que la marca se pueda colgar')
+  assert.equal(resumenDeFila(identidad), 'Identidad: 6 pendientes, 2 en Por iniciar, 4 en En proceso.')
 })
 
-// =================================================================================================
-// LOS HITOS
-// =================================================================================================
-
-test('un proyecto sin hitos da una línea vacía y no revienta', () => {
-  const linea = lineaDeHitos({ fechas_confiables: true, lista: [] }, HOY)
-
-  assert.deepEqual(linea.marcas, [])
-  assert.equal(linea.sinFecha, 0)
-  assert.match(resumenDeHitos(linea), /todavía no tiene/)
-})
-
-test('la ventana siempre incluye hoy, también con todos los hitos en el futuro', () => {
-  const linea = lineaDeHitos({
-    fechas_confiables: true,
-    lista: [hito(1, 'Entrega', '2026-12-31', 2, 0)]
-  }, HOY)
-
-  assert.equal(linea.desde, 0, 'hoy es el extremo izquierdo cuando no hay nada vencido')
-  assert.ok(linea.hasta > 0)
-  assert.equal(linea.hoy, 0, 'y la marca de hoy cae en el borde, que es donde tiene que estar')
-})
-
-test('la ventana se estira hacia atrás cuando hay hitos vencidos', () => {
-  const linea = lineaDeHitos({
-    fechas_confiables: true,
-    lista: [hito(1, 'Vieja', '2026-08-22', 2, 0), hito(2, 'Nueva', '2026-10-22', 2, 0)]
-  }, HOY)
-
-  assert.equal(linea.desde, -31)
-  assert.equal(linea.hasta, 30)
-  assert.ok(linea.hoy > 0 && linea.hoy < 1, 'hoy cae dentro de la ventana, no en un borde')
-})
-
-test('atrasado exige fecha pasada Y trabajo abierto', () => {
-  const linea = lineaDeHitos({
-    fechas_confiables: true,
-    lista: [
-      hito(1, 'Entregado tarde pero entregado', '2026-08-01', 3, 3),
-      hito(2, 'De verdad atrasado', '2026-08-01', 3, 1)
-    ]
-  }, HOY)
-
-  assert.equal(linea.marcas[0].atrasado, false, 'llamar atraso a una entrega es mentir')
-  assert.equal(linea.marcas[0].cumplido, true)
-  assert.equal(linea.marcas[1].atrasado, true)
-  assert.equal(linea.marcas[1].cumplido, false)
-})
-
-test('un hito sin tareas visibles no está cumplido ni al 0 %', () => {
-  const linea = lineaDeHitos({
-    fechas_confiables: true,
-    lista: [hito(1, 'Sin tareas compartidas', '2026-08-01', 0, 0)]
-  }, HOY)
-
-  assert.equal(linea.marcas[0].porcentaje, null, 'el null no se aplana')
-  assert.equal(linea.marcas[0].cumplido, false, '0 de 0 no es «todo hecho»')
-  assert.equal(linea.marcas[0].atrasado, false, 'y tampoco es un atraso: no hay trabajo que falte')
-})
-
-test('los hitos sin fecha se cuentan y no van al eje', () => {
-  const linea = lineaDeHitos({
-    fechas_confiables: true,
-    lista: [hito(1, 'Con fecha', '2026-10-01', 1, 0), hito(2, 'Sin fecha', null, 1, 1)]
-  }, HOY)
-
-  assert.equal(linea.sinFecha, 1)
-  assert.equal(linea.marcas.length, 2, 'esconderlo le restaría un hito al cliente')
-  assert.equal(linea.marcas[1].posicion, null, 'pero no tiene dónde ir en el eje')
-  assert.equal(linea.marcas[1].etiqueta, '')
-})
-
-test('la salvedad aparece cuando las fechas son de relleno, y el gráfico se dibuja igual', () => {
-  // El caso real: los hitos del Proyecto 167 son «HTML», «REELS» y «Propuestas», todos al 31 de
-  // diciembre. El usuario decidió dibujar el eje igual; la salvedad es lo que evita que el cliente
-  // lea una promesa donde hay un placeholder.
-  const linea = lineaDeHitos({
-    fechas_confiables: false,
-    lista: [hito(1, 'HTML', '2026-12-31', 3, 3), hito(2, 'REELS', '2026-12-31', 1, 0)]
-  }, HOY)
-
-  assert.equal(linea.salvedad, SALVEDAD_DE_FECHAS)
-  assert.equal(linea.marcas.length, 2, 'la salvedad no esconde el gráfico')
-  assert.ok(linea.marcas.every((m) => m.posicion !== null))
-})
-
-test('sin salvedad cuando las fechas aguantan el eje', () => {
-  const linea = lineaDeHitos({
-    fechas_confiables: true,
-    lista: [hito(1, 'Kickoff', '2026-09-15', 1, 1)]
-  }, HOY)
-
-  assert.equal(linea.salvedad, '')
-})
-
-test('la fecha viaja tal como está guardada, sin redondeos', () => {
-  const linea = lineaDeHitos({
-    fechas_confiables: false,
-    lista: [hito(1, 'HTML', '2026-12-31', 1, 0)]
-  }, HOY)
-
-  assert.equal(linea.marcas[0].fecha, '2026-12-31', 'ni se redondea al mes ni se vuelve «en N días»')
-})
-
-test('el resumen accesible de los hitos cuenta cumplidos, atrasados y sin fecha', () => {
-  const resumen = resumenDeHitos(lineaDeHitos({
-    fechas_confiables: true,
-    lista: [
-      hito(1, 'Hecho', '2026-08-01', 2, 2),
-      hito(2, 'Atrasado', '2026-08-01', 2, 0),
-      hito(3, 'Sin fecha', null, 1, 0)
-    ]
-  }, HOY))
-
-  assert.match(resumen, /3 hitos/)
-  assert.match(resumen, /1 cumplidos/)
-  assert.match(resumen, /1 atrasados/)
-  assert.match(resumen, /1 sin fecha/)
-})
-
-test('los hitos que caen el mismo día se agrupan en una sola marca del eje', () => {
-  // El caso real del Proyecto 167: sus tres hitos están fechados el 31 de diciembre. Uno por hito
-  // los deja perfectamente superpuestos en el mismo píxel y el cliente cuenta uno donde hay tres.
-  const linea = lineaDeHitos({
-    fechas_confiables: false,
-    lista: [
-      hito(1, 'HTML', '2026-12-31', 3, 3),
-      hito(2, 'REELS', '2026-12-31', 1, 0),
-      hito(3, 'Guiones', '2026-12-31', 2, 1)
-    ]
-  }, HOY)
-
-  const grupos = marcasAgrupadas(linea.marcas)
-
-  assert.equal(grupos.length, 1, 'una marca por fecha, no por hito')
-  assert.equal(grupos[0].hitos.length, 3, 'y se queda con los tres, para poder decir cuántos son')
-})
-
-test('fechas distintas son marcas distintas', () => {
-  const linea = lineaDeHitos({
-    fechas_confiables: true,
-    lista: [hito(1, 'Uno', '2026-10-01', 1, 1), hito(2, 'Dos', '2026-11-01', 1, 0)]
-  }, HOY)
-
-  assert.equal(marcasAgrupadas(linea.marcas).length, 2)
-})
-
-test('en un grupo manda el peor caso: un atrasado pinta la marca entera', () => {
-  const linea = lineaDeHitos({
-    fechas_confiables: true,
-    lista: [
-      hito(1, 'Entregado', '2026-08-01', 2, 2),
-      hito(2, 'Atrasado', '2026-08-01', 2, 0)
-    ]
-  }, HOY)
-
-  const grupo = marcasAgrupadas(linea.marcas)[0]
-
-  assert.equal(grupo.estado, 'atrasado', 'esconder el atraso detrás de una entrega es lo que no puede pasar')
-})
-
-test('cumplido exige que lo estén todos los del grupo', () => {
-  const linea = lineaDeHitos({
-    fechas_confiables: true,
-    lista: [
-      hito(1, 'Hecho', '2026-12-01', 2, 2),
-      hito(2, 'A medias', '2026-12-01', 4, 1)
-    ]
-  }, HOY)
-
-  assert.equal(marcasAgrupadas(linea.marcas)[0].estado, 'en_curso')
-})
-
-test('los hitos sin fecha no entran al eje, pero siguen en la lista', () => {
-  const linea = lineaDeHitos({
-    fechas_confiables: true,
-    lista: [hito(1, 'Con fecha', '2026-10-01', 1, 0), hito(2, 'Sin fecha', null, 1, 1)]
-  }, HOY)
-
-  assert.equal(marcasAgrupadas(linea.marcas).length, 1, 'el que no tiene fecha no tiene dónde ir')
-  assert.equal(linea.marcas.length, 2, 'pero la lista de abajo igual lo nombra')
+test('el techo de filas a la vista es seis', () => {
+  assert.equal(HITOS_VISIBLES, 6)
 })
 
 // =================================================================================================
-// EL EQUIPO
+// EL REPARTO EN COLUMNAS
 // =================================================================================================
 
-test('el equipo se ordena por trabajo abierto, no por total', () => {
-  const filas = filasDePersonas([
-    { id: 1, full_name: 'Mucha historia', abiertas: 1, cerradas: 90 },
-    { id: 2, full_name: 'Mucho ahora', abiertas: 9, cerradas: 2 }
-  ])
+/** Reparte el tablero de prueba sin los bloques que se nombren. */
+function repartir (sin = []) {
+  return repartirEnColumnas(bloquesDelTablero(tablero(sin), CATALOGO))
+}
 
-  assert.equal(filas[0].id, 2, 'la pregunta es quién está con esto hoy')
+/** Lo que tiene que valer en cualquier reparto: cada bloque una vez y cada columna en orden. */
+function comprobarReparto (columnas, esperados) {
+  const todos = [...columnas.estrecha, ...columnas.ancha]
+
+  assert.deepEqual([...todos].sort(), [...esperados].sort(), 'cada bloque presente va una sola vez')
+
+  if (esperados.length > 1) {
+    assert.ok(columnas.estrecha.length > 0 && columnas.ancha.length > 0, 'ninguna columna queda vacía')
+  }
+}
+
+test('todo presente: el medidor, las cifras y los estados a la izquierda; lo largo a la derecha', () => {
+  const columnas = repartir()
+
+  comprobarReparto(columnas, ['avance', 'cifras', 'estados', 'prioridades', 'hitos', 'novedades'])
+  assert.deepEqual(columnas.estrecha, ['avance', 'cifras', 'estados'])
+  assert.deepEqual(columnas.ancha, ['hitos', 'prioridades', 'novedades'])
 })
 
-test('quien no tiene nada abierto aparece igual, al final', () => {
-  const filas = filasDePersonas([
-    { id: 1, full_name: 'Sin nada', abiertas: 0, cerradas: 7 },
-    { id: 2, full_name: 'Con trabajo', abiertas: 3, cerradas: 0 }
-  ])
+test('sin la pestaña de tareas: se van cifras, estados y prioridades, y nadie queda solo', () => {
+  const columnas = repartir(['tareas', 'proxima_entrega'])
 
-  assert.equal(filas.length, 2, 'sacarlo dibujaría un equipo más chico que el real')
-  assert.equal(filas[1].id, 1)
-  assert.equal(filas[1].fraccion, 0)
+  comprobarReparto(columnas, ['avance', 'hitos', 'novedades'])
+  assert.deepEqual(columnas.estrecha, ['avance'])
+  assert.deepEqual(columnas.ancha, ['hitos', 'novedades'])
 })
 
-test('un equipo sin nada abierto no divide por cero', () => {
-  const filas = filasDePersonas([
-    { id: 1, full_name: 'A', abiertas: 0, cerradas: 3 },
-    { id: 2, full_name: 'B', abiertas: 0, cerradas: 1 }
-  ])
+test('sin hitos: los estados cruzan a la columna ancha para que las dos terminen parejas', () => {
+  const columnas = repartir(['hitos'])
 
-  assert.ok(filas.every((f) => f.fraccion === 0))
+  comprobarReparto(columnas, ['avance', 'cifras', 'estados', 'prioridades', 'novedades'])
+  assert.deepEqual(columnas.estrecha, ['avance', 'cifras', 'prioridades'])
+  assert.deepEqual(columnas.ancha, ['estados', 'novedades'])
 })
 
-test('el equipo se recorta al tope y el desempate es estable', () => {
-  // Más que el tope: el recorte tiene que morder. El Proyecto más poblado de producción tiene 23
-  // personas, así que con el tope en 30 entran todas y el «ver las N» del desplegable no miente.
-  const equipo = Array.from({ length: TOPE_DE_PERSONAS + 5 }, (_, i) => ({
-    id: i + 1,
-    full_name: `Persona ${String(i + 1).padStart(2, '0')}`,
-    abiertas: 0,
-    cerradas: 0
-  }))
+test('sin actividad: la columna ancha se completa con los estados', () => {
+  const columnas = repartir(['actividad'])
 
-  const filas = filasDePersonas(equipo)
-
-  assert.equal(filas.length, TOPE_DE_PERSONAS)
-  // Con todo empatado manda el nombre: sin ese tercer criterio el recorte elegiría a otras personas
-  // en cada render y la lista bailaría sola.
-  assert.equal(filas[0].nombre, 'Persona 01')
+  comprobarReparto(columnas, ['avance', 'cifras', 'estados', 'prioridades', 'hitos'])
+  assert.deepEqual(columnas.estrecha, ['avance', 'cifras'])
+  assert.deepEqual(columnas.ancha, ['hitos', 'estados', 'prioridades'])
 })
 
-test('un equipo de 23 entra completo: el tope no recorta a los proyectos reales', () => {
-  const equipo = Array.from({ length: 23 }, (_, i) => ({
-    id: i + 1, full_name: `Persona ${i}`, abiertas: 0, cerradas: 0
-  }))
+test('solo el avance: va a la columna ancha y no se estira a las doce', () => {
+  const columnas = repartir(['tareas', 'proxima_entrega', 'hitos', 'actividad'])
 
-  assert.equal(filasDePersonas(equipo).length, 23)
+  assert.deepEqual(columnas, { estrecha: [], ancha: ['avance'] })
 })
 
-test('el orden no muta la lista que llegó', () => {
-  const equipo = [
-    { id: 1, full_name: 'A', abiertas: 1, cerradas: 0 },
-    { id: 2, full_name: 'B', abiertas: 5, cerradas: 0 }
-  ]
+test('sin bloques no hay columnas, y el orden de entrada no importa', () => {
+  assert.deepEqual(repartirEnColumnas([]), { estrecha: [], ancha: [] })
 
-  filasDePersonas(equipo)
+  const bloques = bloquesDelTablero(tablero(), CATALOGO)
 
-  assert.equal(equipo[0].id, 1, 'ordenar sobre el array del llamador rompe a quien lo comparta')
+  assert.deepEqual(repartirEnColumnas([...bloques].reverse()), repartirEnColumnas(bloques))
+})
+
+test('las columnas terminan cerca: la diferencia es menor que el bloque más chico', () => {
+  for (const sin of [[], ['hitos'], ['actividad'], ['tareas', 'proxima_entrega']]) {
+    const bloques = bloquesDelTablero(tablero(sin), CATALOGO)
+    const columnas = repartirEnColumnas(bloques)
+    const peso = Object.fromEntries(bloques.map((b) => [b.bloque, b.peso]))
+    const carga = (lado) => columnas[lado].reduce((suma, b) => suma + peso[b], 0)
+    const menor = Math.min(...bloques.map((b) => b.peso))
+
+    assert.ok(Math.abs(carga('estrecha') - carga('ancha')) < Math.max(menor, 20), `sin ${sin.join(', ')}`)
+  }
+})
+
+// =================================================================================================
+// LAS TARJETAS DE CIFRA
+// =================================================================================================
+
+test('cuatro tarjetas van en dos filas de dos; tres, en una', () => {
+  assert.equal(filasDeCifras(4), 2)
+  assert.equal(filasDeCifras(3), 1)
+  assert.equal(filasDeCifras(0), 0)
+})
+
+test('la próxima entrega suma una tarjeta solo cuando hay una', () => {
+  assert.equal(tarjetasDeCifras(tablero()), 4)
+  assert.equal(tarjetasDeCifras({ ...tablero(), proxima_entrega: null }), 3)
+  assert.equal(tarjetasDeCifras(tablero(['tareas', 'proxima_entrega'])), 0)
 })
 
 // =================================================================================================
@@ -630,8 +496,8 @@ test('son tres cifras, y «cerradas en 30 días» no está', () => {
   })
 
   assert.equal(cifras.length, 3)
-  // La serie de doce semanas ya contesta «cuánto se cierra últimamente» con mucho más detalle. Una
-  // cifra que repite lo que el gráfico de al lado dice es el relleno que el usuario rechazó.
-  assert.ok(!cifras.some((c) => c.clave === 'cerradas_30'), 'no se repite lo que el área ya muestra')
+  // Treinta días es un mes entero: en un proyecto tranquilo esa cifra repite lo que el medidor de
+  // avance ya dice, y una cifra que repite otro bloque es el relleno que el usuario rechazó.
+  assert.ok(!cifras.some((c) => c.clave === 'cerradas_30'), 'no se repite lo que el medidor ya muestra')
   assert.ok(cifras.every((c) => c.etiqueta.length > 0), 'un número sin rótulo es justo lo que se rechazó')
 })
