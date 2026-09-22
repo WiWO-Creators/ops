@@ -206,8 +206,8 @@ const FUENTE_DEL_PANEL = fuenteDelPanel(7)
 const FUENTE_DEL_PORTAL = fuenteDelPortal(7)
 
 test('la tabla de Hitos del contacto se deriva de la del equipo y pierde lo que su endpoint no atiende', () => {
-  const { definicion: equipo, conTablero: tableroDelEquipo } = definicionDeHitos(FUENTE_DEL_PANEL, 7)
-  const { definicion: contacto, conTablero: tableroDelContacto } = definicionDeHitos(FUENTE_DEL_PORTAL, 7)
+  const { definicion: equipo } = definicionDeHitos(FUENTE_DEL_PANEL, 7)
+  const { definicion: contacto } = definicionDeHitos(FUENTE_DEL_PORTAL, 7)
 
   assert.equal(equipo.ruta, 'projects/7/milestones')
   assert.equal(contacto.ruta, 'portal/projects/7/milestones')
@@ -235,9 +235,31 @@ test('la tabla de Hitos del contacto se deriva de la del equipo y pierde lo que 
   // trae. En el panel el campo es del equipo y la columna va siempre.
   assert.equal(contacto.columnas.find((c) => c.clave === 'description')?.omitirSiVacia, true)
   assert.equal(equipo.columnas.find((c) => c.clave === 'description')?.omitirSiVacia, undefined)
-  // El kanban no existe para el contacto; el equipo lo conserva.
-  assert.equal(tableroDelEquipo, true)
-  assert.equal(tableroDelContacto, false)
+  // El kanban ya existe para los dos. `conTablero` valia `false` para el contacto porque
+  // `GET /portal/projects/{id}/milestones` no atendia `?vista=tablero`; ahora lo atiende, asi que la
+  // bandera se fue: una que siempre vale lo mismo no es una decision, es ruido que hay que leer.
+  assert.equal('conTablero' in definicionDeHitos(FUENTE_DEL_PORTAL, 7), false)
+})
+
+test('el kanban de Hitos del contacto pide a sus rutas y no ofrece escrituras', () => {
+  // La barra del kanban ofrece los filtros del sujeto que mira. Los del contacto son 22 contra los
+  // ~40 del equipo: ofrecerle los del panel seria un 422 por cada control que toque.
+  const delEquipo = procesosDelEspacio(7).filtros.map((f) => f.clave)
+  const delContacto = procesosDelContacto(7).filtros.map((f) => f.clave)
+
+  assert.equal(delContacto.length < delEquipo.length, true)
+  for (const prohibido of ['assignee', 'tags', 'area', 'bloqueada', 'estado_sla']) {
+    assert.equal(delContacto.includes(prohibido), false, `filtro colado en el kanban: ${prohibido}`)
+  }
+
+  // Y las tres rutas que el tablero pide salen de la fuente, no escritas a mano. Sin esto el kanban
+  // del cliente daba tres 403: los Hitos, el catalogo y los campos personalizados eran del equipo.
+  assert.equal(FUENTE_DEL_PORTAL.hitos, 'portal/projects/7/milestones')
+  assert.equal(FUENTE_DEL_PORTAL.lookups, 'portal/lookups')
+  // `null` no es un dato vacio: es una rama menos. El contacto no tiene campos personalizados, asi
+  // que la lista se resuelve vacia en vez de pedirlos y comerse un 403.
+  assert.equal(FUENTE_DEL_PORTAL.camposDeTareas, null)
+  assert.equal(FUENTE_DEL_PANEL.camposDeTareas, 'custom-fields?para=tasks')
 })
 
 test('la tabla de Discusiones del contacto no publica la visibilidad al cliente', () => {

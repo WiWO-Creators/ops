@@ -111,16 +111,17 @@ export function hitosDelContacto (proyectoId: number): DefinicionRecurso<HitoDet
   }
 }
 
-/** Que ofrece la pestaña Hitos segun de que contrato bajen los datos. */
+/**
+ * Que ofrece la pestaña Hitos segun de que contrato bajen los datos.
+ *
+ * Tuvo un `conTablero` que valia `false` para el contacto, porque
+ * `GET /portal/projects/{id}/milestones` no atendia `?vista=tablero` y ofrecerle el alternador era
+ * mandarlo a un error. Ahora lo atiende —`RecursoHitos::tableroParaContacto()`—, asi que el kanban
+ * existe para los dos sujetos y el interruptor sobraba: una bandera que siempre vale lo mismo no es
+ * una decision, es ruido que hay que leer igual.
+ */
 export interface PestaniaDeHitos {
   definicion: DefinicionRecurso<HitoDetallado>
-  /**
-   * Si el sujeto tiene el kanban de Hitos.
-   *
-   * `false` para el contacto: `GET /portal/projects/{id}/milestones` no atiende `?vista=tablero`,
-   * asi que ofrecer el alternador seria mandar al cliente a un error. La tabla la tiene igual.
-   */
-  conTablero: boolean
 }
 
 /**
@@ -136,6 +137,6 @@ export interface PestaniaDeHitos {
  */
 export function definicionDeHitos (fuente: FuenteDeProyecto, proyectoId: number): PestaniaDeHitos {
   return fuente.sujeto === 'portal'
-    ? { definicion: hitosDelContacto(proyectoId), conTablero: false }
-    : { definicion: hitosDelEspacio(proyectoId), conTablero: true }
+    ? { definicion: hitosDelContacto(proyectoId) }
+    : { definicion: hitosDelEspacio(proyectoId) }
 }

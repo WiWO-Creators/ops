@@ -1672,9 +1672,22 @@ export interface TarjetaHito {
   status: number
   start_date: string | null
   due_date: string | null
-  total_logged_seconds: number
-  assignees: StaffReferencia[]
-  current_user_is_assigned: boolean
+  /**
+   * Horas registradas en la Tarea.
+   *
+   * Opcional porque el kanban del portal **no manda la clave** cuando el Proyecto no comparte las
+   * horas (`view_task_total_logged_time`). Ausencia no es cero: un `00:00` diria que nadie trabajo.
+   */
+  total_logged_seconds?: number
+  /**
+   * Quienes la tienen asignada.
+   *
+   * Opcional por lo mismo: `FormasDelPortal::TARJETA_DE_HITO` no publica los asignados salvo que el
+   * Proyecto encienda `wiwo_portal_campo_responsables`. Leerla sin guarda era el `undefined.length`
+   * que tumbaba la pestaña entera del cliente.
+   */
+  assignees?: StaffReferencia[]
+  current_user_is_assigned?: boolean
   vencida: boolean
 }
 
