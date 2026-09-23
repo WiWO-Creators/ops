@@ -14,6 +14,11 @@ interface PropsBotonDictado {
   maximo: number
   /** Apaga el boton mientras el chat esta ocupado. */
   deshabilitado?: boolean
+  /**
+   * Si puede caer al respaldo de Whisper (`POST /ia/dictado`). Por defecto si. En el portal va en
+   * `false`: la ruta es del equipo, y el cliente dicta solo con el navegador o no dicta.
+   */
+  conRespaldo?: boolean
 }
 
 /** Que dice el boton en cada fase, para el lector de pantalla y para el globo del raton. */
@@ -47,8 +52,8 @@ const AVISOS: Record<FaseDictado, string> = {
  * El error se muestra aca abajo y no en un aviso flotante porque es local al campo y se arregla
  * ahi mismo: dar permiso, conectar un microfono, hablar mas cerca.
  */
-export function BotonDictado ({ valor, alEscribir, maximo, deshabilitado = false }: PropsBotonDictado): ReactElement | null {
-  const dictado = useDictado(() => valor, alEscribir, maximo)
+export function BotonDictado ({ valor, alEscribir, maximo, deshabilitado = false, conRespaldo = true }: PropsBotonDictado): ReactElement | null {
+  const dictado = useDictado(() => valor, alEscribir, maximo, conRespaldo)
 
   if (!dictado.soportado) return null
 

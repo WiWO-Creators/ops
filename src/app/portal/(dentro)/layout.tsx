@@ -2,12 +2,13 @@ import Link from 'next/link'
 import { SelectorTema } from '@/componentes/estructura/SelectorTema'
 import { Avatar } from '@/componentes/presentadores/Avatar'
 import { Logo } from '@/componentes/estructura/Logo'
-import { pedirPortal, proyectoUnicoDelPortal } from '@/datos/servidor'
+import { pedirOpcional, pedirPortal, proyectoUnicoDelPortal } from '@/datos/servidor'
 import type { YoPortal } from '@/datos/tipos'
 import { navegacionDelPortal } from '@/dominio/portal'
 import { BotonSalirPortal } from '../BotonSalirPortal'
 import { NavegacionPortal } from '../NavegacionPortal'
 import { ScrollSuave } from '@/componentes/estructura/ScrollSuave'
+import { OrbeChatIA } from '@/componentes/ia/OrbeChatIA'
 
 /**
  * Armazon del portal del cliente.
@@ -19,9 +20,17 @@ import { ScrollSuave } from '@/componentes/estructura/ScrollSuave'
  *
  * Server Component: resuelve `/portal/me` una sola vez por navegacion y arma la navegacion con lo
  * que la API dijo que este contacto puede ver.
+ *
+ * Tambien decide si monta el Thinking Orb del cliente: solo con `GET /portal/ia/capacidades` en
+ * `habilitado: true` (`ia_habilitada` y `wiwo_portal_ia_chat` encendidas). Cualquier fallo de esa
+ * consulta lo deja sin orbe: es una comodidad, y el portal no se cae por ella.
  */
 export default async function PortalLayout ({ children }: { children: React.ReactNode }) {
-  const { data: yo } = await pedirPortal<YoPortal>('/portal/me')
+  const [{ data: yo }, capacidades] = await Promise.all([
+    pedirPortal<YoPortal>('/portal/me'),
+    pedirOpcional<{ habilitado?: boolean }>('/portal/ia/capacidades', 'contacto')
+  ])
+  const conOrbe = capacidades.datos?.habilitado === true
   const unico = yo.secciones_habilitadas.includes('projects') ? await proyectoUnicoDelPortal() : null
   const secciones = navegacionDelPortal(yo.secciones_habilitadas, unico)
 
@@ -55,6 +64,8 @@ export default async function PortalLayout ({ children }: { children: React.Reac
       />
 
       <ScrollSuave className="min-h-0 min-w-0 flex-1 p-4">{children}</ScrollSuave>
+
+      {conOrbe && <OrbeChatIA sujeto="contacto" />}
     </div>
   )
 }

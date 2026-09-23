@@ -12,7 +12,7 @@ import { ErrorApi } from '@/datos/errores'
 import { cargarLookups } from '@/datos/lookups'
 import { pedir } from '@/datos/servidor'
 import { clavesDelGrupo, dominiosDeAjustes } from '@/dominio/ajustes'
-import { GLOSARIO } from '@/dominio/glosario'
+import { ASISTENTE, GLOSARIO } from '@/dominio/glosario'
 import type { Ajustes, Lookups } from '@/datos/recursos'
 import type { Yo } from '@/datos/tipos'
 
@@ -223,6 +223,7 @@ function DondeSeUsaLaIa () {
         <li>El resumen del día en Inicio.</li>
         <li>El análisis y el chat de un Proyecto (la pestaña «IA» deja de existir).</li>
         <li>«Completar campos» al crear una Tarea desde texto libre.</li>
+        <li>{ASISTENTE} del portal de clientes, aunque su propio interruptor esté encendido.</li>
       </ul>
       <p className="text-texto-sutil text-xs">
         Las claves y los modelos de los proveedores no son un ajuste: viven en el <code>.env</code> del

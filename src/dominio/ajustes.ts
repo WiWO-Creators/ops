@@ -68,7 +68,7 @@ export const GRUPOS_DE_AJUSTES: Record<string, { titulo: string, ayuda: string }
   },
   ia: {
     titulo: 'Inteligencia artificial',
-    ayuda: 'El interruptor de toda la capa de IA y los dos límites que la gobiernan.'
+    ayuda: 'El interruptor de toda la capa de IA, el del orbe del portal y los dos límites que la gobiernan.'
   },
   acceso: {
     titulo: 'Acceso',
@@ -175,6 +175,10 @@ export const ETIQUETAS_DE_AJUSTES: Record<string, { etiqueta: string, ayuda?: st
   ia_escritura_habilitada: {
     etiqueta: `Dejar que ${ASISTENTE} proponga cambios`,
     ayuda: `Interruptor aparte del de arriba. Apagado, ${ASISTENTE} solo lee. Encendido, puede dejar propuestas —crear o editar una tarea, comentar, cambiar el equipo, mandar algo a la papelera— que no se ejecutan hasta que alguien las confirma en el chat. Ningún borrado es definitivo: todo va a la papelera y se restaura durante 30 días.`
+  },
+  wiwo_portal_ia_chat: {
+    etiqueta: `${ASISTENTE} en el portal`,
+    ayuda: `Muestra ${ASISTENTE} a los clientes en el portal, solo para consultar: responde con lo que cada contacto ya ve de sus proyectos y no cambia nada. Necesita encendidas también las funciones con IA. Apagado de fábrica.`
   },
   ia_tope_tokens: {
     etiqueta: 'Largo máximo de la respuesta (tokens)',

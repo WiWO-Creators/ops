@@ -27,6 +27,9 @@ import {
  */
 const SIN_CAMBIOS = (): (() => void) => () => {}
 
+/** Lo que se dice cuando el navegador no reconoce la voz y no hay respaldo al que caer. */
+const MENSAJE_SIN_MOTOR = 'Este navegador no puede dictar. Escribe la pregunta.'
+
 /** En el servidor no hay `window`, y decir que si ahi rompe la hidratacion del boton. */
 const SIN_SOPORTE = (): boolean => false
 
@@ -104,16 +107,19 @@ function descartarMotor (): void {
  * @param leerValor  devuelve lo que hay ahora en el campo; se lee solo al arrancar el dictado
  * @param alEscribir recibe el texto compuesto que el campo tiene que mostrar
  * @param maximo     largo maximo del campo, en caracteres
+ * @param conRespaldo si puede caer al respaldo de Whisper; sin el, solo el motor del navegador y el
+ *   boton no se dibuja donde ese motor no existe
  * @returns el estado del dictado y la funcion para prenderlo o apagarlo
  */
 export function useDictado (
   leerValor: () => string,
   alEscribir: (texto: string) => void,
-  maximo: number
+  maximo: number,
+  conRespaldo = true
 ): Dictado {
   // `useSyncExternalStore` y no un efecto: React pinta el servidor con `false` y el cliente con lo
   // que el navegador tenga, sin un render intermedio que esconda el boton a quien si puede dictar.
-  const soportado = useSyncExternalStore(SIN_CAMBIOS, hayAlgunMotor, SIN_SOPORTE)
+  const soportado = useSyncExternalStore(SIN_CAMBIOS, conRespaldo ? hayAlgunMotor : hayDictado, SIN_SOPORTE)
   const [fase, setFase] = useState<FaseDictado>('reposo')
   const [error, setError] = useState('')
 
@@ -273,7 +279,12 @@ export function useDictado (
         descartarMotor()
         motor.current?.abort()
         motor.current = null
-        void grabar()
+
+        if (conRespaldo) {
+          void grabar()
+        } else {
+          setError(MENSAJE_SIN_MOTOR)
+        }
 
         return
       }
@@ -306,7 +317,7 @@ export function useDictado (
     setFase('escuchando')
 
     return true
-  }, [alEscribir, grabar, maximo])
+  }, [alEscribir, conRespaldo, grabar, maximo])
 
   const alternar = useCallback(() => {
     if (fase === 'transcribiendo') return
@@ -330,8 +341,14 @@ export function useDictado (
 
     if (!motorDescartado() && escuchar()) return
 
+    if (!conRespaldo) {
+      setError(MENSAJE_SIN_MOTOR)
+
+      return
+    }
+
     void grabar()
-  }, [escuchar, fase, grabar, leerValor])
+  }, [conRespaldo, escuchar, fase, grabar, leerValor])
 
   return { soportado, fase, error, alternar }
 }
