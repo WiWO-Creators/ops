@@ -18,7 +18,7 @@ import { ErrorApi, aplicarConsulta, campoFiltrable, coincideEnLista, leerInclude
 import * as sesion from './sesion.js'
 import { importarRecurrentes, listarRecurrentes, sembrarRecurrentes } from './recurrentes.js'
 import { avisosRuta } from './avisos.js'
-import { esRespuestaDelPortal, ticketDelPortal, ticketsDelEquipo } from './tickets.js'
+import { altaDelPortal, esAccionDelPortal, ticketDelPortal, ticketsDelEquipo } from './tickets.js'
 import { escribirAjustesDelOrbePortal, opcionDelOrbePortal, orbePortalRuta } from './orbe-portal.js'
 import {
   ADMINS_DE_CLIENTE, AREAS, ARCHIVOS, CAMPOS_PERSONALIZADOS, CHECKLIST, CLIENTES, COMENTARIOS, CRONOMETROS,
@@ -5289,7 +5289,7 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
 
     // El alta de una solicitud es lo UNICO que el contacto escribe en todo el portal, asi que el
     // resto sigue siendo de solo lectura: cualquier otro metodo cae en el 404 de siempre.
-    const escribeTicket = (metodo === 'POST' && resto[0] === 'tickets' && resto.length === 1) || esRespuestaDelPortal(metodo, resto)
+    const escribeTicket = (metodo === 'POST' && resto[0] === 'tickets' && resto.length === 1) || esAccionDelPortal(metodo, resto)
     if (metodo !== 'GET' && !escribeTicket) throw new ErrorApi(404, 'not_found', 'Recurso desconocido.')
 
     const contacto = sesion.resolverContacto(token, 'acceso')
@@ -5400,7 +5400,7 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
 
       // `cuerpo` es un thunk: tratarlo como objeto da un alta vacia que contesta 201 sobre nada.
       if (metodo === 'POST') {
-        return { estado: 201, cuerpo: conDatos(crearTicketDelPortal(contacto, await cuerpo())) }
+        return altaDelPortal(contacto, await cuerpo(), crearTicketDelPortal)
       }
 
       if (resto.length === 1) {

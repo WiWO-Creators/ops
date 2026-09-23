@@ -7,6 +7,7 @@ import {
 } from '@/componentes/superposiciones/MenuContextual'
 import { escribirEnBff } from '@/componentes/datos/mutaciones'
 import type { EstadoLookup } from '@/datos/recursos'
+import { falloDeTicket, nombreEnCatalogo, type FuenteDeTicket } from '@/dominio/ticket-vista'
 import { cn } from '@/lib/clases'
 
 /**
@@ -18,6 +19,9 @@ import { cn } from '@/lib/clases'
  *
  * El cambio es optimista y se revierte si la API lo rechaza: una insignia que dice «Cerrado» despues
  * de un 422 mentiria sobre el ticket.
+ *
+ * Un valor que el catalogo no nombra se dibuja segun `sinNombre`: «Estado #7» para el equipo, nada
+ * para el cliente.
  */
 export function MenuCatalogoTicket ({
   rotulo,
@@ -26,6 +30,7 @@ export function MenuCatalogoTicket ({
   catalogo,
   rutaEditar,
   puedeEditar,
+  sinNombre,
   onCambiado
 }: {
   /** Que se esta eligiendo, para el nombre accesible: «Estado», «Prioridad». */
@@ -37,8 +42,10 @@ export function MenuCatalogoTicket ({
   /** `PATCH` del ticket, ya resuelta. */
   rutaEditar: string
   puedeEditar: boolean
+  /** Que hacer con un valor sin nombre en el catalogo (ver `FuenteDeTicket.catalogoSinNombre`). */
+  sinNombre: FuenteDeTicket['catalogoSinNombre']
   onCambiado: () => void
-}): ReactElement {
+}): ReactElement | null {
   const [pintado, setPintado] = useState(valor)
   const [ultimoDeLaApi, setUltimoDeLaApi] = useState(valor)
   const [enCurso, setEnCurso] = useState(false)
@@ -53,7 +60,10 @@ export function MenuCatalogoTicket ({
   }
 
   const opcion = catalogo.find((item) => item.id === pintado)
-  const nombre = opcion?.name ?? `#${pintado}`
+  const nombre = nombreEnCatalogo(catalogo, pintado, rotulo, sinNombre)
+
+  if (nombre === null) return null
+
   const insignia = (
     <Insignia tono={opcion === undefined ? 'contorno' : 'neutro'} tamano="chico" color={opcion?.color ?? null}>
       {nombre}
@@ -82,7 +92,7 @@ export function MenuCatalogoTicket ({
 
     if (!resultado.ok) {
       setPintado(previo)
-      setError(resultado.mensaje)
+      setError(falloDeTicket(resultado, 'editar').texto)
 
       return
     }

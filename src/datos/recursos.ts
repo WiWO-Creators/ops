@@ -1585,7 +1585,13 @@ export interface TicketEspacio {
 
 /** La ficha de un ticket: lo mismo que la bandeja mas el mensaje con el que se abrio. */
 export interface TicketDetalle extends TicketEspacio {
+  /** El HTML tal como lo guarda Perfex. Se lee `message_texto`; este queda por compatibilidad. */
   message: string | null
+  /**
+   * El mensaje ya pasado a texto por la API (contrato v2, seccion A). Opcional solo para convivir
+   * con un backend anterior: sin el, el modal convierte con la misma regla (`textoDeMensaje`).
+   */
+  message_texto?: string
   /** El Proyecto del ticket; `null` en los que se abrieron sin uno. */
   project_id: number | null
 }
@@ -1633,6 +1639,8 @@ export interface AvisosDeTicket {
 export interface RespuestaTicket {
   id: number
   message: string | null
+  /** Texto limpio de la API (contrato v2, A). Ver `TicketDetalle.message_texto`. */
+  message_texto?: string
   date: string | null
   autor: {
     tipo: 'staff' | 'contacto' | 'correo'
@@ -1640,6 +1648,29 @@ export interface RespuestaTicket {
     full_name: string | null
     email: string | null
   }
+  /** Adjuntos de esta respuesta. Opcional: el mock viejo y algun backend no lo emiten. */
+  attachments?: AdjuntoTicket[]
+}
+
+/**
+ * Un adjunto de ticket (`tblticket_attachments`), en `GET /tickets/{id}/archivos` o dentro de una
+ * respuesta. `download_path` es relativo a la API (`files/ticket/9/download`) y se sirve por el BFF.
+ */
+export interface AdjuntoTicket {
+  id: number
+  ticket_id: number
+  reply_id: number | null
+  file_name: string
+  filetype: string | null
+  date_added: string | null
+  download_path: string
+}
+
+/** Una respuesta predefinida (`GET /tickets/respuestas-predefinidas`). */
+export interface RespuestaPredefinida {
+  id: number
+  name: string
+  message: string
 }
 
 /** Barra de una tarea dentro del Gantt. */

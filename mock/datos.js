@@ -93,7 +93,7 @@ export const TICKETS_PORTAL = [
     replies: [
       {
         id: 1,
-        message: 'Lo estamos revisando: parece que el PDF se exportó a 72 dpi.',
+        message: '<p>Lo estamos revisando: parece que el PDF se export&oacute; a 72&nbsp;dpi.</p><p>Te subimos uno nuevo &amp; te avisamos.</p>',
         date: '2026-09-16 11:40:00',
         from: 'equipo',
         name: 'Equipo Wiwo'

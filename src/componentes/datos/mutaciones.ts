@@ -1,5 +1,6 @@
 import { mensajeDeRespuesta } from '@/datos/cliente'
 import { avisarCambioDeTareas } from '@/datos/refresco-lista'
+import { segundosParaReintentar } from '@/dominio/ticket-vista'
 
 /**
  * Escrituras desde el navegador, siempre por el BFF.
@@ -9,7 +10,48 @@ import { avisarCambioDeTareas } from '@/datos/refresco-lista'
  * sin desmontarse.
  */
 
-export type Resultado<T> = { ok: true, datos: T } | { ok: false, mensaje: string }
+/**
+ * Resultado de una escritura.
+ *
+ * `estado`, `codigo`, `detalles` y `reintentarEnSegundos` son opcionales para que todo quien ya lee
+ * `ok`, `datos` y `mensaje` siga igual: los agrega quien necesita distinguir un 409 de otro, o saber
+ * cuanto esperar despues de un 429. Sin respuesta de la API (sin red) no hay `estado`.
+ */
+export type Resultado<T> =
+  | { ok: true, datos: T, estado?: number }
+  | {
+    ok: false
+    mensaje: string
+    estado?: number
+    codigo?: string
+    detalles?: Record<string, unknown>
+    reintentarEnSegundos?: number | null
+  }
+
+/**
+ * Lee del cuerpo de error el codigo y los detalles, y la espera de un 429.
+ *
+ * Trabaja sobre un clon: el cuerpo original lo consume `mensajeDeRespuesta`, que es quien arma la
+ * frase y avisa el incidente. Un cuerpo que no es el envelope no tiene codigo, y no es un error.
+ *
+ * @param respuesta la respuesta fallida (se clona, no se consume)
+ * @returns lo que se pudo leer
+ */
+async function codigoDeError (respuesta: Response): Promise<{ codigo?: string, detalles?: Record<string, unknown>, reintentarEnSegundos: number | null }> {
+  const cabecera = respuesta.headers.get('retry-after')
+
+  try {
+    const cuerpo = await respuesta.clone().json() as { error?: { code?: unknown, details?: unknown } }
+    const codigo = typeof cuerpo.error?.code === 'string' ? cuerpo.error.code : undefined
+    const detalles = cuerpo.error?.details !== null && typeof cuerpo.error?.details === 'object'
+      ? cuerpo.error.details as Record<string, unknown>
+      : undefined
+
+    return { codigo, detalles, reintentarEnSegundos: segundosParaReintentar(detalles, cabecera) }
+  } catch {
+    return { reintentarEnSegundos: segundosParaReintentar(undefined, cabecera) }
+  }
+}
 
 /**
  * Manda una escritura al BFF y devuelve el resultado como valor, nunca como excepcion.
@@ -37,19 +79,23 @@ export async function escribirEnBff<T> (
     return { ok: false, mensaje: 'No se pudo contactar al servidor. Revisa tu conexión.' }
   }
 
-  if (!respuesta.ok) return { ok: false, mensaje: await mensajeDeRespuesta(respuesta) }
+  if (!respuesta.ok) {
+    const error = await codigoDeError(respuesta)
+
+    return { ok: false, mensaje: await mensajeDeRespuesta(respuesta), estado: respuesta.status, ...error }
+  }
 
   avisarCambioDeTareas(ruta)
 
   // 204 no trae cuerpo: un `json()` sobre una respuesta vacia lanza.
-  if (respuesta.status === 204) return { ok: true, datos: undefined as T }
+  if (respuesta.status === 204) return { ok: true, datos: undefined as T, estado: 204 }
 
   try {
     const sobre = await respuesta.json() as { data: T }
 
-    return { ok: true, datos: sobre.data }
+    return { ok: true, datos: sobre.data, estado: respuesta.status }
   } catch {
-    return { ok: true, datos: undefined as T }
+    return { ok: true, datos: undefined as T, estado: respuesta.status }
   }
 }
 

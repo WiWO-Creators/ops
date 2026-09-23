@@ -54,7 +54,12 @@ interface PropsBoton
  * anima de forma `infinite` pero vive solo mientras dura la operacion — la regla prohibe animaciones
  * infinitas en elementos SIEMPRE visibles, no en las que se desmontan.
  *
+ * `cargando` manda sobre `disabled`: `disabled={false}` —«el formulario esta completo»— no puede
+ * volver a habilitar un boton cuya operacion sigue en curso. Con `disabled ?? cargando`, cualquier
+ * `disabled` explicito anulaba el bloqueo y el doble clic mandaba dos veces.
+ *
  * @param cargando deshabilita e indica que hay una operacion en curso
+ * @param disabled deshabilita por su cuenta; se suma a `cargando`, nunca lo reemplaza
  */
 export function Boton ({
   variante,
@@ -70,7 +75,7 @@ export function Boton ({
     <button
       type="button"
       className={cn(boton({ variante, tamano, soloIcono }), className)}
-      disabled={disabled ?? cargando}
+      disabled={disabled === true || cargando}
       aria-busy={cargando || undefined}
       {...resto}
     >

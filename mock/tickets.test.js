@@ -8,7 +8,8 @@
  *  1. **El cliente no responde antes que el equipo, ni en un ticket cerrado**: la ficha lo dice con
  *     `puede_responder` y `motivo_sin_respuesta`, y el POST responde 409 con el codigo del contrato.
  *  2. **Lo que responde el equipo desbloquea al cliente**: los dos lados escriben el mismo hilo.
- *  3. **El panel y el portal podan distinto**: el portal no ve `autor`, el panel no ve `from`.
+ *  3. **El panel y el portal podan distinto**: el portal ve un `autor` reducido (tipo, nombre, mio),
+ *     el panel no ve `from`.
  *  4. **Los avisos validan como la API**: apagar sin nadie es 422, una persona inexistente tambien.
  */
 
@@ -88,7 +89,8 @@ test('la respuesta del equipo desbloquea al cliente, y la del cliente llega al h
   assert.equal(ficha.cuerpo.data.puede_responder, true)
   assert.equal(ficha.cuerpo.data.motivo_sin_respuesta, null)
   assert.equal(ficha.cuerpo.data.status, 3)
-  assert.equal('autor' in ficha.cuerpo.data.replies[0], false)
+  // El portal ve la autoria reducida del contrato v2 (B): tipo, nombre y mio. Nada de ids ni correos.
+  assert.deepEqual(Object.keys(ficha.cuerpo.data.replies[0].autor).sort(), ['mio', 'nombre', 'tipo'])
 
   const delCliente = await pedir(cliente, '/portal/tickets/2/respuestas', 'POST', { message: 'Gracias.' })
   assert.equal(delCliente.estado, 201)
@@ -149,4 +151,100 @@ test('avisos: nacen en todo el equipo, apagar sin nadie es 422 y con personas se
   const soloPersonas = await pedir(staff, '/projects/1/ticket-notifications', 'PUT', { personas: [3] })
   assert.equal(soloPersonas.estado, 200)
   assert.equal(soloPersonas.cuerpo.data.aviso_al_equipo, false, 'la clave omitida conserva lo guardado')
+})
+
+// --- Contrato v2: detalle, respuestas y acciones -------------------------------------------------
+
+test('el mensaje viaja en HTML y con message_texto limpio, en el panel y en el portal', async () => {
+  const portal = await pedir(cliente, '/portal/tickets/1')
+  const respuesta = portal.cuerpo.data.replies[0]
+  assert.match(respuesta.message, /<p>/)
+  assert.equal(respuesta.message_texto, 'Lo estamos revisando: parece que el PDF se exportó a 72 dpi.\nTe subimos uno nuevo & te avisamos.')
+
+  const hilo = await pedir(staff, '/tickets/1/respuestas')
+  assert.equal(hilo.cuerpo.data[0].message_texto, respuesta.message_texto)
+  assert.equal(hilo.cuerpo.data[0].attachments[0].download_path, 'files/ticket/9/download')
+
+  const ficha = await pedir(staff, '/tickets/1')
+  assert.equal(typeof ficha.cuerpo.data.message_texto, 'string')
+})
+
+test('la ficha del portal dice de quien es y que puede hacer el contacto', async () => {
+  const { cuerpo } = await pedir(cliente, '/portal/tickets/1')
+
+  assert.equal(cuerpo.data.mio, true)
+  assert.equal(cuerpo.data.solicitante.nombre, 'Renata Ferreyra')
+  assert.equal(cuerpo.data.replies[0].autor.mio, false)
+  assert.equal(cuerpo.data.puede_cerrar, true)
+  assert.equal(cuerpo.data.puede_reabrir, false)
+})
+
+test('leido marca la lectura con 204 y un GET no escribe', async () => {
+  assert.equal((await pedir(cliente, '/portal/tickets/1')).cuerpo.data.no_leido, true)
+  assert.equal((await pedir(cliente, '/portal/tickets/1')).cuerpo.data.no_leido, true, 'leer no marca')
+
+  const marca = await fetch(`${base}/portal/tickets/1/leido`, { method: 'POST', headers: { authorization: `Bearer ${cliente}` } })
+  assert.equal(marca.status, 204)
+  assert.equal((await pedir(cliente, '/portal/tickets/1')).cuerpo.data.no_leido, false)
+})
+
+test('cerrar y reabrir con sus 409, y la reapertura vencida', async () => {
+  const cerrado = await pedir(cliente, '/portal/tickets/1/cerrar', 'POST')
+  assert.equal(cerrado.estado, 200)
+  assert.equal(cerrado.cuerpo.data.status, 5)
+  assert.equal(cerrado.cuerpo.data.puede_reabrir, true)
+  assert.equal((await pedir(cliente, '/portal/tickets/1/cerrar', 'POST')).cuerpo.error.code, 'ticket_cerrado')
+
+  const reabierto = await pedir(cliente, '/portal/tickets/1/reabrir', 'POST')
+  assert.equal(reabierto.cuerpo.data.status, 1)
+  assert.equal((await pedir(cliente, '/portal/tickets/1/reabrir', 'POST')).cuerpo.error.code, 'ticket_abierto')
+
+  // El 3 se cerro el 05/08: fuera del plazo de reapertura.
+  const vencida = await pedir(cliente, '/portal/tickets/3/reabrir', 'POST')
+  assert.equal(vencida.estado, 409)
+  assert.equal(vencida.cuerpo.error.code, 'reapertura_vencida')
+})
+
+test('un hijo fusionado abre el principal y responderle escribe en el principal', async () => {
+  const { cuerpo } = await pedir(cliente, '/portal/tickets/40')
+  assert.equal(cuerpo.data.id, 1)
+  assert.equal(cuerpo.data.fusionado_desde, 40)
+
+  const delEquipo = await pedir(staff, '/tickets/40/respuestas', 'POST', { message: 'Seguimos en el principal.' })
+  assert.equal(delEquipo.estado, 201)
+  assert.equal(delEquipo.cuerpo.data.message_texto, 'Seguimos en el principal.')
+})
+
+test('la respuesta del equipo sin status pasa un ticket Abierto a Respondido y se guarda con nl2br', async () => {
+  assert.equal((await pedir(staff, '/tickets/1', 'PATCH', { status: 1 })).cuerpo.data.status, 1)
+
+  const respuesta = await pedir(staff, '/tickets/1/respuestas', 'POST', { message: 'Línea uno\n<b>dos</b>' })
+  assert.equal(respuesta.cuerpo.data.message, 'Línea uno<br />\r\n&lt;b&gt;dos&lt;/b&gt;')
+  assert.equal(respuesta.cuerpo.data.message_texto, 'Línea uno\n<b>dos</b>')
+  assert.equal((await pedir(staff, '/tickets/1')).cuerpo.data.status, 3)
+})
+
+test('predefinidas y adjuntos de apertura', async () => {
+  const predefinidas = await pedir(staff, '/tickets/respuestas-predefinidas')
+  assert.ok(predefinidas.cuerpo.data.length > 0)
+  assert.deepEqual(Object.keys(predefinidas.cuerpo.data[0]).sort(), ['id', 'message', 'name'])
+
+  const archivos = await pedir(staff, '/tickets/1/archivos')
+  assert.deepEqual(archivos.cuerpo.data.map((a) => a.reply_id), [null])
+})
+
+test('un mensaje de mas de 20000 caracteres es 422', async () => {
+  const largo = 'a'.repeat(20001)
+  assert.equal((await pedir(staff, '/tickets/1/respuestas', 'POST', { message: largo })).estado, 422)
+  assert.equal((await pedir(cliente, '/portal/tickets', 'POST', { subject: 'x', message: largo, project_id: 1 })).estado, 422)
+})
+
+test('el alta repetida en un minuto es 200 con el mismo ticket', async () => {
+  const alta = { subject: 'Se cae el formulario', message: 'Al enviar se queda en blanco.', project_id: 1 }
+  const primera = await pedir(cliente, '/portal/tickets', 'POST', alta)
+  const segunda = await pedir(cliente, '/portal/tickets', 'POST', alta)
+
+  assert.equal(primera.estado, 201)
+  assert.equal(segunda.estado, 200)
+  assert.equal(segunda.cuerpo.data.id, primera.cuerpo.data.id)
 })

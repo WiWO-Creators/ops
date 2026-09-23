@@ -5,6 +5,7 @@ import vm from 'node:vm'
 import ts from 'typescript'
 import { mensajeDeRespuesta } from '../src/datos/cliente.ts'
 import { avisarCambioDeTareas } from '../src/datos/refresco-lista.ts'
+import { segundosParaReintentar } from '../src/dominio/ticket-vista.ts'
 
 test('subidas conservan el archivo y solo confirman una respuesta válida de la API', async () => {
   const fuente = ts.transpileModule(readFileSync(new URL('../src/componentes/datos/mutaciones.ts', import.meta.url), 'utf8'), {
@@ -17,6 +18,7 @@ test('subidas conservan el archivo y solo confirman una respuesta válida de la 
     exports: {}, FormData,
     require: nombre => {
       if (nombre === '@/datos/refresco-lista') return { avisarCambioDeTareas }
+      if (nombre === '@/dominio/ticket-vista') return { segundosParaReintentar }
       assert.equal(nombre, '@/datos/cliente')
       return { mensajeDeRespuesta }
     },

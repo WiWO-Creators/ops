@@ -45,7 +45,24 @@ export type TareaDeTicketPortal =
 
 export interface TicketPortalDetalle extends TicketPortal {
   message: string
+  /** Texto limpio de la API (contrato v2, A). Opcional para convivir con un backend anterior. */
+  message_texto?: string
   replies: RespuestaTicketPortal[]
+  /** `true` si el ticket lo abrio este contacto (contrato v2, B). Sin el, nadie es «Tú». */
+  mio?: boolean
+  /** Quien abrio el ticket, para nombrarlo cuando no es este contacto. */
+  solicitante?: { nombre: string }
+  /** Si el contacto puede cerrar su solicitud (contrato v2, E). */
+  puede_cerrar?: boolean
+  /** Si el contacto puede reabrirla: cerrada y dentro del plazo. */
+  puede_reabrir?: boolean
+  /** Hay un mensaje del equipo que el contacto no leyo. Se marca con `POST .../leido`. */
+  no_leido?: boolean
+  /**
+   * Presente cuando se pidio un ticket fusionado: la ficha es la del principal (`id`) y esto es el
+   * id que se pidio (contrato v2, D).
+   */
+  fusionado_desde?: number
   /**
    * Si el contacto puede sumar una respuesta (contrato T2). Opcional solo para convivir con un
    * backend anterior a T2; ver `dominio/ticket-vista.ts`.
@@ -64,9 +81,16 @@ export interface TicketPortalDetalle extends TicketPortal {
 export interface RespuestaTicketPortal {
   id: number
   message: string
+  /** Texto limpio de la API (contrato v2, A). */
+  message_texto?: string
   date: string | null
   from: 'cliente' | 'equipo'
   name: string
+  /**
+   * Autoria resuelta por la API (contrato v2, B). `mio` es lo unico que autoriza a decir «Tú»:
+   * en un cliente con varios contactos, `from: 'cliente'` puede ser un colega.
+   */
+  autor?: { tipo: 'equipo' | 'cliente', nombre: string, mio: boolean }
 }
 
 /**
