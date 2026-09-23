@@ -259,13 +259,14 @@ export function leidoPorElEquipo (ticket) {
 
 /**
  * `clientread` del ticket (`0|1`): el guardado, o deducido si la fixture no lo trae (lo ultimo del
- * equipo esta sin leer: Perfex pone `clientread = 0` con cada respuesta del staff).
+ * equipo en un ticket abierto esta sin leer: Perfex pone `clientread = 0` con cada respuesta del
+ * staff; un cerrado de la fixture se da por leido).
  *
  * @returns {0 | 1}
  */
 export function leidoPorElCliente (ticket) {
   if (ticket.clientread === 0 || ticket.clientread === 1) return ticket.clientread
-  return ultimoDe(ticket) === 'equipo' ? 0 : 1
+  return ultimoDe(ticket) === 'equipo' && ticket.status !== CERRADO ? 0 : 1
 }
 
 /**

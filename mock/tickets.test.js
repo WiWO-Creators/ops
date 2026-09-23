@@ -206,11 +206,14 @@ test('cerrar y reabrir con sus 409, y la reapertura vencida', async () => {
 })
 
 test('un hijo fusionado abre el principal y responderle escribe en el principal', async () => {
-  const { cuerpo } = await pedir(cliente, '/portal/tickets/40')
+  const { cuerpo } = await pedir(cliente, '/portal/tickets/41')
   assert.equal(cuerpo.data.id, 1)
-  assert.equal(cuerpo.data.fusionado_desde, 40)
+  assert.equal(cuerpo.data.fusionado_desde, 41)
 
-  const delEquipo = await pedir(staff, '/tickets/40/respuestas', 'POST', { message: 'Seguimos en el principal.' })
+  // El 40 es un ticket de verdad, no un hijo: su ficha es la suya.
+  assert.equal((await pedir(cliente, '/portal/tickets/40')).cuerpo.data.id, 40)
+
+  const delEquipo = await pedir(staff, '/tickets/41/respuestas', 'POST', { message: 'Seguimos en el principal.' })
   assert.equal(delEquipo.estado, 201)
   assert.equal(delEquipo.cuerpo.data.message_texto, 'Seguimos en el principal.')
 })

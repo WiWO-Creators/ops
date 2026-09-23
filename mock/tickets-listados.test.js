@@ -126,3 +126,38 @@ test('los filtros guardados existen en el mock y son privados por persona', asyn
   assert.deepEqual(cuerpo.data, [])
   assert.equal((await pedir(admin, '/filter-presets?board=inventado')).estado, 422)
 })
+
+/** Una escritura del modal, con cuerpo JSON opcional. */
+async function escribir (token, ruta, cuerpo) {
+  const respuesta = await fetch(`${base}${ruta}`, {
+    method: 'POST',
+    headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+    body: cuerpo === undefined ? undefined : JSON.stringify(cuerpo)
+  })
+
+  return respuesta.status
+}
+
+test('las acciones del modal mueven la lectura que leen los listados', async () => {
+  const fila40 = async () => (await pedir(admin, '/projects/1/tickets')).cuerpo.data.find((t) => t.id === 40)
+  const delPortal40 = async () => (await pedir(cliente, '/portal/tickets')).cuerpo.data.find((t) => t.id === 40)
+  const contadores = async () => (await pedir(admin, '/projects/1/tickets/contadores')).cuerpo.data
+
+  assert.equal(await escribir(admin, '/tickets/40/respuestas', { message: 'Ya lo miramos.' }), 201)
+  assert.equal((await fila40()).adminread, 1)
+  assert.equal((await fila40()).clientread, 0)
+  assert.equal((await delPortal40()).no_leido, true, 'la respuesta del equipo queda sin leer para el cliente')
+  assert.equal((await contadores()).esperando_equipo, 0)
+
+  assert.equal(await escribir(cliente, '/portal/tickets/40/leido'), 204)
+  assert.equal((await delPortal40()).no_leido, false, 'leido apaga la marca del portal')
+
+  assert.equal(await escribir(cliente, '/portal/tickets/40/respuestas', { message: 'Gracias.' }), 201)
+  assert.equal((await fila40()).adminread, 0, 'la respuesta del cliente queda sin leer para el equipo')
+  assert.equal((await contadores()).sin_leer, 1)
+
+  assert.equal(await escribir(cliente, '/portal/tickets/40/cerrar'), 200)
+  assert.equal((await contadores()).abiertos, 1)
+  assert.equal(await escribir(cliente, '/portal/tickets/40/reabrir'), 200)
+  assert.equal((await fila40()).adminread, 0, 'reabrir lo deja nuevo para el equipo')
+})
