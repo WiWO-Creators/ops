@@ -4424,6 +4424,13 @@ El contacto del cliente aprueba o rechaza. **Es la única escritura de todo el p
 Al aprobar se escribe `resuelta_en` y **ahí nace el reloj del ETA**. Al rechazar también se escribe
 —rechazar es responder— pero el reloj sigue detenido: solo `aprobada` lo arranca.
 
+**Qué se puede responder.** Una aprobación pedida y pendiente, en cualquier estado de la tarea (cierra
+esa misma ronda). Y cualquier tarea en «Espera de respuesta» (`status = 2`) aunque el equipo nunca
+haya pedido aprobación: la decisión se guarda como ronda con `solicitada_en = null`, o abre una ronda
+nueva si la última ya estaba respondida. **Responder no cambia el estado de la tarea**: sigue en 2, y
+en `esperando_tu_respuesta`, hasta que el equipo la mueva. Fuera de esos dos casos, `409 conflict`
+("Esta tarea no está esperando tu aprobación." o "Esta aprobación ya fue respondida.").
+
 **Guard:** las tres puertas que el portal ya aplica para listar tareas — el Espacio es del cliente
 del contacto, el Espacio comparte la pestaña de tareas, y la tarea está marcada visible al cliente
 con su hito no oculto. Sin la tercera, un contacto podría aprobar por id una tarea interna.

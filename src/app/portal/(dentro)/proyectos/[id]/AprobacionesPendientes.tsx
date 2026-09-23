@@ -26,7 +26,7 @@ import type { CatalogoDeEstados } from '@/dominio/estados-tarea'
  * **Ni ETA ni desviacion ni SLA aparecen aca.** Son metricas internas: miden al equipo contra su
  * propio compromiso, y el backend ni siquiera las manda al portal.
  *
- * Es la unica escritura de todo el portal, asi que no hay estado optimista: la fila sale de la lista
+ * Es la unica escritura de todo el portal, asi que no hay estado optimista: la fila pasa a respondida
  * cuando la API confirmo. Una aprobacion que se deshace sola es peor que medio segundo de espera.
  */
 
@@ -42,12 +42,7 @@ interface PropsAprobaciones {
 }
 
 export function AprobacionesPendientes ({ proyectoId, tareas, estados }: PropsAprobaciones) {
-  // Las resueltas se sacan de la lista sin recargar la pantalla entera; el `refresh` deja al servidor
-  // ponerse al dia para la proxima visita.
-  const [resueltas, setResueltas] = useState<number[]>([])
-  const pendientes = tareas.filter((tarea) => !resueltas.includes(tarea.id))
-
-  if (pendientes.length === 0) return null
+  if (tareas.length === 0) return null
 
   // La tarjeta se escribe aca y no se reusa `Bloque` de `detalle.tsx`: ese modulo arrastra
   // `pedirPortal`, que es `server-only`, y desde un componente cliente el build se cae. Son tres
@@ -63,12 +58,11 @@ export function AprobacionesPendientes ({ proyectoId, tareas, estados }: PropsAp
       </p>
 
       <ul className="divide-linea-suave divide-y">
-        {pendientes.map((tarea) => (
+        {tareas.map((tarea) => (
           <FilaAprobacion
             key={tarea.id}
             estados={estados}
             tarea={tarea}
-            onResuelta={() => { setResueltas((previas) => [...previas, tarea.id]) }}
           />
         ))}
       </ul>
@@ -79,16 +73,18 @@ export function AprobacionesPendientes ({ proyectoId, tareas, estados }: PropsAp
 }
 
 /** Una {proceso} a la espera, con sus dos salidas. */
-function FilaAprobacion ({ tarea, estados, onResuelta }: {
+function FilaAprobacion ({ tarea, estados }: {
   tarea: TareaPortal
   estados: CatalogoDeEstados | undefined
-  onResuelta: () => void
 }) {
   const router = useRouter()
   const [enviando, setEnviando] = useState(false)
   const [fallo, setFallo] = useState<string | null>(null)
   const [rechazando, setRechazando] = useState(false)
   const [motivo, setMotivo] = useState('')
+  const [cambiando, setCambiando] = useState(false)
+  // La decision recien confirmada, hasta que el `refresh` traiga la del servidor.
+  const [decidida, setDecidida] = useState<'aprobada' | 'rechazada' | null>(null)
 
   /**
    * Manda la decision del contacto.
@@ -117,12 +113,18 @@ function FilaAprobacion ({ tarea, estados, onResuelta }: {
     }
 
     setRechazando(false)
-    onResuelta()
+    setCambiando(false)
+    setDecidida(decision)
     router.refresh()
   }
 
   // Sin aprobacion pedida no hay fecha que mostrar: la Tarea esta aca por su estado, no por un pedido.
   const pedida = tarea.approval?.solicitada_en ?? null
+  // Responder no mueve la Tarea de «Espera de respuesta»: sigue en la lista hasta que el equipo la
+  // mueva. Sin esto volveria a ofrecer los botones como si nadie hubiera contestado.
+  const estado = decidida ?? tarea.approval?.estado ?? null
+  const respondida = estado === 'aprobada' || estado === 'rechazada'
+  const resuelta = decidida === null ? (tarea.approval?.resuelta_en ?? null) : null
 
   return (
     <li className="flex flex-col gap-2 py-3">
@@ -141,6 +143,21 @@ function FilaAprobacion ({ tarea, estados, onResuelta }: {
           </p>
         </div>
 
+        {respondida && !cambiando
+          ? (
+            <div className="flex shrink-0 items-center gap-3">
+              <p className="text-texto-tenue text-sm">
+                {estado === 'aprobada' ? 'Aprobaste' : 'Pediste cambios'}
+                {resuelta !== null && ` el ${formatearFecha(resuelta)}`}
+              </p>
+              {/* Una Tarea puede volver a «Espera de respuesta» en otra vuelta: el cliente tiene que
+                  poder contestar de nuevo sin que la respuesta vieja lo trabe. */}
+              <Boton variante="sutil" tamano="chico" onClick={() => { setCambiando(true) }}>
+                Responder de nuevo
+              </Boton>
+            </div>
+            )
+          : (
         <div className="flex shrink-0 gap-2">
           {/* Aprobar es escritura directa: pedir un modal para decir que si es friccion sobre lo que
               queremos que pase. Rechazar exige motivo, asi que si abre dialogo. */}
@@ -158,6 +175,7 @@ function FilaAprobacion ({ tarea, estados, onResuelta }: {
             Rechazar
           </Boton>
         </div>
+            )}
       </div>
 
       {fallo !== null && <p role="alert" className="text-texto-peligro text-sm">{fallo}</p>}
