@@ -1,8 +1,10 @@
 'use client'
 
 import { useCallback, useEffect, useId, useRef, useState, type PointerEvent as EventoPuntero, type KeyboardEvent as EventoTeclado, type ReactElement } from 'react'
+import { usePathname } from 'next/navigation'
 import { Orbe } from '@/componentes/estado/Orbe'
 import { ASISTENTE } from '@/dominio/glosario'
+import { configuracionDeOrbe, proyectoDeRutaPortal, type SujetoOrbe } from '@/dominio/orbe-sujeto'
 import {
   acotarTamanoChat,
   almacenamientoDelNavegador,
@@ -71,8 +73,20 @@ import { ChatOrbe } from './ChatOrbe'
  * El tirador es un `button` de verdad y no un `div` con `onPointerDown` porque redimensionar no
  * puede ser una funcion exclusiva del raton: con el foco puesto, las flechas mueven la esquina de a
  * `PASO_TAMANO_CHAT` pixeles en la misma direccion que la mano.
+ *
+ * === EL MISMO ORBE EN EL PORTAL ===
+ *
+ * Con `sujeto="contacto"` lo monta el armazon del portal (`app/portal/(dentro)/layout.tsx`) y es el
+ * Thinking Orb de solo lectura del cliente: rutas `portal/ia/*`, sin agente ni tarjetas, dictado solo
+ * del navegador. Dentro de la ficha de un Proyecto la conversacion es de ese Proyecto: el id sale de
+ * la ruta y viaja como `proyecto_id`. Todo lo que cambia esta en `dominio/orbe-sujeto.ts`.
+ *
+ * @param sujeto de quien es la sesion; por defecto el equipo
  */
-export function OrbeChatIA (): ReactElement {
+export function OrbeChatIA ({ sujeto = 'staff' }: { sujeto?: SujetoOrbe } = {}): ReactElement {
+  const configuracion = configuracionDeOrbe(sujeto)
+  const ruta = usePathname()
+  const proyectoId = sujeto === 'contacto' ? proyectoDeRutaPortal(ruta) : undefined
   const [abierto, setAbierto] = useState(false)
   const [encima, setEncima] = useState(false)
   const panel = useRef<HTMLDivElement>(null)
@@ -263,7 +277,7 @@ export function OrbeChatIA (): ReactElement {
           <header className="flex items-center justify-between gap-2 pl-6">
             <div className="flex flex-col">
               <p className="text-texto text-sm font-semibold">{ASISTENTE}</p>
-              <p className="text-texto-sutil text-xs">Pregunta por lo que necesites</p>
+              <p className="text-texto-sutil text-xs">{configuracion.textos.subtitulo}</p>
             </div>
             <button
               type="button"
@@ -275,7 +289,7 @@ export function OrbeChatIA (): ReactElement {
             </button>
           </header>
 
-          <ChatOrbe desplazable />
+          <ChatOrbe desplazable sujeto={sujeto} proyecto={proyectoId === undefined ? undefined : { id: proyectoId }} />
         </div>
       )}
 

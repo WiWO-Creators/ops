@@ -14,7 +14,6 @@ import { leerEventoIA, type AccionIA, type Cita, type PasoIA, type PreguntaIA } 
 import {
   conAccionResuelta,
   guardarHilo,
-  hrefDeCita,
   LARGO_MAXIMO_PREGUNTA,
   leerHilo,
   leerMensajesGuardados,
@@ -30,7 +29,8 @@ import { MAXIMO_PREGUNTA_AGENTE } from '@/dominio/ia-ejecucion'
 import { ChatAgente } from './ChatAgente'
 import { TextoChat } from './TextoChat'
 import { BotonDictado } from './BotonDictado'
-import { ASISTENTE, GLOSARIO } from '@/dominio/glosario'
+import { ASISTENTE } from '@/dominio/glosario'
+import { configuracionDeOrbe, type ConfiguracionOrbe, type SujetoOrbe } from '@/dominio/orbe-sujeto'
 
 /**
  * El chat de Thinking Orb: se le pregunta por el estado de Ops y contesta citando.
@@ -66,19 +66,6 @@ import { ASISTENTE, GLOSARIO } from '@/dominio/glosario'
  */
 
 
-/**
- * Preguntas de arranque del estado vacio.
- *
- * Enseñan el alcance mejor que un parrafo de instrucciones: las tres se contestan leyendo, ninguna
- * pide una accion. Rellenan el campo y no envian: la persona ve lo que va a preguntar antes de pagar
- * la llamada.
- */
-const SUGERENCIAS = [
-  `¿Qué ${GLOSARIO.proceso.plural.toLowerCase()} están atrasadas y de quién son?`,
-  '¿Qué vence esta semana?',
-  '¿Qué se movió en la última semana?'
-]
-
 /** Lo que se dice cuando el fallo no trae mensaje propio. */
 const MENSAJE_GENERICO = 'No se pudo completar la respuesta.'
 
@@ -87,25 +74,44 @@ const MENSAJE_GENERICO = 'No se pudo completar la respuesta.'
  *
  * @param desplazable en el orbe el alto esta acotado, asi que la conversacion scrollea sola y el
  *   campo queda fijo abajo. Sin esto scrollea lo que lo contenga.
+ * @param proyecto el Proyecto de la conversacion; el nombre puede faltar (el portal lo saca de la ruta)
+ * @param sujeto de quien es la sesion: decide rutas, textos y que partes del chat existen. Por
+ *   defecto el equipo, que es el comportamiento de siempre. Ver `dominio/orbe-sujeto.ts`.
  */
 interface PropsChatOrbe {
   desplazable?: boolean
-  proyecto?: { id: number, name: string }
+  proyecto?: { id: number, name?: string }
+  sujeto?: SujetoOrbe
+}
+
+/** Lo que recibe la conversacion ya resuelta: la configuracion en lugar del sujeto. */
+interface PropsConversacion {
+  desplazable?: boolean
+  proyecto?: { id: number, name?: string }
+  configuracion: ConfiguracionOrbe
 }
 
 /** Monta un hilo independiente al cambiar entre proyectos o el chat global. */
 export function ChatOrbe (props: PropsChatOrbe = {}): ReactElement {
-  return <SelectorChatOrbe key={props.proyecto?.id ?? 'global'} {...props} />
+  const { sujeto, ...resto } = props
+  const configuracion = configuracionDeOrbe(sujeto)
+  const clave = `${configuracion.sujeto}:${resto.proyecto?.id ?? 'global'}`
+
+  // El agente solo existe para el equipo: en el portal la capacidad del agente no se consulta siquiera.
+  return configuracion.conAgente
+    ? <SelectorChatOrbe key={clave} {...resto} configuracion={configuracion} />
+    : <ConversacionOrbe key={clave} {...resto} configuracion={configuracion} />
 }
 
 /** El servidor decide la activación por usuario; no se cambia de motor durante una ejecución. */
-function SelectorChatOrbe (props: PropsChatOrbe): ReactElement {
+function SelectorChatOrbe (props: PropsConversacion): ReactElement {
+  const { rutaCapacidades } = props.configuracion
   const [agente, setAgente] = useState<{ habilitado: boolean, intervalo_consulta_ms: number, nuevas_habilitadas: boolean, maximo_pregunta: number } | null>(null)
   const [error, setError] = useState('')
   const [intento, setIntento] = useState(0)
   useEffect(() => {
     const abortador = new AbortController()
-    void pedirRespuesta('ia/capacidades', abortador.signal)
+    void pedirRespuesta(rutaCapacidades, abortador.signal)
       .then(async respuesta => {
         if (respuesta.status === 404) return { data: {} }
         if (!respuesta.ok) throw new Error(await mensajeDeRespuesta(respuesta))
@@ -119,21 +125,25 @@ function SelectorChatOrbe (props: PropsChatOrbe): ReactElement {
         if (!abortador.signal.aborted) setError(fallo instanceof Error ? fallo.message : 'No se pudo cargar Thinking Orb.')
       })
     return () => { abortador.abort() }
-  }, [intento])
+  }, [intento, rutaCapacidades])
   if (error) return <ErrorEstado detalle={error} onReintentar={() => { setError(''); setIntento(n => n + 1) }} />
   if (!agente) return <Cargando mensaje="Cargando Thinking Orb…" />
-  return agente.habilitado ? <ChatAgente {...props} intervalo={agente.intervalo_consulta_ms} nuevasHabilitadas={agente.nuevas_habilitadas} maximoPregunta={agente.maximo_pregunta} /> : <ConversacionOrbe {...props} />
+  const proyectoConNombre = props.proyecto?.name === undefined ? undefined : { id: props.proyecto.id, name: props.proyecto.name }
+  return agente.habilitado ? <ChatAgente desplazable={props.desplazable} proyecto={proyectoConNombre} intervalo={agente.intervalo_consulta_ms} nuevasHabilitadas={agente.nuevas_habilitadas} maximoPregunta={agente.maximo_pregunta} /> : <ConversacionOrbe {...props} />
 }
 
 /** Conversación con historial y rutas de acciones limitadas al alcance indicado. */
-function ConversacionOrbe ({ desplazable = false, proyecto }: PropsChatOrbe): ReactElement {
+function ConversacionOrbe ({ desplazable = false, proyecto, configuracion }: PropsConversacion): ReactElement {
   const proyectoId = proyecto?.id
-  const rutaChat = proyectoId === undefined ? 'ia/chat' : `ia/proyectos/${proyectoId}/chat`
+  const { sujeto, textos } = configuracion
+  const rutaChat = configuracion.rutaHilo(proyectoId)
+  const rutaEnvio = configuracion.rutaEnvio(proyectoId)
+  const conProyecto = proyectoId !== undefined
   const router = useRouter()
   const ruta = usePathname()
-  const [mensajes, setMensajes] = useState<Mensaje[]>(() => leerHilo(proyectoId).mensajes)
+  const [mensajes, setMensajes] = useState<Mensaje[]>(() => leerHilo(proyectoId, sujeto).mensajes)
   const [carga, setCarga] = useState<'cargando' | 'listo' | 'error'>(
-    () => leerHilo(proyectoId).cargado ? 'listo' : 'cargando'
+    () => leerHilo(proyectoId, sujeto).cargado ? 'listo' : 'cargando'
   )
   const [errorCarga, setErrorCarga] = useState('')
   const [errorRespuesta, setErrorRespuesta] = useState('')
@@ -148,14 +158,14 @@ function ConversacionOrbe ({ desplazable = false, proyecto }: PropsChatOrbe): Re
 
   /** Escribe el hilo en el store de modulo y en el estado local a la vez: una sola fuente. */
   const escribir = useCallback((siguientes: Mensaje[]) => {
-    guardarHilo({ mensajes: siguientes, cargado: true }, proyectoId)
+    guardarHilo({ mensajes: siguientes, cargado: true }, proyectoId, sujeto)
     setMensajes(siguientes)
-  }, [proyectoId])
+  }, [proyectoId, sujeto])
 
   // El hilo guardado se pide UNA vez y no cada vez que se abre el chat: repetir el GET pisaria lo
   // que hay en memoria, incluida una respuesta interrumpida que el servidor no guardo.
   useEffect(() => {
-    if (leerHilo(proyectoId).cargado) return
+    if (leerHilo(proyectoId, sujeto).cargado) return
 
     const abortador = new AbortController()
 
@@ -174,7 +184,7 @@ function ConversacionOrbe ({ desplazable = false, proyecto }: PropsChatOrbe): Re
       })
 
     return () => { abortador.abort() }
-  }, [intento, escribir, proyectoId, rutaChat])
+  }, [intento, escribir, proyectoId, rutaChat, sujeto])
 
   // Al desmontar —cerrar el chat— se corta el stream en curso.
   useEffect(() => {
@@ -225,10 +235,12 @@ function ConversacionOrbe ({ desplazable = false, proyecto }: PropsChatOrbe): Re
       // `pantalla` es lo que le dice al servidor donde esta parada la persona, para que "esta tarea"
       // se pueda resolver. Si el pathname no pasa la validacion no viaja a medias: se pregunta sin
       // pantalla y el servidor responde sin ese contexto.
-      const pantalla = proyectoId === undefined ? pantallaDeRuta(ruta) : null
-      const cuerpo = pantalla === null ? { pregunta: texto } : { pregunta: texto, pantalla }
+      // En el portal no viaja: el contacto no tiene pantallas del panel, y su contexto es el
+      // `proyecto_id` que ya pone la configuracion.
+      const pantalla = proyectoId === undefined && sujeto === 'staff' ? pantallaDeRuta(ruta) : null
+      const cuerpo = configuracion.cuerpo(texto, proyectoId, pantalla)
 
-      for await (const crudo of leerSSE(rutaChat, { cuerpo, senal: abortador.signal })) {
+      for await (const crudo of leerSSE(rutaEnvio, { cuerpo, senal: abortador.signal })) {
         const evento = leerEventoIA(crudo)
 
         // Un evento que este parser no conoce vuelve como `null` y se saltea: es lo que hace que
@@ -239,9 +251,11 @@ function ConversacionOrbe ({ desplazable = false, proyecto }: PropsChatOrbe): Re
         // La fase `fin` de un paso no se limpia: dejar el ultimo puesto evita el parpadeo entre una
         // herramienta y la siguiente, y el paso entero desaparece cuando la burbuja deja de generar.
         if (evento.tipo === 'paso') paso = evento.paso
-        if (evento.tipo === 'propuesta') acciones = [...acciones, evento.accion]
-        if (evento.tipo === 'pregunta') preguntas = [...preguntas, evento.pregunta]
-        if (evento.tipo === 'navegar' && proyectoId === undefined) {
+        // Sin propuestas (portal) una tarjeta que se colara igual no se pinta: el contrato del portal
+        // no las manda nunca, y si llegaran no habria con que confirmarlas.
+        if (evento.tipo === 'propuesta' && configuracion.conPropuestas) acciones = [...acciones, evento.accion]
+        if (evento.tipo === 'pregunta' && configuracion.conPropuestas) preguntas = [...preguntas, evento.pregunta]
+        if (evento.tipo === 'navegar' && proyectoId === undefined && configuracion.conNavegacion) {
           // El `href` ya lo valido `leerEventoIA()` como ruta interna; aca no se toca. Se dice a
           // donde se fue porque la pantalla cambia sola debajo de quien esta leyendo.
           setDestino(evento.etiqueta)
@@ -351,10 +365,10 @@ function ConversacionOrbe ({ desplazable = false, proyecto }: PropsChatOrbe): Re
         ? (
           <Vacio
             titulo={`Pregúntale a ${ASISTENTE}`}
-            descripcion={proyecto === undefined ? "Responde con lo que hay cargado en Ops y cita de dónde lo sacó." : `Pregunta por las tareas, hitos y avances de ${proyecto.name}.`}
+            descripcion={textos.descripcion(proyecto === undefined ? undefined : proyecto.name ?? 'este proyecto')}
             accion={
               <div className="flex flex-wrap justify-center gap-2">
-                {SUGERENCIAS.map((sugerencia) => (
+                {textos.sugerencias.map((sugerencia) => (
                   <Boton key={sugerencia} tamano="chico" onClick={() => setPregunta(sugerencia)}>
                     {sugerencia}
                   </Boton>
@@ -372,6 +386,8 @@ function ConversacionOrbe ({ desplazable = false, proyecto }: PropsChatOrbe): Re
                   <BurbujaIA
                     key={indice}
                     mensaje={mensaje}
+                    configuracion={configuracion}
+                    conProyecto={conProyecto}
                     proyectoId={proyectoId}
                     error={errorRespuesta}
                     respuesta={respuestaAPreguntas(mensajes, indice)}
@@ -390,8 +406,10 @@ function ConversacionOrbe ({ desplazable = false, proyecto }: PropsChatOrbe): Re
     <div className={desplazable ? 'flex min-h-0 flex-1 flex-col gap-4' : 'flex flex-col gap-4'}>
       {proyecto !== undefined && (
         <div className="border-linea flex flex-col gap-1 border-b pb-3">
-          <h2 className="text-texto text-base font-semibold">{ASISTENTE} · {proyecto.name}</h2>
-          <p className="text-texto-sutil text-sm">Esta conversación solo consulta y modifica este proyecto.</p>
+          {proyecto.name !== undefined && (
+            <h2 className="text-texto text-base font-semibold">{ASISTENTE} · {proyecto.name}</h2>
+          )}
+          <p className="text-texto-sutil text-sm">{textos.alcanceProyecto}</p>
         </div>
       )}
       {/* Fuera del desplazador: en el orbe, un boton que se va con el scroll no se encuentra cuando
@@ -456,7 +474,7 @@ function ConversacionOrbe ({ desplazable = false, proyecto }: PropsChatOrbe): Re
           maxLength={LARGO_MAXIMO_PREGUNTA}
           disabled={enviando}
           aria-label="Tu pregunta"
-          placeholder={proyecto === undefined ? "Pregunta lo que necesites…" : "Pregunta sobre este proyecto…"}
+          placeholder={textos.placeholder(conProyecto)}
         />
 
         <div className="flex flex-wrap items-center justify-between gap-2">
@@ -465,7 +483,7 @@ function ConversacionOrbe ({ desplazable = false, proyecto }: PropsChatOrbe): Re
               las escrituras apagadas no cambia nada nunca, y con ellas encendidas no cambia nada
               hasta que alguien aprieta Confirmar. */}
           <p className="text-texto-sutil text-xs">
-            {proyecto === undefined ? 'Responde con lo que hay cargado en Ops.' : 'Solo trabaja en este proyecto.'} No cambia nada sin que lo confirmes.
+            {textos.pie(conProyecto)}
           </p>
           <div className="flex items-center gap-2">
             <BotonDictado
@@ -473,6 +491,7 @@ function ConversacionOrbe ({ desplazable = false, proyecto }: PropsChatOrbe): Re
               alEscribir={setPregunta}
               maximo={LARGO_MAXIMO_PREGUNTA}
               deshabilitado={enviando}
+              conRespaldo={configuracion.dictadoConRespaldo}
             />
             <Boton type="submit" variante="primario" disabled={pregunta.trim() === '' || enviando}>
               Preguntar
@@ -510,9 +529,13 @@ function BurbujaPersona ({ texto }: { texto: string }): ReactElement {
  * @param onReintentar vuelve a mandar la misma pregunta
  * @param onResponder manda una respuesta a una pregunta como mensaje de la persona
  * @param onAccionResuelta recibe la propuesta ya resuelta por el servidor
+ * @param configuracion la del sujeto: decide a donde llevan las citas y si hay tarjetas
+ * @param conProyecto si la conversacion es de un Proyecto, para el texto del indicador
  */
 function BurbujaIA ({
   mensaje,
+  configuracion,
+  conProyecto,
   error,
   respuesta,
   onReintentar,
@@ -521,6 +544,8 @@ function BurbujaIA ({
   proyectoId
 }: {
   mensaje: Mensaje
+  configuracion: ConfiguracionOrbe
+  conProyecto: boolean
   proyectoId?: number
   error: string
   respuesta: string | null
@@ -534,7 +559,7 @@ function BurbujaIA ({
   // escrituras apagadas, o el modelo que no consulto nada— se queda con el texto fijo de siempre.
   const indicador = mensaje.fase === 'generando' && mensaje.paso !== null
     ? { mensaje: mensaje.paso.etiqueta, estado: mensaje.paso.orbe }
-    : { mensaje: proyectoId === undefined ? 'Buscando en Ops…' : 'Buscando en este proyecto…', estado: 'thinking' as const }
+    : { mensaje: configuracion.textos.buscando(conProyecto), estado: 'thinking' as const }
 
   return (
     <li className="border-linea bg-superficie-hundida rounded-tarjeta flex flex-col gap-2 border p-3">
@@ -547,7 +572,7 @@ function BurbujaIA ({
                 ? `[${mensaje.citas.indexOf(tramo.cita) + 1}](#fuente-${mensaje.citas.indexOf(tramo.cita) + 1})`
                 : tramo.texto).join('')}
               marcadores={Object.fromEntries(mensaje.citas.map((cita, indice) => [
-                `#fuente-${indice + 1}`, <Marcador key={indice} cita={cita} numero={indice + 1} />
+                `#fuente-${indice + 1}`, <Marcador key={indice} cita={cita} numero={indice + 1} href={configuracion.hrefDeCita(cita)} />
               ]))}
             />
             {mensaje.fase === 'generando' && (
@@ -571,14 +596,14 @@ function BurbujaIA ({
           <ul className="flex flex-wrap gap-1.5">
             {mensaje.citas.map((cita, indice) => (
               <li key={indice}>
-                <Fuente cita={cita} numero={indice + 1} />
+                <Fuente cita={cita} numero={indice + 1} href={configuracion.hrefDeCita(cita)} />
               </li>
             ))}
           </ul>
         </div>
       )}
 
-      {mensaje.acciones.length > 0 && (
+      {configuracion.conPropuestas && mensaje.acciones.length > 0 && (
         <ul aria-label="Acciones propuestas" className="flex flex-col gap-2">
           {mensaje.acciones.map((accion) => (
             <li key={accion.id}>
@@ -588,7 +613,7 @@ function BurbujaIA ({
         </ul>
       )}
 
-      {mensaje.preguntas.length > 0 && (
+      {configuracion.conPropuestas && mensaje.preguntas.length > 0 && (
         <ul aria-label={`Preguntas de ${ASISTENTE}`} className="flex flex-col gap-2">
           {mensaje.preguntas.map((pregunta, indice) => (
             <li key={indice}>
@@ -621,8 +646,7 @@ function BurbujaIA ({
 }
 
 /** El superindice en medio de la frase: enlace si la cita tiene destino, texto si no. */
-function Marcador ({ cita, numero }: { cita: Cita, numero: number }): ReactElement {
-  const href = hrefDeCita(cita)
+function Marcador ({ cita, numero, href }: { cita: Cita, numero: number, href: string | null }): ReactElement {
   const superindice = <sup className="font-semibold">[{numero}]</sup>
 
   if (href === null) return <span className="text-texto-sutil">{superindice}</span>
@@ -635,8 +659,7 @@ function Marcador ({ cita, numero }: { cita: Cita, numero: number }): ReactEleme
 }
 
 /** Una fuente del pie: la misma regla que el marcador, con el titulo al lado del numero. */
-function Fuente ({ cita, numero }: { cita: Cita, numero: number }): ReactElement {
-  const href = hrefDeCita(cita)
+function Fuente ({ cita, numero, href }: { cita: Cita, numero: number, href: string | null }): ReactElement {
   const clases = 'border-linea bg-superficie text-texto-tenue rounded-control inline-flex items-center gap-1 border px-2 py-0.5 text-xs'
   const contenido = (
     <>

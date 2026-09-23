@@ -92,8 +92,8 @@ export const LARGO_MAXIMO_PREGUNTA = 1000
  * `app/(panel)/proyectos/[id]/page.tsx`. Se repiten acá —y no se importan— porque los dos son
  * componentes de cliente y este modulo lo cargan tambien las pruebas, que no compilan JSX.
  */
-const PARAMETRO_PESTANA = 'tab'
-const PESTANA_ACTAS = 'actas'
+export const PARAMETRO_PESTANA = 'tab'
+export const PESTANA_ACTAS = 'actas'
 
 /** Marcador de cita como lo reescribe el servidor: `[1]`, `[12]`. El indice es 1-based. */
 const MARCADOR = /^\[(\d+)\]$/
@@ -105,21 +105,33 @@ const SEPARADOR = /(\[\d+\])/
 const COLGANTE = /\[\d*$/
 
 /**
- * Conversaciones vivas de la pestaña del navegador, separadas por proyecto y ámbito global.
+ * Conversaciones vivas de la pestaña del navegador, separadas por sujeto, proyecto y ámbito global.
  *
  * Se recarga la pagina y se va, como corresponde: lo que persiste de verdad es lo que el servidor
  * guarda y devuelve en el `GET`. Esto es la copia con la que se pinta mientras tanto.
  */
-const HILOS = new Map<number | undefined, Hilo>()
+const HILOS = new Map<string, Hilo>()
+
+/**
+ * Clave del hilo en memoria. Lleva el sujeto para que el hilo del equipo y el del portal no se pisen
+ * si la misma pestaña pasa de una sesion a la otra sin recargar.
+ *
+ * @param proyectoId proyecto del hilo; omitido para la conversación global
+ * @param sujeto de quien es la sesion: `staff` o `contacto`
+ */
+function claveDeHilo (proyectoId: number | undefined, sujeto: string): string {
+  return `${sujeto}:${proyectoId ?? 'global'}`
+}
 
 /**
  * Devuelve la conversacion en memoria.
  *
  * @param proyectoId proyecto del hilo; omitido para la conversación global
+ * @param sujeto de quien es la sesion; por defecto el equipo
  * @returns el hilo guardado; vacio y sin cargar la primera vez
  */
-export function leerHilo (proyectoId?: number): Hilo {
-  return HILOS.get(proyectoId) ?? { mensajes: [], cargado: false }
+export function leerHilo (proyectoId?: number, sujeto = 'staff'): Hilo {
+  return HILOS.get(claveDeHilo(proyectoId, sujeto)) ?? { mensajes: [], cargado: false }
 }
 
 /**
@@ -127,9 +139,10 @@ export function leerHilo (proyectoId?: number): Hilo {
  *
  * @param hilo el hilo completo, ya con los mensajes nuevos
  * @param proyectoId proyecto del hilo; omitido para la conversación global
+ * @param sujeto de quien es la sesion; por defecto el equipo
  */
-export function guardarHilo (hilo: Hilo, proyectoId?: number): void {
-  HILOS.set(proyectoId, hilo)
+export function guardarHilo (hilo: Hilo, proyectoId?: number, sujeto = 'staff'): void {
+  HILOS.set(claveDeHilo(proyectoId, sujeto), hilo)
 }
 
 /**

@@ -19,6 +19,7 @@ import * as sesion from './sesion.js'
 import { importarRecurrentes, listarRecurrentes, sembrarRecurrentes } from './recurrentes.js'
 import { avisosRuta } from './avisos.js'
 import { esRespuestaDelPortal, ticketDelPortal, ticketsDelEquipo } from './tickets.js'
+import { escribirAjustesDelOrbePortal, opcionDelOrbePortal, orbePortalRuta } from './orbe-portal.js'
 import {
   ADMINS_DE_CLIENTE, AREAS, ARCHIVOS, CAMPOS_PERSONALIZADOS, CHECKLIST, CLIENTES, COMENTARIOS, CRONOMETROS,
   DEPARTAMENTOS, EMPRESAS_DEL_GRUPO, ENTRADA_DE_CLIENTE, ESPACIOS, ESTADOS_ESPACIO, ESTADOS_PROCESO,
@@ -5277,6 +5278,15 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
   // Va ANTES de resolver la sesion de staff: si cayera despues, un token de contacto moriria en el
   // 401 del panel antes de llegar acá.
   if (recurso === 'portal') {
+    if (resto[0] === 'ia') {
+      return await orbePortalRuta(metodo, resto.slice(1), parametros, sesion.resolverContacto(token, 'acceso'), cuerpo, peticion, {
+        proyectosDelContacto: (c) => ESPACIOS.filter((e) => e.clientid === c.client_id),
+        tareasVisibles: (id) => PROCESOS.filter((p) => p.rel_type === 'project' && p.rel_id === id && Number(p.visible_to_client) === 1 && p.status !== 5),
+        aceptaStream,
+        transmitirSSE
+      })
+    }
+
     // El alta de una solicitud es lo UNICO que el contacto escribe en todo el portal, asi que el
     // resto sigue siendo de solo lectura: cualquier otro metodo cae en el 404 de siempre.
     const escribeTicket = (metodo === 'POST' && resto[0] === 'tickets' && resto.length === 1) || esRespuestaDelPortal(metodo, resto)
@@ -5986,13 +5996,16 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
   // Ajustes de la instalacion. El frontend lee de acá `ia_habilitada`, que decide si la pestaña del
   // asistente existe y si se puede escribir un Meeting Paper. Viene en `1` para que el mock sirva
   // para probar la capa de IA; la instalacion real arranca en `0`.
-  if (recurso === 'settings' && metodo === 'GET') {
+  if (recurso === 'settings' && (metodo === 'GET' || metodo === 'PATCH')) {
+    if (metodo === 'PATCH') escribirAjustesDelOrbePortal(await cuerpo())
+
     return {
       estado: 200,
       cuerpo: conDatos({
         editable: {
           ia_habilitada: { value: true, tipo: 'bool' },
-          ia_tope_tokens: { value: 700, tipo: 'int' }
+          ia_tope_tokens: { value: 700, tipo: 'int' },
+          ...opcionDelOrbePortal()
         }
       })
     }
