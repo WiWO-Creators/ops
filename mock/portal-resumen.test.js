@@ -170,3 +170,34 @@ test('el fixture trae el caso de la fecha ilegible, que no es cero dias', async 
   assert.equal(datos.bloqueados.some((bloqueo) => bloqueo.dias_bloqueada === null), true)
   assert.equal(datos.bloqueados.some((bloqueo) => bloqueo.dias_bloqueada === 0), true)
 })
+
+test('tickets cuenta lo mismo que la bandeja y trae los ultimos con la forma de la API', async () => {
+  const { datos } = await pedir('/portal/resumen')
+  const { datos: bandeja } = await pedir('/portal/tickets?per_page=100')
+  const abiertos = bandeja.filter((t) => t.status !== 5)
+
+  assert.equal(datos.tickets.abiertos, abiertos.length)
+  assert.ok(datos.tickets.esperando_tu_respuesta <= datos.tickets.abiertos)
+  assert.ok(datos.tickets.ultimos.length <= 5)
+
+  const [primero] = datos.tickets.ultimos
+  assert.deepEqual(Object.keys(primero).sort(), ['id', 'last_reply', 'project', 'status', 'subject'])
+  assert.deepEqual(Object.keys(primero.status).sort(), ['color', 'id', 'name'])
+  assert.ok(datos.tickets.ultimos.every((t) => t.last_reply === null || /Z$/.test(t.last_reply)))
+
+  // Abiertos primero: ningun cerrado antes de un abierto.
+  const estados = datos.tickets.ultimos.map((t) => t.status.id === 5)
+  assert.deepEqual(estados, [...estados].sort((a, b) => Number(a) - Number(b)))
+})
+
+test('tickets no viaja para un contacto sin la seccion de soporte', async () => {
+  const respuesta = await fetch(`${base}/auth/portal/login`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ email: 'limitado@acme.com', password: 'portal1234' })
+  })
+  const token = (await respuesta.json()).data.access_token
+  const resumen = await fetch(`${base}/portal/resumen`, { headers: { authorization: `Bearer ${token}` } })
+
+  assert.ok(!('tickets' in (await resumen.json()).data))
+})

@@ -19,7 +19,7 @@ import * as sesion from './sesion.js'
 import { importarRecurrentes, listarRecurrentes, sembrarRecurrentes } from './recurrentes.js'
 import { avisosRuta } from './avisos.js'
 import { altaDelPortal, esAccionDelPortal, ticketDelPortal, ticketsDelEquipo } from './tickets.js'
-import { esPrincipal, filaDelPortal, listadosDeTickets } from './tickets-listados.js'
+import { esPrincipal, filaDelPortal, listadosDeTickets, ticketsDelResumen } from './tickets-listados.js'
 import { filtrosGuardados } from './filtros-guardados.js'
 import { escribirAjustesDelOrbePortal, opcionDelOrbePortal, orbePortalRuta } from './orbe-portal.js'
 import {
@@ -7582,6 +7582,12 @@ function resumenDelContacto (contacto) {
   // no se pone.
   if (conTareas.length > 0 && !PORTAL_SIN_BLOQUEOS) {
     resumen.bloqueados = bloqueadosDelContacto(conTareas, mios)
+  }
+
+  // `tickets` NO VIAJA sin la seccion de soporte: es la misma puerta que la bandeja, y contarle sus
+  // tickets a quien no puede abrir ninguno seria una fuga. Ausente, no en ceros.
+  if (contacto.permissions.includes('support')) {
+    resumen.tickets = ticketsDelResumen(contacto, mios)
   }
 
   return resumen

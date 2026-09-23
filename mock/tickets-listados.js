@@ -18,7 +18,7 @@
 
 import { ErrorApi, aplicarConsulta, campoFiltrable, coincideEnLista } from './consulta.js'
 import {
-  CLIENTES, CONTACTOS, DEPARTAMENTOS, ESPACIOS, PROCESOS, STAFF, TICKETS_PORTAL
+  CLIENTES, CONTACTOS, DEPARTAMENTOS, ESPACIOS, ESTADOS_TICKET, PROCESOS, STAFF, TICKETS_PORTAL
 } from './datos.js'
 import {
   DEL_EQUIPO, esHijoFusionado, leidoPorElCliente, leidoPorElEquipo, noLeidoDelPortal, ultimoDe
@@ -184,6 +184,53 @@ function contadores (proyectoId) {
         sin_leer: abiertos.filter((t) => leidoPorElEquipo(t) === 0).length
       }
     }
+  }
+}
+
+/** Tope de `tickets.ultimos` en la portada: `RecursoResumen::FILAS_POR_TRAMO`. */
+const ULTIMOS_DE_PORTADA = 5
+
+/** Una fecha de la fixture (`Y-m-d H:i:s`, UTC en el mock) como el ISO que emite `Fechas::instante()`. */
+function instante (fecha) {
+  return fecha ? `${String(fecha).replace(' ', 'T')}Z` : null
+}
+
+/**
+ * El bloque `tickets` de `GET /portal/resumen`, igual que `RecursoResumen::ticketsDelContacto()`.
+ *
+ * Mismo alcance que la bandeja (los del cliente, sin hijos fusionados). `abiertos` es "no cerrado";
+ * `esperando_tu_respuesta`, abiertos cuyo ultimo mensaje es del equipo. `ultimos` trae hasta cinco,
+ * abiertos primero y despues por `COALESCE(last_reply, date)` descendente, con el estado resuelto y
+ * el Proyecto enmascarado a `null` si no es uno que el contacto pueda abrir. No viaja `no_leido`: la
+ * API no lo manda en el resumen, y el mock no publica de mas.
+ *
+ * @param {{ client_id: number }} contacto
+ * @param {Array<{ id: number, name: string }>} espacios los Proyectos que el contacto puede abrir
+ */
+export function ticketsDelResumen (contacto, espacios) {
+  const suyos = TICKETS_PORTAL.filter((t) => t.client_id === contacto.client_id && esPrincipal(t))
+  const abiertos = suyos.filter((t) => t.status !== CERRADO)
+  const actividad = (t) => String(t.last_reply ?? t.date)
+  const ordenados = [...suyos].sort((a, b) =>
+    Number(b.status !== CERRADO) - Number(a.status !== CERRADO) ||
+    actividad(b).localeCompare(actividad(a)) ||
+    b.id - a.id)
+
+  return {
+    abiertos: abiertos.length,
+    esperando_tu_respuesta: abiertos.filter((t) => ultimoDe(t) === 'equipo').length,
+    ultimos: ordenados.slice(0, ULTIMOS_DE_PORTADA).map((t) => {
+      const estado = ESTADOS_TICKET.find((e) => e.id === t.status)
+      const espacio = espacios.find((e) => e.id === t.project_id)
+
+      return {
+        id: t.id,
+        subject: t.subject,
+        status: { id: t.status, name: estado?.name ?? null, color: estado?.color ?? null },
+        last_reply: instante(t.last_reply),
+        project: espacio ? { id: espacio.id, name: espacio.name } : null
+      }
+    })
   }
 }
 
