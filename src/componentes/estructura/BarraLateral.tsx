@@ -4,11 +4,13 @@ import { ATRIBUTO_ABATIDA, CLAVE_BARRA } from '@/lib/barra-lateral'
 
 import Link, { useLinkStatus } from 'next/link'
 import { usePathname } from 'next/navigation'
-import { useSyncExternalStore } from 'react'
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { Building2, ClipboardList, DoorOpen, FolderKanban, Gavel, House, ListChecks, Menu, Network, PanelLeftClose, PanelLeftOpen, Radio, ScrollText, SlidersHorizontal, Target, TrendingUp, Users, UsersRound, Video } from 'lucide-react'
 import { Cajon, CerrarCajon, ContenidoCajon, DisparadorCajon } from '@/componentes/superposiciones/Cajon'
 import { Logo } from '@/componentes/estructura/Logo'
 import { cn } from '@/lib/clases'
+import { EVENTO_ABRIR_SECCIONES } from '@/lib/navegacion-movil'
+import { useGestoDeHoja } from '@/componentes/estructura/useGestoDeHoja'
 
 /**
  * Como se decide el ancho de la barra.
@@ -279,11 +281,19 @@ export function BarraLateral ({ secciones, className }: { secciones: Seccion[], 
 }
 
 /**
- * Navegacion de movil: un boton hamburguesa que abre el cajon con las mismas secciones.
+ * Navegacion de movil: el cajon con todas las secciones.
  *
  * Por debajo de 760px el riel no entra y el panel se quedaba sin navegacion. Reusa `Cajon` —hoja
  * inferior en telefono, panel lateral desde `sm`— en vez de un deslizable propio: ese componente ya
  * resuelve foco atrapado, `Escape` y superposicion.
+ *
+ * Se abre desde "Más" de la barra inferior, que avisa con `EVENTO_ABRIR_SECCIONES`: la barra y el
+ * cajon viven en ramas distintas de un layout de servidor. El disparador hamburguesa sigue existiendo
+ * para quien lo monte visible (`className`), pero el armazon lo esconde: la barra inferior ya lo
+ * reemplaza, y dos botones para lo mismo en una cabecera de 360px es uno de mas.
+ *
+ * En la hoja inferior se puede tirar hacia abajo para cerrarla (`useGestoDeHoja`), con un asa que lo
+ * sugiere. Al cerrar, el foco vuelve a quien lo abrio —"Más"— y no al disparador escondido.
  *
  * Cada enlace va envuelto en `CerrarCajon` porque la navegacion es del lado del cliente: sin eso el
  * cajon queda abierto tapando la pantalla a la que se acaba de entrar.
@@ -292,11 +302,30 @@ export function BarraLateral ({ secciones, className }: { secciones: Seccion[], 
  */
 export function BarraLateralMovil ({ secciones, className }: { secciones: Seccion[], className?: string }) {
   const ruta = usePathname()
+  const [abierto, setAbierto] = useState(false)
+  const origen = useRef<HTMLElement | null>(null)
+  const cerrar = useCallback(() => { setAbierto(false) }, [])
+  const { alPresionar, cerradaPorGesto, reiniciar } = useGestoDeHoja(cerrar)
+
+  const cambiar = useCallback((abrir: boolean) => {
+    if (abrir) reiniciar()
+    setAbierto(abrir)
+  }, [reiniciar])
+
+  useEffect(() => {
+    const abrirDesdeAfuera = () => {
+      origen.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
+      cambiar(true)
+    }
+    window.addEventListener(EVENTO_ABRIR_SECCIONES, abrirDesdeAfuera)
+    return () => { window.removeEventListener(EVENTO_ABRIR_SECCIONES, abrirDesdeAfuera) }
+  }, [cambiar])
 
   return (
-    <Cajon>
+    <Cajon open={abierto} onOpenChange={cambiar}>
       <DisparadorCajon
         aria-label="Abrir menú"
+        onClick={() => { origen.current = null }}
         className={cn(
           'text-texto-tenue hover:bg-hover hover:text-texto rounded-chico inline-flex size-8 items-center justify-center transition-colors md:hidden',
           className
@@ -304,11 +333,28 @@ export function BarraLateralMovil ({ secciones, className }: { secciones: Seccio
       >
         <Menu size={20} strokeWidth={2} aria-hidden="true" />
       </DisparadorCajon>
-      <ContenidoCajon titulo="Secciones">
+      <ContenidoCajon
+        titulo="Secciones"
+        onPointerDown={alPresionar}
+        onCloseAutoFocus={(evento) => {
+          if (origen.current === null) return
+          evento.preventDefault()
+          origen.current.focus()
+          origen.current = null
+        }}
+        className={cn('hoja-con-gesto pb-seguro', cerradaPorGesto && 'data-[state=closed]:animate-none')}
+      >
         <nav aria-label="Secciones" className="flex flex-col gap-1">
-          {secciones.map((seccion) => (
+          {secciones.map((seccion, indice) => (
             <CerrarCajon key={seccion.href} asChild>
-              <EnlaceSeccion seccion={seccion} ruta={ruta} className="py-2.5" />
+              <EnlaceSeccion
+                seccion={seccion}
+                ruta={ruta}
+                // Los items entran escalonados, de arriba hacia abajo, detras de la hoja: la lista
+                // se lee como algo que se despliega y no como un bloque que aparece de golpe.
+                style={{ animationDelay: `${Math.min(indice, 10) * 22}ms` }}
+                className="animate-entrar-abajo pointer-coarse:min-h-11 py-2.5 active:scale-[0.98]"
+              />
             </CerrarCajon>
           ))}
         </nav>

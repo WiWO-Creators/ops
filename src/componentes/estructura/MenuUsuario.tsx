@@ -2,9 +2,10 @@
 
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { LogOut, UserRound } from 'lucide-react'
+import { LogOut, Moon, Sun, UserRound } from 'lucide-react'
 import { useState } from 'react'
 import { Avatar } from '@/componentes/presentadores/Avatar'
+import { aplicarTema, esOscuro } from '@/lib/tema'
 import {
   ContenidoMenu,
   DisparadorMenu,
@@ -67,6 +68,17 @@ export function MenuUsuario ({ nombre, imagen }: PropsMenuUsuario) {
             <UserRound className="size-4 shrink-0" aria-hidden="true" />
             Mi perfil
           </Link>
+        </ItemMenu>
+
+        {/* Solo bajo 480px, donde el selector de tema sale de la cabecera por falta de lugar: el tema
+            sigue a un toque, en el menu de la cuenta, que es donde van las preferencias propias. Los
+            dos rotulos se pintan y CSS elige, igual que los iconos del selector: el estado del tema
+            vive en el DOM y leerlo en el render daria un rotulo equivocado al hidratar. */}
+        <ItemMenu className="xs:hidden" onSelect={() => { aplicarTema(esOscuro() ? 'light' : 'dark') }}>
+          <Moon className="size-4 shrink-0 oscuro:hidden" aria-hidden="true" />
+          <Sun className="hidden size-4 shrink-0 oscuro:block" aria-hidden="true" />
+          <span className="oscuro:hidden">Tema oscuro</span>
+          <span className="hidden oscuro:inline">Tema claro</span>
         </ItemMenu>
 
         <SeparadorMenu />

@@ -11,6 +11,7 @@
 @import '../estilos/monito.css';
 @import '../estilos/entrada-pagina.css';
 @import '../estilos/alerta-vencida.css';
+@import '../estilos/movil.css';
 
 /*
  * Variante `oscuro:`: se activa cuando el documento se esta viendo en oscuro DE VERDAD.
