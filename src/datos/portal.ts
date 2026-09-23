@@ -46,6 +46,13 @@ export type TareaDeTicketPortal =
 export interface TicketPortalDetalle extends TicketPortal {
   message: string
   replies: RespuestaTicketPortal[]
+  /**
+   * Si el contacto puede sumar una respuesta (contrato T2). Opcional solo para convivir con un
+   * backend anterior a T2; ver `dominio/ticket-vista.ts`.
+   */
+  puede_responder?: boolean
+  /** Por que no puede, cuando no puede. */
+  motivo_sin_respuesta?: 'esperando_equipo' | 'cerrado' | null
 }
 
 /**

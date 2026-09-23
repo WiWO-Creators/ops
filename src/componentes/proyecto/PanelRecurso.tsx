@@ -57,6 +57,11 @@ interface PropsPanelRecurso<T> {
    * alternador y recuerda la eleccion en la URL. Ausente = la pestaña solo se ve como tabla.
    */
   tarjeta?: (fila: T) => ReactNode
+  /**
+   * Abre el detalle de una fila escribiendo un parametro en la URL (`?ticket=12`). Se pasa tal cual
+   * al motor de tabla; la definicion tiene que traer ademas un enlace real en alguna celda.
+   */
+  abrirEn?: { clave: string, valor: (fila: T) => string | number }
 }
 
 export function PanelRecurso<T> (props: PropsPanelRecurso<T>): ReactElement {
@@ -83,7 +88,8 @@ function ListaDelProyecto<T> ({
   revision = 0,
   board,
   rutaLookups = 'lookups',
-  tarjeta
+  tarjeta,
+  abrirEn
 }: PropsPanelRecurso<T>): ReactElement {
   const params = useSearchParams()
 
@@ -154,6 +160,7 @@ function ListaDelProyecto<T> ({
         opcionesDeFiltro={carga.opciones}
         board={board}
         tarjeta={tarjeta}
+        abrirEn={abrirEn}
       />
     </div>
   )

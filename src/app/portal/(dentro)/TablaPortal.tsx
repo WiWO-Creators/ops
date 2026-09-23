@@ -6,6 +6,8 @@ import { TablaRecurso } from '@/componentes/datos/TablaRecurso'
 import type { DefinicionRecurso, OpcionFiltro, ResultadoLista } from '@/definiciones/tipos'
 import { PORTAL_TICKETS } from '@/definiciones/portal-soporte'
 import { PORTAL_PROYECTOS } from '@/definiciones/portal-proyectos'
+import { EnlaceATicket } from '@/componentes/tickets/EnlaceATicket'
+import { PARAMETRO_TICKET } from '@/dominio/ticket-vista'
 
 /**
  * Las tablas del portal, del lado del cliente.
@@ -15,7 +17,8 @@ import { PORTAL_PROYECTOS } from '@/definiciones/portal-proyectos'
  * manda una clave y datos serializables; la definicion se resuelve de este lado.
  *
  * Las dos comparten componente porque son la misma tabla con otra definicion. Soporte agrega algo
- * mas: el asunto enlaza al hilo del ticket.
+ * mas: el asunto y la fila abren el modal del ticket (`?ticket={id}`) sin salir de la bandeja;
+ * Proyectos navega a su ficha.
  */
 
 const DEFINICIONES = {
@@ -55,12 +58,16 @@ export function TablaPortal<T extends { id: number }> ({
           ? {
               ...columna,
               presentar: (fila: T) => (
-                <Link
-                  href={`/portal/${seccion}/${fila.id}`}
-                  className="text-texto hover:text-acento font-medium underline-offset-4 hover:underline"
-                >
-                  {columna.presentar(fila)}
-                </Link>
+                seccion === 'soporte'
+                  ? <EnlaceATicket id={fila.id}>{columna.presentar(fila)}</EnlaceATicket>
+                  : (
+                    <Link
+                      href={`/portal/${seccion}/${fila.id}`}
+                      className="text-texto hover:text-acento font-medium underline-offset-4 hover:underline"
+                    >
+                      {columna.presentar(fila)}
+                    </Link>
+                    )
               )
             }
           : columna
@@ -74,6 +81,7 @@ export function TablaPortal<T extends { id: number }> ({
       inicial={inicial}
       claveFila={(fila) => fila.id}
       opcionesDeFiltro={opcionesDeFiltro}
+      abrirEn={seccion === 'soporte' ? { clave: PARAMETRO_TICKET, valor: (fila) => fila.id } : undefined}
     />
   )
 }

@@ -61,7 +61,7 @@ function cargar ({ respuesta, ventanas = [], navegarFalla = false } = {}) {
 test('rutaDeAviso del service worker dice lo mismo que la del panel', () => {
   const { rutaDeAviso } = cargar({ respuesta: { cuerpo: {} } })
 
-  for (const link of ['#taskid=512', ' #taskid=7 ', '#taskid=0', '#taskid=512&x', '#leadid=3', '', null, undefined, '#taskid=99999999999999999999']) {
+  for (const link of ['#taskid=512', ' #taskid=7 ', '#taskid=0', '#taskid=512&x', '#leadid=3', '', null, undefined, '#taskid=99999999999999999999', '/proyectos/1?tab=tickets&ticket=4', '//evil.com', '/\\evil.com', 'https://evil.com/x']) {
     assert.equal(rutaDeAviso(link), rutaDelPanel(link ?? null), `link ${String(link)}`)
   }
 })

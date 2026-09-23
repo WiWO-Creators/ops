@@ -35,7 +35,8 @@ const ICONO = '/marca/wiwo-ops.png'
 const AVISO_GENERICO = { titulo: 'WiWO Ops', cuerpo: 'Tienes un aviso nuevo.', url: RUTA_POR_DEFECTO }
 
 /**
- * Traduce el `link` del panel clasico (`#taskid=512`) a una ruta de Ops.
+ * Traduce el `link` de un aviso a una ruta de Ops: la ruta interna tal cual (`/proyectos/1?tab=tickets&ticket=4`)
+ * o el `#taskid=512` del panel clasico.
  *
  * Es una copia deliberada de `rutaDeAviso()` (`src/dominio/enlace-de-aviso.ts`): un service worker
  * es un archivo suelto que el navegador carga sin pasar por el bundler, asi que no puede importar
@@ -47,7 +48,10 @@ const AVISO_GENERICO = { titulo: 'WiWO Ops', cuerpo: 'Tienes un aviso nuevo.', u
 function rutaDeAviso (link) {
   if (typeof link !== 'string') return null
 
-  const coincidencia = /^#taskid=(\d+)$/.exec(link.trim())
+  const recortado = link.trim()
+  if (/^\/(?![/\\])[A-Za-z0-9\-._~/?&=%]*$/.test(recortado)) return recortado
+
+  const coincidencia = /^#taskid=(\d+)$/.exec(recortado)
   if (coincidencia === null) return null
 
   const id = Number(coincidencia[1])

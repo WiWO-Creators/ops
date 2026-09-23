@@ -18,6 +18,7 @@ import { ErrorApi, aplicarConsulta, campoFiltrable, coincideEnLista, leerInclude
 import * as sesion from './sesion.js'
 import { importarRecurrentes, listarRecurrentes, sembrarRecurrentes } from './recurrentes.js'
 import { avisosRuta } from './avisos.js'
+import { esRespuestaDelPortal, ticketDelPortal, ticketsDelEquipo } from './tickets.js'
 import {
   ADMINS_DE_CLIENTE, AREAS, ARCHIVOS, CAMPOS_PERSONALIZADOS, CHECKLIST, CLIENTES, COMENTARIOS, CRONOMETROS,
   DEPARTAMENTOS, EMPRESAS_DEL_GRUPO, ENTRADA_DE_CLIENTE, ESPACIOS, ESTADOS_ESPACIO, ESTADOS_PROCESO,
@@ -5163,7 +5164,7 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
   if (recurso === 'portal') {
     // El alta de una solicitud es lo UNICO que el contacto escribe en todo el portal, asi que el
     // resto sigue siendo de solo lectura: cualquier otro metodo cae en el 404 de siempre.
-    const escribeTicket = metodo === 'POST' && resto[0] === 'tickets' && resto.length === 1
+    const escribeTicket = (metodo === 'POST' && resto[0] === 'tickets' && resto.length === 1) || esRespuestaDelPortal(metodo, resto)
     if (metodo !== 'GET' && !escribeTicket) throw new ErrorApi(404, 'not_found', 'Recurso desconocido.')
 
     const contacto = sesion.resolverContacto(token, 'acceso')
@@ -5267,6 +5268,9 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
         throw new ErrorApi(403, 'forbidden', 'Este contacto no tiene acceso a soporte.')
       }
 
+      const propia = await ticketDelPortal({ metodo, resto, contacto, cuerpo })
+      if (propia !== null) return propia
+
       const mios = TICKETS_PORTAL.filter((t) => t.client_id === contacto.client_id)
 
       // `cuerpo` es un thunk: tratarlo como objeto da un alta vacia que contesta 201 sobre nada.
@@ -5284,19 +5288,7 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
         return { estado: 200, cuerpo: conDatos(filas, { pagination: paginacion }) }
       }
 
-      if (resto.length > 2) throw new ErrorApi(404, 'not_found', 'Recurso desconocido.')
-
-      const ticket = mios.find((t) => t.id === Number(resto[1]))
-      if (!ticket) throw new ErrorApi(404, 'not_found', 'Ticket inexistente.')
-
-      return {
-        estado: 200,
-        cuerpo: conDatos({
-          ...presentarTicketPortal(ticket),
-          message: ticket.message,
-          replies: ticket.replies
-        })
-      }
+      throw new ErrorApi(404, 'not_found', 'Recurso desconocido.')
     }
 
     // Proyectos del cliente. Solo los de su empresa: el portal jamas lista los de otra, y una
@@ -5673,6 +5665,9 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
   // --- A partir de acá, todo exige token ----------------------------------
   const actual = sesion.resolver(token, 'acceso')
 
+  const deTickets = await ticketsDelEquipo({ metodo, recurso, resto, parametros, cuerpo, actual })
+  if (deTickets !== null) return deTickets
+
   // --- Sesión como otra persona (`POST /impersonate`) ----------------------
   //
   // Va acá arriba y no entre los recursos: no es un recurso, es otra puerta de sesión, y la única que
@@ -5931,6 +5926,8 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
         task_statuses: ESTADOS_PROCESO,
         task_priorities: PRIORIDADES,
         project_statuses: ESTADOS_ESPACIO,
+        ticket_statuses: ESTADOS_TICKET,
+        ticket_priorities: PRIORIDADES_TICKET,
         tags: ETIQUETAS,
         roles: ROLES,
         departments: DEPARTAMENTOS,

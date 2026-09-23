@@ -7,6 +7,7 @@ import { RegistrarReciente } from '@/componentes/fijados/RegistrarReciente'
 import { BotonNuevaTarea, MenuProyecto } from '@/componentes/proyecto/MenuProyecto'
 import { proyectoDelPanel } from '@/dominio/proyecto'
 import { fuenteDelPanel } from '@/dominio/fuente-proyecto'
+import { PESTANA_TICKETS } from '@/dominio/ticket-vista'
 import { PanelActividad } from '@/componentes/proyecto/PanelActividad'
 import { PanelConfiguracionEspacio } from '@/componentes/proyecto/PanelConfiguracionEspacio'
 import { PanelArchivos } from '@/componentes/proyecto/PanelArchivos'
@@ -18,6 +19,7 @@ import { PanelActas } from '@/componentes/proyecto/PanelActas'
 import { PanelNotas } from '@/componentes/proyecto/PanelNotas'
 import { PanelTareas } from '@/componentes/proyecto/PanelTareas'
 import { PanelTiempos } from '@/componentes/proyecto/PanelTiempos'
+import { PanelTickets } from '@/componentes/proyecto/PanelTickets'
 import { Pestanas, type Panel } from '@/componentes/proyecto/Pestanas'
 import { Cargando, ErrorEstado, SinPermiso, Vacio } from '@/componentes/estado/Estados'
 import { listaDe, nombreDe } from '@/datos/catalogos'
@@ -40,6 +42,14 @@ import { ASISTENTE, GLOSARIO } from '@/dominio/glosario'
  * permiso.
  */
 const ACTAS_DEL_EQUIPO: Capacidad[] = ['create', 'edit', 'delete']
+
+/**
+ * Lo que el equipo puede hacer con un ticket del Proyecto: responder y cambiar estado y prioridad.
+ *
+ * Literal por lo mismo que las actas: `/me` no trae un area de tickets, y la API decide por
+ * visibilidad del ticket (`ParcheTicket`, `RespuestaTicket`), no por una capability.
+ */
+const TICKETS_DEL_EQUIPO: Capacidad[] = ['edit']
 
 /**
  * Pide el Proyecto una sola vez por peticion.
@@ -215,6 +225,14 @@ export default async function ProyectoPage (props: PageProps<'/proyectos/[id]'>)
       )
     },
     { clave: 'archivos', etiqueta: 'Archivos', contenido: <PanelArchivos proyectoId={proyecto.id} /> },
+    // La clave es `tickets` porque es la que escriben el correo y la campana de ticket nuevo
+    // (`?tab=tickets&ticket={id}`, contrato T3): cambiarla dejaria esos enlaces en la pestaña de
+    // entrada con el modal abierto encima de otra cosa.
+    {
+      clave: PESTANA_TICKETS,
+      etiqueta: GLOSARIO.ticket.plural,
+      contenido: <PanelTickets proyecto={{ id: proyecto.id, name: proyecto.name }} capacidades={TICKETS_DEL_EQUIPO} />
+    },
     { clave: 'gantt', etiqueta: 'Diagrama de Gantt', contenido: <PanelGantt proyectoId={proyecto.id} fuente={fuente} /> },
     // Va pegada al Gantt porque las dos leen las mismas fechas, y despues porque son dos preguntas
     // distintas: el Gantt muestra duraciones y dependencias, el calendario muestra el dia de

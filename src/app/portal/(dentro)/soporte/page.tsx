@@ -1,4 +1,7 @@
 import type { Metadata } from 'next'
+import { Suspense } from 'react'
+import { ModalTicket } from '@/componentes/tickets/ModalTicket'
+import { TICKET_DEL_PORTAL } from '@/dominio/ticket-vista'
 import { PORTAL_TICKETS } from '@/definiciones/portal-soporte'
 import { listaDe } from '@/datos/catalogos'
 import { cargarLookupsDelPortal } from '@/datos/lookups'
@@ -29,18 +32,25 @@ export default async function SoportePagina (props: PageProps<'/portal/soporte'>
   ])
 
   return (
-    <SeccionDePortal
-      seccion="soporte"
-      definicion={PORTAL_TICKETS}
-      parametrosDeUrl={await props.searchParams}
-      acciones={
-        <NuevaSolicitud
-          prioridades={listaDe(lookups, 'ticket_priorities')}
-          espacios={espacios}
-          entradaId={entradaId}
-        />
-      }
-    />
+    <>
+      <SeccionDePortal
+        seccion="soporte"
+        definicion={PORTAL_TICKETS}
+        parametrosDeUrl={await props.searchParams}
+        acciones={
+          <NuevaSolicitud
+            prioridades={listaDe(lookups, 'ticket_priorities')}
+            espacios={espacios}
+            entradaId={entradaId}
+          />
+        }
+      />
+      {/* El mismo modal que ve el equipo, con la fuente del contacto y sin capacidades: estado y
+          prioridad quedan como insignias, y responder lo decide la regla que manda la API. */}
+      <Suspense fallback={null}>
+        <ModalTicket fuente={TICKET_DEL_PORTAL} capacidades={[]} proyectos={espacios} />
+      </Suspense>
+    </>
   )
 }
 
