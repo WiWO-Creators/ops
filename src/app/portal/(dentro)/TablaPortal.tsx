@@ -9,7 +9,7 @@ import {
   claseDeFilaDeSolicitud,
   marcaDeSolicitud
 } from '@/componentes/datos/celdas-tickets'
-import { useAlCambiarTickets } from '@/componentes/datos/useAlCambiarTickets'
+import { useAlCambiarTickets, useAlCerrarTicket } from '@/componentes/datos/useAlCambiarTickets'
 import type { DefinicionRecurso, OpcionFiltro, ResultadoLista } from '@/definiciones/tipos'
 import { PORTAL_TICKETS } from '@/definiciones/portal-soporte'
 import { PORTAL_PROYECTOS } from '@/definiciones/portal-proyectos'
@@ -61,6 +61,8 @@ export function TablaPortal<T extends { id: number }> ({
   // Solo la bandeja de soporte escucha: un ticket que cambio no mueve la lista de Proyectos.
   const alCambiar = useCallback(() => { if (esSoporte) setRefresco((n) => n + 1) }, [esSoporte])
   useAlCambiarTickets(alCambiar)
+  // Abrir la ficha la marca como leida en la API: al cerrar se vuelve a pedir para quitar la marca.
+  useAlCerrarTicket(alCambiar)
 
   // Se memoiza porque `TablaRecurso` la usa como dependencia de sus efectos: una definicion nueva en
   // cada render volveria a pedir la pagina en bucle.

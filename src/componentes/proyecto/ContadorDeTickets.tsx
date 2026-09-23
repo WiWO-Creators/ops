@@ -50,8 +50,9 @@ export function ContadorDeTickets ({ proyectoId, base }: { proyectoId: number, b
 
   return (
     <span title={etiquetaDePestana(base, contadores)}>
-      <span aria-hidden="true">
-        {' · '}
+      {/* Espacios duros: en una barra angosta el rotulo no se parte entre "Tickets" y su numero. */}
+      <span aria-hidden="true" className="whitespace-nowrap">
+        {'\u00a0·\u00a0'}
         <span className="tabular-nums">{contadores.abiertos}</span>
         {contadores.esperandoEquipo > 0 && (
           <span className="bg-texto-aviso ml-1.5 inline-block size-1.5 -translate-y-px rounded-full align-middle" />

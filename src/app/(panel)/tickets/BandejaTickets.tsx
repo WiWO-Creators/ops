@@ -3,7 +3,7 @@
 import { Suspense, useCallback, useMemo, useState, type ReactElement } from 'react'
 import { FiltroEsperandoAlEquipo } from '@/componentes/datos/FiltroEsperandoAlEquipo'
 import { TarjetaDeTicket, claseDeFilaDeTicket, conCeldasDeTickets } from '@/componentes/datos/celdas-tickets'
-import { useAlCambiarTickets } from '@/componentes/datos/useAlCambiarTickets'
+import { useAlCambiarTickets, useAlCerrarTicket } from '@/componentes/datos/useAlCambiarTickets'
 import { PanelRecurso } from '@/componentes/proyecto/PanelRecurso'
 import { ModalTicket } from '@/componentes/tickets/ModalTicket'
 import type { Referencia } from '@/datos/recursos'
@@ -51,6 +51,8 @@ export function BandejaTickets ({ esAdmin, proyectos }: { esAdmin: boolean, proy
   const alCambiar = useCallback(() => { setRevision((n) => n + 1) }, [])
 
   useAlCambiarTickets(alCambiar)
+  // Abrir la ficha la marca como leida en la API: al cerrar se vuelve a pedir para quitar la marca.
+  useAlCerrarTicket(alCambiar)
 
   return (
     <>

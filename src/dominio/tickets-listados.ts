@@ -19,6 +19,9 @@ import { formatearRelativo } from '../lib/fechas.ts'
  * no una prop porque el modal y los listados no siempre comparten padre: el contador vive en la barra
  * de pestañas y la tabla dentro del panel.
  */
+// Tiene que coincidir con `EVENTO_TICKETS_CAMBIADOS` de `dominio/ticket-vista.ts` (rama del modal,
+// que lo emite con `detail: { id }`). Es el unico lugar de los listados donde se nombra: al integrar
+// las dos ramas, este `export` pasa a reexportar aquel y los listados no cambian.
 export const EVENTO_TICKETS_CAMBIADOS = 'ops:tickets-cambiados'
 
 /** Estado «Cerrado» de Perfex (`tbltickets_status`, id 5). Un ticket cerrado no espera a nadie. */
