@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState, type FormEvent, type ReactElement } from 'react'
+import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactElement } from 'react'
 import { useAccionPresencia } from '@/componentes/auditoria/accion'
 import { Boton } from '@/componentes/formularios/Boton'
 import { Campo } from '@/componentes/formularios/Campo'
@@ -11,7 +11,8 @@ import {
   ContenidoSelector,
   DisparadorSelector,
   Opcion,
-  Selector
+  Selector,
+  SelectorBuscable
 } from '@/componentes/formularios/Selector'
 import {
   ContenidoMenu,
@@ -24,6 +25,7 @@ import { CerrarDialogo, ContenidoDialogo, Dialogo } from '@/componentes/superpos
 import { escribirEnBff } from '@/componentes/datos/mutaciones'
 import { cargarAsignables } from '@/datos/asignables'
 import { pedirSobre } from '@/datos/cliente'
+import { cargarClientesDestino, cargarOportunidadesAbiertas } from '@/datos/espacios-destino'
 import { listaDe } from '@/datos/catalogos'
 import {
   camposOrdenados,
@@ -43,6 +45,10 @@ import {
   type CamposEdicion
 } from '@/dominio/edicion-tarea'
 import { fechaDeCierre, instanteDeCierre } from '@/dominio/cierre-tarea'
+import {
+  claseDeEspacio, combinarDestinos, espaciosDeClase, esRelacionDeEspacio, RELACIONES_RETIRADAS,
+  RELACIONES_TAREA, type EspaciosDestino, type RelacionTarea
+} from '@/dominio/espacios-destino'
 import { GLOSARIO } from '@/dominio/glosario'
 import { errorDeHorasEstimadas } from '@/dominio/tiempo-estimado'
 import { ESTADO_COMPLETO } from './tareas'
@@ -63,6 +69,15 @@ import type {
 
 /** Lista vacia unica: un `[]` nuevo por render volveria a disparar el efecto de las definiciones. */
 const SIN_CAMPOS: ValorCampoPersonalizado[] = []
+
+/** Como se nombra cada relacion en el selector y en el campo que elige el registro. */
+const NOMBRES_DE_RELACION: Record<RelacionTarea, { singular: string, plural: string }> = {
+  project: GLOSARIO.espacio,
+  licitacion: GLOSARIO.licitacion,
+  // "Upselling" y no "Upsell": es como el equipo llama a la seccion y a lo que cuelga de ella.
+  upsell: { singular: GLOSARIO.upsell.plural, plural: GLOSARIO.upsell.plural },
+  customer: GLOSARIO.cliente
+}
 
 interface PropsEdicionTarea {
   tarea: Proceso
@@ -89,7 +104,13 @@ export function EdicionTarea (
   const [inicial, setInicial] = useState(() => camposDeTarea(tarea, descripcion))
   const [campos, setCampos] = useState<CamposEdicion>(inicial)
   const [asignables, setAsignables] = useState<StaffReferencia[]>([])
-  const [proyectos, setProyectos] = useState<Referencia[]>(tarea.project ? [tarea.project] : [])
+  /** Proyectos, Licitaciones y Upsells abiertos, y cuales son de cada clase. */
+  const [destinos, setDestinos] = useState<EspaciosDestino>(() => ({
+    espacios: tarea.project ? [tarea.project] : [],
+    licitaciones: new Set<number>(),
+    upsells: new Set<number>()
+  }))
+  const [clientes, setClientes] = useState<Referencia[]>([])
   const [tipos, setTipos] = useState<TipoDeProcesoDelEspacio[]>([])
   const [estado, setEstado] = useState(String(tarea.status))
   const [estadoGuardado, setEstadoGuardado] = useState(String(tarea.status))
@@ -120,7 +141,7 @@ export function EdicionTarea (
   const [personalizados, setPersonalizados] = useState<ValoresDeCampos>({})
   const [erroresCampos, setErroresCampos] = useState<ErroresDeCampos>({})
 
-  const espacioId = campos.relacion === 'project' && campos.relacionId !== '' ? Number(campos.relacionId) : null
+  const espacioId = esRelacionDeEspacio(campos.relacion) && campos.relacionId !== '' ? Number(campos.relacionId) : null
   /** Los valores que trajo `include=custom_fields`. Vacio si la Tarea llego sin el include. */
   const valoresDeLaTarea = tarea.custom_fields ?? SIN_CAMPOS
 
@@ -151,16 +172,30 @@ export function EdicionTarea (
         const lista: Referencia[] = []
         let pagina = 1
         let ultima = 1
+        // Sin Licitaciones ni Upsells se sigue pudiendo editar: quedan solo los Proyectos.
+        const oportunidades = cargarOportunidadesAbiertas(control.signal)
+          .catch(() => ({ licitaciones: [], upsells: [] }))
         do {
           const sobre = await pedirSobre<Referencia[]>(`projects?per_page=500&page=${pagina}`, control.signal)
           lista.push(...sobre.data)
           ultima = sobre.meta?.pagination?.total_pages ?? 1
           pagina++
         } while (pagina <= ultima)
-        if (!control.signal.aborted) {
-          if (tarea.project && !lista.some((proyecto) => proyecto.id === tarea.project?.id)) lista.unshift(tarea.project)
-          setProyectos(lista)
-        }
+        const { licitaciones, upsells } = await oportunidades
+        if (control.signal.aborted) return
+        const combinados = combinarDestinos(lista, licitaciones, upsells)
+        const actual = tarea.project
+        if (actual && !combinados.espacios.some((espacio) => espacio.id === actual.id)) combinados.espacios.unshift(actual)
+        setDestinos(combinados)
+        // La Tarea llega con `rel_type` `project` aunque cuelgue de una Licitacion o un Upsell: recien
+        // con el catalogo se sabe de que clase es, y el selector tiene que abrir en esa.
+        const reclasificar = (previos: CamposEdicion): CamposEdicion => (
+          previos.relacion === 'project' && previos.relacionId !== ''
+            ? { ...previos, relacion: claseDeEspacio(Number(previos.relacionId), combinados) }
+            : previos
+        )
+        setInicial(reclasificar)
+        setCampos(reclasificar)
       } catch {
         if (!control.signal.aborted) setAvisoCatalogo('No se pudieron cargar los proyectos. Cierra y vuelve a abrir para reintentar.')
       }
@@ -168,6 +203,18 @@ export function EdicionTarea (
     void cargarProyectos()
     return () => { control.abort() }
   }, [tarea.project])
+
+  useEffect(() => {
+    const control = new AbortController()
+
+    void cargarClientesDestino(control.signal)
+      .then((cartera) => { if (!control.signal.aborted) setClientes(cartera) })
+      .catch(() => {
+        if (!control.signal.aborted) setAvisoCatalogo(`No se pudieron cargar los ${GLOSARIO.cliente.plural.toLowerCase()}.`)
+      })
+
+    return () => { control.abort() }
+  }, [])
 
   useEffect(() => {
     if (espacioId === null) return
@@ -190,6 +237,25 @@ export function EdicionTarea (
     onCerrar()
     if (guardadoParcial) onGuardada()
   }
+
+  const clase: RelacionTarea | null = (RELACIONES_TAREA as readonly string[]).includes(campos.relacion)
+    ? campos.relacion as RelacionTarea
+    : null
+  /** El `rel_type` retirado que la Tarea ya traia, para no borrarlo en silencio al abrirla. */
+  const retirada = RELACIONES_RETIRADAS[inicial.relacion] === undefined ? null : inicial.relacion
+  const espaciosVisibles = useMemo(
+    () => clase === null ? [] : espaciosDeClase(destinos, clase),
+    [destinos, clase]
+  )
+  const opcionesDeClientes = useMemo(() => {
+    const opciones = clientes.map((cliente) => ({ valor: String(cliente.id), etiqueta: cliente.name }))
+    const actual = inicial.relacion === 'customer' ? inicial.relacionId : ''
+    // Un cliente dado de baja no viene en la cartera activa: se ofrece igual para no perderlo.
+    if (actual !== '' && !opciones.some((opcion) => opcion.valor === actual)) {
+      opciones.unshift({ valor: actual, etiqueta: `${GLOSARIO.cliente.singular} #${actual}` })
+    }
+    return opciones
+  }, [clientes, inicial.relacion, inicial.relacionId])
 
   /** Cambia la relación y descarta selecciones que pertenecen al proyecto anterior. */
   function cambiarRelacion (relacion: string, relacionId: string): void {
@@ -430,24 +496,35 @@ export function EdicionTarea (
               <DisparadorSelector id={id} />
               <ContenidoSelector>
                 <Opcion value="ninguna">Sin relación</Opcion>
-                <Opcion value="project">{GLOSARIO.espacio.singular}</Opcion>
-                <Opcion value="customer">Cliente</Opcion><Opcion value="lead">Prospecto</Opcion>
-                <Opcion value="contract">Contrato</Opcion><Opcion value="ticket">Ticket</Opcion>
-                <Opcion value="invoice">Factura</Opcion><Opcion value="estimate">Presupuesto</Opcion>
-                <Opcion value="proposal">Propuesta</Opcion><Opcion value="expense">Gasto</Opcion>
+                {RELACIONES_TAREA.map((opcion) => (
+                  <Opcion key={opcion} value={opcion}>{NOMBRES_DE_RELACION[opcion].singular}</Opcion>
+                ))}
+                {retirada !== null && <Opcion value={retirada}>{RELACIONES_RETIRADAS[retirada]} (ya no se ofrece)</Opcion>}
               </ContenidoSelector>
             </Selector>}
           </Campo>
-          {campos.relacion === 'project' && <Campo etiqueta={GLOSARIO.espacio.singular}>
-            {({ id }) => <Selector value={campos.relacionId || 'ninguno'} onValueChange={(valor) => cambiarRelacion('project', valor === 'ninguno' ? '' : valor)}>
+          {clase !== null && clase !== 'customer' && <Campo etiqueta={NOMBRES_DE_RELACION[clase].singular}>
+            {({ id }) => <Selector value={campos.relacionId || 'ninguno'} onValueChange={(valor) => cambiarRelacion(clase, valor === 'ninguno' ? '' : valor)}>
               <DisparadorSelector id={id} />
               <ContenidoSelector>
-                <Opcion value="ninguno">Sin {GLOSARIO.espacio.singular.toLowerCase()}</Opcion>
-                {proyectos.map((proyecto) => <Opcion key={proyecto.id} value={String(proyecto.id)}>{proyecto.name}</Opcion>)}
+                <Opcion value="ninguno">Sin {NOMBRES_DE_RELACION[clase].singular.toLowerCase()}</Opcion>
+                {espaciosVisibles.map((espacio) => <Opcion key={espacio.id} value={String(espacio.id)}>{espacio.name}</Opcion>)}
               </ContenidoSelector>
             </Selector>}
           </Campo>}
-          {campos.relacion !== '' && campos.relacion !== 'project' && <Campo etiqueta="ID de la relación" requerido ayuda="Identificador del registro, disponible en su dirección. Se comprueba al guardar.">
+          {clase === 'customer' && <Campo etiqueta={GLOSARIO.cliente.singular} requerido>
+            {({ id }) => (
+              <SelectorBuscable
+                id={id}
+                valor={campos.relacionId}
+                onElegir={(valor) => cambiarRelacion('customer', valor)}
+                opciones={opcionesDeClientes}
+                marcador={`Elige un ${GLOSARIO.cliente.singular.toLowerCase()}`}
+                nombre={GLOSARIO.cliente.singular.toLowerCase()}
+              />
+            )}
+          </Campo>}
+          {retirada !== null && campos.relacion === retirada && <Campo etiqueta="ID de la relación" requerido ayuda="Identificador del registro, disponible en su dirección. Se comprueba al guardar.">
             {(props) => <Entrada {...props} type="number" min="1" step="1" value={campos.relacionId} onChange={(evento) => cambiarRelacion(campos.relacion, evento.target.value)} />}
           </Campo>}
           <div className="grid gap-4 sm:grid-cols-2">

@@ -1,12 +1,12 @@
 /**
- * La carga de los dos catalogos que puede recibir una Tarea. Las reglas de mezcla viven en
+ * La carga de los catalogos con los que se puede relacionar una Tarea. Las reglas de mezcla viven en
  * `@/dominio/espacios-destino`.
  */
 import { pedirRespuesta, pedirSobre } from './cliente.ts'
 import {
-  combinarDestinos, type EspaciosDestino, type LicitacionDestino
+  combinarDestinos, type EspaciosDestino, type LicitacionDestino, type UpsellDestino
 } from '../dominio/espacios-destino.ts'
-import type { Referencia } from './recursos.ts'
+import type { ClienteMinimo, Referencia } from './recursos.ts'
 import type { Sobre } from './tipos'
 
 /**
@@ -29,8 +29,14 @@ export const RUTA_DE_PROYECTOS = `projects?per_page=${TOPE}`
  */
 export const RUTA_DE_LICITACIONES = `licitaciones?filter[estado]=abierta&per_page=${TOPE}`
 
+/** Los Upsells que siguen en juego, por el mismo motivo que las Licitaciones abiertas. */
+export const RUTA_DE_UPSELLS = `upsells?filter[estado]=abierta&per_page=${TOPE}`
+
+/** Los Clientes activos: `/clients/minimos` no exige permiso sobre la cartera y no corta en cien. */
+export const RUTA_DE_CLIENTES = `clients/minimos?filter[active]=1&sort=company&per_page=${TOPE}`
+
 /**
- * Los destinos posibles de una Tarea: los Proyectos y las Licitaciones abiertas.
+ * Los destinos posibles de una Tarea: los Proyectos y las Licitaciones y Upsells abiertos.
  *
  * POR QUE SON DOS PETICIONES. Una Licitacion **es** un Espacio (misma fila de `tblprojects`, mismo
  * id), pero `GET /projects` la esconde a proposito mientras no se gane: el Espacio de una
@@ -49,36 +55,66 @@ export const RUTA_DE_LICITACIONES = `licitaciones?filter[estado]=abierta&per_pag
  * @throws Error con el mensaje del contrato si falla `GET /projects`
  */
 export async function cargarEspaciosDestino (senal: AbortSignal): Promise<EspaciosDestino> {
-  const [proyectos, licitaciones] = await Promise.all([
+  const [proyectos, oportunidades] = await Promise.all([
     pedirSobre<Referencia[]>(RUTA_DE_PROYECTOS, senal),
-    licitacionesAbiertas(senal)
+    cargarOportunidadesAbiertas(senal)
   ])
 
-  return combinarDestinos(proyectos.data, licitaciones)
+  return combinarDestinos(proyectos.data, oportunidades.licitaciones, oportunidades.upsells)
 }
 
 /**
- * Las Licitaciones abiertas, o ninguna si no se pudieron pedir.
+ * Las Licitaciones y los Upsells abiertos. Cada lista cae a vacia por su lado si no se pudo pedir.
+ *
+ * @param senal señal para abortar cuando el componente se desmonta
+ * @returns las dos listas, nunca un error
+ */
+export async function cargarOportunidadesAbiertas (
+  senal: AbortSignal
+): Promise<{ licitaciones: LicitacionDestino[], upsells: UpsellDestino[] }> {
+  const [licitaciones, upsells] = await Promise.all([
+    listaOpcional<LicitacionDestino>(RUTA_DE_LICITACIONES, senal),
+    listaOpcional<UpsellDestino>(RUTA_DE_UPSELLS, senal)
+  ])
+
+  return { licitaciones, upsells }
+}
+
+/**
+ * Los Clientes activos como opciones de un selector.
+ *
+ * @param senal señal para abortar cuando el componente se desmonta
+ * @returns los clientes, o `[]` si la API no los dio
+ */
+export async function cargarClientesDestino (senal: AbortSignal): Promise<Referencia[]> {
+  const clientes = await listaOpcional<ClienteMinimo>(RUTA_DE_CLIENTES, senal)
+
+  return clientes.map((cliente) => ({ id: cliente.id, name: cliente.company }))
+}
+
+/**
+ * Un listado opcional del catalogo, o ninguno si no se pudo pedir.
  *
  * Se lee la respuesta cruda en vez de `pedirSobre` para no pasar por `mensajeDeRespuesta`, que ante
  * un error con incidente levanta el aviso flotante: aca un 403 es un caso previsto —no todo el mundo
  * ve la seccion comercial— y no algo que haya que reportar.
  *
+ * @param ruta la ruta del listado
  * @param senal señal para abortar cuando el componente se desmonta
- * @returns las licitaciones abiertas, o `[]` si la API no las dio
+ * @returns las filas, o `[]` si la API no las dio
  */
-async function licitacionesAbiertas (senal: AbortSignal): Promise<LicitacionDestino[]> {
-  const respuesta = await pedirRespuesta(RUTA_DE_LICITACIONES, senal)
+async function listaOpcional<T> (ruta: string, senal: AbortSignal): Promise<T[]> {
+  const respuesta = await pedirRespuesta(ruta, senal)
 
   if (!respuesta.ok) return []
 
   try {
-    const sobre = await respuesta.json() as Sobre<LicitacionDestino[]>
+    const sobre = await respuesta.json() as Sobre<T[]>
 
-    return sobre.data
+    return Array.isArray(sobre.data) ? sobre.data : []
   } catch {
-    // Un cuerpo que no es el envelope no deja sin catalogo al formulario: se pierde el grupo de
-    // Licitaciones y los Proyectos se ofrecen igual.
+    // Un cuerpo que no es el envelope no deja sin catalogo al formulario: se pierde ese grupo y
+    // los Proyectos se ofrecen igual.
     return []
   }
 }

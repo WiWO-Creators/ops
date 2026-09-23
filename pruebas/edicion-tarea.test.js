@@ -176,6 +176,20 @@ test('agregar, cambiar y quitar una relación limpia las dependencias anteriores
   })
 })
 
+test('licitación y upsell viajan como project y reclasificar no es un cambio', () => {
+  const inicial = camposDeTarea({ ...TAREA, rel_type: 'project', rel_id: 101 }, '')
+
+  assert.deepEqual(cuerpoDeParche(inicial, { ...inicial, relacion: 'licitacion' }), {})
+  assert.deepEqual(cuerpoDeParche(inicial, { ...inicial, relacion: 'upsell', relacionId: '202', hito: '', tipo: '' }), {
+    rel_type: 'project', rel_id: 202, milestone: 0, task_type: null
+  })
+  assert.deepEqual(cuerpoDeParche(inicial, { ...inicial, relacion: 'customer', relacionId: '7' }), {
+    rel_type: 'customer', rel_id: 7, milestone: 0, task_type: null
+  })
+  assert.equal(errorDeCamposEdicion({ ...inicial, relacion: 'licitacion', relacionId: '' }), null)
+  assert.notEqual(errorDeCamposEdicion({ ...inicial, relacion: 'customer', relacionId: '' }), null)
+})
+
 test('facturación y visibilidad conservan valores y permiten desactivarlos', () => {
   const inicial = camposDeTarea({ ...TAREA, billable: true, hourly_rate: 20, is_public: true, visible_to_client: true }, '')
   assert.deepEqual(cuerpoDeParche(inicial, inicial), {})
