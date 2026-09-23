@@ -6,7 +6,7 @@ import { ATRIBUTO_ABATIDA, CLAVE_BARRA } from '@/lib/barra-lateral'
 
 import Link, { useLinkStatus } from 'next/link'
 import { usePathname } from 'next/navigation'
-import { useEffect, useId, useSyncExternalStore } from 'react'
+import { cloneElement, useCallback, useEffect, useId, useRef, useState, useSyncExternalStore } from 'react'
 import { Building2, ChevronRight, FolderKanban, Menu, PanelLeftClose, PanelLeftOpen, Search } from 'lucide-react'
 import { Cajon, CerrarCajon, ContenidoCajon, DisparadorCajon } from '@/componentes/superposiciones/Cajon'
 import { Logo } from '@/componentes/estructura/Logo'
@@ -16,6 +16,8 @@ import { abrirPaleta, textoDelAtajo } from '@/componentes/paleta/abrir'
 import { ICONOS_DE_SECCION } from '@/componentes/paleta/iconos'
 import { agruparSecciones, seccionActiva, type PlegableDeNavegacion, type Seccion } from '@/lib/navegacion'
 import { cn } from '@/lib/clases'
+import { EVENTO_ABRIR_SECCIONES } from '@/lib/navegacion-movil'
+import { useGestoDeHoja } from '@/componentes/estructura/useGestoDeHoja'
 
 export type { IconoSeccion, Seccion } from '@/lib/navegacion'
 
@@ -246,7 +248,7 @@ interface PropsNavegacion {
   secciones: Seccion[]
   fijados: Fijado[]
   /** Envuelve cada enlace: el cajon lo usa para cerrarse al navegar. */
-  envolver?: (enlace: React.ReactElement, clave: string) => React.ReactNode
+  envolver?: (enlace: React.ReactElement<{ style?: React.CSSProperties }>, clave: string) => React.ReactNode
   claseItem?: string
 }
 
@@ -478,12 +480,19 @@ export function BarraLateral ({ secciones, fijados: iniciales = [], className }:
 }
 
 /**
- * Navegacion de movil: la lupa que abre la paleta y el boton hamburguesa que abre el cajon con las
- * mismas secciones.
+ * Navegacion de movil: el cajon con la busqueda y todas las secciones, agrupadas como en el riel.
  *
  * Por debajo de 760px el riel no entra y el panel se quedaba sin navegacion. Reusa `Cajon` —hoja
  * inferior en telefono, panel lateral desde `sm`— en vez de un deslizable propio: ese componente ya
  * resuelve foco atrapado, `Escape` y superposicion.
+ *
+ * Se abre desde "Más" de la barra inferior, que avisa con `EVENTO_ABRIR_SECCIONES`: la barra y el
+ * cajon viven en ramas distintas de un layout de servidor. El disparador hamburguesa sigue existiendo
+ * para quien lo monte visible (`className`), pero el armazon lo esconde: la barra inferior ya lo
+ * reemplaza, y dos botones para lo mismo en una cabecera de 360px es uno de mas.
+ *
+ * En la hoja inferior se puede tirar hacia abajo para cerrarla (`useGestoDeHoja`), con un asa que lo
+ * sugiere. Al cerrar, el foco vuelve a quien lo abrio —"Más"— y no al disparador escondido.
  *
  * Cada enlace va envuelto en `CerrarCajon` porque la navegacion es del lado del cliente: sin eso el
  * cajon queda abierto tapando la pantalla a la que se acaba de entrar.
@@ -495,46 +504,75 @@ export function BarraLateral ({ secciones, fijados: iniciales = [], className }:
  */
 export function BarraLateralMovil ({ secciones, className }: { secciones: Seccion[], className?: string }) {
   const fijados = useFijados()
+  const [abierto, setAbierto] = useState(false)
+  const origen = useRef<HTMLElement | null>(null)
+  const cerrar = useCallback(() => { setAbierto(false) }, [])
+  const { alPresionar, cerradaPorGesto, reiniciar } = useGestoDeHoja(cerrar)
+
+  const cambiar = useCallback((abrir: boolean) => {
+    if (abrir) reiniciar()
+    setAbierto(abrir)
+  }, [reiniciar])
+
+  useEffect(() => {
+    const abrirDesdeAfuera = () => {
+      origen.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
+      cambiar(true)
+    }
+    window.addEventListener(EVENTO_ABRIR_SECCIONES, abrirDesdeAfuera)
+    return () => { window.removeEventListener(EVENTO_ABRIR_SECCIONES, abrirDesdeAfuera) }
+  }, [cambiar])
+
+  // Los items entran escalonados, de arriba hacia abajo, detras de la hoja: la lista se lee como
+  // algo que se despliega y no como un bloque que aparece de golpe. El contador vive solo durante
+  // este render y numera los enlaces en el orden en que `NavegacionAgrupada` los pide.
+  let indice = 0
+  const envolver = (enlace: React.ReactElement<{ style?: React.CSSProperties }>, clave: string) => (
+    <CerrarCajon key={clave} asChild>
+      {cloneElement(enlace, { style: { animationDelay: `${Math.min(indice++, 10) * 22}ms` } })}
+    </CerrarCajon>
+  )
 
   return (
-    <>
-      <button
-        type="button"
-        onClick={abrirPaleta}
-        aria-label="Buscar"
-        aria-keyshortcuts="Control+K Meta+K"
-        className="text-texto-tenue hover:bg-hover hover:text-texto rounded-chico inline-flex size-8 items-center justify-center transition-colors md:hidden"
+    <Cajon open={abierto} onOpenChange={cambiar}>
+      <DisparadorCajon
+        aria-label="Abrir menú"
+        onClick={() => { origen.current = null }}
+        className={cn(
+          'text-texto-tenue hover:bg-hover hover:text-texto rounded-chico inline-flex size-8 items-center justify-center transition-colors md:hidden',
+          className
+        )}
       >
-        <Search size={20} strokeWidth={2} aria-hidden="true" />
-      </button>
-      <Cajon>
-        <DisparadorCajon
-          aria-label="Abrir menú"
-          className={cn(
-            'text-texto-tenue hover:bg-hover hover:text-texto rounded-chico inline-flex size-8 items-center justify-center transition-colors md:hidden',
-            className
-          )}
-        >
-          <Menu size={20} strokeWidth={2} aria-hidden="true" />
-        </DisparadorCajon>
-        <ContenidoCajon titulo="Secciones">
-          <div className="flex flex-col gap-3">
-            <CerrarCajon asChild>
-              {/* Se abre despues de que el cajon se cerro: la paleta no se abre encima de otro
-                  dialogo, y el cajon sigue abierto hasta que termina este clic. */}
-              <BotonBuscar onClick={() => { window.setTimeout(abrirPaleta, 0) }} />
-            </CerrarCajon>
-            <nav aria-label="Secciones" className="flex flex-col gap-3">
-              <NavegacionAgrupada
-                secciones={secciones}
-                fijados={fijados}
-                claseItem="py-2.5"
-                envolver={(enlace, clave) => <CerrarCajon key={clave} asChild>{enlace}</CerrarCajon>}
-              />
-            </nav>
-          </div>
-        </ContenidoCajon>
-      </Cajon>
-    </>
+        <Menu size={20} strokeWidth={2} aria-hidden="true" />
+      </DisparadorCajon>
+      <ContenidoCajon
+        titulo="Secciones"
+        onPointerDown={alPresionar}
+        onCloseAutoFocus={(evento) => {
+          if (origen.current === null) return
+          evento.preventDefault()
+          origen.current.focus()
+          origen.current = null
+        }}
+        className={cn('hoja-con-gesto pb-seguro', cerradaPorGesto && 'data-[state=closed]:animate-none')}
+      >
+        <div className="flex flex-col gap-3">
+          {/* La busqueda del telefono vive aca y no en la cabecera: en 360px la lupa se montaba
+              sobre el logo. Se abre despues de que el cajon se cerro: la paleta no se abre encima
+              de otro dialogo, y el cajon sigue abierto hasta que termina este clic. */}
+          <CerrarCajon asChild>
+            <BotonBuscar className="pointer-coarse:min-h-11" onClick={() => { window.setTimeout(abrirPaleta, 0) }} />
+          </CerrarCajon>
+          <nav aria-label="Secciones" className="flex flex-col gap-3">
+            <NavegacionAgrupada
+              secciones={secciones}
+              fijados={fijados}
+              claseItem="animate-entrar-abajo pointer-coarse:min-h-11 py-2.5 active:scale-[0.98]"
+              envolver={envolver}
+            />
+          </nav>
+        </div>
+      </ContenidoCajon>
+    </Cajon>
   )
 }

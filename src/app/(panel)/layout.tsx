@@ -13,6 +13,8 @@ import { SelectorTema } from '@/componentes/estructura/SelectorTema'
 import { BarraLateral, BarraLateralMovil, type Seccion } from '@/componentes/estructura/BarraLateral'
 import { PaletaDeComandos } from '@/componentes/paleta/PaletaDeComandos'
 import type { Fijado } from '@/componentes/fijados/fijados'
+import { BarraInferiorMovil } from '@/componentes/estructura/BarraInferiorMovil'
+import { AppInstalable } from '@/componentes/estructura/AppInstalable'
 import { BarraSuplantacion } from '@/componentes/estructura/BarraSuplantacion'
 import { AtajoDirecto } from '@/componentes/estructura/AtajoDirecto'
 import { Latido } from '@/componentes/auditoria/Latido'
@@ -85,6 +87,10 @@ export default async function PanelLayout ({ children }: { children: React.React
           es el unico valor del que se sabe que corresponde al JavaScript que se acaba de mandar. */}
       <VigilanteDeVersion version={versionDelServidor()} segundos={intervaloDeVersion()} />
 
+      {/* El service worker de la aplicacion instalable. Va aca por lo mismo que el vigilante: la
+          version con la que se registra tiene que ser la de este JavaScript. */}
+      <AppInstalable version={versionDelServidor()} />
+
       {/* Por el mismo motivo que el latido: el chat dejo de ser de un Espacio y su asunto es todo el
           panel. Montado aca —fuera del contenedor que scrollea— el orbe flota sobre cualquier
           pantalla, y el hilo sobrevive a navegar porque el armazon no se desmonta al cambiar de
@@ -109,13 +115,18 @@ export default async function PanelLayout ({ children }: { children: React.React
         <BarraLateral secciones={secciones} fijados={fijados.datos ?? SIN_FIJADOS} />
 
         <div className="flex min-w-0 flex-1 flex-col">
-          <header className="border-linea flex h-14 shrink-0 items-center gap-3 border-b px-4">
+          {/* Alto + `pt-seguro`: en la aplicacion instalada la cabecera se dibuja debajo de la
+              muesca (`viewport-fit=cover`), y los 56px tienen que empezar despues de ella. En el
+              escritorio la zona segura vale 0 y la cabecera mide lo mismo que siempre. */}
+          <header className="border-linea pt-seguro flex h-[calc(3.5rem_+_env(safe-area-inset-top,0px))] shrink-0 items-center gap-2 border-b px-3 xs:gap-3 xs:px-4">
             {/* Solo en movil: desde `md` el logo encabeza la barra lateral, y dos logos en pantalla
                 serian la misma marca dicha dos veces. */}
             <Link href="/inicio" aria-label="Inicio" className="min-w-0 md:hidden">
               <Logo tamano="medio" />
             </Link>
-            <BarraLateralMovil secciones={secciones} />
+            {/* El cajon se abre desde "Más" de la barra inferior; su hamburguesa queda escondida
+                porque seria el mismo boton dos veces en una cabecera que ya no tiene lugar. */}
+            <BarraLateralMovil secciones={secciones} className="hidden" />
             {/* Uno solo en toda la aplicacion, y aca y no en la barra lateral: la barra se abate a un
                 riel y en movil se esconde dentro de un cajon, justo donde mas falta hace saber que hay
                 un medidor corriendo. Colapsado no crece mas que un boton porque la cabecera mide
@@ -136,16 +147,24 @@ export default async function PanelLayout ({ children }: { children: React.React
               // token, asi que un combo de personas prometeria algo que el backend rechaza.
               nombre={yo.full_name}
               errorInicial={jornada.error}
-              className="ml-auto"
+              // Bajo 480px el medidor se angosta: sigue siendo lo mas importante de la cabecera,
+              // pero en 360px no puede comerse el lugar de la campana y la cuenta.
+              className="ml-auto max-xs:max-w-28"
             />
             <Campana inicial={avisos.datos} segundos={segundosDeLive} />
-            <SelectorTema />
+            {/* Bajo 480px el tema se cambia desde el menu de la cuenta: es lo que menos se toca de la
+                cabecera, y en un telefono chico no entran cuatro controles y el logo. */}
+            <SelectorTema className="max-xs:hidden" />
             <MenuUsuario nombre={yo.full_name} imagen={yo.profile_image_url} />
           </header>
           {/* El unico contenedor de scroll vertical del armazon. `min-h-0` es lo que se lo permite:
               sin el, un hijo flex no baja de su altura de contenido y `overflow-y` no llega a actuar.
               `ScrollSuave` pone el `overflow-y` y el `<main>`; aca solo queda como se mide y se rellena. */}
           <ScrollSuave className="min-h-0 min-w-0 flex-1 p-4">{children}</ScrollSuave>
+          {/* Solo por debajo de `md`, donde el riel no existe: los cuatro destinos de todos los dias
+              al alcance del pulgar, y "Más" para el resto. Va despues del scroll y dentro de la
+              columna, no flotando: asi el contenido termina justo encima y nada queda tapado. */}
+          <BarraInferiorMovil secciones={secciones} />
         </div>
       </div>
     </div>

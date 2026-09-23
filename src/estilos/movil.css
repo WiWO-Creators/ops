@@ -1,0 +1,310 @@
+/*
+ * Ops en el teléfono: zonas seguras, barra inferior, tablas en tarjetas y arrastre táctil.
+ *
+ * Todo lo que acá depende del ancho usa los cortes de `globals.css` escritos a mano (sm = 680px,
+ * md = 760px), porque una media query de CSS no puede leer las variables del `@theme`. Si los cortes
+ * cambian allá, cambian acá: `pruebas/breakpoints.test.js` vigila que CSS y JS digan lo mismo, y
+ * `pruebas/movil.test.js` vigila este archivo.
+ */
+
+/* ---------------------------------------------------------------------------------------------
+ * Zonas seguras.
+ *
+ * Con `viewport-fit=cover` (layout raíz) la página se dibuja debajo de la muesca, de la isla y de la
+ * barra de gestos. Estas utilidades devuelven ese espacio solo a quien lo necesita: la cabecera, la
+ * barra inferior, el cajón y los controles de la llamada. `env()` vale 0 en escritorio, así que no
+ * cambian nada fuera del teléfono.
+ * ------------------------------------------------------------------------------------------- */
+@utility pt-seguro {
+  padding-top: env(safe-area-inset-top, 0px);
+}
+
+@utility pb-seguro {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+@utility pl-seguro {
+  padding-left: env(safe-area-inset-left, 0px);
+}
+
+@utility pr-seguro {
+  padding-right: env(safe-area-inset-right, 0px);
+}
+
+/* Una capa fija anclada arriba que no puede quedar debajo de la muesca. */
+@utility top-seguro {
+  top: calc(env(safe-area-inset-top, 0px) + 0.75rem);
+}
+
+/* Relleno superior para lo que empieza contra el borde de arriba: nunca menos de 0.75rem. */
+@utility pt-seguro-holgado {
+  padding-top: max(0.75rem, env(safe-area-inset-top, 0px));
+}
+
+/* Relleno inferior para lo que termina contra el borde de abajo: nunca menos de 0.75rem. */
+@utility pb-seguro-holgado {
+  padding-bottom: max(0.75rem, env(safe-area-inset-bottom, 0px));
+}
+
+/*
+ * Cuánto ocupa la barra inferior. Lo leen las capas flotantes que viven abajo (el orbe, los avisos)
+ * para no quedar encima de la navegación. Vale 0 donde la barra no existe: en escritorio y en los
+ * armazones que no la montan (portal, taller, acceso).
+ */
+:root {
+  --barra-inferior: 0px;
+}
+
+@media (max-width: 759.98px) {
+  :root:has([data-barra-inferior]) {
+    --barra-inferior: calc(4rem + env(safe-area-inset-bottom, 0px));
+  }
+
+  /* La pila de avisos de error vive en el layout raíz y no sabe de la barra: se le corre el piso. */
+  [data-avisos-de-error] {
+    bottom: var(--barra-inferior);
+  }
+}
+
+/* ---------------------------------------------------------------------------------------------
+ * Barra de navegación inferior.
+ *
+ * El indicador se desliza con un resorte leve (rebote corto: la barra se toca, no se lanza) y las
+ * pestañas se hunden al presionar, en el `:active`, no al soltar. Quien pidió menos movimiento ve
+ * el indicador cambiar de lugar sin viaje: lo resuelve el bloque global de `neo.css`.
+ * ------------------------------------------------------------------------------------------- */
+.barra-inferior-indicador {
+  transition:
+    transform 420ms linear(0, 0.2459, 0.5895, 0.8465, 0.9954, 1.0578, 1.0654, 1.0487, 1.0288, 1.0137, 1.0045, 1),
+    opacity var(--wiwo-motion-fast) var(--wiwo-ease-emphasized);
+}
+
+.barra-inferior-pestana:active .barra-inferior-icono {
+  transform: scale(0.86);
+  transition-duration: 80ms;
+}
+
+.barra-inferior-icono {
+  transition: transform 260ms var(--wiwo-ease-expressive);
+}
+
+/* Material translúcido: sobre el contenido que pasa por debajo, no una franja opaca. */
+.barra-inferior {
+  background-color: color-mix(in oklab, var(--superficie) 82%, transparent);
+  -webkit-backdrop-filter: blur(18px) saturate(160%);
+  backdrop-filter: blur(18px) saturate(160%);
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .barra-inferior {
+    background-color: var(--superficie);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+}
+
+/* ---------------------------------------------------------------------------------------------
+ * Tablas en tarjetas, por debajo de `sm`.
+ *
+ * Cada fila pasa a ser una tarjeta: la celda principal como título a lo ancho, las secundarias en
+ * una grilla de dos columnas con su encabezado encima, y los controles (casillas, menú de acciones)
+ * en las esquinas. Los roles los pone `EtiquetadorDeTabla` en `data-rol`; la etiqueta de cada celda,
+ * en `data-etiqueta`, sale del `<th>` de su columna.
+ *
+ * Estas reglas van FUERA de toda capa a propósito: tienen que ganarle a las utilidades que cada
+ * pantalla le pone a sus celdas (`w-px`, `whitespace-nowrap`, `text-right`), que en una tarjeta de
+ * 360px desbordan. Los colores de fondo, en cambio, van en `@layer components` más abajo para que
+ * `bg-seleccionado` y compañía sigan ganando.
+ * ------------------------------------------------------------------------------------------- */
+@media (max-width: 679.98px) {
+  .tabla-tarjetas {
+    border: 0;
+    border-radius: 0;
+    overflow: visible;
+  }
+
+  .tabla-tarjetas > table,
+  .tabla-tarjetas > table > tbody {
+    display: block;
+    width: 100%;
+  }
+
+  /* El encabezado deja de verse pero sigue en el árbol: cada celda ya lleva su etiqueta. */
+  .tabla-tarjetas > table > thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .tabla-tarjetas > table > tbody {
+    display: flex;
+    flex-direction: column;
+    gap: 0.625rem;
+  }
+
+  .tabla-tarjetas > table > tbody > tr {
+    position: relative;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.625rem 1rem;
+    padding: 0.875rem 1rem;
+    border: 1px solid var(--linea);
+    border-radius: var(--large-BorderRadius);
+    animation: entrar-abajo var(--wiwo-motion-medium) var(--wiwo-ease-emphasized) both;
+    animation-delay: calc(min(var(--indice-tarjeta, 0), 12) * 35ms);
+  }
+
+  .tabla-tarjetas > table > tbody > tr:has(> td[data-rol='control-inicio']) {
+    padding-left: 3rem;
+  }
+
+  .tabla-tarjetas > table > tbody > tr:has(> td[data-rol='control-fin']) {
+    padding-right: 3.25rem;
+  }
+
+  .tabla-tarjetas > table > tbody > tr > td {
+    display: block;
+    width: auto;
+    min-width: 0;
+    padding: 0;
+    white-space: normal;
+    text-align: left;
+    overflow-wrap: anywhere;
+  }
+
+  .tabla-tarjetas td[data-rol='principal'] {
+    grid-column: 1 / -1;
+    order: -1;
+    font-size: var(--step-0);
+    font-weight: 600;
+    color: var(--texto);
+  }
+
+  .tabla-tarjetas td[data-rol='secundaria']::before {
+    content: attr(data-etiqueta);
+    display: block;
+    margin-bottom: 0.125rem;
+    color: var(--texto-sutil);
+    font-size: var(--step--1);
+    font-weight: 500;
+  }
+
+  .tabla-tarjetas td[data-rol='completa'] {
+    grid-column: 1 / -1;
+    text-align: center;
+  }
+
+  .tabla-tarjetas td[data-rol='oculta'] {
+    display: none;
+  }
+
+  .tabla-tarjetas td[data-rol='control-inicio'],
+  .tabla-tarjetas td[data-rol='control-fin'] {
+    position: absolute;
+    top: 0.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 2.75rem;
+    min-height: 2.75rem;
+  }
+
+  .tabla-tarjetas td[data-rol='control-inicio'] { left: 0.25rem; }
+  .tabla-tarjetas td[data-rol='control-fin'] { right: 0.25rem; }
+}
+
+@layer components {
+  @media (max-width: 679.98px) {
+    .tabla-tarjetas > table > tbody > tr {
+      background-color: var(--superficie-elevada);
+      box-shadow: var(--sombra-1);
+    }
+
+    /* La fila interactiva se hunde al tocarla: es la confirmación de que el toque llegó. */
+    .tabla-tarjetas > table > tbody > tr.cursor-pointer {
+      transition: transform 120ms var(--wiwo-ease-emphasized), background-color 150ms;
+    }
+
+    .tabla-tarjetas > table > tbody > tr.cursor-pointer:active {
+      transform: scale(0.985);
+    }
+  }
+}
+
+/* ---------------------------------------------------------------------------------------------
+ * Kanban táctil.
+ *
+ * El toque largo que inicia el arrastre compite con el menú de "copiar / compartir" de iOS y con la
+ * selección de texto: se apagan solo en pantallas táctiles, donde la tarjeta es para arrastrar.
+ * ------------------------------------------------------------------------------------------- */
+@media (pointer: coarse) {
+  .tablero-tarjeta {
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+}
+
+/* La tarjeta que se levanta: sombra de objeto en el aire y una inclinación que sigue la velocidad. */
+.tablero-fantasma {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 60;
+  margin: 0;
+  pointer-events: none;
+  box-shadow: var(--sombra-flotante);
+  will-change: transform;
+  view-transition-name: tablero-fantasma;
+}
+
+/* El hueco que deja la tarjeta levantada: se ve dónde estaba, pero ya no compite con el fantasma. */
+.tablero-tarjeta[data-levantada] {
+  opacity: 0.35;
+  transform: scale(0.97);
+  transition: opacity var(--wiwo-motion-fast) var(--wiwo-ease-emphasized), transform var(--wiwo-motion-fast) var(--wiwo-ease-emphasized);
+}
+
+/* La marca de dónde va a caer: aparece con escala desde el centro, como una ranura que se abre. */
+.tablero-ranura {
+  height: 0.25rem;
+  border-radius: 999px;
+  background: var(--acento);
+  animation: ranura-abre var(--wiwo-motion-fast) var(--wiwo-ease-expressive) both;
+}
+
+@keyframes ranura-abre {
+  from { transform: scaleX(0.3); opacity: 0; }
+  to { transform: scaleX(1); opacity: 1; }
+}
+
+/* ---------------------------------------------------------------------------------------------
+ * Cajón de secciones como hoja inferior (por debajo de `sm`): el asa que dice "esto se tira".
+ *
+ * La cabecera es la zona del gesto (`useGestoDeHoja`), y por eso no deja que el navegador se quede
+ * con el dedo para hacer scroll: con `touch-action` por defecto, el primer movimiento vertical lo
+ * reclama el navegador y el gesto recibe `pointercancel`.
+ * ------------------------------------------------------------------------------------------- */
+@media (max-width: 679.98px) {
+  .hoja-con-gesto > header {
+    position: relative;
+    padding-top: 1.5rem;
+    touch-action: none;
+    cursor: grab;
+  }
+
+  .hoja-con-gesto > header::before {
+    content: '';
+    position: absolute;
+    top: 0.5rem;
+    left: 50%;
+    width: 2.25rem;
+    height: 0.3125rem;
+    border-radius: 999px;
+    background: var(--linea-fuerte);
+    transform: translateX(-50%);
+  }
+}

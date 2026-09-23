@@ -1,4 +1,6 @@
 import { cn } from '@/lib/clases'
+import { EtiquetadorDeTabla } from './EtiquetadorDeTabla'
+import type { PrioridadDeColumna } from './tarjetasDeTabla'
 
 /**
  * Presentacion de tabla.
@@ -8,13 +10,29 @@ import { cn } from '@/lib/clases'
  *
  * El contenedor hace scroll horizontal propio: una tabla ancha nunca debe empujar el ancho de la
  * pagina, porque eso rompe el layout entero en vez de solo la tabla.
+ *
+ * Por debajo de `sm` cada fila se dibuja como tarjeta (`estilos/movil.css`): en un telefono, una
+ * tabla de seis columnas con scroll lateral obliga a leer cada fila a pedazos. Desde `sm` no cambia
+ * nada. Que columna titula la tarjeta lo decide `repartirColumnas` —la primera ancha con
+ * encabezado, salvo que un `CeldaEncabezado` diga otra cosa con `prioridad`—.
+ *
+ * @param tarjetas `false` mantiene la grilla con scroll lateral tambien en el telefono, para las
+ *   tablas que son una matriz y no una lista (comparar filas entre si pierde sentido en tarjetas)
+ * @param principales cuantas columnas forman el titulo de la tarjeta
  */
-export function Tabla ({ className, children, ...resto }: React.TableHTMLAttributes<HTMLTableElement>) {
+export function Tabla ({
+  className,
+  children,
+  tarjetas = true,
+  principales = 1,
+  ...resto
+}: React.TableHTMLAttributes<HTMLTableElement> & { tarjetas?: boolean, principales?: number }) {
   return (
-    <div className="border-linea rounded-tarjeta overflow-x-auto border">
+    <div className={cn('border-linea rounded-tarjeta overflow-x-auto border', tarjetas && 'tabla-tarjetas')}>
       <table className={cn('w-full border-collapse text-sm', className)} {...resto}>
         {children}
       </table>
+      {tarjetas && <EtiquetadorDeTabla principales={principales} />}
     </div>
   )
 }
@@ -80,6 +98,14 @@ interface PropsCelda extends React.TdHTMLAttributes<HTMLTableCellElement> {
   sinCortar?: boolean
 }
 
+interface PropsCeldaEncabezado extends PropsCelda {
+  /**
+   * Papel de la columna cuando la fila se dibuja como tarjeta en el telefono. Sin esto decide
+   * `repartirColumnas`. `oculta` la saca de la tarjeta, no de la tabla de escritorio.
+   */
+  prioridad?: PrioridadDeColumna
+}
+
 export function CeldaTabla ({ numerica = false, angosta = false, sinCortar = false, className, ...resto }: PropsCelda) {
   return (
     <td
@@ -95,10 +121,21 @@ export function CeldaTabla ({ numerica = false, angosta = false, sinCortar = fal
   )
 }
 
-export function CeldaEncabezado ({ numerica = false, angosta = false, className, ...resto }: PropsCelda & React.ThHTMLAttributes<HTMLTableCellElement>) {
+export function CeldaEncabezado ({
+  numerica = false,
+  angosta = false,
+  sinCortar = false,
+  prioridad,
+  className,
+  ...resto
+}: PropsCeldaEncabezado & React.ThHTMLAttributes<HTMLTableCellElement>) {
   return (
     <th
       scope="col"
+      // Lo que `repartirColumnas` necesita para elegir el titulo de la tarjeta: una columna angosta
+      // (un id, un importe) nunca titula si hay una ancha.
+      data-angosta={numerica || angosta || sinCortar ? '' : undefined}
+      data-prioridad={prioridad}
       className={cn(
         'px-4 py-2 text-left font-medium whitespace-nowrap',
         (numerica || angosta) && 'w-px',

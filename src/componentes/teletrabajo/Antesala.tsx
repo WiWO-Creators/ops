@@ -186,7 +186,7 @@ export function Antesala ({ titulo, esPrivada, yo, dentro, alEntrar, alVolver }:
 
   return (
     <div className="mx-auto w-full max-w-3xl">
-      <div className="rounded-tarjeta border-linea bg-superficie-elevada shadow-1 border p-5">
+      <div className="rounded-tarjeta border-linea bg-superficie-elevada shadow-1 border p-4 sm:p-5">
         <div className="mb-4 flex items-center gap-3">
           <Boton variante="sutil" soloIcono aria-label="Volver" title="Volver" onClick={alVolver}>
             <ArrowLeft className="size-4" />
@@ -232,7 +232,8 @@ export function Antesala ({ titulo, esPrivada, yo, dentro, alEntrar, alVolver }:
               </p>
             )}
 
-            <div className="flex gap-2">
+            {/* En el telefono los dos se reparten el ancho a 48px de alto: se tocan con el pulgar. */}
+            <div className="flex gap-2 max-sm:[&>button]:h-12 max-sm:[&>button]:flex-1">
               <Boton
                 variante={microfono ? 'primario' : 'secundario'}
                 aria-pressed={microfono}
@@ -304,7 +305,7 @@ export function Antesala ({ titulo, esPrivada, yo, dentro, alEntrar, alVolver }:
 
             <QuienEstaDentro dentro={dentro} />
 
-            <Boton variante="primario" tamano="grande" onClick={entrar} className="mt-auto">
+            <Boton variante="primario" tamano="grande" onClick={entrar} className="mt-auto max-sm:h-12">
               Entrar
             </Boton>
           </div>

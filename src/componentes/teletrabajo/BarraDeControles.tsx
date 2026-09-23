@@ -1,10 +1,11 @@
 'use client'
 
-import { useCallback, useState } from 'react'
-import { Track } from 'livekit-client'
-import { useTrackToggle } from '@livekit/components-react'
-import { MessageSquare, Mic, MicOff, MonitorUp, MonitorX, PhoneOff, Users, Video, VideoOff } from 'lucide-react'
+import { useCallback, useState, useSyncExternalStore } from 'react'
+import { LocalVideoTrack, Track, facingModeFromLocalTrack } from 'livekit-client'
+import { useLocalParticipant, useMediaDeviceSelect, useTrackToggle } from '@livekit/components-react'
+import { MessageSquare, Mic, MicOff, MonitorUp, MonitorX, PhoneOff, SwitchCamera, Users, Video, VideoOff } from 'lucide-react'
 import { Boton } from '@/componentes/formularios/Boton'
+import { cn } from '@/lib/clases'
 import { MenuDeDispositivos } from './MenuDeDispositivos'
 import { motivoDelFallo } from './errores'
 
@@ -68,6 +69,28 @@ export function BarraDeControles ({ lateral, alCambiarLateral, participantes, si
     accionar().catch((error: unknown) => { avisarDe(error, que) })
   }, [avisarDe])
 
+  const { cameraTrack } = useLocalParticipant()
+  const { devices: camaras } = useMediaDeviceSelect({ kind: 'videoinput' })
+  const puedeCompartirPantalla = useSyncExternalStore(
+    sinSuscripcion,
+    () => typeof navigator.mediaDevices?.getDisplayMedia === 'function',
+    () => true
+  )
+
+  /**
+   * Alterna entre la camara frontal y la trasera.
+   *
+   * Por `facingMode` y no eligiendo otro `deviceId`: un telefono tiene tres o cuatro camaras
+   * traseras (gran angular, tele, macro) y sus nombres no dicen cual mira hacia donde. Pedir
+   * "la de enfrente" o "la de atras" es lo que el sistema sabe resolver.
+   */
+  const cambiarCamara = useCallback(() => {
+    const pista = cameraTrack?.track
+    if (!(pista instanceof LocalVideoTrack)) return
+    const actual = facingModeFromLocalTrack(pista).facingMode
+    pulsar(async () => { await pista.restartTrack({ facingMode: actual === 'environment' ? 'user' : 'environment' }) }, 'la cámara')
+  }, [cameraTrack, pulsar])
+
   /** Abre un lateral, o lo cierra si ya estaba abierto. */
   const alternarLateral = useCallback((cual: 'participantes' | 'chat') => {
     alCambiarLateral(lateral === cual ? null : cual)
@@ -77,12 +100,14 @@ export function BarraDeControles ({ lateral, alCambiarLateral, participantes, si
     // `max-sm:pl-14` no es un capricho de espaciado: el armazon fija el orbe del producto en la
     // esquina inferior izquierda, y en un telefono se le monta encima al boton de microfono. El
     // relleno corre la fila lo justo para que dejen de pisarse.
-    <div className="flex shrink-0 flex-col items-center gap-2 max-sm:pl-14">
+    // En el telefono la llamada va a pantalla completa (`Llamada`): los controles crecen a 48px —se
+    // tocan sin mirar, con el pulgar— y dejan libre la barra de gestos del sistema.
+    <div className="max-md:pb-seguro-holgado flex shrink-0 flex-col items-center gap-2">
       {aviso !== null && (
         <p role="status" className="text-center text-xs text-texto-aviso">{aviso}</p>
       )}
 
-      <div className="flex items-center justify-center gap-2">
+      <div className="flex flex-wrap items-center justify-center gap-2 max-md:gap-3">
         <div className="flex items-center">
           <BotonDePista
             activo={microfono.enabled}
@@ -90,13 +115,15 @@ export function BarraDeControles ({ lateral, alCambiarLateral, participantes, si
             alPulsar={() => { pulsar(async () => await microfono.toggle(), 'el micrófono') }}
             etiqueta={microfono.enabled ? 'Silenciar micrófono' : 'Activar micrófono'}
             icono={microfono.enabled ? <Mic size={18} /> : <MicOff size={18} />}
-            className="rounded-r-none"
+            className="rounded-r-none max-md:rounded-r-control"
           />
           <MenuDeDispositivos
             clase="audioinput"
             etiqueta="Elegir micrófono"
             alFallar={(error) => { avisarDe(error, 'el micrófono') }}
-            className="rounded-l-none border-l-0"
+            // En el telefono el microfono es uno solo, y el chevron le quitaba 32px a una fila que
+            // ya no entra. La camara tiene su propio boton de cambio, mas abajo.
+            className="rounded-l-none border-l-0 max-md:hidden"
           />
         </div>
 
@@ -107,16 +134,33 @@ export function BarraDeControles ({ lateral, alCambiarLateral, participantes, si
             alPulsar={() => { pulsar(async () => await camara.toggle(), 'la cámara') }}
             etiqueta={camara.enabled ? 'Apagar cámara' : 'Encender cámara'}
             icono={camara.enabled ? <Video size={18} /> : <VideoOff size={18} />}
-            className="rounded-r-none"
+            className="rounded-r-none max-md:rounded-r-control"
           />
           <MenuDeDispositivos
             clase="videoinput"
             etiqueta="Elegir cámara"
             alFallar={(error) => { avisarDe(error, 'la cámara') }}
-            className="rounded-l-none border-l-0"
+            className="rounded-l-none border-l-0 max-md:hidden"
           />
         </div>
 
+        {/* Solo con mas de una camara y la camara prendida: con una sola no hay a cual cambiar. */}
+        {camaras.length > 1 && camara.enabled && (
+          <Boton
+            variante="secundario"
+            soloIcono
+            aria-label="Cambiar de cámara"
+            title="Cambiar de cámara"
+            className={TACTIL}
+            onClick={cambiarCamara}
+          >
+            <SwitchCamera size={18} aria-hidden="true" />
+          </Boton>
+        )}
+
+        {/* Ni iOS ni Chrome de Android comparten pantalla desde el navegador: el boton no se ofrece
+            donde siempre fallaria. */}
+        {puedeCompartirPantalla && (
         <BotonDePista
           activo={pantalla.enabled}
           pendiente={pantalla.pending}
@@ -124,12 +168,14 @@ export function BarraDeControles ({ lateral, alCambiarLateral, participantes, si
           etiqueta={pantalla.enabled ? 'Dejar de compartir pantalla' : 'Compartir pantalla'}
           icono={pantalla.enabled ? <MonitorX size={18} /> : <MonitorUp size={18} />}
         />
+        )}
 
         <Boton
           variante={lateral === 'participantes' ? 'primario' : 'secundario'}
           aria-pressed={lateral === 'participantes'}
           aria-label="Participantes"
           title="Participantes"
+          className={TACTIL}
           onClick={() => { alternarLateral('participantes') }}
         >
           <Users size={18} aria-hidden="true" />
@@ -142,7 +188,7 @@ export function BarraDeControles ({ lateral, alCambiarLateral, participantes, si
           aria-pressed={lateral === 'chat'}
           aria-label="Chat"
           title="Chat"
-          className="relative"
+          className={cn('relative', TACTIL)}
           onClick={() => { alternarLateral('chat') }}
         >
           <MessageSquare size={18} aria-hidden="true" />
@@ -153,12 +199,20 @@ export function BarraDeControles ({ lateral, alCambiarLateral, participantes, si
           )}
         </Boton>
 
-        <Boton variante="peligro" soloIcono aria-label="Salir de la sala" title="Salir de la sala" onClick={alSalir}>
+        <Boton variante="peligro" soloIcono aria-label="Salir de la sala" title="Salir de la sala" className={TACTIL} onClick={alSalir}>
           <PhoneOff size={18} aria-hidden="true" />
         </Boton>
       </div>
     </div>
   )
+}
+
+/** Los controles de la llamada, a 48px en el telefono: por encima del minimo tactil de 44px. */
+const TACTIL = 'max-md:h-12 max-md:min-w-12'
+
+/** `navigator.mediaDevices` no cambia mientras la pagina vive: no hay nada a que suscribirse. */
+function sinSuscripcion (): () => void {
+  return () => {}
 }
 
 interface PropsBotonDePista {
@@ -189,7 +243,7 @@ function BotonDePista ({ activo, pendiente, alPulsar, etiqueta, icono, className
       aria-label={etiqueta}
       title={etiqueta}
       onClick={alPulsar}
-      className={className}
+      className={cn(TACTIL, className)}
     >
       <span aria-hidden="true">{icono}</span>
     </Boton>
