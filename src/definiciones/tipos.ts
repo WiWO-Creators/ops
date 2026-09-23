@@ -96,6 +96,12 @@ export interface Filtro {
   tipo: TipoFiltro
   /** Tipo del valor en un filtro de campo con operador. */
   tipoDato?: 'texto' | 'numero' | 'fecha' | 'booleano'
+  /**
+   * Operadores que el backend acepta para este campo, cuando son menos que los de su `tipoDato`.
+   * Ej: el asunto de un ticket solo admite `contains` (y `empty`/`not_empty`); ofrecer "es igual a"
+   * seria ofrecer un 422. Ausente = los de su tipo.
+   */
+  operadores?: string[]
   /** Explica por qué este campo no puede filtrarse todavía. */
   noDisponible?: string
   /**

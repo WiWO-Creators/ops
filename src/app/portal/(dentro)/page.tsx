@@ -424,14 +424,14 @@ function MisTickets ({ lectura }: { lectura: LecturaDeTickets }) {
     <section className="flex flex-col gap-6">
       <TituloModulo
         nivel="h2"
-        titulo={`Mis ${GLOSARIO.ticket.plural.toLowerCase()}`}
-        acciones={<VerTodo href="/portal/soporte" etiqueta={`Ver ${GLOSARIO.ticket.plural.toLowerCase()}`} />}
+        titulo={`Mis ${GLOSARIO.solicitud.plural.toLowerCase()}`}
+        acciones={<VerTodo href="/portal/soporte" etiqueta={`Ver ${GLOSARIO.solicitud.plural.toLowerCase()}`} />}
       />
 
       {lectura.esperando > 0 && (
         <p className="rounded-tarjeta border-linea-fuerte bg-superficie-aviso border border-l-4 px-5 py-3 text-base text-texto">
           <span data-numerico className="tabular-nums">{lectura.esperando}</span>
-          {lectura.esperando === 1 ? ' ticket espera' : ' tickets esperan'} tu respuesta.
+          {lectura.esperando === 1 ? ' solicitud espera' : ' solicitudes esperan'} tu respuesta.
         </p>
       )}
 
@@ -454,11 +454,15 @@ function MisTickets ({ lectura }: { lectura: LecturaDeTickets }) {
  * @param ticket el ticket tal como llego en el resumen
  */
 function FilaDeTicket ({ ticket }: { ticket: TicketDelResumen }) {
+  const nuevo = ticket.no_leido === true
+
   return (
     <li>
       <Link href={`/portal/soporte?${PARAMETRO_TICKET}=${ticket.id}`} className={FILA}>
         <span className="min-w-0 flex-1 basis-full truncate text-base text-texto sm:basis-auto">
-          {ticket.subject}
+          <span className={nuevo ? 'font-semibold' : undefined}>{ticket.subject}</span>
+          {/* La marca es texto y no solo peso: la negrita sola no la oye un lector de pantalla. */}
+          {nuevo && <Insignia tono="acento" tamano="chico" className="ml-2 align-middle">Respuesta nueva</Insignia>}
           {ticket.project !== null && (
             <span className="block truncate text-sm text-texto-tenue">{ticket.project.name}</span>
           )}

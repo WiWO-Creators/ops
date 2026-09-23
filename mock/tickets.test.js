@@ -102,13 +102,13 @@ test('una respuesta vacia o con claves ajenas es 422', async () => {
   assert.equal((await pedir(cliente, '/portal/tickets/1/respuestas', 'POST', { message: 'x', status: 5 })).estado, 422)
 })
 
-test('la pestaña del Proyecto lista sus tickets sin task ni solicitante', async () => {
+test('la pestaña del Proyecto tiene la forma de la bandeja global (CONTRATO2 F)', async () => {
   const { estado, cuerpo } = await pedir(staff, '/projects/1/tickets')
 
   assert.equal(estado, 200)
-  assert.deepEqual(cuerpo.data.map((t) => t.id), [1])
-  assert.equal('task' in cuerpo.data[0], false)
-  assert.equal('solicitante' in cuerpo.data[0], false)
+  assert.ok(cuerpo.data.some((t) => t.id === 1))
+  assert.equal('task' in cuerpo.data[0], true)
+  assert.equal('solicitante' in cuerpo.data[0], true)
 })
 
 test('la ficha del equipo trae la tarea vinculada y el PATCH cambia la prioridad', async () => {

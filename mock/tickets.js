@@ -12,7 +12,7 @@
  * que se cae en produccion.
  */
 
-import { ErrorApi, aplicarConsulta } from './consulta.js'
+import { ErrorApi } from './consulta.js'
 import {
   CLIENTES, CONTACTOS, DEPARTAMENTOS, ESPACIOS, ESTADOS_TICKET, PRIORIDADES_TICKET, PROCESOS, STAFF,
   TICKETS_PORTAL
@@ -32,7 +32,7 @@ const TOPE_PERSONAS = 20
  * El 1 tiene Tarea (la 500, del Proyecto 1) para que el modal pinte el vinculo; el 2 no tiene
  * ninguna respuesta del equipo y es el que ejercita «esperando al equipo»; el 3 esta cerrado.
  */
-const DEL_EQUIPO = new Map([
+export const DEL_EQUIPO = new Map([
   [1, { assigned: 2, department: 1, task_id: 500 }],
   [2, { assigned: null, department: 1, task_id: null }],
   [3, { assigned: 3, department: 2, task_id: null }]
@@ -170,13 +170,9 @@ function fichaDelPortal (ticket) {
 /**
  * Rutas del equipo sobre tickets. Devuelve `null` si la peticion no es de tickets.
  *
- * @param {{ metodo: string, recurso: string, resto: string[], parametros: URLSearchParams, cuerpo: () => Promise<Record<string, unknown>>, actual: { id: number } }} peticion
+ * @param {{ metodo: string, recurso: string, resto: string[], cuerpo: () => Promise<Record<string, unknown>>, actual: { id: number } }} peticion
  */
-export async function ticketsDelEquipo ({ metodo, recurso, resto, parametros, cuerpo, actual }) {
-  if (recurso === 'projects' && resto[1] === 'tickets' && resto.length === 2 && metodo === 'GET') {
-    return ticketsDelProyecto(Number(resto[0]), parametros)
-  }
-
+export async function ticketsDelEquipo ({ metodo, recurso, resto, cuerpo, actual }) {
   if (recurso === 'projects' && resto[1] === 'ticket-notifications' && resto.length === 2) {
     return await avisosDelProyecto(metodo, Number(resto[0]), cuerpo)
   }
@@ -197,38 +193,6 @@ export async function ticketsDelEquipo ({ metodo, recurso, resto, parametros, cu
   if (subrecurso === 'archivos' && resto.length === 2 && metodo === 'GET') return { estado: 200, cuerpo: { data: [] } }
 
   throw new ErrorApi(404, 'not_found', 'Subrecurso desconocido.')
-}
-
-/** `GET /projects/{id}/tickets`, con la forma de `RecursoVentas::tickets()`: sin `task` ni `solicitante`. */
-function ticketsDelProyecto (proyectoId, parametros) {
-  const espacio = ESPACIOS.find((e) => e.id === proyectoId)
-  if (!espacio) throw new ErrorApi(404, 'not_found', `No existe espacio con id ${proyectoId}.`)
-
-  const filas = TICKETS_PORTAL.filter((t) => t.project_id === proyectoId).map((t) => {
-    const extra = DEL_EQUIPO.get(t.id)
-    const asignado = STAFF.find((s) => s.id === extra?.assigned)
-    const cliente = CLIENTES.find((c) => c.id === t.client_id)
-    return {
-      id: t.id,
-      ticketid: t.id,
-      subject: t.subject,
-      status: t.status,
-      priority: t.priority,
-      department: departamento(extra?.department),
-      assigned: asignado ? { id: asignado.id, full_name: asignado.full_name, profile_image_url: null } : null,
-      client: cliente ? { id: cliente.id, name: cliente.company } : null,
-      date: t.date,
-      lastreply: t.last_reply
-    }
-  })
-
-  const { filas: pagina, paginacion } = aplicarConsulta(filas, parametros, {
-    filtros: { status: 'status', priority: 'priority' },
-    orden: ['date', 'lastreply', 'subject', 'status', 'priority'],
-    busqueda: ['subject']
-  })
-
-  return { estado: 200, cuerpo: { data: pagina, meta: { pagination: paginacion } } }
 }
 
 function departamento (id) {
@@ -363,7 +327,7 @@ async function avisosDelProyecto (metodo, proyectoId, cuerpo) {
       errores.personas = ['required']
     }
     if (Object.keys(errores).length > 0) {
-      throw new ErrorApi(422, 'validation_failed', 'Revisá a quién se avisa.', errores)
+      throw new ErrorApi(422, 'validation_failed', 'Revisa a quién se avisa.', errores)
     }
 
     AVISOS.set(proyectoId, {

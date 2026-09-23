@@ -407,3 +407,53 @@ export function sinColumnasVacias<T> (definicion: DefinicionRecurso<T>, filas: T
 
   return { ...definicion, columnas }
 }
+
+/** Lo que el motor de tabla sabe de la pagina que tiene en pantalla, para decidir si pedir otra. */
+export interface EstadoDeRefresco {
+  /** La consulta que la URL pide ahora. */
+  consulta: string
+  /** La consulta con la que llegaron los datos iniciales. */
+  consultaInicial: string
+  /** Veces que la propia tabla pidio recargar (reintento, accion de fila, seleccion masiva). */
+  revision: number
+  /** El `refresco` que manda quien monta la tabla, ahora. */
+  refresco: number
+  /** El `refresco` que habia al montar la tabla. */
+  refrescoDeMontaje: number
+}
+
+/**
+ * Si la tabla tiene que pedir la pagina al BFF.
+ *
+ * Solo se ahorra la peticion en un caso: la URL sigue en la consulta con la que llegaron los datos y
+ * nadie pidio refrescar. Cualquier refresco —de la tabla o de afuera— vuelve a pedir **con la
+ * consulta vigente**, no con la del montaje: pedir con la del montaje devolvia la lista sin filtrar
+ * debajo de los filtros puestos.
+ *
+ * @param estado la consulta y los contadores de refresco
+ * @returns `true` si hay que pedir
+ */
+export function debePedirPagina (estado: EstadoDeRefresco): boolean {
+  return !(
+    estado.consulta === estado.consultaInicial &&
+    estado.revision === 0 &&
+    estado.refresco === estado.refrescoDeMontaje
+  )
+}
+
+/**
+ * Si la tabla adopta los datos iniciales que le llegan por props.
+ *
+ * Se adoptan cuando corresponden a la consulta que la URL pide ahora y ademas son nuevos (un
+ * `router.refresh()` los rehizo en el servidor) o todavia nadie refresco: si ya hubo un refresco, los
+ * iniciales viejos son anteriores a lo que la tabla trajo y pisarlos haria parpadear filas viejas.
+ *
+ * @param estado la consulta y los contadores de refresco; `consultaInicial` es la de los datos que llegan
+ * @param sonNuevos si el objeto inicial cambio desde la ultima vez que se adopto
+ * @returns `true` si hay que mostrar los iniciales
+ */
+export function debeAdoptarInicial (estado: EstadoDeRefresco, sonNuevos: boolean): boolean {
+  if (estado.consulta !== estado.consultaInicial) return false
+
+  return sonNuevos || (estado.revision === 0 && estado.refresco === estado.refrescoDeMontaje)
+}

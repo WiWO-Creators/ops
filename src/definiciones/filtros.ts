@@ -3,6 +3,8 @@ import type { CampoPersonalizadoMeta } from '../datos/recursos.ts'
 
 /** Operadores admitidos según el tipo del campo; los vacíos no necesitan valor. */
 export function operadoresCampo (filtro: Filtro): string[] {
+  if (filtro.operadores !== undefined) return filtro.operadores
+
   const comunes = ['eq', 'ne', 'empty', 'not_empty']
   if (filtro.tipoDato === 'numero' || filtro.tipoDato === 'fecha') return [...comunes, 'gt', 'gte', 'lt', 'lte']
   return filtro.tipoDato === 'booleano' ? comunes : [...comunes, 'contains']

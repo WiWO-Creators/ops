@@ -1,12 +1,19 @@
 'use client'
 
 import Link from 'next/link'
-import { useMemo } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { TablaRecurso } from '@/componentes/datos/TablaRecurso'
+import {
+  AsuntoDeTicket,
+  TarjetaDeSolicitud,
+  claseDeFilaDeSolicitud,
+  marcaDeSolicitud
+} from '@/componentes/datos/celdas-tickets'
+import { useAlCambiarTickets } from '@/componentes/datos/useAlCambiarTickets'
 import type { DefinicionRecurso, OpcionFiltro, ResultadoLista } from '@/definiciones/tipos'
 import { PORTAL_TICKETS } from '@/definiciones/portal-soporte'
 import { PORTAL_PROYECTOS } from '@/definiciones/portal-proyectos'
-import { EnlaceATicket } from '@/componentes/tickets/EnlaceATicket'
+import type { TicketPortal } from '@/datos/portal'
 import { PARAMETRO_TICKET } from '@/dominio/ticket-vista'
 
 /**
@@ -17,8 +24,10 @@ import { PARAMETRO_TICKET } from '@/dominio/ticket-vista'
  * manda una clave y datos serializables; la definicion se resuelve de este lado.
  *
  * Las dos comparten componente porque son la misma tabla con otra definicion. Soporte agrega algo
- * mas: el asunto y la fila abren el modal del ticket (`?ticket={id}`) sin salir de la bandeja;
- * Proyectos navega a su ficha.
+ * mas: el asunto y la fila abren el modal del ticket (`?ticket={id}`) sin salir de la bandeja, la
+ * fila con una respuesta sin leer se resalta, en pantallas angostas se ve en tarjetas y la lista se
+ * vuelve a pedir con los filtros puestos cuando el modal avisa que el ticket cambio. Proyectos navega
+ * a su ficha.
  */
 
 const DEFINICIONES = {
@@ -37,12 +46,22 @@ const ENLACES: Partial<Record<SeccionPortalListado, string>> = {
 export function TablaPortal<T extends { id: number }> ({
   seccion,
   inicial,
+  consultaDelInicial,
   opcionesDeFiltro
 }: {
   seccion: SeccionPortalListado
   inicial: ResultadoLista<T>
+  /** La consulta con la que el servidor armo `inicial`; ver `TablaRecurso`. */
+  consultaDelInicial?: string
   opcionesDeFiltro?: Record<string, OpcionFiltro[]>
 }) {
+  const esSoporte = seccion === 'soporte'
+  const [refresco, setRefresco] = useState(0)
+
+  // Solo la bandeja de soporte escucha: un ticket que cambio no mueve la lista de Proyectos.
+  const alCambiar = useCallback(() => { if (esSoporte) setRefresco((n) => n + 1) }, [esSoporte])
+  useAlCambiarTickets(alCambiar)
+
   // Se memoiza porque `TablaRecurso` la usa como dependencia de sus efectos: una definicion nueva en
   // cada render volveria a pedir la pagina en bucle.
   const definicion = useMemo(() => {
@@ -59,7 +78,13 @@ export function TablaPortal<T extends { id: number }> ({
               ...columna,
               presentar: (fila: T) => (
                 seccion === 'soporte'
-                  ? <EnlaceATicket id={fila.id}>{columna.presentar(fila)}</EnlaceATicket>
+                  ? (
+                    <AsuntoDeTicket
+                      id={fila.id}
+                      asunto={String(columna.presentar(fila))}
+                      marca={marcaDeSolicitud(fila as unknown as TicketPortal)}
+                    />
+                    )
                   : (
                     <Link
                       href={`/portal/${seccion}/${fila.id}`}
@@ -79,9 +104,16 @@ export function TablaPortal<T extends { id: number }> ({
     <TablaRecurso
       definicion={definicion}
       inicial={inicial}
+      consultaDelInicial={consultaDelInicial}
+      refresco={refresco}
       claveFila={(fila) => fila.id}
       opcionesDeFiltro={opcionesDeFiltro}
-      abrirEn={seccion === 'soporte' ? { clave: PARAMETRO_TICKET, valor: (fila) => fila.id } : undefined}
+      abrirEn={esSoporte ? { clave: PARAMETRO_TICKET, valor: (fila) => fila.id } : undefined}
+      claseFila={esSoporte ? (fila) => claseDeFilaDeSolicitud(fila as unknown as TicketPortal) : undefined}
+      tarjeta={esSoporte
+        ? (fila, catalogos) => <TarjetaDeSolicitud ticket={fila as unknown as TicketPortal} catalogos={catalogos} />
+        : undefined}
+      tarjetasEnMovil={esSoporte}
     />
   )
 }

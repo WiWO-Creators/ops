@@ -1581,6 +1581,17 @@ export interface TicketEspacio {
   task: TareaDeTicket | null
   date: string | null
   lastreply: string | null
+  /** El Proyecto del ticket; `null` en los que se abrieron sin uno. Opcional por la ficha vieja. */
+  project_id?: number | null
+  /**
+   * Quien escribio el ultimo mensaje (CONTRATO2 F). `null` si la API no lo puede decir. Opcional para
+   * convivir con un backend anterior al contrato v2: sin el campo, la columna "Esperando a" queda vacia.
+   */
+  ultimo_de?: 'equipo' | 'cliente' | null
+  /** Desde cuando espera al equipo: el ultimo mensaje del cliente, solo si `ultimo_de` es `cliente`. */
+  espera_desde?: string | null
+  /** Si el equipo ya leyo lo ultimo. `0|1` en el contrato v2; la forma anterior lo mandaba booleano. */
+  adminread?: number | boolean
 }
 
 /** La ficha de un ticket: lo mismo que la bandeja mas el mensaje con el que se abrio. */
@@ -1593,21 +1604,11 @@ export interface TicketDetalle extends TicketEspacio {
 /**
  * Ticket en la pestaña de un Proyecto (`GET /projects/{id}/tickets`).
  *
- * No es `TicketEspacio`: esa ruta la sirve `RecursoVentas`, que no emite ni `task` ni `solicitante`
- * y si emite `client`. Declararla con el tipo de la bandeja invitaria a pintar una columna de Tarea
- * que la API nunca manda.
+ * Desde el contrato v2 (CONTRATO2 F) esa ruta tiene la misma forma y los mismos filtros que la bandeja
+ * global (`GET /tickets`), con el Proyecto forzado: antes la servia `RecursoVentas` sin `task` ni
+ * `solicitante`. Por eso es la misma forma y no un tipo aparte.
  */
-export interface TicketDelProyecto {
-  id: number
-  subject: string
-  status: number
-  priority: number
-  department: Referencia | null
-  assigned: StaffReferencia | null
-  client: Referencia | null
-  date: string | null
-  lastreply: string | null
-}
+export type TicketDelProyecto = TicketEspacio
 
 /** Una persona que recibe el aviso de ticket nuevo de un Proyecto (T3). */
 export interface PersonaAvisada {

@@ -66,6 +66,7 @@ export async function SeccionDePortal<T extends { id: number }> ({
         <TablaPortal
           seccion={seccion}
           inicial={lista}
+          consultaDelInicial={consulta}
           opcionesDeFiltro={opcionesDeFiltros(definicion, lookups)}
         />
       </Suspense>

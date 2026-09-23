@@ -1554,6 +1554,53 @@ Filtros: `status`, `priority`, `service`, `userid`, `contactid`, `project_id`,
 Orden: `subject`, `date`, `lastreply`, `status`, `priority`. Búsqueda `q` sobre `subject` y
 `ticketkey`.
 
+#### Listados v2 (CONTRATO2 F): bandeja global y pestaña del Proyecto
+
+`GET /tickets` y `GET /projects/{id}/tickets` tienen **la misma forma y los mismos filtros**; la
+segunda fuerza el Proyecto y aplica la misma puerta de acceso (403 para un contratista sin acceso,
+404 para un Proyecto que no se ve). Las dos **excluyen los hijos fusionados** y suman por fila:
+
+```json
+{ "…": "…",
+  "ultimo_de": "cliente",                     // "equipo" | "cliente"; sin respuestas, el de la apertura
+  "espera_desde": "2026-09-22T18:30:00Z",     // último mensaje del cliente
+  "adminread": 0 }                            // 0 | 1 (antes booleano; el frontend acepta los dos)
+```
+
+Filtros, además de los de arriba:
+
+| Filtro | Valores | Notas |
+|---|---|---|
+| `filter[esperando]` | `equipo`, `cliente` o los dos con coma | `equipo` = lo último es del cliente. Vacío o inválido: 422 |
+| `filter[project_id]=0` | — | Tickets **sin Proyecto**: `tbltickets.project_id` es `NOT NULL DEFAULT 0` |
+| `filter[ticketid__op]`, `filter[date__op]`, `filter[lastreply__op]` | `eq ne gt gte lt lte empty not_empty` | |
+| `filter[subject__op]` | **sólo** `contains`, `empty`, `not_empty` | Igualdad sobre el asunto: 422 |
+
+`per_page` tiene tope 500. `include=message` trae también `message_texto`.
+
+`GET /projects/{id}/tickets/contadores` ⇒ `{ "data": { "abiertos": 3, "esperando_equipo": 1, "sin_leer": 2 } }`.
+`abiertos`: estado distinto de Cerrado; `esperando_equipo`: abiertos con `ultimo_de = "cliente"`;
+`sin_leer`: abiertos con `adminread = 0`. Misma puerta que el listado.
+
+Cómo lo usa `ops-v2`:
+
+- **Pestaña Tickets del Proyecto** (`componentes/proyecto/PanelTickets.tsx`): columnas asunto (con
+  "Sin leer" si `adminread = 0`), solicitante, estado, prioridad, "Esperando a" (equipo/cliente y
+  hace cuánto), asignado y última actividad; filtro rápido "Esperando al equipo"
+  (`filter[esperando]=equipo`), tarjetas debajo de `md`. El rótulo de la pestaña lleva el contador
+  (`Tickets · N`, con un punto de aviso si `esperando_equipo > 0`).
+- **Bandeja global** (`/tickets`, `app/(panel)/tickets`): lo mismo más la columna Proyecto y el filtro
+  de Proyecto con "Sin Proyecto" (`0`) primero. Departamento y asignado sólo se declaran si
+  `is_admin || is_superadmin`; para el resto `construirConsulta` los poda aunque vengan en la URL.
+- **Refresco**: el modal del ticket avisa con el evento de ventana `ops:tickets-cambiados`; la
+  pestaña, su contador, la bandeja global y la del portal vuelven a pedir **con la consulta vigente**
+  (filtros, orden y página), sin remontar la tabla.
+
+`GET /portal/tickets` (CONTRATO2 D y E) excluye los hijos fusionados y suma `no_leido: bool`
+(`clientread = 0` y el último mensaje es del equipo). El portal lo muestra como "Esperando tu
+respuesta" y resalta la fila. Hacia el cliente la sección se llama **Solicitudes**; la clave técnica
+(`tickets`, permiso `support`) no cambia.
+
 **Para un no administrador, `filter[department]` y `filter[assigned]` son `422 unknown`**, no filtros
 que se ignoran. El panel declara los dos selectores con `->isVisible(fn () => is_admin())`
 (`views/admin/tables/tickets.php:16` y `:46`): para un no-admin **ese selector no existe**. Un filtro
