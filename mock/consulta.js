@@ -202,10 +202,12 @@ export function aplicarConsulta (filas, parametros, definicion) {
     resultado = resultado.filter((fila) => predicado(fila, valor))
   }
 
-  const texto = (parametros.get('q') ?? '').trim().toLowerCase()
+  // Sin mayusculas ni acentos, como el `LIKE` de la API sobre columnas `utf8mb4_unicode_ci`: buscar
+  // "colbun" encuentra "Colbún" alla, y tiene que encontrarlo aca.
+  const texto = sinAcentos((parametros.get('q') ?? '').trim().toLowerCase())
   if (texto && busqueda.length > 0) {
     resultado = resultado.filter((fila) =>
-      busqueda.some((campo) => String(fila[campo] ?? '').toLowerCase().includes(texto))
+      busqueda.some((campo) => sinAcentos(String(fila[campo] ?? '').toLowerCase()).includes(texto))
     )
   }
 
@@ -372,4 +374,14 @@ function comparaUno (propio, operador, buscado) {
   if (operador === 'lt') return izquierda < derecha
 
   return izquierda <= derecha
+}
+
+/**
+ * Quita las marcas diacriticas de un texto.
+ *
+ * @param {string} texto
+ * @returns {string} el mismo texto sin tildes ni dieresis
+ */
+function sinAcentos (texto) {
+  return texto.normalize('NFD').replace(/\p{M}/gu, '')
 }
