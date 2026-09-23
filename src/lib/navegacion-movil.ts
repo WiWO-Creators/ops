@@ -13,9 +13,6 @@
  */
 export const EVENTO_ABRIR_SECCIONES = 'wiwo:abrir-secciones'
 
-/** Las pestañas fijas de la barra inferior, en orden. "Más" no es una ruta y va aparte. */
-export const PESTANAS_FIJAS = ['/inicio', '/mis-tareas', '/live', '/proyectos'] as const
-
 /**
  * Qué pestaña de la barra corresponde a la ruta actual.
  *

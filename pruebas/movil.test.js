@@ -12,7 +12,8 @@ import { readFileSync } from 'node:fs'
 import { bandaElastica, cierraLaHoja, curvaDeResorte, proyectar } from '../src/lib/resorte.ts'
 import { repartirColumnas, ubicarCeldas } from '../src/componentes/datos/tarjetasDeTabla.ts'
 import { destinoDelPuntero, esElMismoLugar, inclinacion } from '../src/componentes/datos/arrastreTactil.ts'
-import { PESTANAS_FIJAS, abreTeclado, pestanaActiva } from '../src/lib/navegacion-movil.ts'
+import { abreTeclado, pestanaActiva } from '../src/lib/navegacion-movil.ts'
+import { HREFS_PRINCIPALES } from '../src/lib/navegacion.ts'
 import { decidirActualizacion, urlDeRegistro, versionDelScript } from '../src/lib/pwa.ts'
 import manifest from '../src/app/manifest.ts'
 
@@ -158,7 +159,7 @@ test('la inclinacion sigue la velocidad y nunca pasa de 4 grados', () => {
 /* ------------------------------------------------------------------------------------------- */
 
 test('la pestana activa se decide por segmento, y lo demas cae en "Mas"', () => {
-  const hrefs = [...PESTANAS_FIJAS]
+  const hrefs = [...HREFS_PRINCIPALES]
   assert.equal(pestanaActiva('/inicio', hrefs), 0)
   assert.equal(pestanaActiva('/proyectos/8/tareas?vista=tablero', hrefs), 3)
   assert.equal(pestanaActiva('/proyectos-viejos', hrefs), hrefs.length)

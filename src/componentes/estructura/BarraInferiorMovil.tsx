@@ -3,21 +3,11 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useEffect, useState } from 'react'
-import { ClipboardList, FolderKanban, House, LayoutGrid, Radio, type LucideIcon } from 'lucide-react'
-import type { Seccion } from '@/componentes/estructura/BarraLateral'
-import { EVENTO_ABRIR_SECCIONES, PESTANAS_FIJAS, abreTeclado, pestanaActiva } from '@/lib/navegacion-movil'
+import { LayoutGrid, type LucideIcon } from 'lucide-react'
+import { ICONOS_DE_SECCION } from '@/componentes/paleta/iconos'
+import { HREFS_PRINCIPALES, type Seccion } from '@/lib/navegacion'
+import { EVENTO_ABRIR_SECCIONES, abreTeclado, pestanaActiva } from '@/lib/navegacion-movil'
 import { cn } from '@/lib/clases'
-
-/**
- * Íconos de las pestañas fijas. Son los mismos de la barra lateral para cada sección: en el
- * teléfono y en el escritorio, una misma pantalla se reconoce por el mismo dibujo.
- */
-const ICONOS: Record<(typeof PESTANAS_FIJAS)[number], LucideIcon> = {
-  '/inicio': House,
-  '/mis-tareas': ClipboardList,
-  '/live': Radio,
-  '/proyectos': FolderKanban
-}
 
 interface PropsBarraInferiorMovil {
   /** Las secciones ya filtradas por permisos: una pestaña fija sin permiso no se muestra. */
@@ -42,9 +32,11 @@ export function BarraInferiorMovil ({ secciones }: PropsBarraInferiorMovil) {
   const ruta = usePathname()
   const conTeclado = useTecladoAbierto()
 
-  const pestanas = PESTANAS_FIJAS
+  // Las mismas principales que encabezan el menu (`HREFS_PRINCIPALES`), con el icono que cada
+  // seccion ya trae: en el telefono y en el escritorio una pantalla se reconoce por el mismo dibujo.
+  const pestanas = HREFS_PRINCIPALES
     .map((href) => ({ href, seccion: secciones.find((s) => s.href === href) }))
-    .filter((p): p is { href: (typeof PESTANAS_FIJAS)[number], seccion: Seccion } => p.seccion !== undefined)
+    .filter((p): p is { href: (typeof HREFS_PRINCIPALES)[number], seccion: Seccion } => p.seccion !== undefined)
   const activa = pestanaActiva(ruta, pestanas.map((p) => p.href))
   const columnas = pestanas.length + 1
 
@@ -73,7 +65,7 @@ export function BarraInferiorMovil ({ secciones }: PropsBarraInferiorMovil) {
             <Pestana
               href={href}
               etiqueta={seccion.etiqueta}
-              Icono={ICONOS[href]}
+              Icono={ICONOS_DE_SECCION[seccion.icono]}
               activa={indice === activa}
             />
           </li>
