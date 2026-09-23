@@ -16,6 +16,8 @@ import { resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { ErrorApi, aplicarConsulta, campoFiltrable, coincideEnLista, leerIncludes } from './consulta.js'
 import * as sesion from './sesion.js'
+import { importarRecurrentes, listarRecurrentes, sembrarRecurrentes } from './recurrentes.js'
+import { avisosRuta } from './avisos.js'
 import {
   ADMINS_DE_CLIENTE, AREAS, ARCHIVOS, CAMPOS_PERSONALIZADOS, CHECKLIST, CLIENTES, COMENTARIOS, CRONOMETROS,
   DEPARTAMENTOS, EMPRESAS_DEL_GRUPO, ENTRADA_DE_CLIENTE, ESPACIOS, ESTADOS_ESPACIO, ESTADOS_PROCESO,
@@ -36,6 +38,9 @@ const PUERTO = Number(process.env.PORT ?? 3001)
  * id de la licitacion.
  */
 const ESPACIOS_EXISTENTES = [...ESPACIOS, ...ESPACIOS_DE_LICITACION]
+
+// Unas cuantas Tareas recurrentes, una por estado, para que `/procesos/recurrentes` tenga que mostrar.
+sembrarRecurrentes(PROCESOS, new Date().toISOString().slice(0, 10))
 
 /** Un tipo por espacio permite comprobar pertenencia sin duplicar catálogos de producción. */
 const TIPOS_PROCESO = ESPACIOS_EXISTENTES.map((espacio) => ({
@@ -221,7 +226,10 @@ const CONSULTA_PROCESOS = {
   filtros: {
     status: coincideEnLista((p) => p.status),
     priority: coincideEnLista((p) => p.priority),
-    project_id: coincideEnLista((p) => p.project?.id ?? null),
+    // Campo declarado y no predicado suelto: la API acepta los operadores `__empty` / `__not_empty`
+    // sobre cualquier filtro declarado, y "Mis Tareas" parte sus dos listas con ellos. Como
+    // predicado, el mock rechazaba el operador con 422 y la hoja entera no cargaba en local.
+    project_id: campoFiltrable((p) => p.project?.id ?? null, 'numero'),
     milestone_id: coincideEnLista((p) => p.milestone?.id ?? null),
     clientid: coincideEnLista((p) => (
       p.rel_type === 'customer' ? p.rel_id : ESPACIOS.find((e) => e.id === p.project?.id)?.clientid ?? null
@@ -405,7 +413,7 @@ function crearProceso (entrada, autor) {
     'name', 'description', 'start_date', 'due_date', 'priority', 'billable', 'estimated_hours',
     'milestone', 'task_type', 'rel_type', 'rel_id', 'assignees', 'followers', 'tags', 'status',
     'hourly_rate', 'is_public', 'visible_to_client', 'recurring', 'repeat_every', 'recurring_type',
-    'cycles', 'completed_at'
+    'cycles', 'recurring_until', 'completed_at'
   ])
   for (const clave of Object.keys(entrada)) {
     if (!aceptados.has(clave)) detalles[clave] = ['no_editable']
@@ -463,7 +471,7 @@ function crearProceso (entrada, autor) {
   const recurrente = [true, 1, '1'].includes(entrada.recurring)
   const frecuencia = Number(entrada.repeat_every)
   const ciclos = Number(entrada.cycles ?? 0)
-  const clavesRecurrencia = ['recurring', 'repeat_every', 'recurring_type', 'cycles']
+  const clavesRecurrencia = ['recurring', 'repeat_every', 'recurring_type', 'cycles', 'recurring_until']
   if (clavesRecurrencia.some((clave) => Object.hasOwn(entrada, clave))) {
     if (!Object.hasOwn(entrada, 'recurring')) detalles.recurring = ['requerido']
     else if (![true, false, 0, 1, '0', '1'].includes(entrada.recurring)) detalles.recurring = ['no_booleano']
@@ -472,6 +480,7 @@ function crearProceso (entrada, autor) {
       if (!['string', 'number'].includes(typeof entrada.repeat_every) || !Number.isInteger(frecuencia) || frecuencia < 1 || frecuencia > 365) detalles.repeat_every = ['fuera_de_rango']
       if (!['day', 'week', 'month', 'year'].includes(entrada.recurring_type)) detalles.recurring_type = ['no_soportado']
       if ((Object.hasOwn(entrada, 'cycles') && !['string', 'number'].includes(typeof entrada.cycles)) || !Number.isInteger(ciclos) || ciclos < 0 || ciclos > 365) detalles.cycles = ['fuera_de_rango']
+      if (entrada.recurring_until != null && (typeof entrada.recurring_until !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(entrada.recurring_until))) detalles.recurring_until = ['invalid']
     } else {
       for (const clave of clavesRecurrencia.slice(1)) {
         if (Object.hasOwn(entrada, clave)) detalles[clave] = ['sobra_sin_recurrencia']
@@ -567,6 +576,8 @@ function crearProceso (entrada, autor) {
     repeat_every: recurrente ? frecuencia : 0,
     recurring_type: recurrente ? entrada.recurring_type : null,
     cycles: recurrente ? ciclos : 0,
+    total_cycles: 0,
+    recurring_until: recurrente ? entrada.recurring_until ?? null : null,
     kanban_order: Math.max(0, ...PROCESOS.filter((p) => p.status === Number(estado)).map((p) => p.kanban_order)) + 1,
     assignees: asignados.map((s) => ({
       id: s.id,
@@ -620,6 +631,49 @@ function resolverStaff (valor, detalles, clave) {
   }
 
   return personas
+}
+
+/**
+ * `GET /tasks/recurrentes` y `POST /tasks/recurrentes/importar`, con la misma forma que la API.
+ *
+ * El alta de cada fila pasa por `crearProceso()`, igual que en la API pasa por `CrearProceso`: el
+ * validar la ensaya sin guardar y el aplicar la guarda.
+ */
+async function rutaDeRecurrentes (metodo, resto, parametros, actual, cuerpo) {
+  if (metodo === 'GET' && resto.length === 1) {
+    const reglas = listarRecurrentes(PROCESOS, parametros, {
+      staff: STAFF, espacios: ESPACIOS_EXISTENTES, clientes: CLIENTES, hoy: new Date().toISOString().slice(0, 10)
+    })
+    return { estado: 200, cuerpo: conDatos(reglas, { total: reglas.length }) }
+  }
+
+  if (metodo === 'POST' && resto[1] === 'importar' && resto.length === 2) {
+    exigirPermiso(actual, 'tasks', 'create')
+    const { estado, datos } = importarRecurrentes(await cuerpo(), {
+      staff: STAFF,
+      espacios: ESPACIOS_EXISTENTES,
+      procesos: PROCESOS,
+      encendida: process.env.WIWO_PROCESOS_RECURRENTES !== '0',
+      validarAlta: (alta) => {
+        try {
+          crearProceso(alta, actual)
+          return null
+        } catch (error) {
+          if (!(error instanceof ErrorApi)) throw error
+          const columnas = { name: 'tarea', assignees: 'responsable', rel_id: 'proyecto_id', start_date: 'fecha_inicio', due_date: 'vencimiento_dias', cycles: 'fin', recurring_until: 'fin' }
+          return Object.fromEntries(Object.entries(error.detalles ?? { fila: ['invalid'] }).map(([campo, codigos]) => [columnas[campo] ?? 'frecuencia', codigos]))
+        }
+      },
+      crear: (alta) => {
+        const nuevo = crearProceso(alta, actual)
+        PROCESOS.unshift(nuevo)
+        return nuevo.id
+      }
+    })
+    return { estado, cuerpo: conDatos(datos) }
+  }
+
+  throw new ErrorApi(404, 'not_found', 'Acción desconocida.')
 }
 
 /** Busca una fila por id o lanza 404. */
@@ -4743,6 +4797,230 @@ function contactoDelToken (token) {
   }
 }
 
+// --- Fijados, recientes y busqueda global ------------------------------------------------------
+//
+// Espejo de `Recursos/RecursoFijados.php`, `Escritura/Fijados.php` y `Recursos/RecursoBusqueda.php`.
+// La visibilidad se imita con la regla corta del mock: quien administra ve todo; el resto, los
+// Espacios que integra y los Clientes de esos Espacios. Lo que importa reproducir es la forma y los
+// codigos: 422 por tipo o id invalido, el MISMO 404 para inexistente y ajeno, 409 al tope.
+
+/** Tipos que se pueden fijar, con el vocabulario de la API. */
+const TIPOS_FIJABLES = ['project', 'client']
+const TOPE_FIJADOS = 20
+const RECIENTES_GUARDADOS = 30
+const RECIENTES_VISIBLES = 8
+
+/** @type {Map<number, Array<{type: string, id: number}>>} fijados por staff, en orden */
+const FIJADOS = new Map()
+/** @type {Map<number, Array<{type: string, id: number, viewed_at: string}>>} recientes por staff, del mas nuevo al mas viejo */
+const RECIENTES = new Map()
+
+/**
+ * Si el staff ve un Espacio o un Cliente.
+ *
+ * @param {object} staff la sesion
+ * @param {string} tipo `project` o `client`
+ * @param {number} id el id
+ * @returns {boolean}
+ */
+function elementoVisible (staff, tipo, id) {
+  const esAdmin = staff.is_admin === true || staff.is_superadmin === true
+
+  if (tipo === 'project') {
+    const espacio = ESPACIOS_EXISTENTES.find((e) => e.id === id)
+    return espacio !== undefined && (esAdmin || espacio.miembros.includes(staff.id))
+  }
+
+  const cliente = CLIENTES.find((c) => c.id === id)
+  return cliente !== undefined &&
+    (esAdmin || ESPACIOS_EXISTENTES.some((e) => e.clientid === id && e.miembros.includes(staff.id)))
+}
+
+/**
+ * Presenta un elemento con la forma de `RecursoFijados`, o `null` si ya no se ve.
+ *
+ * @returns {object|null}
+ */
+function presentarElementoPersonal (staff, tipo, id) {
+  if (!elementoVisible(staff, tipo, id)) return null
+
+  if (tipo === 'project') {
+    const espacio = ESPACIOS_EXISTENTES.find((e) => e.id === id)
+    const cliente = CLIENTES.find((c) => c.id === espacio.clientid)
+    return { type: 'project', id, name: espacio.name, client: cliente ? { id: cliente.id, company: cliente.company } : null }
+  }
+
+  const cliente = CLIENTES.find((c) => c.id === id)
+  return { type: 'client', id, name: cliente.company, client: null }
+}
+
+/** Los fijados visibles del staff, en orden y con su posicion. */
+function fijadosDe (staff) {
+  return (FIJADOS.get(staff.id) ?? [])
+    .map((f) => presentarElementoPersonal(staff, f.type, f.id))
+    .filter((f) => f !== null)
+    .map((f, position) => ({ ...f, position }))
+}
+
+/** @throws {ErrorApi} 422 si el tipo no es de los admitidos */
+function exigirTipoFijable (tipo) {
+  if (!TIPOS_FIJABLES.includes(tipo)) {
+    throw new ErrorApi(422, 'validation_failed', 'El tipo debe ser uno de: project, client.', { type: ['in:project,client'] })
+  }
+  return tipo
+}
+
+/** @throws {ErrorApi} 422 si no es un entero positivo */
+function exigirIdPositivo (valor) {
+  const id = typeof valor === 'string' && /^[1-9]\d{0,9}$/.test(valor) ? Number(valor) : valor
+  if (!Number.isInteger(id) || id < 1) {
+    throw new ErrorApi(422, 'validation_failed', 'El id tiene que ser un entero positivo.', { id: ['integer'] })
+  }
+  return id
+}
+
+/** @throws {ErrorApi} 404 igual para inexistente y ajeno */
+function exigirElementoVisible (staff, tipo, id) {
+  if (!elementoVisible(staff, tipo, id)) {
+    throw new ErrorApi(404, 'not_found', tipo === 'project' ? 'No existe ese Proyecto.' : 'No existe ese cliente.')
+  }
+}
+
+/**
+ * `/me/fijados` y `/me/recientes`.
+ *
+ * @returns {Promise<{estado: number, cuerpo?: object}>}
+ */
+async function navegacionPersonalRuta (metodo, resto, staff, cuerpo) {
+  if (resto[0] === 'recientes') {
+    if (resto.length > 1) throw new ErrorApi(404, 'not_found', 'Subrecurso desconocido.')
+
+    if (metodo === 'POST') {
+      const datos = await cuerpo() ?? {}
+      const tipo = exigirTipoFijable(datos.type)
+      const id = exigirIdPositivo(datos.id)
+      exigirElementoVisible(staff, tipo, id)
+      const lista = (RECIENTES.get(staff.id) ?? []).filter((r) => !(r.type === tipo && r.id === id))
+      RECIENTES.set(staff.id, [{ type: tipo, id, viewed_at: new Date().toISOString() }, ...lista].slice(0, RECIENTES_GUARDADOS))
+      return { estado: 204 }
+    }
+
+    if (metodo !== 'GET') throw new ErrorApi(404, 'not_found', 'Usá GET o POST para tus recientes.')
+
+    const recientes = (RECIENTES.get(staff.id) ?? [])
+      .map((r) => {
+        const elemento = presentarElementoPersonal(staff, r.type, r.id)
+        return elemento === null ? null : { ...elemento, viewed_at: r.viewed_at }
+      })
+      .filter((r) => r !== null)
+      .slice(0, RECIENTES_VISIBLES)
+    return { estado: 200, cuerpo: conDatos(recientes) }
+  }
+
+  if (resto.length === 1) {
+    if (metodo === 'PUT') {
+      const datos = await cuerpo() ?? {}
+      if (!Array.isArray(datos.items)) {
+        throw new ErrorApi(422, 'validation_failed', '`items` tiene que ser una lista.', { items: ['required'] })
+      }
+      const pedidos = datos.items.map((item) => `${exigirTipoFijable(item?.type)}:${exigirIdPositivo(item?.id)}`)
+      const guardados = (FIJADOS.get(staff.id) ?? []).map((f) => `${f.type}:${f.id}`)
+      if (new Set(pedidos).size !== pedidos.length || [...pedidos].sort().join() !== [...guardados].sort().join()) {
+        throw new ErrorApi(422, 'validation_failed', 'El orden tiene que incluir exactamente los elementos fijados.', { items: ['mismatch'] })
+      }
+      FIJADOS.set(staff.id, pedidos.map((clave) => {
+        const [type, id] = clave.split(':')
+        return { type, id: Number(id) }
+      }))
+      return { estado: 200, cuerpo: conDatos(fijadosDe(staff)) }
+    }
+
+    if (metodo !== 'GET') throw new ErrorApi(404, 'not_found', 'Usá GET para ver tus fijados o PUT para ordenarlos.')
+    return { estado: 200, cuerpo: conDatos(fijadosDe(staff)) }
+  }
+
+  if (resto.length !== 3) throw new ErrorApi(404, 'not_found', 'Subrecurso desconocido.')
+  if (!/^[1-9]\d*$/.test(resto[2])) throw new ErrorApi(404, 'not_found', 'Identificador inválido.')
+
+  const tipo = exigirTipoFijable(resto[1])
+  const id = Number(resto[2])
+  const lista = FIJADOS.get(staff.id) ?? []
+
+  if (metodo === 'PUT') {
+    exigirElementoVisible(staff, tipo, id)
+    if (!lista.some((f) => f.type === tipo && f.id === id)) {
+      if (lista.length >= TOPE_FIJADOS) {
+        throw new ErrorApi(409, 'conflict', `Ya tienes ${TOPE_FIJADOS} elementos fijados. Quita alguno antes de fijar otro.`)
+      }
+      FIJADOS.set(staff.id, [...lista, { type: tipo, id }])
+    }
+  } else if (metodo === 'DELETE') {
+    if (!lista.some((f) => f.type === tipo && f.id === id)) throw new ErrorApi(404, 'not_found', 'Ese elemento no está fijado.')
+    FIJADOS.set(staff.id, lista.filter((f) => !(f.type === tipo && f.id === id)))
+  } else {
+    throw new ErrorApi(404, 'not_found', 'Usá PUT para fijar o DELETE para quitar.')
+  }
+
+  return { estado: 200, cuerpo: conDatos(fijadosDe(staff)) }
+}
+
+/**
+ * `GET /search`, con las validaciones de `RecursoBusqueda`.
+ *
+ * @param {URLSearchParams} parametros la consulta
+ * @param {object} staff la sesion
+ * @returns {{estado: number, cuerpo: object}}
+ */
+function busquedaGlobal (parametros, staff) {
+  const termino = (parametros.get('q') ?? '').trim().replace(/\s+/g, ' ')
+  if (termino === '') throw new ErrorApi(422, 'validation_failed', 'Falta el término de búsqueda.', { q: ['required'] })
+  if (termino.length < 2) {
+    throw new ErrorApi(422, 'validation_failed', 'El término de búsqueda necesita al menos 2 caracteres.', { q: ['min:2'] })
+  }
+
+  const crudo = parametros.get('per_type')
+  if (crudo !== null && !/^\d+$/.test(crudo)) {
+    throw new ErrorApi(422, 'validation_failed', 'El parámetro "per_type" debe ser un entero mayor que cero.', { per_type: ['integer'] })
+  }
+  const porTipo = Math.min(Math.max(Number(crudo ?? 5), 1), 25)
+  const terminos = parametros.get('q_mode') === 'terms' ? termino.split(' ') : [termino]
+  const coincide = (...textos) => {
+    const bolsa = textos.filter(Boolean).join(' ').toLowerCase()
+    return terminos.every((t) => bolsa.includes(t.toLowerCase()))
+  }
+  const esAdmin = staff.is_admin === true || staff.is_superadmin === true
+  const permisos = permisosDe(staff)
+
+  const bloque = (filas) => ({ total: filas.length, page: 1, has_more: filas.length > porTipo, items: filas.slice(0, porTipo) })
+  const datos = {
+    tasks: bloque(PROCESOS
+      .filter((p) => coincide(p.name, p.patente) && (esAdmin || p.assignees.some((a) => a.id === staff.id) ||
+        (p.project !== null && elementoVisible(staff, 'project', p.project.id))))
+      .map(presentarProcesoEnLista)),
+    projects: bloque(ESPACIOS
+      .filter((e) => coincide(e.name) && elementoVisible(staff, 'project', e.id))
+      .map((e) => presentarEspacio(e))),
+    clients: bloque(CLIENTES.filter((c) => coincide(c.company) && elementoVisible(staff, 'client', c.id)))
+  }
+  const omitidos = []
+  if ((permisos.staff ?? []).includes('view')) {
+    datos.staff = bloque(STAFF.filter((p) => coincide(p.firstname, p.lastname, p.email)).map(presentarStaff))
+  } else {
+    omitidos.push('staff')
+  }
+
+  return {
+    estado: 200,
+    cuerpo: conDatos(datos, {
+      query: termino,
+      per_type: porTipo,
+      page: 1,
+      types: Object.keys(datos),
+      types_skipped: omitidos
+    })
+  }
+}
+
 async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, peticion) {
   const [recurso, ...resto] = segmentos
 
@@ -5428,6 +5706,21 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
     }
   }
 
+  // Fijados y recientes (`/me/fijados`, `/me/recientes`; migracion 0900 de wiwo-board). Van ANTES
+  // del bloque de `me` por el mismo motivo que la jornada: ese bloque contesta la ficha de la
+  // persona a cualquier resto.
+  if (recurso === 'me' && (resto[0] === 'fijados' || resto[0] === 'recientes')) {
+    return await navegacionPersonalRuta(metodo, resto, actual, cuerpo)
+  }
+
+  // Busqueda global de la paleta. Misma forma que `RecursoBusqueda`: un bloque por tipo con
+  // `total`, `page`, `has_more` e `items`, y el tipo sin permiso afuera de `data` y en
+  // `meta.types_skipped`.
+  if (recurso === 'search') {
+    if (metodo !== 'GET' || resto.length > 0) throw new ErrorApi(404, 'not_found', 'Subrecurso desconocido.')
+    return busquedaGlobal(parametros, actual)
+  }
+
   // La jornada propia y sus tres formas de abrirse. Va ANTES del bloque de `me` por el mismo motivo
   // que "Mi Área": ese bloque contesta la ficha de la persona a cualquier resto, asi que sin esta
   // rama `GET /me/jornada` devolveria un staff y el control de la cabecera leeria `open` de un objeto
@@ -5538,6 +5831,12 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
         locale: 'es'
       })
     }
+  }
+
+  // La campana y las notificaciones push del dispositivo (`mock/avisos.js`). Las rutas de
+  // superadmin de `/notifications` (settings, colas de correo, test) no estan en el mock.
+  if (recurso === 'notifications') {
+    return await avisosRuta(metodo, resto, parametros, actual, cuerpo)
   }
 
   // Contesta 404 a quien no entra, igual que la API: el 403 confesaria que la ruta existe.
@@ -6188,6 +6487,8 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
       return { estado: 201, cuerpo: conDatos(nuevo) }
     }
 
+    if (resto[0] === 'recurrentes') return await rutaDeRecurrentes(metodo, resto, parametros, actual, cuerpo)
+
     const proceso = buscarO404(PROCESOS, Number(resto[0]), 'proceso')
     const [, subrecurso, extra] = resto
 
@@ -6254,7 +6555,12 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
     if (metodo === 'PATCH' && !subrecurso) {
       exigirPermiso(actual, 'tasks', 'edit')
       // Parche parcial: el detalle edita bloque a bloque, nunca envia 200 campos de una.
-      Object.assign(proceso, await cuerpo())
+      const parche = await cuerpo()
+      Object.assign(proceso, parche)
+      // Como `ParcheProceso::CANCELAR`: apagar la recurrencia borra toda su configuracion, y encenderla
+      // sin fecha de fin deja `recurring_until` en null (el cuerpo declara la regla entera).
+      if (parche.recurring === false) Object.assign(proceso, { repeat_every: 0, recurring_type: null, cycles: 0, total_cycles: 0, recurring_until: null, last_recurring_date: null })
+      if (parche.recurring === true && !Object.hasOwn(parche, 'recurring_until')) proceso.recurring_until = null
       return { estado: 200, cuerpo: conDatos(proceso) }
     }
 

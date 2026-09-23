@@ -1,14 +1,25 @@
 'use client'
 
+import './navegacion.css'
+
 import { ATRIBUTO_ABATIDA, CLAVE_BARRA } from '@/lib/barra-lateral'
 
 import Link, { useLinkStatus } from 'next/link'
 import { usePathname } from 'next/navigation'
-import { useSyncExternalStore } from 'react'
-import { Building2, ClipboardList, DoorOpen, FolderKanban, Gavel, House, ListChecks, Menu, Network, PanelLeftClose, PanelLeftOpen, Radio, ScrollText, SlidersHorizontal, Target, TrendingUp, Users, UsersRound, Video } from 'lucide-react'
+import { cloneElement, useCallback, useEffect, useId, useRef, useState, useSyncExternalStore } from 'react'
+import { Building2, ChevronRight, FolderKanban, Menu, PanelLeftClose, PanelLeftOpen, Search } from 'lucide-react'
 import { Cajon, CerrarCajon, ContenidoCajon, DisparadorCajon } from '@/componentes/superposiciones/Cajon'
 import { Logo } from '@/componentes/estructura/Logo'
+import { sembrarFijados, useFijados } from '@/componentes/fijados/almacen'
+import { claveDeElemento, hrefDeElemento, type Fijado } from '@/componentes/fijados/fijados'
+import { abrirPaleta, textoDelAtajo } from '@/componentes/paleta/abrir'
+import { ICONOS_DE_SECCION } from '@/componentes/paleta/iconos'
+import { agruparSecciones, seccionActiva, type PlegableDeNavegacion, type Seccion } from '@/lib/navegacion'
 import { cn } from '@/lib/clases'
+import { EVENTO_ABRIR_SECCIONES } from '@/lib/navegacion-movil'
+import { useGestoDeHoja } from '@/componentes/estructura/useGestoDeHoja'
+
+export type { IconoSeccion, Seccion } from '@/lib/navegacion'
 
 /**
  * Como se decide el ancho de la barra.
@@ -27,84 +38,40 @@ import { cn } from '@/lib/clases'
  */
 const EVENTO_BARRA = 'wiwo:barra-lateral'
 
-/**
- * Iconos por clave.
- *
- * Las secciones se calculan en el servidor, y un componente de Lucide no cruza la frontera RSC
- * (no es serializable). Por eso viaja una clave y el componente se resuelve aca. Mapa `as const` y
- * no `cva`: es una sola dimension, sin matriz de variantes.
- */
-const ICONOS = {
-  inicio: House,
-  // `Radio` y no un reloj: LIVE no mide duraciones, dice quien esta al aire ahora. El reloj ya es el
-  // vocabulario del cronometro, que es otra cosa.
-  live: Radio,
-  // `ClipboardList` y no otro `ListChecks`: Tareas es el listado de toda la casa y Mis Tareas es la
-  // hoja de una persona. Con el mismo icono la barra diria que son la misma pantalla.
-  mis_tareas: ClipboardList,
-  procesos: ListChecks,
-  espacios: FolderKanban,
-  // El martillo de la adjudicacion. `FolderKanban` ya es Espacios, y una licitacion no es una carpeta
-  // mas: es lo que todavia no se gano.
-  licitaciones: Gavel,
-  upsells: TrendingUp,
-  salas: DoorOpen,
-  // `Video` y no `DoorOpen`: Salas son las de la oficina y Teletrabajo las de la pantalla. Con dos
-  // puertas, la barra diria que son lo mismo.
-  teletrabajo: Video,
-  clientes: Building2,
-  // `Target` y no otro edificio: Clientes es la cartera entera de la casa y Focals son las cuentas
-  // de las que uno responde. Con dos `Building2` la barra diria que son la misma pantalla.
-  focals: Target,
-  equipo: Users,
-  mi_area: UsersRound,
-  // `Network` y no otro grupo de personas: Equipo y Mi Área ya son gente, y lo que distingue al
-  // Organigrama es justamente la estructura — quien cuelga de quien.
-  organigrama: Network,
-  // `SlidersHorizontal` y no `Mail`: la seccion dejo de ser solo el correo cuando se unificaron
-  // ahi todas las opciones del superadministrador.
-  administracion: SlidersHorizontal,
-  // `ScrollText` y no un escudo: esto no protege nada, es el registro de lo que se hizo.
-  auditoria: ScrollText
-} as const
+/** Donde se recuerda que subgrupos del menu dejo abiertos esta persona, en este navegador. */
+const CLAVE_PLEGABLES = 'wiwo-nav-plegables-abiertos'
 
-export type IconoSeccion = keyof typeof ICONOS
+/** Evento propio de los plegables, por el mismo motivo que `EVENTO_BARRA`. */
+const EVENTO_PLEGABLES = 'wiwo:nav-plegables'
 
-export interface Seccion {
-  href: string
-  etiqueta: string
-  icono: IconoSeccion
-}
+/** Lo que se lee en el servidor y en el primer render: todo plegado. */
+const SIN_ABIERTOS = '[]'
 
 /**
- * Decide si una seccion es la que se esta mirando.
- *
- * El prefijo se compara por segmento y no con `startsWith` a secas: asi `/clientes` no queda activo
- * cuando la ruta sea `/clientes-potenciales`.
- *
- * @param href ruta de la seccion
- * @param ruta ruta actual del navegador
- * @returns `true` si la seccion corresponde a la ruta actual
+ * Copia en memoria de los subgrupos abiertos, para cuando el navegador no deja guardar (ventana
+ * privada estricta): el subgrupo se abre igual, solo que no se recuerda al recargar.
  */
-function estaActiva (href: string, ruta: string): boolean {
-  if (href === '/prospectos' && (ruta === '/licitaciones' || ruta.startsWith('/licitaciones/'))) return true
-  return ruta === href || ruta.startsWith(`${href}/`)
-}
+let plegablesEnMemoria: string | null = null
 
 /**
- * Suscribe a los cambios de abatido, propios y de otras pestañas.
+ * Suscribe a un evento propio y a `storage`, que es como cambian las preferencias de la barra.
  *
- * @param avisar callback que React usa para releer el estado
- * @returns funcion de baja
+ * @param evento el evento propio de esta pestaña
+ * @returns la funcion de suscripcion para `useSyncExternalStore`
  */
-function suscribir (avisar: () => void): () => void {
-  window.addEventListener('storage', avisar)
-  window.addEventListener(EVENTO_BARRA, avisar)
-  return () => {
-    window.removeEventListener('storage', avisar)
-    window.removeEventListener(EVENTO_BARRA, avisar)
+function suscribirA (evento: string) {
+  return (avisar: () => void): (() => void) => {
+    window.addEventListener('storage', avisar)
+    window.addEventListener(evento, avisar)
+    return () => {
+      window.removeEventListener('storage', avisar)
+      window.removeEventListener(evento, avisar)
+    }
   }
 }
+
+const suscribirBarra = suscribirA(EVENTO_BARRA)
+const suscribirPlegables = suscribirA(EVENTO_PLEGABLES)
 
 /**
  * Lee el estado desde el DOM y no desde `localStorage`.
@@ -139,9 +106,65 @@ function alternarBarra (): void {
   window.dispatchEvent(new Event(EVENTO_BARRA))
 }
 
+/**
+ * Los subgrupos abiertos, como texto JSON crudo.
+ *
+ * Se devuelve el texto y no el arreglo: `useSyncExternalStore` compara por referencia, y un
+ * `JSON.parse` en cada lectura devolveria un arreglo nuevo y un render sin fin.
+ *
+ * @returns el JSON guardado, o `[]` si no hay nada o el almacenamiento no esta disponible
+ */
+function leerPlegablesAbiertos (): string {
+  try {
+    return plegablesEnMemoria ?? window.localStorage.getItem(CLAVE_PLEGABLES) ?? SIN_ABIERTOS
+  } catch {
+    // Almacenamiento bloqueado: vale lo que se abrio en esta pestaña, o todo plegado.
+    return plegablesEnMemoria ?? SIN_ABIERTOS
+  }
+}
+
+/**
+ * Interpreta lo guardado. Cualquier cosa rara vale "todo plegado".
+ *
+ * @param crudo el JSON guardado
+ * @returns los ids abiertos
+ */
+function idsAbiertos (crudo: string): string[] {
+  try {
+    const valor: unknown = JSON.parse(crudo)
+    return Array.isArray(valor) ? valor.filter((id): id is string => typeof id === 'string') : []
+  } catch {
+    // Lo guardado no es JSON (lo edito alguien a mano): se ignora.
+    return []
+  }
+}
+
+/**
+ * Abre o cierra un subgrupo y lo recuerda en este navegador.
+ *
+ * @param id el subgrupo
+ */
+function alternarPlegable (id: string): void {
+  const abiertos = idsAbiertos(leerPlegablesAbiertos())
+  const siguientes = abiertos.includes(id) ? abiertos.filter((otro) => otro !== id) : [...abiertos, id]
+
+  plegablesEnMemoria = JSON.stringify(siguientes)
+
+  try {
+    window.localStorage.setItem(CLAVE_PLEGABLES, plegablesEnMemoria)
+  } catch {
+    // Sin almacenamiento el subgrupo se abre igual —vale la copia en memoria— y no se recuerda al
+    // recargar. Es el mismo trato que da el panel a la ventana privada.
+  }
+
+  window.dispatchEvent(new Event(EVENTO_PLEGABLES))
+}
+
 interface PropsEnlaceSeccion extends Omit<React.ComponentProps<typeof Link>, 'href' | 'children'> {
-  seccion: Seccion
-  ruta: string
+  href: string
+  etiqueta: string
+  Icono: React.ComponentType<{ size?: number, strokeWidth?: number, 'aria-hidden'?: boolean | 'true', className?: string }>
+  activa: boolean
 }
 
 /**
@@ -175,6 +198,9 @@ function PuntoPendiente () {
   )
 }
 
+/** Clases del riel abatido para un item: icono arriba, etiqueta chica abajo. */
+const ITEM_ABATIDO = '[[data-barra-abatida]_&]:text-menor [[data-barra-abatida]_&]:flex-col [[data-barra-abatida]_&]:justify-center [[data-barra-abatida]_&]:gap-0.5 [[data-barra-abatida]_&]:px-1 [[data-barra-abatida]_&]:py-2'
+
 /**
  * Un item de navegacion, compartido por el riel de escritorio y el cajon de movil.
  *
@@ -186,18 +212,16 @@ function PuntoPendiente () {
  *
  * La barrita del item activo lleva un `view-transition-name` compartido: al navegar, el navegador
  * ve el mismo nombre en la pantalla vieja y en la nueva, e interpola la posicion entre las dos. Asi
- * el indicador se desliza de una seccion a la otra sin medir nada con JS. El nombre tiene que ser
- * unico en el documento, y por eso la barrita solo se pinta desde `md`: por debajo de ese corte el
- * riel esta oculto y quien navega es el cajon, que renderiza estos mismos items. Fuera del riel el
- * color y el `aria-current` ya dicen cual es la seccion actual.
+ * el indicador se desliza de una seccion a la otra —tambien entre bloques y hacia un fijado— sin
+ * medir nada con JS. El nombre tiene que ser unico en el documento, y por eso la barrita solo se
+ * pinta desde `md`: por debajo de ese corte el riel esta oculto y quien navega es el cajon, que
+ * renderiza estos mismos items. Fuera del riel el color y el `aria-current` ya dicen cual es la
+ * seccion actual.
  */
-function EnlaceSeccion ({ seccion, ruta, className, ...resto }: PropsEnlaceSeccion) {
-  const Icono = ICONOS[seccion.icono]
-  const activa = estaActiva(seccion.href, ruta)
-
+function EnlaceSeccion ({ href, etiqueta, Icono, activa, className, ...resto }: PropsEnlaceSeccion) {
   return (
     <Link
-      href={seccion.href}
+      href={href}
       aria-current={activa ? 'page' : undefined}
       className={cn(
         'rounded-chico relative flex items-center gap-2 px-2 py-1.5 text-sm transition-colors',
@@ -214,9 +238,182 @@ function EnlaceSeccion ({ seccion, ruta, className, ...resto }: PropsEnlaceSecci
         />
       )}
       <Icono size={20} strokeWidth={2} aria-hidden="true" className="shrink-0" />
-      <span className="truncate">{seccion.etiqueta}</span>
+      <span className="min-w-0 truncate">{etiqueta}</span>
       <PuntoPendiente />
     </Link>
+  )
+}
+
+interface PropsNavegacion {
+  secciones: Seccion[]
+  fijados: Fijado[]
+  /** Envuelve cada enlace: el cajon lo usa para cerrarse al navegar. */
+  envolver?: (enlace: React.ReactElement<{ style?: React.CSSProperties }>, clave: string) => React.ReactNode
+  claseItem?: string
+}
+
+/**
+ * El menu agrupado: principales, fijados y los bloques con encabezado.
+ *
+ * Es el mismo arbol en el riel y en el cajon. Quien ve que lo decidio `seccionesDe()` en el servidor;
+ * aca solo se reparte (`agruparSecciones`).
+ *
+ * @returns los grupos del menu
+ */
+function NavegacionAgrupada ({ secciones, fijados, envolver = (enlace) => enlace, claseItem }: PropsNavegacion) {
+  const ruta = usePathname()
+  const { principales, bloques } = agruparSecciones(secciones)
+  const hrefs = [...secciones.map((seccion) => seccion.href), ...fijados.map(hrefDeElemento)]
+  const activa = seccionActiva(hrefs, ruta)
+
+  /** Un enlace de seccion, ya envuelto. */
+  const enlaceDe = (seccion: Seccion) => envolver(
+    <EnlaceSeccion
+      key={seccion.href}
+      href={seccion.href}
+      etiqueta={seccion.etiqueta}
+      Icono={ICONOS_DE_SECCION[seccion.icono]}
+      activa={activa === seccion.href}
+      className={claseItem}
+    />,
+    seccion.href
+  )
+
+  return (
+    <>
+      <div className="flex flex-col gap-1">{principales.map(enlaceDe)}</div>
+
+      {fijados.length > 0 && (
+        <Bloque titulo="Fijados">
+          {fijados.map((fijado) => envolver(
+            <EnlaceSeccion
+              key={claveDeElemento(fijado)}
+              href={hrefDeElemento(fijado)}
+              etiqueta={fijado.name}
+              Icono={fijado.type === 'project' ? FolderKanban : Building2}
+              activa={activa === hrefDeElemento(fijado)}
+              className={cn('nav-fijado', claseItem)}
+            />,
+            claveDeElemento(fijado)
+          ))}
+        </Bloque>
+      )}
+
+      {bloques.map((bloque) => (
+        <Bloque key={bloque.id} titulo={bloque.titulo}>
+          {bloque.secciones.map(enlaceDe)}
+          {bloque.plegables.map((plegable) => (
+            <Plegable
+              key={plegable.id}
+              plegable={plegable}
+              contieneActiva={plegable.secciones.some((seccion) => seccion.href === activa)}
+            >
+              {plegable.secciones.map(enlaceDe)}
+            </Plegable>
+          ))}
+        </Bloque>
+      ))}
+    </>
+  )
+}
+
+/**
+ * Un bloque del menu con su encabezado.
+ *
+ * En el riel abatido el encabezado no entra y se vuelve una linea: la separacion entre bloques se
+ * sigue leyendo sin texto.
+ *
+ * @returns el bloque
+ */
+function Bloque ({ titulo, children }: { titulo: string, children: React.ReactNode }) {
+  const id = useId()
+
+  return (
+    <div role="group" aria-labelledby={id} className="border-linea-suave flex flex-col gap-1 border-t pt-3 [[data-barra-abatida]_&]:pt-2">
+      <p id={id} className="text-texto-sutil px-2 text-xs font-semibold [[data-barra-abatida]_&]:sr-only">{titulo}</p>
+      {children}
+    </div>
+  )
+}
+
+/**
+ * Un subgrupo que se abre y se cierra, recordado por persona en este navegador.
+ *
+ * Abre con altura animada: la unica excepcion permitida a "solo transform y opacity", porque un
+ * acordeon no tiene equivalente con transform. Se anima `grid-template-rows` de `0fr` a `1fr`, que
+ * no obliga a medir nada con JS.
+ *
+ * Si la seccion activa esta adentro, se muestra abierto aunque la persona lo haya dejado cerrado:
+ * esconder donde uno esta parado es perder la barrita. Eso no se guarda.
+ *
+ * En el riel abatido el encabezado se dibuja como un item mas —flecha arriba, nombre chico abajo—,
+ * asi el subgrupo se sigue pudiendo abrir sin expandir la barra.
+ *
+ * @returns el subgrupo
+ */
+function Plegable ({ plegable, contieneActiva, children }: { plegable: PlegableDeNavegacion, contieneActiva: boolean, children: React.ReactNode }) {
+  const idContenido = useId()
+  const guardados = useSyncExternalStore(suscribirPlegables, leerPlegablesAbiertos, () => SIN_ABIERTOS)
+  const abierto = contieneActiva || idsAbiertos(guardados).includes(plegable.id)
+
+  return (
+    <div className="flex flex-col">
+      <button
+        type="button"
+        aria-expanded={abierto}
+        aria-controls={idContenido}
+        onClick={() => alternarPlegable(plegable.id)}
+        className={cn('text-texto-tenue hover:bg-hover hover:text-texto rounded-chico flex items-center gap-2 px-2 py-1.5 text-sm transition-colors', ITEM_ABATIDO)}
+      >
+        <ChevronRight
+          size={16}
+          strokeWidth={2}
+          aria-hidden="true"
+          className={cn('nav-chevron shrink-0', abierto && 'rotate-90')}
+        />
+        <span className="truncate">{plegable.titulo}</span>
+      </button>
+      <div
+        id={idContenido}
+        data-abierto={abierto}
+        className="nav-plegable"
+        // Cerrado, lo de adentro no se enfoca ni lo lee un lector: `inert` hace las dos cosas.
+        inert={!abierto}
+      >
+        <div className="flex min-h-0 flex-col gap-1 overflow-hidden pl-3 [[data-barra-abatida]_&]:pl-0">{children}</div>
+      </div>
+    </div>
+  )
+}
+
+/**
+ * El boton que abre la paleta, con el atajo a la vista para que se aprenda.
+ *
+ * @returns el boton
+ */
+function BotonBuscar ({ className, onClick }: { className?: string, onClick?: () => void }) {
+  const atajo = useSyncExternalStore(
+    () => () => undefined,
+    () => textoDelAtajo(navigator.platform),
+    () => 'Ctrl K'
+  )
+
+  return (
+    <button
+      type="button"
+      onClick={onClick ?? abrirPaleta}
+      aria-keyshortcuts="Control+K Meta+K"
+      className={cn(
+        'border-linea bg-superficie-hundida text-texto-tenue hover:text-texto hover:border-linea-fuerte rounded-control',
+        'flex h-9 items-center gap-2 border px-2.5 text-sm transition-colors',
+        '[[data-barra-abatida]_&]:size-10 [[data-barra-abatida]_&]:justify-center [[data-barra-abatida]_&]:self-center [[data-barra-abatida]_&]:px-0',
+        className
+      )}
+    >
+      <Search size={16} strokeWidth={2} aria-hidden="true" className="shrink-0" />
+      <span className="flex-1 text-left [[data-barra-abatida]_&]:sr-only">Buscar</span>
+      <kbd className="text-texto-sutil text-xs [[data-barra-abatida]_&]:hidden">{atajo}</kbd>
+    </button>
   )
 }
 
@@ -232,11 +429,18 @@ function EnlaceSeccion ({ seccion, ruta, className, ...resto }: PropsEnlaceSecci
  * la navegacion. En el riel abatido se oculta —el wordmark es cuatro veces mas ancho que alto y no
  * entra en 4.5rem— y el logo de movil lo pone la cabecera, donde el riel no existe.
  *
+ * Tambien es quien siembra los fijados que trajo el servidor en la copia del navegador: esta
+ * montada en todas las pantallas del panel (tambien en movil, oculta), asi que el cajon, la paleta y
+ * el boton de las fichas leen la misma lista desde el primer render.
+ *
  * @param secciones secciones ya filtradas por permisos en el servidor
+ * @param fijados los fijados de quien mira, segun `GET /me/fijados`
  */
-export function BarraLateral ({ secciones, className }: { secciones: Seccion[], className?: string }) {
-  const ruta = usePathname()
-  const abatida = useSyncExternalStore(suscribir, leerAbatida, () => false)
+export function BarraLateral ({ secciones, fijados: iniciales = [], className }: { secciones: Seccion[], fijados?: Fijado[], className?: string }) {
+  const abatida = useSyncExternalStore(suscribirBarra, leerAbatida, () => false)
+  const fijados = useFijados(iniciales)
+
+  useEffect(() => { sembrarFijados(iniciales) }, [iniciales])
 
   return (
     <aside
@@ -264,39 +468,76 @@ export function BarraLateral ({ secciones, className }: { secciones: Seccion[], 
         </button>
       </div>
 
-      <nav aria-label="Secciones" className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto p-3 pt-0">
-        {secciones.map((seccion) => (
-          <EnlaceSeccion
-            key={seccion.href}
-            seccion={seccion}
-            ruta={ruta}
-            className="[[data-barra-abatida]_&]:text-menor [[data-barra-abatida]_&]:flex-col [[data-barra-abatida]_&]:justify-center [[data-barra-abatida]_&]:gap-0.5 [[data-barra-abatida]_&]:px-1 [[data-barra-abatida]_&]:py-2"
-          />
-        ))}
+      <div className="flex shrink-0 flex-col px-3 pb-3">
+        <BotonBuscar />
+      </div>
+
+      <nav aria-label="Secciones" className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-3 pt-0" data-lenis-prevent>
+        <NavegacionAgrupada secciones={secciones} fijados={fijados} claseItem={ITEM_ABATIDO} />
       </nav>
     </aside>
   )
 }
 
 /**
- * Navegacion de movil: un boton hamburguesa que abre el cajon con las mismas secciones.
+ * Navegacion de movil: el cajon con la busqueda y todas las secciones, agrupadas como en el riel.
  *
  * Por debajo de 760px el riel no entra y el panel se quedaba sin navegacion. Reusa `Cajon` —hoja
  * inferior en telefono, panel lateral desde `sm`— en vez de un deslizable propio: ese componente ya
  * resuelve foco atrapado, `Escape` y superposicion.
  *
+ * Se abre desde "Más" de la barra inferior, que avisa con `EVENTO_ABRIR_SECCIONES`: la barra y el
+ * cajon viven en ramas distintas de un layout de servidor. El disparador hamburguesa sigue existiendo
+ * para quien lo monte visible (`className`), pero el armazon lo esconde: la barra inferior ya lo
+ * reemplaza, y dos botones para lo mismo en una cabecera de 360px es uno de mas.
+ *
+ * En la hoja inferior se puede tirar hacia abajo para cerrarla (`useGestoDeHoja`), con un asa que lo
+ * sugiere. Al cerrar, el foco vuelve a quien lo abrio —"Más"— y no al disparador escondido.
+ *
  * Cada enlace va envuelto en `CerrarCajon` porque la navegacion es del lado del cliente: sin eso el
  * cajon queda abierto tapando la pantalla a la que se acaba de entrar.
+ *
+ * Los fijados salen de la copia del navegador que siembra `BarraLateral`, que tambien esta montada
+ * en movil (oculta por CSS).
  *
  * @param secciones secciones ya filtradas por permisos en el servidor
  */
 export function BarraLateralMovil ({ secciones, className }: { secciones: Seccion[], className?: string }) {
-  const ruta = usePathname()
+  const fijados = useFijados()
+  const [abierto, setAbierto] = useState(false)
+  const origen = useRef<HTMLElement | null>(null)
+  const cerrar = useCallback(() => { setAbierto(false) }, [])
+  const { alPresionar, cerradaPorGesto, reiniciar } = useGestoDeHoja(cerrar)
+
+  const cambiar = useCallback((abrir: boolean) => {
+    if (abrir) reiniciar()
+    setAbierto(abrir)
+  }, [reiniciar])
+
+  useEffect(() => {
+    const abrirDesdeAfuera = () => {
+      origen.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
+      cambiar(true)
+    }
+    window.addEventListener(EVENTO_ABRIR_SECCIONES, abrirDesdeAfuera)
+    return () => { window.removeEventListener(EVENTO_ABRIR_SECCIONES, abrirDesdeAfuera) }
+  }, [cambiar])
+
+  // Los items entran escalonados, de arriba hacia abajo, detras de la hoja: la lista se lee como
+  // algo que se despliega y no como un bloque que aparece de golpe. El contador vive solo durante
+  // este render y numera los enlaces en el orden en que `NavegacionAgrupada` los pide.
+  let indice = 0
+  const envolver = (enlace: React.ReactElement<{ style?: React.CSSProperties }>, clave: string) => (
+    <CerrarCajon key={clave} asChild>
+      {cloneElement(enlace, { style: { animationDelay: `${Math.min(indice++, 10) * 22}ms` } })}
+    </CerrarCajon>
+  )
 
   return (
-    <Cajon>
+    <Cajon open={abierto} onOpenChange={cambiar}>
       <DisparadorCajon
         aria-label="Abrir menú"
+        onClick={() => { origen.current = null }}
         className={cn(
           'text-texto-tenue hover:bg-hover hover:text-texto rounded-chico inline-flex size-8 items-center justify-center transition-colors md:hidden',
           className
@@ -304,14 +545,33 @@ export function BarraLateralMovil ({ secciones, className }: { secciones: Seccio
       >
         <Menu size={20} strokeWidth={2} aria-hidden="true" />
       </DisparadorCajon>
-      <ContenidoCajon titulo="Secciones">
-        <nav aria-label="Secciones" className="flex flex-col gap-1">
-          {secciones.map((seccion) => (
-            <CerrarCajon key={seccion.href} asChild>
-              <EnlaceSeccion seccion={seccion} ruta={ruta} className="py-2.5" />
-            </CerrarCajon>
-          ))}
-        </nav>
+      <ContenidoCajon
+        titulo="Secciones"
+        onPointerDown={alPresionar}
+        onCloseAutoFocus={(evento) => {
+          if (origen.current === null) return
+          evento.preventDefault()
+          origen.current.focus()
+          origen.current = null
+        }}
+        className={cn('hoja-con-gesto pb-seguro', cerradaPorGesto && 'data-[state=closed]:animate-none')}
+      >
+        <div className="flex flex-col gap-3">
+          {/* La busqueda del telefono vive aca y no en la cabecera: en 360px la lupa se montaba
+              sobre el logo. Se abre despues de que el cajon se cerro: la paleta no se abre encima
+              de otro dialogo, y el cajon sigue abierto hasta que termina este clic. */}
+          <CerrarCajon asChild>
+            <BotonBuscar className="pointer-coarse:min-h-11" onClick={() => { window.setTimeout(abrirPaleta, 0) }} />
+          </CerrarCajon>
+          <nav aria-label="Secciones" className="flex flex-col gap-3">
+            <NavegacionAgrupada
+              secciones={secciones}
+              fijados={fijados}
+              claseItem="animate-entrar-abajo pointer-coarse:min-h-11 py-2.5 active:scale-[0.98]"
+              envolver={envolver}
+            />
+          </nav>
+        </div>
       </ContenidoCajon>
     </Cajon>
   )

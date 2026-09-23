@@ -8,6 +8,7 @@ import { Campo } from '@/componentes/formularios/Campo'
 import { AreaTexto, Entrada } from '@/componentes/formularios/Entrada'
 import { Avatar } from '@/componentes/presentadores/Avatar'
 import { Seccion } from '@/componentes/presentadores/Ficha'
+import { NotificacionesDelDispositivo } from '@/componentes/push/NotificacionesDelDispositivo'
 import { TituloModulo } from '@/componentes/estructura/TituloModulo'
 import type { Yo } from '@/datos/tipos'
 
@@ -494,6 +495,8 @@ export function FormularioPerfil ({ yo, perfil }: PropsFormularioPerfil) {
           {firmaGuardada && <span role="status" className="text-texto-exito text-xs">Firma guardada.</span>}
         </div>
       </Seccion>
+
+      <NotificacionesDelDispositivo />
     </div>
   )
 }

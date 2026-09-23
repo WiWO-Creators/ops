@@ -2,6 +2,8 @@ import Link from 'next/link'
 import { ChatOrbe } from '@/componentes/ia/ChatOrbe'
 import { Suspense, cache } from 'react'
 import { CabeceraProyecto } from '@/componentes/proyecto/CabeceraProyecto'
+import { BotonFijar } from '@/componentes/fijados/BotonFijar'
+import { RegistrarReciente } from '@/componentes/fijados/RegistrarReciente'
 import { BotonNuevaTarea, MenuProyecto } from '@/componentes/proyecto/MenuProyecto'
 import { proyectoDelPanel } from '@/dominio/proyecto'
 import { fuenteDelPanel } from '@/dominio/fuente-proyecto'
@@ -251,6 +253,7 @@ export default async function ProyectoPage (props: PageProps<'/proyectos/[id]'>)
 
   return (
     <section className="flex flex-col gap-4">
+      <RegistrarReciente tipo="project" id={proyecto.id} />
       <CabeceraProyecto
         proyecto={proyectoDelPanel(proyecto)}
         estado={estadoDelProyecto(lookups, proyecto.status)}
@@ -261,6 +264,14 @@ export default async function ProyectoPage (props: PageProps<'/proyectos/[id]'>)
         yoId={yo.id}
         acciones={
           <>
+            <BotonFijar
+              elemento={{
+                type: 'project',
+                id: proyecto.id,
+                name: proyecto.name,
+                client: proyecto.client === null ? null : { id: proyecto.client.id, company: proyecto.client.company }
+              }}
+            />
             <BotonNuevaTarea capacidades={capacidadesTareas} />
             <MenuProyecto
               proyecto={proyecto}

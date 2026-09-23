@@ -19,11 +19,24 @@ import type { EleccionDeEntrada, Quien } from './tipos'
 /**
  * Alto del escenario.
  *
- * Una videollamada no scrollea: ocupa lo que hay. Se descuentan la cabecera del panel (`h-14`) y el
- * relleno de `ScrollSuave` (`p-4`, arriba y abajo). Son los dos unicos numeros del armazon entre la
- * ventana y este componente.
+ * Una videollamada no scrollea: ocupa lo que hay. Se descuentan la cabecera del panel (`h-14`, mas
+ * la zona segura de arriba en la aplicacion instalada), el relleno de `ScrollSuave` (`p-4`, arriba y
+ * abajo) y la barra inferior del telefono (`--barra-inferior`, 0 donde no existe).
  */
-export const ALTO = 'h-[calc(100dvh-5.5rem)]'
+export const ALTO = 'h-[calc(100dvh_-_5.5rem_-_var(--barra-inferior,0px)_-_env(safe-area-inset-top,0px))]'
+
+/**
+ * En el telefono, ya dentro de la llamada, la sala toma la pantalla entera: por encima de la
+ * cabecera y de la barra inferior, con las zonas seguras devueltas. Una videollamada con la
+ * navegacion del panel alrededor pierde un tercio del alto en cromo que nadie toca mientras habla.
+ *
+ * `view-transition-name` propio porque es una capa fija sobre el panel: sin el, la transicion de
+ * pagina la taparia en sus primeros fotogramas (ver `TransicionDePagina`).
+ */
+const PANTALLA_COMPLETA_MOVIL = cn(
+  'max-md:bg-superficie max-md:fixed max-md:inset-0 max-md:z-50 max-md:h-auto max-md:gap-2',
+  'max-md:pt-seguro-holgado max-md:px-3'
+)
 
 /** Que lateral esta abierto. `null` = ninguno, y el escenario ocupa todo el ancho. */
 type Lateral = 'participantes' | 'chat' | null
@@ -114,7 +127,8 @@ export function Llamada ({ token, url, titulo, esPrivada, yo, miIdentidad, elecc
       // quedan sin definir y la sala se ve rota: el nombre del participante hereda la tinta del
       // panel sobre un chip negro y desaparece, y el marcador de camara apagada queda transparente.
       data-lk-theme="wiwo"
-      className={cn(ALTO, 'flex flex-col gap-3')}
+      style={{ viewTransitionName: 'llamada' }}
+      className={cn(ALTO, 'flex flex-col gap-3', PANTALLA_COMPLETA_MOVIL)}
     >
       {/* Sin esto no se oye a nadie: es quien monta los `<audio>` de los participantes remotos. */}
       <RoomAudioRenderer />
@@ -168,7 +182,7 @@ function Interior ({ titulo, esPrivada, yo, miIdentidad, alSalir }: PropsInterio
     <>
       <CabeceraDeSala titulo={titulo} esPrivada={esPrivada} yo={yo} />
 
-      <div className="flex min-h-0 min-w-0 flex-1 gap-3">
+      <div className="relative flex min-h-0 min-w-0 flex-1 gap-3">
         <Escenario miIdentidad={miIdentidad} className="min-h-0 min-w-0 flex-1" />
 
         {/* Los dos paneles quedan montados aunque el lateral este cerrado: el chat tiene que poder
@@ -177,6 +191,9 @@ function Interior ({ titulo, esPrivada, yo, miIdentidad, alSalir }: PropsInterio
         <aside
           className={cn(
             'w-80 shrink-0 flex-col overflow-hidden rounded-medio border border-linea bg-superficie-elevada',
+            // En el telefono no hay lugar para un lateral de 320px al lado del video: el panel se
+            // abre encima del escenario, como una hoja, y los controles siguen a la vista abajo.
+            'max-md:shadow-flotante max-md:animate-entrar-abajo max-md:absolute max-md:inset-x-0 max-md:bottom-0 max-md:top-0 max-md:z-10 max-md:w-auto',
             lateral === null ? 'hidden' : 'flex'
           )}
         >

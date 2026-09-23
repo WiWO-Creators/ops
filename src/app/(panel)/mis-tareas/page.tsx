@@ -10,7 +10,11 @@ import { pedir, pedirOpcional } from '@/datos/servidor'
 import type { Licitacion } from '@/datos/recursos'
 import type { Yo } from '@/datos/tipos'
 import { GLOSARIO } from '@/dominio/glosario'
-import { seVenCompletadas, SOLO_CON_ESPACIO } from '@/dominio/mis-tareas'
+import {
+  consultaDeVencimiento, ETIQUETAS_DE_VENCIMIENTO, filtroDeVencimiento, seVenCompletadas, SOLO_CON_ESPACIO,
+  type FiltroDeVencimiento
+} from '@/dominio/mis-tareas'
+import { FiltrosDeVencimiento } from './FiltrosDeVencimiento'
 
 export const metadata = { title: 'Mis Tareas · WiWO Ops' }
 
@@ -41,7 +45,13 @@ export default async function MisTareasPage (props: PageProps<'/mis-tareas'>) {
   const { data: yo } = await pedir<Yo>('/me')
   const [lookups, licitaciones] = await Promise.all([cargarLookups(), licitacionesDeLaCasa(yo)])
   const estados = listaDe(lookups, 'task_statuses')
-  const verCompletadas = seVenCompletadas(paramsDeUrl(await props.searchParams))
+  const params = paramsDeUrl(await props.searchParams)
+  const verCompletadas = seVenCompletadas(params)
+  // El filtro de vencimiento acota las DOS listas por igual. "Hoy" se calcula aca, en el servidor,
+  // con el mismo reloj con el que el Inicio arma sus tramos: los dos dicen lo mismo de la misma Tarea.
+  const filtro = filtroDeVencimiento(params)
+  const porVencimiento = consultaDeVencimiento(filtro)
+  const vacioFiltrado = vacioDelFiltro(filtro)
 
   return (
     <section className="flex flex-col gap-8">
@@ -58,17 +68,22 @@ export default async function MisTareasPage (props: PageProps<'/mis-tareas'>) {
         }
       />
 
+      {/* Mismo motivo que el interruptor para el limite de Suspense: lee `useSearchParams`. */}
+      <Suspense fallback={null}>
+        <FiltrosDeVencimiento />
+      </Suspense>
+
       <TareasAsignadas
         personaId={yo.id}
         titulo={`De ${GLOSARIO.espacio.plural} y ${GLOSARIO.licitacion.plural}`}
         estados={estados}
-        consultaExtra={SOLO_CON_ESPACIO}
+        consultaExtra={porVencimiento === null ? SOLO_CON_ESPACIO : `${SOLO_CON_ESPACIO}&${porVencimiento}`}
         licitaciones={licitaciones}
         rutaDetalle="/mis-tareas"
         // Son las Tareas de quien mira: el estado se cambia desde la fila. Ver `estadoEditable`.
         estadoEditable
         verCompletadas={verCompletadas}
-        vacio={{
+        vacio={vacioFiltrado ?? {
           titulo: `No tienes ${GLOSARIO.proceso.plural.toLowerCase()} asignadas`,
           descripcion: `Cuando te asignen la primera va a aparecer acá, con su estado, su origen y su fecha de entrega.`
         }}
@@ -79,6 +94,8 @@ export default async function MisTareasPage (props: PageProps<'/mis-tareas'>) {
         estados={estados}
         rutaDetalle="/mis-tareas"
         verCompletadas={verCompletadas}
+        consultaExtra={porVencimiento}
+        vacio={vacioFiltrado ?? undefined}
       />
 
       {/* El mismo detalle de los listados, con la misma URL (`?tarea={id}`). Va en un limite de
@@ -116,4 +133,29 @@ async function licitacionesDeLaCasa (yo: Yo): Promise<number[]> {
 
   // `licitacion.id` ES el id del Espacio: son la misma fila vista desde dos lados.
   return (datos ?? []).map((licitacion) => licitacion.id)
+}
+
+/**
+ * Que decir cuando una lista queda vacia por el filtro y no porque no haya nada asignado.
+ *
+ * "No tienes tareas asignadas" con el filtro "Vencidas" puesto seria mentir: tiene, solo que ninguna
+ * vencida. Es la misma regla del Inicio —un vacio tiene que decir su causa—.
+ *
+ * @param filtro el filtro vigente
+ * @returns el vacio del filtro, o `null` sin filtro
+ */
+function vacioDelFiltro (filtro: FiltroDeVencimiento): { titulo: string, descripcion: string } | null {
+  if (filtro === 'todas') return null
+  const plural = GLOSARIO.proceso.plural.toLowerCase()
+
+  const titulos: Record<Exclude<FiltroDeVencimiento, 'todas'>, string> = {
+    hoy: `Nada vence hoy`,
+    vencidas: `No tienes ${plural} vencidas`,
+    semana: `Nada vence esta semana`
+  }
+
+  return {
+    titulo: titulos[filtro],
+    descripcion: `Estás viendo solo «${ETIQUETAS_DE_VENCIMIENTO[filtro]}». Elige «Todas» para ver el resto de tus ${plural}.`
+  }
 }

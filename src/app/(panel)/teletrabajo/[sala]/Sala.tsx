@@ -71,7 +71,9 @@ export function Sala ({ token, url, titulo, esPrivada, yo, miIdentidad, dentro }
 
   if (eleccion === null) {
     return (
-      <div className={cn(ALTO, 'flex flex-col justify-center')}>
+      // En el telefono la antesala es mas alta que la ventana: centrada, su parte de arriba quedaria
+      // fuera de alcance del scroll. Ahi arranca arriba y crece lo que necesite.
+      <div className={cn(ALTO, 'flex flex-col justify-center max-md:h-auto max-md:justify-start')}>
         <Antesala
           titulo={titulo}
           esPrivada={esPrivada}

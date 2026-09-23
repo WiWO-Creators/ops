@@ -11,6 +11,10 @@ import { intervaloDeVersion, versionDelServidor } from '@/datos/version'
 import type { ConteoDeAvisos } from '@/datos/avisos'
 import { SelectorTema } from '@/componentes/estructura/SelectorTema'
 import { BarraLateral, BarraLateralMovil, type Seccion } from '@/componentes/estructura/BarraLateral'
+import { PaletaDeComandos } from '@/componentes/paleta/PaletaDeComandos'
+import type { Fijado } from '@/componentes/fijados/fijados'
+import { BarraInferiorMovil } from '@/componentes/estructura/BarraInferiorMovil'
+import { AppInstalable } from '@/componentes/estructura/AppInstalable'
 import { BarraSuplantacion } from '@/componentes/estructura/BarraSuplantacion'
 import { AtajoDirecto } from '@/componentes/estructura/AtajoDirecto'
 import { Latido } from '@/componentes/auditoria/Latido'
@@ -22,6 +26,9 @@ import { MenuUsuario } from '@/componentes/estructura/MenuUsuario'
 import { ScrollSuave } from '@/componentes/estructura/ScrollSuave'
 import { VigilanteDeVersion } from '@/componentes/estructura/VigilanteDeVersion'
 import { vistasPermitidas } from '@/dominio/vistas-de-auditoria'
+
+/** Sin fijados. Constante para que la barra reciba siempre la misma referencia. */
+const SIN_FIJADOS: Fijado[] = []
 
 /**
  * Armazon del panel.
@@ -42,12 +49,16 @@ export default async function PanelLayout ({ children }: { children: React.React
   // entero, que es lo que pasaria con `pedir()` el dia que la API conteste 403 o 500 en uno de ellos.
   // Resolverlos aca —y no al montar en el navegador— es lo que evita que el contador y el globo
   // aparezcan en blanco y salten a su valor un segundo despues, en cada navegacion.
-  const [jornada, avisos, conIa] = await Promise.all([
+  const [jornada, avisos, conIa, fijados] = await Promise.all([
     pedirOpcional<EstadoDeJornada>('/me/jornada'),
     pedirOpcional<ConteoDeAvisos>('/notifications/count'),
     // Con la capa de IA apagada el orbe no existe, en vez de existir y fallar: la API responde 404 a
     // todo `/ia/*` y la persona no podria distinguir "no esta contratado" de "se rompio".
-    iaHabilitada()
+    iaHabilitada(),
+    // Los fijados del menu, por la misma regla: resueltos aca no aparecen un segundo despues
+    // empujando los bloques de abajo. Si la API no los tiene (todavia sin la migracion 0900), el
+    // menu se dibuja sin la seccion y nada mas.
+    pedirOpcional<Fijado[]>('/me/fijados')
   ])
   // La cookie de la sesion real es la unica señal de que esto es una suplantacion. `/me` no puede
   // decirlo: la API emite la sesion prestada igual que un login normal, a proposito.
@@ -76,12 +87,21 @@ export default async function PanelLayout ({ children }: { children: React.React
           es el unico valor del que se sabe que corresponde al JavaScript que se acaba de mandar. */}
       <VigilanteDeVersion version={versionDelServidor()} segundos={intervaloDeVersion()} />
 
+      {/* El service worker de la aplicacion instalable. Va aca por lo mismo que el vigilante: la
+          version con la que se registra tiene que ser la de este JavaScript. */}
+      <AppInstalable version={versionDelServidor()} />
+
       {/* Por el mismo motivo que el latido: el chat dejo de ser de un Espacio y su asunto es todo el
           panel. Montado aca —fuera del contenedor que scrollea— el orbe flota sobre cualquier
           pantalla, y el hilo sobrevive a navegar porque el armazon no se desmonta al cambiar de
           ruta. Le manda al servidor en que pantalla esta parada la persona, la misma cadena que el
           latido: ver `dominio/pantalla.ts`. */}
       {conIa && <OrbeChatIA />}
+
+      {/* La paleta de comandos (Ctrl+K). Va en el armazon por lo mismo que el orbe: el atajo es de
+          todo el panel y el armazon no se desmonta al navegar. Recibe las MISMAS secciones que la
+          barra, ya filtradas por permisos, asi que no puede ofrecer una pantalla que el menu niega. */}
+      <PaletaDeComandos secciones={secciones} />
 
       {yo.atajo !== undefined && <AtajoDirecto destino={yo.atajo} />}
 
@@ -92,16 +112,21 @@ export default async function PanelLayout ({ children }: { children: React.React
           de otro color partiria la ventana en dos mundos. */}
       <div className="aurora flex min-h-0 flex-1 overflow-hidden">
 
-        <BarraLateral secciones={secciones} />
+        <BarraLateral secciones={secciones} fijados={fijados.datos ?? SIN_FIJADOS} />
 
         <div className="flex min-w-0 flex-1 flex-col">
-          <header className="border-linea flex h-14 shrink-0 items-center gap-3 border-b px-4">
+          {/* Alto + `pt-seguro`: en la aplicacion instalada la cabecera se dibuja debajo de la
+              muesca (`viewport-fit=cover`), y los 56px tienen que empezar despues de ella. En el
+              escritorio la zona segura vale 0 y la cabecera mide lo mismo que siempre. */}
+          <header className="border-linea pt-seguro flex h-[calc(3.5rem_+_env(safe-area-inset-top,0px))] shrink-0 items-center gap-2 border-b px-3 xs:gap-3 xs:px-4">
             {/* Solo en movil: desde `md` el logo encabeza la barra lateral, y dos logos en pantalla
                 serian la misma marca dicha dos veces. */}
             <Link href="/inicio" aria-label="Inicio" className="min-w-0 md:hidden">
               <Logo tamano="medio" />
             </Link>
-            <BarraLateralMovil secciones={secciones} />
+            {/* El cajon se abre desde "Más" de la barra inferior; su hamburguesa queda escondida
+                porque seria el mismo boton dos veces en una cabecera que ya no tiene lugar. */}
+            <BarraLateralMovil secciones={secciones} className="hidden" />
             {/* Uno solo en toda la aplicacion, y aca y no en la barra lateral: la barra se abate a un
                 riel y en movil se esconde dentro de un cajon, justo donde mas falta hace saber que hay
                 un medidor corriendo. Colapsado no crece mas que un boton porque la cabecera mide
@@ -122,16 +147,24 @@ export default async function PanelLayout ({ children }: { children: React.React
               // token, asi que un combo de personas prometeria algo que el backend rechaza.
               nombre={yo.full_name}
               errorInicial={jornada.error}
-              className="ml-auto"
+              // Bajo 480px el medidor se angosta: sigue siendo lo mas importante de la cabecera,
+              // pero en 360px no puede comerse el lugar de la campana y la cuenta.
+              className="ml-auto max-xs:max-w-28"
             />
             <Campana inicial={avisos.datos} segundos={segundosDeLive} />
-            <SelectorTema />
+            {/* Bajo 480px el tema se cambia desde el menu de la cuenta: es lo que menos se toca de la
+                cabecera, y en un telefono chico no entran cuatro controles y el logo. */}
+            <SelectorTema className="max-xs:hidden" />
             <MenuUsuario nombre={yo.full_name} imagen={yo.profile_image_url} />
           </header>
           {/* El unico contenedor de scroll vertical del armazon. `min-h-0` es lo que se lo permite:
               sin el, un hijo flex no baja de su altura de contenido y `overflow-y` no llega a actuar.
               `ScrollSuave` pone el `overflow-y` y el `<main>`; aca solo queda como se mide y se rellena. */}
           <ScrollSuave className="min-h-0 min-w-0 flex-1 p-4">{children}</ScrollSuave>
+          {/* Solo por debajo de `md`, donde el riel no existe: los cuatro destinos de todos los dias
+              al alcance del pulgar, y "Más" para el resto. Va despues del scroll y dentro de la
+              columna, no flotando: asi el contenido termina justo encima y nada queda tapado. */}
+          <BarraInferiorMovil secciones={secciones} />
         </div>
       </div>
     </div>
@@ -146,43 +179,52 @@ export default async function PanelLayout ({ children }: { children: React.React
  *
  * El icono viaja como clave y no como componente: un icono de Lucide no es serializable a traves de
  * la frontera servidor-cliente, y la barra lo resuelve con su propio mapa.
+ *
+ * Cada seccion dice ademas a que bloque del menu va (`grupo`): las cuatro principales arriba, y el
+ * resto en Operación, Comercial, Equipo y Administración. El agrupado es SOLO de presentacion
+ * (`agruparSecciones` en `lib/navegacion.ts`): las llaves de abajo son las de siempre y deciden lo
+ * mismo que antes. La lista entera viaja tambien a la paleta de comandos, que es por donde se llega
+ * a lo que el menu deja plegado.
  */
 function seccionesDe (yo: Yo): Seccion[] {
-  const secciones: Seccion[] = [{ href: '/inicio', etiqueta: 'Inicio', icono: 'inicio' }]
+  const secciones: Seccion[] = [{ href: '/inicio', etiqueta: 'Inicio', icono: 'inicio', grupo: 'principal' }]
 
   // Sin condicion, y es la unica seccion asi: todo el mundo tiene al menos su propia vista —abrir la
   // jornada y ver su medidor—. Lo que cambia con el rol es cuanta gente mas se ve, y eso lo decide
   // `alcanceDeLive()` dentro de la pantalla, no la barra.
-  secciones.push({ href: '/live', etiqueta: 'En vivo', icono: 'live' })
+  secciones.push({ href: '/live', etiqueta: 'En vivo', icono: 'live', grupo: 'principal' })
 
   // Tampoco lleva condicion, y por el mismo motivo que `/live`: es el trabajo PROPIO. La pantalla no
   // lista nada que no este asignado a quien mira, asi que no hay permiso que preguntar — un perfil
   // sin `tasks.view` ve sus asignaciones igual, que es justamente la regla de `puedeVerSeccion`.
   // Va antes que Tareas: primero lo de uno, despues el listado de toda la casa.
-  secciones.push({ href: '/mis-tareas', etiqueta: `Mis ${GLOSARIO.proceso.plural}`, icono: 'mis_tareas' })
+  secciones.push({ href: '/mis-tareas', etiqueta: `Mis ${GLOSARIO.proceso.plural}`, icono: 'mis_tareas', grupo: 'principal' })
 
   if (puedeVerSeccion(yo.permissions.tasks, 'tasks')) {
-    secciones.push({ href: '/procesos', etiqueta: GLOSARIO.proceso.plural, icono: 'procesos' })
+    secciones.push({ href: '/procesos', etiqueta: GLOSARIO.proceso.plural, icono: 'procesos', grupo: 'operacion' })
+    // Misma llave que Tareas: las recurrentes son Tareas, y su pantalla lista lo mismo que `/tasks`
+    // deja ver. Entrada propia porque se configuran una vez y se buscan de nuevo meses despues.
+    secciones.push({ href: '/procesos/recurrentes', etiqueta: 'Recurrentes', icono: 'recurrentes', grupo: 'operacion' })
   }
 
   if (puedeVerSeccion(yo.permissions.projects, 'projects')) {
-    secciones.push({ href: '/proyectos', etiqueta: GLOSARIO.espacio.plural, icono: 'espacios' })
+    secciones.push({ href: '/proyectos', etiqueta: GLOSARIO.espacio.plural, icono: 'espacios', grupo: 'principal' })
   }
 
   // Prospectos contiene el acceso a sus licitaciones. La bandera de instalación habilita el módulo.
   if (yo.secciones_habilitadas.includes('prospectos')) {
-    secciones.push({ href: '/prospectos', etiqueta: GLOSARIO.licitacion.plural, icono: 'licitaciones' })
+    secciones.push({ href: '/prospectos', etiqueta: GLOSARIO.licitacion.plural, icono: 'licitaciones', grupo: 'comercial' })
   }
 
   // Upselling corresponde a oportunidades sobre clientes existentes.
   if (yo.secciones_habilitadas.includes('upsells')) {
-    secciones.push({ href: '/upsells', etiqueta: GLOSARIO.upsell.plural, icono: 'upsells' })
+    secciones.push({ href: '/upsells', etiqueta: GLOSARIO.upsell.plural, icono: 'upsells', grupo: 'comercial' })
   }
 
   // Salas no tiene permiso de Perfex que consultar: no es una feature suya. Reservar una sala lo
   // puede hacer cualquiera del equipo, asi que la unica llave es la bandera de instalacion.
   if (yo.secciones_habilitadas.includes('salas')) {
-    secciones.push({ href: '/salas', etiqueta: 'Salas', icono: 'salas' })
+    secciones.push({ href: '/salas', etiqueta: 'Salas', icono: 'salas', grupo: 'operacion', plegable: 'reuniones' })
   }
 
   // Teletrabajo no tiene bandera de instalacion ni permiso de Perfex: las salas viven en LiveKit,
@@ -192,11 +234,13 @@ function seccionesDe (yo: Yo): Seccion[] {
   secciones.push({
     href: '/teletrabajo',
     etiqueta: GLOSARIO.teletrabajo.singular,
-    icono: 'teletrabajo'
+    icono: 'teletrabajo',
+    grupo: 'operacion',
+    plegable: 'reuniones'
   })
 
   if (puedeVerSeccion(yo.permissions.customers, 'customers')) {
-    secciones.push({ href: '/clientes', etiqueta: 'Clientes', icono: 'clientes' })
+    secciones.push({ href: '/clientes', etiqueta: 'Clientes', icono: 'clientes', grupo: 'comercial' })
   }
 
   // Focals se muestra a quien es focal de al menos un Cliente —es su cartera— y ademas a la
@@ -210,11 +254,11 @@ function seccionesDe (yo: Yo): Seccion[] {
   // autoriza; el dato sale de la misma API que responde el 403. Ver `puedeVerFocals` para el caso de
   // una API vieja que todavia no manda el campo.
   if (puedeVerFocals(yo)) {
-    secciones.push({ href: '/focals', etiqueta: GLOSARIO.focal.plural, icono: 'focals' })
+    secciones.push({ href: '/focals', etiqueta: GLOSARIO.focal.plural, icono: 'focals', grupo: 'comercial' })
   }
 
   if (puedeVerSeccion(yo.permissions.staff, 'staff')) {
-    secciones.push({ href: '/equipo', etiqueta: 'Equipo', icono: 'equipo' })
+    secciones.push({ href: '/equipo', etiqueta: 'Equipo', icono: 'equipo', grupo: 'equipo' })
   }
 
   // "Mi Área" no tiene permiso de Perfex propio: el cargo Director (`wiwo_core/cargos_areas.php`) no
@@ -226,7 +270,7 @@ function seccionesDe (yo: Yo): Seccion[] {
   // llaves anteriores escondian la entrada justo a quien mas la necesita. El porque, en
   // `puedeVerMiArea`.
   if (puedeVerMiArea()) {
-    secciones.push({ href: '/equipo/mi-area', etiqueta: 'Mi Área', icono: 'mi_area' })
+    secciones.push({ href: '/equipo/mi-area', etiqueta: 'Mi Área', icono: 'mi_area', grupo: 'equipo' })
   }
 
   // Jerarquias tiene entrada propia y no solo los dos enlaces desde Equipo y Mi Área: quien tiene que
@@ -239,7 +283,7 @@ function seccionesDe (yo: Yo): Seccion[] {
   // exactamente el criterio con el que la API decide el 403. Esconderla es cosmetica: la compuerta
   // esta en el back, y la pantalla muestra su mensaje tal cual.
   if (yo.dirige_areas || yo.is_admin || yo.is_superadmin) {
-    secciones.push({ href: '/equipo/jerarquia', etiqueta: 'Jerarquías', icono: 'organigrama' })
+    secciones.push({ href: '/equipo/jerarquia', etiqueta: 'Jerarquías', icono: 'organigrama', grupo: 'equipo' })
   }
 
   // Administracion no tiene permiso de Perfex propio, y `is_admin` es demasiado ancha: en la base
@@ -247,7 +291,7 @@ function seccionesDe (yo: Yo): Seccion[] {
   // —avisos por correo, la escritura de `/settings`, el diagnostico de Google y la auditoria—, asi
   // que la barra usa la misma llave. Esconder el enlace es cosmetica: la compuerta esta en el back.
   if (yo.is_superadmin) {
-    secciones.push({ href: '/administracion', etiqueta: 'Administración', icono: 'administracion' })
+    secciones.push({ href: '/administracion', etiqueta: 'Administración', icono: 'administracion', grupo: 'administracion' })
   }
 
   // Auditoria ya no comparte llave con Administracion: desde que tiene la pestaña de calidad de las
@@ -256,14 +300,14 @@ function seccionesDe (yo: Yo): Seccion[] {
   // niega ni al reves. Va en su propia seccion y no como pestaña de Administracion porque no
   // configura nada: mira.
   if (vistasPermitidas(yo).length > 0) {
-    secciones.push({ href: '/auditoria', etiqueta: 'Auditoría', icono: 'auditoria' })
+    secciones.push({ href: '/auditoria', etiqueta: 'Auditoría', icono: 'auditoria', grupo: 'administracion' })
   }
 
   // Indicadores usa la misma llave que la pestaña de Calidad —gerencia o superadministracion— y no
   // la de Auditoria entera: son numeros de estructura, no material para investigar a una persona.
   // Va en su propia seccion porque no se mira junto con nada: se abre antes de una reunion.
   if (yo.is_superadmin || yo.escalon === 'gerencia') {
-    secciones.push({ href: '/indicadores', etiqueta: 'Indicadores', icono: 'auditoria' })
+    secciones.push({ href: '/indicadores', etiqueta: 'Indicadores', icono: 'auditoria', grupo: 'administracion' })
   }
 
   return secciones

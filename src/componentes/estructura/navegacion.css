@@ -1,0 +1,43 @@
+/*
+ * Movimiento del menu lateral.
+ *
+ * Tres cosas se mueven, y cada una dice algo:
+ *
+ *   - Un subgrupo que se abre crece hasta su alto (`grid-template-rows` de `0fr` a `1fr`): lo que
+ *     aparece empuja lo de abajo en vez de saltar. Es la unica animacion de alto del menu, y la
+ *     tolera la regla de rendimiento porque un acordeon no tiene equivalente con `transform`.
+ *   - La flecha del subgrupo gira con el mismo pulso, para que abrir y girar se lean como un gesto.
+ *   - Un fijado nuevo entra desde abajo, como todo contenido que aparece en el panel. Asi quien
+ *     fija un Proyecto desde su ficha ve llegar la fila al menu.
+ *
+ * La barrita de la seccion activa no esta aca: se desliza con la transicion de pagina
+ * (`view-transition-name: seccion-activa`, ver `EnlaceSeccion`).
+ *
+ * Con movimiento reducido todo es instantaneo por el bloque general de `neo.css`.
+ */
+.nav-plegable {
+  display: grid;
+  grid-template-rows: 0fr;
+  opacity: 0;
+  transition:
+    grid-template-rows var(--wiwo-motion-medium) var(--wiwo-ease-emphasized),
+    opacity var(--wiwo-motion-fast) var(--wiwo-ease-emphasized);
+}
+
+.nav-plegable[data-abierto='true'] {
+  grid-template-rows: 1fr;
+  opacity: 1;
+}
+
+.nav-plegable > * {
+  /* Sin esto el hijo no baja de su alto de contenido y la fila `0fr` no llega a cerrarse. */
+  min-height: 0;
+}
+
+.nav-chevron {
+  transition: transform var(--wiwo-motion-medium) var(--wiwo-ease-emphasized);
+}
+
+.nav-fijado {
+  animation: entrar-abajo var(--wiwo-motion-medium) var(--wiwo-ease-expressive) both;
+}
