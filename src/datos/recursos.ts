@@ -1586,6 +1586,42 @@ export interface TicketEspacio {
 /** La ficha de un ticket: lo mismo que la bandeja mas el mensaje con el que se abrio. */
 export interface TicketDetalle extends TicketEspacio {
   message: string | null
+  /** El Proyecto del ticket; `null` en los que se abrieron sin uno. */
+  project_id: number | null
+}
+
+/**
+ * Ticket en la pestaña de un Proyecto (`GET /projects/{id}/tickets`).
+ *
+ * No es `TicketEspacio`: esa ruta la sirve `RecursoVentas`, que no emite ni `task` ni `solicitante`
+ * y si emite `client`. Declararla con el tipo de la bandeja invitaria a pintar una columna de Tarea
+ * que la API nunca manda.
+ */
+export interface TicketDelProyecto {
+  id: number
+  subject: string
+  status: number
+  priority: number
+  department: Referencia | null
+  assigned: StaffReferencia | null
+  client: Referencia | null
+  date: string | null
+  lastreply: string | null
+}
+
+/** Una persona que recibe el aviso de ticket nuevo de un Proyecto (T3). */
+export interface PersonaAvisada {
+  id: number
+  nombre: string
+  email: string
+}
+
+/** `GET|PUT /projects/{id}/ticket-notifications` (T3). */
+export interface AvisosDeTicket {
+  aviso_al_equipo: boolean
+  /** Correos sueltos. La UI no los edita: viajan tal como llegaron, por compatibilidad. */
+  correos: string[]
+  personas: PersonaAvisada[]
 }
 
 /**

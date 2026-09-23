@@ -20,10 +20,11 @@ import { SIN_DATO } from '@/lib/sla'
 import type { ConfiguracionTiposEspacio, TipoDeProcesoDelEspacio } from '@/datos/recursos'
 import type { Capacidad } from '@/datos/tipos'
 import { useRecurso } from './carga'
+import { AvisosDeTicketNuevo } from './AvisosDeTicketNuevo'
 
 /**
- * Configuracion del Espacio: que ve el cliente, los tipos de Proceso que ofrece, su ETA y la
- * aprobacion por defecto.
+ * Configuracion del Espacio: que ve el cliente, a quien se avisa de un ticket nuevo, los tipos de
+ * Proceso que ofrece, su ETA y la aprobacion por defecto.
  *
  * Es la pantalla del head del Espacio. Lo que se edita aca alimenta todo el mecanismo de plazo: el
  * ETA de una Tarea sale del tipo que tenga, con los dias que este panel le fija, y el reloj arranca
@@ -87,6 +88,8 @@ export function PanelConfiguracionEspacio ({
   return (
     <div className="flex flex-col gap-4">
       <VisibilidadDelPortal proyectoId={proyectoId} puedeEscribir={capacidades.includes('edit')} />
+
+      <AvisosDeTicketNuevo proyectoId={proyectoId} />
 
       {estado.fase === 'cargando' && <Cargando alto="min-h-40" mensaje="Cargando la configuración…" />}
       {estado.fase === 'error' && <ErrorEstado detalle={estado.mensaje} onReintentar={recargar} />}

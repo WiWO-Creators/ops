@@ -41,6 +41,7 @@ import type {
 import type { YoPortal } from '@/datos/tipos'
 import { saludar, seccionesDelPortal, type SeccionPortal } from '@/dominio/portal'
 import { GLOSARIO } from '@/dominio/glosario'
+import { PARAMETRO_TICKET } from '@/dominio/ticket-vista'
 import { sinFallar } from './detalle'
 
 export const metadata: Metadata = { title: 'Inicio · Portal de clientes' }
@@ -455,7 +456,7 @@ function MisTickets ({ lectura }: { lectura: LecturaDeTickets }) {
 function FilaDeTicket ({ ticket }: { ticket: TicketDelResumen }) {
   return (
     <li>
-      <Link href={`/portal/soporte/${ticket.id}`} className={FILA}>
+      <Link href={`/portal/soporte?${PARAMETRO_TICKET}=${ticket.id}`} className={FILA}>
         <span className="min-w-0 flex-1 basis-full truncate text-base text-texto sm:basis-auto">
           {ticket.subject}
           {ticket.project !== null && (

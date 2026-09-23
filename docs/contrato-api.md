@@ -1600,6 +1600,50 @@ a `Permisos::puede()`, y por eso `permissions` de `GET /me` **no trae una clave 
 
 **Responder no le avisa a nadie.** Ver abajo: es la omisión más ruidosa de toda la API.
 
+#### Tickets desde el Proyecto, el hilo del cliente y los avisos (T1 a T4)
+
+**Nombres de estado y prioridad (T1).** Listados y detalles de tickets —staff, portal y
+`/projects/{id}/tickets`— traen `status` y `priority` **solo como id**. El nombre sale de los
+catálogos `ticket_statuses` y `ticket_priorities` de `/lookups` (staff) o `/portal/lookups`
+(contacto), que la API ya entrega en español (`Open→Abierto`, `In progress→En curso`,
+`Answered→Respondido`, `On Hold→En espera`, `Closed→Cerrado`; `Low→Baja`, `Medium→Media`,
+`High→Alta`, `Urgent→Urgente`). Un nombre propio de la base pasa tal cual. El frontend no traduce.
+
+**`GET /projects/{id}/tickets`** lo sirve `RecursoVentas::tickets()`, no `RecursoTickets`: no trae
+`task` ni `solicitante`, y sí `client`. Filtros `status`, `priority`, `assigned`, `department`;
+orden `date`, `lastreply`, `subject`, `status`, `priority`; `q` sobre `subject`.
+
+**Regla de respuesta del cliente (T2).** `GET /portal/tickets/{id}` suma:
+
+```jsonc
+{ "puede_responder": false, "motivo_sin_respuesta": "esperando_equipo" }  // o "cerrado", o null
+```
+
+Cerrado (estado 5) ⇒ `false`/`"cerrado"`. Sin ninguna respuesta del equipo ⇒
+`false`/`"esperando_equipo"`. Si no, `true`/`null`. `POST /portal/tickets/{id}/respuestas`
+(`{message}`) que viole la regla responde **`409`** con `ticket_cerrado` o
+`ticket_sin_respuesta_del_equipo`. El modal de ticket de ops-v2 no recalcula la regla: dibuja lo que
+manda la API y, ante un 409, vuelve a pedir la ficha.
+
+**Avisos de ticket nuevo (T3).** `GET|PUT /projects/{id}/ticket-notifications`:
+
+```jsonc
+// GET
+{ "aviso_al_equipo": false, "correos": [], "personas": [ { "id": 2, "nombre": "Ana Ruiz", "email": "ana@wiwo.me" } ] }
+// PUT: toda clave es opcional; la omitida conserva lo guardado
+{ "aviso_al_equipo": false, "personas": [2, 7], "correos": [] }
+```
+
+`personas` son `staffid` activos (`422` si alguno no existe o está inactivo), máximo 20; el GET
+devuelve solo los activos. Con `aviso_al_equipo=false` los destinatarios son los correos de las
+personas activas al momento del envío más `correos`, sin duplicados; `422` si quedan las dos listas
+vacías. La UI (Configuración del Proyecto) solo muestra el interruptor y el selector de personas;
+`correos` viaja tal como llegó.
+
+**Enlaces.** El correo y la campana del staff apuntan a `/proyectos/{project_id}?tab=tickets&ticket={id}`
+(`tblnotifications.link` guarda esa ruta; la campana acepta rutas internas que empiezan con `/`). Al
+cliente, `/portal/soporte/{id}`, que redirige a la bandeja con el modal abierto.
+
 ### Lectura de venta desde el portal
 
 Retirar `contracts`, `estimates` y `proposals` del panel **no los sacó del portal del cliente**:

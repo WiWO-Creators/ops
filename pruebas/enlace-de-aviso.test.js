@@ -52,3 +52,17 @@ test('un id que no nombra ninguna fila no se enlaza', () => {
   assert.equal(rutaDeAviso('#taskid=0'), null)
   assert.equal(rutaDeAviso(`#taskid=${'9'.repeat(20)}`), null)
 })
+
+test('una ruta interna de Ops se usa tal cual (enlace de ticket, T3)', () => {
+  assert.equal(rutaDeAviso('/proyectos/12?tab=tickets&ticket=40'), '/proyectos/12?tab=tickets&ticket=40')
+  assert.equal(rutaDeAviso('  /portal/soporte/3 '), '/portal/soporte/3')
+})
+
+test('nada que salga de Ops pasa por ruta interna', () => {
+  assert.equal(rutaDeAviso('//evil.com/proyectos'), null)
+  assert.equal(rutaDeAviso('/\\evil.com'), null)
+  assert.equal(rutaDeAviso('https://evil.com/proyectos/1'), null)
+  assert.equal(rutaDeAviso('/proyectos/1 onclick=x'), null)
+  assert.equal(rutaDeAviso('/proyectos/1"><script>'), null)
+  assert.equal(rutaDeAviso('javascript:alert(1)'), null)
+})

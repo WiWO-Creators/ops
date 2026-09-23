@@ -26,6 +26,17 @@ import { PARAMETRO_TAREA } from '../componentes/datos/tabla.ts'
 const ENLACE_DE_TAREA = /^#taskid=(\d+)$/
 
 /**
+ * Una ruta interna de Ops, tal como la escribe hoy el backend en los avisos nuevos
+ * (`/proyectos/12?tab=tickets&ticket=40`, contrato T3).
+ *
+ * Solo rutas relativas a la raiz: empieza con una barra, la segunda no es otra barra ni una barra
+ * invertida (`//evil.com` y `/\evil.com` los navegadores los leen como otro dominio) y el resto son
+ * caracteres de ruta y de query sin espacios, comillas ni `#`. Un `https://` no entra: la campana
+ * no manda a nadie fuera de Ops.
+ */
+const RUTA_INTERNA = /^\/(?![/\\])[A-Za-z0-9\-._~/?&=%]*$/
+
+/**
  * La pantalla que monta el unico detalle de Tarea del producto y lo pide por id.
  *
  * Es el mismo destino que usa una cita de Thinking Orb: el listado global con `?tarea={id}`, que
@@ -37,6 +48,9 @@ const RUTA_DE_TAREAS = '/procesos'
 /**
  * Traduce el `link` de un aviso a una ruta de Ops.
  *
+ * Dos formatos: la ruta interna que ya escribe el backend (se devuelve tal cual) y el `#taskid=N` del
+ * panel clasico (se traduce).
+ *
  * @param link el `link` que sirve la API, que puede venir `null` cuando el aviso no apunta a nada
  * @returns la ruta relativa de Ops, o `null` si el enlace falta o no es uno que se sepa traducir —
  *          y entonces la fila se pinta sin enlace, igual que antes
@@ -44,7 +58,11 @@ const RUTA_DE_TAREAS = '/procesos'
 export function rutaDeAviso (link: string | null): string | null {
   if (typeof link !== 'string') return null
 
-  const coincidencia = ENLACE_DE_TAREA.exec(link.trim())
+  const recortado = link.trim()
+
+  if (RUTA_INTERNA.test(recortado)) return recortado
+
+  const coincidencia = ENLACE_DE_TAREA.exec(recortado)
 
   if (coincidencia === null) return null
 
