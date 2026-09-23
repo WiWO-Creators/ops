@@ -98,6 +98,12 @@ const PREFIJOS_PERMITIDOS = [
   // Presets personales de filtro de los tableros kanban (tareas e hitos). Privados por staff del
   // lado de la API; el portal no tiene tableros y no los necesita.
   'filter-presets',
+  // Busqueda global de la paleta de comandos (`Ctrl K`): Tareas, Proyectos, Clientes y Personas en
+  // una sola llamada. La API recorta cada tipo con la misma visibilidad de su listado y saltea el
+  // tipo que no se puede ver, asi que esta entrada no abre nada que el panel no mostrara ya. Los
+  // fijados y recientes de la misma paleta cuelgan de `/me` y ya entran por `me`. **No esta en la
+  // lista del portal y no debe estarlo**: un contacto no busca en la casa.
+  'search',
   // Capa de IA: resumen del Inicio, chat del Espacio e interpretacion de un alta. No esta en la
   // lista del portal y no debe estarlo: el contexto que arma el modelo se recorta con la
   // visibilidad del staff, y un contacto no tiene ninguna. Ademas es la unica ruta que gasta

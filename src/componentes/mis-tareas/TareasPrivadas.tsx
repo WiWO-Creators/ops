@@ -22,6 +22,10 @@ interface PropsTareasPrivadas {
   rutaDetalle: string
   /** Si la lista suma las ya completadas. Lo decide el interruptor de la hoja. Ver `TareasAsignadas`. */
   verCompletadas: boolean
+  /** Fragmento extra que acota la lista —el filtro de vencimiento de la hoja—, sin el `&` inicial. */
+  consultaExtra?: string | null
+  /** Que decir sin filas cuando el vacio lo explica el filtro y no la falta de privadas. */
+  vacio?: { titulo: string, descripcion: string }
 }
 
 /**
@@ -37,7 +41,7 @@ interface PropsTareasPrivadas {
  *
  * @returns La seccion de privadas: boton de alta, tabla y paginador.
  */
-export function TareasPrivadas ({ personaId, estados, rutaDetalle, verCompletadas }: PropsTareasPrivadas) {
+export function TareasPrivadas ({ personaId, estados, rutaDetalle, verCompletadas, consultaExtra = null, vacio }: PropsTareasPrivadas) {
   const [version, setVersion] = useState(0)
   const singular = GLOSARIO.proceso.singular.toLowerCase()
 
@@ -46,7 +50,7 @@ export function TareasPrivadas ({ personaId, estados, rutaDetalle, verCompletada
       personaId={personaId}
       titulo={`${GLOSARIO.proceso.plural} privadas`}
       estados={estados}
-      consultaExtra={SOLO_SIN_ESPACIO}
+      consultaExtra={consultaExtra === null ? SOLO_SIN_ESPACIO : `${SOLO_SIN_ESPACIO}&${consultaExtra}`}
       rutaDetalle={rutaDetalle}
       version={version}
       verCompletadas={verCompletadas}
@@ -54,7 +58,7 @@ export function TareasPrivadas ({ personaId, estados, rutaDetalle, verCompletada
       // desde la lista sin pasar por el detalle. Ver `estadoEditable` en `TareasAsignadas`.
       estadoEditable
       accion={<DialogoTareaPrivada personaId={personaId} onCreada={() => { setVersion((n) => n + 1) }} />}
-      vacio={{
+      vacio={vacio ?? {
         titulo: `No tienes ${GLOSARIO.proceso.plural.toLowerCase()} privadas`,
         descripcion: `Una ${singular} privada no cuelga de ningún ${GLOSARIO.espacio.singular.toLowerCase()}: es tuya y sólo aparece en tu hoja.`
       }}

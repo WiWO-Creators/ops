@@ -1,0 +1,41 @@
+/*
+ * El gesto de fijar.
+ *
+ * Fijar es raro —se hace una vez por Proyecto y se aprovecha semanas—, asi que es de los pocos
+ * lugares del panel donde el movimiento puede permitirse un poco de celebracion: la estrella salta
+ * y deja un anillo que se abre y se apaga. Quitar no celebra nada: la estrella solo se vacia.
+ *
+ * Todo es `transform` y `opacity`, y el anillo es un pseudo-elemento que no ocupa lugar. Con
+ * movimiento reducido la estrella cambia de estado sin saltar (bloque general de `neo.css`).
+ */
+@keyframes fijar-salto {
+  0% { transform: scale(1) rotate(0deg); }
+  35% { transform: scale(1.3) rotate(-12deg); }
+  65% { transform: scale(0.92) rotate(4deg); }
+  100% { transform: scale(1) rotate(0deg); }
+}
+
+@keyframes fijar-anillo {
+  from { opacity: 0.55; transform: scale(0.4); }
+  to { opacity: 0; transform: scale(1.6); }
+}
+
+.boton-fijar {
+  position: relative;
+  isolation: isolate;
+}
+
+.boton-fijar[data-recien-fijado='true'] .boton-fijar-estrella {
+  animation: fijar-salto 420ms var(--wiwo-ease-expressive) both;
+}
+
+.boton-fijar[data-recien-fijado='true']::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: 9999px;
+  border: 2px solid var(--acento);
+  pointer-events: none;
+  animation: fijar-anillo 420ms var(--wiwo-ease-emphasized) both;
+}

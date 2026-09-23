@@ -2,6 +2,8 @@ import Link from 'next/link'
 import { Suspense, cache } from 'react'
 import { AccionesCliente } from '@/componentes/cliente/AccionesCliente'
 import { CabeceraCliente } from '@/componentes/cliente/CabeceraCliente'
+import { BotonFijar } from '@/componentes/fijados/BotonFijar'
+import { RegistrarReciente } from '@/componentes/fijados/RegistrarReciente'
 import { PanelEquipoCliente } from '@/componentes/cliente/EquipoCliente'
 import { FichaCliente } from '@/componentes/cliente/FichaCliente'
 import { PanelFocalesCliente } from '@/componentes/cliente/FocalesCliente'
@@ -215,14 +217,18 @@ export default async function ClientePage (props: PageProps<'/clientes/[id]'>) {
 
   return (
     <section className="flex flex-col gap-6">
+      <RegistrarReciente tipo="client" id={cliente.id} />
       <div className="flex flex-wrap items-start justify-between gap-3">
         <CabeceraCliente cliente={cliente} />
-        <AccionesCliente
-          cliente={cliente}
-          paises={comoOpciones(listaDe(lookups, 'countries'))}
-          monedas={comoOpciones(listaDe(lookups, 'currencies'))}
-          capacidades={yo.permissions.customers}
-        />
+        <div className="flex items-center gap-2">
+          <BotonFijar elemento={{ type: 'client', id: cliente.id, name: cliente.company, client: null }} />
+          <AccionesCliente
+            cliente={cliente}
+            paises={comoOpciones(listaDe(lookups, 'countries'))}
+            monedas={comoOpciones(listaDe(lookups, 'currencies'))}
+            capacidades={yo.permissions.customers}
+          />
+        </div>
       </div>
 
       {/* Se dibuja solo si hay foto y la persona llega al escalon que la ve: con `score` en `null`
