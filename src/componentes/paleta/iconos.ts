@@ -1,5 +1,5 @@
 import {
-  Building2, CalendarDays, ClipboardList, Clock, Columns3, DoorOpen, FolderKanban, Gavel, House, LifeBuoy,
+  Building2, CalendarDays, ClipboardList, Clock, Columns3, DoorOpen, FolderKanban, Gavel, House, Inbox, LifeBuoy,
   ListChecks, Network, Radio, Repeat, ScrollText, SlidersHorizontal, Star, Target, TrendingUp, User, UserRound,
   Users, UsersRound, Video, type LucideIcon
 } from 'lucide-react'
@@ -25,6 +25,9 @@ export const ICONOS_DE_SECCION: Record<IconoSeccion, LucideIcon> = {
   procesos: ListChecks,
   // `Repeat`: lo que distingue a una recurrente es que vuelve, no que sea una Tarea.
   recurrentes: Repeat,
+  // `Inbox` y no `LifeBuoy`: el salvavidas ya es el atajo "soporte" de la paleta, que pide ayuda. Esto
+  // es la bandeja donde llegan las solicitudes de los clientes.
+  tickets: Inbox,
   espacios: FolderKanban,
   // El martillo de la adjudicacion. `FolderKanban` ya es Espacios, y una licitacion no es una carpeta
   // mas: es lo que todavia no se gano.

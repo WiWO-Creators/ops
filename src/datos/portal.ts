@@ -26,6 +26,11 @@ export interface TicketPortal {
   project_id: number | null
   /** `null` cuando el equipo todavia no engancho ninguna {proceso} al ticket. */
   task: TareaDeTicketPortal | null
+  /**
+   * Hay una respuesta del equipo que el contacto no vio (`clientread = 0` y el ultimo mensaje es del
+   * equipo, CONTRATO2 E). Opcional para convivir con un backend anterior: sin el campo no se resalta.
+   */
+  no_leido?: boolean
 }
 
 /**
@@ -416,6 +421,11 @@ export interface TicketDelResumen {
   last_reply: string | null
   /** El {espacio} del que cuelga, o `null`: un ticket puede no pertenecer a ninguno. */
   project: ReferenciaDeEspacio | null
+  /**
+   * Hay una respuesta del equipo que el contacto no vio. **No esta en el contrato del resumen**: se
+   * lee si llega (misma regla que `no_leido` del listado, CONTRATO2 E) y sin el campo no se marca.
+   */
+  no_leido?: boolean
 }
 
 /**

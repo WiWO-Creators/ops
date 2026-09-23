@@ -20,6 +20,7 @@ import { PanelNotas } from '@/componentes/proyecto/PanelNotas'
 import { PanelTareas } from '@/componentes/proyecto/PanelTareas'
 import { PanelTiempos } from '@/componentes/proyecto/PanelTiempos'
 import { PanelTickets } from '@/componentes/proyecto/PanelTickets'
+import { ContadorDeTickets } from '@/componentes/proyecto/ContadorDeTickets'
 import { Pestanas, type Panel } from '@/componentes/proyecto/Pestanas'
 import { Cargando, ErrorEstado, SinPermiso, Vacio } from '@/componentes/estado/Estados'
 import { listaDe, nombreDe } from '@/datos/catalogos'
@@ -231,6 +232,8 @@ export default async function ProyectoPage (props: PageProps<'/proyectos/[id]'>)
     {
       clave: PESTANA_TICKETS,
       etiqueta: GLOSARIO.ticket.plural,
+      // Vivo en el navegador: se actualiza con el aviso del modal sin recargar la ficha.
+      adorno: <ContadorDeTickets proyectoId={proyecto.id} base={GLOSARIO.ticket.plural} />,
       contenido: <PanelTickets proyecto={{ id: proyecto.id, name: proyecto.name }} capacidades={TICKETS_DEL_EQUIPO} />
     },
     { clave: 'gantt', etiqueta: 'Diagrama de Gantt', contenido: <PanelGantt proyectoId={proyecto.id} fuente={fuente} /> },

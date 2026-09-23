@@ -2,11 +2,11 @@
 
 import { Suspense, useCallback, useMemo, useState, type ReactElement } from 'react'
 import { PanelRecurso } from './PanelRecurso'
-import { EnlaceATicket } from '@/componentes/tickets/EnlaceATicket'
+import { FiltroEsperandoAlEquipo } from '@/componentes/datos/FiltroEsperandoAlEquipo'
+import { TarjetaDeTicket, claseDeFilaDeTicket, conCeldasDeTickets } from '@/componentes/datos/celdas-tickets'
+import { useAlCambiarTickets, useAlCerrarTicket } from '@/componentes/datos/useAlCambiarTickets'
 import { ModalTicket } from '@/componentes/tickets/ModalTicket'
 import { definicionDeTicketsDelProyecto } from '@/definiciones/tickets'
-import type { DefinicionRecurso } from '@/definiciones/tipos'
-import type { TicketDelProyecto } from '@/datos/recursos'
 import type { Capacidad } from '@/datos/tipos'
 import { PARAMETRO_TICKET, TICKET_DEL_PANEL } from '@/dominio/ticket-vista'
 
@@ -14,9 +14,12 @@ import { PARAMETRO_TICKET, TICKET_DEL_PANEL } from '@/dominio/ticket-vista'
  * Pestaña Tickets de la ficha del Proyecto: la lista y, encima, el modal del ticket abierto.
  *
  * El modal es el mismo que abre el cliente desde su portal; aca llega con la fuente del equipo y
- * con capacidad de edicion, que es lo que enciende los menus de estado y prioridad. El `revision`
- * vuelve a pedir la lista despues de responder o de cambiar un estado: la tabla se pide desde el
- * navegador y un `router.refresh()` no la alcanza.
+ * con capacidad de edicion, que es lo que enciende los menus de estado y prioridad.
+ *
+ * La lista se vuelve a pedir **con los filtros, el orden y la pagina puestos** cuando el modal
+ * escribe: por `onCambiado` y por el aviso de ventana `ops:tickets-cambiados`, que es el que tambien
+ * mueve el contador de la pestaña. Los dos pueden llegar juntos; la tabla aborta la peticion vieja y
+ * se queda con la ultima.
  */
 export function PanelTickets ({
   proyecto,
@@ -28,21 +31,14 @@ export function PanelTickets ({
   const [revision, setRevision] = useState(0)
 
   // Memoizada: `PanelRecurso` la usa como dependencia de su carga.
-  const definicion = useMemo((): DefinicionRecurso<TicketDelProyecto> => {
-    const base = definicionDeTicketsDelProyecto(proyecto.id)
-
-    return {
-      ...base,
-      columnas: base.columnas.map((columna) => (
-        columna.clave === 'subject'
-          ? { ...columna, presentar: (t: TicketDelProyecto) => <EnlaceATicket id={t.id}>{t.subject}</EnlaceATicket> }
-          : columna
-      ))
-    }
-  }, [proyecto.id])
+  const definicion = useMemo(() => conCeldasDeTickets(definicionDeTicketsDelProyecto(proyecto.id)), [proyecto.id])
 
   const proyectos = useMemo(() => [{ id: proyecto.id, name: proyecto.name }], [proyecto.id, proyecto.name])
   const alCambiar = useCallback(() => { setRevision((n) => n + 1) }, [])
+
+  useAlCambiarTickets(alCambiar)
+  // Abrir la ficha la marca como leida en la API: al cerrar se vuelve a pedir para quitar la marca.
+  useAlCerrarTicket(alCambiar)
 
   return (
     <>
@@ -50,6 +46,10 @@ export function PanelTickets ({
         definicion={definicion}
         claveFila={(t) => t.id}
         revision={revision}
+        barra={<FiltroEsperandoAlEquipo />}
+        claseFila={claseDeFilaDeTicket}
+        tarjeta={(t, catalogos) => <TarjetaDeTicket ticket={t} catalogos={catalogos} />}
+        tarjetasEnMovil
         abrirEn={{ clave: PARAMETRO_TICKET, valor: (t) => t.id }}
       />
       {/* `ModalTicket` lee `useSearchParams`; sin este limite falla el build de la ruta. */}

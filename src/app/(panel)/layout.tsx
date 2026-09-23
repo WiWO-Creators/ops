@@ -207,6 +207,12 @@ function seccionesDe (yo: Yo): Seccion[] {
     secciones.push({ href: '/procesos/recurrentes', etiqueta: 'Recurrentes', icono: 'recurrentes', grupo: 'operacion' })
   }
 
+  // Tickets no tiene permiso en `/me`: la API abre el area a todo el equipo (`is_not_staff = 0`, o a
+  // todos si `access_tickets_to_none_staff_members` esta encendida) y despues filtra por departamento.
+  // Un contratista sin acceso ve la entrada y recibe el 403 explicado en la pantalla; esconderla
+  // exigiria una bandera que `/me` no publica.
+  secciones.push({ href: '/tickets', etiqueta: GLOSARIO.ticket.plural, icono: 'tickets', grupo: 'operacion' })
+
   if (puedeVerSeccion(yo.permissions.projects, 'projects')) {
     secciones.push({ href: '/proyectos', etiqueta: GLOSARIO.espacio.plural, icono: 'espacios', grupo: 'principal' })
   }

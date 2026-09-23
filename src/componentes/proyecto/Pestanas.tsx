@@ -17,6 +17,11 @@ export interface Panel {
   /** Valor que viaja en `?tab=`. */
   clave: string
   etiqueta: string
+  /**
+   * Lo que va pegado al rotulo, dentro de la pestaña: un contador vivo, por ejemplo. Es un nodo y no
+   * texto porque el contador se actualiza en el navegador; el rotulo sigue siendo `etiqueta`.
+   */
+  adorno?: React.ReactNode
   contenido: React.ReactNode
 }
 
@@ -80,6 +85,7 @@ export function Pestanas ({
             )}
           >
             {panel.etiqueta}
+            {panel.adorno}
             {panel.clave === activa && (
               <span
                 aria-hidden="true"

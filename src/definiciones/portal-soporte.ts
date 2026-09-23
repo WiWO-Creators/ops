@@ -3,10 +3,15 @@ import type { TicketPortal } from '../datos/portal.ts'
 import { formatearFecha } from '../lib/fechas.ts'
 import { GLOSARIO } from '../dominio/glosario.ts'
 
-/** Tickets de soporte del portal del cliente. */
+/**
+ * Solicitudes del portal del cliente (`GET /portal/tickets`).
+ *
+ * Hacia el cliente se llaman Solicitudes, no Tickets: es la palabra del boton de alta y la que usa el
+ * resto del portal. La ruta y el permiso siguen siendo `tickets`/`support`.
+ */
 export const PORTAL_TICKETS: DefinicionRecurso<TicketPortal> = {
   ruta: 'portal/tickets',
-  titulo: GLOSARIO.ticket,
+  titulo: GLOSARIO.solicitud,
 
   columnas: [
     { clave: 'subject', encabezado: 'Asunto', ordenPor: 'subject', presentar: (t) => t.subject },

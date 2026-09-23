@@ -19,6 +19,8 @@ import * as sesion from './sesion.js'
 import { importarRecurrentes, listarRecurrentes, sembrarRecurrentes } from './recurrentes.js'
 import { avisosRuta } from './avisos.js'
 import { altaDelPortal, esAccionDelPortal, ticketDelPortal, ticketsDelEquipo } from './tickets.js'
+import { filaDelPortal, listadosDeTickets, sinFusionar } from './tickets-listados.js'
+import { filtrosGuardados } from './filtros-guardados.js'
 import { escribirAjustesDelOrbePortal, opcionDelOrbePortal, orbePortalRuta } from './orbe-portal.js'
 import {
   ADMINS_DE_CLIENTE, AREAS, ARCHIVOS, CAMPOS_PERSONALIZADOS, CHECKLIST, CLIENTES, COMENTARIOS, CRONOMETROS,
@@ -1259,7 +1261,7 @@ function guardarAreasDePersona (persona, areas) {
  */
 function validarAreasDePersona (datos) {
   if (datos === null || typeof datos !== 'object' || Array.isArray(datos)) {
-    throw new ErrorApi(422, 'validation_failed', 'Revisá los campos de la persona.')
+    throw new ErrorApi(422, 'validation_failed', 'Revisa los campos de la persona.')
   }
   let areasNuevas
   if (datos.area_ids !== undefined || datos.area_id !== undefined) {
@@ -1268,7 +1270,7 @@ function validarAreasDePersona (datos) {
     if (!Array.isArray(entrada) || entrada.some((id) =>
       !((typeof id === 'number' || (typeof id === 'string' && /^\d+$/.test(id))) &&
         Number.isInteger(Number(id)) && AREAS.some((area) => area.id === Number(id))))) {
-      throw new ErrorApi(422, 'validation_failed', 'Revisá los campos de la persona.', {
+      throw new ErrorApi(422, 'validation_failed', 'Revisa los campos de la persona.', {
         [campo]: ['no_existe']
       })
     }
@@ -1278,7 +1280,7 @@ function validarAreasDePersona (datos) {
         : (typeof datos.area_id === 'number' || (typeof datos.area_id === 'string' && /^\d+$/.test(datos.area_id))) &&
           areasNuevas.includes(Number(datos.area_id))
       if (!principalValida) {
-        throw new ErrorApi(422, 'validation_failed', 'Revisá los campos de la persona.', {
+        throw new ErrorApi(422, 'validation_failed', 'Revisa los campos de la persona.', {
           area_id: ['no_pertenece']
         })
       }
@@ -1484,7 +1486,7 @@ function validarArea (datos, areaEditada) {
   }
 
   if (Object.keys(detalles).length > 0) {
-    throw new ErrorApi(422, 'validation_failed', 'Revisá los campos del área.', detalles)
+    throw new ErrorApi(422, 'validation_failed', 'Revisa los campos del área.', detalles)
   }
 
   return salida
@@ -1589,17 +1591,17 @@ async function jerarquiaRuta (metodo, resto, cuerpo, actual) {
     const persona = buscarO404(STAFF, Number(id), 'persona')
     const datos = await cuerpo()
     if (datos === null || typeof datos !== 'object' || Array.isArray(datos)) {
-      throw new ErrorApi(422, 'validation_failed', 'Revisá los campos.', { area_id: ['required'] })
+      throw new ErrorApi(422, 'validation_failed', 'Revisa los campos.', { area_id: ['required'] })
     }
     const accion = datos.accion ?? 'mover'
     if (!['agregar', 'quitar'].includes(accion) && datos.accion !== undefined) {
-      throw new ErrorApi(422, 'validation_failed', 'Revisá los campos.', { accion: ['invalid'] })
+      throw new ErrorApi(422, 'validation_failed', 'Revisa los campos.', { accion: ['invalid'] })
     }
     const destino = datos.area_id === null ? null : Number(datos.area_id)
     const valido = typeof datos.area_id === 'number' || (typeof datos.area_id === 'string' && /^\d+$/.test(datos.area_id))
     if ((destino === null && accion !== 'mover') ||
         (destino !== null && (!valido || !Number.isInteger(destino) || !AREAS.some((area) => area.id === destino)))) {
-      throw new ErrorApi(422, 'validation_failed', 'Revisá los campos.', { area_id: ['no_existe'] })
+      throw new ErrorApi(422, 'validation_failed', 'Revisa los campos.', { area_id: ['no_existe'] })
     }
 
     const actuales = areasDePersona(persona)
@@ -5404,7 +5406,8 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
       }
 
       if (resto.length === 1) {
-        const { filas, paginacion } = aplicarConsulta(mios.map(presentarTicketPortal), parametros, {
+        // Sin los hijos fusionados y con `no_leido` (CONTRATO2 D y E): ver `tickets-listados.js`.
+        const { filas, paginacion } = aplicarConsulta(mios.filter(sinFusionar).map((t) => filaDelPortal(t, presentarTicketPortal)), parametros, {
           filtros: { status: 'status', priority: 'priority' },
           orden: ['subject', 'date', 'lastreply'],
           derivadas: { lastreply: (fila) => fila.last_reply },
@@ -5790,7 +5793,13 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
   // --- A partir de acá, todo exige token ----------------------------------
   const actual = sesion.resolver(token, 'acceso')
 
-  const deTickets = await ticketsDelEquipo({ metodo, recurso, resto, parametros, cuerpo, actual })
+  const deListados = listadosDeTickets({ metodo, recurso, resto, parametros, actual })
+  if (deListados !== null) return deListados
+
+  const deFiltros = await filtrosGuardados({ metodo, recurso, resto, parametros, cuerpo, actual })
+  if (deFiltros !== null) return deFiltros
+
+  const deTickets = await ticketsDelEquipo({ metodo, recurso, resto, cuerpo, actual })
   if (deTickets !== null) return deTickets
 
   // --- Sesión como otra persona (`POST /impersonate`) ----------------------
@@ -6320,7 +6329,7 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
     }
 
     if (Object.keys(errores).length > 0) {
-      throw new ErrorApi(422, 'validation_failed', 'Revisá los interruptores del portal.', errores)
+      throw new ErrorApi(422, 'validation_failed', 'Revisa los interruptores del portal.', errores)
     }
 
     // Se escribe despues de validar todo: un 422 no puede dejar la mitad de los interruptores
@@ -6912,7 +6921,7 @@ function crearTicketDelPortal (contacto, cuerpo) {
     detalles.priority = ['no_valido']
   }
   if (Object.keys(detalles).length > 0) {
-    throw new ErrorApi(422, 'validation_failed', 'Revisá los campos.', detalles)
+    throw new ErrorApi(422, 'validation_failed', 'Revisa los campos.', detalles)
   }
 
   const ticket = {
