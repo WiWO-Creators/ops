@@ -3247,6 +3247,36 @@ Verificado: el mismo termino da `tasks=649 projects=38 clients=18 staff=26` para
 
 ---
 
+### `/me/fijados` y `/me/recientes` — lo que cada persona tiene a mano
+
+Migracion `0900` de wiwo-board. Privados por persona (el staff sale del token) y sin rama de admin.
+Los dos tipos son `project` y `client`. La visibilidad se vuelve a preguntar **al leer**: un
+elemento que la persona dejo de poder ver no sale, pero su fila no se borra y vuelve sola si le
+devuelven el acceso.
+
+Forma de cada elemento:
+
+```json
+{ "type": "project", "id": 12, "name": "Rediseño de marca", "client": { "id": 3, "company": "Acme" }, "position": 0 }
+```
+
+`client` es `null` en un Cliente o en un Proyecto sin cliente. Los fijados traen `position`; los
+recientes traen `viewed_at` (instante ISO) en su lugar.
+
+| Ruta | Respuesta | Errores |
+|---|---|---|
+| `GET /me/fijados` | `200` con la lista en orden | — |
+| `PUT /me/fijados/{type}/{id}` | `200` con la lista. Idempotente: fijar lo ya fijado no duplica | `422` tipo invalido, `404` id inexistente **o** no visible (mismo mensaje), `409` al llegar a 20 |
+| `DELETE /me/fijados/{type}/{id}` | `200` con la lista | `422` tipo invalido, `404` si no estaba fijado |
+| `PUT /me/fijados` `{"items":[{"type","id"}...]}` | `200` con la lista reordenada | `422` si no nombra exactamente los fijados guardados, o trae repetidos |
+| `GET /me/recientes` | `200` con los ultimos 8 visibles, del mas nuevo al mas viejo | — |
+| `POST /me/recientes` `{"type","id"}` | `204`. Abrir de nuevo solo actualiza la fecha; se guardan 30 por persona | `422` tipo o id invalido, `404` inexistente o no visible |
+
+Las escrituras de fijados devuelven la lista entera: el menu, la paleta y el Inicio pintan la misma,
+y con la respuesta en la mano ninguno vuelve a pedirla. Ops registra el reciente desde el navegador
+al abrir la ficha de un Proyecto o de un Cliente (`RegistrarReciente`), nunca desde el servidor,
+para que los prefetch de `<Link>` no cuenten como visitas.
+
 ### `GET /audit` — auditoria de seguridad
 
 `tblactivity_log`, **de solo lectura y solo para administradores** (`403` para el resto).

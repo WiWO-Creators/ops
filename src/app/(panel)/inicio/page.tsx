@@ -1,16 +1,7 @@
 import { Suspense } from 'react'
 import Link from 'next/link'
 import { unstable_rethrow } from 'next/navigation'
-import {
-  ArrowRight,
-  Building2,
-  Columns3,
-  FolderKanban,
-  LifeBuoy,
-  ListChecks,
-  TriangleAlert,
-  Users
-} from 'lucide-react'
+import { ArrowRight, Star, TriangleAlert } from 'lucide-react'
 import { cn } from '@/lib/clases'
 import { pedir, pedirOpcional } from '@/datos/servidor'
 import { ErrorApi, mensajeParaPantalla } from '@/datos/errores'
@@ -23,16 +14,16 @@ import { opcionesDeEstados } from '@/dominio/estados-tarea'
 import { GLOSARIO } from '@/dominio/glosario'
 import { agruparPorVencimiento, cuantosNoListados, type GrupoInicio } from '@/dominio/inicio'
 import { puedeVerSeccion } from '@/dominio/permisos'
-import { Tarjeta, type TonoTarjeta } from '@/componentes/estructura/Tarjeta'
 import { TituloModulo } from '@/componentes/estructura/TituloModulo'
 import { Insignia } from '@/componentes/presentadores/Insignia'
 import { Fecha } from '@/componentes/presentadores/Fecha'
 import { PARAMETRO_TAREA, urlDeTareaEnProyecto } from '@/componentes/datos/tabla'
 import { EstadoDeTarea } from '@/componentes/proyecto/EstadoDeTarea'
 import { ModalTarea } from '@/componentes/proyecto/ModalTarea'
-import { URL_SOPORTE } from '@/lib/soporte'
 import { AvisoJornada } from './AvisoJornada'
 import { ResumenDelDia } from './ResumenDelDia'
+import { FijadosYRecientes } from './FijadosYRecientes'
+import { priorizarFijados, type Fijado, type Reciente } from '@/componentes/fijados/fijados'
 
 /**
  * Cuantos procesos propios se traen para armar la pantalla.
@@ -46,9 +37,11 @@ const PROCESOS_A_TRAER = 60
 /**
  * Inicio del panel.
  *
- * Hace dos cosas en una pantalla: dice a donde ir y muestra lo que hay que hacer hoy. El orden no es
- * casual — primero el trabajo propio y al final el acceso a las secciones. Quien entra a trabajar
- * encuentra su trabajo; quien entra a navegar baja dos pantallazos.
+ * Hace dos cosas en una pantalla: devuelve a la persona a lo que usa y muestra lo que hay que hacer
+ * hoy. Arriba van sus fijados y recientes —la vuelta a un Proyecto o Cliente concreto—, y despues el
+ * trabajo propio. La grilla de accesos a secciones que cerraba la pantalla ya no esta: repetia el
+ * menu, y buscar o ir a cualquier seccion ahora es la paleta (`Ctrl K`), a una tecla desde todo el
+ * panel.
  *
  * El aviso del cronometro olvidado ya no vive aca: lo dice el control de jornada de la cabecera, en
  * las ocho pantallas y no solo al entrar. Mostrarlo tambien aca serian dos contadores del mismo
@@ -67,11 +60,16 @@ export default async function InicioPage () {
   // Los dos viajes salen juntos: el recordatorio de jornada no tiene por que esperar a los procesos
   // ni al reves. Va por `pedirOpcional` porque un fallo leyendo la jornada no puede tumbar la
   // portada entera — el aviso simplemente no se pinta.
-  const [{ procesos, total, error: errorDeProcesos }, jornada, estados] = await Promise.all([
+  const [{ procesos, total, error: errorDeProcesos }, jornada, estados, fijados, recientes] = await Promise.all([
     misProcesos(yo),
     pedirOpcional<EstadoDeJornada>('/me/jornada'),
-    estadosDeTarea()
+    estadosDeTarea(),
+    // Los dos por `pedirOpcional`: son atajos, y una API sin la migracion 0900 no puede tumbar la
+    // portada. Sin ellos el bloque se dibuja vacio, con la explicacion de como se llena.
+    pedirOpcional<Fijado[]>('/me/fijados'),
+    pedirOpcional<Reciente[]>('/me/recientes')
   ])
+  const listaDeFijados = fijados.datos ?? []
 
   const grupos = agruparPorVencimiento(procesos)
   const restantes = cuantosNoListados(procesos, total)
@@ -85,13 +83,15 @@ export default async function InicioPage () {
   // movimiento no queda debajo de datos.
   return (
     // `max-w-6xl` y no `5xl`: la portada es la unica pantalla sin tabla ni ficha, y el ancho de
-    // lectura no la limita —lo que la limita es la grilla de accesos, que con 1152px entra en tres
-    // columnas holgadas en vez de tres apretadas. El aire vertical crece con la ventana: en una
+    // lectura no la limita —lo que la limita son las tarjetas de fijados, que con 1152px entran en
+    // dos columnas holgadas al lado de los recientes. El aire vertical crece con la ventana: en una
     // pantalla chica el contenido no sobra y separar de mas obliga a deslizar para ver lo urgente.
     <div className="lienzo-vivo mx-auto flex max-w-6xl flex-col gap-10 px-1 py-6 sm:gap-14 sm:py-12">
       <Saludo nombre={yo.firstname} />
 
       <AvisoJornada inicial={jornada.datos} />
+
+      <FijadosYRecientes fijados={listaDeFijados} recientes={recientes.datos ?? []} />
 
       <ResumenDelDia />
 
@@ -108,7 +108,10 @@ export default async function InicioPage () {
       */}
       {puedeVerSeccion(yo.permissions.projects, 'projects') && (
         <Suspense fallback={null}>
-          <MisProyectos staffId={yo.id} />
+          <MisProyectos
+            staffId={yo.id}
+            fijados={listaDeFijados.filter((fijado) => fijado.type === 'project').map((fijado) => fijado.id)}
+          />
         </Suspense>
       )}
 
@@ -117,8 +120,6 @@ export default async function InicioPage () {
           <EnSeguimiento staffId={yo.id} estados={estados} />
         </Suspense>
       )}
-
-      <Secciones yo={yo} />
 
       {/* El detalle es el mismo de los listados y se abre con el mismo `?tarea={id}`. Va en un
           limite de Suspense porque lee `useSearchParams`: sin el, el build de esta pagina falla. */}
@@ -219,7 +220,7 @@ async function estadosDeTarea (): Promise<OpcionFiltro[]> {
  * Cuantas filas trae cada uno de los dos bloques secundarios.
  *
  * Son un vistazo, no un listado: lo que no entra se busca en su pantalla, que esta a un enlace. Con
- * mas filas los dos bloques empujan las "Secciones" fuera de toda pantalla razonable.
+ * mas filas los dos bloques empujan "En seguimiento" fuera de toda pantalla razonable.
  */
 const FILAS_SECUNDARIAS = 5
 
@@ -230,14 +231,24 @@ const FILAS_SECUNDARIAS = 5
  * Copia el `try/catch` de `misProcesos()` por la misma razon —un listado caido no puede tumbar la
  * portada— y no muestra caja vacia: sin Espacios, no hay bloque.
  *
+ * Los fijados van primero y con su estrella: si la persona dijo cuales quiere a mano, son esos, en
+ * su orden, y despues los de entrega mas cercana. Se piden por id en la misma tanda que la lista de
+ * miembro, asi que un fijado del que no es miembro —un Proyecto que sigue sin integrar— tambien
+ * entra. El listado aplica la misma visibilidad de siempre: un id que no se ve no vuelve.
+ *
  * @param staffId a quien pertenecen los Espacios
+ * @param fijados ids de los Proyectos fijados, en el orden de la persona
  */
-async function MisProyectos ({ staffId }: { staffId: number }) {
-  const espacios = await listar<Espacio>(
-    `/projects?filter[member]=${staffId}&per_page=${FILAS_SECUNDARIAS}&sort=deadline`
-  )
+async function MisProyectos ({ staffId, fijados }: { staffId: number, fijados: number[] }) {
+  const [propios, completos] = await Promise.all([
+    listar<Espacio>(`/projects?filter[member]=${staffId}&per_page=${FILAS_SECUNDARIAS}&sort=deadline`),
+    fijados.length === 0
+      ? Promise.resolve<Espacio[]>([])
+      : listar<Espacio>(`/projects?filter[id]=${fijados.join(',')}&per_page=${fijados.length}`)
+  ])
+  const filas = priorizarFijados(propios, completos, fijados, FILAS_SECUNDARIAS)
 
-  if (espacios.length === 0) return null
+  if (filas.length === 0) return null
 
   return (
     <section className="flex flex-col gap-6">
@@ -248,13 +259,16 @@ async function MisProyectos ({ staffId }: { staffId: number }) {
       />
 
       <ul className="flex flex-col divide-y divide-linea overflow-hidden rounded-tarjeta border border-linea bg-superficie-elevada shadow-1">
-        {espacios.map((espacio) => (
+        {filas.map(({ espacio, fijado }) => (
           <li key={espacio.id}>
             <Link
               href={`/proyectos/${espacio.id}`}
               className="flex flex-wrap items-center gap-x-4 gap-y-1 px-5 py-4 transition-colors duration-150 ease-neo hover:bg-hover focus-visible:bg-hover"
             >
-              <span className="min-w-0 flex-1 basis-full truncate text-base text-texto sm:basis-auto">{espacio.name}</span>
+              <span className="flex min-w-0 flex-1 basis-full items-center gap-2 sm:basis-auto">
+                {fijado && <Star size={14} strokeWidth={2} aria-label="Fijado" className="shrink-0 fill-current text-acento" />}
+                <span className="truncate text-base text-texto">{espacio.name}</span>
+              </span>
               <span className="shrink-0 text-sm text-texto-tenue">
                 {espacio.counts.tasks_open} {GLOSARIO.proceso.plural.toLowerCase()} abiertas
               </span>
@@ -572,110 +586,4 @@ function FilaDeProceso ({ proceso, estados }: { proceso: Proceso, estados: Opcio
       </Link>
     </li>
   )
-}
-
-interface Acceso {
-  href: string
-  titulo: string
-  descripcion: string
-  icono: typeof ListChecks
-  tono: TonoTarjeta
-  proximamente?: boolean
-}
-
-/** La grilla de accesos. Lo que todavia no existe se muestra apagado, para decir hacia donde va esto. */
-function Secciones ({ yo }: { yo: Yo }) {
-  const accesos = accesosDe(yo)
-
-  return (
-    <section className="flex flex-col gap-6">
-      <TituloModulo nivel="h2" titulo="Ir a" />
-
-      <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-        {accesos.map((acceso) => (
-          <Tarjeta
-            key={acceso.href}
-            href={acceso.href}
-            titulo={acceso.titulo}
-            descripcion={acceso.descripcion}
-            icono={acceso.icono}
-            tono={acceso.tono}
-            tamano="grande"
-            proximamente={acceso.proximamente}
-          />
-        ))}
-      </div>
-    </section>
-  )
-}
-
-/**
- * Arma la grilla segun los permisos de quien mira.
- *
- * Misma regla que la navegacion lateral: un modulo sin `view` no se muestra porque su pantalla daria
- * 403 igual. Los `proximamente` no dependen de permisos — todavia no hay pantalla que proteger.
- */
-function accesosDe (yo: Yo): Acceso[] {
-  const accesos: Acceso[] = []
-
-  if (puedeVerSeccion(yo.permissions.tasks, 'tasks')) {
-    accesos.push({
-      href: '/procesos',
-      titulo: GLOSARIO.proceso.plural,
-      descripcion: 'Todo lo que está en marcha, con filtros y orden.',
-      icono: ListChecks,
-      tono: 'acento'
-    })
-    accesos.push({
-      href: '/procesos/tablero',
-      titulo: 'Tablero',
-      descripcion: `${GLOSARIO.proceso.plural} por estado, para mover de a uno.`,
-      icono: Columns3,
-      tono: 'violeta'
-    })
-  }
-
-  if (puedeVerSeccion(yo.permissions.projects, 'projects')) {
-    accesos.push({
-      href: '/proyectos',
-      titulo: GLOSARIO.espacio.plural,
-      descripcion: 'Dónde vive cada trabajo y cómo viene.',
-      icono: FolderKanban,
-      tono: 'exito'
-    })
-  }
-
-  if (puedeVerSeccion(yo.permissions.customers, 'customers')) {
-    accesos.push({
-      href: '/clientes',
-      titulo: 'Clientes',
-      descripcion: 'La cartera, con sus contactos y datos.',
-      icono: Building2,
-      tono: 'aviso'
-    })
-  }
-
-  if (puedeVerSeccion(yo.permissions.staff, 'staff')) {
-    accesos.push({
-      href: '/equipo',
-      titulo: 'Equipo',
-      descripcion: 'Quién es quién y de qué se ocupa.',
-      icono: Users,
-      tono: 'acento'
-    })
-  }
-
-  accesos.push(
-    {
-      // El soporte no es un modulo del panel: se atiende en wiwo.center. La tarjeta no lleva
-      // `proximamente` porque el destino existe hoy.
-      href: URL_SOPORTE,
-      titulo: '¿Buscas soporte?',
-      descripcion: 'Escríbenos en wiwo.center y te respondemos ahí.',
-      icono: LifeBuoy,
-      tono: 'peligro'
-    }
-  )
-
-  return accesos
 }

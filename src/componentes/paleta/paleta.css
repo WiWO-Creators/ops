@@ -1,0 +1,64 @@
+/*
+ * Movimiento de la paleta de comandos.
+ *
+ * Es la unica superposicion del panel que se abre desde el teclado decenas de veces por dia, y por
+ * eso todo es corto: la entrada es un resorte de 260ms que llega a su lugar en la mitad de ese
+ * tiempo —lo que resta es el asentamiento, que no retiene la lectura— y la salida es un fundido de
+ * 120ms. Solo `transform` y `opacity`.
+ *
+ * El resorte es una curva `linear()` y no una libreria: el proyecto no tiene motor de animacion y
+ * no hace falta uno para una entrada que no se interrumpe con el dedo. Los puntos son los de un
+ * resorte criticamente amortiguado con un rebote de ~4 %: se nota como "vivo" sin que el panel
+ * parezca de goma.
+ *
+ * Quien pidio menos movimiento la recibe quieta: el bloque `prefers-reduced-motion` de `neo.css`
+ * lleva toda animacion a 0.01ms, y aca abajo se apaga ademas el escalonado.
+ */
+:root {
+  --paleta-resorte: linear(0, 0.157 3.7%, 0.492 9.4%, 0.791 15.8%, 0.9 19.4%, 0.975 23.4%, 1.022 28.2%, 1.04 33.5%, 1.035 40.4%, 1.008 55.4%, 0.998 70.1%, 1);
+}
+
+@keyframes paleta-entrar {
+  from { opacity: 0; transform: translateY(-6px) scale(0.97); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes paleta-salir {
+  from { opacity: 1; transform: scale(1); }
+  to { opacity: 0; transform: scale(0.985); }
+}
+
+@keyframes paleta-opcion {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.paleta-panel[data-state='open'] {
+  animation: paleta-entrar 260ms var(--paleta-resorte) both;
+  transform-origin: 50% 0;
+}
+
+.paleta-panel[data-state='closed'] {
+  animation: paleta-salir 120ms var(--wiwo-ease-emphasized) both;
+}
+
+/*
+ * Cada opcion entra sola la primera vez que aparece, 18ms despues de la anterior y con tope en la
+ * duodecima: mas escalonado que eso ya es esperar. Las que siguen en pantalla mientras se escribe
+ * no se vuelven a animar porque React no las remonta (la clave es su id), asi que el movimiento
+ * dice exactamente lo que es nuevo.
+ */
+.paleta-opcion {
+  animation: paleta-opcion 180ms var(--wiwo-ease-emphasized) both;
+  animation-delay: calc(min(var(--i, 0), 12) * 18ms);
+}
+
+/* La marca de la opcion activa se desliza entre filas en vez de saltar: es el mismo gesto que la
+ * barrita de la seccion activa del menu. */
+.paleta-marca {
+  transition: transform 160ms var(--wiwo-ease-emphasized), height 160ms var(--wiwo-ease-emphasized), opacity 120ms;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .paleta-opcion { animation-delay: 0s; }
+}
