@@ -36,6 +36,24 @@ test('un motivo desconocido se muestra igual, sin guiones bajos', () => {
   assert.equal(mensaje, 'No se pudo guardar. hourly_rate algo raro.')
 })
 
+test('el prospecto duplicado muestra solo el mensaje de la API', () => {
+  const mensaje = mensajeConDetalles({
+    message: 'Ya existe un prospecto con esa empresa.',
+    details: { 'cliente.company': ['duplicado'], prospecto_existente: ['4'] }
+  })
+
+  assert.equal(mensaje, 'Ya existe un prospecto con esa empresa.')
+})
+
+test('la empresa que falta en un prospecto se nombra en castellano', () => {
+  const mensaje = mensajeConDetalles({
+    message: 'Hay campos que no se pueden guardar.',
+    details: { 'cliente.company': ['required'] }
+  })
+
+  assert.equal(mensaje, 'Hay campos que no se pueden guardar. Empresa falta.')
+})
+
 test('sin details devuelve el mensaje intacto', () => {
   assert.equal(mensajeConDetalles({ message: 'No tenés permiso.' }), 'No tenés permiso.')
 })

@@ -22,7 +22,7 @@ import {
   ADMINS_DE_CLIENTE, AREAS, ARCHIVOS, CAMPOS_PERSONALIZADOS, CHECKLIST, CLIENTES, COMENTARIOS, CRONOMETROS,
   DEPARTAMENTOS, EMPRESAS_DEL_GRUPO, ENTRADA_DE_CLIENTE, ESPACIOS, ESTADOS_ESPACIO, ESTADOS_PROCESO,
   ESTADOS_TICKET, PRIORIDADES_TICKET, TICKETS_PORTAL,
-  ESPACIOS_DE_LICITACION, ETIQUETAS, HITOS, LICITACIONES,
+  ESPACIOS_DE_LICITACION, ETIQUETAS, HITOS, LICITACIONES, PROSPECTOS, CONTACTOS_DE_PROSPECTO,
   AVISOS_CONTACTO, CONTACTOS, OPCIONES_AREA_EN_TAREAS, PRIORIDADES, PROCESOS, PROCESOS_POR_AREA,
   RESERVAS, ROLES, SALAS, STAFF, VALORES_CAMPOS
 } from './datos.js'
@@ -302,6 +302,15 @@ const CONSULTA_LICITACIONES = {
   },
   orden: ['creada_en', 'company'],
   busqueda: ['company']
+}
+
+/** Lo mismo que `RecursoProspectos::consulta()`: la busqueda `q` va solo sobre `empresa`. */
+const CONSULTA_PROSPECTOS = {
+  filtros: {
+    cliente_id: coincideEnLista((p) => p.client_id)
+  },
+  orden: ['empresa', 'creado_en'],
+  busqueda: ['empresa']
 }
 
 const CONSULTA_ESPACIOS = {
@@ -677,6 +686,112 @@ async function rutaDeRecurrentes (metodo, resto, parametros, actual, cuerpo) {
 }
 
 /** Busca una fila por id o lanza 404. */
+/**
+ * `/prospectos` y `/prospectos/{id}`. Ver el bloque que la llama en `resolverRuta`.
+ *
+ * @param {string} metodo
+ * @param {string[]} resto segmentos despues de `prospectos`
+ * @param {URLSearchParams} parametros
+ * @param {object} actual staff autenticado
+ * @param {() => Promise<unknown>} cuerpo thunk del cuerpo de la peticion
+ * @returns {Promise<{estado: number, cuerpo: unknown} | null>} `null` si la ruta no es de aca
+ * @throws {ErrorApi} 403, 404 o 422
+ */
+async function prospectosRuta (metodo, resto, parametros, actual, cuerpo) {
+  if (resto.length === 0 && metodo === 'GET') {
+    const { filas, paginacion } = aplicarConsulta(PROSPECTOS, parametros, CONSULTA_PROSPECTOS)
+    return { estado: 200, cuerpo: conDatos(filas, { pagination: paginacion }) }
+  }
+
+  if (resto.length === 0 && metodo === 'POST') {
+    exigirPermiso(actual, 'projects', 'create')
+    const cliente = clienteDeProspecto(await cuerpo(), null)
+    const nuevo = {
+      ...structuredClone(PROSPECTOS[0]),
+      id: Math.max(0, ...PROSPECTOS.map((p) => p.id)) + 1,
+      empresa: cliente.company,
+      estado: 'sin_licitaciones',
+      cliente,
+      creado_en: new Date().toISOString(),
+      creado_por: actual.id,
+      licitaciones_total: 0,
+      licitaciones_abiertas: 0,
+      licitaciones_ganadas: 0
+    }
+    PROSPECTOS.push(nuevo)
+    return { estado: 201, cuerpo: conDatos(fichaDeProspecto(nuevo)) }
+  }
+
+  if (resto.length !== 1) return null
+  const prospecto = buscarO404(PROSPECTOS, Number(resto[0]), 'prospecto')
+
+  if (metodo === 'PATCH') {
+    exigirPermiso(actual, 'projects', 'edit')
+    const cliente = clienteDeProspecto(await cuerpo(), prospecto)
+    Object.assign(prospecto, { empresa: cliente.company, cliente })
+  }
+
+  return metodo === 'GET' || metodo === 'PATCH' ? { estado: 200, cuerpo: conDatos(fichaDeProspecto(prospecto)) } : null
+}
+
+/**
+ * Valida el bloque `cliente` de un alta o edicion de prospecto y lo completa con las claves en `null`.
+ *
+ * @param {unknown} entrada cuerpo de la peticion
+ * @param {object | null} actual el prospecto que se edita, que no cuenta como duplicado de si mismo
+ * @returns {Record<string, unknown>} el bloque `cliente` completo
+ * @throws {ErrorApi} 422 sin empresa o con una empresa que ya tiene otro prospecto
+ */
+function clienteDeProspecto (entrada, actual) {
+  const recibido = entrada !== null && typeof entrada === 'object' && !Array.isArray(entrada) ? entrada.cliente : undefined
+  if (recibido === null || typeof recibido !== 'object' || Array.isArray(recibido)) {
+    if (actual !== null) return actual.cliente
+    throw new ErrorApi(422, 'validation_failed', 'Hay campos que no se pueden guardar.', { 'cliente.company': ['required'] })
+  }
+  const claves = Object.keys(PROSPECTOS[0].cliente)
+  const base = actual?.cliente ?? Object.fromEntries(claves.map((clave) => [clave, null]))
+  const cliente = { ...base, ...Object.fromEntries(claves.filter((clave) => clave in recibido).map((clave) => [clave, recibido[clave]])) }
+  const empresa = typeof cliente.company === 'string' ? cliente.company.trim() : ''
+  if (empresa === '') {
+    throw new ErrorApi(422, 'validation_failed', 'Hay campos que no se pueden guardar.', { 'cliente.company': ['required'] })
+  }
+  const repetido = PROSPECTOS.find((p) => p !== actual && empresaComparable(p.empresa) === empresaComparable(empresa))
+  if (repetido !== undefined) {
+    // Misma forma que la API: el id del existente viaja como texto dentro de una lista.
+    throw new ErrorApi(422, 'validation_failed', 'Ya existe un prospecto con esa empresa.', {
+      'cliente.company': ['duplicado'],
+      prospecto_existente: [String(repetido.id)]
+    })
+  }
+  return { ...cliente, company: empresa }
+}
+
+/**
+ * Una empresa en la forma en que la compara la collation `utf8mb4_unicode_ci`.
+ *
+ * @param {string} texto
+ * @returns {string} sin mayusculas, acentos ni espacios de borde
+ */
+function empresaComparable (texto) {
+  return String(texto).normalize('NFD').replace(/\p{M}/gu, '').toLowerCase().trim()
+}
+
+/**
+ * La ficha de `GET /prospectos/{id}`: la fila mas sus contactos y el resumen de sus licitaciones.
+ *
+ * @param {object} prospecto
+ * @returns {object}
+ */
+function fichaDeProspecto (prospecto) {
+  return {
+    ...prospecto,
+    contactos: CONTACTOS_DE_PROSPECTO.filter((c) => c.prospecto_id === prospecto.id),
+    licitaciones: LICITACIONES.filter((l) => l.prospecto_id === prospecto.id).map((l) => ({
+      id: l.id, estado: l.estado, codigo: '', resultado_en: l.resultado_en, creada_en: l.creada_en, espacio: l.espacio
+    }))
+  }
+}
+
 function buscarO404 (filas, id, que) {
   const fila = filas.find((f) => f.id === id)
   if (!fila) throw new ErrorApi(404, 'not_found', `No existe ${que} con id ${id}.`)
@@ -6261,6 +6376,19 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
     }
 
     return { estado: 200, cuerpo: conDatos(presentarActa(acta, { conContenido: true })) }
+  }
+
+  /*
+   * `/prospectos`: listado con `q`, ficha, alta y edicion de la empresa candidata.
+   *
+   * Existe para el autocompletado del alta de licitacion, que busca con `q` si la empresa ya esta.
+   * Alta y edicion rechazan con 422 una empresa repetida, igual que la API: la comparacion ignora
+   * mayusculas, acentos y espacios de borde, como la collation `utf8mb4_unicode_ci` de la columna.
+   * Los contactos del prospecto no se escriben aca: cualquier otra ruta cae al 404 del final.
+   */
+  if (recurso === 'prospectos') {
+    const respuesta = await prospectosRuta(metodo, resto, parametros, actual, cuerpo)
+    if (respuesta !== null) return respuesta
   }
 
   /*

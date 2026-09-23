@@ -661,6 +661,40 @@ alta, `edit` para el `PATCH` y para las dos acciones.
 
 La sección aparece en `ops-v2` cuando `secciones_habilitadas` de `GET /me` incluye `"licitaciones"`.
 
+### `prospectos` → la empresa candidata de una **Licitación**
+
+`GET /prospectos` · `GET /prospectos/{id}` · `POST /prospectos` · `PATCH /prospectos/{id}`
+
+La empresa a la que se le licita, administrada una sola vez: cada licitación cuelga de un prospecto
+por `prospecto_id`. El listado trae `id`, `empresa` (copia de `cliente.company`), `estado` derivado
+(`sin_licitaciones`, `abierto`, `ganado`, `perdido`), `cliente`, `client_id`, `client` y los
+contadores `licitaciones_total`, `licitaciones_abiertas`, `licitaciones_ganadas`. La ficha suma
+`contactos` y `licitaciones`.
+
+**`q` busca sólo en `empresa`**, con `LIKE %q%` sobre una columna `utf8mb4_unicode_ci`: ignora
+mayúsculas y acentos, pero **no recorta**, así que hay que mandar el término sin espacios de borde.
+Filtro: `cliente_id`. Orden: `empresa`, `creado_en`; por defecto `-creado_en`. `fields` recorta
+(el `id` viaja siempre). `include` no vale. El alta de licitación de `ops-v2` usa
+`GET /prospectos?q=…&per_page=10&fields=id,empresa,licitaciones_total` para ofrecer el prospecto que
+ya existe antes de crear otro (`componentes/prospecto/SugerenciasDeProspecto.tsx`).
+
+**Escribibles.** `POST /prospectos` recibe `cliente` (con `company` obligatoria) y opcionalmente
+`contacto`; `PATCH /prospectos/{id}` recibe `cliente` con las claves que cambian. Permisos:
+`projects create` y `projects edit`.
+
+**Empresa repetida: `422`.** Crear un prospecto, o renombrar uno, con una empresa que ya tiene otro
+—misma comparación que `q`: sin mayúsculas, acentos ni espacios de borde— responde:
+
+```json
+{ "error": { "code": "validation_failed",
+             "message": "Ya existe un prospecto con esa empresa.",
+             "details": { "cliente.company": ["duplicado"], "prospecto_existente": ["4"] } } }
+```
+
+`prospecto_existente` es el id del que ya está, **como texto dentro de una lista**. Puede no ser
+visible para quien escribe: pedirlo puede dar `404`. `ops-v2` muestra el `message` tal cual y no
+nombra esos dos `details` (`datos/errores.ts`), porque el mensaje ya lo dice.
+
 ### `tasks` → **Procesos** en la interfaz
 
 `GET /tasks` · `GET /tasks/{id}` · `GET /tasks/{id}/comments` · `GET /tasks/{id}/checklist` ·

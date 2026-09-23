@@ -187,7 +187,9 @@ const CAMPOS: Record<string, string> = {
   'copiar.adjuntos': 'Adjuntos',
   'copiar.campos_personalizados': 'Campos personalizados',
   'copiar.etiquetas': 'Etiquetas',
-  'copiar.recordatorios': 'Recordatorios'
+  'copiar.recordatorios': 'Recordatorios',
+  // Alta y edicion de Prospecto: la empresa viaja anidada en el bloque `cliente`.
+  'cliente.company': 'Empresa'
 }
 
 /**
@@ -231,6 +233,22 @@ const MOTIVOS: Record<string, string> = {
 }
 
 /**
+ * Claves de `details` que son datos para el programa, no un campo del formulario.
+ *
+ * `prospecto_existente` es el id del prospecto con el que choca un alta repetida: viaja con la forma
+ * `campo: [motivo]` y sin esta lista se colaría en la frase como «prospecto_existente 4».
+ */
+const CLAVES_QUE_NO_SE_NOMBRAN = new Set(['prospecto_existente'])
+
+/**
+ * Pares `campo:motivo` que el mensaje principal ya explica mejor que la frase armada.
+ *
+ * «Ya existe un prospecto con esa empresa.» ya lo dice todo; sumarle «Empresa ya está usado por otra»
+ * sólo repite, y en peor castellano.
+ */
+const YA_DICHOS_POR_EL_MENSAJE = new Set(['cliente.company:duplicado'])
+
+/**
  * Mensaje de un error del contrato con sus `details` adentro.
  *
  * "Hay campos que no se pueden guardar." no dice cuál campo: el formulario queda lleno y sin pista,
@@ -249,7 +267,8 @@ export function mensajeConDetalles (error: { message: string, details?: Record<s
   // devolver un bloque de datos —el `regeneracion` del 429 de la capa de IA es el primero—, y sin
   // este filtro ese bloque se cuela en la frase como el nombre pelado de su clave.
   const partes = Object.entries(detalles)
-    .filter(([, motivos]) => Array.isArray(motivos))
+    .filter(([campo, motivos]) => Array.isArray(motivos) && !CLAVES_QUE_NO_SE_NOMBRAN.has(campo) &&
+      !YA_DICHOS_POR_EL_MENSAJE.has(`${campo}:${motivos[0] ?? ''}`))
     .map(([campo, motivos]) => {
       const nombre = CAMPOS[campo] ?? campo
       const codigo = motivos[0]

@@ -604,6 +604,71 @@ export const LICITACIONES = [
 ]
 
 /**
+ * Los Prospectos, en la forma de `RecursoProspectos::presentarLote()`: la empresa candidata con su
+ * bloque `cliente` completo (las once claves de `CAMPOS_CLIENTE`, en `null` las que nadie llenó) y
+ * los contadores de licitaciones. La ficha suma `contactos` y `licitaciones`; eso lo arma el
+ * servidor.
+ *
+ * Los ids 1 y 2 son los que ya citan las `LICITACIONES`. SERNATUR y Puerto San Antonio están por los
+ * duplicados que motivaron el autocompletado del alta: sin ellos no hay qué sugerir.
+ */
+export const PROSPECTOS = [
+  prospecto(1, 'Colbún', { total: 1, abiertas: 1 }),
+  prospecto(2, 'Metro de Santiago', { total: 1 }),
+  prospecto(3, 'SERNATUR', {}),
+  prospecto(4, 'Puerto San Antonio / EPSA', {})
+]
+
+/**
+ * Los contactos de los prospectos, en la forma de `RecursoProspectos::presentarContacto()`.
+ */
+export const CONTACTOS_DE_PROSPECTO = [
+  { id: 1, prospecto_id: 3, contacto: { firstname: 'Carla', lastname: 'Rojas', email: 'crojas@sernatur.cl', phonenumber: null, title: 'Jefa de compras' }, es_principal: true, contacto_id: null, creado_en: '2026-08-01T12:00:00-04:00' }
+]
+
+/**
+ * Un Prospecto sin cliente real todavía.
+ *
+ * @param {number} id
+ * @param {string} empresa la `company` de su bloque `cliente`
+ * @param {{total?: number, abiertas?: number, ganadas?: number}} licitaciones contadores
+ * @returns {object} la fila como la entrega `GET /prospectos`
+ */
+function prospecto (id, empresa, { total = 0, abiertas = 0, ganadas = 0 }) {
+  return {
+    id,
+    empresa,
+    estado: estadoDerivado(total, abiertas, ganadas),
+    cliente: {
+      company: empresa, vat: null, phonenumber: null, address: null, city: null, state: null, zip: null,
+      website: null, country_id: null, default_currency: null, default_language: null
+    },
+    client_id: null,
+    client: null,
+    convertido_en: null,
+    creado_en: '2026-08-01T12:00:00-04:00',
+    creado_por: 1,
+    licitaciones_total: total,
+    licitaciones_abiertas: abiertas,
+    licitaciones_ganadas: ganadas
+  }
+}
+
+/**
+ * El estado del prospecto, derivado como en el `CASE` de `RecursoProspectos::columnas()`.
+ *
+ * @param {number} total licitaciones del prospecto
+ * @param {number} abiertas las que siguen abiertas
+ * @param {number} ganadas las ganadas
+ * @returns {'sin_licitaciones' | 'abierto' | 'ganado' | 'perdido'}
+ */
+function estadoDerivado (total, abiertas, ganadas) {
+  if (total === 0) return 'sin_licitaciones'
+  if (abiertas > 0) return 'abierto'
+  return ganadas > 0 ? 'ganado' : 'perdido'
+}
+
+/**
  * El bloque `espacio` de una Licitacion: las cinco claves que viajan en el listado.
  *
  * @param {number} id id del Espacio, que es tambien el de la licitacion

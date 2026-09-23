@@ -8,12 +8,13 @@ import { camposDeLicitacion } from '@/componentes/licitacion/campos'
 import { ControlDeCampo } from '@/componentes/proyecto/FormularioRecurso'
 import { cuerpoDelFormulario, validarFormulario, valoresIniciales, type CampoFormulario, type OpcionCampo } from '@/componentes/proyecto/formulario'
 import { ContenidoDialogo, Dialogo } from '@/componentes/superposiciones/Dialogo'
-import { mensajeDeRespuesta } from '@/datos/cliente'
-import type { ContactoProspecto, Prospecto } from '@/datos/recursos'
+import { mensajeDeRespuesta, pedirSobre } from '@/datos/cliente'
+import type { ContactoProspecto, Prospecto, ProspectoDetalle } from '@/datos/recursos'
 import type { Capacidad } from '@/datos/tipos'
 import { claveBorrador, crearBorrador, eliminarBorrador, guardarBorrador, leerBorrador, type BorradorLicitacion } from '@/dominio/flujo-licitacion'
 import { cn } from '@/lib/clases'
 import { CAMPOS_DE_CONTACTO, camposDeProspecto } from './campos'
+import { SugerenciasDeProspecto } from './SugerenciasDeProspecto'
 
 const PASOS = ['Prospecto', 'Contacto', 'Licitación'] as const
 /* El unico paso que se puede saltar. El dia que se abre una licitacion no siempre se sabe a quien
@@ -78,6 +79,9 @@ export function FlujoLicitacion ({ usuarioId, capacidades, paises, areas, staff,
   const [fallo, setFallo] = useState<string | null>(null)
   const [errores, setErrores] = useState<Record<string, string>>({})
   const [guardando, setGuardando] = useState(false)
+  // Los contactos del prospecto elegido. Arrancan con los de la ficha desde la que se abrió el flujo y
+  // se reemplazan si en el paso 1 se elige un prospecto que ya existía.
+  const [contactosDelProspecto, setContactosDelProspecto] = useState(contactos)
   const enviando = useRef(false)
   const puedeEditar = capacidades.includes('edit')
   const paso = borrador.paso
@@ -135,9 +139,35 @@ export function FlujoLicitacion ({ usuarioId, capacidades, paises, areas, staff,
     actualizar({ ...borrador, paso: siguiente })
   }
 
+  /**
+   * Toma un prospecto que ya existe en vez de crear otro con la misma empresa.
+   *
+   * Se pide la ficha y no se usa la fila de la búsqueda: hacen falta los datos de la empresa —volver
+   * al paso 1 y guardar los reescribiría con lo que hubiera en el formulario— y sus contactos, para
+   * poder elegir uno en el paso 2. No hay nada que crear, así que no pasa por `pendiente`.
+   */
+  async function usarProspectoExistente ({ id }: { id: number }): Promise<void> {
+    if (enviando.current || bloqueado) return
+    enviando.current = true
+    setGuardando(true)
+    setFallo(null)
+    setErrores({})
+    try {
+      const { data: ficha } = await pedirSobre<ProspectoDetalle>(`prospectos/${id}`, new AbortController().signal)
+      setContactosDelProspecto(Array.isArray(ficha.contactos) ? ficha.contactos : [])
+      actualizar({ ...borrador, paso: 1, prospectoId: ficha.id, contactoId: null, valoresContacto: {},
+        valoresProspecto: valoresIniciales(camposEmpresa, { cliente: ficha.cliente }) })
+    } catch (error) {
+      setFallo(error instanceof Error ? error.message : 'No se pudo abrir el prospecto elegido.')
+    } finally {
+      enviando.current = false
+      setGuardando(false)
+    }
+  }
+
   /** Selecciona un contacto existente o prepara uno nuevo, manteniendo el mismo prospecto. */
   function elegirContacto (valor: string | boolean | string[]): void {
-    const contacto = contactos.find((item) => String(item.id) === valor)
+    const contacto = contactosDelProspecto.find((item) => String(item.id) === valor)
     setErrores({})
     actualizar({ ...borrador, contactoId: contacto?.id ?? null, valoresContacto: valoresIniciales(CAMPOS_DE_CONTACTO, contacto?.contacto ? { ...contacto.contacto } : null) })
   }
@@ -254,8 +284,8 @@ export function FlujoLicitacion ({ usuarioId, capacidades, paises, areas, staff,
       alCambiar={(valor) => { actualizar({ ...borrador, [grupo]: { ...borrador[grupo], [campo.clave]: valor } }) }} />
   }
 
-  const opcionesContacto = contactos.map((contacto) => ({ valor: String(contacto.id), etiqueta: `${contacto.contacto?.firstname ?? ''} ${contacto.contacto?.lastname ?? ''}`.trim() || `Contacto #${contacto.id}` }))
-  if (borrador.contactoId !== null && !contactos.some((contacto) => contacto.id === borrador.contactoId)) opcionesContacto.push({ valor: String(borrador.contactoId), etiqueta: 'Contacto guardado en este flujo' })
+  const opcionesContacto = contactosDelProspecto.map((contacto) => ({ valor: String(contacto.id), etiqueta: `${contacto.contacto?.firstname ?? ''} ${contacto.contacto?.lastname ?? ''}`.trim() || `Contacto #${contacto.id}` }))
+  if (borrador.contactoId !== null && !contactosDelProspecto.some((contacto) => contacto.id === borrador.contactoId)) opcionesContacto.push({ valor: String(borrador.contactoId), etiqueta: 'Contacto guardado en este flujo' })
 
   return (
     <Dialogo open onOpenChange={(abierto) => { if (!abierto) guardarYSalir() }}>
@@ -291,6 +321,10 @@ export function FlujoLicitacion ({ usuarioId, capacidades, paises, areas, staff,
           )}
           <fieldset disabled={bloqueado || soloLectura} className="grid gap-5 sm:grid-cols-2">
             {(paso === 0 ? campos.slice(0, 1) : campos).map(dibujarCampo)}
+            {paso === 0 && prospecto === undefined && borrador.prospectoId === null && (
+              <SugerenciasDeProspecto texto={String(borrador.valoresProspecto['cliente.company'] ?? '')} deshabilitado={bloqueado}
+                alUsarExistente={(elegido) => { void usarProspectoExistente(elegido) }} />
+            )}
             {paso === 0 && <details className="sm:col-span-2" open={campos.slice(1).some((campo) => errores[campo.clave]) || undefined}>
               <summary className="text-texto-tenue cursor-pointer">Datos adicionales de la empresa (opcional)</summary>
               <div className="mt-4 grid gap-5 sm:grid-cols-2">{campos.slice(1).map(dibujarCampo)}</div>
