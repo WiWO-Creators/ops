@@ -11,18 +11,9 @@ import { formatearRelativo } from '../lib/fechas.ts'
  * Fuente: `CONTRATO2.md`, secciones E (portal) y F (listados del equipo).
  */
 
-/**
- * Evento de ventana que avisa que un ticket cambio (respuesta, estado, prioridad, alta).
- *
- * Lo dispara el modal del ticket; lo escuchan la pestaña Tickets, su contador, la bandeja global y la
- * bandeja del portal para volver a pedir su pagina con la consulta que tienen puesta. Es un evento y
- * no una prop porque el modal y los listados no siempre comparten padre: el contador vive en la barra
- * de pestañas y la tabla dentro del panel.
- */
-// Tiene que coincidir con `EVENTO_TICKETS_CAMBIADOS` de `dominio/ticket-vista.ts` (rama del modal,
-// que lo emite con `detail: { id }`). Es el unico lugar de los listados donde se nombra: al integrar
-// las dos ramas, este `export` pasa a reexportar aquel y los listados no cambian.
-export const EVENTO_TICKETS_CAMBIADOS = 'ops:tickets-cambiados'
+// El evento que avisa que un ticket cambio vive junto a quien lo emite (`avisarCambioDeTicket`, en
+// `ticket-vista.ts`). Se reexporta aca para que los listados lo nombren desde su propio modulo.
+export { EVENTO_TICKETS_CAMBIADOS } from './ticket-vista.ts'
 
 /** Estado «Cerrado» de Perfex (`tbltickets_status`, id 5). Un ticket cerrado no espera a nadie. */
 const CERRADO = 5

@@ -8,7 +8,9 @@
 
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
+import { EVENTO_TICKETS_CAMBIADOS as EVENTO_DEL_MODAL } from '../src/dominio/ticket-vista.ts'
 import {
+  EVENTO_TICKETS_CAMBIADOS,
   alternarEsperandoAlEquipo,
   esperaDelTicket,
   esperaTuRespuesta,
@@ -227,4 +229,8 @@ test('el solicitante cae del contacto al nombre, al correo y a la empresa', () =
   assert.equal(nombreDelSolicitante({ solicitante: { ...base, client: { id: 1, name: 'Acme' } } }), 'Acme')
   assert.equal(nombreDelSolicitante({ solicitante: base }), 'Sin solicitante')
   assert.equal(nombreDelSolicitante({}), 'Sin solicitante')
+})
+
+test('los listados escuchan el mismo evento que emite el modal', () => {
+  assert.equal(EVENTO_TICKETS_CAMBIADOS, EVENTO_DEL_MODAL)
 })

@@ -2,8 +2,7 @@
 
 import { useEffect, useEffectEvent, useRef } from 'react'
 import { useSearchParams } from 'next/navigation'
-import { EVENTO_TICKETS_CAMBIADOS } from '@/dominio/tickets-listados'
-import { PARAMETRO_TICKET } from '@/dominio/ticket-vista'
+import { EVENTO_TICKETS_CAMBIADOS, PARAMETRO_TICKET } from '@/dominio/ticket-vista'
 
 /**
  * Llama a `alCambiar` cada vez que alguien avisa que un ticket cambio (`ops:tickets-cambiados`).
