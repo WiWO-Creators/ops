@@ -389,7 +389,7 @@ export function MenuProyecto ({
             ? `Ver solo las ${GLOSARIO.proceso.plural.toLowerCase()} propias`
             : `Ver todas las ${GLOSARIO.proceso.plural.toLowerCase()}`}
           descripcion={proyecto.ver_todos_los_procesos
-            ? `En "${proyecto.name}" cada quien vuelve a ver solo las ${GLOSARIO.proceso.plural.toLowerCase()} `
+            ? `En "${proyecto.name}" cada quien pasa a ver solo las ${GLOSARIO.proceso.plural.toLowerCase()} `
               + 'que tiene asignadas, sigue o creó. Se puede deshacer desde este mismo menú.'
             : `Todo el equipo de "${proyecto.name}" pasa a ver las ${GLOSARIO.proceso.plural.toLowerCase()} `
               + `del ${GLOSARIO.espacio.singular.toLowerCase()}, incluidas las de otras personas. `
