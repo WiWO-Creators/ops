@@ -14,7 +14,7 @@ import { rutaDeAviso as rutaDelPanel } from '../src/dominio/enlace-de-aviso.ts'
 const codigo = await readFile(new URL('../public/sw-push.js', import.meta.url), 'utf8')
 
 /** Carga el service worker con dobles y devuelve sus piezas. */
-function cargar ({ respuesta, ventanas = [], navegarFalla = false } = {}) {
+function cargar ({ respuesta, ventanas = [] } = {}) {
   const oyentes = {}
   const mostradas = []
   const abiertas = []
@@ -29,10 +29,8 @@ function cargar ({ respuesta, ventanas = [], navegarFalla = false } = {}) {
       matchAll: async () => ventanas.map((url) => ({
         url,
         focus: async () => { enfocadas.push(url) },
-        navigate: async (destino) => {
-          if (navegarFalla) throw new TypeError('no controlada')
-          enfocadas.push(destino)
-        }
+        // Navegar cuenta como tocar la pestaña: las pruebas exigen que no pase.
+        navigate: async (destino) => { enfocadas.push(destino) }
       })),
       openWindow: async (url) => { abiertas.push(url) }
     }
@@ -93,25 +91,26 @@ test('sin sesion, sin red o sin avisos, el push igual muestra algo generico', as
   }
 })
 
-test('el clic enfoca la pestaña de Ops abierta y la lleva al aviso', async () => {
-  const sw = cargar({ respuesta: { cuerpo: {} }, ventanas: ['https://otro.sitio/x', 'https://ops.wiwo.me/inicio'] })
+test('el clic enfoca la pestaña que ya esta en el destino, sin navegarla', async () => {
+  const sw = cargar({ respuesta: { cuerpo: {} }, ventanas: ['https://otro.sitio/procesos?tarea=512', 'https://ops.wiwo.me/inicio', 'https://ops.wiwo.me/procesos?tarea=512'] })
   const notificacion = { data: { url: '/procesos?tarea=512' }, close () { this.cerrada = true } }
 
   await sw.disparar('notificationclick', { notification: notificacion })
 
   assert.equal(notificacion.cerrada, true)
-  assert.deepEqual(sw.enfocadas, ['https://ops.wiwo.me/inicio', 'https://ops.wiwo.me/procesos?tarea=512'])
+  assert.deepEqual(sw.enfocadas, ['https://ops.wiwo.me/procesos?tarea=512'])
   assert.deepEqual(sw.abiertas, [])
 })
 
-test('sin pestaña abierta, o con una que no se deja navegar, abre una nueva', async () => {
+test('con pestañas de Ops en otra parte abre una nueva y no navega ninguna', async () => {
+  const conTrabajo = cargar({ respuesta: { cuerpo: {} }, ventanas: ['https://ops.wiwo.me/proyectos/1?tab=tickets&ticket=4', 'https://ops.wiwo.me/procesos?tarea=5'] })
+  await conTrabajo.disparar('notificationclick', { notification: { data: { url: '/procesos?tarea=512' }, close () {} } })
+  assert.deepEqual(conTrabajo.abiertas, ['https://ops.wiwo.me/procesos?tarea=512'])
+  assert.deepEqual(conTrabajo.enfocadas, [], 'ni se enfoca ni se navega una pestaña con otra cosa')
+
   const sinVentanas = cargar({ respuesta: { cuerpo: {} } })
   await sinVentanas.disparar('notificationclick', { notification: { data: { url: '/procesos?tarea=3' }, close () {} } })
   assert.deepEqual(sinVentanas.abiertas, ['https://ops.wiwo.me/procesos?tarea=3'])
-
-  const noControlada = cargar({ respuesta: { cuerpo: {} }, ventanas: ['https://ops.wiwo.me/inicio'], navegarFalla: true })
-  await noControlada.disparar('notificationclick', { notification: { data: { url: '/inicio' }, close () {} } })
-  assert.deepEqual(noControlada.abiertas, ['https://ops.wiwo.me/inicio'])
 })
 
 test('una URL de otro origen en los datos no saca a nadie de Ops', async () => {

@@ -1644,6 +1644,44 @@ vacías. La UI (Configuración del Proyecto) solo muestra el interruptor y el se
 (`tblnotifications.link` guarda esa ruta; la campana acepta rutas internas que empiezan con `/`). Al
 cliente, `/portal/soporte/{id}`, que redirige a la bandeja con el modal abierto.
 
+#### Detalle, respuestas y acciones de ticket (contrato v2, lo que consume el modal)
+
+**Texto limpio (A).** Todo mensaje (ficha y respuestas, staff y portal, y la respuesta del `POST`
+staff) trae `message` (HTML de Perfex, sin cambios) y `message_texto`. El modal usa `message_texto`
+y, si falta, convierte con `textoDeMensaje()` (`src/dominio/ticket-vista.ts`), la misma regla que
+`TextoDeTicket::plano()`: `\r\n` → `\n`; `<br>`, `</p>`, `</div>`, `</li>` → salto, **absorbiendo
+el salto crudo que venga justo detrás** (el `<br />\r\n` de `nl2br` es un solo renglón); fuera
+etiquetas; entidades decodificadas después; recorte; tres o más saltos → dos.
+
+**Autoría del portal (B).** La ficha suma `mio` y `solicitante.nombre`; cada reply suma
+`autor: { tipo: "equipo"|"cliente", nombre, mio }`. El modal dice «Tú» **solo** con `mio: true`.
+
+**Acciones del contacto (E).** `POST /portal/tickets/{id}/cerrar` y `/reabrir` (cuerpo vacío; un
+campo = `422`) devuelven `200` con la ficha completa; `409 ticket_cerrado`, `ticket_abierto` o
+`reapertura_vencida`. `POST /portal/tickets/{id}/leido` → `204`; el modal lo pide al abrir un ticket
+con `no_leido: true`. La ficha suma `puede_cerrar`, `puede_reabrir`, `no_leido` y `fusionado_desde`
+(`null` sin fusión; con fusión la ficha es la del principal y el modal cambia `?ticket=` a ese id).
+
+**Topes del portal (C).** `429 rate_limited` con `details: { tope_por_hora, reintentar_en_segundos }`
+(y `Retry-After`, que el BFF no reenvía: el modal lee `details`). Mensaje de más de 20000
+caracteres → `422` (`details.message = ["max:20000"]`). Alta repetida (mismo contacto, asunto y
+mensaje en 60 s) → `200` con el ticket ya creado; nueva → `201`.
+
+**Respuesta del staff (G).** Se guarda `nl2br` sobre el texto escapado. Sin `status` y con el ticket
+en 1 pasa a 3; el selector del modal ya propone «Respondido» en ese caso y no ofrece el estado
+actual. `POST /tickets/{hijo}/respuestas` escribe en el principal y devuelve la respuesta creada;
+`GET /tickets/{hijo}/respuestas` devuelve el hilo del principal.
+
+**Staff: asignado, predefinidas y adjuntos.** El asignado se cambia con `PATCH /tickets/{id}
+{ assigned }` (`0` = sin asignar) sobre la lista de `/staff/asignables`. Las predefinidas
+(`GET /tickets/respuestas-predefinidas`) llegan en HTML y se insertan como texto plano. Los adjuntos
+son de solo lectura: los de apertura salen de `GET /tickets/{id}/archivos` y los de cada respuesta
+de `attachments`; se bajan por el BFF (`/api/bff/{download_path}`, solo rutas `files/...`).
+
+**Señal de cambio.** Tras cualquier escritura el modal emite en `window` el evento
+`ops:tickets-cambiados` con `detail: { id }` (`EVENTO_TICKETS_CAMBIADOS`); las listas y bandejas lo
+escuchan para ponerse al día.
+
 ### Lectura de venta desde el portal
 
 Retirar `contracts`, `estimates` y `proposals` del panel **no los sacó del portal del cliente**:

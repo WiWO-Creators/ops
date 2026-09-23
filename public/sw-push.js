@@ -118,7 +118,29 @@ async function mostrarUltimoAviso () {
 }
 
 /**
- * Lleva a la persona al aviso: enfoca una pestaña de Ops si hay una abierta, o abre otra.
+ * `true` si la pestaña ya muestra exactamente el destino (misma ruta y misma consulta).
+ *
+ * @param {string} url la URL de la pestaña
+ * @param {URL} destino a donde lleva el aviso
+ * @returns {boolean}
+ */
+function yaEstaEn (url, destino) {
+  try {
+    const actual = new URL(url)
+
+    return actual.origin === destino.origin && actual.pathname === destino.pathname && actual.search === destino.search
+  } catch {
+    return false
+  }
+}
+
+/**
+ * Lleva a la persona al aviso: enfoca la pestaña que ya lo muestra o abre una nueva.
+ *
+ * **Nunca navega una pestaña abierta.** Antes se tomaba cualquier pestaña de Ops y se la llevaba al
+ * aviso; si en esa pestaña habia una respuesta a medio escribir o un formulario abierto, el clic en
+ * la notificacion lo tiraba. Ahora solo se reutiliza la que ya esta en el destino (enfocarla no
+ * cambia nada), y en cualquier otro caso se abre una pestaña aparte.
  *
  * @param {string} ruta ruta relativa del aviso
  */
@@ -130,23 +152,15 @@ async function abrirAviso (ruta) {
   if (destino.origin !== self.location.origin) return
 
   const ventanas = await self.clients.matchAll({ type: 'window', includeUncontrolled: true })
-  const propia = ventanas.find((ventana) => new URL(ventana.url).origin === self.location.origin)
+  const enElDestino = ventanas.find((ventana) => yaEstaEn(ventana.url, destino))
 
-  if (propia === undefined) {
-    await self.clients.openWindow(destino.href)
+  if (enElDestino !== undefined) {
+    await enElDestino.focus()
 
     return
   }
 
-  await propia.focus()
-
-  // `navigate()` solo funciona sobre una pestaña que este service worker controla; una abierta
-  // antes de instalarlo lo rechaza. Ahi se abre el aviso aparte en vez de no llevar a ningun lado.
-  try {
-    await propia.navigate(destino.href)
-  } catch {
-    await self.clients.openWindow(destino.href)
-  }
+  await self.clients.openWindow(destino.href)
 }
 
 self.addEventListener('push', (evento) => {
