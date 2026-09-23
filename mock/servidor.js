@@ -17,6 +17,7 @@ import { fileURLToPath } from 'node:url'
 import { ErrorApi, aplicarConsulta, campoFiltrable, coincideEnLista, leerIncludes } from './consulta.js'
 import * as sesion from './sesion.js'
 import { importarRecurrentes, listarRecurrentes, sembrarRecurrentes } from './recurrentes.js'
+import { avisosRuta } from './avisos.js'
 import {
   ADMINS_DE_CLIENTE, AREAS, ARCHIVOS, CAMPOS_PERSONALIZADOS, CHECKLIST, CLIENTES, COMENTARIOS, CRONOMETROS,
   DEPARTAMENTOS, EMPRESAS_DEL_GRUPO, ENTRADA_DE_CLIENTE, ESPACIOS, ESTADOS_ESPACIO, ESTADOS_PROCESO,
@@ -5830,6 +5831,12 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
         locale: 'es'
       })
     }
+  }
+
+  // La campana y las notificaciones push del dispositivo (`mock/avisos.js`). Las rutas de
+  // superadmin de `/notifications` (settings, colas de correo, test) no estan en el mock.
+  if (recurso === 'notifications') {
+    return await avisosRuta(metodo, resto, parametros, actual, cuerpo)
   }
 
   // Contesta 404 a quien no entra, igual que la API: el 403 confesaria que la ruta existe.

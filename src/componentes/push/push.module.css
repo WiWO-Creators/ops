@@ -1,0 +1,96 @@
+/*
+ * El movimiento propio del bloque de notificaciones del dispositivo.
+ *
+ * Tres gestos, y cada uno dice algo:
+ *
+ * - El interruptor se desliza con la curva expresiva (con un leve rebote) y el pomo se ensancha
+ *   mientras se aprieta: es el "si, te escuche" antes de que llegue la respuesta.
+ * - La campana suena una vez al activarse: confirma que ahora este dispositivo avisa.
+ * - "Enviar prueba" despega el avion y aparece la marca: la prueba salio.
+ *
+ * Todo es `transform` y `opacity`, ninguno es infinito, y quien pidio menos movimiento los recibe
+ * quietos: el bloque de `neo.css` ya anula las animaciones sobre `*`, y el de abajo anula tambien las
+ * transiciones de este archivo.
+ */
+
+.pista {
+  transition:
+    background-color var(--wiwo-motion-medium) var(--wiwo-ease-emphasized),
+    border-color var(--wiwo-motion-medium) var(--wiwo-ease-emphasized);
+}
+
+.pomo {
+  transform: translateX(0.25rem);
+  transition:
+    transform var(--wiwo-motion-medium) var(--wiwo-ease-expressive),
+    width var(--wiwo-motion-fast) var(--wiwo-ease-emphasized),
+    background-color var(--wiwo-motion-medium) var(--wiwo-ease-emphasized);
+}
+
+/* La posicion vive aca y no en utilidades `translate-x-*`: Tailwind v4 las escribe sobre la
+ * propiedad `translate`, que no se combina con el estiramiento de abajo. */
+.pista[aria-checked='true'] .pomo {
+  transform: translateX(1.5rem);
+}
+
+/* Mientras se aprieta, el pomo se estira hacia donde va a ir. */
+.pista:active:not(:disabled) .pomo {
+  width: 1.25rem;
+}
+
+.pista[aria-checked='true']:active:not(:disabled) .pomo {
+  transform: translateX(1.25rem);
+}
+
+/* Mientras la API contesta, el pomo late: la escritura sigue en curso. */
+.pomoOcupado {
+  animation: latir 900ms var(--wiwo-ease-emphasized) infinite alternate;
+}
+
+@keyframes latir {
+  from { opacity: 1; }
+  to { opacity: 0.45; }
+}
+
+.campanaSuena {
+  transform-origin: 50% 10%;
+  animation: sonar 700ms var(--wiwo-ease-expressive) both;
+}
+
+@keyframes sonar {
+  0% { transform: rotate(0deg); }
+  20% { transform: rotate(16deg); }
+  40% { transform: rotate(-12deg); }
+  60% { transform: rotate(7deg); }
+  80% { transform: rotate(-3deg); }
+  100% { transform: rotate(0deg); }
+}
+
+.avionDespega {
+  animation: despegar 520ms var(--wiwo-ease-emphasized) both;
+}
+
+@keyframes despegar {
+  0% { opacity: 1; transform: translate(0, 0) rotate(0deg); }
+  100% { opacity: 0; transform: translate(14px, -14px) rotate(-12deg); }
+}
+
+.marcaAparece {
+  animation: marcar 420ms var(--wiwo-ease-expressive) 180ms both;
+}
+
+@keyframes marcar {
+  from { opacity: 0; transform: scale(0.4); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pista,
+  .pomo {
+    transition-duration: 0.01ms;
+  }
+
+  .pomoOcupado {
+    animation: none;
+  }
+}
