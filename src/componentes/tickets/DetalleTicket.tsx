@@ -52,7 +52,6 @@ export function DetalleTicket ({
   fuente,
   capacidades,
   proyectos = [],
-  onCambiado,
   onAsunto,
   onFusionado
 }: {
@@ -64,8 +63,6 @@ export function DetalleTicket ({
    * La ficha del ticket solo trae `project_id`; un Proyecto que no este aca se nombra por su id.
    */
   proyectos?: Referencia[]
-  /** Se llama despues de cualquier escritura, para que el listado de atras se ponga al dia. */
-  onCambiado?: () => void
   /** Informa el asunto cuando llega, para el titulo accesible del modal. */
   onAsunto?: (asunto: string) => void
   /** La API devolvio el ticket principal de una fusion: quien monta cambia la URL a ese id. */
@@ -165,7 +162,7 @@ export function DetalleTicket ({
 
   /**
    * Despues de una escritura confirmada: la vista con lo que devolvio la API, la ficha al dia y el
-   * aviso hacia afuera (evento de ventana para listas y bandejas, y `onCambiado` para quien monta).
+   * aviso hacia afuera (evento de ventana, que escuchan listas, contadores y bandejas).
    *
    * @param datos lo que devolvio la API, si sirve para mostrar algo sin esperar la recarga
    */
@@ -187,8 +184,7 @@ export function DetalleTicket ({
     })
 
     avisarCambioDeTicket(ticketId)
-    onCambiado?.()
-  }, [fuente, ticketId, refrescar, onCambiado])
+  }, [fuente, ticketId, refrescar])
 
   if (carga.fase === 'cargando') return <Cargando alto="min-h-60" mensaje="Cargando el ticket…" />
 

@@ -17,9 +17,8 @@ import { PARAMETRO_TICKET, TICKET_DEL_PANEL } from '@/dominio/ticket-vista'
  * con capacidad de edicion, que es lo que enciende los menus de estado y prioridad.
  *
  * La lista se vuelve a pedir **con los filtros, el orden y la pagina puestos** cuando el modal
- * escribe: por `onCambiado` y por el aviso de ventana `ops:tickets-cambiados`, que es el que tambien
- * mueve el contador de la pestaña. Los dos pueden llegar juntos; la tabla aborta la peticion vieja y
- * se queda con la ultima.
+ * escribe, por el aviso de ventana `ops:tickets-cambiados`, que es el mismo que mueve el contador de
+ * la pestaña.
  */
 export function PanelTickets ({
   proyecto,
@@ -50,7 +49,7 @@ export function PanelTickets ({
         claseFila={claseDeFilaDeTicket}
         tarjeta={(t, catalogos) => <TarjetaDeTicket ticket={t} catalogos={catalogos} />}
         tarjetasEnMovil
-        abrirEn={{ clave: PARAMETRO_TICKET, valor: (t) => t.id }}
+        abrirEn={{ clave: PARAMETRO_TICKET, valor: (t) => t.id, superficial: true }}
       />
       {/* `ModalTicket` lee `useSearchParams`; sin este limite falla el build de la ruta. */}
       <Suspense fallback={null}>
@@ -58,7 +57,6 @@ export function PanelTickets ({
           fuente={TICKET_DEL_PANEL}
           capacidades={capacidades}
           proyectos={proyectos}
-          onCambiado={alCambiar}
         />
       </Suspense>
     </>

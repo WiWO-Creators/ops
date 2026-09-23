@@ -72,7 +72,7 @@ interface PropsPanelRecurso<T> {
    * Abre el detalle de una fila escribiendo un parametro en la URL (`?ticket=12`). Se pasa tal cual
    * al motor de tabla; la definicion tiene que traer ademas un enlace real en alguna celda.
    */
-  abrirEn?: { clave: string, valor: (fila: T) => string | number }
+  abrirEn?: { clave: string, valor: (fila: T) => string | number, superficial?: boolean }
 }
 
 export function PanelRecurso<T> (props: PropsPanelRecurso<T>): ReactElement {

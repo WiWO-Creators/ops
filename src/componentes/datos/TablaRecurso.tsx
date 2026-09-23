@@ -80,9 +80,13 @@ interface PropsTablaRecurso<T> {
    * ademas un enlace real en alguna celda, que es el que usa el teclado. El clic de la fila es la
    * comodidad del mouse, no la funcionalidad.
    *
+   * Con `superficial` el paso se escribe con `window.history.pushState`, que `useSearchParams` sigue,
+   * y no con `router.push`: abrir el detalle no vuelve a renderizar la pagina en el servidor. Es para
+   * los modales que se piden solos desde el navegador (el de tickets); «atras» lo cierra igual.
+   *
    * @see esControlDeFila para los controles que se quedan con su propio clic.
    */
-  abrirEn?: { clave: string, valor: (fila: T) => string | number }
+  abrirEn?: { clave: string, valor: (fila: T) => string | number, superficial?: boolean }
   /** Capacidades del area, de `permissions` de `/me`. Sin ellas no se ofrece ninguna accion. */
   capacidades?: Capacidad[]
   /**
@@ -311,12 +315,19 @@ export function TablaRecurso<T> ({
    * seleccionado, porque soltar el mouse tras seleccionar no es pedir navegar.
    *
    * `push` y no `replace`: abrir el detalle es un paso del historial, y por eso "atras" lo cierra.
+   * Con `abrirEn.superficial` el paso es de `window.history` y no pasa por el servidor.
    */
   function abrirFila (evento: React.MouseEvent<HTMLTableRowElement>, href: string): void {
     if (evento.defaultPrevented) return
     if (evento.metaKey || evento.ctrlKey || evento.shiftKey || evento.altKey) return
     if (esControlDeFila(evento.target as Element | null)) return
     if ((window.getSelection()?.toString() ?? '') !== '') return
+
+    if (abrirEn?.superficial === true) {
+      window.history.pushState(null, '', href)
+
+      return
+    }
 
     router.push(href, { scroll: false })
   }

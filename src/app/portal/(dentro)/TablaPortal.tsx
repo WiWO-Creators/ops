@@ -110,7 +110,7 @@ export function TablaPortal<T extends { id: number }> ({
       refresco={refresco}
       claveFila={(fila) => fila.id}
       opcionesDeFiltro={opcionesDeFiltro}
-      abrirEn={esSoporte ? { clave: PARAMETRO_TICKET, valor: (fila) => fila.id } : undefined}
+      abrirEn={esSoporte ? { clave: PARAMETRO_TICKET, valor: (fila) => fila.id, superficial: true } : undefined}
       claseFila={esSoporte ? (fila) => claseDeFilaDeSolicitud(fila as unknown as TicketPortal) : undefined}
       tarjeta={esSoporte
         ? (fila, catalogos) => <TarjetaDeSolicitud ticket={fila as unknown as TicketPortal} catalogos={catalogos} />

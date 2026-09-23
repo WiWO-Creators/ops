@@ -74,7 +74,7 @@ export function BandejaTickets ({ esAdmin, proyectos }: { esAdmin: boolean, proy
           />
         )}
         tarjetasEnMovil
-        abrirEn={{ clave: PARAMETRO_TICKET, valor: (t) => t.id }}
+        abrirEn={{ clave: PARAMETRO_TICKET, valor: (t) => t.id, superficial: true }}
       />
       {/* `ModalTicket` lee `useSearchParams`; sin este limite falla el build de la ruta. */}
       <Suspense fallback={null}>
@@ -82,7 +82,6 @@ export function BandejaTickets ({ esAdmin, proyectos }: { esAdmin: boolean, proy
           fuente={TICKET_DEL_PANEL}
           capacidades={TICKETS_DEL_EQUIPO}
           proyectos={proyectos}
-          onCambiado={alCambiar}
         />
       </Suspense>
     </>

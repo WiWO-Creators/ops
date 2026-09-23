@@ -1,7 +1,7 @@
 'use client'
 
 import { X } from 'lucide-react'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useSearchParams } from 'next/navigation'
 import { useCallback, useState, type ReactElement } from 'react'
 import { Boton } from '@/componentes/formularios/Boton'
 import { CerrarDialogo, ContenidoDialogo, Dialogo } from '@/componentes/superposiciones/Dialogo'
@@ -36,30 +36,33 @@ interface Apertura {
  * **El estado vive en la URL**: el enlace del correo (`/proyectos/{id}?tab=tickets&ticket={n}`) lo
  * abre directo, recargar no lo pierde y «atras» lo cierra.
  *
- * **Cerrar no duplica historial.** Si el ticket se abrio desde la tabla (un `push`), cerrar es
- * `router.back()`: con `replace` quedaban dos entradas iguales de la lista y «atras» parecia no hacer
- * nada. Si la pagina cargo ya con el ticket, cerrar reemplaza la URL.
+ * **Abrir y cerrar no pasan por el servidor.** La tabla y el enlace del asunto abren con
+ * `window.history.pushState`, y aca se cierra con `history.back()` o `history.replaceState`: los
+ * dos los sigue `useSearchParams`, asi que el modal aparece y se va sin volver a renderizar la
+ * pagina (en el portal eso era un render completo de la bandeja por cada apertura).
+ *
+ * **Cerrar no duplica historial.** Si el ticket se abrio desde la tabla (un `push`), cerrar es volver
+ * atras: con `replace` quedaban dos entradas iguales de la lista y «atras» parecia no hacer nada. Si
+ * la pagina cargo ya con el ticket, cerrar reemplaza la URL.
  *
  * El detalle lleva `key` por ticket: pasar de uno a otro (o a su principal, en una fusion) monta un
  * detalle nuevo, sin carga, borrador ni errores del anterior.
  *
- * Tras cualquier escritura hace `router.refresh()` —que es lo que pone al dia la bandeja del portal,
- * resuelta en el servidor— y ademas llama a `onCambiado`, que es lo que usa la pestaña del equipo,
- * cuya tabla se pide desde el navegador. El detalle, ademas, emite `ops:tickets-cambiados`.
+ * Tras cualquier escritura el detalle emite `ops:tickets-cambiados`, que escuchan la pestaña, su
+ * contador y las dos bandejas para volver a pedir su pagina con los filtros puestos. Es el unico
+ * aviso: no hay `router.refresh()` ni callback aparte, porque los listados se piden desde el
+ * navegador y cada uno de esos sumaba un render del servidor o una peticion repetida.
  */
 export function ModalTicket ({
   fuente,
   capacidades,
-  proyectos,
-  onCambiado
+  proyectos
 }: {
   fuente: FuenteDeTicket
   capacidades: Capacidad[]
   /** Nombres de Proyectos a mano, para nombrar el del ticket sin otra peticion. */
   proyectos?: Referencia[]
-  onCambiado?: () => void
 }): ReactElement {
-  const router = useRouter()
   const params = useSearchParams()
   const abierto = idDeParametro(params.get(PARAMETRO_TICKET))
   const [apertura, setApertura] = useState<Apertura>({ ticket: abierto, porNavegacion: false, asunto: null })
@@ -77,7 +80,7 @@ export function ModalTicket ({
   /** Cierra quitando el parametro y conservando el resto de la URL. */
   function cerrar (): void {
     if (apertura.porNavegacion) {
-      router.back()
+      window.history.back()
 
       return
     }
@@ -86,21 +89,16 @@ export function ModalTicket ({
 
     siguientes.delete(PARAMETRO_TICKET)
 
-    router.replace(`?${siguientes.toString()}`, { scroll: false })
+    window.history.replaceState(null, '', `?${siguientes.toString()}${window.location.hash}`)
   }
-
-  const alCambiar = useCallback(() => {
-    router.refresh()
-    onCambiado?.()
-  }, [router, onCambiado])
 
   const alAsunto = useCallback((asunto: string) => {
     setApertura((previa) => previa.asunto === asunto ? previa : { ...previa, asunto })
   }, [])
 
   const alFusionado = useCallback((principalId: number) => {
-    router.replace(urlConParametro(new URLSearchParams(params.toString()), PARAMETRO_TICKET, String(principalId)), { scroll: false })
-  }, [router, params])
+    window.history.replaceState(null, '', urlConParametro(new URLSearchParams(params.toString()), PARAMETRO_TICKET, String(principalId)))
+  }, [params])
 
   return (
     <Dialogo open={abierto !== null} onOpenChange={(abrir) => { if (!abrir) cerrar() }}>
@@ -127,7 +125,6 @@ export function ModalTicket ({
             fuente={fuente}
             capacidades={capacidades}
             proyectos={proyectos}
-            onCambiado={alCambiar}
             onAsunto={alAsunto}
             onFusionado={alFusionado}
           />
