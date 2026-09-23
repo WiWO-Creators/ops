@@ -8,7 +8,10 @@
 
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { combinarDestinos, nombreDeLicitacion } from '../src/dominio/espacios-destino.ts'
+import {
+  claseDeEspacio, combinarDestinos, espaciosDeClase, nombreDeLicitacion, nombreDeUpsell,
+  relTypeDeRelacion
+} from '../src/dominio/espacios-destino.ts'
 
 const PROYECTOS = [
   { id: 1, name: 'Colbún — Grilla septiembre' },
@@ -73,4 +76,41 @@ test('una licitacion sin empresa se lee por el nombre de su espacio', () => {
 
 test('sin nombre de espacio queda la empresa, nunca un guion suelto', () => {
   assert.equal(nombreDeLicitacion(licitacion(1, 'Metro', '  ')), 'Metro')
+})
+
+/** Un upsell como llega de `GET /upsells`, con lo justo que mira el catalogo. */
+function upsell (id, company, nombre) {
+  return {
+    id,
+    client: company === null ? null : { id: 9, company, image_url: null },
+    espacio: { id, name: nombre, status: 2, start_date: null, deadline: null }
+  }
+}
+
+test('los upsells se suman al final, rotulados con el cliente y sin repetir ids', () => {
+  const destinos = combinarDestinos(
+    PROYECTOS,
+    [licitacion(101, 'Metro', 'Señalética 2027')],
+    [upsell(201, 'Colbún', 'Soporte extendido'), upsell(101, 'Metro', 'Repetido'), upsell(2, 'X', 'Ya es proyecto')]
+  )
+
+  assert.deepEqual(destinos.espacios.map((e) => e.id), [1, 2, 101, 201])
+  assert.equal(destinos.espacios[3].name, 'Colbún — Soporte extendido')
+  assert.deepEqual([...destinos.upsells], [201])
+  assert.equal(nombreDeUpsell(upsell(5, null, 'Sin cliente')), 'Sin cliente')
+})
+
+test('cada clase ofrece solo sus espacios y todas viajan como project', () => {
+  const destinos = combinarDestinos(
+    PROYECTOS, [licitacion(101, 'Metro', 'Señalética 2027')], [upsell(201, 'Colbún', 'Soporte')]
+  )
+
+  assert.deepEqual(espaciosDeClase(destinos, 'project').map((e) => e.id), [1, 2])
+  assert.deepEqual(espaciosDeClase(destinos, 'licitacion').map((e) => e.id), [101])
+  assert.deepEqual(espaciosDeClase(destinos, 'upsell').map((e) => e.id), [201])
+  assert.deepEqual(espaciosDeClase(destinos, 'customer'), [])
+  assert.equal(claseDeEspacio(201, destinos), 'upsell')
+  assert.equal(claseDeEspacio(999, destinos), 'project')
+  assert.equal(relTypeDeRelacion('licitacion'), 'project')
+  assert.equal(relTypeDeRelacion('customer'), 'customer')
 })

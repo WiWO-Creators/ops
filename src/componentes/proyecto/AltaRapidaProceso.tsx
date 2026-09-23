@@ -8,7 +8,7 @@ import { Campo } from '@/componentes/formularios/Campo'
 import { AreaTexto, Entrada } from '@/componentes/formularios/Entrada'
 import { CamposPersonalizados } from '@/componentes/formularios/CamposPersonalizados'
 import { cargarAsignables } from '@/datos/asignables'
-import { cargarEspaciosDestino } from '@/datos/espacios-destino'
+import { cargarClientesDestino, cargarEspaciosDestino } from '@/datos/espacios-destino'
 import {
   camposOrdenados, cuerpoDeCamposPersonalizados, esquemaDeCamposPersonalizados, valoresPorDefecto,
   type ValoresDeCampos, type ErroresDeCampos
@@ -18,7 +18,8 @@ import {
   ContenidoSelector,
   DisparadorSelector,
   Opcion,
-  Selector
+  Selector,
+  SelectorBuscable
 } from '@/componentes/formularios/Selector'
 import { SelectorPersonas } from '@/componentes/formularios/SelectorPersonas'
 import {
@@ -39,6 +40,10 @@ import {
   type TareaFusionada
 } from '@/dominio/ia-tarea'
 import { errorDeDescripcion, errorDeDetalle } from '@/dominio/descripcion-tarea'
+import {
+  claseDeEspacio, espaciosDeClase, esRelacionDeEspacio, relTypeDeRelacion, RELACIONES_TAREA,
+  type RelacionTarea
+} from '@/dominio/espacios-destino'
 import { GLOSARIO } from '@/dominio/glosario'
 import { errorDeHorasEstimadas, horasDeTexto } from '@/dominio/tiempo-estimado'
 import { formatearFecha } from '@/lib/fechas'
@@ -90,8 +95,18 @@ const NINGUNO = 'ninguno'
 const CATALOGOS_VACIOS: CatalogosAlta = { personas: [], espacios: [], prioridades: [] }
 const ETIQUETAS_VACIAS: Referencia[] = []
 
-/** Mientras el catalogo no llega no hay ninguna Licitacion que rotular. */
-const SIN_LICITACIONES: ReadonlySet<number> = new Set<number>()
+/** Mientras el catalogo no llega no hay ninguna Licitacion ni Upsell que separar. */
+const SIN_OPORTUNIDADES: ReadonlySet<number> = new Set<number>()
+const SIN_CLIENTES: Referencia[] = []
+
+/** Como se nombra cada relacion en el selector y en el campo de destino. */
+const NOMBRES_DE_RELACION: Record<RelacionTarea, { singular: string, plural: string }> = {
+  project: GLOSARIO.espacio,
+  licitacion: GLOSARIO.licitacion,
+  // "Upselling" y no "Upsell": es como el equipo llama a la seccion y a lo que cuelga de ella.
+  upsell: { singular: GLOSARIO.upsell.plural, plural: GLOSARIO.upsell.plural },
+  customer: GLOSARIO.cliente
+}
 
 /** Los dos modos del dialogo. */
 const MODOS = [
@@ -142,7 +157,7 @@ interface ResumenParcial {
 interface CamposManuales {
   nombre: string
   hito: string
-  relacion: string
+  relacion: RelacionTarea
   relacionId: string
   espacios: number[]
   asignados: number[]
@@ -166,12 +181,14 @@ export function AltaRapidaProceso ({
   const [catalogosCargados, setCatalogosCargados] = useState<CatalogosAlta>(catalogosRecibidos ?? CATALOGOS_VACIOS)
   const [lookups, setLookups] = useState<Lookups | null>(null)
   /**
-   * Cuales de los Espacios del catalogo son Licitaciones.
+   * Cuales de los Espacios del catalogo son Licitaciones y cuales Upsells.
    *
-   * Solo para rotularlas en el selector: la Tarea se crea igual que en un Proyecto —`rel_type`
-   * `project` y el id del Espacio—, porque una Licitacion **es** un Espacio.
+   * Solo para ofrecer cada catalogo por su lado: la Tarea se crea igual que en un Proyecto
+   * —`rel_type` `project` y el id del Espacio—, porque una Licitacion o un Upsell **es** un Espacio.
    */
-  const [licitaciones, setLicitaciones] = useState<ReadonlySet<number>>(SIN_LICITACIONES)
+  const [licitaciones, setLicitaciones] = useState<ReadonlySet<number>>(SIN_OPORTUNIDADES)
+  const [upsells, setUpsells] = useState<ReadonlySet<number>>(SIN_OPORTUNIDADES)
+  const [clientes, setClientes] = useState<Referencia[]>(SIN_CLIENTES)
   const catalogos = catalogosCargados
   const etiquetas = etiquetasRecibidas ?? lookups?.tags ?? ETIQUETAS_VACIAS
   const [cargando, setCargando] = useState(true)
@@ -181,7 +198,7 @@ export function AltaRapidaProceso ({
   const [personalizados, setPersonalizados] = useState<ValoresDeCampos>({})
   const [erroresCampos, setErroresCampos] = useState<ErroresDeCampos>({})
   const [creadaId, setCreadaId] = useState<number | null>(null)
-  const [relacion, setRelacion] = useState('project')
+  const [relacion, setRelacion] = useState<RelacionTarea>('project')
   const [relacionId, setRelacionId] = useState('')
   const [estado, setEstado] = useState(NINGUNO)
   const [hito, setHito] = useState(hitoInicial === undefined ? NINGUNO : String(hitoInicial))
@@ -236,6 +253,8 @@ export function AltaRapidaProceso ({
   const espacio = espacios.length === 0 ? NINGUNO : String(espacios[0])
   /** Hay más de un destino: el hito y el tipo dejan de tener sentido (son por Espacio). */
   const multiple = espacios.length > 1
+  /** La relacion elegida es un Espacio —Proyecto, Licitacion o Upsell— y no un Cliente. */
+  const vaAEspacio = esRelacionDeEspacio(relacion)
   const [asignados, setAsignados] = useState<number[]>([])
   const [seguidores, setSeguidores] = useState<number[]>([])
   const [prioridad, setPrioridad] = useState(NINGUNO)
@@ -285,11 +304,12 @@ export function AltaRapidaProceso ({
     const control = new AbortController()
     const cargar = async (): Promise<void> => {
       try {
-        const [campos, opciones, personas, destinos] = await Promise.all([
+        const [campos, opciones, personas, destinos, cartera] = await Promise.all([
           pedirSobre<DefinicionCampoPersonalizado[]>('custom-fields?para=tasks', control.signal),
           pedirSobre<Lookups>('lookups', control.signal),
           cargarAsignables(),
-          cargarEspaciosDestino(control.signal)
+          cargarEspaciosDestino(control.signal),
+          cargarClientesDestino(control.signal)
         ])
         if (control.signal.aborted) return
         const ordenadas = camposOrdenados(campos.data)
@@ -297,6 +317,11 @@ export function AltaRapidaProceso ({
         setPersonalizados(valoresPorDefecto(ordenadas))
         setLookups(opciones.data)
         setLicitaciones(destinos.licitaciones)
+        setUpsells(destinos.upsells)
+        setClientes(cartera)
+        // Abierta desde una Licitacion o un Upsell, la relacion arranca en su clase: si no, el
+        // Espacio fijado no estaria en el catalogo que se muestra.
+        if (proyectoId !== undefined) setRelacion(claseDeEspacio(proyectoId, destinos))
         setCatalogosCargados({ personas, espacios: destinos.espacios, prioridades: opciones.data.task_priorities })
         setErrorCarga(null)
       } catch (fallo) {
@@ -307,7 +332,7 @@ export function AltaRapidaProceso ({
     }
     void cargar()
     return () => { control.abort() }
-  }, [abierto, intentoCarga])
+  }, [abierto, intentoCarga, proyectoId])
 
   /*
    * Los tipos de Proceso que ofrece el Espacio elegido.
@@ -359,7 +384,7 @@ export function AltaRapidaProceso ({
    * un error al crear.
    */
   function elegirEspacio (valor: string): void {
-    setRelacion('project')
+    setRelacion(valor === NINGUNO ? (vaAEspacio ? relacion : 'project') : claseDeEspacio(Number(valor), { licitaciones, upsells }))
     if (valor === espacio && espacios.length <= 1) return
     setEspacios(valor === NINGUNO ? [] : [Number(valor)])
     olvidarHitoYTipo()
@@ -373,11 +398,33 @@ export function AltaRapidaProceso ({
    * rechaza en el alta múltiple.
    */
   function elegirEspacios (ids: number[]): void {
-    setRelacion('project')
     setEspacios(ids)
     setParcial(null)
     if (ids[0] !== espacios[0] || ids.length > 1) olvidarHitoYTipo()
   }
+
+  /**
+   * Cambia con que se relaciona la Tarea.
+   *
+   * Los Espacios elegidos se descartan al cambiar de clase: el selector solo muestra los de la clase
+   * nueva, y dejar puestos los de la anterior crearia la tarea en un destino que ya no se ve.
+   */
+  function cambiarRelacion (nueva: RelacionTarea): void {
+    if (nueva === relacion) return
+    setRelacion(nueva)
+    setRelacionId('')
+    elegirEspacios([])
+  }
+
+  /** Los Espacios de la clase elegida: Proyectos, Licitaciones o Upsells, cada uno por su lado. */
+  const espaciosVisibles = useMemo(
+    () => espaciosDeClase({ espacios: catalogos.espacios, licitaciones, upsells }, relacion),
+    [catalogos.espacios, licitaciones, upsells, relacion]
+  )
+  const opcionesDeClientes = useMemo(
+    () => clientes.map((cliente) => ({ valor: String(cliente.id), etiqueta: cliente.name })),
+    [clientes]
+  )
 
   // `SelectorPersonas` pinta el avatar de cada persona y los catalogos del alta pueden venir sin la
   // foto: se completa aca para no obligar a cada pantalla que monta el alta a traerla.
@@ -443,7 +490,7 @@ export function AltaRapidaProceso ({
     setModo('campos')
     setHito(hitoInicial === undefined ? NINGUNO : String(hitoInicial))
     setHitos([])
-    setRelacion('project')
+    setRelacion(proyectoId === undefined ? 'project' : claseDeEspacio(proyectoId, { licitaciones, upsells }))
     setRelacionId('')
     setEstado(NINGUNO)
     setTarifa('')
@@ -795,8 +842,8 @@ export function AltaRapidaProceso ({
       setError('El vencimiento no puede ser anterior al inicio.')
       return
     }
-    if (relacion !== 'project' && (!Number.isSafeInteger(Number(relacionId)) || Number(relacionId) < 1)) {
-      setError('Indica el identificador de la relación seleccionada.')
+    if (!vaAEspacio && (!Number.isSafeInteger(Number(relacionId)) || Number(relacionId) < 1)) {
+      setError(`Elige un ${GLOSARIO.cliente.singular.toLowerCase()}.`)
       return
     }
     if (tarifa !== '' && (!Number.isFinite(Number(tarifa)) || Number(tarifa) < 0)) {
@@ -807,7 +854,7 @@ export function AltaRapidaProceso ({
       setError('La frecuencia debe ser un entero positivo y los ciclos un entero mayor o igual a cero.')
       return
     }
-    if (relacion === 'project' && espacios.length > MAXIMO_ESPACIOS) {
+    if (vaAEspacio && espacios.length > MAXIMO_ESPACIOS) {
       setError(`Como máximo ${MAXIMO_ESPACIOS} ${GLOSARIO.espacio.plural.toLowerCase()} por vez. Saca algunos y repite el alta con el resto.`)
       return
     }
@@ -844,7 +891,7 @@ export function AltaRapidaProceso ({
 
     // Dos o mas Espacios: la ruta multiple. Con cero o uno se manda el mismo `POST /tasks` de
     // siempre, con el mismo cuerpo, para que el alta de todos los dias no dependa de esto.
-    if (relacion === 'project' && multiple) {
+    if (vaAEspacio && multiple) {
       await enviarEnVariosEspacios(comun, espacios)
 
       return
@@ -852,9 +899,9 @@ export function AltaRapidaProceso ({
 
     await enviar({
       ...comun,
-      ...(relacion !== 'project' || hito === NINGUNO ? {} : { milestone: Number(hito) }),
-      ...(relacion !== 'project' ? { rel_type: relacion, rel_id: Number(relacionId) } : espacio === NINGUNO ? {} : { rel_type: 'project', rel_id: Number(espacio) }),
-      ...(relacion !== 'project' || tipo === NINGUNO ? {} : { task_type: Number(tipo) })
+      ...(!vaAEspacio || hito === NINGUNO ? {} : { milestone: Number(hito) }),
+      ...(!vaAEspacio ? { rel_type: relTypeDeRelacion(relacion), rel_id: Number(relacionId) } : espacio === NINGUNO ? {} : { rel_type: 'project', rel_id: Number(espacio) }),
+      ...(!vaAEspacio || tipo === NINGUNO ? {} : { task_type: Number(tipo) })
     })
   }
 
@@ -967,23 +1014,30 @@ export function AltaRapidaProceso ({
                 </Campo>
 
                 <Campo etiqueta="Relacionada con">
-                  {({ id }) => <Selector value={relacion} onValueChange={(valor) => { setRelacion(valor); setRelacionId('') }}>
+                  {({ id }) => <Selector value={relacion} onValueChange={(valor) => { cambiarRelacion(valor as RelacionTarea) }}>
                     <DisparadorSelector id={id} />
                     <ContenidoSelector>
-                      <Opcion value="project">{GLOSARIO.espacio.singular}</Opcion><Opcion value="customer">Cliente</Opcion>
-                      <Opcion value="lead">Prospecto</Opcion><Opcion value="contract">Contrato</Opcion>
-                      <Opcion value="ticket">Ticket</Opcion><Opcion value="invoice">Factura</Opcion>
-                      <Opcion value="estimate">Presupuesto</Opcion><Opcion value="proposal">Propuesta</Opcion>
-                      <Opcion value="expense">Gasto</Opcion>
+                      {RELACIONES_TAREA.map((clase) => (
+                        <Opcion key={clase} value={clase}>{NOMBRES_DE_RELACION[clase].singular}</Opcion>
+                      ))}
                     </ContenidoSelector>
                   </Selector>}
                 </Campo>
-                {relacion !== 'project' && <Campo etiqueta="ID de la relación" requerido ayuda="Identificador del registro, disponible en su dirección. Se comprueba al guardar.">
-                  {(props) => <Entrada {...props} type="number" min="1" step="1" value={relacionId} onChange={(evento) => setRelacionId(evento.target.value)} />}
+                {!vaAEspacio && <Campo etiqueta={GLOSARIO.cliente.singular} requerido>
+                  {(props) => (
+                    <SelectorBuscable
+                      id={props.id}
+                      valor={relacionId}
+                      onElegir={setRelacionId}
+                      opciones={opcionesDeClientes}
+                      marcador={`Elige un ${GLOSARIO.cliente.singular.toLowerCase()}`}
+                      nombre={GLOSARIO.cliente.singular.toLowerCase()}
+                    />
+                  )}
                 </Campo>}
                 <div className="grid gap-4 sm:grid-cols-2">
-                  {relacion === 'project' && <Campo
-                    etiqueta={GLOSARIO.espacio.plural}
+                  {vaAEspacio && <Campo
+                    etiqueta={NOMBRES_DE_RELACION[relacion].plural}
                     ayuda={multiple
                       ? `La misma tarea se crea ${espacios.length} veces, una en cada ${GLOSARIO.espacio.singular.toLowerCase()}.`
                       : `Puedes elegir varios: la misma tarea se crea en todos.`}
@@ -991,11 +1045,11 @@ export function AltaRapidaProceso ({
                     {({ id }) => (
                       <SelectorEspacios
                         id={id}
-                        espacios={catalogos.espacios}
+                        espacios={espaciosVisibles}
                         elegidos={espacios}
                         onCambiar={elegirEspacios}
                         conFallo={parcial?.pendientes ?? []}
-                        licitaciones={licitaciones}
+                        nombres={NOMBRES_DE_RELACION[relacion]}
                       />
                     )}
                   </Campo>}
@@ -1031,7 +1085,7 @@ export function AltaRapidaProceso ({
                       ? `Cada ${GLOSARIO.espacio.singular.toLowerCase()} tiene sus propios hitos: la tarea nace sin hito y se mueve después.`
                       : avisoTipos ?? (espacio === NINGUNO ? 'Elige un proyecto para ver sus hitos.' : undefined)}
                   >
-                    {({ id }) => <Selector value={hito} onValueChange={setHito} disabled={relacion !== 'project' || multiple || hitos.length === 0}>
+                    {({ id }) => <Selector value={hito} onValueChange={setHito} disabled={!vaAEspacio || multiple || hitos.length === 0}>
                       <DisparadorSelector id={id} />
                       <ContenidoSelector>
                         <Opcion value={NINGUNO}>Sin hito</Opcion>
@@ -1113,7 +1167,7 @@ export function AltaRapidaProceso ({
                     )}
                 >
                   {({ id }) => (
-                    <Selector value={tipo} onValueChange={setTipo} disabled={relacion !== 'project' || multiple || tipos.length === 0}>
+                    <Selector value={tipo} onValueChange={setTipo} disabled={!vaAEspacio || multiple || tipos.length === 0}>
                       <DisparadorSelector id={id} />
                       <ContenidoSelector>
                         <Opcion value={NINGUNO}>Sin tipo</Opcion>
@@ -1161,7 +1215,7 @@ export function AltaRapidaProceso ({
                       <AsistenteDescripcion
                         titulo={nombre}
                         descripcionActual={descripcion}
-                        proyectoId={relacion === 'project' && espacio !== NINGUNO ? Number(espacio) : null}
+                        proyectoId={vaAEspacio && espacio !== NINGUNO ? Number(espacio) : null}
                         deshabilitado={enCurso}
                         onRedactada={(texto) => { setDescripcion(texto); setErrorDescripcion(null) }}
                       />

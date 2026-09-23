@@ -18,9 +18,6 @@ import type { Referencia } from '@/datos/recursos'
 /** Cuántos nombres se pintan como chip antes de resumir el resto en un contador. */
 const CHIPS_VISIBLES = 8
 
-/** Constante y no un literal en el `default`: uno nuevo por render reharía los `useMemo`. */
-const SIN_LICITACIONES: ReadonlySet<number> = new Set<number>()
-
 interface PropsSelectorEspacios {
   espacios: readonly Referencia[]
   elegidos: readonly number[]
@@ -30,45 +27,11 @@ interface PropsSelectorEspacios {
   /** Espacios que fallaron en el último intento de alta: se marcan para poder verlos y reintentar. */
   conFallo?: number[]
   /**
-   * Cuáles de `espacios` son Licitaciones.
+   * Cómo se llama lo que se elige: Proyecto, Licitación o Upsell. Por defecto, Proyecto.
    *
-   * Vacío —lo normal en una instalación sin el módulo comercial— deja el menú como una sola lista
-   * sin rótulos, que es como se veía antes.
+   * El alta ofrece cada clase por separado, así que el menú entero habla de la clase elegida.
    */
-  licitaciones?: ReadonlySet<number>
-}
-
-/** Un bloque del menú: las filas que van bajo un mismo rótulo. */
-interface GrupoDeEspacios {
-  rotulo: string
-  espacios: readonly Referencia[]
-}
-
-/**
- * Parte los Espacios visibles en Proyectos y Licitaciones.
- *
- * Con un solo grupo se devuelve sin rótulo: rotular "Proyectos" una lista donde todo es un Proyecto
- * ocupa una fila para no decir nada.
- *
- * @param visibles los Espacios que pasaron el buscador, en su orden
- * @param licitaciones los ids que son Licitación
- * @returns un grupo por clase con algo que mostrar; rótulo vacío si no hay nada que distinguir
- */
-function agrupar (
-  visibles: readonly Referencia[], licitaciones: ReadonlySet<number>
-): readonly GrupoDeEspacios[] {
-  if (licitaciones.size === 0) return [{ rotulo: '', espacios: visibles }]
-
-  const proyectos = visibles.filter((espacio) => !licitaciones.has(espacio.id))
-  const comerciales = visibles.filter((espacio) => licitaciones.has(espacio.id))
-
-  if (comerciales.length === 0) return [{ rotulo: '', espacios: proyectos }]
-  if (proyectos.length === 0) return [{ rotulo: GLOSARIO.licitacion.plural, espacios: comerciales }]
-
-  return [
-    { rotulo: GLOSARIO.espacio.plural, espacios: proyectos },
-    { rotulo: GLOSARIO.licitacion.plural, espacios: comerciales }
-  ]
+  nombres?: { singular: string, plural: string }
 }
 
 /**
@@ -121,12 +84,11 @@ function filtrarEspacios (espacios: readonly Referencia[], busqueda: string): re
  * alfombra de veinte chips empuja el botón de crear fuera de la pantalla.
  */
 export function SelectorEspacios ({
-  espacios, elegidos, onCambiar, id, disabled = false, conFallo = [], licitaciones = SIN_LICITACIONES
+  espacios, elegidos, onCambiar, id, disabled = false, conFallo = [], nombres = GLOSARIO.espacio
 }: PropsSelectorEspacios) {
   const [busqueda, setBusqueda] = useState('')
 
   const visibles = useMemo(() => filtrarEspacios(espacios, busqueda), [espacios, busqueda])
-  const grupos = useMemo(() => agrupar(visibles, licitaciones), [visibles, licitaciones])
   // En el orden en que se eligieron, no en el del catálogo: el primero manda —de él salen los hitos
   // y los tipos cuando hay uno solo— y verlo saltar de lugar al agregar otro es desconcertante.
   const elegidosEnOrden = useMemo(
@@ -136,8 +98,8 @@ export function SelectorEspacios ({
     [elegidos, espacios]
   )
 
-  const singular = GLOSARIO.espacio.singular.toLowerCase()
-  const plural = GLOSARIO.espacio.plural.toLowerCase()
+  const singular = nombres.singular.toLowerCase()
+  const plural = nombres.plural.toLowerCase()
 
   /** Agrega o saca un Espacio de la lista. */
   function alternar (espacioId: number): void {
@@ -180,31 +142,22 @@ export function SelectorEspacios ({
           <BuscadorMenu
             valor={busqueda}
             onCambiar={setBusqueda}
-            placeholder={`Buscar un ${singular}…`}
+            placeholder={`Buscar ${singular}…`}
           />
 
           {/* La lista scrollea dentro del menú: con quinientas filas, un menú del alto del contenido
               tapa la pantalla y deja el diálogo inalcanzable. */}
           <div className="max-h-64 overflow-y-auto">
             {visibles.length === 0
-              ? <SinResultadosMenu>{`Ningún ${singular} con ese nombre.`}</SinResultadosMenu>
-              : grupos.map((grupo) => (
-                <div key={grupo.rotulo}>
-                  {grupo.rotulo !== '' && (
-                    <p className="text-texto-sutil px-2 pt-2 pb-1 text-[11px] font-semibold tracking-wide uppercase">
-                      {grupo.rotulo}
-                    </p>
-                  )}
-                  {grupo.espacios.map((espacio) => (
-                    <ItemMenuMarcable
-                      key={espacio.id}
-                      checked={elegidos.includes(espacio.id)}
-                      onCheckedChange={() => { alternar(espacio.id) }}
-                    >
-                      <span className="truncate">{espacio.name}</span>
-                    </ItemMenuMarcable>
-                  ))}
-                </div>
+              ? <SinResultadosMenu>Nada con ese nombre.</SinResultadosMenu>
+              : visibles.map((espacio) => (
+                <ItemMenuMarcable
+                  key={espacio.id}
+                  checked={elegidos.includes(espacio.id)}
+                  onCheckedChange={() => { alternar(espacio.id) }}
+                >
+                  <span className="truncate">{espacio.name}</span>
+                </ItemMenuMarcable>
                 ))}
           </div>
         </ContenidoMenu>
@@ -228,13 +181,6 @@ export function SelectorEspacios ({
                 )}
               >
                 <span className="max-w-48 truncate">{espacio.name}</span>
-                {/* El chip dice de qué clase es el destino: los dos grupos del menú se pierden una
-                    vez elegidos, y una tarea creada en la licitación equivocada hay que borrarla. */}
-                {licitaciones.has(espacio.id) && (
-                  <span className="shrink-0 text-[10px] opacity-70">
-                    {GLOSARIO.licitacion.singular}
-                  </span>
-                )}
                 <X size={12} aria-hidden="true" className="shrink-0 opacity-70" />
               </button>
             </li>

@@ -1,5 +1,6 @@
 import { horasDeTexto } from './tiempo-estimado.ts'
 import { enFormatoTitulo } from '../lib/titulo.ts'
+import { esRelacionDeEspacio, relTypeDeRelacion } from './espacios-destino.ts'
 import type { StaffReferencia } from '@/datos/tipos'
 import type { Etiqueta, Proceso } from '@/datos/recursos'
 
@@ -12,6 +13,10 @@ import type { Etiqueta, Proceso } from '@/datos/recursos'
  */
 export interface CamposEdicion {
   nombre: string
+  /**
+   * Con que se relaciona: una `RelacionTarea` —Proyecto, Licitacion, Upsell o Cliente— o un
+   * `rel_type` retirado que la Tarea ya traia. Al armar el parche se traduce a `rel_type`.
+   */
   relacion: string
   relacionId: string
   tipo: string
@@ -134,8 +139,8 @@ export function cuerpoDeParche (inicial: CamposEdicion, actual: CamposEdicion): 
   if (actual.vencimiento !== inicial.vencimiento) {
     parche.due_date = actual.vencimiento === '' ? null : actual.vencimiento
   }
-  const relacionInicial = inicial.relacion === 'project' && inicial.relacionId === '' ? '' : inicial.relacion
-  const relacionActual = actual.relacion === 'project' && actual.relacionId === '' ? '' : actual.relacion
+  const relacionInicial = relTypeDeCampos(inicial)
+  const relacionActual = relTypeDeCampos(actual)
   const cambiaRelacion = relacionActual !== relacionInicial || (relacionActual !== '' && actual.relacionId !== inicial.relacionId)
   if (cambiaRelacion) {
     parche.rel_type = relacionActual === '' ? null : relacionActual
@@ -183,7 +188,7 @@ export function cuerpoDeParche (inicial: CamposEdicion, actual: CamposEdicion): 
  * @returns el primer error o null si son válidos
  */
 export function errorDeCamposEdicion (campos: CamposEdicion): string | null {
-  const sinProyecto = campos.relacion === 'project' && campos.relacionId === ''
+  const sinProyecto = esRelacionDeEspacio(campos.relacion) && campos.relacionId === ''
   if (campos.relacion !== '' && !sinProyecto && (!Number.isSafeInteger(Number(campos.relacionId)) || Number(campos.relacionId) <= 0)) {
     return 'Selecciona una relación válida.'
   }
@@ -202,6 +207,16 @@ export function errorDeCamposEdicion (campos: CamposEdicion): string | null {
     return 'Los ciclos deben ser un entero entre 0 y 365.'
   }
   return null
+}
+
+/**
+ * El `rel_type` que representan los campos: Proyecto, Licitacion y Upsell son todos `project`, y
+ * un Espacio sin elegir es lo mismo que no tener relacion.
+ */
+function relTypeDeCampos (campos: CamposEdicion): string {
+  if (esRelacionDeEspacio(campos.relacion) && campos.relacionId === '') return ''
+
+  return relTypeDeRelacion(campos.relacion)
 }
 
 /** True si las dos listas tienen los mismos elementos, sin importar el orden ni las repeticiones. */
