@@ -240,6 +240,20 @@ export function NotificacionesDelDispositivo () {
 
       {estado === 'requiere-instalar' && <PasosIOS />}
 
+      {estado === 'inactivo' && (
+        <div className="animate-entrar-abajo pl-13">
+          <Boton
+            variante="primario"
+            tamano="chico"
+            disabled={accion !== null}
+            onClick={() => { void correr('activar', activar) }}
+          >
+            <Bell className="size-3.5" aria-hidden="true" />
+            Activar notificaciones
+          </Boton>
+        </div>
+      )}
+
       {encendido && (
         <div className="animate-entrar-abajo flex flex-wrap items-center gap-3 pl-13">
           <Boton
