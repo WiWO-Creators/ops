@@ -35,8 +35,54 @@ const TOPE_PERSONAS = 20
 export const DEL_EQUIPO = new Map([
   [1, { assigned: 2, department: 1, task_id: 500 }],
   [2, { assigned: null, department: 1, task_id: null }],
-  [3, { assigned: 3, department: 2, task_id: null }]
+  [3, { assigned: 3, department: 2, task_id: null }],
+  [40, { assigned: 2, department: 1, task_id: null }]
 ])
+
+/**
+ * Dos tickets mas del cliente 1, sembrados aca y no en `datos.js` para no tocar la fixture comun:
+ *
+ *  - El 40 esta en el Proyecto 1 y lo ultimo lo escribio el cliente, sin leer por el equipo: es el
+ *    que ejercita "Esperando al equipo" con `espera_desde` y el resaltado de no leido.
+ *  - El 41 es un hijo fusionado en el 1 (`merged_ticket_id`): ningun listado lo muestra y su enlace
+ *    viejo se resuelve al principal (CONTRATO2 D y F).
+ */
+const SEMBRADOS = [
+  {
+    id: 40,
+    client_id: 1,
+    contact_id: 1,
+    subject: 'El formulario de contacto no envía',
+    message: 'Al apretar Enviar la página se queda cargando.',
+    date: '2026-09-20 10:05:00',
+    last_reply: '2026-09-22 18:30:00',
+    status: 1,
+    priority: 3,
+    project_id: 1,
+    replies: [
+      { id: 400, message: '¿Desde qué navegador lo pruebas?', date: '2026-09-21 09:10:00', from: 'equipo', name: 'Equipo Wiwo', staff_id: 2 },
+      { id: 401, message: 'Desde Chrome en el celular.', date: '2026-09-22 18:30:00', from: 'cliente', name: 'Clienta Acme', contact_id: 1 }
+    ]
+  },
+  {
+    id: 41,
+    client_id: 1,
+    contact_id: 1,
+    subject: 'Logo pixelado (duplicado)',
+    message: 'Es el mismo problema del logo.',
+    date: '2026-09-15 09:30:00',
+    last_reply: null,
+    status: 1,
+    priority: 2,
+    project_id: 1,
+    merged_ticket_id: 1,
+    replies: []
+  }
+]
+
+for (const ticket of SEMBRADOS) {
+  if (!TICKETS_PORTAL.some((t) => t.id === ticket.id)) TICKETS_PORTAL.push(ticket)
+}
 
 /**
  * Avisos de ticket nuevo por Proyecto. Ausente = aviso a todo el equipo, que es como funcionaba antes
@@ -98,8 +144,8 @@ function siguienteRespuesta () {
 // --- Detalle, respuestas y acciones (contrato v2, frente F1) -------------------------------------
 //
 // Todo lo de aca abajo hasta «Portal» es de las fichas y las escrituras sobre un ticket. Los
-// listados y contadores no lo usan salvo por los ayudantes exportados (`noLeidoDelPortal`,
-// `esHijoFusionado`), para que la bandeja y la ficha digan lo mismo.
+// listados y contadores usan los ayudantes exportados (`ultimoDe`, `leidoPorElEquipo`,
+// `noLeidoDelPortal`, `esHijoFusionado`), para que la bandeja y la ficha digan lo mismo.
 
 /** Tope de caracteres de un mensaje (C). */
 const LARGO_MAXIMO = 20000
@@ -113,14 +159,6 @@ const DIAS_REAPERTURA = Number(process.env.PORTAL_TICKETS_DIAS_REAPERTURA ?? 14)
 
 /** Ventana del alta idempotente (C): mismo contacto, asunto y mensaje dentro de esto es el mismo alta. */
 const VENTANA_IDEMPOTENCIA_MS = 60_000
-
-/**
- * Hijos fusionados: id del hijo → id del principal (D).
- *
- * Viven aca y no en la fixture de tickets para no aparecer en ningun listado: un hijo solo existe
- * como enlace viejo (el correo que ya se mando) que hay que resolver al principal.
- */
-const FUSIONADOS = new Map([[40, 1]])
 
 /** Respuestas predefinidas (`tbltickets_predefined_replies`), con HTML como las guarda Perfex. */
 const PREDEFINIDAS = [
@@ -189,19 +227,66 @@ function adjuntoDeApi (adjunto) {
   return { ...adjunto, download_path: `files/ticket/${adjunto.id}/download` }
 }
 
-/** El id del principal si `id` es un hijo fusionado; si no, `null`. */
+/**
+ * El id del principal si `id` es un hijo fusionado (`merged_ticket_id` en la fixture); si no, `null`.
+ * Un ticket inexistente tampoco es hijo de nadie.
+ */
 export function esHijoFusionado (id) {
-  return FUSIONADOS.get(Number(id)) ?? null
+  const ticket = TICKETS_PORTAL.find((t) => t.id === Number(id))
+  return ticket?.merged_ticket_id ?? null
 }
 
 /**
- * `no_leido` del portal (E): el cliente no leyo y el ultimo mensaje es del equipo.
+ * Quien escribio lo ultimo. Un ticket sin respuestas lo abrio el cliente.
  *
- * `clientread` ausente en la fixture vale 0: un ticket cuyo ultimo mensaje es del equipo nace sin leer.
+ * @param {{ replies: Array<{ from: string }> }} ticket
+ * @returns {'equipo' | 'cliente'}
+ */
+export function ultimoDe (ticket) {
+  return ticket.replies.at(-1)?.from === 'equipo' ? 'equipo' : 'cliente'
+}
+
+/**
+ * `adminread` del ticket (`0|1`): el guardado, o deducido si la fixture no lo trae (lo ultimo del
+ * cliente en un ticket abierto esta sin leer), que es lo que Perfex deja despues de cada respuesta.
+ *
+ * @returns {0 | 1}
+ */
+export function leidoPorElEquipo (ticket) {
+  if (ticket.adminread === 0 || ticket.adminread === 1) return ticket.adminread
+  return ultimoDe(ticket) === 'cliente' && ticket.status !== CERRADO ? 0 : 1
+}
+
+/**
+ * `clientread` del ticket (`0|1`): el guardado, o deducido si la fixture no lo trae (lo ultimo del
+ * equipo esta sin leer: Perfex pone `clientread = 0` con cada respuesta del staff).
+ *
+ * @returns {0 | 1}
+ */
+export function leidoPorElCliente (ticket) {
+  if (ticket.clientread === 0 || ticket.clientread === 1) return ticket.clientread
+  return ultimoDe(ticket) === 'equipo' ? 0 : 1
+}
+
+/**
+ * Escribe las dos marcas de lectura en el ticket de `TICKETS_PORTAL`, que es lo que leen los
+ * listados. Lo que no se cambia queda materializado con su valor actual, asi despues de cualquier
+ * escritura el objeto trae `adminread` y `clientread` explicitos.
+ *
+ * @param {object} ticket el objeto de la fixture
+ * @param {{ adminread?: 0 | 1, clientread?: 0 | 1 }} cambios
+ */
+function fijarLectura (ticket, cambios) {
+  ticket.adminread = cambios.adminread ?? leidoPorElEquipo(ticket)
+  ticket.clientread = cambios.clientread ?? leidoPorElCliente(ticket)
+}
+
+/**
+ * `no_leido` del portal (E), igual que `RecursoPortal::sinLeerPorElCliente()`: `clientread = 0` y el
+ * ultimo mensaje es del equipo.
  */
 export function noLeidoDelPortal (ticket) {
-  const ultimo = ticket.replies.at(-1)
-  return (ticket.clientread ?? 0) === 0 && ultimo?.from === 'equipo'
+  return leidoPorElCliente(ticket) === 0 && ultimoDe(ticket) === 'equipo'
 }
 
 /**
@@ -273,6 +358,8 @@ export function altaDelPortal (contacto, cuerpo, crear) {
   if (ticket) {
     ticket.mensaje_original = mensaje
     ticket.creado_ms = Date.now()
+    // Como el INSERT de `TicketDelPortal::crear()`: nuevo para el equipo, leido por quien lo abrio.
+    fijarLectura(ticket, { adminread: 0, clientread: 1 })
   }
 
   return { estado: 201, cuerpo: { data: ticket ? fichaDelPortal(ticket, contacto) : creado } }
@@ -331,7 +418,7 @@ export async function ticketDelPortal ({ metodo, resto, contacto, cuerpo }) {
   }
 
   if (accion === 'leido') {
-    ticket.clientread = 1
+    fijarLectura(ticket, { clientread: 1 })
     return { estado: 204, cuerpo: null }
   }
 
@@ -339,6 +426,8 @@ export async function ticketDelPortal ({ metodo, resto, contacto, cuerpo }) {
     if (ticket.status === CERRADO) throw new ErrorApi(409, 'ticket_cerrado', 'Esta solicitud ya está cerrada.')
     ticket.status = CERRADO
     ticket.cerrado_en = ahora()
+    // La API no toca las marcas al cerrar; se materializan para que el listado lea lo mismo que antes.
+    fijarLectura(ticket, {})
     return { estado: 200, cuerpo: { data: ficha() } }
   }
 
@@ -349,7 +438,7 @@ export async function ticketDelPortal ({ metodo, resto, contacto, cuerpo }) {
     }
     ticket.status = 1
     ticket.cerrado_en = null
-    ticket.adminread = 0
+    fijarLectura(ticket, { adminread: 0 })
     return { estado: 200, cuerpo: { data: ficha() } }
   }
 
@@ -375,9 +464,8 @@ export async function ticketDelPortal ({ metodo, resto, contacto, cuerpo }) {
     contact_id: contacto.id
   })
   ticket.last_reply = ahora()
-  ticket.adminread = 0
   // Quien responde ya leyo lo anterior: `no_leido` se apaga con la propia respuesta.
-  ticket.clientread = 1
+  fijarLectura(ticket, { adminread: 0, clientread: 1 })
   // Como Perfex: la respuesta del cliente reabre el ticket a «Abierto», salvo que este «En curso».
   if (ticket.status !== 2) ticket.status = 1
 
@@ -448,7 +536,7 @@ export async function ticketsDelEquipo ({ metodo, recurso, resto, cuerpo, actual
 
   if (subrecurso === undefined && metodo === 'GET') {
     // `GET /tickets/{id}` escribe `adminread = 1`, como `set_ticket_open()` en el panel viejo.
-    ticket.adminread = 1
+    fijarLectura(ticket, { adminread: 1 })
     return { estado: 200, cuerpo: { data: fichaDelEquipo(ticket) } }
   }
   if (subrecurso === undefined && metodo === 'PATCH') return await parchear(ticket, cuerpo)
@@ -558,8 +646,7 @@ async function responderComoEquipo (ticket, cuerpo, actual) {
   ticket.last_reply = respuesta.date
   if (estado !== null) ticket.status = estado
   else if (ticket.status === 1) ticket.status = 3
-  ticket.clientread = 0
-  ticket.adminread = 1
+  fijarLectura(ticket, { adminread: 1, clientread: 0 })
 
   return { estado: 201, cuerpo: { data: respuestaDelEquipo(respuesta) } }
 }

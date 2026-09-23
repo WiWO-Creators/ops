@@ -11,74 +11,25 @@
  * `filter[esperando]=equipo|cliente` y excluyen los hijos fusionados. `department` y `assigned` son
  * 422 para quien no administra, como en la API.
  *
- * Lectura: la fixture puede traer `adminread` y `clientread` (`0|1`). Si no los trae, se deducen del
- * ultimo mensaje —lo que escribio el otro lado esta sin leer—, que es lo que Perfex deja en la base
- * despues de cada respuesta. Quien marque un ticket como leido en el mock escribe ese campo.
+ * Lectura, fusion y quien escribio lo ultimo salen de los ayudantes de `tickets.js`: las acciones del
+ * modal escriben `adminread` y `clientread` (`0|1`) en el mismo objeto de `TICKETS_PORTAL` que aca se
+ * lee, asi que "Sin leer" y "Esperando tu respuesta" cambian en cuanto alguien actua.
  */
 
 import { ErrorApi, aplicarConsulta, campoFiltrable, coincideEnLista } from './consulta.js'
 import {
   CLIENTES, CONTACTOS, DEPARTAMENTOS, ESPACIOS, PROCESOS, STAFF, TICKETS_PORTAL
 } from './datos.js'
-import { DEL_EQUIPO } from './tickets.js'
+import {
+  DEL_EQUIPO, esHijoFusionado, leidoPorElCliente, leidoPorElEquipo, noLeidoDelPortal, ultimoDe
+} from './tickets.js'
 
 /** Estado «Cerrado» de Perfex. */
 const CERRADO = 5
 
-/**
- * Dos tickets mas del cliente 1, sembrados aca y no en `datos.js` para no tocar la fixture comun:
- *
- *  - El 40 esta en el Proyecto 1 y lo ultimo lo escribio el cliente, sin leer por el equipo: es el
- *    que ejercita "Esperando al equipo" con `espera_desde` y el resaltado de no leido.
- *  - El 41 es un hijo fusionado en el 1: ningun listado lo muestra (CONTRATO2 D y F).
- */
-const SEMBRADOS = [
-  {
-    id: 40,
-    client_id: 1,
-    contact_id: 1,
-    subject: 'El formulario de contacto no envía',
-    message: 'Al apretar Enviar la página se queda cargando.',
-    date: '2026-09-20 10:05:00',
-    last_reply: '2026-09-22 18:30:00',
-    status: 1,
-    priority: 3,
-    project_id: 1,
-    replies: [
-      { id: 400, message: '¿Desde qué navegador lo pruebas?', date: '2026-09-21 09:10:00', from: 'equipo', name: 'Equipo Wiwo', staff_id: 2 },
-      { id: 401, message: 'Desde Chrome en el celular.', date: '2026-09-22 18:30:00', from: 'cliente', name: 'Clienta Acme', contact_id: 1 }
-    ]
-  },
-  {
-    id: 41,
-    client_id: 1,
-    contact_id: 1,
-    subject: 'Logo pixelado (duplicado)',
-    message: 'Es el mismo problema del logo.',
-    date: '2026-09-15 09:30:00',
-    last_reply: null,
-    status: 1,
-    priority: 2,
-    project_id: 1,
-    merged_ticket_id: 1,
-    replies: []
-  }
-]
-
-for (const ticket of SEMBRADOS) {
-  if (!TICKETS_PORTAL.some((t) => t.id === ticket.id)) TICKETS_PORTAL.push(ticket)
-}
-
-/**
- * Quien escribio lo ultimo. Un ticket sin respuestas lo abrio el cliente.
- *
- * @param {{ replies: Array<{ from: string }> }} ticket
- * @returns {'equipo' | 'cliente'}
- */
-export function ultimoDe (ticket) {
-  const ultima = ticket.replies.at(-1)
-
-  return ultima?.from === 'equipo' ? 'equipo' : 'cliente'
+/** `true` si el ticket no es un hijo fusionado. Los listados solo muestran principales. */
+export function esPrincipal (ticket) {
+  return esHijoFusionado(ticket.id) === null
 }
 
 /**
@@ -94,42 +45,6 @@ function esperaDesde (ticket) {
 }
 
 /**
- * `adminread` del ticket: el de la fixture, o deducido (lo ultimo del cliente esta sin leer).
- *
- * @returns {0 | 1}
- */
-function leidoPorElEquipo (ticket) {
-  if (ticket.adminread === 0 || ticket.adminread === 1) return ticket.adminread
-
-  return ultimoDe(ticket) === 'cliente' && ticket.status !== CERRADO ? 0 : 1
-}
-
-/**
- * `clientread` del ticket: el de la fixture, o deducido (lo ultimo del equipo esta sin leer).
- *
- * @returns {0 | 1}
- */
-function leidoPorElCliente (ticket) {
-  if (ticket.clientread === 0 || ticket.clientread === 1) return ticket.clientread
-
-  return ultimoDe(ticket) === 'equipo' && ticket.status !== CERRADO ? 0 : 1
-}
-
-/**
- * `no_leido` del portal (CONTRATO2 E): el contacto no leyo y lo ultimo es del equipo.
- *
- * @returns {boolean}
- */
-export function noLeidoPorElCliente (ticket) {
-  return leidoPorElCliente(ticket) === 0 && ultimoDe(ticket) === 'equipo'
-}
-
-/** `true` si el ticket no es un hijo fusionado. Los listados solo muestran principales. */
-export function sinFusionar (ticket) {
-  return ticket.merged_ticket_id === undefined || ticket.merged_ticket_id === null
-}
-
-/**
  * Una fila del listado del portal: la forma de siempre mas `no_leido`.
  *
  * @param {object} ticket
@@ -137,7 +52,7 @@ export function sinFusionar (ticket) {
  * @returns {object}
  */
 export function filaDelPortal (ticket, presentar) {
-  return { ...presentar(ticket), no_leido: noLeidoPorElCliente(ticket) }
+  return { ...presentar(ticket), no_leido: noLeidoDelPortal(ticket) }
 }
 
 /**
@@ -234,7 +149,7 @@ function listar (tickets, parametros, esAdmin) {
   const conOrden = new URLSearchParams(parametros)
   if (!conOrden.has('sort')) conOrden.set('sort', '-lastreply')
 
-  const { filas, paginacion } = aplicarConsulta(tickets.filter(sinFusionar).map(filaDelEquipo), conOrden, {
+  const { filas, paginacion } = aplicarConsulta(tickets.filter(esPrincipal).map(filaDelEquipo), conOrden, {
     filtros: filtrosDelListado(esAdmin),
     orden: ['subject', 'date', 'lastreply', 'status', 'priority'],
     busqueda: ['subject', 'ticketkey']
@@ -258,7 +173,7 @@ function proyectoO404 (id) {
  */
 function contadores (proyectoId) {
   const abiertos = TICKETS_PORTAL
-    .filter((t) => t.project_id === proyectoId && sinFusionar(t) && t.status !== CERRADO)
+    .filter((t) => t.project_id === proyectoId && esPrincipal(t) && t.status !== CERRADO)
 
   return {
     estado: 200,

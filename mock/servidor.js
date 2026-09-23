@@ -19,7 +19,7 @@ import * as sesion from './sesion.js'
 import { importarRecurrentes, listarRecurrentes, sembrarRecurrentes } from './recurrentes.js'
 import { avisosRuta } from './avisos.js'
 import { altaDelPortal, esAccionDelPortal, ticketDelPortal, ticketsDelEquipo } from './tickets.js'
-import { filaDelPortal, listadosDeTickets, sinFusionar } from './tickets-listados.js'
+import { esPrincipal, filaDelPortal, listadosDeTickets } from './tickets-listados.js'
 import { filtrosGuardados } from './filtros-guardados.js'
 import { escribirAjustesDelOrbePortal, opcionDelOrbePortal, orbePortalRuta } from './orbe-portal.js'
 import {
@@ -5407,7 +5407,7 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
 
       if (resto.length === 1) {
         // Sin los hijos fusionados y con `no_leido` (CONTRATO2 D y E): ver `tickets-listados.js`.
-        const { filas, paginacion } = aplicarConsulta(mios.filter(sinFusionar).map((t) => filaDelPortal(t, presentarTicketPortal)), parametros, {
+        const { filas, paginacion } = aplicarConsulta(mios.filter(esPrincipal).map((t) => filaDelPortal(t, presentarTicketPortal)), parametros, {
           filtros: { status: 'status', priority: 'priority' },
           orden: ['subject', 'date', 'lastreply'],
           derivadas: { lastreply: (fila) => fila.last_reply },
