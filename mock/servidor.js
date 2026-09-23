@@ -16,6 +16,7 @@ import { resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { ErrorApi, aplicarConsulta, campoFiltrable, coincideEnLista, leerIncludes } from './consulta.js'
 import * as sesion from './sesion.js'
+import { importarRecurrentes, listarRecurrentes, sembrarRecurrentes } from './recurrentes.js'
 import {
   ADMINS_DE_CLIENTE, AREAS, ARCHIVOS, CAMPOS_PERSONALIZADOS, CHECKLIST, CLIENTES, COMENTARIOS, CRONOMETROS,
   DEPARTAMENTOS, EMPRESAS_DEL_GRUPO, ENTRADA_DE_CLIENTE, ESPACIOS, ESTADOS_ESPACIO, ESTADOS_PROCESO,
@@ -36,6 +37,9 @@ const PUERTO = Number(process.env.PORT ?? 3001)
  * id de la licitacion.
  */
 const ESPACIOS_EXISTENTES = [...ESPACIOS, ...ESPACIOS_DE_LICITACION]
+
+// Unas cuantas Tareas recurrentes, una por estado, para que `/procesos/recurrentes` tenga que mostrar.
+sembrarRecurrentes(PROCESOS, new Date().toISOString().slice(0, 10))
 
 /** Un tipo por espacio permite comprobar pertenencia sin duplicar catálogos de producción. */
 const TIPOS_PROCESO = ESPACIOS_EXISTENTES.map((espacio) => ({
@@ -405,7 +409,7 @@ function crearProceso (entrada, autor) {
     'name', 'description', 'start_date', 'due_date', 'priority', 'billable', 'estimated_hours',
     'milestone', 'task_type', 'rel_type', 'rel_id', 'assignees', 'followers', 'tags', 'status',
     'hourly_rate', 'is_public', 'visible_to_client', 'recurring', 'repeat_every', 'recurring_type',
-    'cycles', 'completed_at'
+    'cycles', 'recurring_until', 'completed_at'
   ])
   for (const clave of Object.keys(entrada)) {
     if (!aceptados.has(clave)) detalles[clave] = ['no_editable']
@@ -463,7 +467,7 @@ function crearProceso (entrada, autor) {
   const recurrente = [true, 1, '1'].includes(entrada.recurring)
   const frecuencia = Number(entrada.repeat_every)
   const ciclos = Number(entrada.cycles ?? 0)
-  const clavesRecurrencia = ['recurring', 'repeat_every', 'recurring_type', 'cycles']
+  const clavesRecurrencia = ['recurring', 'repeat_every', 'recurring_type', 'cycles', 'recurring_until']
   if (clavesRecurrencia.some((clave) => Object.hasOwn(entrada, clave))) {
     if (!Object.hasOwn(entrada, 'recurring')) detalles.recurring = ['requerido']
     else if (![true, false, 0, 1, '0', '1'].includes(entrada.recurring)) detalles.recurring = ['no_booleano']
@@ -472,6 +476,7 @@ function crearProceso (entrada, autor) {
       if (!['string', 'number'].includes(typeof entrada.repeat_every) || !Number.isInteger(frecuencia) || frecuencia < 1 || frecuencia > 365) detalles.repeat_every = ['fuera_de_rango']
       if (!['day', 'week', 'month', 'year'].includes(entrada.recurring_type)) detalles.recurring_type = ['no_soportado']
       if ((Object.hasOwn(entrada, 'cycles') && !['string', 'number'].includes(typeof entrada.cycles)) || !Number.isInteger(ciclos) || ciclos < 0 || ciclos > 365) detalles.cycles = ['fuera_de_rango']
+      if (entrada.recurring_until != null && (typeof entrada.recurring_until !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(entrada.recurring_until))) detalles.recurring_until = ['invalid']
     } else {
       for (const clave of clavesRecurrencia.slice(1)) {
         if (Object.hasOwn(entrada, clave)) detalles[clave] = ['sobra_sin_recurrencia']
@@ -567,6 +572,8 @@ function crearProceso (entrada, autor) {
     repeat_every: recurrente ? frecuencia : 0,
     recurring_type: recurrente ? entrada.recurring_type : null,
     cycles: recurrente ? ciclos : 0,
+    total_cycles: 0,
+    recurring_until: recurrente ? entrada.recurring_until ?? null : null,
     kanban_order: Math.max(0, ...PROCESOS.filter((p) => p.status === Number(estado)).map((p) => p.kanban_order)) + 1,
     assignees: asignados.map((s) => ({
       id: s.id,
@@ -620,6 +627,49 @@ function resolverStaff (valor, detalles, clave) {
   }
 
   return personas
+}
+
+/**
+ * `GET /tasks/recurrentes` y `POST /tasks/recurrentes/importar`, con la misma forma que la API.
+ *
+ * El alta de cada fila pasa por `crearProceso()`, igual que en la API pasa por `CrearProceso`: el
+ * validar la ensaya sin guardar y el aplicar la guarda.
+ */
+async function rutaDeRecurrentes (metodo, resto, parametros, actual, cuerpo) {
+  if (metodo === 'GET' && resto.length === 1) {
+    const reglas = listarRecurrentes(PROCESOS, parametros, {
+      staff: STAFF, espacios: ESPACIOS_EXISTENTES, clientes: CLIENTES, hoy: new Date().toISOString().slice(0, 10)
+    })
+    return { estado: 200, cuerpo: conDatos(reglas, { total: reglas.length }) }
+  }
+
+  if (metodo === 'POST' && resto[1] === 'importar' && resto.length === 2) {
+    exigirPermiso(actual, 'tasks', 'create')
+    const { estado, datos } = importarRecurrentes(await cuerpo(), {
+      staff: STAFF,
+      espacios: ESPACIOS_EXISTENTES,
+      procesos: PROCESOS,
+      encendida: process.env.WIWO_PROCESOS_RECURRENTES !== '0',
+      validarAlta: (alta) => {
+        try {
+          crearProceso(alta, actual)
+          return null
+        } catch (error) {
+          if (!(error instanceof ErrorApi)) throw error
+          const columnas = { name: 'tarea', assignees: 'responsable', rel_id: 'proyecto_id', start_date: 'fecha_inicio', due_date: 'vencimiento_dias', cycles: 'fin', recurring_until: 'fin' }
+          return Object.fromEntries(Object.entries(error.detalles ?? { fila: ['invalid'] }).map(([campo, codigos]) => [columnas[campo] ?? 'frecuencia', codigos]))
+        }
+      },
+      crear: (alta) => {
+        const nuevo = crearProceso(alta, actual)
+        PROCESOS.unshift(nuevo)
+        return nuevo.id
+      }
+    })
+    return { estado, cuerpo: conDatos(datos) }
+  }
+
+  throw new ErrorApi(404, 'not_found', 'Acción desconocida.')
 }
 
 /** Busca una fila por id o lanza 404. */
@@ -6188,6 +6238,8 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
       return { estado: 201, cuerpo: conDatos(nuevo) }
     }
 
+    if (resto[0] === 'recurrentes') return await rutaDeRecurrentes(metodo, resto, parametros, actual, cuerpo)
+
     const proceso = buscarO404(PROCESOS, Number(resto[0]), 'proceso')
     const [, subrecurso, extra] = resto
 
@@ -6254,7 +6306,12 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
     if (metodo === 'PATCH' && !subrecurso) {
       exigirPermiso(actual, 'tasks', 'edit')
       // Parche parcial: el detalle edita bloque a bloque, nunca envia 200 campos de una.
-      Object.assign(proceso, await cuerpo())
+      const parche = await cuerpo()
+      Object.assign(proceso, parche)
+      // Como `ParcheProceso::CANCELAR`: apagar la recurrencia borra toda su configuracion, y encenderla
+      // sin fecha de fin deja `recurring_until` en null (el cuerpo declara la regla entera).
+      if (parche.recurring === false) Object.assign(proceso, { repeat_every: 0, recurring_type: null, cycles: 0, total_cycles: 0, recurring_until: null, last_recurring_date: null })
+      if (parche.recurring === true && !Object.hasOwn(parche, 'recurring_until')) proceso.recurring_until = null
       return { estado: 200, cuerpo: conDatos(proceso) }
     }
 

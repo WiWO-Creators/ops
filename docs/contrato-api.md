@@ -1962,6 +1962,12 @@ hito pertenece a un Espacio y quedaria apuntando al tablero de otro. Si el mismo
 - Con el interruptor apagado, **cualquiera** de las cuatro claves es `422` `recurrencia_apagada`. No
   se ignora en silencio.
 
+**Fin por fecha** (migracion `0890`): `recurring_until` (`YYYY-MM-DD` o `null`) es el ultimo dia en
+que puede nacer una copia. Va en el mismo grupo —exige `recurring: true`, sobra con `false`— y
+ausente vale `null`, igual que `cycles` ausente vale `0`. Convive con `cycles`: termina con lo que
+se cumpla primero. `GET /tasks/{id}` lo devuelve como `recurring_until`. Invalido: `422`
+`{"recurring_until": ["invalid"]}`.
+
 El interruptor es la opcion `wiwo_procesos_recurrentes` de `tbloptions` (migracion `0010`), con
 valor `'0'`. Existe porque la recurrencia **no la ejecuta la API**: la ejecuta
 `Cron_model::recurring_tasks()`, en otro proceso y horas despues, y ahi si se manda correo y campana
@@ -1989,6 +1995,49 @@ Respuesta `200` con la ficha del Proceso, la misma forma de `GET /tasks/{id}`.
 `cycles` (`Recursos/RecursoProcesos.php:515` y `:602`). La pantalla puede encender la recurrencia
 pero no puede mostrar la frecuencia guardada. Son tres columnas al SELECT y tres claves a la salida,
 en un archivo que no es de A1.
+
+### `GET /tasks/recurrentes` — las reglas de recurrencia
+
+Las Tareas madre (`recurring = 1`) que la persona ve con la misma regla que `GET /tasks`. Sin
+paginar; `meta.total`. Filtros enteros (`422 integer` si no): `filter[project_id]`,
+`filter[assignee]`, `filter[area]` (area de quien hace la tarea).
+
+```json
+{ "id": 4532, "name": "Reporte semanal de pauta", "status": 1, "start_date": "2026-09-29",
+  "project": { "id": 112, "name": "SAC Contact Center" }, "client": { "id": 14, "name": "MG Motor" },
+  "repeat_every": 1, "recurring_type": "week", "frequency_label": "Cada semana",
+  "cycles": 0, "total_cycles": 0, "recurring_until": "2026-12-31",
+  "next_date": "2026-10-06", "state": "activa",
+  "last_copy": null, "copies_count": 0, "assignees": [{ "id": 2, "full_name": "...", "profile_image_url": null }] }
+```
+
+- `next_date`: la proxima copia, con la aritmetica del cron. Anterior a hoy = la copia no salio.
+- `state`: `activa`, `atrasada` (next_date < hoy), `terminada` (ciclos o fecha cumplidos),
+  `suspendida` (la madre esta Completa) o `sin_calcular` (sin unidad o sin fecha base). Orden: lo que
+  pide atencion primero, despues por `next_date`.
+- `last_copy`: la ultima copia viva (`is_recurring_from`), `{id, created_at, start_date, status}`.
+
+### `POST /tasks/recurrentes/importar` — carga desde una planilla
+
+```json
+{ "modo": "validar", "filas": [
+  { "tarea": "Informe de pauta", "frecuencia": "Mensual", "responsable": "ana@wiwo.me",
+    "proyecto_id": "112", "fecha_inicio": "01/10/2026", "vencimiento_dias": "3", "fin": "31/12/2026" } ] }
+```
+
+- Columnas: `tarea`, `frecuencia` (`semanal`, `quincenal`, `mensual`, `bimestral`, `trimestral`,
+  `semestral`, `anual` o "cada N dias/semanas/meses/años"), `responsable` (staffid o correo),
+  `proyecto_id`; opcionales `fecha_inicio` (`AAAA-MM-DD` o `DD/MM/AAAA`, vacia = hoy),
+  `vencimiento_dias` (0..365) y `fin` (fecha, `N` o `N veces`). Otra clave: `no_editable`.
+- `validar` → `200` `{modo, filas: [{indice, valida, errores|null, avisos|null, vista|null}], validas, invalidas}`.
+  Codigos por columna: `fila: vacia|invalid`, `tarea: requerido`, `frecuencia: requerido|no_soportada`,
+  `responsable: requerido|no_existe`, `proyecto_id: requerido|invalid|sin_acceso`,
+  `fecha_inicio|fin: invalid`, `vencimiento_dias: fuera_de_rango`. Avisos (no bloquean):
+  `tarea: ya_existe|repetida`.
+- `aplicar` → `201` `{modo, creadas: [{indice, task_id}]}`, todo en una transaccion por el alta de
+  `POST /tasks`. Con alguna fila mala: `422` `{"filas.{i}.{columna}": [...]}` y no crea ninguna.
+- `403` sin `tasks.create`; `422 recurrencia_apagada` con el interruptor apagado; tope de 200 filas
+  (`filas: demasiadas`).
 
 ### Comentarios y checklist de un Proceso
 

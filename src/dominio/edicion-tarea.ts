@@ -1,6 +1,7 @@
 import { horasDeTexto } from './tiempo-estimado.ts'
 import { enFormatoTitulo } from '../lib/titulo.ts'
 import { esRelacionDeEspacio, relTypeDeRelacion } from './espacios-destino.ts'
+import { cuerpoDeFin, errorDeFin, modoDeFin, type ModoFin } from './recurrencia.ts'
 import type { StaffReferencia } from '@/datos/tipos'
 import type { Etiqueta, Proceso } from '@/datos/recursos'
 
@@ -28,6 +29,10 @@ export interface CamposEdicion {
   repetirCada: string
   unidadRecurrencia: string
   ciclos: string
+  /** Como termina la recurrencia: nunca, tras `ciclos` veces, o el dia `hasta`. */
+  finRecurrencia: ModoFin
+  /** Ultimo dia en que nace una copia, `YYYY-MM-DD`. Solo cuenta con `finRecurrencia: 'fecha'`. */
+  hasta: string
   prioridad: string
   inicio: string
   vencimiento: string
@@ -59,6 +64,7 @@ export interface ParcheTarea {
   repeat_every?: number
   recurring_type?: string
   cycles?: number
+  recurring_until?: string
   priority?: number
   start_date?: string | null
   due_date?: string | null
@@ -93,6 +99,8 @@ export function camposDeTarea (tarea: Proceso, descripcion: string): CamposEdici
     repetirCada: String(tarea.repeat_every || 1),
     unidadRecurrencia: tarea.recurring_type || 'month',
     ciclos: String(tarea.cycles ?? 0),
+    finRecurrencia: modoDeFin(tarea.cycles, tarea.recurring_until),
+    hasta: tarea.recurring_until ?? '',
     prioridad: String(tarea.priority),
     inicio: tarea.start_date ?? '',
     vencimiento: tarea.due_date ?? '',
@@ -159,14 +167,14 @@ export function cuerpoDeParche (inicial: CamposEdicion, actual: CamposEdicion): 
   if (actual.visibleCliente !== inicial.visibleCliente) parche.visible_to_client = actual.visibleCliente
   const cambiaRecurrencia = actual.recurrente !== inicial.recurrente || (actual.recurrente && (
     actual.repetirCada !== inicial.repetirCada || actual.unidadRecurrencia !== inicial.unidadRecurrencia ||
-    actual.ciclos !== inicial.ciclos
+    actual.ciclos !== inicial.ciclos || actual.finRecurrencia !== inicial.finRecurrencia || actual.hasta !== inicial.hasta
   ))
   if (cambiaRecurrencia) {
     parche.recurring = actual.recurrente
     if (actual.recurrente) {
       parche.repeat_every = Number(actual.repetirCada)
       parche.recurring_type = actual.unidadRecurrencia
-      parche.cycles = Number(actual.ciclos)
+      Object.assign(parche, cuerpoDeFin(actual.finRecurrencia, actual.ciclos, actual.hasta))
     }
   }
   if (!mismosIds(actual.asignados, inicial.asignados)) parche.assignees = actual.asignados
@@ -200,13 +208,9 @@ export function errorDeCamposEdicion (campos: CamposEdicion): string | null {
   }
   if (!campos.recurrente) return null
   const cada = Number(campos.repetirCada)
-  const ciclos = Number(campos.ciclos)
   if (!Number.isInteger(cada) || cada < 1 || cada > 365) return 'La repetición debe ser un entero entre 1 y 365.'
   if (!['day', 'week', 'month', 'year'].includes(campos.unidadRecurrencia)) return 'Selecciona una unidad de recurrencia válida.'
-  if (campos.ciclos.trim() === '' || !Number.isInteger(ciclos) || ciclos < 0 || ciclos > 365) {
-    return 'Los ciclos deben ser un entero entre 0 y 365.'
-  }
-  return null
+  return errorDeFin(campos.finRecurrencia, campos.ciclos, campos.hasta, campos.inicio)
 }
 
 /**

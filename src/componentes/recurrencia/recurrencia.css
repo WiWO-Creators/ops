@@ -1,0 +1,111 @@
+/**
+ * Movimiento de la pantalla de Tareas recurrentes.
+ *
+ * Se importa desde los componentes de `componentes/recurrencia/` y no desde `globals.css`: es de una
+ * sola pantalla, y los `::view-transition-*` no se pueden escribir dentro de un CSS Module (el
+ * nombre de la clase que va entre parentesis se hashea y deja de coincidir con el que pone React).
+ *
+ * Todo anima `transform` y `opacity`, nunca alto ni ancho. Las curvas y duraciones son los tokens del
+ * sistema (`--wiwo-ease-*`, `--wiwo-motion-*`), no valores sueltos.
+ *
+ * Movimiento reducido: el bloque global de `neo.css` ya lleva toda animacion a 0.01ms. Aca ademas se
+ * quita el desplazamiento de las entradas y el temblor del error —lo que se conserva es el cambio de
+ * color, que es lo que informa— y el brillo del esqueleto queda quieto.
+ */
+
+/* Entrada escalonada: cada fila recibe su posicion en `--i` y espera 40ms por cada una, con techo
+ * para que una lista larga no tarde un segundo en terminar de aparecer. */
+.rec-escalonada {
+  animation: rec-entrar var(--wiwo-motion-medium) var(--wiwo-ease-emphasized) both;
+  animation-delay: calc(min(var(--i, 0), 10) * 40ms);
+}
+
+@keyframes rec-entrar {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+
+/* Esqueleto: bloques con la forma de la fila que viene y un brillo que cruza una vez por segundo y
+ * medio. Es `infinite`, pero vive solo mientras se espera la respuesta. */
+.rec-hueso {
+  position: relative;
+  overflow: hidden;
+  border-radius: var(--small-BorderRadius);
+  background: var(--superficie-hundida);
+}
+
+.rec-hueso::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, var(--hover), transparent);
+  animation: rec-brillo 1.4s var(--wiwo-ease-emphasized) infinite;
+}
+
+@keyframes rec-brillo {
+  to { transform: translateX(100%); }
+}
+
+/* Resultado de validar una fila: la buena se asienta con un pulso corto, la mala tiembla una vez.
+ * Una sola vez: es la respuesta a "Revisar", no un estado que haya que seguir mirando. */
+.rec-fila-ok {
+  animation: rec-asentar var(--wiwo-motion-medium) var(--wiwo-ease-expressive) both;
+  animation-delay: calc(min(var(--i, 0), 12) * 30ms);
+}
+
+.rec-fila-error {
+  animation: rec-temblar 320ms var(--wiwo-ease-emphasized) both;
+  animation-delay: calc(min(var(--i, 0), 12) * 30ms);
+}
+
+@keyframes rec-asentar {
+  0% { transform: scale(0.985); }
+  60% { transform: scale(1.005); }
+  100% { transform: none; }
+}
+
+@keyframes rec-temblar {
+  0%, 100% { transform: none; }
+  20% { transform: translateX(-4px); }
+  40% { transform: translateX(3px); }
+  60% { transform: translateX(-2px); }
+  80% { transform: translateX(1px); }
+}
+
+/* La marca del estado aparece con una escala desde 0.9, nunca desde cero. */
+.rec-marca {
+  animation: entrar-escala var(--wiwo-motion-fast) var(--wiwo-ease-expressive) both;
+  animation-delay: calc(min(var(--i, 0), 12) * 30ms + 80ms);
+}
+
+/* View Transitions de la lista: la regla que se pausa se va hacia la izquierda y las demas suben a
+ * su lugar con la transicion de grupo por defecto, que ya mueve cada `view-transition-name`. */
+::view-transition-old(.rec-salida) {
+  animation: rec-salir 160ms var(--wiwo-ease-emphasized) both;
+}
+
+::view-transition-new(.rec-entrada) {
+  animation: rec-entrar var(--wiwo-motion-medium) var(--wiwo-ease-emphasized) both;
+}
+
+@keyframes rec-salir {
+  to { opacity: 0; transform: translateX(-24px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rec-escalonada,
+  .rec-fila-ok,
+  .rec-marca {
+    animation-name: aparecer;
+  }
+
+  .rec-fila-error {
+    animation: none;
+  }
+
+  .rec-hueso::after {
+    animation: none;
+    opacity: 0;
+  }
+}

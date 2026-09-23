@@ -41,6 +41,8 @@ test('los campos iniciales salen de la tarea, con vacio donde la API manda null'
     repetirCada: '1',
     unidadRecurrencia: 'month',
     ciclos: '0',
+    finRecurrencia: 'nunca',
+    hasta: '',
     prioridad: '2',
     inicio: '2026-09-07',
     vencimiento: '',
@@ -200,7 +202,7 @@ test('facturación y visibilidad conservan valores y permiten desactivarlos', ()
 
 test('recurrencia se activa completa, se reprograma completa y se cancela sin campos extra', () => {
   const inicial = camposDeTarea(TAREA, '')
-  const actual = { ...inicial, recurrente: true, repetirCada: '2', unidadRecurrencia: 'week', ciclos: '4' }
+  const actual = { ...inicial, recurrente: true, repetirCada: '2', unidadRecurrencia: 'week', ciclos: '4', finRecurrencia: 'ciclos' }
   assert.deepEqual(cuerpoDeParche(inicial, actual), { recurring: true, repeat_every: 2, recurring_type: 'week', cycles: 4 })
   assert.deepEqual(cuerpoDeParche(actual, { ...actual, ciclos: '0' }), { recurring: true, repeat_every: 2, recurring_type: 'week', cycles: 0 })
   assert.deepEqual(cuerpoDeParche(actual, { ...actual, recurrente: false }), { recurring: false })
@@ -209,7 +211,21 @@ test('recurrencia se activa completa, se reprograma completa y se cancela sin ca
   assert.equal(cargada.repetirCada, '3')
   assert.equal(cargada.unidadRecurrencia, 'day')
   assert.equal(cargada.ciclos, '7')
+  assert.equal(cargada.finRecurrencia, 'ciclos')
   assert.deepEqual(cuerpoDeParche(cargada, cargada), {})
+})
+
+test('la recurrencia termina por fecha: se carga, se manda recurring_until y cambiar de modo reprograma', () => {
+  const cargada = camposDeTarea({ ...TAREA, recurring: true, repeat_every: 1, recurring_type: 'month', cycles: 0, recurring_until: '2026-12-31' }, '')
+  assert.equal(cargada.finRecurrencia, 'fecha')
+  assert.equal(cargada.hasta, '2026-12-31')
+  assert.deepEqual(cuerpoDeParche(cargada, { ...cargada, hasta: '2027-01-31' }),
+    { recurring: true, repeat_every: 1, recurring_type: 'month', cycles: 0, recurring_until: '2027-01-31' })
+  assert.deepEqual(cuerpoDeParche(cargada, { ...cargada, finRecurrencia: 'nunca' }),
+    { recurring: true, repeat_every: 1, recurring_type: 'month', cycles: 0 })
+  assert.equal(errorDeCamposEdicion({ ...cargada, hasta: '' }), 'Elige el día en que termina.')
+  assert.equal(typeof errorDeCamposEdicion({ ...cargada, inicio: '2027-02-01' }), 'string')
+  assert.equal(errorDeCamposEdicion(cargada), null)
 })
 
 test('validación acepta límites y rechaza relaciones, tarifas, fechas y recurrencias inválidas', () => {
@@ -221,8 +237,9 @@ test('validación acepta límites y rechaza relaciones, tarifas, fechas y recurr
     { tarifaHora: 'abc' }, { tarifaHora: '1000000000' }, { vencimiento: '2026-09-06' },
     { recurrente: true, repetirCada: '0' }, { recurrente: true, repetirCada: '366' },
     { recurrente: true, repetirCada: '1.5' }, { recurrente: true, unidadRecurrencia: 'invalid' },
-    { recurrente: true, ciclos: '' }, { recurrente: true, ciclos: '-1' },
-    { recurrente: true, ciclos: '366' }, { recurrente: true, ciclos: '1.5' }
+    { recurrente: true, finRecurrencia: 'ciclos', ciclos: '' }, { recurrente: true, finRecurrencia: 'ciclos', ciclos: '-1' },
+    { recurrente: true, finRecurrencia: 'ciclos', ciclos: '366' }, { recurrente: true, finRecurrencia: 'ciclos', ciclos: '1.5' },
+    { recurrente: true, finRecurrencia: 'ciclos', ciclos: '0' }, { recurrente: true, finRecurrencia: 'fecha', hasta: '' }
   ]) assert.equal(typeof errorDeCamposEdicion({ ...inicial, ...campos }), 'string', JSON.stringify(campos))
   assert.equal(errorDeCamposEdicion({ ...inicial, relacion: 'project', relacionId: '1', tarifaHora: '0', recurrente: true, repetirCada: '1', ciclos: '0' }), null)
   assert.equal(errorDeCamposEdicion({ ...inicial, recurrente: true, repetirCada: '365', ciclos: '365', vencimiento: inicial.inicio }), null)
