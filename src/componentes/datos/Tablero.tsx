@@ -1,7 +1,7 @@
 'use client'
 
 import { ArrowLeft, ArrowRight, GripVertical, MoreHorizontal } from 'lucide-react'
-import { useCallback, useRef, useState, type ReactNode } from 'react'
+import { Fragment, useCallback, useRef, useState, type ReactNode } from 'react'
 import { Boton } from '@/componentes/formularios/Boton'
 import { Vacio } from '@/componentes/estado/Estados'
 import {
@@ -11,6 +11,8 @@ import {
   MenuContextual
 } from '@/componentes/superposiciones/MenuContextual'
 import { useDesplazamientoTablero } from './useDesplazamientoTablero'
+import { ATRIBUTO_COLUMNA, ATRIBUTO_RANURA, ATRIBUTO_TARJETA, useArrastreTactil } from './useArrastreTactil'
+import { useConsultaDeMedios } from '@/lib/useConsultaDeMedios'
 import { cn } from '@/lib/clases'
 import { MENSAJE_SESION_CERRADA } from '@/componentes/proyecto/carga'
 import {
@@ -100,9 +102,11 @@ interface PropsTablero<T extends FilaConId> {
 /**
  * Motor de tablero (kanban) para cualquier recurso que declare `tablero` en su definicion.
  *
- * El arrastre usa la API nativa de HTML: `draggable` + `dragover` + `drop`. No hay libreria de
- * drag and drop, y por eso cada tarjeta lleva ademas un menu "Mover a…" en un `<button>` real —
- * el arrastre con mouse no puede ser la unica via.
+ * Con mouse, el arrastre usa la API nativa de HTML: `draggable` + `dragover` + `drop`. Con el dedo
+ * esa API no sirve —iOS no la dispara y Android la mezcla con el scroll—, asi que en pantallas
+ * tactiles el arrastre es propio, con Pointer Events y toque largo (`useArrastreTactil`). No hay
+ * libreria de drag and drop, y por eso cada tarjeta lleva ademas un menu "Mover a…" en un
+ * `<button>` real — el arrastre no puede ser la unica via, ni con mouse ni con el dedo.
  */
 export function Tablero<T extends FilaConId> ({
   definicion,
@@ -126,6 +130,17 @@ export function Tablero<T extends FilaConId> ({
   const [ocupado, setOcupado] = useState(false)
   const [arrastrada, setArrastrada] = useState<number | null>(null)
   const { contenedor, limites, desplazar } = useDesplazamientoTablero(arrastrada !== null || columnaArrastrada !== null, grupos.length)
+  // En una pantalla tactil la tarjeta no es `draggable`: Android arrancaria su arrastre nativo con el
+  // mismo toque largo que usa el propio, y los dos pelearian por el dedo.
+  const tactil = useConsultaDeMedios('(pointer: coarse)')
+  const arrastreTactil = useArrastreTactil({
+    contenedor,
+    habilitado: definicion.tablero?.rutaMover !== undefined && !ocupado,
+    alSoltar: (idTarjeta, indiceColumna, posicion) => {
+      const grupo = grupos[indiceColumna]
+      if (grupo !== undefined) void mover(idTarjeta, grupo.columna.id, posicion)
+    }
+  })
 
   /** Arma la URL del tablero en el BFF para una pagina dada. La pagina aplica a cada columna. */
   const urlTablero = useCallback(
@@ -326,6 +341,28 @@ export function Tablero<T extends FilaConId> ({
     void mover(idTarjeta, grupo.columna.id, destino)
   }
 
+  /**
+   * Si la ranura del arrastre tactil va justo antes de esta tarjeta.
+   *
+   * La posicion del destino se cuenta sin la tarjeta levantada (asi la espera `moverTarjeta`), y el
+   * hueco de la levantada sigue en pantalla: por eso se cuenta cuantas OTRAS tarjetas hay antes.
+   */
+  function ranuraAntes (indiceGrupo: number, indice: number): boolean {
+    const destino = arrastreTactil.destino
+    if (destino?.columna !== indiceGrupo) return false
+    const tarjetas = grupos[indiceGrupo]?.tarjetas ?? []
+    if (tarjetas[indice]?.id === arrastreTactil.levantada) return false
+    const otrasAntes = tarjetas.slice(0, indice).filter((t) => t.id !== arrastreTactil.levantada).length
+    return otrasAntes === destino.posicion
+  }
+
+  /** Si la ranura va al fondo de la columna: el destino es despues de la ultima de las otras. */
+  function ranuraAlFinal (indiceGrupo: number, tarjetas: T[]): boolean {
+    const destino = arrastreTactil.destino
+    if (destino?.columna !== indiceGrupo) return false
+    return destino.posicion >= tarjetas.filter((t) => t.id !== arrastreTactil.levantada).length
+  }
+
   return (
     <div className="flex min-w-0 max-w-full flex-col gap-3" aria-busy={ocupado}>
       {aviso !== null && (
@@ -366,11 +403,13 @@ export function Tablero<T extends FilaConId> ({
         {grupos.map((grupo, indiceGrupo) => (
           <section
             key={grupo.columna.id}
+            {...{ [ATRIBUTO_COLUMNA]: '' }}
             aria-label={grupo.columna.name}
             className={cn(
               'bg-superficie-hundida rounded-tarjeta border-linea flex w-72 max-w-full shrink-0 flex-col gap-2 border p-2',
               columnaArrastrada === grupo.columna.id && 'opacity-50',
-              destinoColumna === grupo.columna.id && 'outline-acento outline-2'
+              destinoColumna === grupo.columna.id && 'outline-acento outline-2',
+              arrastreTactil.destino?.columna === indiceGrupo && 'outline-acento/50 outline-2'
             )}
             onDragOver={(evento) => {
               // Sin `preventDefault` el navegador no considera la zona valida y nunca dispara `drop`.
@@ -454,9 +493,13 @@ export function Tablero<T extends FilaConId> ({
             )}
 
             {grupo.tarjetas.map((tarjeta, indice) => (
+              <Fragment key={tarjeta.id}>
+              {ranuraAntes(indiceGrupo, indice) && <div {...{ [ATRIBUTO_RANURA]: '' }} aria-hidden="true" className="tablero-ranura" />}
               <article
-                key={tarjeta.id}
-                draggable={puedeMover && !ocupado}
+                {...{ [ATRIBUTO_TARJETA]: tarjeta.id }}
+                data-levantada={arrastreTactil.levantada === tarjeta.id ? '' : undefined}
+                draggable={puedeMover && !ocupado && !tactil}
+                onPointerDown={(evento) => { arrastreTactil.alPresionar(evento, tarjeta.id) }}
                 onDragStart={(evento) => {
                   evento.dataTransfer.setData('text/plain', String(tarjeta.id))
                   evento.dataTransfer.effectAllowed = 'move'
@@ -469,7 +512,7 @@ export function Tablero<T extends FilaConId> ({
                   alSoltar(evento, grupo, indice, true)
                 }}
                 className={cn(
-                  'border-linea bg-superficie-elevada rounded-tarjeta flex flex-col gap-1.5 border p-2',
+                  'tablero-tarjeta border-linea bg-superficie-elevada rounded-tarjeta flex flex-col gap-1.5 border p-2',
                   'transition-opacity duration-150',
                   arrastrada === tarjeta.id && 'opacity-50'
                 )}
@@ -507,7 +550,9 @@ export function Tablero<T extends FilaConId> ({
                   {accionDeTarjeta?.(tarjeta, recargar)}
                 </div>
               </article>
+              </Fragment>
             ))}
+            {ranuraAlFinal(indiceGrupo, grupo.tarjetas) && <div {...{ [ATRIBUTO_RANURA]: '' }} aria-hidden="true" className="tablero-ranura" />}
 
             {columnaIncompleta(grupo) && (
               <Boton
