@@ -22,6 +22,8 @@ import {
   SelectorBuscable
 } from '@/componentes/formularios/Selector'
 import { SelectorPersonas } from '@/componentes/formularios/SelectorPersonas'
+import { FinDeRecurrencia, type ValorFin } from '@/componentes/recurrencia/FinDeRecurrencia'
+import { cuerpoDeFin, errorDeFin } from '@/dominio/recurrencia'
 import {
   CerrarDialogo,
   ContenidoDialogo,
@@ -119,6 +121,9 @@ type Modo = typeof MODOS[number]['valor']
 /** Ruta del alta en varios Espacios a la vez. Ver `POST /tasks/multi-espacio` en la API. */
 const RUTA_MULTI = 'tasks/multi-espacio'
 
+/** Una recurrencia recien encendida no termina: es lo que pide la mayoria y lo que hacia el alta antes. */
+const FIN_INICIAL: ValorFin = { modo: 'nunca', ciclos: '12', hasta: '' }
+
 /**
  * Cuántos Espacios acepta un alta múltiple.
  *
@@ -211,7 +216,7 @@ export function AltaRapidaProceso ({
   const [recurrente, setRecurrente] = useState(false)
   const [cada, setCada] = useState('1')
   const [unidad, setUnidad] = useState('month')
-  const [ciclos, setCiclos] = useState('0')
+  const [fin, setFin] = useState<ValorFin>(FIN_INICIAL)
   const [cierre, setCierre] = useState('')
 
   useAccionPresencia('creando_tarea', abierto)
@@ -499,7 +504,7 @@ export function AltaRapidaProceso ({
     setRecurrente(false)
     setCada('1')
     setUnidad('month')
-    setCiclos('0')
+    setFin(FIN_INICIAL)
     setCierre('')
     setCreadaId(null)
     setPersonalizados(valoresPorDefecto(definiciones))
@@ -850,8 +855,13 @@ export function AltaRapidaProceso ({
       setError('La tarifa debe ser un número mayor o igual a cero.')
       return
     }
-    if (recurrente && (!Number.isInteger(Number(cada)) || Number(cada) < 1 || !Number.isInteger(Number(ciclos)) || Number(ciclos) < 0)) {
-      setError('La frecuencia debe ser un entero positivo y los ciclos un entero mayor o igual a cero.')
+    if (recurrente && (!Number.isInteger(Number(cada)) || Number(cada) < 1)) {
+      setError('La frecuencia debe ser un entero positivo.')
+      return
+    }
+    const errorFin = recurrente ? errorDeFin(fin.modo, fin.ciclos, fin.hasta, inicio) : null
+    if (errorFin !== null) {
+      setError(errorFin)
       return
     }
     if (vaAEspacio && espacios.length > MAXIMO_ESPACIOS) {
@@ -875,7 +885,7 @@ export function AltaRapidaProceso ({
       visible_to_client: visibleCliente,
       ...(estado === NINGUNO ? {} : { status: Number(estado) }),
       ...(tarifa === '' ? {} : { hourly_rate: Number(tarifa) }),
-      ...(recurrente ? { recurring: true, repeat_every: Number(cada), recurring_type: unidad, cycles: Number(ciclos) } : {}),
+      ...(recurrente ? { recurring: true, repeat_every: Number(cada), recurring_type: unidad, ...cuerpoDeFin(fin.modo, fin.ciclos, fin.hasta) } : {}),
       ...(estado === '5' && cierre !== '' ? { completed_at: new Date(cierre).toISOString() } : {}),
       ...(asignados.length === 0 ? {} : { assignees: asignados }),
       ...(seguidores.length === 0 ? {} : { followers: seguidores }),
@@ -1272,9 +1282,7 @@ export function AltaRapidaProceso ({
                       </ContenidoSelector>
                     </Selector>}
                   </Campo>
-                  <Campo etiqueta="Ciclos" ayuda="0 = sin límite.">
-                    {(props) => <Entrada {...props} type="number" min="0" max="365" step="1" value={ciclos} onChange={(evento) => setCiclos(evento.target.value)} />}
-                  </Campo>
+                  <FinDeRecurrencia valor={fin} onCambiar={setFin} inicio={inicio} />
                 </div>}
               </>
           </fieldset>

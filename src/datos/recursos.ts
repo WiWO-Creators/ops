@@ -66,6 +66,8 @@ export interface Proceso {
   repeat_every?: number
   recurring_type?: string | null
   cycles?: number
+  /** Ultimo dia en que nace una copia (`YYYY-MM-DD`), o null si la recurrencia no termina por fecha. */
+  recurring_until?: string | null
   kanban_order: number
   assignees: StaffReferencia[]
   followers: StaffReferencia[]

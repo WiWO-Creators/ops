@@ -7,6 +7,7 @@ import { Campo } from '@/componentes/formularios/Campo'
 import { CamposPersonalizados } from '@/componentes/formularios/CamposPersonalizados'
 import { AreaTexto, Entrada } from '@/componentes/formularios/Entrada'
 import { SelectorPersonas } from '@/componentes/formularios/SelectorPersonas'
+import { FinDeRecurrencia } from '@/componentes/recurrencia/FinDeRecurrencia'
 import {
   ContenidoSelector,
   DisparadorSelector,
@@ -644,9 +645,11 @@ export function EdicionTarea (
                 </ContenidoSelector>
               </Selector>}
             </Campo>
-            <Campo etiqueta="Ciclos" ayuda="0 = sin límite.">
-              {(props) => <Entrada {...props} required type="number" min="0" max="365" step="1" value={campos.ciclos} onChange={(evento) => setCampos({ ...campos, ciclos: evento.target.value })} />}
-            </Campo>
+            <FinDeRecurrencia
+              inicio={campos.inicio}
+              valor={{ modo: campos.finRecurrencia, ciclos: campos.ciclos, hasta: campos.hasta }}
+              onCambiar={(fin) => setCampos({ ...campos, finRecurrencia: fin.modo, ciclos: fin.ciclos, hasta: fin.hasta })}
+            />
           </div>}
 
           <Campo etiqueta="Asignados">
