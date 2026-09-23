@@ -37,6 +37,7 @@ import {
   ticketDelPanel,
   ticketDelPortal,
   tituloDelModal,
+  nombreDelTicket,
   vistaDelTicket,
   vistaTrasResponder
 } from '../src/dominio/ticket-vista.ts'
@@ -157,7 +158,9 @@ test('regla local: cerrado manda sobre esperando al equipo', () => {
 
 test('los avisos dicen lo que pidio el producto', () => {
   assert.equal(avisoSinRespuesta('esperando_equipo'), 'El equipo aún no responde tu solicitud; podrás responder cuando lo haga.')
-  assert.equal(avisoSinRespuesta('cerrado'), 'Este ticket está cerrado.')
+  assert.equal(avisoSinRespuesta('cerrado'), 'Este ticket ya se cerró.')
+  assert.equal(avisoSinRespuesta('cerrado', nombreDelTicket(TICKET_DEL_PORTAL)), 'Esta solicitud ya se cerró.')
+  assert.match(avisoSinRespuesta(null, nombreDelTicket(TICKET_DEL_PORTAL)), /esta solicitud\.$/)
   assert.ok(avisoSinRespuesta(null).length > 0)
 })
 
@@ -278,6 +281,8 @@ test('el titulo accesible nombra numero y asunto', () => {
   assert.equal(tituloDelModal(12, 'No carga el logo'), 'Ticket #12 · No carga el logo')
   assert.equal(tituloDelModal(12, null), 'Ticket #12')
   assert.equal(tituloDelModal(12, '   '), 'Ticket #12')
+  assert.equal(tituloDelModal(12, 'No carga el logo', nombreDelTicket(TICKET_DEL_PORTAL)), 'Solicitud #12 · No carga el logo')
+  assert.equal(nombreDelTicket(TICKET_DEL_PANEL).titulo, 'Ticket')
 })
 
 test('los rechazos se explican por codigo', () => {

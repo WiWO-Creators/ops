@@ -165,7 +165,7 @@ export function NuevaSolicitud ({ prioridades, espacios, entradaId = null }: Pro
 
         <ContenidoDialogo
           titulo="Nueva solicitud"
-          descripcion={`Cuéntanos qué necesitas y abrimos un ${GLOSARIO.ticket.singular.toLowerCase()} con el equipo.`}
+          descripcion="Cuéntanos qué necesitas y se lo hacemos llegar al equipo."
         >
           <form
             className="flex flex-col gap-4"

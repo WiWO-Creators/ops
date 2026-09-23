@@ -15,6 +15,7 @@ import type { Capacidad } from '@/datos/tipos'
 import { GLOSARIO } from '@/dominio/glosario'
 import {
   avisarCambioDeTicket,
+  nombreDelTicket,
   rutaDeTicket,
   vistaTrasResponder,
   type FuenteDeTicket,
@@ -186,12 +187,12 @@ export function DetalleTicket ({
     avisarCambioDeTicket(ticketId)
   }, [fuente, ticketId, refrescar])
 
-  if (carga.fase === 'cargando') return <Cargando alto="min-h-60" mensaje="Cargando el ticket…" />
+  if (carga.fase === 'cargando') return <Cargando alto="min-h-60" mensaje={`Cargando ${nombreDelTicket(fuente).el}…`} />
 
   if (carga.fase === 'noEncontrado') {
     return (
       <Vacio
-        titulo="No encontramos este ticket"
+        titulo={`No encontramos ${nombreDelTicket(fuente).este}`}
         descripcion="Puede que ya no esté disponible o que el enlace apunte a otro."
       />
     )

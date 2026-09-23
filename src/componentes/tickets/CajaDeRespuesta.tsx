@@ -21,9 +21,11 @@ import {
   guardarBorrador,
   insertarPredefinida,
   leerBorrador,
+  nombreDelTicket,
   rutaDeTicket,
   type AlmacenDeBorrador,
   type FuenteDeTicket,
+  type NombreDeTicket,
   type TicketVista
 } from '@/dominio/ticket-vista'
 import { cargarPredefinidas } from './carga-de-ticket'
@@ -157,7 +159,7 @@ export function CajaDeRespuesta ({
   }
 
   if (!ticket.respuesta.permitida) {
-    return <SinRespuesta ticket={ticket} escrito={mensaje} fallo={fallo} />
+    return <SinRespuesta ticket={ticket} nombre={nombreDelTicket(fuente)} escrito={mensaje} fallo={fallo} />
   }
 
   const vacio = mensaje.trim() === ''
@@ -226,7 +228,7 @@ export function CajaDeRespuesta ({
  * Si habia algo escrito —la regla cambio mientras se escribia: el equipo cerro el ticket—, se deja a
  * la vista para copiarlo. El aviso de error decia «tu mensaje sigue aquí» y tiene que ser cierto.
  */
-function SinRespuesta ({ ticket, escrito, fallo }: { ticket: TicketVista, escrito: string, fallo: string | null }): ReactElement {
+function SinRespuesta ({ ticket, nombre, escrito, fallo }: { ticket: TicketVista, nombre: NombreDeTicket, escrito: string, fallo: string | null }): ReactElement {
   const cerrado = ticket.respuesta.motivo === 'cerrado'
   const Icono = cerrado ? Lock : MessageCircleQuestion
 
@@ -237,7 +239,7 @@ function SinRespuesta ({ ticket, escrito, fallo }: { ticket: TicketVista, escrit
         className="border-linea-suave bg-superficie-hundida rounded-tarjeta text-texto-tenue flex items-start gap-3 border p-4 text-sm"
       >
         <Icono size={16} strokeWidth={1.75} aria-hidden="true" className="mt-0.5 shrink-0" />
-        <p className="text-pretty">{avisoSinRespuesta(ticket.respuesta.motivo)}</p>
+        <p className="text-pretty">{avisoSinRespuesta(ticket.respuesta.motivo, nombre)}</p>
       </div>
       {fallo !== null && <p role="alert" className="text-texto-peligro text-sm">{fallo}</p>}
       {escrito.trim() !== '' && (

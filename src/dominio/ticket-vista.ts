@@ -101,6 +101,44 @@ export interface FuenteDeTicket {
    * no dibuja nada: al cliente un «#7» no le dice nada y parece un error nuestro.
    */
   catalogoSinNombre: 'ocultar' | 'numero'
+  /**
+   * Como se le dice al ticket en pantalla: el equipo dice «ticket»; el cliente, «solicitud». Es una
+   * clave de {@link NOMBRES_DE_TICKET} y no el objeto, para que la fuente siga siendo solo texto.
+   */
+  nombre: ClaveDeNombreDeTicket
+}
+
+/** Las palabras con las que se nombra un ticket, ya concordadas en genero. */
+export interface NombreDeTicket {
+  /** Con mayuscula, para titulos: «Ticket», «Solicitud». */
+  titulo: string
+  /** Con articulo: «el ticket», «la solicitud». */
+  el: string
+  /** Con demostrativo: «este ticket», «esta solicitud». */
+  este: string
+}
+
+/** Las formas de nombrar un ticket que usa el producto. */
+export const NOMBRES_DE_TICKET = {
+  ticket: { titulo: 'Ticket', el: 'el ticket', este: 'este ticket' },
+  solicitud: { titulo: 'Solicitud', el: 'la solicitud', este: 'esta solicitud' }
+} as const satisfies Record<string, NombreDeTicket>
+
+export type ClaveDeNombreDeTicket = keyof typeof NOMBRES_DE_TICKET
+
+/**
+ * Las palabras con las que la fuente nombra al ticket.
+ *
+ * @param fuente la fuente del modal
+ * @returns titulo, forma con articulo y forma con demostrativo
+ */
+export function nombreDelTicket (fuente: Pick<FuenteDeTicket, 'nombre'>): NombreDeTicket {
+  return NOMBRES_DE_TICKET[fuente.nombre]
+}
+
+/** Primera letra en mayuscula, para abrir una oracion con «este ticket» o «la solicitud». */
+function conMayuscula (texto: string): string {
+  return texto.charAt(0).toUpperCase() + texto.slice(1)
 }
 
 /** El ticket visto por el equipo. */
@@ -118,7 +156,8 @@ export const TICKET_DEL_PANEL: FuenteDeTicket = {
   cerrar: null,
   reabrir: null,
   leido: null,
-  catalogoSinNombre: 'numero'
+  catalogoSinNombre: 'numero',
+  nombre: 'ticket'
 }
 
 /**
@@ -142,7 +181,8 @@ export const TICKET_DEL_PORTAL: FuenteDeTicket = {
   cerrar: 'portal/tickets/:id/cerrar',
   reabrir: 'portal/tickets/:id/reabrir',
   leido: 'portal/tickets/:id/leido',
-  catalogoSinNombre: 'ocultar'
+  catalogoSinNombre: 'ocultar',
+  nombre: 'solicitud'
 }
 
 /** Un mensaje del hilo, incluido el que abrio el ticket. */
@@ -448,15 +488,16 @@ export function reglaDeRespuestaLocal (estado: number, equipoRespondio: boolean)
  * El aviso que reemplaza a la caja de respuesta.
  *
  * @param motivo lo que dijo la API; `null` cuando no dio motivo
+ * @param nombre como se nombra el ticket ante quien mira; por defecto, «ticket»
  * @returns el texto para la persona
  */
-export function avisoSinRespuesta (motivo: MotivoSinRespuesta | null): string {
-  if (motivo === 'cerrado') return 'Este ticket está cerrado.'
+export function avisoSinRespuesta (motivo: MotivoSinRespuesta | null, nombre: NombreDeTicket = NOMBRES_DE_TICKET.ticket): string {
+  if (motivo === 'cerrado') return `${conMayuscula(nombre.este)} ya se cerró.`
   if (motivo === 'esperando_equipo') {
     return 'El equipo aún no responde tu solicitud; podrás responder cuando lo haga.'
   }
 
-  return 'Por ahora no se puede responder este ticket.'
+  return `Por ahora no se puede responder ${nombre.este}.`
 }
 
 /**
@@ -717,14 +758,15 @@ export function nombreEnCatalogo (
 }
 
 /**
- * Nombre accesible del modal: «Ticket #12 · No carga el logo».
+ * Nombre accesible del modal: «Ticket #12 · No carga el logo», o «Solicitud #12 …» en el portal.
  *
  * @param id el ticket
  * @param asunto el asunto, o `null` mientras carga
+ * @param nombre como se nombra el ticket ante quien mira; por defecto, «ticket»
  * @returns el titulo del dialogo
  */
-export function tituloDelModal (id: number, asunto: string | null): string {
-  const base = `Ticket #${id}`
+export function tituloDelModal (id: number, asunto: string | null, nombre: NombreDeTicket = NOMBRES_DE_TICKET.ticket): string {
+  const base = `${nombre.titulo} #${id}`
   const recortado = asunto?.trim() ?? ''
 
   return recortado === '' ? base : `${base} · ${recortado}`
@@ -798,7 +840,7 @@ export function falloDeTicket (rechazo: RechazoDeTicket, accion: AccionDeTicket)
     case 'ticket_cerrado':
       return sinEspera(accion === 'cerrar'
         ? 'Esta solicitud ya estaba cerrada.'
-        : 'El ticket se cerró mientras escribías. Tu mensaje sigue aquí.')
+        : 'La solicitud se cerró mientras escribías. Tu mensaje sigue aquí.')
     case 'ticket_sin_respuesta_del_equipo':
       return sinEspera('El equipo aún no responde tu solicitud; podrás responder cuando lo haga. Tu mensaje sigue aquí.')
     case 'ticket_abierto':

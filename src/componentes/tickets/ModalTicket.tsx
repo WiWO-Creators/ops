@@ -8,7 +8,7 @@ import { CerrarDialogo, ContenidoDialogo, Dialogo } from '@/componentes/superpos
 import { idDeParametro, urlConParametro } from '@/componentes/datos/tabla'
 import type { Referencia } from '@/datos/recursos'
 import type { Capacidad } from '@/datos/tipos'
-import { PARAMETRO_TICKET, tituloDelModal, type FuenteDeTicket } from '@/dominio/ticket-vista'
+import { PARAMETRO_TICKET, nombreDelTicket, tituloDelModal, type FuenteDeTicket } from '@/dominio/ticket-vista'
 import { DetalleTicket } from './DetalleTicket'
 
 /** Como se llego al ticket abierto, que decide como se sale. */
@@ -104,7 +104,7 @@ export function ModalTicket ({
     <Dialogo open={abierto !== null} onOpenChange={(abrir) => { if (!abrir) cerrar() }}>
       <ContenidoDialogo
         ancho="grande"
-        titulo={abierto === null ? 'Ticket' : tituloDelModal(abierto, apertura.asunto)}
+        titulo={abierto === null ? nombreDelTicket(fuente).titulo : tituloDelModal(abierto, apertura.asunto, nombreDelTicket(fuente))}
         tituloOculto
         aria-describedby={undefined}
       >
