@@ -201,8 +201,8 @@ function instante (fecha) {
  * Mismo alcance que la bandeja (los del cliente, sin hijos fusionados). `abiertos` es "no cerrado";
  * `esperando_tu_respuesta`, abiertos cuyo ultimo mensaje es del equipo. `ultimos` trae hasta cinco,
  * abiertos primero y despues por `COALESCE(last_reply, date)` descendente, con el estado resuelto y
- * el Proyecto enmascarado a `null` si no es uno que el contacto pueda abrir. No viaja `no_leido`: la
- * API no lo manda en el resumen, y el mock no publica de mas.
+ * el Proyecto enmascarado a `null` si no es uno que el contacto pueda abrir. `no_leido` sigue la misma
+ * regla que la bandeja, como `RecursoResumen::ticketsDelContacto()`.
  *
  * @param {{ client_id: number }} contacto
  * @param {Array<{ id: number, name: string }>} espacios los Proyectos que el contacto puede abrir
@@ -228,6 +228,7 @@ export function ticketsDelResumen (contacto, espacios) {
         subject: t.subject,
         status: { id: t.status, name: estado?.name ?? null, color: estado?.color ?? null },
         last_reply: instante(t.last_reply),
+        no_leido: noLeidoDelPortal(t),
         project: espacio ? { id: espacio.id, name: espacio.name } : null
       }
     })

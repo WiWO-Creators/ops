@@ -181,7 +181,7 @@ test('tickets cuenta lo mismo que la bandeja y trae los ultimos con la forma de 
   assert.ok(datos.tickets.ultimos.length <= 5)
 
   const [primero] = datos.tickets.ultimos
-  assert.deepEqual(Object.keys(primero).sort(), ['id', 'last_reply', 'project', 'status', 'subject'])
+  assert.deepEqual(Object.keys(primero).sort(), ['id', 'last_reply', 'no_leido', 'project', 'status', 'subject'])
   assert.deepEqual(Object.keys(primero.status).sort(), ['color', 'id', 'name'])
   assert.ok(datos.tickets.ultimos.every((t) => t.last_reply === null || /Z$/.test(t.last_reply)))
 
