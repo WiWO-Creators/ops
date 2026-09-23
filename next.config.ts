@@ -45,6 +45,27 @@ const nextConfig: NextConfig = {
           { key: 'Access-Control-Allow-Origin', value: '*' },
           { key: 'Cache-Control', value: 'public, max-age=31536000, immutable' }
         ]
+      },
+      /*
+       * El service worker y lo que importa nunca se sirven desde una caché HTTP: el navegador decide
+       * si hay versión nueva comparando el archivo, y una copia cacheada por un día congelaría a
+       * todos en el trabajador viejo ese día entero. `Service-Worker-Allowed: /` deja explícito el
+       * alcance sobre todo el sitio, que es donde vive `sw.js`.
+       */
+      {
+        source: '/sw.js',
+        headers: [
+          { key: 'Content-Type', value: 'application/javascript; charset=utf-8' },
+          { key: 'Cache-Control', value: 'no-cache, no-store, must-revalidate' },
+          { key: 'Service-Worker-Allowed', value: '/' }
+        ]
+      },
+      {
+        source: '/sw-push.js',
+        headers: [
+          { key: 'Content-Type', value: 'application/javascript; charset=utf-8' },
+          { key: 'Cache-Control', value: 'no-cache, no-store, must-revalidate' }
+        ]
       }
     ]
   }

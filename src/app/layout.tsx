@@ -1,5 +1,7 @@
 import type { Metadata, Viewport } from 'next'
 import { AvisosDeError } from '@/componentes/estado/AvisosDeError'
+import { ColorDeBarraDelSistema } from '@/componentes/estructura/AppInstalable'
+import { COLOR_BARRA } from '@/lib/pwa'
 import { SCRIPT_BARRA_INICIAL } from '@/lib/barra-lateral'
 import { SCRIPT_BIENVENIDA_INICIAL } from '@/lib/bienvenida'
 import { SCRIPT_TEMA_INICIAL } from '@/lib/tema'
@@ -7,14 +9,27 @@ import './globals.css'
 
 export const metadata: Metadata = {
   title: 'WiWO Ops',
-  description: 'Sistema operativo de WiWO'
+  description: 'Sistema operativo de WiWO',
+  // El manifiesto lo publica `app/manifest.ts`. Esto es lo que iOS lee aparte, porque Safari no usa
+  // el manifiesto para decidir como se abre la aplicacion agregada a la pantalla de inicio.
+  applicationName: 'WiWO Ops',
+  appleWebApp: { capable: true, title: 'Ops', statusBarStyle: 'default' }
 }
 
 export const viewport: Viewport = {
   // El layout ya se adapta a los cinco cortes; bloquear el zoom le saca la salida de emergencia a
   // quien necesita agrandar.
   width: 'device-width',
-  initialScale: 1
+  initialScale: 1,
+  // La pagina ocupa la pantalla entera, muesca y barra de gestos incluidas; cada borde que lo
+  // necesita devuelve ese espacio con `pt-seguro` / `pb-seguro` (`estilos/movil.css`).
+  viewportFit: 'cover',
+  // El color de la barra del sistema, uno por esquema. Si la persona eligio un tema distinto del
+  // del sistema, `AppInstalable` los reescribe al vuelo.
+  themeColor: [
+    { media: '(prefers-color-scheme: light)', color: COLOR_BARRA.claro },
+    { media: '(prefers-color-scheme: dark)', color: COLOR_BARRA.oscuro }
+  ]
 }
 
 export default function RaizLayout ({ children }: { children: React.ReactNode }) {
@@ -47,6 +62,8 @@ export default function RaizLayout ({ children }: { children: React.ReactNode })
           componente que existe justamente para cuando algo ya se rompio.
         */}
         <AvisosDeError />
+        {/* Barra del sistema del color del tema elegido, en los cuatro armazones. */}
+        <ColorDeBarraDelSistema />
       </body>
     </html>
   )
