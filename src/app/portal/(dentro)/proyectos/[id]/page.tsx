@@ -274,22 +274,25 @@ async function cargarTablero (proyecto: EspacioPortal): Promise<Tablero | null> 
 const ESTADO_ESPERA_DE_RESPUESTA = 2
 
 /**
- * Las tareas de este proyecto que esperan el visto bueno del contacto: aprobacion pendiente y en
- * «Espera de respuesta». Una aprobacion pendiente sobre una Tarea en curso o completada no se pide.
+ * Las tareas de este proyecto que esperan el visto bueno del contacto: TODAS las que estan en
+ * «Espera de respuesta», tengan o no una aprobacion pedida. Es decision de negocio: el estado es la
+ * señal, y la API acepta el visto bueno sobre una Tarea en ese estado aunque nadie lo haya pedido
+ * antes. Una aprobacion pendiente sobre una Tarea en curso o completada no se muestra.
  *
  * Se pide solo si el proyecto comparte la pestaña de tareas: sin ella la API responde 403, y un error
  * por un bloque que probablemente este vacio no puede tumbar la pantalla entera. Cualquier fallo
  * —incluido el 404 del guard de tabla, cuando `wiwo_core` no esta instalado— devuelve lista vacia y
  * el bloque no se dibuja.
  *
- * El filtro `aprobacion` es del backend: filtrar en el cliente traeria las cien tareas del proyecto
- * para mostrar dos.
+ * El filtro de estado es del backend: filtrar en el cliente traeria las cien tareas del proyecto
+ * para mostrar dos. Una sola pagina de 50: un proyecto con mas de cincuenta Tareas esperando al
+ * cliente a la vez no es un caso real, y si llegara, las que sobran siguen en la lista de abajo.
  */
 async function cargarPendientes (proyecto: EspacioPortal): Promise<TareaPortal[]> {
   if (!(proyecto.tabs ?? []).includes('tasks')) return []
 
   const sobre = await cargarDetalle<TareaPortal[]>(
-    `/portal/projects/${proyecto.id}/tasks?filter[aprobacion]=pendiente&filter[status]=${ESTADO_ESPERA_DE_RESPUESTA}&per_page=50`
+    `/portal/projects/${proyecto.id}/tasks?filter[status]=${ESTADO_ESPERA_DE_RESPUESTA}&per_page=50`
   )
 
   return sobre instanceof ErrorApi ? [] : sobre.data

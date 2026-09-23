@@ -219,11 +219,12 @@ test('el catalogo de estados del portal alcanza para resolver una Tarea pendient
   const { resolverEstado } = await import('../src/dominio/estados-tarea.ts')
   const { ESTADOS_PROCESO } = await import('../mock/datos.js')
 
-  const pendientes = PROCESOS.filter((p) => p.aprobacion?.estado === 'pendiente')
+  // El bloque muestra todo lo que esta en «Esperando respuesta», con o sin aprobacion pedida.
+  const pendientes = PROCESOS.filter((p) => p.status === 2)
   assert.ok(pendientes.length > 0, 'el fixture tiene que traer alguna esperando visto bueno')
+  assert.ok(pendientes.some((p) => p.aprobacion === undefined), 'el fixture tiene que traer alguna sin aprobacion pedida')
 
   for (const tarea of pendientes) {
-    assert.equal(tarea.status, 2, 'solo espera visto bueno una Tarea en «Esperando respuesta»')
     const estado = resolverEstado(tarea.status, ESTADOS_PROCESO)
     assert.equal(estado.desconocido, false, `el estado ${tarea.status} tiene que estar en el catalogo`)
     assert.ok(estado.etiqueta.length > 0, 'una Tarea que espera visto bueno no puede quedar sin estado')

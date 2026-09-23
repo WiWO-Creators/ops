@@ -32,7 +32,10 @@ import type { CatalogoDeEstados } from '@/dominio/estados-tarea'
 
 interface PropsAprobaciones {
   proyectoId: number
-  /** Solo las que estan en `pendiente`; el filtrado lo hace la API. */
+  /**
+   * Todas las que estan en «Espera de respuesta», con o sin aprobacion pedida; el filtrado lo hace la
+   * API. Por eso `approval` puede faltar y la fila no depende de el.
+   */
   tareas: TareaPortal[]
   /** `task_statuses` del portal. Sin el, la insignia no se pinta. */
   estados: CatalogoDeEstados | undefined
@@ -118,6 +121,7 @@ function FilaAprobacion ({ tarea, estados, onResuelta }: {
     router.refresh()
   }
 
+  // Sin aprobacion pedida no hay fecha que mostrar: la Tarea esta aca por su estado, no por un pedido.
   const pedida = tarea.approval?.solicitada_en ?? null
 
   return (

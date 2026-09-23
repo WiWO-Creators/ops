@@ -284,8 +284,9 @@ export interface TiempoPortal {
  *     una lista que la pantalla le niega al cliente le cuenta en forma de número justo lo que se
  *     decidió no mostrarle.
  *   - `esperando_tu_respuesta` es `number | null` y el `null` NUNCA es 0. Vale `null` cuando no se
- *     puede saber —ningún {espacio} con la pestaña de {procesos}, o la tabla de aprobaciones sin
- *     migrar—, y un 0 ahí se leería «no te falta nada», que es lo contrario de «no sé».
+ *     puede saber —ningún {espacio} con la pestaña de {procesos}—, y un 0 ahí se leería «no te
+ *     falta nada», que es lo contrario de «no sé». Cuenta los {procesos} en «Espera de respuesta»
+ *     (estado 2), tengan o no una aprobación pedida.
  *   - `bloqueados` es la tercera, y es **la misma ausencia que `procesos`**: la clave no llega si
  *     ningún {espacio} comparte la pestaña de {procesos}, ni en una instalación sin la tabla de
  *     bloqueos (migración `0620`). Ahí `[]` se leería «no tenés nada trabado» y la verdad es «no
@@ -298,7 +299,7 @@ export interface ResumenPortal {
   espacios: EspaciosDelResumen
   /** Ver arriba: la clave **falta** si ningún {espacio} comparte la pestaña de {procesos}. */
   procesos?: ProcesosDelResumen
-  /** {Procesos} que esperan una decisión del cliente. `null` es «no se puede saber», jamás 0. */
+  /** {Procesos} en «Espera de respuesta» (estado 2). `null` es «no se puede saber», jamás 0. */
   esperando_tu_respuesta: number | null
   hitos: HitosDelResumen
   /** Los {hitos} que vienen, ya ordenados por fecha. Viaja siempre; `[]` es «no hay ninguno». */
@@ -351,7 +352,7 @@ export interface FilaDeProximosDias {
   due_date: string | null
   status: EstadoDeProceso
   project: ReferenciaDeEspacio
-  /** Hay una aprobación pendiente de este contacto. Es lo único de la lista que él puede resolver. */
+  /** Está en «Espera de respuesta» (estado 2). Es lo único de la lista que él puede resolver. */
   espera_tu_respuesta: boolean
   /** El equipo ya lo está haciendo. Informa, no pide nada. */
   en_progreso: boolean

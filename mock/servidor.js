@@ -7039,6 +7039,9 @@ function overviewParaContacto (espacio, compartido, pestanias) {
   return resumen
 }
 
+/** «Espera de respuesta» de Perfex: el unico estado en que un Proceso espera al cliente. */
+const ESTADO_ESPERA_DE_RESPUESTA = 2
+
 /**
  * `GET /portal/resumen`: los cuatro numeros del inicio del portal, sumados del lado del servidor.
  *
@@ -7049,7 +7052,8 @@ function overviewParaContacto (espacio, compartido, pestanias) {
  *     lista que la pantalla le niega al cliente.
  *  2. **`esperando_tu_respuesta` vale `null`, nunca 0**, en ese mismo caso: sin la pestaña Tareas el
  *     contacto no podria resolver ninguna aprobacion. Un 0 ahi se lee "no te falta nada", que es lo
- *     contrario de "no se".
+ *     contrario de "no se". Cuenta los Procesos en «Espera de respuesta» (estado 2), tengan o no
+ *     una aprobacion pedida: igual que la API, el estado es la señal y no el registro de aprobacion.
  *
  * Los dos contactos del fixture son de los clientes 1 y 2, y los dos tienen al menos un Espacio con
  * la pestaña encendida —el 8, que la tiene apagada, es del cliente 1 pero no es su unico Espacio—,
@@ -7105,7 +7109,7 @@ function resumenDelContacto (contacto) {
 
   resumen.esperando_tu_respuesta = conTareas.length === 0
     ? null
-    : procesos.filter((p) => p.aprobacion?.estado === 'pendiente').length
+    : procesos.filter((p) => p.status === ESTADO_ESPERA_DE_RESPUESTA).length
 
   // La misma fecha de corte que `overviewParaContacto()`: el fixture no usa el reloj, asi que las
   // pruebas no cambian de resultado el dia que pase la fecha de entrega de un Espacio.
@@ -7581,8 +7585,8 @@ const CONSULTA_HITOS_PORTAL = {
 const CONSULTA_TAREAS_PORTAL = {
   filtros: {
     status: coincideEnLista((p) => p.status),
-    // `aprobacion` lo pide la pagina del proyecto para el bloque de visto bueno. Sin el, el mock
-    // respondia 422 y el bloque no se dibujaba nunca: quedaba sin ejercitar.
+    // `aprobacion` sigue en la whitelist porque la API lo acepta, pero el bloque de visto bueno ya no
+    // lo pide: muestra TODO lo que esta en «Espera de respuesta», con o sin aprobacion pedida.
     aprobacion: (p, v) => (p.aprobacion?.estado ?? null) === v
   },
   orden: ['name', 'due_date', 'status', 'completed', 'date_added'],

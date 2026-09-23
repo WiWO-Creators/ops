@@ -689,9 +689,10 @@ export const PROCESOS = Array.from({ length: 84 }, (_, i) => {
     followers: i % 5 === 0 ? [{ id: ciclo(STAFF, i + 1).id, full_name: ciclo(STAFF, i + 1).full_name }] : [],
     tags: i % 4 === 0 ? [ciclo(ETIQUETAS, i)] : [],
     // Las que estan en «Esperando respuesta» esperan el visto bueno del cliente: el bloque
-    // "Esperan tu visto bueno" del portal solo muestra ese estado, y sin ninguna pendiente no se
-    // dibuja nunca y queda sin ejercitar.
-    aprobacion: estado.id === 2
+    // "Esperan tu visto bueno" del portal muestra ese estado entero. La mitad lleva aprobacion pedida
+    // y la otra mitad no, porque la API real manda las dos y la fila sin `approval` tiene que
+    // dibujarse igual (sin «Pedida el»).
+    aprobacion: estado.id === 2 && i % 2 === 0
       ? {
           requerida: true,
           estado: 'pendiente',
