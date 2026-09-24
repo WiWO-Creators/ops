@@ -12,6 +12,8 @@ interface PropsDialogoEliminar {
   espacio: Espacio | null
   onCerrar: () => void
   onEliminado: () => void
+  /** Como se nombra lo que se borra en el titulo; por defecto, Proyecto. Una Licitacion es un Proyecto. */
+  tipo?: string
 }
 
 /**
@@ -21,7 +23,7 @@ interface PropsDialogoEliminar {
  * la fila sobre la que se hizo clic es la que se va a borrar, que es justo el error que la
  * confirmacion existe para evitar. El borrado arrastra tareas, hitos y horas, asi que se dice.
  */
-export function DialogoEliminarProyecto ({ espacio, onCerrar, onEliminado }: PropsDialogoEliminar) {
+export function DialogoEliminarProyecto ({ espacio, onCerrar, onEliminado, tipo = GLOSARIO.espacio.singular }: PropsDialogoEliminar) {
   const [enviando, setEnviando] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -47,7 +49,7 @@ export function DialogoEliminarProyecto ({ espacio, onCerrar, onEliminado }: Pro
     <Dialogo open onOpenChange={(abierto) => { if (!abierto) onCerrar() }}>
       <ContenidoDialogo
         ancho="chico"
-        titulo={`Eliminar ${GLOSARIO.espacio.singular.toLowerCase()}`}
+        titulo={`Eliminar ${tipo.toLowerCase()}`}
         descripcion={`Se va a eliminar «${espacio.name}» junto con sus ${GLOSARIO.proceso.plural.toLowerCase()}, ${GLOSARIO.hito.plural.toLowerCase()} y horas registradas. No se puede deshacer.`}
       >
         {error !== null && <p role="alert" className="text-texto-peligro mb-3 text-sm">{error}</p>}
