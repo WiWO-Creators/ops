@@ -6437,6 +6437,21 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
     return { estado: 200, cuerpo: conDatos({ ...licitacion, espacio: presentarEspacio(espacio, []) }) }
   }
 
+  /*
+   * `DELETE /projects/{id}` sobre el Espacio de una licitacion: el boton Eliminar de su ficha. La API
+   * lo manda a la papelera y la licitacion deja de listarse; aca se saca de las dos listas. Los
+   * Espacios comunes no se sirven: siguen cayendo al 404 del final.
+   */
+  if (recurso === 'projects' && metodo === 'DELETE' && resto.length === 1) {
+    exigirPermiso(actual, 'projects', 'delete')
+    const licitacion = buscarO404(LICITACIONES, Number(resto[0]), 'licitacion')
+    LICITACIONES.splice(LICITACIONES.indexOf(licitacion), 1)
+    const espacio = ESPACIOS_DE_LICITACION.findIndex((fila) => fila.id === licitacion.id)
+    if (espacio !== -1) ESPACIOS_DE_LICITACION.splice(espacio, 1)
+
+    return { estado: 200, cuerpo: conDatos({ estado: 'papelera', id: licitacion.id, entidad: 'projects' }) }
+  }
+
   if (recurso === 'projects' && metodo === 'PATCH' && resto[1] === 'files' && resto.length === 3) {
     const espacio = buscarO404(ESPACIOS_EXISTENTES, Number(resto[0]), 'espacio')
     const suyos = PROCESOS.filter((p) => p.project?.id === espacio.id).map((p) => p.id)

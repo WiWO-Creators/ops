@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { useState, type ReactElement } from 'react'
 import { useRouter } from 'next/navigation'
 import { Boton } from '@/componentes/formularios/Boton'
+import { DialogoEliminarProyecto } from '@/componentes/proyecto/DialogoEliminarProyecto'
 import { DialogoResultado } from '@/componentes/proyecto/DialogoResultado'
 import type { LicitacionDetalle } from '@/datos/recursos'
 import type { Capacidad } from '@/datos/tipos'
@@ -20,7 +21,11 @@ import { GLOSARIO } from '@/dominio/glosario'
  * licitaciones— y el nombre, las fechas y la descripcion en la ficha del Espacio, con la cabecera que
  * ya esta arriba. Por eso lo que queda es un enlace al prospecto.
  *
- * Tras cada accion se hace `router.refresh()` y **no** una redireccion: la ficha se resuelve en el
+ * **Eliminar** existe en cualquier estado —abierta, ganada o perdida— porque sirve para lo que no
+ * debio crearse, no para cerrar la licitacion. Es `DELETE /projects/{id}`: el backend no tiene otro
+ * borrado, y arrastra la fila de `tblapi_licitaciones` por la FK. Pide la capacidad `delete`.
+ *
+ * Tras ganar o perder se hace `router.refresh()` y **no** una redireccion: la ficha se resuelve en el
  * servidor, refrescar baja el estado nuevo, y quien acaba de ganar quiere ver el resultado, no
  * aparecer en otra pantalla.
  */
@@ -33,9 +38,11 @@ interface PropsAcciones {
 export function AccionesLicitacion ({ licitacion, capacidades }: PropsAcciones): ReactElement {
   const router = useRouter()
   const [confirmando, setConfirmando] = useState<'ganar' | 'perder' | null>(null)
+  const [eliminando, setEliminando] = useState(false)
 
   const abierta = licitacion.estado === 'abierta'
   const puedeEditar = capacidades.includes('edit')
+  const puedeEliminar = capacidades.includes('delete')
 
   return (
     <div className="flex flex-wrap items-center gap-2">
@@ -59,6 +66,12 @@ export function AccionesLicitacion ({ licitacion, capacidades }: PropsAcciones):
         </>
       )}
 
+      {puedeEliminar && (
+        <Boton variante="peligro" tamano="chico" onClick={() => { setEliminando(true) }}>
+          Eliminar
+        </Boton>
+      )}
+
       <DialogoResultado
         base={`licitaciones/${licitacion.id}`}
         accion={confirmando}
@@ -68,6 +81,13 @@ export function AccionesLicitacion ({ licitacion, capacidades }: PropsAcciones):
         }}
         onCerrar={() => { setConfirmando(null) }}
         onHecho={() => { router.refresh() }}
+      />
+
+      <DialogoEliminarProyecto
+        espacio={eliminando ? licitacion.espacio : null}
+        tipo={GLOSARIO.licitacion.singular}
+        onCerrar={() => { setEliminando(false) }}
+        onEliminado={() => { router.replace(`/prospectos/${licitacion.prospecto_id}?tab=licitaciones`) }}
       />
     </div>
   )
