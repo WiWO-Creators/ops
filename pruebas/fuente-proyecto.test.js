@@ -35,7 +35,7 @@ const portal = fuenteDelPortal(7)
 // los dos sujetos, y el portal ya tiene su ruta. Lo que el contacto no tiene sigue siendo lo que
 // no puede pedir, no lo que todavia no le habiamos dado.
 const SIN_RECURSO = [
-  'subrecursosDeTarea', 'camposDeTareas', 'dependenciasDeTareas', 'actaTareas'
+  'subrecursosDeTarea', 'camposDeTareas', 'dependenciasDeTareas', 'actaTareas', 'scope'
 ]
 
 test('las dos fuentes declaran las mismas claves', () => {
@@ -87,6 +87,13 @@ test('las rutas del panel cuelgan del proyecto que se pidio', () => {
   assert.equal(panel.hitos, 'projects/7/milestones')
   assert.equal(panel.tiempos, 'projects/7/timesheets')
   assert.equal(panel.gantt, 'projects/7/gantt')
+})
+
+test('el scope del contrato es del equipo: el portal no lo pide', () => {
+  // La etiqueta «Fuera de scope» de la pestaña Tareas sale de esta ruta; con `null` el cliente no
+  // pide nada y no ve ninguna etiqueta, sin una rama por sujeto en el panel.
+  assert.equal(panel.scope, 'projects/7/scope')
+  assert.equal(portal.scope, null)
 })
 
 test('el calendario del portal es su ruta propia y no el listado de tareas', () => {

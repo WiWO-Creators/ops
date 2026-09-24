@@ -23,6 +23,8 @@ import type {
 } from '@/datos/recursos'
 import type { Capacidad } from '@/datos/tipos'
 import { conConsulta, type FuenteDeProyecto } from '@/dominio/fuente-proyecto'
+import { veredictosParaMarcar } from '@/dominio/scope'
+import { leerScopeEnSilencio, type Veredicto } from '@/datos/scope'
 import { AccionesMasivasTareas } from './AccionesMasivasTareas'
 import { CalendarioTareas } from './CalendarioTareas'
 import { ModalTarea } from './ModalTarea'
@@ -51,6 +53,9 @@ import { estaVencida } from './tareas'
 
 /** Catalogos vacios, estables entre renders: un objeto literal nuevo reconstruiria la definicion. */
 const VACIO_CATALOGOS: Record<string, OpcionFiltro[]> = {}
+
+/** Sin veredictos del Scope, estable entre renders por lo mismo que `VACIO_CATALOGOS`. */
+const SIN_VEREDICTOS: ReadonlyMap<number, Exclude<Veredicto, 'dentro'>> = new Map()
 
 /** Las tres lecturas de las tareas. `tabla` es la de por defecto y no escribe `?vista=`. */
 const VISTAS: readonly OpcionSegmentada[] = [
@@ -136,6 +141,8 @@ type Carga =
       resumen: ResumenEstadoTareas[] | null
       campos: DefinicionCampoPersonalizado[]
       avisos: string[]
+      /** Tareas fuera o en duda segun el ultimo analisis del Scope. Vacio si no hay o no se pudo leer. */
+      veredictos: ReadonlyMap<number, Exclude<Veredicto, 'dentro'>>
     }
 
 function TareasDelProyecto ({ proyectoId, fuente, capacidades, conIa, camposDeTareas }: PropsPanelTareas): ReactElement {
@@ -155,6 +162,7 @@ function TareasDelProyecto ({ proyectoId, fuente, capacidades, conIa, camposDeTa
   const estados = useMemo(() => catalogos.task_statuses ?? [], [catalogos])
   const prioridades = useMemo(() => catalogos.task_priorities ?? [], [catalogos])
   const etiquetas = useMemo(() => carga.fase === 'listo' ? carga.etiquetas : [], [carga])
+  const veredictos = carga.fase === 'listo' ? carga.veredictos : SIN_VEREDICTOS
 
   /** Vuelve a pedirlo todo. Va fuera del efecto: un `setState` sincronico dentro encadena renders. */
   const recargar = useCallback(() => {
@@ -170,9 +178,10 @@ function TareasDelProyecto ({ proyectoId, fuente, capacidades, conIa, camposDeTa
       camposEncendidos: camposDeTareas,
       capacidades,
       estados,
-      onCambiado: recargar
+      onCambiado: recargar,
+      veredictosDeScope: veredictos
     }),
-    [proyectoId, fuente, campos, camposDeTareas, capacidades, estados, recargar]
+    [proyectoId, fuente, campos, camposDeTareas, capacidades, estados, recargar, veredictos]
   )
 
   // Se decide contra la definicion y no contra la URL sola: con `?vista=calendario` en una
@@ -460,10 +469,13 @@ async function cargarPestana (
     // por, Seguidor). Se pide junto con lo demas y ya esta cacheado por pestaña; si falla, esos
     // filtros quedan sin opciones y el resto de la tabla no se entera. En el portal la definicion no
     // declara ningun filtro por persona, asi que `staffParaFiltros` no pide nada.
-    const [lista, lookups, personas] = await Promise.all([
+    // El Scope es un adorno de la tabla: se pide en paralelo y en silencio, y cualquier fallo —sin
+    // Scope, 404, red— deja la tabla sin etiquetas. Con la ruta en `null` (el portal) no se pide.
+    const [lista, lookups, personas, scope] = await Promise.all([
       pedirSobre<ProcesoAmpliado[]>(ruta, senal),
       pedirSobre<Lookups>(fuente.lookups, senal),
-      staffParaFiltros(definicion)
+      staffParaFiltros(definicion),
+      fuente.scope === null ? Promise.resolve(null) : leerScopeEnSilencio(fuente.scope, senal)
     ])
 
     const avisos: string[] = []
@@ -496,7 +508,8 @@ async function cargarPestana (
       etiquetas: lookups.data.tags ?? [],
       resumen,
       campos: campos ?? [],
-      avisos
+      avisos,
+      veredictos: veredictosParaMarcar(scope)
     }
   } catch (fallo) {
     if (senal.aborted) return { fase: 'cargando' }

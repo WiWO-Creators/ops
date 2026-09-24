@@ -119,6 +119,14 @@ export interface FuenteDeProyecto extends FuenteDeTarea {
    * sujeto: el cliente lee el diagrama, no lo reacomoda.
    */
   dependenciasDeTareas: string | null
+  /**
+   * El Scope del contrato y su ultimo analisis de Procesos.
+   *
+   * `null` en el portal: el Scope es trabajo comercial del equipo y el veredicto "fuera de scope"
+   * es vocabulario interno. Con `null` la pestaña Tareas no pide nada y no pinta ninguna etiqueta,
+   * sin preguntar de que sujeto es.
+   */
+  scope: string | null
 }
 
 /**
@@ -206,14 +214,15 @@ export function fuenteDelPanel (proyectoId: number): FuenteDeProyecto {
     actaTareas: `${raiz}/actas/:id/tareas`,
     resumenDeTareas: `${raiz}/tasks/summary`,
     camposDeTareas: 'custom-fields?para=tasks',
-    dependenciasDeTareas: `${raiz}/tasks/dependencies`
+    dependenciasDeTareas: `${raiz}/tasks/dependencies`,
+    scope: `${raiz}/scope`
   }
 }
 
 /**
  * Las rutas del Proyecto para el cliente (`/portal/projects/{id}/...`).
  *
- * Los cuatro `null` no son huecos que haya que tapar: son los recursos que un contacto no tiene, y
+ * Los cinco `null` no son huecos que haya que tapar: son los recursos que un contacto no tiene, y
  * son lo que deja cada panel en solo lectura sin una sola rama por sujeto. `subrecursosDeTarea` es
  * el quinto, y viene de `FuenteDeTarea`.
  *
@@ -247,6 +256,7 @@ export function fuenteDelPortal (proyectoId: number): FuenteDeProyecto {
     // lista tampoco publica los numeros de esa lista.
     resumenDeTareas: `${raiz}/tasks/summary`,
     camposDeTareas: null,
-    dependenciasDeTareas: null
+    dependenciasDeTareas: null,
+    scope: null
   }
 }

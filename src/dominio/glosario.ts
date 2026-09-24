@@ -38,7 +38,10 @@ export const GLOSARIO = {
   acta: { singular: 'Meeting Paper', plural: 'Meeting Papers' },
   // Las notas privadas. Estaban escritas a mano en la pestaña, que ademas decia "Meeting Paper"
   // porque hasta ahora eran lo mas parecido que habia.
-  nota: { singular: 'Nota', plural: 'Notas' }
+  nota: { singular: 'Nota', plural: 'Notas' },
+  // El alcance contratado de un Proyecto (`/projects/{id}/scope`). Se dice «Scope» y no «Alcance»
+  // porque es como lo dice el área comercial en la propuesta y en el contrato.
+  scope: { singular: 'Scope', plural: 'Scopes' }
 } as const
 
 /**

@@ -3,8 +3,11 @@
 import { useState, type ReactElement } from 'react'
 import { conCeldasRicas } from '@/componentes/datos/celdas-procesos'
 import { EnlacePersonalizado } from '@/componentes/presentadores/EnlacePersonalizado'
+import { Insignia } from '@/componentes/presentadores/Insignia'
 import { leerError } from '@/datos/errores'
 import { resolverEstado } from '@/dominio/estados-tarea'
+import { ETIQUETA_VEREDICTO, TONO_VEREDICTO } from '@/dominio/scope'
+import type { Veredicto } from '@/datos/scope'
 import type { DefinicionCampoPersonalizado, Proceso } from '@/datos/recursos'
 import type { Capacidad } from '@/datos/tipos'
 import type { Columna, DefinicionRecurso, OpcionFiltro } from '@/definiciones/tipos'
@@ -122,6 +125,13 @@ interface OpcionesDefinicion {
   estados: OpcionFiltro[]
   /** Se llama cuando una celda escribio algo y la tabla tiene que volver a pedir los datos. */
   onCambiado: () => void
+  /**
+   * Las Tareas que el ultimo analisis del Scope dejo fuera o en duda, por id.
+   *
+   * Se pintan como una etiqueta al lado del nombre. Vacio o ausente —el portal, un Proyecto sin
+   * analisis, una lectura que fallo— la columna queda como siempre.
+   */
+  veredictosDeScope?: ReadonlyMap<number, Exclude<Veredicto, 'dentro'>>
 }
 
 /**
@@ -143,7 +153,8 @@ export function definicionDeTareas ({
   camposEncendidos = [],
   capacidades,
   estados,
-  onCambiado
+  onCambiado,
+  veredictosDeScope
 }: OpcionesDefinicion): DefinicionRecurso<Proceso> {
   const editable = capacidades.includes('edit')
   const base = fuente.sujeto === 'portal'
@@ -158,6 +169,7 @@ export function definicionDeTareas ({
     filtros: [...base.filtros, ...filtrosDeCamposPersonalizados(camposPersonalizados)],
     columnas: [
       ...conCeldasRicas(base.columnas).map((columna): Columna<Proceso> => {
+        if (columna.clave === 'name') return conVeredictoDeScope(columna, veredictosDeScope)
         if (columna.clave !== 'status') return columna
 
         // `comoInsignia` se va con el presentador: el editor ya pinta su propia insignia, y dejarlo
@@ -178,5 +190,40 @@ export function definicionDeTareas ({
           : valorDeCampo(proceso, campo.slug) || '—'
       }))
     ]
+  }
+}
+
+/**
+ * La columna Nombre con la etiqueta del Scope al lado, para las Tareas marcadas.
+ *
+ * Solo `fuera` y `dudoso` llegan en el mapa: marcar las de adentro seria una etiqueta en casi todas
+ * las filas. Sin mapa, o con uno vacio, devuelve la columna intacta —misma identidad—, que es como la
+ * ve el portal.
+ *
+ * @param columna la columna Nombre, ya con su celda rica
+ * @param veredictos el veredicto de cada Tarea marcada
+ * @returns la columna, con la etiqueta donde corresponde
+ */
+function conVeredictoDeScope (
+  columna: Columna<Proceso>,
+  veredictos: ReadonlyMap<number, Exclude<Veredicto, 'dentro'>> | undefined
+): Columna<Proceso> {
+  if (veredictos === undefined || veredictos.size === 0) return columna
+
+  const original = columna.presentar
+
+  return {
+    ...columna,
+    presentar: (proceso) => {
+      const veredicto = veredictos.get(proceso.id)
+      if (veredicto === undefined) return original(proceso)
+
+      return (
+        <span className="inline-flex flex-wrap items-center gap-1.5">
+          {original(proceso)}
+          <Insignia tono={TONO_VEREDICTO[veredicto]} tamano="chico">{ETIQUETA_VEREDICTO[veredicto]}</Insignia>
+        </span>
+      )
+    }
   }
 }
