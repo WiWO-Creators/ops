@@ -327,7 +327,8 @@ const CONSULTA_PROCESOS = {
     completed: (p) => (p.status === ESTADO_COMPLETADO ? 1 : 0),
     etapa: (p) => ETAPA_POR_ESTADO[p.status] ?? 5
   },
-  busqueda: ['name']
+  // Nombre y patente, como `RecursoProcesos::consulta()`.
+  busqueda: ['name', 'patente']
 }
 
 /**
@@ -365,7 +366,8 @@ const CONSULTA_ESPACIOS = {
     date_to: (e, v) => e.start_date <= v
   },
   orden: ['name', 'start_date', 'deadline', 'progress'],
-  busqueda: ['name']
+  // Nombre y patente, como `RecursoEspacios::consulta()`.
+  busqueda: ['name', 'patente']
 }
 
 /**
@@ -5439,7 +5441,7 @@ function busquedaGlobal (parametros, staff) {
         (p.project !== null && elementoVisible(staff, 'project', p.project.id))))
       .map(presentarProcesoEnLista)),
     projects: bloque(ESPACIOS
-      .filter((e) => coincide(e.name) && elementoVisible(staff, 'project', e.id))
+      .filter((e) => coincide(e.name, e.patente) && elementoVisible(staff, 'project', e.id))
       .map((e) => presentarEspacio(e))),
     clients: bloque(CLIENTES.filter((c) => coincide(c.company) && elementoVisible(staff, 'client', c.id)))
   }
