@@ -69,7 +69,8 @@ export function HiloDeComentarios (
   const [borrando, setBorrando] = useState<number | null>(null)
   const [errorBorrado, setErrorBorrado] = useState<{ id: number, mensaje: string } | null>(null)
 
-  const comentarios = escritos ?? (estado.fase === 'listo' ? estado.datos : [])
+  const cargados = estado.fase === 'listo' ? estado.datos : []
+  const comentarios = escritos ?? cargados
   const hilos = armarHilos(comentarios)
   const laTarea = GLOSARIO.proceso.singular.toLowerCase()
 
@@ -96,7 +97,9 @@ export function HiloDeComentarios (
     // se mando, que es lo que la API acaba de guardar.
     const guardado: ComentarioDeHilo = { ...resultado.datos, parent_id: padre, contact: null }
 
-    setEscritos([...comentarios, guardado])
+    // Actualizacion funcional: con una respuesta y un comentario viajando a la vez, la lista del
+    // render en que salio cada uno ya no es la ultima, y el segundo en volver borraria al primero.
+    setEscritos((previos) => [...(previos ?? cargados), guardado])
     setRecientes((previos) => new Set(previos).add(guardado.id))
     if (padre !== null) setRespondiendoA(null)
     onCambiado?.()
@@ -122,7 +125,7 @@ export function HiloDeComentarios (
     }
 
     setConfirmandoBorrado(null)
-    setEscritos(comentarios.filter((c) => c.id !== id && c.parent_id !== id))
+    setEscritos((previos) => (previos ?? cargados).filter((c) => c.id !== id && c.parent_id !== id))
     onCambiado?.()
   }
 
