@@ -7090,6 +7090,10 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
 
       return { estado: 200, cuerpo: conDatos(overviewDeEspacio(espacio)) }
     }
+    if (subrecurso === 'discussions') {
+      if (resto.length > 2) throw new ErrorApi(404, 'not_found', `Subrecurso desconocido: "${resto[2]}".`)
+      return { estado: 200, cuerpo: discusionesDeEspacio(espacio.id, parametros) }
+    }
     if (subrecurso === 'activity') {
       const { filas, paginacion } = aplicarConsulta(actividadDeEspacio(espacio.id), parametros, CONSULTA_ACTIVIDAD)
       return { estado: 200, cuerpo: conDatos(filas, { pagination: paginacion }) }
@@ -7152,6 +7156,14 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
     }
     if (metodo === 'GET' && subrecurso === 'comments') {
       return { estado: 200, cuerpo: conDatos(comentariosDeTarea(proceso.id)) }
+    }
+    if (metodo === 'POST' && subrecurso === 'comments' && !extra) {
+      const comentario = crearComentarioDeTarea(proceso, await cuerpo(), actual)
+      return { estado: 201, cuerpo: conDatos(presentarComentarioDeTarea(comentario)) }
+    }
+    if (metodo === 'DELETE' && subrecurso === 'comments' && extra) {
+      borrarComentarioDeTarea(proceso, Number(extra))
+      return { estado: 204, cuerpo: null }
     }
     if (metodo === 'GET' && subrecurso === 'checklist') {
       return { estado: 200, cuerpo: conDatos(CHECKLIST.filter((c) => c.task_id === proceso.id)) }
@@ -7683,6 +7695,124 @@ function presentarComentarioDeTarea (comentario) {
     staff: staff === null ? null : { id: staff.id, full_name: staff.full_name, profile_image_url: null },
     contact: contacto === null ? null : { id: contacto.id, full_name: contacto.full_name }
   }
+}
+
+/**
+ * Alta de un comentario, con las mismas reglas que `ComentarioProceso::crear()`: contenido
+ * obligatorio y respuestas de un solo nivel.
+ *
+ * @param {object} proceso la Tarea
+ * @param {object} datos el cuerpo del `POST`: `content` y `parent` opcional
+ * @param {object} autor el staff de la sesion
+ * @returns {object} la fila guardada
+ * @throws {ErrorApi} 422 con el contenido vacio o un padre que no sirve
+ */
+function crearComentarioDeTarea (proceso, datos, autor) {
+  const contenido = typeof datos?.content === 'string' ? datos.content.trim() : ''
+  if (contenido === '') {
+    throw new ErrorApi(422, 'validation_failed', 'El comentario viene vacío.', { content: ['required'] })
+  }
+
+  const padreId = datos.parent ?? null
+  if (padreId !== null) {
+    const padre = [...COMENTARIOS, ...COMENTARIOS_DE_CONTACTO]
+      .find((c) => c.task_id === proceso.id && c.id === Number(padreId))
+    if (padre === undefined) {
+      throw new ErrorApi(422, 'validation_failed', 'El comentario al que respondes no existe.', { parent: ['invalid'] })
+    }
+    if ((padre.parent_id ?? null) !== null) {
+      throw new ErrorApi(422, 'validation_failed', 'Solo se puede responder a un comentario raíz.', { parent: ['nested'] })
+    }
+  }
+
+  const comentario = {
+    id: [...COMENTARIOS, ...COMENTARIOS_DE_CONTACTO].reduce((mayor, c) => Math.max(mayor, c.id), 0) + 1,
+    task_id: proceso.id,
+    parent_id: padreId === null ? null : Number(padreId),
+    content: contenido,
+    staff: { id: autor.id, full_name: autor.full_name },
+    date_added: new Date().toISOString().replace(/\.\d{3}Z$/, 'Z')
+  }
+  COMENTARIOS.push(comentario)
+  proceso.counts.comments += 1
+
+  return comentario
+}
+
+/**
+ * Borrado de un comentario. Como en la API, borrar un comentario raiz se lleva sus respuestas.
+ *
+ * @param {object} proceso la Tarea
+ * @param {number} comentarioId el comentario a borrar
+ * @throws {ErrorApi} 404 si el comentario no es de esa Tarea
+ */
+function borrarComentarioDeTarea (proceso, comentarioId) {
+  const deLaTarea = (c) => c.task_id === proceso.id
+  const existe = [...COMENTARIOS, ...COMENTARIOS_DE_CONTACTO].some((c) => deLaTarea(c) && c.id === comentarioId)
+  if (!existe) throw new ErrorApi(404, 'not_found', `No existe el comentario "${comentarioId}".`)
+
+  for (const lista of [COMENTARIOS, COMENTARIOS_DE_CONTACTO]) {
+    for (let i = lista.length - 1; i >= 0; i--) {
+      const c = lista[i]
+      if (deLaTarea(c) && (c.id === comentarioId || c.parent_id === comentarioId)) {
+        lista.splice(i, 1)
+        proceso.counts.comments -= 1
+      }
+    }
+  }
+}
+
+/**
+ * `GET /projects/{id}/discussions`: una conversacion por Tarea con comentarios, la mas reciente
+ * primero, con la misma forma que `RecursoDiscusiones` y el `?q=` sobre nombre y texto.
+ *
+ * @param {number} espacioId el Proyecto
+ * @param {URLSearchParams} parametros `page`, `per_page` y `q`
+ * @returns {object} el sobre con `data` y `meta.pagination`
+ */
+function discusionesDeEspacio (espacioId, parametros) {
+  const busqueda = (parametros.get('q') ?? '').trim().toLowerCase()
+
+  const conversaciones = PROCESOS
+    .filter((p) => p.project?.id === espacioId)
+    .map((p) => ({ proceso: p, comentarios: comentariosDeTarea(p.id) }))
+    .filter(({ comentarios }) => comentarios.length > 0)
+    .filter(({ proceso, comentarios }) => busqueda === '' ||
+      proceso.name.toLowerCase().includes(busqueda) ||
+      comentarios.some((c) => c.content.toLowerCase().includes(busqueda)))
+    .map(({ proceso, comentarios }) => {
+      const ordenados = [...comentarios].sort((a, b) => (b.date_added ?? '').localeCompare(a.date_added ?? '') || b.id - a.id)
+      const vistos = new Map()
+      for (const c of ordenados) {
+        const autor = c.staff ?? c.contact
+        const clave = `${c.staff === null ? 'c' : 's'}${autor?.id}`
+        if (autor !== null && !vistos.has(clave) && vistos.size < 5) {
+          vistos.set(clave, { id: autor.id, full_name: autor.full_name, is_client: c.staff === null })
+        }
+      }
+      return {
+        task: { id: proceso.id, name: proceso.name, status: proceso.status },
+        comments_count: comentarios.length,
+        client_comments_count: comentarios.filter((c) => c.staff === null).length,
+        last_activity: ordenados[0].date_added,
+        last_comment: ordenados[0],
+        participants: [...vistos.values()]
+      }
+    })
+    .sort((a, b) => (b.last_activity ?? '').localeCompare(a.last_activity ?? '') || b.task.id - a.task.id)
+
+  const pagina = Math.max(1, Number(parametros.get('page') ?? 1) || 1)
+  const porPagina = Math.min(500, Math.max(1, Number(parametros.get('per_page') ?? 25) || 25))
+  const filas = conversaciones.slice((pagina - 1) * porPagina, pagina * porPagina)
+
+  return conDatos(filas, {
+    pagination: {
+      page: pagina,
+      per_page: porPagina,
+      total: conversaciones.length,
+      total_pages: Math.max(1, Math.ceil(conversaciones.length / porPagina))
+    }
+  })
 }
 
 /** Los comentarios de una Tarea: los del fixture mas los que firmo el cliente. */

@@ -2269,8 +2269,8 @@ Crea un comentario, o una respuesta a otro comentario del mismo Proceso.
 
 Un comentario suelto. Misma forma que el `201` de arriba. `404` si no existe o es de otro Proceso.
 
-> El listado `GET /tasks/{id}/comments` **todavia no devuelve `parent_id`**: vive en
-> `Recursos/RecursoProcesos.php:387`, que no es de este frente.
+> El listado `GET /tasks/{id}/comments` devuelve `parent_id` en cada comentario. La lectura suelta
+> de esta ruta, en cambio, no trae `parent_id` ni `contact`.
 
 ---
 
@@ -2309,6 +2309,50 @@ Borra el comentario. Si es raiz, borra tambien **sus respuestas**, en la misma s
 | `403 forbidden` | es de otra persona y falta `delete` sobre `tasks`; o la ventana de una hora |
 | `404 not_found` | no existe o es de otro Proceso |
 | `409 conflict` | el comentario (o alguna de sus respuestas) tiene adjuntos. Hay que borrarlos primero: esta API no borra archivos |
+
+---
+
+### GET /projects/{id}/discussions
+
+Las Discusiones del Proyecto: **una conversacion por Tarea con comentarios**, de la mas reciente a
+la mas vieja. No son las discusiones de Perfex (`tblprojectdiscussions`, retiradas el 22/09): el hilo
+es el de `tbltask_comments`, y se responde con `POST /tasks/{id}/comments`.
+
+Solo aparecen las Tareas que la persona puede ver (`Visibilidad::procesos()`): en un Proyecto cerrado,
+las Tareas en que no participa no salen, ni sus comentarios.
+
+**Query:** `page`, `per_page` (defecto 25, tope 500) y `q`, que busca en el nombre de la Tarea y en el
+texto de sus comentarios. No acepta `include` (`422`).
+
+**Response `200`**
+
+```json
+{
+  "data": [
+    {
+      "task": { "id": 2750, "name": "Nuevo Comité Bipartito", "status": 4 },
+      "comments_count": 3,
+      "client_comments_count": 0,
+      "last_activity": "2026-08-19T20:13:29Z",
+      "last_comment": {
+        "id": 273, "task_id": 2750, "parent_id": null,
+        "content": "<p>Adjunto con cambio de fotos</p>[task_attachment]",
+        "staff": { "id": 59, "full_name": "Grecia Vallenilla" }, "contact": null,
+        "date_added": "2026-08-19T20:13:29Z"
+      },
+      "participants": [{ "id": 59, "full_name": "Grecia Vallenilla", "is_client": false }]
+    }
+  ],
+  "meta": { "pagination": { "page": 1, "per_page": 25, "total": 38, "total_pages": 2 } }
+}
+```
+
+- `last_comment` tiene la misma forma que un elemento de `GET /tasks/{id}/comments`.
+- `participants`: personas distintas que comentaron, la ultima primero, con tope de cinco. `is_client`
+  distingue a un contacto del cliente de alguien del equipo.
+
+**Errores:** `404 not_found` si el Proyecto no existe o no es visible; `422` con `page` invalido o
+con `include`. Otro metodo que no sea `GET` responde `404`.
 
 ---
 

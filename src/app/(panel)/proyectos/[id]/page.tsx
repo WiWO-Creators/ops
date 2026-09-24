@@ -13,6 +13,7 @@ import { PanelConfiguracionEspacio } from '@/componentes/proyecto/PanelConfigura
 import { PanelArchivos } from '@/componentes/proyecto/PanelArchivos'
 import { PanelCalendario } from '@/componentes/proyecto/PanelCalendario'
 import { PanelDescripcion } from '@/componentes/proyecto/PanelDescripcion'
+import { PanelDiscusiones } from '@/componentes/proyecto/PanelDiscusiones'
 import { PanelGantt } from '@/componentes/proyecto/PanelGantt'
 import { PanelHitos } from '@/componentes/proyecto/PanelHitos'
 import { PanelActas } from '@/componentes/proyecto/PanelActas'
@@ -227,6 +228,13 @@ export default async function ProyectoPage (props: PageProps<'/proyectos/[id]'>)
       )
     },
     { clave: 'archivos', etiqueta: 'Archivos', contenido: <PanelArchivos proyectoId={proyecto.id} /> },
+    // No son las discusiones de Perfex, retiradas el 22/09: cada conversacion es el hilo de
+    // comentarios de una Tarea, y se responde desde aca o desde la ficha de la Tarea.
+    {
+      clave: 'discusiones',
+      etiqueta: 'Discusiones',
+      contenido: <PanelDiscusiones proyectoId={proyecto.id} fuente={fuente} capacidadesTareas={capacidadesTareas} />
+    },
     // La clave es `tickets` porque es la que escriben el correo y la campana de ticket nuevo
     // (`?tab=tickets&ticket={id}`, contrato T3): cambiarla dejaria esos enlaces en la pestaña de
     // entrada con el modal abierto encima de otra cosa.

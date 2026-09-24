@@ -28,6 +28,7 @@ import { hoyLocal } from '@/lib/fechas'
 import { BloqueSla } from './BloqueSla'
 import { BloqueoDeProceso } from './BloqueoDeProceso'
 import { CabeceraFichaTarea } from './CabeceraFichaTarea'
+import { HiloDeComentarios } from './HiloDeComentarios'
 import { TarjetaDeComentario } from './TarjetaDeComentario'
 import { ESTADO_COMPLETO, comentarioParaMostrar, type ProcesoDeFicha } from './tareas'
 import { CompartirTarea } from './CompartirTarea'
@@ -459,7 +460,11 @@ export function DetalleTarea (
             )
           : <AdjuntosDeLectura adjuntos={tarea.attachments} />}
 
-        <Comentarios comentarios={tarea.comments} />
+        {/* El equipo conversa en la Tarea y lo mismo se lee en las Discusiones del Proyecto. El
+            cliente lee el hilo que le llega adentro de la ficha, si el Proyecto se lo comparte. */}
+        {subrecursos !== null
+          ? <HiloDeComentarios procesoId={procesoId} onCambiado={onCambiada} />
+          : <Comentarios comentarios={tarea.comments} />}
 
         {subrecursos !== null && (
           <EnlacePanelClasico entidad="proceso" id={procesoId} className="self-start" />

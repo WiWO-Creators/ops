@@ -60,13 +60,36 @@ export function textoPlano (valor: string | null | undefined): string {
 }
 
 const ENTIDADES: Record<string, string> = {
-  '&nbsp;': ' ',
-  '&amp;': '&',
-  '&lt;': '<',
-  '&gt;': '>',
-  '&quot;': '"',
-  '&#39;': "'",
-  '&apos;': "'"
+  nbsp: ' ',
+  amp: '&',
+  lt: '<',
+  gt: '>',
+  quot: '"',
+  apos: "'"
+}
+
+/**
+ * Decodifica las entidades con nombre de `ENTIDADES` y todas las numericas, en una sola pasada.
+ *
+ * Las numericas importan: `html_purify()` guarda la "í" como `&#237;`, y sin ellas un comentario
+ * escrito desde este panel volvia con `l&#237;nea`. Una sola pasada, y no un reemplazo por entidad,
+ * para no decodificar dos veces: `&amp;lt;` es el texto `&lt;`, no el caracter `<`.
+ *
+ * @param texto texto ya sin etiquetas
+ * @returns el texto con las entidades resueltas; las desconocidas quedan como estaban
+ */
+function decodificarEntidades (texto: string): string {
+  return texto.replace(/&(#x[0-9a-f]+|#\d+|[a-z]+);/gi, (entidad, cuerpo: string) => {
+    if (cuerpo.startsWith('#')) {
+      const codigo = cuerpo[1] === 'x' || cuerpo[1] === 'X'
+        ? Number.parseInt(cuerpo.slice(2), 16)
+        : Number.parseInt(cuerpo.slice(1), 10)
+
+      return Number.isInteger(codigo) && codigo > 0 && codigo <= 0x10FFFF ? String.fromCodePoint(codigo) : entidad
+    }
+
+    return ENTIDADES[cuerpo.toLowerCase()] ?? entidad
+  })
 }
 
 /**
@@ -87,8 +110,7 @@ export function aTextoPlano (html: string): string {
     .replace(/<\/(p|div|li|tr|h[1-6]|blockquote)\s*>/gi, '\n')
     .replace(/<[^>]*>/g, '')
 
-  return Object.entries(ENTIDADES)
-    .reduce((acumulado, [entidad, caracter]) => acumulado.replaceAll(entidad, caracter), texto)
+  return decodificarEntidades(texto)
     .replace(/[ \t]+\n/g, '\n')
     .replace(/\n{3,}/g, '\n\n')
     .trim()
