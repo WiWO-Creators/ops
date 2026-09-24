@@ -133,8 +133,18 @@ export function Paginador (
 }
 
 interface PropsTareasAsignadas {
-  /** De quien son las Tareas. Toda la lista va filtrada por esto. */
-  personaId: number
+  /** De quien son las Tareas. Toda la lista va filtrada por esto, salvo que llegue `alcance`. */
+  personaId?: number
+  /**
+   * Filtro fijo que reemplaza al de persona, sin el `&` inicial: `filter[area_asignado]=3` lista el
+   * trabajo de un área entera. Es fijo por la misma razón que el de persona: no se puede cambiar
+   * desde la URL.
+   */
+  alcance?: string
+  /** `sort` de la consulta. Por defecto, lo que vence primero arriba. */
+  orden?: string
+  /** `task_priorities` de `GET /lookups`. Con la lista, la tabla suma la columna de prioridad. */
+  prioridades?: EstadoLookup[]
   /** Encabezado de la seccion. */
   titulo: string
   /** `task_statuses` de `GET /lookups`, resueltos en el servidor para no pedirlos de nuevo. */
@@ -193,7 +203,7 @@ interface PropsTareasAsignadas {
  * @returns La seccion con su encabezado, su tabla y su paginador.
  */
 export function TareasAsignadas ({
-  personaId, titulo, estados, consultaExtra, vacio, licitaciones,
+  personaId, alcance, orden = 'due_date', prioridades, titulo, estados, consultaExtra, vacio, licitaciones,
   rutaDetalle = '/procesos', accion, version = 0, estadoEditable = false, verCompletadas = false
 }: PropsTareasAsignadas) {
   const [pagina, setPagina] = useState(1)
@@ -215,7 +225,8 @@ export function TareasAsignadas ({
     setPagina(1)
   }
 
-  const ruta = `tasks?assignee=${personaId}&per_page=${POR_PAGINA}&page=${pagina}&sort=due_date` + filtro
+  const fijo = alcance ?? `assignee=${personaId ?? ''}`
+  const ruta = `tasks?${fijo}&per_page=${POR_PAGINA}&page=${pagina}&sort=${orden}` + filtro
 
   const [carga, reintentar] = useListaPaginada<Proceso>(ruta, plural, version)
 
@@ -241,6 +252,7 @@ export function TareasAsignadas ({
                 <CeldaEncabezado sinCortar>ID</CeldaEncabezado>
                 <CeldaEncabezado>Nombre</CeldaEncabezado>
                 <CeldaEncabezado>Estado</CeldaEncabezado>
+                {prioridades !== undefined && <CeldaEncabezado>Prioridad</CeldaEncabezado>}
                 <CeldaEncabezado>Origen</CeldaEncabezado>
                 <CeldaEncabezado>Vence</CeldaEncabezado>
               </tr>
@@ -288,6 +300,12 @@ export function TareasAsignadas ({
                         : <EstadoDeTarea status={tarea.status} catalogo={estados} tamano="medio" />}
                     </CeldaTabla>
 
+                    {prioridades !== undefined && (
+                      <CeldaTabla>
+                        <InsigniaDePrioridad prioridad={tarea.priority} catalogo={prioridades} />
+                      </CeldaTabla>
+                    )}
+
                     <CeldaTabla>
                       <span className="flex flex-wrap items-center gap-1.5">
                         <Insignia tono={TONO_ORIGEN[origen.clase]} tamano="chico">{origen.tipo}</Insignia>
@@ -323,4 +341,18 @@ export function TareasAsignadas ({
       )}
     </section>
   )
+}
+
+/**
+ * La prioridad de una Tarea con el nombre y el color que le da el catálogo.
+ *
+ * @param prioridad `priority` de la Tarea; `null` o fuera del catálogo se pinta como raya
+ * @param catalogo `task_priorities` de `GET /lookups`
+ */
+function InsigniaDePrioridad ({ prioridad, catalogo }: { prioridad: number | null, catalogo: EstadoLookup[] }) {
+  const entrada = catalogo.find((una) => una.id === prioridad)
+
+  if (entrada === undefined) return <span className="text-texto-tenue">—</span>
+
+  return <Insignia color={entrada.color} tamano="chico">{entrada.name}</Insignia>
 }

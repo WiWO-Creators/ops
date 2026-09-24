@@ -3,7 +3,7 @@ import 'server-only'
 import { cache } from 'react'
 import { RUTA_DE_ASIGNABLES } from './asignables.ts'
 import { pedir, pedirOpcional, pedirPortal } from './servidor.ts'
-import type { Lookups, PersonaAsignable } from './recursos.ts'
+import type { CatalogosDeTareas, Lookups, PersonaAsignable } from './recursos.ts'
 
 /**
  * Carga de los catalogos configurables de Perfex.
@@ -40,6 +40,23 @@ export const cargarLookupsDelPortal = cache(async (): Promise<Lookups> => {
   const { data } = await pedirPortal<Lookups>('/portal/lookups')
 
   return data
+})
+
+/**
+ * Estados y prioridades de Tarea, para las pantallas donde listar trabajo es un agregado.
+ *
+ * Con `pedirOpcional` y no con `cargarLookups`: en el organigrama la lista de Tareas acompaña al
+ * dibujo, y un fallo del catálogo no puede tumbar la pantalla entera. Sin catálogo se devuelve
+ * `undefined` y la pantalla se dibuja sin la lista.
+ *
+ * @returns los dos catálogos, o `undefined` si `GET /lookups` falló
+ */
+export const cargarCatalogosDeTareas = cache(async (): Promise<CatalogosDeTareas | undefined> => {
+  const { datos } = await pedirOpcional<Lookups>('/lookups')
+
+  if (datos === null) return undefined
+
+  return { estados: datos.task_statuses, prioridades: datos.task_priorities }
 })
 
 export { columnasDelTablero, listaDe, nombreDe, opcionesDeFiltroDeEspacio, opcionesDeFiltros } from './catalogos.ts'

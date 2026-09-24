@@ -19,12 +19,14 @@ import { ArbolDelArea } from './ArbolDelArea'
 import { ListaDePersonas } from './ListaDePersonas'
 import { MapaDeAreas } from './MapaDeAreas'
 import { PanelDePersona } from './PanelDePersona'
+import { TareasDelArea } from './TareasDelArea'
 import { Boton } from '@/componentes/formularios/Boton'
 import { Segmentado } from '@/componentes/formularios/Segmentado'
 import { Insignia } from '@/componentes/presentadores/Insignia'
 import { Vacio } from '@/componentes/estado/Estados'
 import { escribirEnBff } from '@/componentes/datos/mutaciones'
 import { pedirSobre } from '@/datos/cliente'
+import { GLOSARIO } from '@/dominio/glosario'
 import {
   arbolDelArea, areasDelMapa, colorDeArea, cuantasCajas, cuantosSinArea, descendenciaDe,
   filasDeLista, personasDelArbol, resumirMapa
@@ -34,6 +36,7 @@ import { cn } from '@/lib/clases'
 import type { OpcionSegmentada } from '@/componentes/formularios/Segmentado'
 import type { VistaDeOrganigrama } from '@/lib/vista-organigrama'
 import type { CambioDeJefatura, Organigrama as DatosDeOrganigrama } from '@/datos/organigrama'
+import type { CatalogosDeTareas } from '@/datos/recursos'
 
 /**
  * Las dos caras de los mismos datos.
@@ -58,9 +61,15 @@ type Vista = number | null | undefined
 /**
  * Monta el organigrama a partir de lo que resolvió el servidor.
  *
+ * Con `catalogos`, debajo del dibujo va el trabajo abierto: en el mapa, el de las áreas de quien
+ * mira; dentro de un área, el de esa área.
+ *
  * @param inicial la respuesta de `GET /organigrama` para quien mira
+ * @param catalogos estados y prioridades de Tarea; sin ellos no se lista trabajo
  */
-export function Organigrama ({ inicial }: { inicial: DatosDeOrganigrama }) {
+export function Organigrama (
+  { inicial, catalogos }: { inicial: DatosDeOrganigrama, catalogos?: CatalogosDeTareas }
+) {
   const [datos, setDatos] = useState(inicial)
   const [servido, setServido] = useState(inicial)
   const [vista, setVista] = useState<Vista>(undefined)
@@ -326,6 +335,18 @@ export function Organigrama ({ inicial }: { inicial: DatosDeOrganigrama }) {
       {error !== null && <p role="alert" className="text-texto-peligro text-sm">{error}</p>}
 
       {contenido}
+
+      {catalogos !== undefined && vista !== null && (
+        <TareasDelArea
+          // Remontar al cambiar de área vuelve a la primera página en vez de arrastrar la de otra.
+          key={String(vista)}
+          areaIds={vista === undefined ? datos.yo.areas : [vista]}
+          titulo={vista === undefined
+            ? `${GLOSARIO.proceso.plural} de tu área`
+            : `${GLOSARIO.proceso.plural} del área`}
+          catalogos={catalogos}
+        />
+      )}
 
       {poblando !== undefined && (
         <AgregarAlArea

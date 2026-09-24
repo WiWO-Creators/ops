@@ -2,6 +2,7 @@ import { Organigrama } from '@/componentes/organigrama/Organigrama'
 import { ErrorEstado, SinPermiso } from '@/componentes/estado/Estados'
 import { TituloModulo } from '@/componentes/estructura/TituloModulo'
 import { ErrorApi } from '@/datos/errores'
+import { cargarCatalogosDeTareas } from '@/datos/lookups'
 import { cargarOrganigrama } from '@/datos/organigrama-servidor'
 
 export const metadata = { title: 'Jerarquías · WiWO Ops' }
@@ -22,7 +23,7 @@ export const metadata = { title: 'Jerarquías · WiWO Ops' }
  * tarjetas del mapa y recalcularlas en el navegador sería una segunda copia de lo que cuenta la API.
  */
 export default async function JerarquiaPage () {
-  const cargado = await cargarOrganigrama()
+  const [cargado, catalogos] = await Promise.all([cargarOrganigrama(), cargarCatalogosDeTareas()])
 
   return (
     <section className="flex flex-col gap-4">
@@ -35,7 +36,7 @@ export default async function JerarquiaPage () {
         ? cargado.codigo === 'forbidden'
           ? <SinPermiso />
           : <ErrorEstado detalle={cargado.message} />
-        : <Organigrama inicial={cargado} />}
+        : <Organigrama inicial={cargado} catalogos={catalogos} />}
     </section>
   )
 }

@@ -223,6 +223,9 @@ function conCamposPersonalizados (fila, entidad, includes) {
 /** Estado "Completado" de Perfex. Es el mismo 5 que usa `Escritura\EstadoProceso::COMPLETADO`. */
 const ESTADO_COMPLETADO = 5
 
+/** Escalón de cada estado para `sort=etapa`: nuevas y en curso, cambios, espera, testear, completas. */
+const ETAPA_POR_ESTADO = { 1: 0, 4: 0, 6: 1, 2: 2, 3: 3, 5: 4 }
+
 const CONSULTA_PROCESOS = {
   // La whitelist de `RecursoProcesos::consulta()`, campo por campo: la interfaz ofrece filtrar por
   // todo lo que la Tarea tiene, y si el mock conoce la mitad, la mitad de los filtros falla aca y
@@ -241,6 +244,12 @@ const CONSULTA_PROCESOS = {
     // Los dos sueltos, por id, que la API conserva de la interfaz vieja.
     follower: coincideEnLista((p) => p.followers.map((f) => f.id)),
     tag: coincideEnLista((p) => p.tags.map((t) => t.id)),
+    // El área del EQUIPO de quien la tiene asignada, igual que `RecursoProcesos`: la membresía de
+    // cada asignado, principal o secundaria.
+    area_asignado: coincideEnLista((p) => p.assignees.flatMap((a) => {
+      const persona = STAFF.find((s) => s.id === a.id)
+      return persona === undefined ? [] : areasDePersona(persona)
+    })),
     // Los cuatro rangos: dos sobre el vencimiento y dos sobre el inicio.
     date_from: (p, v) => p.due_date >= v,
     date_to: (p, v) => p.due_date <= v,
@@ -285,11 +294,15 @@ const CONSULTA_PROCESOS = {
     date_added: campoFiltrable((p) => p.date_added, 'fecha'),
     date_finished: campoFiltrable((p) => p.date_finished, 'fecha')
   },
-  orden: ['name', 'due_date', 'start_date', 'date_added', 'priority', 'status', 'completed'],
+  orden: ['name', 'due_date', 'start_date', 'date_added', 'priority', 'status', 'completed', 'etapa'],
   // `completed` no es un campo: la API lo resuelve con un CASE sobre `status`
   // (`RecursoProcesos::completadaComoOrden()`). Sin esto, el orden por defecto del listado de
-  // Procesos —`['completed', '-date_added']`— respondia 422 contra el mock.
-  derivadas: { completed: (p) => (p.status === ESTADO_COMPLETADO ? 1 : 0) },
+  // Procesos —`['completed', '-date_added']`— respondia 422 contra el mock. `etapa` tampoco:
+  // es `RecursoProcesos::etapaComoOrden()`, con la misma tabla de escalones.
+  derivadas: {
+    completed: (p) => (p.status === ESTADO_COMPLETADO ? 1 : 0),
+    etapa: (p) => ETAPA_POR_ESTADO[p.status] ?? 5
+  },
   busqueda: ['name']
 }
 
