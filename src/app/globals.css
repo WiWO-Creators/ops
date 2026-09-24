@@ -138,6 +138,9 @@
   --animate-entrar-hoja: entrar-hoja var(--wiwo-motion-medium) var(--wiwo-ease-emphasized) both;
   --animate-salir-hoja: salir-hoja var(--wiwo-motion-fast) var(--wiwo-ease-emphasized) both;
   --animate-entrar-abajo: entrar-abajo var(--wiwo-motion-fast) var(--wiwo-ease-emphasized) both;
+  --animate-aviso-entrar: aviso-entrar var(--wiwo-motion-medium) var(--wiwo-ease-expressive) both;
+  --animate-aviso-salir: aviso-salir var(--wiwo-motion-fast) var(--wiwo-ease-emphasized) both;
+  --animate-aviso-giro: aviso-giro var(--wiwo-motion-slow) var(--wiwo-ease-expressive) 120ms both;
 
   /* Los peldaños de fabrica de Tailwind se atan a la misma escala. Sin esto conviven dos sistemas:
    * `text-sm` y `text-xs` traen 14 y 12px mientras el cuerpo sale de `--step-0`, y una sola pantalla
@@ -603,6 +606,29 @@
   @keyframes entrar-abajo {
     from { opacity: 0; transform: translateY(8px); }
     to { opacity: 1; transform: translateY(0); }
+  }
+
+  /*
+   * El aviso flotante que sube desde el borde inferior (`estructura/VigilanteDeVersion`).
+   *
+   * Entra desde fuera de la pantalla, no desde 8px: no es contenido que el scroll trae sino algo que
+   * llega sin que nadie lo pidiera, y el viaje completo es lo que lo anuncia. Sale por donde entro.
+   * Nunca desde `scale(0)`: el 0.96 alcanza para que se sienta que se asienta.
+   */
+  @keyframes aviso-entrar {
+    from { opacity: 0; transform: translateY(calc(100% + 1.5rem)) scale(0.96); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+  }
+
+  @keyframes aviso-salir {
+    from { opacity: 1; transform: translateY(0) scale(1); }
+    to { opacity: 0; transform: translateY(calc(100% + 1.5rem)) scale(0.96); }
+  }
+
+  /* Media vuelta del icono de recarga al llegar: dice "actualizar" sin tener que leerlo. */
+  @keyframes aviso-giro {
+    from { transform: rotate(-180deg); }
+    to { transform: rotate(0deg); }
   }
 }
 

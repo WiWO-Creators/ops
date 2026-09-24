@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { X } from 'lucide-react'
+import { RefreshCw, X } from 'lucide-react'
 import { Boton } from '@/componentes/formularios/Boton'
 import { ATRIBUTO_BIENVENIDA, CLAVE_BIENVENIDA } from '@/lib/bienvenida'
 import { cn } from '@/lib/clases'
@@ -13,6 +13,8 @@ const OBRA = 2200
 const OBRA_REDUCIDA = 700
 /** El fundido de salida. Tiene que coincidir con `duration-500` de la capa. */
 const SALIDA = 500
+/** Lo que tarda el aviso en irse al descartarlo. Es `--wiwo-motion-fast`, el de `animate-aviso-salir`. */
+const SALIDA_AVISO = 160
 
 /** Lo que devuelve `/api/version`. */
 interface SobreVersion {
@@ -60,6 +62,10 @@ export function VigilanteDeVersion ({ version, segundos }: PropsVigilante) {
   const [versionCargada] = useState(version)
   const [disponible, setDisponible] = useState<string | null>(null)
   const [descartada, setDescartada] = useState<string | null>(null)
+  // `cerrando` sostiene el aviso montado mientras dura su salida; `recargando` gira el icono entre el
+  // clic y la recarga, que en una conexion lenta puede tardar lo bastante como para dudar del clic.
+  const [cerrando, setCerrando] = useState(false)
+  const [recargando, setRecargando] = useState(false)
   const [bienvenida, setBienvenida] = useState<'obra' | 'saliendo' | null>(null)
   // Se elige una vez por carga y no en cada render: sortearla dentro del cuerpo cambiaria el dibujo
   // a mitad de la obra si algo mas obliga a repintar. El sorteo en el servidor no importa —esta capa
@@ -151,7 +157,19 @@ export function VigilanteDeVersion ({ version, segundos }: PropsVigilante) {
       // actualizacion. Recargar igual es lo que importa.
     }
 
+    setRecargando(true)
     globalThis.location.reload()
+  }
+
+  /** Deja ir el aviso por donde entro y recien entonces lo da por descartado. */
+  function descartar (): void {
+    if (disponible === null || cerrando) return
+
+    setCerrando(true)
+    globalThis.setTimeout(() => {
+      setDescartada(disponible)
+      setCerrando(false)
+    }, SALIDA_AVISO)
   }
 
   const avisando = disponible !== null && disponible !== descartada
@@ -164,26 +182,51 @@ export function VigilanteDeVersion ({ version, segundos }: PropsVigilante) {
           className={cn(
             // En movil sube por encima del boton del chat (`ia/OrbeChatIA`, `bottom-6 right-4`,
             // 56px): centrada y a 30rem, la barra le llega justo encima en pantallas angostas.
-            'border-linea bg-superficie-flotante fixed bottom-24 left-1/2 z-50 -translate-x-1/2 sm:bottom-4',
-            'flex w-[min(30rem,calc(100vw-2rem))] items-center gap-3 rounded-2xl border px-4 py-3 shadow-lg'
+            'fixed bottom-24 left-1/2 z-50 w-[min(30rem,calc(100vw-2rem))] -translate-x-1/2 sm:bottom-5',
+            cerrando ? 'animate-aviso-salir' : 'animate-aviso-entrar'
           )}
         >
-          <div className="min-w-0 flex-1">
-            <p className="text-texto text-sm font-semibold">Hay una versión nueva de Ops</p>
-            <p className="text-texto-tenue text-xs">
-              Esta pestaña sigue con la anterior. Actualiza cuando termines lo que estés haciendo.
-            </p>
-          </div>
-          <Boton variante="primario" tamano="chico" onClick={actualizar}>Actualizar</Boton>
-          <Boton
-            variante="sutil"
-            tamano="chico"
-            soloIcono
-            aria-label="Descartar el aviso"
-            onClick={() => { setDescartada(disponible) }}
+          <div
+            className={cn(
+              'border-linea bg-superficie-flotante shadow-flotante relative flex items-center gap-3 overflow-hidden',
+              'rounded-2xl border py-2.5 pr-2.5 pl-2.5',
+              // Un hilo de acento en el borde superior: lo distingue de un aviso de error sin gritar.
+              'before:via-acento before:pointer-events-none before:absolute before:inset-x-8 before:top-0 before:h-px',
+              'before:bg-gradient-to-r before:from-transparent before:to-transparent'
+            )}
           >
-            <X className="size-4" />
-          </Boton>
+            <span
+              aria-hidden="true"
+              className="bg-acento-suave text-acento grid size-10 shrink-0 place-items-center rounded-xl"
+            >
+              <RefreshCw className={cn('size-[1.125rem]', recargando ? 'animate-spin' : 'animate-aviso-giro')} />
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="text-texto text-sm leading-tight font-semibold">Hay una versión nueva de Ops</p>
+              <p className="text-texto-tenue mt-0.5 text-xs leading-snug">
+                Actualiza cuando termines lo que estás haciendo.
+              </p>
+            </div>
+            <Boton
+              variante="primario"
+              tamano="chico"
+              className="pointer-coarse:min-h-11 shrink-0 active:scale-[0.97]"
+              disabled={recargando}
+              onClick={actualizar}
+            >
+              Actualizar
+            </Boton>
+            <Boton
+              variante="sutil"
+              tamano="chico"
+              soloIcono
+              className="pointer-coarse:min-h-11 pointer-coarse:min-w-11 shrink-0"
+              aria-label="Descartar el aviso"
+              onClick={descartar}
+            >
+              <X className="size-4" aria-hidden="true" />
+            </Boton>
+          </div>
         </div>
       )}
 
