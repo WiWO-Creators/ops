@@ -5,18 +5,24 @@ import { useCallback, useState, type ReactElement } from 'react'
 import { escribirEnBff } from '@/componentes/datos/mutaciones'
 import { Cargando, SinPermiso } from '@/componentes/estado/Estados'
 import { Boton } from '@/componentes/formularios/Boton'
-import { Entrada } from '@/componentes/formularios/Entrada'
+import { CLASES_CASILLA, Entrada } from '@/componentes/formularios/Entrada'
 import { Fecha } from '@/componentes/presentadores/Fecha'
 import { mensajeDeRespuesta, pedirRespuesta } from '@/datos/cliente'
 import { GLOSARIO } from '@/dominio/glosario'
-import { urlDeEnlacePublico } from '@/lib/enlace-publico'
+import {
+  alternarSeccion,
+  mismasSecciones,
+  SECCIONES_ENLACE,
+  SECCIONES_POR_DEFECTO,
+  urlDeEnlacePublico
+} from '@/lib/enlace-publico'
 import {
   CerrarDialogo,
   ContenidoDialogo,
   Dialogo,
   DisparadorDialogo
 } from '@/componentes/superposiciones/Dialogo'
-import type { EnlaceProcesoGenerado, EstadoEnlaceProceso } from '@/datos/recursos'
+import type { EnlaceProcesoGenerado, EstadoEnlaceProceso, SeccionEnlacePublico } from '@/datos/recursos'
 import type { Sobre } from '@/datos/tipos'
 
 /** Estado de la pantalla del dialogo. El error es texto listo para mostrar, no un envelope. */
@@ -42,6 +48,10 @@ const PROCESO = GLOSARIO.proceso.singular.toLowerCase()
  * Cada `POST` acuña un token nuevo y revoca el anterior, asi que usarlo para "averiguar si hay
  * enlace" romperia el que ya se mando por chat. Es la trampa del endpoint y esta dicha en pantalla.
  *
+ * **Que publica el enlace se elige aca**, seccion por seccion (`SECCIONES_ENLACE`), antes de generarlo.
+ * La eleccion queda atada al enlace: con uno vivo, "Guardar cambios" la reemplaza con un `PATCH` sin
+ * acuñar otro, asi que la URL que ya se repartio sigue sirviendo y pasa a mostrar lo nuevo.
+ *
  * **El permiso lo decide la API** (`tasks.edit` mas visibilidad por fila). No se filtra el boton
  * contra `/me` porque el detalle se monta desde media docena de pantallas y ninguna le pasa
  * capacidades hoy: un 403 se muestra como `SinPermiso` dentro del dialogo, que es el mapa de codigos
@@ -52,10 +62,19 @@ export function CompartirTarea ({ procesoId }: { procesoId: number }): ReactElem
   const [enviando, setEnviando] = useState(false)
   const [confirmandoRevocar, setConfirmandoRevocar] = useState(false)
   const [copiado, setCopiado] = useState(false)
+  const [elegidas, setElegidas] = useState<SeccionEnlacePublico[]>([...SECCIONES_POR_DEFECTO])
 
   const cargarEstado = useCallback(async () => {
     setEstado({ fase: 'cargando' })
-    setEstado(await leerEstado(procesoId))
+
+    const nuevo = await leerEstado(procesoId)
+
+    // Con enlace vivo se parte de lo que ya publica; sin enlace, de la eleccion por defecto.
+    if (nuevo.fase === 'listo') {
+      setElegidas(nuevo.enlace.shared ? nuevo.enlace.sections : [...SECCIONES_POR_DEFECTO])
+    }
+
+    setEstado(nuevo)
   }, [procesoId])
 
   /**
@@ -78,7 +97,11 @@ export function CompartirTarea ({ procesoId }: { procesoId: number }): ReactElem
     setConfirmandoRevocar(false)
     setCopiado(false)
 
-    const resultado = await escribirEnBff<EnlaceProcesoGenerado>(`tasks/${procesoId}/share`, 'POST')
+    const resultado = await escribirEnBff<EnlaceProcesoGenerado>(
+      `tasks/${procesoId}/share`,
+      'POST',
+      { sections: elegidas }
+    )
 
     setEnviando(false)
 
@@ -87,11 +110,38 @@ export function CompartirTarea ({ procesoId }: { procesoId: number }): ReactElem
       return
     }
 
+    setElegidas(resultado.datos.sections)
     setEstado({
       fase: 'listo',
-      enlace: { shared: true, expires_at: resultado.datos.expires_at },
+      enlace: { shared: true, expires_at: resultado.datos.expires_at, sections: resultado.datos.sections },
       url: urlDeEnlacePublico(window.location.origin, resultado.datos.token)
     })
+  }
+
+  /**
+   * Cambia lo que publica el enlace vivo, sin acuñar otro.
+   *
+   * La URL en claro —si se genero en esta apertura— se conserva: sigue siendo la misma direccion.
+   */
+  async function guardarSecciones (url: string | null): Promise<void> {
+    setEnviando(true)
+    setCopiado(false)
+
+    const resultado = await escribirEnBff<EstadoEnlaceProceso>(
+      `tasks/${procesoId}/share`,
+      'PATCH',
+      { sections: elegidas }
+    )
+
+    setEnviando(false)
+
+    if (!resultado.ok) {
+      setEstado({ fase: 'error', mensaje: resultado.mensaje })
+      return
+    }
+
+    setElegidas(resultado.datos.sections)
+    setEstado({ fase: 'listo', enlace: resultado.datos, url })
   }
 
   async function revocar (): Promise<void> {
@@ -108,7 +158,7 @@ export function CompartirTarea ({ procesoId }: { procesoId: number }): ReactElem
       return
     }
 
-    setEstado({ fase: 'listo', enlace: { shared: false, expires_at: null }, url: null })
+    setEstado({ fase: 'listo', enlace: { shared: false, expires_at: null, sections: [] }, url: null })
   }
 
   /**
@@ -139,7 +189,7 @@ export function CompartirTarea ({ procesoId }: { procesoId: number }): ReactElem
       <ContenidoDialogo
         ancho="medio"
         titulo={`Compartir esta ${PROCESO}`}
-        descripcion={`Cualquiera con el enlace puede ver esta ${PROCESO}, sin cuenta ni contraseña. No caduca al abrirse: vive 30 días o hasta que lo revoques desde acá.`}
+        descripcion={`Cualquiera con el enlace puede ver esta ${PROCESO}, sin cuenta ni contraseña. No caduca al abrirse: vive 30 días o hasta que lo revoques desde acá. Nombre, estado, prioridad, fechas y avance salen siempre; el resto lo eliges abajo.`}
       >
         {estado.fase === 'cargando' && <Cargando alto="min-h-32" mensaje="Buscando el enlace…" />}
 
@@ -180,6 +230,12 @@ export function CompartirTarea ({ procesoId }: { procesoId: number }): ReactElem
               {textoDeEstado(estado)}
             </p>
 
+            <EleccionDeSecciones
+              elegidas={elegidas}
+              deshabilitado={enviando || confirmandoRevocar}
+              onCambio={(clave, marcada) => { setElegidas((actuales) => alternarSeccion(actuales, clave, marcada)) }}
+            />
+
             {estado.enlace.expires_at !== null && (
               <p className="text-texto-sutil text-xs">
                 Vence el <Fecha valor={estado.enlace.expires_at} conHora />
@@ -208,6 +264,16 @@ export function CompartirTarea ({ procesoId }: { procesoId: number }): ReactElem
                   <CerrarDialogo asChild>
                     <Boton variante="sutil" tamano="chico">Cerrar</Boton>
                   </CerrarDialogo>
+                  {estado.enlace.shared && !mismasSecciones(elegidas, estado.enlace.sections) && (
+                    <Boton
+                      variante="secundario"
+                      tamano="chico"
+                      cargando={enviando}
+                      onClick={() => { void guardarSecciones(estado.url) }}
+                    >
+                      Guardar cambios
+                    </Boton>
+                  )}
                   {estado.enlace.shared && (
                     <Boton
                       variante="peligro"
@@ -227,6 +293,58 @@ export function CompartirTarea ({ procesoId }: { procesoId: number }): ReactElem
         )}
       </ContenidoDialogo>
     </Dialogo>
+  )
+}
+
+/**
+ * Las casillas de "que se muestra", una por seccion opcional.
+ *
+ * Una seccion delicada marcada pinta su ayuda en tono de advertencia: los comentarios, por ejemplo,
+ * salen todos —tambien los internos— y eso tiene que leerse antes de generar, no despues.
+ */
+function EleccionDeSecciones ({
+  elegidas,
+  deshabilitado,
+  onCambio
+}: {
+  elegidas: readonly SeccionEnlacePublico[]
+  deshabilitado: boolean
+  onCambio: (clave: SeccionEnlacePublico, marcada: boolean) => void
+}): ReactElement {
+  return (
+    <fieldset className="border-linea-suave flex flex-col gap-3 border-t pt-4">
+      <legend className="text-texto pb-2 text-sm font-semibold">Qué se muestra</legend>
+
+      <div className="grid gap-x-4 gap-y-3 sm:grid-cols-2">
+        {SECCIONES_ENLACE.map((opcion) => {
+          const marcada = elegidas.includes(opcion.clave)
+          const id = `seccion-enlace-${opcion.clave}`
+
+          return (
+            <div key={opcion.clave} className="flex flex-col gap-0.5">
+              <label htmlFor={id} className="text-texto flex items-center gap-2 text-sm font-medium">
+                <input
+                  id={id}
+                  type="checkbox"
+                  className={CLASES_CASILLA}
+                  checked={marcada}
+                  disabled={deshabilitado}
+                  aria-describedby={`${id}-ayuda`}
+                  onChange={(evento) => { onCambio(opcion.clave, evento.target.checked) }}
+                />
+                {opcion.etiqueta}
+              </label>
+              <p
+                id={`${id}-ayuda`}
+                className={`pl-6 text-xs ${marcada && opcion.delicada ? 'text-texto-aviso' : 'text-texto-sutil'}`}
+              >
+                {opcion.ayuda}
+              </p>
+            </div>
+          )
+        })}
+      </div>
+    </fieldset>
   )
 }
 

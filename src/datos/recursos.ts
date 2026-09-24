@@ -1079,7 +1079,26 @@ export interface EstadoEnlaceProceso {
   shared: boolean
   /** ISO-8601 UTC, o `null` cuando no hay enlace vivo. */
   expires_at: string | null
+  /** Lo que publica el enlace vivo, en el orden del catalogo. Vacio sin enlace o sin opcionales. */
+  sections: SeccionEnlacePublico[]
 }
+
+/**
+ * Seccion opcional de la ficha publica de una Tarea.
+ *
+ * Es el catalogo cerrado de la API (`SeccionesEnlacePublico::OPCIONALES`): mandar otra es un 422. El
+ * nucleo —nombre, estado, prioridad, tipo, fechas y avance— sale siempre y no esta aca.
+ */
+export type SeccionEnlacePublico =
+  | 'description'
+  | 'project'
+  | 'assignees'
+  | 'tags'
+  | 'custom_fields'
+  | 'logged_time'
+  | 'checklist'
+  | 'attachments'
+  | 'comments'
 
 /**
  * Enlace recien acuñado (`POST /tasks/{id}/share`).
@@ -1091,6 +1110,7 @@ export interface EstadoEnlaceProceso {
 export interface EnlaceProcesoGenerado {
   token: string
   expires_at: string
+  sections: SeccionEnlacePublico[]
 }
 
 /**
@@ -1192,10 +1212,11 @@ export interface AnuncioDePantallaEnPanel {
 /**
  * La ficha que ve cualquiera con el enlace (`GET /public/tasks/{token}`).
  *
- * Son **nueve claves y ninguna mas**: la API construye la proyeccion a mano en su propio `SELECT`, no
- * poda el objeto del staff. No hay `include` que agregue nada, asi que esta interfaz es la lista
- * blanca entera. Fuera quedan a proposito la descripcion, los asignados, el Proyecto, los
- * comentarios, el dinero, los adjuntos y **el id interno de la Tarea**.
+ * El nucleo —nombre, estado, prioridad, tipo, fechas y avance— viaja siempre. Cada clave opcional
+ * viaja **solo si su seccion esta en `sections`**, que es lo que eligio quien genero el enlace: la
+ * API ni siquiera la consulta si no. La proyeccion la arma la API a mano en su propio `SELECT`, no
+ * poda el objeto del staff, asi que esta interfaz es la lista blanca entera. Nunca viajan el dinero,
+ * los cronometros individuales, las fotos ni **el id interno de la Tarea**.
  */
 export interface ProcesoPublico {
   name: string
@@ -1214,6 +1235,23 @@ export interface ProcesoPublico {
     /** `done/total`. Sin lista de control: `100` si esta completada, si no `null` — nunca un cero. */
     percent: number | null
   }
+  /** Las secciones opcionales que publica este enlace. */
+  sections: SeccionEnlacePublico[]
+  /** Texto plano: la API ya quito el HTML del editor. */
+  description?: string
+  /** `null` si la Tarea no cuelga de un Proyecto. */
+  project?: { name: string, client: string | null, milestone: string | null } | null
+  /** Solo nombres completos. */
+  assignees?: string[]
+  tags?: string[]
+  /** Solo los que tienen valor y no son de uso interno (`only_admin`). */
+  custom_fields?: Array<{ name: string, type: string, value: string | string[] }>
+  /** Llega con la seccion `logged_time`. */
+  logged_seconds?: number
+  checklist?: Array<{ description: string, finished: boolean }>
+  /** `url` solo en los externos (Drive, Dropbox); los archivos locales no se descargan sin sesion. */
+  attachments?: Array<{ name: string, url: string | null }>
+  comments?: Array<{ author: string | null, from_client: boolean, content: string, date_added: string | null }>
 }
 
 /** Una tarjeta del resumen de tareas por estado (`GET /projects/{id}/tasks/summary`). */
