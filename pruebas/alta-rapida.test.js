@@ -8,7 +8,7 @@
 
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { interpretarAltaRapida } from '../src/dominio/alta-rapida.ts'
+import { asignadosIniciales, interpretarAltaRapida } from '../src/dominio/alta-rapida.ts'
 
 const CATALOGOS = {
   personas: [
@@ -138,4 +138,13 @@ test('el titulo queda sin espacios dobles despues de sacar los prefijos', () => 
   const r = leer('Armar  parrilla @franz  !alta')
 
   assert.equal(r.name, 'Armar parrilla')
+})
+
+test('el alta arranca con quien la crea como responsable', () => {
+  const personas = [{ id: 7, full_name: 'Ana Ríos' }, { id: 9, full_name: 'Diego Sosa' }]
+
+  assert.deepEqual(asignadosIniciales(7, personas), [7])
+  assert.deepEqual(asignadosIniciales(null, personas), [])
+  assert.deepEqual(asignadosIniciales(3, personas), [], 'fuera del catálogo no se preelige')
+  assert.deepEqual(asignadosIniciales(7, []), [])
 })
