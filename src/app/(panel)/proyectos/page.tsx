@@ -21,6 +21,7 @@ import type {
 import type { OpcionFiltro } from '@/definiciones/tipos'
 import type { Yo } from '@/datos/tipos'
 import { ESPACIOS, espaciosConCampos, filtrosDeEntradaDeEspacios } from '@/definiciones/espacios'
+import { cn } from '@/lib/clases'
 
 export const metadata = { title: 'Proyectos · WiWO Ops' }
 
@@ -129,15 +130,25 @@ export default async function EspaciosPage (props: PageProps<'/proyectos'>) {
     <section className="flex flex-col gap-4">
       <TituloModulo
         titulo={ESPACIOS.titulo.plural}
-        acciones={yo.data.is_admin && cuantasPendientes > 0
+        acciones={yo.data.is_admin
           ? (
+            // El enlace esta siempre, no solo cuando hay algo esperando: sin el, un admin sin
+            // pendientes no tendria por donde llegar al historial de lo ya decidido. Lo que cambia
+            // con los pendientes es el tono y el texto, que es lo que hace que se note.
             <Link
               href="/proyectos/solicitudes"
-              className="rounded-control border border-relleno-peligro px-3 py-1.5 text-sm text-texto-peligro"
+              className={cn(
+                'rounded-control px-3 py-1.5 text-sm',
+                cuantasPendientes > 0
+                  ? 'border border-relleno-peligro text-texto-peligro'
+                  : 'border border-linea text-texto-tenue hover:bg-hover'
+              )}
             >
-              {cuantasPendientes === 1
-                ? '1 eliminación por resolver'
-                : `${cuantasPendientes} eliminaciones por resolver`}
+              {cuantasPendientes === 0
+                ? 'Solicitudes de eliminación'
+                : cuantasPendientes === 1
+                  ? '1 eliminación por resolver'
+                  : `${cuantasPendientes} eliminaciones por resolver`}
             </Link>
             )
           : undefined}

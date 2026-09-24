@@ -397,6 +397,234 @@ const CONSULTA_STAFF = {
   busqueda: ['full_name', 'email']
 }
 
+/**
+ * Bandeja de solicitudes de eliminacion. Un solo filtro, porque la pantalla solo tiene dos pestañas
+ * —lo que espera decision y el historial— y las dos se piden con `filter[estado]`.
+ *
+ * `solicitado_en` es ordenable porque el defecto de la bandeja es la mas vieja primero; `id` esta
+ * para desempatar dos pedidos del mismo segundo, que es lo que pasa cuando el fixture se siembra.
+ */
+const CONSULTA_SOLICITUDES_ELIMINACION = {
+  filtros: {
+    estado: coincideEnLista((s) => s.estado)
+  },
+  orden: ['solicitado_en', 'estado', 'id'],
+  busqueda: []
+}
+
+// ---------------------------------------------------------------------------
+// Solicitudes de eliminacion de un Espacio
+// ---------------------------------------------------------------------------
+
+/**
+ * Los pedidos de eliminacion que este mock lleva en memoria.
+ *
+ * Archivar un Espacio exige `projects.edit`, que la mayor parte del equipo no tiene: quien no puede
+ * archivar pide, y un admin resuelve. Aprobar ARCHIVA el Espacio; nada se borra.
+ *
+ * Dos filas de semilla con los dos estados que se ven distinto en pantalla: una esperando decision
+ * —la que pinta el distintivo en la ficha y en el listado— y una ya resuelta con su respuesta. Un
+ * fixture con un solo estado no distingue "muestra en que quedo" de "siempre dice lo mismo", y
+ * dejaria la pestaña de historial vacia.
+ *
+ * Las marcas de tiempo se guardan como las guarda MySQL (`YYYY-MM-DD HH:MM:SS`) y se publican con
+ * offset: es el presentador el que traduce, igual que el backend.
+ */
+const SOLICITUDES_ELIMINACION = [
+  {
+    id: 9001,
+    project_id: 3,
+    motivo: 'La migración se canceló: el cliente se quedó en el sistema viejo y nadie va a cargar horas acá.',
+    solicitado_por: 2,
+    solicitado_en: '2026-09-20 09:15:00',
+    estado: 'pendiente',
+    respuesta: null,
+    resuelto_por: null,
+    resuelto_en: null
+  },
+  {
+    id: 9002,
+    project_id: 4,
+    motivo: 'La campaña terminó hace meses y sigue apareciendo en todos los listados.',
+    solicitado_por: 4,
+    solicitado_en: '2026-09-12 16:40:00',
+    estado: 'rechazada',
+    respuesta: 'Todavía hay facturación pendiente colgando de este espacio. Lo revisamos en octubre.',
+    resuelto_por: 1,
+    resuelto_en: '2026-09-13 11:05:00'
+  }
+]
+
+/** De donde salen los ids de las solicitudes nuevas. Basta con que no se repitan. */
+let SIGUIENTE_SOLICITUD = 9003
+
+/** Tope del motivo y de la respuesta. El mismo `varchar(1000)` de la migracion 0950. */
+const TEXTO_DE_SOLICITUD_MAXIMO = 1000
+
+/**
+ * El offset con el que el resto del mock publica sus instantes (`INCIDENTES.creado_en`).
+ *
+ * La API real emite la hora de Santiago con offset, nunca `Z` ni texto pelado: si el mock publicara
+ * `2026-09-20 09:15:00`, el frontend lo parsearia como hora local y la diferencia recien se veria
+ * en produccion.
+ */
+const OFFSET_DEL_MOCK = '-04:00'
+
+/** Ahora, en el texto que la base guarda. Lo que se publica sale de `instanteConOffset()`. */
+function ahoraDeSolicitud () {
+  return new Date().toISOString().slice(0, 19).replace('T', ' ')
+}
+
+/**
+ * Pasa un instante guardado (`YYYY-MM-DD HH:MM:SS`) al ISO con offset que la API publica.
+ *
+ * @param {string|null} valor instante como lo guarda la base
+ * @returns {string|null} el mismo instante en ISO-8601 con offset, o `null` si no habia
+ */
+function instanteConOffset (valor) {
+  if (valor === null || valor === undefined || valor === '') return null
+
+  return `${String(valor).trim().replace(' ', 'T')}${OFFSET_DEL_MOCK}`
+}
+
+/**
+ * Referencia de staff con los tres campos que la API expone, o `null`.
+ *
+ * `null` no es un caso teorico: quien pidio la eliminacion puede haberse ido del equipo antes de que
+ * un admin la resolviera, y la solicitud sigue ahi.
+ *
+ * @param {number|null} id staffid guardado en la fila
+ * @returns {{id: number, full_name: string, profile_image_url: string|null}|null}
+ */
+function referenciaDeStaff (id) {
+  const persona = STAFF.find((p) => p.id === id)
+
+  return persona === undefined
+    ? null
+    : { id: persona.id, full_name: persona.full_name, profile_image_url: persona.profile_image_url ?? null }
+}
+
+/**
+ * Un pedido de eliminacion como lo publica la API, campo por campo.
+ *
+ * La lista de claves es cerrada a proposito: la fila en memoria guarda ids de staff y texto de base,
+ * y publicarla entera filtraria una forma que en produccion no existe. Un mock que publica de mas
+ * deja pasar en local una pantalla que se cae contra la API.
+ *
+ * `pendiente` viaja calculado y no se deriva en el frontend: el criterio de "esta esperando" vive en
+ * un solo lado.
+ *
+ * @param {object} fila fila de `SOLICITUDES_ELIMINACION`
+ * @param {{conProyecto?: boolean}} opciones `conProyecto` agrega el bloque del Espacio
+ * @returns {object} la solicitud en la forma del contrato
+ */
+function presentarSolicitudEliminacion (fila, { conProyecto = false } = {}) {
+  const espacio = ESPACIOS.find((e) => e.id === fila.project_id)
+
+  return {
+    id: fila.id,
+    project_id: fila.project_id,
+    estado: fila.estado,
+    pendiente: fila.estado === 'pendiente',
+    motivo: fila.motivo,
+    solicitado_por: referenciaDeStaff(fila.solicitado_por),
+    solicitado_en: instanteConOffset(fila.solicitado_en),
+    respuesta: fila.respuesta,
+    resuelto_por: referenciaDeStaff(fila.resuelto_por),
+    resuelto_en: instanteConOffset(fila.resuelto_en),
+    // El Espacio viaja SOLO en la bandeja del admin, que no sabe de antemano de cual se habla. El
+    // historial de un Espacio no lo manda: quien lo pide ya esta parado en su ficha.
+    ...(conProyecto
+      ? {
+          project: espacio === undefined
+            ? null
+            : { id: espacio.id, name: espacio.name, archived: espacio.archived === true }
+        }
+      : {})
+  }
+}
+
+/**
+ * La solicitud VIVA de un Espacio —la unica que puede estar esperando— ya presentada, o `null`.
+ *
+ * Sin bloque `project`: quien la recibe esta mirando el Espacio.
+ *
+ * @param {number} proyectoId id del Espacio
+ * @returns {object|null}
+ */
+function solicitudVivaDe (proyectoId) {
+  const viva = SOLICITUDES_ELIMINACION.find((s) => s.project_id === proyectoId && s.estado === 'pendiente')
+
+  return viva === undefined ? null : presentarSolicitudEliminacion(viva, { conProyecto: false })
+}
+
+/**
+ * Los pedidos de un Espacio, del mas reciente al mas viejo.
+ *
+ * Copia antes de ordenar: `filter()` ya devuelve una lista nueva, pero el orden se deja explicito
+ * porque es parte del contrato —la ficha pinta el ultimo arriba— y no un accidente del fixture.
+ *
+ * @param {number} proyectoId id del Espacio
+ * @returns {object[]} solicitudes presentadas, sin bloque `project`
+ */
+function solicitudesDeProyecto (proyectoId) {
+  return SOLICITUDES_ELIMINACION
+    .filter((s) => s.project_id === proyectoId)
+    .sort((a, b) => (a.solicitado_en === b.solicitado_en
+      ? b.id - a.id
+      : (a.solicitado_en < b.solicitado_en ? 1 : -1)))
+    .map((s) => presentarSolicitudEliminacion(s, { conProyecto: false }))
+}
+
+/**
+ * Si quien pide administra, con el mismo criterio que `permisosDe()`.
+ *
+ * No se apoya en `exigirPermiso`: resolver un pedido de eliminacion no es una capacidad sobre
+ * `projects` —quien la tiene archiva y no pide nada—, es ser administrador.
+ *
+ * @param {{is_admin?: boolean, is_superadmin?: boolean}} staff
+ * @returns {boolean}
+ */
+function administra (staff) {
+  return staff.is_admin === true || staff.is_superadmin === true
+}
+
+/**
+ * Valida el texto libre de una solicitud (el motivo, o la respuesta del admin).
+ *
+ * @param {unknown} crudo lo que llego en el cuerpo
+ * @param {string} campo nombre del campo, para el `details` del 422
+ * @param {boolean} obligatorio si ausente o en blanco es 422
+ * @returns {string|null} el texto ya recortado, o `null` si no vino y no era obligatorio
+ * @throws {ErrorApi} 422 con `details` por campo
+ */
+function textoDeSolicitud (crudo, campo, obligatorio) {
+  const invalido = (regla) => new ErrorApi(
+    422, 'validation_failed', 'Hay campos que no se pueden guardar.', { [campo]: [regla] }
+  )
+
+  if (crudo === undefined || crudo === null) {
+    if (obligatorio) throw invalido('required')
+
+    return null
+  }
+
+  // Un numero o un objeto no es "texto vacio": es un cuerpo mal armado, y tragarlo convertido a
+  // string haria que el frontend descubriera el tipo recien contra la API real.
+  if (typeof crudo !== 'string') throw invalido('string')
+
+  const texto = crudo.trim()
+
+  if (texto === '') {
+    if (obligatorio) throw invalido('required')
+
+    return null
+  }
+  if (texto.length > TEXTO_DE_SOLICITUD_MAXIMO) throw invalido(`max:${TEXTO_DE_SOLICITUD_MAXIMO}`)
+
+  return texto
+}
+
 // ---------------------------------------------------------------------------
 // Rutas
 // ---------------------------------------------------------------------------
@@ -415,6 +643,11 @@ function presentarEspacio (espacio, includes = []) {
     // `members` solo con `include=members`, igual que la API: quien no lo pide no debe recibirlo, o
     // el frontend se acostumbra a un campo que en produccion no va a estar.
     ...(includes.includes('members') ? { members: miembrosDe(espacio) } : {}),
+    // El pedido de eliminacion que esta esperando, o `null`. Viaja siempre —en el listado y en la
+    // ficha— porque es lo que pinta el distintivo de "hay algo esperando decision" y lo que le
+    // muestra a quien lo escribio que su pedido sigue abierto. El historial completo es otra
+    // llamada. **No va en `presentarEspacioPortal`**: es una conversacion interna del equipo.
+    deletion_request: solicitudVivaDe(espacio.id),
     counts: {
       tasks: suyos.length,
       tasks_open: suyos.filter((p) => p.status !== 5).length,
@@ -6523,6 +6756,158 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
 
     espacio.ver_todos_los_procesos = valor
     return { estado: 200, cuerpo: conDatos(presentarEspacio(espacio)) }
+  }
+
+  // Pedir que se elimine un Espacio, y retirar el pedido propio. Va antes del bloque de `projects`,
+  // que solo atiende GET: pedir es POST y retirar es DELETE.
+  if (recurso === 'projects' && (resto[1] === 'deletion-requests' || (resto[1] === 'actions' && resto[2] === 'request-deletion'))) {
+    const espacio = buscarO404(ESPACIOS, Number(resto[0]), 'espacio')
+
+    // Ver el Espacio alcanza, y es a proposito: pedir la eliminacion es justo lo que hace quien NO
+    // puede editarlo. Exigir `edit` dejaria la accion en manos de quien ya puede archivar solo.
+    exigirPermiso(actual, 'projects', 'view')
+
+    if (resto[1] === 'actions') {
+      if (metodo !== 'POST' || resto.length !== 3) throw new ErrorApi(404, 'not_found', 'Recurso desconocido.')
+
+      const datos = await cuerpo()
+      const motivo = textoDeSolicitud(datos.motivo, 'motivo', true)
+
+      // Un Espacio ya archivado no se pide eliminar: el pedido no tendria nada que hacer al
+      // aprobarse. Es 409 y no 422 porque el cuerpo esta bien; lo que no da es el estado del Espacio.
+      if (espacio.archived === true) {
+        throw new ErrorApi(409, 'conflict', 'Este espacio ya está archivado.')
+      }
+      // Una sola solicitud viva por Espacio: dos pedidos abiertos sobre lo mismo obligarian al admin
+      // a resolver dos veces la misma conversacion.
+      if (SOLICITUDES_ELIMINACION.some((s) => s.project_id === espacio.id && s.estado === 'pendiente')) {
+        throw new ErrorApi(409, 'conflict', 'Este espacio ya tiene una solicitud esperando resolución.')
+      }
+
+      SOLICITUDES_ELIMINACION.push({
+        id: SIGUIENTE_SOLICITUD,
+        project_id: espacio.id,
+        motivo,
+        solicitado_por: actual.id,
+        solicitado_en: ahoraDeSolicitud(),
+        estado: 'pendiente',
+        respuesta: null,
+        resuelto_por: null,
+        resuelto_en: null
+      })
+      const creada = SIGUIENTE_SOLICITUD
+      SIGUIENTE_SOLICITUD += 1
+
+      // Devuelve el historial entero y no solo la fila nueva: la ficha lo pinta completo y asi se
+      // ahorra el GET de vuelta. `created_id` deja senalar cual es la recien creada sin compararlas.
+      return { estado: 201, cuerpo: conDatos(solicitudesDeProyecto(espacio.id), { created_id: creada }) }
+    }
+
+    if (resto.length !== 2) throw new ErrorApi(404, 'not_found', 'Recurso desconocido.')
+
+    if (metodo === 'GET') {
+      return { estado: 200, cuerpo: conDatos(solicitudesDeProyecto(espacio.id)) }
+    }
+
+    if (metodo === 'DELETE') {
+      const viva = SOLICITUDES_ELIMINACION.find((s) => s.project_id === espacio.id && s.estado === 'pendiente')
+
+      if (viva === undefined) {
+        throw new ErrorApi(404, 'not_found', 'No hay ninguna solicitud esperando resolución en este espacio.')
+      }
+      // Solo el autor o un administrador, igual que el borrado de un Meeting Paper. El admin entra
+      // porque es quien la iba a resolver de todos modos.
+      if (viva.solicitado_por !== actual.id && !administra(actual)) {
+        throw new ErrorApi(403, 'forbidden', 'Solo quien pidió la eliminación, o un administrador, puede retirarla.')
+      }
+
+      // Retirar no borra la fila: deja el pedido en `cancelada` con quien y cuando. Borrarla haria
+      // desaparecer del historial que alguien pidio cerrar esto, que es la mitad de la informacion.
+      viva.estado = 'cancelada'
+      viva.resuelto_por = actual.id
+      viva.resuelto_en = ahoraDeSolicitud()
+
+      return { estado: 200, cuerpo: conDatos({ id: viva.id }) }
+    }
+
+    throw new ErrorApi(404, 'not_found', 'Recurso desconocido.')
+  }
+
+  // Bandeja de solicitudes de eliminacion. Prefijo propio y no bajo `projects` porque se lee
+  // atravesada —todos los Espacios de una— y quien la abre todavia no sabe de cual se habla.
+  if (recurso === 'deletion-requests') {
+    // La compuerta es ser administrador, no una capacidad sobre `projects`: acá se lee el motivo que
+    // escribio un tercero y se archiva su Espacio.
+    if (!administra(actual)) {
+      throw new ErrorApi(403, 'forbidden', 'Solo un administrador resuelve las solicitudes de eliminación.')
+    }
+
+    if (resto.length === 0) {
+      if (metodo !== 'GET') throw new ErrorApi(404, 'not_found', 'Recurso desconocido.')
+
+      // Sin `filter[estado]` la bandeja muestra lo que espera decision y nada mas: es lo que el admin
+      // abre a resolver. El historial completo se pide a proposito, con los cuatro estados.
+      const visibles = parametros.get('filter[estado]') === null
+        ? SOLICITUDES_ELIMINACION.filter((s) => s.estado === 'pendiente')
+        : SOLICITUDES_ELIMINACION
+
+      // `aplicarConsulta` no ordena si nadie manda `sort`, y una bandeja sin orden estable reparte
+      // mal las filas entre paginas. La mas vieja primero: es la que lleva mas tiempo esperando.
+      const consulta = new URLSearchParams(parametros)
+      if (!consulta.has('sort')) consulta.set('sort', 'solicitado_en')
+
+      const { filas, paginacion } = aplicarConsulta(
+        visibles.map((s) => presentarSolicitudEliminacion(s, { conProyecto: true })),
+        consulta,
+        CONSULTA_SOLICITUDES_ELIMINACION
+      )
+
+      return { estado: 200, cuerpo: conDatos(filas, { pagination: paginacion }) }
+    }
+
+    const solicitud = buscarO404(SOLICITUDES_ELIMINACION, Number(resto[0]), 'solicitud de eliminación')
+
+    if (metodo === 'GET' && resto.length === 1) {
+      return { estado: 200, cuerpo: conDatos(presentarSolicitudEliminacion(solicitud, { conProyecto: true })) }
+    }
+
+    if (metodo === 'POST' && resto[1] === 'actions' && (resto[2] === 'approve' || resto[2] === 'reject')) {
+      const aprobando = resto[2] === 'approve'
+
+      // Una solicitud ya resuelta no se vuelve a resolver: es 409 y no 404 porque existe, y sin el
+      // conflicto dos admins con la pantalla abierta se pisarian la decision del otro.
+      if (solicitud.estado !== 'pendiente') {
+        throw new ErrorApi(409, 'conflict', 'Esta solicitud ya está resuelta.')
+      }
+
+      const datos = await cuerpo()
+      // Rechazar exige decir por que: quien lo pidio va a leer eso y nada mas. Al aprobar es
+      // opcional, porque la decision ya se explica sola.
+      const respuesta = textoDeSolicitud(datos.respuesta, 'respuesta', !aprobando)
+      const ahora = ahoraDeSolicitud()
+
+      solicitud.estado = aprobando ? 'aprobada' : 'rechazada'
+      solicitud.respuesta = respuesta
+      solicitud.resuelto_por = actual.id
+      solicitud.resuelto_en = ahora
+
+      // Aprobar ARCHIVA el Espacio, que es todo el punto del pedido: sale de los listados diarios y
+      // conserva sus tareas, sus horas y su facturacion. Borrar de verdad sigue siendo otra cosa.
+      if (aprobando) {
+        const espacio = ESPACIOS.find((e) => e.id === solicitud.project_id)
+
+        if (espacio !== undefined) {
+          espacio.archived = true
+          espacio.archived_at = instanteConOffset(ahora)
+        }
+      }
+
+      // Con bloque `project`: quien resuelve esta en la bandeja y necesita ver el Espacio ya
+      // archivado en la misma respuesta, sin volver a pedir la fila.
+      return { estado: 200, cuerpo: conDatos(presentarSolicitudEliminacion(solicitud, { conProyecto: true })) }
+    }
+
+    throw new ErrorApi(404, 'not_found', 'Ruta de solicitud de eliminación desconocida.')
   }
 
   if (recurso === 'projects' && (metodo === 'GET' || (metodo === 'PATCH' && resto[1] === 'milestones' && resto[2] === 'orden'))) {
