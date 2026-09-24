@@ -890,9 +890,9 @@ export interface CarpetaDrive {
 /**
  * Respuesta de `POST /drive/{folder_id}/files`: el archivo recien subido.
  *
- * `id` es el id propio de la fila (numerico), distinto de `drive_file_id` (el id de Google). El resto
- * del árbol identifica sus nodos por `NodoDrive.id`, que en los archivos ya subidos por acá coincide
- * con este `id` propio convertido a texto — ver `nodoDeSubida` en `ArbolDrive.tsx`.
+ * `id` es el id propio de la fila (numerico), distinto de `drive_file_id` (el id de Google). El árbol
+ * identifica sus nodos por `NodoDrive.id`, que es siempre el id de Google: el nodo recién subido usa
+ * `drive_file_id`, nunca `id` — ver `nodoDeSubida` en `ArbolDrive.tsx`.
  */
 export interface ArchivoDriveSubido {
   id: number

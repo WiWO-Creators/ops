@@ -235,7 +235,7 @@ export function ArbolDrive ({ raiz, id }: Props) {
 /** Convierte la respuesta de subida en un nodo del arbol, para insertarlo sin volver a pedir la carpeta. */
 function nodoDeSubida (subido: ArchivoDriveSubido): NodoDrive {
   return {
-    id: String(subido.id),
+    id: subido.drive_file_id,
     name: subido.name,
     is_folder: subido.is_folder,
     web_view_link: subido.web_view_link,
