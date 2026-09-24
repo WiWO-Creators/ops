@@ -21,6 +21,7 @@ import { avisosRuta } from './avisos.js'
 import { altaDelPortal, esAccionDelPortal, ticketDelPortal, ticketsDelEquipo } from './tickets.js'
 import { esPrincipal, filaDelPortal, listadosDeTickets, ticketsDelResumen } from './tickets-listados.js'
 import { filtrosGuardados } from './filtros-guardados.js'
+import { analizarScope, interpretarScope, scopeRuta } from './scope.js'
 import { escribirAjustesDelOrbePortal, opcionDelOrbePortal, orbePortalRuta } from './orbe-portal.js'
 import {
   ADMINS_DE_CLIENTE, AREAS, ARCHIVOS, CAMPOS_PERSONALIZADOS, CHECKLIST, CLIENTES, COMENTARIOS, CRONOMETROS,
@@ -2663,11 +2664,61 @@ async function iaRuta (metodo, resto, parametros, actual, cuerpo, peticion) {
   if (seccion === 'proyectos' && sub[1] === 'acta' && metodo === 'POST') {
     return await generarActaIaRuta(sub[0], parametros, actual, peticion)
   }
+  if (seccion === 'proyectos' && sub[1] === 'scope' && sub.length === 3 && metodo === 'POST') {
+    return await scopeIaRuta(sub[0], sub[2], actual, cuerpo, peticion)
+  }
   if (seccion === 'proyectos' && sub[1] === 'acta-transformar' && metodo === 'POST') {
     return await transformarActaIaRuta(cuerpo)
   }
 
   throw new ErrorApi(404, 'not_found', `Recurso de IA desconocido: "${seccion ?? ''}".`)
+}
+
+/** Las Tareas de un Proyecto, como las cruza el analisis del Scope. */
+function procesosDelScope (espacioId) {
+  return PROCESOS.filter((p) => p.project?.id === espacioId)
+}
+
+/**
+ * La regla de `puedeEditar` del Scope: `projects.edit` y el Proyecto no archivado. Vive en un solo
+ * lugar, igual que en la API, para poder endurecerla despues.
+ */
+function puedeEditarScope (actual, espacio) {
+  return (permisosDe(actual).projects ?? []).includes('edit') && espacio.archived !== true
+}
+
+/** Demora artificial del analisis, para ver el estado de carga contra el mock. `0` en las pruebas. */
+const DEMORA_ANALISIS_MS = Number(process.env.MOCK_DEMORA_ANALISIS_MS ?? 0)
+
+/**
+ * `POST /ia/proyectos/{id}/scope/{interpretar|analizar}`.
+ *
+ * Interpretar acepta JSON o `multipart/form-data` con `fuente=pdf`, `archivo` y `texto` opcional.
+ * Analizar no lleva cuerpo.
+ */
+async function scopeIaRuta (crudoId, accion, actual, cuerpo, peticion) {
+  exigirPermiso(actual, 'projects', 'view')
+  const espacio = buscarO404(ESPACIOS, Number(crudoId), 'espacio')
+
+  if (accion === 'interpretar') {
+    if (!puedeEditarScope(actual, espacio)) throw new ErrorApi(403, 'forbidden', 'Sin permiso para editar el scope de este proyecto.')
+
+    if ((peticion.headers['content-type'] ?? '').includes('multipart/form-data')) {
+      const { campos, archivo } = await camposDelMultipart(peticion)
+
+      return { estado: 200, cuerpo: conDatos(interpretarScope({ ...campos, archivo })) }
+    }
+
+    return { estado: 200, cuerpo: conDatos(interpretarScope(await cuerpo())) }
+  }
+
+  if (accion === 'analizar') {
+    if (DEMORA_ANALISIS_MS > 0) await new Promise((resolver) => setTimeout(resolver, DEMORA_ANALISIS_MS))
+
+    return { estado: 200, cuerpo: conDatos(analizarScope({ espacio, procesos: procesosDelScope(espacio.id), actual })) }
+  }
+
+  throw new ErrorApi(404, 'not_found', 'Recurso de IA desconocido.')
 }
 
 /**
@@ -6552,6 +6603,24 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
     }
     const cliente = buscarO404(CLIENTES, Number(resto[0]), 'cliente')
     return { estado: 200, cuerpo: conDatos(conContactos(conCamposPersonalizados(cliente, 'clients', includes), includes)) }
+  }
+
+  // El Scope del contrato. Va antes del bloque de `projects` por lo mismo que `portal-settings`: ese
+  // bloque solo atiende GET, y este tambien acepta PUT.
+  if (recurso === 'projects' && resto[1] === 'scope') {
+    if (resto.length !== 2) throw new ErrorApi(404, 'not_found', 'Recurso desconocido.')
+
+    exigirPermiso(actual, 'projects', 'view')
+    const espacio = buscarO404(ESPACIOS, Number(resto[0]), 'espacio')
+
+    return await scopeRuta({
+      metodo,
+      espacio,
+      procesos: procesosDelScope(espacio.id),
+      actual,
+      puedeEditar: puedeEditarScope(actual, espacio),
+      cuerpo
+    })
   }
 
   // Que ve el cliente de un Espacio. Va antes del bloque de `projects` por lo mismo que las actas:
