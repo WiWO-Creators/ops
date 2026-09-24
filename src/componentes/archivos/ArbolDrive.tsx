@@ -1,7 +1,11 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState, type ChangeEvent } from 'react'
-import { ChevronDown, ChevronRight, File, Folder, FolderPlus, Trash2, Upload, Users, X } from 'lucide-react'
+import {
+  createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ChangeEvent
+} from 'react'
+import {
+  ChevronDown, ChevronRight, File, Folder, FolderInput, FolderPlus, Lock, Pencil, Trash2, Upload, Users, X
+} from 'lucide-react'
 import { Boton } from '@/componentes/formularios/Boton'
 import { Campo } from '@/componentes/formularios/Campo'
 import { Entrada } from '@/componentes/formularios/Entrada'
@@ -15,9 +19,11 @@ import { cargarAsignables } from '@/datos/asignables'
 import { escribirEnBff, subirArchivoEnBff } from '@/componentes/datos/mutaciones'
 import { GLOSARIO } from '@/dominio/glosario'
 import { cn } from '@/lib/clases'
+import { esEditable, puedeEscribirEn, quitarNodo, reemplazarNodo } from '@/dominio/drive-arbol'
+import { DialogoMoverDrive, EditorNombreDrive, NuevaCarpetaDrive } from '@/componentes/archivos/EdicionDrive'
 import type {
-  ArchivoDriveSubido, DriveCliente, DriveTarea, NodoDrive, PermisoDrive, PersonaAsignable, RaizDrive,
-  RolPermisoDrive, SujetoPermisoDrive
+  ArchivoDriveSubido, CambioNodoDrive, CarpetaDrive, ContenidoCarpetaDrive, DriveCliente, DriveTarea, NodoDrive,
+  PermisoDrive, PersonaAsignable, RaizDrive, RolPermisoDrive, SujetoPermisoDrive
 } from '@/datos/recursos'
 
 /** Ancho de la sangria por nivel del arbol, en rem. */
@@ -118,12 +124,6 @@ export function ArbolDrive ({ raiz, id }: Props) {
   const { datos } = carga
   const { folder } = datos
 
-  /** Agrega el archivo recien subido a la raiz del arbol, sin volver a pedir todo. */
-  const agregarEnRaiz = (nuevo: NodoDrive): void => {
-    if (folder === null) return
-    setCarga({ fase: 'listo', datos: { ...datos, folder: { ...folder, children: [...folder.children, nuevo] } } })
-  }
-
   /**
    * Crea la carpeta que la entidad no tiene y deja la pestaña mostrandola, sin recargar.
    *
@@ -160,15 +160,6 @@ export function ArbolDrive ({ raiz, id }: Props) {
     }
 
     setCarga({ fase: 'listo', datos: resultado.datos })
-  }
-
-  /** Saca un archivo de la raiz del arbol, tras borrarlo en el backend. */
-  const eliminarDeRaiz = (idEliminado: string): void => {
-    if (folder === null) return
-    setCarga({
-      fase: 'listo',
-      datos: { ...datos, folder: { ...folder, children: folder.children.filter((h) => h.id !== idEliminado) } }
-    })
   }
 
   return (
@@ -213,22 +204,144 @@ export function ArbolDrive ({ raiz, id }: Props) {
           )
         : (
           <>
-            <SubirArchivoDrive folderId={folder.id} onSubido={agregarEnRaiz} />
-
-            {folder.children.length === 0
-              ? <p className="text-texto-tenue text-sm">Está vacía.</p>
-              : (
-                <ul className="flex flex-col gap-0.5">
-                  {folder.children.map((nodo) => (
-                    <NodoArbol key={nodo.id} nodo={nodo} nivel={0} folderId={folder.id} onEliminado={eliminarDeRaiz} />
-                  ))}
-                </ul>
-                )}
+            <CarpetaRaizDrive key={folder.id} folder={folder} />
 
             <AccesosDrive folderId={folder.id} raiz={raiz} />
           </>
           )}
     </div>
+  )
+}
+
+/**
+ * Lo que el árbol comparte con todas sus filas: de qué carpeta cuelga todo y cómo refrescar una
+ * carpeta ya abierta cuando algo llega a ella desde otra rama (un traslado).
+ */
+interface ArbolCompartido {
+  /** La carpeta de la entidad: es la raíz que ofrece el diálogo de mover. */
+  raizId: string
+  /** Anota cómo recargar una carpeta abierta. Devuelve la función que la desanota. */
+  registrarCarpeta: (id: string, recargar: () => void) => () => void
+  /** Vuelve a pedir una carpeta si está abierta en el árbol; si no lo está, no hace nada. */
+  recargarCarpeta: (id: string) => void
+}
+
+const ContextoArbol = createContext<ArbolCompartido | null>(null)
+
+/** Lee el contexto del árbol. Fuera de `CarpetaRaizDrive` es un error de programación. */
+function useArbol (): ArbolCompartido {
+  const arbol = useContext(ContextoArbol)
+  if (arbol === null) throw new Error('NodoArbol se usa fuera de CarpetaRaizDrive.')
+  return arbol
+}
+
+/** Lleva `can_write` y `locked` ausentes a su valor por defecto, para un backend anterior a esos campos. */
+function contenidoDe (carpeta: ContenidoCarpetaDrive): Required<ContenidoCarpetaDrive> {
+  return { children: carpeta.children, can_write: puedeEscribirEn(carpeta) }
+}
+
+/**
+ * La carpeta de la entidad y sus hijos, con el registro que deja refrescar cualquier carpeta abierta.
+ *
+ * Arranca con lo que trajo `GET /{raiz}/{id}/drive` y se refresca contra `GET /drive/{folder_id}`,
+ * que devuelve el mismo nivel: así un traslado a la raíz aparece sin recargar la pestaña.
+ *
+ * @param folder la carpeta raíz tal como la devolvió la API
+ */
+function CarpetaRaizDrive ({ folder }: { folder: CarpetaDrive }) {
+  const [contenido, setContenido] = useState(() => contenidoDe(folder))
+  const [errorRecarga, setErrorRecarga] = useState<string | null>(null)
+  const recargadores = useRef(new Map<string, () => void>())
+
+  const recargarRaiz = useCallback(() => {
+    void pedirSobre<ContenidoCarpetaDrive>(`drive/${encodeURIComponent(folder.id)}`, new AbortController().signal)
+      .then((sobre) => {
+        setContenido(contenidoDe(sobre.data))
+        setErrorRecarga(null)
+      })
+      .catch((fallo: unknown) => {
+        setErrorRecarga(fallo instanceof Error ? fallo.message : 'No se pudo actualizar la carpeta.')
+      })
+  }, [folder.id])
+
+  const arbol = useMemo<ArbolCompartido>(() => ({
+    raizId: folder.id,
+    registrarCarpeta: (id, recargar) => {
+      recargadores.current.set(id, recargar)
+      return () => {
+        if (recargadores.current.get(id) === recargar) recargadores.current.delete(id)
+      }
+    },
+    recargarCarpeta: (id) => {
+      if (id === folder.id) {
+        recargarRaiz()
+        return
+      }
+      recargadores.current.get(id)?.()
+    }
+  }), [folder.id, recargarRaiz])
+
+  return (
+    <ContextoArbol.Provider value={arbol}>
+      <ContenidoCarpeta
+        folderId={folder.id}
+        contenido={contenido}
+        nivel={0}
+        onCambiarHijos={(cambiar) => { setContenido((actual) => ({ ...actual, children: cambiar(actual.children) })) }}
+      />
+      {errorRecarga !== null && <p role="alert" className="text-texto-peligro text-xs">{errorRecarga}</p>}
+    </ContextoArbol.Provider>
+  )
+}
+
+/** Cambio sobre la lista de hijos de una carpeta, aplicado sobre la versión más reciente. */
+type CambioHijos = (hijos: NodoDrive[]) => NodoDrive[]
+
+/**
+ * Lo que se ve dentro de una carpeta abierta: la barra para subir y crear, y la lista de hijos.
+ *
+ * Es el mismo bloque para la raíz y para cualquier subcarpeta. Crear y renombrar solo aparecen si
+ * la carpeta admite escritura (`can_write`).
+ *
+ * @param folderId la carpeta cuyo contenido se muestra
+ * @param contenido sus hijos y si se puede escribir en ella
+ * @param nivel profundidad de la carpeta en el árbol, para la sangría
+ * @param onCambiarHijos aplica un cambio sobre los hijos que guarda quien es dueño del estado
+ */
+function ContenidoCarpeta ({ folderId, contenido, nivel, onCambiarHijos }: {
+  folderId: string
+  contenido: Required<ContenidoCarpetaDrive>
+  nivel: number
+  onCambiarHijos: (cambiar: CambioHijos) => void
+}) {
+  const sangria = nivel === 0 ? undefined : { paddingLeft: `${nivel * SANGRIA_POR_NIVEL + 0.5}rem` }
+  const agregar = (nuevo: NodoDrive): void => { onCambiarHijos((hijos) => [...hijos, nuevo]) }
+
+  return (
+    <>
+      <div style={sangria} className="flex flex-wrap items-start gap-2">
+        <SubirArchivoDrive folderId={folderId} onSubido={agregar} />
+        {contenido.can_write && <NuevaCarpetaDrive folderId={folderId} onCreada={agregar} />}
+      </div>
+
+      {contenido.children.length === 0
+        ? <p style={sangria} className={cn('text-texto-tenue', nivel === 0 ? 'text-sm' : 'text-xs')}>Está vacía.</p>
+        : (
+          <ul className="flex flex-col gap-0.5">
+            {contenido.children.map((hijo) => (
+              <NodoArbol
+                key={hijo.id}
+                nodo={hijo}
+                nivel={nivel}
+                folderId={folderId}
+                editable={contenido.can_write && esEditable(hijo)}
+                onQuitado={(id) => { onCambiarHijos((hijos) => quitarNodo(hijos, id)) }}
+                onActualizado={(actualizado) => { onCambiarHijos((hijos) => reemplazarNodo(hijos, actualizado)) }}
+              />
+            ))}
+          </ul>
+          )}
+    </>
   )
 }
 
@@ -241,7 +354,8 @@ function nodoDeSubida (subido: ArchivoDriveSubido): NodoDrive {
     web_view_link: subido.web_view_link,
     uploaded_by: subido.uploaded_by,
     size_bytes: subido.size_bytes,
-    mime_type: subido.mime_type
+    mime_type: subido.mime_type,
+    locked: false
   }
 }
 
@@ -285,29 +399,55 @@ function SubirArchivoDrive ({ folderId, onSubido }: { folderId: string, onSubido
   )
 }
 
-interface PropsNodoArbol {
-  nodo: NodoDrive
-  nivel: number
-  /** Id de la carpeta que contiene a `nodo`: la que se manda en las rutas de borrado/subida de `nodo`. */
-  folderId: string
-  /** Avisa a quien lista a `nodo` que lo saque, tras borrarlo en el backend. Solo lo usan los archivos. */
-  onEliminado?: (id: string) => void
+/**
+ * Texto de la confirmación de borrado. Dice papelera porque es lo que pasa: Drive la guarda 30 días
+ * y se puede recuperar desde allá.
+ *
+ * @param nodo el archivo o carpeta a borrar
+ */
+function confirmacionDeBorrado (nodo: NodoDrive): string {
+  return nodo.is_folder
+    ? `¿Enviar la carpeta "${nodo.name}" a la papelera de Drive, con todo lo que tiene adentro? Se puede recuperar desde Drive durante 30 días.`
+    : `¿Enviar "${nodo.name}" a la papelera de Drive? Se puede recuperar desde Drive durante 30 días.`
 }
 
-/** Una fila del arbol: carpeta expandible o archivo con enlace directo. */
-function NodoArbol ({ nodo, nivel, folderId, onEliminado }: PropsNodoArbol) {
+interface PropsNodoArbol {
+  nodo: NodoDrive
+  /** Profundidad de la carpeta que contiene a `nodo`. */
+  nivel: number
+  /** Id de la carpeta que contiene a `nodo`: la que se manda en las rutas que tocan a `nodo`. */
+  folderId: string
+  /** Si `nodo` admite renombrar, mover y borrar: su carpeta deja escribir y no es de sistema. */
+  editable: boolean
+  /** Avisa a quien lista a `nodo` que lo saque: se borró o se fue a otra carpeta. */
+  onQuitado: (id: string) => void
+  /** Entrega a quien lista a `nodo` su versión nueva, tras renombrarlo. */
+  onActualizado: (nodo: NodoDrive) => void
+}
+
+/**
+ * Una fila del arbol: carpeta expandible o archivo con enlace directo, con sus acciones.
+ *
+ * Renombrar se escribe en la propia fila; mover abre el diálogo de destinos; eliminar confirma y
+ * manda a la papelera de Drive. El error de cualquiera de las tres queda debajo de la fila.
+ */
+function NodoArbol ({ nodo, nivel, folderId, editable, onQuitado, onActualizado }: PropsNodoArbol) {
+  const arbol = useArbol()
   const [abierto, setAbierto] = useState(false)
-  const [hijos, setHijos] = useState<Carga<NodoDrive[]> | null>(null)
+  const [hijos, setHijos] = useState<Carga<Required<ContenidoCarpetaDrive>> | null>(null)
   const [permisosAbierto, setPermisosAbierto] = useState(false)
+  const [renombrando, setRenombrando] = useState(false)
+  const [moviendo, setMoviendo] = useState(false)
   const [eliminando, setEliminando] = useState(false)
-  const [errorEliminar, setErrorEliminar] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
   const sangria = { paddingLeft: `${nivel * SANGRIA_POR_NIVEL + 0.5}rem` }
+  const rutaNodo = `drive/${encodeURIComponent(folderId)}/files/${encodeURIComponent(nodo.id)}`
 
   const cargarHijos = useCallback(() => {
     setHijos({ fase: 'cargando' })
 
-    void pedirSobre<{ children: NodoDrive[] }>(`drive/${encodeURIComponent(nodo.id)}`, new AbortController().signal)
-      .then((sobre) => { setHijos({ fase: 'listo', datos: sobre.data.children }) })
+    void pedirSobre<ContenidoCarpetaDrive>(`drive/${encodeURIComponent(nodo.id)}`, new AbortController().signal)
+      .then((sobre) => { setHijos({ fase: 'listo', datos: contenidoDe(sobre.data) }) })
       .catch((fallo: unknown) => {
         setHijos({
           fase: 'error',
@@ -316,6 +456,15 @@ function NodoArbol ({ nodo, nivel, folderId, onEliminado }: PropsNodoArbol) {
       })
   }, [nodo.id])
 
+  // Una carpeta ya pedida se anota para poder refrescarla cuando le llega algo desde otra rama.
+  // Una que nunca se abrió no hace falta: lo movido aparece la primera vez que se abra.
+  const { registrarCarpeta } = arbol
+  const cargada = hijos !== null
+  useEffect(() => {
+    if (!nodo.is_folder || !cargada) return
+    return registrarCarpeta(nodo.id, cargarHijos)
+  }, [nodo.is_folder, nodo.id, cargada, registrarCarpeta, cargarHijos])
+
   // Se pide una sola vez: colapsar y volver a abrir la misma carpeta reusa lo que ya llego, y el
   // arbol de Drive no cambia mientras dura la sesion como para justificar refrescarlo cada vez.
   const alternar = useCallback(() => {
@@ -323,120 +472,180 @@ function NodoArbol ({ nodo, nivel, folderId, onEliminado }: PropsNodoArbol) {
     if (hijos === null) cargarHijos()
   }, [hijos, cargarHijos])
 
-  /** Agrega un archivo recien subido a los propios hijos ya cargados. */
-  const agregarHijo = useCallback((nuevo: NodoDrive) => {
+  const cambiarHijos = useCallback((cambiar: CambioHijos) => {
     setHijos((actual) => (actual !== null && actual.fase === 'listo'
-      ? { fase: 'listo', datos: [...actual.datos, nuevo] }
+      ? { fase: 'listo', datos: { ...actual.datos, children: cambiar(actual.datos.children) } }
       : actual))
   }, [])
 
-  /** Saca un hijo propio ya cargado, tras borrarlo en el backend. */
-  const eliminarHijo = useCallback((id: string) => {
-    setHijos((actual) => (actual !== null && actual.fase === 'listo'
-      ? { fase: 'listo', datos: actual.datos.filter((h) => h.id !== id) }
-      : actual))
-  }, [])
+  async function renombrar (nombre: string): Promise<string | null> {
+    const cambio: CambioNodoDrive = { name: nombre }
+    const resultado = await escribirEnBff<NodoDrive>(rutaNodo, 'PATCH', cambio)
 
-  if (!nodo.is_folder) {
-    async function eliminar (): Promise<void> {
-      if (!window.confirm(`¿Eliminar "${nodo.name}"? No se puede deshacer.`)) return
+    if (!resultado.ok) return resultado.mensaje
 
-      setEliminando(true)
-      setErrorEliminar(null)
+    setRenombrando(false)
+    onActualizado(resultado.datos)
+    return null
+  }
 
-      const resultado = await escribirEnBff(
-        `drive/${encodeURIComponent(folderId)}/files/${encodeURIComponent(nodo.id)}`, 'DELETE'
-      )
+  async function eliminar (): Promise<void> {
+    if (!window.confirm(confirmacionDeBorrado(nodo))) return
 
-      setEliminando(false)
+    setEliminando(true)
+    setError(null)
 
-      if (!resultado.ok) {
-        setErrorEliminar(resultado.mensaje)
-        return
-      }
+    const resultado = await escribirEnBff(rutaNodo, 'DELETE')
 
-      onEliminado?.(nodo.id)
+    setEliminando(false)
+
+    if (!resultado.ok) {
+      setError(resultado.mensaje)
+      return
     }
 
-    return (
-      <li>
-        <div style={sangria} className="flex items-center gap-1.5 rounded-chico py-1 pr-1.5">
-          <a
-            href={nodo.web_view_link}
-            target="_blank"
-            rel="noreferrer"
-            className="text-texto hover:text-acento flex min-w-0 flex-1 items-center gap-1.5 text-sm"
-          >
-            <File className="text-texto-sutil size-4 shrink-0" />
-            <span className="truncate">{nodo.name}</span>
-          </a>
-          <Boton
-            variante="sutil"
-            tamano="chico"
-            soloIcono
-            cargando={eliminando}
-            aria-label={`Eliminar ${nodo.name}`}
-            onClick={() => { void eliminar() }}
-          >
-            <Trash2 className="size-3.5" />
-          </Boton>
-        </div>
-        {errorEliminar !== null && (
-          <p role="alert" style={sangria} className="text-texto-peligro text-xs">{errorEliminar}</p>
-        )}
-      </li>
-    )
+    onQuitado(nodo.id)
   }
+
+  /** Tras el traslado: el destino se refresca si está abierto y el nodo sale de esta carpeta. */
+  function alMover (_actualizado: NodoDrive, destinoId: string): void {
+    setMoviendo(false)
+    arbol.recargarCarpeta(destinoId)
+    onQuitado(nodo.id)
+  }
+
+  const etiqueta = (
+    <>
+      {nodo.is_folder
+        ? (
+          <>
+            {abierto ? <ChevronDown className="text-texto-sutil size-3.5 shrink-0" aria-hidden="true" /> : <ChevronRight className="text-texto-sutil size-3.5 shrink-0" aria-hidden="true" />}
+            <Folder className="text-texto-sutil size-4 shrink-0" aria-hidden="true" />
+          </>
+          )
+        : <File className="text-texto-sutil size-4 shrink-0" aria-hidden="true" />}
+      <span className="truncate">{nodo.name}</span>
+      {nodo.locked === true && (
+        <Lock className="text-texto-sutil size-3 shrink-0" aria-label="Carpeta del sistema: no se renombra, mueve ni elimina" />
+      )}
+    </>
+  )
 
   return (
     <li>
       <div style={sangria} className="flex items-center gap-1.5 rounded-chico py-1 pr-1.5">
-        <button
-          type="button"
-          onClick={alternar}
-          className={cn('text-texto hover:text-acento flex min-w-0 flex-1 items-center gap-1.5 text-left text-sm')}
-        >
-          {abierto ? <ChevronDown className="text-texto-sutil size-3.5 shrink-0" /> : <ChevronRight className="text-texto-sutil size-3.5 shrink-0" />}
-          <Folder className="text-texto-sutil size-4 shrink-0" />
-          <span className="truncate">{nodo.name}</span>
-        </button>
-        <Boton
-          variante="sutil"
-          tamano="chico"
-          soloIcono
-          aria-label={`Permisos de ${nodo.name}`}
-          onClick={() => { setPermisosAbierto(true) }}
-        >
-          <Users className="size-3.5" />
-        </Boton>
+        {renombrando
+          ? (
+            <div className="min-w-0 flex-1">
+              <EditorNombreDrive
+                inicial={nodo.name}
+                etiqueta={`Nuevo nombre de ${nodo.name}`}
+                textoGuardar="Guardar"
+                onGuardar={renombrar}
+                onCancelar={() => { setRenombrando(false) }}
+              />
+            </div>
+            )
+          : nodo.is_folder
+            ? (
+              <button
+                type="button"
+                onClick={alternar}
+                aria-expanded={abierto}
+                className="text-texto hover:text-acento flex min-w-0 flex-1 items-center gap-1.5 text-left text-sm"
+              >
+                {etiqueta}
+              </button>
+              )
+            : (
+              <a
+                href={nodo.web_view_link}
+                target="_blank"
+                rel="noreferrer"
+                className="text-texto hover:text-acento flex min-w-0 flex-1 items-center gap-1.5 text-sm"
+              >
+                {etiqueta}
+              </a>
+              )}
+
+        {editable && !renombrando && (
+          <>
+            <Boton
+              variante="sutil"
+              tamano="chico"
+              soloIcono
+              aria-label={`Renombrar ${nodo.name}`}
+              title="Renombrar"
+              onClick={() => {
+                setError(null)
+                setRenombrando(true)
+              }}
+            >
+              <Pencil className="size-3.5" aria-hidden="true" />
+            </Boton>
+            <Boton
+              variante="sutil"
+              tamano="chico"
+              soloIcono
+              aria-label={`Mover ${nodo.name}`}
+              title="Mover"
+              onClick={() => {
+                setError(null)
+                setMoviendo(true)
+              }}
+            >
+              <FolderInput className="size-3.5" aria-hidden="true" />
+            </Boton>
+            <Boton
+              variante="sutil"
+              tamano="chico"
+              soloIcono
+              cargando={eliminando}
+              aria-label={`Eliminar ${nodo.name}`}
+              title="Enviar a la papelera"
+              onClick={() => { void eliminar() }}
+            >
+              <Trash2 className="size-3.5" aria-hidden="true" />
+            </Boton>
+          </>
+        )}
+
+        {nodo.is_folder && !renombrando && (
+          <Boton
+            variante="sutil"
+            tamano="chico"
+            soloIcono
+            aria-label={`Permisos de ${nodo.name}`}
+            title="Permisos"
+            onClick={() => { setPermisosAbierto(true) }}
+          >
+            <Users className="size-3.5" aria-hidden="true" />
+          </Boton>
+        )}
       </div>
+
+      {error !== null && <p role="alert" style={sangria} className="text-texto-peligro text-xs">{error}</p>}
 
       {permisosAbierto && (
         <DialogoPermisosDrive folderId={nodo.id} nombre={nodo.name} onCerrar={() => { setPermisosAbierto(false) }} />
       )}
 
-      {abierto && hijos !== null && (
+      {moviendo && (
+        <DialogoMoverDrive
+          nodo={nodo}
+          padreId={folderId}
+          raizId={arbol.raizId}
+          onMovido={alMover}
+          onCerrar={() => { setMoviendo(false) }}
+        />
+      )}
+
+      {nodo.is_folder && abierto && hijos !== null && (
         hijos.fase === 'cargando'
           ? <Cargando alto="min-h-16" />
           : hijos.fase === 'error'
             ? <ErrorEstado detalle={hijos.mensaje} onReintentar={cargarHijos} />
-            : (
-              <>
-                <div style={{ paddingLeft: `${(nivel + 1) * SANGRIA_POR_NIVEL + 0.5}rem` }}>
-                  <SubirArchivoDrive folderId={nodo.id} onSubido={agregarHijo} />
-                </div>
-
-                {hijos.datos.length === 0
-                  ? <p className="text-texto-tenue text-xs" style={{ paddingLeft: `${(nivel + 1) * SANGRIA_POR_NIVEL + 0.5}rem` }}>Está vacía.</p>
-                  : (
-                    <ul className="flex flex-col gap-0.5">
-                      {hijos.datos.map((hijo) => (
-                        <NodoArbol key={hijo.id} nodo={hijo} nivel={nivel + 1} folderId={nodo.id} onEliminado={eliminarHijo} />
-                      ))}
-                    </ul>
-                    )}
-              </>
-              )
+            : <ContenidoCarpeta folderId={nodo.id} contenido={hijos.datos} nivel={nivel + 1} onCambiarHijos={cambiarHijos} />
       )}
     </li>
   )

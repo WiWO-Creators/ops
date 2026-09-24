@@ -76,6 +76,13 @@ export const NOVEDADES: Novedad[] = [
   {
     fecha: '2026-09-24',
     tipo: 'nuevo',
+    titulo: 'Ya se pueden renombrar, mover, borrar y crear carpetas y archivos de Drive desde Ops',
+    detalle: 'En la pestaña Archivos de un Cliente, un Proyecto o una Tarea. Lo que se borra va a la papelera de Drive y se puede recuperar durante 30 días; las carpetas de Tarea quedan fijas.',
+    commits: []
+  },
+  {
+    fecha: '2026-09-24',
+    tipo: 'nuevo',
     titulo: 'Novedades de Ops',
     detalle: 'Esta página. Desde el menú de tu cuenta ves qué cambió en el sistema, y un punto te avisa cuando hay algo que todavía no leíste.',
     commits: []
