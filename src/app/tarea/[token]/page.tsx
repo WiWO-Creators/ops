@@ -2,13 +2,15 @@ import { notFound } from 'next/navigation'
 import type { ReactElement, ReactNode } from 'react'
 import { Logo } from '@/componentes/estructura/Logo'
 import { Fecha } from '@/componentes/presentadores/Fecha'
+import { Etiquetas } from '@/componentes/presentadores/Etiqueta'
 import { Insignia } from '@/componentes/presentadores/Insignia'
 import { BarraProgreso } from '@/componentes/proyecto/CabeceraProyecto'
 import { CabeceraFichaTarea } from '@/componentes/proyecto/CabeceraFichaTarea'
 import { llamarApiTipado } from '@/datos/api'
 import { ErrorApi } from '@/datos/errores'
+import { camposLegibles } from '@/dominio/campos-personalizados'
 import { GLOSARIO } from '@/dominio/glosario'
-import { avancePublico } from '@/lib/enlace-publico'
+import { avancePublico, tiempoLegible } from '@/lib/enlace-publico'
 import type { ProcesoPublico } from '@/datos/recursos'
 
 /**
@@ -35,6 +37,10 @@ export const metadata = { title: `${GLOSARIO.proceso.singular} · WiWO Ops` }
  * Se muestra exactamente lo que manda la API y ni un dato mas. No hay una segunda peticion "para
  * completar la ficha": cada campo que apareciera aca sin estar en la lista blanca del backend seria
  * una fuga hacia internet abierto.
+ *
+ * **Cada seccion opcional se dibuja solo si llego su clave**, que es lo que eligio quien genero el
+ * enlace. Llegada y vacia —una descripcion en blanco, cero comentarios— se dibuja con su linea de "no
+ * hay": quien compartio eligio mostrarla, y un hueco haria pensar que el enlace esta roto.
  */
 export default async function FichaPublicaDeTarea (props: PageProps<'/tarea/[token]'>): Promise<ReactElement> {
   const { token } = await props.params
@@ -54,6 +60,9 @@ export default async function FichaPublicaDeTarea (props: PageProps<'/tarea/[tok
   }
 
   const avance = avancePublico(tarea.progress)
+  const campos = tarea.custom_fields === undefined
+    ? undefined
+    : camposLegibles(tarea.custom_fields.map((campo, indice) => ({ ...campo, id: indice, slug: '' })))
 
   return (
     <main className="bg-superficie mx-auto flex min-h-dvh max-w-2xl flex-col gap-5 p-6">
@@ -76,6 +85,14 @@ export default async function FichaPublicaDeTarea (props: PageProps<'/tarea/[tok
         </div>
       </header>
 
+      {tarea.description !== undefined && (
+        <Seccion titulo="Descripción">
+          {tarea.description === ''
+            ? <p className="text-texto-sutil text-sm">Sin descripción.</p>
+            : <p className="text-texto-tenue max-w-prose text-sm whitespace-pre-line">{tarea.description}</p>}
+        </Seccion>
+      )}
+
       <section
         aria-label="Avance"
         className="border-linea bg-superficie-elevada rounded-tarjeta flex flex-col gap-2 border p-4"
@@ -92,6 +109,25 @@ export default async function FichaPublicaDeTarea (props: PageProps<'/tarea/[tok
           </div>
         )}
         <p className="text-texto-sutil text-xs">{avance.detalle}</p>
+
+        {tarea.checklist !== undefined && tarea.checklist.length > 0 && (
+          <ul className="border-linea-suave mt-1 flex flex-col gap-1 border-t pt-3">
+            {tarea.checklist.map((item, indice) => (
+              <li key={indice} className="flex items-baseline gap-2 text-sm">
+                <span
+                  aria-hidden
+                  className={`w-3 shrink-0 text-center ${item.finished ? 'text-texto-exito' : 'text-texto-sutil'}`}
+                >
+                  {item.finished ? '✓' : '·'}
+                </span>
+                <span className={item.finished ? 'text-texto-tenue line-through' : 'text-texto'}>
+                  {item.description}
+                </span>
+                <span className="sr-only">{item.finished ? '(hecho)' : '(pendiente)'}</span>
+              </li>
+            ))}
+          </ul>
+        )}
       </section>
 
       <dl className="grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-3">
@@ -102,7 +138,87 @@ export default async function FichaPublicaDeTarea (props: PageProps<'/tarea/[tok
             ? <span className="text-texto-sutil">{tarea.is_completed ? 'Terminada' : SIN_DATO}</span>
             : <Fecha valor={tarea.date_finished} conHora />}
         </Dato>
+        {tarea.project !== undefined && (
+          <>
+            <Dato etiqueta={GLOSARIO.espacio.singular}>{tarea.project?.name ?? SIN_DATO}</Dato>
+            <Dato etiqueta="Cliente">{tarea.project?.client ?? SIN_DATO}</Dato>
+            <Dato etiqueta={GLOSARIO.hito.singular}>{tarea.project?.milestone ?? SIN_DATO}</Dato>
+          </>
+        )}
+        {tarea.assignees !== undefined && (
+          <Dato etiqueta="Asignados">
+            {tarea.assignees.length === 0 ? SIN_DATO : tarea.assignees.join(', ')}
+          </Dato>
+        )}
+        {tarea.tags !== undefined && (
+          <Dato etiqueta="Etiquetas">
+            {tarea.tags.length === 0
+              ? SIN_DATO
+              : <Etiquetas etiquetas={tarea.tags.map((nombre, indice) => ({ id: indice, name: nombre }))} maximo={8} />}
+          </Dato>
+        )}
+        {tarea.logged_seconds !== undefined && (
+          <Dato etiqueta="Tiempo registrado">
+            <span data-numerico className="tabular-nums">{tiempoLegible(tarea.logged_seconds)}</span>
+          </Dato>
+        )}
+        {campos?.map((campo) => (
+          <Dato key={campo.id} etiqueta={campo.nombre}>
+            {campo.enlace === null
+              ? <span className="break-words whitespace-pre-line">{campo.texto}</span>
+              : (
+                <a href={campo.enlace} target="_blank" rel="noreferrer noopener" className="text-acento break-all underline underline-offset-4">
+                  {campo.texto}
+                </a>
+                )}
+          </Dato>
+        ))}
       </dl>
+
+      {tarea.attachments !== undefined && (
+        <Seccion titulo="Archivos">
+          {tarea.attachments.length === 0
+            ? <p className="text-texto-sutil text-sm">Sin archivos adjuntos.</p>
+            : (
+              <ul className="flex flex-col gap-2">
+                {tarea.attachments.map((adjunto, indice) => (
+                  <li key={indice} className="rounded-chico border-linea border p-3 text-sm">
+                    {adjunto.url === null
+                      ? <span className="text-texto break-all">{adjunto.name}</span>
+                      : (
+                        <a href={adjunto.url} target="_blank" rel="noreferrer noopener" className="text-acento break-all underline underline-offset-4">
+                          {adjunto.name}
+                        </a>
+                        )}
+                  </li>
+                ))}
+              </ul>
+              )}
+        </Seccion>
+      )}
+
+      {tarea.comments !== undefined && (
+        <Seccion titulo="Comentarios">
+          {tarea.comments.length === 0
+            ? <p className="text-texto-sutil text-sm">Todavía no hay comentarios.</p>
+            : (
+              <ul className="flex flex-col gap-2">
+                {tarea.comments.map((comentario, indice) => (
+                  <li key={indice} className="rounded-chico border-linea bg-superficie-elevada flex flex-col gap-1 border p-3">
+                    <div className="flex flex-wrap items-baseline gap-x-2 text-xs">
+                      <span className="text-texto font-semibold">{comentario.author ?? 'Sin nombre'}</span>
+                      {comentario.from_client && <span className="text-texto-sutil">· Cliente</span>}
+                      {comentario.date_added !== null && (
+                        <span className="text-texto-sutil"><Fecha valor={comentario.date_added} conHora /></span>
+                      )}
+                    </div>
+                    <p className="text-texto-tenue text-sm break-words whitespace-pre-line">{comentario.content}</p>
+                  </li>
+                ))}
+              </ul>
+              )}
+        </Seccion>
+      )}
 
       <footer className="text-texto-sutil mt-auto flex items-center gap-2 pt-6 text-xs">
         <Logo tamano="chico" />
@@ -113,6 +229,16 @@ export default async function FichaPublicaDeTarea (props: PageProps<'/tarea/[tok
 }
 
 const SIN_DATO = '—'
+
+/** Una seccion opcional de la ficha, con su titulo. */
+function Seccion ({ titulo, children }: { titulo: string, children: ReactNode }): ReactElement {
+  return (
+    <section className="flex flex-col gap-2">
+      <h2 className="text-texto-tenue text-sm font-semibold">{titulo}</h2>
+      {children}
+    </section>
+  )
+}
 
 /**
  * Un par etiqueta/valor de la ficha, con la etiqueta en versalita.

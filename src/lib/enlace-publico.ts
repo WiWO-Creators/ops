@@ -6,6 +6,8 @@
  * inventado convierte "no hay lista de control" en "no se hizo nada".
  */
 
+import type { SeccionEnlacePublico } from '@/datos/recursos'
+
 /** Prefijo de la ruta publica. Un solo lugar que lo sepa: la pagina y el dialogo leen de aca. */
 const PREFIJO = '/tarea/'
 
@@ -89,4 +91,90 @@ export function urlDePantallaDeArea (origen: string, token: string): string | nu
   if (base === '' || token.trim() === '') return null
 
   return `${base}${PREFIJO_PANTALLA}${encodeURIComponent(token.trim())}`
+}
+
+/** Una seccion opcional de la ficha publica, tal como se ofrece en el dialogo de compartir. */
+export interface OpcionDeSeccion {
+  clave: SeccionEnlacePublico
+  etiqueta: string
+  /** Que ve quien recibe el enlace si se marca. */
+  ayuda: string
+  /**
+   * `true` cuando la seccion suele llevar texto interno del equipo. No se bloquea: se advierte al
+   * marcarla, y nace desmarcada.
+   */
+  delicada: boolean
+}
+
+/**
+ * Catalogo de secciones opcionales, en el orden en que las pinta la ficha publica.
+ *
+ * Tiene que coincidir con `SeccionesEnlacePublico::OPCIONALES` de la API: una clave que no este alla
+ * es un 422 al generar el enlace, y la prueba de este archivo lo deja clavado.
+ */
+export const SECCIONES_ENLACE: readonly OpcionDeSeccion[] = [
+  { clave: 'description', etiqueta: 'Descripción', ayuda: 'El texto de la tarea, sin formato.', delicada: false },
+  { clave: 'project', etiqueta: 'Proyecto y cliente', ayuda: 'Nombre del Proyecto, del cliente y el hito.', delicada: true },
+  { clave: 'assignees', etiqueta: 'Asignados', ayuda: 'Nombre completo de quienes la tienen asignada.', delicada: true },
+  { clave: 'tags', etiqueta: 'Etiquetas', ayuda: 'Las etiquetas de la tarea.', delicada: false },
+  { clave: 'custom_fields', etiqueta: 'Campos personalizados', ayuda: 'Los que tienen valor, salvo los de uso interno.', delicada: false },
+  { clave: 'logged_time', etiqueta: 'Tiempo registrado', ayuda: 'El total de horas, sin el detalle por persona.', delicada: true },
+  { clave: 'checklist', etiqueta: 'Lista de control', ayuda: 'Cada ítem con su texto y si está hecho.', delicada: false },
+  { clave: 'attachments', etiqueta: 'Archivos', ayuda: 'El nombre de cada adjunto. Sólo los de Drive o Dropbox se pueden abrir.', delicada: false },
+  { clave: 'comments', etiqueta: 'Comentarios', ayuda: 'Todos, también los internos del equipo: no hay forma de elegir cuáles.', delicada: true }
+]
+
+/** Lo que se ofrece marcado al generar un enlace nuevo: lo util y sin texto interno del equipo. */
+export const SECCIONES_POR_DEFECTO: readonly SeccionEnlacePublico[] = ['description', 'checklist']
+
+/**
+ * Marca o desmarca una seccion, dejando la lista en el orden del catalogo.
+ *
+ * El orden importa para comparar: `['comments', 'description']` y `['description', 'comments']` son
+ * la misma eleccion, y el boton de "Guardar cambios" no deberia prenderse por un orden distinto.
+ *
+ * @param actuales la eleccion de hoy
+ * @param clave la seccion que se toca
+ * @param marcada el estado nuevo de esa seccion
+ * @returns la eleccion nueva, sin repetidos y en el orden del catalogo
+ */
+export function alternarSeccion (
+  actuales: readonly SeccionEnlacePublico[],
+  clave: SeccionEnlacePublico,
+  marcada: boolean
+): SeccionEnlacePublico[] {
+  const elegidas = new Set(actuales)
+
+  if (marcada) elegidas.add(clave)
+  else elegidas.delete(clave)
+
+  return SECCIONES_ENLACE.map((opcion) => opcion.clave).filter((c) => elegidas.has(c))
+}
+
+/**
+ * Si dos elecciones publican lo mismo, sin importar el orden.
+ *
+ * @returns `true` si tienen exactamente las mismas secciones
+ */
+export function mismasSecciones (a: readonly SeccionEnlacePublico[], b: readonly SeccionEnlacePublico[]): boolean {
+  const unicasA = new Set(a)
+  const unicasB = new Set(b)
+
+  return unicasA.size === unicasB.size && [...unicasA].every((clave) => unicasB.has(clave))
+}
+
+/**
+ * El total registrado como "3 h 25 min", para la ficha publica.
+ *
+ * @param segundos el total que manda la API; negativo o no finito se trata como cero
+ * @returns el texto a mostrar
+ */
+export function tiempoLegible (segundos: number): string {
+  const total = Number.isFinite(segundos) && segundos > 0 ? Math.floor(segundos / 60) : 0
+  const horas = Math.floor(total / 60)
+  const minutos = total % 60
+
+  if (horas === 0) return `${minutos} min`
+
+  return minutos === 0 ? `${horas} h` : `${horas} h ${minutos} min`
 }
