@@ -38,7 +38,7 @@ export default async function MiAreaPage () {
         ? cargado.codigo === 'forbidden'
           ? <SinPermiso />
           : <ErrorEstado detalle={cargado.message} />
-        : <Organigrama inicial={cargado} catalogos={catalogos} />}
+        : <Organigrama inicial={cargado} catalogos={catalogos} alcance="propias" />}
     </section>
   )
 }
