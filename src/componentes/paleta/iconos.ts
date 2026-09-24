@@ -1,6 +1,6 @@
 import {
   Building2, CalendarDays, ClipboardList, Clock, Columns3, DoorOpen, FolderKanban, Gavel, House, Inbox, LifeBuoy,
-  ListChecks, Network, Radio, Repeat, ScrollText, SlidersHorizontal, Star, Target, TrendingUp, User, UserRound,
+  ListChecks, Network, Radio, Repeat, ScrollText, SlidersHorizontal, Sparkles, Star, Target, TrendingUp, User, UserRound,
   Users, UsersRound, Video, type LucideIcon
 } from 'lucide-react'
 import type { IconoSeccion } from '@/lib/navegacion'
@@ -63,5 +63,6 @@ export const ICONOS_DE_COMANDO: Record<IconoComando, LucideIcon> = {
   soporte: LifeBuoy,
   tablero: Columns3,
   calendario: CalendarDays,
-  perfil: User
+  perfil: User,
+  novedades: Sparkles
 }

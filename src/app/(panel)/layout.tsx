@@ -26,6 +26,7 @@ import { MenuUsuario } from '@/componentes/estructura/MenuUsuario'
 import { ScrollSuave } from '@/componentes/estructura/ScrollSuave'
 import { VigilanteDeVersion } from '@/componentes/estructura/VigilanteDeVersion'
 import { vistasPermitidas } from '@/dominio/vistas-de-auditoria'
+import { NOVEDADES, fechaMasReciente } from '@/dominio/novedades'
 
 /** Sin fijados. Constante para que la barra reciba siempre la misma referencia. */
 const SIN_FIJADOS: Fijado[] = []
@@ -155,7 +156,7 @@ export default async function PanelLayout ({ children }: { children: React.React
             {/* Bajo 480px el tema se cambia desde el menu de la cuenta: es lo que menos se toca de la
                 cabecera, y en un telefono chico no entran cuatro controles y el logo. */}
             <SelectorTema className="max-xs:hidden" />
-            <MenuUsuario nombre={yo.full_name} imagen={yo.profile_image_url} />
+            <MenuUsuario nombre={yo.full_name} imagen={yo.profile_image_url} ultimaNovedad={fechaMasReciente(NOVEDADES)} />
           </header>
           {/* El unico contenedor de scroll vertical del armazon. `min-h-0` es lo que se lo permite:
               sin el, un hijo flex no baja de su altura de contenido y `overflow-y` no llega a actuar.

@@ -136,3 +136,18 @@ Frontend: `pnpm lint && pnpm typecheck && pnpm test && pnpm build`.
 
 Backend: `tools/smoke.sh`, más la garantía estructural — `git diff --stat` no muestra **ningún**
 archivo fuera de `modules/api/`. Ver [fases/F0](fases/F0-cimientos-CMPLTD.md).
+
+## Novedades para el equipo
+
+Todo merge a `main` que cambie algo que el equipo ve o usa suma una entrada en
+`src/dominio/novedades.ts` (página `/novedades`), en el mismo push que publica el cambio. Vale
+también para los cambios del board que se noten en el panel.
+
+- Arriba de la lista, con la fecha del día en que llega a producción.
+- Lenguaje de quien usa Ops, no de quien lo programa: qué puede hacer ahora y dónde. Nada de
+  endpoints, migraciones, mocks ni nombres de archivos.
+- Varios merges de lo mismo se juntan en una sola entrada; los hashes van en `commits`.
+- No se anuncia lo que está desplegado pero apagado, ni lo interno del equipo técnico.
+
+`node scripts/novedades-borrador.mjs` lista los merges de ops-v2 y del board que todavía no tienen
+novedad.
