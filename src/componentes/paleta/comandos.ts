@@ -9,7 +9,7 @@
  *   - Las secciones: las mismas que dibuja la barra, ya filtradas por permisos en el servidor. La
  *     paleta no suma pantallas que el menu niega; suma las que el menu PLIEGA.
  *   - Los atajos: destinos que no son una seccion del menu pero que se buscan por nombre (Tablero,
- *     Calendario, Mi perfil, Soporte). Cada uno lleva la seccion de la que depende, y sin ella no
+ *     Calendario, Mi perfil, Novedades, Soporte). Cada uno lleva la seccion de la que depende, y sin ella no
  *     se ofrece.
  *   - Recientes y fijados: `/me/recientes` y `/me/fijados`, ya recortados por la API.
  *   - Resultados: `GET /search`, que ya respeta la visibilidad de cada tipo.
@@ -19,7 +19,7 @@ import { PARAMETRO_TAREA, urlDeTareaEnProyecto } from '../datos/tabla.ts'
 import { hrefDeElemento, type ElementoPersonal } from '../fijados/fijados.ts'
 
 /** Iconos que la paleta sabe pintar: los de las secciones mas los propios de cada tipo de resultado. */
-export type IconoComando = IconoSeccion | 'tarea' | 'persona' | 'reciente' | 'fijado' | 'soporte' | 'tablero' | 'calendario' | 'perfil'
+export type IconoComando = IconoSeccion | 'tarea' | 'persona' | 'reciente' | 'fijado' | 'soporte' | 'tablero' | 'calendario' | 'perfil' | 'novedades'
 
 export interface Comando {
   /** Unico en toda la paleta: se usa como id del `option` y para `aria-activedescendant`. */

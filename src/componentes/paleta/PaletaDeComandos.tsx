@@ -23,12 +23,13 @@ import { ICONOS_DE_COMANDO } from './iconos'
  * Destinos que no son una seccion del menu pero se buscan por nombre.
  *
  * Cada uno depende de una seccion: el Tablero y el Calendario son vistas de Tareas, y sin Tareas en
- * el menu la paleta no los ofrece. Soporte y el perfil no dependen de nada.
+ * el menu la paleta no los ofrece. Soporte, el perfil y las novedades no dependen de nada.
  */
 const ATAJOS: Atajo[] = [
   { etiqueta: 'Tablero de tareas', href: '/procesos/tablero', icono: 'tablero', requiere: '/procesos', sinonimos: ['kanban'] },
   { etiqueta: 'Calendario de tareas', href: '/procesos/calendario', icono: 'calendario', requiere: '/procesos', sinonimos: ['agenda'] },
   { etiqueta: 'Mi perfil', href: '/perfil', icono: 'perfil', requiere: null, sinonimos: ['contraseña', 'foto', 'cuenta'] },
+  { etiqueta: 'Novedades', href: '/novedades', icono: 'novedades', requiere: null, sinonimos: ['cambios', 'actualizaciones', 'changelog'] },
   { etiqueta: 'Soporte', href: URL_SOPORTE, icono: 'soporte', requiere: null, sinonimos: ['ayuda', 'wiwo.center'], externo: true }
 ]
 

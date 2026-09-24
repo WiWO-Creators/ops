@@ -2,10 +2,12 @@
 
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { LogOut, Moon, Sun, UserRound } from 'lucide-react'
-import { useState } from 'react'
+import { LogOut, Moon, Sparkles, Sun, UserRound } from 'lucide-react'
+import { useState, useSyncExternalStore } from 'react'
 import { Avatar } from '@/componentes/presentadores/Avatar'
 import { aplicarTema, esOscuro } from '@/lib/tema'
+import { hayNovedadesSinVer } from '@/dominio/novedades'
+import { EVENTO_NOVEDADES_VISTAS, leerNovedadesVistas } from '@/lib/novedades-vistas'
 import {
   ContenidoMenu,
   DisparadorMenu,
@@ -17,6 +19,25 @@ import {
 interface PropsMenuUsuario {
   nombre: string
   imagen: string | null
+  /** La fecha de la novedad más reciente, `YYYY-MM-DD`; `null` si no hay ninguna. */
+  ultimaNovedad: string | null
+}
+
+/**
+ * Se suscribe a los cambios de la marca de novedades: la de esta pestaña (evento propio) y la de
+ * otras pestañas del mismo navegador (`storage`).
+ *
+ * @param avisar lo que React vuelve a leer cuando algo cambia
+ * @returns la baja de la suscripción
+ */
+function suscribirNovedadesVistas (avisar: () => void): () => void {
+  window.addEventListener(EVENTO_NOVEDADES_VISTAS, avisar)
+  window.addEventListener('storage', avisar)
+
+  return () => {
+    window.removeEventListener(EVENTO_NOVEDADES_VISTAS, avisar)
+    window.removeEventListener('storage', avisar)
+  }
 }
 
 /**
@@ -33,9 +54,13 @@ interface PropsMenuUsuario {
  * alguien que acaba de cerrar sesion. El `refresh` posterior tira el cache del router, que todavia
  * guarda arboles renderizados con la sesion vieja.
  */
-export function MenuUsuario ({ nombre, imagen }: PropsMenuUsuario) {
+export function MenuUsuario ({ nombre, imagen, ultimaNovedad }: PropsMenuUsuario) {
   const router = useRouter()
   const [saliendo, establecerSaliendo] = useState(false)
+  // En el servidor no hay marca que leer: se asume vista para que el punto no destelle al hidratar
+  // en quien ya las leyó. En el navegador aparece apenas se lee la marca real.
+  const novedadesVistas = useSyncExternalStore(suscribirNovedadesVistas, leerNovedadesVistas, () => ultimaNovedad)
+  const conNovedades = hayNovedadesSinVer(novedadesVistas, ultimaNovedad)
 
   async function salir (): Promise<void> {
     establecerSaliendo(true)
@@ -52,8 +77,14 @@ export function MenuUsuario ({ nombre, imagen }: PropsMenuUsuario) {
 
   return (
     <MenuContextual>
-      <DisparadorMenu aria-label={`Cuenta de ${nombre}`} className="rounded-full">
+      <DisparadorMenu
+        aria-label={conNovedades ? `Cuenta de ${nombre}, hay novedades sin leer` : `Cuenta de ${nombre}`}
+        className="relative rounded-full"
+      >
         <Avatar nombre={nombre} imagen={imagen} />
+        {conNovedades && (
+          <span aria-hidden="true" className="bg-acento ring-superficie absolute -top-0.5 -right-0.5 size-2.5 rounded-full ring-2" />
+        )}
       </DisparadorMenu>
 
       <ContenidoMenu align="end">
@@ -67,6 +98,18 @@ export function MenuUsuario ({ nombre, imagen }: PropsMenuUsuario) {
           <Link href="/perfil">
             <UserRound className="size-4 shrink-0" aria-hidden="true" />
             Mi perfil
+          </Link>
+        </ItemMenu>
+
+        <ItemMenu asChild>
+          <Link href="/novedades">
+            <Sparkles className="size-4 shrink-0" aria-hidden="true" />
+            Novedades
+            {conNovedades && (
+              <span className="bg-acento ml-auto size-2 shrink-0 rounded-full">
+                <span className="sr-only">sin leer</span>
+              </span>
+            )}
           </Link>
         </ItemMenu>
 
