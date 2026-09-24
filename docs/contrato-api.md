@@ -1009,7 +1009,8 @@ BFF, que sí puede poner la cabecera.
 ### `drive` — árbol de carpetas en el Drive compartido
 
 `GET /clients/{id}/drive` · `GET /projects/{id}/drive` · `GET /drive/{folder_id}` ·
-`PATCH /clients/{id}/drive`
+`PATCH /clients/{id}/drive` · `POST /drive/{folder_id}/folders` ·
+`PATCH|DELETE /drive/{folder_id}/files/{item_id}`
 
 Jerarquía Cliente → Espacio (Proyecto de Perfex) → Proceso, con una carpeta real en un Drive
 compartido de Google por cada uno. Las crea sola `wiwo_core` (módulo del panel, no la API) al dar de
@@ -1071,6 +1072,35 @@ visible.
 
 `DELETE /drive/{folder_id}/files/{file_id}` → `204`. Mismos `403`/`404` que la subida, mismo chequeo:
 un revisor tampoco puede borrar.
+
+**Ajustes del árbol: crear carpetas, renombrar, mover y borrar.** `folder_id` puede ser cualquier
+carpeta del árbol, subcarpetas incluidas.
+
+`GET /drive/{folder_id}` suma `can_write: boolean` junto a `children` (si quien mira puede crear,
+renombrar, mover y borrar dentro de esa carpeta), y cada hijo suma `locked: boolean`: `true` en una
+carpeta de sistema —la de una Tarea, por ejemplo—, que no se renombra, no se mueve ni se borra. Los
+archivos vienen siempre en `false`. El frontend trata los dos campos como opcionales (ausente ⇒
+`can_write: true`, `locked: false`) para no romper contra un backend anterior.
+
+```json
+// GET /drive/{folder_id} — 200
+{ "data": { "can_write": true, "children": [
+  { "id": "1Ab...", "name": "01_Bases", "is_folder": true, "web_view_link": "https://drive.google.com/...", "locked": false },
+  { "id": "1Cd...", "name": "ACM-001-01 Diseño", "is_folder": true, "web_view_link": "https://drive.google.com/...", "locked": true }
+] } }
+```
+
+`POST /drive/{folder_id}/folders` con `{ "name": string }` → `201` con el nodo nuevo
+(`{ id, name, is_folder: true, web_view_link, locked: false }`).
+
+`PATCH /drive/{folder_id}/files/{item_id}` con `{ "name"?: string, "parent_id"?: string }` renombra,
+mueve o las dos cosas; `folder_id` es la carpeta donde está hoy el item. → `200` con el nodo
+actualizado. `404` si el item no es hijo directo de `folder_id`, `409` si es `locked`, `403` si el
+destino no se puede escribir, `422` si el nombre es inválido (vacío, más de 255 caracteres o con `/`)
+o el destino es el propio item o cuelga de él.
+
+`DELETE /drive/{folder_id}/files/{item_id}` → `204` sirve también para carpetas no `locked`, y manda a
+la **papelera** de Drive (recuperable 30 días), no borra en forma permanente. `409` si es `locked`.
 
 **Permisos manuales, solo en carpetas de Tarea (Proceso).** Cliente y Espacio no los soportan.
 

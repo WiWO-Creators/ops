@@ -22,6 +22,7 @@ import { altaDelPortal, esAccionDelPortal, ticketDelPortal, ticketsDelEquipo } f
 import { esPrincipal, filaDelPortal, listadosDeTickets, ticketsDelResumen } from './tickets-listados.js'
 import { filtrosGuardados } from './filtros-guardados.js'
 import { analizarScope, interpretarScope, scopeRuta } from './scope.js'
+import { driveDeEntidadRuta, driveRuta } from './drive.js'
 import { escribirAjustesDelOrbePortal, opcionDelOrbePortal, orbePortalRuta } from './orbe-portal.js'
 import {
   ADMINS_DE_CLIENTE, AREAS, ARCHIVOS, CAMPOS_PERSONALIZADOS, CHECKLIST, CLIENTES, COMENTARIOS, CRONOMETROS,
@@ -6404,6 +6405,14 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
   }
 
   if (recurso === 'jerarquia') return jerarquiaRuta(metodo, resto, cuerpo, actual)
+
+  // Drive: el árbol de carpetas de un Cliente, un Proyecto o una Tarea, y sus ajustes. Va antes de
+  // los bloques de `clients`, `projects` y `tasks` porque esos solo atienden GET y este tambien POST.
+  if ((recurso === 'clients' || recurso === 'projects' || recurso === 'tasks') && resto[1] === 'drive' && resto.length === 2) {
+    return driveDeEntidadRuta(metodo, recurso, resto[0])
+  }
+
+  if (recurso === 'drive') return await driveRuta(metodo, resto, cuerpo)
 
   // El organigrama visual: una sola lectura para las dos pantallas que lo montan. La API ya recorta
   // por quien pregunta, asi que el frontend no repite la regla de visibilidad.
