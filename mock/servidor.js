@@ -25,7 +25,7 @@ import { analizarScope, interpretarScope, scopeRuta } from './scope.js'
 import { escribirAjustesDelOrbePortal, opcionDelOrbePortal, orbePortalRuta } from './orbe-portal.js'
 import {
   ADMINS_DE_CLIENTE, AREAS, ARCHIVOS, CAMPOS_PERSONALIZADOS, CHECKLIST, CLIENTES, COMENTARIOS, CRONOMETROS,
-  DEPARTAMENTOS, EMPRESAS_DEL_GRUPO, ENTRADA_DE_CLIENTE, ESPACIOS, ESTADOS_ESPACIO, ESTADOS_PROCESO,
+  CLIENTES_SIN_VENCIMIENTO, DEPARTAMENTOS, EMPRESAS_DEL_GRUPO, ENTRADA_DE_CLIENTE, ESPACIOS, ESTADOS_ESPACIO, ESTADOS_PROCESO,
   ESTADOS_TICKET, PRIORIDADES_TICKET, TICKETS_PORTAL,
   ESPACIOS_DE_LICITACION, ETIQUETAS, HITOS, LICITACIONES, PROSPECTOS, CONTACTOS_DE_PROSPECTO,
   AVISOS_CONTACTO, CONTACTOS, OPCIONES_AREA_EN_TAREAS, PRIORIDADES, PROCESOS, PROCESOS_POR_AREA,
@@ -6514,6 +6514,30 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
     return { estado: 200, cuerpo: conDatos(entradaDelCliente(cliente.id)) }
   }
 
+  // --- Tareas sin fecha de vencimiento -----------------------------------------
+  //
+  // Antes del bloque de `clients`, que es solo GET, por el mismo motivo que la apertura del portal.
+  // El PUT exige el booleano como la API: sin la clave es 422, no un "apagado" por omision.
+  if (recurso === 'clients' && resto[1] === 'tareas-sin-vencimiento' && resto.length === 2) {
+    const cliente = buscarO404(CLIENTES, Number(resto[0]), 'cliente')
+
+    if (metodo === 'PUT') {
+      exigirPermiso(actual, 'customers', 'edit')
+      const datos = await cuerpo()
+
+      if (typeof datos?.sin_vencimiento !== 'boolean') {
+        throw new ErrorApi(422, 'validation_failed', 'Falta decir si se permiten tareas sin vencimiento.', { sin_vencimiento: ['no_booleano'] })
+      }
+
+      if (datos.sin_vencimiento) CLIENTES_SIN_VENCIMIENTO.add(cliente.id)
+      else CLIENTES_SIN_VENCIMIENTO.delete(cliente.id)
+    }
+
+    exigirPermiso(actual, 'customers', 'view')
+
+    return { estado: 200, cuerpo: conDatos({ sin_vencimiento: CLIENTES_SIN_VENCIMIENTO.has(cliente.id) }) }
+  }
+
   // --- Personas asignadas a un cliente --------------------------------------
   //
   // Antes del bloque de `clients`, que es solo GET, por el mismo motivo que los contactos: un PUT
@@ -7172,6 +7196,18 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
       // Al frente: el alta se hace para verla, y el orden por defecto de la lista es por entrega.
       PROCESOS.unshift(nuevo)
       return { estado: 201, cuerpo: conDatos(nuevo) }
+    }
+
+    // Antes de `buscarO404`: `vencimiento-requerido` no es un id. Misma regla que
+    // `VencimientoPorCliente::exige()` de la API.
+    if (metodo === 'GET' && resto[0] === 'vencimiento-requerido' && resto.length === 1) {
+      const permisos = permisosDe(actual).tasks ?? []
+
+      if (!permisos.includes('create') && !permisos.includes('edit')) {
+        throw new ErrorApi(403, 'forbidden', 'Sin permiso para cargar tareas.')
+      }
+
+      return { estado: 200, cuerpo: conDatos({ requerido: vencimientoRequerido(parametros.get('rel_type'), parametros.get('rel_id')) }) }
     }
 
     if (resto[0] === 'recurrentes') return await rutaDeRecurrentes(metodo, resto, parametros, actual, cuerpo)
@@ -8855,6 +8891,28 @@ function seccionesDelPortal (contacto) {
     .filter((f) => contacto.permissions.includes(f))
 
   return [...conPermiso, 'files', 'announcements', 'kb', 'profile']
+}
+
+/**
+ * Si una Tarea con esta relacion tiene que llevar fecha, como `VencimientoPorCliente::exige()`.
+ *
+ * `customer` es el cliente mismo y `project` el `clientid` del Proyecto; el resto no tiene cliente
+ * y puede ir sin fecha.
+ *
+ * @param {string | null} relType
+ * @param {string | null} relId
+ * @returns {boolean}
+ */
+function vencimientoRequerido (relType, relId) {
+  const id = Number(relId)
+
+  if (!Number.isSafeInteger(id) || id < 1) return false
+
+  const clienteId = relType === 'customer'
+    ? id
+    : relType === 'project' ? (ESPACIOS.find((e) => e.id === id)?.clientid ?? null) : null
+
+  return clienteId !== null && clienteId > 0 && !CLIENTES_SIN_VENCIMIENTO.has(clienteId)
 }
 
 /**

@@ -249,6 +249,17 @@ const CLAVES_QUE_NO_SE_NOMBRAN = new Set(['prospecto_existente'])
 const YA_DICHOS_POR_EL_MENSAJE = new Set(['cliente.company:duplicado'])
 
 /**
+ * Pares `campo:motivo` que se dicen con una frase entera y no con «Campo motivo».
+ *
+ * `requerido_por_cliente` no es un defecto del campo sino una regla de otro lado —el cliente de la
+ * Tarea exige fecha—, y armada con el nombre del campo quedaria «Fecha de vencimiento falta por
+ * cliente», que no dice por que. Sin punto final: lo pone quien junta las partes.
+ */
+const FRASES_PROPIAS: Record<string, string> = {
+  'due_date:requerido_por_cliente': 'Este cliente exige fecha de vencimiento'
+}
+
+/**
  * Mensaje de un error del contrato con sus `details` adentro.
  *
  * "Hay campos que no se pueden guardar." no dice cuál campo: el formulario queda lleno y sin pista,
@@ -274,6 +285,10 @@ export function mensajeConDetalles (error: { message: string, details?: Record<s
       const codigo = motivos[0]
 
       if (codigo === undefined) return nombre
+
+      const propia = FRASES_PROPIAS[`${campo}:${codigo}`]
+
+      if (propia !== undefined) return propia
 
       return `${nombre} ${MOTIVOS[codigo] ?? codigo.replace(/_/g, ' ')}`
     })

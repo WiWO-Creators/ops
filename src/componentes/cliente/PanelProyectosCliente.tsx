@@ -9,6 +9,7 @@ import { Cargando, ErrorEstado, Vacio } from '@/componentes/estado/Estados'
 import { Fecha } from '@/componentes/presentadores/Fecha'
 import { Insignia } from '@/componentes/presentadores/Insignia'
 import { ProyectoDeEntradaCliente } from '@/componentes/cliente/ProyectoDeEntradaCliente'
+import { TareasSinVencimientoCliente } from '@/componentes/cliente/TareasSinVencimientoCliente'
 import { pedirSobre } from '@/datos/cliente'
 import { GLOSARIO } from '@/dominio/glosario'
 import type { EstadoLookup, Espacio } from '@/datos/recursos'
@@ -96,17 +97,22 @@ export function PanelProyectosCliente ({ clienteId, estados, capacidades }: Prop
   const { proyectos, paginacion } = carga
   const enLaLista = `/proyectos?filter[clientid]=${clienteId}`
 
+  // La regla de vencimiento se dibuja tambien sin Proyectos: vale para las tareas colgadas del
+  // cliente mismo (`rel_type=customer`), que no necesitan ningun Proyecto para existir.
   if (proyectos.length === 0) {
     return (
-      <Vacio
-        titulo={`Este cliente no tiene ${GLOSARIO.espacio.plural.toLowerCase()}`}
-        descripcion={`Cuando se le abra el primero va a aparecer acá, con su avance y su fecha de entrega.`}
-        accion={
-          <Link href="/proyectos" className="text-acento text-sm font-semibold underline underline-offset-4">
-            Ir a {GLOSARIO.espacio.plural}
-          </Link>
-        }
-      />
+      <div className="flex flex-col gap-4">
+        <TareasSinVencimientoCliente clienteId={clienteId} capacidades={capacidades} />
+        <Vacio
+          titulo={`Este cliente no tiene ${GLOSARIO.espacio.plural.toLowerCase()}`}
+          descripcion={`Cuando se le abra el primero va a aparecer acá, con su avance y su fecha de entrega.`}
+          accion={
+            <Link href="/proyectos" className="text-acento text-sm font-semibold underline underline-offset-4">
+              Ir a {GLOSARIO.espacio.plural}
+            </Link>
+          }
+        />
+      </div>
     )
   }
 
@@ -116,6 +122,7 @@ export function PanelProyectosCliente ({ clienteId, estados, capacidades }: Prop
   return (
     <div className="flex flex-col gap-4">
       <ProyectoDeEntradaCliente clienteId={clienteId} proyectos={proyectos} capacidades={capacidades} />
+      <TareasSinVencimientoCliente clienteId={clienteId} capacidades={capacidades} />
 
       <div className="grid max-w-2xl gap-3 sm:grid-cols-3">
         <Metrica etiqueta={GLOSARIO.espacio.plural} valor={String(total)} />

@@ -474,6 +474,16 @@ export const ADMINS_DE_CLIENTE = new Map(
  */
 export const ENTRADA_DE_CLIENTE = new Map()
 
+/**
+ * Clientes que dejan cargar tareas sin fecha de vencimiento, como `tblapi_clientes_sin_vencimiento`.
+ *
+ * Nace vacio, igual que en la API: por defecto TODO cliente exige fecha, y la pantalla tiene que
+ * probarse en ese caso, que es el de produccion.
+ *
+ * @type {Set<number>}
+ */
+export const CLIENTES_SIN_VENCIMIENTO = new Set()
+
 const NOMBRES_ESPACIO = [
   'Rediseño de marca', 'Portal de autogestión', 'Migración de datos',
   'Campaña Q3', 'Aplicación móvil', 'Integración contable',

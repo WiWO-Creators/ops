@@ -844,6 +844,23 @@ Lo que evita errores:
 
 Requiere `create` sobre `tasks`; sin él, `403`.
 
+#### Fecha de vencimiento exigida por el cliente (migración `0970`)
+
+Un Proceso que llega a un cliente —`rel_type = customer`, o `project` con `clientid`— tiene que
+traer `due_date`, salvo que ese cliente esté habilitado. Sin fecha: `422` con
+`details.due_date = ["requerido_por_cliente"]`. Los Procesos sin cliente pueden ir sin fecha.
+
+Aplica en `POST /tasks`, `POST /tasks/multi-espacio` (si un solo destino la exige, no se crea
+ninguno) y `PATCH /tasks/{id}` —también vía `POST /tasks/bulk`— cuando el parche toca `due_date`,
+`rel_type` o `rel_id`: se mira el estado final, así que mover un Proceso sin fecha a un Proyecto que
+la exige pide la fecha en el mismo parche. Plantillas, recurrentes e IA no la exigen.
+
+- `GET /tasks/vencimiento-requerido?rel_type=project&rel_id=8` → `{ "data": { "requerido": true } }`.
+  Pide `create` o `edit` sobre `tasks`.
+- `GET|PUT /clients/{id}/tareas-sin-vencimiento` → `{ "data": { "sin_vencimiento": false } }`. El
+  `PUT` recibe `{ "sin_vencimiento": true }`; nace en `false` para todos. Pide `view`/`edit` sobre
+  `customers` y que el cliente sea visible.
+
 ### `POST /tasks/multi-espacio` — el mismo Proceso en varios Espacios
 
 Mismo cuerpo que `POST /tasks`, más `espacios` (la lista de destinos) y sin `rel_type`, `rel_id`,

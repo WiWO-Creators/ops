@@ -43,6 +43,8 @@ import {
   errorDeCamposEdicion,
   nombresDeEtiquetas,
   personasElegibles,
+  relacionFinalDeCampos,
+  vencimientoExigidoAlGuardar,
   type CamposEdicion
 } from '@/dominio/edicion-tarea'
 import { fechaDeCierre, instanteDeCierre } from '@/dominio/cierre-tarea'
@@ -56,6 +58,7 @@ import { ESTADO_COMPLETO } from './tareas'
 import { hoyLocal } from '@/lib/fechas'
 import { cn } from '@/lib/clases'
 import { AsistenteDescripcion } from './AsistenteDescripcion'
+import { useVencimientoRequerido } from './useVencimientoRequerido'
 import type { StaffReferencia } from '@/datos/tipos'
 import type {
   ConfiguracionTiposEspacio,
@@ -143,6 +146,13 @@ export function EdicionTarea (
   const [erroresCampos, setErroresCampos] = useState<ErroresDeCampos>({})
 
   const espacioId = esRelacionDeEspacio(campos.relacion) && campos.relacionId !== '' ? Number(campos.relacionId) : null
+  /**
+   * Si la fecha es obligatoria en este guardado. Se consulta la relacion FINAL —la nueva si se esta
+   * moviendo la Tarea— y solo obliga si el parche toca la fecha o la relacion, igual que la API.
+   */
+  const relacionFinal = relacionFinalDeCampos(campos)
+  const relacionExigeVencimiento = useVencimientoRequerido(relacionFinal === null ? [] : [relacionFinal])
+  const vencimientoRequerido = vencimientoExigidoAlGuardar(inicial, campos, relacionExigeVencimiento)
   /** Los valores que trajo `include=custom_fields`. Vacio si la Tarea llego sin el include. */
   const valoresDeLaTarea = tarea.custom_fields ?? SIN_CAMPOS
 
@@ -335,7 +345,7 @@ export function EdicionTarea (
       return
     }
 
-    const camposMal = errorDeCamposEdicion(campos)
+    const camposMal = errorDeCamposEdicion(campos, vencimientoRequerido)
     if (camposMal !== null) { setError(camposMal); return }
     const cambioEstado = estado !== estadoGuardado
     const cambioCierre = Number(estado) === ESTADO_COMPLETO && cierre !== cierreGuardado
@@ -597,11 +607,12 @@ export function EdicionTarea (
               )}
             </Campo>
 
-            <Campo etiqueta="Entrega">
+            <Campo etiqueta="Entrega" requerido={vencimientoRequerido}>
               {(props) => (
                 <Entrada
                   {...props}
                   type="date"
+                  required={vencimientoRequerido}
                   value={campos.vencimiento}
                   onChange={(evento) => setCampos({ ...campos, vencimiento: evento.target.value })}
                 />
