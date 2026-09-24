@@ -698,6 +698,12 @@ export interface EstadoLookup {
   filter_default?: unknown
 }
 
+/** Los dos catálogos que una tabla de Tareas necesita para pintar estado y prioridad. */
+export interface CatalogosDeTareas {
+  estados: EstadoLookup[]
+  prioridades: EstadoLookup[]
+}
+
 /** Respuesta de `GET /lookups`. */
 export interface Lookups {
   task_statuses: EstadoLookup[]

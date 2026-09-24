@@ -2,6 +2,7 @@ import { Organigrama } from '@/componentes/organigrama/Organigrama'
 import { ErrorEstado, SinPermiso } from '@/componentes/estado/Estados'
 import { TituloModulo } from '@/componentes/estructura/TituloModulo'
 import { ErrorApi } from '@/datos/errores'
+import { cargarCatalogosDeTareas } from '@/datos/lookups'
 import { cargarOrganigrama } from '@/datos/organigrama-servidor'
 
 export const metadata = { title: 'Mi Área · WiWO Ops' }
@@ -24,7 +25,7 @@ export const metadata = { title: 'Mi Área · WiWO Ops' }
  * la API y el componente respeta.
  */
 export default async function MiAreaPage () {
-  const cargado = await cargarOrganigrama()
+  const [cargado, catalogos] = await Promise.all([cargarOrganigrama(), cargarCatalogosDeTareas()])
 
   return (
     <section className="flex flex-col gap-4">
@@ -37,7 +38,7 @@ export default async function MiAreaPage () {
         ? cargado.codigo === 'forbidden'
           ? <SinPermiso />
           : <ErrorEstado detalle={cargado.message} />
-        : <Organigrama inicial={cargado} />}
+        : <Organigrama inicial={cargado} catalogos={catalogos} />}
     </section>
   )
 }
