@@ -19,11 +19,12 @@ interface Props {
 }
 
 /**
- * Las Tareas abiertas que tiene asignadas la gente de una o varias áreas.
+ * Las Tareas abiertas de una o varias áreas, completas.
  *
- * Filtra por `filter[area_asignado]`, el área del equipo de quien la tiene asignada, y no por el
- * campo "Área" de la compañía que lleva cada Tarea: lo que se está mirando es el organigrama, así que
- * el trabajo de un área es el de su gente. Qué Tareas alcanza cada quien lo recorta la API.
+ * Filtra por `filter[area_equipo]`, que une las dos maneras en que una Tarea es de un área: la tiene
+ * asignada alguien del área, o lleva el área marcada en su campo "Área". Con solo la primera, un área
+ * cuyo trabajo se reparte a gente de otras aparecía casi vacía. Qué Tareas alcanza cada quien lo
+ * recorta la API.
  *
  * La tabla es la misma de "Mis Tareas" y de la ficha de una persona; solo cambia el filtro fijo y el
  * orden.
@@ -37,14 +38,14 @@ export function TareasDelArea ({ areaIds, titulo, catalogos }: Props) {
 
   return (
     <TareasAsignadas
-      alcance={`filter[area_asignado]=${areaIds.join(',')}`}
+      alcance={`filter[area_equipo]=${areaIds.join(',')}`}
       orden={ORDEN_DEL_AREA}
       titulo={titulo}
       estados={catalogos.estados}
       prioridades={catalogos.prioridades}
       vacio={{
         titulo: `No hay ${plural} abiertas`,
-        descripcion: `Cuando alguien del área tenga ${plural} asignadas van a aparecer acá, las nuevas y en curso primero.`
+        descripcion: `Las ${plural} asignadas a gente del área o marcadas con el área van a aparecer acá, las nuevas y en curso primero.`
       }}
     />
   )

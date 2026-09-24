@@ -223,6 +223,29 @@ function conCamposPersonalizados (fila, entidad, includes) {
 /** Estado "Completado" de Perfex. Es el mismo 5 que usa `Escritura\EstadoProceso::COMPLETADO`. */
 const ESTADO_COMPLETADO = 5
 
+/**
+ * Las areas del equipo de quienes tienen asignada una Tarea.
+ * @param {object} p la Tarea
+ * @returns {number[]} ids de `AREAS`
+ */
+function areasDeLosAsignados (p) {
+  return p.assignees.flatMap((a) => {
+    const persona = STAFF.find((s) => s.id === a.id)
+    return persona === undefined ? [] : areasDePersona(persona)
+  })
+}
+
+/**
+ * Las areas del equipo cuyo nombre la Tarea lleva marcado en su campo "Área".
+ * @param {object} p la Tarea
+ * @returns {number[]} ids de `AREAS`
+ */
+function areasDelCampo (p) {
+  const campo = (VALORES_CAMPOS[`tasks:${p.id}`] ?? []).find((c) => c.slug === 'tasks_cf_area')
+  const marcadas = String(campo?.value ?? '').split(',').map((v) => v.trim()).filter(Boolean)
+  return AREAS.filter((area) => marcadas.some((nombre) => mismoNombre(nombre, area.name))).map((area) => area.id)
+}
+
 /** Escalón de cada estado para `sort=etapa`: nuevas y en curso, cambios, espera, testear, completas. */
 const ETAPA_POR_ESTADO = { 1: 0, 4: 0, 6: 1, 2: 2, 3: 3, 5: 4 }
 
@@ -246,10 +269,10 @@ const CONSULTA_PROCESOS = {
     tag: coincideEnLista((p) => p.tags.map((t) => t.id)),
     // El área del EQUIPO de quien la tiene asignada, igual que `RecursoProcesos`: la membresía de
     // cada asignado, principal o secundaria.
-    area_asignado: coincideEnLista((p) => p.assignees.flatMap((a) => {
-      const persona = STAFF.find((s) => s.id === a.id)
-      return persona === undefined ? [] : areasDePersona(persona)
-    })),
+    area_asignado: coincideEnLista(areasDeLosAsignados),
+    // El trabajo completo de un area: la de sus asignados O la marcada en el campo "Área" de la
+    // Tarea, unidas por nombre como hace `RecursoProcesos::condicionDeCampoPorIdDeArea()`.
+    area_equipo: coincideEnLista((p) => [...new Set([...areasDeLosAsignados(p), ...areasDelCampo(p)])]),
     // Los cuatro rangos: dos sobre el vencimiento y dos sobre el inicio.
     date_from: (p, v) => p.due_date >= v,
     date_to: (p, v) => p.due_date <= v,
