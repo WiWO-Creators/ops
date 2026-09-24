@@ -54,11 +54,27 @@ async function codigoDeError (respuesta: Response): Promise<{ codigo?: string, d
 }
 
 /**
+ * El cuerpo de una escritura tal como lo espera `fetch`.
+ *
+ * Un `FormData` viaja sin `content-type`: lo completa el navegador con el boundary, y forzarlo lo
+ * perderia. Todo lo demas viaja como JSON.
+ *
+ * @param cuerpo lo que se quiere mandar; `undefined` no lleva cuerpo
+ * @returns las opciones de `fetch` que corresponden
+ */
+function opcionesDeCuerpo (cuerpo: unknown): RequestInit {
+  if (cuerpo === undefined) return {}
+  if (typeof FormData !== 'undefined' && cuerpo instanceof FormData) return { body: cuerpo }
+
+  return { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(cuerpo) }
+}
+
+/**
  * Manda una escritura al BFF y devuelve el resultado como valor, nunca como excepcion.
  *
  * @param ruta Ruta sin la base del BFF ni barra inicial. Ej: `projects/12/actions/copy`.
  * @param metodo Verbo HTTP de la operacion.
- * @param cuerpo Cuerpo JSON, si lo hay. `DELETE` normalmente no lleva.
+ * @param cuerpo Cuerpo JSON, o un `FormData` para multipart. `DELETE` normalmente no lleva.
  * @returns `datos` con el `data` del envelope, o el mensaje de error ya legible.
  */
 export async function escribirEnBff<T> (
@@ -69,12 +85,7 @@ export async function escribirEnBff<T> (
   let respuesta: Response
 
   try {
-    respuesta = await fetch(`/api/bff/${ruta}`, {
-      method: metodo,
-      ...(cuerpo === undefined
-        ? {}
-        : { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(cuerpo) })
-    })
+    respuesta = await fetch(`/api/bff/${ruta}`, { method: metodo, ...opcionesDeCuerpo(cuerpo) })
   } catch {
     return { ok: false, mensaje: 'No se pudo contactar al servidor. Revisa tu conexión.' }
   }

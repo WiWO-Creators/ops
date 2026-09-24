@@ -16,6 +16,7 @@ import { PanelDescripcion } from '@/componentes/proyecto/PanelDescripcion'
 import { PanelGantt } from '@/componentes/proyecto/PanelGantt'
 import { PanelHitos } from '@/componentes/proyecto/PanelHitos'
 import { PanelActas } from '@/componentes/proyecto/PanelActas'
+import { PanelScope } from '@/componentes/proyecto/PanelScope'
 import { PanelNotas } from '@/componentes/proyecto/PanelNotas'
 import { PanelTareas } from '@/componentes/proyecto/PanelTareas'
 import { PanelTiempos } from '@/componentes/proyecto/PanelTiempos'
@@ -246,6 +247,10 @@ export default async function ProyectoPage (props: PageProps<'/proyectos/[id]'>)
     // adentro porque son dos cosas distintas: la nota es privada de quien la escribio y el acta la ve
     // todo el Proyecto, asi que sus acciones dependen de permisos en vez de ofrecerse siempre.
     { clave: 'actas', etiqueta: GLOSARIO.acta.singular, contenido: <PanelActas proyectoId={proyecto.id} fuente={fuente} capacidades={ACTAS_DEL_EQUIPO} capacidadesTareas={capacidadesTareas} ia={ia} yo={yo} /> },
+    // El alcance contratado y el analisis de las Tareas contra el. Solo equipo: el portal no monta
+    // esta pestaña. Se muestra aunque la IA este apagada por lo mismo que el Meeting Paper: el Scope
+    // guardado se sigue leyendo, y el panel dice por que no se puede interpretar ni analizar.
+    { clave: 'scope', etiqueta: GLOSARIO.scope.singular, contenido: <PanelScope proyectoId={proyecto.id} ia={ia} /> },
     // La clave se queda en `wibot` aunque el asistente ahora se llame Thinking Orb: no es texto, es
     // el valor que viaja en `?tab=` de esta ficha. Cambiarla dejaría muerto cualquier enlace que
     // alguien haya guardado o pegado en otro lado, y el nombre del asistente no se lee de ahí
