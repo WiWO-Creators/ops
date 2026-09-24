@@ -24,7 +24,7 @@ interface PropsImagenEntidad {
   imagenEfectiva?: string | null
   ruta?: string
   puedeEditar?: boolean
-  tamano?: 'chico' | 'grande'
+  tamano?: 'chico' | 'grande' | 'destacada'
   className?: string
 }
 
@@ -101,7 +101,11 @@ export function ImagenEntidad ({
     router.refresh()
   }
 
-  const tamanos = tamano === 'grande' ? 'size-12 text-base' : 'size-8 text-xs'
+  const tamanos = {
+    chico: 'size-8 text-xs',
+    grande: 'size-12 text-base',
+    destacada: 'size-16 text-seccion sm:size-20',
+  }[tamano]
   const marco = cn(
     'border-linea bg-superficie-hundida relative block overflow-hidden rounded-control border',
     tamanos

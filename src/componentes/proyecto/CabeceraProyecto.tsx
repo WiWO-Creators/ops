@@ -135,17 +135,17 @@ export function CabeceraProyecto ({
       </Link>
 
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="flex min-w-0 items-center gap-3">
+        <div className="flex min-w-0 items-center gap-4">
           <ImagenEntidad
             nombre={proyecto.name}
             imagenPropia={proyecto.image_url}
             imagenEfectiva={proyecto.image_url ?? proyecto.cliente?.image_url}
             ruta={`projects/${proyecto.id}`}
             puedeEditar={puedeEditar}
-            tamano="grande"
+            tamano="destacada"
           />
           <div className="flex min-w-0 flex-col gap-1">
-            <h1 className="text-texto text-titulo font-semibold">{proyecto.name}</h1>
+            <h1 className="text-texto text-seccion leading-tight font-semibold">{proyecto.name}</h1>
             <div className="flex flex-wrap items-center gap-2">
               <p className="text-texto-tenue text-sm">{subtitulo ?? proyecto.cliente?.company ?? 'Sin cliente'}</p>
               {/* Sin patente no se pinta nada: el portal no publica el codigo interno, y un `#12`
