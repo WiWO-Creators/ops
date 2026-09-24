@@ -59,16 +59,42 @@ const VISTAS: readonly OpcionSegmentada[] = [
 type Vista = number | null | undefined
 
 /**
+ * De quién es el trabajo que se lista debajo del dibujo.
+ *
+ * `propias` es "Mi Área": el mapa lista el trabajo de las áreas de quien mira, y al entrar en otra
+ * se ve su árbol pero no sus Tareas —aunque quien mira administre todo—. `todas` es "Jerarquías", la
+ * vista general: el mapa no lista nada, y cada área muestra las suyas al entrar.
+ */
+export type AlcanceDeTareas = 'propias' | 'todas'
+
+/**
+ * Qué áreas listan su trabajo en la vista actual.
+ *
+ * @param vista el mapa (`undefined`), un área, o "sin área" (`null`)
+ * @param alcance ver `AlcanceDeTareas`
+ * @param mias las áreas que lleva puesta quien mira
+ * @returns los ids a listar; vacío si en esta vista no va lista
+ */
+function areasConTareas (vista: Vista, alcance: AlcanceDeTareas, mias: Set<number>): number[] {
+  if (vista === null) return []
+  if (vista === undefined) return alcance === 'propias' ? [...mias] : []
+  if (alcance === 'propias' && !mias.has(vista)) return []
+
+  return [vista]
+}
+
+/**
  * Monta el organigrama a partir de lo que resolvió el servidor.
  *
- * Con `catalogos`, debajo del dibujo va el trabajo abierto: en el mapa, el de las áreas de quien
- * mira; dentro de un área, el de esa área.
+ * Con `catalogos`, debajo del dibujo va el trabajo abierto, recortado según `alcance`.
  *
  * @param inicial la respuesta de `GET /organigrama` para quien mira
  * @param catalogos estados y prioridades de Tarea; sin ellos no se lista trabajo
+ * @param alcance de quién es el trabajo que se lista; por defecto, el general
  */
 export function Organigrama (
-  { inicial, catalogos }: { inicial: DatosDeOrganigrama, catalogos?: CatalogosDeTareas }
+  { inicial, catalogos, alcance = 'todas' }:
+  { inicial: DatosDeOrganigrama, catalogos?: CatalogosDeTareas, alcance?: AlcanceDeTareas }
 ) {
   const [datos, setDatos] = useState(inicial)
   const [servido, setServido] = useState(inicial)
@@ -97,6 +123,7 @@ export function Organigrama (
   const areas = useMemo(() => areasDelMapa(datos), [datos])
   const mias = useMemo(() => new Set(datos.yo.areas), [datos.yo.areas])
   const resumen = useMemo(() => resumirMapa(datos), [datos])
+  const areasListadas = useMemo(() => areasConTareas(vista, alcance, mias), [vista, alcance, mias])
 
   const raices = useMemo(
     () => vista === undefined ? [] : arbolDelArea(datos.personas, vista),
@@ -336,16 +363,24 @@ export function Organigrama (
 
       {contenido}
 
-      {catalogos !== undefined && vista !== null && (
+      {catalogos !== undefined && areasListadas.length > 0 && (
         <TareasDelArea
           // Remontar al cambiar de área vuelve a la primera página en vez de arrastrar la de otra.
           key={String(vista)}
-          areaIds={vista === undefined ? datos.yo.areas : [vista]}
+          areaIds={areasListadas}
           titulo={vista === undefined
             ? `${GLOSARIO.proceso.plural} de tu área`
             : `${GLOSARIO.proceso.plural} del área`}
           catalogos={catalogos}
         />
+      )}
+
+      {catalogos !== undefined && areasListadas.length === 0 && alcance === 'propias' && vista !== null && (
+        <p className="text-texto-tenue text-sm">
+          {vista === undefined
+            ? `No tienes un área puesta, así que no hay ${GLOSARIO.proceso.plural.toLowerCase()} de tu área que mostrar.`
+            : `Esta no es tu área: aquí ves su equipo, y sus ${GLOSARIO.proceso.plural.toLowerCase()} están en Jerarquías.`}
+        </p>
       )}
 
       {poblando !== undefined && (
