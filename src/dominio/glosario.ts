@@ -28,9 +28,6 @@ export const GLOSARIO = {
   // llama el equipo, y esa palabra nombra a la vez a la persona y a su pantalla.
   focal: { singular: 'Focal', plural: 'Focals' },
   ticket: { singular: 'Ticket', plural: 'Tickets' },
-  // Lo mismo que `ticket`, dicho hacia el cliente. El equipo dice "ticket" y el portal "solicitud":
-  // la clave tecnica sigue siendo `tickets`/`support` en rutas y permisos.
-  solicitud: { singular: 'Solicitud', plural: 'Solicitudes' },
   seguimiento: { singular: 'Seguimiento', plural: 'Seguimiento' },
   planificador: { singular: 'Planificador', plural: 'Planificador' },
   teletrabajo: { singular: 'Teletrabajo', plural: 'Teletrabajo' },

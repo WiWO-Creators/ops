@@ -13,7 +13,7 @@ import type { YoPortal } from '@/datos/tipos'
 import { SeccionDePortal } from '../seccion'
 import { NuevaSolicitud } from './NuevaSolicitud'
 
-export const metadata: Metadata = { title: 'Solicitudes · Portal de clientes' }
+export const metadata: Metadata = { title: 'Tickets · Portal de clientes' }
 
 /**
  * Cuantos espacios se traen para el selector del alta.

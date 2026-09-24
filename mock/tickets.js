@@ -319,7 +319,7 @@ function contarOLimitar (tipo, contactoId) {
     const reintentar = Math.max(1, Math.ceil((recientes[0] + 3_600_000 - ahoraMs) / 1000))
     ACTIVIDAD[tipo].set(contactoId, recientes)
     throw new ErrorApi(429, 'rate_limited',
-      tipo === 'altas' ? 'Enviaste muchas solicitudes seguidas. Prueba de nuevo en un rato.' : 'Enviaste muchas respuestas seguidas. Prueba de nuevo en un rato.',
+      tipo === 'altas' ? 'Enviaste muchos tickets seguidos. Prueba de nuevo en un rato.' : 'Enviaste muchas respuestas seguidas. Prueba de nuevo en un rato.',
       { tope_por_hora: tope, reintentar_en_segundos: reintentar })
   }
 
@@ -424,7 +424,7 @@ export async function ticketDelPortal ({ metodo, resto, contacto, cuerpo }) {
   }
 
   if (accion === 'cerrar') {
-    if (ticket.status === CERRADO) throw new ErrorApi(409, 'ticket_cerrado', 'Esta solicitud ya está cerrada.')
+    if (ticket.status === CERRADO) throw new ErrorApi(409, 'ticket_cerrado', 'Este ticket ya está cerrado.')
     ticket.status = CERRADO
     ticket.cerrado_en = ahora()
     // La API no toca las marcas al cerrar; se materializan para que el listado lea lo mismo que antes.
@@ -433,7 +433,7 @@ export async function ticketDelPortal ({ metodo, resto, contacto, cuerpo }) {
   }
 
   if (accion === 'reabrir') {
-    if (ticket.status !== CERRADO) throw new ErrorApi(409, 'ticket_abierto', 'Esta solicitud no está cerrada.')
+    if (ticket.status !== CERRADO) throw new ErrorApi(409, 'ticket_abierto', 'Este ticket no está cerrado.')
     if (!dentroDelPlazo(ticket)) {
       throw new ErrorApi(409, 'reapertura_vencida', `Pasaron más de ${DIAS_REAPERTURA} días desde el cierre.`)
     }
@@ -450,7 +450,7 @@ export async function ticketDelPortal ({ metodo, resto, contacto, cuerpo }) {
   if (!regla.puede_responder) {
     throw regla.motivo_sin_respuesta === 'cerrado'
       ? new ErrorApi(409, 'ticket_cerrado', 'Este ticket está cerrado y ya no admite respuestas.')
-      : new ErrorApi(409, 'ticket_sin_respuesta_del_equipo', 'Podrás responder cuando el equipo conteste tu solicitud.')
+      : new ErrorApi(409, 'ticket_sin_respuesta_del_equipo', 'Podrás responder cuando el equipo conteste tu ticket.')
   }
 
   contarOLimitar('respuestas', contacto.id)

@@ -157,10 +157,10 @@ test('regla local: cerrado manda sobre esperando al equipo', () => {
 })
 
 test('los avisos dicen lo que pidio el producto', () => {
-  assert.equal(avisoSinRespuesta('esperando_equipo'), 'El equipo aún no responde tu solicitud; podrás responder cuando lo haga.')
+  assert.equal(avisoSinRespuesta('esperando_equipo'), 'El equipo aún no responde tu ticket; podrás responder cuando lo haga.')
   assert.equal(avisoSinRespuesta('cerrado'), 'Este ticket ya se cerró.')
-  assert.equal(avisoSinRespuesta('cerrado', nombreDelTicket(TICKET_DEL_PORTAL)), 'Esta solicitud ya se cerró.')
-  assert.match(avisoSinRespuesta(null, nombreDelTicket(TICKET_DEL_PORTAL)), /esta solicitud\.$/)
+  assert.equal(avisoSinRespuesta('cerrado', nombreDelTicket(TICKET_DEL_PORTAL)), 'Este ticket ya se cerró.')
+  assert.match(avisoSinRespuesta(null, nombreDelTicket(TICKET_DEL_PORTAL)), /este ticket\.$/)
   assert.ok(avisoSinRespuesta(null).length > 0)
 })
 
@@ -281,7 +281,7 @@ test('el titulo accesible nombra numero y asunto', () => {
   assert.equal(tituloDelModal(12, 'No carga el logo'), 'Ticket #12 · No carga el logo')
   assert.equal(tituloDelModal(12, null), 'Ticket #12')
   assert.equal(tituloDelModal(12, '   '), 'Ticket #12')
-  assert.equal(tituloDelModal(12, 'No carga el logo', nombreDelTicket(TICKET_DEL_PORTAL)), 'Solicitud #12 · No carga el logo')
+  assert.equal(tituloDelModal(12, 'No carga el logo', nombreDelTicket(TICKET_DEL_PORTAL)), 'Ticket #12 · No carga el logo')
   assert.equal(nombreDelTicket(TICKET_DEL_PANEL).titulo, 'Ticket')
 })
 
@@ -289,15 +289,15 @@ test('los rechazos se explican por codigo', () => {
   const base = { mensaje: 'Mensaje de la API.' }
 
   assert.match(falloDeTicket({ ...base, estado: 409, codigo: 'ticket_cerrado' }, 'responder').texto, /se cerró mientras escribías/)
-  assert.match(falloDeTicket({ ...base, estado: 409, codigo: 'ticket_cerrado' }, 'cerrar').texto, /ya estaba cerrada/)
-  assert.match(falloDeTicket({ ...base, estado: 409, codigo: 'ticket_abierto' }, 'reabrir').texto, /ya está abierta/)
-  assert.match(falloDeTicket({ ...base, estado: 409, codigo: 'reapertura_vencida' }, 'reabrir').texto, /solicitud nueva/)
+  assert.match(falloDeTicket({ ...base, estado: 409, codigo: 'ticket_cerrado' }, 'cerrar').texto, /ya estaba cerrado/)
+  assert.match(falloDeTicket({ ...base, estado: 409, codigo: 'ticket_abierto' }, 'reabrir').texto, /ya está abierto/)
+  assert.match(falloDeTicket({ ...base, estado: 409, codigo: 'reapertura_vencida' }, 'reabrir').texto, /ticket nuevo/)
   assert.match(falloDeTicket({ ...base, estado: 409, codigo: 'ticket_sin_respuesta_del_equipo' }, 'responder').texto, /aún no responde/)
 
   const tope = falloDeTicket({ ...base, estado: 429, codigo: 'rate_limited', reintentarEnSegundos: 125 }, 'responder')
   assert.equal(tope.esperarSegundos, 125)
   assert.match(tope.texto, /3 minutos/)
-  assert.match(falloDeTicket({ ...base, estado: 429, codigo: 'rate_limited', reintentarEnSegundos: 30 }, 'crear').texto, /solicitudes.*1 minuto/)
+  assert.match(falloDeTicket({ ...base, estado: 429, codigo: 'rate_limited', reintentarEnSegundos: 30 }, 'crear').texto, /tickets.*1 minuto/)
   assert.equal(falloDeTicket({ ...base, estado: 429, codigo: 'rate_limited' }, 'crear').esperarSegundos, null)
 
   assert.match(falloDeTicket({ ...base, estado: 422, codigo: 'validation_failed', detalles: { project_id: ['otro_cliente'] } }, 'editar').texto, /otro cliente/)

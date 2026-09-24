@@ -120,8 +120,7 @@ export interface NombreDeTicket {
 
 /** Las formas de nombrar un ticket que usa el producto. */
 export const NOMBRES_DE_TICKET = {
-  ticket: { titulo: 'Ticket', el: 'el ticket', este: 'este ticket' },
-  solicitud: { titulo: 'Solicitud', el: 'la solicitud', este: 'esta solicitud' }
+  ticket: { titulo: 'Ticket', el: 'el ticket', este: 'este ticket' }
 } as const satisfies Record<string, NombreDeTicket>
 
 export type ClaveDeNombreDeTicket = keyof typeof NOMBRES_DE_TICKET
@@ -182,7 +181,7 @@ export const TICKET_DEL_PORTAL: FuenteDeTicket = {
   reabrir: 'portal/tickets/:id/reabrir',
   leido: 'portal/tickets/:id/leido',
   catalogoSinNombre: 'ocultar',
-  nombre: 'solicitud'
+  nombre: 'ticket'
 }
 
 /** Un mensaje del hilo, incluido el que abrio el ticket. */
@@ -494,7 +493,7 @@ export function reglaDeRespuestaLocal (estado: number, equipoRespondio: boolean)
 export function avisoSinRespuesta (motivo: MotivoSinRespuesta | null, nombre: NombreDeTicket = NOMBRES_DE_TICKET.ticket): string {
   if (motivo === 'cerrado') return `${conMayuscula(nombre.este)} ya se cerró.`
   if (motivo === 'esperando_equipo') {
-    return 'El equipo aún no responde tu solicitud; podrás responder cuando lo haga.'
+    return 'El equipo aún no responde tu ticket; podrás responder cuando lo haga.'
   }
 
   return `Por ahora no se puede responder ${nombre.este}.`
@@ -839,14 +838,14 @@ export function falloDeTicket (rechazo: RechazoDeTicket, accion: AccionDeTicket)
   switch (rechazo.codigo) {
     case 'ticket_cerrado':
       return sinEspera(accion === 'cerrar'
-        ? 'Esta solicitud ya estaba cerrada.'
-        : 'La solicitud se cerró mientras escribías. Tu mensaje sigue aquí.')
+        ? 'Este ticket ya estaba cerrado.'
+        : 'El ticket se cerró mientras escribías. Tu mensaje sigue aquí.')
     case 'ticket_sin_respuesta_del_equipo':
-      return sinEspera('El equipo aún no responde tu solicitud; podrás responder cuando lo haga. Tu mensaje sigue aquí.')
+      return sinEspera('El equipo aún no responde tu ticket; podrás responder cuando lo haga. Tu mensaje sigue aquí.')
     case 'ticket_abierto':
-      return sinEspera('Esta solicitud ya está abierta.')
+      return sinEspera('Este ticket ya está abierto.')
     case 'reapertura_vencida':
-      return sinEspera('Pasó demasiado tiempo desde el cierre para reabrirla. Si el problema sigue, envía una solicitud nueva.')
+      return sinEspera('Pasó demasiado tiempo desde el cierre para reabrirla. Si el problema sigue, abre un ticket nuevo.')
     case 'rate_limited':
       return { texto: textoDeTope(accion, rechazo.reintentarEnSegundos ?? null), esperarSegundos: rechazo.reintentarEnSegundos ?? null }
     default:
@@ -862,7 +861,7 @@ export function falloDeTicket (rechazo: RechazoDeTicket, accion: AccionDeTicket)
  * @returns la frase para la persona
  */
 function textoDeTope (accion: AccionDeTicket, segundos: number | null): string {
-  const que = accion === 'crear' ? 'Enviaste muchas solicitudes seguidas.' : 'Enviaste muchas respuestas seguidas.'
+  const que = accion === 'crear' ? 'Enviaste muchos tickets seguidos.' : 'Enviaste muchas respuestas seguidas.'
 
   if (segundos === null || segundos <= 0) return `${que} Espera un rato antes de volver a intentarlo.`
 

@@ -11,7 +11,7 @@ import { GLOSARIO } from '../dominio/glosario.ts'
  */
 export const PORTAL_TICKETS: DefinicionRecurso<TicketPortal> = {
   ruta: 'portal/tickets',
-  titulo: GLOSARIO.solicitud,
+  titulo: GLOSARIO.ticket,
 
   columnas: [
     { clave: 'subject', encabezado: 'Asunto', ordenPor: 'subject', presentar: (t) => t.subject },

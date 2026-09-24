@@ -424,14 +424,14 @@ function MisTickets ({ lectura }: { lectura: LecturaDeTickets }) {
     <section className="flex flex-col gap-6">
       <TituloModulo
         nivel="h2"
-        titulo={`Mis ${GLOSARIO.solicitud.plural.toLowerCase()}`}
-        acciones={<VerTodo href="/portal/soporte" etiqueta={`Ver ${GLOSARIO.solicitud.plural.toLowerCase()}`} />}
+        titulo={`Mis ${GLOSARIO.ticket.plural.toLowerCase()}`}
+        acciones={<VerTodo href="/portal/soporte" etiqueta={`Ver ${GLOSARIO.ticket.plural.toLowerCase()}`} />}
       />
 
       {lectura.esperando > 0 && (
         <p className="rounded-tarjeta border-linea-fuerte bg-superficie-aviso border border-l-4 px-5 py-3 text-base text-texto">
           <span data-numerico className="tabular-nums">{lectura.esperando}</span>
-          {lectura.esperando === 1 ? ' solicitud espera' : ' solicitudes esperan'} tu respuesta.
+          {lectura.esperando === 1 ? ' ticket espera' : ' tickets esperan'} tu respuesta.
         </p>
       )}
 
@@ -529,7 +529,7 @@ const PRESENTACION: Record<string, PresentacionDeSeccion> = {
     tono: 'violeta'
   },
   '/portal/soporte': {
-    descripcion: 'Tus solicitudes abiertas, y una nueva cuando haga falta.',
+    descripcion: 'Tus tickets abiertos, y uno nuevo cuando haga falta.',
     icono: LifeBuoy,
     tono: 'peligro'
   },

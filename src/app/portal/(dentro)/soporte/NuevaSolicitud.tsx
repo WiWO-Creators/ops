@@ -136,7 +136,7 @@ export function NuevaSolicitud ({ prioridades, espacios, entradaId = null }: Pro
     reiniciar()
     setAbierto(false)
     setAviso(resultado.estado === 200
-      ? 'Esa solicitud ya la habías enviado hace un momento: te mostramos la que ya existe.'
+      ? 'Ese ticket ya lo habías enviado hace un momento: te mostramos el que ya existe.'
       : null)
     avisarCambioDeTicket(id)
     // `window.location` y no `useSearchParams`: se lee en el momento del clic y el componente no
@@ -160,11 +160,11 @@ export function NuevaSolicitud ({ prioridades, espacios, entradaId = null }: Pro
       <p role="status" className={aviso === null ? 'sr-only' : 'text-texto-tenue text-sm'}>{aviso ?? ''}</p>
       <Dialogo open={abierto} onOpenChange={setAbierto}>
         <DisparadorDialogo asChild>
-          <Boton variante="primario">Nueva solicitud</Boton>
+          <Boton variante="primario">Nuevo ticket</Boton>
         </DisparadorDialogo>
 
         <ContenidoDialogo
-          titulo="Nueva solicitud"
+          titulo="Nuevo ticket"
           descripcion="Cuéntanos qué necesitas y se lo hacemos llegar al equipo."
         >
           <form
@@ -240,7 +240,7 @@ export function NuevaSolicitud ({ prioridades, espacios, entradaId = null }: Pro
                 cargando={enviando}
                 disabled={!solicitudCompleta(borrador) || espera !== null}
               >
-                Enviar solicitud
+                Enviar ticket
               </Boton>
             </div>
           </form>

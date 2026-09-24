@@ -80,9 +80,9 @@ export function AccionesDelSolicitante ({
     <div className="border-linea-suave flex flex-col gap-2 border-t pt-3">
       {puedeCerrar && !confirmando && (
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <p className="text-texto-tenue text-sm">¿Ya se resolvió? Puedes cerrar la solicitud.</p>
+          <p className="text-texto-tenue text-sm">¿Ya se resolvió? Puedes cerrar el ticket.</p>
           <Boton variante="secundario" tamano="chico" onClick={() => { setConfirmando(true) }}>
-            Cerrar solicitud
+            Cerrar ticket
           </Boton>
         </div>
       )}
@@ -90,7 +90,7 @@ export function AccionesDelSolicitante ({
       {puedeCerrar && confirmando && (
         <div role="group" aria-labelledby={idPregunta} className="flex flex-wrap items-center justify-between gap-2">
           <p id={idPregunta} className="text-texto text-sm font-medium">
-            ¿Cerrar esta solicitud? Podrás reabrirla por un tiempo si hace falta.
+            ¿Cerrar este ticket? Podrás reabrirlo por un tiempo si hace falta.
           </p>
           <div className="flex gap-2">
             <Boton variante="sutil" tamano="chico" disabled={enCurso} onClick={() => { setConfirmando(false) }}>
@@ -105,9 +105,9 @@ export function AccionesDelSolicitante ({
 
       {puedeReabrir && (
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <p className="text-texto-tenue text-sm">¿El problema volvió? Puedes reabrir la solicitud.</p>
+          <p className="text-texto-tenue text-sm">¿El problema volvió? Puedes reabrir el ticket.</p>
           <Boton variante="secundario" tamano="chico" cargando={enCurso} onClick={() => { void ejecutar('reabrir') }}>
-            Reabrir solicitud
+            Reabrir ticket
           </Boton>
         </div>
       )}
