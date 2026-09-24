@@ -48,10 +48,14 @@ import {
 } from '@/dominio/espacios-destino'
 import { GLOSARIO } from '@/dominio/glosario'
 import { errorDeHorasEstimadas, horasDeTexto } from '@/dominio/tiempo-estimado'
+import {
+  errorDeVencimientoRequerido, relacionQuePuedeExigir, type RelacionConCliente
+} from '@/dominio/vencimiento-requerido'
 import { formatearFecha } from '@/lib/fechas'
 import { enFormatoTitulo } from '@/lib/titulo'
 import { AsistenteDescripcion } from './AsistenteDescripcion'
 import { SelectorEspacios } from './SelectorEspacios'
+import { useVencimientoRequerido } from './useVencimientoRequerido'
 import { VistaPreviaAlta, type MarcaPrevia } from './VistaPreviaAlta'
 import type {
   DefinicionCampoPersonalizado,
@@ -260,6 +264,17 @@ export function AltaRapidaProceso ({
   const multiple = espacios.length > 1
   /** La relacion elegida es un Espacio —Proyecto, Licitacion o Upsell— y no un Cliente. */
   const vaAEspacio = esRelacionDeEspacio(relacion)
+  /**
+   * Las relaciones con las que nacerian las tareas: un Proyecto por destino, o el Cliente elegido.
+   * De ahi sale si la fecha de vencimiento es obligatoria; con varios destinos basta con que uno la
+   * exija, porque la fecha es la misma para todos.
+   */
+  const relacionesDelAlta = useMemo<RelacionConCliente[]>(
+    () => (vaAEspacio ? espacios.map((id) => relacionQuePuedeExigir('project', id)) : [relacionQuePuedeExigir(relacion, relacionId)])
+      .filter((relacionDelAlta): relacionDelAlta is RelacionConCliente => relacionDelAlta !== null),
+    [vaAEspacio, espacios, relacion, relacionId]
+  )
+  const vencimientoRequerido = useVencimientoRequerido(relacionesDelAlta, abierto && creadaId === null)
   const [asignados, setAsignados] = useState<number[]>([])
   /** Quien esta creando. Arranca como responsable y vuelve a serlo al limpiar el alta (WIW-0444). */
   const [yoId, setYoId] = useState<number | null>(null)
@@ -855,6 +870,13 @@ export function AltaRapidaProceso ({
       setError('El vencimiento no puede ser anterior al inicio.')
       return
     }
+    // Cortesia, igual que la descripcion: la regla es de `POST /tasks` y de `multi-espacio`, que
+    // devuelven 422 `due_date: ["requerido_por_cliente"]`. Si la consulta fallo esto no corta nada.
+    const vencimientoFaltante = errorDeVencimientoRequerido(vencimientoRequerido, vencimiento)
+    if (vencimientoFaltante !== null) {
+      setError(vencimientoFaltante)
+      return
+    }
     if (!vaAEspacio && (!Number.isSafeInteger(Number(relacionId)) || Number(relacionId) < 1)) {
       setError(`Elige un ${GLOSARIO.cliente.singular.toLowerCase()}.`)
       return
@@ -1141,11 +1163,12 @@ export function AltaRapidaProceso ({
                       />
                     )}
                   </Campo>
-                  <Campo etiqueta="Fecha de vencimiento">
+                  <Campo etiqueta="Fecha de vencimiento" requerido={vencimientoRequerido}>
                     {(props) => (
                       <Entrada
                         {...props}
                         type="date"
+                        required={vencimientoRequerido}
                         value={vencimiento}
                         onChange={(evento) => { setVencimiento(evento.target.value) }}
                       />

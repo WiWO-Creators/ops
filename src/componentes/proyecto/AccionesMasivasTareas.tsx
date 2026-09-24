@@ -23,6 +23,7 @@ import {
   MenuContextual
 } from '@/componentes/superposiciones/MenuContextual'
 import { normalizar } from '@/dominio/salas'
+import { mensajeMasivoDeVencimiento } from '@/dominio/vencimiento-requerido'
 import { cargarAsignables } from '@/datos/asignables'
 import { pedirSobre } from '@/datos/cliente'
 import { leerError } from '@/datos/errores'
@@ -236,7 +237,9 @@ export function AccionesMasivasTareas ({
       })
 
       if (!respuesta.ok) {
-        setError((await leerError(respuesta)).message)
+        const fallo = await leerError(respuesta)
+
+        setError(mensajeMasivoDeVencimiento(fallo.details) ?? fallo.message)
         return
       }
 

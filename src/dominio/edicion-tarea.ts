@@ -2,6 +2,7 @@ import { horasDeTexto } from './tiempo-estimado.ts'
 import { enFormatoTitulo } from '../lib/titulo.ts'
 import { esRelacionDeEspacio, relTypeDeRelacion } from './espacios-destino.ts'
 import { cuerpoDeFin, errorDeFin, modoDeFin, type ModoFin } from './recurrencia.ts'
+import { errorDeVencimientoRequerido, relacionQuePuedeExigir, type RelacionConCliente } from './vencimiento-requerido.ts'
 import type { StaffReferencia } from '@/datos/tipos'
 import type { Etiqueta, Proceso } from '@/datos/recursos'
 
@@ -193,13 +194,17 @@ export function cuerpoDeParche (inicial: CamposEdicion, actual: CamposEdicion): 
 /**
  * Valida los campos dependientes antes de enviar el formulario.
  * @param campos valores actuales del formulario
+ * @param vencimientoRequerido si la relacion final exige fecha de vencimiento (ver
+ *   `relacionFinalDeCampos`). Sin saberlo —consulta pendiente o fallida— va `false` y decide la API.
  * @returns el primer error o null si son válidos
  */
-export function errorDeCamposEdicion (campos: CamposEdicion): string | null {
+export function errorDeCamposEdicion (campos: CamposEdicion, vencimientoRequerido = false): string | null {
   const sinProyecto = esRelacionDeEspacio(campos.relacion) && campos.relacionId === ''
   if (campos.relacion !== '' && !sinProyecto && (!Number.isSafeInteger(Number(campos.relacionId)) || Number(campos.relacionId) <= 0)) {
     return 'Selecciona una relación válida.'
   }
+  const vencimientoFaltante = errorDeVencimientoRequerido(vencimientoRequerido, campos.vencimiento)
+  if (vencimientoFaltante !== null) return vencimientoFaltante
   if (campos.tarifaHora.trim() === '' || !Number.isFinite(Number(campos.tarifaHora)) || Number(campos.tarifaHora) < 0 || Number(campos.tarifaHora) > 999999999.99) {
     return 'La tarifa por hora debe ser un número entre 0 y 999999999.99.'
   }
@@ -211,6 +216,45 @@ export function errorDeCamposEdicion (campos: CamposEdicion): string | null {
   if (!Number.isInteger(cada) || cada < 1 || cada > 365) return 'La repetición debe ser un entero entre 1 y 365.'
   if (!['day', 'week', 'month', 'year'].includes(campos.unidadRecurrencia)) return 'Selecciona una unidad de recurrencia válida.'
   return errorDeFin(campos.finRecurrencia, campos.ciclos, campos.hasta, campos.inicio)
+}
+
+/**
+ * La relacion con la que queda la Tarea al guardar, si puede llevar a un cliente.
+ *
+ * Es la del formulario y no la que la Tarea traia: mover una Tarea sin fecha a un Proyecto de un
+ * cliente que la exige es un `422` si el mismo parche no manda la fecha, asi que lo que se consulta
+ * es el destino. Un Espacio sin elegir es "sin relacion", igual que en `cuerpoDeParche`.
+ *
+ * @param campos los campos tal como estan
+ * @returns la relacion a consultar, o `null` si no hay cliente posible
+ */
+export function relacionFinalDeCampos (campos: CamposEdicion): RelacionConCliente | null {
+  return relacionQuePuedeExigir(relTypeDeCampos(campos), campos.relacionId)
+}
+
+/**
+ * Si el guardado tiene que llevar fecha, dado que la relacion final la exige.
+ *
+ * Calca a `PATCH /tasks/{id}`, que solo mira la regla cuando el parche toca `due_date` o la
+ * relacion: una Tarea vieja sin fecha, de un cliente que la exige, se sigue pudiendo renombrar sin
+ * que nadie le invente una fecha. Lo que no se puede es borrarle la fecha o moverla a ese cliente
+ * sin mandar una.
+ *
+ * @param inicial los campos tal como se abrieron
+ * @param actual los campos tal como quedaron
+ * @param relacionExige lo que contesto `GET /tasks/vencimiento-requerido` para la relacion final
+ * @returns `true` si el formulario tiene que exigir la fecha
+ */
+export function vencimientoExigidoAlGuardar (
+  inicial: CamposEdicion,
+  actual: CamposEdicion,
+  relacionExige: boolean
+): boolean {
+  if (!relacionExige) return false
+
+  const parche = cuerpoDeParche(inicial, actual)
+
+  return 'due_date' in parche || 'rel_type' in parche
 }
 
 /**
