@@ -14,6 +14,7 @@ import type { Capacidad, StaffReferencia } from '@/datos/tipos'
 import type { AsignadoConAutoria } from '@/dominio/autoria-tarea'
 import type { ComentarioParaMostrar } from './TarjetaDeComentario.tsx'
 import { estadoVencimiento } from '../../lib/fechas.ts'
+import { textoDeComentario } from './discusiones.ts'
 
 /**
  * Logica de la pestaña de Tareas que no necesita React.
@@ -333,13 +334,18 @@ export interface ComentarioDeFicha {
  * el `if (esPortal)` que este modulo evita en todos lados.
  *
  * @param comentario el comentario tal como llega del contrato, en cualquiera de los dos sujetos
+ * El contenido sale como texto legible y sin la marca de adjunto de Perfex (`textoDeComentario`).
+ *
  * @returns lo que la tarjeta necesita para pintarse
  */
 export function comentarioParaMostrar (comentario: ComentarioDeFicha): ComentarioParaMostrar {
   const autor = comentario.staff ?? comentario.contact
+  // El `content` es HTML del editor de Perfex: pintado tal cual, la tarjeta mostraba las etiquetas.
+  const { texto, conAdjunto } = textoDeComentario(comentario.content)
 
   return {
-    content: comentario.content,
+    content: texto,
+    con_adjunto: conAdjunto,
     created: comentario.date_added,
     author: autor === null
       ? null
