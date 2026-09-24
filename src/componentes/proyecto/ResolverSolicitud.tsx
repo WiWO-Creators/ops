@@ -21,7 +21,7 @@ import type { SolicitudDeEliminacion } from '@/datos/recursos'
  * en el pedido y no es lo que va a pasar.
  */
 
-/** Tope de la respuesta. Coincide con el `varchar(1000)` de la migración 0850. */
+/** Tope de la respuesta. Coincide con el `varchar(1000)` de la migración 0950. */
 const RESPUESTA_MAXIMA = 1000
 
 export function ResolverSolicitud ({ solicitud }: { solicitud: SolicitudDeEliminacion }): ReactElement {

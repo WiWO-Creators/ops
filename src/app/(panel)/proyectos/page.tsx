@@ -49,7 +49,7 @@ function opcionesDe<T> (lista: T[] | null, valor: (item: T) => string, etiqueta:
  * datos para pintar un numero. No usa `pedirOpcional` porque ese devuelve `data` y descarta `meta`,
  * que es justo donde viaja el total.
  *
- * El fallo se traga y devuelve 0 a proposito: una base sin la migracion 0850 contesta 409 acá, y un
+ * El fallo se traga y devuelve 0 a proposito: una base sin la migracion 0950 contesta 409 acá, y un
  * contador que no se pudo leer no puede dejar el listado de Proyectos en blanco. Con 0 el aviso no
  * se dibuja, que es exactamente lo que corresponde cuando no se sabe si hay algo.
  */

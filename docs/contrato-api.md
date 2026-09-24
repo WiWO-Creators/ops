@@ -6637,7 +6637,7 @@ convierte proponiendo un plan que elige **ids**, no campos, y que exige `tasks.c
 
 ### Rama `feat/solicitud-de-eliminacion`
 
-Pedir que un Espacio se dé de baja, sin poder darlo de baja. Migración **0850**
+Pedir que un Espacio se dé de baja, sin poder darlo de baja. Migración **0950**
 (`tblapi_solicitud_eliminacion_proyecto`). Quien trabaja en un Espacio que ya no va escribe un motivo;
 un administrador aprueba o rechaza, con su texto y su fecha.
 
@@ -6698,7 +6698,7 @@ quien no lo tiene. Pedir no cambia el Espacio, escribe una fila que otro respond
 | El Espacio no existe o no es visible para quien pide | `404` |
 | El Espacio ya está archivado, o ya tiene una pendiente | `409` |
 | `motivo` ausente, vacío o de más de 1000 caracteres | `422` |
-| La migración 0850 no corrió en esa base | `409` |
+| La migración 0950 no corrió en esa base | `409` |
 
 #### `GET /projects/{id}/deletion-requests` → `200`
 
@@ -6744,7 +6744,7 @@ motivo deja a la persona donde empezó, sin saber si insistir.
 Las dos son **sólo administradores** (`403`), y una solicitud ya resuelta es `409`: responder dos
 veces reescribiría quién la resolvió y cuándo.
 
-#### Sin la migración 0850
+#### Sin la migración 0950
 
 Los siete endpoints responden `409` con un mensaje que **nombra la migración**, y `deletion_request`
 sale `null` en el listado de Espacios, que sigue funcionando entero. Una base atrasada deja la feature

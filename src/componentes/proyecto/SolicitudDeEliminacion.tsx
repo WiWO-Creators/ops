@@ -23,7 +23,7 @@ import type { SolicitudDeEliminacion } from '@/datos/recursos'
  * menu.
  */
 
-/** Tope del motivo. Coincide con el `varchar(1000)` de la migracion 0850. */
+/** Tope del motivo. Coincide con el `varchar(1000)` de la migracion 0950. */
 const MOTIVO_MAXIMO = 1000
 
 interface PropsSolicitarEliminacion {
