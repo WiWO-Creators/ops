@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useEffect, useRef, useState } from 'react'
 import { Orbe, type EstadoOrbe } from '@/componentes/estado/Orbe'
 import { Logo } from '@/componentes/estructura/Logo'
-import { Boton } from '@/componentes/formularios/Boton'
+import { Boton, boton } from '@/componentes/formularios/Boton'
 import { Campo } from '@/componentes/formularios/Campo'
 import { Entrada } from '@/componentes/formularios/Entrada'
 import { PanelVidrio } from '@/componentes/superposiciones/PanelVidrio'
@@ -170,17 +170,20 @@ export function FormularioEntrarPortal ({ aviso = null }: { aviso?: string | nul
 
           {/*
             El equipo llega aca por costumbre: la raiz es la puerta del cliente y el enlace que se
-            comparte es este. La salida a `/colab` va al pie y en tono tenue a proposito — el cliente
-            no debe leerla como una opcion suya, pero quien la busca la encuentra sin preguntar.
+            comparte es este. La salida a `/colab` es un boton secundario bajo un separador: se ve de
+            un vistazo, pero el primario sigue siendo "Entrar", que es la accion del cliente.
           */}
-          <p className="text-texto-tenue mt-6 text-center text-sm">
-            <Link
-              href="/colab"
-              className="hover:text-texto underline-offset-4 hover:underline"
-            >
-              ¿Eres del equipo? Ingreso de colaborador
-            </Link>
-          </p>
+          <div className="text-texto-tenue mt-6 flex items-center gap-3 text-xs" aria-hidden="true">
+            <span className="bg-control-borde h-px flex-1" />
+            o
+            <span className="bg-control-borde h-px flex-1" />
+          </div>
+          <Link
+            href="/colab"
+            className={boton({ variante: 'secundario', className: 'mt-4 w-full' })}
+          >
+            ¿Eres del equipo? Ingreso de colaborador
+          </Link>
         </PanelVidrio>
       </div>
     </main>

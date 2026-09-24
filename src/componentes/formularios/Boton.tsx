@@ -2,7 +2,7 @@ import { cva, type VariantProps } from 'class-variance-authority'
 import { Orbe } from '@/componentes/estado/Orbe'
 import { cn } from '@/lib/clases'
 
-const boton = cva(
+export const boton = cva(
   [
     'inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-control font-semibold',
     // Solo `transform`, `opacity` y color: animar `filter` o `box-shadow` en un control que aparece
