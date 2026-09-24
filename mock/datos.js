@@ -590,6 +590,11 @@ export const LICITACIONES = [
     creada_en: '2026-09-01 09:00:00',
     focal_id: null,
     focal: null,
+    empresa_holding: null,
+    area_id: null,
+    modelo_servicio: null,
+    owner_id: null,
+    owner: null,
     espacio: espacioDeLicitacion(101)
   },
   {
@@ -604,6 +609,11 @@ export const LICITACIONES = [
     creada_en: '2026-06-01 09:00:00',
     focal_id: null,
     focal: null,
+    empresa_holding: null,
+    area_id: null,
+    modelo_servicio: null,
+    owner_id: null,
+    owner: null,
     espacio: espacioDeLicitacion(102)
   }
 ]
