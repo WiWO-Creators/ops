@@ -245,6 +245,45 @@ export interface JustificacionDesviacion {
   creada_por: number | null
 }
 
+/**
+ * En que quedo una solicitud de eliminacion.
+ *
+ * `cancelada` la retira quien la pidio: el backend deja una sola solicitud viva por Proyecto, asi
+ * que sin retirar la propia, quien se equivoca queda atascado hasta que un admin resuelva algo que
+ * nadie quiere que resuelva.
+ */
+export type EstadoDeSolicitud = 'pendiente' | 'aprobada' | 'rechazada' | 'cancelada'
+
+/**
+ * Pedido de que un Proyecto deje de estar activo, con su justificacion.
+ *
+ * Quien no puede archivar un Proyecto —la mayor parte del equipo— pide que se elimine y un admin
+ * resuelve. Aprobar ARCHIVA el Proyecto: sale de los listados diarios y conserva sus tareas, sus
+ * horas y su facturacion. Borrar de verdad sigue siendo otra cosa, y sigue siendo de admin.
+ */
+export interface SolicitudDeEliminacion {
+  id: number
+  project_id: number
+  estado: EstadoDeSolicitud
+  /** Atajo de `estado === 'pendiente'`. Lo calcula el backend para no repetir el criterio aca. */
+  pendiente: boolean
+  /** La justificacion escrita. Obligatoria: es lo unico que el admin tiene para decidir. */
+  motivo: string
+  /** `null` si la persona ya no existe en el staff. */
+  solicitado_por: StaffReferencia | null
+  solicitado_en: string | null
+  /** Lo que el admin contesto. Obligatorio al rechazar, opcional al aprobar. */
+  respuesta: string | null
+  resuelto_por: StaffReferencia | null
+  resuelto_en: string | null
+  /**
+   * El Proyecto del pedido. Viaja SOLO en la bandeja (`/deletion-requests`), donde el admin no sabe
+   * de antemano de cual se habla; el historial de un Proyecto no lo manda porque ya esta parado en
+   * su ficha.
+   */
+  project?: { id: number, name: string, archived: boolean }
+}
+
 /** Espacio. `project` en Perfex. Ojo con el glosario: "Proyecto" en la interfaz es otra cosa. */
 export interface Espacio {
   id: number
@@ -291,6 +330,16 @@ export interface Espacio {
    * de la fila en `tblwiwo_espacios_abiertos` ES el valor.
    */
   ver_todos_los_procesos: boolean
+  /**
+   * La solicitud de eliminacion VIVA de este Espacio, o `null` si no tiene ninguna esperando.
+   *
+   * Viaja siempre en el listado y en la ficha del panel: es lo que pinta el distintivo de "hay un
+   * pedido esperando" y lo que le muestra a quien lo escribio que su pedido sigue abierto. El
+   * historial completo es otra llamada, `GET /projects/{id}/deletion-requests`.
+   *
+   * **No existe en el portal del cliente**: es una conversacion interna del equipo.
+   */
+  deletion_request?: SolicitudDeEliminacion | null
   custom_fields?: CampoPersonalizado[]
   members?: StaffReferencia[]
 }

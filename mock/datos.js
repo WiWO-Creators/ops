@@ -497,6 +497,11 @@ export const ESPACIOS = NOMBRES_ESPACIO.map((name, i) => ({
   estimated_hours: 120 + i * 40,
   added_from: 1,
   project_created: `2026-0${(i % 6) + 1}-10`,
+  // Archivado: fuera de la vista diaria pero sin borrar, e independiente de `status`. Todos nacen
+  // activos porque el fixture tiene que poder ejercitar el camino de archivar —aprobar una solicitud
+  // de eliminacion es lo que mueve esta marca—, y un Espacio que ya viene archivado no lo ejercita.
+  archived: false,
+  archived_at: null,
   tags: i % 4 === 0 ? [ETIQUETAS[3]] : [],
   // "Dentro de este Espacio se ven todos los Procesos" (migracion `0390`). Cerrado salvo el
   // primero: con todos en el mismo valor, el item del menu "Mas" tendria un solo rotulo y la

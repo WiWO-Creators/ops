@@ -7,6 +7,7 @@ import type { Columna } from '@/definiciones/tipos'
 import type { Espacio } from '@/datos/recursos'
 import type { Capacidad } from '@/datos/tipos'
 import { puedeVerSeccion } from '@/dominio/permisos'
+import { DistintivoSolicitud } from './SolicitudDeEliminacion'
 import { cn } from '@/lib/clases'
 
 /**
@@ -76,6 +77,10 @@ function CeldaNombre ({ espacio, acciones }: { espacio: Espacio, acciones: Accio
           </Link>
           )
         : <span className="truncate font-medium">{espacio.name}</span>}
+
+      {/* El pedido de eliminacion se lee junto al nombre y no en una columna propia: cambia como se
+          lee la fila entera, y una columna mas obligaria a mirar a la derecha para enterarse. */}
+      <DistintivoSolicitud solicitud={espacio.deletion_request} />
 
       <span
         className={cn(

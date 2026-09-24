@@ -299,6 +299,8 @@ export default async function ProyectoPage (props: PageProps<'/proyectos/[id]'>)
               capacidades={capacidadesProyecto}
               capacidadesTareas={capacidadesTareas}
               esMiembro={(proyecto.members ?? []).some((persona) => persona.id === yo.id)}
+              miStaffId={yo.id}
+              esAdmin={yo.is_admin}
             />
           </>
         }
