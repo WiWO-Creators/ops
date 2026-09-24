@@ -738,8 +738,8 @@ Notas que evitan errores:
 - `counts` evita N+1 en las listas: sin él, cada fila de la tabla pide sus comentarios.
 
 Filtros, **en `filter[...]`**: `status` (admite lista: `filter[status]=1,4`), `priority`, `clientid`,
-`project_id`, `milestone_id`, `billable`, `date_from`/`date_to` sobre `due_date`, `q`, `area` y
-`area_asignado`.
+`project_id`, `milestone_id`, `billable`, `date_from`/`date_to` sobre `due_date`, `q`, `area`,
+`area_asignado` y `area_equipo`.
 
 **`filter[area]` y `filter[area_asignado]` son dos áreas distintas** y conviene no mezclarlas:
 
@@ -752,8 +752,17 @@ Filtros, **en `filter[...]`**: `status` (admite lista: `filter[status]=1,4`), `p
 - **`filter[area_asignado]` es el área del EQUIPO** (`tblareas`, la misma de `lookups.areas` y del
   filtro `area_id` de `/staff`): devuelve los Procesos cuyo **asignado** pertenece a esa área. Toma
   ids enteros y admite lista (`filter[area_asignado]=2,3`); un valor no entero responde `422`.
+- **`filter[area_equipo]` es el trabajo completo de un área del EQUIPO**: la unión (OR) de las dos
+  anteriores. Toma ids de `tblareas` como `area_asignado` y devuelve los Procesos asignados a alguien
+  del área **o** marcados en el campo de la compañía con una opción del mismo nombre que el área. Es
+  lo que lista el organigrama al entrar en un área. Un área sin opción homónima en el campo aporta
+  solo sus asignadas. Un valor no entero responde `422`.
 
-Los dos valen igual en el listado, en `?vista=tablero` y en `GET /projects/{id}/tasks`.
+Orden: además de los campos, `sort=etapa` ordena por escalones de estado —Por iniciar y En progreso
+juntos, después Cambios, Espera de respuesta, Testear y Completo—; el organigrama lo usa como
+`sort=etapa,-priority,due_date`. Vale también en el portal, porque solo reordena `status`.
+
+Los tres valen igual en el listado, en `?vista=tablero` y en `GET /projects/{id}/tasks`.
 
 **`filter[clientid]` no es una columna**: `rel_type`/`rel_id` son polimórficos, así que es una
 expresión que cubre las tareas colgadas del cliente en directo (`rel_type = "customer"`) y las de sus
