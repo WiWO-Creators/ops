@@ -32,7 +32,7 @@ import {
 } from '@/componentes/superposiciones/Dialogo'
 import { escribirEnBff } from '@/componentes/datos/mutaciones'
 import { pedirSobre } from '@/datos/cliente'
-import { interpretarAltaRapida, type CatalogosAlta } from '@/dominio/alta-rapida'
+import { asignadosIniciales, interpretarAltaRapida, type CatalogosAlta } from '@/dominio/alta-rapida'
 import {
   fusionarEspacio,
   fusionarInterpretacion,
@@ -61,7 +61,7 @@ import type {
   Referencia,
   TipoDeProcesoDelEspacio
 } from '@/datos/recursos'
-import type { StaffReferencia } from '@/datos/tipos'
+import type { StaffReferencia, Yo } from '@/datos/tipos'
 
 /** Formulario único de creación, con entrada por campos o interpretación de una línea. */
 interface PropsAltaRapida {
@@ -261,6 +261,8 @@ export function AltaRapidaProceso ({
   /** La relacion elegida es un Espacio —Proyecto, Licitacion o Upsell— y no un Cliente. */
   const vaAEspacio = esRelacionDeEspacio(relacion)
   const [asignados, setAsignados] = useState<number[]>([])
+  /** Quien esta creando. Arranca como responsable y vuelve a serlo al limpiar el alta (WIW-0444). */
+  const [yoId, setYoId] = useState<number | null>(null)
   const [seguidores, setSeguidores] = useState<number[]>([])
   const [prioridad, setPrioridad] = useState(NINGUNO)
   const [inicio, setInicio] = useState('')
@@ -309,12 +311,14 @@ export function AltaRapidaProceso ({
     const control = new AbortController()
     const cargar = async (): Promise<void> => {
       try {
-        const [campos, opciones, personas, destinos, cartera] = await Promise.all([
+        const [campos, opciones, personas, destinos, cartera, yo] = await Promise.all([
           pedirSobre<DefinicionCampoPersonalizado[]>('custom-fields?para=tasks', control.signal),
           pedirSobre<Lookups>('lookups', control.signal),
           cargarAsignables(),
           cargarEspaciosDestino(control.signal),
-          cargarClientesDestino(control.signal)
+          cargarClientesDestino(control.signal),
+          // Sin `/me` el alta sigue funcionando, solo que sin responsable preelegido.
+          pedirSobre<Yo>('me', control.signal).then((sobre) => sobre.data.id, () => null)
         ])
         if (control.signal.aborted) return
         const ordenadas = camposOrdenados(campos.data)
@@ -328,6 +332,10 @@ export function AltaRapidaProceso ({
         // Espacio fijado no estaria en el catalogo que se muestra.
         if (proyectoId !== undefined) setRelacion(claseDeEspacio(proyectoId, destinos))
         setCatalogosCargados({ personas, espacios: destinos.espacios, prioridades: opciones.data.task_priorities })
+        const iniciales = asignadosIniciales(yo, personas)
+        setYoId(iniciales[0] ?? null)
+        // Solo si nadie eligio todavia: un reintento de carga no pisa lo que la persona ya decidio.
+        setAsignados((actuales) => actuales.length === 0 ? iniciales : actuales)
         setErrorCarga(null)
       } catch (fallo) {
         if (!control.signal.aborted) setErrorCarga(fallo instanceof Error ? fallo.message : 'No se pudieron cargar los campos de la tarea.')
@@ -480,7 +488,7 @@ export function AltaRapidaProceso ({
     setParcial(null)
     setNombre('')
     setEspacios(proyectoId === undefined ? [] : [proyectoId])
-    setAsignados([])
+    setAsignados(yoId === null ? [] : [yoId])
     setSeguidores([])
     setPrioridad(NINGUNO)
     setInicio('')

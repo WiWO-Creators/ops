@@ -199,3 +199,20 @@ export function interpretarAltaRapida (
     sinResolver
   }
 }
+
+/**
+ * Responsables con los que arranca el alta: quien la está creando (WIW-0444).
+ *
+ * La tarea que alguien crea tiene que aparecer en su Mis Tareas, y esa lista sale de los asignados.
+ * Por eso quien crea viene ya elegido y se puede quitar antes de guardar. Solo si esa persona está en
+ * el catálogo de asignables: un id que el selector no puede mostrar viajaría sin que nadie lo vea.
+ *
+ * @param yoId id de quien crea, o `null` si no se pudo saber
+ * @param personas el equipo asignable del alta
+ * @returns `[yoId]`, o vacío si no hay a quién preelegir
+ */
+export function asignadosIniciales (yoId: number | null, personas: CatalogosAlta['personas']): number[] {
+  if (yoId === null) return []
+
+  return personas.some((persona) => persona.id === yoId) ? [yoId] : []
+}
