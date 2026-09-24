@@ -589,6 +589,7 @@ function crearProceso (entrada, autor) {
     date_added: new Date().toISOString().replace(/\.\d{3}Z$/, 'Z'),
     date_finished: cierre,
     added_from: autor.id,
+    created_by: { id: autor.id, full_name: autor.full_name, profile_image_url: autor.profile_image_url ?? null },
     rel_type: relType,
     rel_id: relId,
     project: espacio ? { id: espacio.id, name: espacio.name } : null,
@@ -608,7 +609,8 @@ function crearProceso (entrada, autor) {
     assignees: asignados.map((s) => ({
       id: s.id,
       full_name: s.full_name,
-      profile_image_url: s.profile_image_url
+      profile_image_url: s.profile_image_url,
+      assigned_by: { id: autor.id, full_name: autor.full_name, profile_image_url: autor.profile_image_url ?? null }
     })),
     followers: seguidores.map((s) => ({ id: s.id, full_name: s.full_name })),
     tags: etiquetas,
@@ -6996,7 +6998,7 @@ function presentarTareaPortal (proceso, campos = []) {
     milestone: proceso.milestone ?? 0,
     milestone_order: proceso.milestone_order ?? 0,
     task_type: proceso.task_type ?? 0,
-    ...(encendido('wiwo_portal_campo_responsables') ? { assignees: proceso.assignees ?? [] } : {}),
+    ...(encendido('wiwo_portal_campo_responsables') ? { assignees: (proceso.assignees ?? []).map((a) => ({ id: a.id, full_name: a.full_name, profile_image_url: a.profile_image_url ?? null })) } : {}),
     ...(encendido('wiwo_portal_campo_seguidores') ? { followers: proceso.followers ?? [] } : {}),
     ...(encendido('wiwo_portal_campo_etiquetas') ? { tags: proceso.tags ?? [] } : {}),
     ...(encendido('wiwo_portal_campo_iteraciones') ? { counts: { iterations: proceso.iterations ?? 0 } } : {}),

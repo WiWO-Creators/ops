@@ -1,5 +1,6 @@
 import { leerError } from './errores.ts'
 import type { StaffReferencia } from './tipos.ts'
+import type { AsignadoConAutoria } from '../dominio/autoria-tarea.ts'
 
 /**
  * Tipos de los recursos de negocio, con los nombres de campo de la API.
@@ -48,6 +49,8 @@ export interface Proceso {
   date_added: string | null
   date_finished: string | null
   added_from: number
+  /** Quién creó la Tarea. `null` si la creó un contacto desde el portal o esa persona ya no existe. */
+  created_by: StaffReferencia | null
   rel_type: string | null
   rel_id: number | null
   project: Referencia | null
@@ -69,7 +72,7 @@ export interface Proceso {
   /** Ultimo dia en que nace una copia (`YYYY-MM-DD`), o null si la recurrencia no termina por fecha. */
   recurring_until?: string | null
   kanban_order: number
-  assignees: StaffReferencia[]
+  assignees: AsignadoConAutoria[]
   followers: StaffReferencia[]
   tags: Etiqueta[]
   /**

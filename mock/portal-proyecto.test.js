@@ -130,7 +130,7 @@ test('la ficha no publica nada interno del equipo', async () => {
 
   for (const interno of [
     'assignees', 'followers', 'hourly_rate', 'billable', 'billed', 'estimated_hours',
-    'eta', 'desviacion_dias', 'estado_sla', 'tags', 'custom_fields', 'added_from', 'timer_activo'
+    'eta', 'desviacion_dias', 'estado_sla', 'tags', 'custom_fields', 'added_from', 'created_by', 'timer_activo'
   ]) {
     assert.equal(interno in datos, false, interno)
   }
