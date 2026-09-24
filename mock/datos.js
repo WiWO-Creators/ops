@@ -729,7 +729,8 @@ export const PROCESOS = Array.from({ length: 84 }, (_, i) => {
     due_date: `2026-09-${String((i % 27) + 1).padStart(2, '0')}`,
     date_added: `2026-07-${String((i % 27) + 1).padStart(2, '0')}T10:15:00Z`,
     date_finished: estado.id === 5 ? `2026-08-${String((i % 27) + 1).padStart(2, '0')}T17:00:00Z` : null,
-    added_from: 1,
+    added_from: STAFF[0].id,
+    created_by: { id: STAFF[0].id, full_name: STAFF[0].full_name, profile_image_url: STAFF[0].profile_image_url },
     // Polimorfico: una de cada nueve cuelga de un cliente y no de un Espacio. La interfaz tiene que
     // sobrevivir a un Proceso sin Espacio, y sin este fixture nadie se entera hasta produccion.
     rel_type: i % 9 === 8 ? 'customer' : 'project',
@@ -746,10 +747,17 @@ export const PROCESOS = Array.from({ length: 84 }, (_, i) => {
     visible_to_client: false,
     recurring: false,
     kanban_order: Math.floor(i / ESTADOS_PROCESO.length) + 1,
-    assignees: asignados.map((s) => ({
+    // Quien asigno: el creador en casi todas; una de cada seis la reasigno otra persona, para que la
+    // ficha muestre el caso de varios asignadores, y una de cada once vino del portal (`null`).
+    assignees: asignados.map((s, pos) => ({
       id: s.id,
       full_name: s.full_name,
-      profile_image_url: s.profile_image_url
+      profile_image_url: s.profile_image_url,
+      assigned_by: i % 11 === 10
+        ? null
+        : pos === 1 && i % 6 === 0
+          ? { id: ciclo(STAFF, i + 5).id, full_name: ciclo(STAFF, i + 5).full_name, profile_image_url: ciclo(STAFF, i + 5).profile_image_url }
+          : { id: STAFF[0].id, full_name: STAFF[0].full_name, profile_image_url: STAFF[0].profile_image_url }
     })),
     followers: i % 5 === 0 ? [{ id: ciclo(STAFF, i + 1).id, full_name: ciclo(STAFF, i + 1).full_name }] : [],
     tags: i % 4 === 0 ? [ciclo(ETIQUETAS, i)] : [],

@@ -5,11 +5,12 @@ import { ArbolDrive } from '@/componentes/archivos/ArbolDrive'
 import { useUbicacionTarea } from '@/componentes/auditoria/accion'
 import { Cargando, ErrorEstado, Vacio } from '@/componentes/estado/Estados'
 import { EnlacePanelClasico } from '@/componentes/presentadores/EnlacePanelClasico'
-import { GrupoAvatares } from '@/componentes/presentadores/Avatar'
+import { Avatar, GrupoAvatares } from '@/componentes/presentadores/Avatar'
 import { Etiquetas } from '@/componentes/presentadores/Etiqueta'
 import { Fecha } from '@/componentes/presentadores/Fecha'
 import { Insignia } from '@/componentes/presentadores/Insignia'
 import { listaDe, nombreDe } from '@/datos/catalogos'
+import { agruparPorQuienAsigno, type GrupoDeAsignacion, type PersonaDeAutoria } from '@/dominio/autoria-tarea'
 import { camposLegibles } from '@/dominio/campos-personalizados'
 import { GLOSARIO } from '@/dominio/glosario'
 import { aTextoPlano } from '@/componentes/proyecto/formatos'
@@ -210,6 +211,7 @@ export function DetalleTarea (
   const menuDeHito = puedeEditar && tarea.project !== undefined && tarea.project !== null
   const camposPersonalizados = tarea.custom_fields
   const enlaces = camposLegibles((camposPersonalizados ?? []).filter((campo) => campo.type === 'link'))
+  const gruposDeAsignacion = agruparPorQuienAsigno(tarea.assignees)
 
   return (
     <div className={cn('flex flex-col gap-5', className)}>
@@ -378,6 +380,18 @@ export function DetalleTarea (
           {tarea.assignees !== undefined && (
             <Dato etiqueta="Asignados">
               <GrupoAvatares personas={tarea.assignees} tamano="chico" />
+            </Dato>
+          )}
+          {/* Quién creó y quién asignó (WIW-0441). `created_by` no llega al portal, y sin él la fila
+              no se dibuja; `null` es un creador que ya no se puede nombrar. */}
+          {tarea.created_by !== undefined && (
+            <Dato etiqueta="Creada por">
+              {tarea.created_by === null ? SIN_DATO : <Persona persona={tarea.created_by} />}
+            </Dato>
+          )}
+          {gruposDeAsignacion.length > 0 && (
+            <Dato etiqueta="Asignada por">
+              <AsignadaPor grupos={gruposDeAsignacion} />
             </Dato>
           )}
           {tarea.tags !== undefined && (
@@ -740,6 +754,40 @@ function ValorPersonalizado ({ campo }: { campo: CampoLegible }): ReactElement {
 }
 
 /** Un par etiqueta/valor de la ficha. La etiqueta va en versalita, como en `ResumenProyecto`. */
+/** Avatar chico y nombre de una persona del equipo, en una línea. */
+function Persona ({ persona }: { persona: PersonaDeAutoria }): ReactElement {
+  return (
+    <span className="flex min-w-0 items-center gap-2">
+      <Avatar nombre={persona.full_name} imagen={persona.profile_image_url} tamano="chico" />
+      <span className="truncate">{persona.full_name}</span>
+    </span>
+  )
+}
+
+/**
+ * Quién asignó a los responsables.
+ *
+ * Con una sola persona que asignó alcanza su nombre: es la respuesta a "quién me asignó" para
+ * cualquiera de los responsables. Con varias, cada una lleva a quiénes asignó.
+ */
+function AsignadaPor ({ grupos }: { grupos: GrupoDeAsignacion[] }): ReactElement {
+  const unico = grupos.length === 1 ? grupos[0] : undefined
+  if (unico !== undefined) return <Persona persona={unico.quien} />
+
+  return (
+    <ul className="flex flex-col gap-1.5">
+      {grupos.map((grupo) => (
+        <li key={grupo.quien.id} className="flex min-w-0 flex-col">
+          <Persona persona={grupo.quien} />
+          <span className="text-texto-sutil truncate pl-8 text-xs">
+            a {grupo.asignados.map((persona) => persona.full_name).join(', ')}
+          </span>
+        </li>
+      ))}
+    </ul>
+  )
+}
+
 function Dato ({ etiqueta, children }: { etiqueta: string, children: ReactNode }): ReactElement {
   return (
     <div className="flex min-w-0 flex-col gap-1">
