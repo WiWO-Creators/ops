@@ -1,5 +1,6 @@
 import { AJUSTE_AVISOS_LICITACION, GRUPO_AVISOS_LICITACION } from './alertas-licitacion.ts'
 import { ASISTENTE, GLOSARIO, nombrar } from './glosario.ts'
+import { AJUSTE_PUSH, GRUPO_PUSH } from './push.ts'
 import type { AjusteEditable, Ajustes, Lookups } from '../datos/recursos.ts'
 
 /**
@@ -84,6 +85,10 @@ export const GRUPOS_DE_AJUSTES: Record<string, { titulo: string, ayuda: string }
   [GRUPO_AVISOS_LICITACION]: {
     titulo: `Avisos de ${GLOSARIO.licitacion.plural}`,
     ayuda: `Si el aviso de plazo de una ${GLOSARIO.licitacion.singular.toLowerCase()} —su vencimiento o una ${GLOSARIO.hito.singular}— además sale por correo. La banda de la pantalla se muestra igual: esto gobierna solo lo que sale de Ops.`
+  },
+  [GRUPO_PUSH]: {
+    titulo: 'Notificaciones push',
+    ayuda: 'Si los avisos de la campana además hacen sonar el celular o el escritorio de quien activó las notificaciones en Mi perfil. Hacen falta las claves VAPID en el servidor.'
   },
   jornada: {
     titulo: 'Jornada',
@@ -219,7 +224,11 @@ export const ETIQUETAS_DE_AJUSTES: Record<string, { etiqueta: string, ayuda?: st
   },
   [AJUSTE_AVISOS_LICITACION]: {
     etiqueta: `Avisar por correo los plazos de ${GLOSARIO.licitacion.plural.toLowerCase()}`,
-    ayuda: `El aviso se escribe igual en la campana y la banda de la pantalla se muestra igual; esto decide si además sale por correo a quien sigue la ${GLOSARIO.licitacion.singular.toLowerCase()}. Apagado de fábrica, como todo efecto externo.`  }
+    ayuda: `El aviso se escribe igual en la campana y la banda de la pantalla se muestra igual; esto decide si además sale por correo a quien sigue la ${GLOSARIO.licitacion.singular.toLowerCase()}. Apagado de fábrica, como todo efecto externo.`  },
+  [AJUSTE_PUSH]: {
+    etiqueta: 'Enviar notificaciones push',
+    ayuda: 'Apagado, suscribirse funciona pero no sale ningún push, ni el de prueba. Se apaga igual de rápido, sin deploy.'
+  }
 }
 
 /**

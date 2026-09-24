@@ -13,6 +13,7 @@ import {
   clavesDeAvisosDeLicitacion, GRUPO_AVISOS_LICITACION
 } from '@/dominio/alertas-licitacion'
 import { esResumenColaCliente } from '@/dominio/correo-cliente'
+import { clavesDePush, GRUPO_PUSH } from '@/dominio/push'
 import { nombrar } from '@/dominio/glosario'
 import type {
   Ajustes, ConfiguracionCorreo as ConfiguracionCorreoTipo, FilaColaCorreo, FilaColaCorreoCliente
@@ -139,6 +140,14 @@ export async function PanelAvisosPorCorreo () {
         inicial={detalle.ajustes}
         grupo={GRUPO_AVISOS_LICITACION}
         claves={clavesDeAvisosDeLicitacion(detalle.ajustes)}
+        dominios={{}}
+      />
+
+      {/* El interruptor del push. No depende del modo de correo: sale por el servicio push del navegador. */}
+      <FormularioDeAjustes
+        inicial={detalle.ajustes}
+        grupo={GRUPO_PUSH}
+        claves={clavesDePush(detalle.ajustes.editable)}
         dominios={{}}
       />
 

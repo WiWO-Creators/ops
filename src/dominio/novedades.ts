@@ -55,6 +55,20 @@ export const NOVEDADES: Novedad[] = [
   {
     fecha: '2026-09-24',
     tipo: 'nuevo',
+    titulo: 'Te avisamos cuando comentan tus Tareas',
+    detalle: 'Si comentan una Tarea que tienes asignada, que sigues o que creaste, te llega a la campana. Si te mencionan, el aviso lo dice.',
+    commits: ['board@616c0b1']
+  },
+  {
+    fecha: '2026-09-24',
+    tipo: 'mejora',
+    titulo: 'Cabecera del Proyecto más visible',
+    detalle: 'El nombre y la imagen del Proyecto se ven más grandes al entrar a él.',
+    commits: ['ops-v2@2eeafd6']
+  },
+  {
+    fecha: '2026-09-24',
+    tipo: 'nuevo',
     titulo: 'Novedades de Ops',
     detalle: 'Esta página. Desde el menú de tu cuenta ves qué cambió en el sistema, y un punto te avisa cuando hay algo que todavía no leíste.',
     commits: []

@@ -11,6 +11,22 @@
  * pantalla lo dice en vez de dejar creer que el dispositivo esta roto.
  */
 
+/** Interruptor de la instalacion que deja salir los push (`Escritura\Ajuste`, grupo `correo`). */
+export const AJUSTE_PUSH = 'wiwo_api_push'
+
+/** El grupo con el que se dibuja el interruptor. No es un grupo de la API: es el titulo de la caja. */
+export const GRUPO_PUSH = 'avisos_push'
+
+/**
+ * Las claves del interruptor de push que la API deja editar: vacio si no esta en `editable`.
+ *
+ * @param editable el `editable` de `GET /settings`
+ * @returns `[AJUSTE_PUSH]` o `[]`
+ */
+export function clavesDePush (editable: Record<string, unknown>): string[] {
+  return AJUSTE_PUSH in editable ? [AJUSTE_PUSH] : []
+}
+
 /** `GET /notifications/push`. */
 export interface EstadoPushServidor {
   /** Hay claves VAPID validas en el servidor. Sin ellas no hay con que suscribirse. */
