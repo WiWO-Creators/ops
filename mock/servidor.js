@@ -3826,8 +3826,11 @@ function cierreProgramado (jornada) {
 
   if (interruptor?.valor !== true) return null
 
+  const corte = corteDeJornada(jornada)
+
   return {
-    at: new Date(corteDeJornada(jornada)).toISOString(),
+    at: new Date(corte).toISOString(),
+    deadline: new Date(corte + CIERRE_MOCK.minutosDeProrroga * 60_000).toISOString(),
     extension_minutes: CIERRE_MOCK.minutosDeProrroga,
     extended: (jornada.prorroga_hasta ?? null) !== null
   }
