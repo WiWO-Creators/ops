@@ -53,8 +53,8 @@ export interface Atajo {
 
 /** Lo que devuelve `GET /search`, solo con lo que la paleta lee. Un tipo sin permiso no llega. */
 export interface ResultadosDeBusqueda {
-  tasks?: { items: Array<{ id: number, name: string, project: { id: number, name: string } | null }> }
-  projects?: { items: Array<{ id: number, name: string, client: { company: string } | null }> }
+  tasks?: { items: Array<{ id: number, name: string, patente?: string | null, project: { id: number, name: string } | null }> }
+  projects?: { items: Array<{ id: number, name: string, patente?: string | null, client: { company: string } | null }> }
   clients?: { items: Array<{ id: number, company: string }> }
   staff?: { items: Array<{ id: number, full_name: string, email?: string }> }
 }
@@ -153,6 +153,21 @@ export function comandosDeElementos (elementos: readonly ElementoPersonal[], pre
 }
 
 /**
+ * Detalle de un resultado de búsqueda: la patente delante del contexto (proyecto o cliente).
+ *
+ * La API busca también por patente, así que el resultado tiene que mostrarla: si no, quien buscó
+ * `ACM-001-07` ve una Tarea sin nada que le diga por qué apareció.
+ *
+ * @param patente  patente del elemento, o null/undefined si todavía no tiene
+ * @param contexto proyecto o cliente al que pertenece, si hay
+ * @returns el detalle, o undefined si no hay ninguno de los dos
+ */
+export function detalleConPatente (patente: string | null | undefined, contexto: string | null | undefined): string | undefined {
+  const partes = [patente, contexto].filter((parte): parte is string => typeof parte === 'string' && parte !== '')
+  return partes.length > 0 ? partes.join(' · ') : undefined
+}
+
+/**
  * Los resultados de `/search`, un grupo por tipo y en el orden de la API.
  *
  * @param resultados la respuesta
@@ -167,7 +182,7 @@ export function gruposDeBusqueda (resultados: ResultadosDeBusqueda, rutaDeTareaS
       comandos: (resultados.tasks?.items ?? []).map((tarea) => ({
         id: `tarea:${tarea.id}`,
         etiqueta: tarea.name,
-        detalle: tarea.project?.name,
+        detalle: detalleConPatente(tarea.patente, tarea.project?.name),
         href: urlDeTareaEnProyecto(tarea.id, tarea.project?.id) ?? `${rutaDeTareaSuelta}?${PARAMETRO_TAREA}=${tarea.id}`,
         icono: 'tarea'
       }))
@@ -178,7 +193,7 @@ export function gruposDeBusqueda (resultados: ResultadosDeBusqueda, rutaDeTareaS
       comandos: (resultados.projects?.items ?? []).map((proyecto) => ({
         id: `proyecto:${proyecto.id}`,
         etiqueta: proyecto.name,
-        detalle: proyecto.client?.company,
+        detalle: detalleConPatente(proyecto.patente, proyecto.client?.company),
         href: `/proyectos/${proyecto.id}`,
         icono: 'espacios'
       }))

@@ -88,6 +88,18 @@ test('los recientes se deduplican y van del mas nuevo al mas viejo', async () =>
   assert.equal((await llamar('/me/recientes', 'POST', { type: 'project', id: 99999 })).estado, 404)
 })
 
+test('la busqueda encuentra Tareas y Proyectos por su patente, como la API', async () => {
+  const global = (await llamar('/search?q=esp-003&per_type=25')).cuerpo.data
+  assert.ok(global.projects.items.some((e) => e.patente === 'ESP-003'), 'el Proyecto por su patente')
+  assert.ok(global.tasks.items.length > 0 && global.tasks.items.every((p) => p.patente.startsWith('ESP-003-')),
+    'las Tareas de ese Proyecto por su patente')
+
+  const proyectos = (await llamar('/projects?q=ESP-003')).cuerpo.data
+  assert.deepEqual(proyectos.map((e) => e.patente), ['ESP-003'])
+  const tareas = (await llamar('/tasks?q=ESP-003-01')).cuerpo.data
+  assert.deepEqual(tareas.map((p) => p.patente), ['ESP-003-01'])
+})
+
 test('la busqueda devuelve un bloque por tipo y valida el termino', async () => {
   const { estado, cuerpo } = await llamar('/search?q=ac&per_type=3')
 

@@ -10,7 +10,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { agruparSecciones, seccionActiva, HREFS_PRINCIPALES } from '../src/lib/navegacion.ts'
-import { aplanar, comandosDeNavegacion, gruposDePaleta, moverActivo, normalizar } from '../src/componentes/paleta/comandos.ts'
+import { aplanar, comandosDeNavegacion, detalleConPatente, gruposDeBusqueda, gruposDePaleta, moverActivo, normalizar } from '../src/componentes/paleta/comandos.ts'
 import { estaFijado, hrefDeElemento, priorizarFijados } from '../src/componentes/fijados/fijados.ts'
 import {
   conFiltroDeVencimiento, consultaDeVencimiento, diasHastaElDomingo, filtroDeVencimiento
@@ -102,6 +102,21 @@ test('vacia muestra recientes, fijados y secciones; con texto, secciones y busqu
   assert.deepEqual(conTexto.map((g) => g.id), ['tareas', 'proyectos'])
   assert.equal(conTexto[0].comandos[0].href, '/procesos?tarea=7')
   assert.equal(conTexto[0].comandos[1].href, '/proyectos/3?tab=tareas&tarea=8')
+})
+
+test('los resultados de busqueda muestran la patente delante del contexto', () => {
+  const grupos = gruposDeBusqueda({
+    tasks: { items: [
+      { id: 8, name: 'Home', patente: 'ACM-001-07', project: { id: 3, name: 'Web' } },
+      { id: 9, name: 'Suelta', patente: null, project: null }
+    ] },
+    projects: { items: [{ id: 3, name: 'Web', patente: 'ACM-001', client: null }] }
+  }, '/procesos')
+
+  assert.equal(grupos[0].comandos[0].detalle, 'ACM-001-07 · Web')
+  assert.equal(grupos[0].comandos[1].detalle, undefined, 'sin patente ni proyecto no inventa un detalle')
+  assert.equal(grupos[1].comandos[0].detalle, 'ACM-001', 'sin cliente queda solo la patente')
+  assert.equal(detalleConPatente('', 'Acme'), 'Acme', 'una patente vacia no deja un separador colgando')
 })
 
 test('el teclado da la vuelta con las flechas y no se rompe sin opciones', () => {

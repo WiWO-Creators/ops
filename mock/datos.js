@@ -482,6 +482,8 @@ const NOMBRES_ESPACIO = [
 
 export const ESPACIOS = NOMBRES_ESPACIO.map((name, i) => ({
   id: i + 1,
+  // La misma clave que prefija las patentes de sus Procesos (`ESP-003-01`).
+  patente: `ESP-${String(i + 1).padStart(3, '0')}`,
   name,
   description: `Espacio de trabajo para ${name.toLowerCase()}.`,
   status: ciclo(ESTADOS_ESPACIO, i).id,
