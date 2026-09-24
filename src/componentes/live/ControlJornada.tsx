@@ -27,6 +27,7 @@ import {
   recordatorioDeDestinoActivo
 } from '@/dominio/live'
 import { cn } from '@/lib/clases'
+import { prepararSonido } from '@/lib/sonido'
 import { hoyLocal } from '@/lib/fechas'
 import { CierreJornada } from './CierreJornada'
 import { DestinoDeJornada } from './DestinoDeJornada'
@@ -127,6 +128,9 @@ const NO_ESCUCHAR = () => () => {}
 const EN_EL_CLIENTE = () => true
 const EN_EL_SERVIDOR = () => false
 
+/** Cada cuánto se reconsulta la jornada con el plazo de "¿Estás ahí?" vencido y el cron sin pasar. */
+const SEGUNDOS_ENTRE_REVISIONES = 20
+
 interface PropsControlJornada {
   variante: 'compacta' | 'panel'
   /** Cada cuantos segundos se vuelve a preguntar. Lo resuelve el servidor (`intervaloDeLive()`). */
@@ -222,6 +226,10 @@ export function ControlJornada ({
     setEstado(nuevo)
     setTranscurrido(0)
     setErrorDeRed(null)
+    // Sin cierre que anunciar —el servidor ya cerro la jornada por falta de respuesta, o se cerro
+    // desde otra pestaña— la pregunta se retira. Sin esto quedaria armada y saldria sola en cuanto
+    // se abriera la jornada siguiente.
+    if (nuevo.closing === null) setAvisandoCierre(false)
   }, [])
 
   const refrescar = useCallback(async (senal: AbortSignal): Promise<void> => {
@@ -305,7 +313,7 @@ export function ControlJornada ({
    * ES UN INTERVALO Y NO UN `setTimeout` HASTA LA HORA. Un temporizador largo lo suspende el
    * navegador con la pestaña de fondo y se dispara tarde —justo el caso de quien dejo el equipo
    * encendido—, mientras que comparar el reloj una vez por segundo se pone al dia solo en cuanto la
-   * pestaña vuelve. El segundo de retraso no se nota frente a los treinta de gracia, y este control
+   * pestaña vuelve. El segundo de retraso no se nota frente a la media hora de plazo, y este control
    * ya se repinta cada segundo por el contador de la jornada.
    *
    * ESTE EFECTO SOLO ENCIENDE. Apagar es cosa del render —sin `closing` no se dibuja nada— y de las
@@ -323,6 +331,12 @@ export function ControlJornada ({
 
     return () => { globalThis.clearInterval(id) }
   }, [variante, cierreEn, avisandoCierre])
+
+  // La pregunta "¿Estás ahí?" suena, y el navegador sólo deja sonar audio habilitado por un gesto:
+  // se prepara en cuanto la persona toque la página, mucho antes de la hora de corte.
+  useEffect(() => {
+    if (variante === 'compacta') prepararSonido()
+  }, [variante])
 
   /** Vuelve a pedirle el estado al servidor: es el unico que sabe como quedo. */
   function recargar (): void {
@@ -526,24 +540,22 @@ export function ControlJornada ({
   }
 
   /**
-   * Se acabo el plazo del aviso sin respuesta: cierra el dia, pero comprueba antes.
+   * Se acabo el plazo para contestar "¿Estás ahí?": le pregunta al servidor como quedo el dia.
    *
-   * === POR QUE NO CIERRA DIRECTO ===
+   * === POR QUE NO CIERRA DESDE ACA ===
    *
-   * Porque puede haber otra pestaña abierta, y las dos montan el mismo aviso con su propia cuenta.
-   * Quien conteste "sigo trabajando" en una deja a la otra contando: esa segunda cuenta llega a cero
-   * antes de que su intervalo de refresco le cuente que el corte se movio, y cierra el dia que
-   * acaban de salvar. Es el unico camino por el que esta pantalla cierra una jornada sin que nadie
-   * se lo pida, asi que la ultima palabra la tiene el servidor y no el reloj local.
+   * Porque quien cierra es el cron, y lo hace registrando la salida a la hora de la pregunta: el
+   * tiempo sin respuesta no cuenta como trabajado. Un cierre desde la pantalla seria un cierre
+   * manual a la hora actual, o sea media hora de mas en el registro de alguien que no estaba.
    *
-   * Tambien cubre el caso del equipo suspendido: al despertar, el intervalo puede disparar el
-   * vencimiento con un `closing` de hace horas que ya no vale.
+   * Tambien cubre la otra pestaña: si alguien contesto "sigo trabajando" en otra, el plazo que trae
+   * el servidor ya esta en el futuro y la pregunta se retira sin cerrar nada.
    *
-   * Si la lectura falla, se cierra igual. El plazo se cumplio y la alternativa —dejar la jornada
-   * abierta porque una consulta no respondio— es justo lo que el cierre automatico existe para
-   * evitar; el cron la cerraria despues de todas formas.
+   * Mientras el cron no pase —corre cada minuto— la pregunta queda a la vista en cero y se vuelve a
+   * consultar cada `SEGUNDOS_ENTRE_REVISIONES`. `aplicar()` la retira en cuanto el dia llega
+   * cerrado.
    */
-  async function cerrarPorVencimiento (): Promise<void> {
+  async function revisarVencimiento (): Promise<void> {
     try {
       const respuesta = await fetch('/api/bff/me/jornada')
 
@@ -553,18 +565,18 @@ export function ControlJornada ({
         aplicar(sobre.data)
 
         const corte = sobre.data.closing
-        // Sin jornada abierta ya no hay nada que cerrar, y un corte que todavia no llego significa
-        // que alguien lo corrio desde otra pestaña.
-        if (sobre.data.open === null || corte === null || Date.parse(corte.at) > Date.now()) {
+        if (sobre.data.open === null || corte === null) return
+
+        if (Date.parse(corte.deadline) > Date.now()) {
           setAvisandoCierre(false)
           return
         }
       }
     } catch {
-      // Sin respuesta se sigue adelante: ver el docblock.
+      // Sin respuesta se reintenta igual: el cierre lo hace el servidor, no esta consulta.
     }
 
-    await cerrarJornada(null)
+    globalThis.setTimeout(() => { void revisarVencimiento() }, SEGUNDOS_ENTRE_REVISIONES * 1000)
   }
 
   /**
@@ -748,14 +760,15 @@ export function ControlJornada ({
       {avisandoCierre && cierre !== null && !confirmandoCierre && (
         <AvisoDeCierre
           key={cierre.at}
-          cierreEn={cierre.at}
+          preguntaEn={cierre.at}
+          plazoEn={cierre.deadline}
           minutosDeProrroga={cierre.extension_minutes}
           yaProrrogada={cierre.extended}
           enCurso={enCurso}
           aviso={aviso}
           onProrrogar={() => { void prorrogarJornada() }}
           onCerrarAhora={() => { void cerrarJornada(null) }}
-          onVencido={() => { void cerrarPorVencimiento() }}
+          onVencido={() => { void revisarVencimiento() }}
         />
       )}
     </>  )

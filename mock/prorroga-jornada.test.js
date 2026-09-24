@@ -84,6 +84,11 @@ test('encendido, closing dice cuándo se cierra y cuánto suma cada prórroga', 
   assert.ok(estado.closing !== null, 'con el interruptor encendido hay cierre que anunciar')
   assert.equal(estado.closing.extended, false, 'una jornada recién abierta no está prorrogada')
   assert.equal(estado.closing.extension_minutes, 30)
+  assert.equal(
+    Date.parse(estado.closing.deadline) - Date.parse(estado.closing.at),
+    30 * 60_000,
+    'el plazo para contestar "¿Estás ahí?" vence media hora después de la pregunta'
+  )
 
   // Los sesenta segundos de `MOCK_JORNADA_CIERRE_EN`, contados desde la apertura.
   const falta = Date.parse(estado.closing.at) - Date.parse(estado.open.started_at)

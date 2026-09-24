@@ -54,6 +54,13 @@ export const ROTULO_TIPO: Record<TipoNovedad, string> = {
 export const NOVEDADES: Novedad[] = [
   {
     fecha: '2026-09-24',
+    tipo: 'mejora',
+    titulo: 'La jornada pregunta "¿Estás ahí?" antes de cerrarse',
+    detalle: 'A la hora de corte suena un aviso. Si sigues trabajando, contestas y te vuelve a preguntar en media hora; si nadie contesta en media hora, la jornada se cierra sola.',
+    commits: ['board@28c5764']
+  },
+  {
+    fecha: '2026-09-24',
     tipo: 'nuevo',
     titulo: 'Te avisamos cuando comentan tus Tareas',
     detalle: 'Si comentan una Tarea que tienes asignada, que sigues o que creaste, te llega a la campana. Si te mencionan, el aviso lo dice.',

@@ -157,8 +157,13 @@ export interface EstadoDeJornada {
  * tablero del equipo (`GET /live`), donde este dato no existe.
  */
 export interface CierreProgramado {
-  /** Instante ISO del cierre. Ya incluye la prórroga si la hay. */
+  /** Instante ISO de la pregunta "¿Estás ahí?". Ya incluye la prórroga si la hay. */
   at: string
+  /**
+   * Instante ISO en que el servidor cierra la jornada si nadie contesta. El cierre queda registrado
+   * a la hora de `at`: el tiempo sin respuesta no cuenta como trabajado.
+   */
+  deadline: string
   /** Cuánto suma cada "sigo trabajando", en minutos. Lo decide el servidor, no la pantalla. */
   extension_minutes: number
   /** `true` si esta jornada ya se corrió al menos una vez. */
