@@ -6,20 +6,27 @@ import { useRouter } from 'next/navigation'
 import { Boton } from '@/componentes/formularios/Boton'
 import { DialogoEliminarProyecto } from '@/componentes/proyecto/DialogoEliminarProyecto'
 import { DialogoResultado } from '@/componentes/proyecto/DialogoResultado'
+import { FormularioRecurso } from '@/componentes/proyecto/FormularioRecurso'
+import { camposDeEdicion } from '@/componentes/proyecto/MenuProyecto'
+import type { OpcionCampo } from '@/componentes/proyecto/formulario'
 import type { LicitacionDetalle } from '@/datos/recursos'
 import type { Capacidad } from '@/datos/tipos'
 import { GLOSARIO } from '@/dominio/glosario'
+import { camposDeEdicionDeLicitacion } from './campos'
 
 /**
- * Ganar y perder una Licitacion, y los enlaces a donde se edita lo suyo.
+ * Editar, ganar y perder una Licitacion, y el enlace a su prospecto.
  *
- * Las dos acciones existen **solo mientras la licitacion esta abierta**: ganar o perder dos veces no
+ * Ganar y perder existen **solo mientras la licitacion esta abierta**: ganar o perder dos veces no
  * significa nada, y el backend responde 409.
  *
- * **No hay boton de editar.** Desde `0320`, `PATCH /licitaciones/{id}` no acepta ningun campo: la
- * empresa y sus personas de contacto se editan en el prospecto —que es uno solo para todas sus
- * licitaciones— y el nombre, las fechas y la descripcion en la ficha del Espacio, con la cabecera que
- * ya esta arriba. Por eso lo que queda es un enlace al prospecto.
+ * **Editar son dos formularios porque son dos recursos.** "Editar" escribe los cinco campos propios
+ * con `PATCH /licitaciones/{id}` —holding, area, modelo de servicio, owner y focal— y "Editar
+ * proyecto" el nombre, las fechas y la descripcion con `PATCH /projects/{id}`. Un solo formulario
+ * tendria que mandar dos peticiones, y si la segunda falla deja guardada la mitad. La empresa y sus
+ * personas de contacto no se editan acá: viven en el prospecto, que es uno para todas sus
+ * licitaciones, y a eso lleva el enlace. Editar sigue disponible tras cerrarla: el backend no lo
+ * impide, y corregir el owner de una licitacion ganada es un caso real.
  *
  * **Eliminar** existe en cualquier estado —abierta, ganada o perdida— porque sirve para lo que no
  * debio crearse, no para cerrar la licitacion. Es `DELETE /projects/{id}`: el backend no tiene otro
@@ -33,10 +40,15 @@ interface PropsAcciones {
   licitacion: LicitacionDetalle
   /** Capacidades sobre `projects`: una Licitacion es un Espacio y el backend usa ese permiso. */
   capacidades: Capacidad[]
+  /** Catalogo `areas` de `GET /lookups`, para el formulario de edicion. */
+  areas: OpcionCampo[]
+  /** Catalogo `staff` de `GET /lookups`, para el owner y el focal. */
+  staff: OpcionCampo[]
 }
 
-export function AccionesLicitacion ({ licitacion, capacidades }: PropsAcciones): ReactElement {
+export function AccionesLicitacion ({ licitacion, capacidades, areas, staff }: PropsAcciones): ReactElement {
   const router = useRouter()
+  const [editando, setEditando] = useState<'licitacion' | 'espacio' | null>(null)
   const [confirmando, setConfirmando] = useState<'ganar' | 'perder' | null>(null)
   const [eliminando, setEliminando] = useState(false)
 
@@ -55,6 +67,17 @@ export function AccionesLicitacion ({ licitacion, capacidades }: PropsAcciones):
         </>
       )}
 
+      {puedeEditar && (
+        <>
+          <Boton variante="secundario" tamano="chico" onClick={() => { setEditando('licitacion') }}>
+            Editar
+          </Boton>
+          <Boton variante="secundario" tamano="chico" onClick={() => { setEditando('espacio') }}>
+            Editar {GLOSARIO.espacio.singular.toLowerCase()}
+          </Boton>
+        </>
+      )}
+
       {abierta && puedeEditar && (
         <>
           <Boton variante="primario" tamano="chico" onClick={() => { setConfirmando('ganar') }}>
@@ -70,6 +93,34 @@ export function AccionesLicitacion ({ licitacion, capacidades }: PropsAcciones):
         <Boton variante="peligro" tamano="chico" onClick={() => { setEliminando(true) }}>
           Eliminar
         </Boton>
+      )}
+
+      {puedeEditar && (
+        <>
+          <FormularioRecurso
+            abierto={editando === 'licitacion'}
+            onAbiertoCambia={(abierto) => { setEditando(abierto ? 'licitacion' : null) }}
+            titulo={`Editar la ${GLOSARIO.licitacion.singular.toLowerCase()} de ${licitacion.company}`}
+            descripcion="La empresa y sus contactos se editan en el prospecto."
+            campos={camposDeEdicionDeLicitacion(areas, staff)}
+            ruta={`licitaciones/${licitacion.id}`}
+            metodo="PATCH"
+            registro={licitacion as unknown as Record<string, unknown>}
+            onGuardado={() => { router.refresh() }}
+            columnas={2}
+          />
+          <FormularioRecurso
+            abierto={editando === 'espacio'}
+            onAbiertoCambia={(abierto) => { setEditando(abierto ? 'espacio' : null) }}
+            titulo={`Editar ${GLOSARIO.espacio.singular.toLowerCase()}`}
+            descripcion={licitacion.espacio.name}
+            campos={camposDeEdicion()}
+            ruta={`projects/${licitacion.espacio.id}`}
+            metodo="PATCH"
+            registro={licitacion.espacio as unknown as Record<string, unknown>}
+            onGuardado={() => { router.refresh() }}
+          />
+        </>
       )}
 
       <DialogoResultado

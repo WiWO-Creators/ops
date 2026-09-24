@@ -6778,6 +6778,33 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
   }
 
   /*
+   * `PATCH /licitaciones/{id}`: los cinco campos propios, igual que `Licitacion::editar()`. Otra
+   * clave es 422 `no_editable`, como en la API: aceptarla aca haria pasar en local un cuerpo que
+   * produccion rechaza. Owner y focal se resuelven contra el staff para que la ficha los nombre.
+   */
+  if (recurso === 'licitaciones' && metodo === 'PATCH' && resto.length === 1) {
+    exigirPermiso(actual, 'projects', 'edit')
+    const licitacion = buscarO404(LICITACIONES, Number(resto[0]), 'licitacion')
+    const cambios = (await cuerpo()) ?? {}
+    const editables = ['empresa_holding', 'area_id', 'modelo_servicio', 'owner_id', 'focal_id']
+    const ajenas = Object.keys(cambios).filter((clave) => !editables.includes(clave))
+
+    if (ajenas.length > 0) {
+      throw new ErrorApi(422, 'no_editable', 'Hay campos que no se editan por esta ruta.',
+        Object.fromEntries(ajenas.map((clave) => [clave, ['no_editable']])))
+    }
+
+    Object.assign(licitacion, cambios)
+    for (const persona of ['owner', 'focal']) {
+      const staff = STAFF.find((fila) => fila.id === licitacion[`${persona}_id`])
+      licitacion[persona] = staff === undefined ? null : { id: staff.id, full_name: staff.full_name }
+    }
+    const espacio = ESPACIOS_DE_LICITACION.find((fila) => fila.id === licitacion.id)
+
+    return { estado: 200, cuerpo: conDatos({ ...licitacion, espacio: presentarEspacio(espacio, []) }) }
+  }
+
+  /*
    * `DELETE /projects/{id}` sobre el Espacio de una licitacion: el boton Eliminar de su ficha. La API
    * lo manda a la papelera y la licitacion deja de listarse; aca se saca de las dos listas. Los
    * Espacios comunes no se sirven: siguen cayendo al 404 del final.

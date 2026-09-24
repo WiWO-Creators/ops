@@ -11,10 +11,13 @@ import { EMPRESAS_DEL_HOLDING } from '../../dominio/holding.ts'
  * importaciones son relativas y no por alias para que `node --test` pueda cargarlo sin resolver
  * `@/`: el alias solo sobrevive en los `import type`, que el intérprete borra.
  *
- * **Ya no hay formulario de edicion.** Desde `0320`, `PATCH /licitaciones/{id}` no acepta nada: la
+ * La edicion ofrece **solo los cinco campos propios** que acepta `PATCH /licitaciones/{id}`: la
  * empresa y sus contactos se editan en el prospecto y los campos del Espacio con
- * `PATCH /projects/{id}`. Ofrecer un formulario acá escribiria campos que la ruta rechaza.
+ * `PATCH /projects/{id}`. Ofrecer otro campo acá escribiria algo que la ruta rechaza con un 422.
  */
+
+/** Las claves que acepta `PATCH /licitaciones/{id}`: espejo de `Licitacion::CAMPOS_PROPIOS`. */
+const CAMPOS_EDITABLES = ['empresa_holding', 'area_id', 'modelo_servicio', 'owner_id', 'focal_id']
 
 /** Largo maximo del nombre del Espacio, tomado de `tblprojects`. */
 const LARGO_NOMBRE_ESPACIO = 191
@@ -106,4 +109,21 @@ export function camposDeLicitacion (
     { clave: 'modelo_servicio', etiqueta: 'Modelo de servicio', tipo: 'seleccion', opciones: MODELOS_DE_SERVICIO },
     { clave: 'espacio.description', etiqueta: 'Descripción', tipo: 'area' }
   ]
+}
+
+/**
+ * Campos de la edicion de una Licitacion: los cinco propios, con las mismas reglas que en el alta.
+ *
+ * Salen de `camposDeLicitacion` filtrados y no de una lista aparte para que el alta y la edicion no
+ * puedan ofrecer opciones distintas del mismo campo. Se quita la `seccion`: con cinco campos los
+ * rotulos de grupo sobran, y el primero que quedaba ("Empresa candidata") ya no describe nada.
+ *
+ * @param areas Catalogo `areas` de `GET /lookups`, ya en forma de opciones.
+ * @param staff Catalogo `staff` de `GET /lookups`, para el owner y el focal.
+ * @returns Los cinco campos, en el orden del alta.
+ */
+export function camposDeEdicionDeLicitacion (areas: OpcionCampo[], staff: OpcionCampo[]): CampoFormulario[] {
+  return camposDeLicitacion([], areas, staff)
+    .filter((campo) => CAMPOS_EDITABLES.includes(campo.clave))
+    .map(({ seccion: _seccion, ...campo }) => campo)
 }

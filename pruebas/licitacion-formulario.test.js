@@ -8,7 +8,7 @@
 
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { camposDeLicitacion } from '../src/componentes/licitacion/campos.ts'
+import { camposDeEdicionDeLicitacion, camposDeLicitacion } from '../src/componentes/licitacion/campos.ts'
 import { cuerpoDelFormulario, validarFormulario } from '../src/componentes/proyecto/formulario.ts'
 import { MODELOS_DE_SERVICIO } from '../src/definiciones/licitaciones.ts'
 import { EMPRESAS_DEL_HOLDING } from '../src/dominio/holding.ts'
@@ -137,4 +137,22 @@ test('una fecha a medio escribir se señala con el formato que se ve en pantalla
   })
 
   assert.equal(errores['espacio.start_date'], 'Usa el formato DD/MM/AAAA.')
+})
+
+test('la edicion ofrece exactamente los cinco campos que acepta el PATCH', () => {
+  const campos = camposDeEdicionDeLicitacion(AREAS, STAFF)
+
+  assert.deepEqual(campos.map((uno) => uno.clave), ['empresa_holding', 'area_id', 'owner_id', 'focal_id', 'modelo_servicio'])
+  assert.ok(campos.every((uno) => uno.seccion === undefined))
+  assert.deepEqual(campo(campos, 'owner_id').opciones, STAFF)
+})
+
+test('la edicion vacia un campo con null y vuelve numero los ids', () => {
+  const campos = camposDeEdicionDeLicitacion(AREAS, STAFF)
+  const valores = { empresa_holding: '', area_id: '4', owner_id: '183', focal_id: '', modelo_servicio: '' }
+
+  assert.deepEqual(validarFormulario(campos, valores), {})
+  assert.deepEqual(cuerpoDelFormulario(campos, valores), {
+    empresa_holding: null, area_id: 4, owner_id: 183, focal_id: null, modelo_servicio: null
+  })
 })

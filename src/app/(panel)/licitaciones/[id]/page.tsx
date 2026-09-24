@@ -112,6 +112,7 @@ export default async function LicitacionPage (props: PageProps<'/licitaciones/[i
   }
 
   const { licitacion, lookups, yo } = detalle
+  const staff = comoOpciones(listaDe(lookups, 'staff'))
 
   return (
     <DetalleDeEspacio
@@ -122,12 +123,17 @@ export default async function LicitacionPage (props: PageProps<'/licitaciones/[i
       volverA={{ href: `/prospectos/${licitacion.prospecto_id}?tab=licitaciones`, etiqueta: licitacion.company }}
       subtitulo={licitacion.company}
       acciones={
-        <AccionesLicitacion licitacion={licitacion} capacidades={yo.permissions.projects} />
+        <AccionesLicitacion
+          licitacion={licitacion}
+          capacidades={yo.permissions.projects}
+          areas={comoOpciones(listaDe(lookups, 'areas'))}
+          staff={staff}
+        />
       }
       ficha={
         <FichaLicitacion
           licitacion={licitacion}
-          staff={comoOpciones(listaDe(lookups, 'staff'))}
+          staff={staff}
           capacidades={yo.permissions.projects}
         />
       }

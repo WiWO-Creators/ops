@@ -511,6 +511,15 @@ export interface Licitacion {
    */
   focal_id: number | null
   focal: { id: number, full_name: string } | null
+  /** Con cual sociedad del grupo se presenta: un `valor` de `EMPRESAS_DEL_HOLDING`. */
+  empresa_holding: string | null
+  /** El area del equipo que lleva el trabajo: id del catalogo `areas` de `GET /lookups`. */
+  area_id: number | null
+  /** Que contempla el trabajo: un `valor` de `MODELOS_DE_SERVICIO`. */
+  modelo_servicio: string | null
+  /** El dueño comercial, quien persigue la venta. */
+  owner_id: number | null
+  owner: { id: number, full_name: string } | null
   espacio: EspacioDeLicitacion
 }
 
