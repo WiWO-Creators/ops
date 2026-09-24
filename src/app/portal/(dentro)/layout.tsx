@@ -36,17 +36,28 @@ export default async function PortalLayout ({ children }: { children: React.Reac
 
   return (
     <div className="flex h-dvh flex-col overflow-hidden">
-      <header className="border-linea flex h-14 shrink-0 items-center gap-3 border-b px-4">
+      {/* `relative z-10`: el logo del cliente cuelga por debajo del borde y tiene que quedar encima
+          de la navegacion movil y del contenido que se desplaza detras. */}
+      <header className="border-linea relative z-10 flex h-14 shrink-0 items-center gap-3 border-b px-4">
         {/* El perfil no esta en la navegacion: no es una seccion que la API habilite, sino los datos
             del propio contacto. El avatar es el lugar donde se lo busca, y lleva la marca de la
-            empresa y no la cara de la persona: el portal es del cliente. */}
+            empresa y no la cara de la persona: el portal es del cliente.
+
+            El logo va grande y se sale por el borde inferior de la barra: el `Link` guarda el hueco
+            en la fila y el avatar se posiciona absoluto dentro de el. Vive en la cabecera y no en el
+            area que se desplaza, asi que queda fijo mientras el contenido corre por debajo. El anillo
+            del color del fondo es el corte que lo separa de la linea de la barra. */}
         <Link
           href="/portal/perfil"
           title="Mi perfil"
           aria-label="Mi perfil"
-          className="shrink-0"
+          className="relative size-20 shrink-0 self-start"
         >
-          <Avatar nombre={yo.client?.company ?? yo.full_name} imagen={yo.client?.image_url ?? null} />
+          <Avatar
+            nombre={yo.client?.company ?? yo.full_name}
+            imagen={yo.client?.image_url ?? null}
+            className="ring-superficie bg-superficie-elevada absolute top-2 left-0 size-20 text-2xl shadow-md ring-4"
+          />
         </Link>
         <Link href="/portal" aria-label="Inicio del portal" className="shrink-0">
           <Logo tamano="medio" />
@@ -60,10 +71,12 @@ export default async function PortalLayout ({ children }: { children: React.Reac
           esconderla detras de un menu obliga a dos toques para lo unico que el portal ofrece. */}
       <NavegacionPortal
         secciones={secciones}
-        className="border-linea flex shrink-0 gap-1 overflow-x-auto border-b px-4 py-2 md:hidden"
+        className="border-linea flex shrink-0 gap-1 overflow-x-auto border-b py-2 pr-4 pl-28 md:hidden"
       />
 
-      <ScrollSuave className="min-h-0 min-w-0 flex-1 p-4">{children}</ScrollSuave>
+      {/* En escritorio el logo cuelga sobre el contenido: el `pt-12` lo deja pasar sin tapar la
+          primera linea. En movil lo absorbe la fila de navegacion, que ya corre su inicio. */}
+      <ScrollSuave className="min-h-0 min-w-0 flex-1 p-4 md:pt-12">{children}</ScrollSuave>
 
       {conOrbe && <OrbeChatIA sujeto="contacto" />}
     </div>
