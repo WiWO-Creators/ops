@@ -50,7 +50,7 @@ export function DialogoEliminarProyecto ({ espacio, onCerrar, onEliminado, tipo 
       <ContenidoDialogo
         ancho="chico"
         titulo={`Eliminar ${tipo.toLowerCase()}`}
-        descripcion={`Se va a eliminar «${espacio.name}» junto con sus ${GLOSARIO.proceso.plural.toLowerCase()}, ${GLOSARIO.hito.plural.toLowerCase()} y horas registradas. No se puede deshacer.`}
+        descripcion={`«${espacio.name}» va a la papelera junto con sus ${GLOSARIO.proceso.plural.toLowerCase()}, ${GLOSARIO.hito.plural.toLowerCase()} y horas registradas. Se puede restaurar entero desde la Papelera durante 30 días.`}
       >
         {error !== null && <p role="alert" className="text-texto-peligro mb-3 text-sm">{error}</p>}
 

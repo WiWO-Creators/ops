@@ -29,6 +29,8 @@ const PREFIJOS_PERMITIDOS = [
   // de `contacts/{id}`, asi que hace falta el prefijo propio.
   'contacts',
   'projects',
+  // Papelera: listar, restaurar y el borrado definitivo, que solo existe aca (`DELETE /trash/...`).
+  'trash',
   // Prospectos: el listado, la ficha, la edicion, el borrado y el subrecurso `contactos`. La lista
   // es por PREFIJO, asi que esta entrada cubre `prospectos/{id}/contactos/{cid}` sin una segunda.
   // NO es `/leads`: aquel es el embudo heredado de Perfex, que no tiene pantalla en este panel y

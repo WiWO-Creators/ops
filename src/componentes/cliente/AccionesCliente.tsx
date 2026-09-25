@@ -65,8 +65,8 @@ export function AccionesCliente ({
         puedeBorrar={capacidades.includes('delete')}
         tamano="chico"
         advertencia={
-          `Se borra ${cliente.company} y todo lo que cuelga de él: sus proyectos, sus tareas, sus ` +
-          'contactos, sus contratos, sus propuestas y sus gastos. No se puede deshacer.'
+          `${cliente.company} va a la papelera con sus proyectos y sus tareas, y deja de verse en ` +
+          'todas partes. Se puede restaurar entero desde la Papelera durante 30 días.'
         }
         recargar={recargar}
         alBorrar={() => { router.push('/clientes') }}

@@ -321,5 +321,12 @@ function seccionesDe (yo: Yo): Seccion[] {
     secciones.push({ href: '/indicadores', etiqueta: 'Indicadores', icono: 'auditoria', grupo: 'administracion' })
   }
 
+  // Papelera usa `is_admin` y no la llave de Administracion: la API deja eliminar, restaurar y
+  // purgar Proyectos y Clientes a cualquier administrador, y la docena que borra tiene que poder
+  // deshacer lo que borro sin pedirselo a un superadministrador.
+  if (yo.is_admin || yo.is_superadmin) {
+    secciones.push({ href: '/papelera', etiqueta: 'Papelera', icono: 'papelera', grupo: 'administracion' })
+  }
+
   return secciones
 }

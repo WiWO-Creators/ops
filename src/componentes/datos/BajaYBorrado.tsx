@@ -8,8 +8,9 @@ import { ContenidoDialogo, Dialogo } from '@/componentes/superposiciones/Dialogo
 import { mensajeDeRespuesta } from '@/datos/cliente'
 
 /**
- * Baja, reactivación y borrado definitivo de Clientes y Equipo.
- * Clientes usa PATCH para desactivar y DELETE con confirmación escrita para borrar.
+ * Baja, reactivación y borrado de Clientes y Equipo.
+ * Clientes usa PATCH para desactivar y DELETE sin cuerpo para mandarlo a la papelera: lo definitivo
+ * solo ocurre desde `/papelera`, así que acá no se pide palabra escrita.
  * Equipo conserva DELETE para la baja y ?purgar=1 con transferencia para el borrado.
  */
 
@@ -18,7 +19,7 @@ interface PropsBajaYBorrado {
   ruta: string
   /** Como se llama lo que se va a borrar, para el texto y para la confirmacion escrita. */
   nombre: string
-  /** Activa el contrato de clientes: baja por PATCH y borrado con confirmación en el cuerpo. */
+  /** Activa el contrato de clientes: baja por PATCH y borrado a la papelera, sin confirmación escrita. */
   usaPapelera?: boolean
   activo: boolean
   puedeEditar: boolean
@@ -66,8 +67,9 @@ export function BajaYBorrado ({
   const [fallo, setFallo] = useState<string | null>(null)
 
   const extra = extraDeBorrado?.({ deshabilitado: enCurso })
-  const confirmacion = usaPapelera ? 'ELIMINAR' : nombre.trim()
-  const confirmacionCoincide = escrito.trim() === confirmacion
+  const confirmacion = nombre.trim()
+  const confirmacionCoincide = usaPapelera || escrito.trim() === confirmacion
+  const accion = usaPapelera ? 'Enviar a la papelera' : 'Eliminar definitivamente'
 
   /** Manda la baja, la reactivacion o el borrado. Nunca lanza: el fallo se muestra donde se pidio. */
   async function escribir (metodo: 'DELETE' | 'PATCH', sufijo: string, cuerpo?: unknown, definitivo = false): Promise<void> {
@@ -124,7 +126,7 @@ export function BajaYBorrado ({
           tamano={tamano}
           onClick={() => { setConfirmando(true); setFallo(null); alAbrirBorrado?.() }}
         >
-          Eliminar definitivamente
+          {accion}
         </Boton>
       )}
 
@@ -133,11 +135,11 @@ export function BajaYBorrado ({
       )}
 
       <Dialogo open={confirmando} onOpenChange={(abierto) => { if (!enCurso) { setConfirmando(abierto); setEscrito('') } }}>
-        <ContenidoDialogo titulo="Eliminar definitivamente" descripcion={advertencia}>
+        <ContenidoDialogo titulo={accion} descripcion={advertencia}>
           <div className="flex flex-col gap-4">
             {extra?.control}
 
-            <Campo etiqueta={`Escribe «${confirmacion}» para confirmar`} requerido>
+            {!usaPapelera && <Campo etiqueta={`Escribe «${confirmacion}» para confirmar`} requerido>
               {(props) => (
                 <Entrada
                   {...props}
@@ -147,7 +149,7 @@ export function BajaYBorrado ({
                   onChange={(evento) => { setEscrito(evento.target.value) }}
                 />
               )}
-            </Campo>
+            </Campo>}
 
             {fallo !== null && <p role="alert" className="text-texto-peligro text-sm">{fallo}</p>}
 
@@ -158,11 +160,10 @@ export function BajaYBorrado ({
                 cargando={enCurso}
                 disabled={enCurso || !confirmacionCoincide || (extra !== undefined && extra.consulta === null)}
                 onClick={() => {
-                  void escribir('DELETE', usaPapelera ? '' : `?purgar=1${extra?.consulta ?? ''}`,
-                    usaPapelera ? { confirmacion: escrito.trim() } : undefined, true)
+                  void escribir('DELETE', usaPapelera ? '' : `?purgar=1${extra?.consulta ?? ''}`, undefined, true)
                 }}
               >
-                Eliminar
+                {usaPapelera ? 'Enviar a la papelera' : 'Eliminar'}
               </Boton>
             </div>
           </div>

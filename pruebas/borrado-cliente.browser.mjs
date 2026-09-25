@@ -4,7 +4,7 @@ import { once } from 'node:events'
 import { chromium } from 'playwright'
 import { CLIENTES } from '../mock/datos.js'
 
-/** Verifica la confirmación y el contrato del cliente contra Next y una API mock local. Nunca ejecuta DELETE. */
+/** Verifica el envío a la papelera y el contrato del cliente contra Next y una API mock local. Nunca ejecuta DELETE. */
 const origen = new URL(process.env.CLIENTE_TEST_URL ?? 'http://localhost:3119')
 assert.ok(['localhost', '127.0.0.1'].includes(origen.hostname), 'Solo admite un servidor local con API mock.')
 assert.ok(process.env.CLIENTE_TEST_EMAIL && process.env.CLIENTE_TEST_PASSWORD, 'Faltan credenciales de prueba.')
@@ -52,27 +52,21 @@ try {
   await pagina.getByRole('button', { name: 'Dar de baja', exact: true }).click()
   await pagina.getByText('Baja interceptada', { exact: true }).waitFor()
   await pagina.goto(new URL(`/clientes/${cliente.id}`, origen).href)
-  await pagina.getByRole('button', { name: 'Eliminar definitivamente', exact: true }).waitFor()
+  await pagina.getByRole('button', { name: 'Enviar a la papelera', exact: true }).waitFor()
   assert.deepEqual(bajas, [{ active: false }])
   assert.equal(borrados.length, 0)
-  await pagina.getByRole('button', { name: 'Eliminar definitivamente', exact: true }).click()
+  await pagina.getByRole('button', { name: 'Enviar a la papelera', exact: true }).click()
   const dialogo = pagina.getByRole('dialog')
-  const entrada = dialogo.getByLabel('Escribe «ELIMINAR» para confirmar', { exact: false })
-  const eliminar = dialogo.getByRole('button', { name: 'Eliminar', exact: true })
-  for (const invalido of ['', cliente.company, 'eliminar']) {
-    await entrada.fill(invalido)
-    assert.equal(await eliminar.isDisabled(), true)
-  }
-  await entrada.fill('ELIMINAR')
+  assert.equal(await dialogo.getByRole('textbox').count(), 0, 'A la papelera no se pide palabra escrita.')
+  const eliminar = dialogo.getByRole('button', { name: 'Enviar a la papelera', exact: true })
   assert.equal(await eliminar.isEnabled(), true)
   await eliminar.click()
   await dialogo.getByRole('alert').waitFor()
-  assert.deepEqual(borrados, [{ confirmacion: 'ELIMINAR' }])
-  assert.equal(await entrada.inputValue(), 'ELIMINAR')
+  assert.deepEqual(borrados, [null])
   await eliminar.click()
   await pagina.waitForURL(new URL('/clientes', origen).href)
-  assert.deepEqual(borrados, [{ confirmacion: 'ELIMINAR' }, { confirmacion: 'ELIMINAR' }])
-  console.info('OK: baja por PATCH, confirmación exacta, DELETE con cuerpo, reintento y redirección. Ningún DELETE real.')
+  assert.deepEqual(borrados, [null, null], 'El DELETE va sin cuerpo: con `confirmacion` la API responde 422.')
+  console.info('OK: baja por PATCH, DELETE sin cuerpo a la papelera, reintento y redirección. Ningún DELETE real.')
 } finally {
   await navegador.close()
   mock.kill()

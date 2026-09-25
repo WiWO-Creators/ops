@@ -133,12 +133,11 @@ export function DetalleTarea (
   /**
    * Borra la tarea.
    *
-   * Va por `POST /tasks/bulk` con un solo id porque es el unico borrado que la API expone para
-   * Procesos: no hay `DELETE /tasks/{id}`. Mandar uno por la via de muchos no es un atajo, es la
-   * misma ruta que ya exige `tasks.delete` y que ya deja la fila en el registro de actividad.
+   * Va por `POST /tasks/bulk` con un solo id: es la misma ruta que el borrado masivo, exige
+   * `tasks.delete` y deja la fila en el registro de actividad.
    *
-   * El borrado es fisico y se lleva por delante asignados, seguidores, comentarios, checklist,
-   * cronometros y etiquetas. Por eso confirma en dos pasos y lo dice antes, no despues.
+   * No borra: manda a la papelera, de donde se restaura entera durante 30 dias. Igual confirma en
+   * dos pasos, porque la tarea desaparece de la vista de todo el equipo.
    */
   async function borrar (): Promise<void> {
     setBorrando(true)
@@ -309,8 +308,8 @@ export function DetalleTarea (
           {puedeBorrar && confirmandoBorrado && (
             <div className="border-linea flex flex-col gap-2 border-t pt-2">
               <p className="text-texto-sutil text-xs">
-                Se elimina esta {GLOSARIO.proceso.singular.toLowerCase()} y con ella sus comentarios,
-                checklist, tiempo registrado, asignados y seguidores. No se puede deshacer.
+                Esta {GLOSARIO.proceso.singular.toLowerCase()} va a la papelera y deja de verse en
+                todas partes. Se puede restaurar entera desde la Papelera durante 30 días.
               </p>
 
               {errorBorrado !== null && (

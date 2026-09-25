@@ -273,6 +273,39 @@ export type EstadoDeSolicitud = 'pendiente' | 'aprobada' | 'rechazada' | 'cancel
  * resuelve. Aprobar ARCHIVA el Proyecto: sale de los listados diarios y conserva sus tareas, sus
  * horas y su facturacion. Borrar de verdad sigue siendo otra cosa, y sigue siendo de admin.
  */
+/** Las tres entidades que tienen papelera, con el slug de su ruta en la API. */
+export type EntidadDePapelera = 'tasks' | 'projects' | 'clients'
+
+/**
+ * Una fila de `GET /trash`: una RAIZ eliminada. Lo que se arrastro con ella —las Tareas de un
+ * Proyecto, los Proyectos de un Cliente— no viaja como fila propia: vuelve cuando vuelve la raiz.
+ */
+export interface ElementoEnPapelera {
+  entidad: EntidadDePapelera
+  id: number
+  nombre: string
+  eliminado_en: string
+  /** `null` si la persona ya no existe en el staff. */
+  eliminado_por: { id: number, full_name: string } | null
+  /** Cuando lo borra el cron, si la purga automatica esta encendida. */
+  purga_el: string
+  dias_restantes: number
+}
+
+/** `GET /{entidad}/{id}/deletion-preview`: que se lleva el borrado definitivo, antes de pedirlo. */
+export interface PrevisualizacionDeBorrado {
+  entidad: EntidadDePapelera
+  id: number
+  nombre: string
+  en_papelera: boolean
+  /** Conteos por clave (`comentarios`, `procesos`, `horas_registradas`…). Sin claves en cero. */
+  se_borra: Record<string, number>
+  se_desvincula: Record<string, number>
+  /** `false` solo para un cliente con facturas: Perfex se niega y la purga responde 409. */
+  puede_purgarse: boolean
+  motivo: string | null
+}
+
 export interface SolicitudDeEliminacion {
   id: number
   project_id: number

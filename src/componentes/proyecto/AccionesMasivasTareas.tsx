@@ -441,7 +441,7 @@ function ControlDeAccion ({
   if (accion.control === 'ninguno') {
     return (
       <p className="text-texto-tenue text-sm">
-        Esta acción no se puede deshacer.
+        Van a la papelera y dejan de verse en todas partes. Se pueden restaurar desde la Papelera durante 30 días.
       </p>
     )
   }
