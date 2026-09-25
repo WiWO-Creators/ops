@@ -357,7 +357,7 @@ function subir (carpeta, archivoSubido) {
 
   const extension = archivoSubido.nombre.includes('.') ? archivoSubido.nombre.split('.').pop().toLowerCase() : ''
   if (EXTENSIONES_RECHAZADAS.has(extension)) {
-    throw new ErrorApi(422, 'validation_failed', `La extensión .${extension} no está permitida.`, { file: ['extension'] })
+    throw new ErrorApi(422, 'validation_failed', `La extensión .${extension} no está permitida.`, { file: ['extension_not_allowed'] })
   }
   if (archivoSubido.bytes > TOPE_SUBIDA_BYTES) {
     throw new ErrorApi(422, 'validation_failed', 'El archivo supera el máximo de 25 MB.', { file: ['too_large'] })

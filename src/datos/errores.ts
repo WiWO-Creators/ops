@@ -256,7 +256,7 @@ const YA_DICHOS_POR_EL_MENSAJE = new Set([
   // Drive: el mensaje ya nombra el problema ("supera el máximo de 25 MB", "la extensión .exe no está
   // permitida", "ya están en esa carpeta").
   'file:too_large',
-  'file:extension',
+  'file:extension_not_allowed',
   'parent_id:same_folder'
 ])
 
