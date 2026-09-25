@@ -158,7 +158,14 @@ const PARES_DE_TEXTO = [
   ['--texto-aviso', '--superficie-elevada'],
   ['--texto-peligro', '--superficie-elevada'],
   ['--texto-acento-2', '--superficie-elevada'],
-  ['--acento', '--superficie-elevada']
+  ['--acento', '--superficie-elevada'],
+  // Los rellenos de `Insignia`, que es donde el producto pone tinta de color SOBRE color y no sobre
+  // la superficie. Faltaban, y la escala de prioridad —que estrena los tres— destapó por qué
+  // importan: `--acento` sobre `--superficie-elevada` pasaba holgado y sobre `--acento-suave` no
+  // llegaba a AA en oscuro. Medir el par equivocado es no medir.
+  ['--acento', '--acento-suave'],
+  ['--texto-aviso', '--superficie-aviso'],
+  ['--texto-peligro', '--superficie-peligro']
 ]
 
 for (const tema of ['claro', 'oscuro']) {

@@ -5,6 +5,7 @@ import { pedirPortal } from '@/datos/servidor'
 import type { Sobre } from '@/datos/tipos'
 import type { ArchivoPortal } from '@/datos/portal'
 import { listaDe } from '@/datos/catalogos'
+import { pintarPrioridad } from '@/dominio/prioridades'
 import { cargarLookupsDelPortal } from '@/datos/lookups'
 import { nombreDeArchivo, origenDeArchivo } from '@/definiciones/archivos'
 import Link from 'next/link'
@@ -105,8 +106,19 @@ function Enlace ({ href, children }: { href: string, children: React.ReactNode }
  * La pildora del estado de un proyecto ya no se resuelve acá: la dibuja `CabeceraProyecto`, que es
  * la misma que ve el equipo. Acá quedan los catalogos que el portal pinta por su cuenta —tickets,
  * prioridades— y que conservan el color que traigan.
+ *
+ * La PRIORIDAD es la excepción: se pinta con la escala semántica de `dominio/prioridades` y no con
+ * el catálogo. `ticket_priorities` llega sin color y con las etiquetas en inglés de fábrica
+ * (`Low`, `Medium`, `High`), así que conservar "el color que traiga" sería dejarla gris y en otro
+ * idioma en la única pantalla donde el cliente la lee.
  */
 export async function EstadoDelPortal ({ catalogo, valor }: { catalogo: string, valor: number }) {
+  if (catalogo === 'ticket_priorities' || catalogo === 'task_priorities') {
+    const prioridad = pintarPrioridad(valor, catalogo)
+
+    if (prioridad !== null) return <Insignia tono={prioridad.tono}>{prioridad.etiqueta}</Insignia>
+  }
+
   const opcion = await opcionDelPortal(catalogo, valor)
 
   if (opcion === null) return null

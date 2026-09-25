@@ -88,9 +88,24 @@ const ANILLO = { lado: 120, radio: 48, trazo: 12 } as const
  *
  * La pista sin pintar va en `--relleno-neutro`, el mismo gris de fondo que usa toda barra de
  * progreso del producto. La skill prefiere un paso claro de la propia rampa, y para un medidor de
- * severidad —donde el relleno viaja de acento a peligro— tendría razón; acá el relleno es siempre
- * acento, así que la consistencia con el resto del portal gana. Y el paso claro azul no pasaba el
- * piso de 2:1 contra la superficie: lo corrí, y falla.
+ * severidad —donde el relleno viaja de acento a peligro— tendría razón; acá el relleno es de un
+ * color solo, así que la consistencia con el resto del portal gana. Y el paso claro azul no pasaba
+ * el piso de 2:1 contra la superficie: lo corrí, y falla.
+ *
+ * === POR QUÉ EL ARCO ES VERDE Y NO ACENTO ===
+ *
+ * Porque lo que mide es «cerradas», y el verde es lo que este producto usa para completado en todas
+ * partes. Con el arco en acento, el anillo era la única pieza del tablero donde el avance no se
+ * parecía a su propio estado: la insignia «Completo» verde al lado de un arco azul que cuenta
+ * exactamente esas tareas.
+ *
+ * Es `--relleno-exito` —el verde de marca— y NO el hexadecimal del estado «Completo» de Perfex. Dos razones: el
+ * frontend no tiene forma fiable de saber qué id es el estado de cierre (`cerradas` lo calcula la
+ * API, y `task_statuses` no marca cuál cierra), y un color que alguien puede editar en el panel no
+ * puede gobernar el trazo de 12px de la figura protagonista de la pantalla.
+ *
+ * Esto NO convierte el anillo en una dona: sigue midiendo UNA razón contra su límite, con un solo
+ * arco. El reparto por estado es otro gráfico, `BarrasPorEstado`, que está en el mismo tablero.
  *
  * Con `porcentaje` en `null` NO se dibuja un anillo vacío: se escribe el motivo. Un anillo al 0 % se
  * lee «no hicieron nada»; el motivo dice «no hay {procesos} compartidas para medirlo».
@@ -137,7 +152,7 @@ export function MedidorDeAvance ({ avance }: { avance: LecturaDeAvance }) {
                     strokeLinecap="round"
                     strokeDasharray={`${pintado} ${circunferencia}`}
                     transform={`rotate(-90 ${centro} ${centro})`}
-                    className="stroke-acento"
+                    className="stroke-relleno-exito"
                   />
                 </svg>
 
