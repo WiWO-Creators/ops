@@ -1,5 +1,6 @@
 import { normalizar } from './salas.ts'
 import type { StaffReferencia } from '@/datos/tipos'
+import type { UsoDeRegla } from './copias-recurrencia.ts'
 
 /**
  * Tareas recurrentes: como termina una regla, como se lee una planilla y como se cuenta lo que la
@@ -108,6 +109,8 @@ export interface ReglaRecurrente {
   paused_at: string | null
   next_date: string | null
   state: EstadoRegla
+  /** Si las copias se usan. Opcional: una API anterior al campo no lo manda. */
+  usage?: UsoDeRegla
   last_copy: { id: number, created_at: string, start_date: string | null, status: number } | null
   copies_count: number
   assignees: StaffReferencia[]

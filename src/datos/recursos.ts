@@ -77,6 +77,12 @@ export interface Proceso {
   recurring_paused?: boolean
   /** Desde cuando esta pausada, o null. */
   recurring_paused_at?: string | null
+  /** La madre, si esta Tarea es copia de una recurrencia. Solo en el detalle. */
+  recurring_from?: { id: number, name: string } | null
+  /** Cuantas copias vivas genero, si es madre. Solo en el detalle. */
+  recurring_copies_count?: number
+  /** Id de la madre en el listado. Opcional: una API anterior no lo manda y ahi no se pinta nada. */
+  recurring_from_id?: number | null
   kanban_order: number
   assignees: AsignadoConAutoria[]
   followers: StaffReferencia[]

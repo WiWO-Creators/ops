@@ -279,6 +279,9 @@ const CAMPOS: Record<string, string> = {
   recurring_until: 'Último día',
   skip_weekdays: 'Días sin copias',
   recurring_paused: 'Pausa',
+  // Limpieza de copias de una recurrencia (`POST /tasks/recurrentes/{id}/limpiar`).
+  ids: 'Copias',
+  detener: 'Además',
   // Organigrama de areas. `area_superior_id` y `jefe_staffid` son los nombres de la tabla; en la
   // pantalla son "De qué área cuelga" y "Quién la dirige", que es como los lee quien los completa.
   area_superior_id: 'Área superior',
@@ -384,7 +387,27 @@ const FRASES_PROPIAS: Record<string, string> = {
   // Recurrencia: las dos son reglas de la regla, no defectos de un valor. «Días sin copias
   // excluye todos» no dice que pasaria; la frase si.
   'skip_weekdays:excluye_todos': 'No puedes excluir los siete días de la semana: la tarea nunca se generaría',
-  'recurring_paused:sin_recurrencia': 'La tarea no es recurrente, así que no hay nada que pausar ni reanudar'
+  'recurring_paused:sin_recurrencia': 'La tarea no es recurrente, así que no hay nada que pausar ni reanudar',
+  // Un id que no es copia viva de esa regla: ajena, ya borrada o inventada. No se borra ninguna.
+  'ids:no_es_copia': 'Alguna de las tareas elegidas no es una copia de esta recurrencia, o ya está en la papelera. Vuelve a revisar la lista'
+}
+
+/**
+ * Frases de los codigos de error con nombre propio, para cuando la pantalla quiere decir el porque
+ * y no el mensaje que mando la API.
+ */
+const MENSAJES_DE_CODIGO: Partial<Record<CodigoError, string>> = {
+  solo_administradores: 'Solo un administrador puede hacer esto.'
+}
+
+/**
+ * La frase de un codigo de error, o la que se pase si el codigo no tiene una.
+ *
+ * @param codigo el `error.code` del sobre, si llego
+ * @param porDefecto lo que se muestra si no hay frase propia
+ */
+export function mensajeDeCodigo (codigo: string | undefined, porDefecto: string): string {
+  return MENSAJES_DE_CODIGO[codigo as CodigoError] ?? porDefecto
 }
 
 /**

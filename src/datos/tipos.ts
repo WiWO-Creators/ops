@@ -87,6 +87,9 @@ export type CodigoError =
   | 'rate_limited'
   | 'bad_request'
   | 'server_error'
+  // `403` de las acciones reservadas a administradores (limpiar copias de una recurrencia). Es un
+  // `forbidden` con nombre: la pantalla puede decir por que, y no solo que no.
+  | 'solo_administradores'
 
 export interface Staff {
   id: number

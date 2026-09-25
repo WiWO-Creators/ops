@@ -118,3 +118,14 @@ test('los 422 de la recurrencia se dicen con frase propia', () => {
     'La regla no es válida. Días sin copias tiene un valor repetido.'
   )
 })
+
+test('los ids ajenos de una limpieza y el 403 de administradores tienen frase propia', async () => {
+  const { mensajeDeCodigo } = await import('../src/datos/errores.ts')
+  assert.match(
+    mensajeConDetalles({ message: 'La limpieza no es válida.', details: { ids: ['no_es_copia'] } }),
+    /no es una copia de esta recurrencia/
+  )
+  assert.equal(mensajeDeCodigo('solo_administradores', 'x'), 'Solo un administrador puede hacer esto.')
+  assert.equal(mensajeDeCodigo('forbidden', 'x'), 'x')
+  assert.equal(mensajeDeCodigo(undefined, 'x'), 'x')
+})
