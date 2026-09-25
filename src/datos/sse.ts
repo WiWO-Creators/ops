@@ -86,7 +86,7 @@ export async function * leerSSE (ruta: string, opciones: OpcionesSSE = {}): Asyn
     signal: senal
   })
 
-  if (!respuesta.ok) throw new Error(await mensajeDeRespuesta(respuesta))
+  if (!respuesta.ok) throw new Error(await mensajeDeRespuesta(respuesta, { metodo, ruta: `/api/bff/${ruta}` }))
   if (respuesta.body === null) throw new Error('El servidor respondió sin cuerpo')
 
   yield * frames(respuesta.body, senal)

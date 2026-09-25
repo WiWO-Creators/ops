@@ -1,11 +1,12 @@
 import { avisarError } from '../lib/aviso-de-error.ts'
-import { incidenteDe, mensajeConDetalles } from './errores.ts'
+import {
+  incidenteDe,
+  leerCuerpoDeError,
+  mensajeConDetalles,
+  registrarFallaSinIncidente,
+  type PeticionFallida
+} from './errores.ts'
 import type { Sobre } from './tipos'
-
-/** Forma del envelope de error del contrato, tal como llega al navegador. */
-interface SobreError {
-  error?: { code?: string, message?: string, details?: Record<string, string[]> }
-}
 
 /**
  * Pide una ruta al BFF y devuelve la respuesta cruda.
@@ -45,33 +46,39 @@ function esAborto (fallo: unknown): boolean {
  * Mensaje legible de una respuesta con error.
  *
  * Cae a un generico cuando el cuerpo no es el envelope: un 502 del proxy devuelve HTML, y mostrar ese
- * HTML es peor que decir el codigo.
+ * HTML es peor que decir el codigo. Ese 502 ademas se registra desde aca como incidente, porque el
+ * BFF nunca lo vio —ver {@link registrarFallaSinIncidente}—.
  *
  * @param respuesta La respuesta fallida.
+ * @param peticion Metodo y ruta de la peticion, para el incidente si hay que registrarlo.
  * @returns El mensaje del contrato, o uno propio con el codigo de estado.
  */
-export async function mensajeDeRespuesta (respuesta: Response): Promise<string> {
-  try {
-    const cuerpo = await respuesta.json() as SobreError
-    const incidente = incidenteDe(cuerpo.error?.details)
+export async function mensajeDeRespuesta (respuesta: Response, peticion: PeticionFallida = {}): Promise<string> {
+  const cuerpo = await leerCuerpoDeError(respuesta)
+  const error = cuerpo.sobre?.error
+  const incidente = incidenteDe(error?.details)
 
-    if (cuerpo.error?.message !== undefined) {
-      const mensaje = mensajeConDetalles({ message: cuerpo.error.message, details: cuerpo.error.details })
+  if (error?.message === undefined) {
+    const mensaje = `El servidor respondió ${respuesta.status}`
+    await registrarFallaSinIncidente(respuesta, cuerpo, mensaje, peticion)
 
-      // El aviso flotante sale ademas del mensaje que muestre la pantalla, y no en su lugar: el
-      // mensaje explica que paso ahi mismo, donde la persona estaba mirando, y el aviso es el unico
-      // lugar donde aparece el codigo del incidente para poder reportarlo. Solo sale cuando hay
-      // codigo, y el codigo lo pone el BFF unicamente en los errores que valia la pena registrar:
-      // un 422 de formulario o un 401 de sesion no llegan aca con uno.
-      if (incidente !== undefined) avisarError({ mensaje, incidente })
-
-      return mensaje
-    }
-  } catch {
-    // Se cae al mensaje generico de abajo.
+    return mensaje
   }
 
-  return `El servidor respondió ${respuesta.status}`
+  const mensaje = mensajeConDetalles({ message: error.message, details: error.details })
+
+  // El aviso flotante sale ademas del mensaje que muestre la pantalla, y no en su lugar: el mensaje
+  // explica que paso ahi mismo, donde la persona estaba mirando, y el aviso es el unico lugar donde
+  // aparece el codigo del incidente para poder reportarlo. Solo sale cuando hay codigo, y el codigo
+  // lo pone el BFF unicamente en los errores que valia la pena registrar: un 422 de formulario o un
+  // 401 de sesion no llegan aca con uno. Un 5xx que llega sin codigo lo registra el navegador.
+  if (incidente !== undefined) {
+    avisarError({ mensaje, incidente })
+  } else {
+    await registrarFallaSinIncidente(respuesta, cuerpo, mensaje, peticion)
+  }
+
+  return mensaje
 }
 
 /**
@@ -85,7 +92,7 @@ export async function mensajeDeRespuesta (respuesta: Response): Promise<string> 
 export async function pedirSobre<T> (ruta: string, senal: AbortSignal): Promise<Sobre<T>> {
   const respuesta = await pedirRespuesta(ruta, senal)
 
-  if (!respuesta.ok) throw new Error(await mensajeDeRespuesta(respuesta))
+  if (!respuesta.ok) throw new Error(await mensajeDeRespuesta(respuesta, { metodo: 'GET', ruta: `/api/bff/${ruta}` }))
 
   return await respuesta.json() as Sobre<T>
 }
