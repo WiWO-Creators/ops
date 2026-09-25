@@ -142,6 +142,8 @@ interface PropsDetalle {
    * misma que `puedeEditar`: se puede corregir un acta sin poder crear trabajo en el Espacio.
    */
   puedeCrearTareas?: boolean
+  /** El acta se acaba de generar: sus tareas propuestas se abren y se traen a la vista. */
+  destacarTareas?: boolean
   onCambiada: (acta: Acta) => void
   onBorrada: () => void
   onVolver: () => void
@@ -155,6 +157,7 @@ export function DetalleActa ({
   puedeBorrar = false,
   conIa = false,
   puedeCrearTareas = false,
+  destacarTareas = false,
   onCambiada,
   onBorrada,
   onVolver
@@ -746,6 +749,7 @@ export function DetalleActa ({
           actaId={acta.id}
           puedeCrear={puedeCrearTareas}
           conIa={conIa}
+          destacar={destacarTareas}
         />
       )}
 

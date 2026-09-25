@@ -55,6 +55,13 @@ export const NOVEDADES: Novedad[] = [
   {
     fecha: '2026-09-25',
     tipo: 'mejora',
+    titulo: 'El Meeting Paper te muestra sus tareas apenas termina',
+    detalle: 'Al terminar de escribir un Meeting Paper, la pantalla baja sola a las tareas que la IA encontró en él, para que las revises y crees las que correspondan. Los Meeting Papers anteriores tienen un botón "Analizar buscando tareas", y el Thinking Orb también puede analizarlos y proponértelas. Ninguna tarea se crea sin tu confirmación.',
+    commits: []
+  },
+  {
+    fecha: '2026-09-25',
+    tipo: 'mejora',
     titulo: 'El Upselling se edita completo desde su ficha',
     detalle: 'Editar ahora junta en un solo formulario el nombre, las fechas, las horas y la descripción del proyecto con el monto, la moneda, la probabilidad y las notas de la oportunidad. Se puede corregir también después de ganarla o perderla, y hay un botón para eliminar la que no debió crearse.',
     commits: []

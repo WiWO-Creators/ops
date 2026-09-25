@@ -134,7 +134,7 @@ export interface MetaDePropuestas {
   origen_ia: boolean
 }
 
-/** Respuesta del listado y de "Volver a proponer": las dos tienen la misma forma. */
+/** Respuesta del listado y de "Analizar buscando tareas": las dos tienen la misma forma. */
 export interface PropuestasDelActa {
   items: PropuestaDeTarea[]
   meta: MetaDePropuestas
