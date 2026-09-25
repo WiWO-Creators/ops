@@ -376,6 +376,13 @@ export function DetalleTarea (
                 : tarea.milestone?.name ?? SIN_DATO}
             </Dato>
           )}
+          {/* Solo en las tareas importadas. Es texto y no enlace: el proyecto de origen suele
+              borrarse despues de importar, y un enlace a algo que ya no existe es un 404. */}
+          {tarea.imported_from !== undefined && tarea.imported_from !== null && (
+            <Dato etiqueta="Importada de">
+              <span className="block truncate" title={tarea.imported_from.project_name}>{tarea.imported_from.project_name}</span>
+            </Dato>
+          )}
           <Dato etiqueta="Inicio"><Fecha valor={tarea.start_date} /></Dato>
           <Dato etiqueta="Entrega"><Fecha valor={tarea.due_date} comoVencimiento /></Dato>
           {tarea.assignees !== undefined && (

@@ -83,6 +83,13 @@ export const NOVEDADES: Novedad[] = [
   {
     fecha: '2026-09-25',
     tipo: 'mejora',
+    titulo: 'Importar Tareas de otro Proyecto ya no exige un Hito',
+    detalle: 'Por defecto entran sueltas. Si quieres agruparlas, eliges un Hito o escribes el nombre de uno nuevo y se crea al importar. Cada Tarea importada muestra de qué Proyecto vino, aunque ese Proyecto después se borre.',
+    commits: ['board@4b7e49d']
+  },
+  {
+    fecha: '2026-09-25',
+    tipo: 'mejora',
     titulo: 'La hora de "¿Estás ahí?" se configura en Administración',
     detalle: 'Los superadministradores tienen una pestaña Jornada para encender la pregunta, fijar su hora y los minutos entre preguntas.',
     commits: ['ops-v2@2fb63f6']

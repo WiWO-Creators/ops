@@ -267,6 +267,11 @@ export interface ProcesoDeFicha {
   description?: string | null
   project?: Referencia | null
   milestone?: Referencia | null
+  /**
+   * El Proyecto del que se importó, como texto guardado al importar: el origen suele borrarse
+   * despues, asi que no es un enlace. `null` si no se importó. No llega al portal.
+   */
+  imported_from?: { project_id: number, project_name: string } | null
   /** Cada asignado trae quién lo asignó. En el portal solo llegan id, nombre y foto. */
   assignees?: AsignadoConAutoria[]
   /** Quién creó la Tarea. No llega al portal. */
