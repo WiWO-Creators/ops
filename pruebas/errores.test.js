@@ -88,3 +88,18 @@ test('los motivos del organigrama llegan en castellano y apuntando al campo', ()
     /Quien dirige no existe\.$/
   )
 })
+
+test('los errores de Drive no repiten el motivo que el mensaje ya dice', () => {
+  assert.equal(
+    mensajeConDetalles({ message: 'El archivo supera el máximo de 25 MB.', details: { file: ['too_large'] } }),
+    'El archivo supera el máximo de 25 MB.'
+  )
+  assert.equal(
+    mensajeConDetalles({ message: 'Google rechazó mover el archivo.', details: { drive: ['cannotMoveTrashedItem'] } }),
+    'Google rechazó mover el archivo.'
+  )
+  assert.equal(
+    mensajeConDetalles({ message: 'Ya están en esa carpeta.', details: { parent_id: ['same_folder'] } }),
+    'Ya están en esa carpeta.'
+  )
+})

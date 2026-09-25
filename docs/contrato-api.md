@@ -1015,8 +1015,8 @@ BFF, que sí puede poner la cabecera.
 ### `drive` — árbol de carpetas en el Drive compartido
 
 `GET /clients/{id}/drive` · `GET /projects/{id}/drive` · `GET /drive/{folder_id}` ·
-`PATCH /clients/{id}/drive` · `POST /drive/{folder_id}/folders` ·
-`PATCH|DELETE /drive/{folder_id}/files/{item_id}`
+`PATCH /clients/{id}/drive` · `POST /drive/{folder_id}/folders` · `POST /drive/{folder_id}/files` ·
+`POST /drive/{folder_id}/move` · `PATCH|DELETE /drive/{folder_id}/files/{item_id}`
 
 Jerarquía Cliente → Espacio (Proyecto de Perfex) → Proceso, con una carpeta real en un Drive
 compartido de Google por cada uno. Las crea sola `wiwo_core` (módulo del panel, no la API) al dar de
@@ -1107,6 +1107,67 @@ o el destino es el propio item o cuelga de él.
 
 `DELETE /drive/{folder_id}/files/{item_id}` → `204` sirve también para carpetas no `locked`, y manda a
 la **papelera** de Drive (recuperable 30 días), no borra en forma permanente. `409` si es `locked`.
+
+**Explorador: metadatos, migas y traslado en lote (2026-09-25).** Lo pide el explorador de la pestaña
+Archivos (`ExploradorDrive.tsx`), que navega carpeta por carpeta y deja arrastrar. **Todos los campos
+nuevos son opcionales para el frontend**: sin ellos la pantalla funciona igual, con menos datos.
+
+`GET /drive/{folder_id}` suma `breadcrumbs: [{ id, name }]`, la ruta desde la carpeta raíz de la
+entidad hasta la pedida, ambas incluidas (en la raíz, un solo paso). Cada hijo suma
+`modified_time` (ISO 8601 | `null`), `mime_type` (también en carpetas:
+`application/vnd.google-apps.folder`), `size_bytes` (`int | null`; `null` en carpetas y en documentos
+nativos de Google), `icon_link` (`string | null`, el ícono que propone Drive; el frontend dibuja el
+suyo) y, en archivos, `uploaded_by` (`{ id, name } | null`). El frontend ignora el nombre del primer
+paso de `breadcrumbs` y muestra "Drive del Proyecto" (o del Cliente, o de la Tarea).
+
+```json
+// GET /drive/{folder_id} — 200
+{ "data": { "can_write": true,
+  "breadcrumbs": [ { "id": "1Xy...", "name": "ACM-001 - Sitio nuevo" }, { "id": "1Ab...", "name": "01_Bases" } ],
+  "children": [
+    { "id": "1Ef...", "name": "Bases técnicas.pdf", "is_folder": false, "locked": false,
+      "web_view_link": "https://drive.google.com/...", "mime_type": "application/pdf", "size_bytes": 2457600,
+      "modified_time": "2026-09-02T13:20:00Z", "icon_link": null, "uploaded_by": { "id": 12, "name": "Ana Pérez" } }
+  ] } }
+```
+
+`POST /drive/{folder_id}/move` con `{ "item_ids": string[], "parent_id": string }` mueve varios hijos
+directos de `folder_id` a `parent_id` en un pedido. `item_ids` lleva de 1 a 50 ids. → `200` con
+`{ "moved": string[], "failed": [{ "id", "error", "status" }] }`: cada item se resuelve por separado y
+lo que falla (`404` no es hijo de `folder_id`, `409` `locked`, `422` el destino es el item o cuelga de
+él, `403` Drive no lo deja mover —por ejemplo, un archivo cuyo dueño está fuera de la unidad
+compartida—) queda en `failed` con el status que habría tenido solo, sin frenar al resto. El pedido
+entero responde `422` si el cuerpo no es válido, `404` si `folder_id` o `parent_id` no existen y
+`403` si quien pide no puede escribir en alguna de las dos carpetas. Con un solo item el frontend
+sigue usando el `PATCH`; si esta ruta responde `404` (backend anterior), cae al `PATCH` item por item.
+
+```json
+// POST /drive/{folder_id}/move — 200
+{ "data": { "moved": ["1Ef..."], "failed": [ { "id": "1Gh...", "error": "Drive no deja moverlo: su dueño está fuera de la unidad compartida.", "status": 403 } ] } }
+```
+
+**Lo que agregó el backend al implementarlo (2026-09-25):**
+
+- `POST /drive/{folder_id}/folders` devuelve el nodo completo, con la misma forma que un hijo de
+  `GET /drive/{folder_id}`. Si ya hay una carpeta **hermana** con ese nombre responde `409 conflict`; el
+  frontend lo muestra junto al campo como "Ya existe una carpeta con ese nombre." (además, antes de
+  mandar, ya avisa si el nombre choca con algo que tiene a la vista).
+- `POST /drive/{folder_id}/move` con `parent_id` igual a `folder_id` responde `422 validation_failed`
+  con `details.parent_id: ["same_folder"]`. El frontend no lo manda nunca: la carpeta de origen no se
+  resalta como destino ni se ofrece en "Mover a…".
+- `GET /{clients|projects|tasks}/{id}/drive`: `folder` suma `error` (`string | null`). Con un texto,
+  Drive no respondió y `children` viene `[]`: el explorador lo muestra como error con **Reintentar**
+  (que pide `GET /drive/{folder_id}`), no como carpeta vacía.
+- Errores nuevos en cualquier ruta de `drive`: `503 service_unavailable` ("Google Drive no responde,
+  intenta de nuevo") —la carga ofrece Reintentar y la subida deja reintentar el archivo—;
+  `422` con `details.file: ["too_large"]` en la subida —sale como error de ese archivo—; y `422` con
+  `details.drive: [reason]` cuando Google rechaza la operación —se muestra el mensaje en el aviso de
+  la operación—.
+
+**Carpetas de Tarea como destino.** Una carpeta `locked` sigue sin renombrarse, moverse ni borrarse,
+pero quien puede escribir en el Proyecto también puede escribir **dentro** (subir, crear, mover hacia
+ella): su `GET /drive/{folder_id}` trae `can_write: true` para esa persona. Lo decide el backend: el
+frontend la ofrece como destino siempre y muestra el `403` si llega.
 
 **Permisos manuales, solo en carpetas de Tarea (Proceso).** Cliente y Espacio no los soportan.
 

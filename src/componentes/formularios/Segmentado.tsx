@@ -2,7 +2,7 @@
 
 import { useRef, type ReactElement } from 'react'
 import Link from 'next/link'
-import { CalendarDays, Columns3, LayoutGrid, Network, Table2 } from 'lucide-react'
+import { CalendarDays, Columns3, LayoutGrid, List, Network, Table2 } from 'lucide-react'
 import { cn } from '@/lib/clases'
 
 /**
@@ -15,6 +15,7 @@ import { cn } from '@/lib/clases'
  */
 const ICONOS = {
   tabla: Table2,
+  lista: List,
   tablero: Columns3,
   tarjetas: LayoutGrid,
   calendario: CalendarDays,
