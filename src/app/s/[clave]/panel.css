@@ -7,7 +7,10 @@
   --peligro: #f2b705;
   --hueso: #b9c4b4;
 
-  min-height: 100dvh;
+  /* El body no scrollea (globals.css) y esta ruta vive fuera de ScrollSuave: el scroll es propio. */
+  height: 100dvh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
   background: #05070a;
   color: var(--hueso);
   font-family: 'Tomorrow', ui-monospace, monospace;
