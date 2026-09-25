@@ -3,6 +3,7 @@ import { MODELOS_DE_SERVICIO } from '../../definiciones/licitaciones.ts'
 import { LARGO_MAXIMO_ENLACE, revisarEnlaceDePresentacion } from '../../dominio/presentacion-licitacion.ts'
 import { GLOSARIO } from '../../dominio/glosario.ts'
 import { EMPRESAS_DEL_HOLDING } from '../../dominio/holding.ts'
+import { partirEdicionCombinada } from '../proyecto/edicion-combinada.ts'
 
 /**
  * Campos del formulario de alta de una Licitacion.
@@ -163,10 +164,8 @@ export interface EdicionDeLicitacion {
 /**
  * Parte el cuerpo del formulario de edicion en lo que va a cada ruta, con solo lo que cambio.
  *
- * `cuerpoDelFormulario` ya anida las claves `espacio.*` bajo `espacio`; esto las separa y descarta
- * lo que quedo igual que al abrir. Mandar solo lo cambiado importa por dos cosas: si una de las dos
- * peticiones falla, reintentar no reescribe lo que ya se guardo; y una descripcion con formato que
- * nadie toco no se pisa con su version en texto plano.
+ * El reparto lo hace `partirEdicionCombinada`, el mismo que usa el Upsell; esto solo fija las claves
+ * propias y el nombre del bloque.
  *
  * @param cuerpo El cuerpo armado con `camposDeEdicionDeLicitacion` y lo que hay escrito.
  * @param inicial El mismo cuerpo armado con los valores con que se abrio el formulario.
@@ -176,42 +175,9 @@ export function partirEdicionDeLicitacion (
   cuerpo: Record<string, unknown>,
   inicial: Record<string, unknown>
 ): EdicionDeLicitacion {
-  return {
-    licitacion: cambiados(cuerpo, inicial, CAMPOS_EDITABLES),
-    espacio: cambiados(anidado(cuerpo), anidado(inicial), null)
-  }
-}
+  const { propios, espacio } = partirEdicionCombinada(cuerpo, inicial, CAMPOS_EDITABLES)
 
-/**
- * Las claves de `cuerpo` cuyo valor difiere del de `inicial`.
- *
- * @param cuerpo Lo que se va a mandar.
- * @param inicial Lo que habia al abrir.
- * @param permitidas Las claves que se aceptan, o `null` para todas.
- * @returns Las claves cambiadas, o `null` si no cambio ninguna.
- */
-function cambiados (
-  cuerpo: Record<string, unknown>,
-  inicial: Record<string, unknown>,
-  permitidas: string[] | null
-): Record<string, unknown> | null {
-  const entradas = Object.entries(cuerpo).filter(([clave, valor]) =>
-    (permitidas === null || permitidas.includes(clave)) && valor !== inicial[clave]
-  )
-
-  return entradas.length > 0 ? Object.fromEntries(entradas) : null
-}
-
-/**
- * El bloque `espacio` de un cuerpo, o un objeto vacio si no viene.
- *
- * @param cuerpo Un cuerpo armado por `cuerpoDelFormulario`.
- * @returns Los campos del Espacio.
- */
-function anidado (cuerpo: Record<string, unknown>): Record<string, unknown> {
-  return typeof cuerpo.espacio === 'object' && cuerpo.espacio !== null
-    ? cuerpo.espacio as Record<string, unknown>
-    : {}
+  return { licitacion: propios, espacio }
 }
 
 /**

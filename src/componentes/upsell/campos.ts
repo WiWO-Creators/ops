@@ -1,6 +1,7 @@
 import type { CampoFormulario, OpcionCampo } from '@/componentes/proyecto/formulario'
-import { TIPOS_DE_FACTURACION } from '@/definiciones/espacios'
-import { GLOSARIO } from '@/dominio/glosario'
+import { TIPOS_DE_FACTURACION } from '../../definiciones/espacios.ts'
+import { GLOSARIO } from '../../dominio/glosario.ts'
+import { partirEdicionCombinada, type EdicionCombinada } from '../proyecto/edicion-combinada.ts'
 
 /**
  * Campos de los formularios de Upsell.
@@ -10,7 +11,13 @@ import { GLOSARIO } from '@/dominio/glosario'
  *
  * Los campos propios de la oportunidad van PLANOS y los del Espacio anidados bajo `espacio.`:
  * `cuerpoDelFormulario` convierte las claves con punto en el objeto que espera `POST /upsells`.
+ *
+ * Las importaciones son relativas y no por alias para que `node --test` pueda cargarlo sin resolver
+ * `@/`: el alias solo sobrevive en los `import type`, que el intérprete borra.
  */
+
+/** Las claves que acepta `PATCH /upsells/{id}`: espejo de `Upsell::CAMPOS`. */
+const CAMPOS_EDITABLES = ['monto_estimado', 'moneda_id', 'probabilidad', 'motivo'] as const
 
 /** Largos maximos, tomados de las columnas. */
 const LARGOS = {
@@ -23,7 +30,7 @@ const LARGOS = {
  *
  * Describen la VENTA que se persigue, no el presupuesto del trabajo: para eso el Espacio ya tiene
  * `project_cost`, y es lo que se factura si se gana. `motivo` no esta acá: se escribe al cerrar,
- * desde el diálogo de confirmación, porque despues el `PATCH` responde 409.
+ * desde el diálogo de confirmación, y la edicion lo ofrece aparte para corregirlo.
  *
  * @param monedas Catalogo `currencies` de `GET /lookups`.
  * @returns Los tres campos de la seccion "Oportunidad".
@@ -35,10 +42,11 @@ export function camposDeOportunidad (monedas: OpcionCampo[]): CampoFormulario[] 
       etiqueta: 'Monto estimado',
       tipo: 'numero',
       ayuda: 'Lo que se espera vender. Vacío es «todavía no se sabe».',
+      validar: errorDelMonto,
       seccion: 'Oportunidad'
     },
     { clave: 'moneda_id', etiqueta: 'Moneda', tipo: 'seleccion', opciones: monedas },
-    { clave: 'probabilidad', etiqueta: 'Probabilidad (%)', tipo: 'numero', ayuda: 'De 0 a 100.' }
+    { clave: 'probabilidad', etiqueta: 'Probabilidad (%)', tipo: 'numero', ayuda: 'De 0 a 100.', validar: errorDeLaProbabilidad }
   ]
 }
 
@@ -82,18 +90,104 @@ export function camposDeUpsell (clientes: OpcionCampo[], monedas: OpcionCampo[])
 }
 
 /**
- * Campos de la **edicion** de un Upsell: solo lo propio de la oportunidad, mas el motivo.
+ * Campos de la **edicion** de un Upsell: todo lo que se puede cambiar, en un solo formulario.
  *
- * `PATCH /upsells/{id}` acepta solo esos cuatro, y **responde 409 en cuanto la oportunidad se
- * cierra**. Lo del Espacio —cliente, nombre, fechas, estado, descripcion— se edita donde siempre,
- * con `PATCH /projects/{id}`.
+ * Son dos recursos detras de una misma pantalla, como en la licitacion: los propios van a
+ * `PATCH /upsells/{id}` y los del Espacio (`espacio.*`) a `PATCH /projects/{id}`; el reparto lo hace
+ * `partirEdicionDeUpsell`. Salen de `camposDeUpsell` y no de una lista aparte para que el alta y la
+ * edicion no puedan ofrecer opciones ni reglas distintas del mismo campo.
+ *
+ * No se editan el cliente ni la facturacion: `PATCH /projects/{id}` los rechaza, y mover la
+ * oportunidad a otro cliente arrastraria contactos y portal ajenos. Se edita en cualquier estado:
+ * corregir el monto de una oportunidad ya ganada es un caso real.
  *
  * @param monedas Catalogo `currencies` de `GET /lookups`.
- * @returns Los cuatro campos editables.
+ * @param conEspacio `false` cuando el Espacio esta archivado —un upsell perdido lo archiva— y la API
+ *   rechazaria cualquier cambio: entonces solo se ofrece lo propio.
+ * @returns Los campos en bloques: el Espacio (si aplica), la oportunidad y el seguimiento.
  */
-export function camposDeEdicionDeUpsell (monedas: OpcionCampo[]): CampoFormulario[] {
-  return [
-    ...camposDeOportunidad(monedas),
-    { clave: 'motivo', etiqueta: 'Notas del resultado', tipo: 'texto', maximo: LARGOS.motivo }
+export function camposDeEdicionDeUpsell (monedas: OpcionCampo[], conEspacio: boolean): CampoFormulario[] {
+  const delAlta = new Map(camposDeUpsell([], monedas).map(({ seccion: _seccion, ...campo }) => [campo.clave, campo]))
+  const horas: CampoFormulario = {
+    clave: 'espacio.estimated_hours',
+    etiqueta: 'Horas estimadas',
+    tipo: 'numero',
+    validar: errorDeLasHoras
+  }
+  const motivo: CampoFormulario = {
+    clave: 'motivo',
+    etiqueta: 'Notas del resultado',
+    tipo: 'texto',
+    maximo: LARGOS.motivo,
+    ayuda: 'Por qué se ganó o se perdió. Se completa al cerrar, y acá se corrige.'
+  }
+  const bloques: Array<[string, CampoFormulario[]]> = [
+    [GLOSARIO.espacio.singular, conEspacio
+      ? [...deLista(delAlta, ['espacio.name', 'espacio.start_date', 'espacio.deadline']), horas, ...deLista(delAlta, ['espacio.description'])]
+      : []],
+    ['Oportunidad', deLista(delAlta, ['monto_estimado', 'moneda_id', 'probabilidad'])],
+    ['Seguimiento', [motivo]]
   ]
+
+  return bloques.flatMap(([seccion, campos]) => campos.map((campo, indice) => indice === 0 ? { ...campo, seccion } : campo))
+}
+
+/**
+ * Parte el cuerpo del formulario de edicion en lo que va a cada ruta, con solo lo que cambio.
+ *
+ * @param cuerpo El cuerpo armado con `camposDeEdicionDeUpsell` y lo que hay escrito.
+ * @param inicial El mismo cuerpo armado con los valores con que se abrio el formulario.
+ * @returns El cuerpo de cada `PATCH`, o `null` en el que no hay nada que mandar.
+ */
+export function partirEdicionDeUpsell (cuerpo: Record<string, unknown>, inicial: Record<string, unknown>): EdicionCombinada {
+  return partirEdicionCombinada(cuerpo, inicial, CAMPOS_EDITABLES)
+}
+
+/**
+ * Los campos de `lista` con esas claves, en ese orden; los que no esten se saltan.
+ *
+ * @param lista Los campos del alta, por clave.
+ * @param claves Las claves a tomar.
+ * @returns Los campos encontrados.
+ */
+function deLista (lista: Map<string, CampoFormulario>, claves: string[]): CampoFormulario[] {
+  return claves.flatMap((clave) => {
+    const campo = lista.get(clave)
+
+    return campo === undefined ? [] : [campo]
+  })
+}
+
+/**
+ * Regla del monto: la misma que aplica `Upsell::validarPropios`.
+ *
+ * @param texto Lo escrito, ya sin espacios a los lados y ya comprobado como numero.
+ * @returns El mensaje, o `null` si sirve.
+ */
+export function errorDelMonto (texto: string): string | null {
+  return Number(texto) < 0 ? 'No puede ser negativo.' : null
+}
+
+/**
+ * Regla de la probabilidad: un entero de 0 a 100, como exige la API.
+ *
+ * @param texto Lo escrito, ya sin espacios a los lados y ya comprobado como numero.
+ * @returns El mensaje, o `null` si sirve.
+ */
+export function errorDeLaProbabilidad (texto: string): string | null {
+  const valor = Number(texto)
+
+  if (!Number.isInteger(valor)) return 'Tiene que ser un número entero.'
+
+  return valor < 0 || valor > 100 ? 'Tiene que estar entre 0 y 100.' : null
+}
+
+/**
+ * Regla de las horas estimadas: no pueden ser negativas.
+ *
+ * @param texto Lo escrito, ya sin espacios a los lados y ya comprobado como numero.
+ * @returns El mensaje, o `null` si sirve.
+ */
+function errorDeLasHoras (texto: string): string | null {
+  return Number(texto) < 0 ? 'No pueden ser negativas.' : null
 }

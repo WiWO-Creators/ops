@@ -54,6 +54,13 @@ export const ROTULO_TIPO: Record<TipoNovedad, string> = {
 export const NOVEDADES: Novedad[] = [
   {
     fecha: '2026-09-25',
+    tipo: 'mejora',
+    titulo: 'El Upselling se edita completo desde su ficha',
+    detalle: 'Editar ahora junta en un solo formulario el nombre, las fechas, las horas y la descripción del proyecto con el monto, la moneda, la probabilidad y las notas de la oportunidad. Se puede corregir también después de ganarla o perderla, y hay un botón para eliminar la que no debió crearse.',
+    commits: []
+  },
+  {
+    fecha: '2026-09-25',
     tipo: 'nuevo',
     titulo: 'Cada recurrencia muestra las tareas que generó y avisa cuando nadie las usa',
     detalle: 'En Tareas recurrentes, "Ver copias" lista cada tarea generada y si alguien la usó: cambios de estado, comentarios, tiempo, archivos o checklist. La vista "Sin uso" junta las reglas con varias copias seguidas sin movimiento, y un administrador puede mandar esas copias a la papelera y, de paso, pausar o dejar de repetir la regla. La ficha de cada copia dice qué recurrencia la creó.',
