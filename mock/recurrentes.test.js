@@ -33,7 +33,7 @@ after(() => new Promise((resolver) => servidor.close(resolver)))
 const CLAVES_API = [
   'assignees', 'client', 'copies_count', 'cycles', 'frequency_label', 'id', 'last_copy', 'name', 'next_date',
   'paused', 'paused_at', 'project', 'recurring_type', 'recurring_until', 'repeat_every', 'skip_weekdays', 'start_date',
-  'state', 'status', 'total_cycles'
+  'state', 'status', 'total_cycles', 'usage'
 ]
 
 test('el listado trae las reglas con la forma exacta de la API, ordenadas por estado', async () => {

@@ -351,12 +351,15 @@ export function previaDeRegla (cuerpo, { procesos, hoy }) {
   }
 }
 
-/** `RecursoRecurrentes::estado()`. Una regla pausada que ya cumplio su fin es terminada, no pausada. */
+/**
+ * `RecursoRecurrentes::estado()`, en su mismo orden: sin calcular, completada, pausada, terminada y
+ * despues atrasada o activa. Una regla pausada es `pausada` aunque ya haya cumplido su fin.
+ */
 function estadoDe (tarea, proxima, hoy) {
   if (!NOMBRES[tarea.recurring_type] || !(tarea.last_recurring_date ?? tarea.start_date)) return 'sin_calcular'
   if (tarea.status === 5) return 'suspendida'
-  if (proxima === null) return 'terminada'
   if (tarea.recurring_paused === true) return 'pausada'
+  if (proxima === null) return 'terminada'
 
   return proxima < hoy ? 'atrasada' : 'activa'
 }
@@ -414,9 +417,10 @@ function filtroEntero (parametros, clave) {
  *
  * @param {object[]} procesos
  * @param {URLSearchParams} parametros
- * @param {{ staff: object[], espacios: object[], clientes: object[], hoy: string }} contexto
+ * @param {{ staff: object[], espacios: object[], clientes: object[], hoy: string,
+ *           uso: (madre: object) => object }} contexto `uso` arma el `usage` de cada regla
  */
-export function listarRecurrentes (procesos, parametros, { staff, espacios, clientes, hoy }) {
+export function listarRecurrentes (procesos, parametros, { staff, espacios, clientes, hoy, uso }) {
   const proyecto = filtroEntero(parametros, 'project_id')
   const persona = filtroEntero(parametros, 'assignee')
   const area = filtroEntero(parametros, 'area')
@@ -452,6 +456,7 @@ export function listarRecurrentes (procesos, parametros, { staff, espacios, clie
         paused: pausada,
         paused_at: pausada ? p.recurring_paused_at ?? null : null,
         next_date: pausada ? null : proxima,
+        usage: uso(p),
         state: estadoDe(p, proxima, hoy),
         last_copy: ultima === null
           ? null

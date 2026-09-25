@@ -2318,7 +2318,7 @@ paginar; `meta.total`. Filtros enteros (`422 integer` si no): `filter[project_id
 
 - `next_date`: la proxima copia, con la aritmetica del cron. Anterior a hoy = la copia no salio.
 - `state`: `activa`, `atrasada` (next_date < hoy), `pausada` (`recurring_paused`; `next_date` va en
-  `null`), `terminada` (ciclos o fecha cumplidos; gana sobre `pausada`), `suspendida` (la madre esta
+  `null`), `terminada` (ciclos o fecha cumplidos; una pausada sigue siendo `pausada`), `suspendida` (la madre esta
   Completa) o `sin_calcular` (sin unidad o sin fecha base). Orden: `sin_calcular`, `atrasada`,
   `activa`, `pausada`, `terminada`, `suspendida`; dentro de cada uno, por `next_date`.
 - `frequency_label` incluye la exclusion: "Cada día, salvo sábado y domingo".

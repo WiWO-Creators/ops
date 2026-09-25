@@ -20,6 +20,7 @@ import {
   aplicarRecurrenciaDelParche, errorDeDiasExcluidos, importarRecurrentes, listarRecurrentes, previaDeRegla, sembrarRecurrentes,
   validarRecurrenciaDelParche
 } from './recurrentes.js'
+import { limpiarCopias, listarCopias, marcarEditada, sembrarCopias, usoDe } from './copias-recurrentes.js'
 import { avisosRuta } from './avisos.js'
 import { altaDelPortal, esAccionDelPortal, ticketDelPortal, ticketsDelEquipo } from './tickets.js'
 import { esPrincipal, filaDelPortal, listadosDeTickets, ticketsDelResumen } from './tickets-listados.js'
@@ -50,6 +51,21 @@ const ESPACIOS_EXISTENTES = [...ESPACIOS, ...ESPACIOS_DE_LICITACION]
 
 // Unas cuantas Tareas recurrentes, una por estado, para que `/procesos/recurrentes` tenga que mostrar.
 sembrarRecurrentes(PROCESOS, new Date().toISOString().slice(0, 10))
+// Y el historial de copias: una regla sin uso y una con copias tocadas y sin tocar.
+sembrarCopias(PROCESOS, new Date().toISOString().slice(0, 10))
+
+/**
+ * Lo que las copias necesitan para saber si alguien las toco, y la fecha de hoy.
+ *
+ * Funcion y no constante: `hoy` tiene que ser el del momento del pedido, y las listas se leen vivas.
+ */
+function contextoDeCopias () {
+  return {
+    procesos: PROCESOS,
+    fuentes: { comentarios: COMENTARIOS, cronometros: CRONOMETROS, archivos: ARCHIVOS, checklist: CHECKLIST },
+    hoy: new Date().toISOString().slice(0, 10)
+  }
+}
 
 /** Un tipo por espacio permite comprobar pertenencia sin duplicar catálogos de producción. */
 const TIPOS_PROCESO = ESPACIOS_EXISTENTES.map((espacio) => ({
@@ -890,6 +906,7 @@ function crearProceso (entrada, autor) {
     skip_weekdays: recurrente && Array.isArray(entrada.skip_weekdays) ? [...entrada.skip_weekdays].sort((a, b) => a - b) : [],
     recurring_paused: false,
     recurring_paused_at: null,
+    recurring_from_id: null,
     kanban_order: Math.max(0, ...PROCESOS.filter((p) => p.status === Number(estado)).map((p) => p.kanban_order)) + 1,
     assignees: asignados.map((s) => ({
       id: s.id,
@@ -955,9 +972,40 @@ function resolverStaff (valor, detalles, clave) {
 async function rutaDeRecurrentes (metodo, resto, parametros, actual, cuerpo) {
   if (metodo === 'GET' && resto.length === 1) {
     const reglas = listarRecurrentes(PROCESOS, parametros, {
-      staff: STAFF, espacios: ESPACIOS_EXISTENTES, clientes: CLIENTES, hoy: new Date().toISOString().slice(0, 10)
+      staff: STAFF,
+      espacios: ESPACIOS_EXISTENTES,
+      clientes: CLIENTES,
+      hoy: new Date().toISOString().slice(0, 10),
+      uso: (madre) => usoDe(madre, contextoDeCopias())
     })
     return { estado: 200, cuerpo: conDatos(reglas, { total: reglas.length }) }
+  }
+
+  // `/recurrentes/{id}/copias` y `/limpiar`: la regla tiene que existir y seguir siendo recurrente.
+  // Sin eso es 404, igual que una regla que la persona no ve.
+  if (/^\d+$/.test(resto[1] ?? '') && resto.length === 3) {
+    exigirPermiso(actual, 'tasks', 'view')
+    const madre = PROCESOS.find((p) => p.id === Number(resto[1]) && p.recurring === true)
+    if (!madre) throw new ErrorApi(404, 'not_found', 'No existe esa regla recurrente.')
+
+    if (metodo === 'GET' && resto[2] === 'copias') {
+      const { filas, total } = listarCopias(madre, contextoDeCopias())
+      return { estado: 200, cuerpo: conDatos(filas, { total }) }
+    }
+    if (metodo === 'POST' && resto[2] === 'limpiar') {
+      const hoy = new Date().toISOString().slice(0, 10)
+      const ahora = new Date().toISOString().replace(/\.\d{3}Z$/, 'Z')
+      const resultado = limpiarCopias(madre, await cuerpo(), {
+        ...contextoDeCopias(),
+        esAdmin: administra(actual),
+        detener: (accion) => {
+          const parche = accion === 'pausar' ? { recurring_paused: true } : { recurring: false }
+          if (accion !== 'pausar') madre.recurring = false
+          aplicarRecurrenciaDelParche(madre, parche, hoy, ahora)
+        }
+      })
+      return { estado: 200, cuerpo: conDatos(resultado) }
+    }
   }
 
   // La vista previa no escribe: basta con poder ver Tareas, igual que el listado.
@@ -7307,7 +7355,16 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
 
     if (metodo === 'GET' && !subrecurso) {
       exigirPermiso(actual, 'tasks', 'view')
-      return { estado: 200, cuerpo: conDatos(conCamposPersonalizados(proceso, 'tasks', includes)) }
+      // La constancia de la recurrencia: de quien es copia, y cuantas copias tiene si es madre.
+      const madre = proceso.is_recurring_from == null ? undefined : PROCESOS.find((p) => p.id === proceso.is_recurring_from)
+      return {
+        estado: 200,
+        cuerpo: conDatos({
+          ...conCamposPersonalizados(proceso, 'tasks', includes),
+          recurring_from: madre === undefined ? null : { id: madre.id, name: madre.name },
+          recurring_copies_count: PROCESOS.filter((p) => p.is_recurring_from === proceso.id).length
+        })
+      }
     }
     if (metodo === 'GET' && subrecurso === 'comments') {
       return { estado: 200, cuerpo: conDatos(comentariosDeTarea(proceso.id)) }
@@ -7387,6 +7444,7 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
       const directo = { ...parche }
       delete directo.recurring_paused
       Object.assign(proceso, directo)
+      marcarEditada(proceso)
       aplicarRecurrenciaDelParche(proceso, parche, new Date().toISOString().slice(0, 10), new Date().toISOString().replace(/\.\d{3}Z$/, 'Z'))
       return { estado: 200, cuerpo: conDatos(proceso) }
     }
