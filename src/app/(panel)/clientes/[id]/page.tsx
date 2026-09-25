@@ -7,6 +7,7 @@ import { RegistrarReciente } from '@/componentes/fijados/RegistrarReciente'
 import { PanelEquipoCliente } from '@/componentes/cliente/EquipoCliente'
 import { FichaCliente } from '@/componentes/cliente/FichaCliente'
 import { PanelFocalesCliente } from '@/componentes/cliente/FocalesCliente'
+import { PanelSupervisoresCliente } from '@/componentes/cliente/SupervisoresCliente'
 import { PanelContactos } from '@/componentes/cliente/PanelContactos'
 import { PanelProyectosCliente } from '@/componentes/cliente/PanelProyectosCliente'
 import { SemaforoCliente } from '@/componentes/clientes/SemaforoCliente'
@@ -194,6 +195,13 @@ export default async function ClientePage (props: PageProps<'/clientes/[id]'>) {
       clave: 'focales',
       etiqueta: GLOSARIO.focal.plural,
       contenido: <PanelFocalesCliente clienteId={cliente.id} capacidades={yo.permissions.customers} />
+    },
+    // Supervisión va aparte de Focales por lo mismo que Focales va aparte de Equipo: el Focal
+    // responde por la cuenta; el supervisor revisa cada día sus Tareas vencidas y firma la hoja.
+    {
+      clave: 'supervision',
+      etiqueta: 'Supervisión',
+      contenido: <PanelSupervisoresCliente clienteId={cliente.id} capacidades={yo.permissions.customers} />
     },
     {
       clave: 'proyectos',

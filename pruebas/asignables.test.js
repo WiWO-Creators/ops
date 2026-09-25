@@ -12,8 +12,8 @@ import { cargarAsignables, olvidarAsignables, RUTA_DE_ASIGNABLES } from '../src/
 import { rutaPermitida } from '../src/datos/rutas.ts'
 
 const PERSONAS = [
-  { id: 20, full_name: 'Ana Ríos', profile_image_url: null, area_id: 1, cargo_id: 2 },
-  { id: 31, full_name: 'Bruno Cabral', profile_image_url: null, area_id: null, cargo_id: null }
+  { id: 20, full_name: 'Ana Ríos', profile_image_url: null, area_id: 1, cargo_id: 2, escalon: 'lead' },
+  { id: 31, full_name: 'Bruno Cabral', profile_image_url: null, area_id: null, cargo_id: null, escalon: 'staff' }
 ]
 
 /** Reemplaza `fetch` por uno que cuenta llamadas y devuelve lo que se le diga. */

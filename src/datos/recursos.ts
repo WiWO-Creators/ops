@@ -1,6 +1,7 @@
 import { leerError } from './errores.ts'
 import type { StaffReferencia } from './tipos.ts'
 import type { AsignadoConAutoria } from '../dominio/autoria-tarea.ts'
+import type { Escalon } from '../dominio/escalon.ts'
 
 /**
  * Tipos de los recursos de negocio, con los nombres de campo de la API.
@@ -668,12 +669,15 @@ export interface Contacto {
  * gente distinta segun quien abriera la pantalla. Esta ruta pide solo sesion, asi que la lista es la
  * misma para todos.
  *
+ * `escalon` viene en cada fila para los selectores que filtran por jerarquia (supervisores).
  * `area_id` y `cargo_id` llegan como id pelado; sus nombres salen de `cargos` y `areas` de
  * `GET /lookups`, que el panel ya trae una vez.
  */
 export interface PersonaAsignable extends StaffReferencia {
   area_id: number | null
   cargo_id: number | null
+  /** Escalón jerárquico; con él se filtra a quién se ofrece como supervisor (lead o superior). */
+  escalon: Escalon
 }
 
 /** Miembro del equipo. `staff` queda en ingles por convencion del glosario. */
@@ -709,6 +713,11 @@ export interface MiembroEquipo {
   empresa_id: number | null
   /** Cargo "Director": gate de la seccion "Mi Área". No se deduce comparando por nombre. */
   is_director: boolean
+  /**
+   * El escalón jerárquico (`RecursoStaff::presentar()`). Opcional porque las fichas armadas a mano en
+   * pruebas no lo traen; la API lo manda siempre. Decide, por ejemplo, si la persona puede supervisar.
+   */
+  escalon?: Escalon
   phonenumber: string | null
   /** Tarifa por hora. Se usa para valorizar el tiempo registrado. */
   hourly_rate: number

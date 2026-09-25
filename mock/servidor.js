@@ -26,6 +26,7 @@ import { altaDelPortal, esAccionDelPortal, ticketDelPortal, ticketsDelEquipo } f
 import { esPrincipal, filaDelPortal, listadosDeTickets, ticketsDelResumen } from './tickets-listados.js'
 import { filtrosGuardados } from './filtros-guardados.js'
 import { analizarScope, interpretarScope, scopeRuta } from './scope.js'
+import { supervisionDelEquipo } from './supervision.js'
 import { driveDeEntidadRuta, driveRuta } from './drive.js'
 import { escribirAjustesDelOrbePortal, opcionDelOrbePortal, orbePortalRuta } from './orbe-portal.js'
 import {
@@ -6535,6 +6536,13 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
   const deTickets = await ticketsDelEquipo({ metodo, recurso, resto, cuerpo, actual })
   if (deTickets !== null) return deTickets
 
+  // La Supervisión diaria: `supervision/*`, `clients/{id}/supervisores` y `staff/{id}/supervision`.
+  // Va antes de los bloques de `clients` y `staff`, que son solo GET: un PUT caería al 404 final.
+  const deSupervision = await supervisionDelEquipo({
+    metodo, recurso, resto, parametros, cuerpo, actual, descendencia: descendenciaDePersona, exigirPermiso
+  })
+  if (deSupervision !== null) return deSupervision
+
   // --- Sesión como otra persona (`POST /impersonate`) ----------------------
   //
   // Va acá arriba y no entre los recursos: no es un recurso, es otra puerta de sesión, y la única que
@@ -6874,7 +6882,8 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
         .sort((a, b) => a.firstname.localeCompare(b.firstname))
         .map((persona) => ({
           id: persona.id, full_name: persona.full_name, profile_image_url: persona.profile_image_url,
-          area_id: persona.area_id ?? null, area_ids: areasDePersona(persona), cargo_id: persona.cargo_id ?? null
+          area_id: persona.area_id ?? null, area_ids: areasDePersona(persona), cargo_id: persona.cargo_id ?? null,
+          escalon: persona.escalon
         }))
       const { filas, paginacion } = aplicarConsulta(personas, parametros, {
         filtros: {}, orden: ['full_name'], busqueda: ['full_name']

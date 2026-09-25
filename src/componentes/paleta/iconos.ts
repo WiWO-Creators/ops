@@ -1,5 +1,5 @@
 import {
-  Building2, CalendarDays, ClipboardList, Clock, Columns3, DoorOpen, FolderKanban, Gavel, House, Inbox, LifeBuoy,
+  Building2, CalendarDays, ClipboardCheck, ClipboardList, Clock, Columns3, DoorOpen, FolderKanban, Gavel, House, Inbox, LifeBuoy,
   ListChecks, Network, Radio, Repeat, ScrollText, SlidersHorizontal, Sparkles, Star, Target, Trash2, TrendingUp, User, UserRound,
   Users, UsersRound, Video, type LucideIcon
 } from 'lucide-react'
@@ -46,6 +46,9 @@ export const ICONOS_DE_SECCION: Record<IconoSeccion, LucideIcon> = {
   // `Network` y no otro grupo de personas: Equipo y Mi Área ya son gente, y lo que distingue al
   // Organigrama es justamente la estructura — quien cuelga de quien.
   organigrama: Network,
+  // `ClipboardCheck`: la hoja del día con sus marcas. `ClipboardList` ya es Mis Tareas, que es la
+  // hoja propia sin revisar.
+  supervision: ClipboardCheck,
   // `SlidersHorizontal` y no `Mail`: la seccion dejo de ser solo el correo cuando se unificaron
   // ahi todas las opciones del superadministrador.
   administracion: SlidersHorizontal,

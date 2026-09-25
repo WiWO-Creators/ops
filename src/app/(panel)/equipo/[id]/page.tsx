@@ -11,6 +11,7 @@ import { PanelArchivosPersona } from '@/componentes/equipo/PanelArchivosPersona'
 import { PanelHistorialPersona } from '@/componentes/equipo/PanelHistorialPersona'
 import { PanelHorasPersona } from '@/componentes/equipo/PanelHorasPersona'
 import { PanelTrabajoPersona } from '@/componentes/equipo/PanelTrabajoPersona'
+import { SupervisionPersona } from '@/componentes/equipo/SupervisionPersona'
 import { Cargando, ErrorEstado, SinPermiso, Vacio } from '@/componentes/estado/Estados'
 import { Pestanas, type Panel } from '@/componentes/proyecto/Pestanas'
 import type { OpcionCampo } from '@/componentes/proyecto/formulario'
@@ -19,6 +20,7 @@ import { ErrorApi } from '@/datos/errores'
 import { cargarLookups } from '@/datos/lookups'
 import { pedir } from '@/datos/servidor'
 import { GLOSARIO } from '@/dominio/glosario'
+import { alcanzaParaSupervisar } from '@/dominio/supervision'
 import type { FichaPersona as Persona, Lookups } from '@/datos/recursos'
 import type { Yo } from '@/datos/tipos'
 
@@ -179,6 +181,17 @@ export default async function PersonaPage (props: PageProps<'/equipo/[id]'>) {
         />
       )
     },
+    // Solo para quien puede supervisar: la API rechaza con 422 asociarle clientes a alguien de
+    // escalón `staff`, y una pestaña que siempre falla es una puerta pintada.
+    ...(alcanzaParaSupervisar(persona.escalon)
+      ? [{
+          clave: 'supervision',
+          etiqueta: 'Supervisión',
+          contenido: (
+            <SupervisionPersona personaId={persona.id} nombre={persona.firstname} capacidades={capacidadesDeClientes} />
+          )
+        }]
+      : []),
     { clave: 'archivos', etiqueta: 'Archivos', contenido: <PanelArchivosPersona personaId={persona.id} /> },
     {
       clave: 'historial',

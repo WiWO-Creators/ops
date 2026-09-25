@@ -55,6 +55,13 @@ export const NOVEDADES: Novedad[] = [
   {
     fecha: '2026-09-25',
     tipo: 'nuevo',
+    titulo: 'Supervisión diaria: la hoja de tareas vencidas de tus clientes',
+    detalle: 'Si eres Lead o superior y supervisas clientes, en Equipo → Supervisión ves cada día las tareas que vencen o ya vencieron, las marcas OK o No OK con una nota y firmas la hoja. También se puede imprimir para revisarla en papel. Los supervisores de cada cliente se eligen en su ficha, pestaña Supervisión.',
+    commits: []
+  },
+  {
+    fecha: '2026-09-25',
+    tipo: 'nuevo',
     titulo: 'Papelera: lo eliminado se puede recuperar durante 30 días',
     detalle: 'Eliminar un proyecto, una tarea o un cliente ya no lo borra: lo manda a la Papelera, en el bloque Administración, donde queda 30 días invisible para todos. Desde ahí los administradores lo restauran entero o lo borran para siempre.',
     commits: ['ops-v2@4a55f91', 'board@d1ae48f']

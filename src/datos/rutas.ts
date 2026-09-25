@@ -138,6 +138,9 @@ const PREFIJOS_PERMITIDOS = [
   // porque la API los cuelga de su raiz (`/scores`, `/scores/{id}`) y no del recurso puntuado.
   'scores',
   'live',
+  // La Supervisión diaria: marcar las Tareas de la hoja y firmarla salen del navegador. Solo el
+  // panel: el portal del cliente no tiene nada que hacer con la hoja de un supervisor.
+  'supervision',
   // El organigrama de areas (`/jerarquia`): leerlo y reacomodarlo desde la pantalla de jefaturas.
   // Raiz propia porque asi lo expone la API, y por el mismo motivo que `/me/mi-area` no cuelga de
   // `/staff`: dirigir un area no otorga `staff.view`, y un jefe sin ese permiso tiene que poder
