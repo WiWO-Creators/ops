@@ -106,6 +106,14 @@ export function sembrarCopias (procesos, hoy) {
   for (const tarea of procesos) tarea.recurring_from_id = tarea.is_recurring_from ?? null
 }
 
+/**
+ * Cuantas copias genero una madre, contando las que estan en la papelera: es lo que publica
+ * `recurring_copies_count`.
+ */
+export function contarCopias (madreId, procesos) {
+  return procesos.filter((p) => p.is_recurring_from === madreId).length + PAPELERA.filter((p) => p.is_recurring_from === madreId).length
+}
+
 /** Marca una copia como editada por `PATCH`. No hace nada con una Tarea que no es copia. */
 export function marcarEditada (tarea) {
   if (tarea.is_recurring_from != null) EDITADAS.add(tarea.id)
@@ -211,8 +219,11 @@ export function usoDe (madre, contexto) {
  *
  * `validar` separa las copias vivas en candidatas (sin movimiento; la vigente marcada) y conservadas
  * (con sus motivos). `aplicar` vuelve a mirar cada id justo antes de borrar: la que alguien toco en
- * el intermedio queda en `omitidas`, no se borra. Un id que no es copia viva de esta regla es `422`
- * `{"ids": ["no_es_copia"]}`, y en ese caso no se borra ninguna.
+ * el intermedio queda en `omitidas` con `tocada`, y la que otro ya mando a la papelera, con
+ * `ya_no_disponible`. Un id que nunca fue copia de esta regla es `422` `{"ids": ["no_candidata"]}`, y
+ * en ese caso no se borra ninguna. `ids: []` (o ausente) es valido: sirve para solo detener la regla,
+ * y sin `detener` no hace nada. `detener` sobre una madre que ya no recurre es
+ * `{"detener": ["sin_recurrencia"]}`.
  *
  * @param {object} madre la Tarea madre
  * @param {unknown} cuerpo
@@ -230,14 +241,15 @@ export function limpiarCopias (madre, cuerpo, contexto) {
   if (!['validar', 'aplicar'].includes(cuerpo.modo)) detalles.modo = ['invalid']
   const detener = cuerpo.detener ?? null
   if (detener !== null && !DETENCIONES.includes(detener)) detalles.detener = ['invalid']
+  else if (detener !== null && madre.recurring !== true) detalles.detener = ['sin_recurrencia']
 
-  const vivas = copiasDe(madre.id, contexto).filter((c) => !c.borrada)
+  const todas = copiasDe(madre.id, contexto)
+  const vivas = todas.filter((c) => !c.borrada)
+  const ids = cuerpo.ids ?? []
 
   if (cuerpo.modo === 'aplicar') {
-    const ids = cuerpo.ids
-    if (!Array.isArray(ids) || ids.length === 0) detalles.ids = ['requerido']
-    else if (ids.some((id) => !Number.isInteger(id))) detalles.ids = ['invalid']
-    else if (ids.some((id) => !vivas.some((c) => c.tarea.id === id))) detalles.ids = ['no_es_copia']
+    if (!Array.isArray(ids) || ids.some((id) => !Number.isInteger(id))) detalles.ids = ['invalid']
+    else if (ids.some((id) => !todas.some((c) => c.tarea.id === id))) detalles.ids = ['no_candidata']
   }
   if (Object.keys(detalles).length > 0) throw new ErrorApi(422, 'validation_failed', 'La limpieza no es válida.', detalles)
 
@@ -252,9 +264,13 @@ export function limpiarCopias (madre, cuerpo, contexto) {
 
   const eliminadas = []
   const omitidas = []
-  for (const id of [...new Set(cuerpo.ids)]) {
+  for (const id of [...new Set(ids)]) {
     const copia = vivas.find((c) => c.tarea.id === id)
     // Revalidacion: se vuelve a calcular ahora, no se confia en lo que vio el `validar`.
+    if (copia === undefined) {
+      omitidas.push({ id, motivo: 'ya_no_disponible' })
+      continue
+    }
     if (motivosDeCopia(copia.tarea, contexto.fuentes).length > 0) {
       omitidas.push({ id, motivo: 'tocada' })
       continue

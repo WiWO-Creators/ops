@@ -10,7 +10,7 @@ import { ContenidoDialogo, Dialogo } from '@/componentes/superposiciones/Dialogo
 import { mensajeDeRespuesta } from '@/datos/cliente'
 import { mensajeDeCodigo } from '@/datos/errores'
 import {
-  cuerpoDeLimpieza, OPCIONES_DETENCION, rutaDeLimpieza, seleccionInicial, textoDeConfirmacion, textoDeOmision, textosDeMotivos,
+  cuerpoDeLimpieza, limpiezaAplicable, OPCIONES_DETENCION, rutaDeLimpieza, seleccionInicial, textoDeConfirmacion, textoDeOmision, textosDeMotivos,
   type Detencion, type ResultadoDeLimpieza, type ValidacionDeLimpieza
 } from '@/dominio/copias-recurrencia'
 import { formatearFecha } from '@/lib/fechas'
@@ -130,14 +130,15 @@ function FlujoDeLimpieza ({ regla, onCerrar }: { regla: ReglaALimpiar, onCerrar:
       <div className="flex flex-col gap-4">
         <p className="text-texto text-base font-semibold">{textoDeConfirmacion(elegidas.length)}.</p>
         <p className="text-texto-tenue text-sm">
-          Van a la papelera: no se borran de forma definitiva. Justo antes de moverlas se revisa cada una otra vez; si
-          alguien la tocó mientras tanto, se conserva.
-          {detener !== '' && ` Además: ${accion?.etiqueta.toLowerCase() ?? ''}.`}
+          {elegidas.length > 0 && 'Van a la papelera: no se borran de forma definitiva. Justo antes de moverlas se revisa cada una otra vez; si alguien la tocó mientras tanto, se conserva.'}
+          {detener !== '' && ` ${elegidas.length > 0 ? 'Además' : 'Solo se hará esto'}: ${accion?.etiqueta.toLowerCase() ?? ''}.`}
         </p>
         {error !== null && <p role="alert" className="text-texto-peligro text-sm">{error}</p>}
         <div className="flex justify-end gap-2">
           <Boton variante="secundario" disabled={enCurso} onClick={() => { setPaso({ fase: 'eligiendo', validacion }) }}>Volver</Boton>
-          <Boton variante="peligro" cargando={enCurso} onClick={() => { void aplicar(validacion) }}>Mover a la papelera</Boton>
+          <Boton variante="peligro" cargando={enCurso} onClick={() => { void aplicar(validacion) }}>
+            {elegidas.length === 0 ? accion?.etiqueta ?? 'Aplicar' : 'Mover a la papelera'}
+          </Boton>
         </div>
       </div>
     )
@@ -214,7 +215,8 @@ function FlujoDeLimpieza ({ regla, onCerrar }: { regla: ReglaALimpiar, onCerrar:
         <Boton variante="secundario" onClick={onCerrar}>Cancelar</Boton>
         <Boton
           variante="primario"
-          disabled={elegidas.length === 0}
+          // Sin marcadas se puede seguir si se pidio detener la regla: es "solo pausar".
+          disabled={!limpiezaAplicable(elegidas.length, detener)}
           onClick={() => { setError(null); setPaso({ fase: 'confirmando', validacion }) }}
         >
           Continuar
@@ -236,7 +238,9 @@ function ResultadoFinal ({ resultado, validacion, onCerrar }: {
   return (
     <div role="status" className="flex flex-col gap-4">
       <p className="text-texto text-base font-semibold">
-        {resultado.eliminadas.length === 1 ? 'Se movió 1 tarea a la papelera.' : `Se movieron ${resultado.eliminadas.length} tareas a la papelera.`}
+        {resultado.eliminadas.length === 0
+          ? 'No se movió ninguna tarea a la papelera.'
+          : resultado.eliminadas.length === 1 ? 'Se movió 1 tarea a la papelera.' : `Se movieron ${resultado.eliminadas.length} tareas a la papelera.`}
       </p>
       {resultado.eliminadas.length > 0 && (
         <ul className="text-texto-tenue flex list-disc flex-col gap-0.5 pl-5 text-sm">

@@ -83,7 +83,7 @@ test('la ficha de una copia dice de que regla es, y la de una madre cuantas copi
   assert.deepEqual(copia.recurring_from, { id: 502, name: copia.name })
   const madre = (await pedir('tasks/502')).cuerpo.data
   assert.equal(madre.recurring_from, null)
-  assert.equal(madre.recurring_copies_count, 4)
+  assert.equal(madre.recurring_copies_count, 5, 'Cuenta tambien la que esta en la papelera')
 
   const lista = (await pedir('tasks?per_page=200')).cuerpo.data
   assert.ok(lista.every((t) => Object.hasOwn(t, 'recurring_from_id')))
@@ -106,7 +106,8 @@ test('validar separa candidatas y conservadas, con la vigente marcada', async ()
 test('aplicar rechaza ids ajenos y omite la copia que alguien toco despues de validar', async () => {
   const ajeno = await pedir('tasks/recurrentes/503/limpiar', { metodo: 'POST', cuerpo: { modo: 'aplicar', ids: [9011, 9001] } })
   assert.equal(ajeno.estado, 422)
-  assert.deepEqual(ajeno.cuerpo.error.details, { ids: ['no_es_copia'] })
+  assert.deepEqual(ajeno.cuerpo.error.details, { ids: ['no_candidata'] })
+  assert.deepEqual((await pedir('tasks/recurrentes/503/limpiar', { metodo: 'POST', cuerpo: { modo: 'aplicar', ids: 'todas' } })).cuerpo.error.details, { ids: ['invalid'] })
   assert.deepEqual((await pedir('tasks/recurrentes/503/limpiar', { metodo: 'POST', cuerpo: { modo: 'aplicar', ids: [9011], detener: 'borrar' } })).cuerpo.error.details, { detener: ['invalid'] })
 
   // Entre validar y aplicar, alguien comenta la 9013.
@@ -118,6 +119,28 @@ test('aplicar rechaza ids ajenos y omite la copia que alguien toco despues de va
   assert.equal((await pedir('tasks/9011')).estado, 404, 'Salio de la lista viva')
   const copias = (await pedir('tasks/recurrentes/503/copias')).cuerpo.data
   assert.equal(copias.find((c) => c.id === 9011).deleted, true)
+})
+
+test('una copia que otro ya movio vuelve como ya_no_disponible, y ids vacio sin detener no hace nada', async () => {
+  const otraVez = await pedir('tasks/recurrentes/503/limpiar', { metodo: 'POST', cuerpo: { modo: 'aplicar', ids: [9011] } })
+  assert.equal(otraVez.estado, 200)
+  assert.deepEqual(otraVez.cuerpo.data, { eliminadas: [], omitidas: [{ id: 9011, motivo: 'ya_no_disponible' }], detenida: null })
+
+  const nada = await pedir('tasks/recurrentes/503/limpiar', { metodo: 'POST', cuerpo: { modo: 'aplicar', ids: [] } })
+  assert.equal(nada.estado, 200)
+  assert.deepEqual(nada.cuerpo.data, { eliminadas: [], omitidas: [], detenida: null })
+})
+
+test('solo detener: ids vacio deja de repetir, y detener otra vez es sin_recurrencia', async () => {
+  const deja = await pedir('tasks/recurrentes/503/limpiar', { metodo: 'POST', cuerpo: { modo: 'aplicar', ids: [], detener: 'dejar_de_repetir' } })
+  assert.equal(deja.estado, 200)
+  assert.deepEqual(deja.cuerpo.data, { eliminadas: [], omitidas: [], detenida: 'dejar_de_repetir' })
+  assert.equal((await pedir('tasks/503')).cuerpo.data.recurring, false)
+
+  const otra = await pedir('tasks/recurrentes/503/limpiar', { metodo: 'POST', cuerpo: { modo: 'aplicar', ids: [], detener: 'pausar' } })
+  assert.equal(otra.estado, 422)
+  assert.deepEqual(otra.cuerpo.error.details, { detener: ['sin_recurrencia'] })
+  assert.equal((await pedir('tasks/recurrentes/503/copias')).estado, 200, 'El historial sigue disponible')
 })
 
 test('aplicar con detener pausa la regla y deja la racha en cero', async () => {

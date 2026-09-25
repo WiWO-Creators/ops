@@ -147,14 +147,25 @@ export function cuerpoDeLimpieza (ids: readonly number[], detener: '' | Detencio
   return { modo: 'aplicar', ids: [...new Set(ids)], detener: detener === '' ? null : detener }
 }
 
-/** "Se moverá 1 tarea a la papelera" / "Se moverán 3 tareas a la papelera". */
+/** "Se moverá 1 tarea a la papelera" / "Se moverán 3 tareas a la papelera" / ninguna. */
 export function textoDeConfirmacion (cantidad: number): string {
+  if (cantidad === 0) return 'No se moverá ninguna tarea a la papelera'
+
   return cantidad === 1 ? 'Se moverá 1 tarea a la papelera' : `Se moverán ${cantidad} tareas a la papelera`
+}
+
+/**
+ * Si la limpieza tiene algo que aplicar: tareas marcadas, o al menos detener la regla. Con cero
+ * marcadas y sin detener, `aplicar` es valido pero no haria nada, asi que no se ofrece.
+ */
+export function limpiezaAplicable (marcadas: number, detener: '' | Detencion): boolean {
+  return marcadas > 0 || detener !== ''
 }
 
 /** Por que no se borro una copia marcada. */
 const MOTIVOS_DE_OMISION: Record<string, string> = {
-  tocada: 'Alguien la modificó mientras tanto.'
+  tocada: 'Alguien la modificó mientras tanto.',
+  ya_no_disponible: 'Ya no estaba disponible (otra persona la movió o la borró).'
 }
 
 /** El motivo de una omitida, en palabras. */

@@ -388,8 +388,10 @@ const FRASES_PROPIAS: Record<string, string> = {
   // excluye todos» no dice que pasaria; la frase si.
   'skip_weekdays:excluye_todos': 'No puedes excluir los siete días de la semana: la tarea nunca se generaría',
   'recurring_paused:sin_recurrencia': 'La tarea no es recurrente, así que no hay nada que pausar ni reanudar',
-  // Un id que no es copia viva de esa regla: ajena, ya borrada o inventada. No se borra ninguna.
-  'ids:no_es_copia': 'Alguna de las tareas elegidas no es una copia de esta recurrencia, o ya está en la papelera. Vuelve a revisar la lista'
+  // Un id que no es candidata de esa regla: ajena o inventada. No se mueve ninguna.
+  'ids:no_candidata': 'Alguna de las tareas elegidas no es una copia de esta recurrencia. Vuelve a revisar la lista',
+  // Pausar o dejar de repetir una madre que ya no recurre: otra persona la detuvo antes.
+  'detener:sin_recurrencia': 'La recurrencia ya no se repite, así que no hay nada que pausar ni detener'
 }
 
 /**

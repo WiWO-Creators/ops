@@ -20,7 +20,7 @@ import {
   aplicarRecurrenciaDelParche, errorDeDiasExcluidos, importarRecurrentes, listarRecurrentes, previaDeRegla, sembrarRecurrentes,
   validarRecurrenciaDelParche
 } from './recurrentes.js'
-import { limpiarCopias, listarCopias, marcarEditada, sembrarCopias, usoDe } from './copias-recurrentes.js'
+import { contarCopias, limpiarCopias, listarCopias, marcarEditada, sembrarCopias, usoDe } from './copias-recurrentes.js'
 import { avisosRuta } from './avisos.js'
 import { altaDelPortal, esAccionDelPortal, ticketDelPortal, ticketsDelEquipo } from './tickets.js'
 import { esPrincipal, filaDelPortal, listadosDeTickets, ticketsDelResumen } from './tickets-listados.js'
@@ -981,11 +981,11 @@ async function rutaDeRecurrentes (metodo, resto, parametros, actual, cuerpo) {
     return { estado: 200, cuerpo: conDatos(reglas, { total: reglas.length }) }
   }
 
-  // `/recurrentes/{id}/copias` y `/limpiar`: la regla tiene que existir y seguir siendo recurrente.
-  // Sin eso es 404, igual que una regla que la persona no ve.
+  // `/recurrentes/{id}/copias` y `/limpiar`: la madre tiene que ser recurrente o haber generado
+  // copias (una que dejo de repetir conserva su historial). Si no, 404, igual que una que no se ve.
   if (/^\d+$/.test(resto[1] ?? '') && resto.length === 3) {
     exigirPermiso(actual, 'tasks', 'view')
-    const madre = PROCESOS.find((p) => p.id === Number(resto[1]) && p.recurring === true)
+    const madre = PROCESOS.find((p) => p.id === Number(resto[1]) && (p.recurring === true || contarCopias(p.id, PROCESOS) > 0))
     if (!madre) throw new ErrorApi(404, 'not_found', 'No existe esa regla recurrente.')
 
     if (metodo === 'GET' && resto[2] === 'copias') {
@@ -7362,7 +7362,7 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
         cuerpo: conDatos({
           ...conCamposPersonalizados(proceso, 'tasks', includes),
           recurring_from: madre === undefined ? null : { id: madre.id, name: madre.name },
-          recurring_copies_count: PROCESOS.filter((p) => p.is_recurring_from === proceso.id).length
+          recurring_copies_count: contarCopias(proceso.id, PROCESOS)
         })
       }
     }

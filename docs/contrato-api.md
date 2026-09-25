@@ -2274,8 +2274,8 @@ desde el inicio nuevo.
 `recurring_paused_at` (instante o `null`).
 
 **Constancia de las copias**: `GET /tasks/{id}` suma `recurring_from` (`{id, name}` de la madre si la
-Tarea es copia de una recurrencia, o `null`) y `recurring_copies_count` (copias vivas, en las
-madres). `GET /tasks` puede traer `recurring_from_id` (`int` o `null`) por fila; el frontend lo trata
+Tarea es copia de una recurrencia, o `null`) y `recurring_copies_count` (copias generadas, en las
+madres, **contando las que estan en la papelera**). `GET /tasks` puede traer `recurring_from_id` (`int` o `null`) por fila; el frontend lo trata
 como opcional y sin la clave no pinta nada.
 
 El interruptor es la opcion `wiwo_procesos_recurrentes` de `tbloptions` (migracion `0010`), con
@@ -2375,11 +2375,14 @@ Solo administradores: cualquier otro recibe `403` con `code: "solo_administrador
   la actual, que todavia no vence (el panel la ofrece desmarcada). Conservadas, las que alguien uso.
 - `{"modo": "aplicar", "ids": [..], "detener": "pausar" | "dejar_de_repetir" | null}` →
   `{eliminadas: int[], omitidas: [{id, motivo}], detenida}`. Manda a la **papelera**, no borra.
-  Justo antes revisa cada copia otra vez: la que alguien toco en el intermedio queda en `omitidas`
-  con `motivo: "tocada"` y no se mueve.
-- Un id que no es copia viva de esta regla (ajena, ya en la papelera o inexistente) es `422`
-  `{"ids": ["no_es_copia"]}` y no se mueve ninguna. `ids` vacio o ausente: `requerido`; no enteros:
-  `invalid`. `detener` fuera de las dos opciones: `{"detener": ["invalid"]}`.
+  Justo antes revisa cada copia otra vez: queda en `omitidas`, sin moverse, con `motivo: "tocada"`
+  si alguien la toco en el intermedio, o `"ya_no_disponible"` si otra persona ya la movio o la borro.
+- Un id ajeno a las candidatas de esta regla es `422` `{"ids": ["no_candidata"]}` y no se mueve
+  ninguna. `ids` que no es lista (o con algo que no es entero): `{"ids": ["invalid"]}`.
+- `ids: []` es valido: con `detener` solo detiene la regla; sin `detener` no hace nada.
+- `detener` fuera de las dos opciones: `{"detener": ["invalid"]}`; sobre una madre que ya no recurre:
+  `{"detener": ["sin_recurrencia"]}`.
+- La ruta sigue respondiendo para una madre que dejo de repetir, mientras tenga copias.
 
 ### `POST /tasks/recurrentes/importar` — carga desde una planilla
 

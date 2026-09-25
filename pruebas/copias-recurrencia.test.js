@@ -8,7 +8,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
-  avisoDeSinUso, cuerpoDeLimpieza, estaSinUso, OPCIONES_DETENCION, reglaDeLaUrl, rutaDeCopias, rutaDeLimpieza,
+  avisoDeSinUso, cuerpoDeLimpieza, estaSinUso, limpiezaAplicable, OPCIONES_DETENCION, reglaDeLaUrl, rutaDeCopias, rutaDeLimpieza,
   seleccionInicial, situacionDeCopia, textoDeConfirmacion, textoDeOmision, textosDeMotivos
 } from '../src/dominio/copias-recurrencia.ts'
 
@@ -49,9 +49,18 @@ test('la limpieza arranca sin la vigente y manda ids sin repetir con la detencio
   assert.deepEqual(OPCIONES_DETENCION.map((o) => o.etiqueta), ['No hacer nada', 'Pausar la recurrencia', 'Dejar de repetir'])
 })
 
+test('sin marcadas solo se aplica si se pide detener la regla', () => {
+  assert.equal(limpiezaAplicable(0, ''), false)
+  assert.equal(limpiezaAplicable(0, 'pausar'), true)
+  assert.equal(limpiezaAplicable(2, ''), true)
+  assert.deepEqual(cuerpoDeLimpieza([], 'dejar_de_repetir'), { modo: 'aplicar', ids: [], detener: 'dejar_de_repetir' })
+})
+
 test('textos de la confirmacion y de las omitidas', () => {
   assert.equal(textoDeConfirmacion(1), 'Se moverá 1 tarea a la papelera')
   assert.equal(textoDeConfirmacion(4), 'Se moverán 4 tareas a la papelera')
+  assert.equal(textoDeConfirmacion(0), 'No se moverá ninguna tarea a la papelera')
+  assert.equal(textoDeOmision('ya_no_disponible'), 'Ya no estaba disponible (otra persona la movió o la borró).')
   assert.equal(textoDeOmision('tocada'), 'Alguien la modificó mientras tanto.')
   assert.match(textoDeOmision('otra_cosa'), /otra cosa/)
 })
