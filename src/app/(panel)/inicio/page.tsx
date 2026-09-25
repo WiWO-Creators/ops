@@ -23,6 +23,8 @@ import { ModalTarea } from '@/componentes/proyecto/ModalTarea'
 import { AvisoJornada } from './AvisoJornada'
 import { ResumenDelDia } from './ResumenDelDia'
 import { FijadosYRecientes } from './FijadosYRecientes'
+import { NovedadesDelInicio } from './NovedadesDelInicio'
+import { NOVEDADES, fechaMasReciente } from '@/dominio/novedades'
 import { priorizarFijados, type Fijado, type Reciente } from '@/componentes/fijados/fijados'
 
 /**
@@ -33,6 +35,7 @@ import { priorizarFijados, type Fijado, type Reciente } from '@/componentes/fija
  * siempre.
  */
 const PROCESOS_A_TRAER = 60
+/** Cuantas novedades entran en la portada. El resto se lee en /novedades. */ const NOVEDADES_EN_INICIO = 3
 
 /**
  * Inicio del panel.
@@ -72,6 +75,7 @@ export default async function InicioPage () {
   const listaDeFijados = fijados.datos ?? []
 
   const grupos = agruparPorVencimiento(procesos)
+  const masRecienteNovedad = fechaMasReciente(NOVEDADES)
   const restantes = cuantosNoListados(procesos, total)
 
   // La capa de luz vive en el armazon del panel, no aca: pintarla tambien en el Inicio la dibujaba
@@ -94,6 +98,10 @@ export default async function InicioPage () {
       <FijadosYRecientes fijados={listaDeFijados} recientes={recientes.datos ?? []} />
 
       <ResumenDelDia />
+
+      {masRecienteNovedad !== null && (
+        <NovedadesDelInicio novedades={NOVEDADES.slice(0, NOVEDADES_EN_INICIO)} masReciente={masRecienteNovedad} />
+      )}
 
       {puedeVerSeccion(yo.permissions.tasks, 'tasks') && (
         <MiTrabajo grupos={grupos} restantes={restantes} estados={estados} error={errorDeProcesos} />

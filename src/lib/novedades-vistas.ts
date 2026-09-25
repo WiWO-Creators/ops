@@ -39,3 +39,38 @@ export function marcarNovedadesVistas (fecha: string): void {
 
   window.dispatchEvent(new Event(EVENTO_NOVEDADES_VISTAS))
 }
+
+/** Clave de `localStorage` con la fecha de la última novedad que había cuando se ocultó el bloque del Inicio. */
+const CLAVE_NOVEDADES_OCULTAS_INICIO = 'ops:novedades-ocultas-inicio'
+
+/** Evento que avisa al bloque del Inicio que la persona lo ocultó. */
+export const EVENTO_NOVEDADES_OCULTAS_INICIO = 'ops:novedades-ocultas-inicio'
+
+/**
+ * Lee hasta qué novedad la persona ocultó el bloque del Inicio.
+ *
+ * @returns `YYYY-MM-DD`, o `null` si nunca lo ocultó o no se puede leer el almacenamiento
+ */
+export function leerNovedadesOcultasEnInicio (): string | null {
+  try {
+    return window.localStorage.getItem(CLAVE_NOVEDADES_OCULTAS_INICIO)
+  } catch {
+    // Sin almacenamiento el bloque se muestra: ocultarlo es la comodidad que se pierde.
+    return null
+  }
+}
+
+/**
+ * Oculta el bloque del Inicio hasta que llegue una novedad posterior a `fecha`.
+ *
+ * @param fecha la fecha de la novedad más reciente al momento de ocultar, `YYYY-MM-DD`
+ */
+export function ocultarNovedadesEnInicio (fecha: string): void {
+  try {
+    window.localStorage.setItem(CLAVE_NOVEDADES_OCULTAS_INICIO, fecha)
+  } catch {
+    // No se pudo guardar: el bloque vuelve a aparecer, que es lo único que se pierde.
+  }
+
+  window.dispatchEvent(new Event(EVENTO_NOVEDADES_OCULTAS_INICIO))
+}
