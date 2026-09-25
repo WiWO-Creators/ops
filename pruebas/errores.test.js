@@ -115,6 +115,6 @@ test('los 422 de la recurrencia se dicen con frase propia', () => {
   )
   assert.equal(
     mensajeConDetalles({ message: 'La regla no es válida.', details: { skip_weekdays: ['repetido'] } }),
-    'La regla no es válida. Días que no se genera tiene un valor repetido.'
+    'La regla no es válida. Días sin copias tiene un valor repetido.'
   )
 })

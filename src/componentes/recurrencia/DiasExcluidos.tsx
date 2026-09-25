@@ -7,7 +7,7 @@ import {
 import { cn } from '@/lib/clases'
 
 /**
- * "Días que no se genera": siete botones de lunes a domingo y el atajo "Sin fines de semana".
+ * "Días en que no se generan copias": siete botones de lunes a domingo y el atajo "Sin fines de semana".
  *
  * Un solo componente para el editor de la regla, la edicion de la Tarea y el alta, por la misma razon
  * que `FinDeRecurrencia`: es la misma regla (`skip_weekdays` en la API) y tres versiones terminan
@@ -35,7 +35,7 @@ export function DiasExcluidos ({ valor, onCambiar, error, deshabilitado = false 
 
   return (
     <fieldset className="flex min-w-0 flex-col gap-2 sm:col-span-3" disabled={deshabilitado} aria-describedby={`${id}-nota`}>
-      <legend className="text-texto mb-1.5 text-sm font-medium">Días que no se genera</legend>
+      <legend className="text-texto mb-1.5 text-sm font-medium">Días en que no se generan copias</legend>
 
       <div className="flex flex-wrap items-center gap-2">
         <div role="group" aria-label="Días de la semana" className="flex flex-wrap gap-1">
@@ -48,7 +48,7 @@ export function DiasExcluidos ({ valor, onCambiar, error, deshabilitado = false 
                 type="button"
                 aria-pressed={excluido}
                 aria-label={dia.nombre[0]?.toUpperCase() + dia.nombre.slice(1)}
-                title={excluido ? `Los ${dia.nombre} no se genera copia` : `Los ${dia.nombre} sí se genera copia`}
+                title={excluido ? `Los ${dia.nombre} no se generan copias` : `Los ${dia.nombre} sí se generan copias`}
                 onClick={() => { onCambiar(alternarDia(valor, dia.iso)) }}
                 className={cn(
                   'rounded-control size-8 border text-xs font-semibold transition-colors duration-150',
@@ -85,8 +85,8 @@ export function DiasExcluidos ({ valor, onCambiar, error, deshabilitado = false 
         : (
           <p id={`${id}-nota`} className="text-texto-sutil text-xs">
             {frase === ''
-              ? 'Se genera cualquier día. Marca los días en que no debe nacer una copia.'
-              : `No se genera los días marcados (${frase.replace(/^salvo /, '')}): esa copia se salta, no se mueve.`}
+              ? 'Se generan copias cualquier día. Marca los días en que no debe nacer ninguna.'
+              : `No se generan copias los días marcados (${frase.replace(/^salvo /, '')}): esa copia se salta, no se mueve.`}
           </p>
           )}
     </fieldset>

@@ -215,7 +215,7 @@ export function rutaDeRecurrentes (filtros: FiltrosRecurrentes): string {
   return consulta === '' ? 'tasks/recurrentes' : `tasks/recurrentes?${consulta}`
 }
 
-// --- Dias en que no se genera -----------------------------------------------------------------
+// --- Dias en que no se generan copias -------------------------------------------------------------
 
 /** Un dia de la semana en la numeracion ISO de la API: 1 = lunes .. 7 = domingo. */
 export interface DiaSemana {

@@ -56,7 +56,7 @@ export const NOVEDADES: Novedad[] = [
     fecha: '2026-09-25',
     tipo: 'mejora',
     titulo: 'Las tareas recurrentes se editan, se pausan y saltan días',
-    detalle: 'En Tareas recurrentes, "Editar regla" abre en un clic la frecuencia, el inicio y cómo termina, con una vista previa de las próximas copias. Puedes marcar días en que no se genera (por ejemplo, sin fines de semana) y pausar una regla sin perderla: al reanudarla sigue desde hoy. La ficha de la Tarea también muestra su recurrencia.',
+    detalle: 'En Tareas recurrentes, "Editar regla" abre en un clic la frecuencia, el inicio y cómo termina, con una vista previa de las próximas copias. Puedes marcar días en que no se generan copias (por ejemplo, sin fines de semana) y pausar una regla sin perderla: al reanudarla sigue desde hoy. La ficha de la Tarea también muestra su recurrencia.',
     commits: []
   },
   {
