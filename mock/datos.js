@@ -241,11 +241,12 @@ const ESCALON_POR_INDICE = ['gerencia', 'director', 'gerencia', 'lead', 'lead', 
 /**
  * El jefe directo de cada persona (`jefe_staffid`), por indice de `NOMBRES`.
  *
- * Un arbol chico y coherente: Ana arriba sin jefe, Bruno y Carla colgando de ella, dos leads debajo
- * y el resto de staff al pie. Hugo, que esta dado de baja, sigue colgado: el arbol tiene que poder
+ * Un arbol chico y coherente: Ana arriba sin jefe, Bruno y Carla colgando de ella, los dos leads
+ * debajo de Bruno (director) y el resto de staff al pie. Es la forma director → leads → personas
+ * que la Supervisión por jerarquía necesita para tener hojas del equipo que confirmar. Hugo, que esta dado de baja, sigue colgado: el arbol tiene que poder
  * mostrar ramas con gente inactiva.
  */
-const JEFE_POR_INDICE = [null, 1, 1, 2, 3, 4, 4, 5]
+const JEFE_POR_INDICE = [null, 1, 1, 2, 2, 4, 4, 5]
 
 const NOMBRES = [
   ['Ana', 'Ríos'], ['Bruno', 'Cabral'], ['Carla', 'Méndez'], ['Diego', 'Sosa'],
@@ -924,6 +925,50 @@ export const PROCESOS = Array.from({ length: 84 }, (_, i) => {
       : null
   }
 })
+
+/**
+ * Tres Tareas de la Supervisión por jerarquía, sumadas al final de las generadas.
+ *
+ * Las generadas no traen ningún caso de los que la hoja v2 agrega: todas cuelgan de un cliente y
+ * todas las completadas cerraron en agosto. Con la hoja del 2026-09-25 de Diego (lead, con Facundo y
+ * Gina a cargo) estas tres dan: una sin cliente que vence ese día, una sin cliente atrasada y una
+ * completada ese mismo día aunque vence después, con dos asignados —para ver que agrupar por
+ * persona la repite bajo cada uno— y de un cliente que Diego supervisa, así que su origen es doble.
+ */
+const TAREAS_DE_SUPERVISION = [
+  {
+    id: 900, patente: 'WIW-0900', name: 'Preparar el informe interno de horas', status: 4,
+    due_date: '2026-09-25', date_finished: null, rel_type: null, rel_id: null, project: null, asignados: [6]
+  },
+  {
+    id: 901, patente: 'WIW-0901', name: 'Ordenar el archivo del equipo', status: 1,
+    due_date: '2026-09-22', date_finished: null, rel_type: null, rel_id: null, project: null, asignados: [7]
+  },
+  {
+    id: 902, patente: 'ESP-003-99', name: 'Cerrar la campaña de primavera', status: 5,
+    due_date: '2026-09-30', date_finished: '2026-09-25T14:40:00Z', rel_type: 'project', rel_id: 3, project: ESPACIOS[2], asignados: [7, 6]
+  }
+]
+
+for (const { asignados, project, ...tarea } of TAREAS_DE_SUPERVISION) {
+  PROCESOS.push({
+    ...PROCESOS[0],
+    ...tarea,
+    project: project === null ? null : { id: project.id, name: project.name },
+    start_date: '2026-09-15',
+    date_added: '2026-09-15T10:15:00Z',
+    assignees: asignados.map((id) => {
+      const persona = STAFF.find((s) => s.id === id)
+
+      return { id, full_name: persona.full_name, profile_image_url: null, assigned_by: null }
+    }),
+    followers: [],
+    tags: [],
+    aprobacion: undefined,
+    counts: { comments: 0, checklist: 0, checklist_done: 0, attachments: 0 },
+    timer_activo: null
+  })
+}
 
 /**
  * Dos hitos por Espacio.

@@ -4525,6 +4525,16 @@ const FOCALES_DE_CLIENTE = new Map([
   [1, [1]], [2, [1, 3]], [3, []], [4, [1]], [5, [2]], [6, []], [7, [1, 4]]
 ])
 
+/**
+ * Los clientes donde una persona es Focal: en la Supervisión cuentan como clientes suyos.
+ *
+ * @param {number} staffId la persona
+ * @returns {Set<number>} ids de cliente
+ */
+function clientesDondeEsFocal (staffId) {
+  return new Set([...FOCALES_DE_CLIENTE].filter(([, ids]) => ids.includes(staffId)).map(([cliente]) => cliente))
+}
+
 /** Estado "Terminado" de un Espacio. La foto diaria no puntua lo que ya se cerro. */
 const ESTADO_ESPACIO_TERMINADO = 4
 
@@ -6609,7 +6619,7 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
   // La Supervisión diaria: `supervision/*`, `clients/{id}/supervisores` y `staff/{id}/supervision`.
   // Va antes de los bloques de `clients` y `staff`, que son solo GET: un PUT caería al 404 final.
   const deSupervision = await supervisionDelEquipo({
-    metodo, recurso, resto, parametros, cuerpo, actual, descendencia: descendenciaDePersona, exigirPermiso
+    metodo, recurso, resto, parametros, cuerpo, actual, descendencia: descendenciaDePersona, focalesDe: clientesDondeEsFocal, exigirPermiso
   })
   if (deSupervision !== null) return deSupervision
 
