@@ -1,6 +1,6 @@
 /**
- * Reglas puras del árbol de Drive: validar un nombre, decidir qué destinos admite un traslado y
- * leer los campos que el backend viejo todavía no emite.
+ * Reglas puras del árbol de Drive: validar un nombre y leer los campos que el backend viejo todavía
+ * no emite. Los destinos de un traslado viven en `drive-explorador.ts`, junto con el arrastre.
  *
  * Viven aparte del componente para poder probarlas sin navegador, y porque son las mismas que
  * aplica el backend: el cliente las repite para avisar antes del viaje, no para reemplazarlo.
@@ -26,29 +26,6 @@ export function motivoNombreInvalido (nombre: string): string | null {
   if (limpio === '') return 'Escribe un nombre.'
   if (limpio.length > LARGO_MAXIMO_NOMBRE_DRIVE) return `El nombre no puede pasar de ${LARGO_MAXIMO_NOMBRE_DRIVE} caracteres.`
   if (limpio.includes('/')) return 'El nombre no puede llevar "/".'
-
-  return null
-}
-
-/**
- * Dice si una carpeta no puede recibir el traslado de un item, y por qué.
- *
- * La carpeta se describe por su ruta desde la raíz de la entidad, ella incluida: con eso alcanza
- * para saber si es el propio item o cuelga de él, sin conocer el árbol entero. La carpeta actual se
- * descarta porque "mover" ahí no cambia nada.
- *
- * @param rutaDestino ids desde la raíz hasta la carpeta candidata, ambos incluidos
- * @param itemId el archivo o carpeta que se quiere mover
- * @param padreId la carpeta donde está hoy el item
- * @returns el motivo en pocas palabras, o `null` si la carpeta sirve de destino
- */
-export function motivoDestinoInvalido (rutaDestino: readonly string[], itemId: string, padreId: string): string | null {
-  const destinoId = rutaDestino[rutaDestino.length - 1]
-
-  if (destinoId === undefined) return 'Carpeta desconocida'
-  if (destinoId === itemId) return 'Es la misma carpeta'
-  if (rutaDestino.includes(itemId)) return 'Está dentro de la carpeta que mueves'
-  if (destinoId === padreId) return 'Ya está acá'
 
   return null
 }

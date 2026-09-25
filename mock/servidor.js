@@ -6461,7 +6461,7 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
     return driveDeEntidadRuta(metodo, recurso, resto[0])
   }
 
-  if (recurso === 'drive') return await driveRuta(metodo, resto, cuerpo)
+  if (recurso === 'drive') return await driveRuta(metodo, resto, cuerpo, peticion)
 
   // El organigrama visual: una sola lectura para las dos pantallas que lo montan. La API ya recorta
   // por quien pregunta, asi que el frontend no repite la regla de visibilidad.

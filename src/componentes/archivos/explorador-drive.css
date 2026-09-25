@@ -1,0 +1,55 @@
+/*
+ * Color por tipo de archivo del explorador de Drive.
+ *
+ * Es un color de RECONOCIMIENTO, no de estado: sirve para encontrar el PDF entre veinte archivos sin
+ * leer los nombres. Por eso vive en el ícono y en el fondo de su baldosa, a baja intensidad, y nunca
+ * en el texto: la fila se lee en tinta como el resto del panel.
+ *
+ * Cada tono sale de la marca o de sus estados cuando hay uno cerca (azul, violeta, peligro, ok) y
+ * tiene su pareja clara para el tema oscuro. Todos pasan 3:1 contra la tarjeta en los dos temas, que
+ * es lo que pide un ícono (WCAG 1.4.11): no son texto.
+ */
+.tipo-drive {
+  --tipo: var(--texto-tenue);
+  color: var(--tipo);
+  background-color: color-mix(in oklab, var(--tipo) 12%, transparent);
+}
+
+.tipo-drive[data-tipo='carpeta'] { --tipo: light-dark(var(--wiwo-blue), var(--wiwo-blue-200)); }
+.tipo-drive[data-tipo='carpeta-tarea'] { --tipo: light-dark(#6a55e6, var(--wiwo-purple-300)); }
+.tipo-drive[data-tipo='pdf'] { --tipo: light-dark(#c3463d, #f08a80); }
+.tipo-drive[data-tipo='imagen'] { --tipo: light-dark(#a3399a, #e592dc); }
+.tipo-drive[data-tipo='hoja'] { --tipo: light-dark(var(--wiwo-ok), #6fd08a); }
+.tipo-drive[data-tipo='documento'] { --tipo: light-dark(#2563c9, #8cb4ff); }
+.tipo-drive[data-tipo='presentacion'] { --tipo: light-dark(#b8620b, #ffb84d); }
+.tipo-drive[data-tipo='video'] { --tipo: light-dark(#c2185b, #f48fb1); }
+.tipo-drive[data-tipo='audio'] { --tipo: light-dark(#0f7a72, #6fd6cb); }
+.tipo-drive[data-tipo='comprimido'] { --tipo: light-dark(#7a6340, #cdb58c); }
+.tipo-drive[data-tipo='texto'] { --tipo: light-dark(#5b5b66, #b9b9c4); }
+
+/*
+ * Destino de un arrastre. Se marca con un atributo y no con una clase condicional para que las tres
+ * superficies que reciben (fila, rama del árbol, miga) compartan exactamente el mismo resaltado.
+ */
+[data-destino-activo='true'] {
+  background-color: var(--acento-suave);
+  box-shadow: inset 0 0 0 2px var(--acento);
+}
+
+/* Lo que se está arrastrando queda atenuado en su lugar: se ve de dónde sale. */
+[data-arrastrando='true'] {
+  opacity: 0.45;
+}
+
+/*
+ * La barra de avance de cada subida. Crece con `transform` y no con `width`: el ancho fuerza a
+ * recalcular la maqueta en cada evento de avance, que llegan decenas por segundo.
+ */
+.avance-drive {
+  transform-origin: left center;
+  transition: transform var(--wiwo-motion-fast) var(--wiwo-ease-emphasized);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .avance-drive { transition: none; }
+}

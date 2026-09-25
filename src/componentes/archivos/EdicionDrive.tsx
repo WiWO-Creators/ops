@@ -1,26 +1,36 @@
 'use client'
 
 import { useCallback, useEffect, useState, type FormEvent, type KeyboardEvent } from 'react'
-import { ChevronDown, ChevronRight, Folder, FolderPlus } from 'lucide-react'
+import { ChevronDown, ChevronRight, Folder, FolderLock } from 'lucide-react'
 import { Boton } from '@/componentes/formularios/Boton'
 import { Entrada } from '@/componentes/formularios/Entrada'
 import { CerrarDialogo, ContenidoDialogo, Dialogo } from '@/componentes/superposiciones/Dialogo'
 import { Cargando, ErrorEstado } from '@/componentes/estado/Estados'
 import { pedirSobre } from '@/datos/cliente'
-import { escribirEnBff } from '@/componentes/datos/mutaciones'
-import { LARGO_MAXIMO_NOMBRE_DRIVE, motivoDestinoInvalido, motivoNombreInvalido } from '@/dominio/drive-arbol'
+import { LARGO_MAXIMO_NOMBRE_DRIVE, motivoNombreInvalido } from '@/dominio/drive-arbol'
+import { motivoParaNoSoltar, type ArrastreDrive } from '@/dominio/drive-explorador'
 import { cn } from '@/lib/clases'
-import type { CambioNodoDrive, ContenidoCarpetaDrive, NodoDrive } from '@/datos/recursos'
+import type { ContenidoCarpetaDrive, MigaDrive, NodoDrive } from '@/datos/recursos'
 
 /** Ancho de la sangría por nivel del árbol del diálogo de mover, en rem. */
 const SANGRIA_DESTINO = 1
+
+/**
+ * Selecciona el nombre sin la extensión, como cualquier explorador: renombrar `propuesta.pdf` casi
+ * nunca quiere cambiar el `.pdf`, y escribir encima de todo lo borraba.
+ */
+function seleccionarSinExtension (campo: HTMLInputElement): void {
+  const punto = campo.value.lastIndexOf('.')
+  campo.setSelectionRange(0, punto > 0 ? punto : campo.value.length)
+}
 
 /**
  * Campo de una línea para escribir el nombre de un archivo o carpeta, en la propia fila del árbol.
  *
  * Valida en el cliente las mismas reglas que la API antes de mandar nada, y muestra debajo tanto ese
  * motivo como el error que devuelva el servidor: queda junto al nodo que se está tocando. Enter
- * guarda y Escape descarta.
+ * guarda y Escape descarta. Las teclas no suben a la vista: F2, Supr o las flechas escritas acá son
+ * del campo, no del explorador.
  *
  * @param inicial el nombre con el que arranca el campo
  * @param etiqueta el nombre accesible del campo
@@ -28,12 +38,16 @@ const SANGRIA_DESTINO = 1
  * @param onGuardar manda el nombre ya recortado; devuelve el mensaje de error o `null` si salió bien
  * @param onCancelar cierra el editor sin cambios
  */
-export function EditorNombreDrive ({ inicial, etiqueta, textoGuardar, onGuardar, onCancelar }: {
+export function EditorNombreDrive ({ inicial, etiqueta, textoGuardar, onGuardar, onCancelar, validar, compacto = false }: {
   inicial: string
   etiqueta: string
   textoGuardar: string
   onGuardar: (nombre: string) => Promise<string | null>
   onCancelar: () => void
+  /** Regla extra de quien lo usa (un nombre repetido en la carpeta, por ejemplo). */
+  validar?: (nombre: string) => string | null
+  /** Sin botones, para una tarjeta angosta: Enter guarda y Escape descarta. */
+  compacto?: boolean
 }) {
   const [nombre, setNombre] = useState(inicial)
   const [guardando, setGuardando] = useState(false)
@@ -42,7 +56,7 @@ export function EditorNombreDrive ({ inicial, etiqueta, textoGuardar, onGuardar,
   async function guardar (evento: FormEvent<HTMLFormElement>): Promise<void> {
     evento.preventDefault()
 
-    const motivo = motivoNombreInvalido(nombre)
+    const motivo = motivoNombreInvalido(nombre) ?? validar?.(nombre.trim()) ?? null
     if (motivo !== null) {
       setError(motivo)
       return
@@ -57,9 +71,10 @@ export function EditorNombreDrive ({ inicial, etiqueta, textoGuardar, onGuardar,
   }
 
   function alPresionarTecla (evento: KeyboardEvent<HTMLFormElement>): void {
+    evento.stopPropagation()
     if (evento.key !== 'Escape') return
 
-    evento.stopPropagation()
+    evento.preventDefault()
     onCancelar()
   }
 
@@ -77,143 +92,81 @@ export function EditorNombreDrive ({ inicial, etiqueta, textoGuardar, onGuardar,
           value={nombre}
           maxLength={LARGO_MAXIMO_NOMBRE_DRIVE + 1}
           className="h-8 min-w-0 flex-1"
-          onFocus={(evento) => { evento.target.select() }}
+          onFocus={(evento) => { seleccionarSinExtension(evento.target) }}
           onChange={(evento) => {
             setNombre(evento.target.value)
             setError(null)
           }}
         />
-        <Boton type="submit" variante="primario" tamano="chico" cargando={guardando}>{textoGuardar}</Boton>
-        <Boton variante="sutil" tamano="chico" disabled={guardando} onClick={onCancelar}>Cancelar</Boton>
+        {!compacto && (
+          <>
+            <Boton type="submit" variante="primario" tamano="chico" cargando={guardando}>{textoGuardar}</Boton>
+            <Boton variante="sutil" tamano="chico" disabled={guardando} onClick={onCancelar}>Cancelar</Boton>
+          </>
+        )}
       </div>
       {error !== null && <p role="alert" className="text-texto-peligro text-xs">{error}</p>}
     </form>
   )
 }
 
-/**
- * Botón "Nueva carpeta" de una carpeta del árbol, que se abre en un campo para escribir el nombre.
- *
- * Crea con `POST /drive/{folder_id}/folders` y entrega el nodo nuevo a quien lista los hijos.
- *
- * @param folderId la carpeta dentro de la que se crea
- * @param onCreada recibe el nodo que devolvió el `201`
- */
-export function NuevaCarpetaDrive ({ folderId, onCreada }: {
-  folderId: string
-  onCreada: (nodo: NodoDrive) => void
-}) {
-  const [abierto, setAbierto] = useState(false)
-
-  async function crear (nombre: string): Promise<string | null> {
-    const resultado = await escribirEnBff<NodoDrive>(
-      `drive/${encodeURIComponent(folderId)}/folders`, 'POST', { name: nombre }
-    )
-
-    if (!resultado.ok) return resultado.mensaje
-
-    onCreada(resultado.datos)
-    setAbierto(false)
-    return null
-  }
-
-  if (!abierto) {
-    return (
-      <Boton variante="secundario" tamano="chico" onClick={() => { setAbierto(true) }}>
-        <FolderPlus className="size-3.5" aria-hidden="true" />
-        Nueva carpeta
-      </Boton>
-    )
-  }
-
-  return (
-    <div className="min-w-60 flex-1">
-      <EditorNombreDrive
-        inicial=""
-        etiqueta="Nombre de la carpeta nueva"
-        textoGuardar="Crear"
-        onGuardar={crear}
-        onCancelar={() => { setAbierto(false) }}
-      />
-    </div>
-  )
-}
-
 interface PropsDialogoMover {
-  /** El archivo o carpeta que se mueve. */
-  nodo: NodoDrive
-  /** La carpeta donde está hoy `nodo`: es la del `PATCH` y la que no sirve de destino. */
+  /** Lo que se mueve: uno o varios hijos de `padreId`. */
+  nodos: readonly NodoDrive[]
+  /** La carpeta donde están hoy: no sirve de destino. */
   padreId: string
   /** La carpeta de la entidad (Cliente, Proyecto o Tarea), desde donde se ofrece el árbol. */
   raizId: string
-  /** Avisa que el `PATCH` salió bien, con el nodo actualizado y la carpeta a la que llegó. */
-  onMovido: (actualizado: NodoDrive, destinoId: string) => void
+  /** Cómo se llama la raíz en las migas, para que el diálogo diga lo mismo. */
+  raizNombre: string
+  /** La carpeta elegida. El traslado lo hace quien abrió el diálogo, igual que al soltar. */
+  onElegir: (destino: MigaDrive) => void
   onCerrar: () => void
 }
 
 /**
- * Diálogo para elegir a qué carpeta se mueve un archivo o carpeta.
+ * Diálogo para elegir a qué carpeta se mueve lo seleccionado: la alternativa a arrastrar, para el
+ * teclado y el celular.
  *
  * Ofrece solo carpetas y solo de la entidad, cargando cada nivel al abrirlo. Quedan deshabilitados
- * el propio item, lo que cuelga de él y la carpeta donde ya está: son los mismos destinos que la API
- * rechaza con `422`, avisados antes. Un `403` (destino sin permiso) se muestra en el diálogo, que
- * queda abierto para elegir otro.
+ * los mismos destinos que el arrastre no resalta —lo que se mueve, lo que cuelga de ello y la carpeta
+ * donde ya está—, con el motivo a la vista. El traslado y su resultado los maneja el explorador, así
+ * que mover desde acá y soltar dan el mismo aviso.
  */
-export function DialogoMoverDrive ({ nodo, padreId, raizId, onMovido, onCerrar }: PropsDialogoMover) {
-  const [destinoId, setDestinoId] = useState<string | null>(null)
-  const [moviendo, setMoviendo] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-
-  async function mover (): Promise<void> {
-    if (destinoId === null) return
-
-    setMoviendo(true)
-    setError(null)
-
-    const cambio: CambioNodoDrive = { parent_id: destinoId }
-    const resultado = await escribirEnBff<NodoDrive>(
-      `drive/${encodeURIComponent(padreId)}/files/${encodeURIComponent(nodo.id)}`, 'PATCH', cambio
-    )
-
-    setMoviendo(false)
-
-    if (!resultado.ok) {
-      setError(resultado.mensaje)
-      return
-    }
-
-    onMovido(resultado.datos, destinoId)
-  }
+export function DialogoMoverDrive ({ nodos, padreId, raizId, raizNombre, onElegir, onCerrar }: PropsDialogoMover) {
+  const [destino, setDestino] = useState<MigaDrive | null>(null)
+  const arrastre: ArrastreDrive = { ids: nodos.map((nodo) => nodo.id), padreId }
+  const primero = nodos[0]
+  const titulo = nodos.length === 1 && primero !== undefined ? `Mover «${primero.name}»` : `Mover ${nodos.length} elementos`
 
   return (
     <Dialogo open onOpenChange={(abierto) => { if (!abierto) onCerrar() }}>
-      <ContenidoDialogo titulo={`Mover "${nodo.name}"`} descripcion="Elige la carpeta de destino.">
+      <ContenidoDialogo titulo={titulo} descripcion="Elige la carpeta de destino.">
         <div className="flex flex-col gap-4">
-          <ul role="tree" aria-label="Carpetas de destino" className="border-linea rounded-medio max-h-80 overflow-y-auto border p-1">
+          <ul
+            role="tree"
+            aria-label="Carpetas de destino"
+            data-lenis-prevent
+            className="border-linea rounded-medio max-h-80 overflow-y-auto border p-1"
+          >
             <CarpetaDestino
               id={raizId}
-              nombre="Carpeta principal"
+              nombre={raizNombre}
               ruta={[raizId]}
               nivel={0}
               abiertaAlInicio
-              itemId={nodo.id}
-              padreId={padreId}
-              seleccionada={destinoId}
-              onElegir={(id) => {
-                setDestinoId(id)
-                setError(null)
-              }}
+              arrastre={arrastre}
+              seleccionada={destino?.id ?? null}
+              onElegir={setDestino}
             />
           </ul>
 
-          {error !== null && <p role="alert" className="text-texto-peligro text-sm">{error}</p>}
-
           <div className="flex justify-end gap-2">
             <CerrarDialogo asChild>
-              <Boton variante="sutil" disabled={moviendo}>Cancelar</Boton>
+              <Boton variante="sutil">Cancelar</Boton>
             </CerrarDialogo>
-            <Boton variante="primario" cargando={moviendo} disabled={destinoId === null} onClick={() => { void mover() }}>
-              Mover acá
+            <Boton variante="primario" disabled={destino === null} onClick={() => { if (destino !== null) onElegir(destino) }}>
+              Mover aquí
             </Boton>
           </div>
         </div>
@@ -234,27 +187,29 @@ interface PropsCarpetaDestino {
   ruta: string[]
   nivel: number
   abiertaAlInicio?: boolean
-  itemId: string
-  padreId: string
+  /** Carpeta de una Tarea: se puede soltar adentro, y se dibuja con candado como en el explorador. */
+  bloqueada?: boolean
+  /** Lo que se mueve: decide qué carpetas no sirven de destino. */
+  arrastre: ArrastreDrive
   seleccionada: string | null
-  onElegir: (id: string) => void
+  onElegir: (destino: MigaDrive) => void
 }
 
 /**
  * Una carpeta del árbol de destinos: se elige con un clic y se despliega con la flecha.
  *
- * Una carpeta deshabilitada tampoco se despliega cuando es el propio item: todo lo que cuelga de
- * ella sería también un destino inválido.
+ * Una carpeta que es parte de lo que se mueve tampoco se despliega: todo lo que cuelga de ella sería
+ * también un destino inválido.
  */
 function CarpetaDestino ({
-  id, nombre, ruta, nivel, abiertaAlInicio = false, itemId, padreId, seleccionada, onElegir
+  id, nombre, ruta, nivel, abiertaAlInicio = false, bloqueada = false, arrastre, seleccionada, onElegir
 }: PropsCarpetaDestino) {
   const [abierta, setAbierta] = useState(abiertaAlInicio)
   // La raíz llega abierta y ya cargando: su primer nivel se pide apenas se monta el diálogo.
   const [hijas, setHijas] = useState<CargaCarpetas | null>(abiertaAlInicio ? { fase: 'cargando' } : null)
 
-  const motivo = motivoDestinoInvalido(ruta, itemId, padreId)
-  const esElItem = id === itemId
+  const motivo = motivoParaNoSoltar({ id, ruta }, arrastre)
+  const esElItem = arrastre.ids.includes(id)
   const elegida = seleccionada === id
 
   const pedir = useCallback((senal: AbortSignal) => {
@@ -309,14 +264,16 @@ function CarpetaDestino ({
           disabled={motivo !== null}
           aria-pressed={elegida}
           title={motivo ?? undefined}
-          onClick={() => { onElegir(id) }}
+          onClick={() => { onElegir({ id, name: nombre }) }}
           className={cn(
             'rounded-chico flex min-w-0 flex-1 items-center gap-1.5 px-1.5 py-1 text-left text-sm',
             'disabled:text-texto-sutil disabled:cursor-not-allowed',
             elegida ? 'bg-acento text-acento-contenido' : 'text-texto hover:bg-hover'
           )}
         >
-          <Folder className="size-4 shrink-0" aria-hidden="true" />
+          {bloqueada
+            ? <FolderLock className="size-4 shrink-0" aria-hidden="true" />
+            : <Folder className="size-4 shrink-0" aria-hidden="true" />}
           <span className="truncate">{nombre}</span>
           {motivo !== null && <span className="shrink-0 text-xs">· {motivo}</span>}
         </button>
@@ -334,10 +291,10 @@ function CarpetaDestino ({
                     key={hija.id}
                     id={hija.id}
                     nombre={hija.name}
+                    bloqueada={hija.locked === true}
                     ruta={[...ruta, hija.id]}
                     nivel={nivel + 1}
-                    itemId={itemId}
-                    padreId={padreId}
+                    arrastre={arrastre}
                     seleccionada={seleccionada}
                     onElegir={onElegir}
                   />
@@ -346,5 +303,43 @@ function CarpetaDestino ({
             )
       )}
     </li>
+  )
+}
+
+/**
+ * Confirmación de enviar a la papelera, para uno o varios elementos.
+ *
+ * Dice papelera porque es lo que pasa: Drive la guarda 30 días y se puede recuperar desde allá. Una
+ * carpeta avisa que se va con todo lo que tiene adentro, que es lo que nadie espera al borrar "una"
+ * cosa.
+ *
+ * @param nodos lo que se va a borrar
+ * @param onConfirmar borra; el diálogo se cierra al confirmar y el resultado lo informa el explorador
+ */
+export function DialogoEliminarDrive ({ nodos, onConfirmar, onCerrar }: {
+  nodos: readonly NodoDrive[]
+  onConfirmar: () => void
+  onCerrar: () => void
+}) {
+  const primero = nodos[0]
+  const conCarpetas = nodos.some((nodo) => nodo.is_folder)
+  const titulo = nodos.length === 1 && primero !== undefined
+    ? `¿Enviar «${primero.name}» a la papelera?`
+    : `¿Enviar ${nodos.length} elementos a la papelera?`
+  const detalle = conCarpetas
+    ? 'Las carpetas se van con todo lo que tienen adentro. Se puede recuperar desde la papelera de Drive durante 30 días.'
+    : 'Se puede recuperar desde la papelera de Drive durante 30 días.'
+
+  return (
+    <Dialogo open onOpenChange={(abierto) => { if (!abierto) onCerrar() }}>
+      <ContenidoDialogo titulo={titulo} descripcion={detalle}>
+        <div className="flex justify-end gap-2">
+          <CerrarDialogo asChild>
+            <Boton variante="sutil">Cancelar</Boton>
+          </CerrarDialogo>
+          <Boton variante="peligro" autoFocus onClick={onConfirmar}>Enviar a la papelera</Boton>
+        </div>
+      </ContenidoDialogo>
+    </Dialogo>
   )
 }

@@ -117,3 +117,99 @@ test('borrar manda a la papelera una carpeta con su contenido, pero no una locke
   assert.equal((await pedir(`/drive/${bases.id}`)).estado, 404)
   assert.equal((await pedir(`/drive/${folder.id}/files/${tarea.id}`, 'DELETE')).estado, 409)
 })
+
+test('la lectura trae fecha, tamaño, mime y las migas desde la raíz', async () => {
+  const { folder, porNombre } = await raiz()
+  const pdf = porNombre('propuesta.pdf')
+
+  assert.equal(pdf.mime_type, 'application/pdf')
+  assert.equal(typeof pdf.size_bytes, 'number')
+  assert.match(pdf.modified_time, /^\d{4}-\d{2}-\d{2}T/)
+  assert.equal(pdf.icon_link, null)
+  assert.deepEqual(pdf.uploaded_by, { id: 1, name: 'Ana Pérez' })
+  assert.equal(porNombre('Guion del video').size_bytes, null)
+
+  const bases = porNombre('01_Bases')
+  const { cuerpo } = await pedir(`/drive/${bases.id}`)
+  assert.deepEqual(cuerpo.data.breadcrumbs.map((miga) => miga.id), [folder.id, bases.id])
+  assert.equal(cuerpo.data.breadcrumbs[1].name, '01_Bases')
+})
+
+test('el traslado en lote mueve lo que puede y reporta cada fallo', async () => {
+  const { folder, porNombre } = await raiz()
+  const destino = porNombre('03_Oferta_Tecnica')
+  const ids = [porNombre('propuesta.pdf').id, porNombre('Acta firmada.pdf').id, porNombre('ACM-001-01 Diseño de la oferta').id]
+
+  const { estado, cuerpo } = await pedir(`/drive/${folder.id}/move`, 'POST', { item_ids: ids, parent_id: destino.id })
+  assert.equal(estado, 200)
+  assert.deepEqual(cuerpo.data.moved, [ids[0]])
+  assert.deepEqual(cuerpo.data.failed.map((fallo) => [fallo.id, fallo.status]), [[ids[1], 403], [ids[2], 409]])
+  assert.deepEqual((await pedir(`/drive/${destino.id}`)).cuerpo.data.children.map((hijo) => hijo.name), ['propuesta.pdf'])
+})
+
+test('el traslado en lote valida el cuerpo y los permisos del destino', async () => {
+  const { folder, porNombre } = await raiz()
+  const pdf = porNombre('propuesta.pdf').id
+
+  assert.equal((await pedir(`/drive/${folder.id}/move`, 'POST', { item_ids: [], parent_id: folder.id })).estado, 422)
+  assert.equal((await pedir(`/drive/${folder.id}/move`, 'POST', { item_ids: Array(51).fill(pdf), parent_id: folder.id })).estado, 422)
+  assert.equal((await pedir(`/drive/${folder.id}/move`, 'POST', { item_ids: [pdf] })).estado, 422)
+  assert.equal((await pedir(`/drive/${folder.id}/move`, 'POST', { item_ids: [pdf], parent_id: porNombre('Solo lectura').id })).estado, 403)
+
+  const bases = porNombre('01_Bases').id
+  const dentro = await pedir(`/drive/${folder.id}/move`, 'POST', { item_ids: [bases], parent_id: bases })
+  assert.deepEqual(dentro.cuerpo.data.failed.map((fallo) => fallo.status), [422])
+})
+
+test('la subida multipart valida extensión y guarda el archivo en la carpeta', async () => {
+  const { folder } = await raiz()
+
+  /** Sube un archivo con ese nombre y contenido. */
+  async function subir (nombre, contenido = 'hola') {
+    const datos = new FormData()
+    datos.append('file', new Blob([contenido]), nombre)
+    const respuesta = await fetch(`${base}/drive/${folder.id}/files`, {
+      method: 'POST', headers: { authorization: `Bearer ${staff}` }, body: datos
+    })
+    return { estado: respuesta.status, cuerpo: await respuesta.json() }
+  }
+
+  const subido = await subir('notas.txt')
+  assert.equal(subido.estado, 201)
+  assert.equal(subido.cuerpo.data.name, 'notas.txt')
+  assert.equal(subido.cuerpo.data.size_bytes, 4)
+  assert.equal((await subir('instalar.exe')).estado, 422)
+
+  const hijos = (await pedir(`/drive/${folder.id}`)).cuerpo.data.children
+  assert.ok(hijos.some((hijo) => hijo.id === subido.cuerpo.data.drive_file_id))
+})
+
+test('crear una carpeta con el nombre de una hermana responde 409', async () => {
+  const { folder } = await raiz()
+  assert.equal((await pedir(`/drive/${folder.id}/folders`, 'POST', { name: '01_bases' })).estado, 409)
+})
+
+test('mover a la misma carpeta responde 422 same_folder', async () => {
+  const { folder, porNombre } = await raiz()
+  const { estado, cuerpo } = await pedir(`/drive/${folder.id}/move`, 'POST', { item_ids: [porNombre('propuesta.pdf').id], parent_id: folder.id })
+  assert.equal(estado, 422)
+  assert.deepEqual(cuerpo.error.details.parent_id, ['same_folder'])
+})
+
+test('una subida de más de 25 MB responde 422 too_large', async () => {
+  const { folder } = await raiz()
+  const datos = new FormData()
+  datos.append('file', new Blob([new Uint8Array(25 * 1024 * 1024 + 1)]), 'enorme.zip')
+  const respuesta = await fetch(`${base}/drive/${folder.id}/files`, { method: 'POST', headers: { authorization: `Bearer ${staff}` }, body: datos })
+  assert.equal(respuesta.status, 422)
+  assert.deepEqual((await respuesta.json()).error.details.file, ['too_large'])
+})
+
+test('con Drive caído la raíz trae el error y ningún hijo, y el reintento contesta', async () => {
+  reiniciarDrive()
+  const { cuerpo } = await pedir('/projects/9/drive')
+  assert.match(cuerpo.data.folder.error, /no responde/)
+  assert.deepEqual(cuerpo.data.folder.children, [])
+  assert.ok((await pedir(`/drive/${cuerpo.data.folder.id}`)).cuerpo.data.children.length > 0)
+  assert.equal((await pedir('/projects/1/drive')).cuerpo.data.folder.error, null)
+})

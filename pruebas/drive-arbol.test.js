@@ -9,9 +9,14 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
-  LARGO_MAXIMO_NOMBRE_DRIVE, esEditable, motivoDestinoInvalido, motivoNombreInvalido, puedeEscribirEn,
-  quitarNodo, reemplazarNodo
+  LARGO_MAXIMO_NOMBRE_DRIVE, esEditable, motivoNombreInvalido, puedeEscribirEn, quitarNodo, reemplazarNodo
 } from '../src/dominio/drive-arbol.ts'
+import { motivoParaNoSoltar } from '../src/dominio/drive-explorador.ts'
+
+/** Los destinos del diálogo de mover, con la forma de antes: la ruta, el item y su carpeta. */
+function motivoDestinoInvalido (ruta, itemId, padreId) {
+  return motivoParaNoSoltar({ id: ruta[ruta.length - 1], ruta }, { ids: [itemId], padreId })
+}
 
 test('un nombre vacío o de puros espacios no sirve', () => {
   assert.notEqual(motivoNombreInvalido(''), null)
@@ -48,10 +53,6 @@ test('una carpeta hermana, la raíz o una prima sí son destino', () => {
   assert.equal(motivoDestinoInvalido(['raiz', 'b'], 'a', 'raiz'), null)
   assert.equal(motivoDestinoInvalido(['raiz'], 'a', 'x'), null)
   assert.equal(motivoDestinoInvalido(['raiz', 'b', 'c'], 'a', 'raiz'), null)
-})
-
-test('una ruta vacía no es destino', () => {
-  assert.notEqual(motivoDestinoInvalido([], 'a', 'raiz'), null)
 })
 
 test('sin can_write se puede escribir, y sin locked el nodo es editable', () => {

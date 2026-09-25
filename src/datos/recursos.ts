@@ -887,6 +887,16 @@ export interface NodoDrive {
    * ahí se lee como `false`.
    */
   locked?: boolean
+  /** Última modificación en Drive, ISO 8601. Ausente en un backend anterior al campo. */
+  modified_time?: string | null
+  /** Ícono que Drive propone para el tipo. La pantalla dibuja el suyo; se guarda por completitud. */
+  icon_link?: string | null
+}
+
+/** Un paso de la ruta de una carpeta: desde la carpeta de la entidad hasta la que se está mirando. */
+export interface MigaDrive {
+  id: string
+  name: string
 }
 
 /** Una carpeta del arbol de Drive, con el primer nivel de hijos ya resuelto. */
@@ -898,6 +908,13 @@ export interface CarpetaDrive {
    * backend anterior al campo, y ahí se lee como `true`.
    */
   can_write?: boolean
+  /** Igual que en `ContenidoCarpetaDrive`: en la raíz trae un solo paso, la propia carpeta. */
+  breadcrumbs?: MigaDrive[]
+  /**
+   * Por qué no vinieron los hijos, cuando Drive no respondió: la carpeta existe pero `children` llega
+   * vacío. `null` o ausente es una lectura normal.
+   */
+  error?: string | null
 }
 
 /** Respuesta de `GET /drive/{folder_id}`: un nivel de hijos y si se puede escribir en esa carpeta. */
@@ -905,6 +922,31 @@ export interface ContenidoCarpetaDrive {
   children: NodoDrive[]
   /** Ausente en un backend anterior al campo, y ahí se lee como `true`. */
   can_write?: boolean
+  /**
+   * La ruta desde la carpeta de la entidad hasta esta, ambas incluidas. Ausente en un backend
+   * anterior al campo: ahí la pantalla usa la ruta que recorrió para llegar.
+   */
+  breadcrumbs?: MigaDrive[]
+}
+
+/** Cuerpo de `POST /drive/{folder_id}/move`: varios hijos de `folder_id` hacia `parent_id`. */
+export interface TrasladoDrive {
+  /** Entre 1 y 50 ids, todos hijos directos de `folder_id`. */
+  item_ids: string[]
+  parent_id: string
+}
+
+/** Un item que el traslado en lote no pudo mover, con el motivo y el status que habría tenido solo. */
+export interface FalloTrasladoDrive {
+  id: string
+  error: string
+  status: number
+}
+
+/** Respuesta `200` de `POST /drive/{folder_id}/move`: lo que se movió y lo que no. */
+export interface ResultadoTrasladoDrive {
+  moved: string[]
+  failed: FalloTrasladoDrive[]
 }
 
 /**

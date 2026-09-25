@@ -238,7 +238,12 @@ const MOTIVOS: Record<string, string> = {
  * `prospecto_existente` es el id del prospecto con el que choca un alta repetida: viaja con la forma
  * `campo: [motivo]` y sin esta lista se colaría en la frase como «prospecto_existente 4».
  */
-const CLAVES_QUE_NO_SE_NOMBRAN = new Set(['prospecto_existente'])
+const CLAVES_QUE_NO_SE_NOMBRAN = new Set([
+  'prospecto_existente',
+  // El motivo técnico con que Google rechaza una operación de Drive (`cannotMoveTrashedItem` y
+  // compañía): el mensaje ya dice qué pasó, y el código pelado no le dice nada a nadie.
+  'drive'
+])
 
 /**
  * Pares `campo:motivo` que el mensaje principal ya explica mejor que la frase armada.
@@ -246,7 +251,14 @@ const CLAVES_QUE_NO_SE_NOMBRAN = new Set(['prospecto_existente'])
  * «Ya existe un prospecto con esa empresa.» ya lo dice todo; sumarle «Empresa ya está usado por otra»
  * sólo repite, y en peor castellano.
  */
-const YA_DICHOS_POR_EL_MENSAJE = new Set(['cliente.company:duplicado'])
+const YA_DICHOS_POR_EL_MENSAJE = new Set([
+  'cliente.company:duplicado',
+  // Drive: el mensaje ya nombra el problema ("supera el máximo de 25 MB", "la extensión .exe no está
+  // permitida", "ya están en esa carpeta").
+  'file:too_large',
+  'file:extension',
+  'parent_id:same_folder'
+])
 
 /**
  * Pares `campo:motivo` que se dicen con una frase entera y no con «Campo motivo».
