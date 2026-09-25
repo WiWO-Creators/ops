@@ -28,7 +28,7 @@ import {
   ADMINS_DE_CLIENTE, AREAS, ARCHIVOS, CAMPOS_PERSONALIZADOS, CHECKLIST, CLIENTES, COMENTARIOS, CRONOMETROS,
   CLIENTES_SIN_VENCIMIENTO, DEPARTAMENTOS, EMPRESAS_DEL_GRUPO, ENTRADA_DE_CLIENTE, ESPACIOS, ESTADOS_ESPACIO, ESTADOS_PROCESO,
   ESTADOS_TICKET, PRIORIDADES_TICKET, TICKETS_PORTAL,
-  ESPACIOS_DE_LICITACION, ETIQUETAS, HITOS, LICITACIONES, PROSPECTOS, CONTACTOS_DE_PROSPECTO,
+  ESPACIOS_DE_LICITACION, ESPACIOS_DE_UPSELL, ETIQUETAS, HITOS, LICITACIONES, MONEDAS, PROSPECTOS, CONTACTOS_DE_PROSPECTO, UPSELLS,
   AVISOS_CONTACTO, CONTACTOS, OPCIONES_AREA_EN_TAREAS, PRIORIDADES, PROCESOS, PROCESOS_POR_AREA,
   RESERVAS, ROLES, SALAS, STAFF, VALORES_CAMPOS
 } from './datos.js'
@@ -43,7 +43,7 @@ const PUERTO = Number(process.env.PORT ?? 3001)
  * que funcionar: eso es lo que hace la seccion de Licitaciones, que consume `/projects/{id}` con el
  * id de la licitacion.
  */
-const ESPACIOS_EXISTENTES = [...ESPACIOS, ...ESPACIOS_DE_LICITACION]
+const ESPACIOS_EXISTENTES = [...ESPACIOS, ...ESPACIOS_DE_LICITACION, ...ESPACIOS_DE_UPSELL]
 
 // Unas cuantas Tareas recurrentes, una por estado, para que `/procesos/recurrentes` tenga que mostrar.
 sembrarRecurrentes(PROCESOS, new Date().toISOString().slice(0, 10))
@@ -355,6 +355,16 @@ const CONSULTA_PROCESOS = {
  * `estado` es el unico que hace falta hoy: el selector del alta pide `filter[estado]=abierta`. La
  * busqueda va por empresa y por nombre del Espacio, como en la API.
  */
+/** Lo mismo que `RecursoUpsells::consulta()`: estado y cliente, y la busqueda por nombre. */
+const CONSULTA_UPSELLS = {
+  filtros: {
+    estado: coincideEnLista((u) => u.estado),
+    client_id: coincideEnLista((u) => u.client_id)
+  },
+  orden: ['creada_en'],
+  busqueda: ['nombre']
+}
+
 const CONSULTA_LICITACIONES = {
   filtros: {
     estado: coincideEnLista((l) => l.estado),
@@ -982,6 +992,128 @@ async function rutaDeRecurrentes (metodo, resto, parametros, actual, cuerpo) {
 }
 
 /** Busca una fila por id o lanza 404. */
+/**
+ * Un Upsell en la forma de `GET /upsells`: la fila con su cliente y las cinco claves del Espacio.
+ *
+ * `nombre` es solo para la busqueda `q` —que en la API va sobre el nombre del Espacio— y no viaja.
+ *
+ * @param {object} upsell fila de `UPSELLS`
+ * @returns {object} el upsell presentado
+ */
+function presentarUpsell (upsell) {
+  const espacio = ESPACIOS_DE_UPSELL.find((fila) => fila.id === upsell.id)
+  const cliente = CLIENTES.find((c) => c.id === upsell.client_id)
+
+  return {
+    ...upsell,
+    client: cliente ? { id: cliente.id, company: cliente.company, image_url: null } : null,
+    nombre: espacio.name,
+    espacio: { id: espacio.id, name: espacio.name, status: espacio.status, start_date: espacio.start_date, deadline: espacio.deadline }
+  }
+}
+
+/**
+ * Lo mismo que `Upsell::validarPropios()`: `null` borra, lo que no viene no se toca.
+ *
+ * @param {Record<string, unknown>} cambios el cuerpo del `PATCH`
+ * @returns {Record<string, unknown>} los valores normalizados de las claves que vinieron
+ * @throws {ErrorApi} 422 con el detalle por campo
+ */
+function validarPropiosDeUpsell (cambios) {
+  const errores = {}
+  const normalizados = {}
+  const presente = (clave) => clave in cambios && cambios[clave] !== null
+
+  if ('monto_estimado' in cambios) normalizados.monto_estimado = null
+  if (presente('monto_estimado')) {
+    const valor = Number(cambios.monto_estimado)
+    if (typeof cambios.monto_estimado === 'boolean' || !Number.isFinite(valor) || valor < 0) errores.monto_estimado = ['invalid']
+    else normalizados.monto_estimado = valor
+  }
+
+  if ('moneda_id' in cambios) normalizados.moneda_id = null
+  if (presente('moneda_id')) {
+    const valor = Number(cambios.moneda_id)
+    if (!Number.isInteger(valor) || valor <= 0) errores.moneda_id = ['invalid']
+    else normalizados.moneda_id = valor
+  }
+
+  if ('probabilidad' in cambios) normalizados.probabilidad = null
+  if (presente('probabilidad')) {
+    const valor = Number(cambios.probabilidad)
+    if (!Number.isInteger(valor) || valor < 0 || valor > 100) errores.probabilidad = ['invalid']
+    else normalizados.probabilidad = valor
+  }
+
+  if ('motivo' in cambios) normalizados.motivo = null
+  if (presente('motivo')) {
+    if (typeof cambios.motivo !== 'string') errores.motivo = ['invalid']
+    else if (cambios.motivo.trim().length > 255) errores.motivo = ['max']
+    else if (cambios.motivo.trim() !== '') normalizados.motivo = cambios.motivo.trim()
+  }
+
+  if (Object.keys(errores).length > 0) {
+    throw new ErrorApi(422, 'validation_failed', 'Los datos de la oportunidad no son válidos.', errores)
+  }
+
+  return normalizados
+}
+
+/**
+ * `/upsells`: el listado, la ficha y la edicion de lo propio, como `upsellsRuta` de `V1.php`.
+ *
+ * El `PATCH` se acepta en cualquier estado, igual que la API desde que un upsell cerrado se puede
+ * corregir; ganar y perder no se sirven: la ficha solo se prueba en la edicion.
+ *
+ * @param {string} metodo
+ * @param {string[]} resto segmentos despues de `upsells`
+ * @param {URLSearchParams} parametros
+ * @param {object} actual staff autenticado
+ * @param {() => Promise<unknown>} cuerpo thunk del cuerpo de la peticion
+ * @returns {Promise<{estado: number, cuerpo: unknown} | null>} `null` si la ruta no es de aca
+ * @throws {ErrorApi} 403, 404 o 422
+ */
+async function upsellsRuta (metodo, resto, parametros, actual, cuerpo) {
+  if (metodo === 'GET' && resto.length === 0) {
+    exigirPermiso(actual, 'projects', 'view')
+    const { filas, paginacion } = aplicarConsulta(UPSELLS.map(presentarUpsell), parametros, CONSULTA_UPSELLS)
+
+    return { estado: 200, cuerpo: conDatos(filas.map(({ nombre: _nombre, ...fila }) => fila), { pagination: paginacion }) }
+  }
+
+  if (resto.length !== 1) return null
+
+  const upsell = buscarO404(UPSELLS, Number(resto[0]), 'upsell')
+  const detalle = () => {
+    const { nombre: _nombre, ...fila } = presentarUpsell(upsell)
+    const espacio = ESPACIOS_DE_UPSELL.find((uno) => uno.id === upsell.id)
+
+    return { estado: 200, cuerpo: conDatos({ ...fila, espacio: presentarEspacio(espacio, []) }) }
+  }
+
+  if (metodo === 'GET') {
+    exigirPermiso(actual, 'projects', 'view')
+    return detalle()
+  }
+
+  if (metodo === 'PATCH') {
+    exigirPermiso(actual, 'projects', 'edit')
+    const cambios = (await cuerpo()) ?? {}
+    const editables = ['monto_estimado', 'moneda_id', 'probabilidad', 'motivo']
+    const ajenas = Object.keys(cambios).filter((clave) => !editables.includes(clave))
+
+    if (ajenas.length > 0) {
+      throw new ErrorApi(422, 'no_editable', 'Hay campos que no se editan por esta ruta.',
+        Object.fromEntries(ajenas.map((clave) => [clave, ['no_editable']])))
+    }
+
+    Object.assign(upsell, validarPropiosDeUpsell(cambios))
+    return detalle()
+  }
+
+  return null
+}
+
 /**
  * `/prospectos` y `/prospectos/{id}`. Ver el bloque que la llama en `resolverRuta`.
  *
@@ -6448,7 +6580,8 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
         // El catalogo de areas sale del mismo array que administra `/jerarquia`: dos listas separadas
         // divergen apenas alguien crea un area desde el organigrama.
         areas: AREAS.map(({ id, name }) => ({ id, name })),
-        empresas: EMPRESAS_DEL_GRUPO
+        empresas: EMPRESAS_DEL_GRUPO,
+        currencies: MONEDAS
       })
     }
   }
@@ -6900,11 +7033,25 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
     return { estado: 200, cuerpo: conDatos({ ...licitacion, espacio: presentarEspacio(espacio, []) }) }
   }
 
+  if (recurso === 'upsells') {
+    const respuesta = await upsellsRuta(metodo, resto, parametros, actual, cuerpo)
+    if (respuesta !== null) return respuesta
+  }
+
   /*
    * `DELETE /projects/{id}` sobre el Espacio de una licitacion: el boton Eliminar de su ficha. La API
    * lo manda a la papelera y la licitacion deja de listarse; aca se saca de las dos listas. Los
    * Espacios comunes no se sirven: siguen cayendo al 404 del final.
    */
+  if (recurso === 'projects' && metodo === 'DELETE' && resto.length === 1 && UPSELLS.some((u) => u.id === Number(resto[0]))) {
+    exigirPermiso(actual, 'projects', 'delete')
+    const id = Number(resto[0])
+    UPSELLS.splice(UPSELLS.findIndex((u) => u.id === id), 1)
+    ESPACIOS_DE_UPSELL.splice(ESPACIOS_DE_UPSELL.findIndex((fila) => fila.id === id), 1)
+
+    return { estado: 200, cuerpo: conDatos({ estado: 'papelera', id, entidad: 'projects' }) }
+  }
+
   if (recurso === 'projects' && metodo === 'DELETE' && resto.length === 1) {
     exigirPermiso(actual, 'projects', 'delete')
     const licitacion = buscarO404(LICITACIONES, Number(resto[0]), 'licitacion')
@@ -6932,6 +7079,10 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
   if (recurso === 'projects' && metodo === 'PATCH' && resto.length === 1) {
     exigirPermiso(actual, 'projects', 'edit')
     const espacio = buscarO404(ESPACIOS_EXISTENTES, Number(resto[0]), 'espacio')
+    // Como `ParcheEspacio::aplicar()`: un Espacio archivado no se edita por esta puerta.
+    if (espacio.archived === true) {
+      throw new ErrorApi(422, 'validation_failed', 'Este proyecto está archivado: desarchívalo antes de editarlo.', { archivado: ['archived'] })
+    }
     const cambios = (await cuerpo()) ?? {}
     const permitidas = ['name', 'description', 'start_date', 'deadline', 'estimated_hours', 'ver_todos_los_procesos']
     const ajenas = Object.keys(cambios).filter((clave) => !permitidas.includes(clave))

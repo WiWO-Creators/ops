@@ -637,6 +637,98 @@ export const LICITACIONES = [
 ]
 
 /**
+ * Monedas, como `currencies` de `GET /lookups`: el selector de la oportunidad de un Upsell.
+ */
+export const MONEDAS = [
+  { id: 1, name: 'CLP', symbol: '$', isdefault: true },
+  { id: 2, name: 'USD', symbol: 'US$', isdefault: false }
+]
+
+/**
+ * Los Espacios de los Upsells: una oportunidad abierta y una perdida, cuyo Espacio quedo archivado
+ * —como hace `Upsell::perder()`— para ejercitar la edicion que solo ofrece lo propio.
+ *
+ * El cliente es REAL desde el alta, a diferencia de una licitacion. Ids por encima de los de las
+ * licitaciones para no pisarlos.
+ */
+export const ESPACIOS_DE_UPSELL = [
+  {
+    id: 111,
+    name: 'Rediseño del sitio 2027',
+    description: 'Propuesta de rediseño para el cliente actual.',
+    status: 1,
+    clientid: 1,
+    billing_type: 1,
+    start_date: '2026-09-10',
+    deadline: '2026-11-30',
+    date_finished: null,
+    progress: 0,
+    progress_from_tasks: true,
+    project_cost: 0,
+    project_rate_per_hour: null,
+    estimated_hours: 40,
+    added_from: 1,
+    project_created: '2026-09-10',
+    tags: [],
+    archived: false,
+    archived_at: null,
+    ver_todos_los_procesos: false,
+    miembros: STAFF.map((s) => s.id)
+  },
+  {
+    id: 112,
+    name: 'Campaña de verano',
+    description: 'Oportunidad que el cliente no tomó.',
+    status: 1,
+    clientid: 2,
+    billing_type: 1,
+    start_date: '2026-06-01',
+    deadline: '2026-07-15',
+    date_finished: null,
+    progress: 0,
+    progress_from_tasks: true,
+    project_cost: 0,
+    project_rate_per_hour: null,
+    estimated_hours: null,
+    added_from: 1,
+    project_created: '2026-06-01',
+    tags: [],
+    archived: true,
+    archived_at: '2026-07-20 10:00:00',
+    ver_todos_los_procesos: false,
+    miembros: STAFF.map((s) => s.id)
+  }
+]
+
+/**
+ * Los Upsells, como los devuelve `GET /upsells`. `id` es el del Espacio, como en `tblapi_upsells`.
+ */
+export const UPSELLS = [
+  {
+    id: 111,
+    estado: 'abierta',
+    monto_estimado: 4500000,
+    moneda_id: 1,
+    probabilidad: 60,
+    motivo: null,
+    client_id: 1,
+    resultado_en: null,
+    creada_en: '2026-09-10 09:00:00'
+  },
+  {
+    id: 112,
+    estado: 'perdida',
+    monto_estimado: 1200,
+    moneda_id: 2,
+    probabilidad: 20,
+    motivo: 'Eligió otra agencia.',
+    client_id: 2,
+    resultado_en: '2026-07-20 10:00:00',
+    creada_en: '2026-06-01 09:00:00'
+  }
+]
+
+/**
  * Los Prospectos, en la forma de `RecursoProspectos::presentarLote()`: la empresa candidata con su
  * bloque `cliente` completo (las once claves de `CAMPOS_CLIENTE`, en `null` las que nadie llenó) y
  * los contadores de licitaciones. La ficha suma `contactos` y `licitaciones`; eso lo arma el

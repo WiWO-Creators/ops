@@ -54,6 +54,13 @@ export const ROTULO_TIPO: Record<TipoNovedad, string> = {
 export const NOVEDADES: Novedad[] = [
   {
     fecha: '2026-09-25',
+    tipo: 'mejora',
+    titulo: 'El Upselling se edita completo desde su ficha',
+    detalle: 'Editar ahora junta en un solo formulario el nombre, las fechas, las horas y la descripción del proyecto con el monto, la moneda, la probabilidad y las notas de la oportunidad. Se puede corregir también después de ganarla o perderla, y hay un botón para eliminar la que no debió crearse.',
+    commits: []
+  },
+  {
+    fecha: '2026-09-25',
     tipo: 'nuevo',
     titulo: 'Ops se puede instalar como aplicación, también en el computador',
     detalle: 'Si usas Ops desde el navegador, una vez al día aparece un aviso para instalarlo. En Chrome, Edge y Brave basta con tocar Instalar; en iPhone, iPad y Safari de Mac el aviso explica los pasos.',
