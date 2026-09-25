@@ -54,6 +54,13 @@ export const ROTULO_TIPO: Record<TipoNovedad, string> = {
 export const NOVEDADES: Novedad[] = [
   {
     fecha: '2026-09-25',
+    tipo: 'mejora',
+    titulo: 'Las tareas del Meeting Paper se crean con un clic y vienen con más detalle',
+    detalle: 'Cada tarea propuesta tiene su botón "Crear tarea", y "Crear todas" las pasa al proyecto de una vez. La IA ahora lee el Meeting Paper completo y escribe cada tarea con su objetivo y los detalles que se hablaron, y la tarea creada cita la reunión de la que salió. Para mejorar las propuestas de un Meeting Paper anterior, usa "Volver a analizar".',
+    commits: []
+  },
+  {
+    fecha: '2026-09-25',
     tipo: 'nuevo',
     titulo: 'Supervisión diaria: la hoja de tareas vencidas de tus clientes',
     detalle: 'Si eres Lead o superior y supervisas clientes, en Equipo → Supervisión ves cada día las tareas que vencen o ya vencieron, las marcas OK o No OK con una nota y firmas la hoja. También se puede imprimir para revisarla en papel. Los supervisores de cada cliente se eligen en su ficha, pestaña Supervisión.',
