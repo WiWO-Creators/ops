@@ -3,12 +3,15 @@ import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { ErrorEstado, SinPermiso, Vacio } from '@/componentes/estado/Estados'
 import { TituloModulo } from '@/componentes/estructura/TituloModulo'
 import { HojaDeSupervision } from '@/componentes/supervision/HojaDeSupervision'
+import { HojasDelEquipo } from '@/componentes/supervision/HojasDelEquipo'
 import { ErrorApi } from '@/datos/errores'
 import { pedir, pedirOpcional } from '@/datos/servidor'
 import {
   RUTA_SUPERVISORES,
   rutaDeHoja,
+  rutaDeHojasDelEquipo,
   type HojaDeSupervision as Hoja,
+  type HojaDelEquipo,
   type SupervisorVisible
 } from '@/datos/supervision'
 import type { Yo } from '@/datos/tipos'
@@ -18,7 +21,8 @@ import {
   enlaceDeHoja,
   fechaPedida,
   hoyEnSantiago,
-  supervisorPedido
+  supervisorPedido,
+  vacioSinSupervision
 } from '@/dominio/supervision'
 import { formatearFecha } from '@/lib/fechas'
 import { cn } from '@/lib/clases'
@@ -42,6 +46,12 @@ const CLASES_ENLACE = 'border-linea bg-control hover:bg-hover rounded-control in
  * El propio supervisor, quien está sobre él en el árbol y la administración. El selector de
  * supervisores muestra lo que `GET /supervision/supervisores` devuelve —ya recortado— y solo cuando
  * hay más de uno. Un 403 sobre la hoja pedida se pinta como tal.
+ *
+ * === Hojas de tu equipo ===
+ *
+ * Quien tiene supervisores debajo ve la lista de sus hojas del día (`GET /supervision/equipo`) con
+ * su estado; [Ver] abre la hoja con `?staff_id=`, y ahí están los botones de confirmar o devolver.
+ * La sección no se monta si la lista viene vacía.
  */
 export default async function SupervisionPage (props: PageProps<'/supervision'>) {
   const parametros = await props.searchParams
@@ -49,9 +59,10 @@ export default async function SupervisionPage (props: PageProps<'/supervision'>)
   const fecha = fechaPedida(parametros.fecha, hoy)
   const staffId = supervisorPedido(parametros.staff_id)
 
-  const [yo, supervisores, hoja] = await Promise.all([
+  const [yo, supervisores, equipo, hoja] = await Promise.all([
     pedir<Yo>('/me'),
     pedirOpcional<SupervisorVisible[]>(`/${RUTA_SUPERVISORES}`),
+    pedirOpcional<HojaDelEquipo[]>(`/${rutaDeHojasDelEquipo(fecha)}`),
     cargarHoja(fecha, staffId)
   ])
 
@@ -65,9 +76,13 @@ export default async function SupervisionPage (props: PageProps<'/supervision'>)
   }
 
   const lista = supervisores.datos ?? []
-  const delQueSeMira = lista.find((s) => s.staffid === hoja.supervisor.staffid)
-  const sinClientes = hoja.clientes.length === 0 && (delQueSeMira === undefined || delQueSeMira.clientes === 0)
+  const hojasDelEquipo = equipo.datos ?? []
+  // `GET /supervision/supervisores` ya aplica la definición de supervisor (clientes o gente a
+  // cargo): si el dueño de una hoja vacía no está ahí, no es que tuvo un buen día, es que no tiene
+  // de dónde sacar Tareas.
+  const sinSupervision = hoja.clientes.length === 0 && !lista.some((s) => s.staffid === hoja.supervisor.staffid)
   const esPropia = hoja.supervisor.staffid === yo.data.id
+  const vacio = vacioSinSupervision(esPropia, hoja.supervisor.nombre)
 
   return (
     <section className="flex flex-col gap-4">
@@ -85,13 +100,10 @@ export default async function SupervisionPage (props: PageProps<'/supervision'>)
         )}
       </p>
 
-      {sinClientes
-        ? (
-          <Vacio
-            titulo={esPropia ? 'No tienes clientes asociados' : `${hoja.supervisor.nombre} no tiene clientes asociados`}
-            descripcion="Los clientes de un supervisor se asignan en la ficha del cliente, pestaña Supervisión, o en la ficha de la persona."
-          />
-          )
+      {hojasDelEquipo.length > 0 && <HojasDelEquipo filas={hojasDelEquipo} fecha={hoja.fecha} activo={hoja.supervisor.staffid} />}
+
+      {sinSupervision
+        ? <Vacio titulo={vacio.titulo} descripcion={vacio.descripcion} />
         // La `key` rehace el estado de la hoja al cambiar de día o de persona: sin ella, el
         // componente cliente conservaría las marcas de la hoja anterior.
         : <HojaDeSupervision key={`${hoja.fecha}-${hoja.supervisor.staffid}`} hojaInicial={hoja} />}
@@ -121,7 +133,7 @@ function Encabezado () {
   return (
     <TituloModulo
       titulo="Supervisión"
-      descripcion="Las tareas de tus clientes que vencen hoy o ya vencieron. Márcalas OK o No OK, deja una nota si hace falta y firma la hoja al terminar."
+      descripcion="Las tareas de tu gente y de tus clientes que vencen hoy, siguen atrasadas o se completaron hoy. Márcalas OK o No OK, deja una nota si hace falta y firma la hoja al terminar; tu jefatura la confirma o te la devuelve."
     />
   )
 }
@@ -168,7 +180,7 @@ function SelectorDeSupervisor ({ supervisores, activo, fecha }: { supervisores: 
               : 'border-linea hover:bg-hover'
           )}
         >
-          {supervisor.nombre} <span className="opacity-70">({supervisor.clientes})</span>
+          {supervisor.nombre} <span className="opacity-70">({etiquetaDeEscalon(supervisor.escalon)})</span>
         </Link>
       ))}
     </nav>

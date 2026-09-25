@@ -7101,6 +7101,91 @@ solo sesión: guardar depende solo de `customers.edit`. El prefijo `supervision`
 `PREFIJOS_PERMITIDOS` del BFF, no en el del portal. La hoja se imprime en A4 desde un iframe sin
 scripts (`dominio/hoja-imprimible.ts`).
 
+### Rama `feat/supervision-jerarquia` (v2: jerarquía y doble check)
+
+Extiende la de arriba; lo que no se menciona sigue igual. Migración board
+`1050_supervision_jerarquia.sql`.
+
+**Clientes de S** = los asociados en `tblwiwo_supervision_clientes` ∪ aquellos donde S es Focal
+(`tblwiwo_focales`), solo clientes vivos. `GET|PUT /staff/{id}/supervision` y
+`GET|PUT /clients/{id}/supervisores` **no cambian**: siguen siendo solo la tabla propia, la lista de
+clientes *extra*.
+
+**Supervisor** = escalón `lead` o superior **y** (algún cliente, o alguien en su descendencia —
+`Jerarquia::descendencia`, todos los niveles—). La jerarquía basta: no hace falta asociar clientes.
+
+**Tareas de la hoja (F, S).** Universo = Tareas de los clientes de S ∪ Tareas con algún asignado en
+la descendencia de S (sin S; fuera la papelera). Entra una del universo si (a) `duedate = F`,
+completada o no; (b) `status != 5` y `duedate < F`; (c) `DATE(datefinished) = F`; o (d) ya tiene
+revisión de S para F. Las que no tienen cliente van en el grupo `client_id: null`,
+`company: "Sin cliente"`, al final.
+
+#### `GET /supervision/hoja` — campos nuevos
+
+```json
+{
+  "puede_confirmar": false,
+  "confirmacion": null,
+  "totales": { "tareas": 12, "atrasadas": 9, "completadas": 2, "revisadas": 3, "ok": 2, "no_ok": 1 },
+  "clientes": [{
+    "client_id": null, "company": "Sin cliente",
+    "tareas": [{
+      "completada": true, "completada_en": "2026-09-25 11:40:00",
+      "origen": ["cliente", "equipo"],
+      "revisiones_equipo": [{ "staffid": 4, "nombre": "Diego Sosa", "estado": "ok", "nota": null }]
+    }]
+  }]
+}
+```
+
+- `completada` = `status == 5`; `completada_en` es `datefinished` (hora de Santiago, sin huso).
+  `dias_atraso` es 0 si está completada.
+- `origen`: `cliente`, `equipo` o los dos. Un cliente como Focal cuenta como `cliente`.
+- `revisiones_equipo`: las revisiones de esa fecha de supervisores de la descendencia de S. `[]` si
+  ninguna. No trae el escalón de quien revisó.
+- `confirmacion`: `null | {estado: 'confirmada'|'devuelta', staffid, nombre, nota|null, en}`.
+  Devuelta ⇒ `firma` vuelve a `null` y `puede_editar` a `true` para el dueño; la devolución queda
+  visible hasta que vuelve a firmar, y al re-firmar `confirmacion` vuelve a `null`.
+- `puede_confirmar`: quien consulta está sobre S (`Jerarquia::estaSobre`) o es admin, no es S, y la
+  hoja está firmada y sin confirmar.
+
+#### `POST /supervision/hoja/{fecha}/confirmacion`
+
+Cuerpo `{staff_id, accion: 'confirmar'|'devolver', nota?: string ≤ 500}`. `403` si no está sobre
+`staff_id` (ni es admin) o es él mismo; `409` si la hoja no está firmada o ya está confirmada
+(devolver una confirmada también es 409); `422` si la acción no es válida o se devuelve sin nota.
+→ la confirmación resultante. Firmada y confirmada = cerrada del todo.
+
+#### `GET /supervision/equipo?fecha=F`
+
+→ `[{staffid, nombre, escalon, jefe_staffid, estado: 'sin_firmar'|'firmada'|'confirmada'|'devuelta',
+firmado_en|null, confirmacion|null, totales: {tareas, revisadas, completadas}}]`: los supervisores de
+la descendencia de quien consulta (todos si es admin), sin él, con hoja **no vacía** ese día. Orden:
+directos primero, luego por nombre. `422` si la fecha no es válida.
+
+`GET /supervision/supervisores` usa la definición nueva (clientes o descendencia); `clientes` es la
+cantidad de la unión con los focales.
+
+#### Avisos
+
+`supervision_firmada` (al firmar, al jefe directo; enlaza `/supervision?fecha=F&staff_id=S`) y
+`supervision_devuelta` (al devolver, al dueño, con la nota; enlaza `/supervision?fecha=F`). Pasan por
+`EfectosExternos`. El cron de las 08:00 alcanza también a los supervisores solo por jerarquía.
+
+#### En el panel
+
+`/supervision` suma la sección **Hojas de tu equipo** (solo si la lista no viene vacía; las firmadas
+por confirmar se destacan; [Ver] abre `?staff_id=`, donde están *Confirmo* y *Devolver*), el sello de
+la confirmación o el aviso de la devolución, el badge *Completada* con la hora, la etiqueta de origen,
+las revisiones del equipo en la fila y el selector *Agrupar por: Cliente | Persona*
+(`agruparHoja` en `dominio/supervision.ts`; por persona una Tarea con varios asignados sale bajo cada
+uno). El papel respeta la agrupación, suma la columna *Revisión equipo* solo cuando alguna Tarea la
+trae y lleva dos bloques de firma: *Firma del supervisor* y *Confirmación del jefe*. El vacío de la
+pantalla explica que la hoja sale de la gente a cargo y de los clientes (como Focal o de la pestaña
+Supervisión); la pestaña Supervisión de la persona avisa que los clientes donde es Focal ya entran
+solos. El mock (`mock/supervision.js`) aplica la misma regla, con Elena colgando de Bruno para tener
+director → dos leads → personas.
+
 ## Tiempo real
 
 `GET /config/realtime` → `{ "data": { "enabled": true, "key": "…", "cluster": "…" } }`

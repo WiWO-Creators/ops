@@ -2,16 +2,21 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { Check, PenLine, Printer, X } from 'lucide-react'
+import { useRouter } from 'next/navigation'
+import { Check, CheckCheck, PenLine, Printer, Undo2, X } from 'lucide-react'
 import { Boton } from '@/componentes/formularios/Boton'
-import { Entrada } from '@/componentes/formularios/Entrada'
+import { AreaTexto, Entrada } from '@/componentes/formularios/Entrada'
+import { Segmentado } from '@/componentes/formularios/Segmentado'
 import { Vacio } from '@/componentes/estado/Estados'
 import { CerrarDialogo, ContenidoDialogo, Dialogo } from '@/componentes/superposiciones/Dialogo'
 import { escribirEnBff } from '@/componentes/datos/mutaciones'
 import { PARAMETRO_TAREA } from '@/componentes/datos/tabla'
 import {
+  rutaDeConfirmacion,
   rutaDeFirma,
   rutaDeRevisiones,
+  type AccionDeConfirmacion,
+  type ConfirmacionDeHoja,
   type EstadoDeRevision,
   type FirmaDeHoja,
   type HojaDeSupervision as Hoja,
@@ -21,22 +26,32 @@ import {
 import { htmlDeHojaImprimible } from '@/dominio/hoja-imprimible'
 import {
   LARGO_MAXIMO_NOTA,
+  MODOS_DE_AGRUPACION,
+  agruparHoja,
   avisoDeFirma,
+  conConfirmacion,
   conRevision,
+  errorDeNotaDeDevolucion,
+  estadoDeTarea,
+  etiquetaDeOrigen,
+  modoDeAgrupacion,
   siguienteEstado,
   sinRevisar,
-  textoDeAtraso
+  textoDeRevisionDelEquipo,
+  type ModoDeAgrupacion
 } from '@/dominio/supervision'
 import { formatearFecha } from '@/lib/fechas'
 import { cn } from '@/lib/clases'
 
 /**
- * La hoja del día de un supervisor: las Tareas de sus clientes que vencen hoy o ya vencieron.
+ * La hoja del día de un supervisor: las Tareas de sus clientes y de su gente que vencen ese día,
+ * siguen atrasadas o se completaron ese día.
  *
  * Quien es el propio supervisor y la hoja sigue abierta (`puede_editar`) marca cada Tarea OK o No OK,
- * con una nota si quiere, y al final firma. Firmada, la hoja entera pasa a solo lectura con el sello
- * de quién y cuándo. Quien mira la hoja de otro —su jefatura, la administración— la ve siempre en
- * solo lectura: la API solo deja escribir al dueño.
+ * con una nota si quiere, y al final firma. Firmada, la hoja pasa a solo lectura con el sello de
+ * quién y cuándo, y su jefatura (`puede_confirmar`) la confirma o la devuelve con una nota. Devuelta,
+ * la firma se anula y la hoja vuelve a quedar abierta para su dueño, con el aviso de la devolución
+ * arriba hasta que la vuelva a firmar.
  *
  * Cada marca se guarda al pulsarla, sin un botón de guardar: la revisión se hace recorriendo la
  * lista, y un guardado al final perdería todo si se cierra la pestaña a mitad.
@@ -44,12 +59,15 @@ import { cn } from '@/lib/clases'
  * @param hojaInicial la hoja tal como la devolvió la API en el servidor
  */
 export function HojaDeSupervision ({ hojaInicial }: { hojaInicial: Hoja }) {
+  const router = useRouter()
   const [hoja, setHoja] = useState(hojaInicial)
+  const [modo, setModo] = useState<ModoDeAgrupacion>('cliente')
   const [guardando, setGuardando] = useState<number | null>(null)
   const [errorDeTarea, setErrorDeTarea] = useState<{ tareaId: number, mensaje: string } | null>(null)
   const [aviso, setAviso] = useState<string | null>(null)
 
   const editable = hoja.puede_editar && hoja.firma === null
+  const grupos = agruparHoja(hoja, modo)
 
   /**
    * Manda la revisión de una Tarea y aplica lo que la API guardó.
@@ -84,30 +102,52 @@ export function HojaDeSupervision ({ hojaInicial }: { hojaInicial: Hoja }) {
     setHoja((actual) => conRevision(actual, tarea.id, resultado.datos ?? null))
   }
 
-  /** Cierra la hoja con la firma de quien mira. */
+  /** Cierra la hoja con la firma de quien mira; re-firmar borra la devolución anterior. */
   function firmada (firma: FirmaDeHoja) {
-    setHoja((actual) => ({ ...actual, firma, puede_editar: false }))
+    setHoja((actual) => ({ ...actual, firma, confirmacion: null, puede_editar: false }))
+  }
+
+  /**
+   * Aplica la confirmación o la devolución que guardó la API, y refresca la página para que la lista
+   * "Hojas de tu equipo" —que se arma en el servidor— muestre el estado nuevo.
+   */
+  function confirmada (confirmacion: ConfirmacionDeHoja) {
+    setHoja((actual) => conConfirmacion(actual, confirmacion))
+    router.refresh()
   }
 
   return (
     <div className="flex flex-col gap-6">
-      <Resumen hoja={hoja} editable={editable} onFirmada={firmada} />
+      <EstadoDeLaHoja hoja={hoja} />
+
+      <Resumen hoja={hoja} modo={modo} editable={editable} onFirmada={firmada} onConfirmada={confirmada} />
 
       {aviso !== null && <p role="alert" className="text-texto-peligro text-sm">{aviso}</p>}
 
-      {hoja.clientes.length === 0
+      {grupos.length > 0 && (
+        <Segmentado
+          etiqueta="Agrupar por"
+          etiquetaVisible
+          activo={modo}
+          opciones={MODOS_DE_AGRUPACION}
+          onElegir={(valor) => { setModo(modoDeAgrupacion(valor)) }}
+        />
+      )}
+
+      {grupos.length === 0
         ? <HojaVacia />
-        : hoja.clientes.map((cliente) => (
-          <section key={cliente.client_id} className="flex flex-col gap-2" aria-labelledby={`cliente-${cliente.client_id}`}>
-            <h2 id={`cliente-${cliente.client_id}`} className="text-base font-semibold">
-              {cliente.company}
-              <span className="text-texto-tenue ml-2 text-sm font-normal">{cliente.tareas.length}</span>
+        : grupos.map((grupo) => (
+          <section key={grupo.clave} className="flex flex-col gap-2" aria-labelledby={`grupo-${grupo.clave}`}>
+            <h2 id={`grupo-${grupo.clave}`} className="text-base font-semibold">
+              {grupo.titulo}
+              <span className="text-texto-tenue ml-2 text-sm font-normal">{grupo.tareas.length}</span>
             </h2>
             <ul className="border-linea rounded-tarjeta divide-linea flex flex-col divide-y border">
-              {cliente.tareas.map((tarea) => (
+              {grupo.tareas.map((tarea) => (
                 <FilaDeTarea
                   key={tarea.id}
                   tarea={tarea}
+                  fecha={hoja.fecha}
                   editable={editable}
                   guardando={guardando === tarea.id}
                   error={errorDeTarea?.tareaId === tarea.id ? errorDeTarea.mensaje : null}
@@ -126,29 +166,69 @@ function HojaVacia () {
   return (
     <Vacio
       titulo="Sin tareas por supervisar este día"
-      descripcion="Ninguna tarea de tus clientes vence este día ni está atrasada. Si esperabas ver alguna, revisa en la ficha del cliente que figures como supervisor."
+      descripcion="Ninguna tarea de tus clientes ni de tu gente vence este día, está atrasada o se completó hoy."
     />
   )
 }
 
-/** La barra de totales, el sello o el botón de firmar, y el de imprimir. */
-function Resumen ({ hoja, editable, onFirmada }: { hoja: Hoja, editable: boolean, onFirmada: (firma: FirmaDeHoja) => void }) {
+/**
+ * Lo que pasó con la hoja después de firmarla: el sello de la confirmación, o el aviso destacado de
+ * la devolución con su nota. Nada si no hubo ninguna de las dos.
+ */
+function EstadoDeLaHoja ({ hoja }: { hoja: Hoja }) {
+  const { confirmacion } = hoja
+
+  if (confirmacion === null) return null
+
+  if (confirmacion.estado === 'confirmada') {
+    return (
+      <p role="status" className="bg-relleno-exito text-relleno-exito-contenido rounded-tarjeta flex items-center gap-2 p-3 text-sm">
+        <CheckCheck className="size-4 shrink-0" aria-hidden />
+        Confirmada por {confirmacion.nombre} el {formatearFecha(confirmacion.en, true)}
+      </p>
+    )
+  }
+
+  return (
+    <div role="status" className="border-relleno-peligro bg-superficie-elevada rounded-tarjeta flex flex-col gap-1 border-2 p-3 text-sm">
+      <p className="text-texto-peligro flex items-center gap-2 font-semibold">
+        <Undo2 className="size-4 shrink-0" aria-hidden />
+        Devuelta por {confirmacion.nombre}: {confirmacion.nota}
+      </p>
+      <p className="text-texto-tenue text-xs">
+        El {formatearFecha(confirmacion.en, true)}. La firma quedó anulada: {hoja.puede_editar ? 'corrige lo que haga falta y vuelve a firmar.' : 'la hoja vuelve a estar abierta para su dueño.'}
+      </p>
+    </div>
+  )
+}
+
+interface PropsResumen {
+  hoja: Hoja
+  modo: ModoDeAgrupacion
+  editable: boolean
+  onFirmada: (firma: FirmaDeHoja) => void
+  onConfirmada: (confirmacion: ConfirmacionDeHoja) => void
+}
+
+/** La barra de totales, el sello, y los botones de firmar, confirmar, devolver e imprimir. */
+function Resumen ({ hoja, modo, editable, onFirmada, onConfirmada }: PropsResumen) {
   const { totales } = hoja
 
   return (
     <div id="firma" className="border-linea bg-superficie-elevada rounded-tarjeta flex flex-wrap items-center justify-between gap-3 border p-3">
       <p className="text-sm">
         <strong>{totales.tareas}</strong> tareas · <strong className={cn(totales.atrasadas > 0 && 'text-texto-peligro')}>{totales.atrasadas}</strong> atrasadas ·{' '}
-        <strong>{totales.revisadas}</strong> revisadas ({totales.ok} OK, {totales.no_ok} No OK)
+        <strong>{totales.completadas}</strong> completadas · <strong>{totales.revisadas}</strong> revisadas ({totales.ok} OK, {totales.no_ok} No OK)
       </p>
 
       <div className="flex flex-wrap items-center gap-2">
         {hoja.firma !== null && <Sello firma={hoja.firma} />}
-        <Boton tamano="chico" onClick={() => { imprimirHoja(htmlDeHojaImprimible(hoja)) }}>
+        <Boton tamano="chico" onClick={() => { imprimirHoja(htmlDeHojaImprimible(hoja, modo)) }}>
           <Printer className="size-4" aria-hidden />
           Imprimir hoja
         </Boton>
         {editable && totales.tareas > 0 && <FirmarHoja hoja={hoja} onFirmada={onFirmada} />}
+        {hoja.puede_confirmar && <ConfirmarHoja hoja={hoja} onConfirmada={onConfirmada} />}
       </div>
     </div>
   )
@@ -224,8 +304,100 @@ function FirmarHoja ({ hoja, onFirmada }: { hoja: Hoja, onFirmada: (firma: Firma
   )
 }
 
+/**
+ * Los botones de la jefatura sobre una hoja firmada: "Confirmo", que la cierra del todo, y
+ * "Devolver", que abre un diálogo con la nota obligatoria y anula la firma.
+ *
+ * Un 409 —otra pestaña ya la confirmó o el dueño la tocó— se explica en vez de quedar como error
+ * genérico.
+ */
+function ConfirmarHoja ({ hoja, onConfirmada }: { hoja: Hoja, onConfirmada: (confirmacion: ConfirmacionDeHoja) => void }) {
+  const [devolviendo, setDevolviendo] = useState(false)
+  const [nota, setNota] = useState('')
+  const [enviando, setEnviando] = useState<AccionDeConfirmacion | null>(null)
+  const [error, setError] = useState<string | null>(null)
+
+  /** Manda la acción y aplica la confirmación que devolvió la API. */
+  async function enviar (accion: AccionDeConfirmacion) {
+    if (accion === 'devolver') {
+      const falta = errorDeNotaDeDevolucion(nota)
+
+      if (falta !== null) {
+        setError(falta)
+
+        return
+      }
+    }
+
+    setEnviando(accion)
+    setError(null)
+
+    const cuerpo = accion === 'devolver'
+      ? { staff_id: hoja.supervisor.staffid, accion, nota: nota.trim() }
+      : { staff_id: hoja.supervisor.staffid, accion }
+    const resultado = await escribirEnBff<ConfirmacionDeHoja>(rutaDeConfirmacion(hoja.fecha), 'POST', cuerpo)
+
+    setEnviando(null)
+
+    if (!resultado.ok) {
+      setError(resultado.estado === 409
+        ? 'La hoja cambió mientras la mirabas: ya no está firmada o ya se confirmó. Recarga la página.'
+        : resultado.mensaje)
+
+      return
+    }
+
+    setDevolviendo(false)
+    onConfirmada(resultado.datos)
+  }
+
+  return (
+    <>
+      <Boton tamano="chico" variante="primario" cargando={enviando === 'confirmar'} disabled={enviando !== null} onClick={() => { void enviar('confirmar') }}>
+        <CheckCheck className="size-4" aria-hidden />
+        Confirmo
+      </Boton>
+      <Boton tamano="chico" variante="peligro" disabled={enviando !== null} onClick={() => { setError(null); setDevolviendo(true) }}>
+        <Undo2 className="size-4" aria-hidden />
+        Devolver
+      </Boton>
+      {error !== null && !devolviendo && <p role="alert" className="text-texto-peligro w-full text-xs">{error}</p>}
+      <Dialogo open={devolviendo} onOpenChange={setDevolviendo}>
+        <ContenidoDialogo
+          titulo="Devolver la hoja"
+          descripcion={`La firma de ${hoja.supervisor.nombre} se anula y la hoja vuelve a quedar abierta para que la corrija y la firme de nuevo.`}
+        >
+          <div className="flex flex-col gap-4">
+            <label className="flex flex-col gap-1 text-sm">
+              Qué hay que corregir
+              <AreaTexto
+                value={nota}
+                maxLength={LARGO_MAXIMO_NOTA}
+                rows={4}
+                required
+                aria-label="Nota de la devolución"
+                onChange={(evento) => { setNota(evento.target.value) }}
+              />
+            </label>
+            {error !== null && <p role="alert" className="text-texto-peligro text-sm">{error}</p>}
+            <div className="flex justify-end gap-2">
+              <CerrarDialogo asChild>
+                <Boton variante="secundario">Cancelar</Boton>
+              </CerrarDialogo>
+              <Boton variante="peligro" cargando={enviando === 'devolver'} onClick={() => { void enviar('devolver') }}>
+                Devolver hoja
+              </Boton>
+            </div>
+          </div>
+        </ContenidoDialogo>
+      </Dialogo>
+    </>
+  )
+}
+
 interface PropsFilaDeTarea {
   tarea: TareaDeLaHoja
+  fecha: string
   editable: boolean
   guardando: boolean
   error: string | null
@@ -233,7 +405,7 @@ interface PropsFilaDeTarea {
 }
 
 /** Una Tarea de la hoja, con sus botones de revisión cuando la hoja se puede editar. */
-function FilaDeTarea ({ tarea, editable, guardando, error, onRevisar }: PropsFilaDeTarea) {
+function FilaDeTarea ({ tarea, fecha, editable, guardando, error, onRevisar }: PropsFilaDeTarea) {
   const estado = tarea.revision?.estado ?? null
   const [nota, setNota] = useState(tarea.revision?.nota ?? '')
 
@@ -256,14 +428,25 @@ function FilaDeTarea ({ tarea, editable, guardando, error, onRevisar }: PropsFil
             {tarea.name}
           </Link>
         </p>
-        <p className="text-texto-tenue flex flex-wrap gap-x-3 gap-y-1 text-xs">
+        <p className="text-texto-tenue flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
           <span>{tarea.proyecto?.name ?? 'Sin proyecto'}</span>
           <span>{tarea.asignados.length === 0 ? 'Sin asignar' : tarea.asignados.map((a) => a.nombre).join(', ')}</span>
           <span>Vence {formatearFecha(tarea.duedate)}</span>
-          <span className={cn('font-semibold', tarea.dias_atraso > 0 ? 'text-texto-peligro' : 'text-texto-aviso')}>
-            {textoDeAtraso(tarea.dias_atraso)}
-          </span>
+          <InsigniaDeEstado tarea={tarea} fecha={fecha} />
+          <EtiquetaDeOrigen tarea={tarea} />
         </p>
+        {tarea.revisiones_equipo.length > 0 && (
+          <ul className="flex flex-col gap-0.5 text-xs" aria-label="Revisiones del equipo">
+            {tarea.revisiones_equipo.map((revision) => (
+              <li key={revision.staffid} title={revision.nota ?? undefined}>
+                <span className={cn('font-medium', revision.estado === 'ok' ? 'text-texto-exito' : 'text-texto-peligro')}>
+                  {textoDeRevisionDelEquipo(revision)}
+                </span>
+                {revision.nota !== null && <span className="text-texto-sutil"> — {revision.nota}</span>}
+              </li>
+            ))}
+          </ul>
+        )}
         {!editable && tarea.revision?.nota !== null && tarea.revision?.nota !== undefined && (
           <p className="text-texto-sutil text-xs">Nota: {tarea.revision.nota}</p>
         )}
@@ -311,6 +494,31 @@ function FilaDeTarea ({ tarea, editable, guardando, error, onRevisar }: PropsFil
         : <EstadoLeido estado={estado} />}
     </li>
   )
+}
+
+/** El badge "Completada 11:40", o el atraso en rojo, o "Vence hoy". */
+function InsigniaDeEstado ({ tarea, fecha }: { tarea: TareaDeLaHoja, fecha: string }) {
+  const { tipo, texto } = estadoDeTarea(tarea, fecha)
+
+  if (tipo === 'completada') {
+    return (
+      <span className="bg-relleno-exito text-relleno-exito-contenido rounded-control inline-flex items-center gap-1 px-1.5 py-px font-semibold">
+        <Check className="size-3" aria-hidden />
+        {texto}
+      </span>
+    )
+  }
+
+  return <span className={cn('font-semibold', tipo === 'atrasada' ? 'text-texto-peligro' : 'text-texto-aviso')}>{texto}</span>
+}
+
+/** Por qué la Tarea está en la hoja; nada si `origen` viene vacío (entra solo por su revisión). */
+function EtiquetaDeOrigen ({ tarea }: { tarea: TareaDeLaHoja }) {
+  const etiqueta = etiquetaDeOrigen(tarea.origen)
+
+  if (etiqueta === null) return null
+
+  return <span className="border-linea rounded-control border px-1.5 py-px">{etiqueta}</span>
 }
 
 /** El estado de una Tarea en una hoja de solo lectura. */
