@@ -217,11 +217,16 @@ export function fijarRecordatorioDeDestino (
 }
 
 /**
- * Las opciones cuyo nombre coincide con lo que se escribio en el buscador de un combo.
+ * Las opciones donde aparece TODO lo que se escribio en el buscador de un combo.
  *
  * `normalizar` —el mismo de la agenda de salas— saca acentos y mayusculas antes de comparar: sin eso
  * "nunez" no encuentra "Núñez" ni "logistica" encuentra "Logística", y quien busca concluye que su
  * Proyecto no esta en la lista. Nadie escribe los acentos al filtrar; es el caso normal, no el borde.
+ *
+ * Se parte lo escrito en palabras y cada una tiene que aparecer en ALGUNO de los textos de la
+ * opcion, en cualquier orden: "campaña consalud" encuentra la campaña aunque "Consalud" venga del
+ * Cliente y no del nombre. Cada palabra se busca dentro de un texto, nunca a caballo entre dos, para
+ * que el final del nombre y el principio del Cliente no inventen una coincidencia.
  *
  * Busca por subcadena y no por prefijo porque los nombres del catalogo empiezan casi todos igual
  * ("Proyecto ACME", "Proyecto DELCO"): con prefijo habria que escribir el nombre entero para llegar
@@ -229,14 +234,79 @@ export function fijarRecordatorioDeDestino (
  *
  * @param opciones la lista completa, tal como llego de la API
  * @param busqueda lo tipeado
+ * @param textosDe los textos donde se busca en cada opcion; los ausentes o `null` se saltan
  * @returns las que coinciden, en el mismo orden en que llegaron
  */
-export function filtrarPorNombre <T extends { name: string }> (opciones: T[], busqueda: string): T[] {
-  const buscado = normalizar(busqueda)
+export function filtrarPorPalabras <T> (
+  opciones: readonly T[],
+  busqueda: string,
+  textosDe: (opcion: T) => ReadonlyArray<string | null | undefined>
+): T[] {
+  const palabras = normalizar(busqueda).split(/\s+/).filter((palabra) => palabra !== '')
 
-  if (buscado === '') return opciones
+  if (palabras.length === 0) return [...opciones]
 
-  return opciones.filter((opcion) => normalizar(opcion.name).includes(buscado))
+  return opciones.filter((opcion) => {
+    const textos = textosDe(opcion)
+      .filter((texto): texto is string => typeof texto === 'string' && texto !== '')
+      .map(normalizar)
+
+    return palabras.every((palabra) => textos.some((texto) => texto.includes(palabra)))
+  })
+}
+
+/**
+ * Las opciones cuyo nombre contiene todas las palabras buscadas. Ver `filtrarPorPalabras`.
+ *
+ * @param opciones la lista completa, tal como llego de la API
+ * @param busqueda lo tipeado
+ * @returns las que coinciden, en el mismo orden en que llegaron
+ */
+export function filtrarPorNombre <T extends { name: string }> (opciones: readonly T[], busqueda: string): T[] {
+  return filtrarPorPalabras(opciones, busqueda, (opcion) => [opcion.name])
+}
+
+/** Lo minimo de un Espacio que el combo de la jornada muestra y busca. */
+interface EspacioDelCombo {
+  id: number
+  name: string
+  patente?: string | null
+  client: { company: string } | null
+}
+
+/**
+ * El identificador visible de un Espacio: su patente, o `#id` mientras el backend no le asigne una.
+ *
+ * Los nombres se repiten entre Clientes ("Campaña septiembre" hay varias); la patente no, y es lo
+ * que la gente dicta y anota. Por eso va siempre, aunque sea el `#id` de respaldo.
+ *
+ * @param espacio el Espacio
+ * @returns la patente, o `#` y el id
+ */
+export function identificadorDeEspacio (espacio: Pick<EspacioDelCombo, 'id' | 'patente'>): string {
+  const patente = espacio.patente?.trim() ?? ''
+
+  return patente !== '' ? patente : `#${espacio.id}`
+}
+
+/**
+ * Los Espacios del combo de la jornada que coinciden con lo buscado.
+ *
+ * Se busca en la patente, el nombre y el Cliente a la vez: el mismo nombre existe en varios
+ * Clientes, y lo que la persona tiene en la cabeza suele ser "la campaña de Consalud" o el codigo
+ * `CNSA-001`, no el nombre exacto del Espacio. Se busca la patente real y no el `#id` de respaldo:
+ * ese numero no lo conoce nadie.
+ *
+ * @param espacios la lista completa, tal como llego de la API
+ * @param busqueda lo tipeado
+ * @returns los que coinciden, en el mismo orden en que llegaron
+ */
+export function filtrarEspaciosDelCombo <T extends EspacioDelCombo> (espacios: readonly T[], busqueda: string): T[] {
+  return filtrarPorPalabras(espacios, busqueda, (espacio) => [
+    espacio.patente,
+    espacio.name,
+    espacio.client?.company
+  ])
 }
 
 /** Hasta donde llega el tablero de quien mira. Es la traduccion de `meta.scope` de `GET /live`. */

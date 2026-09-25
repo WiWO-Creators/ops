@@ -9,23 +9,13 @@ import {
   GrupoRadioMenu,
   ItemMenuRadio,
   MenuContextual,
-  SinResultadosMenu,
-  UMBRAL_BUSCADOR
+  SinResultadosMenu
 } from '@/componentes/superposiciones/MenuContextual'
-import { pedirSobre } from '@/datos/cliente'
+import { pedirTodasLasPaginas } from '@/datos/cliente'
 import type { Espacio } from '@/datos/recursos'
 import { GLOSARIO } from '@/dominio/glosario'
-import { filtrarPorNombre } from '@/dominio/live'
+import { filtrarEspaciosDelCombo, identificadorDeEspacio } from '@/dominio/live'
 import { cn } from '@/lib/clases'
-
-/**
- * Cuantos Espacios se traen para el combo.
- *
- * No pagina a proposito: es un desplegable dentro de un control de cabecera, no un listado. Quien
- * tenga mas Espacios que esto va igual a `/proyectos` y arranca el medidor desde la ficha, que es el
- * camino que ya existia.
- */
-const ESPACIOS_A_TRAER = 100
 
 interface PropsSelectorEspacio {
   /** El Espacio elegido, o `null` si todavia no se eligio ninguno. */
@@ -59,7 +49,16 @@ interface PropsSelectorEspacio {
  * necesita para decir cual opcion esta elegida y que elegir una apaga la anterior.
  *
  * El filtro es en cliente sobre la lista que ya se trajo: pedirsela a la API en cada tecla seria una
- * peticion por letra para recortar cien filas que ya estan en memoria.
+ * peticion por letra para recortar filas que ya estan en memoria.
+ *
+ * === EL CATALOGO ENTERO, Y CADA FILA CON SU PATENTE Y SU CLIENTE ===
+ *
+ * Se traen todas las paginas: con una sola, lo que caia despues del tope no estaba, y quien arrancaba
+ * la jornada buscaba su Proyecto y concluia que no existia. Y los nombres se repiten entre Clientes
+ * ("Campaña septiembre" hay varias), asi que cada fila lleva la patente —lo que la gente dicta y
+ * anota— y el Cliente; el buscador mira los tres. Esta siempre visible, sin el umbral de los otros
+ * menus: aca la lista se busca siempre, y un campo que aparece o no segun cuantas filas haya es un
+ * control que cambia de forma entre personas.
  */
 export function SelectorEspacio ({
   valor,
@@ -76,8 +75,8 @@ export function SelectorEspacio ({
   useEffect(() => {
     const control = new AbortController()
 
-    pedirSobre<Espacio[]>(`projects?per_page=${ESPACIOS_A_TRAER}`, control.signal)
-      .then((sobre) => { setEspacios(sobre.data) })
+    pedirTodasLasPaginas<Espacio>('projects', control.signal)
+      .then(setEspacios)
       .catch((fallo: unknown) => {
         if (control.signal.aborted) return
 
@@ -104,8 +103,7 @@ export function SelectorEspacio ({
 
   const todos = espacios ?? []
   const elegido = todos.find((espacio) => espacio.id === valor) ?? null
-  const visibles = filtrarPorNombre(todos, busqueda)
-  const conBuscador = todos.length >= UMBRAL_BUSCADOR
+  const visibles = filtrarEspaciosDelCombo(todos, busqueda)
   const nombre = GLOSARIO.espacio.singular.toLowerCase()
 
   return (
@@ -115,9 +113,14 @@ export function SelectorEspacio ({
         disabled={deshabilitado || cargando}
         className={cn(CLASES_DISPARADOR, 'w-full', elegido === null && 'text-texto-sutil', className)}
       >
-        <span className="truncate">
-          {cargando ? 'Cargando…' : elegido?.name ?? `Elige un ${nombre}`}
-        </span>
+        {elegido === null
+          ? <span className="truncate">{cargando ? 'Cargando…' : `Elige un ${nombre}`}</span>
+          : (
+            <span className="flex min-w-0 items-baseline gap-2">
+              <IdentificadorDeEspacio espacio={elegido} />
+              <span className="truncate">{elegido.name}</span>
+            </span>
+            )}
         <ChevronSelector />
       </DisparadorMenu>
 
@@ -127,9 +130,11 @@ export function SelectorEspacio ({
         // de la pantalla en un telefono.
         className="w-[var(--radix-dropdown-menu-trigger-width)] max-w-[calc(100vw-2rem)]"
       >
-        {conBuscador && (
-          <BuscadorMenu valor={busqueda} onCambiar={setBusqueda} placeholder={`Buscar ${nombre}…`} />
-        )}
+        <BuscadorMenu
+          valor={busqueda}
+          onCambiar={setBusqueda}
+          placeholder={`Buscar por código, ${nombre} o cliente…`}
+        />
 
         <GrupoRadioMenu
           value={elegido === null ? '' : String(elegido.id)}
@@ -137,7 +142,7 @@ export function SelectorEspacio ({
         >
           {visibles.map((espacio) => (
             <ItemMenuRadio key={espacio.id} value={String(espacio.id)}>
-              <span className="truncate">{espacio.name}</span>
+              <FilaDeEspacio espacio={espacio} />
             </ItemMenuRadio>
           ))}
         </GrupoRadioMenu>
@@ -150,14 +155,43 @@ export function SelectorEspacio ({
 
         {/* Filtrar no mueve el foco, asi que sin esto quien usa un lector de pantalla escribe y no se
             entera de nada: la lista cambia en silencio debajo del campo. */}
-        {conBuscador && (
-          <p role="status" aria-live="polite" className="sr-only">
-            {visibles.length === 1
-              ? `1 ${nombre} en la lista`
-              : `${visibles.length} ${GLOSARIO.espacio.plural.toLowerCase()} en la lista`}
-          </p>
-        )}
+        <p role="status" aria-live="polite" className="sr-only">
+          {visibles.length === 1
+            ? `1 ${nombre} en la lista`
+            : `${visibles.length} ${GLOSARIO.espacio.plural.toLowerCase()} en la lista`}
+        </p>
       </ContenidoMenu>
     </MenuContextual>
+  )
+}
+
+/**
+ * La patente del Espacio, en monoespaciada: es lo que distingue dos Espacios del mismo nombre.
+ * El prefijo solo para lectores de pantalla dice que es, igual que en la tarjeta de la Tarea.
+ */
+function IdentificadorDeEspacio ({ espacio }: { espacio: Espacio }) {
+  return (
+    <span data-numerico className="text-texto shrink-0 font-mono text-xs font-semibold">
+      <span className="sr-only">Identificador: </span>
+      {identificadorDeEspacio(espacio)}
+    </span>
+  )
+}
+
+/**
+ * Una opcion del combo en dos lineas: patente y nombre arriba, Cliente abajo. Sin logo a proposito:
+ * en un menu angosto la imagen se come el ancho que necesita el nombre.
+ */
+function FilaDeEspacio ({ espacio }: { espacio: Espacio }) {
+  return (
+    <span className="flex min-w-0 flex-1 flex-col">
+      <span className="flex min-w-0 items-baseline gap-2">
+        <IdentificadorDeEspacio espacio={espacio} />
+        <span className="truncate">{espacio.name}</span>
+      </span>
+      <span className="text-texto-sutil truncate text-xs">
+        {espacio.client?.company ?? 'Sin cliente'}
+      </span>
+    </span>
   )
 }

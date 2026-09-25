@@ -89,3 +89,34 @@ export async function pedirSobre<T> (ruta: string, senal: AbortSignal): Promise<
 
   return await respuesta.json() as Sobre<T>
 }
+
+/** El tope de `per_page` que acepta la API (`Consulta::POR_PAGINA_MAXIMO`): pedir mas no trae mas. */
+const POR_PAGINA_MAXIMO = 500
+
+/**
+ * Pide un listado entero, pagina por pagina, hasta agotar `meta.pagination.total_pages`.
+ *
+ * Existe para los combos que tienen que ofrecer el catalogo completo: con una sola pagina, lo que
+ * cae despues del tope simplemente no esta, y quien lo busca concluye que no existe. Si la respuesta
+ * no trae paginacion se queda con la primera, que entonces es todo.
+ *
+ * @param ruta Ruta sin la base del BFF ni barra inicial; puede traer ya su query string.
+ * @param senal Señal para abortar cuando el componente se desmonta.
+ * @returns Todas las filas, en el orden en que la API las pagino.
+ * @throws Error con el mensaje ya legible si alguna pagina falla.
+ */
+export async function pedirTodasLasPaginas<T> (ruta: string, senal: AbortSignal): Promise<T[]> {
+  const union = ruta.includes('?') ? '&' : '?'
+  const filas: T[] = []
+  let pagina = 1
+  let ultima = 1
+
+  do {
+    const sobre = await pedirSobre<T[]>(`${ruta}${union}per_page=${POR_PAGINA_MAXIMO}&page=${pagina}`, senal)
+    filas.push(...sobre.data)
+    ultima = sobre.meta?.pagination?.total_pages ?? 1
+    pagina++
+  } while (pagina <= ultima)
+
+  return filas
+}
