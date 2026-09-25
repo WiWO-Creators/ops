@@ -2273,6 +2273,11 @@ desde el inicio nuevo.
 `GET /tasks/{id}` devuelve ademas `skip_weekdays` (`int[]`), `recurring_paused` (bool) y
 `recurring_paused_at` (instante o `null`).
 
+**Constancia de las copias**: `GET /tasks/{id}` suma `recurring_from` (`{id, name}` de la madre si la
+Tarea es copia de una recurrencia, o `null`) y `recurring_copies_count` (copias vivas, en las
+madres). `GET /tasks` puede traer `recurring_from_id` (`int` o `null`) por fila; el frontend lo trata
+como opcional y sin la clave no pinta nada.
+
 El interruptor es la opcion `wiwo_procesos_recurrentes` de `tbloptions` (migracion `0010`), con
 valor `'0'`. Existe porque la recurrencia **no la ejecuta la API**: la ejecuta
 `Cron_model::recurring_tasks()`, en otro proceso y horas despues, y ahi si se manda correo y campana
@@ -2323,6 +2328,13 @@ paginar; `meta.total`. Filtros enteros (`422 integer` si no): `filter[project_id
   `activa`, `pausada`, `terminada`, `suspendida`; dentro de cada uno, por `next_date`.
 - `frequency_label` incluye la exclusion: "Cada día, salvo sábado y domingo".
 - `skip_weekdays`, `paused` y `paused_at`: los de la Tarea madre.
+- `usage`: `{streak, untouched_count, unused, alerted_at}`. `streak` son las copias evaluables
+  seguidas sin movimiento, desde la mas reciente; `untouched_count`, las evaluables sin movimiento que
+  no estan en la papelera; `unused` es `streak >= umbral` (3 por defecto); `alerted_at`, cuando se
+  aviso a los administradores con una campana que enlaza a `/procesos/recurrentes?regla={id}`.
+- Orden de evaluacion de `state` (`RecursoRecurrentes::estado()`): `sin_calcular`, `suspendida`
+  (completada), `pausada` (aunque ya haya cumplido su fin), `terminada` (proxima `null`), y
+  `atrasada` o `activa`.
 - `last_copy`: la ultima copia viva (`is_recurring_from`), `{id, created_at, start_date, status}`.
 
 ### `POST /tasks/recurrentes/previa` — las proximas fechas de una regla
@@ -2341,6 +2353,33 @@ No escribe nada. Exige lo mismo que `GET /tasks/recurrentes`.
   `skip_weekdays`; `task_id` inexistente es `no_existe`.
 - `200` `{"data": {"frequency_label": "Cada día, salvo sábado y domingo", "dates": ["2026-10-02", ...], "none": false}}`.
   `dates` son `YYYY-MM-DD` de hoy en adelante; `none: true` si la regla no generaria ninguna copia.
+
+### `GET /tasks/recurrentes/{id}/copias` — el historial de una regla
+
+`{data: [{id, name, start_date, due_date, status, created_at, deleted, evaluable, touched,
+touched_reasons}], meta: {total}}`, de la mas nueva a la mas vieja, hasta 200.
+
+- `deleted`: esta en la papelera.
+- `evaluable`: su ciclo termino (ya nacio una copia mas nueva, o vencio). Solo entonces cuenta si se
+  uso; la vigente no se juzga.
+- `touched_reasons`: `estado`, `comentario`, `tiempo`, `archivo`, `checklist`, `edicion`. Vacio =
+  sin movimiento.
+- `404` si la persona no ve la regla (o la Tarea no es recurrente).
+
+### `POST /tasks/recurrentes/{id}/limpiar` — mandar a la papelera las copias sin uso
+
+Solo administradores: cualquier otro recibe `403` con `code: "solo_administradores"`.
+
+- `{"modo": "validar"}` → `{candidatas: [{id, name, start_date, status, vigente?}], conservadas:
+  [{id, name, touched_reasons}]}`. Candidatas son las copias vivas sin movimiento; `vigente: true` es
+  la actual, que todavia no vence (el panel la ofrece desmarcada). Conservadas, las que alguien uso.
+- `{"modo": "aplicar", "ids": [..], "detener": "pausar" | "dejar_de_repetir" | null}` →
+  `{eliminadas: int[], omitidas: [{id, motivo}], detenida}`. Manda a la **papelera**, no borra.
+  Justo antes revisa cada copia otra vez: la que alguien toco en el intermedio queda en `omitidas`
+  con `motivo: "tocada"` y no se mueve.
+- Un id que no es copia viva de esta regla (ajena, ya en la papelera o inexistente) es `422`
+  `{"ids": ["no_es_copia"]}` y no se mueve ninguna. `ids` vacio o ausente: `requerido`; no enteros:
+  `invalid`. `detener` fuera de las dos opciones: `{"detener": ["invalid"]}`.
 
 ### `POST /tasks/recurrentes/importar` — carga desde una planilla
 
