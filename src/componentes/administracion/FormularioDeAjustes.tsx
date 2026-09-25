@@ -235,6 +235,8 @@ function ControlDeAjuste ({
           <Entrada
             {...props}
             type="text"
+            maxLength={opcion.maxlen}
+            pattern={opcion.pattern}
             value={valor === null ? '' : String(valor)}
             disabled={deshabilitado}
             onChange={(evento) => { onCambio(evento.target.value) }}

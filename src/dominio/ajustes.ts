@@ -92,7 +92,8 @@ export const GRUPOS_DE_AJUSTES: Record<string, { titulo: string, ayuda: string }
   },
   jornada: {
     titulo: 'Jornada',
-    ayuda: 'A qué hora se cierran solas las jornadas que quedaron abiertas.'  }
+    ayuda: 'A qué hora se pregunta "¿Estás ahí?" a quien tiene la jornada abierta, y cuánto tiene para contestar antes de que se cierre sola.'
+  }
 }
 
 /**
@@ -211,16 +212,16 @@ export const ETIQUETAS_DE_AJUSTES: Record<string, { etiqueta: string, ayuda?: st
 
   // --- jornada ---
   wiwo_live_cierre_automatico: {
-    etiqueta: 'Cerrar solas las jornadas que quedaron abiertas',
-    ayuda: 'Apagado, una jornada que nadie cerró se queda abierta hasta que la persona la cierre a mano.'
+    etiqueta: 'Preguntar "¿Estás ahí?" y cerrar las jornadas sin respuesta',
+    ayuda: 'Encendido, a la hora de la pregunta suena un aviso y quien no conteste a tiempo queda con la jornada cerrada, con la salida a la hora de la pregunta. Apagado, una jornada que nadie cerró se queda abierta hasta que la persona la cierre a mano.'
   },
   wiwo_live_prorroga_minutos: {
-    etiqueta: 'Minutos que suma cada "sigo trabajando"',
-    ayuda: 'A la hora del cierre, a quien tenga la jornada abierta le sale un aviso con 30 segundos para contestar. Si dice que sigue trabajando, su jornada —y sólo la suya— se corre estos minutos, y el aviso vuelve a salir al vencer. Entre 5 y 240; de fábrica, 30.'
+    etiqueta: 'Minutos entre preguntas, y para contestar',
+    ayuda: 'Quien contesta "Sigo trabajando" corre su jornada —y sólo la suya— estos minutos, y ahí se le vuelve a preguntar. Son también los minutos que hay para contestar antes de que se cierre sola. Entre 5 y 240; de fábrica, 30.'
   },
   wiwo_live_hora_cierre: {
-    etiqueta: 'Hora del cierre automático (HH:MM)',
-    ayuda: 'Rige para toda la empresa, sin excepción por cargo ni modalidad. Cada jornada se cierra a esta hora del día en que empezó, no del día de hoy. Ojo: esto mueve el cierre de jornadas, no el corte de cronómetros del programador, que se cambia en el servidor (OPS_TIMER_CUTOFF_HOUR) y tiene que quedar en la misma hora.'
+    etiqueta: 'Hora de la primera pregunta (HH:MM)',
+    ayuda: 'Rige para toda la empresa, sin excepción por cargo ni modalidad, y cuenta desde el día en que empezó cada jornada. Con la pregunta encendida, los cronómetros de una jornada abierta se detienen cuando esta se cierra; el corte fijo del servidor (OPS_TIMER_CUTOFF_HOUR) sólo alcanza a los que corren sin jornada.'
   },
   [AJUSTE_AVISOS_LICITACION]: {
     etiqueta: `Avisar por correo los plazos de ${GLOSARIO.licitacion.plural.toLowerCase()}`,

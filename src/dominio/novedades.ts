@@ -53,6 +53,13 @@ export const ROTULO_TIPO: Record<TipoNovedad, string> = {
  */
 export const NOVEDADES: Novedad[] = [
   {
+    fecha: '2026-09-25',
+    tipo: 'mejora',
+    titulo: 'La hora de "¿Estás ahí?" se configura en Administración',
+    detalle: 'Los superadministradores tienen una pestaña Jornada para encender la pregunta, fijar su hora y los minutos entre preguntas.',
+    commits: ['ops-v2@2fb63f6']
+  },
+  {
     fecha: '2026-09-24',
     tipo: 'mejora',
     titulo: 'La jornada pregunta "¿Estás ahí?" antes de cerrarse',
@@ -72,6 +79,13 @@ export const NOVEDADES: Novedad[] = [
     titulo: 'Cabecera del Proyecto más visible',
     detalle: 'El nombre y la imagen del Proyecto se ven más grandes al entrar a él.',
     commits: ['ops-v2@2eeafd6']
+  },
+  {
+    fecha: '2026-09-24',
+    tipo: 'nuevo',
+    titulo: 'Ya se pueden renombrar, mover, borrar y crear carpetas y archivos de Drive desde Ops',
+    detalle: 'En la pestaña Archivos de un Cliente, un Proyecto o una Tarea. Lo que se borra va a la papelera de Drive y se puede recuperar durante 30 días; las carpetas de Tarea quedan fijas.',
+    commits: []
   },
   {
     fecha: '2026-09-24',

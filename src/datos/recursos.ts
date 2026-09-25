@@ -879,12 +879,43 @@ export interface NodoDrive {
   uploaded_by?: { id: number, name: string } | null
   size_bytes?: number | null
   mime_type?: string | null
+  /**
+   * `true` en una carpeta de sistema —la de una Tarea, por ejemplo—: no se renombra, no se mueve y
+   * no se borra. Los archivos siempre vienen en `false`. Ausente en un backend anterior al campo, y
+   * ahí se lee como `false`.
+   */
+  locked?: boolean
 }
 
 /** Una carpeta del arbol de Drive, con el primer nivel de hijos ya resuelto. */
 export interface CarpetaDrive {
   id: string
   children: NodoDrive[]
+  /**
+   * Si quien mira puede crear, renombrar, mover y borrar dentro de esta carpeta. Ausente en un
+   * backend anterior al campo, y ahí se lee como `true`.
+   */
+  can_write?: boolean
+}
+
+/** Respuesta de `GET /drive/{folder_id}`: un nivel de hijos y si se puede escribir en esa carpeta. */
+export interface ContenidoCarpetaDrive {
+  children: NodoDrive[]
+  /** Ausente en un backend anterior al campo, y ahí se lee como `true`. */
+  can_write?: boolean
+}
+
+/**
+ * Cuerpo de `PATCH /drive/{folder_id}/files/{item_id}`: renombra, mueve o las dos cosas.
+ *
+ * `folder_id` es la carpeta donde está hoy el item. Responde `200` con el `NodoDrive` actualizado;
+ * `404` si el item no es hijo directo de esa carpeta, `409` si es `locked`, `403` si el destino no se
+ * puede escribir y `422` si el nombre es inválido (vacío, más de 255 caracteres o con `/`) o el
+ * destino es el propio item o cuelga de él.
+ */
+export interface CambioNodoDrive {
+  name?: string
+  parent_id?: string
 }
 
 /**
@@ -2209,6 +2240,10 @@ export interface AjusteEditable {
   min?: number
   max?: number
   options?: string[]
+  /** Solo en `texto`: largo maximo que acepta la API. */
+  maxlen?: number
+  /** Solo en `texto`: expresion regular sin delimitadores que la API valida, si la hay. */
+  pattern?: string
 }
 
 /**
