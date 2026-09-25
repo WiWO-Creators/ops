@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import { PendientesLicitacion } from '@/componentes/licitacion/PendientesLicitacion'
+import { PresentacionLicitacion } from '@/componentes/licitacion/PresentacionLicitacion'
 import { Filas, Seccion, type Dato } from '@/componentes/presentadores/Ficha'
 import type { OpcionCampo } from '@/componentes/proyecto/formulario'
 import type { Licitacion } from '@/datos/recursos'
@@ -20,7 +21,8 @@ import { formatearFecha } from '@/lib/fechas'
  *
  * **Lo que falta va arriba de todo.** Desde que el alta permite crear una licitacion sin persona de
  * contacto y sin Focal, los dos huecos tienen que verse al entrar: los pinta
- * `PendientesLicitacion`, que no dibuja nada cuando no falta nada.
+ * `PendientesLicitacion`, que no dibuja nada cuando no falta nada. Justo debajo va el link a la
+ * presentacion (`PresentacionLicitacion`), que es lo primero que se busca al entrar.
  *
  * @param licitacion La licitacion ya cargada.
  * @param staff Catalogo `staff` de `GET /lookups`, para nombrar al focal desde el aviso.
@@ -42,6 +44,11 @@ export function FichaLicitacion (
   return (
     <div className="max-w-5xl">
       <PendientesLicitacion licitacion={licitacion} staff={staff} capacidades={capacidades} />
+      <PresentacionLicitacion
+        licitacionId={licitacion.id}
+        url={licitacion.presentacion_url}
+        puedeEditar={capacidades.includes('edit')}
+      />
 
       <div className="grid gap-x-8 gap-y-6 sm:grid-cols-2">
         <Seccion titulo="Empresa candidata">

@@ -637,9 +637,15 @@ las abiertas.
 
 Devuelve `201` con el item.
 
-**`PATCH /licitaciones/{id}` acepta SOLO `cliente` y `contacto`**, con todas sus claves opcionales.
-Los campos del Espacio se editan con `PATCH /projects/{id}`, que ya existe; mandarlos acá es `422`.
-**No se escribe una licitación ya ganada o perdida: `409`.**
+**`PATCH /licitaciones/{id}` acepta SOLO los seis campos propios**, todos opcionales:
+`empresa_holding`, `area_id`, `modelo_servicio`, `owner_id`, `focal_id` y `presentacion_url`. Omitir
+una clave la deja como estaba; `null` la vacía. La empresa y sus contactos se editan en el prospecto
+y los campos del Espacio con `PATCH /projects/{id}`; mandarlos acá es `422 no_editable`. Se puede
+editar también una licitación ya ganada o perdida.
+
+`presentacion_url` (migración `0990`) es el link a la carpeta donde se arma la propuesta: solo
+`http`/`https`, hasta 2048 caracteres, y la cadena vacía vale `null`. Otro esquema es `422` con
+`presentacion_url: ["url"]`. Sale en el listado y en el detalle, `null` si no se cargó.
 
 **No son escribibles** `id`, `estado`, `company` (es copia de `cliente.company`), `client_id`,
 `resultado_en` ni `creada_en`. Los tres del medio los mueven las acciones, que es lo único que puede

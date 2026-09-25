@@ -57,6 +57,14 @@ export interface CampoFormulario {
    */
   sinAsistenteIa?: boolean
   /**
+   * Regla propia de un campo de texto, aplicada despues de `requerido` y `maximo` y solo si hay algo
+   * escrito. Devuelve el mensaje a mostrar, o `null` si el valor sirve.
+   *
+   * Existe para que un formato que la API rechaza (un link sin `https://`) se marque en el campo y
+   * no llegue como un 422 generico al pie del formulario.
+   */
+  validar?: (texto: string) => string | null
+  /**
    * Si esta vacio, el campo no viaja en el cuerpo.
    *
    * Existe por la contraseña: en una edicion, dejarla en blanco quiere decir "no la cambies", y
@@ -132,7 +140,11 @@ export function validarFormulario (
 
     if (campo.tipo === 'numero' && !Number.isFinite(Number(texto))) {
       errores[campo.clave] = 'Tiene que ser un número.'
+      continue
     }
+
+    const propio = campo.validar?.(texto) ?? null
+    if (propio !== null) errores[campo.clave] = propio
   }
 
   return errores

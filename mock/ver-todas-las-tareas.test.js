@@ -97,7 +97,14 @@ test('un cuerpo vacío es 422, no un 200 que no escribió nada', async () => {
   const { estado, cuerpo } = await escribir(4, {})
 
   assert.equal(estado, 422)
-  assert.deepEqual(cuerpo.error.details.ver_todos_los_procesos, ['required'])
+  assert.equal(cuerpo.error.code, 'validation_failed')
+})
+
+test('una clave que la API no acepta es 422 con esa clave nombrada', async () => {
+  const { estado, cuerpo } = await escribir(4, { clientid: 3 })
+
+  assert.equal(estado, 422)
+  assert.deepEqual(cuerpo.error.details.clientid, ['invalid'])
 })
 
 test('un Espacio que no existe es 404 antes de mirar el cuerpo', async () => {

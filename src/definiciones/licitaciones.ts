@@ -81,6 +81,12 @@ export const LICITACIONES: DefinicionRecurso<Licitacion> = {
     // Ordena por `start_date` aunque el dato viva en `espacio`: el backend ordena por la columna del
     // Espacio, y el nombre del parametro es el suyo.
     { clave: 'start_date', encabezado: 'Inicio', ordenPor: 'start_date', presentar: (l) => formatearFecha(l.espacio.start_date) },
+    // El texto es el respaldo; `VistaLicitaciones` lo reemplaza por el enlace que abre la carpeta.
+    {
+      clave: 'presentacion_url',
+      encabezado: 'Carpeta',
+      presentar: (l) => l.presentacion_url === null ? '—' : 'Con link'
+    },
     {
       clave: 'creada_en',
       encabezado: 'Alta',
