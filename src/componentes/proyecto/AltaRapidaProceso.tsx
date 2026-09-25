@@ -1,7 +1,7 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
-import { useEffect, useMemo, useRef, useState, useId, type FormEvent, type ReactElement } from 'react'
+import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactElement } from 'react'
 import { Boton } from '@/componentes/formularios/Boton'
 import { useAccionPresencia } from '@/componentes/auditoria/accion'
 import { Campo } from '@/componentes/formularios/Campo'
@@ -21,6 +21,7 @@ import {
   Selector,
   SelectorBuscable
 } from '@/componentes/formularios/Selector'
+import { SelectorEtiquetas } from '@/componentes/formularios/SelectorEtiquetas'
 import { SelectorPersonas } from '@/componentes/formularios/SelectorPersonas'
 import { DiasExcluidos } from '@/componentes/recurrencia/DiasExcluidos'
 import { FinDeRecurrencia, type ValorFin } from '@/componentes/recurrencia/FinDeRecurrencia'
@@ -34,6 +35,7 @@ import {
 import { escribirEnBff } from '@/componentes/datos/mutaciones'
 import { pedirSobre } from '@/datos/cliente'
 import { asignadosIniciales, interpretarAltaRapida, type CatalogosAlta } from '@/dominio/alta-rapida'
+import { agregarEtiqueta } from '@/dominio/etiquetas'
 import {
   fusionarEspacio,
   fusionarInterpretacion,
@@ -75,8 +77,8 @@ interface PropsAltaRapida {
   /**
    * Etiquetas que ya existen (`lookups.tags`).
    *
-   * Se ofrecen como sugerencia en un `datalist`, no como limite: una etiqueta escrita que no esta
-   * en el catalogo se crea en el alta. Solo las usa el modo por campos.
+   * Se sugieren mientras se escribe (`SelectorEtiquetas`), no son un limite: una etiqueta escrita
+   * que no esta en el catalogo se crea en el alta. Solo las usa el modo por campos.
    */
   etiquetas?: Referencia[]
   /**
@@ -98,7 +100,6 @@ interface PropsAltaRapida {
 /** Valor del selector cuando no se eligio nada. Radix no admite `value=""` en una opcion. */
 const NINGUNO = 'ninguno'
 
-/** `id` del `datalist` de etiquetas; el `list` del campo lo referencia por nombre. */
 const CATALOGOS_VACIOS: CatalogosAlta = { personas: [], espacios: [], prioridades: [] }
 const ETIQUETAS_VACIAS: Referencia[] = []
 
@@ -176,7 +177,7 @@ interface CamposManuales {
   prioridad: string
   inicio: string
   vencimiento: string
-  etiquetasEscritas: string
+  etiquetasEscritas: string[]
   descripcion: string
 }
 
@@ -186,7 +187,6 @@ export function AltaRapidaProceso ({
 }: PropsAltaRapida): ReactElement {
   const router = useRouter()
   const [abierto, setAbierto] = useState(integrado || abrirInicialmente)
-  const listaEtiquetas = useId()
   const enviando = useRef(false)
   const [catalogosCargados, setCatalogosCargados] = useState<CatalogosAlta>(catalogosRecibidos ?? CATALOGOS_VACIOS)
   const [lookups, setLookups] = useState<Lookups | null>(null)
@@ -201,6 +201,7 @@ export function AltaRapidaProceso ({
   const [clientes, setClientes] = useState<Referencia[]>(SIN_CLIENTES)
   const catalogos = catalogosCargados
   const etiquetas = etiquetasRecibidas ?? lookups?.tags ?? ETIQUETAS_VACIAS
+  const nombresDelCatalogo = useMemo(() => etiquetas.map((etiqueta) => etiqueta.name), [etiquetas])
   const [cargando, setCargando] = useState(true)
   const [errorCarga, setErrorCarga] = useState<string | null>(null)
   const [intentoCarga, setIntentoCarga] = useState(0)
@@ -284,7 +285,7 @@ export function AltaRapidaProceso ({
   const [prioridad, setPrioridad] = useState(NINGUNO)
   const [inicio, setInicio] = useState('')
   const [vencimiento, setVencimiento] = useState('')
-  const [etiquetasEscritas, setEtiquetasEscritas] = useState('')
+  const [etiquetasEscritas, setEtiquetasEscritas] = useState<string[]>([])
   const [descripcion, setDescripcion] = useState('')
   /**
    * El error de la descripcion va aparte del `error` del formulario.
@@ -510,7 +511,7 @@ export function AltaRapidaProceso ({
     setPrioridad(NINGUNO)
     setInicio('')
     setVencimiento('')
-    setEtiquetasEscritas('')
+    setEtiquetasEscritas([])
     setDescripcion('')
     setHorasEstimadas('')
     setFacturable(true)
@@ -560,7 +561,7 @@ export function AltaRapidaProceso ({
     if (resultado.priority !== null) setPrioridad(String(resultado.priority))
     if (resultado.start_date !== null) setInicio(resultado.start_date)
     if (resultado.due_date !== null) setVencimiento(resultado.due_date)
-    if (resultado.tags.length > 0) setEtiquetasEscritas(resultado.tags.join(', '))
+    if (resultado.tags.length > 0) setEtiquetasEscritas(resultado.tags.reduce<string[]>((lista, nombre) => agregarEtiqueta(lista, nombre, nombresDelCatalogo), []))
     if (resultado.description !== null) {
       setDescripcion(resultado.description)
       // El reclamo de "falta la descripcion" deja de tener sentido en cuanto algo la llena.
@@ -842,7 +843,7 @@ export function AltaRapidaProceso ({
    * propios valores por defecto en vez de recibir un `null` que significa otra cosa.
    *
    * Las etiquetas viajan como nombres: la API resuelve las que existen y crea las que no. El
-   * `datalist` sugiere las creadas para que la variante con typo sea la excepcion y no la regla.
+   * selector sugiere las creadas para que la variante con typo sea la excepcion y no la regla.
    */
   async function crearPorCampos (): Promise<void> {
     if (creadaId !== null) { await enviar({}); return }
@@ -904,7 +905,7 @@ export function AltaRapidaProceso ({
 
     // La colacion de `tbltags` es `_ci`: "urgente" y "Urgente" son la misma fila para la API, asi
     // que no hace falta normalizar nada aca.
-    const pedidas = etiquetasEscritas.split(',').map((t) => t.trim()).filter((t) => t !== '')
+    const pedidas = etiquetasEscritas
     const horas = horasDeTexto(horasEstimadas)
 
     // Lo que es igual en todos los destinos. El hito, el tipo y la relacion quedan fuera: son de UN
@@ -1187,22 +1188,15 @@ export function AltaRapidaProceso ({
                   </Campo>
                 </div>
 
-                <Campo etiqueta="Etiquetas" ayuda="Separadas por coma. Si escribes una que no existe, se crea.">
-                  {(props) => (
-                    <>
-                      <Entrada
-                        {...props}
-                        value={etiquetasEscritas}
-                        placeholder="urgente, cliente-clave"
-                        list={listaEtiquetas}
-                        onChange={(evento) => { setEtiquetasEscritas(evento.target.value) }}
-                      />
-                      {/* `datalist` es la sugerencia nativa: no valida ni obliga, y reusar la
-                          etiqueta que ya existe evita fundar la variante con typo. */}
-                      <datalist id={listaEtiquetas}>
-                        {etiquetas.map((e) => <option key={e.id} value={e.name} />)}
-                      </datalist>
-                    </>
+                <Campo etiqueta="Etiquetas" ayuda="Elige una existente o escribe una nueva: si no existe, se crea.">
+                  {({ id, 'aria-describedby': idAyuda }) => (
+                    <SelectorEtiquetas
+                      id={id}
+                      {...(idAyuda === undefined ? {} : { idAyuda })}
+                      catalogo={nombresDelCatalogo}
+                      elegidas={etiquetasEscritas}
+                      onCambiar={setEtiquetasEscritas}
+                    />
                   )}
                 </Campo>
 

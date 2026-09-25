@@ -54,9 +54,11 @@ interface PropsVistaProspectos {
   areas: OpcionCampo[]
   /** Catalogo `staff` de `GET /lookups`, para los campos Owner y Focal del alta de licitación. */
   staff: OpcionCampo[]
+  /** Catalogo `tags` de `GET /lookups`, lo que se sugiere en el campo Etiquetas. */
+  etiquetas?: OpcionCampo[]
 }
 
-export function VistaProspectos ({ inicial, capacidades = [], paises, areas, staff, usuarioId }: PropsVistaProspectos) {
+export function VistaProspectos ({ inicial, capacidades = [], paises, areas, staff, etiquetas = [], usuarioId }: PropsVistaProspectos) {
   const router = useRouter()
   const [creando, setCreando] = useState(false)
 
@@ -117,6 +119,7 @@ export function VistaProspectos ({ inicial, capacidades = [], paises, areas, sta
           paises={paises}
           areas={areas}
           staff={staff}
+          etiquetas={etiquetas}
           onCerrar={() => { setCreando(false) }}
           onGuardado={() => { router.refresh() }}
         />

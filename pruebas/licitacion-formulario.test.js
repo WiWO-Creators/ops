@@ -117,7 +117,8 @@ test('el cuerpo separa lo propio de la licitacion de lo que va al Espacio', () =
       name: 'Licitación Colbún 2026',
       start_date: '2026-01-05',
       deadline: '2026-03-31',
-      description: 'Propuesta de implementación y mantención.'
+      description: 'Propuesta de implementación y mantención.',
+      tags: []
     }
   })
 })
@@ -144,7 +145,7 @@ test('la edicion junta el Espacio y los seis campos propios, y nada de la empres
   const campos = camposDeEdicionDeLicitacion(AREAS, STAFF)
 
   assert.deepEqual(campos.map((uno) => uno.clave), [
-    'espacio.name', 'espacio.start_date', 'espacio.deadline', 'espacio.description',
+    'espacio.name', 'espacio.start_date', 'espacio.deadline', 'espacio.description', 'espacio.tags',
     'empresa_holding', 'area_id', 'modelo_servicio',
     'owner_id', 'focal_id',
     'presentacion_url'
@@ -197,4 +198,47 @@ test('la edicion vacia un campo con null', () => {
     licitacion: { owner_id: null, presentacion_url: null },
     espacio: null
   })
+})
+
+const ETIQUETAS = [{ valor: '14', etiqueta: 'Licitación' }, { valor: '18', etiqueta: 'licitaciones' }]
+
+test('el alta y la edicion tienen Etiquetas, con el catalogo como sugerencia', () => {
+  const alta = campo(camposDeLicitacion(PROSPECTOS, AREAS, STAFF, ETIQUETAS), 'espacio.tags')
+  const edicion = campo(camposDeEdicionDeLicitacion(AREAS, STAFF, ETIQUETAS), 'espacio.tags')
+
+  assert.equal(alta.tipo, 'etiquetas')
+  assert.deepEqual(alta.opciones, ETIQUETAS)
+  assert.deepEqual(edicion.opciones, ETIQUETAS)
+  assert.equal(campo(camposDeLicitacion(PROSPECTOS), 'espacio.tags').opciones.length, 0)
+})
+
+test('las etiquetas viajan por nombre, recortadas y sin vacias', () => {
+  const campos = camposDeLicitacion(PROSPECTOS, AREAS, STAFF, ETIQUETAS)
+  const cuerpo = cuerpoDelFormulario(campos, { 'espacio.tags': [' Licitación ', 'Minería', '  '] })
+
+  assert.deepEqual(cuerpo.espacio.tags, ['Licitación', 'Minería'])
+  assert.equal(validarFormulario(campos, {
+    prospecto_id: '7', 'espacio.name': 'A', 'espacio.start_date': '2026-01-05', 'espacio.tags': ['x'.repeat(101)]
+  })['espacio.tags'], 'Cada etiqueta puede tener hasta 100 caracteres.')
+})
+
+test('la edicion siembra los nombres del Espacio y solo manda las etiquetas si cambiaron', () => {
+  const campos = camposDeEdicionDeLicitacion(AREAS, STAFF, ETIQUETAS)
+  const registro = {
+    espacio: { name: 'A', start_date: '2026-01-05', tags: [{ id: 14, name: 'Licitación' }, { id: 3, name: 'Codelco' }] }
+  }
+  const valores = valoresIniciales(campos, registro)
+  const inicial = cuerpoDelFormulario(campos, valores)
+
+  assert.deepEqual(valores['espacio.tags'], ['Licitación', 'Codelco'])
+  assert.deepEqual(partirEdicionDeLicitacion(inicial, inicial), { licitacion: null, espacio: null })
+  assert.deepEqual(
+    partirEdicionDeLicitacion(cuerpoDelFormulario(campos, { ...valores, 'espacio.tags': ['Licitación', 'Codelco', 'licitaciones'] }), inicial),
+    { licitacion: null, espacio: { tags: ['Licitación', 'Codelco', 'licitaciones'] } }
+  )
+  assert.deepEqual(
+    partirEdicionDeLicitacion(cuerpoDelFormulario(campos, { ...valores, 'espacio.tags': [] }), inicial),
+    { licitacion: null, espacio: { tags: [] } }
+  )
+  assert.deepEqual(valoresIniciales(campos, { espacio: { tags: null } })['espacio.tags'], [])
 })

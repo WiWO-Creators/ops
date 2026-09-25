@@ -4,6 +4,7 @@ import { Fragment, useState, type ReactElement, type ReactNode } from 'react'
 import { Boton } from '@/componentes/formularios/Boton'
 import { Campo } from '@/componentes/formularios/Campo'
 import { AreaTexto, Entrada } from '@/componentes/formularios/Entrada'
+import { SelectorEtiquetas } from '@/componentes/formularios/SelectorEtiquetas'
 import {
   ContenidoSelector,
   DisparadorSelector,
@@ -310,6 +311,28 @@ export function ControlDeCampo (
         </div>
         {error !== undefined && <p role="alert" className="text-texto-peligro text-xs">{error}</p>}
       </fieldset>
+    )
+  }
+
+  if (campo.tipo === 'etiquetas') {
+    return (
+      <Campo
+        etiqueta={campo.etiqueta}
+        requerido={campo.requerido}
+        {...(campo.ayuda === undefined ? {} : { ayuda: campo.ayuda })}
+        {...(error === undefined ? {} : { error })}
+      >
+        {(props) => (
+          <SelectorEtiquetas
+            id={props.id}
+            {...(props['aria-describedby'] === undefined ? {} : { idAyuda: props['aria-describedby'] })}
+            invalido={error !== undefined}
+            catalogo={(campo.opciones ?? []).map((opcion) => opcion.etiqueta)}
+            elegidas={Array.isArray(valor) ? valor : []}
+            onCambiar={alCambiar}
+          />
+        )}
+      </Campo>
     )
   }
 

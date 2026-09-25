@@ -44,9 +44,11 @@ interface PropsAcciones {
   areas: OpcionCampo[]
   /** Catalogo `staff` de `GET /lookups`, para el owner y el focal. */
   staff: OpcionCampo[]
+  /** Catalogo `tags` de `GET /lookups`, lo que se sugiere en el campo Etiquetas. */
+  etiquetas?: OpcionCampo[]
 }
 
-export function AccionesLicitacion ({ licitacion, capacidades, areas, staff }: PropsAcciones): ReactElement {
+export function AccionesLicitacion ({ licitacion, capacidades, areas, staff, etiquetas = [] }: PropsAcciones): ReactElement {
   const router = useRouter()
   const [editando, setEditando] = useState(false)
   const [confirmando, setConfirmando] = useState<'ganar' | 'perder' | null>(null)
@@ -97,6 +99,7 @@ export function AccionesLicitacion ({ licitacion, capacidades, areas, staff }: P
           onAbiertoCambia={setEditando}
           areas={areas}
           staff={staff}
+          etiquetas={etiquetas}
           onGuardado={() => { router.refresh() }}
         />
       )}
@@ -158,6 +161,7 @@ interface PropsEdicion {
   onAbiertoCambia: (abierto: boolean) => void
   areas: OpcionCampo[]
   staff: OpcionCampo[]
+  etiquetas: OpcionCampo[]
   onGuardado: () => void
 }
 
@@ -167,8 +171,8 @@ interface PropsEdicion {
  * La descripcion se siembra en texto plano porque asi la muestra la ficha; si nadie la toca no viaja,
  * y una descripcion con formato hecha en el panel viejo queda intacta.
  */
-function EdicionLicitacion ({ licitacion, abierto, onAbiertoCambia, areas, staff, onGuardado }: PropsEdicion): ReactElement {
-  const campos = camposDeEdicionDeLicitacion(areas, staff)
+function EdicionLicitacion ({ licitacion, abierto, onAbiertoCambia, areas, staff, etiquetas, onGuardado }: PropsEdicion): ReactElement {
+  const campos = camposDeEdicionDeLicitacion(areas, staff, etiquetas)
   const registro = {
     ...licitacion,
     espacio: { ...licitacion.espacio, description: aTextoPlano(licitacion.espacio.description ?? '') }

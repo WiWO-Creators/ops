@@ -69,6 +69,13 @@ export const NOVEDADES: Novedad[] = [
   {
     fecha: '2026-09-25',
     tipo: 'mejora',
+    titulo: 'Las etiquetas se escriben y te sugieren las que ya existen',
+    detalle: 'Al escribir una etiqueta en una tarea o en una licitación, abajo aparecen las que ya existen y se le parecen, incluso con errores de tipeo. Si no está, eliges "Crear" y queda creada al guardar. Las licitaciones ahora también tienen etiquetas, al crearlas y al editarlas.',
+    commits: []
+  },
+  {
+    fecha: '2026-09-25',
+    tipo: 'mejora',
     titulo: 'El Meeting Paper te muestra sus tareas apenas termina',
     detalle: 'Al terminar de escribir un Meeting Paper, la pantalla baja sola a las tareas que la IA encontró en él, para que las revises y crees las que correspondan. Los Meeting Papers anteriores tienen un botón "Analizar buscando tareas", y el Thinking Orb también puede analizarlos y proponértelas. Ninguna tarea se crea sin tu confirmación.',
     commits: []

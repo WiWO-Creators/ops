@@ -128,6 +128,7 @@ export default async function LicitacionPage (props: PageProps<'/licitaciones/[i
           capacidades={yo.permissions.projects}
           areas={comoOpciones(listaDe(lookups, 'areas'))}
           staff={staff}
+          etiquetas={comoOpciones(listaDe(lookups, 'tags'))}
         />
       }
       ficha={

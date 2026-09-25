@@ -99,10 +99,20 @@ function cambiados (
   permitidas: readonly string[] | null
 ): Record<string, unknown> | null {
   const entradas = Object.entries(cuerpo).filter(([clave, valor]) =>
-    (permitidas === null || permitidas.includes(clave)) && valor !== inicial[clave]
+    (permitidas === null || permitidas.includes(clave)) && !mismoValor(valor, inicial[clave])
   )
 
   return entradas.length > 0 ? Object.fromEntries(entradas) : null
+}
+
+/**
+ * ¿Es el mismo valor? Las listas (las etiquetas) se comparan por contenido y en orden: con `!==`
+ * dos listas iguales son siempre distintas, y el Espacio se reescribiria en cada guardado.
+ */
+function mismoValor (a: unknown, b: unknown): boolean {
+  if (Array.isArray(a) && Array.isArray(b)) return a.length === b.length && a.every((item, indice) => item === b[indice])
+
+  return a === b
 }
 
 /**

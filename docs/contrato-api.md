@@ -957,7 +957,13 @@ Campos editables de un Proceso: `name`, `description`, `start_date`, `due_date`,
 `billable`, `milestone`.
 
 Campos editables de un Espacio: `name`, `description`, `start_date`, `deadline`, `estimated_hours`,
-`status`.
+`status`, `ver_todos_los_procesos` y `tags`.
+
+`tags` es la lista entera de etiquetas, **por nombre**, y reemplaza la actual (`[]` las quita todas).
+El nombre que no existe en `tbltags` se crea, así que no hace falta `POST /tags` (que es solo de
+administradores). Se recortan los espacios y se descartan los repetidos sin distinguir mayúsculas.
+Una lista con algo que no es texto, o con un nombre de más de 100 caracteres, es `422` con
+`details.tags = ["invalid"]` y no se escribe nada.
 
 **Cualquier otra clave devuelve `422`**, con `details` nombrándola — no se ignora en silencio, porque
 un campo que el cliente cree haber guardado y no se guardó es peor que un error:

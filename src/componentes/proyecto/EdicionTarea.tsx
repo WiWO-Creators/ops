@@ -16,13 +16,7 @@ import {
   Selector,
   SelectorBuscable
 } from '@/componentes/formularios/Selector'
-import {
-  ContenidoMenu,
-  DisparadorMenu,
-  ItemMenuMarcable,
-  MenuContextual
-} from '@/componentes/superposiciones/MenuContextual'
-import { CLASES_DISPARADOR } from '@/componentes/formularios/Selector'
+import { SelectorEtiquetas } from '@/componentes/formularios/SelectorEtiquetas'
 import { CerrarDialogo, ContenidoDialogo, Dialogo } from '@/componentes/superposiciones/Dialogo'
 import { escribirEnBff } from '@/componentes/datos/mutaciones'
 import { cargarAsignables } from '@/datos/asignables'
@@ -48,6 +42,7 @@ import {
   vencimientoExigidoAlGuardar,
   type CamposEdicion
 } from '@/dominio/edicion-tarea'
+import { esMismaEtiqueta } from '@/dominio/etiquetas'
 import { fechaDeCierre, instanteDeCierre } from '@/dominio/cierre-tarea'
 import {
   claseDeEspacio, combinarDestinos, espaciosDeClase, esRelacionDeEspacio, RELACIONES_RETIRADAS,
@@ -57,7 +52,6 @@ import { GLOSARIO } from '@/dominio/glosario'
 import { errorDeHorasEstimadas } from '@/dominio/tiempo-estimado'
 import { ESTADO_COMPLETO } from './tareas'
 import { hoyLocal } from '@/lib/fechas'
-import { cn } from '@/lib/clases'
 import { AsistenteDescripcion } from './AsistenteDescripcion'
 import { useVencimientoRequerido } from './useVencimientoRequerido'
 import type { StaffReferencia } from '@/datos/tipos'
@@ -124,7 +118,6 @@ export function EdicionTarea (
   const [hitos, setHitos] = useState<Hito[]>([])
   const [avisoCatalogo, setAvisoCatalogo] = useState<string | null>(null)
   /** Lo que se esta escribiendo en el campo de etiqueta nueva, antes de sumarlo a la lista. */
-  const [etiquetaNueva, setEtiquetaNueva] = useState('')
   const [guardadoParcial, setGuardadoParcial] = useState(false)
   const [enCurso, setEnCurso] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -438,52 +431,18 @@ export function EdicionTarea (
     onGuardada()
   }
 
-  /** Agrega o saca una etiqueta del catalogo de las elegidas. */
-  function alternarEtiqueta (id: number): void {
-    setCampos((previos) => ({
-      ...previos,
-      etiquetas: previos.etiquetas.includes(id)
-        ? previos.etiquetas.filter((elegida) => elegida !== id)
-        : [...previos.etiquetas, id]
-    }))
-  }
-
   /**
-   * Suma una etiqueta escrita a mano. Viaja como nombre y la crea la API al guardar.
+   * Pone las etiquetas que devuelve el selector, que habla en nombres.
    *
-   * Si el nombre ya esta en el catalogo se agrega el id en vez del texto: mandar el nombre tambien
-   * funcionaria —la API lo resuelve sin distinguir mayusculas— pero dejaria la casilla del menu sin
-   * marcar y la misma etiqueta se veria dos veces.
+   * La que ya esta en el catalogo vuelve a su id y la nueva viaja como nombre: es la forma que
+   * espera `PATCH /tasks/{id}`, y la que usa el parche para saber si la lista cambio.
    */
-  function agregarEtiquetaEscrita (): void {
-    const nombre = etiquetaNueva.trim()
-    if (nombre === '') return
-
-    const delCatalogo = etiquetas.find((etiqueta) => etiqueta.name.toLowerCase() === nombre.toLowerCase())
-    const valor = delCatalogo === undefined ? nombre : delCatalogo.id
-
-    setEtiquetaNueva('')
-    setCampos((previos) => (
-      previos.etiquetas.some((elegida) => (
-        typeof elegida === 'string' && typeof valor === 'string'
-          ? elegida.toLowerCase() === valor.toLowerCase()
-          : elegida === valor
-      ))
-        ? previos
-        : { ...previos, etiquetas: [...previos.etiquetas, valor] }
-    ))
-  }
-
-  /** Saca una etiqueta escrita a mano, que no tiene casilla en el menu del catalogo. */
-  function quitarEtiquetaEscrita (nombre: string): void {
+  function ponerEtiquetas (nombres: string[]): void {
     setCampos((previos) => ({
       ...previos,
-      etiquetas: previos.etiquetas.filter((elegida) => elegida !== nombre)
+      etiquetas: nombres.map((nombre) => etiquetas.find((etiqueta) => esMismaEtiqueta(etiqueta.name, nombre))?.id ?? nombre)
     }))
   }
-
-  const elegidas = nombresDeEtiquetas(etiquetas, campos.etiquetas)
-  const escritas = campos.etiquetas.filter((elegida): elegida is string => typeof elegida === 'string')
 
   return (
     <Dialogo open onOpenChange={(abierto) => { if (!abierto) cerrar() }}>
@@ -703,78 +662,15 @@ export function EdicionTarea (
             )}
           </Campo>
 
-          <Campo etiqueta="Etiquetas" ayuda="Elige de la lista o escribe una nueva: si no existe, se crea al guardar.">
-            {({ id }) => (
-              <div className="flex flex-col gap-2">
-                <MenuContextual>
-                  <DisparadorMenu
-                    id={id}
-                    className={cn(CLASES_DISPARADOR, campos.etiquetas.length === 0 && 'text-texto-sutil')}
-                  >
-                    <span className="truncate">
-                      {elegidas.length === 0 ? 'Elegir etiquetas' : elegidas.join(', ')}
-                    </span>
-                  </DisparadorMenu>
-
-                  <ContenidoMenu align="start" className="w-[var(--radix-dropdown-menu-trigger-width)]">
-                    <div className="max-h-64 overflow-y-auto">
-                      {etiquetas.length === 0
-                        ? <p className="text-texto-sutil px-2.5 py-3 text-center text-xs">No hay etiquetas creadas.</p>
-                        : etiquetas.map((etiqueta) => (
-                          <ItemMenuMarcable
-                            key={etiqueta.id}
-                            checked={campos.etiquetas.includes(etiqueta.id)}
-                            onCheckedChange={() => alternarEtiqueta(etiqueta.id)}
-                          >
-                            {etiqueta.name}
-                          </ItemMenuMarcable>
-                          ))}
-                    </div>
-                  </ContenidoMenu>
-                </MenuContextual>
-
-                {/* El alta va aparte del menu: el menu marca lo que ya existe y esto suma lo que no.
-                    `Enter` no manda el formulario, agrega la etiqueta. */}
-                <div className="flex gap-2">
-                  <Entrada
-                    value={etiquetaNueva}
-                    placeholder="Etiqueta nueva"
-                    maxLength={100}
-                    onChange={(evento) => setEtiquetaNueva(evento.target.value)}
-                    onKeyDown={(evento) => {
-                      if (evento.key !== 'Enter') return
-                      evento.preventDefault()
-                      agregarEtiquetaEscrita()
-                    }}
-                  />
-                  <Boton
-                    type="button"
-                    variante="secundario"
-                    disabled={etiquetaNueva.trim() === ''}
-                    onClick={agregarEtiquetaEscrita}
-                  >
-                    Agregar
-                  </Boton>
-                </div>
-
-                {escritas.length > 0 && (
-                  <ul className="flex flex-wrap gap-1.5">
-                    {escritas.map((nombre) => (
-                      <li key={nombre}>
-                        <button
-                          type="button"
-                          className="border-borde text-texto-sutil hover:text-texto flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs"
-                          onClick={() => quitarEtiquetaEscrita(nombre)}
-                        >
-                          {nombre}
-                          <span aria-hidden="true">×</span>
-                          <span className="sr-only">Quitar</span>
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
+          <Campo etiqueta="Etiquetas" ayuda="Elige una existente o escribe una nueva: si no existe, se crea al guardar.">
+            {({ id, 'aria-describedby': idAyuda }) => (
+              <SelectorEtiquetas
+                id={id}
+                {...(idAyuda === undefined ? {} : { idAyuda })}
+                catalogo={etiquetas.map((etiqueta) => etiqueta.name)}
+                elegidas={nombresDeEtiquetas(etiquetas, campos.etiquetas)}
+                onCambiar={ponerEtiquetas}
+              />
             )}
           </Campo>
 
