@@ -19,7 +19,7 @@
  */
 export const ICONOS_SECCION = [
   'inicio', 'live', 'mis_tareas', 'procesos', 'recurrentes', 'tickets', 'espacios', 'licitaciones', 'upsells',
-  'salas', 'teletrabajo', 'clientes', 'focals', 'equipo', 'mi_area', 'organigrama',
+  'salas', 'teletrabajo', 'clientes', 'focals', 'equipo', 'mi_area', 'organigrama', 'supervision',
   'administracion', 'auditoria', 'papelera'
 ] as const
 

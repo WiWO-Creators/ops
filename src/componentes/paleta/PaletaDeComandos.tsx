@@ -28,6 +28,9 @@ import { ICONOS_DE_COMANDO } from './iconos'
 const ATAJOS: Atajo[] = [
   { etiqueta: 'Tablero de tareas', href: '/procesos/tablero', icono: 'tablero', requiere: '/procesos', sinonimos: ['kanban'] },
   { etiqueta: 'Calendario de tareas', href: '/procesos/calendario', icono: 'calendario', requiere: '/procesos', sinonimos: ['agenda'] },
+  // La sección ya viaja sola a la paleta; este atajo lleva a la firma de la hoja y le da los nombres
+  // con que se la busca sin saber que se llama Supervisión.
+  { etiqueta: 'Firmar la hoja de supervisión', href: '/supervision#firma', icono: 'supervision', requiere: '/supervision', sinonimos: ['revisar tareas vencidas', 'hoja del día', 'imprimir hoja'] },
   { etiqueta: 'Mi perfil', href: '/perfil', icono: 'perfil', requiere: null, sinonimos: ['contraseña', 'foto', 'cuenta'] },
   { etiqueta: 'Novedades', href: '/novedades', icono: 'novedades', requiere: null, sinonimos: ['cambios', 'actualizaciones', 'changelog'] },
   { etiqueta: 'Soporte', href: URL_SOPORTE, icono: 'soporte', requiere: null, sinonimos: ['ayuda', 'wiwo.center'], externo: true }

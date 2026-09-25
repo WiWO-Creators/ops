@@ -4,6 +4,7 @@ import { leerSuplantador } from '@/datos/sesion'
 import type { Yo } from '@/datos/tipos'
 import { GLOSARIO } from '@/dominio/glosario'
 import { puedeVerFocals, puedeVerMiArea, puedeVerSeccion } from '@/dominio/permisos'
+import { puedeVerSupervision } from '@/dominio/supervision'
 import { intervaloDeLatido } from '@/datos/auditoria'
 import { iaHabilitada } from '@/datos/ajustes'
 import { intervaloDeLive, type EstadoDeJornada } from '@/datos/live'
@@ -295,6 +296,13 @@ function seccionesDe (yo: Yo): Seccion[] {
   // esta en el back, y la pantalla muestra su mensaje tal cual.
   if (yo.dirige_areas || yo.is_admin || yo.is_superadmin) {
     secciones.push({ href: '/equipo/jerarquia', etiqueta: 'Jerarquías', icono: 'organigrama', grupo: 'equipo' })
+  }
+
+  // Supervisión: la hoja diaria de las Tareas vencidas de los clientes que uno supervisa. Solo
+  // supervisa quien es lead o superior, y la administración la abre para mirar las hojas ajenas.
+  // Esconderla es cosmetica: la API contesta 403 a quien mira una hoja que no le toca.
+  if (puedeVerSupervision(yo)) {
+    secciones.push({ href: '/supervision', etiqueta: 'Supervisión', icono: 'supervision', grupo: 'equipo' })
   }
 
   // Administracion no tiene permiso de Perfex propio, y `is_admin` es demasiado ancha: en la base

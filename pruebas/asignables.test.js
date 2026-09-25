@@ -91,7 +91,11 @@ test('una lista vacia se cachea igual: no es un error, es un equipo sin nadie', 
  * defecto de siempre —"a un usuario le sale una persona y a otro no"— y va a `cargarAsignables`.
  */
 const PANTALLAS_DE_ADMINISTRACION = new Set([
-  'src/componentes/equipo/AccionesPersona.tsx'
+  'src/componentes/equipo/AccionesPersona.tsx',
+  // Los supervisores de un Cliente se eligen por escalón, y `staff/asignables` no lo publica. No es
+  // el defecto de la lista parcial: sin `staff.view` la API contesta 403 entero y la pestaña queda
+  // en solo lectura con el motivo, igual para todos los que no tienen ese permiso.
+  'src/componentes/cliente/SupervisoresCliente.tsx'
 ])
 
 /** Todos los `.ts` y `.tsx` de `src/`, con la ruta relativa a la raiz del proyecto. */

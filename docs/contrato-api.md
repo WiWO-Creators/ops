@@ -7011,6 +7011,87 @@ sale `null` en el listado de Espacios, que sigue funcionando entero. Una base at
 apagada, no la pantalla rota — como el bloqueo de Procesos.
 
 
+### Rama `feat/supervision-diaria`
+
+La Supervisión diaria: un supervisor —escalón `lead` o superior (`Escalon::alcanza($e, LEAD)`)—
+tiene clientes asociados y cada día le toca una **hoja**: las Tareas de esos clientes con
+`status != 5` y `duedate <= fecha`, más toda Tarea que ya tenga revisión en esa hoja aunque hoy
+esté completada (así un día pasado no pierde filas). El cliente de una Tarea es `rel_id` si
+`rel_type = customer`, o el `clientid` del Proyecto si `rel_type = project`. Orden: cliente
+(`company`) y después `duedate` ascendente. Todas las respuestas van en el sobre `{data}` habitual.
+
+#### `GET|PUT /clients/{id}/supervisores`
+
+`GET` → `[{staffid, firstname, lastname, escalon}]`. `PUT {staff_ids: [int]}` reemplaza la lista;
+`422 {staff_ids}` si alguno no existe, está inactivo o no llega a `lead`. Mismo permiso que
+`PUT /clients/{id}/focales` (`customers.edit`).
+
+#### `GET|PUT /staff/{id}/supervision`
+
+`GET` → `[{client_id, company}]`. `PUT {client_ids: [int]}` reemplaza los clientes de esa persona;
+`422` si la persona no llega a `lead` o algún cliente no existe. Mismo permiso.
+
+#### `GET /supervision/supervisores`
+
+→ `[{staffid, nombre, escalon, clientes}]`: los supervisores (con al menos un cliente) que quien
+pregunta puede ver — él mismo, su descendencia (`Jerarquia::descendencia`) o todos si es admin.
+
+#### `GET /supervision/hoja?fecha=YYYY-MM-DD&staff_id=N`
+
+Sin `fecha` es hoy en `America/Santiago`; sin `staff_id`, quien pregunta. `403` si no es esa persona,
+ni está sobre ella (`Jerarquia::estaSobre`), ni es admin; `422` si la fecha no es válida.
+
+```json
+{
+  "fecha": "2026-09-25",
+  "puede_editar": true,
+  "supervisor": { "staffid": 1, "nombre": "Ana Ríos", "escalon": "gerencia" },
+  "firma": null,
+  "totales": { "tareas": 12, "atrasadas": 9, "revisadas": 3, "ok": 2, "no_ok": 1 },
+  "clientes": [{
+    "client_id": 1, "company": "Acme",
+    "tareas": [{
+      "id": 512, "patente": "ESP-001-03", "name": "…", "status": 1, "duedate": "2026-09-20",
+      "dias_atraso": 5, "proyecto": { "id": 1, "name": "…" },
+      "asignados": [{ "staffid": 4, "nombre": "Diego Sosa" }],
+      "revision": { "estado": "ok", "nota": null, "staffid": 1, "nombre": "Ana Ríos", "marcado_en": "…" }
+    }]
+  }]
+}
+```
+
+`puede_editar` es `true` solo para el propio supervisor y mientras la hoja no esté firmada.
+`dias_atraso` es 0 si vence ese mismo día. Un supervisor sin clientes recibe `clientes: []` y los
+totales en 0 (200, no error).
+
+#### `PUT /supervision/hoja/{fecha}/revisiones`
+
+Cuerpo `{task_id, estado: 'ok'|'no_ok'|null, nota?: string ≤ 500}`. Solo el propio supervisor.
+`estado: null` borra la revisión. `409` si la hoja ya está firmada; `422` si la Tarea no está en la
+hoja o el estado no es válido. → la revisión resultante, o `null`.
+
+#### `POST /supervision/hoja/{fecha}/firma`
+
+Cuerpo `{}`. Solo el propio supervisor. `409` si ya estaba firmada; `422` si la hoja está vacía.
+→ `{staffid, nombre, firmado_en}` (ISO 8601 con desfase). Firmada = cerrada: no admite más
+revisiones.
+
+#### Envío diario
+
+`node-cron` `0 8 * * 1-5` en Santiago llama a `php index.php api v1 supervision cron`: por cada
+supervisor con hoja no vacía reserva el envío (`tblwiwo_supervision_envios`, único por persona y día)
+y avisa con el evento `supervision_diaria`, que enlaza a `/supervision?fecha=YYYY-MM-DD`. Nace
+apagado: interruptor `wiwo_supervision_envio = '0'`, editable en Ajustes → correo.
+
+#### En el panel
+
+`/supervision` (grupo Equipo del menú, visible para lead o superior y la administración), la pestaña
+Supervisión de la ficha del Cliente y la de la ficha de la persona (esta última solo si es lead o
+superior). El selector del Cliente saca el escalón de `GET /staff`, porque `staff/asignables` no lo
+publica; sin `staff.view` la pestaña queda en solo lectura. El prefijo `supervision` está en
+`PREFIJOS_PERMITIDOS` del BFF, no en el del portal. La hoja se imprime en A4 desde un iframe sin
+scripts (`dominio/hoja-imprimible.ts`).
+
 ## Tiempo real
 
 `GET /config/realtime` → `{ "data": { "enabled": true, "key": "…", "cluster": "…" } }`
