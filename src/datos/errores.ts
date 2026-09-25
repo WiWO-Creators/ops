@@ -1,4 +1,5 @@
 import { GLOSARIO } from '../dominio/glosario.ts'
+import { avisarError, reportarIncidente } from '../lib/aviso-de-error.ts'
 import type { CodigoError, SobreError } from './tipos'
 
 /**
@@ -124,22 +125,129 @@ export async function errorDesdeRespuesta (respuesta: Response, ruta: string): P
  * accion de tabla, detener un cronometro— necesita exactamente esto y ninguna deberia reescribirlo.
  *
  * @param respuesta la respuesta fallida del BFF
+ * @param peticion metodo y ruta de la peticion, para el incidente si hay que registrarlo
  * @returns el error del contrato, o uno generico con el codigo de estado si el cuerpo no era JSON
  */
-export async function leerError (respuesta: Response): Promise<SobreError['error']> {
-  try {
-    const cuerpo = await respuesta.json() as SobreError
+export async function leerError (respuesta: Response, peticion: PeticionFallida = {}): Promise<SobreError['error']> {
+  const cuerpo = await leerCuerpoDeError(respuesta)
 
-    // El mensaje sale ya con los `details` adentro: quien lo muestra es un `<p>` de formulario, y
-    // "Hay campos que no se pueden guardar." sin decir cual campo no se puede accionar.
-    if (cuerpo.error?.code !== undefined) {
-      return { ...cuerpo.error, message: mensajeConDetalles(cuerpo.error) }
-    }
+  // El mensaje sale ya con los `details` adentro: quien lo muestra es un `<p>` de formulario, y
+  // "Hay campos que no se pueden guardar." sin decir cual campo no se puede accionar.
+  const error: SobreError['error'] = cuerpo.sobre?.error?.code !== undefined
+    ? { ...cuerpo.sobre.error, message: mensajeConDetalles(cuerpo.sobre.error) }
+    : { code: 'server_error', message: `El servidor respondió ${respuesta.status}` }
+
+  await registrarFallaSinIncidente(respuesta, cuerpo, error.message, peticion)
+
+  return error
+}
+
+/** Lo que se sabe de la peticion que fallo, ademas de la respuesta. */
+export interface PeticionFallida {
+  /** Metodo HTTP. La `Response` no lo trae, asi que solo lo sabe quien hizo el `fetch`. */
+  metodo?: string
+  /** Ruta pedida. Si falta se usa la de `respuesta.url`. */
+  ruta?: string
+}
+
+/** El cuerpo de una respuesta fallida: crudo, y como envelope si lo era. */
+export interface CuerpoDeError {
+  crudo: string
+  sobre: Partial<SobreError> | null
+}
+
+/**
+ * Lee el cuerpo de una respuesta fallida una sola vez, como texto y como envelope.
+ *
+ * Se lee como texto primero porque un cuerpo solo se puede consumir una vez: si se pidiera `json()`
+ * y fallara —el HTML de un 502 de Apache—, el HTML ya no se podria recuperar para el incidente.
+ * Nunca lanza: un cuerpo ilegible queda como cadena vacia.
+ *
+ * @param respuesta la respuesta fallida
+ * @returns el texto crudo y el envelope, o `null` si el texto no era un objeto JSON
+ */
+export async function leerCuerpoDeError (respuesta: Response): Promise<CuerpoDeError> {
+  let crudo = ''
+
+  try {
+    crudo = await respuesta.text()
   } catch {
-    // Un 502 del proxy devuelve HTML: se cae al mensaje generico de abajo.
+    return { crudo, sobre: null }
   }
 
-  return { code: 'server_error', message: `El servidor respondió ${respuesta.status}` }
+  try {
+    const valor: unknown = JSON.parse(crudo)
+
+    return { crudo, sobre: typeof valor === 'object' && valor !== null ? valor as Partial<SobreError> : null }
+  } catch {
+    return { crudo, sobre: null }
+  }
+}
+
+/**
+ * Un trozo del cuerpo que no era JSON, para que el incidente diga algo del HTML que llego.
+ *
+ * @param crudo el cuerpo tal como llego
+ * @returns hasta 300 caracteres con los espacios colapsados, o `cuerpo vacío`
+ */
+export function recorteDelCuerpo (crudo: string): string {
+  const limpio = crudo.replace(/\s+/g, ' ').trim()
+
+  return limpio === '' ? 'cuerpo vacío' : limpio.slice(0, 300)
+}
+
+/**
+ * Registra desde el navegador un error del servidor que nadie registro, y avisa con su codigo.
+ *
+ * Existe por los errores que el BFF nunca ve: en produccion Apache esta delante de Next, y cuando
+ * Next no contesta a tiempo el `502` lo arma el proxy en HTML. Ese error no pasa por `conIncidente()`
+ * y, sin esto, la persona veia «El servidor respondió 502» y en Incidentes no quedaba nada. El otro
+ * caso es un envelope `5xx` sin `details.incidente`: el BFF lo vio pero no pudo guardarlo.
+ *
+ * No hace nada con los `4xx` —son desenlaces que la pantalla explica— ni cuando el envelope ya trae
+ * incidente, porque registrarlo otra vez duplicaria la fila y el codigo mostrado no seria el que
+ * tiene la traza del servidor. Nunca lanza: si el reporte falla, el aviso sale sin codigo y el
+ * llamador sigue con su mensaje generico.
+ *
+ * @param respuesta la respuesta fallida
+ * @param cuerpo el cuerpo ya leido con {@link leerCuerpoDeError}
+ * @param mensaje lo que se le muestra a la persona
+ * @param peticion metodo y ruta, si quien llama los conoce
+ */
+export async function registrarFallaSinIncidente (
+  respuesta: Response,
+  cuerpo: CuerpoDeError,
+  mensaje: string,
+  peticion: PeticionFallida = {}
+): Promise<void> {
+  if (respuesta.status < 500) return
+  if (incidenteDe(cuerpo.sobre?.error?.details) !== undefined) return
+
+  const detalle = cuerpo.sobre?.error?.message ?? recorteDelCuerpo(cuerpo.crudo)
+  let incidente: string | null = null
+
+  try {
+    incidente = await reportarIncidente({
+      tipo: cuerpo.sobre?.error === undefined ? 'RespuestaSinCuerpo' : 'RespuestaSinIncidente',
+      mensaje: `${respuesta.status} ${detalle} en ${rutaDeLaRespuesta(respuesta, peticion)}`,
+      metodo: peticion.metodo
+    })
+  } catch {
+    incidente = null
+  }
+
+  avisarError({ mensaje, incidente: incidente ?? undefined })
+}
+
+/** La ruta pedida: la que dio quien llama, o el path de `respuesta.url`. */
+function rutaDeLaRespuesta (respuesta: Response, peticion: PeticionFallida): string {
+  if (peticion.ruta !== undefined && peticion.ruta !== '') return peticion.ruta
+
+  try {
+    return new URL(respuesta.url).pathname
+  } catch {
+    return 'ruta desconocida'
+  }
 }
 
 /**

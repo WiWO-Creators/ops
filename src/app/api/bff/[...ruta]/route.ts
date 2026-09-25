@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { llamarApi } from '@/datos/api'
-import { ErrorApi, incidenteDe } from '@/datos/errores'
+import { ErrorApi, incidenteDe, recorteDelCuerpo } from '@/datos/errores'
 import { registrarIncidente } from '@/datos/incidentes'
 import { cabecerasDeOrigen } from '@/datos/origen'
 import { rutaCompartida, rutaPermitida } from '@/datos/rutas'
@@ -248,13 +248,6 @@ function sobreDeError (crudo: string): SobreError | null {
   } catch {
     return null
   }
-}
-
-/** Un trozo del cuerpo que no era JSON, para que el incidente diga algo del HTML que llego. */
-function recorteDelCuerpo (crudo: string): string {
-  const limpio = crudo.replace(/\s+/g, ' ').trim()
-
-  return limpio === '' ? 'cuerpo vacío' : limpio.slice(0, 300)
 }
 
 /**

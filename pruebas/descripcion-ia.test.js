@@ -80,11 +80,10 @@ test('redactarDescripcion: una respuesta vacia es un error, no un borrador en bl
 })
 
 test('redactarDescripcion: el error de la API llega con su mensaje', async () => {
-  fetchDePrueba(async () => ({
-    ok: false,
-    status: 502,
-    json: async () => ({ error: { code: 'provider_error', message: 'El proveedor no respondió.' } })
-  }))
+  fetchDePrueba(async () => Response.json(
+    { error: { code: 'provider_error', message: 'El proveedor no respondió.' } },
+    { status: 502 }
+  ))
 
   const resultado = await redactarDescripcion(CUERPO, new AbortController().signal)
 
