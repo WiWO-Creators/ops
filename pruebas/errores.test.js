@@ -103,3 +103,18 @@ test('los errores de Drive no repiten el motivo que el mensaje ya dice', () => {
     'Ya están en esa carpeta.'
   )
 })
+
+test('los 422 de la recurrencia se dicen con frase propia', () => {
+  assert.equal(
+    mensajeConDetalles({ message: 'Hay campos que no se pueden guardar.', details: { skip_weekdays: ['excluye_todos'] } }),
+    'Hay campos que no se pueden guardar. No puedes excluir los siete días de la semana: la tarea nunca se generaría.'
+  )
+  assert.equal(
+    mensajeConDetalles({ message: 'Hay campos que no se pueden guardar.', details: { recurring_paused: ['sin_recurrencia'] } }),
+    'Hay campos que no se pueden guardar. La tarea no es recurrente, así que no hay nada que pausar ni reanudar.'
+  )
+  assert.equal(
+    mensajeConDetalles({ message: 'La regla no es válida.', details: { skip_weekdays: ['repetido'] } }),
+    'La regla no es válida. Días que no se genera tiene un valor repetido.'
+  )
+})

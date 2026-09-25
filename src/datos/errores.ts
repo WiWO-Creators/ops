@@ -276,6 +276,9 @@ const CAMPOS: Record<string, string> = {
   repeat_every: 'Repetir cada',
   recurring_type: 'Unidad',
   cycles: 'Ciclos',
+  recurring_until: 'Último día',
+  skip_weekdays: 'Días que no se genera',
+  recurring_paused: 'Pausa',
   // Organigrama de areas. `area_superior_id` y `jefe_staffid` son los nombres de la tabla; en la
   // pantalla son "De qué área cuelga" y "Quién la dirige", que es como los lee quien los completa.
   area_superior_id: 'Área superior',
@@ -331,6 +334,7 @@ const MOTIVOS: Record<string, string> = {
   recurrencia_apagada: 'no se puede usar: la recurrencia está desactivada en esta instalación',
   sobra_sin_recurrencia: 'sobra si la tarea no es recurrente',
   duplicado: 'ya está usado por otra',
+  repetido: 'tiene un valor repetido',
   desconocido: 'no existe',
   no_es_objeto: 'tiene que ser un bloque de opciones',
   demasiado_largo: 'es demasiado largo',
@@ -376,7 +380,11 @@ const YA_DICHOS_POR_EL_MENSAJE = new Set([
  * cliente», que no dice por que. Sin punto final: lo pone quien junta las partes.
  */
 const FRASES_PROPIAS: Record<string, string> = {
-  'due_date:requerido_por_cliente': 'Este cliente exige fecha de vencimiento'
+  'due_date:requerido_por_cliente': 'Este cliente exige fecha de vencimiento',
+  // Recurrencia: las dos son reglas de la regla, no defectos de un valor. «Días que no se genera
+  // excluye todos» no dice que pasaria; la frase si.
+  'skip_weekdays:excluye_todos': 'No puedes excluir los siete días de la semana: la tarea nunca se generaría',
+  'recurring_paused:sin_recurrencia': 'La tarea no es recurrente, así que no hay nada que pausar ni reanudar'
 }
 
 /**

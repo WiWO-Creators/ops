@@ -43,6 +43,7 @@ test('los campos iniciales salen de la tarea, con vacio donde la API manda null'
     ciclos: '0',
     finRecurrencia: 'nunca',
     hasta: '',
+    diasExcluidos: [],
     prioridad: '2',
     inicio: '2026-09-07',
     vencimiento: '',
@@ -226,6 +227,23 @@ test('la recurrencia termina por fecha: se carga, se manda recurring_until y cam
   assert.equal(errorDeCamposEdicion({ ...cargada, hasta: '' }), 'Elige el día en que termina.')
   assert.equal(typeof errorDeCamposEdicion({ ...cargada, inicio: '2027-02-01' }), 'string')
   assert.equal(errorDeCamposEdicion(cargada), null)
+})
+
+test('los dias excluidos viajan solo si cambiaron, con la regla entera', () => {
+  const cargada = camposDeTarea({ ...TAREA, recurring: true, repeat_every: 1, recurring_type: 'day', cycles: 0, skip_weekdays: [7, 6] }, '')
+  assert.deepEqual(cargada.diasExcluidos, [6, 7])
+  assert.deepEqual(cuerpoDeParche(cargada, cargada), {})
+  assert.deepEqual(cuerpoDeParche(cargada, { ...cargada, repetirCada: '2' }), { recurring: true, repeat_every: 2, recurring_type: 'day', cycles: 0 })
+  assert.deepEqual(cuerpoDeParche(cargada, { ...cargada, diasExcluidos: [6] }),
+    { recurring: true, repeat_every: 1, recurring_type: 'day', cycles: 0, skip_weekdays: [6] })
+  assert.deepEqual(cuerpoDeParche(cargada, { ...cargada, recurrente: false }), { recurring: false })
+  assert.equal(typeof errorDeCamposEdicion({ ...cargada, diasExcluidos: [1, 2, 3, 4, 5, 6, 7] }), 'string')
+})
+
+test('editar la frecuencia no borra el tope de veces de una regla que tambien termina por fecha', () => {
+  const cargada = camposDeTarea({ ...TAREA, recurring: true, repeat_every: 1, recurring_type: 'month', cycles: 6, recurring_until: '2026-12-31' }, '')
+  assert.deepEqual(cuerpoDeParche(cargada, { ...cargada, repetirCada: '2' }),
+    { recurring: true, repeat_every: 2, recurring_type: 'month', cycles: 6, recurring_until: '2026-12-31' })
 })
 
 test('validación acepta límites y rechaza relaciones, tarifas, fechas y recurrencias inválidas', () => {

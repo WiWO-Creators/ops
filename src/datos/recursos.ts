@@ -71,6 +71,12 @@ export interface Proceso {
   cycles?: number
   /** Ultimo dia en que nace una copia (`YYYY-MM-DD`), o null si la recurrencia no termina por fecha. */
   recurring_until?: string | null
+  /** Dias ISO (1 = lunes .. 7 = domingo) en que no nace copia. Vacio: todos sirven. */
+  skip_weekdays?: number[]
+  /** Pausada: la regla se conserva pero no genera copias hasta reanudarla. */
+  recurring_paused?: boolean
+  /** Desde cuando esta pausada, o null. */
+  recurring_paused_at?: string | null
   kanban_order: number
   assignees: AsignadoConAutoria[]
   followers: StaffReferencia[]
