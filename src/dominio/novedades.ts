@@ -54,6 +54,13 @@ export const ROTULO_TIPO: Record<TipoNovedad, string> = {
 export const NOVEDADES: Novedad[] = [
   {
     fecha: '2026-09-25',
+    tipo: 'nuevo',
+    titulo: 'Papelera: lo eliminado se puede recuperar durante 30 días',
+    detalle: 'Eliminar un proyecto, una tarea o un cliente ya no lo borra: lo manda a la Papelera, en el bloque Administración, donde queda 30 días invisible para todos. Desde ahí los administradores lo restauran entero o lo borran para siempre.',
+    commits: ['ops-v2@4a55f91', 'board@d1ae48f']
+  },
+  {
+    fecha: '2026-09-25',
     tipo: 'mejora',
     titulo: 'El Meeting Paper te muestra sus tareas apenas termina',
     detalle: 'Al terminar de escribir un Meeting Paper, la pantalla baja sola a las tareas que la IA encontró en él, para que las revises y crees las que correspondan. Los Meeting Papers anteriores tienen un botón "Analizar buscando tareas", y el Thinking Orb también puede analizarlos y proponértelas. Ninguna tarea se crea sin tu confirmación.',
