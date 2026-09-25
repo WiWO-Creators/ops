@@ -2597,6 +2597,8 @@ let PROXIMA_ACTA = 900
  */
 const PROPUESTAS_DE_ACTA = new Map()
 let PROXIMA_PROPUESTA = 70000
+/** Ids de las Tareas que crea el mock desde un acta. Lejos de los sembrados para no pisarlos. */
+let PROXIMA_TAREA_DE_ACTA = 95000
 
 /** Autoincremental de adjuntos del acta. */
 let PROXIMO_ADJUNTO = 7000
@@ -2750,6 +2752,16 @@ function proponerTareasDelActa (acta) {
       ...base,
       id: (PROXIMA_PROPUESTA += 1),
       titulo: 'Enviar la propuesta revisada al cliente',
+      // Varias líneas con viñetas, como las escribe el modelo: es lo que la fila tiene que mostrar
+      // recortado y desplegable.
+      descripcion: [
+        'Ajustar la propuesta con lo acordado en la reunión:',
+        '- Bajar el alcance de la etapa 2 a tres entregables.',
+        '- Mover el hito de entrega al cierre del mes.',
+        '- Sumar el anexo de costos por perfil.',
+        '- Pedir al cliente la validación del cronograma.',
+        '- Adjuntar la minuta firmada.'
+      ].join('\n'),
       vence: null,
       prioridad: 2,
       origen: 'acuerdo',
@@ -2769,6 +2781,41 @@ function proponerTareasDelActa (acta) {
       no_resuelto: ['persona "Juan"']
     }
   ])
+}
+
+/**
+ * Convierte en Tareas las propuestas pedidas, como `RecursoTareasDeActa::crear()`: una por una, y
+ * lo que no se puede crear —id ajeno al acta o propuesta que ya no está pendiente— va a `fallidas`
+ * sin frenar al resto.
+ *
+ * @param {number} actaId el acta dueña de las propuestas
+ * @param {unknown} ids lo que llegó en `propuestas`; se valida acá
+ * @returns {{creadas: Array<object>, fallidas: Array<object>}} la forma de `ResultadoDeCreacion`
+ */
+function crearTareasDelActa (actaId, ids) {
+  if (!Array.isArray(ids) || ids.length === 0) {
+    throw new ErrorApi(422, 'validation_error', 'Falta la lista de propuestas a crear.')
+  }
+
+  const propias = PROPUESTAS_DE_ACTA.get(actaId) ?? []
+  const creadas = []
+  const fallidas = []
+
+  for (const id of ids) {
+    const propuesta = propias.find((p) => p.id === Number(id))
+
+    if (propuesta === undefined || propuesta.estado !== 'pendiente') {
+      fallidas.push({ propuesta_id: Number(id), error: propuesta === undefined ? 'La propuesta no existe.' : 'La propuesta ya no está pendiente.' })
+      continue
+    }
+
+    propuesta.estado = 'creada'
+    propuesta.task_id = (PROXIMA_TAREA_DE_ACTA += 1)
+    propuesta.task_name = propuesta.titulo
+    creadas.push({ propuesta_id: propuesta.id, task_id: propuesta.task_id, name: propuesta.titulo })
+  }
+
+  return { creadas, fallidas }
 }
 
 /** Las propuestas de un acta con la forma de `RecursoTareasDeActa::listar()`. */
@@ -7196,6 +7243,12 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
 
     if (resto[3] === 'tareas' && resto.length === 4 && metodo === 'GET') {
       return { estado: 200, cuerpo: conDatos(listarPropuestasDelActa(acta.id)) }
+    }
+
+    if (resto[3] === 'tareas' && resto[4] === 'crear' && resto.length === 5 && metodo === 'POST') {
+      const datos = await cuerpo()
+
+      return { estado: 200, cuerpo: conDatos(crearTareasDelActa(acta.id, datos.propuestas)) }
     }
 
     if (metodo === 'PATCH') {
