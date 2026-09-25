@@ -55,6 +55,13 @@ export const NOVEDADES: Novedad[] = [
   {
     fecha: '2026-09-25',
     tipo: 'nuevo',
+    titulo: 'Ops se puede instalar como aplicación, también en el computador',
+    detalle: 'Si usas Ops desde el navegador, una vez al día aparece un aviso para instalarlo. En Chrome, Edge y Brave basta con tocar Instalar; en iPhone, iPad y Safari de Mac el aviso explica los pasos.',
+    commits: []
+  },
+  {
+    fecha: '2026-09-25',
+    tipo: 'nuevo',
     titulo: 'Los archivos de Drive se ordenan arrastrando',
     detalle: 'En la pestaña Archivos puedes arrastrar archivos y carpetas a otra carpeta, soltar archivos desde tu computador para subirlos y crear carpetas dentro del Proyecto. Las carpetas de cada Tarea quedan con candado, pero reciben lo que sueltes. También hay búsqueda, orden y vista de cuadrícula.',
     commits: ['ops-v2@94427d8']

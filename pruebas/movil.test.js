@@ -14,7 +14,7 @@ import { repartirColumnas, ubicarCeldas } from '../src/componentes/datos/tarjeta
 import { destinoDelPuntero, esElMismoLugar, inclinacion } from '../src/componentes/datos/arrastreTactil.ts'
 import { abreTeclado, pestanaActiva } from '../src/lib/navegacion-movil.ts'
 import { HREFS_PRINCIPALES } from '../src/lib/navegacion.ts'
-import { decidirActualizacion, urlDeRegistro, versionDelScript } from '../src/lib/pwa.ts'
+import { decidirActualizacion, diaLocal, tocaRecordarInstalar, urlDeRegistro, versionDelScript, viaDeInstalacion } from '../src/lib/pwa.ts'
 import manifest from '../src/app/manifest.ts'
 
 const leer = (ruta) => readFileSync(new URL(ruta, import.meta.url), 'utf8')
@@ -224,4 +224,35 @@ test('los cortes escritos a mano en movil.css son los del tema', () => {
   const css = leer('../src/estilos/movil.css')
   const usados = new Set([...css.matchAll(/max-width:\s*([\d.]+)px/g)].map(([, px]) => Math.ceil(Number(px))))
   assert.deepEqual([...usados].sort(), [680, 760], 'sm (680) y md (760)')
+})
+
+/* ------------------------------------------------------------------------------------------- */
+/* Recordatorio de instalar                                                                     */
+/* ------------------------------------------------------------------------------------------- */
+
+const UA = {
+  chrome: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0 Safari/537.36',
+  iphone: 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1',
+  ipad: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Safari/605.1.15',
+  firefox: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:140.0) Gecko/20100101 Firefox/140.0',
+  firefoxAndroid: 'Mozilla/5.0 (Android 14; Mobile; rv:140.0) Gecko/140.0 Firefox/140.0'
+}
+
+test('la via de instalacion sale del navegador', () => {
+  assert.equal(viaDeInstalacion(UA.chrome, 0, true), 'nativo')
+  assert.equal(viaDeInstalacion(UA.iphone, 5, false), 'ios')
+  assert.equal(viaDeInstalacion(UA.ipad, 5, false), 'ios', 'el iPad se anuncia como Mac y lo delata el tactil')
+  assert.equal(viaDeInstalacion(UA.ipad, 0, false), 'safari-mac')
+  assert.equal(viaDeInstalacion(UA.firefox, 0, false), 'no-instalable')
+  assert.equal(viaDeInstalacion(UA.firefoxAndroid, 5, false), 'firefox-android')
+  assert.equal(viaDeInstalacion(UA.chrome, 0, false), 'no-instalable', 'Chrome sin el evento no se adivina')
+  assert.equal(viaDeInstalacion('', 0, false), 'no-instalable')
+})
+
+test('el recordatorio sale una vez por dia local', () => {
+  assert.equal(diaLocal(new Date(2026, 0, 5, 23, 59)), '2026-01-05')
+  assert.equal(tocaRecordarInstalar(null, '2026-09-25'), true)
+  assert.equal(tocaRecordarInstalar('', '2026-09-25'), true)
+  assert.equal(tocaRecordarInstalar('2026-09-24', '2026-09-25'), true)
+  assert.equal(tocaRecordarInstalar('2026-09-25', '2026-09-25'), false)
 })
