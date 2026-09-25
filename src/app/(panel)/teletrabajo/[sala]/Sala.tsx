@@ -1,9 +1,10 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
-import { useCallback, useState, useSyncExternalStore } from 'react'
+import { useCallback, useSyncExternalStore } from 'react'
 import { Antesala } from '@/componentes/teletrabajo/Antesala'
-import { ALTO, Llamada } from '@/componentes/teletrabajo/Llamada'
+import { ALTO } from '@/componentes/teletrabajo/Llamada'
+import { useLlamadaEnCurso } from '@/componentes/teletrabajo/LlamadaEnCurso'
 import { cn } from '@/lib/clases'
 import type { QuienEsta } from '@/datos/teletrabajo'
 import type { EleccionDeEntrada, Quien } from '@/componentes/teletrabajo/tipos'
@@ -20,6 +21,8 @@ const EN_EL_CLIENTE = () => true
 const EN_EL_SERVIDOR = () => false
 
 interface PropsSala {
+  /** Nombre de la sala, el segmento de la ruta. */
+  sala: string
   token: string
   url: string
   titulo: string
@@ -39,12 +42,20 @@ interface PropsSala {
  * Ese paso previo es la respuesta directa a lo que faltaba: entrar de golpe a una sala sin nombre
  * propio, sin verse y sin saber quien hay dentro es lo que hacia que la pantalla se leyera como
  * rota aunque estuviera conectada.
+ *
+ * La llamada ya no se dibuja aca: la antesala se la entrega a `LlamadaEnCurso`, que vive en el
+ * armazon y la mantiene conectada aunque la persona navegue. Cuando esta sala es la de la llamada en
+ * curso, esta pantalla no pinta nada y la llamada ocupa su lugar.
  */
-export function Sala ({ token, url, titulo, esPrivada, yo, miIdentidad, dentro }: PropsSala) {
+export function Sala ({ sala, token, url, titulo, esPrivada, yo, miIdentidad, dentro }: PropsSala) {
   const router = useRouter()
-  const [eleccion, setEleccion] = useState<EleccionDeEntrada | null>(null)
+  const { activa, iniciar } = useLlamadaEnCurso()
 
   const volver = useCallback(() => { router.push('/teletrabajo') }, [router])
+
+  const entrar = useCallback((eleccion: EleccionDeEntrada) => {
+    iniciar({ sala, token, url, titulo, esPrivada, yo, miIdentidad, eleccion })
+  }, [iniciar, sala, token, url, titulo, esPrivada, yo, miIdentidad])
 
   /**
    * Si el navegador ya monto el componente.
@@ -69,33 +80,26 @@ export function Sala ({ token, url, titulo, esPrivada, yo, miIdentidad, dentro }
     )
   }
 
-  if (eleccion === null) {
-    return (
-      // En el telefono la antesala es mas alta que la ventana: centrada, su parte de arriba quedaria
-      // fuera de alcance del scroll. Ahi arranca arriba y crece lo que necesite.
-      <div className={cn(ALTO, 'flex flex-col justify-center max-md:h-auto max-md:justify-start')}>
-        <Antesala
-          titulo={titulo}
-          esPrivada={esPrivada}
-          yo={yo}
-          dentro={dentro}
-          alEntrar={setEleccion}
-          alVolver={volver}
-        />
-      </div>
-    )
-  }
+  if (activa?.sala === sala) return null
 
   return (
-    <Llamada
-      token={token}
-      url={url}
-      titulo={titulo}
-      esPrivada={esPrivada}
-      yo={yo}
-      miIdentidad={miIdentidad}
-      eleccion={eleccion}
-      alSalir={volver}
-    />
+    // En el telefono la antesala es mas alta que la ventana: centrada, su parte de arriba quedaria
+    // fuera de alcance del scroll. Ahi arranca arriba y crece lo que necesite.
+    <div className={cn(ALTO, 'flex flex-col justify-center gap-3 max-md:h-auto max-md:justify-start')}>
+      {/* Se esta en una sola llamada a la vez: entrar a esta corta la otra, y eso se dice antes. */}
+      {activa !== null && (
+        <p role="status" className="text-texto-aviso text-center text-sm">
+          Estás en otra llamada ({activa.titulo}). Al entrar a esta, sales de aquella.
+        </p>
+      )}
+      <Antesala
+        titulo={titulo}
+        esPrivada={esPrivada}
+        yo={yo}
+        dentro={dentro}
+        alEntrar={entrar}
+        alVolver={volver}
+      />
+    </div>
   )
 }

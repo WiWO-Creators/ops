@@ -26,6 +26,7 @@ import { ControlJornada } from '@/componentes/live/ControlJornada'
 import { Logo } from '@/componentes/estructura/Logo'
 import { MenuUsuario } from '@/componentes/estructura/MenuUsuario'
 import { ScrollSuave } from '@/componentes/estructura/ScrollSuave'
+import { LlamadaEnCurso } from '@/componentes/teletrabajo/LlamadaEnCurso'
 import { VigilanteDeVersion } from '@/componentes/estructura/VigilanteDeVersion'
 import { vistasPermitidas } from '@/dominio/vistas-de-auditoria'
 import { NOVEDADES, fechaMasReciente } from '@/dominio/novedades'
@@ -166,7 +167,12 @@ export default async function PanelLayout ({ children }: { children: React.React
           {/* El unico contenedor de scroll vertical del armazon. `min-h-0` es lo que se lo permite:
               sin el, un hijo flex no baja de su altura de contenido y `overflow-y` no llega a actuar.
               `ScrollSuave` pone el `overflow-y` y el `<main>`; aca solo queda como se mide y se rellena. */}
-          <ScrollSuave className="min-h-0 min-w-0 flex-1 p-4">{children}</ScrollSuave>
+          {/* La videollamada de Teletrabajo va dentro del scroll y despues de la pagina: en su sala
+              se dibuja donde iria la pagina, y en el resto flota en chico. Montada aca, en el
+              armazon que no se desmonta, navegar no la corta. Ver `LlamadaEnCurso`. */}
+          <ScrollSuave className="min-h-0 min-w-0 flex-1 p-4">
+            <LlamadaEnCurso>{children}</LlamadaEnCurso>
+          </ScrollSuave>
           {/* Solo por debajo de `md`, donde el riel no existe: los cuatro destinos de todos los dias
               al alcance del pulgar, y "Más" para el resto. Va despues del scroll y dentro de la
               columna, no flotando: asi el contenido termina justo encima y nada queda tapado. */}

@@ -13,6 +13,7 @@ import { BarraDeControles } from './BarraDeControles'
 import { CabeceraDeSala } from './CabeceraDeSala'
 import { ChatDeSala } from './ChatDeSala'
 import { Escenario } from './Escenario'
+import { MiniLlamada, MiniLlamadaFallida } from './MiniLlamada'
 import { PanelDeParticipantes } from './PanelDeParticipantes'
 import type { EleccionDeEntrada, Quien } from './tipos'
 
@@ -50,6 +51,13 @@ interface PropsLlamada {
   /** Identidad con la que esta persona se presenta ante LiveKit. */
   miIdentidad: string
   eleccion: EleccionDeEntrada
+  /**
+   * Si la persona esta en la pantalla de esta sala. En ella la llamada se ve entera; en cualquier
+   * otra, queda oculta y se ve la mini llamada flotante.
+   */
+  enSala: boolean
+  /** Lleva de vuelta a la pantalla de la sala. Lo usa la mini llamada. */
+  alVolver: () => void
   alSalir: () => void
 }
 
@@ -75,8 +83,12 @@ function captura (activo: boolean, id?: string): boolean | { deviceId: string } 
  *
  * El token viene firmado desde el servidor. Este componente no decide nada sobre permisos: si llego
  * hasta aca, `[sala]/page.tsx` ya autorizo.
+ *
+ * La monta `LlamadaEnCurso`, desde el armazon, para que navegar no la corte. Fuera de la sala la
+ * llamada entera se oculta con CSS y no se desmonta: desmontarla perderia el hilo del chat y haria
+ * reconectar cada video al volver.
  */
-export function Llamada ({ token, url, titulo, esPrivada, yo, miIdentidad, eleccion, alSalir }: PropsLlamada) {
+export function Llamada ({ token, url, titulo, esPrivada, yo, miIdentidad, eleccion, enSala, alVolver, alSalir }: PropsLlamada) {
   const [fallo, setFallo] = useState<string | null>(null)
 
   // Si llego a conectar alguna vez. Es lo que separa "me fui de la reunion" de "nunca pude entrar",
@@ -103,6 +115,10 @@ export function Llamada ({ token, url, titulo, esPrivada, yo, miIdentidad, elecc
 
   const alFallar = useCallback((error: Error) => { setFallo(error.message) }, [])
 
+  if (fallo !== null && !enSala) {
+    return <MiniLlamadaFallida titulo={titulo} alVolver={alVolver} alCerrar={alSalir} />
+  }
+
   if (fallo !== null) {
     return (
       <div className={cn(ALTO, 'flex flex-col items-center justify-center gap-4 text-center')}>
@@ -127,17 +143,29 @@ export function Llamada ({ token, url, titulo, esPrivada, yo, miIdentidad, elecc
       // quedan sin definir y la sala se ve rota: el nombre del participante hereda la tinta del
       // panel sobre un chip negro y desaparece, y el marcador de camara apagada queda transparente.
       data-lk-theme="wiwo"
-      style={{ viewTransitionName: 'llamada' }}
-      className={cn(ALTO, 'flex flex-col gap-3', PANTALLA_COMPLETA_MOVIL)}
+      // Sin caja propia: la sala entera y la mini llamada son hermanas, y una se oculta mientras la
+      // otra se ve. Si esta caja se ocultara, se llevaria las dos. Las variables `--lk-*` se heredan
+      // igual a traves de un `display: contents`.
+      className="contents"
     >
-      {/* Sin esto no se oye a nadie: es quien monta los `<audio>` de los participantes remotos. */}
+      {/* Sin esto no se oye a nadie: es quien monta los `<audio>` de los participantes remotos. Va
+          fuera de la sala entera porque se tiene que seguir oyendo cuando ella esta oculta. */}
       <RoomAudioRenderer />
 
-      <Interior titulo={titulo} esPrivada={esPrivada} yo={yo} miIdentidad={miIdentidad} alSalir={alSalir} />
+      <div
+        // `view-transition-name` solo mientras se ve: es una capa fija sobre el panel en el telefono,
+        // y sin el la transicion de pagina la taparia en sus primeros fotogramas.
+        style={enSala ? { viewTransitionName: 'llamada' } : undefined}
+        className={cn(ALTO, 'flex flex-col gap-3', PANTALLA_COMPLETA_MOVIL, !enSala && 'hidden')}
+      >
+        <Interior titulo={titulo} esPrivada={esPrivada} yo={yo} miIdentidad={miIdentidad} alSalir={alSalir} />
 
-      {/* Algunos navegadores bloquean el audio hasta que hay un gesto de la persona. Este boton
-          aparece solo en ese caso; si el audio ya suena, no se pinta nada. */}
-      <StartAudio label="Activar sonido" className="mx-auto text-sm text-texto-tenue underline" />
+        {/* Algunos navegadores bloquean el audio hasta que hay un gesto de la persona. Este boton
+            aparece solo en ese caso; si el audio ya suena, no se pinta nada. */}
+        <StartAudio label="Activar sonido" className="mx-auto text-sm text-texto-tenue underline" />
+      </div>
+
+      {!enSala && <MiniLlamada titulo={titulo} miIdentidad={miIdentidad} alVolver={alVolver} alSalir={alSalir} />}
     </LiveKitRoom>
   )
 }

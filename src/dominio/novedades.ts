@@ -55,6 +55,13 @@ export const NOVEDADES: Novedad[] = [
   {
     fecha: '2026-09-25',
     tipo: 'mejora',
+    titulo: 'La llamada de Teletrabajo ya no se corta al cambiar de pantalla',
+    detalle: 'Mientras estás en una llamada puedes moverte por Ops: abajo a la derecha queda una ventanita con la llamada, desde donde silencias el micrófono, apagas la cámara, cuelgas o vuelves a la sala.',
+    commits: []
+  },
+  {
+    fecha: '2026-09-25',
+    tipo: 'mejora',
     titulo: 'Supervisión por equipo: la hoja incluye a tu gente y tu jefatura la confirma',
     detalle: 'Si tienes gente a cargo, tu hoja diaria ya trae sus tareas aunque no tengas clientes asociados, y también las de los clientes donde eres Focal. Muestra las completadas del día, lo que ya revisó tu equipo y se puede agrupar por cliente o por persona. Al firmarla, tu jefatura la ve en "Hojas de tu equipo" y la confirma o te la devuelve con una nota.',
     commits: []
