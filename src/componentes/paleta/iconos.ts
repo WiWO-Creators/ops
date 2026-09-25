@@ -1,6 +1,6 @@
 import {
   Building2, CalendarDays, ClipboardList, Clock, Columns3, DoorOpen, FolderKanban, Gavel, House, Inbox, LifeBuoy,
-  ListChecks, Network, Radio, Repeat, ScrollText, SlidersHorizontal, Sparkles, Star, Target, TrendingUp, User, UserRound,
+  ListChecks, Network, Radio, Repeat, ScrollText, SlidersHorizontal, Sparkles, Star, Target, Trash2, TrendingUp, User, UserRound,
   Users, UsersRound, Video, type LucideIcon
 } from 'lucide-react'
 import type { IconoSeccion } from '@/lib/navegacion'
@@ -50,7 +50,8 @@ export const ICONOS_DE_SECCION: Record<IconoSeccion, LucideIcon> = {
   // ahi todas las opciones del superadministrador.
   administracion: SlidersHorizontal,
   // `ScrollText` y no un escudo: esto no protege nada, es el registro de lo que se hizo.
-  auditoria: ScrollText
+  auditoria: ScrollText,
+  papelera: Trash2
 }
 
 /** Los de la paleta: las secciones mas un icono por tipo de resultado y por atajo. */

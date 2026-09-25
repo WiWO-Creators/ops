@@ -1406,6 +1406,78 @@ const ORIGENES_REPORTABLES = ['panel', 'portal']
  * quien sufre el error es cualquiera, y pedirle permisos para poder reportarlo seria dejar sin
  * codigo justo a quien mas lo necesita.
  */
+/**
+ * Lo que hay en la papelera del mock: una raiz por entidad, con dias restantes distintos para que la
+ * pantalla muestre los tres tonos. Mismo contrato que `GET /trash` de la API.
+ */
+const PAPELERA = [
+  { entidad: 'projects', id: 900001, nombre: 'Proyecto eliminado de prueba', dias: 27, cascada: { procesos: 12, hitos: 3, horas_registradas: 40 } },
+  { entidad: 'tasks', id: 900002, nombre: 'Tarea eliminada de prueba', dias: 10, cascada: { comentarios: 4, adjuntos: 2 } },
+  { entidad: 'clients', id: 900003, nombre: 'Cliente eliminado de prueba', dias: 3, cascada: { espacios: 2, procesos: 9, contactos: 5 } }
+]
+
+/** Una fila de la papelera del mock, con la forma que la API presenta. */
+function presentarEnPapelera (fila) {
+  const purga = new Date(Date.now() + fila.dias * 86400000)
+  const eliminado = new Date(purga.getTime() - 30 * 86400000)
+
+  return {
+    entidad: fila.entidad,
+    id: fila.id,
+    nombre: fila.nombre,
+    eliminado_en: eliminado.toISOString(),
+    eliminado_por: { id: 1, full_name: 'Persona de prueba' },
+    purga_el: purga.toISOString(),
+    dias_restantes: fila.dias
+  }
+}
+
+/**
+ * `GET /trash`, `POST /trash/{entidad}/{id}/restore`, `DELETE /trash/{entidad}/{id}` y, con
+ * `resto` reescrito por el despachador, `GET /{entidad}/{id}/deletion-preview` de lo que esta aca.
+ * El borrado definitivo exige la palabra exacta, igual que la API.
+ */
+async function papeleraRuta (metodo, resto, parametros, actual, cuerpo) {
+  if (!administra(actual)) throw new ErrorApi(403, 'forbidden', 'Solo un administrador opera la papelera.')
+
+  if (resto.length === 0) {
+    if (metodo !== 'GET') throw new ErrorApi(404, 'not_found', 'Recurso desconocido.')
+
+    const entidad = parametros.get('filter[entidad]')
+    const filas = PAPELERA.filter((f) => entidad === null || f.entidad === entidad).map(presentarEnPapelera)
+
+    return { estado: 200, cuerpo: conDatos(filas, { pagination: { page: 1, per_page: 25, total: filas.length, total_pages: 1 } }) }
+  }
+
+  const indice = PAPELERA.findIndex((f) => f.entidad === resto[0] && f.id === Number(resto[1]))
+  if (indice === -1) throw new ErrorApi(404, 'not_found', 'No existe ese elemento en la papelera.')
+
+  const fila = PAPELERA[indice]
+
+  if (metodo === 'POST' && resto[2] === 'restore' && resto.length === 3) {
+    PAPELERA.splice(indice, 1)
+    return { estado: 204, cuerpo: null }
+  }
+
+  if (metodo === 'DELETE' && resto.length === 2) {
+    const datos = await cuerpo()
+    if (datos?.confirmacion !== 'ELIMINAR') {
+      throw new ErrorApi(422, 'validation_failed', 'Para borrar definitivamente hay que escribir exactamente la palabra ELIMINAR.')
+    }
+    PAPELERA.splice(indice, 1)
+    return { estado: 204, cuerpo: null }
+  }
+
+  if (metodo === 'GET' && resto[2] === 'deletion-preview' && resto.length === 3) {
+    return {
+      estado: 200,
+      cuerpo: conDatos({ entidad: fila.entidad, id: fila.id, nombre: fila.nombre, en_papelera: true, se_borra: fila.cascada, se_desvincula: {}, puede_purgarse: true, motivo: null })
+    }
+  }
+
+  throw new ErrorApi(404, 'not_found', 'Subrecurso desconocido.')
+}
+
 async function incidentesRuta (metodo, resto, parametros, actual, cuerpo) {
   if (metodo === 'POST') {
     if (resto.length > 0) throw new ErrorApi(404, 'not_found', 'Subrecurso desconocido.')
@@ -6441,6 +6513,18 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
 
   // --- A partir de acá, todo exige token ----------------------------------
   const actual = sesion.resolver(token, 'acceso')
+
+  // Papelera: se mockea con filas propias y no marcando PROYECTOS/PROCESOS, porque lo que se prueba
+  // aca es la pantalla —listar, restaurar, la palabra del borrado definitivo—, no la cascada. Va
+  // antes que los recursos para atender la previsualizacion de lo que esta en la papelera, que en
+  // la API cuelga de `/{entidad}/{id}/deletion-preview`.
+  if (recurso === 'trash') {
+    return await papeleraRuta(metodo, resto, parametros, actual, cuerpo)
+  }
+  if (['tasks', 'projects', 'clients'].includes(recurso) && resto[1] === 'deletion-preview' &&
+      PAPELERA.some((f) => f.entidad === recurso && f.id === Number(resto[0]))) {
+    return await papeleraRuta(metodo, [recurso, resto[0], 'deletion-preview'], parametros, actual, cuerpo)
+  }
 
   const deListados = listadosDeTickets({ metodo, recurso, resto, parametros, actual })
   if (deListados !== null) return deListados

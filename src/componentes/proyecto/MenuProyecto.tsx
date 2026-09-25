@@ -484,7 +484,7 @@ export function MenuProyecto ({
       <Dialogo open={borrando} onOpenChange={setBorrando}>
         <ContenidoDialogo
           titulo={`Eliminar ${GLOSARIO.espacio.singular.toLowerCase()}`}
-          descripcion={`"${proyecto.name}" se borra con todo lo que cuelga de él. No se puede deshacer.`}
+          descripcion={`"${proyecto.name}" va a la papelera con todo lo que cuelga de él. Se puede restaurar entero desde la Papelera durante 30 días.`}
           ancho="chico"
         >
           <div className="flex justify-end gap-2">
