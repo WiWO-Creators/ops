@@ -90,11 +90,16 @@ type Carga =
   | { fase: 'error', mensaje: string }
   | { fase: 'listo', datos: PropuestasDelActa }
 
-/** Qué operación está en vuelo. Una sola a la vez: las tres escriben sobre la misma lista. */
+/**
+ * Qué operación está en vuelo. Una sola a la vez: las tres escriben sobre la misma lista.
+ *
+ * Al crear se guarda desde qué fila se pidió —`null` si fue la tanda de abajo— para que el spinner
+ * aparezca en el botón que se apretó y no en todos los que crean.
+ */
 type EnCurso =
   | null
   | { que: 'proponiendo' }
-  | { que: 'creando' }
+  | { que: 'creando', fila: number | null }
   | { que: 'descartando', id: number }
 
 export function TareasPropuestas ({
@@ -120,6 +125,8 @@ export function TareasPropuestas ({
   const [desplegada, setDesplegada] = useState<boolean | null>(null)
   const [seleccionadas, setSeleccionadas] = useState<number[]>([])
   const [error, setError] = useState<string | null>(null)
+  /** Confirmación de la última creación. Se limpia al empezar otra operación para no mentir. */
+  const [aviso, setAviso] = useState<string | null>(null)
   const [enCurso, setEnCurso] = useState<EnCurso>(null)
   const [editando, setEditando] = useState<PropuestaDeTarea | null>(null)
   const [prioridades, setPrioridades] = useState<EstadoLookup[]>([])
@@ -142,6 +149,7 @@ export function TareasPropuestas ({
     setCarga({ fase: 'cargando' })
     setSeleccionadas([])
     setError(null)
+    setAviso(null)
   }
 
   useEffect(() => {
@@ -162,6 +170,7 @@ export function TareasPropuestas ({
   const pendientes = items.filter((propuesta) => propuesta.estado === 'pendiente')
   const creadas = items.filter((propuesta) => propuesta.estado === 'creada')
   const hayPendientes = pendientes.length > 0
+  const todasSeleccionadas = hayPendientes && pendientes.every((propuesta) => seleccionadas.includes(propuesta.id))
 
   /**
    * Los catálogos solo se piden si hay algo que editar.
@@ -261,6 +270,11 @@ export function TareasPropuestas ({
       : [...previas, id])
   }
 
+  /** "Seleccionar todas": si ya están todas marcadas las suelta, si no marca todas las pendientes. */
+  function alternarTodas (): void {
+    setSeleccionadas(todasSeleccionadas ? [] : pendientes.map((propuesta) => propuesta.id))
+  }
+
   /**
    * Guarda los campos que se tocaron de una propuesta.
    *
@@ -312,21 +326,25 @@ export function TareasPropuestas ({
   }
 
   /**
-   * Convierte en Procesos las propuestas marcadas.
+   * Convierte en Procesos las propuestas pedidas: una sola desde su fila, o la tanda de abajo.
    *
    * La API contesta con dos listas y las dos importan: crear ocho tareas y que dos fallen no es un
    * error de la operación, y esconder las seis que sí se crearon obligaría a recargar para saber
    * qué pasó. Las creadas bajan a "Ya creadas" y las fallidas se quedan donde estaban, con el motivo
    * a la vista para poder arreglarlas y volver a intentar.
+   *
+   * @param ids las propuestas a crear; una lista vacía no hace nada
+   * @param fila la fila desde la que se pidió, o `null` si fue la tanda
    */
-  async function crear (): Promise<void> {
-    if (seleccionadas.length === 0) return
+  async function crear (ids: number[], fila: number | null): Promise<void> {
+    if (ids.length === 0) return
 
-    setEnCurso({ que: 'creando' })
+    setEnCurso({ que: 'creando', fila })
     setError(null)
+    setAviso(null)
 
     const resultado = await escribirEnBff<ResultadoDeCreacion>(
-      `${ruta}/crear`, 'POST', { propuestas: seleccionadas }
+      `${ruta}/crear`, 'POST', { propuestas: ids }
     )
 
     setEnCurso(null)
@@ -355,11 +373,41 @@ export function TareasPropuestas ({
           }
         })
 
-    setSeleccionadas(resultado.datos.fallidas.map((fila) => fila.propuesta_id))
+    // Lo que falló queda marcado para reintentarlo; lo que no se pidió conserva su marca, porque
+    // crear una fila suelta no es decidir sobre las otras.
+    const fallidas = resultado.datos.fallidas.map((fallida) => fallida.propuesta_id)
+    setSeleccionadas((previas) => [
+      ...previas.filter((elegida) => !ids.includes(elegida)),
+      ...fallidas
+    ])
+
+    const cuantas = resultado.datos.creadas.length
+    if (cuantas > 0) setAviso(cuantas === 1 ? 'Se creó 1 tarea.' : `Se crearon ${cuantas} tareas.`)
 
     if (resultado.datos.fallidas.length > 0) {
       setError(`No se pudieron crear ${resultado.datos.fallidas.length === 1 ? '1 tarea' : `${resultado.datos.fallidas.length} tareas`}: ${resultado.datos.fallidas.map((fila) => fila.error).join(' · ')}`)
     }
+  }
+
+  /**
+   * El botón de abajo: crea lo marcado o, si no hay nada marcado, todas las pendientes.
+   *
+   * Sin selección no queda deshabilitado —antes lo estaba, y un botón gris sin explicación no dice
+   * que hacía falta marcar casillas—. Crear todas de una vez sí se confirma: son varias Tareas que
+   * aparecen en el tablero del Espacio y deshacerlo es borrarlas una por una.
+   */
+  function crearTanda (): void {
+    if (seleccionadas.length > 0) {
+      void crear(seleccionadas, null)
+
+      return
+    }
+
+    const todas = pendientes.map((propuesta) => propuesta.id)
+    const texto = todas.length === 1 ? '¿Crear 1 tarea en este proyecto?' : `¿Crear ${todas.length} tareas en este proyecto?`
+    if (!confirm(texto)) return
+
+    void crear(todas, null)
   }
 
   /**
@@ -375,6 +423,7 @@ export function TareasPropuestas ({
 
     setEnCurso({ que: 'proponiendo' })
     setError(null)
+    setAviso(null)
 
     const resultado = await escribirEnBff<PropuestasDelActa>(
       `ia/proyectos/${proyectoId}/acta-tareas`, 'POST', { acta_id: actaId }
@@ -432,6 +481,12 @@ export function TareasPropuestas ({
         </p>
       )}
 
+      {aviso !== null && (
+        <p role="status" className="border-linea bg-superficie-acentuada rounded-chico border px-3 py-2 text-sm">
+          {aviso}
+        </p>
+      )}
+
       {enCurso?.que === 'proponiendo' && (
         <p role="status" className="text-texto-sutil text-sm">
           Analizando el Meeting Paper con IA… puede tardar unos segundos.
@@ -480,6 +535,19 @@ export function TareasPropuestas ({
             </p>
           )}
 
+          {puedeCrear && hayPendientes && (
+            <label className="text-texto-tenue flex w-fit cursor-pointer items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                className={CLASES_CASILLA}
+                checked={todasSeleccionadas}
+                disabled={enCurso !== null}
+                onChange={alternarTodas}
+              />
+              Seleccionar todas
+            </label>
+          )}
+
           {hayPendientes && (
             <ul className="flex flex-col gap-2">
               {pendientes.map((propuesta) => (
@@ -490,8 +558,10 @@ export function TareasPropuestas ({
                     puedeCrear={puedeCrear}
                     seleccionada={seleccionadas.includes(propuesta.id)}
                     descartando={enCurso?.que === 'descartando' && enCurso.id === propuesta.id}
+                    creando={enCurso?.que === 'creando' && enCurso.fila === propuesta.id}
                     bloqueada={enCurso !== null}
                     onAlternar={() => { alternar(propuesta.id) }}
+                    onCrear={() => { void crear([propuesta.id], propuesta.id) }}
                     onEditar={() => { setEditando(propuesta) }}
                     onRenombrar={async (titulo) => await parchear(propuesta.id, { titulo })}
                     onDescartar={() => { void descartar(propuesta) }}
@@ -506,13 +576,13 @@ export function TareasPropuestas ({
               <Boton
                 variante="primario"
                 tamano="chico"
-                disabled={seleccionadas.length === 0 || enCurso !== null}
-                cargando={enCurso?.que === 'creando'}
-                onClick={() => { void crear() }}
+                disabled={enCurso !== null}
+                cargando={enCurso?.que === 'creando' && enCurso.fila === null}
+                onClick={crearTanda}
               >
                 {seleccionadas.length === 0
-                  ? 'Crear tareas'
-                  : seleccionadas.length === 1 ? 'Crear 1 tarea' : `Crear ${seleccionadas.length} tareas`}
+                  ? `Crear todas (${pendientes.length})`
+                  : seleccionadas.length === 1 ? 'Crear 1 seleccionada' : `Crear ${seleccionadas.length} seleccionadas`}
               </Boton>
             </div>
           )}
@@ -547,6 +617,9 @@ export function TareasPropuestas ({
  * Se guarda al salir del campo y no con un botón por fila: un botón "Guardar" por cada título
  * multiplicaría los controles de la lista por dos para confirmar algo que la persona ya decidió al
  * irse del campo.
+ *
+ * "Crear tarea" sí va en cada fila y a la vista: es la acción para la que existe la lista, y
+ * esconderla detrás de marcar casillas hacía que nadie descubriera cómo convertir una propuesta.
  */
 function FilaPropuesta ({
   propuesta,
@@ -554,8 +627,10 @@ function FilaPropuesta ({
   puedeCrear,
   seleccionada,
   descartando,
+  creando,
   bloqueada,
   onAlternar,
+  onCrear,
   onEditar,
   onRenombrar,
   onDescartar
@@ -565,8 +640,10 @@ function FilaPropuesta ({
   puedeCrear: boolean
   seleccionada: boolean
   descartando: boolean
+  creando: boolean
   bloqueada: boolean
   onAlternar: () => void
+  onCrear: () => void
   onEditar: () => void
   onRenombrar: (titulo: string) => Promise<boolean>
   onDescartar: () => void
@@ -580,6 +657,7 @@ function FilaPropuesta ({
    */
   const [borrador, setBorrador] = useState({ visto: propuesta.titulo, titulo: propuesta.titulo })
   const [guardando, setGuardando] = useState(false)
+  const [descripcionAbierta, setDescripcionAbierta] = useState(false)
   const titulo = borrador.visto === propuesta.titulo ? borrador.titulo : propuesta.titulo
 
   /** Manda el título solo si de verdad cambió: salir del campo sin tocarlo no es una escritura. */
@@ -632,6 +710,15 @@ function FilaPropuesta ({
           {puedeCrear && (
             <div className="flex shrink-0 items-center gap-1">
               <Boton
+                variante="primario"
+                tamano="chico"
+                cargando={creando}
+                disabled={bloqueada}
+                onClick={onCrear}
+              >
+                Crear tarea
+              </Boton>
+              <Boton
                 variante="sutil"
                 tamano="chico"
                 soloIcono
@@ -677,6 +764,24 @@ function FilaPropuesta ({
           ))}
         </div>
 
+        {propuesta.descripcion !== null && (
+          <div className="flex flex-col items-start gap-1">
+            <p className={cn('text-texto-tenue whitespace-pre-line text-sm', !descripcionAbierta && 'line-clamp-4')}>
+              {propuesta.descripcion}
+            </p>
+            {esDescripcionLarga(propuesta.descripcion) && (
+              <button
+                type="button"
+                aria-expanded={descripcionAbierta}
+                className="text-texto-sutil hover:text-texto cursor-pointer text-xs underline-offset-2 hover:underline"
+                onClick={() => { setDescripcionAbierta(!descripcionAbierta) }}
+              >
+                {descripcionAbierta ? 'Ver menos' : 'Ver más'}
+              </button>
+            )}
+          </div>
+        )}
+
         {propuesta.no_resuelto.length > 0 && (
           <p className="text-texto-aviso text-xs">
             No se resolvió: {propuesta.no_resuelto.join(' · ')}. Queda vacío hasta que lo completes.
@@ -692,6 +797,17 @@ function FilaPropuesta ({
       </div>
     </div>
   )
+}
+
+/**
+ * Si la descripción no entra en las cuatro líneas del recorte y merece "Ver más".
+ *
+ * Es una estimación por texto y no una medición del DOM: medir exigiría un efecto y un observador de
+ * tamaño por fila para decidir si se ofrece un botón. Más de cuatro renglones escritos, o un párrafo
+ * que a ancho de fila ocupa más de cuatro, es lo que el recorte corta.
+ */
+function esDescripcionLarga (descripcion: string): boolean {
+  return descripcion.split('\n').length > 4 || descripcion.length > 320
 }
 
 /**
@@ -791,7 +907,7 @@ function DialogoDePropuesta ({ propuesta, personas, errorEquipo, prioridades, on
     <Dialogo open onOpenChange={(abierto) => { if (!abierto && !guardando) onCerrar() }}>
       <ContenidoDialogo
         titulo="Editar la tarea propuesta"
-        descripcion="Se guarda sobre la propuesta. La Tarea se crea después, con el botón de la sección."
+        descripcion="Se guarda sobre la propuesta. La Tarea se crea después, con «Crear tarea»."
         cerrable
       >
         <div className="flex flex-col gap-4">
