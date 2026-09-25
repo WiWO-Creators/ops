@@ -63,6 +63,7 @@ export default async function SalaDeTeletrabajoPage (props: PageProps<'/teletrab
 
   return (
     <Sala
+      sala={sala}
       token={entrada.token}
       url={entrada.url}
       titulo={comun?.nombre ?? espacio?.name ?? sala}
