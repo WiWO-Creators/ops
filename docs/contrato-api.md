@@ -4982,7 +4982,8 @@ uno que se marco tarde.
 
 ```json
 { "data": [
-    { "id": 12, "full_name": "Alan Corral", "profile_image_url": null, "area_id": 3, "cargo_id": 2 }
+    { "id": 12, "full_name": "Alan Corral", "profile_image_url": null, "area_id": 3,
+      "area_ids": [3], "cargo_id": 2, "escalon": "lead" }
   ],
   "meta": { "pagination": { "page": 1, "per_page": 25, "total": 184, "total_pages": 8 } } }
 ```
@@ -4991,7 +4992,9 @@ uno que se marco tarde.
 de 184 personas, asi que el selector mostraba gente distinta segun quien abriera la tarea. Esta pide
 **solo sesion**: la misma lista para cualquiera.
 
-Devuelve **cinco claves y ninguna mas** — sin correo, telefono, tarifa ni ultimo acceso. Si necesitas
+Devuelve **siete claves y ninguna mas** — sin correo, telefono, tarifa ni ultimo acceso.
+`escalon` (`staff` | `lead` | `director` | `gerencia`) es el escalón jerárquico de la persona: con él
+el panel ofrece como supervisores de un Cliente solo a lead o superior, sin pedir `GET /staff`. Si necesitas
 el legajo, sigue siendo `GET /staff`, con su permiso.
 
 Las filas son las **activas del equipo** (`active = 1`, sin externos), ordenadas por nombre; es el
@@ -7087,8 +7090,8 @@ apagado: interruptor `wiwo_supervision_envio = '0'`, editable en Ajustes → cor
 
 `/supervision` (grupo Equipo del menú, visible para lead o superior y la administración), la pestaña
 Supervisión de la ficha del Cliente y la de la ficha de la persona (esta última solo si es lead o
-superior). El selector del Cliente saca el escalón de `GET /staff`, porque `staff/asignables` no lo
-publica; sin `staff.view` la pestaña queda en solo lectura. El prefijo `supervision` está en
+superior). El selector del Cliente saca el escalón de `staff/asignables` (campo `escalon`), que pide
+solo sesión: guardar depende solo de `customers.edit`. El prefijo `supervision` está en
 `PREFIJOS_PERMITIDOS` del BFF, no en el del portal. La hoja se imprime en A4 desde un iframe sin
 scripts (`dominio/hoja-imprimible.ts`).
 

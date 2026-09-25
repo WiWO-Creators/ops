@@ -5,20 +5,12 @@ import { Boton } from '@/componentes/formularios/Boton'
 import { SelectorPersonas } from '@/componentes/formularios/SelectorPersonas'
 import { Cargando, Vacio } from '@/componentes/estado/Estados'
 import { escribirEnBff } from '@/componentes/datos/mutaciones'
-import { mensajeDeRespuesta, pedirRespuesta, pedirSobre } from '@/datos/cliente'
-import type { MiembroEquipo } from '@/datos/recursos'
+import { cargarAsignables } from '@/datos/asignables'
+import { pedirSobre } from '@/datos/cliente'
 import { rutaDeSupervisoresDeCliente, type SupervisorDeCliente } from '@/datos/supervision'
 import type { Capacidad, StaffReferencia } from '@/datos/tipos'
 import { etiquetaDeEscalon } from '@/dominio/escalon'
 import { alcanzaParaSupervisar, mensajeDeRechazo, nombreDeSupervisor } from '@/dominio/supervision'
-
-/**
- * El listado de personas activas con su escalón.
- *
- * Sale de `GET /staff` y no de `staff/asignables`, que no publica el escalón: sin él el selector
- * ofrecería a todo el equipo y la API rechazaría con 422 a quien no es lead o superior.
- */
-const RUTA_PERSONAS_ACTIVAS = 'staff?filter[active]=1&per_page=500'
 
 /** Los mismos ids, sin importar el orden en que se eligieron. */
 function mismasPersonas (unos: number[], otros: number[]): boolean {
@@ -35,20 +27,15 @@ function comoReferencia (supervisor: SupervisorDeCliente): StaffReferencia {
 }
 
 /**
- * Las personas que se pueden elegir: lead o superior, más las que ya supervisan.
+ * Las personas que se pueden elegir: lead o superior, según el `escalon` de `staff/asignables`.
  *
- * Un 403 del listado de personas (quien edita clientes sin acceso a Equipo) no rompe la pestaña:
- * devuelve `null` y la pestaña se muestra en solo lectura con el motivo.
+ * Sale de la misma fuente cacheada que los demás selectores de personas, que pide solo sesión: quien
+ * edita clientes puede elegir supervisores aunque no tenga acceso a Equipo.
  */
-async function cargarCandidatos (senal: AbortSignal): Promise<StaffReferencia[] | null> {
-  const respuesta = await pedirRespuesta(RUTA_PERSONAS_ACTIVAS, senal)
+async function cargarCandidatos (): Promise<StaffReferencia[]> {
+  const personas = await cargarAsignables()
 
-  if (respuesta.status === 403) return null
-  if (!respuesta.ok) throw new Error(await mensajeDeRespuesta(respuesta, { metodo: 'GET', ruta: `/api/bff/${RUTA_PERSONAS_ACTIVAS}` }))
-
-  const personas = await respuesta.json() as { data: MiembroEquipo[] }
-
-  return personas.data
+  return personas
     .filter((persona) => alcanzaParaSupervisar(persona.escalon))
     .map((persona) => ({ id: persona.id, full_name: persona.full_name, profile_image_url: persona.profile_image_url }))
 }
@@ -71,7 +58,7 @@ export function PanelSupervisoresCliente ({ clienteId, capacidades }: {
   clienteId: number
   capacidades: Capacidad[]
 }) {
-  const [candidatos, setCandidatos] = useState<StaffReferencia[] | null>([])
+  const [candidatos, setCandidatos] = useState<StaffReferencia[]>([])
   const [asignados, setAsignados] = useState<SupervisorDeCliente[]>([])
   const [elegidas, setElegidas] = useState<number[]>([])
   const [cargando, setCargando] = useState(true)
@@ -81,21 +68,19 @@ export function PanelSupervisoresCliente ({ clienteId, capacidades }: {
   const [error, setError] = useState<string | null>(null)
 
   const puedeEscribir = capacidades.includes('edit')
-  const puedeEditar = puedeEscribir && candidatos !== null
 
   useEffect(() => {
     const aborto = new AbortController()
 
     void Promise.all([
-      puedeEscribir ? cargarCandidatos(aborto.signal) : Promise.resolve([]),
+      // `cargarAsignables` no acepta señal —la promesa es compartida—; el `aborted` de abajo descarta.
+      puedeEscribir ? cargarCandidatos() : Promise.resolve([]),
       pedirSobre<SupervisorDeCliente[]>(rutaDeSupervisoresDeCliente(clienteId), aborto.signal)
     ]).then(([disponibles, actuales]) => {
       if (aborto.signal.aborted) return
       // Conserva a quien ya supervisa aunque haya bajado de escalón: si no, el selector lo
       // mostraría vacío y guardar lo sacaría sin que nadie lo pidiera.
-      setCandidatos(disponibles === null
-        ? null
-        : [...new Map([...disponibles, ...actuales.data.map(comoReferencia)].map((p) => [p.id, p])).values()])
+      setCandidatos([...new Map([...disponibles, ...actuales.data.map(comoReferencia)].map((p) => [p.id, p])).values()])
       setAsignados(actuales.data)
       setElegidas(actuales.data.map((s) => s.staffid))
       setCargado(true)
@@ -143,18 +128,7 @@ export function PanelSupervisoresCliente ({ clienteId, capacidades }: {
     )
   }
 
-  if (!puedeEditar) {
-    return (
-      <div className="flex flex-col gap-3">
-        {puedeEscribir && (
-          <p className="text-texto-tenue text-xs">
-            Para elegir supervisores hace falta ver el escalón de cada persona, y eso exige acceso a Equipo.
-          </p>
-        )}
-        <ListaSupervisores supervisores={asignados} />
-      </div>
-    )
-  }
+  if (!puedeEscribir) return <ListaSupervisores supervisores={asignados} />
 
   return (
     <form onSubmit={guardar} className="flex w-full max-w-md flex-col gap-3">
@@ -164,7 +138,7 @@ export function PanelSupervisoresCliente ({ clienteId, capacidades }: {
           Cada supervisor recibe una hoja diaria con las tareas de este cliente que vencen ese día o ya
           vencieron, y la firma al revisarla. Solo aparecen personas de escalón Lead, Director o Gerencia.
         </p>
-        <SelectorPersonas personas={candidatos ?? []} elegidas={elegidas} onCambiar={setElegidas} />
+        <SelectorPersonas personas={candidatos} elegidas={elegidas} onCambiar={setElegidas} />
         {elegidas.length === 0 && (
           <p className="text-texto-tenue mt-2 text-xs">El cliente quedará sin supervisión diaria.</p>
         )}

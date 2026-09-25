@@ -12,8 +12,8 @@ import { cargarAsignables, olvidarAsignables, RUTA_DE_ASIGNABLES } from '../src/
 import { rutaPermitida } from '../src/datos/rutas.ts'
 
 const PERSONAS = [
-  { id: 20, full_name: 'Ana Ríos', profile_image_url: null, area_id: 1, cargo_id: 2 },
-  { id: 31, full_name: 'Bruno Cabral', profile_image_url: null, area_id: null, cargo_id: null }
+  { id: 20, full_name: 'Ana Ríos', profile_image_url: null, area_id: 1, cargo_id: 2, escalon: 'lead' },
+  { id: 31, full_name: 'Bruno Cabral', profile_image_url: null, area_id: null, cargo_id: null, escalon: 'staff' }
 ]
 
 /** Reemplaza `fetch` por uno que cuenta llamadas y devuelve lo que se le diga. */
@@ -91,11 +91,7 @@ test('una lista vacia se cachea igual: no es un error, es un equipo sin nadie', 
  * defecto de siempre —"a un usuario le sale una persona y a otro no"— y va a `cargarAsignables`.
  */
 const PANTALLAS_DE_ADMINISTRACION = new Set([
-  'src/componentes/equipo/AccionesPersona.tsx',
-  // Los supervisores de un Cliente se eligen por escalón, y `staff/asignables` no lo publica. No es
-  // el defecto de la lista parcial: sin `staff.view` la API contesta 403 entero y la pestaña queda
-  // en solo lectura con el motivo, igual para todos los que no tienen ese permiso.
-  'src/componentes/cliente/SupervisoresCliente.tsx'
+  'src/componentes/equipo/AccionesPersona.tsx'
 ])
 
 /** Todos los `.ts` y `.tsx` de `src/`, con la ruta relativa a la raiz del proyecto. */

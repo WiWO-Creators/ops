@@ -669,12 +669,15 @@ export interface Contacto {
  * gente distinta segun quien abriera la pantalla. Esta ruta pide solo sesion, asi que la lista es la
  * misma para todos.
  *
+ * `escalon` viene en cada fila para los selectores que filtran por jerarquia (supervisores).
  * `area_id` y `cargo_id` llegan como id pelado; sus nombres salen de `cargos` y `areas` de
  * `GET /lookups`, que el panel ya trae una vez.
  */
 export interface PersonaAsignable extends StaffReferencia {
   area_id: number | null
   cargo_id: number | null
+  /** Escalón jerárquico; con él se filtra a quién se ofrece como supervisor (lead o superior). */
+  escalon: Escalon
 }
 
 /** Miembro del equipo. `staff` queda en ingles por convencion del glosario. */

@@ -6882,7 +6882,8 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
         .sort((a, b) => a.firstname.localeCompare(b.firstname))
         .map((persona) => ({
           id: persona.id, full_name: persona.full_name, profile_image_url: persona.profile_image_url,
-          area_id: persona.area_id ?? null, area_ids: areasDePersona(persona), cargo_id: persona.cargo_id ?? null
+          area_id: persona.area_id ?? null, area_ids: areasDePersona(persona), cargo_id: persona.cargo_id ?? null,
+          escalon: persona.escalon
         }))
       const { filas, paginacion } = aplicarConsulta(personas, parametros, {
         filtros: {}, orden: ['full_name'], busqueda: ['full_name']
