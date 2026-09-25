@@ -27,7 +27,9 @@ import {
   clienteDeJornada,
   recibeElResumenDelEquipo,
   fijarRecordatorioDeDestino,
+  filtrarEspaciosDelCombo,
   filtrarPorNombre,
+  identificadorDeEspacio,
   fraseDeJornadaSinDestino,
   jornadaPospuestaHoy,
   jornadaSinDestino,
@@ -516,6 +518,54 @@ test('una busqueda vacia devuelve la lista entera, en su orden', () => {
 
   assert.deepEqual(filtrarPorNombre(opciones, ''), opciones)
   assert.deepEqual(filtrarPorNombre(opciones, '   '), opciones)
+})
+
+test('buscar por nombre pide todas las palabras, en cualquier orden', () => {
+  const opciones = [
+    { id: 1, name: 'Colbún — Grilla septiembre' },
+    { id: 2, name: 'Colbún — Reel' }
+  ]
+
+  assert.deepEqual(filtrarPorNombre(opciones, 'grilla colbun').map((o) => o.id), [1])
+  assert.deepEqual(filtrarPorNombre(opciones, 'colbun').map((o) => o.id), [1, 2])
+  assert.deepEqual(filtrarPorNombre(opciones, 'colbun zzz'), [])
+})
+
+/**
+ * El combo de la jornada: el mismo nombre existe en varios Clientes, asi que se busca tambien por
+ * patente y por Cliente, y cada palabra puede caer en un campo distinto.
+ */
+const espaciosDelCombo = [
+  { id: 1, name: 'Campaña septiembre', patente: 'CNSA-001', client: { id: 9, company: 'Consalud', image_url: null } },
+  { id: 2, name: 'Campaña septiembre', patente: 'CLBN-004', client: { id: 8, company: 'Colbún', image_url: null } },
+  { id: 3, name: 'Interno', patente: null, client: null }
+]
+
+test('el combo de la jornada busca por patente, nombre y cliente a la vez', () => {
+  const ids = (busqueda) => filtrarEspaciosDelCombo(espaciosDelCombo, busqueda).map((e) => e.id)
+
+  assert.deepEqual(ids('campaña consalud'), [1])
+  assert.deepEqual(ids('CONSALUD campana'), [1])
+  assert.deepEqual(ids('colbun'), [2])
+  assert.deepEqual(ids('cnsa-001'), [1])
+  assert.deepEqual(ids('cnsa'), [1])
+  assert.deepEqual(ids('cnsa 001'), [1])
+  assert.deepEqual(ids('septiembre'), [1, 2])
+  assert.deepEqual(ids('interno'), [3])
+  assert.deepEqual(ids('campaña interno'), [])
+  assert.deepEqual(ids('  '), [1, 2, 3])
+})
+
+test('una palabra no coincide a caballo entre dos campos', () => {
+  // "septiembreconsalud" existiria si se pegaran nombre y Cliente sin separador.
+  assert.deepEqual(filtrarEspaciosDelCombo(espaciosDelCombo, 'septiembreconsalud'), [])
+})
+
+test('el identificador del Espacio es la patente, o #id si todavia no tiene', () => {
+  assert.equal(identificadorDeEspacio({ id: 1, patente: 'CNSA-001' }), 'CNSA-001')
+  assert.equal(identificadorDeEspacio({ id: 3, patente: null }), '#3')
+  assert.equal(identificadorDeEspacio({ id: 4 }), '#4')
+  assert.equal(identificadorDeEspacio({ id: 5, patente: '  ' }), '#5')
 })
 
 /** Un `GET /me/jornada` minimo: solo lo que las reglas del destino miran. */

@@ -484,10 +484,14 @@ export const ENTRADA_DE_CLIENTE = new Map()
  */
 export const CLIENTES_SIN_VENCIMIENTO = new Set()
 
+/**
+ * "Campaña Q3" va dos veces, con Clientes distintos, a proposito: en produccion los nombres se
+ * repiten entre Clientes y el combo de la jornada tiene que distinguirlos por patente y Cliente.
+ */
 const NOMBRES_ESPACIO = [
   'Rediseño de marca', 'Portal de autogestión', 'Migración de datos',
   'Campaña Q3', 'Aplicación móvil', 'Integración contable',
-  'Sitio institucional', 'Panel de indicadores', 'Auditoría técnica'
+  'Sitio institucional', 'Panel de indicadores', 'Campaña Q3'
 ]
 
 export const ESPACIOS = NOMBRES_ESPACIO.map((name, i) => ({

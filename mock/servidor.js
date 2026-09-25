@@ -660,7 +660,7 @@ function presentarEspacio (espacio, includes = []) {
   const { clientid, miembros, ...resto } = espacio
   return {
     ...resto,
-    client: cliente ? { id: cliente.id, company: cliente.company } : null,
+    client: cliente ? { id: cliente.id, company: cliente.company, image_url: null } : null,
     // `members` solo con `include=members`, igual que la API: quien no lo pide no debe recibirlo, o
     // el frontend se acostumbra a un campo que en produccion no va a estar.
     ...(includes.includes('members') ? { members: miembrosDe(espacio) } : {}),

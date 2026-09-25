@@ -12,6 +12,7 @@ import {
   SinResultadosMenu
 } from '@/componentes/superposiciones/MenuContextual'
 import { GLOSARIO } from '@/dominio/glosario'
+import { filtrarPorNombre } from '@/dominio/live'
 import { cn } from '@/lib/clases'
 import type { Referencia } from '@/datos/recursos'
 
@@ -32,35 +33,6 @@ interface PropsSelectorEspacios {
    * El alta ofrece cada clase por separado, así que el menú entero habla de la clase elegida.
    */
   nombres?: { singular: string, plural: string }
-}
-
-/**
- * Texto comparable: sin tildes, en minúsculas y sin espacio sobrante.
- *
- * Los nombres de Espacio vienen del cliente y llegan con y sin tilde según quién los escribió
- * ("Colbún" y "Colbun" son el mismo). Buscar sobre el texto crudo obliga a acertar la tilde.
- */
-function normalizar (texto: string): string {
-  return texto.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase().trim()
-}
-
-/**
- * Los Espacios cuyo nombre contiene TODAS las palabras buscadas, en cualquier orden.
- *
- * Por palabra y no por la frase entera: el catálogo mezcla cliente y campaña en el mismo nombre
- * ("Colbún — Grilla septiembre"), así que "grilla colbun" tiene que encontrarlo igual que
- * "colbun grilla".
- */
-function filtrarEspacios (espacios: readonly Referencia[], busqueda: string): readonly Referencia[] {
-  const partes = normalizar(busqueda).split(/\s+/).filter((parte) => parte !== '')
-
-  if (partes.length === 0) return espacios
-
-  return espacios.filter((espacio) => {
-    const nombre = normalizar(espacio.name)
-
-    return partes.every((parte) => nombre.includes(parte))
-  })
 }
 
 /**
@@ -88,7 +60,7 @@ export function SelectorEspacios ({
 }: PropsSelectorEspacios) {
   const [busqueda, setBusqueda] = useState('')
 
-  const visibles = useMemo(() => filtrarEspacios(espacios, busqueda), [espacios, busqueda])
+  const visibles = useMemo(() => filtrarPorNombre(espacios, busqueda), [espacios, busqueda])
   // En el orden en que se eligieron, no en el del catálogo: el primero manda —de él salen los hitos
   // y los tipos cuando hay uno solo— y verlo saltar de lugar al agregar otro es desconcertante.
   const elegidosEnOrden = useMemo(
