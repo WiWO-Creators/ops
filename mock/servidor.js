@@ -26,6 +26,7 @@ import { altaDelPortal, esAccionDelPortal, ticketDelPortal, ticketsDelEquipo } f
 import { esPrincipal, filaDelPortal, listadosDeTickets, ticketsDelResumen } from './tickets-listados.js'
 import { filtrosGuardados } from './filtros-guardados.js'
 import { analizarScope, interpretarScope, scopeRuta } from './scope.js'
+import { supervisionDelEquipo } from './supervision.js'
 import { driveDeEntidadRuta, driveRuta } from './drive.js'
 import { escribirAjustesDelOrbePortal, opcionDelOrbePortal, orbePortalRuta } from './orbe-portal.js'
 import {
@@ -6534,6 +6535,13 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
 
   const deTickets = await ticketsDelEquipo({ metodo, recurso, resto, cuerpo, actual })
   if (deTickets !== null) return deTickets
+
+  // La Supervisión diaria: `supervision/*`, `clients/{id}/supervisores` y `staff/{id}/supervision`.
+  // Va antes de los bloques de `clients` y `staff`, que son solo GET: un PUT caería al 404 final.
+  const deSupervision = await supervisionDelEquipo({
+    metodo, recurso, resto, parametros, cuerpo, actual, descendencia: descendenciaDePersona, exigirPermiso
+  })
+  if (deSupervision !== null) return deSupervision
 
   // --- Sesión como otra persona (`POST /impersonate`) ----------------------
   //

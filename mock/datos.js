@@ -485,6 +485,19 @@ export const ENTRADA_DE_CLIENTE = new Map()
 export const CLIENTES_SIN_VENCIMIENTO = new Set()
 
 /**
+ * Supervisores de cada cliente (`tblwiwo_supervision_clientes`), por id de cliente.
+ *
+ * Ana (gerencia, la cuenta con la que se entra al mock) supervisa Acme (1) y Rivera (7): con las fechas
+ * del fixture, la hoja del 2026-09-25 sale con Tareas atrasadas y con Tareas de Rivera que vencen ese
+ * mismo día, y se puede marcar y firmar. Diego (lead) supervisa
+ * el tercero, para que el selector de supervisores tenga más de una persona. El resto de los
+ * clientes queda sin supervisión, que es el estado de nacimiento.
+ *
+ * @type {Map<number, number[]>}
+ */
+export const SUPERVISORES_DE_CLIENTE = new Map([[1, [1]], [7, [1]], [3, [4]]])
+
+/**
  * "Campaña Q3" va dos veces, con Clientes distintos, a proposito: en produccion los nombres se
  * repiten entre Clientes y el combo de la jornada tiene que distinguirlos por patente y Cliente.
  */
