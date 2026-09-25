@@ -9,7 +9,7 @@
  */
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { agruparSecciones, seccionActiva, HREFS_PRINCIPALES } from '../src/lib/navegacion.ts'
+import { agruparSecciones, alternarInvertido, estaAbierto, seccionActiva, HREFS_PRINCIPALES } from '../src/lib/navegacion.ts'
 import { aplanar, comandosDeNavegacion, detalleConPatente, gruposDeBusqueda, gruposDePaleta, moverActivo, normalizar } from '../src/componentes/paleta/comandos.ts'
 import { estaFijado, hrefDeElemento, priorizarFijados } from '../src/componentes/fijados/fijados.ts'
 import {
@@ -182,4 +182,35 @@ test('"Esta semana" va de hoy al domingo, y "Todas" no filtra', () => {
   const miercoles = new Date(2026, 8, 23)
   assert.equal(consultaDeVencimiento('semana', miercoles), 'filter[due_date__gte]=2026-09-23&filter[due_date__lte]=2026-09-27')
   assert.equal(consultaDeVencimiento('todas', miercoles), null)
+})
+
+test('un bloque nace como dice su default y la lista guarda solo lo que se dio vuelta', () => {
+  assert.equal(estaAbierto('operacion', true, [], false), true)
+  assert.equal(estaAbierto('equipo', false, [], false), false)
+  assert.equal(estaAbierto('operacion', true, ['operacion'], false), false)
+  assert.equal(estaAbierto('equipo', false, ['equipo'], false), true)
+})
+
+test('el bloque con la seccion activa se muestra abierto aunque se haya cerrado', () => {
+  assert.equal(estaAbierto('administracion', false, [], true), true)
+  assert.equal(estaAbierto('operacion', true, ['operacion'], true), true)
+})
+
+test('lo guardado de antes (subgrupos abiertos) sigue significando lo mismo', () => {
+  assert.equal(estaAbierto('reuniones', false, ['reuniones'], false), true)
+})
+
+test('alternar dos veces vuelve al default y no repite ids', () => {
+  const una = alternarInvertido([], 'equipo')
+  assert.deepEqual(una, ['equipo'])
+  assert.deepEqual(alternarInvertido(una, 'equipo'), [])
+  assert.deepEqual(alternarInvertido(['reuniones'], 'equipo'), ['reuniones', 'equipo'])
+})
+
+test('cada bloque del menu trae su default de apertura', () => {
+  const { bloques } = agruparSecciones([
+    { href: '/procesos', etiqueta: 'Tareas', icono: 'procesos', grupo: 'operacion' },
+    { href: '/equipo', etiqueta: 'Equipo', icono: 'equipo', grupo: 'equipo' }
+  ])
+  assert.deepEqual(bloques.map((bloque) => [bloque.id, bloque.abiertoPorDefecto]), [['operacion', true], ['equipo', false]])
 })

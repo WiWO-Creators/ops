@@ -48,13 +48,22 @@ export interface Seccion {
  */
 export const HREFS_PRINCIPALES = ['/inicio', '/mis-tareas', '/live', '/proyectos'] as const
 
-/** Los bloques con encabezado, en el orden del menu. */
-export const BLOQUES: ReadonlyArray<{ id: Exclude<GrupoSeccion, 'principal'>, titulo: string }> = [
-  { id: 'operacion', titulo: 'Operación' },
-  { id: 'comercial', titulo: 'Comercial' },
-  { id: 'equipo', titulo: 'Equipo' },
-  { id: 'administracion', titulo: 'Administración' }
+/**
+ * Los bloques con encabezado, en el orden del menu.
+ *
+ * Todos se pliegan. `abiertoPorDefecto` es como los ve quien nunca toco su encabezado: los del dia a
+ * dia abiertos, los de consulta ocasional cerrados, para que el menu entero entre en una pantalla
+ * de laptop sin scroll.
+ */
+export const BLOQUES: ReadonlyArray<{ id: Exclude<GrupoSeccion, 'principal'>, titulo: string, abiertoPorDefecto: boolean }> = [
+  { id: 'operacion', titulo: 'Operación', abiertoPorDefecto: true },
+  { id: 'comercial', titulo: 'Comercial', abiertoPorDefecto: true },
+  { id: 'equipo', titulo: 'Equipo', abiertoPorDefecto: false },
+  { id: 'administracion', titulo: 'Administración', abiertoPorDefecto: false }
 ]
+
+/** Id del bloque de fijados entre los plegables recordados. No es un `GrupoSeccion`: no tiene secciones. */
+export const ID_BLOQUE_FIJADOS = 'fijados'
 
 /** Como se titula cada subgrupo plegable. */
 export const TITULOS_PLEGABLES: Record<PlegableSeccion, string> = {
@@ -70,6 +79,7 @@ export interface PlegableDeNavegacion {
 export interface BloqueDeNavegacion {
   id: Exclude<GrupoSeccion, 'principal'>
   titulo: string
+  abiertoPorDefecto: boolean
   /** Las secciones sueltas del bloque, en el orden en que llegaron. */
   secciones: Seccion[]
   /** Los subgrupos plegables, despues de las sueltas. */
@@ -97,7 +107,7 @@ export function agruparSecciones (secciones: readonly Seccion[]): Navegacion {
     .sort((a, b) => posicionPrincipal(a.href) - posicionPrincipal(b.href))
 
   const bloques = BLOQUES
-    .map(({ id, titulo }) => bloqueDe(secciones.filter((seccion) => seccion.grupo === id), id, titulo))
+    .map((bloque) => bloqueDe(secciones.filter((seccion) => seccion.grupo === bloque.id), bloque))
     .filter((bloque) => bloque.secciones.length > 0 || bloque.plegables.length > 0)
 
   return { principales, bloques }
@@ -107,11 +117,10 @@ export function agruparSecciones (secciones: readonly Seccion[]): Navegacion {
  * Arma un bloque con sus sueltas y sus plegables.
  *
  * @param delBloque secciones de este bloque
- * @param id bloque
- * @param titulo encabezado visible
+ * @param bloque la entrada de `BLOQUES`
  * @returns el bloque, posiblemente vacio
  */
-function bloqueDe (delBloque: Seccion[], id: BloqueDeNavegacion['id'], titulo: string): BloqueDeNavegacion {
+function bloqueDe (delBloque: Seccion[], { id, titulo, abiertoPorDefecto }: typeof BLOQUES[number]): BloqueDeNavegacion {
   const plegables: PlegableDeNavegacion[] = []
 
   for (const seccion of delBloque) {
@@ -125,9 +134,42 @@ function bloqueDe (delBloque: Seccion[], id: BloqueDeNavegacion['id'], titulo: s
   return {
     id,
     titulo,
+    abiertoPorDefecto,
     secciones: delBloque.filter((seccion) => seccion.plegable === undefined),
     plegables
   }
+}
+
+/**
+ * Dice si un bloque o subgrupo del menu se muestra abierto.
+ *
+ * Lo guardado no es "los abiertos" sino "los que la persona dio vuelta respecto de su default": asi
+ * un bloque que nace abierto y uno que nace cerrado se recuerdan con la misma lista, y lo que ya
+ * estaba guardado de antes (subgrupos que nacian cerrados y se abrieron) sigue valiendo igual.
+ *
+ * Si la seccion activa esta adentro se muestra abierto siempre: esconder donde uno esta parado es
+ * perder la barrita. Eso no se guarda.
+ *
+ * @param id el bloque o subgrupo
+ * @param abiertoPorDefecto como nace
+ * @param invertidos los ids que la persona dio vuelta
+ * @param contieneActiva si adentro esta la seccion actual
+ * @returns `true` si se dibuja abierto
+ */
+export function estaAbierto (id: string, abiertoPorDefecto: boolean, invertidos: readonly string[], contieneActiva: boolean): boolean {
+  if (contieneActiva) return true
+  return invertidos.includes(id) ? !abiertoPorDefecto : abiertoPorDefecto
+}
+
+/**
+ * Da vuelta un bloque o subgrupo en la lista de invertidos.
+ *
+ * @param invertidos la lista actual
+ * @param id el que se toco
+ * @returns la lista nueva, sin repetidos
+ */
+export function alternarInvertido (invertidos: readonly string[], id: string): string[] {
+  return invertidos.includes(id) ? invertidos.filter((otro) => otro !== id) : [...invertidos, id]
 }
 
 /** Posicion de una ruta entre las principales; lo desconocido va al final. */
