@@ -10,7 +10,7 @@ import { pedirSobre } from '@/datos/cliente'
 import type { Cliente } from '@/datos/recursos'
 import { rutaDeSupervisionDePersona, type ClienteSupervisado } from '@/datos/supervision'
 import type { Capacidad } from '@/datos/tipos'
-import { enlaceDeHoja, hoyEnSantiago, mensajeDeRechazo } from '@/dominio/supervision'
+import { AVISO_FOCALES_ENTRAN_SOLOS, enlaceDeHoja, hoyEnSantiago, mensajeDeRechazo } from '@/dominio/supervision'
 
 /** El tope de la API por página: con cien, la cartera se cortaba a mitad del alfabeto. */
 const CLIENTES_A_TRAER = 500
@@ -138,9 +138,10 @@ export function SupervisionPersona ({ personaId, nombre, capacidades }: {
       <fieldset disabled={enviando} className="min-w-0">
         <legend className="mb-1 text-sm font-medium">Clientes que {nombre} supervisa</legend>
         <p className="text-texto-tenue mb-2 text-xs">
-          Cada día recibe una hoja con las tareas de estos clientes que vencen ese día o ya vencieron, la
-          revisa y la firma.
+          Cada día recibe una hoja con las tareas de su gente a cargo y de sus clientes que vencen ese
+          día, siguen atrasadas o se completaron ese día; la revisa y la firma.
         </p>
+        <p className="text-texto-aviso mb-2 text-xs">{AVISO_FOCALES_ENTRAN_SOLOS}</p>
         <SelectorClientes clientes={catalogo} elegidos={elegidos} onCambiar={setElegidos} />
         {elegidos.length === 0 && (
           <p className="text-texto-tenue mt-2 text-xs">{nombre} no supervisará ningún cliente.</p>
@@ -171,14 +172,15 @@ function ListaSupervisados ({ clientes, nombre, enlace }: { clientes: ClienteEle
   if (clientes.length === 0) {
     return (
       <Vacio
-        titulo={`${nombre} no supervisa ningún cliente`}
-        descripcion="Los supervisores se asignan en la ficha del cliente, pestaña Supervisión."
+        titulo={`${nombre} no supervisa ningún cliente extra`}
+        descripcion={`${AVISO_FOCALES_ENTRAN_SOLOS} Los supervisores extra se asignan en la ficha del cliente, pestaña Supervisión.`}
       />
     )
   }
 
   return (
     <div className="flex flex-col gap-3">
+      <p className="text-texto-tenue text-xs">{AVISO_FOCALES_ENTRAN_SOLOS}</p>
       <ul className="flex flex-wrap gap-2">
         {clientes.map((cliente) => (
           <li key={cliente.id} className="bg-relleno-neutro text-relleno-neutro-contenido rounded-control px-3 py-1 text-sm">

@@ -1,9 +1,11 @@
 /**
  * Las formas y las rutas de la Supervisión diaria.
  *
- * Un supervisor —de escalón `lead` hacia arriba— tiene clientes asociados, y cada día le toca una
- * hoja: las Tareas de esos clientes que vencen ese día o ya vencieron. La revisa Tarea por Tarea
- * (OK / No OK, con una nota opcional) y la firma; firmada, queda cerrada.
+ * Un supervisor —de escalón `lead` hacia arriba— tiene gente a cargo en el árbol o clientes (los
+ * asociados en la pestaña Supervisión y aquellos donde es Focal), y cada día le toca una hoja: las
+ * Tareas de sus clientes y de su gente que vencen ese día, siguen atrasadas o se completaron ese día.
+ * La revisa Tarea por Tarea (OK / No OK, con una nota opcional) y la firma; su jefatura la confirma
+ * o se la devuelve con una nota, y devuelta vuelve a quedar abierta.
  *
  * **Nada de acá pide nada.** Son el contrato de la API y las rutas ya armadas, sin barra inicial:
  * así las pide el navegador por el BFF, y el servidor les antepone la barra. Por eso este archivo se
@@ -25,6 +27,17 @@ export interface RevisionDeTarea {
   marcado_en: string
 }
 
+/** Por qué una Tarea está en la hoja: por un cliente del supervisor, por su gente, o las dos. */
+export type OrigenDeTarea = 'cliente' | 'equipo'
+
+/** Lo que marcó de una Tarea, ese mismo día, un supervisor que cuelga del dueño de la hoja. */
+export interface RevisionDelEquipo {
+  staffid: number
+  nombre: string
+  estado: EstadoDeRevision
+  nota: string | null
+}
+
 /** Una persona asignada a la Tarea, en la forma corta de la hoja. */
 export interface AsignadoDeLaHoja {
   staffid: number
@@ -39,16 +52,28 @@ export interface TareaDeLaHoja {
   status: number
   /** `YYYY-MM-DD`. */
   duedate: string | null
-  /** Días entre el vencimiento y la fecha de la hoja; 0 si vence ese mismo día. */
+  /** Días entre el vencimiento y la fecha de la hoja; 0 si vence ese mismo día o está completada. */
   dias_atraso: number
+  /** `status == 5`. */
+  completada: boolean
+  /** `YYYY-MM-DD HH:MM:SS` en hora de Santiago, o `null` si sigue abierta. */
+  completada_en: string | null
+  /**
+   * Uno o los dos; vacío si la Tarea entra solo por tener revisión de ese día y ya salió del
+   * universo del supervisor (le sacaron el cliente o la persona dejó de colgar de él).
+   */
+  origen: OrigenDeTarea[]
   proyecto: { id: number, name: string } | null
   asignados: AsignadoDeLaHoja[]
   revision: RevisionDeTarea | null
+  /** Las revisiones de esa fecha de los supervisores que cuelgan del dueño; `[]` si ninguna. */
+  revisiones_equipo: RevisionDelEquipo[]
 }
 
 /** Las Tareas de un cliente dentro de la hoja. */
 export interface ClienteDeLaHoja {
-  client_id: number
+  /** `null` en el grupo "Sin cliente", el de las Tareas que entran solo por la gente a cargo. */
+  client_id: number | null
   company: string
   tareas: TareaDeLaHoja[]
 }
@@ -65,20 +90,56 @@ export interface FirmaDeHoja {
 export interface TotalesDeHoja {
   tareas: number
   atrasadas: number
+  completadas: number
   revisadas: number
   ok: number
   no_ok: number
 }
+
+/** Qué hizo la jefatura con una hoja firmada. */
+export type EstadoDeConfirmacion = 'confirmada' | 'devuelta'
+
+/** La contrafirma de la jefatura, o la devolución con su nota. */
+export interface ConfirmacionDeHoja {
+  estado: EstadoDeConfirmacion
+  staffid: number
+  nombre: string
+  nota: string | null
+  /** ISO 8601. */
+  en: string
+}
+
+/** Lo que se le pide a la API al confirmar o devolver. */
+export type AccionDeConfirmacion = 'confirmar' | 'devolver'
 
 /** `GET /supervision/hoja`. */
 export interface HojaDeSupervision {
   fecha: string
   /** Solo el propio supervisor y mientras la hoja no esté firmada. */
   puede_editar: boolean
+  /** Quien mira está sobre el dueño (o es admin), no es él, y la hoja está firmada y sin confirmar. */
+  puede_confirmar: boolean
   supervisor: { staffid: number, nombre: string, escalon: Escalon }
+  /** `null` también después de una devolución: devolver anula la firma. */
   firma: FirmaDeHoja | null
+  confirmacion: ConfirmacionDeHoja | null
   totales: TotalesDeHoja
   clientes: ClienteDeLaHoja[]
+}
+
+/** El estado de una hoja en la lista del equipo. */
+export type EstadoDeHojaDelEquipo = 'sin_firmar' | 'firmada' | 'confirmada' | 'devuelta'
+
+/** Una fila de `GET /supervision/equipo`. */
+export interface HojaDelEquipo {
+  staffid: number
+  nombre: string
+  escalon: Escalon
+  jefe_staffid: number | null
+  estado: EstadoDeHojaDelEquipo
+  firmado_en: string | null
+  confirmacion: ConfirmacionDeHoja | null
+  totales: { tareas: number, revisadas: number, completadas: number }
 }
 
 /** Una fila de `GET /supervision/supervisores`. */
@@ -86,7 +147,7 @@ export interface SupervisorVisible {
   staffid: number
   nombre: string
   escalon: Escalon
-  /** Cuántos clientes tiene asociados. */
+  /** Cuántos clientes tiene: asociados más aquellos donde es Focal. */
   clientes: number
 }
 
@@ -136,6 +197,16 @@ export function rutaDeRevisiones (fecha: string): string {
 /** `POST /supervision/hoja/{fecha}/firma`. */
 export function rutaDeFirma (fecha: string): string {
   return `supervision/hoja/${encodeURIComponent(fecha)}/firma`
+}
+
+/** `POST /supervision/hoja/{fecha}/confirmacion`. */
+export function rutaDeConfirmacion (fecha: string): string {
+  return `supervision/hoja/${encodeURIComponent(fecha)}/confirmacion`
+}
+
+/** `GET /supervision/equipo?fecha=`. */
+export function rutaDeHojasDelEquipo (fecha: string): string {
+  return `supervision/equipo?${new URLSearchParams({ fecha }).toString()}`
 }
 
 /** `GET|PUT /clients/{id}/supervisores`. */

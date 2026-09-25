@@ -159,7 +159,7 @@ function estaSobre (jefeId, staffId, arbol) {
  *
  * Universo: Tareas de los clientes del supervisor ∪ Tareas con algún asignado en su descendencia.
  * Entra la que vence ese día (completada o no), la abierta atrasada, la completada ese día y la que
- * ya tiene revisión suya en esta hoja.
+ * ya tiene revisión suya en esta hoja —esta última aunque haya salido del universo, con `origen: []`—.
  *
  * @returns {{tarea: object, origen: string[]}[]}
  */
@@ -177,9 +177,10 @@ function tareasDeLaHoja (fecha, supervisor, arbol) {
 
     if (cliente !== null && clientes.has(cliente)) origen.push('cliente')
     if (tarea.assignees.some((a) => a.id !== supervisor.id && equipo.has(a.id))) origen.push('equipo')
-    if (origen.length === 0) continue
 
-    if (entraEnLaHoja(tarea, fecha) || revisiones.has(tarea.id)) filas.push({ tarea, origen })
+    // Con revisión de esta hoja entra siempre, aunque ya haya salido del universo: ahí viaja con
+    // `origen: []`, igual que en la API.
+    if (revisiones.has(tarea.id) || (origen.length > 0 && entraEnLaHoja(tarea, fecha))) filas.push({ tarea, origen })
   }
 
   return filas

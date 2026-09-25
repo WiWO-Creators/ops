@@ -1,22 +1,28 @@
 /**
  * Las reglas de la Supervisión diaria que la pantalla resuelve sola.
  *
- * La hoja la arma la API —qué Tareas entran, cuántos días de atraso, quién puede editar—; lo que
- * queda acá es lo que el panel decide sin preguntar: qué día pedir, qué significa volver a pulsar un
- * botón ya marcado, cómo quedan los totales después de marcar, qué avisar antes de firmar y a quién
+ * La hoja la arma la API —qué Tareas entran, cuántos días de atraso, quién puede editar o
+ * confirmar—; lo que queda acá es lo que el panel decide sin preguntar: qué día pedir, qué significa
+ * volver a pulsar un botón ya marcado, cómo quedan los totales después de marcar, cómo se agrupa
+ * (por cliente o por persona), qué se escribe de cada estado, qué avisar antes de firmar y a quién
  * ofrecerle la sección.
  *
  * Vive en un `.ts` y no dentro del componente por la regla de `docs/convenciones.md`: Node despoja
  * los tipos de un `.ts` pero no el JSX, así que solo lo que está fuera del componente se puede probar.
  */
 
-import { ZONA_NEGOCIO, sumarDias } from '../lib/fechas.ts'
+import { ZONA_NEGOCIO, formatearFecha, sumarDias } from '../lib/fechas.ts'
 import { ESCALONES, type Escalon } from './escalon.ts'
 import type {
+  ConfirmacionDeHoja,
   EstadoDeRevision,
   HojaDeSupervision,
+  HojaDelEquipo,
+  OrigenDeTarea,
   RevisionDeTarea,
+  RevisionDelEquipo,
   SupervisorDeCliente,
+  TareaDeLaHoja,
   TotalesDeHoja
 } from '../datos/supervision.ts'
 
@@ -25,6 +31,12 @@ export const ESCALON_MINIMO_SUPERVISOR: Escalon = 'lead'
 
 /** Tope de la nota de una revisión, el mismo que valida la API. */
 export const LARGO_MAXIMO_NOTA = 500
+
+/**
+ * La línea de la pestaña Supervisión de la persona: los clientes donde es Focal ya cuentan para su
+ * hoja, así que la lista de esa pestaña es solo para sumar clientes que no son suyos como Focal.
+ */
+export const AVISO_FOCALES_ENTRAN_SOLOS = 'Los clientes donde es Focal ya entran solos en su hoja: esta lista es solo para sumar clientes extra.'
 
 /** Ruta de la pantalla. */
 export const RUTA_PANTALLA_SUPERVISION = '/supervision'
@@ -282,4 +294,245 @@ export function mensajeDeRechazo (mensaje: string, estado: number | undefined, d
   }
 
   return mensaje
+}
+
+/** Cómo se agrupan las Tareas de la hoja en pantalla y en papel. */
+export type ModoDeAgrupacion = 'cliente' | 'persona'
+
+/** Las opciones del selector "Agrupar por", en orden. */
+export const MODOS_DE_AGRUPACION: { valor: ModoDeAgrupacion, etiqueta: string }[] = [
+  { valor: 'cliente', etiqueta: 'Cliente' },
+  { valor: 'persona', etiqueta: 'Persona' }
+]
+
+/** Título del grupo de las Tareas sin cliente, el mismo que manda la API. */
+export const TITULO_SIN_CLIENTE = 'Sin cliente'
+
+/** Título del grupo de las Tareas sin nadie asignado, al agrupar por persona. */
+export const TITULO_SIN_ASIGNAR = 'Sin asignar'
+
+/** Un bloque de la hoja: un cliente o una persona, con sus Tareas. */
+export interface GrupoDeHoja {
+  /** Única dentro de la hoja; sirve de `key` y de id del título. */
+  clave: string
+  titulo: string
+  tareas: TareaDeLaHoja[]
+}
+
+/**
+ * Las Tareas de la hoja agrupadas por cliente o por persona asignada.
+ *
+ * Por cliente respeta el orden de la API y deja "Sin cliente" al final aunque la API lo mande en otro
+ * lugar. Por persona, una Tarea con varios asignados aparece bajo cada uno —la revisa quien mira a
+ * esa persona— y las que no tienen a nadie van en "Sin asignar", al final; las personas, por nombre.
+ * Dentro de cada grupo se conserva el orden de la API (cliente, luego vencimiento).
+ *
+ * @param hoja la hoja
+ * @param modo `cliente` o `persona`
+ * @returns los grupos, nunca vacíos
+ */
+export function agruparHoja (hoja: HojaDeSupervision, modo: ModoDeAgrupacion): GrupoDeHoja[] {
+  if (modo === 'persona') return agruparPorPersona(hoja)
+
+  const grupos = hoja.clientes
+    .filter((cliente) => cliente.tareas.length > 0)
+    .map((cliente) => ({
+      clave: `cliente-${cliente.client_id ?? 'sin'}`,
+      titulo: cliente.client_id === null ? TITULO_SIN_CLIENTE : cliente.company,
+      tareas: cliente.tareas
+    }))
+
+  return [
+    ...grupos.filter((grupo) => grupo.clave !== 'cliente-sin'),
+    ...grupos.filter((grupo) => grupo.clave === 'cliente-sin')
+  ]
+}
+
+/** El modo `persona` de `agruparHoja`. */
+function agruparPorPersona (hoja: HojaDeSupervision): GrupoDeHoja[] {
+  const porPersona = new Map<number, GrupoDeHoja>()
+  const sinAsignar: TareaDeLaHoja[] = []
+
+  for (const tarea of hoja.clientes.flatMap((cliente) => cliente.tareas)) {
+    if (tarea.asignados.length === 0) sinAsignar.push(tarea)
+
+    for (const persona of tarea.asignados) {
+      const grupo = porPersona.get(persona.staffid) ?? { clave: `persona-${persona.staffid}`, titulo: persona.nombre, tareas: [] }
+
+      if (!grupo.tareas.includes(tarea)) grupo.tareas.push(tarea)
+      porPersona.set(persona.staffid, grupo)
+    }
+  }
+
+  const grupos = [...porPersona.values()].sort((a, b) => a.titulo.localeCompare(b.titulo, 'es'))
+
+  return sinAsignar.length === 0
+    ? grupos
+    : [...grupos, { clave: 'persona-sin', titulo: TITULO_SIN_ASIGNAR, tareas: sinAsignar }]
+}
+
+/**
+ * El modo de agrupación de un texto (un parámetro, un valor guardado); cualquier otra cosa es cliente.
+ *
+ * @param valor el texto crudo
+ * @returns el modo
+ */
+export function modoDeAgrupacion (valor: unknown): ModoDeAgrupacion {
+  return valor === 'persona' ? 'persona' : 'cliente'
+}
+
+/** Cómo se pinta el estado de una Tarea: completada, vence hoy o atrasada. */
+export interface EstadoDeTarea {
+  tipo: 'completada' | 'vence_hoy' | 'atrasada'
+  texto: string
+}
+
+/**
+ * El estado de una Tarea en la hoja: el badge "Completada" con la hora, o el atraso.
+ *
+ * La hora sale de `completada_en`, que la API manda ya en hora de Santiago y sin huso: se corta el
+ * texto en vez de pasarlo por un `Date`, que lo leería en la zona de quien mira. Si se completó otro
+ * día que el de la hoja (vencía ese día y se cerró antes), dice qué día.
+ *
+ * @param tarea la Tarea
+ * @param fecha la fecha de la hoja
+ * @returns el tipo y la frase
+ */
+export function estadoDeTarea (tarea: Pick<TareaDeLaHoja, 'completada' | 'completada_en' | 'dias_atraso'>, fecha: string): EstadoDeTarea {
+  if (tarea.completada) {
+    const dia = tarea.completada_en?.slice(0, 10) ?? null
+    const hora = tarea.completada_en?.slice(11, 16) ?? ''
+
+    if (dia === null) return { tipo: 'completada', texto: 'Completada' }
+    if (dia === fecha) return { tipo: 'completada', texto: `Completada ${hora}`.trim() }
+
+    return { tipo: 'completada', texto: `Completada el ${formatearFecha(dia)}` }
+  }
+
+  return { tipo: tarea.dias_atraso > 0 ? 'atrasada' : 'vence_hoy', texto: textoDeAtraso(tarea.dias_atraso) }
+}
+
+/**
+ * Por qué la Tarea está en la hoja, en palabras.
+ *
+ * Un `origen` vacío es legítimo: la Tarea entra solo porque ya tenía revisión de ese día y salió del
+ * universo del supervisor. Ahí no hay etiqueta que poner, y la fila se pinta sin ella.
+ *
+ * @param origen el `origen` de la API
+ * @returns "Por cliente", "Por equipo", "Por cliente y equipo", o `null` si viene vacío
+ */
+export function etiquetaDeOrigen (origen: OrigenDeTarea[]): string | null {
+  const porCliente = origen.includes('cliente')
+  const porEquipo = origen.includes('equipo')
+
+  if (porCliente && porEquipo) return 'Por cliente y equipo'
+  if (porEquipo) return 'Por equipo'
+
+  return porCliente ? 'Por cliente' : null
+}
+
+/**
+ * Lo que marcó alguien del equipo, en una línea: "✔ OK · Diego Sosa".
+ *
+ * El contrato no manda el escalón de quien revisó, así que la línea nombra a la persona.
+ *
+ * @param revision la revisión del equipo
+ * @returns la frase, sin la nota
+ */
+export function textoDeRevisionDelEquipo (revision: Pick<RevisionDelEquipo, 'estado' | 'nombre'>): string {
+  return `${revision.estado === 'ok' ? '✔ OK' : '✘ No OK'} · ${revision.nombre}`
+}
+
+/** Si alguna Tarea de la hoja trae revisiones del equipo: decide la columna del papel. */
+export function hayRevisionesDelEquipo (hoja: HojaDeSupervision): boolean {
+  return hoja.clientes.some((cliente) => cliente.tareas.some((tarea) => tarea.revisiones_equipo.length > 0))
+}
+
+/**
+ * La hoja después de confirmarla o devolverla, con lo que devolvió la API.
+ *
+ * Devolver anula la firma y la hoja vuelve a quedar abierta para su dueño —pero quien confirma no es
+ * el dueño, así que `puede_editar` no cambia acá—. Confirmada o devuelta, ya no hay nada que
+ * confirmar.
+ *
+ * @param hoja la hoja actual
+ * @param confirmacion lo que devolvió la API
+ * @returns una hoja nueva
+ */
+export function conConfirmacion (hoja: HojaDeSupervision, confirmacion: ConfirmacionDeHoja): HojaDeSupervision {
+  return {
+    ...hoja,
+    confirmacion,
+    puede_confirmar: false,
+    firma: confirmacion.estado === 'devuelta' ? null : hoja.firma
+  }
+}
+
+/**
+ * Qué falta en la nota de una devolución, o `null` si se puede mandar.
+ *
+ * @param nota lo escrito
+ * @returns el error para el campo, o `null`
+ */
+export function errorDeNotaDeDevolucion (nota: string): string | null {
+  if (nota.trim() === '') return 'Escribe qué hay que corregir: la nota es obligatoria para devolver.'
+  if (nota.length > LARGO_MAXIMO_NOTA) return `La nota admite hasta ${LARGO_MAXIMO_NOTA} caracteres.`
+
+  return null
+}
+
+/**
+ * La hora `HH:MM` de un instante ISO, en Santiago.
+ *
+ * @param instante ISO 8601 con desfase
+ * @returns la hora, o cadena vacía si no se entiende
+ */
+export function horaEnSantiago (instante: string): string {
+  const fecha = new Date(instante)
+
+  if (Number.isNaN(fecha.getTime())) return ''
+
+  return new Intl.DateTimeFormat('es-CL', { timeZone: ZONA_NEGOCIO, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(fecha)
+}
+
+/**
+ * El estado de una hoja del equipo, en palabras: "Sin firmar", "Firmada 18:05", "Confirmada",
+ * "Devuelta".
+ *
+ * @param fila la fila de `GET /supervision/equipo`
+ * @returns la frase
+ */
+export function textoDeEstadoDelEquipo (fila: Pick<HojaDelEquipo, 'estado' | 'firmado_en'>): string {
+  if (fila.estado === 'confirmada') return 'Confirmada'
+  if (fila.estado === 'devuelta') return 'Devuelta'
+  if (fila.estado === 'sin_firmar' || fila.firmado_en === null) return 'Sin firmar'
+
+  return `Firmada ${horaEnSantiago(fila.firmado_en)}`.trim()
+}
+
+/** Si una hoja del equipo espera la confirmación de quien mira: firmada y sin confirmar. */
+export function esperaConfirmacion (fila: Pick<HojaDelEquipo, 'estado'>): boolean {
+  return fila.estado === 'firmada'
+}
+
+/** Cuántas hojas del equipo esperan confirmación. */
+export function hojasPorConfirmar (filas: Pick<HojaDelEquipo, 'estado'>[]): number {
+  return filas.filter(esperaConfirmacion).length
+}
+
+/**
+ * El vacío de la pantalla cuando la persona no tiene hoja: ni gente a cargo ni clientes.
+ *
+ * Explica de dónde sale la hoja —la gente a cargo en el árbol, los clientes donde es Focal y los que
+ * se suman en la pestaña Supervisión— para que quien la ve vacía sepa qué pedir.
+ *
+ * @param esPropia si quien mira es el dueño
+ * @param nombre el nombre del dueño
+ * @returns título y descripción del `Vacio`
+ */
+export function vacioSinSupervision (esPropia: boolean, nombre: string): { titulo: string, descripcion: string } {
+  return {
+    titulo: esPropia ? 'No tienes gente a cargo ni clientes' : `${nombre} no tiene gente a cargo ni clientes`,
+    descripcion: 'La hoja se arma sola con las tareas de la gente a cargo en el organigrama y con las de los clientes donde se es Focal o que se suman en la pestaña Supervisión de la ficha de la persona.'
+  }
 }

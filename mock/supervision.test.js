@@ -144,6 +144,19 @@ test('los clientes donde es Focal cuentan como suyos, con origen cliente', async
   assert.deepEqual(extra.map((c) => c.client_id), [3])
 })
 
+test('la Tarea revisada que sale del universo sigue en la hoja, con origen vacío', async () => {
+  const soloPorCliente = tareasDe((await hoja('diego')).cuerpo.data)
+    .find((t) => t.origen.join() === 'cliente' && t.proyecto?.id === 3)
+
+  await revisar({ task_id: soloPorCliente.id, estado: 'ok' }, 'diego')
+  // Diego deja de supervisar el cliente 3 (su asociación extra); la Tarea ya no es de su universo.
+  assert.equal((await pedir('/staff/4/supervision', { method: 'PUT', body: JSON.stringify({ client_ids: [] }) })).estado, 200)
+
+  const despues = tareasDe((await hoja('diego')).cuerpo.data).find((t) => t.id === soloPorCliente.id)
+  assert.deepEqual(despues.origen, [])
+  assert.equal(despues.revision.estado, 'ok')
+})
+
 test('un staff no tiene hoja aunque haya Tareas vencidas', async () => {
   const { cuerpo } = await hoja('facundo')
 
