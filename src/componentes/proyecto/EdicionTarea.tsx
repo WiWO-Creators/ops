@@ -7,6 +7,7 @@ import { Campo } from '@/componentes/formularios/Campo'
 import { CamposPersonalizados } from '@/componentes/formularios/CamposPersonalizados'
 import { AreaTexto, Entrada } from '@/componentes/formularios/Entrada'
 import { SelectorPersonas } from '@/componentes/formularios/SelectorPersonas'
+import { DiasExcluidos } from '@/componentes/recurrencia/DiasExcluidos'
 import { FinDeRecurrencia } from '@/componentes/recurrencia/FinDeRecurrencia'
 import {
   ContenidoSelector,
@@ -638,30 +639,47 @@ export function EdicionTarea (
           </Campo>
           {([
             ['facturable', 'Facturable'], ['publica', 'Pública para el equipo'],
-            ['visibleCliente', 'Visible para el cliente'], ['recurrente', 'Recurrente']
+            ['visibleCliente', 'Visible para el cliente']
           ] as const).map(([clave, etiqueta]) => <label key={clave} className="text-texto flex items-center gap-2 text-sm">
             <input type="checkbox" checked={campos[clave]} onChange={(evento) => setCampos({ ...campos, [clave]: evento.target.checked })} />
             {etiqueta}
           </label>)}
-          {campos.recurrente && <div className="grid gap-4 sm:grid-cols-3">
-            <Campo etiqueta="Repetir cada">
-              {(props) => <Entrada {...props} required type="number" min="1" max="365" step="1" value={campos.repetirCada} onChange={(evento) => setCampos({ ...campos, repetirCada: evento.target.value })} />}
-            </Campo>
-            <Campo etiqueta="Unidad">
-              {({ id }) => <Selector value={campos.unidadRecurrencia} onValueChange={(valor) => setCampos({ ...campos, unidadRecurrencia: valor })}>
-                <DisparadorSelector id={id} />
-                <ContenidoSelector>
-                  <Opcion value="day">Días</Opcion><Opcion value="week">Semanas</Opcion>
-                  <Opcion value="month">Meses</Opcion><Opcion value="year">Años</Opcion>
-                </ContenidoSelector>
-              </Selector>}
-            </Campo>
-            <FinDeRecurrencia
-              inicio={campos.inicio}
-              valor={{ modo: campos.finRecurrencia, ciclos: campos.ciclos, hasta: campos.hasta }}
-              onCambiar={(fin) => setCampos({ ...campos, finRecurrencia: fin.modo, ciclos: fin.ciclos, hasta: fin.hasta })}
-            />
-          </div>}
+
+          {/* La recurrencia con seccion y titulo propios, y no como una casilla mas entre Facturable y
+              Pública: es una regla con cinco partes, no un atributo. Para cambiar solo la regla hay
+              un editor dedicado ("Editar recurrencia" en la ficha); aca se enciende y se apaga. */}
+          <section aria-labelledby="edicion-recurrencia" className="border-linea flex flex-col gap-3 border-t pt-4">
+            <h3 id="edicion-recurrencia" className="text-texto text-sm font-semibold">Recurrencia</h3>
+            <label className="text-texto flex items-center gap-2 text-sm">
+              <input type="checkbox" checked={campos.recurrente} onChange={(evento) => setCampos({ ...campos, recurrente: evento.target.checked })} />
+              Repetir esta tarea
+            </label>
+            {campos.recurrente && tarea.recurring_paused === true && (
+              <p className="text-texto-sutil text-xs">
+                Está pausada: los cambios se guardan, pero no genera copias hasta que la reanudes desde Tareas recurrentes.
+              </p>
+            )}
+            {campos.recurrente && <div className="grid gap-4 sm:grid-cols-3">
+              <Campo etiqueta="Repetir cada">
+                {(props) => <Entrada {...props} required type="number" min="1" max="365" step="1" value={campos.repetirCada} onChange={(evento) => setCampos({ ...campos, repetirCada: evento.target.value })} />}
+              </Campo>
+              <Campo etiqueta="Unidad">
+                {({ id }) => <Selector value={campos.unidadRecurrencia} onValueChange={(valor) => setCampos({ ...campos, unidadRecurrencia: valor })}>
+                  <DisparadorSelector id={id} />
+                  <ContenidoSelector>
+                    <Opcion value="day">Días</Opcion><Opcion value="week">Semanas</Opcion>
+                    <Opcion value="month">Meses</Opcion><Opcion value="year">Años</Opcion>
+                  </ContenidoSelector>
+                </Selector>}
+              </Campo>
+              <DiasExcluidos valor={campos.diasExcluidos} onCambiar={(dias) => setCampos({ ...campos, diasExcluidos: dias })} />
+              <FinDeRecurrencia
+                inicio={campos.inicio}
+                valor={{ modo: campos.finRecurrencia, ciclos: campos.ciclos, hasta: campos.hasta }}
+                onCambiar={(fin) => setCampos({ ...campos, finRecurrencia: fin.modo, ciclos: fin.ciclos, hasta: fin.hasta })}
+              />
+            </div>}
+          </section>
 
           <Campo etiqueta="Asignados">
             {({ id }) => (

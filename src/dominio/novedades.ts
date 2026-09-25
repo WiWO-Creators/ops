@@ -54,6 +54,13 @@ export const ROTULO_TIPO: Record<TipoNovedad, string> = {
 export const NOVEDADES: Novedad[] = [
   {
     fecha: '2026-09-25',
+    tipo: 'mejora',
+    titulo: 'Las tareas recurrentes se editan, se pausan y saltan días',
+    detalle: 'En Tareas recurrentes, "Editar regla" abre en un clic la frecuencia, el inicio y cómo termina, con una vista previa de las próximas copias. Puedes marcar días en que no se genera (por ejemplo, sin fines de semana) y pausar una regla sin perderla: al reanudarla sigue desde hoy. La ficha de la Tarea también muestra su recurrencia.',
+    commits: []
+  },
+  {
+    fecha: '2026-09-25',
     tipo: 'nuevo',
     titulo: 'Ops se puede instalar como aplicación, también en el computador',
     detalle: 'Si usas Ops desde el navegador, una vez al día aparece un aviso para instalarlo. En Chrome, Edge y Brave basta con tocar Instalar; en iPhone, iPad y Safari de Mac el aviso explica los pasos.',

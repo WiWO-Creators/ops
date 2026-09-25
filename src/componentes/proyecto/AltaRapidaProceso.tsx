@@ -22,8 +22,9 @@ import {
   SelectorBuscable
 } from '@/componentes/formularios/Selector'
 import { SelectorPersonas } from '@/componentes/formularios/SelectorPersonas'
+import { DiasExcluidos } from '@/componentes/recurrencia/DiasExcluidos'
 import { FinDeRecurrencia, type ValorFin } from '@/componentes/recurrencia/FinDeRecurrencia'
-import { cuerpoDeFin, errorDeFin } from '@/dominio/recurrencia'
+import { cuerpoDeFin, errorDeDiasExcluidos, errorDeFin } from '@/dominio/recurrencia'
 import {
   CerrarDialogo,
   ContenidoDialogo,
@@ -221,6 +222,7 @@ export function AltaRapidaProceso ({
   const [cada, setCada] = useState('1')
   const [unidad, setUnidad] = useState('month')
   const [fin, setFin] = useState<ValorFin>(FIN_INICIAL)
+  const [diasExcluidos, setDiasExcluidos] = useState<number[]>([])
   const [cierre, setCierre] = useState('')
 
   useAccionPresencia('creando_tarea', abierto)
@@ -528,6 +530,7 @@ export function AltaRapidaProceso ({
     setCada('1')
     setUnidad('month')
     setFin(FIN_INICIAL)
+    setDiasExcluidos([])
     setCierre('')
     setCreadaId(null)
     setPersonalizados(valoresPorDefecto(definiciones))
@@ -889,7 +892,7 @@ export function AltaRapidaProceso ({
       setError('La frecuencia debe ser un entero positivo.')
       return
     }
-    const errorFin = recurrente ? errorDeFin(fin.modo, fin.ciclos, fin.hasta, inicio) : null
+    const errorFin = recurrente ? errorDeFin(fin.modo, fin.ciclos, fin.hasta, inicio) ?? errorDeDiasExcluidos(diasExcluidos) : null
     if (errorFin !== null) {
       setError(errorFin)
       return
@@ -915,7 +918,15 @@ export function AltaRapidaProceso ({
       visible_to_client: visibleCliente,
       ...(estado === NINGUNO ? {} : { status: Number(estado) }),
       ...(tarifa === '' ? {} : { hourly_rate: Number(tarifa) }),
-      ...(recurrente ? { recurring: true, repeat_every: Number(cada), recurring_type: unidad, ...cuerpoDeFin(fin.modo, fin.ciclos, fin.hasta) } : {}),
+      ...(recurrente
+        ? {
+            recurring: true,
+            repeat_every: Number(cada),
+            recurring_type: unidad,
+            ...cuerpoDeFin(fin.modo, fin.ciclos, fin.hasta),
+            ...(diasExcluidos.length === 0 ? {} : { skip_weekdays: diasExcluidos })
+          }
+        : {}),
       ...(estado === '5' && cierre !== '' ? { completed_at: new Date(cierre).toISOString() } : {}),
       ...(asignados.length === 0 ? {} : { assignees: asignados }),
       ...(seguidores.length === 0 ? {} : { followers: seguidores }),
@@ -1313,6 +1324,7 @@ export function AltaRapidaProceso ({
                       </ContenidoSelector>
                     </Selector>}
                   </Campo>
+                  <DiasExcluidos valor={diasExcluidos} onCambiar={setDiasExcluidos} />
                   <FinDeRecurrencia valor={fin} onCambiar={setFin} inicio={inicio} />
                 </div>}
               </>

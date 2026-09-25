@@ -40,6 +40,7 @@ import { Cronometros } from './Cronometros'
 import { EdicionTarea } from './EdicionTarea'
 import { ListaChecklist } from './ListaChecklist'
 import { ListaIteraciones } from './ListaIteraciones'
+import { ResumenDeRecurrencia } from '@/componentes/recurrencia/ResumenDeRecurrencia'
 import { PanelAdjuntos } from './PanelArchivos'
 import { mensajeDeRespuesta, pedirRespuesta } from '@/datos/cliente'
 
@@ -420,6 +421,13 @@ export function DetalleTarea (
             </Dato>
           ))}
         </dl>
+
+        {/* La regla, de lectura, justo bajo los datos: es lo que explica por que esta Tarea tiene
+            copias. Solo existe si el contrato mando `recurring` (el panel, via `GET /tasks/{id}`);
+            el portal no la manda y ahi no se dibuja. */}
+        {'recurring' in tarea && (tarea as Proceso).recurring && (
+          <ResumenDeRecurrencia tarea={tarea as Proceso} puedeEditar={puedeEditar} onCambiada={alCambiar} />
+        )}
 
         {/* Detras del titulo y la ficha de datos, y no al final de todo: poner tiempo es a lo que
             se viene al abrir una Tarea, y enterrado bajo checklist y archivos obligaba a bajar cada
