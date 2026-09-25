@@ -181,7 +181,7 @@
   width: 18px;
   height: 16px;
   background: #4a5560;
-  transition: transform 200ms cubic-bezier(.34,1.56,.64,1), background-color 200ms ease;
+  transition: transform 200ms cubic-bezier(.22,1,.36,1), background-color 200ms ease;
 }
 
 .pn__llave--on { border-color: rgb(59 255 0 / .5) }
@@ -192,7 +192,7 @@
 .pn__aviso {
   margin-top: 1rem;
   padding: .7rem .85rem;
-  border-left: 3px solid var(--peligro);
+  border: 1px solid rgb(242 183 5 / .35);
   background: rgb(242 183 5 / .07);
   font-size: .74rem;
   color: #d8c9a0;
@@ -201,7 +201,7 @@
 .pn__error {
   margin-top: .8rem;
   padding: .6rem .8rem;
-  border-left: 3px solid #ff5f56;
+  border: 1px solid rgb(255 95 86 / .4);
   background: rgb(255 95 86 / .08);
   font-size: .76rem;
   color: #ffb3ae;
