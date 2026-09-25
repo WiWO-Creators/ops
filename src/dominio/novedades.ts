@@ -57,7 +57,7 @@ export const NOVEDADES: Novedad[] = [
     tipo: 'nuevo',
     titulo: 'Los archivos de Drive se ordenan arrastrando',
     detalle: 'En la pestaña Archivos puedes arrastrar archivos y carpetas a otra carpeta, soltar archivos desde tu computador para subirlos y crear carpetas dentro del Proyecto. Las carpetas de cada Tarea quedan con candado, pero reciben lo que sueltes. También hay búsqueda, orden y vista de cuadrícula.',
-    commits: ['ops-v2@053269c']
+    commits: ['ops-v2@94427d8']
   },
   {
     fecha: '2026-09-25',
