@@ -16,7 +16,10 @@ import { resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { ErrorApi, aplicarConsulta, campoFiltrable, coincideEnLista, leerIncludes } from './consulta.js'
 import * as sesion from './sesion.js'
-import { importarRecurrentes, listarRecurrentes, sembrarRecurrentes } from './recurrentes.js'
+import {
+  aplicarRecurrenciaDelParche, errorDeDiasExcluidos, importarRecurrentes, listarRecurrentes, previaDeRegla, sembrarRecurrentes,
+  validarRecurrenciaDelParche
+} from './recurrentes.js'
 import { avisosRuta } from './avisos.js'
 import { altaDelPortal, esAccionDelPortal, ticketDelPortal, ticketsDelEquipo } from './tickets.js'
 import { esPrincipal, filaDelPortal, listadosDeTickets, ticketsDelResumen } from './tickets-listados.js'
@@ -716,7 +719,7 @@ function crearProceso (entrada, autor) {
     'name', 'description', 'start_date', 'due_date', 'priority', 'billable', 'estimated_hours',
     'milestone', 'task_type', 'rel_type', 'rel_id', 'assignees', 'followers', 'tags', 'status',
     'hourly_rate', 'is_public', 'visible_to_client', 'recurring', 'repeat_every', 'recurring_type',
-    'cycles', 'recurring_until', 'completed_at'
+    'cycles', 'recurring_until', 'skip_weekdays', 'completed_at'
   ])
   for (const clave of Object.keys(entrada)) {
     if (!aceptados.has(clave)) detalles[clave] = ['no_editable']
@@ -774,7 +777,7 @@ function crearProceso (entrada, autor) {
   const recurrente = [true, 1, '1'].includes(entrada.recurring)
   const frecuencia = Number(entrada.repeat_every)
   const ciclos = Number(entrada.cycles ?? 0)
-  const clavesRecurrencia = ['recurring', 'repeat_every', 'recurring_type', 'cycles', 'recurring_until']
+  const clavesRecurrencia = ['recurring', 'repeat_every', 'recurring_type', 'cycles', 'recurring_until', 'skip_weekdays']
   if (clavesRecurrencia.some((clave) => Object.hasOwn(entrada, clave))) {
     if (!Object.hasOwn(entrada, 'recurring')) detalles.recurring = ['requerido']
     else if (![true, false, 0, 1, '0', '1'].includes(entrada.recurring)) detalles.recurring = ['no_booleano']
@@ -784,6 +787,8 @@ function crearProceso (entrada, autor) {
       if (!['day', 'week', 'month', 'year'].includes(entrada.recurring_type)) detalles.recurring_type = ['no_soportado']
       if ((Object.hasOwn(entrada, 'cycles') && !['string', 'number'].includes(typeof entrada.cycles)) || !Number.isInteger(ciclos) || ciclos < 0 || ciclos > 365) detalles.cycles = ['fuera_de_rango']
       if (entrada.recurring_until != null && (typeof entrada.recurring_until !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(entrada.recurring_until))) detalles.recurring_until = ['invalid']
+      const codigoDias = Object.hasOwn(entrada, 'skip_weekdays') ? errorDeDiasExcluidos(entrada.skip_weekdays) : null
+      if (codigoDias !== null) detalles.skip_weekdays = [codigoDias]
     } else {
       for (const clave of clavesRecurrencia.slice(1)) {
         if (Object.hasOwn(entrada, clave)) detalles[clave] = ['sobra_sin_recurrencia']
@@ -882,6 +887,9 @@ function crearProceso (entrada, autor) {
     cycles: recurrente ? ciclos : 0,
     total_cycles: 0,
     recurring_until: recurrente ? entrada.recurring_until ?? null : null,
+    skip_weekdays: recurrente && Array.isArray(entrada.skip_weekdays) ? [...entrada.skip_weekdays].sort((a, b) => a - b) : [],
+    recurring_paused: false,
+    recurring_paused_at: null,
     kanban_order: Math.max(0, ...PROCESOS.filter((p) => p.status === Number(estado)).map((p) => p.kanban_order)) + 1,
     assignees: asignados.map((s) => ({
       id: s.id,
@@ -950,6 +958,12 @@ async function rutaDeRecurrentes (metodo, resto, parametros, actual, cuerpo) {
       staff: STAFF, espacios: ESPACIOS_EXISTENTES, clientes: CLIENTES, hoy: new Date().toISOString().slice(0, 10)
     })
     return { estado: 200, cuerpo: conDatos(reglas, { total: reglas.length }) }
+  }
+
+  // La vista previa no escribe: basta con poder ver Tareas, igual que el listado.
+  if (metodo === 'POST' && resto[1] === 'previa' && resto.length === 2) {
+    const previa = previaDeRegla(await cuerpo(), { procesos: PROCESOS, hoy: new Date().toISOString().slice(0, 10) })
+    return { estado: 200, cuerpo: conDatos(previa) }
   }
 
   if (metodo === 'POST' && resto[1] === 'importar' && resto.length === 2) {
@@ -7363,11 +7377,17 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
       exigirPermiso(actual, 'tasks', 'edit')
       // Parche parcial: el detalle edita bloque a bloque, nunca envia 200 campos de una.
       const parche = await cuerpo()
-      Object.assign(proceso, parche)
-      // Como `ParcheProceso::CANCELAR`: apagar la recurrencia borra toda su configuracion, y encenderla
-      // sin fecha de fin deja `recurring_until` en null (el cuerpo declara la regla entera).
-      if (parche.recurring === false) Object.assign(proceso, { repeat_every: 0, recurring_type: null, cycles: 0, total_cycles: 0, recurring_until: null, last_recurring_date: null })
-      if (parche.recurring === true && !Object.hasOwn(parche, 'recurring_until')) proceso.recurring_until = null
+      // La recurrencia se valida como en `ParcheProceso`: es la unica parte del parche con reglas
+      // cruzadas (`recurring` obligatoria, dias sin repetidos, pausa solo sobre una recurrente).
+      const detalles = validarRecurrenciaDelParche(parche, proceso, process.env.WIWO_PROCESOS_RECURRENTES !== '0')
+      if (Object.keys(detalles).length > 0) throw new ErrorApi(422, 'validation_failed', 'Hay campos que no se pueden guardar.', detalles)
+
+      // La pausa no se copia tal cual: pausar fija `recurring_paused_at` y reanudar salta las copias
+      // atrasadas, y las dos cosas miran el estado anterior.
+      const directo = { ...parche }
+      delete directo.recurring_paused
+      Object.assign(proceso, directo)
+      aplicarRecurrenciaDelParche(proceso, parche, new Date().toISOString().slice(0, 10), new Date().toISOString().replace(/\.\d{3}Z$/, 'Z'))
       return { estado: 200, cuerpo: conDatos(proceso) }
     }
 

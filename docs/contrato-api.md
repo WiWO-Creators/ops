@@ -2204,7 +2204,8 @@ una transaccion: o entran los cinco grupos o no entra ninguno.
 | `tags` | string[] de nombres | **reemplazo**, y conserva el orden que se manda |
 | `rel_type` + `rel_id` | ver abajo | van **siempre juntas** |
 | `completed_at` | instante ISO-8601 con zona, o `null` | **solo si la tarea esta completada**; ver abajo |
-| `recurring`, `repeat_every`, `recurring_type`, `cycles` | ver abajo | detras de interruptor |
+| `recurring`, `repeat_every`, `recurring_type`, `cycles`, `recurring_until`, `skip_weekdays` | ver abajo | detras de interruptor |
+| `recurring_paused` | bool | **solo en `PATCH`**; ver "Pausa" abajo |
 
 Cualquier otra clave devuelve `422` con `details` nombrandola.
 
@@ -2254,6 +2255,24 @@ ausente vale `null`, igual que `cycles` ausente vale `0`. Convive con `cycles`: 
 se cumpla primero. `GET /tasks/{id}` lo devuelve como `recurring_until`. Invalido: `422`
 `{"recurring_until": ["invalid"]}`.
 
+**Dias excluidos**: `skip_weekdays` (`int[]`, ISO: `1` = lunes .. `7` = domingo) son los dias en que
+no nace copia. Una copia que cae en uno se **salta**, no se corre al dia siguiente. Va en el mismo
+grupo: exige `recurring` en el mismo cuerpo (`422 requerido`) y sobra con `false`. Sin repetidos
+(`repetido`), cada valor entre 1 y 7 (`invalid`), no lista (`no_es_lista`), maximo 6: los siete son
+`422` `{"skip_weekdays": ["excluye_todos"]}`. **Ausente en un `PATCH` = no se toca**; `[]` los limpia.
+
+**Pausa**: `recurring_paused: true` deja de generar copias y **conserva la regla**; `false` la
+reanuda **sin crear las copias que tocaban durante la pausa** (la proxima copia queda de hoy en
+adelante). Solo en `PATCH`; sobre una Tarea que no es recurrente es `422`
+`{"recurring_paused": ["sin_recurrencia"]}`. `{"recurring": false}` sigue siendo "dejar de repetir":
+borra la regla entera, dias excluidos y pausa incluidos.
+
+**Inicio**: cambiar `start_date` de una Tarea recurrente re-ancla la regla: las copias se cuentan
+desde el inicio nuevo.
+
+`GET /tasks/{id}` devuelve ademas `skip_weekdays` (`int[]`), `recurring_paused` (bool) y
+`recurring_paused_at` (instante o `null`).
+
 El interruptor es la opcion `wiwo_procesos_recurrentes` de `tbloptions` (migracion `0010`), con
 valor `'0'`. Existe porque la recurrencia **no la ejecuta la API**: la ejecuta
 `Cron_model::recurring_tasks()`, en otro proceso y horas despues, y ahi si se manda correo y campana
@@ -2272,15 +2291,14 @@ a cada asignado de cada copia. El kill-switch de `V1::__construct()` no llega ha
 | Falta la mitad de la relacion | `422` `{"rel_type\|rel_id": ["requerido"]}` |
 | `rel_type` fuera de los nueve | `422` `{"rel_type": ["no_soportado"]}` |
 | Recurrencia con el interruptor apagado | `422` `{"<clave>": ["recurrencia_apagada"]}` |
+| Excluir los siete dias | `422` `{"skip_weekdays": ["excluye_todos"]}` |
+| Pausar o reanudar una Tarea no recurrente | `422` `{"recurring_paused": ["sin_recurrencia"]}` |
 
 Respuesta `200` con la ficha del Proceso, la misma forma de `GET /tasks/{id}`.
 
-### Pendiente que NO es de este frente
-
-`GET /tasks/{id}` expone `recurring` como booleano pero **no** `repeat_every`, `recurring_type` ni
-`cycles` (`Recursos/RecursoProcesos.php:515` y `:602`). La pantalla puede encender la recurrencia
-pero no puede mostrar la frecuencia guardada. Son tres columnas al SELECT y tres claves a la salida,
-en un archivo que no es de A1.
+`GET /tasks/{id}` expone la regla completa: `recurring`, `repeat_every`, `recurring_type`, `cycles`,
+`recurring_until`, `skip_weekdays`, `recurring_paused` y `recurring_paused_at`. (El pendiente viejo
+de que el detalle no mandaba la frecuencia ya esta resuelto.)
 
 ### `GET /tasks/recurrentes` — las reglas de recurrencia
 
@@ -2293,15 +2311,36 @@ paginar; `meta.total`. Filtros enteros (`422 integer` si no): `filter[project_id
   "project": { "id": 112, "name": "SAC Contact Center" }, "client": { "id": 14, "name": "MG Motor" },
   "repeat_every": 1, "recurring_type": "week", "frequency_label": "Cada semana",
   "cycles": 0, "total_cycles": 0, "recurring_until": "2026-12-31",
+  "skip_weekdays": [6, 7], "paused": false, "paused_at": null,
   "next_date": "2026-10-06", "state": "activa",
   "last_copy": null, "copies_count": 0, "assignees": [{ "id": 2, "full_name": "...", "profile_image_url": null }] }
 ```
 
 - `next_date`: la proxima copia, con la aritmetica del cron. Anterior a hoy = la copia no salio.
-- `state`: `activa`, `atrasada` (next_date < hoy), `terminada` (ciclos o fecha cumplidos),
-  `suspendida` (la madre esta Completa) o `sin_calcular` (sin unidad o sin fecha base). Orden: lo que
-  pide atencion primero, despues por `next_date`.
+- `state`: `activa`, `atrasada` (next_date < hoy), `pausada` (`recurring_paused`; `next_date` va en
+  `null`), `terminada` (ciclos o fecha cumplidos; gana sobre `pausada`), `suspendida` (la madre esta
+  Completa) o `sin_calcular` (sin unidad o sin fecha base). Orden: `sin_calcular`, `atrasada`,
+  `activa`, `pausada`, `terminada`, `suspendida`; dentro de cada uno, por `next_date`.
+- `frequency_label` incluye la exclusion: "Cada día, salvo sábado y domingo".
+- `skip_weekdays`, `paused` y `paused_at`: los de la Tarea madre.
 - `last_copy`: la ultima copia viva (`is_recurring_from`), `{id, created_at, start_date, status}`.
+
+### `POST /tasks/recurrentes/previa` — las proximas fechas de una regla
+
+No escribe nada. Exige lo mismo que `GET /tasks/recurrentes`.
+
+```json
+{ "task_id": 4532, "start_date": "2026-10-01", "repeat_every": 1, "recurring_type": "day",
+  "cycles": 0, "recurring_until": "2026-12-31", "skip_weekdays": [6, 7], "cantidad": 5 }
+```
+
+- `task_id` opcional: con el, sin `start_date` cuenta desde la ultima copia real de esa Tarea y
+  descuenta los ciclos ya hechos. Sin `task_id`, `start_date` es obligatorio (`422 requerido`).
+- `cantidad` 1..12, `5` por defecto (`fuera_de_rango`).
+- Mismos codigos que el `PATCH` para `repeat_every`, `recurring_type`, `cycles`, `recurring_until` y
+  `skip_weekdays`; `task_id` inexistente es `no_existe`.
+- `200` `{"data": {"frequency_label": "Cada día, salvo sábado y domingo", "dates": ["2026-10-02", ...], "none": false}}`.
+  `dates` son `YYYY-MM-DD` de hoy en adelante; `none: true` si la regla no generaria ninguna copia.
 
 ### `POST /tasks/recurrentes/importar` — carga desde una planilla
 
