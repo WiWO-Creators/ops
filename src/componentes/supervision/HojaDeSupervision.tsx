@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { Check, CheckCheck, PenLine, Printer, Undo2, X } from 'lucide-react'
 import { Boton } from '@/componentes/formularios/Boton'
 import { AreaTexto, Entrada } from '@/componentes/formularios/Entrada'
@@ -58,6 +59,7 @@ import { cn } from '@/lib/clases'
  * @param hojaInicial la hoja tal como la devolvió la API en el servidor
  */
 export function HojaDeSupervision ({ hojaInicial }: { hojaInicial: Hoja }) {
+  const router = useRouter()
   const [hoja, setHoja] = useState(hojaInicial)
   const [modo, setModo] = useState<ModoDeAgrupacion>('cliente')
   const [guardando, setGuardando] = useState<number | null>(null)
@@ -105,9 +107,13 @@ export function HojaDeSupervision ({ hojaInicial }: { hojaInicial: Hoja }) {
     setHoja((actual) => ({ ...actual, firma, confirmacion: null, puede_editar: false }))
   }
 
-  /** Aplica la confirmación o la devolución que guardó la API. */
+  /**
+   * Aplica la confirmación o la devolución que guardó la API, y refresca la página para que la lista
+   * "Hojas de tu equipo" —que se arma en el servidor— muestre el estado nuevo.
+   */
   function confirmada (confirmacion: ConfirmacionDeHoja) {
     setHoja((actual) => conConfirmacion(actual, confirmacion))
+    router.refresh()
   }
 
   return (
