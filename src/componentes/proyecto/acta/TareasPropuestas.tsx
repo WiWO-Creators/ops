@@ -1,7 +1,8 @@
 'use client'
 
-import { useEffect, useState, type ReactElement } from 'react'
+import { useEffect, useRef, useState, type ReactElement } from 'react'
 import { ChevronDown, ChevronRight, Pencil, Sparkles, Trash2 } from 'lucide-react'
+import { useLenis } from 'lenis/react'
 import { Boton } from '@/componentes/formularios/Boton'
 import { Campo } from '@/componentes/formularios/Campo'
 import { AreaTexto, CLASES_CASILLA, Entrada } from '@/componentes/formularios/Entrada'
@@ -66,15 +67,21 @@ interface PropsTareasPropuestas {
   rutaLookups: string
   /** El Espacio al que pertenece el acta: arma el enlace a la Tarea creada y la ruta de la IA. */
   proyectoId: number
-  /** El acta de la que salieron. Va en el cuerpo de "Volver a proponer". */
+  /** El acta de la que salieron. Va en el cuerpo de "Analizar buscando tareas". */
   actaId: number
   /**
    * Crear, editar y descartar propuestas. Es la capacidad `create` sobre Procesos, no sobre el acta:
    * lo que esta sección produce son Tareas. Sin ella la sección queda en solo lectura.
    */
   puedeCrear: boolean
-  /** Si la capa de IA responde. Con ella apagada, `/ia/*` da 404 y "Volver a proponer" no se ofrece. */
+  /** Si la capa de IA responde. Con ella apagada, `/ia/*` da 404 y analizar no se ofrece. */
   conIa: boolean
+  /**
+   * El acta se acaba de generar. Las propuestas ya vienen calculadas —el backend las guarda antes
+   * de cerrar el stream—, así que la sección se abre, se trae a la vista y dice cuántas encontró:
+   * debajo de un documento de 46rem nadie las descubre solo.
+   */
+  destacar?: boolean
 }
 
 /** Estado de la primera carga. El error es un texto listo para mostrar, no un envelope. */
@@ -96,8 +103,11 @@ export function TareasPropuestas ({
   proyectoId,
   actaId,
   puedeCrear,
-  conIa
+  conIa,
+  destacar = false
 }: PropsTareasPropuestas): ReactElement {
+  const seccion = useRef<HTMLElement>(null)
+  const lenis = useLenis()
   const [carga, setCarga] = useState<Carga>({ fase: 'cargando' })
   const [intento, setIntento] = useState(0)
   /**
@@ -189,9 +199,41 @@ export function TareasPropuestas ({
     return () => { vivo = false }
   }, [hayPendientes, puedeCrear, rutaLookups])
 
-  const abierta = desplegada ?? (hayPendientes || creadas.length > 0)
   /** Pedir propuestas nuevas gasta IA y escribe: las mismas dos condiciones que el resto de la pantalla. */
   const puedeProponer = puedeCrear && conIa
+  /**
+   * Sin ninguna fila —ni pendiente, ni creada, ni descartada— el acta nunca pasó por el análisis:
+   * es anterior a él, se escribió a mano o el proveedor falló al generarla. Se distingue de "no
+   * salieron tareas" porque lo que corresponde ofrecer es analizarla, no volver a hacerlo.
+   */
+  const sinAnalizar = carga.fase === 'listo' && items.length === 0
+  const abierta = desplegada ?? (hayPendientes || creadas.length > 0 || destacar || (sinAnalizar && puedeProponer))
+
+  /**
+   * Trae la sección a la vista una sola vez, cuando el acta recién generada terminó de cargar sus
+   * propuestas. El scroll es de Lenis y no del `body` —ver `ScrollSuave`—: sin él, `scrollIntoView`
+   * mueve el contenedor por debajo y Lenis lo devuelve a donde estaba en el siguiente fotograma.
+   * `resize()` va antes porque la pantalla anterior era el asistente, mucho más corto: Lenis todavía
+   * tiene su alto y recortaría el destino a ese tope.
+   */
+  const destacada = useRef(false)
+  useEffect(() => {
+    const destino = seccion.current
+    if (!destacar || destacada.current || carga.fase !== 'listo' || destino === null) return
+
+    const fotograma = requestAnimationFrame(() => {
+      destacada.current = true
+      if (lenis === undefined) {
+        destino.scrollIntoView({ behavior: 'smooth', block: 'start' })
+
+        return
+      }
+      lenis.resize()
+      lenis.scrollTo(destino, { offset: -24 })
+    })
+
+    return () => { cancelAnimationFrame(fotograma) }
+  }, [destacar, carga.fase, lenis])
 
   /** Deja la lista como la devolvió la API y suelta lo que estuviera seleccionado de la tanda vieja. */
   function reponer (datos: PropuestasDelActa): void {
@@ -328,7 +370,7 @@ export function TareasPropuestas ({
    */
   async function proponer (): Promise<void> {
     if (hayPendientes && !confirm(
-      'Volver a proponer reemplaza las tareas pendientes de este Meeting Paper, incluidas las que ya corregiste. ¿Seguir?'
+      'Volver a analizar reemplaza las tareas pendientes de este Meeting Paper, incluidas las que ya corregiste. ¿Seguir?'
     )) return
 
     setEnCurso({ que: 'proponiendo' })
@@ -353,7 +395,7 @@ export function TareasPropuestas ({
   const Chevron = abierta ? ChevronDown : ChevronRight
 
   return (
-    <section className="flex flex-col gap-3">
+    <section ref={seccion} className="flex scroll-mt-6 flex-col gap-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <button
           type="button"
@@ -370,16 +412,16 @@ export function TareasPropuestas ({
           )}
         </button>
 
-        {puedeProponer && (
+        {puedeProponer && carga.fase === 'listo' && (
           <Boton
-            variante="sutil"
+            variante={sinAnalizar ? 'primario' : 'sutil'}
             tamano="chico"
             cargando={enCurso?.que === 'proponiendo'}
             disabled={enCurso !== null}
             onClick={() => { void proponer() }}
           >
             <Sparkles size={14} strokeWidth={2} aria-hidden="true" className="shrink-0" />
-            Volver a proponer
+            {sinAnalizar ? 'Analizar buscando tareas' : 'Volver a analizar'}
           </Boton>
         )}
       </div>
@@ -387,6 +429,19 @@ export function TareasPropuestas ({
       {error !== null && (
         <p role="alert" className="bg-superficie-peligro text-texto-peligro rounded-chico px-3 py-2 text-sm">
           {error}
+        </p>
+      )}
+
+      {enCurso?.que === 'proponiendo' && (
+        <p role="status" className="text-texto-sutil text-sm">
+          Analizando el Meeting Paper con IA… puede tardar unos segundos.
+        </p>
+      )}
+
+      {destacar && carga.fase === 'listo' && hayPendientes && (
+        <p role="status" className="border-linea bg-superficie-acentuada rounded-chico border px-3 py-2 text-sm">
+          La IA encontró {pendientes.length === 1 ? '1 tarea' : `${pendientes.length} tareas`} en este
+          Meeting Paper. Revísalas, corrige lo que haga falta y crea las que correspondan.
         </p>
       )}
 
@@ -407,11 +462,20 @@ export function TareasPropuestas ({
 
       {carga.fase === 'listo' && abierta && (
         <>
-          {!hayPendientes && creadas.length === 0 && (
+          {sinAnalizar && (
+            <p className="text-texto-tenue text-sm">
+              Este Meeting Paper todavía no se analizó en busca de tareas.
+              {puedeProponer
+                ? ' "Analizar buscando tareas" lo lee con IA y propone las que quedaron comprometidas; ninguna se crea sin que la confirmes.'
+                : ''}
+            </p>
+          )}
+
+          {!sinAnalizar && !hayPendientes && creadas.length === 0 && (
             <p className="text-texto-tenue text-sm">
               De este Meeting Paper no salieron tareas.
               {puedeProponer
-                ? ' Si la reunión sí acordó algo, "Volver a proponer" le pide al modelo que lo vuelva a leer.'
+                ? ' Si la reunión sí acordó algo, "Volver a analizar" le pide al modelo que lo vuelva a leer.'
                 : ''}
             </p>
           )}

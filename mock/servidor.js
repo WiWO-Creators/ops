@@ -2495,6 +2495,13 @@ const ACTAS = []
 /** Autoincremental de actas. Arranca alto para que un id de acta no se confunda con uno de tarea. */
 let PROXIMA_ACTA = 900
 
+/**
+ * Tareas propuestas de cada acta. Una acta ausente del mapa nunca se analizó, que es lo que pasa
+ * con las sembradas: así se puede ver el botón "Analizar buscando tareas" sin generar nada.
+ */
+const PROPUESTAS_DE_ACTA = new Map()
+let PROXIMA_PROPUESTA = 70000
+
 /** Autoincremental de adjuntos del acta. */
 let PROXIMO_ADJUNTO = 7000
 
@@ -2626,6 +2633,64 @@ function guardarActa (espacio, actual, campos, html, origen, adjuntos = []) {
   ACTAS.unshift(acta)
 
   return acta
+}
+
+/**
+ * Calcula las propuestas de un acta como `IA\TareasDelActa::proponer()`: reemplaza las pendientes
+ * y conserva las creadas y descartadas, que nunca vuelven a `pendiente`.
+ *
+ * Son dos fijas —una del parseo con responsable y una del modelo con un nombre sin resolver— porque
+ * son los dos casos que la sección dibuja distinto.
+ */
+function proponerTareasDelActa (acta) {
+  const ahora = new Date().toISOString().replace('T', ' ').replace(/\.\d{3}Z$/, '')
+  const responsable = STAFF.find((s) => s.id === acta.staff_id) ?? STAFF[0]
+  const conservadas = (PROPUESTAS_DE_ACTA.get(acta.id) ?? []).filter((p) => p.estado !== 'pendiente')
+  const base = { acta_id: acta.id, estado: 'pendiente', descripcion: null, etiquetas: [], task_id: null, task_name: null, generada_en: ahora }
+
+  PROPUESTAS_DE_ACTA.set(acta.id, [
+    ...conservadas,
+    {
+      ...base,
+      id: (PROXIMA_PROPUESTA += 1),
+      titulo: 'Enviar la propuesta revisada al cliente',
+      vence: null,
+      prioridad: 2,
+      origen: 'acuerdo',
+      texto_origen: 'Acción: enviar la propuesta revisada. Responsable: ' + responsable.full_name,
+      asignados: [{ id: responsable.id, nombre: responsable.full_name }],
+      no_resuelto: []
+    },
+    {
+      ...base,
+      id: (PROXIMA_PROPUESTA += 1),
+      titulo: 'Agendar la reunión de cierre',
+      vence: null,
+      prioridad: 1,
+      origen: 'ia',
+      texto_origen: 'Juan quedó en coordinar la reunión de cierre.',
+      asignados: [],
+      no_resuelto: ['persona "Juan"']
+    }
+  ])
+}
+
+/** Las propuestas de un acta con la forma de `RecursoTareasDeActa::listar()`. */
+function listarPropuestasDelActa (actaId) {
+  const orden = { pendiente: 0, creada: 1, descartada: 2 }
+  const filas = [...(PROPUESTAS_DE_ACTA.get(actaId) ?? [])].sort((a, b) => orden[a.estado] - orden[b.estado] || a.id - b.id)
+  const contar = (estado) => filas.filter((p) => p.estado === estado).length
+
+  return {
+    items: filas.map(({ generada_en: _generada, ...resto }) => resto),
+    meta: {
+      pendientes: contar('pendiente'),
+      creadas: contar('creada'),
+      descartadas: contar('descartada'),
+      generado_en: filas.reduce((max, p) => (max === null || p.generada_en > max ? p.generada_en : max), null),
+      origen_ia: filas.some((p) => p.origen === 'ia')
+    }
+  }
 }
 
 /**
@@ -2881,6 +2946,16 @@ async function iaRuta (metodo, resto, parametros, actual, cuerpo, peticion) {
   if (seccion === 'proyectos' && sub[1] === 'scope' && sub.length === 3 && metodo === 'POST') {
     return await scopeIaRuta(sub[0], sub[2], actual, cuerpo, peticion)
   }
+  if (seccion === 'proyectos' && sub[1] === 'acta-tareas' && metodo === 'POST') {
+    exigirPermiso(actual, 'tasks', 'create')
+    const espacio = buscarO404(ESPACIOS, Number(sub[0]), 'espacio')
+    const datos = await cuerpo()
+    const acta = ACTAS.find((a) => a.id === Number(datos.acta_id) && a.project_id === espacio.id)
+    if (acta === undefined) throw new ErrorApi(404, 'not_found', 'No existe ese Meeting Paper.')
+    proponerTareasDelActa(acta)
+
+    return { estado: 200, cuerpo: conDatos(listarPropuestasDelActa(acta.id)) }
+  }
   if (seccion === 'proyectos' && sub[1] === 'acta-transformar' && metodo === 'POST') {
     return await transformarActaIaRuta(cuerpo)
   }
@@ -3079,6 +3154,14 @@ function prefillActaIaRuta (id) {
  * Guarda al terminar, igual que el backend: es lo que hace que cambiar de pestaña a mitad de una
  * generacion no tire el trabajo, y el frontend se programa contra eso.
  */
+/** Guarda el acta generada y calcula sus propuestas antes del `fin`, igual que `ActaDeReunion::guardar()`. */
+function guardarYProponer (espacio, actual, campos, html, adjuntos) {
+  const acta = guardarActa(espacio, actual, campos, html, 'ia', adjuntos)
+  proponerTareasDelActa(acta)
+
+  return acta
+}
+
 async function generarActaIaRuta (id, parametros, actual, peticion) {
   const espacio = buscarO404(ESPACIOS, Number(id), 'espacio')
 
@@ -3094,13 +3177,14 @@ async function generarActaIaRuta (id, parametros, actual, peticion) {
   if (!aceptaStream(peticion)) {
     if (falla) throw new ErrorApi(502, 'provider_error', 'El proveedor cortó la respuesta.')
     const acta = guardarActa(espacio, actual, campos, html, 'ia', adjuntos)
+    proponerTareasDelActa(acta)
 
     return { estado: 201, cuerpo: conDatos(presentarActa(acta, { conContenido: true })) }
   }
 
   const fin = falla
     ? null
-    : { acta: presentarActa(guardarActa(espacio, actual, campos, html, 'ia', adjuntos), { conContenido: true }) }
+    : { acta: presentarActa(guardarYProponer(espacio, actual, campos, html, adjuntos), { conContenido: true }) }
 
   return { transmitir: (respuesta) => transmitirSSE(respuesta, html, { fin, falla }) }
 }
@@ -6993,6 +7077,10 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
 
     const acta = suyas.find((a) => a.id === actaId)
     if (acta === undefined) throw new ErrorApi(404, 'not_found', 'No existe ese Meeting Paper.')
+
+    if (resto[3] === 'tareas' && resto.length === 4 && metodo === 'GET') {
+      return { estado: 200, cuerpo: conDatos(listarPropuestasDelActa(acta.id)) }
+    }
 
     if (metodo === 'PATCH') {
       const datos = await cuerpo()

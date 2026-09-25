@@ -132,6 +132,8 @@ function ActasDelProyecto ({
   const params = useSearchParams()
   const [revision, setRevision] = useState(0)
   const [motivoALaVista, setMotivoALaVista] = useState(false)
+  /** El acta que este asistente acaba de generar: al abrirla, sus tareas propuestas se destacan. */
+  const [recienGenerada, setRecienGenerada] = useState<number | null>(null)
 
   const recargar = useCallback(() => { setRevision((n) => n + 1) }, [])
   const pedida = params.get('acta')
@@ -173,6 +175,7 @@ function ActasDelProyecto ({
           proyectoId={proyectoId}
           onCreada={(acta) => {
             recargar()
+            setRecienGenerada(acta.id)
             ir(String(acta.id))
           }}
           onCancelar={() => { ir(null) }}
@@ -195,6 +198,7 @@ function ActasDelProyecto ({
           puedeBorrar={capacidades.includes('delete') && yo !== undefined ? { yo } : null}
           conIa={ia.activa}
           puedeCrearTareas={capacidadesTareas.includes('create')}
+          destacarTareas={recienGenerada === abierta}
           onCambiada={recargar}
           onBorrada={() => {
             recargar()
@@ -296,6 +300,7 @@ function ActaAbierta ({
   puedeBorrar,
   conIa,
   puedeCrearTareas,
+  destacarTareas,
   onCambiada,
   onBorrada,
   onVolver
@@ -308,6 +313,7 @@ function ActaAbierta ({
   puedeBorrar: { yo: Yo } | null
   conIa: boolean
   puedeCrearTareas: boolean
+  destacarTareas: boolean
   onCambiada: () => void
   onBorrada: () => void
   onVolver: () => void
@@ -333,6 +339,7 @@ function ActaAbierta ({
       puedeBorrar={puedeBorrar !== null && (acta.staff_id === puedeBorrar.yo.id || puedeBorrar.yo.is_admin)}
       conIa={conIa}
       puedeCrearTareas={puedeCrearTareas}
+      destacarTareas={destacarTareas}
       onCambiada={() => {
         recargar()
         onCambiada()
