@@ -55,6 +55,13 @@ export const NOVEDADES: Novedad[] = [
   {
     fecha: '2026-09-25',
     tipo: 'mejora',
+    titulo: 'El menú de la izquierda ya no tiene scroll',
+    detalle: 'Cada bloque del menú se pliega tocando su título, y el panel recuerda cómo lo dejaste. Equipo y Administración empiezan cerrados.',
+    commits: ['ops-v2@99e31fa']
+  },
+  {
+    fecha: '2026-09-25',
+    tipo: 'mejora',
     titulo: 'La hora de "¿Estás ahí?" se configura en Administración',
     detalle: 'Los superadministradores tienen una pestaña Jornada para encender la pregunta, fijar su hora y los minutos entre preguntas.',
     commits: ['ops-v2@2fb63f6']

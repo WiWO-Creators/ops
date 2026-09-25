@@ -14,7 +14,7 @@ import { sembrarFijados, useFijados } from '@/componentes/fijados/almacen'
 import { claveDeElemento, hrefDeElemento, type Fijado } from '@/componentes/fijados/fijados'
 import { abrirPaleta, textoDelAtajo } from '@/componentes/paleta/abrir'
 import { ICONOS_DE_SECCION } from '@/componentes/paleta/iconos'
-import { agruparSecciones, seccionActiva, type PlegableDeNavegacion, type Seccion } from '@/lib/navegacion'
+import { agruparSecciones, alternarInvertido, estaAbierto, ID_BLOQUE_FIJADOS, seccionActiva, type Seccion } from '@/lib/navegacion'
 import { cn } from '@/lib/clases'
 import { EVENTO_ABRIR_SECCIONES } from '@/lib/navegacion-movil'
 import { useGestoDeHoja } from '@/componentes/estructura/useGestoDeHoja'
@@ -38,18 +38,22 @@ export type { IconoSeccion, Seccion } from '@/lib/navegacion'
  */
 const EVENTO_BARRA = 'wiwo:barra-lateral'
 
-/** Donde se recuerda que subgrupos del menu dejo abiertos esta persona, en este navegador. */
+/**
+ * Donde se recuerda que bloques y subgrupos del menu dio vuelta esta persona respecto de su default,
+ * en este navegador. La clave es la de cuando solo se recordaban subgrupos abiertos: esos nacian
+ * cerrados, asi que lo guardado entonces significa lo mismo ahora.
+ */
 const CLAVE_PLEGABLES = 'wiwo-nav-plegables-abiertos'
 
 /** Evento propio de los plegables, por el mismo motivo que `EVENTO_BARRA`. */
 const EVENTO_PLEGABLES = 'wiwo:nav-plegables'
 
-/** Lo que se lee en el servidor y en el primer render: todo plegado. */
+/** Lo que se lee en el servidor y en el primer render: todo como nace. */
 const SIN_ABIERTOS = '[]'
 
 /**
- * Copia en memoria de los subgrupos abiertos, para cuando el navegador no deja guardar (ventana
- * privada estricta): el subgrupo se abre igual, solo que no se recuerda al recargar.
+ * Copia en memoria de los invertidos, para cuando el navegador no deja guardar (ventana privada
+ * estricta): el bloque se abre o cierra igual, solo que no se recuerda al recargar.
  */
 let plegablesEnMemoria: string | null = null
 
@@ -107,7 +111,7 @@ function alternarBarra (): void {
 }
 
 /**
- * Los subgrupos abiertos, como texto JSON crudo.
+ * Los bloques y subgrupos invertidos, como texto JSON crudo.
  *
  * Se devuelve el texto y no el arreglo: `useSyncExternalStore` compara por referencia, y un
  * `JSON.parse` en cada lectura devolveria un arreglo nuevo y un render sin fin.
@@ -118,18 +122,18 @@ function leerPlegablesAbiertos (): string {
   try {
     return plegablesEnMemoria ?? window.localStorage.getItem(CLAVE_PLEGABLES) ?? SIN_ABIERTOS
   } catch {
-    // Almacenamiento bloqueado: vale lo que se abrio en esta pestaña, o todo plegado.
+    // Almacenamiento bloqueado: vale lo que se toco en esta pestaña, o todo como nace.
     return plegablesEnMemoria ?? SIN_ABIERTOS
   }
 }
 
 /**
- * Interpreta lo guardado. Cualquier cosa rara vale "todo plegado".
+ * Interpreta lo guardado. Cualquier cosa rara vale "todo como nace".
  *
  * @param crudo el JSON guardado
- * @returns los ids abiertos
+ * @returns los ids invertidos
  */
-function idsAbiertos (crudo: string): string[] {
+function idsInvertidos (crudo: string): string[] {
   try {
     const valor: unknown = JSON.parse(crudo)
     return Array.isArray(valor) ? valor.filter((id): id is string => typeof id === 'string') : []
@@ -140,24 +144,34 @@ function idsAbiertos (crudo: string): string[] {
 }
 
 /**
- * Abre o cierra un subgrupo y lo recuerda en este navegador.
+ * Abre o cierra un bloque o subgrupo y lo recuerda en este navegador.
  *
- * @param id el subgrupo
+ * @param id el bloque o subgrupo
  */
 function alternarPlegable (id: string): void {
-  const abiertos = idsAbiertos(leerPlegablesAbiertos())
-  const siguientes = abiertos.includes(id) ? abiertos.filter((otro) => otro !== id) : [...abiertos, id]
-
-  plegablesEnMemoria = JSON.stringify(siguientes)
+  plegablesEnMemoria = JSON.stringify(alternarInvertido(idsInvertidos(leerPlegablesAbiertos()), id))
 
   try {
     window.localStorage.setItem(CLAVE_PLEGABLES, plegablesEnMemoria)
   } catch {
-    // Sin almacenamiento el subgrupo se abre igual —vale la copia en memoria— y no se recuerda al
+    // Sin almacenamiento el bloque se abre igual —vale la copia en memoria— y no se recuerda al
     // recargar. Es el mismo trato que da el panel a la ventana privada.
   }
 
   window.dispatchEvent(new Event(EVENTO_PLEGABLES))
+}
+
+/**
+ * Si un bloque o subgrupo se dibuja abierto, leyendo lo recordado en este navegador.
+ *
+ * @param id el bloque o subgrupo
+ * @param abiertoPorDefecto como nace
+ * @param contieneActiva si adentro esta la seccion actual, que lo fuerza abierto
+ * @returns `true` si va abierto
+ */
+function usePlegableAbierto (id: string, abiertoPorDefecto: boolean, contieneActiva: boolean): boolean {
+  const guardados = useSyncExternalStore(suscribirPlegables, leerPlegablesAbiertos, () => SIN_ABIERTOS)
+  return estaAbierto(id, abiertoPorDefecto, idsInvertidos(guardados), contieneActiva)
 }
 
 interface PropsEnlaceSeccion extends Omit<React.ComponentProps<typeof Link>, 'href' | 'children'> {
@@ -199,7 +213,7 @@ function PuntoPendiente () {
 }
 
 /** Clases del riel abatido para un item: icono arriba, etiqueta chica abajo. */
-const ITEM_ABATIDO = '[[data-barra-abatida]_&]:text-menor [[data-barra-abatida]_&]:flex-col [[data-barra-abatida]_&]:justify-center [[data-barra-abatida]_&]:gap-0.5 [[data-barra-abatida]_&]:px-1 [[data-barra-abatida]_&]:py-2'
+const ITEM_ABATIDO = '[[data-barra-abatida]_&]:text-menor [[data-barra-abatida]_&]:flex-col [[data-barra-abatida]_&]:justify-center [[data-barra-abatida]_&]:gap-0.5 [[data-barra-abatida]_&]:px-1 [[data-barra-abatida]_&]:py-1.5'
 
 /**
  * Un item de navegacion, compartido por el riel de escritorio y el cajon de movil.
@@ -224,7 +238,7 @@ function EnlaceSeccion ({ href, etiqueta, Icono, activa, className, ...resto }: 
       href={href}
       aria-current={activa ? 'page' : undefined}
       className={cn(
-        'rounded-chico relative flex items-center gap-2 px-2 py-1.5 text-sm transition-colors',
+        'rounded-chico relative flex items-center gap-2 px-2 py-1 text-sm transition-colors',
         activa ? 'bg-acento/10 text-acento font-semibold' : 'text-texto-tenue hover:bg-hover hover:text-texto',
         className
       )}
@@ -281,10 +295,15 @@ function NavegacionAgrupada ({ secciones, fijados, envolver = (enlace) => enlace
 
   return (
     <>
-      <div className="flex flex-col gap-1">{principales.map(enlaceDe)}</div>
+      <div className="flex flex-col gap-0.5">{principales.map(enlaceDe)}</div>
 
       {fijados.length > 0 && (
-        <Bloque titulo="Fijados">
+        <Bloque
+          id={ID_BLOQUE_FIJADOS}
+          titulo="Fijados"
+          abiertoPorDefecto
+          contieneActiva={fijados.some((fijado) => hrefDeElemento(fijado) === activa)}
+        >
           {fijados.map((fijado) => envolver(
             <EnlaceSeccion
               key={claveDeElemento(fijado)}
@@ -300,12 +319,19 @@ function NavegacionAgrupada ({ secciones, fijados, envolver = (enlace) => enlace
       )}
 
       {bloques.map((bloque) => (
-        <Bloque key={bloque.id} titulo={bloque.titulo}>
+        <Bloque
+          key={bloque.id}
+          id={bloque.id}
+          titulo={bloque.titulo}
+          abiertoPorDefecto={bloque.abiertoPorDefecto}
+          contieneActiva={[...bloque.secciones, ...bloque.plegables.flatMap((plegable) => plegable.secciones)].some((seccion) => seccion.href === activa)}
+        >
           {bloque.secciones.map(enlaceDe)}
           {bloque.plegables.map((plegable) => (
             <Plegable
               key={plegable.id}
-              plegable={plegable}
+              id={plegable.id}
+              titulo={plegable.titulo}
               contieneActiva={plegable.secciones.some((seccion) => seccion.href === activa)}
             >
               {plegable.secciones.map(enlaceDe)}
@@ -317,44 +343,70 @@ function NavegacionAgrupada ({ secciones, fijados, envolver = (enlace) => enlace
   )
 }
 
+interface PropsBloque {
+  id: string
+  titulo: string
+  abiertoPorDefecto: boolean
+  contieneActiva: boolean
+  children: React.ReactNode
+}
+
 /**
- * Un bloque del menu con su encabezado.
+ * Un bloque del menu cuyo encabezado lo pliega, recordado por persona en este navegador.
  *
- * En el riel abatido el encabezado no entra y se vuelve una linea: la separacion entre bloques se
- * sigue leyendo sin texto.
+ * Existe para que el menu entre sin scroll: con todas las secciones a la vista no cabia en una
+ * laptop. El encabezado sigue leyendose como encabezado —chico y tenue—, con una flecha al final que
+ * dice que se puede tocar.
+ *
+ * En el riel abatido el nombre no entra en 4.5rem ("Administración" se cortaba a la mitad): queda
+ * solo la flecha, centrada bajo la linea que separa los bloques, y el nombre sigue ahi para el
+ * lector de pantalla. Asi el bloque se sigue pudiendo abrir sin expandir la barra.
  *
  * @returns el bloque
  */
-function Bloque ({ titulo, children }: { titulo: string, children: React.ReactNode }) {
-  const id = useId()
+function Bloque ({ id, titulo, abiertoPorDefecto, contieneActiva, children }: PropsBloque) {
+  const idContenido = useId()
+  const abierto = usePlegableAbierto(id, abiertoPorDefecto, contieneActiva)
 
   return (
-    <div role="group" aria-labelledby={id} className="border-linea-suave flex flex-col gap-1 border-t pt-3 [[data-barra-abatida]_&]:pt-2">
-      <p id={id} className="text-texto-sutil px-2 text-xs font-semibold [[data-barra-abatida]_&]:sr-only">{titulo}</p>
-      {children}
+    <div role="group" aria-label={titulo} className="border-linea-suave flex flex-col border-t pt-1.5">
+      <button
+        type="button"
+        aria-expanded={abierto}
+        aria-controls={idContenido}
+        onClick={() => alternarPlegable(id)}
+        className="text-texto-sutil hover:text-texto hover:bg-hover rounded-chico flex items-center gap-2 px-2 py-1 text-xs font-semibold transition-colors [[data-barra-abatida]_&]:justify-center"
+      >
+        <span className="min-w-0 flex-1 truncate text-left [[data-barra-abatida]_&]:sr-only">{titulo}</span>
+        <ChevronRight
+          size={14}
+          strokeWidth={2}
+          aria-hidden="true"
+          className={cn('nav-chevron shrink-0', abierto && 'rotate-90')}
+        />
+      </button>
+      <div id={idContenido} data-abierto={abierto} className="nav-plegable" inert={!abierto}>
+        <div className="flex min-h-0 flex-col gap-0.5 overflow-hidden pt-0.5">{children}</div>
+      </div>
     </div>
   )
 }
 
 /**
- * Un subgrupo que se abre y se cierra, recordado por persona en este navegador.
+ * Un subgrupo dentro de un bloque que se abre y se cierra, recordado por persona en este navegador.
  *
  * Abre con altura animada: la unica excepcion permitida a "solo transform y opacity", porque un
  * acordeon no tiene equivalente con transform. Se anima `grid-template-rows` de `0fr` a `1fr`, que
- * no obliga a medir nada con JS.
- *
- * Si la seccion activa esta adentro, se muestra abierto aunque la persona lo haya dejado cerrado:
- * esconder donde uno esta parado es perder la barrita. Eso no se guarda.
+ * no obliga a medir nada con JS. Los subgrupos nacen cerrados.
  *
  * En el riel abatido el encabezado se dibuja como un item mas —flecha arriba, nombre chico abajo—,
  * asi el subgrupo se sigue pudiendo abrir sin expandir la barra.
  *
  * @returns el subgrupo
  */
-function Plegable ({ plegable, contieneActiva, children }: { plegable: PlegableDeNavegacion, contieneActiva: boolean, children: React.ReactNode }) {
+function Plegable ({ id, titulo, contieneActiva, children }: { id: string, titulo: string, contieneActiva: boolean, children: React.ReactNode }) {
   const idContenido = useId()
-  const guardados = useSyncExternalStore(suscribirPlegables, leerPlegablesAbiertos, () => SIN_ABIERTOS)
-  const abierto = contieneActiva || idsAbiertos(guardados).includes(plegable.id)
+  const abierto = usePlegableAbierto(id, false, contieneActiva)
 
   return (
     <div className="flex flex-col">
@@ -362,8 +414,8 @@ function Plegable ({ plegable, contieneActiva, children }: { plegable: PlegableD
         type="button"
         aria-expanded={abierto}
         aria-controls={idContenido}
-        onClick={() => alternarPlegable(plegable.id)}
-        className={cn('text-texto-tenue hover:bg-hover hover:text-texto rounded-chico flex items-center gap-2 px-2 py-1.5 text-sm transition-colors', ITEM_ABATIDO)}
+        onClick={() => alternarPlegable(id)}
+        className={cn('text-texto-tenue hover:bg-hover hover:text-texto rounded-chico flex items-center gap-2 px-2 py-1 text-sm transition-colors', ITEM_ABATIDO)}
       >
         <ChevronRight
           size={16}
@@ -371,7 +423,7 @@ function Plegable ({ plegable, contieneActiva, children }: { plegable: PlegableD
           aria-hidden="true"
           className={cn('nav-chevron shrink-0', abierto && 'rotate-90')}
         />
-        <span className="truncate">{plegable.titulo}</span>
+        <span className="truncate">{titulo}</span>
       </button>
       <div
         id={idContenido}
@@ -380,7 +432,7 @@ function Plegable ({ plegable, contieneActiva, children }: { plegable: PlegableD
         // Cerrado, lo de adentro no se enfoca ni lo lee un lector: `inert` hace las dos cosas.
         inert={!abierto}
       >
-        <div className="flex min-h-0 flex-col gap-1 overflow-hidden pl-3 [[data-barra-abatida]_&]:pl-0">{children}</div>
+        <div className="flex min-h-0 flex-col gap-0.5 overflow-hidden pl-3 [[data-barra-abatida]_&]:pl-0">{children}</div>
       </div>
     </div>
   )
@@ -468,11 +520,11 @@ export function BarraLateral ({ secciones, fijados: iniciales = [], className }:
         </button>
       </div>
 
-      <div className="flex shrink-0 flex-col px-3 pb-3">
+      <div className="flex shrink-0 flex-col px-3 pb-2">
         <BotonBuscar />
       </div>
 
-      <nav aria-label="Secciones" className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-3 pt-0" data-lenis-prevent>
+      <nav aria-label="Secciones" className="flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto p-3 pt-0" data-lenis-prevent>
         <NavegacionAgrupada secciones={secciones} fijados={fijados} claseItem={ITEM_ABATIDO} />
       </nav>
     </aside>
