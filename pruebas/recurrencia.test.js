@@ -7,8 +7,10 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
-  cuerpoDeFin, errorDeFin, leerPlanilla, mensajesDeFila, modoDeFin, plantillaCsv, resolverNombres,
-  rutaDeRecurrentes, textoDeDistancia, textoDeFin
+  alternarDia, alternarFinesDeSemana, camposDeRegla, cuerpoDeFin, cuerpoDePrevia, errorDeDiasExcluidos, errorDeFin,
+  erroresDeApiEnRegla, erroresDeRegla, ESTADOS_REGLA, excluyeFinesDeSemana, fraseDeRegla, leerPlanilla, mensajesDeFila,
+  mismosDias, modoDeFin, normalizarDias, parcheDeRegla, plantillaCsv, resolverNombres, rutaDeRecurrentes,
+  textoDeDiasExcluidos, textoDeDistancia, textoDeFechaDePrevia, textoDeFin, textoDeFinDeRegla, tieneDosTopes
 } from '../src/dominio/recurrencia.ts'
 
 test('el modo de fin sale de lo guardado, y la fecha manda sobre los ciclos', () => {
@@ -111,4 +113,98 @@ test('la distancia a la proxima copia se cuenta en dias, no en horas', () => {
   assert.equal(textoDeDistancia(-1), 'ayer')
   assert.equal(textoDeDistancia(5), 'en 5 días')
   assert.equal(textoDeDistancia(-3), 'hace 3 días')
+})
+
+test('los dias excluidos se normalizan, se alternan y el atajo de fin de semana va y vuelve', () => {
+  assert.deepEqual(normalizarDias([7, 6, 6, 0, 8, 1.5, 3]), [3, 6, 7])
+  assert.deepEqual(normalizarDias(null), [])
+  assert.deepEqual(alternarDia([1, 3], 3), [1])
+  assert.deepEqual(alternarDia([3], 1), [1, 3])
+  assert.deepEqual(alternarFinesDeSemana([1]), [1, 6, 7])
+  assert.deepEqual(alternarFinesDeSemana([6]), [6, 7], 'Con uno solo, completa el par')
+  assert.deepEqual(alternarFinesDeSemana([1, 6, 7]), [1])
+  assert.equal(excluyeFinesDeSemana([6, 7]), true)
+  assert.equal(excluyeFinesDeSemana([7]), false)
+  assert.equal(mismosDias([7, 6], [6, 7]), true)
+  assert.equal(mismosDias([6], [6, 7]), false)
+  assert.equal(errorDeDiasExcluidos([1, 2, 3, 4, 5, 6]), null)
+  assert.equal(typeof errorDeDiasExcluidos([1, 2, 3, 4, 5, 6, 7]), 'string')
+})
+
+test('la regla se escribe como el frequency_label de la API', () => {
+  assert.equal(textoDeDiasExcluidos([]), '')
+  assert.equal(textoDeDiasExcluidos([7, 6]), 'salvo sábado y domingo')
+  assert.equal(textoDeDiasExcluidos([1, 3, 5]), 'salvo lunes, miércoles y viernes')
+  assert.equal(fraseDeRegla(1, 'day', [6, 7]), 'Cada día, salvo sábado y domingo')
+  assert.equal(fraseDeRegla(2, 'week'), 'Cada 2 semanas')
+  assert.equal(fraseDeRegla(1, null), null)
+  assert.equal(fraseDeRegla(0, 'month'), null)
+  assert.equal(textoDeFechaDePrevia('2030-01-07'), 'lunes 7 de enero de 2030')
+  assert.equal(textoDeFechaDePrevia('basura'), 'basura')
+})
+
+test('el estado pausada tiene etiqueta y la ayuda de completada no promete reabrir desde la lista', () => {
+  assert.equal(ESTADOS_REGLA.pausada.etiqueta, 'Pausada')
+  assert.match(ESTADOS_REGLA.suspendida.ayuda, /ficha/)
+  assert.doesNotMatch(ESTADOS_REGLA.suspendida.ayuda, /hasta que se reabra/)
+})
+
+const GUARDADA = { start_date: '2026-09-01', repeat_every: 1, recurring_type: 'week', cycles: 0, recurring_until: null, skip_weekdays: [] }
+
+test('el editor manda solo lo que cambio, con la regla entera cuando cambia la regla', () => {
+  const inicial = camposDeRegla(GUARDADA)
+  assert.deepEqual(parcheDeRegla(inicial, inicial), {})
+
+  assert.deepEqual(parcheDeRegla(inicial, { ...inicial, dias: [7, 6] }),
+    { recurring: true, repeat_every: 1, recurring_type: 'week', cycles: 0, skip_weekdays: [6, 7] })
+  assert.deepEqual(parcheDeRegla(inicial, { ...inicial, repetirCada: '2' }),
+    { recurring: true, repeat_every: 2, recurring_type: 'week', cycles: 0 }, 'Sin tocar los dias, no viajan')
+  assert.deepEqual(parcheDeRegla(inicial, { ...inicial, inicio: '2026-10-01' }), { start_date: '2026-10-01' })
+
+  const conDias = camposDeRegla({ ...GUARDADA, skip_weekdays: [6, 7] })
+  assert.deepEqual(parcheDeRegla(conDias, { ...conDias, dias: [] }),
+    { recurring: true, repeat_every: 1, recurring_type: 'week', cycles: 0, skip_weekdays: [] }, '[] limpia')
+})
+
+test('una regla con veces y fecha conserva los dos topes si nadie toca "Termina"', () => {
+  const inicial = camposDeRegla({ ...GUARDADA, cycles: 12, recurring_until: '2026-12-31' })
+  assert.equal(inicial.fin.modo, 'fecha')
+  assert.equal(tieneDosTopes(inicial), true)
+  assert.deepEqual(parcheDeRegla(inicial, { ...inicial, unidad: 'month' }),
+    { recurring: true, repeat_every: 1, recurring_type: 'month', cycles: 12, recurring_until: '2026-12-31' })
+  assert.deepEqual(parcheDeRegla(inicial, { ...inicial, fin: { ...inicial.fin, modo: 'ciclos' } }),
+    { recurring: true, repeat_every: 1, recurring_type: 'week', cycles: 12 }, 'Si se toca, manda lo elegido')
+  assert.equal(tieneDosTopes(camposDeRegla(GUARDADA)), false)
+})
+
+test('la vista previa manda el inicio solo si cambio, y siempre sin Tarea', () => {
+  const inicial = camposDeRegla({ ...GUARDADA, skip_weekdays: [6, 7] })
+  assert.deepEqual(cuerpoDePrevia(inicial, inicial, 42),
+    { task_id: 42, repeat_every: 1, recurring_type: 'week', cycles: 0, skip_weekdays: [6, 7], cantidad: 5 })
+  assert.deepEqual(cuerpoDePrevia(inicial, { ...inicial, inicio: '2026-10-01' }, 42).start_date, '2026-10-01')
+  assert.equal(cuerpoDePrevia(inicial, inicial, null).start_date, '2026-09-01')
+  assert.equal('task_id' in cuerpoDePrevia(inicial, inicial, null), false)
+})
+
+test('los errores del formulario y los del 422 caen en su campo', () => {
+  const inicial = camposDeRegla(GUARDADA)
+  assert.deepEqual(erroresDeRegla(inicial), {})
+  const errores = erroresDeRegla({ ...inicial, inicio: '', repetirCada: '0', unidad: 'x', dias: [1, 2, 3, 4, 5, 6, 7], fin: { modo: 'ciclos', ciclos: '', hasta: '' } })
+  assert.deepEqual(Object.keys(errores).sort(), ['dias', 'fin', 'inicio', 'repetirCada', 'unidad'])
+
+  assert.deepEqual(erroresDeApiEnRegla({ skip_weekdays: ['excluye_todos'], cycles: ['fuera_de_rango'], assignees: ['no_existe'] }), {
+    dias: 'No puedes excluir los siete días: la tarea nunca se generaría.',
+    fin: 'Las veces deben ser un entero entre 1 y 365.'
+  })
+  assert.deepEqual(erroresDeApiEnRegla(undefined), {})
+  assert.match(erroresDeApiEnRegla({ repeat_every: ['raro_nuevo'] }).repetirCada ?? '', /raro nuevo/)
+})
+
+test('como termina una regla guardada, en la ficha', () => {
+  const igual = (fecha) => fecha
+  assert.equal(textoDeFinDeRegla(0, null, igual), 'Sin fecha de término')
+  assert.equal(textoDeFinDeRegla(1, null, igual), 'Termina tras 1 vez')
+  assert.equal(textoDeFinDeRegla(12, '', igual), 'Termina tras 12 veces')
+  assert.equal(textoDeFinDeRegla(0, '2026-12-31', igual), 'Termina el 2026-12-31')
+  assert.equal(textoDeFinDeRegla(6, '2026-12-31', igual), 'Termina tras 6 veces o el 2026-12-31, lo que ocurra primero')
 })

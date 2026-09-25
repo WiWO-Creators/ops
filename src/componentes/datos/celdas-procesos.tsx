@@ -1,5 +1,6 @@
 'use client'
 
+import { Repeat2 } from 'lucide-react'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import type { ReactElement } from 'react'
@@ -148,6 +149,13 @@ function EnlaceTarea ({ proceso }: { proceso: Proceso }): ReactElement {
       className="text-texto hover:text-acento font-medium underline-offset-4 hover:underline"
     >
       {proceso.name}
+      {/* Copia de una recurrencia: un icono y no una insignia, porque es un dato de contexto y no un
+          estado. Solo si la API manda `recurring_from_id`; sin la clave no se dibuja nada. */}
+      {typeof proceso.recurring_from_id === 'number' && (
+        <span title="Copia de una tarea recurrente" className="ml-1.5 inline-flex align-[-2px]">
+          <Repeat2 size={13} role="img" aria-label="Copia de una tarea recurrente" className="text-texto-sutil" />
+        </span>
+      )}
     </Link>
   )
 }

@@ -55,6 +55,20 @@ export const NOVEDADES: Novedad[] = [
   {
     fecha: '2026-09-25',
     tipo: 'nuevo',
+    titulo: 'Cada recurrencia muestra las tareas que generó y avisa cuando nadie las usa',
+    detalle: 'En Tareas recurrentes, "Ver copias" lista cada tarea generada y si alguien la usó: cambios de estado, comentarios, tiempo, archivos o checklist. La vista "Sin uso" junta las reglas con varias copias seguidas sin movimiento, y un administrador puede mandar esas copias a la papelera y, de paso, pausar o dejar de repetir la regla. La ficha de cada copia dice qué recurrencia la creó.',
+    commits: []
+  },
+  {
+    fecha: '2026-09-25',
+    tipo: 'mejora',
+    titulo: 'Las tareas recurrentes se editan, se pausan y saltan días',
+    detalle: 'En Tareas recurrentes, "Editar regla" abre en un clic la frecuencia, el inicio y cómo termina, con una vista previa de las próximas copias. Puedes marcar días en que no se generan copias (por ejemplo, sin fines de semana) y pausar una regla sin perderla: al reanudarla sigue desde hoy. La ficha de la Tarea también muestra su recurrencia.',
+    commits: []
+  },
+  {
+    fecha: '2026-09-25',
+    tipo: 'nuevo',
     titulo: 'Ops se puede instalar como aplicación, también en el computador',
     detalle: 'Si usas Ops desde el navegador, una vez al día aparece un aviso para instalarlo. En Chrome, Edge y Brave basta con tocar Instalar; en iPhone, iPad y Safari de Mac el aviso explica los pasos.',
     commits: []

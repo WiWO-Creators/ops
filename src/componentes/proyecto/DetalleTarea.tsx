@@ -1,6 +1,10 @@
 'use client'
 
+import { Repeat2 } from 'lucide-react'
+import Link from 'next/link'
+import { useSearchParams } from 'next/navigation'
 import { useCallback, useEffect, useState, type ReactElement, type ReactNode } from 'react'
+import { PARAMETRO_TAREA, urlConParametro } from '@/componentes/datos/tabla'
 import { ArbolDrive } from '@/componentes/archivos/ArbolDrive'
 import { useUbicacionTarea } from '@/componentes/auditoria/accion'
 import { Cargando, ErrorEstado, Vacio } from '@/componentes/estado/Estados'
@@ -40,6 +44,7 @@ import { Cronometros } from './Cronometros'
 import { EdicionTarea } from './EdicionTarea'
 import { ListaChecklist } from './ListaChecklist'
 import { ListaIteraciones } from './ListaIteraciones'
+import { ResumenDeRecurrencia } from '@/componentes/recurrencia/ResumenDeRecurrencia'
 import { PanelAdjuntos } from './PanelArchivos'
 import { mensajeDeRespuesta, pedirRespuesta } from '@/datos/cliente'
 
@@ -421,6 +426,19 @@ export function DetalleTarea (
           ))}
         </dl>
 
+        {/* La regla, de lectura, justo bajo los datos: es lo que explica por que esta Tarea tiene
+            copias. Solo existe si el contrato mando `recurring` (el panel, via `GET /tasks/{id}`);
+            el portal no la manda y ahi no se dibuja. */}
+        {/* La constancia al reves: esta Tarea la creo una recurrencia, y cual. El enlace abre la madre
+            en el mismo modal (`?tarea=`), que es donde se ve la regla y sus demas copias. */}
+        {'recurring_from' in tarea && (tarea as Proceso).recurring_from != null && (
+          <CreadaPorRecurrencia madre={(tarea as Proceso).recurring_from as { id: number, name: string }} />
+        )}
+
+        {'recurring' in tarea && (tarea as Proceso).recurring && (
+          <ResumenDeRecurrencia tarea={tarea as Proceso} puedeEditar={puedeEditar} onCambiada={alCambiar} />
+        )}
+
         {/* Detras del titulo y la ficha de datos, y no al final de todo: poner tiempo es a lo que
             se viene al abrir una Tarea, y enterrado bajo checklist y archivos obligaba a bajar cada
             vez. Tampoco va antes de los datos: primero se reconoce la Tarea, despues se le cuenta
@@ -801,6 +819,30 @@ function AsignadaPor ({ grupos }: { grupos: GrupoDeAsignacion[] }): ReactElement
         </li>
       ))}
     </ul>
+  )
+}
+
+/**
+ * "Creada por la recurrencia «X»", con enlace a la madre por el mismo parametro `?tarea=` de los
+ * listados: la ficha vive siempre en un `ModalTarea`, asi que el enlace cambia la Tarea que muestra.
+ */
+function CreadaPorRecurrencia ({ madre }: { madre: { id: number, name: string } }): ReactElement {
+  const params = useSearchParams()
+
+  return (
+    <p className="border-linea bg-superficie-elevada rounded-tarjeta text-texto-tenue flex items-center gap-2 border px-3 py-2 text-sm">
+      <Repeat2 size={16} aria-hidden="true" className="text-texto-sutil shrink-0" />
+      <span className="min-w-0">
+        Creada por la recurrencia{' '}
+        <Link
+          href={urlConParametro(new URLSearchParams(params.toString()), PARAMETRO_TAREA, String(madre.id))}
+          scroll={false}
+          className="text-texto hover:text-acento font-medium underline-offset-4 hover:underline"
+        >
+          «{madre.name}»
+        </Link>
+      </span>
+    </p>
   )
 }
 

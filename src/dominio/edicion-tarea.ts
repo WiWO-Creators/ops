@@ -1,7 +1,7 @@
 import { horasDeTexto } from './tiempo-estimado.ts'
 import { enFormatoTitulo } from '../lib/titulo.ts'
 import { esRelacionDeEspacio, relTypeDeRelacion } from './espacios-destino.ts'
-import { cuerpoDeFin, errorDeFin, modoDeFin, type ModoFin } from './recurrencia.ts'
+import { cuerpoDeFinConservado, errorDeDiasExcluidos, errorDeFin, mismosDias, modoDeFin, normalizarDias, type ModoFin } from './recurrencia.ts'
 import { errorDeVencimientoRequerido, relacionQuePuedeExigir, type RelacionConCliente } from './vencimiento-requerido.ts'
 import type { StaffReferencia } from '@/datos/tipos'
 import type { Etiqueta, Proceso } from '@/datos/recursos'
@@ -34,6 +34,8 @@ export interface CamposEdicion {
   finRecurrencia: ModoFin
   /** Ultimo dia en que nace una copia, `YYYY-MM-DD`. Solo cuenta con `finRecurrencia: 'fecha'`. */
   hasta: string
+  /** Dias ISO (1 = lunes .. 7 = domingo) en que la recurrencia no genera copia. */
+  diasExcluidos: number[]
   prioridad: string
   inicio: string
   vencimiento: string
@@ -66,6 +68,7 @@ export interface ParcheTarea {
   recurring_type?: string
   cycles?: number
   recurring_until?: string
+  skip_weekdays?: number[]
   priority?: number
   start_date?: string | null
   due_date?: string | null
@@ -102,6 +105,7 @@ export function camposDeTarea (tarea: Proceso, descripcion: string): CamposEdici
     ciclos: String(tarea.cycles ?? 0),
     finRecurrencia: modoDeFin(tarea.cycles, tarea.recurring_until),
     hasta: tarea.recurring_until ?? '',
+    diasExcluidos: normalizarDias(tarea.skip_weekdays),
     prioridad: String(tarea.priority),
     inicio: tarea.start_date ?? '',
     vencimiento: tarea.due_date ?? '',
@@ -166,16 +170,23 @@ export function cuerpoDeParche (inicial: CamposEdicion, actual: CamposEdicion): 
   if (actual.tarifaHora.trim() !== inicial.tarifaHora.trim()) parche.hourly_rate = Number(actual.tarifaHora)
   if (actual.publica !== inicial.publica) parche.is_public = actual.publica
   if (actual.visibleCliente !== inicial.visibleCliente) parche.visible_to_client = actual.visibleCliente
+  const cambiaDias = !mismosDias(actual.diasExcluidos, inicial.diasExcluidos)
   const cambiaRecurrencia = actual.recurrente !== inicial.recurrente || (actual.recurrente && (
     actual.repetirCada !== inicial.repetirCada || actual.unidadRecurrencia !== inicial.unidadRecurrencia ||
-    actual.ciclos !== inicial.ciclos || actual.finRecurrencia !== inicial.finRecurrencia || actual.hasta !== inicial.hasta
+    actual.ciclos !== inicial.ciclos || actual.finRecurrencia !== inicial.finRecurrencia || actual.hasta !== inicial.hasta ||
+    cambiaDias
   ))
   if (cambiaRecurrencia) {
     parche.recurring = actual.recurrente
     if (actual.recurrente) {
       parche.repeat_every = Number(actual.repetirCada)
       parche.recurring_type = actual.unidadRecurrencia
-      Object.assign(parche, cuerpoDeFin(actual.finRecurrencia, actual.ciclos, actual.hasta))
+      // Un "Termina" sin tocar conserva lo guardado, aunque sean veces y fecha a la vez.
+      Object.assign(parche, cuerpoDeFinConservado(
+        { modo: inicial.finRecurrencia, ciclos: inicial.ciclos, hasta: inicial.hasta },
+        { modo: actual.finRecurrencia, ciclos: actual.ciclos, hasta: actual.hasta }
+      ))
+      if (cambiaDias) parche.skip_weekdays = normalizarDias(actual.diasExcluidos)
     }
   }
   if (!mismosIds(actual.asignados, inicial.asignados)) parche.assignees = actual.asignados
@@ -215,6 +226,8 @@ export function errorDeCamposEdicion (campos: CamposEdicion, vencimientoRequerid
   const cada = Number(campos.repetirCada)
   if (!Number.isInteger(cada) || cada < 1 || cada > 365) return 'La repetición debe ser un entero entre 1 y 365.'
   if (!['day', 'week', 'month', 'year'].includes(campos.unidadRecurrencia)) return 'Selecciona una unidad de recurrencia válida.'
+  const dias = errorDeDiasExcluidos(campos.diasExcluidos)
+  if (dias !== null) return dias
   return errorDeFin(campos.finRecurrencia, campos.ciclos, campos.hasta, campos.inicio)
 }
 

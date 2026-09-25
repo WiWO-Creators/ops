@@ -1,5 +1,6 @@
 import { normalizar } from './salas.ts'
 import type { StaffReferencia } from '@/datos/tipos'
+import type { UsoDeRegla } from './copias-recurrencia.ts'
 
 /**
  * Tareas recurrentes: como termina una regla, como se lee una planilla y como se cuenta lo que la
@@ -85,7 +86,7 @@ export function errorDeFin (modo: ModoFin, ciclos: string, hasta: string, inicio
 }
 
 /** Estado de una regla, tal como lo calcula la API (`RecursoRecurrentes::estado()`). */
-export type EstadoRegla = 'activa' | 'atrasada' | 'terminada' | 'suspendida' | 'sin_calcular'
+export type EstadoRegla = 'activa' | 'atrasada' | 'pausada' | 'terminada' | 'suspendida' | 'sin_calcular'
 
 /** Una fila de `GET /tasks/recurrentes`. */
 export interface ReglaRecurrente {
@@ -101,8 +102,15 @@ export interface ReglaRecurrente {
   cycles: number
   total_cycles: number
   recurring_until: string | null
+  /** Dias ISO (1 = lunes .. 7 = domingo) en que no nace copia. Vacio: todos los dias sirven. */
+  skip_weekdays: number[]
+  /** Pausada: la regla se conserva pero no genera copias. `next_date` llega en null. */
+  paused: boolean
+  paused_at: string | null
   next_date: string | null
   state: EstadoRegla
+  /** Si las copias se usan. Opcional: una API anterior al campo no lo manda. */
+  usage?: UsoDeRegla
   last_copy: { id: number, created_at: string, start_date: string | null, status: number } | null
   copies_count: number
   assignees: StaffReferencia[]
@@ -116,8 +124,17 @@ export const ESTADOS_REGLA: Record<EstadoRegla, { etiqueta: string, tono: 'exito
     etiqueta: 'Copia atrasada',
     ayuda: 'La copia de esa fecha todavía no se generó. El programador copia a las 9:00; si mañana sigue así, avisa a soporte.'
   },
+  pausada: {
+    tono: 'neutro',
+    etiqueta: 'Pausada',
+    ayuda: 'La regla se conserva, pero no genera copias hasta que la reanudes. Al reanudar no se crean las copias que correspondían mientras estuvo pausada.'
+  },
   terminada: { etiqueta: 'Terminada', tono: 'neutro', ayuda: 'Ya cumplió sus veces o pasó su fecha de término.' },
-  suspendida: { etiqueta: 'Completada', tono: 'neutro', ayuda: 'La tarea está completada: no genera copias hasta que se reabra.' },
+  suspendida: {
+    tono: 'neutro',
+    etiqueta: 'Completada',
+    ayuda: 'La tarea se marcó como completada y por eso ya no genera copias. Si debe seguir repitiéndose, cambia su estado desde la ficha de la tarea.'
+  },
   sin_calcular: {
     tono: 'peligro',
     etiqueta: 'Mal configurada',
@@ -138,6 +155,25 @@ export function textoDeFin (regla: Pick<ReglaRecurrente, 'cycles' | 'total_cycle
   if (regla.recurring_until !== null) partes.push(`hasta el ${formatear(regla.recurring_until)}`)
 
   return partes.length === 0 ? `Sin fin · ${regla.total_cycles} ${regla.total_cycles === 1 ? 'copia' : 'copias'}` : partes.join(' · ')
+}
+
+/**
+ * Como termina una regla guardada, para la ficha: ahi no hay cuenta de copias hechas, solo la regla.
+ *
+ * @param cycles tope de copias; 0 es sin tope
+ * @param until ultimo dia, o null
+ * @param formatear como se escribe una fecha
+ * @returns "Sin fin", "Tras 12 veces", "Hasta el ..." o las dos cosas
+ */
+export function textoDeFinDeRegla (cycles: number | undefined, until: string | null | undefined, formatear: (fecha: string) => string): string {
+  const veces = (cycles ?? 0) > 0 ? `tras ${cycles ?? 0} ${cycles === 1 ? 'vez' : 'veces'}` : null
+  const fecha = typeof until === 'string' && until !== '' ? `el ${formatear(until)}` : null
+
+  if (veces !== null && fecha !== null) return `Termina ${veces} o ${fecha}, lo que ocurra primero`
+  if (veces !== null) return `Termina ${veces}`
+  if (fecha !== null) return `Termina ${fecha}`
+
+  return 'Sin fecha de término'
 }
 
 /**
@@ -180,6 +216,412 @@ export function rutaDeRecurrentes (filtros: FiltrosRecurrentes): string {
   const consulta = parametros.toString()
 
   return consulta === '' ? 'tasks/recurrentes' : `tasks/recurrentes?${consulta}`
+}
+
+// --- Dias en que no se generan copias -------------------------------------------------------------
+
+/** Un dia de la semana en la numeracion ISO de la API: 1 = lunes .. 7 = domingo. */
+export interface DiaSemana {
+  iso: number
+  /** La letra del boton. Miercoles es "X", como en los calendarios en castellano. */
+  inicial: string
+  nombre: string
+}
+
+/** Los siete dias, de lunes a domingo. */
+export const DIAS_SEMANA: readonly DiaSemana[] = [
+  { iso: 1, inicial: 'L', nombre: 'lunes' },
+  { iso: 2, inicial: 'M', nombre: 'martes' },
+  { iso: 3, inicial: 'X', nombre: 'miércoles' },
+  { iso: 4, inicial: 'J', nombre: 'jueves' },
+  { iso: 5, inicial: 'V', nombre: 'viernes' },
+  { iso: 6, inicial: 'S', nombre: 'sábado' },
+  { iso: 7, inicial: 'D', nombre: 'domingo' }
+]
+
+/** Sabado y domingo: lo que excluye el atajo "Sin fines de semana". */
+const FIN_DE_SEMANA = [6, 7]
+
+/**
+ * Los dias sin repetidos, ordenados y solo los validos (enteros de 1 a 7).
+ *
+ * @param dias lo que venga: de la API, del formulario o de un clic
+ * @returns la lista limpia, lista para comparar o mandar
+ */
+export function normalizarDias (dias: readonly number[] | null | undefined): number[] {
+  if (!Array.isArray(dias)) return []
+
+  return [...new Set(dias.filter((dia) => Number.isInteger(dia) && dia >= 1 && dia <= 7))].sort((a, b) => a - b)
+}
+
+/**
+ * Marca o desmarca un dia.
+ *
+ * @param dias los excluidos actuales
+ * @param iso el dia tocado
+ * @returns la lista nueva, normalizada
+ */
+export function alternarDia (dias: readonly number[], iso: number): number[] {
+  return dias.includes(iso) ? normalizarDias(dias.filter((dia) => dia !== iso)) : normalizarDias([...dias, iso])
+}
+
+/** True si sabado y domingo estan los dos excluidos. */
+export function excluyeFinesDeSemana (dias: readonly number[]): boolean {
+  return FIN_DE_SEMANA.every((dia) => dias.includes(dia))
+}
+
+/**
+ * El atajo "Sin fines de semana": si ya estan los dos, los quita; si no, agrega los que falten.
+ *
+ * @param dias los excluidos actuales
+ * @returns la lista nueva, normalizada
+ */
+export function alternarFinesDeSemana (dias: readonly number[]): number[] {
+  return excluyeFinesDeSemana(dias)
+    ? normalizarDias(dias.filter((dia) => !FIN_DE_SEMANA.includes(dia)))
+    : normalizarDias([...dias, ...FIN_DE_SEMANA])
+}
+
+/** True si las dos listas excluyen los mismos dias, sin importar el orden. */
+export function mismosDias (unos: readonly number[], otros: readonly number[]): boolean {
+  const a = normalizarDias(unos)
+  const b = normalizarDias(otros)
+
+  return a.length === b.length && a.every((dia, posicion) => dia === b[posicion])
+}
+
+/**
+ * El problema de los dias excluidos, o null. Excluir los siete es una regla que nunca genera nada:
+ * la API la rechaza (`excluye_todos`) y aca se avisa antes de mandarla.
+ */
+export function errorDeDiasExcluidos (dias: readonly number[]): string | null {
+  return normalizarDias(dias).length >= DIAS_SEMANA.length
+    ? 'No puedes excluir los siete días: la tarea nunca se generaría.'
+    : null
+}
+
+/** "a", "a y b", "a, b y c". */
+function enumerar (partes: string[]): string {
+  if (partes.length <= 1) return partes.join('')
+
+  return `${partes.slice(0, -1).join(', ')} y ${partes[partes.length - 1] ?? ''}`
+}
+
+/**
+ * Los dias excluidos en una frase corta: "salvo sábado y domingo". Vacio si no hay ninguno.
+ *
+ * @param dias los excluidos
+ * @returns la frase, sin mayuscula inicial ni punto, para colgarla de otra
+ */
+export function textoDeDiasExcluidos (dias: readonly number[]): string {
+  const nombres = normalizarDias(dias).map((iso) => DIAS_SEMANA[iso - 1]?.nombre ?? '')
+
+  return nombres.length === 0 ? '' : `salvo ${enumerar(nombres)}`
+}
+
+const UNIDADES_DE_FRASE: Record<string, [string, string]> = {
+  day: ['día', 'días'],
+  week: ['semana', 'semanas'],
+  month: ['mes', 'meses'],
+  year: ['año', 'años']
+}
+
+/**
+ * La regla en palabras, con la misma forma que el `frequency_label` de la API: "Cada 2 semanas",
+ * "Cada día, salvo sábado y domingo".
+ *
+ * Es solo texto para la ficha, donde `GET /tasks/{id}` no manda la frase ya armada. Las fechas NO se
+ * calculan aca: para eso esta `POST /tasks/recurrentes/previa`.
+ *
+ * @param cada cada cuantas unidades
+ * @param unidad `day`, `week`, `month` o `year`
+ * @param dias los dias excluidos
+ * @returns la frase, o null si la regla no tiene frecuencia valida
+ */
+export function fraseDeRegla (cada: number | undefined, unidad: string | null | undefined, dias: readonly number[] = []): string | null {
+  const nombres = UNIDADES_DE_FRASE[unidad ?? '']
+  if (nombres === undefined || cada === undefined || !Number.isInteger(cada) || cada < 1) return null
+
+  const base = cada === 1 ? `Cada ${nombres[0]}` : `Cada ${cada} ${nombres[1]}`
+  const salvo = textoDeDiasExcluidos(dias)
+
+  return salvo === '' ? base : `${base}, ${salvo}`
+}
+
+/**
+ * Una fecha de la vista previa, legible: "lunes 29 de septiembre de 2026".
+ *
+ * Se lee en UTC a proposito: la fecha llega sin hora, y leerla en la zona del navegador la corre un
+ * dia hacia atras en cualquier zona al oeste de Greenwich.
+ *
+ * @param fecha `YYYY-MM-DD`
+ * @returns la fecha con su dia de semana, o el texto tal cual si no es una fecha
+ */
+export function textoDeFechaDePrevia (fecha: string): string {
+  const dia = new Date(`${fecha}T00:00:00Z`)
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(fecha) || Number.isNaN(dia.getTime())) return fecha
+
+  return new Intl.DateTimeFormat('es-CL', { timeZone: 'UTC', weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
+    .format(dia)
+    .replace(',', '')
+}
+
+// --- Editor de la regla -----------------------------------------------------------------------
+
+/** Lo que guarda la API de una Tarea recurrente, tal como llega en `GET /tasks/{id}`. */
+export interface ReglaGuardada {
+  start_date: string | null
+  repeat_every?: number
+  recurring_type?: string | null
+  cycles?: number
+  recurring_until?: string | null
+  skip_weekdays?: number[]
+}
+
+/** Como termina, en la forma del bloque `FinDeRecurrencia`. Todo texto, como cualquier formulario. */
+export interface FinDeRegla {
+  modo: ModoFin
+  ciclos: string
+  hasta: string
+}
+
+/** El formulario del editor de la regla. */
+export interface CamposRegla {
+  inicio: string
+  repetirCada: string
+  unidad: string
+  fin: FinDeRegla
+  dias: number[]
+}
+
+/** Los campos del editor que pueden tener un error propio. */
+export type CampoRegla = 'inicio' | 'repetirCada' | 'unidad' | 'fin' | 'dias'
+
+/** Las unidades que acepta la API, en el orden en que se ofrecen. */
+export const UNIDADES_REGLA: ReadonlyArray<{ valor: string, etiqueta: string }> = [
+  { valor: 'day', etiqueta: 'Días' },
+  { valor: 'week', etiqueta: 'Semanas' },
+  { valor: 'month', etiqueta: 'Meses' },
+  { valor: 'year', etiqueta: 'Años' }
+]
+
+/**
+ * El formulario del editor, a partir de la Tarea guardada.
+ *
+ * @param regla lo que trajo `GET /tasks/{id}`
+ * @returns los campos iniciales
+ */
+export function camposDeRegla (regla: ReglaGuardada): CamposRegla {
+  return {
+    inicio: regla.start_date ?? '',
+    repetirCada: String(regla.repeat_every !== undefined && regla.repeat_every > 0 ? regla.repeat_every : 1),
+    unidad: regla.recurring_type ?? 'month',
+    fin: {
+      modo: modoDeFin(regla.cycles, regla.recurring_until),
+      ciclos: String(regla.cycles ?? 0),
+      hasta: regla.recurring_until ?? ''
+    },
+    dias: normalizarDias(regla.skip_weekdays)
+  }
+}
+
+/**
+ * True si la regla guardada termina por las dos vias a la vez: N veces **y** un dia.
+ *
+ * El bloque "Termina" solo sabe mostrar una. Mientras nadie lo toque, el guardado conserva las dos
+ * (ver `cuerpoDeFinConservado`); la pantalla lo avisa para que tocarlo no sea una sorpresa.
+ */
+export function tieneDosTopes (campos: CamposRegla): boolean {
+  return campos.fin.hasta !== '' && Number(campos.fin.ciclos) > 0
+}
+
+/** True si el bloque "Termina" quedo como se abrio. */
+function finSinTocar (inicial: FinDeRegla, actual: FinDeRegla): boolean {
+  return inicial.modo === actual.modo && inicial.ciclos === actual.ciclos && inicial.hasta === actual.hasta
+}
+
+/**
+ * `cycles` y `recurring_until` para el cuerpo, sin perder un tope que nadie toco.
+ *
+ * `cuerpoDeFin` arma lo que muestra el bloque, y el bloque muestra un solo modo: con una regla que
+ * tiene veces y fecha, mandarlo tal cual reenviaria `cycles: 0` y borraria el tope de veces en un
+ * guardado donde solo se cambio, por ejemplo, la frecuencia. Si el bloque no se toco, viaja lo que
+ * estaba guardado; si se toco, manda lo que se eligio.
+ *
+ * @param inicial el fin tal como se abrio
+ * @param actual el fin tal como quedo
+ * @returns `cycles` siempre y `recurring_until` si hay fecha
+ */
+export function cuerpoDeFinConservado (inicial: FinDeRegla, actual: FinDeRegla): { cycles: number, recurring_until?: string } {
+  if (!finSinTocar(inicial, actual)) return cuerpoDeFin(actual.modo, actual.ciclos, actual.hasta)
+
+  const ciclos = Number(inicial.ciclos)
+
+  return {
+    cycles: Number.isInteger(ciclos) && ciclos > 0 ? ciclos : 0,
+    ...(inicial.hasta === '' ? {} : { recurring_until: inicial.hasta })
+  }
+}
+
+/**
+ * Los errores del formulario, uno por campo. Vacio si se puede guardar.
+ *
+ * @param campos lo que hay en el formulario
+ * @returns mensaje por campo
+ */
+export function erroresDeRegla (campos: CamposRegla): Partial<Record<CampoRegla, string>> {
+  const errores: Partial<Record<CampoRegla, string>> = {}
+  const cada = Number(campos.repetirCada)
+
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(campos.inicio)) errores.inicio = 'Elige la fecha de inicio: desde ahí se cuentan las copias.'
+  if (campos.repetirCada.trim() === '' || !Number.isInteger(cada) || cada < 1 || cada > 365) {
+    errores.repetirCada = 'Debe ser un entero entre 1 y 365.'
+  }
+  if (!UNIDADES_REGLA.some((unidad) => unidad.valor === campos.unidad)) errores.unidad = 'Elige días, semanas, meses o años.'
+
+  const fin = errorDeFin(campos.fin.modo, campos.fin.ciclos, campos.fin.hasta, campos.inicio)
+  if (fin !== null) errores.fin = fin
+
+  const dias = errorDeDiasExcluidos(campos.dias)
+  if (dias !== null) errores.dias = dias
+
+  return errores
+}
+
+/** El cuerpo del `PATCH /tasks/{id}` que manda el editor. */
+export interface ParcheRegla {
+  recurring?: true
+  repeat_every?: number
+  recurring_type?: string
+  cycles?: number
+  recurring_until?: string
+  skip_weekdays?: number[]
+  start_date?: string
+}
+
+/**
+ * El `PATCH` del editor: solo lo que cambio de la regla.
+ *
+ * Si cambia algo de la regla (frecuencia, fin o dias) viaja `recurring: true` con la regla entera,
+ * porque asi lo pide el contrato: con `recurring: true`, una `recurring_until` ausente vale null y un
+ * `cycles` ausente vale 0. `skip_weekdays` va solo si cambio (ausente = no se toca). El inicio va
+ * solo si cambio, y solo, si es lo unico: cambiarlo re-ancla la regla en la API.
+ *
+ * @param inicial los campos tal como se abrieron
+ * @param actual los campos tal como quedaron
+ * @returns el cuerpo; vacio si no cambio nada
+ */
+export function parcheDeRegla (inicial: CamposRegla, actual: CamposRegla): ParcheRegla {
+  const parche: ParcheRegla = {}
+  const cambiaDias = !mismosDias(inicial.dias, actual.dias)
+  const cambiaRegla = cambiaDias || inicial.repetirCada.trim() !== actual.repetirCada.trim() ||
+    inicial.unidad !== actual.unidad || !finSinTocar(inicial.fin, actual.fin)
+
+  if (cambiaRegla) {
+    parche.recurring = true
+    parche.repeat_every = Number(actual.repetirCada)
+    parche.recurring_type = actual.unidad
+    Object.assign(parche, cuerpoDeFinConservado(inicial.fin, actual.fin))
+    if (cambiaDias) parche.skip_weekdays = normalizarDias(actual.dias)
+  }
+  if (inicial.inicio !== actual.inicio) parche.start_date = actual.inicio
+
+  return parche
+}
+
+/** Cuantas fechas pide la vista previa. La API acepta hasta 12. */
+export const FECHAS_DE_PREVIA = 5
+
+/** El cuerpo de `POST /tasks/recurrentes/previa`. */
+export interface CuerpoPrevia {
+  task_id?: number
+  start_date?: string
+  repeat_every: number
+  recurring_type: string
+  cycles: number
+  recurring_until?: string
+  skip_weekdays: number[]
+  cantidad: number
+}
+
+/** Lo que contesta `POST /tasks/recurrentes/previa`. */
+export interface Previa {
+  frequency_label: string | null
+  dates: string[]
+  none: boolean
+}
+
+/**
+ * El cuerpo de la vista previa para lo que hay en el formulario.
+ *
+ * Con Tarea, el inicio viaja solo si cambio: sin el, la API cuenta desde la ultima copia real, que
+ * es lo que va a pasar si se guarda sin tocar el inicio. Sin Tarea, el inicio es obligatorio.
+ *
+ * @param inicial los campos como se abrieron
+ * @param actual los campos como estan
+ * @param tareaId la Tarea que se edita, o null si todavia no existe
+ * @returns el cuerpo listo para mandar
+ */
+export function cuerpoDePrevia (inicial: CamposRegla, actual: CamposRegla, tareaId: number | null): CuerpoPrevia {
+  return {
+    ...(tareaId === null ? {} : { task_id: tareaId }),
+    ...(tareaId === null || inicial.inicio !== actual.inicio ? { start_date: actual.inicio } : {}),
+    repeat_every: Number(actual.repetirCada),
+    recurring_type: actual.unidad,
+    ...cuerpoDeFinConservado(inicial.fin, actual.fin),
+    skip_weekdays: normalizarDias(actual.dias),
+    cantidad: FECHAS_DE_PREVIA
+  }
+}
+
+/** A que campo del editor corresponde cada clave del contrato. */
+const CAMPO_DE_CLAVE: Record<string, CampoRegla> = {
+  start_date: 'inicio',
+  repeat_every: 'repetirCada',
+  recurring_type: 'unidad',
+  cycles: 'fin',
+  recurring_until: 'fin',
+  skip_weekdays: 'dias'
+}
+
+/** Frases de cada `clave.codigo` de un 422 de la regla. Lo que no esta cae en una generica. */
+const MENSAJES_DE_REGLA: Record<string, string> = {
+  'skip_weekdays.excluye_todos': 'No puedes excluir los siete días: la tarea nunca se generaría.',
+  'skip_weekdays.repetido': 'Hay un día repetido.',
+  'skip_weekdays.invalid': 'Los días deben ir de lunes (1) a domingo (7).',
+  'skip_weekdays.no_es_lista': 'Los días deben ser una lista.',
+  'repeat_every.fuera_de_rango': 'Debe ser un entero entre 1 y 365.',
+  'recurring_type.no_soportado': 'Elige días, semanas, meses o años.',
+  'cycles.fuera_de_rango': 'Las veces deben ser un entero entre 1 y 365.',
+  'recurring_until.invalid': 'La fecha de término no es válida.',
+  'recurring_until.anterior_al_inicio': 'La recurrencia no puede terminar antes del inicio.',
+  'start_date.requerido': 'Falta la fecha de inicio.',
+  'start_date.formato_invalido': 'La fecha de inicio no es válida.',
+  'start_date.invalid': 'La fecha de inicio no es válida.'
+}
+
+/**
+ * Los `details` de un 422 de la regla, repartidos por campo del editor.
+ *
+ * Lo que no es de la regla (un permiso, una clave ajena) no se reparte: queda para el mensaje
+ * general que ya arma `mensajeConDetalles`.
+ *
+ * @param detalles el `error.details` del sobre, si vino
+ * @returns mensaje por campo
+ */
+export function erroresDeApiEnRegla (detalles: Record<string, unknown> | undefined): Partial<Record<CampoRegla, string>> {
+  const errores: Partial<Record<CampoRegla, string>> = {}
+  if (detalles === undefined) return errores
+
+  for (const [clave, codigos] of Object.entries(detalles)) {
+    const campo = CAMPO_DE_CLAVE[clave]
+    const codigo = Array.isArray(codigos) && typeof codigos[0] === 'string' ? codigos[0] : null
+    if (campo === undefined || codigo === null || errores[campo] !== undefined) continue
+
+    errores[campo] = MENSAJES_DE_REGLA[`${clave}.${codigo}`] ?? `No es válido (${codigo.replace(/_/g, ' ')}).`
+  }
+
+  return errores
 }
 
 // --- Importador -------------------------------------------------------------------------------

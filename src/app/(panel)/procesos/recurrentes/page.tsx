@@ -44,6 +44,7 @@ export default async function RecurrentesPage () {
           personas={personas}
           areas={lookups.areas ?? []}
           capacidades={yo.data.permissions.tasks}
+          esAdmin={yo.data.is_admin || yo.data.is_superadmin}
         />
       </Suspense>
     </section>

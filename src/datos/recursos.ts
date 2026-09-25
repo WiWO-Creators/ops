@@ -71,6 +71,18 @@ export interface Proceso {
   cycles?: number
   /** Ultimo dia en que nace una copia (`YYYY-MM-DD`), o null si la recurrencia no termina por fecha. */
   recurring_until?: string | null
+  /** Dias ISO (1 = lunes .. 7 = domingo) en que no nace copia. Vacio: todos sirven. */
+  skip_weekdays?: number[]
+  /** Pausada: la regla se conserva pero no genera copias hasta reanudarla. */
+  recurring_paused?: boolean
+  /** Desde cuando esta pausada, o null. */
+  recurring_paused_at?: string | null
+  /** La madre, si esta Tarea es copia de una recurrencia. Solo en el detalle. */
+  recurring_from?: { id: number, name: string } | null
+  /** Cuantas copias genero, si es madre, contando las de la papelera. Solo en el detalle. */
+  recurring_copies_count?: number
+  /** Id de la madre en el listado. Opcional: una API anterior no lo manda y ahi no se pinta nada. */
+  recurring_from_id?: number | null
   kanban_order: number
   assignees: AsignadoConAutoria[]
   followers: StaffReferencia[]

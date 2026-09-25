@@ -103,3 +103,33 @@ test('los errores de Drive no repiten el motivo que el mensaje ya dice', () => {
     'Ya están en esa carpeta.'
   )
 })
+
+test('los 422 de la recurrencia se dicen con frase propia', () => {
+  assert.equal(
+    mensajeConDetalles({ message: 'Hay campos que no se pueden guardar.', details: { skip_weekdays: ['excluye_todos'] } }),
+    'Hay campos que no se pueden guardar. No puedes excluir los siete días de la semana: la tarea nunca se generaría.'
+  )
+  assert.equal(
+    mensajeConDetalles({ message: 'Hay campos que no se pueden guardar.', details: { recurring_paused: ['sin_recurrencia'] } }),
+    'Hay campos que no se pueden guardar. La tarea no es recurrente, así que no hay nada que pausar ni reanudar.'
+  )
+  assert.equal(
+    mensajeConDetalles({ message: 'La regla no es válida.', details: { skip_weekdays: ['repetido'] } }),
+    'La regla no es válida. Días sin copias tiene un valor repetido.'
+  )
+})
+
+test('los ids ajenos de una limpieza y el 403 de administradores tienen frase propia', async () => {
+  const { mensajeDeCodigo } = await import('../src/datos/errores.ts')
+  assert.match(
+    mensajeConDetalles({ message: 'La limpieza no es válida.', details: { ids: ['no_candidata'] } }),
+    /no es una copia de esta recurrencia/
+  )
+  assert.match(
+    mensajeConDetalles({ message: 'La limpieza no es válida.', details: { detener: ['sin_recurrencia'] } }),
+    /ya no se repite/
+  )
+  assert.equal(mensajeDeCodigo('solo_administradores', 'x'), 'Solo un administrador puede hacer esto.')
+  assert.equal(mensajeDeCodigo('forbidden', 'x'), 'x')
+  assert.equal(mensajeDeCodigo(undefined, 'x'), 'x')
+})
