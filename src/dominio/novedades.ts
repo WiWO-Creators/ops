@@ -55,6 +55,13 @@ export const NOVEDADES: Novedad[] = [
   {
     fecha: '2026-09-25',
     tipo: 'mejora',
+    titulo: 'Supervisión por equipo: la hoja incluye a tu gente y tu jefatura la confirma',
+    detalle: 'Si tienes gente a cargo, tu hoja diaria ya trae sus tareas aunque no tengas clientes asociados, y también las de los clientes donde eres Focal. Muestra las completadas del día, lo que ya revisó tu equipo y se puede agrupar por cliente o por persona. Al firmarla, tu jefatura la ve en "Hojas de tu equipo" y la confirma o te la devuelve con una nota.',
+    commits: []
+  },
+  {
+    fecha: '2026-09-25',
+    tipo: 'mejora',
     titulo: 'Las tareas del Meeting Paper se crean con un clic y vienen con más detalle',
     detalle: 'Cada tarea propuesta tiene su botón "Crear tarea", y "Crear todas" las pasa al proyecto de una vez. La IA ahora lee el Meeting Paper completo y escribe cada tarea con su objetivo y los detalles que se hablaron, y la tarea creada cita la reunión de la que salió. Para mejorar las propuestas de un Meeting Paper anterior, usa "Volver a analizar".',
     commits: []
