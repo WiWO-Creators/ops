@@ -152,7 +152,7 @@ export function PanelGantt ({
   const ocultarCompletadas = params.get(PARAMETRO.completadas) === COMPLETADAS_OCULTAS
   const { estado, recargar } = useRecurso<GrupoGantt[]>(
     rutaDelGantt(fuente, agrupar, estados),
-    'No se pudo cargar el diagrama de Gantt.'
+    'No se pudo cargar el Gantt.'
   )
   const lookups = useRecurso<Lookups>(fuente.lookups, 'No se pudieron cargar los estados.')
 
@@ -642,7 +642,7 @@ function Diagrama ({
 
       <figcaption id={idResumen} className="sr-only">
         <p>
-          Diagrama de Gantt de {tareas.size}{' '}
+          Gantt de {tareas.size}{' '}
           {GLOSARIO.proceso.plural.toLowerCase()} entre {formatearFecha(fechaDeDia(rango.inicio))} y{' '}
           {formatearFecha(fechaDeDia(rango.fin))}, en escala de {NOMBRE_DE_ZOOM[zoom].toLowerCase()}.
         </p>

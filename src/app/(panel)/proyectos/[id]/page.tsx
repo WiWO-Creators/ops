@@ -245,7 +245,7 @@ export default async function ProyectoPage (props: PageProps<'/proyectos/[id]'>)
       adorno: <ContadorDeTickets proyectoId={proyecto.id} base={GLOSARIO.ticket.plural} />,
       contenido: <PanelTickets proyecto={{ id: proyecto.id, name: proyecto.name }} capacidades={TICKETS_DEL_EQUIPO} />
     },
-    { clave: 'gantt', etiqueta: 'Diagrama de Gantt', contenido: <PanelGantt proyectoId={proyecto.id} fuente={fuente} /> },
+    { clave: 'gantt', etiqueta: 'Gantt', contenido: <PanelGantt proyectoId={proyecto.id} fuente={fuente} /> },
     // Va pegada al Gantt porque las dos leen las mismas fechas, y despues porque son dos preguntas
     // distintas: el Gantt muestra duraciones y dependencias, el calendario muestra el dia de
     // entrega. Sus capacidades son las de `tasks` y no las del Espacio: lo que abre es el detalle de

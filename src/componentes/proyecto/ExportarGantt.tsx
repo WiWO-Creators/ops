@@ -247,7 +247,7 @@ function imprimirSvg (svg: string): void {
 
   marco.setAttribute('sandbox', 'allow-same-origin allow-modals')
   marco.setAttribute('aria-hidden', 'true')
-  marco.setAttribute('title', 'Impresión del diagrama de Gantt')
+  marco.setAttribute('title', 'Impresión del Gantt')
   // Fuera de la vista pero con tamaño real: un iframe de 0x0 o en `display:none` no llega a
   // maquetar su documento y se imprime en blanco.
   marco.style.cssText = 'position:fixed;left:-10000px;top:0;width:1024px;height:768px;border:0'
@@ -281,12 +281,12 @@ function documentoImprimible (svg: string): string {
 
   return `<!doctype html>
 <html lang="es"><head><meta charset="utf-8">
-<title>Diagrama de Gantt</title>
+<title>Gantt</title>
 <style>
   @page { size: landscape; margin: 10mm }
   html, body { height: 100%; margin: 0; background: #fff }
   body { display: flex; align-items: flex-start; justify-content: center }
   img { max-width: 100%; max-height: 100%; width: auto; height: auto }
 </style></head>
-<body><img src="${imagen}" alt="Diagrama de Gantt"></body></html>`
+<body><img src="${imagen}" alt="Gantt"></body></html>`
 }

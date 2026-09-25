@@ -262,7 +262,7 @@ export const PESTANIAS_PROYECTO: Array<{ clave: PestaniaPortal, etiqueta: string
   { clave: 'timesheets', etiqueta: 'Tiempos' },
   { clave: 'milestones', etiqueta: GLOSARIO.hito.plural },
   { clave: 'files', etiqueta: 'Archivos' },
-  { clave: 'gantt', etiqueta: 'Diagrama de Gantt' },
+  { clave: 'gantt', etiqueta: 'Gantt' },
   // Pegada al Gantt y en ese orden porque es el del panel: las dos leen las mismas fechas y
   // contestan preguntas distintas —el Gantt dibuja duraciones, el calendario el dia de entrega—.
   { clave: 'calendar', etiqueta: 'Calendario' },

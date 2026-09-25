@@ -384,7 +384,7 @@ export function prepararDiagramaGantt (
   }
 
   return {
-    titulo: `Diagrama de Gantt · ${GLOSARIO.espacio.singular} #${String(opciones.proyectoId)}`,
+    titulo: `Gantt · ${GLOSARIO.espacio.singular} #${String(opciones.proyectoId)}`,
     subtitulo: partes.join(' · '),
     filas,
     marcas,

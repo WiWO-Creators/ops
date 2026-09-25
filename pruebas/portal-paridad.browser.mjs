@@ -105,7 +105,7 @@ const visto = {}
 await ir('/portal/proyectos/1')
 visto.pestanias = await pestanias()
 assert.deepEqual(visto.pestanias, [
-  'Resumen', 'Tareas', 'Tiempos', 'Hitos', 'Archivos', 'Diagrama de Gantt', 'Calendario',
+  'Resumen', 'Tareas', 'Tiempos', 'Hitos', 'Archivos', 'Gantt', 'Calendario',
   'Meeting Paper', 'Actividad'
 ])
 
@@ -437,7 +437,7 @@ await ir('/portal/proyectos/8')
 visto.pestaniasDelOcho = await pestanias()
 await pagina.screenshot({ path: `${SALIDA}/portal-proyecto-sin-tareas.png`, fullPage: true })
 assert.deepEqual(visto.pestaniasDelOcho, ['Descripción', 'Hitos', 'Archivos', 'Actividad'])
-for (const apagada of ['Tareas', 'Calendario', 'Tiempos', 'Diagrama de Gantt', 'Meeting Paper']) {
+for (const apagada of ['Tareas', 'Calendario', 'Tiempos', 'Gantt', 'Meeting Paper']) {
   assert.equal(visto.pestaniasDelOcho.includes(apagada), false, `pestaña apagada visible: ${apagada}`)
 }
 
