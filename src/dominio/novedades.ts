@@ -53,6 +53,13 @@ export const ROTULO_TIPO: Record<TipoNovedad, string> = {
  */
 export const NOVEDADES: Novedad[] = [
   {
+    fecha: '2026-09-25',
+    tipo: 'mejora',
+    titulo: 'La hora de "¿Estás ahí?" se configura en Administración',
+    detalle: 'Los superadministradores tienen una pestaña Jornada para encender la pregunta, fijar su hora y los minutos entre preguntas.',
+    commits: ['ops-v2@2fb63f6']
+  },
+  {
     fecha: '2026-09-24',
     tipo: 'mejora',
     titulo: 'La jornada pregunta "¿Estás ahí?" antes de cerrarse',
