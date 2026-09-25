@@ -110,6 +110,14 @@ try {
 
   // --- Con origen y hito elegidos, llega el informe del backend.
   await pagina.evaluate(() => { document.querySelector('[role="dialog"] li button')?.click() })
+
+  // Por defecto las tareas entran sin hito; para ejercitar el selector hay que pedir uno existente.
+  const modoInicial = await pagina.evaluate(() =>
+    document.querySelector('[role="dialog"] [role="group"] [aria-pressed="true"]')?.textContent?.trim() ?? ''
+  )
+  assert.equal(modoInicial, 'Sin hito', 'El destino por defecto tiene que ser "Sin hito"')
+  await clicPorTexto(pagina, 'Hito existente')
+
   await pagina.evaluate(() => {
     const disparador = [...document.querySelectorAll('[role="dialog"] button')]
       .find((b) => b.getAttribute('role') === 'combobox' || b.hasAttribute('aria-haspopup'))

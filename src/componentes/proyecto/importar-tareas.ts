@@ -1,5 +1,5 @@
 /**
- * Logica pura de "importar las tareas de otro Proyecto a un Hito de este".
+ * Logica pura de "importar las tareas de otro Proyecto a este", sueltas o dentro de un Hito.
  *
  * El caso: hay gente que abrio un Proyecto por mes y ahora esos meses tienen que ser Hitos de un
  * solo Proyecto. El ciclo es importar, COMPROBAR que la copia quedo igual, y recien entonces
@@ -18,6 +18,30 @@ import type { Sobre } from '../../datos/tipos'
 
 /** Tamaño de cada página del buscador de origen. */
 export const MAXIMO_ORIGENES = 200
+
+/** Largo de `tblmilestones.name`: el backend rechaza con 422 lo que pase de aca. */
+export const LARGO_MAXIMO_HITO = 191
+
+/**
+ * Donde quedan las tareas importadas.
+ *
+ * - `ninguno`: sueltas en el Proyecto, sin Hito. Es el valor por defecto: el Proyecto de origen se
+ *   va a borrar y lo que importa es que las tareas lleguen; agruparlas es una decision aparte.
+ * - `existente`: dentro de un Hito que ya tiene el Proyecto.
+ * - `nuevo`: dentro de un Hito que se crea al importar, con el nombre escrito. Las fechas las pone el
+ *   backend a partir de las tareas que entran.
+ */
+export type EleccionHito =
+  | { modo: 'ninguno' }
+  | { modo: 'existente', hitoId: number | null }
+  | { modo: 'nuevo', nombre: string }
+
+/** Las tres opciones del selector de destino, en el orden en que se muestran. */
+export const OPCIONES_MODO_HITO: ReadonlyArray<{ valor: EleccionHito['modo'], etiqueta: string }> = [
+  { valor: 'ninguno', etiqueta: 'Sin hito' },
+  { valor: 'existente', etiqueta: 'Hito existente' },
+  { valor: 'nuevo', etiqueta: 'Hito nuevo' }
+]
 
 /** Lo minimo que el dialogo necesita saber de un Proyecto candidato a ser el origen. */
 export interface ProyectoCandidato {
@@ -46,7 +70,8 @@ export interface DiferenciaImportacion {
 export interface InformeImportacion {
   origen: { id: number, nombre: string, tareas: number }
   destino: { id: number, nombre: string }
-  hito: { id: number, nombre: string }
+  /** `null` cuando la importacion es sin Hito. */
+  hito: { id: number, nombre: string } | null
   importadas: number
   pendientes: number
   listo: boolean
@@ -112,12 +137,47 @@ export function rutaHitosDestino (destinoId: number): string {
  *
  * @param destinoId Proyecto que recibe
  * @param origenId  Proyecto del que salen las tareas
- * @param hitoId    Hito de destino
+ * @param hitoId    Hito de destino, o `null` para comparar contra las copias sin Hito
  */
-export function rutaInforme (destinoId: number, origenId: number, hitoId: number): string {
-  const params = new URLSearchParams({ origen_id: String(origenId), hito_id: String(hitoId) })
+export function rutaInforme (destinoId: number, origenId: number, hitoId: number | null): string {
+  const params = new URLSearchParams({ origen_id: String(origenId) })
+  if (hitoId !== null) params.set('hito_id', String(hitoId))
 
   return `projects/${destinoId}/import-tasks?${params.toString()}`
+}
+
+/**
+ * El Hito contra el que se pide el informe.
+ *
+ * Un Hito nuevo todavia no existe, asi que su previsualizacion se pide sin Hito y despues se
+ * reescribe con `previsualizarHitoNuevo()`.
+ *
+ * @param eleccion donde van a quedar las tareas
+ * @returns el id del Hito, o `null`
+ */
+export function hitoDelInforme (eleccion: EleccionHito): number | null {
+  return eleccion.modo === 'existente' ? eleccion.hitoId : null
+}
+
+/**
+ * Previsualizacion de una importacion a un Hito que todavia no existe: todo el origen esta pendiente.
+ *
+ * El informe que llega es el de "sin Hito", y sus copias no cuentan: un Hito recien creado no tiene
+ * ninguna, asi que la importacion va a traer todas las tareas vivas del origen.
+ *
+ * @param informe el informe pedido sin Hito
+ * @param nombre  el nombre escrito para el Hito nuevo
+ * @returns el mismo informe, con todo pendiente y el Hito por nombre
+ */
+export function previsualizarHitoNuevo (informe: InformeImportacion, nombre: string): InformeImportacion {
+  return {
+    ...informe,
+    hito: { id: 0, nombre: nombre.trim() },
+    importadas: 0,
+    pendientes: informe.origen.tareas,
+    listo: false,
+    diferencias: []
+  }
 }
 
 /** Ruta del `POST` que ejecuta la importacion. */
@@ -128,11 +188,24 @@ export function rutaImportar (destinoId: number): string {
 /**
  * Cuerpo del `POST` que ejecuta la importacion.
  *
+ * Sin Hito no viaja ninguna clave de Hito: el backend lo lee como "sueltas en el Proyecto".
+ *
  * @param origenId Proyecto del que salen las tareas
- * @param hitoId   Hito de destino
+ * @param eleccion donde van a quedar
  */
-export function cuerpoDeImportacion (origenId: number, hitoId: number): Record<string, number> {
-  return { origen_id: origenId, hito_id: hitoId }
+export function cuerpoDeImportacion (
+  origenId: number,
+  eleccion: EleccionHito
+): Record<string, number | string> {
+  if (eleccion.modo === 'existente' && eleccion.hitoId !== null) {
+    return { origen_id: origenId, hito_id: eleccion.hitoId }
+  }
+
+  if (eleccion.modo === 'nuevo') {
+    return { origen_id: origenId, hito_nombre: eleccion.nombre.trim() }
+  }
+
+  return { origen_id: origenId }
 }
 
 /**
@@ -168,19 +241,25 @@ function normalizar (texto: string): string {
 /**
  * Valida la eleccion antes de gastar un viaje a la API.
  *
- * @param origenId Proyecto elegido como origen, o `null` si todavia no se eligio
- * @param hitoId   Hito elegido, o `null`
+ * @param origenId  Proyecto elegido como origen, o `null` si todavia no se eligio
  * @param destinoId Proyecto que recibe
+ * @param eleccion  donde van a quedar las tareas
  * @returns el mensaje de error, o `null` si esta todo bien
  */
 export function validarImportacion (
   origenId: number | null,
-  hitoId: number | null,
-  destinoId: number
+  destinoId: number,
+  eleccion: EleccionHito
 ): string | null {
   if (origenId === null) return 'Elegí de qué proyecto vas a traer las tareas.'
   if (origenId === destinoId) return 'El proyecto de origen no puede ser este mismo.'
-  if (hitoId === null) return 'Elegí a qué hito van a entrar las tareas.'
+  if (eleccion.modo === 'existente' && eleccion.hitoId === null) return 'Elegí a qué hito van a entrar las tareas.'
+
+  if (eleccion.modo === 'nuevo') {
+    const nombre = eleccion.nombre.trim()
+    if (nombre === '') return 'Escribí el nombre del hito nuevo.'
+    if (nombre.length > LARGO_MAXIMO_HITO) return `El nombre del hito no puede pasar de ${LARGO_MAXIMO_HITO} caracteres.`
+  }
 
   return null
 }
@@ -196,19 +275,25 @@ export function validarImportacion (
  */
 export function resumenDelInforme (informe: InformeImportacion): string {
   const { origen, importadas, pendientes, diferencias } = informe
+  const lugar = informe.hito === null ? informe.destino.nombre : informe.hito.nombre
 
   if (origen.tareas === 0) {
     return `"${origen.nombre}" no tiene tareas para traer.`
   }
 
   if (importadas === 0) {
-    return `Se van a copiar ${pendientes} ${plural(pendientes, 'tarea', 'tareas')} de "${origen.nombre}" `
-      + `al hito "${informe.hito.nombre}".`
+    const hacia = informe.hito === null
+      ? `a "${informe.destino.nombre}", sin hito`
+      : informe.hito.id === 0
+        ? `al hito nuevo "${informe.hito.nombre}"`
+        : `al hito "${informe.hito.nombre}"`
+
+    return `Se van a copiar ${pendientes} ${plural(pendientes, 'tarea', 'tareas')} de "${origen.nombre}" ${hacia}.`
   }
 
   if (pendientes > 0) {
     return `${importadas} de ${origen.tareas} ${plural(origen.tareas, 'tarea', 'tareas')} ya están en `
-      + `"${informe.hito.nombre}". Quedan ${pendientes} por traer.`
+      + `"${lugar}". Quedan ${pendientes} por traer.`
   }
 
   const copiadas = `${importadas} ${plural(importadas, 'tarea', 'tareas')}`
@@ -220,7 +305,7 @@ export function resumenDelInforme (informe: InformeImportacion): string {
   }
 
   return `${copiadas} de "${origen.nombre}" ${plural(importadas, 'está', 'están')} en `
-    + `"${informe.hito.nombre}" con todos sus datos iguales. Ya se puede archivar el proyecto viejo.`
+    + `"${lugar}" con todos sus datos iguales. Ya se puede archivar el proyecto viejo.`
 }
 
 /**

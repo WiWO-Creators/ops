@@ -6391,18 +6391,34 @@ existía. Archivar sin haber comprobado es lo que este frente existe para evitar
 
 #### `POST /projects/{id}/actions/import-tasks`
 
-`{id}` es el Espacio de **destino**: el que recibe. El cuerpo dice de dónde salen y a qué Hito entran.
+`{id}` es el Espacio de **destino**: el que recibe. El cuerpo dice de dónde salen y, opcionalmente,
+dónde quedan (rama `feat/importar-sin-hito`, migración `1000`):
 
-```json
-{ "origen_id": 100, "hito_id": 77 }
+```jsonc
+{ "origen_id": 100 }                               // sueltas en el Espacio, sin Hito
+{ "origen_id": 100, "hito_id": 77 }                // en un Hito existente del destino
+{ "origen_id": 100, "hito_nombre": "Octubre" }     // en un Hito que se crea en la misma operación
 ```
+
+`hito_id` ausente, `null` o `0` es "sin Hito". `hito_nombre` crea el Hito dentro de la misma
+transacción que la copia —una importación fallida no deja un Hito vacío— con las fechas del rango de
+las tareas que entran, acotadas al inicio y a la fecha límite del destino. Mandar las dos claves es
+`422`.
 
 Responde `201` con el **informe de verificación** (la misma forma que el `GET` de abajo) en `data`, y
-el recuento de la corrida en `meta`:
+el recuento de la corrida en `meta`. `meta.hito_id` es el Hito donde quedaron —el recién creado si se
+mandó `hito_nombre`— o `null`:
 
 ```json
-{ "data": { "…": "informe" }, "meta": { "importadas": 12, "omitidas": 0, "ids": [901, 902] } }
+{ "data": { "…": "informe" }, "meta": { "importadas": 12, "omitidas": 0, "ids": [901, 902], "hito_id": 77 } }
 ```
+
+**Constancia del origen.** Cada copia guarda, como texto, el id y el nombre del Espacio del que vino
+(`tbltasks.origen_proyecto_id` y `origen_proyecto_nombre`). Sale en las lecturas de tareas del panel
+como `imported_from: { "project_id": 100, "project_name": "Septiembre 2026" }`, o `null` si no se
+importó. No se resuelve contra `tblprojects`: el Espacio de origen se suele borrar después, y el dato
+tiene que sobrevivirlo. El portal no lo recibe. Las importaciones anteriores a la `1000` salen en
+`null`. Duplicar una tarea o las acciones masivas no lo llenan: solo la importación.
 
 **Copia, no mueve.** Las tareas siguen en el Espacio de origen. Es lo que hace posible comparar
 origen contra copia; mover no deja contra qué comparar y volver atrás sería a mano.
@@ -6424,13 +6440,15 @@ que se agregue al Proceso viaja solo.
 | Dependencias **con las dos puntas dentro del lote** | Una dependencia con una punta afuera: apuntaría a una tarea del Espacio viejo, y el Gantt dibujaría una flecha hacia algo que en el nuevo no existe |
 
 **Es idempotente.** Cada copia guarda de qué tarea salió, así que reimportar saltea las que ya tienen
-copia en ese Hito en vez de duplicarlas — dos clics o una conexión cortada dan el mismo resultado que
+copia en ese Hito (o sin Hito, si la importación es sin Hito) en vez de duplicarlas — dos clics o una conexión cortada dan el mismo resultado que
 una sola corrida. Esas salteadas vuelven en `meta.omitidas`.
 
 **Todo en una transacción.** Si un `INSERT` falla a mitad de camino no queda nada: un Hito con la
 mitad de las tareas y la mitad de sus asignados es peor que no haber importado.
 
 #### `GET /projects/{id}/import-tasks?origen_id=&hito_id=`
+
+`hito_id` es opcional: sin él, el informe compara contra las copias sin Hito y `hito` sale en `null`.
 
 El informe de verificación. Es el **mismo endpoint antes y después** de importar, porque la pregunta
 es la misma y lo único que cambia es cuántas copias ya existen: antes es la previsualización
@@ -6481,8 +6499,11 @@ diría qué tiene el Espacio de origen a quien no puede verlo.
 | `origen_id` igual a `{id}` | `422` `origen_id: ["same_as_destination"]` |
 | El Hito no pertenece al Espacio de destino | `422` `hito_id: ["wrong_project"]` |
 | Más de 1000 tareas en el origen | `422` `origen_id: ["too_many"]` |
-| Falta `origen_id` o `hito_id` en el cuerpo | `422` |
-| Falta `origen_id` o `hito_id` en la query del `GET` | `400` |
+| Falta `origen_id` en el cuerpo, o `hito_id` no es un identificador | `422` |
+| `hito_id` y `hito_nombre` a la vez | `422` `hito_nombre: ["conflict"]` |
+| `hito_nombre` vacío o de más de 191 caracteres | `422` `hito_nombre: ["required"]` / `["too_long"]` |
+| `hito_nombre` sin `create_milestones` sobre `projects` | `403` |
+| Falta `origen_id` en la query del `GET`, o `hito_id` no es un identificador | `400` |
 | `POST` sobre `/projects/{id}/import-tasks`, o cualquier subrecurso debajo | `404` |
 
 #### Lo que este frente NO hace

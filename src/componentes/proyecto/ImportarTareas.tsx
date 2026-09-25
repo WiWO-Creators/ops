@@ -4,6 +4,7 @@ import { useEffect, useState, type ReactElement } from 'react'
 import { Boton } from '@/componentes/formularios/Boton'
 import { Campo } from '@/componentes/formularios/Campo'
 import { Entrada } from '@/componentes/formularios/Entrada'
+import { Segmentado } from '@/componentes/formularios/Segmentado'
 import {
   ContenidoSelector,
   DisparadorSelector,
@@ -20,18 +21,28 @@ import {
   cuerpoDeImportacion,
   filtrarOrigenes,
   habilitaArchivar,
+  hitoDelInforme,
+  LARGO_MAXIMO_HITO,
+  OPCIONES_MODO_HITO,
+  previsualizarHitoNuevo,
   resumenDelInforme,
   rutaHitosDestino,
   rutaImportar,
   rutaInforme,
   validarImportacion,
+  type EleccionHito,
   type HitoDestino,
   type InformeImportacion,
   type ProyectoCandidato
 } from './importar-tareas'
 
 /**
- * Trae las tareas de otro Proyecto a un Hito de este, deja comprobar la copia y archiva el viejo.
+ * Trae las tareas de otro Proyecto a este, deja comprobar la copia y archiva el viejo.
+ *
+ * DONDE QUEDAN. Por defecto sueltas en el Proyecto, sin Hito: cada copia guarda por escrito de que
+ * Proyecto vino, asi que agruparlas ya no es la unica forma de saber de donde salieron. Si se
+ * quieren agrupar, se elige un Hito existente o se escribe el nombre de uno nuevo, que el backend
+ * crea en la misma operacion.
  *
  * Los tres pasos viven juntos a proposito. El pedido no es "copiar tareas": es reorganizar
  * Proyectos-por-mes en Hitos de un Proyecto, y ese trabajo no esta hecho hasta que el Proyecto viejo
@@ -49,6 +60,9 @@ import {
 
 /** Lo que se esta mostrando. */
 type Fase = 'elegir' | 'informe'
+
+/** Modo del selector de destino. */
+type ModoHito = EleccionHito['modo']
 
 /** Carga de una lista que alimenta un selector. */
 type Carga<T> =
@@ -88,9 +102,9 @@ export function ImportarTareas ({
       <ContenidoDialogo
         titulo={`Importar ${GLOSARIO.proceso.plural.toLowerCase()} de otro ${GLOSARIO.espacio.singular.toLowerCase()}`}
         descripcion={`Se copian todas las ${GLOSARIO.proceso.plural.toLowerCase()} del `
-          + `${GLOSARIO.espacio.singular.toLowerCase()} que elijas a un ${GLOSARIO.hito.singular.toLowerCase()} `
-          + `de "${destino.name}". Las originales no se tocan: primero comprobás que la copia quedó `
-          + 'igual y recién después archivás el viejo.'}
+          + `${GLOSARIO.espacio.singular.toLowerCase()} que elijas a "${destino.name}", y cada una guarda `
+          + 'de dónde vino. Las originales no se tocan: primero comprobás que la copia quedó igual y '
+          + 'recién después archivás el viejo.'}
         ancho="grande"
       >
         {/* Se desmonta al cerrar —`abierto &&`— y no solo se oculta: es lo que devuelve el diálogo a
@@ -135,7 +149,9 @@ export function CuerpoImportarTareas ({
   const [fase, setFase] = useState<Fase>('elegir')
   const [busqueda, setBusqueda] = useState('')
   const [origenId, setOrigenId] = useState<number | null>(null)
+  const [modoHito, setModoHito] = useState<ModoHito>(hitoFijo === undefined ? 'ninguno' : 'existente')
   const [hitoId, setHitoId] = useState<number | null>(hitoFijo?.id ?? null)
+  const [nombreHito, setNombreHito] = useState('')
   const [informe, setInforme] = useState<InformeImportacion | null>(null)
   const [enCurso, setEnCurso] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -145,6 +161,14 @@ export function CuerpoImportarTareas ({
   const [hitos, setHitos] = useState<Carga<HitoDestino[]>>(
     hitoFijo === undefined ? { fase: 'cargando' } : { fase: 'listo', datos: [hitoFijo] }
   )
+
+  // Los tres valores viven por separado para que cambiar de modo y volver no borre lo ya elegido o
+  // escrito; la eleccion que viaja se arma de ellos en cada render.
+  const eleccion: EleccionHito = modoHito === 'existente'
+    ? { modo: 'existente', hitoId }
+    : modoHito === 'nuevo'
+      ? { modo: 'nuevo', nombre: nombreHito }
+      : { modo: 'ninguno' }
 
   /** Un solo lugar donde se marca la escritura en curso, para no olvidar avisar hacia afuera. */
   function marcarEnCurso (valor: boolean): void {
@@ -186,7 +210,7 @@ export function CuerpoImportarTareas ({
    * misma; lo unico que cambia es cuantas copias ya existen cuando se hace.
    */
   async function comprobar (): Promise<void> {
-    const invalido = validarImportacion(origenId, hitoId, destino.id)
+    const invalido = validarImportacion(origenId, destino.id, eleccion)
 
     if (invalido !== null) {
       setError(invalido)
@@ -198,11 +222,11 @@ export function CuerpoImportarTareas ({
 
     try {
       const sobre = await pedirSobre<InformeImportacion>(
-        rutaInforme(destino.id, origenId as number, hitoId as number),
+        rutaInforme(destino.id, origenId as number, hitoDelInforme(eleccion)),
         new AbortController().signal
       )
 
-      setInforme(sobre.data)
+      setInforme(eleccion.modo === 'nuevo' ? previsualizarHitoNuevo(sobre.data, eleccion.nombre) : sobre.data)
       setFase('informe')
     } catch (fallo: unknown) {
       setError(mensajeDe(fallo))
@@ -214,9 +238,12 @@ export function CuerpoImportarTareas ({
   /**
    * Ejecuta la copia. El backend devuelve el informe ya actualizado, asi que no hace falta un
    * segundo viaje para saber como quedo.
+   *
+   * Si el Hito era nuevo, desde aca pasa a ser un Hito existente: "Volver a comprobar" y un segundo
+   * "Importar" tienen que apuntar al que se acaba de crear, no crear otro con el mismo nombre.
    */
   async function importar (): Promise<void> {
-    if (origenId === null || hitoId === null) return
+    if (origenId === null || validarImportacion(origenId, destino.id, eleccion) !== null) return
 
     marcarEnCurso(true)
     setError(null)
@@ -224,7 +251,7 @@ export function CuerpoImportarTareas ({
     const respuesta = await escribirEnBff<InformeImportacion>(
       rutaImportar(destino.id),
       'POST',
-      cuerpoDeImportacion(origenId, hitoId)
+      cuerpoDeImportacion(origenId, eleccion)
     )
 
     marcarEnCurso(false)
@@ -232,6 +259,16 @@ export function CuerpoImportarTareas ({
     if (!respuesta.ok) {
       setError(respuesta.mensaje)
       return
+    }
+
+    const creado = respuesta.datos.hito
+    if (eleccion.modo === 'nuevo' && creado !== null) {
+      setHitos((actual) => actual.fase === 'listo'
+        ? { fase: 'listo', datos: [...actual.datos, { id: creado.id, name: creado.nombre }] }
+        : actual)
+      setHitoId(creado.id)
+      setModoHito('existente')
+      setNombreHito('')
     }
 
     setInforme(respuesta.datos)
@@ -279,11 +316,16 @@ export function CuerpoImportarTareas ({
             candidatos={candidatos}
             busqueda={busqueda}
             origenId={origenId}
+            destino={destino}
+            modoHito={modoHito}
             hitoId={hitoId}
+            nombreHito={nombreHito}
             enCurso={enCurso}
             onBusqueda={setBusqueda}
-            onOrigen={setOrigenId}
-            onHito={setHitoId}
+            onOrigen={(id) => { setOrigenId(id); setError(null) }}
+            onModoHito={(modo) => { setModoHito(modo); setError(null) }}
+            onHito={(id) => { setHitoId(id); setError(null) }}
+            onNombreHito={(nombre) => { setNombreHito(nombre); setError(null) }}
             onReintentar={() => {
               setOrigenes({ fase: 'cargando' })
               if (hitoFijo === undefined) setHitos({ fase: 'cargando' })
@@ -343,7 +385,7 @@ export function CuerpoImportarTareas ({
   )
 }
 
-/** Primer paso: de dónde salen las tareas y —si no vino decidido— a qué hito entran. */
+/** Primer paso: de dónde salen las tareas y, si no vino decidido, dónde quedan. */
 function PasoElegir ({
   origenes,
   hitos,
@@ -351,11 +393,16 @@ function PasoElegir ({
   candidatos,
   busqueda,
   origenId,
+  destino,
+  modoHito,
   hitoId,
+  nombreHito,
   enCurso,
   onBusqueda,
   onOrigen,
+  onModoHito,
   onHito,
+  onNombreHito,
   onReintentar
 }: {
   origenes: Carga<ProyectoCandidato[]>
@@ -364,11 +411,16 @@ function PasoElegir ({
   candidatos: ProyectoCandidato[]
   busqueda: string
   origenId: number | null
+  destino: { id: number, name: string }
+  modoHito: ModoHito
   hitoId: number | null
+  nombreHito: string
   enCurso: boolean
   onBusqueda: (texto: string) => void
   onOrigen: (id: number) => void
+  onModoHito: (modo: ModoHito) => void
   onHito: (id: number) => void
+  onNombreHito: (nombre: string) => void
   onReintentar: () => void
 }): ReactElement {
   if (origenes.fase === 'error' || hitos.fase === 'error') {
@@ -428,27 +480,17 @@ function PasoElegir ({
 
       {hitoFijo === undefined
         ? (
-          <Campo etiqueta={`${GLOSARIO.hito.singular} de destino`} requerido>
-            {(props) => (
-              <Selector
-                value={hitoId === null ? undefined : String(hitoId)}
-                onValueChange={(valor) => { onHito(Number(valor)) }}
-                disabled={enCurso}
-              >
-                <DisparadorSelector
-                  marcador={hitos.datos.length === 0
-                    ? `Este ${GLOSARIO.espacio.singular.toLowerCase()} no tiene ${GLOSARIO.hito.plural.toLowerCase()}`
-                    : `Elegí un ${GLOSARIO.hito.singular.toLowerCase()}`}
-                  id={props.id}
-                />
-                <ContenidoSelector>
-                  {hitos.datos.map((hito) => (
-                    <Opcion key={hito.id} value={String(hito.id)}>{hito.name}</Opcion>
-                  ))}
-                </ContenidoSelector>
-              </Selector>
-            )}
-          </Campo>
+          <DestinoDeLasTareas
+            destino={destino}
+            hitos={hitos.datos}
+            modo={modoHito}
+            hitoId={hitoId}
+            nombre={nombreHito}
+            enCurso={enCurso}
+            onModo={onModoHito}
+            onHito={onHito}
+            onNombre={onNombreHito}
+          />
           )
         : (
           <p className="text-texto-sutil text-xs">
@@ -456,6 +498,117 @@ function PasoElegir ({
           </p>
           )}
     </div>
+  )
+}
+
+/**
+ * Dónde quedan las tareas: sueltas, en un Hito que ya existe o en uno que se crea al importar.
+ *
+ * Un control segmentado y no un selector con "Crear nuevo…" adentro: las tres salidas son
+ * decisiones del mismo peso, y esconder dos detrás de un desplegable hacía que "sin hito" pareciera
+ * un olvido en vez de una opción.
+ */
+function DestinoDeLasTareas ({
+  destino,
+  hitos,
+  modo,
+  hitoId,
+  nombre,
+  enCurso,
+  onModo,
+  onHito,
+  onNombre
+}: {
+  destino: { id: number, name: string }
+  hitos: HitoDestino[]
+  modo: ModoHito
+  hitoId: number | null
+  nombre: string
+  enCurso: boolean
+  onModo: (modo: ModoHito) => void
+  onHito: (id: number) => void
+  onNombre: (nombre: string) => void
+}): ReactElement {
+  /** Solo acepta los tres modos conocidos: el control entrega texto. */
+  function elegir (valor: string): void {
+    const opcion = OPCIONES_MODO_HITO.find((candidata) => candidata.valor === valor)
+    if (opcion !== undefined) onModo(opcion.valor)
+  }
+
+  return (
+    <fieldset className="flex flex-col gap-2" disabled={enCurso}>
+      <legend className="text-texto mb-1.5 text-sm font-medium">Dónde quedan</legend>
+
+      <Segmentado
+        etiqueta="Dónde quedan las tareas importadas"
+        etiquetaVisible={false}
+        tamano="chico"
+        activo={modo}
+        onElegir={elegir}
+        opciones={OPCIONES_MODO_HITO}
+        className="self-start"
+      />
+
+      {modo === 'ninguno' && (
+        <p className="text-texto-sutil text-xs">
+          Entran sueltas en <strong className="text-texto font-medium">{destino.name}</strong>. Cada una
+          muestra de qué {GLOSARIO.espacio.singular.toLowerCase()} vino.
+        </p>
+      )}
+
+      {modo === 'existente' && (
+        hitos.length === 0
+          ? (
+            <p className="text-texto-sutil text-xs">
+              Este {GLOSARIO.espacio.singular.toLowerCase()} todavía no tiene {GLOSARIO.hito.plural.toLowerCase()}.{' '}
+              <button
+                type="button"
+                className="text-texto underline underline-offset-2"
+                onClick={() => { onModo('nuevo') }}
+              >
+                Crear uno al importar
+              </button>
+            </p>
+            )
+          : (
+            <Campo etiqueta={GLOSARIO.hito.singular} requerido className="animate-entrar-abajo">
+              {(props) => (
+                <Selector
+                  value={hitoId === null ? undefined : String(hitoId)}
+                  onValueChange={(valor) => { onHito(Number(valor)) }}
+                  disabled={enCurso}
+                >
+                  <DisparadorSelector marcador={`Elegí un ${GLOSARIO.hito.singular.toLowerCase()}`} id={props.id} />
+                  <ContenidoSelector>
+                    {hitos.map((hito) => (
+                      <Opcion key={hito.id} value={String(hito.id)}>{hito.name}</Opcion>
+                    ))}
+                  </ContenidoSelector>
+                </Selector>
+              )}
+            </Campo>
+            )
+      )}
+
+      {modo === 'nuevo' && (
+        <Campo
+          etiqueta={`Nombre del ${GLOSARIO.hito.singular.toLowerCase()}`}
+          ayuda="Se crea al importar. Sus fechas salen de las tareas que entran."
+          requerido
+          className="animate-entrar-abajo"
+        >
+          {(props) => (
+            <Entrada
+              value={nombre}
+              onChange={(evento) => { onNombre(evento.target.value) }}
+              placeholder="Por ejemplo, Septiembre 2026"
+              maxLength={LARGO_MAXIMO_HITO}
+              {...props}
+            />
+          )}
+        </Campo>
+      )}
+    </fieldset>
   )
 }
 

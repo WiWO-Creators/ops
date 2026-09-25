@@ -6,6 +6,8 @@ import {
   cuerpoDeImportacion,
   filtrarOrigenes,
   habilitaArchivar,
+  hitoDelInforme,
+  previsualizarHitoNuevo,
   resumenDelInforme,
   rutaHitosDestino,
   rutaImportar,
@@ -70,9 +72,37 @@ test('el listado de origen pide también los archivados', () => {
 
 test('las rutas del informe y de la importación llevan el destino en la ruta y el resto como datos', () => {
   assert.equal(rutaInforme(200, 100, 77), 'projects/200/import-tasks?origen_id=100&hito_id=77')
+  assert.equal(rutaInforme(200, 100, null), 'projects/200/import-tasks?origen_id=100')
   assert.equal(rutaImportar(200), 'projects/200/actions/import-tasks')
-  assert.deepEqual(cuerpoDeImportacion(100, 77), { origen_id: 100, hito_id: 77 })
   assert.ok(rutaHitosDestino(200).startsWith('projects/200/milestones'))
+})
+
+test('el cuerpo de la importación lleva solo la clave del destino elegido', () => {
+  assert.deepEqual(cuerpoDeImportacion(100, { modo: 'ninguno' }), { origen_id: 100 })
+  assert.deepEqual(cuerpoDeImportacion(100, { modo: 'existente', hitoId: 77 }), { origen_id: 100, hito_id: 77 })
+  assert.deepEqual(
+    cuerpoDeImportacion(100, { modo: 'nuevo', nombre: '  Septiembre 2026 ' }),
+    { origen_id: 100, hito_nombre: 'Septiembre 2026' }
+  )
+})
+
+test('el informe se pide contra el hito existente, o sin hito en los otros dos modos', () => {
+  assert.equal(hitoDelInforme({ modo: 'existente', hitoId: 77 }), 77)
+  assert.equal(hitoDelInforme({ modo: 'ninguno' }), null)
+  assert.equal(hitoDelInforme({ modo: 'nuevo', nombre: 'Octubre' }), null)
+})
+
+test('la previsualización de un hito nuevo deja todo el origen pendiente', () => {
+  const previa = previsualizarHitoNuevo(
+    informe({ hito: null, importadas: 12, pendientes: 0, listo: true }),
+    ' Octubre '
+  )
+
+  assert.deepEqual(previa.hito, { id: 0, nombre: 'Octubre' })
+  assert.equal(previa.importadas, 0)
+  assert.equal(previa.pendientes, 12)
+  assert.equal(previa.listo, false)
+  assert.match(resumenDelInforme(previa), /al hito nuevo "Octubre"\.$/)
 })
 
 test('el proyecto que se está mirando nunca es candidato a ser el origen', () => {
@@ -96,11 +126,28 @@ test('el buscador de origen ignora mayúsculas y acentos', () => {
   assert.deepEqual(filtrarOrigenes(proyectos, 200, 'nada').map((p) => p.id), [])
 })
 
-test('no se deja disparar la importación sin las dos elecciones', () => {
-  assert.equal(validarImportacion(null, 77, 200), 'Elegí de qué proyecto vas a traer las tareas.')
-  assert.equal(validarImportacion(100, null, 200), 'Elegí a qué hito van a entrar las tareas.')
-  assert.equal(validarImportacion(200, 77, 200), 'El proyecto de origen no puede ser este mismo.')
-  assert.equal(validarImportacion(100, 77, 200), null)
+test('no se deja disparar la importación con una elección incompleta', () => {
+  const conHito = { modo: 'existente', hitoId: 77 }
+
+  assert.equal(validarImportacion(null, 200, conHito), 'Elegí de qué proyecto vas a traer las tareas.')
+  assert.equal(validarImportacion(200, 200, conHito), 'El proyecto de origen no puede ser este mismo.')
+  assert.equal(validarImportacion(100, 200, { modo: 'existente', hitoId: null }), 'Elegí a qué hito van a entrar las tareas.')
+  assert.equal(validarImportacion(100, 200, conHito), null)
+})
+
+test('sin hito alcanza con el origen, y un hito nuevo exige un nombre razonable', () => {
+  assert.equal(validarImportacion(100, 200, { modo: 'ninguno' }), null)
+  assert.equal(validarImportacion(100, 200, { modo: 'nuevo', nombre: '   ' }), 'Escribí el nombre del hito nuevo.')
+  assert.match(validarImportacion(100, 200, { modo: 'nuevo', nombre: 'x'.repeat(192) }), /no puede pasar de 191/)
+  assert.equal(validarImportacion(100, 200, { modo: 'nuevo', nombre: 'Octubre' }), null)
+})
+
+test('sin hito el resumen nombra el proyecto de destino', () => {
+  assert.match(
+    resumenDelInforme(informe({ hito: null, importadas: 0, pendientes: 12, listo: false })),
+    /a "Cuenta Acme", sin hito\.$/
+  )
+  assert.match(resumenDelInforme(informe({ hito: null })), /están en "Cuenta Acme" con todos/)
 })
 
 test('el resumen distingue las cuatro situaciones que cambian lo que se puede hacer', () => {
