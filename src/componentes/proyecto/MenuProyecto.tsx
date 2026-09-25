@@ -56,14 +56,8 @@ interface PropsMenuProyecto {
   esAdmin?: boolean
 }
 
-/**
- * Campos editables de un Espacio, exactamente los que acepta `PATCH /projects/{id}`.
- *
- * Exportada porque la ficha de una Licitacion edita su Espacio con el mismo formulario.
- *
- * @returns Los cinco campos, en el orden del formulario.
- */
-export function camposDeEdicion (): CampoFormulario[] {
+/** Campos editables de un Espacio, exactamente los que acepta `PATCH /projects/{id}`. */
+function camposDeEdicion (): CampoFormulario[] {
   return [
     { clave: 'name', etiqueta: 'Nombre', tipo: 'texto', requerido: true, maximo: 600 },
     { clave: 'description', etiqueta: 'Descripción', tipo: 'area' },

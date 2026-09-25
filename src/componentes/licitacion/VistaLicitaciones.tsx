@@ -1,5 +1,6 @@
 'use client'
 
+import { ExternalLink } from 'lucide-react'
 import Link from 'next/link'
 import { useMemo } from 'react'
 import { TablaRecurso } from '@/componentes/datos/TablaRecurso'
@@ -50,7 +51,9 @@ export function VistaLicitaciones ({
               </Link>
             )
           }
-        : columna
+        : columna.clave === 'presentacion_url'
+          ? { ...columna, presentar: presentarEnlace }
+          : columna
     ))
   }), [])
 
@@ -73,5 +76,29 @@ export function VistaLicitaciones ({
       />
 
     </div>
+  )
+}
+
+/**
+ * Celda de la columna Carpeta: el link que abre la carpeta de la propuesta en otra pestaña, o una
+ * raya si no hay.
+ *
+ * @param licitacion la fila
+ * @returns el enlace, o la raya
+ */
+function presentarEnlace (licitacion: Licitacion) {
+  if (licitacion.presentacion_url === null) return <span className="text-texto-sutil">—</span>
+
+  return (
+    <a
+      href={licitacion.presentacion_url}
+      target="_blank"
+      rel="noopener noreferrer"
+      aria-label={`Abrir la carpeta de la propuesta de ${licitacion.company}`}
+      className="text-acento inline-flex items-center gap-1 font-medium underline-offset-4 hover:underline"
+    >
+      Abrir
+      <ExternalLink size={14} aria-hidden="true" />
+    </a>
   )
 }

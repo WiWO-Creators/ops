@@ -8,8 +8,8 @@
 
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { camposDeEdicionDeLicitacion, camposDeLicitacion } from '../src/componentes/licitacion/campos.ts'
-import { cuerpoDelFormulario, validarFormulario } from '../src/componentes/proyecto/formulario.ts'
+import { camposDeEdicionDeLicitacion, camposDeLicitacion, partirEdicionDeLicitacion } from '../src/componentes/licitacion/campos.ts'
+import { cuerpoDelFormulario, validarFormulario, valoresIniciales } from '../src/componentes/proyecto/formulario.ts'
 import { MODELOS_DE_SERVICIO } from '../src/definiciones/licitaciones.ts'
 import { EMPRESAS_DEL_HOLDING } from '../src/dominio/holding.ts'
 
@@ -112,6 +112,7 @@ test('el cuerpo separa lo propio de la licitacion de lo que va al Espacio', () =
     owner_id: 183,
     focal_id: 12,
     modelo_servicio: 'implementacion_mantencion',
+    presentacion_url: null,
     espacio: {
       name: 'Licitación Colbún 2026',
       start_date: '2026-01-05',
@@ -139,20 +140,61 @@ test('una fecha a medio escribir se señala con el formato que se ve en pantalla
   assert.equal(errores['espacio.start_date'], 'Usa el formato DD/MM/AAAA.')
 })
 
-test('la edicion ofrece exactamente los cinco campos que acepta el PATCH', () => {
+test('la edicion junta el Espacio y los seis campos propios, y nada de la empresa', () => {
   const campos = camposDeEdicionDeLicitacion(AREAS, STAFF)
 
-  assert.deepEqual(campos.map((uno) => uno.clave), ['empresa_holding', 'area_id', 'owner_id', 'focal_id', 'modelo_servicio'])
-  assert.ok(campos.every((uno) => uno.seccion === undefined))
+  assert.deepEqual(campos.map((uno) => uno.clave), [
+    'espacio.name', 'espacio.start_date', 'espacio.deadline', 'espacio.description',
+    'empresa_holding', 'area_id', 'modelo_servicio',
+    'owner_id', 'focal_id',
+    'presentacion_url'
+  ])
+  assert.deepEqual(campos.filter((uno) => uno.seccion !== undefined).map((uno) => uno.clave),
+    ['espacio.name', 'empresa_holding', 'owner_id', 'presentacion_url'])
   assert.deepEqual(campo(campos, 'owner_id').opciones, STAFF)
 })
 
-test('la edicion vacia un campo con null y vuelve numero los ids', () => {
+test('la edicion marca en el campo un link que la API rechazaria', () => {
   const campos = camposDeEdicionDeLicitacion(AREAS, STAFF)
-  const valores = { empresa_holding: '', area_id: '4', owner_id: '183', focal_id: '', modelo_servicio: '' }
+  const base = { 'espacio.name': 'Algo', 'espacio.start_date': '2026-01-05' }
 
-  assert.deepEqual(validarFormulario(campos, valores), {})
-  assert.deepEqual(cuerpoDelFormulario(campos, valores), {
-    empresa_holding: null, area_id: 4, owner_id: 183, focal_id: null, modelo_servicio: null
+  assert.match(validarFormulario(campos, { ...base, presentacion_url: 'drive.google.com/x' }).presentacion_url, /https/)
+  assert.match(validarFormulario(campos, { ...base, presentacion_url: 'javascript:alert(1)' }).presentacion_url, /http/)
+  assert.deepEqual(validarFormulario(campos, { ...base, presentacion_url: 'https://drive.google.com/drive/folders/abc' }), {})
+  assert.deepEqual(validarFormulario(campos, { ...base, presentacion_url: '' }), {})
+})
+
+test('la edicion manda a cada ruta solo lo que cambio', () => {
+  const campos = camposDeEdicionDeLicitacion(AREAS, STAFF)
+  const registro = {
+    empresa_holding: 'hl', area_id: 4, modelo_servicio: null, owner_id: 183, focal_id: null, presentacion_url: null,
+    espacio: { name: 'Licitación Colbún', start_date: '2026-01-05', deadline: null, description: 'Texto' }
+  }
+  const inicial = cuerpoDelFormulario(campos, valoresIniciales(campos, registro))
+
+  assert.deepEqual(partirEdicionDeLicitacion(inicial, inicial), { licitacion: null, espacio: null })
+
+  const valores = {
+    ...valoresIniciales(campos, registro),
+    'espacio.description': 'Texto nuevo',
+    focal_id: '12',
+    presentacion_url: '  https://drive.google.com/drive/folders/abc  '
+  }
+
+  assert.deepEqual(partirEdicionDeLicitacion(cuerpoDelFormulario(campos, valores), inicial), {
+    licitacion: { focal_id: 12, presentacion_url: 'https://drive.google.com/drive/folders/abc' },
+    espacio: { description: 'Texto nuevo' }
+  })
+})
+
+test('la edicion vacia un campo con null', () => {
+  const campos = camposDeEdicionDeLicitacion(AREAS, STAFF)
+  const registro = { owner_id: 183, presentacion_url: 'https://drive.google.com/x', espacio: { name: 'A', start_date: '2026-01-05' } }
+  const inicial = cuerpoDelFormulario(campos, valoresIniciales(campos, registro))
+  const valores = { ...valoresIniciales(campos, registro), owner_id: '', presentacion_url: '' }
+
+  assert.deepEqual(partirEdicionDeLicitacion(cuerpoDelFormulario(campos, valores), inicial), {
+    licitacion: { owner_id: null, presentacion_url: null },
+    espacio: null
   })
 })

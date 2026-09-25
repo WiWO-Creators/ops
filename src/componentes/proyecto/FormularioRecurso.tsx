@@ -65,6 +65,14 @@ interface PropsFormulario {
    * las fechas del Hito.
    */
   pie?: (valores: ValoresFormulario) => ReactNode
+  /**
+   * Reemplaza el envio a `ruta` cuando un formulario escribe en mas de un recurso.
+   *
+   * Existe por la edicion de una Licitacion: sus campos propios van a `PATCH /licitaciones/{id}` y
+   * los de su Espacio a `PATCH /projects/{id}`, y quien edita ve un solo formulario. Recibe el
+   * cuerpo ya armado y devuelve el mensaje de error a mostrar, o `null` si todo se guardo.
+   */
+  enviar?: (cuerpo: Record<string, unknown>) => Promise<string | null>
 }
 
 export function FormularioRecurso ({
@@ -79,7 +87,8 @@ export function FormularioRecurso ({
   onGuardado,
   columnas = 1,
   ancho = 'medio',
-  pie
+  pie,
+  enviar: enviarPropio
 }: PropsFormulario): ReactElement {
   const [valores, setValores] = useState<ValoresFormulario>(() => valoresIniciales(campos, registro))
   const [errores, setErrores] = useState<Record<string, string>>({})
@@ -118,15 +127,26 @@ export function FormularioRecurso ({
     setFallo(null)
 
     try {
-      const respuesta = await fetch(`/api/bff/${ruta}`, {
-        method: metodo,
-        headers: { 'content-type': 'application/json', accept: 'application/json' },
-        body: JSON.stringify(cuerpoDelFormulario(campos, valores))
-      })
+      const cuerpo = cuerpoDelFormulario(campos, valores)
 
-      if (!respuesta.ok) {
-        setFallo(await mensajeDeRespuesta(respuesta))
-        return
+      if (enviarPropio !== undefined) {
+        const error = await enviarPropio(cuerpo)
+
+        if (error !== null) {
+          setFallo(error)
+          return
+        }
+      } else {
+        const respuesta = await fetch(`/api/bff/${ruta}`, {
+          method: metodo,
+          headers: { 'content-type': 'application/json', accept: 'application/json' },
+          body: JSON.stringify(cuerpo)
+        })
+
+        if (!respuesta.ok) {
+          setFallo(await mensajeDeRespuesta(respuesta))
+          return
+        }
       }
 
       onAbiertoCambia(false)
@@ -337,8 +357,10 @@ export function ControlDeCampo (
   }
 
   if (campo.tipo === 'area') {
+    // Un solo bloque y no un fragmento: en un formulario de dos columnas el asistente caia en la
+    // celda siguiente de la rejilla, lejos de la caja que redacta.
     return (
-      <>
+      <div className="flex flex-col gap-2">
         <Campo
           etiqueta={campo.etiqueta}
           requerido={campo.requerido}
@@ -368,7 +390,7 @@ export function ControlDeCampo (
             />
           </div>
         )}
-      </>
+      </div>
     )
   }
 

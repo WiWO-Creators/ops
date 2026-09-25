@@ -517,6 +517,8 @@ export interface Licitacion {
   area_id: number | null
   /** Que contempla el trabajo: un `valor` de `MODELOS_DE_SERVICIO`. */
   modelo_servicio: string | null
+  /** Link a la carpeta de la propuesta (Drive u otro servicio), o `null`. Migracion `0990`. */
+  presentacion_url: string | null
   /** El dueño comercial, quien persigue la venta. */
   owner_id: number | null
   owner: { id: number, full_name: string } | null

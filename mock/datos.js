@@ -605,6 +605,7 @@ export const LICITACIONES = [
     empresa_holding: null,
     area_id: null,
     modelo_servicio: null,
+    presentacion_url: 'https://docs.google.com/presentation/d/1MetroSantiago2026/edit',
     owner_id: null,
     owner: null,
     espacio: espacioDeLicitacion(101)
@@ -624,6 +625,7 @@ export const LICITACIONES = [
     empresa_holding: null,
     area_id: null,
     modelo_servicio: null,
+    presentacion_url: null,
     owner_id: null,
     owner: null,
     espacio: espacioDeLicitacion(102)

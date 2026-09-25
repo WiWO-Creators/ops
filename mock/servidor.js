@@ -121,6 +121,23 @@ function responder (respuesta, estado, cuerpo) {
 const conDatos = (data, meta) => (meta ? { data, meta } : { data })
 
 /**
+ * Si un texto es un link web, como lo pide `Licitacion::enlace()`: parseable, con host y con
+ * esquema http o https. Una regex dejaba pasar `https://[roto`, que la API rechaza.
+ *
+ * @param {string} url El texto ya recortado.
+ * @returns {boolean} Si sirve como link.
+ */
+function esEnlaceWeb (url) {
+  try {
+    const partes = new URL(url)
+
+    return (partes.protocol === 'http:' || partes.protocol === 'https:') && partes.hostname !== '' && !/\s/.test(url)
+  } catch {
+    return false
+  }
+}
+
+/**
  * Lee y parsea el cuerpo JSON de la peticion.
  * @param {import('node:http').IncomingMessage} peticion
  * @returns {Promise<object>}
@@ -6848,7 +6865,7 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
   }
 
   /*
-   * `PATCH /licitaciones/{id}`: los cinco campos propios, igual que `Licitacion::editar()`. Otra
+   * `PATCH /licitaciones/{id}`: los seis campos propios, igual que `Licitacion::editar()`. Otra
    * clave es 422 `no_editable`, como en la API: aceptarla aca haria pasar en local un cuerpo que
    * produccion rechaza. Owner y focal se resuelven contra el staff para que la ficha los nombre.
    */
@@ -6856,12 +6873,21 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
     exigirPermiso(actual, 'projects', 'edit')
     const licitacion = buscarO404(LICITACIONES, Number(resto[0]), 'licitacion')
     const cambios = (await cuerpo()) ?? {}
-    const editables = ['empresa_holding', 'area_id', 'modelo_servicio', 'owner_id', 'focal_id']
+    const editables = ['empresa_holding', 'area_id', 'modelo_servicio', 'owner_id', 'focal_id', 'presentacion_url']
     const ajenas = Object.keys(cambios).filter((clave) => !editables.includes(clave))
 
     if (ajenas.length > 0) {
       throw new ErrorApi(422, 'no_editable', 'Hay campos que no se editan por esta ruta.',
         Object.fromEntries(ajenas.map((clave) => [clave, ['no_editable']])))
+    }
+
+    // El link se valida como en `Licitacion::enlace()`: solo http/https, y vacio vale null.
+    if ('presentacion_url' in cambios) {
+      const url = typeof cambios.presentacion_url === 'string' ? cambios.presentacion_url.trim() : cambios.presentacion_url
+      if (url !== null && url !== '' && (typeof url !== 'string' || !esEnlaceWeb(url) || url.length > 2048)) {
+        throw new ErrorApi(422, 'validation_failed', 'El enlace tiene que empezar con http:// o https://.', { presentacion_url: ['url'] })
+      }
+      cambios.presentacion_url = url === '' ? null : url
     }
 
     Object.assign(licitacion, cambios)
@@ -6896,31 +6922,37 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
     return cambiarVisibilidadDeAdjunto(actual, 'projects', ARCHIVOS.filter((a) => suyos.includes(a.rel_id)), resto[2], cuerpo)
   }
 
-  // "Dentro de este Espacio se ven todos los Procesos, no solo los propios" (migracion `0390`).
-  // Es lo unico que este `PATCH` acepta: la edicion completa del Espacio no esta en el mock, y
-  // aceptar aca cualquier campo haria pasar en local un cuerpo que la API rechaza.
+  // `PATCH /projects/{id}`: los campos que editan el formulario del Espacio y el de la Licitacion
+  // (nombre, descripcion, fechas, horas estimadas) y el interruptor "dentro de este Espacio se ven
+  // todos los Procesos" (migracion `0390`). Cualquier otra clave es 422, como en la API: aceptarla
+  // aca haria pasar en local un cuerpo que produccion rechaza.
   //
-  // Lo que el mock NO replica es el efecto: `GET /projects/{id}/tasks` sigue devolviendo todas las
-  // del Espacio, porque el mock no modela la visibilidad por persona. Lo que si replica es el dato
-  // que la ficha lee para dibujar el interruptor y el estado en que queda al tocarlo.
+  // Lo que el mock NO replica es el efecto del interruptor: `GET /projects/{id}/tasks` sigue
+  // devolviendo todas las del Espacio, porque el mock no modela la visibilidad por persona.
   if (recurso === 'projects' && metodo === 'PATCH' && resto.length === 1) {
     exigirPermiso(actual, 'projects', 'edit')
     const espacio = buscarO404(ESPACIOS_EXISTENTES, Number(resto[0]), 'espacio')
-    const cuerpoPatch = await cuerpo()
-    const valor = cuerpoPatch?.ver_todos_los_procesos
+    const cambios = (await cuerpo()) ?? {}
+    const permitidas = ['name', 'description', 'start_date', 'deadline', 'estimated_hours', 'ver_todos_los_procesos']
+    const ajenas = Object.keys(cambios).filter((clave) => !permitidas.includes(clave))
 
-    if (valor === undefined) {
-      throw new ErrorApi(422, 'validation_failed', 'El mock solo acepta `ver_todos_los_procesos`.', {
-        ver_todos_los_procesos: ['required']
-      })
+    if (ajenas.length > 0 || Object.keys(cambios).length === 0) {
+      throw new ErrorApi(422, 'validation_failed', 'Hay campos que no se pueden escribir.',
+        Object.fromEntries((ajenas.length > 0 ? ajenas : ['name']).map((clave) => [clave, ['invalid']])))
     }
-    if (typeof valor !== 'boolean') {
-      throw new ErrorApi(422, 'validation_failed', 'Hay campos que no se pueden escribir.', {
-        ver_todos_los_procesos: ['invalid']
-      })
+    if ('ver_todos_los_procesos' in cambios && typeof cambios.ver_todos_los_procesos !== 'boolean') {
+      throw new ErrorApi(422, 'validation_failed', 'Hay campos que no se pueden escribir.', { ver_todos_los_procesos: ['invalid'] })
+    }
+    if ('name' in cambios && (typeof cambios.name !== 'string' || cambios.name.trim() === '')) {
+      throw new ErrorApi(422, 'validation_failed', 'El nombre es obligatorio.', { name: ['required'] })
+    }
+    for (const fecha of ['start_date', 'deadline']) {
+      if (fecha in cambios && cambios[fecha] !== null && !/^\d{4}-\d{2}-\d{2}$/.test(String(cambios[fecha]))) {
+        throw new ErrorApi(422, 'validation_failed', 'Formato de fecha inválido.', { [fecha]: ['date'] })
+      }
     }
 
-    espacio.ver_todos_los_procesos = valor
+    Object.assign(espacio, cambios)
     return { estado: 200, cuerpo: conDatos(presentarEspacio(espacio)) }
   }
 

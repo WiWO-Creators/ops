@@ -7,12 +7,13 @@ import { Boton } from '@/componentes/formularios/Boton'
 import { DialogoEliminarProyecto } from '@/componentes/proyecto/DialogoEliminarProyecto'
 import { DialogoResultado } from '@/componentes/proyecto/DialogoResultado'
 import { FormularioRecurso } from '@/componentes/proyecto/FormularioRecurso'
-import { camposDeEdicion } from '@/componentes/proyecto/MenuProyecto'
-import type { OpcionCampo } from '@/componentes/proyecto/formulario'
+import { cuerpoDelFormulario, valoresIniciales, type OpcionCampo } from '@/componentes/proyecto/formulario'
+import { aTextoPlano } from '@/componentes/proyecto/formatos'
+import { mensajeDeRespuesta } from '@/datos/cliente'
 import type { LicitacionDetalle } from '@/datos/recursos'
 import type { Capacidad } from '@/datos/tipos'
 import { GLOSARIO } from '@/dominio/glosario'
-import { camposDeEdicionDeLicitacion } from './campos'
+import { camposDeEdicionDeLicitacion, partirEdicionDeLicitacion } from './campos'
 
 /**
  * Editar, ganar y perder una Licitacion, y el enlace a su prospecto.
@@ -20,13 +21,12 @@ import { camposDeEdicionDeLicitacion } from './campos'
  * Ganar y perder existen **solo mientras la licitacion esta abierta**: ganar o perder dos veces no
  * significa nada, y el backend responde 409.
  *
- * **Editar son dos formularios porque son dos recursos.** "Editar" escribe los cinco campos propios
- * con `PATCH /licitaciones/{id}` —holding, area, modelo de servicio, owner y focal— y "Editar
- * proyecto" el nombre, las fechas y la descripcion con `PATCH /projects/{id}`. Un solo formulario
- * tendria que mandar dos peticiones, y si la segunda falla deja guardada la mitad. La empresa y sus
- * personas de contacto no se editan acá: viven en el prospecto, que es uno para todas sus
- * licitaciones, y a eso lleva el enlace. Editar sigue disponible tras cerrarla: el backend no lo
- * impide, y corregir el owner de una licitacion ganada es un caso real.
+ * **Editar es un solo formulario sobre dos recursos.** Quien edita piensa en "la licitacion", no en
+ * que su nombre y su descripcion viven en el Espacio: el formulario junta todo y
+ * `guardarEdicion` reparte lo que cambio entre `PATCH /projects/{id}` y `PATCH /licitaciones/{id}`.
+ * La empresa y sus personas de contacto no se editan acá: viven en el prospecto, que es uno para
+ * todas sus licitaciones, y a eso lleva el enlace. Editar sigue disponible tras cerrarla: el backend
+ * no lo impide, y corregir el owner de una licitacion ganada es un caso real.
  *
  * **Eliminar** existe en cualquier estado —abierta, ganada o perdida— porque sirve para lo que no
  * debio crearse, no para cerrar la licitacion. Es `DELETE /projects/{id}`: el backend no tiene otro
@@ -48,7 +48,7 @@ interface PropsAcciones {
 
 export function AccionesLicitacion ({ licitacion, capacidades, areas, staff }: PropsAcciones): ReactElement {
   const router = useRouter()
-  const [editando, setEditando] = useState<'licitacion' | 'espacio' | null>(null)
+  const [editando, setEditando] = useState(false)
   const [confirmando, setConfirmando] = useState<'ganar' | 'perder' | null>(null)
   const [eliminando, setEliminando] = useState(false)
 
@@ -68,14 +68,9 @@ export function AccionesLicitacion ({ licitacion, capacidades, areas, staff }: P
       )}
 
       {puedeEditar && (
-        <>
-          <Boton variante="secundario" tamano="chico" onClick={() => { setEditando('licitacion') }}>
-            Editar
-          </Boton>
-          <Boton variante="secundario" tamano="chico" onClick={() => { setEditando('espacio') }}>
-            Editar {GLOSARIO.espacio.singular.toLowerCase()}
-          </Boton>
-        </>
+        <Boton variante="secundario" tamano="chico" onClick={() => { setEditando(true) }}>
+          Editar
+        </Boton>
       )}
 
       {abierta && puedeEditar && (
@@ -96,31 +91,14 @@ export function AccionesLicitacion ({ licitacion, capacidades, areas, staff }: P
       )}
 
       {puedeEditar && (
-        <>
-          <FormularioRecurso
-            abierto={editando === 'licitacion'}
-            onAbiertoCambia={(abierto) => { setEditando(abierto ? 'licitacion' : null) }}
-            titulo={`Editar la ${GLOSARIO.licitacion.singular.toLowerCase()} de ${licitacion.company}`}
-            descripcion="La empresa y sus contactos se editan en el prospecto."
-            campos={camposDeEdicionDeLicitacion(areas, staff)}
-            ruta={`licitaciones/${licitacion.id}`}
-            metodo="PATCH"
-            registro={licitacion as unknown as Record<string, unknown>}
-            onGuardado={() => { router.refresh() }}
-            columnas={2}
-          />
-          <FormularioRecurso
-            abierto={editando === 'espacio'}
-            onAbiertoCambia={(abierto) => { setEditando(abierto ? 'espacio' : null) }}
-            titulo={`Editar ${GLOSARIO.espacio.singular.toLowerCase()}`}
-            descripcion={licitacion.espacio.name}
-            campos={camposDeEdicion()}
-            ruta={`projects/${licitacion.espacio.id}`}
-            metodo="PATCH"
-            registro={licitacion.espacio as unknown as Record<string, unknown>}
-            onGuardado={() => { router.refresh() }}
-          />
-        </>
+        <EdicionLicitacion
+          licitacion={licitacion}
+          abierto={editando}
+          onAbiertoCambia={setEditando}
+          areas={areas}
+          staff={staff}
+          onGuardado={() => { router.refresh() }}
+        />
       )}
 
       <DialogoResultado
@@ -172,4 +150,102 @@ function Enlace ({ href, children }: { href: string, children: React.ReactNode }
       {children}
     </Link>
   )
+}
+
+interface PropsEdicion {
+  licitacion: LicitacionDetalle
+  abierto: boolean
+  onAbiertoCambia: (abierto: boolean) => void
+  areas: OpcionCampo[]
+  staff: OpcionCampo[]
+  onGuardado: () => void
+}
+
+/**
+ * El formulario unico de edicion: el Espacio, los datos propios, los responsables y la carpeta.
+ *
+ * La descripcion se siembra en texto plano porque asi la muestra la ficha; si nadie la toca no viaja,
+ * y una descripcion con formato hecha en el panel viejo queda intacta.
+ */
+function EdicionLicitacion ({ licitacion, abierto, onAbiertoCambia, areas, staff, onGuardado }: PropsEdicion): ReactElement {
+  const campos = camposDeEdicionDeLicitacion(areas, staff)
+  const registro = {
+    ...licitacion,
+    espacio: { ...licitacion.espacio, description: aTextoPlano(licitacion.espacio.description ?? '') }
+  }
+
+  return (
+    <FormularioRecurso
+      abierto={abierto}
+      onAbiertoCambia={onAbiertoCambia}
+      titulo={`Editar la ${GLOSARIO.licitacion.singular.toLowerCase()} de ${licitacion.company}`}
+      descripcion="La empresa y sus contactos se editan en el prospecto."
+      campos={campos}
+      ruta={`projects/${licitacion.espacio.id}`}
+      metodo="PATCH"
+      registro={registro}
+      columnas={2}
+      ancho="grande"
+      enviar={async (cuerpo) => {
+        const inicial = cuerpoDelFormulario(campos, valoresIniciales(campos, registro))
+        const error = await guardarEdicion(licitacion, partirEdicionDeLicitacion(cuerpo, inicial))
+
+        // Con la mitad guardada tambien se refresca: la ficha tiene que mostrar lo que ya quedo.
+        if (error !== null && error.parcial) onGuardado()
+
+        return error?.mensaje ?? null
+      }}
+      onGuardado={onGuardado}
+    />
+  )
+}
+
+/**
+ * Manda cada parte de la edicion a su ruta: primero el Espacio, despues la licitacion.
+ *
+ * El Espacio va primero porque es el que mas rechaza (nombre obligatorio, fechas); si falla no se
+ * guardo nada. Si falla la segunda, el mensaje dice que la primera si quedo, y como solo viaja lo
+ * cambiado, guardar otra vez manda solo lo que falto.
+ *
+ * @param licitacion La licitacion que se edita.
+ * @param partes Lo cambiado, repartido por recurso.
+ * @returns `null` si todo se guardo, o el mensaje y si quedo algo guardado.
+ */
+async function guardarEdicion (
+  licitacion: LicitacionDetalle,
+  partes: ReturnType<typeof partirEdicionDeLicitacion>
+): Promise<{ mensaje: string, parcial: boolean } | null> {
+  if (partes.espacio !== null) {
+    const respuesta = await patch(`projects/${licitacion.espacio.id}`, partes.espacio)
+    if (!respuesta.ok) return { mensaje: await mensajeDeRespuesta(respuesta), parcial: false }
+  }
+
+  if (partes.licitacion !== null) {
+    const respuesta = await patch(`licitaciones/${licitacion.id}`, partes.licitacion)
+
+    if (!respuesta.ok) {
+      const mensaje = await mensajeDeRespuesta(respuesta)
+
+      return partes.espacio === null
+        ? { mensaje, parcial: false }
+        : { mensaje: `Se guardaron los datos del ${GLOSARIO.espacio.singular.toLowerCase()}, pero no el resto: ${mensaje}`, parcial: true }
+    }
+  }
+
+  return null
+}
+
+/**
+ * `PATCH` al BFF con un cuerpo JSON.
+ *
+ * @param ruta Ruta del BFF sin barra inicial.
+ * @param cuerpo Lo que se manda.
+ * @returns La respuesta tal cual.
+ */
+async function patch (ruta: string, cuerpo: Record<string, unknown>): Promise<Response> {
+  return await fetch(`/api/bff/${ruta}`, {
+    method: 'PATCH',
+    headers: { 'content-type': 'application/json', accept: 'application/json' },
+    body: JSON.stringify(cuerpo)
+  })
 }

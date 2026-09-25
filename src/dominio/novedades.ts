@@ -54,6 +54,20 @@ export const ROTULO_TIPO: Record<TipoNovedad, string> = {
 export const NOVEDADES: Novedad[] = [
   {
     fecha: '2026-09-25',
+    tipo: 'nuevo',
+    titulo: 'Cada licitación guarda el link a la carpeta de su propuesta',
+    detalle: 'Se pega arriba de la ficha de la licitación y queda a un clic para todo el equipo. También aparece en la columna Carpeta del listado.',
+    commits: ['board@c252755']
+  },
+  {
+    fecha: '2026-09-25',
+    tipo: 'mejora',
+    titulo: 'Toda la licitación se edita desde un solo botón',
+    detalle: 'Editar reúne el nombre, las fechas y la descripción del proyecto con los datos de la licitación, sus responsables y la carpeta de la propuesta.',
+    commits: []
+  },
+  {
+    fecha: '2026-09-25',
     tipo: 'mejora',
     titulo: 'La hora de "¿Estás ahí?" se configura en Administración',
     detalle: 'Los superadministradores tienen una pestaña Jornada para encender la pregunta, fijar su hora y los minutos entre preguntas.',

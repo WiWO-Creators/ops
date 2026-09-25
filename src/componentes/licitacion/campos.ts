@@ -1,5 +1,6 @@
 import type { CampoFormulario, OpcionCampo } from '@/componentes/proyecto/formulario'
 import { MODELOS_DE_SERVICIO } from '../../definiciones/licitaciones.ts'
+import { LARGO_MAXIMO_ENLACE, revisarEnlaceDePresentacion } from '../../dominio/presentacion-licitacion.ts'
 import { GLOSARIO } from '../../dominio/glosario.ts'
 import { EMPRESAS_DEL_HOLDING } from '../../dominio/holding.ts'
 
@@ -11,13 +12,13 @@ import { EMPRESAS_DEL_HOLDING } from '../../dominio/holding.ts'
  * importaciones son relativas y no por alias para que `node --test` pueda cargarlo sin resolver
  * `@/`: el alias solo sobrevive en los `import type`, que el intérprete borra.
  *
- * La edicion ofrece **solo los cinco campos propios** que acepta `PATCH /licitaciones/{id}`: la
- * empresa y sus contactos se editan en el prospecto y los campos del Espacio con
- * `PATCH /projects/{id}`. Ofrecer otro campo acá escribiria algo que la ruta rechaza con un 422.
+ * La edicion junta en un formulario los seis campos propios (`PATCH /licitaciones/{id}`) y los del
+ * Espacio (`PATCH /projects/{id}`); ver `camposDeEdicionDeLicitacion`. La empresa y sus contactos se
+ * editan en el prospecto.
  */
 
 /** Las claves que acepta `PATCH /licitaciones/{id}`: espejo de `Licitacion::CAMPOS_PROPIOS`. */
-const CAMPOS_EDITABLES = ['empresa_holding', 'area_id', 'modelo_servicio', 'owner_id', 'focal_id']
+const CAMPOS_EDITABLES = ['empresa_holding', 'area_id', 'modelo_servicio', 'owner_id', 'focal_id', 'presentacion_url']
 
 /** Largo maximo del nombre del Espacio, tomado de `tblprojects`. */
 const LARGO_NOMBRE_ESPACIO = 191
@@ -107,23 +108,120 @@ export function camposDeLicitacion (
     { clave: 'espacio.start_date', etiqueta: 'Fecha de inicio', tipo: 'fecha', requerido: true },
     { clave: 'espacio.deadline', etiqueta: 'Fecha de entrega', tipo: 'fecha' },
     { clave: 'modelo_servicio', etiqueta: 'Modelo de servicio', tipo: 'seleccion', opciones: MODELOS_DE_SERVICIO },
-    { clave: 'espacio.description', etiqueta: 'Descripción', tipo: 'area' }
+    { clave: 'espacio.description', etiqueta: 'Descripción', tipo: 'area' },
+    {
+      clave: 'presentacion_url',
+      etiqueta: 'Carpeta de la propuesta',
+      tipo: 'texto',
+      maximo: LARGO_MAXIMO_ENLACE,
+      ayuda: 'El link de la carpeta de Drive donde se arma la propuesta. Se puede pegar después desde la ficha.',
+      validar: errorDelEnlace
+    }
   ]
 }
 
 /**
- * Campos de la edicion de una Licitacion: los cinco propios, con las mismas reglas que en el alta.
+ * Campos de la edicion de una Licitacion: todo lo que se puede cambiar, en un solo formulario.
  *
- * Salen de `camposDeLicitacion` filtrados y no de una lista aparte para que el alta y la edicion no
- * puedan ofrecer opciones distintas del mismo campo. Se quita la `seccion`: con cinco campos los
- * rotulos de grupo sobran, y el primero que quedaba ("Empresa candidata") ya no describe nada.
+ * Son dos recursos detras de una misma pantalla. Los seis propios van a `PATCH /licitaciones/{id}`
+ * y los del Espacio (`espacio.*`: nombre, fechas y descripcion) a `PATCH /projects/{id}`; el reparto
+ * lo hace `partirEdicionDeLicitacion`. Quien edita no tiene por que saber que la licitacion y su
+ * Espacio son dos filas.
+ *
+ * Salen de `camposDeLicitacion` y no de una lista aparte para que el alta y la edicion no puedan
+ * ofrecer opciones distintas del mismo campo. Lo que no se edita es la empresa: se cambia en el
+ * prospecto, y cambiarla aca colgaria la licitacion de otra empresa sin sus contactos.
  *
  * @param areas Catalogo `areas` de `GET /lookups`, ya en forma de opciones.
  * @param staff Catalogo `staff` de `GET /lookups`, para el owner y el focal.
- * @returns Los cinco campos, en el orden del alta.
+ * @returns Los campos en cuatro bloques: el Espacio, los datos, los responsables y la carpeta.
  */
 export function camposDeEdicionDeLicitacion (areas: OpcionCampo[], staff: OpcionCampo[]): CampoFormulario[] {
-  return camposDeLicitacion([], areas, staff)
-    .filter((campo) => CAMPOS_EDITABLES.includes(campo.clave))
-    .map(({ seccion: _seccion, ...campo }) => campo)
+  const delAlta = new Map(camposDeLicitacion([], areas, staff).map(({ seccion: _seccion, ...campo }) => [campo.clave, campo]))
+  const bloques: Array<[string, string[]]> = [
+    [GLOSARIO.espacio.singular, ['espacio.name', 'espacio.start_date', 'espacio.deadline', 'espacio.description']],
+    [GLOSARIO.licitacion.singular, ['empresa_holding', 'area_id', 'modelo_servicio']],
+    ['Responsables', ['owner_id', 'focal_id']],
+    ['Carpeta de la propuesta', ['presentacion_url']]
+  ]
+
+  return bloques.flatMap(([seccion, claves]) => claves.flatMap((clave, indice) => {
+    const campo = delAlta.get(clave)
+
+    if (campo === undefined) return []
+
+    return [indice === 0 ? { ...campo, seccion } : campo]
+  }))
+}
+
+/** Cuerpos de la edicion de una Licitacion, uno por recurso. `null` si ese recurso no se toca. */
+export interface EdicionDeLicitacion {
+  licitacion: Record<string, unknown> | null
+  espacio: Record<string, unknown> | null
+}
+
+/**
+ * Parte el cuerpo del formulario de edicion en lo que va a cada ruta, con solo lo que cambio.
+ *
+ * `cuerpoDelFormulario` ya anida las claves `espacio.*` bajo `espacio`; esto las separa y descarta
+ * lo que quedo igual que al abrir. Mandar solo lo cambiado importa por dos cosas: si una de las dos
+ * peticiones falla, reintentar no reescribe lo que ya se guardo; y una descripcion con formato que
+ * nadie toco no se pisa con su version en texto plano.
+ *
+ * @param cuerpo El cuerpo armado con `camposDeEdicionDeLicitacion` y lo que hay escrito.
+ * @param inicial El mismo cuerpo armado con los valores con que se abrio el formulario.
+ * @returns El cuerpo de cada `PATCH`, o `null` en el que no hay nada que mandar.
+ */
+export function partirEdicionDeLicitacion (
+  cuerpo: Record<string, unknown>,
+  inicial: Record<string, unknown>
+): EdicionDeLicitacion {
+  return {
+    licitacion: cambiados(cuerpo, inicial, CAMPOS_EDITABLES),
+    espacio: cambiados(anidado(cuerpo), anidado(inicial), null)
+  }
+}
+
+/**
+ * Las claves de `cuerpo` cuyo valor difiere del de `inicial`.
+ *
+ * @param cuerpo Lo que se va a mandar.
+ * @param inicial Lo que habia al abrir.
+ * @param permitidas Las claves que se aceptan, o `null` para todas.
+ * @returns Las claves cambiadas, o `null` si no cambio ninguna.
+ */
+function cambiados (
+  cuerpo: Record<string, unknown>,
+  inicial: Record<string, unknown>,
+  permitidas: string[] | null
+): Record<string, unknown> | null {
+  const entradas = Object.entries(cuerpo).filter(([clave, valor]) =>
+    (permitidas === null || permitidas.includes(clave)) && valor !== inicial[clave]
+  )
+
+  return entradas.length > 0 ? Object.fromEntries(entradas) : null
+}
+
+/**
+ * El bloque `espacio` de un cuerpo, o un objeto vacio si no viene.
+ *
+ * @param cuerpo Un cuerpo armado por `cuerpoDelFormulario`.
+ * @returns Los campos del Espacio.
+ */
+function anidado (cuerpo: Record<string, unknown>): Record<string, unknown> {
+  return typeof cuerpo.espacio === 'object' && cuerpo.espacio !== null
+    ? cuerpo.espacio as Record<string, unknown>
+    : {}
+}
+
+/**
+ * Regla del campo de la carpeta en el formulario: la misma que aplica la API.
+ *
+ * @param texto Lo escrito en el campo, ya sin espacios a los lados.
+ * @returns El mensaje a mostrar bajo el campo, o `null` si el link sirve.
+ */
+function errorDelEnlace (texto: string): string | null {
+  const revision = revisarEnlaceDePresentacion(texto)
+
+  return revision.valido ? null : revision.error
 }
