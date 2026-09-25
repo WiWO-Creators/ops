@@ -35,6 +35,8 @@ interface PropsFlujo {
   areas: OpcionCampo[]
   /** Catalogo `staff` de `GET /lookups`, para los campos Owner y Focal del paso 3. */
   staff: OpcionCampo[]
+  /** Catalogo `tags` de `GET /lookups`, lo que se sugiere en el campo Etiquetas. */
+  etiquetas?: OpcionCampo[]
   prospecto?: Pick<Prospecto, 'id' | 'empresa' | 'cliente'>
   contactos?: ContactoProspecto[]
   onCerrar: () => void
@@ -61,15 +63,15 @@ function cargarBorrador (clave: string, inicial: BorradorLicitacion) {
  * del tercer paso, que nunca fue obligatorio. Lo que quede vacío no se pierde: `PendientesLicitacion`
  * lo reclama en la ficha hasta que alguien lo complete.
  */
-export function FlujoLicitacion ({ usuarioId, capacidades, paises, areas, staff, prospecto, contactos = [], onCerrar, onGuardado }: PropsFlujo) {
+export function FlujoLicitacion ({ usuarioId, capacidades, paises, areas, staff, etiquetas = [], prospecto, contactos = [], onCerrar, onGuardado }: PropsFlujo) {
   const router = useRouter()
   const clave = claveBorrador(usuarioId, prospecto?.id)
   const camposEmpresa = useMemo(() => camposDeProspecto(paises), [paises])
   // `prospecto_id` se quita porque el prospecto ya quedó elegido en el paso 1. Los catalogos van en
   // las dependencias: sin ellas los selectores se congelarían con lo que hubiera en el primer render.
   const camposLicitacion = useMemo(
-    () => camposDeLicitacion([], areas, staff).filter((campo) => campo.clave !== 'prospecto_id'),
-    [areas, staff]
+    () => camposDeLicitacion([], areas, staff, etiquetas).filter((campo) => campo.clave !== 'prospecto_id'),
+    [areas, staff, etiquetas]
   )
   const [carga] = useState(() => cargarBorrador(clave, crearBorrador(prospecto?.id ?? null,
     valoresIniciales(camposEmpresa, prospecto ? { cliente: prospecto.cliente } : null))))

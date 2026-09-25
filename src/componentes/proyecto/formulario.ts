@@ -6,9 +6,14 @@
  * y este modulo, que valida y arma el cuerpo. La parte visual vive en `FormularioRecurso.tsx`.
  */
 
+import { LARGO_MAXIMO_ETIQUETA } from '../../dominio/etiquetas.ts'
 import { aFechaLocal } from '../../lib/fechas.ts'
 
-export type TipoCampo = 'texto' | 'area' | 'fecha' | 'color' | 'booleano' | 'numero' | 'seleccion' | 'seleccion-multiple'
+/**
+ * `etiquetas` es una lista de NOMBRES, no de ids: la API crea el nombre que no existe. Sus `opciones`
+ * son el catálogo que se sugiere mientras se escribe, no un límite de lo que se puede poner.
+ */
+export type TipoCampo = 'texto' | 'area' | 'fecha' | 'color' | 'booleano' | 'numero' | 'seleccion' | 'seleccion-multiple' | 'etiquetas'
 
 /** Una opcion de un campo `seleccion`. El valor viaja como cadena y se convierte al armar el cuerpo. */
 export interface OpcionCampo {
@@ -104,6 +109,17 @@ export function validarFormulario (
       continue
     }
 
+    if (campo.tipo === 'etiquetas') {
+      const nombres = Array.isArray(valor) ? valor : []
+
+      if (nombres.some((nombre) => nombre.trim().length > LARGO_MAXIMO_ETIQUETA)) {
+        errores[campo.clave] = `Cada etiqueta puede tener hasta ${LARGO_MAXIMO_ETIQUETA} caracteres.`
+      } else if (campo.requerido === true && nombres.length === 0) {
+        errores[campo.clave] = 'Este campo es obligatorio.'
+      }
+      continue
+    }
+
     if (campo.tipo === 'booleano') continue
 
     const texto = typeof valor === 'string' ? valor.trim() : ''
@@ -172,6 +188,11 @@ export function cuerpoDelFormulario (
     if (campo.tipo === 'seleccion-multiple') {
       escribirEn(cuerpo, campo.clave, [...new Set(Array.isArray(valor) ? valor : [])]
         .map((id) => /^\d+$/.test(id) ? Number(id) : id))
+      continue
+    }
+
+    if (campo.tipo === 'etiquetas') {
+      escribirEn(cuerpo, campo.clave, Array.isArray(valor) ? valor.map((nombre) => nombre.trim()).filter((nombre) => nombre !== '') : [])
       continue
     }
 
@@ -261,6 +282,11 @@ export function valoresIniciales (
       continue
     }
 
+    if (campo.tipo === 'etiquetas') {
+      valores[campo.clave] = Array.isArray(crudo) ? nombresDeEtiquetasCrudas(crudo) : []
+      continue
+    }
+
     if (campo.tipo === 'booleano') {
       valores[campo.clave] = crudo === true
       continue
@@ -270,4 +296,22 @@ export function valoresIniciales (
   }
 
   return valores
+}
+
+/**
+ * Los nombres de una lista de etiquetas tal como llega de la API (`[{ id, name }]`) o ya en nombres.
+ *
+ * @param crudo el valor leido del registro
+ * @returns los nombres, sin vacios
+ */
+function nombresDeEtiquetasCrudas (crudo: unknown[]): string[] {
+  return crudo.flatMap((etiqueta) => {
+    const nombre = typeof etiqueta === 'string'
+      ? etiqueta
+      : typeof etiqueta === 'object' && etiqueta !== null && typeof (etiqueta as { name?: unknown }).name === 'string'
+        ? (etiqueta as { name: string }).name
+        : ''
+
+    return nombre.trim() === '' ? [] : [nombre]
+  })
 }

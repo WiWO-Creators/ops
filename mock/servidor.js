@@ -684,6 +684,29 @@ function textoDeSolicitud (crudo, campo, obligatorio) {
  * Presenta un Espacio con sus contadores. Los `counts` viajan siempre: sin ellos, la lista tendria
  * que hacer una consulta por fila.
  */
+/**
+ * Las etiquetas del catalogo para una lista de nombres, creando las que no existen.
+ *
+ * Igual que `Etiquetas::guardar()`: el nombre se busca sin distinguir mayusculas, el que falta se
+ * suma a `ETIQUETAS` (y aparece en `/lookups`), y los repetidos se descartan.
+ */
+function etiquetasPorNombre (nombres) {
+  const puestas = []
+  for (const crudo of nombres) {
+    const nombre = crudo.trim()
+    if (nombre === '' || puestas.some((e) => e.name.toLowerCase() === nombre.toLowerCase())) continue
+
+    let etiqueta = ETIQUETAS.find((e) => e.name.toLowerCase() === nombre.toLowerCase())
+    if (!etiqueta) {
+      etiqueta = { id: Math.max(0, ...ETIQUETAS.map((e) => e.id)) + 1, name: nombre }
+      ETIQUETAS.push(etiqueta)
+    }
+    puestas.push(etiqueta)
+  }
+
+  return puestas
+}
+
 function presentarEspacio (espacio, includes = []) {
   const cliente = CLIENTES.find((c) => c.id === espacio.clientid)
   const suyos = PROCESOS.filter((p) => p.project?.id === espacio.id)
@@ -7313,7 +7336,7 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
   }
 
   // `PATCH /projects/{id}`: los campos que editan el formulario del Espacio y el de la Licitacion
-  // (nombre, descripcion, fechas, horas estimadas) y el interruptor "dentro de este Espacio se ven
+  // (nombre, descripcion, fechas, horas estimadas, etiquetas por nombre) y el interruptor "dentro de este Espacio se ven
   // todos los Procesos" (migracion `0390`). Cualquier otra clave es 422, como en la API: aceptarla
   // aca haria pasar en local un cuerpo que produccion rechaza.
   //
@@ -7327,7 +7350,7 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
       throw new ErrorApi(422, 'validation_failed', 'Este proyecto está archivado: desarchívalo antes de editarlo.', { archivado: ['archived'] })
     }
     const cambios = (await cuerpo()) ?? {}
-    const permitidas = ['name', 'description', 'start_date', 'deadline', 'estimated_hours', 'ver_todos_los_procesos']
+    const permitidas = ['name', 'description', 'start_date', 'deadline', 'estimated_hours', 'ver_todos_los_procesos', 'tags']
     const ajenas = Object.keys(cambios).filter((clave) => !permitidas.includes(clave))
 
     if (ajenas.length > 0 || Object.keys(cambios).length === 0) {
@@ -7346,7 +7369,15 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
       }
     }
 
-    Object.assign(espacio, cambios)
+    // Como `Etiquetas::nombresLimpios()`: una lista de textos de hasta 100, que reemplaza la actual.
+    if ('tags' in cambios && (!Array.isArray(cambios.tags) ||
+      cambios.tags.some((nombre) => typeof nombre !== 'string' || nombre.trim().length > 100))) {
+      throw new ErrorApi(422, 'validation_failed', 'Hay campos que no se pueden escribir.', { tags: ['invalid'] })
+    }
+
+    const { tags, ...columnas } = cambios
+    Object.assign(espacio, columnas)
+    if (tags !== undefined) espacio.tags = etiquetasPorNombre(tags)
     return { estado: 200, cuerpo: conDatos(presentarEspacio(espacio)) }
   }
 

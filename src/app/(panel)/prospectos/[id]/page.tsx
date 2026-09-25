@@ -140,6 +140,7 @@ export default async function ProspectoPage (props: PageProps<'/prospectos/[id]'
           paises={comoOpciones(paises)}
           areas={comoOpciones(listaDe(lookups, 'areas'))}
           staff={comoOpciones(listaDe(lookups, 'staff'))}
+          etiquetas={comoOpciones(listaDe(lookups, 'tags'))}
           capacidades={capacidades}
         />
       )

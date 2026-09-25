@@ -52,12 +52,14 @@ const LARGO_NOMBRE_ESPACIO = 191
  * @param prospectos Los prospectos entre los que elegir, ya en forma de opciones.
  * @param areas Catalogo `areas` de `GET /lookups` (las areas del equipo), ya en forma de opciones.
  * @param staff Catalogo `staff` de `GET /lookups`, para el owner y el focal.
+ * @param etiquetas Catalogo `tags` de `GET /lookups`, lo que se sugiere al escribir una etiqueta.
  * @returns Los campos de las dos secciones, en el orden en que se llenan.
  */
 export function camposDeLicitacion (
   prospectos: OpcionCampo[],
   areas: OpcionCampo[] = [],
-  staff: OpcionCampo[] = []
+  staff: OpcionCampo[] = [],
+  etiquetas: OpcionCampo[] = []
 ): CampoFormulario[] {
   return [
     {
@@ -111,6 +113,13 @@ export function camposDeLicitacion (
     { clave: 'modelo_servicio', etiqueta: 'Modelo de servicio', tipo: 'seleccion', opciones: MODELOS_DE_SERVICIO },
     { clave: 'espacio.description', etiqueta: 'Descripción', tipo: 'area' },
     {
+      clave: 'espacio.tags',
+      etiqueta: 'Etiquetas',
+      tipo: 'etiquetas',
+      opciones: etiquetas,
+      ayuda: 'Elige una existente o escribe una nueva: si no existe, se crea al guardar.'
+    },
+    {
       clave: 'presentacion_url',
       etiqueta: 'Carpeta de la propuesta',
       tipo: 'texto',
@@ -125,7 +134,7 @@ export function camposDeLicitacion (
  * Campos de la edicion de una Licitacion: todo lo que se puede cambiar, en un solo formulario.
  *
  * Son dos recursos detras de una misma pantalla. Los seis propios van a `PATCH /licitaciones/{id}`
- * y los del Espacio (`espacio.*`: nombre, fechas y descripcion) a `PATCH /projects/{id}`; el reparto
+ * y los del Espacio (`espacio.*`: nombre, fechas, descripcion y etiquetas) a `PATCH /projects/{id}`; el reparto
  * lo hace `partirEdicionDeLicitacion`. Quien edita no tiene por que saber que la licitacion y su
  * Espacio son dos filas.
  *
@@ -135,12 +144,17 @@ export function camposDeLicitacion (
  *
  * @param areas Catalogo `areas` de `GET /lookups`, ya en forma de opciones.
  * @param staff Catalogo `staff` de `GET /lookups`, para el owner y el focal.
+ * @param etiquetas Catalogo `tags` de `GET /lookups`, lo que se sugiere al escribir una etiqueta.
  * @returns Los campos en cuatro bloques: el Espacio, los datos, los responsables y la carpeta.
  */
-export function camposDeEdicionDeLicitacion (areas: OpcionCampo[], staff: OpcionCampo[]): CampoFormulario[] {
-  const delAlta = new Map(camposDeLicitacion([], areas, staff).map(({ seccion: _seccion, ...campo }) => [campo.clave, campo]))
+export function camposDeEdicionDeLicitacion (
+  areas: OpcionCampo[],
+  staff: OpcionCampo[],
+  etiquetas: OpcionCampo[] = []
+): CampoFormulario[] {
+  const delAlta = new Map(camposDeLicitacion([], areas, staff, etiquetas).map(({ seccion: _seccion, ...campo }) => [campo.clave, campo]))
   const bloques: Array<[string, string[]]> = [
-    [GLOSARIO.espacio.singular, ['espacio.name', 'espacio.start_date', 'espacio.deadline', 'espacio.description']],
+    [GLOSARIO.espacio.singular, ['espacio.name', 'espacio.start_date', 'espacio.deadline', 'espacio.description', 'espacio.tags']],
     [GLOSARIO.licitacion.singular, ['empresa_holding', 'area_id', 'modelo_servicio']],
     ['Responsables', ['owner_id', 'focal_id']],
     ['Carpeta de la propuesta', ['presentacion_url']]

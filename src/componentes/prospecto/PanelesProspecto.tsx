@@ -118,6 +118,7 @@ export function PanelContactosProspecto ({
  * @param paises catalogo `countries` de `GET /lookups`, para el paso de la empresa
  * @param areas catalogo `areas` de `GET /lookups`, para el campo Área del asistente
  * @param staff catalogo `staff` de `GET /lookups`, para los campos Owner y Focal del asistente
+ * @param etiquetas catalogo `tags` de `GET /lookups`, lo que se sugiere en el campo Etiquetas
  * @param capacidades capacidades sobre `projects`, de `permissions` de `/me`
  */
 export function PanelLicitacionesProspecto ({
@@ -127,8 +128,9 @@ export function PanelLicitacionesProspecto ({
   paises,
   areas,
   staff,
+  etiquetas = [],
   capacidades
-}: { prospecto: Pick<Prospecto, 'id' | 'empresa' | 'cliente'>, contactos: ContactoProspecto[], usuarioId: number, paises: OpcionCampo[], areas: OpcionCampo[], staff: OpcionCampo[], capacidades: Capacidad[] }): ReactElement {
+}: { prospecto: Pick<Prospecto, 'id' | 'empresa' | 'cliente'>, contactos: ContactoProspecto[], usuarioId: number, paises: OpcionCampo[], areas: OpcionCampo[], staff: OpcionCampo[], etiquetas?: OpcionCampo[], capacidades: Capacidad[] }): ReactElement {
   const prospectoId = prospecto.id
   const router = useRouter()
   const [creando, setCreando] = useState(false)
@@ -180,6 +182,7 @@ export function PanelLicitacionesProspecto ({
           paises={paises}
           areas={areas}
           staff={staff}
+          etiquetas={etiquetas}
           prospecto={prospecto}
           contactos={contactos}
           onCerrar={() => { setCreando(false) }}
