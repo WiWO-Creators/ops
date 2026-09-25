@@ -15,6 +15,7 @@ import { PaletaDeComandos } from '@/componentes/paleta/PaletaDeComandos'
 import type { Fijado } from '@/componentes/fijados/fijados'
 import { BarraInferiorMovil } from '@/componentes/estructura/BarraInferiorMovil'
 import { AppInstalable } from '@/componentes/estructura/AppInstalable'
+import { RecordatorioInstalar } from '@/componentes/estructura/RecordatorioInstalar'
 import { BarraSuplantacion } from '@/componentes/estructura/BarraSuplantacion'
 import { AtajoDirecto } from '@/componentes/estructura/AtajoDirecto'
 import { Latido } from '@/componentes/auditoria/Latido'
@@ -91,6 +92,9 @@ export default async function PanelLayout ({ children }: { children: React.React
       {/* El service worker de la aplicacion instalable. Va aca por lo mismo que el vigilante: la
           version con la que se registra tiene que ser la de este JavaScript. */}
       <AppInstalable version={versionDelServidor()} />
+
+      {/* Una vez al dia, a quien usa Ops desde el navegador, le propone instalarlo como aplicacion. */}
+      <RecordatorioInstalar />
 
       {/* Por el mismo motivo que el latido: el chat dejo de ser de un Espacio y su asunto es todo el
           panel. Montado aca —fuera del contenedor que scrollea— el orbe flota sobre cualquier
