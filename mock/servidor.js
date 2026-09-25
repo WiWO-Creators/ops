@@ -3793,6 +3793,32 @@ function presentarMedidor (medidor) {
  */
 const CIERRE_MOCK = { hora: '18:30', minutosDeProrroga: 30 }
 
+/** El grupo `jornada` de `GET /settings`, con la forma de `RecursoAjustes::presentar()`. */
+function opcionesDeJornada () {
+  const interruptor = INTERRUPTORES_MANT.find((i) => i.clave === 'wiwo_live_cierre_automatico')
+
+  return {
+    wiwo_live_cierre_automatico: { group: 'jornada', type: 'bool', value: interruptor?.valor === true },
+    wiwo_live_hora_cierre: {
+      group: 'jornada', type: 'texto', value: CIERRE_MOCK.hora, maxlen: 5, pattern: '^([01]\\d|2[0-3]):[0-5]\\d$'
+    },
+    wiwo_live_prorroga_minutos: {
+      group: 'jornada', type: 'entero', value: CIERRE_MOCK.minutosDeProrroga, min: 5, max: 240
+    }
+  }
+}
+
+/** Aplica las claves de jornada de un `PATCH /settings`, ignorando el resto. */
+function escribirAjustesDeJornada (cambios) {
+  const interruptor = INTERRUPTORES_MANT.find((i) => i.clave === 'wiwo_live_cierre_automatico')
+
+  if ('wiwo_live_cierre_automatico' in cambios && interruptor) {
+    interruptor.valor = cambios.wiwo_live_cierre_automatico === true || cambios.wiwo_live_cierre_automatico === '1'
+  }
+  if (typeof cambios.wiwo_live_hora_cierre === 'string') CIERRE_MOCK.hora = cambios.wiwo_live_hora_cierre
+  if ('wiwo_live_prorroga_minutos' in cambios) CIERRE_MOCK.minutosDeProrroga = Number(cambios.wiwo_live_prorroga_minutos)
+}
+
 /**
  * Cuando se cierra sola una jornada, en epoch.
  *
@@ -6334,7 +6360,12 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
   // asistente existe y si se puede escribir un Meeting Paper. Viene en `1` para que el mock sirva
   // para probar la capa de IA; la instalacion real arranca en `0`.
   if (recurso === 'settings' && (metodo === 'GET' || metodo === 'PATCH')) {
-    if (metodo === 'PATCH') escribirAjustesDelOrbePortal(await cuerpo())
+    if (metodo === 'PATCH') {
+      const cambios = await cuerpo()
+
+      escribirAjustesDelOrbePortal(cambios)
+      escribirAjustesDeJornada(cambios)
+    }
 
     return {
       estado: 200,
@@ -6342,7 +6373,8 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
         editable: {
           ia_habilitada: { value: true, tipo: 'bool' },
           ia_tope_tokens: { value: 700, tipo: 'int' },
-          ...opcionDelOrbePortal()
+          ...opcionDelOrbePortal(),
+          ...opcionesDeJornada()
         }
       })
     }

@@ -2240,6 +2240,10 @@ export interface AjusteEditable {
   min?: number
   max?: number
   options?: string[]
+  /** Solo en `texto`: largo maximo que acepta la API. */
+  maxlen?: number
+  /** Solo en `texto`: expresion regular sin delimitadores que la API valida, si la hay. */
+  pattern?: string
 }
 
 /**

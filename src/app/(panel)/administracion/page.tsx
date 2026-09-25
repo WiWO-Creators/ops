@@ -158,6 +158,18 @@ export default async function AdministracionPage () {
       )
     },
     {
+      clave: 'jornada',
+      etiqueta: 'Jornada',
+      contenido: (
+        <FormularioDeAjustes
+          inicial={ajustes}
+          grupo="jornada"
+          claves={clavesDelGrupo(ajustes, 'jornada')}
+          dominios={dominios}
+        />
+      )
+    },
+    {
       clave: 'ia',
       etiqueta: 'IA',
       contenido: (
