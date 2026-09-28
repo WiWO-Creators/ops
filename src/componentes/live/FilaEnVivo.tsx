@@ -3,6 +3,7 @@
 import { useRef, useState } from 'react'
 import { Square, Timer } from 'lucide-react'
 import { Boton } from '@/componentes/formularios/Boton'
+import { ConfirmacionEnLinea } from '@/componentes/datos/ConfirmacionEnLinea'
 import { escribirEnBff } from '@/componentes/datos/mutaciones'
 import { avisarCambioDeMedidor } from './medidor'
 import { haceCuanto } from '@/componentes/auditoria/presentacion'
@@ -210,17 +211,16 @@ export function FilaEnVivo ({ fila, transcurrido, puedeDetener, estados = [] }: 
       </div>
 
       {confirmando && (
-        <div className="border-linea-suave flex flex-wrap items-center gap-2 border-t pt-3">
-          <p className="text-texto-tenue basis-full text-sm text-pretty">
-            ¿Detener el cronómetro de {staff.name}? Se guardará el tiempo hasta ahora. La jornada seguirá abierta.
-          </p>
-          <Boton tamano="chico" className="min-h-11" cargando={enCurso} onClick={() => { void detener() }}>
-            Confirmar detención
-          </Boton>
-          <Boton tamano="chico" className="min-h-11" variante="sutil" disabled={enCurso} onClick={() => { setConfirmando(false); setError(null) }}>
-            Cancelar
-          </Boton>
-          {error !== null && <p role="alert" className="text-texto-peligro basis-full text-sm">{error}</p>}
+        <div className="border-linea-suave border-t pt-3">
+          <ConfirmacionEnLinea
+            advertencia={`¿Detener el cronómetro de ${staff.name}? Se guardará el tiempo hasta ahora. La jornada seguirá abierta.`}
+            etiquetaConfirmar="Confirmar detención"
+            varianteConfirmar="secundario"
+            cargando={enCurso}
+            error={error}
+            onCancelar={() => { setConfirmando(false); setError(null) }}
+            onConfirmar={() => { void detener() }}
+          />
         </div>
       )}
     </li>

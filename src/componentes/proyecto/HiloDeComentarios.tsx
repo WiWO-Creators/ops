@@ -3,6 +3,7 @@
 import { CornerDownRight, SendHorizontal, Trash2 } from 'lucide-react'
 import { useId, useState, type FormEvent, type KeyboardEvent, type ReactElement } from 'react'
 import { AvisoEnLinea, Cargando, ErrorEstado } from '@/componentes/estado/Estados'
+import { ConfirmacionEnLinea } from '@/componentes/datos/ConfirmacionEnLinea'
 import { escribirEnBff } from '@/componentes/datos/mutaciones'
 import { Boton } from '@/componentes/formularios/Boton'
 import { AreaTexto } from '@/componentes/formularios/Entrada'
@@ -145,23 +146,16 @@ export function HiloDeComentarios (
   function acciones (comentario: ComentarioDeHilo, respuestas: number | null): ReactElement {
     if (confirmandoBorrado === comentario.id) {
       return (
-        <span className="flex items-center gap-1" role="group" aria-label="Confirmar borrado">
-          <span className="text-texto-tenue text-xs">
-            {respuestas !== null && respuestas > 0 ? `¿Borrar con sus ${respuestas} ${respuestas === 1 ? 'respuesta' : 'respuestas'}?` : '¿Borrar?'}
-          </span>
-          <Boton
-            variante="peligro"
-            tamano="chico"
-            className="h-7"
-            cargando={borrando === comentario.id}
-            onClick={() => { void borrar(comentario.id) }}
-          >
-            Borrar
-          </Boton>
-          <Boton variante="sutil" tamano="chico" className="h-7" onClick={() => { setConfirmandoBorrado(null) }}>
-            Cancelar
-          </Boton>
-        </span>
+        <ConfirmacionEnLinea
+          disposicion="linea"
+          advertencia={respuestas !== null && respuestas > 0
+            ? `¿Borrar con sus ${respuestas} ${respuestas === 1 ? 'respuesta' : 'respuestas'}?`
+            : '¿Borrar?'}
+          etiquetaConfirmar="Borrar"
+          cargando={borrando === comentario.id}
+          onCancelar={() => { setConfirmandoBorrado(null) }}
+          onConfirmar={() => { void borrar(comentario.id) }}
+        />
       )
     }
 

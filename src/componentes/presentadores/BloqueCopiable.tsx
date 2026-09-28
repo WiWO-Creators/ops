@@ -1,7 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
-
+import { useCopiarAlPortapapeles } from '@/componentes/datos/BotonCopiar'
 import { cn } from '@/lib/clases'
 
 interface PropsBloqueCopiable {
@@ -17,29 +16,12 @@ interface PropsBloqueCopiable {
  *
  * Hermano de `CodigoCopiable`, y aparte de él por la forma de lo que muestra: aquel es un
  * identificador de una línea que vive dentro de una frase; este son varias líneas que la persona no
- * tiene por qué entender y sí tiene que poder pegar en un reporte sin transcribir nada.
- *
- * `navigator.clipboard` no existe fuera de un contexto seguro y puede negarse aunque exista, así que
- * el fallo se traga y el botón simplemente no confirma —mismo criterio que `CodigoCopiable`—. El
- * texto queda seleccionable de todos modos, que es la salida de siempre.
+ * tiene por qué entender y sí tiene que poder pegar en un reporte sin transcribir nada. Los dos usan
+ * el mismo `useCopiarAlPortapapeles` —misma duración, mismo aviso de error— sin dibujar el `Boton`
+ * entero de `BotonCopiar`.
  */
 export function BloqueCopiable ({ titulo, texto, className }: PropsBloqueCopiable) {
-  const [copiado, setCopiado] = useState(false)
-  const temporizador = useRef<number | undefined>(undefined)
-
-  // Sin este cierre, el temporizador sobrevive al desmontaje y escribe estado sobre un componente
-  // que ya no existe.
-  useEffect(() => () => { window.clearTimeout(temporizador.current) }, [])
-
-  const copiar = useCallback(() => {
-    navigator.clipboard?.writeText(texto)
-      .then(() => {
-        setCopiado(true)
-        window.clearTimeout(temporizador.current)
-        temporizador.current = window.setTimeout(() => { setCopiado(false) }, 1500)
-      })
-      .catch(() => { setCopiado(false) })
-  }, [texto])
+  const { copiado, copiar } = useCopiarAlPortapapeles(texto)
 
   return (
     <div className={cn('border-linea rounded-tarjeta bg-superficie flex flex-col gap-2 border p-3', className)}>

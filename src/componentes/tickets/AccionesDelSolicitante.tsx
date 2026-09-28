@@ -1,7 +1,8 @@
 'use client'
 
-import { useEffect, useId, useRef, useState, type ReactElement } from 'react'
+import { useRef, useState, type ReactElement } from 'react'
 import { Boton } from '@/componentes/formularios/Boton'
+import { ConfirmacionEnLinea } from '@/componentes/datos/ConfirmacionEnLinea'
 import { escribirEnBff } from '@/componentes/datos/mutaciones'
 import { falloDeTicket, rutaDeTicket, type FuenteDeTicket, type TicketVista } from '@/dominio/ticket-vista'
 
@@ -33,13 +34,6 @@ export function AccionesDelSolicitante ({
   const [enCurso, setEnCurso] = useState(false)
   const [fallo, setFallo] = useState<string | null>(null)
   const enCursoAhora = useRef(false)
-  const idPregunta = useId()
-  const idConfirmar = useId()
-
-  // El foco va al «Sí, cerrar»: quien llego con el teclado sigue en la pregunta que se le hizo.
-  useEffect(() => {
-    if (confirmando) document.getElementById(idConfirmar)?.focus()
-  }, [confirmando, idConfirmar])
 
   const puedeCerrar = fuente.cerrar !== null && ticket.acciones.cerrar
   const puedeReabrir = fuente.reabrir !== null && ticket.acciones.reabrir
@@ -88,19 +82,15 @@ export function AccionesDelSolicitante ({
       )}
 
       {puedeCerrar && confirmando && (
-        <div role="group" aria-labelledby={idPregunta} className="flex flex-wrap items-center justify-between gap-2">
-          <p id={idPregunta} className="text-texto text-sm font-medium">
-            ¿Cerrar este ticket? Podrás reabrirlo por un tiempo si hace falta.
-          </p>
-          <div className="flex gap-2">
-            <Boton variante="sutil" tamano="chico" disabled={enCurso} onClick={() => { setConfirmando(false) }}>
-              Cancelar
-            </Boton>
-            <Boton id={idConfirmar} variante="primario" tamano="chico" cargando={enCurso} onClick={() => { void ejecutar('cerrar') }}>
-              Sí, cerrar
-            </Boton>
-          </div>
-        </div>
+        <ConfirmacionEnLinea
+          disposicion="linea"
+          advertencia="¿Cerrar este ticket? Podrás reabrirlo por un tiempo si hace falta."
+          etiquetaConfirmar="Sí, cerrar"
+          varianteConfirmar="primario"
+          cargando={enCurso}
+          onCancelar={() => { setConfirmando(false) }}
+          onConfirmar={() => { void ejecutar('cerrar') }}
+        />
       )}
 
       {puedeReabrir && (

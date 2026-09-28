@@ -1,9 +1,10 @@
 'use client'
 
-import { ChevronDown, ChevronUp, ImageOff, Megaphone, Pencil, Plus, Trash2, X } from 'lucide-react'
+import { ChevronDown, ChevronUp, ImageOff, Megaphone, Pencil, Plus, Trash2 } from 'lucide-react'
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type ChangeEvent, type ReactElement } from 'react'
 import { escribirEnBff, type Resultado } from '@/componentes/datos/mutaciones'
 import { Boton } from '@/componentes/formularios/Boton'
+import { ConfirmacionEnLinea } from '@/componentes/datos/ConfirmacionEnLinea'
 import { Campo } from '@/componentes/formularios/Campo'
 import { AreaTexto, Entrada } from '@/componentes/formularios/Entrada'
 import { ContenidoSelector, DisparadorSelector, Opcion, Selector } from '@/componentes/formularios/Selector'
@@ -406,14 +407,13 @@ function FilaDeAnuncio ({
       <div className="flex shrink-0 items-center gap-1">
         {confirmando
           ? (
-            <>
-              <Boton variante="peligro" tamano="chico" cargando={ocupado} onClick={onBorrar}>
-                Borrar de verdad
-              </Boton>
-              <Boton variante="sutil" tamano="chico" soloIcono aria-label="Dejarlo como está" onClick={onCancelarBorrado}>
-                <X className="size-4" aria-hidden />
-              </Boton>
-            </>
+            <ConfirmacionEnLinea
+              disposicion="linea"
+              etiquetaConfirmar="Borrar de verdad"
+              cargando={ocupado}
+              onConfirmar={onBorrar}
+              onCancelar={onCancelarBorrado}
+            />
             )
           : (
             <>

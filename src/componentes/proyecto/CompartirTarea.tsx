@@ -1,9 +1,11 @@
 'use client'
 
-import { Check, Copy, Share2 } from 'lucide-react'
+import { Share2 } from 'lucide-react'
 import { useCallback, useState, type ReactElement } from 'react'
 import { escribirEnBff } from '@/componentes/datos/mutaciones'
 import { Cargando, SinPermiso } from '@/componentes/estado/Estados'
+import { BotonCopiar } from '@/componentes/datos/BotonCopiar'
+import { ConfirmacionEnLinea } from '@/componentes/datos/ConfirmacionEnLinea'
 import { Boton } from '@/componentes/formularios/Boton'
 import { CLASES_CASILLA, Entrada } from '@/componentes/formularios/Entrada'
 import { Fecha } from '@/componentes/presentadores/Fecha'
@@ -61,7 +63,6 @@ export function CompartirTarea ({ procesoId }: { procesoId: number }): ReactElem
   const [estado, setEstado] = useState<Estado>({ fase: 'cargando' })
   const [enviando, setEnviando] = useState(false)
   const [confirmandoRevocar, setConfirmandoRevocar] = useState(false)
-  const [copiado, setCopiado] = useState(false)
   const [elegidas, setElegidas] = useState<SeccionEnlacePublico[]>([...SECCIONES_POR_DEFECTO])
 
   const cargarEstado = useCallback(async () => {
@@ -86,7 +87,6 @@ export function CompartirTarea ({ procesoId }: { procesoId: number }): ReactElem
   function alCambiarApertura (abierto: boolean): void {
     setEnviando(false)
     setConfirmandoRevocar(false)
-    setCopiado(false)
 
     if (abierto) void cargarEstado()
     else setEstado({ fase: 'cargando' })
@@ -95,7 +95,6 @@ export function CompartirTarea ({ procesoId }: { procesoId: number }): ReactElem
   async function generar (): Promise<void> {
     setEnviando(true)
     setConfirmandoRevocar(false)
-    setCopiado(false)
 
     const resultado = await escribirEnBff<EnlaceProcesoGenerado>(
       `tasks/${procesoId}/share`,
@@ -125,7 +124,6 @@ export function CompartirTarea ({ procesoId }: { procesoId: number }): ReactElem
    */
   async function guardarSecciones (url: string | null): Promise<void> {
     setEnviando(true)
-    setCopiado(false)
 
     const resultado = await escribirEnBff<EstadoEnlaceProceso>(
       `tasks/${procesoId}/share`,
@@ -146,7 +144,6 @@ export function CompartirTarea ({ procesoId }: { procesoId: number }): ReactElem
 
   async function revocar (): Promise<void> {
     setEnviando(true)
-    setCopiado(false)
 
     const resultado = await escribirEnBff(`tasks/${procesoId}/share`, 'DELETE')
 
@@ -159,22 +156,6 @@ export function CompartirTarea ({ procesoId }: { procesoId: number }): ReactElem
     }
 
     setEstado({ fase: 'listo', enlace: { shared: false, expires_at: null, sections: [] }, url: null })
-  }
-
-  /**
-   * Copia la URL al portapapeles.
-   *
-   * El campo queda de solo lectura y seleccionable igual: donde el portapapeles no esta disponible
-   * —contexto inseguro, permiso denegado— la persona todavia puede seleccionar y copiar a mano, y el
-   * fallo se dice en vez de fingir que copio.
-   */
-  async function copiar (url: string): Promise<void> {
-    try {
-      await navigator.clipboard.writeText(url)
-      setCopiado(true)
-    } catch {
-      setEstado({ fase: 'error', mensaje: 'No pudimos copiar el enlace. Selecciónalo y cópialo a mano.' })
-    }
   }
 
   return (
@@ -217,12 +198,11 @@ export function CompartirTarea ({ procesoId }: { procesoId: number }): ReactElem
                   onFocus={(evento) => { evento.currentTarget.select() }}
                   className="font-mono text-xs"
                 />
-                <Boton variante="secundario" tamano="chico" onClick={() => { void copiar(estado.url ?? '') }}>
-                  {copiado
-                    ? <Check size={14} strokeWidth={2} aria-hidden="true" />
-                    : <Copy size={14} strokeWidth={2} aria-hidden="true" />}
-                  {copiado ? 'Copiado' : 'Copiar'}
-                </Boton>
+                <BotonCopiar
+                  key={estado.url}
+                  valor={estado.url ?? ''}
+                  mensajeError="No pudimos copiar el enlace. Selecciónalo y cópialo a mano."
+                />
               </div>
             )}
 
@@ -244,19 +224,14 @@ export function CompartirTarea ({ procesoId }: { procesoId: number }): ReactElem
 
             {confirmandoRevocar
               ? (
-                <div className="border-linea-suave flex flex-col gap-2 border-t pt-4">
-                  <p className="text-texto-tenue text-sm">
-                    Se corta el acceso de cualquiera que tenga el enlace. No se puede deshacer: habría
-                    que generar uno nuevo y volver a repartirlo.
-                  </p>
-                  <div className="flex justify-end gap-2">
-                    <Boton variante="sutil" tamano="chico" onClick={() => { setConfirmandoRevocar(false) }}>
-                      Cancelar
-                    </Boton>
-                    <Boton variante="peligro" tamano="chico" cargando={enviando} onClick={() => { void revocar() }}>
-                      Revocar
-                    </Boton>
-                  </div>
+                <div className="border-linea-suave border-t pt-4">
+                  <ConfirmacionEnLinea
+                    advertencia="Se corta el acceso de cualquiera que tenga el enlace. No se puede deshacer: habría que generar uno nuevo y volver a repartirlo."
+                    etiquetaConfirmar="Revocar"
+                    cargando={enviando}
+                    onCancelar={() => { setConfirmandoRevocar(false) }}
+                    onConfirmar={() => { void revocar() }}
+                  />
                 </div>
                 )
               : (

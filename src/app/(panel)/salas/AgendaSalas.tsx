@@ -10,6 +10,7 @@ import { Segmentado } from '@/componentes/formularios/Segmentado'
 import { Insignia } from '@/componentes/presentadores/Insignia'
 import { CerrarDialogo, ContenidoDialogo, Dialogo } from '@/componentes/superposiciones/Dialogo'
 import { escribirEnBff } from '@/componentes/datos/mutaciones'
+import { ConfirmacionEnLinea } from '@/componentes/datos/ConfirmacionEnLinea'
 import { TituloModulo } from '@/componentes/estructura/TituloModulo'
 import { useAviso } from '@/componentes/estado/useAviso'
 import { DialogoReserva, type BorradorReserva } from './DialogoReserva'
@@ -389,19 +390,15 @@ function DetalleReserva ({ reserva, puedeTocar, onCerrar, onEditar, onCancelado 
               modal, y un `Dialogo` sobre otro deja los dos peleando por el foco. */}
           {puedeTocar && confirmandoCancelacion
             ? (
-              <div className="border-linea flex flex-col gap-2 border-t pt-2">
-                <p className="text-texto-sutil text-xs">
-                  Se cancela la reserva de &quot;{reserva.title}&quot; en {reserva.room_name}. La sala
-                  queda libre para esa franja.
-                </p>
-                <div className="flex justify-end gap-2">
-                  <Boton variante="sutil" onClick={() => { setConfirmandoCancelacion(false) }}>
-                    Volver
-                  </Boton>
-                  <Boton variante="peligro" cargando={cancelando} onClick={() => { void cancelar() }}>
-                    Cancelar reserva
-                  </Boton>
-                </div>
+              <div className="border-linea border-t pt-2">
+                <ConfirmacionEnLinea
+                  advertencia={`Se cancela la reserva de "${reserva.title}" en ${reserva.room_name}. La sala queda libre para esa franja.`}
+                  etiquetaCancelar="Volver"
+                  etiquetaConfirmar="Cancelar reserva"
+                  cargando={cancelando}
+                  onCancelar={() => { setConfirmandoCancelacion(false) }}
+                  onConfirmar={() => { void cancelar() }}
+                />
               </div>
               )
             : (

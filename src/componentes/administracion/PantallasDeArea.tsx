@@ -1,8 +1,9 @@
 'use client'
 
-import { Building2, Check, ChevronDown, ChevronUp, Copy, MonitorPlay, RefreshCw, Trash2 } from 'lucide-react'
+import { Building2, ChevronDown, ChevronUp, MonitorPlay, RefreshCw, Trash2 } from 'lucide-react'
 import { useCallback, useState, type ReactElement } from 'react'
 import { escribirEnBff } from '@/componentes/datos/mutaciones'
+import { BotonCopiar } from '@/componentes/datos/BotonCopiar'
 import { Boton } from '@/componentes/formularios/Boton'
 import { Entrada } from '@/componentes/formularios/Entrada'
 import { Vacio } from '@/componentes/estado/Estados'
@@ -131,7 +132,6 @@ function FilaDePantalla ({ fila, onCambio, onError }: {
 }): ReactElement {
   const [abierta, setAbierta] = useState(false)
   const [trabajando, setTrabajando] = useState(false)
-  const [copiado, setCopiado] = useState(false)
 
   /**
    * Manda una escritura y devuelve si salió bien, aparte de lo que haya devuelto.
@@ -182,19 +182,6 @@ function FilaDePantalla ({ fila, onCambio, onError }: {
     setAbierta(false)
   }, [escribir, fila, onCambio])
 
-  const copiar = useCallback(async (): Promise<void> => {
-    const url = urlDePantallaDeArea(window.location.origin, fila.code ?? '')
-
-    if (url === null) return
-
-    try {
-      await navigator.clipboard.writeText(url)
-      setCopiado(true)
-    } catch {
-      onError('No pudimos copiar. Selecciona la dirección y cópiala a mano.')
-    }
-  }, [fila.code, onError])
-
   return (
     <li className="border-linea bg-superficie-elevada flex flex-col gap-3 rounded-lg border p-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -224,10 +211,12 @@ function FilaDePantalla ({ fila, onCambio, onError }: {
           {fila.shared
             ? (
               <>
-                <Boton variante="secundario" tamano="chico" onClick={() => { void copiar() }}>
-                  {copiado ? <Check className="size-4" aria-hidden /> : <Copy className="size-4" aria-hidden />}
-                  {copiado ? 'Copiada' : 'Copiar URL'}
-                </Boton>
+                <BotonCopiar
+                  valor={() => urlDePantallaDeArea(window.location.origin, fila.code ?? '')}
+                  etiqueta="Copiar URL"
+                  etiquetaCopiado="Copiada"
+                  mensajeError="No pudimos copiar. Selecciona la dirección y cópiala a mano."
+                />
                 <Boton
                   variante="secundario"
                   tamano="chico"
