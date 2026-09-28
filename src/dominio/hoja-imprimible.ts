@@ -2,12 +2,13 @@
  * La hoja de supervisión en papel: el documento HTML que se manda a imprimir.
  *
  * Existe porque la revisión se hace también recorriendo la oficina con la hoja en la mano. El papel
- * repite la hoja del día —agrupada como se eligió en pantalla, por cliente o por persona, con el
+ * repite la hoja del día —agrupada como se eligió en pantalla, por cliente, persona o área, con el
  * atraso o la hora de cierre de cada Tarea— y agrega lo que en pantalla no hace falta: dos casillas
  * para marcar a mano, una línea de observaciones y el pie con dos firmas, la del supervisor y la
  * confirmación del jefe. Si la hoja ya tiene revisión digital, la casilla sale marcada; si ya está
  * firmada o confirmada, cada bloque lleva su sello además de la línea. La columna "Revisión equipo"
- * aparece solo cuando alguien de la gente a cargo ya revisó alguna Tarea ese día.
+ * aparece solo cuando alguien de la gente a cargo ya revisó alguna Tarea ese día. Las Tareas
+ * completadas no se imprimen: en papel no hay nada que revisar de ellas; en pantalla se siguen viendo.
  *
  * **Todo el texto va escapado.** Los nombres de Tareas, Proyectos, clientes y personas los escribe
  * cualquiera, y el documento se carga en un iframe del mismo origen: un `<img onerror>` en el nombre
@@ -198,11 +199,20 @@ const ESTILOS = `
  */
 export function htmlDeHojaImprimible (hoja: HojaDeSupervision, modo: ModoDeAgrupacion = 'cliente'): string {
   const titulo = `Supervisión diaria · ${formatearFecha(hoja.fecha)}`
-  const grupos = agruparHoja(hoja, modo)
+  const hojaSinCompletadas: HojaDeSupervision = {
+    ...hoja,
+    clientes: hoja.clientes.map((cliente) => ({
+      ...cliente,
+      tareas: cliente.tareas.filter((tarea) => !tarea.completada)
+    }))
+  }
+  const grupos = agruparHoja(hojaSinCompletadas, modo)
+  const totalTareas = hojaSinCompletadas.clientes.reduce((total, cliente) => total + cliente.tareas.length, 0)
   const conEquipo = hayRevisionesDelEquipo(hoja)
   const cuerpo = grupos.length === 0
     ? '<p class="vacio">Sin tareas por supervisar este día.</p>'
     : grupos.map((grupo) => tablaDeGrupo(grupo, hoja.fecha, conEquipo)).join('\n')
+  const etiquetaDeModo = modo === 'persona' ? 'persona' : modo === 'area' ? 'área' : 'cliente'
 
   return `<!doctype html>
 <html lang="es"><head><meta charset="utf-8">
@@ -210,7 +220,7 @@ export function htmlDeHojaImprimible (hoja: HojaDeSupervision, modo: ModoDeAgrup
 <style>${ESTILOS}</style></head>
 <body>
 <h1>Supervisión diaria</h1>
-<p class="datos">Supervisor: <strong>${escaparHtml(hoja.supervisor.nombre)}</strong> · Fecha: <strong>${escaparHtml(formatearFecha(hoja.fecha))}</strong> · ${escaparHtml(hoja.totales.tareas)} tareas, ${escaparHtml(hoja.totales.atrasadas)} atrasadas, ${escaparHtml(hoja.totales.completadas)} completadas · Agrupada por ${modo === 'persona' ? 'persona' : 'cliente'}</p>
+<p class="datos">Supervisor: <strong>${escaparHtml(hoja.supervisor.nombre)}</strong> · Fecha: <strong>${escaparHtml(formatearFecha(hoja.fecha))}</strong> · ${escaparHtml(totalTareas)} tareas, ${escaparHtml(hoja.totales.atrasadas)} atrasadas · Agrupada por ${etiquetaDeModo}</p>
 ${cuerpo}
 ${pieDeFirmas(hoja)}
 </body></html>`

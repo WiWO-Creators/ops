@@ -297,12 +297,13 @@ export function mensajeDeRechazo (mensaje: string, estado: number | undefined, d
 }
 
 /** Cómo se agrupan las Tareas de la hoja en pantalla y en papel. */
-export type ModoDeAgrupacion = 'cliente' | 'persona'
+export type ModoDeAgrupacion = 'cliente' | 'persona' | 'area'
 
 /** Las opciones del selector "Agrupar por", en orden. */
 export const MODOS_DE_AGRUPACION: { valor: ModoDeAgrupacion, etiqueta: string }[] = [
   { valor: 'cliente', etiqueta: 'Cliente' },
-  { valor: 'persona', etiqueta: 'Persona' }
+  { valor: 'persona', etiqueta: 'Persona' },
+  { valor: 'area', etiqueta: 'Área' }
 ]
 
 /** Título del grupo de las Tareas sin cliente, el mismo que manda la API. */
@@ -310,6 +311,9 @@ export const TITULO_SIN_CLIENTE = 'Sin cliente'
 
 /** Título del grupo de las Tareas sin nadie asignado, al agrupar por persona. */
 export const TITULO_SIN_ASIGNAR = 'Sin asignar'
+
+/** Título del grupo de las Tareas sin área, al agrupar por área. */
+export const TITULO_SIN_AREA = 'Sin área'
 
 /** Un bloque de la hoja: un cliente o una persona, con sus Tareas. */
 export interface GrupoDeHoja {
@@ -333,6 +337,7 @@ export interface GrupoDeHoja {
  */
 export function agruparHoja (hoja: HojaDeSupervision, modo: ModoDeAgrupacion): GrupoDeHoja[] {
   if (modo === 'persona') return agruparPorPersona(hoja)
+  if (modo === 'area') return agruparPorArea(hoja)
 
   const grupos = hoja.clientes
     .filter((cliente) => cliente.tareas.length > 0)
@@ -348,15 +353,22 @@ export function agruparHoja (hoja: HojaDeSupervision, modo: ModoDeAgrupacion): G
   ]
 }
 
-/** El modo `persona` de `agruparHoja`. */
+/** Si un asignado cuelga del organigrama del supervisor; sin el campo, se trata como `true`. */
+function esDelEquipo (persona: { del_equipo?: boolean }): boolean {
+  return persona.del_equipo !== false
+}
+
+/** El modo `persona` de `agruparHoja`: solo agrupa por quienes son del equipo del supervisor. */
 function agruparPorPersona (hoja: HojaDeSupervision): GrupoDeHoja[] {
   const porPersona = new Map<number, GrupoDeHoja>()
   const sinAsignar: TareaDeLaHoja[] = []
 
   for (const tarea of hoja.clientes.flatMap((cliente) => cliente.tareas)) {
-    if (tarea.asignados.length === 0) sinAsignar.push(tarea)
+    const delEquipo = tarea.asignados.filter(esDelEquipo)
 
-    for (const persona of tarea.asignados) {
+    if (delEquipo.length === 0) sinAsignar.push(tarea)
+
+    for (const persona of delEquipo) {
       const grupo = porPersona.get(persona.staffid) ?? { clave: `persona-${persona.staffid}`, titulo: persona.nombre, tareas: [] }
 
       if (!grupo.tareas.includes(tarea)) grupo.tareas.push(tarea)
@@ -372,13 +384,49 @@ function agruparPorPersona (hoja: HojaDeSupervision): GrupoDeHoja[] {
 }
 
 /**
+ * El modo `area` de `agruparHoja`.
+ *
+ * Una Tarea aparece una vez por cada área de sus asignados (nunca repetida dentro de la misma área,
+ * aunque varias personas compartan área); las sin área van a "Sin área", al final. Los grupos salen
+ * ordenados por nombre, con "Sin área" siempre último.
+ */
+function agruparPorArea (hoja: HojaDeSupervision): GrupoDeHoja[] {
+  const porArea = new Map<string, GrupoDeHoja>()
+  const sinArea: TareaDeLaHoja[] = []
+
+  for (const tarea of hoja.clientes.flatMap((cliente) => cliente.tareas)) {
+    const areas = (tarea.areas ?? []).filter((area) => area.trim() !== '')
+
+    if (areas.length === 0) {
+      sinArea.push(tarea)
+      continue
+    }
+
+    for (const area of areas) {
+      const grupo = porArea.get(area) ?? { clave: `area-${area}`, titulo: area, tareas: [] }
+
+      if (!grupo.tareas.includes(tarea)) grupo.tareas.push(tarea)
+      porArea.set(area, grupo)
+    }
+  }
+
+  const grupos = [...porArea.values()].sort((a, b) => a.titulo.localeCompare(b.titulo, 'es'))
+
+  return sinArea.length === 0
+    ? grupos
+    : [...grupos, { clave: 'area-sin', titulo: TITULO_SIN_AREA, tareas: sinArea }]
+}
+
+/**
  * El modo de agrupación de un texto (un parámetro, un valor guardado); cualquier otra cosa es cliente.
  *
  * @param valor el texto crudo
  * @returns el modo
  */
 export function modoDeAgrupacion (valor: unknown): ModoDeAgrupacion {
-  return valor === 'persona' ? 'persona' : 'cliente'
+  if (valor === 'persona' || valor === 'area') return valor
+
+  return 'cliente'
 }
 
 /** Cómo se pinta el estado de una Tarea: completada, vence hoy o atrasada. */

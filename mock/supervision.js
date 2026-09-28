@@ -8,12 +8,17 @@
  *    escalón no llega a `lead`.
  *  - Los clientes de un supervisor son esa asociación **más** los clientes donde es Focal.
  *  - Supervisor = escalón `lead` o superior **y** (algún cliente, o alguien a cargo en el árbol).
- *  - `GET /supervision/supervisores`: los supervisores que quien pregunta puede ver (él mismo, su
- *    descendencia en el árbol, o todos si es administrador).
+ *  - `GET /supervision/supervisores`: los supervisores que quien pregunta puede ver (él mismo y su
+ *    descendencia en el árbol; sin excepción para admin).
  *  - `GET /supervision/hoja`, `PUT /supervision/hoja/{fecha}/revisiones`,
  *    `POST /supervision/hoja/{fecha}/firma` y `POST /supervision/hoja/{fecha}/confirmacion`, con los
- *    mismos 403, 409 y 422.
+ *    mismos 403, 409 y 422 (ajena = ni propia ni de la descendencia; sin excepción para admin).
  *  - `GET /supervision/equipo`: las hojas no vacías de la descendencia de quien pregunta.
+ *  - En la hoja, cada asignado trae `del_equipo` (él mismo, su descendencia o gente de sus mismas
+ *    áreas —`tblstaff.area_id` + `tblstaff_areas`—) y cada Tarea trae `areas` (el campo "Área" de
+ *    la Tarea, no el de la persona). Se poda la que llega solo por cliente/focal (sin origen
+ *    `equipo`) si ningún asignado es relevante para el supervisor: ni él, ni su descendencia, ni
+ *    gente de sus áreas; una Tarea sin asignados también se poda.
  *
  * Poda y valida igual que la API a propósito: un mock que dejara escribir en una hoja ajena o
  * firmada, confirmar la propia o aceptar un `staff` como supervisor, dejaría pasar una pantalla que
@@ -21,7 +26,7 @@
  */
 
 import { ErrorApi } from './consulta.js'
-import { CLIENTES, ESPACIOS, PROCESOS, STAFF, SUPERVISORES_DE_CLIENTE } from './datos.js'
+import { CLIENTES, ESPACIOS, PROCESOS, STAFF, SUPERVISORES_DE_CLIENTE, VALORES_CAMPOS } from './datos.js'
 
 const conDatos = (data) => ({ data })
 
@@ -106,6 +111,45 @@ function diasEntre (a, b) {
   return Math.round((Date.parse(`${b}T00:00:00Z`) - Date.parse(`${a}T00:00:00Z`)) / 86_400_000)
 }
 
+/** El texto del campo "Área" de una Tarea, como lista; vacío si no tiene. */
+function areasDeLaTarea (tarea) {
+  const campo = (VALORES_CAMPOS[`tasks:${tarea.id}`] ?? []).find((c) => c.slug === 'tasks_cf_area')
+
+  return String(campo?.value ?? '').split(',').map((v) => v.trim()).filter(Boolean)
+}
+
+/** Las áreas (`AREAS`) de una persona: `area_ids` si las tiene, si no `area_id` solo. */
+function areasDePersona (persona) {
+  return persona.area_ids ?? (persona.area_id == null ? [] : [persona.area_id])
+}
+
+/**
+ * Quiénes están en las mismas áreas que una persona (`tblstaff.area_id` + `tblstaff_areas`).
+ *
+ * @param {object} persona
+ * @returns {Set<number>} ids de `STAFF`, sin incluir a `persona` misma
+ */
+function personasDeLasAreasDe (persona) {
+  const areas = areasDePersona(persona)
+
+  if (areas.length === 0) return new Set()
+
+  return new Set(STAFF.filter((s) => s.id !== persona.id && areasDePersona(s).some((id) => areas.includes(id))).map((s) => s.id))
+}
+
+/**
+ * A quiénes puede revisar un supervisor por persona: él mismo, su descendencia en el árbol y la
+ * gente de sus mismas áreas. Es el conjunto que decide `del_equipo` y la poda de Tareas que llegan
+ * solo por cliente/focal.
+ *
+ * @param {object} supervisor
+ * @param {Set<number>} equipo `arbol.descendencia(supervisor.id)`
+ * @returns {Set<number>}
+ */
+function personasRelevantesDe (supervisor, equipo) {
+  return new Set([supervisor.id, ...equipo, ...personasDeLasAreasDe(supervisor)])
+}
+
 /** El cliente de una Tarea: `customer` es el propio; `project` es el del Proyecto. */
 function clienteDeLaTarea (tarea) {
   if (tarea.rel_type === 'customer') return tarea.rel_id
@@ -168,6 +212,7 @@ function tareasDeLaHoja (fecha, supervisor, arbol) {
 
   const clientes = clientesDe(supervisor.id, arbol)
   const equipo = arbol.descendencia(supervisor.id)
+  const relevantes = personasRelevantesDe(supervisor, equipo)
   const revisiones = REVISIONES.get(claveDe(fecha, supervisor.id)) ?? new Map()
   const filas = []
 
@@ -178,9 +223,15 @@ function tareasDeLaHoja (fecha, supervisor, arbol) {
     if (cliente !== null && clientes.has(cliente)) origen.push('cliente')
     if (tarea.assignees.some((a) => a.id !== supervisor.id && equipo.has(a.id))) origen.push('equipo')
 
+    // La que llega solo por cliente/focal (sin origen 'equipo') se poda si ningún asignado es
+    // relevante para el supervisor: ni él, ni su descendencia, ni gente de sus mismas áreas. Una
+    // Tarea sin asignados nunca tiene a nadie relevante, así que también se poda. La de origen
+    // 'equipo' nunca se poda: ya entró porque alguien de la descendencia la tiene.
+    const podada = !origen.includes('equipo') && !tarea.assignees.some((a) => relevantes.has(a.id))
+
     // Con revisión de esta hoja entra siempre, aunque ya haya salido del universo: ahí viaja con
     // `origen: []`, igual que en la API.
-    if (revisiones.has(tarea.id) || (origen.length > 0 && entraEnLaHoja(tarea, fecha))) filas.push({ tarea, origen })
+    if (revisiones.has(tarea.id) || (origen.length > 0 && entraEnLaHoja(tarea, fecha) && !podada)) filas.push({ tarea, origen })
   }
 
   return filas
@@ -217,6 +268,8 @@ function revisionesDelEquipo (tareaId, fecha, supervisor, arbol) {
 function tareaDeLaHoja ({ tarea, origen }, fecha, supervisor, arbol) {
   const completada = tarea.status === ESTADO_COMPLETADA
   const revisiones = REVISIONES.get(claveDe(fecha, supervisor.id)) ?? new Map()
+  const equipo = arbol.descendencia(supervisor.id)
+  const relevantes = personasRelevantesDe(supervisor, equipo)
 
   return {
     id: tarea.id,
@@ -229,7 +282,8 @@ function tareaDeLaHoja ({ tarea, origen }, fecha, supervisor, arbol) {
     completada_en: completada && tarea.date_finished ? enSantiago(new Date(tarea.date_finished)) : null,
     origen,
     proyecto: tarea.project ?? null,
-    asignados: tarea.assignees.map((a) => ({ staffid: a.id, nombre: a.full_name })),
+    asignados: tarea.assignees.map((a) => ({ staffid: a.id, nombre: a.full_name, del_equipo: relevantes.has(a.id) })),
+    areas: areasDeLaTarea(tarea),
     revision: revisiones.get(tarea.id) ?? null,
     revisiones_equipo: revisionesDelEquipo(tarea.id, fecha, supervisor, arbol)
   }
@@ -281,7 +335,7 @@ function hojaDe (fecha, supervisor, actual, arbol) {
   const firma = FIRMAS.get(clave) ?? null
   const confirmacion = CONFIRMACIONES.get(clave) ?? null
   const clientes = agruparPorCliente(tareasDeLaHoja(fecha, supervisor, arbol), fecha, supervisor, arbol)
-  const puedeMirarComoJefe = actual.is_admin || estaSobre(actual.id, supervisor.id, arbol)
+  const puedeMirarComoJefe = estaSobre(actual.id, supervisor.id, arbol)
 
   return {
     fecha,
@@ -392,7 +446,7 @@ async function confirmar (fecha, actual, cuerpo, arbol) {
     throw new ErrorApi(422, 'validation_failed', 'Esa persona no existe.', { staff_id: ['invalid'] })
   }
 
-  if (supervisor.id === actual.id || (!actual.is_admin && !estaSobre(actual.id, supervisor.id, arbol))) {
+  if (supervisor.id === actual.id || !estaSobre(actual.id, supervisor.id, arbol)) {
     throw new ErrorApi(403, 'forbidden', 'Solo confirma la hoja quien está sobre esa persona en el árbol.')
   }
 
@@ -434,7 +488,7 @@ function leerHoja (parametros, actual, arbol) {
 
   if (supervisor === undefined) throw new ErrorApi(404, 'not_found', `No existe la persona ${crudo}.`)
 
-  if (supervisor.id !== actual.id && !actual.is_admin && !estaSobre(actual.id, supervisor.id, arbol)) {
+  if (supervisor.id !== actual.id && !estaSobre(actual.id, supervisor.id, arbol)) {
     throw new ErrorApi(403, 'forbidden', 'Solo ves la hoja propia y la de quienes cuelgan de ti.')
   }
 
@@ -454,7 +508,7 @@ function hojasDelEquipo (parametros, actual, arbol) {
   const fecha = fechaDeLaConsulta(parametros)
   const debajo = arbol.descendencia(actual.id)
   const filas = STAFF
-    .filter((s) => s.id !== actual.id && (actual.is_admin || debajo.has(s.id)) && esSupervisor(s, arbol))
+    .filter((s) => s.id !== actual.id && debajo.has(s.id) && esSupervisor(s, arbol))
     .map((s) => ({ persona: s, hoja: hojaDe(fecha, s, actual, arbol) }))
     .filter(({ hoja }) => hoja.totales.tareas > 0)
     .map(({ persona, hoja }) => ({
@@ -476,7 +530,7 @@ function hojasDelEquipo (parametros, actual, arbol) {
 function supervisoresVisibles (actual, arbol) {
   const debajo = arbol.descendencia(actual.id)
   const filas = STAFF
-    .filter((s) => (s.id === actual.id || actual.is_admin || debajo.has(s.id)) && esSupervisor(s, arbol))
+    .filter((s) => (s.id === actual.id || debajo.has(s.id)) && esSupervisor(s, arbol))
     .map((s) => ({ staffid: s.id, nombre: s.full_name, escalon: s.escalon, clientes: clientesDe(s.id, arbol).size }))
     .sort((a, b) => a.nombre.localeCompare(b.nombre))
 

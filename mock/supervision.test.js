@@ -144,6 +144,27 @@ test('los clientes donde es Focal cuentan como suyos, con origen cliente', async
   assert.deepEqual(extra.map((c) => c.client_id), [3])
 })
 
+test('del_equipo y la poda: relevante es el propio, la descendencia o gente de la misma área', async () => {
+  const tareas = tareasDe((await hoja('diego')).cuerpo.data)
+
+  // 903: solo asignada a Hugo (área 4, como Diego, aunque de baja y fuera de su descendencia) y
+  // llega por cliente: entra porque el área alcanza, y del_equipo sale true por eso.
+  const conHugo = tareas.find((t) => t.id === 903)
+  assert.ok(conHugo, 'la 903 debería entrar por compartir área con Diego')
+  assert.deepEqual(conHugo.origen, ['cliente'])
+  assert.deepEqual(conHugo.asignados, [{ staffid: 8, nombre: 'Hugo Márquez', del_equipo: true }])
+
+  // 904: solo asignada a Bruno (otra área, fuera del árbol de Diego) y llega por cliente sin nadie
+  // relevante: la API la poda entera, no aparece en la hoja.
+  assert.equal(tareas.find((t) => t.id === 904), undefined, 'la 904 debería estar podada')
+
+  // Elena (901, coasignada) no es de la descendencia de Diego ni de su área: del_equipo sale false.
+  const conElena = tareas.find((t) => t.id === 901)
+  const elena = conElena.asignados.find((a) => a.staffid === 5)
+  assert.equal(elena.del_equipo, false)
+  assert.equal(conElena.asignados.find((a) => a.staffid === 7).del_equipo, true)
+})
+
 test('la Tarea revisada que sale del universo sigue en la hoja, con origen vacío', async () => {
   const soloPorCliente = tareasDe((await hoja('diego')).cuerpo.data)
     .find((t) => t.origen.join() === 'cliente' && t.proyecto?.id === 3)
@@ -285,7 +306,10 @@ test('la contrafirma: 403 a sí mismo o a quien no cuelga de uno, 422 sin nota o
   assert.equal((await contrafirmar({ staff_id: 4, accion: 'aprobar' })).estado, 422)
   assert.equal((await contrafirmar({ staff_id: 4, accion: 'devolver', nota: 'x'.repeat(501) })).estado, 422)
 
-  // La administración confirma aunque no esté en la rama directa.
+  // Ana confirma por estar sobre Diego en el árbol (Diego → Bruno → Ana), no por ser admin: la
+  // administración ya no tiene excepción para ver o confirmar hojas ajenas. El único admin del
+  // fixture cuelga en la raíz del árbol, así que una negativa por "es admin sin estar sobre esa
+  // persona" no se puede ejercitar sin agregar un segundo admin fuera de rama al fixture.
   assert.equal((await contrafirmar({ staff_id: 4, accion: 'confirmar' }, 'ana')).estado, 200)
 })
 
