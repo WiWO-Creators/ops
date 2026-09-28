@@ -9,7 +9,7 @@ import { haceCuanto } from '@/componentes/auditoria/presentacion'
 import { Avatar } from '@/componentes/presentadores/Avatar'
 import { Insignia } from '@/componentes/presentadores/Insignia'
 import { EstadoDeTarea } from '@/componentes/proyecto/EstadoDeTarea'
-import { GLOSARIO } from '@/dominio/glosario'
+import { nombrar } from '@/dominio/glosario'
 import { formatearDuracion } from '@/componentes/proyecto/cronometro'
 import { cargoYArea, trabajoDeLaFila } from './presentacion'
 import { cn } from '@/lib/clases'
@@ -174,7 +174,7 @@ export function FilaEnVivo ({ fila, transcurrido, puedeDetener, estados = [] }: 
                       `RecursoJornadas::medidoresCorriendo()`, pero contra un backend anterior llega
                       `undefined`, y ahi "Sin estado" en cada fila mentiria sobre un dato que nadie
                       dejo vacio. Tambien llega `null` cuando la Tarea esta en la papelera. */}
-                  {nivel.etiqueta === GLOSARIO.proceso.singular
+                  {nivel.etiqueta === nombrar('proceso', 1)
                     && medidor?.task?.status !== undefined && medidor.task.status !== null && (
                     <EstadoDeTarea status={medidor.task.status} catalogo={estados} />
                   )}

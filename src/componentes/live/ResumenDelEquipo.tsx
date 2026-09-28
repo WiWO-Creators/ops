@@ -10,6 +10,7 @@ import {
   type ResumenDeEquipo
 } from '@/datos/resumen-equipo'
 import { formatearFecha } from '@/lib/fechas'
+import { nombrar } from '@/dominio/glosario'
 
 /**
  * El resumen de un día: los totales, el párrafo del modelo, dónde se fue el tiempo y quién lo puso.
@@ -96,7 +97,7 @@ function Totales ({ resumen }: { resumen: ResumenDeEquipo }) {
           {detalle.personas_activas} de {detalle.jornadas_abiertas} {detalle.jornadas_abiertas === 1 ? 'jornada' : 'jornadas'} con tiempo medido
         </span>
         <span className="text-texto-tenue text-sm">
-          {detalle.espacios.length} {detalle.espacios.length === 1 ? 'Proyecto' : 'Proyectos'}
+          {detalle.espacios.length} {nombrar('espacio', detalle.espacios.length)}
         </span>
       </div>
 
@@ -161,8 +162,8 @@ function Persona ({ persona, total }: { persona: PersonaDelResumen, total: numbe
       </div>
 
       <div className="border-linea-suave flex flex-col gap-3 border-l-2 pl-3">
-        <Listado rotulo="Proyectos" items={persona.espacios} total={persona.segundos} />
-        <Listado rotulo="Tareas" items={persona.procesos} total={persona.segundos} />
+        <Listado rotulo={nombrar('espacio', 2)} items={persona.espacios} total={persona.segundos} />
+        <Listado rotulo={nombrar('proceso', 2)} items={persona.procesos} total={persona.segundos} />
       </div>
 
       <Barra parte={persona.segundos} total={total} />
