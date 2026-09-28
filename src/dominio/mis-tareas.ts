@@ -92,6 +92,59 @@ export function alternarCompletadas (params: URLSearchParams): URLSearchParams {
 }
 
 /**
+ * === Creadas por mi ===
+ *
+ * El interruptor "Creadas por mí" cambia la pregunta de la hoja: deja de ser "que tengo asignado" y
+ * pasa a ser "que encargue yo", que es como se le hace seguimiento a lo que uno delega. Por eso no
+ * se suma a las dos listas de asignadas sino que las reemplaza por una sola, con todos los origenes:
+ * lo creado para otro en un Proyecto y lo creado en privado responden a la misma pregunta.
+ *
+ * `added_from` es un filtro declarado de `GET /tasks` (`tbltasks.addedfrom`), y la visibilidad del
+ * backend ya incluye lo que uno creo, asi que la lista sale entera y paginada desde la API.
+ */
+
+/** Como se anota en la URL de la hoja que se quieren ver las Tareas creadas por quien mira. */
+export const PARAMETRO_CREADAS = 'creadas'
+
+/**
+ * Si la consulta de la URL pide ver las Tareas creadas por quien mira.
+ *
+ * @param params la consulta vigente de la hoja
+ * @returns `true` solo con el valor exacto que escribe el interruptor, igual que `seVenCompletadas`
+ */
+export function seVenCreadas (params: URLSearchParams): boolean {
+  return params.get(PARAMETRO_CREADAS) === '1'
+}
+
+/**
+ * Enciende o apaga "Creadas por mí" en la consulta de la URL, conservando lo demas.
+ *
+ * @param params la consulta vigente; no se modifica
+ * @returns una consulta nueva, con el interruptor al reves
+ */
+export function alternarCreadas (params: URLSearchParams): URLSearchParams {
+  const siguientes = new URLSearchParams(params)
+
+  if (seVenCreadas(params)) {
+    siguientes.delete(PARAMETRO_CREADAS)
+  } else {
+    siguientes.set(PARAMETRO_CREADAS, '1')
+  }
+
+  return siguientes
+}
+
+/**
+ * El filtro fijo de la lista "Creadas por mí".
+ *
+ * @param personaId id de quien mira
+ * @returns el fragmento de `GET /tasks`, sin el `&` inicial
+ */
+export function consultaDeCreadas (personaId: number): string {
+  return `filter[added_from]=${personaId}`
+}
+
+/**
  * De donde viene una Tarea.
  *
  * `otro` es el caso raro y no un error: una Tarea colgada de un Cliente o de un Ticket —relaciones

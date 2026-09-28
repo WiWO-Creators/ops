@@ -1,6 +1,7 @@
 import { Suspense } from 'react'
 import { TituloModulo } from '@/componentes/estructura/TituloModulo'
 import { BotonCompletadas } from '@/componentes/mis-tareas/BotonCompletadas'
+import { BotonCreadas } from '@/componentes/mis-tareas/BotonCreadas'
 import { ModalTarea } from '@/componentes/proyecto/ModalTarea'
 import { TareasAsignadas } from '@/componentes/mis-tareas/TareasAsignadas'
 import { TareasPrivadas } from '@/componentes/mis-tareas/TareasPrivadas'
@@ -11,7 +12,8 @@ import type { Licitacion } from '@/datos/recursos'
 import type { Yo } from '@/datos/tipos'
 import { GLOSARIO } from '@/dominio/glosario'
 import {
-  consultaDeVencimiento, ETIQUETAS_DE_VENCIMIENTO, filtroDeVencimiento, seVenCompletadas, SOLO_CON_ESPACIO,
+  consultaDeCreadas, consultaDeVencimiento, ETIQUETAS_DE_VENCIMIENTO, filtroDeVencimiento, seVenCompletadas, seVenCreadas,
+  SOLO_CON_ESPACIO,
   type FiltroDeVencimiento
 } from '@/dominio/mis-tareas'
 import { FiltrosDeVencimiento } from './FiltrosDeVencimiento'
@@ -40,6 +42,9 @@ const LICITACIONES_A_TRAER = 500
  * porque la Tarea desaparecia de la unica pantalla donde su dueño la miraba. Por eso el interruptor
  * "Ver completadas" las SUMA a las dos listas, con el estado en la URL para que sobreviva al
  * refresco, y la insignia de estado de cada fila es un menu para devolverla a donde iba.
+ *
+ * "Creadas por mí" cambia la pregunta: reemplaza las dos listas por una sola con lo que quien mira
+ * creo, se lo haya asignado a quien sea. Los filtros de vencimiento y completadas siguen valiendo.
  */
 export default async function MisTareasPage (props: PageProps<'/mis-tareas'>) {
   const { data: yo } = await pedir<Yo>('/me')
@@ -47,6 +52,7 @@ export default async function MisTareasPage (props: PageProps<'/mis-tareas'>) {
   const estados = listaDe(lookups, 'task_statuses')
   const params = paramsDeUrl(await props.searchParams)
   const verCompletadas = seVenCompletadas(params)
+  const verCreadas = seVenCreadas(params)
   // El filtro de vencimiento acota las DOS listas por igual. "Hoy" se calcula aca, en el servidor,
   // con el mismo reloj con el que el Inicio arma sus tramos: los dos dicen lo mismo de la misma Tarea.
   const filtro = filtroDeVencimiento(params)
@@ -57,13 +63,18 @@ export default async function MisTareasPage (props: PageProps<'/mis-tareas'>) {
     <section className="flex flex-col gap-8">
       <TituloModulo
         titulo={`Mis ${GLOSARIO.proceso.plural}`}
-        descripcion={`Todo lo que tienes asignado, con el origen de cada ${GLOSARIO.proceso.singular.toLowerCase()} a la vista.`}
+        descripcion={verCreadas
+          ? `Todo lo que creaste, se lo hayas asignado a quien sea, con el origen de cada ${GLOSARIO.proceso.singular.toLowerCase()} a la vista.`
+          : `Todo lo que tienes asignado, con el origen de cada ${GLOSARIO.proceso.singular.toLowerCase()} a la vista.`}
         // El interruptor manda sobre las DOS listas, asi que vive en el encabezado de la pantalla y
         // no en una de ellas. Va en un limite de Suspense por el mismo motivo que el modal: lee
         // `useSearchParams`, y sin el limite el build de esta pagina falla.
         acciones={
           <Suspense fallback={null}>
-            <BotonCompletadas />
+            <div className="flex flex-wrap items-center gap-2">
+              <BotonCreadas />
+              <BotonCompletadas />
+            </div>
           </Suspense>
         }
       />
@@ -73,32 +84,55 @@ export default async function MisTareasPage (props: PageProps<'/mis-tareas'>) {
         <FiltrosDeVencimiento />
       </Suspense>
 
-      <TareasAsignadas
-        personaId={yo.id}
-        titulo={`De ${GLOSARIO.espacio.plural} y ${GLOSARIO.licitacion.plural}`}
-        estados={estados}
-        consultaExtra={porVencimiento === null ? SOLO_CON_ESPACIO : `${SOLO_CON_ESPACIO}&${porVencimiento}`}
-        licitaciones={licitaciones}
-        rutaDetalle="/mis-tareas"
-        // Son las Tareas de quien mira: el estado se cambia desde la fila. Ver `estadoEditable`.
-        estadoEditable
-        // Distinta de la de Tareas privadas, mas abajo en la misma pagina. Ver `prefijoUrl`.
-        prefijoUrl="esp_"
-        verCompletadas={verCompletadas}
-        vacio={vacioFiltrado ?? {
-          titulo: `No tienes ${GLOSARIO.proceso.plural.toLowerCase()} asignadas`,
-          descripcion: `Cuando te asignen la primera va a aparecer acá, con su estado, su origen y su fecha de entrega.`
-        }}
-      />
+      {verCreadas && (
+        <TareasAsignadas
+          alcance={consultaDeCreadas(yo.id)}
+          titulo="Creadas por mí"
+          estados={estados}
+          consultaExtra={porVencimiento ?? undefined}
+          licitaciones={licitaciones}
+          rutaDetalle="/mis-tareas"
+          estadoEditable
+          // Propio, para no heredar la pagina ni el orden de las listas de asignadas. Ver `prefijoUrl`.
+          prefijoUrl="cre_"
+          verCompletadas={verCompletadas}
+          vacio={vacioFiltrado ?? {
+            titulo: `No has creado ${GLOSARIO.proceso.plural.toLowerCase()}`,
+            descripcion: `Las que crees, para ti o para otra persona, van a aparecer acá para que les hagas seguimiento.`
+          }}
+        />
+      )}
 
-      <TareasPrivadas
-        personaId={yo.id}
-        estados={estados}
-        rutaDetalle="/mis-tareas"
-        verCompletadas={verCompletadas}
-        consultaExtra={porVencimiento}
-        vacio={vacioFiltrado ?? undefined}
-      />
+      {!verCreadas && (
+        <>
+        <TareasAsignadas
+          personaId={yo.id}
+          titulo={`De ${GLOSARIO.espacio.plural} y ${GLOSARIO.licitacion.plural}`}
+          estados={estados}
+          consultaExtra={porVencimiento === null ? SOLO_CON_ESPACIO : `${SOLO_CON_ESPACIO}&${porVencimiento}`}
+          licitaciones={licitaciones}
+          rutaDetalle="/mis-tareas"
+          // Son las Tareas de quien mira: el estado se cambia desde la fila. Ver `estadoEditable`.
+          estadoEditable
+          // Distinta de la de Tareas privadas, mas abajo en la misma pagina. Ver `prefijoUrl`.
+          prefijoUrl="esp_"
+          verCompletadas={verCompletadas}
+          vacio={vacioFiltrado ?? {
+            titulo: `No tienes ${GLOSARIO.proceso.plural.toLowerCase()} asignadas`,
+            descripcion: `Cuando te asignen la primera va a aparecer acá, con su estado, su origen y su fecha de entrega.`
+          }}
+        />
+
+        <TareasPrivadas
+          personaId={yo.id}
+          estados={estados}
+          rutaDetalle="/mis-tareas"
+          verCompletadas={verCompletadas}
+          consultaExtra={porVencimiento}
+          vacio={vacioFiltrado ?? undefined}
+        />
+        </>
+      )}
 
       {/* El mismo detalle de los listados, con la misma URL (`?tarea={id}`). Va en un limite de
           Suspense porque lee `useSearchParams`: sin el, el build de esta pagina falla. */}
