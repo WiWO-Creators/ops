@@ -7043,14 +7043,14 @@ esté completada (así un día pasado no pierde filas). El cliente de una Tarea 
 #### `GET /supervision/supervisores`
 
 → `[{staffid, nombre, escalon, clientes}]`: los supervisores (con al menos un cliente) que quien
-pregunta puede ver — él mismo o su descendencia (`Jerarquia::descendencia`); sin excepción para
-admin.
+pregunta puede ver — él mismo o su equipo directo por `jefe_staffid`
+(`UniversoSupervision::alcanceDirectoDe`, nunca el área); sin excepción para admin.
 
 #### `GET /supervision/hoja?fecha=YYYY-MM-DD&staff_id=N`
 
 Sin `fecha` es hoy en `America/Santiago`; sin `staff_id`, quien pregunta. `403` si no es esa persona
-ni está sobre ella (`Jerarquia::estaSobre`); sin excepción para admin. `422` si la fecha no es
-válida.
+ni está sobre ella por `jefe_staffid` (`UniversoSupervision::estaSobreDirecto`); sin excepción para
+admin. `422` si la fecha no es válida.
 
 ```json
 {
@@ -7114,19 +7114,30 @@ Extiende la de arriba; lo que no se menciona sigue igual. Migración board
 `GET|PUT /clients/{id}/supervisores` **no cambian**: siguen siendo solo la tabla propia, la lista de
 clientes *extra*.
 
-**Supervisor** = escalón `lead` o superior **y** (algún cliente, o alguien en su descendencia —
-`Jerarquia::descendencia`, todos los niveles—). La jerarquía basta: no hace falta asociar clientes.
+**Supervisor** = escalón `lead` o superior **y** (algún cliente, o alguien en su equipo directo —
+`UniversoSupervision::genteDirectaDe`, SOLO `tblstaff.jefe_staffid`, todos los niveles—). La cadena
+de jefe basta: no hace falta asociar clientes.
+
+**El alcance de Supervisión es SOLO `tblstaff.jefe_staffid`, nunca el área.** A diferencia del resto
+de la API —donde el árbol de permisos (`Jerarquia::descendencia`) UNE la cadena de jefe con la
+jefatura de área declarada (`tblareas.jefe_staffid`)—, Supervisión usa su propio criterio: alguien
+solo cuenta si cuelga de S por `jefe_staffid`, directa o recursivamente. Dirigir un área entera ya no
+alcanza a nadie que no reporte por cadena, ni siquiera a la gente que la lleva puesta. Esto aplica a
+los cuatro puntos donde antes se colaba el área: quién ve a quién (`supervisoresVisibles`,
+`GET /supervision/equipo`, `hoja`, `puedeConfirmar`), el origen `equipo` de una Tarea, `del_equipo` y
+la poda de abajo.
 
 **Tareas de la hoja (F, S).** Universo = Tareas de los clientes de S ∪ Tareas con algún asignado en
-la descendencia de S (sin S; fuera la papelera). Entra una del universo si (a) `duedate = F`,
+el equipo directo de S (sin S; fuera la papelera). Entra una del universo si (a) `duedate = F`,
 completada o no; (b) `status != 5` y `duedate < F`; (c) `DATE(datefinished) = F`; o (d) ya tiene
 revisión de S para F. Las que no tienen cliente van en el grupo `client_id: null`,
 `company: "Sin cliente"`, al final.
 
-**Relevantes para S** = S mismo ∪ su descendencia ∪ la gente de sus mismas áreas (`tblstaff.area_id`
-+ `tblstaff_areas`). Decide `del_equipo` y una poda extra: la Tarea que entra solo por cliente/focal
-(sin `equipo` en `origen`) se descarta si ningún asignado es relevante para S; una Tarea sin
-asignados también se descarta. La de origen `equipo` nunca se descarta por esto.
+**Relevantes para S** = S mismo ∪ su equipo directo por `jefe_staffid` (nunca el área). Decide
+`del_equipo` y una poda extra: la Tarea que entra solo por cliente/focal (sin `equipo` en `origen`)
+se descarta si ningún asignado es relevante para S; una Tarea sin asignados también se descarta. La
+de origen `equipo` nunca se descarta por esto. El campo `areas` de cada Tarea (abajo) sigue siendo
+solo dato informativo para "Agrupar por área" en la pantalla: nunca decide alcance.
 
 #### `GET /supervision/hoja` — campos nuevos
 
@@ -7155,13 +7166,14 @@ asignados también se descarta. La de origen `equipo` nunca se descarta por esto
   como `true`.
 - `areas`: el texto del campo "Área" de la Tarea (`tasks_cf_area`), no el de la persona; `[]` si no
   tiene.
-- `revisiones_equipo`: las revisiones de esa fecha de supervisores de la descendencia de S. `[]` si
+- `revisiones_equipo`: las revisiones de esa fecha de supervisores del equipo directo de S. `[]` si
   ninguna. No trae el escalón de quien revisó.
 - `confirmacion`: `null | {estado: 'confirmada'|'devuelta', staffid, nombre, nota|null, en}`.
   Devuelta ⇒ `firma` vuelve a `null` y `puede_editar` a `true` para el dueño; la devolución queda
   visible hasta que vuelve a firmar, y al re-firmar `confirmacion` vuelve a `null`.
-- `puede_confirmar`: quien consulta está sobre S (`Jerarquia::estaSobre`), no es S, y la hoja está
-  firmada y sin confirmar; sin excepción para admin.
+- `puede_confirmar`: quien consulta está sobre S por `jefe_staffid`
+  (`UniversoSupervision::estaSobreDirecto`), no es S, y la hoja está firmada y sin confirmar; sin
+  excepción para admin.
 
 #### `POST /supervision/hoja/{fecha}/confirmacion`
 
@@ -7173,11 +7185,12 @@ Cuerpo `{staff_id, accion: 'confirmar'|'devolver', nota?: string ≤ 500}`. `403
 #### `GET /supervision/equipo?fecha=F`
 
 → `[{staffid, nombre, escalon, jefe_staffid, estado: 'sin_firmar'|'firmada'|'confirmada'|'devuelta',
-firmado_en|null, confirmacion|null, totales: {tareas, revisadas, completadas}}]`: los supervisores de
-la descendencia de quien consulta (sin excepción para admin), sin él, con hoja **no vacía** ese día. Orden:
-directos primero, luego por nombre. `422` si la fecha no es válida.
+firmado_en|null, confirmacion|null, totales: {tareas, revisadas, completadas}}]`: los supervisores del
+equipo directo de quien consulta por `jefe_staffid` (sin excepción para admin, nunca el área), sin
+él, con hoja **no vacía** ese día. Orden: directos primero, luego por nombre. `422` si la fecha no es
+válida.
 
-`GET /supervision/supervisores` usa la definición nueva (clientes o descendencia); `clientes` es la
+`GET /supervision/supervisores` usa la definición nueva (clientes o equipo directo); `clientes` es la
 cantidad de la unión con los focales.
 
 #### Avisos

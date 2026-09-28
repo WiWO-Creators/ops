@@ -54,6 +54,13 @@ export const ROTULO_TIPO: Record<TipoNovedad, string> = {
 export const NOVEDADES: Novedad[] = [
   {
     fecha: '2026-09-28',
+    tipo: 'arreglo',
+    titulo: 'Supervisión: tu hoja ya no muestra gente que no está a tu cargo',
+    detalle: 'Si diriges un área, ya no ves las tareas ni la hoja de quien solo la comparte contigo sin reportarte: tu equipo es exactamente tu gente a cargo, directa o en cadena.',
+    commits: []
+  },
+  {
+    fecha: '2026-09-28',
     tipo: 'mejora',
     titulo: 'Drive de la Tarea admite archivos grandes (videos)',
     detalle: 'Los archivos de más de 25 MB ya no se rechazan: suben directo al Drive, en trozos y con barra de avance, hasta 2 GB.',

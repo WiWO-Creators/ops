@@ -9,16 +9,18 @@
  *  - Los clientes de un supervisor son esa asociación **más** los clientes donde es Focal.
  *  - Supervisor = escalón `lead` o superior **y** (algún cliente, o alguien a cargo en el árbol).
  *  - `GET /supervision/supervisores`: los supervisores que quien pregunta puede ver (él mismo y su
- *    descendencia en el árbol; sin excepción para admin).
+ *    equipo directo por `jefe_staffid`, `arbol.descendencia`; sin excepción para admin).
  *  - `GET /supervision/hoja`, `PUT /supervision/hoja/{fecha}/revisiones`,
  *    `POST /supervision/hoja/{fecha}/firma` y `POST /supervision/hoja/{fecha}/confirmacion`, con los
- *    mismos 403, 409 y 422 (ajena = ni propia ni de la descendencia; sin excepción para admin).
- *  - `GET /supervision/equipo`: las hojas no vacías de la descendencia de quien pregunta.
- *  - En la hoja, cada asignado trae `del_equipo` (él mismo, su descendencia o gente de sus mismas
- *    áreas —`tblstaff.area_id` + `tblstaff_areas`—) y cada Tarea trae `areas` (el campo "Área" de
- *    la Tarea, no el de la persona). Se poda la que llega solo por cliente/focal (sin origen
- *    `equipo`) si ningún asignado es relevante para el supervisor: ni él, ni su descendencia, ni
- *    gente de sus áreas; una Tarea sin asignados también se poda.
+ *    mismos 403, 409 y 422 (ajena = ni propia ni del equipo directo; sin excepción para admin).
+ *  - `GET /supervision/equipo`: las hojas no vacías del equipo directo de quien pregunta.
+ *  - **El alcance de Supervisión es SOLO `jefe_staffid`, nunca el área.** `arbol.descendencia()`
+ *    (de `servidor.js`) ya es pura cadena de jefe, y `personasRelevantesDe()` de este archivo la usa
+ *    tal cual, sin sumar gente de la misma área. En la hoja, cada asignado trae `del_equipo` (él
+ *    mismo o alguien de su equipo directo, `personasRelevantesDe()`) y cada Tarea trae `areas` (el
+ *    campo "Área" de la Tarea, dato informativo, nunca alcance). Se poda la que llega solo por
+ *    cliente/focal (sin origen `equipo`) si ningún asignado es relevante para el supervisor: ni él,
+ *    ni su equipo directo; una Tarea sin asignados también se poda.
  *
  * Poda y valida igual que la API a propósito: un mock que dejara escribir en una hoja ajena o
  * firmada, confirmar la propia o aceptar un `staff` como supervisor, dejaría pasar una pantalla que
@@ -118,36 +120,23 @@ function areasDeLaTarea (tarea) {
   return String(campo?.value ?? '').split(',').map((v) => v.trim()).filter(Boolean)
 }
 
-/** Las áreas (`AREAS`) de una persona: `area_ids` si las tiene, si no `area_id` solo. */
-function areasDePersona (persona) {
-  return persona.area_ids ?? (persona.area_id == null ? [] : [persona.area_id])
-}
-
 /**
- * Quiénes están en las mismas áreas que una persona (`tblstaff.area_id` + `tblstaff_areas`).
+ * A quiénes puede revisar un supervisor: él mismo y su equipo directo por `jefe_staffid`
+ * (`arbol.descendencia`, que en este mock ya es solo la cadena de jefe — ver `descendenciaDePersona`
+ * en `servidor.js`). Es el conjunto que decide `del_equipo` y la poda de Tareas que llegan solo por
+ * cliente/focal.
  *
- * @param {object} persona
- * @returns {Set<number>} ids de `STAFF`, sin incluir a `persona` misma
- */
-function personasDeLasAreasDe (persona) {
-  const areas = areasDePersona(persona)
-
-  if (areas.length === 0) return new Set()
-
-  return new Set(STAFF.filter((s) => s.id !== persona.id && areasDePersona(s).some((id) => areas.includes(id))).map((s) => s.id))
-}
-
-/**
- * A quiénes puede revisar un supervisor por persona: él mismo, su descendencia en el árbol y la
- * gente de sus mismas áreas. Es el conjunto que decide `del_equipo` y la poda de Tareas que llegan
- * solo por cliente/focal.
+ * El área NUNCA cuenta acá: compartir área con el supervisor no hace a nadie "relevante" para su
+ * hoja. Antes sí contaba (`personasDeLasAreasDe`, ya retirada) y eso colaba, por ejemplo, al jefe de
+ * un área entera como "del equipo" de cualquiera que llevara puesta esa área, sin que le reportara
+ * por cadena.
  *
  * @param {object} supervisor
  * @param {Set<number>} equipo `arbol.descendencia(supervisor.id)`
  * @returns {Set<number>}
  */
 function personasRelevantesDe (supervisor, equipo) {
-  return new Set([supervisor.id, ...equipo, ...personasDeLasAreasDe(supervisor)])
+  return new Set([supervisor.id, ...equipo])
 }
 
 /** El cliente de una Tarea: `customer` es el propio; `project` es el del Proyecto. */
