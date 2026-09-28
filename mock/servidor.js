@@ -2595,6 +2595,148 @@ const ACTAS = []
 let PROXIMA_ACTA = 900
 
 /**
+ * "Solo transcribir": la misma idea de la acta, sin redactar nada.
+ *
+ * Vive en memoria por el mismo motivo que `ACTAS`, y ademas porque el dato es efimero de verdad: la
+ * API real las borra a las 24 horas, y el mock imita esa vigencia comparando `expira_en` en cada
+ * lectura, nunca purgando el array — asi una fila vencida se puede seguir viendo en un test que
+ * adelanta el reloj sin que el orden de los ids se corra.
+ */
+const TRANSCRIPCIONES = []
+
+/** Autoincremental de transcripciones. Rango propio para no confundirse con actas ni con tareas. */
+let PROXIMA_TRANSCRIPCION = 500
+
+/** Los cuatro idiomas del contrato. Cualquier otro valor cae a `es`, igual que haria un 422 ignorado. */
+const IDIOMAS_TRANSCRIPCION_VALIDOS = ['es', 'en', 'pt', 'auto']
+
+/** Un texto de ejemplo por idioma, para que la pantalla se pueda revisar en los tres. */
+const TEXTO_TRANSCRIPCION_POR_IDIOMA = {
+  es: 'Hola equipo, revisamos el avance del proyecto y quedamos en enviar el diseño el jueves. El proveedor de hosting sigue pendiente.',
+  en: 'Hi team, we reviewed the project progress and agreed to send the design on Thursday. The hosting provider is still pending.',
+  pt: 'Olá equipe, revisamos o andamento do projeto e combinamos de enviar o design na quinta-feira. O provedor de hospedagem ainda está pendente.'
+}
+
+/** El texto y los segmentos que "genera" el modelo, segun el idioma pedido. */
+function transcripcionGenerada (idioma) {
+  const texto = TEXTO_TRANSCRIPCION_POR_IDIOMA[idioma] ?? TEXTO_TRANSCRIPCION_POR_IDIOMA.es
+  const mitad = texto.indexOf('. ') + 2
+
+  return {
+    texto,
+    segmentos: [
+      { inicio: 0, fin: 8, texto: texto.slice(0, mitad).trim() },
+      { inicio: 8, fin: 15, texto: texto.slice(mitad).trim() }
+    ]
+  }
+}
+
+/** Crea la transcripcion y la deja al frente de la lista, igual que `guardarActa`. */
+function guardarTranscripcion (espacio, actual, idioma) {
+  const ahora = new Date()
+  const expira = new Date(ahora.getTime() + 24 * 60 * 60 * 1000)
+  const { texto, segmentos } = transcripcionGenerada(idioma)
+
+  const transcripcion = {
+    id: (PROXIMA_TRANSCRIPCION += 1),
+    project_id: espacio.id,
+    idioma,
+    texto,
+    segmentos,
+    duracion_segundos: 15,
+    staff_id: actual.id,
+    creado_en: ahora.toISOString().replace(/\.\d{3}Z$/, 'Z'),
+    expira_en: expira.toISOString().replace(/\.\d{3}Z$/, 'Z')
+  }
+
+  TRANSCRIPCIONES.unshift(transcripcion)
+
+  return transcripcion
+}
+
+/** La forma publica de una transcripcion: sin `staff_id`, que es de este archivo y no del contrato. */
+function presentarTranscripcion (transcripcion) {
+  return {
+    id: transcripcion.id,
+    project_id: transcripcion.project_id,
+    idioma: transcripcion.idioma,
+    texto: transcripcion.texto,
+    segmentos: transcripcion.segmentos,
+    duracion_segundos: transcripcion.duracion_segundos,
+    creado_en: transcripcion.creado_en,
+    expira_en: transcripcion.expira_en
+  }
+}
+
+/** `true` si la transcripcion todavia no vencio. Se mide en cada lectura, nunca se purga la fila. */
+function transcripcionVigente (transcripcion) {
+  return new Date(transcripcion.expira_en).getTime() > Date.now()
+}
+
+/**
+ * Escribe un stream SSE con la forma del contrato de transcripcion: `paso`, y despues `error` o
+ * `fin`. Sin `delta` — nadie redacta nada, asi que no hay texto que ir mostrando de a poco — y por
+ * eso no reusa `transmitirSSE()`, que esta armado alrededor de trocear un HTML.
+ */
+function transmitirTranscripcionSSE (respuesta, { fin, falla }) {
+  respuesta.writeHead(200, {
+    'Content-Type': 'text/event-stream; charset=utf-8',
+    'Cache-Control': 'no-cache, no-transform',
+    'X-Accel-Buffering': 'no',
+    'X-Content-Type-Options': 'nosniff',
+    Connection: 'keep-alive'
+  })
+  respuesta.flushHeaders()
+
+  const emitir = (evento, datos) => respuesta.write(`event: ${evento}\ndata: ${JSON.stringify(datos)}\n\n`)
+  let vivo = true
+
+  // Igual que en `transmitirSSE`: sin esto, abortar desde el navegador deja el temporizador
+  // corriendo y el mock escribe en un socket muerto.
+  respuesta.on('close', () => { vivo = false })
+
+  emitir('paso', { fase: 'inicio', herramienta: 'transcribir', etiqueta: 'Escuchando el audio…', orbe: 'listening' })
+
+  setTimeout(() => {
+    if (!vivo) return
+
+    emitir('paso', { fase: 'fin', herramienta: 'transcribir', etiqueta: 'Escuchando el audio…', orbe: 'listening' })
+
+    if (falla) {
+      emitir('error', { code: 'provider_error', message: 'El proveedor cortó la respuesta.' })
+    } else {
+      emitir('fin', fin)
+    }
+
+    respuesta.end()
+  }, PAUSA_DELTA_MS * 4)
+}
+
+/**
+ * `POST /ia/proyectos/{id}/transcripcion`. Transcribe el audio y lo guarda por 24 horas.
+ *
+ * El cuerpo llega como `multipart/form-data` con `audio` (archivo, ignorado tal como el mock ignora
+ * el contenido de cualquier audio) e `idioma`. `camposDelMultipart` ya sabe separar el campo de texto
+ * del archivo sin parsear el binario entero.
+ */
+async function generarTranscripcionIaRuta (id, parametros, actual, peticion) {
+  const espacio = buscarO404(ESPACIOS, Number(id), 'espacio')
+  const { campos } = await camposDelMultipart(peticion)
+  const idioma = IDIOMAS_TRANSCRIPCION_VALIDOS.includes(campos.idioma) ? campos.idioma : 'es'
+  const falla = parametros.get('falla') === '1'
+
+  if (!aceptaStream(peticion)) {
+    if (falla) throw new ErrorApi(502, 'provider_error', 'El proveedor cortó la respuesta.')
+
+    return { estado: 201, cuerpo: conDatos(presentarTranscripcion(guardarTranscripcion(espacio, actual, idioma))) }
+  }
+
+  const fin = falla ? null : { transcripcion: presentarTranscripcion(guardarTranscripcion(espacio, actual, idioma)) }
+
+  return { transmitir: (respuesta) => transmitirTranscripcionSSE(respuesta, { fin, falla }) }
+}
+
+/**
  * Tareas propuestas de cada acta. Una acta ausente del mapa nunca se analizó, que es lo que pasa
  * con las sembradas: así se puede ver el botón "Analizar buscando tareas" sin generar nada.
  */
@@ -2684,6 +2826,25 @@ function actaGenerada (espacio) {
     + '<p><strong>Acción:</strong> Definir el proveedor.</p>'
     + '<p><strong>Responsable:</strong> No especificado</p>'
     + '<h2>Próximos Pasos:</h2><ul><li>Entregar el diseño - <strong>Responsable:</strong> Ana Pérez</li></ul>'
+}
+
+/**
+ * El HTML "generado" a partir de una transcripción ya guardada, en vez de procesar audio de nuevo.
+ *
+ * Cita el texto de la transcripción tal cual, para que se note en la pantalla que el acta salió de
+ * ahí y no de un archivo nuevo — es lo único que le importa a `pruebas/acta.browser.mjs` de este
+ * camino.
+ */
+function actaGeneradaDesdeTranscripcion (espacio, transcripcion) {
+  return `<h1>Meeting Paper - Avance de ${espacio.name}</h1>`
+    + '<p><strong>#No especificado</strong></p><hr />'
+    + '<p><strong>Cliente:</strong> Acme SpA</p>'
+    + `<p><strong>Fecha:</strong> ${transcripcion.creado_en.slice(0, 10)}</p>`
+    + '<p><strong>Lugar:</strong> No especificado</p>'
+    + '<p><strong>Modalidad:</strong> Online</p>'
+    + '<h2>Temas Discutidos y Acuerdos</h2>'
+    + `<p>${transcripcion.texto}</p>`
+    + '<h2>Próximos Pasos:</h2><ul><li>Revisar los acuerdos de la transcripción.</li></ul>'
 }
 
 /** Titulo del acta: el del `<h1>`, sin el prefijo, igual que hace el backend. */
@@ -3089,6 +3250,9 @@ async function iaRuta (metodo, resto, parametros, actual, cuerpo, peticion) {
   if (seccion === 'proyectos' && sub[1] === 'acta' && metodo === 'POST') {
     return await generarActaIaRuta(sub[0], parametros, actual, peticion)
   }
+  if (seccion === 'proyectos' && sub[1] === 'transcripcion' && metodo === 'POST') {
+    return await generarTranscripcionIaRuta(sub[0], parametros, actual, peticion)
+  }
   if (seccion === 'proyectos' && sub[1] === 'scope' && sub.length === 3 && metodo === 'POST') {
     return await scopeIaRuta(sub[0], sub[2], actual, cuerpo, peticion)
   }
@@ -3313,11 +3477,16 @@ async function generarActaIaRuta (id, parametros, actual, peticion) {
 
   // Drenar el cuerpo antes de responder: sin esto el socket queda con bytes sin leer y el navegador
   // ve la conexion cortada en vez de la respuesta. De paso se anotan los archivos que venian, que es
-  // lo que el frontend espera ver listado en la ficha del acta.
-  const adjuntos = await adjuntosDelMultipart(peticion)
+  // lo que el frontend espera ver listado en la ficha del acta, y se lee `transcripcion_id` si vino.
+  const { adjuntos, transcripcionId } = await adjuntosDelMultipart(peticion)
 
   const falla = parametros.get('falla') === '1'
-  const html = actaGenerada(espacio)
+  // Con `transcripcion_id`, el material es el texto ya transcrito y no un audio nuevo: el mock lo
+  // cita en el acta para que se note que vino de ahí, igual que hará el backend real.
+  const transcripcion = transcripcionId === null
+    ? null
+    : TRANSCRIPCIONES.find((t) => t.id === transcripcionId && t.project_id === espacio.id) ?? null
+  const html = transcripcion === null ? actaGenerada(espacio) : actaGeneradaDesdeTranscripcion(espacio, transcripcion)
   const campos = { client: 'Acme SpA', brand: 'wiwo' }
 
   if (!aceptaStream(peticion)) {
@@ -3359,44 +3528,58 @@ const MIME_DE_ADJUNTO = {
  * La memoria no crece con el archivo: se mira trozo a trozo y solo se arrastran los ultimos bytes,
  * por si una cabecera quedo partida entre dos. El desplazamiento absoluto evita contar dos veces el
  * `filename` que cae justo en ese arrastre.
+ *
+ * De paso lee `transcripcion_id` con el mismo escaneo: es un campo de texto chico —un numero— y
+ * agregarle una segunda pasada de `camposDelMultipart()` obligaria a bufferear el cuerpo entero, que
+ * es justo lo que este parser evita cuando el multipart trae audio.
  */
 async function adjuntosDelMultipart (peticion) {
   const ARRASTRE = 512
-  const patron = /filename="([^"\r\n]*)"/g
+  const patronArchivo = /filename="([^"\r\n]*)"/g
+  const patronTranscripcion = /name="transcripcion_id"\r?\n\r?\n(\d+)/
   const nombres = []
   let cola = ''
   let base = 0
   let ultimo = -1
   let bytes = 0
+  let transcripcionId = null
 
   for await (const trozo of peticion) {
     bytes += trozo.length
     const texto = cola + trozo.toString('latin1')
 
-    patron.lastIndex = 0
-    let encontrado = patron.exec(texto)
+    patronArchivo.lastIndex = 0
+    let encontrado = patronArchivo.exec(texto)
     while (encontrado !== null) {
       const absoluto = base + encontrado.index
       if (absoluto > ultimo && encontrado[1] !== '') {
         nombres.push(encontrado[1])
         ultimo = absoluto
       }
-      encontrado = patron.exec(texto)
+      encontrado = patronArchivo.exec(texto)
+    }
+
+    if (transcripcionId === null) {
+      const conTranscripcion = patronTranscripcion.exec(texto)
+      if (conTranscripcion !== null) transcripcionId = Number(conTranscripcion[1])
     }
 
     cola = texto.slice(-ARRASTRE)
     base += texto.length - cola.length
   }
 
-  if (nombres.length === 0) return []
+  if (nombres.length === 0) return { adjuntos: [], transcripcionId }
 
   const reparto = Math.max(1, Math.round(bytes / nombres.length))
 
-  return nombres.map((name) => ({
-    name,
-    size: reparto,
-    type: MIME_DE_ADJUNTO[name.split('.').pop()?.toLowerCase() ?? ''] ?? 'application/octet-stream'
-  }))
+  return {
+    adjuntos: nombres.map((name) => ({
+      name,
+      size: reparto,
+      type: MIME_DE_ADJUNTO[name.split('.').pop()?.toLowerCase() ?? ''] ?? 'application/octet-stream'
+    })),
+    transcripcionId
+  }
 }
 
 /** `POST /ia/proyectos/{id}/acta-transformar`. Reescribe un fragmento con una de las cuatro acciones. */
@@ -7296,6 +7479,34 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
     }
 
     return { estado: 200, cuerpo: conDatos(presentarActa(acta, { conContenido: true })) }
+  }
+
+  // "Solo transcribir": lista, ficha puntual y borrado. Va antes del bloque generico de `projects`
+  // por el mismo motivo que `actas` — este atiende GET y DELETE, y el generico solo GET. Solo las
+  // PROPIAS y solo las vigentes, igual que hace la API: filtrar aca y no confiar en que el frontend
+  // no pida las de otro es la misma regla que aplican `sesiones` y `auditoria`.
+  if (recurso === 'projects' && resto[1] === 'transcripciones') {
+    const espacio = buscarO404(ESPACIOS, Number(resto[0]), 'espacio')
+    const propias = TRANSCRIPCIONES.filter((t) =>
+      t.project_id === espacio.id && t.staff_id === actual.id && transcripcionVigente(t))
+    const transcripcionId = resto[2] === undefined ? null : Number(resto[2])
+
+    if (transcripcionId === null) {
+      if (metodo !== 'GET') throw new ErrorApi(404, 'not_found', 'Método no disponible en /transcripciones.')
+
+      return { estado: 200, cuerpo: conDatos(propias.map(presentarTranscripcion)) }
+    }
+
+    const transcripcion = propias.find((t) => t.id === transcripcionId)
+    if (transcripcion === undefined) throw new ErrorApi(404, 'not_found', 'No existe esa transcripción, o ya venció.')
+
+    if (metodo === 'DELETE') {
+      TRANSCRIPCIONES.splice(TRANSCRIPCIONES.indexOf(transcripcion), 1)
+
+      return { estado: 204, cuerpo: null }
+    }
+
+    return { estado: 200, cuerpo: conDatos(presentarTranscripcion(transcripcion)) }
   }
 
   /*
