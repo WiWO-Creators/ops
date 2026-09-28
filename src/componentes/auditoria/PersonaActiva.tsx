@@ -1,6 +1,6 @@
 'use client'
 
-import { Avatar } from '@/componentes/presentadores/Avatar'
+import { EnlacePersona } from '@/componentes/presentadores/EnlacePersona'
 import { Insignia } from '@/componentes/presentadores/Insignia'
 import type { PersonaConectada } from '@/datos/auditoria'
 import { cn } from '@/lib/clases'
@@ -14,7 +14,13 @@ export function PersonaActiva ({ persona, compacta = false }: { persona: Persona
       !compacta && 'sm:grid-cols-[auto_minmax(0,1fr)_auto]',
       persona.impersonated_by !== null && 'bg-superficie-peligro rounded-control px-2'
     )}>
-      <Avatar nombre={persona.staff.full_name} imagen={persona.staff.profile_image_url} tamano="medio" />
+      <EnlacePersona
+        id={persona.staff.id}
+        nombre={persona.staff.full_name}
+        imagen={persona.staff.profile_image_url}
+        tamano="medio"
+        mostrarNombre={false}
+      />
       <div className="flex min-w-0 flex-col gap-1">
         <span className="text-texto break-words text-sm font-medium [overflow-wrap:anywhere]">{persona.staff.full_name}</span>
         <span className="text-texto-tenue text-pretty break-words text-xs leading-relaxed [overflow-wrap:anywhere]" title={persona.location}>

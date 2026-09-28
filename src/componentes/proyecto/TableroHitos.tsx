@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactElement } 
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import { TableroFiltrable } from '@/componentes/datos/TableroFiltrable'
-import { GrupoAvatares } from '@/componentes/presentadores/Avatar'
+import { GrupoEnlacesPersona } from '@/componentes/presentadores/GrupoEnlacesPersona'
 import { Fecha } from '@/componentes/presentadores/Fecha'
 import { CodigoCopiable } from '@/componentes/presentadores/CodigoCopiable'
 import { pedirSobre } from '@/datos/cliente'
@@ -329,7 +329,7 @@ function TarjetaDeHito ({
       )}
 
       {/* `?? []`: el contacto no recibe la clave salvo que el Proyecto encienda los responsables. */}
-      {(tarea.assignees ?? []).length > 0 && <GrupoAvatares personas={tarea.assignees ?? []} maximo={4} />}
+      {(tarea.assignees ?? []).length > 0 && <GrupoEnlacesPersona personas={tarea.assignees ?? []} maximo={4} />}
 
       <Link
         href={`?${siguientes.toString()}`}

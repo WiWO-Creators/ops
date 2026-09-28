@@ -3,7 +3,7 @@
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
 import { ChevronLeft, ChevronRight, Mail, Users } from 'lucide-react'
-import { Avatar } from '@/componentes/presentadores/Avatar'
+import { EnlacePersona } from '@/componentes/presentadores/EnlacePersona'
 import { Boton } from '@/componentes/formularios/Boton'
 import { Entrada } from '@/componentes/formularios/Entrada'
 import { Segmentado } from '@/componentes/formularios/Segmentado'
@@ -325,7 +325,12 @@ function DetalleReserva ({ reserva, puedeTocar, onCerrar, onEditar, onCancelado 
         <div className="flex flex-col gap-4">
           {reserva.staff !== null && (
             <div className="flex items-center gap-3">
-              <Avatar nombre={reserva.staff.full_name} imagen={reserva.staff.profile_image_url} />
+              <EnlacePersona
+                id={reserva.staff.id}
+                nombre={reserva.staff.full_name}
+                imagen={reserva.staff.profile_image_url}
+                mostrarNombre={false}
+              />
               <div className="min-w-0">
                 <p className="text-texto truncate text-sm font-medium">{reserva.staff.full_name}</p>
                 <a
@@ -357,8 +362,13 @@ function DetalleReserva ({ reserva, puedeTocar, onCerrar, onEditar, onCancelado 
                     key={persona.id}
                     className="bg-relleno-neutro text-relleno-neutro-contenido rounded-control flex items-center gap-1.5 py-0.5 pl-0.5 pr-2 text-xs"
                   >
-                    <Avatar nombre={persona.full_name} imagen={persona.profile_image_url} tamano="chico" />
-                    <span className="max-w-40 truncate">{persona.full_name}</span>
+                    <EnlacePersona
+                      id={persona.id}
+                      nombre={persona.full_name}
+                      imagen={persona.profile_image_url}
+                      tamano="chico"
+                      className="max-w-40"
+                    />
                   </li>
                 ))}
               </ul>

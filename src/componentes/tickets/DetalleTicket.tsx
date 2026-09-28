@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { Paperclip } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState, type ReactElement, type ReactNode } from 'react'
 import { Avatar } from '@/componentes/presentadores/Avatar'
+import { EnlacePersona } from '@/componentes/presentadores/EnlacePersona'
 import { Fecha } from '@/componentes/presentadores/Fecha'
 import { Insignia } from '@/componentes/presentadores/Insignia'
 import { BarraProgreso } from '@/componentes/proyecto/CabeceraProyecto'
@@ -379,7 +380,9 @@ function Hilo ({ mensajes }: { mensajes: MensajeDeTicket[] }): ReactElement {
                 : 'border-linea-suave bg-transparent'
             )}
           >
-            <Avatar nombre={mensaje.autor} imagen={null} />
+            {mensaje.autorStaffId === undefined
+              ? <Avatar nombre={mensaje.autor} imagen={null} />
+              : <EnlacePersona id={mensaje.autorStaffId} nombre={mensaje.autor} mostrarNombre={false} />}
 
             <div className="flex min-w-0 flex-1 flex-col gap-1">
               <span className="flex flex-wrap items-center gap-2">

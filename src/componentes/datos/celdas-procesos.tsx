@@ -4,7 +4,8 @@ import { Repeat2 } from 'lucide-react'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import type { ReactElement } from 'react'
-import { GrupoAvatares } from '@/componentes/presentadores/Avatar'
+import { GrupoEnlacesPersona } from '@/componentes/presentadores/GrupoEnlacesPersona'
+import { EnlaceProyecto } from '@/componentes/presentadores/EnlaceProyecto'
 import { Etiquetas } from '@/componentes/presentadores/Etiqueta'
 import { Desviacion, EstadoSla } from '@/componentes/presentadores/EstadoSla'
 import { Fecha } from '@/componentes/presentadores/Fecha'
@@ -39,7 +40,7 @@ const CELDAS: Record<string, (proceso: Proceso) => ReactElement> = {
   // Los nombres de los asignados desbordaban la celda y se cortaban a mitad de palabra: la cara
   // identifica a la persona en menos ancho, y el nombre sigue disponible en el `title` y para el
   // lector de pantalla. Es el mismo grupo apilado que ya usan el tablero y el calendario.
-  assignees: (proceso) => <GrupoAvatares personas={proceso.assignees} />,
+  assignees: (proceso) => <GrupoEnlacesPersona personas={proceso.assignees} />,
   // El vencimiento sale del presentador unico, igual que en el tablero: ademas de leerse "Sin fecha"
   // cuando no hay plazo, se colorea segun cuan cerca esta.
   due_date: (proceso) => <Fecha valor={proceso.due_date} comoVencimiento />,
@@ -173,12 +174,11 @@ function EnlaceEspacio ({ proceso }: { proceso: Proceso }): ReactElement {
   if (proceso.project === null) return <span className="text-texto-sutil">—</span>
 
   return (
-    <Link
-      href={`/proyectos/${proceso.project.id}`}
-      className="text-texto-tenue hover:text-acento underline-offset-4 hover:underline"
-    >
-      {proceso.project.name}
-    </Link>
+    <EnlaceProyecto
+      id={proceso.project.id}
+      nombre={proceso.project.name}
+      className="text-texto-tenue underline-offset-4 hover:underline"
+    />
   )
 }
 

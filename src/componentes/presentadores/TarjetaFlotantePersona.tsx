@@ -87,6 +87,27 @@ export function TarjetaFlotantePersona ({
     if (cierrePendiente.current !== null) clearTimeout(cierrePendiente.current)
   }, [])
 
+  // La tarjeta se posiciona en `position: fixed` contra el viewport, calculada una sola vez al
+  // abrir. Si la pagina se desplaza o la ventana cambia de tamaño mientras esta abierta, queda
+  // flotando lejos de su disparador en vez de junto a el. Cerrarla es mas simple y mas seguro que
+  // recalcular la posicion en cada evento de scroll: quien sigue mirando puede volver a abrirla con
+  // el mismo hover.
+  useEffect(() => {
+    if (!abierto) return
+
+    function cerrarPorMovimiento (): void {
+      setAbierto(false)
+    }
+
+    window.addEventListener('scroll', cerrarPorMovimiento, { capture: true, passive: true })
+    window.addEventListener('resize', cerrarPorMovimiento)
+
+    return () => {
+      window.removeEventListener('scroll', cerrarPorMovimiento, { capture: true })
+      window.removeEventListener('resize', cerrarPorMovimiento)
+    }
+  }, [abierto])
+
   const cancelarCierre = useCallback(() => {
     if (cierrePendiente.current !== null) {
       clearTimeout(cierrePendiente.current)

@@ -10,6 +10,7 @@ import { useUbicacionTarea } from '@/componentes/auditoria/accion'
 import { Cargando, ErrorEstado, Vacio } from '@/componentes/estado/Estados'
 import { EnlacePanelClasico } from '@/componentes/presentadores/EnlacePanelClasico'
 import { EnlacePersona } from '@/componentes/presentadores/EnlacePersona'
+import { GrupoEnlacesPersona } from '@/componentes/presentadores/GrupoEnlacesPersona'
 import { Etiquetas } from '@/componentes/presentadores/Etiqueta'
 import { Fecha } from '@/componentes/presentadores/Fecha'
 import { InsigniaDePrioridad } from '@/componentes/presentadores/InsigniaDePrioridad'
@@ -100,18 +101,6 @@ interface PropsDetalleTarea {
    * que el listado de atras deje de mostrar los datos viejos.
    */
   onCambiada?: () => void
-  /**
-   * Capacidades de quien mira sobre `staff` (de `permissions` de `/me`), para decidir si
-   * `EnlacePersona` enlaza a `/equipo/{id}`. Sin ella, ningun avatar de esta ficha enlaza.
-   */
-  capacidades?: readonly string[]
-  /**
-   * `true` si esta ficha se dibuja dentro del portal del cliente: ahi ninguna persona se enlaza,
-   * tenga o no la capacidad. Sin pasarla, se deriva de `fuente.subrecursosDeTarea === null` — la
-   * misma señal explicita que ya distingue panel de portal en esta ficha (ver el docblock de arriba).
-   * Nunca se adivina por la URL.
-   */
-  esPortal?: boolean
   className?: string
 }
 
@@ -132,8 +121,6 @@ export function DetalleTarea (
     onBorrada,
     onDuplicada,
     onCambiada,
-    capacidades = [],
-    esPortal,
     className
   }: PropsDetalleTarea
 ): ReactElement {
@@ -226,9 +213,6 @@ export function DetalleTarea (
   // cuelgan de rutas que solo el equipo tiene. Con la raiz en `null` no se montan: es lo que deja la
   // ficha del cliente sin una sola peticion que vaya a devolver 404.
   const subrecursos = fuente.subrecursosDeTarea
-  // La misma señal que apaga los subrecursos: en el portal `subrecursosDeTarea` es `null`. Es dato
-  // explicito que ya viaja por props, no una adivinanza por la URL.
-  const dentroDelPortal = esPortal ?? subrecursos === null
   // Si la fila del Hito ofrece el menu para cambiarlo. Sin Espacio no hay catalogo de hitos que
   // ofrecer, y sin `puedeEditar` —el portal— no hay nada que elegir.
   const menuDeHito = puedeEditar && tarea.project !== undefined && tarea.project !== null
@@ -413,25 +397,19 @@ export function DetalleTarea (
           <Dato etiqueta="Entrega"><Fecha valor={tarea.due_date} comoVencimiento /></Dato>
           {tarea.assignees !== undefined && (
             <Dato etiqueta="Asignados">
-              <AsignadosConEnlace
-                personas={tarea.assignees}
-                capacidades={capacidades}
-                esPortal={dentroDelPortal}
-              />
+              <GrupoEnlacesPersona personas={tarea.assignees} />
             </Dato>
           )}
           {/* Quién creó y quién asignó (WIW-0441). `created_by` no llega al portal, y sin él la fila
               no se dibuja; `null` es un creador que ya no se puede nombrar. */}
           {tarea.created_by !== undefined && (
             <Dato etiqueta="Creada por">
-              {tarea.created_by === null
-                ? SIN_DATO
-                : <Persona persona={tarea.created_by} capacidades={capacidades} esPortal={dentroDelPortal} />}
+              {tarea.created_by === null ? SIN_DATO : <Persona persona={tarea.created_by} />}
             </Dato>
           )}
           {gruposDeAsignacion.length > 0 && (
             <Dato etiqueta="Asignada por">
-              <AsignadaPor grupos={gruposDeAsignacion} capacidades={capacidades} esPortal={dentroDelPortal} />
+              <AsignadaPor grupos={gruposDeAsignacion} />
             </Dato>
           )}
           {tarea.tags !== undefined && (
@@ -516,7 +494,7 @@ export function DetalleTarea (
             cliente lee el hilo que le llega adentro de la ficha, si el Proyecto se lo comparte. */}
         {subrecursos !== null
           ? <HiloDeComentarios procesoId={procesoId} onCambiado={onCambiada} />
-          : <Comentarios comentarios={tarea.comments} capacidades={capacidades} esPortal={dentroDelPortal} />}
+          : <Comentarios comentarios={tarea.comments} />}
 
         {subrecursos !== null && (
           <EnlacePanelClasico entidad="proceso" id={procesoId} className="self-start" />
@@ -659,16 +637,10 @@ function AdjuntosDeLectura (
  * cliente.
  *
  * @param comentarios Los comentarios, o `undefined` si el contrato no los manda.
- * @param capacidades Capacidades de quien mira sobre `staff`, para `EnlacePersona` en la tarjeta.
- * @param esPortal Si esta ficha se dibuja dentro del portal del cliente.
  * @returns El hilo, o nada.
  */
 function Comentarios (
-  { comentarios, capacidades, esPortal }: {
-    comentarios: ProcesoDeFicha['comments']
-    capacidades: readonly string[]
-    esPortal: boolean
-  }
+  { comentarios }: { comentarios: ProcesoDeFicha['comments'] }
 ): ReactElement | null {
   if (comentarios === undefined) return null
 
@@ -692,8 +664,6 @@ function Comentarios (
                     ...paraMostrar,
                     author: paraMostrar.author === null ? null : { ...paraMostrar.author, id: comentario.staff?.id }
                   }}
-                  capacidades={capacidades}
-                  esPortal={esPortal}
                 />
               )
             })}
@@ -831,20 +801,16 @@ function ValorPersonalizado ({ campo }: { campo: CampoLegible }): ReactElement {
 /**
  * Avatar chico y nombre de una persona del equipo, en una línea.
  *
- * Enlaza a su ficha con `EnlacePersona` solo si `capacidades` y `esPortal` lo permiten; si no, queda
- * en avatar y nombre planos, igual que antes.
+ * Enlaza a su ficha con `EnlacePersona` solo si lo permiten las capacidades y el `esPortal` del
+ * `ProveedorEnlaces` vigente; si no, queda en avatar y nombre planos, igual que antes.
  */
-function Persona (
-  { persona, capacidades, esPortal }: { persona: PersonaDeAutoria, capacidades: readonly string[], esPortal: boolean }
-): ReactElement {
+function Persona ({ persona }: { persona: PersonaDeAutoria }): ReactElement {
   return (
     <EnlacePersona
       id={persona.id}
       nombre={persona.full_name}
       imagen={persona.profile_image_url}
       tamano="chico"
-      capacidades={capacidades}
-      esPortal={esPortal}
       className="flex"
     />
   )
@@ -856,75 +822,21 @@ function Persona (
  * Con una sola persona que asignó alcanza su nombre: es la respuesta a "quién me asignó" para
  * cualquiera de los responsables. Con varias, cada una lleva a quiénes asignó.
  */
-function AsignadaPor (
-  { grupos, capacidades, esPortal }: { grupos: GrupoDeAsignacion[], capacidades: readonly string[], esPortal: boolean }
-): ReactElement {
+function AsignadaPor ({ grupos }: { grupos: GrupoDeAsignacion[] }): ReactElement {
   const unico = grupos.length === 1 ? grupos[0] : undefined
-  if (unico !== undefined) return <Persona persona={unico.quien} capacidades={capacidades} esPortal={esPortal} />
+  if (unico !== undefined) return <Persona persona={unico.quien} />
 
   return (
     <ul className="flex flex-col gap-1.5">
       {grupos.map((grupo) => (
         <li key={grupo.quien.id} className="flex min-w-0 flex-col">
-          <Persona persona={grupo.quien} capacidades={capacidades} esPortal={esPortal} />
+          <Persona persona={grupo.quien} />
           <span className="text-texto-sutil truncate pl-8 text-xs">
             a {grupo.asignados.map((persona) => persona.full_name).join(', ')}
           </span>
         </li>
       ))}
     </ul>
-  )
-}
-
-/**
- * Asignados de la tarea, apilados como `GrupoAvatares` (mismo limite, mismo contador de excedente,
- * mismo resumen `sr-only`), pero cada avatar visible es un `EnlacePersona`: enlaza a `/equipo/{id}`
- * y muestra su mini-ficha, solo si `capacidades` y `esPortal` lo permiten.
- *
- * No vive en `presentadores/` porque hoy tiene un solo consumidor: duplicar el tamaño de los
- * circulos de `Avatar` (que no exporta esa tabla) para un componente compartido seria anticipar una
- * reutilizacion que todavia no existe.
- */
-function AsignadosConEnlace (
-  { personas, capacidades, esPortal }: {
-    personas: PersonaDeAutoria[]
-    capacidades: readonly string[]
-    esPortal: boolean
-  }
-): ReactElement {
-  if (personas.length === 0) return <span className="text-texto-sutil text-xs">Sin asignar</span>
-
-  const MAXIMO_VISIBLE = 3
-  const visibles = personas.slice(0, MAXIMO_VISIBLE)
-  const restantes = personas.length - visibles.length
-
-  return (
-    <span className="inline-flex items-center">
-      <span className="inline-flex items-center" aria-hidden="true">
-        {visibles.map((persona) => (
-          <EnlacePersona
-            key={persona.id}
-            id={persona.id}
-            nombre={persona.full_name}
-            imagen={persona.profile_image_url}
-            tamano="chico"
-            capacidades={capacidades}
-            esPortal={esPortal}
-            mostrarNombre={false}
-            className="ring-superficie-elevada -ml-1 rounded-full ring-2 first:ml-0"
-          />
-        ))}
-        {restantes > 0 && (
-          <span
-            className="bg-relleno-neutro text-texto-tenue ring-superficie-elevada -ml-1 inline-flex size-6 items-center justify-center rounded-full text-[0.625rem] font-semibold ring-2"
-            title={personas.slice(MAXIMO_VISIBLE).map((persona) => persona.full_name).join(', ')}
-          >
-            +{restantes}
-          </span>
-        )}
-      </span>
-      <span className="sr-only">{personas.map((persona) => persona.full_name).join(', ')}</span>
-    </span>
   )
 }
 

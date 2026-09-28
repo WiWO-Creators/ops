@@ -189,6 +189,11 @@ export interface MensajeDeTicket {
   /** Clave estable para React: el mensaje de apertura no tiene id de respuesta. */
   clave: string
   autor: string
+  /**
+   * Id de staff del autor, para enlazarlo con `EnlacePersona`. `undefined` cuando el autor no es del
+   * equipo (`lado === 'cliente'`) o cuando la API no lo trajo.
+   */
+  autorStaffId?: number
   /** De que lado vino. El dibujo lo usa para alinear y teñir, no para decidir nada. */
   lado: 'equipo' | 'cliente'
   fecha: string | null
@@ -335,6 +340,7 @@ function mensajeDelPanel (respuesta: RespuestaTicket): MensajeDeTicket {
   return {
     clave: `r${respuesta.id}`,
     autor: autorDeRespuesta(respuesta),
+    autorStaffId: respuesta.autor.tipo === 'staff' ? (respuesta.autor.id ?? undefined) : undefined,
     lado: respuesta.autor.tipo === 'staff' ? 'equipo' : 'cliente',
     fecha: respuesta.date,
     texto: textoDe(respuesta.message, respuesta.message_texto),
