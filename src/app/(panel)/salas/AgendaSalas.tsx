@@ -11,6 +11,7 @@ import { Insignia } from '@/componentes/presentadores/Insignia'
 import { CerrarDialogo, ContenidoDialogo, Dialogo } from '@/componentes/superposiciones/Dialogo'
 import { escribirEnBff } from '@/componentes/datos/mutaciones'
 import { TituloModulo } from '@/componentes/estructura/TituloModulo'
+import { useAviso } from '@/componentes/estado/useAviso'
 import { DialogoReserva, type BorradorReserva } from './DialogoReserva'
 import { DialogoSalas } from './DialogoSalas'
 import { CalendarioSalas } from './CalendarioSalas'
@@ -296,8 +297,10 @@ interface PropsDetalle {
  * va a usar la sala antes de darla por perdida.
  */
 function DetalleReserva ({ reserva, puedeTocar, onCerrar, onEditar, onCancelado }: PropsDetalle) {
+  const [confirmandoCancelacion, setConfirmandoCancelacion] = useState(false)
   const [cancelando, setCancelando] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const aviso = useAviso()
 
   if (reserva === null) return null
 
@@ -316,6 +319,7 @@ function DetalleReserva ({ reserva, puedeTocar, onCerrar, onEditar, onCancelado 
       return
     }
 
+    aviso.exito('Reserva cancelada.')
     onCancelado()
   }
 
@@ -381,20 +385,41 @@ function DetalleReserva ({ reserva, puedeTocar, onCerrar, onEditar, onCancelado 
 
           {error !== null && <p role="alert" className="text-texto-peligro text-sm">{error}</p>}
 
-          <div className="flex justify-end gap-2">
-            <CerrarDialogo asChild>
-              <Boton variante="sutil">Cerrar</Boton>
-            </CerrarDialogo>
+          {/* Confirmacion en la misma ficha y no en otro dialogo: este detalle YA vive dentro de un
+              modal, y un `Dialogo` sobre otro deja los dos peleando por el foco. */}
+          {puedeTocar && confirmandoCancelacion
+            ? (
+              <div className="border-linea flex flex-col gap-2 border-t pt-2">
+                <p className="text-texto-sutil text-xs">
+                  Se cancela la reserva de &quot;{reserva.title}&quot; en {reserva.room_name}. La sala
+                  queda libre para esa franja.
+                </p>
+                <div className="flex justify-end gap-2">
+                  <Boton variante="sutil" onClick={() => { setConfirmandoCancelacion(false) }}>
+                    Volver
+                  </Boton>
+                  <Boton variante="peligro" cargando={cancelando} onClick={() => { void cancelar() }}>
+                    Cancelar reserva
+                  </Boton>
+                </div>
+              </div>
+              )
+            : (
+              <div className="flex justify-end gap-2">
+                <CerrarDialogo asChild>
+                  <Boton variante="sutil">Cerrar</Boton>
+                </CerrarDialogo>
 
-            {puedeTocar && (
-              <>
-                <Boton variante="secundario" onClick={() => onEditar(reserva)}>Editar</Boton>
-                <Boton variante="peligro" cargando={cancelando} onClick={() => { void cancelar() }}>
-                  Cancelar reserva
-                </Boton>
-              </>
-            )}
-          </div>
+                {puedeTocar && (
+                  <>
+                    <Boton variante="secundario" onClick={() => onEditar(reserva)}>Editar</Boton>
+                    <Boton variante="peligro" onClick={() => { setConfirmandoCancelacion(true) }}>
+                      Cancelar reserva
+                    </Boton>
+                  </>
+                )}
+              </div>
+              )}
         </div>
       </ContenidoDialogo>
     </Dialogo>

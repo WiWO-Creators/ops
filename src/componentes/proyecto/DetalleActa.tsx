@@ -168,6 +168,7 @@ export function DetalleActa ({
   const [guardando, setGuardando] = useState(false)
   const [borrando, setBorrando] = useState(false)
   const [confirmando, setConfirmando] = useState(false)
+  const [confirmandoRetraduccion, setConfirmandoRetraduccion] = useState(false)
   const [renombrando, setRenombrando] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [exportando, setExportando] = useState<'pdf' | 'docx' | null>(null)
@@ -415,16 +416,17 @@ export function DetalleActa ({
    * porque eso es lo unico que se pierde de verdad: volver a traducir lo que escribio el modelo no
    * pierde trabajo de nadie.
    */
-  async function volverATraducir (): Promise<void> {
+  function volverATraducir (): void {
     if (traduccionActiva === null) return
 
     const corregida = traduccionActiva.updated_by !== null && traduccionActiva.updated_by !== undefined
 
-    if (corregida && !confirm(
-      'Alguien corrigió esta traducción a mano. Si la pides de nuevo, esas correcciones se pierden. ¿Seguir?'
-    )) return
+    if (corregida) {
+      setConfirmandoRetraduccion(true)
+      return
+    }
 
-    await traducir(idioma)
+    void traducir(idioma)
   }
 
   /**
@@ -608,7 +610,7 @@ export function DetalleActa ({
                       </ItemMenu>
                     ))}
                   {traduccionActiva !== null && puedeTraducir && (
-                    <ItemMenu onSelect={() => { void volverATraducir() }}>
+                    <ItemMenu onSelect={volverATraducir}>
                       Volver a traducir al {infoIdioma.nombre.toLowerCase()}
                     </ItemMenu>
                   )}
@@ -775,6 +777,25 @@ export function DetalleActa ({
           <div className="flex justify-end gap-2">
             <Boton variante="sutil" onClick={() => { setConfirmando(false) }}>Cancelar</Boton>
             <Boton variante="peligro" cargando={borrando} onClick={() => { void borrar() }}>Eliminar</Boton>
+          </div>
+        </ContenidoDialogo>
+      </Dialogo>
+
+      <Dialogo open={confirmandoRetraduccion} onOpenChange={setConfirmandoRetraduccion}>
+        <ContenidoDialogo
+          titulo="Volver a traducir"
+          descripcion="Alguien corrigió esta traducción a mano. Si la pides de nuevo, esas correcciones se pierden."
+          ancho="chico"
+        >
+          <div className="flex justify-end gap-2">
+            <Boton variante="sutil" onClick={() => { setConfirmandoRetraduccion(false) }}>Cancelar</Boton>
+            <Boton
+              variante="peligro"
+              cargando={cambiandoIdioma}
+              onClick={() => { setConfirmandoRetraduccion(false); void traducir(idioma) }}
+            >
+              Volver a traducir
+            </Boton>
           </div>
         </ContenidoDialogo>
       </Dialogo>
