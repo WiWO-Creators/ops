@@ -1,11 +1,13 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { animate, createSpring } from 'animejs'
 import { RefreshCw, X } from 'lucide-react'
 import { Boton } from '@/componentes/formularios/Boton'
 import { Orbe } from '@/componentes/estado/Orbe'
 import { ATRIBUTO_BIENVENIDA, CLAVE_BIENVENIDA } from '@/lib/bienvenida'
 import { cn } from '@/lib/clases'
+import { cumpleConsulta, MENOS_MOVIMIENTO } from '@/lib/useConsultaDeMedios'
 import { elegirEscena } from './bienvenida/escenas'
 
 /** Cuanto dura la obra antes de empezar a irse. */
@@ -14,8 +16,8 @@ const OBRA = 2200
 const OBRA_REDUCIDA = 700
 /** El fundido de salida. Tiene que coincidir con `duration-500` de la capa. */
 const SALIDA = 500
-/** Lo que tarda el aviso en irse al descartarlo. Es `--wiwo-motion-fast`, el de `animate-aviso-salir`. */
-const SALIDA_AVISO = 160
+/** Cuanto tarda el aviso en salir cuando alguien lo descarta, con la caida de la animacion de resorte. */
+const DURACION_SALIDA_AVISO = 180
 
 /** Lo que devuelve `/api/version`. */
 interface SobreVersion {
@@ -72,6 +74,8 @@ export function VigilanteDeVersion ({ version, segundos }: PropsVigilante) {
   // a mitad de la obra si algo mas obliga a repintar. El sorteo en el servidor no importa —esta capa
   // solo se muestra despues de montar, cuando el efecto de abajo encuentra la marca—.
   const [escena] = useState(elegirEscena)
+  const avisoRef = useRef<HTMLDivElement | null>(null)
+  const iconoRef = useRef<SVGSVGElement | null>(null)
 
   useEffect(() => {
     const marca = leerMarca()
@@ -89,7 +93,7 @@ export function VigilanteDeVersion ({ version, segundos }: PropsVigilante) {
       return
     }
 
-    const reducido = globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true
+    const reducido = cumpleConsulta(MENOS_MOVIMIENTO)
     const duracion = reducido ? OBRA_REDUCIDA : OBRA
 
     // Los tres momentos de la bienvenida, en temporizadores y no en el cuerpo del efecto. Leer
@@ -147,6 +151,36 @@ export function VigilanteDeVersion ({ version, segundos }: PropsVigilante) {
     }
   }, [versionCargada, segundos])
 
+  const avisando = disponible !== null && disponible !== descartada
+
+  // La entrada es un resorte: sube con un pequeño rebote en vez de frenar en seco, que es lo que la
+  // hace sentir "viva" y no una barra que aparece. El icono gira con su propio resorte, mas suelto,
+  // para que no se lea como la misma animacion repetida dos veces.
+  useLayoutEffect(() => {
+    if (!avisando || cerrando) return
+    if (cumpleConsulta(MENOS_MOVIMIENTO)) return
+
+    const barra = avisoRef.current
+    const icono = iconoRef.current
+
+    if (barra !== null) {
+      animate(barra, {
+        opacity: [0, 1],
+        translateY: [40, 0],
+        scale: [0.96, 1],
+        ease: createSpring({ stiffness: 300, damping: 24 })
+      })
+    }
+
+    if (icono !== null) {
+      animate(icono, {
+        rotate: [-180, 0],
+        delay: 100,
+        ease: createSpring({ stiffness: 240, damping: 14 })
+      })
+    }
+  }, [avisando, cerrando])
+
   /** Deja la marca para la carga siguiente y recarga. */
   function actualizar (): void {
     if (disponible === null) return
@@ -162,30 +196,48 @@ export function VigilanteDeVersion ({ version, segundos }: PropsVigilante) {
     globalThis.location.reload()
   }
 
-  /** Deja ir el aviso por donde entro y recien entonces lo da por descartado. */
+  /**
+   * Deja ir el aviso por donde entro y recien entonces lo da por descartado.
+   *
+   * El desmontaje espera a que la animacion de salida termine de verdad —su `onComplete`, no un
+   * temporizador aparte— para que nunca quede una barra a mitad de camino ni un salto si el resorte
+   * tarda mas o menos de lo esperado.
+   */
   function descartar (): void {
     if (disponible === null || cerrando) return
 
     setCerrando(true)
-    globalThis.setTimeout(() => {
+
+    const barra = avisoRef.current
+
+    if (barra === null || cumpleConsulta(MENOS_MOVIMIENTO)) {
       setDescartada(disponible)
       setCerrando(false)
-    }, SALIDA_AVISO)
-  }
+      return
+    }
 
-  const avisando = disponible !== null && disponible !== descartada
+    animate(barra, {
+      opacity: [1, 0],
+      translateY: [0, 24],
+      scale: [1, 0.96],
+      duration: DURACION_SALIDA_AVISO,
+      ease: 'inQuad',
+      onComplete: () => {
+        setDescartada(disponible)
+        setCerrando(false)
+      }
+    })
+  }
 
   return (
     <>
       {avisando && (
         <div
+          ref={avisoRef}
           role="status"
-          className={cn(
-            // En movil sube por encima del boton del chat (`ia/OrbeChatIA`, `bottom-6 right-4`,
-            // 56px): centrada y a 30rem, la barra le llega justo encima en pantallas angostas.
-            'fixed bottom-24 left-1/2 z-50 w-[min(30rem,calc(100vw-2rem))] -translate-x-1/2 sm:bottom-5',
-            cerrando ? 'animate-aviso-salir' : 'animate-aviso-entrar'
-          )}
+          // En movil sube por encima del boton del chat (`ia/OrbeChatIA`, `bottom-6 right-4`, 56px):
+          // centrada y a 30rem, la barra le llega justo encima en pantallas angostas.
+          className="fixed bottom-24 left-1/2 z-50 w-[min(30rem,calc(100vw-2rem))] -translate-x-1/2 sm:bottom-5"
         >
           <div
             className={cn(
@@ -202,7 +254,7 @@ export function VigilanteDeVersion ({ version, segundos }: PropsVigilante) {
             >
               {recargando
                 ? <Orbe tamano="chico" estado="thinking" />
-                : <RefreshCw className="size-[1.125rem] animate-aviso-giro" />}
+                : <RefreshCw ref={iconoRef} className="size-[1.125rem]" />}
             </span>
             <div className="min-w-0 flex-1">
               <p className="text-texto text-sm leading-tight font-semibold">Hay una versión nueva de Ops</p>
