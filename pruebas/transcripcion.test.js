@@ -160,6 +160,24 @@ test('una fecha de vencimiento invalida no revienta el aviso', () => {
   assert.match(formatoDeVencimiento(TRANSCRIPCION.expira_en), /2026/)
 })
 
+test('el ISO 8601 con offset -03:00 de la API real se lee igual que el sufijo Z', () => {
+  const conOffset = '2026-09-29T07:00:00-03:00' // mismo instante que 2026-09-29T10:00:00Z
+  const ahora = new Date('2026-09-29T10:00:01Z')
+  const antes = new Date('2026-09-29T09:59:59Z')
+
+  assert.equal(transcripcionVencida(conOffset, ahora), true)
+  assert.equal(transcripcionVencida(conOffset, antes), false)
+  assert.match(formatoDeVencimiento(conOffset), /2026/)
+  assert.equal(leerTranscripcion({ ...TRANSCRIPCION, expira_en: conOffset })?.expira_en, conOffset)
+})
+
+test('una fecha invalida deja la transcripcion como no vencida en vez de romper, nunca como vencida para siempre', () => {
+  // Defensivo: si el campo llega corrupto, se prefiere mostrarla (el peor caso es una fila de mas)
+  // a esconderla por error o a lanzar una excepcion que tire abajo el panel entero.
+  assert.equal(transcripcionVencida('no-es-fecha'), false)
+  assert.equal(transcripcionVencida(''), false)
+})
+
 test('el nombre del archivo descargado lleva la fecha adelante', () => {
   assert.equal(nombreDeArchivoTranscripcion(TRANSCRIPCION), 'transcripcion-2026-09-28-1.txt')
 })

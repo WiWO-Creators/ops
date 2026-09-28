@@ -51,6 +51,27 @@ export interface Transcripcion {
   expira_en: string
 }
 
+/**
+ * La forma resumida de una transcripción, la que devuelve `GET /projects/{id}/transcripciones`
+ * (la lista). Nunca trae el texto completo ni los segmentos -el backend los deja fuera a propósito
+ * para no mandar el contenido de todas las transcripciones vigentes de una vez-, solo un extracto y
+ * su largo. El detalle completo (`Transcripcion`, con `texto` y `segmentos`) sale de
+ * `GET /projects/{id}/transcripciones/{tid}`.
+ */
+export interface ResumenTranscripcion {
+  id: number
+  project_id: number
+  idioma: string
+  /** Los primeros ~200 caracteres del texto, para mostrar en la lista. */
+  extracto: string
+  /** Largo total del texto completo, no del extracto. */
+  caracteres: number
+  duracion_segundos: number | null
+  creado_en: string
+  /** ISO-8601. Pasado ese instante, la fila ya no existe del lado del servidor. */
+  expira_en: string
+}
+
 /** Un frame del stream de transcripción, ya interpretado. */
 export type EventoTranscripcion =
   | { tipo: 'paso', paso: PasoIA }

@@ -2607,7 +2607,7 @@ const TRANSCRIPCIONES = []
 /** Autoincremental de transcripciones. Rango propio para no confundirse con actas ni con tareas. */
 let PROXIMA_TRANSCRIPCION = 500
 
-/** Los cuatro idiomas del contrato. Cualquier otro valor cae a `es`, igual que haria un 422 ignorado. */
+/** Los cuatro idiomas del contrato. Vacío cae a `es`; cualquier otro valor fuera de la lista es 422. */
 const IDIOMAS_TRANSCRIPCION_VALIDOS = ['es', 'en', 'pt', 'auto']
 
 /** Un texto de ejemplo por idioma, para que la pantalla se pueda revisar en los tres. */
@@ -2632,6 +2632,22 @@ function transcripcionGenerada (idioma) {
 }
 
 /** Crea la transcripcion y la deja al frente de la lista, igual que `guardarActa`. */
+/**
+ * ISO 8601 con el offset fijo del negocio (`-03:00`, América/Santiago), como lo emite la API real
+ * para `creado_en`/`expira_en`. No usa la zona del proceso que corre el mock -que puede ser UTC en
+ * CI o en un contenedor- porque el contrato no depende de dónde se ejecuta esto.
+ *
+ * @param fecha el instante a formatear
+ * @returns algo como `2026-09-29T15:30:00-03:00`
+ */
+function isoConOffsetSantiago (fecha) {
+  const pad = (n) => String(n).padStart(2, '0')
+  const local = new Date(fecha.getTime() - 3 * 60 * 60 * 1000)
+
+  return `${local.getUTCFullYear()}-${pad(local.getUTCMonth() + 1)}-${pad(local.getUTCDate())}` +
+    `T${pad(local.getUTCHours())}:${pad(local.getUTCMinutes())}:${pad(local.getUTCSeconds())}-03:00`
+}
+
 function guardarTranscripcion (espacio, actual, idioma) {
   const ahora = new Date()
   const expira = new Date(ahora.getTime() + 24 * 60 * 60 * 1000)
@@ -2645,8 +2661,8 @@ function guardarTranscripcion (espacio, actual, idioma) {
     segmentos,
     duracion_segundos: 15,
     staff_id: actual.id,
-    creado_en: ahora.toISOString().replace(/\.\d{3}Z$/, 'Z'),
-    expira_en: expira.toISOString().replace(/\.\d{3}Z$/, 'Z')
+    creado_en: isoConOffsetSantiago(ahora),
+    expira_en: isoConOffsetSantiago(expira)
   }
 
   TRANSCRIPCIONES.unshift(transcripcion)
@@ -2662,6 +2678,25 @@ function presentarTranscripcion (transcripcion) {
     idioma: transcripcion.idioma,
     texto: transcripcion.texto,
     segmentos: transcripcion.segmentos,
+    duracion_segundos: transcripcion.duracion_segundos,
+    creado_en: transcripcion.creado_en,
+    expira_en: transcripcion.expira_en
+  }
+}
+
+/**
+ * La forma resumida de una transcripcion para el listado: sin texto completo. Replica
+ * `RecursoTranscripciones::presentarResumen()` del backend real -`extracto` son los primeros 200
+ * caracteres del texto, `caracteres` es su largo total- para que la fila de "recientes" no tenga que
+ * pedir ni recibir el texto entero de todas las transcripciones vigentes.
+ */
+function presentarResumenTranscripcion (transcripcion) {
+  return {
+    id: transcripcion.id,
+    project_id: transcripcion.project_id,
+    idioma: transcripcion.idioma,
+    extracto: transcripcion.texto.slice(0, 200),
+    caracteres: transcripcion.texto.length,
     duracion_segundos: transcripcion.duracion_segundos,
     creado_en: transcripcion.creado_en,
     expira_en: transcripcion.expira_en
@@ -2717,12 +2752,23 @@ function transmitirTranscripcionSSE (respuesta, { fin, falla }) {
  *
  * El cuerpo llega como `multipart/form-data` con `audio` (archivo, ignorado tal como el mock ignora
  * el contenido de cualquier audio) e `idioma`. `camposDelMultipart` ya sabe separar el campo de texto
- * del archivo sin parsear el binario entero.
+ * del archivo sin parsear el binario entero. Vacío cae en `es`, igual que hace la API; cualquier otro
+ * valor que no esté en la lista blanca es 422, no un valor ignorado en silencio.
  */
 async function generarTranscripcionIaRuta (id, parametros, actual, peticion) {
   const espacio = buscarO404(ESPACIOS, Number(id), 'espacio')
+  if (!elementoVisible(actual, 'project', espacio.id)) {
+    throw new ErrorApi(404, 'not_found', 'No existe ese Proyecto.')
+  }
+
   const { campos } = await camposDelMultipart(peticion)
-  const idioma = IDIOMAS_TRANSCRIPCION_VALIDOS.includes(campos.idioma) ? campos.idioma : 'es'
+  const idiomaCrudo = typeof campos.idioma === 'string' ? campos.idioma.trim() : ''
+
+  if (idiomaCrudo !== '' && !IDIOMAS_TRANSCRIPCION_VALIDOS.includes(idiomaCrudo)) {
+    throw new ErrorApi(422, 'validation_failed', 'Ese idioma no está disponible para transcribir.', { idioma: ['invalid'] })
+  }
+
+  const idioma = idiomaCrudo === '' ? 'es' : idiomaCrudo
   const falla = parametros.get('falla') === '1'
 
   if (!aceptaStream(peticion)) {
@@ -3478,14 +3524,35 @@ async function generarActaIaRuta (id, parametros, actual, peticion) {
   // Drenar el cuerpo antes de responder: sin esto el socket queda con bytes sin leer y el navegador
   // ve la conexion cortada en vez de la respuesta. De paso se anotan los archivos que venian, que es
   // lo que el frontend espera ver listado en la ficha del acta, y se lee `transcripcion_id` si vino.
-  const { adjuntos, transcripcionId } = await adjuntosDelMultipart(peticion)
+  const { adjuntos, transcripcionId, transcripcionIdInvalido } = await adjuntosDelMultipart(peticion)
+
+  if (transcripcionIdInvalido) {
+    throw new ErrorApi(422, 'validation_failed', 'El id de la transcripción no es válido.', { transcripcion_id: ['invalid'] })
+  }
+
+  if (transcripcionId !== null && adjuntos.length > 0) {
+    throw new ErrorApi(
+      422,
+      'validation_failed',
+      'No se puede mandar transcripcion_id junto con un archivo.',
+      { transcripcion_id: ['conflicting_with_file'] }
+    )
+  }
 
   const falla = parametros.get('falla') === '1'
   // Con `transcripcion_id`, el material es el texto ya transcrito y no un audio nuevo: el mock lo
-  // cita en el acta para que se note que vino de ahí, igual que hará el backend real.
-  const transcripcion = transcripcionId === null
-    ? null
-    : TRANSCRIPCIONES.find((t) => t.id === transcripcionId && t.project_id === espacio.id) ?? null
+  // cita en el acta para que se note que vino de ahí, igual que hará el backend real. Ajena, vencida
+  // o inexistente es 404, igual que `RecursoTranscripciones` del backend: no confirma si la fila
+  // existe y es de otro staff.
+  let transcripcion = null
+  if (transcripcionId !== null) {
+    transcripcion = TRANSCRIPCIONES.find((t) =>
+      t.id === transcripcionId && t.project_id === espacio.id && t.staff_id === actual.id && transcripcionVigente(t)) ?? null
+
+    if (transcripcion === null) {
+      throw new ErrorApi(404, 'not_found', 'No existe esa transcripción.')
+    }
+  }
   const html = transcripcion === null ? actaGenerada(espacio) : actaGeneradaDesdeTranscripcion(espacio, transcripcion)
   const campos = { client: 'Acme SpA', brand: 'wiwo' }
 
@@ -3536,13 +3603,17 @@ const MIME_DE_ADJUNTO = {
 async function adjuntosDelMultipart (peticion) {
   const ARRASTRE = 512
   const patronArchivo = /filename="([^"\r\n]*)"/g
-  const patronTranscripcion = /name="transcripcion_id"\r?\n\r?\n(\d+)/
+  // Captura el valor crudo, no solo dígitos: así se distingue "vino y no es un número" (422) de
+  // "no vino" (null), igual que hace `ctype_digit()` del lado del backend.
+  const patronTranscripcion = /name="transcripcion_id"\r?\n\r?\n([^\r\n]*)/
   const nombres = []
   let cola = ''
   let base = 0
   let ultimo = -1
   let bytes = 0
   let transcripcionId = null
+  let transcripcionIdVisto = false
+  let transcripcionIdInvalido = false
 
   for await (const trozo of peticion) {
     bytes += trozo.length
@@ -3559,16 +3630,21 @@ async function adjuntosDelMultipart (peticion) {
       encontrado = patronArchivo.exec(texto)
     }
 
-    if (transcripcionId === null) {
+    if (!transcripcionIdVisto) {
       const conTranscripcion = patronTranscripcion.exec(texto)
-      if (conTranscripcion !== null) transcripcionId = Number(conTranscripcion[1])
+      if (conTranscripcion !== null) {
+        transcripcionIdVisto = true
+        const crudo = conTranscripcion[1].trim()
+        if (/^\d+$/.test(crudo)) transcripcionId = Number(crudo)
+        else transcripcionIdInvalido = true
+      }
     }
 
     cola = texto.slice(-ARRASTRE)
     base += texto.length - cola.length
   }
 
-  if (nombres.length === 0) return { adjuntos: [], transcripcionId }
+  if (nombres.length === 0) return { adjuntos: [], transcripcionId, transcripcionIdInvalido }
 
   const reparto = Math.max(1, Math.round(bytes / nombres.length))
 
@@ -3578,7 +3654,8 @@ async function adjuntosDelMultipart (peticion) {
       size: reparto,
       type: MIME_DE_ADJUNTO[name.split('.').pop()?.toLowerCase() ?? ''] ?? 'application/octet-stream'
     })),
-    transcripcionId
+    transcripcionId,
+    transcripcionIdInvalido
   }
 }
 
@@ -7487,6 +7564,10 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
   // no pida las de otro es la misma regla que aplican `sesiones` y `auditoria`.
   if (recurso === 'projects' && resto[1] === 'transcripciones') {
     const espacio = buscarO404(ESPACIOS, Number(resto[0]), 'espacio')
+    if (!elementoVisible(actual, 'project', espacio.id)) {
+      throw new ErrorApi(404, 'not_found', 'No existe ese Proyecto.')
+    }
+
     const propias = TRANSCRIPCIONES.filter((t) =>
       t.project_id === espacio.id && t.staff_id === actual.id && transcripcionVigente(t))
     const transcripcionId = resto[2] === undefined ? null : Number(resto[2])
@@ -7494,7 +7575,7 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
     if (transcripcionId === null) {
       if (metodo !== 'GET') throw new ErrorApi(404, 'not_found', 'Método no disponible en /transcripciones.')
 
-      return { estado: 200, cuerpo: conDatos(propias.map(presentarTranscripcion)) }
+      return { estado: 200, cuerpo: conDatos(propias.map(presentarResumenTranscripcion)) }
     }
 
     const transcripcion = propias.find((t) => t.id === transcripcionId)

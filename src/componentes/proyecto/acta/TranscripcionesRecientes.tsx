@@ -6,7 +6,7 @@ import { Boton } from '@/componentes/formularios/Boton'
 import { Insignia } from '@/componentes/presentadores/Insignia'
 import { Cargando, ErrorEstado } from '@/componentes/estado/Estados'
 import { escribirEnBff } from '@/componentes/datos/mutaciones'
-import { IDIOMAS_TRANSCRIPCION, formatoDeVencimiento, type Transcripcion } from '@/dominio/transcripcion'
+import { IDIOMAS_TRANSCRIPCION, formatoDeVencimiento, type ResumenTranscripcion } from '@/dominio/transcripcion'
 import { useRecurso } from '../carga'
 
 /**
@@ -16,6 +16,10 @@ import { useRecurso } from '../carga'
  * Solo lista las PROPIAS: `GET /projects/{id}/transcripciones` ya las recorta por autor del lado del
  * servidor, así que acá no hay ningún filtro que aplicar — mostrar la lista completa sin más es
  * mostrar exactamente lo que la persona puede ver.
+ *
+ * La API devuelve un RESUMEN (`ResumenTranscripcion`, con `extracto` y `caracteres`), nunca el texto
+ * completo ni los segmentos: el detalle se pide aparte, al abrir una fila, con
+ * `GET /projects/{id}/transcripciones/{tid}`.
  */
 
 interface PropsRecientes {
@@ -32,7 +36,7 @@ function etiquetaDeIdioma (idioma: string): string {
 
 export function TranscripcionesRecientes ({ proyectoId, revision, onAbrir }: PropsRecientes): ReactElement | null {
   const ruta = `projects/${proyectoId}/transcripciones${revision > 0 ? `?v=${revision}` : ''}`
-  const { estado, recargar } = useRecurso<Transcripcion[]>(ruta, 'No se pudieron cargar las transcripciones.')
+  const { estado, recargar } = useRecurso<ResumenTranscripcion[]>(ruta, 'No se pudieron cargar las transcripciones.')
 
   if (estado.fase === 'cargando') return <Cargando alto="min-h-24" mensaje="Cargando las transcripciones…" />
   if (estado.fase === 'error') return <ErrorEstado detalle={estado.mensaje} onReintentar={recargar} className="min-h-24" />
@@ -49,7 +53,7 @@ function ListaTranscripciones ({
   onAbrir,
   onBorrada
 }: {
-  transcripciones: Transcripcion[]
+  transcripciones: ResumenTranscripcion[]
   proyectoId: number
   onAbrir: (transcripcionId: number) => void
   onBorrada: () => void
@@ -78,7 +82,7 @@ function FilaTranscripcion ({
   onAbrir,
   onBorrada
 }: {
-  transcripcion: Transcripcion
+  transcripcion: ResumenTranscripcion
   proyectoId: number
   onAbrir: () => void
   onBorrada: () => void
@@ -112,7 +116,7 @@ function FilaTranscripcion ({
           onClick={onAbrir}
           className="text-texto min-w-0 flex-1 truncate text-left text-sm font-medium hover:underline"
         >
-          {transcripcion.texto === '' ? 'Transcripción sin texto' : transcripcion.texto.slice(0, 80)}
+          {transcripcion.extracto === '' ? 'Transcripción sin texto' : transcripcion.extracto.slice(0, 80)}
         </button>
 
         <div className="flex shrink-0 items-center gap-1.5">
