@@ -12,6 +12,7 @@ import {
   Selector
 } from '@/componentes/formularios/Selector'
 import { Cargando, ErrorEstado } from '@/componentes/estado/Estados'
+import { ConfirmacionEnLinea } from '@/componentes/datos/ConfirmacionEnLinea'
 import { useAviso } from '@/componentes/estado/useAviso'
 import { ContenidoDialogo, Dialogo } from '@/componentes/superposiciones/Dialogo'
 import { escribirEnBff } from '@/componentes/datos/mutaciones'
@@ -347,20 +348,18 @@ export function CuerpoImportarTareas ({
           (`ImportarTareas`), y un `Dialogo` sobre otro deja los dos peleando por el foco. */}
       {fase === 'informe' && confirmandoArchivo
         ? (
-          <div className="border-linea mt-4 flex flex-col gap-2 border-t pt-3">
-            <p className="text-texto-sutil text-xs">
-              {informe === null
+          <div className="border-linea mt-4 border-t pt-3">
+            <ConfirmacionEnLinea
+              advertencia={informe === null
                 ? 'Se archiva el proyecto de origen.'
                 : `Se archiva "${informe.origen.nombre}": sale de los listados y del portal del cliente. Conserva sus tareas y sus horas.`}
-            </p>
-            <div className="flex justify-end gap-2">
-              <Boton variante="sutil" disabled={enCurso} onClick={() => { setConfirmandoArchivo(false) }}>
-                Volver
-              </Boton>
-              <Boton variante="peligro" cargando={enCurso} onClick={() => { void archivarOrigen() }}>
-                Archivar
-              </Boton>
-            </div>
+              etiquetaCancelar="Volver"
+              etiquetaConfirmar="Archivar"
+              tamano="medio"
+              cargando={enCurso}
+              onCancelar={() => { setConfirmandoArchivo(false) }}
+              onConfirmar={() => { void archivarOrigen() }}
+            />
           </div>
           )
         : (

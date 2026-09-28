@@ -55,6 +55,13 @@ export const NOVEDADES: Novedad[] = [
   {
     fecha: '2026-09-28',
     tipo: 'mejora',
+    titulo: 'Un mismo lenguaje visual en todo Ops: personas, tablas, avisos y confirmaciones',
+    detalle: 'El nombre de una persona ahora es siempre clickeable y muestra su tarjeta al pasar el mouse por encima, en cualquier pantalla. Las tablas de los listados se ven y se filtran igual en todos lados, y el filtro que elegiste sigue ahí si recargas la página. El menú "⋯" de cada fila y la confirmación antes de borrar o cancelar algo tienen el mismo aspecto en todo el sistema, y guardar o borrar algo siempre avisa con el mismo mensaje flotante. Lo que antes se llamaba Proceso y Espacio ahora se llama Tarea y Proyecto (la URL pasó de /procesos a /tareas), y las fechas se muestran en formato chileno.',
+    commits: []
+  },
+  {
+    fecha: '2026-09-28',
+    tipo: 'mejora',
     titulo: 'Animaciones más cuidadas en la bienvenida, el aviso de versión nueva y Novedades',
     detalle: 'La escena de bienvenida tras actualizar, la barra de "hay una versión nueva" y la lista de Novedades ahora animan con más pulido. Respetan "menos movimiento" cuando el sistema lo pide.',
     commits: []

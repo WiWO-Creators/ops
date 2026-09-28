@@ -6,6 +6,7 @@ import { usePathname, useRouter } from 'next/navigation'
 import { AreaTexto } from '@/componentes/formularios/Entrada'
 import { Boton } from '@/componentes/formularios/Boton'
 import { Cargando, ErrorEstado, Vacio } from '@/componentes/estado/Estados'
+import { ConfirmacionEnLinea } from '@/componentes/datos/ConfirmacionEnLinea'
 import { CargandoConOrbe, Orbe } from '@/componentes/estado/Orbe'
 import { escribirEnBff } from '@/componentes/datos/mutaciones'
 import { mensajeDeRespuesta, pedirRespuesta, pedirSobre } from '@/datos/cliente'
@@ -416,35 +417,26 @@ function ConversacionOrbe ({ desplazable = false, proyecto, configuracion }: Pro
           la conversacion es larga, que es justo cuando se quiere borrar. */}
       {mensajes.length > 0 && (
         <div className="flex flex-col items-end gap-1">
-          {confirmandoBorrado && (
-            <p className="text-texto-sutil text-xs">
-              Se borra la conversación entera, también la que {ASISTENTE} recuerda.
-            </p>
-          )}
-
-          <div className="flex items-center gap-2">
-            {confirmandoBorrado
-              ? (
-                <>
-                  <Boton tamano="chico" variante="sutil" onClick={() => { setConfirmandoBorrado(false) }}>
-                    Cancelar
-                  </Boton>
-                  <Boton tamano="chico" variante="peligro" cargando={borrando} onClick={() => { void borrar() }}>
-                    Borrar
-                  </Boton>
-                </>
-                )
-              : (
-                <Boton
-                  tamano="chico"
-                  variante="sutil"
-                  disabled={enviando}
-                  onClick={() => { setConfirmandoBorrado(true) }}
-                >
-                  Borrar chat
-                </Boton>
-                )}
-          </div>
+          {confirmandoBorrado
+            ? (
+              <ConfirmacionEnLinea
+                advertencia={`Se borra la conversación entera, también la que ${ASISTENTE} recuerda.`}
+                etiquetaConfirmar="Borrar"
+                cargando={borrando}
+                onCancelar={() => { setConfirmandoBorrado(false) }}
+                onConfirmar={() => { void borrar() }}
+              />
+              )
+            : (
+              <Boton
+                tamano="chico"
+                variante="sutil"
+                disabled={enviando}
+                onClick={() => { setConfirmandoBorrado(true) }}
+              >
+                Borrar chat
+              </Boton>
+              )}
         </div>
       )}
 

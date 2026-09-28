@@ -8,6 +8,7 @@ import { PARAMETRO_TAREA, urlConParametro } from '@/componentes/datos/tabla'
 import { ArbolDrive } from '@/componentes/archivos/ArbolDrive'
 import { useUbicacionTarea } from '@/componentes/auditoria/accion'
 import { Cargando, ErrorEstado, Vacio } from '@/componentes/estado/Estados'
+import { ConfirmacionEnLinea } from '@/componentes/datos/ConfirmacionEnLinea'
 import { EnlacePanelClasico } from '@/componentes/presentadores/EnlacePanelClasico'
 import { EnlacePersona } from '@/componentes/presentadores/EnlacePersona'
 import { GrupoEnlacesPersona } from '@/componentes/presentadores/GrupoEnlacesPersona'
@@ -308,29 +309,15 @@ export function DetalleTarea (
           {/* Confirmacion en la misma ficha y no en otro dialogo: este detalle YA vive dentro de un
               modal, y un `Dialog` sobre otro deja los dos peleando por el foco. */}
           {puedeBorrar && confirmandoBorrado && (
-            <div className="border-linea flex flex-col gap-2 border-t pt-2">
-              <p className="text-texto-sutil text-xs">
-                Esta {GLOSARIO.proceso.singular.toLowerCase()} va a la papelera y deja de verse en
-                todas partes. Se puede restaurar entera desde la Papelera durante 30 días.
-              </p>
-
-              {errorBorrado !== null && (
-                <p role="alert" className="text-texto-peligro text-xs">{errorBorrado}</p>
-              )}
-
-              <div className="flex justify-end gap-2">
-                <Boton variante="sutil" tamano="chico" onClick={() => setConfirmandoBorrado(false)}>
-                  Cancelar
-                </Boton>
-                <Boton
-                  variante="peligro"
-                  tamano="chico"
-                  cargando={borrando}
-                  onClick={() => { void borrar() }}
-                >
-                  Eliminar
-                </Boton>
-              </div>
+            <div className="border-linea border-t pt-2">
+              <ConfirmacionEnLinea
+                advertencia={`Esta ${GLOSARIO.proceso.singular.toLowerCase()} va a la papelera y deja de verse en todas partes. Se puede restaurar entera desde la Papelera durante 30 días.`}
+                etiquetaConfirmar="Eliminar"
+                cargando={borrando}
+                error={errorBorrado}
+                onCancelar={() => setConfirmandoBorrado(false)}
+                onConfirmar={() => { void borrar() }}
+              />
             </div>
           )}
         </header>

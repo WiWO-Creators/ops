@@ -2,8 +2,9 @@
 
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
-import { Check, Copy, KeyRound, Mail, Phone, Plus, Star } from 'lucide-react'
+import { KeyRound, Mail, Phone, Plus, Star } from 'lucide-react'
 import { CeldaEncabezado, CeldaTabla, CuerpoTabla, EncabezadoTabla, FilaTabla, Tabla } from '@/componentes/datos/Tabla'
+import { BotonCopiar } from '@/componentes/datos/BotonCopiar'
 import { MenuAccionesFila } from '@/componentes/datos/MenuAccionesFila'
 import { Avatar } from '@/componentes/presentadores/Avatar'
 import { Boton } from '@/componentes/formularios/Boton'
@@ -333,20 +334,6 @@ function AccesoAlPortal ({ contacto }: { contacto: ContactoCompleto }) {
 function EnlaceGenerado (
   { enlace, onCerrar }: { enlace: { contacto: string, url: string }, onCerrar: () => void }
 ) {
-  const [copiado, setCopiado] = useState(false)
-
-  async function copiar (): Promise<void> {
-    try {
-      await navigator.clipboard.writeText(enlace.url)
-      setCopiado(true)
-      globalThis.setTimeout(() => setCopiado(false), 2000)
-    } catch {
-      // Sin permiso de portapapeles (o sin HTTPS) no hay copia automatica: el campo es seleccionable
-      // y ese es el plan B, asi que lo unico que falta es decirlo.
-      setCopiado(false)
-    }
-  }
-
   return (
     <div className="rounded-medio border-linea bg-superficie-hundida flex flex-col gap-2 border p-3">
       <p className="text-texto text-sm font-medium">
@@ -361,12 +348,7 @@ function EnlaceGenerado (
           onFocus={(e) => e.currentTarget.select()}
           className="font-mono text-xs"
         />
-        <Boton variante="secundario" tamano="chico" onClick={() => { void copiar() }}>
-          {copiado
-            ? <Check size={14} aria-hidden="true" />
-            : <Copy size={14} aria-hidden="true" />}
-          {copiado ? 'Copiado' : 'Copiar'}
-        </Boton>
+        <BotonCopiar valor={enlace.url} />
         <Boton variante="sutil" tamano="chico" onClick={onCerrar}>Listo</Boton>
       </div>
 

@@ -1,9 +1,10 @@
 'use client'
 
 import { useState } from 'react'
-import { Copy, Monitor, Plus, RefreshCw, Trash2 } from 'lucide-react'
+import { Plus, RefreshCw, Trash2 } from 'lucide-react'
 import { AvisoEnLinea } from '@/componentes/estado/Estados'
 import { useAviso } from '@/componentes/estado/useAviso'
+import { BotonCopiar } from '@/componentes/datos/BotonCopiar'
 import { Boton } from '@/componentes/formularios/Boton'
 import { Campo } from '@/componentes/formularios/Campo'
 import { Entrada } from '@/componentes/formularios/Entrada'
@@ -177,7 +178,6 @@ interface PropsFilaSala {
 function FilaSala ({ sala, ocupado, onEditar, onBaja }: PropsFilaSala) {
   const [nombre, setNombre] = useState(sala.name)
   const [capacidad, setCapacidad] = useState(String(sala.capacity))
-  const [copiado, setCopiado] = useState(false)
 
   const urlPantalla = sala.panel_token === undefined
     ? null
@@ -216,20 +216,12 @@ function FilaSala ({ sala, ocupado, onEditar, onBaja }: PropsFilaSala) {
       <div className="flex items-center gap-1">
         {urlPantalla !== null && (
           <>
-            <Boton
+            <BotonCopiar
+              valor={urlPantalla}
               variante="sutil"
-              tamano="chico"
-              title="Copiar el enlace de la pantalla de puerta"
-              onClick={() => {
-                void navigator.clipboard.writeText(urlPantalla).then(() => {
-                  setCopiado(true)
-                  globalThis.setTimeout(() => setCopiado(false), 2000)
-                })
-              }}
-            >
-              {copiado ? <Copy size={14} aria-hidden="true" /> : <Monitor size={14} aria-hidden="true" />}
-              {copiado ? 'Copiado' : 'Pantalla'}
-            </Boton>
+              etiqueta="Copiar enlace"
+              etiquetaCopiado="Enlace copiado"
+            />
 
             <Boton
               variante="sutil"

@@ -1,8 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
-import { Copy, Check } from 'lucide-react'
-import { Boton } from '@/componentes/formularios/Boton'
+import { BotonCopiar } from '@/componentes/datos/BotonCopiar'
 import { cn } from '@/lib/clases'
 import { FichaParticipante } from './FichaParticipante'
 import type { TrackReferenceOrPlaceholder } from '@livekit/components-react'
@@ -26,31 +24,6 @@ interface PropsEstadoSolo {
  *   una espera en una accion.
  */
 export function EstadoSolo ({ pista, miIdentidad, className }: PropsEstadoSolo) {
-  const [copiado, setCopiado] = useState(false)
-  const temporizador = useRef<number | undefined>(undefined)
-
-  // Este componente se desmonta en cuanto entra la segunda persona, que es justo lo que puede
-  // pasar dentro de los dos segundos del aviso. Sin este cierre, el temporizador sobrevive al
-  // desmontaje y escribe estado sobre un componente que ya no existe.
-  useEffect(() => () => { window.clearTimeout(temporizador.current) }, [])
-
-  /**
-   * Copia el enlace de la sala al portapapeles.
-   *
-   * `navigator.clipboard` no existe fuera de un contexto seguro y puede negarse aunque exista, asi
-   * que el fallo se traga y el boton simplemente no confirma. Anunciar un error de portapapeles no
-   * le sirve a nadie: la URL sigue visible en la barra de direcciones.
-   */
-  const copiarEnlace = useCallback(() => {
-    navigator.clipboard.writeText(window.location.href)
-      .then(() => {
-        setCopiado(true)
-        window.clearTimeout(temporizador.current)
-        temporizador.current = window.setTimeout(() => { setCopiado(false) }, 2000)
-      })
-      .catch(() => { setCopiado(false) })
-  }, [])
-
   return (
     <div className={cn('flex min-h-0 flex-col items-center justify-center gap-4', className)}>
       <FichaParticipante
@@ -64,12 +37,11 @@ export function EstadoSolo ({ pista, miIdentidad, className }: PropsEstadoSolo) 
           Estás solo en la sala. Pasa el enlace a quien tenga que entrar.
         </p>
 
-        <Boton variante="secundario" tamano="chico" onClick={copiarEnlace}>
-          {copiado
-            ? <Check size={14} aria-hidden="true" />
-            : <Copy size={14} aria-hidden="true" />}
-          {copiado ? 'Enlace copiado' : 'Copiar enlace'}
-        </Boton>
+        <BotonCopiar
+          valor={() => window.location.href}
+          etiqueta="Copiar enlace"
+          etiquetaCopiado="Enlace copiado"
+        />
       </div>
     </div>
   )
