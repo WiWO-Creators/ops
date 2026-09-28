@@ -38,8 +38,24 @@ export const TOPE_LOTE = 50
 /** Subcarpetas de plantilla de una licitación: son las que se renombran y mueven desde la app. */
 const PLANTILLA = ['01_Bases', '02_Consultas', '03_Oferta_Tecnica', '04_Oferta_Economica', '05_Adjudicacion', '06_Comunicaciones']
 
-/** Tope de una subida, igual que la API: 25 MB. */
-export const TOPE_SUBIDA_BYTES = 25 * 1024 * 1024
+/**
+ * Puerto del mock, igual que `servidor.js`: `sessionUrl` de una sesión resumable tiene que ser una
+ * URL absoluta, porque el navegador la llama directo, sin pasar por el BFF.
+ */
+const PUERTO = Number(process.env.PORT ?? 3001)
+
+/**
+ * Tope de una subida completa. Igual que la API: se lee de la misma variable que usa el frontend
+ * (`NEXT_PUBLIC_DRIVE_TOPE_SUBIDA_BYTES`, documentada en `dominio/drive-explorador.ts`), con default
+ * de 2 GB.
+ */
+export const TOPE_SUBIDA_BYTES = (() => {
+  const crudo = Number(process.env.NEXT_PUBLIC_DRIVE_TOPE_SUBIDA_BYTES)
+  return Number.isFinite(crudo) && crudo > 0 ? crudo : 2 * 1024 * 1024 * 1024
+})()
+
+/** A partir de acá el frontend usa la subida resumable directa en vez del multipart legado. */
+const UMBRAL_SUBIDA_DIRECTA_BYTES = 25 * 1024 * 1024
 
 /** Extensiones que la API rechaza con `422`: ejecutables y scripts. */
 const EXTENSIONES_RECHAZADAS = new Set(['exe', 'bat', 'cmd', 'sh', 'msi', 'js', 'vbs', 'scr'])
@@ -359,7 +375,7 @@ function subir (carpeta, archivoSubido) {
   if (EXTENSIONES_RECHAZADAS.has(extension)) {
     throw new ErrorApi(422, 'validation_failed', `La extensión .${extension} no está permitida.`, { file: ['extension_not_allowed'] })
   }
-  if (archivoSubido.bytes > TOPE_SUBIDA_BYTES) {
+  if (archivoSubido.bytes > UMBRAL_SUBIDA_DIRECTA_BYTES) {
     throw new ErrorApi(422, 'validation_failed', 'El archivo supera el máximo de 25 MB.', { file: ['too_large'] })
   }
 
@@ -367,6 +383,132 @@ function subir (carpeta, archivoSubido) {
   const id = alta(archivoSubido.nombre, false, carpeta.id, {
     mime: MIME[extension] ?? 'application/octet-stream', size: archivoSubido.bytes, modified: ahora, by: ANA
   })
+  const nodo = publico(NODOS.get(id))
+
+  return {
+    id: siguiente,
+    drive_file_id: id,
+    name: nodo.name,
+    is_folder: false,
+    web_view_link: nodo.web_view_link,
+    mime_type: nodo.mime_type,
+    size_bytes: nodo.size_bytes,
+    uploaded_by: ANA,
+    dateadded: ahora
+  }
+}
+
+/**
+ * Sesiones resumables abiertas, por token: nombre, tipo, tamaño declarado, carpeta de destino y
+ * cuánto se recibió hasta ahora.
+ *
+ * Simplificación de dev: en la API real esto es la sesión que abre Google mismo, y el `PUT` de los
+ * trozos va directo a `drive.google.com`. Acá el propio mock hace de "Google" en `/drive/mock-sesion`
+ * —ni el navegador ni el frontend lo notan, porque igual reciben `sessionUrl` y le mandan los
+ * trozos con `Content-Range`— y guarda los bytes en memoria, no en disco: alcanza para probar la
+ * pantalla, no para archivos reales de varios GB en una corrida larga del mock.
+ */
+const SESIONES_DIRECTAS = new Map()
+let siguienteSesion = 1
+
+/** Archivos que "Google" ya recibió enteros pero la API todavía no confirmó: driveFileId -> datos. */
+const PENDIENTES_DE_CONFIRMAR = new Map()
+
+/**
+ * Abre una sesión resumable, con las mismas validaciones que tendría la API antes de pedirle la
+ * sesión a Google.
+ *
+ * @throws {ErrorApi} 422 sin nombre, sin tamaño, de más del tope, o con extensión rechazada
+ */
+function abrirSesionDirecta (carpeta, { name, mimeType, size } = {}, host) {
+  if (typeof name !== 'string' || name.trim() === '') throw new ErrorApi(422, 'validation_failed', 'Falta el nombre del archivo.', { name: ['required'] })
+  if (typeof size !== 'number' || !Number.isFinite(size) || size <= 0) {
+    throw new ErrorApi(422, 'validation_failed', 'Falta el tamaño del archivo.', { size: ['required'] })
+  }
+  if (size > TOPE_SUBIDA_BYTES) {
+    throw new ErrorApi(422, 'validation_failed', `El archivo supera el máximo de ${Math.round(TOPE_SUBIDA_BYTES / (1024 * 1024))} MB.`, { size: ['too_large'] })
+  }
+
+  const extension = name.includes('.') ? name.split('.').pop().toLowerCase() : ''
+  if (EXTENSIONES_RECHAZADAS.has(extension)) {
+    throw new ErrorApi(422, 'validation_failed', `La extensión .${extension} no está permitida.`, { name: ['extension_not_allowed'] })
+  }
+
+  const token = `sesion-${siguienteSesion++}`
+  SESIONES_DIRECTAS.set(token, {
+    folderId: carpeta.id, name, mimeType: typeof mimeType === 'string' && mimeType !== '' ? mimeType : 'application/octet-stream', size, recibido: 0
+  })
+
+  return {
+    // El `Host` de la propia petición: es lo que hace que la URL sirva igual en el puerto fijo de
+    // `pnpm mock` y en el puerto al azar que usan las pruebas (`servidor.listen(0, ...)`).
+    sessionUrl: `http://${host ?? `localhost:${PUERTO}`}/api/v1/drive/mock-sesion/${token}`,
+    expiraEn: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
+  }
+}
+
+/**
+ * Atiende el `PUT` de un trozo (o de una consulta de estado) contra `/drive/mock-sesion/{token}`.
+ *
+ * Sin sesión de por medio: es la URL que Google le da al navegador, y el navegador no manda el
+ * token de la persona. Responde igual que Drive: `308` con el rango recibido mientras falten bytes,
+ * `200` con `{ id }` en el último trozo, `404` si el token no existe o ya venció.
+ *
+ * @param {string} token
+ * @param {import('node:http').IncomingMessage} peticion
+ */
+export async function sesionDirectaRuta (token, peticion) {
+  const sesion = SESIONES_DIRECTAS.get(token)
+  if (sesion === undefined) throw new ErrorApi(404, 'not_found', 'La sesión de subida no existe o venció.')
+
+  const rango = /^bytes (\*|(\d+)-(\d+))\/(\d+)$/.exec(peticion.headers['content-range'] ?? '')
+  if (rango === null) throw new ErrorApi(400, 'bad_request', 'Falta el encabezado Content-Range.')
+
+  // El contenido no se guarda —el mock no necesita el video real para servir la pantalla—, solo se
+  // drena el cuerpo para no dejar la conexión colgada.
+  for await (const _trozo of peticion) { /* drenado intencional */ }
+
+  // Consulta de estado: `Content-Range: bytes */total`, sin cuerpo.
+  if (rango[1] === '*') {
+    return sesion.recibido >= sesion.size
+      ? { estado: 200, cuerpo: { id: `drive-mock-${token}` } }
+      : { estado: 308, cuerpo: null, cabeceras: { Range: `bytes=0-${Math.max(sesion.recibido - 1, 0)}` } }
+  }
+
+  const inicio = Number(rango[2])
+  const fin = Number(rango[3])
+  if (inicio !== sesion.recibido) {
+    // Un trozo que no empieza donde el mock cree que iba: se contesta con lo que de verdad hay, para
+    // que `bytesConfirmados` reanude bien en el próximo intento.
+    return { estado: 308, cuerpo: null, cabeceras: { Range: `bytes=0-${Math.max(sesion.recibido - 1, 0)}` } }
+  }
+
+  sesion.recibido = fin + 1
+
+  if (sesion.recibido < sesion.size) {
+    return { estado: 308, cuerpo: null, cabeceras: { Range: `bytes=0-${fin}` } }
+  }
+
+  const driveFileId = `drive-mock-${token}`
+  PENDIENTES_DE_CONFIRMAR.set(driveFileId, sesion)
+  SESIONES_DIRECTAS.delete(token)
+  return { estado: 200, cuerpo: { id: driveFileId } }
+}
+
+/**
+ * Confirma en la API un archivo que "Google" ya tiene entero: crea la fila, igual que `subir()` para
+ * el multipart legado.
+ *
+ * @throws {ErrorApi} 404 si `driveFileId` no es una subida directa pendiente de confirmar
+ */
+function confirmarSubidaDirecta (carpeta, driveFileId) {
+  const pendiente = PENDIENTES_DE_CONFIRMAR.get(driveFileId)
+  if (pendiente === undefined) throw new ErrorApi(404, 'not_found', 'No hay una subida pendiente con ese id.')
+
+  PENDIENTES_DE_CONFIRMAR.delete(driveFileId)
+
+  const ahora = new Date().toISOString()
+  const id = alta(pendiente.name, false, carpeta.id, { mime: pendiente.mimeType, size: pendiente.size, modified: ahora, by: ANA })
   const nodo = publico(NODOS.get(id))
 
   return {
@@ -420,8 +562,24 @@ export function driveDeEntidadRuta (metodo, raiz, id) {
  * @param {import('node:http').IncomingMessage} [peticion] la petición cruda, para leer el multipart
  */
 export async function driveRuta (metodo, resto, cuerpo, peticion) {
-  const [folderId, subrecurso, itemId, ...sobra] = resto
-  if (folderId === undefined || sobra.length > 0) throw new ErrorApi(404, 'not_found', 'Recurso desconocido.')
+  const [folderId, subrecurso, itemId, accion, ...sobra] = resto
+
+  if (folderId === undefined) throw new ErrorApi(404, 'not_found', 'Recurso desconocido.')
+
+  if (subrecurso === 'upload-sessions' && itemId === undefined && metodo === 'POST') {
+    const carpeta = carpetaO404(folderId)
+    exigirEscritura(carpeta)
+    return { estado: 200, cuerpo: { data: abrirSesionDirecta(carpeta, await cuerpo(), peticion.headers.host) } }
+  }
+
+  if (subrecurso === 'files' && itemId !== undefined && accion === 'confirmar' && sobra.length === 0 && metodo === 'POST') {
+    const carpeta = carpetaO404(folderId)
+    exigirEscritura(carpeta)
+    await cuerpo()
+    return { estado: 201, cuerpo: { data: confirmarSubidaDirecta(carpeta, itemId) } }
+  }
+
+  if (accion !== undefined || sobra.length > 0) throw new ErrorApi(404, 'not_found', 'Recurso desconocido.')
 
   const carpeta = carpetaO404(folderId)
 

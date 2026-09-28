@@ -13,9 +13,9 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
-  SELECCION_VACIA, TOPE_SUBIDA_BYTES, fechaDeModificacion, filtrarPorNombre, formatearTamano, indiceTrasTecla,
+  SELECCION_VACIA, TOPE_SUBIDA_BYTES, UMBRAL_SUBIDA_DIRECTA_BYTES, fechaDeModificacion, filtrarPorNombre, formatearTamano, indiceTrasTecla,
   motivoParaNoSoltar, motivoParaNoSubir, nombreRepetido, ordenarNodos, partirEnLotes, recortarMigas,
-  resumenDeBorrado, resumenDeTraslado, reubicarRutas, seleccionar, separarNodos, subidasParaArrancar, sumarNodos, tipoDeNodo
+  resumenDeBorrado, resumenDeTraslado, reubicarRutas, seleccionar, separarNodos, subidasParaArrancar, sumarNodos, tipoDeNodo, usaSubidaDirecta
 } from '../src/dominio/drive-explorador.ts'
 
 /** Un nodo con lo mínimo. */
@@ -134,8 +134,14 @@ test('una carpeta de Tarea o de permiso desconocido es destino: decide el backen
 
 test('la subida rechaza de antemano lo que pasa del tope o no tiene nombre', () => {
   assert.equal(motivoParaNoSubir({ name: 'a.pdf', size: TOPE_SUBIDA_BYTES }), null)
-  assert.match(motivoParaNoSubir({ name: 'video.mp4', size: TOPE_SUBIDA_BYTES + 1 }), /25 MB/)
+  assert.match(motivoParaNoSubir({ name: 'video.mp4', size: TOPE_SUBIDA_BYTES + 1 }), /el máximo es/)
   assert.notEqual(motivoParaNoSubir({ name: ' ', size: 1 }), null)
+})
+
+test('la subida directa a Google arranca justo donde el multipart legado ya rechazaría', () => {
+  assert.equal(usaSubidaDirecta({ size: UMBRAL_SUBIDA_DIRECTA_BYTES }), false)
+  assert.equal(usaSubidaDirecta({ size: UMBRAL_SUBIDA_DIRECTA_BYTES + 1 }), true)
+  assert.equal(usaSubidaDirecta({ size: 1024 }), false)
 })
 
 test('nombre repetido sin distinguir tildes ni mayúsculas, salvo el propio item', () => {

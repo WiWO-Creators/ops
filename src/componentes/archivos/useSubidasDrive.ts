@@ -1,8 +1,9 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { motivoParaNoSubir, subidasParaArrancar, type EstadoSubida } from '@/dominio/drive-explorador'
+import { motivoParaNoSubir, subidasParaArrancar, usaSubidaDirecta, type EstadoSubida } from '@/dominio/drive-explorador'
 import { subirConAvance } from '@/componentes/archivos/red-drive'
+import { subirDirectoAGoogle, type SesionEnCurso } from '@/componentes/archivos/subida-resumable-drive'
 import type { ArchivoDriveSubido, MigaDrive, NodoDrive } from '@/datos/recursos'
 
 /** Una subida de la bandeja. El `File` no vive acá: queda en una referencia, fuera del estado. */
@@ -64,6 +65,9 @@ export function useSubidasDrive (alSubir: (destinoId: string, nodo: NodoDrive) =
   const cola = useRef<SubidaDrive[]>([])
   const archivos = useRef(new Map<string, File>())
   const controles = useRef(new Map<string, AbortController>())
+  // Sesiones resumables abiertas, por id: sobreviven a un intento fallido para que el reintento
+  // reanude desde el último byte que Google confirmó, en vez de mandar el archivo de nuevo entero.
+  const sesionesDirectas = useRef(new Map<string, SesionEnCurso>())
   const alSubirActual = useRef(alSubir)
 
   useEffect(() => { alSubirActual.current = alSubir }, [alSubir])
@@ -71,6 +75,19 @@ export function useSubidasDrive (alSubir: (destinoId: string, nodo: NodoDrive) =
   useEffect(() => {
     const enCurso = controles.current
     return () => { for (const control of enCurso.values()) control.abort() }
+  }, [])
+
+  // Avisa antes de cerrar o navegar fuera de la pestaña mientras algo sigue en la cola: perder una
+  // subida a mitad de camino, sobre todo un video de varios cientos de MB, es caro de rehacer.
+  useEffect(() => {
+    function alSalir (evento: BeforeUnloadEvent): void {
+      const hayAlgoVivo = cola.current.some((subida) => subida.estado === 'pendiente' || subida.estado === 'subiendo')
+      if (!hayAlgoVivo) return
+      evento.preventDefault()
+      evento.returnValue = ''
+    }
+    window.addEventListener('beforeunload', alSalir)
+    return () => { window.removeEventListener('beforeunload', alSalir) }
   }, [])
 
   const cambiar = useCallback((cambio: (actuales: SubidaDrive[]) => SubidaDrive[]) => {
@@ -96,24 +113,42 @@ export function useSubidasDrive (alSubir: (destinoId: string, nodo: NodoDrive) =
     controles.current.set(subida.id, control)
     let ultimo = 0
 
-    void subirConAvance(subida.destino.id, archivo, (fraccion) => {
+    const alAvanzar = (fraccion: number): void => {
       if (fraccion - ultimo < PASO_DE_AVANCE && fraccion < 1) return
       ultimo = fraccion
       actualizar(subida.id, { avance: fraccion })
-    }, control.signal).then((resultado) => {
+    }
+
+    // Por debajo del umbral: multipart legado vía PHP, con reintento simple (manda el archivo
+    // entero de nuevo). Por encima: sesión resumable directa a Google, con reintento que reanuda
+    // desde el último byte confirmado — ver `subirDirectoAGoogle`.
+    const promesa = usaSubidaDirecta(archivo)
+      ? subirDirectoAGoogle(
+        subida.destino.id, archivo,
+        (bytesEnviados, total) => { alAvanzar(total === 0 ? 0 : bytesEnviados / total) },
+        control.signal,
+        sesionesDirectas.current.get(subida.id),
+        (sesion) => { sesionesDirectas.current.set(subida.id, sesion) }
+      )
+      : subirConAvance(subida.destino.id, archivo, alAvanzar, control.signal)
+
+    void promesa.then((resultado) => {
       controles.current.delete(subida.id)
 
       if (resultado.ok) {
         archivos.current.delete(subida.id)
+        sesionesDirectas.current.delete(subida.id)
         actualizar(subida.id, { estado: 'lista', avance: 1 })
         alSubirActual.current(subida.destino.id, nodoDeSubida(resultado.datos))
       } else {
         // Un 403 o un 422 (extensión, tamaño) no cambian al reintentar: el botón solo se ofrece
         // cuando el fallo pudo ser pasajero (red, 5xx) o la subida se canceló.
         const definitivo = resultado.estado === 403 || resultado.estado === 422
+        const reintentable = 'reintentable' in resultado && typeof resultado.reintentable === 'boolean' ? resultado.reintentable : !definitivo
+        if (resultado.cancelada === true) sesionesDirectas.current.delete(subida.id)
         actualizar(subida.id, resultado.cancelada === true
           ? { estado: 'cancelada' }
-          : { estado: 'error', error: resultado.mensaje, reintentable: !definitivo })
+          : { estado: 'error', error: resultado.mensaje, reintentable })
       }
       bombear.current()
     })
@@ -173,7 +208,10 @@ export function useSubidasDrive (alSubir: (destinoId: string, nodo: NodoDrive) =
   const limpiar = useCallback(() => {
     cambiar((actuales) => actuales.filter((subida) => {
       const viva = subida.estado === 'pendiente' || subida.estado === 'subiendo'
-      if (!viva) archivos.current.delete(subida.id)
+      if (!viva) {
+        archivos.current.delete(subida.id)
+        sesionesDirectas.current.delete(subida.id)
+      }
       return viva
     }))
   }, [cambiar])

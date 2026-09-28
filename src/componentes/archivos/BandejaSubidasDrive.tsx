@@ -10,7 +10,7 @@ import { cn } from '@/lib/clases'
 /** Texto del estado de una subida, al lado de su barra. */
 function textoDeEstado (subida: SubidaDrive): string {
   if (subida.estado === 'pendiente') return 'En espera'
-  if (subida.estado === 'subiendo') return `${Math.round(subida.avance * 100)} %`
+  if (subida.estado === 'subiendo') return `${formatearTamano(subida.tamano * subida.avance)}/${formatearTamano(subida.tamano)}`
   if (subida.estado === 'lista') return 'Subido'
   if (subida.estado === 'cancelada') return 'Cancelada'
   return subida.error ?? 'No se pudo subir'

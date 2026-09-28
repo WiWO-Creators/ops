@@ -15,11 +15,41 @@ import type { MigaDrive, NodoDrive, ResultadoTrasladoDrive } from '@/datos/recur
 /** Tope de ids de un traslado en lote. Es el mismo que valida la API. */
 export const TOPE_LOTE_TRASLADO = 50
 
-/** Tope de una subida: 25 MB, igual que la API. */
-export const TOPE_SUBIDA_BYTES = 25 * 1024 * 1024
+/**
+ * Tope de una subida completa (lo que puede rechazar el navegador antes de intentar).
+ *
+ * Configurable por `NEXT_PUBLIC_DRIVE_TOPE_SUBIDA_BYTES` (tiene que ser público: se lee en el
+ * navegador, antes de armar el pedido). Sin la variable, o con un valor no numérico o no positivo,
+ * el default son 2 GB — el mismo default que usa la API para `upload-sessions`.
+ */
+function leerTopeSubida (): number {
+  const crudo = Number(process.env.NEXT_PUBLIC_DRIVE_TOPE_SUBIDA_BYTES)
+  return Number.isFinite(crudo) && crudo > 0 ? crudo : 2 * 1024 * 1024 * 1024
+}
 
-/** Subidas en paralelo. Más satura la conexión de quien sube sin terminar antes. */
-export const SUBIDAS_EN_PARALELO = 3
+export const TOPE_SUBIDA_BYTES = leerTopeSubida()
+
+/**
+ * A partir de este tamaño la subida va directo a Google Drive por sesión resumable, sin pasar por
+ * el BFF ni por PHP: 25 MB, el mismo tope que hoy tiene `POST /drive/{folder_id}/files` en la API
+ * (el multipart clásico). Por debajo, el archivo sigue el camino legado —más simple, y suficiente
+ * para lo chico—; por encima, el legado ya rechazaría el archivo con un 422, así que no tiene caso
+ * intentarlo ahí.
+ */
+export const UMBRAL_SUBIDA_DIRECTA_BYTES = 25 * 1024 * 1024
+
+/**
+ * Subidas en paralelo. Más satura la conexión de quien sube sin terminar antes.
+ *
+ * Configurable por `NEXT_PUBLIC_DRIVE_SUBIDAS_EN_PARALELO`; sin la variable, o con un valor no entero
+ * o menor a 1, el default son 3.
+ */
+function leerSubidasEnParalelo (): number {
+  const crudo = Number(process.env.NEXT_PUBLIC_DRIVE_SUBIDAS_EN_PARALELO)
+  return Number.isInteger(crudo) && crudo >= 1 ? crudo : 3
+}
+
+export const SUBIDAS_EN_PARALELO = leerSubidasEnParalelo()
 
 /** Tipos de archivo que la pantalla distingue con ícono y color propios. */
 export type TipoArchivoDrive =
@@ -293,6 +323,16 @@ export function motivoParaNoSubir (archivo: { name: string, size: number }): str
   if (archivo.name.trim() === '') return 'El archivo no tiene nombre.'
   if (archivo.size > TOPE_SUBIDA_BYTES) return `Pesa ${formatearTamano(archivo.size)}: el máximo es ${formatearTamano(TOPE_SUBIDA_BYTES)}.`
   return null
+}
+
+/**
+ * Si un archivo tiene que ir por la subida resumable directa a Google Drive en vez del multipart
+ * legado vía PHP.
+ *
+ * @param archivo el tamaño del `File`
+ */
+export function usaSubidaDirecta (archivo: { size: number }): boolean {
+  return archivo.size > UMBRAL_SUBIDA_DIRECTA_BYTES
 }
 
 /**
