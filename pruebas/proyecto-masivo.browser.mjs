@@ -54,7 +54,7 @@ try {
   pagina.setDefaultTimeout(10000)
   const errores = []
   pagina.on('pageerror', (error) => errores.push(error.message))
-  await pagina.goto(new URL('/procesos', destino).href, { waitUntil: 'networkidle', timeout: 90000 })
+  await pagina.goto(new URL('/tareas', destino).href, { waitUntil: 'networkidle', timeout: 90000 })
   const filas = pagina.getByRole('checkbox', { name: /^Seleccionar fila / })
   const ids = []
   for (let indice = 0; indice < 2; indice++) {

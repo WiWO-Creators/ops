@@ -21,7 +21,7 @@ const s = (href, grupo, extra = {}) => ({ href, etiqueta: href.slice(1), icono: 
 
 const COMPLETO = [
   s('/inicio', 'principal'), s('/live', 'principal'), s('/mis-tareas', 'principal'),
-  s('/procesos', 'operacion'), s('/procesos/recurrentes', 'operacion'), s('/proyectos', 'principal'),
+  s('/tareas', 'operacion'), s('/tareas/recurrentes', 'operacion'), s('/proyectos', 'principal'),
   s('/prospectos', 'comercial'), s('/salas', 'operacion', { plegable: 'reuniones' }),
   s('/teletrabajo', 'operacion', { plegable: 'reuniones' }), s('/clientes', 'comercial'),
   s('/equipo', 'equipo'), s('/administracion', 'administracion')
@@ -36,7 +36,7 @@ test('los bloques salen en orden, con los plegables aparte y sin perder ni sumar
   const { principales, bloques } = agruparSecciones(COMPLETO)
   assert.deepEqual(bloques.map((b) => b.id), ['operacion', 'comercial', 'equipo', 'administracion'])
   const operacion = bloques[0]
-  assert.deepEqual(operacion.secciones.map((x) => x.href), ['/procesos', '/procesos/recurrentes'])
+  assert.deepEqual(operacion.secciones.map((x) => x.href), ['/tareas', '/tareas/recurrentes'])
   assert.deepEqual(operacion.plegables.map((p) => [p.id, p.secciones.map((x) => x.href)]), [['reuniones', ['/salas', '/teletrabajo']]])
   const todas = [...principales, ...bloques.flatMap((b) => [...b.secciones, ...b.plegables.flatMap((p) => p.secciones)])]
   assert.equal(todas.length, COMPLETO.length, 'el agrupado no esconde ni inventa secciones')
@@ -52,8 +52,8 @@ test('un bloque sin secciones no aparece, y sin Proyectos no hay principal de Pr
 
 test('una sola seccion activa: gana la coincidencia mas larga, por segmento y con alias', () => {
   const hrefs = COMPLETO.map((x) => x.href)
-  assert.equal(seccionActiva(hrefs, '/procesos/recurrentes'), '/procesos/recurrentes')
-  assert.equal(seccionActiva(hrefs, '/procesos/tablero'), '/procesos')
+  assert.equal(seccionActiva(hrefs, '/tareas/recurrentes'), '/tareas/recurrentes')
+  assert.equal(seccionActiva(hrefs, '/tareas/tablero'), '/tareas')
   assert.equal(seccionActiva(hrefs, '/clientes-potenciales'), null)
   assert.equal(seccionActiva(hrefs, '/licitaciones/5'), '/prospectos')
   assert.equal(seccionActiva([...hrefs, '/proyectos/12'], '/proyectos/12'), '/proyectos/12', 'un fijado gana a su seccion')
@@ -61,22 +61,22 @@ test('una sola seccion activa: gana la coincidencia mas larga, por segmento y co
 })
 
 const ATAJOS = [
-  { etiqueta: 'Tablero de tareas', href: '/procesos/tablero', icono: 'tablero', requiere: '/procesos', sinonimos: ['kanban'] },
+  { etiqueta: 'Tablero de tareas', href: '/tareas/tablero', icono: 'tablero', requiere: '/tareas', sinonimos: ['kanban'] },
   { etiqueta: 'Soporte', href: 'https://x', icono: 'soporte', requiere: null, externo: true }
 ]
 
 test('la paleta no ofrece atajos de secciones que el menu no tiene', () => {
-  const sinTareas = COMPLETO.filter((x) => x.href !== '/procesos')
-  assert.ok(!comandosDeNavegacion(sinTareas, ATAJOS, '').some((c) => c.href === '/procesos/tablero'))
-  assert.ok(comandosDeNavegacion(COMPLETO, ATAJOS, '').some((c) => c.href === '/procesos/tablero'))
+  const sinTareas = COMPLETO.filter((x) => x.href !== '/tareas')
+  assert.ok(!comandosDeNavegacion(sinTareas, ATAJOS, '').some((c) => c.href === '/tareas/tablero'))
+  assert.ok(comandosDeNavegacion(COMPLETO, ATAJOS, '').some((c) => c.href === '/tareas/tablero'))
 })
 
 test('filtrar por texto: sin tildes, sinonimos y empieza-con primero', () => {
   assert.equal(normalizar('  Administración  '), 'administracion')
   const r = comandosDeNavegacion(COMPLETO, ATAJOS, 'kanb')
-  assert.deepEqual(r.map((c) => c.href), ['/procesos/tablero'])
+  assert.deepEqual(r.map((c) => c.href), ['/tareas/tablero'])
   const pro = comandosDeNavegacion(COMPLETO, ATAJOS, 'pro').map((c) => c.href)
-  assert.ok(pro.indexOf('/procesos') < pro.indexOf('/mis-tareas') || !pro.includes('/mis-tareas'))
+  assert.ok(pro.indexOf('/tareas') < pro.indexOf('/mis-tareas') || !pro.includes('/mis-tareas'))
   assert.deepEqual(comandosDeNavegacion(COMPLETO, ATAJOS, 'zzzz'), [])
 })
 
@@ -100,7 +100,7 @@ test('vacia muestra recientes, fijados y secciones; con texto, secciones y busqu
     }
   })
   assert.deepEqual(conTexto.map((g) => g.id), ['tareas', 'proyectos'])
-  assert.equal(conTexto[0].comandos[0].href, '/procesos?tarea=7')
+  assert.equal(conTexto[0].comandos[0].href, '/tareas?tarea=7')
   assert.equal(conTexto[0].comandos[1].href, '/proyectos/3?tab=tareas&tarea=8')
 })
 
@@ -111,7 +111,7 @@ test('los resultados de busqueda muestran la patente delante del contexto', () =
       { id: 9, name: 'Suelta', patente: null, project: null }
     ] },
     projects: { items: [{ id: 3, name: 'Web', patente: 'ACM-001', client: null }] }
-  }, '/procesos')
+  }, '/tareas')
 
   assert.equal(grupos[0].comandos[0].detalle, 'ACM-001-07 · Web')
   assert.equal(grupos[0].comandos[1].detalle, undefined, 'sin patente ni proyecto no inventa un detalle')
@@ -209,7 +209,7 @@ test('alternar dos veces vuelve al default y no repite ids', () => {
 
 test('cada bloque del menu trae su default de apertura', () => {
   const { bloques } = agruparSecciones([
-    { href: '/procesos', etiqueta: 'Tareas', icono: 'procesos', grupo: 'operacion' },
+    { href: '/tareas', etiqueta: 'Tareas', icono: 'procesos', grupo: 'operacion' },
     { href: '/equipo', etiqueta: 'Equipo', icono: 'equipo', grupo: 'equipo' }
   ])
   assert.deepEqual(bloques.map((bloque) => [bloque.id, bloque.abiertoPorDefecto]), [['operacion', true], ['equipo', false]])

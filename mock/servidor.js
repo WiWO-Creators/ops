@@ -50,7 +50,7 @@ const PUERTO = Number(process.env.PORT ?? 3001)
  */
 const ESPACIOS_EXISTENTES = [...ESPACIOS, ...ESPACIOS_DE_LICITACION, ...ESPACIOS_DE_UPSELL]
 
-// Unas cuantas Tareas recurrentes, una por estado, para que `/procesos/recurrentes` tenga que mostrar.
+// Unas cuantas Tareas recurrentes, una por estado, para que `/tareas/recurrentes` tenga que mostrar.
 sembrarRecurrentes(PROCESOS, new Date().toISOString().slice(0, 10))
 // Y el historial de copias: una regla sin uso y una con copias tocadas y sin tocar.
 sembrarCopias(PROCESOS, new Date().toISOString().slice(0, 10))
@@ -1411,7 +1411,7 @@ const INCIDENTES = [
     archivo: '',
     linea: 0,
     metodo: 'VISTA',
-    uri: '/procesos/tablero',
+    uri: '/tareas/tablero',
     sujeto_tipo: 'staff',
     sujeto_id: 1,
     sujeto_nombre: 'Dev Prueba',

@@ -201,7 +201,7 @@ interface PropsTareasAsignadas {
  * Usa `TablaRecurso` con un filtro fijo (`consultaFija`): el de persona o de area no se puede cambiar
  * desde la URL, y es exactamente para lo que existe `DefinicionRecurso.consultaFija` (ver
  * `PanelRecurso`, que acota la pestaña Tareas de un Proyecto de la misma forma). La vista con filtros
- * y orden editables ya existe y es `/procesos`; esta hoja es la acotada a una persona o a un area.
+ * y orden editables ya existe y es `/tareas`; esta hoja es la acotada a una persona o a un area.
  *
  * @returns La seccion con su encabezado, su tabla y su paginador.
  */
@@ -239,7 +239,7 @@ type CargaInicial =
 
 function CuerpoDeTareasAsignadas ({
   personaId, alcance, orden = 'due_date', prioridades, titulo, estados, consultaExtra, vacio, licitaciones,
-  rutaDetalle = '/procesos', accion, estadoEditable = false, verCompletadas = false, prefijoUrl
+  rutaDetalle = '/tareas', accion, estadoEditable = false, verCompletadas = false, prefijoUrl
 }: PropsTareasAsignadas) {
   const plural = GLOSARIO.proceso.plural.toLowerCase()
   const deLicitacion = useMemo(() => new Set(licitaciones ?? []), [licitaciones])
@@ -349,13 +349,13 @@ function CuerpoDeTareasAsignadas ({
 
 /**
  * Definicion de recurso para "Mis Tareas": el filtro de persona o de area es fijo (`consultaFija`),
- * asi que la tabla no ofrece la barra de filtros ni el buscador de `/procesos` —esos ya existen ahi—.
+ * asi que la tabla no ofrece la barra de filtros ni el buscador de `/tareas` —esos ya existen ahi—.
  *
  * Las columnas de `PROCESOS` no calzan tal cual: esta hoja necesita el estado editable en linea
  * (`estadoEditable`) y una columna "Origen" que distingue Licitacion de Proyecto, y ninguna de las
- * dos existe en la definicion de `/procesos`. Se reutiliza en cambio su `ordenables` —es la
+ * dos existe en la definicion de `/tareas`. Se reutiliza en cambio su `ordenables` —es la
  * whitelist real del backend para `GET /tasks`, no una eleccion de esta pantalla— sumando los campos
- * que el `orden` fijo de algun llamador pida ademas (el Area ordena por `etapa`, que `/procesos` no
+ * que el `orden` fijo de algun llamador pida ademas (el Area ordena por `etapa`, que `/tareas` no
  * ofrece como columna pero el backend si acepta).
  */
 function definicionDeTareasAsignadas ({

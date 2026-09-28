@@ -5,7 +5,7 @@ import { EsqueletoRecurrentes } from '@/componentes/recurrencia/EsqueletoRecurre
  * Lo que se ve mientras el servidor trae los catalogos de la pantalla.
  *
  * Repite el encabezado de la pagina real y pone el esqueleto de la lista en su lugar: sin este
- * archivo mandaria el `loading.tsx` de `/procesos`, que dice "Cargando tareas…" con el titulo de otra
+ * archivo mandaria el `loading.tsx` de `/tareas`, que dice "Cargando tareas…" con el titulo de otra
  * pantalla.
  *
  * @returns el encabezado y las filas de espera

@@ -54,7 +54,7 @@ export function FichaPersona ({
               ? <span className="text-texto">{corriendo.project_name ?? `${GLOSARIO.espacio.singular} sin nombre`}</span>
               : (
                 <Link
-                  href={`/procesos?${PARAMETRO_TAREA}=${corriendo.task_id}`}
+                  href={`/tareas?${PARAMETRO_TAREA}=${corriendo.task_id}`}
                   className="text-acento underline underline-offset-4"
                 >
                   {corriendo.task_name ?? `#${corriendo.task_id}`}

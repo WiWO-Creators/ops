@@ -30,7 +30,7 @@ export const metadata = { title: 'Tablero de Tareas · WiWO Ops' }
  * El `Suspense` no es decorativo: `TableroProcesos` usa `useSearchParams` para leer los filtros de la
  * URL, y sin este limite el build de la pagina falla.
  */
-export default async function TableroProcesosPage (props: PageProps<'/procesos/tablero'>) {
+export default async function TableroProcesosPage (props: PageProps<'/tareas/tablero'>) {
   const params = paramsDeUrl(await props.searchParams)
   const campos = await pedir<DefinicionCampoPersonalizado[]>('/custom-fields?para=tasks')
   const definicion = { ...PROCESOS, filtros: [...PROCESOS.filtros, ...filtrosDeCamposPersonalizados(campos.data)] }
@@ -77,13 +77,13 @@ export default async function TableroProcesosPage (props: PageProps<'/procesos/t
               activo="tablero"
               opciones={[
                 // `consulta` ya viene sin orden ni pagina: al volver a la lista viajan solo los filtros.
-                { valor: 'tabla', etiqueta: 'Tabla', icono: 'tabla', href: `/procesos${consulta === '' ? '' : `?${consulta}`}` },
-                { valor: 'tablero', etiqueta: 'Tablero', icono: 'tablero', href: '/procesos/tablero' },
+                { valor: 'tabla', etiqueta: 'Tabla', icono: 'tabla', href: `/tareas${consulta === '' ? '' : `?${consulta}`}` },
+                { valor: 'tablero', etiqueta: 'Tablero', icono: 'tablero', href: '/tareas/tablero' },
                 {
                   valor: 'calendario',
                   etiqueta: 'Calendario',
                   icono: 'calendario',
-                  href: `/procesos/calendario${consulta === '' ? '' : `?${consulta}`}`
+                  href: `/tareas/calendario${consulta === '' ? '' : `?${consulta}`}`
                 }
               ]}
             />

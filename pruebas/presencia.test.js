@@ -78,9 +78,9 @@ test('latido detecta interacciones globales, limita envíos y no renueva una pes
   assert.deepEqual(envios[11], { route: '/proyectos/2', action: null })
   intervalo()
   assert.equal(envios.length, 12)
-  tarea = '/procesos/3'
+  tarea = '/tareas/3'
   contexto()
-  assert.equal(envios[12].route, '/procesos/3')
+  assert.equal(envios[12].route, '/tareas/3')
   documento.hidden = true
   reloj += 45_000
   eventos.get('pointermove')()
@@ -95,7 +95,7 @@ test('la pantalla que se manda es la misma para la presencia y para Thinking Orb
   // Las dos salen de la misma función a propósito: si divergen, el servidor cree que la persona
   // pregunta desde una pantalla y está parada en otra.
   assert.equal(pantallaDeRuta('/Espacios/2'), '/proyectos/2')
-  assert.equal(pantallaDeRuta('/procesos'), '/procesos')
+  assert.equal(pantallaDeRuta('/tareas'), '/tareas')
   assert.equal(pantallaDeRuta('/equipo/mi-area'), '/equipo/mi-area')
   // Lo que no tiene forma de ruta del panel no se manda a medias.
   assert.equal(pantallaDeRuta('/proyectos/2?tarea=7'), null)

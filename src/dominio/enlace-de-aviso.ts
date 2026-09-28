@@ -43,7 +43,7 @@ const RUTA_INTERNA = /^\/(?![/\\])[A-Za-z0-9\-._~/?&=%]*$/
  * abre la que es sirva quien sirva de Proyecto. Mandarlo a la ficha de un Proyecto exigiria saber
  * cual, y el aviso no lo trae.
  */
-const RUTA_DE_TAREAS = '/procesos'
+const RUTA_DE_TAREAS = '/tareas'
 
 /**
  * Traduce el `link` de un aviso a una ruta de Ops.

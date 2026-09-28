@@ -213,10 +213,10 @@ function seccionesDe (yo: Yo): Seccion[] {
   secciones.push({ href: '/mis-tareas', etiqueta: `Mis ${GLOSARIO.proceso.plural}`, icono: 'mis_tareas', grupo: 'principal' })
 
   if (puedeVerSeccion(yo.permissions.tasks, 'tasks')) {
-    secciones.push({ href: '/procesos', etiqueta: GLOSARIO.proceso.plural, icono: 'procesos', grupo: 'operacion' })
+    secciones.push({ href: '/tareas', etiqueta: GLOSARIO.proceso.plural, icono: 'procesos', grupo: 'operacion' })
     // Misma llave que Tareas: las recurrentes son Tareas, y su pantalla lista lo mismo que `/tasks`
     // deja ver. Entrada propia porque se configuran una vez y se buscan de nuevo meses despues.
-    secciones.push({ href: '/procesos/recurrentes', etiqueta: 'Recurrentes', icono: 'recurrentes', grupo: 'operacion' })
+    secciones.push({ href: '/tareas/recurrentes', etiqueta: 'Recurrentes', icono: 'recurrentes', grupo: 'operacion' })
   }
 
   // Tickets no tiene permiso en `/me`: la API abre el area a todo el equipo (`is_not_staff = 0`, o a

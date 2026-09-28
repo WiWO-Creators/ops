@@ -424,7 +424,7 @@ function FilaDeTarea ({ tarea, fecha, editable, guardando, error, onRevisar }: P
       <div className="flex min-w-0 flex-col gap-1">
         <p className="min-w-0 text-sm">
           {tarea.patente !== null && <span className="text-texto-tenue mr-2 font-mono text-xs">{tarea.patente}</span>}
-          <Link href={`/procesos?${PARAMETRO_TAREA}=${tarea.id}`} className="font-medium underline-offset-4 hover:underline">
+          <Link href={`/tareas?${PARAMETRO_TAREA}=${tarea.id}`} className="font-medium underline-offset-4 hover:underline">
             {tarea.name}
           </Link>
         </p>

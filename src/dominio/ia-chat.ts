@@ -229,7 +229,7 @@ function citaDeMarcador (parte: string, citas: Cita[]): Cita | null {
  * @returns la ruta absoluta, o `null` si el destino no se puede resolver con lo que trae la cita
  */
 export function hrefDeCita (cita: Cita): string | null {
-  if (cita.tipo === 'tarea') return `/procesos?${PARAMETRO_TAREA}=${cita.id}`
+  if (cita.tipo === 'tarea') return `/tareas?${PARAMETRO_TAREA}=${cita.id}`
   if (cita.tipo === 'espacio') return `/proyectos/${cita.id}`
   if (cita.tipo === 'acta' && cita.espacio_id !== undefined) {
     return `/proyectos/${cita.espacio_id}?${PARAMETRO_PESTANA}=${PESTANA_ACTAS}`

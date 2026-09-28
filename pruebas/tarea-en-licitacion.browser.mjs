@@ -42,7 +42,7 @@ try {
   const errores = []
   pagina.on('pageerror', (error) => errores.push(error.message))
 
-  await pagina.goto(new URL('/procesos', destino).href, { waitUntil: 'domcontentloaded', timeout: 90000 })
+  await pagina.goto(new URL('/tareas', destino).href, { waitUntil: 'domcontentloaded', timeout: 90000 })
   await pagina.waitForLoadState('networkidle')
 
   // El aviso de jornada se pinta encima del panel y se come el primer clic.
@@ -127,7 +127,7 @@ try {
   await contexto.route('**/api/bff/licitaciones**', async (ruta) => (
     await ruta.fulfill({ status: 403, json: { error: { code: 'forbidden', message: 'Sin permiso' } } })
   ))
-  await pagina.goto(new URL('/procesos', destino).href, { waitUntil: 'domcontentloaded' })
+  await pagina.goto(new URL('/tareas', destino).href, { waitUntil: 'domcontentloaded' })
   await pagina.waitForLoadState('networkidle')
   await pagina.getByRole('button', { name: 'Nueva tarea', exact: true }).click()
   await dialogo.waitFor()

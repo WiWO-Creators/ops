@@ -171,7 +171,7 @@ export function detalleConPatente (patente: string | null | undefined, contexto:
  * Los resultados de `/search`, un grupo por tipo y en el orden de la API.
  *
  * @param resultados la respuesta
- * @param rutaDeTareaSuelta donde se abre una Tarea sin Proyecto: `/procesos` si se ve, si no `/mis-tareas`
+ * @param rutaDeTareaSuelta donde se abre una Tarea sin Proyecto: `/tareas` si se ve, si no `/mis-tareas`
  * @returns los grupos no vacios
  */
 export function gruposDeBusqueda (resultados: ResultadosDeBusqueda, rutaDeTareaSuelta: string): GrupoDeComandos[] {
@@ -245,7 +245,7 @@ export interface EntradaDePaleta {
  */
 export function gruposDePaleta (entrada: EntradaDePaleta): GrupoDeComandos[] {
   const { consulta, secciones, atajos, recientes, fijados, resultados } = entrada
-  const rutaDeTareaSuelta = secciones.some((seccion) => seccion.href === '/procesos') ? '/procesos' : '/mis-tareas'
+  const rutaDeTareaSuelta = secciones.some((seccion) => seccion.href === '/tareas') ? '/tareas' : '/mis-tareas'
 
   if (normalizar(consulta) === '') {
     return [

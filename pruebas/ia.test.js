@@ -267,11 +267,11 @@ test('una propuesta con un estado que no existe se descarta entera', () => {
 
 test('lee un navegar y deja pasar el prefill tal cual', () => {
   assert.deepEqual(
-    leerEventoIA(frame('navegar', { href: '/procesos?tarea=7', etiqueta: 'la tarea Revisar el brief', prefill: null })),
-    { tipo: 'navegar', href: '/procesos?tarea=7', etiqueta: 'la tarea Revisar el brief', prefill: null }
+    leerEventoIA(frame('navegar', { href: '/tareas?tarea=7', etiqueta: 'la tarea Revisar el brief', prefill: null })),
+    { tipo: 'navegar', href: '/tareas?tarea=7', etiqueta: 'la tarea Revisar el brief', prefill: null }
   )
 
-  const conPrefill = leerEventoIA(frame('navegar', { href: '/procesos', etiqueta: 'el alta', prefill: { name: 'x' } }))
+  const conPrefill = leerEventoIA(frame('navegar', { href: '/tareas', etiqueta: 'el alta', prefill: { name: 'x' } }))
 
   assert.deepEqual(conPrefill.prefill, { name: 'x' })
 })
@@ -285,8 +285,8 @@ test('un navegar que apunta fuera del panel se descarta entero', () => {
 })
 
 test('un navegar sin etiqueta se descarta: la pantalla cambia sola y hay que decir a donde', () => {
-  assert.equal(leerEventoIA(frame('navegar', { href: '/procesos', etiqueta: '' })), null)
-  assert.equal(leerEventoIA(frame('navegar', { href: '/procesos' })), null)
+  assert.equal(leerEventoIA(frame('navegar', { href: '/tareas', etiqueta: '' })), null)
+  assert.equal(leerEventoIA(frame('navegar', { href: '/tareas' })), null)
 })
 
 test('un frontend viejo pinta la respuesta igual: no hace falta versionar el stream', () => {

@@ -24,7 +24,7 @@ const RUTA_ULTIMO_AVISO = '/api/bff/notifications?per_page=1&filter[unread]=1'
 const RUTA_POR_DEFECTO = '/inicio'
 
 /** El listado de Tareas que abre una por id. Mismo destino que `dominio/enlace-de-aviso.ts`. */
-const RUTA_DE_TAREAS = '/procesos'
+const RUTA_DE_TAREAS = '/tareas'
 
 /** Etiqueta comun: cada aviso nuevo reemplaza al anterior. */
 const ETIQUETA = 'ops-aviso'

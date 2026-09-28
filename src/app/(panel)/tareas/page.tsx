@@ -27,14 +27,14 @@ export const metadata = { title: 'Tareas · WiWO Ops' }
  * adelante el motor pide al BFF. El `Suspense` no es decorativo: `TablaRecurso` usa
  * `useSearchParams`, y sin ese limite el build de la ruta falla.
  */
-export default async function ProcesosPage (props: PageProps<'/procesos'>) {
+export default async function ProcesosPage (props: PageProps<'/tareas'>) {
   const params = paramsDeUrl(await props.searchParams)
   const campos = await pedir<DefinicionCampoPersonalizado[]>('/custom-fields?para=tasks')
   const definicion = { ...PROCESOS, filtros: [...PROCESOS.filtros, ...filtrosDeCamposPersonalizados(campos.data)] }
   const estado = leerConsulta(params, definicion)
   const consulta = construirConsulta(estado, definicion)
   // El tablero pagina por columna y no admite orden, asi que el salto lleva los filtros y descarta
-  // orden y pagina — lo mismo que hace `/procesos/tablero` al armar su propia consulta. Sin esto,
+  // orden y pagina — lo mismo que hace `/tareas/tablero` al armar su propia consulta. Sin esto,
   // filtrar la lista y pasar al tablero devolvia el tablero sin filtrar.
   const consultaTablero = construirConsulta({ ...estado, orden: [], pagina: 1 }, definicion)
 
@@ -83,12 +83,12 @@ export default async function ProcesosPage (props: PageProps<'/procesos'>) {
               tamano="medio"
               activo="tabla"
               opciones={[
-                { valor: 'tabla', etiqueta: 'Tabla', icono: 'tabla', href: '/procesos' },
+                { valor: 'tabla', etiqueta: 'Tabla', icono: 'tabla', href: '/tareas' },
                 {
                   valor: 'tablero',
                   etiqueta: 'Tablero',
                   icono: 'tablero',
-                  href: `/procesos/tablero${consultaTablero === '' ? '' : `?${consultaTablero}`}`
+                  href: `/tareas/tablero${consultaTablero === '' ? '' : `?${consultaTablero}`}`
                 },
                 // El calendario recibe los mismos filtros que el tablero, por el mismo motivo: tampoco
                 // pagina ni ordena. Su rango de fechas lo pone el periodo que se este mirando.
@@ -96,7 +96,7 @@ export default async function ProcesosPage (props: PageProps<'/procesos'>) {
                   valor: 'calendario',
                   etiqueta: 'Calendario',
                   icono: 'calendario',
-                  href: `/procesos/calendario${consultaTablero === '' ? '' : `?${consultaTablero}`}`
+                  href: `/tareas/calendario${consultaTablero === '' ? '' : `?${consultaTablero}`}`
                 }
               ]}
             />

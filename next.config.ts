@@ -22,7 +22,12 @@ if ((process.env.TZ ?? '').trim() === '') process.env.TZ = 'America/Santiago'
 const nextConfig: NextConfig = {
   /** Conserva enlaces guardados de proyectos y sus filtros al cambiar el slug público. */
   async redirects () {
-    return [{ source: '/espacios/:ruta*', destination: '/proyectos/:ruta*', permanent: true }]
+    return [
+      { source: '/espacios/:ruta*', destination: '/proyectos/:ruta*', permanent: true },
+      /** `/procesos` se renombró a `/tareas` el 28/09: conserva subruta y query string. */
+      { source: '/procesos', destination: '/tareas', permanent: true },
+      { source: '/procesos/:ruta*', destination: '/tareas/:ruta*', permanent: true }
+    ]
   },
   /**
    * Las fuentes se sirven con CORS abierto.

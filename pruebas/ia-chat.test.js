@@ -75,7 +75,7 @@ test('la cita es una ruta absoluta: el chat ya no esta dentro de la ficha de un 
   // El fallo que esta prueba existe para atrapar: un `?tarea=512` pegado a la pantalla vigente. Con
   // el chat en todo el panel, la Tarea citada puede ser de otro Espacio y el enlace tiene que
   // llevar igual a esa, no a lo que esa pantalla entienda por `?tarea=`.
-  assert.equal(hrefDeCita(TAREA), '/procesos?tarea=512')
+  assert.equal(hrefDeCita(TAREA), '/tareas?tarea=512')
   assert.equal(hrefDeCita({ tipo: 'espacio', id: 44, titulo: 'Colbun' }), '/proyectos/44')
 })
 

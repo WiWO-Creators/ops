@@ -35,7 +35,7 @@ try {
   assert.equal(entrada.status(), 200, 'No se pudo entrar con las credenciales de prueba.')
 
   const pagina = await contexto.newPage()
-  await pagina.goto(new URL('/procesos', origen).href, { waitUntil: 'domcontentloaded' })
+  await pagina.goto(new URL('/tareas', origen).href, { waitUntil: 'domcontentloaded' })
   await pagina.waitForTimeout(2500)
 
   // Un error que ya trae codigo: es el caso de un 500 que la API registro por su cuenta.
@@ -96,7 +96,7 @@ try {
     const respuesta = await fetch('/api/incidentes', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ tipo: 'PruebaDeNavegador', mensaje: 'reporte de la prueba de avisos', uri: '/procesos' })
+      body: JSON.stringify({ tipo: 'PruebaDeNavegador', mensaje: 'reporte de la prueba de avisos', uri: '/tareas' })
     })
 
     return (await respuesta.json()).incidente

@@ -69,7 +69,7 @@ try {
     await pagina.getByRole('dialog').getByLabel(campo, { exact: true }).click()
     await pagina.getByRole('option', { name: opcion, exact: true }).click()
   }
-  await pagina.goto(new URL('/procesos', destino).href, { waitUntil: 'domcontentloaded', timeout: 90000 })
+  await pagina.goto(new URL('/tareas', destino).href, { waitUntil: 'domcontentloaded', timeout: 90000 })
   await pagina.waitForLoadState('networkidle')
   await pagina.getByRole('button', { name: 'Nueva tarea', exact: true }).click()
   const dialogo = pagina.getByRole('dialog')
