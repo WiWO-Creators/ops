@@ -3,8 +3,9 @@
 import { useEffect, useRef, useState, type ReactElement } from 'react'
 import { Boton } from '@/componentes/formularios/Boton'
 import { Fecha } from '@/componentes/presentadores/Fecha'
-import { Insignia, type TonoInsignia } from '@/componentes/presentadores/Insignia'
+import { Insignia } from '@/componentes/presentadores/Insignia'
 import { pedirRespuesta } from '@/datos/cliente'
+import { ESTADO_DE_APROBACION } from '@/dominio/estados-aprobacion'
 import type { RondaDeAprobacion } from '@/datos/recursos'
 
 /**
@@ -40,12 +41,6 @@ interface Props {
   rondas: number | undefined
 }
 
-/** Como se lee cada estado. Misma escala de color que el bloque de SLA, para que no digan cosas distintas. */
-const ESTADO: Record<string, { etiqueta: string, tono: TonoInsignia }> = {
-  pendiente: { etiqueta: 'Pendiente', tono: 'acento' },
-  aprobada: { etiqueta: 'Aprobada', tono: 'exito' },
-  rechazada: { etiqueta: 'Rechazada', tono: 'peligro' }
-}
 
 export function HistorialDeAprobaciones ({ tareaId, rondas }: Props): ReactElement | null {
   const [abierto, setAbierto] = useState(false)
@@ -131,7 +126,7 @@ export function HistorialDeAprobaciones ({ tareaId, rondas }: Props): ReactEleme
 
 /** Una ronda: numero, estado, cuando se pidió, cuando se respondió y qué dijo el cliente. */
 function unaRonda (fila: RondaDeAprobacion): ReactElement {
-  const lectura = fila.estado === null ? undefined : ESTADO[fila.estado]
+  const lectura = fila.estado === null ? undefined : ESTADO_DE_APROBACION[fila.estado]
 
   return (
     <li key={fila.ronda} className="border-linea flex flex-col gap-1 border-l-2 pl-3">

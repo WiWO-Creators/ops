@@ -7,8 +7,9 @@ import { Entrada } from '@/componentes/formularios/Entrada'
 import { escribirEnBff } from '@/componentes/datos/mutaciones'
 import { EstadoSla } from '@/componentes/presentadores/EstadoSla'
 import { Fecha } from '@/componentes/presentadores/Fecha'
-import { Insignia, type TonoInsignia } from '@/componentes/presentadores/Insignia'
+import { Insignia } from '@/componentes/presentadores/Insignia'
 import { fechaDeCierre, instanteDeCierre } from '@/dominio/cierre-tarea'
+import { ESTADO_DE_APROBACION } from '@/dominio/estados-aprobacion'
 import { HistorialDeAprobaciones } from './HistorialDeAprobaciones'
 import { JustificacionDelEquipo } from './JustificacionDelEquipo'
 import { formatearDesviacion, SIN_DATO, textoDeEntrega } from '@/lib/sla'
@@ -52,13 +53,6 @@ interface PropsBloqueSla {
   puedeEditar: boolean
   /** Se llama cuando se pidio la aprobacion, para que el detalle vuelva a pedir la tarea. */
   onCambiado: () => void
-}
-
-/** Como se lee cada estado de aprobacion. "Aprobada" es el unico verde del bloque, y se lo gana. */
-const APROBACION: Record<string, { etiqueta: string, tono: TonoInsignia }> = {
-  pendiente: { etiqueta: 'Pendiente', tono: 'acento' },
-  aprobada: { etiqueta: 'Aprobada', tono: 'exito' },
-  rechazada: { etiqueta: 'Rechazada', tono: 'peligro' }
 }
 
 /**
@@ -241,7 +235,7 @@ function Aprobacion ({ aprobacion }: { aprobacion: AprobacionProceso | undefined
   // dos cosas se ven igual en el `estado` y no significan lo mismo para quien tiene que actuar.
   const lectura =
     aprobacion.estado !== null && aprobacion.solicitada_en !== null
-      ? APROBACION[aprobacion.estado]
+      ? ESTADO_DE_APROBACION[aprobacion.estado]
       : undefined
   const instante = aprobacion.resuelta_en ?? aprobacion.solicitada_en
 
