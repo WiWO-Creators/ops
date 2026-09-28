@@ -24,12 +24,14 @@ const SIN_DATO = '—'
  * tres era lo que obligaba a los otros a escribir su propia copia.
  *
  * `profile_image_url` es opcional porque el portal no lo manda: ahi el avatar sale con iniciales.
+ * `id` es opcional por lo mismo: sin el, `LineaDeActividad` no puede enlazar al autor y se queda con
+ * el avatar y el nombre en texto plano.
  */
 export interface EntradaDeActividad {
   description: string
   additional_data: string | null
   date_added: string | null
-  staff: { full_name: string, profile_image_url?: string | null } | null
+  staff: { id?: number, full_name: string, profile_image_url?: string | null } | null
   contact: { full_name: string } | null
 }
 

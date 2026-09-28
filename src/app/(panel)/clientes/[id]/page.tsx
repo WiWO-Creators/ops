@@ -211,6 +211,7 @@ export default async function ClientePage (props: PageProps<'/clientes/[id]'>) {
           clienteId={cliente.id}
           estados={listaDe(lookups, 'project_statuses')}
           capacidades={yo.permissions.customers}
+          capacidadesProyectos={yo.permissions.projects}
         />
       )
     },

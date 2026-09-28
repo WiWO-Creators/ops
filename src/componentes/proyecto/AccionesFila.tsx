@@ -1,18 +1,19 @@
 'use client'
 
 import { useState, type ReactElement } from 'react'
-import { Boton } from '@/componentes/formularios/Boton'
-import { Dialogo, ContenidoDialogo } from '@/componentes/superposiciones/Dialogo'
+import { MenuAccionesFila } from '@/componentes/datos/MenuAccionesFila'
+import { useAviso } from '@/componentes/estado/useAviso'
 import { mensajeDeRespuesta } from '@/datos/cliente'
 import { FormularioRecurso } from './FormularioRecurso'
 import type { CampoFormulario } from './formulario'
 
 /**
- * Editar y eliminar, desde la fila de una tabla.
+ * Editar y eliminar, desde el menu "⋯" de una fila de tabla.
  *
  * Hitos y Notas ofrecen exactamente lo mismo: un formulario de edicion en dialogo y un
  * borrado con confirmacion. Escribirlo por pantalla seria multiplicar la misma manera de olvidarse de
- * mostrar el error del servidor.
+ * mostrar el error del servidor. Por eso vive sobre `MenuAccionesFila`: mismo disparador y misma
+ * confirmacion que el resto de las tablas.
  *
  * El borrado siempre confirma: no es reversible, y el aviso es donde se explica que arrastra
  * (las tareas de un hito, por ejemplo).
@@ -48,43 +49,27 @@ export function AccionesFila ({
   recargar
 }: PropsAccionesFila): ReactElement {
   const [editando, setEditando] = useState(false)
-  const [confirmando, setConfirmando] = useState(false)
-  const [borrando, setBorrando] = useState(false)
-  const [fallo, setFallo] = useState<string | null>(null)
+  const aviso = useAviso()
 
-  /** Borra el registro y refresca el listado. Nunca lanza: el fallo se muestra dentro del dialogo. */
+  /** Borra el registro y refresca el listado. Lanza si falla: `ConfirmarBorrado` muestra el mensaje. */
   async function borrar (): Promise<void> {
-    setBorrando(true)
-    setFallo(null)
+    const respuesta = await fetch(`/api/bff/${ruta}`, {
+      method: 'DELETE',
+      headers: { accept: 'application/json' }
+    })
 
-    try {
-      const respuesta = await fetch(`/api/bff/${ruta}`, {
-        method: 'DELETE',
-        headers: { accept: 'application/json' }
-      })
+    if (!respuesta.ok) throw new Error(await mensajeDeRespuesta(respuesta))
 
-      if (!respuesta.ok) {
-        setFallo(await mensajeDeRespuesta(respuesta))
-        return
-      }
-
-      setConfirmando(false)
-      recargar()
-    } catch {
-      setFallo('No se pudo eliminar: revisa la conexión.')
-    } finally {
-      setBorrando(false)
-    }
+    recargar()
+    aviso.exito('Eliminado correctamente.')
   }
 
   return (
-    <span className="flex gap-1">
-      {puedeEditar && (
-        <Boton variante="sutil" tamano="chico" onClick={() => { setEditando(true) }}>Editar</Boton>
-      )}
-      {puedeBorrar && (
-        <Boton variante="sutil" tamano="chico" onClick={() => { setConfirmando(true) }}>Eliminar</Boton>
-      )}
+    <>
+      <MenuAccionesFila
+        onEditar={puedeEditar ? () => { setEditando(true) } : undefined}
+        borrado={puedeBorrar ? { titulo: tituloBorrado, advertencia, onConfirmar: borrar } : undefined}
+      />
 
       {puedeEditar && (
         <FormularioRecurso
@@ -95,21 +80,9 @@ export function AccionesFila ({
           ruta={ruta}
           metodo="PATCH"
           registro={registro}
-          onGuardado={recargar}
+          onGuardado={() => { recargar(); aviso.exito('Guardado correctamente.') }}
         />
       )}
-
-      <Dialogo open={confirmando} onOpenChange={setConfirmando}>
-        <ContenidoDialogo titulo={tituloBorrado} descripcion={advertencia} ancho="chico">
-          <div className="flex flex-col gap-4">
-            {fallo !== null && <p role="alert" className="text-texto-peligro text-sm">{fallo}</p>}
-            <div className="flex justify-end gap-2">
-              <Boton variante="sutil" onClick={() => { setConfirmando(false) }}>Cancelar</Boton>
-              <Boton variante="peligro" cargando={borrando} onClick={() => { void borrar() }}>Eliminar</Boton>
-            </div>
-          </div>
-        </ContenidoDialogo>
-      </Dialogo>
-    </span>
+    </>
   )
 }

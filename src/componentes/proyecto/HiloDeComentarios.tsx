@@ -8,6 +8,7 @@ import { Boton } from '@/componentes/formularios/Boton'
 import { AreaTexto } from '@/componentes/formularios/Entrada'
 import { GLOSARIO } from '@/dominio/glosario'
 import { cn } from '@/lib/clases'
+import { LOCALE } from '@/lib/fechas'
 import { useRecurso } from './carga'
 import {
   armarHilos,
@@ -373,7 +374,7 @@ function CuadroDeComentario (
       <div className="flex items-center justify-between gap-3 px-2 pb-2">
         <span id={idAyuda} className="text-texto-sutil pl-1 text-xs">
           {cercaDelTope
-            ? <span className={cn('tabular-nums', excedido && 'text-texto-peligro')}>{texto.length.toLocaleString('es-CL')} / {MAXIMO_COMENTARIO.toLocaleString('es-CL')}</span>
+            ? <span className={cn('tabular-nums', excedido && 'text-texto-peligro')}>{texto.length.toLocaleString(LOCALE)} / {MAXIMO_COMENTARIO.toLocaleString(LOCALE)}</span>
             : <span className="pointer-coarse:hidden">Ctrl + Enter para enviar</span>}
         </span>
 

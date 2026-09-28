@@ -61,6 +61,13 @@ export const NOVEDADES: Novedad[] = [
   },
   {
     fecha: '2026-09-28',
+    tipo: 'mejora',
+    titulo: 'Animaciones más cuidadas en la bienvenida, el aviso de versión nueva y Novedades',
+    detalle: 'La escena de bienvenida tras actualizar, la barra de "hay una versión nueva" y la lista de Novedades ahora animan con más pulido. Respetan "menos movimiento" cuando el sistema lo pide.',
+    commits: []
+  },
+  {
+    fecha: '2026-09-28',
     tipo: 'arreglo',
     titulo: 'Supervisión: tu hoja ya no muestra gente que no está a tu cargo',
     detalle: 'Si diriges un área, ya no ves las tareas ni la hoja de quien solo la comparte contigo sin reportarte: tu equipo es exactamente tu gente a cargo, directa o en cadena.',

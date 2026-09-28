@@ -21,7 +21,7 @@ import {
 import {
   ContenidoSelector, DisparadorSelector, Opcion, Selector
 } from '@/componentes/formularios/Selector'
-import { Avatar } from '@/componentes/presentadores/Avatar'
+import { EnlacePersona } from '@/componentes/presentadores/EnlacePersona'
 import { ESCALONES, esEscalon } from '@/dominio/escalon'
 import { colorDeArea, jefesElegibles, nombreDeArea } from '@/dominio/organigrama'
 import type { Escalon } from '@/dominio/escalon'
@@ -79,7 +79,7 @@ export function PanelDePersona (
       >
         <div className="flex flex-col gap-5">
           <header className="flex items-center gap-3">
-            <Avatar nombre={persona.nombre} imagen={persona.avatar} tamano="grande" />
+            <EnlacePersona id={persona.staffid} nombre={persona.nombre} imagen={persona.avatar} tamano="grande" mostrarNombre={false} />
             <div className="min-w-0">
               <p className="text-texto-tenue truncate text-sm">{persona.correo}</p>
               <p className="text-texto-sutil mt-0.5 flex items-center gap-1.5 text-xs">

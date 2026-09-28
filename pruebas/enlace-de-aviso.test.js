@@ -17,16 +17,16 @@ import assert from 'node:assert/strict'
 import { rutaDeAviso } from '../src/dominio/enlace-de-aviso.ts'
 
 test('un enlace a tarea del panel viejo se traduce al listado con el detalle abierto', () => {
-  assert.equal(rutaDeAviso('#taskid=512'), '/procesos?tarea=512')
+  assert.equal(rutaDeAviso('#taskid=512'), '/tareas?tarea=512')
 })
 
 test('el id viaja tal cual, sin recortes ni relleno', () => {
-  assert.equal(rutaDeAviso('#taskid=1'), '/procesos?tarea=1')
-  assert.equal(rutaDeAviso('#taskid=98765'), '/procesos?tarea=98765')
+  assert.equal(rutaDeAviso('#taskid=1'), '/tareas?tarea=1')
+  assert.equal(rutaDeAviso('#taskid=98765'), '/tareas?tarea=98765')
 })
 
 test('los espacios alrededor no cuentan', () => {
-  assert.equal(rutaDeAviso('  #taskid=7  '), '/procesos?tarea=7')
+  assert.equal(rutaDeAviso('  #taskid=7  '), '/tareas?tarea=7')
 })
 
 test('sin link no hay enlace', () => {

@@ -4,7 +4,7 @@ import { useMemo, useState, type ReactElement } from 'react'
 import { escribirEnBff } from '@/componentes/datos/mutaciones'
 import { Cargando, ErrorEstado } from '@/componentes/estado/Estados'
 import { Boton } from '@/componentes/formularios/Boton'
-import { Avatar } from '@/componentes/presentadores/Avatar'
+import { EnlacePersona } from '@/componentes/presentadores/EnlacePersona'
 import { Fecha } from '@/componentes/presentadores/Fecha'
 import { GLOSARIO } from '@/dominio/glosario'
 import { numerarIteraciones } from '@/lib/iteraciones'
@@ -310,12 +310,13 @@ function Iteracion ({
       <div className="text-texto-sutil flex min-w-0 flex-wrap items-center gap-1.5 text-xs">
         {iteracion.staff !== null && (
           <>
-            <Avatar
+            <EnlacePersona
+              id={iteracion.staff.id}
               nombre={iteracion.staff.full_name}
               imagen={iteracion.staff.profile_image_url}
               tamano="chico"
+              className="min-w-0"
             />
-            <span className="min-w-0 truncate">{iteracion.staff.full_name}</span>
             <span aria-hidden="true">·</span>
           </>
         )}

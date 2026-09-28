@@ -116,7 +116,7 @@ const tareas: Array<{ id: number }> = []
 /** Ruta de la tarea visible, incluso cuando se abre en un panel sobre otra página. */
 export function rutaDeTarea (): string | null {
   const tarea = tareas.at(-1)
-  return tarea === undefined ? null : `/procesos/${tarea.id}`
+  return tarea === undefined ? null : `/tareas/${tarea.id}`
 }
 
 /** Registra la tarea visible hasta desmontar su detalle; no transmite contenido del formulario. */

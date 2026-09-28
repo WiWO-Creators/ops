@@ -3,11 +3,12 @@
 import Link from 'next/link'
 import { useState, type ReactElement } from 'react'
 import { useRouter } from 'next/navigation'
+import { ConfirmarBorrado } from '@/componentes/datos/ConfirmarBorrado'
 import { escribirEnBff } from '@/componentes/datos/mutaciones'
+import { useAviso } from '@/componentes/estado/useAviso'
 import { Boton } from '@/componentes/formularios/Boton'
 import { FormularioRecurso } from '@/componentes/proyecto/FormularioRecurso'
 import type { OpcionCampo } from '@/componentes/proyecto/formulario'
-import { ContenidoDialogo, Dialogo } from '@/componentes/superposiciones/Dialogo'
 import type { ProspectoDetalle } from '@/datos/recursos'
 import type { Capacidad } from '@/datos/tipos'
 import { camposDeProspecto } from './campos'
@@ -88,11 +89,11 @@ export function AccionesProspecto ({ prospecto, paises, capacidades }: PropsAcci
 }
 
 /**
- * Confirmacion de borrado.
+ * Confirmacion de borrado, sobre la primitiva comun `ConfirmarBorrado`.
  *
  * La API responde **409 si el prospecto tiene licitaciones**, porque borrarlo dejaria sus Espacios
- * huerfanos. El dialogo lo dice antes de apretar y **no se cierra** si la llamada falla: cerrarlo
- * dejaria el mensaje sin donde mostrarse.
+ * huerfanos. El dialogo lo dice antes de apretar; si la llamada falla, `ConfirmarBorrado` muestra el
+ * mensaje y no se cierra.
  *
  * Al borrar se navega a la lista, a diferencia de las acciones de una licitacion: la ficha que se
  * estaba mirando ya no existe, y refrescarla daria un 404.
@@ -107,62 +108,33 @@ function DialogoBorrar ({
   onCerrar: () => void
 }): ReactElement {
   const router = useRouter()
-  const [enviando, setEnviando] = useState(false)
-  const [fallo, setFallo] = useState<string | null>(null)
+  const aviso = useAviso()
 
   const conLicitaciones = prospecto.licitaciones_total > 0
 
-  /** Llama al borrado; el error es un valor que se muestra, nunca una excepcion que rompa la ficha. */
+  /** Borra el prospecto y vuelve a la lista. Lanza si falla: `ConfirmarBorrado` muestra el mensaje. */
   async function confirmar (): Promise<void> {
-    setEnviando(true)
-    setFallo(null)
-
     const resultado = await escribirEnBff<unknown>(`prospectos/${prospecto.id}`, 'DELETE')
 
-    setEnviando(false)
+    if (!resultado.ok) throw new Error(resultado.mensaje)
 
-    if (!resultado.ok) {
-      setFallo(resultado.mensaje)
-      return
-    }
-
-    cerrar(false)
+    aviso.exito(`«${prospecto.empresa}» se eliminó.`)
     router.push('/prospectos')
     router.refresh()
   }
 
-  /** Cierra limpiando el error: el mensaje de un intento viejo no debe recibir al siguiente. */
-  function cerrar (sigueAbierto: boolean): void {
-    if (sigueAbierto) return
-
-    setFallo(null)
-    onCerrar()
-  }
-
   return (
-    <Dialogo open={abierto} onOpenChange={cerrar}>
-      <ContenidoDialogo
-        titulo={`Borrar ${prospecto.empresa}`}
-        descripcion={
-          conLicitaciones
-            ? `Este prospecto tiene ${prospecto.licitaciones_total} licitación(es): hay que borrarlas primero, una por una, desde cada una. El borrado va a fallar.`
-            : 'Se borra el prospecto con sus personas de contacto. No se puede deshacer.'
-        }
-      >
-        {fallo !== null && <p role="alert" className="text-texto-peligro text-sm">{fallo}</p>}
-
-        <div className="mt-4 flex justify-end gap-2">
-          <Boton type="button" variante="sutil" onClick={() => { cerrar(false) }}>Cancelar</Boton>
-          <Boton
-            type="button"
-            variante="peligro"
-            cargando={enviando}
-            onClick={() => { void confirmar() }}
-          >
-            Borrar
-          </Boton>
-        </div>
-      </ContenidoDialogo>
-    </Dialogo>
+    <ConfirmarBorrado
+      abierto={abierto}
+      onCerrar={onCerrar}
+      titulo={`Borrar ${prospecto.empresa}`}
+      advertencia={
+        conLicitaciones
+          ? `Este prospecto tiene ${prospecto.licitaciones_total} licitación(es): hay que borrarlas primero, una por una, desde cada una. El borrado va a fallar.`
+          : 'Se borra el prospecto con sus personas de contacto. No se puede deshacer.'
+      }
+      etiquetaConfirmar="Borrar"
+      onConfirmar={confirmar}
+    />
   )
 }

@@ -1,4 +1,6 @@
 import type { ReactElement } from 'react'
+import { Hueso } from '@/componentes/estado/Estados'
+import { cn } from '@/lib/clases'
 import './recurrencia.css'
 
 /** Anchos de la columna de nombre, variados para que el esqueleto no parezca una grilla de ladrillos. */
@@ -24,12 +26,12 @@ export function EsqueletoRecurrentes ({ filas = 5 }: { filas?: number }): ReactE
           className="rec-escalonada border-linea bg-superficie rounded-tarjeta grid grid-cols-1 items-center gap-3 border px-4 py-3 md:grid-cols-[minmax(0,2.2fr)_minmax(0,1fr)_minmax(0,1fr)_auto]"
         >
           <div className="flex flex-col gap-2">
-            <span className={`rec-hueso h-4 ${ANCHOS[i % ANCHOS.length]}`} />
-            <span className="rec-hueso h-3 w-1/3" />
+            <Hueso className={cn('h-4 rounded-chico', ANCHOS[i % ANCHOS.length])} />
+            <Hueso className="h-3 w-1/3 rounded-chico" />
           </div>
-          <span className="rec-hueso hidden h-4 w-24 md:block" />
-          <span className="rec-hueso hidden h-4 w-20 md:block" />
-          <span className="rec-hueso hidden h-7 w-24 rounded-full md:block" />
+          <Hueso className="hidden h-4 w-24 rounded-chico md:block" />
+          <Hueso className="hidden h-4 w-20 rounded-chico md:block" />
+          <Hueso className="hidden h-7 w-24 md:block" />
         </div>
       ))}
     </div>

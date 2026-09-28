@@ -3,13 +3,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { ChevronRight, Users } from 'lucide-react'
 import { Vacio } from '@/componentes/estado/Estados'
-import { Avatar } from '@/componentes/presentadores/Avatar'
+import { EnlacePersona } from '@/componentes/presentadores/EnlacePersona'
 import type { AlcanceDeLive } from '@/dominio/live'
 import type { FilaDeLive } from '@/datos/live'
 import type { Yo } from '@/datos/tipos'
 import { escucharMedidor } from './medidor'
 import { cn } from '@/lib/clases'
-import { cargoYArea, repartirTablero } from './presentacion'
+import { repartirTablero } from './presentacion'
 import { FilaEnVivo } from './FilaEnVivo'
 import type { OpcionFiltro } from '@/definiciones/tipos'
 
@@ -237,10 +237,13 @@ function SinJornada ({ filas }: { filas: FilaDeLive[] }) {
       <ul className="flex flex-wrap gap-x-4 gap-y-2 px-3 pb-3 pt-1">
         {filas.map((fila) => (
           <li key={fila.staff.id} className="flex min-w-0 items-center gap-2">
-            <Avatar nombre={fila.staff.name} imagen={fila.staff.avatar} tamano="chico" />
-            <span className="text-texto-tenue truncate text-sm" title={cargoYArea(fila.staff) ?? undefined}>
-              {fila.staff.name}
-            </span>
+            <EnlacePersona
+              id={fila.staff.id}
+              nombre={fila.staff.name}
+              imagen={fila.staff.avatar}
+              tamano="chico"
+              className="text-texto-tenue text-sm"
+            />
           </li>
         ))}
       </ul>

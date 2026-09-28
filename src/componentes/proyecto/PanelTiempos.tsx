@@ -2,9 +2,9 @@
 
 import { Suspense, useCallback, useEffect, useMemo, useState, type ReactElement } from 'react'
 import Link from 'next/link'
-import { useRouter, useSearchParams, type ReadonlyURLSearchParams } from 'next/navigation'
 import { ControlesTabla, PaginacionTabla } from '@/componentes/datos/ControlesTabla'
 import { hayFiltrosPuestos, urlConParametro } from '@/componentes/datos/tabla'
+import { useFiltrosEnUrl } from '@/componentes/datos/useFiltrosEnUrl'
 import {
   CeldaEncabezado,
   CeldaTabla,
@@ -13,10 +13,13 @@ import {
   FilaTabla,
   Tabla
 } from '@/componentes/datos/Tabla'
+import { MenuAccionesFila } from '@/componentes/datos/MenuAccionesFila'
 import { Cargando, ErrorEstado, Vacio } from '@/componentes/estado/Estados'
 import { CargandoConOrbe } from '@/componentes/estado/Orbe'
+import { useAviso } from '@/componentes/estado/useAviso'
 import { Boton } from '@/componentes/formularios/Boton'
 import { Avatar } from '@/componentes/presentadores/Avatar'
+import { EnlacePersona } from '@/componentes/presentadores/EnlacePersona'
 import { Etiquetas } from '@/componentes/presentadores/Etiqueta'
 import { Fecha } from '@/componentes/presentadores/Fecha'
 import { Insignia } from '@/componentes/presentadores/Insignia'
@@ -29,6 +32,7 @@ import type { Capacidad, Paginacion } from '@/datos/tipos'
 import { LOOKUP_PERSONAS_CON_TIEMPO, definicionDeTiempos } from '@/definiciones/tiempos'
 import type { EstadoConsulta, OpcionFiltro } from '@/definiciones/tipos'
 import { conConsulta, type FuenteDeProyecto } from '@/dominio/fuente-proyecto'
+import { nombrar } from '@/dominio/glosario'
 import { useRecurso } from './carga'
 import { segundosAHoraMinuto } from './formatos'
 import { FormularioTimesheet } from './FormularioTimesheet'
@@ -105,35 +109,6 @@ type Carga =
 /** El menu de columnas esta oculto, pero `ControlesTabla` exige el callback. Estable entre renders. */
 function noOp (): void {}
 
-/**
- * Combina la consulta nueva con los parametros de la URL que no son de esta pestaña.
- *
- * El detalle del Proyecto guarda en la misma URL la pestaña activa (`?tab=`) y la tarea abierta en el
- * cajon (`?tarea=`), y son de otro dueño: reescribir la query entera al filtrar cerraria la pestaña
- * de golpe. Se borran solo las claves que produce la consulta vigente —las que escribio este panel—
- * y todo lo demas se conserva tal cual.
- *
- * @param params Los parametros actuales de la URL.
- * @param consultaVigente La consulta que este panel tiene puesta, para saber que claves le pertenecen.
- * @param consultaNueva La consulta que se quiere dejar, ya serializada.
- * @returns La URL relativa lista para `router.replace`, siempre con `?` aunque quede vacia.
- */
-function urlConservandoAjenos (
-  params: ReadonlyURLSearchParams,
-  consultaVigente: string,
-  consultaNueva: string
-): string {
-  const ajenos = new URLSearchParams(params.toString())
-
-  for (const clave of new URLSearchParams(consultaVigente).keys()) {
-    ajenos.delete(clave)
-  }
-
-  const combinada = [consultaNueva, ajenos.toString()].filter((parte) => parte !== '').join('&')
-
-  return combinada === '' ? '?' : `?${combinada}`
-}
-
 export function PanelTiempos (props: PropsPanelTiempos): ReactElement {
   // Leer `useSearchParams` exige un limite de Suspense: sin el, el build de cualquier pagina que
   // monte este panel falla, y esas paginas las escribe otra persona.
@@ -145,9 +120,6 @@ export function PanelTiempos (props: PropsPanelTiempos): ReactElement {
 }
 
 function TiemposDelProyecto ({ proyectoId, fuente, capacidades }: PropsPanelTiempos): ReactElement {
-  const router = useRouter()
-  const params = useSearchParams()
-
   const [carga, setCarga] = useState<Carga>({ fase: 'cargando' })
   const [personas, setPersonas] = useState<PersonaConTiempo[]>([])
   const [intento, setIntento] = useState(0)
@@ -156,6 +128,7 @@ function TiemposDelProyecto ({ proyectoId, fuente, capacidades }: PropsPanelTiem
     { abierto: false, registro: null }
   )
   const [aviso, setAviso] = useState<string | null>(null)
+  const avisador = useAviso()
   /**
    * Que combinacion de consulta e intento corresponde a lo que hay pintado.
    *
@@ -170,14 +143,15 @@ function TiemposDelProyecto ({ proyectoId, fuente, capacidades }: PropsPanelTiem
     [fuente, proyectoId]
   )
 
-  /** Lo que la persona eligio, leido de la URL. Lo desconocido se descarta: un `?page=abc` no viaja. */
-  const estado = useMemo(
-    () => leerConsulta(new URLSearchParams(params.toString()), definicion),
-    [params, definicion]
-  )
+  const leerEstado = useCallback((p: URLSearchParams) => leerConsulta(p, definicion), [definicion])
+  const construirQuery = useCallback((e: EstadoConsulta) => construirConsulta(e, definicion), [definicion])
+
+  // Delegado en `useFiltrosEnUrl`, el mismo hook de `TablaRecurso`: antes esta pestaña reescribia a
+  // mano la traduccion estado-URL (`urlConservandoAjenos`), duplicando una logica que ya vive ahi.
+  const { estado, params, cambiar } = useFiltrosEnUrl<EstadoConsulta>({ leer: leerEstado, construir: construirQuery })
 
   /** La misma consulta, ya podada contra la whitelist del backend. Sin `?` inicial. */
-  const consulta = useMemo(() => construirConsulta(estado, definicion), [estado, definicion])
+  const consulta = useMemo(() => construirQuery(estado), [estado, construirQuery])
 
   /**
    * Opciones del filtro por persona.
@@ -207,18 +181,6 @@ function TiemposDelProyecto ({ proyectoId, fuente, capacidades }: PropsPanelTiem
     setIntento((n) => n + 1)
     recargarResumen()
   }, [recargarResumen])
-
-  /**
-   * Escribe un cambio parcial de la consulta en la URL, que es la unica dueña del estado.
-   *
-   * `replace` y no `push`: cada filtro seria una entrada del historial y volver atras costaria
-   * quince clics.
-   */
-  const cambiar = useCallback((parcial: Partial<EstadoConsulta>): void => {
-    const siguiente = construirConsulta({ ...estado, ...parcial }, definicion)
-
-    router.replace(urlConservandoAjenos(params, consulta, siguiente), { scroll: false })
-  }, [estado, consulta, definicion, params, router])
 
   /** Identifica la consulta vigente. Cambia con la URL y con cada recarga manual. */
   const clave = `${consulta}|${intento}`
@@ -300,28 +262,14 @@ function TiemposDelProyecto ({ proyectoId, fuente, capacidades }: PropsPanelTiem
     }
   }
 
-  /** Borra un registro. Pregunta antes: no hay deshacer del otro lado. */
+  /** Borra un registro. Lanza si falla: `ConfirmarBorrado` (dentro de `MenuAccionesFila`) muestra el mensaje. */
   async function borrar (registro: RegistroDeHoras): Promise<void> {
-    const quien = registro.staff?.full_name ?? 'sin persona'
+    const respuesta = await fetch(`/api/bff/${fuente.tiempos}/${registro.id}`, { method: 'DELETE' })
 
-    if (!window.confirm(`¿Eliminar el registro de ${quien} (${registro.duration_hm})?`)) return
+    if (!respuesta.ok) throw new Error((await leerError(respuesta)).message)
 
-    setAviso(null)
-
-    try {
-      const respuesta = await fetch(`/api/bff/${fuente.tiempos}/${registro.id}`, {
-        method: 'DELETE'
-      })
-
-      if (!respuesta.ok) {
-        setAviso((await leerError(respuesta)).message)
-        return
-      }
-
-      recargar()
-    } catch {
-      setAviso('No se pudo eliminar: revisa la conexión.')
-    }
+    recargar()
+    avisador.exito('Registro eliminado.')
   }
 
   return (
@@ -391,7 +339,7 @@ function TiemposDelProyecto ({ proyectoId, fuente, capacidades }: PropsPanelTiem
           <EncabezadoTabla>
             <tr>
               <CeldaEncabezado>Miembro</CeldaEncabezado>
-              <CeldaEncabezado>Tarea</CeldaEncabezado>
+              <CeldaEncabezado>{nombrar('proceso')}</CeldaEncabezado>
               {columnas.includes('tags') && <CeldaEncabezado>Etiquetas</CeldaEncabezado>}
               <CeldaEncabezado>Hora de inicio</CeldaEncabezado>
               <CeldaEncabezado>Hora de finalización</CeldaEncabezado>
@@ -414,12 +362,17 @@ function TiemposDelProyecto ({ proyectoId, fuente, capacidades }: PropsPanelTiem
                 <FilaTabla key={registro.id}>
                   <CeldaTabla>
                     <span className="flex items-center gap-2">
-                      <Avatar
-                        nombre={registro.staff?.full_name ?? ''}
-                        imagen={registro.staff?.profile_image_url ?? null}
-                        tamano="chico"
-                      />
-                      <span className="text-texto">{registro.staff?.full_name ?? ''}</span>
+                      {registro.staff === null
+                        ? <Avatar nombre="" imagen={null} tamano="chico" />
+                        : (
+                          <EnlacePersona
+                            id={registro.staff.id}
+                            nombre={registro.staff.full_name}
+                            imagen={registro.staff.profile_image_url}
+                            tamano="chico"
+                            className="text-texto"
+                          />
+                          )}
                       {registro.staff?.sigue_asignado === false && (
                         <span
                           className="text-texto-aviso"
@@ -468,27 +421,19 @@ function TiemposDelProyecto ({ proyectoId, fuente, capacidades }: PropsPanelTiem
 
                   {columnas.includes('acciones') && (
                     <CeldaTabla>
-                      <span className="flex items-center gap-1">
-                        {registro.puede_editar === true && (
-                          <Boton
-                            variante="sutil"
-                            tamano="chico"
-                            onClick={() => setFormulario({ abierto: true, registro })}
-                          >
-                            Editar
-                          </Boton>
-                        )}
-                        {registro.puede_detener === true && (
-                          <Boton variante="secundario" tamano="chico" onClick={() => { void detener(registro) }}>
-                            Detener
-                          </Boton>
-                        )}
-                        {registro.puede_borrar === true && (
-                          <Boton variante="peligro" tamano="chico" onClick={() => { void borrar(registro) }}>
-                            Eliminar
-                          </Boton>
-                        )}
-                      </span>
+                      <MenuAccionesFila
+                        ariaLabel={`Acciones del registro de ${registro.staff?.full_name ?? 'sin persona'}`}
+                        onEditar={registro.puede_editar === true ? () => setFormulario({ abierto: true, registro }) : undefined}
+                        acciones={registro.puede_detener === true
+                          ? [{ clave: 'detener', etiqueta: 'Detener', onSeleccionar: () => { void detener(registro) } }]
+                          : []}
+                        borrado={registro.puede_borrar === true
+                          ? {
+                              advertencia: `Se elimina el registro de ${registro.staff?.full_name ?? 'sin persona'} (${registro.duration_hm}). No se puede deshacer.`,
+                              onConfirmar: () => borrar(registro)
+                            }
+                          : undefined}
+                      />
                     </CeldaTabla>
                   )}
                 </FilaTabla>

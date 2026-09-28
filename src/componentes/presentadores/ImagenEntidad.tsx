@@ -2,7 +2,8 @@
 
 import { useRef, useState, type ChangeEvent } from 'react'
 import { useRouter } from 'next/navigation'
-import { Camera, LoaderCircle } from 'lucide-react'
+import { Camera } from 'lucide-react'
+import { Orbe } from '@/componentes/estado/Orbe'
 import { escribirEnBff, subirArchivoEnBff } from '@/componentes/datos/mutaciones'
 import {
   ContenidoMenu,
@@ -172,7 +173,9 @@ export function ImagenEntidad ({
               )}
             >
               {cargando
-                ? <LoaderCircle className="size-4 animate-spin" strokeWidth={2} />
+                // Boton pequeño (el marco del avatar): el Orbe de tamaño completo no entra, asi que
+                // se recorta a la misma caja que ocupaba el spinner anterior, igual que hace `Boton`.
+                ? <span className="inline-flex size-4 shrink-0 items-center justify-center overflow-hidden"><Orbe tamano="chico" estado="thinking" /></span>
                 : <Camera className="size-4" strokeWidth={2} />}
             </span>
           </button>

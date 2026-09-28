@@ -1,4 +1,4 @@
-import { ZONA_NEGOCIO } from '../lib/fechas.ts'
+import { LOCALE, ZONA_NEGOCIO } from '../lib/fechas.ts'
 import type {
   AbiertasAlCierre,
   MedicionPorEtapa,
@@ -156,7 +156,7 @@ export function rotularMes (mes: string): string {
 
   if (anio === undefined || numero === undefined) return mes
 
-  const nombre = new Intl.DateTimeFormat('es-AR', {
+  const nombre = new Intl.DateTimeFormat(LOCALE, {
     month: 'long',
     year: 'numeric',
     timeZone: 'UTC'
@@ -228,7 +228,7 @@ export function motivoSinMediana (lectura: LecturaDeMediana, que: string): strin
 export function formatearDias (valor: number | null | undefined): string {
   if (typeof valor !== 'number' || !Number.isFinite(valor)) return SIN_DATO
 
-  const numero = new Intl.NumberFormat('es-AR', { maximumFractionDigits: 1 }).format(valor)
+  const numero = new Intl.NumberFormat(LOCALE, { maximumFractionDigits: 1 }).format(valor)
 
   return `${numero} ${valor === 1 ? 'día' : 'días'}`
 }
@@ -242,7 +242,7 @@ export function formatearDias (valor: number | null | undefined): string {
 export function formatearPorcentaje (valor: number | null | undefined): string {
   if (typeof valor !== 'number' || !Number.isFinite(valor)) return SIN_DATO
 
-  return `${new Intl.NumberFormat('es-AR', { maximumFractionDigits: 0 }).format(valor)}%`
+  return `${new Intl.NumberFormat(LOCALE, { maximumFractionDigits: 0 }).format(valor)}%`
 }
 
 /** Cómo se pinta una cifra. `neutro` es también el tono de lo que no se sabe. */

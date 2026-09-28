@@ -1,7 +1,7 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import { useRouter, useSearchParams, type ReadonlyURLSearchParams } from 'next/navigation'
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useRouter } from 'next/navigation'
 import { alternarOrden, construirConsulta, direccionDe, leerConsulta } from '@/datos/consulta'
 import type { Columna, DefinicionRecurso, EstadoConsulta, OpcionFiltro, ResultadoLista } from '@/definiciones/tipos'
 import { Insignia } from '@/componentes/presentadores/Insignia'
@@ -16,6 +16,7 @@ import { MenuAccionesFila } from '@/componentes/datos/MenuAccionesFila'
 import { cn } from '@/lib/clases'
 import { CeldaEncabezado, CeldaTabla, CuerpoTabla, EncabezadoTabla, FilaTabla, Tabla } from './Tabla'
 import { ControlesTabla, PaginacionTabla } from './ControlesTabla'
+import { useFiltrosEnUrl } from './useFiltrosEnUrl'
 import {
   clavesVisiblesPorDefecto,
   columnasVisibles,
@@ -24,10 +25,12 @@ import {
   esControlDeFila,
   hayFiltrosPuestos,
   mensajeDeError,
+  ordenarLocalmente,
+  paginarLocalmente,
   podarPorPermisos,
   rutaDeAccion,
   unirConsultas,
-  urlConParametro,
+  urlConParametro as urlConParametroGlobal,
   type CuerpoError
 } from './tabla'
 import { resolverEstado } from '@/dominio/estados-tarea'
@@ -82,6 +85,14 @@ interface PropsTablaRecurso<T> {
    * @see esControlDeFila para los controles que se quedan con su propio clic.
    */
   abrirEn?: { clave: string, valor: (fila: T) => string | number, superficial?: boolean }
+  /**
+   * Reacciona al clic de una fila con un callback en vez de (o ademas de) navegar.
+   *
+   * Es para el caso de "elegir una fila abre un panel que no vive en la URL" —el organigrama en
+   * lista, que abre `PanelDePersona` sobre la persona elegida—. Si la tabla ademas declara `abrirEn`,
+   * las dos reacciones ocurren: la URL se escribe y el callback se llama.
+   */
+  alCliquearFila?: (fila: T) => void
   /** Capacidades del area, de `permissions` de `/me`. Sin ellas no se ofrece ninguna accion. */
   capacidades?: Capacidad[]
   /**
@@ -139,6 +150,26 @@ interface PropsTablaRecurso<T> {
    */
   consultaDelInicial?: string
   className?: string
+  /**
+   * Datos ya cargados en memoria: la tabla NO pide su propia pagina al BFF y en su lugar ordena y
+   * pagina localmente lo que llega aca. `estado.orden`/`estado.pagina` siguen viviendo en la URL —lo
+   * unico que cambia es de donde salen las filas.
+   *
+   * Es para listas que ya bajaron enteras por otra via (el organigrama trae a todo el mundo de una
+   * vez para pintar el arbol). **No filtra**: si la definicion declara `filtros`, esos controles se
+   * siguen pintando pero no hacen nada sobre `datos` —quien los necesite filtra antes de pasarlos
+   * aca, como ya hace `ListaDePersonas`—, asi que una tabla en este modo debe declarar `filtros: []`.
+   */
+  datos?: T[]
+  /**
+   * Prefijo de cada parametro que esta tabla posee en la URL (`page`, `filter[...]`, `sort`, `vista`,
+   * etc.). Ausente = sin prefijo, el comportamiento de siempre.
+   *
+   * Hace falta cuando dos `TablaRecurso` viven en la misma pagina —"Mis Tareas" pinta una tabla de
+   * Espacios/Licitaciones y otra de Tareas privadas—: sin prefijo, las dos leerian y escribirian
+   * `page`/`sort` en el mismo lugar y paginar una moveria la otra.
+   */
+  prefijoUrl?: string
 }
 
 /**
@@ -180,6 +211,7 @@ export function TablaRecurso<T> ({
   filaExtra,
   claseFila,
   abrirEn,
+  alCliquearFila,
   capacidades = [],
   opcionesDeFiltro,
   board,
@@ -189,16 +221,21 @@ export function TablaRecurso<T> ({
   tarjetasEnMovil = false,
   refresco = 0,
   consultaDelInicial,
-  className
+  className,
+  datos,
+  prefijoUrl
 }: PropsTablaRecurso<T>) {
   const router = useRouter()
-  const params = useSearchParams()
 
-  const estado = useMemo(
-    () => leerConsulta(new URLSearchParams(params.toString()), definicion),
-    [params, definicion]
-  )
-  const consulta = useMemo(() => construirConsulta(estado, definicion), [estado, definicion])
+  const leerEstado = useCallback((p: URLSearchParams) => leerConsulta(p, definicion), [definicion])
+  const construirQuery = useCallback((e: EstadoConsulta) => construirConsulta(e, definicion), [definicion])
+
+  const { estado, params, cambiar: cambiarEnUrl, escribirParametro, leerParametro } = useFiltrosEnUrl<EstadoConsulta>({
+    leer: leerEstado,
+    construir: construirQuery,
+    prefijo: prefijoUrl
+  })
+  const consulta = useMemo(() => construirQuery(estado), [estado, construirQuery])
 
   // La consulta con la que llegaron los datos del servidor. Mientras la URL no se mueva de ahi no
   // hay nada que volver a pedir: pedirlo igual es una peticion de mas en cada montaje.
@@ -208,12 +245,16 @@ export function TablaRecurso<T> ({
 
   const [seleccion, setSeleccion] = useState<{ consulta: string, ids: Array<string | number> }>({ consulta: '', ids: [] })
   const [revision, setRevision] = useState(0)
-  const [resultado, setResultado] = useState<ResultadoLista<T>>(inicial)
+  const [resultadoRemoto, setResultado] = useState<ResultadoLista<T>>(inicial)
   const [error, setError] = useState<CuerpoError | null>(null)
   const [cargando, setCargando] = useState(false)
   const [visibles, setVisibles] = useState(() => clavesVisiblesPorDefecto(definicion.columnas))
 
   useEffect(() => {
+    // En modo memoria los datos ya estan todos aca: no hay pagina que pedirle a nadie. El efecto de
+    // abajo es quien arma `resultado` para este caso, ordenando y paginando localmente.
+    if (datos !== undefined) return
+
     if (!debePedirPagina({
       consulta,
       consultaInicial: consultaInicial.current,
@@ -240,7 +281,22 @@ export function TablaRecurso<T> ({
     })
 
     return () => control.abort()
-  }, [consulta, definicion.ruta, definicion.consultaFija, revision, refresco])
+  }, [consulta, definicion.ruta, definicion.consultaFija, revision, refresco, datos])
+
+  /**
+   * Modo memoria: ordena y pagina localmente los `datos` que ya llegaron, sin pasar por `useState` ni
+   * por un efecto —es una derivacion del render, no una sincronizacion con algo externo—.
+   *
+   * No filtra: `datos` ya deberia venir filtrado por quien monta la tabla, si hace falta.
+   */
+  const resultadoDeMemoria = useMemo(
+    () => (datos === undefined ? null : paginarLocalmente(ordenarLocalmente(datos, estado.orden), estado.pagina, estado.porPagina)),
+    [datos, estado.orden, estado.pagina, estado.porPagina]
+  )
+
+  // La fuente vigente de filas y paginacion: la de memoria cuando la tabla la declara, o la que trajo
+  // el efecto de arriba. El resto del componente no sabe ni le importa cual de las dos es.
+  const resultado = resultadoDeMemoria ?? resultadoRemoto
 
   /**
    * Adopta los datos frescos que baja `router.refresh()`.
@@ -272,25 +328,24 @@ export function TablaRecurso<T> ({
   // La presentacion vive en la URL (`?vista=`) y en ningun otro lado, igual que el filtro y el
   // orden: asi un enlace la conserva y recargar no la pierde. La tabla es lo que se ve sin pedir
   // nada, de modo que cualquier valor que no sea `tarjetas` deja el listado como estaba.
-  const enTarjetas = tarjeta !== undefined && params.get('vista') === 'tarjetas'
+  const enTarjetas = tarjeta !== undefined && leerParametro('vista') === 'tarjetas'
 
   /** Escribe la presentacion elegida en la URL, conservando filtros, orden y pagina. */
   function cambiarVista (elegida: string): void {
-    router.replace(urlConParametro(new URLSearchParams(params.toString()), 'vista', elegida), { scroll: false })
+    escribirParametro('vista', elegida)
   }
 
   /** Aplica un cambio parcial del estado escribiendolo en la URL, que es su unica fuente. */
   function cambiar (parcial: Partial<EstadoConsulta>) {
-    const siguiente = { ...estado, ...parcial }
-    const query = construirConsulta(siguiente, definicion)
-
-    // `replace` y no `push`: cada tecleo de filtro seria una entrada del historial y salir de la
-    // vista con "atras" pasaria a ser imposible.
-    router.replace(conParametrosAjenos(params, estado, definicion, query), { scroll: false })
+    cambiarEnUrl(parcial)
   }
 
   /**
    * URL que abre el detalle de una fila, o `null` si la tabla no declara `abrirEn`.
+   *
+   * La clave de `abrirEn` NO lleva el prefijo de esta instancia: es una convencion global —`tarea`,
+   * `ticket`— que comparten el modal y cualquier enlace externo, y prefijarla la dejaria sin abrir
+   * desde afuera.
    *
    * @param fila la fila
    * @returns la URL relativa, con los filtros y el orden vigentes intactos
@@ -298,7 +353,7 @@ export function TablaRecurso<T> ({
   function urlDeFila (fila: T): string | null {
     if (abrirEn === undefined) return null
 
-    return urlConParametro(new URLSearchParams(params.toString()), abrirEn.clave, String(abrirEn.valor(fila)))
+    return urlConParametroGlobal(new URLSearchParams(params.toString()), abrirEn.clave, String(abrirEn.valor(fila)))
   }
 
   /**
@@ -311,12 +366,19 @@ export function TablaRecurso<T> ({
    *
    * `push` y no `replace`: abrir el detalle es un paso del historial, y por eso "atras" lo cierra.
    * Con `abrirEn.superficial` el paso es de `window.history` y no pasa por el servidor.
+   *
+   * `href` es `null` cuando la tabla no declara `abrirEn` pero si `alCliquearFila`: ahi no hay URL
+   * que escribir y el callback es toda la reaccion.
    */
-  function abrirFila (evento: React.MouseEvent<HTMLTableRowElement>, href: string): void {
+  function abrirFila (evento: React.MouseEvent<HTMLTableRowElement>, fila: T, href: string | null): void {
     if (evento.defaultPrevented) return
     if (evento.metaKey || evento.ctrlKey || evento.shiftKey || evento.altKey) return
     if (esControlDeFila(evento.target as Element | null)) return
     if ((window.getSelection()?.toString() ?? '') !== '') return
+
+    alCliquearFila?.(fila)
+
+    if (href === null) return
 
     if (abrirEn?.superficial === true) {
       window.history.pushState(null, '', href)
@@ -437,6 +499,7 @@ export function TablaRecurso<T> ({
               seria justo el parpadeo que ese chip vino a evitar. */}
           {resultado.filas.map((fila, indice) => {
             const href = urlDeFila(fila)
+            const clicable = href !== null || alCliquearFila !== undefined
 
             return (
             <FilaTabla
@@ -444,8 +507,8 @@ export function TablaRecurso<T> ({
               className={cn('animate-entrar-abajo', claseFila?.(fila), idsSeleccionados.includes(claveFila(fila)) && 'bg-seleccionado')}
               aria-selected={seleccionMasiva === undefined ? undefined : idsSeleccionados.includes(claveFila(fila))}
               style={{ animationDelay: retrasoDeAparicion(indice) }}
-              interactiva={href !== null}
-              onClick={href === null ? undefined : (evento) => { abrirFila(evento, href) }}
+              interactiva={clicable}
+              onClick={clicable ? (evento) => { abrirFila(evento, fila, href) } : undefined}
             >
               {seleccionMasiva !== undefined && (
                 <CeldaTabla>
@@ -715,32 +778,3 @@ function Celda<T> ({
   )
 }
 
-/**
- * Combina la consulta nueva con los parametros de la URL que no son de la consulta.
- *
- * Sin esto, cada filtro reescribe la query entera y se lleva puesto lo que otra pantalla haya
- * guardado ahi —el modo de presentacion, por ejemplo—. Se descartan solo las claves que produce la
- * consulta vigente: lo demas es de otro dueño y se conserva.
- *
- * @param params Los parametros actuales de la URL.
- * @param estado El estado de consulta vigente, para saber que claves le pertenecen.
- * @param definicion La definicion del recurso.
- * @param query La consulta nueva, ya serializada.
- * @returns La URL relativa lista para `router.replace`, siempre con `?` aunque quede vacia.
- */
-function conParametrosAjenos<T> (
-  params: ReadonlyURLSearchParams,
-  estado: EstadoConsulta,
-  definicion: DefinicionRecurso<T>,
-  query: string
-): string {
-  const ajenos = new URLSearchParams(params.toString())
-
-  for (const clave of new URLSearchParams(construirConsulta(estado, definicion)).keys()) {
-    ajenos.delete(clave)
-  }
-
-  const combinada = [query, ajenos.toString()].filter((parte) => parte !== '').join('&')
-
-  return combinada === '' ? '?' : `?${combinada}`
-}

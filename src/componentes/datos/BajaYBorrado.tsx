@@ -1,10 +1,9 @@
 'use client'
 
 import { useState, type ReactElement, type ReactNode } from 'react'
+import { ConfirmarBorrado, useConfirmarBorrado } from './ConfirmarBorrado'
 import { Boton } from '@/componentes/formularios/Boton'
-import { Campo } from '@/componentes/formularios/Campo'
-import { Entrada } from '@/componentes/formularios/Entrada'
-import { ContenidoDialogo, Dialogo } from '@/componentes/superposiciones/Dialogo'
+import { useAviso } from '@/componentes/estado/useAviso'
 import { mensajeDeRespuesta } from '@/datos/cliente'
 
 /**
@@ -12,6 +11,9 @@ import { mensajeDeRespuesta } from '@/datos/cliente'
  * Clientes usa PATCH para desactivar y DELETE sin cuerpo para mandarlo a la papelera: lo definitivo
  * solo ocurre desde `/papelera`, así que acá no se pide palabra escrita.
  * Equipo conserva DELETE para la baja y ?purgar=1 con transferencia para el borrado.
+ *
+ * El dialogo de borrado definitivo es la primitiva comun `ConfirmarBorrado`: mismo trato que el resto
+ * de las confirmaciones de borrado, con el selector de heredero de Equipo como `contenidoExtra`.
  */
 
 interface PropsBajaYBorrado {
@@ -61,24 +63,23 @@ export function BajaYBorrado ({
   alBorrar,
   tamano = 'medio'
 }: PropsBajaYBorrado): ReactElement {
-  const [confirmando, setConfirmando] = useState(false)
-  const [escrito, setEscrito] = useState('')
+  const confirmarBorrado = useConfirmarBorrado()
   const [enCurso, setEnCurso] = useState(false)
   const [fallo, setFallo] = useState<string | null>(null)
+  const aviso = useAviso()
 
   const extra = extraDeBorrado?.({ deshabilitado: enCurso })
   const confirmacion = nombre.trim()
-  const confirmacionCoincide = usaPapelera || escrito.trim() === confirmacion
   const accion = usaPapelera ? 'Enviar a la papelera' : 'Eliminar definitivamente'
 
-  /** Manda la baja, la reactivacion o el borrado. Nunca lanza: el fallo se muestra donde se pidio. */
-  async function escribir (metodo: 'DELETE' | 'PATCH', sufijo: string, cuerpo?: unknown, definitivo = false): Promise<void> {
-    if (enCurso || (definitivo && (!confirmacionCoincide || (extra !== undefined && extra.consulta === null)))) return
+  /** Da de baja o reactiva. Nunca lanza: el fallo se muestra junto al boton que lo disparo. */
+  async function escribir (metodo: 'DELETE' | 'PATCH', cuerpo?: unknown): Promise<void> {
+    if (enCurso) return
     setEnCurso(true)
     setFallo(null)
 
     try {
-      const respuesta = await fetch(`/api/bff/${ruta}${sufijo}`, {
+      const respuesta = await fetch(`/api/bff/${ruta}`, {
         method: metodo,
         headers: { 'content-type': 'application/json', accept: 'application/json' },
         ...(cuerpo === undefined ? {} : { body: JSON.stringify(cuerpo) })
@@ -86,14 +87,6 @@ export function BajaYBorrado ({
 
       if (!respuesta.ok) {
         setFallo(await mensajeDeRespuesta(respuesta))
-        return
-      }
-
-      setConfirmando(false)
-      setEscrito('')
-
-      if (definitivo && alBorrar !== undefined) {
-        alBorrar()
         return
       }
 
@@ -105,16 +98,42 @@ export function BajaYBorrado ({
     }
   }
 
+  /** Borra definitivo o manda a la papelera. Lanza si falla: `ConfirmarBorrado` muestra el mensaje. */
+  async function eliminarDefinitivo (): Promise<void> {
+    setEnCurso(true)
+
+    try {
+      const sufijo = usaPapelera ? '' : `?purgar=1${extra?.consulta ?? ''}`
+      const respuesta = await fetch(`/api/bff/${ruta}${sufijo}`, {
+        method: 'DELETE',
+        headers: { accept: 'application/json' }
+      })
+
+      if (!respuesta.ok) throw new Error(await mensajeDeRespuesta(respuesta))
+
+      aviso.exito(usaPapelera ? `«${nombre}» se envió a la papelera.` : `«${nombre}» se eliminó definitivamente.`)
+
+      if (alBorrar !== undefined) {
+        alBorrar()
+        return
+      }
+
+      recargar()
+    } finally {
+      setEnCurso(false)
+    }
+  }
+
   return (
     <>
       {puedeEditar && (activo
         ? (
-          <Boton variante="sutil" tamano={tamano} cargando={enCurso} onClick={() => { void escribir(usaPapelera ? 'PATCH' : 'DELETE', '', usaPapelera ? { active: false } : undefined) }}>
+          <Boton variante="sutil" tamano={tamano} cargando={enCurso} onClick={() => { void escribir(usaPapelera ? 'PATCH' : 'DELETE', usaPapelera ? { active: false } : undefined) }}>
             Dar de baja
           </Boton>
           )
         : (
-          <Boton variante="sutil" tamano={tamano} cargando={enCurso} onClick={() => { void escribir('PATCH', '', { active: true }) }}>
+          <Boton variante="sutil" tamano={tamano} cargando={enCurso} onClick={() => { void escribir('PATCH', { active: true }) }}>
             Reactivar
           </Boton>
           ))}
@@ -124,51 +143,28 @@ export function BajaYBorrado ({
         <Boton
           variante="sutil"
           tamano={tamano}
-          onClick={() => { setConfirmando(true); setFallo(null); alAbrirBorrado?.() }}
+          onClick={() => { confirmarBorrado.abrir(); setFallo(null); alAbrirBorrado?.() }}
         >
           {accion}
         </Boton>
       )}
 
-      {fallo !== null && !confirmando && (
+      {fallo !== null && !confirmarBorrado.abierto && (
         <p role="alert" className="text-texto-peligro w-full text-xs">{fallo}</p>
       )}
 
-      <Dialogo open={confirmando} onOpenChange={(abierto) => { if (!enCurso) { setConfirmando(abierto); setEscrito('') } }}>
-        <ContenidoDialogo titulo={accion} descripcion={advertencia}>
-          <div className="flex flex-col gap-4">
-            {extra?.control}
-
-            {!usaPapelera && <Campo etiqueta={`Escribe «${confirmacion}» para confirmar`} requerido>
-              {(props) => (
-                <Entrada
-                  {...props}
-                  value={escrito}
-                  autoComplete="off"
-                  disabled={enCurso}
-                  onChange={(evento) => { setEscrito(evento.target.value) }}
-                />
-              )}
-            </Campo>}
-
-            {fallo !== null && <p role="alert" className="text-texto-peligro text-sm">{fallo}</p>}
-
-            <div className="flex justify-end gap-2">
-              <Boton variante="sutil" disabled={enCurso} onClick={() => { setConfirmando(false); setEscrito('') }}>Cancelar</Boton>
-              <Boton
-                variante="peligro"
-                cargando={enCurso}
-                disabled={enCurso || !confirmacionCoincide || (extra !== undefined && extra.consulta === null)}
-                onClick={() => {
-                  void escribir('DELETE', usaPapelera ? '' : `?purgar=1${extra?.consulta ?? ''}`, undefined, true)
-                }}
-              >
-                {usaPapelera ? 'Enviar a la papelera' : 'Eliminar'}
-              </Boton>
-            </div>
-          </div>
-        </ContenidoDialogo>
-      </Dialogo>
+      <ConfirmarBorrado
+        abierto={confirmarBorrado.abierto}
+        onCerrar={confirmarBorrado.cerrar}
+        titulo={accion}
+        advertencia={advertencia}
+        confirmacionEscrita={usaPapelera ? undefined : confirmacion}
+        etiquetaConfirmar={accion}
+        contenidoExtra={extra?.control}
+        deshabilitadoExtra={extra !== undefined && extra.consulta === null}
+        tamano={tamano === 'chico' ? 'chico' : 'medio'}
+        onConfirmar={eliminarDefinitivo}
+      />
     </>
   )
 }

@@ -9,7 +9,8 @@ import { ArbolDrive } from '@/componentes/archivos/ArbolDrive'
 import { useUbicacionTarea } from '@/componentes/auditoria/accion'
 import { Cargando, ErrorEstado, Vacio } from '@/componentes/estado/Estados'
 import { EnlacePanelClasico } from '@/componentes/presentadores/EnlacePanelClasico'
-import { Avatar, GrupoAvatares } from '@/componentes/presentadores/Avatar'
+import { EnlacePersona } from '@/componentes/presentadores/EnlacePersona'
+import { GrupoEnlacesPersona } from '@/componentes/presentadores/GrupoEnlacesPersona'
 import { Etiquetas } from '@/componentes/presentadores/Etiqueta'
 import { Fecha } from '@/componentes/presentadores/Fecha'
 import { InsigniaDePrioridad } from '@/componentes/presentadores/InsigniaDePrioridad'
@@ -47,6 +48,7 @@ import { ListaIteraciones } from './ListaIteraciones'
 import { ResumenDeRecurrencia } from '@/componentes/recurrencia/ResumenDeRecurrencia'
 import { PanelAdjuntos } from './PanelArchivos'
 import { mensajeDeRespuesta, pedirRespuesta } from '@/datos/cliente'
+import { segundosAHoraMinuto } from './formatos'
 
 /**
  * Detalle de una Tarea, para el modal que lo muestra (`ModalTarea`).
@@ -395,7 +397,7 @@ export function DetalleTarea (
           <Dato etiqueta="Entrega"><Fecha valor={tarea.due_date} comoVencimiento /></Dato>
           {tarea.assignees !== undefined && (
             <Dato etiqueta="Asignados">
-              <GrupoAvatares personas={tarea.assignees} tamano="chico" />
+              <GrupoEnlacesPersona personas={tarea.assignees} />
             </Dato>
           )}
           {/* Quién creó y quién asignó (WIW-0441). `created_by` no llega al portal, y sin él la fila
@@ -523,7 +525,7 @@ function TiempoRegistrado (
         Tiempo registrado
       </h4>
       <span data-numerico className="text-texto text-sm font-semibold tabular-nums">
-        {legible ?? `${Math.round(segundos / 3600)} h`}
+        {legible ?? segundosAHoraMinuto(segundos)}
       </span>
     </section>
   )
@@ -650,12 +652,21 @@ function Comentarios (
         ? <p className="text-texto-sutil text-sm">Todavía no hay comentarios.</p>
         : (
           <ul className="flex flex-col gap-2">
-            {comentarios.map((comentario) => (
-              <TarjetaDeComentario
-                key={comentario.id}
-                comentario={comentarioParaMostrar(comentario)}
-              />
-            ))}
+            {comentarios.map((comentario) => {
+              const paraMostrar = comentarioParaMostrar(comentario)
+
+              return (
+                <TarjetaDeComentario
+                  key={comentario.id}
+                  // `comentarioParaMostrar` no manda el id del autor: se agrega aca desde el
+                  // comentario crudo, que si lo trae en `staff.id`.
+                  comentario={{
+                    ...paraMostrar,
+                    author: paraMostrar.author === null ? null : { ...paraMostrar.author, id: comentario.staff?.id }
+                  }}
+                />
+              )
+            })}
           </ul>
           )}
     </section>
@@ -787,13 +798,21 @@ function ValorPersonalizado ({ campo }: { campo: CampoLegible }): ReactElement {
 }
 
 /** Un par etiqueta/valor de la ficha. La etiqueta va en versalita, como en `ResumenProyecto`. */
-/** Avatar chico y nombre de una persona del equipo, en una línea. */
+/**
+ * Avatar chico y nombre de una persona del equipo, en una línea.
+ *
+ * Enlaza a su ficha con `EnlacePersona` solo si lo permiten las capacidades y el `esPortal` del
+ * `ProveedorEnlaces` vigente; si no, queda en avatar y nombre planos, igual que antes.
+ */
 function Persona ({ persona }: { persona: PersonaDeAutoria }): ReactElement {
   return (
-    <span className="flex min-w-0 items-center gap-2">
-      <Avatar nombre={persona.full_name} imagen={persona.profile_image_url} tamano="chico" />
-      <span className="truncate">{persona.full_name}</span>
-    </span>
+    <EnlacePersona
+      id={persona.id}
+      nombre={persona.full_name}
+      imagen={persona.profile_image_url}
+      tamano="chico"
+      className="flex"
+    />
   )
 }
 

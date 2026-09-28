@@ -1,11 +1,12 @@
 'use client'
 
-import { useMemo, useState, useTransition } from 'react'
+import { useCallback, useState, useTransition } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useAccionPresencia } from '@/componentes/auditoria/accion'
 import { ControlesTabla, PaginacionTabla } from '@/componentes/datos/ControlesTabla'
 import { clavesVisiblesPorDefecto } from '@/componentes/datos/tabla'
 import { retrasoDeAparicion } from '@/componentes/datos/TablaRecurso'
+import { useFiltrosEnUrl } from '@/componentes/datos/useFiltrosEnUrl'
 import { Vacio } from '@/componentes/estado/Estados'
 import { CargandoConOrbe } from '@/componentes/estado/Orbe'
 import { Boton } from '@/componentes/formularios/Boton'
@@ -155,30 +156,25 @@ function TarjetasClientes ({
   resultado: ResultadoLista<Cliente>
   opcionesDeFiltro?: Record<string, OpcionFiltro[]>
 }) {
-  const router = useRouter()
-  const params = useSearchParams()
   const [pendiente, iniciarTransicion] = useTransition()
 
   // `ControlesTabla` incluye el selector de columnas, que en tarjetas no cambia nada: se le pasa el
   // estado igual porque el control es del motor y no se toca desde aca.
   const [visibles, setVisibles] = useState(() => clavesVisiblesPorDefecto(CLIENTES.columnas))
 
-  const estado = useMemo(
-    () => leerConsulta(new URLSearchParams(params.toString()), CLIENTES),
-    [params]
-  )
+  const leerEstado = useCallback((p: URLSearchParams) => leerConsulta(p, CLIENTES), [])
+  const construirQuery = useCallback((e: EstadoConsulta) => construirConsulta(e, CLIENTES), [])
+  const { estado, cambiar: cambiarEnUrl } = useFiltrosEnUrl<EstadoConsulta>({ leer: leerEstado, construir: construirQuery })
 
   /**
    * Aplica un cambio parcial de la consulta escribiendolo en la URL, igual que el motor de tabla.
    *
-   * `replace` y no `push`: cada filtro seria una entrada del historial. La transicion mantiene la
-   * grilla anterior en pantalla mientras el servidor resuelve la nueva pagina, en vez de vaciarla.
+   * La transicion mantiene la grilla anterior en pantalla mientras el servidor resuelve la nueva
+   * pagina, en vez de vaciarla. `vista=tarjetas` se conserva sola: `cambiar` solo toca las claves de
+   * `EstadoConsulta`, y esa vive fuera de ese estado.
    */
   function cambiar (parcial: Partial<EstadoConsulta>): void {
-    const query = new URLSearchParams(construirConsulta({ ...estado, ...parcial }, CLIENTES))
-    query.set('vista', 'tarjetas')
-
-    iniciarTransicion(() => { router.replace(`?${query.toString()}`, { scroll: false }) })
+    iniciarTransicion(() => { cambiarEnUrl(parcial) })
   }
 
   return (

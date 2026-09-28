@@ -11,7 +11,7 @@
  * los tipos de un `.ts` pero no el JSX, así que solo lo que está fuera del componente se puede probar.
  */
 
-import { ZONA_NEGOCIO, formatearFecha, sumarDias } from '../lib/fechas.ts'
+import { LOCALE, ZONA_NEGOCIO, formatearFecha, sumarDias } from '../lib/fechas.ts'
 import { ESCALONES, type Escalon } from './escalon.ts'
 import type {
   ConfirmacionDeHoja,
@@ -540,7 +540,7 @@ export function horaEnSantiago (instante: string): string {
 
   if (Number.isNaN(fecha.getTime())) return ''
 
-  return new Intl.DateTimeFormat('es-CL', { timeZone: ZONA_NEGOCIO, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(fecha)
+  return new Intl.DateTimeFormat(LOCALE, { timeZone: ZONA_NEGOCIO, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(fecha)
 }
 
 /**

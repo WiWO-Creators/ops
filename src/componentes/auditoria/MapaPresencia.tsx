@@ -3,6 +3,7 @@
 import { useId, useState } from 'react'
 import { Building2, ChevronLeft, ChevronRight, FolderOpen, ListTodo, MoveHorizontal, Users } from 'lucide-react'
 import { cn } from '@/lib/clases'
+import { nombrar } from '@/dominio/glosario'
 import type { RamaPresencia } from './presentacion'
 import { PersonaActiva } from './PersonaActiva'
 import estilos from './MapaPresencia.module.css'
@@ -38,7 +39,7 @@ function NodoPresencia ({ rama }: { rama: RamaPresencia }) {
   const hijosId = useId()
   const esCliente = rama.clave.startsWith('cliente:')
   const esProyecto = rama.clave.startsWith('proyecto:')
-  const tipo = esCliente ? 'Cliente' : esProyecto ? 'Proyecto' : 'Tarea'
+  const tipo = esCliente ? nombrar('cliente') : esProyecto ? nombrar('espacio') : nombrar('proceso')
   const Icono = esCliente ? Building2 : esProyecto ? FolderOpen : ListTodo
   const conHijos = rama.ramas.length > 0
 

@@ -8,40 +8,40 @@
  * ordenar, comparar— sobre exactamente **el mismo conjunto de personas que se está mirando**: todas
  * las visibles en el mapa, las del árbol al entrar en un área.
  *
+ * Es `TablaRecurso` en modo memoria (`datos`): las personas ya están todas en el navegador desde que
+ * la página se resolvió en el servidor, así que no hay nada que pedirle al BFF. El buscador es
+ * propio y no el de `ControlesTabla` —filtra a cada tecla y no al envío, que es como se espera de un
+ * filtro que no viaja a ningún lado—; lo que entrega a la tabla ya viene filtrado, y el orden y la
+ * página los resuelve el motor sobre eso.
+ *
  * **Editar es el mismo camino que en el árbol.** Una fila no trae selectores propios ni un diálogo
  * aparte: hace lo mismo que una caja, abrir `PanelDePersona`. Dos idiomas de edición para el mismo
- * dato es justo lo que esta pantalla vino a evitar — terminan divergiendo y guardando distinto.
- *
- * El filtro corre en memoria y a cada tecla, al revés que el buscador de `ControlesTabla`, que
- * espera al envío: allá cada letra sería una petición al BFF, y acá no hay ninguna. Las personas ya
- * están todas en el navegador desde que la página se resolvió en el servidor.
+ * dato es justo lo que esta pantalla vino a evitar — terminan divergiendo y guardando distinto. Por
+ * eso la fila no usa `abrirEn` (no hay URL que escribir) sino `alCliquearFila` para el clic con mouse,
+ * más un botón real dentro de la celda del nombre para que el teclado tenga la misma vía.
  */
-import { useMemo, useState } from 'react'
-import { ArrowDown, ArrowUp, ArrowUpDown, Search } from 'lucide-react'
+import { useMemo, useState, Suspense } from 'react'
+import { Search } from 'lucide-react'
 import { Entrada } from '@/componentes/formularios/Entrada'
 import { Avatar } from '@/componentes/presentadores/Avatar'
 import { Insignia } from '@/componentes/presentadores/Insignia'
-import { Vacio } from '@/componentes/estado/Estados'
-import {
-  CeldaEncabezado, CeldaTabla, CuerpoTabla, EncabezadoTabla, FilaTabla, Tabla
-} from '@/componentes/datos/Tabla'
+import { Cargando } from '@/componentes/estado/Estados'
+import { TablaRecurso } from '@/componentes/datos/TablaRecurso'
 import { etiquetaDeEscalon } from '@/dominio/escalon'
-import { colorDeArea, filtrarFilas, ordenarFilas } from '@/dominio/organigrama'
+import { colorDeArea, filtrarFilas } from '@/dominio/organigrama'
 import { cn } from '@/lib/clases'
-import type { ColumnaDeLista, FilaDeLista, SentidoDeOrden } from '@/dominio/organigrama'
+import type { Columna, DefinicionRecurso, ResultadoLista } from '@/definiciones/tipos'
+import type { FilaDeLista } from '@/dominio/organigrama'
 
-/**
- * Las columnas, en orden de lectura.
- *
- * "Depende de" y no "Jefe": es el mismo nombre que le da el panel al campo que se edita, y que la
- * fila y el formulario llamen distinto a lo mismo es media confusión regalada.
- */
-const COLUMNAS: readonly { clave: ColumnaDeLista, titulo: string }[] = [
-  { clave: 'persona', titulo: 'Persona' },
-  { clave: 'escalon', titulo: 'Escalón' },
-  { clave: 'jefe', titulo: 'Depende de' },
-  { clave: 'area', titulo: 'Área' }
-]
+/** Una fila con los campos de orden aplanados: el motor de tabla solo ordena por propiedades de
+ * primer nivel, y `FilaDeLista.persona.nombre` no lo es. */
+interface FilaTabla extends FilaDeLista {
+  nombre: string
+  escalonEtiqueta: string
+}
+
+/** Sin filas que ordenar ni paginar: `ResultadoLista` vacío, ignorado por el modo memoria. */
+const SIN_RESULTADO: ResultadoLista<FilaTabla> = { filas: [], paginacion: undefined }
 
 interface PropsLista {
   filas: FilaDeLista[]
@@ -53,32 +53,42 @@ interface PropsLista {
 }
 
 /**
- * Dibuja la tabla con su buscador y su orden.
+ * Dibuja la tabla con su buscador.
  *
- * El buscador y el orden son estado de la pantalla y no viajan a ningún lado: quien monta esta
- * lista le pasa `key` por vista, así que entrar en un área la remonta limpia en vez de arrastrar un
- * filtro que ahí no encuentra a nadie.
+ * El buscador es estado de la pantalla y no viaja a ningún lado: quien monta esta lista le pasa
+ * `key` por vista, así que entrar en un área la remonta limpia en vez de arrastrar un filtro que ahí
+ * no encuentra a nadie.
+ *
+ * `TablaRecurso` lee `useSearchParams` para el orden y la página: sin este límite de `Suspense`
+ * fallaría el build de cualquier pantalla que monte esta lista.
  *
  * @param props las filas ya armadas y lo necesario para abrir el panel
  */
-export function ListaDePersonas ({ filas, elegida, editable, onElegir }: PropsLista) {
-  const [consulta, setConsulta] = useState('')
-  const [columna, setColumna] = useState<ColumnaDeLista>('persona')
-  const [sentido, setSentido] = useState<SentidoDeOrden>('asc')
+export function ListaDePersonas (props: PropsLista) {
+  return (
+    <Suspense fallback={<Cargando alto="min-h-56" mensaje="Cargando la lista…" />}>
+      <CuerpoDeListaDePersonas {...props} />
+    </Suspense>
+  )
+}
 
+function CuerpoDeListaDePersonas ({ filas, elegida, editable, onElegir }: PropsLista) {
+  const [consulta, setConsulta] = useState('')
+
+  const planas = useMemo<FilaTabla[]>(() => filas.map((fila) => ({
+    ...fila,
+    nombre: fila.persona.nombre,
+    escalonEtiqueta: etiquetaDeEscalon(fila.persona.escalon)
+  })), [filas])
+
+  // `filtrarFilas` solo filtra (no arma filas nuevas): el resultado sigue siendo `FilaTabla[]`, y el
+  // tipo declarado de la funcion es el de su parametro generico (`FilaDeLista[]`).
   const visibles = useMemo(
-    () => ordenarFilas(filtrarFilas(filas, consulta), columna, sentido),
-    [filas, consulta, columna, sentido]
+    () => filtrarFilas(planas, consulta) as FilaTabla[],
+    [planas, consulta]
   )
 
-  /** Ordena por una columna; repetir la misma da vuelta el sentido. */
-  function ordenarPor (clave: ColumnaDeLista): void {
-    if (clave === columna) setSentido(sentido === 'asc' ? 'desc' : 'asc')
-    else {
-      setColumna(clave)
-      setSentido('asc')
-    }
-  }
+  const definicion = useMemo(() => definicionDeListaDePersonas(editable, onElegir), [editable, onElegir])
 
   return (
     <div className="flex flex-col gap-3">
@@ -107,143 +117,105 @@ export function ListaDePersonas ({ filas, elegida, editable, onElegir }: PropsLi
         </p>
       </div>
 
-      {visibles.length === 0
-        ? (
-          <Vacio
-            titulo="Nadie coincide con lo que buscas"
-            descripcion="Prueba con parte del nombre o con el correo."
-          />
-          )
-        : (
-          <Tabla>
-            <EncabezadoTabla>
-              <tr>
-                {COLUMNAS.map((una) => (
-                  <CeldaEncabezado
-                    key={una.clave}
-                    // `aria-sort` va en la celda y no en el botón: es la columna la que está
-                    // ordenada, y es lo que el lector de pantalla lee al entrar en la tabla.
-                    aria-sort={una.clave !== columna
-                      ? 'none'
-                      : sentido === 'asc' ? 'ascending' : 'descending'}
-                    className="p-0"
-                  >
-                    <button
-                      type="button"
-                      onClick={() => ordenarPor(una.clave)}
-                      className={cn(
-                        'ease-neo flex w-full items-center gap-1.5 px-4 py-2 text-left',
-                        'transition-colors duration-150 hover:text-texto',
-                        'focus-visible:outline-foco focus-visible:outline-2 focus-visible:-outline-offset-2',
-                        una.clave === columna && 'text-texto font-semibold'
-                      )}
-                    >
-                      {una.titulo}
-                      <FlechaDeOrden activa={una.clave === columna} sentido={sentido} />
-                    </button>
-                  </CeldaEncabezado>
-                ))}
-              </tr>
-            </EncabezadoTabla>
-
-            <CuerpoTabla>
-              {visibles.map((fila) => (
-                <Fila
-                  key={fila.persona.staffid}
-                  fila={fila}
-                  abierta={elegida === fila.persona.staffid}
-                  editable={editable}
-                  onElegir={onElegir}
-                />
-              ))}
-            </CuerpoTabla>
-          </Tabla>
-          )}
+      <TablaRecurso<FilaTabla>
+        definicion={definicion}
+        inicial={SIN_RESULTADO}
+        datos={visibles}
+        claveFila={(fila) => fila.persona.staffid}
+        claseFila={(fila) => cn(!fila.persona.activo && 'opacity-60', elegida === fila.persona.staffid && 'bg-seleccionado')}
+        alCliquearFila={(fila) => { onElegir(fila.persona.staffid) }}
+      />
     </div>
   )
 }
 
 /**
- * Una fila: los mismos datos que la caja del árbol, y el mismo clic.
+ * Definicion de la lista, en modo memoria: sin `filtros` (el buscador de esta pantalla filtra antes,
+ * no la tabla) y sin `ruta` real —el modo memoria nunca la pide—.
  *
- * La fila entera es clicable, pero quien la abre de verdad es el `<button>` del nombre: con el
- * teclado no se puede enfocar un `<tr>`, y sin un elemento real adentro la lista sería editable sólo
- * con el mouse. El `onClick` de la fila es la comodidad; el botón es la vía.
+ * @param editable si el botón del nombre debe anunciar que abre para cambiar jefe/escalón/área.
  */
-function Fila (
-  { fila, abierta, editable, onElegir }: {
-    fila: FilaDeLista
-    abierta: boolean
-    editable: boolean
-    onElegir: (staffid: number) => void
-  }
-) {
-  const { persona } = fila
-
-  return (
-    <FilaTabla
-      interactiva
-      aria-current={abierta ? 'true' : undefined}
-      onClick={() => onElegir(persona.staffid)}
-      className={cn(abierta && 'bg-seleccionado', !persona.activo && 'opacity-60')}
-    >
-      <CeldaTabla>
-        <span className="flex items-center gap-2.5">
-          <Avatar nombre={persona.nombre} imagen={persona.avatar} tamano="chico" />
-
-          <span className="flex min-w-0 flex-col">
-            <button
-              type="button"
-              aria-label={`${persona.nombre}. ${editable
-                ? 'Abrir para cambiarle jefe, escalón y área.'
-                : 'Abrir su ficha.'}`}
-              // El clic del botón burbujea hasta la fila, que hace lo mismo. Se corta acá para que
-              // el panel se abra por un solo camino y no dos veces.
-              onClick={(evento) => { evento.stopPropagation(); onElegir(persona.staffid) }}
-              className={cn(
-                'text-texto truncate text-left text-[13px] leading-tight font-semibold',
-                'focus-visible:outline-foco focus-visible:outline-2 focus-visible:outline-offset-2'
-              )}
-            >
-              {persona.nombre}
-            </button>
-            <span className="text-texto-sutil truncate text-xs">{persona.correo}</span>
-          </span>
-
-          {!persona.activo && <Insignia tono="contorno" tamano="chico">Dada de baja</Insignia>}
-        </span>
-      </CeldaTabla>
-
-      <CeldaTabla sinCortar>{etiquetaDeEscalon(persona.escalon)}</CeldaTabla>
-
-      <CeldaTabla sinCortar className="text-texto-tenue">{fila.jefe}</CeldaTabla>
-
-      <CeldaTabla sinCortar>
-        {/* El mismo punto de color que lleva el borde de su caja en el árbol: es lo que hace que las
-            dos vistas se lean como la misma pantalla y no como dos pantallas distintas. */}
+function definicionDeListaDePersonas (
+  editable: boolean,
+  onElegir: (staffid: number) => void
+): DefinicionRecurso<FilaTabla> {
+  const columnas: Array<Columna<FilaTabla>> = [
+    {
+      clave: 'persona',
+      encabezado: 'Persona',
+      ordenPor: 'nombre',
+      presentar: (fila) => <CeldaPersona fila={fila} editable={editable} onElegir={onElegir} />
+    },
+    { clave: 'escalon', encabezado: 'Escalón', ordenPor: 'escalonEtiqueta', sinCortar: true, presentar: (fila) => fila.escalonEtiqueta },
+    { clave: 'jefe', encabezado: 'Depende de', ordenPor: 'jefe', sinCortar: true, presentar: (fila) => fila.jefe },
+    {
+      clave: 'area',
+      encabezado: 'Área',
+      ordenPor: 'area',
+      sinCortar: true,
+      presentar: (fila) => (
+        // El mismo punto de color que lleva el borde de su caja en el árbol: es lo que hace que las
+        // dos vistas se lean como la misma pantalla y no como dos pantallas distintas.
         <span className="flex items-center gap-1.5">
           <span
             aria-hidden="true"
             className="size-2 shrink-0 rounded-full"
-            style={{ backgroundColor: colorDeArea(persona.area_id) }}
+            style={{ backgroundColor: colorDeArea(fila.persona.area_id) }}
           />
           {fila.area}
         </span>
-      </CeldaTabla>
-    </FilaTabla>
-  )
+      )
+    }
+  ]
+
+  return {
+    ruta: 'organigrama/personas',
+    titulo: { singular: 'Persona', plural: 'Personas' },
+    columnas,
+    filtros: [],
+    ordenables: ['nombre', 'escalonEtiqueta', 'jefe', 'area'],
+    ordenPorDefecto: 'nombre',
+    busqueda: false,
+    includes: []
+  }
 }
 
 /**
- * La flecha del encabezado.
+ * Celda del nombre: avatar, botón accesible que abre el panel y el distintivo de baja.
  *
- * La columna inactiva también la lleva, apagada: sin ninguna señal, que los títulos se puedan pulsar
- * no se descubre hasta que alguien pasa el mouse por casualidad.
+ * El clic de la fila entera (`alCliquearFila`) es la comodidad del mouse; este botón es la vía real
+ * para el teclado, que no puede enfocar un `<tr>`. `esControlDeFila` reconoce el `<button>` y deja
+ * que la fila se abstenga, así que el clic no dispara las dos reacciones a la vez.
  */
-function FlechaDeOrden ({ activa, sentido }: { activa: boolean, sentido: SentidoDeOrden }) {
-  if (!activa) return <ArrowUpDown aria-hidden="true" className="size-3 shrink-0 opacity-40" />
+function CeldaPersona ({ fila, editable, onElegir }: {
+  fila: FilaTabla
+  editable: boolean
+  onElegir: (staffid: number) => void
+}) {
+  const { persona } = fila
 
-  const Flecha = sentido === 'asc' ? ArrowUp : ArrowDown
+  return (
+    <span className="flex items-center gap-2.5">
+      <Avatar nombre={persona.nombre} imagen={persona.avatar} tamano="chico" />
 
-  return <Flecha aria-hidden="true" className="size-3 shrink-0" />
+      <span className="flex min-w-0 flex-col">
+        <button
+          type="button"
+          aria-label={`${persona.nombre}. ${editable
+            ? 'Abrir para cambiarle jefe, escalón y área.'
+            : 'Abrir su ficha.'}`}
+          onClick={() => { onElegir(persona.staffid) }}
+          className={cn(
+            'text-texto truncate text-left text-[13px] leading-tight font-semibold',
+            'focus-visible:outline-foco focus-visible:outline-2 focus-visible:outline-offset-2'
+          )}
+        >
+          {persona.nombre}
+        </button>
+        <span className="text-texto-sutil truncate text-xs">{persona.correo}</span>
+      </span>
+
+      {!persona.activo && <Insignia tono="contorno" tamano="chico">Dada de baja</Insignia>}
+    </span>
+  )
 }

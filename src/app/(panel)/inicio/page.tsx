@@ -450,7 +450,7 @@ function MiTrabajo ({ grupos, restantes, estados, error }: PropsMiTrabajo) {
       <TituloModulo
         nivel="h2"
         titulo="Mi trabajo"
-        acciones={<VerTodo href="/procesos" etiqueta={`Ver ${GLOSARIO.proceso.plural.toLowerCase()}`} />}
+        acciones={<VerTodo href="/tareas" etiqueta={`Ver ${GLOSARIO.proceso.plural.toLowerCase()}`} />}
       />
 
       {error !== null

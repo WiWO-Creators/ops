@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { useSyncExternalStore } from 'react'
 import { ArrowRight, X } from 'lucide-react'
+import { EntradaEscalonada } from '@/componentes/estructura/EntradaEscalonada'
 import { TituloModulo } from '@/componentes/estructura/TituloModulo'
 import { Boton } from '@/componentes/formularios/Boton'
 import { Fecha } from '@/componentes/presentadores/Fecha'
@@ -60,46 +61,54 @@ export function NovedadesDelInicio ({ novedades, masReciente }: PropsNovedadesDe
   if (novedades.length === 0 || !hayNovedadesSinVer(ocultasHasta, masReciente)) return null
 
   return (
-    <section className="flex flex-col gap-5">
-      <TituloModulo
-        nivel="h2"
-        titulo="Lo nuevo en Ops"
-        acciones={
-          <div className="flex items-center gap-1">
-            <Link
-              href="/novedades"
-              className="flex items-center gap-1.5 rounded-control px-3 py-2 text-base font-semibold text-acento transition-colors duration-150 ease-neo hover:bg-hover"
+    <EntradaEscalonada>
+      <section className="flex flex-col gap-5">
+        <div data-entrada="cabecera">
+          <TituloModulo
+            nivel="h2"
+            titulo="Lo nuevo en Ops"
+            acciones={
+              <div className="flex items-center gap-1">
+                <Link
+                  href="/novedades"
+                  className="flex items-center gap-1.5 rounded-control px-3 py-2 text-base font-semibold text-acento transition-colors duration-150 ease-neo hover:bg-hover"
+                >
+                  Ver todas
+                  <ArrowRight size={18} strokeWidth={2.25} aria-hidden="true" />
+                </Link>
+                <Boton variante="sutil" soloIcono onClick={() => ocultarNovedadesEnInicio(masReciente)} aria-label="Ocultar novedades hasta que haya una nueva" title="Ocultar hasta que haya algo nuevo">
+                  <X size={18} aria-hidden="true" />
+                </Boton>
+              </div>
+            }
+          />
+        </div>
+
+        <ul className="border-linea bg-superficie-elevada divide-linea-suave rounded-tarjeta flex flex-col divide-y border">
+          {novedades.map(novedad => (
+            <li
+              key={`${novedad.fecha}-${novedad.titulo}`}
+              data-entrada="item"
+              className="flex flex-col gap-1.5 p-4 sm:flex-row sm:gap-4"
             >
-              Ver todas
-              <ArrowRight size={18} strokeWidth={2.25} aria-hidden="true" />
-            </Link>
-            <Boton variante="sutil" soloIcono onClick={() => ocultarNovedadesEnInicio(masReciente)} aria-label="Ocultar novedades hasta que haya una nueva" title="Ocultar hasta que haya algo nuevo">
-              <X size={18} aria-hidden="true" />
-            </Boton>
-          </div>
-        }
-      />
+              <Insignia tono={TONO_TIPO[novedad.tipo]} tamano="chico" className="w-fit shrink-0 sm:mt-0.5 sm:w-16 sm:justify-center">
+                {ROTULO_TIPO[novedad.tipo]}
+              </Insignia>
 
-      <ul className="border-linea bg-superficie-elevada divide-linea-suave rounded-tarjeta flex flex-col divide-y border">
-        {novedades.map(novedad => (
-          <li key={`${novedad.fecha}-${novedad.titulo}`} className="flex flex-col gap-1.5 p-4 sm:flex-row sm:gap-4">
-            <Insignia tono={TONO_TIPO[novedad.tipo]} tamano="chico" className="w-fit shrink-0 sm:mt-0.5 sm:w-16 sm:justify-center">
-              {ROTULO_TIPO[novedad.tipo]}
-            </Insignia>
+              <div className="flex min-w-0 flex-1 flex-col gap-1">
+                <p className="text-texto text-sm font-semibold text-pretty">{novedad.titulo}</p>
+                {novedad.detalle !== undefined && (
+                  <p className="text-texto-tenue text-sm text-pretty">{novedad.detalle}</p>
+                )}
+              </div>
 
-            <div className="flex min-w-0 flex-1 flex-col gap-1">
-              <p className="text-texto text-sm font-semibold text-pretty">{novedad.titulo}</p>
-              {novedad.detalle !== undefined && (
-                <p className="text-texto-tenue text-sm text-pretty">{novedad.detalle}</p>
-              )}
-            </div>
-
-            <span className="text-texto-sutil shrink-0 text-xs sm:mt-0.5">
-              <Fecha valor={novedad.fecha} />
-            </span>
-          </li>
-        ))}
-      </ul>
-    </section>
+              <span className="text-texto-sutil shrink-0 text-xs sm:mt-0.5">
+                <Fecha valor={novedad.fecha} />
+              </span>
+            </li>
+          ))}
+        </ul>
+      </section>
+    </EntradaEscalonada>
   )
 }

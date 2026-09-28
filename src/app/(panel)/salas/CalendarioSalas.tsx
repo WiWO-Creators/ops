@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { Boton } from '@/componentes/formularios/Boton'
 import { Entrada } from '@/componentes/formularios/Entrada'
 import { cn } from '@/lib/clases'
+import { LOCALE } from '@/lib/fechas'
 import { diaLocal, diasDeCalendarioMes, reservaTocaDia, sumarMeses } from '@/dominio/salas'
 import type { Reserva, Sala } from '@/datos/recursos'
 
@@ -27,7 +28,7 @@ export function CalendarioSalas ({ dia, salas, reservas }: PropsCalendarioSalas)
   const router = useRouter()
   const dias = diasDeCalendarioMes(dia)
   const mes = dia.slice(0, 7)
-  const tituloMes = new Intl.DateTimeFormat('es-AR', { month: 'long', year: 'numeric', timeZone: 'UTC' })
+  const tituloMes = new Intl.DateTimeFormat(LOCALE, { month: 'long', year: 'numeric', timeZone: 'UTC' })
     .format(new Date(`${mes}-01T12:00:00Z`))
   const hoy = diaLocal(new Date().toISOString())
 

@@ -1,4 +1,5 @@
 import { Avatar } from '@/componentes/presentadores/Avatar'
+import { EnlacePersona } from '@/componentes/presentadores/EnlacePersona'
 import { Vacio } from '@/componentes/estado/Estados'
 import { agruparPorDia, autorDeEntrada, horaDeEntrada, type EntradaDeActividad } from './actividad'
 import { textoPlano } from './formatos'
@@ -86,8 +87,22 @@ function Entrada ({ entrada, accion }: { entrada: EntradaDeActividad, accion?: R
         {/* Que pasó y su detalle van juntos, sin nada en el medio: el control es del otro lado. */}
         <div className="flex min-w-0 flex-col gap-1">
           <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
-            <Avatar nombre={autor} imagen={entrada.staff?.profile_image_url} tamano="chico" />
-            <span className="text-texto text-sm font-medium">{autor}</span>
+            {entrada.staff?.id === undefined
+              ? (
+                <>
+                  <Avatar nombre={autor} imagen={entrada.staff?.profile_image_url} tamano="chico" />
+                  <span className="text-texto text-sm font-medium">{autor}</span>
+                </>
+                )
+              : (
+                <EnlacePersona
+                  id={entrada.staff.id}
+                  nombre={autor}
+                  imagen={entrada.staff.profile_image_url}
+                  tamano="chico"
+                  className="text-texto text-sm font-medium"
+                />
+                )}
             <span className="text-texto-tenue min-w-0 text-sm">{entrada.description}</span>
           </div>
 

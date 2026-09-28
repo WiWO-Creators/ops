@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import { PendientesLicitacion } from '@/componentes/licitacion/PendientesLicitacion'
+import { EnlaceCliente } from '@/componentes/presentadores/EnlaceCliente'
 import { PresentacionLicitacion } from '@/componentes/licitacion/PresentacionLicitacion'
 import { Filas, Seccion, type Dato } from '@/componentes/presentadores/Ficha'
 import type { OpcionCampo } from '@/componentes/proyecto/formulario'
@@ -69,12 +70,11 @@ export function FichaLicitacion (
               <div className="flex flex-col gap-0.5">
                 <dt className="text-texto-sutil text-xs">Cliente</dt>
                 <dd>
-                  <Link
-                    href={`/clientes/${licitacion.client_id}`}
-                    className="text-acento font-medium underline-offset-4 hover:underline"
-                  >
-                    {licitacion.client?.company ?? `Cliente #${licitacion.client_id}`}
-                  </Link>
+                  <EnlaceCliente
+                    id={licitacion.client_id}
+                    nombre={licitacion.client?.company ?? `Cliente #${licitacion.client_id}`}
+                    className="text-acento underline-offset-4 hover:underline"
+                  />
                 </dd>
               </div>
             )}

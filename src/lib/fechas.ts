@@ -27,14 +27,23 @@
 export const ZONA_NEGOCIO = 'America/Santiago'
 
 const ZONA = ZONA_NEGOCIO
-const LOCALE = 'es-AR'
+
+/**
+ * Locale unico del negocio.
+ *
+ * Es `es-CL` porque el negocio opera en Chile (misma razon que `ZONA_NEGOCIO`). Se exporta porque
+ * otros modulos que formatean fecha, hora o numero con `Intl` no deben fijar su propio locale
+ * literal: un locale distinto (por ejemplo `es-AR`) cambia el orden de fecha/hora y el separador de
+ * miles sin que se note en el codigo, y solo aparece como una inconsistencia visual entre pantallas.
+ */
+export const LOCALE = 'es-CL'
 
 /**
  * Arma "24 ago 2026" (o "24 ago 2026 14:03") a partir de las partes de un formato.
  *
  * `Intl` en español intercala literales — "24 de ago. de 2026" — y esa forma larga parte la fecha en
  * dos lineas dentro de una celda de tabla, lo que sube el alto de la fila entera. El orden
- * dia-mes-año es el de `es-AR`, el unico locale que usa este modulo.
+ * dia-mes-año es el de `es-CL`, el unico locale que usa este modulo.
  *
  * Las partes se unen con espacio duro (U+00A0) y no con espacio comun: una fecha es una sola unidad
  * de lectura, y en una columna angosta el navegador la partiria igual aunque ya no diga "de". Hacerlo

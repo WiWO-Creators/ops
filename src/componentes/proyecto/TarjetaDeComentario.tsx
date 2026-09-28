@@ -1,6 +1,7 @@
 import { Paperclip } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { Avatar } from '@/componentes/presentadores/Avatar'
+import { EnlacePersona } from '@/componentes/presentadores/EnlacePersona'
 import { Fecha } from '@/componentes/presentadores/Fecha'
 import { Insignia } from '@/componentes/presentadores/Insignia'
 import { cn } from '@/lib/clases'
@@ -22,7 +23,16 @@ export interface ComentarioParaMostrar {
   /** Texto legible, ya sin HTML. */
   content: string
   created: string | null
-  author: { full_name: string, es_cliente: boolean, profile_image_url?: string | null } | null
+  author: {
+    full_name: string
+    es_cliente: boolean
+    profile_image_url?: string | null
+    /**
+     * Id de staff del autor, para enlazarlo con `EnlacePersona`. Ausente si el autor es un contacto
+     * (`es_cliente` en `true`) o si quien arma `comentario` no lo agrego.
+     */
+    id?: number
+  } | null
   file: { name: string, url: string } | null
   /** Perfex marco el comentario con un adjunto que ninguna ruta sirve todavia. */
   con_adjunto?: boolean
@@ -40,6 +50,10 @@ interface PropsTarjetaDeComentario {
 }
 
 /**
+ * El autor se enlaza con `EnlacePersona` (`/equipo/{id}` y su tarjeta flotante), que decide por su
+ * cuenta si corresponde segun el `ProveedorEnlaces` vigente: esta tarjeta no recibe ni reenvia
+ * capacidades ni `esPortal`.
+ *
  * @param comentario el comentario ya traducido por `comentarioParaMostrar`
  * @param acciones botones opcionales del comentario
  * @param children respuestas y cuadro de respuesta, si los hay
@@ -51,6 +65,9 @@ export function TarjetaDeComentario (
   { comentario, acciones, children, anidado = false, className }: PropsTarjetaDeComentario
 ) {
   const autor = comentario.author?.full_name ?? 'Sin autor'
+  const tamanoAvatar = anidado ? 'chico' : 'medio'
+  // Solo el staff tiene ficha en `/equipo`: un contacto (`es_cliente`) o un autor sin id nunca enlaza.
+  const idDelAutor = comentario.author?.es_cliente === false ? comentario.author.id : undefined
 
   return (
     <li
@@ -62,7 +79,17 @@ export function TarjetaDeComentario (
         className
       )}
     >
-      <Avatar nombre={autor} imagen={comentario.author?.profile_image_url ?? null} tamano={anidado ? 'chico' : 'medio'} />
+      {idDelAutor === undefined
+        ? <Avatar nombre={autor} imagen={comentario.author?.profile_image_url ?? null} tamano={tamanoAvatar} />
+        : (
+          <EnlacePersona
+            id={idDelAutor}
+            nombre={autor}
+            imagen={comentario.author?.profile_image_url ?? null}
+            tamano={tamanoAvatar}
+            mostrarNombre={false}
+          />
+          )}
 
       <div className="flex min-w-0 flex-1 flex-col gap-1">
         <span className="flex flex-wrap items-center gap-x-2 gap-y-1">

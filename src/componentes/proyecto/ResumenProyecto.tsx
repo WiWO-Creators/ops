@@ -1,4 +1,5 @@
 import { GLOSARIO } from '@/dominio/glosario'
+import { LOCALE } from '@/lib/fechas'
 import type { Espacio } from '@/datos/recursos'
 
 const SIN_DATO = '—'
@@ -38,7 +39,7 @@ export function Metrica ({ etiqueta, valor }: PropsMetrica) {
 export function formatearNumero (valor: number | null | undefined, sufijo = ''): string {
   if (typeof valor !== 'number' || !Number.isFinite(valor)) return SIN_DATO
 
-  return `${new Intl.NumberFormat('es-AR', { maximumFractionDigits: 2 }).format(valor)}${sufijo}`
+  return `${new Intl.NumberFormat(LOCALE, { maximumFractionDigits: 2 }).format(valor)}${sufijo}`
 }
 
 /**

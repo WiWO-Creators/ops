@@ -1,12 +1,13 @@
 'use client'
 
 import { useCallback, useEffect, useState, type ReactElement, type ReactNode } from 'react'
-import { Download, Trash2 } from 'lucide-react'
+import { Download } from 'lucide-react'
 import { ArbolDrive } from '@/componentes/archivos/ArbolDrive'
 import { escribirEnBff } from '@/componentes/datos/mutaciones'
 import { CeldaEncabezado, CeldaTabla, CuerpoTabla, EncabezadoTabla, FilaTabla, Tabla } from '@/componentes/datos/Tabla'
+import { MenuAccionesFila } from '@/componentes/datos/MenuAccionesFila'
 import { Cargando, ErrorEstado } from '@/componentes/estado/Estados'
-import { Boton } from '@/componentes/formularios/Boton'
+import { useAviso } from '@/componentes/estado/useAviso'
 import { Interruptor } from '@/componentes/formularios/Interruptor'
 import { pedirSobre } from '@/datos/cliente'
 import {
@@ -335,6 +336,10 @@ function Origen ({ archivo }: { archivo: ArchivoProyecto }): ReactElement {
  * La descarga va por el BFF y no por `/api/v1`: el token vive en una cookie que solo lee el proxy, y
  * un `<a>` contra la API devolveria `401`. Los externos no tienen boton porque no hay binario que
  * bajar; su enlace ya esta en la columna de origen.
+ *
+ * El borrado usa el `MenuAccionesFila`/`ConfirmarBorrado` comunes en vez de `window.confirm`: es el
+ * mismo dialogo de confirmacion que el resto del producto, con su propio mensaje de error si la API
+ * lo rechaza.
  */
 function Acciones (
   { ruta, archivo, puedeBorrar, onEliminado }: {
@@ -346,26 +351,17 @@ function Acciones (
 ): ReactElement {
   const origen = origenDeArchivo(archivo)
   const nombre = nombreDeArchivo(archivo)
-  const [eliminando, setEliminando] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const aviso = useAviso()
 
-  /** Borra en el backend y, solo si respondio bien, saca la fila del listado. */
+  /** Borra en el backend y, solo si respondio bien, saca la fila del listado. Lanza si falla: el
+   * `ConfirmarBorrado` es quien muestra el error y decide si el dialogo se cierra. */
   async function eliminar (): Promise<void> {
-    if (!window.confirm(`¿Eliminar "${nombre}"? No se puede deshacer.`)) return
-
-    setEliminando(true)
-    setError(null)
-
     const resultado = await escribirEnBff(rutaDeUnAdjunto(ruta, archivo.id), 'DELETE')
 
-    setEliminando(false)
-
-    if (!resultado.ok) {
-      setError(resultado.mensaje)
-      return
-    }
+    if (!resultado.ok) throw new Error(resultado.mensaje)
 
     onEliminado(archivo.id)
+    aviso.exito(`«${nombre}» se eliminó.`)
   }
 
   return (
@@ -382,19 +378,15 @@ function Acciones (
       )}
 
       {puedeBorrar && (
-        <Boton
-          variante="sutil"
-          tamano="chico"
-          soloIcono
-          cargando={eliminando}
-          aria-label={`Eliminar ${nombre}`}
-          onClick={() => { void eliminar() }}
-        >
-          <Trash2 className="size-3.5" aria-hidden="true" />
-        </Boton>
+        <MenuAccionesFila
+          ariaLabel={`Acciones de ${nombre}`}
+          borrado={{
+            titulo: 'Eliminar archivo',
+            advertencia: `«${nombre}» se elimina. No se puede deshacer.`,
+            onConfirmar: eliminar
+          }}
+        />
       )}
-
-      {error !== null && <p role="alert" className="text-texto-peligro w-full text-right text-xs">{error}</p>}
     </div>
   )
 }

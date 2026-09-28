@@ -1,12 +1,11 @@
 'use client'
 
-import Link from 'next/link'
 import { useMemo, useState, type ReactElement } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAccionPresencia } from '@/componentes/auditoria/accion'
 import { TablaRecurso } from '@/componentes/datos/TablaRecurso'
 import { Boton } from '@/componentes/formularios/Boton'
-import { Avatar } from '@/componentes/presentadores/Avatar'
+import { EnlacePersona } from '@/componentes/presentadores/EnlacePersona'
 import { FormularioRecurso } from '@/componentes/proyecto/FormularioRecurso'
 import type { OpcionCampo } from '@/componentes/proyecto/formulario'
 import type { MiembroEquipo } from '@/datos/recursos'
@@ -83,15 +82,13 @@ export function VistaEquipo ({
           return {
             ...columna,
             presentar: (persona: MiembroEquipo) => (
-              <span className="flex items-center gap-2">
-                <Avatar nombre={persona.full_name} imagen={persona.profile_image_url} tamano="chico" />
-                <Link
-                  href={`/equipo/${persona.id}`}
-                  className="text-texto hover:text-acento font-medium underline-offset-4 hover:underline"
-                >
-                  {persona.full_name}
-                </Link>
-              </span>
+              <EnlacePersona
+                id={persona.id}
+                nombre={persona.full_name}
+                imagen={persona.profile_image_url}
+                tamano="chico"
+                className="font-medium"
+              />
             )
           }
         }

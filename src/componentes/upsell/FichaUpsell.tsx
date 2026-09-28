@@ -1,9 +1,9 @@
-import Link from 'next/link'
+import { EnlaceCliente } from '@/componentes/presentadores/EnlaceCliente'
 import { Filas, Seccion, type Dato } from '@/componentes/presentadores/Ficha'
 import { nombreDe } from '@/datos/catalogos'
 import type { EstadoLookup, Upsell } from '@/datos/recursos'
 import { etiquetaDeEstado } from '@/definiciones/licitaciones'
-import { formatearFecha } from '@/lib/fechas'
+import { formatearFecha, LOCALE } from '@/lib/fechas'
 
 /**
  * Pestaña Ficha de un Upsell: de quien es la oportunidad, cuanto vale y en que quedo.
@@ -30,7 +30,7 @@ export function FichaUpsell ({
   const oportunidad = conValor([
     {
       etiqueta: 'Monto estimado',
-      valor: upsell.monto_estimado === null ? null : upsell.monto_estimado.toLocaleString('es-CL')
+      valor: upsell.monto_estimado === null ? null : upsell.monto_estimado.toLocaleString(LOCALE)
     },
     {
       etiqueta: 'Moneda',
@@ -59,12 +59,11 @@ export function FichaUpsell ({
               {upsell.client_id === null
                 ? <span className="text-texto-tenue">Sin cliente</span>
                 : (
-                  <Link
-                    href={`/clientes/${upsell.client_id}`}
-                    className="text-acento font-medium underline-offset-4 hover:underline"
-                  >
-                    {upsell.client?.company ?? `Cliente #${upsell.client_id}`}
-                  </Link>
+                  <EnlaceCliente
+                    id={upsell.client_id}
+                    nombre={upsell.client?.company ?? `Cliente #${upsell.client_id}`}
+                    className="text-acento underline-offset-4 hover:underline"
+                  />
                   )}
             </dd>
           </div>

@@ -1,4 +1,5 @@
 import { GLOSARIO } from '../../dominio/glosario.ts'
+import { LOCALE } from '../../lib/fechas.ts'
 import { esMesDeGestion } from '../../dominio/gestion.ts'
 import type {
   CambiosGestion,
@@ -96,7 +97,7 @@ export function rotularMesCorto (mes: string): string {
 
   if (anio === undefined || numero === undefined) return mes
 
-  const nombre = new Intl.DateTimeFormat('es-AR', { month: 'short', timeZone: 'UTC' })
+  const nombre = new Intl.DateTimeFormat(LOCALE, { month: 'short', timeZone: 'UTC' })
     .format(new Date(Date.UTC(anio, numero - 1, 1)))
     .replace('.', '')
 

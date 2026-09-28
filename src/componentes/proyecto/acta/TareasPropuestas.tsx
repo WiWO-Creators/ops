@@ -13,7 +13,7 @@ import {
   Selector
 } from '@/componentes/formularios/Selector'
 import { SelectorPersonas } from '@/componentes/formularios/SelectorPersonas'
-import { Avatar } from '@/componentes/presentadores/Avatar'
+import { EnlacePersona } from '@/componentes/presentadores/EnlacePersona'
 import { Fecha } from '@/componentes/presentadores/Fecha'
 import { Insignia } from '@/componentes/presentadores/Insignia'
 import { Dialogo, ContenidoDialogo } from '@/componentes/superposiciones/Dialogo'
@@ -751,8 +751,7 @@ function FilaPropuesta ({
                 key={persona.id}
                 className="bg-relleno-neutro text-relleno-neutro-contenido rounded-control flex items-center gap-1.5 py-0.5 pl-0.5 pr-2"
               >
-                <Avatar nombre={persona.nombre} imagen={null} tamano="chico" />
-                <span className="max-w-40 truncate">{persona.nombre}</span>
+                <EnlacePersona id={persona.id} nombre={persona.nombre} tamano="chico" className="max-w-40" />
               </span>
               ))}
 

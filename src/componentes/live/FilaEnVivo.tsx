@@ -6,10 +6,10 @@ import { Boton } from '@/componentes/formularios/Boton'
 import { escribirEnBff } from '@/componentes/datos/mutaciones'
 import { avisarCambioDeMedidor } from './medidor'
 import { haceCuanto } from '@/componentes/auditoria/presentacion'
-import { Avatar } from '@/componentes/presentadores/Avatar'
+import { EnlacePersona } from '@/componentes/presentadores/EnlacePersona'
 import { Insignia } from '@/componentes/presentadores/Insignia'
 import { EstadoDeTarea } from '@/componentes/proyecto/EstadoDeTarea'
-import { GLOSARIO } from '@/dominio/glosario'
+import { nombrar } from '@/dominio/glosario'
 import { formatearDuracion } from '@/componentes/proyecto/cronometro'
 import { cargoYArea, trabajoDeLaFila } from './presentacion'
 import { cn } from '@/lib/clases'
@@ -114,7 +114,7 @@ export function FilaEnVivo ({ fila, transcurrido, puedeDetener, estados = [] }: 
     >
       {/* Nivel 1: la persona y su titulo. Nivel 4 a la derecha: los dos tiempos. */}
       <div className="flex items-start gap-3">
-        <Avatar nombre={staff.name} imagen={staff.avatar} tamano="grande" />
+        <EnlacePersona id={staff.id} nombre={staff.name} imagen={staff.avatar} tamano="grande" mostrarNombre={false} />
 
         <div className="flex min-w-0 flex-1 flex-col gap-0.5">
           {/* RQ-JOR-16: el nombre manda visualmente, pero sigue siendo un `h3`. Ver el docblock. */}
@@ -174,7 +174,7 @@ export function FilaEnVivo ({ fila, transcurrido, puedeDetener, estados = [] }: 
                       `RecursoJornadas::medidoresCorriendo()`, pero contra un backend anterior llega
                       `undefined`, y ahi "Sin estado" en cada fila mentiria sobre un dato que nadie
                       dejo vacio. Tambien llega `null` cuando la Tarea esta en la papelera. */}
-                  {nivel.etiqueta === GLOSARIO.proceso.singular
+                  {nivel.etiqueta === nombrar('proceso', 1)
                     && medidor?.task?.status !== undefined && medidor.task.status !== null && (
                     <EstadoDeTarea status={medidor.task.status} catalogo={estados} />
                   )}

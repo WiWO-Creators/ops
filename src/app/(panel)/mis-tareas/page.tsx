@@ -82,6 +82,8 @@ export default async function MisTareasPage (props: PageProps<'/mis-tareas'>) {
         rutaDetalle="/mis-tareas"
         // Son las Tareas de quien mira: el estado se cambia desde la fila. Ver `estadoEditable`.
         estadoEditable
+        // Distinta de la de Tareas privadas, mas abajo en la misma pagina. Ver `prefijoUrl`.
+        prefijoUrl="esp_"
         verCompletadas={verCompletadas}
         vacio={vacioFiltrado ?? {
           titulo: `No tienes ${GLOSARIO.proceso.plural.toLowerCase()} asignadas`,

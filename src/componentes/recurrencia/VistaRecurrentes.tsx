@@ -1,15 +1,15 @@
 'use client'
 
-import { BellRing, CalendarClock, Eraser, History, Pause, PencilLine, Play, Repeat2, RepeatOff, TriangleAlert } from 'lucide-react'
-import { usePathname, useRouter, useSearchParams } from 'next/navigation'
+import { BellRing, CalendarClock, Eraser, History, Pause, Pencil, Play, Repeat2, RepeatOff, TriangleAlert } from 'lucide-react'
 import { startTransition, useEffect, useMemo, useState, ViewTransition, type ReactElement } from 'react'
 import { escribirEnBff } from '@/componentes/datos/mutaciones'
 import { PARAMETRO_TAREA } from '@/componentes/datos/tabla'
+import { useParametroEnUrl } from '@/componentes/datos/useFiltrosEnUrl'
 import { ErrorEstado, Vacio } from '@/componentes/estado/Estados'
 import { Boton } from '@/componentes/formularios/Boton'
 import { Segmentado } from '@/componentes/formularios/Segmentado'
 import { SelectorBuscable } from '@/componentes/formularios/Selector'
-import { GrupoAvatares } from '@/componentes/presentadores/Avatar'
+import { GrupoEnlacesPersona } from '@/componentes/presentadores/GrupoEnlacesPersona'
 import { Insignia } from '@/componentes/presentadores/Insignia'
 import { ModalTarea } from '@/componentes/proyecto/ModalTarea'
 import { useRecurso, type EstadoCarga } from '@/componentes/proyecto/carga'
@@ -228,10 +228,8 @@ function ListaDeReglas ({ estado, vista, onVista, puedeEditar, esAdmin, onReinte
 
   // `?regla={id}` es el enlace de la campana de "sin uso": abre el historial de esa regla y la
   // resalta en la lista. Se deriva en vez de copiarse a un estado: la lista llega despues que la URL.
-  const router = useRouter()
-  const ruta = usePathname()
-  const params = useSearchParams()
-  const reglaPedida = reglaDeLaUrl(params.get(PARAMETRO_REGLA))
+  const { valor: reglaEnUrl, quitar: quitarReglaDeUrl } = useParametroEnUrl(PARAMETRO_REGLA)
+  const reglaPedida = reglaDeLaUrl(reglaEnUrl)
   const [atendida, setAtendida] = useState<number | null>(null)
   const pedida = reglaPedida === null ? undefined : reglas.find((regla) => regla.id === reglaPedida)
   const historial = aVerCopias ?? (pedida !== undefined && pedida.id !== atendida ? { id: pedida.id, name: pedida.name } : null)
@@ -241,10 +239,7 @@ function ListaDeReglas ({ estado, vista, onVista, puedeEditar, esAdmin, onReinte
     setAVerCopias(null)
     if (reglaPedida === null) return
     setAtendida(reglaPedida)
-    const siguientes = new URLSearchParams(params.toString())
-    siguientes.delete(PARAMETRO_REGLA)
-    const texto = siguientes.toString()
-    router.replace(texto === '' ? ruta : `${ruta}?${texto}`, { scroll: false })
+    quitarReglaDeUrl()
   }
 
   const elegida = VISTAS.find((opcion) => opcion.valor === vista)
@@ -363,9 +358,7 @@ function FilaDeRegla ({ regla, posicion, puedeEditar, esAdmin, resaltada, onVerC
   onEditar: () => void
   onConfirmar: (accion: Confirmable) => void
 }): ReactElement {
-  const router = useRouter()
-  const ruta = usePathname()
-  const params = useSearchParams()
+  const { escribir: abrir } = useParametroEnUrl(PARAMETRO_TAREA)
   const estado = ESTADOS_REGLA[regla.state]
   const hoy = hoyLocal()
   const aunNoEmpieza = regla.copies_count === 0 && regla.start_date !== null && regla.start_date > hoy
@@ -374,13 +367,6 @@ function FilaDeRegla ({ regla, posicion, puedeEditar, esAdmin, resaltada, onVerC
   const pausable = regla.state === 'activa' || regla.state === 'atrasada'
   const sinUso = avisoDeSinUso(regla.usage, (fecha) => formatearFecha(fecha))
   const limpiable = esAdmin && (regla.usage?.untouched_count ?? 0) > 0
-
-  /** Abre la ficha de una Tarea sobre esta misma pantalla, como hace el listado de Tareas. */
-  function abrir (id: number): void {
-    const siguientes = new URLSearchParams(params.toString())
-    siguientes.set(PARAMETRO_TAREA, String(id))
-    router.replace(`${ruta}?${siguientes.toString()}`, { scroll: false })
-  }
 
   const donde = [regla.project?.name, regla.client?.name].filter((parte) => parte !== undefined && parte !== '').join(' · ')
 
@@ -396,7 +382,7 @@ function FilaDeRegla ({ regla, posicion, puedeEditar, esAdmin, resaltada, onVerC
       <div className="flex min-w-0 flex-col gap-1">
         <button
           type="button"
-          onClick={() => { abrir(regla.id) }}
+          onClick={() => { abrir(String(regla.id)) }}
           className="text-texto hover:text-acento truncate text-left font-semibold transition-colors duration-150"
         >
           {regla.name}
@@ -450,7 +436,7 @@ function FilaDeRegla ({ regla, posicion, puedeEditar, esAdmin, resaltada, onVerC
           : (
             <button
               type="button"
-              onClick={() => { abrir(regla.last_copy?.id ?? regla.id) }}
+              onClick={() => { abrir(String(regla.last_copy?.id ?? regla.id)) }}
               className="text-texto-sutil hover:text-acento self-start text-left text-xs underline-offset-2 transition-colors duration-150 hover:underline"
             >
               Última copia: {formatearFecha(regla.last_copy.start_date ?? regla.last_copy.created_at)}
@@ -459,7 +445,7 @@ function FilaDeRegla ({ regla, posicion, puedeEditar, esAdmin, resaltada, onVerC
       </div>
 
       <div className="flex flex-wrap items-center justify-between gap-2 md:justify-end">
-        <GrupoAvatares personas={regla.assignees} />
+        <GrupoEnlacesPersona personas={regla.assignees} />
         <span className="rec-marca" style={{ '--i': posicion } as React.CSSProperties} title={estado.ayuda}>
           <Insignia tono={estado.tono}>{estado.etiqueta}</Insignia>
         </span>
@@ -477,7 +463,7 @@ function FilaDeRegla ({ regla, posicion, puedeEditar, esAdmin, resaltada, onVerC
           <span className="flex items-center gap-1">
             {pausada && <BotonReanudar regla={regla} />}
             <Boton variante="sutil" tamano="chico" soloIcono aria-label={`Editar la regla de ${regla.name}`} title="Editar regla" onClick={onEditar}>
-              <PencilLine size={15} aria-hidden="true" />
+              <Pencil size={15} aria-hidden="true" />
             </Boton>
             {pausable && (
               <Boton variante="sutil" tamano="chico" soloIcono aria-label={`Pausar ${regla.name}`} title="Pausar" onClick={() => { onConfirmar('pausar') }}>

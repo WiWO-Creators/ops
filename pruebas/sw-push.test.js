@@ -77,7 +77,7 @@ test('un push muestra el ultimo aviso sin leer, con su autor y su enlace', async
   assert.equal(sw.mostradas[0].titulo, 'Catalina Rojas')
   assert.equal(sw.mostradas[0].body, 'Te asignaron la Tarea X.')
   assert.equal(sw.mostradas[0].tag, 'ops-aviso')
-  assert.equal(sw.mostradas[0].data.url, '/procesos?tarea=512')
+  assert.equal(sw.mostradas[0].data.url, '/tareas?tarea=512')
 })
 
 test('sin sesion, sin red o sin avisos, el push igual muestra algo generico', async () => {
@@ -92,25 +92,25 @@ test('sin sesion, sin red o sin avisos, el push igual muestra algo generico', as
 })
 
 test('el clic enfoca la pestaña que ya esta en el destino, sin navegarla', async () => {
-  const sw = cargar({ respuesta: { cuerpo: {} }, ventanas: ['https://otro.sitio/procesos?tarea=512', 'https://ops.wiwo.me/inicio', 'https://ops.wiwo.me/procesos?tarea=512'] })
-  const notificacion = { data: { url: '/procesos?tarea=512' }, close () { this.cerrada = true } }
+  const sw = cargar({ respuesta: { cuerpo: {} }, ventanas: ['https://otro.sitio/tareas?tarea=512', 'https://ops.wiwo.me/inicio', 'https://ops.wiwo.me/tareas?tarea=512'] })
+  const notificacion = { data: { url: '/tareas?tarea=512' }, close () { this.cerrada = true } }
 
   await sw.disparar('notificationclick', { notification: notificacion })
 
   assert.equal(notificacion.cerrada, true)
-  assert.deepEqual(sw.enfocadas, ['https://ops.wiwo.me/procesos?tarea=512'])
+  assert.deepEqual(sw.enfocadas, ['https://ops.wiwo.me/tareas?tarea=512'])
   assert.deepEqual(sw.abiertas, [])
 })
 
 test('con pestañas de Ops en otra parte abre una nueva y no navega ninguna', async () => {
-  const conTrabajo = cargar({ respuesta: { cuerpo: {} }, ventanas: ['https://ops.wiwo.me/proyectos/1?tab=tickets&ticket=4', 'https://ops.wiwo.me/procesos?tarea=5'] })
-  await conTrabajo.disparar('notificationclick', { notification: { data: { url: '/procesos?tarea=512' }, close () {} } })
-  assert.deepEqual(conTrabajo.abiertas, ['https://ops.wiwo.me/procesos?tarea=512'])
+  const conTrabajo = cargar({ respuesta: { cuerpo: {} }, ventanas: ['https://ops.wiwo.me/proyectos/1?tab=tickets&ticket=4', 'https://ops.wiwo.me/tareas?tarea=5'] })
+  await conTrabajo.disparar('notificationclick', { notification: { data: { url: '/tareas?tarea=512' }, close () {} } })
+  assert.deepEqual(conTrabajo.abiertas, ['https://ops.wiwo.me/tareas?tarea=512'])
   assert.deepEqual(conTrabajo.enfocadas, [], 'ni se enfoca ni se navega una pestaña con otra cosa')
 
   const sinVentanas = cargar({ respuesta: { cuerpo: {} } })
-  await sinVentanas.disparar('notificationclick', { notification: { data: { url: '/procesos?tarea=3' }, close () {} } })
-  assert.deepEqual(sinVentanas.abiertas, ['https://ops.wiwo.me/procesos?tarea=3'])
+  await sinVentanas.disparar('notificationclick', { notification: { data: { url: '/tareas?tarea=3' }, close () {} } })
+  assert.deepEqual(sinVentanas.abiertas, ['https://ops.wiwo.me/tareas?tarea=3'])
 })
 
 test('una URL de otro origen en los datos no saca a nadie de Ops', async () => {

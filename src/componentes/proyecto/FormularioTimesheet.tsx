@@ -14,6 +14,7 @@ import { CerrarDialogo, ContenidoDialogo, Dialogo } from '@/componentes/superpos
 import { pedirSobre } from '@/datos/cliente'
 import { leerError } from '@/datos/errores'
 import type { AsignadoTarea, Etiqueta, TareaElegible } from '@/datos/recursos'
+import { nombrar } from '@/dominio/glosario'
 import { AYUDA_DURACION, validarTimesheet, type EntradaTimesheet } from './timesheet'
 
 /**
@@ -195,7 +196,7 @@ export function FormularioTimesheet ({
       >
         <form className="flex flex-col gap-4" onSubmit={(evento) => { void enviar(evento) }}>
           <Campo
-            etiqueta="Tarea"
+            etiqueta={nombrar('proceso')}
             requerido
             error={campoConError === 'taskId' ? error ?? undefined : undefined}
           >
