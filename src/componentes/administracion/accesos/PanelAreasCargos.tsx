@@ -1,11 +1,13 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { UserPlus } from 'lucide-react'
 import { ConfirmarBorrado } from '@/componentes/datos/ConfirmarBorrado'
 import { escribirEnBff } from '@/componentes/datos/mutaciones'
 import {
   CeldaEncabezado, CeldaTabla, CuerpoTabla, EncabezadoTabla, FilaTabla, Tabla
 } from '@/componentes/datos/Tabla'
+import { MenuAccionesFila } from '@/componentes/datos/MenuAccionesFila'
 import { Vacio } from '@/componentes/estado/Estados'
 import { useAviso } from '@/componentes/estado/useAviso'
 import { Boton } from '@/componentes/formularios/Boton'
@@ -21,7 +23,7 @@ import { pedirSobre } from '@/datos/cliente'
 import { descendenciaDe } from '@/dominio/jerarquia'
 import { motivoParaRechazarNombre } from '@/dominio/accesos'
 import { LOCALE } from '@/lib/fechas'
-import { CabeceraDePanel, DialogoConfirmar, MensajeDeError, SIN_VALOR } from './piezas'
+import { CabeceraDePanel, MensajeDeError, SIN_VALOR } from './piezas'
 import type { AreaDeAccesos, CargoDeAccesos, CatalogoDeAccesos, UsoDeArea } from '@/datos/accesos'
 import type { PersonaAsignable } from '@/datos/recursos'
 
@@ -182,7 +184,7 @@ function SeccionAreas ({
                   <CeldaEncabezado>Depende de</CeldaEncabezado>
                   <CeldaEncabezado>Jefatura</CeldaEncabezado>
                   <CeldaEncabezado numerica angosta>Personas</CeldaEncabezado>
-                  <CeldaEncabezado angosta>Acciones</CeldaEncabezado>
+                  <CeldaEncabezado angosta><span className="sr-only">Acciones</span></CeldaEncabezado>
                 </tr>
               </EncabezadoTabla>
               <CuerpoTabla>
@@ -193,26 +195,27 @@ function SeccionAreas ({
                     <CeldaTabla>{nombreDeJefe(area)}</CeldaTabla>
                     <CeldaTabla numerica>{area.personas}</CeldaTabla>
                     <CeldaTabla angosta>
-                      <span className="flex gap-1">
-                        <Boton
-                          variante="sutil"
-                          tamano="chico"
-                          disabled={personas === null}
-                          onClick={() => { setError(null); setPoblando(area) }}
-                        >
-                          Agregar gente
-                        </Boton>
-                        <Boton variante="sutil" tamano="chico" onClick={() => { setEditando({ area }) }}>
-                          Editar
-                        </Boton>
-                        <Boton
-                          variante="sutil"
-                          tamano="chico"
-                          onClick={() => { setError(null); setBorrando(area) }}
-                        >
-                          Borrar
-                        </Boton>
-                      </span>
+                      {/* «Borrar» no entra como `borrado` de `MenuAccionesFila`: la API exige elegir un
+                          destino para lo que hay dentro del area, y eso es un dialogo propio, no una
+                          confirmacion generica. Ver `DialogoDeBorradoDeArea`. */}
+                      <MenuAccionesFila
+                        onEditar={() => { setEditando({ area }) }}
+                        acciones={[
+                          {
+                            clave: 'agregar-gente',
+                            etiqueta: 'Agregar gente',
+                            icono: UserPlus,
+                            deshabilitado: personas === null,
+                            onSeleccionar: () => { setError(null); setPoblando(area) }
+                          },
+                          {
+                            clave: 'borrar',
+                            etiqueta: 'Borrar',
+                            peligroso: true,
+                            onSeleccionar: () => { setError(null); setBorrando(area) }
+                          }
+                        ]}
+                      />
                     </CeldaTabla>
                   </FilaTabla>
                 ))}
@@ -547,28 +550,18 @@ function consecuenciaDeBorrar (
 /** El CRUD de cargos: nombre y nada más. */
 function SeccionCargos ({ catalogo, recargar }: { catalogo: CatalogoDeAccesos, recargar: () => void }) {
   const [editando, setEditando] = useState<{ cargo: CargoDeAccesos | null } | null>(null)
-  const [borrando, setBorrando] = useState<CargoDeAccesos | null>(null)
-  const [enCurso, setEnCurso] = useState(false)
-  const [error, setError] = useState<string | null>(null)
 
-  /** Borra el cargo elegido. La API responde 409 en los cargos por defecto de la instalación. */
-  async function borrar (): Promise<void> {
-    if (borrando === null) return
+  /**
+   * Borra un cargo.
+   *
+   * La API responde 409 en los cargos por defecto de la instalación; el mensaje llega tal cual al
+   * `ConfirmarBorrado`, que es quien lo muestra.
+   */
+  async function borrar (cargo: CargoDeAccesos): Promise<void> {
+    const resultado = await escribirEnBff(`accesos/cargos/${cargo.id}`, 'DELETE')
 
-    setEnCurso(true)
-    setError(null)
+    if (!resultado.ok) throw new Error(resultado.mensaje)
 
-    const resultado = await escribirEnBff(`accesos/cargos/${borrando.id}`, 'DELETE')
-
-    setEnCurso(false)
-
-    if (!resultado.ok) {
-      setError(resultado.mensaje)
-
-      return
-    }
-
-    setBorrando(null)
     recargar()
   }
 
@@ -584,8 +577,6 @@ function SeccionCargos ({ catalogo, recargar }: { catalogo: CatalogoDeAccesos, r
         }
       />
 
-      {error !== null && <MensajeDeError>{error}</MensajeDeError>}
-
       {catalogo.cargos.length === 0
         ? (
           <Vacio
@@ -600,7 +591,7 @@ function SeccionCargos ({ catalogo, recargar }: { catalogo: CatalogoDeAccesos, r
                 <tr>
                   <CeldaEncabezado>Cargo</CeldaEncabezado>
                   <CeldaEncabezado numerica angosta>Personas</CeldaEncabezado>
-                  <CeldaEncabezado angosta>Acciones</CeldaEncabezado>
+                  <CeldaEncabezado angosta><span className="sr-only">Acciones</span></CeldaEncabezado>
                 </tr>
               </EncabezadoTabla>
               <CuerpoTabla>
@@ -609,18 +600,14 @@ function SeccionCargos ({ catalogo, recargar }: { catalogo: CatalogoDeAccesos, r
                     <CeldaTabla>{cargo.nombre}</CeldaTabla>
                     <CeldaTabla numerica>{cargo.personas}</CeldaTabla>
                     <CeldaTabla angosta>
-                      <span className="flex gap-1">
-                        <Boton variante="sutil" tamano="chico" onClick={() => { setEditando({ cargo }) }}>
-                          Renombrar
-                        </Boton>
-                        <Boton
-                          variante="sutil"
-                          tamano="chico"
-                          onClick={() => { setError(null); setBorrando(cargo) }}
-                        >
-                          Borrar
-                        </Boton>
-                      </span>
+                      <MenuAccionesFila
+                        onEditar={() => { setEditando({ cargo }) }}
+                        borrado={{
+                          titulo: 'Borrar el cargo',
+                          advertencia: `Quien tenga puesto «${cargo.nombre}» queda sin cargo. Los cargos por defecto de la instalación no se pueden borrar: la API los rechaza.`,
+                          onConfirmar: () => borrar(cargo)
+                        }}
+                      />
                     </CeldaTabla>
                   </FilaTabla>
                 ))}
@@ -637,18 +624,6 @@ function SeccionCargos ({ catalogo, recargar }: { catalogo: CatalogoDeAccesos, r
           alGuardar={() => { setEditando(null); recargar() }}
         />
       )}
-
-      <DialogoConfirmar
-        abierto={borrando !== null}
-        titulo={`Borrar el cargo «${borrando?.nombre ?? ''}»`}
-        descripcion="Quien lo tenga puesto queda sin cargo. Los cargos por defecto de la instalación no se pueden borrar: la API los rechaza."
-        etiquetaConfirmar="Borrar el cargo"
-        peligroso
-        enCurso={enCurso}
-        error={error}
-        onConfirmar={() => { void borrar() }}
-        onCerrar={() => { setBorrando(null) }}
-      />
     </div>
   )
 }
