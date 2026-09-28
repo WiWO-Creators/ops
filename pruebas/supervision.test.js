@@ -20,6 +20,7 @@ import {
   etiquetaDeOrigen,
   hayRevisionesDelEquipo,
   hojasPorConfirmar,
+  MODOS_DE_AGRUPACION,
   modoDeAgrupacion,
   textoDeEstadoDelEquipo,
   textoDeRevisionDelEquipo,
@@ -43,7 +44,7 @@ function tarea (id, extra = {}) {
   return {
     id, patente: null, name: `T${id}`, status: 1, duedate: '2026-09-24', dias_atraso: 1,
     completada: false, completada_en: null, origen: ['cliente'],
-    proyecto: null, asignados: [], revision: null, revisiones_equipo: [], ...extra
+    proyecto: null, asignados: [], areas: [], revision: null, revisiones_equipo: [], ...extra
   }
 }
 
@@ -192,11 +193,69 @@ test('agrupar por persona: la Tarea con dos asignados va en los dos, Sin asignar
   assert.deepEqual(agruparHoja({ ...hoja(), clientes: [] }, 'persona'), [])
 })
 
-test('el modo de agrupación: solo "persona" cambia el de omisión', () => {
+test('el modo de agrupación: "persona" y "area" cambian el de omisión', () => {
   assert.equal(modoDeAgrupacion('persona'), 'persona')
+  assert.equal(modoDeAgrupacion('area'), 'area')
   assert.equal(modoDeAgrupacion('cliente'), 'cliente')
   assert.equal(modoDeAgrupacion(undefined), 'cliente')
   assert.equal(modoDeAgrupacion('<x>'), 'cliente')
+})
+
+test('el selector "Agrupar por" ofrece cliente, persona y área en ese orden', () => {
+  assert.deepEqual(MODOS_DE_AGRUPACION.map((m) => m.valor), ['cliente', 'persona', 'area'])
+})
+
+test('agrupar por persona solo cuenta a la gente del equipo; sin del_equipo se trata como del equipo', () => {
+  const gina = { staffid: 7, nombre: 'Gina Ferrer', del_equipo: true }
+  const elena = { staffid: 5, nombre: 'Elena Paz', del_equipo: false }
+  const facundoSinCampo = { staffid: 6, nombre: 'Facundo Lugo' }
+
+  const hojaMixta = {
+    ...hoja(),
+    clientes: [{
+      client_id: 1,
+      company: 'Acme',
+      tareas: [
+        tarea(20, { asignados: [gina, elena] }),
+        tarea(21, { asignados: [elena] }),
+        tarea(22, { asignados: [facundoSinCampo] })
+      ]
+    }]
+  }
+
+  const grupos = agruparHoja(hojaMixta, 'persona')
+
+  assert.deepEqual(grupos.map((g) => [g.titulo, g.tareas.map((t) => t.id)]), [
+    ['Facundo Lugo', [22]],
+    ['Gina Ferrer', [20]],
+    ['Sin asignar', [21]]
+  ])
+})
+
+test('agrupar por área: una vez por área, personas juntas, Sin área al final', () => {
+  const gina = { staffid: 7, nombre: 'Gina Ferrer' }
+  const facundo = { staffid: 6, nombre: 'Facundo Lugo' }
+
+  const hojaConAreas = {
+    ...hoja(),
+    clientes: [{
+      client_id: 1,
+      company: 'Acme',
+      tareas: [
+        tarea(30, { asignados: [gina, facundo], areas: ['Diseño'] }),
+        tarea(31, { asignados: [facundo], areas: ['Diseño', 'Desarrollo'] }),
+        tarea(32, { asignados: [gina], areas: [] })
+      ]
+    }]
+  }
+
+  const grupos = agruparHoja(hojaConAreas, 'area')
+
+  assert.deepEqual(grupos.map((g) => [g.titulo, g.tareas.map((t) => t.id)]), [
+    ['Desarrollo', [31]],
+    ['Diseño', [30, 31]],
+    ['Sin área', [32]]
+  ])
 })
 
 test('el estado de una Tarea: completada con hora, otro día, sin hora, atrasada o vence hoy', () => {

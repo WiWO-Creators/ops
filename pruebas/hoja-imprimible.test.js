@@ -136,11 +136,23 @@ test('la columna Revisión equipo aparece solo si alguna Tarea la trae, escapada
   assert.equal((html.match(/<td class="equipo">/g) ?? []).length, 2)
 })
 
-test('la completada dice "Completada" con la hora en la columna del atraso', () => {
+test('las Tareas completadas no se imprimen; los totales del papel bajan con ellas', () => {
   const conCerrada = hoja()
   Object.assign(conCerrada.clientes[0].tareas[1], { completada: true, completada_en: '2026-09-25 11:40:00', status: 5 })
 
-  assert.match(htmlDeHojaImprimible(conCerrada), /<td class="atraso">Completada 11:40<\/td>/)
+  const html = htmlDeHojaImprimible(conCerrada)
+
+  assert.doesNotMatch(html, /Completada 11:40/)
+  assert.doesNotMatch(html, /Otra/)
+  assert.match(html, /1 tareas, 1 atrasadas/)
+})
+
+test('una hoja con solo Tareas completadas imprime "Sin tareas"', () => {
+  const soloCompletadas = hoja()
+  Object.assign(soloCompletadas.clientes[0].tareas[0], { completada: true, completada_en: '2026-09-20 10:00:00', status: 5 })
+  Object.assign(soloCompletadas.clientes[0].tareas[1], { completada: true, completada_en: '2026-09-25 11:40:00', status: 5 })
+
+  assert.match(htmlDeHojaImprimible(soloCompletadas), /Sin tareas por supervisar/)
 })
 
 test('una Tarea con origen vacío se imprime sin romperse', () => {
@@ -160,6 +172,18 @@ test('respeta la agrupación elegida: por persona, con Sin asignar al final', ()
   assert.deepEqual(titulos, ['O&#39;Brien', 'Sin asignar'])
   assert.match(html, /Agrupada por persona/)
   assert.match(htmlDeHojaImprimible(hoja()), /Agrupada por cliente/)
+})
+
+test('respeta la agrupación elegida: por área, con Sin área al final', () => {
+  const conAreas = hoja()
+  conAreas.clientes[0].tareas[0].areas = ['Diseño']
+  conAreas.clientes[0].tareas[1].areas = []
+
+  const html = htmlDeHojaImprimible(conAreas, 'area')
+  const titulos = [...html.matchAll(/<h2>(.*?)<\/h2>/g)].map((m) => m[1])
+
+  assert.deepEqual(titulos, ['Diseño', 'Sin área'])
+  assert.match(html, /Agrupada por área/)
 })
 
 test('una hoja sin clientes dice que no hay tareas', () => {

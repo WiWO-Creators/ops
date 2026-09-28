@@ -931,9 +931,11 @@ export const PROCESOS = Array.from({ length: 84 }, (_, i) => {
  *
  * Las generadas no traen ningún caso de los que la hoja v2 agrega: todas cuelgan de un cliente y
  * todas las completadas cerraron en agosto. Con la hoja del 2026-09-25 de Diego (lead, con Facundo y
- * Gina a cargo) estas tres dan: una sin cliente que vence ese día, una sin cliente atrasada y una
- * completada ese mismo día aunque vence después, con dos asignados —para ver que agrupar por
- * persona la repite bajo cada uno— y de un cliente que Diego supervisa, así que su origen es doble.
+ * Gina a cargo) estas tres dan: una sin cliente que vence ese día, una sin cliente atrasada y con un
+ * coasignado (Elena) que NO es del equipo de Diego —el caso de `del_equipo: false`—, y una
+ * completada ese mismo día aunque vence después, con dos asignados del equipo —para ver que agrupar
+ * por persona y por área la repite bajo cada uno/cada área— y de un cliente que Diego supervisa, así
+ * que su origen es doble.
  */
 const TAREAS_DE_SUPERVISION = [
   {
@@ -942,7 +944,7 @@ const TAREAS_DE_SUPERVISION = [
   },
   {
     id: 901, patente: 'WIW-0901', name: 'Ordenar el archivo del equipo', status: 1,
-    due_date: '2026-09-22', date_finished: null, rel_type: null, rel_id: null, project: null, asignados: [7]
+    due_date: '2026-09-22', date_finished: null, rel_type: null, rel_id: null, project: null, asignados: [7, 5]
   },
   {
     id: 902, patente: 'ESP-003-99', name: 'Cerrar la campaña de primavera', status: 5,

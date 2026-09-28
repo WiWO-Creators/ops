@@ -53,6 +53,13 @@ export const ROTULO_TIPO: Record<TipoNovedad, string> = {
  */
 export const NOVEDADES: Novedad[] = [
   {
+    fecha: '2026-09-28',
+    tipo: 'mejora',
+    titulo: 'Supervisión: agrupar por área y hoja impresa sin tareas completadas',
+    detalle: 'La hoja diaria ya agrupa por cliente, persona o área, y "Agrupar por persona" solo junta a tu gente a cargo. La hoja para imprimir ya no lista las tareas completadas del día; en pantalla se siguen viendo.',
+    commits: []
+  },
+  {
     fecha: '2026-09-25',
     tipo: 'mejora',
     titulo: 'La llamada de Teletrabajo ya no se corta al cambiar de pantalla',

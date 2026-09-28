@@ -42,6 +42,8 @@ export interface RevisionDelEquipo {
 export interface AsignadoDeLaHoja {
   staffid: number
   nombre: string
+  /** Si cuelga del organigrama del supervisor; ausente en hojas viejas, que se trata como `true`. */
+  del_equipo?: boolean
 }
 
 /** Una fila de la hoja. */
@@ -65,6 +67,8 @@ export interface TareaDeLaHoja {
   origen: OrigenDeTarea[]
   proyecto: { id: number, name: string } | null
   asignados: AsignadoDeLaHoja[]
+  /** Texto del campo área de cada asignado; vacío si ninguno tiene. */
+  areas: string[]
   revision: RevisionDeTarea | null
   /** Las revisiones de esa fecha de los supervisores que cuelgan del dueño; `[]` si ninguna. */
   revisiones_equipo: RevisionDelEquipo[]

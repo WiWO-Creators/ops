@@ -21,7 +21,7 @@
  */
 
 import { ErrorApi } from './consulta.js'
-import { CLIENTES, ESPACIOS, PROCESOS, STAFF, SUPERVISORES_DE_CLIENTE } from './datos.js'
+import { CLIENTES, ESPACIOS, PROCESOS, STAFF, SUPERVISORES_DE_CLIENTE, VALORES_CAMPOS } from './datos.js'
 
 const conDatos = (data) => ({ data })
 
@@ -106,6 +106,13 @@ function diasEntre (a, b) {
   return Math.round((Date.parse(`${b}T00:00:00Z`) - Date.parse(`${a}T00:00:00Z`)) / 86_400_000)
 }
 
+/** El texto del campo "Área" de una Tarea, como lista; vacío si no tiene. */
+function areasDeLaTarea (tarea) {
+  const campo = (VALORES_CAMPOS[`tasks:${tarea.id}`] ?? []).find((c) => c.slug === 'tasks_cf_area')
+
+  return String(campo?.value ?? '').split(',').map((v) => v.trim()).filter(Boolean)
+}
+
 /** El cliente de una Tarea: `customer` es el propio; `project` es el del Proyecto. */
 function clienteDeLaTarea (tarea) {
   if (tarea.rel_type === 'customer') return tarea.rel_id
@@ -178,9 +185,13 @@ function tareasDeLaHoja (fecha, supervisor, arbol) {
     if (cliente !== null && clientes.has(cliente)) origen.push('cliente')
     if (tarea.assignees.some((a) => a.id !== supervisor.id && equipo.has(a.id))) origen.push('equipo')
 
+    // La API poda las Tareas en las que ningún asignado es del equipo y la Tarea tampoco lleva área:
+    // sin ese enganche no hay a quién revisarle ni dónde agruparla.
+    const conAsignadoOArea = tarea.assignees.some((a) => equipo.has(a.id)) || areasDeLaTarea(tarea).length > 0
+
     // Con revisión de esta hoja entra siempre, aunque ya haya salido del universo: ahí viaja con
     // `origen: []`, igual que en la API.
-    if (revisiones.has(tarea.id) || (origen.length > 0 && entraEnLaHoja(tarea, fecha))) filas.push({ tarea, origen })
+    if (revisiones.has(tarea.id) || (origen.length > 0 && entraEnLaHoja(tarea, fecha) && conAsignadoOArea)) filas.push({ tarea, origen })
   }
 
   return filas
@@ -217,6 +228,7 @@ function revisionesDelEquipo (tareaId, fecha, supervisor, arbol) {
 function tareaDeLaHoja ({ tarea, origen }, fecha, supervisor, arbol) {
   const completada = tarea.status === ESTADO_COMPLETADA
   const revisiones = REVISIONES.get(claveDe(fecha, supervisor.id)) ?? new Map()
+  const equipo = arbol.descendencia(supervisor.id)
 
   return {
     id: tarea.id,
@@ -229,7 +241,8 @@ function tareaDeLaHoja ({ tarea, origen }, fecha, supervisor, arbol) {
     completada_en: completada && tarea.date_finished ? enSantiago(new Date(tarea.date_finished)) : null,
     origen,
     proyecto: tarea.project ?? null,
-    asignados: tarea.assignees.map((a) => ({ staffid: a.id, nombre: a.full_name })),
+    asignados: tarea.assignees.map((a) => ({ staffid: a.id, nombre: a.full_name, del_equipo: equipo.has(a.id) })),
+    areas: areasDeLaTarea(tarea),
     revision: revisiones.get(tarea.id) ?? null,
     revisiones_equipo: revisionesDelEquipo(tarea.id, fecha, supervisor, arbol)
   }
