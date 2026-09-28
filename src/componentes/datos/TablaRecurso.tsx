@@ -11,14 +11,8 @@ import { leerError } from '@/datos/errores'
 import { ErrorEstado, Vacio } from '@/componentes/estado/Estados'
 import { CargandoConOrbe } from '@/componentes/estado/Orbe'
 import { CLASES_CASILLA } from '@/componentes/formularios/Entrada'
-import { Boton } from '@/componentes/formularios/Boton'
 import { Segmentado, type OpcionSegmentada } from '@/componentes/formularios/Segmentado'
-import {
-  ContenidoMenu,
-  DisparadorMenu,
-  ItemMenu,
-  MenuContextual
-} from '@/componentes/superposiciones/MenuContextual'
+import { MenuAccionesFila } from '@/componentes/datos/MenuAccionesFila'
 import { cn } from '@/lib/clases'
 import { CeldaEncabezado, CeldaTabla, CuerpoTabla, EncabezadoTabla, FilaTabla, Tabla } from './Tabla'
 import { ControlesTabla, PaginacionTabla } from './ControlesTabla'
@@ -621,24 +615,16 @@ function MenuAcciones ({ acciones, id, onError, onListo }: PropsMenuAcciones) {
   }
 
   return (
-    <MenuContextual>
-      <DisparadorMenu asChild>
-        <Boton variante="sutil" tamano="chico" soloIcono cargando={enCurso} aria-label="Acciones">
-          <span aria-hidden="true">⋯</span>
-        </Boton>
-      </DisparadorMenu>
-      <ContenidoMenu align="end">
-        {acciones.map((accion) => (
-          <ItemMenu
-            key={accion.clave}
-            peligroso={accion.metodo === 'DELETE'}
-            onSelect={() => { void ejecutar(accion.ruta, accion.metodo) }}
-          >
-            {accion.etiqueta}
-          </ItemMenu>
-        ))}
-      </ContenidoMenu>
-    </MenuContextual>
+    <MenuAccionesFila
+      cargando={enCurso}
+      ariaLabel="Acciones"
+      acciones={acciones.map((accion) => ({
+        clave: accion.clave,
+        etiqueta: accion.etiqueta,
+        peligroso: accion.metodo === 'DELETE',
+        onSeleccionar: () => { void ejecutar(accion.ruta, accion.metodo) }
+      }))}
+    />
   )
 }
 
