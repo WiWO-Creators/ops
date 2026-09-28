@@ -9,7 +9,7 @@ import { ErrorEstado, Vacio } from '@/componentes/estado/Estados'
 import { Boton } from '@/componentes/formularios/Boton'
 import { Segmentado } from '@/componentes/formularios/Segmentado'
 import { SelectorBuscable } from '@/componentes/formularios/Selector'
-import { GrupoAvatares } from '@/componentes/presentadores/Avatar'
+import { GrupoEnlacesPersona } from '@/componentes/presentadores/GrupoEnlacesPersona'
 import { Insignia } from '@/componentes/presentadores/Insignia'
 import { ModalTarea } from '@/componentes/proyecto/ModalTarea'
 import { useRecurso, type EstadoCarga } from '@/componentes/proyecto/carga'
@@ -445,7 +445,7 @@ function FilaDeRegla ({ regla, posicion, puedeEditar, esAdmin, resaltada, onVerC
       </div>
 
       <div className="flex flex-wrap items-center justify-between gap-2 md:justify-end">
-        <GrupoAvatares personas={regla.assignees} />
+        <GrupoEnlacesPersona personas={regla.assignees} />
         <span className="rec-marca" style={{ '--i': posicion } as React.CSSProperties} title={estado.ayuda}>
           <Insignia tono={estado.tono}>{estado.etiqueta}</Insignia>
         </span>

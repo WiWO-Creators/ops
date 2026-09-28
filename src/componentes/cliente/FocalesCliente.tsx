@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { Boton } from '@/componentes/formularios/Boton'
 import { SelectorPersonas } from '@/componentes/formularios/SelectorPersonas'
-import { Avatar } from '@/componentes/presentadores/Avatar'
+import { EnlacePersona } from '@/componentes/presentadores/EnlacePersona'
 import { Cargando, Vacio } from '@/componentes/estado/Estados'
 import { escribirEnBff } from '@/componentes/datos/mutaciones'
 import { cargarAsignables } from '@/datos/asignables'
@@ -194,8 +194,13 @@ function ListaFocales ({ personas }: { personas: StaffReferencia[] }) {
           key={persona.id}
           className="bg-relleno-neutro text-relleno-neutro-contenido rounded-control flex items-center gap-2 py-1 pl-1 pr-3 text-sm"
         >
-          <Avatar nombre={persona.full_name} imagen={persona.profile_image_url} tamano="chico" />
-          <span className="max-w-52 truncate">{persona.full_name}</span>
+          <EnlacePersona
+            id={persona.id}
+            nombre={persona.full_name}
+            imagen={persona.profile_image_url}
+            tamano="chico"
+            className="max-w-52"
+          />
         </li>
       ))}
     </ul>

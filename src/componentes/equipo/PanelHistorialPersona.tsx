@@ -1,7 +1,7 @@
 'use client'
 
-import Link from 'next/link'
 import { useState, type ReactElement } from 'react'
+import { EnlaceProyecto } from '@/componentes/presentadores/EnlaceProyecto'
 import { PaginacionTabla } from '@/componentes/datos/ControlesTabla'
 import { Cargando, ErrorEstado, Vacio } from '@/componentes/estado/Estados'
 import { useRecurso } from '@/componentes/proyecto/carga'
@@ -112,12 +112,11 @@ function Entrada ({ entrada }: { entrada: ActividadEspacio }): ReactElement {
           <span className="text-texto text-sm">{entrada.description}</span>
 
           {entrada.project !== undefined && (
-            <Link
-              href={`/proyectos/${entrada.project.id}`}
-              className="text-texto-tenue hover:text-acento text-sm underline-offset-4 hover:underline"
-            >
-              {entrada.project.name}
-            </Link>
+            <EnlaceProyecto
+              id={entrada.project.id}
+              nombre={entrada.project.name}
+              className="text-texto-tenue text-sm underline-offset-4 hover:underline"
+            />
           )}
         </div>
 

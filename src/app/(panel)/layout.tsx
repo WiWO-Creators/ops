@@ -25,6 +25,7 @@ import { Campana } from '@/componentes/avisos/Campana'
 import { ControlJornada } from '@/componentes/live/ControlJornada'
 import { Logo } from '@/componentes/estructura/Logo'
 import { MenuUsuario } from '@/componentes/estructura/MenuUsuario'
+import { ProveedorEnlaces } from '@/componentes/presentadores/ProveedorEnlaces'
 import { ScrollSuave } from '@/componentes/estructura/ScrollSuave'
 import { LlamadaEnCurso } from '@/componentes/teletrabajo/LlamadaEnCurso'
 import { VigilanteDeVersion } from '@/componentes/estructura/VigilanteDeVersion'
@@ -75,6 +76,11 @@ export default async function PanelLayout ({ children }: { children: React.React
     //
     // La columna externa existe para que la franja de suplantacion quede fija arriba de todo: el
     // armazon de abajo mide lo que sobra, asi que sin franja se ve exactamente igual que antes.
+    //
+    // `ProveedorEnlaces` envuelve todo el armazon: es lo que permite que cualquier `EnlacePersona`,
+    // `EnlaceCliente` o `EnlaceProyecto` de cualquier pantalla enlace sin que su llamador tenga que
+    // pasarle `capacidades` a mano.
+    <ProveedorEnlaces permisos={yo.permissions}>
     <div className="flex h-dvh flex-col overflow-hidden">
       {suplantando && <BarraSuplantacion nombre={yo.full_name} />}
 
@@ -180,6 +186,7 @@ export default async function PanelLayout ({ children }: { children: React.React
         </div>
       </div>
     </div>
+    </ProveedorEnlaces>
   )
 }
 

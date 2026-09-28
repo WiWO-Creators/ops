@@ -3,7 +3,7 @@
 import type { ReactElement } from 'react'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
-import { GrupoAvatares } from '@/componentes/presentadores/Avatar'
+import { GrupoEnlacesPersona } from '@/componentes/presentadores/GrupoEnlacesPersona'
 import { Etiquetas } from '@/componentes/presentadores/Etiqueta'
 import { Fecha } from '@/componentes/presentadores/Fecha'
 import { GLOSARIO } from '@/dominio/glosario'
@@ -81,7 +81,7 @@ export function TarjetaTarea ({ proceso, estados }: PropsTarjeta): ReactElement 
       </div>
 
       {proceso.assignees !== undefined && proceso.assignees.length > 0 && (
-        <GrupoAvatares personas={proceso.assignees} />
+        <GrupoEnlacesPersona personas={proceso.assignees} />
       )}
 
       {proceso.milestone !== undefined && proceso.milestone !== null && (

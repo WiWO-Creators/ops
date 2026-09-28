@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { Boton } from '@/componentes/formularios/Boton'
 import { SelectorClientes, type ClienteElegible } from '@/componentes/formularios/SelectorClientes'
 import { Avatar } from '@/componentes/presentadores/Avatar'
+import { EnlaceCliente } from '@/componentes/presentadores/EnlaceCliente'
 import { Cargando, Vacio } from '@/componentes/estado/Estados'
 import { escribirEnBff } from '@/componentes/datos/mutaciones'
 import { pedirSobre } from '@/datos/cliente'
@@ -204,7 +205,7 @@ function ListaDeClientes ({ clientes, nombre }: { clientes: ClienteElegible[], n
           className="bg-relleno-neutro text-relleno-neutro-contenido rounded-control flex items-center gap-2 py-1 pl-1 pr-3 text-sm"
         >
           <Avatar nombre={cliente.company} imagen={cliente.image_url} tamano="chico" />
-          <span className="max-w-52 truncate">{cliente.company}</span>
+          <EnlaceCliente id={cliente.id} nombre={cliente.company} className="max-w-52" />
         </li>
       ))}
     </ul>

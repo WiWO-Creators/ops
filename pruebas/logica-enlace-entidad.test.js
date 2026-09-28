@@ -1,15 +1,10 @@
 /**
  * Pruebas de `puedeEnlazarEntidad`: la regla compartida de `EnlacePersona`, `EnlaceCliente` y
  * `EnlaceProyecto` para decidir si enlazan a la ficha o se quedan en texto plano.
- *
- * No corre hoy dentro de `pnpm test` (que solo mira `mock/*.test.js` y `pruebas/*.test.js`): queda
- * junto al componente porque el alcance de esta tarea solo permite archivos nuevos dentro de
- * `src/componentes/presentadores/`. Se corre a mano con
- * `node --test src/componentes/presentadores/logica-enlace-entidad.test.ts`.
  */
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { puedeEnlazarEntidad } from './logica-enlace-entidad.ts'
+import { puedeEnlazarEntidad } from '../src/componentes/presentadores/logica-enlace-entidad.ts'
 
 test('en el portal nunca enlaza, tenga o no la capacidad', () => {
   assert.equal(puedeEnlazarEntidad(['view'], 'staff', true), false)

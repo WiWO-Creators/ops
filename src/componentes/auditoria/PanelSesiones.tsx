@@ -1,4 +1,5 @@
 import { Avatar } from '@/componentes/presentadores/Avatar'
+import { EnlacePersona } from '@/componentes/presentadores/EnlacePersona'
 import { Insignia } from '@/componentes/presentadores/Insignia'
 import { Vacio } from '@/componentes/estado/Estados'
 import { CeldaEncabezado, CeldaTabla, CuerpoTabla, EncabezadoTabla, FilaTabla, Tabla } from '@/componentes/datos/Tabla'
@@ -73,14 +74,22 @@ export function PanelSesiones ({ sesiones, error }: { sesiones: SesionAbierta[],
               <FilaTabla key={fila.clave}>
                 <CeldaTabla>
                   <span className="flex flex-wrap items-center gap-2">
-                    <Avatar
-                      nombre={fila.persona?.full_name ?? 'Cuenta eliminada'}
-                      imagen={fila.persona?.profile_image_url}
-                      tamano="chico"
-                    />
-                    <span className="text-texto font-medium">
-                      {fila.persona?.full_name ?? 'Cuenta eliminada'}
-                    </span>
+                    {fila.persona === null
+                      ? (
+                        <>
+                          <Avatar nombre="Cuenta eliminada" imagen={null} tamano="chico" />
+                          <span className="text-texto font-medium">Cuenta eliminada</span>
+                        </>
+                        )
+                      : (
+                        <EnlacePersona
+                          id={fila.persona.id}
+                          nombre={fila.persona.full_name}
+                          imagen={fila.persona.profile_image_url}
+                          tamano="chico"
+                          className="text-texto font-medium"
+                        />
+                        )}
                     {fila.suplantada !== null && (
                       <Insignia tono="peligro" tamano="chico">
                         Abierta por {fila.suplantada.full_name}

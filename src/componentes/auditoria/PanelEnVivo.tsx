@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Building2, ChevronRight, FolderOpen, ListTodo, ShieldAlert, Users } from 'lucide-react'
 import { Avatar } from '@/componentes/presentadores/Avatar'
+import { EnlacePersona } from '@/componentes/presentadores/EnlacePersona'
 import { Vacio } from '@/componentes/estado/Estados'
 import type { MetaPresencia, PersonaConectada, SuplantacionViva } from '@/datos/auditoria'
 import { formatearFecha } from '@/lib/fechas'
@@ -119,19 +120,29 @@ function AvisoSuplantacion ({ suplantaciones }: { suplantaciones: SuplantacionVi
       <ul className="flex flex-col gap-2">
         {suplantaciones.map((suplantacion) => (
           <li key={suplantacion.session_id} className="flex flex-wrap items-center gap-2 text-sm">
-            <Avatar
-              nombre={suplantacion.admin?.full_name ?? 'Desconocido'}
-              imagen={suplantacion.admin?.profile_image_url}
-              tamano="chico"
-            />
-            <span className="text-texto font-medium">{suplantacion.admin?.full_name ?? 'Cuenta eliminada'}</span>
+            {suplantacion.admin === null
+              ? <Avatar nombre="Desconocido" imagen={null} tamano="chico" />
+              : (
+                <EnlacePersona
+                  id={suplantacion.admin.id}
+                  nombre={suplantacion.admin.full_name}
+                  imagen={suplantacion.admin.profile_image_url}
+                  tamano="chico"
+                  className="text-texto font-medium"
+                />
+                )}
             <span className="text-texto-tenue">está entrando como</span>
-            <Avatar
-              nombre={suplantacion.target?.full_name ?? 'Desconocido'}
-              imagen={suplantacion.target?.profile_image_url}
-              tamano="chico"
-            />
-            <span className="text-texto font-medium">{suplantacion.target?.full_name ?? 'Cuenta eliminada'}</span>
+            {suplantacion.target === null
+              ? <Avatar nombre="Desconocido" imagen={null} tamano="chico" />
+              : (
+                <EnlacePersona
+                  id={suplantacion.target.id}
+                  nombre={suplantacion.target.full_name}
+                  imagen={suplantacion.target.profile_image_url}
+                  tamano="chico"
+                  className="text-texto font-medium"
+                />
+                )}
             <span className="text-texto-sutil text-xs">
               desde {formatearFecha(suplantacion.started_at, true)}
               {suplantacion.ip === null ? '' : ` · ${suplantacion.ip}`}

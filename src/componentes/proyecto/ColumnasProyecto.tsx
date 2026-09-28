@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { Etiquetas } from '@/componentes/presentadores/Etiqueta'
-import { GrupoAvatares } from '@/componentes/presentadores/Avatar'
+import { GrupoEnlacesPersona } from '@/componentes/presentadores/GrupoEnlacesPersona'
 import type { Columna } from '@/definiciones/tipos'
 import type { Espacio } from '@/datos/recursos'
 import type { Capacidad } from '@/datos/tipos'
@@ -50,7 +50,7 @@ export function enriquecerColumnas (
     }
 
     if (columna.clave === 'members') {
-      return { ...columna, presentar: (espacio: Espacio) => <GrupoAvatares personas={espacio.members ?? []} maximo={3} /> }
+      return { ...columna, presentar: (espacio: Espacio) => <GrupoEnlacesPersona personas={espacio.members ?? []} maximo={3} /> }
     }
 
     return columna

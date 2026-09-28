@@ -46,25 +46,23 @@ interface PropsTarjetaDeComentario {
   children?: ReactNode
   /** Una respuesta: sin marco propio, porque ya esta dentro de la tarjeta de su raiz. */
   anidado?: boolean
-  /** Capacidades de quien mira sobre `staff`, para decidir si el autor se enlaza con `EnlacePersona`. */
-  capacidades?: readonly string[]
-  /** `true` si la tarjeta se dibuja dentro del portal del cliente: el autor nunca se enlaza ahi. */
-  esPortal?: boolean
   className?: string
 }
 
 /**
+ * El autor se enlaza con `EnlacePersona` (`/equipo/{id}` y su tarjeta flotante), que decide por su
+ * cuenta si corresponde segun el `ProveedorEnlaces` vigente: esta tarjeta no recibe ni reenvia
+ * capacidades ni `esPortal`.
+ *
  * @param comentario el comentario ya traducido por `comentarioParaMostrar`
  * @param acciones botones opcionales del comentario
  * @param children respuestas y cuadro de respuesta, si los hay
  * @param anidado si es una respuesta dentro de otro comentario
- * @param capacidades capacidades de quien mira sobre `staff`
- * @param esPortal si la tarjeta se dibuja dentro del portal del cliente
  * @param className clases extra para el `<li>`
  * @returns la tarjeta del comentario
  */
 export function TarjetaDeComentario (
-  { comentario, acciones, children, anidado = false, capacidades = [], esPortal = false, className }: PropsTarjetaDeComentario
+  { comentario, acciones, children, anidado = false, className }: PropsTarjetaDeComentario
 ) {
   const autor = comentario.author?.full_name ?? 'Sin autor'
   const tamanoAvatar = anidado ? 'chico' : 'medio'
@@ -89,8 +87,6 @@ export function TarjetaDeComentario (
             nombre={autor}
             imagen={comentario.author?.profile_image_url ?? null}
             tamano={tamanoAvatar}
-            capacidades={capacidades}
-            esPortal={esPortal}
             mostrarNombre={false}
           />
           )}

@@ -19,6 +19,7 @@ import { CargandoConOrbe } from '@/componentes/estado/Orbe'
 import { useAviso } from '@/componentes/estado/useAviso'
 import { Boton } from '@/componentes/formularios/Boton'
 import { Avatar } from '@/componentes/presentadores/Avatar'
+import { EnlacePersona } from '@/componentes/presentadores/EnlacePersona'
 import { Etiquetas } from '@/componentes/presentadores/Etiqueta'
 import { Fecha } from '@/componentes/presentadores/Fecha'
 import { Insignia } from '@/componentes/presentadores/Insignia'
@@ -361,12 +362,17 @@ function TiemposDelProyecto ({ proyectoId, fuente, capacidades }: PropsPanelTiem
                 <FilaTabla key={registro.id}>
                   <CeldaTabla>
                     <span className="flex items-center gap-2">
-                      <Avatar
-                        nombre={registro.staff?.full_name ?? ''}
-                        imagen={registro.staff?.profile_image_url ?? null}
-                        tamano="chico"
-                      />
-                      <span className="text-texto">{registro.staff?.full_name ?? ''}</span>
+                      {registro.staff === null
+                        ? <Avatar nombre="" imagen={null} tamano="chico" />
+                        : (
+                          <EnlacePersona
+                            id={registro.staff.id}
+                            nombre={registro.staff.full_name}
+                            imagen={registro.staff.profile_image_url}
+                            tamano="chico"
+                            className="text-texto"
+                          />
+                          )}
                       {registro.staff?.sigue_asignado === false && (
                         <span
                           className="text-texto-aviso"

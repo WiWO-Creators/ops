@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { SelectorTema } from '@/componentes/estructura/SelectorTema'
 import { Avatar } from '@/componentes/presentadores/Avatar'
 import { Logo } from '@/componentes/estructura/Logo'
+import { ProveedorEnlaces } from '@/componentes/presentadores/ProveedorEnlaces'
 import { pedirOpcional, pedirPortal, proyectoUnicoDelPortal } from '@/datos/servidor'
 import type { YoPortal } from '@/datos/tipos'
 import { navegacionDelPortal } from '@/dominio/portal'
@@ -35,6 +36,9 @@ export default async function PortalLayout ({ children }: { children: React.Reac
   const secciones = navegacionDelPortal(yo.secciones_habilitadas, unico)
 
   return (
+    // `esPortal` fijo en `true`: en el portal ninguna persona, cliente o proyecto se enlaza, sea cual
+    // sea la capacidad. Ver `ProveedorEnlaces`.
+    <ProveedorEnlaces permisos={{}} esPortal>
     <div className="flex h-dvh flex-col overflow-hidden">
       {/* `relative z-10`: el logo del cliente cuelga por debajo del borde y tiene que quedar encima
           de la navegacion movil y del contenido que se desplaza detras. */}
@@ -80,5 +84,6 @@ export default async function PortalLayout ({ children }: { children: React.Reac
 
       {conOrbe && <OrbeChatIA sujeto="contacto" />}
     </div>
+    </ProveedorEnlaces>
   )
 }

@@ -6,6 +6,7 @@ import { Pencil } from 'lucide-react'
 import { Boton } from '@/componentes/formularios/Boton'
 import { SelectorPersonas } from '@/componentes/formularios/SelectorPersonas'
 import { GrupoAvatares } from '@/componentes/presentadores/Avatar'
+import { GrupoEnlacesPersona } from '@/componentes/presentadores/GrupoEnlacesPersona'
 import { escribirEnBff } from '@/componentes/datos/mutaciones'
 import { cargarAsignables } from '@/datos/asignables'
 import { pedirSobre } from '@/datos/cliente'
@@ -29,8 +30,13 @@ export function EquipoProyecto ({ proyectoId, miembros, puedeEditar, yoId }: {
   const [editando, setEditando] = useState(false)
   const [guardado, setGuardado] = useState(false)
 
+  // Editable, la pila entera es el disparador de "editar equipo": un `EnlacePersona` adentro
+  // competiria con ese clic y navegaria en vez de abrir el editor. Ahi va `GrupoAvatares`, sin
+  // enlace; en solo lectura, `GrupoEnlacesPersona` enlaza cada persona a su ficha.
   const equipo = miembros.length > 0
-    ? <GrupoAvatares personas={miembros} maximo={5} />
+    ? (puedeEditar
+        ? <GrupoAvatares personas={miembros} maximo={5} />
+        : <GrupoEnlacesPersona personas={miembros} maximo={5} />)
     : <span className="text-texto-sutil">{puedeEditar ? 'Añadir personas' : 'Sin personas'}</span>
 
   return (
