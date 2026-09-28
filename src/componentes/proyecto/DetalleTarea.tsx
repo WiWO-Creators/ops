@@ -47,6 +47,7 @@ import { ListaIteraciones } from './ListaIteraciones'
 import { ResumenDeRecurrencia } from '@/componentes/recurrencia/ResumenDeRecurrencia'
 import { PanelAdjuntos } from './PanelArchivos'
 import { mensajeDeRespuesta, pedirRespuesta } from '@/datos/cliente'
+import { segundosAHoraMinuto } from './formatos'
 
 /**
  * Detalle de una Tarea, para el modal que lo muestra (`ModalTarea`).
@@ -523,7 +524,7 @@ function TiempoRegistrado (
         Tiempo registrado
       </h4>
       <span data-numerico className="text-texto text-sm font-semibold tabular-nums">
-        {legible ?? `${Math.round(segundos / 3600)} h`}
+        {legible ?? segundosAHoraMinuto(segundos)}
       </span>
     </section>
   )
