@@ -395,7 +395,7 @@ function agruparPorArea (hoja: HojaDeSupervision): GrupoDeHoja[] {
   const sinArea: TareaDeLaHoja[] = []
 
   for (const tarea of hoja.clientes.flatMap((cliente) => cliente.tareas)) {
-    const areas = tarea.areas.filter((area) => area.trim() !== '')
+    const areas = (tarea.areas ?? []).filter((area) => area.trim() !== '')
 
     if (areas.length === 0) {
       sinArea.push(tarea)

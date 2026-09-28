@@ -927,15 +927,18 @@ export const PROCESOS = Array.from({ length: 84 }, (_, i) => {
 })
 
 /**
- * Tres Tareas de la Supervisión por jerarquía, sumadas al final de las generadas.
+ * Cinco Tareas de la Supervisión por jerarquía, sumadas al final de las generadas.
  *
  * Las generadas no traen ningún caso de los que la hoja v2 agrega: todas cuelgan de un cliente y
- * todas las completadas cerraron en agosto. Con la hoja del 2026-09-25 de Diego (lead, con Facundo y
- * Gina a cargo) estas tres dan: una sin cliente que vence ese día, una sin cliente atrasada y con un
- * coasignado (Elena) que NO es del equipo de Diego —el caso de `del_equipo: false`—, y una
- * completada ese mismo día aunque vence después, con dos asignados del equipo —para ver que agrupar
- * por persona y por área la repite bajo cada uno/cada área— y de un cliente que Diego supervisa, así
- * que su origen es doble.
+ * todas las completadas cerraron en agosto. Con la hoja del 2026-09-25 de Diego (lead, área 4,
+ * con Facundo y Gina a cargo) estas cinco dan: una sin cliente que vence ese día, una sin cliente
+ * atrasada y con un coasignado (Elena) que NO es del equipo de Diego —el caso de
+ * `del_equipo: false`—, una completada ese mismo día aunque vence después, con dos asignados del
+ * equipo —para ver que agrupar por persona y por área la repite bajo cada uno/cada área— y de un
+ * cliente que Diego supervisa, así que su origen es doble; y del cliente 3 (que Diego supervisa),
+ * dos más para la poda por área de la persona: una asignada solo a Hugo —también área 4, aunque de
+ * baja y fuera de la descendencia de Diego— que entra por eso, y otra asignada solo a Bruno —de otra
+ * área y fuera del árbol de Diego— que la API poda entera.
  */
 const TAREAS_DE_SUPERVISION = [
   {
@@ -949,6 +952,14 @@ const TAREAS_DE_SUPERVISION = [
   {
     id: 902, patente: 'ESP-003-99', name: 'Cerrar la campaña de primavera', status: 5,
     due_date: '2026-09-30', date_finished: '2026-09-25T14:40:00Z', rel_type: 'project', rel_id: 3, project: ESPACIOS[2], asignados: [7, 6]
+  },
+  {
+    id: 903, patente: 'WIW-0903', name: 'Revisar la propuesta con Hugo', status: 1,
+    due_date: '2026-09-25', date_finished: null, rel_type: 'customer', rel_id: 3, project: null, asignados: [8]
+  },
+  {
+    id: 904, patente: 'WIW-0904', name: 'Tarea de Bruno que Diego no debería ver', status: 1,
+    due_date: '2026-09-20', date_finished: null, rel_type: 'customer', rel_id: 3, project: null, asignados: [2]
   }
 ]
 

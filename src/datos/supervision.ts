@@ -67,8 +67,8 @@ export interface TareaDeLaHoja {
   origen: OrigenDeTarea[]
   proyecto: { id: number, name: string } | null
   asignados: AsignadoDeLaHoja[]
-  /** Texto del campo área de cada asignado; vacío si ninguno tiene. */
-  areas: string[]
+  /** Texto del campo área de la Tarea; ausente o vacío si no tiene. */
+  areas?: string[]
   revision: RevisionDeTarea | null
   /** Las revisiones de esa fecha de los supervisores que cuelgan del dueño; `[]` si ninguna. */
   revisiones_equipo: RevisionDelEquipo[]

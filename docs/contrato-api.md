@@ -7043,12 +7043,14 @@ esté completada (así un día pasado no pierde filas). El cliente de una Tarea 
 #### `GET /supervision/supervisores`
 
 → `[{staffid, nombre, escalon, clientes}]`: los supervisores (con al menos un cliente) que quien
-pregunta puede ver — él mismo, su descendencia (`Jerarquia::descendencia`) o todos si es admin.
+pregunta puede ver — él mismo o su descendencia (`Jerarquia::descendencia`); sin excepción para
+admin.
 
 #### `GET /supervision/hoja?fecha=YYYY-MM-DD&staff_id=N`
 
-Sin `fecha` es hoy en `America/Santiago`; sin `staff_id`, quien pregunta. `403` si no es esa persona,
-ni está sobre ella (`Jerarquia::estaSobre`), ni es admin; `422` si la fecha no es válida.
+Sin `fecha` es hoy en `America/Santiago`; sin `staff_id`, quien pregunta. `403` si no es esa persona
+ni está sobre ella (`Jerarquia::estaSobre`); sin excepción para admin. `422` si la fecha no es
+válida.
 
 ```json
 {
@@ -7063,6 +7065,7 @@ ni está sobre ella (`Jerarquia::estaSobre`), ni es admin; `422` si la fecha no 
       "id": 512, "patente": "ESP-001-03", "name": "…", "status": 1, "duedate": "2026-09-20",
       "dias_atraso": 5, "proyecto": { "id": 1, "name": "…" },
       "asignados": [{ "staffid": 4, "nombre": "Diego Sosa" }],
+      "areas": ["Diseño"],
       "revision": { "estado": "ok", "nota": null, "staffid": 1, "nombre": "Ana Ríos", "marcado_en": "…" }
     }]
   }]
@@ -7120,6 +7123,11 @@ completada o no; (b) `status != 5` y `duedate < F`; (c) `DATE(datefinished) = F`
 revisión de S para F. Las que no tienen cliente van en el grupo `client_id: null`,
 `company: "Sin cliente"`, al final.
 
+**Relevantes para S** = S mismo ∪ su descendencia ∪ la gente de sus mismas áreas (`tblstaff.area_id`
++ `tblstaff_areas`). Decide `del_equipo` y una poda extra: la Tarea que entra solo por cliente/focal
+(sin `equipo` en `origen`) se descarta si ningún asignado es relevante para S; una Tarea sin
+asignados también se descarta. La de origen `equipo` nunca se descarta por esto.
+
 #### `GET /supervision/hoja` — campos nuevos
 
 ```json
@@ -7132,6 +7140,8 @@ revisión de S para F. Las que no tienen cliente van en el grupo `client_id: nul
     "tareas": [{
       "completada": true, "completada_en": "2026-09-25 11:40:00",
       "origen": ["cliente", "equipo"],
+      "asignados": [{ "staffid": 4, "nombre": "Diego Sosa", "del_equipo": true }],
+      "areas": ["Diseño"],
       "revisiones_equipo": [{ "staffid": 4, "nombre": "Diego Sosa", "estado": "ok", "nota": null }]
     }]
   }]
@@ -7141,18 +7151,22 @@ revisión de S para F. Las que no tienen cliente van en el grupo `client_id: nul
 - `completada` = `status == 5`; `completada_en` es `datefinished` (hora de Santiago, sin huso).
   `dias_atraso` es 0 si está completada.
 - `origen`: `cliente`, `equipo` o los dos. Un cliente como Focal cuenta como `cliente`.
+- `asignados[].del_equipo`: si esa persona es "relevante para S" (ver arriba). El propio S cuenta
+  como `true`.
+- `areas`: el texto del campo "Área" de la Tarea (`tasks_cf_area`), no el de la persona; `[]` si no
+  tiene.
 - `revisiones_equipo`: las revisiones de esa fecha de supervisores de la descendencia de S. `[]` si
   ninguna. No trae el escalón de quien revisó.
 - `confirmacion`: `null | {estado: 'confirmada'|'devuelta', staffid, nombre, nota|null, en}`.
   Devuelta ⇒ `firma` vuelve a `null` y `puede_editar` a `true` para el dueño; la devolución queda
   visible hasta que vuelve a firmar, y al re-firmar `confirmacion` vuelve a `null`.
-- `puede_confirmar`: quien consulta está sobre S (`Jerarquia::estaSobre`) o es admin, no es S, y la
-  hoja está firmada y sin confirmar.
+- `puede_confirmar`: quien consulta está sobre S (`Jerarquia::estaSobre`), no es S, y la hoja está
+  firmada y sin confirmar; sin excepción para admin.
 
 #### `POST /supervision/hoja/{fecha}/confirmacion`
 
 Cuerpo `{staff_id, accion: 'confirmar'|'devolver', nota?: string ≤ 500}`. `403` si no está sobre
-`staff_id` (ni es admin) o es él mismo; `409` si la hoja no está firmada o ya está confirmada
+`staff_id` (sin excepción para admin) o es él mismo; `409` si la hoja no está firmada o ya está confirmada
 (devolver una confirmada también es 409); `422` si la acción no es válida o se devuelve sin nota.
 → la confirmación resultante. Firmada y confirmada = cerrada del todo.
 
@@ -7160,7 +7174,7 @@ Cuerpo `{staff_id, accion: 'confirmar'|'devolver', nota?: string ≤ 500}`. `403
 
 → `[{staffid, nombre, escalon, jefe_staffid, estado: 'sin_firmar'|'firmada'|'confirmada'|'devuelta',
 firmado_en|null, confirmacion|null, totales: {tareas, revisadas, completadas}}]`: los supervisores de
-la descendencia de quien consulta (todos si es admin), sin él, con hoja **no vacía** ese día. Orden:
+la descendencia de quien consulta (sin excepción para admin), sin él, con hoja **no vacía** ese día. Orden:
 directos primero, luego por nombre. `422` si la fecha no es válida.
 
 `GET /supervision/supervisores` usa la definición nueva (clientes o descendencia); `clientes` es la
