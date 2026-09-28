@@ -7,6 +7,7 @@ import { Boton } from '@/componentes/formularios/Boton'
 import { AreaTexto } from '@/componentes/formularios/Entrada'
 import type { Referencia } from '@/datos/recursos'
 import { descargar } from '@/dominio/exportar-acta'
+import { nombrar } from '@/dominio/glosario'
 import {
   leerPlanilla, mensajesDeFila, plantillaCsv, resolverNombres, type FilaPlanilla, type FilaValidada,
   type ParteDeValidacion
@@ -144,8 +145,8 @@ export function ImportadorRecurrentes ({ proyectos, personas, onTerminar }: {
         <div className="flex max-w-prose flex-col gap-1">
           <h2 id={`${idTexto}-titulo`} className="font-titular text-lg font-extrabold">Importar desde una planilla</h2>
           <p className="text-texto-tenue text-sm">
-            Copia las celdas de tu planilla y pégalas, o sube un CSV. Columnas: Tarea, Frecuencia,
-            Responsable (correo), Proyecto (nombre exacto o número) y, si quieres, Inicio, Plazo días y Fin.
+            Copia las celdas de tu planilla y pégalas, o sube un CSV. Columnas: {nombrar('proceso')}, Frecuencia,
+            Responsable (correo), {nombrar('espacio')} (nombre exacto o número) y, si quieres, Inicio, Plazo días y Fin.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -165,7 +166,7 @@ export function ImportadorRecurrentes ({ proyectos, personas, onTerminar }: {
         rows={6}
         value={texto}
         onChange={(evento) => { setTexto(evento.target.value) }}
-        placeholder={'Tarea\tFrecuencia\tResponsable\tProyecto\nInforme de pauta\tMensual\tnombre@wiwo.me\tSAC Contact Center'}
+        placeholder={`${nombrar('proceso')}\tFrecuencia\tResponsable\t${nombrar('espacio')}\nInforme de pauta\tMensual\tnombre@wiwo.me\tSAC Contact Center`}
         className="font-mono text-xs"
         spellCheck={false}
       />
@@ -236,10 +237,10 @@ function TablaDePrevia ({ filas, parte, proyectos, personas }: {
         <thead className="bg-superficie-hundida text-texto-tenue text-xs">
           <tr>
             <th scope="col" className="w-10 px-3 py-2 font-medium">#</th>
-            <th scope="col" className="px-3 py-2 font-medium">Tarea</th>
+            <th scope="col" className="px-3 py-2 font-medium">{nombrar('proceso')}</th>
             <th scope="col" className="px-3 py-2 font-medium">Frecuencia</th>
             <th scope="col" className="px-3 py-2 font-medium">Responsable</th>
-            <th scope="col" className="px-3 py-2 font-medium">Proyecto</th>
+            <th scope="col" className="px-3 py-2 font-medium">{nombrar('espacio')}</th>
             <th scope="col" className="px-3 py-2 font-medium">Inicio</th>
             <th scope="col" className="px-3 py-2 font-medium">Fin</th>
             <th scope="col" className="w-10 px-3 py-2 font-medium"><span className="sr-only">Resultado</span></th>

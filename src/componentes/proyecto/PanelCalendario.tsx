@@ -9,7 +9,7 @@ import { Segmentado, type OpcionSegmentada } from '@/componentes/formularios/Seg
 import { Cargando, ErrorEstado, Vacio } from '@/componentes/estado/Estados'
 import { PARAMETRO_TAREA } from '@/componentes/datos/tabla'
 import { pedirSobre } from '@/datos/cliente'
-import { GLOSARIO } from '@/dominio/glosario'
+import { nombrar } from '@/dominio/glosario'
 import { hoyLocal } from '@/lib/fechas'
 import { ModalTarea } from './ModalTarea'
 import { AgendaEntregas, ColumnasDeDias, RejillaMes } from './RejillaEntregas'
@@ -312,8 +312,8 @@ function CalendarioDelEspacio ({ proyectoId, fuente, capacidades }: PropsPanelCa
 
       {truncado && (
         <p className="text-texto-tenue text-xs">
-          Se muestran los primeros {TOPE_DE_PROCESOS} {GLOSARIO.proceso.plural.toLowerCase()} del{' '}
-          {GLOSARIO.espacio.singular.toLowerCase()}. Puede haber entregas que no se vean.
+          Se muestran los primeros {TOPE_DE_PROCESOS} {nombrar('proceso', 2).toLowerCase()} del{' '}
+          {nombrar('espacio', 1).toLowerCase()}. Puede haber entregas que no se vean.
         </p>
       )}
 
@@ -323,7 +323,7 @@ function CalendarioDelEspacio ({ proyectoId, fuente, capacidades }: PropsPanelCa
             titulo="Todavía no hay entregas"
             // El texto no lleva articulo delante del termino del glosario: "Proceso" y "Tarea" no tienen
             // el mismo genero, y un "ningún" fijo se lee mal en cuanto el glosario cambia de palabra.
-            descripcion={`Este ${GLOSARIO.espacio.singular.toLowerCase()} todavía no tiene ${GLOSARIO.proceso.plural.toLowerCase()}. Todo lo que tenga fecha de vencimiento aparecerá acá, en el día en que se entrega.`}
+            descripcion={`Este ${nombrar('espacio', 1).toLowerCase()} todavía no tiene ${nombrar('proceso', 2).toLowerCase()}. Todo lo que tenga fecha de vencimiento aparecerá acá, en el día en que se entrega.`}
             className="border-linea rounded-tarjeta border border-dashed"
           />
           )

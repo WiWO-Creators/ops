@@ -5,7 +5,8 @@ import './paleta.css'
 import * as Radix from '@radix-ui/react-dialog'
 import { useRouter } from 'next/navigation'
 import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { CornerDownLeft, LoaderCircle, Search } from 'lucide-react'
+import { CornerDownLeft, Search } from 'lucide-react'
+import { Orbe } from '@/componentes/estado/Orbe'
 import { pedirSobre } from '@/datos/cliente'
 import type { Seccion } from '@/lib/navegacion'
 import { URL_SOPORTE } from '@/lib/soporte'
@@ -197,7 +198,7 @@ function CuerpoDePaleta ({
     <>
       <div className="border-linea flex items-center gap-3 border-b px-4">
         {buscando
-          ? <LoaderCircle size={18} strokeWidth={2} aria-hidden="true" className="text-texto-sutil shrink-0 motion-safe:animate-spin" />
+          ? <Orbe tamano="chico" estado="thinking" />
           : <Search size={18} strokeWidth={2} aria-hidden="true" className="text-texto-sutil shrink-0" />}
         {/* Sin el anillo de foco del sistema: el campo es lo unico enfocable mientras la paleta esta
             abierta y el cursor ya dice donde esta el foco; el anillo dibujaba una caja dentro de otra. */}

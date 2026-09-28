@@ -8,7 +8,7 @@
  * puede soltar y qué pasa con lo que falló—, que es donde un error mueve archivos a donde no debía.
  */
 
-import { formatearFecha, formatearRelativo } from '../lib/fechas.ts'
+import { formatearFecha, formatearRelativo, LOCALE } from '../lib/fechas.ts'
 import { normalizar } from './salas.ts'
 import type { MigaDrive, NodoDrive, ResultadoTrasladoDrive } from '@/datos/recursos'
 
@@ -209,7 +209,7 @@ export function formatearTamano (bytes: number | null | undefined): string {
   }
 
   const decimales = unidad === 0 || valor >= 10 ? 0 : 1
-  const texto = new Intl.NumberFormat('es-AR', { maximumFractionDigits: decimales }).format(valor)
+  const texto = new Intl.NumberFormat(LOCALE, { maximumFractionDigits: decimales }).format(valor)
 
   return `${texto} ${UNIDADES[unidad]}`
 }

@@ -1,4 +1,4 @@
-import { sumarDias } from '../../lib/fechas.ts'
+import { LOCALE, sumarDias } from '../../lib/fechas.ts'
 import { diasDeVista, esDiaValido, inicioDeSemana } from '../../dominio/calendario.ts'
 import { ESTADO_COMPLETO } from './tareas.ts'
 
@@ -336,7 +336,7 @@ function formatear (dia: string, opciones: Intl.DateTimeFormatOptions): string {
   const fecha = Number(dia.slice(8, 10))
   const instante = new Date(Date.UTC(anio, mes - 1, fecha))
 
-  return new Intl.DateTimeFormat('es-AR', { ...opciones, timeZone: 'UTC' })
+  return new Intl.DateTimeFormat(LOCALE, { ...opciones, timeZone: 'UTC' })
     .formatToParts(instante)
     .filter((parte) => parte.type !== 'literal')
     .map((parte) => parte.value.replace('.', ''))

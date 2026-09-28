@@ -4,6 +4,7 @@ import { Bell, BellOff, BellRing, Check, CircleAlert, Send, Share, ShieldAlert, 
 import { useCallback, useEffect, useState, type ReactNode } from 'react'
 import { escribirEnBff } from '@/componentes/datos/mutaciones'
 import { Boton } from '@/componentes/formularios/Boton'
+import { Hueso } from '@/componentes/estado/Estados'
 import { Seccion } from '@/componentes/presentadores/Ficha'
 import { mensajeDeRespuesta } from '@/datos/cliente'
 import {
@@ -378,12 +379,12 @@ function Esqueleto () {
   return (
     <Seccion titulo="Notificaciones en este dispositivo">
       <div className="flex items-start gap-3" aria-busy="true" aria-label="Cargando el estado de las notificaciones">
-        <span className="bg-relleno-neutro size-10 shrink-0 rounded-full motion-safe:animate-pulse" />
+        <Hueso className="size-10 shrink-0" />
         <div className="flex flex-1 flex-col gap-1.5 pt-1">
-          <span className="bg-relleno-neutro h-3.5 w-48 rounded-full motion-safe:animate-pulse" />
-          <span className="bg-relleno-neutro h-3 w-72 max-w-full rounded-full motion-safe:animate-pulse" />
+          <Hueso className="h-3.5 w-48" />
+          <Hueso className="h-3 w-72 max-w-full" />
         </div>
-        <span className="bg-relleno-neutro rounded-control mt-1 h-6 w-11 shrink-0 motion-safe:animate-pulse" />
+        <Hueso className="rounded-control mt-1 h-6 w-11 shrink-0" />
       </div>
     </Seccion>
   )

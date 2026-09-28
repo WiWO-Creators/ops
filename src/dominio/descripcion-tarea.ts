@@ -13,6 +13,11 @@
  * pantalla se lee como "el formulario esta bien pero el servidor dice que no". El criterio de los
  * dos lados tiene que ser el mismo: este archivo es la version del navegador de
  * `CrearProceso::descripcionVacia()`.
+ */
+
+import { LOCALE } from '../lib/fechas.ts'
+
+/**
  *
  * === POR QUE LAS PREGUNTAS SON FIJAS Y VIVEN ACA ===
  *
@@ -121,7 +126,7 @@ export function errorDeDescripcion (texto: string, queEs = 'La tarea'): string |
   }
 
   if (texto.trim().length > TOPE_DESCRIPCION) {
-    return `La descripción no puede pasar de ${TOPE_DESCRIPCION.toLocaleString('es-CL')} caracteres.`
+    return `La descripción no puede pasar de ${TOPE_DESCRIPCION.toLocaleString(LOCALE)} caracteres.`
   }
 
   return null

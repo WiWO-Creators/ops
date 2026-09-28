@@ -29,6 +29,7 @@ import type { Capacidad, Paginacion } from '@/datos/tipos'
 import { LOOKUP_PERSONAS_CON_TIEMPO, definicionDeTiempos } from '@/definiciones/tiempos'
 import type { EstadoConsulta, OpcionFiltro } from '@/definiciones/tipos'
 import { conConsulta, type FuenteDeProyecto } from '@/dominio/fuente-proyecto'
+import { nombrar } from '@/dominio/glosario'
 import { useRecurso } from './carga'
 import { segundosAHoraMinuto } from './formatos'
 import { FormularioTimesheet } from './FormularioTimesheet'
@@ -391,7 +392,7 @@ function TiemposDelProyecto ({ proyectoId, fuente, capacidades }: PropsPanelTiem
           <EncabezadoTabla>
             <tr>
               <CeldaEncabezado>Miembro</CeldaEncabezado>
-              <CeldaEncabezado>Tarea</CeldaEncabezado>
+              <CeldaEncabezado>{nombrar('proceso')}</CeldaEncabezado>
               {columnas.includes('tags') && <CeldaEncabezado>Etiquetas</CeldaEncabezado>}
               <CeldaEncabezado>Hora de inicio</CeldaEncabezado>
               <CeldaEncabezado>Hora de finalización</CeldaEncabezado>

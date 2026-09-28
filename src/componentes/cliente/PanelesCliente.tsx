@@ -6,7 +6,7 @@ import { ArbolDrive } from '@/componentes/archivos/ArbolDrive'
 import { ARCHIVOS } from '@/definiciones/archivos'
 import { NOTAS_CLIENTE } from '@/definiciones/clientes'
 import { PROCESOS } from '@/definiciones/procesos'
-import { GLOSARIO } from '@/dominio/glosario'
+import { nombrar } from '@/dominio/glosario'
 import type { ArchivoProyecto, NotaCliente, Proceso } from '@/datos/recursos'
 import type { Capacidad } from '@/datos/tipos'
 import type { DefinicionRecurso } from '@/definiciones/tipos'
@@ -129,4 +129,4 @@ function Origen ({ archivo }: { archivo: ArchivoProyecto }): ReactElement {
 }
 
 /** Nombre visible de la pestaña Tareas, para que la pagina no escriba "Tareas" a mano. */
-export const ETIQUETA_TAREAS = GLOSARIO.proceso.plural
+export const ETIQUETA_TAREAS = nombrar('proceso', 2)

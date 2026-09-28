@@ -6,6 +6,7 @@ import { useChat, type ReceivedChatMessage } from '@livekit/components-react'
 import { Entrada } from '@/componentes/formularios/Entrada'
 import { Boton } from '@/componentes/formularios/Boton'
 import { cn } from '@/lib/clases'
+import { LOCALE } from '@/lib/fechas'
 
 interface PropsChatDeSala {
   miIdentidad: string
@@ -16,7 +17,7 @@ interface PropsChatDeSala {
 
 /** Hora corta (HH:MM) de un mensaje, en la zona horaria del navegador de quien mira. */
 function horaCorta (timestampMs: number): string {
-  return new Date(timestampMs).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' })
+  return new Date(timestampMs).toLocaleTimeString(LOCALE, { hour: '2-digit', minute: '2-digit' })
 }
 
 interface PropsFilaDeMensaje {

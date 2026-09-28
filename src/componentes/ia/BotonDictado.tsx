@@ -1,6 +1,6 @@
 'use client'
 
-import { Loader2, Mic, Square } from 'lucide-react'
+import { Mic, Square } from 'lucide-react'
 import { type ReactElement } from 'react'
 import { Boton } from '@/componentes/formularios/Boton'
 import { useDictado, type FaseDictado } from './useDictado'
@@ -70,12 +70,11 @@ export function BotonDictado ({ valor, alEscribir, maximo, deshabilitado = false
         aria-pressed={andando}
         aria-label={etiqueta}
         title={etiqueta}
-        disabled={deshabilitado || dictado.fase === 'transcribiendo'}
+        cargando={dictado.fase === 'transcribiendo'}
+        disabled={deshabilitado}
         onClick={dictado.alternar}
       >
-        {dictado.fase === 'transcribiendo'
-          ? <Loader2 className="animate-spin" aria-hidden />
-          : andando ? <Square aria-hidden /> : <Mic aria-hidden />}
+        {dictado.fase !== 'transcribiendo' && (andando ? <Square aria-hidden /> : <Mic aria-hidden />)}
       </Boton>
 
       {aviso !== '' && (

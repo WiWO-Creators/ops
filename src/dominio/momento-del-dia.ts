@@ -22,6 +22,8 @@
  * Todo lo de aca es puro: entra un instante y una zona, sale una franja. Ni un `Date.now()` implicito.
  */
 
+import { LOCALE } from '../lib/fechas.ts'
+
 /**
  * Una franja del dia con su mensaje.
  *
@@ -161,7 +163,7 @@ export function minutosEnLaZona (ahora: number | null, zona: string | null): num
   try {
     // `hourCycle: 'h23'` y no `hour12: false`: con `hour12` algunos motores devuelven "24" a
     // medianoche, y 24*60 caeria fuera del dia.
-    const partes = new Intl.DateTimeFormat('es-CL', {
+    const partes = new Intl.DateTimeFormat(LOCALE, {
       timeZone: zona,
       hour: '2-digit',
       minute: '2-digit',
@@ -201,10 +203,10 @@ export function horaDeReloj (ahora: number | null, zona: string | null): string 
   if (zona !== null && zona !== '') opciones.timeZone = zona
 
   try {
-    return new Intl.DateTimeFormat('es-CL', opciones).format(new Date(ahora))
+    return new Intl.DateTimeFormat(LOCALE, opciones).format(new Date(ahora))
   } catch {
     // Misma razon que arriba: una zona que no se entiende no puede apagar el reloj de la pared.
-    return new Intl.DateTimeFormat('es-CL', { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })
+    return new Intl.DateTimeFormat(LOCALE, { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })
       .format(new Date(ahora))
   }
 }
@@ -233,10 +235,10 @@ export function diaDeCalendario (ahora: number | null, zona: string | null): str
   if (zona !== null && zona !== '') opciones.timeZone = zona
 
   try {
-    return new Intl.DateTimeFormat('es-CL', opciones).format(new Date(ahora))
+    return new Intl.DateTimeFormat(LOCALE, opciones).format(new Date(ahora))
   } catch {
     // Misma razon que en `horaDeReloj()`: una zona que no se entiende no puede apagar la portada.
-    return new Intl.DateTimeFormat('es-CL', { weekday: 'long', day: 'numeric', month: 'long' })
+    return new Intl.DateTimeFormat(LOCALE, { weekday: 'long', day: 'numeric', month: 'long' })
       .format(new Date(ahora))
   }
 }

@@ -180,7 +180,9 @@ test('el boton distingue las dos formas de dictar', () => {
   for (const aviso of ['Escuchando…', 'Grabando…', 'Transcribiendo…']) {
     assert.ok(boton.includes(aviso), `falta el aviso de la fase: ${aviso}`)
   }
-  assert.match(boton, /disabled=\{deshabilitado \|\| dictado\.fase === 'transcribiendo'\}/,
+  // El bloqueo mientras transcribe lo hace `Boton` via `cargando`, no un `disabled` a mano: `Boton`
+  // combina `cargando` con `disabled` el mismo (ver Boton.tsx), asi que el resultado es identico.
+  assert.match(boton, /cargando=\{dictado\.fase === 'transcribiendo'\}/,
     'mientras el board transcribe no se puede volver a apretar')
 })
 

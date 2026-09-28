@@ -18,6 +18,7 @@ import { cargarAsignables } from '@/datos/asignables'
 import { pedirSobre } from '@/datos/cliente'
 import { descendenciaDe } from '@/dominio/jerarquia'
 import { motivoParaRechazarNombre } from '@/dominio/accesos'
+import { LOCALE } from '@/lib/fechas'
 import { CabeceraDePanel, DialogoConfirmar, MensajeDeError, SIN_VALOR } from './piezas'
 import type { AreaDeAccesos, CargoDeAccesos, CatalogoDeAccesos, UsoDeArea } from '@/datos/accesos'
 import type { PersonaAsignable } from '@/datos/recursos'
@@ -537,7 +538,7 @@ function resumenDeUso (uso: UsoDeArea): string {
 
 /** Un número con separador de miles y su sustantivo en singular o plural. */
 function contar (cantidad: number, singular: string, plural: string): string {
-  return `${cantidad.toLocaleString('es-CL')} ${cantidad === 1 ? singular : plural}`
+  return `${cantidad.toLocaleString(LOCALE)} ${cantidad === 1 ? singular : plural}`
 }
 
 /**

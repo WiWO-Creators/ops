@@ -1,3 +1,4 @@
+import { LOCALE } from '../lib/fechas.ts'
 import { normalizar } from './salas.ts'
 import type { StaffReferencia } from '@/datos/tipos'
 import type { UsoDeRegla } from './copias-recurrencia.ts'
@@ -361,7 +362,7 @@ export function textoDeFechaDePrevia (fecha: string): string {
   const dia = new Date(`${fecha}T00:00:00Z`)
   if (!/^\d{4}-\d{2}-\d{2}$/.test(fecha) || Number.isNaN(dia.getTime())) return fecha
 
-  return new Intl.DateTimeFormat('es-CL', { timeZone: 'UTC', weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
+  return new Intl.DateTimeFormat(LOCALE, { timeZone: 'UTC', weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
     .format(dia)
     .replace(',', '')
 }

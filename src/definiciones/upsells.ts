@@ -2,7 +2,7 @@ import type { DefinicionRecurso } from './tipos.ts'
 import type { Upsell } from '../datos/recursos.ts'
 import { ESTADOS_DE_LICITACION, etiquetaDeEstado } from './licitaciones.ts'
 import { GLOSARIO } from '../dominio/glosario.ts'
-import { formatearFecha } from '../lib/fechas.ts'
+import { formatearFecha, LOCALE } from '../lib/fechas.ts'
 
 /**
  * Definicion del recurso Upselling.
@@ -38,7 +38,7 @@ export const UPSELLS: DefinicionRecurso<Upsell> = {
       numerica: true,
       // Sin simbolo de moneda: `moneda_id` puede venir en `null` —"todavia no se sabe"— y pintar
       // "$" para un monto en otra moneda es peor que no pintar ninguno.
-      presentar: (u) => (u.monto_estimado === null ? '' : u.monto_estimado.toLocaleString('es-CL'))
+      presentar: (u) => (u.monto_estimado === null ? '' : u.monto_estimado.toLocaleString(LOCALE))
     },
     {
       clave: 'probabilidad',
