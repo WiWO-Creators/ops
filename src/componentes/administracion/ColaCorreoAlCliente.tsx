@@ -11,6 +11,7 @@ import { AreaTexto, CLASES_CONTROL, Entrada } from '@/componentes/formularios/En
 import { Fecha } from '@/componentes/presentadores/Fecha'
 import { Insignia, type TonoInsignia } from '@/componentes/presentadores/Insignia'
 import { CerrarDialogo, ContenidoDialogo, Dialogo, DisparadorDialogo } from '@/componentes/superposiciones/Dialogo'
+import { ConfirmarBorrado, useConfirmarBorrado } from '@/componentes/datos/ConfirmarBorrado'
 import { VisorColaCorreo, type ContadorDeCola } from './VisorColaCorreo'
 import { pedirSobre } from '@/datos/cliente'
 import { avisoDelMotor } from '@/dominio/correo-cliente'
@@ -330,38 +331,29 @@ function EditorDeNota ({ fila, onListo }: PropsDeFila): ReactElement {
  * descartar es borrar, y borrar no tiene deshacer.
  */
 function ConfirmarDescarte ({ fila, onListo }: PropsDeFila): ReactElement {
-  const [abierto, setAbierto] = useState(false)
-  const [borrando, setBorrando] = useState(false)
-  const [errorForm, setErrorForm] = useState<string | null>(null)
+  const confirmarDescarte = useConfirmarBorrado()
 
   async function descartar (): Promise<void> {
-    setBorrando(true)
-    setErrorForm(null)
-
     const resultado = await escribirEnBff(`${RUTA}/${fila.id}`, 'DELETE')
-    setBorrando(false)
 
-    if (!resultado.ok) {
-      setErrorForm(resultado.mensaje)
-      return
-    }
+    if (!resultado.ok) throw new Error(resultado.mensaje)
 
-    setAbierto(false)
     onListo()
   }
 
   return (
-    <Dialogo open={abierto} onOpenChange={(valor) => { setAbierto(valor); setErrorForm(null) }}>
-      <DisparadorDialogo asChild>
-        <Boton tamano="chico" variante="sutil">Descartar</Boton>
-      </DisparadorDialogo>
+    <>
+      <Boton tamano="chico" variante="sutil" onClick={confirmarDescarte.abrir}>Descartar</Boton>
 
-      <ContenidoDialogo
+      <ConfirmarBorrado
+        abierto={confirmarDescarte.abierto}
+        onCerrar={confirmarDescarte.cerrar}
+        tamano="chico"
         titulo="Descartar esta fila"
-        descripcion="Se borra de la cola y no se puede deshacer. Queda registrada en la actividad con tu nombre."
-        ancho="chico"
-      >
-        <div className="flex flex-col gap-4">
+        advertencia="Se borra de la cola y no se puede deshacer. Queda registrada en la actividad con tu nombre."
+        etiquetaConfirmar="Descartar"
+        onConfirmar={descartar}
+        contenidoExtra={(
           <p className="text-texto-tenue text-sm">
             {fila.contact === null
               ? 'La fila del contacto borrado'
@@ -369,22 +361,9 @@ function ConfirmarDescarte ({ fila, onListo }: PropsDeFila): ReactElement {
             {' · '}
             {PLANTILLAS[fila.template] ?? fila.template}
           </p>
-
-          {errorForm !== null && (
-            <p role="alert" className="text-texto-peligro text-sm">{errorForm}</p>
-          )}
-
-          <div className="flex justify-end gap-2">
-            <CerrarDialogo asChild>
-              <Boton variante="secundario">Cancelar</Boton>
-            </CerrarDialogo>
-            <Boton variante="peligro" cargando={borrando} onClick={() => { void descartar() }}>
-              Descartar
-            </Boton>
-          </div>
-        </div>
-      </ContenidoDialogo>
-    </Dialogo>
+        )}
+      />
+    </>
   )
 }
 

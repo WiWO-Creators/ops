@@ -17,6 +17,7 @@ import { EnlacePersona } from '@/componentes/presentadores/EnlacePersona'
 import { Fecha } from '@/componentes/presentadores/Fecha'
 import { Insignia } from '@/componentes/presentadores/Insignia'
 import { Dialogo, ContenidoDialogo } from '@/componentes/superposiciones/Dialogo'
+import { ConfirmarBorrado, useConfirmarBorrado } from '@/componentes/datos/ConfirmarBorrado'
 import { escribirEnBff, leerDelBff } from '@/componentes/datos/mutaciones'
 import { PARAMETRO_TAREA } from '@/componentes/datos/tabla'
 import { cargarAsignables } from '@/datos/asignables'
@@ -132,6 +133,7 @@ export function TareasPropuestas ({
   const [prioridades, setPrioridades] = useState<EstadoLookup[]>([])
   const [personas, setPersonas] = useState<StaffReferencia[]>([])
   const [errorEquipo, setErrorEquipo] = useState<string | null>(null)
+  const confirmarReanalisis = useConfirmarBorrado()
 
   /**
    * Volver a "cargando" en el render y no en el efecto.
@@ -416,11 +418,7 @@ export function TareasPropuestas ({
    * Se pregunta antes cuando ya hay propuestas pendientes: lo que se pierde no es lo que escribió el
    * modelo —eso se vuelve a generar— sino las correcciones a mano que alguien ya hizo sobre ellas.
    */
-  async function proponer (): Promise<void> {
-    if (hayPendientes && !confirm(
-      'Volver a analizar reemplaza las tareas pendientes de este Meeting Paper, incluidas las que ya corregiste. ¿Seguir?'
-    )) return
-
+  async function ejecutarProponer (): Promise<void> {
     setEnCurso({ que: 'proponiendo' })
     setError(null)
     setAviso(null)
@@ -439,6 +437,16 @@ export function TareasPropuestas ({
 
     reponer(resultado.datos)
     setDesplegada(true)
+  }
+
+  /** Vuelve a analizar. Con propuestas pendientes, pregunta antes: se pierden las que ya se corrigieron. */
+  function proponer (): void {
+    if (hayPendientes) {
+      confirmarReanalisis.abrir()
+      return
+    }
+
+    void ejecutarProponer()
   }
 
   const Chevron = abierta ? ChevronDown : ChevronRight
@@ -467,7 +475,7 @@ export function TareasPropuestas ({
             tamano="chico"
             cargando={enCurso?.que === 'proponiendo'}
             disabled={enCurso !== null}
-            onClick={() => { void proponer() }}
+            onClick={proponer}
           >
             <Sparkles size={14} strokeWidth={2} aria-hidden="true" className="shrink-0" />
             {sinAnalizar ? 'Analizar buscando tareas' : 'Volver a analizar'}
@@ -601,6 +609,16 @@ export function TareasPropuestas ({
           onCerrar={() => { setEditando(null) }}
         />
       )}
+
+      <ConfirmarBorrado
+        abierto={confirmarReanalisis.abierto}
+        onCerrar={confirmarReanalisis.cerrar}
+        tamano="chico"
+        titulo="Volver a analizar"
+        advertencia="Reemplaza las tareas pendientes de este Meeting Paper, incluidas las que ya corregiste."
+        etiquetaConfirmar="Analizar de nuevo"
+        onConfirmar={ejecutarProponer}
+      />
     </section>
   )
 }
