@@ -54,6 +54,13 @@ export const ROTULO_TIPO: Record<TipoNovedad, string> = {
 export const NOVEDADES: Novedad[] = [
   {
     fecha: '2026-09-28',
+    tipo: 'nuevo',
+    titulo: 'Meeting Paper: "Solo transcribir"',
+    detalle: 'En la pestaña Meeting Paper de un Proyecto, "Solo transcribir" graba o sube un audio y devuelve el texto sin escribir un acta. Se puede copiar, descargar o usar para crear un Meeting Paper después. Se guarda 24 horas y se borra solo.',
+    commits: []
+  },
+  {
+    fecha: '2026-09-28',
     tipo: 'arreglo',
     titulo: 'Supervisión: tu hoja ya no muestra gente que no está a tu cargo',
     detalle: 'Si diriges un área, ya no ves las tareas ni la hoja de quien solo la comparte contigo sin reportarte: tu equipo es exactamente tu gente a cargo, directa o en cadena.',
