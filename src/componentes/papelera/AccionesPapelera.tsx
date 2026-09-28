@@ -2,10 +2,9 @@
 
 import { useRouter } from 'next/navigation'
 import { useState, type ReactElement } from 'react'
+import { ConfirmarBorrado, useConfirmarBorrado } from '@/componentes/datos/ConfirmarBorrado'
 import { Boton } from '@/componentes/formularios/Boton'
-import { Campo } from '@/componentes/formularios/Campo'
-import { Entrada } from '@/componentes/formularios/Entrada'
-import { ContenidoDialogo, Dialogo } from '@/componentes/superposiciones/Dialogo'
+import { useAviso } from '@/componentes/estado/useAviso'
 import { escribirEnBff, leerDelBff } from '@/componentes/datos/mutaciones'
 import { lineasDeCascada, nombreDeEntidad } from '@/dominio/papelera'
 import type { ElementoEnPapelera, PrevisualizacionDeBorrado } from '@/datos/recursos'
@@ -23,14 +22,12 @@ const PALABRA = 'ELIMINAR'
  */
 export function AccionesPapelera ({ elemento }: { elemento: ElementoEnPapelera }): ReactElement {
   const router = useRouter()
+  const aviso = useAviso()
   const [restaurando, setRestaurando] = useState(false)
   const [falloFila, setFalloFila] = useState<string | null>(null)
-  const [confirmando, setConfirmando] = useState(false)
+  const confirmarBorrado = useConfirmarBorrado()
   const [previa, setPrevia] = useState<PrevisualizacionDeBorrado | null>(null)
   const [falloPrevia, setFalloPrevia] = useState<string | null>(null)
-  const [escrito, setEscrito] = useState('')
-  const [borrando, setBorrando] = useState(false)
-  const [falloBorrado, setFalloBorrado] = useState<string | null>(null)
 
   const ruta = `${elemento.entidad}/${elemento.id}`
   const bloqueado = previa !== null && !previa.puede_purgarse
@@ -56,11 +53,9 @@ export function AccionesPapelera ({ elemento }: { elemento: ElementoEnPapelera }
 
   /** Abre el diálogo limpio y pide qué se lleva la cascada. */
   async function abrirBorrado (): Promise<void> {
-    setEscrito('')
-    setFalloBorrado(null)
     setPrevia(null)
     setFalloPrevia(null)
-    setConfirmando(true)
+    confirmarBorrado.abrir()
 
     const resultado = await leerDelBff<PrevisualizacionDeBorrado>(`${ruta}/deletion-preview`)
 
@@ -68,23 +63,16 @@ export function AccionesPapelera ({ elemento }: { elemento: ElementoEnPapelera }
     else setFalloPrevia(resultado.mensaje)
   }
 
-  /** El borrado definitivo. Solo existe acá: fuera de la papelera, eliminar siempre es reversible. */
+  /**
+   * El borrado definitivo. Solo existe acá: fuera de la papelera, eliminar siempre es reversible.
+   * Lanza si falla: `ConfirmarBorrado` muestra el mensaje.
+   */
   async function borrar (): Promise<void> {
-    if (escrito !== PALABRA || bloqueado) return
+    const resultado = await escribirEnBff(`trash/${ruta}`, 'DELETE', { confirmacion: PALABRA })
 
-    setBorrando(true)
-    setFalloBorrado(null)
+    if (!resultado.ok) throw new Error(resultado.mensaje)
 
-    const resultado = await escribirEnBff(`trash/${ruta}`, 'DELETE', { confirmacion: escrito })
-
-    setBorrando(false)
-
-    if (!resultado.ok) {
-      setFalloBorrado(resultado.mensaje)
-      return
-    }
-
-    setConfirmando(false)
+    aviso.exito(`«${elemento.nombre}» se eliminó definitivamente.`)
     router.refresh()
   }
 
@@ -101,13 +89,17 @@ export function AccionesPapelera ({ elemento }: { elemento: ElementoEnPapelera }
 
       {falloFila !== null && <p role="alert" className="text-texto-peligro mt-1 text-right text-xs">{falloFila}</p>}
 
-      <Dialogo open={confirmando} onOpenChange={(abierto) => { if (!borrando) setConfirmando(abierto) }}>
-        <ContenidoDialogo
-          titulo="Borrar definitivamente"
-          descripcion={`«${elemento.nombre}» (${nombreDeEntidad(elemento.entidad).toLowerCase()}) se borra para siempre, con todo lo que cuelga. Esto no se puede deshacer.`}
-          ancho="chico"
-        >
-          <div className="flex flex-col gap-4">
+      <ConfirmarBorrado
+        abierto={confirmarBorrado.abierto}
+        onCerrar={confirmarBorrado.cerrar}
+        tamano="chico"
+        titulo="Borrar definitivamente"
+        advertencia={`«${elemento.nombre}» (${nombreDeEntidad(elemento.entidad).toLowerCase()}) se borra para siempre, con todo lo que cuelga. Esto no se puede deshacer.`}
+        confirmacionEscrita={PALABRA}
+        etiquetaConfirmar="Borrar para siempre"
+        deshabilitadoExtra={bloqueado}
+        contenidoExtra={
+          <>
             <ResumenDeCascada
               cargando={previa === null && falloPrevia === null}
               fallo={falloPrevia}
@@ -120,35 +112,10 @@ export function AccionesPapelera ({ elemento }: { elemento: ElementoEnPapelera }
                 {previa?.motivo ?? 'No se puede borrar definitivamente.'}
               </p>
             )}
-
-            <Campo etiqueta={`Escribe «${PALABRA}» para confirmar`} requerido>
-              {(props) => (
-                <Entrada
-                  {...props}
-                  value={escrito}
-                  autoComplete="off"
-                  disabled={borrando || bloqueado}
-                  onChange={(evento) => { setEscrito(evento.target.value) }}
-                />
-              )}
-            </Campo>
-
-            {falloBorrado !== null && <p role="alert" className="text-texto-peligro text-sm">{falloBorrado}</p>}
-
-            <div className="flex justify-end gap-2">
-              <Boton variante="sutil" disabled={borrando} onClick={() => { setConfirmando(false) }}>Cancelar</Boton>
-              <Boton
-                variante="peligro"
-                cargando={borrando}
-                disabled={borrando || bloqueado || escrito !== PALABRA}
-                onClick={() => { void borrar() }}
-              >
-                Borrar para siempre
-              </Boton>
-            </div>
-          </div>
-        </ContenidoDialogo>
-      </Dialogo>
+          </>
+        }
+        onConfirmar={borrar}
+      />
     </>
   )
 }

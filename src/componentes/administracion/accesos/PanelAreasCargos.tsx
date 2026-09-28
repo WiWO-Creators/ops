@@ -1,11 +1,13 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { ConfirmarBorrado } from '@/componentes/datos/ConfirmarBorrado'
 import { escribirEnBff } from '@/componentes/datos/mutaciones'
 import {
   CeldaEncabezado, CeldaTabla, CuerpoTabla, EncabezadoTabla, FilaTabla, Tabla
 } from '@/componentes/datos/Tabla'
 import { Vacio } from '@/componentes/estado/Estados'
+import { useAviso } from '@/componentes/estado/useAviso'
 import { Boton } from '@/componentes/formularios/Boton'
 import { Campo } from '@/componentes/formularios/Campo'
 import { Entrada } from '@/componentes/formularios/Entrada'
@@ -406,8 +408,8 @@ function DialogoDeBorradoDeArea ({
 }) {
   const [uso, setUso] = useState<UsoDeArea | null>(null)
   const [destino, setDestino] = useState<string | null>(null)
-  const [enCurso, setEnCurso] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const aviso = useAviso()
 
   useEffect(() => {
     const control = new AbortController()
@@ -436,7 +438,7 @@ function DialogoDeBorradoDeArea ({
     : (posiblesDestinos.find((otra) => String(otra.id) === destino) ?? null)
 
   /**
-   * Manda el borrado con el destino elegido.
+   * Manda el borrado con el destino elegido. Lanza si falla: `ConfirmarBorrado` muestra el mensaje.
    *
    * El destino viaja siempre, incluso cuando es `null`: para la API «dejar sin área» es una decisión
    * tomada y no un campo que se olvidó mandar.
@@ -444,31 +446,25 @@ function DialogoDeBorradoDeArea ({
   async function borrar (): Promise<void> {
     if (destino === null) return
 
-    setEnCurso(true)
-    setError(null)
-
     const resultado = await escribirEnBff(`accesos/areas/${area.id}`, 'DELETE', {
       destino_area_id: destino === SIN_VALOR ? null : Number(destino)
     })
 
-    setEnCurso(false)
+    if (!resultado.ok) throw new Error(resultado.mensaje)
 
-    if (!resultado.ok) {
-      setError(resultado.mensaje)
-
-      return
-    }
-
+    aviso.exito(`«${area.nombre}» se eliminó.`)
     alBorrar()
   }
 
   return (
-    <Dialogo open onOpenChange={(abierto) => { if (!abierto) cerrar() }}>
-      <ContenidoDialogo
-        titulo={`Borrar el área «${area.nombre}»`}
-        descripcion="El área desaparece, pero lo que tenía dentro no: se muda a donde elijas. Ninguna Tarea se borra."
-        ancho="chico"
-      >
+    <ConfirmarBorrado
+      abierto
+      onCerrar={cerrar}
+      titulo={`Borrar el área «${area.nombre}»`}
+      advertencia="El área desaparece, pero lo que tenía dentro no: se muda a donde elijas. Ninguna Tarea se borra."
+      etiquetaConfirmar="Borrar el área"
+      deshabilitadoExtra={uso === null || destino === null}
+      contenidoExtra={
         <div className="flex flex-col gap-5">
           <p className="text-texto-tenue text-sm">
             {uso === null
@@ -480,7 +476,7 @@ function DialogoDeBorradoDeArea ({
             {(props) => (
               <Selector
                 value={destino ?? ''}
-                disabled={uso === null || enCurso}
+                disabled={uso === null}
                 onValueChange={(valor) => { setDestino(valor); setError(null) }}
               >
                 <DisparadorSelector marcador="Elige un destino" id={props.id} />
@@ -501,23 +497,10 @@ function DialogoDeBorradoDeArea ({
           )}
 
           {error !== null && <MensajeDeError>{error}</MensajeDeError>}
-
-          <div className="flex justify-end gap-2">
-            <CerrarDialogo asChild>
-              <Boton variante="sutil" type="button">Cancelar</Boton>
-            </CerrarDialogo>
-            <Boton
-              variante="peligro"
-              cargando={enCurso}
-              disabled={uso === null || destino === null || enCurso}
-              onClick={() => { void borrar() }}
-            >
-              Borrar el área
-            </Boton>
-          </div>
         </div>
-      </ContenidoDialogo>
-    </Dialogo>
+      }
+      onConfirmar={borrar}
+    />
   )
 }
 
