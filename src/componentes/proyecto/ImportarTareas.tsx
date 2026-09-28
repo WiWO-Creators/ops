@@ -12,6 +12,7 @@ import {
   Selector
 } from '@/componentes/formularios/Selector'
 import { Cargando, ErrorEstado } from '@/componentes/estado/Estados'
+import { useAviso } from '@/componentes/estado/useAviso'
 import { ContenidoDialogo, Dialogo } from '@/componentes/superposiciones/Dialogo'
 import { escribirEnBff } from '@/componentes/datos/mutaciones'
 import { pedirSobre } from '@/datos/cliente'
@@ -156,6 +157,8 @@ export function CuerpoImportarTareas ({
   const [enCurso, setEnCurso] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [intento, setIntento] = useState(0)
+  const [confirmandoArchivo, setConfirmandoArchivo] = useState(false)
+  const aviso = useAviso()
 
   const [origenes, setOrigenes] = useState<Carga<ProyectoCandidato[]>>({ fase: 'cargando' })
   const [hitos, setHitos] = useState<Carga<HitoDestino[]>>(
@@ -297,6 +300,7 @@ export function CuerpoImportarTareas ({
       return
     }
 
+    aviso.exito(`"${informe.origen.nombre}" quedó archivado.`)
     onCerrar()
     onArchivado()
   }
@@ -339,48 +343,70 @@ export function CuerpoImportarTareas ({
 
       {error !== null && <p role="alert" className="text-texto-peligro mt-3 text-sm">{error}</p>}
 
-      <div className="mt-4 flex flex-wrap justify-end gap-2">
-        {fase === 'elegir'
-          ? (
-            <>
-              <Boton variante="sutil" disabled={enCurso} onClick={onCerrar}>Cancelar</Boton>
-              <Boton variante="primario" cargando={enCurso} onClick={() => { void comprobar() }}>
-                Ver qué se va a copiar
-              </Boton>
-            </>
-            )
-          : (
-            <>
-              <Boton variante="sutil" disabled={enCurso} onClick={() => { setFase('elegir') }}>
+      {/* Confirmacion en el mismo cuerpo y no en otro dialogo: este paso YA vive dentro de un modal
+          (`ImportarTareas`), y un `Dialogo` sobre otro deja los dos peleando por el foco. */}
+      {fase === 'informe' && confirmandoArchivo
+        ? (
+          <div className="border-linea mt-4 flex flex-col gap-2 border-t pt-3">
+            <p className="text-texto-sutil text-xs">
+              {informe === null
+                ? 'Se archiva el proyecto de origen.'
+                : `Se archiva "${informe.origen.nombre}": sale de los listados y del portal del cliente. Conserva sus tareas y sus horas.`}
+            </p>
+            <div className="flex justify-end gap-2">
+              <Boton variante="sutil" disabled={enCurso} onClick={() => { setConfirmandoArchivo(false) }}>
                 Volver
               </Boton>
-
-              {informe !== null && informe.pendientes > 0 && (
-                <Boton variante="primario" cargando={enCurso} onClick={() => { void importar() }}>
-                  Copiar {informe.pendientes} {informe.pendientes === 1
-                    ? GLOSARIO.proceso.singular.toLowerCase()
-                    : GLOSARIO.proceso.plural.toLowerCase()}
-                </Boton>
-              )}
-
-              {informe !== null && informe.pendientes === 0 && (
-                <Boton variante="secundario" cargando={enCurso} onClick={() => { void comprobar() }}>
-                  Volver a comprobar
-                </Boton>
-              )}
-
-              {/* Archivar cierra el ciclo, y por eso esta aca y no en otro menu: quien acaba de
-                  comprobar que la copia esta bien es quien tiene que poder terminar el trabajo. */}
-              <Boton
-                variante="peligro"
-                disabled={!habilitaArchivar(informe) || enCurso}
-                onClick={() => { void archivarOrigen() }}
-              >
-                Archivar {informe === null ? '' : `"${informe.origen.nombre}"`}
+              <Boton variante="peligro" cargando={enCurso} onClick={() => { void archivarOrigen() }}>
+                Archivar
               </Boton>
-            </>
-            )}
-      </div>
+            </div>
+          </div>
+          )
+        : (
+          <div className="mt-4 flex flex-wrap justify-end gap-2">
+            {fase === 'elegir'
+              ? (
+                <>
+                  <Boton variante="sutil" disabled={enCurso} onClick={onCerrar}>Cancelar</Boton>
+                  <Boton variante="primario" cargando={enCurso} onClick={() => { void comprobar() }}>
+                    Ver qué se va a copiar
+                  </Boton>
+                </>
+                )
+              : (
+                <>
+                  <Boton variante="sutil" disabled={enCurso} onClick={() => { setFase('elegir') }}>
+                    Volver
+                  </Boton>
+
+                  {informe !== null && informe.pendientes > 0 && (
+                    <Boton variante="primario" cargando={enCurso} onClick={() => { void importar() }}>
+                      Copiar {informe.pendientes} {informe.pendientes === 1
+                        ? GLOSARIO.proceso.singular.toLowerCase()
+                        : GLOSARIO.proceso.plural.toLowerCase()}
+                    </Boton>
+                  )}
+
+                  {informe !== null && informe.pendientes === 0 && (
+                    <Boton variante="secundario" cargando={enCurso} onClick={() => { void comprobar() }}>
+                      Volver a comprobar
+                    </Boton>
+                  )}
+
+                  {/* Archivar cierra el ciclo, y por eso esta aca y no en otro menu: quien acaba de
+                      comprobar que la copia esta bien es quien tiene que poder terminar el trabajo. */}
+                  <Boton
+                    variante="peligro"
+                    disabled={!habilitaArchivar(informe) || enCurso}
+                    onClick={() => { setConfirmandoArchivo(true) }}
+                  >
+                    Archivar {informe === null ? '' : `"${informe.origen.nombre}"`}
+                  </Boton>
+                </>
+                )}
+          </div>
+          )}
     </div>
   )
 }
