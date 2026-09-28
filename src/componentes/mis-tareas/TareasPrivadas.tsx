@@ -37,12 +37,13 @@ interface PropsTareasPrivadas {
  * responsable, y esta siempre tiene uno.
  *
  * Es cliente y no servidor porque hace de puente entre el alta y la lista: la lista se pide desde el
- * navegador, asi que `router.refresh()` no la tocaria. El contador de version es lo que le avisa.
+ * navegador, asi que `router.refresh()` no la tocaria. Crear una Tarea privada avisa sola: `POST
+ * tasks` dispara `ops:tareas-cambiadas` (`escribirEnBff`), y `TareasAsignadas` ya lo escucha para
+ * volver a pedir su pagina.
  *
  * @returns La seccion de privadas: boton de alta, tabla y paginador.
  */
 export function TareasPrivadas ({ personaId, estados, rutaDetalle, verCompletadas, consultaExtra = null, vacio }: PropsTareasPrivadas) {
-  const [version, setVersion] = useState(0)
   const singular = GLOSARIO.proceso.singular.toLowerCase()
 
   return (
@@ -52,12 +53,14 @@ export function TareasPrivadas ({ personaId, estados, rutaDetalle, verCompletada
       estados={estados}
       consultaExtra={consultaExtra === null ? SOLO_SIN_ESPACIO : `${SOLO_SIN_ESPACIO}&${consultaExtra}`}
       rutaDetalle={rutaDetalle}
-      version={version}
       verCompletadas={verCompletadas}
       // Una privada es de quien mira —asignada y creada por ella—, asi que el estado se corrige
       // desde la lista sin pasar por el detalle. Ver `estadoEditable` en `TareasAsignadas`.
       estadoEditable
-      accion={<DialogoTareaPrivada personaId={personaId} onCreada={() => { setVersion((n) => n + 1) }} />}
+      // Distinta de la de "Espacios y Licitaciones" en la misma pagina: sin esto, las dos tablas
+      // leerian y escribirian `page`/`sort` en el mismo lugar. Ver `prefijoUrl` en `TareasAsignadas`.
+      prefijoUrl="priv_"
+      accion={<DialogoTareaPrivada personaId={personaId} />}
       vacio={vacio ?? {
         titulo: `No tienes ${GLOSARIO.proceso.plural.toLowerCase()} privadas`,
         descripcion: `Una ${singular} privada no cuelga de ningún ${GLOSARIO.espacio.singular.toLowerCase()}: es tuya y sólo aparece en tu hoja.`
@@ -75,9 +78,8 @@ export function TareasPrivadas ({ personaId, estados, rutaDetalle, verCompletada
  * que `POST /tasks` exige o que sirven de algo sin Espacio; el resto se edita desde el detalle.
  *
  * @param personaId A quien se le asigna. Es lo que la hace privada y no huerfana.
- * @param onCreada Se llama despues de crear, para que la lista se vuelva a pedir.
  */
-function DialogoTareaPrivada ({ personaId, onCreada }: { personaId: number, onCreada: () => void }) {
+function DialogoTareaPrivada ({ personaId }: { personaId: number }) {
   const [abierto, setAbierto] = useState(false)
   const [nombre, setNombre] = useState('')
   const [descripcion, setDescripcion] = useState('')
@@ -142,7 +144,6 @@ function DialogoTareaPrivada ({ personaId, onCreada }: { personaId: number, onCr
 
     limpiar()
     setAbierto(false)
-    onCreada()
   }
 
   return (
