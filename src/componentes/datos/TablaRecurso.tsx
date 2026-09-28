@@ -13,7 +13,7 @@ import { CargandoConOrbe } from '@/componentes/estado/Orbe'
 import { useAviso } from '@/componentes/estado/useAviso'
 import { CLASES_CASILLA } from '@/componentes/formularios/Entrada'
 import { Segmentado, type OpcionSegmentada } from '@/componentes/formularios/Segmentado'
-import { MenuAccionesFila } from '@/componentes/datos/MenuAccionesFila'
+import { MenuAccionesFila, type AccionDeBorrado } from '@/componentes/datos/MenuAccionesFila'
 import { cn } from '@/lib/clases'
 import { CeldaEncabezado, CeldaTabla, CuerpoTabla, EncabezadoTabla, FilaTabla, Tabla } from './Tabla'
 import { ControlesTabla, PaginacionTabla } from './ControlesTabla'
@@ -171,6 +171,29 @@ interface PropsTablaRecurso<T> {
    * `page`/`sort` en el mismo lugar y paginar una moveria la otra.
    */
   prefijoUrl?: string
+  /**
+   * Editar la fila desde el menu declarativo "⋯", junto a las `acciones` de la definicion y el
+   * "Eliminar" de `borradoDeFila`.
+   *
+   * Es un prop de la tabla y no de `filaExtra` porque `definicion.acciones` ya pinta su propio menu:
+   * sin esto, una tabla con acciones declarativas y edicion terminaria con dos disparadores "⋯" en la
+   * misma fila. Con esto los tres —acciones, Editar y Eliminar— comparten el mismo menu.
+   *
+   * @param fila la fila sobre la que se hizo clic en "Editar"
+   */
+  onEditarFila?: (fila: T) => void
+  /**
+   * Agrega "Eliminar" al mismo menu que `onEditarFila`, con su `ConfirmarBorrado`.
+   *
+   * Devuelve `undefined` para una fila puntual que no se puede borrar (permisos por fila, no solo por
+   * seccion): el item desaparece solo para esa fila. `recargar` es el mismo que recibe `filaExtra`:
+   * `onConfirmar` la llama tras borrar para que la fila desaparezca de la lista.
+   *
+   * @param fila la fila a borrar
+   * @param recargar vuelve a pedir la pagina vigente
+   * @returns el contrato de `ConfirmarBorrado`, o `undefined` si esta fila no se puede borrar
+   */
+  borradoDeFila?: (fila: T, recargar: () => void) => AccionDeBorrado | undefined
 }
 
 /**
@@ -224,7 +247,9 @@ export function TablaRecurso<T> ({
   consultaDelInicial,
   className,
   datos,
-  prefijoUrl
+  prefijoUrl,
+  onEditarFila,
+  borradoDeFila
 }: PropsTablaRecurso<T>) {
   const router = useRouter()
 
@@ -532,7 +557,7 @@ export function TablaRecurso<T> ({
                   <Celda columna={columna} fila={fila} catalogos={opcionesDeFiltro} />
                 </CeldaTabla>
               ))}
-              {(acciones.length > 0 || filaExtra !== undefined) && (
+              {(acciones.length > 0 || filaExtra !== undefined || onEditarFila !== undefined || borradoDeFila !== undefined) && (
                 <CeldaTabla>
                   {/* `stopPropagation`: la fila entera es un enlace cuando `urlDeFila`
                       devuelve algo, y un clic en "Editar" no tiene que navegar ademas. */}
@@ -541,12 +566,14 @@ export function TablaRecurso<T> ({
                     onClick={(evento) => { evento.stopPropagation() }}
                   >
                     {filaExtra?.(fila, recargar)}
-                    {acciones.length > 0 && (
+                    {(acciones.length > 0 || onEditarFila !== undefined || borradoDeFila !== undefined) && (
                       <MenuAcciones
                         acciones={acciones}
                         id={claveFila(fila)}
                         onError={setError}
                         onListo={recargar}
+                        onEditar={onEditarFila === undefined ? undefined : () => { onEditarFila(fila) }}
+                        borrado={borradoDeFila?.(fila, recargar)}
                       />
                     )}
                   </span>
@@ -659,10 +686,14 @@ interface PropsMenuAcciones {
   id: string | number
   onError: (error: CuerpoError) => void
   onListo: () => void
+  /** `onEditarFila` de la tabla, ya resuelto para esta fila. Ver `MenuAccionesFila.onEditar`. */
+  onEditar?: () => void
+  /** `borradoDeFila` de la tabla, ya resuelto para esta fila. Ver `MenuAccionesFila.borrado`. */
+  borrado?: AccionDeBorrado
 }
 
 /** Menu de acciones de una fila. Al terminar refresca la vista: el backend es quien sabe como quedo. */
-function MenuAcciones ({ acciones, id, onError, onListo }: PropsMenuAcciones) {
+function MenuAcciones ({ acciones, id, onError, onListo, onEditar, borrado }: PropsMenuAcciones) {
   const [enCurso, setEnCurso] = useState(false)
   const aviso = useAviso()
 
@@ -695,6 +726,8 @@ function MenuAcciones ({ acciones, id, onError, onListo }: PropsMenuAcciones) {
     <MenuAccionesFila
       cargando={enCurso}
       ariaLabel="Acciones"
+      onEditar={onEditar}
+      borrado={borrado}
       acciones={acciones.map((accion) => ({
         clave: accion.clave,
         etiqueta: accion.etiqueta,

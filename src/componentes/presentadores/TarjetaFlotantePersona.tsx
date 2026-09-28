@@ -147,7 +147,9 @@ export function TarjetaFlotantePersona ({
         onKeyDown={(evento) => { if (evento.key === 'Escape') setAbierto(false) }}
         className="hover:text-acento inline-flex min-w-0 items-center gap-2 underline-offset-4 hover:underline"
       >
-        <Avatar nombre={nombre} imagen={imagen} tamano={tamano} />
+        {/* `sinTitulo`: este avatar ya dispara la tarjeta flotante al mismo hover/foco. El `title`
+            nativo del navegador apareceria unos milisegundos antes que ella y la taparia. */}
+        <Avatar nombre={nombre} imagen={imagen} tamano={tamano} sinTitulo />
         {mostrarNombre && <span className="truncate">{nombre}</span>}
       </Link>
 

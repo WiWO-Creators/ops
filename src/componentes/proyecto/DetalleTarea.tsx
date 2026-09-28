@@ -285,8 +285,8 @@ export function DetalleTarea (
               </Boton>
             )}
 
-            {/* Borrar vive en el detalle y no en la fila del listado: es irreversible, y la decision
-                se toma mirando la tarea, no un renglon de una tabla. Sin `puedeEditar` toma el
+            {/* El mismo borrado tambien esta en el menu "⋯" de la fila (`TablaProcesos`), por el mismo
+                endpoint. Sin `puedeEditar` toma el
                 `ml-auto` para quedar igual de alineado. */}
             {puedeBorrar && !confirmandoBorrado && (
               <Boton
