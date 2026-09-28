@@ -1,5 +1,5 @@
 import type { AccionRecurso, Columna, DefinicionRecurso, EstadoConsulta, Filtro, OpcionFiltro } from '@/definiciones/tipos'
-import type { Capacidad, SobreError } from '@/datos/tipos'
+import type { Capacidad, Paginacion, SobreError } from '@/datos/tipos'
 
 /**
  * Logica del motor de tabla que no necesita React.
@@ -283,6 +283,79 @@ export function idDeParametro (crudo: string | null): number | null {
   const id = Number(crudo)
 
   return Number.isInteger(id) && id > 0 ? id : null
+}
+
+/**
+ * El valor de un campo de la fila, para comparar en un orden local. `undefined` si la fila no tiene
+ * esa clave o su valor no es comparable (un objeto, un arreglo).
+ */
+function valorOrdenable (fila: unknown, campo: string): string | number | undefined {
+  if (typeof fila !== 'object' || fila === null) return undefined
+
+  const valor = (fila as Record<string, unknown>)[campo]
+
+  if (typeof valor === 'string' || typeof valor === 'number') return valor
+
+  return undefined
+}
+
+/**
+ * Ordena filas ya cargadas en memoria, sin pedirle nada al backend.
+ *
+ * Es el modo "memoria" de `TablaRecurso` (prop `datos`): la tabla sigue leyendo el orden de la URL
+ * —`estado.orden`, con `-` para descendente—, pero en vez de mandarlo como `sort` a la API lo aplica
+ * aca mismo sobre el arreglo completo. Un valor ausente o no comparable se manda al final, en el
+ * orden en que llego: es mas util que reordenar la lista entera por un dato que falta en una fila.
+ *
+ * @param filas las filas completas, ya en memoria
+ * @param orden campos de `EstadoConsulta.orden`, con `-` para descendente; el primero manda
+ * @returns un arreglo nuevo, ordenado; el mismo arreglo si `orden` viene vacio
+ */
+export function ordenarLocalmente<T> (filas: T[], orden: string[]): T[] {
+  const campo = orden[0]
+
+  if (campo === undefined || campo === '') return filas
+
+  const descendente = campo.startsWith('-')
+  const clave = descendente ? campo.slice(1) : campo
+
+  return [...filas].sort((a, b) => {
+    const valorA = valorOrdenable(a, clave)
+    const valorB = valorOrdenable(b, clave)
+
+    if (valorA === undefined && valorB === undefined) return 0
+    if (valorA === undefined) return 1
+    if (valorB === undefined) return -1
+
+    const comparacion = valorA < valorB ? -1 : valorA > valorB ? 1 : 0
+
+    return descendente ? -comparacion : comparacion
+  })
+}
+
+/**
+ * Pagina localmente un arreglo ya ordenado, con la misma forma de `ResultadoLista` que devuelve el
+ * BFF: es lo que deja que `PaginacionTabla` y el resto del motor no sepan si la pagina vino del
+ * servidor o de memoria.
+ *
+ * @param filas el arreglo completo, ya ordenado
+ * @param pagina pagina vigente, 1-indexada
+ * @param porPagina tamaño de pagina vigente
+ * @returns las filas de esa pagina y su `Paginacion`
+ */
+export function paginarLocalmente<T> (
+  filas: T[],
+  pagina: number,
+  porPagina: number
+): { filas: T[], paginacion: Paginacion } {
+  const total = filas.length
+  const totalPaginas = Math.max(1, Math.ceil(total / porPagina))
+  const inicio = (pagina - 1) * porPagina
+
+  return {
+    filas: filas.slice(inicio, inicio + porPagina),
+    paginacion: { page: pagina, per_page: porPagina, total, total_pages: totalPaginas }
+  }
 }
 
 /**
