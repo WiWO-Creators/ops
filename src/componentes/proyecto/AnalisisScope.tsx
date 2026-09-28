@@ -1,9 +1,11 @@
 'use client'
 
-import { useEffect, useMemo, useState, type ReactElement } from 'react'
+import { Suspense, useEffect, useMemo, useState, type ReactElement } from 'react'
 import Link from 'next/link'
 import { Boton } from '@/componentes/formularios/Boton'
+import { Cargando } from '@/componentes/estado/Estados'
 import { Entrada } from '@/componentes/formularios/Entrada'
+import { useParametroEnUrl } from '@/componentes/datos/useFiltrosEnUrl'
 import { Segmentado } from '@/componentes/formularios/Segmentado'
 import { Insignia } from '@/componentes/presentadores/Insignia'
 import { Fecha } from '@/componentes/presentadores/Fecha'
@@ -132,7 +134,12 @@ export function AnalisisDelScope ({ proyectoId, analisis, hayScope, ia, onAnaliz
         </p>
       )}
 
-      {analisis !== null && <ResultadoAnalisis proyectoId={proyectoId} analisis={analisis} />}
+      {/* `useParametroEnUrl` lee `useSearchParams`: sin este limite de Suspense falla el build. */}
+      {analisis !== null && (
+        <Suspense fallback={<Cargando alto="min-h-40" mensaje="Cargando el análisis…" />}>
+          <ResultadoAnalisis proyectoId={proyectoId} analisis={analisis} />
+        </Suspense>
+      )}
     </section>
   )
 }
@@ -142,10 +149,27 @@ interface PropsResultado {
   analisis: AnalisisScope
 }
 
-/** Conteos, resumen y la lista de Tareas filtrable. */
+const FILTROS_VEREDICTO_VALIDOS: FiltroVeredicto[] = ['todas', ...ORDEN_VEREDICTOS]
+
+/** Conteos, resumen y la lista de Tareas filtrable. El filtro y la búsqueda viven en la URL. */
 function ResultadoAnalisis ({ proyectoId, analisis }: PropsResultado): ReactElement {
-  const [filtro, setFiltro] = useState<FiltroVeredicto>('todas')
-  const [busqueda, setBusqueda] = useState('')
+  const parametroFiltro = useParametroEnUrl('veredicto')
+  const parametroBusqueda = useParametroEnUrl('buscar')
+
+  const filtro = FILTROS_VEREDICTO_VALIDOS.includes(parametroFiltro.valor as FiltroVeredicto)
+    ? parametroFiltro.valor as FiltroVeredicto
+    : 'todas'
+  const busqueda = parametroBusqueda.valor ?? ''
+
+  function setFiltro (valor: FiltroVeredicto): void {
+    if (valor === 'todas') parametroFiltro.quitar()
+    else parametroFiltro.escribir(valor)
+  }
+
+  function setBusqueda (valor: string): void {
+    if (valor === '') parametroBusqueda.quitar()
+    else parametroBusqueda.escribir(valor)
+  }
 
   const visibles = useMemo(
     () => filtrarTareas(analisis.tareas, filtro, busqueda),

@@ -1,12 +1,13 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { Suspense, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { ArrowUpRight, ChevronRight, Sparkles } from 'lucide-react'
 import { ControlesDeCartera } from './ControlesDeCartera'
 import { Boton } from '@/componentes/formularios/Boton'
 import { Insignia } from '@/componentes/presentadores/Insignia'
-import { Vacio } from '@/componentes/estado/Estados'
+import { Cargando, Vacio } from '@/componentes/estado/Estados'
+import { useParametroEnUrl } from '@/componentes/datos/useFiltrosEnUrl'
 import { DesgloseSenales, TRAMOS, Variacion } from '@/componentes/clientes/SemaforoCliente'
 import { mensajeDeRespuesta } from '@/datos/cliente'
 import {
@@ -66,16 +67,63 @@ import { cn } from '@/lib/clases'
  * @param mostrarFocal si cada cuenta lleva el nombre de quien responde por ella. Se enciende para
  *   quien mira la cartera entera: sobre la cartera propia sería el mismo nombre en todas las filas
  */
-export function PanelFocals ({
+const FILTROS_VALIDOS: FiltroDeCartera[] = ['verde', 'amarillo', 'rojo', 'sin_datos', 'sin_focal', 'todas']
+const ORDENES_VALIDOS: OrdenDeCartera[] = ['peor', 'nombre', 'criticos']
+
+/**
+ * Un valor leido de la URL, validado contra los que la pantalla conoce.
+ *
+ * La URL se edita a mano: un valor viejo o inventado cae al valor por defecto en vez de romper el
+ * filtro o el orden.
+ *
+ * @param valor Lo que trae la URL, o `null` si no esta puesto.
+ * @param validos Los valores que la pantalla acepta.
+ * @param porDefecto El que se usa cuando `valor` no es ninguno de los validos.
+ */
+function comoValorValido<V extends string> (valor: string | null, validos: V[], porDefecto: V): V {
+  return validos.includes(valor as V) ? (valor as V) : porDefecto
+}
+
+/** El texto, el filtro y el orden viven en la URL: un enlace a la cartera filtrada se comparte igual
+ * que cualquier otra vista con filtros, y recargar no la pierde. */
+export function PanelFocals (props: { cuentas: CuentaFocal[], mostrarFocal?: boolean }) {
+  // `useParametroEnUrl` lee `useSearchParams`: sin este limite de Suspense falla el build.
+  return (
+    <Suspense fallback={<Cargando alto="min-h-60" mensaje="Cargando la cartera…" />}>
+      <CuerpoDePanelFocals {...props} />
+    </Suspense>
+  )
+}
+
+function CuerpoDePanelFocals ({
   cuentas,
   mostrarFocal = false
 }: {
   cuentas: CuentaFocal[]
   mostrarFocal?: boolean
 }) {
-  const [texto, setTexto] = useState('')
-  const [filtro, setFiltro] = useState<FiltroDeCartera>('todas')
-  const [orden, setOrden] = useState<OrdenDeCartera>('peor')
+  const parametroTexto = useParametroEnUrl('buscar')
+  const parametroFiltro = useParametroEnUrl('filtro')
+  const parametroOrden = useParametroEnUrl('orden')
+
+  const texto = parametroTexto.valor ?? ''
+  const filtro = comoValorValido(parametroFiltro.valor, FILTROS_VALIDOS, 'todas')
+  const orden = comoValorValido(parametroOrden.valor, ORDENES_VALIDOS, 'peor')
+
+  function setTexto (valor: string): void {
+    if (valor === '') parametroTexto.quitar()
+    else parametroTexto.escribir(valor)
+  }
+
+  function setFiltro (valor: FiltroDeCartera): void {
+    if (valor === 'todas') parametroFiltro.quitar()
+    else parametroFiltro.escribir(valor)
+  }
+
+  function setOrden (valor: OrdenDeCartera): void {
+    if (valor === 'peor') parametroOrden.quitar()
+    else parametroOrden.escribir(valor)
+  }
 
   const resumen = useMemo(() => resumirCartera(cuentas), [cuentas])
   const visibles = useMemo(
