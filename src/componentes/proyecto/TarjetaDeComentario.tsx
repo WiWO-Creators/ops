@@ -1,6 +1,7 @@
 import { Paperclip } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { Avatar } from '@/componentes/presentadores/Avatar'
+import { EnlacePersona } from '@/componentes/presentadores/EnlacePersona'
 import { Fecha } from '@/componentes/presentadores/Fecha'
 import { Insignia } from '@/componentes/presentadores/Insignia'
 import { cn } from '@/lib/clases'
@@ -22,7 +23,16 @@ export interface ComentarioParaMostrar {
   /** Texto legible, ya sin HTML. */
   content: string
   created: string | null
-  author: { full_name: string, es_cliente: boolean, profile_image_url?: string | null } | null
+  author: {
+    full_name: string
+    es_cliente: boolean
+    profile_image_url?: string | null
+    /**
+     * Id de staff del autor, para enlazarlo con `EnlacePersona`. Ausente si el autor es un contacto
+     * (`es_cliente` en `true`) o si quien arma `comentario` no lo agrego.
+     */
+    id?: number
+  } | null
   file: { name: string, url: string } | null
   /** Perfex marco el comentario con un adjunto que ninguna ruta sirve todavia. */
   con_adjunto?: boolean
@@ -36,6 +46,10 @@ interface PropsTarjetaDeComentario {
   children?: ReactNode
   /** Una respuesta: sin marco propio, porque ya esta dentro de la tarjeta de su raiz. */
   anidado?: boolean
+  /** Capacidades de quien mira sobre `staff`, para decidir si el autor se enlaza con `EnlacePersona`. */
+  capacidades?: readonly string[]
+  /** `true` si la tarjeta se dibuja dentro del portal del cliente: el autor nunca se enlaza ahi. */
+  esPortal?: boolean
   className?: string
 }
 
@@ -44,13 +58,18 @@ interface PropsTarjetaDeComentario {
  * @param acciones botones opcionales del comentario
  * @param children respuestas y cuadro de respuesta, si los hay
  * @param anidado si es una respuesta dentro de otro comentario
+ * @param capacidades capacidades de quien mira sobre `staff`
+ * @param esPortal si la tarjeta se dibuja dentro del portal del cliente
  * @param className clases extra para el `<li>`
  * @returns la tarjeta del comentario
  */
 export function TarjetaDeComentario (
-  { comentario, acciones, children, anidado = false, className }: PropsTarjetaDeComentario
+  { comentario, acciones, children, anidado = false, capacidades = [], esPortal = false, className }: PropsTarjetaDeComentario
 ) {
   const autor = comentario.author?.full_name ?? 'Sin autor'
+  const tamanoAvatar = anidado ? 'chico' : 'medio'
+  // Solo el staff tiene ficha en `/equipo`: un contacto (`es_cliente`) o un autor sin id nunca enlaza.
+  const idDelAutor = comentario.author?.es_cliente === false ? comentario.author.id : undefined
 
   return (
     <li
@@ -62,7 +81,19 @@ export function TarjetaDeComentario (
         className
       )}
     >
-      <Avatar nombre={autor} imagen={comentario.author?.profile_image_url ?? null} tamano={anidado ? 'chico' : 'medio'} />
+      {idDelAutor === undefined
+        ? <Avatar nombre={autor} imagen={comentario.author?.profile_image_url ?? null} tamano={tamanoAvatar} />
+        : (
+          <EnlacePersona
+            id={idDelAutor}
+            nombre={autor}
+            imagen={comentario.author?.profile_image_url ?? null}
+            tamano={tamanoAvatar}
+            capacidades={capacidades}
+            esPortal={esPortal}
+            mostrarNombre={false}
+          />
+          )}
 
       <div className="flex min-w-0 flex-1 flex-col gap-1">
         <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
