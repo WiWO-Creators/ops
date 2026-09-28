@@ -6,6 +6,7 @@ import {
   ContenidoMenu, DisparadorMenu, GrupoRadioMenu, ItemMenuRadio, MenuContextual
 } from '@/componentes/superposiciones/MenuContextual'
 import { escribirEnBff } from '@/componentes/datos/mutaciones'
+import { useAviso } from '@/componentes/estado/useAviso'
 import type { EstadoLookup } from '@/datos/recursos'
 import { falloDeTicket, nombreEnCatalogo, type FuenteDeTicket } from '@/dominio/ticket-vista'
 import { cn } from '@/lib/clases'
@@ -46,17 +47,16 @@ export function MenuCatalogoTicket ({
   sinNombre: FuenteDeTicket['catalogoSinNombre']
   onCambiado: () => void
 }): ReactElement | null {
+  const avisar = useAviso()
   const [pintado, setPintado] = useState(valor)
   const [ultimoDeLaApi, setUltimoDeLaApi] = useState(valor)
   const [enCurso, setEnCurso] = useState(false)
-  const [error, setError] = useState<string | null>(null)
 
   // Se realinea cuando la ficha recargada trae otro valor. `setState` en el render, como en
   // `MenuEstadoTarea`, en vez de encadenar renders desde un efecto.
   if (ultimoDeLaApi !== valor) {
     setUltimoDeLaApi(valor)
     setPintado(valor)
-    setError(null)
   }
 
   const opcion = catalogo.find((item) => item.id === pintado)
@@ -83,7 +83,6 @@ export function MenuCatalogoTicket ({
     const previo = pintado
 
     setPintado(destino)
-    setError(null)
     setEnCurso(true)
 
     const resultado = await escribirEnBff<unknown>(rutaEditar, 'PATCH', { [campo]: destino })
@@ -92,7 +91,7 @@ export function MenuCatalogoTicket ({
 
     if (!resultado.ok) {
       setPintado(previo)
-      setError(falloDeTicket(resultado, 'editar').texto)
+      avisar.error(falloDeTicket(resultado, 'editar').texto)
 
       return
     }
@@ -129,8 +128,6 @@ export function MenuCatalogoTicket ({
           </GrupoRadioMenu>
         </ContenidoMenu>
       </MenuContextual>
-
-      {error !== null && <p role="alert" className="text-texto-peligro text-xs">{error}</p>}
     </div>
   )
 }

@@ -12,6 +12,7 @@ import {
   MenuContextual
 } from '@/componentes/superposiciones/MenuContextual'
 import { escribirEnBff } from '@/componentes/datos/mutaciones'
+import { useAviso } from '@/componentes/estado/useAviso'
 import { cn } from '@/lib/clases'
 import { ESTADOS_DESTACADOS, estadoDelCatalogo, pildoraDeEstado } from './estado-proyecto'
 import type { EstadoLookup } from '@/datos/recursos'
@@ -50,6 +51,7 @@ export function MenuEstadoProyecto ({
   catalogo
 }: PropsMenuEstadoProyecto): ReactElement | null {
   const router = useRouter()
+  const avisar = useAviso()
   // Lo que se pinta: arranca en el estado de la API y se adelanta al elegir. Se vuelve a alinear
   // sola cuando el refresco de la ficha trae un `status` distinto al del render anterior. React
   // admite este `setState` durante el render —reinicia el render antes de pintar— y es lo que la
@@ -57,12 +59,10 @@ export function MenuEstadoProyecto ({
   const [pintado, setPintado] = useState(estado)
   const [ultimoDeLaApi, setUltimoDeLaApi] = useState(estado)
   const [enCurso, setEnCurso] = useState(false)
-  const [error, setError] = useState<string | null>(null)
 
   if (ultimoDeLaApi !== estado) {
     setUltimoDeLaApi(estado)
     setPintado(estado)
-    setError(null)
   }
 
   /**
@@ -81,7 +81,6 @@ export function MenuEstadoProyecto ({
     const previo = pintado
 
     setPintado(destino)
-    setError(null)
     setEnCurso(true)
 
     const resultado = await escribirEnBff(`projects/${proyectoId}`, 'PATCH', { status: destino })
@@ -90,7 +89,7 @@ export function MenuEstadoProyecto ({
 
     if (!resultado.ok) {
       setPintado(previo)
-      setError(resultado.mensaje)
+      avisar.error(resultado.mensaje)
 
       return
     }
@@ -144,10 +143,6 @@ export function MenuEstadoProyecto ({
           </GrupoRadioMenu>
         </ContenidoMenu>
       </MenuContextual>
-
-      {error !== null && (
-        <p role="alert" className="text-texto-peligro text-xs">{error}</p>
-      )}
     </div>
   )
 }

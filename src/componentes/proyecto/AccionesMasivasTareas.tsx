@@ -2,7 +2,9 @@
 
 import { useEffect, useState, type ReactElement } from 'react'
 import { Boton } from '@/componentes/formularios/Boton'
+import { AvisoEnLinea } from '@/componentes/estado/Estados'
 import { CargandoConOrbe } from '@/componentes/estado/Orbe'
+import { useAviso } from '@/componentes/estado/useAviso'
 import { Campo } from '@/componentes/formularios/Campo'
 import { CLASES_CASILLA, Entrada } from '@/componentes/formularios/Entrada'
 import {
@@ -130,6 +132,7 @@ export function AccionesMasivasTareas ({
   limpiar,
   recargar
 }: PropsAcciones): ReactElement | null {
+  const avisar = useAviso()
   const [accion, setAccion] = useState<AccionMasivaDescrita | null>(null)
   const [valor, setValor] = useState('')
   const [enCurso, setEnCurso] = useState(false)
@@ -251,7 +254,9 @@ export function AccionesMasivasTareas ({
       recargar()
 
       if (omitidos.length > 0) {
-        setError(`Se aplicó a ${sobre.data.aplicados}. ${omitidos.length} quedaron sin cambiar por permisos.`)
+        avisar.advertencia(`Se aplicó a ${sobre.data.aplicados}. ${omitidos.length} quedaron sin cambiar por permisos.`)
+      } else {
+        avisar.exito(`Se aplicó a ${sobre.data.aplicados}.`)
       }
     } catch {
       setError('No se pudo aplicar: revisa la conexión.')
@@ -292,10 +297,6 @@ export function AccionesMasivasTareas ({
           ))}
         </ContenidoMenu>
       </MenuContextual>
-
-      {error !== null && (
-        <p role="alert" className="text-texto-peligro w-full text-xs">{error}</p>
-      )}
 
       <Dialogo open={accion !== null} onOpenChange={(abierto) => { if (!abierto && !enCurso) setAccion(null) }}>
         <ContenidoDialogo
@@ -388,10 +389,10 @@ export function AccionesMasivasTareas ({
               />
             )}
 
-            {accion?.control === 'proyecto' && errorProyectos !== null && <p role="alert" className="text-texto-peligro text-xs">{errorProyectos}</p>}
+            {accion?.control === 'proyecto' && errorProyectos !== null && <AvisoEnLinea variante="error" mensaje={errorProyectos} />}
             {accion?.control === 'proyecto' && !cargandoProyectos && errorProyectos === null && proyectos.length === 0 && <p role="status" className="text-texto-sutil text-sm">No hay proyectos disponibles.</p>}
 
-            {error !== null && <p role="alert" className="text-texto-peligro text-xs">{error}</p>}
+            {error !== null && <AvisoEnLinea variante="error" mensaje={error} />}
 
             <div className="flex justify-end gap-2">
               <CerrarDialogo asChild>

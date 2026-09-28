@@ -2,6 +2,7 @@
 
 import { Lock, MessageCircleQuestion, MessageSquareText } from 'lucide-react'
 import { useEffect, useRef, useState, type ReactElement } from 'react'
+import { AvisoEnLinea } from '@/componentes/estado/Estados'
 import { Boton } from '@/componentes/formularios/Boton'
 import { AreaTexto } from '@/componentes/formularios/Entrada'
 import { ContenidoSelector, DisparadorSelector, Opcion, Selector } from '@/componentes/formularios/Selector'
@@ -197,7 +198,7 @@ export function CajaDeRespuesta ({
         }}
       />
 
-      {fallo !== null && <p role="alert" className="text-texto-peligro text-sm">{fallo}</p>}
+      {fallo !== null && <AvisoEnLinea variante="error" mensaje={fallo} className="text-sm" />}
 
       <div className="flex flex-wrap items-center justify-end gap-2">
         <p id={`${idCampo}-atajo`} className="text-texto-sutil mr-auto text-xs">
@@ -241,7 +242,7 @@ function SinRespuesta ({ ticket, nombre, escrito, fallo }: { ticket: TicketVista
         <Icono size={16} strokeWidth={1.75} aria-hidden="true" className="mt-0.5 shrink-0" />
         <p className="text-pretty">{avisoSinRespuesta(ticket.respuesta.motivo, nombre)}</p>
       </div>
-      {fallo !== null && <p role="alert" className="text-texto-peligro text-sm">{fallo}</p>}
+      {fallo !== null && <AvisoEnLinea variante="error" mensaje={fallo} className="text-sm" />}
       {escrito.trim() !== '' && (
         <>
           <label htmlFor={`sin-enviar-${ticket.id}`} className="text-texto-tenue text-sm font-semibold">

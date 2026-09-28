@@ -3,6 +3,8 @@
 import { useRouter } from 'next/navigation'
 import { useEffect, useRef, useState, type ChangeEvent } from 'react'
 import { escribirEnBff, subirArchivoEnBff } from '@/componentes/datos/mutaciones'
+import { AvisoEnLinea } from '@/componentes/estado/Estados'
+import { useAviso } from '@/componentes/estado/useAviso'
 import { Boton } from '@/componentes/formularios/Boton'
 import { Campo } from '@/componentes/formularios/Campo'
 import { AreaTexto, Entrada } from '@/componentes/formularios/Entrada'
@@ -141,6 +143,7 @@ interface PropsFormularioPerfil {
  */
 export function FormularioPerfil ({ yo, perfil }: PropsFormularioPerfil) {
   const router = useRouter()
+  const aviso = useAviso()
   const entradaArchivo = useRef<HTMLInputElement>(null)
 
   const [foto, establecerFoto] = useState(perfil.profile_image_url)
@@ -148,7 +151,6 @@ export function FormularioPerfil ({ yo, perfil }: PropsFormularioPerfil) {
   const [previa, establecerPrevia] = useState<string | null>(null)
   const [subiendo, establecerSubiendo] = useState(false)
   const [errorFoto, establecerErrorFoto] = useState<string | null>(null)
-  const [fotoGuardada, establecerFotoGuardada] = useState(false)
 
   const inicialDatos: Datos = {
     firstname: yo.firstname,
@@ -164,7 +166,6 @@ export function FormularioPerfil ({ yo, perfil }: PropsFormularioPerfil) {
   const [erroresDatos, establecerErroresDatos] = useState<Partial<Record<ClaveDato, string>>>({})
   const [guardandoDatos, establecerGuardandoDatos] = useState(false)
   const [errorDatos, establecerErrorDatos] = useState<string | null>(null)
-  const [datosGuardados, establecerDatosGuardados] = useState(false)
 
   const [firma, establecerFirma] = useState(perfil.email_signature)
   // La ultima firma que la API confirmo. Es lo que decide si hay algo que guardar: comparar contra
@@ -173,7 +174,6 @@ export function FormularioPerfil ({ yo, perfil }: PropsFormularioPerfil) {
   const [firmaConfirmada, establecerFirmaConfirmada] = useState(perfil.email_signature)
   const [guardandoFirma, establecerGuardandoFirma] = useState(false)
   const [errorFirma, establecerErrorFirma] = useState<string | null>(null)
-  const [firmaGuardada, establecerFirmaGuardada] = useState(false)
 
   // Una URL de objeto ocupa memoria hasta que se revoca, y aca se crea una por cada archivo que la
   // persona prueba. Se libera al reemplazarla y al desmontar la pantalla.
@@ -190,8 +190,6 @@ export function FormularioPerfil ({ yo, perfil }: PropsFormularioPerfil) {
     // El input se vacia siempre: sin esto, volver a elegir el MISMO archivo no dispara `change` y la
     // persona ve que su clic no hace nada.
     evento.target.value = ''
-
-    establecerFotoGuardada(false)
 
     if (archivo === null) return
 
@@ -222,7 +220,6 @@ export function FormularioPerfil ({ yo, perfil }: PropsFormularioPerfil) {
 
     establecerSubiendo(true)
     establecerErrorFoto(null)
-    establecerFotoGuardada(false)
 
     const resultado = await subirArchivoEnBff<PerfilPropio>('me/foto', elegida, 'profile_image')
 
@@ -238,7 +235,7 @@ export function FormularioPerfil ({ yo, perfil }: PropsFormularioPerfil) {
     establecerFoto(resultado.datos.profile_image_url)
     establecerElegida(null)
     establecerPrevia(null)
-    establecerFotoGuardada(true)
+    aviso.exito('Foto actualizada.')
 
     // El avatar de la cabecera lo pinta el layout con `GET /me`, que corre en el servidor: refrescar
     // el arbol es lo que lo actualiza sin que nadie recargue la pagina a mano.
@@ -250,7 +247,6 @@ export function FormularioPerfil ({ yo, perfil }: PropsFormularioPerfil) {
     establecerDatos((previos) => ({ ...previos, [clave]: valor }))
     establecerErroresDatos((previos) => ({ ...previos, [clave]: undefined }))
     establecerErrorDatos(null)
-    establecerDatosGuardados(false)
   }
 
   /** Guarda nombre, apellido, correo y telefono. */
@@ -275,7 +271,6 @@ export function FormularioPerfil ({ yo, perfil }: PropsFormularioPerfil) {
     establecerGuardandoDatos(true)
     establecerErroresDatos({})
     establecerErrorDatos(null)
-    establecerDatosGuardados(false)
 
     const resultado = await escribirEnBff<PerfilPropio>('me/perfil', 'PATCH', recortados)
 
@@ -288,7 +283,7 @@ export function FormularioPerfil ({ yo, perfil }: PropsFormularioPerfil) {
 
     establecerDatos(recortados)
     establecerDatosConfirmados(recortados)
-    establecerDatosGuardados(true)
+    aviso.exito('Datos guardados.')
 
     // El nombre y el avatar de la cabecera los pinta el layout con `GET /me`, que corre en el
     // servidor: refrescar el arbol es lo que los actualiza sin recargar la pagina a mano.
@@ -304,7 +299,6 @@ export function FormularioPerfil ({ yo, perfil }: PropsFormularioPerfil) {
 
     establecerGuardandoFirma(true)
     establecerErrorFirma(null)
-    establecerFirmaGuardada(false)
 
     const resultado = await escribirEnBff<PerfilPropio>('me/perfil', 'PATCH', { email_signature: firma })
 
@@ -321,7 +315,7 @@ export function FormularioPerfil ({ yo, perfil }: PropsFormularioPerfil) {
     // al recargar la pantalla el valor cambiaria solo.
     establecerFirma(resultado.datos.email_signature)
     establecerFirmaConfirmada(resultado.datos.email_signature)
-    establecerFirmaGuardada(true)
+    aviso.exito('Firma guardada.')
   }
 
   const mostrada = previa ?? foto
@@ -377,8 +371,7 @@ export function FormularioPerfil ({ yo, perfil }: PropsFormularioPerfil) {
               ? <p className="text-texto-tenue truncate text-xs">Vista previa de {elegida.name}. Todavía no se guardó.</p>
               : <p className="text-texto-sutil text-xs">JPG o PNG, hasta 5 MB.</p>}
 
-            {errorFoto !== null && <p role="alert" className="text-texto-peligro text-xs">{errorFoto}</p>}
-            {fotoGuardada && <p role="status" className="text-texto-exito text-xs">Foto actualizada.</p>}
+            {errorFoto !== null && <AvisoEnLinea variante="error" mensaje={errorFoto} />}
           </div>
         </div>
       </Seccion>
@@ -455,10 +448,9 @@ export function FormularioPerfil ({ yo, perfil }: PropsFormularioPerfil) {
           >
             Guardar datos
           </Boton>
-          {datosGuardados && <span role="status" className="text-texto-exito text-xs">Datos guardados.</span>}
         </div>
 
-        {errorDatos !== null && <p role="alert" className="text-texto-peligro text-xs">{errorDatos}</p>}
+        {errorDatos !== null && <AvisoEnLinea variante="error" mensaje={errorDatos} />}
       </Seccion>
 
       <Seccion titulo="Firma de correo">
@@ -474,10 +466,7 @@ export function FormularioPerfil ({ yo, perfil }: PropsFormularioPerfil) {
               maxLength={LARGO_MAXIMO_FIRMA}
               disabled={guardandoFirma}
               placeholder="Todavía no tenés firma."
-              onChange={(evento) => {
-                establecerFirma(evento.target.value)
-                establecerFirmaGuardada(false)
-              }}
+              onChange={(evento) => { establecerFirma(evento.target.value) }}
             />
           )}
         </Campo>
@@ -492,7 +481,6 @@ export function FormularioPerfil ({ yo, perfil }: PropsFormularioPerfil) {
           >
             Guardar firma
           </Boton>
-          {firmaGuardada && <span role="status" className="text-texto-exito text-xs">Firma guardada.</span>}
         </div>
       </Seccion>
 

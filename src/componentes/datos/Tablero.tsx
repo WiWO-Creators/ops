@@ -4,6 +4,7 @@ import { ArrowLeft, ArrowRight, GripVertical } from 'lucide-react'
 import { Fragment, useCallback, useRef, useState, type ReactNode } from 'react'
 import { Boton } from '@/componentes/formularios/Boton'
 import { Vacio } from '@/componentes/estado/Estados'
+import { useAviso } from '@/componentes/estado/useAviso'
 import {
   ContenidoMenu,
   DisparadorMenu,
@@ -123,11 +124,11 @@ export function Tablero<T extends FilaConId> ({
   destinos
 }: PropsTablero<T>) {
   const tablero = definicion.tablero
+  const avisar = useAviso()
   const [grupos, setGrupos] = useState(() => ordenarColumnas(inicial))
   const guardandoOrden = useRef(false)
   const [columnaArrastrada, setColumnaArrastrada] = useState<number | null>(null)
   const [destinoColumna, setDestinoColumna] = useState<number | null>(null)
-  const [aviso, setAviso] = useState<string | null>(null)
   const [ocupado, setOcupado] = useState(false)
   const [arrastrada, setArrastrada] = useState<number | null>(null)
   const { contenedor, limites, desplazar } = useDesplazamientoTablero(arrastrada !== null || columnaArrastrada !== null, grupos.length)
@@ -172,17 +173,16 @@ export function Tablero<T extends FilaConId> ({
       const respuesta = await fetch(urlTablero(1), { headers: { accept: 'application/json' } })
 
       if (!respuesta.ok) {
-        setAviso(await mensajeDeError(respuesta))
+        avisar.error(await mensajeDeError(respuesta))
         return
       }
 
       const sobre = await respuesta.json() as Sobre<Array<GrupoTablero<T>>>
       setGrupos(ordenarColumnas(sobre.data))
-      setAviso(null)
     } catch {
-      setAviso('No se pudo actualizar el tablero: revisa la conexión. Lo que ves puede estar desactualizado.')
+      avisar.error('No se pudo actualizar el tablero: revisa la conexión. Lo que ves puede estar desactualizado.')
     }
-  }, [urlTablero, ordenarColumnas])
+  }, [urlTablero, ordenarColumnas, avisar])
 
   if (tablero === undefined) {
     return <Vacio titulo={`${definicion.titulo.plural} no tiene vista de tablero`} />
@@ -221,7 +221,6 @@ export function Tablero<T extends FilaConId> ({
     if (movimiento === null) return
 
     setGrupos(movimiento.grupos)
-    setAviso(null)
     setOcupado(true)
 
     try {
@@ -233,14 +232,14 @@ export function Tablero<T extends FilaConId> ({
 
       if (!respuesta.ok) {
         setGrupos(previo)
-        setAviso(await mensajeDeError(respuesta))
+        avisar.error(await mensajeDeError(respuesta))
         return
       }
 
       await recargar()
     } catch {
       setGrupos(previo)
-      setAviso('No se pudo mover: revisa la conexión.')
+      avisar.error('No se pudo mover: revisa la conexión.')
     } finally {
       setOcupado(false)
     }
@@ -259,7 +258,6 @@ export function Tablero<T extends FilaConId> ({
     const previo = grupos
     guardandoOrden.current = true
     setOcupado(true)
-    setAviso(null)
     setGrupos(siguientes)
     try {
       const respuesta = await fetch(`/api/bff/${rutaOrdenColumnas}`, {
@@ -269,11 +267,11 @@ export function Tablero<T extends FilaConId> ({
       })
       if (!respuesta.ok) {
         setGrupos(previo)
-        setAviso(await mensajeDeError(respuesta))
+        avisar.error(await mensajeDeError(respuesta))
       }
     } catch {
       setGrupos(previo)
-      setAviso('No se pudo guardar el orden: revisa la conexión e inténtalo de nuevo.')
+      avisar.error('No se pudo guardar el orden: revisa la conexión e inténtalo de nuevo.')
     } finally {
       guardandoOrden.current = false
       setOcupado(false)
@@ -296,7 +294,7 @@ export function Tablero<T extends FilaConId> ({
       })
 
       if (!respuesta.ok) {
-        setAviso(await mensajeDeError(respuesta))
+        avisar.error(await mensajeDeError(respuesta))
         return
       }
 
@@ -306,7 +304,7 @@ export function Tablero<T extends FilaConId> ({
 
       setGrupos((actuales) => agregarPagina(actuales, idColumna, traido.tarjetas, traido.pagination))
     } catch {
-      setAviso('No se pudieron traer más tarjetas: revisa la conexión.')
+      avisar.error('No se pudieron traer más tarjetas: revisa la conexión.')
     } finally {
       setOcupado(false)
     }
@@ -366,15 +364,6 @@ export function Tablero<T extends FilaConId> ({
 
   return (
     <div className="flex min-w-0 max-w-full flex-col gap-3" aria-busy={ocupado}>
-      {aviso !== null && (
-        <p
-          role="alert"
-          className="border-linea bg-superficie-peligro text-texto-peligro rounded-tarjeta border px-3 py-2 text-sm"
-        >
-          {aviso}
-        </p>
-      )}
-
       <p role="status" className="sr-only">{ocupado ? 'Guardando cambios…' : ''}</p>
       {(limites.izquierda || limites.derecha) && (
         <div className="flex flex-wrap items-center justify-between gap-2">

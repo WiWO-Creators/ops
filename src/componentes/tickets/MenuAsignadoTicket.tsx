@@ -7,6 +7,7 @@ import {
   BuscadorMenu, ContenidoMenu, DisparadorMenu, GrupoRadioMenu, ItemMenuRadio, MenuContextual, SinResultadosMenu
 } from '@/componentes/superposiciones/MenuContextual'
 import { escribirEnBff } from '@/componentes/datos/mutaciones'
+import { useAviso } from '@/componentes/estado/useAviso'
 import { cargarAsignables } from '@/datos/asignables'
 import type { PersonaAsignable } from '@/datos/recursos'
 import { filtrarPersonas } from '@/dominio/salas'
@@ -44,18 +45,17 @@ export function MenuAsignadoTicket ({
   puedeEditar: boolean
   onCambiado: () => void
 }): ReactElement {
+  const avisar = useAviso()
   const [pintado, setPintado] = useState(asignado)
   const [ultimoDeLaApi, setUltimoDeLaApi] = useState(asignado)
   const [personas, setPersonas] = useState<Personas>({ fase: 'sinPedir' })
   const [busqueda, setBusqueda] = useState('')
   const [enCurso, setEnCurso] = useState(false)
-  const [error, setError] = useState<string | null>(null)
 
   // Se realinea cuando la ficha recargada trae otro asignado, como `MenuCatalogoTicket`.
   if (ultimoDeLaApi?.id !== asignado?.id) {
     setUltimoDeLaApi(asignado)
     setPintado(asignado)
-    setError(null)
   }
 
   const nombre = pintado?.nombre ?? 'Sin asignar'
@@ -95,7 +95,6 @@ export function MenuAsignadoTicket ({
     const persona = personas.fase === 'listo' ? personas.lista.find((p) => p.id === destino) : undefined
 
     setPintado(destino === 0 ? null : { id: destino, nombre: persona?.full_name ?? `Persona #${destino}` })
-    setError(null)
     setEnCurso(true)
 
     const resultado = await escribirEnBff<unknown>(rutaEditar, 'PATCH', { assigned: destino })
@@ -104,7 +103,7 @@ export function MenuAsignadoTicket ({
 
     if (!resultado.ok) {
       setPintado(previo)
-      setError(falloDeTicket(resultado, 'editar').texto)
+      avisar.error(falloDeTicket(resultado, 'editar').texto)
 
       return
     }
@@ -143,8 +142,6 @@ export function MenuAsignadoTicket ({
           />
         </ContenidoMenu>
       </MenuContextual>
-
-      {error !== null && <span role="alert" className="text-texto-peligro text-xs">{error}</span>}
     </span>
   )
 }

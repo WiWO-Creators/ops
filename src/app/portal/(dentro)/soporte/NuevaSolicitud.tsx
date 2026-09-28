@@ -2,6 +2,8 @@
 
 import { useRouter } from 'next/navigation'
 import { useEffect, useRef, useState } from 'react'
+import { AvisoEnLinea } from '@/componentes/estado/Estados'
+import { useAviso } from '@/componentes/estado/useAviso'
 import { Boton } from '@/componentes/formularios/Boton'
 import { Campo } from '@/componentes/formularios/Campo'
 import { AreaTexto, Entrada } from '@/componentes/formularios/Entrada'
@@ -64,12 +66,12 @@ interface PropsNuevaSolicitud {
 
 export function NuevaSolicitud ({ prioridades, espacios, entradaId = null }: PropsNuevaSolicitud) {
   const router = useRouter()
+  const avisar = useAviso()
   const [abierto, setAbierto] = useState(false)
   const [enviando, setEnviando] = useState(false)
   const [fallo, setFallo] = useState<string | null>(null)
   // Segundos que pidio esperar un 429; mientras no es `null` el envio queda bloqueado.
   const [espera, setEspera] = useState<number | null>(null)
-  const [aviso, setAviso] = useState<string | null>(null)
   const enviandoAhora = useRef(false)
 
   const [asunto, setAsunto] = useState('')
@@ -84,14 +86,6 @@ export function NuevaSolicitud ({ prioridades, espacios, entradaId = null }: Pro
 
     return () => { window.clearTimeout(id) }
   }, [espera])
-
-  useEffect(() => {
-    if (aviso === null) return
-
-    const id = window.setTimeout(() => { setAviso(null) }, DURACION_AVISO_MS)
-
-    return () => { window.clearTimeout(id) }
-  }, [aviso])
 
   // Sin espacios no hay nada que abrir: el contrato exige `project_id`, asi que el boton no se ofrece
   // en vez de ofrecer un formulario que la API va a rechazar siempre.
@@ -135,9 +129,9 @@ export function NuevaSolicitud ({ prioridades, espacios, entradaId = null }: Pro
 
     reiniciar()
     setAbierto(false)
-    setAviso(resultado.estado === 200
-      ? 'Ese ticket ya lo habías enviado hace un momento: te mostramos el que ya existe.'
-      : null)
+    if (resultado.estado === 200) {
+      avisar.advertencia('Ese ticket ya lo habías enviado hace un momento: te mostramos el que ya existe.', DURACION_AVISO_MS)
+    }
     avisarCambioDeTicket(id)
     // `window.location` y no `useSearchParams`: se lee en el momento del clic y el componente no
     // necesita un limite de Suspense solo para esto.
@@ -155,9 +149,6 @@ export function NuevaSolicitud ({ prioridades, espacios, entradaId = null }: Pro
 
   return (
     <>
-      {/* La region vive siempre montada: un `role="status"` que aparece junto con su texto no se
-          anuncia en varios lectores de pantalla. */}
-      <p role="status" className={aviso === null ? 'sr-only' : 'text-texto-tenue text-sm'}>{aviso ?? ''}</p>
       <Dialogo open={abierto} onOpenChange={setAbierto}>
         <DisparadorDialogo asChild>
           <Boton variante="primario">Nuevo ticket</Boton>
@@ -228,7 +219,7 @@ export function NuevaSolicitud ({ prioridades, espacios, entradaId = null }: Pro
               )}
             </Campo>
 
-            {fallo !== null && <p role="alert" className="text-texto-peligro text-sm">{fallo}</p>}
+            {fallo !== null && <AvisoEnLinea variante="error" mensaje={fallo} className="text-sm" />}
 
             <div className="flex justify-end gap-2">
               <Boton type="button" variante="sutil" onClick={() => { setAbierto(false) }}>
