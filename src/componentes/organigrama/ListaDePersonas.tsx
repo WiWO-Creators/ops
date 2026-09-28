@@ -27,7 +27,7 @@ import { Avatar } from '@/componentes/presentadores/Avatar'
 import { Insignia } from '@/componentes/presentadores/Insignia'
 import { Cargando } from '@/componentes/estado/Estados'
 import { TablaRecurso } from '@/componentes/datos/TablaRecurso'
-import { etiquetaDeEscalon } from '@/dominio/escalon'
+import { etiquetaDeEscalon, ordenDeEscalon } from '@/dominio/escalon'
 import { colorDeArea, filtrarFilas } from '@/dominio/organigrama'
 import { cn } from '@/lib/clases'
 import type { Columna, DefinicionRecurso, ResultadoLista } from '@/definiciones/tipos'
@@ -146,7 +146,16 @@ function definicionDeListaDePersonas (
       ordenPor: 'nombre',
       presentar: (fila) => <CeldaPersona fila={fila} editable={editable} onElegir={onElegir} />
     },
-    { clave: 'escalon', encabezado: 'Escalón', ordenPor: 'escalonEtiqueta', sinCortar: true, presentar: (fila) => fila.escalonEtiqueta },
+    {
+      clave: 'escalon',
+      encabezado: 'Escalón',
+      ordenPor: 'escalonEtiqueta',
+      // Por la escalera y no por el alfabeto: alfabéticamente "Director" iría antes que "Lead" y
+      // "Staff", y una columna de jerarquía ordenada al azar no informa nada.
+      ordenarCon: (a, b) => ordenDeEscalon(a.persona.escalon) - ordenDeEscalon(b.persona.escalon),
+      sinCortar: true,
+      presentar: (fila) => fila.escalonEtiqueta
+    },
     { clave: 'jefe', encabezado: 'Depende de', ordenPor: 'jefe', sinCortar: true, presentar: (fila) => fila.jefe },
     {
       clave: 'area',

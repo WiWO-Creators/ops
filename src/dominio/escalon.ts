@@ -91,6 +91,20 @@ export function etiquetaDeEscalon (clave: string | null): string {
 }
 
 /**
+ * El peldaño de un escalón dentro de la escalera, para ordenar por jerarquía y no por alfabeto.
+ *
+ * Alfabéticamente "Director" va antes que "Lead" y que "Staff": una lista de personas o un filtro
+ * ordenados así no informan nada sobre la jerarquía real. Esto es lo que usa cualquier columna o
+ * comparador que necesite ordenar por escalón.
+ *
+ * @param clave La clave del escalón.
+ * @returns Su posición en `ESCALONES` (1 en adelante), o `0` para una clave que la escalera no conoce.
+ */
+export function ordenDeEscalon (clave: string): number {
+  return ESCALONES.find((escalon) => escalon.clave === clave)?.orden ?? 0
+}
+
+/**
  * Si el escalón nombra un puesto de conducción.
  *
  * Es lo único que el escalón decide por sí solo en el panel: si se OFRECE una pantalla pensada para
