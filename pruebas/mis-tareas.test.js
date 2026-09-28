@@ -13,7 +13,10 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
   alternarCompletadas,
+  alternarCreadas,
+  consultaDeCreadas,
   seVenCompletadas,
+  seVenCreadas,
   CON_COMPLETADAS,
   origenDeTarea
 } from '../src/dominio/mis-tareas.ts'
@@ -95,4 +98,25 @@ test('el filtro pide las completadas JUNTO a las abiertas, no en lugar de ellas'
   // `filter[completed]=1` traeria solo las cerradas: la lista de dos valores es lo que desactiva el
   // descarte por defecto de la API sin acotar nada.
   assert.equal(params.get('filter[completed]'), '0,1')
+})
+
+test('"Creadas por mí" se enciende y apaga en la URL sin tocar el resto', () => {
+  const params = new URLSearchParams('vence=hoy&completadas=1')
+  const encendida = alternarCreadas(params)
+
+  assert.equal(seVenCreadas(encendida), true)
+  assert.equal(encendida.get('vence'), 'hoy')
+  assert.equal(encendida.get('completadas'), '1')
+  assert.equal(seVenCreadas(params), false, 'no modifica la consulta recibida')
+  assert.equal(seVenCreadas(alternarCreadas(encendida)), false)
+})
+
+test('"Creadas por mí" solo se enciende con el valor exacto', () => {
+  for (const query of ['creadas=0', 'creadas=', 'creadas=si', '']) {
+    assert.equal(seVenCreadas(new URLSearchParams(query)), false)
+  }
+})
+
+test('la lista de creadas filtra por el autor de la Tarea', () => {
+  assert.equal(consultaDeCreadas(42), 'filter[added_from]=42')
 })
