@@ -16,7 +16,7 @@ import {
 } from '@/componentes/superposiciones/Dialogo'
 import { pedirTodasLasPaginas } from '@/datos/cliente'
 import { jefesPosiblesPara } from '@/dominio/accesos'
-import { ESCALONES, type Escalon } from '@/dominio/escalon'
+import { ESCALONES, ordenDeEscalon, type Escalon } from '@/dominio/escalon'
 import { CabeceraDePanel, Interruptor, MensajeDeError, SIN_VALOR } from './piezas'
 import type {
   CambioDePersona, CatalogoDeAccesos, NodoDeArbol, PersonaDeAccesos
@@ -257,6 +257,10 @@ function definicionDePersonas ({
     {
       clave: 'escalon',
       encabezado: 'Escalón',
+      ordenPor: 'escalon',
+      // Por la escalera y no por el alfabeto: alfabéticamente "director" iría antes que "lead" y
+      // "staff", y una columna de jerarquía ordenada al azar no informa nada.
+      ordenarCon: (a, b) => ordenDeEscalon(a.escalon) - ordenDeEscalon(b.escalon),
       presentar: (persona) => (
         <CeldaEscalon
           persona={persona}
@@ -333,7 +337,7 @@ function definicionDePersonas ({
     titulo: { singular: 'Persona', plural: 'Personas' },
     columnas,
     filtros: [],
-    ordenables: ['nombre', 'jefe_nombre'],
+    ordenables: ['nombre', 'escalon', 'jefe_nombre'],
     ordenPorDefecto: 'nombre',
     busqueda: false,
     includes: []

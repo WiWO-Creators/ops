@@ -17,6 +17,7 @@ import {
   idDeParametro,
   mensajeDeError,
   opcionesPorPagina,
+  ordenarLocalmente,
   podarPorPermisos,
   urlDeTareaEnProyecto,
   rutaDeAccion,
@@ -311,4 +312,51 @@ test('la tarea se abre dentro de su Proyecto, y sin Proyecto no hay enlace', () 
   assert.equal(urlDeTareaEnProyecto(12, undefined), null)
   assert.equal(urlDeTareaEnProyecto(12, 0), null)
   assert.equal(urlDeTareaEnProyecto(12, 1.5), null)
+})
+
+// frente: orden jerarquico en modo memoria
+const PERSONAS_POR_ESCALON = [
+  { nombre: 'Zoe', escalon: 'gerencia' },
+  { nombre: 'Ana', escalon: 'staff' },
+  { nombre: 'Beto', escalon: 'director' },
+  { nombre: 'Coni', escalon: 'lead' }
+]
+
+const COLUMNA_ESCALON = [
+  {
+    clave: 'escalon',
+    encabezado: 'Escalón',
+    presentar,
+    ordenPor: 'escalon',
+    ordenarCon: (a, b) => ({ staff: 1, lead: 2, director: 3, gerencia: 4 }[a.escalon]
+      - { staff: 1, lead: 2, director: 3, gerencia: 4 }[b.escalon])
+  }
+]
+
+const COLUMNA_ESCALON_SIN_ORDENARCON = [
+  { clave: 'escalon', encabezado: 'Escalón', presentar, ordenPor: 'escalon' }
+]
+
+test('ordenarLocalmente usa el ordenarCon de la columna activa en vez del alfabetico', () => {
+  const ordenado = ordenarLocalmente(PERSONAS_POR_ESCALON, ['escalon'], COLUMNA_ESCALON)
+
+  assert.deepEqual(ordenado.map((p) => p.nombre), ['Ana', 'Coni', 'Beto', 'Zoe'])
+})
+
+test('ordenarLocalmente invierte el ordenarCon con el sentido descendente', () => {
+  const ordenado = ordenarLocalmente(PERSONAS_POR_ESCALON, ['-escalon'], COLUMNA_ESCALON)
+
+  assert.deepEqual(ordenado.map((p) => p.nombre), ['Zoe', 'Beto', 'Coni', 'Ana'])
+})
+
+test('ordenarLocalmente sin ordenarCon en la columna sigue comparando el campo tal cual', () => {
+  const ordenado = ordenarLocalmente(PERSONAS_POR_ESCALON, ['escalon'], COLUMNA_ESCALON_SIN_ORDENARCON)
+
+  assert.deepEqual(ordenado.map((p) => p.nombre), ['Beto', 'Zoe', 'Coni', 'Ana'])
+})
+
+test('ordenarLocalmente sin columnas (por defecto) no revienta y ordena alfabetico', () => {
+  const ordenado = ordenarLocalmente(PERSONAS_POR_ESCALON, ['escalon'])
+
+  assert.deepEqual(ordenado.map((p) => p.nombre), ['Beto', 'Zoe', 'Coni', 'Ana'])
 })
