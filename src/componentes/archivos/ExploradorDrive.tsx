@@ -15,6 +15,7 @@ import {
 } from '@/componentes/superposiciones/MenuContextual'
 import { Cargando, ErrorEstado } from '@/componentes/estado/Estados'
 import { CargandoConOrbe } from '@/componentes/estado/Orbe'
+import { useAviso } from '@/componentes/estado/useAviso'
 import { escribirEnBff } from '@/componentes/datos/mutaciones'
 import { ArbolLateralDrive } from '@/componentes/archivos/ArbolLateralDrive'
 import { BandejaSubidasDrive } from '@/componentes/archivos/BandejaSubidasDrive'
@@ -49,9 +50,6 @@ const CLAVE_PREFERENCIAS = 'ops-drive-explorador'
 
 /** Items que se pintan de una vez; el resto entra a medida que se baja. */
 const TANDA_DE_ITEMS = 200
-
-/** Cuánto queda a la vista un aviso de éxito. Los errores quedan hasta que se cierran. */
-const DURACION_AVISO_MS = 6000
 
 /** Borrados en paralelo: cada uno es un pedido a Drive. */
 const BORRADOS_EN_PARALELO = 3
@@ -103,12 +101,6 @@ function guardarPreferencias (preferencias: Preferencias): void {
   }
 }
 
-/** Un aviso al pie del explorador con el resultado de la última operación. */
-interface Aviso {
-  tono: 'exito' | 'aviso' | 'error'
-  texto: string
-}
-
 /** El menú contextual abierto: dónde y sobre qué items. */
 interface MenuAbierto {
   x: number
@@ -125,10 +117,10 @@ type DialogoAbierto =
 
 const TECLAS_NAVEGACION = new Set<string>(['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Home', 'End', 'PageUp', 'PageDown'])
 
-/** Tono de un aviso según cuánto salió bien. */
-function tonoDe (bien: number, mal: number): Aviso['tono'] {
+/** Nivel del toast según cuánto salió bien. */
+function nivelDe (bien: number, mal: number): 'exito' | 'advertencia' | 'error' {
   if (mal === 0) return 'exito'
-  return bien === 0 ? 'error' : 'aviso'
+  return bien === 0 ? 'error' : 'advertencia'
 }
 
 /**
@@ -144,6 +136,7 @@ function tonoDe (bien: number, mal: number): Aviso['tono'] {
  * @param folder la carpeta de la entidad, con su primer nivel ya resuelto
  */
 export function ExploradorDrive ({ raiz, folder }: { raiz: RaizDrive, folder: CarpetaDrive }) {
+  const avisar = useAviso()
   const raizMiga: MigaDrive = useMemo(() => ({ id: folder.id, name: NOMBRE_RAIZ[raiz] }), [folder.id, raiz])
   const almacen = useCarpetasDrive(folder, raizMiga.name)
   const { carpetas, rutas, cargar, soltar, cambiarHijos, renombrarEnRutas, reubicar, anotarRuta } = almacen
@@ -158,7 +151,6 @@ export function ExploradorDrive ({ raiz, folder }: { raiz: RaizDrive, folder: Ca
   const [menu, setMenu] = useState<MenuAbierto | null>(null)
   const [dialogo, setDialogo] = useState<DialogoAbierto | null>(null)
   const [ocupados, setOcupados] = useState<ReadonlySet<string>>(new Set())
-  const [aviso, setAviso] = useState<Aviso | null>(null)
   const [limite, setLimite] = useState(TANDA_DE_ITEMS)
   const [ahora, setAhora] = useState(() => new Date())
   const tactil = useConsultaDeMedios('(pointer: coarse)')
@@ -179,13 +171,6 @@ export function ExploradorDrive ({ raiz, folder }: { raiz: RaizDrive, folder: Ca
   const seleccionados = useMemo(() => hijos.filter((nodo) => seleccion.ids.includes(nodo.id)), [hijos, seleccion.ids])
 
   useEffect(() => { guardarPreferencias(preferencias) }, [preferencias])
-
-  // Un aviso de éxito se va solo; uno con fallos se queda hasta que alguien lo cierre y lo lea.
-  useEffect(() => {
-    if (aviso?.tono !== 'exito') return
-    const temporizador = setTimeout(() => { setAviso(null) }, DURACION_AVISO_MS)
-    return () => { clearTimeout(temporizador) }
-  }, [aviso])
 
   // Las carpetas largas se pintan por tandas a medida que se baja: una carpeta de mil archivos no
   // bloquea la pestaña al abrirse.
@@ -244,7 +229,6 @@ export function ExploradorDrive ({ raiz, folder }: { raiz: RaizDrive, folder: Ca
     cambiarHijos(padreId, (lista) => separarNodos(lista, idsMovidos).quedan)
     cambiarHijos(destino.id, (lista) => sumarNodos(lista, movidos))
     setSeleccion(SELECCION_VACIA)
-    setAviso(null)
 
     const resultado = await trasladarNodos(padreId, idsMovidos, destino.id)
     const fallidos = resultado.failed.map((fallo) => fallo.id)
@@ -258,9 +242,9 @@ export function ExploradorDrive ({ raiz, folder }: { raiz: RaizDrive, folder: Ca
     }
 
     const nombreDe = (id: string): string => movidos.find((nodo) => nodo.id === id)?.name ?? id
-    setAviso({ tono: tonoDe(resultado.moved.length, fallidos.length), texto: resumenDeTraslado(resultado, nombreDe, destino.name) })
+    avisar[nivelDe(resultado.moved.length, fallidos.length)](resumenDeTraslado(resultado, nombreDe, destino.name))
     if (carpetas[destino.id] !== undefined) cargar(destino.id)
-  }, [carpetas, cambiarHijos, reubicar, cargar])
+  }, [carpetas, cambiarHijos, reubicar, cargar, avisar])
 
   const alSubir = useCallback((destinoId: string, nodo: NodoDrive) => {
     cambiarHijos(destinoId, (lista) => sumarNodos(lista, [nodo]))
@@ -306,7 +290,7 @@ export function ExploradorDrive ({ raiz, folder }: { raiz: RaizDrive, folder: Ca
       anotarRuta(nueva.id, [...migas, { id: nueva.id, name: nueva.name }])
     }
     setCreandoCarpeta(false)
-    setAviso({ tono: 'exito', texto: `Carpeta «${nombre}» creada.` })
+    avisar.exito(`Carpeta «${nombre}» creada.`)
     return null
   }
 
@@ -328,7 +312,7 @@ export function ExploradorDrive ({ raiz, folder }: { raiz: RaizDrive, folder: Ca
     setSeleccion(SELECCION_VACIA)
 
     const nombreDe = (id: string): string => nodos.find((nodo) => nodo.id === id)?.name ?? id
-    setAviso({ tono: tonoDe(enviados.length, fallos.length), texto: resumenDeBorrado(enviados, fallos, nombreDe) })
+    avisar[nivelDe(enviados.length, fallos.length)](resumenDeBorrado(enviados, fallos, nombreDe))
   }
 
   function alElegirArchivos (evento: ChangeEvent<HTMLInputElement>): void {
@@ -773,28 +757,6 @@ export function ExploradorDrive ({ raiz, folder }: { raiz: RaizDrive, folder: Ca
           subir se ve sin tener que bajar hasta el final de la lista. `overflow-clip` en la sección
           (y no `hidden`) es lo que deja que esto se pegue: `hidden` la volvería su propio scroll. */}
       <div className="bg-superficie-elevada sticky bottom-0 z-20">
-        {aviso !== null && (
-          <div
-            role={aviso.tono === 'exito' ? 'status' : 'alert'}
-            className={cn(
-              'border-linea flex items-start gap-3 border-t px-4 py-2.5 text-sm',
-              aviso.tono === 'exito' && 'bg-superficie-exito',
-              aviso.tono === 'aviso' && 'bg-superficie-aviso',
-              aviso.tono === 'error' && 'bg-superficie-peligro'
-            )}
-          >
-            <p className="text-texto min-w-0 flex-1">{aviso.texto}</p>
-            <button
-              type="button"
-              aria-label="Cerrar aviso"
-              onClick={() => { setAviso(null) }}
-              className="text-texto-tenue hover:text-texto -my-1 grid size-7 shrink-0 place-items-center"
-            >
-              <X className="size-4" aria-hidden="true" />
-            </button>
-          </div>
-        )}
-
         <BandejaSubidasDrive
           subidas={subidas.subidas}
           onCancelar={subidas.cancelar}

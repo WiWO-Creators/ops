@@ -10,6 +10,7 @@ import {
   MenuContextual
 } from '@/componentes/superposiciones/MenuContextual'
 import { escribirEnBff } from '@/componentes/datos/mutaciones'
+import { useAviso } from '@/componentes/estado/useAviso'
 import { resolverEstado } from '@/dominio/estados-tarea'
 import { cn } from '@/lib/clases'
 import { accionDeEstado } from './estado-proceso'
@@ -57,15 +58,14 @@ export function MenuEstadoTarea ({
   // sola cuando la recarga del tablero trae un `status` distinto al del render anterior. React
   // admite este `setState` durante el render —reinicia el render antes de pintar— y es lo que la
   // regla de hooks pide en vez de encadenar renders desde un efecto.
+  const avisar = useAviso()
   const [pintado, setPintado] = useState(estado)
   const [ultimoDeLaApi, setUltimoDeLaApi] = useState(estado)
   const [enCurso, setEnCurso] = useState(false)
-  const [error, setError] = useState<string | null>(null)
 
   if (ultimoDeLaApi !== estado) {
     setUltimoDeLaApi(estado)
     setPintado(estado)
-    setError(null)
   }
 
   /**
@@ -81,7 +81,7 @@ export function MenuEstadoTarea ({
     const accion = accionDeEstado(tareaId, destino)
 
     if (accion === null) {
-      setError('No se pudo cambiar el estado: la opción elegida no es válida.')
+      avisar.error('No se pudo cambiar el estado: la opción elegida no es válida.')
 
       return
     }
@@ -89,7 +89,6 @@ export function MenuEstadoTarea ({
     const previo = pintado
 
     setPintado(destino)
-    setError(null)
     setEnCurso(true)
 
     const resultado = await escribirEnBff<Proceso>(accion.ruta, 'POST', accion.cuerpo)
@@ -98,7 +97,7 @@ export function MenuEstadoTarea ({
 
     if (!resultado.ok) {
       setPintado(previo)
-      setError(resultado.mensaje)
+      avisar.error(resultado.mensaje)
 
       return
     }
@@ -151,10 +150,6 @@ export function MenuEstadoTarea ({
           </GrupoRadioMenu>
         </ContenidoMenu>
       </MenuContextual>
-
-      {error !== null && (
-        <p role="alert" className="text-texto-peligro text-xs">{error}</p>
-      )}
     </div>
   )
 }

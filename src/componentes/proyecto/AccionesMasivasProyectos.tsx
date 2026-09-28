@@ -2,36 +2,40 @@
 
 import { useState } from 'react'
 import { Boton } from '@/componentes/formularios/Boton'
+import { useAviso } from '@/componentes/estado/useAviso'
 import { CLASES_CONTROL } from '@/componentes/formularios/Entrada'
 import type { Espacio } from '@/datos/recursos'
 import type { OpcionFiltro } from '@/definiciones/tipos'
 import { cambiarProyectos } from './proyectos-masivos'
 
-/** Cambia estado o archivado de la selección y muestra resultados parciales sin ocultar errores. */
+/** Cambia estado o archivado de la selección y avisa el resultado, aun cuando solo una parte tuvo éxito. */
 export function AccionesMasivasProyectos ({ filas, estados, limpiar, recargar }: {
   filas: Espacio[]
   estados: OpcionFiltro[]
   limpiar: () => void
   recargar: () => void
 }) {
+  const avisar = useAviso()
   const [accion, setAccion] = useState('')
   const [ocupado, setOcupado] = useState(false)
-  const [mensaje, setMensaje] = useState('')
 
-  /** Ejecuta la acción elegida y actualiza incluso cuando solo una parte tuvo éxito. */
+  /** Ejecuta la acción elegida y avisa incluso cuando solo una parte tuvo éxito. */
   async function aplicar (): Promise<void> {
     if (!accion || filas.length === 0 || ocupado) return
     setOcupado(true)
-    setMensaje('')
     try {
       const resultado = await cambiarProyectos(filas.map((fila) => fila.id),
         accion === 'archive' || accion === 'unarchive' ? { archive: accion === 'archive' } : { status: Number(accion) })
-      setMensaje(`${resultado.aplicados} proyectos actualizados.${resultado.fallos.length > 0
-        ? ` Sin confirmar: ${resultado.fallos.map((fallo) => `#${fallo.id}: ${fallo.mensaje}`).join('; ')}` : ''}`)
+      const mensaje = `${resultado.aplicados} proyectos actualizados.${resultado.fallos.length > 0
+        ? ` Sin confirmar: ${resultado.fallos.map((fallo) => `#${fallo.id}: ${fallo.mensaje}`).join('; ')}` : ''}`
+
+      if (resultado.fallos.length === 0) avisar.exito(mensaje)
+      else avisar.advertencia(mensaje)
+
       limpiar()
       recargar()
     } catch (error) {
-      setMensaje(error instanceof Error ? error.message : 'No se pudo aplicar el cambio.')
+      avisar.error(error instanceof Error ? error.message : 'No se pudo aplicar el cambio.')
     } finally {
       setOcupado(false)
     }
@@ -56,7 +60,6 @@ export function AccionesMasivasProyectos ({ filas, estados, limpiar, recargar }:
           <Boton tamano="chico" onClick={limpiar}>Limpiar selección</Boton>
         </fieldset>
       )}
-      {mensaje && <p role="status" className="text-texto-tenue text-sm">{mensaje}</p>}
     </div>
   )
 }

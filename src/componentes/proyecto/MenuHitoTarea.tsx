@@ -2,6 +2,7 @@
 
 import { useState, type ReactElement } from 'react'
 import { escribirEnBff } from '@/componentes/datos/mutaciones'
+import { useAviso } from '@/componentes/estado/useAviso'
 import { InsigniaHito } from '@/componentes/presentadores/Hito'
 import {
   ContenidoMenu,
@@ -73,16 +74,15 @@ export function MenuHitoTarea ({
   // cuando la recarga de la ficha trae otro hito. React admite este `setState` durante el render
   // —reinicia el render antes de pintar— y es lo que la regla de hooks pide en vez de encadenar
   // renders desde un efecto.
+  const avisar = useAviso()
   const [pintado, setPintado] = useState<Referencia | null>(hito)
   const [ultimoDeLaApi, setUltimoDeLaApi] = useState<Referencia | null>(hito)
   const [hitos, setHitos] = useState<CargaDeHitos>({ fase: 'sinPedir' })
   const [enCurso, setEnCurso] = useState(false)
-  const [error, setError] = useState<string | null>(null)
 
   if ((ultimoDeLaApi?.id ?? SIN_HITO) !== (hito?.id ?? SIN_HITO)) {
     setUltimoDeLaApi(hito)
     setPintado(hito)
-    setError(null)
   }
 
   /**
@@ -119,7 +119,7 @@ export function MenuHitoTarea ({
     const destino = Number(valor)
 
     if (!Number.isSafeInteger(destino) || destino < 0) {
-      setError('No se pudo mover: la opción elegida no es válida.')
+      avisar.error('No se pudo mover: la opción elegida no es válida.')
 
       return
     }
@@ -134,7 +134,6 @@ export function MenuHitoTarea ({
         ? null
         : { id: destino, name: etiquetaDeHito(opciones, destino, `#${destino}`) }
     )
-    setError(null)
     setEnCurso(true)
 
     const resultado = await escribirEnBff(
@@ -147,7 +146,7 @@ export function MenuHitoTarea ({
 
     if (!resultado.ok) {
       setPintado(previo)
-      setError(resultado.mensaje)
+      avisar.error(resultado.mensaje)
 
       return
     }
@@ -205,10 +204,6 @@ export function MenuHitoTarea ({
           )}
         </ContenidoMenu>
       </MenuContextual>
-
-      {error !== null && (
-        <p role="alert" className="text-texto-peligro text-xs">{error}</p>
-      )}
     </div>
   )
 }

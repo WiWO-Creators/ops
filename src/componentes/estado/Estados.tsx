@@ -154,6 +154,43 @@ export function Hueso ({ className }: { className?: string }) {
   )
 }
 
+interface PropsAvisoEnLinea {
+  /** `error` interrumpe (se anuncia de inmediato); `exito` solo confirma. */
+  variante: 'error' | 'exito'
+  mensaje: string
+  /** Para asociarlo con `aria-describedby` desde el campo que explica. */
+  id?: string
+  className?: string
+}
+
+/**
+ * Aviso en linea, junto al campo o al boton que lo origino: la variante inline del toast comun.
+ *
+ * Existe para el error de una mutacion dentro de un dialogo o formulario abierto, donde la persona
+ * necesita verlo pegado a lo que estaba editando y no de reojo en una esquina de la pantalla. Un
+ * exito de la misma accion normalmente usa el toast (`useAviso().exito()`); esta variante de exito es
+ * para el puñado de casos donde igual conviene la confirmacion pegada al campo.
+ *
+ * No reemplaza el error de validacion de un campo puntual: ese vive en la prop `error` de `Campo`.
+ *
+ * @param variante `error` o `exito`
+ * @param mensaje el texto a mostrar
+ * @param className clases extra
+ */
+export function AvisoEnLinea ({ variante, mensaje, id, className }: PropsAvisoEnLinea) {
+  const esError = variante === 'error'
+
+  return (
+    <p
+      id={id}
+      role={esError ? 'alert' : 'status'}
+      className={cn('text-xs', esError ? 'text-texto-peligro' : 'text-texto-exito', className)}
+    >
+      {mensaje}
+    </p>
+  )
+}
+
 /**
  * Bloque de carga: el orbe en su ventana.
  *

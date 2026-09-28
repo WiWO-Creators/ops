@@ -2,7 +2,7 @@
 
 import { CornerDownRight, SendHorizontal, Trash2 } from 'lucide-react'
 import { useId, useState, type FormEvent, type KeyboardEvent, type ReactElement } from 'react'
-import { Cargando, ErrorEstado } from '@/componentes/estado/Estados'
+import { AvisoEnLinea, Cargando, ErrorEstado } from '@/componentes/estado/Estados'
 import { escribirEnBff } from '@/componentes/datos/mutaciones'
 import { Boton } from '@/componentes/formularios/Boton'
 import { AreaTexto } from '@/componentes/formularios/Entrada'
@@ -195,7 +195,7 @@ export function HiloDeComentarios (
   function errorDe (id: number): ReactElement | null {
     if (errorBorrado?.id !== id) return null
 
-    return <p role="alert" className="text-texto-peligro text-xs">{errorBorrado.mensaje}</p>
+    return <AvisoEnLinea variante="error" mensaje={errorBorrado.mensaje} />
   }
 
   return (
@@ -390,9 +390,12 @@ function CuadroDeComentario (
       </div>
 
       {error !== null && (
-        <p id={idError} role="alert" className="text-texto-peligro border-linea-suave border-t px-3 py-2 text-xs">
-          {error}
-        </p>
+        <AvisoEnLinea
+          id={idError}
+          variante="error"
+          mensaje={error}
+          className="border-linea-suave border-t px-3 py-2"
+        />
       )}
     </form>
   )

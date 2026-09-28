@@ -7,7 +7,8 @@ import { Check, CheckCheck, PenLine, Printer, Undo2, X } from 'lucide-react'
 import { Boton } from '@/componentes/formularios/Boton'
 import { AreaTexto, Entrada } from '@/componentes/formularios/Entrada'
 import { Segmentado } from '@/componentes/formularios/Segmentado'
-import { Vacio } from '@/componentes/estado/Estados'
+import { AvisoEnLinea, Vacio } from '@/componentes/estado/Estados'
+import { useAviso } from '@/componentes/estado/useAviso'
 import { CerrarDialogo, ContenidoDialogo, Dialogo } from '@/componentes/superposiciones/Dialogo'
 import { escribirEnBff } from '@/componentes/datos/mutaciones'
 import { PARAMETRO_TAREA } from '@/componentes/datos/tabla'
@@ -60,11 +61,10 @@ import { cn } from '@/lib/clases'
  */
 export function HojaDeSupervision ({ hojaInicial }: { hojaInicial: Hoja }) {
   const router = useRouter()
+  const avisar = useAviso()
   const [hoja, setHoja] = useState(hojaInicial)
   const [modo, setModo] = useState<ModoDeAgrupacion>('cliente')
   const [guardando, setGuardando] = useState<number | null>(null)
-  const [errorDeTarea, setErrorDeTarea] = useState<{ tareaId: number, mensaje: string } | null>(null)
-  const [aviso, setAviso] = useState<string | null>(null)
 
   const editable = hoja.puede_editar && hoja.firma === null
   const grupos = agruparHoja(hoja, modo)
@@ -79,7 +79,6 @@ export function HojaDeSupervision ({ hojaInicial }: { hojaInicial: Hoja }) {
     if (!editable || guardando !== null) return
 
     setGuardando(tarea.id)
-    setErrorDeTarea(null)
 
     const cuerpo = estado === null ? { task_id: tarea.id, estado } : { task_id: tarea.id, estado, nota }
     const resultado = await escribirEnBff<RevisionDeTarea | null>(rutaDeRevisiones(hoja.fecha), 'PUT', cuerpo)
@@ -89,12 +88,12 @@ export function HojaDeSupervision ({ hojaInicial }: { hojaInicial: Hoja }) {
     if (!resultado.ok) {
       if (resultado.estado === 409) {
         setHoja((actual) => ({ ...actual, puede_editar: false }))
-        setAviso('Esta hoja ya está firmada: no se pueden cambiar sus revisiones. Recarga la página para ver el sello.')
+        avisar.error('Esta hoja ya está firmada: no se pueden cambiar sus revisiones. Recarga la página para ver el sello.')
 
         return
       }
 
-      setErrorDeTarea({ tareaId: tarea.id, mensaje: resultado.mensaje })
+      avisar.error(`No se pudo guardar la revisión de "${tarea.name}": ${resultado.mensaje}`)
 
       return
     }
@@ -122,8 +121,6 @@ export function HojaDeSupervision ({ hojaInicial }: { hojaInicial: Hoja }) {
 
       <Resumen hoja={hoja} modo={modo} editable={editable} onFirmada={firmada} onConfirmada={confirmada} />
 
-      {aviso !== null && <p role="alert" className="text-texto-peligro text-sm">{aviso}</p>}
-
       {grupos.length > 0 && (
         <Segmentado
           etiqueta="Agrupar por"
@@ -150,7 +147,6 @@ export function HojaDeSupervision ({ hojaInicial }: { hojaInicial: Hoja }) {
                   fecha={hoja.fecha}
                   editable={editable}
                   guardando={guardando === tarea.id}
-                  error={errorDeTarea?.tareaId === tarea.id ? errorDeTarea.mensaje : null}
                   onRevisar={(estado, nota) => { void revisar(tarea, estado, nota) }}
                 />
               ))}
@@ -288,7 +284,7 @@ function FirmarHoja ({ hoja, onFirmada }: { hoja: Hoja, onFirmada: (firma: Firma
             {sinRevisar(hoja.totales) > 0 && (
               <p className="text-texto-aviso text-sm">Las tareas sin revisar quedan así en la hoja firmada.</p>
             )}
-            {error !== null && <p role="alert" className="text-texto-peligro text-sm">{error}</p>}
+            {error !== null && <AvisoEnLinea variante="error" mensaje={error} className="text-sm" />}
             <div className="flex justify-end gap-2">
               <CerrarDialogo asChild>
                 <Boton variante="secundario">Cancelar</Boton>
@@ -312,10 +308,11 @@ function FirmarHoja ({ hoja, onFirmada }: { hoja: Hoja, onFirmada: (firma: Firma
  * genérico.
  */
 function ConfirmarHoja ({ hoja, onConfirmada }: { hoja: Hoja, onConfirmada: (confirmacion: ConfirmacionDeHoja) => void }) {
+  const avisar = useAviso()
   const [devolviendo, setDevolviendo] = useState(false)
   const [nota, setNota] = useState('')
   const [enviando, setEnviando] = useState<AccionDeConfirmacion | null>(null)
-  const [error, setError] = useState<string | null>(null)
+  const [errorDevolucion, setErrorDevolucion] = useState<string | null>(null)
 
   /** Manda la acción y aplica la confirmación que devolvió la API. */
   async function enviar (accion: AccionDeConfirmacion) {
@@ -323,14 +320,14 @@ function ConfirmarHoja ({ hoja, onConfirmada }: { hoja: Hoja, onConfirmada: (con
       const falta = errorDeNotaDeDevolucion(nota)
 
       if (falta !== null) {
-        setError(falta)
+        setErrorDevolucion(falta)
 
         return
       }
     }
 
     setEnviando(accion)
-    setError(null)
+    setErrorDevolucion(null)
 
     const cuerpo = accion === 'devolver'
       ? { staff_id: hoja.supervisor.staffid, accion, nota: nota.trim() }
@@ -340,9 +337,15 @@ function ConfirmarHoja ({ hoja, onConfirmada }: { hoja: Hoja, onConfirmada: (con
     setEnviando(null)
 
     if (!resultado.ok) {
-      setError(resultado.estado === 409
+      const mensaje = resultado.estado === 409
         ? 'La hoja cambió mientras la mirabas: ya no está firmada o ya se confirmó. Recarga la página.'
-        : resultado.mensaje)
+        : resultado.mensaje
+
+      if (accion === 'devolver') {
+        setErrorDevolucion(mensaje)
+      } else {
+        avisar.error(mensaje)
+      }
 
       return
     }
@@ -357,11 +360,10 @@ function ConfirmarHoja ({ hoja, onConfirmada }: { hoja: Hoja, onConfirmada: (con
         <CheckCheck className="size-4" aria-hidden />
         Confirmo
       </Boton>
-      <Boton tamano="chico" variante="peligro" disabled={enviando !== null} onClick={() => { setError(null); setDevolviendo(true) }}>
+      <Boton tamano="chico" variante="peligro" disabled={enviando !== null} onClick={() => { setErrorDevolucion(null); setDevolviendo(true) }}>
         <Undo2 className="size-4" aria-hidden />
         Devolver
       </Boton>
-      {error !== null && !devolviendo && <p role="alert" className="text-texto-peligro w-full text-xs">{error}</p>}
       <Dialogo open={devolviendo} onOpenChange={setDevolviendo}>
         <ContenidoDialogo
           titulo="Devolver la hoja"
@@ -379,7 +381,7 @@ function ConfirmarHoja ({ hoja, onConfirmada }: { hoja: Hoja, onConfirmada: (con
                 onChange={(evento) => { setNota(evento.target.value) }}
               />
             </label>
-            {error !== null && <p role="alert" className="text-texto-peligro text-sm">{error}</p>}
+            {errorDevolucion !== null && <AvisoEnLinea variante="error" mensaje={errorDevolucion} className="text-sm" />}
             <div className="flex justify-end gap-2">
               <CerrarDialogo asChild>
                 <Boton variante="secundario">Cancelar</Boton>
@@ -400,12 +402,11 @@ interface PropsFilaDeTarea {
   fecha: string
   editable: boolean
   guardando: boolean
-  error: string | null
   onRevisar: (estado: EstadoDeRevision | null, nota: string | null) => void
 }
 
 /** Una Tarea de la hoja, con sus botones de revisión cuando la hoja se puede editar. */
-function FilaDeTarea ({ tarea, fecha, editable, guardando, error, onRevisar }: PropsFilaDeTarea) {
+function FilaDeTarea ({ tarea, fecha, editable, guardando, onRevisar }: PropsFilaDeTarea) {
   const estado = tarea.revision?.estado ?? null
   const [nota, setNota] = useState(tarea.revision?.nota ?? '')
 
@@ -461,7 +462,6 @@ function FilaDeTarea ({ tarea, fecha, editable, guardando, error, onRevisar }: P
             className="max-w-md"
           />
         )}
-        {error !== null && <p role="alert" className="text-texto-peligro text-xs">{error}</p>}
       </div>
 
       {editable

@@ -2,6 +2,8 @@
 
 import { useState } from 'react'
 import { Copy, Monitor, Plus, RefreshCw, Trash2 } from 'lucide-react'
+import { AvisoEnLinea } from '@/componentes/estado/Estados'
+import { useAviso } from '@/componentes/estado/useAviso'
 import { Boton } from '@/componentes/formularios/Boton'
 import { Campo } from '@/componentes/formularios/Campo'
 import { Entrada } from '@/componentes/formularios/Entrada'
@@ -27,6 +29,7 @@ const NUEVA = { name: '', capacity: '', location: '' }
  * desaparece de la agenda pero sus reservas historicas siguen teniendo nombre.
  */
 export function DialogoSalas ({ salas, onCambio }: PropsDialogoSalas) {
+  const avisar = useAviso()
   const [alta, setAlta] = useState(NUEVA)
   const [ocupado, setOcupado] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -35,8 +38,13 @@ export function DialogoSalas ({ salas, onCambio }: PropsDialogoSalas) {
    * Corre una escritura y refresca, dejando el error a la vista si falla.
    *
    * @param operacion la escritura a ejecutar
+   * @param avisoExito si viene, el toast que confirma un alta o una baja; las ediciones de campo no
+   * lo llevan porque el propio valor guardado en el campo ya confirma el cambio.
    */
-  async function correr (operacion: () => Promise<{ ok: boolean, mensaje?: string }>): Promise<void> {
+  async function correr (
+    operacion: () => Promise<{ ok: boolean, mensaje?: string }>,
+    avisoExito?: string
+  ): Promise<void> {
     setOcupado(true)
     setError(null)
 
@@ -49,6 +57,7 @@ export function DialogoSalas ({ salas, onCambio }: PropsDialogoSalas) {
       return
     }
 
+    if (avisoExito !== undefined) avisar.exito(avisoExito)
     onCambio()
   }
 
@@ -74,7 +83,7 @@ export function DialogoSalas ({ salas, onCambio }: PropsDialogoSalas) {
                 sala={sala}
                 ocupado={ocupado}
                 onEditar={(cambios) => { void correr(async () => await escribirEnBff(`rooms/${sala.id}`, 'PATCH', cambios)) }}
-                onBaja={() => { void correr(async () => await escribirEnBff(`rooms/${sala.id}`, 'DELETE')) }}
+                onBaja={() => { void correr(async () => await escribirEnBff(`rooms/${sala.id}`, 'DELETE'), `Sala «${sala.name}» dada de baja.`) }}
               />
             ))}
             {salas.length === 0 && (
@@ -137,7 +146,7 @@ export function DialogoSalas ({ salas, onCambio }: PropsDialogoSalas) {
                   if (resultado.ok) setAlta(NUEVA)
 
                   return resultado
-                })
+                }, `Sala «${alta.name.trim()}» agregada.`)
               }}
             >
               <Plus size={14} aria-hidden="true" />
@@ -145,7 +154,7 @@ export function DialogoSalas ({ salas, onCambio }: PropsDialogoSalas) {
             </Boton>
           </div>
 
-          {error !== null && <p role="alert" className="text-texto-peligro text-sm">{error}</p>}
+          {error !== null && <AvisoEnLinea variante="error" mensaje={error} className="text-sm" />}
         </div>
       </ContenidoDialogo>
     </Dialogo>
