@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { RefreshCw, X } from 'lucide-react'
 import { Boton } from '@/componentes/formularios/Boton'
+import { Orbe } from '@/componentes/estado/Orbe'
 import { ATRIBUTO_BIENVENIDA, CLAVE_BIENVENIDA } from '@/lib/bienvenida'
 import { cn } from '@/lib/clases'
 import { elegirEscena } from './bienvenida/escenas'
@@ -199,7 +200,9 @@ export function VigilanteDeVersion ({ version, segundos }: PropsVigilante) {
               aria-hidden="true"
               className="bg-acento-suave text-acento grid size-10 shrink-0 place-items-center rounded-xl"
             >
-              <RefreshCw className={cn('size-[1.125rem]', recargando ? 'animate-spin' : 'animate-aviso-giro')} />
+              {recargando
+                ? <Orbe tamano="chico" estado="thinking" />
+                : <RefreshCw className="size-[1.125rem] animate-aviso-giro" />}
             </span>
             <div className="min-w-0 flex-1">
               <p className="text-texto text-sm leading-tight font-semibold">Hay una versión nueva de Ops</p>

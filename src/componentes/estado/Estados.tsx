@@ -132,6 +132,29 @@ export function SinPermiso ({ className }: { className?: string }) {
 }
 
 /**
+ * Un hueso de esqueleto: el bloque gris que ocupa el lugar de un dato mientras llega.
+ *
+ * Distinto del `Cargando` de mas abajo a proposito. El orbe dice "todavia no hay nada que mostrar";
+ * el hueso dice "la pantalla ya tiene su forma, y esta fila o este dato en particular esta en
+ * camino" —al filtrar una lista, al volver de otra pestaña, al esperar el estado de un switch—. Poner
+ * el orbe ahi le pondria un halo enorme a un dato de una linea.
+ *
+ * Sin forma propia mas alla del pulso: el alto, el ancho y el radio los define quien lo usa via
+ * `className` (`h-4 w-3/5`, `size-10 rounded-full`, etc.), calcando la forma exacta de la fila real
+ * para que la pantalla no salte cuando el dato llega.
+ *
+ * @param className alto, ancho y radio del hueso; por defecto es un pildora completa
+ */
+export function Hueso ({ className }: { className?: string }) {
+  return (
+    <span
+      aria-hidden="true"
+      className={cn('bg-relleno-neutro block rounded-full motion-safe:animate-pulse', className)}
+    />
+  )
+}
+
+/**
  * Bloque de carga: el orbe en su ventana.
  *
  * El producto tiene un solo lenguaje para decir "esto viene en camino", y es el orbe. Antes esto

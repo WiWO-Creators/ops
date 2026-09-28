@@ -25,28 +25,6 @@
   to { opacity: 1; transform: none; }
 }
 
-/* Esqueleto: bloques con la forma de la fila que viene y un brillo que cruza una vez por segundo y
- * medio. Es `infinite`, pero vive solo mientras se espera la respuesta. */
-.rec-hueso {
-  position: relative;
-  overflow: hidden;
-  border-radius: var(--small-BorderRadius);
-  background: var(--superficie-hundida);
-}
-
-.rec-hueso::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  transform: translateX(-100%);
-  background: linear-gradient(90deg, transparent, var(--hover), transparent);
-  animation: rec-brillo 1.4s var(--wiwo-ease-emphasized) infinite;
-}
-
-@keyframes rec-brillo {
-  to { transform: translateX(100%); }
-}
-
 /* Resultado de validar una fila: la buena se asienta con un pulso corto, la mala tiembla una vez.
  * Una sola vez: es la respuesta a "Revisar", no un estado que haya que seguir mirando. */
 .rec-fila-ok {
@@ -102,10 +80,5 @@
 
   .rec-fila-error {
     animation: none;
-  }
-
-  .rec-hueso::after {
-    animation: none;
-    opacity: 0;
   }
 }
