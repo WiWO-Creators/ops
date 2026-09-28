@@ -1,7 +1,9 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { motivoParaNoSubir, subidasParaArrancar, usaSubidaDirecta, type EstadoSubida } from '@/dominio/drive-explorador'
+import {
+  motivoParaNoSubir, rechazadoPorTamanoEnLegado, subidasParaArrancar, usaSubidaDirecta, type EstadoSubida
+} from '@/dominio/drive-explorador'
 import { subirConAvance } from '@/componentes/archivos/red-drive'
 import { subirDirectoAGoogle, type SesionEnCurso } from '@/componentes/archivos/subida-resumable-drive'
 import type { ArchivoDriveSubido, MigaDrive, NodoDrive } from '@/datos/recursos'
@@ -102,6 +104,17 @@ export function useSubidasDrive (alSubir: (destinoId: string, nodo: NodoDrive) =
   /** Arranca lo pendiente mientras haya hueco. Se llama al encolar, al reintentar y al terminar cada una. */
   const bombear = useRef<() => void>(() => {})
 
+  /** Sube por sesión resumable directa a Google, sea porque el archivo pesa lo suficiente o porque el legado lo rechazó por tamaño. */
+  const arrancarDirecto = useCallback((subida: SubidaDrive, archivo: File, control: AbortController, alAvanzar: (fraccion: number) => void) => {
+    return subirDirectoAGoogle(
+      subida.destino.id, archivo,
+      (bytesEnviados, total) => { alAvanzar(total === 0 ? 0 : bytesEnviados / total) },
+      control.signal,
+      sesionesDirectas.current.get(subida.id),
+      (sesion) => { sesionesDirectas.current.set(subida.id, sesion) }
+    )
+  }, [])
+
   const arrancar = useCallback((subida: SubidaDrive): void => {
     const archivo = archivos.current.get(subida.id)
     if (archivo === undefined) {
@@ -122,17 +135,24 @@ export function useSubidasDrive (alSubir: (destinoId: string, nodo: NodoDrive) =
     // Por debajo del umbral: multipart legado vía PHP, con reintento simple (manda el archivo
     // entero de nuevo). Por encima: sesión resumable directa a Google, con reintento que reanuda
     // desde el último byte confirmado — ver `subirDirectoAGoogle`.
-    const promesa = usaSubidaDirecta(archivo)
-      ? subirDirectoAGoogle(
-        subida.destino.id, archivo,
-        (bytesEnviados, total) => { alAvanzar(total === 0 ? 0 : bytesEnviados / total) },
-        control.signal,
-        sesionesDirectas.current.get(subida.id),
-        (sesion) => { sesionesDirectas.current.set(subida.id, sesion) }
-      )
-      : subirConAvance(subida.destino.id, archivo, alAvanzar, control.signal)
+    const porLegado = !usaSubidaDirecta(archivo)
+    const promesa = porLegado
+      ? subirConAvance(subida.destino.id, archivo, alAvanzar, control.signal)
+      : arrancarDirecto(subida, archivo, control, alAvanzar)
 
     void promesa.then((resultado) => {
+      // El legado rechazó por tamaño un archivo que el navegador había mandado por ese camino (el
+      // umbral cambió, o el tamaño real no coincidía con el calculado): se reintenta ya mismo por la
+      // sesión resumable directa, sin mostrarlo como error ni gastar un clic de "reintentar".
+      if (porLegado && !resultado.ok && resultado.estado === 422 && rechazadoPorTamanoEnLegado(resultado.detalles)) {
+        void arrancarDirecto(subida, archivo, control, alAvanzar).then(terminar)
+        return
+      }
+
+      terminar(resultado)
+    })
+
+    function terminar (resultado: Awaited<typeof promesa>): void {
       controles.current.delete(subida.id)
 
       if (resultado.ok) {
@@ -151,8 +171,8 @@ export function useSubidasDrive (alSubir: (destinoId: string, nodo: NodoDrive) =
           : { estado: 'error', error: resultado.mensaje, reintentable })
       }
       bombear.current()
-    })
-  }, [actualizar])
+    }
+  }, [actualizar, arrancarDirecto])
 
   useEffect(() => {
     // Se marca `subiendo` en el mismo cambio que lo decide: una segunda llamada inmediata ya no ve

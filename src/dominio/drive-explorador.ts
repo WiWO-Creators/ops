@@ -336,6 +336,23 @@ export function usaSubidaDirecta (archivo: { size: number }): boolean {
 }
 
 /**
+ * Si el `422` del multipart legado es porque el archivo resultó demasiado grande para ese camino
+ * (`file: ['too_large']` en los `details` del contrato).
+ *
+ * El navegador ya filtra por `UMBRAL_SUBIDA_DIRECTA_BYTES` antes de elegir el camino legado, pero el
+ * tamaño real que ve la API puede diferir del que calculó el navegador —o el umbral del backend
+ * cambió sin que este archivo se actualizara—, así que el `422` sigue siendo posible. Ante esto la
+ * subida no falla: cae a la sesión resumable directa, que es lo que se habría elegido de entrada si
+ * el tamaño se hubiera conocido a tiempo.
+ *
+ * @param detalles el `details` del error `422`, si vino
+ */
+export function rechazadoPorTamanoEnLegado (detalles: Record<string, unknown> | undefined): boolean {
+  const motivos = detalles?.file
+  return Array.isArray(motivos) && motivos.includes('too_large')
+}
+
+/**
  * Si ya hay otro elemento con ese nombre en la carpeta, sin distinguir mayúsculas ni tildes.
  *
  * Drive acepta nombres repetidos, pero dos "Bases" en la misma carpeta son una trampa para quien

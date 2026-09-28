@@ -65,7 +65,13 @@ async function resolverCarga (pedido: XMLHttpRequest): Promise<Resultado<Archivo
     headers: { 'content-type': pedido.getResponseHeader('content-type') ?? 'application/json' }
   })
 
-  if (!respuesta.ok) return { ok: false, mensaje: await mensajeDeRespuesta(respuesta), estado: respuesta.status }
+  if (!respuesta.ok) {
+    // `detalles` viaja aparte del mensaje: quien llama lo necesita para decidir si el `422` es un
+    // "demasiado grande" que puede caer a la subida directa, no solo para mostrarlo.
+    const detalles = await detallesDelError(respuesta.clone())
+
+    return { ok: false, mensaje: await mensajeDeRespuesta(respuesta), estado: respuesta.status, detalles }
+  }
 
   try {
     const sobre = await respuesta.json() as { data?: ArchivoDriveSubido | null }
@@ -75,6 +81,16 @@ async function resolverCarga (pedido: XMLHttpRequest): Promise<Resultado<Archivo
   }
 
   return { ok: false, mensaje: 'El servidor no confirmó que el archivo se haya guardado. Inténtalo de nuevo.' }
+}
+
+/** El `details` del envelope de error, o `undefined` si el cuerpo no era el envelope. */
+async function detallesDelError (respuesta: Response): Promise<Record<string, unknown> | undefined> {
+  try {
+    const cuerpo = await respuesta.json() as { error?: { details?: Record<string, unknown> } }
+    return cuerpo.error?.details
+  } catch {
+    return undefined
+  }
 }
 
 /** Lleva un fallo de un pedido entero a un fallo por cada id del pedido. */

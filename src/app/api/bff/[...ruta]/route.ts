@@ -251,7 +251,7 @@ function sobreDeError (crudo: string): SobreError | null {
 }
 
 /**
- * Deja pasar el `Accept: text/event-stream` del navegador, y solo ese.
+ * Deja pasar el `Accept: text/event-stream` y el `Origin` del navegador, ambos tal cual.
  *
  * `llamarApi()` fija `accept: application/json` porque es lo que pide el 99% del panel. La API
  * decide si transmite mirando esa cabecera, asi que sin este reenvio un `POST /ia/inicio` pedido
@@ -261,13 +261,26 @@ function sobreDeError (crudo: string): SobreError | null {
  * Se reenvia solo ese valor y no el `Accept` crudo del navegador porque una navegacion manda
  * `text/html,...` y eso cambiaria la respuesta de cualquier ruta del BFF abierta en una pestaña.
  *
+ * El `Origin` va sin gatillo de `PROXY_SECRETO`, a diferencia de `cabecerasDeOrigen()`: alli es un
+ * dato de auditoria que se puede falsificar si no viene firmado, aca es el origen real del navegador
+ * que hizo la peticion TLS y el fetch no deja mentir. La API lo necesita para abrir la sesion
+ * resumable de Drive (`POST .../upload-sessions`) con el `Origin` correcto, porque el `PUT` de los
+ * trozos lo hace el navegador directo contra Google, no a traves de este proxy: sin el `Origin` real
+ * Google rechaza ese `PUT` por CORS.
+ *
  * @param peticion la peticion del navegador
- * @returns las cabeceras extra para `llamarApi()`, vacio si no se pidio un stream
+ * @returns las cabeceras extra para `llamarApi()`
  */
-function cabecerasDeEntrada (peticion: NextRequest): Record<string, string> {
-  const acepta = peticion.headers.get('accept') ?? ''
+export function cabecerasDeEntrada (peticion: NextRequest): Record<string, string> {
+  const cabeceras: Record<string, string> = {}
 
-  return acepta.startsWith('text/event-stream') ? { accept: 'text/event-stream' } : {}
+  const acepta = peticion.headers.get('accept') ?? ''
+  if (acepta.startsWith('text/event-stream')) cabeceras.accept = 'text/event-stream'
+
+  const origen = peticion.headers.get('origin')
+  if (origen !== null) cabeceras.origin = origen
+
+  return cabeceras
 }
 
 /**

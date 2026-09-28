@@ -14,7 +14,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
   SELECCION_VACIA, TOPE_SUBIDA_BYTES, UMBRAL_SUBIDA_DIRECTA_BYTES, fechaDeModificacion, filtrarPorNombre, formatearTamano, indiceTrasTecla,
-  motivoParaNoSoltar, motivoParaNoSubir, nombreRepetido, ordenarNodos, partirEnLotes, recortarMigas,
+  motivoParaNoSoltar, motivoParaNoSubir, nombreRepetido, ordenarNodos, partirEnLotes, recortarMigas, rechazadoPorTamanoEnLegado,
   resumenDeBorrado, resumenDeTraslado, reubicarRutas, seleccionar, separarNodos, subidasParaArrancar, sumarNodos, tipoDeNodo, usaSubidaDirecta
 } from '../src/dominio/drive-explorador.ts'
 
@@ -142,6 +142,13 @@ test('la subida directa a Google arranca justo donde el multipart legado ya rech
   assert.equal(usaSubidaDirecta({ size: UMBRAL_SUBIDA_DIRECTA_BYTES }), false)
   assert.equal(usaSubidaDirecta({ size: UMBRAL_SUBIDA_DIRECTA_BYTES + 1 }), true)
   assert.equal(usaSubidaDirecta({ size: 1024 }), false)
+})
+
+test('un 422 del multipart legado cae a la subida directa solo si el motivo es el tamaño', () => {
+  assert.equal(rechazadoPorTamanoEnLegado({ file: ['too_large'] }), true)
+  assert.equal(rechazadoPorTamanoEnLegado({ file: ['extension_not_allowed'] }), false)
+  assert.equal(rechazadoPorTamanoEnLegado({}), false)
+  assert.equal(rechazadoPorTamanoEnLegado(undefined), false)
 })
 
 test('nombre repetido sin distinguir tildes ni mayúsculas, salvo el propio item', () => {

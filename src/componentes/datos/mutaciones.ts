@@ -16,6 +16,10 @@ import { segundosParaReintentar } from '@/dominio/ticket-vista'
  * `estado`, `codigo`, `detalles` y `reintentarEnSegundos` son opcionales para que todo quien ya lee
  * `ok`, `datos` y `mensaje` siga igual: los agrega quien necesita distinguir un 409 de otro, o saber
  * cuanto esperar despues de un 429. Sin respuesta de la API (sin red) no hay `estado`.
+ *
+ * `cancelada` distingue un abort deliberado (`AbortSignal`) de una caida de red real: sin ella quien
+ * cancela una subida a mitad de camino veria "no se pudo contactar al servidor" como si hubiera
+ * fallado, en vez de que se respete la cancelacion.
  */
 export type Resultado<T> =
   | { ok: true, datos: T, estado?: number }
@@ -26,6 +30,7 @@ export type Resultado<T> =
     codigo?: string
     detalles?: Record<string, unknown>
     reintentarEnSegundos?: number | null
+    cancelada?: boolean
   }
 
 /**
@@ -75,19 +80,21 @@ function opcionesDeCuerpo (cuerpo: unknown): RequestInit {
  * @param ruta Ruta sin la base del BFF ni barra inicial. Ej: `projects/12/actions/copy`.
  * @param metodo Verbo HTTP de la operacion.
  * @param cuerpo Cuerpo JSON, o un `FormData` para multipart. `DELETE` normalmente no lleva.
+ * @param senal Para cancelar la peticion (por ejemplo, una subida a Drive que la persona cancelo).
  * @returns `datos` con el `data` del envelope, o el mensaje de error ya legible.
  */
 export async function escribirEnBff<T> (
   ruta: string,
   metodo: 'POST' | 'PATCH' | 'PUT' | 'DELETE',
-  cuerpo?: unknown
+  cuerpo?: unknown,
+  senal?: AbortSignal
 ): Promise<Resultado<T>> {
   let respuesta: Response
 
   try {
-    respuesta = await fetch(`/api/bff/${ruta}`, { method: metodo, ...opcionesDeCuerpo(cuerpo) })
+    respuesta = await fetch(`/api/bff/${ruta}`, { method: metodo, signal: senal, ...opcionesDeCuerpo(cuerpo) })
   } catch {
-    return { ok: false, mensaje: 'No se pudo contactar al servidor. Revisa tu conexión.' }
+    return { ok: false, mensaje: 'No se pudo contactar al servidor. Revisa tu conexión.', cancelada: senal?.aborted === true }
   }
 
   if (!respuesta.ok) {
