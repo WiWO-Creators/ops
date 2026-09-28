@@ -12,6 +12,8 @@ import { ACTAS } from '@/definiciones/actas'
 import { conId, type FuenteDeProyecto } from '@/dominio/fuente-proyecto'
 import { useRecurso } from './carga'
 import { AsistenteDeActa } from './AsistenteDeActa'
+import { AsistenteDeTranscripcion } from './AsistenteDeTranscripcion'
+import { TranscripcionesRecientes } from './acta/TranscripcionesRecientes'
 import { DetalleActa } from './DetalleActa'
 import { PanelRecurso } from './PanelRecurso'
 import { EnlaceActa, TarjetaActa } from './TarjetaActa'
@@ -131,20 +133,34 @@ function ActasDelProyecto ({
   const router = useRouter()
   const params = useSearchParams()
   const [revision, setRevision] = useState(0)
+  const [revisionTranscripciones, setRevisionTranscripciones] = useState(0)
   const [motivoALaVista, setMotivoALaVista] = useState(false)
   /** El acta que este asistente acaba de generar: al abrirla, sus tareas propuestas se destacan. */
   const [recienGenerada, setRecienGenerada] = useState<number | null>(null)
 
   const recargar = useCallback(() => { setRevision((n) => n + 1) }, [])
+  const recargarTranscripciones = useCallback(() => { setRevisionTranscripciones((n) => n + 1) }, [])
   const pedida = params.get('acta')
   const puedeCrear = capacidades.includes('create')
   const puedeEditar = capacidades.includes('edit')
 
-  /** Escribe `?acta` conservando el resto de la vista; `null` la saca. */
-  const ir = useCallback((valor: string | null) => {
+  /**
+   * Escribe `?acta` conservando el resto de la vista; `null` la saca.
+   *
+   * `transcripcionId` solo tiene sentido junto a `acta=nuevo` (crear el acta a partir de una
+   * transcripción ya guardada) o `acta=transcribir` (abrir esa transcripción en vez del formulario);
+   * en cualquier otro valor se descarta, así que no hace falta limpiarlo a mano al volver al listado.
+   */
+  const ir = useCallback((valor: string | null, transcripcionId?: number) => {
     const siguientes = new URLSearchParams(params.toString())
     if (valor === null) siguientes.delete('acta')
     else siguientes.set('acta', valor)
+
+    if ((valor === 'nuevo' || valor === 'transcribir') && transcripcionId !== undefined) {
+      siguientes.set('transcripcion', String(transcripcionId))
+    } else {
+      siguientes.delete('transcripcion')
+    }
 
     router.replace(`?${siguientes.toString()}`, { scroll: false })
   }, [params, router])
@@ -169,16 +185,39 @@ function ActasDelProyecto ({
   // La URL la escribe cualquiera: sin esta guarda, un cliente que escribiera `?acta=nuevo` abriría
   // el asistente de un alta que su API contesta con 404.
   if (puedeCrear && pedida === 'nuevo') {
+    const transcripcionId = idPositivo(params.get('transcripcion'))
+
     return (
       <LimiteDeError zona="Meeting Paper — asistente de creación">
         <AsistenteDeActa
           proyectoId={proyectoId}
+          transcripcionId={transcripcionId ?? undefined}
           onCreada={(acta) => {
             recargar()
             setRecienGenerada(acta.id)
             ir(String(acta.id))
           }}
           onCancelar={() => { ir(null) }}
+        />
+      </LimiteDeError>
+    )
+  }
+
+  // Solo transcribir: el mismo material de una reunión, sin escribir un acta. Va antes que `abierta`
+  // por el mismo motivo que `nuevo`: `transcribir` no es un id de acta y `idPositivo` lo descarta solo.
+  if (puedeCrear && pedida === 'transcribir') {
+    const transcripcionAbiertaId = idPositivo(params.get('transcripcion'))
+
+    return (
+      <LimiteDeError zona="Meeting Paper — solo transcribir">
+        <AsistenteDeTranscripcion
+          proyectoId={proyectoId}
+          transcripcionAbiertaId={transcripcionAbiertaId}
+          onCrearActa={(transcripcionId) => { ir('nuevo', transcripcionId) }}
+          onCancelar={() => {
+            recargarTranscripciones()
+            ir(null)
+          }}
         />
       </LimiteDeError>
     )
@@ -221,6 +260,16 @@ function ActasDelProyecto ({
       <div className="flex items-center justify-end gap-3">
         {!ia.activa && <Insignia tono="aviso" tamano="chico">{motivo.chip}</Insignia>}
         <Boton
+          variante="secundario"
+          tamano="chico"
+          onClick={() => {
+            if (ia.activa) ir('transcribir')
+            else setMotivoALaVista(true)
+          }}
+        >
+          Solo transcribir
+        </Boton>
+        <Boton
           variante="primario"
           tamano="chico"
           onClick={() => {
@@ -248,6 +297,16 @@ function ActasDelProyecto ({
           />
           <BloqueCopiable titulo="Detalle para reportarlo" texto={detalleDelMotivo(proyectoId, ia)} />
         </div>
+      )}
+
+      {/* Solo del equipo: el portal monta este panel con `capacidades=[]` y `puedeCrear` es falso, así
+          que un contacto nunca pide transcripciones que no puede ver. */}
+      {puedeCrear && (
+        <TranscripcionesRecientes
+          proyectoId={proyectoId}
+          revision={revisionTranscripciones}
+          onAbrir={(transcripcionId) => { ir('transcribir', transcripcionId) }}
+        />
       )}
 
       <PanelRecurso
