@@ -55,6 +55,13 @@ export const NOVEDADES: Novedad[] = [
   {
     fecha: '2026-09-28',
     tipo: 'mejora',
+    titulo: 'Drive de la Tarea admite archivos grandes (videos)',
+    detalle: 'Los archivos de más de 25 MB ya no se rechazan: suben directo al Drive, en trozos y con barra de avance, hasta 2 GB.',
+    commits: []
+  },
+  {
+    fecha: '2026-09-28',
+    tipo: 'mejora',
     titulo: 'Supervisión: agrupar por área y hoja impresa sin tareas completadas',
     detalle: 'La hoja diaria ya agrupa por cliente, persona o área, y "Agrupar por persona" solo junta a tu gente a cargo. La hoja para imprimir ya no lista las tareas completadas del día; en pantalla se siguen viendo.',
     commits: []

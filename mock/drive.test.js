@@ -213,3 +213,77 @@ test('con Drive caído la raíz trae el error y ningún hijo, y el reintento con
   assert.ok((await pedir(`/drive/${cuerpo.data.folder.id}`)).cuerpo.data.children.length > 0)
   assert.equal((await pedir('/projects/1/drive')).cuerpo.data.folder.error, null)
 })
+
+// --- Subida resumable directa (WIW-0469) --------------------------------------------------------
+
+/** Manda un trozo (o una consulta de estado con "bytes star/total") a la sessionUrl de una sesión. */
+async function mandarTrozo (sessionUrl, contentRange, cuerpo) {
+  const respuesta = await fetch(sessionUrl, {
+    method: 'PUT',
+    headers: { 'content-range': contentRange },
+    body: cuerpo
+  })
+  return { estado: respuesta.status, rango: respuesta.headers.get('range'), cuerpo: respuesta.status < 300 && respuesta.status !== 308 ? await respuesta.json() : null }
+}
+
+test('abre una sesión resumable, valida su tamaño y su extensión', async () => {
+  const { folder } = await raiz()
+
+  const sesion = await pedir(`/drive/${folder.id}/upload-sessions`, 'POST', { name: 'video.mp4', mimeType: 'video/mp4', size: 50 * 1024 * 1024 })
+  assert.equal(sesion.estado, 200)
+  assert.match(sesion.cuerpo.data.sessionUrl, /\/drive\/mock-sesion\//)
+  assert.ok(new Date(sesion.cuerpo.data.expiraEn).getTime() > Date.now())
+
+  const enorme = await pedir(`/drive/${folder.id}/upload-sessions`, 'POST', { name: 'video.mp4', mimeType: 'video/mp4', size: 3 * 1024 * 1024 * 1024 })
+  assert.equal(enorme.estado, 422)
+  assert.deepEqual(enorme.cuerpo.error.details.size, ['too_large'])
+
+  const rechazada = await pedir(`/drive/${folder.id}/upload-sessions`, 'POST', { name: 'app.exe', mimeType: 'application/x-msdownload', size: 100 })
+  assert.equal(rechazada.estado, 422)
+})
+
+test('sube un archivo en trozos por la sesión resumable y lo confirma', async () => {
+  const { folder } = await raiz()
+  const total = 20
+  const sesion = (await pedir(`/drive/${folder.id}/upload-sessions`, 'POST', { name: 'clip.mp4', mimeType: 'video/mp4', size: total })).cuerpo.data
+
+  const primero = await mandarTrozo(sesion.sessionUrl, `bytes 0-9/${total}`, new Uint8Array(10))
+  assert.equal(primero.estado, 308)
+  assert.equal(primero.rango, 'bytes=0-9')
+
+  const segundo = await mandarTrozo(sesion.sessionUrl, `bytes 10-19/${total}`, new Uint8Array(10))
+  assert.equal(segundo.estado, 200)
+  assert.ok(typeof segundo.cuerpo.id === 'string' && segundo.cuerpo.id.length > 0)
+
+  const confirmacion = await pedir(`/drive/${folder.id}/files/${segundo.cuerpo.id}/confirmar`, 'POST', {})
+  assert.equal(confirmacion.estado, 201)
+  assert.equal(confirmacion.cuerpo.data.name, 'clip.mp4')
+  assert.equal(confirmacion.cuerpo.data.size_bytes, total)
+
+  const hijos = (await pedir(`/drive/${folder.id}`)).cuerpo.data.children
+  assert.ok(hijos.some((hijo) => hijo.id === confirmacion.cuerpo.data.drive_file_id))
+
+  // Confirmar dos veces la misma subida ya no tiene nada pendiente.
+  assert.equal((await pedir(`/drive/${folder.id}/files/${segundo.cuerpo.id}/confirmar`, 'POST', {})).estado, 404)
+})
+
+test('reanuda una sesión resumable: la consulta de estado dice cuánto tiene Google', async () => {
+  const { folder } = await raiz()
+  const total = 30
+  const sesion = (await pedir(`/drive/${folder.id}/upload-sessions`, 'POST', { name: 'clip.mp4', mimeType: 'video/mp4', size: total })).cuerpo.data
+
+  await mandarTrozo(sesion.sessionUrl, `bytes 0-14/${total}`, new Uint8Array(15))
+
+  // Se "cae la conexión": el reintento pregunta antes de mandar más, en vez de mandar todo de nuevo.
+  const estado = await mandarTrozo(sesion.sessionUrl, `bytes */${total}`, undefined)
+  assert.equal(estado.estado, 308)
+  assert.equal(estado.rango, 'bytes=0-14')
+
+  const resto = await mandarTrozo(sesion.sessionUrl, `bytes 15-29/${total}`, new Uint8Array(15))
+  assert.equal(resto.estado, 200)
+})
+
+test('un token de sesión que no existe responde 404, no 401: la URL no lleva el token de la persona', async () => {
+  const respuesta = await fetch(`${base}/drive/mock-sesion/no-existe`, { method: 'PUT', headers: { 'content-range': 'bytes 0-0/1' }, body: new Uint8Array(1) })
+  assert.equal(respuesta.status, 404)
+})

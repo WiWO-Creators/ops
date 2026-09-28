@@ -27,7 +27,7 @@ import { esPrincipal, filaDelPortal, listadosDeTickets, ticketsDelResumen } from
 import { filtrosGuardados } from './filtros-guardados.js'
 import { analizarScope, interpretarScope, scopeRuta } from './scope.js'
 import { supervisionDelEquipo } from './supervision.js'
-import { driveDeEntidadRuta, driveRuta } from './drive.js'
+import { driveDeEntidadRuta, driveRuta, sesionDirectaRuta } from './drive.js'
 import { escribirAjustesDelOrbePortal, opcionDelOrbePortal, orbePortalRuta } from './orbe-portal.js'
 import {
   ADMINS_DE_CLIENTE, AREAS, ARCHIVOS, CAMPOS_PERSONALIZADOS, CHECKLIST, CLIENTES, COMENTARIOS, CRONOMETROS,
@@ -124,16 +124,19 @@ function cabecerasCors (respuesta, origen) {
  * @param {number} estado
  * @param {object|null} cuerpo
  */
-function responder (respuesta, estado, cuerpo) {
-  if (estado === 204 || cuerpo === null) {
-    respuesta.writeHead(204)
+function responder (respuesta, estado, cuerpo, cabeceras) {
+  // Sin cuerpo: un `204` de siempre, o un `308` de la sesión resumable de Drive con el `Range` de lo
+  // ya recibido en sus cabeceras propias.
+  if (cuerpo === null || cuerpo === undefined) {
+    respuesta.writeHead(estado, cabeceras)
     respuesta.end()
     return
   }
   const texto = JSON.stringify(cuerpo, null, 2)
   respuesta.writeHead(estado, {
     'Content-Type': 'application/json; charset=utf-8',
-    'Content-Length': Buffer.byteLength(texto)
+    'Content-Length': Buffer.byteLength(texto),
+    ...cabeceras
   })
   respuesta.end(texto)
 }
@@ -6013,6 +6016,15 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
     }
   }
 
+  // --- Sesión resumable de Drive: la URL a la que "Google" recibe los trozos ---------------------
+  //
+  // Va antes del token por la misma razón que /rooms/panel: es la URL que el navegador llama
+  // directo, sin el token de la persona (Google tampoco lo pide, la propia URL de sesión es la
+  // credencial). El token de la sesión ya se validó al abrirla, en `POST /drive/{id}/upload-sessions`.
+  if (recurso === 'drive' && resto[0] === 'mock-sesion' && metodo === 'PUT') {
+    return await sesionDirectaRuta(resto[1], peticion)
+  }
+
   if (recurso === 'auth') {
     const [accion] = resto
     const datos = await cuerpo()
@@ -7942,7 +7954,7 @@ export const servidor = createServer((peticion, respuesta) => {
     || null
 
   resolverRuta(peticion.method, partes.slice(2), url.searchParams, token, () => leerCuerpo(peticion), peticion)
-    .then(({ estado, cuerpo, transmitir }) => {
+    .then(({ estado, cuerpo, transmitir, cabeceras }) => {
       // Un endpoint que transmite escribe el mismo la respuesta: no hay `{estado, cuerpo}` que
       // serializar, porque el cuerpo se va armando durante varios segundos.
       if (transmitir !== undefined) {
@@ -7950,7 +7962,7 @@ export const servidor = createServer((peticion, respuesta) => {
         return
       }
 
-      responder(respuesta, estado, cuerpo)
+      responder(respuesta, estado, cuerpo, cabeceras)
     })
     .catch((error) => {
       if (error instanceof ErrorApi) {
