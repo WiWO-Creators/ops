@@ -3,7 +3,7 @@ import { Filas, Seccion, type Dato } from '@/componentes/presentadores/Ficha'
 import { nombreDe } from '@/datos/catalogos'
 import type { EstadoLookup, Upsell } from '@/datos/recursos'
 import { etiquetaDeEstado } from '@/definiciones/licitaciones'
-import { formatearFecha } from '@/lib/fechas'
+import { formatearFecha, LOCALE } from '@/lib/fechas'
 
 /**
  * Pestaña Ficha de un Upsell: de quien es la oportunidad, cuanto vale y en que quedo.
@@ -30,7 +30,7 @@ export function FichaUpsell ({
   const oportunidad = conValor([
     {
       etiqueta: 'Monto estimado',
-      valor: upsell.monto_estimado === null ? null : upsell.monto_estimado.toLocaleString('es-CL')
+      valor: upsell.monto_estimado === null ? null : upsell.monto_estimado.toLocaleString(LOCALE)
     },
     {
       etiqueta: 'Moneda',

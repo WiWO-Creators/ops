@@ -1,4 +1,4 @@
-import { sumarDias } from '../lib/fechas.ts'
+import { LOCALE, sumarDias } from '../lib/fechas.ts'
 
 /**
  * Logica de la vista de calendario de Procesos.
@@ -263,7 +263,7 @@ function formatear (dia: string, opciones: Intl.DateTimeFormatOptions): string {
 
   if (instante === null) return dia
 
-  return new Intl.DateTimeFormat('es-AR', { ...opciones, timeZone: 'UTC' })
+  return new Intl.DateTimeFormat(LOCALE, { ...opciones, timeZone: 'UTC' })
     .formatToParts(instante)
     .filter((parte) => parte.type !== 'literal')
     .map((parte) => parte.value.replace('.', ''))

@@ -5,6 +5,8 @@
  * Las importan tambien las definiciones de recurso, que corren bajo el runner de Node.
  */
 
+import { LOCALE } from '../../lib/fechas.ts'
+
 /**
  * Formatea segundos como `HH:MM`, sin dias.
  *
@@ -35,7 +37,7 @@ export function segundosAHoraMinuto (segundos: number): string {
 export function formatearImporte (valor: number | null | undefined, simbolo: string | null = null): string {
   if (typeof valor !== 'number' || !Number.isFinite(valor)) return '—'
 
-  const numero = new Intl.NumberFormat('es-AR', {
+  const numero = new Intl.NumberFormat(LOCALE, {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2
   }).format(valor)
