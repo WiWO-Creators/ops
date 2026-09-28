@@ -51,6 +51,10 @@ export interface CamposEdicion {
   descripcion: string
   /** Horas estimadas, decimales. `''` es "sin estimacion"; `'0'` es una estimacion de cero. */
   horasEstimadas: string
+  /** Si la Tarea es un entregable para el cliente: cuenta en «Entregables» del reporte mensual. */
+  entregable: boolean
+  /** Enlace a la pieza final (`http(s)://`), o `''` sin enlace. */
+  enlaceEntregable: string
 }
 
 /** El cuerpo del `PATCH /tasks/{id}`, con solo las claves que cambiaron. */
@@ -78,6 +82,8 @@ export interface ParcheTarea {
   tags?: Array<number | string>
   description?: string | null
   estimated_hours?: number | null
+  deliverable?: boolean
+  deliverable_url?: string | null
 }
 
 /**
@@ -114,7 +120,9 @@ export function camposDeTarea (tarea: Proceso, descripcion: string): CamposEdici
     seguidores: tarea.followers.map((persona) => persona.id),
     etiquetas: tarea.tags.map((etiqueta) => etiqueta.id),
     descripcion,
-    horasEstimadas: typeof tarea.estimated_hours === 'number' ? String(tarea.estimated_hours) : ''
+    horasEstimadas: typeof tarea.estimated_hours === 'number' ? String(tarea.estimated_hours) : '',
+    entregable: tarea.deliverable ?? false,
+    enlaceEntregable: tarea.deliverable_url ?? ''
   }
 }
 
@@ -198,6 +206,10 @@ export function cuerpoDeParche (inicial: CamposEdicion, actual: CamposEdicion): 
   if (actual.horasEstimadas.trim() !== inicial.horasEstimadas.trim()) {
     parche.estimated_hours = horasDeTexto(actual.horasEstimadas)
   }
+  if (actual.entregable !== inicial.entregable) parche.deliverable = actual.entregable
+  if (actual.enlaceEntregable.trim() !== inicial.enlaceEntregable.trim()) {
+    parche.deliverable_url = actual.enlaceEntregable.trim() === '' ? null : actual.enlaceEntregable.trim()
+  }
 
   return parche
 }
@@ -222,6 +234,8 @@ export function errorDeCamposEdicion (campos: CamposEdicion, vencimientoRequerid
   if (campos.inicio !== '' && campos.vencimiento !== '' && campos.vencimiento < campos.inicio) {
     return 'El vencimiento no puede ser anterior al inicio.'
   }
+  const enlaceMal = errorDeEnlaceEntregable(campos.enlaceEntregable)
+  if (enlaceMal !== null) return enlaceMal
   if (!campos.recurrente) return null
   const cada = Number(campos.repetirCada)
   if (!Number.isInteger(cada) || cada < 1 || cada > 365) return 'La repetición debe ser un entero entre 1 y 365.'
@@ -229,6 +243,32 @@ export function errorDeCamposEdicion (campos: CamposEdicion, vencimientoRequerid
   const dias = errorDeDiasExcluidos(campos.diasExcluidos)
   if (dias !== null) return dias
   return errorDeFin(campos.finRecurrencia, campos.ciclos, campos.hasta, campos.inicio)
+}
+
+/**
+ * Valida el enlace del entregable con la misma regla que `PATCH /tasks/{id}`: vacio, o `http(s)://`
+ * de hasta 500 caracteres. El enlace se abre desde el portal del cliente, asi que otro esquema
+ * —`javascript:`, `data:`— no se acepta ni aunque el navegador lo entienda.
+ *
+ * @param enlace el texto del campo
+ * @returns el mensaje de error, o `null` si sirve
+ */
+export function errorDeEnlaceEntregable (enlace: string): string | null {
+  const limpio = enlace.trim()
+  if (limpio === '') return null
+
+  let url: URL
+  try {
+    url = new URL(limpio)
+  } catch {
+    return 'El enlace del entregable debe ser una dirección web completa, con https://.'
+  }
+
+  if ((url.protocol !== 'https:' && url.protocol !== 'http:') || url.hostname === '') {
+    return 'El enlace del entregable debe empezar con https:// o http://.'
+  }
+
+  return limpio.length > 500 ? 'El enlace del entregable no puede superar los 500 caracteres.' : null
 }
 
 /**

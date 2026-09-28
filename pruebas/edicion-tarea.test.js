@@ -8,7 +8,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
-  camposDeTarea, cuerpoDeParche, errorDeCamposEdicion, nombresDeEtiquetas, personasElegibles
+  camposDeTarea, cuerpoDeParche, errorDeCamposEdicion, errorDeEnlaceEntregable, nombresDeEtiquetas, personasElegibles
 } from '../src/dominio/edicion-tarea.ts'
 
 const TAREA = {
@@ -52,7 +52,9 @@ test('los campos iniciales salen de la tarea, con vacio donde la API manda null'
     seguidores: [],
     etiquetas: [5],
     descripcion: 'Texto de la descripción',
-    horasEstimadas: '4'
+    horasEstimadas: '4',
+    entregable: false,
+    enlaceEntregable: ''
   })
 })
 
@@ -272,4 +274,29 @@ test('Sin proyecto valida, borra la relación y equivale a una relación inicial
   const vacia = camposDeTarea({ ...TAREA, milestone: null }, '')
   assert.deepEqual(cuerpoDeParche(vacia, { ...vacia, relacion: 'project' }), {})
   assert.equal(errorDeCamposEdicion({ ...vacia, tarifaHora: '999999999.99' }), null)
+})
+
+test('marcar un entregable manda solo lo que cambio, y borrar el enlace viaja como null', () => {
+  const campos = camposDeTarea({ ...TAREA, deliverable: true, deliverable_url: 'https://drive.google.com/a' }, '')
+
+  assert.equal(campos.entregable, true)
+  assert.deepEqual(cuerpoDeParche(campos, { ...campos }), {})
+  assert.deepEqual(cuerpoDeParche(campos, { ...campos, entregable: false }), { deliverable: false })
+  assert.deepEqual(cuerpoDeParche(campos, { ...campos, enlaceEntregable: '  ' }), { deliverable_url: null })
+  assert.deepEqual(
+    cuerpoDeParche(campos, { ...campos, enlaceEntregable: ' https://x.cl/b ' }),
+    { deliverable_url: 'https://x.cl/b' }
+  )
+})
+
+test('el enlace del entregable solo acepta direcciones web', () => {
+  assert.equal(errorDeEnlaceEntregable(''), null)
+  assert.equal(errorDeEnlaceEntregable('https://drive.google.com/file/d/1'), null)
+  assert.notEqual(errorDeEnlaceEntregable('javascript:alert(1)'), null)
+  assert.notEqual(errorDeEnlaceEntregable('drive.google.com/x'), null)
+  assert.notEqual(errorDeEnlaceEntregable('ftp://x.cl/a'), null)
+  assert.notEqual(errorDeEnlaceEntregable('https://x.cl/' + 'a'.repeat(500)), null)
+
+  const campos = camposDeTarea(TAREA, '')
+  assert.notEqual(errorDeCamposEdicion({ ...campos, enlaceEntregable: 'javascript:alert(1)' }), null)
 })

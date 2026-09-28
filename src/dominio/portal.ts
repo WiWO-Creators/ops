@@ -45,6 +45,9 @@ const CATALOGO: SeccionPortal[] = [
   // `/portal/gestion` en cada navegacion para decidir si dibujar un enlace, que le cobra el tablero
   // entero justo al contacto que SI lo tiene. Quien no lo tiene recibe el 404 de la API, que esta
   // hecho para ser indistinguible de una ruta inventada.
+  // El reporte mensual: lo entregado y lo completado en el mes. La API publica `reporte` a todo
+  // contacto con {espacios} visibles; cada bloque se decide por las pestañas que ya ve.
+  { clave: 'reporte', href: '/portal/reporte', etiqueta: 'Reporte mensual' },
   { clave: 'gestion', href: '/portal/gestion', etiqueta: 'Control de gestión' },
   { clave: 'support', href: '/portal/soporte', etiqueta: GLOSARIO.ticket.plural }
   // **Archivos, Anuncios y Ayuda no tienen entrada, y es a proposito.** Las tres son secciones que

@@ -66,6 +66,12 @@ export interface Proceso {
   estimated_hours: number | null
   is_public: boolean
   visible_to_client: boolean
+  /**
+   * Si la Tarea es un entregable para el cliente y el enlace a la pieza final (migracion 1080). Opcionales:
+   * una API sin la migracion no los manda.
+   */
+  deliverable?: boolean
+  deliverable_url?: string | null
   recurring: boolean
   repeat_every?: number
   recurring_type?: string | null
