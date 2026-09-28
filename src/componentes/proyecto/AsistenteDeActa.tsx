@@ -79,9 +79,18 @@ interface PropsAsistente {
   /** Se llama con el acta ya guardada. El panel la abre para revisarla. */
   onCreada: (acta: Acta) => void
   onCancelar: () => void
+  /**
+   * Id de una transcripción ya guardada (`AsistenteDeTranscripcion`), para escribir el acta a partir
+   * de ese texto sin volver a procesar el audio.
+   *
+   * Con esto puesto, el paso 1 no pide material: la transcripción YA ES el material, y el backend la
+   * usa en vez de leer un archivo. El resto del asistente —los datos de cabecera, el stream, el
+   * guardado— es exactamente el mismo camino que una generación desde audio.
+   */
+  transcripcionId?: number
 }
 
-export function AsistenteDeActa ({ proyectoId, onCreada, onCancelar }: PropsAsistente): ReactElement {
+export function AsistenteDeActa ({ proyectoId, onCreada, onCancelar, transcripcionId }: PropsAsistente): ReactElement {
   const [modo, setModo] = useState<ModoEntrada>('texto')
   const [texto, setTexto] = useState('')
   const [archivos, setArchivos] = useState<File[]>([])
@@ -169,7 +178,8 @@ export function AsistenteDeActa ({ proyectoId, onCreada, onCancelar }: PropsAsis
     setArchivos(elegidos)
   }
 
-  const listoParaGenerar = (archivos.length > 0 || texto.trim() !== '') && fase !== 'generando'
+  const listoParaGenerar =
+    (transcripcionId !== undefined || archivos.length > 0 || texto.trim() !== '') && fase !== 'generando'
 
   async function generar (): Promise<void> {
     if (!listoParaGenerar) return
@@ -185,11 +195,17 @@ export function AsistenteDeActa ({ proyectoId, onCreada, onCancelar }: PropsAsis
     setSegundos(0)
 
     const cuerpo = new FormData()
-    // `file[]` y no `file`: PHP se queda con el ÚLTIMO valor cuando un campo multipart se repite sin
-    // corchetes, así que mandar cinco fotos como `file` dejaría cuatro en el camino sin ningún error.
-    // Con los corchetes PHP las agrupa en `$_FILES['file']` y `EntradaDeActa` las lee todas.
-    for (const archivo of archivos) cuerpo.append('file[]', archivo)
-    if (texto.trim() !== '') cuerpo.append('texto', texto.trim())
+    if (transcripcionId !== undefined) {
+      // La transcripción YA ES el material: no se manda archivo ni texto, el backend la busca por
+      // id y usa lo que tiene guardado.
+      cuerpo.append('transcripcion_id', String(transcripcionId))
+    } else {
+      // `file[]` y no `file`: PHP se queda con el ÚLTIMO valor cuando un campo multipart se repite
+      // sin corchetes, así que mandar cinco fotos como `file` dejaría cuatro en el camino sin ningún
+      // error. Con los corchetes PHP las agrupa en `$_FILES['file']` y `EntradaDeActa` las lee todas.
+      for (const archivo of archivos) cuerpo.append('file[]', archivo)
+      if (texto.trim() !== '') cuerpo.append('texto', texto.trim())
+    }
     cuerpo.append('cliente', datos.cliente)
     cuerpo.append('fecha', datos.fecha)
     cuerpo.append('lugar', datos.lugar)
@@ -302,18 +318,27 @@ export function AsistenteDeActa ({ proyectoId, onCreada, onCancelar }: PropsAsis
 
       <div className={cn(TARJETA, 'flex flex-col')}>
         <Paso numero={1} titulo="El material de la reunión" className="pb-5">
-          <FuenteDelActa
-            modo={modo}
-            onModo={(siguiente) => {
-              setModo(siguiente)
-              elegirArchivos([])
-            }}
-            texto={texto}
-            onTexto={setTexto}
-            archivos={archivos}
-            errorArchivo={errorArchivo}
-            onArchivos={elegirArchivos}
-          />
+          {transcripcionId !== undefined
+            ? (
+              <p className="text-texto-tenue text-sm">
+                Se usa el texto de la transcripción que ya generaste. No hace falta volver a subir ni
+                grabar nada.
+              </p>
+              )
+            : (
+              <FuenteDelActa
+                modo={modo}
+                onModo={(siguiente) => {
+                  setModo(siguiente)
+                  elegirArchivos([])
+                }}
+                texto={texto}
+                onTexto={setTexto}
+                archivos={archivos}
+                errorArchivo={errorArchivo}
+                onArchivos={elegirArchivos}
+              />
+              )}
         </Paso>
 
         <Paso

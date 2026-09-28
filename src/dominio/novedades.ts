@@ -54,6 +54,13 @@ export const ROTULO_TIPO: Record<TipoNovedad, string> = {
 export const NOVEDADES: Novedad[] = [
   {
     fecha: '2026-09-28',
+    tipo: 'nuevo',
+    titulo: 'Meeting Paper: "Solo transcribir"',
+    detalle: 'En la pestaña Meeting Paper de un Proyecto, "Solo transcribir" graba o sube un audio y devuelve el texto sin escribir un acta. Se puede copiar, descargar o usar para crear un Meeting Paper después. Se guarda 24 horas y se borra solo.',
+    commits: []
+  },
+  {
+    fecha: '2026-09-28',
     tipo: 'mejora',
     titulo: 'Un mismo lenguaje visual en todo Ops: personas, tablas, avisos y confirmaciones',
     detalle: 'El nombre de una persona ahora es siempre clickeable y muestra su tarjeta al pasar el mouse por encima, en cualquier pantalla. Las tablas de los listados se ven y se filtran igual en todos lados, y el filtro que elegiste sigue ahí si recargas la página. El menú "⋯" de cada fila y la confirmación antes de borrar o cancelar algo tienen el mismo aspecto en todo el sistema, y guardar o borrar algo siempre avisa con el mismo mensaje flotante. Lo que antes se llamaba Proceso y Espacio ahora se llama Tarea y Proyecto (la URL pasó de /procesos a /tareas), y las fechas se muestran en formato chileno.',
