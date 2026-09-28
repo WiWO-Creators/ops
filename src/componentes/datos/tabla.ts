@@ -353,7 +353,9 @@ export function ordenarLocalmente<T> (filas: T[], orden: string[], columnas: Arr
  * servidor o de memoria.
  *
  * @param filas el arreglo completo, ya ordenado
- * @param pagina pagina vigente, 1-indexada
+ * @param pagina pagina vigente, 1-indexada. Se acota a `totalPaginas`: un filtro que achica el
+ *        resultado puede dejar en la URL una pagina que ya no existe, y sin acotar eso vaciaria la
+ *        tabla en vez de mostrar la ultima pagina disponible.
  * @param porPagina tamaño de pagina vigente
  * @returns las filas de esa pagina y su `Paginacion`
  */
@@ -364,11 +366,12 @@ export function paginarLocalmente<T> (
 ): { filas: T[], paginacion: Paginacion } {
   const total = filas.length
   const totalPaginas = Math.max(1, Math.ceil(total / porPagina))
-  const inicio = (pagina - 1) * porPagina
+  const paginaAcotada = Math.min(Math.max(1, pagina), totalPaginas)
+  const inicio = (paginaAcotada - 1) * porPagina
 
   return {
     filas: filas.slice(inicio, inicio + porPagina),
-    paginacion: { page: pagina, per_page: porPagina, total, total_pages: totalPaginas }
+    paginacion: { page: paginaAcotada, per_page: porPagina, total, total_pages: totalPaginas }
   }
 }
 

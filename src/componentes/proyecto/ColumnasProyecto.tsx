@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { Etiquetas } from '@/componentes/presentadores/Etiqueta'
+import { EnlaceProyecto } from '@/componentes/presentadores/EnlaceProyecto'
 import { GrupoEnlacesPersona } from '@/componentes/presentadores/GrupoEnlacesPersona'
 import { BarraProgreso } from './CabeceraProyecto'
 import type { Columna } from '@/definiciones/tipos'
@@ -87,13 +88,11 @@ function CeldaNombre ({ espacio, acciones }: { espacio: Espacio, acciones: Accio
 
   return (
     <span className="group/fila flex min-w-0 items-center gap-2">
-      {puedeVerSeccion(capacidades, 'projects')
-        ? (
-          <Link href={`/proyectos/${espacio.id}`} className="hover:text-acento truncate font-medium">
-            {espacio.name}
-          </Link>
-          )
-        : <span className="truncate font-medium">{espacio.name}</span>}
+      <EnlaceProyecto
+        id={espacio.id}
+        nombre={espacio.name}
+        capacidades={acciones !== undefined ? capacidades : undefined}
+      />
 
       {/* El pedido de eliminacion se lee junto al nombre y no en una columna propia: cambia como se
           lee la fila entera, y una columna mas obligaria a mirar a la derecha para enterarse. */}
