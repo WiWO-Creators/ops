@@ -58,7 +58,7 @@ try {
     await dialogo.waitFor({ state: 'hidden' })
     await pagina.waitForLoadState('networkidle')
   }
-  await pagina.goto(new URL(`/procesos?tarea=${tarea.id}`, destino).href, { waitUntil: 'networkidle', timeout: 90000 })
+  await pagina.goto(new URL(`/tareas?tarea=${tarea.id}`, destino).href, { waitUntil: 'networkidle', timeout: 90000 })
   await abrir()
   assert.equal(await dialogo.getByLabel('Link de Drive', { exact: true }).inputValue(), urlInicial)
   assert.equal(await dialogo.getByLabel('Nombre del enlace', { exact: true }).inputValue(), 'Carpeta')

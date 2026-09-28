@@ -35,7 +35,7 @@ export const metadata = { title: 'Calendario de Tareas · WiWO Ops' }
  * **Nada tumba la pantalla.** Los cuatro pedidos van con `pedirOpcional`: si la API falla, la vista lo
  * dice —el listado con su estado de error, las alertas con una linea— en vez de quedar en blanco.
  */
-export default async function CalendarioProcesosPage (props: PageProps<'/procesos/calendario'>) {
+export default async function CalendarioProcesosPage (props: PageProps<'/tareas/calendario'>) {
   const params = paramsDeUrl(await props.searchParams)
   const campos = await pedir<DefinicionCampoPersonalizado[]>('/custom-fields?para=tasks')
   const definicion = { ...PROCESOS, filtros: [...PROCESOS.filtros, ...filtrosDeCamposPersonalizados(campos.data)] }
@@ -82,14 +82,14 @@ export default async function CalendarioProcesosPage (props: PageProps<'/proceso
             tamano="medio"
             activo="calendario"
             opciones={[
-              { valor: 'tabla', etiqueta: 'Tabla', icono: 'tabla', href: `/procesos${consulta === '' ? '' : `?${consulta}`}` },
+              { valor: 'tabla', etiqueta: 'Tabla', icono: 'tabla', href: `/tareas${consulta === '' ? '' : `?${consulta}`}` },
               {
                 valor: 'tablero',
                 etiqueta: 'Tablero',
                 icono: 'tablero',
-                href: `/procesos/tablero${consulta === '' ? '' : `?${consulta}`}`
+                href: `/tareas/tablero${consulta === '' ? '' : `?${consulta}`}`
               },
-              { valor: 'calendario', etiqueta: 'Calendario', icono: 'calendario', href: '/procesos/calendario' }
+              { valor: 'calendario', etiqueta: 'Calendario', icono: 'calendario', href: '/tareas/calendario' }
             ]}
           />
         }

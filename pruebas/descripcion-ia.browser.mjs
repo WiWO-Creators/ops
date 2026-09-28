@@ -75,7 +75,7 @@ try {
 
   /** Abre el formulario de alta de Tarea y devuelve su dialogo. */
   async function abrirFormulario () {
-    await pagina.goto(new URL('/procesos', destino).href, { waitUntil: 'domcontentloaded', timeout: 90000 })
+    await pagina.goto(new URL('/tareas', destino).href, { waitUntil: 'domcontentloaded', timeout: 90000 })
 
     const nueva = pagina.getByRole('button', { name: 'Nueva tarea', exact: true })
     await nueva.waitFor({ timeout: 60000 })

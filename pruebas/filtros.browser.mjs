@@ -57,7 +57,7 @@ async function elegirPrimera () {
 
 const filas = (rol) => pagina.locator(`[role="menu"] [role="${rol}"]`)
 
-await pagina.goto(`${BASE}/procesos`, { waitUntil: 'networkidle' })
+await pagina.goto(`${BASE}/tareas`, { waitUntil: 'networkidle' })
 await pagina.waitForTimeout(800)
 
 // 1. El desplegable de agregar filtro trae buscador y acota la lista.

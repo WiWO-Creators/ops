@@ -22,7 +22,7 @@ try {
       if (peticion.method() === 'GET') return ruta.fulfill({ json: { data: { mensajes: [{ rol: 'ia', texto: `Historial exclusivo ${alcance}` }] } } })
       if (peticion.method() === 'DELETE') return ruta.fulfill({ json: { data: { borrados: 1 } } })
       if (path.includes('/acciones/')) return ruta.fulfill({ json: { data: { ...accion, estado: 'ejecutada', resultado: 'Cambio aplicado al proyecto.' } } })
-      return ruta.fulfill({ contentType: 'text/event-stream', body: `event: delta\ndata: ${JSON.stringify({ t: `Respuesta exclusiva ${alcance}` })}\n\nevent: propuesta\ndata: ${JSON.stringify(accion)}\n\nevent: navegar\ndata: ${JSON.stringify({ href: '/procesos', etiqueta: 'Tareas globales' })}\n\nevent: fin\ndata: {}\n\n` })
+      return ruta.fulfill({ contentType: 'text/event-stream', body: `event: delta\ndata: ${JSON.stringify({ t: `Respuesta exclusiva ${alcance}` })}\n\nevent: propuesta\ndata: ${JSON.stringify(accion)}\n\nevent: navegar\ndata: ${JSON.stringify({ href: '/tareas', etiqueta: 'Tareas globales' })}\n\nevent: fin\ndata: {}\n\n` })
     }
     if (!['GET', 'HEAD', 'OPTIONS'].includes(peticion.method())) return ruta.abort()
     return ruta.continue()

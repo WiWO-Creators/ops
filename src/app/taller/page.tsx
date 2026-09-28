@@ -213,8 +213,8 @@ export default function TallerPage () {
             etiqueta="Presentación de tareas"
             activo="tabla"
             opciones={[
-              { valor: 'tabla', etiqueta: 'Tabla', icono: 'tabla', href: '/procesos' },
-              { valor: 'tablero', etiqueta: 'Tablero', icono: 'tablero', href: '/procesos/tablero' }
+              { valor: 'tabla', etiqueta: 'Tabla', icono: 'tabla', href: '/tareas' },
+              { valor: 'tablero', etiqueta: 'Tablero', icono: 'tablero', href: '/tareas/tablero' }
             ]}
           />
         </Muestra>

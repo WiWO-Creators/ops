@@ -95,7 +95,7 @@ try {
     await dialogo.waitFor({ state: 'hidden' })
     await pagina.waitForLoadState('networkidle')
   }
-  await pagina.goto(new URL(`/procesos?tarea=${tarea.id}`, destino).href, { waitUntil: 'domcontentloaded', timeout: 90000 })
+  await pagina.goto(new URL(`/tareas?tarea=${tarea.id}`, destino).href, { waitUntil: 'domcontentloaded', timeout: 90000 })
   await pagina.waitForLoadState('networkidle')
 
   // --- La descripción es obligatoria desde la tanda del 11/09: el formulario no deja guardar sin

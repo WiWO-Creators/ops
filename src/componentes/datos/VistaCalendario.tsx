@@ -56,7 +56,7 @@ import type { DefinicionRecurso, EstadoConsulta, OpcionFiltro } from '@/definici
  * El estado vive entero en la URL —`dia`, la clave de `claveVista` y los filtros del recurso—
  * para que una vista se comparta con un enlace y "atras" haga lo que la persona espera.
  *
- * **La misma grilla sirve dos pantallas**: el calendario global (`/procesos/calendario`, que baja los
+ * **La misma grilla sirve dos pantallas**: el calendario global (`/tareas/calendario`, que baja los
  * datos desde el servidor) y la pestaña Tareas de un Espacio (`CalendarioTareas`, que los pide desde
  * el navegador contra la ruta acotada del Espacio). Todo lo que cambia entre las dos son props: que
  * filtros se ofrecen, si hay bloque de alertas y en que clave de la URL se guarda dia/semana. No hay
@@ -547,7 +547,7 @@ function AvisoDeVencimientos (
               {textoDeAviso(tarea.aviso)}
             </Insignia>
             <Link
-              href={`/procesos?${PARAMETRO_TAREA}=${tarea.id}`}
+              href={`/tareas?${PARAMETRO_TAREA}=${tarea.id}`}
               className="text-texto hover:text-acento font-medium underline-offset-4 hover:underline"
             >
               {tarea.name}

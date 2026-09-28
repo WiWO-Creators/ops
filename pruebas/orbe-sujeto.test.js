@@ -26,7 +26,7 @@ test('el orbe del equipo conserva rutas, cuerpo y capacidades de siempre', () =>
   assert.equal(staff.conPropuestas, true)
   assert.equal(staff.conNavegacion, true)
   assert.equal(staff.dictadoConRespaldo, true)
-  assert.equal(staff.hrefDeCita({ tipo: 'tarea', id: 3, titulo: 't' }), '/procesos?tarea=3')
+  assert.equal(staff.hrefDeCita({ tipo: 'tarea', id: 3, titulo: 't' }), '/tareas?tarea=3')
   assert.equal(staff.textos.subtitulo, 'Pregunta por lo que necesites')
 })
 
