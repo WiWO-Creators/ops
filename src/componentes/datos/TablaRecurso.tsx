@@ -290,8 +290,10 @@ export function TablaRecurso<T> ({
    * No filtra: `datos` ya deberia venir filtrado por quien monta la tabla, si hace falta.
    */
   const resultadoDeMemoria = useMemo(
-    () => (datos === undefined ? null : paginarLocalmente(ordenarLocalmente(datos, estado.orden), estado.pagina, estado.porPagina)),
-    [datos, estado.orden, estado.pagina, estado.porPagina]
+    () => (datos === undefined
+      ? null
+      : paginarLocalmente(ordenarLocalmente(datos, estado.orden, definicion.columnas), estado.pagina, estado.porPagina)),
+    [datos, estado.orden, estado.pagina, estado.porPagina, definicion.columnas]
   )
 
   // La fuente vigente de filas y paginacion: la de memoria cuando la tabla la declara, o la que trajo

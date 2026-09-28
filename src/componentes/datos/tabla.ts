@@ -307,17 +307,31 @@ function valorOrdenable (fila: unknown, campo: string): string | number | undefi
  * aca mismo sobre el arreglo completo. Un valor ausente o no comparable se manda al final, en el
  * orden en que llego: es mas util que reordenar la lista entera por un dato que falta en una fila.
  *
+ * Si la columna activa declara `ordenarCon`, ese comparador reemplaza al alfabetico/numerico por
+ * defecto sobre `ordenPor` —el caso de un escalon jerarquico, donde el texto no ordena lo que
+ * importa—. El signo de `sentido` (`asc`/`desc`) sigue aplicando sobre lo que devuelva.
+ *
  * @param filas las filas completas, ya en memoria
  * @param orden campos de `EstadoConsulta.orden`, con `-` para descendente; el primero manda
+ * @param columnas las columnas de la definicion, para encontrar el `ordenarCon` de la activa
  * @returns un arreglo nuevo, ordenado; el mismo arreglo si `orden` viene vacio
  */
-export function ordenarLocalmente<T> (filas: T[], orden: string[]): T[] {
+export function ordenarLocalmente<T> (filas: T[], orden: string[], columnas: Array<Columna<T>> = []): T[] {
   const campo = orden[0]
 
   if (campo === undefined || campo === '') return filas
 
   const descendente = campo.startsWith('-')
   const clave = descendente ? campo.slice(1) : campo
+  const signo = descendente ? -1 : 1
+
+  const columna = columnas.find((una) => una.ordenPor === clave)
+
+  if (columna?.ordenarCon !== undefined) {
+    const { ordenarCon } = columna
+
+    return [...filas].sort((a, b) => ordenarCon(a, b) * signo)
+  }
 
   return [...filas].sort((a, b) => {
     const valorA = valorOrdenable(a, clave)
@@ -329,7 +343,7 @@ export function ordenarLocalmente<T> (filas: T[], orden: string[]): T[] {
 
     const comparacion = valorA < valorB ? -1 : valorA > valorB ? 1 : 0
 
-    return descendente ? -comparacion : comparacion
+    return comparacion * signo
   })
 }
 

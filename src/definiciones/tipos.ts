@@ -24,6 +24,16 @@ export interface Columna<T> {
    * No tiene por que ser igual a `clave`: la columna "Vence" ordena por `due_date`.
    */
   ordenPor?: string
+  /**
+   * Comparador propio para el modo memoria de `TablaRecurso` (prop `datos`), cuando el orden de la
+   * columna no es alfabetico sobre el campo de `ordenPor`.
+   *
+   * Existe para columnas cuyo valor visible no refleja su orden natural —un escalon jerarquico, una
+   * prioridad—: comparar el texto ("Director" antes que "Staff") ordena al azar. Ausente = compara
+   * `ordenPor` como texto/numero, igual que siempre. Sin efecto en modo remoto: ahi el orden lo
+   * decide el `sort` que acepta el backend.
+   */
+  ordenarCon?: (a: T, b: T) => number
   /** Alinea a la derecha y usa cifras tabulares. Para importes y cantidades. Implica `angosta`. */
   numerica?: boolean
   /**

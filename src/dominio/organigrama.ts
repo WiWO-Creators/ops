@@ -9,7 +9,7 @@
  *
  * **Acá no se decide quién ve qué.** Eso ya lo resolvió la API antes de mandar los datos.
  */
-import { ESCALONES } from './escalon.ts'
+import { ordenDeEscalon } from './escalon.ts'
 import { normalizar } from './salas.ts'
 import type { AreaDelOrganigrama, Organigrama, PersonaDelOrganigrama } from '../datos/organigrama.ts'
 
@@ -383,7 +383,7 @@ export function ordenarFilas (
 
   return [...filas].sort((una, otra) => {
     if (columna === 'escalon') {
-      const diferencia = escalaDe(una.persona.escalon) - escalaDe(otra.persona.escalon)
+      const diferencia = ordenDeEscalon(una.persona.escalon) - ordenDeEscalon(otra.persona.escalon)
 
       // Empatados en escalón se ordenan por nombre, para que dos repintados seguidos no barajen las
       // filas: `sort` es estable, pero la entrada no siempre llega en el mismo orden.
@@ -400,16 +400,6 @@ export function ordenarFilas (
 
     return una.persona.nombre.localeCompare(otra.persona.nombre, 'es')
   })
-}
-
-/**
- * El peldaño de un escalón dentro de la escalera.
- *
- * @param escalon la clave del escalón
- * @returns su posición, o `0` para una clave que la escalera no conoce
- */
-function escalaDe (escalon: string): number {
-  return ESCALONES.find((uno) => uno.clave === escalon)?.orden ?? 0
 }
 
 /**
@@ -493,7 +483,7 @@ export function personasDelArea (
   return personas
     .filter((persona) => persona.area_id === areaId)
     .sort((una, otra) =>
-      escalaDe(otra.escalon) - escalaDe(una.escalon) ||
+      ordenDeEscalon(otra.escalon) - ordenDeEscalon(una.escalon) ||
       una.nombre.localeCompare(otra.nombre, 'es'))
 }
 

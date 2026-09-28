@@ -1,11 +1,10 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Suspense, useCallback, useEffect, useMemo, useState } from 'react'
 import { escribirEnBff } from '@/componentes/datos/mutaciones'
-import {
-  CeldaEncabezado, CeldaTabla, CuerpoTabla, EncabezadoTabla, FilaTabla, Tabla
-} from '@/componentes/datos/Tabla'
-import { Cargando, ErrorEstado, Vacio } from '@/componentes/estado/Estados'
+import { TablaRecurso } from '@/componentes/datos/TablaRecurso'
+import { useParametroEnUrl } from '@/componentes/datos/useFiltrosEnUrl'
+import { Cargando, ErrorEstado } from '@/componentes/estado/Estados'
 import { Boton } from '@/componentes/formularios/Boton'
 import { Entrada } from '@/componentes/formularios/Entrada'
 import {
@@ -15,33 +14,20 @@ import { Insignia } from '@/componentes/presentadores/Insignia'
 import {
   CerrarDialogo, ContenidoDialogo, Dialogo, DisparadorDialogo
 } from '@/componentes/superposiciones/Dialogo'
-import { pedirSobre } from '@/datos/cliente'
-import { consultaDePersonas, jefesPosiblesPara } from '@/dominio/accesos'
-import { ESCALONES, type Escalon } from '@/dominio/escalon'
+import { pedirTodasLasPaginas } from '@/datos/cliente'
+import { jefesPosiblesPara } from '@/dominio/accesos'
+import { ESCALONES, ordenDeEscalon, type Escalon } from '@/dominio/escalon'
 import { CabeceraDePanel, Interruptor, MensajeDeError, SIN_VALOR } from './piezas'
 import type {
   CambioDePersona, CatalogoDeAccesos, NodoDeArbol, PersonaDeAccesos
 } from '@/datos/accesos'
-import type { Paginacion } from '@/datos/tipos'
-
-/** Los filtros de la barra. La cadena vacía es "sin filtrar": `consultaDePersonas()` no la emite. */
-interface Filtros {
-  buscar: string
-  escalon: string
-  area: string
-}
-
-const SIN_FILTROS: Filtros = { buscar: '', escalon: '', area: '' }
+import type { Columna, DefinicionRecurso, ResultadoLista } from '@/definiciones/tipos'
 
 /** Cuántos candidatos a jefe se listan de una vez. Lo demás se acota escribiendo en el buscador. */
 const MAXIMO_CANDIDATOS = 50
 
-/** Una página ya traída, etiquetada con la consulta que la pidió. */
-interface Cargado {
-  clave: string
-  personas: PersonaDeAccesos[]
-  paginacion: Paginacion | undefined
-}
+/** Sin filas que ordenar ni paginar: `ResultadoLista` vacío, ignorado por el modo memoria de `TablaRecurso`. */
+const SIN_RESULTADO: ResultadoLista<PersonaDeAccesos> = { filas: [], paginacion: undefined }
 
 interface PropsPanelPersonas {
   catalogo: CatalogoDeAccesos
@@ -65,57 +51,71 @@ interface PropsPanelPersonas {
  *
  * Cada cambio se escribe al elegirlo y manda **solo el campo que cambió**: la API escribe únicamente
  * las claves presentes, así que reenviar las otras tres dispararía sus guards sin motivo.
+ *
+ * Es `TablaRecurso` en modo memoria (`datos`): `GET /accesos/personas` no habla el contrato generico
+ * de listado (pagina con `buscar`/`escalon`/`area`/`page`, sin `filter[...]` ni `sort`), asi que en vez
+ * de forzar el motor a un contrato que no es el suyo se trae el catalogo entero que haga falta
+ * (`pedirTodasLasPaginas`, la misma utilidad que usan los combos) y se deja que la tabla ordene y
+ * pagine eso en el navegador. Buscar, escalón y área siguen siendo filtros de servidor —achican lo
+ * que se trae— y viven en la URL.
  */
-export function PanelPersonas ({ catalogo, recargar, actorId }: PropsPanelPersonas) {
-  const [filtros, setFiltros] = useState<Filtros>(SIN_FILTROS)
-  const [escrito, setEscrito] = useState('')
-  const [pagina, setPagina] = useState(1)
-  const [cargado, setCargado] = useState<Cargado | null>(null)
-  const [fallo, setFallo] = useState<{ clave: string, mensaje: string } | null>(null)
+export function PanelPersonas (props: PropsPanelPersonas) {
+  // `useParametroEnUrl` y `TablaRecurso` leen `useSearchParams`: sin este limite de Suspense falla
+  // el build de cualquier pagina que monte este panel.
+  return (
+    <Suspense fallback={<Cargando alto="min-h-56" mensaje="Cargando las personas…" />}>
+      <CuerpoDePanelPersonas {...props} />
+    </Suspense>
+  )
+}
+
+function CuerpoDePanelPersonas ({ catalogo, recargar, actorId }: PropsPanelPersonas) {
+  const parametroBuscar = useParametroEnUrl('buscar')
+  const parametroEscalon = useParametroEnUrl('escalon')
+  const parametroArea = useParametroEnUrl('area')
+
+  const buscar = parametroBuscar.valor ?? ''
+  const escalon = parametroEscalon.valor ?? ''
+  const area = parametroArea.valor ?? ''
+
+  const [escrito, setEscrito] = useState(buscar)
+  const [personas, setPersonas] = useState<PersonaDeAccesos[] | null>(null)
+  const [error, setError] = useState<string | null>(null)
   const [errorEscritura, setErrorEscritura] = useState<string | null>(null)
   const [escribiendo, setEscribiendo] = useState<number | null>(null)
   const [arbol, setArbol] = useState<NodoDeArbol[]>([])
-  /** Cambia para forzar un repedido de la misma consulta después de escribir. */
+  /** Cambia para forzar un repedido tras escribir. */
   const [version, setVersion] = useState(0)
 
-  const consulta = consultaDePersonas(filtros, pagina)
-  /** Qué está pidiendo la pantalla ahora mismo. Lo que no coincida es de una consulta anterior. */
-  const clave = `${consulta}#${version}`
-
-  // Lo cargado y el fallo se etiquetan con su consulta en vez de vaciarse al empezar la siguiente:
-  // un `setState` sincrónico dentro del efecto dispara renders en cascada, y el lint lo rechaza.
-  // Con la etiqueta, "cargando" es simplemente que todavía no llegó lo de ESTA consulta.
-  const personas = cargado?.clave === clave ? cargado.personas : null
-  const error = fallo?.clave === clave ? fallo.mensaje : null
+  const consulta = consultaDePersonas({ buscar, escalon, area })
 
   useEffect(() => {
     const control = new AbortController()
 
-    pedirSobre<PersonaDeAccesos[]>(`accesos/personas${consulta}`, control.signal)
-      .then((sobre) => {
-        setCargado({ clave, personas: sobre.data, paginacion: sobre.meta?.pagination })
+    pedirTodasLasPaginas<PersonaDeAccesos>(`accesos/personas${consulta}`, control.signal)
+      .then((filas) => {
+        if (control.signal.aborted) return
+        setPersonas(filas)
+        setError(null)
       })
       .catch((problema: unknown) => {
         if (control.signal.aborted) return
-
-        setFallo({
-          clave,
-          mensaje: problema instanceof Error ? problema.message : 'No se pudo leer el listado de personas.'
-        })
+        setPersonas(null)
+        setError(problema instanceof Error ? problema.message : 'No se pudo leer el listado de personas.')
       })
 
     return () => { control.abort() }
-  }, [consulta, clave])
+  }, [consulta, version])
 
   // El árbol se pide entero y aparte del listado: el buscador de jefe necesita a TODA la gente, no
-  // solo a la página que se está viendo, y con el árbol completo se puede descartar de antemano al
+  // solo a la que quedó tras el filtro, y con el árbol completo se puede descartar de antemano al
   // candidato que cerraría un ciclo. Se repide cuando algo se escribe, porque un jefe nuevo cambia
   // quién puede ser jefe de quién.
   useEffect(() => {
     const control = new AbortController()
 
-    pedirSobre<NodoDeArbol[]>('accesos/arbol', control.signal)
-      .then((sobre) => { setArbol(sobre.data) })
+    pedirTodasLasPaginas<NodoDeArbol>('accesos/arbol', control.signal)
+      .then((filas) => { setArbol(filas) })
       .catch(() => { if (!control.signal.aborted) setArbol([]) })
 
     return () => { control.abort() }
@@ -145,17 +145,24 @@ export function PanelPersonas ({ catalogo, recargar, actorId }: PropsPanelPerson
     recargar()
   }, [recargar])
 
-  /** Aplica un filtro y vuelve a la primera página: la que se estaba viendo ya no significa lo mismo. */
-  function filtrar (cambio: Partial<Filtros>): void {
-    setFiltros((previos) => ({ ...previos, ...cambio }))
-    setPagina(1)
+  const definicion = useMemo(
+    () => definicionDePersonas({ catalogo, arbol, actorId, escribiendo, onCambiar: (persona, cambio) => { void cambiar(persona, cambio) } }),
+    [catalogo, arbol, actorId, escribiendo, cambiar]
+  )
+
+  /** Aplica un filtro: vuelve a la primera página porque la que se estaba viendo ya no significa lo mismo. */
+  function filtrar (cambio: { buscar?: string, escalon?: string, area?: string }): void {
+    if (cambio.buscar !== undefined) escribirOQuitar(parametroBuscar, cambio.buscar)
+    if (cambio.escalon !== undefined) escribirOQuitar(parametroEscalon, cambio.escalon)
+    if (cambio.area !== undefined) escribirOQuitar(parametroArea, cambio.area)
   }
 
   /** Deja la barra como estaba al entrar. */
   function limpiar (): void {
     setEscrito('')
-    setFiltros(SIN_FILTROS)
-    setPagina(1)
+    parametroBuscar.quitar()
+    parametroEscalon.quitar()
+    parametroArea.quitar()
   }
 
   return (
@@ -167,7 +174,7 @@ export function PanelPersonas ({ catalogo, recargar, actorId }: PropsPanelPerson
 
       <BarraDeFiltros
         catalogo={catalogo}
-        filtros={filtros}
+        filtros={{ buscar, escalon, area }}
         escrito={escrito}
         onEscribir={setEscrito}
         onFiltrar={filtrar}
@@ -176,55 +183,165 @@ export function PanelPersonas ({ catalogo, recargar, actorId }: PropsPanelPerson
 
       {errorEscritura !== null && <MensajeDeError>{errorEscritura}</MensajeDeError>}
 
-      {error !== null && <ErrorEstado detalle={error} />}
+      {error !== null && <ErrorEstado detalle={error} onReintentar={() => { setVersion((n) => n + 1) }} />}
 
       {error === null && personas === null && (
         <Cargando alto="min-h-56" mensaje="Cargando las personas…" />
       )}
 
-      {error === null && personas !== null && personas.length === 0 && (
-        <Vacio
-          titulo="Ninguna persona coincide"
-          descripcion="Prueba con otro texto o quita los filtros. El buscador mira el nombre y el correo."
-          accion={<Boton onClick={limpiar}>Quitar los filtros</Boton>}
+      {error === null && personas !== null && (
+        <TablaRecurso<PersonaDeAccesos>
+          definicion={definicion}
+          inicial={SIN_RESULTADO}
+          datos={personas}
+          claveFila={(persona) => persona.staffid}
         />
-      )}
-
-      {error === null && personas !== null && personas.length > 0 && (
-        <>
-          <div className="overflow-x-auto">
-            <Tabla>
-              <EncabezadoTabla>
-                <tr>
-                  <CeldaEncabezado>Persona</CeldaEncabezado>
-                  <CeldaEncabezado>Escalón</CeldaEncabezado>
-                  <CeldaEncabezado>A cargo de</CeldaEncabezado>
-                  <CeldaEncabezado>Área</CeldaEncabezado>
-                  <CeldaEncabezado>Cargo</CeldaEncabezado>
-                  <CeldaEncabezado>Coordina varias áreas</CeldaEncabezado>
-                </tr>
-              </EncabezadoTabla>
-              <CuerpoTabla>
-                {personas.map((persona) => (
-                  <FilaDePersona
-                    key={persona.staffid}
-                    persona={persona}
-                    catalogo={catalogo}
-                    arbol={arbol}
-                    esUnoMismo={persona.staffid === actorId}
-                    ocupada={escribiendo === persona.staffid}
-                    onCambiar={(cambio) => { void cambiar(persona, cambio) }}
-                  />
-                ))}
-              </CuerpoTabla>
-            </Tabla>
-          </div>
-
-          <Paginador paginacion={cargado?.paginacion} pagina={pagina} onIr={setPagina} />
-        </>
       )}
     </div>
   )
+}
+
+/** Escribe el valor en la URL, o lo quita si quedó vacío. */
+function escribirOQuitar (parametro: { escribir: (valor: string) => void, quitar: () => void }, valor: string): void {
+  if (valor === '') parametro.quitar()
+  else parametro.escribir(valor)
+}
+
+/**
+ * Query string de `GET /accesos/personas`, tal como lo acepta el contrato (`docs/contrato-accesos.md`).
+ *
+ * @param filtros Los tres filtros del panel, ya leidos de la URL.
+ * @returns La query, con `?` inicial, o cadena vacia si no hay ningun filtro puesto.
+ */
+function consultaDePersonas (filtros: { buscar: string, escalon: string, area: string }): string {
+  const parametros = new URLSearchParams()
+
+  if (filtros.buscar.trim() !== '') parametros.set('buscar', filtros.buscar.trim())
+  if (filtros.escalon !== '') parametros.set('escalon', filtros.escalon)
+  if (filtros.area !== '') parametros.set('area', filtros.area)
+
+  const texto = parametros.toString()
+
+  return texto === '' ? '' : `?${texto}`
+}
+
+/**
+ * Definicion de la tabla, en modo memoria: sin `filtros` (buscar/escalón/área ya acotaron lo que
+ * llegó del servidor) y con las cinco columnas editables armadas por closure sobre el catálogo, el
+ * árbol y quién está escribiendo.
+ */
+function definicionDePersonas ({
+  catalogo, arbol, actorId, escribiendo, onCambiar
+}: {
+  catalogo: CatalogoDeAccesos
+  arbol: NodoDeArbol[]
+  actorId: number
+  escribiendo: number | null
+  onCambiar: (persona: PersonaDeAccesos, cambio: CambioDePersona) => void
+}): DefinicionRecurso<PersonaDeAccesos> {
+  const columnas: Array<Columna<PersonaDeAccesos>> = [
+    {
+      clave: 'persona',
+      encabezado: 'Persona',
+      ordenPor: 'nombre',
+      presentar: (persona) => (
+        <span className="flex flex-col">
+          <span className="text-texto flex items-center gap-2">
+            {persona.nombre}
+            {!persona.activo && <Insignia tono="contorno" tamano="chico">De baja</Insignia>}
+          </span>
+          <span className="text-texto-tenue block text-xs">{persona.correo}</span>
+        </span>
+      )
+    },
+    {
+      clave: 'escalon',
+      encabezado: 'Escalón',
+      ordenPor: 'escalon',
+      // Por la escalera y no por el alfabeto: alfabéticamente "director" iría antes que "lead" y
+      // "staff", y una columna de jerarquía ordenada al azar no informa nada.
+      ordenarCon: (a, b) => ordenDeEscalon(a.escalon) - ordenDeEscalon(b.escalon),
+      presentar: (persona) => (
+        <CeldaEscalon
+          persona={persona}
+          esUnoMismo={persona.staffid === actorId}
+          ocupada={escribiendo === persona.staffid}
+          onCambiar={(cambio) => { onCambiar(persona, cambio) }}
+        />
+      )
+    },
+    {
+      clave: 'jefe',
+      encabezado: 'A cargo de',
+      ordenPor: 'jefe_nombre',
+      presentar: (persona) => (
+        <SelectorDeJefe
+          persona={persona}
+          arbol={arbol}
+          ocupada={escribiendo === persona.staffid}
+          onCambiar={(cambio) => { onCambiar(persona, cambio) }}
+        />
+      )
+    },
+    {
+      clave: 'area',
+      encabezado: 'Área',
+      presentar: (persona) => (
+        <DesplegableDeFila
+          etiqueta={`Área de ${persona.nombre}`}
+          marcador="Sin área"
+          valor={persona.area_id === null ? null : String(persona.area_id)}
+          deshabilitado={escribiendo === persona.staffid}
+          opciones={catalogo.areas.map((area) => ({ valor: String(area.id), etiqueta: area.nombre }))}
+          onCambiar={(valor) => { onCambiar(persona, { area_id: valor === null ? null : Number(valor) }) }}
+        />
+      )
+    },
+    {
+      clave: 'cargo',
+      encabezado: 'Cargo',
+      presentar: (persona) => (
+        <DesplegableDeFila
+          etiqueta={`Cargo de ${persona.nombre}`}
+          marcador="Sin cargo"
+          valor={persona.cargo_id === null ? null : String(persona.cargo_id)}
+          deshabilitado={escribiendo === persona.staffid}
+          opciones={catalogo.cargos.map((cargo) => ({ valor: String(cargo.id), etiqueta: cargo.nombre }))}
+          onCambiar={(valor) => { onCambiar(persona, { cargo_id: valor === null ? null : Number(valor) }) }}
+        />
+      )
+    },
+    {
+      clave: 'coordinador_multiarea',
+      encabezado: 'Coordina varias áreas',
+      presentar: (persona) => (
+        // Sin confirmación: darlo y quitarlo cuesta un clic y no destruye nada. Lo que sí se dice
+        // es qué hace, porque "ve todo" y "puede todo" se confunden y acá son cosas distintas.
+        <div className="flex items-center gap-2">
+          <Interruptor
+            encendido={persona.coordinador_multiarea}
+            etiqueta={`Coordinación multiárea de ${persona.nombre}`}
+            deshabilitado={escribiendo === persona.staffid}
+            onPulsar={() => { onCambiar(persona, { coordinador_multiarea: !persona.coordinador_multiarea }) }}
+          />
+          <span className="text-texto-tenue text-xs">
+            {persona.coordinador_multiarea ? 'Lee toda la casa; edita solo lo suyo' : 'Solo lo suyo y lo de su gente'}
+          </span>
+        </div>
+      )
+    }
+  ]
+
+  return {
+    ruta: 'accesos/personas',
+    titulo: { singular: 'Persona', plural: 'Personas' },
+    columnas,
+    filtros: [],
+    ordenables: ['nombre', 'escalon', 'jefe_nombre'],
+    ordenPorDefecto: 'nombre',
+    busqueda: false,
+    includes: []
+  }
 }
 
 /** La barra de búsqueda y los dos filtros del catálogo. */
@@ -232,18 +349,18 @@ function BarraDeFiltros ({
   catalogo, filtros, escrito, onEscribir, onFiltrar, onLimpiar
 }: {
   catalogo: CatalogoDeAccesos
-  filtros: Filtros
+  filtros: { buscar: string, escalon: string, area: string }
   escrito: string
   onEscribir: (texto: string) => void
-  onFiltrar: (cambio: Partial<Filtros>) => void
+  onFiltrar: (cambio: { buscar?: string, escalon?: string, area?: string }) => void
   onLimpiar: () => void
 }) {
   const hayFiltros = filtros.buscar !== '' || filtros.escalon !== '' || filtros.area !== ''
 
   return (
     <div className="flex flex-wrap items-end gap-3">
-      {/* Un formulario y no una búsqueda por tecla: cada pulsación sería una consulta paginada
-          contra la API, y el listado entero cabe en pocas páginas. */}
+      {/* Un formulario y no una búsqueda por tecla: cada pulsación sería una consulta contra la API,
+          y el listado entero cabe en pocas páginas. */}
       <form
         className="flex items-center gap-2"
         onSubmit={(evento) => { evento.preventDefault(); onFiltrar({ buscar: escrito }) }}
@@ -303,103 +420,42 @@ function FiltroDeLista ({
   )
 }
 
-/** Una fila del listado, con su escalón, su jefe, su área y su cargo. */
-function FilaDePersona ({
-  persona, catalogo, arbol, esUnoMismo, ocupada, onCambiar
+/** La celda de Escalón: un desplegable, salvo para uno mismo, que la API frena con 409. */
+function CeldaEscalon ({
+  persona, esUnoMismo, ocupada, onCambiar
 }: {
   persona: PersonaDeAccesos
-  catalogo: CatalogoDeAccesos
-  arbol: NodoDeArbol[]
   esUnoMismo: boolean
   ocupada: boolean
   onCambiar: (cambio: CambioDePersona) => void
 }) {
+  if (esUnoMismo) {
+    // La API lo frena con 409; acá se adelanta para que el motivo se lea antes de intentarlo.
+    return (
+      <span className="text-texto-tenue text-xs">
+        {ESCALONES.find((escalon) => escalon.clave === persona.escalon)?.nombre ?? persona.escalon}
+        {' '}· no puedes cambiarte el escalón a ti mismo
+      </span>
+    )
+  }
+
   return (
-    <FilaTabla>
-      <CeldaTabla>
-        <span className="text-texto flex items-center gap-2">
-          {persona.nombre}
-          {!persona.activo && <Insignia tono="contorno" tamano="chico">De baja</Insignia>}
-        </span>
-        <span className="text-texto-tenue block text-xs">{persona.correo}</span>
-      </CeldaTabla>
-
-      <CeldaTabla>
-        {esUnoMismo
-          // La API lo frena con 409; acá se adelanta para que el motivo se lea antes de intentarlo.
-          ? (
-            <span className="text-texto-tenue text-xs">
-              {ESCALONES.find((escalon) => escalon.clave === persona.escalon)?.nombre ?? persona.escalon}
-              {' '}· no puedes cambiarte el escalón a ti mismo
-            </span>
-            )
-          : (
-            <Selector
-              value={persona.escalon}
-              disabled={ocupada}
-              onValueChange={(elegido) => { onCambiar({ escalon: elegido as Escalon }) }}
-            >
-              <DisparadorSelector
-                marcador="Sin escalón"
-                aria-label={`Escalón de ${persona.nombre}`}
-                className="min-w-36"
-              />
-              <ContenidoSelector>
-                {ESCALONES.map((escalon) => (
-                  <Opcion key={escalon.clave} value={escalon.clave}>{escalon.nombre}</Opcion>
-                ))}
-              </ContenidoSelector>
-            </Selector>
-            )}
-      </CeldaTabla>
-
-      <CeldaTabla>
-        <SelectorDeJefe
-          persona={persona}
-          arbol={arbol}
-          ocupada={ocupada}
-          onCambiar={onCambiar}
-        />
-      </CeldaTabla>
-
-      <CeldaTabla>
-        <DesplegableDeFila
-          etiqueta={`Área de ${persona.nombre}`}
-          marcador="Sin área"
-          valor={persona.area_id === null ? null : String(persona.area_id)}
-          deshabilitado={ocupada}
-          opciones={catalogo.areas.map((area) => ({ valor: String(area.id), etiqueta: area.nombre }))}
-          onCambiar={(valor) => { onCambiar({ area_id: valor === null ? null : Number(valor) }) }}
-        />
-      </CeldaTabla>
-
-      <CeldaTabla>
-        <DesplegableDeFila
-          etiqueta={`Cargo de ${persona.nombre}`}
-          marcador="Sin cargo"
-          valor={persona.cargo_id === null ? null : String(persona.cargo_id)}
-          deshabilitado={ocupada}
-          opciones={catalogo.cargos.map((cargo) => ({ valor: String(cargo.id), etiqueta: cargo.nombre }))}
-          onCambiar={(valor) => { onCambiar({ cargo_id: valor === null ? null : Number(valor) }) }}
-        />
-      </CeldaTabla>
-
-      <CeldaTabla>
-        {/* Sin confirmación: darlo y quitarlo cuesta un clic y no destruye nada. Lo que sí se dice
-            es qué hace, porque "ve todo" y "puede todo" se confunden y acá son cosas distintas. */}
-        <div className="flex items-center gap-2">
-          <Interruptor
-            encendido={persona.coordinador_multiarea}
-            etiqueta={`Coordinación multiárea de ${persona.nombre}`}
-            deshabilitado={ocupada}
-            onPulsar={() => { onCambiar({ coordinador_multiarea: !persona.coordinador_multiarea }) }}
-          />
-          <span className="text-texto-tenue text-xs">
-            {persona.coordinador_multiarea ? 'Lee toda la casa; edita solo lo suyo' : 'Solo lo suyo y lo de su gente'}
-          </span>
-        </div>
-      </CeldaTabla>
-    </FilaTabla>
+    <Selector
+      value={persona.escalon}
+      disabled={ocupada}
+      onValueChange={(elegido) => { onCambiar({ escalon: elegido as Escalon }) }}
+    >
+      <DisparadorSelector
+        marcador="Sin escalón"
+        aria-label={`Escalón de ${persona.nombre}`}
+        className="min-w-36"
+      />
+      <ContenidoSelector>
+        {ESCALONES.map((escalon) => (
+          <Opcion key={escalon.clave} value={escalon.clave}>{escalon.nombre}</Opcion>
+        ))}
+      </ContenidoSelector>
+    </Selector>
   )
 }
 
@@ -530,51 +586,5 @@ function DesplegableDeFila ({
         ))}
       </ContenidoSelector>
     </Selector>
-  )
-}
-
-/**
- * Anterior y siguiente.
- *
- * Sin `meta.pagination` no se dibuja nada: inventar "página 1 de 1" cuando el backend no dijo
- * cuántas hay es afirmar algo que no se sabe.
- */
-function Paginador ({
-  paginacion, pagina, onIr
-}: {
-  paginacion: Paginacion | undefined
-  pagina: number
-  onIr: (pagina: number) => void
-}) {
-  if (paginacion === undefined || paginacion.total_pages <= 1) return null
-
-  return (
-    <nav
-      aria-label="Paginación de personas"
-      className="text-texto-tenue flex flex-wrap items-center justify-between gap-2 text-xs"
-    >
-      <p aria-live="polite">
-        Página {paginacion.page} de {paginacion.total_pages} · {paginacion.total} en total
-      </p>
-
-      <div className="flex items-center gap-2">
-        <Boton
-          variante="sutil"
-          tamano="chico"
-          disabled={pagina <= 1}
-          onClick={() => { onIr(pagina - 1) }}
-        >
-          Anterior
-        </Boton>
-        <Boton
-          variante="sutil"
-          tamano="chico"
-          disabled={pagina >= paginacion.total_pages}
-          onClick={() => { onIr(pagina + 1) }}
-        >
-          Siguiente
-        </Boton>
-      </div>
-    </nav>
   )
 }
