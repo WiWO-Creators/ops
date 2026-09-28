@@ -17,6 +17,12 @@ interface PropsAvatar {
   imagen?: string | null
   tamano?: TamanoAvatar
   className?: string
+  /**
+   * `true` cuando este avatar ya vive dentro de un disparador con su propia tarjeta flotante
+   * (`TarjetaFlotantePersona`): sin esto, el `title` nativo del navegador aparece a los pocos
+   * milisegundos de hover y compite con la tarjeta, que es la que trae el dato de verdad.
+   */
+  sinTitulo?: boolean
 }
 
 /**
@@ -27,8 +33,11 @@ interface PropsAvatar {
  *
  * Si la imagen falla al cargar, cae a las iniciales en vez de dejar el hueco roto. Es el caso comun
  * cuando `uploads/` tiene rutas que ya no existen, que en el panel actual pasa seguido.
+ *
+ * Lleva `title={nombre}` por defecto —es el unico texto accesible con el mouse cuando el avatar no
+ * enlaza a nada—, salvo que `sinTitulo` lo apague.
  */
-export function Avatar ({ nombre, imagen, tamano = 'medio', className }: PropsAvatar) {
+export function Avatar ({ nombre, imagen, tamano = 'medio', className, sinTitulo = false }: PropsAvatar) {
   const [imagenFallida, setImagenFallida] = useState<string | null>(null)
   const mostrarImagen = typeof imagen === 'string' && imagen.length > 0 && imagenFallida !== imagen
 
@@ -56,7 +65,7 @@ export function Avatar ({ nombre, imagen, tamano = 'medio', className }: PropsAv
           ? undefined
           : { backgroundColor: coloresAvatar(nombre).fondo, color: coloresAvatar(nombre).texto }
       }
-      title={nombre}
+      title={sinTitulo ? undefined : nombre}
     >
       {mostrarImagen
         ? (

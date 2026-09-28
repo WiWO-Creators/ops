@@ -1,8 +1,12 @@
 'use client'
 
+import { useRouter, useSearchParams } from 'next/navigation'
 import { AccionesMasivasTareas } from '@/componentes/proyecto/AccionesMasivasTareas'
 import { ModalTarea } from '@/componentes/proyecto/ModalTarea'
-import { PARAMETRO_TAREA } from '@/componentes/datos/tabla'
+import { PARAMETRO_TAREA, urlConParametro } from '@/componentes/datos/tabla'
+import { escribirEnBff } from '@/componentes/datos/mutaciones'
+import { useAviso } from '@/componentes/estado/useAviso'
+import { GLOSARIO } from '@/dominio/glosario'
 import { PROCESOS_NAVEGABLES } from './celdas-procesos'
 import { TablaRecurso } from './TablaRecurso'
 import { TableroFiltrable } from './TableroFiltrable'
@@ -52,10 +56,37 @@ interface PropsVistaLista<T> {
  * Los presets guardados y las acciones masivas son los mismos de la pestaña de un Espacio: se
  * comparte la vista `tasks` de presets y la misma barra, no una copia. Sin Espacio no se ofrece
  * "Mover a un hito", que es lo unico que un listado global no puede resolver.
+ *
+ * El menu "⋯" de la fila suma "Editar" (abre la misma Tarea que un clic en la fila, por
+ * `onEditarFila`) y "Eliminar" (`borradoDeFila`, el mismo `POST /tasks/bulk` que el boton del
+ * detalle) a las acciones declarativas de `PROCESOS` (completar, reabrir, cronometro): las tres
+ * comparten un unico disparador, nunca dos "⋯" en la misma fila.
  */
 export function TablaProcesos (props: PropsVistaLista<Proceso>) {
   const estados = props.opcionesDeFiltro?.task_statuses ?? []
   const prioridades = props.opcionesDeFiltro?.task_priorities ?? []
+  const router = useRouter()
+  const parametros = useSearchParams()
+  const aviso = useAviso()
+  const puedeEditar = props.capacidades?.includes('edit') ?? false
+  const puedeBorrar = props.capacidades?.includes('delete') ?? false
+
+  /**
+   * Borra la Tarea por el mismo endpoint que el boton "Eliminar" del detalle (`DetalleTarea`): un
+   * `POST /tasks/bulk` con un solo id. Manda a la papelera, no borra; se puede restaurar 30 dias.
+   */
+  async function borrarTarea (proceso: Proceso): Promise<void> {
+    const resultado = await escribirEnBff<{ aplicados: number }>(
+      'tasks/bulk', 'POST', { accion: 'delete', ids: [proceso.id] }
+    )
+
+    if (!resultado.ok) throw new Error(resultado.mensaje)
+    if (resultado.datos?.aplicados !== 1) {
+      throw new Error('No se pudo borrar: puede que ya no tengas acceso a esta tarea.')
+    }
+
+    aviso.exito(`${GLOSARIO.proceso.singular} eliminada.`)
+  }
 
   return (
     <>
@@ -63,6 +94,18 @@ export function TablaProcesos (props: PropsVistaLista<Proceso>) {
         definicion={{ ...PROCESOS_NAVEGABLES, filtros: [...PROCESOS_NAVEGABLES.filtros, ...filtrosDeCamposPersonalizados(props.camposPersonalizados ?? [])] }}
         claveFila={(proceso) => proceso.id}
         abrirEn={{ clave: PARAMETRO_TAREA, valor: (proceso) => proceso.id }}
+        onEditarFila={puedeEditar
+          ? (proceso) => {
+              const href = urlConParametro(new URLSearchParams(parametros.toString()), PARAMETRO_TAREA, String(proceso.id))
+              router.push(href, { scroll: false })
+            }
+          : undefined}
+        borradoDeFila={puedeBorrar
+          ? (proceso, recargar) => ({
+              advertencia: `Esta ${GLOSARIO.proceso.singular.toLowerCase()} va a la papelera y deja de verse en todas partes. Se puede restaurar entera desde la Papelera durante 30 días.`,
+              onConfirmar: async () => { await borrarTarea(proceso); recargar() }
+            })
+          : undefined}
         board="tasks"
         seleccionMasiva={(filas, limpiar, recargar) => (
           <AccionesMasivasTareas
