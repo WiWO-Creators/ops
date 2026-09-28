@@ -144,21 +144,21 @@ test('los clientes donde es Focal cuentan como suyos, con origen cliente', async
   assert.deepEqual(extra.map((c) => c.client_id), [3])
 })
 
-test('del_equipo y la poda: relevante es el propio, la descendencia o gente de la misma área', async () => {
+test('del_equipo y la poda: relevante es SOLO el propio o su equipo directo (jefe_staffid), nunca el área', async () => {
   const tareas = tareasDe((await hoja('diego')).cuerpo.data)
 
-  // 903: solo asignada a Hugo (área 4, como Diego, aunque de baja y fuera de su descendencia) y
-  // llega por cliente: entra porque el área alcanza, y del_equipo sale true por eso.
-  const conHugo = tareas.find((t) => t.id === 903)
-  assert.ok(conHugo, 'la 903 debería entrar por compartir área con Diego')
-  assert.deepEqual(conHugo.origen, ['cliente'])
-  assert.deepEqual(conHugo.asignados, [{ staffid: 8, nombre: 'Hugo Márquez', del_equipo: true }])
+  // 903: solo asignada a Hugo. Hugo lleva puesta el área 4, la misma que Diego dirige
+  // (`jefe_staffid` del área), pero por cadena reporta a Elena, no a Diego. El caso real ("Franz")
+  // en miniatura: dirigir un área ya no alcanza a nadie que no cuelgue por la cadena. La API la
+  // poda entera, igual que la 904.
+  assert.equal(tareas.find((t) => t.id === 903), undefined, 'la 903 debería estar podada: Hugo no es del equipo de Diego por cadena')
 
   // 904: solo asignada a Bruno (otra área, fuera del árbol de Diego) y llega por cliente sin nadie
   // relevante: la API la poda entera, no aparece en la hoja.
   assert.equal(tareas.find((t) => t.id === 904), undefined, 'la 904 debería estar podada')
 
-  // Elena (901, coasignada) no es de la descendencia de Diego ni de su área: del_equipo sale false.
+  // Elena (901, coasignada) no es del equipo directo de Diego: del_equipo sale false aunque su área
+  // (3, Analytics) no tenga nada que ver acá —el punto es que el área nunca decide esto—.
   const conElena = tareas.find((t) => t.id === 901)
   const elena = conElena.asignados.find((a) => a.staffid === 5)
   assert.equal(elena.del_equipo, false)

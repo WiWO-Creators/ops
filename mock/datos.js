@@ -930,15 +930,17 @@ export const PROCESOS = Array.from({ length: 84 }, (_, i) => {
  * Cinco Tareas de la Supervisión por jerarquía, sumadas al final de las generadas.
  *
  * Las generadas no traen ningún caso de los que la hoja v2 agrega: todas cuelgan de un cliente y
- * todas las completadas cerraron en agosto. Con la hoja del 2026-09-25 de Diego (lead, área 4,
- * con Facundo y Gina a cargo) estas cinco dan: una sin cliente que vence ese día, una sin cliente
- * atrasada y con un coasignado (Elena) que NO es del equipo de Diego —el caso de
- * `del_equipo: false`—, una completada ese mismo día aunque vence después, con dos asignados del
- * equipo —para ver que agrupar por persona y por área la repite bajo cada uno/cada área— y de un
- * cliente que Diego supervisa, así que su origen es doble; y del cliente 3 (que Diego supervisa),
- * dos más para la poda por área de la persona: una asignada solo a Hugo —también área 4, aunque de
- * baja y fuera de la descendencia de Diego— que entra por eso, y otra asignada solo a Bruno —de otra
- * área y fuera del árbol de Diego— que la API poda entera.
+ * todas las completadas cerraron en agosto. Con la hoja del 2026-09-25 de Diego (lead, área 4 —la
+ * dirige, `jefe_staffid` de esa área—, con Facundo y Gina a cargo por cadena) estas cinco dan: una
+ * sin cliente que vence ese día, una sin cliente atrasada y con un coasignado (Elena) que NO es del
+ * equipo de Diego —el caso de `del_equipo: false`—, una completada ese mismo día aunque vence
+ * después, con dos asignados del equipo —para ver que agrupar por persona y por área la repite bajo
+ * cada uno/cada área— y de un cliente que Diego supervisa, así que su origen es doble; y del
+ * cliente 3 (que Diego supervisa), dos más para la poda: una asignada solo a Hugo —también área 4,
+ * pero reporta por cadena a Elena, no a Diego, aunque Diego dirija esa área— y otra asignada solo a
+ * Bruno —de otra área y fuera del árbol de Diego—. El alcance de Supervisión es SOLO `jefe_staffid`
+ * (nunca el área, ni siquiera la jefatura declarada), así que la API poda las dos enteras: es el
+ * caso real que corrigió el alcance ("Franz"), en miniatura.
  */
 const TAREAS_DE_SUPERVISION = [
   {
