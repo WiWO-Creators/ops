@@ -2,9 +2,9 @@
 
 import { Suspense, useCallback, useEffect, useMemo, useState, type ReactElement } from 'react'
 import Link from 'next/link'
-import { useRouter, useSearchParams, type ReadonlyURLSearchParams } from 'next/navigation'
 import { ControlesTabla, PaginacionTabla } from '@/componentes/datos/ControlesTabla'
 import { hayFiltrosPuestos, urlConParametro } from '@/componentes/datos/tabla'
+import { useFiltrosEnUrl } from '@/componentes/datos/useFiltrosEnUrl'
 import {
   CeldaEncabezado,
   CeldaTabla,
@@ -108,35 +108,6 @@ type Carga =
 /** El menu de columnas esta oculto, pero `ControlesTabla` exige el callback. Estable entre renders. */
 function noOp (): void {}
 
-/**
- * Combina la consulta nueva con los parametros de la URL que no son de esta pestaña.
- *
- * El detalle del Proyecto guarda en la misma URL la pestaña activa (`?tab=`) y la tarea abierta en el
- * cajon (`?tarea=`), y son de otro dueño: reescribir la query entera al filtrar cerraria la pestaña
- * de golpe. Se borran solo las claves que produce la consulta vigente —las que escribio este panel—
- * y todo lo demas se conserva tal cual.
- *
- * @param params Los parametros actuales de la URL.
- * @param consultaVigente La consulta que este panel tiene puesta, para saber que claves le pertenecen.
- * @param consultaNueva La consulta que se quiere dejar, ya serializada.
- * @returns La URL relativa lista para `router.replace`, siempre con `?` aunque quede vacia.
- */
-function urlConservandoAjenos (
-  params: ReadonlyURLSearchParams,
-  consultaVigente: string,
-  consultaNueva: string
-): string {
-  const ajenos = new URLSearchParams(params.toString())
-
-  for (const clave of new URLSearchParams(consultaVigente).keys()) {
-    ajenos.delete(clave)
-  }
-
-  const combinada = [consultaNueva, ajenos.toString()].filter((parte) => parte !== '').join('&')
-
-  return combinada === '' ? '?' : `?${combinada}`
-}
-
 export function PanelTiempos (props: PropsPanelTiempos): ReactElement {
   // Leer `useSearchParams` exige un limite de Suspense: sin el, el build de cualquier pagina que
   // monte este panel falla, y esas paginas las escribe otra persona.
@@ -148,9 +119,6 @@ export function PanelTiempos (props: PropsPanelTiempos): ReactElement {
 }
 
 function TiemposDelProyecto ({ proyectoId, fuente, capacidades }: PropsPanelTiempos): ReactElement {
-  const router = useRouter()
-  const params = useSearchParams()
-
   const [carga, setCarga] = useState<Carga>({ fase: 'cargando' })
   const [personas, setPersonas] = useState<PersonaConTiempo[]>([])
   const [intento, setIntento] = useState(0)
@@ -174,14 +142,15 @@ function TiemposDelProyecto ({ proyectoId, fuente, capacidades }: PropsPanelTiem
     [fuente, proyectoId]
   )
 
-  /** Lo que la persona eligio, leido de la URL. Lo desconocido se descarta: un `?page=abc` no viaja. */
-  const estado = useMemo(
-    () => leerConsulta(new URLSearchParams(params.toString()), definicion),
-    [params, definicion]
-  )
+  const leerEstado = useCallback((p: URLSearchParams) => leerConsulta(p, definicion), [definicion])
+  const construirQuery = useCallback((e: EstadoConsulta) => construirConsulta(e, definicion), [definicion])
+
+  // Delegado en `useFiltrosEnUrl`, el mismo hook de `TablaRecurso`: antes esta pestaña reescribia a
+  // mano la traduccion estado-URL (`urlConservandoAjenos`), duplicando una logica que ya vive ahi.
+  const { estado, params, cambiar } = useFiltrosEnUrl<EstadoConsulta>({ leer: leerEstado, construir: construirQuery })
 
   /** La misma consulta, ya podada contra la whitelist del backend. Sin `?` inicial. */
-  const consulta = useMemo(() => construirConsulta(estado, definicion), [estado, definicion])
+  const consulta = useMemo(() => construirQuery(estado), [estado, construirQuery])
 
   /**
    * Opciones del filtro por persona.
@@ -211,18 +180,6 @@ function TiemposDelProyecto ({ proyectoId, fuente, capacidades }: PropsPanelTiem
     setIntento((n) => n + 1)
     recargarResumen()
   }, [recargarResumen])
-
-  /**
-   * Escribe un cambio parcial de la consulta en la URL, que es la unica dueña del estado.
-   *
-   * `replace` y no `push`: cada filtro seria una entrada del historial y volver atras costaria
-   * quince clics.
-   */
-  const cambiar = useCallback((parcial: Partial<EstadoConsulta>): void => {
-    const siguiente = construirConsulta({ ...estado, ...parcial }, definicion)
-
-    router.replace(urlConservandoAjenos(params, consulta, siguiente), { scroll: false })
-  }, [estado, consulta, definicion, params, router])
 
   /** Identifica la consulta vigente. Cambia con la URL y con cada recarga manual. */
   const clave = `${consulta}|${intento}`

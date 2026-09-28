@@ -3,9 +3,9 @@
 import { useCallback, useEffect, useState, type ReactElement, type ReactNode } from 'react'
 import { Download } from 'lucide-react'
 import { ArbolDrive } from '@/componentes/archivos/ArbolDrive'
-import { MenuAccionesFila } from '@/componentes/datos/MenuAccionesFila'
 import { escribirEnBff } from '@/componentes/datos/mutaciones'
 import { CeldaEncabezado, CeldaTabla, CuerpoTabla, EncabezadoTabla, FilaTabla, Tabla } from '@/componentes/datos/Tabla'
+import { MenuAccionesFila } from '@/componentes/datos/MenuAccionesFila'
 import { Cargando, ErrorEstado } from '@/componentes/estado/Estados'
 import { useAviso } from '@/componentes/estado/useAviso'
 import { Interruptor } from '@/componentes/formularios/Interruptor'
@@ -336,6 +336,10 @@ function Origen ({ archivo }: { archivo: ArchivoProyecto }): ReactElement {
  * La descarga va por el BFF y no por `/api/v1`: el token vive en una cookie que solo lee el proxy, y
  * un `<a>` contra la API devolveria `401`. Los externos no tienen boton porque no hay binario que
  * bajar; su enlace ya esta en la columna de origen.
+ *
+ * El borrado usa el `MenuAccionesFila`/`ConfirmarBorrado` comunes en vez de `window.confirm`: es el
+ * mismo dialogo de confirmacion que el resto del producto, con su propio mensaje de error si la API
+ * lo rechaza.
  */
 function Acciones (
   { ruta, archivo, puedeBorrar, onEliminado }: {
@@ -349,7 +353,8 @@ function Acciones (
   const nombre = nombreDeArchivo(archivo)
   const aviso = useAviso()
 
-  /** Borra en el backend y, solo si respondio bien, saca la fila del listado. Lanza si falla. */
+  /** Borra en el backend y, solo si respondio bien, saca la fila del listado. Lanza si falla: el
+   * `ConfirmarBorrado` es quien muestra el error y decide si el dialogo se cierra. */
   async function eliminar (): Promise<void> {
     const resultado = await escribirEnBff(rutaDeUnAdjunto(ruta, archivo.id), 'DELETE')
 
@@ -375,7 +380,11 @@ function Acciones (
       {puedeBorrar && (
         <MenuAccionesFila
           ariaLabel={`Acciones de ${nombre}`}
-          borrado={{ advertencia: `«${nombre}» se elimina. No se puede deshacer.`, onConfirmar: eliminar }}
+          borrado={{
+            titulo: 'Eliminar archivo',
+            advertencia: `«${nombre}» se elimina. No se puede deshacer.`,
+            onConfirmar: eliminar
+          }}
         />
       )}
     </div>
