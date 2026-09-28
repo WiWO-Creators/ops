@@ -13,8 +13,10 @@ import {
   FilaTabla,
   Tabla
 } from '@/componentes/datos/Tabla'
+import { MenuAccionesFila } from '@/componentes/datos/MenuAccionesFila'
 import { Cargando, ErrorEstado, Vacio } from '@/componentes/estado/Estados'
 import { CargandoConOrbe } from '@/componentes/estado/Orbe'
+import { useAviso } from '@/componentes/estado/useAviso'
 import { Boton } from '@/componentes/formularios/Boton'
 import { Avatar } from '@/componentes/presentadores/Avatar'
 import { Etiquetas } from '@/componentes/presentadores/Etiqueta'
@@ -157,6 +159,7 @@ function TiemposDelProyecto ({ proyectoId, fuente, capacidades }: PropsPanelTiem
     { abierto: false, registro: null }
   )
   const [aviso, setAviso] = useState<string | null>(null)
+  const avisador = useAviso()
   /**
    * Que combinacion de consulta e intento corresponde a lo que hay pintado.
    *
@@ -301,28 +304,14 @@ function TiemposDelProyecto ({ proyectoId, fuente, capacidades }: PropsPanelTiem
     }
   }
 
-  /** Borra un registro. Pregunta antes: no hay deshacer del otro lado. */
+  /** Borra un registro. Lanza si falla: `ConfirmarBorrado` (dentro de `MenuAccionesFila`) muestra el mensaje. */
   async function borrar (registro: RegistroDeHoras): Promise<void> {
-    const quien = registro.staff?.full_name ?? 'sin persona'
+    const respuesta = await fetch(`/api/bff/${fuente.tiempos}/${registro.id}`, { method: 'DELETE' })
 
-    if (!window.confirm(`¿Eliminar el registro de ${quien} (${registro.duration_hm})?`)) return
+    if (!respuesta.ok) throw new Error((await leerError(respuesta)).message)
 
-    setAviso(null)
-
-    try {
-      const respuesta = await fetch(`/api/bff/${fuente.tiempos}/${registro.id}`, {
-        method: 'DELETE'
-      })
-
-      if (!respuesta.ok) {
-        setAviso((await leerError(respuesta)).message)
-        return
-      }
-
-      recargar()
-    } catch {
-      setAviso('No se pudo eliminar: revisa la conexión.')
-    }
+    recargar()
+    avisador.exito('Registro eliminado.')
   }
 
   return (
@@ -469,27 +458,19 @@ function TiemposDelProyecto ({ proyectoId, fuente, capacidades }: PropsPanelTiem
 
                   {columnas.includes('acciones') && (
                     <CeldaTabla>
-                      <span className="flex items-center gap-1">
-                        {registro.puede_editar === true && (
-                          <Boton
-                            variante="sutil"
-                            tamano="chico"
-                            onClick={() => setFormulario({ abierto: true, registro })}
-                          >
-                            Editar
-                          </Boton>
-                        )}
-                        {registro.puede_detener === true && (
-                          <Boton variante="secundario" tamano="chico" onClick={() => { void detener(registro) }}>
-                            Detener
-                          </Boton>
-                        )}
-                        {registro.puede_borrar === true && (
-                          <Boton variante="peligro" tamano="chico" onClick={() => { void borrar(registro) }}>
-                            Eliminar
-                          </Boton>
-                        )}
-                      </span>
+                      <MenuAccionesFila
+                        ariaLabel={`Acciones del registro de ${registro.staff?.full_name ?? 'sin persona'}`}
+                        onEditar={registro.puede_editar === true ? () => setFormulario({ abierto: true, registro }) : undefined}
+                        acciones={registro.puede_detener === true
+                          ? [{ clave: 'detener', etiqueta: 'Detener', onSeleccionar: () => { void detener(registro) } }]
+                          : []}
+                        borrado={registro.puede_borrar === true
+                          ? {
+                              advertencia: `Se elimina el registro de ${registro.staff?.full_name ?? 'sin persona'} (${registro.duration_hm}). No se puede deshacer.`,
+                              onConfirmar: () => borrar(registro)
+                            }
+                          : undefined}
+                      />
                     </CeldaTabla>
                   )}
                 </FilaTabla>

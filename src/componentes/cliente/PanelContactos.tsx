@@ -2,7 +2,7 @@
 
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
-import { Check, Copy, KeyRound, Mail, Phone, Plus, Star, Trash2, UserPen } from 'lucide-react'
+import { Check, Copy, KeyRound, Mail, Phone, Plus, Star } from 'lucide-react'
 import { CeldaEncabezado, CeldaTabla, CuerpoTabla, EncabezadoTabla, FilaTabla, Tabla } from '@/componentes/datos/Tabla'
 import { Avatar } from '@/componentes/presentadores/Avatar'
 import { Boton } from '@/componentes/formularios/Boton'
@@ -10,6 +10,8 @@ import { Entrada } from '@/componentes/formularios/Entrada'
 import { Insignia } from '@/componentes/presentadores/Insignia'
 import { Vacio } from '@/componentes/estado/Estados'
 import { escribirEnBff } from '@/componentes/datos/mutaciones'
+import { useAviso } from '@/componentes/estado/useAviso'
+import { MenuAccionesFila } from '@/componentes/datos/MenuAccionesFila'
 import { DialogoContacto } from './DialogoContacto'
 import { ordenarContactosCompletos, PERMISOS_PORTAL } from '@/dominio/contactos'
 import { formatearFecha } from '@/lib/fechas'
@@ -46,6 +48,7 @@ export function PanelContactos ({ clienteId, contactos, capacidades }: PropsPane
   const [ocupado, setOcupado] = useState<number | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [enlace, setEnlace] = useState<{ contacto: string, url: string } | null>(null)
+  const aviso = useAviso()
 
   const filas = ordenarContactosCompletos(contactos)
   const puedeEditar = capacidades.includes('edit')
@@ -74,6 +77,16 @@ export function PanelContactos ({ clienteId, contactos, capacidades }: PropsPane
     }
 
     router.refresh()
+  }
+
+  /** Borra un contacto. Lanza si falla: `ConfirmarBorrado` (dentro de `MenuAccionesFila`) muestra el mensaje. */
+  async function borrar (contacto: ContactoCompleto): Promise<void> {
+    const resultado = await escribirEnBff(`contacts/${contacto.id}`, 'DELETE')
+
+    if (!resultado.ok) throw new Error(resultado.mensaje)
+
+    router.refresh()
+    aviso.exito(`«${contacto.full_name}» se eliminó.`)
   }
 
   /**
@@ -208,83 +221,46 @@ export function PanelContactos ({ clienteId, contactos, capacidades }: PropsPane
 
               {(puedeEditar || puedeBorrar) && (
                 <CeldaTabla>
-                  <span className="flex items-center gap-1">
-                    {puedeEditar && (
-                      <>
-                        <Boton
-                          variante="sutil"
-                          tamano="chico"
-                          soloIcono
-                          title={contacto.is_primary ? 'Ya es el contacto principal' : 'Marcar como principal'}
-                          aria-label={`Marcar a ${contacto.full_name} como principal`}
-                          disabled={contacto.is_primary || ocupado !== null}
-                          onClick={() => {
-                            void correr(contacto.id, async () =>
-                              await escribirEnBff(`contacts/${contacto.id}`, 'PATCH', { is_primary: true }))
-                          }}
-                        >
-                          <Star
-                            size={14}
-                            aria-hidden="true"
-                            className={cn(contacto.is_primary && 'text-texto-aviso fill-current')}
-                          />
-                        </Boton>
-
-                        <Boton
-                          variante="sutil"
-                          tamano="chico"
-                          soloIcono
-                          title="Generar enlace para que elija su contraseña"
-                          aria-label={`Generar enlace de acceso al portal para ${contacto.full_name}`}
-                          disabled={ocupado !== null}
-                          onClick={() => { void generarEnlace(contacto) }}
-                        >
-                          <KeyRound size={14} aria-hidden="true" />
-                        </Boton>
-
-                        <Boton
-                          variante="sutil"
-                          tamano="chico"
-                          soloIcono
-                          title="Editar"
-                          aria-label={`Editar a ${contacto.full_name}`}
-                          disabled={ocupado !== null}
-                          onClick={() => setEditando(contacto)}
-                        >
-                          <UserPen size={14} aria-hidden="true" />
-                        </Boton>
-
-                        <Boton
-                          variante="sutil"
-                          tamano="chico"
-                          cargando={ocupado === contacto.id}
-                          onClick={() => {
-                            void correr(contacto.id, async () =>
-                              await escribirEnBff(`contacts/${contacto.id}`, 'PATCH', { active: !contacto.active }))
-                          }}
-                        >
-                          {contacto.active ? 'Dar de baja' : 'Reactivar'}
-                        </Boton>
-                      </>
-                    )}
-
-                    {puedeBorrar && (
-                      <Boton
-                        variante="sutil"
-                        tamano="chico"
-                        soloIcono
-                        title="Borrar"
-                        aria-label={`Borrar a ${contacto.full_name}`}
-                        disabled={ocupado !== null}
-                        onClick={() => {
-                          void correr(contacto.id, async () =>
-                            await escribirEnBff(`contacts/${contacto.id}`, 'DELETE'))
-                        }}
-                      >
-                        <Trash2 size={14} aria-hidden="true" className="text-texto-peligro" />
-                      </Boton>
-                    )}
-                  </span>
+                  <MenuAccionesFila
+                    ariaLabel={`Acciones de ${contacto.full_name}`}
+                    deshabilitado={ocupado !== null}
+                    cargando={ocupado === contacto.id}
+                    onEditar={puedeEditar ? () => setEditando(contacto) : undefined}
+                    acciones={puedeEditar
+                      ? [
+                          {
+                            clave: 'principal',
+                            etiqueta: contacto.is_primary ? 'Ya es el contacto principal' : 'Marcar como principal',
+                            icono: Star,
+                            deshabilitado: contacto.is_primary,
+                            onSeleccionar: () => {
+                              void correr(contacto.id, async () =>
+                                await escribirEnBff(`contacts/${contacto.id}`, 'PATCH', { is_primary: true }))
+                            }
+                          },
+                          {
+                            clave: 'enlace',
+                            etiqueta: 'Generar enlace de acceso',
+                            icono: KeyRound,
+                            onSeleccionar: () => { void generarEnlace(contacto) }
+                          },
+                          {
+                            clave: 'baja',
+                            etiqueta: contacto.active ? 'Dar de baja' : 'Reactivar',
+                            onSeleccionar: () => {
+                              void correr(contacto.id, async () =>
+                                await escribirEnBff(`contacts/${contacto.id}`, 'PATCH', { active: !contacto.active }))
+                            }
+                          }
+                        ]
+                      : []}
+                    borrado={puedeBorrar
+                      ? {
+                          advertencia: `Se borra a ${contacto.full_name} de los contactos del cliente. No se puede deshacer.`,
+                          onConfirmar: () => borrar(contacto)
+                        }
+                      : undefined}
+                  />
                 </CeldaTabla>
               )}
             </FilaTabla>

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, type ReactElement } from 'react'
+import { useState, type ReactElement, type ReactNode } from 'react'
 import { Boton } from '@/componentes/formularios/Boton'
 import { Campo } from '@/componentes/formularios/Campo'
 import { Entrada } from '@/componentes/formularios/Entrada'
@@ -52,6 +52,17 @@ export interface PropsConfirmarBorrado {
    */
   onConfirmar: () => Promise<void> | void
   tamano?: 'chico' | 'medio'
+  /**
+   * Contenido propio de quien llama, entre la advertencia y la confirmacion escrita.
+   *
+   * Existe para `BajaYBorrado`: el borrado definitivo de una persona pide a quien hereda su
+   * trabajo, y ese selector no es generico como para vivir en esta primitiva.
+   */
+  contenidoExtra?: ReactNode
+  /** Deshabilita ademas el boton de confirmar, por una condicion externa (ej. falta elegir el heredero). */
+  deshabilitadoExtra?: boolean
+  /** Texto del boton de confirmar. Por defecto, "Eliminar". */
+  etiquetaConfirmar?: string
 }
 
 /**
@@ -69,7 +80,10 @@ export function ConfirmarBorrado ({
   advertencia,
   confirmacionEscrita,
   onConfirmar,
-  tamano = 'medio'
+  tamano = 'medio',
+  contenidoExtra,
+  deshabilitadoExtra = false,
+  etiquetaConfirmar = 'Eliminar'
 }: PropsConfirmarBorrado): ReactElement {
   const [escrito, setEscrito] = useState('')
   const [enCurso, setEnCurso] = useState(false)
@@ -84,7 +98,7 @@ export function ConfirmarBorrado ({
   }
 
   async function confirmar (): Promise<void> {
-    if (enCurso || !confirmacionCoincide) return
+    if (enCurso || !confirmacionCoincide || deshabilitadoExtra) return
 
     setEnCurso(true)
     setFallo(null)
@@ -103,6 +117,8 @@ export function ConfirmarBorrado ({
     <Dialogo open={abierto} onOpenChange={(siguiente) => { if (!siguiente && !enCurso) cerrarYLimpiar() }}>
       <ContenidoDialogo ancho={tamano === 'chico' ? 'chico' : 'medio'} titulo={titulo} descripcion={advertencia}>
         <div className="flex flex-col gap-4">
+          {contenidoExtra}
+
           {confirmacionEscrita !== undefined && (
             <Campo etiqueta={`Escribe «${confirmacionEscrita}» para confirmar`} requerido>
               {(props) => (
@@ -124,10 +140,10 @@ export function ConfirmarBorrado ({
             <Boton
               variante="peligro"
               cargando={enCurso}
-              disabled={enCurso || !confirmacionCoincide}
+              disabled={enCurso || !confirmacionCoincide || deshabilitadoExtra}
               onClick={() => { void confirmar() }}
             >
-              Eliminar
+              {etiquetaConfirmar}
             </Boton>
           </div>
         </div>

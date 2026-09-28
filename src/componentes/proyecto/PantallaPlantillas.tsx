@@ -3,9 +3,10 @@
 import { useCallback, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Pencil, Trash2 } from 'lucide-react'
+import { ConfirmarBorrado } from '@/componentes/datos/ConfirmarBorrado'
 import { TablaRecurso } from '@/componentes/datos/TablaRecurso'
 import { Boton } from '@/componentes/formularios/Boton'
-import { CerrarDialogo, ContenidoDialogo, Dialogo } from '@/componentes/superposiciones/Dialogo'
+import { useAviso } from '@/componentes/estado/useAviso'
 import { escribirEnBff } from '@/componentes/datos/mutaciones'
 import type { PlantillaEspacio } from '@/datos/recursos'
 import type { Capacidad } from '@/datos/tipos'
@@ -116,51 +117,34 @@ interface PropsBorrar {
  * ahi cada {espacio} vive solo. Decirlo evita el miedo de que borrar la plantilla borre el trabajo.
  */
 function DialogoBorrarPlantilla ({ plantilla, onCerrar, onBorrada }: PropsBorrar) {
-  const [borrando, setBorrando] = useState(false)
-  const [fallo, setFallo] = useState<string | null>(null)
+  const aviso = useAviso()
 
   if (plantilla === null) return null
 
-  async function borrar () {
+  /** Borra la plantilla. Lanza si falla: `ConfirmarBorrado` muestra el mensaje. */
+  async function borrar (): Promise<void> {
     if (plantilla === null) return
-
-    setBorrando(true)
-    setFallo(null)
 
     const resultado = await escribirEnBff(`project-templates/${plantilla.id}`, 'DELETE')
 
-    setBorrando(false)
+    if (!resultado.ok) throw new Error(resultado.mensaje)
 
-    if (resultado.ok) {
-      onBorrada()
-      return
-    }
-
-    setFallo(resultado.mensaje)
+    aviso.exito(`«${plantilla.name}» se eliminó.`)
+    onBorrada()
   }
 
   return (
-    <Dialogo
-      open
-      onOpenChange={(abierto) => { if (!abierto) { setFallo(null); onCerrar() } }}
-    >
-      <ContenidoDialogo titulo="Borrar la plantilla" descripcion={plantilla.name} ancho="chico">
-        <p className="text-texto-tenue text-sm">
-          Se borra la plantilla y sus ítems. Los {GLOSARIO.espacio.plural.toLowerCase()} que ya se
-          crearon con ella no se tocan.
-        </p>
-
-        {fallo !== null && <p role="alert" className="text-texto-peligro mt-3 text-sm">{fallo}</p>}
-
-        <div className="mt-4 flex justify-end gap-2">
-          <CerrarDialogo asChild>
-            <Boton variante="sutil">Cancelar</Boton>
-          </CerrarDialogo>
-          <Boton variante="peligro" cargando={borrando} onClick={() => { void borrar() }}>
-            Borrar
-          </Boton>
-        </div>
-      </ContenidoDialogo>
-    </Dialogo>
+    <ConfirmarBorrado
+      abierto
+      onCerrar={onCerrar}
+      tamano="chico"
+      titulo="Borrar la plantilla"
+      advertencia={
+        `«${plantilla.name}»: se borra la plantilla y sus ítems. Los ${GLOSARIO.espacio.plural.toLowerCase()} `
+        + 'que ya se crearon con ella no se tocan.'
+      }
+      etiquetaConfirmar="Borrar"
+      onConfirmar={borrar}
+    />
   )
 }

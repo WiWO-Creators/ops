@@ -1,6 +1,6 @@
 'use client'
 
-import { BellRing, CalendarClock, Eraser, History, Pause, PencilLine, Play, Repeat2, RepeatOff, TriangleAlert } from 'lucide-react'
+import { BellRing, CalendarClock, Eraser, History, Pause, Pencil, Play, Repeat2, RepeatOff, TriangleAlert } from 'lucide-react'
 import { startTransition, useEffect, useMemo, useState, ViewTransition, type ReactElement } from 'react'
 import { escribirEnBff } from '@/componentes/datos/mutaciones'
 import { PARAMETRO_TAREA } from '@/componentes/datos/tabla'
@@ -463,7 +463,7 @@ function FilaDeRegla ({ regla, posicion, puedeEditar, esAdmin, resaltada, onVerC
           <span className="flex items-center gap-1">
             {pausada && <BotonReanudar regla={regla} />}
             <Boton variante="sutil" tamano="chico" soloIcono aria-label={`Editar la regla de ${regla.name}`} title="Editar regla" onClick={onEditar}>
-              <PencilLine size={15} aria-hidden="true" />
+              <Pencil size={15} aria-hidden="true" />
             </Boton>
             {pausable && (
               <Boton variante="sutil" tamano="chico" soloIcono aria-label={`Pausar ${regla.name}`} title="Pausar" onClick={() => { onConfirmar('pausar') }}>

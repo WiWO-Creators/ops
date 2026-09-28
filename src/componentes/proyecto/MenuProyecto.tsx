@@ -14,6 +14,7 @@ import {
 import { escribirEnBff } from '@/componentes/datos/mutaciones'
 import { mensajeDeRespuesta } from '@/datos/cliente'
 import { GLOSARIO } from '@/dominio/glosario'
+import { DialogoEliminarProyecto } from './DialogoEliminarProyecto'
 import { FormularioRecurso } from './FormularioRecurso'
 import { ImportarTareas } from './ImportarTareas'
 import { DistintivoSolicitud, SolicitarEliminacion } from './SolicitudDeEliminacion'
@@ -186,30 +187,6 @@ export function MenuProyecto ({
 
     setCambiandoVisibilidad(false)
     router.refresh()
-  }
-
-  /** Borra el proyecto y vuelve al listado. El detalle deja de existir: quedarse aca daria un 404. */
-  async function eliminar (): Promise<void> {
-    setEnCurso(true)
-    setFallo(null)
-
-    try {
-      const respuesta = await fetch(`/api/bff/projects/${proyecto.id}`, {
-        method: 'DELETE',
-        headers: { accept: 'application/json' }
-      })
-
-      if (!respuesta.ok) {
-        setFallo(await mensajeDeRespuesta(respuesta))
-        return
-      }
-
-      router.push('/proyectos')
-    } catch {
-      setFallo('No se pudo eliminar: revisa la conexión.')
-    } finally {
-      setEnCurso(false)
-    }
   }
 
   /**
@@ -481,18 +458,11 @@ export function MenuProyecto ({
         </ContenidoDialogo>
       </Dialogo>
 
-      <Dialogo open={borrando} onOpenChange={setBorrando}>
-        <ContenidoDialogo
-          titulo={`Eliminar ${GLOSARIO.espacio.singular.toLowerCase()}`}
-          descripcion={`"${proyecto.name}" va a la papelera con todo lo que cuelga de él. Se puede restaurar entero desde la Papelera durante 30 días.`}
-          ancho="chico"
-        >
-          <div className="flex justify-end gap-2">
-            <Boton variante="sutil" onClick={() => { setBorrando(false) }}>Cancelar</Boton>
-            <Boton variante="peligro" cargando={enCurso} onClick={() => { void eliminar() }}>Eliminar</Boton>
-          </div>
-        </ContenidoDialogo>
-      </Dialogo>
+      <DialogoEliminarProyecto
+        espacio={borrando ? proyecto : null}
+        onCerrar={() => { setBorrando(false) }}
+        onEliminado={() => { router.push('/proyectos') }}
+      />
     </span>
   )
 }

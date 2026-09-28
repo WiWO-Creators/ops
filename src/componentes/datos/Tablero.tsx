@@ -1,6 +1,6 @@
 'use client'
 
-import { ArrowLeft, ArrowRight, GripVertical, MoreHorizontal } from 'lucide-react'
+import { ArrowLeft, ArrowRight, GripVertical } from 'lucide-react'
 import { Fragment, useCallback, useRef, useState, type ReactNode } from 'react'
 import { Boton } from '@/componentes/formularios/Boton'
 import { Vacio } from '@/componentes/estado/Estados'
@@ -10,6 +10,7 @@ import {
   ItemMenu,
   MenuContextual
 } from '@/componentes/superposiciones/MenuContextual'
+import { MenuAccionesFila } from './MenuAccionesFila'
 import { useDesplazamientoTablero } from './useDesplazamientoTablero'
 import { ATRIBUTO_COLUMNA, ATRIBUTO_RANURA, ATRIBUTO_TARJETA, useArrastreTactil } from './useArrastreTactil'
 import { useConsultaDeMedios } from '@/lib/useConsultaDeMedios'
@@ -449,27 +450,24 @@ export function Tablero<T extends FilaConId> ({
                   >
                     <GripVertical className="size-4" aria-hidden="true" />
                   </Boton>
-                  <MenuContextual>
-                    <DisparadorMenu asChild>
-                      <Boton variante="sutil" tamano="chico" soloIcono disabled={ocupado} aria-label={`Opciones de orden de ${grupo.columna.name}`}>
-                        <MoreHorizontal className="size-4" aria-hidden="true" />
-                      </Boton>
-                    </DisparadorMenu>
-                    <ContenidoMenu align="start">
-                      <ItemMenu
-                        disabled={ocupado || (grupos[indiceGrupo - 1]?.columna.id ?? 0) <= 0}
-                        onSelect={() => { void reordenar(grupo.columna.id, (grupos[indiceGrupo - 1]?.columna.id ?? 0)) }}
-                      >
-                        Mover a la izquierda
-                      </ItemMenu>
-                      <ItemMenu
-                        disabled={ocupado || indiceGrupo === grupos.length - 1}
-                        onSelect={() => { void reordenar(grupo.columna.id, (grupos[indiceGrupo + 1]?.columna.id ?? 0)) }}
-                      >
-                        Mover a la derecha
-                      </ItemMenu>
-                    </ContenidoMenu>
-                  </MenuContextual>
+                  <MenuAccionesFila
+                    deshabilitado={ocupado}
+                    ariaLabel={`Opciones de orden de ${grupo.columna.name}`}
+                    acciones={[
+                      {
+                        clave: 'izquierda',
+                        etiqueta: 'Mover a la izquierda',
+                        deshabilitado: ocupado || (grupos[indiceGrupo - 1]?.columna.id ?? 0) <= 0,
+                        onSeleccionar: () => { void reordenar(grupo.columna.id, (grupos[indiceGrupo - 1]?.columna.id ?? 0)) }
+                      },
+                      {
+                        clave: 'derecha',
+                        etiqueta: 'Mover a la derecha',
+                        deshabilitado: ocupado || indiceGrupo === grupos.length - 1,
+                        onSeleccionar: () => { void reordenar(grupo.columna.id, (grupos[indiceGrupo + 1]?.columna.id ?? 0)) }
+                      }
+                    ]}
+                  />
                 </>
               )}
               {grupo.columna.color !== null && (
