@@ -30,7 +30,7 @@ import { fuenteDelPanel } from '@/dominio/fuente-proyecto'
  * El `Suspense` no es decorativo: `Pestanas` usa `useSearchParams`, y sin ese limite el build de
  * cualquier ruta que lo monte falla.
  *
- * Sin Gantt, Notas, capa de IA ni Configuracion: son del Espacio adjudicado, no de la oportunidad.
+ * Meeting Paper se incorpora cuando la sección proporciona su panel.
  */
 interface PropsDetalleDeEspacio {
   /** La ficha completa del Espacio, tal como la devuelve `GET /projects/{id}`. */
@@ -52,6 +52,8 @@ interface PropsDetalleDeEspacio {
   ficha: ReactNode
   /** Nombre accesible del grupo de pestañas: "Secciones de la licitación". */
   etiquetaPestanas: string
+  /** Módulo de actas compartido, habilitado por la sección que lo necesita. */
+  meetingPaper?: ReactNode
 }
 
 export function DetalleDeEspacio ({
@@ -63,7 +65,8 @@ export function DetalleDeEspacio ({
   subtitulo,
   acciones,
   ficha,
-  etiquetaPestanas
+  etiquetaPestanas,
+  meetingPaper
 }: PropsDetalleDeEspacio) {
   const estado = estadoDelEspacio(lookups, espacio.status)
   // De donde bajan los datos de cada pestaña: son las mismas rutas del panel, porque una Licitacion
@@ -115,6 +118,7 @@ export function DetalleDeEspacio ({
       contenido: <PanelTiempos proyectoId={espacio.id} fuente={fuente} capacidades={capacidadesTareas} />
     },
     { clave: 'archivos', etiqueta: 'Archivos', contenido: <PanelArchivos proyectoId={espacio.id} /> },
+    ...(meetingPaper == null ? [] : [{ clave: 'actas', etiqueta: GLOSARIO.acta.singular, contenido: meetingPaper }]),
     {
       clave: 'actividad',
       etiqueta: 'Actividad',

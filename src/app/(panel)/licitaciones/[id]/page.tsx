@@ -3,8 +3,12 @@ import { cache } from 'react'
 import { AccionesLicitacion } from '@/componentes/licitacion/AccionesLicitacion'
 import { FichaLicitacion } from '@/componentes/licitacion/FichaLicitacion'
 import { DetalleDeEspacio } from '@/componentes/proyecto/DetalleDeEspacio'
+import { PanelActas } from '@/componentes/proyecto/PanelActas'
 import { ErrorEstado, SinPermiso, Vacio } from '@/componentes/estado/Estados'
 import { ErrorApi } from '@/datos/errores'
+import { estadoIa } from '@/datos/ajustes'
+import type { EstadoIa } from '@/dominio/ajustes'
+import { fuenteDelPanel } from '@/dominio/fuente-proyecto'
 import type { OpcionCampo } from '@/componentes/proyecto/formulario'
 import { cargarLookups, listaDe } from '@/datos/lookups'
 import { pedir } from '@/datos/servidor'
@@ -47,6 +51,7 @@ interface Detalle {
   licitacion: LicitacionDetalle
   lookups: Lookups
   yo: Yo
+  ia: EstadoIa
 }
 
 /**
@@ -61,13 +66,14 @@ interface Detalle {
  */
 async function cargarDetalle (id: string): Promise<Detalle | ErrorApi> {
   try {
-    const [licitacion, lookups, yo] = await Promise.all([
+    const [licitacion, lookups, yo, ia] = await Promise.all([
       traerLicitacion(id),
       cargarLookups(),
-      pedir<Yo>('/me')
+      pedir<Yo>('/me'),
+      estadoIa()
     ])
 
-    return { licitacion: licitacion.data, lookups, yo: yo.data }
+    return { licitacion: licitacion.data, lookups, yo: yo.data, ia }
   } catch (error) {
     if (error instanceof ErrorApi) return error
 
@@ -111,7 +117,7 @@ export default async function LicitacionPage (props: PageProps<'/licitaciones/[i
     return <ErrorEstado detalle={detalle.message} />
   }
 
-  const { licitacion, lookups, yo } = detalle
+  const { licitacion, lookups, yo, ia } = detalle
   const staff = comoOpciones(listaDe(lookups, 'staff'))
 
   return (
@@ -120,6 +126,16 @@ export default async function LicitacionPage (props: PageProps<'/licitaciones/[i
       lookups={lookups}
       capacidadesProyecto={yo.permissions.projects}
       capacidadesTareas={yo.permissions.tasks}
+      meetingPaper={
+        <PanelActas
+          proyectoId={licitacion.espacio.id}
+          fuente={fuenteDelPanel(licitacion.espacio.id)}
+          capacidades={['create', 'edit', 'delete']}
+          capacidadesTareas={yo.permissions.tasks}
+          ia={ia}
+          yo={yo}
+        />
+      }
       volverA={{ href: `/prospectos/${licitacion.prospecto_id}?tab=licitaciones`, etiqueta: licitacion.company }}
       subtitulo={licitacion.company}
       acciones={
