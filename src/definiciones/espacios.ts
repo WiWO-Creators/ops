@@ -49,14 +49,12 @@ export const ESPACIOS: DefinicionRecurso<Espacio> = {
       encabezado: 'Avance',
       ordenPor: 'progress',
       numerica: true,
-      ocultaPorDefecto: true,
       presentar: (e) => `${e.progress}%`
     },
     {
       clave: 'tasks_open',
       encabezado: `${GLOSARIO.proceso.plural} abiertas`,
       numerica: true,
-      ocultaPorDefecto: true,
       presentar: (e) => e.counts.tasks_open
     }
   ],
