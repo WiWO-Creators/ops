@@ -167,6 +167,27 @@ export function espaciosConCampos (campos: CampoPersonalizadoMeta[]): Definicion
 }
 
 /**
+ * La definicion acotada a un dueño que la ruta no expresa: la pestaña Espacios de un Cliente o de
+ * una Persona, con `consultaFija`.
+ *
+ * El filtro que declara al mismo dueño (`clientid`, `member`) se quita de `filtros`: dejarlo
+ * editable en la URL permitiria ver los Espacios de otro dueño bajo este encabezado, y el filtro
+ * fijo ya lo cubre sin que la persona pueda tocarlo. La columna correspondiente (`client`) no se
+ * quita aca porque cada pantalla decide si le sirve o no.
+ *
+ * @param consultaFija Query string fija, sin `?`. Ej: `filter[clientid]=113`.
+ * @param filtroDelDueno Clave del filtro que ya cubre `consultaFija`, para sacarlo de la lista.
+ * @returns Una definicion nueva; `ESPACIOS` no se muta.
+ */
+export function espaciosAcotados (consultaFija: string, filtroDelDueno?: string): DefinicionRecurso<Espacio> {
+  return {
+    ...ESPACIOS,
+    consultaFija,
+    filtros: filtroDelDueno === undefined ? ESPACIOS.filtros : ESPACIOS.filtros.filter((filtro) => filtro.clave !== filtroDelDueno)
+  }
+}
+
+/**
  * Estado "En desarrollo" del catalogo `project_statuses`.
  *
  * El id 2 es codigo del panel y no dato editable: Perfex lo traduce en

@@ -1,23 +1,19 @@
 'use client'
 
-import Link from 'next/link'
-import { useState } from 'react'
-import { CeldaEncabezado, CeldaTabla, CuerpoTabla, EncabezadoTabla, FilaTabla, Tabla } from '@/componentes/datos/Tabla'
+import { Suspense, useCallback, useEffect, useMemo, useState } from 'react'
+import { TablaRecurso } from '@/componentes/datos/TablaRecurso'
+import { unirConsultas } from '@/componentes/datos/tabla'
+import { useFiltrosEnUrl } from '@/componentes/datos/useFiltrosEnUrl'
+import { enriquecerColumnas } from '@/componentes/proyecto/ColumnasProyecto'
 import { Cargando, ErrorEstado, Vacio } from '@/componentes/estado/Estados'
-import { Insignia } from '@/componentes/presentadores/Insignia'
-import { Paginador, TareasAsignadas, useListaPaginada } from '@/componentes/mis-tareas/TareasAsignadas'
+import { TareasAsignadas } from '@/componentes/mis-tareas/TareasAsignadas'
+import { pedirSobre } from '@/datos/cliente'
+import { construirConsulta, leerConsulta } from '@/datos/consulta'
 import { GLOSARIO } from '@/dominio/glosario'
-import { resolverEstado } from '@/dominio/estados-tarea'
 import { ESTADO_COMPLETO } from '@/componentes/proyecto/tareas'
+import { espaciosAcotados } from '@/definiciones/espacios'
+import type { EstadoConsulta, OpcionFiltro, ResultadoLista } from '@/definiciones/tipos'
 import type { EstadoLookup, Espacio } from '@/datos/recursos'
-
-/**
- * Cuanto se trae de cada pagina de Proyectos.
- *
- * El mismo tamaño que usa la lista de Tareas (`TareasAsignadas`), para que las dos tablas de la
- * pestaña se lean con el mismo ritmo.
- */
-const POR_PAGINA = 25
 
 /**
  * Los estados que cuentan como trabajo abierto: todos los del catalogo menos "Completo".
@@ -83,19 +79,70 @@ export function PanelTrabajoPersona ({ personaId, nombre, estadosDeTarea, estado
   )
 }
 
-/** Los Proyectos donde es miembro. */
-function ProyectosDeLaPersona ({ personaId, nombre, estados }: { personaId: number, nombre: string, estados: EstadoLookup[] }) {
-  const [pagina, setPagina] = useState(1)
-  const plural = GLOSARIO.espacio.plural.toLowerCase()
-  const [carga, reintentar] = useListaPaginada<Espacio>(
-    `projects?filter[member]=${personaId}&per_page=${POR_PAGINA}&page=${pagina}&sort=name`,
-    plural
+/**
+ * Los Proyectos donde es miembro, con `TablaRecurso` y `consultaFija` (mismo mecanismo que
+ * `PanelProyectosCliente`): la columna y el filtro "Miembros" se quitan porque bajo este
+ * encabezado siempre son la misma persona.
+ *
+ * `TablaRecurso` y `useFiltrosEnUrl` leen `useSearchParams`: sin este limite de `Suspense` falla el
+ * build de cualquier pagina que monte esta ficha.
+ */
+function ProyectosDeLaPersona (props: { personaId: number, nombre: string, estados: EstadoLookup[] }) {
+  return (
+    <Suspense fallback={<Cargando alto="min-h-40" mensaje={`Cargando sus ${GLOSARIO.espacio.plural.toLowerCase()}…`} />}>
+      <CuerpoDeProyectosDeLaPersona {...props} />
+    </Suspense>
   )
+}
+
+function CuerpoDeProyectosDeLaPersona ({ personaId, nombre, estados }: { personaId: number, nombre: string, estados: EstadoLookup[] }) {
+  const plural = GLOSARIO.espacio.plural.toLowerCase()
+
+  const definicion = useMemo(() => {
+    const base = espaciosAcotados(`filter[member]=${personaId}`, 'member')
+
+    return { ...base, columnas: enriquecerColumnas(base.columnas.filter((columna) => columna.clave !== 'members')) }
+  }, [personaId])
+
+  const leerEstado = useCallback((p: URLSearchParams) => leerConsulta(p, definicion), [definicion])
+  const construirQuery = useCallback((e: EstadoConsulta) => construirConsulta(e, definicion), [definicion])
+  const { estado } = useFiltrosEnUrl<EstadoConsulta>({ leer: leerEstado, construir: construirQuery, prefijo: 'espacios' })
+  const consulta = useMemo(() => construirQuery(estado), [estado, construirQuery])
+
+  const [carga, setCarga] = useState<
+    | { fase: 'cargando' }
+    | { fase: 'error', mensaje: string }
+    | { fase: 'listo', inicial: ResultadoLista<Espacio>, consulta: string }
+  >({ fase: 'cargando' })
+  const [intento, setIntento] = useState(0)
+
+  useEffect(() => {
+    const control = new AbortController()
+
+    void pedirSobre<Espacio[]>(`${definicion.ruta}?${unirConsultas(definicion.consultaFija, consulta)}`, control.signal)
+      .then((sobre) => {
+        if (control.signal.aborted) return
+        setCarga({ fase: 'listo', inicial: { filas: sobre.data, paginacion: sobre.meta?.pagination }, consulta })
+      })
+      .catch((fallo: unknown) => {
+        if (control.signal.aborted) return
+        setCarga({ fase: 'error', mensaje: fallo instanceof Error ? fallo.message : `No se pudieron cargar sus ${plural}.` })
+      })
+
+    return () => { control.abort() }
+  }, [definicion, consulta, plural, intento])
 
   if (carga.fase === 'cargando') return <Cargando alto="min-h-40" mensaje={`Cargando sus ${plural}…`} />
-  if (carga.fase === 'error') return <ErrorEstado detalle={carga.mensaje} onReintentar={reintentar} />
+  if (carga.fase === 'error') {
+    return (
+      <ErrorEstado
+        detalle={carga.mensaje}
+        onReintentar={() => { setCarga({ fase: 'cargando' }); setIntento((n) => n + 1) }}
+      />
+    )
+  }
 
-  if (carga.filas.length === 0) {
+  if (carga.inicial.filas.length === 0) {
     return (
       <Vacio
         titulo={`${nombre} no participa de ningún ${GLOSARIO.espacio.singular.toLowerCase()}`}
@@ -108,54 +155,24 @@ function ProyectosDeLaPersona ({ personaId, nombre, estados }: { personaId: numb
     <section className="flex flex-col gap-3">
       <h2 className="text-texto text-sm font-semibold">{GLOSARIO.espacio.plural}</h2>
 
-      <Tabla>
-        <EncabezadoTabla>
-          <tr>
-            <CeldaEncabezado>Nombre</CeldaEncabezado>
-            <CeldaEncabezado>Estado</CeldaEncabezado>
-            <CeldaEncabezado>Cliente</CeldaEncabezado>
-            <CeldaEncabezado numerica>{GLOSARIO.proceso.plural} abiertas</CeldaEncabezado>
-          </tr>
-        </EncabezadoTabla>
-
-        <CuerpoTabla>
-          {carga.filas.map((proyecto) => {
-            const estado = resolverEstado(proyecto.status, estados)
-
-            return (
-              <FilaTabla key={proyecto.id}>
-                <CeldaTabla>
-                  <Link
-                    href={`/proyectos/${proyecto.id}`}
-                    className="text-texto hover:text-acento font-medium underline-offset-4 hover:underline"
-                  >
-                    {proyecto.name}
-                  </Link>
-                </CeldaTabla>
-
-                <CeldaTabla>
-                  <Insignia color={estado.color}>{estado.etiqueta}</Insignia>
-                </CeldaTabla>
-
-                <CeldaTabla className="text-texto-tenue">{proyecto.client?.company ?? '—'}</CeldaTabla>
-
-                <CeldaTabla numerica className="text-texto-tenue">{proyecto.counts.tasks_open}</CeldaTabla>
-              </FilaTabla>
-            )
-          })}
-        </CuerpoTabla>
-      </Tabla>
-
-      <Paginador paginacion={carga.paginacion} cuantas={carga.filas.length} onPagina={setPagina} />
-
-      <p className="text-texto-tenue text-xs">
-        <Link
-          href={`/proyectos?filter[member]=${personaId}`}
-          className="text-acento underline underline-offset-4"
-        >
-          Ver todos sus {plural} con filtros y orden
-        </Link>
-      </p>
+      <TablaRecurso<Espacio>
+        definicion={definicion}
+        inicial={carga.inicial}
+        consultaDelInicial={carga.consulta}
+        claveFila={(espacio) => espacio.id}
+        opcionesDeFiltro={{ project_statuses: comoOpcionesDeEstado(estados) }}
+        prefijoUrl="espacios"
+      />
     </section>
   )
+}
+
+/**
+ * Catalogo de estados de Proyecto en la forma que espera `opcionesDeFiltro` de `TablaRecurso`.
+ *
+ * @param estados `project_statuses` de `GET /lookups`.
+ * @returns El mismo catalogo, con las claves que usa el motor de tabla.
+ */
+function comoOpcionesDeEstado (estados: EstadoLookup[]): OpcionFiltro[] {
+  return estados.map((estado) => ({ valor: String(estado.id), etiqueta: estado.name, color: estado.color }))
 }
