@@ -10,6 +10,7 @@ import type { TableroDePreset } from '@/datos/recursos'
 import { leerError } from '@/datos/errores'
 import { ErrorEstado, Vacio } from '@/componentes/estado/Estados'
 import { CargandoConOrbe } from '@/componentes/estado/Orbe'
+import { useAviso } from '@/componentes/estado/useAviso'
 import { CLASES_CASILLA } from '@/componentes/formularios/Entrada'
 import { Segmentado, type OpcionSegmentada } from '@/componentes/formularios/Segmentado'
 import { MenuAccionesFila } from '@/componentes/datos/MenuAccionesFila'
@@ -663,20 +664,31 @@ interface PropsMenuAcciones {
 /** Menu de acciones de una fila. Al terminar refresca la vista: el backend es quien sabe como quedo. */
 function MenuAcciones ({ acciones, id, onError, onListo }: PropsMenuAcciones) {
   const [enCurso, setEnCurso] = useState(false)
+  const aviso = useAviso()
 
+  /**
+   * Ejecuta la accion y siempre libera `enCurso`, aunque el `fetch` mismo falle (sin red, CORS): sin
+   * el `finally`, un error asi dejaba el menu cargando para siempre, porque `leerError` necesita una
+   * respuesta del servidor que en ese caso nunca llega. Ese caso no tiene con que llenar `onError`
+   * —no hay `CuerpoError` que mostrar—, asi que avisa con un toast en su lugar.
+   */
   async function ejecutar (ruta: string, metodo: 'POST' | 'DELETE') {
     setEnCurso(true)
 
-    const respuesta = await fetch(`/api/bff/${rutaDeAccion(ruta, id)}`, { method: metodo })
+    try {
+      const respuesta = await fetch(`/api/bff/${rutaDeAccion(ruta, id)}`, { method: metodo })
 
-    setEnCurso(false)
+      if (respuesta.ok) {
+        onListo()
+        return
+      }
 
-    if (respuesta.ok) {
-      onListo()
-      return
+      onError(await leerError(respuesta))
+    } catch {
+      aviso.error('No se pudo completar la acción: revisá tu conexión e intentá de nuevo.')
+    } finally {
+      setEnCurso(false)
     }
-
-    onError(await leerError(respuesta))
   }
 
   return (

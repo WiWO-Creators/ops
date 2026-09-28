@@ -112,6 +112,33 @@ export function agregarACola<T extends ElementoDeCola> (cola: readonly T[], nuev
 }
 
 /**
+ * Agrega un elemento desalojable a una cola mixta, recortando el techo solo entre los desalojables.
+ *
+ * A diferencia de {@link agregarACola}, no bota lo que no es desalojable: en la pila de avisos, un
+ * toast nuevo puede sacar a otro toast viejo, pero nunca a un incidente que sigue esperando que
+ * alguien copie su codigo. Sin esta distincion, un incidente que cae de la pila deja de reportarse
+ * hasta que la persona recarga la pantalla.
+ *
+ * @param cola la cola actual, mixta
+ * @param nuevo el elemento a agregar, al final
+ * @param maximo cuantos elementos desalojables quedan como maximo, contando el nuevo
+ * @param esDesalojable distingue un elemento desalojable (un toast) de uno que no (un incidente)
+ * @returns la cola con el nuevo elemento, los desalojables recortados al maximo y el resto intacto,
+ *          en el mismo orden relativo que tenian (por id, que crece con cada elemento agregado)
+ */
+export function agregarDesalojableACola<T extends ElementoDeCola> (
+  cola: readonly T[],
+  nuevo: T,
+  maximo: number,
+  esDesalojable: (elemento: T) => boolean
+): T[] {
+  const fijos = cola.filter((elemento) => !esDesalojable(elemento))
+  const desalojables = agregarACola(cola.filter(esDesalojable), nuevo, maximo)
+
+  return [...fijos, ...desalojables].sort((a, b) => a.id - b.id)
+}
+
+/**
  * Quita un elemento de la cola por su id.
  *
  * @param cola la cola actual

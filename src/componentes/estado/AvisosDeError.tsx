@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { AlertTriangle, CheckCircle2, Info, X } from 'lucide-react'
 import { CodigoCopiable } from '@/componentes/presentadores/CodigoCopiable'
 import { ATRIBUTO_AVISOS, EVENTO_ERROR, esRuidoDelNavegador, reportarIncidente, type AvisoDeError } from '@/lib/aviso-de-error'
-import { duracionPorNivel, EVENTO_AVISO, type AvisoEmitido, type NivelAviso, agregarACola, quitarDeCola } from '@/lib/avisos'
+import { duracionPorNivel, EVENTO_AVISO, type AvisoEmitido, type NivelAviso, agregarACola, agregarDesalojableACola, quitarDeCola } from '@/lib/avisos'
 import { NOMBRE_SOPORTE, URL_SOPORTE } from '@/lib/soporte'
 
 /** Cuantos avisos se ven a la vez, sumando incidentes y avisos comunes. Mas que esto tapa la pantalla. */
@@ -156,12 +156,22 @@ export function AvisosDeError () {
       })
     }
 
-    /** Agrega un aviso comun y programa su cierre solo. */
+    /**
+     * Agrega un aviso comun y programa su cierre solo.
+     *
+     * El techo de {@link MAXIMO_VISIBLES} aplica solo entre los toasts: uno nuevo puede desalojar a
+     * un toast viejo, pero nunca a un incidente. Un incidente desalojado dejaria de reportarse hasta
+     * que la persona recargara la pantalla, y eso es peor que una pila que por un momento supera el
+     * maximo visible.
+     */
     const agregarToast = (aviso: AvisoEmitido): void => {
       const id = ++ultimoId
       const duracion = aviso.duracionMs ?? duracionPorNivel(aviso.nivel)
+      const nuevo: AvisoToast = { origen: 'toast', id, mensaje: aviso.mensaje, nivel: aviso.nivel }
 
-      establecerAvisos((actuales) => agregarACola(actuales, { origen: 'toast', id, mensaje: aviso.mensaje, nivel: aviso.nivel }, MAXIMO_VISIBLES))
+      establecerAvisos((actuales) => agregarDesalojableACola(
+        actuales, nuevo, MAXIMO_VISIBLES, (elemento) => elemento.origen === 'toast'
+      ))
 
       timers.set(id, setTimeout(() => { cerrar(id) }, duracion))
     }

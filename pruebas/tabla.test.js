@@ -26,6 +26,7 @@ import {
   urlConParametro,
   unirConsultas,
   hayFiltrosPuestos,
+  paginarLocalmente,
   SELECTOR_CONTROLES_DE_FILA
 } from '../src/componentes/datos/tabla.ts'
 
@@ -359,4 +360,30 @@ test('ordenarLocalmente sin columnas (por defecto) no revienta y ordena alfabeti
   const ordenado = ordenarLocalmente(PERSONAS_POR_ESCALON, ['escalon'])
 
   assert.deepEqual(ordenado.map((p) => p.nombre), ['Beto', 'Zoe', 'Coni', 'Ana'])
+})
+
+test('paginarLocalmente devuelve la pagina pedida cuando existe', () => {
+  const filas = Array.from({ length: 25 }, (_, i) => i + 1)
+
+  const { filas: pagina2, paginacion } = paginarLocalmente(filas, 2, 10)
+
+  assert.deepEqual(pagina2, [11, 12, 13, 14, 15, 16, 17, 18, 19, 20])
+  assert.deepEqual(paginacion, { page: 2, per_page: 10, total: 25, total_pages: 3 })
+})
+
+test('paginarLocalmente acota a la ultima pagina si un filtro dejo la URL apuntando mas alla', () => {
+  const filas = Array.from({ length: 5 }, (_, i) => i + 1)
+
+  const { filas: acotada, paginacion } = paginarLocalmente(filas, 3, 10)
+
+  assert.deepEqual(acotada, [1, 2, 3, 4, 5])
+  assert.equal(paginacion.page, 1)
+  assert.equal(paginacion.total_pages, 1)
+})
+
+test('paginarLocalmente acota una pagina cero o negativa a la primera', () => {
+  const filas = [1, 2, 3]
+
+  assert.equal(paginarLocalmente(filas, 0, 10).paginacion.page, 1)
+  assert.equal(paginarLocalmente(filas, -4, 10).paginacion.page, 1)
 })

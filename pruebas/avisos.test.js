@@ -6,7 +6,7 @@
 
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { agregarACola, duracionPorNivel, quitarDeCola } from '../src/lib/avisos.ts'
+import { agregarACola, agregarDesalojableACola, duracionPorNivel, quitarDeCola } from '../src/lib/avisos.ts'
 
 test('la cola agrega al final y respeta el techo, descartando lo mas viejo', () => {
   const cola = [{ id: 1 }, { id: 2 }]
@@ -24,6 +24,42 @@ test('quitar de la cola saca solo el id pedido, y no falla si no estaba', () => 
 
   assert.deepEqual(quitarDeCola(cola, 2), [{ id: 1 }, { id: 3 }])
   assert.deepEqual(quitarDeCola(cola, 99), cola)
+})
+
+test('agregar un desalojable respeta el techo sin tocar lo fijo', () => {
+  const cola = [
+    { id: 1, origen: 'incidente' },
+    { id: 2, origen: 'toast' },
+    { id: 3, origen: 'toast' }
+  ]
+  const esToast = (elemento) => elemento.origen === 'toast'
+
+  const conCuatro = agregarDesalojableACola(cola, { id: 4, origen: 'toast' }, 2, esToast)
+
+  assert.deepEqual(conCuatro, [
+    { id: 1, origen: 'incidente' },
+    { id: 3, origen: 'toast' },
+    { id: 4, origen: 'toast' }
+  ])
+})
+
+test('un desalojable de mas nunca bota lo fijo, aunque supere el techo', () => {
+  const cola = [
+    { id: 1, origen: 'incidente' },
+    { id: 2, origen: 'incidente' },
+    { id: 3, origen: 'incidente' }
+  ]
+
+  const conToast = agregarDesalojableACola(
+    cola, { id: 4, origen: 'toast' }, 3, (elemento) => elemento.origen === 'toast'
+  )
+
+  assert.deepEqual(conToast, [
+    { id: 1, origen: 'incidente' },
+    { id: 2, origen: 'incidente' },
+    { id: 3, origen: 'incidente' },
+    { id: 4, origen: 'toast' }
+  ])
 })
 
 test('exito e informacion duran menos que error y advertencia', () => {
