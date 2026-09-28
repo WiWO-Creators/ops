@@ -161,7 +161,7 @@ function CuerpoDeProyectosDeLaPersona ({ personaId, nombre, estados }: { persona
         consultaDelInicial={carga.consulta}
         claveFila={(espacio) => espacio.id}
         opcionesDeFiltro={{ project_statuses: comoOpcionesDeEstado(estados) }}
-        prefijoUrl="espacios"
+        prefijoUrl="esp_"
       />
     </section>
   )

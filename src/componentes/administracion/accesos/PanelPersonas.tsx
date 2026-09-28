@@ -73,6 +73,9 @@ function CuerpoDePanelPersonas ({ catalogo, recargar, actorId }: PropsPanelPerso
   const parametroBuscar = useParametroEnUrl('buscar')
   const parametroEscalon = useParametroEnUrl('escalon')
   const parametroArea = useParametroEnUrl('area')
+  // Sin prefijo, es el mismo `page` que pagina `TablaRecurso` (ver su `prefijoUrl`): si un filtro no
+  // lo borra, la tabla se queda en una pagina que quizas ya no exista con el resultado nuevo.
+  const parametroPage = useParametroEnUrl('page')
 
   const buscar = parametroBuscar.valor ?? ''
   const escalon = parametroEscalon.valor ?? ''
@@ -155,6 +158,7 @@ function CuerpoDePanelPersonas ({ catalogo, recargar, actorId }: PropsPanelPerso
     if (cambio.buscar !== undefined) escribirOQuitar(parametroBuscar, cambio.buscar)
     if (cambio.escalon !== undefined) escribirOQuitar(parametroEscalon, cambio.escalon)
     if (cambio.area !== undefined) escribirOQuitar(parametroArea, cambio.area)
+    parametroPage.quitar()
   }
 
   /** Deja la barra como estaba al entrar. */
@@ -163,6 +167,7 @@ function CuerpoDePanelPersonas ({ catalogo, recargar, actorId }: PropsPanelPerso
     parametroBuscar.quitar()
     parametroEscalon.quitar()
     parametroArea.quitar()
+    parametroPage.quitar()
   }
 
   return (
