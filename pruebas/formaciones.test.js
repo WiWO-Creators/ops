@@ -13,7 +13,7 @@ import {
 } from '../src/componentes/estructura/bienvenida/formaciones.ts'
 
 const [minX, minY, ancho, alto] = ENCUADRE_RECORRIDO.split(' ').map(Number)
-const NOMBRES = ['dispersa', 'grilla', 'anillo', 'ola', 'barras', 'espiral', 'visto']
+const NOMBRES = ['dispersa', 'grilla', 'tablero', 'gantt', 'calendario', 'barras', 'visto']
 
 test('cada formacion tiene una pose finita por pieza, dentro del escenario', () => {
   for (const nombre of NOMBRES) {

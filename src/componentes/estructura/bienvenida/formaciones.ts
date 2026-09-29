@@ -19,7 +19,7 @@ export interface Pose {
 }
 
 /** Las formaciones disponibles, en el orden en que se reparten entre las novedades. */
-export type NombreFormacion = 'dispersa' | 'grilla' | 'anillo' | 'ola' | 'barras' | 'espiral' | 'visto'
+export type NombreFormacion = 'dispersa' | 'grilla' | 'tablero' | 'gantt' | 'calendario' | 'barras' | 'visto'
 
 /** Cuantas piezas tiene el escenario. Da para leer figuras sin volverse pesado en un telefono. */
 export const PIEZAS_RECORRIDO = 48
@@ -27,15 +27,22 @@ export const PIEZAS_RECORRIDO = 48
 /** El `viewBox` del escenario. Centrado en cero para que las formaciones se escriban simetricas. */
 export const ENCUADRE_RECORRIDO = '-180 -110 360 220'
 
-/** Las formaciones que se turnan entre novedades. La primera y la ultima seccion tienen la suya. */
-const ROTACION_DE_NOVEDADES: readonly NombreFormacion[] = ['anillo', 'ola', 'barras', 'espiral']
+/**
+ * Las formaciones que se turnan entre novedades: las vistas del propio Ops, armadas con piezas.
+ * La primera y la ultima seccion tienen la suya.
+ */
+const ROTACION_DE_NOVEDADES: readonly NombreFormacion[] = ['tablero', 'gantt', 'calendario', 'barras']
 
 /** Columnas de la grilla: 8 x 6 = 48, la cantidad de piezas. */
 const COLUMNAS_GRILLA = 8
 /** Separacion entre centros de piezas en la grilla. */
 const PASO_GRILLA = 22
-/** El angulo aureo: reparte los puntos de la espiral sin que se alineen en rayos. */
-const ANGULO_AUREO = Math.PI * (3 - Math.sqrt(5))
+/** Tarjetas por columna del tablero, de a dos por fila. Suman 48; la primera es la mas cargada. */
+const TARJETAS_TABLERO = [20, 16, 12]
+/** Las filas del Gantt: dia de inicio y cuantos dias dura cada barra. Los dias suman 48. */
+const FILAS_GANTT = [[0, 8], [3, 9], [6, 7], [9, 8], [12, 8], [15, 8]] as const
+/** Los dias con algo agendado en el calendario: se ven mas grandes que el resto. */
+const DIAS_CON_EVENTO = new Set([3, 9, 12, 18, 24, 26, 33, 40])
 /** Alturas de las ocho columnas del grafico de barras, en piezas. Suman 48. */
 const ALTURAS_BARRAS = [3, 5, 4, 7, 6, 8, 6, 9]
 
@@ -120,25 +127,18 @@ function poseEn (nombre: NombreFormacion, i: number, total: number, azar: () => 
         escala: 1
       }
     }
-    case 'anillo': {
-      const angulo = (i / total) * Math.PI * 2
-      // Dos anillos concentricos alternados: uno solo con 48 piezas se leia como un collar apretado.
-      const radio = i % 2 === 0 ? 86 : 58
+    case 'tablero':
+      return poseEnTablero(i)
+    case 'gantt':
+      return poseEnGantt(i)
+    case 'calendario': {
+      const columna = i % 7
+      const fila = Math.floor(i / 7)
 
-      return { x: Math.cos(angulo) * radio, y: Math.sin(angulo) * radio, rotacion: (angulo * 180) / Math.PI, escala: i % 2 === 0 ? 1 : 0.7 }
-    }
-    case 'ola': {
-      const t = total === 1 ? 0 : i / (total - 1)
-
-      return { x: -160 + t * 320, y: Math.sin(t * Math.PI * 3) * 46, rotacion: Math.cos(t * Math.PI * 3) * 40, escala: 0.8 }
+      return { x: (columna - 3) * 30, y: (fila - 3) * 26, rotacion: 0, escala: DIAS_CON_EVENTO.has(i) ? 1.5 : 0.9 }
     }
     case 'barras':
       return poseEnBarras(i)
-    case 'espiral': {
-      const radio = 8 * Math.sqrt(i + 1) * 1.6
-
-      return { x: Math.cos(i * ANGULO_AUREO) * radio, y: Math.sin(i * ANGULO_AUREO) * radio, rotacion: i * 20, escala: 0.5 + (i / total) * 0.7 }
-    }
     case 'visto': {
       const puntos = sobrePolilinea([[-70, 0], [-20, 50], [80, -60]], total)
       const [x, y] = puntos[i] ?? [0, 0]
@@ -146,6 +146,49 @@ function poseEn (nombre: NombreFormacion, i: number, total: number, azar: () => 
       return { x, y, rotacion: 45, escala: 0.9 }
     }
   }
+}
+
+/**
+ * La pose de una pieza en el tablero: tres columnas de tarjetas, de a dos por fila y de arriba abajo.
+ *
+ * @param i indice de la pieza
+ * @returns su pose; las que no entran en ninguna columna quedan al pie de la ultima
+ */
+function poseEnTablero (i: number): Pose {
+  let restante = i
+
+  for (const [columna, cantidad] of TARJETAS_TABLERO.entries()) {
+    if (restante < cantidad) {
+      return {
+        x: (columna - 1) * 80 + (restante % 2 === 0 ? -8 : 8),
+        y: -72 + Math.floor(restante / 2) * 15,
+        rotacion: 0,
+        escala: 1.2
+      }
+    }
+
+    restante -= cantidad
+  }
+
+  return { x: 80, y: -72 + Math.floor(restante / 2) * 15, rotacion: 0, escala: 1.2 }
+}
+
+/**
+ * La pose de una pieza en el Gantt: filas de barras corridas en el tiempo, como tareas encadenadas.
+ *
+ * @param i indice de la pieza
+ * @returns su pose; las que sobran quedan al final de la ultima barra
+ */
+function poseEnGantt (i: number): Pose {
+  let restante = i
+
+  for (const [fila, [desde, dias]] of FILAS_GANTT.entries()) {
+    if (restante < dias) return { x: -128 + (desde + restante) * 11, y: -60 + fila * 24, rotacion: 0, escala: 1 }
+
+    restante -= dias
+  }
+
+  return { x: -128 + 23 * 11, y: -60 + (FILAS_GANTT.length - 1) * 24, rotacion: 0, escala: 1 }
 }
 
 /**
@@ -163,14 +206,14 @@ function poseEnBarras (i: number): Pose {
         x: (columna - (ALTURAS_BARRAS.length - 1) / 2) * 30,
         y: 90 - restante * 20,
         rotacion: 0,
-        escala: 0.9
+        escala: 1.6
       }
     }
 
     restante -= altura
   }
 
-  return { x: ((ALTURAS_BARRAS.length - 1) / 2) * 30, y: 90 - restante * 20, rotacion: 0, escala: 0.9 }
+  return { x: ((ALTURAS_BARRAS.length - 1) / 2) * 30, y: 90 - restante * 20, rotacion: 0, escala: 1.6 }
 }
 
 /**
