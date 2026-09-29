@@ -97,7 +97,9 @@ function esId (valor: unknown): valor is number {
 /** Comprueba los valores que admiten los formularios sin interpretar contenido del usuario. */
 function sonValores (valor: unknown): valor is ValoresFormulario {
   return typeof valor === 'object' && valor !== null && !Array.isArray(valor) &&
-    Object.values(valor).every(campo => typeof campo === 'string' || typeof campo === 'boolean')
+    Object.values(valor).every(campo => typeof campo === 'string' || typeof campo === 'boolean' ||
+      // Selección múltiple y etiquetas guardan listas de textos (p. ej. las etiquetas de la licitación).
+      (Array.isArray(campo) && campo.every(elemento => typeof elemento === 'string')))
 }
 
 /** Valida versión, pasos y entidades guardadas antes de restaurar datos del navegador. */

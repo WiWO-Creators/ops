@@ -83,6 +83,16 @@ test('un borrador sin contacto es válido en cualquier paso, incluso con la lici
   }
 })
 
+test('acepta listas de textos de etiquetas y selección múltiple, pero no listas mixtas', () => {
+  // Las etiquetas de la licitación viajan como string[]: si el borrador las rechaza, crear la
+  // licitación queda bloqueado con «No se puede guardar un borrador inválido» (WIW-0508).
+  const local = almacenamiento()
+  const borrador = { ...crearBorrador(), paso: 2, prospectoId: 2, valoresLicitacion: { etiquetas: ['Redes', 'Ventas'], areas: [] } }
+  guardarBorrador(local, 'prueba', borrador)
+  assert.deepEqual(leerBorrador(local, 'prueba'), borrador)
+  assert.throws(() => guardarBorrador(local, 'prueba', { ...borrador, valoresLicitacion: { etiquetas: ['Redes', 3] } }), /inválido/)
+})
+
 test('informa cuota agotada o almacenamiento bloqueado sin aparentar éxito', () => {
   const error = new Error('QuotaExceededError')
   const local = {
