@@ -119,7 +119,7 @@ test('el listado de personas trae el escalón, el jefe y su nombre, y filtra por
     Object.keys(carla).sort(),
     [
       'activo', 'area_id', 'area_ids', 'cargo_id', 'coordinador_multiarea', 'correo', 'escalon',
-      'jefe_nombre', 'jefe_staffid', 'nombre', 'staffid'
+      'is_admin', 'is_superadmin', 'jefe_nombre', 'jefe_staffid', 'nombre', 'staffid'
     ]
   )
   assert.equal(carla.jefe_staffid, ANA.id)

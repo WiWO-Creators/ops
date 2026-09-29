@@ -46,7 +46,7 @@ export default async function EquipoPage (props: PageProps<'/equipo'>) {
               href="/equipo/jerarquia"
               className="text-acento text-sm font-semibold hover:underline"
             >
-              Jerarquías
+              Organización
             </Link>
             <TotalDelListado paginacion={lista.meta?.pagination} />
           </div>

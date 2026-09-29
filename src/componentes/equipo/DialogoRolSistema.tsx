@@ -26,7 +26,7 @@ interface PropsDialogoRolSistema {
  * El rol de sistema de una persona: usuario, administrador o superadministrador.
  *
  * Es el eje 1 del modelo de permisos y no tiene nada que ver con el escalón jerárquico, que se
- * reparte en `/administracion/accesos`: acá se decide **qué filas ve** y si abre la configuración de
+ * reparte en Organización (`/equipo/jerarquia`): acá se decide **qué filas ve** y si abre la configuración de
  * la instalación; allá, qué puesto ocupa en el árbol.
  *
  * Antes eran dos casillas sueltas —`is_admin` y `is_superadmin`— que admitían una combinación que no

@@ -1,5 +1,9 @@
 # Revisión del módulo de accesos
 
+> **Histórico.** Esta pantalla se unificó con Jerarquías en **Organización** (`/equipo/jerarquia`) y
+> `/administracion/accesos` ahora redirige ahí. El estado vigente está en
+> `docs/modulos/09-jerarquias.md`.
+
 El panel centraliza escalones, roles, asignaciones de personas, áreas, cargos e interruptores.
 Los escalones nuevos se aplican a los permisos efectivos y las asignaciones inválidas se rechazan
 sin guardar cambios parciales.

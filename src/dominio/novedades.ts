@@ -53,6 +53,13 @@ export const ROTULO_TIPO: Record<TipoNovedad, string> = {
  */
 export const NOVEDADES: Novedad[] = [
   {
+    fecha: '2026-09-29',
+    tipo: 'mejora',
+    titulo: 'Jerarquías ahora se llama Organización',
+    detalle: 'El organigrama y la administración de accesos están en una sola pantalla. Quien administra edita a cada persona en un panel con todo junto: puesto, jefe, área, cargo y rol. También puede ver por qué alguien ve lo que ve, cambiar a varias personas a la vez y revisar el historial de cambios.',
+    commits: []
+  },
+  {
     fecha: '2026-09-28',
     tipo: 'nuevo',
     titulo: 'Meeting Paper: "Solo transcribir"',

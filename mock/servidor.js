@@ -4082,8 +4082,14 @@ async function accesosRuta (metodo, resto, parametros, actual, cuerpo, peticion)
     }
   }
 
+  if (seccion === 'personas' && resto[2] === 'alcance' && metodo === 'GET') {
+    return { estado: 200, cuerpo: conDatos(alcanceEnMock(Number(id))) }
+  }
+  if (seccion === 'historial' && metodo === 'GET' && id === undefined) {
+    return { estado: 200, cuerpo: historialDeOrganizacion(parametros) }
+  }
   if (seccion === 'personas') return await personasDeAccesos(metodo, id, parametros, actual, cuerpo)
-  if (seccion === 'areas') return await areasDeAccesos(metodo, id, cuerpo)
+  if (seccion === 'areas') return await areasDeAccesos(metodo, id, cuerpo, actual)
   if (seccion === 'cargos') return await cargosDeAccesos(metodo, id, cuerpo)
 
   if (seccion === 'interruptores' && metodo === 'PUT') {
@@ -4096,7 +4102,14 @@ async function accesosRuta (metodo, resto, parametros, actual, cuerpo, peticion)
         throw new ErrorApi(422, 'validation_failed', `"${clave}" no es un interruptor.`, { [clave]: ['desconocido'] })
       }
 
-      interruptor.valor = valor === '1' || valor === true ? '1' : '0'
+      const nuevo = valor === '1' || valor === true ? '1' : '0'
+
+      if (nuevo !== interruptor.valor) {
+        anotarCambio(actual, 'interruptor', null, interruptor.nombre, clave,
+          interruptor.valor === '1' ? 'Encendido' : 'Apagado', nuevo === '1' ? 'Encendido' : 'Apagado')
+      }
+
+      interruptor.valor = nuevo
     }
 
     return { estado: 200, cuerpo: conDatos(catalogoDeAccesos().interruptores) }
@@ -4119,23 +4132,7 @@ async function personasDeAccesos (metodo, id, parametros, actual, cuerpo) {
       .filter((s) => buscar === '' || s.full_name.toLowerCase().includes(buscar) || s.email.toLowerCase().includes(buscar))
       .filter((s) => escalon === null || s.escalon === escalon)
       .filter((s) => area === null || areasDePersona(s).includes(Number(area)))
-      .map((s) => {
-        const { area_id: areaId, cargo_id: cargoId } = pertenenciaDe(s)
-
-        return {
-          staffid: s.id,
-          nombre: s.full_name,
-          correo: s.email,
-          escalon: s.escalon,
-          jefe_staffid: s.jefe_staffid ?? null,
-          jefe_nombre: STAFF.find((otra) => otra.id === s.jefe_staffid)?.full_name ?? null,
-          area_id: areaId,
-          area_ids: areasDePersona(s),
-          cargo_id: cargoId,
-          activo: s.active,
-          coordinador_multiarea: s.is_coordinador_multiarea === true
-        }
-      })
+      .map(presentarPersonaDeAccesos)
 
     const desde = (pagina - 1) * porPagina
 
@@ -4160,6 +4157,7 @@ async function personasDeAccesos (metodo, id, parametros, actual, cuerpo) {
 
   const datos = await cuerpo()
   const areasNuevas = validarAreasDePersona(datos)
+  const antes = presentarPersonaDeAccesos(persona)
 
   if (datos.escalon !== undefined) {
     if (persona.id === actual.id) {
@@ -4194,7 +4192,199 @@ async function personasDeAccesos (metodo, id, parametros, actual, cuerpo) {
     persona.is_coordinador_multiarea = datos.coordinador_multiarea
   }
 
+  const despues = presentarPersonaDeAccesos(persona)
+  anotarCambiosDePersona(actual, antes, despues)
+
   return { estado: 200, cuerpo: conDatos({ staffid: persona.id }) }
+}
+
+/** Una persona con la forma de `GET /accesos/personas` (contrato de accesos y de organización). */
+function presentarPersonaDeAccesos (s) {
+  const { area_id: areaId, cargo_id: cargoId } = pertenenciaDe(s)
+
+  return {
+    staffid: s.id,
+    nombre: s.full_name,
+    correo: s.email,
+    escalon: s.escalon,
+    jefe_staffid: s.jefe_staffid ?? null,
+    jefe_nombre: STAFF.find((otra) => otra.id === s.jefe_staffid)?.full_name ?? null,
+    area_id: areaId,
+    area_ids: areasDePersona(s),
+    cargo_id: cargoId,
+    activo: s.active,
+    coordinador_multiarea: s.is_coordinador_multiarea === true,
+    is_admin: s.is_admin === true || s.is_superadmin === true,
+    is_superadmin: s.is_superadmin === true
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Organización: historial de cambios y alcance por persona (`contrato-organizacion.md`)
+// ---------------------------------------------------------------------------
+
+/** El historial en memoria, del más viejo al más nuevo. Reiniciar el mock lo vacía. */
+const HISTORIAL_ORGANIZACION = []
+
+/** Los campos de persona que se registran, con cómo se redacta su valor. */
+const CAMPOS_DE_PERSONA = ['escalon', 'jefe_staffid', 'area_id', 'cargo_id', 'coordinador_multiarea']
+
+/**
+ * Anota un cambio con los textos ya redactados, como lo hace la API al escribir.
+ *
+ * @param {object|null} actual quien escribe
+ * @param {string} entidad `persona` | `area` | `interruptor`
+ * @param {number|null} entidadId el id de lo que cambió
+ * @param {string|null} entidadNombre su nombre al momento del cambio
+ * @param {string} campo el campo que cambió
+ * @param {string|null} antes el valor anterior, legible
+ * @param {string|null} despues el valor nuevo, legible
+ */
+function anotarCambio (actual, entidad, entidadId, entidadNombre, campo, antes, despues) {
+  HISTORIAL_ORGANIZACION.push({
+    id: HISTORIAL_ORGANIZACION.length + 1,
+    fecha: new Date().toISOString().slice(0, 19).replace('T', ' '),
+    autor: actual === null ? null : { staffid: actual.id, nombre: actual.full_name },
+    entidad,
+    entidad_id: entidadId,
+    entidad_nombre: entidadNombre,
+    campo,
+    antes,
+    despues
+  })
+}
+
+/** El valor de un campo de persona, como texto legible. */
+function textoDeCampoDePersona (campo, persona) {
+  const valor = persona[campo]
+
+  if (campo === 'escalon') return ESCALONES.find((uno) => uno.clave === valor)?.nombre ?? valor
+  if (campo === 'jefe_staffid') return persona.jefe_nombre
+  if (campo === 'area_id') return valor === null ? null : AREAS.find((area) => area.id === valor)?.name ?? `Área ${valor}`
+  if (campo === 'cargo_id') return valor === null ? null : CARGOS_ACCESOS.find((cargo) => cargo.id === valor)?.nombre ?? `Cargo ${valor}`
+
+  return valor ? 'Sí' : 'No'
+}
+
+/** Anota una fila por cada campo de persona que cambió de verdad. */
+function anotarCambiosDePersona (actual, antes, despues) {
+  for (const campo of CAMPOS_DE_PERSONA) {
+    if (antes[campo] === despues[campo]) continue
+
+    anotarCambio(actual, 'persona', despues.staffid, despues.nombre, campo,
+      textoDeCampoDePersona(campo, antes), textoDeCampoDePersona(campo, despues))
+  }
+}
+
+/** El rol de sistema de una fila de staff, con su nombre visible. */
+function rolDeSistemaEnMock (persona) {
+  if (persona.is_superadmin === true) return 'Superadministrador'
+  if (persona.is_admin === true) return 'Administrador'
+
+  return 'Usuario'
+}
+
+/** `GET /accesos/historial`, con los filtros y la paginación del contrato. */
+function historialDeOrganizacion (parametros) {
+  const entero = (clave) => {
+    const valor = parametros.get(clave)
+
+    if (valor === null) return null
+    if (!/^[1-9][0-9]*$/.test(valor)) {
+      throw new ErrorApi(422, 'validation_failed', `El filtro "${clave}" tiene que ser un id.`, { [clave]: ['integer'] })
+    }
+
+    return Number(valor)
+  }
+  const entidad = parametros.get('entidad')
+
+  if (entidad !== null && !['persona', 'area', 'interruptor'].includes(entidad)) {
+    throw new ErrorApi(422, 'validation_failed', 'El filtro "entidad" es persona, area o interruptor.', { entidad: ['unknown'] })
+  }
+
+  const persona = entero('persona')
+  const area = entero('area')
+  const autor = entero('autor')
+  const pagina = entero('page') ?? 1
+  const porPagina = Math.min(entero('per_page') ?? 50, 100)
+
+  const filas = [...HISTORIAL_ORGANIZACION].reverse()
+    .filter((fila) => entidad === null || fila.entidad === entidad)
+    .filter((fila) => persona === null || (fila.entidad === 'persona' && fila.entidad_id === persona))
+    .filter((fila) => area === null || (fila.entidad === 'area' && fila.entidad_id === area))
+    .filter((fila) => autor === null || fila.autor?.staffid === autor)
+
+  return conDatos(filas.slice((pagina - 1) * porPagina, pagina * porPagina), {
+    pagination: { page: pagina, per_page: porPagina, total: filas.length, total_pages: Math.max(1, Math.ceil(filas.length / porPagina)) }
+  })
+}
+
+/** Las áreas que cuelgan de estas, sin incluirlas. */
+function subareasDe (raices) {
+  const resultado = []
+  let pendientes = [...raices]
+
+  while (pendientes.length > 0) {
+    const hijas = AREAS.filter((area) => pendientes.includes(area.area_superior_id) && !resultado.includes(area.id) && !raices.includes(area.id))
+    resultado.push(...hijas.map((area) => area.id))
+    pendientes = hijas.map((area) => area.id)
+  }
+
+  return resultado
+}
+
+/** `GET /accesos/personas/{id}/alcance`: la misma forma que la API, con reglas simplificadas. */
+function alcanceEnMock (staffid) {
+  const persona = STAFF.find((una) => una.id === staffid)
+
+  if (!persona) throw new ErrorApi(404, 'not_found', 'No existe esa persona.')
+
+  const activa = INTERRUPTORES[0].valor === '1'
+  const breve = (una) => ({ staffid: una.id, nombre: una.full_name, escalon: una.escalon })
+  const activos = STAFF.filter((una) => una.active && una.id !== staffid)
+  const dirige = AREAS.filter((area) => area.jefe_staffid === staffid)
+  const areasAlcanzadas = [...dirige.map((area) => area.id), ...subareasDe(dirige.map((area) => area.id))]
+
+  const jefes = []
+  for (let jefe = persona.jefe_staffid; activa && jefe !== null && jefe !== undefined && !jefes.some((uno) => uno.id === jefe);) {
+    const fila = STAFF.find((una) => una.id === jefe)
+    if (!fila) break
+    jefes.push(fila)
+    jefe = fila.jefe_staffid
+  }
+  for (const area of AREAS.filter((una) => activa && areasDePersona(persona).includes(una.id) && una.jefe_staffid !== null)) {
+    const fila = STAFF.find((una) => una.id === area.jefe_staffid)
+    if (fila && fila.id !== staffid && !jefes.includes(fila)) jefes.push(fila)
+  }
+
+  const alcanzados = !activa
+    ? []
+    : activos
+      .filter((una) => cuelgaDe(una.id, staffid) || areasDePersona(una).some((id) => areasAlcanzadas.includes(id)))
+      .map((una) => ({ staffid: una.id, nombre: una.full_name, via: cuelgaDe(una.id, staffid) ? 'cadena' : 'area' }))
+      .sort((a, b) => a.nombre.localeCompare(b.nombre))
+
+  const motivo = persona.is_superadmin ? 'superadmin' : persona.is_admin ? 'admin' : persona.is_coordinador_multiarea ? 'coordinador_multiarea' : null
+
+  return {
+    staffid,
+    nombre: persona.full_name,
+    rol_sistema: persona.is_superadmin ? 'superadmin' : persona.is_admin ? 'admin' : 'usuario',
+    ve_todo: motivo !== null,
+    motivo_ve_todo: motivo,
+    edita_todo: persona.is_admin === true || persona.is_superadmin === true,
+    jerarquia_activa: activa,
+    jefes: jefes.map(breve),
+    areas: AREAS.filter((area) => areasDePersona(persona).includes(area.id)).map((area) => ({ id: area.id, nombre: area.name })),
+    areas_que_dirige: dirige.map((area) => ({
+      id: area.id,
+      nombre: area.name,
+      subareas: subareasDe([area.id]).map((id) => ({ id, nombre: AREAS.find((una) => una.id === id)?.name ?? '' }))
+    })),
+    directos: activa ? activos.filter((una) => una.jefe_staffid === staffid).map(breve) : [],
+    alcanzados,
+    total_alcanzados: alcanzados.length
+  }
 }
 
 /**
@@ -4255,11 +4445,16 @@ function cuelgaDe (staffId, posibleJefeId) {
  */
 function presentarAreaDeAccesos (area) {
   const { name, ...datos } = area
-  return { ...datos, nombre: name, personas: contarPersonas((persona) => areasDePersona(persona).includes(area.id)) }
+  return {
+    ...datos,
+    nombre: name,
+    personas: contarPersonas((persona) => areasDePersona(persona).includes(area.id)),
+    en_tareas: OPCIONES_AREA_EN_TAREAS.some((opcion) => mismoNombre(opcion, name))
+  }
 }
 
 /** Alta, edicion y borrado de areas, con el rechazo de ciclos. */
-async function areasDeAccesos (metodo, id, cuerpo) {
+async function areasDeAccesos (metodo, id, cuerpo, actual) {
   if (metodo === 'POST' && id === undefined) {
     const datos = await cuerpo()
     const nombre = String(datos.nombre ?? '').trim()
@@ -4276,6 +4471,7 @@ async function areasDeAccesos (metodo, id, cuerpo) {
     }
 
     AREAS.push(area)
+    anotarCambio(actual, 'area', area.id, area.name, 'creada', null, area.name)
 
     return { estado: 201, cuerpo: conDatos(presentarAreaDeAccesos(area)) }
   }
@@ -4298,9 +4494,20 @@ async function areasDeAccesos (metodo, id, cuerpo) {
       throw new ErrorApi(422, 'validation_failed', 'Esa área superior haría un ciclo.', { area_superior_id: ['ciclo'] })
     }
 
+    const nombreDeArea = (areaId) => areaId === null ? null : AREAS.find((una) => una.id === areaId)?.name ?? null
+    const nombreDePersona = (staffId) => staffId === null ? null : STAFF.find((una) => una.id === staffId)?.full_name ?? null
+    const jefe = datos.jefe_staffid ?? null
+
+    if (superior !== area.area_superior_id) {
+      anotarCambio(actual, 'area', area.id, nombre, 'area_superior_id', nombreDeArea(area.area_superior_id), nombreDeArea(superior))
+    }
+    if (jefe !== area.jefe_staffid) {
+      anotarCambio(actual, 'area', area.id, nombre, 'jefe_staffid', nombreDePersona(area.jefe_staffid), nombreDePersona(jefe))
+    }
+
     area.name = nombre
     area.area_superior_id = superior
-    area.jefe_staffid = datos.jefe_staffid ?? null
+    area.jefe_staffid = jefe
 
     return {
       estado: 200,
@@ -4317,6 +4524,7 @@ async function areasDeAccesos (metodo, id, cuerpo) {
   }
 
   AREAS.splice(AREAS.indexOf(area), 1)
+  anotarCambio(actual, 'area', area.id, area.name, 'borrada', area.name, null)
 
   return { estado: 204, cuerpo: null }
 }
@@ -7231,8 +7439,14 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
       if (datos.area_id !== undefined) persona.area_id = datos.area_id === null ? null : Number(datos.area_id)
     }
 
+    const rolAntes = rolDeSistemaEnMock(persona)
+
     for (const bandera of ['is_admin', 'is_superadmin']) {
       if (datos[bandera] !== undefined) persona[bandera] = datos[bandera] === true
+    }
+
+    if (rolDeSistemaEnMock(persona) !== rolAntes) {
+      anotarCambio(actual, 'persona', persona.id, persona.full_name, 'rol_sistema', rolAntes, rolDeSistemaEnMock(persona))
     }
 
     return { estado: 200, cuerpo: conDatos(fichaDeStaff(persona)) }
