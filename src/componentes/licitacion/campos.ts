@@ -18,8 +18,11 @@ import { partirEdicionCombinada } from '../proyecto/edicion-combinada.ts'
  * editan en el prospecto.
  */
 
-/** Las claves que acepta `PATCH /licitaciones/{id}`: espejo de `Licitacion::CAMPOS_PROPIOS`. */
-const CAMPOS_EDITABLES = ['empresa_holding', 'area_id', 'modelo_servicio', 'owner_id', 'focal_id', 'presentacion_url']
+/**
+ * Las claves que acepta `PATCH /licitaciones/{id}`: espejo de `Licitacion::CAMPOS_PROPIOS`, salvo
+ * que las areas viajan como lista (`area_ids`, migracion `1140`) y no como el `area_id` principal.
+ */
+const CAMPOS_EDITABLES = ['empresa_holding', 'area_ids', 'modelo_servicio', 'owner_id', 'focal_id', 'presentacion_url']
 
 /** Largo maximo del nombre del Espacio, tomado de `tblprojects`. */
 const LARGO_NOMBRE_ESPACIO = 191
@@ -30,7 +33,11 @@ const LARGO_NOMBRE_ESPACIO = 191
  * `prospecto_id` es un `seleccion` y no un texto: es una clave foranea, y escribir un numero a mano
  * es la forma de crear una licitacion colgada de la empresa equivocada. El valor viaja como cadena
  * porque un `<select>` no conoce otro tipo, y `cuerpoDelFormulario` lo vuelve numero al armar el
- * cuerpo. Lo mismo vale para el area y para las dos personas.
+ * cuerpo. Lo mismo vale para las dos personas.
+ *
+ * **Las areas son varias** (WIW-0507): una licitacion suele involucrar a mas de un area del equipo.
+ * Viajan en `area_ids` como numeros, en el orden en que se marcaron; la API toma la primera como la
+ * principal. Sin marcas la licitacion queda sin area, igual que antes con el selector vacio.
  *
  * **`owner_id` y `focal_id` son dos campos y no uno.** El owner es el dueño comercial —quien
  * persigue la venta— y el focal es quien responde por esta licitacion en el dia a dia. Suelen ser la
@@ -79,11 +86,11 @@ export function camposDeLicitacion (
       ayuda: 'Cuál de las sociedades del grupo presenta esta licitación.'
     },
     {
-      clave: 'area_id',
-      etiqueta: 'Área',
-      tipo: 'seleccion',
+      clave: 'area_ids',
+      etiqueta: 'Áreas',
+      tipo: 'seleccion-multiple',
       opciones: areas,
-      ayuda: 'El área del equipo que va a llevar el trabajo.'
+      ayuda: 'Las áreas del equipo involucradas en la licitación. Puedes marcar varias.'
     },
     {
       clave: 'owner_id',
@@ -155,7 +162,7 @@ export function camposDeEdicionDeLicitacion (
   const delAlta = new Map(camposDeLicitacion([], areas, staff, etiquetas).map(({ seccion: _seccion, ...campo }) => [campo.clave, campo]))
   const bloques: Array<[string, string[]]> = [
     [GLOSARIO.espacio.singular, ['espacio.name', 'espacio.start_date', 'espacio.deadline', 'espacio.description', 'espacio.tags']],
-    [GLOSARIO.licitacion.singular, ['empresa_holding', 'area_id', 'modelo_servicio']],
+    [GLOSARIO.licitacion.singular, ['empresa_holding', 'area_ids', 'modelo_servicio']],
     ['Responsables', ['owner_id', 'focal_id']],
     ['Carpeta de la propuesta', ['presentacion_url']]
   ]

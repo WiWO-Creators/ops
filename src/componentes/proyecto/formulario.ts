@@ -101,9 +101,13 @@ export function validarFormulario (
     const valor = valores[campo.clave]
 
     if (campo.tipo === 'seleccion-multiple') {
-      if (!Array.isArray(valor) || valor.some((id) => !(campo.opciones ?? []).some((opcion) => opcion.valor === id))) {
+      // Sin valor es sin marcas, igual que en `cuerpoDelFormulario`: un borrador nuevo todavía no
+      // tiene la clave y no puede frenar el guardado de un campo que nadie tocó.
+      const elegidas = valor === undefined ? [] : valor
+
+      if (!Array.isArray(elegidas) || elegidas.some((id) => !(campo.opciones ?? []).some((opcion) => opcion.valor === id))) {
         errores[campo.clave] = 'Elegí opciones válidas.'
-      } else if (campo.requerido === true && valor.length === 0) {
+      } else if (campo.requerido === true && elegidas.length === 0) {
         errores[campo.clave] = 'Este campo es obligatorio.'
       }
       continue

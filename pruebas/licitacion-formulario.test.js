@@ -13,7 +13,7 @@ import { cuerpoDelFormulario, validarFormulario, valoresIniciales } from '../src
 import { MODELOS_DE_SERVICIO } from '../src/definiciones/licitaciones.ts'
 import { EMPRESAS_DEL_HOLDING } from '../src/dominio/holding.ts'
 
-const AREAS = [{ valor: '4', etiqueta: 'Contenidos' }]
+const AREAS = [{ valor: '4', etiqueta: 'Contenidos' }, { valor: '9', etiqueta: 'Analytics' }]
 const STAFF = [{ valor: '183', etiqueta: 'Dev Prueba' }, { valor: '12', etiqueta: 'Otra Persona' }]
 const PROSPECTOS = [{ valor: '7', etiqueta: 'Colbún' }]
 
@@ -37,11 +37,22 @@ test('el selector de empresa del holding ofrece las tres, sin copiar la lista', 
   assert.equal(empresa.opciones, EMPRESAS_DEL_HOLDING)
 })
 
-test('el area sale del catalogo que le pasan, como en Equipo y en Procesos', () => {
-  const area = campo(camposDeLicitacion(PROSPECTOS, AREAS, STAFF), 'area_id')
+test('las areas salen del catalogo que le pasan y se pueden marcar varias (WIW-0507)', () => {
+  const campos = camposDeLicitacion(PROSPECTOS, AREAS, STAFF)
+  const areas = campo(campos, 'area_ids')
 
-  assert.equal(area.tipo, 'seleccion')
-  assert.deepEqual(area.opciones, AREAS)
+  assert.equal(areas.tipo, 'seleccion-multiple')
+  assert.deepEqual(areas.opciones, AREAS)
+  assert.equal(campo(campos, 'area_id'), undefined)
+})
+
+test('las areas viajan como numeros, sin repetir y en el orden en que se marcaron', () => {
+  const campos = camposDeLicitacion(PROSPECTOS, AREAS, STAFF)
+
+  assert.deepEqual(cuerpoDelFormulario(campos, { area_ids: ['9', '4', '9'] }).area_ids, [9, 4])
+  assert.deepEqual(cuerpoDelFormulario(campos, {}).area_ids, [])
+  assert.equal(validarFormulario(campos, { prospecto_id: '7', 'espacio.name': 'A', 'espacio.start_date': '2026-01-05', area_ids: ['77'] }).area_ids,
+    'Elegí opciones válidas.')
 })
 
 test('owner y focal son dos campos distintos, los dos sobre el staff', () => {
@@ -85,7 +96,7 @@ test('sin catalogos el formulario se arma igual, con los selectores vacios', () 
   const campos = camposDeLicitacion([])
 
   assert.deepEqual(campo(campos, 'prospecto_id').opciones, [])
-  assert.deepEqual(campo(campos, 'area_id').opciones, [])
+  assert.deepEqual(campo(campos, 'area_ids').opciones, [])
   assert.deepEqual(campo(campos, 'owner_id').opciones, [])
   assert.deepEqual(campo(campos, 'focal_id').opciones, [])
 })
@@ -95,7 +106,7 @@ test('el cuerpo separa lo propio de la licitacion de lo que va al Espacio', () =
   const cuerpo = cuerpoDelFormulario(campos, {
     prospecto_id: '7',
     empresa_holding: 'hl',
-    area_id: '4',
+    area_ids: ['4', '9'],
     owner_id: '183',
     focal_id: '12',
     'espacio.name': 'Licitación Colbún 2026',
@@ -108,7 +119,7 @@ test('el cuerpo separa lo propio de la licitacion de lo que va al Espacio', () =
   assert.deepEqual(cuerpo, {
     prospecto_id: 7,
     empresa_holding: 'hl',
-    area_id: 4,
+    area_ids: [4, 9],
     owner_id: 183,
     focal_id: 12,
     modelo_servicio: 'implementacion_mantencion',
@@ -146,7 +157,7 @@ test('la edicion junta el Espacio y los seis campos propios, y nada de la empres
 
   assert.deepEqual(campos.map((uno) => uno.clave), [
     'espacio.name', 'espacio.start_date', 'espacio.deadline', 'espacio.description', 'espacio.tags',
-    'empresa_holding', 'area_id', 'modelo_servicio',
+    'empresa_holding', 'area_ids', 'modelo_servicio',
     'owner_id', 'focal_id',
     'presentacion_url'
   ])
@@ -168,7 +179,7 @@ test('la edicion marca en el campo un link que la API rechazaria', () => {
 test('la edicion manda a cada ruta solo lo que cambio', () => {
   const campos = camposDeEdicionDeLicitacion(AREAS, STAFF)
   const registro = {
-    empresa_holding: 'hl', area_id: 4, modelo_servicio: null, owner_id: 183, focal_id: null, presentacion_url: null,
+    empresa_holding: 'hl', area_id: 4, area_ids: [4], modelo_servicio: null, owner_id: 183, focal_id: null, presentacion_url: null,
     espacio: { name: 'Licitación Colbún', start_date: '2026-01-05', deadline: null, description: 'Texto' }
   }
   const inicial = cuerpoDelFormulario(campos, valoresIniciales(campos, registro))
@@ -185,6 +196,23 @@ test('la edicion manda a cada ruta solo lo que cambio', () => {
   assert.deepEqual(partirEdicionDeLicitacion(cuerpoDelFormulario(campos, valores), inicial), {
     licitacion: { focal_id: 12, presentacion_url: 'https://drive.google.com/drive/folders/abc' },
     espacio: { description: 'Texto nuevo' }
+  })
+})
+
+test('la edicion carga las areas guardadas y manda la lista entera si cambia', () => {
+  const campos = camposDeEdicionDeLicitacion(AREAS, STAFF)
+  const registro = { area_id: 4, area_ids: [4, 9], espacio: { name: 'A', start_date: '2026-01-05' } }
+  const iniciales = valoresIniciales(campos, registro)
+  const inicial = cuerpoDelFormulario(campos, iniciales)
+
+  assert.deepEqual(iniciales.area_ids, ['4', '9'])
+  assert.deepEqual(partirEdicionDeLicitacion(cuerpoDelFormulario(campos, { ...iniciales, area_ids: ['9'] }), inicial), {
+    licitacion: { area_ids: [9] },
+    espacio: null
+  })
+  assert.deepEqual(partirEdicionDeLicitacion(cuerpoDelFormulario(campos, { ...iniciales, area_ids: [] }), inicial), {
+    licitacion: { area_ids: [] },
+    espacio: null
   })
 })
 
