@@ -74,9 +74,9 @@ const PANTALLAS_APARTE: PantallaAparte[] = [
     tono: 'peligro'
   },
   {
-    href: '/administracion/accesos',
-    titulo: 'Accesos',
-    descripcion: 'Escalones, roles, personas, áreas y los interruptores de permisos.',
+    href: '/equipo/jerarquia?tab=personas',
+    titulo: 'Organización',
+    descripcion: 'Personas, jefes, áreas, cargos, roles de sistema e historial de cambios, junto al organigrama.',
     icono: KeyRound,
     tono: 'violeta'
   },

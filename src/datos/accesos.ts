@@ -1,10 +1,11 @@
 /**
- * El módulo de accesos (`/accesos`): escalones, personas, el árbol, áreas, cargos y el interruptor.
+ * El módulo de accesos (`/accesos`): escalones, personas, el árbol, áreas, cargos, el interruptor,
+ * el alcance de cada persona y el historial de cambios.
  *
  * Módulo propio y no un bloque más en `recursos.ts` por lo mismo que `datos/jerarquia.ts` y
- * `datos/live.ts`: lo consume una sola pantalla —`/administracion/accesos`— y tiene su propia forma.
- * La fuente es el contrato del módulo de accesos de la API, que exige superadministrador en todas
- * sus rutas y responde 403 al resto.
+ * `datos/live.ts`: lo consume una sola pantalla —Organización, en `/equipo/jerarquia`— y tiene su
+ * propia forma. La fuente son `contrato-accesos.md` y `contrato-organizacion.md`; la API exige
+ * superadministrador en todas sus rutas y responde 403 al resto.
  *
  * **Acá solo están las formas del contrato.** Los cuatro escalones —su clave, su nombre y su orden—
  * viven en `dominio/escalon.ts`, que es la única lista del frontend; el catálogo de la API llega con
@@ -40,6 +41,11 @@ export interface AreaDeAccesos {
    */
   jefe_staffid: number | null
   personas: number
+  /**
+   * Si su nombre figura entre las opciones de "Área de la compañía" de los Procesos. En `false`, el
+   * área no cruza con ningún Proceso y nada lo avisa: los filtros por área simplemente no traen nada.
+   */
+  en_tareas: boolean
 }
 
 /** Un cargo de `tblcargos`. */
@@ -82,6 +88,8 @@ export interface PersonaDeAccesos {
   /** El nombre del jefe, resuelto por la API para no pedir la lista entera solo para pintarlo. */
   jefe_nombre: string | null
   area_id: number | null
+  /** Todas las áreas que lleva, la principal incluida. */
+  area_ids: number[]
   cargo_id: number | null
   activo: boolean
   /**
@@ -92,6 +100,10 @@ export interface PersonaDeAccesos {
    * desde esta pantalla. No abre nada de Administración.
    */
   coordinador_multiarea: boolean
+  /** Administra: ve y edita todas las filas. Un superadministrador también lo es. */
+  is_admin: boolean
+  /** Abre además la configuración de la instalación. Se escribe por `PATCH /staff/{id}`. */
+  is_superadmin: boolean
 }
 
 /**
@@ -138,4 +150,64 @@ export interface CuerpoDeArea {
   nombre: string
   area_superior_id: number | null
   jefe_staffid: number | null
+}
+
+/** Una persona nombrada dentro de la explicación del alcance. */
+export interface PersonaDelAlcance {
+  staffid: number
+  nombre: string
+  escalon: Escalon
+}
+
+/** Un área nombrada dentro de la explicación del alcance. */
+export interface AreaDelAlcance {
+  id: number
+  nombre: string
+}
+
+/**
+ * `GET /accesos/personas/{id}/alcance`: de dónde sale lo que una persona ve y edita.
+ *
+ * Lo calcula la API con las mismas piezas que deciden el alcance de verdad; la pantalla solo lo
+ * pinta. Repetir la regla acá sería una segunda copia que puede contradecir a la que manda.
+ */
+export interface AlcanceDePersona {
+  staffid: number
+  nombre: string
+  rol_sistema: 'usuario' | 'admin' | 'superadmin'
+  ve_todo: boolean
+  motivo_ve_todo: 'superadmin' | 'admin' | 'coordinador_multiarea' | null
+  edita_todo: boolean
+  jerarquia_activa: boolean
+  /** Quienes están por encima, del más cercano al más lejano. */
+  jefes: PersonaDelAlcance[]
+  areas: AreaDelAlcance[]
+  areas_que_dirige: Array<AreaDelAlcance & { subareas: AreaDelAlcance[] }>
+  /** Quienes cuelgan de ella en un salto por la cadena de jefe. */
+  directos: PersonaDelAlcance[]
+  /** Toda la gente que alcanza, y por qué vía: su cadena de jefe o un área que dirige. */
+  alcanzados: Array<{ staffid: number, nombre: string, via: 'cadena' | 'area' }>
+  total_alcanzados: number
+}
+
+/** De qué tipo es lo que cambió en el historial. */
+export type EntidadDelHistorial = 'persona' | 'area' | 'interruptor'
+
+/**
+ * Una fila de `GET /accesos/historial`.
+ *
+ * `antes` y `despues` llegan ya redactados —el nombre del área, del jefe, "Sí"/"No"— porque se
+ * resuelven al escribir: así el historial se sigue leyendo aunque el área o la persona ya no existan.
+ * `null` es "vacío" (sin jefe, sin área).
+ */
+export interface CambioDelHistorial {
+  id: number
+  fecha: string
+  autor: { staffid: number, nombre: string } | null
+  entidad: EntidadDelHistorial
+  entidad_id: number | null
+  entidad_nombre: string | null
+  campo: string
+  antes: string | null
+  despues: string | null
 }

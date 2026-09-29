@@ -1,4 +1,4 @@
-# 09 · Jerarquías del equipo
+# 09 · Organización (antes Jerarquías y Accesos)
 
 Quién depende de quién. Es el dato que le faltaba al modo En Vivo para que cada líder vea a su gente
 (RQ-JOR-14 y RQ-JOR-15).
@@ -42,22 +42,32 @@ propia lista; prohibirlo al escribir habría roto la pantalla que ya existe.
 
 ## Pantalla
 
-`/equipo/jerarquia`. Se entra desde la barra lateral —para quien administra o dirige un área,
-`dirige_areas`—, desde `/equipo` y desde `/equipo/mi-area`.
+`/equipo/jerarquia`, con el nombre **Organización**. Unifica las dos pantallas que editaban el mismo
+dato por separado —Jerarquías y `/administracion/accesos`—; la segunda ahora redirige a
+`/equipo/jerarquia?tab=personas`. Se entra desde la barra lateral (quien administra o dirige un área),
+desde `/equipo` y desde la tarjeta de Administración.
 
-| Bloque | Qué hace |
+**Quien dirige un área o administra** ve solo el organigrama visual de su alcance, con el panel básico
+de persona. **Un superadministrador** ve además el modo administración, con estas piezas:
+
+| Pieza | Qué hace |
 |---|---|
-| Qué falta | Los dos huecos silenciosos, con su consecuencia: personas sin área (no aparecen en el tablero de ninguna jefatura) y áreas sin jefatura (su gente no reporta a nadie). Desaparece cuando no falta nada |
-| Árbol | Una lista indentada por `aria-level`: cada área con su jefatura, su gente, su alcance y las insignias de "Sin jefatura" y "No coincide con ninguna área de los Procesos" |
-| Sin área | La gente activa que no cuelga de nadie, con buscador. Hoy son las 184, y vaciar esta lista es el trabajo entero |
-| Panel del área elegida | Quién está dentro, con las bajas marcadas, y el buscador para traer a alguien de otra área |
-| Formulario de área | Al crear, nombre libre; al editar, el nombre es de solo lectura. De qué área cuelga y quién la dirige. El selector de superior esconde la propia área y su descendencia |
-| Borrado | Anticipa lo que la pantalla ya sabe que retiene al área y advierte de los Procesos, que no se ven desde acá |
+| Salud del organigrama | Arriba de las pestañas. Cuenta personas sin área o sin jefe y áreas sin jefatura, con jefatura de baja, vacías o fuera de los Procesos. Cada conteo lleva a la pestaña filtrada; los que están en cero no se muestran |
+| Organigrama | El mismo componente de `/equipo/mi-area`, con "Nueva área", "Editar área" y el panel completo de persona |
+| Personas | Tabla de solo lectura con filtros locales (búsqueda, escalón, área, cargo, rol), exportación a CSV y acciones en lote: área, jefe, escalón y cargo. El lote omite y avisa lo que la API rechazaría (el propio escalón, un jefe que cerraría un ciclo) y sigue con el resto si una escritura falla |
+| Áreas y cargos | El CRUD de áreas y cargos; acepta el filtro que llega desde la salud |
+| Sistema | Superadmins, admins y coordinadores multiárea; los cuatro escalones con su gente; el interruptor de permisos por jerarquía |
+| Historial | Quién cambió qué y cuándo, filtrable por entidad, persona y autor |
 
-**El árbol es una lista plana indentada y no un `role="tree"`.** Ese rol es un widget compuesto:
-promete foco itinerante y navegación con flechas, y un `treeitem` no admite botones adentro. Cada
-fila tiene tres. `aria-level` sobre un `listitem` dice la profundidad sin prometer un teclado que la
-pantalla no implementa.
+**Un solo panel lateral de persona** reúne lo que antes estaba repartido: escalón, cargo, jefe, área,
+rol de sistema (`PATCH /staff/{id}`) y coordinación multiárea. Debajo muestra **"¿Por qué ve esto?"**
+—a quién reporta, qué áreas dirige y a quién alcanza, calculado por la API— y sus cambios recientes.
+Uno mismo no puede cambiarse el escalón ni el rol.
+
+Los filtros viven en estado local y el cambio de pestaña usa `history.replaceState`: con
+`router.replace` cada tecla volvía a resolver la página en el servidor.
+
+El contrato de las piezas nuevas (alcance e historial) está en `docs/contrato-organizacion.md`.
 
 ## Endpoints
 
@@ -153,8 +163,10 @@ personas. La pantalla existe justamente para que esa carga no sea un `UPDATE`.
 | Armado del árbol de áreas, alcance y descendencia | `src/dominio/jerarquia.ts` |
 | Tipos del organigrama visual | `src/datos/organigrama.ts`, lectura en `src/datos/organigrama-servidor.ts` |
 | Armado del árbol de personas, jefes elegibles y color de área | `src/dominio/organigrama.ts` |
-| Pantalla | **Un solo componente en dos rutas**: `src/componentes/organigrama/`, montado por `src/app/(panel)/equipo/mi-area/page.tsx` y `src/app/(panel)/equipo/jerarquia/page.tsx` |
-| Pruebas | `pruebas/organigrama.test.js` (el árbol de personas), `mock/organigrama.test.js` (el recorte de `GET /organigrama`), `pruebas/organigrama.browser.mjs` (el recorrido y una reasignación real), `pruebas/jerarquia.test.js` (el árbol de áreas), `mock/jerarquia.test.js` (el contrato), `board: modules/api/pruebas/jerarquia_equipos.php` y `organigrama_live.php` |
+| Pantalla | **El organigrama es un solo componente en dos rutas**: `src/componentes/organigrama/`, montado por `src/app/(panel)/equipo/mi-area/page.tsx` y `src/app/(panel)/equipo/jerarquia/page.tsx`. El modo administración está en `src/componentes/organizacion/` y se le inyecta al organigrama por `extensiones` |
+| Salud, filtros, lote y CSV | `src/dominio/organizacion.ts` |
+| Alcance e historial | `board: modules/api/Recursos/AlcanceDePersona.php`, `board: modules/api/Escritura/HistorialOrganizacion.php` (migración 1130) |
+| Pruebas | `pruebas/organigrama.test.js` (el árbol de personas), `mock/organigrama.test.js` (el recorte de `GET /organigrama`), `pruebas/organigrama.browser.mjs` (el recorrido y una reasignación real), `pruebas/jerarquia.test.js` (el árbol de áreas), `mock/jerarquia.test.js` (el contrato), `pruebas/organizacion.test.js` y `mock/organizacion.test.js` (salud, lote, alcance e historial), `board: modules/api/pruebas/jerarquia_equipos.php`, `organigrama_live.php` e `historial_organizacion.php` |
 
 ## Dos trampas que ya se pisaron
 

@@ -12,7 +12,7 @@
  * Dos niveles, porque con 184 personas un solo árbol se estira hasta lo inservible: el mapa de áreas
  * y, al entrar en una tarjeta, su árbol. Volver al mapa no recarga nada: los datos ya están acá.
  */
-import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from 'react'
 import { ArrowLeft, UserRoundPlus } from 'lucide-react'
 import { AgregarAlArea } from './AgregarAlArea'
 import { ArbolDelArea } from './ArbolDelArea'
@@ -62,7 +62,7 @@ type Vista = number | null | undefined
  * De quién es el trabajo que se lista debajo del dibujo.
  *
  * `propias` es "Mi Área": el mapa lista el trabajo de las áreas de quien mira, y al entrar en otra
- * se ve su árbol pero no sus Tareas —aunque quien mira administre todo—. `todas` es "Jerarquías", la
+ * se ve su árbol pero no sus Tareas —aunque quien mira administre todo—. `todas` es "Organización", la
  * vista general: el mapa no lista nada, y cada área muestra las suyas al entrar.
  */
 export type AlcanceDeTareas = 'propias' | 'todas'
@@ -84,6 +84,22 @@ function areasConTareas (vista: Vista, alcance: AlcanceDeTareas, mias: Set<numbe
 }
 
 /**
+ * Lo que la pantalla de Organización le suma al organigrama para quien administra.
+ *
+ * Son ranuras y no variantes: Mi Área monta el mismo componente sin ninguna, y el dibujo es el mismo.
+ */
+export interface ExtensionesDeOrganigrama {
+  /** Reemplaza al panel básico de una persona por el completo. */
+  panelDePersona?: (staffid: number, cerrar: () => void) => ReactNode
+  /** Controles de la cabecera dentro de un área (`null` es "Sin área"). */
+  accionDeArea?: (areaId: number | null) => ReactNode
+  /** Controles de la cabecera en el mapa. */
+  accionDelMapa?: ReactNode
+  /** Avisa que el organigrama escribió algo, para que el resto de la pantalla se entere. */
+  alCambiar?: () => void
+}
+
+/**
  * Monta el organigrama a partir de lo que resolvió el servidor.
  *
  * Con `catalogos`, debajo del dibujo va el trabajo abierto, recortado según `alcance`.
@@ -91,11 +107,18 @@ function areasConTareas (vista: Vista, alcance: AlcanceDeTareas, mias: Set<numbe
  * @param inicial la respuesta de `GET /organigrama` para quien mira
  * @param catalogos estados y prioridades de Tarea; sin ellos no se lista trabajo
  * @param alcance de quién es el trabajo que se lista; por defecto, el general
+ * @param extensiones ranuras de la pantalla de Organización; ver `ExtensionesDeOrganigrama`
  */
 export function Organigrama (
-  { inicial, catalogos, alcance = 'todas' }:
-  { inicial: DatosDeOrganigrama, catalogos?: CatalogosDeTareas, alcance?: AlcanceDeTareas }
+  { inicial, catalogos, alcance = 'todas', extensiones = {} }:
+  {
+    inicial: DatosDeOrganigrama
+    catalogos?: CatalogosDeTareas
+    alcance?: AlcanceDeTareas
+    extensiones?: ExtensionesDeOrganigrama
+  }
 ) {
+  const { panelDePersona, accionDeArea, accionDelMapa, alCambiar } = extensiones
   const [datos, setDatos] = useState(inicial)
   const [servido, setServido] = useState(inicial)
   const [vista, setVista] = useState<Vista>(undefined)
@@ -220,7 +243,8 @@ export function Organigrama (
     setGuardando(false)
     setElegida(null)
     setAviso(`${persona.nombre}: cambio guardado.`)
-  }, [datos])
+    alCambiar?.()
+  }, [datos, alCambiar])
 
   /**
    * Mueve varias personas a un área de una sola vez.
@@ -275,9 +299,10 @@ export function Organigrama (
     setAviso(guardadas === 0
       ? 'No se agregó a nadie.'
       : `${guardadas} ${guardadas === 1 ? 'persona agregada' : 'personas agregadas'}.`)
+    if (guardadas > 0) alCambiar?.()
 
     return { guardadas, error: fallo }
-  }, [])
+  }, [alCambiar])
 
   const puedeEditar = datos.yo.puede_editar
   const persona = elegida === null ? undefined : personasPorId.get(elegida)
@@ -355,6 +380,7 @@ export function Organigrama (
         ayudaDeArrastre={vista !== undefined && modo === 'organigrama' && puedeEditar}
         onPoblar={vista === undefined || !puedeEditar ? undefined : () => { setPoblando(vista) }}
         onModo={elegirModo}
+        extra={vista === undefined ? accionDelMapa : accionDeArea?.(vista)}
       />
 
       {/* El error vive acá arriba y no dentro del árbol: una reasignación se puede lanzar desde la
@@ -379,7 +405,7 @@ export function Organigrama (
         <p className="text-texto-tenue text-sm">
           {vista === undefined
             ? `No tienes un área puesta, así que no hay ${GLOSARIO.proceso.plural.toLowerCase()} de tu área que mostrar.`
-            : `Esta no es tu área: aquí ves su equipo, y sus ${GLOSARIO.proceso.plural.toLowerCase()} están en Jerarquías.`}
+            : `Esta no es tu área: aquí ves su equipo, y sus ${GLOSARIO.proceso.plural.toLowerCase()} están en Organización.`}
         </p>
       )}
 
@@ -395,7 +421,9 @@ export function Organigrama (
         />
       )}
 
-      {persona !== undefined && (
+      {persona !== undefined && panelDePersona !== undefined && panelDePersona(persona.staffid, () => { setElegida(null) })}
+
+      {persona !== undefined && panelDePersona === undefined && (
         <PanelDePersona
           // Cambiar de persona reinicia el formulario por el remonte, sin un efecto que copie tres
           // campos del estado guardado al estado del panel.
@@ -434,15 +462,18 @@ interface ContextoDeArea {
  * la otra vía —el clic— que es la que funciona con teclado y en un teléfono.
  */
 function Cabecera (
-  { area, modo, ayudaDeArrastre, onPoblar, onModo }: {
+  { area, modo, ayudaDeArrastre, onPoblar, onModo, extra }: {
     area?: ContextoDeArea
     modo: VistaDeOrganigrama
     ayudaDeArrastre: boolean
     /** Abre el diálogo para sumar gente a esta área. Ausente si quien mira no puede editar. */
     onPoblar?: () => void
     onModo: (valor: string) => void
+    /** Controles que suma la pantalla que lo monta, al lado de "Agregar gente". */
+    extra?: ReactNode
   }
 ) {
+  const empujaALaDerecha = extra === undefined || extra === null
   return (
     <header className="flex flex-wrap items-center gap-x-3 gap-y-2">
       {area !== undefined && (
@@ -467,8 +498,10 @@ function Cabecera (
         </>
       )}
 
+      {!empujaALaDerecha && <div className="ms-auto flex items-center gap-2">{extra}</div>}
+
       {onPoblar !== undefined && (
-        <Boton variante="secundario" tamano="chico" className="ms-auto" onClick={onPoblar}>
+        <Boton variante="secundario" tamano="chico" className={cn(empujaALaDerecha && 'ms-auto')} onClick={onPoblar}>
           <UserRoundPlus aria-hidden="true" className="size-4" />
           Agregar gente
         </Boton>
@@ -479,7 +512,7 @@ function Cabecera (
         opciones={VISTAS}
         activo={modo}
         onElegir={onModo}
-        className={cn(onPoblar === undefined && 'ms-auto')}
+        className={cn(onPoblar === undefined && empujaALaDerecha && 'ms-auto')}
       />
 
       {ayudaDeArrastre && (

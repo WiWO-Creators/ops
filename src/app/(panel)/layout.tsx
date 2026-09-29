@@ -309,7 +309,7 @@ function seccionesDe (yo: Yo): Seccion[] {
     secciones.push({ href: '/equipo/mi-area', etiqueta: 'Mi Área', icono: 'mi_area', grupo: 'equipo' })
   }
 
-  // Jerarquias tiene entrada propia y no solo los dos enlaces desde Equipo y Mi Área: quien tiene que
+  // Organizacion (antes Jerarquias) tiene entrada propia y no solo los dos enlaces desde Equipo y Mi Área: quien tiene que
   // cargar el organigrama entra muchas veces, y una pantalla a la que solo se llega desde otra es
   // facil de no encontrar.
   //
@@ -319,7 +319,7 @@ function seccionesDe (yo: Yo): Seccion[] {
   // exactamente el criterio con el que la API decide el 403. Esconderla es cosmetica: la compuerta
   // esta en el back, y la pantalla muestra su mensaje tal cual.
   if (yo.dirige_areas || yo.is_admin || yo.is_superadmin) {
-    secciones.push({ href: '/equipo/jerarquia', etiqueta: 'Jerarquías', icono: 'organigrama', grupo: 'equipo' })
+    secciones.push({ href: '/equipo/jerarquia', etiqueta: 'Organización', icono: 'organigrama', grupo: 'equipo' })
   }
 
   // Supervisión: la hoja diaria de las Tareas vencidas de los clientes que uno supervisa. Solo

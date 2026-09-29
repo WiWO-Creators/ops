@@ -208,8 +208,8 @@ export default async function PersonaPage (props: PageProps<'/equipo/[id]'>) {
           {yo.is_admin && <ExportarTareasSheets personaId={persona.id} nombre={persona.full_name} email={persona.email} />}
           <AccionesPersona persona={persona} roles={roles} cargos={cargos} areas={areas} empresas={empresas} capacidades={capacidades} enFicha />
           {/* Solo un superadministrador reparte el rol de sistema: la API rechaza al resto con 422.
-              El escalon jerarquico es el otro eje y se reparte en `/administracion/accesos`, junto
-              con el jefe: sin ver el arbol, cambiar un escalon suelto no explica nada. */}
+              El escalon jerarquico es el otro eje y se reparte en Organizacion (`/equipo/jerarquia`),
+              junto con el jefe: sin ver el arbol, cambiar un escalon suelto no explica nada. */}
           {yo.is_superadmin && <DialogoRolSistema persona={persona} actorId={yo.id} />}
           {/* Ver el panel con la sesion de esta persona. Misma puerta que los roles —la API exige
               superadministrador— y sin sentido sobre uno mismo, asi que en la ficha propia no va. */}

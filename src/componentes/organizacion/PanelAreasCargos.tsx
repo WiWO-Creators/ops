@@ -24,12 +24,22 @@ import { descendenciaDe } from '@/dominio/jerarquia'
 import { motivoParaRechazarNombre } from '@/dominio/accesos'
 import { LOCALE } from '@/lib/fechas'
 import { CabeceraDePanel, MensajeDeError, SIN_VALOR } from './piezas'
+import { SelectorDePersona } from './SelectorDePersona'
 import type { AreaDeAccesos, CargoDeAccesos, CatalogoDeAccesos, UsoDeArea } from '@/datos/accesos'
 import type { PersonaAsignable } from '@/datos/recursos'
+
+/** Un recorte de la tabla de áreas puesto desde la salud del organigrama. */
+export interface FiltroDeAreas {
+  etiqueta: string
+  ids: number[]
+}
 
 interface PropsPanelAreasCargos {
   catalogo: CatalogoDeAccesos
   recargar: () => void
+  /** Solo estas áreas, con el motivo; `null` las muestra todas. */
+  filtro?: FiltroDeAreas | null
+  onQuitarFiltro?: () => void
 }
 
 /**
@@ -39,10 +49,10 @@ interface PropsPanelAreasCargos {
  * depende —es la que resuelve la jerarquía, que no tiene tabla de jefe por persona— y el cargo dice
  * qué hace. Separarlos en dos pestañas obligaría a saltar entre ellas para completar a una persona.
  *
- * El árbol completo se sigue moviendo en `/equipo/jerarquia`: acá se crean, se renombran y se
- * reubican, que es lo que hace falta al armar la estructura, no al reacomodarla todos los días.
+ * La gente se reacomoda en el organigrama y en Personas: acá se crean, se renombran y se reubican las
+ * áreas, que es lo que hace falta al armar la estructura, no al reacomodarla todos los días.
  */
-export function PanelAreasCargos ({ catalogo, recargar }: PropsPanelAreasCargos) {
+export function PanelAreasCargos ({ catalogo, recargar, filtro = null, onQuitarFiltro }: PropsPanelAreasCargos) {
   const [personas, setPersonas] = useState<PersonaAsignable[] | null>(null)
   const [errorPersonas, setErrorPersonas] = useState<string | null>(null)
 
@@ -69,6 +79,8 @@ export function PanelAreasCargos ({ catalogo, recargar }: PropsPanelAreasCargos)
         personas={personas ?? []}
         errorPersonas={errorPersonas}
         recargar={recargar}
+        filtro={filtro}
+        onQuitarFiltro={onQuitarFiltro}
       />
       <SeccionCargos catalogo={catalogo} recargar={recargar} />
     </div>
@@ -77,12 +89,14 @@ export function PanelAreasCargos ({ catalogo, recargar }: PropsPanelAreasCargos)
 
 /** El CRUD de áreas, con su superior y su jefe. */
 function SeccionAreas ({
-  catalogo, personas, errorPersonas, recargar
+  catalogo, personas, errorPersonas, recargar, filtro, onQuitarFiltro
 }: {
   catalogo: CatalogoDeAccesos
   personas: PersonaAsignable[]
   errorPersonas: string | null
   recargar: () => void
+  filtro: FiltroDeAreas | null
+  onQuitarFiltro?: () => void
 }) {
   const [editando, setEditando] = useState<{ area: AreaDeAccesos | null } | null>(null)
   const [borrando, setBorrando] = useState<AreaDeAccesos | null>(null)
@@ -131,6 +145,8 @@ function SeccionAreas ({
     return { guardadas, error: fallo }
   }
 
+  const visibles = filtro === null ? catalogo.areas : catalogo.areas.filter((area) => filtro.ids.includes(area.id))
+
   /** Nombre del área superior, o el guion de una raíz del organigrama. */
   function nombreDeSuperior (area: AreaDeAccesos): string {
     if (area.area_superior_id === null) return '—'
@@ -168,6 +184,15 @@ function SeccionAreas ({
 
       {error !== null && <MensajeDeError>{error}</MensajeDeError>}
 
+      {filtro !== null && (
+        <p className="text-texto flex flex-wrap items-center gap-2 text-sm">
+          Mostrando {visibles.length} {visibles.length === 1 ? 'área' : 'áreas'}: {filtro.etiqueta.toLowerCase()}.
+          {onQuitarFiltro !== undefined && (
+            <Boton variante="sutil" tamano="chico" onClick={onQuitarFiltro}>Ver todas</Boton>
+          )}
+        </p>
+      )}
+
       {catalogo.areas.length === 0
         ? (
           <Vacio
@@ -188,7 +213,7 @@ function SeccionAreas ({
                 </tr>
               </EncabezadoTabla>
               <CuerpoTabla>
-                {catalogo.areas.map((area) => (
+                {visibles.map((area) => (
                   <FilaTabla key={area.id}>
                     <CeldaTabla>{area.nombre}</CeldaTabla>
                     <CeldaTabla>{nombreDeSuperior(area)}</CeldaTabla>
@@ -270,12 +295,13 @@ function SeccionAreas ({
  * haría un ciclo, que la API rechaza con 422. Es la misma regla que usa la pantalla de jerarquía, y
  * está compartida para que no haya dos opiniones sobre qué es un ciclo.
  */
-function DialogoDeArea ({
+export function DialogoDeArea ({
   area, areas, personas, cerrar, alGuardar
 }: {
   area: AreaDeAccesos | null
   areas: AreaDeAccesos[]
-  personas: PersonaAsignable[]
+  /** Quienes pueden dirigirla: basta con el id y el nombre. */
+  personas: Array<Pick<PersonaAsignable, 'id' | 'full_name'>>
   cerrar: () => void
   alGuardar: () => void
 }) {
@@ -362,19 +388,15 @@ function DialogoDeArea ({
             ayuda={personas.length === 0 ? 'El equipo no se pudo leer, así que no hay a quién elegir.' : undefined}
           >
             {(props) => (
-              <Selector
-                value={jefe === null ? SIN_VALOR : String(jefe)}
-                disabled={guardando || personas.length === 0}
-                onValueChange={(valor) => { setJefe(valor === SIN_VALOR ? null : Number(valor)) }}
-              >
-                <DisparadorSelector marcador="Sin jefatura" id={props.id} />
-                <ContenidoSelector>
-                  <Opcion value={SIN_VALOR}>Sin jefatura</Opcion>
-                  {personas.map((persona) => (
-                    <Opcion key={persona.id} value={String(persona.id)}>{persona.full_name}</Opcion>
-                  ))}
-                </ContenidoSelector>
-              </Selector>
+              <SelectorDePersona
+                id={props.id}
+                etiqueta="Jefatura del área"
+                marcador="Sin jefatura"
+                opciones={personas.map((persona) => ({ staffid: persona.id, nombre: persona.full_name }))}
+                valor={jefe}
+                deshabilitado={guardando || personas.length === 0}
+                onCambiar={setJefe}
+              />
             )}
           </Campo>
 
@@ -569,7 +591,7 @@ function SeccionCargos ({ catalogo, recargar }: { catalogo: CatalogoDeAccesos, r
     <div className="flex flex-col gap-4">
       <CabeceraDePanel
         titulo="Cargos"
-        descripcion="Qué hace cada persona. El cargo Director abre «Mi Área», así que los dos cargos por defecto de la instalación no se pueden borrar."
+        descripcion="Qué hace cada persona. No reparte permisos. Los dos cargos por defecto de la instalación no se pueden borrar."
         accion={
           <Boton variante="primario" onClick={() => { setEditando({ cargo: null }) }}>
             Nuevo cargo
@@ -581,7 +603,7 @@ function SeccionCargos ({ catalogo, recargar }: { catalogo: CatalogoDeAccesos, r
         ? (
           <Vacio
             titulo="No hay cargos"
-            descripcion="Sin cargos no se puede marcar quién es Director, que es lo que abre la sección «Mi Área»."
+            descripcion="Crea el primero para poder decir qué hace cada persona."
           />
           )
         : (
@@ -674,7 +696,7 @@ function DialogoDeCargo ({
     <Dialogo open onOpenChange={(abierto) => { if (!abierto) cerrar() }}>
       <ContenidoDialogo
         titulo={cargo === null ? 'Nuevo cargo' : `Renombrar «${cargo.nombre}»`}
-        descripcion="El cargo no reparte permisos por sí solo, salvo Director, que abre «Mi Área»."
+        descripcion="El cargo nombra lo que hace la persona y no reparte permisos."
         ancho="chico"
       >
         <form
