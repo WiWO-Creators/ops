@@ -69,7 +69,7 @@ export function ReporteMensual (
         <TituloModulo
           className="min-w-0"
           titulo="Reporte mensual"
-          descripcion={`${rotularMes(alcance.mes)}, del ${formatearFecha(alcance.desde)} al ${formatearFecha(alcance.hasta)}. ${alcanceEnPalabras(alcance.proyectos)}`}
+          descripcion={`${rotularMes(alcance.mes)}. ${alcanceEnPalabras(alcance.proyectos)}`}
         />
         <SelectorDelReporte
           mes={alcance.mes}
@@ -87,7 +87,7 @@ export function ReporteMensual (
 
       <div className={cn('grid gap-6', hayLateral && 'lg:grid-cols-[minmax(0,1.75fr)_minmax(0,1fr)]')}>
         <div className="flex min-w-0 flex-col gap-6">
-          {reporte.entregables !== undefined && <Entregables tareas={reporte.entregables} mes={alcance.mes} />}
+          {reporte.entregables !== undefined && <Entregables tareas={reporte.entregables} mes={alcance.mes} hayCompletadas={(reporte.completadas?.length ?? 0) > 0} />}
           {reporte.completadas !== undefined && <Completadas tareas={reporte.completadas} mes={alcance.mes} />}
           {reporte.completadas === undefined && <SinTareasCompartidas />}
         </div>
@@ -137,7 +137,7 @@ function ResumenDelMes ({ reporte }: { reporte: Reporte }) {
     frases.push(
       <span key="completadas">
         completamos <Numero>{contar(resumen.completadas.actual, 'tarea', 'tareas')}</Numero>
-        {' '}({frenteAlAnterior(resumen.completadas, anterior)})
+        {' '}<Comparacion>{frenteAlAnterior(resumen.completadas, anterior)}</Comparacion>
       </span>
     )
   }
@@ -146,7 +146,7 @@ function ResumenDelMes ({ reporte }: { reporte: Reporte }) {
     frases.push(
       <span key="entregables">
         hicimos <Numero>{contar(resumen.entregables.actual, 'entrega', 'entregas')}</Numero>
-        {' '}({frenteAlAnterior(resumen.entregables, anterior)})
+        {' '}<Comparacion>{frenteAlAnterior(resumen.entregables, anterior)}</Comparacion>
       </span>
     )
   }
@@ -155,7 +155,7 @@ function ResumenDelMes ({ reporte }: { reporte: Reporte }) {
     frases.push(
       <span key="reuniones">
         tuvimos <Numero>{contar(resumen.reuniones.actual, 'reunión', 'reuniones')}</Numero>
-        {' '}({frenteAlAnterior(resumen.reuniones, anterior)})
+        {' '}<Comparacion>{frenteAlAnterior(resumen.reuniones, anterior)}</Comparacion>
       </span>
     )
   }
@@ -164,24 +164,24 @@ function ResumenDelMes ({ reporte }: { reporte: Reporte }) {
     frases.push(
       <span key="horas">
         registramos <Numero>{formatearHoras(resumen.horas_segundos.actual)}</Numero> de trabajo
-        {' '}({frenteAlAnterior(resumen.horas_segundos, anterior, formatearHoras)})
+        {' '}<Comparacion>{frenteAlAnterior(resumen.horas_segundos, anterior, formatearHoras)}</Comparacion>
       </span>
     )
   }
 
   return (
-    <section aria-labelledby="reporte-resumen" className="border-linea bg-superficie-elevada shadow-1 rounded-tarjeta border p-5 sm:p-6">
+    <section aria-labelledby="reporte-resumen" className="border-linea-suave border-b pb-6">
       <h2 id="reporte-resumen" className="sr-only">Resumen del mes</h2>
 
       {frases.length === 0
         ? (
-          <p className="text-texto-tenue max-w-prose text-base leading-relaxed">
+          <Vacio accion={IR_A_PROYECTOS}>
             Tus {GLOSARIO.espacio.plural.toLowerCase()} todavía no comparten tareas, reuniones ni horas en el portal, así que
             este mes no tiene cifras que mostrar. Pídele a tu equipo que las habilite si quieres verlas acá.
-          </p>
+          </Vacio>
           )
         : (
-          <p className="text-texto-tenue font-titular max-w-[62ch] text-lg leading-relaxed text-pretty sm:text-xl">
+          <p className="text-texto font-titular max-w-3xl text-xl leading-relaxed text-pretty sm:text-2xl sm:leading-relaxed">
             En {nombreDelMes(alcance.mes)}{' '}
             {frases.map((frase, indice) => (
               <span key={indice}>
@@ -192,13 +192,18 @@ function ResumenDelMes ({ reporte }: { reporte: Reporte }) {
           </p>
           )}
 
-      <p className="text-texto-sutil mt-3 text-xs">
+      <p className="text-texto-sutil mt-3 text-xs text-pretty">
         {alcance.cerrado
           ? 'Mes cerrado: estas cifras ya no cambian.'
           : `Mes en curso: medido hasta el ${formatearFecha(alcance.medido_hasta)}, así que todavía puede cambiar.`}
       </p>
     </section>
   )
+}
+
+/** La comparación con el mes anterior: contexto de la cifra, en tinta más tenue que la frase. */
+function Comparacion ({ children }: { children: React.ReactNode }) {
+  return <span className="text-texto-sutil text-base sm:text-lg">({children})</span>
 }
 
 /** La cifra destacada dentro del párrafo del resumen. */
@@ -229,10 +234,10 @@ function separador (indice: number, total: number): string {
 function SinTareasCompartidas () {
   return (
     <Bloque titulo="Entregables y tareas completadas">
-      <p className="text-texto-tenue max-w-prose text-sm">
+      <Vacio>
         Ningún {GLOSARIO.espacio.singular.toLowerCase()} de este reporte comparte su lista de tareas contigo, así que no
         podemos mostrarte qué se entregó ni qué se completó.
-      </p>
+      </Vacio>
     </Bloque>
   )
 }
@@ -243,11 +248,17 @@ function SinTareasCompartidas () {
  * Es el bloque por el que existe el reporte. El enlace a la pieza final va como acción de la fila y
  * no escondido en la ficha: es lo que el cliente viene a buscar.
  */
-function Entregables ({ tareas, mes }: { tareas: TareaDelReporte[], mes: string }) {
+function Entregables (
+  { tareas, mes, hayCompletadas }: { tareas: TareaDelReporte[], mes: string, hayCompletadas: boolean }
+) {
   return (
     <Bloque titulo={`Entregables de ${nombreDelMes(mes)}`}>
       {tareas.length === 0
-        ? <Vacio>En {nombreDelMes(mes)} no se completó ninguna tarea marcada como entregable.</Vacio>
+        ? (
+          <Vacio accion={hayCompletadas ? { href: '#reporte-completadas', etiqueta: 'Ver las tareas completadas' } : undefined}>
+            En {nombreDelMes(mes)} no se completó ninguna tarea marcada como entregable.
+          </Vacio>
+          )
         : (
           <ul className={LISTA}>
             {tareas.map((tarea) => (
@@ -270,7 +281,7 @@ function Entregables ({ tareas, mes }: { tareas: TareaDelReporte[], mes: string 
                   >
                     Abrir entregable
                     <ArrowUpRight size={15} aria-hidden="true" />
-                    <span className="sr-only">(se abre en otra pestaña)</span>
+                    <span className="sr-only">: {tarea.name} (se abre en otra pestaña)</span>
                   </a>
                 )}
               </li>
@@ -301,6 +312,7 @@ function Completadas ({ tareas, mes }: { tareas: TareaDelReporte[], mes: string 
   const variosProyectos = grupos.length > 1
 
   return (
+    <div id="reporte-completadas" className="scroll-mt-6">
     <Bloque titulo={`Tareas completadas en ${nombreDelMes(mes)} (${tareas.length})`}>
       {tareas.length === 0
         ? <Vacio>En {nombreDelMes(mes)} no se completó ninguna tarea.</Vacio>
@@ -319,6 +331,7 @@ function Completadas ({ tareas, mes }: { tareas: TareaDelReporte[], mes: string 
           </div>
           )}
     </Bloque>
+    </div>
   )
 }
 
@@ -413,7 +426,7 @@ function Proximas ({ tareas }: { tareas: TareaDelReporte[] }) {
             ))}
           </ul>
           )}
-      <p className="text-texto-sutil mt-3 text-xs">
+      <p className="text-texto-sutil mt-3 text-xs text-pretty">
         Próximos 30 días desde hoy.
         {tareas.length > FILAS_A_LA_VISTA && ` Y ${contar(tareas.length - FILAS_A_LA_VISTA, 'tarea más', 'tareas más')}.`}
       </p>
@@ -457,7 +470,9 @@ function Horas ({ horas, mes }: { horas: NonNullable<Reporte['horas']>, mes: str
     <Bloque titulo="Horas registradas">
       <p className="text-texto font-titular text-2xl font-semibold tabular-nums">{formatearHoras(horas.total_segundos)}</p>
       {horas.total_segundos === 0 && (
-        <p className="text-texto-tenue mt-1 text-sm">En {nombreDelMes(mes)} no se registraron horas en tareas compartidas contigo.</p>
+        <div className="mt-1">
+          <Vacio>En {nombreDelMes(mes)} no se registraron horas en tareas compartidas contigo.</Vacio>
+        </div>
       )}
       {horas.por_proyecto.length > 1 && (
         <ul className="mt-4 flex flex-col gap-3">
@@ -530,20 +545,24 @@ function Tendencia ({ tendencia }: { tendencia: Reporte['tendencia'] }) {
         ? <Vacio>No hay tareas completadas, entregables ni reuniones en estos seis meses.</Vacio>
         : (
           <div className="flex flex-col gap-3">
-            <div aria-hidden="true" className="border-grafico-rejilla flex h-40 items-end gap-3 border-b sm:gap-6">
+            <div aria-hidden="true" className="border-grafico-rejilla flex h-44 items-end gap-2 border-b pt-5 sm:gap-6">
               {lectura.meses.map((mes) => (
-                <div key={mes.mes} className="flex h-full min-w-0 flex-1 items-end justify-center gap-1">
+                <div key={mes.mes} className="flex h-full min-w-0 flex-1 items-end justify-center gap-0.5 sm:gap-1">
                   {lectura.series.map((serie) => (
-                    <span
-                      key={serie}
-                      className="w-full max-w-5 rounded-t-[4px]"
-                      style={{ height: `${altoRelativo(mes.valores[serie] ?? 0, lectura.maximo)}%`, backgroundColor: SERIES[serie].color }}
-                    />
+                    <span key={serie} className="relative flex h-full w-full max-w-8 flex-col justify-end">
+                      <span className="text-texto-tenue mb-0.5 text-center text-[0.625rem] leading-none tabular-nums">
+                        {mes.valores[serie] ?? 0}
+                      </span>
+                      <span
+                        className="block w-full rounded-t-sm"
+                        style={{ height: `${altoRelativo(mes.valores[serie] ?? 0, lectura.maximo)}%`, backgroundColor: SERIES[serie].color }}
+                      />
+                    </span>
                   ))}
                 </div>
               ))}
             </div>
-            <div aria-hidden="true" className="flex gap-3 sm:gap-6">
+            <div aria-hidden="true" className="flex gap-2 sm:gap-6">
               {lectura.meses.map((mes) => (
                 <span key={mes.mes} className="text-texto-sutil min-w-0 flex-1 text-center text-xs">{mes.rotulo}</span>
               ))}
@@ -577,7 +596,23 @@ function Tendencia ({ tendencia }: { tendencia: Reporte['tendencia'] }) {
   )
 }
 
-/** La frase de un bloque que llegó vacío. */
-function Vacio ({ children }: { children: React.ReactNode }) {
-  return <p className="text-texto-tenue text-sm text-pretty">{children}</p>
+/** La acción por omisión de un bloque vacío: volver a los {espacios}, donde está todo el detalle. */
+const IR_A_PROYECTOS = { href: '/portal/proyectos', etiqueta: `Ver tus ${GLOSARIO.espacio.plural.toLowerCase()}` }
+
+/**
+ * La frase de un bloque que llegó vacío, con una sola acción siguiente.
+ *
+ * @param accion a dónde ir desde acá; por omisión, los {espacios} del cliente
+ */
+function Vacio (
+  { children, accion = IR_A_PROYECTOS }: { children: React.ReactNode, accion?: { href: string, etiqueta: string } }
+) {
+  return (
+    <div className="flex flex-col items-start gap-2">
+      <p className="text-texto-tenue max-w-prose text-sm text-pretty">{children}</p>
+      <Link href={accion.href} className="text-acento hover:bg-hover rounded-control -mx-2 px-2 py-1 text-sm font-semibold transition-colors">
+        {accion.etiqueta}
+      </Link>
+    </div>
+  )
 }
