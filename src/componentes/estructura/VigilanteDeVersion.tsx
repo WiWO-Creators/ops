@@ -5,17 +5,14 @@ import { animate, createSpring } from 'animejs'
 import { RefreshCw, X } from 'lucide-react'
 import { Boton } from '@/componentes/formularios/Boton'
 import { Orbe } from '@/componentes/estado/Orbe'
+import type { Novedad } from '@/dominio/novedades'
 import { ATRIBUTO_BIENVENIDA, CLAVE_BIENVENIDA } from '@/lib/bienvenida'
 import { cn } from '@/lib/clases'
 import { cumpleConsulta, MENOS_MOVIMIENTO } from '@/lib/useConsultaDeMedios'
+import { CapaDeBienvenida } from './bienvenida/CapaDeBienvenida'
 import { elegirEscena } from './bienvenida/escenas'
+import { RecorridoDeNovedades } from './bienvenida/RecorridoDeNovedades'
 
-/** Cuanto dura la obra antes de empezar a irse. */
-const OBRA = 2200
-/** Lo mismo para quien pidio menos movimiento: se ve el cartel, no se le hace esperar la animacion. */
-const OBRA_REDUCIDA = 700
-/** El fundido de salida. Tiene que coincidir con `duration-500` de la capa. */
-const SALIDA = 500
 /** Cuanto tarda el aviso en salir cuando alguien lo descarta, con la caida de la animacion de resorte. */
 const DURACION_SALIDA_AVISO = 180
 
@@ -32,6 +29,8 @@ interface PropsVigilante {
   version: string
   /** Cada cuantos segundos se vuelve a preguntar. Lo resuelve el servidor. */
   segundos: number
+  /** Lo que cuenta el recorrido de "Ver qué cambió". Vacio: la bienvenida no ofrece el recorrido. */
+  novedades: readonly Novedad[]
 }
 
 /**
@@ -52,14 +51,15 @@ interface PropsVigilante {
  * === LA BIENVENIDA ===
  *
  * Aceptar deja una marca en `sessionStorage` y recarga. La carga siguiente encuentra la marca, tapa
- * la pantalla con una de las escenas de obra (`bienvenida/escenas.ts`, al azar) y funde hacia
- * el panel ya nuevo. El telon que evita el destello
- * lo pone un script anterior al primer pintado (`lib/bienvenida.ts`); aca solo se levanta, en el
- * momento exacto en que esta capa —opaca y por encima— pasa a taparlo.
+ * la pantalla con una de las coreografias (`bienvenida/escenas.ts`, al azar) y se cierra en iris
+ * hacia el panel ya nuevo. Desde la coreografia se puede abrir el recorrido de novedades, que se
+ * maneja con el scroll. El telon que evita el destello lo pone un script anterior al primer pintado
+ * (`lib/bienvenida.ts`); aca solo se levanta, en el momento exacto en que esta capa —opaca y por
+ * encima— pasa a taparlo.
  *
  * No pinta nada mientras no haya nada que decir, asi que va montado en el armazon del panel.
  */
-export function VigilanteDeVersion ({ version, segundos }: PropsVigilante) {
+export function VigilanteDeVersion ({ version, segundos, novedades }: PropsVigilante) {
   // Congelada al montar. Si una navegacion trajera una version distinta por prop, compararse contra
   // ella diria que todo esta al dia mientras el navegador sigue con el bundle viejo cargado.
   const [versionCargada] = useState(version)
@@ -69,7 +69,7 @@ export function VigilanteDeVersion ({ version, segundos }: PropsVigilante) {
   // clic y la recarga, que en una conexion lenta puede tardar lo bastante como para dudar del clic.
   const [cerrando, setCerrando] = useState(false)
   const [recargando, setRecargando] = useState(false)
-  const [bienvenida, setBienvenida] = useState<'obra' | 'saliendo' | null>(null)
+  const [bienvenida, setBienvenida] = useState<'capa' | 'recorrido' | null>(null)
   // Se elige una vez por carga y no en cada render: sortearla dentro del cuerpo cambiaria el dibujo
   // a mitad de la obra si algo mas obliga a repintar. El sorteo en el servidor no importa —esta capa
   // solo se muestra despues de montar, cuando el efecto de abajo encuentra la marca—.
@@ -93,30 +93,23 @@ export function VigilanteDeVersion ({ version, segundos }: PropsVigilante) {
       return
     }
 
-    const reducido = cumpleConsulta(MENOS_MOVIMIENTO)
-    const duracion = reducido ? OBRA_REDUCIDA : OBRA
-
-    // Los tres momentos de la bienvenida, en temporizadores y no en el cuerpo del efecto. Leer
-    // `sessionStorage` es mirar un sistema externo una vez; convertir esa lectura en un `setState`
-    // sincrono encadenaria un render extra sobre el montaje. El telon ya esta puesto, asi que el
-    // fotograma de diferencia no se ve.
+    // En un temporizador y no en el cuerpo del efecto. Leer `sessionStorage` es mirar un sistema
+    // externo una vez; convertir esa lectura en un `setState` sincrono encadenaria un render extra
+    // sobre el montaje. El telon ya esta puesto, asi que el fotograma de diferencia no se ve.
     //
-    // El telon se levanta al empezar la salida y no al montar esta capa: mientras dura la obra queda
-    // debajo de ella —misma superficie, invisible— y asi no existe ni un fotograma en que la pagina
-    // nueva quede al descubierto. Levantarlo antes dependeria de que React pinte en el mismo cuadro.
-    const temporizadores = [
-      globalThis.setTimeout(() => { setBienvenida('obra') }, 0),
-      globalThis.setTimeout(() => {
-        setBienvenida('saliendo')
-        quitarTelon()
-      }, duracion),
-      globalThis.setTimeout(() => { setBienvenida(null) }, duracion + SALIDA)
-    ]
+    // El telon se levanta cuando la capa empieza a irse (`onSaliendo`) y no al montarla: mientras
+    // dura la coreografia queda debajo —misma superficie, invisible— y asi no existe ni un fotograma
+    // en que la pagina nueva quede al descubierto.
+    const temporizador = globalThis.setTimeout(() => { setBienvenida('capa') }, 0)
 
-    return () => {
-      for (const temporizador of temporizadores) globalThis.clearTimeout(temporizador)
-    }
+    return () => { globalThis.clearTimeout(temporizador) }
   }, [versionCargada])
+
+  /** Cambia la coreografia por el recorrido, que tambien es opaco: el telon ya no hace falta. */
+  function verNovedades (): void {
+    quitarTelon()
+    setBienvenida('recorrido')
+  }
 
   useEffect(() => {
     const control = new AbortController()
@@ -285,22 +278,17 @@ export function VigilanteDeVersion ({ version, segundos }: PropsVigilante) {
         </div>
       )}
 
-      {bienvenida !== null && (
-        <div
-          role="status"
-          aria-live="polite"
-          className={cn(
-            'bienvenida-capa bg-superficie fixed inset-0 z-[70] flex flex-col items-center justify-center gap-5',
-            'transition-opacity duration-500',
-            bienvenida === 'saliendo' && 'opacity-0'
-          )}
-        >
-          <escena.Dibujo />
-          <div className="space-y-1 px-6 text-center">
-            <p className="text-texto text-base font-semibold">Ops se actualizó</p>
-            <p className="text-texto-tenue text-sm">{escena.frase}</p>
-          </div>
-        </div>
+      {bienvenida === 'capa' && (
+        <CapaDeBienvenida
+          escena={escena}
+          onSaliendo={quitarTelon}
+          onTerminar={() => { setBienvenida(null) }}
+          onVerNovedades={novedades.length > 0 ? verNovedades : undefined}
+        />
+      )}
+
+      {bienvenida === 'recorrido' && (
+        <RecorridoDeNovedades novedades={novedades} onCerrar={() => { setBienvenida(null) }} />
       )}
     </>
   )

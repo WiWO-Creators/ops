@@ -438,6 +438,22 @@ export function fechaMasReciente (novedades: readonly Novedad[]): string | null 
 }
 
 /**
+ * Las novedades que cuenta el recorrido de después de actualizar: las del día más reciente.
+ *
+ * El día más reciente y no "desde la última versión": la versión es un hash de build y no sabe qué
+ * novedades trae. Lo último que se anunció es la mejor aproximación de lo que acaba de llegar.
+ *
+ * @param novedades la lista completa; vacía devuelve vacío
+ * @param maximo cuántas como mucho; cada una es una pantalla de scroll, y diez ya es un paseo largo
+ * @returns las novedades del día más reciente, en el orden de la lista, recortadas a `maximo`
+ */
+export function novedadesDelRecorrido (novedades: readonly Novedad[], maximo = 8): Novedad[] {
+  const [dia] = agruparPorDia(novedades)
+
+  return dia === undefined ? [] : dia.novedades.slice(0, Math.max(0, maximo))
+}
+
+/**
  * Si hay algo que la persona todavía no vio.
  *
  * Se compara por día y no por entrada: la marca guarda la fecha de la última novedad que había

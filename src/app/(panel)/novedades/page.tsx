@@ -1,18 +1,13 @@
 import { EntradaEscalonada } from '@/componentes/estructura/EntradaEscalonada'
 import { TituloModulo } from '@/componentes/estructura/TituloModulo'
 import { Fecha } from '@/componentes/presentadores/Fecha'
-import { Insignia, type TonoInsignia } from '@/componentes/presentadores/Insignia'
-import { NOVEDADES, ROTULO_TIPO, agruparPorDia, fechaMasReciente, type TipoNovedad } from '@/dominio/novedades'
+import { Insignia } from '@/componentes/presentadores/Insignia'
+import { TONO_NOVEDAD } from '@/componentes/presentadores/tono-novedad'
+import { NOVEDADES, ROTULO_TIPO, agruparPorDia, fechaMasReciente, novedadesDelRecorrido } from '@/dominio/novedades'
+import { AbrirRecorrido } from './AbrirRecorrido'
 import { MarcaNovedadesVistas } from './MarcaNovedadesVistas'
 
 export const metadata = { title: 'Novedades · WiWO Ops' }
-
-/** Tono de la insignia de cada tipo: lo nuevo resalta, los arreglos avisan. */
-const TONO_TIPO: Record<TipoNovedad, TonoInsignia> = {
-  nuevo: 'exito',
-  mejora: 'acento',
-  arreglo: 'aviso'
-}
 
 /**
  * Qué cambió en Ops, día por día y en lenguaje simple.
@@ -23,6 +18,7 @@ const TONO_TIPO: Record<TipoNovedad, TonoInsignia> = {
 export default function NovedadesPage () {
   const dias = agruparPorDia(NOVEDADES)
   const masReciente = fechaMasReciente(NOVEDADES)
+  const recorrido = novedadesDelRecorrido(NOVEDADES)
 
   return (
     <EntradaEscalonada>
@@ -33,6 +29,7 @@ export default function NovedadesPage () {
           <TituloModulo
             titulo="Novedades"
             descripcion="Lo que fue cambiando en Ops, contado en simple. Lo más reciente va arriba."
+            acciones={recorrido.length > 0 ? <AbrirRecorrido novedades={recorrido} /> : undefined}
           />
         </div>
 
@@ -51,7 +48,7 @@ export default function NovedadesPage () {
                     data-entrada="item"
                     className="flex flex-col gap-1.5 p-4 sm:flex-row sm:gap-4"
                   >
-                    <Insignia tono={TONO_TIPO[novedad.tipo]} tamano="chico" className="w-fit shrink-0 sm:mt-0.5 sm:w-16 sm:justify-center">
+                    <Insignia tono={TONO_NOVEDAD[novedad.tipo]} tamano="chico" className="w-fit shrink-0 sm:mt-0.5 sm:w-16 sm:justify-center">
                       {ROTULO_TIPO[novedad.tipo]}
                     </Insignia>
 

@@ -1,5 +1,5 @@
 import { Suspense } from 'react'
-import { CalendarSync, Inbox, KeyRound, Megaphone, MonitorPlay, RefreshCcwDot, Siren, type LucideIcon } from 'lucide-react'
+import { CalendarSync, Inbox, KeyRound, Megaphone, MonitorPlay, RefreshCcwDot, Siren, Sparkles, type LucideIcon } from 'lucide-react'
 import { AccesoGoogle } from '@/componentes/administracion/AccesoGoogle'
 import { FormularioDeAjustes } from '@/componentes/administracion/FormularioDeAjustes'
 import { PanelAvisosPorCorreo } from '@/componentes/administracion/PanelAvisosPorCorreo'
@@ -79,6 +79,13 @@ const PANTALLAS_APARTE: PantallaAparte[] = [
     descripcion: 'Escalones, roles, personas, áreas y los interruptores de permisos.',
     icono: KeyRound,
     tono: 'violeta'
+  },
+  {
+    href: '/administracion/animaciones',
+    titulo: 'Animaciones',
+    descripcion: 'Las coreografías de después de actualizar y el recorrido de novedades, para repetirlas sin desplegar.',
+    icono: Sparkles,
+    tono: 'acento'
   }
 ]
 

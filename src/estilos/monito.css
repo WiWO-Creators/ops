@@ -45,9 +45,8 @@ html[data-bienvenida] body::before {
 }
 
 /*
- * Las cuatro escenas (`bienvenida/Escena*.tsx`) ya no animan por CSS: la secuencia de cada una —el
- * trazo del suelo y del cuerpo, la entrada escalonada de las piezas y el gesto con su instante de
- * impacto— la arma `usarSecuenciaDeObra` con anime.js. El marcado de cada escena queda escrito en su
- * pose final, quieta: es la garantia contra el destello sin animar, y es tambien lo que se ve tal
- * cual con `prefers-reduced-motion`.
+ * Las coreografias (`bienvenida/Escena*.tsx`) no animan por CSS: la secuencia de cada una la arma
+ * `useSecuenciaDeObra` con anime.js. El marcado de cada escena queda escrito en su pose final,
+ * quieta: es la garantia contra el destello sin animar, y es tambien lo que se ve tal cual con
+ * `prefers-reduced-motion`. La salida en iris de la capa si es CSS (`CapaDeBienvenida`).
  */

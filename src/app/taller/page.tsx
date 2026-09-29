@@ -67,11 +67,11 @@ export default function TallerPage () {
     <>
       <SeccionTaller
         titulo="Escenas de bienvenida"
-        nota="Las cuatro obras que pueden tapar la pantalla después de actualizar. Se sortea una por carga, así que acá están todas juntas: es el único lugar donde se pueden mirar sin esperar un despliegue."
+        nota="Las coreografías que pueden tapar la pantalla después de actualizar. Se sortea una por carga; para repetirlas a pantalla completa está Administración › Animaciones."
       >
         {ESCENAS.map((escena) => (
           <Muestra key={escena.clave} etiqueta={escena.clave}>
-            <div className="flex flex-col items-center gap-2">
+            <div className="flex w-80 max-w-full flex-col items-center gap-2">
               <escena.Dibujo />
               <p className="text-texto-tenue text-sm">{escena.frase}</p>
             </div>

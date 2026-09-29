@@ -30,7 +30,7 @@ import { ScrollSuave } from '@/componentes/estructura/ScrollSuave'
 import { LlamadaEnCurso } from '@/componentes/teletrabajo/LlamadaEnCurso'
 import { VigilanteDeVersion } from '@/componentes/estructura/VigilanteDeVersion'
 import { vistasPermitidas } from '@/dominio/vistas-de-auditoria'
-import { NOVEDADES, fechaMasReciente } from '@/dominio/novedades'
+import { NOVEDADES, fechaMasReciente, novedadesDelRecorrido } from '@/dominio/novedades'
 
 /** Sin fijados. Constante para que la barra reciba siempre la misma referencia. */
 const SIN_FIJADOS: Fijado[] = []
@@ -91,11 +91,16 @@ export default async function PanelLayout ({ children }: { children: React.React
       <Latido segundos={intervaloDeLatido()} />
 
       {/* Tampoco pinta nada mientras no haya nada que decir: avisa cuando el servidor pasa a servir
-          otra version que la que esta pestaña tiene cargada, y recibe con la obra del monito a quien
+          otra version que la que esta pestaña tiene cargada, y recibe con una coreografia a quien
           acepta actualizar. Va en el armazon —como el latido— porque el bundle viejo es de todo el
           panel, no de una pantalla. La version se resuelve aca, en el servidor, y viaja como prop:
-          es el unico valor del que se sabe que corresponde al JavaScript que se acaba de mandar. */}
-      <VigilanteDeVersion version={versionDelServidor()} segundos={intervaloDeVersion()} />
+          es el unico valor del que se sabe que corresponde al JavaScript que se acaba de mandar.
+          Las novedades del recorrido viajan igual, para no meter la lista entera en el bundle. */}
+      <VigilanteDeVersion
+        version={versionDelServidor()}
+        segundos={intervaloDeVersion()}
+        novedades={novedadesDelRecorrido(NOVEDADES)}
+      />
 
       {/* El service worker de la aplicacion instalable. Va aca por lo mismo que el vigilante: la
           version con la que se registra tiene que ser la de este JavaScript. */}
