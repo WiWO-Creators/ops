@@ -60,18 +60,18 @@ test('la salud cuenta solo gente activa y marca jefaturas dadas de baja', () => 
     persona(3),
     persona(4, { activo: false })
   ]
-  const areas = [area(10, { jefe_staffid: 2 }), area(11, { jefe_staffid: 4, personas: 0, en_tareas: false }), area(12)]
+  const areas = [area(10, { jefe_staffid: 2 }), area(11, { jefe_staffid: 4, personas: 0, en_tareas: false }), area(12), area(13, { personas: 0 })]
 
   const salud = saludDeOrganizacion(personas, areas)
   const ids = (grupo, clave) => salud[grupo].find((uno) => uno.clave === clave).ids
 
   assert.deepEqual(ids('personas', 'sin_area'), [3])
   assert.deepEqual(ids('personas', 'sin_jefe'), [2, 3])
-  assert.deepEqual(ids('areas', 'sin_jefatura'), [12])
+  assert.deepEqual(ids('areas', 'sin_jefatura'), [12], 'un área vacía cuenta como vacía, no como sin jefatura')
   assert.deepEqual(ids('areas', 'jefatura_de_baja'), [11])
-  assert.deepEqual(ids('areas', 'vacia'), [11])
+  assert.deepEqual(ids('areas', 'vacia'), [11, 13])
   assert.deepEqual(ids('areas', 'fuera_de_procesos'), [11])
-  assert.equal(salud.total, 7)
+  assert.equal(salud.total, 8)
 })
 
 test('un organigrama completo no tiene huecos', () => {

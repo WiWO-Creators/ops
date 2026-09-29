@@ -4306,7 +4306,7 @@ function historialDeOrganizacion (parametros) {
   const area = entero('area')
   const autor = entero('autor')
   const pagina = entero('page') ?? 1
-  const porPagina = Math.min(entero('per_page') ?? 50, 100)
+  const porPagina = Math.min(entero('per_page') ?? 25, 100)
 
   const filas = [...HISTORIAL_ORGANIZACION].reverse()
     .filter((fila) => entidad === null || fila.entidad === entidad)
@@ -4381,7 +4381,7 @@ function alcanceEnMock (staffid) {
       nombre: area.name,
       subareas: subareasDe([area.id]).map((id) => ({ id, nombre: AREAS.find((una) => una.id === id)?.name ?? '' }))
     })),
-    directos: activa ? activos.filter((una) => una.jefe_staffid === staffid).map(breve) : [],
+    directos: activos.filter((una) => una.jefe_staffid === staffid).map(breve),
     alcanzados,
     total_alcanzados: alcanzados.length
   }

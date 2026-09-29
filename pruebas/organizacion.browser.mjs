@@ -6,13 +6,15 @@ import { chromium } from 'playwright'
  * Accesos, la salud, el filtro de personas, el panel lateral con su "¿Por qué ve esto?", una
  * escritura real y su rastro en el historial.
  *
- * Configuración: ORG_TEST_URL, ORG_TEST_EMAIL/PASSWORD y PLAYWRIGHT_CHROMIUM_EXECUTABLE. Requiere
+ * Configuración: ORG_TEST_URL, ORG_TEST_EMAIL/PASSWORD o ORG_TEST_STORAGE_STATE, ORG_TEST_PERSONA y
+ * PLAYWRIGHT_CHROMIUM_EXECUTABLE. Requiere
  * una sesión de superadministración contra un mock o una base de prueba: **escribe** (y deshace lo
  * que escribió), así que no se apunta a producción. Termina con código distinto de cero ante errores
  * de React o comportamiento incorrecto.
  */
 const base = new URL(process.env.ORG_TEST_URL ?? 'http://localhost:3109')
 assert.ok(['localhost', '127.0.0.1', '[::1]'].includes(base.hostname), 'Solo se permite un servidor local de prueba.')
+const estado = process.env.ORG_TEST_STORAGE_STATE
 const correo = process.env.ORG_TEST_EMAIL ?? 'ana@wiwo.me'
 const clave = process.env.ORG_TEST_PASSWORD ?? 'mock1234'
 const buscada = process.env.ORG_TEST_PERSONA ?? 'Carla Méndez'
@@ -23,14 +25,33 @@ async function clicar (locator) {
   await locator.first().evaluate((elemento) => { elemento.click() })
 }
 
+/**
+ * Espera a que el panel termine de guardar: Guardar vuelve a quedar deshabilitado cuando el
+ * formulario coincide con lo guardado y deja de estar ocupado (mientras guarda también está
+ * deshabilitado, con `aria-busy`). Mientras guarda, el panel no se deja cerrar.
+ */
+async function esperarGuardado (boton) {
+  const limite = Date.now() + 15000
+
+  await new Promise((resolver) => setTimeout(resolver, 100))
+
+  while (!(await boton.isDisabled()) || await boton.getAttribute('aria-busy') === 'true') {
+    assert.ok(Date.now() < limite, 'El guardado no terminó a tiempo')
+    await new Promise((resolver) => setTimeout(resolver, 200))
+  }
+}
+
 const navegador = await chromium.launch({ executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE })
 try {
-  const contexto = await navegador.newContext({ viewport: { width: 1440, height: 1000 } })
-  const sesion = await contexto.request.post(new URL('/api/sesion', base).href, {
-    data: { email: correo, password: clave },
-    maxRedirects: 0
-  })
-  assert.ok(sesion.ok(), `Falló la sesión local de prueba: HTTP ${sesion.status()}.`)
+  const contexto = await navegador.newContext({ viewport: { width: 1440, height: 1000 }, storageState: estado })
+
+  if (!estado) {
+    const sesion = await contexto.request.post(new URL('/api/sesion', base).href, {
+      data: { email: correo, password: clave },
+      maxRedirects: 0
+    })
+    assert.ok(sesion.ok(), `Falló la sesión local de prueba: HTTP ${sesion.status()}.`)
+  }
 
   const pagina = await contexto.newPage()
   const errores = []
@@ -79,11 +100,7 @@ try {
   await clicar(interruptor)
   assert.equal(await guardar.isDisabled(), false, 'Un cambio habilita Guardar')
   await clicar(guardar)
-  await pagina.waitForFunction(
-    (texto) => ![...document.querySelectorAll('[role=dialog]')].some((d) => d.textContent?.includes(texto) && d.textContent.includes('Guardando')),
-    buscada,
-    { timeout: 15000 }
-  )
+  await esperarGuardado(guardar)
   await pagina.keyboard.press('Escape')
 
   await clicar(pagina.getByRole('tab', { name: 'Historial' }))
@@ -100,7 +117,7 @@ try {
   assert.notEqual(await interruptorDeNuevo.getAttribute('aria-checked'), antes, 'El cambio quedó guardado')
   await clicar(interruptorDeNuevo)
   await clicar(deNuevo.getByRole('button', { name: 'Guardar' }))
-  await pagina.waitForTimeout(1500)
+  await esperarGuardado(deNuevo.getByRole('button', { name: 'Guardar' }))
 
   // --- 5. Sistema lista los roles ---------------------------------------------
   await pagina.keyboard.press('Escape')

@@ -80,7 +80,7 @@ Explica de dónde sale lo que una persona ve y edita. **El cálculo es de la API
 | `jefes` | `Jerarquia::ancestros()`, ordenados del más cercano al más lejano (por la cadena primero; los que llegan por jefatura de área, después). Vacío si la jerarquía está apagada |
 | `areas` | Áreas que lleva puestas (`Jerarquia::areasDe()`) |
 | `areas_que_dirige` | Áreas donde figura como `jefe_staffid`, cada una con las áreas de su subárbol (sin incluirse) |
-| `directos` | Quienes cuelgan de ella en un salto **por la cadena** (`tblstaff.jefe_staffid`) |
+| `directos` | Quienes cuelgan de ella en un salto **por la cadena** (`tblstaff.jefe_staffid`), solo activos. Es dato de estructura: no depende del interruptor de jerarquía |
 | `alcanzados` | `Jerarquia::descendencia()`, solo personas activas, ordenadas por nombre. `via` = `cadena` si se alcanza siguiendo solo `jefe_staffid`; `area` si solo se alcanza a través de un área que dirige (directa o de un descendiente) |
 | `total_alcanzados` | `count(alcanzados)` |
 
@@ -98,7 +98,7 @@ Parámetros (todos opcionales):
 | `area` | int | Cambios sobre esa área (`entidad = area` y `entidad_id`) |
 | `autor` | int | Cambios hechos por ese staff |
 | `entidad` | `persona` \| `area` \| `interruptor` | Tipo de entidad |
-| `page`, `per_page` | int | Paginación estándar (`per_page` máx. 100) |
+| `page`, `per_page` | int | Paginación estándar (`per_page` 25 por defecto, máx. 100) |
 
 Un valor inválido (no entero, entidad desconocida) → 422.
 

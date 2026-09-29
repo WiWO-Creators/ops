@@ -42,6 +42,9 @@ export interface SaludDeOrganizacion {
  * "Sin jefe directo" no es lo mismo que "no reporta a nadie": quien lleva un área con jefatura cuelga
  * de ella igual. Por eso la consecuencia lo dice, en vez de presentarlo como un error.
  *
+ * Un área vacía sin jefatura cuenta solo como vacía: sin gente, que no tenga jefatura no deja a nadie
+ * sin reportar, y así el número coincide con el del mapa.
+ *
  * @param personas El listado completo de `/accesos/personas`, bajas incluidas.
  * @param areas Las áreas del catálogo.
  * @returns Los indicadores, con los ids de cada uno.
@@ -70,7 +73,7 @@ export function saludDeOrganizacion (personas: PersonaDeAccesos[], areas: AreaDe
       clave: 'sin_jefatura',
       etiqueta: 'Áreas sin jefatura',
       consecuencia: 'Su gente no reporta a nadie por el área.',
-      ids: areas.filter((area) => area.jefe_staffid === null).map((area) => area.id)
+      ids: areas.filter((area) => area.jefe_staffid === null && area.personas > 0).map((area) => area.id)
     },
     {
       clave: 'jefatura_de_baja',
