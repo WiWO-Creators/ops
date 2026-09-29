@@ -27,11 +27,12 @@ import {
   ItemMenuMarcable,
   ItemMenuRadio,
   MenuContextual,
+  SeparadorMenu,
   SinResultadosMenu,
   UMBRAL_BUSCADOR
 } from '@/componentes/superposiciones/MenuContextual'
 import { cn } from '@/lib/clases'
-import { dependenciaPendiente, filtrosTrasCambiar, opcionesPorPagina, resumenDeFiltro } from './tabla'
+import { alternarTodas, dependenciaPendiente, estanTodasElegidas, filtrosTrasCambiar, opcionesPorPagina, resumenDeFiltro } from './tabla'
 
 /**
  * Controles de una vista de lista: busqueda, filtros, columnas y paginacion.
@@ -339,6 +340,8 @@ interface PropsMenuBuscable {
   opcionVacia?: string | null
   /** Recibe el valor elegido; en el modo de varios, el que se marco o desmarco. */
   onElegir: (valor: string) => void
+  /** Solo en el modo de varios: marca o desmarca el catalogo entero desde la fila "Todos". */
+  onElegirTodas?: () => void
 }
 
 /**
@@ -362,7 +365,8 @@ function MenuBuscable ({
   seleccionadas,
   multiple,
   opcionVacia = null,
-  onElegir
+  onElegir,
+  onElegirTodas
 }: PropsMenuBuscable) {
   const [consulta, setConsulta] = useState('')
   const conBuscador = opciones.length >= UMBRAL_BUSCADOR
@@ -392,6 +396,16 @@ function MenuBuscable ({
       >
         {conBuscador && (
           <BuscadorMenu valor={consulta} onCambiar={setConsulta} placeholder={`Buscar ${etiqueta.toLowerCase()}…`} />
+        )}
+        {/* "Todos" no se busca, igual que la fila que quita el filtro del modo de un valor: con
+            texto escrito se esconde para no aparecer como una coincidencia mas. */}
+        {multiple && onElegirTodas !== undefined && opciones.length > 1 && buscado === '' && (
+          <>
+            <ItemMenuMarcable checked={estanTodasElegidas(opciones, seleccionadas)} onCheckedChange={onElegirTodas}>
+              <span className="truncate font-medium">Todos</span>
+            </ItemMenuMarcable>
+            <SeparadorMenu />
+          </>
         )}
         {multiple
           ? visibles.map((opcion) => (
@@ -445,10 +459,11 @@ function FiltroSimple ({ filtro, opciones, valores, onCambiar }: PropsFiltroConO
  * Filtro de varios valores: menu con marcas, que el backend traduce a `IN`.
  *
  * Elegir varios estados a la vez es lo que la API acepta (`filter[status]=1,4`) y lo que la gente
- * usa; el menu no se cierra al marcar para que no haya que reabrirlo en cada uno.
+ * usa; el menu no se cierra al marcar para que no haya que reabrirlo en cada uno. La fila "Todos"
+ * marca el catalogo entero de una vez (WIW-0496).
  */
 function FiltroMultiple ({ filtro, opciones, valores, onCambiar }: PropsFiltroConOpciones) {
-  const { texto, extra } = resumenDeFiltro(filtro.etiqueta, opciones, valores)
+  const { texto, extra } = resumenDeFiltro(filtro.etiqueta, opciones, valores, filtro.etiquetaSinFiltro)
 
   return (
     <MenuBuscable
@@ -462,6 +477,7 @@ function FiltroMultiple ({ filtro, opciones, valores, onCambiar }: PropsFiltroCo
       onElegir={(valor) => {
         onCambiar(valores.includes(valor) ? valores.filter((v) => v !== valor) : [...valores, valor])
       }}
+      onElegirTodas={() => { onCambiar(alternarTodas(opciones, valores)) }}
     />
   )
 }

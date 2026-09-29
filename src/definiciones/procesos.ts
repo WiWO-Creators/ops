@@ -147,7 +147,9 @@ export const PROCESOS: DefinicionRecurso<Proceso> = {
    * asi que esos van de a uno.
    */
   filtros: [
-    { clave: 'status', etiqueta: 'Estado', tipo: 'multiple', desdeLookup: 'task_statuses' },
+    // Sin estados elegidos `GET /tasks` esconde las completadas: decir "todos" ahi era mentir, y por
+    // eso la gente marcaba los estados de a uno para verlas (WIW-0496). "Todos" es la fila del menu.
+    { clave: 'status', etiqueta: 'Estado', tipo: 'multiple', desdeLookup: 'task_statuses', etiquetaSinFiltro: 'Estado: abiertas' },
     { clave: 'priority', etiqueta: 'Prioridad', tipo: 'multiple', desdeLookup: 'task_priorities' },
     // `assignee` es el id de la persona y acepta varios; `assignees` (mas abajo) es el nombre y sirve
     // para buscar por pedazo. Son dos preguntas distintas: "de estas tres personas" y "alguien que

@@ -5,6 +5,7 @@ import { ArrowDown, ArrowUp, Trash2 } from 'lucide-react'
 import { Boton } from '@/componentes/formularios/Boton'
 import { Campo } from '@/componentes/formularios/Campo'
 import { AreaTexto, CLASES_CASILLA, Entrada } from '@/componentes/formularios/Entrada'
+import { SelectorPersonas } from '@/componentes/formularios/SelectorPersonas'
 import {
   ChevronSelector,
   CLASES_DISPARADOR,
@@ -25,6 +26,7 @@ import { leerError } from '@/datos/errores'
 import type { PlantillaEspacio, PlantillaEspacioDetallada } from '@/datos/recursos'
 import type { OpcionFiltro } from '@/definiciones/tipos'
 import { GLOSARIO } from '@/dominio/glosario'
+import { problemaDeSeguidores } from '@/dominio/seguidores-predeterminados'
 import {
   erroresDeItems,
   filasDeItems,
@@ -170,11 +172,22 @@ function Formulario ({ plantilla, tiposDeProceso, equipo, onGuardado }: PropsFor
     plantilla?.duration_days === null || plantilla?.duration_days === undefined ? '' : String(plantilla.duration_days)
   )
   const [publica, setPublica] = useState(plantilla?.is_public ?? false)
+  // Solo quienes siguen en el equipo: la API rechaza con 422 a una persona desactivada, y guardar la
+  // plantilla por otro motivo no puede fallar por alguien que ya no se puede ni ver en el selector.
+  const [seguidores, setSeguidores] = useState<number[]>(() => (plantilla?.default_followers ?? [])
+    .filter((id) => equipo.some((persona) => Number(persona.valor) === id)))
   const [filas, setFilas] = useState<FilaEditor[]>(() => filasDeItems(plantilla?.items ?? []))
   const [erroresPorFila, setErroresPorFila] = useState<Record<number, Record<string, string>>>({})
   const [errorNombre, setErrorNombre] = useState<string | undefined>(undefined)
   const [fallo, setFallo] = useState<string | null>(null)
   const [guardando, setGuardando] = useState(false)
+
+  // `SelectorPersonas` pide la forma de staff; el editor recibe el equipo como opciones de filtro.
+  const personasDelEquipo = equipo.map((persona) => ({
+    id: Number(persona.valor),
+    full_name: persona.etiqueta,
+    profile_image_url: null
+  }))
 
   /** Aplica un cambio a una fila sin tocar las demas. */
   function cambiarFila (indice: number, parcial: Partial<FilaEditor>) {
@@ -215,6 +228,13 @@ function Formulario ({ plantilla, tiposDeProceso, equipo, onGuardado }: PropsFor
     }
 
     setErrorNombre(undefined)
+
+    const problema = problemaDeSeguidores(seguidores)
+    if (problema !== null) {
+      setFallo(problema)
+      return
+    }
+
     setGuardando(true)
     setFallo(null)
     setErroresPorFila({})
@@ -224,6 +244,8 @@ function Formulario ({ plantilla, tiposDeProceso, equipo, onGuardado }: PropsFor
       description: descripcion.trim() === '' ? null : descripcion.trim(),
       duration_days: duracion.trim() === '' ? null : Number(duracion),
       is_public: publica,
+      // Sin equipo cargado el selector no se dibuja: mandar la lista la borraria sin que nadie lo pida.
+      ...(equipo.length > 0 ? { default_followers: seguidores } : {}),
       items: itemsParaGuardar(filas)
     }
 
@@ -299,6 +321,24 @@ function Formulario ({ plantilla, tiposDeProceso, equipo, onGuardado }: PropsFor
           Compartida con el equipo
         </label>
       </div>
+
+      {equipo.length > 0 && (
+        <div className="flex max-w-md flex-col gap-1.5">
+          <label htmlFor="plantilla-seguidores" className="text-texto text-sm font-medium">
+            Seguidores predeterminados
+          </label>
+          <SelectorPersonas
+            id="plantilla-seguidores"
+            personas={personasDelEquipo}
+            elegidas={seguidores}
+            onCambiar={setSeguidores}
+          />
+          <p className="text-texto-tenue text-xs text-pretty">
+            El {GLOSARIO.espacio.singular.toLowerCase()} que se cree con esta plantilla los hereda, y cada{' '}
+            {GLOSARIO.proceso.singular.toLowerCase()} nueva del {GLOSARIO.espacio.singular.toLowerCase()} los suma como seguidores.
+          </p>
+        </div>
+      )}
 
       <ListaDeItems
         filas={filas}
