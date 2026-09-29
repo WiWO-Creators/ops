@@ -1863,6 +1863,16 @@ export interface PersonaAvisada {
   email: string
 }
 
+/**
+ * `GET|PUT /projects/{id}/default-followers` (WIW-0496): las personas que cada Tarea nueva del
+ * Espacio recibe como seguidoras. `can_edit` lo decide la API —creador del Espacio, Director o
+ * admin— y la pantalla solo lo refleja.
+ */
+export interface SeguidoresPredeterminados {
+  followers: StaffReferencia[]
+  can_edit: boolean
+}
+
 /** `GET|PUT /projects/{id}/ticket-notifications` (T3). */
 export interface AvisosDeTicket {
   aviso_al_equipo: boolean
@@ -2481,6 +2491,11 @@ export interface PlantillaEspacio {
   date_created: string
   /** Lo resuelve el servidor (`created_by === yo` o administrador). El frontend no puede deducirlo. */
   can_edit: boolean
+  /**
+   * Seguidores predeterminados (WIW-0496): el Espacio creado desde la plantilla los hereda. Una
+   * plantilla anterior a la migracion 1090 los trae vacios.
+   */
+  default_followers: number[]
 }
 
 /** La misma plantilla con sus items, tal como la devuelve `GET /project-templates/{id}`. */

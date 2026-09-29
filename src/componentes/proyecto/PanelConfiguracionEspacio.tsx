@@ -21,10 +21,11 @@ import type { ConfiguracionTiposEspacio, TipoDeProcesoDelEspacio } from '@/datos
 import type { Capacidad } from '@/datos/tipos'
 import { useRecurso } from './carga'
 import { AvisosDeTicketNuevo } from './AvisosDeTicketNuevo'
+import { SeguidoresPredeterminadosDelEspacio } from './SeguidoresPredeterminadosDelEspacio'
 
 /**
- * Configuracion del Espacio: que ve el cliente, a quien se avisa de un ticket nuevo, los tipos de
- * Proceso que ofrece, su ETA y la aprobacion por defecto.
+ * Configuracion del Espacio: que ve el cliente, a quien se avisa de un ticket nuevo, quienes siguen
+ * cada Tarea nueva, los tipos de Proceso que ofrece, su ETA y la aprobacion por defecto.
  *
  * Es la pantalla del head del Espacio. Lo que se edita aca alimenta todo el mecanismo de plazo: el
  * ETA de una Tarea sale del tipo que tenga, con los dias que este panel le fija, y el reloj arranca
@@ -90,6 +91,8 @@ export function PanelConfiguracionEspacio ({
       <VisibilidadDelPortal proyectoId={proyectoId} puedeEscribir={capacidades.includes('edit')} />
 
       <AvisosDeTicketNuevo proyectoId={proyectoId} />
+
+      <SeguidoresPredeterminadosDelEspacio proyectoId={proyectoId} />
 
       {estado.fase === 'cargando' && <Cargando alto="min-h-40" mensaje="Cargando la configuración…" />}
       {estado.fase === 'error' && <ErrorEstado detalle={estado.mensaje} onReintentar={recargar} />}

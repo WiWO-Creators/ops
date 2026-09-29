@@ -1816,6 +1816,28 @@ personas activas al momento del envío más `correos`, sin duplicados; `422` si 
 vacías. La UI (Configuración del Proyecto) solo muestra el interruptor y el selector de personas;
 `correos` viaja tal como llegó.
 
+**Seguidores predeterminados (WIW-0496).** `GET|PUT /projects/{id}/default-followers`:
+
+```jsonc
+// GET y respuesta del PUT
+{ "followers": [ { "id": 5, "full_name": "Daniela Borquez", "profile_image_url": null /* ...ficha de staff */ } ],
+  "can_edit": true }
+// PUT: reemplazo total
+{ "followers": [5, 6] }
+```
+
+Cada Tarea que **nace o entra** al Proyecto suma a estas personas como seguidoras: `POST /tasks`
+(también las creadas desde una plantilla, `wibot` y el alta en varios Proyectos), duplicar, importar,
+copiar el Proyecto (que además copia la lista) y mover una Tarea a este Proyecto con `PATCH`. Editar
+una Tarea sin cambiarle el Proyecto **no** vuelve a sumar a quien se sacó a mano, y guardar la lista no
+toca las Tareas que ya existen. Quedar como seguidor no avisa por sí mismo; desde ahí se reciben los
+avisos normales de un seguidor. El staff desactivado después de guardarla se salta.
+
+Lo lee quien ve el Proyecto (`404` si no). Lo reemplaza el responsable: el creador (`addedfrom`), un
+Director o un admin; el resto recibe `403` y `can_edit: false` en el GET. `followers` son `staffid`
+activos, sin repetidos, máximo 30 (`422` con `followers: ["no_existe" | "no_es_lista" | "max:30" |
+"required"]`). Otro verbo ⇒ `404`. La UI vive en Configuración del Proyecto.
+
 **Enlaces.** El correo y la campana del staff apuntan a `/proyectos/{project_id}?tab=tickets&ticket={id}`
 (`tblnotifications.link` guarda esa ruta; la campana acepta rutas internas que empiezan con `/`). Al
 cliente, `/portal/soporte/{id}`, que redirige a la bandeja con el modal abierto.
@@ -4420,7 +4442,7 @@ Un administrador ve todas. No pagina ni acepta `?include=`.
 { "data": [
   { "id": 4, "name": "Campaña estándar", "description": "Ciclo completo de una campaña",
     "duration_days": 30, "is_public": true, "created_by": 183,
-    "date_created": "2026-09-04T16:51:46Z", "can_edit": true } ] }
+    "date_created": "2026-09-04T16:51:46Z", "can_edit": true, "default_followers": [5, 8] } ] }
 ```
 
 | Clave | Qué es |
@@ -4429,6 +4451,7 @@ Un administrador ve todas. No pagina ni acepta `?include=`.
 | `is_public` | La ven todos los que pueden crear Espacios; editarla y borrarla sigue siendo sólo del autor |
 | `created_by` | `staffid` del autor |
 | `can_edit` | Lo resuelve el servidor: `created_by === yo` **o** administrador. El frontend no puede deducirlo solo |
+| `default_followers` | `staffid` de los seguidores predeterminados (WIW-0496). El Proyecto creado con `POST /projects/from-template` los hereda como su lista de `default-followers` —filtrando a los dados de baja— **antes** de crear sus Tareas, así que esas Tareas ya nacen con ellos. `[]` en plantillas anteriores a la migración 1090 |
 
 #### `GET /project-templates/{id}` → `200`
 
@@ -4477,6 +4500,7 @@ válida y crea un Espacio pelado.
 |---|---|
 | `duration_days` | `null` — sin duración declarada, el escalado queda en factor `1` |
 | `is_public` | `false` |
+| `default_followers` | `[]`. Mismas reglas que `PUT /projects/{id}/default-followers`, con el error bajo `default_followers` |
 | `items[].offset_days` / `duration_days` | `0` |
 | `items[].parent_index` / `task_type_id` / `description` | `null` |
 | `items[].assignees` | `[]` |
