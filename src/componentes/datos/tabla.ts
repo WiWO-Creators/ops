@@ -169,17 +169,25 @@ export function resolverInsignia (
  * Un valor que no este en el catalogo se muestra crudo pero se sigue contando: la consulta vive en
  * la URL y se edita a mano, y el resumen tiene que coincidir con lo que se manda al backend.
  *
+ * Con el catalogo entero marcado dice "<etiqueta>: todos". El filtro sin tocar puede NO ser todos
+ * —`GET /tasks` esconde las completadas si no viaja `filter[status]`—, y por eso ese caso usa
+ * `sinFiltro`, que la definicion puede cambiar para decir lo que de verdad se ve (WIW-0496).
+ *
  * @param etiqueta nombre del filtro, el de la definicion
  * @param opciones catalogo del filtro, para traducir el valor a su nombre
  * @param valores los valores elegidos, tal como viajan a la API
+ * @param sinFiltro texto con nada elegido; por defecto "<etiqueta>: todos"
  * @returns `texto` para el cuerpo del disparador y `extra` con el conteo, o `null` si no hay resto
  */
 export function resumenDeFiltro (
   etiqueta: string,
   opciones: OpcionFiltro[],
-  valores: string[]
+  valores: string[],
+  sinFiltro = `${etiqueta}: todos`
 ): { texto: string, extra: string | null } {
-  if (valores.length === 0) return { texto: `${etiqueta}: todos`, extra: null }
+  if (valores.length === 0) return { texto: sinFiltro, extra: null }
+  // Con una sola opcion, nombrarla dice mas que "todos".
+  if (opciones.length > 1 && estanTodasElegidas(opciones, valores)) return { texto: `${etiqueta}: todos`, extra: null }
 
   // `valores[0]` existe: la lista no esta vacia. El `?? ''` es solo para el tipo.
   const primero = valores[0] ?? ''
@@ -189,6 +197,39 @@ export function resumenDeFiltro (
     texto: elegida === undefined ? primero : elegida.etiqueta,
     extra: valores.length === 1 ? null : `+${valores.length - 1}`
   }
+}
+
+/**
+ * Si todas las opciones elegibles del catalogo estan marcadas.
+ *
+ * Las deshabilitadas no cuentan: no se pueden marcar, y exigirlas dejaria la fila "Todos" apagada
+ * para siempre. Un catalogo vacio nunca esta "todo elegido".
+ *
+ * @param opciones catalogo del filtro
+ * @param valores los valores elegidos
+ * @returns `true` si no falta ninguna opcion elegible
+ */
+export function estanTodasElegidas (opciones: OpcionFiltro[], valores: string[]): boolean {
+  const elegibles = opciones.filter((opcion) => opcion.deshabilitada !== true)
+
+  return elegibles.length > 0 && elegibles.every((opcion) => valores.includes(opcion.valor))
+}
+
+/**
+ * Lo que queda elegido al tocar la fila "Todos" de un filtro de varios valores.
+ *
+ * Con todo marcado, desmarca todo; si falta alguna, marca todas las elegibles de una vez. Es el
+ * mismo ida y vuelta de un "seleccionar todo" de cualquier lista, y evita marcar los estados de a
+ * uno para ver tambien las completadas (WIW-0496).
+ *
+ * @param opciones catalogo del filtro
+ * @param valores los valores elegidos ahora
+ * @returns los valores nuevos, en el orden del catalogo
+ */
+export function alternarTodas (opciones: OpcionFiltro[], valores: string[]): string[] {
+  if (estanTodasElegidas(opciones, valores)) return []
+
+  return opciones.filter((opcion) => opcion.deshabilitada !== true).map((opcion) => opcion.valor)
 }
 
 /**

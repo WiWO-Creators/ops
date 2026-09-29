@@ -130,7 +130,8 @@ export interface Filtro {
   valorPorNombre?: boolean
   opciones?: OpcionFiltro[]
   /**
-   * Texto de la opcion que quita el filtro. Por defecto dice "<etiqueta>: todos".
+   * Texto de la opcion que quita el filtro —y, en los de varios valores, del disparador sin nada
+   * marcado—. Por defecto dice "<etiqueta>: todos".
    *
    * Existe para los filtros cuyo estado sin filtrar NO es "todos": el listado de Espacios esconde
    * los archivados salvo que se pidan, asi que ahi la opcion de reposo es "Solo activos" y decir

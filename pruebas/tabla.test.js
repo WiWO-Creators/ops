@@ -23,6 +23,8 @@ import {
   rutaDeAccion,
   resolverInsignia,
   resumenDeFiltro,
+  estanTodasElegidas,
+  alternarTodas,
   urlConParametro,
   unirConsultas,
   hayFiltrosPuestos,
@@ -214,7 +216,33 @@ test('resumenDeFiltro nombra la opcion pelada cuando hay una sola, sin conteo', 
 })
 
 test('resumenDeFiltro nombra la primera y cuenta el resto aparte', () => {
-  assert.deepEqual(resumenDeFiltro('Estado', CATALOGO, ['4', '1', '5']), { texto: 'En progreso', extra: '+2' })
+  assert.deepEqual(resumenDeFiltro('Estado', CATALOGO, ['4', '1']), { texto: 'En progreso', extra: '+1' })
+})
+
+test('resumenDeFiltro usa el texto de la definicion cuando sin filtro no se ve todo', () => {
+  assert.deepEqual(resumenDeFiltro('Estado', CATALOGO, [], 'Estado: abiertas'), { texto: 'Estado: abiertas', extra: null })
+})
+
+test('resumenDeFiltro dice "todos" con el catalogo entero marcado, en cualquier orden', () => {
+  assert.deepEqual(resumenDeFiltro('Estado', CATALOGO, ['5', '1', '4'], 'Estado: abiertas'), { texto: 'Estado: todos', extra: null })
+})
+
+test('resumenDeFiltro nombra la opcion de un catalogo de una sola, aunque este toda marcada', () => {
+  assert.deepEqual(resumenDeFiltro('Estado', [CATALOGO[0]], ['1']), { texto: 'Por iniciar', extra: null })
+})
+
+test('estanTodasElegidas ignora las deshabilitadas y nunca es cierta con catalogo vacio', () => {
+  const conBloqueada = [...CATALOGO, { valor: '9', etiqueta: 'Bloqueada', deshabilitada: true }]
+  assert.equal(estanTodasElegidas(conBloqueada, ['1', '4', '5']), true)
+  assert.equal(estanTodasElegidas(CATALOGO, ['1', '4']), false)
+  assert.equal(estanTodasElegidas([], []), false)
+})
+
+test('alternarTodas marca las elegibles en orden de catalogo y, con todo marcado, desmarca', () => {
+  const conBloqueada = [...CATALOGO, { valor: '9', etiqueta: 'Bloqueada', deshabilitada: true }]
+  assert.deepEqual(alternarTodas(conBloqueada, []), ['1', '4', '5'])
+  assert.deepEqual(alternarTodas(conBloqueada, ['5']), ['1', '4', '5'])
+  assert.deepEqual(alternarTodas(conBloqueada, ['5', '4', '1']), [])
 })
 
 test('resumenDeFiltro muestra crudo el valor que no esta en el catalogo, y lo cuenta igual', () => {
