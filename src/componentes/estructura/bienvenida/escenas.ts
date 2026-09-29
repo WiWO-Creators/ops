@@ -1,7 +1,9 @@
 import type { ComponentType } from 'react'
-import { EscenaGrilla } from './EscenaGrilla'
-import { EscenaOrbitas } from './EscenaOrbitas'
-import { EscenaPiezas } from './EscenaPiezas'
+import { EscenaGantt } from './EscenaGantt'
+import { EscenaIndicadores } from './EscenaIndicadores'
+import { EscenaJornada } from './EscenaJornada'
+import { EscenaTablero } from './EscenaTablero'
+import { EscenaTickets } from './EscenaTickets'
 
 /** Una de las coreografias que pueden recibir a quien acaba de actualizar. */
 export interface EscenaDeBienvenida {
@@ -23,16 +25,21 @@ export interface EscenaDeBienvenida {
 /**
  * Las escenas disponibles, en el orden en que se fueron sumando.
  *
- * Todas comparten encuadre (`viewBox="-120 -60 240 120"`, centrado en cero) y una sola mancha de
- * color de marca. Agregar una mas es agregar una entrada aca: nada fuera de este archivo las enumera.
+ * Cada una cuenta un pedazo de Ops —el tablero, el Gantt, los indicadores, la jornada, los tickets—
+ * con las mismas piezas que se ven en el panel. Comparten encuadre (`viewBox="-120 -60 240 120"`,
+ * centrado en cero), suelo en `y=52` cuando hay personajes (`Personaje.tsx`) y el color de marca
+ * para lo que protagoniza. Agregar una mas es agregar una entrada aca: nada fuera de este archivo
+ * las enumera.
  *
  * El tipo es una tupla con al menos un elemento, no un arreglo suelto: asi el respaldo de
  * `elegirEscena` es una escena de verdad y no un `undefined` que el compilador tenga que tolerar.
  */
 export const ESCENAS: readonly [EscenaDeBienvenida, ...EscenaDeBienvenida[]] = [
-  { clave: 'grilla', nombre: 'Grilla', Dibujo: EscenaGrilla, frase: 'Ordenando cada pieza en su lugar…', duracion: 3200 },
-  { clave: 'piezas', nombre: 'Piezas', Dibujo: EscenaPiezas, frase: 'Encajando las partes nuevas…', duracion: 3300 },
-  { clave: 'orbitas', nombre: 'Órbitas', Dibujo: EscenaOrbitas, frase: 'Poniendo todo en movimiento…', duracion: 3100 }
+  { clave: 'tablero', nombre: 'Tablero', Dibujo: EscenaTablero, frase: 'Moviendo las tareas a su columna…', duracion: 3300 },
+  { clave: 'gantt', nombre: 'Gantt', Dibujo: EscenaGantt, frase: 'Poniendo al día el cronograma…', duracion: 3200 },
+  { clave: 'indicadores', nombre: 'Indicadores', Dibujo: EscenaIndicadores, frase: 'Recalculando los números…', duracion: 3200 },
+  { clave: 'jornada', nombre: 'Jornada', Dibujo: EscenaJornada, frase: 'Repartiendo las horas del día…', duracion: 3400 },
+  { clave: 'tickets', nombre: 'Tickets', Dibujo: EscenaTickets, frase: 'Asignando cada ticket a su responsable…', duracion: 3100 }
 ]
 
 /**
