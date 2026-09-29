@@ -7274,7 +7274,7 @@ y por mes, las completadas del reporte con el SQL del listado del portal.
 
 ## Contratos (`/contratos`, WIW-0502)
 
-Rama `feat/contratos`, migración `1100`. Los contratos de Perfex (`tblcontracts`) para Finanzas y
+Rama `feat/contratos`, migración `1120`. Los contratos de Perfex (`tblcontracts`) para Finanzas y
 Comercial. **La puerta es la sección entera, no la fila**: quien entra ve, crea y edita todos.
 Quien no entra recibe `404` en todo `/contratos/*`. `GET /me` publica `ve_contratos: bool`.
 
