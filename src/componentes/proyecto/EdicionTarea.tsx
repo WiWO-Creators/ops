@@ -604,6 +604,36 @@ export function EdicionTarea (
             {etiqueta}
           </label>)}
 
+          {/* El entregable va aparte de las casillas de arriba: no es un atributo interno, es lo que
+              el cliente ve en «Entregables» de su reporte mensual cuando la tarea se completa. */}
+          <section aria-labelledby="edicion-entregable" className="border-linea flex flex-col gap-3 border-t pt-4">
+            <h3 id="edicion-entregable" className="text-texto text-sm font-semibold">Entregable</h3>
+            <label className="text-texto flex items-center gap-2 text-sm">
+              <input type="checkbox" checked={campos.entregable} onChange={(evento) => setCampos({ ...campos, entregable: evento.target.checked })} />
+              Es un entregable para el cliente
+            </label>
+            {campos.entregable && (
+              <Campo etiqueta="Enlace al entregable" ayuda="Drive, sitio publicado o archivo final. Opcional; el cliente lo abre desde su reporte mensual.">
+                {(props) => (
+                  <Entrada
+                    {...props}
+                    type="url"
+                    inputMode="url"
+                    placeholder="https://"
+                    maxLength={500}
+                    value={campos.enlaceEntregable}
+                    onChange={(evento) => setCampos({ ...campos, enlaceEntregable: evento.target.value })}
+                  />
+                )}
+              </Campo>
+            )}
+            {campos.entregable && !campos.visibleCliente && (
+              <p className="text-texto-aviso text-xs">
+                La tarea no es visible para el cliente: no aparecerá en su reporte mientras siga oculta.
+              </p>
+            )}
+          </section>
+
           {/* La recurrencia con seccion y titulo propios, y no como una casilla mas entre Facturable y
               Pública: es una regla con cinco partes, no un atributo. Para cambiar solo la regla hay
               un editor dedicado ("Editar recurrencia" en la ficha); aca se enciende y se apaga. */}

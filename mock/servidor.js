@@ -6461,6 +6461,18 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
       return { estado: 200, cuerpo: conDatos(tableroDeGestion(contacto, parametros)) };
     }
 
+    // El reporte mensual. Sin interruptor propio: lo ve todo contacto con `projects`. La fixture
+    // trae los bloques llenos para el contacto 1 y, con `project_id=8`, el Proyecto que no comparte
+    // Meeting Paper ni horas, para ver que esas claves no llegan en vez de llegar en cero.
+    if (seccion === 'reporte-mensual') {
+      if (!contacto.permissions.includes('projects')) {
+        throw new ErrorApi(403, 'forbidden', 'Este contacto no tiene acceso a proyectos.')
+      }
+      if (resto.length > 1) throw new ErrorApi(404, 'not_found', 'Recurso desconocido.')
+
+      return { estado: 200, cuerpo: conDatos(reporteMensualDelMock(parametros)) }
+    }
+
     // Soporte del cliente: la bandeja, el hilo y el alta. Es una seccion del portal y no una pestaña
     // del Proyecto, y por eso la bandeja cruza Proyectos — incluido el ticket sin ninguno, que no
     // cabria en ninguna pestaña.
@@ -9774,7 +9786,100 @@ function seccionesDelPortal (contacto) {
   const conPermiso = ['projects', 'invoices', 'estimates', 'proposals', 'contracts', 'support']
     .filter((f) => contacto.permissions.includes(f))
 
-  return [...conPermiso, 'files', 'announcements', 'kb', 'profile']
+  const reporte = contacto.permissions.includes('projects') ? ['reporte'] : []
+
+  return [...conPermiso, ...reporte, 'files', 'announcements', 'kb', 'profile']
+}
+
+/**
+ * El reporte mensual de la fixture, con la forma de `GET /portal/reporte-mensual`.
+ *
+ * @param {URLSearchParams} parametros `mes` y `project_id`
+ * @returns {object} el reporte
+ */
+function reporteMensualDelMock (parametros) {
+  const hoy = new Date()
+  const actual = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, '0')}`
+  const mes = parametros.get('mes') ?? actual
+
+  if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(mes) || mes > actual) {
+    throw new ErrorApi(422, 'validation_failed', 'El mes se pide como YYYY-MM.', { mes: ['format'] })
+  }
+
+  const disponibles = [{ id: 1, name: 'Sitio web corporativo' }, { id: 8, name: 'Campaña de lanzamiento' }]
+  const pedido = parametros.get('project_id')
+  const proyectos = pedido === null ? disponibles : disponibles.filter((p) => String(p.id) === pedido)
+
+  if (proyectos.length === 0) throw new ErrorApi(404, 'not_found', 'Recurso desconocido.')
+
+  const [anio, numero] = mes.split('-').map(Number)
+  const dia = (d) => `${mes}-${String(d).padStart(2, '0')}`
+  const ultimo = new Date(Date.UTC(anio, numero, 0)).getUTCDate()
+  const previo = new Date(Date.UTC(anio, numero - 2, 1)).toISOString().slice(0, 7)
+  const solo8 = proyectos.length === 1 && proyectos[0].id === 8
+  const web = disponibles[0]
+  const campana = disponibles[1]
+  const tarea = (id, name, project, extra = {}) => ({
+    id, name, status: 5, due_date: null, completed_at: `${dia(10)}T15:00:00Z`,
+    deliverable: false, deliverable_url: null, project, milestone: null, ...extra
+  })
+
+  const completadas = [
+    tarea(501, 'Landing de la colección de primavera', web, { completed_at: `${dia(26)}T18:20:00Z`, deliverable: true, deliverable_url: 'https://drive.google.com/drive/folders/landing-primavera', milestone: { id: 3, name: 'Página web' } }),
+    tarea(502, 'Guion del video institucional', campana, { completed_at: `${dia(22)}T13:05:00Z`, deliverable: true, deliverable_url: null, milestone: { id: 6, name: 'Guiones' } }),
+    tarea(503, 'Ajustes de tipografía en el menú', web, { completed_at: `${dia(19)}T11:00:00Z`, milestone: { id: 3, name: 'Página web' } }),
+    tarea(504, 'Pieza para Instagram, semana 3', campana, { completed_at: `${dia(17)}T16:40:00Z`, deliverable: true, deliverable_url: 'https://drive.google.com/file/d/pieza-semana-3', milestone: { id: 7, name: 'Piezas gráficas' } }),
+    ...Array.from({ length: 10 }, (_, i) => tarea(510 + i, `Revisión de contenidos, sección ${i + 1}`, web, { completed_at: `${dia(Math.max(1, 15 - i))}T10:00:00Z` }))
+  ].filter((t) => proyectos.some((p) => p.id === t.project.id))
+
+  const entregables = completadas.filter((t) => t.deliverable)
+  const reporte = {
+    alcance: {
+      mes, mes_anterior: previo, desde: dia(1), hasta: dia(ultimo), cerrado: mes < actual,
+      medido_hasta: mes < actual ? `${dia(ultimo)} 23:59:59` : hoy.toISOString().slice(0, 19).replace('T', ' '),
+      proyectos, proyectos_disponibles: disponibles
+    },
+    resumen: {
+      completadas: { actual: completadas.length, anterior: 9 },
+      entregables: { actual: entregables.length, anterior: 3 }
+    },
+    completadas,
+    entregables,
+    proximas: [
+      { ...tarea(601, 'Maqueta de la página de contacto', web), status: 4, completed_at: null, due_date: new Date(hoy.getTime() + 5 * 864e5).toISOString().slice(0, 10) },
+      { ...tarea(602, 'Reel de cierre de campaña', campana), status: 1, completed_at: null, due_date: new Date(hoy.getTime() + 12 * 864e5).toISOString().slice(0, 10) }
+    ].filter((t) => proyectos.some((p) => p.id === t.project.id)),
+    esperando: [
+      { ...tarea(603, 'Aprobar textos de la home', web), status: 2, completed_at: null }
+    ].filter((t) => proyectos.some((p) => p.id === t.project.id)),
+    hitos: [
+      { id: 3, name: 'Página web', tareas: 18, cerradas: 12, cerradas_mes: 4, porcentaje: 67, project: web },
+      { id: 6, name: 'Guiones', tareas: 4, cerradas: 1, cerradas_mes: 1, porcentaje: 25, project: campana },
+      { id: 7, name: 'Piezas gráficas', tareas: 9, cerradas: 9, cerradas_mes: 2, porcentaje: 100, project: campana }
+    ].filter((h) => proyectos.some((p) => p.id === h.project.id)),
+    tendencia: Array.from({ length: 6 }, (_, i) => {
+      const m = new Date(Date.UTC(anio, numero - 6 + i, 1)).toISOString().slice(0, 7)
+      const punto = { mes: m, completadas: [6, 11, 8, 9, 13, completadas.length][i], entregables: [1, 3, 2, 3, 4, entregables.length][i] }
+
+      return solo8 ? punto : { ...punto, reuniones: [2, 1, 3, 2, 2, 2][i] }
+    })
+  }
+
+  if (!solo8) {
+    reporte.resumen.reuniones = { actual: 2, anterior: 2 }
+    reporte.resumen.horas_segundos = { actual: 170100, anterior: 151200 }
+    reporte.reuniones = [
+      { id: 1, title: 'Revisión quincenal de avance', fecha: dia(8), project: web },
+      { id: 2, title: 'Planificación del cierre de campaña', fecha: dia(23), project: web }
+    ]
+    reporte.horas = {
+      total_segundos: 170100,
+      por_proyecto: [{ segundos: 112500, project: web }, { segundos: 57600, project: campana }]
+        .filter((f) => proyectos.some((p) => p.id === f.project.id))
+    }
+  }
+
+  return reporte
 }
 
 /**

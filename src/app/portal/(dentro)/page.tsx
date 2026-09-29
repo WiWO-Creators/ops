@@ -5,6 +5,7 @@ import { unstable_rethrow } from 'next/navigation'
 import {
   ArrowRight,
   ChartNoAxesColumn,
+  FileChartColumn,
   Compass,
   FolderKanban,
   LifeBuoy,
@@ -522,6 +523,11 @@ const PRESENTACION: Record<string, PresentacionDeSeccion> = {
     descripcion: 'Cada uno con su avance, su equipo y sus entregas.',
     icono: FolderKanban,
     tono: 'exito'
+  },
+  '/portal/reporte': {
+    descripcion: 'Lo que entregamos y completamos cada mes, con sus enlaces.',
+    icono: FileChartColumn,
+    tono: 'acento'
   },
   '/portal/gestion': {
     descripcion: 'El tablero del mes, con los números que seguimos.',

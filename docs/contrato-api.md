@@ -2212,6 +2212,8 @@ una transaccion: o entran los cinco grupos o no entra ninguno.
 | `completed_at` | instante ISO-8601 con zona, o `null` | **solo si la tarea esta completada**; ver abajo |
 | `recurring`, `repeat_every`, `recurring_type`, `cycles`, `recurring_until`, `skip_weekdays` | ver abajo | detras de interruptor |
 | `recurring_paused` | bool | **solo en `PATCH`**; ver "Pausa" abajo |
+| `deliverable` | bool | la tarea es un entregable para el cliente (migración 1080); lo lee el reporte mensual |
+| `deliverable_url` | string `http(s)://` ≤ 500, o `null` | enlace a la pieza final; otro esquema es `422`; `null` o vacío lo borra |
 
 Cualquier otra clave devuelve `422` con `details` nombrandola.
 
@@ -7212,6 +7214,39 @@ pantalla explica que la hoja sale de la gente a cargo y de los clientes (como Fo
 Supervisión); la pestaña Supervisión de la persona avisa que los clientes donde es Focal ya entran
 solos. El mock (`mock/supervision.js`) aplica la misma regla, con Elena colgando de Bruno para tener
 director → dos leads → personas.
+
+## Reporte mensual del cliente (`GET /portal/reporte-mensual`)
+
+Rama `feat/reporte-mensual`. La rendición de cuentas del mes: lo entregado, lo completado,
+reuniones, horas, lo que viene y lo que espera al cliente. **No tiene interruptor propio**: sale a
+todo contacto con `projects` y al menos un Espacio visible, y cada bloque sale SOLO de los Espacios
+donde el contacto ya ve la pestaña que lo sostiene. `GET /portal/me` publica `reporte` en
+`secciones_habilitadas` con esa misma condición.
+
+Parámetros: `mes=YYYY-MM` (por omisión el actual; 24 meses atrás como tope, futuro es `422`) y
+`project_id=N` opcional (ajeno es `404`, no numérico es `422`). Sin Espacios visibles: `404`.
+
+| Clave | Pestaña que la sostiene | Qué es |
+|---|---|---|
+| `alcance` | siempre | `mes`, `mes_anterior`, `desde`, `hasta`, `cerrado`, `medido_hasta`, `proyectos` (los del reporte) y `proyectos_disponibles` (todos, para el filtro) |
+| `resumen` | por clave | `completadas`, `entregables`, `reuniones`, `horas_segundos`, cada uno `{actual, anterior}`. Llega como `[]` si no hay ninguna |
+| `completadas` | `tasks` | tareas visibles con `status = 5` y cierre en el mes, la más reciente primero |
+| `entregables` | `tasks` | las completadas del mes con `deliverable = true` |
+| `proximas` | `tasks` | abiertas que vencen entre hoy y hoy + 30 días (sin las que esperan al cliente) |
+| `esperando` | `tasks` | en estado 2, al día de hoy |
+| `hitos` | `tasks` + `milestones` | hitos visibles con movimiento en el mes o pendientes: `tareas`, `cerradas`, `cerradas_mes`, `porcentaje` (`null` sin tareas) |
+| `reuniones` | `actas` (exige `wiwo_portal_actas`) | Meeting Papers con fecha de reunión (o creación) en el mes |
+| `horas` | `timesheets` | `total_segundos` y `por_proyecto`, sesiones cerradas que empezaron en el mes, sobre tareas visibles |
+| `tendencia` | `tasks` o `actas` | seis meses: `completadas` y `entregables` con Tareas, `reuniones` con Meeting Paper |
+
+Una tarea del reporte trae `id`, `name`, `status`, `due_date`, `completed_at`, `deliverable`,
+`deliverable_url`, `project {id, name}` y `milestone {id, name} | null`. Nunca asignados, SLA, ETA,
+desviación, cambios de fecha ni montos. Las listas se cortan en 200; el total real está en `resumen`.
+
+**Una clave ausente no es cero**: significa que ningún Espacio del alcance comparte esa pestaña.
+
+Verificación contra datos reales: `php index.php api v1 verificacion reporte` compara, por contacto
+y por mes, las completadas del reporte con el SQL del listado del portal.
 
 ## Tiempo real
 

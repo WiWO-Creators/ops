@@ -1010,3 +1010,77 @@ export interface LineaDeActividadDelPortal {
   /** La `description_key` de Perfex. Ej: `project_activity_task_marked_complete`. */
   clave: string
 }
+
+// -- Reporte mensual: `GET /portal/reporte-mensual` -------------------------------------------------
+
+/**
+ * Una tarea dentro del reporte mensual.
+ *
+ * Solo lo que el cliente ya ve en su lista, mas la marca de entregable y su enlace.
+ */
+export interface TareaDelReporte {
+  id: number
+  name: string
+  status: number
+  due_date: string | null
+  completed_at: string | null
+  deliverable: boolean
+  deliverable_url: string | null
+  project: Referencia
+  milestone: Referencia | null
+}
+
+/** Una cifra del mes junto a la del mes anterior. */
+export interface ComparacionMensual {
+  actual: number
+  anterior: number
+}
+
+/**
+ * El reporte mensual del cliente.
+ *
+ * Cada bloque llega SOLO si algun Proyecto del alcance tiene abierta la pestaña que lo sostiene
+ * (Tareas, Hitos, Meeting Paper, Tiempos). La clave ausente significa «no puede ver eso», no cero:
+ * por eso todo lo que no es `alcance` ni `resumen` es opcional, y la pantalla no lo dibuja.
+ */
+export interface ReporteMensual {
+  alcance: {
+    mes: string
+    mes_anterior: string
+    desde: string
+    hasta: string
+    cerrado: boolean
+    medido_hasta: string
+    /** Los Proyectos que entran al reporte: todos, o el pedido con `project_id`. */
+    proyectos: Referencia[]
+    /** Todos los Proyectos del contacto, para el filtro. */
+    proyectos_disponibles: Referencia[]
+  }
+  /** Llega como `[]` cuando ningun bloque tiene pestaña: por eso cada clave es opcional. */
+  resumen: {
+    completadas?: ComparacionMensual
+    entregables?: ComparacionMensual
+    reuniones?: ComparacionMensual
+    horas_segundos?: ComparacionMensual
+  } | []
+  completadas?: TareaDelReporte[]
+  entregables?: TareaDelReporte[]
+  proximas?: TareaDelReporte[]
+  esperando?: TareaDelReporte[]
+  hitos?: Array<{
+    id: number
+    name: string
+    tareas: number
+    cerradas: number
+    cerradas_mes: number
+    /** `null` sin tareas visibles: nunca 0. */
+    porcentaje: number | null
+    project: Referencia
+  }>
+  reuniones?: Array<{ id: number, title: string, fecha: string, project: Referencia }>
+  horas?: {
+    total_segundos: number
+    por_proyecto: Array<{ segundos: number, project: Referencia }>
+  }
+  tendencia?: Array<{ mes: string, completadas?: number, entregables?: number, reuniones?: number }>
+}
