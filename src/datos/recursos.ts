@@ -565,8 +565,10 @@ export interface Licitacion {
   focal: { id: number, full_name: string } | null
   /** Con cual sociedad del grupo se presenta: un `valor` de `EMPRESAS_DEL_HOLDING`. */
   empresa_holding: string | null
-  /** El area del equipo que lleva el trabajo: id del catalogo `areas` de `GET /lookups`. */
+  /** El area principal: la primera de `area_ids`. Id del catalogo `areas` de `GET /lookups`. */
   area_id: number | null
+  /** Todas las areas del equipo involucradas, la principal primero (migracion `1140`). */
+  area_ids: number[]
   /** Que contempla el trabajo: un `valor` de `MODELOS_DE_SERVICIO`. */
   modelo_servicio: string | null
   /** Link a la carpeta de la propuesta (Drive u otro servicio), o `null`. Migracion `0990`. */

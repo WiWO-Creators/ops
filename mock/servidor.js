@@ -7865,7 +7865,7 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
     exigirPermiso(actual, 'projects', 'edit')
     const licitacion = buscarO404(LICITACIONES, Number(resto[0]), 'licitacion')
     const cambios = (await cuerpo()) ?? {}
-    const editables = ['empresa_holding', 'area_id', 'modelo_servicio', 'owner_id', 'focal_id', 'presentacion_url']
+    const editables = ['empresa_holding', 'area_id', 'area_ids', 'modelo_servicio', 'owner_id', 'focal_id', 'presentacion_url']
     const ajenas = Object.keys(cambios).filter((clave) => !editables.includes(clave))
 
     if (ajenas.length > 0) {
@@ -7880,6 +7880,12 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
         throw new ErrorApi(422, 'validation_failed', 'El enlace tiene que empezar con http:// o https://.', { presentacion_url: ['url'] })
       }
       cambios.presentacion_url = url === '' ? null : url
+    }
+
+    // Las areas son una lista desde `1140`: la primera queda como principal, como en la API.
+    if ('area_ids' in cambios) {
+      cambios.area_ids = [...new Set((cambios.area_ids ?? []).map(Number))]
+      cambios.area_id = cambios.area_ids[0] ?? null
     }
 
     Object.assign(licitacion, cambios)
