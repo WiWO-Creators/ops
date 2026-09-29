@@ -579,5 +579,5 @@ function Tendencia ({ tendencia }: { tendencia: Reporte['tendencia'] }) {
 
 /** La frase de un bloque que llegó vacío. */
 function Vacio ({ children }: { children: React.ReactNode }) {
-  return <p className="text-texto-tenue text-sm">{children}</p>
+  return <p className="text-texto-tenue text-sm text-pretty">{children}</p>
 }
