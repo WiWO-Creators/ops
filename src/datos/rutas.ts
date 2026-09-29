@@ -45,6 +45,9 @@ const PREFIJOS_PERMITIDOS = [
   // por el mismo motivo que `licitaciones`. **No esta en la lista del portal y no debe estarlo**:
   // un upsell abierto es justamente lo que el cliente no tiene que ver.
   'upsells',
+  // Contratos de Perfex para Finanzas y Comercial (WIW-0502). La puerta vive en la API
+  // (`Acceso\\AccesoContratos`): el BFF solo decide si la ruta existe.
+  'contratos',
   // Bandeja de solicitudes de eliminacion de Proyecto. Prefijo propio y no bajo `projects` porque
   // la pregunta que contesta es transversal —que Proyectos me estan pidiendo eliminar—: colgada de
   // un Proyecto habria que saber de antemano cual, que es justo lo que el admin no sabe. Pedir y

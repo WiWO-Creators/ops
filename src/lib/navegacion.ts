@@ -18,7 +18,7 @@
  * cruza la frontera servidor-cliente; aca solo viaja el nombre.
  */
 export const ICONOS_SECCION = [
-  'inicio', 'live', 'mis_tareas', 'procesos', 'recurrentes', 'tickets', 'espacios', 'licitaciones', 'upsells',
+  'inicio', 'live', 'mis_tareas', 'procesos', 'recurrentes', 'tickets', 'espacios', 'licitaciones', 'upsells', 'contratos',
   'salas', 'teletrabajo', 'clientes', 'focals', 'equipo', 'mi_area', 'organigrama', 'supervision',
   'administracion', 'auditoria', 'papelera'
 ] as const

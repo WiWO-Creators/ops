@@ -22,6 +22,8 @@ export const GLOSARIO = {
   // La oportunidad comercial sobre un cliente que ya existe. El plural es el nombre de la sección
   // ("Upselling") y no "Upsells": es como lo llama el equipo, y no hay traducción que lo mejore.
   upsell: { singular: 'Upsell', plural: 'Upselling' },
+  // Los contratos de Perfex (`tblcontracts`), para Finanzas y Comercial (WIW-0502).
+  contrato: { singular: 'Contrato', plural: 'Contratos' },
   cliente: { singular: 'Cliente', plural: 'Clientes' },
   // Quien responde por una cuenta. La clave sigue diciendo `focal` porque asi se llama el recurso
   // de la API (`/clients/{id}/focales`); el plural es "Focals" y no "Focales" porque es como lo
