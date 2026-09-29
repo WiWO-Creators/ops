@@ -7,7 +7,7 @@
 
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { NOVEDADES, ROTULO_TIPO, agruparPorDia, fechaMasReciente, hayNovedadesSinVer } from '../src/dominio/novedades.ts'
+import { NOVEDADES, ROTULO_TIPO, agruparPorDia, fechaMasReciente, hayNovedadesSinVer, novedadesDelRecorrido } from '../src/dominio/novedades.ts'
 
 test('cada novedad tiene fecha real, tipo conocido, título y commits con su repo', () => {
   for (const novedad of NOVEDADES) {
@@ -56,4 +56,17 @@ test('hayNovedadesSinVer avisa solo cuando hay algo posterior a lo visto', () =>
   assert.equal(hayNovedadesSinVer('2026-09-24', null), false)
   assert.equal(hayNovedadesSinVer(null, null), false)
   assert.equal(hayNovedadesSinVer('basura', '2026-09-24'), true)
+})
+
+test('el recorrido cuenta solo el día más reciente, recortado', () => {
+  const lista = [
+    { fecha: '2026-09-28', tipo: 'nuevo', titulo: 'a', commits: [] },
+    { fecha: '2026-09-28', tipo: 'mejora', titulo: 'b', commits: [] },
+    { fecha: '2026-09-27', tipo: 'arreglo', titulo: 'c', commits: [] }
+  ]
+
+  assert.deepEqual(novedadesDelRecorrido(lista).map((n) => n.titulo), ['a', 'b'])
+  assert.deepEqual(novedadesDelRecorrido(lista, 1).map((n) => n.titulo), ['a'])
+  assert.deepEqual(novedadesDelRecorrido(lista, -3), [])
+  assert.deepEqual(novedadesDelRecorrido([]), [])
 })

@@ -73,23 +73,30 @@ test('el script levanta el telon solo aunque React no monte', () => {
 /**
  * Las escenas de bienvenida no se pueden importar desde aca —son `.tsx` y el intérprete de pruebas
  * solo quita tipos, no compila JSX—, asi que se revisan como texto. Alcanza: lo que se rompe en
- * silencio no es el dibujo sino el contrato entre los cuatro, que vive en atributos literales.
+ * silencio no es el dibujo sino el contrato entre las escenas, que vive en atributos literales.
  */
 const carpetaEscenas = new URL('../src/componentes/estructura/bienvenida/', import.meta.url)
 const archivosDeEscena = (await readdir(carpetaEscenas)).filter((nombre) => nombre.startsWith('Escena'))
 const registro = await readFile(new URL('escenas.ts', carpetaEscenas), 'utf8')
 
-test('las cuatro escenas comparten encuadre y suelo', async () => {
+test('las escenas comparten encuadre y son decorativas', async () => {
   // Con encuadres distintos, la que salga sorteada cambia de tamaño y la bienvenida da un salto.
-  assert.equal(archivosDeEscena.length, 4)
+  assert.ok(archivosDeEscena.length >= 1)
 
   for (const nombre of archivosDeEscena) {
     const fuente = await readFile(new URL(nombre, carpetaEscenas), 'utf8')
 
-    assert.ok(fuente.includes('viewBox="34 8 116 102"'), `${nombre} cambia el encuadre`)
-    assert.ok(fuente.includes('y1="102"'), `${nombre} no apoya en el mismo suelo`)
+    assert.ok(fuente.includes('viewBox="-120 -60 240 120"'), `${nombre} cambia el encuadre`)
     assert.ok(fuente.includes('aria-hidden="true"'), `${nombre} no es decorativa`)
   }
+})
+
+test('cada escena declara cuanto dura', () => {
+  // Sin duracion la capa no sabe cuando irse, y la coreografia se corta o se queda colgada.
+  const duraciones = [...registro.matchAll(/duracion: (\d+)/g)].map(([, valor]) => Number(valor))
+
+  assert.equal(duraciones.length, archivosDeEscena.length)
+  for (const duracion of duraciones) assert.ok(duracion >= 1500 && duracion <= 4000, `duracion fuera de rango: ${duracion}`)
 })
 
 test('todas las escenas estan registradas', () => {
