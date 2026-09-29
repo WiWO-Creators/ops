@@ -6,6 +6,7 @@ import { ProveedorEnlaces } from '@/componentes/presentadores/ProveedorEnlaces'
 import { pedirOpcional, pedirPortal, proyectoUnicoDelPortal } from '@/datos/servidor'
 import type { YoPortal } from '@/datos/tipos'
 import { navegacionDelPortal } from '@/dominio/portal'
+import { BarraVerComoCliente } from '../BarraVerComoCliente'
 import { BotonSalirPortal } from '../BotonSalirPortal'
 import { NavegacionPortal } from '../NavegacionPortal'
 import { ScrollSuave } from '@/componentes/estructura/ScrollSuave'
@@ -21,6 +22,9 @@ import { OrbeChatIA } from '@/componentes/ia/OrbeChatIA'
  *
  * Server Component: resuelve `/portal/me` una sola vez por navegacion y arma la navegacion con lo
  * que la API dijo que este contacto puede ver.
+ *
+ * Si la sesion es prestada ("ver como cliente", `suplantado_por` en `/portal/me`), monta arriba de
+ * todo la franja que lo avisa y permite terminar.
  *
  * Tambien decide si monta el Thinking Orb del cliente: solo con `GET /portal/ia/capacidades` en
  * `habilitado: true` (`ia_habilitada` y `wiwo_portal_ia_chat` encendidas). Cualquier fallo de esa
@@ -40,6 +44,13 @@ export default async function PortalLayout ({ children }: { children: React.Reac
     // sea la capacidad. Ver `ProveedorEnlaces`.
     <ProveedorEnlaces permisos={{}} esPortal>
     <div className="flex h-dvh flex-col overflow-hidden">
+      {yo.suplantado_por != null && (
+        <BarraVerComoCliente
+          contacto={yo.full_name}
+          suplantador={yo.suplantado_por.full_name}
+          clienteId={yo.client_id}
+        />
+      )}
       {/* `relative z-10`: el logo del cliente cuelga por debajo del borde y tiene que quedar encima
           de la navegacion movil y del contenido que se desplaza detras. */}
       <header className="border-linea relative z-10 flex h-14 shrink-0 items-center gap-3 border-b px-4">

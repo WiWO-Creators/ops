@@ -2,7 +2,7 @@
 
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
-import { KeyRound, Mail, Phone, Plus, Star } from 'lucide-react'
+import { Eye, KeyRound, Mail, Phone, Plus, Star } from 'lucide-react'
 import { CeldaEncabezado, CeldaTabla, CuerpoTabla, EncabezadoTabla, FilaTabla, Tabla } from '@/componentes/datos/Tabla'
 import { BotonCopiar } from '@/componentes/datos/BotonCopiar'
 import { MenuAccionesFila } from '@/componentes/datos/MenuAccionesFila'
@@ -120,6 +120,38 @@ export function PanelContactos ({ clienteId, contactos, capacidades }: PropsPane
     })
   }
 
+  /**
+   * Abre el portal con la sesion de este contacto ("ver como cliente").
+   *
+   * La sesion del panel sigue intacta: el portal usa su propia cookie. La franja del portal avisa y
+   * permite terminar.
+   */
+  async function verComoCliente (contacto: ContactoCompleto): Promise<void> {
+    setOcupado(contacto.id)
+    setError(null)
+
+    try {
+      const respuesta = await fetch('/api/sesion/ver-como-cliente', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ contactoId: contacto.id })
+      })
+      const cuerpo = await respuesta.json().catch(() => ({})) as { destino?: string, mensaje?: string }
+
+      if (!respuesta.ok) {
+        setError(cuerpo.mensaje ?? 'No se pudo abrir el portal como ese contacto.')
+        setOcupado(null)
+
+        return
+      }
+
+      router.push(cuerpo.destino ?? '/portal')
+    } catch {
+      setError('No se pudo abrir el portal como ese contacto.')
+      setOcupado(null)
+    }
+  }
+
   if (filas.length === 0) {
     return (
       <>
@@ -178,7 +210,7 @@ export function PanelContactos ({ clienteId, contactos, capacidades }: PropsPane
             <CeldaEncabezado>Cargo</CeldaEncabezado>
             <CeldaEncabezado>Contacto</CeldaEncabezado>
             <CeldaEncabezado>Portal</CeldaEncabezado>
-            {(puedeEditar || puedeBorrar) && <CeldaEncabezado>Acciones</CeldaEncabezado>}
+            <CeldaEncabezado>Acciones</CeldaEncabezado>
           </tr>
         </EncabezadoTabla>
 
@@ -220,15 +252,24 @@ export function PanelContactos ({ clienteId, contactos, capacidades }: PropsPane
                 <AccesoAlPortal contacto={contacto} />
               </CeldaTabla>
 
-              {(puedeEditar || puedeBorrar) && (
-                <CeldaTabla>
+              <CeldaTabla>
                   <MenuAccionesFila
                     ariaLabel={`Acciones de ${contacto.full_name}`}
                     deshabilitado={ocupado !== null}
                     cargando={ocupado === contacto.id}
                     onEditar={puedeEditar ? () => setEditando(contacto) : undefined}
-                    acciones={puedeEditar
-                      ? [
+                    acciones={[
+                      // Para todo el que ve la ficha, no solo para quien edita: mirar el portal
+                      // no cambia nada del contacto, y la API ya exige que el cliente sea visible.
+                      {
+                        clave: 'ver-como',
+                        etiqueta: 'Ver como cliente',
+                        icono: Eye,
+                        deshabilitado: !contacto.active,
+                        onSeleccionar: () => { void verComoCliente(contacto) }
+                      },
+                      ...(puedeEditar
+                        ? [
                           {
                             clave: 'principal',
                             etiqueta: contacto.is_primary ? 'Ya es el contacto principal' : 'Marcar como principal',
@@ -254,7 +295,8 @@ export function PanelContactos ({ clienteId, contactos, capacidades }: PropsPane
                             }
                           }
                         ]
-                      : []}
+                        : [])
+                    ]}
                     borrado={puedeBorrar
                       ? {
                           advertencia: `Se borra a ${contacto.full_name} de los contactos del cliente. No se puede deshacer.`,
@@ -263,7 +305,6 @@ export function PanelContactos ({ clienteId, contactos, capacidades }: PropsPane
                       : undefined}
                   />
                 </CeldaTabla>
-              )}
             </FilaTabla>
           ))}
         </CuerpoTabla>

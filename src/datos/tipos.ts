@@ -332,6 +332,12 @@ export interface YoPortal extends ContactoPortal {
    * Opcional solo para tolerar una API anterior a este campo durante el deploy.
    */
   client?: MarcaDelClientePortal
+  /**
+   * Quien del equipo esta mirando este portal con la sesion del contacto ("ver como cliente"), o
+   * `null` en una sesion normal. Sale de la marca del token en la API, no de una cookie.
+   * Opcional solo para tolerar una API anterior a este campo durante el deploy.
+   */
+  suplantado_por?: { id: number, full_name: string } | null
   locale: string
 }
 
