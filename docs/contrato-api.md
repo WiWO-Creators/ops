@@ -7272,6 +7272,38 @@ desviación, cambios de fecha ni montos. Las listas se cortan en 200; el total r
 Verificación contra datos reales: `php index.php api v1 verificacion reporte` compara, por contacto
 y por mes, las completadas del reporte con el SQL del listado del portal.
 
+## Contratos (`/contratos`, WIW-0502)
+
+Rama `feat/contratos`, migración `1100`. Los contratos de Perfex (`tblcontracts`) para Finanzas y
+Comercial. **La puerta es la sección entera, no la fila**: quien entra ve, crea y edita todos.
+Quien no entra recibe `404` en todo `/contratos/*`. `GET /me` publica `ve_contratos: bool`.
+
+Quién entra (`Acceso\AccesoContratos`): el superadmin siempre; los admin solo con
+`wiwo_contratos_admin = '1'` (nace en `'0'`); el resto, si alguna de sus áreas —principal o
+adicionales— está en `wiwo_contratos_areas` (ids separados por coma; la migración siembra las áreas
+cuyo nombre contiene «finanz» o «comercial»).
+
+| Método y ruta | Qué hace |
+|---|---|
+| `GET /contratos` | Listado paginado sin la papelera de Perfex. `q` busca en asunto y descripción. Filtros: `client`, `contract_type`, `project_id`, `signed` (0/1; firmado en línea o marcado), `datestart_from/_to`, `dateend_from/_to`, `vigencia` (`vigentes`, `por_vencer` = termina en ≤ 30 días, `vencidos`). Orden: `subject`, `datestart`, `dateend`, `contract_value`, `dateadded`; por omisión `-datestart` |
+| `GET /contratos/{id}` | Ficha; suma `content` (HTML del contrato, `null` si no hay) |
+| `POST /contratos` | Alta. Obligatorios `subject` (≤ 191), `client_id`, `datestart`. `201` con la ficha |
+| `PATCH /contratos/{id}` | Edición parcial; `null` borra un opcional. Devuelve la ficha |
+| `GET /contratos/tipos` | `[{id, name}]` de `tblcontracts_types` |
+| `GET /contratos/acceso` | Solo superadmin (`403`): `{areas: [{id, name}], admin: bool}` |
+| `PUT /contratos/acceso` | Solo superadmin: `area_ids` (int[], existentes) y/o `admin` (bool); devuelve lo mismo que el `GET` |
+
+Campos escribibles: `subject`, `client_id`, `contract_type_id`, `project_id` (tiene que ser del
+cliente; también se valida al cambiar solo el cliente), `datestart`, `dateend` (≥ `datestart`),
+`contract_value` (número ≥ 0, se redondea a 2 decimales), `description` (≤ 20.000), `signed` (marca
+a mano, `marked_as_signed`) y `visible_to_client`. Cualquier otra clave es `422 no_editable`.
+`content` y el borrado siguen en el panel.
+
+Una fila trae `id`, `subject`, `description`, `client_id`, `client {id, company, image_url}`,
+`contract_type {id, name} | null`, `project {id, name} | null`, `datestart`, `dateend`,
+`contract_value | null`, `signed`, `visible_to_client`, `trash`, `addedfrom {id, full_name} | null`
+y `dateadded`.
+
 ## Tiempo real
 
 `GET /config/realtime` → `{ "data": { "enabled": true, "key": "…", "cluster": "…" } }`

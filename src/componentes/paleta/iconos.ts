@@ -1,5 +1,5 @@
 import {
-  Building2, CalendarDays, ClipboardCheck, ClipboardList, Clock, Columns3, DoorOpen, FolderKanban, Gavel, House, Inbox, LifeBuoy,
+  Building2, CalendarDays, ClipboardCheck, ClipboardList, Clock, FileSignature, Columns3, DoorOpen, FolderKanban, Gavel, House, Inbox, LifeBuoy,
   ListChecks, Network, Radio, Repeat, ScrollText, SlidersHorizontal, Sparkles, Star, Target, Trash2, TrendingUp, User, UserRound,
   Users, UsersRound, Video, type LucideIcon
 } from 'lucide-react'
@@ -33,6 +33,7 @@ export const ICONOS_DE_SECCION: Record<IconoSeccion, LucideIcon> = {
   // mas: es lo que todavia no se gano.
   licitaciones: Gavel,
   upsells: TrendingUp,
+  contratos: FileSignature,
   salas: DoorOpen,
   // `Video` y no `DoorOpen`: Salas son las de la oficina y Teletrabajo las de la pantalla. Con dos
   // puertas, la barra diria que son lo mismo.

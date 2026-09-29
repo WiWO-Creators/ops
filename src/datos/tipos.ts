@@ -213,6 +213,12 @@ export interface Yo extends Staff {
    */
   es_focal?: boolean
   /**
+   * Si le corresponde la sección Contratos (WIW-0502): superadmin siempre, admin si el superadmin
+   * lo habilitó, y quien pertenece a un área elegida. Opcional porque una API vieja no lo manda; en
+   * ese caso la sección no se ofrece. La puerta real es el 404 de la API.
+   */
+  ve_contratos?: boolean
+  /**
    * Ruta del panel de mantenimiento, o ausente para casi todo el mundo.
    *
    * **La API la manda sólo a quien entra**, y manda la RUTA en vez de una bandera a propósito: con

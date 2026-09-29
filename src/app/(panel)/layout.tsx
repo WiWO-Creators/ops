@@ -246,6 +246,12 @@ function seccionesDe (yo: Yo): Seccion[] {
     secciones.push({ href: '/upsells', etiqueta: GLOSARIO.upsell.plural, icono: 'upsells', grupo: 'comercial' })
   }
 
+  // Contratos no depende de un permiso de Perfex: lo ven las areas que elige el superadmin, y los
+  // administradores solo si el superadmin lo habilita. La regla vive en la API y llega resuelta.
+  if (yo.ve_contratos === true) {
+    secciones.push({ href: '/contratos', etiqueta: GLOSARIO.contrato.plural, icono: 'contratos', grupo: 'comercial' })
+  }
+
   // Salas no tiene permiso de Perfex que consultar: no es una feature suya. Reservar una sala lo
   // puede hacer cualquiera del equipo, asi que la unica llave es la bandera de instalacion.
   if (yo.secciones_habilitadas.includes('salas')) {

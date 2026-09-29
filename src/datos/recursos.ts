@@ -611,6 +611,40 @@ export interface Upsell {
   espacio: EspacioDeLicitacion
 }
 
+/**
+ * Un contrato de Perfex (`tblcontracts`), tal como lo publica `GET /contratos` (WIW-0502).
+ *
+ * No filtra filas: quien entra a la seccion ve todos. `content` (el HTML del contrato) solo viene
+ * en la ficha, `GET /contratos/{id}`.
+ */
+export interface Contrato {
+  id: number
+  subject: string
+  /** El alcance en texto libre. */
+  description: string | null
+  client_id: number
+  client: { id: number, company: string, image_url: string | null } | null
+  contract_type: { id: number, name: string } | null
+  project: { id: number, name: string } | null
+  datestart: string | null
+  dateend: string | null
+  /** `null` es "sin monto cargado", que no es lo mismo que 0. */
+  contract_value: number | null
+  /** Firmado en linea por el cliente o marcado a mano como firmado. */
+  signed: boolean
+  visible_to_client: boolean
+  trash: boolean
+  addedfrom: { id: number, full_name: string } | null
+  dateadded: string | null
+  content?: string | null
+}
+
+/** Quien ve la seccion Contratos, fuera del superadmin (`GET|PUT /contratos/acceso`). */
+export interface AccesoContratos {
+  areas: Array<{ id: number, name: string }>
+  admin: boolean
+}
+
 /** Lo que devuelve `GET /upsells/{id}`: igual, pero con la ficha completa del Espacio. */
 export interface UpsellDetalle extends Upsell {
   espacio: Espacio
