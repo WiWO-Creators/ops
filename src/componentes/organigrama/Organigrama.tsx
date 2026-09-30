@@ -18,7 +18,7 @@ import { AgregarAlArea } from './AgregarAlArea'
 import { ArbolDelArea } from './ArbolDelArea'
 import { ListaDePersonas } from './ListaDePersonas'
 import { MapaDeAreas } from './MapaDeAreas'
-import { PanelDePersona } from './PanelDePersona'
+import { PanelDePersona } from '@/componentes/organizacion/PanelDePersona'
 import { TareasDelArea } from './TareasDelArea'
 import { Boton } from '@/componentes/formularios/Boton'
 import { Segmentado } from '@/componentes/formularios/Segmentado'
@@ -247,6 +247,24 @@ export function Organigrama (
   }, [datos, alCambiar])
 
   /**
+   * Lo que sigue a un guardado del panel de persona: el panel ya escribió y avisó; acá se vuelve a
+   * pedir el organigrama, por lo mismo que en `cambiar`, y se cierra el panel.
+   */
+  const trasGuardarPanel = useCallback(async (): Promise<void> => {
+    setElegida(null)
+
+    try {
+      const sobre = await pedirSobre<DatosDeOrganigrama>('organigrama', AbortSignal.timeout(15000))
+
+      if (vigente.current) setDatos(sobre.data)
+    } catch {
+      // La escritura ya entró: el árbol queda como estaba hasta la próxima lectura.
+    }
+
+    if (vigente.current) alCambiar?.()
+  }, [alCambiar])
+
+  /**
    * Mueve varias personas a un área de una sola vez.
    *
    * Las peticiones van **en serie y no en paralelo**: la API escribe una persona por petición, y
@@ -425,17 +443,19 @@ export function Organigrama (
 
       {persona !== undefined && panelDePersona === undefined && (
         <PanelDePersona
-          // Cambiar de persona reinicia el formulario por el remonte, sin un efecto que copie tres
+          // Cambiar de persona reinicia el formulario por el remonte, sin un efecto que copie los
           // campos del estado guardado al estado del panel.
           key={persona.staffid}
-          persona={persona}
-          personas={datos.personas}
-          areas={areas}
-          editable={puedeEditar}
-          guardando={guardando}
-          error={error}
-          onCerrar={() => { setElegida(null); setError(null) }}
-          onGuardar={(cambio) => { void cambiar(persona.staffid, cambio) }}
+          fuente={{
+            tipo: 'organigrama',
+            persona,
+            personas: datos.personas,
+            areas,
+            editable: puedeEditar,
+            actorId: datos.yo.staffid
+          }}
+          onCerrar={() => { setElegida(null) }}
+          onGuardado={() => { void trasGuardarPanel() }}
         />
       )}
     </div>

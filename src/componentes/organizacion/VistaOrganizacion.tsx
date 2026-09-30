@@ -137,7 +137,13 @@ export function VistaOrganizacion ({ catalogo: catalogoInicial, organigrama: org
 
               return una === undefined
                 ? null
-                : <PanelDePersona persona={una} catalogo={catalogo} personas={personas ?? []} actorId={actorId} onCerrar={cerrar} onGuardado={recargar} />
+                : (
+                  <PanelDePersona
+                    fuente={{ tipo: 'organizacion', persona: una, catalogo, personas: personas ?? [], actorId }}
+                    onCerrar={cerrar}
+                    onGuardado={recargar}
+                  />
+                  )
             },
             accionDelMapa: (
               <Boton variante="secundario" tamano="chico" onClick={() => { setEditandoArea({ area: null }) }}>
@@ -227,10 +233,7 @@ export function VistaOrganizacion ({ catalogo: catalogoInicial, organigrama: org
 
       {persona !== undefined && (
         <PanelDePersona
-          persona={persona}
-          catalogo={catalogo}
-          personas={personas ?? []}
-          actorId={actorId}
+          fuente={{ tipo: 'organizacion', persona, catalogo, personas: personas ?? [], actorId }}
           onCerrar={() => { setElegida(null) }}
           onGuardado={recargar}
         />

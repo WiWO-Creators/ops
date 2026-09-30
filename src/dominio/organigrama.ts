@@ -265,7 +265,7 @@ export function cuantosSinArea (organigrama: Organigrama): number {
  * @param id el área de la persona, o `null`
  * @returns el nombre para pintar
  */
-export function nombreDeArea (areas: AreaDelOrganigrama[], id: number | null): string {
+export function nombreDeArea (areas: Array<Pick<AreaDelOrganigrama, 'id' | 'nombre'>>, id: number | null): string {
   if (id === null) return 'Sin área'
 
   return areas.find((una) => una.id === id)?.nombre ?? `Área #${id}`
