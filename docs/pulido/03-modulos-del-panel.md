@@ -59,19 +59,19 @@ Auditoría exhaustiva de consistencia de interfaz, refinamiento visual, deuda t�
 - **Propuesta**: Unificar las cabeceras de detalle mediante `TituloModulo` (con soporte para entidad, avatar/icono e insignias adyacentes) o extraer un componente estándar `CabeceraEntidad` que garantice la firma de marca en todas las fichas.
 - **Prioridad**: Alta · **Esfuerzo**: M
 
-### P3-02 Divergencia en botón y formato de retorno a listado anterior
+### P3-02 Divergencia en botón y formato de retorno a listado anterior (resuelto en 1a36758)
 - **Dónde**: `src/componentes/contrato/FichaContrato.tsx:58`, `src/componentes/cliente/CabeceraCliente.tsx:25`, `src/app/(panel)/prospectos/[id]/page.tsx:156`, `src/componentes/equipo/CabeceraPersona.tsx:26`, `src/app/(panel)/administracion/incidentes/[incidente]/page.tsx:48`
 - **Qué pasa**: Contratos implementa un enlace accesible con el icono SVG de Lucide `<ArrowLeft className="size-4" />` y estilos `text-texto-tenue hover:text-acento`. Las demás fichas de detalle usan un caracter unicode plano `←` con clases dispares (`text-texto-sutil hover:text-texto text-xs` en clientes/equipo vs `text-texto-tenue hover:text-texto text-sm` en incidentes).
 - **Propuesta**: Reemplazar las flechas de texto plano por un componente de enlace canónico `<BotonVolver href="..." etiqueta="..." />` basado en Lucide `ArrowLeft` y tokens de color semánticos.
 - **Prioridad**: Media · **Esfuerzo**: S
 
-### P3-03 Asimetría en botón de fijar (`BotonFijar`) en detalles de entidad
+### P3-03 Asimetría en botón de fijar (`BotonFijar`) en detalles de entidad (descartado: la API de fijados solo admite `project` y `client`, y ambos ya tienen `BotonFijar`)
 - **Dónde**: `src/app/(panel)/clientes/[id]/page.tsx:233`, `src/app/(panel)/prospectos/[id]/page.tsx:168`, `src/app/(panel)/licitaciones/[id]/page.tsx:143`, `src/app/(panel)/upsells/[id]/page.tsx:127`, `src/componentes/contrato/FichaContrato.tsx:66`
 - **Qué pasa**: El detalle de Cliente incluye `BotonFijar` para anclarlo en la sección "Fijados y recientes" del Inicio. Las demás entidades principales (prospectos, licitaciones, upsells, contratos y personas del equipo) carecen de este botón en su cabecera, pese a que el almacén de fijados y la barra rápida soportan estos tipos.
 - **Propuesta**: Incorporar `BotonFijar` en las cabeceras de Licitación, Upsell, Prospecto y Contrato junto a la botonera de acciones.
 - **Prioridad**: Media · **Esfuerzo**: M
 
-### P3-04 Discrepancia en botones de acción y menú ⋯ en cabeceras de entidad
+### P3-04 Discrepancia en botones de acción y menú ⋯ en cabeceras de entidad (resuelto en 1a36758; contrato no tiene borrado en el panel y queda solo con Editar)
 - **Dónde**: `src/componentes/cliente/AccionesCliente.tsx:56`, `src/componentes/prospecto/AccionesProspecto.tsx:49`, `src/componentes/contrato/FichaContrato.tsx:66`, `src/componentes/licitacion/AccionesLicitacion.tsx:48`
 - **Qué pasa**: Cliente ofrece botón secundario "Editar" junto al menú ⋯ con `BajaYBorrado`. Prospecto expone en fila abierta un botón rojo destructivo "Borrar" junto al de editar, sin menú contextual. Contrato solo expone "Editar" sin menú ni borrado. Licitaciones y Upsells muestran botones de flujo comercial en línea.
 - **Propuesta**: Homogeneizar las cabeceras de detalle con el patrón canónico: acción principal en botón destacado, acciones secundarias o destructivas agrupadas en el menú contextual ⋯ (`MenuAccionesFila` o `MenuContextual`).
@@ -99,7 +99,7 @@ Auditoría exhaustiva de consistencia de interfaz, refinamiento visual, deuda t�
 - **Propuesta**: Promover `src/componentes/organizacion/SelectorDePersona.tsx` a `src/componentes/formularios/SelectorPersona.tsx` como componente base del sistema para asignación individual con búsqueda integrada.
 - **Prioridad**: Media · **Esfuerzo**: M
 
-### P3-08 Diálogos de eliminación y borrado divergentes
+### P3-08 Diálogos de eliminación y borrado divergentes (resuelto en 1a36758; la fila del listado de Equipo conserva BajaYBorrado en botones)
 - **Dónde**: `src/componentes/prospecto/AccionesProspecto.tsx:93`, `src/componentes/cliente/AccionesCliente.tsx:60`, `src/componentes/datos/MenuAccionesFila.tsx:22`
 - **Qué pasa**: Se utilizan tres primitivas diferentes para confirmar la eliminación de un registro: `DialogoBorrar` ad-hoc en prospectos, `BajaYBorrado` en clientes y `ConfirmarBorrado` dentro de `MenuAccionesFila`. Cada una maneja textos, alertas de cascada e inputs de confirmación de manera desigual.
 - **Propuesta**: Estandarizar todas las confirmaciones destructivas sobre la primitiva canónica `ConfirmarBorrado` (`src/componentes/datos/ConfirmarBorrado.tsx`).
@@ -190,7 +190,7 @@ Auditoría exhaustiva de consistencia de interfaz, refinamiento visual, deuda t�
 - **Propuesta**: Incorporar la barra de marca animada `<span aria-hidden="true" className="bg-gradiente-marca h-1 w-16 shrink-0 rounded-full" />` dentro de los encabezados de `CabeceraCliente`, `CabeceraPersona`, `CabeceraProyecto` e incidentes.
 - **Prioridad**: Alta · **Esfuerzo**: M
 
-### P3-22 Desfase de animación de entrada en Contratos por posición del botón de retorno
+### P3-22 Desfase de animación de entrada en Contratos por posición del botón de retorno (resuelto en 1a36758)
 - **Dónde**: `src/componentes/contrato/FichaContrato.tsx:58`
 - **Qué pasa**: Dentro de `<section className="flex flex-col gap-6">`, el primer hijo es `<Link href="/contratos">...`. Al no ser un `<header>` ni tener `h1`, la regla `.entrada-pagina > section > :nth-child(-n+4)` lo trata como el primer bloque de contenido y le aplica `entrada-contenido` (580ms, 80ms delay), desplazándolo de forma extraña respecto al título que se encuentra debajo.
 - **Propuesta**: Integrar el enlace de retorno dentro del `header` o colocarlo en la prop `acciones` / contenedor superior para no desfasar la cascada `:nth-child`.

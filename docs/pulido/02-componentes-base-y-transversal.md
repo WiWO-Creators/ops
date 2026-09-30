@@ -23,13 +23,13 @@ Todas las rutas son relativas a `ops-v2/`.
 - **Propuesta**: Que `Tabla.tsx` adopte `EntradaEscalonada` (filas con `data-entrada="item"`) y `TablaRecurso` deje su retraso propio, para que toda tabla entre igual.
 - **Prioridad**: Media · **Esfuerzo**: M
 
-### P2-03 Desplegables de filtrado manual con `<select>` nativo junto a selectores Radix
+### P2-03 Desplegables de filtrado manual con `<select>` nativo junto a selectores Radix (resuelto en 1a36758)
 - **Dónde**: `src/componentes/datos/ControlesTabla.tsx:590-620` (`FiltroCampo`)
 - **Qué pasa**: Mientras los filtros de selección masiva y menús usan Radix UI estilizado con tokens neo, el componente `FiltroCampo` recurre a la etiqueta `<select>` nativa de HTML con estilos parciales. Rompe la uniformidad tipográfica, el redondeo de esquina y carece de coreografía de apertura/cierre.
 - **Propuesta**: Migrar `FiltroCampo` a `Selector` (`@/componentes/formularios/Selector.tsx`), reutilizando `DisparadorSelector` y `ContenidoSelector`.
 - **Prioridad**: Media · **Esfuerzo**: S
 
-### P2-04 Variantes de avatar con cálculos ad-hoc y clases de texto arbitrarias
+### P2-04 Variantes de avatar con cálculos ad-hoc y clases de texto arbitrarias (resuelto en 1a36758)
 - **Dónde**: `src/componentes/presentadores/Avatar.tsx:8-14, 57-65` vs. `src/componentes/presentadores/ImagenEntidad.tsx:48-60`
 - **Qué pasa**: `Avatar.tsx` define una escala interna con tamaños arbitrarios (`size-5`, `size-7`, `size-9`, `text-[0.6875rem]`, `text-[0.8125rem]`), mientras que `ImagenEntidad` utiliza `tamano="chico" | "medio" | "grande"` y resuelve un cuadrado con iniciales o logo de cliente con diferente espaciado y tipografía.
 - **Propuesta**: Unificar `Avatar` e `ImagenEntidad` bajo un mismo contrato de diseño (`tamano="chico" | "medio" | "grande"` o escala basada en variables de sistema `--step-*`), compartiendo la resolución de iniciales y fallback visual.
@@ -110,7 +110,7 @@ Todas las rutas son relativas a `ops-v2/`.
 - **Propuesta**: Utilizar tipos discriminados en TypeScript: si `soloIcono: true`, requerir obligatoriamente `aria-label: string`.
 - **Prioridad**: Alta · **Esfuerzo**: S
 
-### P2-14 Paginación manual fragmentada fuera de `TablaRecurso`
+### P2-14 Paginación manual fragmentada fuera de `TablaRecurso` (resuelto en 1a36758)
 - **Dónde**: `src/componentes/datos/PaginacionTabla.tsx` frente a `src/app/(panel)/papelera/page.tsx:295-320` y `src/componentes/proyecto/PanelArchivos.tsx`
 - **Qué pasa**: `PaginacionTabla` está fuertemente acoplada a parámetros URL (`?pagina=`), por lo que vistas con paginación local en memoria o con listas independientes reimplementan botones "Anterior / Siguiente" con estilos y espaciados artesanales.
 - **Propuesta**: Desacoplar `PaginacionTabla` en dos variantes: una conectada a URL (`PaginacionUrl`) y una controlada pura (`PaginacionControlada` con `pagina`, `totalPaginas`, `onChange`).
