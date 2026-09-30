@@ -57,6 +57,9 @@ import {
 import { formatearFecha } from '@/lib/fechas'
 import { enFormatoTitulo } from '@/lib/titulo'
 import { AsistenteDescripcion } from './AsistenteDescripcion'
+import { AdjuntosDeAlta } from './AdjuntosDeAlta'
+import { subirAdjuntosATarea } from '@/componentes/archivos/subir-adjuntos-tarea'
+import { mensajeDeAdjuntosFallidos } from '@/dominio/adjuntos-alta'
 import { SelectorEspacios } from './SelectorEspacios'
 import { useVencimientoRequerido } from './useVencimientoRequerido'
 import { VistaPreviaAlta, type MarcaPrevia } from './VistaPreviaAlta'
@@ -287,6 +290,8 @@ export function AltaRapidaProceso ({
   const [vencimiento, setVencimiento] = useState('')
   const [etiquetasEscritas, setEtiquetasEscritas] = useState<string[]>([])
   const [descripcion, setDescripcion] = useState('')
+  /** Archivos elegidos junto a la descripcion: se suben a la carpeta de Drive cuando la tarea ya existe. */
+  const [adjuntos, setAdjuntos] = useState<File[]>([])
   /**
    * El error de la descripcion va aparte del `error` del formulario.
    *
@@ -513,6 +518,7 @@ export function AltaRapidaProceso ({
     setVencimiento('')
     setEtiquetasEscritas([])
     setDescripcion('')
+    setAdjuntos([])
     setHorasEstimadas('')
     setFacturable(true)
     setTipo(NINGUNO)
@@ -701,6 +707,23 @@ export function AltaRapidaProceso ({
     return guardados.ok ? null : guardados.mensaje
   }
 
+  /**
+   * Sube los archivos elegidos a la carpeta de Drive de una tarea recién creada.
+   *
+   * Vacía la selección aunque algo falle: la tarea ya existe y reintentar el alta no debe volver a
+   * subir lo que sí quedó. Lo que no subió se reporta con su motivo para resubirlo desde la tarea.
+   *
+   * @param id id de la tarea creada
+   * @returns `null` si subió todo o no había nada; el mensaje del fallo si no.
+   */
+  async function guardarAdjuntos (id: number): Promise<string | null> {
+    const { fallidos } = await subirAdjuntosATarea(id, adjuntos)
+
+    setAdjuntos([])
+
+    return mensajeDeAdjuntosFallidos(`#${id}`, fallidos)
+  }
+
   /** Cierra el diálogo como en un alta que salió bien. */
   function cerrarTrasCrear (): void {
     limpiar()
@@ -736,6 +759,11 @@ export function AltaRapidaProceso ({
       const falloDeCampos = await guardarPersonalizados(id)
       if (falloDeCampos !== null) {
         setError(`La tarea #${id} ya está creada. Reintenta guardar sus campos personalizados: ${falloDeCampos}`)
+        return
+      }
+      const falloDeAdjuntos = await guardarAdjuntos(id)
+      if (falloDeAdjuntos !== null) {
+        setError(`${falloDeAdjuntos}. Súbelos desde la pestaña Archivos de la tarea; pulsa Crear de nuevo para cerrar.`)
         return
       }
       cerrarTrasCrear()
@@ -790,16 +818,21 @@ export function AltaRapidaProceso ({
 
       for (const creado of parte.creados) {
         const falloDeCampos = await guardarPersonalizados(creado.task_id)
+        const { fallidos } = await subirAdjuntosATarea(creado.task_id, adjuntos)
+        const falloDeAdjuntos = mensajeDeAdjuntosFallidos(`#${creado.task_id}`, fallidos)
 
         hechos.push({
           espacioId: creado.espacio_id,
           nombre: nombreDeEspacio(creado.espacio_id),
-          detalle: falloDeCampos === null
-            ? `Tarea #${creado.task_id} creada.`
-            : `Tarea #${creado.task_id} creada, pero sus campos personalizados no se guardaron: ${falloDeCampos}`,
-          ok: falloDeCampos === null
+          detalle: falloDeCampos !== null
+            ? `Tarea #${creado.task_id} creada, pero sus campos personalizados no se guardaron: ${falloDeCampos}`
+            : falloDeAdjuntos ?? `Tarea #${creado.task_id} creada.`,
+          ok: falloDeCampos === null && falloDeAdjuntos === null
         })
       }
+
+      // Ya se subieron a cada tarea creada: si queda algo por reintentar, no se vuelven a mandar.
+      if (parte.creados.length > 0) setAdjuntos([])
 
       for (const fallido of parte.fallidos) {
         hechos.push({
@@ -1252,6 +1285,13 @@ export function AltaRapidaProceso ({
                       />
                     )}
                   </Campo>
+
+                  <AdjuntosDeAlta
+                    archivos={adjuntos}
+                    onCambiar={setAdjuntos}
+                    onRechazados={(motivos) => { setError(motivos.length === 0 ? null : motivos.join(' · ')) }}
+                    deshabilitado={enCurso}
+                  />
 
                   {/* Con la capa de IA apagada el asistente no existe y el campo se escribe a mano.
                       `conIa` evita hasta la sonda; el propio componente se oculta igual si la API
