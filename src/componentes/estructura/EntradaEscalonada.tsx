@@ -61,6 +61,20 @@ function marcados (raiz: HTMLElement, valor: 'cabecera' | 'item'): HTMLElement[]
 }
 
 /**
+ * Quita lo que la animacion deja escrito en linea. Un `transform` residual, aunque sea nulo, convierte
+ * a cada fila en bloque contenedor de lo `fixed` que lleve adentro; terminada la entrada, el
+ * elemento vuelve a ser exactamente lo que dice su marcado.
+ *
+ * @param elementos los animados
+ */
+function limpiar (elementos: HTMLElement[]): void {
+  for (const elemento of elementos) {
+    elemento.style.removeProperty('opacity')
+    elemento.style.removeProperty('transform')
+  }
+}
+
+/**
  * Envoltorio cliente, minimo, para hacer entrar una lista en dos tiempos: la cabecera primero y
  * despues los items, escalonados. Es el unico mecanismo de entrada escalonada del panel.
  *
@@ -93,7 +107,13 @@ export function EntradaEscalonada ({
     const items = marcados(raiz, 'item')
 
     if (cabecera.length > 0) {
-      animate(cabecera, { opacity: [0, 1], translateY: [-8, 0], duration: 320, ease: 'outQuad' })
+      animate(cabecera, {
+        opacity: [0, 1],
+        translateY: [-8, 0],
+        duration: 320,
+        ease: 'outQuad',
+        onComplete: () => { limpiar(cabecera) }
+      })
     }
 
     if (items.length > 0) {
@@ -105,7 +125,8 @@ export function EntradaEscalonada ({
         translateY: [10, 0],
         duration: 360,
         ease: 'outQuad',
-        delay: (_elemento?: unknown, indice = 0) => inicio + Math.min(indice, TOPE_ESCALONADO) * paso
+        delay: (_elemento?: unknown, indice = 0) => inicio + Math.min(indice, TOPE_ESCALONADO) * paso,
+        onComplete: () => { limpiar(items) }
       })
     }
   }, [trasEntradaDePagina, clave, densa])
