@@ -44,7 +44,7 @@ Solo hallazgos verificados en el código de `ops-v2`; no se modificó ningún ar
 - **Propuesta**: Estandarizar el encabezado de las tarjetas de autenticación usando la misma escala tipográfica (`text-2xl font-bold` o `text-3xl font-extrabold`) y el mismo margen inferior (`mb-6`) en los tres formularios.
 - **Prioridad**: Media · **Esfuerzo**: S
 
-### P4-03 Feedback desigual tras acciones en el portal: aprobaciones sin toast vs soporte con toast
+### P4-03 Feedback desigual tras acciones en el portal: aprobaciones sin toast vs soporte con toast (resuelto en 47e25a9)
 - **Dónde**: `src/app/portal/(dentro)/proyectos/[id]/AprobacionesPendientes.tsx:116-119` frente a `src/app/portal/(dentro)/soporte/NuevaSolicitud.tsx:112`
 - **Qué pasa**: En `NuevaSolicitud.tsx`, al crearse o detectarse un ticket repetido se informa adecuadamente al cliente con `useAviso.advertencia()` o con un modal de confirmación. Por el contrario, en `AprobacionesPendientes.tsx`, cuando el cliente aprueba o rechaza una tarea crítica de su proyecto, la mutación se envía con `escribirEnBff`, cierra el diálogo de rechazo y ejecuta `router.refresh()` sin emitir ningún toast de confirmación (`useAviso.exito()`). El único feedback visual es el cambio sutil de estado en la fila tras el refresco.
 - **Propuesta**: Incorporar `useAviso().exito('Visto bueno registrado para la tarea.')` y `useAviso().exito('Observación enviada al equipo.')` en `AprobacionesPendientes.tsx` tras resolver la llamada con la API.

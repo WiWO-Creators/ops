@@ -93,7 +93,7 @@ Auditoría exhaustiva de consistencia de interfaz, refinamiento visual, deuda t�
 - **Propuesta**: Extraer un componente genérico `MatrizAsignacion<T>` o hook `useAsignacionRelacion` que encapsule la carga, selección múltiple, confirmación por toast y manejo de errores.
 - **Prioridad**: Alta · **Esfuerzo**: L
 
-### P3-07 Selectores de persona buscables reimplementados ad-hoc
+### P3-07 Selectores de persona buscables reimplementados ad-hoc (resuelto en 47e25a9)
 - **Dónde**: `src/componentes/organizacion/SelectorDePersona.tsx:44`, `src/componentes/tickets/MenuAsignadoTicket.tsx:32`, `src/componentes/organigrama/AgregarAlArea.tsx:140`
 - **Qué pasa**: Tres módulos distintos construyen un selector de personas sobre `MenuContextual` y `BuscadorMenu`. Cada uno implementa su propio filtrado por texto e incluso `MenuAsignadoTicket` importa la función `filtrarPersonas` desde `@/dominio/salas`, acoplando tickets con teletrabajo.
 - **Propuesta**: Promover `src/componentes/organizacion/SelectorDePersona.tsx` a `src/componentes/formularios/SelectorPersona.tsx` como componente base del sistema para asignación individual con búsqueda integrada.
@@ -161,7 +161,7 @@ Auditoría exhaustiva de consistencia de interfaz, refinamiento visual, deuda t�
 - **Propuesta**: Reemplazar `"Borrar"` por `"Eliminar"` en `AccionesProspecto.tsx` para mantener coherencia léxica.
 - **Prioridad**: Baja · **Esfuerzo**: S
 
-### P3-18 Omisión generalizada de feedback de éxito (`useAviso`) tras mutaciones
+### P3-18 Omisión generalizada de feedback de éxito (`useAviso`) tras mutaciones (resuelto en 47e25a9)
 - **Dónde**: `src/componentes/equipo/DialogoRolSistema.tsx:112`, `src/componentes/licitacion/PresentacionLicitacion.tsx:75`, `src/app/(panel)/salas/DialogoReserva.tsx:110`, `src/componentes/equipo/ExportarTareasSheets.tsx:48`
 - **Qué pasa**: Al ejecutar mutaciones en estos componentes (cambiar un rol de sistema a un usuario, fijar la URL de una licitación o reservar una sala), el modal simplemente se cierra o ejecuta `router.refresh()`. No se invoca `aviso.exito('...')` de `useAviso`, dejando al usuario sin confirmación perceptible.
 - **Propuesta**: Incorporar `useAviso().exito('...')` al resolver satisfactoriamente cada mutación antes de cerrar los diálogos.
@@ -224,7 +224,7 @@ Auditoría exhaustiva de consistencia de interfaz, refinamiento visual, deuda t�
 - **Propuesta**: Crear archivos `loading.tsx` específicos en cada subdirectorio `[id]` que rendericen un esqueleto de cabecera con avatar, badges y pestañas con `Hueso`.
 - **Prioridad**: Alta · **Esfuerzo**: M
 
-### P3-27 Acoplamiento de dominios en filtros de tickets (`filtrarPersonas` desde salas)
+### P3-27 Acoplamiento de dominios en filtros de tickets (`filtrarPersonas` desde salas) (resuelto en 47e25a9)
 - **Dónde**: `src/componentes/tickets/MenuAsignadoTicket.tsx:15`
 - **Qué pasa**: Para filtrar el desplegable de asignación de tickets se importa `filtrarPersonas` desde `@/dominio/salas`, generando un acoplamiento indebido entre el dominio de mesa de ayuda y el de videoconferencias y salas físicas.
 - **Propuesta**: Trasladar la utilidad de filtrado de personal a `@/dominio/personal.ts` o `@/lib/busqueda.ts` y consumirla desde ambos módulos.

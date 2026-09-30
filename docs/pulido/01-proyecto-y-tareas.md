@@ -43,7 +43,7 @@ Las rutas son relativas a `ops-v2/`.
 - **Propuesta**: Unificar en "Completadas" (derivado de `GLOSARIO.proceso`) dentro del componente compartido de P1-12.
 - **Prioridad**: Media · **Esfuerzo**: S
 
-### P1-05 Feedback de éxito desigual tras guardar
+### P1-05 Feedback de éxito desigual tras guardar (parcial en 47e25a9: falta DetalleActa y TareasPropuestas, que se parten en 4B)
 - **Dónde**: con toast: `AccionesFila.tsx:64,83`, `PantallaPlantillas.tsx:132`, `PanelTiempos.tsx:272`, `ImportarTareas.tsx:304`; sin toast: `EdicionTarea.tsx:431`, `recurrencia/VistaRecurrentes.tsx:506,577`, `recurrencia/EditorDeRegla.tsx`, `ListaChecklist.tsx`, `DuplicarTarea.tsx`, `DialogoCopiarProyecto.tsx` (todos en `src/componentes/proyecto/` salvo indicación)
 - **Qué pasa**: 44 archivos del frente escriben con `escribirEnBff` y solo 9 de ellos usan `useAviso`. Guardar una Tarea, pausar una regla o duplicar cierra el diálogo en silencio, mientras borrar un archivo o una plantilla sí confirma. Los textos también varían: «nombre» con comillas latinas en unos, "nombre" rectas en `ImportarTareas.tsx:304`, y genéricos "Guardado correctamente." / "Eliminado correctamente." en `AccionesFila.tsx`.
 - **Propuesta**: Regla: toda mutación que cierra una superposición confirma con `useAviso().exito()` nombrando la entidad con «». Revisar la lista de archivos sin toast y alinear los genéricos de `AccionesFila`.

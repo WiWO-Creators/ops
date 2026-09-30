@@ -51,7 +51,7 @@ Todas las rutas son relativas a `ops-v2/`.
 - **Propuesta**: No purgar a ciegas. Solo confirmar si el estado `retry` tiene emisor; si no, borrar su bloque. El resto es el orbe portado de Neo y está vivo.
 - **Prioridad**: Baja · **Esfuerzo**: S
 
-### P2-07 Multiplicidad de selectores relacionales divergentes sobre Menú Contextual
+### P2-07 Multiplicidad de selectores relacionales divergentes sobre Menú Contextual (resuelto en 47e25a9)
 - **Dónde**: `src/componentes/formularios/SelectorEtiquetas.tsx`, `src/componentes/formularios/SelectorPersonas.tsx`, `src/componentes/formularios/SelectorClientes.tsx`, `src/componentes/formularios/SelectorEspacios.tsx`, `src/componentes/formularios/SelectorDePersona.tsx`
 - **Qué pasa**: Existen 5 componentes separados que reimplementan de forma casi idéntica: caja de búsqueda con filtro en cliente, scroll interno con altura fija, lista de elementos seleccionables con tick/checkbox y disparador con `Boton`. Cada uno maneja su propio estado de apertura y filtrado.
 - **Propuesta**: Extraer una primitiva transversal `SelectorBuscableMultiple<T>` o `SelectorRelacion<T>` en `src/componentes/formularios/`, documentada como tal en el sistema de diseño, dejando a los selectores concretos como simples configuraciones de adaptador.
@@ -73,7 +73,7 @@ Todas las rutas son relativas a `ops-v2/`.
 
 ## Sin terminar
 
-### P2-10 Componentes canónicos prometidos en el Sistema de Diseño que no existen en el código
+### P2-10 Componentes canónicos prometidos en el Sistema de Diseño que no existen en el código (resuelto en 47e25a9)
 - **Dónde**: `docs/sistema-de-diseno.md` (§ Inventario de componentes: `Tooltip`, `Casilla`, `AreaTexto`, `Dinero`, `Progreso`, `PanelDetalle`)
 - **Qué pasa**: La documentación del sistema de diseño lista componentes base que no están exportados como módulos independientes:
   - `Tooltip`: no existe como componente de superposición (se usa el atributo nativo `title` o hacks con `group-hover`).
