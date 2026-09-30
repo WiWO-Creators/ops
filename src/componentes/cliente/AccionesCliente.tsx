@@ -68,6 +68,7 @@ export function AccionesCliente ({
         puedeEditar={puedeEditar}
         puedeBorrar={capacidades.includes('delete')}
         tamano="chico"
+        enMenu
         advertencia={
           `${cliente.company} va a la papelera con sus proyectos y sus tareas, y deja de verse en ` +
           'todas partes. Se puede restaurar entero desde la Papelera durante 30 días.'

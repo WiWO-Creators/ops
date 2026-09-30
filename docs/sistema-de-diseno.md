@@ -267,10 +267,10 @@ Lo que existe hoy en `src/componentes/` (carpeta entre paréntesis cuando no es 
 
 | Grupo | Componentes |
 |---|---|
-| **Estructura** | BarraLateral, BarraInferiorMovil, TituloModulo (con `FirmaDeMarca` y `TituloDeFicha`), Tarjeta, Plegable, EntradaEscalonada (props `clave`, `densa`, `items`, `className`), TransicionDePagina, Muestra |
-| **Navegación** | PaletaDeComandos (⌘K, `paleta/`), Pestanas (`proyecto/`), SelectorEspacio (`live/`), PaginacionTabla (en `ControlesTabla`) |
-| **Datos** | Tabla (prop `entrada`), TablaRecurso, Tablero, VistaCalendario, ControlesTabla, MenuAccionesFila, ConfirmarBorrado, ConfirmacionEnLinea, BajaYBorrado, TotalDelListado, BotonFiltroEnUrl (interruptor de filtro en la URL: `BotonCompletados`, `BotonCompletadas`, `BotonCreadas`) |
-| **Presentadores** | Insignia, InsigniaDePrioridad, Avatar, GrupoAvatares, Etiquetas, Fecha, BarraProgreso, EstadoSla, Hito, EnlaceProyecto / EnlaceCliente / EnlacePersona, ImagenEntidad, Seccion y Filas (`Ficha`), CodigoCopiable, TarjetaFlotantePersona |
+| **Estructura** | BarraLateral, BarraInferiorMovil, TituloModulo (con `FirmaDeMarca` y `TituloDeFicha`), BotonVolver (regreso al listado desde la cabecera de una ficha), Tarjeta, Plegable, EntradaEscalonada (props `clave`, `densa`, `items`, `className`), TransicionDePagina, Muestra |
+| **Navegación** | PaletaDeComandos (⌘K, `paleta/`), Pestanas (`proyecto/`), SelectorEspacio (`live/`), PaginacionTabla (modo controlado con `onCambiar` o modo enlaces con `enlaces` para páginas del servidor) |
+| **Datos** | Tabla (prop `entrada`), TablaRecurso, Tablero, VistaCalendario, ControlesTabla, MenuAccionesFila (también el ⋯ de la cabecera de una ficha, con las destructivas), ConfirmarBorrado, ConfirmacionEnLinea, BajaYBorrado (prop `enMenu` en fichas), TotalDelListado, BotonFiltroEnUrl (interruptor de filtro en la URL: `BotonCompletados`, `BotonCompletadas`, `BotonCreadas`) |
+| **Presentadores** | Insignia, InsigniaDePrioridad, Avatar y ImagenEntidad (misma escala `TAMANOS_IDENTIDAD`: `chico`, `medio`, `grande`, `ficha`, `destacada`), GrupoAvatares, Etiquetas, Fecha, BarraProgreso, EstadoSla, Hito, EnlaceProyecto / EnlaceCliente / EnlacePersona, Seccion y Filas (`Ficha`), CodigoCopiable, TarjetaFlotantePersona |
 | **Superposiciones** | Dialogo, Cajon, MenuContextual (con `BuscadorMenu` e `ItemMenuMarcable`), PanelVidrio |
 | **Estado** | Cargando, Vacio, ErrorEstado, SinPermiso, Hueso, EsqueletoFicha, AvisoEnLinea, Orbe, AvisosDeError + `useAviso`, LimiteDeError |
 | **Formularios** | Campo, Entrada, AreaTexto (en `Entrada`), Selector + SelectorBuscable, SelectorDePersona, SelectorBuscableMultiple (base de SelectorPersonas, SelectorClientes y SelectorEspacios de `proyecto/`), SelectorEtiquetas, Interruptor, Segmentado, Boton, CamposPersonalizados, MatrizAsignacion |
@@ -287,7 +287,7 @@ un primitivo cuando hay 3 o más usos reales hechos a mano) y no:
 - **PanelDetalle** y **Emergente**: el panel lateral es `Cajon`, y lo flotante es `MenuContextual` o
   `TarjetaFlotantePersona`.
 - **Migas**: no hay migas de pan; la ubicación la dan el título y la barra lateral.
-- **Paginacion** como primitivo aparte: vive en `PaginacionTabla`, junto a los controles de la tabla.
+- **Paginacion** como primitivo aparte: vive en `PaginacionTabla` (`datos/`), que cubre también las páginas del servidor con enlaces.
 - **SelectorFecha** y **Adjuntos**: las fechas usan el `<input type="date">` nativo con `Entrada`, y los
   adjuntos son propios de cada módulo (`PanelArchivos`, Drive).
 

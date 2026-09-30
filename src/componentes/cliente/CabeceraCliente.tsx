@@ -1,4 +1,4 @@
-import Link from 'next/link'
+import { BotonVolver } from '@/componentes/estructura/BotonVolver'
 import { FirmaDeMarca, TituloDeFicha } from '@/componentes/estructura/TituloModulo'
 import { Etiquetas } from '@/componentes/presentadores/Etiqueta'
 import { Fecha } from '@/componentes/presentadores/Fecha'
@@ -23,15 +23,10 @@ export function CabeceraCliente ({ cliente }: { cliente: Cliente }) {
 
   return (
     <header className="flex flex-col gap-3">
-      <Link
-        href="/clientes"
-        className="text-texto-sutil hover:text-texto w-fit text-xs font-medium transition-colors"
-      >
-        ← {GLOSARIO.cliente.plural}
-      </Link>
+      <BotonVolver href="/clientes" etiqueta={GLOSARIO.cliente.plural} />
 
       <div className="flex flex-wrap items-start gap-3">
-        <ImagenEntidad nombre={cliente.company} imagenPropia={cliente.image_url} tamano="grande" />
+        <ImagenEntidad nombre={cliente.company} imagenPropia={cliente.image_url} tamano="ficha" />
 
         <div className="flex min-w-0 flex-col gap-2">
           <div className="flex flex-wrap items-center gap-2">

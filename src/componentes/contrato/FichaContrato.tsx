@@ -1,10 +1,10 @@
 'use client'
 
-import Link from 'next/link'
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, Pencil } from 'lucide-react'
+import { Pencil } from 'lucide-react'
 import { Boton } from '@/componentes/formularios/Boton'
+import { BotonVolver } from '@/componentes/estructura/BotonVolver'
 import { TituloModulo } from '@/componentes/estructura/TituloModulo'
 import { FormularioRecurso } from '@/componentes/proyecto/FormularioRecurso'
 import type { OpcionCampo } from '@/componentes/proyecto/formulario'
@@ -53,20 +53,20 @@ export function FichaContrato ({ contrato, clientes, tipos }: PropsFichaContrato
 
   return (
     <section className="flex flex-col gap-6">
-      <Link href="/contratos" className="text-texto-tenue hover:text-acento inline-flex w-fit items-center gap-1 text-sm">
-        <ArrowLeft aria-hidden className="size-4" />
-        {GLOSARIO.contrato.plural}
-      </Link>
-
-      <TituloModulo
-        titulo={contrato.subject === '' ? `Contrato #${contrato.id}` : contrato.subject}
-        acciones={
-          <Boton tamano="chico" onClick={() => { setEditando(true) }}>
-            <Pencil aria-hidden className="size-4" />
-            Editar
-          </Boton>
-        }
-      />
+      {/* El regreso comparte bloque con el titulo: suelto seria el primer hijo de la seccion y la
+          entrada de pagina lo animaria como un grupo de contenido, desfasado del titulo. */}
+      <div className="flex flex-col gap-3">
+        <BotonVolver href="/contratos" etiqueta={GLOSARIO.contrato.plural} />
+        <TituloModulo
+          titulo={contrato.subject === '' ? `Contrato #${contrato.id}` : contrato.subject}
+          acciones={
+            <Boton variante="secundario" tamano="chico" onClick={() => { setEditando(true) }}>
+              <Pencil aria-hidden className="size-4" />
+              Editar
+            </Boton>
+          }
+        />
+      </div>
 
       {contrato.trash && (
         <p className="text-texto-tenue text-sm">Este contrato está en la papelera del panel: no aparece en el listado.</p>

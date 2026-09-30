@@ -1,4 +1,4 @@
-import Link from 'next/link'
+import { BotonVolver } from '@/componentes/estructura/BotonVolver'
 import { CodigoCopiable } from '@/componentes/presentadores/CodigoCopiable'
 import { Etiquetas } from '@/componentes/presentadores/Etiqueta'
 import { Fecha } from '@/componentes/presentadores/Fecha'
@@ -97,12 +97,7 @@ export function CabeceraProyecto ({
 
   return (
     <header className="border-linea bg-superficie-elevada rounded-tarjeta shadow-1 flex flex-col gap-4 border p-5">
-      <Link
-        href={volverA.href}
-        className="text-texto-tenue hover:text-texto w-fit text-xs font-medium transition-colors"
-      >
-        ← {volverA.etiqueta}
-      </Link>
+      <BotonVolver href={volverA.href} etiqueta={volverA.etiqueta} />
 
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="flex min-w-0 items-center gap-4">

@@ -7,6 +7,7 @@ import { useEffect, useState, type ReactElement } from 'react'
 import { idDeParametro, PARAMETRO_TAREA, urlConParametro } from '@/componentes/datos/tabla'
 import { Cargando, ErrorEstado, Vacio } from '@/componentes/estado/Estados'
 import { EntradaEscalonada } from '@/componentes/estructura/EntradaEscalonada'
+import { PaginacionTabla } from '@/componentes/datos/PaginacionTabla'
 import { Boton } from '@/componentes/formularios/Boton'
 import { Entrada } from '@/componentes/formularios/Entrada'
 import { GrupoAvatares } from '@/componentes/presentadores/Avatar'
@@ -188,21 +189,12 @@ export function PanelDiscusiones ({ proyectoId, fuente, capacidadesTareas }: Pro
             </EntradaEscalonada>
           )}
 
-          {paginacion !== undefined && paginacion.total_pages > 1 && (
-            <div className="border-linea-suave text-texto-tenue mt-auto flex items-center justify-between gap-2 border-t px-3 py-2 text-xs">
-              <span aria-live="polite" className="tabular-nums">
-                {(paginacion.page - 1) * paginacion.per_page + 1}-{Math.min(paginacion.page * paginacion.per_page, paginacion.total)} de {paginacion.total}
-              </span>
-              <span className="flex gap-1">
-                <Boton variante="sutil" tamano="chico" disabled={paginacion.page <= 1} onClick={() => { setPagina(paginacion.page - 1) }}>
-                  Anteriores
-                </Boton>
-                <Boton variante="sutil" tamano="chico" disabled={paginacion.page >= paginacion.total_pages} onClick={() => { setPagina(paginacion.page + 1) }}>
-                  Siguientes
-                </Boton>
-              </span>
-            </div>
-          )}
+          <PaginacionTabla
+            paginacion={paginacion}
+            conPorPagina={false}
+            onCambiar={({ pagina: destino }) => { if (destino !== undefined) setPagina(destino) }}
+            className="border-linea-suave mt-auto border-t px-3 py-2"
+          />
         </nav>
 
         {/* El hilo. En el telefono aparece solo con una conversacion elegida. */}

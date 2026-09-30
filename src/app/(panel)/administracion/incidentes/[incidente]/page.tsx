@@ -1,4 +1,4 @@
-import Link from 'next/link'
+import { BotonVolver } from '@/componentes/estructura/BotonVolver'
 import { ErrorEstado, SinPermiso, Vacio } from '@/componentes/estado/Estados'
 import { BloqueCopiable } from '@/componentes/presentadores/BloqueCopiable'
 import { CodigoCopiable } from '@/componentes/presentadores/CodigoCopiable'
@@ -46,12 +46,7 @@ function NoEncontrado () {
 
 function VolverAlListado () {
   return (
-    <Link
-      href="/administracion/incidentes"
-      className="text-texto-tenue hover:text-texto w-fit text-sm transition-colors"
-    >
-      ← Volver a incidentes
-    </Link>
+    <BotonVolver href="/administracion/incidentes" etiqueta="Volver a incidentes" />
   )
 }
 

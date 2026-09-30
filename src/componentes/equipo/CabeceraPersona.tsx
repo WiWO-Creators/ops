@@ -1,4 +1,4 @@
-import Link from 'next/link'
+import { BotonVolver } from '@/componentes/estructura/BotonVolver'
 import { FirmaDeMarca, TituloDeFicha } from '@/componentes/estructura/TituloModulo'
 import { Avatar } from '@/componentes/presentadores/Avatar'
 import { Fecha } from '@/componentes/presentadores/Fecha'
@@ -23,15 +23,10 @@ import type { FichaPersona } from '@/datos/recursos'
 export function CabeceraPersona ({ persona }: { persona: FichaPersona }) {
   return (
     <header className="flex flex-col gap-3">
-      <Link
-        href="/equipo"
-        className="text-texto-sutil hover:text-texto w-fit text-xs font-medium transition-colors"
-      >
-        ← Equipo
-      </Link>
+      <BotonVolver href="/equipo" etiqueta="Equipo" />
 
       <div className="flex flex-wrap items-start gap-3">
-        <Avatar nombre={persona.full_name} imagen={persona.profile_image_url} tamano="grande" />
+        <Avatar nombre={persona.full_name} imagen={persona.profile_image_url} tamano="ficha" />
 
         <div className="flex min-w-0 flex-col gap-2">
           <div className="flex flex-wrap items-center gap-2">

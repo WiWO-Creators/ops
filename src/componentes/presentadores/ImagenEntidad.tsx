@@ -15,6 +15,7 @@ import {
 import { AvisoEnLinea } from '@/componentes/estado/Estados'
 import { cn } from '@/lib/clases'
 import { coloresAvatar, iniciales } from '@/lib/personas'
+import { TAMANOS_IDENTIDAD, type TamanoIdentidad } from './tamanos-identidad'
 
 const LIMITE_BYTES = 5 * 1024 * 1024
 const TIPOS_ACEPTADOS = new Set(['image/jpeg', 'image/png', 'image/webp'])
@@ -26,7 +27,7 @@ interface PropsImagenEntidad {
   imagenEfectiva?: string | null
   ruta?: string
   puedeEditar?: boolean
-  tamano?: 'chico' | 'grande' | 'destacada'
+  tamano?: TamanoIdentidad
   className?: string
 }
 
@@ -47,7 +48,7 @@ export function ImagenEntidad ({
   imagenEfectiva = imagenPropia,
   ruta,
   puedeEditar = false,
-  tamano = 'chico',
+  tamano = 'medio',
   className
 }: PropsImagenEntidad) {
   const router = useRouter()
@@ -103,14 +104,9 @@ export function ImagenEntidad ({
     router.refresh()
   }
 
-  const tamanos = {
-    chico: 'size-8 text-xs',
-    grande: 'size-12 text-base',
-    destacada: 'size-16 text-seccion sm:size-20',
-  }[tamano]
   const marco = cn(
     'border-linea bg-superficie-hundida relative block overflow-hidden rounded-control border',
-    tamanos
+    TAMANOS_IDENTIDAD[tamano]
   )
 
   /** La imagen, o las iniciales sobre su color. Es lo unico que ve quien no puede editar. */
