@@ -37,7 +37,7 @@ Las rutas son relativas a `ops-v2/`.
 - **Propuesta**: Extraer un `Plegable` (o exportar el patrón de `Paso`) con chevron rotado por `duration-rapida` y el panel con `animate-entrar-abajo` al abrir (o `grid-template-rows: 0fr→1fr` con `--wiwo-motion-fast`), respetando `prefers-reduced-motion`.
 - **Prioridad**: Media · **Esfuerzo**: M
 
-### P1-04 "Completados" en masculino para Tareas, y tres textos para el mismo interruptor
+### P1-04 "Completados" en masculino para Tareas, y tres textos para el mismo interruptor (resuelto en 750e9f6)
 - **Dónde**: `src/componentes/proyecto/BotonCompletados.tsx` (etiqueta "Completados"), `src/componentes/mis-tareas/BotonCompletadas.tsx` ("Ver completadas")
 - **Qué pasa**: En `/tareas` y `/tareas/tablero` el botón dice "Completados" sobre una lista de Tareas (femenino, `GLOSARIO.proceso`); en Mis tareas dice "Ver completadas". Mismo control, dos concordancias y dos verbos.
 - **Propuesta**: Unificar en "Completadas" (derivado de `GLOSARIO.proceso`) dentro del componente compartido de P1-12.
@@ -89,25 +89,25 @@ Las rutas son relativas a `ops-v2/`.
 - **Propuesta**: Exportarla desde `gantt.ts`, junto a su inversa `diaDeFecha` (`gantt.ts:49`).
 - **Prioridad**: Baja · **Esfuerzo**: S
 
-### P1-12 Tres botones "filtro en la URL" idénticos
+### P1-12 Tres botones "filtro en la URL" idénticos (resuelto en 750e9f6)
 - **Dónde**: `src/componentes/proyecto/BotonCompletados.tsx`, `src/componentes/mis-tareas/BotonCompletadas.tsx`, `src/componentes/mis-tareas/BotonCreadas.tsx`
 - **Qué pasa**: Los tres son `Boton` con `aria-pressed`, `variante={activo ? 'marca' : 'secundario'}` y `router.replace` con `{ scroll: false }`; solo cambian el predicado, la función que alterna y la etiqueta.
 - **Propuesta**: Un `BotonFiltroEnUrl({ etiqueta, activo, alternar })` en `componentes/datos/` (junto a `useFiltrosEnUrl`), y los tres pasan a ser usos de una línea.
 - **Prioridad**: Media · **Esfuerzo**: S
 
-### P1-13 `FiltrosDeVencimiento` reimplementa `Segmentado`
+### P1-13 `FiltrosDeVencimiento` reimplementa `Segmentado` (resuelto en 750e9f6)
 - **Dónde**: `src/app/(panel)/mis-tareas/FiltrosDeVencimiento.tsx:23-71`
 - **Qué pasa**: Grupo de botones `aria-pressed` con pastilla deslizante medida en `useLayoutEffect`, `duration-200` y estilos propios. `src/componentes/formularios/Segmentado.tsx` resuelve lo mismo (grupo con `aria-pressed`, flechas que mueven el foco) y lo usan nueve componentes del frente. Mis tareas es la única con su propio segmentado y la única sin navegación por flechas.
 - **Propuesta**: Usar `Segmentado` con `activo={vigente}` y `onElegir` → `router.replace`; si la pastilla deslizante es valiosa, moverla a `Segmentado` para todos.
 - **Prioridad**: Media · **Esfuerzo**: S
 
-### P1-14 Pantallas y editores de plantillas gemelos
+### P1-14 Pantallas y editores de plantillas gemelos (resuelto en 750e9f6)
 - **Dónde**: `src/componentes/proyecto/PantallaPlantillas.tsx` (150 l.) / `PantallaPlantillasHito.tsx` (157 l.); `EditorPlantilla.tsx` (635 l.) / `EditorPlantillaHito.tsx` (505 l.)
 - **Qué pasa**: Las pantallas difieren en unas 40 líneas (tipo, definición de tabla, permiso `create` vs `create_milestones`). Los editores tienen la misma anatomía (`CargaDe…`, `filaNueva`, `Formulario`, `ListaDe…`, `FilaDe…`) y el mismo bloque de Subir/Bajar/Quitar copiado (`EditorPlantilla.tsx:496-526` ≈ `EditorPlantillaHito.tsx:383-411`).
 - **Propuesta**: Una `PantallaPlantillasGenerica<T>` parametrizada por definición, permiso y editor; extraer `ControlesDeOrden` (subir/bajar/quitar) y el esqueleto de lista editable a un componente compartido.
 - **Prioridad**: Media · **Esfuerzo**: M
 
-### P1-15 La ficha pública de Tarea copia las secciones de `DetalleTarea`
+### P1-15 La ficha pública de Tarea copia las secciones de `DetalleTarea` (resuelto en 750e9f6)
 - **Dónde**: `src/app/tarea/[token]/page.tsx:103-230,236-262` frente a `src/componentes/proyecto/DetalleTarea.tsx:532-678,854`
 - **Qué pasa**: Lista de control (mismo `✓` en `w-3`, mismo `sr-only`), adjuntos (`rounded-chico border p-3`), comentarios y `Dato` están escritos dos veces. El comentario de `page.tsx:252` lo justifica porque `DetalleTarea` es `'use client'`, pero la solución es separar lo presentacional, no copiarlo.
 - **Propuesta**: Mover `Dato`, `ChecklistDeLectura`, `AdjuntosDeLectura` y `Comentarios` a un módulo sin `'use client'` (p. ej. `proyecto/ficha-de-lectura.tsx`) y consumirlo desde los dos.
