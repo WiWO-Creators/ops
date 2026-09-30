@@ -24,6 +24,7 @@ import { GLOSARIO } from '@/dominio/glosario'
 import { fuenteDelPortal, type FuenteDeProyecto } from '@/dominio/fuente-proyecto'
 import { proyectoDelPortal } from '@/dominio/proyecto'
 import { TableroDelProyecto } from '@/componentes/portal/TableroDelProyecto'
+import { mesEnCurso, mesesOfrecidos } from '@/dominio/gestion'
 import { cargarDetalle, EstadoDeError, estadoDelPortal, sinFallar } from '../../detalle'
 import { AprobacionesPendientes } from './AprobacionesPendientes'
 
@@ -45,6 +46,7 @@ export async function generateMetadata (props: PageProps<'/portal/proyectos/[id]
 
 export default async function ProyectoPagina (props: PageProps<'/portal/proyectos/[id]'>) {
   const { id } = await props.params
+  const parametros = await props.searchParams
   const sobre = await cargarProyecto(id)
 
   if (sobre instanceof ErrorApi) {
@@ -66,7 +68,12 @@ export default async function ProyectoPagina (props: PageProps<'/portal/proyecto
   // que se trata, y ahi es el unico lugar donde cabe.
   const descripcionSuelta = !pestanias.some((p) => p.clave === 'overview')
   const pendientes = await cargarPendientes(proyecto)
-  const tablero = await cargarTablero(proyecto)
+  // El mes del tablero: solo meses ya cerrados. Cualquier otro valor (el actual, uno a mano, uno
+  // futuro) es el tablero vivo, y no un 422 que lo dejaría sin dibujar.
+  const mesesCerrados = mesesOfrecidos(mesEnCurso()).slice(1)
+  const pedido = typeof parametros.mes === 'string' ? parametros.mes : null
+  const mes = pedido !== null && mesesCerrados.includes(pedido) ? pedido : null
+  const tablero = await cargarTablero(proyecto, mes)
   // El catalogo de estados se pide aca y no dentro de los paneles: `cargarLookupsDelPortal` es
   // `server-only` y las aprobaciones son un componente cliente. Lo usan dos: la insignia de cada
   // aprobacion y los colores de los graficos por estado del tablero. `cache()` lo comparte con la
@@ -94,7 +101,9 @@ export default async function ProyectoPagina (props: PageProps<'/portal/proyecto
       estado,
       aprobaciones,
       tablero,
-      estadosDeTarea
+      estadosDeTarea,
+      mes,
+      mesesCerrados
     })
   }))
 
@@ -151,6 +160,10 @@ interface DatosDeLaPagina {
    * tablero caido no puede dejar sin descripcion a un proyecto.
    */
   tablero: Tablero | null
+  /** El mes cerrado que se mira (`YYYY-MM`), o `null` si el tablero es el vivo. */
+  mes: string | null
+  /** Los meses ya cerrados que el selector ofrece, del más nuevo al más viejo. */
+  mesesCerrados: string[]
   /**
    * `task_statuses` del portal: el nombre y el color de cada estado, los que administra Perfex.
    *
@@ -208,7 +221,12 @@ function contenidoDePestania (
             conIndicadores={pagina.tablero === null}
           />
           {pagina.tablero !== null && (
-            <TableroDelProyecto tablero={pagina.tablero} estados={pagina.estadosDeTarea} />
+            <TableroDelProyecto
+              tablero={pagina.tablero}
+              estados={pagina.estadosDeTarea}
+              mes={pagina.mes}
+              mesesCerrados={pagina.mesesCerrados}
+            />
           )}
         </div>
       )
@@ -263,11 +281,14 @@ function contenidoDePestania (
  * El tablero de la pestaña Resumen.
  *
  * Sin guarda de pestaña: la puerta del tablero ES la pestaña Resumen, y si la pagina llego hasta
- * aca es porque el proyecto se pudo abrir. `sinFallar` cubre el resto — un contacto sin esa pestaña
+ * aca es porque el proyecto se pudo abrir. Con `mes` (ya cerrado) la API devuelve la foto al cierre.
+ * `sinFallar` cubre el resto — un contacto sin esa pestaña
  * recibe 403 y el bloque no se dibuja.
  */
-async function cargarTablero (proyecto: EspacioPortal): Promise<Tablero | null> {
-  return await sinFallar<Tablero>(`/portal/projects/${proyecto.id}/tablero`)
+async function cargarTablero (proyecto: EspacioPortal, mes: string | null): Promise<Tablero | null> {
+  const consulta = mes === null ? '' : `?mes=${mes}`
+
+  return await sinFallar<Tablero>(`/portal/projects/${proyecto.id}/tablero${consulta}`)
 }
 
 /** «Espera de respuesta» de Perfex: el unico estado en que una Tarea espera al cliente. */
