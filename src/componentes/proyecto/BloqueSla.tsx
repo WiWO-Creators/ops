@@ -222,7 +222,7 @@ export function BloqueSla ({ tarea, puedeEditar, onCambiado }: PropsBloqueSla): 
 function Celda ({ etiqueta, children }: { etiqueta: string, children: ReactNode }): ReactElement {
   return (
     <div className="flex min-w-0 flex-col items-start gap-1.5">
-      <span className="text-texto-sutil text-xs font-medium tracking-[0.08em] uppercase">{etiqueta}</span>
+      <span className="text-texto-sutil text-xs antetitulo">{etiqueta}</span>
       {children}
     </div>
   )

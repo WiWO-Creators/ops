@@ -440,7 +440,7 @@ function Adjuntos ({ adjuntos }: { adjuntos: MensajeDeTicket['adjuntos'] }): Rea
 function Dato ({ etiqueta, children }: { etiqueta: string, children: ReactNode }): ReactElement {
   return (
     <div className="flex min-w-0 flex-col gap-1">
-      <dt className="text-texto-sutil text-xs font-medium tracking-[0.08em] uppercase">{etiqueta}</dt>
+      <dt className="text-texto-sutil text-xs antetitulo">{etiqueta}</dt>
       <dd className="text-texto min-w-0 text-sm">{children}</dd>
     </div>
   )

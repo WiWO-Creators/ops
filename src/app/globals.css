@@ -227,6 +227,18 @@
 }
 
 /*
+ * Antetitulo en versalita: el rotulo chico sobre un dato, una seccion o una ficha.
+ *
+ * Fija peso, espaciado y mayusculas, que antes se escribian en tres pesos y dos espaciados. El
+ * tamaño y el color quedan en cada uso: `text-xs` por defecto, `text-menor` en tarjetas densas.
+ */
+@utility antetitulo {
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+/*
  * Todo `<details>` despliega y repliega animando el alto, con la misma duracion que `Plegable`.
  *
  * Es mejora progresiva: el navegador que no conoce `::details-content` descarta la regla y el

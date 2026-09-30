@@ -411,7 +411,7 @@ export function PanelDePersona ({ fuente, onCerrar, onGuardado }: PropsPanelDePe
 function Grupo ({ titulo, children }: { titulo: string, children: React.ReactNode }) {
   return (
     <section className="flex flex-col gap-3">
-      <h3 className="text-texto-sutil text-xs font-semibold uppercase tracking-wide">{titulo}</h3>
+      <h3 className="text-texto-sutil text-xs antetitulo">{titulo}</h3>
       {children}
     </section>
   )

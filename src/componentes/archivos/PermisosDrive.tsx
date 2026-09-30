@@ -299,7 +299,7 @@ function ListaAccesos ({ permisos, onQuitar }: {
       {grupos.filter(([, filas]) => filas.length > 0).map(([sujeto, filas]) => (
         <div key={sujeto} className="flex flex-col gap-1.5">
           {conTitulos && (
-            <p className="text-texto-sutil text-xs font-medium tracking-[0.08em] uppercase">
+            <p className="text-texto-sutil text-xs antetitulo">
               {TITULOS_SUJETO[sujeto]}
             </p>
           )}
@@ -314,7 +314,7 @@ function ListaAccesos ({ permisos, onQuitar }: {
 
       {sinCuenta.length > 0 && (
         <div className="flex flex-col gap-1.5">
-          <p className="text-texto-aviso text-xs font-medium tracking-[0.08em] uppercase">
+          <p className="text-texto-aviso text-xs antetitulo">
             Sin acceso todavía
           </p>
           <p className="text-texto-sutil text-xs">

@@ -74,7 +74,7 @@ export function AccionesProspecto ({ prospecto, paises, capacidades }: PropsAcci
           campos={camposDeProspecto(paises)}
           ruta={`prospectos/${prospecto.id}`}
           metodo="PATCH"
-          registro={prospecto as unknown as Record<string, unknown>}
+          registro={prospecto}
           onGuardado={() => { router.refresh() }}
           columnas={2}
           ancho="grande"

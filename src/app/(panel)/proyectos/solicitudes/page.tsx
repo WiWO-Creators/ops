@@ -11,6 +11,7 @@ import { GLOSARIO } from '@/dominio/glosario'
 import type { EstadoDeSolicitud, SolicitudDeEliminacion } from '@/datos/recursos'
 import type { Paginacion, Yo } from '@/datos/tipos'
 import { cn } from '@/lib/clases'
+import { SIN_DATO } from '@/lib/presentacion'
 
 export const metadata = { title: 'Solicitudes de eliminación · WiWO Ops' }
 
@@ -242,7 +243,7 @@ function TablaDeSolicitudes ({ solicitudes }: { solicitudes: SolicitudDeEliminac
                   ? <ResolverSolicitud solicitud={solicitud} />
                   : (
                     <span className="text-texto-sutil text-xs">
-                      {solicitud.resuelto_por?.full_name ?? '—'}
+                      {solicitud.resuelto_por?.full_name ?? SIN_DATO}
                     </span>
                     )}
               </CeldaTabla>

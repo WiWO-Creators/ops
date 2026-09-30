@@ -108,7 +108,7 @@ export function TarjetaProyecto ({ espacio, estados, className }: PropsTarjetaPr
 function Dato ({ etiqueta, children }: { etiqueta: string, children: React.ReactNode }) {
   return (
     <div className="flex min-w-0 flex-col gap-0.5">
-      <dt className="text-texto-sutil truncate text-xs font-medium tracking-[0.08em] uppercase">
+      <dt className="text-texto-sutil truncate text-xs antetitulo">
         {etiqueta}
       </dt>
       <dd className="truncate">{children}</dd>

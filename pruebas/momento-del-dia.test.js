@@ -16,7 +16,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
-  FRANJAS_DEL_DIA, franjaDelMomento, horaDeReloj, minutosEnLaZona
+  FRANJAS_DEL_DIA, fechaEnLaZona, franjaDelMomento, horaDeReloj, minutosEnLaZona
 } from '../src/dominio/momento-del-dia.ts'
 
 const ZONA = 'America/Santiago'
@@ -161,4 +161,14 @@ test('los minutos del dia salen de la zona y no del proceso', () => {
   assert.equal(minutosEnLaZona(Date.parse('2026-09-15T12:00:00Z'), 'UTC'), 12 * 60)
   assert.equal(minutosEnLaZona(null, ZONA), null)
   assert.equal(minutosEnLaZona(Date.parse('2026-09-15T12:00:00Z'), null), null)
+})
+
+test('fechaEnLaZona da el dia del negocio y no el del aparato', () => {
+  // 02:30 UTC del 1 de octubre: en Santiago todavia es 30 de septiembre.
+  const instante = Date.UTC(2026, 9, 1, 2, 30)
+
+  assert.equal(fechaEnLaZona(instante, 'America/Santiago'), '2026-09-30')
+  assert.equal(fechaEnLaZona(instante, 'UTC'), '2026-10-01')
+  assert.equal(fechaEnLaZona(null, 'UTC'), null)
+  assert.match(fechaEnLaZona(instante, 'Zona/Inexistente') ?? '', /^\d{4}-\d{2}-\d{2}$/)
 })

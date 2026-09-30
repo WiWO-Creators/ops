@@ -253,7 +253,7 @@ function escribirEn (cuerpo: Record<string, unknown>, clave: string, valor: unkn
  * @param clave `company` o `billing.street`
  * @returns el valor, o `undefined` si algun tramo del camino no existe
  */
-function leerDe (registro: Record<string, unknown>, clave: string): unknown {
+function leerDe (registro: object, clave: string): unknown {
   let actual: unknown = registro
 
   for (const parte of clave.split('.')) {
@@ -274,7 +274,7 @@ function leerDe (registro: Record<string, unknown>, clave: string): unknown {
  */
 export function valoresIniciales (
   campos: CampoFormulario[],
-  registro: Record<string, unknown> | null
+  registro: object | null
 ): ValoresFormulario {
   const valores: ValoresFormulario = {}
 
@@ -329,16 +329,16 @@ const CLAVES_DE_NOMBRE = ['name', 'title', 'company', 'subject', 'full_name', 'n
  * @param fuentes el cuerpo enviado y el registro editado, en ese orden
  * @returns el nombre, o `null` si ninguna fuente lo trae
  */
-function nombreDelRegistro (fuentes: Array<Record<string, unknown> | null>): string | null {
+function nombreDelRegistro (fuentes: Array<object | null>): string | null {
   for (const fuente of fuentes) {
     if (fuente === null) continue
 
     for (const clave of CLAVES_DE_NOMBRE) {
-      const valor = fuente[clave]
+      const valor = leerDe(fuente, clave)
       if (typeof valor === 'string' && valor.trim() !== '') return valor.trim()
     }
 
-    const persona = [fuente.firstname, fuente.lastname].filter((parte) => typeof parte === 'string' && parte.trim() !== '')
+    const persona = [leerDe(fuente, 'firstname'), leerDe(fuente, 'lastname')].filter((parte) => typeof parte === 'string' && parte.trim() !== '')
     if (persona.length > 0) return persona.join(' ').trim()
   }
 
@@ -359,7 +359,7 @@ function nombreDelRegistro (fuentes: Array<Record<string, unknown> | null>): str
 export function avisoDeGuardado (
   metodo: 'POST' | 'PATCH',
   cuerpo: Record<string, unknown>,
-  registro: Record<string, unknown> | null
+  registro: object | null
 ): string {
   const nombre = nombreDelRegistro([cuerpo, registro])
 

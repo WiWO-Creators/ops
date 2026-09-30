@@ -271,7 +271,7 @@ function comoOpciones (lista: EstadoLookup[]): OpcionCampo[] {
  * @returns Las monedas, o vacio si el backend todavia no expone el catalogo.
  */
 function monedasDe (lookups: Lookups): Moneda[] {
-  const lista = (lookups as unknown as Record<string, unknown>).currencies
+  const lista: unknown = Reflect.get(lookups, 'currencies')
 
   return Array.isArray(lista) ? lista as Moneda[] : []
 }

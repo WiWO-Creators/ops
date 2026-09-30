@@ -10,6 +10,7 @@ import { Segmentado } from '@/componentes/formularios/Segmentado'
 import { ErrorEstado, Vacio } from '@/componentes/estado/Estados'
 import { GrupoAvatares } from '@/componentes/presentadores/Avatar'
 import { Insignia } from '@/componentes/presentadores/Insignia'
+import { BORDE_VENCIMIENTO } from '@/componentes/presentadores/tonos-vencimiento'
 import { PARAMETRO_TAREA } from '@/componentes/datos/tabla'
 import { EstadoDeTarea } from '@/componentes/proyecto/EstadoDeTarea'
 import { ModalTarea } from '@/componentes/proyecto/ModalTarea'
@@ -62,15 +63,6 @@ import type { DefinicionRecurso, EstadoConsulta, OpcionFiltro } from '@/definici
  * filtros se ofrecen, si hay bloque de alertas y en que clave de la URL se guarda dia/semana. No hay
  * una segunda grilla ni una segunda aritmetica de fechas: `dominio/calendario.ts` es una sola.
  */
-
-/** Color del borde de la tarjeta segun cuan cerca esta el vencimiento. Mismo criterio que `Fecha`. */
-const BORDE_VENCIMIENTO = {
-  vencido: 'border-l-relleno-peligro',
-  hoy: 'border-l-relleno-aviso',
-  proximo: 'border-l-acento',
-  lejano: 'border-l-linea',
-  'sin-fecha': 'border-l-linea'
-} as const
 
 interface PropsVistaCalendario {
   /** Dia ancla del periodo, ya validado por el servidor. */

@@ -19,12 +19,12 @@ import type { CampoFormulario } from './formulario'
  * (las tareas de un hito, por ejemplo).
  */
 
-interface PropsAccionesFila {
+interface PropsAccionesFila<T extends object> {
   /** Titulo del dialogo de edicion. Ej: "Editar hito". */
   tituloEdicion: string
   campos: CampoFormulario[]
   /** El registro a editar, leido por las claves de los campos. */
-  registro: Record<string, unknown>
+  registro: T
   /** Ruta del BFF del registro, sin barra inicial. Ej: `projects/93/notes/5`. */
   ruta: string
   puedeEditar: boolean
@@ -39,7 +39,7 @@ interface PropsAccionesFila {
   nombre: string
 }
 
-export function AccionesFila ({
+export function AccionesFila<T extends object> ({
   tituloEdicion,
   campos,
   registro,
@@ -50,7 +50,7 @@ export function AccionesFila ({
   advertencia,
   recargar,
   nombre
-}: PropsAccionesFila): ReactElement {
+}: PropsAccionesFila<T>): ReactElement {
   const [editando, setEditando] = useState(false)
   const aviso = useAviso()
 

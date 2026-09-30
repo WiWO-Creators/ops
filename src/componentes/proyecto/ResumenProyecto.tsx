@@ -1,8 +1,7 @@
 import { GLOSARIO } from '@/dominio/glosario'
-import { LOCALE } from '@/lib/fechas'
+import { diasHasta, LOCALE } from '@/lib/fechas'
+import { SIN_DATO } from '@/lib/presentacion'
 import type { Espacio } from '@/datos/recursos'
-
-const SIN_DATO = '—'
 
 export interface PropsMetrica {
   etiqueta: string
@@ -19,7 +18,7 @@ export function Metrica ({ etiqueta, valor }: PropsMetrica) {
   return (
     <div className="border-linea bg-superficie-elevada rounded-tarjeta shadow-1 flex flex-col gap-1 border p-4">
       <span data-numerico className="text-texto text-seccion leading-none font-semibold">{valor}</span>
-      <span className="text-texto-sutil text-xs font-medium tracking-[0.08em] uppercase">
+      <span className="text-texto-sutil text-xs antetitulo">
         {etiqueta}
       </span>
     </div>
@@ -43,29 +42,6 @@ export function formatearNumero (valor: number | null | undefined, sufijo = ''):
 }
 
 /**
- * Dias que faltan hasta una fecha de entrega, en dias calendario.
- *
- * Se compara por dia y en UTC, igual que `estadoVencimiento`: usar el reloj local haria que la cuenta
- * cambiara a la medianoche del huso equivocado.
- *
- * @param entrega fecha `YYYY-MM-DD` o `null`
- * @param hoy dia de referencia, inyectable para probar
- * @returns los dias restantes, o `null` si no hay fecha o no tiene la forma esperada
- */
-function diasRestantes (entrega: string | null | undefined, hoy: Date = new Date()): number | null {
-  if (!entrega) return null
-
-  const [anio, mes, dia] = entrega.split('-').map(Number)
-  if (anio === undefined || mes === undefined || dia === undefined) return null
-  if ([anio, mes, dia].some((n) => !Number.isFinite(n))) return null
-
-  const objetivo = Date.UTC(anio, mes - 1, dia)
-  const referencia = Date.UTC(hoy.getFullYear(), hoy.getMonth(), hoy.getDate())
-
-  return Math.round((objetivo - referencia) / 86400000)
-}
-
-/**
  * Texto de la metrica de plazo: los dias que faltan, o el aviso de que ya paso.
  *
  * Exportada porque el portal del cliente pinta la misma metrica: el plazo que ve el cliente y el que
@@ -75,7 +51,7 @@ function diasRestantes (entrega: string | null | undefined, hoy: Date = new Date
  * @returns los dias que faltan, "Vencido", o el guion cuando no hay fecha
  */
 export function textoPlazo (entrega: string | null): string {
-  const dias = diasRestantes(entrega)
+  const dias = diasHasta(entrega)
   if (dias === null) return SIN_DATO
   if (dias < 0) return 'Vencido'
 

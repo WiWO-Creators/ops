@@ -16,7 +16,7 @@ export function YaCreadas ({ propuestas, proyectoId }: {
 }): ReactElement {
   return (
     <div className="flex flex-col gap-2">
-      <h4 className="text-texto-tenue text-xs font-semibold uppercase">Ya creadas</h4>
+      <h4 className="text-texto-tenue text-xs antetitulo">Ya creadas</h4>
       <ul className="flex flex-col gap-1">
         {propuestas.map((propuesta) => (
           <li key={propuesta.id} className="text-sm">

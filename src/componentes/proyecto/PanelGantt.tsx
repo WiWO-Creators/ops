@@ -22,6 +22,7 @@ import {
   contarFueraDeVentanaDeGantt,
   describirDependencias,
   esZoomGantt,
+  fechaDeDia,
   filasDeGantt,
   flechasDeGantt,
   lecturasDelGantt,
@@ -829,16 +830,6 @@ function Pista ({ fila }: { fila: FilaGantt }): ReactElement {
       </span>
     </div>
   )
-}
-
-/**
- * Convierte un dia UTC desde la epoca de vuelta a `YYYY-MM-DD`.
- *
- * @param dia el dia que devuelve `rangoDeGantt`
- * @returns la fecha en el formato del contrato
- */
-function fechaDeDia (dia: number): string {
-  return new Date(dia * 86400000).toISOString().slice(0, 10)
 }
 
 /**

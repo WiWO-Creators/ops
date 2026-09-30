@@ -38,7 +38,7 @@ import { useAviso } from '@/componentes/estado/useAviso'
  * reimplementan.
  */
 
-interface PropsFormulario {
+interface PropsFormulario<T extends object> {
   abierto: boolean
   onAbiertoCambia: (abierto: boolean) => void
   titulo: string
@@ -48,7 +48,7 @@ interface PropsFormulario {
   ruta: string
   metodo: 'POST' | 'PATCH'
   /** Registro a editar, o `null` para un alta. Se lee por las claves de los campos. */
-  registro?: Record<string, unknown> | null
+  registro?: T | null
   /** Se llama despues de guardar bien, para que la pestaña recargue su listado. */
   onGuardado: () => void
   /**
@@ -86,7 +86,7 @@ interface PropsFormulario {
   etiquetaEnviar?: string
 }
 
-export function FormularioRecurso ({
+export function FormularioRecurso<T extends object> ({
   abierto,
   onAbiertoCambia,
   titulo,
@@ -102,7 +102,7 @@ export function FormularioRecurso ({
   enviar: enviarPropio,
   avisoExito,
   etiquetaEnviar
-}: PropsFormulario): ReactElement {
+}: PropsFormulario<T>): ReactElement {
   const aviso = useAviso()
   const [valores, setValores] = useState<ValoresFormulario>(() => valoresIniciales(campos, registro))
   const [errores, setErrores] = useState<Record<string, string>>({})
@@ -181,7 +181,7 @@ export function FormularioRecurso ({
             {campos.map((campo) => (
               <Fragment key={campo.clave}>
                 {campo.seccion !== undefined && (
-                  <h3 className="text-texto-tenue border-linea-suave mt-2 border-b pb-1 text-xs font-semibold tracking-wide uppercase sm:col-span-full">
+                  <h3 className="text-texto-tenue border-linea-suave mt-2 border-b pb-1 text-xs antetitulo sm:col-span-full">
                     {campo.seccion}
                   </h3>
                 )}

@@ -62,28 +62,7 @@ export function segundosAcumulados (timers: Cronometro[], ahora: Date = new Date
   return timers.reduce((total, timer) => total + segundosDeUno(timer, ahora), 0)
 }
 
-/**
- * Formatea una duracion como `H:MM:SS`.
- *
- * Las horas no se acotan a dos digitos ni se recortan con modulo: un total de 120 horas es 120:00:00
- * y no 00:00:00. Los minutos y los segundos si van siempre con dos.
- *
- * Un valor negativo o no finito da `0:00:00`. Pasa cuando el reloj del navegador esta atrasado
- * respecto del servidor, y en pantalla `-1:-3:-2` es peor que un cero honesto.
- *
- * @param segundos duracion en segundos
- * @returns el texto listo para mostrar; nunca vacio, nunca `NaN`
- */
-export function formatearDuracion (segundos: number): string {
-  if (!Number.isFinite(segundos) || segundos <= 0) return '0:00:00'
-
-  const total = Math.floor(segundos)
-  const horas = Math.floor(total / 3600)
-  const minutos = Math.floor((total % 3600) / 60)
-  const resto = total % 60
-
-  return `${horas}:${String(minutos).padStart(2, '0')}:${String(resto).padStart(2, '0')}`
-}
+export { formatearDuracion } from '../../lib/duraciones.ts'
 
 /**
  * Total acumulado por persona.

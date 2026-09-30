@@ -43,7 +43,7 @@ export function PanelNotas ({ proyectoId }: { proyectoId: number }): ReactElemen
             <AccionesFila
               tituloEdicion="Editar nota"
               campos={CAMPOS}
-              registro={nota as unknown as Record<string, unknown>}
+              registro={nota}
               ruta={`projects/${proyectoId}/notes/${nota.id}`}
               puedeEditar
               puedeBorrar

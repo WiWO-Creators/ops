@@ -513,7 +513,7 @@ function TiempoRegistrado (
 
   return (
     <section className="border-linea bg-superficie-elevada rounded-tarjeta flex items-baseline justify-between gap-3 border p-3">
-      <h4 className="text-texto-sutil text-xs font-medium tracking-[0.08em] uppercase">
+      <h4 className="text-texto-sutil text-xs antetitulo">
         Tiempo registrado
       </h4>
       <span data-numerico className="text-texto text-sm font-semibold tabular-nums">
@@ -840,7 +840,7 @@ function Contador ({ etiqueta, valor }: { etiqueta: string, valor: string }): Re
   return (
     <li className="flex flex-col items-center gap-0.5">
       <span data-numerico className="text-texto text-lg leading-none font-semibold tabular-nums">{valor}</span>
-      <span className="text-texto-sutil text-xs font-medium tracking-[0.08em] uppercase">
+      <span className="text-texto-sutil text-xs antetitulo">
         {etiqueta}
       </span>
     </li>

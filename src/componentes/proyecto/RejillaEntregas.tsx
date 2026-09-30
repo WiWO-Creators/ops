@@ -4,6 +4,7 @@ import Link from 'next/link'
 import type { ReactElement } from 'react'
 import { GrupoAvatares } from '@/componentes/presentadores/Avatar'
 import { Fecha } from '@/componentes/presentadores/Fecha'
+import { BORDE_VENCIMIENTO } from '@/componentes/presentadores/tonos-vencimiento'
 import { Vacio } from '@/componentes/estado/Estados'
 import { EntradaEscalonada } from '@/componentes/estructura/EntradaEscalonada'
 import { nombreDeDia, numeroDeDia } from '@/dominio/calendario'
@@ -49,11 +50,7 @@ const CABECERAS = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'] as const
  * por estado, un Espacio terminado se veria entero en rojo y el color dejaria de decir nada.
  */
 const BORDE = {
-  vencido: 'border-l-relleno-peligro',
-  hoy: 'border-l-relleno-aviso',
-  proximo: 'border-l-acento',
-  lejano: 'border-l-linea',
-  'sin-fecha': 'border-l-linea',
+  ...BORDE_VENCIMIENTO,
   completa: 'border-l-relleno-exito'
 } as const
 

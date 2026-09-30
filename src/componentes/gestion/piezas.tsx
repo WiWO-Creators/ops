@@ -93,7 +93,7 @@ export function Cifra (
 ) {
   return (
     <div className="flex flex-col gap-0.5">
-      <span className="text-texto-sutil text-xs font-medium tracking-[0.08em] uppercase">
+      <span className="text-texto-sutil text-xs antetitulo">
         {etiqueta}
       </span>
       <span

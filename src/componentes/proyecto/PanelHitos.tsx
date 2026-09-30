@@ -292,7 +292,7 @@ function definicionDeTablaHitos (
         <AccionesFila
           tituloEdicion={`Editar ${GLOSARIO.hito.singular.toLowerCase()}`}
           campos={campos}
-          registro={h as unknown as Record<string, unknown>}
+          registro={h}
           ruta={`projects/${proyectoId}/milestones/${h.id}`}
           puedeEditar={puedeEditar}
           puedeBorrar={puedeBorrar}

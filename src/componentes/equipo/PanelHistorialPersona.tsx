@@ -64,7 +64,7 @@ export function PanelHistorialPersona ({
           <ol className="flex max-w-3xl flex-col gap-6">
             {dias.map((dia) => (
               <li key={`${dia.titulo}-${dia.entradas[0]?.id ?? 0}`} className="flex flex-col gap-2">
-                <h3 className="text-texto-sutil text-menor font-medium tracking-[0.08em] uppercase">
+                <h3 className="text-texto-sutil text-menor antetitulo">
                   {dia.titulo}
                 </h3>
 

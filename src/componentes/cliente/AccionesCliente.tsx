@@ -84,7 +84,7 @@ export function AccionesCliente ({
           campos={camposDeCliente(paises, monedas)}
           ruta={`clients/${cliente.id}`}
           metodo="PATCH"
-          registro={cliente as unknown as Record<string, unknown>}
+          registro={cliente}
           onGuardado={recargar}
           columnas={2}
           ancho="grande"

@@ -61,7 +61,7 @@ function ListaTranscripciones ({
 }): ReactElement {
   return (
     <div className="flex flex-col gap-2">
-      <h3 className="text-texto-tenue text-xs font-semibold tracking-wide uppercase">Transcripciones recientes</h3>
+      <h3 className="text-texto-tenue text-xs antetitulo">Transcripciones recientes</h3>
       <ul className="flex flex-col gap-1.5">
         {transcripciones.map((transcripcion) => (
           <FilaTranscripcion

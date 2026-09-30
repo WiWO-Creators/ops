@@ -103,7 +103,7 @@ export function BloqueoDeProceso ({ tarea, puedeEditar, onCambiado }: PropsBloqu
   return (
     <section className="border-linea bg-superficie-elevada rounded-tarjeta flex flex-col gap-3 border p-3">
       <div className="flex flex-wrap items-center gap-2">
-        <span className="text-texto-sutil text-xs font-medium tracking-[0.08em] uppercase">Bloqueo</span>
+        <span className="text-texto-sutil text-xs antetitulo">Bloqueo</span>
         {bloqueo.activo
           ? <Insignia tono="peligro">Bloqueada</Insignia>
           : <span className="text-texto-sutil text-sm">Sin bloqueo activo</span>}

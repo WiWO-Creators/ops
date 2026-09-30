@@ -287,7 +287,7 @@ function FormularioDeRegla ({ tarea, onCerrar, onGuardada }: {
 function VistaPrevia ({ estado, hayErroresLocales }: { estado: EstadoPrevia, hayErroresLocales: boolean }): ReactElement {
   return (
     <section aria-live="polite" aria-busy={estado.fase === 'esperando' && !hayErroresLocales} className="border-linea bg-superficie-hundida rounded-tarjeta flex flex-col gap-2 border p-4">
-      <h3 className="text-texto-sutil text-xs font-medium tracking-[0.08em] uppercase">Vista previa</h3>
+      <h3 className="text-texto-sutil text-xs antetitulo">Vista previa</h3>
 
       {hayErroresLocales
         ? <p className="text-texto-tenue text-sm">Corrige los campos marcados para ver las próximas copias.</p>

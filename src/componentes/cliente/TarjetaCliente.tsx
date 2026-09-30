@@ -92,7 +92,7 @@ export function TarjetaCliente ({ cliente, className }: { cliente: Cliente, clas
 function Dato ({ etiqueta, children }: { etiqueta: string, children: ReactNode }) {
   return (
     <div className="flex min-w-0 flex-col gap-0.5">
-      <dt className="text-texto-sutil truncate text-menor font-medium tracking-[0.08em] uppercase">
+      <dt className="text-texto-sutil truncate text-menor antetitulo">
         {etiqueta}
       </dt>
       <dd className="text-texto truncate">{children}</dd>

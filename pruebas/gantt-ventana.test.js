@@ -12,6 +12,7 @@ import {
   DIAS_VENTANA_GANTT,
   contarFueraDeVentanaDeGantt,
   diaDeFecha,
+  fechaDeDia,
   recortarGanttAVentana,
   ventanaDeGantt
 } from '../src/componentes/proyecto/gantt.ts'
@@ -68,4 +69,10 @@ test('una tarea repetida en dos grupos cuenta una sola vez fuera de la ventana',
 
   assert.equal(contarFueraDeVentanaDeGantt([grupo('x', [repetida]), grupo('y', [repetida])], ventana), 1)
   assert.deepEqual(recortarGanttAVentana([], ventana), [])
+})
+
+test('fechaDeDia es la inversa de diaDeFecha', () => {
+  for (const fecha of ['1970-01-01', '2026-02-28', '2026-12-31']) {
+    assert.equal(fechaDeDia(diaDeFecha(fecha)), fecha)
+  }
 })

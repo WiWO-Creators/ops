@@ -54,7 +54,7 @@ export function JustificacionDelEquipo (
 
   return (
     <div className="border-linea col-span-full flex flex-col gap-2 border-t pt-3">
-      <span className="text-texto-sutil text-xs font-medium tracking-[0.08em] uppercase">
+      <span className="text-texto-sutil text-xs antetitulo">
         Justificación del equipo
       </span>
 

@@ -1,5 +1,6 @@
 import type { ReactElement, ReactNode } from 'react'
 import { cn } from '@/lib/clases'
+import { SIN_DATO } from '@/lib/presentacion'
 import { TarjetaDeComentario, type ComentarioParaMostrar } from './TarjetaDeComentario'
 
 /**
@@ -11,7 +12,7 @@ import { TarjetaDeComentario, type ComentarioParaMostrar } from './TarjetaDeCome
  * —catalogos, cronometros, arbol de Drive— a una ruta anonima que no tiene sesion para pedirlo.
  */
 
-export const SIN_DATO = '—'
+export { SIN_DATO }
 
 /** Nivel del titulo de una seccion: 2 en la pagina publica, 4 dentro del dialogo del panel. */
 type NivelDeTitulo = 2 | 4
@@ -51,7 +52,7 @@ export function SeccionDeLectura ({ titulo, nivel, children }: PropsSeccion): Re
 export function Dato ({ etiqueta, children }: { etiqueta: string, children: ReactNode }): ReactElement {
   return (
     <div className="flex min-w-0 flex-col gap-1">
-      <dt className="text-texto-sutil text-xs font-medium tracking-[0.08em] uppercase">{etiqueta}</dt>
+      <dt className="text-texto-sutil text-xs antetitulo">{etiqueta}</dt>
       <dd className="text-texto min-w-0 text-sm">{children}</dd>
     </div>
   )

@@ -161,6 +161,10 @@ Tres familias, **self-hosted y subseteadas**. Nunca Google Fonts — ni el CSS n
 
 Pesos semánticos: cuerpo 400, meta 500, navegación 600, acción 700, titular 800.
 
+Antetítulo en versalita (el rótulo chico sobre un dato, sección o ficha): utilidad `antetitulo` de
+`globals.css` (peso 500, `0.08em`, mayúsculas). El tamaño y el color van aparte: `text-xs` por
+defecto, `text-menor` en tarjetas densas. No reescribir `font-medium tracking-[0.08em] uppercase`.
+
 ## Espaciado, tamaños y radios
 
 Escala `--spacing-0_25` … `--spacing-10` (0.125rem → 7.5rem). Tamaños de control

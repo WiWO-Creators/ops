@@ -132,7 +132,7 @@ export function RecorridoDeNovedades ({ novedades, onCerrar }: PropsRecorrido) {
 
         <div className="relative -mt-[100dvh]">
           <section className="flex h-dvh flex-col items-center justify-center gap-3 px-6 text-center">
-            <p className="text-acento text-xs font-semibold tracking-wide uppercase">Ops se actualizó</p>
+            <p className="text-acento text-xs antetitulo">Ops se actualizó</p>
             <h2 id={idTitulo} className="text-texto max-w-xl text-3xl font-semibold text-balance sm:text-5xl">
               Esto es lo que cambió
             </h2>

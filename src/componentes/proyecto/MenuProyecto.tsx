@@ -347,7 +347,7 @@ export function MenuProyecto ({
         campos={camposDeEdicion()}
         ruta={`projects/${proyecto.id}`}
         metodo="PATCH"
-        registro={proyecto as unknown as Record<string, unknown>}
+        registro={proyecto}
         onGuardado={() => { router.refresh() }}
       />
 
