@@ -104,7 +104,8 @@ export function PanelFocalesCliente ({ clienteId, nombreCliente, capacidades }: 
 /**
  * Las áreas que atienden al cliente, derivadas de sus Tareas. Solo lectura, siempre.
  *
- * Carga aparte de los Focals: si falla, la sección no aparece y la pestaña no pierde la edición.
+ * Carga aparte de los Focals: si falla o no llega una lista, la sección no aparece y la pestaña no
+ * pierde la edición.
  *
  * @param clienteId el cliente que se esta mirando
  */
@@ -115,7 +116,7 @@ function AreasDelCliente ({ clienteId }: { clienteId: number }) {
     const aborto = new AbortController()
 
     void pedirSobre<string[]>(rutaDeAreas(clienteId), aborto.signal)
-      .then((sobre) => { if (!aborto.signal.aborted) setAreas(sobre.data) })
+      .then((sobre) => { if (!aborto.signal.aborted && Array.isArray(sobre.data)) setAreas(sobre.data) })
       .catch(() => {})
 
     return () => aborto.abort()
