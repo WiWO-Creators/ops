@@ -194,14 +194,14 @@ export default async function ClientePage (props: PageProps<'/clientes/[id]'>) {
     {
       clave: 'focales',
       etiqueta: GLOSARIO.focal.plural,
-      contenido: <PanelFocalesCliente clienteId={cliente.id} capacidades={yo.permissions.customers} />
+      contenido: <PanelFocalesCliente clienteId={cliente.id} nombreCliente={cliente.company} capacidades={yo.permissions.customers} />
     },
     // Supervisión va aparte de Focales por lo mismo que Focales va aparte de Equipo: el Focal
     // responde por la cuenta; el supervisor revisa cada día sus Tareas vencidas y firma la hoja.
     {
       clave: 'supervision',
       etiqueta: 'Supervisión',
-      contenido: <PanelSupervisoresCliente clienteId={cliente.id} capacidades={yo.permissions.customers} />
+      contenido: <PanelSupervisoresCliente clienteId={cliente.id} nombreCliente={cliente.company} capacidades={yo.permissions.customers} />
     },
     {
       clave: 'proyectos',

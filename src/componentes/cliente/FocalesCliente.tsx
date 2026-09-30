@@ -1,10 +1,9 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Boton } from '@/componentes/formularios/Boton'
+import { MatrizAsignacion } from '@/componentes/formularios/MatrizAsignacion'
 import { SelectorPersonas } from '@/componentes/formularios/SelectorPersonas'
 import { EnlacePersona } from '@/componentes/presentadores/EnlacePersona'
-import { Cargando, Vacio } from '@/componentes/estado/Estados'
 import { escribirEnBff } from '@/componentes/datos/mutaciones'
 import { cargarAsignables } from '@/datos/asignables'
 import { pedirSobre } from '@/datos/cliente'
@@ -19,15 +18,6 @@ function rutaDeFocales (clienteId: number): string {
 /** `GET /clients/{id}/areas`, con el id ya escapado. */
 function rutaDeAreas (clienteId: number): string {
   return `clients/${encodeURIComponent(String(clienteId))}/areas`
-}
-
-/** Los mismos ids, sin importar el orden en que se eligieron. */
-function mismasPersonas (unos: number[], otros: number[]): boolean {
-  if (unos.length !== otros.length) return false
-
-  const ordenados = [...otros].sort((a, b) => a - b)
-
-  return [...unos].sort((a, b) => a - b).every((id, i) => id === ordenados[i])
 }
 
 /**
@@ -51,164 +41,88 @@ function mismasPersonas (unos: number[], otros: number[]): boolean {
  * responde por una cuenta no es información reservada.
  *
  * @param clienteId el cliente que se esta mirando
+ * @param nombreCliente su nombre, para el aviso al guardar
  * @param capacidades capacidades sobre `customers`, de `permissions` de `/me`
  */
-export function PanelFocalesCliente ({ clienteId, capacidades }: {
+export function PanelFocalesCliente ({ clienteId, nombreCliente, capacidades }: {
   clienteId: number
+  nombreCliente: string
   capacidades: Capacidad[]
 }) {
-  const puedeEditar = capacidades.includes('edit')
-
-  const [personas, setPersonas] = useState<StaffReferencia[]>([])
-  const [asignadas, setAsignadas] = useState<StaffReferencia[]>([])
-  const [elegidas, setElegidas] = useState<number[]>([])
-  const [areas, setAreas] = useState<string[]>([])
-  const [cargando, setCargando] = useState(true)
-  const [cargado, setCargado] = useState(false)
-  const [enviando, setEnviando] = useState(false)
-  const [guardado, setGuardado] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-
-  useEffect(() => {
-    const aborto = new AbortController()
-
-    void Promise.all([
-      cargarAsignables(),
-      pedirSobre<StaffReferencia[]>(rutaDeFocales(clienteId), aborto.signal),
-      pedirSobre<string[]>(rutaDeAreas(clienteId), aborto.signal)
-    ]).then(([disponibles, focales, deAreas]) => {
-      if (aborto.signal.aborted) return
-      // Conserva a quien ya es Focal aunque no figure en el catalogo de asignables: si se dio de
-      // baja, el selector lo mostraria vacio y guardar lo sacaria sin que nadie lo pidiera.
-      setPersonas([...new Map([...disponibles, ...focales.data].map((p) => [p.id, p])).values()])
-      setAsignadas(focales.data)
-      setElegidas(focales.data.map((persona) => persona.id))
-      setAreas(deAreas.data)
-      setCargado(true)
-    }).catch((fallo: unknown) => {
-      if (!aborto.signal.aborted) {
-        setError(fallo instanceof Error
-          ? fallo.message
-          : `No se pudieron cargar los ${GLOSARIO.focal.plural.toLowerCase()}.`)
-      }
-    }).finally(() => {
-      if (!aborto.signal.aborted) setCargando(false)
-    })
-
-    return () => aborto.abort()
-  }, [clienteId])
-
-  /** Reemplaza la lista entera; una lista vacia deja al cliente sin Focal. */
-  async function guardar (evento: React.FormEvent) {
-    evento.preventDefault()
-    if (!cargado || enviando) return
-
-    setEnviando(true)
-    setError(null)
-    setGuardado(false)
-
-    const resultado = await escribirEnBff<StaffReferencia[]>(rutaDeFocales(clienteId), 'PUT', { focales: elegidas })
-    setEnviando(false)
-
-    if (!resultado.ok) {
-      setError(resultado.mensaje)
-      return
-    }
-
-    setAsignadas(resultado.datos)
-    setElegidas(resultado.datos.map((persona) => persona.id))
-    setGuardado(true)
-  }
-
-  if (cargando) return <Cargando alto="min-h-36" mensaje={`Cargando los ${GLOSARIO.focal.plural.toLowerCase()}…`} />
-
-  if (!cargado) {
-    return (
-      <p role="alert" className="text-texto-peligro text-sm">
-        {error ?? `No se pudieron cargar los ${GLOSARIO.focal.plural.toLowerCase()}.`} Recarga la página si el problema continúa.
-      </p>
-    )
-  }
+  const plural = GLOSARIO.focal.plural.toLowerCase()
+  const singular = GLOSARIO.focal.singular.toLowerCase()
+  const espacios = GLOSARIO.espacio.plural.toLowerCase()
+  const procesos = GLOSARIO.proceso.plural.toLowerCase()
 
   return (
     <div className="flex flex-col gap-6">
-      {puedeEditar
-        ? (
-          <form onSubmit={guardar} className="flex w-full max-w-md flex-col gap-3">
-            <fieldset disabled={enviando} className="min-w-0">
-              <legend className="mb-1 text-sm font-medium">{GLOSARIO.focal.plural} de la cuenta</legend>
-              <p className="text-texto-tenue mb-2 text-xs">
-                El {GLOSARIO.focal.singular} responde por el cliente y ve todos
-                sus {GLOSARIO.espacio.plural.toLowerCase()} y todas sus {GLOSARIO.proceso.plural.toLowerCase()}.
-              </p>
-              <SelectorPersonas personas={personas} elegidas={elegidas} onCambiar={setElegidas} />
-              {elegidas.length === 0 && (
-                <p className="text-texto-tenue mt-2 text-xs">
-                  El cliente quedará sin {GLOSARIO.focal.singular.toLowerCase()}.
-                </p>
-              )}
-            </fieldset>
+      <MatrizAsignacion<StaffReferencia, StaffReferencia>
+        clave={String(clienteId)}
+        puedeEditar={capacidades.includes('edit')}
+        cargar={async (senal) => {
+          const [opciones, focales] = await Promise.all([
+            cargarAsignables(),
+            pedirSobre<StaffReferencia[]>(rutaDeFocales(clienteId), senal)
+          ])
 
-            {error !== null && <p role="alert" className="text-texto-peligro text-sm">{error}</p>}
-            {guardado && (
-              <p role="status" className="text-texto-tenue text-xs">
-                {GLOSARIO.focal.plural} actualizados.
-              </p>
-            )}
+          return { opciones, asignados: focales.data }
+        }}
+        guardar={(ids) => escribirEnBff<StaffReferencia[]>(rutaDeFocales(clienteId), 'PUT', { focales: ids })}
+        idDe={(persona) => persona.id}
+        comoOpcion={(persona) => persona}
+        textos={{
+          cargando: `Cargando los ${plural}…`,
+          falloDeCarga: `No se pudieron cargar los ${plural}.`,
+          leyenda: `${GLOSARIO.focal.plural} de la cuenta`,
+          descripcion: (
+            <p className="text-texto-tenue mb-2 text-xs">
+              El {GLOSARIO.focal.singular} responde por el cliente y ve todos sus {espacios} y todas sus {procesos}.
+            </p>
+          ),
+          sinNinguno: `El cliente quedará sin ${singular}.`,
+          guardar: `Guardar ${plural}`,
+          exito: `${GLOSARIO.focal.plural} de «${nombreCliente}» actualizados.`,
+          vacio: {
+            titulo: `Este cliente no tiene ${singular}`,
+            descripcion: `Quien sea ${singular} verá todos los ${espacios} y todas las ${procesos} del cliente.`
+          }
+        }}
+        selector={(personas, elegidas, onCambiar) => (
+          <SelectorPersonas personas={personas} elegidas={elegidas} onCambiar={onCambiar} />
+        )}
+        chipConImagen
+        chip={(persona) => (
+          <EnlacePersona id={persona.id} nombre={persona.full_name} imagen={persona.profile_image_url} tamano="chico" className="max-w-52" />
+        )}
+      />
 
-            <div>
-              <Boton
-                type="submit"
-                tamano="chico"
-                variante="primario"
-                disabled={enviando || mismasPersonas(elegidas, asignadas.map((persona) => persona.id))}
-                cargando={enviando}
-              >
-                Guardar {GLOSARIO.focal.plural.toLowerCase()}
-              </Boton>
-            </div>
-          </form>
-          )
-        : <ListaFocales personas={asignadas} />}
-
-      <AreasDelCliente areas={areas} />
+      <AreasDelCliente clienteId={clienteId} />
     </div>
   )
 }
 
-/** Quiénes responden hoy por la cuenta, para quien no puede cambiarlo. */
-function ListaFocales ({ personas }: { personas: StaffReferencia[] }) {
-  if (personas.length === 0) {
-    return (
-      <Vacio
-        titulo={`Este cliente no tiene ${GLOSARIO.focal.singular.toLowerCase()}`}
-        descripcion={`Quien sea ${GLOSARIO.focal.singular.toLowerCase()} verá todos los ${GLOSARIO.espacio.plural.toLowerCase()} y todas las ${GLOSARIO.proceso.plural.toLowerCase()} del cliente.`}
-      />
-    )
-  }
+/**
+ * Las áreas que atienden al cliente, derivadas de sus Tareas. Solo lectura, siempre.
+ *
+ * Carga aparte de los Focals: si falla, la sección no aparece y la pestaña no pierde la edición.
+ *
+ * @param clienteId el cliente que se esta mirando
+ */
+function AreasDelCliente ({ clienteId }: { clienteId: number }) {
+  const [areas, setAreas] = useState<string[] | null>(null)
 
-  return (
-    <ul className="flex flex-wrap gap-2">
-      {personas.map((persona) => (
-        <li
-          key={persona.id}
-          className="bg-relleno-neutro text-relleno-neutro-contenido rounded-control flex items-center gap-2 py-1 pl-1 pr-3 text-sm"
-        >
-          <EnlacePersona
-            id={persona.id}
-            nombre={persona.full_name}
-            imagen={persona.profile_image_url}
-            tamano="chico"
-            className="max-w-52"
-          />
-        </li>
-      ))}
-    </ul>
-  )
-}
+  useEffect(() => {
+    const aborto = new AbortController()
 
-/** Las áreas que atienden al cliente, derivadas de sus Tareas. Solo lectura, siempre. */
-function AreasDelCliente ({ areas }: { areas: string[] }) {
+    void pedirSobre<string[]>(rutaDeAreas(clienteId), aborto.signal)
+      .then((sobre) => { if (!aborto.signal.aborted) setAreas(sobre.data) })
+      .catch(() => {})
+
+    return () => aborto.abort()
+  }, [clienteId])
+
+  if (areas === null) return null
+
   return (
     <section className="flex flex-col gap-2">
       <h3 className="text-sm font-medium">Áreas que lo atienden</h3>
