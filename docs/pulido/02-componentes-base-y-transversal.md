@@ -63,7 +63,7 @@ Todas las rutas son relativas a `ops-v2/`.
 - **Propuesta**: Eliminar `tokens.css` y consolidar las variables de color, elevación y timing exclusivamente en `globals.css` bajo la directiva unificada `@theme` de Tailwind v4.
 - **Prioridad**: Media · **Esfuerzo**: M
 
-### P2-09 Lógica duplicada de formateo de fechas relativas y vencimientos
+### P2-09 Lógica duplicada de formateo de fechas relativas y vencimientos (resuelto en 6db7735)
 - **Dónde**: `src/lib/fechas.ts:98-180` vs. `src/componentes/presentadores/Fecha.tsx:30-75` vs. `src/componentes/datos/tabla.ts:40-90`
 - **Qué pasa**: Se repite la deducción de si una fecha está vencida ("vence hoy", "vencido hace N días") y la asignación del color semántico (`text-error`, `text-alerta`, `text-texto-tenue`) tanto en helpers de tabla como en el presentador `Fecha` y en utilidades de dominio.
 - **Propuesta**: Centralizar la lógica y las clases de severidad temporal en `src/lib/fechas.ts` (`describirVencimiento(fecha)`) y consumir dicho contrato en `Fecha.tsx` y `tabla.ts`.

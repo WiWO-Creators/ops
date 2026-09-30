@@ -65,25 +65,25 @@ Las rutas son relativas a `ops-v2/`.
 
 ## Duplicación
 
-### P1-08 Dos formateadores `HH:MM` idénticos y cuatro formatos de duración
+### P1-08 Dos formateadores `HH:MM` idénticos y cuatro formatos de duración (resuelto en 6db7735)
 - **Dónde**: `src/componentes/proyecto/formatos.ts:19` (`segundosAHoraMinuto`) y `src/componentes/proyecto/timesheet.ts:93` (`formatearHm`); además `cronometro.ts:77` (`formatearDuracion`, `H:MM:SS`) y `src/lib/enlace-publico.ts:172` (`tiempoLegible`, `3 h 5 min`)
 - **Qué pasa**: Las dos primeras son la misma función (misma guarda, mismo `padStart`, misma cita a `Format::secondsToTime`). Hay cuatro maneras de mostrar una duración repartidas en cuatro archivos.
 - **Propuesta**: Un solo `src/lib/duraciones.ts` con `segundosAHoraMinuto`, `formatearDuracion` y `tiempoLegible`; borrar `formatearHm` y reexportar.
 - **Prioridad**: Media · **Esfuerzo**: S
 
-### P1-09 `diasRestantes` copia de `diasHasta`, con una validación menos
+### P1-09 `diasRestantes` copia de `diasHasta`, con una validación menos (resuelto en 6db7735)
 - **Dónde**: `src/componentes/proyecto/ResumenProyecto.tsx:55` frente a `src/lib/fechas.ts:183`
 - **Qué pasa**: Mismo `split('-')`, mismo `Date.UTC`, mismo redondeo; la copia no valida `esFechaSola`, así que un `datetime` da un resultado distinto al de `diasHasta`.
 - **Propuesta**: Borrar `diasRestantes` y usar `diasHasta` de `@/lib/fechas`.
 - **Prioridad**: Media · **Esfuerzo**: S
 
-### P1-10 `SIN_DATO` definido seis veces
+### P1-10 `SIN_DATO` definido seis veces (resuelto en 6db7735)
 - **Dónde**: `src/lib/sla.ts:21`, `src/dominio/gestion.ts:32`, `src/componentes/proyecto/actividad.ts:16`, `DetalleTarea.tsx:663`, `ResumenProyecto.tsx:5`, `src/app/tarea/[token]/page.tsx:236`; literales `'—'` en `formatos.ts:38`, `overview.ts:157`, `(panel)/proyectos/solicitudes/page.tsx:245`
 - **Qué pasa**: El marcador de "sin dato" se redeclara en cada archivo y convive con literales sueltos.
 - **Propuesta**: Dejar una sola constante exportada desde un módulo neutro (p. ej. mover la de `src/lib/sla.ts` a `src/lib/presentacion.ts`) y reemplazar las otras cinco declaraciones y los literales.
 - **Prioridad**: Baja · **Esfuerzo**: S
 
-### P1-11 `fechaDeDia` duplicada entre el Gantt en pantalla y el exportado
+### P1-11 `fechaDeDia` duplicada entre el Gantt en pantalla y el exportado (resuelto en 6db7735)
 - **Dónde**: `src/componentes/proyecto/PanelGantt.tsx:840` y `src/componentes/proyecto/exportar-gantt.ts:340`
 - **Qué pasa**: Misma función y mismo docblock; una usa `DIA_EN_MS` y la otra el literal `86400000`.
 - **Propuesta**: Exportarla desde `gantt.ts`, junto a su inversa `diaDeFecha` (`gantt.ts:49`).
@@ -125,7 +125,7 @@ Las rutas son relativas a `ops-v2/`.
 - **Propuesta**: Reemplazar por `AvisoEnLinea variante="error"`, y añadir `animate-entrar-abajo` dentro de `AvisoEnLinea` para que todos entren igual.
 - **Prioridad**: Media · **Esfuerzo**: M
 
-### P1-18 Antetítulo en versalita repetido con variantes
+### P1-18 Antetítulo en versalita repetido con variantes (resuelto en 6db7735)
 - **Dónde**: `text-xs font-medium tracking-[0.08em] uppercase` 10 veces en el frente (p. ej. `DetalleTarea.tsx:854`, `tarea/[token]/page.tsx:258`, `LineaDeActividad.tsx:52` con `text-[0.6875rem]`), más variantes `font-semibold tracking-wide uppercase` en otras tres
 - **Qué pasa**: El mismo rótulo se escribe en tres pesos y dos espaciados. `presentadores/Ficha.tsx:22` ya tiene la versión canónica.
 - **Propuesta**: Extraer `Antetitulo` (o una utilidad `@utility antetitulo` en `globals.css`) y usarla en todos.

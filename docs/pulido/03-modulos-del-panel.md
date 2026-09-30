@@ -230,7 +230,7 @@ Auditoría exhaustiva de consistencia de interfaz, refinamiento visual, deuda t�
 - **Propuesta**: Trasladar la utilidad de filtrado de personal a `@/dominio/personal.ts` o `@/lib/busqueda.ts` y consumirla desde ambos módulos.
 - **Prioridad**: Media · **Esfuerzo**: S
 
-### P3-28 Casts de tipo inseguros `as unknown as Record<string, unknown>` en formularios
+### P3-28 Casts de tipo inseguros `as unknown as Record<string, unknown>` en formularios (resuelto en 6db7735)
 - **Dónde**: `src/app/(panel)/clientes/[id]/page.tsx:274`, `src/componentes/cliente/AccionesCliente.tsx:83`, `src/componentes/prospecto/AccionesProspecto.tsx:75`
 - **Qué pasa**: Para alimentar `FormularioRecurso` se recurre a doble casteo inseguro `as unknown as Record<string, unknown>`, desactivando la verificación estática de TypeScript sobre los campos mutables del recurso.
 - **Propuesta**: Tipar `FormularioRecurso<T>` con un genérico `T extends Record<string, unknown>` y definir transformadores de registro tipados en `campos.ts`.

@@ -60,7 +60,7 @@ Solo hallazgos verificados en el código de `ops-v2`; no se modificó ningún ar
 
 ### Duplicación
 
-### P4-05 Duplicación de lógica de color y extracción de iniciales entre `Cara` y `personas.ts`
+### P4-05 Duplicación de lógica de color y extracción de iniciales entre `Cara` y `personas.ts` (ya resuelto: `Cara` en `piezas.tsx` ya usa `coloresAvatar` e `iniciales` de `@/lib/personas`)
 - **Dónde**: `src/app/pantalla/[codigo]/escenas/piezas.tsx:191-209` frente a `src/lib/personas.ts:16-56`
 - **Qué pasa**: El componente `Cara` (utilizado en las escenas de pantalla de cartelería para mostrar los avatares en `vmin`) reescribe la paleta de colores de fondo (`PALETA_AVATARES`) y la selección basada en el id de la persona mediante una función local `colorDeCara`, en lugar de reutilizar `coloresAvatar` de `src/lib/personas.ts`. Aunque el dimensionamiento en `vmin` justifica tener un nodo DOM especializado distinto del `Avatar` estándar en píxeles, la lógica algorítmica de asignación de color a una persona está duplicada.
 - **Propuesta**: Importar y consumir la paleta o la función de color directamente desde `src/lib/personas.ts`, manteniendo únicamente el marcado específico en `vmin` dentro de `piezas.tsx`.
@@ -73,7 +73,7 @@ Solo hallazgos verificados en el código de `ops-v2`; no se modificó ningún ar
 - **Propuesta**: Solo si el peso del CSS global llega a medirse como problema: hacer la purga en el generador (no a mano), con comparación visual del orbe en sus 8 estados antes y después.
 - **Prioridad**: Baja · **Esfuerzo**: M
 
-### P4-07 Formateo de fecha y reloj duplicado en escenografías de cartelería digital
+### P4-07 Formateo de fecha y reloj duplicado en escenografías de cartelería digital (resuelto en 6db7735)
 - **Dónde**: `src/app/pantalla/[codigo]/MarcoDePantalla.tsx:120-138`, `src/app/pantalla/[codigo]/Escenario.tsx:78-85` frente a `src/lib/fechas.ts` y `src/dominio/momento-del-dia.ts`
 - **Qué pasa**: En `MarcoDePantalla.tsx` se define un formateador local ad-hoc `Intl.DateTimeFormat('es-CL', { weekday: 'long', day: 'numeric', month: 'long' })` y se manipulan mayúsculas manualmente con `slice()`, mientras que en `Escenario.tsx` se formatea la hora de sincronización de datos con otra rutina inline. En `src/lib/fechas.ts` ya existen funciones centralizadas para formateo de fechas en español de Chile (`es-CL`) y en `dominio/momento-del-dia.ts` ya existe `horaDeReloj()`.
 - **Propuesta**: Centralizar el formateo del reloj y la fecha del marco de pantalla en helpers compartidos de `lib/fechas.ts` o `dominio/pantalla-area.ts`.
