@@ -9,7 +9,7 @@ import {
   ContenidoSelector, DisparadorSelector, Opcion, Selector, SelectorBuscable
 } from '@/componentes/formularios/Selector'
 import { CerrarDialogo, ContenidoDialogo, Dialogo } from '@/componentes/superposiciones/Dialogo'
-import { Cargando, ErrorEstado, Vacio } from '@/componentes/estado/Estados'
+import { AvisoEnLinea, Cargando, ErrorEstado, Vacio } from '@/componentes/estado/Estados'
 import { escribirEnBff } from '@/componentes/datos/mutaciones'
 import type { Espacio, PlantillaEspacio, PlantillaEspacioDetallada } from '@/datos/recursos'
 import type { OpcionFiltro } from '@/definiciones/tipos'
@@ -217,7 +217,7 @@ function Formulario ({ plantillas, clientes, onCerrar }: PropsFormulario) {
         previsualizacion={previsualizacion}
       />
 
-      {fallo !== null && <p role="alert" className="text-texto-peligro text-sm">{fallo}</p>}
+      {fallo !== null && <AvisoEnLinea variante="error" mensaje={fallo} className="text-sm" />}
 
       <div className="flex justify-end gap-2">
         <CerrarDialogo asChild>

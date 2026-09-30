@@ -2,6 +2,7 @@
 
 import { useRouter } from 'next/navigation'
 import { useState, type ReactElement } from 'react'
+import { AvisoEnLinea } from '@/componentes/estado/Estados'
 import { Boton } from '@/componentes/formularios/Boton'
 import { AreaTexto } from '@/componentes/formularios/Entrada'
 import { Dialogo, ContenidoDialogo } from '@/componentes/superposiciones/Dialogo'
@@ -109,7 +110,7 @@ export function ResolverSolicitud ({ solicitud }: { solicitud: SolicitudDeElimin
               />
             </label>
 
-            {fallo !== null && <p role="alert" className="text-texto-peligro text-sm">{fallo}</p>}
+            {fallo !== null && <AvisoEnLinea variante="error" mensaje={fallo} className="text-sm" />}
 
             <div className="flex justify-end gap-2">
               <Boton variante="sutil" onClick={() => { setDecision(null) }}>Cancelar</Boton>

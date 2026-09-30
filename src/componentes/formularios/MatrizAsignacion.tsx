@@ -2,7 +2,7 @@
 
 import { useEffect, useEffectEvent, useState, type ReactNode } from 'react'
 import { Boton } from '@/componentes/formularios/Boton'
-import { Cargando, Vacio } from '@/componentes/estado/Estados'
+import { AvisoEnLinea, Cargando, Vacio } from '@/componentes/estado/Estados'
 import { useAviso } from '@/componentes/estado/useAviso'
 import type { Resultado } from '@/componentes/datos/mutaciones'
 
@@ -137,9 +137,11 @@ export function MatrizAsignacion<O extends { id: number }, A> ({
 
   if (!cargado) {
     return (
-      <p role="alert" className="text-texto-peligro text-sm">
-        {error ?? textos.falloDeCarga} Recarga la página si el problema continúa.
-      </p>
+      <AvisoEnLinea
+        variante="error"
+        mensaje={`${error ?? textos.falloDeCarga} Recarga la página si el problema continúa.`}
+        className="text-sm"
+      />
     )
   }
 
@@ -175,7 +177,7 @@ export function MatrizAsignacion<O extends { id: number }, A> ({
         {elegidos.length === 0 && <p className="text-texto-tenue mt-2 text-xs">{textos.sinNinguno}</p>}
       </fieldset>
 
-      {error !== null && <p role="alert" className="text-texto-peligro text-sm">{error}</p>}
+      {error !== null && <AvisoEnLinea variante="error" mensaje={error} className="text-sm" />}
 
       <div className="flex flex-wrap items-center gap-3">
         <Boton

@@ -6,7 +6,7 @@ import { Campo } from '@/componentes/formularios/Campo'
 import { AreaTexto, Entrada } from '@/componentes/formularios/Entrada'
 import { ContenidoSelector, DisparadorSelector, Opcion, Selector } from '@/componentes/formularios/Selector'
 import { CerrarDialogo, ContenidoDialogo, Dialogo } from '@/componentes/superposiciones/Dialogo'
-import { Cargando, ErrorEstado } from '@/componentes/estado/Estados'
+import { AvisoEnLinea, Cargando, ErrorEstado } from '@/componentes/estado/Estados'
 import { leerError } from '@/datos/errores'
 import type { PlantillaHito, PlantillaHitoDetallada } from '@/datos/recursos'
 import type { OpcionFiltro } from '@/definiciones/tipos'
@@ -255,7 +255,7 @@ function Formulario ({ plantilla, tiposDeProceso, onGuardado }: PropsFormulario)
         onAgregar={() => { lista.agregar(filaNueva()) }}
       />
 
-      {fallo !== null && <p role="alert" className="text-texto-peligro text-sm">{fallo}</p>}
+      {fallo !== null && <AvisoEnLinea variante="error" mensaje={fallo} className="text-sm" />}
 
       <div className="flex justify-end gap-2">
         <CerrarDialogo asChild>
@@ -436,9 +436,7 @@ function FilaDeTarea ({ fila, indice, tiposDeProceso, errores, ultima, onCambiar
       </Campo>
 
       {Object.keys(errores).length > 0 && (
-        <p role="alert" className="text-texto-peligro pl-7 text-xs">
-          {Object.values(errores).join(' ')}
-        </p>
+        <AvisoEnLinea variante="error" mensaje={Object.values(errores).join(' ')} className="pl-7" />
       )}
     </li>
   )

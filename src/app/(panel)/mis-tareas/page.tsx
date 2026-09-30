@@ -67,20 +67,19 @@ export default async function MisTareasPage (props: PageProps<'/mis-tareas'>) {
           ? `Todo lo que creaste, se lo hayas asignado a quien sea, con el origen de cada ${GLOSARIO.proceso.singular.toLowerCase()} a la vista.`
           : `Todo lo que tienes asignado, con el origen de cada ${GLOSARIO.proceso.singular.toLowerCase()} a la vista.`}
         // El interruptor manda sobre las DOS listas, asi que vive en el encabezado de la pantalla y
-        // no en una de ellas. Va en un limite de Suspense por el mismo motivo que el modal: lee
-        // `useSearchParams`, y sin el limite el build de esta pagina falla.
+        // no en una de ellas. Cada boton trae su limite de Suspense (lee `useSearchParams`) con un
+        // fallback de su misma forma.
         acciones={
-          <Suspense fallback={null}>
-            <div className="flex flex-wrap items-center gap-2">
-              <BotonCreadas />
-              <BotonCompletadas />
-            </div>
-          </Suspense>
+          <div className="flex flex-wrap items-center gap-2">
+            <BotonCreadas />
+            <BotonCompletadas />
+          </div>
         }
       />
 
-      {/* Mismo motivo que el interruptor para el limite de Suspense: lee `useSearchParams`. */}
-      <Suspense fallback={null}>
+      {/* Limite de Suspense porque lee `useSearchParams`; el fallback reserva el alto del
+          `Segmentado` medio (36px) para que la lista no salte. */}
+      <Suspense fallback={<div aria-hidden="true" className="h-9" />}>
         <FiltrosDeVencimiento />
       </Suspense>
 

@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactElement } from 'react'
 import { useAccionPresencia } from '@/componentes/auditoria/accion'
+import { AvisoEnLinea } from '@/componentes/estado/Estados'
 import { Boton } from '@/componentes/formularios/Boton'
 import { Campo } from '@/componentes/formularios/Campo'
 import { CamposPersonalizados } from '@/componentes/formularios/CamposPersonalizados'
@@ -761,7 +762,7 @@ export function EdicionTarea (
           )}
 
           {error !== null && (
-            <p role="alert" className="text-texto-peligro text-sm">{error}</p>
+            <AvisoEnLinea variante="error" mensaje={error} className="text-sm" />
           )}
 
           <div className="flex justify-end gap-2">

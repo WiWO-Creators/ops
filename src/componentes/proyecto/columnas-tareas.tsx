@@ -15,6 +15,7 @@ import type { FuenteDeProyecto } from '@/dominio/fuente-proyecto'
 import { procesosDelEspacio } from '@/definiciones/procesos'
 import { procesosDelContacto } from '@/definiciones/portal-proyectos'
 import { filtrosDeCamposPersonalizados } from '@/definiciones/filtros'
+import { AvisoEnLinea } from '@/componentes/estado/Estados'
 import { EstadoDeTarea } from './EstadoDeTarea'
 import { camposDeTabla, valorDeCampo } from './tareas'
 
@@ -103,7 +104,7 @@ function EstadoEditable ({ proceso, estados, editable, onCambiado }: PropsEstado
           <option key={estado.valor} value={estado.valor}>{estado.etiqueta}</option>
         ))}
       </select>
-      {error !== null && <span role="alert" className="text-texto-peligro text-xs">{error}</span>}
+      {error !== null && <AvisoEnLinea variante="error" mensaje={error} elemento="span" />}
     </span>
   )
 }

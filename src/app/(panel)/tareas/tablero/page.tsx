@@ -70,7 +70,7 @@ export default async function TableroProcesosPage (props: PageProps<'/tareas/tab
         titulo={`Tablero de ${PROCESOS.titulo.plural}`}
         acciones={
           <div className="flex items-center gap-3">
-            <Suspense><BotonCompletados /></Suspense>
+            <BotonCompletados />
             <Segmentado
               etiqueta={`Presentación de ${PROCESOS.titulo.plural.toLowerCase()}`}
               tamano="medio"

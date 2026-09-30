@@ -2,6 +2,7 @@
 
 import { useRouter } from 'next/navigation'
 import { useEffect, useRef, useState } from 'react'
+import { AvisoEnLinea } from '@/componentes/estado/Estados'
 import { Orbe, type EstadoOrbe } from '@/componentes/estado/Orbe'
 import { Logo } from '@/componentes/estructura/Logo'
 import { Boton } from '@/componentes/formularios/Boton'
@@ -164,12 +165,11 @@ export function FormularioFijarClave ({ token }: { token: string }) {
             </Campo>
 
             {error !== null && (
-              <p
-                role="alert"
-                className="rounded-chico border-relleno-peligro/40 bg-superficie-peligro text-texto-peligro border px-3 py-2 text-sm"
-              >
-                {error}
-              </p>
+              <AvisoEnLinea
+                variante="error"
+                mensaje={error}
+                className="rounded-chico border-relleno-peligro/40 bg-superficie-peligro border px-3 py-2 text-sm"
+              />
             )}
 
             <Boton type="submit" variante="primario" disabled={enviando} className="mt-1 w-full">

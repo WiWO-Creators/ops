@@ -50,7 +50,7 @@ import { ListaChecklist } from './ListaChecklist'
 import { ListaIteraciones } from './ListaIteraciones'
 import { ResumenDeRecurrencia } from '@/componentes/recurrencia/ResumenDeRecurrencia'
 import { PanelAdjuntos } from './PanelArchivos'
-import { mensajeDeRespuesta, pedirRespuesta } from '@/datos/cliente'
+import { mensajeDeLectura, pedirRespuesta } from '@/datos/cliente'
 import { segundosAHoraMinuto } from './formatos'
 import { useAviso } from '@/componentes/estado/useAviso'
 
@@ -890,8 +890,8 @@ async function cargar (fuente: FuenteDeTarea, procesoId: number, senal: AbortSig
 
     if (tarea.status === 404) return { fase: 'noEncontrada' }
 
-    if (!tarea.ok) return { fase: 'error', mensaje: await mensajeDeRespuesta(tarea) }
-    if (!lookups.ok) return { fase: 'error', mensaje: await mensajeDeRespuesta(lookups) }
+    if (!tarea.ok) return { fase: 'error', mensaje: await mensajeDeLectura(tarea) }
+    if (!lookups.ok) return { fase: 'error', mensaje: await mensajeDeLectura(lookups) }
 
     const sobreTarea = await tarea.json() as Sobre<ProcesoDeFicha>
     const sobreLookups = await lookups.json() as Sobre<Lookups>

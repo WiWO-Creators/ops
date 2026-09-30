@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useId, useRef, useState, useSyncExternalStore } from 'react'
 import { Clock, Play, Square, Timer } from 'lucide-react'
+import { AvisoEnLinea } from '@/componentes/estado/Estados'
 import { Boton } from '@/componentes/formularios/Boton'
 import {
   ContenidoMenu,
@@ -1115,7 +1116,7 @@ function CuerpoControl ({
       </div>
       )}
 
-      {aviso !== null && <p role="alert" className="text-texto-peligro text-pretty text-xs">{aviso}</p>}
+      {aviso !== null && <AvisoEnLinea variante="error" mensaje={aviso} className="text-pretty" />}
       {errorDeRed !== null && (
         <p role="status" className="text-texto-sutil text-pretty text-xs">{errorDeRed}</p>
       )}

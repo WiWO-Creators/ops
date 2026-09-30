@@ -13,6 +13,7 @@ import { GLOSARIO } from '@/dominio/glosario'
 import { SOLO_SIN_ESPACIO } from '@/dominio/mis-tareas'
 import type { EstadoLookup } from '@/datos/recursos'
 import { useAviso } from '@/componentes/estado/useAviso'
+import { AvisoEnLinea } from '@/componentes/estado/Estados'
 
 interface PropsTareasPrivadas {
   /** Quien mira. Es a la vez el filtro de la lista y el dueño de lo que se cree. */
@@ -206,7 +207,7 @@ function DialogoTareaPrivada ({ personaId }: { personaId: number }) {
             )}
           </Campo>
 
-          {error !== null && <p role="alert" className="text-texto-peligro text-sm">{error}</p>}
+          {error !== null && <AvisoEnLinea variante="error" mensaje={error} className="text-sm" />}
 
           <div className="flex justify-end gap-2">
             <Boton onClick={() => { setAbierto(false) }}>Cancelar</Boton>

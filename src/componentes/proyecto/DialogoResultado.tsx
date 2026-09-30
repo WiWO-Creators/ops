@@ -2,6 +2,7 @@
 
 import { useState, type ReactElement } from 'react'
 import { escribirEnBff } from '@/componentes/datos/mutaciones'
+import { AvisoEnLinea } from '@/componentes/estado/Estados'
 import { Boton } from '@/componentes/formularios/Boton'
 import { Campo } from '@/componentes/formularios/Campo'
 import { Entrada } from '@/componentes/formularios/Entrada'
@@ -116,7 +117,7 @@ export function DialogoResultado ({
           </Campo>
         )}
 
-        {fallo !== null && <p role="alert" className="text-texto-peligro text-sm">{fallo}</p>}
+        {fallo !== null && <AvisoEnLinea variante="error" mensaje={fallo} className="text-sm" />}
 
         <div className="mt-4 flex justify-end gap-2">
           <Boton type="button" variante="sutil" onClick={() => { cerrar(false) }}>Cancelar</Boton>

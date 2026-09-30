@@ -20,7 +20,7 @@ import {
   MenuContextual
 } from '@/componentes/superposiciones/MenuContextual'
 import { CerrarDialogo, ContenidoDialogo, Dialogo } from '@/componentes/superposiciones/Dialogo'
-import { Cargando, ErrorEstado } from '@/componentes/estado/Estados'
+import { AvisoEnLinea, Cargando, ErrorEstado } from '@/componentes/estado/Estados'
 import { leerError } from '@/datos/errores'
 import type { PlantillaEspacio, PlantillaEspacioDetallada } from '@/datos/recursos'
 import type { OpcionFiltro } from '@/definiciones/tipos'
@@ -329,7 +329,7 @@ function Formulario ({ plantilla, tiposDeProceso, equipo, onGuardado }: PropsFor
         onAgregar={(tipo) => { lista.agregar(filaNueva(tipo)) }}
       />
 
-      {fallo !== null && <p role="alert" className="text-texto-peligro text-sm">{fallo}</p>}
+      {fallo !== null && <AvisoEnLinea variante="error" mensaje={fallo} className="text-sm" />}
 
       <div className="flex justify-end gap-2">
         <CerrarDialogo asChild>
@@ -567,9 +567,7 @@ function FilaDeItem ({
       </div>
 
       {Object.entries(errores).length > 0 && (
-        <p role="alert" className="text-texto-peligro text-xs">
-          {Object.entries(errores).map(([, motivo]) => textoDeMotivo(motivo)).join(' ')}
-        </p>
+        <AvisoEnLinea variante="error" mensaje={Object.entries(errores).map(([, motivo]) => textoDeMotivo(motivo)).join(' ')} />
       )}
     </li>
   )

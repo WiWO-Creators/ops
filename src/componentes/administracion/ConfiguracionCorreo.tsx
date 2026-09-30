@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, type ReactElement } from 'react'
+import { AvisoEnLinea } from '@/componentes/estado/Estados'
 import { Boton } from '@/componentes/formularios/Boton'
 import { Campo } from '@/componentes/formularios/Campo'
 import { Entrada } from '@/componentes/formularios/Entrada'
@@ -153,12 +154,14 @@ export function ConfiguracionCorreo ({ inicial }: PropsConfiguracionCorreo): Rea
           )}
 
           {confirmarReal && (
-            <p role="alert" className="text-texto-peligro text-sm">
-              Este modo manda correo real a gente ajena a este equipo. Toca «Guardar» de nuevo para confirmarlo.
-            </p>
+            <AvisoEnLinea
+              variante="error"
+              mensaje="Este modo manda correo real a gente ajena a este equipo. Toca «Guardar» de nuevo para confirmarlo."
+              className="text-sm"
+            />
           )}
 
-          {errorGuardar !== null && <p role="alert" className="text-texto-peligro text-sm">{errorGuardar}</p>}
+          {errorGuardar !== null && <AvisoEnLinea variante="error" mensaje={errorGuardar} className="text-sm" />}
 
           <div className="flex items-center gap-3">
             <Boton
@@ -187,7 +190,7 @@ export function ConfiguracionCorreo ({ inicial }: PropsConfiguracionCorreo): Rea
             </Boton>
           </div>
 
-          {errorPrueba !== null && <p role="alert" className="text-texto-peligro text-sm">{errorPrueba}</p>}
+          {errorPrueba !== null && <AvisoEnLinea variante="error" mensaje={errorPrueba} className="text-sm" />}
 
           {resultadoPrueba !== null && (
             <div className="border-linea rounded-tarjeta border p-3">

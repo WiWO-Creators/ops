@@ -2,6 +2,7 @@
 
 import { useRouter } from 'next/navigation'
 import { useMemo, useRef, useState, type FormEvent, type ReactElement } from 'react'
+import { AvisoEnLinea } from '@/componentes/estado/Estados'
 import { Boton } from '@/componentes/formularios/Boton'
 import { useAccionPresencia } from '@/componentes/auditoria/accion'
 import { Campo } from '@/componentes/formularios/Campo'
@@ -397,7 +398,7 @@ export function AltaRapidaProceso ({
       {parcial !== null && <ParteAltaMultiple parcial={parcial} />}
 
       {envio.error !== null && (
-        <p role="alert" className="text-texto-peligro text-sm">{envio.error}</p>
+        <AvisoEnLinea variante="error" mensaje={envio.error} className="text-sm" />
       )}
 
       <div className="flex justify-end gap-2">

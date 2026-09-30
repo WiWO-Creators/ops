@@ -3,6 +3,7 @@
 import { CalendarDays, TriangleAlert } from 'lucide-react'
 import { useEffect, useMemo, useState, type FormEvent, type ReactElement } from 'react'
 import { escribirEnBff } from '@/componentes/datos/mutaciones'
+import { AvisoEnLinea } from '@/componentes/estado/Estados'
 import { Boton } from '@/componentes/formularios/Boton'
 import { Campo } from '@/componentes/formularios/Campo'
 import { Entrada } from '@/componentes/formularios/Entrada'
@@ -247,7 +248,7 @@ function FormularioDeRegla ({ tarea, onCerrar, onGuardada }: {
 
         <div className="flex min-w-0 flex-col gap-2 sm:col-span-3">
           <FinDeRecurrencia inicio={campos.inicio} valor={campos.fin} onCambiar={(fin) => { cambiar({ fin }) }} />
-          {errores.fin !== undefined && <p role="alert" className="text-texto-peligro text-xs">{errores.fin}</p>}
+          {errores.fin !== undefined && <AvisoEnLinea variante="error" mensaje={errores.fin} />}
           {dosTopes && (
             <p className="text-texto-sutil text-xs">
               Esta regla termina tras {inicial.fin.ciclos} veces o el {formatearFecha(inicial.fin.hasta)}, lo que ocurra
@@ -259,7 +260,7 @@ function FormularioDeRegla ({ tarea, onCerrar, onGuardada }: {
 
       <VistaPrevia estado={previa} hayErroresLocales={hayErroresLocales} />
 
-      {error !== null && <p role="alert" className="text-texto-peligro animate-entrar-abajo text-sm">{error}</p>}
+      {error !== null && <AvisoEnLinea variante="error" mensaje={error} className="text-sm" />}
 
       <div className="flex justify-end gap-2">
         <Boton variante="secundario" onClick={onCerrar} disabled={enCurso}>Cancelar</Boton>

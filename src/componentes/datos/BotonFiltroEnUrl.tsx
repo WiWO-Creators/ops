@@ -1,6 +1,6 @@
 'use client'
 
-import type { ReactNode } from 'react'
+import { Suspense, type ReactNode } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Boton } from '@/componentes/formularios/Boton'
 
@@ -25,9 +25,21 @@ interface PropiedadesBotonFiltroEnUrl {
  * @param props.etiqueta texto del boton
  * @param props.activo predicado sobre la query actual
  * @param props.alternar transformacion de la query al pulsar
+ * Trae su propio limite de Suspense porque lee `useSearchParams`: mientras la query no esta, se
+ * pinta el mismo boton deshabilitado con su etiqueta, asi el encabezado no salta al llegar.
+ *
  * @returns el boton con `aria-pressed` y la variante marcada cuando esta encendido
  */
-export function BotonFiltroEnUrl ({ etiqueta, activo, alternar }: PropiedadesBotonFiltroEnUrl) {
+export function BotonFiltroEnUrl (props: PropiedadesBotonFiltroEnUrl) {
+  return (
+    <Suspense fallback={<Boton variante="secundario" disabled>{props.etiqueta}</Boton>}>
+      <InterruptorEnUrl {...props} />
+    </Suspense>
+  )
+}
+
+/** El interruptor ya con la query en mano; ver `BotonFiltroEnUrl`. */
+function InterruptorEnUrl ({ etiqueta, activo, alternar }: PropiedadesBotonFiltroEnUrl) {
   const router = useRouter()
   const params = useSearchParams()
   const encendido = activo(new URLSearchParams(params.toString()))

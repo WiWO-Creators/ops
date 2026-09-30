@@ -9,8 +9,8 @@ import { escribirEnBff } from '@/componentes/datos/mutaciones'
 import {
   AVISOS_DE_CONTACTO, avisosTodos, cuerpoDeContacto, PERMISOS_PORTAL, revisarContacto
 } from '@/dominio/contactos'
-import { cn } from '@/lib/clases'
 import type { AvisosDeContacto, ContactoCompleto, PermisoPortal } from '@/datos/recursos'
+import { AvisoEnLinea } from '@/componentes/estado/Estados'
 import { useAviso } from '@/componentes/estado/useAviso'
 
 interface PropsDialogoContacto {
@@ -243,7 +243,7 @@ export function DialogoContacto ({ clienteId, contacto, onCerrar, onGuardado }: 
           </fieldset>
 
           {errorApi !== null && (
-            <p role="alert" className={cn('text-texto-peligro text-sm')}>{errorApi}</p>
+            <AvisoEnLinea variante="error" mensaje={errorApi} className="text-sm" />
           )}
 
           <div className="flex justify-end gap-2">

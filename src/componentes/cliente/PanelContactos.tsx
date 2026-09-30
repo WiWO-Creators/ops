@@ -10,7 +10,7 @@ import { Avatar } from '@/componentes/presentadores/Avatar'
 import { Boton } from '@/componentes/formularios/Boton'
 import { Entrada } from '@/componentes/formularios/Entrada'
 import { Insignia } from '@/componentes/presentadores/Insignia'
-import { Vacio } from '@/componentes/estado/Estados'
+import { AvisoEnLinea, Vacio } from '@/componentes/estado/Estados'
 import { escribirEnBff } from '@/componentes/datos/mutaciones'
 import { useAviso } from '@/componentes/estado/useAviso'
 import { DialogoContacto } from './DialogoContacto'
@@ -199,7 +199,7 @@ export function PanelContactos ({ clienteId, contactos, capacidades }: PropsPane
         </div>
       )}
 
-      {error !== null && <p role="alert" className="text-texto-peligro text-sm">{error}</p>}
+      {error !== null && <AvisoEnLinea variante="error" mensaje={error} className="text-sm" />}
 
       {enlace !== null && <EnlaceGenerado enlace={enlace} onCerrar={() => setEnlace(null)} />}
 

@@ -23,7 +23,7 @@ import { TareasDelArea } from './TareasDelArea'
 import { Boton } from '@/componentes/formularios/Boton'
 import { Segmentado } from '@/componentes/formularios/Segmentado'
 import { Insignia } from '@/componentes/presentadores/Insignia'
-import { Vacio } from '@/componentes/estado/Estados'
+import { AvisoEnLinea, Vacio } from '@/componentes/estado/Estados'
 import { escribirEnBff } from '@/componentes/datos/mutaciones'
 import { pedirSobre } from '@/datos/cliente'
 import { GLOSARIO } from '@/dominio/glosario'
@@ -403,7 +403,7 @@ export function Organigrama (
 
       {/* El error vive acá arriba y no dentro del árbol: una reasignación se puede lanzar desde la
           lista del mapa, donde no hay árbol en pantalla que lo muestre. */}
-      {error !== null && <p role="alert" className="text-texto-peligro text-sm">{error}</p>}
+      {error !== null && <AvisoEnLinea variante="error" mensaje={error} className="text-sm" />}
 
       {contenido}
 

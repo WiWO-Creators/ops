@@ -2,6 +2,7 @@
 
 import { useState, type ReactElement, type ReactNode } from 'react'
 import { ConfirmarBorrado, useConfirmarBorrado } from './ConfirmarBorrado'
+import { AvisoEnLinea } from '@/componentes/estado/Estados'
 import { Boton } from '@/componentes/formularios/Boton'
 import { useAviso } from '@/componentes/estado/useAviso'
 import { mensajeDeRespuesta } from '@/datos/cliente'
@@ -150,7 +151,7 @@ export function BajaYBorrado ({
       )}
 
       {fallo !== null && !confirmarBorrado.abierto && (
-        <p role="alert" className="text-texto-peligro w-full text-xs">{fallo}</p>
+        <AvisoEnLinea variante="error" mensaje={fallo} className="w-full" />
       )}
 
       <ConfirmarBorrado

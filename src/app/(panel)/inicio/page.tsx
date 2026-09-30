@@ -2,6 +2,7 @@ import { Suspense } from 'react'
 import Link from 'next/link'
 import { unstable_rethrow } from 'next/navigation'
 import { ArrowRight, Star, TriangleAlert } from 'lucide-react'
+import { AvisoEnLinea } from '@/componentes/estado/Estados'
 import { cn } from '@/lib/clases'
 import { pedir, pedirOpcional } from '@/datos/servidor'
 import { ErrorApi, mensajeParaPantalla } from '@/datos/errores'
@@ -455,12 +456,11 @@ function MiTrabajo ({ grupos, restantes, estados, error }: PropsMiTrabajo) {
 
       {error !== null
         ? (
-          <p
-            role="alert"
-            className="rounded-tarjeta border border-texto-peligro/25 bg-superficie-peligro px-5 py-4 text-base text-texto-peligro"
-          >
-            {error}
-          </p>
+          <AvisoEnLinea
+            variante="error"
+            mensaje={error}
+            className="rounded-tarjeta border border-texto-peligro/25 bg-superficie-peligro px-5 py-4 text-base"
+          />
           )
         : grupos.length === 0
         ? (

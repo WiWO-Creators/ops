@@ -24,7 +24,8 @@ import { PanelTiempos } from '@/componentes/proyecto/PanelTiempos'
 import { PanelTickets } from '@/componentes/proyecto/PanelTickets'
 import { ContadorDeTickets } from '@/componentes/proyecto/ContadorDeTickets'
 import { Pestanas, type Panel } from '@/componentes/proyecto/Pestanas'
-import { Cargando, ErrorEstado, SinPermiso, Vacio } from '@/componentes/estado/Estados'
+import { Cargando, SinPermiso, Vacio } from '@/componentes/estado/Estados'
+import { ErrorRecargable } from '@/componentes/estado/ErrorRecargable'
 import { listaDe, nombreDe } from '@/datos/catalogos'
 import { ErrorApi } from '@/datos/errores'
 import { estadoIa } from '@/datos/ajustes'
@@ -169,7 +170,7 @@ export default async function ProyectoPage (props: PageProps<'/proyectos/[id]'>)
     if (detalle.codigo === 'not_found') return <NoEncontrado />
     if (detalle.codigo === 'forbidden') return <SinPermiso />
 
-    return <ErrorEstado detalle={detalle.message} />
+    return <ErrorRecargable detalle={detalle.message} />
   }
 
   const { proyecto, lookups, yo, ia } = detalle

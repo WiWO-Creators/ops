@@ -3,6 +3,7 @@
 import { CircleAlert, CircleCheck, Download, FileUp, TriangleAlert } from 'lucide-react'
 import { useId, useMemo, useState, type ChangeEvent, type ReactElement } from 'react'
 import { escribirEnBff } from '@/componentes/datos/mutaciones'
+import { AvisoEnLinea } from '@/componentes/estado/Estados'
 import { Boton } from '@/componentes/formularios/Boton'
 import { AreaTexto } from '@/componentes/formularios/Entrada'
 import type { Referencia } from '@/datos/recursos'
@@ -180,7 +181,7 @@ export function ImportadorRecurrentes ({ proyectos, personas, onTerminar }: {
         />
       )}
 
-      {error !== null && <p role="alert" className="text-texto-peligro animate-entrar-abajo text-sm">{error}</p>}
+      {error !== null && <AvisoEnLinea variante="error" mensaje={error} className="text-sm" />}
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <Resumen filas={filas.length} parte={vigente} desactualizado={parte !== null && vigente === null} />

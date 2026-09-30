@@ -2,7 +2,7 @@
 
 import { useEffect, useState, type ReactElement } from 'react'
 import { escribirEnBff } from '@/componentes/datos/mutaciones'
-import { Cargando } from '@/componentes/estado/Estados'
+import { AvisoEnLinea, Cargando } from '@/componentes/estado/Estados'
 import { Boton } from '@/componentes/formularios/Boton'
 import { Campo } from '@/componentes/formularios/Campo'
 import { ContenidoSelector, DisparadorSelector, Opcion, Selector } from '@/componentes/formularios/Selector'
@@ -114,7 +114,7 @@ function FlujoDeLimpieza ({ regla, onCerrar }: { regla: ReglaALimpiar, onCerrar:
   if (paso.fase === 'error') {
     return (
       <div className="flex flex-col gap-4">
-        <p role="alert" className="text-texto-peligro text-sm">{paso.mensaje}</p>
+        <AvisoEnLinea variante="error" mensaje={paso.mensaje} className="text-sm" />
         <div className="flex justify-end"><Boton variante="secundario" onClick={onCerrar}>Cerrar</Boton></div>
       </div>
     )
@@ -133,7 +133,7 @@ function FlujoDeLimpieza ({ regla, onCerrar }: { regla: ReglaALimpiar, onCerrar:
           {elegidas.length > 0 && 'Van a la papelera: no se borran de forma definitiva. Justo antes de moverlas se revisa cada una otra vez; si alguien la tocó mientras tanto, se conserva.'}
           {detener !== '' && ` ${elegidas.length > 0 ? 'Además' : 'Solo se hará esto'}: ${accion?.etiqueta.toLowerCase() ?? ''}.`}
         </p>
-        {error !== null && <p role="alert" className="text-texto-peligro text-sm">{error}</p>}
+        {error !== null && <AvisoEnLinea variante="error" mensaje={error} className="text-sm" />}
         <div className="flex justify-end gap-2">
           <Boton variante="secundario" disabled={enCurso} onClick={() => { setPaso({ fase: 'eligiendo', validacion }) }}>Volver</Boton>
           <Boton variante="peligro" cargando={enCurso} onClick={() => { void aplicar(validacion) }}>
@@ -209,7 +209,7 @@ function FlujoDeLimpieza ({ regla, onCerrar }: { regla: ReglaALimpiar, onCerrar:
         )}
       </Campo>
 
-      {error !== null && <p role="alert" className="text-texto-peligro text-sm">{error}</p>}
+      {error !== null && <AvisoEnLinea variante="error" mensaje={error} className="text-sm" />}
 
       <div className="flex justify-end gap-2">
         <Boton variante="secundario" onClick={onCerrar}>Cancelar</Boton>

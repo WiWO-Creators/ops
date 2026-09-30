@@ -13,7 +13,7 @@ import {
   Tabla
 } from '@/componentes/datos/Tabla'
 import { escribirEnBff } from '@/componentes/datos/mutaciones'
-import { Cargando, ErrorEstado, SinPermiso, Vacio } from '@/componentes/estado/Estados'
+import { AvisoEnLinea, Cargando, ErrorEstado, SinPermiso, Vacio } from '@/componentes/estado/Estados'
 import { EnlacePanelClasico } from '@/componentes/presentadores/EnlacePanelClasico'
 import { GLOSARIO } from '@/dominio/glosario'
 import { SIN_DATO } from '@/lib/sla'
@@ -437,7 +437,7 @@ function InterruptoresDelPortal ({
         </p>
       )}
 
-      {fallo !== null && <p role="alert" className="text-texto-peligro text-sm">{fallo}</p>}
+      {fallo !== null && <AvisoEnLinea variante="error" mensaje={fallo} className="text-sm" />}
     </div>
   )
 }
@@ -655,7 +655,7 @@ function Editor ({ proyectoId, ruta, inicial, onGuardado }: PropsEditor): ReactE
         </p>
       </section>
 
-      {fallo !== null && <p role="alert" className="text-texto-peligro text-sm">{fallo}</p>}
+      {fallo !== null && <AvisoEnLinea variante="error" mensaje={fallo} className="text-sm" />}
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <EnlacePanelClasico entidad="espacio" id={proyectoId} />

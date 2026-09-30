@@ -2,6 +2,7 @@
 
 import { ChevronDown } from 'lucide-react'
 import { useState, type ReactElement } from 'react'
+import { AvisoEnLinea } from '@/componentes/estado/Estados'
 import { Avatar } from '@/componentes/presentadores/Avatar'
 import {
   BuscadorMenu, ContenidoMenu, DisparadorMenu, GrupoRadioMenu, ItemMenuRadio, MenuContextual, SinResultadosMenu
@@ -163,7 +164,7 @@ function OpcionesDePersonas ({
   deshabilitado: boolean
 }): ReactElement {
   if (personas.fase === 'error') {
-    return <p role="alert" className="text-texto-peligro px-2.5 py-2 text-sm">{personas.mensaje}</p>
+    return <AvisoEnLinea variante="error" mensaje={personas.mensaje} className="px-2.5 py-2 text-sm" />
   }
 
   if (personas.fase !== 'listo') {

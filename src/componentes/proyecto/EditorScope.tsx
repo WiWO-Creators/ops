@@ -2,6 +2,7 @@
 
 import { useId, useRef, useState, type ReactElement } from 'react'
 import { Plus, X } from 'lucide-react'
+import { AvisoEnLinea } from '@/componentes/estado/Estados'
 import { Boton } from '@/componentes/formularios/Boton'
 import { Campo } from '@/componentes/formularios/Campo'
 import { AreaTexto, Entrada } from '@/componentes/formularios/Entrada'
@@ -178,7 +179,7 @@ export function EditorScope ({ proyectoId, scope, ia, onGuardado, onCancelar }: 
           />
           )}
 
-      {error !== null && <p role="alert" className="text-texto-peligro text-sm">{error}</p>}
+      {error !== null && <AvisoEnLinea variante="error" mensaje={error} className="text-sm" />}
 
       <footer className="flex flex-wrap items-center justify-end gap-2">
         <Boton variante="sutil" tamano="chico" onClick={onCancelar} disabled={ocupado !== null}>Cancelar</Boton>
@@ -330,7 +331,7 @@ function SelectorPdf ({ archivo, guardado, onArchivo }: PropsSelectorPdf): React
         )}
       </div>
       {problema !== null
-        ? <p role="alert" className="text-texto-peligro text-xs">{problema}</p>
+        ? <AvisoEnLinea variante="error" mensaje={problema} />
         : (
           <p className="text-texto-sutil text-xs">
             {archivo === null && guardado !== null
@@ -453,7 +454,7 @@ function ListaEditable ({ rotulo, items, error, onItems }: PropsListaEditable): 
         <Plus size={14} aria-hidden="true" />
         Agregar ítem
       </Boton>
-      {error !== undefined && <p role="alert" className="text-texto-peligro text-xs">{error}</p>}
+      {error !== undefined && <AvisoEnLinea variante="error" mensaje={error} />}
     </fieldset>
   )
 }

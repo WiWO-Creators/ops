@@ -4,6 +4,7 @@ import { useId, type ReactElement } from 'react'
 import {
   alternarDia, alternarFinesDeSemana, DIAS_SEMANA, excluyeFinesDeSemana, textoDeDiasExcluidos
 } from '@/dominio/recurrencia'
+import { AvisoEnLinea } from '@/componentes/estado/Estados'
 import { cn } from '@/lib/clases'
 
 /**
@@ -81,7 +82,7 @@ export function DiasExcluidos ({ valor, onCambiar, error, deshabilitado = false 
       </div>
 
       {error !== undefined
-        ? <p id={`${id}-nota`} role="alert" className="text-texto-peligro text-xs">{error}</p>
+        ? <AvisoEnLinea variante="error" mensaje={error} id={`${id}-nota`} />
         : (
           <p id={`${id}-nota`} className="text-texto-sutil text-xs">
             {frase === ''

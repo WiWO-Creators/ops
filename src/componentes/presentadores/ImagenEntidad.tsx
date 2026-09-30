@@ -12,6 +12,7 @@ import {
   MenuContextual,
   SeparadorMenu
 } from '@/componentes/superposiciones/MenuContextual'
+import { AvisoEnLinea } from '@/componentes/estado/Estados'
 import { cn } from '@/lib/clases'
 import { coloresAvatar, iniciales } from '@/lib/personas'
 
@@ -199,7 +200,7 @@ export function ImagenEntidad ({
         </ContenidoMenu>
       </MenuContextual>
 
-      {error !== null && <span role="alert" className="text-texto-peligro text-xs">{error}</span>}
+      {error !== null && <AvisoEnLinea variante="error" mensaje={error} elemento="span" />}
     </div>
   )
 }

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { AvisoEnLinea } from '@/componentes/estado/Estados'
 import { CerrarDialogo, ContenidoDialogo, Dialogo } from '@/componentes/superposiciones/Dialogo'
 import { Boton } from '@/componentes/formularios/Boton'
 import { Campo } from '@/componentes/formularios/Campo'
@@ -217,7 +218,7 @@ function FormularioCopia ({
       </Campo>
 
       {error !== null && (
-        <p role="alert" className="text-texto-peligro text-sm">{error}</p>
+        <AvisoEnLinea variante="error" mensaje={error} className="text-sm" />
       )}
 
       <div className="flex justify-end gap-2">

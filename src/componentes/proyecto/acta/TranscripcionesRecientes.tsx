@@ -4,7 +4,7 @@ import { useState, type ReactElement } from 'react'
 import { Trash2 } from 'lucide-react'
 import { Boton } from '@/componentes/formularios/Boton'
 import { Insignia } from '@/componentes/presentadores/Insignia'
-import { Cargando, ErrorEstado } from '@/componentes/estado/Estados'
+import { AvisoEnLinea, Cargando, ErrorEstado } from '@/componentes/estado/Estados'
 import { useAviso } from '@/componentes/estado/useAviso'
 import { escribirEnBff } from '@/componentes/datos/mutaciones'
 import { IDIOMAS_TRANSCRIPCION, formatoDeVencimiento, type ResumenTranscripcion } from '@/dominio/transcripcion'
@@ -138,7 +138,7 @@ function FilaTranscripcion ({
       </div>
 
       <p className="text-texto-sutil text-xs">Se borra el {formatoDeVencimiento(transcripcion.expira_en)}.</p>
-      {error !== null && <p role="alert" className="text-texto-peligro text-xs">{error}</p>}
+      {error !== null && <AvisoEnLinea variante="error" mensaje={error} />}
     </li>
   )
 }

@@ -3,6 +3,7 @@
 import { useRouter } from 'next/navigation'
 import Script from 'next/script'
 import { useEffect, useRef, useState } from 'react'
+import { AvisoEnLinea } from '@/componentes/estado/Estados'
 import { Orbe, type EstadoOrbe } from '@/componentes/estado/Orbe'
 import { Logo } from '@/componentes/estructura/Logo'
 import { Boton } from '@/componentes/formularios/Boton'
@@ -296,12 +297,11 @@ export function FormularioEntrar ({ google, aviso = null }: { google: AccesoGoog
           )}
 
           {error !== null && (
-            <p
-              role="alert"
-              className="mb-5 rounded-chico border border-relleno-peligro/40 bg-superficie-peligro px-3 py-2 text-sm text-texto-peligro"
-            >
-              {error}
-            </p>
+            <AvisoEnLinea
+              variante="error"
+              mensaje={error}
+              className="mb-5 rounded-chico border border-relleno-peligro/40 bg-superficie-peligro px-3 py-2 text-sm"
+            />
           )}
 
           {clientIdGoogle !== null && (

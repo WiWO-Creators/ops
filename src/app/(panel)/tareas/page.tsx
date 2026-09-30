@@ -77,7 +77,7 @@ export default async function ProcesosPage (props: PageProps<'/tareas'>) {
         titulo={PROCESOS.titulo.plural}
         acciones={
           <div className="flex items-center gap-3">
-            <Suspense><BotonCompletados /></Suspense>
+            <BotonCompletados />
             <Segmentado
               etiqueta={`Presentación de ${PROCESOS.titulo.plural.toLowerCase()}`}
               tamano="medio"

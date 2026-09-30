@@ -1,6 +1,7 @@
 'use client'
 
 import { Fragment, useState, type ReactElement, type ReactNode } from 'react'
+import { AvisoEnLinea } from '@/componentes/estado/Estados'
 import { Boton } from '@/componentes/formularios/Boton'
 import { Campo } from '@/componentes/formularios/Campo'
 import { AreaTexto, Entrada } from '@/componentes/formularios/Entrada'
@@ -200,7 +201,7 @@ export function FormularioRecurso<T extends object> ({
           {pie?.(valores)}
 
           {fallo !== null && (
-            <p role="alert" className="text-texto-peligro text-sm">{fallo}</p>
+            <AvisoEnLinea variante="error" mensaje={fallo} className="text-sm" />
           )}
 
           <div className="flex justify-end gap-2">
@@ -323,7 +324,7 @@ export function ControlDeCampo (
           ))}
           {campo.opciones?.length === 0 && <p className="text-texto-sutil text-xs">No hay opciones disponibles.</p>}
         </div>
-        {error !== undefined && <p role="alert" className="text-texto-peligro text-xs">{error}</p>}
+        {error !== undefined && <AvisoEnLinea variante="error" mensaje={error} />}
       </fieldset>
     )
   }

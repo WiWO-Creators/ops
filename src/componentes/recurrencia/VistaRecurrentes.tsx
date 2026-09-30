@@ -5,7 +5,7 @@ import { startTransition, useEffect, useMemo, useState, ViewTransition, type Rea
 import { escribirEnBff } from '@/componentes/datos/mutaciones'
 import { PARAMETRO_TAREA } from '@/componentes/datos/tabla'
 import { useParametroEnUrl } from '@/componentes/datos/useFiltrosEnUrl'
-import { ErrorEstado, Vacio } from '@/componentes/estado/Estados'
+import { AvisoEnLinea, ErrorEstado, Vacio } from '@/componentes/estado/Estados'
 import { EntradaEscalonada } from '@/componentes/estructura/EntradaEscalonada'
 import { Boton } from '@/componentes/formularios/Boton'
 import { Segmentado } from '@/componentes/formularios/Segmentado'
@@ -522,7 +522,7 @@ function BotonReanudar ({ regla }: { regla: ReglaRecurrente }): ReactElement {
         {!enCurso && <Play size={13} aria-hidden="true" />}
         Reanudar
       </Boton>
-      {error !== null && <span role="alert" className="text-texto-peligro basis-full text-right text-xs">{error}</span>}
+      {error !== null && <AvisoEnLinea variante="error" mensaje={error} elemento="span" className="basis-full text-right" />}
     </>
   )
 }
@@ -599,7 +599,7 @@ function ConfirmarCambioDeRegla ({ pedido, abierto, onCerrar }: {
       <ContenidoDialogo titulo={textos.titulo} descripcion={textos.descripcion} ancho="chico">
         <p className="text-texto text-sm font-semibold">{pedido?.regla.name}</p>
         <p className="text-texto-tenue mt-2 text-sm">{textos.detalle}</p>
-        {error !== null && <p role="alert" className="text-texto-peligro animate-entrar-abajo mt-3 text-sm">{error}</p>}
+        {error !== null && <AvisoEnLinea variante="error" mensaje={error} className="mt-3 text-sm" />}
         <div className="mt-5 flex justify-end gap-2">
           <Boton variante="secundario" onClick={cerrar} disabled={enCurso}>Cancelar</Boton>
           <Boton variante={textos.variante} cargando={enCurso} onClick={() => { void aplicar() }}>{textos.boton}</Boton>

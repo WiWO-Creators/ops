@@ -6,7 +6,7 @@ import { ArbolDrive } from '@/componentes/archivos/ArbolDrive'
 import { escribirEnBff } from '@/componentes/datos/mutaciones'
 import { CeldaEncabezado, CeldaTabla, CuerpoTabla, EncabezadoTabla, FilaTabla, Tabla } from '@/componentes/datos/Tabla'
 import { MenuAccionesFila } from '@/componentes/datos/MenuAccionesFila'
-import { Cargando, ErrorEstado } from '@/componentes/estado/Estados'
+import { AvisoEnLinea, Cargando, ErrorEstado } from '@/componentes/estado/Estados'
 import { useAviso } from '@/componentes/estado/useAviso'
 import { Interruptor } from '@/componentes/formularios/Interruptor'
 import { pedirSobre } from '@/datos/cliente'
@@ -22,6 +22,7 @@ import {
 } from '@/definiciones/archivos'
 import type { ArchivoProyecto } from '@/datos/recursos'
 import type { FuenteDeProyecto } from '@/dominio/fuente-proyecto'
+import type { EstadoCarga } from './carga'
 
 /**
  * Pestaña Archivos del Espacio: el arbol de Drive arriba, los adjuntos del panel abajo.
@@ -92,12 +93,6 @@ interface PropsPanelAdjuntos {
   esDelPortal?: boolean
 }
 
-/** Estado de la carga. El error es un texto listo para mostrar, no un envelope. */
-type Carga =
-  | { fase: 'cargando' }
-  | { fase: 'listo', archivos: ArchivoProyecto[] }
-  | { fase: 'error', mensaje: string }
-
 /**
  * Los adjuntos de un Espacio o de un Proceso: listar, descargar y borrar.
  *
@@ -116,14 +111,14 @@ export function PanelAdjuntos (
 ): ReactElement {
   const ruta = rutaPropia ?? rutaDeAdjuntos(raiz, id)
   const columnas = columnasDeArchivo(esDelPortal)
-  const [carga, setCarga] = useState<Carga>({ fase: 'cargando' })
+  const [carga, setCarga] = useState<EstadoCarga<ArchivoProyecto[]>>({ fase: 'cargando' })
   const [intento, setIntento] = useState(0)
 
   useEffect(() => {
     const control = new AbortController()
 
     void pedirSobre<ArchivoProyecto[]>(ruta, control.signal)
-      .then((sobre) => { setCarga({ fase: 'listo', archivos: sobre.data }) })
+      .then((sobre) => { setCarga({ fase: 'listo', datos: sobre.data }) })
       .catch((fallo: unknown) => {
         if (control.signal.aborted) return
 
@@ -139,14 +134,14 @@ export function PanelAdjuntos (
   /** Cambia en el listado la visibilidad de un adjunto: al pulsar, y otra vez al revertir. */
   const marcarVisible = useCallback((archivoId: number, visible: boolean) => {
     setCarga((actual) => (actual.fase === 'listo'
-      ? { fase: 'listo', archivos: conVisibilidad(actual.archivos, archivoId, visible) }
+      ? { fase: 'listo', datos: conVisibilidad(actual.datos, archivoId, visible) }
       : actual))
   }, [])
 
   /** Saca del listado el adjunto que el backend ya borro. */
   const quitar = useCallback((archivoId: number) => {
     setCarga((actual) => (actual.fase === 'listo'
-      ? { fase: 'listo', archivos: actual.archivos.filter((archivo) => archivo.id !== archivoId) }
+      ? { fase: 'listo', datos: actual.datos.filter((archivo) => archivo.id !== archivoId) }
       : actual))
   }, [])
 
@@ -168,12 +163,12 @@ export function PanelAdjuntos (
       )}
 
       {carga.fase === 'listo' && (
-        carga.archivos.length === 0
+        carga.datos.length === 0
           ? <p className="text-texto-sutil text-sm">Todavía no hay archivos adjuntos.</p>
           : (
             <TablaAdjuntos
               ruta={ruta}
-              archivos={carga.archivos}
+              archivos={carga.datos}
               columnas={columnas}
               puedeBorrar={puedeBorrar}
               onEliminado={quitar}
@@ -302,7 +297,7 @@ function VisibleParaElCliente (
         deshabilitado={guardando}
         onPulsar={() => { void cambiar() }}
       />
-      {error !== null && <span role="alert" className="text-texto-peligro text-xs">{error}</span>}
+      {error !== null && <AvisoEnLinea variante="error" mensaje={error} elemento="span" />}
     </span>
   )
 }

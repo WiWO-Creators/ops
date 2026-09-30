@@ -3,6 +3,7 @@
 import { ExternalLink, FolderOpen } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { useState, type FormEvent, type ReactElement } from 'react'
+import { AvisoEnLinea } from '@/componentes/estado/Estados'
 import { Boton, boton } from '@/componentes/formularios/Boton'
 import { cn } from '@/lib/clases'
 import { ControlDeCampo } from '@/componentes/proyecto/FormularioRecurso'
@@ -185,7 +186,7 @@ function EditorDeEnlace ({ licitacionId, inicial, alTerminar, puedeCancelar }: P
           setErrorDeCampo(undefined)
         }}
       />
-      {fallo !== null && <p role="alert" className="text-texto-peligro text-sm">{fallo}</p>}
+      {fallo !== null && <AvisoEnLinea variante="error" mensaje={fallo} className="text-sm" />}
       <div className="flex gap-2">
         <Boton type="submit" variante="primario" tamano="chico" cargando={guardando}>
           Guardar

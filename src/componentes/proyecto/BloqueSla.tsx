@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, type ReactElement, type ReactNode } from 'react'
+import { AvisoEnLinea } from '@/componentes/estado/Estados'
 import { Boton } from '@/componentes/formularios/Boton'
 import { Campo } from '@/componentes/formularios/Campo'
 import { Entrada } from '@/componentes/formularios/Entrada'
@@ -211,7 +212,7 @@ export function BloqueSla ({ tarea, puedeEditar, onCambiado }: PropsBloqueSla): 
           >
             Pedir aprobación al cliente
           </Boton>
-          {fallo !== null && <p role="alert" className="text-texto-peligro text-sm">{fallo}</p>}
+          {fallo !== null && <AvisoEnLinea variante="error" mensaje={fallo} className="text-sm" />}
         </div>
       )}
     </section>

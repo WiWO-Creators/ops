@@ -2,6 +2,7 @@
 
 import { useState, type FormEvent, type ReactElement } from 'react'
 import { X } from 'lucide-react'
+import { AvisoEnLinea } from '@/componentes/estado/Estados'
 import { Boton } from '@/componentes/formularios/Boton'
 import { Campo } from '@/componentes/formularios/Campo'
 import { Entrada } from '@/componentes/formularios/Entrada'
@@ -254,10 +255,11 @@ export function AccesoGoogle ({ inicial }: PropsAccesoGoogle): ReactElement {
           </div>
 
           {sinDominios && (
-            <p role="alert" className="text-texto-peligro text-sm">
-              El login está encendido y no hay ningún dominio autorizado. Nadie podrá ingresar con Google:
-              agrega al menos uno antes de guardar.
-            </p>
+            <AvisoEnLinea
+              variante="error"
+              mensaje="El login está encendido y no hay ningún dominio autorizado. Nadie podrá ingresar con Google: agrega al menos uno antes de guardar."
+              className="text-sm"
+            />
           )}
         </div>
       </Seccion>
@@ -280,9 +282,11 @@ export function AccesoGoogle ({ inicial }: PropsAccesoGoogle): ReactElement {
               El dominio también debe estar autorizado para el login con Google.
             </p>
             {sinDominiosAutoalta && (
-              <p role="alert" className="text-texto-peligro text-sm">
-                Agrega al menos un dominio de alta automática o apaga el alta automática antes de guardar.
-              </p>
+              <AvisoEnLinea
+                variante="error"
+                mensaje="Agrega al menos un dominio de alta automática o apaga el alta automática antes de guardar."
+                className="text-sm"
+              />
             )}
           </div>
         </Seccion>

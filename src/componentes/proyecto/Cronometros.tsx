@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState, type ReactElement } from 'react'
 import { Boton } from '@/componentes/formularios/Boton'
-import { Cargando, ErrorEstado, Vacio } from '@/componentes/estado/Estados'
+import { AvisoEnLinea, Cargando, ErrorEstado, Vacio } from '@/componentes/estado/Estados'
 import { EntradaEscalonada } from '@/componentes/estructura/EntradaEscalonada'
 import { Insignia } from '@/componentes/presentadores/Insignia'
 import { avisarCambioDeMedidor } from '@/componentes/live/medidor'
@@ -168,9 +168,7 @@ export function Cronometros ({ procesoId, className }: PropsCronometros): ReactE
       )}
 
       {aviso !== null && (
-        <p role="alert" className="border-linea bg-superficie-peligro text-texto-peligro rounded-chico border px-3 py-2 text-sm">
-          {aviso}
-        </p>
+        <AvisoEnLinea variante="error" mensaje={aviso} className="border-linea bg-superficie-peligro rounded-chico border px-3 py-2 text-sm" />
       )}
 
       {datos.tarea.project !== null && (

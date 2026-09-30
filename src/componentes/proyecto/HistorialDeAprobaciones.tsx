@@ -2,6 +2,7 @@
 
 import { useEffect, useId, useRef, useState, type ReactElement } from 'react'
 import { ChevronDown } from 'lucide-react'
+import { AvisoEnLinea, Cargando } from '@/componentes/estado/Estados'
 import { Plegable } from '@/componentes/estructura/Plegable'
 import { Boton } from '@/componentes/formularios/Boton'
 import { Fecha } from '@/componentes/presentadores/Fecha'
@@ -122,10 +123,10 @@ export function HistorialDeAprobaciones ({ tareaId, rondas }: Props): ReactEleme
       {/* `-mt-2` devuelve el `gap-2` del contenedor y `pt-2` lo repone adentro: plegado, el panel
           queda con alto cero y no deja hueco al pie. */}
       <Plegable id={idPanel} abierto={abierto} className="-mt-2" claseContenido="flex flex-col gap-2 pt-2">
-        {cargando && <p className="text-texto-sutil text-sm">Cargando…</p>}
+        {cargando && <Cargando alto="min-h-24" mensaje="Cargando las rondas…" />}
 
         {fallo !== null && (
-          <p role="alert" className="text-texto-peligro text-sm">{fallo}</p>
+          <AvisoEnLinea variante="error" mensaje={fallo} className="text-sm" />
         )}
 
         {!cargando && fallo === null && filas !== null && (

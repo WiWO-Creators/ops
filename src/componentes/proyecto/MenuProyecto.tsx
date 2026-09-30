@@ -2,6 +2,7 @@
 
 import { useRouter } from 'next/navigation'
 import { useState, type ReactElement } from 'react'
+import { AvisoEnLinea } from '@/componentes/estado/Estados'
 import { Boton } from '@/componentes/formularios/Boton'
 import { Dialogo, ContenidoDialogo } from '@/componentes/superposiciones/Dialogo'
 import {
@@ -338,7 +339,7 @@ export function MenuProyecto ({
           enlace directo tiene que enterarse de que este Proyecto esta esperando una decision. */}
       <DistintivoSolicitud solicitud={solicitud} />
 
-      {fallo !== null && <span role="alert" className="text-texto-peligro text-xs">{fallo}</span>}
+      {fallo !== null && <AvisoEnLinea variante="error" mensaje={fallo} elemento="span" />}
 
       <FormularioRecurso
         abierto={editando}
@@ -427,7 +428,7 @@ export function MenuProyecto ({
           ancho="chico"
         >
           {fallo !== null && (
-            <p role="alert" className="text-texto-peligro mb-3 text-sm">{fallo}</p>
+            <AvisoEnLinea variante="error" mensaje={fallo} className="mb-3 text-sm" />
           )}
 
           <div className="flex justify-end gap-2">
@@ -454,7 +455,7 @@ export function MenuProyecto ({
           {/* El error se repite aca dentro y no solo bajo el boton "Mas": el dialogo tapa la
               cabecera, y el 422 de las tareas abiertas es justo lo que hay que leer. */}
           {fallo !== null && (
-            <p role="alert" className="text-texto-peligro mb-3 text-sm">{fallo}</p>
+            <AvisoEnLinea variante="error" mensaje={fallo} className="mb-3 text-sm" />
           )}
 
           <div className="flex justify-end gap-2">

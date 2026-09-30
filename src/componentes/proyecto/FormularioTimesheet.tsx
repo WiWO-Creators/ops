@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, type FormEvent, type ReactElement } from 'react'
+import { AvisoEnLinea } from '@/componentes/estado/Estados'
 import { Boton } from '@/componentes/formularios/Boton'
 import { Campo } from '@/componentes/formularios/Campo'
 import { AreaTexto, Entrada } from '@/componentes/formularios/Entrada'
@@ -301,7 +302,7 @@ export function FormularioTimesheet ({
           </Campo>
 
           {error !== null && campoConError === null && (
-            <p role="alert" className="text-texto-peligro text-xs">{error}</p>
+            <AvisoEnLinea variante="error" mensaje={error} />
           )}
 
           <div className="flex justify-end gap-2">

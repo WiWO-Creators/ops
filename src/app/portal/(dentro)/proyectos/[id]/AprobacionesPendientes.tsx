@@ -2,6 +2,7 @@
 
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
+import { AvisoEnLinea } from '@/componentes/estado/Estados'
 import { Boton } from '@/componentes/formularios/Boton'
 import { AreaTexto } from '@/componentes/formularios/Entrada'
 import { ContenidoDialogo, Dialogo } from '@/componentes/superposiciones/Dialogo'
@@ -181,7 +182,7 @@ function FilaAprobacion ({ tarea, estados }: {
             )}
       </div>
 
-      {fallo !== null && <p role="alert" className="text-texto-peligro text-sm">{fallo}</p>}
+      {fallo !== null && <AvisoEnLinea variante="error" mensaje={fallo} className="text-sm" />}
 
       <Dialogo open={rechazando} onOpenChange={setRechazando}>
         <ContenidoDialogo
@@ -206,7 +207,7 @@ function FilaAprobacion ({ tarea, estados }: {
               onChange={(evento) => { setMotivo(evento.target.value) }}
             />
 
-            {fallo !== null && <p role="alert" className="text-texto-peligro text-sm">{fallo}</p>}
+            {fallo !== null && <AvisoEnLinea variante="error" mensaje={fallo} className="text-sm" />}
 
             <div className="flex justify-end gap-2">
               <Boton type="button" variante="sutil" onClick={() => { setRechazando(false) }}>

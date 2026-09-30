@@ -4,7 +4,7 @@ import { useEffect, useState, type ReactElement } from 'react'
 import { useRouter } from 'next/navigation'
 import { CeldaEncabezado, CeldaTabla, CuerpoTabla, EncabezadoTabla, FilaTabla, Tabla } from '@/componentes/datos/Tabla'
 import { escribirEnBff } from '@/componentes/datos/mutaciones'
-import { Vacio } from '@/componentes/estado/Estados'
+import { AvisoEnLinea, Vacio } from '@/componentes/estado/Estados'
 import { Boton } from '@/componentes/formularios/Boton'
 import { Campo } from '@/componentes/formularios/Campo'
 import { AreaTexto, CLASES_CONTROL, Entrada } from '@/componentes/formularios/Entrada'
@@ -127,7 +127,7 @@ export function ColaCorreoAlCliente ({ filas, resumen }: PropsColaCorreoAlClient
       acciones={<Compositor onListo={refrescar} />}
     >
       {error !== null && (
-        <p role="alert" className="text-texto-peligro text-sm">{error}</p>
+        <AvisoEnLinea variante="error" mensaje={error} className="text-sm" />
       )}
 
       {filas.length === 0
@@ -311,7 +311,7 @@ function EditorDeNota ({ fila, onListo }: PropsDeFila): ReactElement {
           </Campo>
 
           {errorForm !== null && (
-            <p role="alert" className="text-texto-peligro text-sm">{errorForm}</p>
+            <AvisoEnLinea variante="error" mensaje={errorForm} className="text-sm" />
           )}
 
           <div className="flex justify-end gap-2">
@@ -593,7 +593,7 @@ function Compositor ({ onListo }: { onListo: () => void }): ReactElement {
           </Campo>
 
           {errorForm !== null && (
-            <p role="alert" className="text-texto-peligro text-sm">{errorForm}</p>
+            <AvisoEnLinea variante="error" mensaje={errorForm} className="text-sm" />
           )}
 
           <div className="flex justify-end gap-2">

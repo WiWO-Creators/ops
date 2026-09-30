@@ -24,6 +24,7 @@
  */
 import { useMemo, useState } from 'react'
 import { Check, Search, UserRoundPlus } from 'lucide-react'
+import { AvisoEnLinea } from '@/componentes/estado/Estados'
 import { Boton } from '@/componentes/formularios/Boton'
 import { Entrada } from '@/componentes/formularios/Entrada'
 import { Avatar } from '@/componentes/presentadores/Avatar'
@@ -180,7 +181,7 @@ export function AgregarAlArea (
               </ul>
               )}
 
-          {error !== null && <p role="alert" className="text-texto-peligro text-sm">{error}</p>}
+          {error !== null && <AvisoEnLinea variante="error" mensaje={error} className="text-sm" />}
 
           <footer className="flex flex-wrap items-center justify-between gap-3">
             <p className="text-texto-tenue text-xs tabular-nums" role="status" aria-live="polite">

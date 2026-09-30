@@ -3,6 +3,7 @@
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
 import { ChevronLeft, ChevronRight, Mail, Users } from 'lucide-react'
+import { AvisoEnLinea } from '@/componentes/estado/Estados'
 import { EnlacePersona } from '@/componentes/presentadores/EnlacePersona'
 import { Boton } from '@/componentes/formularios/Boton'
 import { Entrada } from '@/componentes/formularios/Entrada'
@@ -384,7 +385,7 @@ function DetalleReserva ({ reserva, puedeTocar, onCerrar, onEditar, onCancelado 
             <p className="text-texto-tenue whitespace-pre-line text-sm">{reserva.notes}</p>
           )}
 
-          {error !== null && <p role="alert" className="text-texto-peligro text-sm">{error}</p>}
+          {error !== null && <AvisoEnLinea variante="error" mensaje={error} className="text-sm" />}
 
           {/* Confirmacion en la misma ficha y no en otro dialogo: este detalle YA vive dentro de un
               modal, y un `Dialogo` sobre otro deja los dos peleando por el foco. */}

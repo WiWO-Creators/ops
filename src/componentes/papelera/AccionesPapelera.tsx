@@ -3,6 +3,7 @@
 import { useRouter } from 'next/navigation'
 import { useState, type ReactElement } from 'react'
 import { ConfirmarBorrado, useConfirmarBorrado } from '@/componentes/datos/ConfirmarBorrado'
+import { AvisoEnLinea } from '@/componentes/estado/Estados'
 import { Boton } from '@/componentes/formularios/Boton'
 import { useAviso } from '@/componentes/estado/useAviso'
 import { escribirEnBff, leerDelBff } from '@/componentes/datos/mutaciones'
@@ -87,7 +88,7 @@ export function AccionesPapelera ({ elemento }: { elemento: ElementoEnPapelera }
         </Boton>
       </span>
 
-      {falloFila !== null && <p role="alert" className="text-texto-peligro mt-1 text-right text-xs">{falloFila}</p>}
+      {falloFila !== null && <AvisoEnLinea variante="error" mensaje={falloFila} className="mt-1 text-right" />}
 
       <ConfirmarBorrado
         abierto={confirmarBorrado.abierto}
@@ -108,9 +109,7 @@ export function AccionesPapelera ({ elemento }: { elemento: ElementoEnPapelera }
             />
 
             {bloqueado && (
-              <p role="alert" className="text-texto-peligro text-sm">
-                {previa?.motivo ?? 'No se puede eliminar definitivamente.'}
-              </p>
+              <AvisoEnLinea variante="error" mensaje={previa?.motivo ?? 'No se puede eliminar definitivamente.'} className="text-sm" />
             )}
           </>
         }

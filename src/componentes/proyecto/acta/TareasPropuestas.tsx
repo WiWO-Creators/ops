@@ -2,6 +2,7 @@
 
 import { useId, useState, type ReactElement } from 'react'
 import { ChevronDown, Sparkles } from 'lucide-react'
+import { AvisoEnLinea } from '@/componentes/estado/Estados'
 import { Boton } from '@/componentes/formularios/Boton'
 import { Plegable } from '@/componentes/estructura/Plegable'
 import { Insignia } from '@/componentes/presentadores/Insignia'
@@ -170,9 +171,7 @@ export function TareasPropuestas ({
       </div>
 
       {error !== null && (
-        <p role="alert" className="bg-superficie-peligro text-texto-peligro rounded-chico px-3 py-2 text-sm">
-          {error}
-        </p>
+        <AvisoEnLinea variante="error" mensaje={error} className="bg-superficie-peligro rounded-chico px-3 py-2 text-sm" />
       )}
 
       {aviso !== null && (
@@ -202,7 +201,7 @@ export function TareasPropuestas ({
 
       {carga.fase === 'error' && (
         <div className="bg-superficie-peligro rounded-chico flex flex-wrap items-center gap-3 px-3 py-2">
-          <p role="alert" className="text-texto-peligro text-sm">{carga.mensaje}</p>
+          <AvisoEnLinea variante="error" mensaje={carga.mensaje} className="text-sm" />
           <Boton variante="sutil" tamano="chico" onClick={propuestas.reintentar}>
             Reintentar
           </Boton>

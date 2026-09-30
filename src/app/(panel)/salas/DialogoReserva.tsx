@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { TriangleAlert } from 'lucide-react'
+import { AvisoEnLinea } from '@/componentes/estado/Estados'
 import { Boton } from '@/componentes/formularios/Boton'
 import { Campo } from '@/componentes/formularios/Campo'
 import { AreaTexto, Entrada } from '@/componentes/formularios/Entrada'
@@ -262,7 +263,7 @@ export function DialogoReserva ({ borrador, salas, reservas, personas, onCerrar,
           )}
 
           {errorApi !== null && (
-            <p role="alert" className="text-texto-peligro text-sm">{errorApi}</p>
+            <AvisoEnLinea variante="error" mensaje={errorApi} className="text-sm" />
           )}
 
           <div className="flex justify-end gap-2">
