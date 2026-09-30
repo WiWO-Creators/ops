@@ -12,16 +12,19 @@ import { EnlaceCliente } from '@/componentes/presentadores/EnlaceCliente'
 import { EnlaceProyecto } from '@/componentes/presentadores/EnlaceProyecto'
 import { ContenidoHtml } from '@/componentes/presentadores/ContenidoHtml'
 import { Filas, Seccion, type Dato } from '@/componentes/presentadores/Ficha'
+import type { EstadoIa } from '@/dominio/ajustes'
 import type { Contrato } from '@/datos/recursos'
 import { formatearValorDeContrato } from '@/definiciones/contratos'
 import { GLOSARIO } from '@/dominio/glosario'
 import { formatearFecha } from '@/lib/fechas'
 import { camposDeContrato, registroDeContrato } from './campos'
+import { PanelScopeContrato } from './PanelScopeContrato'
 
 interface PropsFichaContrato {
   contrato: Contrato
   clientes: OpcionCampo[]
   tipos: OpcionCampo[]
+  ia: EstadoIa
 }
 
 /**
@@ -30,10 +33,12 @@ interface PropsFichaContrato {
  * El texto (`content`) se muestra en solo lectura dentro de `ContenidoHtml`, que lo aisla del resto
  * de la pagina; se sigue editando y firmando en el panel.
  *
- * @param props el contrato y las opciones del formulario de edicion
+ * El scope principal (`PanelScopeContrato`) es el que heredan los Proyectos creados dentro de el.
+ *
+ * @param props el contrato, las opciones del formulario de edicion y el estado de la IA
  * @returns la cabecera con «Editar» y las secciones de la ficha
  */
-export function FichaContrato ({ contrato, clientes, tipos }: PropsFichaContrato) {
+export function FichaContrato ({ contrato, clientes, tipos, ia }: PropsFichaContrato) {
   const router = useRouter()
   const [editando, setEditando] = useState(false)
 
@@ -114,6 +119,12 @@ export function FichaContrato ({ contrato, clientes, tipos }: PropsFichaContrato
           {contrato.description === null
             ? <p className="text-texto-tenue text-sm">Sin alcance cargado.</p>
             : <p className="text-texto text-sm whitespace-pre-line">{contrato.description}</p>}
+        </Seccion>
+      </div>
+
+      <div className="max-w-5xl">
+        <Seccion titulo={`${GLOSARIO.scope.singular} principal`}>
+          <PanelScopeContrato contratoId={contrato.id} ia={ia} />
         </Seccion>
       </div>
 

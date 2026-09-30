@@ -1,7 +1,7 @@
 import { readdirSync, readFileSync } from 'node:fs'
 import { chromium } from 'playwright'
 
-const BASE = 'http://localhost:3000'
+const BASE = process.env.BASE ?? 'http://localhost:3000'
 const RUTA = '/s/k3p9x'
 const KONAMI = ['ArrowUp','ArrowUp','ArrowDown','ArrowDown','ArrowLeft','ArrowRight','ArrowLeft','ArrowRight','b','a']
 
@@ -64,7 +64,7 @@ async function sesion (email, password) {
   ok(texto.includes('+14400s'), 'muestra el desfase de reloj')
   ok(texto.includes('10.11.6-MariaDB'), 'muestra la version del motor')
 
-  const interruptores = await pagina.locator('.pn__int').count()
+  const interruptores = await pagina.locator('.pn__int').filter({ hasNotText: 'Rutina diaria' }).count()
   ok(interruptores === 9, `pinta los 9 interruptores (vio ${interruptores})`)
 
   const peligrosos = await pagina.locator('.pn__llave--peligro').count()
@@ -94,6 +94,44 @@ async function sesion (email, password) {
 
   const repuesto = await pagina.locator('.pn__int').filter({ hasText: 'Recordatorio de jornada' }).locator('.pn__llave').getAttribute('class')
   ok(repuesto.includes('pn__llave--on'), 'y encenderlo de nuevo lo deja como estaba')
+
+  // --- Rutina: propia del operador, con hora y dias omitidos ---
+  const rutina = pagina.locator('.pn__int').filter({ hasText: 'Rutina diaria' })
+  ok(await rutina.count() === 1, 'pinta el interruptor de la rutina')
+  // `textContent` y no `innerText`: el estado va en mayusculas por CSS e `innerText` las aplica.
+  ok((await rutina.textContent()).includes('Apagado'), 'nace apagado')
+
+  await rutina.click()
+  await pagina.waitForFunction(() => document.body.textContent.includes('Próxima ·'), null, { timeout: 5000 })
+  ok(true, 'encenderlo muestra la proxima corrida')
+
+  const campoHora = pagina.locator('.pn__horario input[type="time"]')
+  // El `max` del campo frena la hora antes de mandarla; el 422 del servidor lo cubre la prueba PHP.
+  await campoHora.fill('19:00')
+  ok(await campoHora.evaluate(e => e.validity.rangeOverflow), 'una hora despues del corte no pasa la validacion del campo')
+
+  await campoHora.fill('08:45')
+  await pagina.locator('.pn__horario .pn__form').first().locator('button[type="submit"]').click()
+  await pagina.waitForFunction(() => document.body.textContent.includes('· 08:45'), null, { timeout: 5000 })
+  ok(await pagina.locator('.pn__error').count() === 0, 'una hora valida se guarda y la proxima la usa')
+
+  // El proximo lunes a viernes a partir de pasado mañana: siempre futuro y nunca fin de semana.
+  const dia = new Date()
+  dia.setDate(dia.getDate() + 2)
+  while (dia.getDay() % 6 === 0) dia.setDate(dia.getDate() + 1)
+  const omitida = [dia.getFullYear(), dia.getMonth() + 1, dia.getDate()].map(n => String(n).padStart(2, '0')).join('-')
+  await pagina.locator('.pn__horario input[type="date"]').fill(omitida)
+  await pagina.locator('.pn__horario .pn__form').nth(1).locator('button[type="submit"]').click()
+  await pagina.waitForSelector('.pn__chip', { timeout: 5000 })
+  ok(await pagina.locator('.pn__chip').count() === 1, 'omitir un dia lo lista')
+
+  await pagina.locator('.pn__chip-quitar').click()
+  await pagina.waitForFunction(() => document.querySelectorAll('.pn__chip').length === 0, null, { timeout: 5000 })
+  ok(true, 'quitarlo lo saca de la lista')
+
+  await rutina.click()
+  await pagina.waitForFunction(() => document.body.textContent.includes('Apagado'), null, { timeout: 5000 })
+  ok(true, 'y apagarlo lo deja como estaba')
 
   await pagina.screenshot({ path: '/tmp/claude-1000/mantenimiento.png', fullPage: true })
   await ctx.close()
@@ -157,7 +195,10 @@ await navegador.close()
   // Es la propiedad que sostiene el escondite y la que vuelve sola en cuanto alguien escribe un
   // literal dentro de un componente de cliente. Se mira el build, que es lo que se sirve.
   const dir = '.next/static/chunks'
-  const prohibidas = ['k3p9x', 'mantenimiento', 'refugio', 'Refugio', 'bunker', 'onami']
+  const prohibidas = [
+    'k3p9x', 'mantenimiento', 'refugio', 'Refugio', 'bunker', 'onami',
+    'Rutina diaria'
+  ]
 
   const archivos = readdirSync(dir, { recursive: true })
     .filter(nombre => String(nombre).endsWith('.js'))

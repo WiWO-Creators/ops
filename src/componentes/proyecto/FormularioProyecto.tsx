@@ -15,6 +15,7 @@ import type { Espacio } from '@/datos/recursos'
 import type { OpcionFiltro } from '@/definiciones/tipos'
 import { TIPOS_DE_FACTURACION } from '@/definiciones/espacios'
 import { GLOSARIO } from '@/dominio/glosario'
+import { SeccionContratoDelProyecto, type VinculoDeContrato } from './SeccionContratoDelProyecto'
 import { hoyLocal } from '@/lib/fechas'
 import { enFormatoTitulo } from '@/lib/titulo'
 import { useAviso } from '@/componentes/estado/useAviso'
@@ -92,6 +93,7 @@ function Campos ({
   const [entrega, setEntrega] = useState(espacio?.deadline ?? '')
   const [horas, setHoras] = useState(espacio?.estimated_hours === null || espacio === null ? '' : String(espacio.estimated_hours))
   const [descripcion, setDescripcion] = useState(espacio?.description ?? '')
+  const [vinculo, setVinculo] = useState<VinculoDeContrato | null>(null)
   const [enviando, setEnviando] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -115,6 +117,11 @@ function Campos ({
       return
     }
 
+    if (esAlta && vinculo?.dentro === true && vinculo.contrato === null) {
+      setError(`Elige el ${GLOSARIO.contrato.singular.toLowerCase()} del que hereda el ${GLOSARIO.scope.singular.toLowerCase()}.`)
+      return
+    }
+
     const comunes = {
       name: enFormatoTitulo(nombre),
       description: descripcion,
@@ -131,7 +138,9 @@ function Campos ({
       ? await escribirEnBff('projects', 'POST', {
         ...comunes,
         clientid: Number(cliente),
-        billing_type: Number(facturacion)
+        billing_type: Number(facturacion),
+        // Sin vinculo (cliente sin contratos vigentes) no se manda nada: el alta queda como siempre.
+        ...(vinculo?.contrato != null ? { contract_id: vinculo.contrato, dentro_scope: vinculo.dentro } : {})
       })
       : await escribirEnBff(`projects/${espacio.id}`, 'PATCH', comunes)
 
@@ -166,6 +175,10 @@ function Campos ({
               />
             )}
           </Campo>
+
+          {cliente !== '' && (
+            <SeccionContratoDelProyecto key={cliente} clienteId={Number(cliente)} onCambio={setVinculo} />
+          )}
 
           <Campo etiqueta="Tipo de facturación">
             {(props) => (
