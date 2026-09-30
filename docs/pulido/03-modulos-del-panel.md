@@ -53,7 +53,7 @@ Auditoría exhaustiva de consistencia de interfaz, refinamiento visual, deuda t�
 
 ### Inconsistencias entre módulos
 
-### P3-01 Discrepancia visual en cabeceras de detalle de entidad
+### P3-01 Discrepancia visual en cabeceras de detalle de entidad (resuelto en ce52e6d)
 - **Dónde**: `src/componentes/cliente/CabeceraCliente.tsx:37`, `src/app/(panel)/prospectos/[id]/page.tsx:162`, `src/componentes/equipo/CabeceraPersona.tsx:37`, `src/componentes/contrato/FichaContrato.tsx:64`
 - **Qué pasa**: `FichaContrato` utiliza `TituloModulo` con degradado `.texto-gradiente-animado` y firma de marca `.bg-gradiente-marca`. En cambio, Cliente, Prospecto y Equipo usan etiquetas `h1` manuales con clases `text-seccion leading-tight font-semibold` sin degradado ni firma, generando una experiencia visual fragmentada al navegar entre fichas comerciales y operativas.
 - **Propuesta**: Unificar las cabeceras de detalle mediante `TituloModulo` (con soporte para entidad, avatar/icono e insignias adyacentes) o extraer un componente estándar `CabeceraEntidad` que garantice la firma de marca en todas las fichas.
@@ -184,7 +184,7 @@ Auditoría exhaustiva de consistencia de interfaz, refinamiento visual, deuda t�
 - **Propuesta**: Definir una sola dueña de la cabecera. Lo más simple: quitar `data-entrada="cabecera"` y dejar que la entrada CSS anime título y firma; la entrada JS queda solo para los ítems, con `start` alineado a los 80–180 ms de `entrada-pagina.css`.
 - **Prioridad**: Media · **Esfuerzo**: S
 
-### P3-21 Ausencia de la firma de marca animada en páginas de detalle de entidad
+### P3-21 Ausencia de la firma de marca animada en páginas de detalle de entidad (resuelto en ce52e6d)
 - **Dónde**: `src/componentes/cliente/CabeceraCliente.tsx`, `src/app/(panel)/prospectos/[id]/page.tsx`, `src/componentes/proyecto/CabeceraProyecto.tsx`, `src/componentes/equipo/CabeceraPersona.tsx`, `src/app/(panel)/administracion/incidentes/[incidente]/page.tsx`
 - **Qué pasa**: Ninguna de estas páginas de detalle de entidad utiliza `TituloModulo`, careciendo del elemento `header .bg-gradiente-marca[aria-hidden]`. El `h1` y los grupos sí reciben la entrada (verificado: `CabeceraCliente.tsx:37`, `CabeceraProyecto.tsx:148` tienen `h1`), pero falta la firma de marca de 560 ms, así que las fichas —donde más tiempo se trabaja— entran con una coreografía incompleta respecto de los listados.
 - **Propuesta**: Incorporar la barra de marca animada `<span aria-hidden="true" className="bg-gradiente-marca h-1 w-16 shrink-0 rounded-full" />` dentro de los encabezados de `CabeceraCliente`, `CabeceraPersona`, `CabeceraProyecto` e incidentes.
@@ -196,7 +196,7 @@ Auditoría exhaustiva de consistencia de interfaz, refinamiento visual, deuda t�
 - **Propuesta**: Integrar el enlace de retorno dentro del `header` o colocarlo en la prop `acciones` / contenedor superior para no desfasar la cascada `:nth-child`.
 - **Prioridad**: Media · **Esfuerzo**: S
 
-### P3-23 Listas y cuadrículas de tarjetas sin animación de entrada escalonada
+### P3-23 Listas y cuadrículas de tarjetas sin animación de entrada escalonada (resuelto en ce52e6d; VistaClientes ya lo estaba por fe61c2c)
 - **Dónde**: `src/app/(panel)/inicio/FijadosYRecientes.tsx:45`, `src/componentes/cliente/VistaClientes.tsx:140`, `src/app/(panel)/teletrabajo/page.tsx:60`, `src/app/(panel)/administracion/page.tsx:209`
 - **Qué pasa**: Las cuadrículas de tarjetas de fijados y recientes en Inicio, la vista de tarjetas de clientes, las salas de teletrabajo y los accesos de administración se renderizan de golpe. Solo `novedades/page.tsx` e `inicio/NovedadesDelInicio.tsx` utilizan hoy `EntradaEscalonada`.
 - **Propuesta**: Aplicar `EntradaEscalonada` o el token de clase `animate-aparecer` con retrasos de animación secuenciales escalonados en las tarjetas de fijados, salas y administración.
