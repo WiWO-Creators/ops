@@ -220,7 +220,7 @@ Las rutas son relativas a `ops-v2/`.
 - **Propuesta**: Pasar el estado a un `useReducer` o a hooks (`useSugerenciasIa`, `useBorradorAlta`) y separar la vista en subcomponentes (entrada, sugerencias, `VistaPreviaAlta` ya existe).
 - **Prioridad**: Media · **Esfuerzo**: L
 
-### P1-31 `DetalleActa` y `TareasPropuestas` pasan de 1.000 líneas
+### P1-31 `DetalleActa` y `TareasPropuestas` pasan de 1.000 líneas (resuelto en 2ceadc6)
 - **Dónde**: `src/componentes/proyecto/DetalleActa.tsx` (1.071 l.; el componente principal ocupa `:152-829` con 16 `useState`), `src/componentes/proyecto/acta/TareasPropuestas.tsx` (1.008 l.; principal `:106-642` con 22 `useState`)
 - **Qué pasa**: Mezclan carga, traducción, exportación, renombre, adjuntos y confirmaciones en una sola función principal.
 - **Propuesta**: En `DetalleActa`, extraer la barra de acciones/exportación, `AdjuntosDelActa` (`:952-1071`) y `DialogoDeRenombre` (`:829`) a archivos propios en `proyecto/acta/`; en `TareasPropuestas`, sacar `DialogoDePropuesta` (`:876`) y `FilaPropuesta` (`:642`).
