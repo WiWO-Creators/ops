@@ -4,7 +4,9 @@ import { FichaContrato } from '@/componentes/contrato/FichaContrato'
 import { ErrorEstado, Vacio } from '@/componentes/estado/Estados'
 import type { OpcionCampo } from '@/componentes/proyecto/formulario'
 import { ErrorApi } from '@/datos/errores'
+import { estadoIa } from '@/datos/ajustes'
 import { pedir } from '@/datos/servidor'
+import type { EstadoIa } from '@/dominio/ajustes'
 import type { ClienteMinimo, Contrato } from '@/datos/recursos'
 import { GLOSARIO } from '@/dominio/glosario'
 
@@ -37,6 +39,7 @@ interface Detalle {
   contrato: Contrato
   tipos: OpcionCampo[]
   clientes: OpcionCampo[]
+  ia: EstadoIa
 }
 
 /**
@@ -47,16 +50,18 @@ interface Detalle {
  */
 async function cargarDetalle (id: string): Promise<Detalle | ErrorApi> {
   try {
-    const [contrato, tipos, clientes] = await Promise.all([
+    const [contrato, tipos, clientes, ia] = await Promise.all([
       traerContrato(id),
       pedir<Array<{ id: number, name: string }>>('/contratos/tipos'),
-      pedir<ClienteMinimo[]>('/clients/minimos?filter[active]=1&sort=company&per_page=500')
+      pedir<ClienteMinimo[]>('/clients/minimos?filter[active]=1&sort=company&per_page=500'),
+      estadoIa()
     ])
 
     return {
       contrato: contrato.data,
       tipos: tipos.data.map((tipo) => ({ valor: String(tipo.id), etiqueta: tipo.name })),
-      clientes: clientes.data.map((cliente) => ({ valor: String(cliente.id), etiqueta: cliente.company }))
+      clientes: clientes.data.map((cliente) => ({ valor: String(cliente.id), etiqueta: cliente.company })),
+      ia
     }
   } catch (error) {
     if (error instanceof ErrorApi) return error
@@ -81,7 +86,7 @@ export default async function ContratoPage (props: PageProps<'/contratos/[id]'>)
     return <ErrorEstado detalle={detalle.message} />
   }
 
-  return <FichaContrato contrato={detalle.contrato} tipos={detalle.tipos} clientes={detalle.clientes} />
+  return <FichaContrato contrato={detalle.contrato} tipos={detalle.tipos} clientes={detalle.clientes} ia={detalle.ia} />
 }
 
 /** Contrato inexistente, o una seccion que quien mira no tiene. */

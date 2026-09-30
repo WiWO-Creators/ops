@@ -1,6 +1,8 @@
 'use client'
 
-import { useState, type ReactElement } from 'react'
+import { useRef, useState, type ReactElement } from 'react'
+import Link from 'next/link'
+import { FileText } from 'lucide-react'
 import { Boton } from '@/componentes/formularios/Boton'
 import { Cargando, ErrorEstado, Vacio } from '@/componentes/estado/Estados'
 import { LimiteDeError } from '@/componentes/estado/LimiteDeError'
@@ -9,8 +11,9 @@ import { Insignia } from '@/componentes/presentadores/Insignia'
 import { FUENTES_SCOPE, ROTULO_LISTA } from '@/dominio/scope'
 import { GLOSARIO } from '@/dominio/glosario'
 import type { EstadoIa } from '@/dominio/ajustes'
-import { rutasDeScope, type AnalisisScope, type EstadoScope, type Scope } from '@/datos/scope'
+import { rutasDeScope, type AnalisisScope, type EstadoScope, type Scope, type VinculoScope } from '@/datos/scope'
 import { useRecurso } from './carga'
+import { useRevelarScope } from './useRevelarScope'
 import { AnalisisDelScope } from './AnalisisScope'
 import { EditorScope } from './EditorScope'
 
@@ -53,15 +56,18 @@ export function PanelScope ({ proyectoId, ia }: PropsPanelScope): ReactElement {
 
   const base = estado.datos
   const datos = escrito !== null && escrito.base === base ? escrito.valor : base
-  const { scope, analisis, puede_editar: puedeEditar } = datos
+  const { scope, analisis, vinculo, puede_editar: puedeEditar } = datos
+  const heredado = vinculo?.dentro_scope === true
 
   return (
     <div className="flex flex-col gap-4">
+      {vinculo !== null && <AvisoDeContrato vinculo={vinculo} />}
+
       {editando && puedeEditar
         ? (
           <LimiteDeError zona={`${GLOSARIO.scope.singular} — editor`}>
-            <EditorScope
-              proyectoId={proyectoId}
+            <EditorScope<EstadoScope>
+              rutas={rutasDeScope(proyectoId)}
               scope={scope}
               ia={ia}
               onGuardado={(guardado) => {
@@ -75,11 +81,21 @@ export function PanelScope ({ proyectoId, ia }: PropsPanelScope): ReactElement {
         : scope === null
           ? (
             <Vacio
-              titulo={`Este ${GLOSARIO.espacio.singular.toLowerCase()} todavía no tiene ${GLOSARIO.scope.singular.toLowerCase()}`}
-              descripcion={puedeEditar
+              titulo={heredado
+                ? `El contrato todavía no tiene ${GLOSARIO.scope.singular.toLowerCase()}`
+                : `Este ${GLOSARIO.espacio.singular.toLowerCase()} todavía no tiene ${GLOSARIO.scope.singular.toLowerCase()}`}
+              descripcion={heredado
+                ? `Este ${GLOSARIO.espacio.singular.toLowerCase()} va dentro del ${GLOSARIO.scope.singular.toLowerCase()} principal: cárgalo en el contrato y aparece aquí.`
+                : puedeEditar
                 ? `Carga el alcance del contrato: la IA te muestra lo que entendió antes de guardarlo, y después puede revisar cada ${GLOSARIO.proceso.singular.toLowerCase()} contra él.`
                 : `Comercial todavía no carga el ${GLOSARIO.scope.singular.toLowerCase()} del contrato de este ${GLOSARIO.espacio.singular.toLowerCase()}.`}
-              accion={puedeEditar
+              accion={heredado && vinculo !== null
+                ? (
+                  <Link href={`/contratos/${vinculo.contrato_id}`} className="text-acento text-sm font-semibold underline underline-offset-4">
+                    Ir al contrato
+                  </Link>
+                  )
+                : puedeEditar
                 ? <Boton variante="primario" tamano="chico" onClick={() => { setEditando(true) }}>Cargar {GLOSARIO.scope.singular.toLowerCase()}</Boton>
                 : undefined}
             />
@@ -99,25 +115,55 @@ export function PanelScope ({ proyectoId, ia }: PropsPanelScope): ReactElement {
   )
 }
 
+/**
+ * Franja que dice de donde sale el Scope del Proyecto: heredado del Contrato (va dentro del scope
+ * principal) o cotizacion aparte (se mide contra su propio Scope, no contra el del Contrato).
+ */
+function AvisoDeContrato ({ vinculo }: { vinculo: VinculoScope }): ReactElement {
+  const enlace = (
+    <Link href={`/contratos/${vinculo.contrato_id}`} className="text-acento font-medium underline-offset-4 hover:underline">
+      {vinculo.asunto === '' ? `Contrato #${vinculo.contrato_id}` : vinculo.asunto}
+    </Link>
+  )
+
+  return (
+    <p className="border-linea bg-superficie-elevada rounded-tarjeta text-texto-tenue flex flex-wrap items-center gap-2 border px-3 py-2 text-sm">
+      <FileText aria-hidden className="text-texto-sutil size-4 shrink-0" />
+      {vinculo.dentro_scope
+        ? <span>Va dentro del {GLOSARIO.scope.singular.toLowerCase()} principal de {enlace}. Se edita en el contrato.</span>
+        : <span>Cotización aparte de {enlace}: no cuenta contra su {GLOSARIO.scope.singular.toLowerCase()} principal.</span>}
+    </p>
+  )
+}
+
 interface PropsVistaScope {
   scope: Scope
   puedeEditar: boolean
   onEditar: () => void
 }
 
-/** El Scope guardado: resumen, las tres listas, de donde salio y quien lo toco por ultima vez. */
-function VistaScope ({ scope, puedeEditar, onEditar }: PropsVistaScope): ReactElement {
+/**
+ * El Scope guardado: resumen, las tres listas, de donde salio y quien lo toco por ultima vez.
+ *
+ * Lo comparten el Proyecto y la ficha del Contrato. Entra con `useRevelarScope`, una sola vez por
+ * version del Scope.
+ */
+export function VistaScope ({ scope, puedeEditar, onEditar }: PropsVistaScope): ReactElement {
   const fuente = FUENTES_SCOPE.find((opcion) => opcion.valor === scope.fuente)?.etiqueta ?? scope.fuente
+  const raiz = useRef<HTMLElement | null>(null)
+
+  useRevelarScope(raiz, scope.actualizado_en)
 
   return (
     <section
+      ref={raiz}
       aria-labelledby="titulo-scope"
       className="border-linea bg-superficie-elevada rounded-tarjeta flex flex-col gap-4 border p-4"
     >
       <header className="flex flex-wrap items-start gap-3">
         <div className="flex flex-col gap-1">
           <h2 id="titulo-scope" className="text-texto text-base font-semibold">
-            {GLOSARIO.scope.singular} del contrato
+            {GLOSARIO.scope.singular} {scope.origen === 'contrato' ? 'principal del contrato' : 'del contrato'}
           </h2>
           <p className="text-texto-sutil flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
             <Insignia tono="contorno" tamano="chico">{fuente}</Insignia>
@@ -136,18 +182,18 @@ function VistaScope ({ scope, puedeEditar, onEditar }: PropsVistaScope): ReactEl
       </header>
 
       {scope.resumen.trim() !== '' && (
-        <p className="text-texto text-sm leading-relaxed whitespace-pre-line">{scope.resumen}</p>
+        <p data-scope="resumen" className="text-texto text-sm leading-relaxed whitespace-pre-line">{scope.resumen}</p>
       )}
 
       <div className="grid gap-4 lg:grid-cols-3">
         {(['incluye', 'excluye', 'supuestos'] as const).map((clave) => (
-          <div key={clave} className="flex flex-col gap-2">
+          <div key={clave} data-scope="columna" className="flex flex-col gap-2">
             <h3 className="text-texto text-sm font-semibold">{ROTULO_LISTA[clave]}</h3>
             {scope[clave].length === 0
               ? <p className="text-texto-sutil text-sm">Nada declarado.</p>
               : (
                 <ul className="text-texto flex list-disc flex-col gap-1 pl-5 text-sm">
-                  {scope[clave].map((item, indice) => <li key={`${indice}-${item}`}>{item}</li>)}
+                  {scope[clave].map((item, indice) => <li key={`${indice}-${item}`} data-scope="item">{item}</li>)}
                 </ul>
                 )}
           </div>
