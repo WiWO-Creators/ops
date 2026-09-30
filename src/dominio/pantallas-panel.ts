@@ -28,7 +28,8 @@ export const CLASES_CONFIGURABLES: ClaseConfigurable[] = [
   'procesos',
   'espacios',
   'momento',
-  'anuncios'
+  'anuncios',
+  'reporteria'
 ]
 
 /**
@@ -65,6 +66,10 @@ export const ESCENAS: Record<ClaseConfigurable, { nombre: string, descripcion: s
   anuncios: {
     nombre: 'Anuncios',
     descripcion: 'Los avisos que se publican para el televisor, uno por pantalla. Sin avisos vigentes no se muestra.'
+  },
+  reporteria: {
+    nombre: 'Aviso de reportería',
+    descripcion: 'Alerta roja con la cuenta regresiva del cierre de mes. Encendida, aparece antes de cada visual.'
   }
 }
 
@@ -146,7 +151,8 @@ export const SEGUNDOS_POR_DEFECTO: Record<ClaseConfigurable, number> = {
   procesos: 10,
   espacios: 10,
   momento: 6,
-  anuncios: 12
+  anuncios: 12,
+  reporteria: 8
 }
 
 /** Los limites que acepta la API. Repetirlos acá evita un viaje para que conteste 422. */

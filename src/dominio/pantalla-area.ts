@@ -28,7 +28,7 @@ import type { EscenaDeApi, EscenaTrabajandoDeApi, PaqueteDePantalla } from '@/da
  * saltea y sigue rotando.
  */
 export const CLASES_DE_ESCENA = [
-  'portada', 'trabajando', 'cronometros', 'procesos', 'espacios', 'momento', 'anuncios'
+  'portada', 'trabajando', 'cronometros', 'procesos', 'espacios', 'momento', 'anuncios', 'reporteria'
 ] as const
 
 export type ClaseDeEscena = typeof CLASES_DE_ESCENA[number]
@@ -101,7 +101,8 @@ export const REJILLAS: Record<Orientacion, Record<ClaseDeEscena, number>> = {
     procesos: 15,
     espacios: 15,
     momento: 1,
-    anuncios: 1
+    anuncios: 1,
+    reporteria: 1
   },
   vertical: {
     portada: 1,
@@ -111,7 +112,8 @@ export const REJILLAS: Record<Orientacion, Record<ClaseDeEscena, number>> = {
     procesos: 30,
     espacios: 30,
     momento: 1,
-    anuncios: 1
+    anuncios: 1,
+    reporteria: 1
   }
 }
 
@@ -233,7 +235,7 @@ export const TOPE_DE_ANUNCIOS = 8
  * viene de la configuracion: son tres cifras o una frase, se leen de un vistazo, y ocupar veinte
  * segundos con ellas deja la pared quieta. La configuracion del panel, cuando existe, manda igual.
  */
-const ESCENAS_BREVES: ReadonlySet<string> = new Set(['portada', 'momento'])
+const ESCENAS_BREVES: ReadonlySet<string> = new Set(['portada', 'momento', 'reporteria'])
 
 /**
  * Una tabla dentro de una escena, ya paginada.
@@ -424,6 +426,7 @@ export function construirGuion (
   if (paquete === null) return []
 
   const guion: Escena[] = []
+  let aviso: EscenaDeApi | null = null
 
   for (const escena of paquete.scenes) {
     if (!esClaseConocida(escena.kind)) continue
@@ -444,6 +447,12 @@ export function construirGuion (
       continue
     }
 
+    // El aviso de reporteria no es una escena de la vuelta: se intercala mas abajo.
+    if (escena.kind === 'reporteria') {
+      aviso = escena
+      continue
+    }
+
     if (escena.kind === 'momento') {
       if (franja === null) continue
 
@@ -461,11 +470,50 @@ export function construirGuion (
     guion.push(...paginar(escena, duracion, orientacion))
   }
 
+  if (aviso !== null) {
+    const duracion = duracionDe(aviso, parametros)
+
+    return intercalarAviso(guion.length > 0 ? guion : [portadaDeRespaldo(paquete, parametros)], aviso, duracion)
+  }
+
   if (guion.length > 0) return guion
 
   // Ni una escena encendida con contenido, o un `?solo=` que no dejo nada en pie. La portada suele
   // viajar; si tampoco estuviera, se arma una con los contadores en cero antes que devolver nada.
   return [portadaDeRespaldo(paquete, parametros)]
+}
+
+/**
+ * Pone el aviso de reporteria antes de cada escena de la vuelta: aviso, escena, aviso, escena...
+ *
+ * Las paginas de un mismo tablero comparten `continuidad` y llevan un solo aviso delante: el aviso
+ * marca el cambio de visual, no el de pagina. El id lleva la posicion (`reporteria#3`) para que sea
+ * unico y la rotacion pueda seguirlo por id.
+ *
+ * @param guion    las escenas de la vuelta, sin el aviso
+ * @param aviso    la escena `reporteria` del paquete
+ * @param duracion cuanto dura cada aparicion, en ms
+ * @returns el guion con el aviso intercalado
+ */
+export function intercalarAviso (guion: Escena[], aviso: EscenaDeApi, duracion: number): Escena[] {
+  const salida: Escena[] = []
+
+  guion.forEach((escena, posicion) => {
+    if (posicion === 0 || guion[posicion - 1]?.continuidad !== escena.continuidad) {
+      salida.push({
+        id: `reporteria#${posicion}`,
+        clase: 'reporteria',
+        continuidad: `reporteria#${posicion}`,
+        duracionMs: duracion,
+        tablas: [],
+        origen: aviso
+      })
+    }
+
+    salida.push(escena)
+  })
+
+  return salida
 }
 
 /**

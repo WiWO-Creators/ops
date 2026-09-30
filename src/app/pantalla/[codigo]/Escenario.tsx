@@ -20,6 +20,7 @@ import { EscenaProcesos } from './escenas/EscenaProcesos'
 import { EscenaEspacios } from './escenas/EscenaEspacios'
 import { EscenaMomento } from './escenas/EscenaMomento'
 import { EscenaAnuncios } from './escenas/EscenaAnuncios'
+import { EscenaReporteria } from './escenas/EscenaReporteria'
 
 interface Props {
   codigo: string
@@ -65,6 +66,7 @@ export function Escenario ({ codigo, inicial, metaInicial, parametros }: Props):
   // Arranca en `null` aunque el servidor haya traido datos: el reloj del servidor no es el del
   // televisor, y mezclarlos daria una frescura inventada. Lo fija el primer tic, un instante despues.
   const [leidoEn, setLeidoEn] = useState<number | null>(null)
+  const [desfase, setDesfase] = useState(0)
   const [indice, setIndice] = useState(0)
   const [ahora, setAhora] = useState<number | null>(null)
 
@@ -87,7 +89,10 @@ export function Escenario ({ codigo, inicial, metaInicial, parametros }: Props):
    * constante. Eso es lo que mantiene estable el `useMemo` del guion de abajo: sin esa garantia, el
    * guion se reconstruiria una vez por segundo.
    */
-  const franja = useMemo(() => franjaDelMomento(ahora, zona), [ahora, zona])
+  const franja = useMemo(
+    () => franjaDelMomento(ahora === null ? null : ahora + desfase, zona),
+    [ahora, desfase, zona]
+  )
 
   const guion = useMemo(
     () => construirGuion(datos, parametros, orientacion, franja),
@@ -118,7 +123,7 @@ export function Escenario ({ codigo, inicial, metaInicial, parametros }: Props):
    */
   const intervaloMs = (meta?.poll_after_seconds ?? parametros.segundosDeRefresco) * 1000
 
-  const sondearSiToca = useSondeo({ codigo, intervaloMs, fallos, setFallos, setDatos, setMeta, setLeidoEn })
+  const sondearSiToca = useSondeo({ codigo, intervaloMs, fallos, setFallos, setDatos, setMeta, setLeidoEn, setDesfase })
 
   // -- El unico reloj de la pantalla, fuera del hilo principal. --------------------------------
   //
@@ -201,6 +206,11 @@ export function Escenario ({ codigo, inicial, metaInicial, parametros }: Props):
     ? 'sin-conexion'
     : frescuraDe(ahora - leidoEn, intervaloMs)
 
+  // El reloj del negocio: el del televisor corregido con el del servidor. Solo para lo que se
+  // MUESTRA; la frescura compara relojes del mismo aparato y sigue con el suyo.
+  const ahoraCorregido = ahora === null ? null : ahora + desfase
+  const leidoCorregido = leidoEn === null ? null : leidoEn + desfase
+
   const escena = guion[Math.min(indice, Math.max(guion.length - 1, 0))] ?? null
 
   return (
@@ -211,7 +221,7 @@ export function Escenario ({ codigo, inicial, metaInicial, parametros }: Props):
       continuidad={escena?.continuidad ?? null}
       frescura={frescura}
       esperando={datos === null}
-      ahora={ahora}
+      ahora={ahoraCorregido}
       zona={zona}
       orientacion={orientacion}
       zoom={parametros.zoom}
@@ -239,7 +249,7 @@ export function Escenario ({ codigo, inicial, metaInicial, parametros }: Props):
             // Con los datos viejos los contadores cuentan contra la ULTIMA LECTURA BUENA y no contra
             // el reloj: se quedan clavados en el valor que era cierto. Un cronometro que sigue
             // trepando con la conexion caida es una mentira, y esta pared la leen jefaturas de area.
-            ahora={frescura === 'fresco' ? ahora : leidoEn}
+            ahora={frescura === 'fresco' ? ahoraCorregido : leidoCorregido}
             congelado={frescura !== 'fresco'}
           />
           )}
@@ -330,6 +340,9 @@ function Dibujo (
     case 'anuncios':
       return <EscenaAnuncios items={unica.items as never} ocultos={unica.ocultos} />
 
+    case 'reporteria':
+      return <EscenaReporteria ahora={ahora} zona={zona} />
+
     default:
       return null
   }
@@ -358,6 +371,9 @@ function indiceDe (guion: Escena[], id: string): number {
   return encontrado >= 0 ? encontrado : 0
 }
 
+/** Cuanto se espera una respuesta antes de darla por perdida y contarla como fallo. */
+const TOPE_DE_PETICION_MS = 15_000
+
 interface OpcionesDeSondeo {
   codigo: string
   /** El ritmo base, antes del backoff. Lo decide `meta.poll_after_seconds`; ver `Escenario`. */
@@ -367,6 +383,8 @@ interface OpcionesDeSondeo {
   setDatos: (paquete: PaqueteDePantalla) => void
   setMeta: (meta: MetaDePantalla | null) => void
   setLeidoEn: (cuando: number) => void
+  /** Diferencia reloj del servidor menos reloj del televisor, en ms. */
+  setDesfase: (ms: number) => void
 }
 
 /**
@@ -388,7 +406,7 @@ interface OpcionesDeSondeo {
  * datos mientras el area esta quieta.
  */
 function useSondeo (opciones: OpcionesDeSondeo): (ahora: number) => void {
-  const { codigo, intervaloMs, fallos, setFallos, setDatos, setMeta, setLeidoEn } = opciones
+  const { codigo, intervaloMs, fallos, setFallos, setDatos, setMeta, setLeidoEn, setDesfase } = opciones
 
   const enVuelo = useRef(false)
   const etag = useRef<string | null>(null)
@@ -399,7 +417,12 @@ function useSondeo (opciones: OpcionesDeSondeo): (ahora: number) => void {
 
     enVuelo.current = true
     aborto.current?.abort()
-    aborto.current = new AbortController()
+    const control = new AbortController()
+
+    aborto.current = control
+    // Sin tope, una peticion colgada (wifi del televisor a medias) deja `enVuelo` en `true` para
+    // siempre: nadie vuelve a preguntar, los datos envejecen y los cronometros se congelan.
+    const tope = globalThis.setTimeout(() => { control.abort() }, TOPE_DE_PETICION_MS)
 
     try {
       const cabeceras: Record<string, string> = {}
@@ -409,7 +432,7 @@ function useSondeo (opciones: OpcionesDeSondeo): (ahora: number) => void {
       const respuesta = await fetch(`/api/pantalla/${encodeURIComponent(codigo)}`, {
         cache: 'no-store',
         headers: cabeceras,
-        signal: aborto.current.signal
+        signal: control.signal
       })
 
       if (respuesta.status === 304) {
@@ -430,16 +453,24 @@ function useSondeo (opciones: OpcionesDeSondeo): (ahora: number) => void {
       etag.current = respuesta.headers.get('etag')
       setDatos(sobre.data)
       // En un `304` no viene `meta`; por eso solo se pisa cuando llega de verdad.
-      if (sobre.meta !== undefined) setMeta(sobre.meta)
+      if (sobre.meta !== undefined) {
+        setMeta(sobre.meta)
+
+        const servidor = Date.parse(sobre.meta.server_time ?? '')
+
+        // A mitad del viaje: el instante del servidor corresponde a la respuesta, no al envio.
+        if (Number.isFinite(servidor)) setDesfase(servidor - Date.now())
+      }
       setLeidoEn(Date.now())
       setFallos(() => 0)
     } catch {
       // Abortada, sin red, o la API caida. Todo cuenta igual: un fallo mas, y el backoff decide.
       setFallos((previos) => previos + 1)
     } finally {
+      globalThis.clearTimeout(tope)
       enVuelo.current = false
     }
-  }, [codigo, setDatos, setMeta, setFallos, setLeidoEn])
+  }, [codigo, setDatos, setMeta, setFallos, setLeidoEn, setDesfase])
 
   const conBackoff = intervaloConBackoff(intervaloMs, fallos)
   const proximo = useRef(0)
