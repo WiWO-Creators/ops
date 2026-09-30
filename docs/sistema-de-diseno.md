@@ -174,6 +174,11 @@ Curvas: `--wiwo-ease-emphasized cubic-bezier(.2,0,0,1)` y
 
 Todo respeta `prefers-reduced-motion`.
 
+La entrada escalonada de listas, tablas y grillas tiene un solo mecanismo: `EntradaEscalonada`
+(`componentes/estructura/`). Se marca `data-entrada="item"` en cada elemento; `densa` acorta el paso
+para filas y tarjetas, y `clave` repite la entrada al cambiar página, filtro u orden sin reanimar en
+un refresco de los mismos datos. No se escriben retrasos por índice a mano.
+
 ## Breakpoints
 
 `480 / 680 / 760 / 1024 / 1208`, en dos lugares: el `@theme` de `globals.css` y

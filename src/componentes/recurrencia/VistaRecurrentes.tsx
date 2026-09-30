@@ -6,6 +6,7 @@ import { escribirEnBff } from '@/componentes/datos/mutaciones'
 import { PARAMETRO_TAREA } from '@/componentes/datos/tabla'
 import { useParametroEnUrl } from '@/componentes/datos/useFiltrosEnUrl'
 import { ErrorEstado, Vacio } from '@/componentes/estado/Estados'
+import { EntradaEscalonada } from '@/componentes/estructura/EntradaEscalonada'
 import { Boton } from '@/componentes/formularios/Boton'
 import { Segmentado } from '@/componentes/formularios/Segmentado'
 import { SelectorBuscable } from '@/componentes/formularios/Selector'
@@ -326,13 +327,16 @@ function ContenidoDeLista ({ estado, vista, onVista, reglas, visibles, vacia, on
       {visibles.length === 0
         ? <Vacio titulo="Nada en esta vista" descripcion={vacia} className="border-linea rounded-tarjeta border" />
         : (
-          <ul aria-label="Tareas recurrentes" className="flex flex-col gap-2">
-            {visibles.map((regla, posicion) => (
-              <ViewTransition key={regla.id} name={`rec-regla-${regla.id}`} exit="rec-salida" update="auto" default="none">
-                {fila(regla, posicion)}
-              </ViewTransition>
-            ))}
-          </ul>
+          // Cambiar de vista filtra aca mismo, sin remontar la lista: la clave repite la entrada.
+          <EntradaEscalonada clave={vista}>
+            <ul aria-label="Tareas recurrentes" className="flex flex-col gap-2">
+              {visibles.map((regla, posicion) => (
+                <ViewTransition key={regla.id} name={`rec-regla-${regla.id}`} exit="rec-salida" update="auto" default="none">
+                  {fila(regla, posicion)}
+                </ViewTransition>
+              ))}
+            </ul>
+          </EntradaEscalonada>
           )}
     </div>
   )
@@ -372,10 +376,10 @@ function FilaDeRegla ({ regla, posicion, puedeEditar, esAdmin, resaltada, onVerC
 
   return (
     <li
-      style={{ '--i': posicion } as React.CSSProperties}
+      data-entrada="item"
       data-resaltada={resaltada || undefined}
       className={cn(
-        'rec-escalonada border-linea bg-superficie rounded-tarjeta hover:border-linea-fuerte grid grid-cols-1 items-center gap-x-4 gap-y-2 border px-4 py-3 transition-colors duration-150 md:grid-cols-[minmax(0,2.2fr)_minmax(0,1fr)_minmax(0,1fr)_auto]',
+        'border-linea bg-superficie rounded-tarjeta hover:border-linea-fuerte grid grid-cols-1 items-center gap-x-4 gap-y-2 border px-4 py-3 transition-colors duration-150 md:grid-cols-[minmax(0,2.2fr)_minmax(0,1fr)_minmax(0,1fr)_auto]',
         resaltada && 'border-acento ring-acento/30 ring-2'
       )}
     >
