@@ -839,3 +839,80 @@
 @media (prefers-reduced-motion: reduce) {
   .pantalla-quema, .pantalla-quema-llama, .pantalla-quema-icono { animation: none; }
 }
+
+/* === Explosion entre escenas (TransicionDeFuego) ===
+ * Una capa negra con un agujero que crece desde el centro; el radio (`--pq-radio`) lo mueve anime.js. */
+.pq-raiz {
+  --pq-radio: -24px;
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  overflow: hidden;
+  pointer-events: none;
+  visibility: hidden;
+}
+.pq-raiz[data-viva='true'] {
+  visibility: visible;
+}
+.pq-carbon {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(60% 55% at 50% 50%, rgba(150, 10, 22, 0.55) 0%, rgba(40, 0, 6, 0.7) 55%, transparent 85%),
+    #040001;
+  -webkit-mask-image: radial-gradient(circle at 50% 50%, transparent calc(var(--pq-radio) - 2px), rgba(0, 0, 0, 0.45) var(--pq-radio), #000 calc(var(--pq-radio) + 16px));
+  mask-image: radial-gradient(circle at 50% 50%, transparent calc(var(--pq-radio) - 2px), rgba(0, 0, 0, 0.45) var(--pq-radio), #000 calc(var(--pq-radio) + 16px));
+}
+.pq-frente {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    circle at 50% 50%,
+    transparent calc(var(--pq-radio) - 14px),
+    rgba(60, 0, 0, 0.55) calc(var(--pq-radio) - 8px),
+    rgba(255, 236, 170, 0.95) calc(var(--pq-radio) - 1px),
+    rgba(255, 120, 30, 0.9) calc(var(--pq-radio) + 5px),
+    rgba(190, 20, 20, 0.55) calc(var(--pq-radio) + 16px),
+    transparent calc(var(--pq-radio) + 34px)
+  );
+  filter: drop-shadow(0 0 6px rgba(255, 90, 20, 0.8));
+}
+.pq-escena {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+}
+.pq-escena > * {
+  grid-area: 1 / 1;
+}
+.pq-bola {
+  width: min(46vmin, 460px);
+  height: min(46vmin, 460px);
+  border-radius: 9999px;
+  background: radial-gradient(circle, #fff4d6 0%, #ffb347 12%, #ff4a1f 28%, #c3121d 46%, rgba(90, 0, 14, 0.6) 60%, transparent 72%);
+  opacity: 0;
+}
+.pq-anillo {
+  width: 22vmin;
+  height: 22vmin;
+  border-radius: 9999px;
+  border: 0.5vmin solid rgba(255, 110, 70, 0.95);
+  box-shadow: 0 0 3vmin rgba(255, 50, 30, 0.8), inset 0 0 3vmin rgba(255, 50, 30, 0.6);
+  opacity: 0;
+}
+.pq-chispa {
+  width: 2px;
+  height: 3.2vmin;
+  border-radius: 9999px;
+  background: linear-gradient(to top, transparent, #ff6a2a 40%, #ffe2b0);
+  box-shadow: 0 0 1vmin rgba(255, 120, 60, 0.9);
+  opacity: 0;
+  rotate: var(--ang);
+}
+.pq-destello {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 50% 50%, #fff 0%, #ffd9a8 14%, rgba(255, 74, 42, 0.8) 38%, rgba(140, 0, 16, 0.5) 70%, transparent 100%);
+  opacity: 0;
+}

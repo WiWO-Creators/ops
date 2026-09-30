@@ -8,6 +8,7 @@ import type { Escena, Frescura, Orientacion, ParametrosDePantalla } from '@/domi
 import { ANCHO_MAYUSCULA_EM, ANCHO_SOBRIO_EM, cupoDeFichas } from '@/dominio/solari'
 import { TextoSolari } from './escenas/Solari'
 import { Ficha } from './escenas/piezas'
+import { TransicionDeFuego } from './TransicionDeFuego'
 
 interface Props {
   area: string | null
@@ -149,6 +150,8 @@ export function MarcoDePantalla (props: Props): ReactNode {
       >
         {esperando ? <Esperando /> : children}
       </section>
+
+      <TransicionDeFuego clave={continuidad ?? escenaId ?? 'vacio'} activa={transicion !== 'ninguna'} />
 
       <footer className="pantalla-deriva flex flex-col gap-[1.1vmin] px-[3vmin] pb-[2.4vmin] portrait:pb-[4vmin]">
         <div className="flex items-center justify-between">
