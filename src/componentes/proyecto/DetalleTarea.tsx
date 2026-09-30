@@ -3,7 +3,7 @@
 import { Repeat2 } from 'lucide-react'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
-import { useCallback, useEffect, useState, type ReactElement, type ReactNode } from 'react'
+import { useCallback, useEffect, useState, type ReactElement } from 'react'
 import { PARAMETRO_TAREA, urlConParametro } from '@/componentes/datos/tabla'
 import { ArbolDrive } from '@/componentes/archivos/ArbolDrive'
 import { useUbicacionTarea } from '@/componentes/auditoria/accion'
@@ -35,7 +35,9 @@ import { BloqueSla } from './BloqueSla'
 import { BloqueoDeProceso } from './BloqueoDeProceso'
 import { CabeceraFichaTarea } from './CabeceraFichaTarea'
 import { HiloDeComentarios } from './HiloDeComentarios'
-import { TarjetaDeComentario } from './TarjetaDeComentario'
+import {
+  Dato, MarcasDeControl, SeccionDeAdjuntos, SeccionDeComentarios, SeccionDeLectura, SIN_DATO
+} from './ficha-de-lectura'
 import { ESTADO_COMPLETO, comentarioParaMostrar, type ProcesoDeFicha } from './tareas'
 import { CompartirTarea } from './CompartirTarea'
 import { BotonDuplicarTarea } from './DuplicarTarea'
@@ -538,36 +540,22 @@ function ChecklistDeLectura (
   if (items === undefined) return null
 
   const hechos = items.filter((item) => item.finished).length
+  const titulo = (
+    <>
+      Lista de control {items.length > 0 && <span className="text-texto-sutil font-normal">{hechos}/{items.length}</span>}
+    </>
+  )
 
   return (
-    <section className="flex flex-col gap-2">
-      <h4 className="text-texto-tenue text-sm font-semibold">
-        Lista de control {items.length > 0 && <span className="text-texto-sutil font-normal">{hechos}/{items.length}</span>}
-      </h4>
-
+    <SeccionDeLectura titulo={titulo} nivel={4}>
       {items.length === 0
         ? <p className="text-texto-sutil text-sm">Esta {GLOSARIO.proceso.singular.toLowerCase()} no tiene lista de control.</p>
         : (
-          <ul className="flex flex-col gap-1">
-            {items.map((item) => (
-              <li key={item.id} className="flex items-baseline gap-2 text-sm">
-                {/* `aria-hidden` en la marca y el estado en texto al final: un lector de pantalla
-                    que anuncia "✓" no dice nada, y sin la casilla hace falta decirlo con palabras. */}
-                <span
-                  aria-hidden
-                  className={`w-3 shrink-0 text-center ${item.finished ? 'text-texto-exito' : 'text-texto-sutil'}`}
-                >
-                  {item.finished ? '✓' : '·'}
-                </span>
-                <span className={item.finished ? 'text-texto-tenue line-through' : 'text-texto'}>
-                  {aTextoPlano(item.description)}
-                </span>
-                <span className="sr-only">{item.finished ? '(hecho)' : '(pendiente)'}</span>
-              </li>
-            ))}
-          </ul>
+          <MarcasDeControl
+            items={items.map((item) => ({ clave: item.id, hecho: item.finished, texto: aTextoPlano(item.description) }))}
+          />
           )}
-    </section>
+    </SeccionDeLectura>
   )
 }
 
@@ -586,36 +574,14 @@ function AdjuntosDeLectura (
   if (adjuntos === undefined) return null
 
   return (
-    <section className="flex flex-col gap-2">
-      <h4 className="text-texto-tenue text-sm font-semibold">Archivos</h4>
-
-      {adjuntos.length === 0
-        ? <p className="text-texto-sutil text-sm">Sin archivos adjuntos.</p>
-        : (
-          <ul className="flex flex-col gap-2">
-            {adjuntos.map((adjunto) => {
-              const nombre = adjunto.subject ?? adjunto.file_name
-
-              return (
-                <li key={adjunto.id} className="rounded-chico border-linea border p-3 text-sm">
-                  {adjunto.url === null
-                    ? <span className="text-texto">{nombre}</span>
-                    : (
-                      <a
-                        href={adjunto.url}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="text-acento break-all underline underline-offset-4"
-                      >
-                        {nombre}
-                      </a>
-                      )}
-                </li>
-              )
-            })}
-          </ul>
-          )}
-    </section>
+    <SeccionDeAdjuntos
+      nivel={4}
+      adjuntos={adjuntos.map((adjunto) => ({
+        clave: adjunto.id,
+        nombre: adjunto.subject ?? adjunto.file_name,
+        url: adjunto.url
+      }))}
+    />
   )
 }
 
@@ -635,35 +601,24 @@ function Comentarios (
   if (comentarios === undefined) return null
 
   return (
-    <section className="flex flex-col gap-2">
-      <h4 className="text-texto-tenue text-sm font-semibold">Comentarios</h4>
+    <SeccionDeComentarios
+      nivel={4}
+      comentarios={comentarios.map((comentario) => {
+        const paraMostrar = comentarioParaMostrar(comentario)
 
-      {comentarios.length === 0
-        ? <p className="text-texto-sutil text-sm">Todavía no hay comentarios.</p>
-        : (
-          <ul className="flex flex-col gap-2">
-            {comentarios.map((comentario) => {
-              const paraMostrar = comentarioParaMostrar(comentario)
-
-              return (
-                <TarjetaDeComentario
-                  key={comentario.id}
-                  // `comentarioParaMostrar` no manda el id del autor: se agrega aca desde el
-                  // comentario crudo, que si lo trae en `staff.id`.
-                  comentario={{
-                    ...paraMostrar,
-                    author: paraMostrar.author === null ? null : { ...paraMostrar.author, id: comentario.staff?.id }
-                  }}
-                />
-              )
-            })}
-          </ul>
-          )}
-    </section>
+        // `comentarioParaMostrar` no manda el id del autor: se agrega aca desde el comentario
+        // crudo, que si lo trae en `staff.id`.
+        return {
+          clave: comentario.id,
+          comentario: {
+            ...paraMostrar,
+            author: paraMostrar.author === null ? null : { ...paraMostrar.author, id: comentario.staff?.id }
+          }
+        }
+      })}
+    />
   )
 }
-
-const SIN_DATO = '—'
 
 /**
  * Marca la Tarea como completada, eligiendo con que fecha cierra.
@@ -854,17 +809,6 @@ function CreadaPorRecurrencia ({ madre }: { madre: { id: number, name: string } 
         </Link>
       </span>
     </p>
-  )
-}
-
-function Dato ({ etiqueta, children }: { etiqueta: string, children: ReactNode }): ReactElement {
-  return (
-    <div className="flex min-w-0 flex-col gap-1">
-      <dt className="text-texto-sutil text-xs font-medium tracking-[0.08em] uppercase">
-        {etiqueta}
-      </dt>
-      <dd className="text-texto min-w-0 text-sm">{children}</dd>
-    </div>
   )
 }
 

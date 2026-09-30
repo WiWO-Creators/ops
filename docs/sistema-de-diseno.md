@@ -259,7 +259,7 @@ Lo que existe hoy en `src/componentes/` (carpeta entre paréntesis cuando no es 
 |---|---|
 | **Estructura** | BarraLateral, BarraInferiorMovil, TituloModulo (con `FirmaDeMarca` y `TituloDeFicha`), Tarjeta, Plegable, EntradaEscalonada (props `clave`, `densa`, `items`, `className`), TransicionDePagina, Muestra |
 | **Navegación** | PaletaDeComandos (⌘K, `paleta/`), Pestanas (`proyecto/`), SelectorEspacio (`live/`), PaginacionTabla (en `ControlesTabla`) |
-| **Datos** | Tabla (prop `entrada`), TablaRecurso, Tablero, VistaCalendario, ControlesTabla, MenuAccionesFila, ConfirmarBorrado, ConfirmacionEnLinea, BajaYBorrado, TotalDelListado |
+| **Datos** | Tabla (prop `entrada`), TablaRecurso, Tablero, VistaCalendario, ControlesTabla, MenuAccionesFila, ConfirmarBorrado, ConfirmacionEnLinea, BajaYBorrado, TotalDelListado, BotonFiltroEnUrl (interruptor de filtro en la URL: `BotonCompletados`, `BotonCompletadas`, `BotonCreadas`) |
 | **Presentadores** | Insignia, InsigniaDePrioridad, Avatar, GrupoAvatares, Etiquetas, Fecha, BarraProgreso, EstadoSla, Hito, EnlaceProyecto / EnlaceCliente / EnlacePersona, ImagenEntidad, Seccion y Filas (`Ficha`), CodigoCopiable, TarjetaFlotantePersona |
 | **Superposiciones** | Dialogo, Cajon, MenuContextual (con `BuscadorMenu` e `ItemMenuMarcable`), PanelVidrio |
 | **Estado** | Cargando, Vacio, ErrorEstado, SinPermiso, Hueso, EsqueletoFicha, AvisoEnLinea, Orbe, AvisosDeError + `useAviso`, LimiteDeError |
