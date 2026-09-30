@@ -115,7 +115,7 @@ Auditoría exhaustiva de consistencia de interfaz, refinamiento visual, deuda t�
 ### P3-10 ~~Skeleton de Prospectos rotulado como Licitaciones~~ (descartado)
 - **Verificación**: mismo cambio deliberado que P3-09.
 
-### P3-11 Dos textos distintos para volver al listado desde un prospecto
+### P3-11 Dos textos distintos para volver al listado desde un prospecto (descartado: es la convención de todas las fichas, «← Sección» como miga de la cabecera y «Volver a Sección» como acción del estado inexistente; clientes hace lo mismo)
 - **Dónde**: `src/app/(panel)/prospectos/[id]/page.tsx:93` («Volver a Licitaciones») y `:158` («← Licitaciones»).
 - **Qué pasa**: El nombre es correcto, pero la ficha y su estado de inexistente usan dos redacciones distintas para el mismo retorno.
 - **Propuesta**: Unificar en una sola forma, idealmente la misma que usan las demás fichas del panel.
@@ -127,13 +127,13 @@ Auditoría exhaustiva de consistencia de interfaz, refinamiento visual, deuda t�
 - **Propuesta**: Reemplazar los dos `window.confirm` por el componente `Dialogo` o `ConfirmarBorrado` con un modal no bloqueante accesible.
 - **Prioridad**: Alta · **Esfuerzo**: S
 
-### P3-13 Acción "Ver como" deshabilitada sin explicación contextual
+### P3-13 Acción "Ver como" deshabilitada sin explicación contextual (resuelto en 2e5b108)
 - **Dónde**: `src/componentes/equipo/BotonSuplantar.tsx:70`
 - **Qué pasa**: El botón de suplantación para superadministradores define `disabled={!activa}` cuando la cuenta está dada de baja, pero no incluye ningún tooltip, `title` ni mensaje informativo que explique la causa de la inhabilitación.
 - **Propuesta**: Envolver el botón en un contenedor con tooltip accesible o mostrar una aclaración textual adyacente: *"No se puede suplantar una cuenta inactiva"*.
 - **Prioridad**: Baja · **Esfuerzo**: S
 
-### P3-14 Estado vacío ad-hoc con texto plano sin estilo en Novedades
+### P3-14 Estado vacío ad-hoc con texto plano sin estilo en Novedades (resuelto en 2e5b108)
 - **Dónde**: `src/app/(panel)/novedades/page.tsx:36`
 - **Qué pasa**: Cuando no hay novedades publicadas se renderiza `<p className="text-texto-tenue text-sm">Todavía no hay novedades publicadas.</p>`, rompiendo la pauta visual del sistema que exige el componente `Vacio` con icono y salida contextual.
 - **Propuesta**: Utilizar `<Vacio titulo="Todavía no hay novedades publicadas" descripcion="Las actualizaciones del sistema aparecerán aquí organizadas por fecha." />`.
@@ -149,13 +149,13 @@ Auditoría exhaustiva de consistencia de interfaz, refinamiento visual, deuda t�
 - **Propuesta**: Normalizar todos los textos a tuteo neutro: *"Todavía no tienes firma"*, *"Puedes marcar varias áreas"*, *"No tienes permiso para recalcular"* y *"Revisa los datos ingresados"*.
 - **Prioridad**: Media · **Esfuerzo**: S
 
-### P3-16 Discrepancia terminológica en botones de confirmación de formularios
+### P3-16 Discrepancia terminológica en botones de confirmación de formularios (resuelto en 2e5b108; «Reservar» y los «Guardar foto/datos/firma» del perfil quedan por convención documentada)
 - **Dónde**: `src/componentes/proyecto/FormularioRecurso.tsx:195`, `src/componentes/cliente/DialogoContacto.tsx:254`, `src/app/(panel)/salas/DialogoReserva.tsx:265`, `src/app/(panel)/perfil/FormularioPerfil.tsx:405,488,527`
 - **Qué pasa**: Mientras `FormularioRecurso` usa siempre `"Guardar"` (tanto en alta como en edición), `DialogoContacto` y `DialogoReserva` alternan entre `"Crear contacto"` / `"Reservar"` y `"Guardar cambios"`. En perfil coexisten en la misma pantalla `"Guardar datos"`, `"Guardar firma"` y `"Guardar foto"`.
 - **Propuesta**: Adoptar la convención estándar del sistema de diseño: botón de acción afirmativa nombra la entidad en creación (*"Crear contacto"*, *"Crear contrato"*) y utiliza `"Guardar cambios"` en modificaciones.
 - **Prioridad**: Media · **Esfuerzo**: M
 
-### P3-17 Conflicto terminológico "Borrar" vs "Eliminar" en acciones destructivas
+### P3-17 Conflicto terminológico "Borrar" vs "Eliminar" en acciones destructivas (resuelto en 2e5b108)
 - **Dónde**: `src/componentes/prospecto/AccionesProspecto.tsx:59`, `src/componentes/datos/MenuAccionesFila.tsx:22`, `src/componentes/cliente/AccionesCliente.tsx:68`
 - **Qué pasa**: En la botonera de Prospecto se rotula el botón como `"Borrar"`, mientras que el vocabulario de diseño institucional en menús de tabla, papelera y avisos utiliza consistentemente `"Eliminar"` o `"Enviar a la papelera"`.
 - **Propuesta**: Reemplazar `"Borrar"` por `"Eliminar"` en `AccionesProspecto.tsx` para mantener coherencia léxica.
@@ -167,7 +167,7 @@ Auditoría exhaustiva de consistencia de interfaz, refinamiento visual, deuda t�
 - **Propuesta**: Incorporar `useAviso().exito('...')` al resolver satisfactoriamente cada mutación antes de cerrar los diálogos.
 - **Prioridad**: Alta · **Esfuerzo**: M
 
-### P3-19 Icono ausente en botón "Editar" de cabeceras de cliente y prospecto
+### P3-19 Icono ausente en botón "Editar" de cabeceras de cliente y prospecto (resuelto en 2e5b108)
 - **Dónde**: `src/componentes/cliente/AccionesCliente.tsx:57`, `src/componentes/prospecto/AccionesProspecto.tsx:51`, `src/componentes/contrato/FichaContrato.tsx:68`
 - **Qué pasa**: `FichaContrato` y `MenuAccionesFila` utilizan el icono canónico `<Pencil className="size-4" />` junto a la etiqueta `"Editar"`. Por contraste, `AccionesCliente` y `AccionesProspecto` renderizan botones planos de solo texto, reduciendo la consistencia visual y la velocidad de escaneo.
 - **Propuesta**: Incorporar `<Pencil aria-hidden className="size-4" />` a los botones de edición de `AccionesCliente` y `AccionesProspecto`.

@@ -38,7 +38,7 @@ Solo hallazgos verificados en el código de `ops-v2`; no se modificó ningún ar
 - **Propuesta**: Reemplazar los `h1` planos en `seccion.tsx` y en las páginas de Archivos, Anuncios, Ayuda y Perfil por `TituloModulo`, unificando la jerarquía tipográfica y la firma de marca en todo el portal.
 - **Prioridad**: Alta · **Esfuerzo**: S
 
-### P4-02 Discrepancia tipográfica y de escala entre pantallas de acceso (`/colab` vs `/` y `/clave/[token]`)
+### P4-02 Discrepancia tipográfica y de escala entre pantallas de acceso (`/colab` vs `/` y `/clave/[token]`) (resuelto en 2e5b108)
 - **Dónde**: `src/app/(acceso)/colab/FormularioEntrar.tsx:261`, `src/app/(acceso)/FormularioEntrarPortal.tsx:114`, `src/app/clave/[token]/FormularioFijarClave.tsx:132`
 - **Qué pasa**: En el login de colaboradores (`/colab`), el encabezado de la tarjeta utiliza `font-titular text-3xl font-extrabold tracking-tight text-texto` con `mb-6`. En cambio, el login del cliente en la raíz (`/`) y la pantalla de fijar clave (`/clave/[token]`) utilizan `font-titular text-texto text-xl font-semibold` con `mb-8`. Aunque ambas pantallas comparten la misma composición (`PanelVidrio`, `Orbe` de marca y layout simétrico a dos columnas), la jerarquía tipográfica dentro de la tarjeta de autenticación está desfasada (3xl extrabold vs xl semibold).
 - **Propuesta**: Estandarizar el encabezado de las tarjetas de autenticación usando la misma escala tipográfica (`text-2xl font-bold` o `text-3xl font-extrabold`) y el mismo margen inferior (`mb-6`) en los tres formularios.

@@ -43,19 +43,19 @@ Las rutas son relativas a `ops-v2/`.
 - **Propuesta**: Unificar en "Completadas" (derivado de `GLOSARIO.proceso`) dentro del componente compartido de P1-12.
 - **Prioridad**: Media · **Esfuerzo**: S
 
-### P1-05 Feedback de éxito desigual tras guardar (parcial en 47e25a9: falta DetalleActa y TareasPropuestas, que se parten en 4B)
+### P1-05 Feedback de éxito desigual tras guardar (resuelto en 47e25a9 y 2e5b108)
 - **Dónde**: con toast: `AccionesFila.tsx:64,83`, `PantallaPlantillas.tsx:132`, `PanelTiempos.tsx:272`, `ImportarTareas.tsx:304`; sin toast: `EdicionTarea.tsx:431`, `recurrencia/VistaRecurrentes.tsx:506,577`, `recurrencia/EditorDeRegla.tsx`, `ListaChecklist.tsx`, `DuplicarTarea.tsx`, `DialogoCopiarProyecto.tsx` (todos en `src/componentes/proyecto/` salvo indicación)
 - **Qué pasa**: 44 archivos del frente escriben con `escribirEnBff` y solo 9 de ellos usan `useAviso`. Guardar una Tarea, pausar una regla o duplicar cierra el diálogo en silencio, mientras borrar un archivo o una plantilla sí confirma. Los textos también varían: «nombre» con comillas latinas en unos, "nombre" rectas en `ImportarTareas.tsx:304`, y genéricos "Guardado correctamente." / "Eliminado correctamente." en `AccionesFila.tsx`.
 - **Propuesta**: Regla: toda mutación que cierra una superposición confirma con `useAviso().exito()` nombrando la entidad con «». Revisar la lista de archivos sin toast y alinear los genéricos de `AccionesFila`.
 - **Prioridad**: Media · **Esfuerzo**: M
 
-### P1-06 "Eliminar" y "Borrar" para la misma acción
+### P1-06 "Eliminar" y "Borrar" para la misma acción (resuelto en 2e5b108)
 - **Dónde**: "Borrar" en `PantallaPlantillas.tsx:79,141,146`, `PantallaPlantillasHito.tsx:86,148,153`, `ListaIteraciones.tsx:296`, `HiloDeComentarios.tsx:154,167`, `acta/TranscripcionesRecientes.tsx:130`; "Eliminar" en `DetalleActa.tsx:694,773`, `DialogoEliminarProyecto.tsx:47` y el valor por defecto de `ConfirmarBorrado` (`src/componentes/datos/ConfirmarBorrado.tsx:20,27`)
 - **Qué pasa**: El verbo de la acción destructiva cambia según la pantalla (11 "Eliminar" frente a 10 "Borrar" en el frente), y los toasts dicen "se eliminó" aunque el botón diga "Borrar".
 - **Propuesta**: Adoptar "Eliminar" (el por defecto del componente base) y documentarlo en el sistema de diseño.
 - **Prioridad**: Baja · **Esfuerzo**: S
 
-### P1-07 Textos con "proyecto"/"tarea" escritos a mano junto a `GLOSARIO`
+### P1-07 Textos con "proyecto"/"tarea" escritos a mano junto a `GLOSARIO` (resuelto en 2e5b108)
 - **Dónde**: `src/componentes/proyecto/AccionesMasivasTareas.tsx:169,228,305,359,393`, `EdicionTarea.tsx:205,235,508`, `MenuProyecto.tsx:353`, `LineaDeActividad.tsx:34`, `Cronometros.tsx:300,303`, `DetalleActa.tsx:892` ("del Proyecto" con mayúscula)
 - **Qué pasa**: 45 archivos del frente usan `GLOSARIO.espacio`/`GLOSARIO.proceso` y los de arriba escriben "proyecto(s)"/"tarea(s)" literal. Hoy coinciden, pero si el glosario cambia (ya pasó de "procesos" a "Tareas") estas frases quedan desfasadas, y la mayúscula varía.
 - **Propuesta**: Pasar los literales a `GLOSARIO.*.singular/plural.toLowerCase()` como hace `ImportarTareas.tsx:482`.
@@ -175,7 +175,7 @@ Las rutas son relativas a `ops-v2/`.
 - **Propuesta**: `text-xs` (o `text-menor`) en todos; si 10 px hace falta de verdad, un token nuevo en la escala.
 - **Prioridad**: Baja · **Esfuerzo**: S
 
-### P1-25 Mismo vacío, dos redacciones
+### P1-25 Mismo vacío, dos redacciones (resuelto en 2e5b108)
 - **Dónde**: `src/componentes/proyecto/PanelArchivos.tsx:172` ("Todavía no tiene adjuntos.", `text-texto-tenue`) frente a `DetalleTarea.tsx:590` y `tarea/[token]/page.tsx:186` ("Sin archivos adjuntos.", `text-texto-sutil`)
 - **Qué pasa**: El mismo estado vacío cambia de texto y de color de una pestaña a otra. Pasa algo parecido con "No hay …" / "Sin … todavía" / "Todavía no hay …" en listas pequeñas.
 - **Propuesta**: Fijar la fórmula "Todavía no hay X." para vacíos en línea y `text-texto-sutil`; los vacíos de bloque ya usan `Vacio`.
