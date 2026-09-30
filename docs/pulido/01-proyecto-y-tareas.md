@@ -214,7 +214,7 @@ Las rutas son relativas a `ops-v2/`.
 
 ## Deuda técnica
 
-### P1-30 `AltaRapidaProceso` es un único componente de 1.200 líneas con 55 `useState`
+### P1-30 `AltaRapidaProceso` es un único componente de 1.200 líneas con 55 `useState` (resuelto en 89c2b8e)
 - **Dónde**: `src/componentes/proyecto/AltaRapidaProceso.tsx:184-1393`
 - **Qué pasa**: Es el archivo más grande del frente (1.393 l.) y todo vive en una sola función: dictado, sugerencias del modelo, vista previa, validación y envío. Es el que más cuesta tocar sin romper algo.
 - **Propuesta**: Pasar el estado a un `useReducer` o a hooks (`useSugerenciasIa`, `useBorradorAlta`) y separar la vista en subcomponentes (entrada, sugerencias, `VistaPreviaAlta` ya existe).
