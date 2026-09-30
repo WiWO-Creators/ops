@@ -8,7 +8,7 @@ import type { JSAnimation } from 'animejs'
 interface Props {
   /** Clave de continuidad de la escena: cuando cambia, estalla. La primera no cuenta. */
   clave: string
-  /** `false` con `?transicion=ninguna`: no se dibuja nada. */
+  /** `false` fuera del aviso de reporteria o con `?transicion=ninguna`: no se dibuja nada. */
   activa: boolean
 }
 

@@ -151,7 +151,11 @@ export function MarcoDePantalla (props: Props): ReactNode {
         {esperando ? <Esperando /> : children}
       </section>
 
-      <TransicionDeFuego clave={continuidad ?? escenaId ?? 'vacio'} activa={transicion !== 'ninguna'} />
+      {/* Solo estalla al llegar al aviso de reporteria; el resto de las vistas cambia con el fundido de siempre. */}
+      <TransicionDeFuego
+        clave={continuidad ?? escenaId ?? 'vacio'}
+        activa={transicion !== 'ninguna' && (escenaId ?? '').startsWith('reporteria')}
+      />
 
       <footer className="pantalla-deriva flex flex-col gap-[1.1vmin] px-[3vmin] pb-[2.4vmin] portrait:pb-[4vmin]">
         <div className="flex items-center justify-between">
