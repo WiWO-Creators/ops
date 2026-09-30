@@ -58,9 +58,27 @@ Varios hallazgos son el mismo problema visto desde áreas distintas. Conviene re
 | Textos | P3-15, P3-16, P3-17, P1-04, P1-06, P1-07, P3-11 | Tuteo único, «Eliminar» único, verbos de confirmación y `GLOSARIO` |
 | Movimiento fuera de tokens | P4-04, P2-17, 88 `duration-N` literales | Pasar a `--wiwo-motion-*` y agregar lint para `animate-pulse`/`ping` fuera de `estado/` |
 
-## Plan sugerido por tandas
+## Plan por encargos
 
-### Tanda 1 — Rápidas y visibles (esfuerzo S)
+Cada encargo cabe en una conversación sin compactar (objetivo: contexto máximo < 150k tokens).
+Se toman **en orden**: 2A antes que 2B porque 2B reutiliza la `EntradaEscalonada` extendida.
+Los números de la columna «Tokens» son el total procesado estimado si se siguen las reglas de
+ahorro de más abajo.
+
+| Encargo | Contenido | Archivos aprox. | Tokens |
+|---|---|---|---|
+| **1** | Confirmaciones, `loading`/`error`, cabeceras del portal, `aria-label`, tuteo, Novedades, pulso | 20–25 | 2–4 M |
+| **2A** | Escalonado único: extender `EntradaEscalonada`, migrar `retrasoDeAparicion` y `.rec-escalonada` | 8–12 | 2–4 M |
+| **2B** | Aplicar la entrada a listas y tarjetas; firma de marca en fichas | 12–18 | 2–4 M |
+| **2C** | Salidas animadas, acordeones y paneles, entrada en acceso/clave/ficha pública, duraciones a tokens, lint | 15–25 | 3–5 M |
+| **3A** | Matriz de asignación N-a-M única y un solo `PanelDePersona` | 6–10 | 3–5 M |
+| **3B** | Selectores unificados, inventario del sistema de diseño, aviso tras guardar | 15–30 | 3–5 M |
+| **3C** | Gemelos de proyecto (P1-12…P1-15) | 8–12 | 2–4 M |
+| **4A** | Partir `AltaRapidaProceso` | 1 → 5–8 | 3–5 M |
+| **4B** | Partir `DetalleActa` y `TareasPropuestas` | 2 → 8–12 | 3–5 M |
+| **4C** | Tokens CSS, `z-index`, `text-[px]`, taller, comentario del taller (P2-08, P2-19, P2-20, P1-24, P2-12, P1-32) | 10–20 | 2–4 M |
+
+### Encargo 1 — Rápidas y visibles (esfuerzo S)
 
 1. Reemplazar los 5 `confirm()` nativos: `DetalleActa.tsx:520`, `acta/TareasPropuestas.tsx:410`,
    `FlujoLicitacion.tsx:127` y `:355`, `app/s/[clave]/Tablero.tsx:109`.
@@ -74,41 +92,62 @@ Varios hallazgos son el mismo problema visto desde áreas distintas. Conviene re
 8. Documentar la excepción del pulso de la píldora de estado (P1-01) y agregar `motion-safe:` en
    `MiniLlamada.tsx:92`.
 
-### Tanda 2 — Movimiento unificado (M)
+### Encargo 2A — Escalonado único (M)
 
-1. `EntradaEscalonada` como único sistema de escalonado; migrar los otros dos y aplicarlo a listas
-   y tarjetas (P1-26, P3-23, P1-27).
+1. Extender `EntradaEscalonada` para que pueda repetir la entrada cuando cambia una clave (página,
+   filtro, orden) sin reanimar en cada refresco de datos.
+2. Migrar a él `retrasoDeAparicion` (`TablaRecurso`, `TarjetasProyectos`, `VistaClientes`) y
+   `.rec-escalonada` (recurrencia); borrar ambos (P1-26, P2-02).
+
+### Encargo 2B — Entrada en listas y fichas (M)
+
+1. Aplicar `EntradaEscalonada` a listas y tarjetas hechas a mano (P3-23, P1-27).
 2. Firma de marca en cabeceras de ficha (P3-21, P3-01).
-3. Salidas animadas en `OrbeChatIA` y `TarjetaFlotantePersona` (P2-16, P2-11).
-4. Acordeones y paneles colapsables con transición común (P2-18, P1-03, P1-29, P3-24).
-5. Entrada en acceso, clave y ficha pública (P4-16, P1-23).
-6. Duraciones literales a tokens y lint del guardrail de `infinite` para clases de Tailwind.
 
-### Tanda 3 — Componentes compartidos (M–L)
+### Encargo 2C — Salidas, colapsables y tokens (M)
+
+1. Salidas animadas en `OrbeChatIA` y `TarjetaFlotantePersona` (P2-16, P2-11).
+2. Acordeones y paneles colapsables con transición común (P2-18, P1-03, P1-29, P3-24, P1-28).
+3. Entrada en acceso, clave y ficha pública (P4-16, P1-23).
+4. Duraciones literales a tokens (P4-04, P2-17) y regla de lint para `animate-pulse`/`animate-ping`
+   fuera de `componentes/estado/`, con la excepción documentada de la píldora de estado.
+
+### Encargo 3A — Asignación y persona (L)
 
 1. Matriz de asignación N-a-M única para focals y supervisión (P3-06).
 2. Un solo `PanelDePersona` en Organización (P3-05).
-3. Selectores de persona y relación unificados (P2-07, P3-07).
-4. Corregir el inventario de `sistema-de-diseno.md` a lo que existe (P2-10); crear primitivos solo
+
+### Encargo 3B — Selectores, inventario y avisos (M)
+
+1. Selectores de persona y relación unificados (P2-07, P3-07).
+2. Corregir el inventario de `sistema-de-diseno.md` a lo que existe (P2-10); crear primitivos solo
    donde haya 3 o más usos reales hechos a mano.
-5. Aviso tras guardar en todas las mutaciones (P3-18, P1-05, P4-03).
-6. Gemelos de proyecto: filtros en URL, `FiltrosDeVencimiento`, plantillas de Proyecto y de Hito,
-   ficha pública frente a `DetalleTarea` (P1-12…P1-15).
+3. Aviso tras guardar en todas las mutaciones (P3-18, P1-05, P4-03).
 
-### Tanda 4 — Deuda técnica (L)
+### Encargo 3C — Gemelos de proyecto (M)
 
-- Partir `AltaRapidaProceso` (~1.200 líneas, 55 `useState`), `DetalleActa` y `TareasPropuestas`
-  (P1-30 y siguientes).
-- Tokens duplicados entre `tokens.css`, `neo-tokens.css` y `globals.css` (P2-08).
-- Escala de `z-index` (P2-19) y tamaños de texto arbitrarios (P2-20, P1-24).
-- Completar el taller con los estados que promete el sistema de diseño (P2-12).
+Filtros en URL, `FiltrosDeVencimiento`, plantillas de Proyecto y de Hito, ficha pública frente a
+`DetalleTarea` (P1-12…P1-15).
+
+### Encargo 4A — Partir `AltaRapidaProceso` (L)
+
+~1.200 líneas y 55 `useState` (P1-30). Sin cambio de comportamiento.
+
+### Encargo 4B — Partir `DetalleActa` y `TareasPropuestas` (M)
+
+Más de 1.000 líneas cada uno (P1-31). Sin cambio de comportamiento.
+
+### Encargo 4C — Tokens y escalas (M)
+
+Tokens duplicados (P2-08), escala de `z-index` (P2-19), tamaños de texto arbitrarios (P2-20,
+P1-24), taller (P2-12) y comentario desactualizado (P1-32).
 
 ## Cómo trabajar esto
 
-Reglas para el agente que tome una tanda:
+Reglas para el agente que tome un encargo:
 
-1. **Una tanda por encargo**, en worktree y rama propios (`feature-aislada`), p. ej.
-   `ops-v2-wt-pulido-tanda1` / `feat/pulido-tanda1`. No mezclar tandas.
+1. **Un encargo por conversación**, en worktree y rama propios (`feature-aislada`), p. ej.
+   `ops-v2-wt-pulido-2a` / `feat/pulido-2a`. No mezclar encargos.
 2. **Verificar antes de arreglar.** Los hallazgos los escribió un modelo rápido y 5 de 15
    revisados estaban mal. Abrir el código de cada uno; si no se sostiene o ya está resuelto,
    marcarlo en su documento como `(descartado)` o `(ya resuelto)` con el motivo, y seguir.
@@ -117,21 +156,76 @@ Reglas para el agente que tome una tanda:
    `.lienzo-vivo` del Inicio, las animaciones `infinite` de `/pantalla` (es cartelería).
 4. **Next.js 16 no es el que conoces**: antes de tocar `loading.tsx`, `error.tsx`, `template.tsx`
    o `ViewTransition`, leer la guía en `node_modules/next/dist/docs/` (ver `AGENTS.md`).
-5. **Solo front.** Ninguna tanda requiere cambios en `wiwo-board`; si alguno pareciera
+5. **Solo front.** Ningún encargo requiere cambios en `wiwo-board`; si alguno pareciera
    necesitarlo, anotarlo y no hacerlo.
 6. **Guardrails** de `docs/sistema-de-diseno.md`: sin `backdrop-filter: blur` en superficies siempre
    visibles, sin `infinite` en lo siempre visible, todo con `prefers-reduced-motion`, movimiento
    con los tokens `--wiwo-motion-*` y `animate-*` de `globals.css`.
-7. **Verificación** antes de dar la tanda por terminada: `pnpm lint && pnpm typecheck && pnpm test
-   && pnpm build` en verde, más las pruebas `pruebas/*.browser.mjs` de las pantallas tocadas y una
-   pasada visual en navegador (claro y oscuro, escritorio y móvil) de lo animado.
+7. **Verificación**: ver «Verificación barata» abajo. Antes de dar el encargo por terminado:
+   `pnpm lint && pnpm typecheck && pnpm test && pnpm build` en verde **una vez**, más las pruebas
+   `pruebas/*.browser.mjs` de las pantallas tocadas y una pasada visual de lo animado.
 8. **Cierre**: marcar cada hallazgo resuelto en su documento con `(resuelto en <hash>)`, dejar una
    guía de revisión manual (`explicacion-review`) y no mergear a `main` sin aprobación.
 
-Prompt sugerido (cambiar el número de tanda):
+## Reglas de ahorro de tokens
 
-> Resuelve la **Tanda 1** de `ops-v2/docs/pulido/00-indice.md`. Lee primero ese índice completo
-> (decisiones y reglas incluidas) y los documentos de los hallazgos que cubre la tanda. Trabaja en
-> worktree propio, verifica cada hallazgo en el código antes de cambiarlo y sigue las reglas de
-> «Cómo trabajar esto». Al terminar, deja los hallazgos marcados y una guía de revisión manual;
-> no mergees a `main`.
+Obligatorias. El gasto de estos encargos está en leer de más y en repetir verificaciones.
+
+### Lectura
+
+1. **Del índice, solo lo necesario**: «Decisiones tomadas», el encargo propio y estas reglas. No leer
+   los otros encargos.
+2. **De los documentos de detalle, solo los hallazgos del encargo**: localizarlos con
+   `rg -n '^### P1-26' -A8 docs/pulido/01-proyecto-y-tareas.md` en vez de abrir el documento entero.
+3. **Código por rangos**: `rg -n` para ubicar y `Read` con `offset`/`limit` (±40 líneas). No abrir
+   enteros los archivos de más de 400 líneas (`AltaRapidaProceso`, `DetalleActa`, `TareasPropuestas`,
+   `BarraLateral`, `TablaRecurso`, `globals.css`, `thinking-orb.css`).
+4. **No releer** un archivo recién editado para confirmar la edición.
+5. **No leer** `docs/contrato-api.md` (374 KB), lockfiles, `graphify-out/`, `node_modules/` salvo la
+   guía puntual de Next (`rg -l` en `node_modules/next/dist/docs/` y abrir solo la página del
+   tema), ni `.sql`/`.gz` de la raíz.
+6. **No leer** `docs/sistema-de-diseno.md` completo: solo la sección que toca el encargo (Movimiento,
+   Guardrails o Inventario) con `rg -n '^## ' ` para ubicarla.
+
+### Verificación barata
+
+1. **Mientras se trabaja**, solo sobre lo tocado:
+   `pnpm exec eslint <archivos tocados>` y `pnpm exec tsc --noEmit 2>&1 | head -40` (tras un
+   `pnpm typecheck` inicial, que genera los tipos de rutas de Next).
+2. **Pruebas unitarias puntuales**: `node --test pruebas/<nombre>.test.js` de lo relacionado, no la
+   batería entera en cada cambio.
+3. **Batería completa una sola vez**, al final: `pnpm lint && pnpm typecheck && pnpm test && pnpm build`.
+   Si falla, arreglar y repetir **solo el paso que falló**, y la batería completa otra vez al final.
+4. **Salidas acotadas**: usar `rtk` cuando aplique; de `pnpm build` y `pnpm test` mirar el resumen
+   y los errores (`2>&1 | tail -60`), no la salida entera. Nunca ocultar el código de salida.
+5. **Navegador**: solo las pruebas `pruebas/*.browser.mjs` de las pantallas tocadas y capturas de
+   las superficies animadas (claro/oscuro, escritorio/móvil). Sin snapshots de accesibilidad de
+   páginas enteras si basta una captura.
+
+### Delegación
+
+1. **Verificar los hallazgos con un subagente rápido** (`explore`, modelo `flash`) antes de
+   implementar: le pasas la lista de IDs y devuelve, por cada uno, «vigente / descartado / ya
+   resuelto» con `ruta:línea`, en menos de 30 líneas. El agente principal no relee lo ya confirmado.
+   Si el proveedor del modelo rápido falla, reintentar una vez y después usar el modelo por defecto.
+2. **Sin subagentes para implementar** en encargos de menos de 15 archivos: coordinar cuesta más
+   que hacerlo.
+3. **Si el contexto supera ~150k**, cerrar el encargo en un punto estable (commit en la rama),
+   dejar anotado en el índice qué hallazgos quedan, y seguir en una conversación nueva.
+
+### Salida
+
+1. Sin narración de herramientas ni resúmenes intermedios largos; al final, un punto por hallazgo:
+   resuelto, descartado o pendiente.
+2. Las ediciones a los documentos de `docs/pulido/` son solo la marca del hallazgo y su hash, no
+   reescrituras.
+
+## Prompt para encargar
+
+Cambiar el código de encargo (`1`, `2A`, `2B`…):
+
+> Resuelve el **encargo 1** de `ops-v2/docs/pulido/00-indice.md`. Lee de ese índice solo
+> «Decisiones tomadas», la sección del encargo, «Cómo trabajar esto» y «Reglas de ahorro de
+> tokens», y cúmplelas. Verifica los hallazgos con un subagente rápido antes de implementar.
+> Trabaja en worktree propio, deja los hallazgos marcados con su hash y una guía de revisión
+> manual; no mergees a `main`.
