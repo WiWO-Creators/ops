@@ -1634,8 +1634,69 @@ function estadoDeMantenimiento (actual) {
       alineados: false
     },
     base: { version: '10.11.6-MariaDB', prefijo: 'tbl' },
-    ocupantes: 2
+    ocupantes: 2,
+    rutina: rutinaDe(actual.id)
   }
+}
+
+/** Rutina por staffid, en memoria. Mismo contrato que `Escritura\Rutina`. */
+const RUTINAS = new Map()
+const HORA_CORTE_MOCK = '18:30'
+
+/** `YYYY-MM-DD` local de una fecha. */
+function fechaMock (fecha) {
+  return [fecha.getFullYear(), fecha.getMonth() + 1, fecha.getDate()].map(n => String(n).padStart(2, '0')).join('-')
+}
+
+/** La configuracion de un operador con la proxima corrida. Sin ventana ni jornadas: al mock le basta el calendario. */
+function rutinaDe (staffId) {
+  const propia = RUTINAS.get(staffId) ?? { activo: false, hora: '09:00', omitir: [] }
+  const hoy = fechaMock(new Date())
+  const omitir = propia.omitir.filter(f => f >= hoy)
+  let proximo = null
+
+  for (let dia = 0; propia.activo && proximo === null && dia < 120; dia++) {
+    const fecha = new Date()
+    fecha.setDate(fecha.getDate() + dia)
+    const texto = fechaMock(fecha)
+    const [h, m] = propia.hora.split(':').map(Number)
+    const pasada = dia === 0 && (fecha.getHours() * 60 + fecha.getMinutes()) >= h * 60 + m + 60
+    if (fecha.getDay() % 6 !== 0 && !omitir.includes(texto) && !pasada) proximo = `${texto} ${propia.hora}`
+  }
+
+  return { ...propia, omitir, proximo, hora_corte: HORA_CORTE_MOCK }
+}
+
+/** Aplica un `PATCH /mantenimiento/rutina`, o lanza 422. */
+function configurarRutina (staffId, entrada) {
+  const campos = Object.keys(entrada ?? {})
+  if (campos.length === 0 || campos.some(c => !['activo', 'hora', 'omitir'].includes(c))) {
+    throw new ErrorApi(422, 'validation_error', 'Hay campos que no se pueden cambiar.')
+  }
+
+  const propia = { ...(RUTINAS.get(staffId) ?? { activo: false, hora: '09:00', omitir: [] }) }
+
+  if ('activo' in entrada) {
+    if (typeof entrada.activo !== 'boolean') throw new ErrorApi(422, 'validation_error', '"activo" tiene que ser verdadero o falso.')
+    propia.activo = entrada.activo
+  }
+  if ('hora' in entrada) {
+    if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(entrada.hora)) throw new ErrorApi(422, 'validation_error', 'La hora debe tener la forma "HH:MM".')
+    if (entrada.hora >= HORA_CORTE_MOCK) {
+      throw new ErrorApi(422, 'validation_error', `La hora tiene que ser antes de las ${HORA_CORTE_MOCK}, cuando se cierra la jornada.`)
+    }
+    propia.hora = entrada.hora
+  }
+  if ('omitir' in entrada) {
+    if (!Array.isArray(entrada.omitir) || entrada.omitir.some(f => typeof f !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(f))) {
+      throw new ErrorApi(422, 'validation_error', 'Cada fecha debe tener la forma "AAAA-MM-DD".')
+    }
+    const hoy = fechaMock(new Date())
+    propia.omitir = [...new Set(entrada.omitir.filter(f => f >= hoy))].sort()
+  }
+
+  RUTINAS.set(staffId, propia)
+  return rutinaDe(staffId)
 }
 
 /** Exige superadministrador, o lanza 403. Mismo texto que `Acceso\\Permisos::exigirSuperadmin()`. */
@@ -7306,6 +7367,10 @@ async function resolverRuta (metodo, segmentos, parametros, token, cuerpo, petic
       }
 
       return { estado: 200, cuerpo: conDatos({ escritos }) }
+    }
+
+    if (metodo === 'PATCH' && resto[0] === 'rutina') {
+      return { estado: 200, cuerpo: conDatos(configurarRutina(actual.id, await cuerpo())) }
     }
 
     throw new ErrorApi(404, 'not_found', 'Subrecurso desconocido.')

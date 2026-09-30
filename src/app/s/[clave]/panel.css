@@ -189,6 +189,83 @@
 .pn__llave--peligro.pn__llave--on { border-color: rgb(242 183 5 / .6) }
 .pn__llave--peligro.pn__llave--on::after { background: var(--peligro) }
 
+/* --- Rutina --- */
+
+.pn__horario {
+  display: grid;
+  gap: 1.25rem;
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid rgb(44 51 59 / .55);
+}
+
+@media (min-width: 720px) {
+  .pn__horario { grid-template-columns: 1fr 1fr }
+}
+
+.pn__form { display: grid; gap: .45rem; align-content: start }
+.pn__linea { display: flex; gap: .5rem }
+.pn__ayuda { margin: 0; font-size: .7rem; color: #6b776a }
+
+.pn__campo {
+  flex: 1;
+  min-width: 0;
+  padding: .45rem .6rem;
+  border: 1px solid var(--linea);
+  background: #0d1014;
+  color: var(--hueso);
+  font: inherit;
+  font-size: .85rem;
+  color-scheme: dark;
+}
+
+.pn__campo:focus-visible { outline: 2px solid var(--verde); outline-offset: 1px }
+
+.pn__boton {
+  padding: .45rem .85rem;
+  border: 1px solid rgb(59 255 0 / .45);
+  background: rgb(59 255 0 / .06);
+  color: var(--verde);
+  font: inherit;
+  font-size: .72rem;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: background-color 160ms ease, transform 120ms ease;
+}
+
+.pn__boton:hover:not(:disabled) { background: rgb(59 255 0 / .14) }
+.pn__boton:focus-visible { outline: 2px solid var(--verde); outline-offset: 1px }
+.pn__boton:active:not(:disabled) { transform: scale(.97) }
+.pn__boton:disabled { opacity: .4; cursor: not-allowed }
+
+.pn__chips { list-style: none; margin: .2rem 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: .4rem }
+
+.pn__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: .35rem;
+  padding: .2rem .25rem .2rem .55rem;
+  border: 1px solid rgb(242 183 5 / .4);
+  font-size: .74rem;
+  color: #d8c9a0;
+}
+
+.pn__chip-quitar {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border: 0;
+  background: none;
+  color: inherit;
+  cursor: pointer;
+}
+
+.pn__chip-quitar:hover:not(:disabled) { color: var(--peligro) }
+.pn__chip-quitar:focus-visible { outline: 2px solid var(--verde) }
+.pn__chip-quitar:disabled { opacity: .4; cursor: progress }
+
 .pn__aviso {
   margin-top: 1rem;
   padding: .7rem .85rem;
@@ -210,5 +287,5 @@
 @media (prefers-reduced-motion: reduce) {
   .pn__titulo, .pn__pulso, .pn__bloque { animation: none }
   .pn__bloque { opacity: 1; transform: none }
-  .pn__int, .pn__llave::after { transition: none }
+  .pn__int, .pn__llave::after, .pn__boton { transition: none }
 }

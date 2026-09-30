@@ -4,9 +4,15 @@ import { useState, type CSSProperties } from 'react'
 import { useRouter } from 'next/navigation'
 import { TriangleAlert } from 'lucide-react'
 import { mensajeDeRespuesta } from '@/datos/cliente'
-import type { Estado, Interruptor } from './tipos'
+import { Horario } from './Horario'
+import type { Estado, Interruptor, TextosHorario } from './tipos'
 
-export function Tablero ({ estado, escritura }: { estado: Estado, escritura: string }) {
+export function Tablero ({ estado, escritura, escrituraHorario, textosHorario }: {
+  estado: Estado
+  escritura: string
+  escrituraHorario: string
+  textosHorario: TextosHorario
+}) {
   const { titulo, migraciones, reloj, base, operador, ocupantes } = estado
   const pendientes = migraciones.pendientes.length
   const peligrosos = estado.interruptores.filter(i => i.peligro && i.valor).length
@@ -83,6 +89,13 @@ export function Tablero ({ estado, escritura }: { estado: Estado, escritura: str
           )}
         </section>
 
+        <Horario
+          datos={estado.horario}
+          escritura={escrituraHorario}
+          textos={textosHorario}
+          indice={2}
+        />
+
         <Interruptores
           interruptores={estado.interruptores}
           peligrososEncendidos={peligrosos}
@@ -139,7 +152,7 @@ function Interruptores ({ interruptores, peligrososEncendidos, escritura }: {
   }
 
   return (
-    <section className="pn__bloque pn__ancho" style={{ '--i': 2 } as CSSProperties}>
+    <section className="pn__bloque pn__ancho" style={{ '--i': 3 } as CSSProperties}>
       <p className="pn__rotulo">
         Interruptores · {peligrososEncendidos} con efecto externo encendido
       </p>
