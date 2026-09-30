@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { useEffect, useState, type ReactElement } from 'react'
 import { idDeParametro, PARAMETRO_TAREA, urlConParametro } from '@/componentes/datos/tabla'
 import { Cargando, ErrorEstado, Vacio } from '@/componentes/estado/Estados'
+import { EntradaEscalonada } from '@/componentes/estructura/EntradaEscalonada'
 import { Boton } from '@/componentes/formularios/Boton'
 import { Entrada } from '@/componentes/formularios/Entrada'
 import { GrupoAvatares } from '@/componentes/presentadores/Avatar'
@@ -80,8 +81,10 @@ export function PanelDiscusiones ({ proyectoId, fuente, capacidadesTareas }: Pro
   // La ultima lista que llego se sigue mostrando mientras se pide la siguiente (al responder, al
   // buscar, al volver a la pestaña). Sin eso la lista y el hilo abierto se desmontan en cada recarga:
   // el cuadro pierde el foco y la pantalla parpadea justo despues de escribir.
-  const [ultima, setUltima] = useState<{ datos: ConversacionDeProyecto[], meta: Meta | undefined } | null>(null)
-  if (estado.fase === 'listo' && estado.datos !== ultima?.datos) setUltima({ datos: estado.datos, meta: estado.meta })
+  // Guarda tambien la consulta que la trajo: la lista entra de nuevo cuando llega otra pagina u otra
+  // busqueda, no cuando una respuesta refresca la misma.
+  const [ultima, setUltima] = useState<{ datos: ConversacionDeProyecto[], meta: Meta | undefined, consulta: string } | null>(null)
+  if (estado.fase === 'listo' && estado.datos !== ultima?.datos) setUltima({ datos: estado.datos, meta: estado.meta, consulta: consulta.toString() })
 
   const ultimaLista = ultima?.datos ?? null
   const conversaciones = estado.fase === 'listo' ? estado.datos : (ultimaLista ?? [])
@@ -163,24 +166,26 @@ export function PanelDiscusiones ({ proyectoId, fuente, capacidadesTareas }: Pro
           )}
 
           {conversaciones.length > 0 && (
-            <ol
-              aria-busy={recargando || undefined}
-              className={cn(
-                'flex max-h-[70dvh] flex-col gap-0.5 overflow-y-auto overscroll-contain p-1.5 transition-opacity duration-150',
-                recargando && 'opacity-70'
-              )}
-              data-lenis-prevent
-            >
-              {conversaciones.map((conversacion) => (
-                <li key={conversacion.task.id}>
-                  <FilaDeConversacion
-                    conversacion={conversacion}
-                    activa={conversacion.task.id === abierta}
-                    onAbrir={() => { abrir(conversacion.task.id) }}
-                  />
-                </li>
-              ))}
-            </ol>
+            <EntradaEscalonada densa clave={ultima?.consulta} className="contents">
+              <ol
+                aria-busy={recargando || undefined}
+                className={cn(
+                  'flex max-h-[70dvh] flex-col gap-0.5 overflow-y-auto overscroll-contain p-1.5 transition-opacity duration-150',
+                  recargando && 'opacity-70'
+                )}
+                data-lenis-prevent
+              >
+                {conversaciones.map((conversacion) => (
+                  <li key={conversacion.task.id} data-entrada="item">
+                    <FilaDeConversacion
+                      conversacion={conversacion}
+                      activa={conversacion.task.id === abierta}
+                      onAbrir={() => { abrir(conversacion.task.id) }}
+                    />
+                  </li>
+                ))}
+              </ol>
+            </EntradaEscalonada>
           )}
 
           {paginacion !== undefined && paginacion.total_pages > 1 && (

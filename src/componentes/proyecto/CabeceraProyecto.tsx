@@ -4,6 +4,7 @@ import { Etiquetas } from '@/componentes/presentadores/Etiqueta'
 import { Fecha } from '@/componentes/presentadores/Fecha'
 import { EquipoProyecto } from './EquipoProyecto'
 import { ImagenEntidad } from '@/componentes/presentadores/ImagenEntidad'
+import { FirmaDeMarca, TituloDeFicha } from '@/componentes/estructura/TituloModulo'
 import { Insignia } from '@/componentes/presentadores/Insignia'
 import { MenuEstadoProyecto } from './MenuEstadoProyecto'
 import { ESTADOS_DESTACADOS, pildoraDeEstado } from './estado-proyecto'
@@ -145,7 +146,8 @@ export function CabeceraProyecto ({
             tamano="destacada"
           />
           <div className="flex min-w-0 flex-col gap-1">
-            <h1 className="text-texto text-seccion leading-tight font-semibold">{proyecto.name}</h1>
+            <TituloDeFicha>{proyecto.name}</TituloDeFicha>
+            <FirmaDeMarca />
             <div className="flex flex-wrap items-center gap-2">
               <p className="text-texto-tenue text-sm">{subtitulo ?? proyecto.cliente?.company ?? 'Sin cliente'}</p>
               {/* Sin patente no se pinta nada: el portal no publica el codigo interno, y un `#12`

@@ -447,7 +447,7 @@ export function TablaRecurso<T> ({
   /** El listado en tabla. */
   function tabla (): ReactNode {
     return (
-      <Tabla>
+      <Tabla entrada={false}>
         <EncabezadoTabla>
           <tr>
             {seleccionMasiva !== undefined && (

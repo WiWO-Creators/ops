@@ -60,11 +60,7 @@ export function TituloModulo ({ titulo, descripcion, acciones, nivel = 'h1', cla
             <span className="texto-gradiente-animado">{titulo}</span>
           </Encabezado>
 
-          {/* La barra es decorativa: el encabezado de arriba ya nombra la pantalla para quien no la ve. */}
-          <span
-            aria-hidden="true"
-            className="bg-gradiente-marca h-1 w-16 shrink-0 rounded-full"
-          />
+          <FirmaDeMarca />
         </div>
 
         {acciones !== undefined && <div className="flex shrink-0 flex-wrap items-center gap-2">{acciones}</div>}
@@ -74,5 +70,30 @@ export function TituloModulo ({ titulo, descripcion, acciones, nivel = 'h1', cla
         <p className="text-texto-tenue max-w-prose text-pretty text-sm">{descripcion}</p>
       )}
     </header>
+  )
+}
+
+/**
+ * La barra de marca que va bajo el titulo. `entrada-pagina.css` la hace crecer al entrar, pero solo
+ * si esta dentro de un `<header>`: fuera de el queda quieta.
+ *
+ * Es decorativa: el titulo de arriba ya nombra la pantalla para quien no la ve.
+ */
+export function FirmaDeMarca () {
+  return <span aria-hidden="true" className="bg-gradiente-marca h-1 w-16 shrink-0 rounded-full" />
+}
+
+/**
+ * El nombre en la cabecera de una ficha (cliente, persona, proyecto, prospecto): la tipografia y el
+ * degradado de `TituloModulo` a un tamaño menos, porque comparte fila con la imagen y las insignias
+ * de la entidad. Va con una `FirmaDeMarca` debajo, que cada cabecera ubica segun su maqueta.
+ *
+ * @param children el nombre de la entidad
+ */
+export function TituloDeFicha ({ children }: { children: React.ReactNode }) {
+  return (
+    <h1 className={cn('font-titular text-balance font-extrabold leading-tight tracking-tight', TAMANOS.h2)}>
+      <span className="texto-gradiente-animado">{children}</span>
+    </h1>
   )
 }

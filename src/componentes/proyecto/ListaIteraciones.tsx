@@ -3,6 +3,7 @@
 import { useMemo, useState, type ReactElement } from 'react'
 import { escribirEnBff } from '@/componentes/datos/mutaciones'
 import { Cargando, ErrorEstado } from '@/componentes/estado/Estados'
+import { EntradaEscalonada } from '@/componentes/estructura/EntradaEscalonada'
 import { Boton } from '@/componentes/formularios/Boton'
 import { EnlacePersona } from '@/componentes/presentadores/EnlacePersona'
 import { Fecha } from '@/componentes/presentadores/Fecha'
@@ -154,18 +155,20 @@ export function ListaIteraciones ({
       )}
 
       {estado.fase === 'listo' && estado.datos.length > 0 && (
-        <ol className="border-linea bg-superficie-elevada divide-linea-suave rounded-tarjeta divide-y border">
-          {numerarIteraciones(estado.datos).map((iteracion) => (
-            <Iteracion
-              key={iteracion.id}
-              iteracion={iteracion}
-              numero={iteracion.numero}
-              motivos={motivos}
-              onEditar={() => { setEditando(iteracion) }}
-              onBorrar={() => { void borrar(iteracion) }}
-            />
-          ))}
-        </ol>
+        <EntradaEscalonada densa className="contents">
+          <ol className="border-linea bg-superficie-elevada divide-linea-suave rounded-tarjeta divide-y border">
+            {numerarIteraciones(estado.datos).map((iteracion) => (
+              <Iteracion
+                key={iteracion.id}
+                iteracion={iteracion}
+                numero={iteracion.numero}
+                motivos={motivos}
+                onEditar={() => { setEditando(iteracion) }}
+                onBorrar={() => { void borrar(iteracion) }}
+              />
+            ))}
+          </ol>
+        </EntradaEscalonada>
       )}
 
       <FormularioRecurso
@@ -284,7 +287,7 @@ function Iteracion ({
     ?? null
 
   return (
-    <li className="flex flex-col gap-1.5 p-3">
+    <li data-entrada="item" className="flex flex-col gap-1.5 p-3">
       <div className="flex items-start justify-between gap-2">
         <p className="text-texto text-sm font-medium">
           <span data-numerico className="text-texto-sutil mr-2 tabular-nums">#{numero}</span>

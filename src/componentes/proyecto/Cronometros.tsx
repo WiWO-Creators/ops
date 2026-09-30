@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState, type ReactElement } from 'react'
 import { Boton } from '@/componentes/formularios/Boton'
 import { Cargando, ErrorEstado, Vacio } from '@/componentes/estado/Estados'
+import { EntradaEscalonada } from '@/componentes/estructura/EntradaEscalonada'
 import { Insignia } from '@/componentes/presentadores/Insignia'
 import { avisarCambioDeMedidor } from '@/componentes/live/medidor'
 import { compararTiempo, type ComparacionTiempo } from '@/dominio/tiempo-estimado'
@@ -183,16 +184,18 @@ export function Cronometros ({ procesoId, className }: PropsCronometros): ReactE
       {datos.timers.length === 0
         ? <Vacio titulo="Todavía no hay marcajes" descripcion="El tiempo que registres en esta tarea aparece acá." />
         : (
-          <ul className="flex flex-col">
-            {datos.timers.map((timer) => (
-              <Marcaje
-                key={timer.id}
-                timer={timer}
-                ahora={ahora}
-                persona={nombreDePersona(datos.tarea, timer.staff_id)}
-              />
-            ))}
-          </ul>
+          <EntradaEscalonada densa className="contents">
+            <ul className="flex flex-col">
+              {datos.timers.map((timer) => (
+                <Marcaje
+                  key={timer.id}
+                  timer={timer}
+                  ahora={ahora}
+                  persona={nombreDePersona(datos.tarea, timer.staff_id)}
+                />
+              ))}
+            </ul>
+          </EntradaEscalonada>
           )}
     </section>
   )
@@ -269,7 +272,7 @@ function Marcaje ({
   const corriendo = timer.end_time === null
 
   return (
-    <li className="border-linea-suave flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b py-2 last:border-b-0">
+    <li data-entrada="item" className="border-linea-suave flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b py-2 last:border-b-0">
       <div className="flex min-w-0 flex-col">
         <span className="text-texto truncate text-sm font-medium">
           {corriendo && <span aria-hidden="true" className="bg-relleno-exito mr-2 inline-block size-2 rounded-full" />}

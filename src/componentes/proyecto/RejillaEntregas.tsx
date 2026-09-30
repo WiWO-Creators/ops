@@ -5,6 +5,7 @@ import type { ReactElement } from 'react'
 import { GrupoAvatares } from '@/componentes/presentadores/Avatar'
 import { Fecha } from '@/componentes/presentadores/Fecha'
 import { Vacio } from '@/componentes/estado/Estados'
+import { EntradaEscalonada } from '@/componentes/estructura/EntradaEscalonada'
 import { nombreDeDia, numeroDeDia } from '@/dominio/calendario'
 import { cn } from '@/lib/clases'
 import { estadoVencimiento } from '@/lib/fechas'
@@ -95,7 +96,7 @@ export function RejillaMes ({
   const porDia = repartir(tareas, dias)
 
   return (
-    <div className="border-linea rounded-tarjeta overflow-hidden border">
+    <EntradaEscalonada densa clave={clavePeriodo(dias)} className="border-linea rounded-tarjeta overflow-hidden border">
       <div className="border-linea bg-superficie-hundida grid grid-cols-7 border-b">
         {CABECERAS.map((nombre) => (
           <span key={nombre} className="text-texto-tenue px-1 py-1.5 text-center text-[0.6875rem] font-medium">
@@ -118,7 +119,7 @@ export function RejillaMes ({
           />
         ))}
       </div>
-    </div>
+    </EntradaEscalonada>
   )
 }
 
@@ -184,7 +185,9 @@ function CeldaDeMes ({
       </div>
 
       {visibles.length > 0 && (
-        <ul className="hidden flex-col gap-1 sm:flex">
+        // Entran las entregas y no la celda: la rejilla pinta sus lineas con el fondo, y una celda
+        // transparente lo dejaria ver entero.
+        <ul data-entrada="item" className="hidden flex-col gap-1 sm:flex">
           {visibles.map((tarea) => (
             <TarjetaEntrega key={tarea.id} tarea={tarea} estados={estados} href={urlDeTarea(tarea.id)} compacta />
           ))}
@@ -228,13 +231,14 @@ export function ColumnasDeDias ({
   const porDia = repartir(tareas, dias)
 
   return (
-    <div className={cn('grid gap-2', enSemana && 'md:grid-cols-7')}>
+    <EntradaEscalonada densa clave={clavePeriodo(dias)} className={cn('grid gap-2', enSemana && 'md:grid-cols-7')}>
       {dias.map((dia) => {
         const delDia = porDia.get(dia) ?? []
 
         return (
           <section
             key={dia}
+            data-entrada="item"
             className={cn(
               'border-linea bg-superficie-elevada rounded-tarjeta flex min-w-0 flex-col overflow-hidden border',
               dia === hoy && 'ring-acento ring-1 ring-inset'
@@ -278,7 +282,7 @@ export function ColumnasDeDias ({
           </section>
         )
       })}
-    </div>
+    </EntradaEscalonada>
   )
 }
 
@@ -316,7 +320,7 @@ export function AgendaEntregas ({
   const sinFecha = sinFechaDeEntrega(todas)
 
   return (
-    <div className="flex flex-col gap-3">
+    <EntradaEscalonada densa clave={clavePeriodo(dias)} className="flex flex-col gap-3">
       {agenda.length === 0
         ? (
           <Vacio
@@ -330,7 +334,7 @@ export function AgendaEntregas ({
         : (
           <ol className="flex flex-col gap-3">
             {agenda.map((jornada) => (
-              <li key={jornada.dia} className="border-linea bg-superficie-elevada rounded-tarjeta overflow-hidden border">
+              <li key={jornada.dia} data-entrada="item" className="border-linea bg-superficie-elevada rounded-tarjeta overflow-hidden border">
                 <header
                   className={cn(
                     'border-linea flex items-baseline justify-between gap-2 border-b px-3 py-2',
@@ -383,7 +387,7 @@ export function AgendaEntregas ({
           </ul>
         </section>
       )}
-    </div>
+    </EntradaEscalonada>
   )
 }
 
@@ -453,6 +457,18 @@ export function TarjetaEntrega ({
       </Link>
     </li>
   )
+}
+
+/**
+ * La clave de entrada de una vista: el periodo que muestra. Las entregas se filtran en el navegador
+ * a partir de las ya cargadas, asi que cambiar de periodo cambia lo que se ve en el acto; un refresco
+ * de los mismos datos no la mueve.
+ *
+ * @param dias Dias visibles, en orden.
+ * @returns El primer dia y la cantidad, que juntos identifican el periodo.
+ */
+function clavePeriodo (dias: readonly string[]): string {
+  return `${dias[0] ?? ''}|${dias.length}`
 }
 
 /**

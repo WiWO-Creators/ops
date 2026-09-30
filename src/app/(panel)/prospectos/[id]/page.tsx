@@ -7,6 +7,7 @@ import {
   PanelContactosProspecto,
   PanelLicitacionesProspecto
 } from '@/componentes/prospecto/PanelesProspecto'
+import { FirmaDeMarca, TituloDeFicha } from '@/componentes/estructura/TituloModulo'
 import { Insignia } from '@/componentes/presentadores/Insignia'
 import { Pestanas, type Panel } from '@/componentes/proyecto/Pestanas'
 import type { OpcionCampo } from '@/componentes/proyecto/formulario'
@@ -159,11 +160,13 @@ export default async function ProspectoPage (props: PageProps<'/prospectos/[id]'
           </Link>
 
           <div className="flex flex-wrap items-center gap-2">
-            <h1 className="text-texto text-seccion leading-tight font-semibold">{prospecto.empresa}</h1>
+            <TituloDeFicha>{prospecto.empresa}</TituloDeFicha>
             <Insignia tono={tonoDelEstado(prospecto.estado)}>
               {etiquetaDeEstadoDeProspecto(prospecto.estado)}
             </Insignia>
           </div>
+
+          <FirmaDeMarca />
         </header>
 
         <AccionesProspecto

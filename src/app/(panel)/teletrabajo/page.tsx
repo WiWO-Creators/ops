@@ -4,6 +4,7 @@ import { ErrorApi } from '@/datos/errores'
 import { SALAS_COMUNES, salaDeEspacio } from '@/dominio/teletrabajo'
 import { ocupacionDeSalas } from '@/datos/teletrabajo'
 import { GLOSARIO } from '@/dominio/glosario'
+import { EntradaEscalonada } from '@/componentes/estructura/EntradaEscalonada'
 import { Tarjeta } from '@/componentes/estructura/Tarjeta'
 import { Insignia } from '@/componentes/presentadores/Insignia'
 import { TituloModulo } from '@/componentes/estructura/TituloModulo'
@@ -56,7 +57,7 @@ export default async function TeletrabajoPage () {
       <section className="flex flex-col gap-4">
         <h2 className="font-titular text-titulo font-bold text-texto">Salas comunes</h2>
 
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <EntradaEscalonada trasEntradaDePagina items=":scope > *" className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {SALAS_COMUNES.map((sala) => (
             <Tarjeta
               key={sala.id}
@@ -68,7 +69,7 @@ export default async function TeletrabajoPage () {
               distintivo={distintivoDeOcupacion(ocupacion?.get(sala.id))}
             />
           ))}
-        </div>
+        </EntradaEscalonada>
       </section>
 
       <section className="flex flex-col gap-4">
@@ -133,7 +134,7 @@ function SalasPrivadas (
   }
 
   return (
-    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+    <EntradaEscalonada trasEntradaDePagina items=":scope > *" className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
       {espacios.map((espacio) => {
         const sala = salaDeEspacio(espacio.id)
 
@@ -153,7 +154,7 @@ function SalasPrivadas (
           />
         )
       })}
-    </div>
+    </EntradaEscalonada>
   )
 }
 

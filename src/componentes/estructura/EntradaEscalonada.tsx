@@ -25,6 +25,13 @@ interface PropsEntradaEscalonada {
   clave?: string | number
   /** Paso corto, para filas de tabla y grillas de tarjetas, que se recorren muchas veces al dia. */
   densa?: boolean
+  /**
+   * Selector de los items, relativo al envoltorio (`:scope`), para cuando no se pueden marcar uno
+   * por uno: `Tabla` no ve las filas que le pasan y anima las de su `tbody` con
+   * `:scope > table > tbody > tr`, que deja fuera la fila del encabezado. Sin esto, los marcados con
+   * `data-entrada="item"`.
+   */
+  items?: string
   /** Clases del envoltorio. */
   className?: string
 }
@@ -48,15 +55,15 @@ const PASO_DENSO_MS = 20
 const TOPE_ESCALONADO = 12
 
 /**
- * Los elementos marcados con `valor` que son de esta raiz y no de una `EntradaEscalonada` anidada,
+ * Los elementos que cumplen `selector` y son de esta raiz y no de una `EntradaEscalonada` anidada,
  * que anima los suyos por su cuenta.
  *
  * @param raiz el envoltorio de esta instancia
- * @param valor el valor de `data-entrada` a buscar
+ * @param selector lo que se busca dentro de la raiz
  * @returns los elementos, en orden de documento
  */
-function marcados (raiz: HTMLElement, valor: 'cabecera' | 'item'): HTMLElement[] {
-  return Array.from(raiz.querySelectorAll<HTMLElement>(`[data-entrada="${valor}"]`))
+function marcados (raiz: HTMLElement, selector: string): HTMLElement[] {
+  return Array.from(raiz.querySelectorAll<HTMLElement>(selector))
     .filter((elemento) => elemento.closest('[data-entrada-raiz]') === raiz)
 }
 
@@ -94,6 +101,7 @@ export function EntradaEscalonada ({
   trasEntradaDePagina = false,
   clave,
   densa = false,
+  items: selectorDeItems = '[data-entrada="item"]',
   className
 }: PropsEntradaEscalonada) {
   const raizRef = useRef<HTMLDivElement | null>(null)
@@ -103,8 +111,8 @@ export function EntradaEscalonada ({
 
     if (raiz === null || cumpleConsulta(MENOS_MOVIMIENTO)) return
 
-    const cabecera = marcados(raiz, 'cabecera')
-    const items = marcados(raiz, 'item')
+    const cabecera = marcados(raiz, '[data-entrada="cabecera"]')
+    const items = marcados(raiz, selectorDeItems)
 
     if (cabecera.length > 0) {
       animate(cabecera, {
@@ -129,7 +137,7 @@ export function EntradaEscalonada ({
         onComplete: () => { limpiar(items) }
       })
     }
-  }, [trasEntradaDePagina, clave, densa])
+  }, [trasEntradaDePagina, clave, densa, selectorDeItems])
 
   return <div ref={raizRef} data-entrada-raiz="" className={className}>{children}</div>
 }

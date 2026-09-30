@@ -6,6 +6,7 @@ import { useEffect } from 'react'
 import { sembrarFijados, useFijados } from '@/componentes/fijados/almacen'
 import { claveDeElemento, hrefDeElemento, type ElementoPersonal, type Fijado, type Reciente } from '@/componentes/fijados/fijados'
 import { abrirPaleta } from '@/componentes/paleta/abrir'
+import { EntradaEscalonada } from '@/componentes/estructura/EntradaEscalonada'
 import { TituloModulo } from '@/componentes/estructura/TituloModulo'
 import { formatearRelativo } from '@/lib/fechas'
 
@@ -41,11 +42,11 @@ export function FijadosYRecientes ({ fijados: iniciales, recientes }: { fijados:
     <section className="flex flex-col gap-5">
       <TituloModulo nivel="h2" titulo="Fijados y recientes" acciones={<BotonBuscar />} />
 
-      <div className="grid gap-5 lg:grid-cols-5">
+      <EntradaEscalonada trasEntradaDePagina densa className="grid gap-5 lg:grid-cols-5">
         {fijados.length > 0 && (
           <ul aria-label="Fijados" className="grid content-start gap-3 sm:grid-cols-2 lg:col-span-3">
-            {fijados.map((fijado, orden) => (
-              <li key={claveDeElemento(fijado)} className="animate-entrar-abajo" style={{ animationDelay: `${Math.min(orden, 8) * 30}ms` }}>
+            {fijados.map((fijado) => (
+              <li key={claveDeElemento(fijado)} data-entrada="item">
                 <TarjetaFijado elemento={fijado} />
               </li>
             ))}
@@ -57,14 +58,14 @@ export function FijadosYRecientes ({ fijados: iniciales, recientes }: { fijados:
             <h3 className="text-texto-sutil mb-2 px-1 text-sm font-semibold">Abiertos hace poco</h3>
             <ul className="divide-linea border-linea bg-superficie-elevada rounded-tarjeta shadow-1 flex flex-col divide-y overflow-hidden border">
               {soloRecientes.map((reciente) => (
-                <li key={claveDeElemento(reciente)}>
+                <li key={claveDeElemento(reciente)} data-entrada="item">
                   <FilaReciente elemento={reciente} />
                 </li>
               ))}
             </ul>
           </div>
         )}
-      </div>
+      </EntradaEscalonada>
     </section>
   )
 }

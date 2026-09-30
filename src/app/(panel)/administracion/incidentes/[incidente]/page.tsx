@@ -3,6 +3,7 @@ import { ErrorEstado, SinPermiso, Vacio } from '@/componentes/estado/Estados'
 import { BloqueCopiable } from '@/componentes/presentadores/BloqueCopiable'
 import { CodigoCopiable } from '@/componentes/presentadores/CodigoCopiable'
 import { Fecha } from '@/componentes/presentadores/Fecha'
+import { FirmaDeMarca } from '@/componentes/estructura/TituloModulo'
 import { Insignia } from '@/componentes/presentadores/Insignia'
 import { ErrorApi } from '@/datos/errores'
 import { pedir } from '@/datos/servidor'
@@ -104,17 +105,18 @@ export default async function IncidentePage (props: PageProps<'/administracion/i
     <section className="flex max-w-3xl flex-col gap-6">
       <VolverAlListado />
 
-      <div className="flex flex-col gap-3">
+      <header className="flex flex-col gap-3">
         <Insignia tono={origen.tono} tamano="chico" className="w-fit">{origen.etiqueta}</Insignia>
 
         <h1 className="text-texto text-seccion font-bold text-balance">{falla.titular}</h1>
+        <FirmaDeMarca />
 
         {/* El texto que la persona vio de verdad. Va grande y sin caja: es lo único de esta
             pantalla que se lee palabra por palabra. */}
         {falla.detalle !== null && (
           <p className="text-texto-tenue max-w-prose text-base leading-relaxed text-pretty">{falla.detalle}</p>
         )}
-      </div>
+      </header>
 
       {/* Quién, cuándo y dónde en una frase, no en tres campos: leídos juntos cuentan el episodio,
           y por separado obligan a armarlo en la cabeza. */}
