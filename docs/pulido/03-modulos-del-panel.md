@@ -77,7 +77,7 @@ Auditoría exhaustiva de consistencia de interfaz, refinamiento visual, deuda t�
 - **Propuesta**: Homogeneizar las cabeceras de detalle con el patrón canónico: acción principal en botón destacado, acciones secundarias o destructivas agrupadas en el menú contextual ⋯ (`MenuAccionesFila` o `MenuContextual`).
 - **Prioridad**: Media · **Esfuerzo**: M
 
-### P3-05 Doble panel lateral para editar la misma persona en Organización
+### P3-05 Doble panel lateral para editar la misma persona en Organización (resuelto en 1489c4b)
 - **Dónde**: `src/componentes/organigrama/PanelDePersona.tsx:58`, `src/componentes/organizacion/PanelDePersona.tsx:64`
 - **Qué pasa**: Existen dos componentes completamente distintos con el mismo nombre en la ruta `/equipo/jerarquia`. Al hacer clic en un nodo del mapa de organigrama se abre el cajón de `organigrama/PanelDePersona` (solo edita jefatura, área y escalón); al hacer clic en la pestaña "Personas" se abre `organizacion/PanelDePersona` (edita rol de sistema, cargos, permisos, coordinación y ve auditoría). La misma persona se edita con dos formularios y alcances distintos dentro de la misma pantalla.
 - **Propuesta**: Unificar ambos cajones en `organizacion/PanelDePersona.tsx`, reutilizándolo en el organigrama interactivo para que cualquier interacción sobre una persona abra la misma ficha integral.
@@ -87,7 +87,7 @@ Auditoría exhaustiva de consistencia de interfaz, refinamiento visual, deuda t�
 
 ### Duplicación
 
-### P3-06 Cuádruple implementación idéntica de matriz de asignación N-a-M
+### P3-06 Cuádruple implementación idéntica de matriz de asignación N-a-M (resuelto en b10ab1c)
 - **Dónde**: `src/componentes/cliente/FocalesCliente.tsx:102`, `src/componentes/cliente/SupervisoresCliente.tsx:96`, `src/componentes/equipo/ClientesDeFocal.tsx:114`, `src/componentes/equipo/SupervisionPersona.tsx:92`
 - **Qué pasa**: Los cuatro componentes replican exactamente la misma arquitectura: llamada en `useEffect` con `AbortController`, mezcla de catálogo disponible vs asignado en `Map`, mutación vía `escribirEnBff` (`PUT`), estado de guardado booleano local, y renderizado idéntico de chips y selectores.
 - **Propuesta**: Extraer un componente genérico `MatrizAsignacion<T>` o hook `useAsignacionRelacion` que encapsule la carga, selección múltiple, confirmación por toast y manejo de errores.
