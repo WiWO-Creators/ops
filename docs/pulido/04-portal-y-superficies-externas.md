@@ -116,7 +116,7 @@ Solo hallazgos verificados en el código de `ops-v2`; no se modificó ningún ar
 - **Propuesta**: Reemplazar `window.confirm()` por un diálogo modal ligero acorde a la estética del tablero o por el componente `ConfirmacionEnLinea` del sistema.
 - **Prioridad**: Media · **Esfuerzo**: S
 
-### P4-12 Colores hexadecimales hardcodeados y desconectados de tokens en `Tablero.tsx` y `explorador-drive.css`
+### P4-12 Colores hexadecimales hardcodeados y desconectados de tokens en `Tablero.tsx` y `explorador-drive.css` (resuelto en 7ce8ef8)
 - **Dónde**: `src/app/s/[clave]/Tablero.tsx:159`, `src/app/s/[clave]/panel.css:2-7`, `src/estilos/explorador-drive.css:12-32`
 - **Qué pasa**:
   - En `Tablero.tsx:159`, el icono de advertencia tiene su color hardcodeado: `<TriangleAlert size={13} aria-hidden="true" color="#f2b705" />`.
@@ -125,13 +125,13 @@ Solo hallazgos verificados en el código de `ops-v2`; no se modificó ningún ar
 - **Propuesta**: Utilizar `className="text-texto-aviso"` en el icono de `Tablero.tsx` y enlazar los colores de `explorador-drive.css` con los tokens de color del sistema de diseño.
 - **Prioridad**: Baja · **Esfuerzo**: S
 
-### P4-13 Restricción de espacio horizontal en navegación móvil del portal por padding excesivo
+### P4-13 Restricción de espacio horizontal en navegación móvil del portal por padding excesivo (resuelto en 7ce8ef8)
 - **Dónde**: `src/app/portal/(dentro)/layout.tsx:87-90`
 - **Qué pasa**: En dispositivos móviles, la barra de navegación del portal se desplaza horizontalmente con la clase `pl-28` para esquivar el avatar del cliente que cuelga desde la cabecera superior. En pantallas angostas (320px–360px como iPhone SE o Galaxy A), el área útil de navegación queda reducida a menos de 220px, forzando un scroll horizontal prematuro que oculta casi todas las pestañas disponibles.
 - **Propuesta**: Reducir el tamaño relativo del avatar en móvil o reubicar el avatar dentro de la fila de cabecera en pantallas `< 400px`, reduciendo `pl-28` a `pl-4` para que el cliente visualice al menos 3 destinos principales sin necesidad de scroll horizontal.
 - **Prioridad**: Media · **Esfuerzo**: S
 
-### P4-14 Falta de vista adaptada en tarjetas (`tarjetasEnMovil`) para la tabla de proyectos del portal
+### P4-14 Falta de vista adaptada en tarjetas (`tarjetasEnMovil`) para la tabla de proyectos del portal (resuelto en 7ce8ef8)
 - **Dónde**: `src/app/portal/(dentro)/TablaPortal.tsx:114-118`
 - **Qué pasa**: `TablaPortal` activa `tarjetasEnMovil={esSoporte}` únicamente cuando la sección es Soporte (`tarjeta={esSoporte ? (fila, catalogos) => <TarjetaDeSolicitud ... /> : undefined}`). En la sección de Proyectos (`/portal/proyectos`), la tabla no define prop `tarjeta` ni activa `tarjetasEnMovil`. En teléfonos móviles, la lista de proyectos se renderiza como una tabla HTML tradicional con scroll horizontal, mientras que Soporte se transforma limpiamente en tarjetas verticales táctiles mediante las utilidades de `movil.css`.
 - **Propuesta**: Implementar un renderizador de tarjeta `TarjetaDeProyectoPortal` y habilitar `tarjetasEnMovil` también para la sección de proyectos en `TablaPortal.tsx`.
@@ -153,13 +153,13 @@ Solo hallazgos verificados en el código de `ops-v2`; no se modificó ningún ar
 - **Propuesta**: Aplicar `animate-entrar-abajo` o `animate-aparecer` (con soporte para `motion-reduce:animate-none`) en el contenedor `<PanelVidrio>` de los formularios de acceso y en el `<main>` de la ficha pública de tarea.
 - **Prioridad**: Media · **Esfuerzo**: S
 
-### P4-17 Transiciones bruscas en el diálogo de rechazo de aprobaciones del portal
+### P4-17 Transiciones bruscas en el diálogo de rechazo de aprobaciones del portal (resuelto en 7ce8ef8)
 - **Dónde**: `src/app/portal/(dentro)/proyectos/[id]/AprobacionesPendientes.tsx:187-220`
 - **Qué pasa**: Al pulsar el botón "Rechazar", se abre un `Dialogo` con un `AreaTexto` para ingresar el motivo. El cambio de estado local (`rechazando`) y el reemplazo de la fila por el estado "Decisión enviada" tras la respuesta de la API ocurre de forma instantánea sin ninguna transición de opacidad o altura, produciendo un salto brusco en la lista de aprobaciones.
 - **Propuesta**: Añadir transiciones suaves de salida (`transition-opacity duration-rapida ease-neo`) en la fila aprobada/rechazada antes de removerla de la vista.
 - **Prioridad**: Baja · **Esfuerzo**: S
 
-### P4-18 Ausencia de animación al desplegar respuestas y citas en `ChatOrbe`
+### P4-18 Ausencia de animación al desplegar respuestas y citas en `ChatOrbe` (resuelto en 7ce8ef8)
 - **Dónde**: `src/componentes/ia/ChatOrbe.tsx:490-540`, `src/componentes/ia/TextoChat.tsx`
 - **Qué pasa**: Los nuevos turnos de respuesta de la IA y las tarjetas interactivas de propuestas/preguntas se montan directamente en el flujo del DOM sin una animación de entrada gradual (`animate-aparecer`). Al recibir la confirmación de una propuesta o una nueva respuesta de streaming, los bloques aparecen cortados abruptamente.
 - **Propuesta**: Agregar una clase de entrada sutil (`animate-aparecer` con `duration-rapida`) en las burbujas y tarjetas interactivas generadas en el hilo del chat.
@@ -169,7 +169,7 @@ Solo hallazgos verificados en el código de `ops-v2`; no se modificó ningún ar
 
 ### Deuda técnica
 
-### P4-19 Reglas de `.entrada-pagina` en `entrada-pagina.css` asumen estructura exclusiva del panel
+### P4-19 Reglas de `.entrada-pagina` en `entrada-pagina.css` asumen estructura exclusiva del panel (ya resuelto: `entrada-pagina.css` usa `:is(div, section, main)` y en el portal la estructura es `main > .entrada-pagina > section`, así que el escalonado aplica igual que en el panel)
 - **Dónde**: `src/estilos/entrada-pagina.css:42-70` frente a `src/app/portal/(dentro)/layout.tsx:93` y `src/app/portal/(dentro)/template.tsx:14`
 - **Qué pasa**: `portal/(dentro)/template.tsx` envuelve a sus hijos en `TransicionDePagina` (que aplica la clase `.entrada-pagina`). Sin embargo, en `entrada-pagina.css`, los selectores que escalonan y animan la página están fuertemente acoplados a la estructura del panel interno:
   - `.entrada-pagina header .bg-gradiente-marca` (el portal no usa `header` con barra de marca en la mayoría de sus pantallas).
@@ -177,13 +177,13 @@ Solo hallazgos verificados en el código de `ops-v2`; no se modificó ningún ar
 - **Propuesta**: Generalizar los selectores de `entrada-pagina.css` para que soporten tanto la estructura del panel (`main > section`) como la del portal (`ScrollSuave > main > div/section`), garantizando que el escalonamiento de entrada funcione de manera idéntica en ambos entornos.
 - **Prioridad**: Alta · **Esfuerzo**: M
 
-### P4-20 El chat flotante de IA (`OrbeChatIA`) carece de comportamiento drawer en pantallas móviles
+### P4-20 El chat flotante de IA (`OrbeChatIA`) carece de comportamiento drawer en pantallas móviles (resuelto en 7ce8ef8)
 - **Dónde**: `src/componentes/ia/OrbeChatIA.tsx:254-257`
 - **Qué pasa**: En `OrbeChatIA.tsx`, el panel flotante se posiciona con `fixed bottom-[calc(6rem_+_var(--barra-inferior,0px))] right-4` y `max-w-[calc(100vw-2rem)]`. En dispositivos móviles con pantallas estrechas, una caja flotante con tirador de redimensionamiento táctil (`alBajarPuntero`) resulta incómoda de maniobrar, tapa los elementos inferiores y compite con el teclado virtual.
 - **Propuesta**: En pantallas `< 768px`, hacer que el panel flotante se fije al fondo de la pantalla como un modal inferior / cajón deslizante a ancho completo (`inset-x-0 bottom-0 rounded-t-tarjeta max-w-full`), desactivando el tirador de redimensionamiento libre en pantallas táctiles pequeñas.
 - **Prioridad**: Media · **Esfuerzo**: M
 
-### P4-21 Inclusión global obligatoria de `livekit.css` y `acta.css` en todas las páginas de la aplicación
+### P4-21 Inclusión global obligatoria de `livekit.css` y `acta.css` en todas las páginas de la aplicación (resuelto en 7ce8ef8)
 - **Dónde**: `src/app/globals.css:20-25`
 - **Qué pasa**: `globals.css` importa `@import '../estilos/livekit.css'` y `@import '../estilos/acta.css'` en el bundle global que se descarga en cada pantalla del sitio (incluyendo el portal del cliente, login y pantallas públicas). Estas hojas contienen selectores específicos (`[data-lk-theme='wiwo']`, `.acta-editor`) que únicamente se utilizan dentro de `/teletrabajo/[sala]` y en el editor de actas.
 - **Propuesta**: Mover la importación de `livekit.css` exclusivamente al layout o página de videollamadas (`src/app/(panel)/teletrabajo/`), evitando sobrecargar el CSS crítico inicial del portal y de las superficies públicas.

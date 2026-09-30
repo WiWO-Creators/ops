@@ -208,7 +208,7 @@ Auditoría exhaustiva de consistencia de interfaz, refinamiento visual, deuda t�
 - **Propuesta**: Implementar un componente `Acordeon` basado en Radix UI (`@radix-ui/react-accordion`) o aplicar transiciones CSS con `interpolate-size: allow-keywords` y `transition: height var(--wiwo-motion-fast) var(--ease-neo)`.
 - **Prioridad**: Baja · **Esfuerzo**: M
 
-### P3-25 Cifras comparativas y métricas de KPIs estáticas sin animación numérica
+### P3-25 Cifras comparativas y métricas de KPIs estáticas sin animación numérica (resuelto en 7ce8ef8)
 - **Dónde**: `src/componentes/indicadores/TableroDeIndicadores.tsx:93`, `src/componentes/supervision/HojasDelEquipo.tsx:32`, `src/app/(panel)/inicio/AvisoJornada.tsx:45`
 - **Qué pasa**: Al cambiar las fechas en el tablero de indicadores o al cargar la supervisión del equipo, los deltas numéricos (+4, -12) y totales se dibujan planos y estáticos, sin ninguna microanimación de actualización o conteo.
 - **Propuesta**: Añadir la clase `animate-entrar-escala` o `animate-aparecer` a las celdas de deltas y contadores clave al actualizar datos.

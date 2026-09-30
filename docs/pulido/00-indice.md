@@ -56,7 +56,7 @@ Varios hallazgos son el mismo problema visto desde áreas distintas. Conviene re
 | Aviso tras guardar | P1-05, P3-18, P4-03 | Regla: toda mutación exitosa llama `useAviso().exito()` |
 | Utilidades duplicadas | P1-08…P1-11, P2-09, P4-05, P4-07 | Consolidar en `src/lib` (fechas, duraciones, iniciales, `SIN_DATO`) |
 | Textos | P3-15, P3-16, P3-17, P1-04, P1-06, P1-07, P3-11 | Tuteo único, «Eliminar» único, verbos de confirmación y `GLOSARIO` |
-| Movimiento fuera de tokens | P4-04, P2-17, 88 `duration-N` literales | Pasar a `--wiwo-motion-*` y agregar lint para `animate-pulse`/`ping` fuera de `estado/` |
+| Movimiento fuera de tokens | P4-04, P2-17, 88 `duration-N` literales | Pasar a `--wiwo-motion-*` y agregar lint para `animate-pulse`/`ping` fuera de `estado/` (resuelto en 7ce8ef8) |
 
 ## Plan por encargos
 
