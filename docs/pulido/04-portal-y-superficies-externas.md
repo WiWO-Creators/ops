@@ -66,7 +66,7 @@ Solo hallazgos verificados en el código de `ops-v2`; no se modificó ningún ar
 - **Propuesta**: Importar y consumir la paleta o la función de color directamente desde `src/lib/personas.ts`, manteniendo únicamente el marcado específico en `vmin` dentro de `piezas.tsx`.
 - **Prioridad**: Media · **Esfuerzo**: S
 
-### P4-06 Reglas CSS históricas y duplicadas de Neo v1/v3 en `thinking-orb.css`
+### P4-06 Reglas CSS históricas y duplicadas de Neo v1/v3 en `thinking-orb.css` (descartado: archivo generado cuya cabecera pide no limpiar la cascada; el peso del CSS no se midió como problema)
 - **Dónde**: `src/estilos/thinking-orb.css:32-38`, `:88-340`, `:2349-2353`
 - **Qué pasa**: `thinking-orb.css` acumula 2.386 líneas de estilos. Gran parte del inicio del archivo define variables obsoletas de versiones tempranas de Neo (`--orb-size: 245px`, selectores con `:nth-of-type` y keyframes de versiones previas) que luego son anuladas explícitamente en el bloque inferior "Capa del producto" (líneas 2310-2386) mediante `--orb-w`, `--orb-h`, `--orbe-u` y selectores con nombres de clase específicos (`.orb-particle-uno`, `.orb-particle-dos`). Este archivo se importa de manera global en `globals.css` para toda la aplicación, forzando a los navegadores a parsear 2.4k líneas de keyframes y gradientes que en su mayoría están en desuso.
 - **Verificación**: el archivo es **generado** por `herramientas/construir-orbe-css.mjs` y su cabecera (`thinking-orb.css:80-83`) conserva a propósito las reglas v1→v3→v6 en el orden original: «la cascada es parte del diseño final. No reordenar ni "limpiar" duplicados sin probar». Todas sus clases raíz se usan (ver P2-06).
@@ -83,7 +83,7 @@ Solo hallazgos verificados en el código de `ops-v2`; no se modificó ningún ar
 
 ### Sin terminar
 
-### P4-08 Ausencia casi total de skeletons dedicados (`loading.tsx`) en el portal del cliente
+### P4-08 Ausencia casi total de skeletons dedicados (`loading.tsx`) en el portal del cliente (resuelto en 881fece)
 - **Dónde**: `src/app/portal/(dentro)/proyectos/`, `src/app/portal/(dentro)/proyectos/[id]/`, `src/app/portal/(dentro)/soporte/`, `src/app/portal/(dentro)/archivos/`, `src/app/portal/(dentro)/anuncios/`, `src/app/portal/(dentro)/ayuda/`, `src/app/portal/(dentro)/perfil/`
 - **Qué pasa**: A excepción de `reporte/loading.tsx` (que implementa un skeleton estructural excelente con `Hueso`), **ninguna otra sección del portal cuenta con un archivo `loading.tsx` propio ni existe un `loading.tsx` general en `portal/(dentro)/`**. Cuando el cliente navega a un proyecto con gran volumen de datos, a la bandeja de tickets o a sus archivos, la interfaz congela la pantalla anterior hasta que el Server Component resuelve los datos del backend, produciendo una sensación de lentitud o de interfaz no receptiva.
 - **Propuesta**: Crear un `loading.tsx` en `src/app/portal/(dentro)/loading.tsx` con un esqueleto base de página (título y tarjeta o tabla con `Hueso`), y un `loading.tsx` específico en `portal/(dentro)/proyectos/[id]/` que reserve el espacio de la cabecera y el tablero del proyecto.
@@ -100,7 +100,7 @@ Solo hallazgos verificados en el código de `ops-v2`; no se modificó ningún ar
   - Crear `src/app/s/[clave]/error.tsx` con el estilo monoespaciado de `panel.css` y botón de reintento.
 - **Prioridad**: Alta · **Esfuerzo**: M
 
-### P4-10 Ausencia de reintento asistido e iconografía de aviso en fallos del chat de salas LiveKit
+### P4-10 Ausencia de reintento asistido e iconografía de aviso en fallos del chat de salas LiveKit (resuelto en 881fece)
 - **Dónde**: `src/componentes/teletrabajo/ChatDeSala.tsx:117-121`
 - **Qué pasa**: Cuando el envío de un mensaje falla en el chat de la videollamada (`catch` en `enviar()`), el componente simplemente muestra un texto rojo plano: `<p role="status" className="text-texto-peligro px-3 text-xs">No se pudo enviar. Prueba de nuevo.</p>`. No se acompaña de un icono de advertencia (`AlertTriangle`), no ofrece un botón explícito de reintento sobre el mensaje fallido ni se limpia automáticamente cuando el usuario vuelve a tipear en la entrada.
 - **Propuesta**: Enriquecer el estado de fallo con un icono semántico, aria-live adecuado y borrado del error tan pronto el usuario modifique el texto del campo.
@@ -137,7 +137,7 @@ Solo hallazgos verificados en el código de `ops-v2`; no se modificó ningún ar
 - **Propuesta**: Implementar un renderizador de tarjeta `TarjetaDeProyectoPortal` y habilitar `tarjetasEnMovil` también para la sección de proyectos en `TablaPortal.tsx`.
 - **Prioridad**: Media · **Esfuerzo**: M
 
-### P4-15 Estado de carga sin skeleton estructurado en el árbol de Drive
+### P4-15 Estado de carga sin skeleton estructurado en el árbol de Drive (resuelto en 881fece)
 - **Dónde**: `src/componentes/archivos/ArbolDrive.tsx:105`
 - **Qué pasa**: Durante la carga inicial de carpetas y archivos de Google Drive, el componente muestra un componente genérico `<Cargando alto="min-h-40" mensaje="Cargando Drive…" />` (spinner con texto). Dado que el árbol renderiza filas de archivos y carpetas con iconos y jerarquía, este indicador genérico produce saltos de layout (CLS) en cuanto el árbol se resuelve.
 - **Propuesta**: Reemplazar `Cargando` por un skeleton de árbol que muestre 3 a 5 filas con `Hueso` simulando carpetas y archivos antes de que lleguen los datos de la API.

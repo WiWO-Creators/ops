@@ -113,13 +113,13 @@ Las rutas son relativas a `ops-v2/`.
 - **Propuesta**: Mover `Dato`, `ChecklistDeLectura`, `AdjuntosDeLectura` y `Comentarios` a un módulo sin `'use client'` (p. ej. `proyecto/ficha-de-lectura.tsx`) y consumirlo desde los dos.
 - **Prioridad**: Media · **Esfuerzo**: M
 
-### P1-16 Diez máquinas de carga escritas a mano pese a `useRecurso`
+### P1-16 Diez máquinas de carga escritas a mano pese a `useRecurso` (resuelto en 881fece: `EstadoCarga<T>` en los que encajan y `MENSAJE_SESION_CERRADA` en toda lectura al BFF; los demás tienen fases propias como `sinPermiso` o `sinPedir`)
 - **Dónde**: `src/componentes/proyecto/carga.ts:17-20,91` (`EstadoCarga<T>`, `useRecurso`) frente a tipos propios en `MenuHitoTarea.tsx:50`, `ImportarTareas.tsx:71`, `acta/TareasPropuestas.tsx:90`, `PanelArchivos.tsx:97`, y `fase: 'cargando'` sin `useRecurso` en `PanelTareas.tsx`, `PanelRecurso.tsx`, `AgregarAlHito.tsx`, `CompartirTarea.tsx`, `DetalleTarea.tsx`, `mis-tareas/TareasAsignadas.tsx`, `recurrencia/HistorialDeCopias.tsx`
 - **Qué pasa**: `carga.ts` existe para "hacer el baile una sola vez" (pedir, error legible, reintentar, sesión cerrada) pero diez archivos lo repiten con variantes (`datos` / `archivos` / `opciones`) y sin el mensaje `MENSAJE_SESION_CERRADA`.
 - **Propuesta**: Migrar los que piden un único recurso a `useRecurso`; los que no encajen, al menos reusar `EstadoCarga<T>`.
 - **Prioridad**: Media · **Esfuerzo**: M
 
-### P1-17 Errores en línea escritos a mano (58) pese a `AvisoEnLinea`
+### P1-17 Errores en línea escritos a mano (58) pese a `AvisoEnLinea` (resuelto en 881fece; quedan a mano los que llevan botón, ícono o lista)
 - **Dónde**: `<p role="alert" className="text-texto-peligro …">` en 58 lugares del frente (más en `MenuProyecto.tsx`, `EditorScope.tsx`, `recurrencia/LimpiezaDeCopias.tsx`, `recurrencia/VistaRecurrentes.tsx`, `recurrencia/EditorDeRegla.tsx`, `PanelConfiguracionEspacio.tsx`, `FormularioRecurso.tsx`, `EditorPlantilla.tsx`); `AvisoEnLinea` (`src/componentes/estado/Estados.tsx:180`) solo se usa en `AccionesMasivasTareas.tsx` y `HiloDeComentarios.tsx`
 - **Qué pasa**: Hay nueve combinaciones de clases (`text-sm`/`text-xs`, con y sin `animate-entrar-abajo`, márgenes sueltos) para el mismo mensaje. Solo cuatro entran animados.
 - **Propuesta**: Reemplazar por `AvisoEnLinea variante="error"`, y añadir `animate-entrar-abajo` dentro de `AvisoEnLinea` para que todos entren igual.
@@ -141,19 +141,19 @@ Las rutas son relativas a `ops-v2/`.
 - **Propuesta**: `loading.tsx` en `mis-tareas` (`TituloModulo` + `Cargando`) y en `tareas/tablero` y `tareas/calendario` con su título.
 - **Prioridad**: Alta · **Esfuerzo**: S
 
-### P1-20 Carga en texto plano en el historial de aprobaciones
+### P1-20 Carga en texto plano en el historial de aprobaciones (resuelto en 881fece; no era el único: quedan «Cargando…» en línea en `ArbolLateralDrive`, `PresetsFiltro`, `TarjetaFlotantePersona` y los selectores de Live, donde el bloque con orbe no cabe)
 - **Dónde**: `src/componentes/proyecto/HistorialDeAprobaciones.tsx:112`
 - **Qué pasa**: `<p>Cargando…</p>` suelto, contra la regla "un solo lenguaje de carga" (`docs/sistema-de-diseno.md` § El orbe). Es el único caso del frente.
 - **Propuesta**: `<Cargando alto="min-h-24" mensaje="Cargando las rondas…" />`.
 - **Prioridad**: Baja · **Esfuerzo**: S
 
-### P1-21 Errores sin "Reintentar"
+### P1-21 Errores sin "Reintentar" (resuelto en 881fece para los cuatro citados; quedan unos 40 `ErrorEstado` sin reintento, sobre todo en páginas de servidor, que pueden pasar a `ErrorRecargable`; sin asignar)
 - **Dónde**: `src/componentes/proyecto/PanelCalendario.tsx:303`, `src/componentes/proyecto/TableroHitos.tsx:242`, `src/app/(panel)/proyectos/[id]/page.tsx:172`, `src/app/(panel)/proyectos/solicitudes/page.tsx:125`
 - **Qué pasa**: Casi todos los `ErrorEstado` del frente ofrecen `onReintentar`; estos cuatro dejan a la persona sin salida salvo recargar la página.
 - **Propuesta**: Pasar `onReintentar` (recarga del recurso en los paneles cliente; `router.refresh()` desde un envoltorio cliente en las páginas de servidor).
 - **Prioridad**: Media · **Esfuerzo**: S
 
-### P1-22 Controles del encabezado que aparecen de golpe
+### P1-22 Controles del encabezado que aparecen de golpe (resuelto en 881fece)
 - **Dónde**: `src/app/(panel)/tareas/page.tsx:80`, `src/app/(panel)/tareas/tablero/page.tsx:73` (`<Suspense>` sin fallback), `src/app/(panel)/mis-tareas/page.tsx:73,83` (`fallback={null}`)
 - **Qué pasa**: Los interruptores del encabezado y la barra de vencimiento se pintan después del resto y empujan el contenido (salto de layout), justo durante la entrada de página.
 - **Propuesta**: Un fallback con la misma forma: el `Boton` deshabilitado con su etiqueta, y un contenedor de `h-9` para los filtros.

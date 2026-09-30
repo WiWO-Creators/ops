@@ -35,7 +35,7 @@ Todas las rutas son relativas a `ops-v2/`.
 - **Propuesta**: Unificar `Avatar` e `ImagenEntidad` bajo un mismo contrato de diseño (`tamano="chico" | "medio" | "grande"` o escala basada en variables de sistema `--step-*`), compartiendo la resolución de iniciales y fallback visual.
 - **Prioridad**: Media · **Esfuerzo**: S
 
-### P2-05 Indicador de carga asíncrona: dualidad entre Orbe de Thinking y spinners/pulsos
+### P2-05 Indicador de carga asíncrona: dualidad entre Orbe de Thinking y spinners/pulsos (ya resuelto: `OrbeThinking.tsx` no existe, `MiniLlamada` pulsa con `motion-safe:` desde 6072d52, `Hueso` pulsa solo mientras carga y la píldora es excepción documentada)
 - **Dónde**: `src/componentes/estado/Estados.tsx:16-36` (`Cargando`), `src/componentes/ia/OrbeThinking.tsx` vs. `src/componentes/proyecto/MenuEstadoProyecto.tsx:123`
 - **Qué pasa**: El estándar visual de carga viva del proyecto es el Orbe (`OrbeThinking` / `Orbe` de 3 capas), pero en componentes aislados conviven `animate-pulse` infinito en insignias y barras de esqueleto sin unificar.
 - **Propuesta**: Mantener el Orbe como único indicador dinámico de carga viva, consolidar `Cargando` en `Estados.tsx` y asegurar que `Skeleton` use transiciones de brillo sutil sin violar el guardrail de animación perpetua no deseada.
@@ -45,7 +45,7 @@ Todas las rutas son relativas a `ops-v2/`.
 
 ## Duplicación
 
-### P2-06 `thinking-orb.css`: tamaño alto, pero sin código muerto verificado
+### P2-06 `thinking-orb.css`: tamaño alto, pero sin código muerto verificado (descartado: `retry` no tiene emisor —no está en `ESTADOS_ORBE`—, pero su bloque vive en un archivo generado; si se borra, en el generador y con P4-06)
 - **Dónde**: `src/estilos/thinking-orb.css` (2.386 líneas, 39 `@keyframes`), consumido por `src/componentes/estado/Orbe.tsx`.
 - **Verificación**: la versión original de este hallazgo citaba clases (`.neo-surface-orb`, `.orb-glow-layer-3`) y un `OrbeThinking.tsx` que no existen. Comprobado: las 23 clases raíz del archivo se usan en TSX y los estados `data-thinking-state` se emiten todos salvo, posiblemente, `retry` (sin literal `'retry'` en `componentes/estado`, `componentes/ia` ni `dominio`).
 - **Propuesta**: No purgar a ciegas. Solo confirmar si el estado `retry` tiene emisor; si no, borrar su bloque. El resto es el orbe portado de Neo y está vivo.
@@ -116,7 +116,7 @@ Todas las rutas son relativas a `ops-v2/`.
 - **Propuesta**: Desacoplar `PaginacionTabla` en dos variantes: una conectada a URL (`PaginacionUrl`) y una controlada pura (`PaginacionControlada` con `pagina`, `totalPaginas`, `onChange`).
 - **Prioridad**: Media · **Esfuerzo**: S
 
-### P2-15 Inconsistencia en la presentación de estados vacíos contextuales
+### P2-15 Inconsistencia en la presentación de estados vacíos contextuales (descartado: `LineaDeActividad` y `TablaRecurso` ya usan `Vacio`, que ya acepta `accion`)
 - **Dónde**: `src/componentes/estado/Estados.tsx:38-65` (`Vacio`) vs. `src/componentes/proyecto/LineaDeActividad.tsx:42-45` vs. `src/componentes/datos/TablaRecurso.tsx:440-455`
 - **Qué pasa**: `Vacio` en `Estados.tsx` tiene un diseño estándar con orbe tenue y tipografía centrada. No obstante, en ciertas subpantallas y tablas se usan textos planos o estructuras `div` sin icono, perdiendo la identidad gráfica del sistema.
 - **Propuesta**: Exigir el uso exclusivo de `Vacio` para cualquier contenedor sin datos, permitiendo configurar acción primaria opcional (`accion?: ReactNode`).
